@@ -166,9 +166,12 @@ rbart_vi <- function(
 
   keepSampler <- keepSampler || control@keepTrees
 
-  tree.prior <- quote(cgm(power, base))
-  tree.prior[[2L]] <- if (is.null(power)) 2.0 else power
-  tree.prior[[3L]] <- if (is.null(base)) 0.95 else base
+  if (is.null(power)) {
+    power <- 2.0
+  }
+  if (is.null(base)) {
+    base <- 0.95
+  }
 
   if (!is.null(matchedCall[["k"]])) {
     leaf.prior <- quote(normal(k))
@@ -413,7 +416,8 @@ rbart_vi <- function(
   samplerArgs <- namedList(
     formula = data,
     control,
-    tree.prior,
+    power,
+    base,
     leaf.prior,
     family,
     sigest

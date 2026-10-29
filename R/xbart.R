@@ -28,7 +28,6 @@ xbart <- function(
   useQuantiles = FALSE,
   n.thin = 1L,
   storage = c("double", "single"),
-  tree.prior = NULL,
   parallel = getOption("dbarts.parallel", "auto"),
   cl = NULL,
   control = dbarts::dbartsControl(),
@@ -74,6 +73,9 @@ xbart <- function(
   # '...' exists only so a retired argument name reaches a message naming
   # its successor; R refuses an unknown name before any body runs
   supplied <- dotNames(...)
+  if ("tree.prior" %in% supplied) {
+    refuseRetiredTreePrior(matchedCall[["tree.prior"]], parent.frame(), "xbart")
+  }
   refuseForeignFrontDoorArgs(supplied, "xbart", names(formals(dbarts::xbart)))
   consolidated <- resolveConsolidatedArgs(
     matchedCall,
@@ -428,27 +430,12 @@ xbart <- function(
     stop("'base' must contain only values in (0, 1)")
   }
 
-  # tree.prior (3.f, f4): follows the same grid-axis-overrides-the-object
-  # rule as leaf.prior/k above - power and base are xbart's grid axes, so
-  # cellModel overwrites them on the object every cell regardless of what is
-  # supplied here, while the object's non-grid content (a cgm's split.probs,
-  # a dart's Dirichlet hyperparameters) rides every cell unchanged.
-  # split.probs would only duplicate what a supplied tree.prior already
-  # specifies, so it collides with it; power/base/k do not, since they are
-  # grid axes rather than duplicates - this deliberately differs from
-  # bart2's tree.prior, which does collide with power/base (R/bart.R's
-  # buildSamplerPriors), because there they are ordinary scalars, not a grid.
-  if (!is.null(matchedCall[["tree.prior"]])) {
-    refuseColliding(matchedCall, "tree.prior", "split.probs")
-    tree.prior <- evalInVocabulary(
-      matchedCall[["tree.prior"]],
-      dbartsPriors[c("cgm", "dart")],
-      evalEnv,
-      resolvedAs("tree.prior", "dbartsTreePrior", "tree prior specification")
-    )
-  } else {
-    tree.prior <- cgm(power[1L], base[1L], split.probs)
-  }
+  # power and base are grid axes, which cellModel writes on the record each
+  # cell; split.probs, a vector or dart(), resolves in its vocabulary as the
+  # fitting functions resolve it, and rides every cell unchanged
+  tree.prior <- splitProbsRecord(matchedCall[["split.probs"]], ncol(data@x), evalEnv)
+  tree.prior@power <- power[1L]
+  tree.prior@base <- base[1L]
   tree.prior <- resolveSplitProbabilities(tree.prior, data)
 
   # the leaf model is built at the first cell's k; cellModel swaps the

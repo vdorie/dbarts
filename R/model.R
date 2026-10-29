@@ -223,27 +223,27 @@ setMethod(
 parsePriors <- function(
   control,
   data,
-  tree.prior,
+  power = 2,
+  base = 0.95,
+  split.probs = NULL,
   leaf.prior,
   resid.prior,
   monotone = NULL,
   multiForest = FALSE,
   kHyperprior = control@binary,
-  parentEnv
+  parentEnv,
+  treePrior = NULL
 ) {
   matchedCall <- match.call()
 
   # the prior vocabulary shadows the caller's environment inside these
   # arguments only: bare names like normal(chi(1.5)) resolve here no matter
-  # what packages are attached, and nothing is exported under generic names.
-  # Both spellings are exposed for the split.probs vocabulary: num.vars is the
-  # current name, numvars the backward-compatible alias, so a bare 1 / num.vars
-  # or 1 / numvars in a split.probs expression resolves either way
+  # what packages are attached, and nothing is exported under generic names
   vocabulary <- c(
     dbartsPriors,
     list(num.vars = ncol(data@x), numvars = ncol(data@x))
   )
-  # a bare constructor name (tree.prior = cgm) means its defaults; a value
+  # a bare constructor name (leaf.prior = normal) means its defaults; a value
   # that is already a prior object passes through
   resolveSpec <- function(expr, name, class, label) {
     evalInVocabulary(
@@ -254,11 +254,11 @@ parsePriors <- function(
     )
   }
 
-  tree.prior <- resolveSpec(
-    matchedCall$tree.prior,
-    "tree.prior",
-    "dbartsTreePrior",
-    "tree prior"
+  tree.prior <- resolveTreePrior(
+    matchedCall,
+    ncol(data@x),
+    parentEnv,
+    treePrior
   )
   tree.prior <- resolveSplitProbabilities(tree.prior, data)
   # BART package startdart convention: hold the Dirichlet updates until the
@@ -306,6 +306,129 @@ parsePriors <- function(
   prior.scale <- resolved$prior.scale
 
   namedList(tree.prior, resid.prior, leaf.prior, leaf.hyperprior, prior.scale)
+}
+
+## The vocabulary a split.probs expression is written in, over the caller's
+## frame: dart() and the number of predictors, under its current name num.vars
+## and its backward-compatible alias numvars, so a bare 1 / num.vars or
+## 1 / numvars resolves either way.
+splitProbsVocabulary <- function(numVars) {
+  list(dart = dart, num.vars = numVars, numvars = numVars)
+}
+
+## Which of the constructors cgm() and dart() a call's head names, in any
+## spelling a caller writes: bare, from dbartsPriors (qualified or not), or
+## from the package's namespace. NULL for any other expression.
+treePriorConstructorHead <- function(expr) {
+  if (!is.call(expr)) {
+    return(NULL)
+  }
+  head <- expr[[1L]]
+  priorsList <- list(
+    quote(dbartsPriors),
+    quote(dbarts::dbartsPriors),
+    quote(dbarts:::dbartsPriors)
+  )
+  name <- if (is.symbol(head)) {
+    as.character(head)
+  } else if (
+    is.call(head) &&
+      identical(head[[1L]], as.name("$")) &&
+      any(vapply(priorsList, identical, NA, head[[2L]])) &&
+      is.symbol(head[[3L]])
+  ) {
+    as.character(head[[3L]])
+  } else if (
+    is.call(head) &&
+      length(head) == 3L &&
+      (identical(head[[1L]], as.name("::")) ||
+        identical(head[[1L]], as.name(":::"))) &&
+      identical(head[[2L]], as.name("dbarts"))
+  ) {
+    as.character(head[[3L]])
+  }
+  if (length(name) == 1L && name %in% c("cgm", "dart")) name
+}
+
+refuseCgmAsSplitProbs <- function() {
+  stop(
+    "'split.probs' takes a vector of split probabilities or dart(); cgm() is ",
+    "the retired tree.prior's value: write power, base and split.probs",
+    call. = FALSE
+  )
+}
+
+## A fitting function's 'power' or 'base', as `matchedCall` names it and
+## `parentEnv` evaluates it: the default where it is not given or is NULL,
+## and otherwise a single positive number, a base below 1, kept as given.
+plainTreePriorValue <- function(matchedCall, name, parentEnv, default) {
+  expr <- matchedCall[[name]]
+  value <- if (!is.null(expr)) eval(expr, parentEnv)
+  if (is.null(value)) {
+    return(default)
+  }
+  valid <- is.numeric(value) &&
+    length(value) == 1L &&
+    !is.na(value) &&
+    value > 0 &&
+    (name == "power" || value < 1)
+  if (!valid) {
+    stop(
+      "'",
+      name,
+      "' must be a single ",
+      if (name == "power") "positive number" else "number in (0, 1)",
+      call. = FALSE
+    )
+  }
+  value
+}
+
+## The record a split.probs expression builds, resolved in its vocabulary over
+## `parentEnv`: dart() or a bare dart a dbartsDartPrior, a vector of
+## probabilities or NULL a dbartsCGMPrior carrying it as its specification,
+## each at the default depth.
+splitProbsRecord <- function(expr, numVars, parentEnv) {
+  if (is.null(expr)) {
+    return(cgm())
+  }
+  written <- recoverForwardedArgument(expr, parentEnv)$expr
+  if (identical(treePriorConstructorHead(written), "cgm")) {
+    refuseCgmAsSplitProbs()
+  }
+  value <- evalInVocabulary(expr, splitProbsVocabulary(numVars), parentEnv)
+  if (identical(value, dart)) {
+    value <- dart()
+  }
+  if (is(value, "dbartsDartPrior")) {
+    return(value)
+  }
+  if (is(value, "dbartsCGMPrior") || identical(value, cgm)) {
+    refuseCgmAsSplitProbs()
+  }
+  if (length(value) > 0L && !is.numeric(value)) {
+    stop("'split.probs' must be a numeric vector or dart()", call. = FALSE)
+  }
+  cgm(split.probs = value)
+}
+
+## The model's tree-prior record: the split probabilities' record, or
+## `record`, a whole record a retired tree.prior handed over, with the
+## fitting function's power and base written on it. `matchedCall` is
+## parsePriors's own call, whose arguments are written in `parentEnv`.
+resolveTreePrior <- function(matchedCall, numVars, parentEnv, record = NULL) {
+  power <- plainTreePriorValue(matchedCall, "power", parentEnv, 2)
+  base <- plainTreePriorValue(matchedCall, "base", parentEnv, 0.95)
+  if (is.null(record)) {
+    record <- splitProbsRecord(
+      matchedCall[["split.probs"]],
+      numVars,
+      parentEnv
+    )
+  }
+  record@power <- power
+  record@base <- base
+  record
 }
 
 ## Turn a linear or gp leaf prior's raw columns specification into 1-based
@@ -542,11 +665,9 @@ defaultLeafScale <- function(family) {
 }
 
 ## Refuses a prior object supplied together with a shorthand argument that
-## would have built the same prior, naming both. The collision set is data
-## because it differs by entry point: bart2 collides tree.prior with
-## power/base, xbart deliberately does not, since there they are grid axes
-## that override any supplied object every cell (man/xbart.Rd). Presence in
-## the matched call, not an explicit-NULL value, is what collides.
+## would have built the same prior, naming both: leaf.prior with k, the
+## retired resid.prior with sigdf and sigquant. Presence in the matched call,
+## not an explicit-NULL value, is what collides.
 ## 'supplied' names the shorthands that reached the caller through '...'
 ## rather than as formals: a retired name is cleared from the matched call
 ## before anything is forwarded, so the call alone no longer sees it.
@@ -1813,7 +1934,7 @@ multipliedForestDefaults <- list(n.trees = 50L, base = 0.25, power = 3)
 
 ## The attribute bart() and bartBT() stamp on the control they build with
 ## what their own caller stated (plainForestStated). That control always names
-## a tree count and the call handed to dbarts() always a tree prior, so
+## a tree count and bartBT() always hands dbarts() a power and a base, so
 ## dbarts() cannot read either from what it is given. Not a bartcore.*
 ## attribute, which is fit state: the sampler specification takes it off the
 ## control it resolves.
@@ -1828,20 +1949,23 @@ controlStatesTreeCount <- function(control) {
     !identical(control@n.trees, formals(dbarts::dbartsControl)$n.trees)
 }
 
-## The names under which a fitting function takes the three arguments that
-## are the forest with no basis's own, each in the order it is looked for.
+## The names under which a fitting function takes the arguments that are the
+## forest with no basis's own, each in the order it is looked for. The split
+## probabilities are not among them: they are the model's, judged by their
+## value where no forest can take them.
 plainForestArgNames <- list(
   n.trees = "n.trees",
-  tree.prior = c("tree.prior", "power", "base", "split.probs"),
+  power = "power",
+  base = "base",
   leaf.prior = c("leaf.prior", "k", "node.prior")
 )
 
-## What the caller of a fitting function stated of the three arguments that
-## are the forest with no basis's own: the tree count, the tree prior and the
-## leaf prior. Stated means named, the default's own value included. `written`
-## holds the argument names the caller wrote, `control` the control the
-## caller gave, NULL for none, and `argNames` that function's names for the
-## three. Returns, for each of "n.trees", "tree.prior" and "leaf.prior" that
+## What the caller of a fitting function stated of the arguments that are the
+## forest with no basis's own: the tree count, the tree prior's power and base,
+## and the leaf prior. Stated means named, the default's own value included.
+## `written` holds the argument names the caller wrote, `control` the control
+## the caller gave, NULL for none, and `argNames` that function's names for
+## them. Returns, for each of "n.trees", "power", "base" and "leaf.prior" that
 ## is stated, the name it was stated under, "control" for a count the control
 ## states. `remedy` says whether the fitting function can be told to state
 ## these on a forest; where it cannot (bartBT() has no `forests` and refuses
@@ -1865,7 +1989,8 @@ plainForestStated <- function(
     } else if (!is.null(control) && controlStatesTreeCount(control)) {
       "control"
     },
-    tree.prior = firstWritten(argNames$tree.prior),
+    power = firstWritten(argNames$power),
+    base = firstWritten(argNames$base),
     leaf.prior = firstWritten(argNames$leaf.prior)
   )
   if (is.null(stated)) {
@@ -1878,10 +2003,10 @@ plainForestStated <- function(
 }
 
 ## The refusal of what the fitting function states for the forest with no
-## basis in a model that has none: each of the tree count, the tree prior, the
-## leaf prior, 'interactions' and 'blocks' that is stated has no forest to
-## belong to. In that order, the first one stated. `stated` is
-## plainForestStated's value.
+## basis in a model that has none: each of the tree count, the tree prior's
+## power and base, the leaf prior, 'interactions' and 'blocks' that is stated
+## has no forest to belong to. In that order, the first one stated. `stated`
+## is plainForestStated's value.
 refuseStatedWithNoPlainForest <- function(stated, interactions, blocks) {
   # where the fitting function cannot take an argument on a forest, the caller
   # is told what it can do: leave the argument out, or fit with dbarts()
@@ -1919,12 +2044,20 @@ refuseStatedWithNoPlainForest <- function(stated, interactions, blocks) {
       if (fromControl) "leave it out of dbartsControl()" else "leave it out"
     )
   }
-  if ("tree.prior" %in% names(stated)) {
-    refuse(
-      given(stated[["tree.prior"]]),
-      "the tree prior of",
-      "state it on a forest, as forest(x1, basis = a, base = 0.25, power = 3)"
-    )
+  for (name in c("power", "base")) {
+    if (name %in% names(stated)) {
+      refuse(
+        given(stated[[name]]),
+        "the tree prior of",
+        paste0(
+          "state it on a forest, as forest(x1, basis = a, ",
+          name,
+          " = ",
+          multipliedForestDefaults[[name]],
+          ")"
+        )
+      )
+    }
   }
   if ("leaf.prior" %in% names(stated)) {
     refuse(
@@ -1954,6 +2087,41 @@ refuseStatedWithNoPlainForest <- function(stated, interactions, blocks) {
     )
   }
   invisible(NULL)
+}
+
+## The fitting function's settings that are the forest with no basis's own and
+## that the forest states too: its 'n.trees', 'power' and 'base', each one
+## setting written twice and refused by name, the forest's statement of one
+## leaving the others the fitting function's. A count the control states is
+## not the fitting function's to give twice, and is left to the forest's.
+## `stated` is plainForestStated's value, `plainSpec` that forest's resolved
+## knobs and `where` how the refusal shows it.
+refuseStatedOnPlainForest <- function(stated, plainSpec, where) {
+  for (name in c("n.trees", "power", "base")) {
+    if (
+      name %in% names(stated) &&
+        !identical(stated[[name]], "control") &&
+        !is.null(plainSpec[[name]])
+    ) {
+      refuseGivenTwice(name, where)
+    }
+  }
+  invisible(NULL)
+}
+
+## The refusal of one of 'n.trees', 'power' and 'base' given to the fitting
+## function and to the forest with no basis, shown as `where`.
+refuseGivenTwice <- function(name, where) {
+  stop(
+    "'",
+    name,
+    "' is given to the fitting function and to the forest with no basis (",
+    where,
+    "), which are the same ",
+    if (name == "n.trees") "count" else "setting",
+    "; give one",
+    call. = FALSE
+  )
 }
 
 ## Resolve a `forests` declaration into the per-forest knobs a sampler
@@ -2355,6 +2523,8 @@ columnLabels <- function(columnNames, cols) {
 }
 
 num.vars <- numvars <- NULL # R CMD check
+## The value of the retired tree.prior argument of dbarts() and dbartsSpec(),
+## which leaves with it; its class stays as the model's tree-prior record.
 cgm <- function(power = 2, base = 0.95, split.probs = NULL) {
   # NULL is absent, so it is the default
   if (is.null(power)) {
@@ -2689,9 +2859,10 @@ invchi <- function(df = 1.5, scale) {
   )
 }
 
+## DART's Dirichlet prior on the split probabilities, the value of
+## split.probs that selects it. Its record is the tree prior's, whose power
+## and base, held here at the defaults, the fitting function writes.
 dart <- function(
-  power = 2,
-  base = 0.95,
   a = 0.5,
   b = 1,
   rho = NULL,
@@ -2699,13 +2870,6 @@ dart <- function(
   update.alpha = TRUE,
   update.delay = NULL
 ) {
-  # NULL is absent, so it is the default
-  if (is.null(power)) {
-    power <- 2
-  }
-  if (is.null(base)) {
-    base <- 0.95
-  }
   refuseNaN(rho, "rho")
   refuseNaN(update.delay, "update.delay")
   if (isSingleNA(rho)) {
@@ -2716,8 +2880,8 @@ dart <- function(
   }
   newValidated(
     "dbartsDartPrior",
-    power = power,
-    base = base,
+    power = 2,
+    base = 0.95,
     splitProbabilities = numeric(),
     splitProbabilitiesSpec = NULL,
     a = a,
@@ -2817,7 +2981,9 @@ blocks <- function(groups, trees.per.group = NULL) {
 ## (resolveForestVars); a value handed over is names or positions. basis is
 ## the data the forest's amplitudes multiply, a one-sided formula or a vector,
 ## expanded by R's own model-matrix rule; n.trees, base and power are its
-## tree-structure prior; sd is its size in the response's units (the latent
+## tree-structure prior, and on the forest with no basis they are the fitting
+## function's arguments of the same names, so stating one at both levels is
+## refused, each name on its own; sd is its size in the response's units (the latent
 ## index's under probit and logistic), which the engine divides by the unit
 ## it derives at creation; amplitude = fixed() holds its coefficient at 1, the
 ## basis carrying the coding, and left out draws it; interactions and blocks are this forest's own constraints - the
@@ -3042,7 +3208,8 @@ isLoopMachinery <- function(place, expr) {
 ## object meaning every column, distinct from variance = NULL's "no
 ## variance forest". n.trees/base/power default to NULL, "not declared",
 ## matching forest(); resolveSamplerSpec falls each back to a default when
-## NULL (40 trees; the mean forest's tree.prior base/power), and
+## NULL (40 trees; the base and power the mean forest resolved to, the fitting
+## function's or a lone forest's own), and
 ## proposal.probs/n.perturb.cuts to the control's. It takes no treeShift: the
 ## variance forest takes no level step. Validated at fit time. Not exported,
 ## like forest().
@@ -3102,9 +3269,10 @@ print.dbartsVarianceForest <- function(x, ...) {
 ## The exported face of the prior constructors: one object, so that no
 ## generic name (normal, chisq, fixed, chi) enters the search path to be
 ## masked by or to mask another package by attach order. Inside the
-## tree.prior and leaf.prior arguments of the fitting functions - and inside
-## the 'sigma' argument of the families that draw a residual scale - the
-## same constructors are available by bare name.
+## leaf.prior argument of the fitting functions - and inside the 'sigma'
+## argument of the families that draw a residual scale - the same
+## constructors are available by bare name, as dart() is inside split.probs.
+## cgm() stays here as the value of the retired tree.prior until it leaves.
 dbartsPriors <- list(
   cgm = cgm,
   dart = dart,

@@ -662,67 +662,21 @@ packageBartResults <- function(
   invisible(result)
 }
 
-## Builds the quoted tree/leaf prior calls the entry points hand to
-## dbarts. nodeK is the leaf prior's k argument exactly as
-## it should enter the call - unevaluated for functions that redirect their
-## matched call, evaluated for those that forward through do.call from
-## internal frames - or NULL for no leaf prior. splitProbsName is the
-## caller's argument spelling and splitProbs the expression it carries, NULL
-## for an unsupplied one. shorthandSupplied names the shorthands that reached
-## the caller through '...' rather than as formals, which the matched call
-## no longer shows.
-buildSamplerPriors <- function(
-  matchedCall,
-  power,
-  base,
-  nodeK,
-  splitProbsName = "split.probs",
-  splitProbs = NULL,
-  splitProbsDefault = NULL,
-  shorthandSupplied = character()
-) {
-  # A caller-supplied tree.prior/leaf.prior object fully replaces the flat
-  # build below and is forwarded UNEVALUATED, exactly as k already is
-  # (nodeK), so a bare vocabulary name inside it (linear(), gp(), ...)
-  # resolves in the caller's own frame, not here. A shorthand that would
-  # otherwise help build the same prior is a collision, refused by name
-  # before anything is built. An explicit `tree.prior = NULL` is itself NULL
-  # here (match.call() stores a literal NULL as NULL), indistinguishable
-  # from not supplying one at all.
-  treePriorObj <- matchedCall[["tree.prior"]]
+## Builds the quoted leaf prior call the entry points hand to dbarts. nodeK is
+## the leaf prior's k argument exactly as it should enter the call -
+## unevaluated for functions that redirect their matched call, evaluated for
+## those that forward through do.call from internal frames - or NULL for no
+## leaf prior. The tree prior's power, base and split.probs are dbarts()'s own
+## arguments, which the redirected call carries as the caller wrote them.
+buildSamplerPriors <- function(matchedCall, nodeK) {
+  # A caller-supplied leaf.prior object fully replaces the flat build below
+  # and is forwarded UNEVALUATED, exactly as k already is (nodeK), so a bare
+  # vocabulary name inside it (linear(), gp(), ...) resolves in the caller's
+  # own frame, not here. k beside it would help build the same prior, a
+  # collision refused by name before anything is built.
   leafPriorObj <- matchedCall[["leaf.prior"]]
-
-  splitProbsSupplied <- splitProbsName %in%
-    c(names(matchedCall), shorthandSupplied)
-
-  if (!is.null(treePriorObj)) {
-    refuseColliding(
-      matchedCall,
-      "tree.prior",
-      c("power", "base", splitProbsName),
-      shorthandSupplied
-    )
-    tree.prior <- treePriorObj
-  } else {
-    priorCall <- quote(cgm(power, base, split.probs))
-    # NULL is the default, and assigning it into a call would delete the slot
-    priorCall[[2L]] <- if (is.null(power)) 2.0 else power
-    priorCall[[3L]] <- if (is.null(base)) 0.95 else base
-    priorCall[[4L]] <- if (splitProbsSupplied) {
-      splitProbs
-    } else {
-      splitProbsDefault
-    }
-    tree.prior <- priorCall
-  }
-
   if (!is.null(leafPriorObj)) {
-    refuseColliding(
-      matchedCall,
-      "leaf.prior",
-      "k",
-      shorthandSupplied
-    )
+    refuseColliding(matchedCall, "leaf.prior", "k")
     leaf.prior <- leafPriorObj
   } else if (!is.null(nodeK)) {
     leaf.prior <- quote(normal(k))
@@ -731,17 +685,14 @@ buildSamplerPriors <- function(
     leaf.prior <- NULL
   }
 
-  list(
-    tree.prior = tree.prior,
-    leaf.prior = leaf.prior
-  )
+  list(leaf.prior = leaf.prior)
 }
 
 # Builds the dbarts() host-sampler call shared by bart2's standard path and its
 # alternate-family paths (multinomial/ordinal/nbinom): redirect the matched
 # call to dbarts(), install the resolved control, drop n.samples (the sampler
 # is driven by run() rather than sampled at construction), and thread the
-# prebuilt tree/node/resid priors. 'family', when supplied, overrides the
+# prebuilt leaf prior. 'family', when supplied, overrides the
 # forwarded family token - NULL removes it, a string sets it (dbarts() accepts
 # "multinomial", "ordinal", and "nbinom" as family tokens directly); left
 # missing it keeps the user's forwarded family (the normal path). 'sigest',
@@ -764,7 +715,6 @@ buildHostSamplerCall <- function(
   )
   samplerCall$control <- control
   samplerCall$n.samples <- NULL
-  samplerCall$tree.prior <- priors$tree.prior
   samplerCall$leaf.prior <- priors$leaf.prior
   if (!missing(family)) {
     # the caller's own family object is already stamped on the matched call
@@ -1008,6 +958,9 @@ bart <- function(
   offset.test = offset,
   sigest = NULL,
   k = NULL,
+  power = 2,
+  base = 0.95,
+  split.probs = NULL,
   n.trees = 75L,
   n.samples = 500L,
   n.burn = 500L,
@@ -1049,7 +1002,6 @@ bart <- function(
     "hurdle.lognormal"
   ),
   na.action = dbarts::na.keepPredictors,
-  tree.prior = NULL,
   leaf.prior = NULL,
   storage = c("double", "single"),
   updateState = TRUE,
@@ -1084,11 +1036,24 @@ bart <- function(
   # (resid.prior = chisq(3, 0.9)), which would not resolve in the caller's
   # frame
   supplied <- dotNames(...)
+  if ("tree.prior" %in% supplied) {
+    refuseRetiredTreePrior(matchedCall[["tree.prior"]], callingEnv, "bart")
+  }
   refuseForeignFrontDoorArgs(supplied, "bart", names(formals(dbarts::bart)))
-  # the forest with no basis written in the formula states the count this
-  # function's own 'n.trees' states: one of them, not both
-  if (!missing(n.trees) && !missing(formula) && formulaHasForestTerm(formula)) {
-    refuseTreeCountGivenTwice(formula)
+  # the forest with no basis written in the formula states the count and the
+  # tree prior this function's own 'n.trees', 'power' and 'base' state: one
+  # of them, not both
+  givenPlain <- c(
+    if (!missing(n.trees)) "n.trees",
+    if (!missing(power)) "power",
+    if (!missing(base)) "base"
+  )
+  if (
+    length(givenPlain) > 0L &&
+      !missing(formula) &&
+      formulaHasForestTerm(formula)
+  ) {
+    refuseGivenTwiceInFormula(formula, givenPlain)
   }
   # ahead of sampler construction below, so a malformed pair fails here
   # rather than after the (possibly expensive) sampler is already built
@@ -1117,20 +1082,14 @@ bart <- function(
   if (length(consolidated) > 0L) {
     matchedCall[names(consolidated)] <- NULL
   }
-  # the prior scalars dec-B116 moved onto the prior objects, under their own
-  # 0.9-x defaults: read here, applied through the same shorthand ladder that
-  # built the priors when they were formals. split.probs alone stays
-  # UNEVALUATED - its vocabulary (num.vars, numvars) resolves in the prior
-  # resolver, not the caller's frame.
+  # the residual prior's scalars dec-B116 moved onto the family, under their
+  # own 0.9-x defaults
   consolidatedScalar <- function(name, default) {
     if (name %in% names(consolidated)) consolidated[[name]] else default
   }
   # the shorthand names the caller wrote, for the collision refusals: they no
   # longer stand in the matched call the prior builder reads
   shorthandSupplied <- names(consolidated)
-  power <- consolidatedScalar("power", 2.0)
-  base <- consolidatedScalar("base", 0.95)
-  split.probs <- consolidated[["split.probs"]]
   sigdf <- consolidatedScalar("sigdf", 3.0)
   sigquant <- consolidatedScalar("sigquant", 0.90)
   if ("rngSeed" %in% supplied) {
@@ -1354,10 +1313,10 @@ bart <- function(
     )
   }
   control <- eval(controlCall, envir = callingEnv)
-  # The control built here always names a tree count and the call handed to
-  # dbarts() always a tree prior, so what this function's own caller stated
-  # of the arguments that are the forest with no basis's is recorded on the
-  # control, for the sampler specification to read and take off.
+  # The control built here always names a tree count, so what this
+  # function's own caller stated of the arguments that are the forest with no
+  # basis's is recorded on the control, for the sampler specification to read
+  # and take off.
   attr(control, plainStatedAttr) <- plainForestStated(
     suppliedControl,
     c(names(matchedCall), shorthandSupplied),
@@ -1522,26 +1481,18 @@ bart <- function(
     }
     # buildMultinomialForest fixes its own CGM tree prior and copies only
     # power/base/proposal-probability fields from the host sampler it briefly
-    # builds, so none of the following reach the K-forest engine: a DART
-    # 'tree.prior' ('tree.prior' is resolved with the same prior vocabulary
-    # parsePriors, R/model.R, uses, so 'tree.prior = dart()' is caught the
-    # same way 'tree.prior = dbartsPriors$dart()' is), fixed split
-    # probabilities, the monotone direction constraints (only their
-    # proposal-probability rewrite is copied), and a variance forest (the
-    # host sampler that would resolve one is discarded).
-    treePrior <- if (missing(tree.prior)) {
-      NULL
-    } else {
-      evalInVocabulary(matchedCall[["tree.prior"]], dbartsPriors, callingEnv)
-    }
+    # builds, so none of the following reach the K-forest engine: the
+    # monotone direction constraints (only their proposal-probability rewrite
+    # is copied) and a variance forest (the host sampler that would resolve
+    # one is discarded). Split probabilities that are not equal, dart()
+    # among them, are refused by their value where the host sampler resolves
+    # them against the columns.
     forestArguments <- resolveForestArguments(
       matchedCall,
       callingEnv,
       c("monotone", "variance")
     )
     unsupported <- c(
-      "a DART 'tree.prior'" = inherits(treePrior, "dbartsDartPrior"),
-      "'split.probs'" = !is.null(split.probs),
       "'monotone'" = !is.null(forestArguments$monotone),
       "'variance'" = !is.null(forestArguments$variance)
     )
@@ -1642,14 +1593,10 @@ bart <- function(
           control,
           y,
           levels,
-          power,
-          base,
           sigest,
           combineChains,
           offset = multinomialOffset,
           offset.test = multinomialOffsetTest,
-          split.probs = split.probs,
-          shorthandSupplied = shorthandSupplied,
           keepSampler = keepSampler,
           samplerOnly = samplerOnly
         )
@@ -1682,14 +1629,10 @@ bart <- function(
         callingEnv,
         control,
         y,
-        power,
-        base,
         sigest,
         combineChains,
         offset = multinomialOffset,
         offset.test = multinomialOffsetTest,
-        split.probs = split.probs,
-        shorthandSupplied = shorthandSupplied,
         keepSampler = keepSampler,
         samplerOnly = samplerOnly
       )
@@ -1720,11 +1663,7 @@ bart <- function(
         matchedCall,
         callingEnv,
         control,
-        power,
-        base,
         combineChains,
-        split.probs = split.probs,
-        shorthandSupplied = shorthandSupplied,
         keepSampler = keepSampler,
         samplerOnly = samplerOnly
       )
@@ -1754,11 +1693,7 @@ bart <- function(
         matchedCall,
         callingEnv,
         control,
-        power,
-        base,
         combineChains,
-        split.probs = split.probs,
-        shorthandSupplied = shorthandSupplied,
         keepSampler = keepSampler,
         samplerOnly = samplerOnly
       )
@@ -1845,14 +1780,7 @@ bart <- function(
 
   # k enters unevaluated: bart redirects its matched call, so the stored
   # symbol resolves in the caller's frame
-  priors <- buildSamplerPriors(
-    matchedCall,
-    power,
-    base,
-    nodeK = matchedCall[["k"]],
-    splitProbs = split.probs,
-    shorthandSupplied = shorthandSupplied
-  )
+  priors <- buildSamplerPriors(matchedCall, nodeK = matchedCall[["k"]])
 
   samplerCall <- buildHostSamplerCall(
     matchedCall,
@@ -2262,7 +2190,7 @@ resolveMultinomialTestOffset <- function(sampler, offset, offset.test) {
 # response; K = nlevels(y) follows from it. The sampler is built directly
 # through dbarts()'s own family = "multinomial" dispatch, the same public
 # construction path dbarts(x, y, family = "multinomial") reaches, so bart2's
-# usual tree.prior/leaf.prior/resid.prior/control machinery resolves
+# usual tree prior/leaf.prior/resid.prior/control machinery resolves
 # n.trees, n.chains, the tree prior and k exactly as it would for any other
 # family. No warm start and no two-phase burn-in/sample split: both are
 # skipped, as a single run call needs neither. offset, when
@@ -2275,27 +2203,16 @@ bart2Multinomial <- function(
   callingEnv,
   control,
   y,
-  power,
-  base,
   sigest,
   combineChains,
   offset = NULL,
   offset.test = NULL,
-  split.probs = NULL,
-  shorthandSupplied = character(),
   keepSampler = FALSE,
   samplerOnly = FALSE
 ) {
   K <- nlevels(y)
 
-  priors <- buildSamplerPriors(
-    matchedCall,
-    power,
-    base,
-    nodeK = matchedCall[["k"]],
-    splitProbs = split.probs,
-    shorthandSupplied = shorthandSupplied
-  )
+  priors <- buildSamplerPriors(matchedCall, nodeK = matchedCall[["k"]])
 
   # one bartcore_create, through the public multinomial dispatch: the factor
   # response IS the count-matrix declaration (dbarts()'s own
@@ -2377,27 +2294,16 @@ bart2MultinomialCounts <- function(
   control,
   y,
   levels,
-  power,
-  base,
   sigest,
   combineChains,
   offset = NULL,
   offset.test = NULL,
-  split.probs = NULL,
-  shorthandSupplied = character(),
   keepSampler = FALSE,
   samplerOnly = FALSE
 ) {
   K <- ncol(y)
 
-  priors <- buildSamplerPriors(
-    matchedCall,
-    power,
-    base,
-    nodeK = matchedCall[["k"]],
-    splitProbs = split.probs,
-    shorthandSupplied = shorthandSupplied
-  )
+  priors <- buildSamplerPriors(matchedCall, nodeK = matchedCall[["k"]])
 
   samplerCall <- buildHostSamplerCall(
     matchedCall,
@@ -2659,22 +2565,11 @@ bart2Ordinal <- function(
   matchedCall,
   callingEnv,
   control,
-  power,
-  base,
   combineChains,
-  split.probs = NULL,
-  shorthandSupplied = character(),
   keepSampler = FALSE,
   samplerOnly = FALSE
 ) {
-  priors <- buildSamplerPriors(
-    matchedCall,
-    power,
-    base,
-    nodeK = matchedCall[["k"]],
-    splitProbs = split.probs,
-    shorthandSupplied = shorthandSupplied
-  )
+  priors <- buildSamplerPriors(matchedCall, nodeK = matchedCall[["k"]])
 
   samplerCall <- buildHostSamplerCall(
     matchedCall,
@@ -2930,22 +2825,11 @@ bart2Negbin <- function(
   matchedCall,
   callingEnv,
   control,
-  power,
-  base,
   combineChains,
-  split.probs = NULL,
-  shorthandSupplied = character(),
   keepSampler = FALSE,
   samplerOnly = FALSE
 ) {
-  priors <- buildSamplerPriors(
-    matchedCall,
-    power,
-    base,
-    nodeK = matchedCall[["k"]],
-    splitProbs = split.probs,
-    shorthandSupplied = shorthandSupplied
-  )
+  priors <- buildSamplerPriors(matchedCall, nodeK = matchedCall[["k"]])
 
   samplerCall <- buildHostSamplerCall(
     matchedCall,
@@ -3336,8 +3220,8 @@ bart2Hurdle <- function(
   # would otherwise re-diagnose them against its own forced family
   # (sigest/sigdf/sigquant/resid.prior a false "probit" diagnostic on the
   # zero call, since they are genuinely live on the positive half).
-  # tree.prior/leaf.prior are NOT stripped from either list: they are live on
-  # both components, so they flow to both exactly as power/base/k already do.
+  # power/base/split.probs/leaf.prior are NOT stripped from either list: they
+  # are live on both components, so they flow to both exactly as k does.
   # The family-only settings ride the family object, which each
   # component call replaces with its own, so nothing is left to strip.
   gatedOnZeroOnly <- c("sigest", "sigdf", "sigquant", "resid.prior")
@@ -4165,15 +4049,16 @@ bartBT <- function(
     proposal.probs = proposalprobs
   )
   # The control built here always names a tree count and the call handed to
-  # dbarts() always a tree prior and a leaf prior, so what this function's
-  # own caller stated of the three is recorded on the control under the names
+  # dbarts() always a power, a base and a leaf prior, so what this function's
+  # own caller stated of them is recorded on the control under the names
   # written here, for the sampler specification to read and take off.
   attr(control, plainStatedAttr) <- plainForestStated(
     NULL,
     names(match.call()),
     list(
       n.trees = "ntree",
-      tree.prior = c("power", "base", "splitprobs"),
+      power = "power",
+      base = "base",
       leaf.prior = "k"
     ),
     remedy = FALSE
@@ -4204,14 +4089,8 @@ bartBT <- function(
 
   priors <- buildSamplerPriors(
     matchedCall,
-    power,
-    base,
-    nodeK = if (!is.null(matchedCall[["k"]])) matchedCall[["k"]] else k,
-    splitProbsName = "splitprobs",
-    splitProbs = matchedCall[["splitprobs"]],
-    splitProbsDefault = formals(dbarts::bartBT)[["splitprobs"]]
+    nodeK = if (!is.null(matchedCall[["k"]])) matchedCall[["k"]] else k
   )
-  tree.prior <- priors$tree.prior
   leaf.prior <- priors$leaf.prior
   # 0.9-34's sigdf/sigquant name the residual prior, which rides the family
   # object now; this door resolves no family of its own (a numeric or binary
@@ -4234,7 +4113,8 @@ bartBT <- function(
     offset = binaryOffset,
     verbose = as.logical(verbose),
     n.samples = as.integer(ndpost),
-    tree.prior = tree.prior,
+    power = power,
+    base = base,
     leaf.prior = leaf.prior,
     family = family,
     control = control,
@@ -4243,6 +4123,11 @@ bartBT <- function(
     factors = "indicators",
     na.action = stats::na.omit
   )
+  # the split probabilities only where the recorded call names them: the
+  # default, 1 / numvars, is equal probabilities, which dbarts() takes as none
+  if (!is.null(matchedCall[["splitprobs"]])) {
+    args$split.probs <- matchedCall[["splitprobs"]]
+  }
   # 0.9-34's row rule, unchanged: a row with a missing value anywhere is
   # dropped rather than modeled. The modern door's na.action default keeps
   # missing predictors; this door adds no capability.

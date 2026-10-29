@@ -936,23 +936,21 @@ loneForestFormula <- function(formula) {
   formula
 }
 
-## The fitting function's 'n.trees' is the tree count of the forest with no
-## basis, so a formula that writes that forest with a count of its own states
-## one count twice. Read from the formula as written, nothing evaluated.
-refuseTreeCountGivenTwice <- function(formula) {
+## The fitting function's 'n.trees', 'power' and 'base' are the forest with no
+## basis's own, so a formula that writes that forest with one of its own
+## states one setting twice. `names` are those the fitting function was given.
+## Read from the formula as written, nothing evaluated.
+refuseGivenTwiceInFormula <- function(formula, names) {
   # what the formula itself refuses is the fitting function's to say, with
   # the data at hand
   walked <- tryCatch(walkFormulaTerms(formula), error = function(e) NULL)
   for (hit in walked$hits) {
     given <- tryCatch(names(forestCallArguments(hit)), error = function(e) NULL)
-    if ("n.trees" %in% given && "basis" %not_in% given) {
-      stop(
-        "'n.trees' is given to the fitting function and to the forest with ",
-        "no basis ('",
-        shownCode(hit),
-        "'), which are the same count; give one",
-        call. = FALSE
-      )
+    if ("basis" %in% given) {
+      next
+    }
+    for (name in intersect(names, given)) {
+      refuseGivenTwice(name, paste0("'", shownCode(hit), "'"))
     }
   }
   invisible(NULL)

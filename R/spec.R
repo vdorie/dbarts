@@ -398,8 +398,17 @@ enforceWeightPolicy <- function(data, family) {
   list(data = data, active = active)
 }
 
+## Whether a tree-prior record's split probabilities are other than equal:
+## DART's, which it draws, or a vector that is not uniform.
+varySplitProbabilities <- function(treePrior) {
+  is(treePrior, "dbartsDartPrior") ||
+    length(treePrior@splitProbabilities) > 0L
+}
+
 ## survivalStatus and hazardPeriods carry the two survival markers the entry
 ## point resolved from the raw response; both are NULL for every other family.
+## `treePrior` is a record a retired tree.prior handed over whole, which the
+## tree prior is built from in place of 'split.probs'.
 resolveSamplerSpec <- function(
   matchedCall,
   callFormals,
@@ -424,7 +433,8 @@ resolveSamplerSpec <- function(
   basisRecords = NULL,
   written = names(matchedCall),
   sigestRule = "auto",
-  basisLevels = NULL
+  basisLevels = NULL,
+  treePrior = NULL
 ) {
   # a data object handed in whole is held to its own record here, at
   # dbarts() and at dbartsSpec() alike
@@ -685,17 +695,11 @@ resolveSamplerSpec <- function(
   plainSpec <- if (plain > 0L && length(forestSpec) >= plain) {
     forestSpec[[plain]]
   }
-  # bart()'s own 'n.trees' and the plain forest's are one count; the control's
-  # beside the forest's own leaves the forest's to govern
-  if (
-    identical(unname(stated["n.trees"]), "n.trees") &&
-      !is.null(plainSpec$n.trees)
-  ) {
-    stop(
-      "'n.trees' is given to the fitting function and to the forest with no ",
-      "basis, which are the same count; give one",
-      call. = FALSE
-    )
+  # the fitting function's own 'n.trees', 'power' and 'base' and the plain
+  # forest's are one setting each; the control's count beside the forest's
+  # own leaves the forest's to govern
+  if (!is.null(plainSpec)) {
+    refuseStatedOnPlainForest(stated, plainSpec, forestKnobLabel(forests, plain))
   }
   # the fitting function's own, read once before any forest's statement is
   # written over the slot
@@ -734,9 +738,12 @@ resolveSamplerSpec <- function(
   parsePriorsCall <- setDefaultsFromFormals(
     parsePriorsCall,
     callFormals,
-    "tree.prior",
     "leaf.prior"
   )
+  # a retired tree.prior's whole record, where it handed one over
+  if (!is.null(treePrior)) {
+    parsePriorsCall$treePrior <- treePrior
+  }
   parsePriorsCall$control <- control
   parsePriorsCall$data <- data
   parsePriorsCall$monotone <- monotoneDirections
@@ -785,7 +792,9 @@ resolveSamplerSpec <- function(
   priors <- eval(parsePriorsCall)
 
   # the plain forest's count and tree prior: the fitting function's, read
-  # before the first forest's are written over the model's
+  # before the first forest's are written over the model's. Where the first
+  # forest is the plain one and states a knob, the fitting function stated
+  # none, which was refused above
   fitTree <- list(
     n.trees = fitTreeCount,
     base = priors$tree.prior@base,
@@ -931,8 +940,8 @@ resolveSamplerSpec <- function(
   # the bridge installs both on every category forest.
   if (identical(family, "multinomial")) {
     unsupportedMultinomial <- c(
-      "a DART tree prior" = is(priors$tree.prior, "dbartsDartPrior"),
-      "'split.probs'" = length(priors$tree.prior@splitProbabilities) > 0L,
+      "'split.probs' (a vector that is not uniform, or dart())" =
+        varySplitProbabilities(priors$tree.prior),
       "'monotone'" = !is.null(monotoneDirections),
       "a linear leaf prior" = is(priors$leaf.prior, "dbartsLinearPrior"),
       "a Gaussian-process leaf prior" = is(priors$leaf.prior, "dbartsGPPrior"),
@@ -1196,9 +1205,17 @@ resolveSamplerSpec <- function(
     # word; name each one instead. 'proposal.probs' is NOT among them: the
     # chain carries the control's mixture onto every forest it builds, so a
     # coupling honors it rather than dropping it.
+    # the split probabilities are the model's, so a model of several forests
+    # takes them where they state the default, equal probabilities
+    if (varySplitProbabilities(priors$tree.prior)) {
+      stop(
+        "a model of several forests does not support 'split.probs' (a ",
+        "vector that is not uniform, or dart()); drop it or fit a ",
+        "single-forest model",
+        call. = FALSE
+      )
+    }
     unsupported <- c(
-      "a DART tree prior" = is(priors$tree.prior, "dbartsDartPrior"),
-      "'split.probs'" = length(priors$tree.prior@splitProbabilities) > 0L,
       "'monotone'" = !is.null(monotoneDirections),
       "a linear leaf prior" = is(priors$leaf.prior, "dbartsLinearPrior"),
       "a Gaussian-process leaf prior" = is(priors$leaf.prior, "dbartsGPPrior"),
@@ -1386,7 +1403,9 @@ resolveSamplerSpec <- function(
 dbartsSpec <- function(
   data,
   control = dbarts::dbartsControl(),
-  tree.prior = cgm,
+  power = 2,
+  base = 0.95,
+  split.probs = NULL,
   leaf.prior = normal,
   proposal.probs = c(
     birth_death = 0.6,
@@ -1415,6 +1434,7 @@ dbartsSpec <- function(
     "nbinom"
   ),
   survival = NULL,
+  tree.prior = NULL,
   parentEnv = parent.frame(),
   ...
 ) {
@@ -1427,6 +1447,14 @@ dbartsSpec <- function(
     "dbartsSpec",
     names(formals(dbarts::dbartsSpec))
   )
+  # the retired 'tree.prior' is read as the plain arguments it states, which
+  # are what this call states of them from here on
+  retiredTreePrior <- readRetiredTreePrior(
+    matchedCall,
+    parentEnv,
+    "dbartsSpec"
+  )
+  matchedCall <- withRetiredTreePrior(matchedCall, retiredTreePrior)
   sigest <- resolveSigestArg(sigest, "dbartsSpec", "refuse")
   resolvedSigest <- resolveSigestRule(sigest, "dbartsSpec")
   sigest <- resolvedSigest$value
@@ -1585,6 +1613,7 @@ dbartsSpec <- function(
     residPrior = residPrior,
     familySpec = familySpec,
     basisRecords = basisRecords,
-    sigestRule = sigestRule
+    sigestRule = sigestRule,
+    treePrior = retiredTreePrior$record
   )
 }

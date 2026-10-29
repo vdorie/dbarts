@@ -132,24 +132,17 @@ dbartsTombstones <- list(
     expires = tombstoneExpiry
   ),
   list(
-    name = "power",
+    name = "tree.prior",
     kind = "argument",
-    owner = "bart",
-    successor = "tree.prior = cgm(power)",
+    owner = "dbarts",
+    successor = "power, base and split.probs",
     expires = tombstoneExpiry
   ),
   list(
-    name = "base",
+    name = "tree.prior",
     kind = "argument",
-    owner = "bart",
-    successor = "tree.prior = cgm(base)",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "split.probs",
-    kind = "argument",
-    owner = "bart",
-    successor = "tree.prior = cgm(split.probs)",
+    owner = "dbartsSpec",
+    successor = "power, base and split.probs",
     expires = tombstoneExpiry
   ),
   list(
@@ -574,9 +567,7 @@ pdbartBayesTreeNames <- c(
   y.train = "data",
   sigdf = "sigdf",
   sigquant = "sigquant",
-  power = "tree.prior",
-  base = "tree.prior",
-  splitprobs = "tree.prior",
+  splitprobs = "split.probs",
   binaryOffset = "offset",
   ntree = "n.trees",
   ndpost = "n.samples",
@@ -600,9 +591,6 @@ pdbartBayesTreeNames <- c(
 pdbartBayesTreeSpelling <- c(
   sigdf = "family = gaussian(sigma = chisq(df = ))",
   sigquant = "family = gaussian(sigma = chisq(quant = ))",
-  power = "tree.prior = cgm(power = )",
-  base = "tree.prior = cgm(base = )",
-  splitprobs = "tree.prior = cgm(split.probs = )",
   proposalprobs = "control = dbartsControl(proposal.probs = )"
 )
 
@@ -664,16 +652,6 @@ translatePdbartCall <- function(call, legacy, callingEnv, caller, fits = TRUE) {
     )
   }
 
-  priorNames <- c(power = "power", base = "base", splitprobs = "split.probs")
-  priorArgs <- list()
-  for (old in intersect(names(priorNames), legacy)) {
-    priorArgs[priorNames[[old]]] <- list(call[[old]])
-    call[[old]] <- NULL
-  }
-  if (length(priorArgs) > 0L) {
-    call$tree.prior <- as.call(c(list(quote(cgm)), priorArgs))
-  }
-
   # the mixture is set on a copy of the caller's control, so the control's
   # other settings stand as bart would read them
   if ("proposalprobs" %in% legacy) {
@@ -693,7 +671,7 @@ translatePdbartCall <- function(call, legacy, callingEnv, caller, fits = TRUE) {
     }
   }
 
-  renamed <- setdiff(legacy, c(names(priorNames), "proposalprobs"))
+  renamed <- setdiff(legacy, "proposalprobs")
   callNames <- names(call)
   callNames[callNames %in% renamed] <- pdbartBayesTreeNames[
     callNames[callNames %in% renamed]
@@ -786,21 +764,6 @@ seedRenameReason <- paste0(
 ## onto the objects that own them. Each is still accepted for one release,
 ## carried on '...' and mapped onto its object after saying so once.
 consolidatedArgReasons <- list(
-  power = paste0(
-    "the branching decay is a tree prior: write tree.prior = cgm(power = ) ",
-    "or tree.prior = dart(power = ); 'power' is removed in dbarts ",
-    tombstoneExpiry
-  ),
-  base = paste0(
-    "the branching base is a tree prior: write tree.prior = cgm(base = ) or ",
-    "tree.prior = dart(base = ); 'base' is removed in dbarts ",
-    tombstoneExpiry
-  ),
-  split.probs = paste0(
-    "the per-predictor split probabilities are a tree prior: write ",
-    "tree.prior = cgm(split.probs = ); 'split.probs' is removed in dbarts ",
-    tombstoneExpiry
-  ),
   resid.prior = paste0(
     "the residual scale's prior rides its family: write ",
     "family = gaussian(sigma = chisq(df, quant)) or ",
@@ -831,26 +794,15 @@ consolidatedArgReasons <- list(
 ## Named as a set because bart's hurdle arc has to hand them back to each
 ## component call, where the family-only names never travel.
 consolidatedPriorScalars <- c(
-  "power",
-  "base",
-  "split.probs",
   "resid.prior",
   "sigdf",
   "sigquant",
   "proposal.probs"
 )
 
-## The consolidated names whose value must reach its object UNEVALUATED: the
-## split probabilities are written in a vocabulary only the prior resolver
-## holds (num.vars, numvars), which does not resolve in the caller's frame.
-unevaluatedConsolidatedArgs <- "split.probs"
-
 ## Which of them each entry point used to carry.
 consolidatedArgsFor <- list(
   bart = c(
-    "power",
-    "base",
-    "split.probs",
     "resid.prior",
     "sigdf",
     "sigquant",
@@ -918,9 +870,7 @@ resolveConsolidatedArgs <- function(matchedCall, supplied, caller, evalEnv) {
     # resid.prior alone is still written in a vocabulary this package holds:
     # the prior constructors, which are not exported
     values[name] <- list(
-      if (name %in% unevaluatedConsolidatedArgs) {
-        forwardedSplitProbs(matchedCall[[name]], evalEnv)
-      } else if (name == "resid.prior") {
+      if (name == "resid.prior") {
         evalInVocabulary(matchedCall[[name]], dbartsPriors, evalEnv)
       } else {
         eval(matchedCall[[name]], evalEnv)
@@ -930,38 +880,258 @@ resolveConsolidatedArgs <- function(matchedCall, supplied, caller, evalEnv) {
   values
 }
 
-## The retired 'split.probs', left for the prior resolver, whose vocabulary
-## (num.vars, numvars) it may be written in. A direct expression stays as
-## written. A forwarded reference (..N) is forced first and, when that
-## succeeds, stands as its value; when it fails, the recovered expression
-## goes on as a call that evaluates it in the environment it was written in,
-## layered under the vocabulary the resolver supplies where the call runs.
-forwardedSplitProbs <- function(expr, evalEnv) {
-  if (!isDotsReference(expr)) {
-    return(expr)
-  }
-  # an expression that fails when forced runs a second time below, the cost
-  # evalInVocabulary also pays
-  forced <- tryCatch(list(eval(expr, evalEnv)), error = function(e) NULL)
-  if (!is.null(forced)) {
-    return(forced[[1L]])
-  }
-  written <- recoverForwardedArgument(expr, evalEnv)
-  if (isDotsReference(written$expr)) {
-    return(expr)
-  }
-  as.call(list(
-    evalInVocabularyOver,
-    call("quote", written$expr),
-    written$env,
-    quote(environment())
-  ))
-}
-
 ## Evaluates 'expr' in 'writtenEnv' with the bindings of the vocabulary
 ## environment 'vocabEnv' laid over it.
 evalInVocabularyOver <- function(expr, writtenEnv, vocabEnv) {
   eval(expr, vocabularyEnv(as.list(vocabEnv, all.names = TRUE), writtenEnv))
+}
+
+## ------------------------------------------------------------------
+## The retired 'tree.prior'
+## ------------------------------------------------------------------
+
+## The tree-prior constructors as the retired 'tree.prior' took them, each
+## argument in its place, which a written call is matched against: a
+## positional cgm(3, 0.5) states power and base, dart(3, 0.5, 0.7) those and
+## DART's 'a'.
+retiredTreePriorSignatures <- list(
+  cgm = function(power, base, split.probs) NULL,
+  dart = function(
+    power,
+    base,
+    a,
+    b,
+    rho,
+    alpha,
+    update.alpha,
+    update.delay
+  ) {
+    NULL
+  }
+)
+
+## The plain arguments a retired 'tree.prior' states, NULL where it states
+## nothing at all (NULL). A list of `args`, holding any of 'power' and 'base'
+## as values and 'split.probs' as an expression to resolve in its vocabulary
+## over `evalEnv`; `shown`, each as a caller writes it; and `record`, a whole
+## record to build the tree prior from in place of 'split.probs'.
+##
+## A call to cgm() or dart() written in any spelling states the arguments it
+## names, read against the constructor as the retired argument took it, a
+## dart() call's DART settings becoming split.probs = dart(...). A bare
+## constructor states its defaults: nothing, or split.probs = dart(). Any
+## other value, a prior read off a sampler or one saved by dbarts 0.9-34
+## included, states its power and base and stands whole for the rest.
+translateRetiredTreePrior <- function(expr, evalEnv) {
+  written <- recoverForwardedArgument(expr, evalEnv)
+  head <- treePriorConstructorHead(written$expr)
+  if (!is.null(head)) {
+    args <- as.list(
+      match.call(retiredTreePriorSignatures[[head]], written$expr)
+    )[-1L]
+    result <- list(args = list(), shown = character(0L))
+    for (name in intersect(c("power", "base"), names(args))) {
+      value <- evalInVocabulary(args[[name]], dbartsPriors, written$env)
+      if (!is.null(value)) {
+        result$args[name] <- list(value)
+        result$shown[name] <- paste(name, "=", shownCode(args[[name]]))
+      }
+    }
+    rest <- args[setdiff(names(args), c("power", "base"))]
+    split <- if (head == "dart") {
+      as.call(c(list(written$expr[[1L]]), rest))
+    } else {
+      rest$split.probs
+    }
+    if (!is.null(split)) {
+      result$shown["split.probs"] <- paste("split.probs =", shownCode(split))
+      result$args$split.probs <- if (identical(written$env, evalEnv)) {
+        split
+      } else {
+        as.call(list(
+          evalInVocabularyOver,
+          call("quote", split),
+          written$env,
+          quote(environment())
+        ))
+      }
+    }
+    return(result)
+  }
+  value <- evalInVocabulary(expr, dbartsPriors, evalEnv)
+  if (is.null(value)) {
+    return(NULL)
+  }
+  if (identical(value, cgm)) {
+    return(list(args = list(), shown = character(0L)))
+  }
+  if (identical(value, dart)) {
+    return(list(
+      args = list(split.probs = quote(dart())),
+      shown = c(split.probs = "split.probs = dart()")
+    ))
+  }
+  if (!is(value, "dbartsTreePrior")) {
+    stop(
+      "'tree.prior' must be a tree prior specification; see ?dbartsPriors",
+      call. = FALSE
+    )
+  }
+  # a prior saved by dbarts 0.9-34 has no slot for a specification: its
+  # probabilities were resolved when it was made
+  if (!methods::.hasSlot(value, "splitProbabilitiesSpec")) {
+    value <- new(
+      "dbartsCGMPrior",
+      power = value@power,
+      base = value@base,
+      splitProbabilities = value@splitProbabilities,
+      splitProbabilitiesSpec = NULL
+    )
+  }
+  list(
+    args = list(power = value@power, base = value@base),
+    shown = c(
+      power = paste("power =", shownCode(value@power)),
+      base = paste("base =", shownCode(value@base)),
+      split.probs = shownSplitProbabilities(value)
+    ),
+    record = value
+  )
+}
+
+## A tree-prior record's split probabilities as split.probs is written, or
+## NULL where they are equal.
+shownSplitProbabilities <- function(record) {
+  shown <- if (is(record, "dbartsDartPrior")) {
+    settings <- c("a", "b", "rho", "alpha", "update.alpha", "update.delay")
+    stated <- Filter(
+      function(name) {
+        value <- methods::slot(record, name)
+        !is.na(value) && !identical(value, methods::slot(dart(), name))
+      },
+      settings
+    )
+    paste0(
+      "dart(",
+      paste(
+        vapply(
+          stated,
+          function(name) {
+            paste(name, "=", shownCode(methods::slot(record, name)))
+          },
+          ""
+        ),
+        collapse = ", "
+      ),
+      ")"
+    )
+  } else if (!is.null(record@splitProbabilitiesSpec)) {
+    shownCode(record@splitProbabilitiesSpec)
+  } else if (length(record@splitProbabilities) > 0L) {
+    shownCode(record@splitProbabilities)
+  }
+  if (!is.null(shown)) paste("split.probs =", shown)
+}
+
+## The retired 'tree.prior' given to dbarts() or dbartsSpec() (`caller`),
+## read as the plain arguments it states (translateRetiredTreePrior) after one
+## warning a session: a list of those `args` and the whole `record` it hands
+## over, if any, both empty where none is given. NULL states nothing and does
+## not warn. Given beside a plain argument it states one setting twice, and is
+## refused.
+readRetiredTreePrior <- function(matchedCall, evalEnv, caller) {
+  none <- list(args = list(), record = NULL)
+  expr <- matchedCall[["tree.prior"]]
+  translated <- if (!is.null(expr)) {
+    translateRetiredTreePrior(expr, evalEnv)
+  }
+  if (is.null(translated)) {
+    return(none)
+  }
+  plain <- intersect(c("power", "base", "split.probs"), names(matchedCall))
+  if (length(plain) > 0L) {
+    stop(
+      "'tree.prior' and '",
+      plain[1L],
+      "' both set the tree prior of '",
+      caller,
+      "'; give '",
+      plain[1L],
+      "' alone",
+      call. = FALSE
+    )
+  }
+  warnOnce(
+    paste0("tombstone.tree.prior.", caller),
+    "'tree.prior' has left '",
+    caller,
+    "': write the tree prior as power, base and split.probs (split.probs = ",
+    "dart() for DART), as bart() takes them; 'tree.prior' is removed in ",
+    "dbarts ",
+    tombstoneExpiry,
+    ". The value was used.",
+    class = "dbartsDeprecatedWarning"
+  )
+  list(args = translated$args, record = translated$record)
+}
+
+## `call` with the retired 'tree.prior' replaced by the plain arguments
+## readRetiredTreePrior read it as.
+withRetiredTreePrior <- function(call, retired) {
+  call$tree.prior <- NULL
+  for (name in names(retired$args)) {
+    call[name] <- list(retired$args[[name]])
+  }
+  call
+}
+
+## Whether the argument a call to dbarts() bound to 'power' by position is a
+## tree prior: the tenth, where dbarts 0.9-34 took 'tree.prior'. A cgm() or
+## dart() call or name in any spelling, or a value that is a tree prior.
+isPositionalTreePrior <- function(expr, evalEnv) {
+  if (!is.null(treePriorConstructorHead(expr))) {
+    return(TRUE)
+  }
+  if (is.symbol(expr) && as.character(expr) %in% c("cgm", "dart")) {
+    return(TRUE)
+  }
+  value <- tryCatch(eval(expr, evalEnv), error = function(e) NULL)
+  is(value, "dbartsTreePrior") ||
+    identical(value, cgm) ||
+    identical(value, dart)
+}
+
+## The refusal of 'tree.prior' on a fitting function that never took it,
+## bart() and xbart() (`caller`), naming the plain arguments it translates to.
+refuseRetiredTreePrior <- function(expr, evalEnv, caller) {
+  translated <- if (!is.null(expr)) {
+    tryCatch(
+      translateRetiredTreePrior(expr, evalEnv),
+      error = function(e) list(shown = character(0L))
+    )
+  }
+  shown <- translated$shown
+  stop(
+    "'tree.prior' is not an argument of '",
+    caller,
+    "': ",
+    if (is.null(expr) || is.null(translated)) {
+      "leave it out"
+    } else {
+      paste0(
+        "write the tree prior as plain arguments, ",
+        if (length(shown) > 0L) {
+          paste(shown, collapse = ", ")
+        } else {
+          "power, base and split.probs"
+        }
+      )
+    },
+    if (caller == "xbart") {
+      "; xbart() takes power and base as grid axes"
+    },
+    call. = FALSE
+  )
 }
 
 ## The retired flat 'resid.prior', resolved to an object: a bare constructor

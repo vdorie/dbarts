@@ -738,7 +738,9 @@ dbarts <- function(
   offset.test = offset,
   verbose = FALSE,
   n.samples = 800L,
-  tree.prior = cgm,
+  power = 2,
+  base = 0.95,
+  split.probs = NULL,
   leaf.prior = normal,
   monotone = NULL,
   interactions = NULL,
@@ -766,10 +768,20 @@ dbarts <- function(
   na.action = dbarts::na.keepPredictors,
   sigma = NULL,
   node.prior = NULL,
+  tree.prior = NULL,
   callback = NULL,
   ...
 ) {
   matchedCall <- match.call()
+  # a tree prior given as the tenth argument, where dbarts 0.9-34 took
+  # 'tree.prior' and 'power' now stands, is the retired 'tree.prior'
+  if (
+    "power" %in% names(matchedCall) &&
+      "power" %not_in% names(sys.call()) &&
+      isPositionalTreePrior(matchedCall[["power"]], parent.frame())
+  ) {
+    names(matchedCall)[names(matchedCall) == "power"] <- "tree.prior"
+  }
   # the argument names as the caller wrote them, before a retired one is
   # restated under its successor
   writtenArgs <- names(matchedCall)
@@ -794,6 +806,13 @@ dbarts <- function(
   if (length(consolidated) > 0L) {
     matchedCall[names(consolidated)] <- NULL
   }
+  # the retired 'tree.prior' is read as the plain arguments it states, which
+  # are what this call states of them from here on
+  retiredTreePrior <- readRetiredTreePrior(matchedCall, evalEnv, "dbarts")
+  writtenArgs <- unique(c(
+    setdiff(writtenArgs, "tree.prior"),
+    names(retiredTreePrior$args)
+  ))
   # the tree-move mixture is a control setting now; the retired spelling is
   # honored where the control's own slot would otherwise stand, and refused
   # where the control's own call named that slot too
@@ -926,6 +945,12 @@ dbarts <- function(
 
   # the formula as written, kept for the call a sampler records
   writtenFormula <- NULL
+  # the fitting function's power and base are the forest with no basis's, so a
+  # formula that writes that forest with one of its own states it twice
+  givenPlain <- intersect(c("power", "base"), writtenArgs)
+  if (length(givenPlain) > 0L && is.formula(formula)) {
+    refuseGivenTwiceInFormula(formula, givenPlain)
+  }
   # a forest() formula term declares an additional amplitude-coupled forest
   # (R/formulaTerms.R); checked against the requested family HERE, before any
   # family-specific remap or dispatch below can make the token unrecoverable
@@ -1605,7 +1630,7 @@ dbarts <- function(
   heldWarning <- NULL
   spec <- withCallingHandlers(
     resolveSamplerSpec(
-      matchedCall,
+      withRetiredTreePrior(matchedCall, retiredTreePrior),
       formals(dbarts),
       control,
       data,
@@ -1629,7 +1654,8 @@ dbarts <- function(
       familySpec = familySpec,
       basisRecords = basisRecords,
       written = writtenArgs,
-      sigestRule = sigestRule
+      sigestRule = sigestRule,
+      treePrior = retiredTreePrior$record
     ),
     dbartsScaleFallbackWarning = function(w) {
       heldWarning <<- w
