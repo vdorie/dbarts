@@ -2500,6 +2500,18 @@ referenceLabels <- function(ref, design, link) {
   interiorColumns(P)
 }
 
+# n evenly spaced rows of a draws-by-chains matrix, the last kept: after an
+# escalation the shipped chains are longer than the move's, and the joint
+# split-Rhat and tail effective draws take them thinned to the move's length
+# over their whole run.
+evenRows <- function(m, n) {
+  m <- as.matrix(m)
+  if (nrow(m) == n) {
+    return(m)
+  }
+  m[round(seq(nrow(m) / n, nrow(m), length.out = n)), , drop = FALSE]
+}
+
 acceptanceFile <- function(cell, link, rep) {
   file.path(referenceDir(cell, link, rep), "acceptance.rds")
 }
@@ -2563,7 +2575,7 @@ acceptReference <- function(cell, link, rep, final = FALSE) {
       sx <- st(x)
       sy <- st(y)
       z <- abs(sx[1:3] - sy[1:3]) / sqrt(sx[4:6]^2 + sy[4:6]^2)
-      both <- cbind(x, y)
+      both <- cbind(evenRows(x, nrow(y)), y)
       rows[[length(rows) + 1L]] <- data.frame(
         class = nm,
         j = j,
@@ -2592,9 +2604,10 @@ acceptReference <- function(cell, link, rep, final = FALSE) {
         vapply(kq, function(p) posterior::mcse_quantile(kM, p), 0)^2
     )
     kZ <- max(abs(kDiff) / kSe)
-    kEss <- posterior::ess_tail(cbind(kS, kM))
+    kBoth <- cbind(evenRows(kS, nrow(kM)), kM)
+    kEss <- posterior::ess_tail(kBoth)
     kEssS <- posterior::ess_tail(kS)
-    kRhat <- posterior::rhat(cbind(kS, kM))
+    kRhat <- posterior::rhat(kBoth)
   }
   scal <- tab[!tab$row, ]
   rowq <- tab[tab$row, ]
