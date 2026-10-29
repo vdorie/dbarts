@@ -2,10 +2,10 @@
 
 Status: PLANNED 2026-10-29 under dec-B432, revised the same day from its blind critique, and amended
 after the critique's re-check (verdict: build stages 0 and 1;
-[Amendments before results](#amendments-before-results)). Runs after the merge to main and before 1.0-0.
-Not run: only the probes of [Probes](#probes) ran, 2026-10-29, on main 8a78507c and on a scratch build of
-the collapsed scale move. The criterion goes to the maintainer after stage 1, with stage 1's full Part A
-table in hand and before any Part B fit ([Stages and gates](#stages-and-gates)).
+[Amendments before results](#amendments-before-results)). Stages 0 and 1 ran the same day
+([Stages 0 and 1](#stages-0-and-1)): the move build passed its checks, and as written no candidate passes
+Part A, so the criterion goes to the maintainer with the Part A table (open call 1) before any Part B fit.
+Runs after the merge to main and before 1.0-0.
 
 agent: the blind critique (opus) ran; this revision answers it. One opus implementer writes the harness,
 runs it and writes the finding; an opus review of the harness, the scratch build and the smoke at stage 4,
@@ -17,9 +17,10 @@ move's predicate, about 15 lines on branch collapsed-move-main), never landed. A
 express today is checked at the default length on a scratch build carrying only its k draw.
 window: after the merge to main, before 1.0-0 (dec-B432). A change of default it supports goes back to the
 maintainer; building it is a separate, posterior-changing slice.
-budget: harness about 1,100 lines of R (benchmarks/R/nbinom-default-study.R), reusing the first study's
-prior predictive draw. Compute about 100 to 150 core-hours expected, stop at 160 (amended; [Cost](#cost)),
-re-priced from stage 2's full-length runs before the main run.
+budget: harness about 1,100 lines of R (benchmarks/R/nbinom-default-study.R; stages 0 and 1, written, are
+about 1,600 as formatted), reusing the first study's prior predictive draw. Compute about 100 to 150
+core-hours expected, stop at 160 (amended; [Cost](#cost)), re-priced from stage 2's full-length runs before
+the main run.
 
 ## Summary for the maintainer
 
@@ -647,6 +648,127 @@ they govern.
   data the critique's probe found their intervals about 20 percent wider than the default's. The summary
   says so.
 
+## Stages 0 and 1
+
+Run 2026-10-29 on the laptop's two cores by the harness's stage 0 and 1 actions, on the move build and on
+main 8a78507c ("today"), about 1.5 core-hours in all, against the 3 budgeted. No fit was scored against a
+truth.
+
+**Sized** on the maintainer's instruction, the same day, that runs and replications be sized to the
+question each answers and no further:
+
+- The drift test ran 1,000 replications on each build, in batches, not 2,000. The statistic's spread across
+  replications is 0.29 and the mutant's error moves log k by only about 0.05 within the window, so |z| above
+  5 on the mutant takes about 1,000; the move build ran to the same count, at which a drift of 0.04 in log
+  k, under a third of k's narrowest posterior sd on the real data, shows at |z| 3 with 90 percent power.
+- The checks' prior datasets are conditioned on their total count: 50,000 in the drift test, above every
+  fitted real dataset's, and 10,000 in the SBC. A condition on the counts alone keeps each check exact. It
+  bounds the cost, which grows with the total: without it, single replications ran for many minutes.
+- The SBC keeps the plan's 200 datasets, at which a bias of a quarter of k's posterior sd moves the mean
+  rank by 3.4 standard errors. Each chain runs until 99 draws spaced at twice k's autocorrelation time
+  fit, capped at 100,000 sweeps, not a fixed length.
+- Stage 1 drew forests in blocks of 2,500 a design and stopped once every verdict was resolved (the
+  estimate two standard errors from its bound, or its standard error under 5 percent of the bound): 5,000
+  forests on 23 designs, 20,000 on mite and on crimtab (rerun there for the options below).
+- The BART-fitted truths are 2 chains of 1,000 kept draws, not long fits: a truth is a fixed function once
+  stored, so its Monte Carlo error does not enter the study.
+
+**Stage 0.**
+
+- *Drift test from the truth.* Move build, 1,000 replications: drift of log k over lags 100 to 1,000
+  +0.008 (se 0.009), z +0.89; the shape held at r0 in all. The mutant: +0.050 (se 0.009), z +5.47. Passes,
+  with power.
+- *SBC of k.* 200 datasets at n = 50: ranks' chi-squared 7.1 on 9, p 0.63; mean rank z -0.92. Passes.
+  k's autocorrelation time had median 28 sweeps and 90th percentile 171; 9 datasets, with totals in the
+  thousands, reached the cap at times of 520 to 2,300 sweeps, and without them p is 0.80. The shape's
+  ranks, reported and not gated, give p 0.015, from one decile (37 of 200) filled by datasets drawn at
+  shapes 12 to 20. The shape's draw is shipped code the move does not touch, and the chains were thinned
+  by k's mixing, not the shape's; stage 4's review checks it. 0.5 core-hours.
+- *The builds on two datasets.* SBC datasets 1 and 2, 2 chains of 100,000 sweeps on each build: k's 5th,
+  50th and 95th percentiles within 0.63 combined standard errors (move 2.05, 3.61, 5.80 against today's
+  2.01, 3.63, 5.81; and 1.10, 1.58, 2.21 against 1.11, 1.59, 2.22). Passes. The move build's effective
+  draws of k were 13,700 and 2,400 against today's 1,100 and 540.
+- *Reweighting.* chi(5, 0.9) from C0's run on three prior datasets (200 rows): weights kept 37 to 95 percent,
+  k-hat at most -0.81; k's 5th, 50th and 95th percentiles reweighted and from its own run within 2.1
+  combined standard errors (the nine z's give chi-squared 14.6 on 9, p 0.10), rows' interval endpoints
+  within two in 92, 94 and 97 percent of rows. Passes. On null data (D5's design, two replications)
+  chi(1.5, 3) kept 11 and 20 percent with k-hat 0.48 and 0.54, C7 1 and 4 percent with k-hat 0.79 and 0.85;
+  the reweighted 95th percentiles of k differed from their own runs' by 6 to 24 standard errors. So
+  reweighting fails there, as amended, and the 30 percent rule, not k-hat, is the one that catches
+  chi(1.5, 3). Own runs stand as amended.
+- *The prior draw.* A = 3, and at k = 3 the rows' prior variance is 0.93 to 1.02 on four designs (1
+  expected). Cut points are identical to bart()'s, and the sampler's c is the formula's. A fit's c on Part
+  A's datasets is centered on the log of the cell's mean count (medians within 0.002), its central 90
+  percent within 0.11 at mean counts of 1 and above and within 0.3 at 0.1. The top-rows shortcut for a
+  count above the cap is within 1.3 standard errors of full count draws, including the one checked cell
+  where a count passes the cap (10,000 rows, mean 100: 0.67 against 0.80 percent).
+- *Data and truths.* 13 datasets exported with their additive truths; the four fits' spreads reproduce
+  [Real datasets](#real-datasets). The BART truths at k = 1 have S_id 0.29 (Insurance) to 2.33
+  (crimtab).
+- *What stage 0 changed in the harness.* Effective draws are the smaller of batch means (10 batches) and
+  Geyer's estimate: batch means alone read high early in a run, where the rule checks first. The
+  simulated offset design's exposure is scaled to mean 1, so a cell's label is a row's mean count as in
+  the other designs. Unscaled, a mean of 100 put rows at 10^5 by exposure alone.
+
+**Stage 1, Part A.** Percent of prior datasets: A1 and A2 at the worst design (at most 1 to pass), A3 at
+crimtab, the lowest real dataset for every prior but the two below the line (at least 1 to pass), read at
+crimtab's widest fit (2.43, the rule as written) and at the middle of its four fits' range (2.27).
+
+| prior | A1 | A2 | A3 at 2.43 | A3 at 2.27 |
+|---|---|---|---|---|
+| C0, chi(1.5, 2) | 8.41 | 0.77 | 5.52 | 8.90 |
+| C2 chi(3, 1.25) | 2.00 | 0.06 | 1.46 | 3.18 |
+| C2 chi(4, 1.03) | 0.99 | 0.04 | 0.65 | 1.71 |
+| C2 chi(5, 0.9) | 0.52 | 0 | 0.39 | 1.15 |
+| C2 chi(7, 0.75) | 0.17 | 0 | 0.12 | 0.57 |
+| C2 chi(10, 0.62) | 0.04 | 0 | 0.07 | 0.26 |
+| C3 chi(1.5, 3) | 4.62 | 0.43 | 3.43 | 5.02 |
+| C4, k at least 0.6 | 0.89 | 0 | 0.68 | 2.14 |
+| C4, k at least 0.75 | 0.27 | 0 | 0.33 | 1.15 |
+| C4, k at least 1 | 0.02 | 0 | 0.07 | 0.33 |
+| C5, median 1.3 | 0.95 | 0 | 0.80 | 2.07 |
+| C5, median 1.57 | 2.29 | 0.01 | 1.54 | 3.96 |
+| C1, k = 1.5 | 0 | 0 | 0.04 | 0.19 |
+| C1, k = 2 (also below 1 on aids, BCI, mite) | 0 | 0 | 0 | 0 |
+| C7, at each real design's own spread | 7.72 | 0 | 0.01 | 0.02 |
+
+Standard errors near a bound are about 0.03 points on A1 and under 0.1 on A3. C6's shape weights move A2 by
+at most 0.2 points. At the simulated spreads C7's A1 is 0, 0.69 and 8.41 percent (0.25, 1 and 2).
+
+- The default fails A1 at every design, 4.0 to 8.4 percent; its A1 is largest at the real designs.
+- A2 separates nothing: under the convention every prior refuses a count in under 1 percent of datasets,
+  the default's worst 0.77 percent (10,000 rows, mean count 100). The critique's 6 to 9 percent came from
+  a center not set by the data.
+- A1 and A3 pull apart at crimtab, and as written no candidate passes A. Every candidate that passes A1
+  leaves crimtab beyond its 99th percentile, and every one that keeps crimtab inside it fails A1. The
+  pinch is crimtab's widest fit: the A1-passing candidates' 99th percentile of S_id there is at most
+  2.39, against 2.43. Read at the middle of crimtab's range, five pass: chi(4, 1.03), chi(5, 0.9), C4 at
+  0.6 and 0.75, and C5 at 1.3. None passes with margin. Every other real dataset lies inside the 99th
+  percentile of every A1-passing prior but k fixed at 2.
+- C7 fails both ways: scaled to a main-effects Poisson fit, its spread leaves crimtab beyond its 99th
+  percentile and exceeds A1's bound on five real designs (BCI the worst, 7.7 percent).
+- Migration, reported only, lies beyond the 99th percentile only under k fixed at 2.
+
+**Proposed sizes for Part B**, for the maintainer's ruling with the criterion (open call 8), each sized to
+the smallest difference that would change a verdict: the tie margin, 0.005 in a class's coverage gap, and
+half the bar, 0.01, for a confirmation. Until stage 2 measures it, a paired coverage difference's spread
+across replications is assumed 0.03 a cell in the middle and wide bands and 0.10 in the narrow.
+
+- Replications: narrow and small-sample cells 20, as planned; middle and wide cells 5 (BCI 2), not 10. A
+  class's gap then has a standard error near 0.0024 against 0.002, still under half the tie margin, and the
+  wide band, where candidates differ least, costs half. Saves about 24 core-hours.
+- Effective draws: 100 for k and the mean, which the weights need; 50 for the rows' interval endpoints,
+  whose Monte Carlo error is shared by every candidate reweighted from one run and so mostly cancels in
+  their differences. This halves the slow-tree datasets' run lengths and saves about 12.
+- Own runs: only for candidates passing A and only where the weights fail, which stage 0 found on null data
+  and not on prior data; about one in ten middle and wide replications, not one in two. Saves about 13.
+- Confirmation: on close bands only, in blocks of 5 replications until the margin's interval clears 0.01,
+  in place of a third of the main run on every cell; about 6 core-hours against 25.
+- Kept: the cells, the cap of 100,000 sweeps (mite needs it), and the interim stop at 10 replications.
+
+With five candidates passing A (open call 1's recommendation), the study comes to about 50 core-hours at
+these sizes against 85 at the plan's; stage 2 re-prices both.
+
 ## How the result goes to the maintainer
 
 The finding is written to docs/design/nbinom-default-study.md (Status FINDING): Part A's table and verdicts
@@ -670,8 +792,11 @@ updated or closed.
 
 ## Open calls for the maintainer
 
-1. The criterion, ruled after stage 1 with its full Part A table and before any fit is scored: recommend A1
-   to A3 as written and Part B by band with the narrow-data width guard and the asymmetric rule.
+1. The criterion, ruled after stage 1 with its full Part A table and before any fit is scored. As written no
+   candidate passes A ([Stages 0 and 1](#stages-0-and-1)). Recommend A3 read at the middle of each real
+   dataset's range across its four fits, at 1 in 100, which five candidates pass; A1 and A2 as written; Part
+   B by band with the narrow-data width guard and the asymmetric rule. The other options: as written (the
+   default is kept and the fits are skipped), the widest fit at 1 in 200, no A3, or Part A reported only.
 2. The long reading: recommend long runs on a scratch build of the collapsed move's negative binomial half,
    reweighted across priors (exact; about 65 core-hours against 97 for the grid, an approximation, and 181
    for today's sampler).
@@ -684,15 +809,14 @@ updated or closed.
 6. The data-scaled spread (C7): recommend scoring it here.
 7. The shape's prior (C6): recommend scoring it here with its weights fixed now, decided separately from the
    spread.
-8. Compute: recommend about 100 to 150 core-hours expected, stop at 160; the laptop through
-   stage 2 and for the cheaper cells, the box after the k study's first tranche.
+8. Compute: recommend the sizes proposed in [Stages 0 and 1](#stages-0-and-1), about 50 core-hours under
+   call 1's recommendation against 85 at this plan's sizes, re-priced from stage 2, stop at 160; the laptop
+   through stage 2 and for the cheaper cells, the box after the k study's first tranche.
 
 ## Not verified
 
-- That the scratch move build samples the posterior beyond the probes' agreement on two datasets and the
-  critique's long runs on roaches; stage 0's SBC and drift test and stage 2 decide, and its code is reviewed
-  again at stage 4.
-- Which candidates pass A2 and A3, and all of Part A beyond the probes' six designs; stage 1 decides.
+- That the scratch move build samples the posterior on real data; stage 0 checked it on prior datasets
+  only, stage 2 decides, and its code is reviewed again at stage 4.
 - Run lengths, weight failures and unsettled shares on small samples, BCI and the widened truths; stage 2
   measures them, and the costs above are projections until then.
 - The box's per-sweep times: every cost here is the laptop's.
