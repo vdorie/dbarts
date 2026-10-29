@@ -580,7 +580,7 @@ dartSampler <- dbarts(
   x,
   y,
   control = midControl(),
-  tree.prior = dart(),
+  split.probs = dart(),
   leaf.prior = normal(sd = 0.75)
 )
 expect_error(dartSampler$setModel(dartSampler$model), "DART")

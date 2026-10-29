@@ -433,7 +433,11 @@ xbart <- function(
   # power and base are grid axes, which cellModel writes on the record each
   # cell; split.probs, a vector or dart(), resolves in its vocabulary as the
   # fitting functions resolve it, and rides every cell unchanged
-  tree.prior <- splitProbsRecord(matchedCall[["split.probs"]], ncol(data@x), evalEnv)
+  tree.prior <- splitProbsRecord(
+    matchedCall[["split.probs"]],
+    ncol(data@x),
+    evalEnv
+  )
   tree.prior@power <- power[1L]
   tree.prior@base <- base[1L]
   tree.prior <- resolveSplitProbabilities(tree.prior, data)

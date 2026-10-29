@@ -60,7 +60,8 @@ build <- function(text, stated = FALSE, ...) {
     call$control$n.trees <- if (stated) 15L
   }
   if (stated) {
-    call$tree.prior <- quote(cgm(3, 0.8))
+    call$power <- 3
+    call$base <- 0.8
   }
   extra <- lapply(list(...), function(argument) {
     if (is.character(argument)) str2lang(argument) else argument
@@ -360,8 +361,8 @@ for (text in allBasis[c(1L, 7L)]) {
   }
   # the defaults of the two priors, named
   expect_match(
-    refusal(text, tree.prior = "cgm"),
-    "'tree.prior' given to the fitting function is the tree prior of",
+    refusal(text, power = "2"),
+    "'power' given to the fitting function is the tree prior of",
     fixed = TRUE
   )
   expect_match(
@@ -437,7 +438,6 @@ statedBT <- list(
   list("power", "tree", power = 2),
   list("base", "tree", base = 0.95),
   list("power", "tree", base = 0.95, power = 2),
-  list("splitprobs", "tree", splitprobs = c(0.5, 0.25, 0.25)),
   list("k", "leaf", k = 2)
 )
 for (case in statedBT) {
@@ -453,6 +453,14 @@ for (case in statedBT) {
     fixed = TRUE
   )
 }
+# split probabilities are judged by their value: uniform ones state the
+# default, and ones that are not are refused for a model of several forests
+severalSplitProbs <- paste0(
+  "a model of several forests does not support 'split.probs' (a vector that ",
+  "is not uniform, or dart()); drop it or fit a single-forest model"
+)
+expect_identical(refusalBT(splitprobs = c(1, 1, 1)), "created")
+expect_identical(refusalBT(splitprobs = c(1, 2, 1)), severalSplitProbs)
 # beside a plain forest, at either place, they are that forest's
 fitBT <- c(200, 0.95, 2)
 statedOnBT <- list(ntree = 20L, power = 3, base = 0.8)
@@ -497,9 +505,9 @@ expect_identical(
   )
 )
 expect_identical(
-  refusal(onData, tree.prior = "cgm(3, 0.8)"),
+  refusal(onData, power = 3),
   paste0(
-    "'tree.prior' given to the fitting function is the tree prior of",
+    "'power' given to the fitting function is the tree prior of",
     noPlain,
     leaveOut
   )
@@ -547,7 +555,8 @@ given <- function(argument, what, remedy) {
   )
 }
 onForest <- "state it on a forest, as forest(x1, basis = a, "
-treeRemedy <- paste0(onForest, "base = 0.25, power = 3)")
+powerRemedy <- paste0(onForest, "power = 3)")
+baseRemedy <- paste0(onForest, "base = 0.25)")
 leafRemedy <- "state a forest's size on the forest, as forest(x1, basis = a, sd = 2)"
 someBlocks <- "blocks(list(\"x1\", c(\"x2\", \"x3\")))"
 for (text in allBasis[c(1L, 2L, 4L, 6L, 7L)]) {
@@ -557,8 +566,8 @@ for (text in allBasis[c(1L, 2L, 4L, 6L, 7L)]) {
     info = text
   )
   expect_identical(
-    refusal(text, tree.prior = "cgm(3, 0.8)"),
-    given("tree.prior", "the tree prior of", treeRemedy),
+    refusal(text, base = 0.8),
+    given("base", "the tree prior of", baseRemedy),
     info = text
   )
   expect_identical(
@@ -592,9 +601,8 @@ for (text in allBasis[c(1L, 2L, 4L, 6L, 7L)]) {
   )
 }
 for (entry in list(
-  list("power", 2, "the tree prior of", treeRemedy),
-  list("base", 0.9, "the tree prior of", treeRemedy),
-  list("split.probs", "c(x1 = 1, x2 = 1)", "the tree prior of", treeRemedy),
+  list("power", 2, "the tree prior of", powerRemedy),
+  list("base", 0.9, "the tree prior of", baseRemedy),
   list("k", 2, "the leaf prior of", leafRemedy),
   list("node.prior", "normal", "the leaf prior of", leafRemedy)
 )) {
@@ -604,6 +612,15 @@ for (entry in list(
     given(entry[[1L]], entry[[3L]], entry[[4L]])
   )
 }
+# split probabilities are judged by their value, not as stated
+expect_identical(
+  refusal(allBasis[2L], split.probs = "c(x1 = 1, x2 = 1)"),
+  "created"
+)
+expect_identical(
+  refusal(allBasis[2L], split.probs = "c(x1 = 1, x2 = 2)"),
+  severalSplitProbs
+)
 # moved to a forest each is taken, and beside a plain forest none is refused
 moved <- build(listOf(paste0(
   "forest(basis = dose, n.trees = 15L, base = 0.8, power = 3, sd = 2, ",
@@ -719,7 +736,7 @@ for (text in c(
 )) {
   expect_identical(
     refusal(text, n.trees = 15L),
-    paste0(countTwice, ", which are the same count; give one")
+    paste0(countTwice, " (forest 1), which are the same count; give one")
   )
   expect_identical(forestTable(build(text))[1L, 1L], 7)
 }

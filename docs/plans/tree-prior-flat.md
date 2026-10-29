@@ -112,7 +112,7 @@ scratch/tree-prior-design/p1.R to p10.R rerun there as q2, q5 and q8). Data: 120
   [`resolveSamplerSpec`](../../R/spec.R), which writes the first forest's knobs over the model's prior. `n.trees`
   given to `bart()` and to that forest is refused: "'n.trees' is given to the fitting function and to the
   forest with no basis ('forest(x1 + x2, n.trees = 10)'), which are the same count; give one"
-  ([`refuseTreeCountGivenTwice`](../../R/formulaTerms.R)); at `dbarts()` a control's count beside the forest's
+  ([`refuseGivenTwiceInFormula`](../../R/formulaTerms.R)); at `dbarts()` a control's count beside the forest's
   leaves the forest's to govern.
 - No forest with no basis. `dbarts(y ~ forest(x1, basis = factor(z)) + forest(x2, basis = ~ x3), tree.prior =
   cgm(power = 3))`: "'tree.prior' given to the fitting function is the tree prior of the forest with no basis,
@@ -183,7 +183,7 @@ R (slice 1):
   (D6). The collision check (D5) is one helper beside [`refuseStatedWithNoPlainForest`](../../R/model.R), whose
   remedy names the argument given. [`forest`](../../R/model.R)'s and [`varianceForest`](../../R/model.R)'s
   comments, and the `dbartsVarianceForest` format's "<mean forest's>", say what D5 says.
-- R/formulaTerms.R. [`refuseTreeCountGivenTwice`](../../R/formulaTerms.R) becomes the formula half of D5 for any
+- R/formulaTerms.R. [`refuseGivenTwiceInFormula`](../../R/formulaTerms.R) becomes the formula half of D5 for any
   of `n.trees`, `power`, `base`.
 - R/spec.R. [`resolveSamplerSpec`](../../R/spec.R): the fitting function's values come from the plain
   arguments; the first forest's knobs are written over the record only where the fitting function's did not

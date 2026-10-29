@@ -387,8 +387,8 @@ expect_error(
   "'ntree' and 'n.trees'"
 )
 expect_error(
-  dbarts::pdbart(x, y, power = 3, tree.prior = cgm(), pl = FALSE),
-  "'power' and 'tree.prior'"
+  dbarts::pdbart(x, y, tree.prior = cgm(power = 3), pl = FALSE),
+  "'tree.prior' is not an argument of 'bart'"
 )
 # n.trees and family are honored
 pdbProbit <- dbarts::pdbart(
@@ -422,8 +422,8 @@ expect_true(all(
     c(names(formals(dbarts::bart)), "sigdf", "sigquant")
 ))
 
-# each is translated to the setting it names, with one warning per name and
-# none from bart
+# each is translated to the setting it names, with one warning per name
+# bart does not share and none from bart
 resetPdbartKeys()
 consolidatedKey <- "tombstone.consolidated.sigdf.bart"
 consolidatedBefore <- onceState[[consolidatedKey]]
@@ -459,7 +459,11 @@ warnings.legacy <- captureWarnings(
     )
   )
 )
-expect_equal(length(warnings.legacy), length(legacyArgs) + 2L)
+# power and base are bart's own names and warn nothing
+expect_equal(
+  length(warnings.legacy),
+  length(setdiff(names(legacyArgs), c("power", "base"))) + 2L
+)
 expect_true(all(vapply(
   warnings.legacy,
   inherits,
@@ -493,10 +497,11 @@ expect_equal(pdbLegacy$fit$model@resid.prior@df, 5)
 expect_equal(pdbLegacy$fit$model@resid.prior@quantile, 0.5)
 expect_identical(pdbLegacy$bartcall$n.trees, 3L)
 expect_true(all(
-  c("formula", "data", "tree.prior") %in% names(pdbLegacy$bartcall)
+  c("formula", "data", "power", "base", "split.probs") %in%
+    names(pdbLegacy$bartcall)
 ))
 expect_false(any(
-  setdiff(names(legacyArgs), c("sigdf", "sigquant")) %in%
+  setdiff(names(legacyArgs), c("sigdf", "sigquant", "power", "base")) %in%
     names(pdbLegacy$bartcall)
 ))
 # a second call in the session is silent
@@ -615,10 +620,8 @@ expect_equal(leafPrior@k@scale, Inf)
 rm(chiCaller, pdbChi, leafPrior)
 
 # names pdbart does not translate still warn through bart: only the notices
-# pdbart replaces are held back
-for (name in c("resid.prior", "split.probs")) {
-  onceState[[paste0("tombstone.consolidated.", name, ".bart")]] <- NULL
-}
+# pdbart replaces are held back; split.probs is bart's own and warns nothing
+onceState[["tombstone.consolidated.resid.prior.bart"]] <- NULL
 warnings.retired <- captureWarnings(suppressMessages(dbarts::pdbart(
   x,
   y,
@@ -633,11 +636,10 @@ warnings.retired <- captureWarnings(suppressMessages(dbarts::pdbart(
   n.threads = 1L,
   verbose = FALSE
 )))
-expect_equal(length(warnings.retired), 2L)
+expect_equal(length(warnings.retired), 1L)
 retiredMessages <- vapply(warnings.retired, conditionMessage, "")
 expect_equal(sum(grepl("'resid.prior'", retiredMessages)), 1L)
-expect_equal(sum(grepl("'split.probs'", retiredMessages)), 1L)
-rm(name, warnings.retired, retiredMessages)
+rm(warnings.retired, retiredMessages)
 
 # --- the defaults message ---
 # once per session, for a data call naming no BayesTree argument, and not for

@@ -187,7 +187,7 @@ withBlocks(
   "concentration",
   function() {
     make(
-      tree.prior = dart(alpha = 0.5, update.alpha = FALSE, update.delay = 0L)
+      split.probs = dart(alpha = 0.5, update.alpha = FALSE, update.delay = 0L)
     )
   },
   function(state) {
@@ -233,7 +233,7 @@ expect_null(
   stored(make(response = counts, family = nbinom(shape = 5)))[[1L]]$shape
 )
 expect_null(
-  stored(make(tree.prior = dart(alpha = 0.5, update.alpha = FALSE)))[[
+  stored(make(split.probs = dart(alpha = 0.5, update.alpha = FALSE)))[[
     1L
   ]]$dart.alpha
 )
@@ -263,7 +263,7 @@ shapeState <- editChains(stored(drawnShape), function(chain) {
 })
 drawnShape$setState(shapeState)
 expect_identical(drawnShape$getShape(), c(30, 30))
-drawnAlpha <- make(tree.prior = dart())
+drawnAlpha <- make(split.probs = dart())
 alphaState <- editChains(stored(drawnAlpha), function(chain) {
   chain$dart.alpha <- 0.25
   chain

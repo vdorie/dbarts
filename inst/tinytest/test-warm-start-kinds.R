@@ -923,7 +923,7 @@ dartOf <- function(state) {
 onThree <- function(...) {
   make(
     ...,
-    tree.prior = dart(update.delay = 5L),
+    split.probs = dart(update.delay = 5L),
     forests = list(forest(vars = 1L:3L))
   )
 }
@@ -939,13 +939,13 @@ weights <- dartOf(stateOf(ran))[[1L]]
 expect_true(weights[4L] == 0 && length(unique(weights[1L:3L])) == 3L)
 # not judged: a clean plain donor into a DART fit is taken as it stands
 expect_identical(
-  answerOf(make(tree.prior = dart())$installTrees(plainDonor)),
+  answerOf(make(split.probs = dart())$installTrees(plainDonor)),
   visibly(TRUE)
 )
 
 # a DART donor into a plain fit: taken, and nothing of its DART read, so the
 # sampler is one that took the donor without it
-dartDonor <- make(tree.prior = dart(update.delay = 0L), sweeps = 50L)
+dartDonor <- make(split.probs = dart(update.delay = 0L), sweeps = 50L)
 noDart <- stateOf(dartDonor)
 noDart[[1L]][c("dart.probabilities", "dart.alpha", "dart.updates.skipped")] <-
   list(NULL)
@@ -957,7 +957,7 @@ expect_identical(stateOf(intoPlain), stateOf(twin))
 expect_null(stateOf(intoPlain)[[1L]]$dart.probabilities)
 expect_identical(intoPlain$run(0L, 3L), twin$run(0L, 3L))
 # both DART: the donor's weights, concentration and counter
-bothDart <- make(tree.prior = dart(update.delay = 5L), sweeps = 10L)
+bothDart <- make(split.probs = dart(update.delay = 5L), sweeps = 10L)
 expect_identical(answerOf(bothDart$installTrees(dartDonor)), visibly(TRUE))
 expect_identical(dartOf(stateOf(bothDart)), dartOf(stateOf(dartDonor)))
 
@@ -989,7 +989,7 @@ expect_null(stateOf(intoHomoscedastic)[[1L]]$variance.vars)
 
 # a decline leaves a sampler's own parts as they were
 bothParts <- make(
-  tree.prior = dart(update.delay = 5L),
+  split.probs = dart(update.delay = 5L),
   variance = varianceForest(n.trees = 4L),
   sweeps = 30L
 )
@@ -1016,7 +1016,12 @@ for (move in c("setResponse", "setData")) {
 
 # and where the trees are chosen, from a donor of more trees forced
 partsOnSix <- function(sweeps = 0L) {
-  heteroscedastic(6L, 4L, tree.prior = dart(update.delay = 5L), sweeps = sweeps)
+  heteroscedastic(
+    6L,
+    4L,
+    split.probs = dart(update.delay = 5L),
+    sweeps = sweeps
+  )
 }
 createdParts <- partsOnSix()
 chosen <- partsOnSix(sweeps = 30L)
@@ -1114,7 +1119,7 @@ for (length in c(1L, 3L, 5L, 100000L)) {
   misfit <- stateOf(dartDonor)
   misfit[[1L]]$dart.probabilities <- rep(1 / length, length)
   refusedBoth(
-    make(tree.prior = dart(update.delay = 0L), sweeps = 5L),
+    make(split.probs = dart(update.delay = 0L), sweeps = 5L),
     misfit,
     paste(
       "warm-start donor is not shape-compatible with this sampler (number of",
@@ -1152,7 +1157,7 @@ refusedBoth(
 
 taken <- "warm start: 4 of 4 donor trees taken; "
 expect_identical(
-  lineOf(make(tree.prior = dart()), plainDonor),
+  lineOf(make(split.probs = dart()), plainDonor),
   paste0(taken, "DART weights started fresh")
 )
 expect_identical(

@@ -178,25 +178,24 @@ expect_equal(dim(rMultinomial$train), c(n, 3L, quick$n.samples))
 
 # The shared-default-text contract. For every name shared by bart and
 # dbarts, the deparsed default expressions agree, except the table below.
-# tree.prior/leaf.prior are bart formals too, so the loop walks both; they
-# stay excepted because bart's NULL means "build from the shorthands" while
-# dbarts's own defaults are the bare constructors. 'resid.prior' is no
+# leaf.prior is a bart formal too, so the loop walks it; it stays excepted
+# because bart's NULL means "build from the shorthands" while dbarts's own
+# default is the bare constructor. power, base and split.probs are formals of
+# both with one default each, so the loop compares them. 'resid.prior' is no
 # longer a bart formal at all - the residual prior rides the family object -
-# so it never reaches this comparison.
+# so it never reaches this comparison, nor does dbarts's retired tree.prior.
 tbExceptions <- data.frame(
   name = c(
     "verbose",
     "n.samples",
     "family",
-    "tree.prior",
     "leaf.prior"
   ),
   reason = c(
     "fitters announce, constructors do not",
     "different roles; semantics differ (d2)",
     "multinomial is a bart-only composition",
-    "bart's NULL means \"build from the shorthands\"",
-    "same"
+    "bart's NULL means \"build from the shorthands\""
   ),
   stringsAsFactors = FALSE
 )
@@ -219,12 +218,25 @@ diverged <- Filter(
 )
 expect_equal(diverged, character(0))
 
-# split.probs is not a shared-default-text exception (nor a candidate row):
-# neither dbarts() nor bart() has a split.probs formal of its own - the tree
-# prior takes the value through the object instead - so the shared-default-text
-# loop above never compares it
-expect_false("split.probs" %in% names(formals(dbarts::bart)))
-expect_false("split.probs" %in% names(formals(dbarts::dbarts)))
+# the tree prior's three plain arguments stand on every door with one default
+# each, xbart's power and base being its grid axes; tree.prior stands only on
+# the two doors that shipped it, trailing and NULL
+for (door in list(dbarts::bart, dbarts::dbarts, dbarts::dbartsSpec)) {
+  expect_identical(
+    as.list(formals(door)[c("power", "base", "split.probs")]),
+    alist(power = 2, base = 0.95, split.probs = NULL)
+  )
+}
+expect_identical(
+  as.list(formals(dbarts::xbart)[c("power", "base", "split.probs")]),
+  alist(power = 2, base = 0.95, split.probs = NULL)
+)
+expect_false("tree.prior" %in% names(formals(dbarts::bart)))
+expect_false("tree.prior" %in% names(formals(dbarts::xbart)))
+expect_null(formals(dbarts::dbarts)$tree.prior)
+expect_null(formals(dbarts::dbartsSpec)$tree.prior)
+expect_true("tree.prior" %in% names(formals(dbarts::dbarts)))
+expect_true("tree.prior" %in% names(formals(dbarts::dbartsSpec)))
 
 # match.arg error messages for bad tokens: bart resolves factors in its own
 # frame before forwarding, so a bad token errors here, naming the choices,
@@ -561,11 +573,11 @@ formatted <- format(
 expect_true(is.character(formatted))
 expect_true(any(grepl("base\\s*= 0.9", formatted)))
 
-# tree.prior/leaf.prior are bart formals (NULL). A supplied object forwards
-# unevaluated - exactly as k already does - and a shorthand that would
-# otherwise build the same prior is a collision, refused by name; no object
-# leaves the flat shorthand build untouched. The residual prior rides the
-# family object, and its retired flat spelling is carried on '...'.
+# leaf.prior is a bart formal (NULL). A supplied object forwards unevaluated
+# - exactly as k already does - and a shorthand that would otherwise build the
+# same prior is a collision, refused by name; no object leaves the flat
+# shorthand build untouched. The residual prior rides the family object, and
+# its retired flat spelling is carried on '...'.
 
 # reachability: leaf.prior = linear()/gp() and a fixed residual prior were
 # unreachable from bart before (no route existed to hand dbarts() a prior
@@ -645,22 +657,14 @@ expect_identical(samplesViaBart2Fixed$sigma, samplesViaDbartsFixed$sigma)
 # point), so the sanity check is a tolerance, not '=='
 expect_true(all(abs(samplesViaBart2Fixed$sigma - 1) < 1e-8))
 
-# collision refusals: a prior object plus a shorthand that would build it
-# errors naming both, matching the dart/split.probs precedent's shape; the
-# shorthand warns once per session, so its key is reset for the pin
-onceWarnState <- dbarts:::onceWarnState
-onceWarnState[["tombstone.consolidated.power.bart"]] <- NULL
-expect_warning(
-  expect_error(
-    fit2(y.gaussian, tree.prior = dbarts::dbartsPriors$cgm(), power = 3),
-    pattern = paste0(
-      "'tree.prior' cannot be combined with 'power': supply the prior either ",
-      "as an object or through its shorthand arguments, not both"
-    )
-  ),
-  "'power' has left 'bart'",
-  strict = TRUE
+# tree.prior never shipped on bart: refused by name, with the plain spelling
+expect_error(
+  fit2(y.gaussian, tree.prior = dbarts::dbartsPriors$cgm(power = 3)),
+  "'tree.prior' is not an argument of 'bart': write the tree prior as plain arguments, power = 3",
+  fixed = TRUE
 )
+# collision refusals: a prior object plus a shorthand that would build it
+# errors naming both
 expect_error(
   fit2(y.gaussian, leaf.prior = dbarts::dbartsPriors$normal(), k = 3),
   pattern = "'leaf.prior' cannot be combined with 'k'"
@@ -703,8 +707,9 @@ expect_equal(
   1L
 )
 
-# abbreviation breaks: 'tree.prior' now collides with 'test' on 't='; R's
-# own ambiguous partial-match error fires, not a package one
+# abbreviations: 't=' is 'test' alone, the one formal it abbreviates; 'n.'
+# matches several, and R's own ambiguous partial-match error fires, not a
+# package one
 expect_error(
   dbarts::bart(
     x,
@@ -716,7 +721,7 @@ expect_error(
     n.threads = 1L,
     verbose = FALSE
   ),
-  pattern = "matches multiple formal arguments"
+  pattern = "number of columns in 'test'"
 )
 expect_error(
   dbarts::bart(
@@ -733,15 +738,15 @@ expect_error(
   pattern = "matches multiple formal arguments"
 )
 
-# tree.prior/leaf.prior are live on BOTH hurdle components, unlike the
-# resid.prior/sigest quartet (positive half only): a differing tree.prior
+# power/leaf.prior are live on BOTH hurdle components, unlike the
+# resid.prior/sigest quartet (positive half only): a differing power
 # changes both components' draws relative to the default (a cheap liveness
 # check, not a value-level assertion)
 hurdleDefaultTree <- fit2(y.hurdle, family = "hurdle.lognormal", seed = 55L)
 hurdleOtherTree <- fit2(
   y.hurdle,
   family = "hurdle.lognormal",
-  tree.prior = dbarts::dbartsPriors$cgm(power = 4),
+  power = 4,
   seed = 55L
 )
 expect_false(identical(
@@ -830,7 +835,7 @@ factorBasisFit <- fitMultiForest(~tezf)
 expect_true(reconstructionIdentityError(factorBasisFit) < 1e-12)
 
 # xbart takes control = again (dec-B116), beside the flat
-# n.cuts/useQuantiles/n.thin/storage/tree.prior formals: a flat one the
+# n.cuts/useQuantiles/n.thin/storage formals: a flat one the
 # caller named wins over the control's slot of the same name.
 xbartKnobs <- c("n.cuts", "useQuantiles", "n.thin", "storage")
 expect_true(setequal(
@@ -850,8 +855,8 @@ expect_identical(
   names(formals(dbarts::xbart))[length(formals(dbarts::xbart))],
   "..."
 )
-# the sd grid beside k (35)
-expect_equal(length(formals(dbarts::xbart)), 35L)
+# the sd grid beside k, and no tree.prior (34)
+expect_equal(length(formals(dbarts::xbart)), 34L)
 # The two-door contract (dec-B83): the legacy door is a strict compatibility
 # mode carrying 0.9-34's argument list and nothing else, and every capability
 # the branch had briefly appended to it lives at the modern door instead.

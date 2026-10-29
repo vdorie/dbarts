@@ -77,7 +77,8 @@ control <- dbarts::dbartsControl(
 )
 
 # a bare constructor call resolves in the family vocabulary, not the
-# caller's frame, exactly as the prior vocabulary does inside tree.prior
+# caller's frame, exactly as the split-probability vocabulary does inside
+# split.probs
 expect_false(exists("student", envir = globalenv(), inherits = FALSE))
 samplerNSE <- dbarts::dbarts(x, y, control = control, family = student(df = 6))
 expect_equal(attr(samplerNSE$model, "resid.df"), 6)
@@ -155,7 +156,15 @@ expect_error(
   ),
   fixed = TRUE
 )
-expect_equal(viaNested(tree.prior = cgm(power = 3))$model@tree.prior@power, 3)
+expect_equal(viaNested(power = 3)$model@tree.prior@power, 3)
+# a split.probs written in its vocabulary, dart() and num.vars, resolves
+# where it was written
+expect_equal(viaNested(split.probs = dart(a = 0.7))$model@tree.prior@a, 0.7)
+unequal <- viaNested(split.probs = c(2, rep(1, num.vars - 1L)))
+expect_equal(
+  unname(unequal$model@tree.prior@splitProbabilities),
+  c(2, rep(1, ncol(x) - 1L)) / (ncol(x) + 1)
+)
 viaClosure <- function(...) {
   inner <- function() dbarts::dbarts(x, y, control = control, ...)
   inner()
@@ -186,7 +195,7 @@ viaBart <- function(...) {
 }
 expect_equal(
   countWarnings(
-    fitViaBart <- viaBart(family = student(3), tree.prior = cgm(power = 3)),
+    fitViaBart <- viaBart(family = student(3), split.probs = dart(a = 0.7)),
     "warning"
   ),
   0L
@@ -195,7 +204,7 @@ expect_equal(unique(fitViaBart$resid.df), 3)
 # the stored call carries what the caller wrote, not the wrapper's ..N, so
 # update() can re-evaluate it
 expect_identical(fitViaBart$call$family, quote(student(3)))
-expect_identical(fitViaBart$call$tree.prior, quote(cgm(power = 3)))
+expect_identical(fitViaBart$call$split.probs, quote(dart(a = 0.7)))
 expect_equal(unique(update(fitViaBart, n.samples = 6L)$resid.df), 3)
 expect_identical(
   viaNested(family = student(4))$control@call$family,
@@ -204,8 +213,9 @@ expect_identical(
 expect_error(
   (function(...) {
     dbarts::bart(x, factor(y > median(y)), family = "multinomial", ...)
-  })(tree.prior = dart()),
-  "DART 'tree.prior'"
+  })(split.probs = dart()),
+  "does not support 'split.probs' (a vector that is not uniform, or dart())",
+  fixed = TRUE
 )
 viaXbart <- function(...) {
   dbarts::xbart(
@@ -219,7 +229,7 @@ viaXbart <- function(...) {
   )
 }
 expect_true(
-  is.numeric(viaXbart(tree.prior = cgm(power = 3), leaf.prior = normal()))
+  is.numeric(viaXbart(split.probs = dart(a = 0.7), leaf.prior = normal()))
 )
 
 # ordinary variables still resolve where the call was written
@@ -239,16 +249,16 @@ expect_equal(
 # a wrapper re-entered by eval() after do.call(envir = ) has no caller the
 # stack can name, so its reference resolves as an ordinary one, in 'e'
 e <- new.env()
-e$treePrior <- dbartsPriors$cgm(power = 3)
+e$treePrior <- dbartsPriors$dart(a = 0.3)
 e$heldToken <- "logistic"
-treePrior <- dbartsPriors$cgm(power = 5)
+treePrior <- dbartsPriors$dart(a = 0.5)
 expect_equal(
   do.call(
     viaBart,
-    list(tree.prior = quote(treePrior), keepTrees = TRUE),
+    list(split.probs = quote(treePrior), keepTrees = TRUE),
     envir = e
-  )$fit$model@tree.prior@power,
-  3
+  )$fit$model@tree.prior@a,
+  0.3
 )
 viaEval <- function(...) {
   eval(quote(dbarts::dbarts(x, yBinary, control = control, ...)))
@@ -269,8 +279,8 @@ viaGeneric.token <- function(obj, ...) {
   NextMethod(family = heldToken)
 }
 viaGeneric.prior <- function(obj, ...) {
-  treePrior <- dbartsPriors$cgm(power = 2)
-  NextMethod(tree.prior = treePrior)
+  treePrior <- dbartsPriors$dart(a = 0.2)
+  NextMethod(split.probs = treePrior)
 }
 viaGeneric.ctor <- function(obj, ...) NextMethod(family = student(3))
 expect_equal(
@@ -280,9 +290,9 @@ expect_equal(
 expect_equal(
   viaGeneric(
     structure(1, class = "prior"),
-    tree.prior = treePrior
-  )$model@tree.prior@power,
-  2
+    split.probs = treePrior
+  )$model@tree.prior@a,
+  0.2
 )
 expect_error(
   viaGeneric(structure(1, class = "ctor"), family = student(9)),
@@ -315,7 +325,7 @@ expect_equal(
         verbose = FALSE,
         ...
       )
-    })(tree.prior = cgm(power = 3)),
+    })(power = 3),
     "warning"
   ),
   0L
@@ -467,7 +477,7 @@ expect_identical(callObject$call$family, quote(student(3)))
 # the setting completes dec-B98's rule: the residual scale's own prior is a
 # gaussian-family setting, so it is written inside the family call and
 # nowhere else. The prior vocabulary resolves there, as it does inside
-# 'tree.prior' and 'leaf.prior'.
+# 'leaf.prior'.
 expect_inherits(
   dbartsFamilies$gaussian(sigma = dbartsPriors$chisq(5, 0.75))@settings$sigma,
   "dbartsChiSqPrior"

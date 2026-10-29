@@ -475,7 +475,7 @@ expectedSpelling <- c(
   x.train = "formula",
   y.train = "data",
   x.test = "test",
-  splitprobs = "tree.prior = cgm(split.probs = )",
+  splitprobs = "split.probs",
   binaryOffset = "offset",
   ntree = "n.trees",
   ndpost = "n.samples",

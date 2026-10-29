@@ -276,7 +276,7 @@ dartSampler <- dbarts(
   xRef,
   yRef,
   control = refControl(),
-  tree.prior = dart(),
+  split.probs = dart(),
   leaf.prior = normal(sd = 0.75)
 )
 expect_equal(dartSampler$model@prior.scale, 1.5)

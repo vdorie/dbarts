@@ -159,17 +159,11 @@ expectClassed(
   "dbartsDeprecatedWarning"
 )
 expectClassed(
-  dbarts::bart(
+  dbarts::dbarts(
     y ~ .,
     d,
-    power = 1,
-    n.samples = 4L,
-    n.burn = 2L,
-    n.thin = 1L,
-    n.chains = 1L,
-    n.threads = 1L,
-    n.trees = 3L,
-    verbose = FALSE
+    tree.prior = dbarts::dbartsPriors$cgm(power = 1),
+    control = control
   ),
   "dbartsDeprecatedWarning"
 )

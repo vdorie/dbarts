@@ -179,8 +179,9 @@ has no such channel, so under aft each censored latent is instead redrawn at its
 (["not supported with monotone constraints"](../../R/spec.R)). It never takes DART either
 ([`buildVarianceForest`](../../src/bartcore/chain.hpp) leaves `useDart` at its default false).
 
-DART is refused for both multi-forest couplings by name - bcf at
-["a DART tree prior"](../../R/spec.R), multinomial at ["a DART 'tree.prior'"](../../R/bart.R) -
+DART is refused for both multi-forest couplings by value, with a split-probability vector that
+is not uniform - bcf at ["a model of several forests does not support 'split.probs'"](../../R/spec.R),
+multinomial at ["'split.probs' (a vector that is not uniform, or dart())"](../../R/spec.R) -
 and each coupling's forest builder hard-sets `forest.useDart = false` whatever the route asked
 for ([`buildSpecifiedForest`](../../src/bartcore/chain.hpp), [`buildMultinomialForest`](../../src/bartcore/chain.hpp)). Warm start and
 grow-from-root are refused, as `M` rather than `R`, for the four alternate-family `bart` arcs

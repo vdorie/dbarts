@@ -213,9 +213,10 @@ expect_error(
     labels,
     family = "multinomial",
     control = control,
-    tree.prior = dart
+    split.probs = dart
   ),
-  "does not support a DART tree prior"
+  "does not support 'split.probs' (a vector that is not uniform, or dart())",
+  fixed = TRUE
 )
 expect_error(
   dbarts(

@@ -25,7 +25,7 @@ control <- dbartsControl(
 sampler.cat <- dbarts(
   y ~ x1 + x2 + g,
   df,
-  tree.prior = dart(),
+  split.probs = dart(),
   factors = "categorical",
   control = control
 )
@@ -45,7 +45,7 @@ expect_true(all(abs(colSums(samples.cat$varprobs) - 1) < 1e-8))
 sampler.ind <- dbarts(
   y ~ x1 + x2 + g,
   df,
-  tree.prior = dart(),
+  split.probs = dart(),
   factors = "indicators",
   control = control
 )

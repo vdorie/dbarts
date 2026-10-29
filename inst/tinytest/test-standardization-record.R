@@ -101,7 +101,7 @@ reloadOf <- function(sampler) {
   reloaded
 }
 noSplitsOnA <- function(...) {
-  make(..., tree.prior = cgm(split.probs = c(0, 1)))
+  make(..., split.probs = c(0, 1))
 }
 # a data object on frame whose record gives one covariate's center and no
 # scale: a derivation over a column of one value is refused, so such a
@@ -546,14 +546,14 @@ constantAt <- function(value) {
 flatDonor <- dbarts::dbarts(
   recordedFlat(constantAt(0), "a", 0),
   leaf.prior = linear(columns = "a"),
-  tree.prior = cgm(split.probs = c(0, 1)),
+  split.probs = c(0, 1),
   control = controlWith()
 )
 invisible(flatDonor$run(30L, 4L))
 flatRecipient <- dbarts::dbarts(
   recordedFlat(constantAt(3), "a", 3),
   leaf.prior = linear(columns = "a"),
-  tree.prior = cgm(split.probs = c(0, 1)),
+  split.probs = c(0, 1),
   control = controlWith(keepTrees = FALSE, seed = 9L)
 )
 expect_identical(inForce(flatRecipient)$scale, NA_real_)

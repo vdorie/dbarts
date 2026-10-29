@@ -102,7 +102,7 @@ multinomialCall <- quote(dbarts::dbarts(
   testData$x,
   cut(testData$y, 3L),
   family = "multinomial",
-  tree.prior = cgm(split.probs = probs),
+  split.probs = probs,
   control = dbarts::dbartsControl(n.chains = 1L, n.threads = 1L)
 ))
 probs <- c(-1, rep.int(0, ncol(testData$x) - 1L))
@@ -189,7 +189,7 @@ sampler <- dbarts::dbarts(
   y ~ .,
   df,
   control = control,
-  tree.prior = cgm(split.probs = c(X4 = 2, .default = 1))
+  split.probs = c(X4 = 2, .default = 1)
 )
 sampler$sampleTreesFromPrior()
 
@@ -228,7 +228,7 @@ sampler <- dbarts::dbarts(
   y ~ .,
   df,
   control = control,
-  tree.prior = cgm(split.probs = c(X6 = 2, .default = 1))
+  split.probs = c(X6 = 2, .default = 1)
 )
 # 1000 burn + 1000 samples: the 2x prior split weight on X6 only clears the
 # per-variable varcount noise over a run this long

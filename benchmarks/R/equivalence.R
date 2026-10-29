@@ -247,7 +247,7 @@ makeScenarios <- function() {
     x.test = matrix(runif(n.test * 10L), n.test),
     binary = FALSE,
     samplerApi = TRUE,
-    samplerArgs = list(tree.prior = dbarts:::dart(2, 0.95))
+    samplerArgs = list(split.probs = dbarts:::dart())
   )
 
   # linear leaves with a chi hyperprior on k: conjugate ridge draws + sampled k

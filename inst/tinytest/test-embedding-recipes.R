@@ -278,19 +278,19 @@ latentStep <- function(seed) {
   d1$y <- 1.5 * thetaTrue + rnorm(nJoint, 0, 0.3)
   d2 <- data.frame(v = runif(nJoint), theta = thetaTrue)
   d2$y <- rbinom(nJoint, 1L, pnorm(thetaTrue))
-  deepPrior <- dbartsPriors$cgm(power = 0.5)
+  deepPower <- 0.5
   sA <- dbarts(
     y ~ theta + u,
     d1,
     control = recipeControl(44L),
-    tree.prior = deepPrior
+    power = deepPower
   )
   sB <- dbarts(
     y ~ v + theta,
     d2,
     family = "probit",
     control = recipeControl(44L),
-    tree.prior = deepPrior
+    power = deepPower
   )
   invisible(sA$run(0L, 20L))
   invisible(sB$run(0L, 20L))

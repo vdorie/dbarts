@@ -797,27 +797,37 @@ rm(samplerSigma)
 
 # --- argument leaks: buildMultinomialSampler
 # copies only power/base/proposal-probability fields into the K-forest
-# engine, so a DART tree.prior, split.probs, monotone, and variance are
-# refused by name rather than silently dropped. The refusal sits ahead of
-# the factor/count-matrix dispatch and of any sampler creation, so no
-# n.trees/n.burn/n.samples are needed to reach it.
+# engine, so dart(), split probabilities that are not equal, monotone, and
+# variance are refused by name rather than silently dropped. Monotone and
+# variance are refused ahead of the factor/count-matrix dispatch and of any
+# sampler creation, so no n.trees/n.burn/n.samples are needed to reach them;
+# the split probabilities by their value, where the host sampler resolves
+# them against the columns.
 multinomialRefuses <- function(x, y, pattern, ...) {
   # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
-  expect_error(bart(x, y, family = "multinomial", ...), pattern)
+  expect_error(bart(x, y, family = "multinomial", ...), pattern, fixed = TRUE)
 }
-# a direct call (not the '...'-forwarding helper above, which would itself
-# break dart()'s deferred resolution)
-expect_error(
-  bart(x2, y2, family = "multinomial", tree.prior = dart()),
-  "tree.prior"
+unequalRefusal <- paste0(
+  "a multinomial (softmax) model does not support 'split.probs' (a vector ",
+  "that is not uniform, or dart()); drop it or fit a single-forest model"
 )
-# the shorthand warns once per session, so its key is reset for the pin
-onceWarnState <- dbarts:::onceWarnState
-onceWarnState[["tombstone.consolidated.split.probs.bart"]] <- NULL
-expect_warning(
-  multinomialRefuses(x2, y2, "split.probs", split.probs = c(0.5, 0.5)),
-  "'split.probs' has left 'bart'",
-  strict = TRUE
+multinomialRefuses(x2, y2, unequalRefusal, split.probs = dart())
+multinomialRefuses(x2, y2, unequalRefusal, split.probs = c(0.25, 0.75))
+# equal probabilities state the default, and are taken
+expect_inherits(
+  bart(
+    x2,
+    y2,
+    family = "multinomial",
+    split.probs = c(0.5, 0.5),
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  ),
+  "bartMultinomial"
 )
 # monotone is half-applied upstream (its proposal.probs rewrite reaches the
 # engine, the directions do not), so it is refused rather than silently fit

@@ -97,7 +97,7 @@ build <- function(
       y ~ a + b + c,
       dat,
       forests = list(first),
-      tree.prior = dart(),
+      split.probs = dart(),
       control = control
     )
   )

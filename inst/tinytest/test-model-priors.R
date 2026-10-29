@@ -1,5 +1,6 @@
 # prior specifications as first-class objects: the dbartsPriors constructors
-# and the scoped bare-name vocabulary inside the prior arguments
+# and the scoped bare-name vocabulary inside the prior arguments, and the tree
+# prior's plain power, base and split.probs
 
 set.seed(42)
 n <- 100L
@@ -13,8 +14,9 @@ expect_equal(prior.cgm@power, 1.5)
 # NULL is absent, so it is the default
 expect_equal(dbartsPriors$cgm(power = NULL)@power, 2)
 expect_equal(dbartsPriors$cgm(base = NULL)@base, 0.95)
-expect_equal(dbartsPriors$dart(power = NULL)@power, 2)
-expect_equal(dbartsPriors$dart(base = NULL)@base, 0.95)
+# dart() is split.probs's value and takes no depth: its first formal is 'a'
+expect_error(dbartsPriors$dart(power = 3), pattern = "unused argument")
+expect_equal(dbartsPriors$dart(0.3)@a, 0.3)
 expect_error(dbartsPriors$cgm(power = -1), pattern = "power")
 expect_error(dbartsPriors$chisq(df = -3), pattern = "df")
 expect_error(dbartsPriors$normal(-2), pattern = "positive")
@@ -39,7 +41,8 @@ set.seed(1)
 sampler.obj <- dbarts(
   y ~ a + b,
   df,
-  tree.prior = prior.cgm,
+  power = 1.5,
+  base = 0.9,
   leaf.prior = dbartsPriors$normal(3),
   control = control
 )
@@ -48,7 +51,8 @@ set.seed(1)
 sampler.sugar <- dbarts(
   y ~ a + b,
   df,
-  tree.prior = cgm(1.5, 0.9),
+  power = 1.5,
+  base = 0.9,
   leaf.prior = normal(3),
   control = control
 )
@@ -56,36 +60,40 @@ samples.sugar <- sampler.sugar$run(20L, 20L)
 expect_identical(samples.obj$train, samples.sugar$train)
 
 # the vocabulary shadows the caller's environment: a masking 'normal' (as
-# rstanarm exports) does not change the meaning
+# rstanarm exports) does not change the meaning, nor a masking 'dart' inside
+# split.probs
 normal <- function(...) stop("masked by another package")
-cgm <- function(...) stop("masked by another package")
+dart <- function(...) stop("masked by another package")
 sampler.masked <- dbarts(
   y ~ a + b,
   df,
-  tree.prior = cgm(1.5, 0.9),
+  power = 1.5,
+  base = 0.9,
+  split.probs = dart(a = 0.7),
   leaf.prior = normal(3),
   control = control
 )
 expect_inherits(sampler.masked$model@leaf.hyperprior, "dbartsFixedHyperprior")
 expect_equal(sampler.masked$model@leaf.hyperprior@k, 3)
-rm(normal, cgm)
+expect_equal(sampler.masked$model@tree.prior@a, 0.7)
+rm(normal, dart)
 
-# num.vars remains available inside the arguments
+# num.vars remains available inside split.probs
 sampler.nv <- dbarts(
   y ~ a + b,
   df,
-  tree.prior = cgm(2, 0.95, 1 / num.vars),
+  split.probs = 1 / num.vars,
   control = control
 )
 expect_equal(length(sampler.nv$model@tree.prior@splitProbabilities), 0L)
 
-# the vocabulary is the constructors plus num.vars/numvars, and nothing else:
-# a caller's own 'data' or 'control' inside a prior argument is the caller's
+# the vocabulary is dart() plus num.vars/numvars, and nothing else: a
+# caller's own 'data' or 'control' inside split.probs is the caller's
 data <- c(a = 3, .default = 1)
 sampler.caller <- dbarts(
   y ~ a + b,
   df,
-  tree.prior = cgm(2, 0.95, data),
+  split.probs = data,
   control = control
 )
 expect_equal(
@@ -99,7 +107,7 @@ prior.split <- dbartsPriors$cgm(split.probs = c(a = 3, .default = 1))
 sampler.split <- dbarts(
   y ~ a + b,
   df,
-  tree.prior = prior.split,
+  split.probs = c(a = 3, .default = 1),
   control = control
 )
 expect_equal(
@@ -144,7 +152,7 @@ y.dart <- 6 *
   rnorm(n.dart, 0, 0.3)
 sampler.dart <- dbarts(
   y.dart ~ x.dart,
-  tree.prior = dart(),
+  split.probs = dart(),
   control = control.bc
 )
 expect_equal(sampler.dart$model@tree.prior@update.delay, 250)
@@ -168,12 +176,12 @@ expect_error(
   pattern = "changing a DART tree prior is not available"
 )
 
-# bart exposes DART through tree.prior = dart() and packages varprobs
+# bart exposes DART through split.probs = dart() and packages varprobs
 # combineChains = FALSE pinned deliberately: the shape assertions below
 # expect the raw uncombined (n.chains x n.samples x n.vars) array
 fit.dart <- bart(
   y.dart ~ x.dart,
-  tree.prior = dart(),
+  split.probs = dart(),
   n.samples = 25L,
   n.burn = 50L,
   n.trees = 25L,
@@ -187,16 +195,18 @@ expect_equal(
   unname(apply(fit.dart$varprobs, c(1L, 2L), sum)),
   matrix(1, 2L, 25L)
 )
-# the shorthand warns once per session, so its key is reset for the pin
-onceWarnState <- dbarts:::onceWarnState
-onceWarnState[["tombstone.consolidated.split.probs.bart"]] <- NULL
-expect_warning(
-  expect_error(
-    bart(y.dart ~ x.dart, tree.prior = dart(), split.probs = rep(0.1, 10L)),
-    pattern = "'tree.prior' cannot be combined with 'split.probs'"
-  ),
-  "'split.probs' has left 'bart'",
-  strict = TRUE
+# split.probs is bart()'s own argument and warns of nothing
+expect_silent(
+  bart(
+    y.dart ~ x.dart,
+    split.probs = rep(0.1, 10L),
+    n.samples = 5L,
+    n.burn = 5L,
+    n.trees = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  )
 )
 expect_null(
   bart(
@@ -210,10 +220,10 @@ expect_null(
   )$varprobs
 )
 
-# a full spec object overrides power/base with its own settings
+# dart()'s settings reach the record beside the fitting function's depth
 fit.spec <- bart(
   y.dart ~ x.dart,
-  tree.prior = dbartsPriors$dart(a = 0.75, update.delay = 5),
+  split.probs = dbartsPriors$dart(a = 0.75, update.delay = 5),
   n.samples = 5L,
   n.burn = 10L,
   n.trees = 10L,

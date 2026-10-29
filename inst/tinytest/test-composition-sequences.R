@@ -312,7 +312,7 @@ chainArms <- list(
     )
   },
   dart = function(k) {
-    dbarts(X, y, tree.prior = dart(), control = ctl(n.chains = k))
+    dbarts(X, y, split.probs = dart(), control = ctl(n.chains = k))
   },
   linear = function(k) {
     dbarts(X, y, leaf.prior = linearLeaf, control = ctl(n.chains = k))

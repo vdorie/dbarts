@@ -699,7 +699,11 @@ resolveSamplerSpec <- function(
   # forest's are one setting each; the control's count beside the forest's
   # own leaves the forest's to govern
   if (!is.null(plainSpec)) {
-    refuseStatedOnPlainForest(stated, plainSpec, forestKnobLabel(forests, plain))
+    refuseStatedOnPlainForest(
+      stated,
+      plainSpec,
+      forestKnobLabel(forests, plain)
+    )
   }
   # the fitting function's own, read once before any forest's statement is
   # written over the slot
@@ -939,9 +943,9 @@ resolveSamplerSpec <- function(
   # that reach it without this layer. interactions() and blocks() are not here:
   # the bridge installs both on every category forest.
   if (identical(family, "multinomial")) {
+    variedSplitProbs <- varySplitProbabilities(priors$tree.prior)
     unsupportedMultinomial <- c(
-      "'split.probs' (a vector that is not uniform, or dart())" =
-        varySplitProbabilities(priors$tree.prior),
+      "'split.probs' (a vector that is not uniform, or dart())" = variedSplitProbs,
       "'monotone'" = !is.null(monotoneDirections),
       "a linear leaf prior" = is(priors$leaf.prior, "dbartsLinearPrior"),
       "a Gaussian-process leaf prior" = is(priors$leaf.prior, "dbartsGPPrior"),

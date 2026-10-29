@@ -1064,7 +1064,8 @@ for (prior in c("leaf", "joint")) {
       n.cuts = 1L,
       seed = 1L
     ),
-    tree.prior = cgm(2, 0.95),
+    power = 2,
+    base = 0.95,
     leaf.prior = normal(2),
     family = gaussian(sigma = fixed(sigmaCut^2)),
     monotone = monotone(c(x = "increasing"), prior = prior)

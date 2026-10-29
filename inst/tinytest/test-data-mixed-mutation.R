@@ -156,7 +156,7 @@ sampler.leaf <- dbarts(
   leaf.frame,
   y.leaf,
   leaf.prior = linear("cv"),
-  tree.prior = cgm(split.probs = c(0, 1, 1)),
+  split.probs = c(0, 1, 1),
   control = control,
   sigest = 1
 )

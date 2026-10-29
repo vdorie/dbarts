@@ -106,7 +106,7 @@ expect_silent(
     n.burn = c(10L, 5L),
     n.test = 5,
     n.threads = 1L,
-    tree.prior = dbarts::dbartsPriors$dart()
+    split.probs = dbarts::dbartsPriors$dart()
   )
 )
 expect_silent(
@@ -119,7 +119,7 @@ expect_silent(
     n.burn = c(10L, 5L),
     n.test = 5,
     n.threads = 1L,
-    tree.prior = dbarts::dbartsPriors$dart(a = 1)
+    split.probs = dbarts::dbartsPriors$dart(a = 1)
   )
 )
 expect_error(
@@ -127,9 +127,8 @@ expect_error(
   pattern = "does not equal number of columns"
 )
 
-# The four flat knobs and tree.prior. Fits stay tiny; each assertion shows a
-# knob demonstrably reaches the fit, a bad value is refused, or tree.prior's
-# grid-override/collision rules hold.
+# The four flat knobs. Fits stay tiny; each assertion shows a knob
+# demonstrably reaches the fit or a bad value is refused.
 quickXbart <- function(...) {
   dbarts::xbart(
     x,
@@ -187,37 +186,25 @@ expect_error(
 )
 expect_error(quickXbart(storage = "half"), pattern = "should be one of")
 
-# tree.prior grid-override (f4): power/base are xbart's grid axes, so a
-# supplied cgm's own power/base are overridden every cell regardless of what
-# it names - a call that sweeps the grid directly is byte-identical to the
-# same sweep routed through an object naming DIFFERENT power/base
-gridDirect <- quickXbart(seed = 21L, power = c(1.5, 3), base = c(0.6, 0.9))
-gridViaObject <- quickXbart(
-  seed = 21L,
-  power = c(1.5, 3),
-  base = c(0.6, 0.9),
-  tree.prior = dbarts::dbartsPriors$cgm(power = 10, base = 0.1)
-)
-expect_identical(gridDirect, gridViaObject)
-
-# collision refusals: split.probs would only duplicate what a supplied
-# tree.prior already specifies; power/base/k stay legal alongside it, since
-# they are grid axes, not duplicates (unlike bart's tree.prior)
+# tree.prior is not an argument of xbart; a written value is refused with its
+# translation into the plain arguments
 expect_error(
-  quickXbart(
-    tree.prior = dbarts::dbartsPriors$cgm(),
-    split.probs = c(5, rep(1, p - 1L))
+  quickXbart(tree.prior = dbarts::dbartsPriors$cgm(3, 0.5)),
+  pattern = paste0(
+    "'tree.prior' is not an argument of 'xbart': write the tree prior as ",
+    "plain arguments, power = 3, base = 0.5; xbart() takes power and base ",
+    "as grid axes"
   ),
-  pattern = "'tree.prior' cannot be combined with 'split.probs': supply the"
+  fixed = TRUE
 )
 expect_silent(quickXbart(
-  tree.prior = dbarts::dbartsPriors$cgm(),
+  split.probs = c(5, rep(1, p - 1L)),
   power = c(1, 2),
   base = 0.9,
   k = 2
 ))
 
-rm(quickXbart, gridDirect, gridViaObject)
+rm(quickXbart)
 
 rm(p, n.trees, k, y, x)
 
@@ -333,37 +320,6 @@ expect_error(
   ),
   pattern = "requires a response coded 0/1"
 )
-
-# the tree.prior grid-axis-override rule (f4) holds under a binary family
-# too: a supplied cgm's own power/base are still overridden by the swept
-# grid every cell, regardless of control@binary
-gridDirect.bin <- dbarts::xbart(
-  x,
-  z,
-  family = "probit",
-  n.reps = 1L,
-  n.threads = 1L,
-  n.samples = 5L,
-  n.burn = c(3L, 2L),
-  seed = 31L,
-  power = c(1.5, 3),
-  base = c(0.6, 0.9)
-)
-gridViaObject.bin <- dbarts::xbart(
-  x,
-  z,
-  family = "probit",
-  n.reps = 1L,
-  n.threads = 1L,
-  n.samples = 5L,
-  n.burn = c(3L, 2L),
-  seed = 31L,
-  power = c(1.5, 3),
-  base = c(0.6, 0.9),
-  tree.prior = dbarts::dbartsPriors$cgm(power = 10, base = 0.1)
-)
-expect_identical(gridDirect.bin, gridViaObject.bin)
-rm(gridDirect.bin, gridViaObject.bin)
 
 rm(xval.logistic, xval.gaussian, power, n.reps, z, x)
 

@@ -33,14 +33,14 @@ control <- dbarts::dbartsControl(
 # arms measure, and a difference in the prior would stand in for it. Deep trees
 # also make leaves of few rows common rather than rare.
 deep <- list(base = 0.95, power = 0.5)
-treePrior <- dbarts::dbartsPriors$cgm(power = deep$power, base = deep$base)
 
 makeBCF <- function(...) {
   dbarts::dbarts(
     x,
     y,
     control = control,
-    tree.prior = treePrior,
+    power = deep$power,
+    base = deep$base,
     forests = list(
       forest(),
       forest(
@@ -75,7 +75,13 @@ leavesPerTree <- function(nodes) tapply(nodes$var == -1L, nodes$tree, sum)
 # that conditioning on the 40 treated rows would give.
 sampler <- makeBCF()
 expect_equal(as.vector(sampler$getForestAmplitudes()), c(1, 0, 1))
-reference <- dbarts::dbarts(x, y, control = control, tree.prior = treePrior)
+reference <- dbarts::dbarts(
+  x,
+  y,
+  control = control,
+  power = deep$power,
+  base = deep$base
+)
 
 tauLeaves <- 0L
 tauEmpty <- 0L
@@ -127,7 +133,13 @@ expect_true(all(is.finite(zeroedDraws$train)))
 # ... and globally, with no coupling at all: an all-zero active-row mask is a
 # state a host whose stratum has emptied reaches and one the sampler accepts
 # and runs (test-active-rows-pins.R)
-masked <- dbarts::dbarts(x, y, control = control, tree.prior = treePrior)
+masked <- dbarts::dbarts(
+  x,
+  y,
+  control = control,
+  power = deep$power,
+  base = deep$base
+)
 masked$setActiveRows(rep(0, n))
 masked$sampleTreesFromPrior()
 maskedNodes <- masked$getTrees(current = TRUE)
@@ -176,7 +188,6 @@ rm(
   numTrees,
   control,
   deep,
-  treePrior,
   makeBCF,
   forestNodes,
   leavesPerTree,

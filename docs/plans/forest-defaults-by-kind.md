@@ -97,7 +97,7 @@ The spellings below are the tip's, with a tilde on a basis; push 3 drops it.
   ([`forestParams`](../../R/model.R)). The engine runs a forest with no basis at any position: a
   prototype of the rule fitted, ran, restored, copied, swapped bases, predicted and extracted on one.
 - A count given twice. `bart(y ~ forest(x1 + x2, n.trees = 7) + ..., n.trees = 15)` is refused
-  ([`refuseTreeCountGivenTwice`](../../R/formulaTerms.R)), by the formula's text: with `basis = NULL`
+  ([`refuseGivenTwiceInFormula`](../../R/formulaTerms.R)), by the formula's text: with `basis = NULL`
   written on that forest it is accepted and has 7 trees. At `dbarts()` a control naming 15 beside a
   no-basis forest stating 7 gives 7, as man/forest.Rd says.
 - What is stated. `bart()` builds its own control, which always names a count, and always hands

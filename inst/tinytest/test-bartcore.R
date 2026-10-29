@@ -993,7 +993,8 @@ sampler.sm2 <- dbarts(
   x,
   y,
   control = control.sm,
-  tree.prior = cgm(1.5, 0.8),
+  power = 1.5,
+  base = 0.8,
   leaf.prior = normal(3)
 )
 r.sm1 <- sampler.sm1$run(20L, 5L)

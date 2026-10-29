@@ -2098,8 +2098,9 @@ refuseStatedWithNoPlainForest <- function(stated, interactions, blocks) {
 ## knobs and `where` how the refusal shows it.
 refuseStatedOnPlainForest <- function(stated, plainSpec, where) {
   for (name in c("n.trees", "power", "base")) {
+    isStated <- name %in% names(stated)
     if (
-      name %in% names(stated) &&
+      isStated &&
         !identical(stated[[name]], "control") &&
         !is.null(plainSpec[[name]])
     ) {

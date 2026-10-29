@@ -775,9 +775,13 @@ dbarts <- function(
   matchedCall <- match.call()
   # a tree prior given as the tenth argument, where dbarts 0.9-34 took
   # 'tree.prior' and 'power' now stands, is the retired 'tree.prior'
+  powerWritten <- c(
+    "power" %in% names(matchedCall),
+    "power" %in% names(sys.call())
+  )
   if (
-    "power" %in% names(matchedCall) &&
-      "power" %not_in% names(sys.call()) &&
+    powerWritten[1L] &&
+      !powerWritten[2L] &&
       isPositionalTreePrior(matchedCall[["power"]], parent.frame())
   ) {
     names(matchedCall)[names(matchedCall) == "power"] <- "tree.prior"

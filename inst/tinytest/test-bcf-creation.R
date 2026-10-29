@@ -164,11 +164,12 @@ expect_identical(knobs$control@n.trees, 30L)
 expect_equal(knobs$model@tree.prior@base, 0.7)
 expect_equal(knobs$model@tree.prior@power, 1.5)
 
-# --- a forest() n.trees/base/power on the first forest is a more specific
-# declaration than an explicitly supplied control@n.trees or tree.prior of the
-# same name, and governs the fit over it rather than being silently overridden
-# by it: the run really is the seven-tree, base = 0.3, power = 1.1 fit, not
-# the hundred-tree, base = 0.6, power = 4 one it disagrees with ---
+# --- a forest() n.trees on the first forest is a more specific declaration
+# than an explicitly supplied control@n.trees, and governs the fit over it
+# rather than being silently overridden by it: the run really is the
+# seven-tree fit, not the hundred-tree one it disagrees with. Its base and
+# power are the fitting function's own arguments, which beside it are one
+# setting written twice and refused ---
 disagreeingControl <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,
@@ -190,15 +191,29 @@ expect_identical(
     x,
     y,
     forests = list(forest(n.trees = 7L, base = 0.3, power = 1.1)),
-    tree.prior = cgm(base = 0.6, power = 4),
     control = disagreeingControl
   )$run(0L, 5L)$train,
   dbarts(
     x,
     y,
-    tree.prior = cgm(base = 0.3, power = 1.1),
+    base = 0.3,
+    power = 1.1,
     control = sevenTreeControl
   )$run(0L, 5L)$train
+)
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(n.trees = 7L, base = 0.3, power = 1.1)),
+    base = 0.6,
+    control = disagreeingControl
+  ),
+  paste0(
+    "'base' is given to the fitting function and to the forest with no ",
+    "basis (forest 1), which are the same setting; give one"
+  ),
+  fixed = TRUE
 )
 
 # The pinned-amplitude public fit: amplitude = fixed() on both forests is
@@ -464,15 +479,16 @@ expect_equal(tauBlockAttr$block.tree.counts, c(25L, 25L))
 # silently accepted one is the failure mode this creation route exists to
 # prevent. ---
 expect_error(
-  dbarts(x, y, forests = twoForests, tree.prior = dart, control = control),
-  "DART tree prior"
+  dbarts(x, y, forests = twoForests, split.probs = dart, control = control),
+  "does not support 'split.probs' (a vector that is not uniform, or dart())",
+  fixed = TRUE
 )
 expect_error(
   dbarts(
     x,
     y,
     forests = twoForests,
-    tree.prior = cgm(split.probs = c(0.4, 0.2, 0.2, 0.2)),
+    split.probs = c(0.4, 0.2, 0.2, 0.2),
     control = control
   ),
   "split.probs"

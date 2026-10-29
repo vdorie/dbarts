@@ -44,20 +44,34 @@ expect_error(
   "'tree.prior' must be a tree prior specification"
 )
 expect_error(
-  dbarts::dbarts(y ~ x, testData, tree.prior = cgm(0, 0)),
-  "'power' must be positive"
+  dbarts::dbarts(y ~ x, testData, power = 0, base = 0),
+  "'power' must be a single positive number",
+  fixed = TRUE
 )
 expect_error(
-  dbarts::dbarts(y ~ x, testData, tree.prior = cgm(1, 0)),
-  "'base' must be in \\(0, 1\\)"
+  dbarts::dbarts(y ~ x, testData, power = c(1, 2)),
+  "'power' must be a single positive number",
+  fixed = TRUE
 )
 expect_error(
-  dbarts::dbarts(y ~ x, testData, tree.prior = cgm(1, 0, "extra")),
-  "'base' must be in \\(0, 1\\)"
+  dbarts::dbarts(y ~ x, testData, power = 1, base = 0),
+  "'base' must be a single number in (0, 1)",
+  fixed = TRUE
 )
 expect_error(
-  dbarts::dbarts(y ~ x, testData, tree.prior = cgm(1, 1)),
-  "'base' must be in \\(0, 1\\)"
+  dbarts::dbarts(y ~ x, testData, split.probs = "extra"),
+  "'split.probs' must be a numeric vector or dart()",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::dbarts(y ~ x, testData, power = 1, base = 1),
+  "'base' must be a single number in (0, 1)",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::bart(y ~ x, testData, base = NA_real_, verbose = FALSE),
+  "'base' must be a single number in (0, 1)",
+  fixed = TRUE
 )
 
 expect_error(

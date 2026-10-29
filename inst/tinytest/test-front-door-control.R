@@ -1,6 +1,7 @@
-# dec-B116: bart() sheds the six scalars that mirror slots on the prior
-# objects and the tree-move mixture, each riding '...' for one release, and
-# both front doors gain 'control ='. Covers the retirements (warned once,
+# dec-B116: bart() sheds the three spellings of the residual prior and the
+# tree-move mixture, each riding '...' for one release, and both
+# front doors gain 'control ='. The tree prior's power, base and split.probs
+# are bart()'s own arguments (dec-B512). Covers the retirements (warned once,
 # draws identical to the object spelling), the collision refusals, the four
 # engine settings reached through a control from either door, the
 # flat-wins-over-the-slot rule, and the fit-state refusal.
@@ -48,24 +49,6 @@ drawsOf <- function(fit) list(fit$yhat.train, fit$sigma)
 
 # name, the retired call's arguments, and the object spelling that replaces it
 retirements <- list(
-  power = list(
-    old = list(power = 3.0),
-    new = list(tree.prior = quote(dbarts::dbartsPriors$cgm(3.0, 0.95)))
-  ),
-  base = list(
-    old = list(base = 0.8),
-    new = list(tree.prior = quote(dbarts::dbartsPriors$cgm(2.0, 0.8)))
-  ),
-  split.probs = list(
-    old = list(split.probs = c(0.5, 0.25, 0.25)),
-    new = list(
-      tree.prior = quote(dbarts::dbartsPriors$cgm(
-        2.0,
-        0.95,
-        c(0.5, 0.25, 0.25)
-      ))
-    )
-  ),
   sigdf = list(
     old = list(sigdf = 5.0),
     new = list(
@@ -119,22 +102,26 @@ for (name in names(retirements)) {
 }
 rm(retirements, retiredDraws, secondDraws, objectDraws, warned, name, spelling)
 
+# the tree prior's three are bart()'s own arguments, and warn of nothing
+for (plain in list(
+  list(power = 3.0),
+  list(base = 0.8),
+  list(split.probs = c(0.5, 0.25, 0.25))
+)) {
+  expect_identical(
+    warningsOf(do.call(fitFC, plain)),
+    character(0L),
+    info = names(plain)
+  )
+}
+rm(plain)
+
 # ---- the collision refusals ------------------------------------------------
 
 expect_error(
-  suppressWarnings(fitFC(tree.prior = dbarts::dbartsPriors$cgm(), power = 3.0)),
-  "cannot be combined with 'power'"
-)
-expect_error(
-  suppressWarnings(fitFC(tree.prior = dbarts::dbartsPriors$cgm(), base = 0.8)),
-  "cannot be combined with 'base'"
-)
-expect_error(
-  suppressWarnings(fitFC(
-    tree.prior = dbarts::dbartsPriors$cgm(),
-    split.probs = c(0.5, 0.25, 0.25)
-  )),
-  "cannot be combined with 'split.probs'"
+  fitFC(tree.prior = dbarts::dbartsPriors$cgm(), power = 3.0),
+  "'tree.prior' is not an argument of 'bart'",
+  fixed = TRUE
 )
 expect_error(
   suppressWarnings(fitFC(

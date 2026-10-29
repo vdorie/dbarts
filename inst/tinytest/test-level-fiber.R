@@ -341,7 +341,7 @@ expect_identical(shiftDefault$yhat.train, shiftOff$yhat.train)
 dartOn <- dbarts::bart(
   testData$x,
   testData$y,
-  tree.prior = dbarts::dbartsPriors$dart(),
+  split.probs = dbarts::dbartsPriors$dart(),
   control = dbarts::dbartsControl(treeShift = "always"),
   n.trees = 15L,
   n.samples = 30L,

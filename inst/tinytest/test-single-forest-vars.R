@@ -128,12 +128,12 @@ expectSubMatrixFit(y, interactions = interactions(max.order = 1L))
 # the caller's ratios hold among the allowed columns
 expectSubMatrixFit(
   y,
-  tree.prior = cgm(split.probs = c(0.1, 0.3, 0.6)),
-  alone = list(tree.prior = cgm(split.probs = c(0.25, 0.75)))
+  split.probs = c(0.1, 0.3, 0.6),
+  alone = list(split.probs = c(0.25, 0.75))
 )
 # DART's Dirichlet is laid over the allowed columns: the same probabilities
 # there, and none anywhere else. No delay, so every sweep draws them
-dartFits <- expectSubMatrixFit(y, tree.prior = dart(update.delay = 0))
+dartFits <- expectSubMatrixFit(y, split.probs = dart(update.delay = 0))
 expect_identical(
   unname(dartFits$onList$varprobs[1:2, ]),
   unname(dartFits$onColumns$varprobs)
@@ -180,7 +180,7 @@ runOut <- function(...) {
 listed <- runOut(forests = restrictTo(allowed))
 expect_identical(unname(listed[3L]), 0)
 expect_true(all(listed[1:2] > 0))
-zeroed <- runOut(tree.prior = cgm(split.probs = c(0.5, 0.5, 0)))
+zeroed <- runOut(split.probs = c(0.5, 0.5, 0))
 expect_true(zeroed[3L] > 0)
 expect_true(runOut()[3L] > 0)
 
@@ -328,7 +328,7 @@ expect_error(
     x,
     y,
     forests = restrictTo(allowed),
-    tree.prior = cgm(split.probs = c(0, 0, 1))
+    split.probs = c(0, 0, 1)
   ),
   pattern = "'split.probs' gives no positive probability to any column"
 )
@@ -383,7 +383,7 @@ expect_true(all(categoryCounts()[3L, ] > 0))
 expect_error(
   categoryCounts(
     forests = restrictTo(allowed),
-    tree.prior = cgm(split.probs = c(0, 0, 1))
+    split.probs = c(0, 0, 1)
   ),
   pattern = "a multinomial \\(softmax\\) model does not support 'split.probs'"
 )

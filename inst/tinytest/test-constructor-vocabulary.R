@@ -319,15 +319,15 @@ expect_identical(
 # --- the prior and family vocabularies give the same hint (dec-A75) ----------
 
 passOnPrior <- function(prior) {
-  dbarts::dbarts(x, y, tree.prior = prior)
+  dbarts::dbarts(x, y, split.probs = prior)
 }
 expect_equal(
-  passOnPrior(dbartsPriors$cgm(power = 3))$model@tree.prior@power,
-  3
+  passOnPrior(dbartsPriors$dart(a = 0.3))$model@tree.prior@a,
+  0.3
 )
 expect_error(
-  passOnPrior(cgm(power = 3)),
-  "outside the argument that takes it, write dbartsPriors\\$cgm"
+  passOnPrior(dart(a = 0.3)),
+  "outside the argument that takes it, write dbartsPriors\\$dart"
 )
 
 passOnFamily <- function(family) {
@@ -342,10 +342,10 @@ expect_error(
   "outside the argument that takes it, write dbartsFamilies\\$student"
 )
 
-# a name from a vocabulary this site never reads gets no hint: tree.prior
-# only takes dbartsPriors, so a family constructor forced there (a wrapper's
+# a name from a vocabulary this site never reads gets no hint: split.probs
+# only takes dart(), so a family constructor forced there (a wrapper's
 # named formal, as above) is left as R's own plain message, not a hint
-# naming dbartsFamilies - which tree.prior could never have meant
+# naming dbartsFamilies - which split.probs could never have meant
 studentAtTreePrior <- tryCatch(
   passOnPrior(student(df = 6)),
   error = conditionMessage
@@ -358,7 +358,7 @@ expect_true(grepl(
 expect_false(grepl("dbartsFamilies", studentAtTreePrior, fixed = TRUE))
 expect_false(grepl("outside the argument", studentAtTreePrior, fixed = TRUE))
 
-# nor a forest constructor: tree.prior takes neither dbartsForests
+# nor a forest constructor: split.probs takes no dbartsForests
 interactionsAtTreePrior <- tryCatch(
   passOnPrior(interactions(max.order = 1)),
   error = conditionMessage

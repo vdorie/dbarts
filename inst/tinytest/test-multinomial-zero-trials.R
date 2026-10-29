@@ -121,9 +121,10 @@ expect_error(
     countsEmpty,
     family = "multinomial",
     control = control,
-    tree.prior = dart()
+    split.probs = dart()
   ),
-  "DART"
+  "dart()",
+  fixed = TRUE
 )
 expect_null(dbarts:::onceWarnState[[zeroTrialsKey]])
 # bart() reaches the same creation site
