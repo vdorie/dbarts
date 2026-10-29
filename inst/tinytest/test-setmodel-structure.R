@@ -305,20 +305,6 @@ local({
   expect_identical(nrow(sampler$run(1L, 2L)$train), n)
 })
 
-# the k column after setModel, both ways
-local({
-  fixedToDrawn <- build(leaf.prior = normal(k = 2))
-  fixedToDrawn$run(2L, 3L)
-  fixedToDrawn$setModel(build(leaf.prior = normal(k = chi(1.5, 2)))$model)
-  drawn <- fixedToDrawn$run(2L, 5L)
-  expect_identical(dim(drawn$k), c(5L, 2L))
-  expect_false(anyNA(drawn$k))
-  drawnToFixed <- build(leaf.prior = normal(k = chi(1.5, 2)))
-  drawnToFixed$run(2L, 3L)
-  drawnToFixed$setModel(build(leaf.prior = normal(k = 3))$model)
-  expect_null(drawnToFixed$run(2L, 5L)$k)
-})
-
 # xbart's cells vary power, base and k through the bridge and are unaffected
 local({
   fit <- xbart(

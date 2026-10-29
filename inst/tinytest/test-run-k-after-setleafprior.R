@@ -56,4 +56,29 @@ created <- dbarts(
 expect_identical(dim(created$run(0L, 4L)$k), c(4L, 2L))
 created$setLeafPrior(normal(k = 3))
 expect_null(created$run(0L, 4L)$k)
+# $setModel moves k between fixed and drawn the same way, and the next run
+# follows
+viaModel <- dbarts(
+  x,
+  y,
+  leaf.prior = normal(k = 2),
+  control = makeControl()
+)
+viaModel$run(2L, 3L)
+viaModel$setModel(
+  dbarts(
+    x,
+    y,
+    leaf.prior = normal(k = chi(1.5, 2)),
+    control = makeControl()
+  )$model
+)
+run <- viaModel$run(2L, 5L)
+expect_identical(dim(run$k), c(5L, 2L))
+expect_false(anyNA(run$k))
+viaModel$setModel(
+  dbarts(x, y, leaf.prior = normal(k = 3), control = makeControl())$model
+)
+expect_null(viaModel$run(2L, 5L)$k)
+rm(viaModel)
 rm(sampler, created, run, x, y, n, makeControl)
