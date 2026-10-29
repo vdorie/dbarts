@@ -3,8 +3,9 @@
 Status: PLANNED 2026-10-29 under dec-B432, revised the same day from its blind critique, and amended
 after the critique's re-check (verdict: build stages 0 and 1;
 [Amendments before results](#amendments-before-results)). Stages 0 and 1 ran the same day
-([Stages 0 and 1](#stages-0-and-1)): the move build passed its checks, and as written no candidate passes
-Part A, so the criterion goes to the maintainer with the Part A table (open call 1) before any Part B fit.
+([Stages 0 and 1](#stages-0-and-1)): the move build passed its checks, and as written no candidate passed
+Part A. The maintainer ruled the criterion (dec-B502): five candidates go to the fits, under the
+[Amendment after stage 1](#amendment-after-stage-1).
 Runs after the merge to main and before 1.0-0.
 
 agent: the blind critique (opus) ran; this revision answers it. One opus implementer writes the harness,
@@ -18,9 +19,9 @@ express today is checked at the default length on a scratch build carrying only 
 window: after the merge to main, before 1.0-0 (dec-B432). A change of default it supports goes back to the
 maintainer; building it is a separate, posterior-changing slice.
 budget: harness about 1,100 lines of R (benchmarks/R/nbinom-default-study.R; stages 0 and 1, written, are
-about 1,600 as formatted), reusing the first study's prior predictive draw. Compute about 100 to 150
-core-hours expected, stop at 160 (amended; [Cost](#cost)), re-priced from stage 2's full-length runs before
-the main run.
+about 1,600 as formatted), reusing the first study's prior predictive draw. Compute about 62 core-hours
+expected, stop at about 110 ([Amendment after stage 1](#amendment-after-stage-1)), re-priced from stage 2's
+full-length runs before the main run.
 
 ## Summary for the maintainer
 
@@ -769,6 +770,50 @@ across replications is assumed 0.03 a cell in the middle and wide bands and 0.10
 With five candidates passing A (open call 1's recommendation), the study comes to about 50 core-hours at
 these sizes against 85 at the plan's; stage 2 re-prices both.
 
+## Amendment after stage 1
+
+Made 2026-10-29 after stage 1, on the maintainer's ruling of the criterion and on the orchestrator's calls
+after the critic's audit of the proposed Part B sizes against the maintainer's ask that runs be sized to
+their questions; before stage 2 ran and before any fit was scored. Where they differ from the text above,
+the proposed sizes for Part B in [Stages 0 and 1](#stages-0-and-1) included, they govern.
+
+- **The criterion, dec-B502.** The maintainer: "OK, use your recommendation for this item." A3 reads each
+  real dataset's S_id at the middle of its range across the four fits, at 1 in 100; A1 and A2 as written;
+  Part B as recommended. Five candidates pass A and go to the fits: chi(4, 1.03), chi(5, 0.9), C4 with k at
+  least 0.6 and at least 0.75, and C5 at median 1.3. None passes with margin, so a tie goes to the smaller
+  code change. crimtab is among the fitted cells. The candidates that fail A are reported on B where their
+  weights hold and cost nothing more; C1 is not run.
+- **Replications.** Narrow and small-sample cells 20; middle 5; wide 5, except crimtab's cells, as fitted
+  and widened, 10. The interim stop at 10 of 20 replications is dropped: under O'Brien-Fleming boundaries
+  it needs a lead of about 0.015 and would rarely fire.
+- **Effective draws, per candidate.** The target of 100 effective draws for k, the mean and 90 percent of
+  rows is counted per candidate after reweighting: a run is extended until every candidate whose weights
+  hold reaches it, or the cap. A candidate below 50 after reweighting on a replication gets its own run
+  there, beside the Kish and k-hat rules. Each candidate is scored against its own expected coverage,
+  0.9 N_c / (N_c + 1), N_c its effective draws on the row, in place of 0.9: scored against 0.9, a
+  reweighted candidate at 15 to 25 effective draws would sit 0.035 to 0.056 short, a spurious loss of up
+  to twice the bar. Stage 2 checks the correction on its long runs: an interval from two of a run's
+  chains, reweighted, covers the other two chains' draws at that rate.
+- **A guard on the widest cells**, pre-registered: in each class, the average gap over crimtab's cells and
+  the cells widened to S_id 3 (about 13 cells) is not worse than the default's by the bar at its upper
+  bound. The tail cuts and the thin priors put their risk there, and the band average dilutes it.
+- **Confirmation, group-sequential.** The main run is the first look, followed by at most two blocks of 5
+  replications. Boundaries are O'Brien-Fleming's, z of 3.47, 2.45 and 2.00 at the three looks, by
+  Lan-DeMets spending at the realized information fractions if the blocks are unequal. The thresholds
+  tested are the decision targets: 0.02 for non-inferiority, 0.005 for the tie. A result unresolved at the
+  last look reads as a tie for step 3 and a fail for step 2. This replaces step 6's third of the main run.
+- **Cells and folds.** BCI's fitted cells are dropped (about 5 core-hours); the real-outcome folds run one
+  repetition (about 4).
+- **Budget.** About 62 core-hours expected, re-priced from stage 2. The stop comes down from 160 to about
+  110 unless stage 2's prices say otherwise.
+- **Revisit after stage 2.** If the measured paired spread on narrow and small-sample cells exceeds about
+  0.12, those cells need more replications, and stage 2's record says so. Stage 2 measures it blind, as
+  blinded sample-size re-estimation does: on 5 replications each of three narrow and four small-sample
+  cells, the paired difference in F's 90 percent coverage, candidate less default, is computed against
+  the truth under coded labels, and only its spread within cells, centered and pooled, is summarized; no
+  mean or direction is printed. Candidates whose weights fail there are left out of it where their own
+  run needs a scratch build.
+
 ## How the result goes to the maintainer
 
 The finding is written to docs/design/nbinom-default-study.md (Status FINDING): Part A's table and verdicts
@@ -792,11 +837,7 @@ updated or closed.
 
 ## Open calls for the maintainer
 
-1. The criterion, ruled after stage 1 with its full Part A table and before any fit is scored. As written no
-   candidate passes A ([Stages 0 and 1](#stages-0-and-1)). Recommend A3 read at the middle of each real
-   dataset's range across its four fits, at 1 in 100, which five candidates pass; A1 and A2 as written; Part
-   B by band with the narrow-data width guard and the asymmetric rule. The other options: as written (the
-   default is kept and the fits are skipped), the widest fit at 1 in 200, no A3, or Part A reported only.
+1. The criterion: ruled, dec-B502 ([Amendment after stage 1](#amendment-after-stage-1)).
 2. The long reading: recommend long runs on a scratch build of the collapsed move's negative binomial half,
    reweighted across priors (exact; about 65 core-hours against 97 for the grid, an approximation, and 181
    for today's sampler).
@@ -809,9 +850,9 @@ updated or closed.
 6. The data-scaled spread (C7): recommend scoring it here.
 7. The shape's prior (C6): recommend scoring it here with its weights fixed now, decided separately from the
    spread.
-8. Compute: recommend the sizes proposed in [Stages 0 and 1](#stages-0-and-1), about 50 core-hours under
-   call 1's recommendation against 85 at this plan's sizes, re-priced from stage 2, stop at 160; the laptop
-   through stage 2 and for the cheaper cells, the box after the k study's first tranche.
+8. Compute: set by the orchestrator's calls ([Amendment after stage 1](#amendment-after-stage-1)), about
+   62 core-hours, re-priced from stage 2, stop at about 110; the laptop through stage 2 and for the
+   cheaper cells, the box after the k study's first tranche.
 
 ## Not verified
 
