@@ -344,6 +344,9 @@ warnOnce <- function(key, ..., class = NULL) {
   invisible(NULL)
 }
 
+## The once-per-session key of dbarts()'s thread-budget warning.
+excessThreadsKey <- "excessThreads"
+
 ## Whether a warning is dbarts()'s thread-budget one, which two doors repeat
 ## under their own argument names and which a second component of one fit
 ## mutes.

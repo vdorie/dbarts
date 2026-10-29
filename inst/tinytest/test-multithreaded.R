@@ -26,6 +26,10 @@ singleThreadedFit <- dbarts::bartBT(
 
 set.seed(99L)
 multiThreadedFit <- NULL
+# the excess-threads warning is once per session
+warnState <- dbarts:::onceWarnState
+warnState[[dbarts:::excessThreadsKey]] <- NULL
+rm(warnState)
 expect_warning(
   multiThreadedFit <- dbarts::bartBT(
     testData$x,

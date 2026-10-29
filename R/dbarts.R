@@ -1258,24 +1258,26 @@ dbarts <- function(
   # predict's fan-out - but is worth a word since it buys nothing for the
   # sampler's own sweep. Single site: bart() forwards here with its own
   # control already built, so this fires for both front doors, once per
-  # fit. The row count it names is the control's own testFitParallelCutoff,
+  # session. The row count it names is the control's own testFitParallelCutoff,
   # so a caller who moved that cutoff is told the number actually in force.
   if (is.na(control@n.threads)) {
     stop(naThreadsControlMessage, call. = FALSE)
   }
   if (control@n.threads > control@n.chains) {
-    warning(
+    warnOnce(
+      excessThreadsKey,
       sprintf(
         paste0(
           "n.threads (%d) exceeds n.chains (%d); tree sampling uses at ",
           "most one thread per chain, so the extra threads serve only ",
-          "test-set fitting above %d rows and predict"
+          "test-set fitting above %d rows and predict. Set n.threads to at ",
+          "most n.chains to avoid this warning, which is shown once per ",
+          "session."
         ),
         control@n.threads,
         control@n.chains,
         control@testFitParallelCutoff
-      ),
-      call. = FALSE
+      )
     )
   }
 

@@ -3382,8 +3382,8 @@ bart2Hurdle <- function(
   }
   positiveCall["seed"] <- list(seeds[[2L]])
   positiveCall$keepTrees <- control@keepTrees
-  # the thread-budget warning is per fit, and the zero component already
-  # raised it for the same n.threads and n.chains
+  # the thread-budget warning is once per session, and the zero component
+  # already raised it for the same n.threads and n.chains
   positive <- withCallingHandlers(
     eval(positiveCall, callingEnv),
     warning = function(w) {
@@ -4266,12 +4266,15 @@ bartBT <- function(
         if (!isExcessThreadsWarning(w)) {
           return()
         }
+        # dbarts() warns once per session, so this re-issue is too
         warning(
           sprintf(
             paste0(
               "nthread (%d) exceeds nchain (%d); tree sampling uses at ",
               "most one thread per chain, so the extra threads serve only ",
-              "test-set fitting above %d rows and predict"
+              "test-set fitting above %d rows and predict. Set nthread to ",
+              "at most nchain to avoid this warning, which is shown once ",
+              "per session."
             ),
             control@n.threads,
             control@n.chains,

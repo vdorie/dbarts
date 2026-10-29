@@ -13,7 +13,16 @@ expect_equal(dbarts::dbartsControl(n.chains = 2L)@n.threads, min(cores, 2L))
 # constructor's capping arithmetic
 expect_equal(methods::new("dbartsControl")@n.threads, 1L)
 
-# a caller-supplied budget above n.chains still warns, once per fit, naming
+# the warning is shown once per session, so each expectation below begins
+# from a cleared key
+resetExcess <- function() {
+  env <- dbarts:::onceWarnState
+  env[[dbarts:::excessThreadsKey]] <- NULL
+  invisible(NULL)
+}
+resetExcess()
+
+# a caller-supplied budget above n.chains still warns, once per session, naming
 # both numbers - dbarts() and bart() share the one site (bart() forwards a
 # built control into dbarts()), so pinning dbarts() covers both doors
 excessControl <- dbarts::dbartsControl(
@@ -30,6 +39,27 @@ expect_warning(
   pattern = "n.threads (8) exceeds n.chains (4)",
   fixed = TRUE
 )
+# the message carries the remedy and ends in a period; a second fit with the
+# same excess is silent
+resetExcess()
+excessMsgs <- character(0L)
+for (rep in 1:3) {
+  withCallingHandlers(
+    dbarts::dbarts(y ~ x, testData, control = excessControl),
+    warning = function(w) {
+      excessMsgs <<- c(excessMsgs, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+}
+expect_identical(length(excessMsgs), 1L)
+expect_true(grepl(
+  "Set n.threads to at most n.chains",
+  excessMsgs,
+  fixed = TRUE
+))
+expect_true(endsWith(excessMsgs, "."))
+resetExcess()
 
 # at or below n.chains - the shape the default itself produces - it is
 # silent
@@ -46,6 +76,7 @@ expect_silent(dbarts::dbarts(y ~ x, testData, control = evenControl))
 
 # bartBT's own arguments are the 0.9-x names, so its warning names what its
 # caller typed
+resetExcess()
 expect_warning(
   dbarts::bartBT(
     testData$x,
@@ -63,6 +94,7 @@ expect_warning(
 # the re-issued class vector is exactly dbarts()'s own, with no doubled tail
 # a hurdle fit is two samplers but one fit: the warning is raised once
 hurdleY <- pmax(testData$y - 15, 0)
+resetExcess()
 nExcess <- 0L
 withCallingHandlers(
   dbarts::bart(
