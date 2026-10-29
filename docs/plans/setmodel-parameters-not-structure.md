@@ -257,7 +257,7 @@ periods) need no refusal until the migration moves them; this item adds none for
 
 ### Slice 4: tree priors on every forest, and the shared size (engine; after forests-shared-total and open calls 1 and 2)
 
-Planned against forests-shared-total (c0bb924d's plan): a model may hold several forests with no basis
+Planned against forests-shared-total (its plan as amended at e48fdcf3): a model may hold several forests with no basis
 ("sharers"), each taking the fitting function's tree prior where it states none (its D7, dec-B274), and, where
 no forest has a basis, the fitting function's leaf prior as the group's one size, k drawn or held (its D1 and
 D8).
@@ -267,7 +267,10 @@ D8).
    `Sampler` method installs a group's leaf prior on a K-forest chain of sharers with no forest with a basis:
    k fixed or drawn with its chi prior, or a named sd, written to every sharer through the chain's group k
    (forests-shared-total's engine items 4 and 5), a forest that stated sd untouched; fixed to drawn starts at
-   the k in force (call 8). Each behind a facade virtual.
+   the k in force (call 8). The sharers share one k but not one leaf scale: each takes an equal part of the
+   total over its own tree count (dec-B505), so a named sd is translated to k against the group's node scale,
+   the lone forest's before its parts, never against one sharer's leaf scale, and the k write leaves every
+   sharer's leaf scale as it is. Each behind a facade virtual.
 2. Bridge: an entry beside `bartcore_setMoveSettings` that resolves every forest's tree prior from the records
    and installs it, all checks first, and one for the group's leaf prior.
 3. The records. `bartcore.forests` holds a forest with no basis's base and power as stated or NULL, resolved at
@@ -387,7 +390,8 @@ and its count refusal on two chains; the group install writing every sharer and 
 tinytest: each forest's and the variance forest's tree prior through the door, twin oracle and copies; on three
 sharers, one stating base and power, `$setModel`'s tree prior reaching the other two and not it, and a copy
 re-created equal; on sharers with no forest with a basis, `$setModel`'s leaf prior and `$setLeafPrior(leaf.prior
-= )` setting the group's k fixed, drawn (from the k in force) and as an sd, every sharer equal, a forest that
+= )` setting the group's k fixed, drawn (from the k in force) and as an sd, every sharer's k equal and each its
+own leaf scale, sharers of unequal counts (38 and 37) among them, a forest that
 stated sd unmoved; beside a forest with a basis and on a multinomial sampler, a leaf prior difference refused by
 name; `$setModel` on amplitude and multinomial samplers taking the tree and residual priors; an unstated variance
 forest following `$setModel`'s tree prior and a stated one not (under (b), neither follows); `$setControl`'s
@@ -402,7 +406,8 @@ heteroscedastic-exact.R's enumerated part: a sampler created under one tree prio
 `$setModel` before the run, its variance-forest posterior held to the enumeration under the new one. Mutants: the
 variance forest's NULL resolved at creation; the amplitude route reaching the leaf-scale write; the install
 writing forest 1 alone; the tree prior written over a sharer that stated its own; the group's k written to the
-first sharer only.
+first sharer only; a named sd translated against the first sharer's leaf scale, or the install resetting every
+sharer to one leaf scale (each fails the unequal-count pin).
 
 ## Order of work
 
