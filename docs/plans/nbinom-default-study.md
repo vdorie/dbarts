@@ -5,7 +5,8 @@ after the critique's re-check (verdict: build stages 0 and 1;
 [Amendments before results](#amendments-before-results)). Stages 0 and 1 ran the same day
 ([Stages 0 and 1](#stages-0-and-1)): the move build passed its checks, and as written no candidate passed
 Part A. The maintainer ruled the criterion (dec-B502): five candidates go to the fits, under the
-[Amendment after stage 1](#amendment-after-stage-1).
+[Amendment after stage 1](#amendment-after-stage-1). Stage 2 ran the same day ([Stage 2](#stage-2)): the
+long reading's check passed, and the main run re-prices at about 60 core-hours before confirmation.
 Runs after the merge to main and before 1.0-0.
 
 agent: the blind critique (opus) ran; this revision answers it. One opus implementer writes the harness,
@@ -18,8 +19,8 @@ move's predicate, about 15 lines on branch collapsed-move-main), never landed. A
 express today is checked at the default length on a scratch build carrying only its k draw.
 window: after the merge to main, before 1.0-0 (dec-B432). A change of default it supports goes back to the
 maintainer; building it is a separate, posterior-changing slice.
-budget: harness about 1,100 lines of R (benchmarks/R/nbinom-default-study.R; stages 0 and 1, written, are
-about 1,600 as formatted), reusing the first study's prior predictive draw. Compute about 62 core-hours
+budget: harness about 1,100 lines of R (benchmarks/R/nbinom-default-study.R; stages 0 to 2, written, are
+about 2,400 as formatted), reusing the first study's prior predictive draw. Compute about 62 core-hours
 expected, stop at about 110 ([Amendment after stage 1](#amendment-after-stage-1)), re-priced from stage 2's
 full-length runs before the main run.
 
@@ -814,6 +815,58 @@ the proposed sizes for Part B in [Stages 0 and 1](#stages-0-and-1) included, the
   mean or direction is printed. Candidates whose weights fail there are left out of it where their own
   run needs a scratch build.
 
+## Stage 2
+
+Run 2026-10-29 on the laptop's two cores by the harness's stage2 action, under the
+[Amendment after stage 1](#amendment-after-stage-1): about 2.2 core-hours, against the 4 budgeted. The
+move build ran C0's long runs on 18 cells at one replication (the stage's list: nine real datasets as
+fitted, roaches and crimtab widened to S_id 3 and quakes to 2, D4 at 3, D5, D8, and two small-sample cells;
+and aids at 30 rows for the spread), the seven spread cells to five replications, and the chi candidates'
+own runs where their weights failed; today's sampler ran C0's long runs on the narrow and middle cells but
+solder. No fit was scored against a truth but the blind spread.
+
+- **The long reading's check passes.** Where both builds settled (seven cells, all of them), k's 5th, 50th
+  and 95th percentiles agree: 21 z's, chi-squared 28.0 on 21, p 0.14, the largest |z| 2.55 (grouseticks'
+  95th); the rows' interval endpoints within two combined standard errors in 92 to 97 percent of rows.
+- **Lengths.** All 46 runs settled. C0's own target took 2,500 to 5,000 sweeps a chain on the narrow and
+  middle cells (solder 5,000), 2,500 to 15,000 on the wide (mite 7,500; neither slow-tree dataset neared
+  the cap the probes projected), and up to 20,000 on the small-sample. Counting the target per candidate
+  after reweighting (the amendment) lengthened the widened-to-3 and small-sample runs 1.7 to 4.7 times
+  (crimtab widened to 3: 7,500 to 22,500), where a candidate's weights held with a Kish share near 0.3 to
+  0.5.
+- **Weights.** Own runs a replication: narrow 2.4 (chi(4, 1.03) on 67 percent, chi(5, 0.9) on 73, the
+  half-normal on all, its weight unbounded where the likelihood is flat); middle none; wide 0.2 (C4 at 0.75
+  on crimtab widened to 3, whose k sits at 0.45 to 0.70); small-sample 1.15 (C4 at 0.75 on 40 percent, C4 at
+  0.6, chi(5, 0.9) and the half-normal on 25 each). C4's and C5's own runs need their scratch builds.
+- **The expected-coverage correction.** An interval from two of a run's chains covered the other two's
+  draws at 0.9 N / (N + 1) within about 0.001 at 100 or more effective draws; at 50 to 100 the formula
+  under-predicts the coverage by 0.004 to 0.006 (0.894 against 0.888, reweighted candidates over 4,610
+  rows), and by 0.02 to 0.03 at 25 to 50: N as counted, the smaller of batch means and Geyer's estimate,
+  is conservative for the interval's tails. Before the pre-registration N_c is either read from a tail
+  estimate of effective draws or the correction calibrated on these runs.
+- **Paired spread, blind** (a candidate's F coverage less C0's, sd across replications within a cell,
+  pooled; candidates under coded labels, no mean read): narrow, three cells, 0.004 on 48 df, the largest
+  candidate's 0.009; small-sample, four cells, 0.019 on 65 df, the largest 0.045. Both are far under the
+  0.12 that would call for more replications; at 0.009 the narrow band's 7 cells resolve the tie margin
+  at 5 replications.
+- **The small-sample cells as written are degenerate.** Widened to S_id 3 at a mean count of 5, only 8 to
+  30 percent of roaches', epil's, aids' and quakes' rows keep a mean of 0.01, and a subsample of 30 is
+  mostly zeros (a stage 2 smoke drew a dataset of all zeros). Stage 2 widened them by the widened cells'
+  rule instead (the dataset's center, lowered for the caps) at shape 3. D4 at S 3 keeps 17 percent of its
+  rows; its k sits at 0.06 to 0.5, and its runs were the longest relative to their size.
+- **Re-priced**, from these runs (the move build's seconds a sweep fitted on rows and counts; a band's
+  sweeps a replication, own runs included, C4's and C5's priced at C0's length), at the amended sizes
+  (760 replications): long runs about 50 core-hours (narrow 10, middle 2, wide 15, small-sample 23), C0's
+  default readings about 3, the folds 4, the guard 2, the smoke 1: about 60 expected before confirmation.
+  A block of 5 replications costs about 2 on the narrow or middle band, 6 on the small-sample and 14 on
+  the wide; both blocks on every band come to about 110, the amended stop.
+  Two cuts the measurements support: replications on the narrow band at 5, not 20 (saves about 7), and no
+  extension for the candidates, a candidate below 50 effective draws at C0's stop getting its own run
+  (saves about 7).
+- **Before the main run**: the Part B scoring and the folds in the harness; C4's and C5's scratch builds,
+  each passing stage 0's drift test; the small-sample cells' definition, the correction's N and the two
+  cuts above settled; then the smoke, the review and the pre-registration commit.
+
 ## How the result goes to the maintainer
 
 The finding is written to docs/design/nbinom-default-study.md (Status FINDING): Part A's table and verdicts
@@ -856,8 +909,8 @@ updated or closed.
 
 ## Not verified
 
-- That the scratch move build samples the posterior on real data; stage 0 checked it on prior datasets
-  only, stage 2 decides, and its code is reviewed again at stage 4.
+- That the scratch move build samples the posterior beyond stage 2's seven cells; its code is reviewed
+  again at stage 4.
 - Run lengths, weight failures and unsettled shares on small samples, BCI and the widened truths; stage 2
   measures them, and the costs above are projections until then.
 - The box's per-sweep times: every cost here is the laptop's.

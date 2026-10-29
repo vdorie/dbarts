@@ -3,8 +3,9 @@
 # The negative binomial default-prior study: is there a better default prior
 # on the forest's spread for family = "nbinom" fits? The design, the criterion
 # and the decision rule are fixed in docs/plans/nbinom-default-study.md; this
-# file implements its stages 0 and 1 (the checks and the prior predictive)
-# and decides nothing the plan leaves open except where its comments say so.
+# file implements its stages 0 to 2 (the checks, the prior predictive and the
+# long reading's check) and decides nothing the plan leaves open except where
+# its comments say so.
 #
 # BUILDS. One R process sees one build: whatever dbarts R_LIBS finds first,
 # named by NBS_BUILD ("today", the shipped sampler; "move", the scratch build
@@ -26,13 +27,18 @@
 #   Rscript nbinom-default-study.R reweight <prior1..3 | null1..2>
 #   Rscript nbinom-default-study.R prior-checks
 #   Rscript nbinom-default-study.R prior <cell>
+#   Rscript nbinom-default-study.R stage2 <cell> <replication>
 #   Rscript nbinom-default-study.R summarize <stage>
-# where <stage> is drift, sbc, compare, reweight or prior.
+# where <stage> is drift, sbc, compare, reweight, prior or stage2.
 #
 # BLIND. Nothing here scores a fit against a truth: the Part B scoring is
 # not written until the pre-registration commit, and no run length, weight
 # or acceptance below reads a truth. The stage 0 checks compare the sampler
-# with itself and with the prior, which is not scoring.
+# with itself and with the prior, which is not scoring. One exception, the
+# amendment after stage 1's: stage2Blind computes a candidate's coverage of
+# the truth less C0's on the spread cells, under coded labels, and the
+# summary reads only its spread within cells, as blinded sample-size
+# re-estimation does.
 
 suppressPackageStartupMessages(library(dbarts))
 
@@ -1590,6 +1596,769 @@ runTruthBart <- function(name) {
   ))
 }
 
+## ------------------------------------------- stage 2: the long reading's check
+
+# The five candidates that pass Part A under dec-B502, read from C0's run by
+# the weights pi_c(k) / pi_0(k): each a log density in k up to a constant,
+# whether its weight grows without bound as k grows (the half-normal, whose
+# density in k falls as 1 / k^2 against C0's exp(-k^2 / 8)), and its own run's
+# chi prior where the move build can run it. C4's and C5's own runs need a
+# scratch build: stage 2 counts where they would, and runs none.
+logHalfNormalSpread <- function(k, median) {
+  sigma <- median / qnorm(0.75)
+  -2 * log(k) - (leafScale / k)^2 / (2 * sigma^2)
+}
+logFloored <- function(k, kFloor) {
+  ifelse(k >= kFloor, logChiDensity(k, 1.5, 2), -Inf)
+}
+stage2Candidates <- list(
+  `C2 chi(4,1.03)` = list(
+    logDensity = function(k) logChiDensity(k, 4, 1.03),
+    unbounded = FALSE,
+    own = c(4, 1.03)
+  ),
+  `C2 chi(5,0.9)` = list(
+    logDensity = function(k) logChiDensity(k, 5, 0.9),
+    unbounded = FALSE,
+    own = c(5, 0.9)
+  ),
+  `C4 k>=0.6` = list(
+    logDensity = function(k) logFloored(k, 0.6),
+    unbounded = FALSE,
+    own = NULL
+  ),
+  `C4 k>=0.75` = list(
+    logDensity = function(k) logFloored(k, 0.75),
+    unbounded = FALSE,
+    own = NULL
+  ),
+  `C5 hn 1.3` = list(
+    logDensity = function(k) logHalfNormalSpread(k, 1.3),
+    unbounded = TRUE,
+    own = NULL
+  )
+)
+# The amended rules: a candidate's weights hold on a replication when they
+# keep 30 percent of the run's effective draws, their Pareto k-hat is at most
+# 0.7, and, for a weight without bound, the likelihood is not flat at large k
+# (the narrow band, the null cell, or more than 5 percent of C0's draws above
+# k = 4). A run is extended until C0 and every candidate whose weights hold
+# reach the target after reweighting; a candidate below half the target after
+# reweighting gets its own run.
+kishFloor <- 0.3
+khatCeiling <- 0.7
+ownBelow <- 50
+
+candidateWeights <- function(candidate, k, flat) {
+  logW <- candidate$logDensity(k) - logChiDensity(k, 1.5, 2)
+  if (all(logW == -Inf)) {
+    return(list(w = array(0, dim(k)), kish = 0, khat = Inf, holds = FALSE))
+  }
+  w <- exp(logW - max(logW))
+  kish <- sum(w)^2 / sum(w^2) / length(w)
+  # Weights taking one positive value (a truncation) have no tail to fit.
+  khat <- if (length(unique(w[w > 0])) > 1L) {
+    as.numeric(posterior::pareto_khat(as.vector(w), tail = "right", r_eff = 1))
+  } else {
+    -Inf
+  }
+  holds <- kish >= kishFloor &&
+    khat <= khatCeiling &&
+    !(candidate$unbounded && flat)
+  list(w = array(w, dim(k)), kish = kish, khat = khat, holds = holds)
+}
+
+# A smooth truth with interactions, for the designed cells, scaled to sd S
+# over the cell's rows and centered at its mean count.
+designedCell <- function(n, spread, meanCount, shape, seed) {
+  set.seed(seed)
+  x <- data.frame(correlatedNormals(n, 5L), b = rbinom(n, 1L, 0.5))
+  g <- with(x, sin(x1) + 0.5 * x2 * x3 + 0.5 * x4^2 + 0.5 * b * x5)
+  f <- if (spread > 0) spread * (g - mean(g)) / sd(g) else rep(0, n)
+  list(
+    x = x,
+    offset = NULL,
+    truth = f + log(meanCount) - log(mean(exp(f))),
+    shape = shape
+  )
+}
+
+spreadIdentified <- function(eta, offset) {
+  identified <- exp(eta + if (is.null(offset)) 0 else offset) >= identifiedMean
+  sd(eta[identified])
+}
+
+# Widens a truth to S_id of target by scaling its departure from its mean,
+# at the smallest scale that reaches the target: S_id is not monotone in the
+# scale, since rows falling below a mean of 0.01 leave it. With meanCount,
+# the center keeps the mean count; otherwise the center is lowered until the
+# expected total is at most 20,000 and the largest expected count at most
+# 10^5, the plan's rule.
+widenTruth <- function(eta, offset, target, meanCount = NULL) {
+  o <- if (is.null(offset)) 0 else offset
+  m <- mean(eta)
+  at <- function(a, shift) {
+    e <- m + shift + a * (eta - m)
+    if (!is.null(meanCount)) {
+      e <- e - log(mean(exp(e + o))) + log(meanCount)
+    }
+    e
+  }
+  scales <- exp(seq(log(0.01), log(50), length.out = 400L))
+  for (shift in seq(0, -20, by = -0.1)) {
+    reached <- vapply(
+      scales,
+      function(a) spreadIdentified(at(a, shift), offset) >= target,
+      NA
+    )
+    first <- which(reached %in% TRUE)[1L]
+    if (is.na(first) || first == 1L) {
+      next
+    }
+    a <- uniroot(
+      function(a) spreadIdentified(at(a, shift), offset) - target,
+      scales[first - 1:0]
+    )$root
+    e <- at(a, shift)
+    mu <- exp(e + o)
+    if (!is.null(meanCount) || (sum(mu) <= 20000 && max(mu) <= 1e5)) {
+      return(e)
+    }
+  }
+  stop("no center meets the caps")
+}
+
+# Stage 2's cells: the real datasets as fitted but BCI, Insurance and Traffic
+# (additive truths); three widened; D4, D5 and D8; and small-sample cells,
+# whose rows are drawn afresh each replication from the dataset's truth
+# widened by the widened cells' rule, at shape 3. The plan's mean count of 5
+# for them is not used: widened to S_id 3 at that mean, only 8 to 30 percent
+# of a dataset's rows keep a mean of 0.01, and a subsample of 30 is mostly
+# zeros; the pre-registration settles it. The spread cells are run to
+# five replications for the paired spread, blind; today's sampler runs on the
+# narrow and middle cells but solder, whose trees settle within the cap on
+# neither build.
+stage2CellNames <- c(
+  "quakes",
+  "D5",
+  "D8",
+  "roaches",
+  "solder",
+  "Arabidopsis",
+  "grouseticks",
+  "epil",
+  "aids",
+  "mite",
+  "crimtab",
+  "roaches-w3",
+  "crimtab-w3",
+  "quakes-w2",
+  "D4-3",
+  "roaches-n30-3",
+  "quakes-n100-2",
+  "aids-n30-2"
+)
+stage2SpreadCells <- c(
+  "quakes",
+  "D5",
+  "D8",
+  "D4-3",
+  "roaches-n30-3",
+  "quakes-n100-2",
+  "aids-n30-2"
+)
+stage2TodayCells <- c(
+  "quakes",
+  "D5",
+  "D8",
+  "roaches",
+  "Arabidopsis",
+  "grouseticks",
+  "epil"
+)
+stage2SpreadReps <- 5L
+
+stage2Cell <- function(cell, rep) {
+  index <- match(cell, stage2CellNames)
+  if (is.na(index)) {
+    stop("unknown stage 2 cell ", cell)
+  }
+  parts <- strsplit(cell, "-", fixed = TRUE)[[1L]]
+  subsample <- NULL
+  if (parts[1L] %in% c("D4", "D5", "D8")) {
+    base <- switch(
+      parts[1L],
+      D4 = designedCell(60L, 3, 5, 3, 810000L),
+      D5 = designedCell(500L, 0, 5, 5, 850000L),
+      D8 = designedCell(1000L, 0.3, 5, 3, 880000L)
+    )
+    null <- parts[1L] == "D5"
+  } else {
+    d <- readData(parts[1L])
+    base <- list(
+      x = d$x,
+      offset = d$offset,
+      truth = as.numeric(d$truthAdditive$eta),
+      shape = max(d$truthAdditive$theta, 1)
+    )
+    null <- FALSE
+    if (length(parts) == 2L) {
+      base$truth <- widenTruth(
+        base$truth,
+        base$offset,
+        as.numeric(sub("w", "", parts[2L]))
+      )
+    } else if (length(parts) == 3L) {
+      base$truth <- widenTruth(
+        base$truth,
+        base$offset,
+        as.numeric(parts[3L])
+      )
+      base$shape <- 3
+      subsample <- as.integer(sub("n", "", parts[2L]))
+    }
+  }
+  # Rows: fixed for a cell, its held-out fifth fixed too; drawn afresh each
+  # replication for a small-sample cell.
+  set.seed(900000L + 1000L * index + if (is.null(subsample)) 0L else rep)
+  rows <- if (is.null(subsample)) {
+    seq_len(nrow(base$x))
+  } else {
+    sample.int(nrow(base$x), subsample)
+  }
+  heldOut <- sample.int(length(rows), round(length(rows) / 5))
+  # Counts: drawn per replication at the truth.
+  set.seed(950000L + 1000L * index + rep)
+  offset <- if (is.null(base$offset)) NULL else base$offset[rows]
+  mu <- exp(base$truth[rows] + if (is.null(offset)) 0 else offset)
+  repeat {
+    y <- rnbinom(length(rows), size = base$shape, mu = mu)
+    if (max(y) <= countCap) break
+  }
+  x <- base$x[rows, , drop = FALSE]
+  # The band and S_id are the cell's, over all its rows; a small-sample
+  # replication's rows are a draw from them.
+  sId <- if (null) 0 else spreadIdentified(base$truth, base$offset)
+  identifiedShare <- mean(
+    exp(base$truth + if (is.null(base$offset)) 0 else base$offset) >=
+      identifiedMean
+  )
+  band <- if (null || sId < 0.5) {
+    "narrow"
+  } else if (length(rows) <= 130L && sId >= 2 - 1e-6) {
+    "small"
+  } else if (sId < 1.5) {
+    "middle"
+  } else {
+    "wide"
+  }
+  train <- setdiff(seq_along(rows), heldOut)
+  list(
+    cell = cell,
+    rep = rep,
+    band = band,
+    sId = sId,
+    identifiedShare = identifiedShare,
+    shape = base$shape,
+    xTrain = x[train, , drop = FALSE],
+    yTrain = y[train],
+    offsetTrain = if (is.null(offset)) NULL else offset[train],
+    xTest = x[heldOut, , drop = FALSE],
+    offsetTest = if (is.null(offset)) NULL else offset[heldOut],
+    # Read only by the blind paired spread (stage2Blind).
+    truth = base$truth[rows][c(train, heldOut)],
+    offsetAll = if (is.null(offset)) NULL else offset[c(train, heldOut)]
+  )
+}
+
+bindDraws <- function(a, b) if (is.null(a)) b else abind2(a, b)
+
+# One long run on the build this process sees: C0's prior when kPrior is
+# NULL, else k's prior as given; extended in chunks until C0's effective
+# draws of k, the mean and the 10th percentile of rows' log mean (on up to
+# 200 rows) reach the target scaled by 1 / Kish of every candidate whose
+# weights hold, or the cap. The trajectory records each chunk's numbers, from
+# which the length any other rule would have taken is read.
+stage2Run <- function(data, kPrior, seed, candidates, flat) {
+  set.seed(seed)
+  control <- dbartsControl(
+    n.chains = longChains,
+    n.threads = 1L,
+    n.samples = 1L,
+    n.burn = 0L,
+    n.thin = longThin,
+    n.trees = numTrees,
+    updateState = FALSE,
+    verbose = FALSE
+  )
+  arguments <- list(
+    data$xTrain,
+    data$yTrain,
+    test = data$xTest,
+    family = "nbinom",
+    control = control
+  )
+  if (!is.null(data$offsetTrain)) {
+    arguments$offset <- data$offsetTrain
+    arguments$offset.test <- data$offsetTest
+  }
+  if (!is.null(kPrior)) {
+    arguments$leaf.prior <- dbartsPriors$normal(k = kPrior)
+  }
+  sampler <- do.call(dbarts, arguments)
+  offsetTrain <- if (is.null(data$offsetTrain)) 0 else data$offsetTrain
+  offsetTest <- if (is.null(data$offsetTest)) 0 else data$offsetTest
+  checkRows <- sort(sample.int(
+    length(data$yTrain),
+    min(200L, length(data$yTrain))
+  ))
+  started <- proc.time()[[3L]]
+  sampler$run(longBurn, 1L)
+  train <- test <- k <- shapes <- trajectory <- NULL
+  repeat {
+    fit <- sampler$run(0L, longChunk %/% longThin)
+    train <- bindDraws(train, fit$train - offsetTrain)
+    test <- bindDraws(test, fit$test - offsetTest)
+    k <- rbind(k, fit$k)
+    shapes <- rbind(shapes, fit$shape)
+    swept <- nrow(k) * longThin
+    essK <- batchEss(log(k))
+    essMean <- batchEss(apply(exp(train), c(2L, 3L), mean))
+    essRows <- quantile(
+      apply(train[checkRows, , , drop = FALSE], 1L, batchEss),
+      0.1,
+      names = FALSE
+    )
+    flatHere <- flat || mean(k > 4) > 0.05
+    weights <- lapply(candidates, candidateWeights, k = k, flat = flatHere)
+    kish <- vapply(weights, `[[`, 0, "kish")
+    khat <- vapply(weights, `[[`, 0, "khat")
+    holds <- vapply(weights, `[[`, NA, "holds")
+    prefixed <- function(v, prefix) {
+      if (length(v)) as.list(setNames(v, paste0(prefix, names(v)))) else list()
+    }
+    row <- c(
+      list(
+        sweeps = swept,
+        seconds = proc.time()[[3L]] - started,
+        essK = essK,
+        essMean = essMean,
+        essRows = essRows
+      ),
+      prefixed(kish, "kish:"),
+      prefixed(khat, "khat:"),
+      prefixed(holds, "holds:")
+    )
+    trajectory <- rbind(trajectory, as.data.frame(row, check.names = FALSE))
+    need <- max(c(1, 1 / kish[holds]))
+    if (min(essK, essMean, essRows) >= longTarget * need || swept >= longCap) {
+      break
+    }
+  }
+  base <- min(essK, essMean, essRows)
+  list(
+    k = k,
+    shape = shapes,
+    train = train,
+    test = test,
+    weights = weights,
+    flat = flatHere,
+    trajectory = trajectory,
+    essK = essK,
+    essMean = essMean,
+    essRows = essRows,
+    settled = base >= longTarget * need,
+    settledC0 = base >= longTarget,
+    sweeps = swept,
+    seconds = proc.time()[[3L]] - started,
+    checkRows = checkRows
+  )
+}
+
+# k's 5th, 50th and 95th percentiles and each row's 90 percent interval, by
+# weights w, with standard errors by batch means (5 batches a chain).
+readQuantiles <- function(k, logMean, w, numBatches = 5L) {
+  size <- nrow(k) %/% numBatches
+  one <- function(rows, chains) {
+    kk <- as.vector(k[rows, chains])
+    ww <- as.vector(w[rows, chains])
+    lm <- matrix(logMean[, rows, chains, drop = FALSE], nrow = dim(logMean)[1L])
+    c(
+      weightedQuantile(kk, ww, c(0.05, 0.5, 0.95)),
+      as.vector(t(apply(lm, 1L, weightedQuantile, w = ww, p = c(0.05, 0.95))))
+    )
+  }
+  estimate <- one(seq_len(nrow(k)), seq_len(ncol(k)))
+  batches <- do.call(
+    rbind,
+    lapply(seq_len(ncol(k)), function(j) {
+      t(vapply(
+        seq_len(numBatches),
+        function(b) one((b - 1L) * size + seq_len(size), j),
+        estimate
+      ))
+    })
+  )
+  list(estimate = estimate, se = apply(batches, 2L, sd) / sqrt(nrow(batches)))
+}
+
+# The expected-coverage correction's check: on the check rows, an interval
+# from chains 1 and 2 (all their draws, and their first quarter) covers the
+# other two chains' draws, weighted, against 0.9 N / (N + 1), N the first
+# chains' effective draws of that row after reweighting.
+correctionCheck <- function(run, w) {
+  first <- 1:2
+  second <- 3:4
+  out <- NULL
+  for (share in c(1, 0.25)) {
+    draws <- seq_len(floor(nrow(run$k) * share))
+    w1 <- w[draws, first, drop = FALSE]
+    if (!(sum(w1) > 0) || !(sum(w[, second]) > 0)) {
+      next
+    }
+    kish <- sum(w1)^2 / sum(w1^2) / length(w1)
+    w2 <- as.vector(w[, second])
+    for (i in run$checkRows) {
+      x1 <- run$train[i, draws, first, drop = FALSE]
+      ends <- weightedQuantile(as.vector(x1), as.vector(w1), c(0.05, 0.95))
+      x2 <- as.vector(run$train[i, , second])
+      out <- rbind(
+        out,
+        c(
+          share = share,
+          n = batchEss(matrix(x1, ncol = 2L)) * kish,
+          cover = sum(w2 * (x2 >= ends[1L] & x2 <= ends[2L])) / sum(w2)
+        )
+      )
+    }
+  }
+  as.data.frame(out)
+}
+
+# Blind: each candidate's coverage of the truth's log mean by its 90 percent
+# interval, over the rows whose true mean is at least 0.01, less C0's, under
+# coded labels. Only the summary's spread within cells is read from it.
+stage2Blind <- function(data, run, own) {
+  logMean <- abind1(run$train, run$test)
+  identified <- exp(
+    data$truth + if (is.null(data$offsetAll)) 0 else data$offsetAll
+  ) >=
+    identifiedMean
+  coverage <- function(draws, w) {
+    ends <- apply(
+      matrix(draws, nrow = dim(draws)[1L]),
+      1L,
+      weightedQuantile,
+      w = as.vector(w),
+      p = c(0.05, 0.95)
+    )
+    inside <- data$truth >= ends[1L, ] & data$truth <= ends[2L, ]
+    mean(inside[identified])
+  }
+  base <- coverage(logMean, array(1, dim(run$k)))
+  codes <- setNames(paste0("c", blindCodes), names(stage2Candidates))
+  difference <- vapply(
+    names(stage2Candidates),
+    function(name) {
+      if (run$weights[[name]]$holds) {
+        coverage(logMean, run$weights[[name]]$w) - base
+      } else if (!is.null(own[[name]])) {
+        o <- own[[name]]
+        coverage(abind1(o$train, o$test), array(1, dim(o$k))) - base
+      } else {
+        NA_real_
+      }
+    },
+    0
+  )
+  setNames(difference, codes[names(difference)])
+}
+blindCodes <- c(3L, 5L, 1L, 4L, 2L)
+
+# Bind along the rows (first) dimension.
+abind1 <- function(a, b) {
+  if (is.null(b) || dim(b)[1L] == 0L) {
+    return(a)
+  }
+  out <- array(NA_real_, c(dim(a)[1L] + dim(b)[1L], dim(a)[2L], dim(a)[3L]))
+  out[seq_len(dim(a)[1L]), , ] <- a
+  out[dim(a)[1L] + seq_len(dim(b)[1L]), , ] <- b
+  out
+}
+
+runStage2 <- function(cell, rep) {
+  requireBuild(c("move", "today"))
+  data <- stage2Cell(cell, rep)
+  flat <- data$band == "narrow"
+  candidates <- if (build == "move") stage2Candidates else list()
+  run <- stage2Run(data, NULL, 960000L + rep, candidates, flat)
+  logMean <- abind1(run$train, run$test)
+  reading <- readQuantiles(run$k, logMean, array(1, dim(run$k)))
+  essAll <- apply(logMean, 1L, batchEss)
+  summary <- list(
+    cell = cell,
+    rep = rep,
+    build = build,
+    band = data$band,
+    sId = data$sId,
+    identifiedShare = data$identifiedShare,
+    shape = data$shape,
+    n = length(data$yTrain) + nrow(data$xTest),
+    total = sum(data$yTrain),
+    trajectory = run$trajectory,
+    essK = run$essK,
+    essMean = run$essMean,
+    essRows = quantile(essAll, 0.1, names = FALSE),
+    settled = run$settled,
+    settledC0 = run$settledC0,
+    sweeps = run$sweeps,
+    seconds = run$seconds,
+    kQuantiles = reading$estimate[1:3],
+    kSe = reading$se[1:3],
+    ends = reading$estimate[-(1:3)],
+    endsSe = reading$se[-(1:3)],
+    flat = run$flat
+  )
+  if (build == "move") {
+    base <- min(run$essK, run$essMean, summary$essRows)
+    own <- list()
+    summary$candidates <- lapply(names(candidates), function(name) {
+      weights <- run$weights[[name]]
+      ess <- base * weights$kish
+      needsOwn <- !weights$holds || ess < ownBelow
+      out <- list(
+        kish = weights$kish,
+        khat = weights$khat,
+        holds = weights$holds,
+        ess = ess,
+        needsOwn = needsOwn,
+        ownScratch = needsOwn && is.null(candidates[[name]]$own)
+      )
+      if (needsOwn && !is.null(candidates[[name]]$own)) {
+        prior <- candidates[[name]]$own
+        ownRun <- stage2Run(
+          data,
+          dbartsPriors$chi(prior[1L], prior[2L]),
+          970000L + rep,
+          list(),
+          flat
+        )
+        if (cell %in% stage2SpreadCells) {
+          own[[name]] <<- ownRun
+        }
+        out[["own"]] <- ownRun[c("sweeps", "seconds", "settled")]
+      }
+      out
+    })
+    names(summary$candidates) <- names(candidates)
+    summary$correction <- c(
+      list(C0 = correctionCheck(run, array(1, dim(run$k)))),
+      lapply(run$weights, function(w) {
+        if (w$holds) correctionCheck(run, w$w) else NULL
+      })
+    )
+    if (cell %in% stage2SpreadCells) {
+      summary$blind <- stage2Blind(data, run, own)
+    }
+  }
+  saveRDS(
+    summary,
+    outPath("stage2", sprintf("%s-%s-%d.rds", build, cell, rep))
+  )
+  cat(sprintf(
+    "%s %s %d (%s): %d sweeps a chain, %.0f s, settled %s\n",
+    build,
+    cell,
+    rep,
+    data$band,
+    run$sweeps,
+    run$seconds,
+    run$settled
+  ))
+}
+
+# The first chunk at which C0's own target was met: the length the plan's
+# rule before the amendment would have run.
+lengthC0 <- function(trajectory) {
+  met <- which(
+    pmin(trajectory$essK, trajectory$essMean, trajectory$essRows) >= longTarget
+  )
+  if (length(met)) trajectory$sweeps[met[1L]] else NA_real_
+}
+
+summarizeStage2 <- function() {
+  files <- list.files(
+    file.path(runDir, "stage2"),
+    "^(move|today)-.*[.]rds$",
+    full.names = TRUE
+  )
+  runs <- lapply(files, readRDS)
+  move <- Filter(function(r) r$build == "move", runs)
+  today <- Filter(function(r) r$build == "today", runs)
+
+  cat("== The builds' agreement on C0's posterior ==\n")
+  zK <- rowsWithin <- NULL
+  for (t in today) {
+    m <- Filter(function(r) r$cell == t$cell && r$rep == t$rep, move)
+    if (length(m) == 0L) {
+      next
+    }
+    m <- m[[1L]]
+    z <- (m$kQuantiles - t$kQuantiles) / sqrt(m$kSe^2 + t$kSe^2)
+    zRows <- (m$ends - t$ends) / sqrt(m$endsSe^2 + t$endsSe^2)
+    both <- m$settledC0 && t$settledC0
+    cat(sprintf(
+      "  %-12s %-6s k's 5/50/95 move %s, today %s; z %s; rows' ends within 2 se %.3f (max |z| %.1f); sweeps a chain %d, %d; %s\n",
+      t$cell,
+      t$band,
+      paste(sprintf("%.3f", m$kQuantiles), collapse = " "),
+      paste(sprintf("%.3f", t$kQuantiles), collapse = " "),
+      paste(sprintf("%+.2f", z), collapse = " "),
+      mean(abs(zRows) <= 2),
+      max(abs(zRows)),
+      m$sweeps,
+      t$sweeps,
+      if (both) "both settled" else "not both settled, not read"
+    ))
+    if (both) {
+      zK <- c(zK, z)
+      rowsWithin <- c(rowsWithin, mean(abs(zRows) <= 2))
+    }
+  }
+  if (length(zK)) {
+    cat(sprintf(
+      "  read: %d z's of k, chi-squared %.1f on %d, p %.3f, max |z| %.2f; rows within 2 se, least %.3f\n",
+      length(zK),
+      sum(zK^2),
+      length(zK),
+      pchisq(sum(zK^2), length(zK), lower.tail = FALSE),
+      max(abs(zK)),
+      min(rowsWithin)
+    ))
+  }
+
+  cat("\n== Runs: length, time and weights (move build) ==\n")
+  table <- do.call(
+    rbind,
+    lapply(move, function(r) {
+      own <- vapply(r$candidates, function(c) c$needsOwn, NA)
+      scratch <- vapply(r$candidates, function(c) c$ownScratch, NA)
+      ownSeconds <- sum(vapply(
+        r$candidates,
+        function(c) if (is.null(c[["own"]])) 0 else c[["own"]]$seconds,
+        0
+      ))
+      data.frame(
+        cell = r$cell,
+        rep = r$rep,
+        band = r$band,
+        sId = round(r$sId, 2),
+        n = r$n,
+        sweeps = r$sweeps,
+        sweepsC0 = lengthC0(r$trajectory),
+        settled = r$settled,
+        seconds = round(r$seconds),
+        own = paste(which(own), collapse = ""),
+        scratch = paste(which(scratch), collapse = ""),
+        ownSeconds = round(ownSeconds),
+        minKish = round(min(vapply(r$candidates, `[[`, 0, "kish")), 2),
+        maxKhat = round(max(vapply(r$candidates, `[[`, 0, "khat")), 2)
+      )
+    })
+  )
+  table <- table[
+    order(
+      match(table$band, c("narrow", "middle", "wide", "small")),
+      table$cell,
+      table$rep
+    ),
+  ]
+  print(table, row.names = FALSE)
+  cat(
+    "  own: candidates (1 to 5, in the plan's order) needing their own run; scratch: of those, needing a scratch build\n"
+  )
+  saveRDS(table, outPath("stage2", "runs-table.rds"))
+
+  cat("\n== The expected-coverage correction ==\n")
+  correction <- do.call(
+    rbind,
+    lapply(move, function(r) {
+      do.call(
+        rbind,
+        lapply(names(r$correction), function(name) {
+          d <- r$correction[[name]]
+          if (is.null(d) || nrow(d) == 0L) NULL else cbind(d, prior = name)
+        })
+      )
+    })
+  )
+  correction$bin <- cut(correction$n, c(0, 15, 25, 50, 100, 200, Inf))
+  for (group in list(
+    C0 = "C0",
+    candidates = setdiff(unique(correction$prior), "C0")
+  )) {
+    d <- correction[correction$prior %in% group, ]
+    rows <- lapply(split(d, d$bin), function(b) {
+      if (nrow(b) == 0L) {
+        return(NULL)
+      }
+      expected <- 0.9 * b$n / (b$n + 1)
+      data.frame(
+        effective = levels(d$bin)[b$bin[1L]],
+        rows = nrow(b),
+        covered = round(mean(b$cover), 4),
+        expected = round(mean(expected), 4),
+        se = round(sd(b$cover - expected) / sqrt(nrow(b)), 4)
+      )
+    })
+    cat(
+      " ",
+      if (identical(group, "C0")) "C0" else "candidates, reweighted",
+      "\n"
+    )
+    print(do.call(rbind, rows), row.names = FALSE)
+  }
+
+  cat(
+    "\n== Paired spread, blind (pooled within-cell sd of a candidate's F coverage less C0's) ==\n"
+  )
+  spread <- Filter(function(r) !is.null(r$blind), move)
+  if (length(spread)) {
+    for (bands in list("narrow", "small")) {
+      cells <- unique(vapply(
+        Filter(function(r) r$band %in% bands, spread),
+        `[[`,
+        "",
+        "cell"
+      ))
+      sumSquares <- df <- 0
+      perCode <- NULL
+      for (cell in cells) {
+        d <- do.call(
+          rbind,
+          lapply(Filter(function(r) r$cell == cell, spread), `[[`, "blind")
+        )
+        if (is.null(d) || nrow(d) < 2L) {
+          next
+        }
+        centered <- sweep(d, 2L, colMeans(d, na.rm = TRUE))
+        ok <- colSums(!is.na(d)) >= 2L
+        sumSquares <- sumSquares + sum(centered[, ok]^2, na.rm = TRUE)
+        df <- df + sum(colSums(!is.na(d[, ok, drop = FALSE])) - 1L)
+        perCode <- rbind(perCode, apply(d, 2L, sd, na.rm = TRUE))
+      }
+      cat(sprintf(
+        "  %s: %d cells, pooled sd %.3f on %d df; largest candidate's within-cell sd %.3f\n",
+        bands,
+        length(cells),
+        sqrt(sumSquares / df),
+        df,
+        max(perCode, na.rm = TRUE)
+      ))
+    }
+  }
+}
+
 ## ------------------------------------------------------------ smoke runs
 
 # NBS_QUICK=1 shortens every run and count for a smoke run of the pipeline;
@@ -1619,6 +2388,7 @@ switch(
   sbc = runSbc(as.integer(args[2L]), as.integer(args[3L])),
   compare = runCompare(as.integer(args[2L]), as.integer(args[3L])),
   reweight = runReweight(args[2L]),
+  stage2 = runStage2(args[2L], as.integer(args[3L])),
   `prior-checks` = runPriorChecks(),
   truth = switch(
     args[2L],
@@ -1632,6 +2402,7 @@ switch(
     compare = summarizeCompare(),
     reweight = summarizeReweight(),
     prior = summarizePrior(),
+    stage2 = summarizeStage2(),
     stop("unknown stage to summarize")
   ),
   stop("unknown action; see the usage at the top of this file")
