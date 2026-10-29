@@ -355,6 +355,18 @@ local({
   model <- makeCategories()$model
   model@leaf.prior@k <- 9
   refused(makeCategories, model, "not available on a multinomial sampler")
+  # and a sampler whose forests carry amplitudes reaches its own
+  makeAmplitudes <- function() {
+    build(
+      forests = list(
+        dbartsForests$forest(),
+        dbartsForests$forest(basis = rep(0:1, length.out = n))
+      )
+    )
+  }
+  model <- makeAmplitudes()$model
+  model@leaf.prior@k <- 9
+  refused(makeAmplitudes, model, "carries forest amplitudes")
 })
 
 # a consistent one is taken, in each spelling

@@ -184,6 +184,26 @@ zeroed <- runOut(split.probs = c(0.5, 0.5, 0))
 expect_identical(unname(zeroed[3L]), 0)
 expect_true(all(zeroed[1:2] > 0))
 expect_true(runOut()[3L] > 0)
+# $setModel before any run builds the mask creation builds, the block rows
+# intersected with it: a zero given then draws what one given at creation draws
+runOutInBlocks <- function(...) {
+  sampler(
+    x.binary,
+    y.runout,
+    forests = list(forest(blocks = blocks(groups = list("a", c("b", "c"))))),
+    ...,
+    settings = makeControl(n.cuts = c(1L, 1L, 100L))
+  )
+}
+zeroAtCreation <- runOutInBlocks(tree.prior = cgm(split.probs = c(0.5, 0.5, 0)))
+zeroInstalled <- runOutInBlocks()
+zeroInstalled$setModel(zeroAtCreation$model)
+createdDraws <- zeroAtCreation$run(0L, 500L)
+installedDraws <- zeroInstalled$run(0L, 500L)
+expect_identical(installedDraws$train, createdDraws$train)
+expect_identical(installedDraws$varcount, createdDraws$varcount)
+expect_identical(unname(splits(installedDraws)[3L]), 0)
+expect_true(all(splits(installedDraws)[1:2] > 0))
 
 # ---- how 'vars' is stated ---------------------------------------------------
 
