@@ -2420,6 +2420,7 @@ escalateReferencePart <- function(cell, link, rep, part) {
     p2 <- sp$run(0L, mcmc$refTail)
     recRaw <- abind3(recRaw, p1$train)
     tailRaw <- abind3(tailRaw, p2$train)
+    meta$kPs <- rbind(as.matrix(meta$kPs), as.matrix(p1$k))
   }
   rec <- aperm(recRaw, c(3L, 2L, 1L))
   old <- readSingle(file.path(dir, partFile(meta, "record")), meta$dimsRecord)
@@ -2465,6 +2466,7 @@ loadReference <- function(cell, link, rep) {
     tl <- list()
     ks <- list()
     kt <- list()
+    kp <- list()
     for (part in seq_len(refPartsPerKernel(cell))) {
       meta <- loadChecked(file.path(dir, sprintf("%s-part%d.rds", which, part)))
       rec[[part]] <- readSingle(
@@ -2477,6 +2479,9 @@ loadReference <- function(cell, link, rep) {
       )
       ks[[part]] <- as.matrix(meta$k)
       kt[[part]] <- as.matrix(meta$kTail)
+      if (!is.null(meta$kPs)) {
+        kp[[part]] <- as.matrix(meta$kPs)
+      }
     }
     bindChains <- function(l) {
       d <- dim(l[[1L]])
@@ -2492,7 +2497,8 @@ loadReference <- function(cell, link, rep) {
       record = bindChains(rec),
       tail = bindChains(tl),
       k = do.call(cbind, ks),
-      kTail = do.call(cbind, kt)
+      kTail = do.call(cbind, kt),
+      kPs = if (length(kp)) do.call(cbind, kp)
     )
   }
   out
@@ -2755,6 +2761,18 @@ acceptReference <- function(cell, link, rep, final = FALSE) {
       quantile(kPool, fixedQuantiles, names = FALSE)
     }
     names(out$kQuantiles) <- names(fixedQuantiles)
+    # S9: the propensity's k at the same quantiles, pooled the same way
+    kpS <- ref$shipped$kPs
+    kpM <- ref$move$kPs
+    if (!is.null(kpM)) {
+      kpPool <- if (accepted) {
+        c(as.vector(evenRows(kpS, nrow(kpM))), as.vector(kpM))
+      } else {
+        as.vector(kpM)
+      }
+      out$kPsQuantiles <- quantile(kpPool, fixedQuantiles, names = FALSE)
+      names(out$kPsQuantiles) <- names(fixedQuantiles)
+    }
     out$kFromMoveHalf <- !accepted
   }
   saveAtomic(out, acceptanceFile(cell, link, rep))
@@ -3326,7 +3344,16 @@ runFixedk <- function(cell, link, rep) {
     } else {
       res <- fitBart(design, link, nC, lengths, seed, k)
       if (task == "s9") {
-        pr <- fitPropensityS9(design, nC, lengths, seed + 1L, NULL)
+        if (is.null(acc$kPsQuantiles)) {
+          stop("no propensity k quantiles for ", cell)
+        }
+        pr <- fitPropensityS9(
+          design,
+          nC,
+          lengths,
+          seed + 1L,
+          acc$kPsQuantiles[[q]]
+        )
         res$parts <- list(psArr = pr$arr)
         res$seconds <- res$seconds + pr$seconds
       }
