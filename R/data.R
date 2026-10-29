@@ -3510,28 +3510,12 @@ dbartsData <- function(
     }
 
     termLabels <- attr(modelTerms, "term.labels")
+    # before the backticks of a non-syntactic name are stripped below, since
+    # the scan reads them as the quoting they are
+    refuseInteractionTerms(termLabels)
     badLabels <- grepl("`.* .*`", termLabels)
     if (sum(badLabels) > 0) {
       termLabels[badLabels] <- gsub("^`(.*)`$", "\\1", termLabels[badLabels])
-    }
-
-    # a ':'/'*' term expands to a label like "x1:x2" in term.labels, a
-    # column the model frame never carries (only the individual predictors
-    # it names); passed through unchecked, makeModelMatrix dies on
-    # "undefined columns selected", naming neither the term nor the
-    # unsupported syntax. A label entirely wrapped in one pair of backticks
-    # is a single non-syntactic name, not an interaction, and is exempt.
-    # A ':' inside brackets or a call's parentheses (x[, 1:3], I(a:b)) is
-    # part of one term, not an interaction between terms.
-    interactionLabels <- termLabels[
-      !grepl("^`.*`$", termLabels) & vapply(termLabels, hasTopLevelColon, NA)
-    ]
-    if (length(interactionLabels) > 0L) {
-      stop(
-        "':' and '*' terms are not supported in 'formula'; write each ",
-        "predictor as its own term - poly(), ns(), log(), and offset() are ",
-        "supported"
-      )
     }
 
     predictorFrame <- modelFrame[termLabels]
@@ -4190,6 +4174,25 @@ dbartsData <- function(
     attr(result, "survivalTimeOmitted") <- survivalTimeOmitted
   }
   result
+}
+
+## A ':'/'*' term expands to a label like "x1:x2" in term.labels, a column
+## the model frame never carries (only the individual predictors it names);
+## passed through unchecked, makeModelMatrix dies on "undefined columns
+## selected", naming neither the term nor the unsupported syntax. A ':'
+## inside backticks (one non-syntactic name), brackets or a call's
+## parentheses (x[, 1:3], I(a:b)) is part of one term, not an interaction
+## between terms.
+refuseInteractionTerms <- function(termLabels) {
+  if (any(vapply(termLabels, hasTopLevelColon, NA))) {
+    stop(
+      "':' and '*' terms are not supported in 'formula'; write each ",
+      "predictor as its own term - poly(), ns(), log(), and offset() are ",
+      "supported",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
 }
 
 ## Whether a formula term label has a ':' outside every bracket and outside

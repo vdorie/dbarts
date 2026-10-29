@@ -100,6 +100,66 @@ expect_error(
   fixed = TRUE
 )
 rm(subsetX, subsetY)
+
+# non-syntactic names: the backticks quote a ':' inside one name, and an
+# interaction of two such names is still refused, as the scan reads the label
+# before the backticks are taken off
+quotedData <- data.frame(
+  y = rnorm(30L),
+  z = rnorm(30L),
+  check.names = FALSE
+)
+quotedData[["a b"]] <- rnorm(30L)
+quotedData[["c d"]] <- rnorm(30L)
+quotedData[["e f:g"]] <- rnorm(30L)
+expect_error(
+  dbarts::dbartsData(y ~ `a b`:`c d`, quotedData),
+  "':' and '*' terms are not supported",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::dbartsData(y ~ `a b` * `c d`, quotedData),
+  "':' and '*' terms are not supported",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::dbartsData(y ~ z:`e f:g`, quotedData),
+  "':' and '*' terms are not supported",
+  fixed = TRUE
+)
+expect_identical(
+  colnames(dbarts::dbartsData(y ~ `a b` + `c d`, quotedData)@x),
+  c("a b", "c d")
+)
+expect_identical(
+  colnames(dbarts::dbartsData(y ~ `e f:g` + z, quotedData)@x),
+  c("e f:g", "z")
+)
+# the multinomial formula path reads the same terms
+quotedData$f <- factor(sample(letters[1:3], 30L, TRUE))
+multinomialInteraction <- function(formula) {
+  dbarts::bart(
+    formula,
+    quotedData,
+    n.samples = 3L,
+    n.burn = 3L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  )
+}
+expect_error(
+  multinomialInteraction(f ~ z:`a b`),
+  "':' and '*' terms are not supported",
+  fixed = TRUE
+)
+expect_error(
+  multinomialInteraction(f ~ z * `a b`),
+  "':' and '*' terms are not supported",
+  fixed = TRUE
+)
+expect_inherits(multinomialInteraction(f ~ z + `a b`), "bartMultinomial")
+rm(quotedData, multinomialInteraction)
 rm(interactionReason)
 
 # poly()/log()/offset() terms are unaffected - each still fits
