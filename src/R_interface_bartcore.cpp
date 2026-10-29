@@ -2269,10 +2269,11 @@ void printInitialSummary(const ParsedControl& control,
              levelGibbsLabel(first.levelGibbs));
   ext_printf(
     "\tproposal probabilities: birth/death %.2f, swap %.2f, change %.2f, "
-    "perturb %.2f, rule_gibbs %.2f; birth %.2f\n",
+    "perturb %.2f, rule_gibbs %.2f; birth %.2f; perturb window %d\n",
     first.birthOrDeathProbability, first.swapProbability,
     first.changeProbability, first.perturbProbability,
-    first.ruleGibbsProbability, first.birthProbability);
+    first.ruleGibbsProbability, first.birthProbability,
+    static_cast<int>(first.perturbWidth));
   for (std::size_t f = 1; f < forests.size(); ++f)
     if (mixtureDiffers(forests[f], first) ||
         forests[f].levelGibbs != first.levelGibbs) {

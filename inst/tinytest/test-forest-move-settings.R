@@ -513,6 +513,10 @@ printed <- capture.output(invisible(
 ))
 expect_true(any(grepl("^\\s*level fiber gibbs step: auto", printed)))
 expect_true(any(grepl(
+  "^\\s*proposal probabilities: .*; birth 0.50; perturb window 1$",
+  printed
+)))
+expect_true(any(grepl(
   "forest 2: level fiber gibbs step: false",
   printed,
   fixed = TRUE
@@ -521,4 +525,23 @@ expect_true(any(grepl(
   "forest 2: proposal probabilities: birth/death 0.40, swap 0.10, change 0.20, perturb 0.20, rule_gibbs 0.10; birth 0.45; perturb window 4",
   printed,
   fixed = TRUE
+)))
+# forest 1's own mode and window, and a forest differing from it only in its
+# window
+printed <- capture.output(invisible(
+  build(
+    "two",
+    ctl(verbose = TRUE),
+    mean = list(n.perturb.cuts = 5, treeShift = "always"),
+    second = list(n.perturb.cuts = 4, treeShift = "always")
+  )$run(0L, 1L)
+))
+expect_true(any(grepl("^\\s*level fiber gibbs step: true", printed)))
+expect_true(any(grepl(
+  "^\\s*proposal probabilities: .*; perturb window 5$",
+  printed
+)))
+expect_true(any(grepl(
+  "^\\s*forest 2: proposal probabilities: .*; perturb window 4$",
+  printed
 )))
