@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (131 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (132 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:` line or `## Status` section; the one plan with neither,
@@ -50,6 +50,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | latent-subset-mask.md | LANDED 2026-08-12 to 2026-08-13 (S0 ec4204b2, S1 37a9c01c, S2 89d26b8c, S3 85a91e2e, S4 ccfee2d1; the flat entry at dbarts-h-reshape S1, c85d6db6) | Adds a per-observation active-row mask (`$setActiveRows`) that lets every response family, including the latent ones zero weights cannot reach, drop rows from a fit between draws. |
+| setmodel-parameters-not-structure.md | PLANNED 2026-10-29 on e2f37f6d (dec-B254); open call 1, the door for per-forest tree priors, held for the maintainer; slice 4 waits on it | Has `$setModel` refuse by name, before anything is stored, a model of another family, Student-t setting, leaf, constraint, gp leaf size or DART kind, and install every parameter dec-B254 names: the Student-t df, a negative-binomial shape, a gp lengthscale, DART's settings and every forest's tree prior, the variance forest's included. Makes a zero split probability exclude its column on every path (posterior-changing for fits that state one) and refuses one on a column the trees use; refuses a raw leaf spec out of step and a residual prior on a family with none. Finds the k-column and variance-mixture defects already fixed on main. Four slices, one R and three engine. |
 | variance-forest-mixture-reinstall.md | LANDED 2026-10-11 (2b0df1c0 to d02e61d6; dec-A205) | Has a `proposal.probs` or `n.perturb.cuts` changed through `setControl` reach a heteroscedastic sampler's variance forest as well as its mean forest, as both take the control's at creation. |
 
 ## Data-store / predictor-storage cluster
