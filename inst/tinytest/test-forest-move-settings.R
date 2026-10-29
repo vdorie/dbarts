@@ -319,13 +319,24 @@ for (change in names(changes)) {
     info = change
   )
 }
-# a DART sampler takes a change after some sweeps
+# a moving mixture and treeShift changed together take the prior install,
+# which installs the mode with them
+for (kind in c("one", "hetero")) {
+  expect_identical(
+    draws(restated(
+      build(kind, ctl(treeShift = "never")),
+      list(proposal.probs = moving, treeShift = "always")
+    )),
+    draws(build(kind, ctl(proposal.probs = moving, treeShift = "always"))),
+    info = kind
+  )
+}
+# a DART sampler takes a change after some sweeps, its copy and its reload
+# running what it runs
 dartSampler <- build("dart", ctl())
-invisible(dartSampler$run(5L, 1L))
-expect_null(restate(
-  dartSampler,
-  list(proposal.probs = moving, treeShift = "always")
-))
+invisible(draws(dartSampler, function(s) {
+  expect_null(restate(s, list(proposal.probs = moving, treeShift = "always")))
+}))
 expect_identical(dartSampler$control@proposal.probs, moving)
 expect_true(dartSampler$control@levelGibbs)
 rm(dartSampler)
@@ -382,6 +393,21 @@ expect_error(
 )
 expect_identical(draws(handed), draws(build("hetero", ctl())))
 rm(handed, model)
+# a refused install through setControl rolls the stored control back
+handed <- build("one", ctl())
+recorded <- handed$control
+handed$control <- wrongCount(handed)
+expect_error(
+  restate(handed, list(proposal.probs = frozen)),
+  "do not match this sampler's forests"
+)
+expect_identical(
+  unname(handed$control@proposal.probs),
+  c(0.6, 0, 0.4, 0, 0, 0.5)
+)
+handed$control <- recorded
+expect_identical(draws(handed), draws(build("one", ctl())))
+rm(handed, recorded)
 
 # ---- the prior installs keep a forest's own ----
 
