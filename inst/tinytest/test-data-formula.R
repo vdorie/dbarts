@@ -174,6 +174,19 @@ expect_error(
   ),
   "'weights' must be a numeric vector"
 )
+for (coerce in list(as.factor, function(w) w > 0)) {
+  nonNumericTest <- noResponse
+  nonNumericTest$weights <- coerce(nonNumericTest$weights)
+  expect_error(
+    dbarts::dbartsData(
+      modelFormula,
+      trainData,
+      test = nonNumericTest,
+      weights = weights
+    ),
+    "'weights' must be a numeric vector"
+  )
+}
 intTest <- noResponse
 intTest$weights <- rep(2L, nrow(intTest))
 data <- dbarts::dbartsData(
