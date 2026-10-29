@@ -11,8 +11,11 @@
 # named by NBS_BUILD ("today", the shipped sampler; "move", the scratch build
 # carrying the collapsed scale move's negative binomial half; "mutant", the
 # move build with one power of r too many in the move's Jacobian, for the
-# drift test's power). Actions that the plan assigns to a build refuse to run
-# under another.
+# drift test's power; "kprior", the move build whose k step and move take the
+# prior on k that NBS_KPRIOR names, read at each use: unset for the shipped
+# chi(1.5, 2), "floor:f" for C4 and "halfnormal:m" for C5, with NBS_MOVE=off
+# turning the move off, which leaves today's sampler with only the k step).
+# Actions that the plan assigns to a build refuse to run under another.
 #
 # RUN DIRECTORY. NBS_RUN holds every output: data/ (the exported real
 # datasets and their truths), checks/, prior/ and the summaries. Nothing is
@@ -22,6 +25,7 @@
 #   Rscript nbinom-default-study.R export          (data and additive truths)
 #   Rscript nbinom-default-study.R truth bart <dataset>
 #   Rscript nbinom-default-study.R drift <seed> <reps>
+#   Rscript nbinom-default-study.R identity <seed>
 #   Rscript nbinom-default-study.R sbc <first> <last>
 #   Rscript nbinom-default-study.R compare <SBC dataset> <seed>
 #   Rscript nbinom-default-study.R reweight <prior1..3 | null1..2>
@@ -53,8 +57,21 @@ if (!nzchar(runDir)) {
   stop("NBS_RUN must name the run directory")
 }
 build <- Sys.getenv("NBS_BUILD")
-if (build %not_in_set% c("today", "move", "mutant")) {
-  stop("NBS_BUILD must be today, move or mutant")
+if (build %not_in_set% c("today", "move", "mutant", "kprior")) {
+  stop("NBS_BUILD must be today, move, mutant or kprior")
+}
+if (build != "kprior" && nzchar(Sys.getenv("NBS_KPRIOR"))) {
+  stop("NBS_KPRIOR is read only by the kprior build")
+}
+# A kprior process's outputs carry its prior and whether the move is off.
+buildLabel <- if (build == "kprior") {
+  paste0(
+    "kprior",
+    gsub("[^A-Za-z0-9.]", "", Sys.getenv("NBS_KPRIOR")),
+    if (Sys.getenv("NBS_MOVE") == "off") "-moveoff" else ""
+  )
+} else {
+  build
 }
 
 requireBuild <- function(builds) {
@@ -140,6 +157,28 @@ drawFromPrior <- function(
   list(k0 = k0, eta = as.numeric(sampler$predict(x)))
 }
 
+# k0 from the prior that an NBS_KPRIOR setting names, as the kprior build
+# samples it: chi(1.5, 2), truncated below at the floor, or 3 over a
+# half-normal of the given median.
+priorKDraw <- function(setting) {
+  if (!nzchar(setting)) {
+    return(function() 2 * sqrt(rchisq(1L, 1.5)))
+  }
+  parts <- strsplit(setting, ":", fixed = TRUE)[[1L]]
+  value <- as.numeric(parts[2L])
+  switch(
+    parts[1L],
+    floor = function() {
+      upper <- pchisq((value / 2)^2, 1.5, lower.tail = FALSE)
+      2 * sqrt(qchisq(runif(1L) * upper, 1.5, lower.tail = FALSE))
+    },
+    halfnormal = function() {
+      leafScale / abs(rnorm(1L, 0, value / qnorm(0.75)))
+    },
+    stop("NBS_KPRIOR names no prior")
+  )
+}
+
 # Counts given the log mean and offset; NULL when one passes the cap or
 # their total passes totalCap. Either conditions the joint draw on an event
 # of y alone, so the posterior given y, and so a check's exactness, is kept;
@@ -167,7 +206,8 @@ driftLags <- c(1, 10, 100, 200, 300, 400, 500, 700, 1000)
 driftWindow <- driftLags >= 100
 
 runDrift <- function(seed, numReps) {
-  requireBuild(c("move", "mutant", "today"))
+  requireBuild(c("move", "mutant", "today", "kprior"))
+  drawK <- priorKDraw(Sys.getenv("NBS_KPRIOR"))
   set.seed(seed)
   n <- 80L
   results <- vector("list", numReps)
@@ -187,7 +227,7 @@ runDrift <- function(seed, numReps) {
     defaultPrior <- sampler$getLeafPrior()$leaf.prior
     rejected <- 0L
     repeat {
-      truth <- drawFromPrior(sampler, x)
+      truth <- drawFromPrior(sampler, x, drawK)
       y <- drawCounts(truth$eta, offset, shape)
       if (!is.null(y)) {
         break
@@ -215,14 +255,19 @@ runDrift <- function(seed, numReps) {
   seconds <- proc.time()[[3L]] - started
   cat(sprintf(
     "%s seed %d: %d replications, %.0f s\n",
-    build,
+    buildLabel,
     seed,
     numReps,
     seconds
   ))
   saveRDS(
-    list(build = build, lags = driftLags, results = results, seconds = seconds),
-    outPath("checks", sprintf("drift-%s-%d.rds", build, seed))
+    list(
+      build = buildLabel,
+      lags = driftLags,
+      results = results,
+      seconds = seconds
+    ),
+    outPath("checks", sprintf("drift-%s-%d.rds", buildLabel, seed))
   )
 }
 
@@ -255,6 +300,79 @@ summarizeDrift <- function() {
       sprintf("%d %+.3f", driftLags, byLag),
       "\n"
     )
+  }
+}
+
+## ------------------------------------------- the kprior build's identity
+
+# The kprior build must draw as the builds it extends: with NBS_KPRIOR unset,
+# as the move build; with NBS_MOVE=off as well, as today's sampler; and under
+# a floor that cannot bind (floor:1e-6), which takes the shipped gamma draw
+# and accepts it, as either. One short fit at a fixed seed, its k and fits
+# saved for summarize identity to compare draw for draw.
+runIdentity <- function(seed) {
+  set.seed(seed)
+  n <- 200L
+  x <- correlatedNormals(n, 3L)
+  offset <- runif(n, 0, log(100))
+  eta <- 0.8 * sin(x[, 1L]) + 0.5 * x[, 2L] * x[, 3L] - 2
+  y <- rnbinom(n, size = 2, mu = exp(eta + offset))
+  control <- dbartsControl(
+    n.chains = 2L,
+    n.threads = 1L,
+    n.samples = 300L,
+    n.burn = 300L,
+    n.trees = numTrees,
+    updateState = FALSE,
+    verbose = FALSE
+  )
+  sampler <- dbarts(
+    x,
+    y,
+    offset = offset,
+    family = "nbinom",
+    control = control
+  )
+  fit <- sampler$run()
+  saveRDS(
+    list(build = buildLabel, k = fit$k, train = fit$train, shape = fit$shape),
+    outPath("checks", sprintf("identity-%s-%d.rds", buildLabel, seed))
+  )
+}
+
+summarizeIdentity <- function() {
+  files <- list.files(
+    file.path(runDir, "checks"),
+    "^identity-.*[.]rds$",
+    full.names = TRUE
+  )
+  runs <- lapply(files, readRDS)
+  names(runs) <- sub("^identity-(.*)[.]rds$", "\\1", basename(files))
+  pairs <- list(
+    c("kprior", "move"),
+    c("kpriorfloor1e6", "move"),
+    c("kprior-moveoff", "today"),
+    c("kpriorfloor1e6-moveoff", "today")
+  )
+  for (seed in unique(sub(".*-", "", names(runs)))) {
+    for (pair in pairs) {
+      a <- runs[[paste0(pair[1L], "-", seed)]]
+      b <- runs[[paste0(pair[2L], "-", seed)]]
+      if (is.null(a) || is.null(b)) {
+        next
+      }
+      same <- identical(a$k, b$k) &&
+        identical(a$train, b$train) &&
+        identical(a$shape, b$shape)
+      cat(sprintf(
+        "seed %s: %s against %s: %s (largest k difference %.3g)\n",
+        seed,
+        pair[1L],
+        pair[2L],
+        if (same) "identical" else "DIFFERENT",
+        max(abs(a$k - b$k))
+      ))
+    }
   }
 }
 
@@ -2610,6 +2728,7 @@ switch(
   action,
   export = exportData(),
   drift = runDrift(as.integer(args[2L]), as.integer(args[3L])),
+  identity = runIdentity(as.integer(args[2L])),
   prior = runPrior(args[2L]),
   sbc = runSbc(as.integer(args[2L]), as.integer(args[3L])),
   compare = runCompare(as.integer(args[2L]), as.integer(args[3L])),
@@ -2625,6 +2744,7 @@ switch(
   summarize = switch(
     args[2L],
     drift = summarizeDrift(),
+    identity = summarizeIdentity(),
     sbc = summarizeSbc(),
     compare = summarizeCompare(),
     reweight = summarizeReweight(),

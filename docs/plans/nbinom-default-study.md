@@ -908,6 +908,32 @@ differ from the text above, they govern.
 - **Where the main run goes.** The box, after the k study's first tranche, about 10 to 12 hours of wall
   time from 10:30 box time on 2026-10-29. No main run on the laptop.
 
+## Box readiness
+
+Run 2026-10-29 on the laptop's two cores, before any fit was scored.
+
+**C4's and C5's scratch build.** One build serves both candidates and the guard: the move build, with
+its k step and the move's k term taking the prior an environment setting names, read at each use and unset
+for the shipped chi(1.5, 2). With the move switched off it is today's sampler carrying only the k step,
+the build the guard's default readings need (stage 7). Under C4, k^2 is drawn exactly from its gamma
+truncated at the floor: by rejection while the floor keeps at least 5 percent of the conditional's mass,
+otherwise from an exponential proposal at the floor, whose ratio to the target is largest there. That
+departs from the inversion the amendment before results states; both are exact at a constant expected
+cost. Under C5, a slice step on log k. The move's k term is the candidate's own log pi(k e^-v) - v, as
+that amendment states.
+
+- *Identity.* With its prior unset, the build draws as the move build, draw for draw; with the move off,
+  as today's sampler; and under a floor that cannot bind, as either. One fit: 200 rows, 2 chains of 600
+  sweeps.
+- *The truncated draw*, ported to R line for line, matches exact inversion on both branches: a
+  Kolmogorov-Smirnov p of 0.54 to 0.94 on six cases, the tail branch down to a bound at 14 times the
+  conditional's mean.
+- *Drift test from the truth*, 1,000 replications each, k0 from the candidate's own prior: C4 at 0.6,
+  z -0.11; C4 at 0.75, z +0.80; C5 at median 1.3, z +0.33, its standard error twice the others' since k0
+  spreads wider under the half-normal. A stress run at a floor of 1.5 gives z -0.59; there the chain came
+  within 10 percent of the floor in 33 percent of replications, against 6 and 10 percent at 0.6 and 0.75.
+  Each passes.
+
 ## How the result goes to the maintainer
 
 The finding is written to docs/design/nbinom-default-study.md (Status FINDING): Part A's table and verdicts
