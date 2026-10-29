@@ -1,28 +1,35 @@
 # forests-shared-total: several forests with no basis share one prior total
 
 Status: PLANNED 2026-10-29; amended the same day after its blind critique (build after amendments;
-scratch/crit-2plans/report.md) and dec-B503, which rules the tree count. Two calls held for the maintainer
-([Open calls](#open-calls)): how the total divides among forests of unequal tree counts, and the constant basis
-column. Rulings: dec-B292 and dec-B503 (with dec-B291, dec-B274, dec-B307); window "Post-merge, pre-1.0" (VD
-2026-10-07).
+scratch/crit-2plans/report.md) and the maintainer's rulings dec-B503 (the tree count), dec-B505 (an equal part
+per forest) and dec-B506 (`blocks()` changed to match, slice B). One call held for the maintainer
+([Open calls](#open-calls)): the constant basis column. Rulings: dec-B292, dec-B503, dec-B505 and dec-B506 (with
+dec-B291, dec-B274, dec-B307); window "Post-merge, pre-1.0" (VD 2026-10-07).
 
-agent: one opus implementer for slices 1 and 2; one opus review over both that runs the mutants below, the same
-reviewer checking the fix round unless the fixes change engine behavior. Tier "Changes draws"
-([Process by risk](README.md#process-by-risk)): slice 1 edits the engine's calibration map, coefficient draw and
-k draw; slice 2 opens a new prior. Slice 3 is R surface, one sonnet review.
-rng: NEUTRAL, bit for bit, for every call main accepts: no such call has two forests with no basis, and every
-new branch is taken only where two or more do. Gate: a bitwise A/B against an e2f37f6d build, the equivalence
+agent: one opus implementer for slice B, then slices 1 and 2; one opus review of slice B and one over slices 1
+and 2, each running the mutants below, the same reviewer checking the fix round unless the fixes change engine
+behavior. Tier "Changes draws" ([Process by risk](README.md#process-by-risk)): slice B changes the `blocks()`
+prior; slice 1 edits the engine's calibration map, coefficient draw and k draw; slice 2 opens a new prior. Slice
+3 is R surface, one sonnet review.
+rng: slice B POSTERIOR-CHANGING for a `blocks()` fit whose groups hold unequal tree counts, the default 75 trees
+over two groups included, and bitwise neutral for every other fit (its gates in [Slice B](#slice-b)).
+Slices 1 to 3 NEUTRAL, bit for bit, for every call main accepts: no such call has two forests with no basis, and
+every new branch is taken only where two or more do. Gate: a bitwise A/B against an e2f37f6d build, the equivalence
 trio 55, 19 and 11 identical (equivalence-32418b6e, bcf-equivalence-20eed7ed, multinomial-equivalence-80b1c8d4),
 the four snapshot files unchanged, no re-record. New behavior, with nothing on main to compare against: a model
 of several forests with no basis. That is a new prior (posterior-changing class for those models): new arms of
 three exact-posterior gates, a statistical equivalence against the one-forest `blocks()` model it equals, and a
 design note.
 window: after the merge to main, before 1.0-0 (dec-B292). Additive: until it lands the model is refused.
-budget: ~2450 lines in the tree: engine ~420, bridge ~70, R ~280, help and NEWS ~130, tests/cpp ~420, tinytest
-~520, exact-gate arms and the equivalence script ~380, docs and records ~220 (slices: ~910, ~1480, ~60). The
-engine was ~260 before the critique; the shared coefficient's draw, the pooled k, the rescaling step's K-forest
-caches and the K-forest chain's single-forest leaf prior are each a new path, not a parameter. Out of the tree,
-~320 lines of scratch: the A/B script.
+budget: ~3060 lines in the tree. Slice B ~580 (engine ~110, tests/cpp ~150, a new exact gate ~200, tinytest
+~70, help ~10, design note ~40). Slices 1 to 3 ~2480: engine ~430, bridge ~70, R ~280, help and NEWS ~130,
+tests/cpp ~430, tinytest ~520, exact-gate arms and the equivalence script ~400, docs and records ~220 (slices:
+~930, ~1490, ~60). The engine was ~260 before the critique; the shared coefficient's draw, the pooled k over
+per-forest leaf scales, the rescaling step's K-forest caches and the K-forest chain's single-forest leaf prior
+are each a new path, not a parameter. Out of the tree, ~350 lines of scratch: the A/B script. Agent time,
+estimated from comparable landings and not measured: slice B ~7 agent-hours (implementer ~3, review with
+mutants ~1.5, gates ~2.5); slices 1 and 2 ~25 (implementers ~16, one review and its fix round ~5, gates ~4);
+slice 3 ~2.
 
 ## Summary for the maintainer
 
@@ -46,21 +53,30 @@ probabilities past 0.01 or 0.99, where one forest puts 14 percent.
 
 You ruled the tree count: the forests with no basis split `bart()`'s count among themselves as `blocks()`
 splits it, and a forest that states its own count keeps it. Print will show each forest's count and the total.
+You ruled that each such forest takes an equal part of the shared size whatever its tree count, a count saying
+how complex a term may be and not how much it explains; and that `blocks()` changes to match, each group an
+equal part of its forest's size. The formula and the matching `blocks()` call are then one model at every count.
 
-Two questions for you, below. First, how the shared size divides when the forests' tree counts differ: an equal
-part per forest, or a part per tree, as `blocks()` gives. They differ at the defaults with two forests (75 trees
-split 38 and 37) and whenever a forest states its count. I recommend a part per tree: the model is then
-`blocks()` at every count, which is what you were shown when you ruled the count; its cost is that a stated
-count sets a forest's size as well as how finely it divides. Second, whether a constant basis column, today's
-workaround, should now be refused in favor of the plain spelling (I recommend refusing it).
+The `blocks()` change on its own: about 580 lines and 7 agent-hours, built first. It changes results only for
+`blocks()` fits whose groups hold different numbers of trees. At the default split the change is small: 75 trees
+over two groups, 38 and 37, move each group's prior size by under 1 percent, and over four groups by at most 2
+percent. Where a caller set uneven counts it is large: 5 and 15 trees out of 20 move the groups from 0.50 and
+0.87 of the forest's size to 0.71 each. `blocks()` was not in 0.9-34, so no released fit changes. The whole
+item is about 3,060 lines and 34 agent-hours, these estimates from comparable work.
+
+One question for you, below: whether a constant basis column, today's workaround, should now be refused in favor
+of the plain spelling (I recommend refusing it).
 
 ## Goal
 
 A model may hold any number of forests with no basis, beside forests with a basis or alone, at every door that
 takes several forests: a formula's `forest()` terms, a `forests` list and a data object's `bases`. The forests
-with no basis that state no `sd` share one prior total, divided as open call 3 rules; the total is the size one
-forest with no basis has in the same model; a drawn total is one draw for the group; the fitting function's tree
-count is the group's (dec-B503). Every model main accepts draws what it drew.
+with no basis that state no `sd` share one prior total, each an equal part of its variance whatever its tree
+count (dec-B505); the total is the size one forest with no basis has in the same model; a drawn total is one draw
+for the group; the fitting function's tree count is the group's (dec-B503). A forest partitioned by `blocks()`
+gives each group an equal part of its prior variance (dec-B506), so the formula and the matching `blocks()` call
+are one model at every count. Every model main accepts draws what it drew, `blocks()` fits with unequal groups
+excepted.
 
 ## What exists today
 
@@ -120,10 +136,11 @@ forest and splits it evenly over its trees. With K forests with no basis:
   widens with every forest added, 1.41 T at two and 1.73 T at three.
 - One total split (the ruling): forest j's component has variance s_j T^2, its shares s_j summing to 1, so the
   sum has sd T exactly, at every x. A part per tree, s_j = m_j / M over the group's M trees, gives every leaf
-  N(0, T^2 / M): one forest of M trees with its trees in groups, the `blocks()` model, at every count. An equal
+  N(0, T^2 / M): one forest of M trees with its trees in groups, the `blocks()` model as main builds it. An equal
   part per forest, s_j = 1 / K, gives forest j's leaves N(0, T^2 / (K m_j)). The two agree where the counts are
-  equal: each component has sd T / sqrt(K), 0.71 T at two, 0.58 T at three, 0.5 T at four. Which one is open
-  call 3.
+  equal: each component has sd T / sqrt(K), 0.71 T at two, 0.58 T at three, 0.5 T at four. Ruled: an equal part
+  per forest (dec-B505), and `blocks()` changed to give each of its G groups 1 / G (dec-B506), so the two
+  spellings stay one model at every count.
 - A drawn total. One coefficient a ~ Cauchy(0, c) on the sum, f = a (F_1 + ... + F_K), each F_j at U sqrt(s_j):
   the sum has the one forest's prior exactly. Each forest its own a_j ~ Cauchy(0, c_K) instead: given the F's, the
   sum at x is Cauchy with scale c_K (|F_1| + ... + |F_K|), which no c_K makes the one forest's: at K = 3,
@@ -245,9 +262,10 @@ D10. The rest of the surface, each MY CALL:
   as a share of the total and show each forest's tree count and, after the forests, the total; the verbose
   creation summary prints the group once.
 
-D11. How the total divides among sharers of unequal tree counts. Held for the maintainer,
-[Open calls](#open-calls) 3. The plan is written for the recommendation, a part per tree (s_j = m_j / M), so the
-model is `blocks()` with `trees.per.group` at every count.
+D11. How the total divides among sharers of unequal tree counts. Ruled by dec-B505: an equal part per forest,
+s_j = 1 / K, whatever its count, its leaf scale dividing that part among its own trees, so each sharer has its own
+leaf scale. dec-B506 changes `blocks()` to match ([Slice B](#slice-b)), so
+the model is `blocks()` with `trees.per.group` at every count.
 
 ### R surface
 
@@ -289,8 +307,8 @@ model is `blocks()` with `trees.per.group` at every count.
 ### Engine
 
 1. Sharing. One function reads the specs: the sharers (kind none, no sd stated), their tree counts and whether
-   any forest has a basis. [`forestMapEntry`](../../src/bartcore/combiner.hpp) takes the sharer's share s_j
-   (open call 3: m_j / M recommended, 1 / K the alternative) and multiplies a sharer's node scale by sqrt(s_j),
+   any forest has a basis. [`forestMapEntry`](../../src/bartcore/combiner.hpp) takes the sharer's share s_j = 1 / K
+   (dec-B505) and multiplies a sharer's node scale by sqrt(s_j),
    held or drawn; the drawn coefficient's median is the group's, c, unchanged. A lone sharer takes no branch: the
    expression as it stands, operand for operand.
 2. The shared coefficient. [`AmplitudeForestCombiner`](../../src/bartcore/combiner.hpp) keeps one block per
@@ -307,14 +325,19 @@ model is `blocks()` with `trees.per.group` at every count.
    stating sd stays on the map.
 5. The pooled k. The k draw after each sweep draws one k for the group from the sum over sharers of each forest's
    sum of squared leaves over its own leaf scale squared, and the sum of their leaf counts, on unit scale
-   ([`ChiKHyperprior`](../../src/bartcore/chain.hpp)), and writes it to every sharer. Under a part per tree every
-   sharer's leaf scale is the same, so this is the single-forest draw over M trees. Any other forest draws as now.
+   ([`ChiKHyperprior`](../../src/bartcore/chain.hpp)), and writes it to every sharer. Each sharer has its own leaf
+   scale (dec-B505), so each forest's sum enters standardized by its own scale, never by one shared scale; with
+   equal counts the scales are equal and this is the single-forest draw over M trees. Any other forest draws as
+   now.
 6. The probit rescaling step (D5): [`Chain::forestRescaleApplies`](../../src/bartcore/chain.hpp) admits a K-forest
    chain whose forests are all sharers with a drawn k and constant leaves, today refused by its `combiner_`
    test, and the step scales each sharer's leaves, `totalFits` and `totalFitsScale` under the existing bound and
    rule, and the combiner's combined-fit cache (`glue_.combined`, which
    [`AmplitudeForestCombiner::combinedFits`](../../src/bartcore/combiner.hpp) fills), or refills it before its
-   next reader; M is the group's leaf count.
+   next reader; M is the group's leaf count. The step's conditional reads no leaf scale: (mu, k) -> (alpha mu,
+   k / alpha) leaves every standardized leaf mu k / s unchanged whatever s is, so the leaf prior's Jacobian is
+   alpha^-M with one scale per forest or per group as with one in all. Per-forest scales need no weighting there;
+   a tests/cpp pin holds the step's density at unequal scales to a direct evaluation.
 7. State. The coefficient layout and [`glueIsValid`](../../src/bartcore/combiner.hpp) do not change: each
    sharer's block holds the shared value. An install takes the first sharer's value for all (no sampler writes
    others). `stateFormatVersion` does not move.
@@ -323,6 +346,87 @@ model is `blocks()` with `trees.per.group` at every count.
 
 No facade virtual changes. The shipped header ([`DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h)) has no
 create entry and does not change; stan4bart builds one forest.
+
+### Slice B
+
+`blocks()` gives each group an equal part. dec-B506: a forest partitioned by `blocks()` gives each of its G groups 1 / G of the forest's prior variance,
+whatever `trees.per.group` says, each group's leaf scale dividing its part among its own trees; with equal counts
+nothing changes. Today every tree has the forest's leaf scale s / sqrt(m) ([`installBlockMasks`](../../src/bartcore/chain.hpp)
+assigns only columns), so group g's part is m_g / m. After it, a tree of group g has leaf scale
+s / sqrt(G m_g), the forest's times f_g = sqrt(m / (G m_g)).
+
+Engine, on every chain that takes `blocks()`: the single-forest chain, a forest of a K-forest model and the
+category forests of a multinomial model.
+
+1. `installBlockMasks` computes f_g from the group counts and stores it on the forest only where the counts are
+   unequal; a forest with equal groups or no groups stores none and takes today's code, operand for operand.
+2. The per-tree sweep: before tree t's moves and parameter draw, the leaf's scale is the forest's times
+   f_{g(t)} (from `blockOfTree`), restored after; every read inside a tree's update (the leaf model's draws and
+   integrated likelihood, the rule scan's prior variance in [scan.hpp](../../src/bartcore/scan.hpp)) sees the
+   group's scale with no change of its own.
+3. The reads outside a tree's update take the tree's factor: the k statistic accumulates (mu / f_g)^2, so the k
+   draw on the forest's scale is exact; [`Chain::drawLevelShift`](../../src/bartcore/chain.hpp)'s per-leaf
+   precision; and the multinomial grand-level shift in
+   [`MultinomialForestCombiner::afterCombine`](../../src/bartcore/combiner.hpp), which reads one s per category
+   forest. The probit rescaling step reads no leaf scale (engine item 6).
+4. Nothing in R or the bridge changes: the group counts already reach the engine. No facade virtual, no state
+   block; a state, a copy and a warm start place trees by slot and the slot's group gives the scale.
+
+Help: man/blocks.Rd says each group takes an equal part of the forest's prior size, `trees.per.group` setting
+how finely each divides it. Design: the design note of this item carries the rule;
+[P4 landing (2026-07-21)](../design/interaction-constraints.md#p4-landing-2026-07-21) gains a pointer. NEWS: none
+of its own, `blocks()` being new in 1.0-0; its existing entry states the rule.
+
+What moves. A `blocks()` fit whose groups hold unequal counts draws differently from main; each group's prior sd
+as a fraction of the forest's moves from sqrt(m_g / m) to sqrt(1 / G):
+
+| groups (trees) | today | after |
+|---|---|---|
+| 2 of 75 (38, 37) | 0.712, 0.702 | 0.707 each |
+| 4 of 75 (19, 19, 19, 18) | 0.503, 0.490 | 0.5 each |
+| 2 of 20 stated (5, 15) | 0.5, 0.866 | 0.707 each |
+
+At the default splits the posterior change is well inside Monte Carlo error; at stated uneven counts it is the
+prior the ruling asks for. Equal splits (75 over 3 or 5) and every fit without `blocks()` are bitwise as main.
+
+Baselines and snapshots, by name, with the verdict expected: no scenario of equivalence-32418b6e,
+bcf-equivalence-20eed7ed or multinomial-equivalence-80b1c8d4 states `blocks()`, so the trio stays 55, 19 and 11
+identical under `compare --bitwise --strict-coverage`, no re-record and no z mode needed; none of the four
+seeded-drift snapshot files (test-reproducibility-binaryResponse.R,
+test-reproducibility-continuousResponse-singleThreaded.R, test-reproducibility-continuousResponse-multithreaded.R,
+test-reproducibility-xbart.R) uses `blocks()`, so all pass unchanged; bench-sampler-127f04ee is not re-recorded.
+A difference in any of them is a stop: it would mean the factor reached a forest with equal groups.
+
+Tinytest pins: none in test-blocks.R or the other files that use `blocks()` (test-bcf-creation.R,
+test-constructor-vocabulary.R, test-forest-defaults.R, test-setstate-force-update.R, test-single-forest-vars.R,
+test-warm-start-forms.R, test-warm-start-kinds.R) reads a draw's value: they pin confinement, counts, refusals,
+warm-start placement and run-to-run identity, all of which hold. Unequal-count fits there (5 and 15, 15 and 5,
+two groups of 75's default) draw differently and keep passing; the implementer re-runs each file and reports any
+pin that moves as a finding.
+
+Tests and gates, slice B:
+
+- tests/cpp: the factor stored only for unequal counts; each tree's leaf scale s / sqrt(G m_g) during its
+  update and the forest's after; the k statistic against a hand sum of (mu / f_g)^2; the level shift's
+  precision with factors; the multinomial shift with factors; equal counts bitwise the old sweep.
+- Exact posterior, a new benchmarks/R/blocks-exact.R joining exact-gates.yaml: gaussian, sigma fixed, one forest
+  of three trees in two groups, x1 (two trees) and x2 (one tree), each a 0/1 column with one cut; the 8 tree
+  structures (each tree a root or its one split) enumerated, leaves integrated in closed form under the group
+  variances T^2 / 4 and T^2 / 2; the sampler's posterior split probability per tree and E f(cell) held to the
+  enumeration. A second arm with k drawn under chi(1.5, 2), an outer quadrature over k. The per-tree prior
+  (T^2 / 3 on every leaf) fails it, which the gate is run against once to prove it discriminates.
+- tinytest, in test-blocks.R: an unequal fit (5 and 15) created, run, copied and reloaded after `storeState`,
+  continuing `identical()`; a warm start between two unequal samplers.
+- The A/B against an e2f37f6d library, every channel `identical()`: no `blocks()`; `blocks()` with equal groups
+  (75 over 3) on the single-forest chain, a forest of a bcf model and a multinomial model; a state, copy, reload
+  and warm start of each. The unequal arm is excluded and covered by the exact gate.
+- Gates: tests/cpp plain and under ASan/UBSan, the R-loaded sanitizer run over test-blocks.R, the full suite,
+  the trio and snapshots above, `R CMD check --as-cran`, `bench-sampler.R` compare (maintainer-run): the sweep
+  gains one branch per tree.
+- Mutants, each to fail a named expectation: the factor sqrt(G m_g / m) inverted; the factor stored for equal
+  counts (fails the A/B); the scale not restored after a tree (fails the next tree's tests/cpp pin); the k
+  statistic unfactored (fails the k arm); `drawLevelShift` or the multinomial shift reading the forest's scale
+  (fails its tests/cpp pin).
 
 ## Fit and state
 
@@ -334,8 +438,8 @@ create entry and does not change; stan4bart builds one forest.
 ## Help, NEWS and docs
 
 - man/forest.Rd: several forests with no basis, what they share and how; `sd` on one takes it out of the share;
-  `amplitude` and the holds; the count split, that a stated count is outside it and, under open call 3's
-  recommendation, sets that forest's share. man/dbarts.Rd and man/bart.Rd: the `forests` and formula items,
+  `amplitude` and the holds; the count split, that a stated count is outside it and sets how finely that
+  forest divides its equal part, not its size. man/dbarts.Rd and man/bart.Rd: the `forests` and formula items,
   `n.trees` (the group's, taken beside a stated count) and `k` beside several forests with no basis; the
   fitting function's `leaf.prior = normal(sd = )`, the group's total, beside `forest()`'s, one forest's own
   size. man/dbartsSampler-class.Rd: `getLeafPrior` and `getK`
@@ -352,12 +456,14 @@ create entry and does not change; stan4bart builds one forest.
 
 tests/cpp:
 
-- The map: a sharer's node scale is the lone forest's times sqrt(s_j), K = 2 and 3, equal and unequal counts,
+- The map: a sharer's node scale is the lone forest's times sqrt(1 / K), K = 2 and 3, equal and unequal counts,
   held and drawn, gaussian and probit; a forest stating sd beside sharers keeps its own; K = 1 bitwise the old
   expression.
 - The shared coefficient: every sharer's block equal after each sweep; the draw against a closed-form conditional
   on a fixture; one sharer draws bitwise what the old loop drew.
-- The pooled k: one k on every sharer; the draw's inputs against a hand sum.
+- The pooled k: one k on every sharer; the draw's inputs against a hand sum, each forest standardized by its own
+  leaf scale, at unequal counts; with slice B, a K-forest chain of sharers and the single-forest `blocks()` chain
+  of the same counts give equal leaf scales tree for tree and equal k statistics on equal leaves.
 - The rescaling step on a two-sharer probit chain: admitted, declined with a stated sd, M the group's; after a
   step, each sharer's `totalFits` and the combiner's combined fits equal a re-derivation from the leaves.
 - Starts at 1 with two kind-none forests; by position with one.
@@ -369,11 +475,12 @@ tinytest, a new test-forests-shared-total.R, small n:
 - Created at every door: a formula, a `forests` list, a data object's `bases`; gaussian, probit, logistic.
 - The reader: each sharer's `sd` and `k.scale` the lone forest's times sqrt(s_j), K = 2 and 3, drawn and held; a
   stated forest's its own; D8's k on each.
-- Equal by construction: with no forest with a basis and k fixed, the sharers' leaf scales equal `blocks()`'s one
-  forest of the same trees (to 1e-12), at K = 3 of 75 trees, at K = 2 of 75 trees (38 and 37, which an equal
-  part per forest fails), and with a stated count (`forest(x1, n.trees = 10) + forest(x2) + forest(x3)` against
-  `trees.per.group = c(10, 38, 37)`). Under open call 3's alternative the last two pin each forest's `sd` at
-  T / sqrt(K) instead.
+- The parts, per forest (dec-B505): with no forest with a basis and k fixed, each sharer's `sd` is T / sqrt(K)
+  and its leaf scale T / sqrt(K m_j) (to 1e-12), at K = 3 of 75 trees, at K = 2 of 75 trees (38 and 37: leaf
+  variances T^2 / 76 and T^2 / 74, not 75's), and with a stated count (`forest(x1, n.trees = 10) + forest(x2) +
+  forest(x3)`: each forest T / sqrt(3), its leaves over 10, 38 and 37 trees). A part per tree fails the last two.
+  The equality with `blocks()` at those counts is a tests/cpp pin (each sharer's leaf scale equal to the matching
+  group's after slice B) and the statistical equivalence below.
 - The shared coefficient: `getForestAmplitudes` equal on every sharer at every draw.
 - Counts (D6): 75 split 25, 25, 25 and 38, 37; a stated count beside unstated ones, 10, 38, 37, with and
   without `bart(n.trees = )`, which is then the unstated forests' count; `bart(n.trees = )` refused where every
@@ -384,8 +491,9 @@ tinytest, a new test-forests-shared-total.R, small n:
 - Copy, `saveRDS` and `readRDS` after `storeState`: the next draws `identical()` to the live sampler's.
 - Pins updated: the two refusals named in [What exists today](#what-exists-today) become creations.
 
-Mutants, each to fail a named expectation: the scale times s_j rather than sqrt(s_j); the share 1 / K where
-m_j / M is ruled (or the reverse); the share counting forests that state sd; the shared draw writing the first
+Mutants, each to fail a named expectation: the scale times s_j rather than sqrt(s_j); the share m_j / M where
+1 / K is ruled; the share counting forests that state sd; the pooled k standardized by the first sharer's scale
+for all; the shared draw writing the first
 sharer only; the design row of one sharer; the variance refreshed per sharer; the pooled k from the first
 forest's leaves; the rescaling step's M of one forest; the rescaling step leaving the combined-fit cache
 unscaled; the start rule applied at K = 1; the count split counting a stated forest, or subtracting it from the
@@ -409,15 +517,16 @@ Gates, on the branch's own libraries:
   `max |z|` line; the four snapshot files unchanged on the reference build.
 - Exact posterior, new arms in quick mode, joining exact-gates.yaml: benchmarks/R/forest-prior-exact.R, held arms
   in closed form: two sharers beside a held factor, three forests with no basis one stating sd, two sharers
-  alone at k 2 and at `normal(k = 3)`, and two sharers of unequal counts; benchmarks/R/bcf-exact.R, a mode with two single-tree sharers under one
+  alone at k 2 and at `normal(k = 3)`, and two sharers of unequal counts, each at T / sqrt(2); benchmarks/R/bcf-exact.R, a mode with two single-tree sharers under one
   drawn coefficient beside the treatment forest, the quadrature over a unchanged; benchmarks/R/probit-k-scale-exact.R,
   an arm of two frozen trees sharing one drawn k, the second a stump integrated in an outer quadrature, with the
   rescaling step on and off. The existing arms of all three pass unchanged.
 - Statistical equivalence (a new script in benchmarks/R, z mode over seeds): `y ~ forest(x1) +
   forest(x2) + forest(x3)` against `y ~ forest(x1 + x2 + x3, blocks = )` with the same trees per group, gaussian
-  at k 2 and probit under the drawn k, and two forests at 75 trees (38 and 37) against `blocks()` at 75:
-  posterior mean fit by row, sigma, k. The two are one model; a |z| past 4 is a stop. Under open call 3's
-  alternative the two-forest arm is dropped.
+  at k 2 and probit under the drawn k; two forests at 75 trees (38 and 37) against `blocks()` at 75; and a
+  stated count, `forest(x1, n.trees = 10) + forest(x2) + forest(x3)` against `trees.per.group = c(10, 38, 37)`:
+  posterior mean fit by row, sigma, k. With slice B in, the two spellings are one model at every count
+  (dec-B506); a |z| past 4 is a stop.
 - The full tinytest suite, one process; `lintr::lint_package()`, `air format --check .`, `tools/check-rc-codoc.R`,
   `tools/check-win-drift.R`, `tools/check-doc-freshness.R`, each on its own exit status; `inst/NEWS.Rd` parses;
   `R CMD check --as-cran` from a tarball of a clean copy staged outside the tree; exact-gates.yaml's list in quick
@@ -447,26 +556,33 @@ none, and the group's leaf prior set through `$setModel`. Engine features merge 
 
 ## Order of work
 
-1. Slice 1, engine and bridge (~910 lines, tests/cpp ~420 of them). Tier: changes draws (engine). RNG: neutral;
+0. Slice B, `blocks()` per group (~580 lines: engine ~110, tests/cpp ~150, blocks-exact.R ~200, tinytest ~70,
+   help and design ~50; ~7 agent-hours). Tier: changes draws (a prior; posterior-changing for `blocks()` fits
+   with unequal groups, neutral bitwise for all else). Built and reviewed first, on its own: it is independent of
+   sharing, smaller, and slice 2's equivalence against `blocks()` at unequal counts needs it. Gates as
+   [Slice B](#slice-b) lists.
+1. Slice 1, engine and bridge (~930 lines, tests/cpp ~430 of them). Tier: changes draws (engine). RNG: neutral;
    nothing in R reaches a sharer yet. Gates: tests/cpp with sanitizers, the A/B, the equivalence trio, the
-   snapshots, the full suite. Its share pins wait on open call 3.
-2. Slice 2, R surface and the new prior (~1480 lines: R ~280, help and NEWS ~130, tinytest ~520, gate arms and
-   the equivalence script ~380, docs ~170). Tier: changes draws (a new prior). RNG: neutral for every call main
+   snapshots, the full suite.
+2. Slice 2, R surface and the new prior (~1490 lines: R ~280, help and NEWS ~130, tinytest ~520, gate arms and
+   the equivalence script ~400, docs ~160). Tier: changes draws (a new prior). RNG: neutral for every call main
    accepts (the A/B again on the final tip); posterior-defining for the new models, gated by the exact arms, the
-   equivalence against `blocks()` and the design note. Item 2's count follows dec-B503; the share waits on open
-   call 3. Then the one review over both slices, the fix round and the whole gate list.
+   equivalence against `blocks()` and the design note. Then the one review over slices 1 and 2, the fix round and
+   the whole gate list. Slices 1 and 2: ~25 agent-hours.
 3. Slice 3, the constant column (~60 lines: R ~15, help ~10, tinytest ~30, records). Tier: R surface, no draw
-   change; sonnet review. Waits on open call 2; under (b) it is the help sentence alone. Independent of slices 1 and 2.
+   change; sonnet review. Waits on open call 2; under (b) it is the help sentence alone. Independent of slices B, 1
+   and 2. ~2 agent-hours.
 4. Records: the ledger entry for the calls made, this plan's Status and Landing note, the INDEX row, the design
-   note's Status, TODO. One merge at the end.
+   note's Status, TODO, and dec-B506's record line pointing at slice B's landing. One merge at the end.
 
 ## Cost
 
 - The engine gains a second meaning of k on the K-forest chain (the group's, where no forest has a basis) and a
   coefficient read from another forest's block.
 - A forest's count and size now depend on how many forests with no basis the model has, by design; adding one
-  takes trees from the others (dec-B503's cost), ten at the default having 7 or 8 each. Under open call 3's
-  recommendation a stated count sets a forest's share of the total as well as how finely it divides.
+  takes trees from the others (dec-B503's cost), ten at the default having 7 or 8 each.
+- A leaf scale per sharer (dec-B505) and per `blocks()` group (dec-B506): the pooled k and the level shifts read a
+  scale per forest or per tree, and a `blocks()` fit with unequal groups draws differently from main.
 - A model of forests with no basis inherits every refusal of a model of several forests: no test predictors at
   fit time, no variance forest, gaussian, probit and logistic only, constant leaves only. `bart(x.test = )` users
   of an additive model must predict after.
@@ -487,7 +603,8 @@ none, and the group's leaf prior set through `$setModel`. Engine features merge 
 7. k and `k.scale`: `k.scale` / k is the forest's own sd; sharers with no basis forest report the group's k (D8).
 8. Holds, starts, restatement, families, the formula and reading as D10 lists them.
 9. No new record and no state format change; a stored state's sharers hold equal values.
-10. No bench compare.
+10. No bench compare for slices 1 and 2: their new code runs once per sweep. Slice B takes one, its branch being
+    per tree.
 11. Under dec-B503, a stated count stands outside the total. Alternative: inside it, the stated count
     subtracted from the fitting function's, which stated counts can use up. Three of the four panelists named
     this reading unprompted.
@@ -502,6 +619,15 @@ none, and the group's leaf prior set through `$setModel`. Engine features merge 
 15. The rescaling step, admitted on a K-forest chain, scales the combiner's combined-fit cache with the sharers'
     fits, or refills it before its next reader. Alternative: decline the step on any chain with a combiner,
     which leaves the sharers' drawn k mixing as a lone forest's did before the step.
+16. Slice B stores a group factor only where the group counts are unequal, so every other fit takes today's code
+    operand for operand and the baselines stay bitwise. Alternative: a factor on every `blocks()` forest, 1 where
+    the counts are equal, which moves no posterior but rounds differently and would move every `blocks()` fit's
+    draws.
+17. Slice B sets a tree's scale for the length of its update, so the leaf models and the rule scan read it unchanged,
+    and fixes the three reads outside a tree's update by name. Alternative: a scale per tree threaded through every
+    leaf-model call, a wider diff through model.hpp for the same result.
+18. Slice B lands first, reviewed on its own, ahead of slices 1 and 2. Alternative: folded into slice 1, which
+    makes slice 1 posterior-changing for main's `blocks()` fits and puts both under one review.
 
 ## Open calls
 
@@ -515,34 +641,17 @@ none, and the group's leaf prior set through `$setModel`. Engine features merge 
      column is still taken (dec-B346).
    - (b) Kept as built, created where sd is stated. It is a different model from the plain spelling (its own
      N(0, 1) coefficient, outside the share). Cost: the subset case fits with no message.
-3. How the shared total divides when the sharers' tree counts differ (D11; the critique's first finding). The
-   ledger states dec-B292's rule as "each an equal part, as the trees of a forest do"; VD's own words were "Allow
-   several plain forests, sharing one total.", which do not choose. Under dec-B503 the counts differ at the
-   default wherever K does not divide the count (75 over two forests is 38 and 37; over four, 19, 19, 19, 18) and
-   for any forest that states a count (`forest(x1, n.trees = 10) + forest(x2) + forest(x3)` is 10, 38, 37), so
-   this is not only rounding.
-   - (a) Recommended. A part per tree: forest j has m_j / M of the total variance over the group's M trees, so
-     every sharer's tree has the leaf prior one forest of M trees gives it. The model is `blocks()` with
-     `trees.per.group` at every count, so the equality dec-B503 was shown ("at defaults the model bart() fits
-     with blocks()") holds at every K, two forests included; the pooled k draw and the rescaling step see one
-     forest's leaves, with no per-forest weighting. It is dec-B292's reason, "as the trees of a forest do". The
-     critic favors it, as matching `blocks()` and that reason; so does the causal practitioner on the panel:
-     stating a small count on a small term makes it small. Cost: a stated count sets a forest's size as well as
-     how finely it divides (10 of 85 trees is 0.34 of the total as an sd, against 0.58 under (b)), which the help
-     and print must say; `sd` stays the way to set a size apart from the count, outside the share.
-   - (b) An equal part per forest, 1 / K whatever its count; its leaves N(0, T^2 / (K m_j)). A count then sets
-     only how finely a forest divides, never its size, so dec-B503's "adding a forest takes trees from the
-     others" moves no forest's size. The methodologist on the panel favors it for that. Cost: at the default of
-     75 trees over two forests the leaf variances are T^2 / 76 and T^2 / 74 where `blocks()` gives T^2 / 75, so
-     the model equals `blocks()` only where K divides the count; the pooled k draw weights each forest's leaves
-     by its own scale; and a forest stated at 200 trees beside two of 38 and 37 has the size each of them has.
-
-   The plan is written for (a). Under (b) engine item 1's share is 1 / K, the tinytest pins at K = 2 and with a
-   stated count read each forest's sd T / sqrt(K), and the two-forest equivalence arm is dropped.
+3. RULED, dec-B505 (VD 2026-10-29: "The motivation behind setting different numbers of trees is to express that
+   different forests are likely to have to represent different levels of complexity in the relationships among
+   their inputs. That doesn't mean that each forest shouldn't attempt to capture the same amount of residual
+   variation."). How the shared total divides among sharers of unequal counts: an equal part per forest, 1 / K,
+   each forest's leaf scale dividing its part among its own trees. The alternative, a part per tree, which this
+   plan had recommended, was not taken. dec-B506 (VD: "Change blocks too.") changes `blocks()` to match, each
+   group 1 / G of its forest's prior: [Slice B](#slice-b).
 
 ## Not verified
 
-- Nothing is built. The equality of slice 2's default with the `blocks()` model is argued from the leaf scales
+- Nothing is built. The equality of slice 2's models with `blocks()` after slice B is argued from the leaf scales
   and the sweep order and is a gate, not a measurement.
 - The probe is pure R at 400 draws (the drawn-coefficient quantiles carry Cauchy noise of several percent); it
   does not use the engine.
@@ -552,5 +661,6 @@ none, and the group's leaf prior set through `$setModel`. Engine features merge 
   measure, as for one forest.
 - The cost of the shared coefficient's draw is not measured.
 - The engine's size is estimated from reading the paths it touches, not from a prototype.
-- Whether two forests at 75 trees under a part per forest would fail the `blocks()` z-gate is not measured; the
-  difference is in the leaf variances (T^2 / 76 and T^2 / 74 against T^2 / 75), not in the sum's.
+- The effect of slice B on main's `blocks()` fits at the default splits is computed on the prior (the table in
+  [Slice B](#slice-b)), not measured on a posterior.
+- The agent-hours are estimates from comparable landings.
