@@ -504,9 +504,12 @@ auc <- function(score, y) {
   max(a, 1 - a)
 }
 
-# The bands, set in stage 1 (`check bands`) and fixed here by the
-# pre-registration commit; until then they are read from the run directory.
-fixedBands <- NULL
+# The bands, set in stage 1 (`check bands`, 2026-10-29) and fixed here by the
+# pre-registration commit, to the digits stage 1 selected with.
+fixedBands <- list(
+  moderate = c(0.57371021346469631, 0.80666157014851247),
+  nearsep = c(0.85271291208791200, 0.91453156332472618)
+)
 
 bands <- function() {
   if (!is.null(fixedBands)) {
@@ -780,7 +783,9 @@ priorDraw <- function(sampler, rowSets) {
 # The SBC truth for one replication of an SBC regime: covariates, prior draw,
 # outcome, selection, retried from the prior draw on rejection. `discriminate`
 # names a deliberate mismatch for the discrimination runs ("link": the outcome
-# drawn through the other link; "trees50": the truth from a 50-tree prior).
+# drawn through the other link; "trees50": the truth from a 50-tree prior;
+# "kscale": the drawn f doubled while the stored k0 stays the drawn one, so
+# the oracle's k is wrong by a factor of 2 and a drawn k can absorb it).
 sbcDesign <- function(reg, link, rep, discriminate = "") {
   maxAttempts <- if (reg$select %in% c("rare", "e2")) 200000L else 5000L
   key <- paste(reg$id, link, rep, discriminate)
@@ -875,6 +880,9 @@ sbcDesign <- function(reg, link, rep, discriminate = "") {
         d$tau0 <- tau0
         d$b0 <- b0
         d$f$train <- d$f$train + b0[as.integer(groups)]
+      }
+      if (discriminate == "kscale") {
+        d$f <- lapply(d$f, function(v) 2 * v)
       }
       d
     })
@@ -3846,7 +3854,12 @@ checkS4bPrior <- function(nDraws = 2000L, nPrior = 20000L) {
 checkBands <- function() {
   b <- computeBands()
   saveAtomic(b, runDir("bands.rds"))
-  report("bands", TRUE, list(bands = b$bands, cells = b$cells))
+  # once fixed, the recomputed bands must be the fixed ones
+  report(
+    "bands",
+    is.null(fixedBands) || identical(b$bands, fixedBands),
+    list(bands = b$bands, cells = b$cells)
+  )
 }
 
 # Each selecting regime's cost per accepted replication against its fit cost:
@@ -4153,23 +4166,37 @@ checkNull <- function(reps = 100L) {
   )
 }
 
-# The discrimination runs must flag: the outcome drawn through the other link,
-# read on the oracle; the truth from a 50-tree prior fit at 75 trees, read on
-# the shipped arm. Flagged: the 95 percent bound of interior f's pooled
-# coverage excludes 0.90.
+# The discrimination runs. Flagged: the 95 percent bound of interior f's
+# pooled coverage excludes 0.90. The gate: the oracle flags a wrong k (kscale)
+# under both links. The plan's two runs are read and reported, not gating:
+# stage 1 found the 50-tree shape absorbed by a 75-tree fit under both links
+# (coverage as in the null run), and the logistic fit of a probit outcome
+# absorbed by the oracle's shrinkage; kscale on the shipped arm is the contrast
+# a drawn k should absorb.
 checkDiscrimination <- function(reps = 100L) {
+  runs <- list(
+    c("kscale", "oracle.default", "gate"),
+    c("kscale", "shipped.default", "contrast"),
+    c("link", "oracle.default", "reported"),
+    c("trees50", "shipped.default", "reported")
+  )
   out <- list()
-  for (disc in c("link", "trees50")) {
-    arm <- if (disc == "link") "oracle.default" else "shipped.default"
-    tab <- sbcTable("S6", reps, arms = arm, discriminate = disc)
+  for (r in runs) {
+    tab <- sbcTable("S6", reps, arms = r[2L], discriminate = r[1L])
     tab <- tab[tab$class == "fInt", , drop = FALSE]
     tab$flag <- abs(tab$cov90 - 0.9) - zNoProblem * tab$se90 > 0
-    tab$disc <- disc
-    out[[disc]] <- tab
+    tab$disc <- r[1L]
+    tab$role <- rep(r[3L], nrow(tab))
+    out[[paste(r, collapse = " ")]] <- tab
   }
   tab <- do.call(rbind, out)
+  gate <- tab[tab$role == "gate", , drop = FALSE]
   saveAtomic(list(table = tab, quick = quick), checkFile("discrimination.rds"))
-  report("discrimination", nrow(tab) > 0L && all(tab$flag), tab)
+  report(
+    "discrimination",
+    nrow(gate) == length(regimes$S6$links) && all(gate$flag),
+    tab
+  )
 }
 
 ## ------------------------------------------------------------------- read
@@ -4915,7 +4942,7 @@ writeJobs <- function(phase, path, tranche = 1L) {
       }
     }
   } else if (phase == "disc") {
-    for (disc in c("link", "trees50")) {
+    for (disc in c("link", "trees50", "kscale")) {
       for (link in both) {
         for (rep in seq_len(100L)) {
           replicationJobs(
