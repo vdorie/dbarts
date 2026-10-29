@@ -1102,6 +1102,29 @@ hurdle feature completion (VD 2026-09-26: part of feature completion,
   Schedule not yet set by VD.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
+  maintainer-notes: after every other pre-1.0 change, before the CRAN
+    submission (VD 2026-10-28, dec-B496), one note per affected package,
+    plain text usable as an email or a GitHub issue, sent by VD; pull
+    requests where appropriate (VD: "we might submit PRs where
+    appropriate"). Each note says what changes for the package under
+    dbarts 1.0-0 (or bartCause 1.1-0, stan4bart 0.0-14) with the exact call
+    from its code and its 0.9-34 and 1.0-0 behavior, the better route to
+    what the code is doing (version-guarded where it still supports
+    0.9-x), and what 1.0-0 and 1.1-0 each change. Recipients, from the
+    2026-10-28 scans of public code (scratch/web-scan/report-dbarts.md,
+    report-consumers.md; rerun them against the final build first):
+    breaking - marginaleffects (bart2 call head; also adrftools), voi
+    (formals(dbarts::bart)$ndpost), countSTAR (named test matrix);
+    silent - nlfh ($setResponse scale), tidypredict (data@x "drop");
+    warning now, breaking at 1.1-0 - parsnip (BayesTree names in its
+    engine call), tmle, lorax, MatchIt/WeightIt, bundle/butcher, bartMan,
+    mcmcsae, EBcoBART, funcml, riAFTBART, tidyAML, orbital,
+    twoStageDesignTMLE; GitHub - embarcadero, ibis.iSDM (data@x), sl3,
+    mlr3extralearners (formals filtering), tidytreatment dev
+    (binaryOffset), TobitBART and the macroeconomic BART template
+    (rngKind); the maintainer's own plotBart and thinkCausal get change
+    lists. This subsumes the separate lorax, WeightIt/MatchIt, countSTAR
+    and tmle contact items below.
   pre-release sequence (VD 2026-09-12): VD's own items before the
     merge - lorax contact, WeightIt/MatchIt contact, tmle contact, GitHub issue #80,
     CRAN submission. Between the merge and the submission, the
