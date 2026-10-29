@@ -895,6 +895,7 @@ items
     forest, k.scale the forest's own prior sd) until that item
     decides what they report for a forest in a model of several
     forests.
+    Plan: docs/plans/forests-shared-total.md.
   drawn-coefficient-start-by-kind: a drawn coefficient on a forest with
     no basis or a factor starts by its forest's position (1, and 0 for
     the second forest's first level); a start by kind, the cleaner rule,
