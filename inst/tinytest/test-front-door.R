@@ -445,6 +445,186 @@ expect_identical(
   "bart"
 )
 
+# --- a call naming BayesTree-only arguments beside ones bartBT does not take
+# fits under neither door: refused before anything is forwarded, naming both
+# kinds and the modern spelling of each BayesTree name ---
+mixedHead <- paste0(
+  "this call to '%s' mixes BayesTree-style and modern argument names. ",
+  "BayesTree-style: "
+)
+mixedTail <- paste0(
+  ". Use one style for the whole call: the modern names with 'bart', or ",
+  "BayesTree's with 'bartBT'."
+)
+resetWarnKey("tombstone.bartShim")
+expect_identical(
+  tryCatch(
+    dbarts::bart(y ~ x1 + x2, data = dfFD, ndpost = 20L),
+    error = conditionMessage
+  ),
+  paste0(
+    sprintf(mixedHead, "bart"),
+    "'ndpost' (modern 'n.samples'). Modern only: 'data'",
+    mixedTail
+  )
+)
+# nothing was forwarded or warned: the once-per-session key is untouched
+expect_null(dbarts:::onceWarnState[["tombstone.bartShim"]])
+# every name that selects the legacy door is named with its modern spelling
+expectedSpelling <- c(
+  x.train = "formula",
+  y.train = "data",
+  x.test = "test",
+  splitprobs = "tree.prior = cgm(split.probs = )",
+  binaryOffset = "offset",
+  ntree = "n.trees",
+  ndpost = "n.samples",
+  nskip = "n.burn",
+  printevery = "printEvery",
+  keepevery = "n.thin",
+  keeptrainfits = "keepTrainingFits",
+  usequants = "useQuantiles",
+  numcut = "n.cuts",
+  printcutoffs = "printCutoffs",
+  nchain = "n.chains",
+  nthread = "n.threads",
+  combinechains = "combineChains",
+  keeptrees = "keepTrees",
+  keepcall = "keepCall",
+  sampleronly = "samplerOnly",
+  proposalprobs = "control = dbartsControl(proposal.probs = )",
+  keepsampler = "keepSampler"
+)
+expect_identical(
+  sort(names(expectedSpelling)),
+  sort(dbarts:::bartBTOnlyFormals)
+)
+for (name in names(expectedSpelling)) {
+  mixedCall <- as.call(c(
+    list(quote(dbarts::bart)),
+    structure(list(1, 1), names = c(name, "n.samples"))
+  ))
+  expect_identical(
+    tryCatch(eval(mixedCall), error = conditionMessage),
+    paste0(
+      sprintf(mixedHead, "bart"),
+      "'",
+      name,
+      "' (modern '",
+      expectedSpelling[[name]],
+      "'). Modern only: 'n.samples'",
+      mixedTail
+    ),
+    info = name
+  )
+}
+rm(mixedCall, name)
+# several of each kind: every BayesTree name given, in the order written
+expect_identical(
+  tryCatch(
+    dbarts::bart(
+      x.train = xFD,
+      y.train = yFD,
+      test = xFD[1:3, ],
+      ntree = 5L,
+      n.threads = 1L,
+      verbose = FALSE
+    ),
+    error = conditionMessage
+  ),
+  paste0(
+    sprintf(mixedHead, "bart"),
+    "'x.train' (modern 'formula'), 'y.train' (modern 'data'), 'ntree' ",
+    "(modern 'n.trees'). Modern only: 'test' and 'n.threads'",
+    mixedTail
+  )
+)
+# the alias gets the same refusal, under its own name
+expect_identical(
+  tryCatch(
+    suppressWarnings(
+      dbarts::bart2(y ~ x1 + x2, data = dfFD, ndpost = 20L)
+    ),
+    error = conditionMessage
+  ),
+  paste0(
+    sprintf(mixedHead, "bart2"),
+    "'ndpost' (modern 'n.samples'). Modern only: 'formula' and 'data'",
+    mixedTail
+  )
+)
+expect_null(dbarts:::aliasForwardState[["pending"]])
+# a pure BayesTree call still forwards, with its warning: names the two doors
+# share (k, sigest, verbose, weights, seed) do not make it mixed, and a
+# positional formula and data frame bind the same under both
+resetWarnKey("tombstone.bartShim")
+pureWarnings <- character(0L)
+purePositional <- withCallingHandlers(
+  dbarts::bart(
+    y ~ x1 + x2,
+    dfFD,
+    ndpost = 6L,
+    nskip = 4L,
+    ntree = 5L,
+    k = 2,
+    sigest = 1,
+    seed = 1L,
+    verbose = FALSE
+  ),
+  warning = function(w) {
+    pureWarnings <<- c(pureWarnings, conditionMessage(w))
+    invokeRestart("muffleWarning")
+  }
+)
+expect_identical(dbarts:::callName(purePositional$call), "bartBT")
+expect_equal(length(pureWarnings), 1L)
+expect_true(grepl("'ndpost' is dbarts 0.9-x's", pureWarnings, fixed = TRUE))
+expect_identical(
+  dbarts:::callName(
+    suppressWarnings(dbarts::bart(
+      x.train = xFD,
+      y.train = yFD,
+      weights = rep(1, nFD),
+      ndpost = 6L,
+      nskip = 4L,
+      ntree = 5L,
+      verbose = FALSE
+    ))$call
+  ),
+  "bartBT"
+)
+# a partial name bartBT matches to its own formal is bartBT's to read, not a
+# modern name
+expect_identical(
+  dbarts:::callName(
+    suppressWarnings(dbarts::bart(
+      x.train = xFD,
+      y.train = yFD,
+      ndpost = 6L,
+      nskip = 4L,
+      ntree = 5L,
+      nthr = 1L,
+      verbose = FALSE
+    ))$call
+  ),
+  "bartBT"
+)
+# a pure modern call is untouched, whichever names it shares with bartBT
+modernShared <- dbarts::bart(
+  y ~ x1 + x2,
+  data = dfFD,
+  n.samples = 6L,
+  n.burn = 4L,
+  n.trees = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  k = 2,
+  sigest = 1,
+  verbose = FALSE
+)
+expect_identical(dbarts:::callName(modernShared$call), "bart")
+rm(purePositional, pureWarnings, modernShared, expectedSpelling)
+
 # --- a plain bart(x, y) with no BayesTree spelling is fit HERE, silently,
 # at the MODERN defaults (75 trees, not 0.9-34's 200) ---
 expect_identical(

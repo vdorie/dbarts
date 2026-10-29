@@ -408,11 +408,17 @@ formals(bart2)$combineChains <- FALSE
 ## The call forwarded is the one the caller WROTE, not bart's matched
 ## version of it: matching renames every positional argument to bart's own
 ## formals, which the legacy door does not have.
-forwardToLegacyDoor <- function(suppliedCall, supplied, callingEnv) {
+forwardToLegacyDoor <- function(
+  suppliedCall,
+  supplied,
+  callingEnv,
+  caller = "bart"
+) {
   legacy <- intersect(supplied, bartBTOnlyFormals)
   if (length(legacy) == 0L) {
     return(NULL)
   }
+  refuseMixedArgumentStyles(suppliedCall, legacy, caller)
   warnOnce(
     "tombstone.bartShim",
     "'",
@@ -427,6 +433,55 @@ forwardToLegacyDoor <- function(suppliedCall, supplied, callingEnv) {
   )
   suppliedCall[[1L]] <- quote(dbarts::bartBT)
   list(value = eval(suppliedCall, envir = callingEnv))
+}
+
+## The modern spelling of each BayesTree-only name, as a refusal names it:
+## pdbart's table of translations, the two names pdbart sets itself, and the
+## spellings that are not a bare name.
+bartBTModernSpelling <- function(names) {
+  spellings <- c(
+    pdbartBayesTreeNames,
+    x.test = "test",
+    sampleronly = "samplerOnly"
+  )
+  spellings[names(pdbartBayesTreeSpelling)] <- pdbartBayesTreeSpelling
+  unname(spellings[names])
+}
+
+## A call naming a BayesTree-only argument beside one bartBT does not take
+## (data, n.samples, any modern spelling) fits under neither door: bartBT
+## would refuse the second kind as unused, naming it and not the mix. Refused
+## here, before anything is forwarded or warned, naming both kinds. Arguments
+## are judged by the names the caller wrote, as bartBT will match them (partial
+## names included); an unnamed one is positional and binds the same under both
+## doors, and a call whose names sit in a '...' of the caller's is not
+## visible here and is forwarded as before.
+refuseMixedArgumentStyles <- function(suppliedCall, legacy, caller) {
+  written <- names(suppliedCall)[-1L]
+  written <- written[!is.na(written) & nzchar(written)]
+  taken <- pmatch(written, names(formals(bartBT)), duplicates.ok = TRUE)
+  modern <- written[is.na(taken)]
+  if (length(modern) == 0L) {
+    return(invisible(NULL))
+  }
+  stop(
+    "this call to '",
+    caller,
+    "' mixes BayesTree-style and modern argument names. BayesTree-style: ",
+    paste0(
+      "'",
+      legacy,
+      "' (modern '",
+      bartBTModernSpelling(legacy),
+      "')",
+      collapse = ", "
+    ),
+    ". Modern only: ",
+    quotedNameList(unique(modern)),
+    ". Use one style for the whole call: the modern names with 'bart', or ",
+    "BayesTree's with 'bartBT'.",
+    call. = FALSE
+  )
 }
 
 ## bart's fourth formal is 'subset' where 0.9-x's fourth was 'sigest', so a

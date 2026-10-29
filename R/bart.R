@@ -1072,7 +1072,8 @@ bart <- function(
   forwarded <- forwardToLegacyDoor(
     suppliedCall,
     names(matchedCall)[-1L],
-    callingEnv
+    callingEnv,
+    if (is.null(aliasForward)) "bart" else "bart2"
   )
   if (!is.null(forwarded)) {
     return(forwarded$value)

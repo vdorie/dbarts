@@ -56,7 +56,7 @@
       \code{NULL}, not \code{NA}, is the one spelling of an absent value. Where 0.9-34's own default was \code{NA}, an explicit \code{NA} is still read as \code{NULL} after a once-per-session warning: \code{sigest} on \code{\link{bart}}; \code{seed} on \code{bart}, \code{\link{bartBT}} and \code{\link{xbart}}; \code{n.samples} on \code{\link{dbartsControl}}; \code{updateState} on the \code{\linkS4class{dbartsSampler}} methods and \code{\link{updatePredictorPerObservationJointly}}; and \code{numBurnIn} and \code{numSamples} on \code{$run}. An argument new in 1.0-0 refuses an \code{NA}, naming \code{NULL}: \code{sigest} and \code{seed} on \code{\link{dbarts}}, \code{sigest} on \code{xbart}, \code{seed} on \code{dbartsControl}, and both on \code{dbartsSpec}, which is new, and \code{seed} on \code{\link{dbartsValidateComposition}}.
     }
     \item{A BayesTree-spelled \code{\link{bart}} call}{
-      Forwarded to \code{\link{bartBT}} after a once-per-session warning, when the call carries a name from \code{bartBT}'s own formals that \code{bart} does not take.
+      Forwarded to \code{\link{bartBT}} after a once-per-session warning, when the call carries a name from \code{bartBT}'s own formals that \code{bart} does not take. A call that also names an argument \code{bartBT} does not take (\code{data}, \code{n.samples}, any modern spelling) fits under neither and is refused before it is forwarded, naming the BayesTree names given with their modern spellings and the others.
     }
     \item{A fourth or later positional \code{\link{bart}} argument}{
       Refused, naming both doors: 0.9-x's \code{bart} read a fourth positional argument as \code{sigest}, where \code{bart}'s own fourth formal is \code{subset}.
