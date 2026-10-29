@@ -4792,6 +4792,7 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
   gateOf <- function(id) if (id %in% ids) gateByJob[[id]] else NA_character_
   missing <- character()
   ungated <- character()
+  noExtend <- character()
   wantGate <- function(id, g) {
     if (!id %in% ids) {
       missing <<- c(missing, id)
@@ -4802,6 +4803,12 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
   for (reg in regimes) {
     for (cell in regimeCells(reg)) {
       for (link in reg$links) {
+        if (phase == "tranche2" && !regimeExtends(reg)) {
+          if (any(grepl(paste0("-", cellFile(cell), "-"), ids, fixed = TRUE))) {
+            noExtend <- c(noExtend, paste(cell, link))
+          }
+          next
+        }
         if (phase == "tranche2") {
           if (reg$kind == "sbc" && length(reg$sbcLooks) >= 3L) {
             g <- lookGoRel("sbc", cell, link, 3L)
@@ -4937,7 +4944,8 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
       length(missing) == 0L &&
       length(ungated) == 0L &&
       length(gateOrderBad) == 0L &&
-      length(extendBad) == 0L,
+      length(extendBad) == 0L &&
+      length(noExtend) == 0L,
     list(
       jobs = length(ids),
       gatedJobs = sum(lengths(gates) > 0L),
@@ -4949,7 +4957,8 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
       missing = head(missing, 20L),
       ungated = head(ungated, 20L),
       gateBeforeWriter = head(gateOrderBad, 20L),
-      roundsUngated = head(extendBad, 10L)
+      roundsUngated = head(extendBad, 10L),
+      tier3Extended = head(noExtend, 10L)
     )
   )
 }
@@ -5020,8 +5029,9 @@ checkLooks <- function() {
   US <- c("unresolved", "TRUE", "FALSE")
   P <- c("problem", "TRUE", "TRUE")
   PU <- c("problem", "TRUE", "FALSE")
-  dec <- function(rows, k, prior = list()) {
-    sbcLookDecision(rows, k, prior)$continue
+  # S6 a tier 1 regime, S1 a tier 3 one
+  dec <- function(rows, k, prior = list(), cell = "S6") {
+    sbcLookDecision(rows, k, cell, "probit", prior)$continue
   }
   ok$sbcFirstStops <- !dec(sbcRows(fInt = M, ite = M, fTail = US, ate = US), 1L)
   ok$sbcFirstFloor <- dec(sbcRows(fInt = M, ite = U, fTail = M), 1L)
@@ -5032,7 +5042,18 @@ checkLooks <- function() {
     !dec(sbcRows(fInt = US), 2L, list(sbcRows(fInt = M))) &&
     !dec(sbcRows(ite = P), 2L, list(sbcRows(ite = PU))) &&
     dec(sbcRows(ite = PU), 2L, list(sbcRows(ite = PU)))
-  fr <- sbcLookDecision(sbcRows(fInt = P), 2L, list(sbcRows(fInt = M)))$readings
+  # extensions take the cell's tier: S1 runs its floor on its interior f
+  # (class tier 1), but never extends past it
+  ok$sbcCellTier <- dec(sbcRows(fInt = U, ite = M), 1L, cell = "S1") &&
+    !dec(sbcRows(fInt = US), 2L, list(sbcRows(fInt = U)), cell = "S1") &&
+    !dec(sbcRows(ite = PU), 2L, list(sbcRows(ite = PU)), cell = "S1")
+  fr <- sbcLookDecision(
+    sbcRows(fInt = P),
+    2L,
+    "S6",
+    "probit",
+    list(sbcRows(fInt = M))
+  )$readings
   ok$firstResolvedKept <- fr$reading == "measured" && fr$look == 1L
   refRowsOf <- function(...) {
     x <- list(...)
@@ -5043,8 +5064,8 @@ checkLooks <- function() {
       sized = as.logical(vapply(x, `[`, "", 3L))
     )
   }
-  rdec <- function(rows, k, prior = list()) {
-    refLookDecision(rows, k, prior)$continue
+  rdec <- function(rows, k, prior = list(), cell = "S6") {
+    refLookDecision(rows, k, cell, "probit", prior)$continue
   }
   ok$refSuspected <- rdec(refRowsOf(fInt = US, ate = M), 1L) &&
     !rdec(refRowsOf(fInt = U, ate = M), 1L) &&
@@ -5053,6 +5074,13 @@ checkLooks <- function() {
   ok$refSecond <- rdec(refRowsOf(ite = PU), 2L, list(refRowsOf(ite = PU))) &&
     !rdec(refRowsOf(ite = P), 2L, list(refRowsOf(ite = PU))) &&
     !rdec(refRowsOf(ite = U), 2L, list(refRowsOf(ite = US)))
+  # any suspected class takes references from 6 to 12; only a tier 1 or 2
+  # cell from 12 to 24 (fTail is tier 3 in every regime; S1 every class)
+  ok$refCellTier <- rdec(refRowsOf(fTail = US), 1L) &&
+    !rdec(refRowsOf(fTail = US), 2L, list(refRowsOf(fTail = US))) &&
+    rdec(refRowsOf(fInt = US), 1L, cell = "S1") &&
+    !rdec(refRowsOf(fInt = US), 2L, list(refRowsOf(fInt = US)), cell = "S1") &&
+    !rdec(refRowsOf(ite = PU), 2L, list(refRowsOf(ite = PU)), cell = "S1")
   # a reference's suspicion: its estimate at the bar, or one reference at
   # twice it
   per <- function(S) {
@@ -5901,14 +5929,20 @@ firstResolved <- function(byLook, col) {
 # Whether an SBC cell and link continue past look k. Only tier 1 and 2 row
 # classes decide (fTail, tier 3, never resolves at these counts; scalars are
 # one interval a replication). At the first look, the floor: continue unless
-# every deciding class resolved, a problem only once sized. At later looks,
-# continue only to show a suspected unresolved class or to size a problem.
-sbcLookDecision <- function(rows, k, prior = list()) {
+# every deciding class resolved, a problem only once sized; the class's own
+# tier decides there. At later looks, continue only to show a suspected
+# unresolved class or to size a problem, and only for a class whose cell's
+# tier, the rarer of regime and estimand, is 1 or 2: a tier 3 cell does not
+# extend.
+sbcLookDecision <- function(rows, k, cell, link, prior = list()) {
   fr <- firstResolved(c(prior, list(rows)), "sbcReading")
   deciding <- Filter(
     function(cl) {
       ci <- classInfo[[cl]]
-      isTRUE(ci$row) && !isTRUE(ci$band) && ci$tier <= 2L
+      isTRUE(ci$row) &&
+        !isTRUE(ci$band) &&
+        ci$tier <= 2L &&
+        (k == 1L || cellTier(cell, link, cl) <= 2L)
     },
     rows$class
   )
@@ -5929,13 +5963,20 @@ sbcLookDecision <- function(rows, k, prior = list()) {
 
 # Whether a cell and link's references continue past look k: only to show a
 # suspected class not yet resolved or to size a problem. Band classes never
-# decide: the rule cannot read them, so no reference is spent on them.
-refLookDecision <- function(rows, k, prior = list()) {
+# decide: the rule cannot read them, so no reference is spent on them. Past
+# the first look, only a class whose cell's tier is 1 or 2 decides.
+refLookDecision <- function(rows, k, cell, link, prior = list()) {
   if (is.null(rows) || nrow(rows) == 0L) {
     return(list(continue = FALSE, why = character(), readings = NULL))
   }
   fr <- firstResolved(c(prior, list(rows)), "refReading")
-  deciding <- Filter(function(cl) !isTRUE(classInfo[[cl]]$band), rows$class)
+  deciding <- Filter(
+    function(cl) {
+      !isTRUE(classInfo[[cl]]$band) &&
+        (k == 1L || cellTier(cell, link, cl) <= 2L)
+    },
+    rows$class
+  )
   why <- character()
   for (cl in deciding) {
     r <- fr$reading[fr$class == cl]
@@ -5973,10 +6014,10 @@ runLook <- function(kind, cell, link, k) {
   if (kind == "sbc") {
     rows <- sbcReading(reg$id, looks[k], look = k)
     rows <- rows[rows$link == link, , drop = FALSE]
-    dec <- sbcLookDecision(rows, k, prior)
+    dec <- sbcLookDecision(rows, k, cell, link, prior)
   } else {
     rows <- refRows(cell, link, looks[k])
-    dec <- refLookDecision(rows, k, prior)
+    dec <- refLookDecision(rows, k, cell, link, prior)
   }
   more <- dec$continue && k < length(looks)
   saveAtomic(
@@ -6809,11 +6850,17 @@ replicationJobs <- function(
 
 seqFrom <- function(from, to) if (from <= to) seq.int(from, to) else integer()
 
+# Whether a regime's cells can extend past their second look: an extension
+# takes the cell's tier, the rarer of regime and estimand, so a tier 3
+# regime's never do (B's tier is per problem; it has one look).
+regimeExtends <- function(reg) !isTRUE(reg$tier >= 3L)
+
 # The jobs of one cell and link in a tranche (the second amendment). Tranche
 # 1: the first two looks' replications and references, each later look's
 # gated on the look before it, with the look jobs; D1's designs after its
 # first wait for that first's reference to pass. Tranche 2: the third look's
-# replications and references, gated on tranche 1's last looks.
+# replications and references, gated on tranche 1's last looks; none for a
+# tier 3 regime, whose cells never extend (regimeExtends).
 cellJobs <- function(cell, link, tranche, add, inflight) {
   reg <- cellRegime(cell)
   sbcL <- reg$sbcLooks
@@ -6894,7 +6941,7 @@ cellJobs <- function(cell, link, tranche, add, inflight) {
         )
       }
     }
-  } else {
+  } else if (regimeExtends(reg)) {
     if (reg$kind == "sbc" && length(sbcL) >= 3L) {
       for (rep in seqFrom(sbcL[2L] + 1L, min(sbcL[3L], repsFor(cell, 2L)))) {
         replicationJobs(
