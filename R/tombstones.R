@@ -452,14 +452,15 @@ bartBTModernSpelling <- function(names) {
 ## (data, n.samples, any modern spelling) fits under neither door: bartBT
 ## would refuse the second kind as unused, naming it and not the mix. Refused
 ## here, before anything is forwarded or warned, naming both kinds. Arguments
-## are judged by the names the caller wrote, as bartBT will match them (partial
-## names included); an unnamed one is positional and binds the same under both
+## are judged by the names the caller wrote, as bartBT will match them: exact
+## names first, then partial names among the formals still unmatched, which is
+## pmatch with its default of one use per formal; an unnamed one is positional and binds the same under both
 ## doors, and a call whose names sit in a '...' of the caller's is not
 ## visible here and is forwarded as before.
 refuseMixedArgumentStyles <- function(suppliedCall, legacy, caller) {
   written <- names(suppliedCall)[-1L]
   written <- written[!is.na(written) & nzchar(written)]
-  taken <- pmatch(written, names(formals(bartBT)), duplicates.ok = TRUE)
+  taken <- pmatch(written, names(formals(bartBT)))
   modern <- written[is.na(taken)]
   if (length(modern) == 0L) {
     return(invisible(NULL))

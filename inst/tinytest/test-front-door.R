@@ -609,6 +609,79 @@ expect_identical(
   ),
   "bartBT"
 )
+# R matches exact names first and partial names among the formals left, so a
+# partial name beside an exact one that claims the formal it would match is
+# bartBT's to read: 'x' is x.test beside x.train, 'b' is binaryOffset beside
+# base
+set.seed(77L)
+fitPartialX <- suppressWarnings(dbarts::bart(
+  x.train = xFD,
+  y.train = yFD,
+  x = xFD[1:5, ],
+  ntree = 5L,
+  ndpost = 8L,
+  nskip = 8L,
+  nchain = 1L,
+  verbose = FALSE,
+  seed = 1L
+))
+expect_identical(dbarts:::callName(fitPartialX$call), "bartBT")
+expect_identical(
+  fitPartialX$yhat.test,
+  dbarts::bartBT(
+    x.train = xFD,
+    y.train = yFD,
+    x.test = xFD[1:5, ],
+    ntree = 5L,
+    ndpost = 8L,
+    nskip = 8L,
+    nchain = 1L,
+    verbose = FALSE,
+    seed = 1L
+  )$yhat.test
+)
+fitPartialB <- suppressWarnings(dbarts::bart(
+  x.train = xFD,
+  y.train = yFD,
+  base = 0.9,
+  b = 0.5,
+  ntree = 5L,
+  ndpost = 8L,
+  nskip = 8L,
+  nchain = 1L,
+  verbose = FALSE,
+  seed = 1L
+))
+expect_identical(dbarts:::callName(fitPartialB$call), "bartBT")
+expect_identical(
+  fitPartialB$yhat.train,
+  dbarts::bartBT(
+    x.train = xFD,
+    y.train = yFD,
+    base = 0.9,
+    binaryOffset = 0.5,
+    ntree = 5L,
+    ndpost = 8L,
+    nskip = 8L,
+    nchain = 1L,
+    verbose = FALSE,
+    seed = 1L
+  )$yhat.train
+)
+# two names for one formal are still refused: 'x' with x.test leaves nothing
+# for it to match
+expect_error(
+  suppressWarnings(dbarts::bart(
+    x.train = xFD,
+    y.train = yFD,
+    x.test = xFD[1:5, ],
+    x = xFD[1:5, ],
+    ntree = 5L,
+    verbose = FALSE
+  )),
+  pattern = "mixes BayesTree-style and modern argument names"
+)
+rm(fitPartialX, fitPartialB)
 # a pure modern call is untouched, whichever names it shares with bartBT
 modernShared <- dbarts::bart(
   y ~ x1 + x2,
