@@ -41,4 +41,4 @@ How the engine holds it, by symbol:
 
 Gated by benchmarks/R/blocks-exact.R: three trees in groups of two and one, the 8 structures enumerated and
 the leaves integrated in closed form, at a fixed k and under a drawn k; the per-tree prior misses its fits by
-over 140 standard errors.
+over 300 standard errors.

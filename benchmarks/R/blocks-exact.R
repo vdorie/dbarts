@@ -28,14 +28,17 @@
 # blocks() prior before each group took an equal part), moves the fits at the
 # x1-only and x2-only cells by 0.033 in the fixed arm and 0.032 in the chi
 # arm, the split probabilities by 0.002 to 0.020 and k by 0.018. Batch-means
-# standard errors in quick mode run near 2e-4 on the fits, 5e-4 on the split
-# probabilities and 3e-3 on k, so the per-tree prior, run against a build
-# carrying it, misses the fits by more than 140 of them and fails both arms.
-# The bound is |z| <= 4.5 on each of 8 statistics in the fixed arm and 9 in
-# the chi arm, their standard errors from 4 chains of 25 batches of 1e4
-# sweeps (100 batches in full mode): by a union bound with Student-t tails a
-# correct sampler fails a fresh seed once in about 3000 quick runs and 6600
-# full ones. The seed is fixed, so a given build either passes or does not.
+# standard errors in quick mode run near 1e-4 on the fits, 2.5e-4 on the
+# split probabilities and 1.3e-3 on k, so the per-tree prior, run against a
+# build carrying it, misses the fits by more than 300 of them and fails both
+# arms. A k statistic that sums the leaves' squares without each group's
+# factor misses the chi arm's k by 0.016 and two of its fits by 0.002, failing
+# them at |z| near 13. The bound is |z| <= 4.5 on each of 8 statistics in the
+# fixed arm and 9 in the chi arm, their standard errors from 4 chains of 100
+# batches of 1e4 sweeps (400 batches in full mode): by a union bound with
+# Student-t tails a correct sampler fails a fresh seed once in about 6600
+# quick runs and 8000 full ones. The seed is fixed, so a given build either
+# passes or does not. Quick mode is about 10 seconds.
 #
 # Usage: Rscript blocks-exact.R [quick] [fixed] [chi]
 
@@ -50,7 +53,7 @@ if (length(armNames) == 0L) {
 
 numChains <- 4L
 batchSize <- 10000L
-numBatches <- if (quick) 25L else 100L
+numBatches <- if (quick) 100L else 400L
 engineSeed <- 20261029L
 zBound <- 4.5
 

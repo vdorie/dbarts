@@ -269,8 +269,8 @@ in two groups of two and one, each tree a root or its one split, enumerated
 over its 8 structures with the leaves integrated in closed form, at k = 2 and
 under k ~ chi(1.5, 2) by an outer quadrature. It compares the split
 probabilities, the fit at each cell and k at |z| 4.5; the per-tree prior,
-every leaf at the forest's leaf scale, misses the fits by over 140 standard
-errors. Quick mode is a few seconds.
+every leaf at the forest's leaf scale, misses the fits by over 300 standard
+errors. Quick mode is about 10 seconds.
 
     Rscript benchmarks/R/blocks-exact.R quick
 
