@@ -2557,6 +2557,15 @@ evenRows <- function(m, n) {
   m[round(seq(nrow(m) / n, nrow(m), length.out = n)), , drop = FALSE]
 }
 
+# An escalated shipped chain's length over the first pass's.
+escalateFactor <- 100000L %/% 20000L
+
+# Tail effective draws of a draws-by-chains matrix thinned by escalateFactor.
+essThin <- function(m) {
+  m <- as.matrix(m)
+  posterior::ess_tail(evenRows(m, max(4L, nrow(m) %/% escalateFactor)))
+}
+
 acceptanceFile <- function(cell, link, rep) {
   file.path(referenceDir(cell, link, rep), "acceptance.rds")
 }
@@ -2567,8 +2576,12 @@ acceptanceFile <- function(cell, link, rep) {
 # errors; split-Rhat over all chains at most 1.01 for every scalar estimand and
 # 1.02 at the 99th percentile of row quantities; tail effective draws at least
 # 400 for scalars and at the 1st percentile of row quantities; k's tail
-# effective draws at least 100. A failing first pass escalates only when its
-# effective draws per sweep project a pass at escalateRecord sweeps.
+# effective draws at least 100. A failing first pass escalates when its
+# effective draws project a pass at escalateRecord sweeps, whatever else
+# failed; agreement and Rhat are judged at the final pass. The projection
+# reads the shipped chains as the final pass will, thinned to the move's
+# length: their effective draws at f times the sweeps are f times those of the
+# first pass thinned by f.
 acceptReference <- function(cell, link, rep, final = FALSE) {
   # a first pass that did not escalate is already final: the reference it
   # read is the one the final pass would read
@@ -2628,7 +2641,8 @@ acceptReference <- function(cell, link, rep, final = FALSE) {
         zMax = max(z, na.rm = TRUE),
         rhat = posterior::rhat(both),
         essTail = posterior::ess_tail(both),
-        essS = posterior::ess_tail(x)
+        essS = if (final) NA_real_ else posterior::ess_tail(x),
+        essSThin = if (final) NA_real_ else essThin(x)
       )
     }
   }
@@ -2641,6 +2655,7 @@ acceptReference <- function(cell, link, rep, final = FALSE) {
     kEss <- Inf
     kRhat <- NA_real_
     kEssS <- Inf
+    kEssSThin <- Inf
   } else {
     kDiff <- quantile(as.vector(kS), kq, names = FALSE) -
       quantile(as.vector(kM), kq, names = FALSE)
@@ -2651,7 +2666,8 @@ acceptReference <- function(cell, link, rep, final = FALSE) {
     kZ <- max(abs(kDiff) / kSe)
     kBoth <- cbind(evenRows(kS, nrow(kM)), kM)
     kEss <- posterior::ess_tail(kBoth)
-    kEssS <- posterior::ess_tail(kS)
+    kEssS <- if (final) NA_real_ else posterior::ess_tail(kS)
+    kEssSThin <- if (final) NA_real_ else essThin(kS)
     kRhat <- posterior::rhat(kBoth)
   }
   scal <- tab[!tab$row, ]
@@ -2673,25 +2689,28 @@ acceptReference <- function(cell, link, rep, final = FALSE) {
   } else if (final) {
     "failed"
   } else {
-    # projection at escalateRecord recorded sweeps: the shipped half's
-    # effective draws scale with its sweeps, its standard errors by their root
-    f <- mcmc$escalateRecord / mcmc$refRecord
-    projEss <- function(total, shipped) total + (f - 1) * shipped
+    # projection at escalateRecord recorded sweeps: the shipped half's share
+    # of the joint effective draws replaced by f times that of its first pass
+    # thinned by f
+    projEss <- function(total, shipped, thin) {
+      total - shipped + escalateFactor * thin
+    }
     pass <- c(
-      kAgree = checks[["kAgree"]] ||
-        (is.finite(kZ) && kZ * sqrt(2 / (1 + 1 / f)) <= 4.5),
-      kEss = checks[["kEss"]] || projEss(kEss, kEssS) >= 100,
+      kEss = checks[["kEss"]] || projEss(kEss, kEssS, kEssSThin) >= 100,
       essScalar = checks[["essScalar"]] ||
-        all(projEss(scal$essTail, scal$essS) >= 400, na.rm = TRUE),
+        all(
+          projEss(scal$essTail, scal$essS, scal$essSThin) >= 400,
+          na.rm = TRUE
+        ),
       essRows = checks[["essRows"]] ||
-        quantile(projEss(rowq$essTail, rowq$essS), 0.01, na.rm = TRUE) >= 400,
-      halvesAgree = checks[["halvesAgree"]],
-      rhatScalar = checks[["rhatScalar"]],
-      rhatRows = checks[["rhatRows"]]
+        quantile(
+          projEss(rowq$essTail, rowq$essS, rowq$essSThin),
+          0.01,
+          na.rm = TRUE
+        ) >=
+          400
     )
-    if (
-      all(pass) && cellTask(cell) %in% c("prob", "effect", "multi", "d2", "s9")
-    ) {
+    if (all(pass) && cellTask(cell) %in% escalatingTasks) {
       "escalate"
     } else {
       "failed"
