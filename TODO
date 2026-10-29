@@ -807,6 +807,11 @@ items
     (dec-B271); the default stays normal (dec-B262). Its user is a caller who redraws
     the multiplier, whose scale drifts during a run. Wanted for 1.0-0,
     built after the merge to main (VD 2026-10-06).
+  forest-list-by-label: ruled, not built (dec-B516). In
+    $setLeafPrior(forests = ) and predict(bases = ) a named entry selects
+    its forest by label, an unnamed one its position; forests not named
+    are left as they are; two entries on one forest refused; predict still
+    needs every basis with newdata. About 30 lines. For 1.0-0.
   leaf-prior-writer-by-level: ruled, not built (dec-B515). $setLeafPrior
     takes creation's two levels on every sampler: leaf.prior, the fitting
     function's prior for every forest stating no sd of its own, and
