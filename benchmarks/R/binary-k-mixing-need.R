@@ -157,6 +157,8 @@ armBuild <- c(
   move = "move",
   oracle = "shipped",
   longOracle = "shipped",
+  oracle125 = "shipped", # stage 1's graded controls: k fixed at 1.25 and
+  oracle080 = "shipped", # 0.8 times the true k
   fixedk = "shipped",
   mixed = "shipped" # D2: the move's propensity, the shipped outcome stage
 )
@@ -168,6 +170,17 @@ requireBuild <- function(which) {
 }
 
 repTag <- function(rep) sprintf("r%03d", as.integer(rep))
+
+# The oracle arms and the factor each applies to the true k: the oracle, the
+# long oracle, and stage 1's graded controls, which must read as problems.
+oracleFactor <- c(oracle = 1, longOracle = 1, oracle125 = 1.25, oracle080 = 0.8)
+gradedArms <- c("oracle125", "oracle080")
+# The reference-path control: on these regimes' references, every chain at k
+# fixed at this factor times the reference's median k, read as the shipped
+# default is read; stage 1 requires it to read "problem".
+refCtlRegimes <- c("S6", "S7")
+refCtlFactor <- 1.25
+refCtlClass <- c(S6 = "fInt", S7 = "ite")
 
 loadChecked <- function(path) {
   if (!file.exists(path)) {
@@ -757,13 +770,13 @@ twinsCovariates <- function(reg, rep) {
 
 # A dbarts sampler on the design, built by bart() exactly as a fit would be,
 # one chain: its prior draw is the model the arms fit.
-priorSampler <- function(x, link, seed, nTreesPrior = nTrees) {
+priorSampler <- function(x, link, seed) {
   d <- data.frame(x, .y = rep_len(c(0, 1), nrow(x)))
   bart(
     .y ~ .,
     data = d,
     family = link,
-    n.trees = nTreesPrior,
+    n.trees = nTrees,
     n.chains = 1L,
     n.threads = 1L,
     seed = seed,
@@ -787,9 +800,9 @@ priorDraw <- function(sampler, rowSets) {
 # The SBC truth for one replication of an SBC regime: covariates, prior draw,
 # outcome, selection, retried from the prior draw on rejection. `discriminate`
 # names a deliberate mismatch for the discrimination runs ("link": the outcome
-# drawn through the other link; "trees50": the truth from a 50-tree prior;
-# "kscale": the drawn f doubled while the stored k0 stays the drawn one, so
-# the oracle's k is wrong by a factor of 2 and a drawn k can absorb it).
+# drawn through the other link; "kscale": the drawn f doubled while the stored
+# k0 stays the drawn one, so the oracle's k is wrong by a factor of 2 and a
+# drawn k can absorb it).
 sbcDesign <- function(reg, link, rep, discriminate = "") {
   maxAttempts <- if (reg$select %in% c("rare", "e2")) 200000L else 5000L
   key <- paste(reg$id, link, rep, discriminate)
@@ -812,7 +825,6 @@ sbcDesign <- function(reg, link, rep, discriminate = "") {
   )
   truthLink <- if (discriminate == "link") setdiff(both, link) else link
   invLink <- linkFunction(truthLink)
-  nTreesPrior <- if (discriminate == "trees50") 50L else nTrees
   stage <- list()
   if (reg$task == "s9") {
     # the treatment from a probit prior propensity, selected for weak overlap by
@@ -857,8 +869,7 @@ sbcDesign <- function(reg, link, rep, discriminate = "") {
   sampler <- priorSampler(
     trainX,
     link,
-    seedOf("prior-sampler", key),
-    nTreesPrior
+    seedOf("prior-sampler", key)
   )
   groups <- if (reg$task == "s4b") base$group else NULL
   # E3's masked rows are fixed before the truth, and selection reads only the
@@ -1829,7 +1840,11 @@ armSeed <- function(cell, link, rep, arm) {
     cell,
     link,
     rep,
-    if (arm %in% c("shipped", "move", "oracle", "mixed")) "arm" else arm
+    if (arm %in% c("shipped", "move", "oracle", "mixed", gradedArms)) {
+      "arm"
+    } else {
+      arm
+    }
   )
 }
 
@@ -1852,13 +1867,13 @@ runArm <- function(cell, link, rep, arm, discriminate = "") {
   requireBuild(armBuild[[arm]])
   design <- blind(loadDesign(cell, link, rep, discriminate))
   if (cellRegime(cell)$kind == "real" || cellRegime(cell)$kind == "designed") {
-    if (arm %in% c("oracle", "longOracle")) {
+    if (arm %in% names(oracleFactor)) {
       stop("no oracle without a drawn truth")
     }
   }
-  truthK <- if (arm %in% c("oracle", "longOracle")) {
+  truthK <- if (arm %in% names(oracleFactor)) {
     t <- loadDesign(cell, link, rep, discriminate)$truth
-    list(k0 = t$k0, ke0 = t$ke0)
+    list(k0 = t$k0 * oracleFactor[[arm]], ke0 = t$ke0)
   } else {
     list()
   }
@@ -2077,8 +2092,10 @@ runScore <- function(cell, link, rep, discriminate = "") {
   if (file.exists(fitFile(cell, link, rep, "move", discriminate))) {
     arms <- c(arms, "move")
   }
-  if (file.exists(fitFile(cell, link, rep, "longOracle", discriminate))) {
-    arms <- c(arms, "longOracle")
+  for (a in c("longOracle", gradedArms)) {
+    if (file.exists(fitFile(cell, link, rep, a, discriminate))) {
+      arms <- c(arms, a)
+    }
   }
   fits <- lapply(arms, function(a) {
     loadChecked(fitFile(cell, link, rep, a, discriminate))
@@ -3189,6 +3206,18 @@ runFixedk <- function(cell, link, rep) {
     seconds <- seconds + res$seconds
     chainSets[[q]] <- res
   }
+  if (cellRegime(cell)$id %in% refCtlRegimes) {
+    res <- fitBart(
+      design,
+      link,
+      C,
+      lengths,
+      seedOf("refctl", cell, link, rep),
+      refCtlFactor * acc$kQuantiles[["q50"]]
+    )
+    seconds <- seconds + res$seconds
+    chainSets[["ctl"]] <- res
+  }
   classesOfChains <- function(q, chains) {
     res <- chainSets[[q]]
     idx <- seq_len(dim(res$arr)[2L])
@@ -3209,6 +3238,9 @@ runFixedk <- function(cell, link, rep) {
     massReading(summarizeAll(classesOfChains(q, seq_len(C))), refHalves)
   })
   names(ruled) <- ruledQuantiles
+  ctl <- if (!is.null(chainSets[["ctl"]])) {
+    massReading(summarizeAll(classesOfChains("ctl", seq_len(C))), refHalves)
+  }
   # the pooled stuck runs
   pool <- do.call(
     rbind,
@@ -3270,6 +3302,7 @@ runFixedk <- function(cell, link, rep) {
     kQuantiles = acc$kQuantiles,
     kFromMoveHalf = acc$kFromMoveHalf,
     ruled = ruled,
+    ctl = ctl,
     stuck = stuckMean,
     stuckSpread = lapply(names(stuckMean), function(nm) {
       sd(vapply(stuck, function(s) s[[nm]][["mass90"]], 0))
@@ -4326,19 +4359,17 @@ checkNull <- function(reps = 100L) {
   )
 }
 
-# The discrimination runs. Flagged: the 95 percent bound of interior f's
-# pooled coverage excludes 0.90. The gate: the oracle flags a wrong k (kscale)
-# under both links. The plan's two runs are read and reported, not gating:
-# stage 1 found the 50-tree shape absorbed by a 75-tree fit under both links
-# (coverage as in the null run), and the logistic fit of a probit outcome
-# absorbed by the oracle's shrinkage; kscale on the shipped arm is the contrast
-# a drawn k should absorb.
+# The discrimination runs, flagged when the 95 percent bound of interior f's
+# pooled coverage excludes 0.90, must flag under both links: the outcome drawn
+# through the other link, read on the oracle (the plan's run, scored against
+# the truth's probability on the fit link's scale), and the truth doubled
+# against the oracle's k (a plumbing check). The doubled truth on the shipped
+# arm, which a drawn k can partly absorb, is reported as a contrast.
 checkDiscrimination <- function(reps = 100L) {
   runs <- list(
+    c("link", "oracle.default", "gate"),
     c("kscale", "oracle.default", "gate"),
-    c("kscale", "shipped.default", "contrast"),
-    c("link", "oracle.default", "reported"),
-    c("trees50", "shipped.default", "reported")
+    c("kscale", "shipped.default", "contrast")
   )
   out <- list()
   for (r in runs) {
@@ -4354,7 +4385,56 @@ checkDiscrimination <- function(reps = 100L) {
   saveAtomic(list(table = tab, quick = quick), checkFile("discrimination.rds"))
   report(
     "discrimination",
-    nrow(gate) == length(regimes$S6$links) && all(gate$flag),
+    nrow(gate) == 2L * length(regimes$S6$links) && all(gate$flag),
+    tab
+  )
+}
+
+# The graded controls on the null run's S6 designs: k fixed at 1.25 and 0.8
+# times the true k, read as the shipped arm is read (G, and D against the
+# oracle), must read "problem" in interior f under both links.
+checkGraded <- function(reps = 100L) {
+  tab <- do.call(
+    rbind,
+    lapply(gradedArms, function(a) {
+      r <- sbcReading("S6", reps, arm = paste0(a, ".default"))
+      if (is.null(r) || nrow(r) == 0L) {
+        return(NULL)
+      }
+      r$arm <- a
+      r
+    })
+  )
+  saveAtomic(list(table = tab, quick = quick), checkFile("graded.rds"))
+  fInt <- if (is.null(tab)) NULL else tab[tab$class == "fInt", , drop = FALSE]
+  report(
+    "graded controls",
+    !is.null(fInt) &&
+      nrow(fInt) == length(gradedArms) * length(regimes$S6$links) &&
+      all(fInt$sbcReading == "problem"),
+    tab
+  )
+}
+
+# The reference-path control on tranche 1's count of S6 and S7 probit
+# references: k fixed at 1.25 times each reference's median k must read
+# "problem" through refClassReading in the class each regime is gated on.
+checkRefCtl <- function(link = "probit") {
+  tab <- do.call(
+    rbind,
+    lapply(refCtlRegimes, function(cell) refRows(cell, link, 1L))
+  )
+  saveAtomic(list(table = tab, quick = quick), checkFile("refctl.rds"))
+  gate <- if (is.null(tab)) {
+    NULL
+  } else {
+    tab[tab$class == refCtlClass[tab$cell], , drop = FALSE]
+  }
+  report(
+    "reference-path control",
+    !is.null(gate) &&
+      nrow(gate) == length(refCtlRegimes) &&
+      all(gate$ctlReading %in% "problem"),
     tab
   )
 }
@@ -4446,7 +4526,7 @@ sbcTable <- function(regimeId, reps, arms = NULL, discriminate = "") {
 }
 
 # G and D of a regime's SBC cells, with the reading of each.
-sbcReading <- function(regimeId, reps) {
+sbcReading <- function(regimeId, reps, arm = "shipped.default") {
   sc <- sbcScores(regimeId, reps)
   if (length(sc) == 0L) {
     return(data.frame())
@@ -4463,7 +4543,7 @@ sbcReading <- function(regimeId, reps) {
     mine <- Filter(function(s) s$link == link, sc)
     byRep <- mine[match(repIds, vapply(mine, function(s) s$rep, 0L))]
     classes <- unique(unlist(lapply(mine, function(s) {
-      names(s$coverage$shipped.default)
+      names(s$coverage[[arm]])
     })))
     for (cl in classes) {
       get1 <- function(a, field) {
@@ -4479,8 +4559,8 @@ sbcReading <- function(regimeId, reps) {
           0
         )
       }
-      n <- get1("shipped.default", "n")
-      cs <- get1("shipped.default", "cov90")
+      n <- get1(arm, "n")
+      cs <- get1(arm, "cov90")
       co <- get1("oracle.default", "cov90")
       ok <- is.finite(n) & n > 0 & is.finite(cs) & is.finite(co)
       if (!any(ok)) {
@@ -4613,6 +4693,11 @@ refRows <- function(cell, link, tranche) {
         } else {
           NA_real_
         }
+        ct <- if (!is.null(fk[[rep]]$ctl[[cl]])) {
+          fk[[rep]]$ctl[[cl]][["mass90"]]
+        } else {
+          NA_real_
+        }
         data.frame(
           rep = as.integer(rep),
           seed = seq_along(sh),
@@ -4621,6 +4706,7 @@ refRows <- function(cell, link, tranche) {
           Smove = 0.9 - shMove,
           moveS = 0.9 - mv,
           stuck = 0.9 - st,
+          ctl = 0.9 - ct,
           shippedTransient = mass(r, "shipped.tails", cl) - sh,
           moveTransient = mass(r, "move.tails", cl) - mv,
           stationary = mass(r, "move.tails", cl) - mass(r, "shipped.tails", cl),
@@ -4697,6 +4783,8 @@ refClassReading <- function(per, cell, link, cl, attempted, isB) {
   }
   main <- decide(passing, "S")
   sens <- decide(rep(TRUE, nrow(per)), "Smove")
+  # the reference-path control, read as the shipped default is
+  ctl <- if (any(is.finite(per$ctl))) decide(passing, "ctl")
   reading <- main$reading
   reason <- ""
   if (passShare < 0.8) {
@@ -4725,6 +4813,9 @@ refClassReading <- function(per, cell, link, cl, attempted, isB) {
     moveTransient = mean(per$moveTransient[passing], na.rm = TRUE),
     stationary = mean(per$stationary[passing], na.rm = TRUE),
     moveS = mean(per$moveS[passing], na.rm = TRUE),
+    ctl = if (is.null(ctl)) NA_real_ else ctl$S[["est"]],
+    seCtl = if (is.null(ctl)) NA_real_ else ctl$S[["se"]],
+    ctlReading = if (is.null(ctl)) NA_character_ else ctl$reading,
     refReading = reading,
     refReason = reason
   )
@@ -4892,7 +4983,8 @@ replicationJobs <- function(
   phases = c("fits", "references"),
   discriminate = "",
   longReps = longOracleReps,
-  bSeeds = repsFor(cell, tranche)
+  bSeeds = repsFor(cell, tranche),
+  arms = NULL
 ) {
   reg <- cellRegime(cell)
   big <- reg$big
@@ -4911,6 +5003,37 @@ replicationJobs <- function(
     ref <- FALSE
   }
   fitIds <- character()
+  if ("fits" %in% phases && !is.null(arms)) {
+    # an explicit arm set (stage 1's graded controls) adds only those fits and
+    # the rescoring
+    for (arm in arms) {
+      id <- jobId("fit", cell, link, rep, arm, discriminate)
+      add(
+        id,
+        design,
+        big,
+        cell,
+        sprintf(
+          "@%s fit %s %s %d %s%s",
+          armBuild[[arm]],
+          cell,
+          link,
+          rep,
+          arm,
+          disc
+        )
+      )
+      fitIds <- c(fitIds, id)
+    }
+    add(
+      jobId("score", cell, link, rep, discriminate),
+      fitIds,
+      FALSE,
+      cell,
+      sprintf("@shipped score %s %s %d%s", cell, link, rep, disc)
+    )
+    phases <- setdiff(phases, "fits")
+  }
   if ("fits" %in% phases) {
     arms <- "shipped"
     if (reg$kind == "sbc") {
@@ -5112,8 +5235,31 @@ writeJobs <- function(phase, path, tranche = 1L) {
         )
       }
     }
+  } else if (phase == "graded") {
+    # on the null run's designs and fits
+    for (link in both) {
+      for (rep in seq_len(100L)) {
+        replicationJobs(
+          "S6",
+          link,
+          rep,
+          tranche,
+          add,
+          phases = "fits",
+          arms = gradedArms
+        )
+      }
+    }
+  } else if (phase == "refctl") {
+    # the reference-path control: tranche 1's count of S6 and S7 probit
+    # references, without the long oracle
+    for (cell in refCtlRegimes) {
+      for (rep in seq_len(refsFor(cell, tranche))) {
+        replicationJobs(cell, "probit", rep, tranche, add, longReps = 0L)
+      }
+    }
   } else if (phase == "disc") {
-    for (disc in c("link", "trees50", "kscale")) {
+    for (disc in c("link", "kscale")) {
       for (link in both) {
         for (rep in seq_len(100L)) {
           replicationJobs(
@@ -5272,6 +5418,8 @@ main <- function(args) {
         ),
         null = checkNull(),
         disc = checkDiscrimination(),
+        graded = checkGraded(),
+        refctl = checkRefCtl(),
         stop("no check ", a[1L])
       )
       if (!isTRUE(ok)) {
