@@ -1873,7 +1873,15 @@ checkUpdateState <- function(updateState) {
     return(NULL)
   }
   if (!is.logical(updateState) || length(updateState) != 1L) {
-    stop("'updateState' must be TRUE, FALSE or NULL", call. = FALSE)
+    shown <- paste(deparse(updateState), collapse = " ")
+    if (nchar(shown) > 40L) {
+      shown <- paste0(substr(shown, 1L, 37L), "...")
+    }
+    stop(
+      "'updateState' must be TRUE, FALSE or NULL, not ",
+      shown,
+      call. = FALSE
+    )
   }
   updateState
 }

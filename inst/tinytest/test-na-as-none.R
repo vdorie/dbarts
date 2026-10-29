@@ -362,6 +362,23 @@ expect_error(
   mutable$run(0L, 1L, updateState = 1L),
   "'updateState' must be TRUE, FALSE or NULL"
 )
+# the refusal shows the value given (0.9-34's third positional argument of
+# $run was updateState and took 1L)
+expect_error(
+  mutable$run(0L, 1L, updateState = 1L),
+  "'updateState' must be TRUE, FALSE or NULL, not 1L",
+  fixed = TRUE
+)
+expect_error(
+  mutable$setSigma(3, updateState = "yes"),
+  "must be TRUE, FALSE or NULL, not \"yes\"",
+  fixed = TRUE
+)
+expect_error(
+  mutable$run(0L, 1L, updateState = c(TRUE, FALSE)),
+  "not c(TRUE, FALSE)",
+  fixed = TRUE
+)
 expect_error(
   dbarts::updatePredictorPerObservationJointly(
     mutable,
