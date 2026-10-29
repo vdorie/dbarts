@@ -900,6 +900,11 @@
             \code{factors = "indicators"} with missing predictors kept
             (\code{na.keepPredictors}) reaches it through a data frame
             that has an integer column holding \code{NA}.
+      \item A \code{weights} bound to \code{NULL} draws no warning that
+            weights are missing from \code{test}; 0.9-34 gave it though
+            none were supplied. An \code{offset.test} bound to \code{NULL}
+            is no test offset in the matrix interface, as with a formula;
+            0.9-34 refused it there as not found.
     }
   }
 }

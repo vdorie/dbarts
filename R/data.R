@@ -2099,6 +2099,23 @@ findTermInFormulaData <- function(formula, data, term) {
   if (is.function(value)) NULL else value
 }
 
+## The nearest binding of 'name' along env's chain that holds what an offset
+## can be - a number, a list or NULL - as list(value =), and NULL when there is
+## none. get0() cannot serve: it reports a name bound to NULL as one that is
+## not bound at all.
+findOffsetBinding <- function(name, env) {
+  while (!identical(env, emptyenv())) {
+    if (exists(name, envir = env, inherits = FALSE)) {
+      value <- get(name, envir = env, inherits = FALSE)
+      if (mode(value) %in% c("numeric", "list", "NULL")) {
+        return(list(value = value))
+      }
+    }
+    env <- parent.env(env)
+  }
+  NULL
+}
+
 ## A block of code rather than a function: evaluating a function this way in
 ## the caller's frame triggers an R CMD check warning.
 getTestOffset <- quote({
@@ -2167,13 +2184,12 @@ getTestOffset <- quote({
     # caller's frame; never this function's own, which would answer a name
     # such as 'x' with the predictors. An offset is a value, so a function
     # met first along either chain - base's t, stats' df or sigma - is passed
-    # over for the value it masks
+    # over for the value it masks, and a name bound to NULL is a NULL offset,
+    # as a literal NULL is
     for (env in unique(list(testOffsetEnclos, callerEnv))) {
-      for (mode in c("numeric", "list")) {
-        value <- get0(testOffsetName, envir = env, mode = mode)
-        if (!is.null(value)) {
-          return(list(offset.test = value, testUsesRegularOffset = FALSE))
-        }
+      found <- findOffsetBinding(testOffsetName, env)
+      if (!is.null(found)) {
+        return(list(offset.test = found$value, testUsesRegularOffset = FALSE))
       }
     }
 
@@ -3959,7 +3975,9 @@ dbartsData <- function(
   }
 
   weights.test <- NULL
-  if (!is.null(x.test) && !is.null(matchedCall$weights)) {
+  # 'weights' bound to NULL gave the training rows none, so there are none to
+  # look for in the test rows
+  if (!is.null(x.test) && !is.null(matchedCall$weights) && !is.null(weights)) {
     if (!is.formula(formula)) {
       warning(
         "'weights' are ignored for test data when model is not specified as a formula; this only impacts extracting samples from the posterior predictive distribution of the test data",

@@ -242,3 +242,61 @@ data <- dbarts::dbartsData(
 )
 expect_equal(data@offset.test, base[rows])
 rm(nameData, base, rows, data, subTerm, repl)
+
+# a test offset given as a name bound to NULL is no test offset, as a literal
+# NULL is: with a formula, through a wrapper, and in the matrix interface
+set.seed(11)
+nullData <- data.frame(y = rnorm(30), x = rnorm(30))
+nullTest <- data.frame(x = rnorm(5))
+noOffset <- NULL
+data <- dbarts::dbartsData(y ~ x, nullData, nullTest, offset.test = noOffset)
+expect_null(data@offset.test)
+expect_identical(data@testUsesRegularOffset, FALSE)
+data <- dbarts::dbartsData(
+  as.matrix(nullData["x"]),
+  nullData$y,
+  as.matrix(nullTest),
+  offset.test = noOffset
+)
+expect_null(data@offset.test)
+
+# the nearest binding is the one read, a number further out being masked
+o <- rnorm(5)
+wrapper <- function(o) {
+  dbarts::dbarts(
+    y ~ x,
+    nullData,
+    test = nullTest,
+    offset.test = o,
+    control = dbarts::dbartsControl(
+      verbose = FALSE,
+      n.trees = 5L,
+      n.samples = 5L,
+      n.burn = 5L,
+      n.chains = 1L,
+      n.threads = 1L
+    )
+  )
+}
+expect_null(wrapper(NULL)$data@offset.test)
+expect_equal(wrapper(o)$data@offset.test, o)
+
+# and so for a count fit, with the training offset a NULL name as well
+nullCounts <- data.frame(y = rpois(30, 3), x = nullData$x)
+fit <- dbarts::bart(
+  y ~ x,
+  nullCounts,
+  test = nullTest,
+  family = "nbinom",
+  offset = noOffset,
+  offset.test = noOffset,
+  n.trees = 5L,
+  n.samples = 5L,
+  n.burn = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_null(fit$offset.test)
+expect_identical(dim(fit$yhat.test), c(5L, 5L))
+rm(data, fit, wrapper, o, nullCounts, noOffset, nullTest, nullData)

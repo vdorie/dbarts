@@ -100,7 +100,31 @@ data <- dbarts::dbartsData(
 expect_inherits(data, "dbartsData")
 expect_equal(data@weights, trainData$weights)
 expect_equal(data@weights.test, testData_df$weights)
-rm(data, testData_df, modelFormula, trainData)
+
+# weights given as a name bound to NULL are none for the training rows, so
+# there are none to look for in the test rows (here lacking the response) and
+# nothing to warn of
+noWeights <- NULL
+expect_silent(
+  data <- dbarts::dbartsData(
+    modelFormula,
+    trainData,
+    test = testData_df[names(testData_df) != "y"],
+    weights = noWeights
+  )
+)
+expect_null(data@weights)
+expect_null(data@weights.test)
+xNames <- paste0("x.", 1:10)
+expect_silent(
+  dbarts::dbartsData(
+    as.matrix(trainData[xNames]),
+    trainData$y,
+    as.matrix(testData_df[xNames]),
+    weights = noWeights
+  )
+)
+rm(data, xNames, noWeights, testData_df, modelFormula, trainData)
 
 # a one-sided formula (no response) is a legitimate dbartsData() call - the
 # composed-sampler response is set later - unlike the fitting entry points
