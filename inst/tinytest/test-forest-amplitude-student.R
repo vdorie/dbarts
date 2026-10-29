@@ -304,6 +304,11 @@ expect_identical(heavy$getLeafPrior(1L)$amplitude, studentPrior(3))
 expect_identical(heavy$getLeafPrior(1L)$sd, noBasis(NULL)$getLeafPrior(1L)$sd)
 expect_false(heavy$getLeafPrior(1L)$sd.stated)
 expect_true(all(is.finite(draws(heavy)$glue)))
+# a restated sd keeps the prior: the df rides the statement
+heavy$setLeafPrior(forests = list(forest(sd = 1.5), forest()))
+expect_identical(heavy$getLeafPrior(1L)$amplitude, studentPrior(3))
+expect_identical(heavy$getLeafPrior(1L)$sd, 1.5)
+expect_true(all(is.finite(draws(heavy)$glue)))
 
 # --- a copy, a reload and a state install carry the prior and its v ---
 # outside the argument the name is unbound
