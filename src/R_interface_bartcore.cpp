@@ -3881,25 +3881,31 @@ enum class LeafRefusalDoor { creation, setData, fold };
 // sparse matrix holding its names in a Dimnames slot, or the mixed
 // container, which holds them as columnNames.
 std::string predictorColumnLabel(SEXP dataExpr, size_t column) {
-  SEXP xExpr = R_do_slot(dataExpr, Rf_install("x"));
+  SEXP xExpr = PROTECT(R_do_slot(dataExpr, Rf_install("x")));
   SEXP namesExpr = R_NilValue;
+  int numProtected = 1;
   if (Rf_inherits(xExpr, "dbartsMixedMatrix")) {
     namesExpr = rc_getListElement(xExpr, "columnNames");
   } else {
-    SEXP dimNamesExpr = Rf_getAttrib(xExpr, R_DimNamesSymbol);
+    SEXP dimNamesExpr = PROTECT(Rf_getAttrib(xExpr, R_DimNamesSymbol));
+    ++numProtected;
     if (Rf_isNull(dimNamesExpr) && Rf_isS4(xExpr) &&
-        R_has_slot(xExpr, Rf_install("Dimnames")))
-      dimNamesExpr = R_do_slot(xExpr, Rf_install("Dimnames"));
+        R_has_slot(xExpr, Rf_install("Dimnames"))) {
+      dimNamesExpr = PROTECT(R_do_slot(xExpr, Rf_install("Dimnames")));
+      ++numProtected;
+    }
     if (Rf_isNewList(dimNamesExpr) && Rf_xlength(dimNamesExpr) == 2)
       namesExpr = VECTOR_ELT(dimNamesExpr, 1);
   }
+  std::string label = "in column " + std::to_string(column + 1);
   if (Rf_isString(namesExpr) &&
       static_cast<size_t>(Rf_xlength(namesExpr)) > column) {
     SEXP nameExpr = STRING_ELT(namesExpr, static_cast<R_xlen_t>(column));
     if (nameExpr != NA_STRING && CHAR(nameExpr)[0] != '\0')
-      return std::string("\"") + CHAR(nameExpr) + "\"";
+      label = std::string("\"") + CHAR(nameExpr) + "\"";
   }
-  return "in column " + std::to_string(column + 1);
+  UNPROTECT(numProtected);
+  return label;
 }
 
 // The refusal of a derivation whose rows in the likelihood hold fewer than
