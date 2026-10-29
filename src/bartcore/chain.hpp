@@ -7376,7 +7376,7 @@ private:
   /// only a state of zero prior density gives. Every decline reads only
   /// quantities the group leaves invariant, so mixing the move with the
   /// identity keeps the posterior. The redraw runs outside the sweep's armed
-  /// cancel window, so a cancelled run never leaves the leaves scaled against
+  /// cancel window, so a canceled run never leaves the leaves scaled against
   /// latents drawn at the old fit. factorOut, when non-null, receives r, 1 on
   /// a decline.
   bool drawCollapsedRescale(double* factorOut = nullptr) {

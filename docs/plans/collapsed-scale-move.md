@@ -271,7 +271,7 @@ stale map); the same commit splits them from its family test so the two moves ca
   baselines are reference-build values the shipped build reproduces bitwise today.
 - A cancel cannot land inside the move: the refresh-cancel poll is armed only around the sweep's own
   latent refresh ([`armRefreshCancel`](../../src/bartcore/chain.hpp)), and the move's refresh runs outside
-  it, so a cancelled run never leaves the leaves scaled and the latents stale.
+  it, so a canceled run never leaves the leaves scaled and the latents stale.
 
 ## Scope
 
