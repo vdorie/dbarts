@@ -807,6 +807,16 @@ items
     (dec-B271); the default stays normal (dec-B262). Its user is a caller who redraws
     the multiplier, whose scale drifts during a run. Wanted for 1.0-0,
     built after the merge to main (VD 2026-10-06).
+  leaf-prior-writer-by-level: ruled, not built (dec-B515). $setLeafPrior
+    takes creation's two levels on every sampler: leaf.prior, the fitting
+    function's prior for every forest stating no sd of its own, and
+    forests = list(forest(sd = )), each forest's own size; refused only
+    where creation refuses the same statement. getLeafPrior's records
+    carry the same fields on every sampler (the statement in force, sd,
+    sd.stated); one forest still returns one record. Today a one-forest
+    sampler refuses forests = even as list(forest()). The several-forest
+    half is inside forests-shared-total; setmodel slice 4 follows it.
+    About 40 lines. For 1.0-0.
   tree-prior-flat: ruled, not built (dec-B512). A tree's depth is plain
     base and power at every door (bart, xbart, dbarts, dbartsSpec,
     forest, varianceForest, the live sampler's); split.probs takes a
