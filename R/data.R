@@ -4017,6 +4017,14 @@ dbartsData <- function(
           call. = FALSE
         )
       } else {
+        # the training weights' own checks and coding
+        if (!is.null(testWeights)) {
+          testWeights <- as.vector(testWeights)
+          if (!is.numeric(testWeights)) {
+            stop("'weights' must be a numeric vector")
+          }
+          testWeights <- as.double(testWeights)
+        }
         weights.test <- testWeights
       }
     }

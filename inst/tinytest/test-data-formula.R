@@ -135,7 +135,64 @@ expect_warning(
   "weights specified but not found in test data"
 )
 expect_null(data@weights.test)
-rm(noResponse)
+
+# nor is a variable of another length than the test rows
+wrongLength <- trainData$weights
+expect_warning(
+  data <- dbarts::dbartsData(
+    modelFormula,
+    trainData,
+    test = noResponse,
+    weights = wrongLength
+  ),
+  "weights specified but not found in test data"
+)
+expect_null(data@weights.test)
+
+# a missing test weight is read through as it stands, not dropped with its row
+naTest <- noResponse
+naTest$weights[2L] <- NA_real_
+expect_silent(
+  data <- dbarts::dbartsData(
+    modelFormula,
+    trainData,
+    test = naTest,
+    weights = weights
+  )
+)
+expect_equal(data@weights.test, naTest$weights)
+
+# test weights get the training weights' checks and coding
+charTest <- noResponse
+charTest$weights <- as.character(charTest$weights)
+expect_error(
+  dbarts::dbartsData(
+    modelFormula,
+    trainData,
+    test = charTest,
+    weights = weights
+  ),
+  "'weights' must be a numeric vector"
+)
+intTest <- noResponse
+intTest$weights <- rep(2L, nrow(intTest))
+data <- dbarts::dbartsData(
+  modelFormula,
+  trainData,
+  test = intTest,
+  weights = weights
+)
+expect_identical(data@weights.test, rep(2, nrow(intTest)))
+matrixTest <- noResponse
+matrixTest$weights <- matrix(noResponse$weights, ncol = 1L)
+data <- dbarts::dbartsData(
+  modelFormula,
+  trainData,
+  test = matrixTest,
+  weights = weights
+)
+expect_equal(data@weights.test, noResponse$weights)
+rm(noResponse, wrongLength, naTest, charTest, intTest, matrixTest)
 
 # weights given as a name bound to NULL are none for the training rows, so
 # there are none to look for in the test rows (here lacking the response) and

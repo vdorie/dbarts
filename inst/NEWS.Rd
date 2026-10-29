@@ -900,11 +900,14 @@
             \code{factors = "indicators"} with missing predictors kept
             (\code{na.keepPredictors}) reaches it through a data frame
             that has an integer column holding \code{NA}.
-      \item A \code{weights} bound to \code{NULL} draws no warning that
-            weights are missing from \code{test}; 0.9-34 gave it though
-            none were supplied. An \code{offset.test} bound to \code{NULL}
-            is no test offset in the matrix interface, as with a formula;
-            0.9-34 refused it there as not found.
+      \item A \code{weights} bound to \code{NULL} draws no warning about
+            \code{test}, though none were supplied. 0.9-34 warned that
+            weights were not found in \code{test} when \code{test} had no
+            response column or a vector \code{offset} was given, and, in
+            the matrix interface, that weights are ignored for \code{test}.
+            An \code{offset.test} bound to \code{NULL} is no test offset
+            in the matrix interface, as with a formula; 0.9-34 refused it
+            there as not found.
       \item Weights given as a column of \code{test} are read whether or not
             \code{test} has the response column, and whether or not a
             vector \code{offset} was given. 0.9-34 dropped them, with a
