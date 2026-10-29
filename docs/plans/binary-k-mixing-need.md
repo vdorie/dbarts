@@ -18,7 +18,7 @@ window: after the merge to main, before 1.0-0 (dec-B462). Its result decides whe
 or any faster k move, is priced at all.
 budget: harness about 1,900 lines of R, much of it reused from the binary interval study and the SBC
 harness. Compute about 141 core-hours expected as planned (about 40 hours of the box), 167 at most,
-stop at 211 ([Cost](#cost)); sized down before tranche 1 to about 35 for tranche 1 and 0 to 17 for
+stop at 211 ([Cost](#cost)); sized down before tranche 1 to about 35 for tranche 1 and 0 to 16 for
 tranche 2 ([Pre-registration](#pre-registration), its second amendment).
 
 ## Summary for the maintainer
@@ -72,7 +72,7 @@ If no problem is shown but some common-use cells stay unresolved, the move stays
 come to you with what resolving each would cost.
 
 Cost: sized to the questions before tranche 1: about 35 core-hours for tranche 1, about 11 hours of the
-box, and 0 to 17 for tranche 2, which runs only where tranche 1 suspects a problem or must size one. The
+box, and 0 to 16 for tranche 2, which runs only where tranche 1 suspects a problem or must size one. The
 plan's first estimate was 141; the stop stays at 211.
 
 ## Goal
@@ -1168,6 +1168,21 @@ power](#replications-and-power) and [Cost](#cost).
   - S3 keeps its pre-registered 40 and 80 replications (looks at 20, 40 and 80; references at 6 and 12,
     where 6 and 8 were planned): its fits cost the most of any SBC regime. Alternative, the 100 floor,
     about 2.5 more core-hours.
+- **Review fixes, 2026-10-29, before tranche 1.** The read takes a look only once it ran on complete
+  inputs: a look with a look job once its record exists and every output up to its count does; the last
+  look, which has no job (400 replications, 24 references, S3's 80, D1's 4, B's 1), once every output up
+  to its count exists, a gated first reference's recorded failure excepted (D1's other designs then never
+  ran). Otherwise the cell and link reads "incomplete", with no reading, and a look job refuses partial
+  inputs. Extensions take the cell's tier, the rarer of regime and estimand: 400 replications and 24
+  references only for a class whose cell is tier 1 or 2, so a tier 3 cell (every class of S1, every tail)
+  never extends and S1 has no tranche 2 jobs. The stop at 50 keeps the class's own tier, so S1 still runs
+  its floor of 100, and 12 references on any suspected class stand. Tranche 2 starts only once every
+  tranche 1 look has finished. This supersedes the tier wording in SBC counts and Reference counts above.
+  Tranche 1 stays at 31,113 jobs; tranche 2 drops from 38,840 to 35,120. Projection: tranche 1 unchanged,
+  tranche 2 about 0.4 core-hours (0 to 16). The implementer's calls: a look the one before it closed
+  counts as finished for tranche 2's start (alternative, only a look that ran, which would never start
+  once any first look stopped a cell); an incomplete side withholds both sides' readings of its cell and
+  link (alternative, report the complete side).
 
 ## Rulings and pending slots
 
