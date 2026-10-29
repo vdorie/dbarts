@@ -101,6 +101,42 @@ expect_inherits(data, "dbartsData")
 expect_equal(data@weights, trainData$weights)
 expect_equal(data@weights.test, testData_df$weights)
 
+# test weights are read whatever else 'test' holds: without the response
+# column, and beside an offset given for the training rows
+noResponse <- testData_df[names(testData_df) != "y"]
+expect_silent(
+  data <- dbarts::dbartsData(
+    modelFormula,
+    trainData,
+    test = noResponse,
+    weights = weights
+  )
+)
+expect_equal(data@weights.test, testData_df$weights)
+data <- dbarts::dbartsData(
+  modelFormula,
+  trainData,
+  test = testData_df,
+  weights = weights,
+  offset = trainData$weights,
+  offset.test = 0
+)
+expect_equal(data@weights.test, testData_df$weights)
+
+# and a weights expression that 'test' cannot answer is warned of, not read
+trainData$cases <- trainData$weights + 1
+expect_warning(
+  data <- dbarts::dbartsData(
+    modelFormula,
+    trainData,
+    test = noResponse,
+    weights = cases
+  ),
+  "weights specified but not found in test data"
+)
+expect_null(data@weights.test)
+rm(noResponse)
+
 # weights given as a name bound to NULL are none for the training rows, so
 # there are none to look for in the test rows (here lacking the response) and
 # nothing to warn of

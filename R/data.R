@@ -3984,29 +3984,40 @@ dbartsData <- function(
         call. = FALSE
       )
     } else {
-      testFormula <- formula
-      lhs <- testFormula[[2L]]
-      remainder <- testFormula
-      remainder[[2L]] <- NULL
-      testFormula <- as.formula(paste0(deparse(remainder), " - ", deparse(lhs)))
-      environment(testFormula) <- environment(formula)
-      modelFrameCall$formula <- testFormula
-      modelFrameCall <- handOn(modelFrameCall, list(data = test))
-      # 'subset' selects training rows and never test rows, whose weights
-      # are 'weights' as written, read in the test rows
-      modelFrameCall$subset <- NULL
-      modelFrameCall$weights <- matchedCall$weights
+      # the weights alone are read, in the test rows as model.frame reads
+      # them: 'test' first, then the formula's environment. A frame built
+      # from the predictors would need columns 'test' need not hold (the
+      # response), and the training call's offset and 'subset' belong to the
+      # training rows
+      testFrameCall <- handOn(
+        as.call(list(
+          quote(stats::model.frame),
+          stats::reformulate("1", env = environment(formula)),
+          weights = matchedCall$weights,
+          na.action = stats::na.pass
+        )),
+        list(data = test)
+      )
       tryResult <- tryCatch(
-        testFrame <- eval(modelFrameCall, parent.frame()),
+        eval(testFrameCall, parent.frame()),
         error = function(e) e
       )
-      if (inherits(tryResult, "error")) {
+      testWeights <- if (inherits(tryResult, "error")) {
+        NULL
+      } else {
+        tryResult[["(weights)"]]
+      }
+      # as many weights as test rows, as model.frame requires of a column
+      if (
+        inherits(tryResult, "error") ||
+          (!is.null(testWeights) && length(testWeights) != nrow(x.test))
+      ) {
         warning(
           "weights specified but not found in test data - ignoring",
           call. = FALSE
         )
       } else {
-        weights.test <- testFrame[["(weights)"]]
+        weights.test <- testWeights
       }
     }
   }
