@@ -92,7 +92,8 @@ struct SamplerOptions {
   // active latents and the occupied leaves are multiplied by one factor and k
   // divided by it, the factor drawn by a slice step from its exact
   // conditional. Taken only where Chain::forestRescaleApplies holds - one
-  // plain constant-leaf probit forest with a drawn k - and guarded before any
+  // plain constant-leaf probit forest, or the forests of a combining chain
+  // that share one total, with a drawn k - and guarded before any
   // generator call, so every other fit draws byte-for-byte as with it off.
   // Not a setting: no host sets it, and it is false only in the engine's own
   // tests, which compare a path with the step against one without.
@@ -431,8 +432,13 @@ struct ForestCalibration {
   /// and handed back as the anchor is (AmplitudeSpec::unit).
   double mapUnit = std::numeric_limits<double>::quiet_NaN();
   /// The forest's sd in force, response units: namedSd itself where one is
-  /// stated, else the default's multiple of s times mapUnit.
+  /// stated, else the default's multiple of s times mapUnit; on a sharer
+  /// priorSd, at the group's k in force.
   double mapSd = std::numeric_limits<double>::quiet_NaN();
+  /// A sharer's part of its group's prior variance (forestSharers), NaN on
+  /// every other forest. A sharer's k is the group's, one value on each, and
+  /// its namedSd the group's named sd.
+  double share = std::numeric_limits<double>::quiet_NaN();
 };
 
 /// What a sampler derived from its data at creation and holds while the data
@@ -1244,6 +1250,11 @@ public:
     std::vector<ForestSpec> forestSpecs = expandForestSpecs(spec);
     forestMap_.resize(forestSpecs.size());
     std::vector<ForestAmplitudePrior> amplitudePriors(forestSpecs.size());
+    // the forests sharing one total, each an equal part of its variance
+    sharers_ = forestSharers(forestSpecs);
+    const double share =
+      sharers_.empty() ? std::numeric_limits<double>::quiet_NaN()
+                       : 1.0 / static_cast<double>(sharers_.size());
     ScaleRows scaleRows;
     for (std::size_t f = 0; f < forestSpecs.size(); ++f) {
       const ForestSpec& forestSpec = forestSpecs[f];
@@ -1276,12 +1287,16 @@ public:
       }
       // each forest is resolved ONCE here and the combiner is handed the
       // result
-      mapped.entry =
-        forestMapEntry(mapped.statement, mapped.kind, spec.family,
-                       forestSdUnit_, oneForestSize(), mapped.basisScale);
+      const bool sharer =
+        std::find(sharers_.begin(), sharers_.end(), f) != sharers_.end();
+      mapped.entry = forestMapEntry(
+        mapped.statement, mapped.kind, spec.family, forestSdUnit_,
+        oneForestSize(), mapped.basisScale,
+        sharer ? share : std::numeric_limits<double>::quiet_NaN());
       amplitudePriors[f] = mapped.entry.amplitudePrior;
       buildSpecifiedForest(forestSpec.forest);
       forests_[f].leaf.scale = mapLeafScale(f);
+      if (sharer) installSharedLeafPrior(forests_[f]);
     }
 
     combiner_ = std::make_unique<AmplitudeForestCombiner<L, ResidT>>(
@@ -1501,9 +1516,19 @@ public:
   /// so a re-derivation from unchanged inputs is bitwise the constructed
   /// scale.
   double mapLeafScale(std::size_t f) const {
-    return forestMap_[f].entry.nodeScale(nodeScaleAnchor_) /
-           std::sqrt(static_cast<double>(forests_[f].numTrees));
+    const ForestMapEntry& entry = forestMap_[f].entry;
+    double nodeScale = std::isfinite(entry.share)
+                         ? options_.nodeScale * entry.nodeScaleFactor
+                         : entry.nodeScale(nodeScaleAnchor_);
+    return nodeScale / std::sqrt(static_cast<double>(forests_[f].numTrees));
   }
+  /// Whether forest f shares the group's total (forestSharers).
+  bool isSharer(std::size_t f) const {
+    return f < forestMap_.size() && std::isfinite(forestMap_[f].entry.share);
+  }
+  /// The forests sharing one total, in index order; empty where fewer than two
+  /// do.
+  const std::vector<std::size_t>& sharers() const { return sharers_; }
   /// Whether this chain's forest coupling permits the response-side conduit -
   /// setResponse and setOffset at updateScale = false, and setWeights, which
   /// has no scale to pin at all; false off any combiner, since a single-forest
@@ -1654,7 +1679,7 @@ public:
     if (f < forestMap_.size()) {
       const MapForest& mapped = forestMap_[f];
       calibration.kind = mapped.kind;
-      calibration.amplitudeHeld = !mapped.statement.updateAmplitude;
+      calibration.amplitudeHeld = !mapped.entry.amplitudePrior.update;
       const ForestAmplitudePrior& prior = mapped.entry.amplitudePrior;
       bool scaleMixture = prior.mixtureScale > 0.0;
       double notMapped = std::numeric_limits<double>::quiet_NaN();
@@ -1674,6 +1699,13 @@ public:
         std::isnan(mapped.statement.sd)
           ? forestSdInForce(mapped.entry.sdMultiple, forestSdUnit_)
           : mapped.statement.sd;
+      // a sharer's size is the group's leaf prior, not the map's: its sd in
+      // force at the group's k, and the group's named sd
+      if (std::isfinite(mapped.entry.share)) {
+        calibration.share = mapped.entry.share;
+        calibration.namedSd = forest.namedSd;
+        calibration.mapSd = calibration.priorSd;
+      }
     }
     return calibration;
   }
@@ -1717,11 +1749,13 @@ public:
   /// and a held one, or one with a basis, re-derives its leaf scale. The
   /// forest is a stated one from then on.
   /// Where \p sd is the sd in force (ForestCalibration::mapSd) no bit of the
-  /// prior moves. False, writing nothing, off a map forest, on an sd that is
-  /// not positive and finite, and where the unit is not.
+  /// prior moves. False, writing nothing, off a map forest, on a sharer, whose
+  /// size is the group's, on an sd that is not positive and finite, and where
+  /// the unit is not.
   bool setForestMapSd(std::size_t f, double sd) {
-    if (f >= forestMap_.size() || !(sd > 0.0) || !std::isfinite(sd) ||
-        !(forestSdUnit_ > 0.0) || !std::isfinite(forestSdUnit_))
+    if (f >= forestMap_.size() || isSharer(f) || !(sd > 0.0) ||
+        !std::isfinite(sd) || !(forestSdUnit_ > 0.0) ||
+        !std::isfinite(forestSdUnit_))
       return false;
     MapForest& mapped = forestMap_[f];
     ForestStatement statement = mapped.statement;
@@ -2252,12 +2286,17 @@ public:
           storeVarianceSavedTrees(sampleNum);
       }
 
-      for (Forest<L, ResidT>& forest : forests_) {
+      for (std::size_t f = 0; f < forests_.size(); ++f) {
+        Forest<L, ResidT>& forest = forests_[f];
         // a zero sum of squares under an infinite prior scale would make the
-        // gamma rate zero and k infinite; with no information, keep k
-        if (forest.updateK && forest.kSumSquaredParams > 0.0)
+        // gamma rate zero and k infinite; with no information, keep k. The
+        // sharers draw one k, at the first of them
+        if (!sharers_.empty() && isSharer(f)) {
+          if (f == sharers_.front()) drawSharedK();
+        } else if (forest.updateK && forest.kSumSquaredParams > 0.0) {
           forest.k = forest.kHyperprior.draw(rng_, forest.kSumSquaredParams,
                                              forest.kNumLeaves, forest.leaf.scale);
+        }
 
         if (forest.useDart) {
           std::memset(forest.splitCounts.data(), 0,
@@ -2984,11 +3023,15 @@ public:
           combiner_->afterCombine(forests_, false, 0, rng_);
         }
 
-        for (Forest<L, ResidT>& forest : forests_) {
-          if (forest.updateK && forest.kSumSquaredParams > 0.0)
+        for (std::size_t f = 0; f < forests_.size(); ++f) {
+          Forest<L, ResidT>& forest = forests_[f];
+          if (!sharers_.empty() && isSharer(f)) {
+            if (f == sharers_.front()) drawSharedK();
+          } else if (forest.updateK && forest.kSumSquaredParams > 0.0) {
             forest.k = forest.kHyperprior.draw(rng_, forest.kSumSquaredParams,
                                                forest.kNumLeaves,
                                                forest.leaf.scale);
+          }
           if (forest.useDart) {
             std::memset(forest.splitCounts.data(), 0,
                         forest.splitCounts.size() * sizeof(std::uint32_t));
@@ -5964,8 +6007,19 @@ private:
   /// quotient is formed from the reader's own product, so the reader's
   /// priorScale over the named sd is the k written here to the bit. MUST run
   /// after every change of the response transform and of the leaf scale.
+  ///
+  /// A sharer's named sd is the group's total: k is the single-forest chain's
+  /// prior scale over it, the one number every sharer takes.
   void translateNamedSd(Forest<L, ResidT>& forest) {
     if (!std::isfinite(forest.namedSd)) return;
+    if (isSharer(static_cast<std::size_t>(&forest - forests_.data()))) {
+      double k = options_.nodeScale * response_->fitScale() / forest.namedSd;
+      if (forest.updateK)
+        forest.kHyperprior.scale = k;
+      else
+        forest.k = k;
+      return;
+    }
     double k = forest.leaf.scale * priorScaleFactor(forest) / forest.namedSd;
     if (forest.updateK)
       forest.kHyperprior.scale = k;
@@ -5974,6 +6028,40 @@ private:
   }
   void translateNamedSds() {
     for (Forest<L, ResidT>& forest : forests_) translateNamedSd(forest);
+  }
+
+  /// Gives a sharer the group's leaf prior, the single-forest chain's from the
+  /// options in place of the map's k of 1: its k, whether k is drawn and its
+  /// chi prior, and a named sd, stated as the single-forest constructor states
+  /// one, a drawn k starting at the statement. The leaf scale is set already
+  /// (mapLeafScale).
+  void installSharedLeafPrior(Forest<L, ResidT>& forest) {
+    forest.updateK = options_.updateK;
+    forest.kHyperprior = options_.kHyperprior;
+    forest.k = options_.k;
+    forest.namedSd = options_.namedSd;
+    translateNamedSd(forest);
+    if (forest.updateK && std::isfinite(forest.namedSd))
+      forest.k = forest.kHyperprior.scale;
+  }
+
+  /// The group's k draw: one k from every sharer's leaves, each sharer's sum
+  /// of squares standardized by its own leaf scale, so the draw stands on unit
+  /// scale, and written to every sharer. Keeps k where the sum is zero, as
+  /// the single forest does.
+  void drawSharedK() {
+    const Forest<L, ResidT>& first = forests_[sharers_.front()];
+    if (!first.updateK) return;
+    double sumSquares = 0.0, numLeaves = 0.0;
+    for (std::size_t f : sharers_) {
+      const Forest<L, ResidT>& forest = forests_[f];
+      sumSquares +=
+        forest.kSumSquaredParams / (forest.leaf.scale * forest.leaf.scale);
+      numLeaves += forest.kNumLeaves;
+    }
+    if (!(sumSquares > 0.0)) return;
+    double k = first.kHyperprior.draw(rng_, sumSquares, numLeaves, 1.0);
+    for (std::size_t f : sharers_) forests_[f].k = k;
   }
 
   /// Composes forest f's installed per-observation weight into the precisions
@@ -7225,23 +7313,32 @@ private:
   }
 
   /// Whether the probit rescaling step can apply this sweep, on what the
-  /// chain holds alone: one plain constant-leaf forest, no combiner and no
-  /// variance forest, the probit family, k drawn and finite and positive, and
-  /// every tree's obs-to-leaf map current. A stale map (the sweep after a
-  /// prior draw or a wholesale reset) does not name the leaves the cached fits
-  /// were gathered from. Reads no generator.
+  /// chain holds alone: one plain constant-leaf forest with no combiner, or
+  /// the sharers of a combining chain (forestSharers); no variance forest, the
+  /// probit family, k drawn and finite and positive, and every scaled tree's
+  /// obs-to-leaf map current. A stale map (the sweep after a prior draw or a
+  /// wholesale reset) does not name the leaves the cached fits were gathered
+  /// from. Reads no generator.
   bool forestRescaleApplies() const {
     if constexpr (!std::is_same_v<L, ConstantGaussianLeaf>) {
       return false;
     } else {
-      if (forests_.size() != 1 || combiner_ || varianceForest_ ||
-          family_ != ResponseFamily::probit)
+      if (sharers_.empty()) {
+        if (forests_.size() != 1 || combiner_ || varianceForest_ ||
+            family_ != ResponseFamily::probit)
+          return false;
+      } else if (varianceForest_ || family_ != ResponseFamily::probit) {
         return false;
-      const Forest<L, ResidT>& forest = forests_[0];
-      if (!forest.updateK || !(forest.k > 0.0 && forest.k <= DBL_MAX))
-        return false;
-      for (size_t t = 0; t < forest.numTrees; ++t)
-        if (forest.leafOfStale[t] != 0) return false;
+      }
+      std::size_t numScaled = sharers_.empty() ? 1 : sharers_.size();
+      for (std::size_t j = 0; j < numScaled; ++j) {
+        const Forest<L, ResidT>& forest =
+          forests_[sharers_.empty() ? 0 : sharers_[j]];
+        if (!forest.updateK || !(forest.k > 0.0 && forest.k <= DBL_MAX))
+          return false;
+        for (size_t t = 0; t < forest.numTrees; ++t)
+          if (forest.leafOfStale[t] != 0) return false;
+      }
       return true;
     }
   }
@@ -7262,6 +7359,13 @@ private:
   /// and stays there; an inactive row is not in the model, so its latent is
   /// neither counted nor scaled.
   ///
+  /// On a combining chain the step scales the sharers alone (forestSharers):
+  /// f is their summed fit, M their pooled leaf count, k the group's, and o
+  /// the offset plus every other forest's current contribution, which no
+  /// alpha moves. The density reads no leaf scale, (mu, k) -> (alpha mu,
+  /// k / alpha) leaving every standardized leaf invariant whatever each
+  /// sharer's scale, so it is the one above.
+  ///
   /// Declines, consuming no generator draw, where forestRescaleApplies does
   /// not hold, where R is not positive, and where C is zero and n <= nu, the
   /// conditional then being improper. Every decline reads only quantities the
@@ -7278,25 +7382,46 @@ private:
       return false;
     } else {
       if (!forestRescaleApplies()) return false;
-      Forest<L, ResidT>& forest = forests_[0];
       const size_t n = data_.numObservations;
       const double* z = response_->latents();
       const double* offset = response_->offset();
       // the 0/1 active-row mask under probit, null when none is installed
       const double* active = response_->workingWeights();
-      const double* fits = forest.totalFits.data();
       double numActive = 0.0, residualSquares = 0.0, offsetCross = 0.0;
-      for (size_t i = 0; i < n; ++i) {
-        if (active != nullptr && active[i] == 0.0) continue;
-        double residual = z[i] - fits[i];
-        numActive += 1.0;
-        residualSquares += residual * residual;
-        if (offset != nullptr) offsetCross += offset[i] * residual;
+      if (sharers_.empty()) {
+        const double* fits = forests_[0].totalFits.data();
+        for (size_t i = 0; i < n; ++i) {
+          if (active != nullptr && active[i] == 0.0) continue;
+          double residual = z[i] - fits[i];
+          numActive += 1.0;
+          residualSquares += residual * residual;
+          if (offset != nullptr) offsetCross += offset[i] * residual;
+        }
+      } else {
+        // f is the sharers' summed fit, each held at 1 with no basis, and
+        // every other forest's current contribution, the combined location
+        // less f, joins the offset the step leaves unscaled
+        const double* combined = combiner_->combinedFits(forests_);
+        for (size_t i = 0; i < n; ++i) {
+          if (active != nullptr && active[i] == 0.0) continue;
+          double scaled = 0.0;
+          for (std::size_t f : sharers_) scaled += forests_[f].totalFits[i];
+          double unscaled = combined[i] - scaled;
+          if (offset != nullptr) unscaled += offset[i];
+          double residual = z[i] - scaled;
+          numActive += 1.0;
+          residualSquares += residual * residual;
+          offsetCross += unscaled * residual;
+        }
       }
       if (!(residualSquares > 0.0 && residualSquares <= DBL_MAX)) return false;
-      const double k = forest.k;
-      const double priorScale = forest.kHyperprior.scale;
-      const double power = numActive - forest.kHyperprior.degreesOfFreedom;
+      // every scaled forest has the one k and k prior: the group's, or the
+      // single forest's
+      const Forest<L, ResidT>& kForest =
+        forests_[sharers_.empty() ? 0 : sharers_.front()];
+      const double k = kForest.k;
+      const double priorScale = kForest.kHyperprior.scale;
+      const double power = numActive - kForest.kHyperprior.degreesOfFreedom;
       const double kTerm = std::fabs(priorScale) <= DBL_MAX
                              ? k * k / (2.0 * priorScale * priorScale)
                              : 0.0;
@@ -7313,27 +7438,38 @@ private:
                                             rescaleSliceStepLimit));
       if (alphaOut != nullptr) *alphaOut = alpha;
 
-      for (size_t t = 0; t < forest.numTrees; ++t) {
-        Tree& tree(forest.trees[t]);
-        std::vector<double>& mu(forest.muByTree[t]);
-        tree.bottomScratch.clear();
-        tree.fillBottom(0, tree.bottomScratch);
-        for (int32_t nodeIndex : tree.bottomScratch)
-          if (tree.at(nodeIndex).numObservations() != 0)
-            mu[static_cast<size_t>(nodeIndex)] *= alpha;
+      const double scaledK = k / alpha;
+      std::size_t numScaled = sharers_.empty() ? 1 : sharers_.size();
+      for (std::size_t j = 0; j < numScaled; ++j) {
+        Forest<L, ResidT>& forest = forests_[sharers_.empty() ? 0 : sharers_[j]];
+        for (size_t t = 0; t < forest.numTrees; ++t) {
+          Tree& tree(forest.trees[t]);
+          std::vector<double>& mu(forest.muByTree[t]);
+          tree.bottomScratch.clear();
+          tree.fillBottom(0, tree.bottomScratch);
+          for (int32_t nodeIndex : tree.bottomScratch)
+            if (tree.at(nodeIndex).numObservations() != 0)
+              mu[static_cast<size_t>(nodeIndex)] *= alpha;
+        }
+        forest.k = scaledK;
       }
-      forest.k = k / alpha;
       bool scaled = response_->scaleLatents(alpha);
       assert(scaled);
       (void) scaled;
-      double scale = forest.totalFitsScale * alpha;
-      if (scale >= 1.0 / totalFitsScaleBound && scale <= totalFitsScaleBound) {
-        double* total = forest.totalFits.data();
-        for (size_t i = 0; i < n; ++i) total[i] *= alpha;
-        forest.totalFitsScale = scale;
-      } else {
-        rebuildForestTotalFits(forest);
+      for (std::size_t j = 0; j < numScaled; ++j) {
+        Forest<L, ResidT>& forest = forests_[sharers_.empty() ? 0 : sharers_[j]];
+        double scale = forest.totalFitsScale * alpha;
+        if (scale >= 1.0 / totalFitsScaleBound && scale <= totalFitsScaleBound) {
+          double* total = forest.totalFits.data();
+          for (size_t i = 0; i < n; ++i) total[i] *= alpha;
+          forest.totalFitsScale = scale;
+        } else {
+          rebuildForestTotalFits(forest);
+        }
       }
+      // the combiner's combined location read the sharers' fits before they
+      // moved; refilled so no reader sees the stale one
+      if (!sharers_.empty()) combiner_->combinedFits(forests_);
       return true;
     }
   }
@@ -7909,7 +8045,7 @@ private:
     // the scalars come from the state the sweep settled rather than from the
     // slabs, so they are readable whether or not the caller kept the channel
     draw.sigma = sigma_ * response_->sigmaScale();
-    draw.k = forest.k;
+    draw.k = sharers_.empty() ? forest.k : forests_[sharers_.front()].k;
     draw.shape = response_->carriesShape()
       ? response_->shape() : std::numeric_limits<double>::quiet_NaN();
     draw.residualDf = response_->carriesResidualDf()
@@ -7929,7 +8065,10 @@ private:
     if (results.sigma != nullptr)
       results.sigma[sampleNum] = sigma_ * response_->sigmaScale();
 
-    if (results.k != nullptr) results.k[sampleNum] = forest.k;
+    // a model whose forests share one total records the group's k
+    if (results.k != nullptr)
+      results.k[sampleNum] =
+        sharers_.empty() ? forest.k : forests_[sharers_.front()].k;
 
     // heteroscedastic: the variance surface s^2(x) on the original scale (the
     // working product times sigmaScale^2), train and test, its own channel
@@ -8145,6 +8284,9 @@ private:
   // empty off the K-forest constructor, which is the guard every reader and
   // writer of the map takes
   std::vector<MapForest> forestMap_;
+  // the forests sharing one total (forestSharers), in index order; empty
+  // where fewer than two do, which is the guard every sharer path takes
+  std::vector<std::size_t> sharers_;
   // the map's anchor s, and the response units in one s, which a stated sd is
   // divided by; both are creation's and no mutation moves either
   double nodeScaleAnchor_ = 1.0;

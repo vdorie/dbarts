@@ -333,6 +333,43 @@ struct TestPeer {
                                                        std::size_t t) {
     return chain.forests_[f].paramsByTree[t];
   }
+  /// Forest f's k, whether it is drawn, and its k prior, writable.
+  template <IntegrableLeafModel L, typename R>
+  static double& forestKAt(Chain<L, R>& chain, std::size_t f) {
+    return chain.forests_[f].k;
+  }
+  template <IntegrableLeafModel L, typename R>
+  static bool forestUpdateKAt(const Chain<L, R>& chain, std::size_t f) {
+    return chain.forests_[f].updateK;
+  }
+  template <IntegrableLeafModel L, typename R>
+  static const ChiKHyperprior& kHyperpriorAt(const Chain<L, R>& chain,
+                                             std::size_t f) {
+    return chain.forests_[f].kHyperprior;
+  }
+  /// Forest f's obs-to-leaf map for tree t.
+  template <IntegrableLeafModel L, typename R>
+  static const std::uint32_t* forestLeafOf(const Chain<L, R>& chain,
+                                           std::size_t f, std::size_t t) {
+    return chain.forests_[f].leafOf.data() + t * chain.data_.numObservations;
+  }
+  /// The forests sharing one total, and the group's k draw against the
+  /// statistics the last sweep left.
+  template <IntegrableLeafModel L, typename R>
+  static const std::vector<std::size_t>& sharers(const Chain<L, R>& chain) {
+    return chain.sharers_;
+  }
+  template <IntegrableLeafModel L, typename R>
+  static void drawSharedK(Chain<L, R>& chain) {
+    chain.drawSharedK();
+  }
+  /// The amplitude combiner's combined location as last filled, read without
+  /// refilling it.
+  template <IntegrableLeafModel L, typename R>
+  static const std::vector<double>& cachedCombinedFits(const Chain<L, R>& chain) {
+    return static_cast<const AmplitudeForestCombiner<L, R>&>(*chain.combiner_)
+      .glue_.combined;
+  }
   /// Forest f's blocks() group factors on its leaf scale, empty where none is
   /// stored.
   template <IntegrableLeafModel L, typename R>

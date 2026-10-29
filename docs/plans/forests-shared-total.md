@@ -4,8 +4,8 @@ Status: PLANNED 2026-10-29; amended the same day after its blind critique (build
 scratch/crit-2plans/report.md) and the maintainer's rulings dec-B503 (the tree count), dec-B505 (an equal part
 per forest) and dec-B506 (`blocks()` changed to match, slice B); amended again the same day for dec-B508
 (`forest()` takes no `leaf.prior`), dec-B509 (a forest with no basis takes the fitting function's leaf prior,
-held, in every model: D1 revised, the default flip in [Slice F: the default flip](#slice-f-the-default-flip)) and dec-B510. Slice B
-is built on this branch. One call held for the maintainer ([Open calls](#open-calls)): the constant basis column;
+held, in every model: D1 revised, the default flip in [Slice F: the default flip](#slice-f-the-default-flip)) and dec-B510. Slices B
+and 1 (the engine and bridge) are built on this branch. One call held for the maintainer ([Open calls](#open-calls)): the constant basis column;
 `amplitude = fixed()` on a lone forest with no basis is ruled, taken in slice F (dec-B513). Rulings: dec-B292,
 dec-B503, dec-B505, dec-B506, dec-B509 and dec-B513 (with dec-B291, dec-B274, dec-B307, dec-B508, dec-B510); window "Post-merge,
 pre-1.0" (VD 2026-10-07).

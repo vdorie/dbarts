@@ -529,6 +529,11 @@ struct ForestMapEntry {
   /// carries it.
   double sdMultiple = 1.0;
   ForestAmplitudePrior amplitudePrior;
+  /// A sharer's part of its group's prior variance (forestSharers), NaN on
+  /// every other forest. A sharer's size is not stated on the anchor: its node
+  /// scale is the single-forest chain's times nodeScaleFactor, sqrt(share), and
+  /// its k is the group's, so nodeScale() does not apply to it.
+  double share = std::numeric_limits<double>::quiet_NaN();
 
   /// The forest's node scale on anchor \p s, before its tree count divides
   /// it. Association and operand order are the K = 2 instance's, which is
@@ -575,14 +580,29 @@ struct ForestMapEntry {
 /// can differ from it in the last place: a default read and stated back then
 /// resolves alike when it is written and at every later construction.
 ///
+/// A SHARER, handed its finite \p share of the group's total, is held at 1
+/// whatever it states of its amplitude, and its node scale is the
+/// single-forest chain's times sqrt(share): no default, no stated sd and no
+/// anchor enter it.
+///
 /// \throws std::invalid_argument on a stated sd that is not positive and
 /// finite, on a stated df below 1 or not finite, and on a numeric forest that
 /// states no sd with no scale that is, ForestSdUnitError on a stated sd
 /// against a unit that is not.
-inline ForestMapEntry forestMapEntry(const ForestStatement& statement,
-                                     ForestKind kind, ResponseFamily family,
-                                     double unit, double oneForestSize,
-                                     double basisScale) {
+inline ForestMapEntry forestMapEntry(
+  const ForestStatement& statement, ForestKind kind, ResponseFamily family,
+  double unit, double oneForestSize, double basisScale,
+  double share = std::numeric_limits<double>::quiet_NaN()) {
+  if (std::isfinite(share)) {
+    ForestMapEntry entry;
+    entry.share = share;
+    entry.nodeScaleFactor = std::sqrt(share);
+    entry.sdMultiple = std::numeric_limits<double>::quiet_NaN();
+    entry.amplitudePrior.update = false;
+    entry.amplitudePrior.variance = 1.0;
+    entry.amplitudePrior.mixtureScale = 0.0;
+    return entry;
+  }
   bool held = !statement.updateAmplitude;
   double df = statement.amplitudeDf;
   bool dfStated = !std::isnan(df);
@@ -641,6 +661,24 @@ inline ForestMapEntry forestMapEntry(const ForestStatement& statement,
     }
   }
   return entry;
+}
+
+/// The forests of a combining chain that share one prior total: those with no
+/// basis that state no sd and no df, in index order; a stated df draws the
+/// forest's own coefficient, which a sharer does not have. Each takes an equal part of the
+/// total's variance whatever its tree count, the total being the
+/// single-forest chain's leaf prior with one k for the group. Empty where
+/// fewer than two qualify: a lone forest with no basis keeps the map's own
+/// default.
+inline std::vector<std::size_t>
+forestSharers(const std::vector<ForestSpec>& forests) {
+  std::vector<std::size_t> sharers;
+  for (std::size_t f = 0; f < forests.size(); ++f)
+    if (forests[f].kind == ForestKind::none && std::isnan(forests[f].sd) &&
+        std::isnan(forests[f].sdMultiple) && std::isnan(forests[f].amplitudeDf))
+      sharers.push_back(f);
+  if (sharers.size() < 2) sharers.clear();
+  return sharers;
 }
 
 /// The spec a BCF chain is built from. Two readings of one object: the K = 2
@@ -1138,9 +1176,15 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
     // two-level factor basis, whose amplitudes are exactly (b0, b1)
     if (synthesized && numForests_ > 1) synthesizeIndicatorBasis(1, spec.z);
     rebuildAmplitudeLayout();
+    // where two or more forests have no basis, a drawn one starts at 1 rather
+    // than at its position's seed, so none starts out of the model
+    std::size_t numPlain = 0;
+    for (std::size_t f = 0; f < numForests_ && f < forests.size(); ++f)
+      if (forests[f].kind == ForestKind::none) ++numPlain;
     for (std::size_t f = 0; f < numForests_ && f < forests.size(); ++f) {
       if (!glue_.prior[f].update) holdAtKindValue(f, forests[f].kind);
-      else if (forests[f].kind == ForestKind::numeric)
+      else if (forests[f].kind == ForestKind::numeric ||
+               (numPlain > 1 && forests[f].kind == ForestKind::none))
         glue_.amplitudesOf(f)[0] = 1.0;
     }
   }

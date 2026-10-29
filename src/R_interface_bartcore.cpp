@@ -2254,6 +2254,18 @@ void printInitialSummary(const ParsedControl& control,
 
   ext_printf("\tpower and base for tree prior: %f %f\n", model.power,
              model.base);
+  // the forests sharing one total, the k above being theirs
+  std::size_t numForests = sampler.shape().numForests, numSharers = 0;
+  for (std::size_t f = 0; f < numForests; ++f)
+    if (std::isfinite(sampler.forestCalibration(0, f).share)) ++numSharers;
+  if (numSharers > 0) {
+    ext_printf("\tforests sharing one prior total:");
+    for (std::size_t f = 0; f < numForests; ++f)
+      if (std::isfinite(sampler.forestCalibration(0, f).share))
+        ext_printf(" %lu", static_cast<unsigned long>(f + 1));
+    ext_printf(", each 1/%lu of its variance\n",
+               static_cast<unsigned long>(numSharers));
+  }
   if (model.splitProbabilities != NULL) {
     ext_printf("\ttree split probabilities: %f",
                model.splitProbabilities[0]);
@@ -3226,9 +3238,20 @@ double defaultLeafScale(bartcore::ResponseFamily family) {
 // mixture, and one stating its own takes it from the move install. The R
 // surface refuses the same list ahead of this backstop, which is what a
 // direct dbarts.h consumer meets.
+//
+// Where two or more forests share one total (bartcore::forestSharers), the
+// fitting function's leaf prior is theirs: k, a k hyperprior and a named sd
+// reach the engine, which hands them to the sharers.
 void refuseUnsupportedAmplitudeComposition(
     bartcore::ResponseFamily family, const ParsedModel& model,
-    const ParsedData& data, const bartcore::SamplerOptions& options) {
+    const ParsedData& data, const bartcore::SamplerOptions& options,
+    const bartcore::AmplitudeSpec& spec) {
+  // the forests' kinds ride the data object and are copied onto the spec
+  // later (applyForestBases); read here so the refusal can see the sharers
+  std::vector<bartcore::ForestSpec> statements = spec.forests;
+  for (size_t f = 0; f < statements.size() && f < data.basisKinds.size(); ++f)
+    statements[f].kind = data.basisKinds[f];
+  bool shared = !bartcore::forestSharers(statements).empty();
   if (const char* refused = refusedAmplitudeFamilyReason(family))
     Rf_error("a treatment forest does not support %s", refused);
   if (!data.predictors.isDenseColumnar())
@@ -3239,14 +3262,15 @@ void refuseUnsupportedAmplitudeComposition(
   else if (!model.monotoneDirections.empty()) offender = "monotone constraints";
   else if (options.numLeafCovariates != 0 || options.gpLeaves)
     offender = "a linear or Gaussian-process leaf prior";
-  else if (model.updateK) offender = "a k hyperprior";
-  else if (model.k != 2.0) offender = "a non-default k";
+  else if (model.updateK && !shared) offender = "a k hyperprior";
+  else if (model.k != 2.0 && !shared) offender = "a non-default k";
   else if (model.nodeScale != defaultLeafScale(family))
     offender = "a non-default leaf scale";
   // the leaf-scale gate above does not fire on a model that names its
   // calibration in response units instead, and the calibration map would drop
   // it in silence, so it is its own offender
-  else if (std::isfinite(model.namedSd)) offender = "a named leaf-prior sd";
+  else if (std::isfinite(model.namedSd) && !shared)
+    offender = "a named leaf-prior sd";
   else if (std::isfinite(model.residualDf)) offender = "Student-t residuals";
   else if (options.numVarianceTrees > 0) offender = "a variance forest";
   else if (options.fp32Residual) offender = "single-precision storage";
@@ -4233,7 +4257,8 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
       Rf_error("the data carry forest bases but no basis forest was "
                "configured; build the sampler through dbarts() or dbartsSpec()");
     if (carriesAmplitudes) {
-      refuseUnsupportedAmplitudeComposition(family, model, data, options);
+      refuseUnsupportedAmplitudeComposition(family, model, data, options,
+                                            amplitudeSpec);
       amplitudeSpec.family = family;
       if (data.bases.size() != amplitudeSpec.forests.size())
         Rf_error("the data carry %lu forest bases but %lu forests were "
@@ -5569,6 +5594,9 @@ static const char* leafModelName(bartcore::LeafModelKind kind) {
 // where it was read from every row because too few were in the likelihood.
 // amplitude.df is the df a drawn forest states of its coefficient, NaN where
 // none is stated.
+// share is a forest's part of the prior total it shares with the other
+// forests with no basis that state no sd, NaN on every other forest; such a
+// forest's k is the group's and its named.sd the group's.
 SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
@@ -5581,7 +5609,8 @@ SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
     "k.has.hyperprior", "response.scale", "response.shift",
     "amplitude.prior.variance", "amplitude.prior.scale", "basis.scale",
     "map.anchor", "k.prior.scale", "named.sd", "map.unit", "map.sd",
-    "multiplier", "amplitude.held", "basis.scale.all.rows", "amplitude.df"
+    "multiplier", "amplitude.held", "basis.scale.all.rows", "amplitude.df",
+    "share"
   };
   size_t numColumns = sizeof columnNames / sizeof columnNames[0];
   size_t numChains = shape.numChains;
@@ -5615,6 +5644,7 @@ SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
     result[c + 17 * numChains] =
       mapped ? (calibration.basisScaleFromAllRows ? 1.0 : 0.0) : notMapped;
     result[c + 18 * numChains] = calibration.amplitudeDf;
+    result[c + 19 * numChains] = calibration.share;
   }
   SEXP dimNamesExpr = PROTECT(Rf_allocVector(VECSXP, 2));
   SET_VECTOR_ELT(dimNamesExpr, 0, R_NilValue);

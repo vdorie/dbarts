@@ -1,7 +1,7 @@
 # Forests with no basis share one prior total
 
-Status: IN PROGRESS 2026-10-29: slice B, `blocks()` per group, built on its branch; slices 1 and 2, the shared total
-itself, not built. The plan is [forests-shared-total.md](../plans/forests-shared-total.md), which carries the steps,
+Status: IN PROGRESS 2026-10-29: slice B, `blocks()` per group, and slice 1, the shared total's
+engine and bridge, built on its branch; slice 2, the R surface that reaches it, not built. The plan is [forests-shared-total.md](../plans/forests-shared-total.md), which carries the steps,
 the gates and the calls made in planning; this note is the standing statement of the rule. Rulings: dec-B292,
 dec-B503, dec-B505 and dec-B506, in docs/decisions.md.
 

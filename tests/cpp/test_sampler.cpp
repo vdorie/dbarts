@@ -13242,6 +13242,437 @@ static void testLevelGibbsPerForest() {
   printf("ok: level gibbs per forest\n");
 }
 
+// ---------------------------------------------------------------------------
+// Forests that share one prior total (forestSharers): two or more forests with
+// no basis that state no sd take the single-forest chain's leaf prior, each an
+// equal part of its variance, so a sharer's node scale is the lone forest's
+// times sqrt(1 / K) whatever its tree count; one k for the group, drawn from
+// every sharer's leaves standardized by its own scale; the probit rescaling
+// step scaling the sharers alone and reading every other forest's fit as
+// offset; drawn coefficients on forests with no basis starting at 1 where two
+// or more have none. A forest stating sd, and a lone forest with no basis,
+// keep the map's own entry. RNG-neutral (restores rngState; local seeded
+// generators).
+// ---------------------------------------------------------------------------
+static void testForestsSharedTotal() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 515151u;
+  const size_t n = 160, p = 3;
+  auto normal = [] {
+    double u1 = runif01(), u2 = runif01();
+    return std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
+  };
+  std::vector<double> x(n * p), y(n), yBinary(n), offset(n), block(2 * n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    double eta = std::sin(3.0 * x[i]) + x[i + n] - 0.5 * x[i + 2 * n];
+    y[i] = eta + 0.3 * normal();
+    yBinary[i] = eta - 0.2 + normal() > 0.0 ? 1.0 : 0.0;
+    offset[i] = 0.4 * (x[i + 2 * n] - 0.5);
+    double level = x[i + 2 * n] > 0.5 ? 1.0 : 0.0;
+    block[2 * i] = 1.0 - level;
+    block[2 * i + 1] = level;
+  }
+  const double rawScale = 0.37804942330213542;
+  auto ulps = [](double actual, double expected, double count) {
+    return std::fabs(actual - expected) <=
+           count * std::numeric_limits<double>::epsilon() * std::fabs(expected);
+  };
+  std::vector<ext_rng*> allRngs;
+  auto rngsFor = [&](unsigned seed) {
+    std::vector<ext_rng*> rngs = makeDrawRngs(1, seed);
+    allRngs.push_back(rngs[0]);
+    return rngs;
+  };
+  auto optionsFor = [](ResponseFamily family, bool drawn) {
+    SamplerOptions options;
+    options.numChains = 1;
+    options.nodeScale = family == ResponseFamily::gaussian ? 0.5 : 3.0;
+    options.updateK = drawn;
+    options.kHyperprior.degreesOfFreedom = 1.5;
+    options.kHyperprior.scale = 2.0;
+    return options;
+  };
+  // the sharers' counts, then what stands beside them: nothing, a forest with
+  // no basis stating sd 0.6, or a drawn two-level factor forest
+  enum class Beside { alone, statedSd, factor };
+  auto build = [&](ResponseFamily family, const std::vector<size_t>& counts,
+                   Beside beside, const SamplerOptions& options, unsigned seed,
+                   const double* offsetIn = nullptr) {
+    AmplitudeSpec spec;
+    spec.family = family;
+    size_t K = counts.size();
+    spec.forests.resize(K + (beside == Beside::alone ? 0 : 1));
+    for (size_t f = 0; f < K; ++f) spec.forests[f].forest.numTrees = counts[f];
+    if (beside != Beside::alone) {
+      ForestSpec& extra = spec.forests[K];
+      extra.forest.numTrees = 6;
+      if (beside == Beside::statedSd) {
+        extra.sd = 0.6;
+      } else {
+        extra.kind = ForestKind::levels;
+        extra.basis = block.data();
+        extra.numBasisColumns = 2;
+      }
+    }
+    std::vector<ext_rng*> rngs = rngsFor(seed);
+    return std::make_unique<ConstantLeafSampler>(
+      x.data(),
+      family == ResponseFamily::gaussian ? y.data() : yBinary.data(), n, p,
+      nullptr, offsetIn, 1.0, 3.0, rawScale, options, spec, rngs.data());
+  };
+  auto buildLone = [&](ResponseFamily family, size_t numTrees,
+                       SamplerOptions options, unsigned seed) {
+    options.numTrees = numTrees;
+    std::vector<ext_rng*> rngs = rngsFor(seed);
+    return std::make_unique<ConstantLeafSampler>(
+      x.data(),
+      family == ResponseFamily::gaussian ? y.data() : yBinary.data(), n, p,
+      nullptr, nullptr, family, 1.0, 3.0, rawScale, options, rngs.data());
+  };
+  Results empty;
+
+  // ---- which forests share ----
+  {
+    std::vector<ForestSpec> specs(3);
+    bool chosen = forestSharers(specs) == std::vector<std::size_t>{0, 1, 2};
+    specs[1].sd = 0.5;
+    chosen = chosen && forestSharers(specs) == std::vector<std::size_t>{0, 2};
+    specs[2].kind = ForestKind::levels;
+    chosen = chosen && forestSharers(specs).empty();
+    specs[1].sd = std::numeric_limits<double>::quiet_NaN();
+    specs[1].sdMultiple = 1.5;
+    chosen = chosen && forestSharers(specs).empty();
+    check(chosen, "shared total: the sharers are the forests with no basis "
+                  "stating no sd, two or more");
+  }
+
+  // ---- the map: the lone forest's node scale times sqrt(1 / K) ----
+  const std::vector<std::vector<size_t>> countSets = {
+    {10, 10}, {5, 15}, {7, 7, 6}};
+  bool scaled = true, priors = true, held = true;
+  unsigned seed = 6100;
+  for (ResponseFamily family :
+       {ResponseFamily::gaussian, ResponseFamily::probit}) {
+    for (bool drawn : {false, true}) {
+      SamplerOptions options = optionsFor(family, drawn);
+      auto lone = buildLone(family, 20, options, seed++);
+      ForestCalibration loneCalibration = lone->forestCalibration(0, 0);
+      for (const std::vector<size_t>& counts : countSets) {
+        auto sampler = build(family, counts, Beside::alone, options, seed++);
+        Chain<ConstantGaussianLeaf>& chain = sampler->chain(0);
+        double K = static_cast<double>(counts.size());
+        scaled = scaled && TestPeer::sharers(chain).size() == counts.size();
+        for (size_t f = 0; f < counts.size(); ++f) {
+          ForestCalibration calibration = sampler->forestCalibration(0, f);
+          double m = static_cast<double>(counts[f]);
+          scaled = scaled &&
+                   ulps(TestPeer::leafScale(chain, f),
+                        options.nodeScale * std::sqrt(1.0 / K) / std::sqrt(m),
+                        4.0) &&
+                   ulps(calibration.priorScale,
+                        loneCalibration.priorScale * std::sqrt(1.0 / K), 8.0) &&
+                   calibration.share == 1.0 / K;
+          priors = priors && calibration.k == loneCalibration.k &&
+                   calibration.kHasHyperprior == drawn &&
+                   (!drawn || calibration.kPriorScale ==
+                                loneCalibration.kPriorScale);
+          held = held && calibration.amplitudeHeld;
+        }
+      }
+    }
+  }
+  check(scaled, "shared total: each sharer's node scale is the lone forest's "
+                "times sqrt(1 / K), at equal and unequal counts");
+  check(priors, "shared total: the sharers take the lone forest's k and k "
+                "prior, held and drawn");
+  check(held, "shared total: every sharer's coefficient is held");
+
+  // ---- a forest stating sd beside sharers, and a lone forest, keep the map
+  {
+    SamplerOptions options = optionsFor(ResponseFamily::gaussian, false);
+    auto sampler = build(ResponseFamily::gaussian, {10, 10}, Beside::statedSd,
+                         options, 6201);
+    Chain<ConstantGaussianLeaf>& chain = sampler->chain(0);
+    ForestCalibration stated = sampler->forestCalibration(0, 2);
+    ForestStatement statement;
+    statement.sd = 0.6;
+    double oneForestSize = singleForestDefaultSize() / stated.mapAnchor;
+    ForestMapEntry entry =
+      forestMapEntry(statement, ForestKind::none, ResponseFamily::gaussian,
+                     stated.mapUnit, oneForestSize,
+                     std::numeric_limits<double>::quiet_NaN());
+    check(TestPeer::sharers(chain) == std::vector<std::size_t>{0, 1} &&
+            sampler->forestCalibration(0, 0).share == 0.5 &&
+            sampler->forestCalibration(0, 1).share == 0.5,
+          "shared total: a forest stating sd is outside the share");
+    check(std::isnan(stated.share) && stated.k == 1.0 &&
+            TestPeer::leafScale(chain, 2) ==
+              entry.nodeScale(stated.mapAnchor) / std::sqrt(6.0),
+          "shared total: a forest stating sd keeps its own map entry");
+
+    auto single = build(ResponseFamily::gaussian, {12}, Beside::factor,
+                        options, 6202);
+    Chain<ConstantGaussianLeaf>& singleChain = single->chain(0);
+    ForestCalibration plain = single->forestCalibration(0, 0);
+    ForestMapEntry drawnEntry =
+      forestMapEntry(ForestStatement{}, ForestKind::none,
+                     ResponseFamily::gaussian, plain.mapUnit,
+                     singleForestDefaultSize() / plain.mapAnchor,
+                     std::numeric_limits<double>::quiet_NaN());
+    check(TestPeer::sharers(singleChain).empty() && std::isnan(plain.share) &&
+            plain.k == 1.0 && !plain.kHasHyperprior && !plain.amplitudeHeld &&
+            plain.amplitudePriorScale ==
+              drawnEntry.amplitudePrior.mixtureScale &&
+            TestPeer::leafScale(singleChain, 0) ==
+              drawnEntry.nodeScale(plain.mapAnchor) / std::sqrt(12.0),
+          "shared total: a lone forest with no basis keeps the map's drawn "
+          "default, operand for operand");
+    check(!sampler->setForestMapSd(0, 0.7) && sampler->setForestMapSd(2, 0.7),
+          "shared total: a sharer's sd is not restated, a stated one's is");
+  }
+
+  // ---- one k for the group, drawn from every sharer's leaves ----
+  {
+    SamplerOptions options = optionsFor(ResponseFamily::gaussian, true);
+    auto sampler =
+      build(ResponseFamily::gaussian, {5, 15}, Beside::alone, options, 6301);
+    Chain<ConstantGaussianLeaf>& chain = sampler->chain(0);
+    bool oneK = true;
+    std::vector<double> kDraws(4);
+    Results results;
+    results.k = kDraws.data();
+    for (size_t r = 0; r < 5; ++r) {
+      sampler->run(3, 4, results);
+      oneK = oneK && TestPeer::forestKAt(chain, 0) ==
+                       TestPeer::forestKAt(chain, 1) &&
+             kDraws[3] == TestPeer::forestKAt(chain, 0);
+    }
+    check(oneK, "shared total: every sharer carries the one k, the k the "
+                "fit records");
+
+    double pooled = 0.0, leaves = 0.0, firstScaleOnly = 0.0, firstOnly = 0.0;
+    bool statistics = true;
+    for (size_t f = 0; f < 2; ++f) {
+      double sumSquares = 0.0, count = 0.0;
+      for (size_t t = 0; t < (f == 0 ? 5u : 15u); ++t) {
+        const Tree& tree = TestPeer::forestTree(chain, f, t);
+        const std::vector<double>& mu = TestPeer::forestMuByTree(chain, f, t);
+        std::vector<int32_t> bottoms;
+        tree.fillBottom(0, bottoms);
+        for (int32_t b : bottoms) {
+          if (tree.at(b).numObservations() == 0) continue;
+          sumSquares += mu[static_cast<size_t>(b)] * mu[static_cast<size_t>(b)];
+          count += 1.0;
+        }
+      }
+      std::pair<double, double> stat = TestPeer::kStatistic(chain, f);
+      statistics = statistics &&
+                   std::fabs(stat.first - sumSquares) <= 1e-12 * sumSquares &&
+                   stat.second == count;
+      double scale = TestPeer::leafScale(chain, f);
+      double firstScale = TestPeer::leafScale(chain, 0);
+      pooled += sumSquares / (scale * scale);
+      firstScaleOnly += sumSquares / (firstScale * firstScale);
+      if (f == 0) firstOnly = sumSquares / (scale * scale);
+      leaves += count;
+    }
+    ext_rng* rng = TestPeer::rng(chain);
+    ext_rng* reference = cloneRng(rng);
+    double expected = TestPeer::kHyperpriorAt(chain, 0).draw(reference, pooled,
+                                                            leaves, 1.0);
+    TestPeer::drawSharedK(chain);
+    ext_rng_destroy(reference);
+    double k = TestPeer::forestKAt(chain, 0);
+    check(statistics && std::fabs(k - expected) <= 1e-12 * expected &&
+            TestPeer::forestKAt(chain, 1) == k &&
+            std::fabs(firstScaleOnly - pooled) > 1e-3 * pooled &&
+            std::fabs(firstOnly - pooled) > 1e-3 * pooled,
+          "shared total: the group's k draws from every sharer's leaves, each "
+          "over its own leaf scale");
+
+    // the single-forest blocks() chain of the same counts: equal leaf scales
+    // tree for tree, and the same standardized statistic on these leaves
+    const std::vector<std::int32_t> blockOfColumn = {0, 1, 1};
+    const std::vector<size_t> treeCounts = {5, 15};
+    SamplerOptions blocksOptions = optionsFor(ResponseFamily::gaussian, true);
+    blocksOptions.numTrees = 20;
+    blocksOptions.numBlocks = 2;
+    blocksOptions.blockOfColumn = blockOfColumn.data();
+    blocksOptions.blockTreeCounts = treeCounts.data();
+    std::vector<ext_rng*> blocksRngs = rngsFor(6302);
+    auto blocks = std::make_unique<ConstantLeafSampler>(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, rawScale, blocksOptions, blocksRngs.data());
+    Chain<ConstantGaussianLeaf>& blocksChain = blocks->chain(0);
+    const std::vector<double>& factors =
+      TestPeer::blockScaleFactor(blocksChain, 0);
+    double blocksScale = TestPeer::leafScale(blocksChain, 0);
+    bool equalScales = factors.size() == 2;
+    for (size_t g = 0; equalScales && g < 2; ++g)
+      equalScales = ulps(blocksScale * factors[g],
+                         TestPeer::leafScale(chain, g), 8.0);
+    double blocksStatistic = 0.0;
+    for (size_t f = 0; equalScales && f < 2; ++f) {
+      double sumSquares = TestPeer::kStatistic(chain, f).first;
+      blocksStatistic += sumSquares / (factors[f] * factors[f]) /
+                         (blocksScale * blocksScale);
+    }
+    check(equalScales &&
+            std::fabs(blocksStatistic - pooled) <= 1e-12 * pooled,
+          "shared total: sharers and the blocks() groups of the same counts "
+          "have equal leaf scales and k statistics");
+  }
+
+  // ---- the probit rescaling step on the sharers ----
+  for (Beside beside : {Beside::alone, Beside::statedSd, Beside::factor}) {
+    const char* label = beside == Beside::alone      ? "alone"
+                        : beside == Beside::statedSd ? "beside a stated sd"
+                                                     : "beside a factor";
+    SamplerOptions options = optionsFor(ResponseFamily::probit, true);
+    auto sampler = build(ResponseFamily::probit, {6, 6}, beside, options,
+                         6400 + static_cast<unsigned>(beside), offset.data());
+    Chain<ConstantGaussianLeaf>& chain = sampler->chain(0);
+    sampler->run(30, 0, empty);
+    std::size_t numForests = sampler->numForests();
+    bool admitted = TestPeer::forestRescaleApplies(chain);
+
+    auto forestFit = [&](size_t f, size_t i) {
+      double fit = 0.0;
+      for (size_t t = 0; t < 6; ++t)
+        fit += TestPeer::forestMuByTree(chain, f, t)
+                 [TestPeer::forestLeafOf(chain, f, t)[i]];
+      return fit;
+    };
+    std::vector<double> amplitudes(sampler->totalAmplitudes());
+    sampler->amplitudes(0, amplitudes.data());
+    auto otherFit = [&](size_t i) {
+      if (beside == Beside::alone) return 0.0;
+      double multiplier = beside == Beside::statedSd
+        ? amplitudes[2]
+        : amplitudes[2] * block[2 * i] + amplitudes[3] * block[2 * i + 1];
+      return multiplier * forestFit(2, i);
+    };
+    const double* z = TestPeer::latents(chain);
+    double residualSquares = 0.0, offsetCross = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      double residual = z[i] - forestFit(0, i) - forestFit(1, i);
+      residualSquares += residual * residual;
+      offsetCross += (offset[i] + otherFit(i)) * residual;
+    }
+    const ChiKHyperprior& prior = TestPeer::kHyperpriorAt(chain, 0);
+    double k = TestPeer::forestKAt(chain, 0);
+    double kTerm = k * k / (2.0 * prior.scale * prior.scale);
+    double power = static_cast<double>(n) - prior.degreesOfFreedom;
+    auto logDensity = [=](double v) {
+      double e = std::exp(v);
+      return power * v - 0.5 * residualSquares * e * e + offsetCross * e -
+             kTerm / (e * e);
+    };
+    ext_rng* reference = cloneRng(TestPeer::rng(chain));
+    double expected = std::exp(sliceFromZero(reference, logDensity,
+                                             rescaleSliceWidth,
+                                             rescaleSliceStepLimit));
+    ext_rng_destroy(reference);
+
+    std::vector<double> zBefore(z, z + n);
+    std::vector<std::vector<double>> otherMu;
+    std::vector<double> otherFits;
+    if (numForests > 2) {
+      for (size_t t = 0; t < 6; ++t)
+        otherMu.push_back(TestPeer::forestMuByTree(chain, 2, t));
+      otherFits = TestPeer::totalFitsInForest(chain, 2);
+    }
+    double alpha = 1.0;
+    bool taken = TestPeer::drawForestRescale(chain, &alpha);
+    check(admitted && taken && alpha != 1.0 &&
+            std::fabs(alpha - expected) <= 1e-9 * expected,
+          (std::string("shared total: the rescaling step is admitted and "
+                       "draws from R and Q with the other forests' fit in the "
+                       "offset, ") + label).c_str());
+
+    bool scaledState = TestPeer::forestKAt(chain, 0) == k / alpha &&
+                       TestPeer::forestKAt(chain, 1) == k / alpha;
+    double largest = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      scaledState = scaledState &&
+                    ulps(TestPeer::latents(chain)[i], alpha * zBefore[i], 2.0);
+      for (size_t f = 0; f < 2; ++f) {
+        double cached = TestPeer::totalFitsInForest(chain, f)[i];
+        largest = std::max(largest, std::fabs(cached - forestFit(f, i)));
+      }
+    }
+    const std::vector<double>& cachedCombined =
+      TestPeer::cachedCombinedFits(chain);
+    double combinedGap = 0.0;
+    for (size_t i = 0; i < n; ++i)
+      combinedGap = std::max(
+        combinedGap, std::fabs(cachedCombined[i] - (forestFit(0, i) +
+                                                     forestFit(1, i) +
+                                                     otherFit(i))));
+    check(scaledState && largest <= 1e-12 && combinedGap <= 1e-12,
+          (std::string("shared total: after a step each sharer's fits and the "
+                       "combined fits equal a re-derivation, ") + label).c_str());
+    bool othersStill = true;
+    if (numForests > 2) {
+      std::vector<double> after(sampler->totalAmplitudes());
+      sampler->amplitudes(0, after.data());
+      for (size_t t = 0; t < 6; ++t)
+        othersStill = othersStill &&
+                      TestPeer::forestMuByTree(chain, 2, t) == otherMu[t];
+      othersStill = othersStill && after == amplitudes &&
+                    TestPeer::totalFitsInForest(chain, 2) == otherFits;
+    }
+    check(othersStill,
+          (std::string("shared total: no other forest's leaves, coefficient "
+                       "or fits move, ") + label).c_str());
+  }
+
+  // ---- held sharers, and the starts ----
+  {
+    SamplerOptions options = optionsFor(ResponseFamily::gaussian, false);
+    auto sampler = build(ResponseFamily::gaussian, {8, 8}, Beside::factor,
+                         options, 6501);
+    sampler->run(10, 0, empty);
+    std::vector<double> amplitudes(sampler->totalAmplitudes());
+    sampler->amplitudes(0, amplitudes.data());
+    check(amplitudes[0] == 1.0 && amplitudes[1] == 1.0,
+          "shared total: the sharers' coefficients stay at 1");
+
+    // two forests with no basis, each stating sd and drawing its coefficient:
+    // both start at 1; one, second after a factor, starts by position
+    auto startsOf = [&](std::vector<ForestSpec> forests, unsigned seedIn) {
+      AmplitudeSpec spec;
+      spec.forests = std::move(forests);
+      std::vector<ext_rng*> rngs = rngsFor(seedIn);
+      ConstantLeafSampler starts(x.data(), y.data(), n, p, nullptr, nullptr,
+                                 1.0, 3.0, rawScale, options, spec,
+                                 rngs.data());
+      std::vector<double> values(starts.totalAmplitudes());
+      starts.amplitudes(0, values.data());
+      return values;
+    };
+    ForestSpec plain, factorSpec;
+    plain.forest.numTrees = 5;
+    plain.sd = 0.5;
+    factorSpec.forest.numTrees = 5;
+    factorSpec.kind = ForestKind::levels;
+    factorSpec.basis = block.data();
+    factorSpec.numBasisColumns = 2;
+    std::vector<double> two = startsOf({plain, factorSpec, plain}, 6502);
+    std::vector<double> one = startsOf({factorSpec, plain}, 6503);
+    check(two.size() == 4 && two[0] == 1.0 && two[3] == 1.0,
+          "shared total: with two forests with no basis each drawn "
+          "coefficient starts at 1");
+    check(one.size() == 3 && one[2] == 0.0,
+          "shared total: with one, its drawn coefficient starts by position");
+  }
+
+  for (ext_rng* r : allRngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: forests sharing one total\n");
+}
+
 void runSamplerTests(ext_rng* rng) {
   testFitsWithoutOffset();
   testBCFTauModeratorRestriction(rng);
@@ -13338,4 +13769,5 @@ void runSamplerTests(ext_rng* rng) {
   testMoveSettingsInstall();
   testMoveSettingsMatchCreation();
   testLevelGibbsPerForest();
+  testForestsSharedTotal();
 }
