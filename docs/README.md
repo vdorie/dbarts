@@ -20,7 +20,7 @@ records no decision itself.
   citation grammar, the RNG gate classes and the gates each requires,
   landing, the reviewer checklist, gate hygiene, and what CI runs.
 - `docs/decisions.md` - the decision register: one prose entry per design
-  decision the bartcore branch carries, with who made it and on what
+  decision the engine carries, with who made it and on what
   evidence, and a Marked line the maintainer writes on. A claim that the
   maintainer decided something cites an entry id here; a claim with no
   entry has no attribution.

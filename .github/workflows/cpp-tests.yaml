@@ -17,7 +17,7 @@
 # report the wrong mode.
 on:
   push:
-    branches: [main, bartcore]
+    branches: [main]
     # documentation-only pushes cannot change what this builds and runs
     # (src/ + tests/cpp); benchmarks/ is NOT ignored, since the reference arm
     # below runs the equivalence harnesses and their baselines from there
@@ -28,13 +28,13 @@ on:
       - 'inst/NEWS.Rd'
       - 'man/**'
   pull_request:
-    branches: [main, bartcore]
+    branches: [main]
   workflow_dispatch:
 
-# On bartcore each commit is its own group, so a push never cancels the
+# On main each commit is its own group, so a push never cancels the
 # previous commit's run; elsewhere a newer push supersedes an older one.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/bartcore' && github.sha || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: true
 
 name: cpp-tests

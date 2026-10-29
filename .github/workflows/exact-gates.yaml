@@ -60,7 +60,7 @@
 # against the installed build.
 on:
   push:
-    branches: [main, bartcore]
+    branches: [main]
     # docs- and TODO-only pushes cannot change engine math or the gates;
     # MANIFEST is provenance prose, read by no script this workflow runs
     paths-ignore:
@@ -70,7 +70,7 @@ on:
       - 'benchmarks/baselines/MANIFEST'
       - 'inst/NEWS.Rd'
   pull_request:
-    branches: [main, bartcore]
+    branches: [main]
   workflow_dispatch:
     inputs:
       mode:
@@ -79,10 +79,10 @@ on:
         type: choice
         options: [quick, full]
 
-# On bartcore each commit is its own group, so a push never cancels the
+# On main each commit is its own group, so a push never cancels the
 # previous commit's run; elsewhere a newer push supersedes an older one.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/bartcore' && github.sha || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: true
 
 name: exact-gates

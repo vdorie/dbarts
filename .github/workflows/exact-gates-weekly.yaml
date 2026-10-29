@@ -32,16 +32,15 @@
 # failure. The cross-host compares and the seeded-drift snapshot files of
 # exact-gates.yaml are not repeated: they do not depend on the mode.
 #
-# NOTE: GitHub binds only `schedule` to the repository DEFAULT branch, so the
-# weekly cadence does not start until this workflow lands on main.
-# `workflow_dispatch` fires from any branch the file is on, and so does a push
-# touching it (revdep-smoke.yaml records a dispatch from bartcore).
+# NOTE: GitHub binds only `schedule` to the repository DEFAULT branch, which
+# is main, so the weekly cadence runs there. `workflow_dispatch` fires from
+# any branch the file is on; a push to main touching it also runs it.
 on:
   schedule:
     - cron: '0 4 * * 1'
   workflow_dispatch:
   push:
-    branches: [bartcore]
+    branches: [main]
     paths:
       - '.github/workflows/exact-gates-weekly.yaml'
 

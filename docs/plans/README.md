@@ -153,7 +153,7 @@ tiers takes the higher.
   Status and Landing note, and TODO. The plan and design indexes and the
   design Status lines are brought up to date in batches, before the
   merge at the latest.
-- Pushes do not wait on CI: on bartcore each commit runs in its own
+- Pushes do not wait on CI: on main each commit runs in its own
   concurrency group, so a push no longer cancels the previous commit's
   per-push runs. An R-surface slice may land while an engine slice's CI
   runs; engine slices stay serial with each other.
@@ -173,7 +173,7 @@ cites.
 
 The procedure around those edits, as practiced:
 
-1. Implement in a linked worktree branched off `origin/bartcore`, with
+1. Implement in a linked worktree branched off `origin/main`, with
    its own private R library (`R CMD INSTALL -l <lib> .` and `R_LIBS=<lib>`
    on every R call; `~/.Renviron` overrides `R_LIBS_USER`, so the prefix
    is not optional). One writer per worktree.
@@ -185,7 +185,7 @@ The procedure around those edits, as practiced:
 3. Push the reviewed sha, fast-forward the main checkout, then a separate
    records commit carrying the real landed hash. Cherry-picking into an
    integration worktree renames every commit, so records cite only hashes
-   that are ancestors of `origin/bartcore` (`git merge-base --is-ancestor`).
+   that are ancestors of `origin/main` (`git merge-base --is-ancestor`).
 4. Clean up the worktree and its library only after the push succeeded,
    chaining with `&&`, and never through a pipe: `git merge --ff-only X |
    tail -1` reports tail's exit status, not the merge's.
@@ -293,7 +293,7 @@ lists; this is the shape):
   and pass on x86-64 Linux within their tolerance; exact-gates runs them
   there too, after its cross-host compares.
 - exact-gates: `docs/**`, `TODO`, `**.md`, the MANIFEST, `inst/NEWS.Rd`.
-  It does not ignore the rest of benchmarks/. On bartcore each commit is
+  It does not ignore the rest of benchmarks/. On main each commit is
   its own concurrency group, so a later push no longer cancels a slice's
   run; on other branches a newer push still supersedes an older one. Its gate loop runs on the shipped build; the two cross-host
   equivalence compares that follow get their own reference install, the
@@ -319,9 +319,9 @@ So a docs-only or TODO-only push fires doc-freshness alone; run the
 freshness guard locally and that is the whole gate. Any `.github/` touch
 fires the workflows that do not ignore it. equivalence, rchk, revdep-smoke,
 sbc, valgrind and exact-gates-weekly are schedule and dispatch only, and each
-also runs on a push to bartcore touching its own file. GitHub binds only `schedule` to the default branch, so a
-cadence waits for main; a dispatch runs from any branch the file is on
-(`gh workflow run sbc.yaml --ref bartcore`; revdep-smoke.yaml records one).
+also runs on a push to main touching its own file. GitHub binds only `schedule` to the default branch, which is
+main; a dispatch runs from any branch the file is on
+(`gh workflow run sbc.yaml --ref <branch>`).
 
 Reading a red run: "cancelled" usually means a step hit its
 `timeout-minutes`; compare the duration to the limit before rerunning. A

@@ -6,15 +6,15 @@
 # tracked files and git metadata, it does not load dbarts.
 on:
   push:
-    branches: [main, bartcore]
+    branches: [main]
   pull_request:
-    branches: [main, bartcore]
+    branches: [main]
   workflow_dispatch:
 
-# On bartcore each commit is its own group, so a push never cancels the
+# On main each commit is its own group, so a push never cancels the
 # previous commit's run; elsewhere a newer push supersedes an older one.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/bartcore' && github.sha || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: true
 
 name: doc-freshness

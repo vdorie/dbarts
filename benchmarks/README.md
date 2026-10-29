@@ -330,11 +330,11 @@ is read as any other: k's end bins near 30 and its chi-square p meaningful.
 Before the step a correct sampler flagged this arm about one run in three
 (docs/design/probit-k-calibration.md).
 
-By hand, before the merge to main: `schedule` waits for main, but a dispatch
-runs from any branch the file is on. A push to bartcore that changes sbc.yaml
+By hand: `schedule` fires from main, the default branch, and a dispatch
+runs from any branch the file is on. A push to main that changes sbc.yaml
 already starts the matrix; otherwise run
 
-    gh workflow run sbc.yaml --ref bartcore
+    gh workflow run sbc.yaml
 
 and read each job's report in the log of its "Run the SBC calibration check"
 step (`gh run view <id> --log`, or the job's page). Green is the band verdict,

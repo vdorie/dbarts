@@ -54,17 +54,17 @@
 # heteroscedastic pair left that list once the variance forest gained a
 # prior-draw entry and a current-state surface accessor (aft-status-setter.md).
 #
-# NOTE: GitHub binds only `schedule` to the repository DEFAULT branch, so the
-# weekly cadence does not start until this workflow lands on main.
-# `workflow_dispatch` fires from any branch the file is on
-# (`gh workflow run sbc.yaml --ref bartcore`), as does a push touching it; see
-# revdep-smoke.yaml and benchmarks/README.md for what to read in the result.
+# NOTE: GitHub binds only `schedule` to the repository DEFAULT branch, which
+# is main, so the weekly cadence runs there. `workflow_dispatch` fires from
+# any branch the file is on (`gh workflow run sbc.yaml`), as does a push to
+# main touching it; see revdep-smoke.yaml and benchmarks/README.md for what
+# to read in the result.
 on:
   schedule:
     - cron: '0 3 * * 3'
   workflow_dispatch:
   push:
-    branches: [bartcore]
+    branches: [main]
     paths:
       - '.github/workflows/sbc.yaml'
 

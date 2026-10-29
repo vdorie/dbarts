@@ -2,7 +2,7 @@
 # Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
 on:
   push:
-    branches: [main, bartcore]
+    branches: [main]
     # documentation- and benchmark-only pushes cannot change what R CMD
     # check builds and tests (benchmarks/ and docs/ are .Rbuildignore'd)
     paths-ignore:
@@ -11,13 +11,13 @@ on:
       - '**.md'
       - 'benchmarks/**'
   pull_request:
-    branches: [main, bartcore]
+    branches: [main]
   workflow_dispatch:
 
-# On bartcore each commit is its own group, so a push never cancels the
+# On main each commit is its own group, so a push never cancels the
 # previous commit's run; elsewhere a newer push supersedes an older one.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/bartcore' && github.sha || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: true
 
 name: R-CMD-check

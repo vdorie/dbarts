@@ -14,7 +14,7 @@ name: sanitizers
 
 on:
   push:
-    branches: [main, bartcore]
+    branches: [main]
     # instrumented rebuilds cost ~an hour; documentation- and
     # benchmark-data-only pushes cannot change what they test
     paths-ignore:
@@ -24,7 +24,7 @@ on:
       - 'benchmarks/**'
       - 'inst/NEWS.Rd'
   pull_request:
-    branches: [main, bartcore]
+    branches: [main]
     paths-ignore:
       - 'docs/**'
       - 'TODO'
@@ -33,10 +33,10 @@ on:
       - 'inst/NEWS.Rd'
   workflow_dispatch:
 
-# On bartcore each commit is its own group, so a push never cancels the
+# On main each commit is its own group, so a push never cancels the
 # previous commit's run; elsewhere a newer push supersedes an older one.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/bartcore' && github.sha || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: true
 
 permissions: read-all
