@@ -1,22 +1,28 @@
 # per-forest-move-settings: forest() and varianceForest() take their own move settings
 
-Status: PLANNED 2026-10-29, not built. Implements dec-B477, which confirms that call of dec-A205. One open call
-([Open calls](#open-calls)); the plan builds its recommendation unless ruled otherwise. Engine tier: a blind
-critique comes before the implementer.
+Status: PLANNED 2026-10-29, revised the same day from its blind critique (scratch/pfm-crit/critique.md, verdict
+"revise first"; [Revision from critique](#revision-from-critique)); not built. Implements dec-B477, which
+confirms that call of dec-A205. One call is held for the maintainer ([Open calls](#open-calls)): the plan builds
+without it, and the landing waits on the answer.
 
 agent: one opus implementer for both slices; one opus review over both that runs the mutants below, the same
 reviewer checking the fix round unless the fixes change engine behavior. Tier "Changes draws"
-([Process by risk](README.md#process-by-risk)): slice 1 edits the engine's sweep and its prior install.
-rng: NEUTRAL, bit for bit, for every call that states no move setting on a forest, which is every call that
-exists today. A forest that states one runs a kernel no build ran before, built from the same
-posterior-preserving moves, so the posterior is unchanged ([Tests and gates](#tests-and-gates)). No recorded
-scenario or snapshot can state one: expected 55, 19 and 11 identical against equivalence-32418b6e,
-bcf-equivalence-20eed7ed and multinomial-equivalence-80b1c8d4, the four snapshot files unchanged, no
-re-record. A moved stream is a stop.
+([Process by risk](README.md#process-by-risk)): slice 1 edits the engine's sweep and adds an install.
+rng: NEUTRAL, bit for bit, for every call that states no move setting on a forest and calls `setControl` only
+as it may today. That includes every non-default control: `treeShift` "always", "never" and "auto" on a frozen
+mixture, perturb and rule_gibbs shares, any `n.perturb.cuts`, and `setControl`'s install on the variance forest.
+No recorded scenario or snapshot reaches those paths, so the gate for them is a bitwise A/B against a 7c264c37
+build ([Tests and gates](#tests-and-gates)); expected 55, 19 and 11 identical against equivalence-32418b6e,
+bcf-equivalence-20eed7ed and multinomial-equivalence-80b1c8d4 and the four snapshot files unchanged, no
+re-record. A moved stream is a stop. New behavior, with nothing on main to compare against: a forest's own
+setting, a changed `treeShift` through `setControl`, and `setControl`'s install on a sampler of several forests
+or a multinomial one. Each runs a kernel built from the same posterior-preserving moves, and the scratch exact
+variants below are the evidence the posterior holds.
 window: after the merge to main (dec-B477), which is done. The ruling names no release; the arguments are
 additive, so landing before or after 1.0-0 breaks nothing.
-budget: ~800 lines: engine ~45, bridge ~110, R ~110, help and NEWS ~45, tests/cpp ~130, tinytest ~300, docs and
-records ~60.
+budget: ~1050 lines in the tree: engine ~60, bridge ~170, R ~150, help and NEWS ~75, tests/cpp ~140, tinytest
+~420, docs and records ~35. Out of the tree, ~250 lines of scratch scripts: the A/B (~150) and three exact-gate
+variants (~100).
 
 ## Summary for the maintainer
 
@@ -24,22 +30,29 @@ Today every forest of a sampler proposes tree changes under the one control obje
 perturb window and its tree-shift step. After this item a forest can state its own, written on the forest the
 way its tree count is: `forest(proposal.probs = , n.perturb.cuts = , treeShift = )` and
 `varianceForest(proposal.probs = , n.perturb.cuts = )`. A forest that states none takes the control's, so every
-existing fit draws exactly what it drew. `setControl` keeps changing the mixture and the window of every forest
-that states none of its own, and leaves a forest's own settings as they were created. That removes the one
-cost of today's rule, that the mean forest cannot be frozen alone on a heteroscedastic sampler: state the
-variance forest's mixture when the sampler is created, then freeze the control's. The engine already keeps a mixture for each
-forest; what changes is where each forest's values come from, and the tree-shift step moving from the sampler
-to each forest. The shipped C header does not change.
+existing fit draws exactly what it drew.
 
-One question for you: the variance forest never takes the tree-shift step, so a tree-shift argument on
-`varianceForest()` could do nothing. I recommend leaving it off that one constructor.
+`setControl` changes all three settings on every forest that states none of its own, and leaves a forest's own
+as created. Two things it could not do before, it now does. It changes the tree-shift step, which until now was
+fixed when the sampler was created. And it changes the settings on a model of several forests and on a
+multinomial one, which until now refused any change: the mixture was installed together with the priors, and
+those samplers refuse a prior change because their leaf scales are calibrated when they are created. Nothing
+about the mixture itself needed the refusal. This also removes the cost of today's rule, that a mean forest
+cannot be frozen alone on a heteroscedastic sampler: state the variance forest's mixture when the sampler is
+created, then freeze the control's. A sampler created without one still cannot.
+
+The shipped C header does not change. One question for you: the variance forest never takes the tree-shift step,
+so a tree-shift argument on `varianceForest()` could do nothing. The ruling lists it for both constructors; I
+recommend leaving it off `varianceForest()`. The rest is built without it, and adding it later in either other
+form is a few lines.
 
 ## Goal
 
 `forest()` takes `proposal.probs`, `n.perturb.cuts` and `treeShift`, and `varianceForest()` takes
 `proposal.probs` and `n.perturb.cuts`; each one a forest states governs that forest, and each one it leaves
-out takes the control's. `setControl` with a changed mixture or window changes every forest that states
-none of its own for that setting. A live sampler, its copy and its reload run the same kernel on every forest.
+out takes the control's. `setControl` with a changed mixture, window or `treeShift` changes every forest that
+states none of its own for that setting, on every kind of sampler. A live sampler, its copy and its reload run
+the same kernel on every forest.
 
 ## What exists today
 
@@ -48,9 +61,12 @@ Read, and run on main at 7c264c37 (shipped build, arm64 macOS):
 - The arguments. [`forest`](../../R/model.R) takes `vars`, `basis`, `sd`, `n.trees`, `base`, `power`,
   `amplitude`, `interactions` and `blocks`; [`varianceForest`](../../R/model.R) takes `vars`, `n.trees`,
   `base` and `power`. Run: both refuse `proposal.probs`, and `forest()` `n.perturb.cuts` and `treeShift`, as
-  unused arguments. The control's three are validated by [`resolveProposalProbs`](../../R/model.R),
-  [`perturbCutsRefusal`](../../R/A_class.R) and [`resolveTreeShift`](../../R/dbarts.R); `treeShift` is kept
-  in the slot `levelGibbs` as NA ("auto"), TRUE or FALSE.
+  unused arguments. The control's mixture is filled by [`resolveProposalProbs`](../../R/model.R), which checks
+  names only; its range, sum and birth checks live in the `dbartsControl` validity method in
+  [A_class.R](../../R/A_class.R) (the critique's run: `c(birth_death = 0.9, change = 0.4)` resolves to a swap of
+  -0.3 without error). The window is checked by [`perturbCutsRefusal`](../../R/A_class.R) and the shift by
+  [`resolveTreeShift`](../../R/dbarts.R), kept in the slot `levelGibbs` as NA ("auto"), TRUE or FALSE. The
+  setting is new in 1.0-0 and has never shipped (dec-B139).
 - How the per-forest settings that exist default
   ([Where the numbers live](../design/forest-defaults-by-kind.md#where-the-numbers-live)). A forest's
   `n.trees`, `base` and `power` each take the default of its kind where not stated. The first forest's are
@@ -59,12 +75,9 @@ Read, and run on main at 7c264c37 (shipped build, arm64 macOS):
   ([`forestParams`](../../R/model.R)). The variance forest's ride `attr(control, "bartcore.variance")`: 40
   trees by default, and `base` and `power` the model's, resolved once at creation (run: `list(n.trees = 5,
   base = 0.95, power = 2, columns = NULL)`), so they do not follow `setModel` (TODO
-  variance-forest-inherited-tree-prior). `setControl` refuses a changed `n.trees`; `setModel` changes the
-  first forest's tree prior and refuses a sampler of several forests
-  ([`refuseAmplitudeMutation`](../../R/bartcore.R), [`refuseCountsMutation`](../../R/bartcore.R),
-  [`refuseMultiForestMutation`](../../src/R_interface_bartcore.cpp)); `$setLeafPrior(forests = )` restates a
-  forest's `sd` and refuses any other knob as "fixed at creation" ([`resolveForestSpreads`](../../R/dbarts.R);
-  run).
+  variance-forest-inherited-tree-prior). `setControl` refuses a changed `n.trees`; `$setLeafPrior(forests = )`
+  restates a forest's `sd` and refuses any other knob as "fixed at creation"
+  ([`resolveForestSpreads`](../../R/dbarts.R); run).
 - The mixture and window at creation. The bridge reads the control's slots
   ([`parseProposalProbs`](../../src/R_interface_bartcore.cpp)) into
   [`SamplerOptions`](../../src/bartcore/chain.hpp). The single-forest chain copies them onto its one
@@ -72,14 +85,19 @@ Read, and run on main at 7c264c37 (shipped build, arm64 macOS):
   the [`VarianceForest`](../../src/bartcore/chain.hpp); [`applyAmplitudeSpec`](../../src/R_interface_bartcore.cpp)
   writes the same values onto every forest's [`ForestStructureSpec`](../../src/bartcore/combiner.hpp), and
   [`buildMultinomialSampler`](../../src/R_interface_bartcore.cpp) onto the one
-  [`MultinomialForestSpec`](../../src/bartcore/combiner.hpp) every category forest is built from. The engine
-  already holds the six probabilities and the width on each `Forest` and on the `VarianceForest`, and reads
-  them there.
+  [`MultinomialForestSpec`](../../src/bartcore/combiner.hpp) every category forest is built from. Every
+  creation, a copy's, a reload's and a dead-pointer `setState`'s included, goes through
+  [`createHolder`](../../src/R_interface_bartcore.cpp); xbart's folds go through
+  [`bartcore_createFromHandle`](../../src/R_interface_bartcore.cpp). The engine holds the six probabilities and
+  the width on each `Forest` and on the `VarianceForest`, and reads them there every sweep.
 - The tree shift. One [`LevelGibbsMode`](../../src/bartcore/chain.hpp) on `SamplerOptions`, which
-  [`Chain::run`](../../src/bartcore/chain.hpp) reads for every mean forest, "auto" deciding per forest on that
-  forest's mixture ([`structureIsFrozen`](../../src/bartcore/moves.hpp)). The level step loops over the mean
-  forests alone and [`drawLevelShift`](../../src/bartcore/chain.hpp) declines a linear or gp leaf, so the
-  control's `treeShift` is inert on the variance forest and on those leaves.
+  [`Chain::run`](../../src/bartcore/chain.hpp) reads for every mean forest, "auto" deciding per forest and per
+  sweep on that forest's mixture ([`structureIsFrozen`](../../src/bartcore/moves.hpp)). The level step loops
+  over the mean forests alone and [`drawLevelShift`](../../src/bartcore/chain.hpp) declines a linear or gp leaf
+  and a forest of one tree. Run: a heteroscedastic fit whose mean forest has one tree draws bitwise the same
+  under "always" and "never" (40 variance trees, 100 sweeps), and with ten mean trees the two differ; the
+  variance forest never takes the step. The enum is defined in chain.hpp after combiner.hpp is included, so
+  `Forest` cannot name it today.
 - `setControl`. [`dbartsSampler$setControl`](../../R/dbarts.R) refuses a changed `treeShift` (run:
   ["changing 'treeShift'"](../../inst/tinytest/test-level-fiber.R)), carries every `bartcore.*` attribute of
   the old control onto the new one, and on a changed mixture or window calls `$setModel(model)`;
@@ -87,11 +105,19 @@ Read, and run on main at 7c264c37 (shipped build, arm64 macOS):
   [`Chain::setModel`](../../src/bartcore/chain.hpp) writes it to the first forest and the variance forest
   ([variance-forest-mixture-reinstall.md](variance-forest-mixture-reinstall.md)). Run: frozen by `setControl`
   after 50 sweeps, a heteroscedastic sampler's mean and variance structures both stand for 10 sweeps, and its
-  copy carries `bartcore.variance`. A two-forest sampler and a multinomial one refuse the change and roll the
-  stored control back (run, both).
-- Monotone. Creation and `setControl` rewrite a defaulted control mixture to birth/death only and refuse one
-  that proposes other moves ([`monotoneProposalProbs`](../../R/model.R); run: the stored control holds
-  `1 0 0 0 0 0.5`).
+  copy carries `bartcore.variance`.
+- Why several forests refuse. A sampler whose forests carry amplitudes and a multinomial one refuse the change
+  and roll the stored control back (run, both): `setControl` routes the mixture through `$setModel`, which those
+  samplers refuse ([`refuseAmplitudeMutation`](../../R/bartcore.R),
+  [`refuseCountsMutation`](../../R/bartcore.R), and behind them
+  [`refuseMultiForestMutation`](../../src/R_interface_bartcore.cpp)). The prior install was refused there
+  because `Chain::setModel` writes the first forest's leaf scale from the prior alone and would discard a
+  calibrated one (7560877d; [Mutation surface](../design/bcf.md#mutation-surface)); the mixture install was
+  refused with it (variance-forest-mixture-reinstall's calls). Nothing calibrated depends on the mixture, the
+  window or the shift mode, which the sweep reads per forest each time.
+- Monotone. Creation and `setControl` rewrite a control mixture equal to the package default to birth/death
+  only and refuse one that proposes other moves ([`monotoneProposalProbs`](../../R/model.R); run: the stored
+  control holds `1 0 0 0 0 0.5`).
 - The doors. `bart()`, `dbarts()` and `dbartsSpec()` take `forest()` terms and `forests` lists; a formula's
   term calls `forest()` with its own arguments ([`processHit`](../../R/formulaTerms.R)), so a new formal
   reaches both spellings. Run: a single forest with a variance forest is accepted as a term and as a one-entry
@@ -101,75 +127,94 @@ Read, and run on main at 7c264c37 (shipped build, arm64 macOS):
 - A control taken from a fit loses its `bartcore.*` attributes at `dbarts()` and `dbartsSpec()`
   (`resolveSamplerSpec`) and is refused at `bart()` and `xbart()`
   ([`refuseFitStateControl`](../../R/dbarts.R); run).
+- The verbose creation summary ([`printInitialSummary`](../../src/R_interface_bartcore.cpp)) prints the
+  control's shift mode and mixture as the fit's.
 - The shipped header. [`DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h) covers no creation and no
-  mixture install; nothing here touches the header.
+  mixture install; nothing here touches the header. stan4bart reads none of the three settings (search of its R
+  code; the critique also checked its C side).
 
 ## Design
 
 ### R surface
 
 1. `forest()` gains `proposal.probs = NULL, n.perturb.cuts = NULL, treeShift = NULL` after its last formal, and
-   `varianceForest()` gains `proposal.probs = NULL, n.perturb.cuts = NULL` after its last (open call 1). NULL is
-   "not stated", as for every other knob. The constructors store them unvalidated, as they do the others.
-2. Validation at fit time, by the control's own resolvers and with their messages: in
-   [`validateForestKnobs`](../../R/model.R) for a forest, and in the variance block of `resolveSamplerSpec`
-   for the variance forest. `proposal.probs` resolves to the canonical six (partial spellings filled as the
-   control's are), `n.perturb.cuts` passes `perturbCutsRefusal` and is kept as a double, and `treeShift`
-   resolves through `resolveTreeShift` to NA, TRUE or FALSE.
-3. Monotone: a forest's own mixture passes `monotoneProposalProbs` at creation, as the control's does.
-4. The record. `resolveSamplerSpec` attaches `attr(control, "bartcore.moves")`: `list(forests = , variance = )`,
+   `varianceForest()` gains `proposal.probs = NULL, n.perturb.cuts = NULL` after its last; `treeShift` there is
+   held ([Open calls](#open-calls)). NULL is "not stated", as for every other knob, and the constructors store
+   the values unvalidated, as they do the others.
+2. Validation at fit time. The validity method's mixture block is factored into `proposalProbsRefusal()` in
+   A_class.R beside `perturbCutsRefusal`, and the validity method calls it. A forest's `proposal.probs` is
+   filled by `resolveProposalProbs` and checked by `proposalProbsRefusal`, its `n.perturb.cuts` by
+   `perturbCutsRefusal` and kept as a double, its `treeShift` resolved by `resolveTreeShift`. Each refusal names
+   the forest by its label or position, in [`validateForestKnobs`](../../R/model.R)'s style ("forest 2's
+   'proposal.probs' ..."), and the variance forest's as `varianceForest()`'s.
+3. A positive `rule_gibbs` share stated on `varianceForest()` is refused: that move does nothing on the
+   variance forest's leaves.
+4. Monotone: a forest's stated mixture is refused if it proposes swap, change, perturb or rule_gibbs, and is
+   never rewritten; the control's keeps its rule as built.
+5. The record. `resolveSamplerSpec` attaches `attr(control, "bartcore.moves")`: `list(forests = , variance = )`,
    `forests` one entry per mean forest in creation order (a multinomial model's one entry covering every
-   category forest), `variance` an entry or NULL; an entry is `list(proposal.probs = , n.perturb.cuts = ,
-   levelGibbs = )`, each NULL where the forest does not state it (`levelGibbs` absent from the variance
-   entry). It is attached only where some forest states a setting. The control's slots keep the control's
-   values and never a forest's.
-5. `setControl` needs no change: it carries the record with the other `bartcore.*` attributes, a changed
-   mixture or window goes through `$setModel` as now, and the bridge gives it to each forest whose entry is
-   NULL for that setting. A changed `treeShift` stays refused.
-6. `format.dbartsVarianceForest` prints the two new knobs, `<control's>` where NULL.
+   category forest), `variance` an entry or NULL. An entry is `list(proposal.probs = , n.perturb.cuts = ,
+   levelGibbs = )`, each NULL where the forest states none; NA in `levelGibbs` is a stated "auto". It is
+   attached only where some forest states a setting. The control's slots keep the control's values and never a
+   forest's.
+6. `setControl`: "levelGibbs" leaves the list of settings fixed at creation. A changed mixture, window or
+   `treeShift` installs on every forest that states none: through `$setModel(model)` on a sampler that takes it,
+   as today, and through the new move entry on one that carries amplitudes or counts
+   ([`samplerCarriesAmplitudes`](../../R/bartcore.R)). A refusal rolls the stored control back on either route.
+   The record rides with the other `bartcore.*` attributes.
+7. `format.dbartsVarianceForest` prints the two new knobs, `<control's>` where NULL.
 
 ### Bridge
 
-1. One parser for a mixture and a width, from a pair of SEXPs, which `parseProposalProbs` calls for the
-   control's slots and the record reader for each entry: the same checks and messages.
-2. A record reader that gives, for forest f and for the variance forest, the mixture, width and level mode in
-   force: the entry's where stated, else the control's.
-3. Creation, one mean forest ([`createHolder`](../../src/R_interface_bartcore.cpp), after
-   [`optionsFromParsed`](../../src/R_interface_bartcore.cpp)): forest 1's values onto `SamplerOptions`' mixture
-   fields and `levelGibbs`, and the variance forest's onto the new `varianceMixture`, set whenever a variance
-   forest exists. The monotone check after creation
-   ([`proposalMixIsRefused`](../../src/R_interface_bartcore.cpp)) reads forest 1's mixture.
-4. Creation, several forests (`applyAmplitudeSpec`): each forest's mixture onto its `ForestStructureSpec`, and
-   its level mode onto the spec's new `levelGibbs`.
-5. Creation, multinomial (`buildMultinomialSampler`): forest 1's values onto the one spec and onto
-   `SamplerOptions::levelGibbs`.
-6. `bartcore_setModel`: forest 1's mixture onto `ModelParameters`' mixture fields, the variance forest's onto
-   `ModelParameters::varianceMixture`, and the monotone check on forest 1's. The multi-forest refusal stands.
+1. One parser for a mixture and a width from a pair of SEXPs, which `parseProposalProbs` calls for the control's
+   slots and the record reader for each entry: the same checks and messages, the cap clamp and `Inf` handled as
+   now. The shift mode's slot read is shared the same way.
+2. A record reader that gives, for every mean forest and for the variance forest, the mixture, width and shift
+   mode in force: the entry's where stated (NA a stated "auto"), else the control's. A record whose forest
+   count is not the sampler's is an error.
+3. After creation in `createHolder`, on both its branches (one or several forests, and multinomial), where the
+   control carries the record: the resolved settings installed through the engine's new move install, before
+   any run, followed by the monotone check on forest 1's mixture
+   ([`proposalMixIsRefused`](../../src/R_interface_bartcore.cpp)). Without the record nothing new runs, so
+   creation is main's.
+4. `bartcore_createFromHandle` refuses a control carrying the record; xbart cannot make one.
+5. A new entry, `bartcore_setMoveSettings(ptr, control)`, registered beside `bartcore_setModel`: resolves the
+   settings from the control and its record and installs them on every forest of every chain, after the
+   monotone check. It is `setControl`'s route on samplers that refuse `$setModel`.
+6. `bartcore_setModel`, after the engine's `setModel`, installs the resolved settings through the same engine
+   entry, so a stated setting survives a direct `$setModel` and a changed shift mode reaches forest 1 on that
+   route. With no record and an unchanged `treeShift`, it writes the values `setModel` just wrote.
+7. `printInitialSummary` prints forest 1's resolved mixture and mode, and one line for each other forest, and
+   the variance forest, whose values differ.
+8. Comments brought to the new rule, among them `applyAmplitudeSpec`'s and
+   [`refuseUnsupportedAmplitudeComposition`](../../src/R_interface_bartcore.cpp)'s notes that the mixture is the
+   fit's and not a forest's.
 
 The engine never sees the record or the control: it is handed each forest's values.
 
 ### Engine
 
-1. A `ProposalMixture` aggregate in chain.hpp: the six probabilities and `perturbWidth`, shipped defaults.
-2. `SamplerOptions::varianceMixture` and [`ModelParameters`](../../src/bartcore/chain.hpp)`::varianceMixture`,
-   each `std::optional<ProposalMixture>`. `buildVarianceForest` and `Chain::setModel` write it to the variance
-   forest where set, and the mean forest's values where not, which is today's engine behavior and what
-   tests/cpp relies on ([`testVarianceForestMixtureInstall`](../../tests/cpp/test_sampler.cpp)).
-3. `Forest::levelGibbs`, set at the three places a `Forest` is built: from `SamplerOptions::levelGibbs` in the
-   single-forest constructor and in [`buildMultinomialForest`](../../src/bartcore/chain.hpp); in
-   [`buildSpecifiedForest`](../../src/bartcore/chain.hpp) from the spec's new
-   `std::optional<LevelGibbsMode> levelGibbs` where set, else the options'.
-4. `Chain::run`'s level step reads each forest's mode: forest f takes the step where its mode is on, or
-   automatic with its mixture frozen, decided before any generator call as now. `SamplerOptions::levelGibbs`
-   becomes the mode of a forest built without one of its own.
-5. Comments brought to the new rule: `SamplerOptions::levelGibbs`, `ModelParameters`, the
-   [`sweepVarianceForest`](../../src/bartcore/chain.hpp) line that the variance forest reads the mean forest's
-   mixture, and the bridge's notes in `applyAmplitudeSpec` and
-   [`refuseUnsupportedAmplitudeComposition`](../../src/R_interface_bartcore.cpp) that the mixture is the fit's
-   and not a forest's.
+1. `LevelGibbsMode` moves from chain.hpp to moves.hpp, beside `structureIsFrozen`, so combiner.hpp can name it.
+   Beside it, a `MoveSettings` aggregate: the six probabilities, `perturbWidth` and a `LevelGibbsMode`, shipped
+   defaults; the variance forest's ignores the mode.
+2. `Forest::levelGibbs`, set from `SamplerOptions::levelGibbs` at the three places a `Forest` is built: the
+   single-forest constructor, [`buildSpecifiedForest`](../../src/bartcore/chain.hpp) and
+   [`buildMultinomialForest`](../../src/bartcore/chain.hpp).
+3. `Chain::run`'s level step reads each forest's mode, at the same place in the sweep, ahead of
+   `drawForestRescale` and the forest loop: forest f takes the step where its mode is on, or automatic with its
+   mixture frozen, decided before any generator call.
+4. The move install. `Chain::setMoveSettings` takes one `MoveSettings` per mean forest, the count checked, and
+   an optional one for the variance forest, and writes each forest's seven move fields and mode;
+   `Sampler::setMoveSettings` applies it to every chain; [`SamplerBase`](../../src/bartcore/facade.hpp) gains
+   the virtual and `SamplerFacade` the forwarder. Installed before any run, it matches creating with the
+   settings: creation reads neither the mixture nor the mode, and nothing does before a sweep.
+5. `SamplerOptions`, [`ModelParameters`](../../src/bartcore/chain.hpp) and the forest specs do not change, nor
+   does `Chain::setModel`.
+6. Comments brought to the new rule: `SamplerOptions::levelGibbs` becomes the mode a forest is built with, and
+   [`sweepVarianceForest`](../../src/bartcore/chain.hpp)'s line that the variance forest reads the mean
+   forest's mixture goes.
 
-No virtual of the facade changes; `SamplerOptions` and `ModelParameters` change layout, so every engine
-commit installs with `--preclean`.
+A facade virtual changes, so every engine commit installs with `--preclean`.
 
 ## Fit and state
 
@@ -177,178 +222,238 @@ commit installs with `--preclean`.
   setting. A fit made without the new arguments carries exactly what it carries today.
 - A stored state holds the chains, not settings: no block is added and `stateFormatVersion` does not move. A
   state installs across samplers whatever their move settings, as it does across controls today.
-- `copy()`, a reload and a dead-pointer `setState` re-create the engine from the stored control, record
-  included, so each runs the live sampler's kernel on every forest; the agreement dec-A205 restored is
-  tested with a stated setting on each forest.
+- `copy()`, a reload and a dead-pointer `setState` re-create the engine through `createHolder` from the stored
+  control, record included, so each runs the live sampler's kernel on every forest, the stored control's
+  `treeShift` after a `setControl` included.
 - `$setLeafPrior(forests = )` refuses the three as fixed at creation through its existing knob loop; pinned.
 - A control taken from such a fit: its record is dropped at `dbarts()` and `dbartsSpec()` and the control
   refused at `bart()` and `xbart()`, as for every `bartcore.*` attribute.
-- A fit or sampler saved by a development build before this item carries no record and runs every forest
-  on the control's, as it did; nothing is owed it beyond that (only shipped versions are).
+- A fit or sampler saved by a development build before this item carries no record and runs every forest on the
+  control's, as it did; nothing is owed it beyond that (only shipped versions are).
 
 ## Help and NEWS
 
-- man/forest.Rd: usage, and one item for the three: each stated here governs this forest, each left out
-  takes the control's, `setControl` changes a forest's setting only where the forest states none, and a
-  forest's own is fixed for the sampler's life; `treeShift` is inert on linear and gp leaves, as the
-  control's is.
-- man/varianceForest.Rd: usage and one item for the two, the same rule; a `rule_gibbs` share is spent on no
-  move there, as the control's already is
-  ([Landing note](variance-forest-mixture-reinstall.md#landing-note)).
+- man/forest.Rd: usage, and one item for the three. Each stated here governs this forest and each left out
+  takes the control's; `setControl` changes a forest's setting only where it states none, and a forest's own
+  is fixed for the sampler's life. A stated `proposal.probs` is a whole mixture filled against the package
+  defaults as `dbartsControl()`'s is, not edits to the control's (an omitted `birth` is 0.5). A forest frozen
+  by its own mixture is still grown by `n.grow.sweeps` and replaced by `warm.start`, as under the control's.
+  `treeShift` acts on constant leaves of two or more trees, as the control's does. And `n =` or `p =` no longer
+  abbreviate a single argument.
+- man/varianceForest.Rd: usage, and one item for the two, the same rule; a positive `rule_gibbs` share is
+  refused there.
 - man/dbartsControl.Rd: the `proposal.probs`, `n.perturb.cuts` and `treeShift` items say each is the value of
-  every forest that states none of its own; the `setControl` sentence "on a heteroscedastic sampler's
-  variance forest as on its mean forest" becomes "on every forest that states none of its own"; the
-  `treeShift` item's "a mixture frozen with `$setModel`" becomes `$setControl`.
-- man/dbartsSampler-class.Rd, the control item: "which `setModel` may freeze" becomes "which `setControl` may
-  freeze, on every forest that states no mixture of its own".
-- docs/architecture.md, [One sweep](../architecture.md#one-sweep) step 2: "When the control's `treeShift`"
-  becomes "When a forest's `treeShift`, its own or else the control's".
-- NEWS, one sentence: in 1.0-0's "Tree moves" item if it lands before 1.0-0 ships, else under the next
-  version: `forest()` and `varianceForest()` take `proposal.probs` and `n.perturb.cuts`, and `forest()`
-  `treeShift`, of their own, defaulting to the control's, and `setControl` changes the forests that state
-  none.
+  every forest that states none of its own; the `setControl` sentence "on a heteroscedastic sampler's variance
+  forest as on its mean forest" becomes "on every forest that states none of its own, on every sampler"; the
+  `treeShift` item loses "Fixed when the sampler is created" and its "a mixture frozen with `$setModel`"
+  becomes `$setControl`.
+- man/dbartsSampler-class.Rd, the control item: `treeShift` leaves the list `setControl` cannot change, with
+  its guard sentence, and "which `setModel` may freeze" becomes "which `setControl` may freeze, on every forest
+  that states no mixture of its own".
+- man/dbarts.Rd, the `forests` item: its list of what each forest carries gains the three, and its sentence
+  that the control's mixture "is a property of the fit and reaches every forest" becomes every forest that
+  states none of its own. man/dbartsSpec.Rd: its flat `proposal.probs` is the control's and does not reach a
+  forest that states its own.
+- docs/architecture.md: [One sweep](../architecture.md#one-sweep) step 2, "When the control's `treeShift`"
+  becomes "When a forest's `treeShift`, its own or else the control's"; in [Tree moves](../architecture.md#tree-moves),
+  the frozen mixture is read per forest, from each forest's own or the control's.
+- NEWS, one sentence: in 1.0-0's "Tree moves" item if it lands before 1.0-0 ships, else under the next version:
+  `forest()` and `varianceForest()` take `proposal.probs` and `n.perturb.cuts`, and `forest()` `treeShift`, of
+  their own, defaulting to the control's, and `setControl` changes the forests that state none.
 
 ## Tests and gates
 
 tests/cpp, in test_sampler.cpp:
 
-- A variance mixture handed at creation lands on the variance forest and the mean forest keeps the options';
-  absent, the variance forest takes the mean's (the existing pin stays). The same through `setModel`.
-- `Forest::levelGibbs` is the options' mode on a single-forest and a multinomial chain, and the spec's where
-  set on a two-forest chain.
+- The move install writes each forest's fields and mode, on one forest with a variance forest, on two forests
+  and on a multinomial chain, on every chain; a count that is not the sampler's is refused.
+- Installed before any run, it draws bitwise what creation under the same settings draws, for each sampler kind.
+- `Forest::levelGibbs` is the options' mode at each of the three build sites.
 - The level-step identity, two forests, the second frozen: modes (off, on) draw bitwise what (auto, auto)
-  draws, auto being off on a growing forest and on on a frozen one. (on, on) and (off, off) each differ from
-  it.
+  draws, auto being off on a growing forest and on on a frozen one; (on, on) and (off, off) each differ.
 
-tinytest, a new test-forest-move-settings.R, one chain, small n:
+tinytest, a new test-forest-move-settings.R, small n and several cuts per predictor:
 
-- Twins, bitwise in draws and trees: a forest stating the control's own values draws what the same call
-  without them draws, for each setting, on one forest, on a heteroscedastic sampler (mean and variance), on
-  two forests (each), and on a multinomial one.
-- `forest(treeShift = "always")` under a control's "never" draws what a control's "always" draws. Two
-  forests, the second frozen by its own mixture: the first `"never"` and the second `"always"` under a
-  control's "never" draw what a control's "auto" draws.
-- Kernels apart. A heteroscedastic sampler created with `varianceForest(proposal.probs = )` a moving mixture,
-  grown, then frozen by `setControl`: the mean trees stand and the variance trees move (read off the stored
-  state, as test-variance-forest-mixture.R reads them); the converse with the mean forest's stated. Two
-  forests, the second frozen at creation: its trees stay stumps while the first grows.
-- `setControl` reaches only forests without their own: the mixture and the window separately, a forest that
-  states one and not the other taking the other.
+- Cross-twins, bitwise in draws and trees: a forest stating X under a control holding Y draws what the same call
+  with the control holding X draws, for every path - one forest, the heteroscedastic mean forest, the variance
+  forest, each forest of two (the other stating X as well, so every forest is accounted for), the multinomial
+  forests - and every setting, each run where it acts: the mixture a moving one with swap, perturb and
+  rule_gibbs positive; the window at 3 and `Inf` with perturb positive; `treeShift` "always" and "never" on a
+  growing forest and on a forest frozen by its own mixture.
+- Stated "auto" is not unstated: `forest(treeShift = "auto")` on a forest frozen by its own mixture, under a
+  control's "never", draws what a control's "auto" draws.
+- Forests apart. A heteroscedastic sampler with the variance forest's moving mixture stated, grown, then frozen
+  by `setControl`: the mean trees stand and the variance trees move (read off the stored state, as
+  test-variance-forest-mixture.R reads them); the converse with the mean forest's stated. Two forests, the
+  second frozen by its own: its trees stay stumps while the first grows.
+- `setControl` reaches exactly the forests that state none, as a twin: `forest(X)` beside an unstated forest
+  under control Y, then `setControl` to Y' before any run, draws what `forest(X)` beside `forest(Y')` draws;
+  the mixture, the window and `treeShift` each, on one forest with a variance forest, on two forests and on a
+  multinomial sampler. `setControl` to X before any run draws what creation under X draws on every kind,
+  `treeShift` included.
 - The copy, and `saveRDS` then `readRDS` after `storeState`, of each sampler above run what the live sampler
-  runs.
+  runs, before and after a `setControl`.
 - `$setModel(sampler$model)` on a sampler with stated settings draws what a twin that does not call it draws.
-- Refusals by name: each setting's bad values, through `forest()` in a list and in a formula term, and
-  through `varianceForest()`; the three at `$setLeafPrior(forests = )`; a monotone forest's own mixture that
-  proposes other moves; `varianceForest(treeShift = )` as R's unused-argument error (open call 1).
-- `dbarts()` handed such a fit's control runs every forest on the control's.
+- Refusals: each setting's bad values, `c(birth_death = 0.9, change = 0.4)` and `birth = 2` among them, through
+  a `forests` list and a formula term, the message naming the forest; through `varianceForest()`, a positive
+  `rule_gibbs` share among them; the three at `$setLeafPrior(forests = )`; a monotone forest's stated mixture
+  that proposes other moves, and one equal to the package default; `varianceForest(treeShift = )` as R's
+  unused-argument error while the call is held.
+- `dbarts()` handed such a fit's control runs every forest on the control's; a verbose creation prints each
+  forest's values.
 - `format()` of a `varianceForest()` shows the two knobs.
 
-Pins updated: the structure and the formals of `forest()` in
-["names(formals(forest))"](../../inst/tinytest/test-forest-predictors.R), and the printed `varianceForest()`
-in test-argument-surface.R.
+Pins updated: `forest()`'s structure and formals in
+["names(formals(forest))"](../../inst/tinytest/test-forest-predictors.R); the printed `varianceForest()` in
+test-argument-surface.R; the `treeShift` refusals in test-level-fiber.R become installs; the multinomial
+refusal in ["fixedPrior$setControl(refusedControl)"](../../inst/tinytest/test-perturb-width.R) becomes an
+install that takes.
 
-Mutants, each to fail a named expectation: `Chain::run` reading the options' mode instead of the forest's;
-`buildSpecifiedForest` ignoring the spec's mode; the single-forest constructor leaving the forest's mode at
-its default; `buildVarianceForest` and, separately, `Chain::setModel` ignoring `varianceMixture`; the bridge's
-`setModel` ignoring forest 1's entry; the amplitude path reading forest 1's entry for every forest; R
-resolving an unstated setting to the control's value in the record; the monotone rule skipped on a forest's
-own mixture.
+Mutants, each to fail a named expectation: `Chain::run` reading the options' mode instead of the forest's; the
+per-forest level call moved into the forest loop or after `drawForestRescale`; `buildSpecifiedForest` or the
+single-forest constructor leaving the forest's mode at its default; the move install skipping the variance
+forest, or its window; `bartcore_setModel` not installing the resolved settings; the multinomial branch not
+installing the record; `createHolder` honoring a stated mixture and not a stated window; the record reader
+taking a stated NA as unstated; the shared parser clamping `Inf` other than to the cap; the move entry writing
+forest 1 alone; R resolving an unstated setting to the control's value in the record; `setControl` still
+refusing `treeShift`; the monotone rule rewriting a stated mixture.
 
 Gates, by the neutral class and the engine tier, on the branch's own libraries:
 
 - `R CMD INSTALL --preclean`, plain and `--configure-args=--enable-reference-build`, `buildInfo()$mode`
   checked; tests/cpp plain and under address and undefined sanitizers.
+- The A/B, on both slices: one scratch script run on the reference build against a library built from 7c264c37
+  and against the branch's, every recorded channel compared with `identical()`, two chains, small n, several
+  cuts per predictor. Samplers: one forest, heteroscedastic, two forests on a factor basis, multinomial, and a
+  linear-leaf and a monotone fit under "always". Each under the control's `treeShift` "always", "never", and
+  "auto" with a control-frozen mixture; a moving mixture with swap, perturb and rule_gibbs positive under
+  `n.perturb.cuts` 1, 3 and `Inf`; `setControl` freezing after some sweeps on one forest and on a
+  heteroscedastic sampler (the dec-A205 install) and changing the window; and a copy and a `saveRDS`/`readRDS`
+  continuation of each. All identical; a difference is a stop.
 - The full tinytest suite, one process, 0 failures.
 - The equivalence trio on the reference build, `compare --bitwise --strict-coverage`: 55, 19 and 11 identical,
-  0 skipped, no `max |z|` line. The main corpus' heteroscedastic scenarios cover the variance forest's
-  creation path, the bcf corpus the per-forest specs, the multinomial corpus its spec.
-- The four snapshot files unchanged on the reference build.
-- Exact gates in quick mode that reach a changed path: heteroscedastic-exact.R, aft-exact.R,
-  aft-hetero-pit.R, bcf-exact.R; and a scratch variant of heteroscedastic-exact.R part (b) that gives the mean
-  and variance forests different moving mixtures and windows, which is the evidence that a forest's own
-  kernel keeps the posterior. CI's exact-gates workflow runs the full list on the branch.
+  0 skipped, no `max |z|` line. The four snapshot files unchanged on the reference build.
+- Exact gates in quick mode on the changed paths: heteroscedastic-exact.R, aft-exact.R, aft-hetero-pit.R,
+  bcf-exact.R and forest-prior-exact.R. Three scratch variants, the evidence that a forest's own kernel keeps
+  the posterior: bcf-exact.R, whose one ordinal predictor has several cuts, with the two single-tree forests
+  under different moving mixtures (swap, perturb and rule_gibbs positive on one) and windows 3 and 1;
+  forest-prior-exact.R, whose forests have several trees, with the forests under different moving mixtures and
+  `treeShift` "always" on one and "never" on another; and heteroscedastic-exact.R part (b) with the mean and
+  variance forests under different moving mixtures, where the window is vacuous (one binary predictor, one cut)
+  and is not claimed. CI's exact-gates workflow runs the full list on the branch.
 - `lintr::lint_package()`, `air format --check .`, `tools/check-rc-codoc.R`, `tools/check-win-drift.R`,
   `tools/check-doc-freshness.R`, each on its own exit status; `inst/NEWS.Rd` parses with its entry count;
-  `R CMD check --as-cran` from a tarball of a clean copy staged outside the tree. The R-loaded sanitizer run
-  is CI's: no new numerics.
+  `pkgdown::check_pkgdown(".")`; `R CMD check --as-cran` from a tarball of a clean copy staged outside the
+  tree. The R-loaded sanitizer run is CI's: no new numerics.
 
 ## Order of work
 
-1. Slice 1, engine and bridge: the engine items, the bridge items, the tests/cpp pins, the comments. Nothing
-   writes the record yet, so the sampler draws as before: verified by tests/cpp, the full tinytest suite, the
+1. Slice 1, engine and bridge: the engine items, the bridge items (the new entry and its R wrapper included),
+   the tests/cpp pins, the comments. Nothing writes the record yet and `setControl` still refuses what it
+   refuses, so the sampler draws as before: verified by tests/cpp, the A/B, the full tinytest suite, the
    equivalence trio and the snapshots.
-2. Slice 2, R surface: the arguments, validation, the record, the monotone rule, `format`, help, NEWS,
-   architecture.md, the new tinytest file and the pins. Then the review over both, the fix round, and the
-   whole gate list.
-3. Records: the ledger entry for the calls made, this plan's Status and Landing note, TODO
-   per-forest-move-settings removed (and the dec-A205 cost noted closed), the INDEX row. One merge at the end.
+2. Slice 2, R surface: the arguments, validation and `proposalProbsRefusal()`, the record, the monotone rule,
+   `setControl`'s routes and `treeShift`, `format`, help, NEWS, architecture.md, the new tinytest file and the
+   pins. Then the review over both, the fix round, and the whole gate list, the A/B again on the final tip.
+3. Records: the ledger entry for the calls made, dec-B139's Marked line noting it revised in part by dec-B477
+   (the step is set per forest as well as on the control), this plan's Status and Landing note, the INDEX row,
+   and TODO per-forest-move-settings removed with a note that the dec-A205 cost is closed for samplers created
+   with a stated setting, an existing heteroscedastic sampler still unable to freeze its mean forest alone. The
+   landing waits on the held call. One merge at the end.
 
 ## Cost
 
-- Two more lines of knobs on `forest()`, and a fourth `bartcore.*` record on a stated fit's control.
+- Three more knobs on `forest()` and two on `varianceForest()`, a fourth `bartcore.*` record on a stated fit's
+  control, and one more engine entry and facade virtual.
 - A forest's own setting cannot be changed on a live sampler; the route is to leave it to the control.
-- The sweep reads one byte per forest per sweep for the level step in place of one per sampler; not measured,
-  and not a hot path by the README's sense (no per-node or per-observation work moves).
+- `setControl` keeps two routes, the prior install on samplers that take it and the move entry on the rest.
+- The sweep reads one mode per forest per sweep in place of one per sampler; not measured, and not a hot path by
+  the README's sense (no per-node or per-observation work moves).
 
 ## Calls made
 
-1. Names: the control's own, `proposal.probs`, `n.perturb.cuts`, `treeShift`, so the forest's knob reads as
-   the control's restated. Alternative: forest-style dotted `tree.shift`, against the control's spelling.
-2. Each setting defaults on its own, as `n.trees`, `base` and `power` do: a forest stating a mixture and not
-   a window takes the control's window, and a changed one. Alternative: stating any setting fixes all three.
-3. Every forest that states none takes the control's value, whatever its kind; no kind gets a mixture of its
-   own. Alternative: kind defaults, as `n.trees` has; nothing measured asks for one.
+1. Names: the control's own, `proposal.probs`, `n.perturb.cuts`, `treeShift`, so the forest's knob reads as the
+   control's restated. Alternative: forest-style dotted `tree.shift`, against the control's spelling.
+2. Each setting defaults on its own, as `n.trees`, `base` and `power` do: a forest stating a mixture and not a
+   window takes the control's window, and a changed one. Alternative: stating any setting fixes all three.
+3. Every forest that states none takes the control's value, whatever its kind. Alternative: kind defaults, as
+   `n.trees` has; nothing measured asks for one.
 4. A forest's own setting rides a record beside the control's slots, never written over them, unlike the first
-   forest's `n.trees`. Writing the first forest's over the slot would hand it to the variance forest and
-   leave `setControl` unable to tell a forest's own from the control's. Alternative: the slot, as `n.trees`.
-5. One new record, `bartcore.moves`, read by one bridge reader, attached only when a forest states a setting.
-   Alternative: fields on `bartcore.forests` and `bartcore.variance`, which a model of one forest does not
-   carry, so it would need a third home anyway.
-6. A forest's own setting is fixed for the sampler's life, as its tree count and its tree prior past the
-   first forest are; `$setLeafPrior(forests = )` already refuses it. Alternative: a per-forest setter,
-   which the ruling does not ask for.
-7. `setControl` still refuses a changed `treeShift`: it has been fixed at creation since it shipped, and the
-   ruling's clause covers what `setControl` changes. Alternative: make it changeable, for the forests that
-   state none.
-8. A control stating a mixture beside a forest's own is not refused: the forest's governs it, as a forest's
-   `n.trees` governs the control's at `dbarts()`, and the control's still reaches the forests that state
-   none. Alternative: refuse it, as `bart()` refuses its own `n.trees` beside the plain forest's.
-9. Monotone: a forest's own mixture passes the creation rule; `setControl`'s rewrite and refusal of the
-   control's mixture stay as built, even where the one forest states its own. Alternative: skip the
-   control's check where no forest takes it.
-10. A sampler of several forests and a multinomial one keep refusing a changed control mixture, as built
-    (dec-B477 keeps the install as built); lifting it belongs with TODO setmodel-parameters-not-structure.
-    Alternative: a mixture-only install on every sampler.
-11. On a multinomial model the one `forests` entry's settings set every category forest, as its `n.trees`
-    does. Alternative: refuse them there.
-12. `varianceForest(proposal.probs = )` with a `rule_gibbs` share is accepted and the help says it is spent on
-    no move, as the control's is today. Alternative: refuse a positive share there.
-13. The engine takes optional variance mixture and per-spec mode, absent meaning today's engine behavior, and
-    the bridge always hands the resolved values. Alternative: required fields, which would move the defaults
-    of every tests/cpp caller.
-14. Two stale help sentences that name `$setModel` as the way to freeze a mixture are corrected to
-    `$setControl` as their items are edited.
-15. No `bench-sampler.R` compare: see [Cost](#cost).
+   forest's `n.trees`: writing it over the slot would hand it to the variance forest and leave `setControl`
+   unable to tell a forest's own from the control's. Alternative: the slot, as `n.trees`.
+5. One new record, `bartcore.moves`, attached only when a forest states a setting. Alternative: fields on
+   `bartcore.forests` and `bartcore.variance`, which a model of one forest does not carry.
+6. Stated settings reach the engine through one move install, run after creation and before any run, so a call
+   that states none creates exactly as main does. Alternative: new fields on `SamplerOptions`, the forest specs
+   and `ModelParameters`, filled at every creation path, which moves every creation's code.
+7. A forest's own setting is fixed for the sampler's life, as its tree count is; `$setLeafPrior(forests = )`
+   already refuses it. Alternative: a per-forest setter, which the ruling does not ask for.
+8. `setControl` changes `treeShift` on every forest that states none, as dec-B477's move settings include the
+   step; a changed step is as safe mid-run as a changed mixture, both read each sweep. Alternative, from the
+   first draft: keep refusing it.
+9. `setControl` installs on a sampler of several forests and a multinomial one, through a move entry that
+   writes no prior. The refusal there stood because the mixture rode the prior install, and a prior install
+   would discard those samplers' calibrated leaf scales; nothing ties the mixture to the calibration.
+   Alternative: keep refusing, leaving TODO setmodel-parameters-not-structure to lift it.
+10. `setControl` keeps its route through `$setModel(model)` on samplers that take it, so its install there stays
+    main's call for call, re-install of the model included. Alternative: the move entry for every sampler,
+    which drops a model re-install that may not be a no-op in every state, unmeasured.
+11. A control stating a mixture beside a forest's own is not refused: the forest's governs it, as a forest's
+    `n.trees` governs the control's at `dbarts()`, and the control's still reaches the forests that state none.
+    Alternative: refuse it, as `bart()` refuses its own `n.trees` beside the plain forest's.
+12. Monotone: a stated forest mixture is never rewritten, so one equal to the package default is refused like
+    any other that proposes change; the control's keeps its rewrite, since its default was not chosen.
+    Alternative: rewrite a stated default-equal mixture as the control's is, a silent change.
+13. On a multinomial model the one `forests` entry's settings set every category forest, as its `n.trees` does.
+    Alternative: refuse them there.
+14. A positive `rule_gibbs` share stated on `varianceForest()` is refused; the control's share reaching the
+    variance forest stays as built. Alternative: accept it, a stated no-op.
+15. `forest(treeShift = )` is accepted on a linear or gp leaf, a no-op there as the control's is, because the
+    argument acts on the constant leaves most forests have; on `varianceForest()` it could never act, which is
+    the held call. Alternative: refuse it on those leaves.
+16. A forest's refusals name the forest; `proposalProbsRefusal()` is shared with the control's validity method.
+    Alternative: the control's messages, which name no forest.
+17. xbart's handle path refuses a control carrying the record, which no door can hand it. Alternative: ignore
+    the record there.
+18. Two stale help sentences that name `$setModel` as the way to freeze a mixture are corrected to `$setControl`.
+19. No `bench-sampler.R` compare: see [Cost](#cost).
 
 ## Open calls
 
-1. Does `varianceForest()` take `treeShift`? The ruling lists the tree-shift setting for both constructors,
-   but the variance forest never takes the step: its leaves multiply, so it has no additive level to shift,
-   and the control's `treeShift` is ignored there today.
+1. Held for the maintainer: does `varianceForest()` take `treeShift`? The ruling lists the tree-shift setting
+   for both constructors, but the variance forest never takes the step: its leaves multiply, and no shift is
+   built for them (run: see [What exists today](#what-exists-today)). The plan builds (a); either
+   other is a few lines added after the answer, and the landing waits on it.
    - (a) Recommended: `varianceForest()` takes `proposal.probs` and `n.perturb.cuts` only; a `treeShift` there
      is R's unused-argument error. Cost: the two constructors differ by one argument; should a step for the
      variance forest ever be built, the argument is added then without breaking anything.
-   - (b) It takes `treeShift` and ignores it, as the control's is ignored there, so the two constructors
-     match. Cost: an argument that can never do anything.
+   - (b) It takes `treeShift` and ignores it, as the control's is ignored there, so the two constructors match.
+     Cost: an argument that can never do anything.
    - (c) It takes `treeShift` and refuses any value but "auto". Cost: an argument whose only legal value is its
      default.
 
 ## Not verified
 
-- That the variance forest takes no level step is read from the code (the level loop covers the mean forests
-  alone), not shown by a run: no channel reports the shift.
-- stan4bart was checked by a search of its R code only: it reads none of the three settings and no
-  `bartcore.*` record.
+- stan4bart was checked by a search of its R code; the critique read its C side.
 - The sweep's cost is not measured (see [Cost](#cost)).
-- No run covers a sampler of several chains here; `Sampler::setModel` loops the chains, and dec-A205's
-  pins cover the install on every chain.
+- That `$setModel(model)`'s re-install inside `setControl` is a no-op in every state is not checked; call 10
+  keeps it rather than relying on it.
+
+## Revision from critique
+
+The critique (scratch/pfm-crit/critique.md, on 7b8fde3e) found the design sound and asked for a revision first.
+The orchestrator's calls on it, as applied here:
+
+- 1 and 2, blocking: the A/B against 7c264c37 and the cross-twins, both added, with the critique's mutants.
+- 3: the premise of the old call 7 was wrong (the setting never shipped, dec-B139); `setControl` now installs a
+  changed `treeShift` (call 8).
+- 4: the refusal on several forests was traced to the prior install and nothing in the mixture; the install is
+  built there (call 9), and the summary says so.
+- 5 to 11: `proposalProbsRefusal()` with refusals that name the forest; the multi-cut and several-forest exact
+  variants; the verbose summary; the monotone rule listed (call 12); `LevelGibbsMode` moved to moves.hpp; the
+  handle path; the help pages, architecture.md, the dec-B139 mark and the wording of the TODO note.
+- 12: the variance forest's `rule_gibbs` refused (call 14), the linear-leaf `treeShift` reasoned (call 15),
+  partial matching noted in the help.
+- The design moved from creation-time fields on `SamplerOptions`, the specs and `ModelParameters` to one move
+  install after creation (call 6), which the new `setControl` routes needed anyway.
+- Open call 1 stands, confirmed by the critique's run and again here, and is held for the maintainer.
