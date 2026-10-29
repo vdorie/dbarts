@@ -1,0 +1,175 @@
+The negative binomial default-prior study's scratch build, second of two
+patches: on the move build (main at 8a78507c with
+nbinom-default-study-move.patch applied), k's step and the move's k term
+take the prior NBS_KPRIOR names (unset, the shipped chi(1.5, 2); floor:f for
+C4; halfnormal:m for C5) and NBS_MOVE=off turns the move off (the "kprior"
+build). Built only for the study, never merged. Apply after the first:
+
+  patch -d <tree> -p1 < nbinom-default-study-kprior.patch
+
+--- a/src/bartcore/chain.hpp
++++ b/src/bartcore/chain.hpp
+@@ -8,6 +8,7 @@
+ #include <cstddef>
+ #include <cstdint>
+ #include <cstdio>
++#include <cstdlib>
+ #include <cstring>
+ #include <functional>
+ #include <limits>
+@@ -823,7 +824,96 @@
+     else upper = v;
+   }
+ }
++
++/// SCRATCH STUDY BUILD (nbinom-default-study), never shipped. NBS_KPRIOR
++/// names the prior on k, read at each use: unset or empty for the shipped
++/// chi; "floor:f" for chi(df, scale) truncated to k >= f; "halfnormal:m" for a
++/// half-normal on s = 3 / k with median m. NBS_MOVE=off turns the collapsed
++/// scale move off, so that the build is today's sampler with only its k step.
++struct StudyKPrior {
++  int mode = 0;  // 0 shipped chi, 1 floor, 2 half-normal on 3 / k
++  double value = 0.0;  // the floor, or the half-normal's sigma
++};
+ 
++inline StudyKPrior readStudyKPrior() {
++  StudyKPrior prior;
++  const char* text = std::getenv("NBS_KPRIOR");
++  if (text == nullptr || *text == '\0') return prior;
++  if (std::strncmp(text, "floor:", 6) == 0) {
++    prior.mode = 1;
++    prior.value = std::atof(text + 6);
++  } else if (std::strncmp(text, "halfnormal:", 11) == 0) {
++    prior.mode = 2;
++    // the median of |N(0, sigma^2)| is sigma qnorm(0.75)
++    prior.value = std::atof(text + 11) / 0.67448975019608174;
++  } else {
++    throw std::runtime_error("NBS_KPRIOR names no prior");
++  }
++  if (!(prior.value > 0.0)) throw std::runtime_error("NBS_KPRIOR value");
++  return prior;
++}
++
++inline bool studyMoveOff() {
++  const char* text = std::getenv("NBS_MOVE");
++  return text != nullptr && std::strcmp(text, "off") == 0;
++}
++
++extern "C" double Rf_pgamma(double, double, double, int, int);
++
++/// k^2 ~ Gamma(shape, rate) truncated to k^2 >= bound, exactly: plain
++/// rejection while the bound keeps at least 5 percent of the mass, else an
++/// exponential proposal from the bound at the log density's slope there, whose
++/// ratio to the target is largest at the bound.
++inline double drawTruncatedGamma(ext_rng* rng, double shape, double rate,
++                                 double bound) {
++  double scale = 1.0 / rate;
++  double logUpper = Rf_pgamma(bound, shape, scale, 0, 1);
++  if (logUpper > std::log(0.05)) {
++    for (;;) {
++      double value = ext_rng_simulateGamma(rng, shape, scale);
++      if (value >= bound) return value;
++    }
++  }
++  // the bound lies above the mode, so the slope is positive
++  double slope = shape > 1.0 ? rate - (shape - 1.0) / bound : rate;
++  for (;;) {
++    double value = bound + ext_rng_simulateExponential(rng, 1.0 / slope);
++    double logAccept = (shape - 1.0) * std::log(value / bound) -
++                       (rate - slope) * (value - bound);
++    if (std::log(ext_rng_simulateContinuousUniform(rng)) <= logAccept)
++      return value;
++  }
++}
++
++/// k's step under the study prior. The shipped chi draws exactly; the floor
++/// draws k^2 from its truncated gamma, exactly; the half-normal takes a slice
++/// step on u = log k from the current k, its log target
++/// (M - 1) u - e^(2u) SS / (2 L^2) - 9 e^(-2u) / (2 sigma^2).
++inline double drawStudyK(ext_rng* rng, const ChiKHyperprior& chi, double k,
++                         double sumSquaredParams, double totalNumLeaves,
++                         double leafScale) {
++  StudyKPrior study = readStudyKPrior();
++  if (study.mode == 0)
++    return chi.draw(rng, sumSquaredParams, totalNumLeaves, leafScale);
++  double leafRate = 0.5 * sumSquaredParams / (leafScale * leafScale);
++  if (study.mode == 1) {
++    double shape = 0.5 * (totalNumLeaves + chi.degreesOfFreedom);
++    double rate = leafRate;
++    if (std::fabs(chi.scale) <= DBL_MAX) rate += 0.5 / (chi.scale * chi.scale);
++    if (!(1.0 / rate <= DBL_MAX)) return HUGE_VAL;
++    return std::sqrt(
++      drawTruncatedGamma(rng, shape, rate, study.value * study.value));
++  }
++  double u0 = std::log(k);
++  double priorRate = 4.5 / (study.value * study.value);
++  auto logDensity = [=](double d) {
++    double u = u0 + d;
++    double square = std::exp(2.0 * u);
++    return (totalNumLeaves - 1.0) * u - leafRate * square - priorRate / square;
++  };
++  return std::exp(u0 + sliceFromZero(rng, logDensity, 0.5, 1000));
++}
++
+ /// Bank count of the fused roll + node-average suffstat pass. K fixes the
+ /// summation order and so is part of the draw rule: a knob here would mean the
+ /// package has no single rule, with every baseline and every bug report
+@@ -2250,8 +2340,9 @@
+         // a zero sum of squares under an infinite prior scale would make the
+         // gamma rate zero and k infinite; with no information, keep k
+         if (forest.updateK && forest.kSumSquaredParams > 0.0)
+-          forest.k = forest.kHyperprior.draw(rng_, forest.kSumSquaredParams,
+-                                             forest.kNumLeaves, forest.leaf.scale);
++          forest.k = drawStudyK(rng_, forest.kHyperprior, forest.k,
++                                forest.kSumSquaredParams, forest.kNumLeaves,
++                                forest.leaf.scale);
+ 
+         if (forest.useDart) {
+           std::memset(forest.splitCounts.data(), 0,
+@@ -2947,9 +3038,9 @@
+ 
+         for (Forest<L, ResidT>& forest : forests_) {
+           if (forest.updateK && forest.kSumSquaredParams > 0.0)
+-            forest.k = forest.kHyperprior.draw(rng_, forest.kSumSquaredParams,
+-                                               forest.kNumLeaves,
+-                                               forest.leaf.scale);
++            forest.k = drawStudyK(rng_, forest.kHyperprior, forest.k,
++                                  forest.kSumSquaredParams, forest.kNumLeaves,
++                                  forest.leaf.scale);
+           if (forest.useDart) {
+             std::memset(forest.splitCounts.data(), 0,
+                         forest.splitCounts.size() * sizeof(std::uint32_t));
+@@ -7325,7 +7416,7 @@
+     if constexpr (!std::is_same_v<L, ConstantGaussianLeaf>) {
+       return false;
+     } else {
+-      return options_.collapsedRescaleForest &&
++      return options_.collapsedRescaleForest && !studyMoveOff() &&
+              (family_ == ResponseFamily::logistic ||
+               family_ == ResponseFamily::probit ||
+               family_ == ResponseFamily::nbinom) &&
+@@ -7391,11 +7482,21 @@
+       const double* fits = forest.totalFits.data();
+       const double degreesOfFreedom = forest.kHyperprior.degreesOfFreedom;
+       const double scaledK = forest.k / forest.kHyperprior.scale;
++      // the study prior's log pi(k e^-v) - v, up to a constant
++      const StudyKPrior study = readStudyKPrior();
++      const double k = forest.k;
+       auto logDensityAt = [=, &response](double v) {
+         double e = std::exp(v);
+-        double kTerm = scaledK / e;
+-        return -degreesOfFreedom * v - 0.5 * kTerm * kTerm +
+-               response.logLikelihoodAtScaledFits(fits, e);
++        double prior;
++        if (study.mode == 2) {
++          double spread = 3.0 * e / k;
++          prior = v - 0.5 * spread * spread / (study.value * study.value);
++        } else {
++          if (study.mode == 1 && k / e < study.value) return -HUGE_VAL;
++          double kTerm = scaledK / e;
++          prior = -degreesOfFreedom * v - 0.5 * kTerm * kTerm;
++        }
++        return prior + response.logLikelihoodAtScaledFits(fits, e);
+       };
+       // one pass over the rows serves the decline and the slice level both
+       const double atZero = logDensityAt(0.0);
