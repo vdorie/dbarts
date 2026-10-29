@@ -2372,7 +2372,8 @@ abind3 <- function(a, b) {
 referenceStan4bart <- function(
   design,
   seed,
-  iter = mcmc$s4bRefIter
+  iter = mcmc$s4bRefIter,
+  thin = mcmc$refThin
 ) {
   f <- fitStan4bart(
     design,
@@ -2385,7 +2386,7 @@ referenceStan4bart <- function(
     stop("a stan4bart reference draws k")
   }
   iters <- dim(a$arr)[2L]
-  recIdx <- seq(mcmc$refThin, iters - mcmc$refTail, by = mcmc$refThin)
+  recIdx <- seq(thin, iters - mcmc$refTail, by = thin)
   tailIdx <- seq.int(iters - mcmc$refTail + 1L, iters)
   G <- dim(a$ranef)[3L]
   pick <- function(idx) {
@@ -2407,7 +2408,9 @@ referenceStan4bart <- function(
 
 # Escalation: the shipped chains continue from their saved samplers to
 # escalateRecord recorded sweeps, then a new tail; only when the acceptance
-# projected a pass. Otherwise a no-op. stan4bart cannot continue a chain, so
+# projected a pass. Otherwise a no-op. The escalated half keeps the move's
+# draw count, thinned escalateFactor times as much, so an escalated reference
+# takes the first pass's disk and memory. stan4bart cannot continue a chain, so
 # its shipped parts rerun from the same seed at escalateRecord recorded
 # iterations, whose first pass is a prefix of the rerun (checked and recorded).
 escalateReferencePart <- function(cell, link, rep, part) {
@@ -2428,9 +2431,13 @@ escalateReferencePart <- function(cell, link, rep, part) {
   }
   s <- readRDS(file.path(dir, sprintf("shipped-part%d-sampler.rds", part)))
   ctrl <- s$control
-  ctrl@n.thin <- mcmc$refThin
+  # the escalated half keeps the move's draw count: the continuation is kept
+  # every escalateFactor * refThin sweeps and the first pass thinned to match
+  thinEsc <- mcmc$refThin * escalateFactor
+  keepOld <- function(n) seq.int(escalateFactor, n, by = escalateFactor)
+  ctrl@n.thin <- thinEsc
   s$setControl(ctrl)
-  more <- (mcmc$escalateRecord - mcmc$refRecord) %/% mcmc$refThin
+  more <- (mcmc$escalateRecord - mcmc$refRecord) %/% thinEsc
   r1 <- s$run(0L, more)
   ctrl@n.thin <- 1L
   s$setControl(ctrl)
@@ -2459,7 +2466,7 @@ escalateReferencePart <- function(cell, link, rep, part) {
     # the outcome's as the first pass wrote them
     sp <- readRDS(file.path(dir, sprintf("shipped-part%d-psampler.rds", part)))
     pc <- sp$control
-    pc@n.thin <- mcmc$refThin
+    pc@n.thin <- thinEsc
     sp$setControl(pc)
     p1 <- sp$run(0L, more)
     pc@n.thin <- 1L
@@ -2467,10 +2474,12 @@ escalateReferencePart <- function(cell, link, rep, part) {
     p2 <- sp$run(0L, mcmc$refTail)
     recRaw <- abind3(recRaw, p1$train)
     tailRaw <- abind3(tailRaw, p2$train)
-    meta$kPs <- rbind(as.matrix(meta$kPs), as.matrix(p1$k))
+    kp <- as.matrix(meta$kPs)
+    meta$kPs <- rbind(kp[keepOld(nrow(kp)), , drop = FALSE], as.matrix(p1$k))
   }
   rec <- aperm(recRaw, c(3L, 2L, 1L))
   old <- readSingle(file.path(dir, partFile(meta, "record")), meta$dimsRecord)
+  old <- old[, keepOld(dim(old)[2L]), , drop = FALSE]
   both <- array(0, c(dim(old)[1L], dim(old)[2L] + dim(rec)[2L], dim(old)[3L]))
   both[, seq_len(dim(old)[2L]), ] <- old
   both[, dim(old)[2L] + seq_len(dim(rec)[2L]), ] <- rec
@@ -2482,12 +2491,13 @@ escalateReferencePart <- function(cell, link, rep, part) {
   writeSingle(aperm(tailRaw, c(3L, 2L, 1L)), file.path(dir, meta$tailFile))
   meta$dimsRecord <- dim(both)
   meta$dimsTail <- dim(aperm(tailRaw, c(3L, 2L, 1L)))
-  meta$k <- rbind(meta$k, r1$k)
+  k0 <- as.matrix(meta$k)
+  meta$k <- rbind(k0[keepOld(nrow(k0)), , drop = FALSE], as.matrix(r1$k))
   meta$kTail <- r2$k
   meta$escalated <- TRUE
   saveAtomic(meta, metaPath)
-  # the first pass's record is a prefix of the escalated one and its tail is
-  # superseded
+  # the first pass's record, thinned, is a prefix of the escalated one and its
+  # tail is superseded
   file.remove(file.path(
     dir,
     sprintf("shipped-part%d-%s.f32", part, c("record", "tail"))
@@ -2497,12 +2507,19 @@ escalateReferencePart <- function(cell, link, rep, part) {
 escalateStan4bartPart <- function(cell, link, rep, part, dir, meta, metaPath) {
   design <- blind(loadDesign(cell, link, rep))
   seed <- seedOf("reference", cell, link, rep, "shipped", part)
+  # kept every escalateFactor * refThin iterations, the move's draw count
   res <- referenceStan4bart(
     design,
     seed,
-    iter = mcmc$escalateRecord + mcmc$refTail
+    iter = mcmc$escalateRecord + mcmc$refTail,
+    thin = mcmc$refThin * escalateFactor
   )
   old <- as.matrix(meta$k)
+  old <- old[
+    seq.int(escalateFactor, nrow(old), by = escalateFactor),
+    ,
+    drop = FALSE
+  ]
   prefix <- max(abs(as.matrix(res$k)[seq_len(nrow(old)), , drop = FALSE] - old))
   meta$recordFile <- sprintf("shipped-part%d-record-esc.f32", part)
   meta$tailFile <- sprintf("shipped-part%d-tail-esc.f32", part)
@@ -2633,10 +2650,9 @@ referenceLabels <- function(ref, design, link) {
   interiorColumns(P)
 }
 
-# n evenly spaced rows of a draws-by-chains matrix, the last kept: after an
-# escalation the shipped chains are longer than the move's, and the joint
-# split-Rhat and tail effective draws take them thinned to the move's length
-# over their whole run.
+# n evenly spaced rows of a draws-by-chains matrix, the last kept: wherever
+# the two halves' draw counts could differ (an escalated half is written at
+# the move's count), the longer is thinned to the shorter.
 evenRows <- function(m, n) {
   m <- as.matrix(m)
   if (nrow(m) == n) {
@@ -3260,26 +3276,17 @@ refCols <- c(
 
 escalatingTasks <- c("prob", "effect", "multi", "d2", "s9", "s4b", "loop")
 
-# A reference's full draws in MiB at full length: the first pass, or the
-# escalated reference (the shipped half at escalateRecord).
-refMB <- function(cell, escalated = FALSE) {
+# A reference's full draws in MiB at full length (an escalated reference keeps
+# the first pass's draw count).
+refMB <- function(cell) {
   key <- if (cell %in% names(refCols)) cell else cellRegime(cell)$id
   ch <- refChains(cellChains(cell))
-  perDraw <- 4 * ch * refCols[[key]] / 2^20
-  rec <- 20000L %/% mcmc$refThin
-  esc <- 100000L %/% mcmc$refThin
-  tl <- 500L
-  if (escalated && cellTask(cell) %in% escalatingTasks) {
-    perDraw * (esc + tl + rec + tl)
-  } else {
-    perDraw * 2 * (rec + tl)
-  }
+  4 * ch * refCols[[key]] / 2^20 * 2 * (20000L %/% 20L + 500L)
 }
 
 # The references kept in full for audit, chosen before any study fit: all of
 # the tranche's reference replications in a seeded order, each taken while
-# the set's draws, at their escalated size where the cell escalates, stay
-# within auditBudgetMB, up to auditCount of them.
+# the set's draws stay within auditBudgetMB, up to auditCount of them.
 auditSet <- function(tranche = 1L) {
   keys <- character()
   mb <- numeric()
@@ -3288,7 +3295,7 @@ auditSet <- function(tranche = 1L) {
       for (link in reg$links) {
         reps <- if (reg$id == "B") 1L else seq_len(refsFor(cell, tranche))
         keys <- c(keys, paste(cell, link, reps))
-        mb <- c(mb, rep(refMB(cell, TRUE), length(reps)))
+        mb <- c(mb, rep(refMB(cell), length(reps)))
       }
     }
   }
@@ -5331,8 +5338,9 @@ runRead <- function(tranche = 1L) {
 ## -------------------------------------------------------------------- jobs
 
 # Job files for the box queue: one job a line, tab-separated: id, the ids it
-# waits for (comma-separated, or "-"), big (0 or 1), cell key, expected
-# seconds or NA, commands joined by " ;; ", each "@<build> <harness args>".
+# waits for (comma-separated, or "-"), its peak memory in GiB (jobMem), cell
+# key, expected seconds or NA, commands joined by " ;; ", each "@<build>
+# <harness args>".
 jobId <- function(...) {
   parts <- as.character(c(...))
   paste(gsub("[:]", "_", parts[nzchar(parts)]), collapse = "-")
@@ -5569,11 +5577,10 @@ replicationJobs <- function(
     escIds <- character()
     for (part in parts) {
       id <- jobId("escalate", refCell, link, rep, part)
-      # a stan4bart rerun keeps every iteration's fits: counted as big
       add(
         id,
         acc,
-        big || cellTask(refCell) == "s4b",
+        big,
         cell,
         sprintf(
           "@shipped reference escalate %s %s %d %d",
@@ -5617,13 +5624,58 @@ replicationJobs <- function(
   }
 }
 
+# A job's peak memory in GiB, the queue's budget unit, scaled from the box's
+# measurements at full length on D1:arr1-mod and B1:bank (2026-10-29: a D1
+# reference's fixed-k and reading jobs 14.7 and 14.2, its acceptance and
+# compaction 7.5 and 8.2, its fits 5.2): reference jobs by the reference's
+# draws, fits by the draws they keep, stan4bart parts and reruns by every
+# iteration's fits.
+jobMem <- function(cmd) {
+  a <- strsplit(sub("^@[a-z]+ ", "", cmd), " ", fixed = TRUE)[[1L]]
+  kind <- if (a[1L] == "reference") a[2L] else a[1L]
+  cell <- if (a[1L] == "reference") a[3L] else a[2L]
+  key <- if (cell %in% names(refCols)) cell else cellRegime(cell)$id
+  cols <- refCols[[key]]
+  r <- refMB(cell) / 1024
+  s4b <- cellTask(cell) == "s4b"
+  fitGB <- function(draws) 8 * cellChains(cell) * draws * cols / 2^30
+  iterGB <- function(iter) 8 * refPartChains * iter * cols / 2^30
+  gb <- switch(
+    kind,
+    fit = {
+      long <- identical(a[5L], "longOracle")
+      draws <- if (!long) {
+        drawsPerChain(cell)
+      } else if (s4b) {
+        mcmc$s4bDefault * mcmc$longFactor
+      } else {
+        mcmc$defaultDraws * mcmc$longFactor
+      }
+      0.5 + 8.6 * fitGB(draws)
+    },
+    timing = 1 + 4 * fitGB(drawsPerChain(cell)),
+    run = if (s4b) 0.5 + 5 * iterGB(mcmc$s4bRefIter) else 1,
+    escalate = if (s4b) {
+      0.5 + 5 * iterGB(mcmc$escalateRecord + mcmc$refTail)
+    } else {
+      1 + r
+    },
+    accept = ,
+    compact = 1 + 9.5 * r,
+    fixedk = ,
+    refscore = 1 + 16.5 * r,
+    1
+  )
+  ceiling(2 * gb) / 2
+}
+
 writeJobs <- function(phase, path, tranche = 1L) {
   jobs <- list()
   add <- function(id, deps, big, cell, cmd) {
     jobs[[length(jobs) + 1L]] <<- paste(
       id,
       if (length(deps)) paste(deps, collapse = ",") else "-",
-      as.integer(big),
+      jobMem(cmd),
       cell,
       "NA",
       cmd,
