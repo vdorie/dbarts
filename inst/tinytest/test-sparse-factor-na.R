@@ -366,7 +366,7 @@ takenRef <- sparseFactor(
 )
 expect_error(
   predict(fitSparse, data.frame(f = takenRef, z = tz[1:2])),
-  "not present in the training"
+  "has a level not present in the training data: 'zz'"
 )
 
 # a test NA in a column with none in training is refused, or answered NA

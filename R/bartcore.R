@@ -605,7 +605,7 @@ codeCategoricalColumnUpdate <- function(x.train, x, column) {
         label(j),
         " has ",
         if (length(unknown) > 1L) "labels " else "label ",
-        quotedNameList(unknown),
+        quotedLevelList(unknown),
         " not among its training levels"
       )
     }
@@ -701,7 +701,7 @@ refuseNewDataLabels <- function(column, unknown) {
       "$setData: column ",
       column,
       if (length(unknown) > 1L) " has labels " else " has label ",
-      quotedNameList(unknown),
+      quotedLevelList(unknown),
       " not among its training levels",
       call. = FALSE
     )

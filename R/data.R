@@ -1055,6 +1055,22 @@ quotedNameList <- function(names) {
   )
 }
 
+## The same, for a list that can be long: the first 'max' names, then a count
+## of the rest. A message that names every level of a factor with thousands
+## of them runs past R's limit on one and is cut mid-list.
+quotedLevelList <- function(names, max = 5L) {
+  names <- unique(names)
+  if (length(names) <= max) {
+    return(quotedNameList(names))
+  }
+  paste0(
+    paste0("'", names[seq_len(max)], "'", collapse = ", "),
+    " and ",
+    length(names) - max,
+    " more"
+  )
+}
+
 ## na.fail's refusal, naming whichever of the predictor columns and the
 ## 'extra' channels (dec-A89) carried a missing value.
 refuseNaFail <- function(x.test, x.train, extra) {
@@ -1956,7 +1972,7 @@ validateXTest <- function(
           "'test' factor '",
           mismatched[1L],
           "' does not match training's indicator columns ('test' levels: ",
-          toString(testFactorLevels[[mismatched[1L]]]),
+          quotedLevelList(testFactorLevels[[mismatched[1L]]]),
           "); give the test factor the training levels, factor(x, levels = ",
           "...), or fit with factors = \"categorical\""
         )

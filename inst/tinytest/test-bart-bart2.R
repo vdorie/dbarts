@@ -278,7 +278,7 @@ expect_identical(predict(fitF, teChar), expected)
 teChar$f[1L] <- "d"
 expect_error(
   predict(fitF, teChar),
-  pattern = "test data factor 'f' has level 'd' with no training rows"
+  pattern = "test data factor 'f' has a level not present in the training data: 'd'"
 )
 rm(nF, dF, trF, ytrF, teSame, teFewer, teExtra, teMany, teChar, fitF)
 rm(fitBT, expected)
@@ -315,12 +315,12 @@ fitSubset <- fitIndicators(dI$g != "c")
 newI <- data.frame(x = 0.5, g = factor(c("a", "b"), levels = levels(dI$g)))
 expect_error(
   predict(fitSubset, rbind(newI, data.frame(x = 0.5, g = "c"))),
-  pattern = "test data factor 'g' has level 'c' with no training rows"
+  pattern = "test data factor 'g' has a level not present in the training data: 'c'"
 )
 fitAll <- fitIndicators()
 expect_error(
   predict(fitAll, data.frame(x = 0.5, g = factor("z", levels = levels(dI$g)))),
-  pattern = "test data factor 'g' has level 'z' with no training rows"
+  pattern = "test data factor 'g' has a level not present in the training data: 'z'"
 )
 # a test factor declaring only some levels predicts as the full-level one
 expect_identical(

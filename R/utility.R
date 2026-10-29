@@ -1825,6 +1825,52 @@ floorMarginalSigma <- function(sigma, residual) {
   if (!is.finite(sigma) || sigma < sigmaFloor) sigmaFloor else sigma
 }
 
+## The refusal for test values at levels the training factor does not have:
+## one wording for every route that codes a factor against the training
+## levels, the first few levels named and the rest counted. 'declare' says
+## whether a training factor that declares the level fits and then predicts at
+## it, which holds where the factor is kept whole and not under indicators,
+## where a level no training row takes has no column to carry it; 'unused'
+## says so when one of the levels is declared by the training factor and no
+## training row takes it.
+unseenLevelsMessage <- function(name, unseen, declare, unused = FALSE) {
+  unseen <- unique(unseen)
+  several <- length(unseen) > 1L
+  them <- if (several) "them" else "it"
+  paste0(
+    "test data factor '",
+    name,
+    "' has ",
+    if (several) "levels" else "a level",
+    " not present in the training data: ",
+    quotedLevelList(unseen),
+    ". Recode ",
+    them,
+    " to ",
+    if (several) "training levels" else "a training level",
+    if (declare) {
+      paste0(
+        ", drop the rows that take ",
+        them,
+        ", or refit with a training factor that declares ",
+        them,
+        ", factor(x, levels = c(levels(x), extra))"
+      )
+    } else {
+      paste0(
+        " or drop the rows that take ",
+        them,
+        if (unused) {
+          paste0(
+            " (a declared level that no training row takes has no indicator ",
+            "column)"
+          )
+        }
+      )
+    }
+  )
+}
+
 ## Recode a sparseFactor test column over the training level table, keeping
 ## it sparse: the stored entries' labels and the implicit reference level
 ## are re-coded in training level order, so its codes agree with a dense
@@ -1835,16 +1881,17 @@ remapSparseFactorToTrainingLevels <- function(column, trainingLevels, name) {
   storedCodes <- match(column@levels[column@values], trainingLevels)
   referenceCode <- match(column@reference, trainingLevels)
   referenceTaken <- length(column@i) < column@length
-  if (
-    any(is.na(storedCodes) & !is.na(column@values)) ||
-      (referenceTaken && is.na(referenceCode))
-  ) {
-    stop(
-      "test data factor '",
+  unseenStored <- is.na(storedCodes) & !is.na(column@values)
+  unseenReference <- referenceTaken && is.na(referenceCode)
+  if (any(unseenStored) || unseenReference) {
+    stop(unseenLevelsMessage(
       name,
-      "' has levels not present in the ",
-      "training data"
-    )
+      c(
+        column@levels[column@values][unseenStored],
+        if (unseenReference) column@reference
+      ),
+      TRUE
+    ))
   }
   reference <- column@reference
   keep <- rep.int(TRUE, length(column@i))
@@ -1955,13 +2002,9 @@ mapFactorColumnsToTrainingLevels <- function(
     refactored <- factor(as.character(column), levels = factorLevels[[j]])
     # an unseen level codes to NA; a value already missing is not one, and a
     # missing value elsewhere in the column must not let one through
-    if (any(is.na(refactored) & !is.na(column))) {
-      stop(
-        "test data factor '",
-        name,
-        "' has levels not present in the ",
-        "training data"
-      )
+    unseen <- is.na(refactored) & !is.na(column)
+    if (any(unseen)) {
+      stop(unseenLevelsMessage(name, as.character(column)[unseen], TRUE))
     }
     x.test[[name]] <- refactored
   }
@@ -1995,14 +2038,12 @@ mapFactorColumnsToIndicatorLevels <- function(x.test, levelTable, drop) {
     values <- as.character(column)
     unseen <- unique(values[!is.na(values) & values %not_in% observed])
     if (length(unseen) > 0L) {
-      stop(
-        "test data factor '",
+      stop(unseenLevelsMessage(
         name,
-        "' has ",
-        if (length(unseen) > 1L) "levels " else "level ",
-        quotedNameList(unseen),
-        " with no training rows"
-      )
+        unseen,
+        FALSE,
+        unused = any(unseen %in% trainingLevels)
+      ))
     }
     x.test[[name]] <- factor(
       values,
@@ -2105,12 +2146,9 @@ alignContainerFactorLevels <- function(x.test, predictorNames, factorLevels) {
       }
       refactored <- factor(as.character(column), levels = trainingLevels)
       # as in mapFactorColumnsToTrainingLevels
-      if (any(is.na(refactored) & !is.na(column))) {
-        stop(
-          "test data factor '",
-          name,
-          "' has levels not present in the training data"
-        )
+      unseen <- is.na(refactored) & !is.na(column)
+      if (any(unseen)) {
+        stop(unseenLevelsMessage(name, as.character(column)[unseen], TRUE))
       }
       x.test$dense[[source]] <- refactored
     } else {
@@ -2127,15 +2165,19 @@ alignContainerFactorLevels <- function(x.test, predictorNames, factorLevels) {
       # a missing value has no level to look up, and a reference that no row
       # takes is not a level of the data
       referenceTaken <- length(entries) < nrow(x.test$sparse)
-      if (
-        any(is.na(codes) & !is.na(stored)) ||
-          (referenceTaken && is.na(reference))
-      ) {
-        stop(
-          "test data factor '",
+      unseenStored <- is.na(codes) & !is.na(stored)
+      unseenReference <- referenceTaken && is.na(reference)
+      if (any(unseenStored) || unseenReference) {
+        stop(unseenLevelsMessage(
           name,
-          "' has levels not present in the training data"
-        )
+          c(
+            oldLevels[stored + 1L][unseenStored],
+            if (unseenReference) {
+              oldLevels[x.test$sparseReference[rank] + 1L]
+            }
+          ),
+          TRUE
+        ))
       }
       if (is.na(reference)) {
         reference <- 0L

@@ -339,7 +339,7 @@ expect_error(
     data,
     data.frame(a = rnorm(3L), f = factor(c("x", "y", "w")))
   ),
-  pattern = "levels not present in the training data"
+  pattern = "has a level not present in the training data: 'w'"
 )
 
 rm(mm, newdata, data, df)

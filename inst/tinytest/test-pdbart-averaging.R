@@ -335,7 +335,7 @@ unseen <- subgroup
 unseen$f <- factor(c("zz", as.character(unseen$f[-1L])))
 expect_error(
   dbarts::pdbart(factorFit, xind = "a", newdata = unseen, pl = FALSE),
-  "levels not present in the training data"
+  "has a level not present in the training data: 'zz'"
 )
 # a missing predictor is kept, on a fit that learned a route for it
 dfNA <- df

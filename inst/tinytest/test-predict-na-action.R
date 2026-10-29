@@ -345,7 +345,7 @@ unseen <- newDf
 unseen$g <- factor(c("u", "z", "w", "u", NA, "v"))
 expect_error(
   predict(fitF, unseen, na.action = na.pass),
-  "levels not present in the training data"
+  "test data factor 'g' has a level not present in the training data: 'z'"
 )
 # and in a container coded on its own level table
 expect_error(
@@ -354,7 +354,7 @@ expect_error(
     dbarts:::makeCategoricalModelMatrix(unseen[c("a", "b", "g")]),
     na.action = na.pass
   ),
-  "levels not present in the training data"
+  "test data factor 'g' has a level not present in the training data: 'z'"
 )
 
 # --- sparse newdata ---

@@ -388,7 +388,7 @@ expect_error(
     y,
     test = dbartsData(frame.align.new, rnorm(n.align))@x
   ),
-  pattern = "has levels not present in the"
+  pattern = "has a level not present in the training data: 'z'"
 )
 # save/load: sampler re-creation from the stored container restores state
 control.state <- dbartsControl(

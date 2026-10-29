@@ -341,7 +341,7 @@ expect_error(
     control = dbartsControl(n.trees = 5L, updateState = FALSE),
     sigest = 1
   ),
-  pattern = "has levels not present in the"
+  pattern = "has a level not present in the training data: 'L5'"
 )
 test.unseen <- data.frame(x1 = x1.te)
 test.unseen$g <- sparseFactor(
@@ -357,7 +357,7 @@ expect_error(
     control = dbartsControl(n.trees = 5L, updateState = FALSE),
     sigest = 1
   ),
-  pattern = "has levels not present in the"
+  pattern = "has a level not present in the training data: 'L5'"
 )
 
 # RESIDENCY: the sparse test set is held as a mixed container, not densified
@@ -649,7 +649,7 @@ codeMessage <- "categorical test predictors must hold existing category codes"
 # every view that carries no level table - a dense x.test matrix, and a
 # container whose levels DO line up but whose codes were planted past them
 # (below) - and for the training side.
-levelMessage <- "has levels not present in the training data"
+levelMessage <- "not present in the training data"
 expect_error(
   dbarts(
     dbartsData(train.bound, y.bound, test = over.codes),

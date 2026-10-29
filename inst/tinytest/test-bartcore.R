@@ -566,7 +566,7 @@ expect_error(
     a = factor(rep("7", 5L)),
     b = runif(5L)
   )),
-  pattern = "levels not present in the training data"
+  pattern = "has a level not present in the training data: '7'"
 )
 expect_error(
   sampler.cat$setCutPoints(0.5, 1L),

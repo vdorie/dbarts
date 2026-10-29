@@ -116,7 +116,7 @@ expect_identical(trees.dense, trees.sparse)
 unseenLabels <- c("L5", as.character(g.te[-1L]))
 expect_error(
   sampler$predict(data.frame(x1 = x1.te, g = factor(unseenLabels))),
-  pattern = "has levels not present in the"
+  pattern = "has a level not present in the training data: 'L5'"
 )
 test.unseen <- data.frame(x1 = x1.te)
 test.unseen$g <- sparseFactor(
@@ -126,7 +126,7 @@ test.unseen$g <- sparseFactor(
 )
 expect_error(
   sampler$predict(test.unseen),
-  pattern = "has levels not present in the"
+  pattern = "has a level not present in the training data: 'L5'"
 )
 
 # ---- a bare dgCMatrix test set against a numeric design ----

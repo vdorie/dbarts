@@ -156,7 +156,7 @@ df.bad <- df.test
 levels(df.bad$g) <- c("red", "blue", "purple")
 expect_error(
   dbartsData(y ~ g + o + z + b + s, df, test = df.bad, factors = "categorical"),
-  pattern = "levels not present"
+  pattern = "has a level not present in the training data: 'purple'"
 )
 
 # end to end: group means recovered through subset splits, and factor test

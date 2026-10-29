@@ -796,7 +796,7 @@ pdbart.checkLevs <- function(levs, levels, xLabels) {
         "'levs' for factor predictor '",
         xLabels[j],
         "' names levels not present in training: ",
-        paste0("'", unique(unknown), "'", collapse = ", ")
+        quotedLevelList(unknown)
       )
     }
     levs[[j]] <- values
