@@ -737,6 +737,14 @@ items
     forest() is called. A forest built by a wrapper whose formal holds the basis,
     function(b) forest(basis = b), is given the formal's value, so
     such a wrapper cannot pass on a column of the data by its name.
+  no-basis-forest-prior: ruled, not built (dec-B509). A forest with no
+    basis takes the fitting function's leaf prior, held, beside forests
+    with a basis too (k, a drawn k, normal(sd = ) accepted there); the
+    half-Cauchy prognostic prior becomes amplitude = student(1), which
+    bartCause's bcf states with sd = 2 sd(y). First a check of
+    treatment-effect interval coverage at equal time, held against
+    drawn, on bcf-like data; built with forests-shared-total (its D1)
+    and coefficient-prior-opt-in (its open call 2). For 1.0-0.
   control-migration: ruled, not built (dec-B239, dec-B240, dec-B241). The
     tree count moves to the model, per forest, with a plain n.trees on
     dbarts() and dbartsSpec() for the forest with no basis, refused
