@@ -85,6 +85,10 @@ refPartChains <- 2L # chains a reference part job runs
 pooledRuns <- 200L # pooled stuck runs a reference replication
 stuckRowCap <- 500L # quantities a row class keeps in the pooled stuck runs
 bootstrapResamples <- 4000L
+# SBC readings decide nothing on fewer replications: a bootstrap over so few
+# cannot see the spread between replications (the smoke's one replication read
+# as problems on the binomial floor alone)
+minSbcReps <- 20L
 bar <- 0.02
 zProblem <- qnorm(1 - 0.000156) # 3.60
 zNoProblem <- qnorm(0.975)
@@ -4352,17 +4356,20 @@ sbcReading <- function(regimeId, reps) {
       seD <- max(sd(bD, na.rm = TRUE), floorSe)
       G <- correctedDistanceFloor(abs(gEst), seG)
       band <- isTRUE(classInfo[[cl]]$band)
-      problem <- if (band) {
-        abs(dEst) >= bar && abs(dEst) - zProblem * seD > 0
-      } else {
-        G >= bar &&
-          abs(gEst) - zProblem * seG > 0 &&
-          abs(dEst) >= bar &&
-          sign(dEst) == sign(gEst) &&
-          abs(dEst) - zProblem * seD > 0
-      }
-      measured <- (!band && abs(gEst) + zNoProblem * seG < bar) ||
-        (dEst - zNoProblem * seD > -bar && dEst + zNoProblem * seD < bar)
+      enough <- sum(ok) >= minSbcReps
+      problem <- enough &&
+        if (band) {
+          abs(dEst) >= bar && abs(dEst) - zProblem * seD > 0
+        } else {
+          G >= bar &&
+            abs(gEst) - zProblem * seG > 0 &&
+            abs(dEst) >= bar &&
+            sign(dEst) == sign(gEst) &&
+            abs(dEst) - zProblem * seD > 0
+        }
+      measured <- enough &&
+        ((!band && abs(gEst) + zNoProblem * seG < bar) ||
+          (dEst - zNoProblem * seD > -bar && dEst + zNoProblem * seD < bar))
       rows[[length(rows) + 1L]] <- data.frame(
         regime = regimeId,
         cell = regimeId,
