@@ -134,6 +134,26 @@ harnessDir <- function() {
 source(file.path(harnessDir(), "binary-study-common.R"))
 source(file.path(harnessDir(), "binary-datasets.R"))
 
+# A run's seed tag (KMN_SEED_TAG, the run directory's name; none in stage 1)
+# enters every seed drawn while an SBC truth is made and every arm's seed, so
+# a tranche's replications are fresh against stage 1's gate runs. Seeds
+# drawn elsewhere (references, fixed k, bootstrap, the audit set) are
+# untagged; designed and real designs keep the binary interval study's.
+seedTag <- Sys.getenv("KMN_SEED_TAG")
+seedScope <- new.env()
+seedScope$tag <- ""
+seedOfUntagged <- seedOf
+seedOf <- function(...) {
+  if (nzchar(seedScope$tag)) {
+    seedOfUntagged(..., seedScope$tag)
+  } else {
+    seedOfUntagged(...)
+  }
+}
+taggedSeedOf <- function(...) {
+  if (nzchar(seedTag)) seedOfUntagged(..., seedTag) else seedOfUntagged(...)
+}
+
 runDir <- function(...) {
   root <- Sys.getenv("KMN_RUN")
   if (!nzchar(root)) {
@@ -804,6 +824,8 @@ priorDraw <- function(sampler, rowSets) {
 # k0 stays the drawn one, so the oracle's k is wrong by a factor of 2 and a
 # drawn k can absorb it).
 sbcDesign <- function(reg, link, rep, discriminate = "") {
+  seedScope$tag <- seedTag
+  on.exit(seedScope$tag <- "", add = TRUE)
   maxAttempts <- if (reg$select %in% c("rare", "e2")) 200000L else 5000L
   key <- paste(reg$id, link, rep, discriminate)
   base <- switch(
@@ -1190,6 +1212,7 @@ makeDesign <- function(cell, link, rep, discriminate = "") {
     real = bDesign(cell, link)
   )
   d$seconds <- proc.time()[["elapsed"]] - t0
+  d$seedTag <- if (reg$kind == "sbc") seedTag else ""
   saveAtomic(d, path)
   cat(sprintf(
     "design %s %s %d: %d attempts, rate %.3f, score %.3f, %.1f s\n",
@@ -1835,7 +1858,7 @@ readingIndices <- function(cell, link, arm) {
 armSeed <- function(cell, link, rep, arm) {
   # the shipped and move arms (and the oracle) start from one seed, so the
   # move's default is the k-fast control from the same start
-  seedOf(
+  taggedSeedOf(
     "fit",
     cell,
     link,
@@ -1911,7 +1934,7 @@ runArm <- function(cell, link, rep, arm, discriminate = "") {
         design,
         chains,
         lengths,
-        seedOf("S9-prop", cell, rep, arm),
+        taggedSeedOf("S9-prop", cell, rep, arm),
         truthK$ke0
       )
       parts <- list(psArr = pr$arr)
