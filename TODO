@@ -693,9 +693,9 @@ items
     the first included (dec-B268); a multiplier is the basis argument,
     the right-hand side of a model formula with no tilde, and the
     colon form goes (dec-B267, dec-B270); sd is a plain argument in
-    the response's units, one number per forest in 1.0, with
-    leaf.prior = normal(sd = ) the long form (dec-B266, dec-B269;
-    dec-B246 as revised; tree.prior as dec-B246, dec-B252). Meant: a
+    the response's units, one number per forest in 1.0, and forest()
+    takes no leaf.prior (dec-B266, dec-B269, dec-B508; dec-B246 as
+    revised; tree.prior as dec-B246, dec-B252). Meant: a
     multiplier is a factor by its class alone (dec-B260); a numeric
     multiplier is never centered or divided, its default sd is
     one unit of the response's scale per standard deviation of the
@@ -780,11 +780,9 @@ items
   forest-after-merge: built after the merge to main, for 1.0-0 still
     (dec-B276, VD 2026-10-06): setForestBasis(updateBasisScale = TRUE),
     which re-derives a default sd from a replaced column during
-    burn-in (dec-B265), and the long form leaf.prior = normal(sd = )
-    on forest() (dec-B266). Until then the first is absent, a caller
-    who replaces the column of a default-sd forest stating the sd,
-    and the second is R's unused-argument error. Selecting a forest
-    by its label is NOT deferred.
+    burn-in (dec-B265). Until then it is absent, a caller who
+    replaces the column of a default-sd forest stating the sd.
+    Selecting a forest by its label is NOT deferred.
   coefficient-prior-opt-in: a caller may opt a forest's drawn coefficient
     into a heavy-tailed prior (half-Cauchy; half-t(3) was measured too),
     as another value of forest()'s amplitude argument, beside fixed()
