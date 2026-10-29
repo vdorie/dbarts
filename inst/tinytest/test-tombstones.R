@@ -181,6 +181,25 @@ consControl <- dbarts::dbartsControl(
   updateState = FALSE
 )
 
+# --- rngKind and rngNormalKind: removed with no successor, so an error that
+# says so and says what makes a run reproducible now ---
+rngMsg <- tryCatch(
+  dbarts::dbartsControl(rngKind = "default", rngNormalKind = "default"),
+  error = conditionMessage
+)
+expect_true(grepl("unused arguments 'rngKind', 'rngNormalKind'", rngMsg))
+expect_true(grepl("removed in dbarts 1.0-0", rngMsg, fixed = TRUE))
+expect_true(grepl("'seed'", rngMsg, fixed = TRUE))
+expect_identical(
+  lengths(regmatches(rngMsg, gregexpr("removed in", rngMsg))),
+  1L
+)
+expect_error(
+  dbarts::bart(xCons, yCons, rngKind = "default", verbose = FALSE),
+  pattern = "removed in dbarts 1.0-0"
+)
+rm(rngMsg)
+
 # --- names that never reached main (dec-2026-09-24) ---
 
 # resid.dist, breaks, max.rows, dart, levelGibbs and prior.scale only ever

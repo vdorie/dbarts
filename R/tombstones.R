@@ -990,7 +990,17 @@ dotNames <- function(...) {
 ## so there is no registry entry, no warning and no NEWS text. A hint keyed
 ## by door wins over the shared one.
 foreignArgHints <- list(
-  node.prior = "the leaf prior is 'leaf.prior'"
+  node.prior = "the leaf prior is 'leaf.prior'",
+  rngKind = paste0(
+    "'rngKind' and 'rngNormalKind' were removed in dbarts 1.0-0: every chain ",
+    "runs its own generator, and 'seed' (or set.seed() before the fit, when ",
+    "unseeded) makes a run reproducible"
+  ),
+  rngNormalKind = paste0(
+    "'rngKind' and 'rngNormalKind' were removed in dbarts 1.0-0: every chain ",
+    "runs its own generator, and 'seed' (or set.seed() before the fit, when ",
+    "unseeded) makes a run reproducible"
+  )
 )
 foreignArgHintsByDoor <- list(
   dbartsSpec = list(
@@ -1013,10 +1023,10 @@ refuseForeignFrontDoorArgs <- function(supplied, caller, own) {
   foreign <- setdiff(supplied[nzchar(supplied)], accepted)
   if (length(foreign) > 0L) {
     known <- c(foreignArgHintsByDoor[[caller]], foreignArgHints)
-    hints <- unlist(
+    hints <- unique(unlist(
       known[unique(foreign[foreign %in% names(known)])],
       use.names = FALSE
-    )
+    ))
     stop(
       "unused argument",
       if (length(foreign) > 1L) "s" else "",
