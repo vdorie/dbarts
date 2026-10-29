@@ -15,9 +15,10 @@ x/y interface (and so
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s and
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s) returns
 one under the same condition and stores it in the resulting `dbartsData`
-object's `x`/`x.test` slot. The formula interface accepts a sparse
-column too, named like any other (including through `.`): a bare S4
-column cannot survive
+object's `x`/`x.test` slot. A fit or sampler made from a formula or a
+data frame holds one as its `data@x` whether or not a column is sparse.
+The formula interface accepts a sparse column too, named like any other
+(including through `.`): a bare S4 column cannot survive
 [`model.frame`](https://rdrr.io/r/stats/model.frame.html), so it is
 lifted out of `data` first and re-attached, row-subset under `subset`
 and `na.action`, to the assembled predictor matrix afterward.
@@ -33,6 +34,8 @@ dimnames(x)
 x[i, j, drop = TRUE]
 # S3 method for class 'dbartsMixedMatrix'
 as.matrix(x, ...)
+# S3 method for class 'dbartsMixedMatrix'
+as.data.frame(x, row.names = NULL, optional = FALSE, ...)
 ```
 
 ## Arguments
@@ -49,6 +52,15 @@ as.matrix(x, ...)
 - drop:
 
   Logical; as for a matrix, only consulted when `j` is supplied.
+
+- row.names:
+
+  `NULL`, the default, for a data frame's default row names, or a vector
+  of row names.
+
+- optional:
+
+  Unused.
 
 - ...:
 
@@ -67,12 +79,20 @@ to a dense \\n \times p\\ numeric matrix (a factor column's codes,
 zero-based) and is the escape hatch for any operation the container
 itself does not support.
 
+`as.data.frame` gives the predictors as the model sees them, one column
+per column of the container, named by `colnames(x)`: numeric columns as
+numeric, and a factor column as a factor over its declared levels, which
+keeps a level no row takes. For a fit made from a formula of plain
+variables, `predict` and `setTestPredictor` take that data frame as new
+data. A formula that transforms or expands a variable (`I(z^2)`,
+`factor(i)`, a matrix term, `poly(z, 2)`) names columns that are not the
+variables it reads, so new data for it is a data frame of those
+variables, not this one.
+
 What is **not** supported: matrix-style subassignment
-(`x[i, j] <- value` errors), and coercion to a
-[`data.frame`](https://rdrr.io/r/base/data.frame.html)
-(`as.data.frame(x)` errors - there is no `as.data.frame` method).
-`is.matrix(x)` is `FALSE`. Code that needs either should call
-`as.matrix(x)` first.
+(`x[i, j] <- value` errors). `is.matrix(x)` is `FALSE`, and a base
+function that does not dispatch on the class, such as `cbind`, does not
+see a matrix. Code that needs a matrix should call `as.matrix(x)` first.
 
 ## Value
 
@@ -80,7 +100,7 @@ What is **not** supported: matrix-style subassignment
 length-two list, the first element always `NULL`. `[` with `j` supplied
 returns a numeric vector or matrix, matching `drop`; with `j` missing it
 returns another `dbartsMixedMatrix`. `as.matrix` returns a plain numeric
-matrix.
+matrix, and `as.data.frame` a data frame.
 
 ## See also
 

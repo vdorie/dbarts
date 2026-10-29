@@ -5,7 +5,10 @@ pointing at its successor. They are removed in dbarts 1.1-0.
 
 `bart2` is the former name of the modern front door, which is now
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md); a `bart2`
-call is forwarded unchanged, with a warning the first time in a session.
+call is forwarded, with a warning the first time in a session. Its one
+default that differs from `bart`'s is `combineChains = FALSE`, as in
+0.9-34's `bart2`, so a multi-chain fit keeps its chains as a margin of
+its draws. The fit's stored call is the `bart2` call as written.
 
 `rbart_vi` and its methods are deprecated, and documented on
 [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md).
@@ -205,8 +208,9 @@ Every entry above, `bart2` and `rbart_vi`, is one row of
 
 ## Value
 
-`bart2` returns whatever
-[`bart`](https://vdorie.github.io/dbarts/reference/bart.md) returns.
+`bart2` returns what
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md) returns,
+with the chains separate unless `combineChains = TRUE` is given.
 
 ## See also
 

@@ -201,6 +201,7 @@ Names kept reachable for one release past their removal or rename.
   [`dimnames(`*`<dbartsMixedMatrix>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsMixedMatrix.md)
   [`` `[`( ``*`<dbartsMixedMatrix>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsMixedMatrix.md)
   [`as.matrix(`*`<dbartsMixedMatrix>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsMixedMatrix.md)
+  [`as.data.frame(`*`<dbartsMixedMatrix>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsMixedMatrix.md)
   : Mixed Dense/Sparse Predictor Container
 - [`guessNumCores()`](https://vdorie.github.io/dbarts/reference/guessNumCores.md)
   : Guess Number of Cores

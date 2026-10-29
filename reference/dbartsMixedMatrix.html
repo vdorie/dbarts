@@ -8,7 +8,9 @@
   one whenever x carries a sparse column; dbartsData's
   x/y interface (and so dbarts's and bart's)
   returns one under the same condition and stores it in the resulting
-  dbartsData object's x/x.test slot. The formula
+  dbartsData object's x/x.test slot. A fit or sampler
+  made from a formula or a data frame holds one as its data@x
+  whether or not a column is sparse. The formula
   interface accepts a sparse column too, named like any other (including
   through .): a bare S4 column cannot survive
   model.frame, so it is lifted out of data first and
@@ -22,7 +24,9 @@
   one whenever x carries a sparse column; dbartsData's
   x/y interface (and so dbarts's and bart's)
   returns one under the same condition and stores it in the resulting
-  dbartsData object's x/x.test slot. The formula
+  dbartsData object's x/x.test slot. A fit or sampler
+  made from a formula or a data frame holds one as its data@x
+  whether or not a column is sparse. The formula
   interface accepts a sparse column too, named like any other (including
   through .): a bare S4 column cannot survive
   model.frame, so it is lifted out of data first and
@@ -76,7 +80,9 @@
   one whenever <code>x</code> carries a sparse column; <code><a href="dbartsData.html">dbartsData</a></code>'s
   x/y interface (and so <code><a href="dbarts.html">dbarts</a></code>'s and <code><a href="bart.html">bart</a></code>'s)
   returns one under the same condition and stores it in the resulting
-  <code>dbartsData</code> object's <code>x</code>/<code>x.test</code> slot. The formula
+  <code>dbartsData</code> object's <code>x</code>/<code>x.test</code> slot. A fit or sampler
+  made from a formula or a data frame holds one as its <code>data@x</code>
+  whether or not a column is sparse. The formula
   interface accepts a sparse column too, named like any other (including
   through <code>.</code>): a bare S4 column cannot survive
   <code><a href="https://rdrr.io/r/stats/model.frame.html" class="external-link">model.frame</a></code>, so it is lifted out of <code>data</code> first and
@@ -93,7 +99,9 @@
 <span><span class="co"># S3 method for class 'dbartsMixedMatrix'</span></span>
 <span><span class="va">x</span><span class="op">[</span><span class="va">i</span>, <span class="va">j</span>, drop <span class="op">=</span> <span class="cn">TRUE</span><span class="op">]</span></span>
 <span><span class="co"># S3 method for class 'dbartsMixedMatrix'</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">as.matrix</a></span><span class="op">(</span><span class="va">x</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">as.matrix</a></span><span class="op">(</span><span class="va">x</span>, <span class="va">...</span><span class="op">)</span></span>
+<span><span class="co"># S3 method for class 'dbartsMixedMatrix'</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">x</span>, row.names <span class="op">=</span> <span class="cn">NULL</span>, optional <span class="op">=</span> <span class="cn">FALSE</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -108,6 +116,13 @@
 
   <dt id="arg-drop">drop<a class="anchor" aria-label="anchor" href="#arg-drop"></a></dt>
 <dd><p>Logical; as for a matrix, only consulted when <code>j</code> is supplied.</p></dd>
+
+  <dt id="arg-row-names">row.names<a class="anchor" aria-label="anchor" href="#arg-row-names"></a></dt>
+<dd><p><code>NULL</code>, the default, for a data frame's default row names, or a
+    vector of row names.</p></dd>
+
+  <dt id="arg-optional">optional<a class="anchor" aria-label="anchor" href="#arg-optional"></a></dt>
+<dd><p>Unused.</p></dd>
 
   <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Unused.</p></dd>
@@ -126,11 +141,19 @@
   \(n \times p\) numeric matrix (a factor column's codes,
   zero-based) and is the escape hatch for any operation the container
   itself does not support.</p>
+<p><code>as.data.frame</code> gives the predictors as the model sees them, one
+  column per column of the container, named by <code>colnames(x)</code>: numeric
+  columns as numeric, and a factor column as a factor over its declared
+  levels, which keeps a level no row takes. For a fit made from a formula of
+  plain variables, <code>predict</code> and <code>setTestPredictor</code> take that data
+  frame as new data. A formula that transforms or expands a variable
+  (<code>I(z^2)</code>, <code>factor(i)</code>, a matrix term, <code>poly(z, 2)</code>) names
+  columns that are not the variables it reads, so new data for it is a data
+  frame of those variables, not this one.</p>
 <p>What is <strong>not</strong> supported: matrix-style subassignment (<code>x[i, j]
-  &lt;- value</code> errors), and coercion to a <code><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></code>
-  (<code>as.data.frame(x)</code> errors - there is no <code>as.data.frame</code>
-  method). <code>is.matrix(x)</code> is <code>FALSE</code>. Code that needs either
-  should call <code>as.matrix(x)</code> first.</p>
+  &lt;- value</code> errors). <code>is.matrix(x)</code> is <code>FALSE</code>, and a base function
+  that does not dispatch on the class, such as <code>cbind</code>, does not see a
+  matrix. Code that needs a matrix should call <code>as.matrix(x)</code> first.</p>
     </div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -139,7 +162,7 @@
   with <code>j</code> supplied returns a numeric vector or matrix, matching
   <code>drop</code>; with <code>j</code> missing it returns another
   <code>dbartsMixedMatrix</code>. <code>as.matrix</code> returns a plain numeric
-  matrix.</p>
+  matrix, and <code>as.data.frame</code> a data frame.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
