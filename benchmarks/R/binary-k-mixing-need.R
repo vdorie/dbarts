@@ -2336,9 +2336,13 @@ referenceSampler <- function(design, link, task, seed, part, which, dir) {
     tail <- tail[order, , , drop = FALSE]
   }
   if (which == "shipped") {
+    # the control's call holds the data frames do.call inlined (a D1
+    # sampler's 340 MB); a continuation never reads it
+    s$control@call <- quote(bart())
     s$storeState()
     saveRDS(s, file.path(dir, sprintf("shipped-part%d-sampler.rds", part)))
     if (!is.null(sp)) {
+      sp$control@call <- quote(bart())
       sp$storeState()
       saveRDS(sp, file.path(dir, sprintf("shipped-part%d-psampler.rds", part)))
     }
