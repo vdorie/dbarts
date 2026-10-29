@@ -180,10 +180,14 @@ expect_null(
   )$varprobs
 )
 
-# the Dirichlet machinery is fixed at creation
+# the Dirichlet machinery is fixed at creation: the sampler's own model is
+# taken, and one with the ordinary tree prior is refused
+expect_silent(sampler.dart$setModel(sampler.dart$model))
+model.cgm <- sampler.dart$model
+model.cgm@tree.prior <- methods::new("dbartsCGMPrior")
 expect_error(
-  sampler.dart$setModel(sampler.dart$model),
-  pattern = "changing a DART tree prior is not available"
+  sampler.dart$setModel(model.cgm),
+  pattern = "cannot change the tree prior's kind"
 )
 
 # bart exposes DART through split.probs = dart() and packages varprobs

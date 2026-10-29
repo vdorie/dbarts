@@ -360,7 +360,10 @@ expect_equal(sampler.logit$model@family, "logistic")
 # setModel cannot silently change the family either
 newModel <- sampler.logit$model
 newModel@family <- "gaussian"
-sampler.logit$setModel(newModel)
+expect_error(
+  sampler.logit$setModel(newModel),
+  "cannot change the response family"
+)
 expect_equal(sampler.logit$model@family, "logistic")
 
 # bart forwards the argument

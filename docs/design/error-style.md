@@ -596,10 +596,9 @@ per-slot refusal ([`dbartsSampler$setControl`](../../R/dbarts.R)). C-side backst
 keep their own idiom under R7/R8 (`"%s: a multi-forest sampler fixes its data
 at creation; make a new sampler instead"`,
 ["a multi-forest sampler fixes its data at creation"](../../src/R_interface_bartcore.cpp)).
-Conformance: `setModel`'s DART-tree-prior refusal
-(["changing a DART tree prior is not available on an existing"](../../R/dbarts.R))
-reads `"changing a DART tree prior is not available on an existing sampler:
-recreate it instead"`, matching this rule.
+Conformance: `setModel`'s structure refusal
+([`modelStructureRefusal`](../../R/bartcore.R)) names the subject and the two
+values, then ends `"make a new sampler instead"`, matching this rule.
 
 **External evidence.** R14 happens to already use the phrase the R13 survey
 just found to be the *more* common external construction: `"not available"`

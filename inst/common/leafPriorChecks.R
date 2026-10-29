@@ -20,7 +20,7 @@ checkPlotTreeAndFixedPrior <- function(sampler) {
   # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
   expect_error(
     sampler$setModel(model.const),
-    pattern = "fixed when a sampler is created"
+    pattern = "cannot change the leaf model"
   )
 }
 

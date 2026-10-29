@@ -376,6 +376,7 @@ reverted <- dbarts(
 )
 strippedModel <- reverted$model
 strippedModel@prior.scale <- NA_real_
+strippedModel@leaf.prior@prior.sd <- NULL
 reverted$setModel(strippedModel)
 expect_false(identical(
   withoutSetModel$run(20L, 10L)$train,

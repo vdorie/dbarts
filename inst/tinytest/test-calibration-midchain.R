@@ -598,8 +598,9 @@ expect_error(
   "softmax calibration map"
 )
 
-# DART is NOT refused. $setModel refuses a DART sampler outright; the write
-# moves the spread, or the distribution, and the fit runs clean afterwards
+# DART is NOT refused: $setModel takes the sampler's own DART model, and the
+# write moves the spread, or the distribution, and the fit runs clean
+# afterwards
 dartSampler <- dbarts(
   x,
   y,
@@ -608,7 +609,7 @@ dartSampler <- dbarts(
   leaf.prior = normal(sd = 0.75),
   n.trees = 20L
 )
-expect_error(dartSampler$setModel(dartSampler$model), "DART")
+expect_silent(dartSampler$setModel(dartSampler$model))
 dartSampler$setLeafPrior(normal(sd = 0.2))
 expect_true(max(abs(priorSdOf(dartSampler) / 0.2 - 1)) < 1e-14)
 dartSampler$setLeafPrior(normal(k = 3))

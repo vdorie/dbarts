@@ -3159,16 +3159,17 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setModel = function(newModel) {
-      "Sets the model object for the sampler to a new one."
+      "Sets the model object for the sampler to a new one, changing the numbers inside the model and refusing, by name and before anything is stored, a model of another structure. It takes power and base, the split probabilities, the leaf scale as k or sd (and a k drawn or held), the residual prior and a held residual sd, under the ordinary tree prior or DART alike. It refuses a model of another response family (a Student-t error against a Gaussian one included), another kind of leaf or leaf covariate columns, a gp leaf's max.leaf.size, other interaction limits or blocks, DART against the ordinary tree prior, other columns a forest may split on, other monotone directions, a multinomial sampler or one whose forests carry amplitudes, a residual prior other than its own on a family with no residual scale (probit, logistic, ordinal, negative binomial, hazard), and a raw leaf specification whose k or sd does not resolve to the leaf hyperprior and prior scale the model carries; $setLeafPrior restates a leaf prior. A change to the Student-t degrees of freedom, a negative-binomial shape, a gp lengthscale or DART's own settings is refused as not yet available. The sampler's own model, as after setResponse or setOffset, is always accepted."
+      if (!inherits(newModel, "dbartsModel")) {
+        stop("'model' must inherit from dbartsModel")
+      }
+      modelStructureRefusal(.self, newModel)
       refuseCountsMutation(
         .self,
         "$setModel",
         "every category forest's prior is calibrated at creation from the ",
         "softmax map; make a new sampler instead"
       )
-      if (!inherits(newModel, "dbartsModel")) {
-        stop("'model' must inherit from dbartsModel")
-      }
       refuseInvalidLeafPrior(newModel@leaf.prior)
       refuseAmplitudeMutation(
         .self,
@@ -3176,31 +3177,6 @@ dbartsSampler <- setRefClass(
         "every forest's node and tree priors are calibrated at creation; ",
         "make a new sampler instead"
       )
-      # the Dirichlet machinery is fixed at creation: a sampler cannot gain
-      # or reconfigure it
-      if (
-        is(newModel@tree.prior, "dbartsDartPrior") ||
-          is(model@tree.prior, "dbartsDartPrior")
-      ) {
-        stop(
-          "changing a DART tree prior is not available on an existing ",
-          "sampler: recreate it instead"
-        )
-      }
-      # the columns a forest may split on are structure: its trees were drawn
-      # under them, so a model stating others, or none, is another model
-      if (
-        !identical(
-          attr(newModel, "forest.columns", exact = TRUE),
-          attr(model, "forest.columns", exact = TRUE)
-        )
-      ) {
-        stop(
-          "$setModel cannot change the columns a forest may split on, its ",
-          "'vars': they are fixed when a sampler is created; make a new ",
-          "sampler instead"
-        )
-      }
       # the rest of the structure the model's records name, before anything
       # is stored
       refusal <- movedStructureRefusal(newModel, model)

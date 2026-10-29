@@ -2633,6 +2633,270 @@ setModelRefused <- function(sampler) {
     is(sampler$model@tree.prior, "dbartsDartPrior")
 }
 
+# The family a fitting function resolves "auto" to against this sampler's
+# response: counts are multinomial, a categorical response of three or more
+# levels ordinal if ordered and multinomial if not, a binary one probit, and a
+# numeric one probit when it holds exactly 0 and 1 and gaussian otherwise.
+autoFamilyFor <- function(data) {
+  if (!is.null(dataCounts(data))) {
+    return("multinomial")
+  }
+  if (identical(data@response.type, "numeric")) {
+    values <- unique(data@y)
+    binary <- length(values) == 2L && all(sort(values) == c(0, 1))
+    return(if (binary) "probit" else "gaussian")
+  }
+  if (data@response.n.levels >= 3L) {
+    return(
+      if (identical(data@response.type, "ordered factor")) {
+        "ordinal"
+      } else {
+        "multinomial"
+      }
+    )
+  }
+  "probit"
+}
+
+# The kind of response a model states: the family token a fitting function
+# recorded, else a Student-t error if the model carries degrees of freedom,
+# else the engine family, "auto" resolved against the sampler's response.
+modelFamilyKind <- function(model, data) {
+  spec <- attr(model, "family.spec", exact = TRUE)
+  if (!is.null(spec)) {
+    return(spec@token)
+  }
+  if (!is.null(attr(model, "resid.df", exact = TRUE))) {
+    return("student")
+  }
+  if (identical(model@family, "auto")) autoFamilyFor(data) else model@family
+}
+
+# A negative-binomial shape as the engine holds it: a positive whole number,
+# or -1 for one estimated on the grid.
+nbShapeValue <- function(shape) {
+  if (is.null(shape) || is.na(shape) || shape <= 0) -1 else as.double(shape)
+}
+
+# Whether the family has no residual scale for a prior to describe.
+familyHasNoResidualScale <- function(family) {
+  family %in% c("probit", "logistic", "ordinal", "nbinom", "multinomial")
+}
+
+# What $setModel refuses by name, before anything is stored: a model that
+# differs from the sampler's in a structural fact, a parameter the engine does
+# not yet install, a residual prior on a family with no residual scale, and a
+# raw leaf specification out of step with its resolved slots. Messages name
+# the sampler's value and the model's.
+modelStructureRefusal <- function(sampler, newModel) {
+  model <- sampler$model
+  data <- sampler$data
+  differs <- function(what, own, given) {
+    stop(
+      "$setModel cannot change ",
+      what,
+      ": this sampler's is ",
+      own,
+      " and the model's is ",
+      given,
+      "; make a new sampler instead",
+      call. = FALSE
+    )
+  }
+  attrDiffers <- function(name) {
+    !identical(
+      attr(newModel, name, exact = TRUE),
+      attr(model, name, exact = TRUE)
+    )
+  }
+  quoted <- function(value) paste0("'", value, "'")
+
+  # the family
+  family <- if (identical(newModel@family, "auto")) {
+    autoFamilyFor(data)
+  } else {
+    newModel@family
+  }
+  if (!identical(family, model@family)) {
+    differs("the response family", quoted(model@family), quoted(family))
+  }
+  ownKind <- modelFamilyKind(model, data)
+  newKind <- modelFamilyKind(newModel, data)
+  if (!identical(ownKind, newKind)) {
+    differs("the response family", quoted(ownKind), quoted(newKind))
+  }
+
+  # the leaf kind and its columns
+  leafKind <- function(prior) {
+    if (is(prior, "dbartsLinearPrior")) {
+      "linear()"
+    } else if (is(prior, "dbartsGPPrior")) {
+      "gp()"
+    } else {
+      "normal()"
+    }
+  }
+  ownLeaf <- model@leaf.prior
+  newLeaf <- newModel@leaf.prior
+  if (!identical(leafKind(ownLeaf), leafKind(newLeaf))) {
+    differs("the leaf model", leafKind(ownLeaf), leafKind(newLeaf))
+  }
+  if (!is(ownLeaf, "dbartsNormalPrior")) {
+    columnsText <- function(prior) {
+      paste0("columns ", paste(prior@columns, collapse = ", "))
+    }
+    if (!identical(ownLeaf@columns, newLeaf@columns)) {
+      differs(
+        "the leaf covariate columns",
+        columnsText(ownLeaf),
+        columnsText(newLeaf)
+      )
+    }
+  }
+  if (is(ownLeaf, "dbartsGPPrior")) {
+    if (!identical(ownLeaf@max.leaf.size, newLeaf@max.leaf.size)) {
+      differs(
+        "a gp leaf's max.leaf.size",
+        ownLeaf@max.leaf.size,
+        newLeaf@max.leaf.size
+      )
+    }
+  }
+
+  # interactions and blocks; an absent attribute states none
+  if (attrDiffers("interaction.max.order")) {
+    differs(
+      "the interaction limit",
+      format(attr(model, "interaction.max.order", exact = TRUE)),
+      format(attr(newModel, "interaction.max.order", exact = TRUE))
+    )
+  }
+  if (attrDiffers("interaction.forbidden")) {
+    differs(
+      "the forbidden interactions",
+      "one set of pairs",
+      "another"
+    )
+  }
+  if (attrDiffers("block.of.column") || attrDiffers("block.tree.counts")) {
+    differs("the blocks", "one partition", "another")
+  }
+
+  # DART against the ordinary tree prior
+  ownDart <- is(model@tree.prior, "dbartsDartPrior")
+  newDart <- is(newModel@tree.prior, "dbartsDartPrior")
+  if (ownDart != newDart) {
+    kind <- function(dart) if (dart) "dart()" else "cgm()"
+    differs("the tree prior's kind", kind(ownDart), kind(newDart))
+  }
+
+  # the columns a forest may split on: its trees were drawn under them
+  if (attrDiffers("forest.columns")) {
+    stop(
+      "$setModel cannot change the columns a forest may split on, its ",
+      "'vars': they are fixed when a sampler is created; make a new ",
+      "sampler instead",
+      call. = FALSE
+    )
+  }
+
+  # parameters the engine does not install yet
+  yet <- function(what) {
+    stop(
+      "$setModel: ",
+      what,
+      " cannot be changed on an existing sampler yet",
+      call. = FALSE
+    )
+  }
+  if (identical(ownKind, "student")) {
+    ownDf <- as.double(attr(model, "resid.df", exact = TRUE))
+    newDf <- as.double(attr(newModel, "resid.df", exact = TRUE))
+    if (!identical(ownDf, newDf)) {
+      yet("the Student-t degrees of freedom")
+    }
+  }
+  newSpec <- attr(newModel, "family.spec", exact = TRUE)
+  if (identical(model@family, "nbinom") && !is.null(newSpec)) {
+    ownShape <- nbShapeValue(
+      attr(sampler$control, "bartcore.shape", exact = TRUE)
+    )
+    if (!identical(ownShape, nbShapeValue(newSpec@settings[["shape"]]))) {
+      yet("the negative-binomial shape")
+    }
+  }
+  if (
+    is(ownLeaf, "dbartsGPPrior") &&
+      !is.null(newLeaf@lengthscale) &&
+      !identical(ownLeaf@lengthscale, newLeaf@lengthscale)
+  ) {
+    yet("a gp leaf's lengthscale")
+  }
+  if (ownDart && newDart) {
+    for (slotName in c(
+      "a",
+      "b",
+      "rho",
+      "alpha",
+      "update.alpha",
+      "update.delay"
+    )) {
+      if (
+        !identical(
+          methods::slot(model@tree.prior, slotName),
+          methods::slot(newModel@tree.prior, slotName)
+        )
+      ) {
+        yet(paste0("DART's '", slotName, "'"))
+      }
+    }
+  }
+
+  # a family with no residual scale has no prior to give one
+  if (
+    familyHasNoResidualScale(model@family) &&
+      !identical(newModel@resid.prior, model@resid.prior)
+  ) {
+    stop(
+      "$setModel: family '",
+      ownKind,
+      "' has no residual scale to give a prior",
+      call. = FALSE
+    )
+  }
+
+  # the raw leaf specification must resolve to the slots that act, as
+  # $setLeafPrior resolves it; a sampler of several forests or categories is
+  # refused wholesale after this
+  if (!samplerCarriesAmplitudes(sampler) && !samplerCarriesCounts(sampler)) {
+    refuseInvalidLeafPrior(newLeaf)
+    resolved <- tryCatch(
+      resolveLeafPrior(
+        newLeaf,
+        drawsLeafKByDefault(model@family),
+        monotone = !is.null(attr(model, "monotone", exact = TRUE))
+      ),
+      error = function(e) e
+    )
+    if (
+      inherits(resolved, "error") ||
+        !identical(resolved$leaf.hyperprior, newModel@leaf.hyperprior) ||
+        !identical(resolved$prior.scale, newModel@prior.scale)
+    ) {
+      stop(
+        "$setModel: the model's leaf prior specification (its 'k' or 'sd') ",
+        "does not resolve to the leaf hyperprior and prior scale it carries; ",
+        "restate the leaf prior with $setLeafPrior",
+        if (inherits(resolved, "error")) {
+          paste0(" (", conditionMessage(resolved), ")")
+        },
+        call. = FALSE
+      )
+    }
+  }
+  invisible(NULL)
+}
+
 # Installs the control's move settings on every forest that states none of its
 # own, and nothing else: the route setControl takes where the prior install is
 # refused or would do more than the change asks.

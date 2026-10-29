@@ -1043,6 +1043,7 @@ sampler.sm1 <- dbarts(x, y, control = control.sm, n.trees = 20L)
 model.new <- sampler.sm1$model
 model.new@tree.prior@power <- 1.5
 model.new@tree.prior@base <- 0.8
+model.new@leaf.prior@k <- 3
 model.new@leaf.hyperprior@k <- 3
 sampler.sm1$setModel(model.new)
 set.seed(43)

@@ -244,6 +244,17 @@
             0.9-34 read the control's. A count or rule written on the control
             is used where the model or the data object states none and refused
             where it states another.
+      \item The sampler's \code{$setModel} refuses, by name, a model of
+            another structure: another response family or kind of error, a
+            different leaf model or leaf covariate columns, interaction
+            limits, blocks, a DART tree prior against the ordinary one, or
+            columns a forest may split on. 0.9-34 took these and ran the
+            sampler's own model on the live sampler, so that a copy ran
+            another. It also refuses a residual prior other than the
+            sampler's own on a family with no residual scale, and a model
+            whose leaf prior's \code{k} or \code{sd} does not resolve to
+            the leaf hyperprior it carries. Create a new sampler for
+            another structure.
     }
   }
   \subsection{USER-VISIBLE CHANGES}{

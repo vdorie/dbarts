@@ -415,8 +415,15 @@ badModel@leaf.hyperprior <- methods::new(
   scale = Inf
 )
 badModel@prior.scale <- 1.3
+expect_error(handBuilt$setModel(badModel), "does not resolve")
+# and the bridge, which $setModel's own check precedes, refuses it as well
 expect_error(
-  handBuilt$setModel(badModel),
+  dbarts:::bartcoreSetModel(
+    list(ptr = handBuilt$getPointer()),
+    badModel,
+    handBuilt$data,
+    handBuilt$control
+  ),
   "named prior scale requires a finite k or chi scale"
 )
 
