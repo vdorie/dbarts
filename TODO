@@ -1164,23 +1164,6 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     not re-checked here. The tombstone keeps it working until 1.1-0 with
     a once-per-session warning; ask for leaf.prior, version-guarded while
     it still supports 0.9-x.
-  validate the schedule/dispatch-only workflows (equivalence, rchk,
-    revdep-smoke, sbc, valgrind) on their first live runs, which
-    happen once main is the working line (VD 2026-10-28): GitHub
-    fires schedules only from the default branch, now main, and the
-    workflows' push filters name main. Until then they ran only when
-    dispatched by hand or when a push touched their own file. rchk
-    and valgrind have each run once by hand: rchk clean over 077981f0
-    (15738 functions; the bridge's setState bails out on both
-    instantiations from state-space size and is left unanalyzed, as
-    CRAN's own rchk will be too), and valgrind over the
-    whole tinytest suite on the x86 box at 329e3db9
-    (docs/plans/valgrind-xbart.md). The first live CI runs after the
-    merge confirm rather than discover the PROTECT-balance and
-    memcheck passes CRAN itself runs. revdep-smoke.yaml's matrix now
-    names each consumer's default branch (stan4bart main, bartCause
-    main, treatSens master); those branches are being made the
-    consumers' default at this merge.
   re-verify all four sister packages (stan4bart, treatSens, bartCause,
     bairrtt) against the final re-baked dbarts.h once, at the freeze.
     Verified 2026-10-28 against 6447eeac (dbarts.h unchanged since
