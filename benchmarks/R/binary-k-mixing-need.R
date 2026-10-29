@@ -5130,6 +5130,121 @@ combineReading <- function(sbc, ref) {
   "unresolved"
 }
 
+# D1's secondary reading, reported and not deciding: the binary interval
+# study's pilot fits of its A6 cells (D1's four), replications 1 to 10, the
+# shipped and move default readings as that study scored them against the
+# designed truth: treatment-contrast coverage, M1 to M3, unit and contrast
+# bands. Per cell, link and measure: each arm's mean over replications and the
+# move's paired difference, with bootstrap standard errors over replications;
+# M3 is the pooled share of wrong declarations. The near-separated cell is
+# flagged: the pilot's probabilities were single precision.
+d1SecondaryMeasures <- c(
+  "t90Cov",
+  "t95Cov",
+  "m1Cov90",
+  "m1Cov95",
+  "m2Band90",
+  "m2Band95",
+  "m3Share90",
+  "m3Share95",
+  "unitBand90Cov",
+  "unitBand95Cov",
+  "tSim90",
+  "tSim95"
+)
+
+d1Secondary <- function(reps = 1:10) {
+  bisRun <- Sys.getenv("KMN_BIS_RUN")
+  if (!nzchar(bisRun)) {
+    return(NULL)
+  }
+  rows <- list()
+  for (link in both) {
+    for (cell in regimeCells(regimes$D1)) {
+      name <- sub("^D1:", "", cell)
+      get <- function(arm) {
+        out <- lapply(reps, function(r) {
+          p <- file.path(
+            bisRun,
+            "fits",
+            link,
+            paste0("A6_", name),
+            sprintf("r%03d-%s.rds", r, arm)
+          )
+          if (!file.exists(p)) {
+            return(NULL)
+          }
+          m <- loadChecked(p)$readings$default$measures
+          want <- c(
+            setdiff(d1SecondaryMeasures, c("m3Share90", "m3Share95")),
+            "m3Wrong90",
+            "m3Decl90",
+            "m3Wrong95",
+            "m3Decl95"
+          )
+          vapply(
+            want,
+            function(nm) {
+              if (is.null(m[[nm]])) NA_real_ else as.numeric(m[[nm]])
+            },
+            0
+          )
+        })
+        names(out) <- reps
+        out
+      }
+      sh <- get("shipped")
+      mv <- get("move")
+      common <- names(sh)[
+        !vapply(sh, is.null, NA) & !vapply(mv, is.null, NA)
+      ]
+      if (length(common) < 2L) {
+        next
+      }
+      S <- do.call(rbind, sh[common])
+      M <- do.call(rbind, mv[common])
+      stat <- function(X, meas, idx) {
+        if (meas %in% c("m3Share90", "m3Share95")) {
+          lv <- sub("m3Share", "", meas)
+          sum(X[idx, paste0("m3Wrong", lv)]) /
+            max(sum(X[idx, paste0("m3Decl", lv)]), 1)
+        } else {
+          mean(X[idx, meas])
+        }
+      }
+      boot <- withSeed(
+        seedOf("d1-secondary", cell, link),
+        lapply(seq_len(bootstrapResamples), function(i) {
+          sample.int(length(common), replace = TRUE)
+        })
+      )
+      every <- seq_along(common)
+      for (meas in d1SecondaryMeasures) {
+        bs <- vapply(boot, function(b) stat(S, meas, b), 0)
+        bm <- vapply(boot, function(b) stat(M, meas, b), 0)
+        rows[[length(rows) + 1L]] <- data.frame(
+          cell = cell,
+          link = link,
+          measure = meas,
+          reps = length(common),
+          shipped = stat(S, meas, every),
+          seShipped = sd(bs),
+          move = stat(M, meas, every),
+          seMove = sd(bm),
+          diff = stat(M, meas, every) - stat(S, meas, every),
+          seDiff = sd(bm - bs),
+          flag = if (name == "arr1-sep") {
+            "single precision near separation"
+          } else {
+            ""
+          }
+        )
+      }
+    }
+  }
+  if (length(rows)) do.call(rbind, rows) else NULL
+}
+
 runRead <- function(tranche = 1L) {
   all <- list()
   for (reg in regimes) {
@@ -5195,14 +5310,21 @@ runRead <- function(tranche = 1L) {
     }
   }
   tab <- do.call(rbind, all)
+  d1 <- if (tranche == 1L) d1Secondary() else NULL
   saveAtomic(
-    list(table = tab, tranche = tranche, quick = quick),
+    list(table = tab, d1Secondary = d1, tranche = tranche, quick = quick),
     runDir(sprintf("readings-t%d.rds", tranche))
   )
-  num <- vapply(tab, is.numeric, logical(1L))
-  shown <- tab
-  shown[num] <- lapply(tab[num], function(v) round(v, 4L))
-  print(shown, row.names = FALSE)
+  show <- function(x) {
+    num <- vapply(x, is.numeric, logical(1L))
+    x[num] <- lapply(x[num], function(v) round(v, 4L))
+    print(x, row.names = FALSE)
+  }
+  show(tab)
+  if (!is.null(d1)) {
+    cat("\nD1 secondary reading (the pilot's replications; not deciding):\n")
+    show(d1)
+  }
   invisible(tab)
 }
 
