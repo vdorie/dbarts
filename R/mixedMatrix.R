@@ -461,6 +461,45 @@ as.matrix.dbartsMixedMatrix <- function(x, ...) {
   result
 }
 
+## The predictors as a data frame, the form predict() and setTestPredictor
+## take as new data: numeric columns stay numeric and a factor column is a
+## factor over its declared levels, whether or not every level occurs in the
+## rows. A sparse column is read through as.matrix, one dense copy of the
+## whole container, and takes its levels from the container's "factor.levels"
+## where it has them. Row names are a data frame's default; the container
+## has none.
+as.data.frame.dbartsMixedMatrix <- function(
+  x,
+  row.names = NULL,
+  optional = FALSE,
+  ...
+) {
+  numColumns <- ncol(x)
+  declaredLevels <- attr(x, "factor.levels", exact = TRUE)
+  codes <- if (any(x$map < 0L)) as.matrix(x) else NULL
+  columns <- vector("list", numColumns)
+  for (j in seq_len(numColumns)) {
+    column <- if (x$map[j] > 0L) x$dense[[x$map[j]]] else codes[, j]
+    levelsOfColumn <- if (j <= length(declaredLevels)) declaredLevels[[j]]
+    if (!is.null(levelsOfColumn) && !is.factor(column)) {
+      column <- factor(levelsOfColumn[column + 1L], levels = levelsOfColumn)
+    }
+    columns[[j]] <- column
+  }
+  names(columns) <- if (is.null(x$columnNames)) {
+    paste0("V", seq_len(numColumns))
+  } else {
+    x$columnNames
+  }
+  attr(columns, "row.names") <- if (is.null(row.names)) {
+    .set_row_names(nrow(x))
+  } else {
+    row.names
+  }
+  class(columns) <- "data.frame"
+  columns
+}
+
 ## The k-th column of a column-major replacement block of numColumns columns
 ## over numObservations rows. A single-column call hands back the supplied
 ## vector itself, so the reference install below stays a pointer swap.

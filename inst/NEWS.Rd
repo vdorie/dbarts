@@ -251,6 +251,15 @@
             \code{factors = "indicators"} (\code{bart}, \code{dbarts},
             \code{dbartsData}, \code{xbart}) for the previous expansion;
             \code{bartBT} expands as before.
+      \item A fit's or sampler's \code{data@x}, when it was made from a
+            formula or a data frame, is now a container that keeps each
+            factor as one column, not a numeric matrix. Use
+            \code{as.data.frame(data@x)} for the predictors as a data frame,
+            factors as factors with their declared levels, which
+            \code{predict} and \code{setTestPredictor} take as new data, and
+            \code{as.matrix(data@x)} for a numeric matrix with a factor as
+            its codes. Base functions that do not dispatch on the class,
+            such as \code{cbind}, do not see it as a matrix.
       \item Rows with missing predictors are kept and their missingness
             modeled, where 0.9-34 dropped them. The new \code{na.action}
             of \code{bart}, \code{dbarts} and \code{dbartsData} defaults to
