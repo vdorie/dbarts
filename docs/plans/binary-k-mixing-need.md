@@ -993,9 +993,16 @@ the commit that adds this amendment.
   too, its shipped arm (0.879 and 0.865) reported as a contrast. The 50-tree run is dropped: the leaf prior
   sets f's prior variance through k whatever the number of trees, so it cannot flag.
 - **Graded controls**, a new gate: on the null run's S6 designs, the oracle at k fixed at 1.25 and at 0.8
-  times the true k, read as the shipped arm is read, must read "problem" in interior f under both links.
-  It passes: D is -0.042 and -0.047 at 1.25 (probit, logistic; se 0.002) and +0.025 and +0.031 at 0.8 (se
-  0.002).
+  times the true k, read as the shipped arm is read, must read "problem" in interior f under both links. A
+  problem reading needs both G and D at or past the bar of 0.02 and each more than 3.6 standard errors
+  from zero. It passes, the margins over the bar in standard errors: at 1.25 (probit, logistic) G is 0.042
+  and 0.057 (se 0.004 and 0.005; margins 5.2 and 7.6) and D -0.042 and -0.047 (se 0.002; margins 13 and
+  15); at 0.8, G is 0.024 and 0.021 (se 0.003; margins 1.4 and 0.4) and D +0.025 and +0.031 (se 0.0014 and
+  0.0016; margins 3.3 and 6.8). The 0.8 control passes thinly under logistic: its G clears the bar by 0.4
+  standard errors, which follows from the rule rather than from a defect. Measured by the review, D clears
+  the bar reliably from about 1.5 times the bar, while a reading of over-coverage near the bar is close to
+  a coin flip; scalar reference classes have no control and resolve only from about 0.045 at 12
+  references.
 - **Reference-path control**, a new gate: on tranche 1's count of S6 and S7 probit references (12 each,
   full length, fresh seeds), every chain of the user's fit at k fixed at 1.25 times the reference's median
   k, read through the reference reading as the shipped default is, must read "problem" in S6's interior f
@@ -1006,22 +1013,25 @@ the commit that adds this amendment.
   at the 99th percentile). It used 1.6 core-hours. The control also runs on tranche 1's S6 and S7
   references and is reported.
 - **Null bound.** The null run's bound is Bonferroni over its 12 readings at a two-sided 0.05: |z| at most
-  2.87, in place of 2.81. The run passes (largest |z| 2.52, the logistic default oracle). The review's 600
-  further replications put both links' oracle at 0.898 (se 0.0015), and its longer oracle shows the
-  default oracle's finite length costs about 0.2 points of coverage: the logistic offset is noise and
-  length, not a defect.
+  2.87, in place of 2.81. The run passes (largest |z| 2.52, the logistic default oracle). Both bounds,
+  2.81 and 2.87, were set after the logistic -2.52 was seen, so neither settles it: the review's null run
+  of 600 further replications does, putting both links' oracle at 0.898 (se 0.0015), and its longer oracle
+  shows the default oracle's finite length costs about 0.2 points of coverage: the logistic offset is
+  noise and length, not a defect.
 - **Seeds.** Every seed drawn while an SBC truth is made, and every arm's seed, carries the run's tag (its
   directory name; stage 1 has none), so tranche 1's S6 replications are fresh against the null run's gate
   designs. Designed and real designs keep the binary interval study's seeds.
 - **Escalation.** A failing first pass escalates when the shipped chains' effective draws project a pass
   at the escalated length, whatever else failed; the halves' agreement, k's agreement and Rhat are judged
-  at the final pass. Before, as [References](#references) has it, only a disagreement on k or a shortfall
-  of k's effective draws escalated, and only where k's and the failing quantities' effective draws
-  projected a pass. The escalated shipped half is written at the move's draw count: its chains continue at
-  five times the thinning, and the first pass's draws are thinned by five. The projection reads the first
-  pass the same way, its effective draws thinned by five, times five. Before, the projection scaled the
-  unthinned series, and the escalated half kept five times the draws: an escalated D1 reference would have
-  needed about 45 GB of memory to score.
+  at the final pass. [References](#references) escalates a disagreement on k or a shortfall of k's
+  effective draws where the effective draws project a pass, but the pre-registered code never escalated a
+  k disagreement at all: its projection multiplied the failing z of k's agreement by a factor above one,
+  so a first pass that disagreed on k failed at once, as did one failing the halves' agreement or Rhat.
+  The escalated shipped half is written at the move's draw count: its chains continue at five times the
+  thinning, and the first pass's draws are thinned by five. The projection reads the first pass the same
+  way, its effective draws thinned by five, times five. Before, the projection scaled the unthinned
+  series, and the escalated half kept five times the draws: an escalated D1 reference would have needed
+  about 45 GB of memory to score.
 - **Pooling.** A pooled reference weighs its halves equally: both halves hold the same number of draws
   (above), wherever they could differ the longer is thinned to the shorter, and pooled mass readings
   average the halves' masses rather than summing their counts. Before, an escalated half counted five
@@ -1059,8 +1069,8 @@ the commit that adds this amendment.
   job carries a peak-memory estimate scaled from these by its reference's size (16 GB for D1 and S3
   scoring), and the queue starts the earliest runnable job only while the running jobs' estimates and its
   own stay within 21 GB; a later job passes it only if it leaves the waiting job a worker and its memory
-  once the jobs started before it end. Four workers. Alternative: a worker count fixed by the largest
-  job, one, about 80 hours of wall time.
+  once the jobs started before it end. Four workers. Alternative: a worker count fixed by the largest job,
+  one, about 80 hours of wall time.
 - **Cost.** Tranche 1 projects to 83 core-hours from the timing pass's per-sweep times (60 of sampling:
   fits 11, references 37, escalation 10, fixed k 2; plus 15 percent for shared memory bandwidth and 20 for
   scoring and start-up) and 80 from the smoke's job times scaled to full length, against 80 and 77 before
