@@ -602,6 +602,22 @@ listed, and only that: replication counts (down, to fit the stop, by the order o
 threshold (to keep own runs within cost), and a widened truth's center (by the stated rule). Any other
 change after a fit is scored is a deviation, disclosed in the finding.
 
+Disclosed with the pre-registration, from the review of the Part B fixes:
+
+- **The cell rule reads high near the bar.** A cell's bound linearizes its gap difference and leaves out
+  C0's folded-gap noise near nominal, so the rule fires at the bar, not below it: in the reviewer's
+  constructed case on F, a true difference of 0.021 flagged 14 of 68 cells, and 0.010 and 0.015 none.
+- **The information fractions assume every cell gets both blocks**, so a look's fraction is understated
+  when fewer run (0.354 at look 1 in the reviewer's case), which raises the early boundaries; the error
+  spent still sums to 0.05, the final look's fraction being 1. Each look recomputes the earlier looks'
+  boundaries from its updated variances. The cell rule and the width guard are fixed-level t tests
+  repeated at each look, outside the spending.
+- **Prices not measured**: C4 at its floor and C5 on null data have not run at full length; their own runs
+  are priced at C0's length.
+- **Paths not coded**: step 4 and step 3's first tie-break, which stage 1's results rule out (the default
+  fails A, and no candidate passes it with margin). The harness records both results as constants, and
+  the decision stops with an error if either is changed.
+
 ## Amendments before results
 
 Made 2026-10-29 on the orchestrator's calls after the critique's re-check of this plan (verdict: build
