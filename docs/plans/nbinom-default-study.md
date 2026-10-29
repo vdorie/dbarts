@@ -8,9 +8,9 @@ Part A. The maintainer ruled the criterion (dec-B502): five candidates go to the
 [Amendment after stage 1](#amendment-after-stage-1). Stage 2 ran the same day ([Stage 2](#stage-2)): the
 long reading's check passed, and the main run re-prices at about 60 core-hours before confirmation. The
 orchestrator ruled on its report the same day ([Amendment after stage 2](#amendment-after-stage-2)). C4's
-and C5's scratch build passed its drift tests, Part B is in the harness, and the smoke ran clean
-([Box readiness](#box-readiness)): about 48 core-hours expected before confirmation, about 110 at most.
-Runs after the merge to main and before 1.0-0.
+and C5's scratch build passed its drift tests, Part B is in the harness, revised on the Part B review's
+findings, and the smoke ran clean on its own seeds ([Box readiness](#box-readiness)): about 48 core-hours
+expected before confirmation, the stop at 110. Runs after the merge to main and before 1.0-0.
 
 agent: the blind critique (opus) ran; this revision answers it. One opus implementer writes the harness,
 runs it and writes the finding; an opus review of the harness, the scratch build and the smoke at stage 4,
@@ -23,8 +23,8 @@ express today is checked at the default length on a scratch build carrying only 
 window: after the merge to main, before 1.0-0 (dec-B432). A change of default it supports goes back to the
 maintainer; building it is a separate, posterior-changing slice.
 budget: harness about 1,100 lines of R (benchmarks/R/nbinom-default-study.R; stages 0 to 2 and Part B,
-written, are about 4,200 as formatted), reusing the first study's prior predictive draw. Compute about 48
-core-hours expected before confirmation, stop at about 110 ([Box readiness](#box-readiness)).
+written, are about 5,300 as formatted), reusing the first study's prior predictive draw. Compute about 48
+core-hours expected before confirmation, stop at 110 ([Box readiness](#box-readiness)).
 
 ## Summary for the maintainer
 
@@ -911,17 +911,19 @@ differ from the text above, they govern.
 
 ## Box readiness
 
-Run 2026-10-29 on the laptop's two cores, before any fit was scored.
+Run 2026-10-29 on the laptop's two cores, before any fit was scored, and revised the same day on the Part B
+review's findings (its verdict: fix first) and the orchestrator's calls on them.
 
 **C4's and C5's scratch build.** One build serves both candidates and the guard: the move build, with
 its k step and the move's k term taking the prior an environment setting names, read at each use and unset
 for the shipped chi(1.5, 2). With the move switched off it is today's sampler carrying only the k step,
 the build the guard's default readings need (stage 7). Under C4, k^2 is drawn exactly from its gamma
 truncated at the floor: by rejection while the floor keeps at least 5 percent of the conditional's mass,
-otherwise from an exponential proposal at the floor, whose ratio to the target is largest there. That
-departs from the inversion the amendment before results states; both are exact at a constant expected
-cost. Under C5, a slice step on log k. The move's k term is the candidate's own log pi(k e^-v) - v, as
-that amendment states.
+otherwise from an exponential proposal at the floor, the target's ratio to which is largest there. That
+departs from the inversion the [Amendments before results](#amendments-before-results) state: both are
+exact at a constant expected cost, and inversion stays accurate even far in the tail (checked to a log
+tail probability of -839), so the departure is one of code, not of the draw's distribution. Under C5, a
+slice step on log k. The move's k term is the candidate's own log pi(k e^-v) - v, as that amendment states.
 
 - *Identity.* With its prior unset, the build draws as the move build, draw for draw; with the move off,
   as today's sampler; and under a floor that cannot bind, as either. One fit: 200 rows, 2 chains of 600
@@ -934,68 +936,180 @@ that amendment states.
   spreads wider under the half-normal. A stress run at a floor of 1.5 gives z -0.59; there the chain came
   within 10 percent of the floor in 33 percent of replications, against 6 and 10 percent at 0.6 and 0.75.
   Each passes.
+- *What the drift tests cannot see.* They have no power on C4's tail branch: the review's mutant, which
+  accepts every exponential proposal there, gave z -0.05 at the stress floor and went undetected, since
+  the chain takes that branch too rarely to move log k. That branch's exactness rests on the analytic
+  argument (the target's ratio to the proposal is largest at the floor, so accepting with that ratio
+  over its value there is exact) and on the R port's match to inversion on that branch.
+- *The base.* The two patches are checked in beside the harness, each stating its base: the move patch
+  against main at 8a78507c, which pins "today" (main has since moved), and the kprior patch on top of it.
+  Applied to a fresh tree of that commit they give the laptop's libraries' source exactly.
+
+**On the box, before any job**, by the checked-in box script: copy the exported data with its truths
+(the counterfactual truths included); build the three libraries (today, move and kprior) from a fresh
+tree of 8a78507c and the patches; rerun the identity there, two seeds and all four pairs, any difference
+or missing pair stopping the run; then calibrate: C0's long run on roaches and crimtab widened to 3 and on
+mite as fitted, at a fixed length (500 sweeps of burn-in, 2,500 kept, 4 chains, three at once), against
+the laptop's times for the same runs (95, 92 and 77 seconds, two at once). Their median ratio rescales the
+sizing table before the queue starts and converts the box's measured seconds to the table's for the stop.
+Then the plan writes look 1's queue, and four workers split it.
 
 **Part B in the harness.** The main run, its scoring and the guard's jobs, written to the plan; the calls
-it makes where the plan leaves one open, for the stage 4 review and the pre-registration:
+it makes where the plan leaves one open, for the pre-registration:
 
-- *Cells.* 73 cells and 55 folds; the harness writes the cell table (band, rows, S_id, identified share,
-  mean count, shape, groups, replications) for the pre-registration. BCI enters no fitted cell, as
-  re-priced after stage 2. The five shape-below-1 cells take their band's count. By the band rule, D4 at
-  S 2 falls in the wide band (S_id 1.80 over the 87 percent of its rows identified) rather than with the
-  small samples, and D6 in the middle (1.48). 725 replications: 670 on truths and 55 folds.
+- *Cells.* 73 cells and 55 folds; the harness writes the cell table (band, rows, S and S_id, identified
+  share, mean count, shape, G's columns, R's column and rows, replications) for the pre-registration. BCI
+  enters no fitted cell, as re-priced after stage 2. The five shape-below-1 cells take their band's count.
+  D4 at S 2 is a small-sample cell, as the design table names it; by the band rule alone its S_id of 1.80
+  (over the 87 percent of its rows identified) would put it in the wide band. D6 falls in the middle
+  band (1.48). 540 replications at look 1: 485 on truths and 55 folds.
+- *Replications.* Narrow 5, middle 5, wide 5 (crimtab's cells 10), small-sample 10, cut from 20 after the
+  review: at stage 2's paired spread the band's standard error is about 0.0014 and its noisiest cell's
+  0.0033, under the tie margin.
 - *Designed cells* not run in stage 2, as their table states: D1's exposure log-uniform over 1 to 1,000 at
   a rate of 0.05; D7's treatment drawn with probability logistic((x1 - x2) / 2), its log rate ratio
   0.3 + 0.7 logistic(1.5 x5), and the rest scaled so that S is 1.
 - *G*: per replication, the levels of the first covariate with 2 to 10 distinct values and the quartiles
-  of the first numeric covariate with more; each group's log mean count.
-- *R*, on the designed cells only: a real dataset's truth is stored as its values at the observed rows,
-  so f(x, 1) - f(x, 0) has no truth there. Up to 200 rows a replication, each row's log rate ratio and the
-  sample-average rate ratio over them, the two weighted equally.
+  of the first numeric covariate with more; each group's log mean count. The columns this picks: roaches,
+  treatment and roach1's quartiles; solder, Opening; aids, quarter and delay's quartiles; mite, Substrate
+  and SubsDens's quartiles; Arabidopsis, reg; grouseticks, YEAR and HEIGHT's quartiles; epil, trt and
+  base's quartiles; Insurance, District; crimtab, finger's quartiles; Traffic, limit and day's quartiles;
+  quakes, lat's quartiles; the designed cells, b and x1's quartiles.
+- *R*: up to 200 rows a replication, each row's log rate ratio between the two values of a binary column
+  and the sample-average rate ratio over them, the two weighted equally; on the designed cells (b) and on
+  the six real datasets with a binary covariate: roaches (treatment), epil (trt), Traffic (limit),
+  Arabidopsis (amd), solder (Solder) and mite (Topo). Their truths at either level: the additive truth's
+  GAM refitted by the export's rule, which reproduces the stored truth exactly, and predicted with the
+  column flipped; a widened truth's widening, an affine map of the log mean, applied to that prediction
+  too; the BART-fitted truth's fit rerun at its seed with the flipped rows as test rows, which reproduces
+  the stored truth exactly since prediction draws nothing. R's cells by band, the shape-below-1 cells
+  apart: narrow 4 of 8 (Traffic's two, D5, D8); middle 12 of 14; wide 15 of 26; small-sample 10 of 20
+  (roaches' and epil's eight, D4 at both spreads).
 - *Readings* are taken from all of a run's draws, as the correction was measured; 500 draws a run are
-  stored in single precision for later reweighting (C6 crossed with step 3's choice).
+  stored in single precision for later reweighting (C6 crossed with step 3's choice). A run keeps its
+  draws as the chunks it drew, not appended by copy, and is read a block of rows at a time; C0's draws are
+  freed before the own runs. Measured on mite with R's rows (2,850 rows) at 5,000 and 10,000 sweeps
+  a chain: R's heap peaks at 321 and 413 MB and the process at 850 and 992 MB, growing 1.06 and 1.6
+  times as fast as the draws held. Near the cap (100,000 sweeps, 1.8 GB of draws) that is about 2.7 to
+  3.7 GB a worker, at most about 15 GB on four workers, against the box's 24 GiB with swap off.
 - *Expected coverage*: the long reading against 0.9 N / (N + 1); the default reading against 0.9, since
   what users get includes its Monte Carlo error.
-- *Bounds.* The interval score's 5 percent rule on the band-weighted average ratio, candidate over C0, at
-  the upper end of its paired bootstrap interval; the width guard per narrow cell at its ratio plus 1.96
-  bootstrap standard errors. The log score per dataset over its 5 folds, C0's less the candidate's,
-  averaged over the 11 datasets, the folds a dataset's replications in the bootstrap. P on the simulated
-  cells' held-out rows and on the folds, each dataset's folds in its as-fitted band. A close call's z is
-  (0.02 - average) / se for non-inferiority and (lead - 0.005) / se for step 3's lead, against the
-  look's boundary.
+- *The coverage correction, paired.* Steps 2 and 3 read a candidate's gap less C0's, so the correction's
+  error that matters is the paired one: a candidate's error less C0's on the same run, rows and share of
+  draws, from the correction's runs. At 100 or more effective draws it is +0.0002 (standard error 0.0002),
+  every candidate within 0.0004 (chi(4, 1.03) +0.0002, chi(5, 0.9) +0.0004, C4 at 0.6 +0.0001 and at 0.75
+  +0.0003, C5 -0.0002). That is the evidence for the own-run threshold of 100 (the second cut of the
+  [Amendment after stage 2](#amendment-after-stage-2)); the absolute error's 0.002 holds at the point
+  estimates only (above 200 effective draws -0.0015 to -0.0018, about two standard errors). The correction
+  was measured on F's training rows; G and R carry it by extension, and P is scored against 0.9.
+- *P*: the randomized PIT's uniform for each held-out row is drawn by the cell's, replication's and row's
+  own seed, the same for every candidate and both readings.
+- *Bounds.* Band-averaged statistics take the paired bootstrap over whole replications within a cell, each
+  cell resampled by its own seed, so that every candidate, class and statistic resamples the same
+  replications. Cell-level bounds take t on m - 1 degrees of freedom with sd / sqrt(m) over the cell's m
+  replications: a cell is worse by the bar when its gap difference less 0.02 exceeds that bound, the
+  per-replication difference taken as each reading's miss signed by its mean miss (the gap's linear
+  part); the width guard's ratio has the delta method's standard error, sd(IS_c - ratio IS_0) / (sqrt(m)
+  mean(IS_0)). The log score per dataset over its 5 folds, C0's less the candidate's, averaged over the 11
+  datasets, at its 95 percent bound. P on the simulated cells' held-out rows and on the folds, each
+  dataset's folds in its as-fitted band.
 
-**The smoke.** Every cell and fold at one replication, at a tenth of every length (100 sweeps of burn-in,
-chunks of 250, a target of 10 effective draws and an own run below 10), its long and its default reading,
-and a guard default reading of each kind (chi(4, 1.03) on today's sampler, C4 at 0.6 and 0.75 and C5 on
-the scratch build with the move off): 260 jobs on the laptop's two cores, all clean, 0.7 core-hours.
-Own runs of every kind ran (40 chi, 25 floor, 26 half-normal), and no floor run drew a k below its floor;
-crimtab widened to 3 sat at the floor, as expected. The scoring ran blind: shapes only, every class and
-guard computed for every candidate where its readings exist, no coverage missing; run with its output
-discarded, the reading as it will print after the pre-registration finished without error.
+**The decision, group-sequential**, at each look on every replication run so far:
 
-The widened-to-3 truths leave few rows identified where the data are mostly zeros: 9 percent of mite's
-rows, 17 percent of D4's at S 3, 35 percent of epil's, 43 percent of solder's and 48 percent of quakes'.
-F and P read only those rows (on mite about 220 of 2,450), so these cells are thinner than their size, not
-degenerate: their totals run from 7,000 to 31,000 counts.
+- *Boundaries.* Two-sided at 0.05 by Lan-DeMets spending of O'Brien-Fleming type on each side, at the
+  realized information fractions, the final look's 1. At equal thirds this gives 3.71, 2.51 and 1.99;
+  the looks are never equal here, since the small-sample band and crimtab's cells start at 10
+  replications and the rest at 5, so the spending's boundaries replace the classical 3.47, 2.45 and 2.00.
+  A look's information fraction is the variance of a band-weighted average over the truth cells at the
+  planned maximum (each cell's look-1 replications and two blocks of 5) over its variance at that look,
+  each cell's variance a replication estimated at the look, averaged over the classes and fitted
+  candidates.
+- *Step 2*, per fitted candidate on the long reading: each class's gap less C0's against 0.02, the widest
+  cells' gap against 0.02 in each class, and each class's interval score ratio against 1.05 (F, G, R),
+  each z = (bar - estimate) / se: passing at the boundary, failing at minus the boundary, pending between.
+  No cell worse by the bar, none of the shape-below-1 cells worse, and the log score, as bounded above;
+  each narrow cell's width ratio passing at most 1.10 at its upper bound, failing above it at its lower
+  bound, pending between. Step 2 fails if any part fails, passes if every part passes, and is pending
+  otherwise.
+- *Step 3*, per pair of candidates not failing step 2: the lead in rank (the mean of F's and R's gaps less
+  C0's) less 0.005 against the boundary: untied at it, tied at minus it, pending between.
+- *A look decides* when the recommendation is the same under every way its pending results could resolve
+  (a step 2 passing or failing, a pair tied or untied). At the final look pending reads as a fail for
+  step 2 and as tied for step 3.
+- *Confirmation blocks.* A look that does not decide funds the next look's block: per band, the share of
+  each pending statistic's variance a block of 5 replications on that band would remove, summed over the
+  pending statistics, per core-hour of the block (the band's measured cost a replication); every band
+  within a quarter of the best band's rate, best first, while the stop allows, the last band funded cut to
+  its cheapest cells that fit. The folds never grow. A look that can fund no block is final.
+- *The stop*, 110 core-hours in the sizing table's units, the box's seconds converted by its calibration.
+  At the sizing below, a block on every band costs about 37 and both blocks on every band come to
+  about 122: the stop cuts the second wide block, as pre-registered.
+- *Step 5*, computed once a look decides: step 3's order (its choice, then its choice among the rest, a
+  pending result read as at the final look); the first candidate in it whose default reading's gap less
+  C0's is below 0.02 at its 95 percent bound in every class, read once on every replication run; a
+  candidate whose default readings are missing waits for them, the decision writing its guard queue. If
+  none, the default is kept.
+- *Steps 1 and 4.* No candidate passes A with margin and the default fails A (stage 1), so the first
+  tie-break and step 4 never apply.
 
-**Sizing**, per component, at the amended sizes: stage 2's sweeps a replication by band and own-run rate
-at C0's stop (own runs priced at C0's length), the move build's cost a sweep fitted on stage 2's runs, the
-smoke's cell table, and the smoke's timing of the readings. Laptop seconds throughout.
+**The widest cells' guard** reads crimtab's cells and the cells widened to S_id 3, whose S runs past A1's
+line of 4 on five datasets, all of them at S_id 3 (their spread is over rows whose mean the data barely
+identify); the caps hold on all (expected totals at most 19,897, the largest mean at most 9,960):
+
+| cell | S | S_id | cell | S | S_id |
+|---|---|---|---|---|---|
+| mite widened to 3 | 9.54 | 3 | grouseticks widened to 3 | 3.61 | 3 |
+| solder widened to 3 | 5.02 | 3 | crimtab-bart | 3.59 | 2.33 |
+| crimtab widened to 3 | 5.01 | 3 | roaches widened to 3 | 3.00 | 3 |
+| epil widened to 3 | 4.43 | 3 | Insurance widened to 3 | 3.00 | 3 |
+| Arabidopsis widened to 3 | 4.17 | 3 | Traffic widened to 3 | 3.00 | 3 |
+| quakes widened to 3 | 3.92 | 3 | crimtab | 2.96 | 2.19 |
+| aids widened to 3 | 3.65 | 3 | | | |
+
+**Own runs a replication**, reconciled: stage 2's runs read at C0's stop and the correction's runs, which
+ran to it, measure the same rule on different runs. Stage 2's give, a replication, narrow 2.40 (15 runs), middle 0 (5), wide 1.33 (6) and
+small-sample 2.05 (20); the correction's 2.25 (4), 0.20 (5), 1.17 (6) and 1.88 (8). The earlier sizing's
+wide 1.6 had left mite and solder out of the band, and the amendment's figures are the correction's alone.
+Pooled: 2.37, 0.10, 1.25 and 2.00. The sizing uses the pooled rates.
+
+**The smoke**, rerun after these changes on its own seeds: its replications are numbered from 900 and
+the main run's go to 30 at most, so no seed is shared; at a tenth of every length (100 sweeps of
+burn-in, chunks of 250, a target of 10 effective draws and an own run below 10); scoring off. Look 1 ran
+every cell at two replications (the folds at one), each its long and C0's default reading. Each look's
+decision ran blind, printing only shapes: every statistic, cell bound, information fraction and boundary,
+the enumeration of outcomes, and on a smoke the block allocation whatever the outcome, which funded the
+small-sample and narrow bands (28 replications) for looks 2 and 3. Step 5 wrote the guard queue for the
+first candidate in its order, waited for the 28 replications each block added, read it once complete,
+and moved to the next candidate's queue when that one did not hold. Guard readings of every kind ran:
+chi(4, 1.03) on today's sampler on every replication, C4 at 0.6 and 0.75 and C5 on the scratch build
+with the move off. 775 jobs on the laptop's two cores, all clean, 1.6 core-hours; 194 own runs (81 chi,
+55 floor, 58 half-normal), and no floor run drew a k below its floor; no coverage missing.
+
+**Sizing**, per component, at the amended sizes: stage 2's sweeps a replication by band
+(the widened-to-3 wide cells at the mean of the two measured, crimtab's and roaches', 11,250 sweeps a
+chain), the move build's seconds a sweep fitted on rows, total count and rows times shape (R squared
+0.97), R's test rows at 0.14 of a row each from the smoke, the pooled own-run rates with own runs priced
+at C0's length, the readings timed on the smoke, and today's sampler at 1/1.2 of the move build's cost a
+sweep for the default readings (stage 2 measured about 1/1.3). Laptop core-hours throughout; the box's
+calibration rescales them.
 
 | component | count | core-hours |
 |---|---|---|
-| C0's long runs | 670 replications and 55 folds | 16.3 |
-| own runs below 100 effective draws or with failing weights | narrow 2.4, middle 0, wide 1.6, small-sample 2.05 a replication | 25.3 |
-| readings from all draws | | 1.9 |
-| C0's default readings | 725 | 2.2 |
-| the guard, one candidate's default readings | 725 | about 2.2 |
+| C0's long runs | 485 replications and 55 folds | 18.0 |
+| own runs | narrow 2.37, middle 0.10, wide 1.25, small-sample 2.00 a replication | 23.3 |
+| readings from all draws | | 2.6 |
+| C0's default readings | 540 | 2.2 |
+| the guard, one candidate's default readings | 540 | 2.2 |
 | expected before confirmation | | about 48 |
-| a confirmation block of 5 replications | narrow 4.1, middle 2.4, wide 21.4, small-sample 3.1 | 31 a block on every band |
-| at most, two blocks on every band | | about 110, the stop |
-| the smoke, laptop, done | 260 jobs | 0.7 |
+| a confirmation block of 5 replications | narrow 4.7, middle 3.2, wide 25.2, small-sample 3.8 | 37 a block on every band |
+| two blocks on every band | | about 122, past the stop of 110 |
+| the smoke, laptop, done | 775 jobs | 1.6 |
 
-By band, before confirmation: narrow 8 cells at 5, 4.1; middle 14 at 5, 2.0; wide 27 at 5 (crimtab's 10),
-21.8; small-sample 19 at 20, 12.4; the shape-below-1 cells, 1.5; the folds, 3.7. On the box's four cores
-the main run is about 12 hours of wall time; its stored outputs about 2.5 GB.
+By band, before confirmation: narrow 8 cells at 5, 4.7; middle 14 at 5, 2.7; wide 26 at 5 (crimtab's 10),
+26.2; small-sample 20 at 10, 7.5; the shape-below-1 cells, 1.3; the folds, 3.6. On the box's four cores the
+main run is about 12 hours of wall time at the laptop's speed; its stored outputs about 3 GB. Not
+measured: C4 at its floor and C5 on null data have not run at full length, and own runs are priced at
+C0's length.
 
 ## How the result goes to the maintainer
 
@@ -1043,7 +1157,9 @@ updated or closed.
   again at stage 4.
 - Run lengths, weight failures and unsettled shares on small samples, BCI and the widened truths; stage 2
   measures them, and the costs above are projections until then.
-- The box's per-sweep times: every cost here is the laptop's. Own runs are priced at C0's length.
+- The box's per-sweep times until its calibration rescales the sizing: every cost here is the laptop's.
+  Own runs are priced at C0's length; C4 at its floor and C5 on null data have not run at full length.
+  R's test rows are priced from quick runs.
 - That every widened truth fits under the count rule after re-centering, and that every GAM truth converges
   under the fixed rule (the probes fitted it on all twelve).
 - That C6's per-draw weights keep enough effective draws in every cell; a cell where they do not reports C6
