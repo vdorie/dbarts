@@ -737,6 +737,16 @@ items
     forest() is called. A forest built by a wrapper whose formal holds the basis,
     function(b) forest(basis = b), is given the formal's value, so
     such a wrapper cannot pass on a column of the data by its name.
+  control-migration: ruled, not built (dec-B239, dec-B240, dec-B241). The
+    tree count moves to the model, per forest, with a plain n.trees on
+    dbarts() and dbartsSpec() for the forest with no basis, refused
+    beside a stated one; n.cuts and useQuantiles become dbarts() and
+    dbartsData() arguments; the binary flag is the family's; the control's
+    binary, n.trees and useQuantiles stay as mirrored copies until 1.1-0
+    (dec-B240), its n.cuts goes. forests = forest() without list() is
+    taken (dec-B241). On main today dbarts(n.trees = ) is an unused
+    argument and dbartsControl(n.trees = ) is the count (audit run
+    2026-10-29). For 1.0-0.
   control-carried-count-edges: with the control migration (dec-A179).
     setControl given a control whose carried count differs takes it,
     keeps the sampler's count and warns (dec-B385).
