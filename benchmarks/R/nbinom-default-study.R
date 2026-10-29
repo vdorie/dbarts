@@ -3965,10 +3965,10 @@ runGuardPlan <- function(code) {
 
 ## ------------------------------------------------- Part B: the scoring
 
-# Off until the pre-registration commit turns it on. Before that, a quick
-# run (NBS_QUICK) may exercise it on its toy runs, printing only the shape
+# Turned on by the pre-registration commit. Before it, a quick run
+# (NBS_QUICK) exercised the scoring on its toy runs, printing only the shape
 # of what it computed, never a value.
-scoringOn <- FALSE
+scoringOn <- TRUE
 
 # The folded normal's mean at d >= 0, in units of its standard error, and
 # its inverse: a cell's distance from nominal corrected for noise, as

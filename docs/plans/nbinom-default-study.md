@@ -10,7 +10,8 @@ long reading's check passed, and the main run re-prices at about 60 core-hours b
 orchestrator ruled on its report the same day ([Amendment after stage 2](#amendment-after-stage-2)). C4's
 and C5's scratch build passed its drift tests, Part B is in the harness, revised on the Part B review's
 findings, and the smoke ran clean on its own seeds ([Box readiness](#box-readiness)): about 48 core-hours
-expected before confirmation, the stop at 110. Runs after the merge to main and before 1.0-0.
+expected before confirmation, the stop at 110. Pre-registered the same day, before any study fit was
+scored ([Pre-registration](#pre-registration)). Runs after the merge to main and before 1.0-0.
 
 agent: the blind critique (opus) ran; this revision answers it. One opus implementer writes the harness,
 runs it and writes the finding; an opus review of the harness, the scratch build and the smoke at stage 4,
@@ -591,6 +592,9 @@ Each gate is a stop: a failure is a harness defect to fix, not a finding, unless
    maintainer ([How the result goes to the maintainer](#how-the-result-goes-to-the-maintainer)).
 
 ## Pre-registration
+
+Made 2026-10-29 by the commit that turns the harness's scoring on, with this plan, the harness, the two
+patches and the box script at their state in it; no study fit had been scored.
 
 Committed to this plan, with the harness at that commit, after stages 0 to 4 and before any study fit is
 scored: the maintainer's ruling on the criterion, quoted; the decision rule; the candidates and their exact
