@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (125 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (127 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:` line or `## Status` section; the one plan with neither,
