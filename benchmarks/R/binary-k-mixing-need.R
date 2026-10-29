@@ -3038,7 +3038,7 @@ compactFile <- function(cell, link, rep) {
 # After every reading of a reference is scored: per row quantity, 1,000
 # quantiles of the pooled draws (single precision); scalar estimands, k and
 # the tails' k in full; band classes, joint draws of the row quantities, are
-# not kept. The draws and saved samplers are then removed, except for the
+# not kept. The saved samplers are then removed, and the draws except for the
 # audit set.
 compactReference <- function(cell, link, rep) {
   dir <- referenceDir(cell, link, rep)
@@ -3089,16 +3089,14 @@ compactReference <- function(cell, link, rep) {
     quick = quick
   )
   saveAtomic(out, compactFile(cell, link, rep))
-  removed <- 0
-  if (!keep) {
-    gone <- list.files(
-      dir,
-      pattern = "(-record(-esc)?|-tail(-esc)?)[.]f32$|-p?sampler[.]rds$",
-      full.names = TRUE
-    )
-    removed <- sum(file.size(gone))
-    file.remove(gone)
+  pattern <- if (keep) {
+    "-p?sampler[.]rds$"
+  } else {
+    "(-record(-esc)?|-tail(-esc)?)[.]f32$|-p?sampler[.]rds$"
   }
+  gone <- list.files(dir, pattern = pattern, full.names = TRUE)
+  removed <- sum(file.size(gone))
+  file.remove(gone)
   cat(sprintf(
     "compact %s %s %d: %d row classes, %s, %.0f MB removed\n",
     cell,
