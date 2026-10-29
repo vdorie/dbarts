@@ -3517,8 +3517,10 @@ dbartsData <- function(
     # "undefined columns selected", naming neither the term nor the
     # unsupported syntax. A label entirely wrapped in one pair of backticks
     # is a single non-syntactic name, not an interaction, and is exempt.
+    # A ':' inside brackets or a call's parentheses (x[, 1:3], I(a:b)) is
+    # part of one term, not an interaction between terms.
     interactionLabels <- termLabels[
-      !grepl("^`.*`$", termLabels) & grepl(":", termLabels, fixed = TRUE)
+      !grepl("^`.*`$", termLabels) & vapply(termLabels, hasTopLevelColon, NA)
     ]
     if (length(interactionLabels) > 0L) {
       stop(
@@ -4184,4 +4186,28 @@ dbartsData <- function(
     attr(result, "survivalTimeOmitted") <- survivalTimeOmitted
   }
   result
+}
+
+## Whether a formula term label has a ':' outside every bracket and outside
+## backticks and quotes, which is what makes a label an interaction of terms.
+hasTopLevelColon <- function(label) {
+  characters <- strsplit(label, "", fixed = TRUE)[[1L]]
+  depth <- 0L
+  quote <- ""
+  for (character in characters) {
+    if (nzchar(quote)) {
+      if (character == quote) {
+        quote <- ""
+      }
+    } else if (character %in% c("`", "\"", "'")) {
+      quote <- character
+    } else if (character %in% c("(", "[", "{")) {
+      depth <- depth + 1L
+    } else if (character %in% c(")", "]", "}")) {
+      depth <- depth - 1L
+    } else if (character == ":" && depth == 0L) {
+      return(TRUE)
+    }
+  }
+  FALSE
 }

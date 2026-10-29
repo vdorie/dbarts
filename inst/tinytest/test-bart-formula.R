@@ -80,6 +80,26 @@ expect_error(
   interactionReason,
   fixed = TRUE
 )
+# a ':' inside a subset's brackets is a range, not an interaction (0.9-34
+# took these), while an interaction of subsets is still refused
+subsetX <- matrix(rnorm(40L * 10L), 40L, 10L)
+subsetY <- rnorm(40L)
+expect_identical(ncol(dbarts::dbartsData(subsetY ~ subsetX[, 1:3])@x), 3L)
+expect_identical(
+  ncol(dbarts::dbartsData(subsetY ~ subsetX[, c(1:3, 6:10)])@x),
+  8L
+)
+expect_error(
+  dbarts::dbartsData(subsetY ~ subsetX[, 1:2]:subsetX[, 3]),
+  interactionReason,
+  fixed = TRUE
+)
+expect_error(
+  dbarts::dbartsData(subsetY ~ subsetX[, 1] * subsetX[, 2]),
+  interactionReason,
+  fixed = TRUE
+)
+rm(subsetX, subsetY)
 rm(interactionReason)
 
 # poly()/log()/offset() terms are unaffected - each still fits
