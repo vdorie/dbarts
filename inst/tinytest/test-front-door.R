@@ -505,6 +505,32 @@ expect_error(
   pattern = "refit with this version"
 )
 
+# a whole fit saved by 0.9-x, as a load leaves it: the data object lacks the
+# slots this version added (0.9-34's has no 'counts'), which is how the
+# object is told. Verified against a real 0.9-34 fit, whose predict, trees
+# and plotTree all read the slot errors this replaces; no 0.9-34 file is
+# shipped, so the shape is made by taking the attribute off.
+expect_false(dbarts:::isSavedBy09x(
+  stateFit$fit$data,
+  stateFit$fit$model,
+  stateFit$fit$control
+))
+savedFit <- unserialize(serialize(stateFit, NULL))
+savedData <- savedFit$fit$data
+attr(savedData, "counts") <- NULL
+assign("data", savedData, envir = as.environment(savedFit$fit))
+expect_true(dbarts:::isSavedBy09x(savedFit$fit$data))
+savedMsg <- "saved by dbarts 0.9-x; dbarts 1.0-0 cannot read it, so refit it"
+expect_error(predict(savedFit, xFD[1:3, ]), pattern = savedMsg)
+expect_error(extract(savedFit, type = "trees"), pattern = savedMsg)
+expect_error(plotTree(savedFit), pattern = savedMsg)
+expect_error(plotTree(savedFit$fit), pattern = savedMsg)
+# what the saved arrays alone answer still answers
+expect_identical(dim(predict(savedFit)), dim(stateFit$yhat.train))
+# and the live fit is never taken for one
+expect_identical(dim(predict(stateFit, xFD[1:3, ])), c(40L, 3L))
+rm(savedFit, savedData, savedMsg)
+
 # --- a 0.9-x call with no BayesTree name runs here, and the first one in a
 # session says so with a classed message, not a warning ---
 messagesOf <- function(expr) {

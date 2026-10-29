@@ -1041,6 +1041,9 @@ predict.bart <- function(
   if (!trainingRows && is.null(object[["fit"]])) {
     refuseWithoutTrees("predict", bartKeepTreesArgument(object))
   }
+  if (!trainingRows) {
+    refuseSavedBy09x(object[["fit"]])
+  }
 
   refuseUnusedGenericArgs(
     list(...),
@@ -1585,6 +1588,7 @@ extract.bart <- function(
         bartKeepTreesArgument(object)
       )
     }
+    refuseSavedBy09x(object$fit)
     treesCall <- match.call()
     refuseTreesArguments(
       treesCall,
@@ -4352,6 +4356,7 @@ extract.dbartsSampler <- function(object, type = "predictors", ...) {
 # their absence
 plotTree.dbartsSampler <- function(object, ...) {
   refusePlotTreeArgs(sys.call())
+  refuseSavedBy09x(object, "sampler")
   invisible(object$plotTree(...))
 }
 
@@ -4389,6 +4394,7 @@ plotTree.bart <- function(
   if (is.null(object[["fit"]])) {
     refuseWithoutTrees("plotTree", bartKeepTreesArgument(object))
   }
+  refuseSavedBy09x(object$fit)
   args <- list(treeNum = treeNum, forest = forest, ...)
   if (!missing(chainNum)) {
     args$chainNum <- chainNum

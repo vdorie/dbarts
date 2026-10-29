@@ -91,8 +91,8 @@
             \code{--enable-thread-safe-unload} and \code{--with-xint-size},
             which stop the build naming the removal.
       \item Sampler states saved by 0.9-34, including those inside saved
-            fits, cannot be restored, so such a fit cannot \code{predict};
-            refit it. A \code{dbartsData} object
+            fits, cannot be restored, so such a fit cannot \code{predict}
+            on new rows or give its trees, and says so; refit it. A \code{dbartsData} object
             saved by 0.9-34 keeps its old factor coding and fits
             differently from one built fresh; rebuild it with
             \code{\link{dbartsData}}.

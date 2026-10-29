@@ -1375,6 +1375,46 @@ isLegacyState <- function(state) {
   FALSE
 }
 
+## An object saved by 0.9-x and loaded here keeps the slots it was saved
+## with, so a class that has gained a slot since leaves an instance missing
+## its attribute (dbartsData's 'counts' is the first to be read). That is the
+## whole test: it needs no version field, which 0.9-x never wrote on the
+## objects themselves, and costs one pass over a few slot names. A slot
+## holding NULL is still stored as an attribute, so a current object never
+## reads as old.
+isSavedBy09x <- function(...) {
+  for (part in list(...)) {
+    if (
+      isS4(part) && !all(methods::slotNames(part) %in% names(attributes(part)))
+    ) {
+      return(TRUE)
+    }
+  }
+  FALSE
+}
+
+## What a fit or sampler saved by 0.9-x is refused with, at the doors that
+## read its data, model or control: predict on new rows, extract of trees,
+## plotTree. A saved sampler's own methods are 0.9-x's copies, which the
+## saving session had installed on the object and which fail on their own
+## symbol lookups, so no code here can reach them; a method that was not
+## installed is this version's and reads the old slots.
+refuseSavedBy09x <- function(sampler, what = "fit") {
+  if (
+    is.environment(sampler) &&
+      isSavedBy09x(sampler$data, sampler$model, sampler$control)
+  ) {
+    stop(
+      "this ",
+      what,
+      " was saved by dbarts 0.9-x; dbarts 1.0-0 cannot read it, so refit ",
+      "it with this version",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
 refuseLegacyState <- function(state) {
   if (!is.null(attr(state, "formatVersion")) || !isLegacyState(state)) {
     return(invisible(NULL))
