@@ -268,12 +268,18 @@ afterBart <- function() {
 }
 resetWarnKey("tombstone.bart2")
 oldWarn <- options(warn = 2L)
-expect_error(bart2(y ~ x1, dfFD, n.threads = 1L, verbose = FALSE))
+expect_error(
+  bart2(y ~ x1, dfFD, n.threads = 1L, verbose = FALSE),
+  pattern = "converted from warning"
+)
 options(oldWarn)
 expect_identical(afterBart()$call[[1L]], quote(dbarts::bart))
-expect_error(suppressWarnings(
-  bart2(y ~ nonexistent, dfFD, n.threads = 1L, verbose = FALSE)
-))
+expect_error(
+  suppressWarnings(
+    bart2(y ~ nonexistent, dfFD, n.threads = 1L, verbose = FALSE)
+  ),
+  pattern = "nonexistent"
+)
 expect_identical(afterBart()$call[[1L]], quote(dbarts::bart))
 expect_null(dbarts:::aliasForwardState[["pending"]])
 # update() re-runs the alias, so it keeps separate chains too
