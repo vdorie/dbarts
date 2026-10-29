@@ -2382,7 +2382,23 @@ escalateReferencePart <- function(cell, link, rep, part) {
   if (task == "loop") {
     stop("E3 escalation not built")
   }
-  rec <- aperm(pick(r1), c(3L, 2L, 1L))
+  recRaw <- pick(r1)
+  tailRaw <- pick(r2)
+  if (task == "s9") {
+    # S9's propensity chains continue with the outcome's, their columns after
+    # the outcome's as the first pass wrote them
+    sp <- readRDS(file.path(dir, sprintf("shipped-part%d-psampler.rds", part)))
+    pc <- sp$control
+    pc@n.thin <- mcmc$refThin
+    sp$setControl(pc)
+    p1 <- sp$run(0L, more)
+    pc@n.thin <- 1L
+    sp$setControl(pc)
+    p2 <- sp$run(0L, mcmc$refTail)
+    recRaw <- abind3(recRaw, p1$train)
+    tailRaw <- abind3(tailRaw, p2$train)
+  }
+  rec <- aperm(recRaw, c(3L, 2L, 1L))
   old <- readSingle(file.path(dir, partFile(meta, "record")), meta$dimsRecord)
   both <- array(0, c(dim(old)[1L], dim(old)[2L] + dim(rec)[2L], dim(old)[3L]))
   both[, seq_len(dim(old)[2L]), ] <- old
@@ -2392,9 +2408,9 @@ escalateReferencePart <- function(cell, link, rep, part) {
   meta$recordFile <- sprintf("shipped-part%d-record-esc.f32", part)
   meta$tailFile <- sprintf("shipped-part%d-tail-esc.f32", part)
   writeSingle(both, file.path(dir, meta$recordFile))
-  writeSingle(aperm(pick(r2), c(3L, 2L, 1L)), file.path(dir, meta$tailFile))
+  writeSingle(aperm(tailRaw, c(3L, 2L, 1L)), file.path(dir, meta$tailFile))
   meta$dimsRecord <- dim(both)
-  meta$dimsTail <- dim(aperm(pick(r2), c(3L, 2L, 1L)))
+  meta$dimsTail <- dim(aperm(tailRaw, c(3L, 2L, 1L)))
   meta$k <- rbind(meta$k, r1$k)
   meta$kTail <- r2$k
   meta$escalated <- TRUE
