@@ -472,6 +472,14 @@ cellRegime <- function(cell) {
 
 cellFile <- function(cell) gsub("[:]", "_", cell)
 
+# D2 has a reference per pipeline: the cell's own on the shipped pipeline's
+# propensity (the shipped arm and the fixed-k arms read against it) and a
+# reference-only variant, the cell named with movePropSuffix, on the move
+# pipeline's (the move and mixed arms read against it).
+movePropSuffix <- "+mp"
+isMoveProp <- function(cell) endsWith(cell, movePropSuffix)
+baseCell <- function(cell) sub("[+]mp$", "", cell)
+
 cellChains <- function(cell) {
   reg <- cellRegime(cell)
   if (grepl("^B2:", cell)) 10L else reg$chains
@@ -1228,6 +1236,12 @@ makeDesign <- function(cell, link, rep, discriminate = "") {
 }
 
 loadDesign <- function(cell, link, rep, discriminate = "") {
+  if (isMoveProp(cell)) {
+    d <- loadChecked(designFile(baseCell(cell), link, rep))
+    d$ps <- propensity(d$propKey, d$x, d$z, which = "move")
+    d$cell <- cell
+    return(d)
+  }
   if (nzchar(discriminate)) {
     return(loadChecked(runDir(
       "design-disc",
@@ -3017,9 +3031,17 @@ runRefscore <- function(cell, link, rep, seedCount = NA_integer_) {
   } else {
     as.integer(rep)
   }
+  # D2: each pipeline's arms against its own propensity's reference
+  arms <- if (isMoveProp(cell)) {
+    c("move", "mixed")
+  } else if (cellTask(cell) == "d2") {
+    "shipped"
+  } else {
+    c("shipped", "move", "oracle", "mixed")
+  }
   for (seedRep in seeds) {
-    for (arm in c("shipped", "move", "oracle", "mixed")) {
-      path <- fitFile(cell, link, seedRep, arm)
+    for (arm in arms) {
+      path <- fitFile(baseCell(cell), link, seedRep, arm)
       if (arm %in% c("oracle", "mixed") && !file.exists(path)) {
         next
       }
@@ -4839,6 +4861,14 @@ refRows <- function(cell, link, tranche) {
     return(NULL)
   }
   isB <- cellRegime(cell)$id == "B"
+  # D2's move arm and its tails are read on the move pipeline's reference
+  rsMove <- rs
+  if (cellTask(cell) == "d2") {
+    for (rep in names(rs)) {
+      f <- refscoreFile(paste0(cell, movePropSuffix), link, as.integer(rep))
+      rsMove[[rep]] <- if (file.exists(f)) loadChecked(f) else NULL
+    }
+  }
   mass <- function(r, key, cl, half = "vsOther") {
     x <- r$readings[[key]][[half]][[cl]]
     if (is.null(x)) NA_real_ else x[["mass90"]]
@@ -4864,8 +4894,13 @@ refRows <- function(cell, link, tranche) {
             paste0(prefix, ".default")
           }
         }
+        rm <- rsMove[[rep]]
         sh <- vapply(keysOf("shipped"), function(k) mass(r, k, cl), 0)
-        mv <- vapply(keysOf("move"), function(k) mass(r, k, cl), 0)
+        mv <- if (is.null(rm)) {
+          NA_real_
+        } else {
+          vapply(keysOf("move"), function(k) mass(rm, k, cl), 0)
+        }
         shMove <- vapply(
           keysOf("shipped"),
           function(k) mass(r, k, cl, "vsMove"),
@@ -4884,14 +4919,18 @@ refRows <- function(cell, link, tranche) {
         data.frame(
           rep = as.integer(rep),
           seed = seq_along(sh),
-          accepted = r$accepted,
+          accepted = r$accepted && (is.null(rm) || rm$accepted),
           S = 0.9 - sh,
           Smove = 0.9 - shMove,
           moveS = 0.9 - mv,
           stuck = 0.9 - st,
           ctl = 0.9 - ct,
           shippedTransient = mass(r, "shipped.tails", cl) - sh,
-          moveTransient = mass(r, "move.tails", cl) - mv,
+          moveTransient = if (is.null(rm)) {
+            NA_real_
+          } else {
+            mass(rm, "move.tails", cl) - mv
+          },
           stationary = mass(r, "move.tails", cl) - mass(r, "shipped.tails", cl),
           kFromMoveHalf = isTRUE(fk[[rep]]$kFromMoveHalf)
         )
@@ -5276,7 +5315,7 @@ replicationJobs <- function(
     }
   }
   # a reference's scoring and compaction; B's wait for its last seed's fits
-  scoreRef <- function(refRep) {
+  scoreRef <- function(refRep, refCell = cell, fixedk = TRUE) {
     seedFits <- if (reg$id == "B") {
       unlist(lapply(seq_len(bSeeds), function(r) {
         c(
@@ -5284,77 +5323,85 @@ replicationJobs <- function(
           jobId("fit", cell, link, r, "move")
         )
       }))
+    } else if (isMoveProp(refCell)) {
+      c(
+        jobId("fit", cell, link, refRep, "move"),
+        jobId("fit", cell, link, refRep, "mixed")
+      )
     } else {
       fitIds
     }
     add(
-      jobId("refscore", cell, link, refRep),
+      jobId("refscore", refCell, link, refRep),
       c(
-        jobId("acceptfinal", cell, link, refRep),
-        jobId("fixedk", cell, link, refRep),
+        jobId("acceptfinal", refCell, link, refRep),
+        if (fixedk) jobId("fixedk", refCell, link, refRep),
         seedFits
       ),
       big,
       cell,
       sprintf(
         "@shipped refscore %s %s %d%s",
-        cell,
+        refCell,
         link,
         refRep,
         if (reg$id == "B") paste0(" ", bSeeds) else ""
       )
     )
     add(
-      jobId("compact", cell, link, refRep),
-      jobId("refscore", cell, link, refRep),
+      jobId("compact", refCell, link, refRep),
+      jobId("refscore", refCell, link, refRep),
       big,
       cell,
-      sprintf("@shipped compact %s %s %d", cell, link, refRep)
+      sprintf("@shipped compact %s %s %d", refCell, link, refRep)
     )
   }
-  if (reg$id == "B" && rep == bSeeds && rep > 1L && "references" %in% phases) {
-    scoreRef(1L)
-  }
-  if (ref && "references" %in% phases) {
-    parts <- seq_len(refPartsPerKernel(cell))
+  # a reference's runs and acceptance; at most refInFlight large references
+  # hold their draws at once: a large reference's parts wait for the
+  # compaction (or failure) of the large one refInFlight before it
+  referenceRuns <- function(refCell, deps) {
+    parts <- seq_len(refPartsPerKernel(refCell))
     partIds <- character()
-    # at most refInFlight large references hold their draws at once: a large
-    # reference's parts wait for the compaction (or failure) of the large one
-    # refInFlight before it
-    partDeps <- design
-    if (!is.null(gate) && refMB(cell) >= refLargeMB) {
+    if (!is.null(gate) && refMB(refCell) >= refLargeMB) {
       if (length(gate$large) >= refInFlight) {
-        partDeps <- c(
-          partDeps,
+        deps <- c(
+          deps,
           paste0("~", gate$large[length(gate$large) - refInFlight + 1L])
         )
       }
-      gate$large <- c(gate$large, jobId("compact", cell, link, rep))
+      gate$large <- c(gate$large, jobId("compact", refCell, link, rep))
     }
     for (which in c("shipped", "move")) {
       for (part in parts) {
-        id <- jobId("ref", cell, link, rep, which, part)
+        id <- jobId("ref", refCell, link, rep, which, part)
         add(
           id,
-          partDeps,
+          deps,
           big,
           cell,
-          sprintf("@%s reference run %s %s %d %d", which, cell, link, rep, part)
+          sprintf(
+            "@%s reference run %s %s %d %d",
+            which,
+            refCell,
+            link,
+            rep,
+            part
+          )
         )
         partIds <- c(partIds, id)
       }
     }
-    acc <- jobId("accept", cell, link, rep)
+    acc <- jobId("accept", refCell, link, rep)
     add(
       acc,
       partIds,
       big,
       cell,
-      sprintf("@shipped reference accept %s %s %d", cell, link, rep)
+      sprintf("@shipped reference accept %s %s %d", refCell, link, rep)
     )
     escIds <- character()
     for (part in parts) {
-      id <- jobId("escalate", cell, link, rep, part)
+      id <- jobId("escalate", refCell, link, rep, part)
       add(
         id,
         acc,
@@ -5362,7 +5409,7 @@ replicationJobs <- function(
         cell,
         sprintf(
           "@shipped reference escalate %s %s %d %d",
-          cell,
+          refCell,
           link,
           rep,
           part
@@ -5370,23 +5417,34 @@ replicationJobs <- function(
       )
       escIds <- c(escIds, id)
     }
-    fin <- jobId("acceptfinal", cell, link, rep)
     add(
-      fin,
+      jobId("acceptfinal", refCell, link, rep),
       escIds,
       big,
       cell,
-      sprintf("@shipped reference accept %s %s %d final", cell, link, rep)
+      sprintf("@shipped reference accept %s %s %d final", refCell, link, rep)
     )
+  }
+  if (reg$id == "B" && rep == bSeeds && rep > 1L && "references" %in% phases) {
+    scoreRef(1L)
+  }
+  if (ref && "references" %in% phases) {
+    referenceRuns(cell, design)
     add(
       jobId("fixedk", cell, link, rep),
-      fin,
+      jobId("acceptfinal", cell, link, rep),
       big,
       cell,
       sprintf("@shipped fixedk %s %s %d", cell, link, rep)
     )
     if (reg$id != "B" || bSeeds == 1L) {
       scoreRef(rep)
+    }
+    if (reg$kind == "designed" && cellTask(cell) == "d2") {
+      # the move pipeline's reference waits for the move fit's propensity
+      mp <- paste0(cell, movePropSuffix)
+      referenceRuns(mp, c(design, jobId("fit", cell, link, rep, "move")))
+      scoreRef(rep, mp, fixedk = FALSE)
     }
   }
 }
