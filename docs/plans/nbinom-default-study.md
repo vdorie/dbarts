@@ -1,9 +1,11 @@
 # nbinom-default-study: is there a better default prior for negative binomial fits?
 
-Status: PLANNED 2026-10-29 under dec-B432, revised the same day from its blind critique. Runs after the merge
-to main and before 1.0-0. Not run: only the probes of [Probes](#probes) ran, 2026-10-29, on main 8a78507c
-and on a scratch build of the collapsed scale move. The criterion goes to the maintainer after stage 1, with
-stage 1's full Part A table in hand and before any Part B fit ([Stages and gates](#stages-and-gates)).
+Status: PLANNED 2026-10-29 under dec-B432, revised the same day from its blind critique, and amended
+after the critique's re-check (verdict: build stages 0 and 1;
+[Amendments before results](#amendments-before-results)). Runs after the merge to main and before 1.0-0.
+Not run: only the probes of [Probes](#probes) ran, 2026-10-29, on main 8a78507c and on a scratch build of
+the collapsed scale move. The criterion goes to the maintainer after stage 1, with stage 1's full Part A
+table in hand and before any Part B fit ([Stages and gates](#stages-and-gates)).
 
 agent: the blind critique (opus) ran; this revision answers it. One opus implementer writes the harness,
 runs it and writes the finding; an opus review of the harness, the scratch build and the smoke at stage 4,
@@ -16,7 +18,7 @@ express today is checked at the default length on a scratch build carrying only 
 window: after the merge to main, before 1.0-0 (dec-B432). A change of default it supports goes back to the
 maintainer; building it is a separate, posterior-changing slice.
 budget: harness about 1,100 lines of R (benchmarks/R/nbinom-default-study.R), reusing the first study's
-prior predictive draw. Compute about 86 core-hours expected, at most about 150, stop at 160 ([Cost](#cost)),
+prior predictive draw. Compute about 100 to 150 core-hours expected, stop at 160 (amended; [Cost](#cost)),
 re-priced from stage 2's full-length runs before the main run.
 
 ## Summary for the maintainer
@@ -45,7 +47,9 @@ wider on null data in the critique's probe).
 - Part B, what fits must not lose: interval coverage of what users estimate from count fits (the mean count
   at a row, mean counts by group, rate ratios of a binary covariate, a new count), on truths with known
   values built on real covariates, read as distance from nominal on either side, with the house's bar of
-  0.02, and a guard on interval width on narrow and null data.
+  0.02, and a guard on interval width on narrow and null data. That guard, 10 percent, may exclude the
+  thinner chi priors: on null data the critique's probe found their intervals about 20 percent wider than
+  the default's.
 
 A candidate that passes Part A replaces a default that fails it if it loses nothing on Part B; were the
 default to pass, a candidate would have to be better by the bar.
@@ -74,8 +78,9 @@ counts. Cells are weighted equally by spread band: narrow, middle, wide, and sma
 
 **Stages**: harness and checks; the prior check of every candidate; your ruling on the criterion; the
 check of the long reading; a smoke; the main run; the default-length check of the chosen candidate; a
-confirmation only if the call is close; the finding to you. About 86 core-hours expected, at most about
-150, stop at 160. The laptop runs everything up to the smoke, and the main run's narrow, middle and
+confirmation only if the call is close; the finding to you. About 100 to 150 core-hours expected, stop at
+160 (amended: the candidates likely to pass Part A are the thin ones, which need their own runs more
+often). The laptop runs everything up to the smoke, and the main run's narrow, middle and
 small-sample cells, on two cores; the box runs the smoke and the wide cells after the k study's first
 tranche.
 
@@ -473,9 +478,11 @@ predicate (about 15 lines), installed in its own library. The same runs under it
 Where today's sampler converged (Traffic with 129 effective draws of k, narrow with 136) the two agree within
 Monte Carlo error, in k and in the estimands. On roaches and solder they differ in k's lower tail, where
 today's chains had 50 and 17 effective draws and the move's 255 and 42; on solder the move sides with the
-grid of the first version (median 1.13). The estimands' intervals agreed on every dataset where both runs
-converged. The move costs 17 to 24 percent more a sweep, and on solder, mite and wide's single rows the
-trees, not k, set the pace.
+grid of the first version (median 1.13). Corrected 2026-10-29: the critique's long runs on roaches settle
+it for the move build ([Amendments before results](#amendments-before-results)); the disagreement came from
+today's short runs and the first version's grid. The estimands' intervals agreed on every dataset where
+both runs converged. The move costs 17 to 24 percent more a sweep, and on solder, mite and wide's single
+rows the trees, not k, set the pace.
 
 **The grid of the first version**, on five datasets (two path chains, step 0.1 in log k, 100 sweeps of
 burn-in after each change, 1,000 kept a chain per node): k's 5th, 50th and 95th percentiles 0.95, 1.26, 1.83
@@ -590,6 +597,56 @@ listed, and only that: replication counts (down, to fit the stop, by the order o
 threshold (to keep own runs within cost), and a widened truth's center (by the stated rule). Any other
 change after a fit is scored is a deviation, disclosed in the finding.
 
+## Amendments before results
+
+Made 2026-10-29 on the orchestrator's calls after the critique's re-check of this plan (verdict: build
+stages 0 and 1), before stage 0 ran and before any fit was scored. Where they differ from the text above,
+they govern.
+
+- **The review before stage 0.** The critic's reading of the move's negative binomial lines and its long
+  runs on roaches count as the review of the scratch move build before stage 0; the stage 4 opus review
+  stays. Its runs, 2 chains of 200,000 sweeps on today's sampler and 2 of 60,000 on the move build, put k's
+  5th, 50th and 95th percentiles in agreement within batch-means error, so the move build's lower tail on
+  roaches is the right one. The disagreement [Probes](#probes) reported there came from today's short runs
+  (50 effective draws of k) and the first version's grid.
+- **Reweighting, a second check.** Beside the 30 percent rule, Pareto-smoothed importance sampling: a
+  candidate's weights on a replication are used only when the fitted Pareto shape of their upper tail,
+  k-hat, is at most 0.7 and they keep 30 percent of the run's effective draws; otherwise that candidate gets
+  its own run on that replication. Candidates whose weight against C0, pi_c(k) / pi_0(k), grows without
+  bound as k grows get their own runs, unweighted, wherever the likelihood is flat at large k (the narrow
+  band, the null cell, and any replication where C0's run puts more than 5 percent of its draws above
+  k = 4): chi(1.5, 3); both half-normals, whose density in k falls as 1 / k^2 against C0's exp(-k^2 / 8);
+  and C7 wherever its chi scale exceeds C0's 2, which on narrow data it does.
+- **Own runs for C4 and C5, stated precisely.** They use a scratch build that changes two things against
+  the move build. k's own step: for C4, k^2 drawn from its conjugate gamma truncated to k at least the
+  floor, by inversion; for C5, a slice step on log k. And the move's k term: the move's log density in
+  v = log r is log pi(k e^-v) - v + sum_i l_i(e^v f_i + o_i), with pi the density of k, of which the
+  shipped -nu v - (k e^-v / s)^2 / 2 is the chi(nu, s) case up to a constant. The scratch build puts the
+  candidate's own pi there: for C4, chi(1.5, 2)'s, and minus infinity where k e^-v falls below the floor
+  (the slice, started at v = 0 inside the support, never leaves it); for C5, log 3 - 2 log k -
+  (3 / k)^2 / (2 sigma^2), sigma the half-normal's scale (1.93 for median 1.3, 2.33 for 1.57). Each such
+  build is made only if its candidate passes A, and passes stage 0's drift test before it is used.
+- **Stage 0 gains two checks.**
+  - The reweighting check adds chi(1.5, 3) and C7 on null data (D5's design): their k-hat against C0's
+    run, and their own runs against the reweighted reading where k-hat is at most 0.7.
+  - A drift test from the truth, with offsets, as the k study ran one: per replication, 80 rows of 3
+    correlated normal columns and an exposure offset log-uniform over 1 to 100; trees, k0 from chi(1.5, 2),
+    leaves at k0 and a shape r0 from the grid prior, held fixed in the sampler so that the start is exact
+    (the shape's own draw is shipped code; the move's refresh then redraws the latents only); counts from
+    the model at the build's center; the chain started at that state, an exact posterior draw once the
+    latents are drawn given the counts. log k averaged over lags 100 to 1,000 within a replication must
+    not drift from log k0: |z| at most 3 over 2,000 replications. It must also have power: a mutant of the
+    move whose Jacobian carries one power of r too many (-(nu + 1) v for -nu v) must give |z| above 5, or
+    the test does not count as passed.
+- **Budget.** About 100 to 150 core-hours expected, stop at 160. The candidates likely to pass A are the
+  thin ones (chi with 4 or more degrees of freedom, C4, the narrower half-normal), and those need their
+  own runs on wide cells more often than one replication in two: C4 wherever k's posterior sits at or
+  below its floor, the half-normal and C7 wherever the likelihood is flat at large k. The cap of 100,000
+  kept sweeps is per run, own runs included.
+- **The width guard** (10 percent on each narrow-band cell) may exclude the thinner chi priors: on null
+  data the critique's probe found their intervals about 20 percent wider than the default's. The summary
+  says so.
+
 ## How the result goes to the maintainer
 
 The finding is written to docs/design/nbinom-default-study.md (Status FINDING): Part A's table and verdicts
@@ -627,13 +684,14 @@ updated or closed.
 6. The data-scaled spread (C7): recommend scoring it here.
 7. The shape's prior (C6): recommend scoring it here with its weights fixed now, decided separately from the
    spread.
-8. Compute: recommend about 86 core-hours expected, at most about 150, stop at 160; the laptop through
+8. Compute: recommend about 100 to 150 core-hours expected, stop at 160; the laptop through
    stage 2 and for the cheaper cells, the box after the k study's first tranche.
 
 ## Not verified
 
-- That the scratch move build samples the posterior beyond the probes' agreement on two datasets; stage 0's
-  SBC and stage 2 decide, and its code is reviewed at stage 4.
+- That the scratch move build samples the posterior beyond the probes' agreement on two datasets and the
+  critique's long runs on roaches; stage 0's SBC and drift test and stage 2 decide, and its code is reviewed
+  again at stage 4.
 - Which candidates pass A2 and A3, and all of Part A beyond the probes' six designs; stage 1 decides.
 - Run lengths, weight failures and unsettled shares on small samples, BCI and the widened truths; stage 2
   measures them, and the costs above are projections until then.
