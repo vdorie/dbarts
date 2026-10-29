@@ -1047,7 +1047,8 @@ the commit that adds this amendment.
   80 percent, so escalation is built: stan4bart reruns the shipped half from the same seed at the
   escalated length and thinning (its first pass, thinned by five, a prefix of the rerun: checked and
   recorded, exact on the forced test), and E3 continues its saved samplers, as the other tasks do. A
-  stan4bart rerun holds every iteration's fits, an estimated 8.5 GB for E1 and E2.
+  stan4bart rerun holds every iteration's fits: one full-length E1 rerun peaked at 8.2 GB, under the 8.5
+  the queue assumes for E1 and E2.
 - **Acceptance table.** acceptance.rds keeps the per-quantity table: the halves' largest z, joint Rhat,
   tail effective draws and, at a first pass, the shipped half's thinned by five.
 - **D1's secondary reading** is built into the reading: the pilot's replications 1 to 10, shipped and move,
@@ -1065,12 +1066,12 @@ the commit that adds this amendment.
   the stop would interrupt. Before, 20 audit references (about 3 GB) and two large references in flight.
 - **Memory and workers.** Measured on the box at full length: a D1 reference's fixed-k and scoring jobs
   peak at 14.7 and 14.2 GB, its acceptance and compaction at 7.5 and 8.2, its fits at 5.1; a B1:bank
-  reference's jobs at 3.5 or less. Four D1 scoring jobs at once would need 58 GB of the box's 24. Every
-  job carries a peak-memory estimate scaled from these by its reference's size (16 GB for D1 and S3
-  scoring), and the queue starts the earliest runnable job only while the running jobs' estimates and its
-  own stay within 21 GB; a later job passes it only if it leaves the waiting job a worker and its memory
-  once the jobs started before it end. Four workers. Alternative: a worker count fixed by the largest job,
-  one, about 80 hours of wall time.
+  reference's jobs at 3.5 or less; an E1 escalation, a full stan4bart rerun, at 8.2. Four D1 scoring jobs
+  at once would need 58 GB of the box's 24. Every job carries a peak-memory estimate scaled from these by
+  its reference's size (16 GB for D1 and S3 scoring), and the queue starts the earliest runnable job only
+  while the running jobs' estimates and its own stay within 21 GB; a later job passes it only if it leaves
+  the waiting job a worker and its memory once the jobs started before it end. Four workers. Alternative:
+  a worker count fixed by the largest job, one, about 80 hours of wall time.
 - **Cost.** Tranche 1 projects to 83 core-hours from the timing pass's per-sweep times (60 of sampling:
   fits 11, references 37, escalation 10, fixed k 2; plus 15 percent for shared memory bandwidth and 20 for
   scoring and start-up) and 80 from the smoke's job times scaled to full length, against 80 and 77 before
