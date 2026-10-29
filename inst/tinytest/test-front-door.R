@@ -218,6 +218,115 @@ expect_identical(dim(fitAlias1$yhat.train), c(40L, 90L))
 expect_identical(dim(fitAlias1$sigma), NULL)
 expect_identical(length(fitAlias1$sigma), 40L)
 
+# --- every chain-shaped element keeps 0.9-34's layout, run on 0.9-34 with
+# the same sizes: three chains of six draws, five test rows, two predictors ---
+dfLayout <- dfFD
+dfLayout$b <- dfLayout$y > 0
+layoutFit <- function(formula, nChains, ...) {
+  suppressWarnings(dbarts::bart2(
+    formula,
+    dfLayout,
+    n.trees = 5L,
+    n.samples = 6L,
+    n.burn = 5L,
+    n.chains = nChains,
+    n.threads = 1L,
+    verbose = FALSE,
+    ...
+  ))
+}
+layoutTest <- dfLayout[1:5, ]
+continuous <- layoutFit(
+  y ~ x1 + x2,
+  3L,
+  test = layoutTest,
+  keepTrees = TRUE
+)
+expect_identical(dim(continuous$yhat.train), c(3L, 6L, 90L))
+expect_identical(dim(continuous$yhat.test), c(3L, 6L, 5L))
+expect_identical(dim(continuous$sigma), c(3L, 6L))
+expect_identical(dim(continuous$varcount), c(3L, 6L, 2L))
+expect_identical(dim(continuous$first.sigma), c(3L, 5L))
+binary <- layoutFit(b ~ x1 + x2, 3L, test = layoutTest)
+expect_identical(dim(binary$yhat.train), c(3L, 6L, 90L))
+expect_identical(dim(binary$yhat.test), c(3L, 6L, 5L))
+expect_identical(dim(binary$varcount), c(3L, 6L, 2L))
+expect_identical(dim(binary$k), c(3L, 6L))
+fixedK <- layoutFit(y ~ x1 + x2, 3L, k = 2)
+expect_identical(dim(fixedK$yhat.train), c(3L, 6L, 90L))
+expect_null(fixedK$k)
+# one chain drops the margin everywhere
+oneChain <- layoutFit(y ~ x1 + x2, 1L, test = layoutTest, keepTrees = TRUE)
+expect_identical(dim(oneChain$yhat.train), c(6L, 90L))
+expect_identical(dim(oneChain$yhat.test), c(6L, 5L))
+expect_identical(dim(oneChain$varcount), c(6L, 2L))
+expect_identical(length(oneChain$sigma), 6L)
+oneBinary <- layoutFit(b ~ x1 + x2, 1L)
+expect_identical(length(oneBinary$k), 6L)
+expect_null(dim(oneBinary$k))
+rm(continuous, binary, fixedK, oneChain, oneBinary, layoutTest, dfLayout)
+
+# --- BayesTree spellings still reach bartBT through the alias, which injects
+# nothing the legacy door does not take ---
+resetWarnKey("tombstone.bart2")
+resetWarnKey("tombstone.bartShim")
+btWarnings <- character(0L)
+btFit <- withCallingHandlers(
+  dbarts::bart2(
+    x.train = xFD,
+    y.train = yFD,
+    ntree = 10L,
+    nskip = 10L,
+    ndpost = 30L,
+    nchain = 2L,
+    nthread = 1L,
+    verbose = FALSE
+  ),
+  warning = function(w) {
+    btWarnings <<- c(btWarnings, conditionMessage(w))
+    invokeRestart("muffleWarning")
+  }
+)
+expect_inherits(btFit, "bart")
+expect_identical(dbarts:::callName(btFit$call), "bartBT")
+expect_true(any(grepl("now 'bartBT'", btWarnings, fixed = TRUE)))
+expect_true(any(grepl("'bart2' is now 'bart'", btWarnings, fixed = TRUE)))
+expect_null(dbarts:::aliasForwardState[["pending"]])
+rm(btFit, btWarnings)
+
+# --- a bart call nested in a bart2 argument is its own call: the alias's
+# entry is taken when bart starts, before any argument is read ---
+nestedInner <- NULL
+nestedOuter <- suppressWarnings(
+  dbarts::bart2(
+    y ~ x1 + x2 + x3,
+    dfFD,
+    n.trees = 5L,
+    n.samples = 10L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE,
+    k = {
+      nestedInner <<- dbarts::bart(
+        y ~ x1 + x2 + x3,
+        dfFD,
+        n.trees = 5L,
+        n.samples = 10L,
+        n.burn = 5L,
+        n.chains = 2L,
+        n.threads = 1L,
+        verbose = FALSE
+      )
+      2
+    }
+  )
+)
+expect_identical(dbarts:::callName(nestedOuter$call), "bart2")
+expect_identical(nestedInner$call[[1L]], quote(dbarts::bart))
+expect_identical(dim(nestedInner$yhat.train), c(20L, 90L))
+rm(nestedInner, nestedOuter)
+
 # --- the fit stores the call as the caller wrote it ---
 bart2 <- dbarts::bart2
 writtenFD <- suppressWarnings(
@@ -531,6 +640,37 @@ expect_error(predict(savedFit, xFD[1:3, ]), pattern = savedMsg)
 expect_error(extract(savedFit, type = "trees"), pattern = savedMsg)
 expect_error(plotTree(savedFit), pattern = savedMsg)
 expect_error(plotTree(savedFit$fit), pattern = savedMsg)
+expect_error(
+  dbarts::pdbart(savedFit, xind = 1L, levs = list(c(0.2, 0.8)), pl = FALSE),
+  pattern = savedMsg
+)
+expect_error(
+  dbarts::pd2bart(
+    savedFit,
+    xind = 1:2,
+    levs = list(c(0.2, 0.8), c(0.2, 0.8)),
+    pl = FALSE
+  ),
+  pattern = savedMsg
+)
+expect_error(
+  dbarts::pdbart(savedFit$fit, xind = 1L, levs = list(c(0.2, 0.8)), pl = FALSE),
+  pattern = "sampler was saved by dbarts 0.9-x"
+)
+# the test reads the model and the control as well as the data: a fit whose
+# model or control lacks a slot 0.9-x's lacked is refused, and one of a later
+# release's added slots would not matter, as the list is fixed
+for (sampleSlot in list(c("model", "leaf.prior"), c("control", "seed"))) {
+  slotFit <- unserialize(serialize(stateFit, NULL))
+  slotObject <- get(sampleSlot[1L], as.environment(slotFit$fit))
+  attr(slotObject, sampleSlot[2L]) <- NULL
+  assign(sampleSlot[1L], slotObject, envir = as.environment(slotFit$fit))
+  expect_error(predict(slotFit, xFD[1:3, ]), pattern = savedMsg)
+}
+expect_false(dbarts:::isSavedBy09x(
+  structure(stateFit$fit$control, extraSlotOfALaterRelease = 1)
+))
+rm(slotFit, slotObject, sampleSlot)
 # what the saved arrays alone answer still answers
 expect_identical(dim(predict(savedFit)), dim(stateFit$yhat.train))
 # and the live fit is never taken for one

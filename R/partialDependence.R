@@ -219,6 +219,14 @@ pdbart.refit <- function(fit, callingEnv, caller) {
     refitCall$keeptrees <- TRUE
     refitCall$keepsampler <- TRUE
   } else {
+    # the alias's own default is separate chains, which its stored call does
+    # not say, so a refit through bart would merge them
+    if (
+      identical(callName(refitCall), "bart2") &&
+        !("combineChains" %in% names(refitCall))
+    ) {
+      refitCall$combineChains <- FALSE
+    }
     refitCall[[1L]] <- quote(dbarts::bart)
     refitCall$keepTrees <- TRUE
     refitCall$keepSampler <- TRUE
@@ -309,6 +317,11 @@ pdbart.prologue <- function(
   } else {
     TRUE
   }
+
+  refuseSavedBy09x(
+    if (isFit) pdbart.rowSampler(object) else object,
+    if (isFit) "fit" else "sampler"
+  )
 
   if (!isFit) {
     family <- pdbart.samplerFamily(object)

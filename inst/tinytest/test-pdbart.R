@@ -302,6 +302,68 @@ expect_error(plot(pd2Merged, type = "l"), imageError, fixed = TRUE)
 dev.off()
 rm(pdbSplit, pd2Merged, pd2Split, pdbNoSampler, imageError)
 
+# a bart2 fit keeps its chains apart by default, and a pdbart of it - refit
+# from its stored call when it was kept without trees - reports the same
+# layout, not a merged one
+set.seed(12L)
+alias.d <- data.frame(y = rnorm(40L), a = rnorm(40L), b = rnorm(40L))
+for (alias.trees in c(TRUE, FALSE)) {
+  alias.fit <- suppressWarnings(dbarts::bart2(
+    y ~ a + b,
+    alias.d,
+    n.chains = 2L,
+    n.trees = 5L,
+    n.samples = 10L,
+    n.burn = 5L,
+    n.threads = 1L,
+    verbose = FALSE,
+    keepTrees = alias.trees
+  ))
+  expect_identical(dim(alias.fit$yhat.train), c(2L, 10L, 40L))
+  alias.pd <- suppressWarnings(dbarts::pdbart(
+    alias.fit,
+    xind = "a",
+    levs = list(c(-1, 0, 1)),
+    pl = FALSE
+  ))
+  expect_identical(dim(alias.pd$fd[[1L]]), c(2L, 10L, 3L))
+  alias.pd2 <- suppressWarnings(dbarts::pd2bart(
+    alias.fit,
+    xind = c("a", "b"),
+    levs = list(c(-1, 1), c(-1, 1)),
+    pl = FALSE
+  ))
+  expect_identical(dim(alias.pd2$fd), c(2L, 10L, 4L))
+}
+# an explicit combineChains in the stored call is kept
+alias.merged <- suppressWarnings(dbarts::bart2(
+  y ~ a + b,
+  alias.d,
+  n.chains = 2L,
+  n.trees = 5L,
+  n.samples = 10L,
+  n.burn = 5L,
+  n.threads = 1L,
+  verbose = FALSE,
+  combineChains = TRUE
+))
+alias.pdm <- suppressWarnings(dbarts::pdbart(
+  alias.merged,
+  xind = "a",
+  levs = list(c(-1, 0, 1)),
+  pl = FALSE
+))
+expect_identical(dim(alias.pdm$fd[[1L]]), c(20L, 3L))
+rm(
+  alias.d,
+  alias.trees,
+  alias.fit,
+  alias.pd,
+  alias.pd2,
+  alias.merged,
+  alias.pdm
+)
+
 # --- argument handling ---
 # pdbart's own settings are refused under bart's names and BayesTree's
 for (name in c("samplerOnly", "sampleronly", "test", "x.test", "offset.test")) {

@@ -366,7 +366,10 @@ takeAliasForward <- function() {
 bart2 <- function() {
   matchedCall <- match.call()
   injected <- character(0L)
-  if (!("combineChains" %in% names(matchedCall))) {
+  # a call carrying a BayesTree spelling goes on to bartBT, which has no
+  # such argument and chooses its own layout
+  legacyDoor <- length(intersect(names(matchedCall), bartBTOnlyFormals)) > 0L
+  if (!legacyDoor && !("combineChains" %in% names(matchedCall))) {
     matchedCall$combineChains <- FALSE
     injected <- "combineChains"
   }
@@ -1376,18 +1379,31 @@ isLegacyState <- function(state) {
 }
 
 ## An object saved by 0.9-x and loaded here keeps the slots it was saved
-## with, so a class that has gained a slot since leaves an instance missing
-## its attribute (dbartsData's 'counts' is the first to be read). That is the
-## whole test: it needs no version field, which 0.9-x never wrote on the
-## objects themselves, and costs one pass over a few slot names. A slot
-## holding NULL is still stored as an attribute, so a current object never
-## reads as old.
+## with, so an instance of a class that has gained a slot since is missing
+## that slot's attribute (dbartsData's 'counts' is the first to be read). That
+## is the whole test: 0.9-x wrote no version field on the objects themselves.
+## The slots tested are a fixed list of what 0.9-34's three classes lack and
+## 1.0-0's have, written down here and not read off the live class
+## definitions, so that a slot a later release adds cannot make a 1.0-0 save
+## read as old. A slot holding NULL is still stored as an attribute.
+slotsLacking09x <- list(
+  dbartsData = c("counts", "cutPoints"),
+  dbartsModel = c("leaf.prior", "family"),
+  dbartsControl = c("seed", "proposal.probs")
+)
+
 isSavedBy09x <- function(...) {
   for (part in list(...)) {
-    if (
-      isS4(part) && !all(methods::slotNames(part) %in% names(attributes(part)))
-    ) {
-      return(TRUE)
+    if (!isS4(part)) {
+      next
+    }
+    for (className in names(slotsLacking09x)) {
+      if (
+        methods::is(part, className) &&
+          !all(slotsLacking09x[[className]] %in% names(attributes(part)))
+      ) {
+        return(TRUE)
+      }
     }
   }
   FALSE
