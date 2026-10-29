@@ -1427,6 +1427,12 @@ truthClasses <- function(design, labels) {
   } else {
     matrix(c(t$f$train, t$f$held), nrow = 1L)
   }
+  if (identical(design$discriminate, "link")) {
+    # the outcome went through the other link: the truth the fit estimates is
+    # that probability on the fit link's latent scale, not the raw draw
+    truthLink <- setdiff(both, design$link)
+    L[] <- linkQuantile(design$link)(linkFunction(truthLink)(L))
+  }
   parts <- NULL
   if (task == "s9") {
     parts <- list(psLatent = matrix(t$e0, nrow = 1L))
