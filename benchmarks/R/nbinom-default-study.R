@@ -39,6 +39,7 @@
 #   Rscript nbinom-default-study.R default <cell> <replication> [<candidate>]
 #   Rscript nbinom-default-study.R guardplan <candidate>
 #   Rscript nbinom-default-study.R calibrate <cell>
+#   Rscript nbinom-default-study.R uncoded
 #   Rscript nbinom-default-study.R summarize <stage> [<look>]
 # where <stage> is drift, identity, sbc, compare, reweight, prior, stage2,
 # correction, calibration or main, and <candidate> a fitted candidate's file code (its
@@ -4649,11 +4650,64 @@ lookStatistics <- function(scores, b) {
   list(verdicts = verdicts, pairs = pairs)
 }
 
+# Stage 1's results that the decision's code assumes: the default fails A,
+# so step 4 never applies, and no candidate passes A with margin, so step
+# 3's first tie-break never applies. Neither path is coded, and the decision
+# stops if either constant says otherwise.
+defaultPassesA <- FALSE
+passesAWithMargin <- character()
+checkUncodedPaths <- function(
+  defaultPasses = defaultPassesA,
+  withMargin = passesAWithMargin
+) {
+  if (!identical(defaultPasses, FALSE)) {
+    stop(
+      "the default passes A, so step 4 applies; ",
+      "the decision does not code step 4"
+    )
+  }
+  if (length(withMargin)) {
+    stop(
+      "a candidate passes A with margin (",
+      paste(withMargin, collapse = ", "),
+      "), so step 3's first tie-break applies; the decision does not code it"
+    )
+  }
+  invisible(TRUE)
+}
+
+# The guard's constructed cases: stage 1's values pass; the default passing
+# A, a candidate passing it with margin, or both, each stop.
+runUncodedCheck <- function() {
+  cases <- list(
+    `stage 1's` = list(FALSE, character(), TRUE),
+    `default passes A` = list(TRUE, character(), FALSE),
+    `one with margin` = list(FALSE, "C4 k>=0.6", FALSE),
+    both = list(TRUE, "C2 chi(4,1.03)", FALSE)
+  )
+  for (name in names(cases)) {
+    x <- cases[[name]]
+    passes <- tryCatch(
+      checkUncodedPaths(x[[1L]], x[[2L]]),
+      error = function(e) {
+        FALSE
+      }
+    )
+    if (!identical(passes, x[[3L]])) {
+      stop("the uncoded paths' guard fails its case: ", name)
+    }
+    cat(sprintf(
+      "%s: %s, as it should\n",
+      name,
+      if (isTRUE(passes)) "passes" else "stops"
+    ))
+  }
+}
+
 # Step 3's choice among the candidates passing step 2: the smallest rank;
 # within the tie margin of it (by the pairs' relations), the smaller code
-# change, then the smaller interval score on the narrow band. No candidate
-# passes A with margin (stage 1), so that tie-break never applies; the
-# default fails A, so step 4 never applies.
+# change, then the smaller interval score on the narrow band. The tie-break
+# for passing A with margin is not coded (checkUncodedPaths).
 chooseCandidate <- function(passing, tied, verdicts) {
   if (length(passing) == 0L) {
     return("C0")
@@ -4920,6 +4974,7 @@ stepFive <- function(scores, order, queued) {
 # quick run computes all of it and prints only its shape, and writes the
 # next look's queue whatever the decision, to exercise it.
 summarizeMain <- function(lookNumber = 1L) {
+  checkUncodedPaths()
   quick <- nzchar(Sys.getenv("NBS_QUICK"))
   if (!scoringOn && !quick) {
     stop("the scoring is off until the pre-registration commit")
@@ -5293,6 +5348,7 @@ switch(
   plan = runPlan(),
   guardplan = runGuardPlan(args[2L]),
   calibrate = runCalibrate(args[2L]),
+  uncoded = runUncodedCheck(),
   long = runLong(args[2L], as.integer(args[3L])),
   default = runDefault(
     args[2L],
