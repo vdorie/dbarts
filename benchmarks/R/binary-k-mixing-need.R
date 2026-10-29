@@ -2438,6 +2438,12 @@ escalateReferencePart <- function(cell, link, rep, part) {
   meta$kTail <- r2$k
   meta$escalated <- TRUE
   saveAtomic(meta, metaPath)
+  # the first pass's record is a prefix of the escalated one and its tail is
+  # superseded
+  file.remove(file.path(
+    dir,
+    sprintf("shipped-part%d-%s.f32", part, c("record", "tail"))
+  ))
 }
 
 partFile <- function(meta, what) {
@@ -3066,25 +3072,120 @@ fixedkFile <- function(cell, link, rep) {
 ## ------------------------------------------------------------- compaction
 
 auditCount <- 20L
+auditBudgetMB <- 1024
+refLargeMB <- 200 # a large reference's first-pass draws
+refInFlight <- 2L # large references holding draws at once
 compactProbs <- (seq_len(1000L) - 0.5) / 1000
 
-# The references kept in full for audit, chosen before any study fit from all
-# of the tranche's reference replications.
+# A reference's raw columns, read from the smoke's part metadata (both links
+# alike): training and test fits, S9's propensity columns after the outcome's.
+refCols <- c(
+  S1 = 600,
+  S2 = 532,
+  S3 = 10100,
+  S4 = 81,
+  S5 = 1100,
+  S6 = 532,
+  S7 = 1494,
+  S8 = 2000,
+  S9 = 2241,
+  E1 = 1049,
+  E2 = 1010,
+  E3 = 532,
+  D1 = 8000,
+  D2 = 2000,
+  "B1:pima" = 525,
+  "B1:biopsy" = 646,
+  "B1:infert" = 248,
+  "B1:kyphosis" = 81,
+  "B1:pbc" = 276,
+  "B1:birthwt" = 189,
+  "B1:adult" = 4100,
+  "B1:bank" = 4100,
+  "B1:magic" = 4100,
+  "B1:mushroom" = 4100,
+  "B1:spambase" = 3780,
+  "B1:banknote" = 1197,
+  "B1:german" = 900,
+  "B1:tictactoe" = 866,
+  "B1:transfusion" = 698,
+  "B1:creditapproval" = 622,
+  "B1:wdbc" = 555,
+  "B1:climate" = 532,
+  "B1:ionosphere" = 351,
+  "B1:haberman" = 306,
+  "B1:cleveland" = 297,
+  "B1:sonar" = 208,
+  "B2:lindner" = 1992,
+  "B2:actg175" = 2108,
+  "B2:lalonde" = 1228
+)
+
+escalatingTasks <- c("prob", "effect", "multi", "d2", "s9")
+
+# A reference's full draws in MiB at full length: the first pass, or the
+# escalated reference (the shipped half at escalateRecord).
+refMB <- function(cell, escalated = FALSE) {
+  key <- if (cell %in% names(refCols)) cell else cellRegime(cell)$id
+  ch <- refChains(cellChains(cell))
+  perDraw <- 4 * ch * refCols[[key]] / 2^20
+  rec <- 20000L %/% mcmc$refThin
+  esc <- 100000L %/% mcmc$refThin
+  tl <- 500L
+  if (escalated && cellTask(cell) %in% escalatingTasks) {
+    perDraw * (esc + tl + rec + tl)
+  } else {
+    perDraw * 2 * (rec + tl)
+  }
+}
+
+# The references kept in full for audit, chosen before any study fit: all of
+# the tranche's reference replications in a seeded order, each taken while
+# the set's draws, at their escalated size where the cell escalates, stay
+# within auditBudgetMB, up to auditCount of them.
 auditSet <- function(tranche = 1L) {
   keys <- character()
+  mb <- numeric()
   for (reg in regimes) {
     for (cell in regimeCells(reg)) {
       for (link in reg$links) {
         reps <- if (reg$id == "B") 1L else seq_len(refsFor(cell, tranche))
         keys <- c(keys, paste(cell, link, reps))
+        mb <- c(mb, rep(refMB(cell, TRUE), length(reps)))
       }
     }
   }
-  withSeed(seedOf("audit", tranche), sort(sample(keys, auditCount)))
+  ord <- withSeed(seedOf("audit", tranche), sample.int(length(keys)))
+  take <- logical(length(keys))
+  used <- 0
+  for (i in ord) {
+    if (sum(take) >= auditCount) {
+      break
+    }
+    if (used + mb[i] <= auditBudgetMB) {
+      take[i] <- TRUE
+      used <- used + mb[i]
+    }
+  }
+  sort(keys[take])
 }
 
 compactFile <- function(cell, link, rep) {
   file.path(referenceDir(cell, link, rep), "compact.rds")
+}
+
+# Removes a compacted reference's saved samplers and, outside the audit set,
+# its draws; returns the bytes removed.
+removeDraws <- function(dir, keep) {
+  pattern <- if (keep) {
+    "-p?sampler[.]rds$"
+  } else {
+    "(-record(-esc)?|-tail(-esc)?)[.]f32$|-p?sampler[.]rds$"
+  }
+  gone <- list.files(dir, pattern = pattern, full.names = TRUE)
+  removed <- sum(file.size(gone))
+  file.remove(gone)
+  removed
 }
 
 # After every reading of a reference is scored: per row quantity, 1,000
@@ -3094,7 +3195,9 @@ compactFile <- function(cell, link, rep) {
 # audit set.
 compactReference <- function(cell, link, rep) {
   dir <- referenceDir(cell, link, rep)
+  keep <- paste(cell, link, rep) %in% auditSet()
   if (file.exists(compactFile(cell, link, rep))) {
+    removeDraws(dir, keep)
     cat("compact", cell, link, rep, ": already compact\n")
     return(invisible(NULL))
   }
@@ -3127,7 +3230,6 @@ compactReference <- function(cell, link, rep) {
       scalars[[nm]] <- list(shipped = cs[[nm]], move = cm[[nm]])
     }
   }
-  keep <- paste(cell, link, rep) %in% auditSet()
   out <- list(
     cell = cell,
     link = link,
@@ -3141,14 +3243,7 @@ compactReference <- function(cell, link, rep) {
     quick = quick
   )
   saveAtomic(out, compactFile(cell, link, rep))
-  pattern <- if (keep) {
-    "-p?sampler[.]rds$"
-  } else {
-    "(-record(-esc)?|-tail(-esc)?)[.]f32$|-p?sampler[.]rds$"
-  }
-  gone <- list.files(dir, pattern = pattern, full.names = TRUE)
-  removed <- sum(file.size(gone))
-  file.remove(gone)
+  removed <- removeDraws(dir, keep)
   cat(sprintf(
     "compact %s %s %d: %d row classes, %s, %.0f MB removed\n",
     cell,
@@ -4954,11 +5049,12 @@ jobId <- function(...) {
   paste(gsub("[:]", "_", parts[nzchar(parts)]), collapse = "-")
 }
 
+# A job's dependencies; a "~" marks one met when that job ends either way.
 jobDeps <- function(field) {
   if (identical(field, "-")) {
     character()
   } else {
-    strsplit(field, ",", fixed = TRUE)[[1L]]
+    sub("^~", "", strsplit(field, ",", fixed = TRUE)[[1L]])
   }
 }
 
@@ -4989,7 +5085,8 @@ replicationJobs <- function(
   discriminate = "",
   longReps = longOracleReps,
   bSeeds = repsFor(cell, tranche),
-  arms = NULL
+  arms = NULL,
+  gate = NULL
 ) {
   reg <- cellRegime(cell)
   big <- reg$big
@@ -5095,15 +5192,68 @@ replicationJobs <- function(
       )
     }
   }
+  # a reference's scoring and compaction; B's wait for its last seed's fits
+  scoreRef <- function(refRep) {
+    seedFits <- if (reg$id == "B") {
+      unlist(lapply(seq_len(bSeeds), function(r) {
+        c(
+          jobId("fit", cell, link, r, "shipped"),
+          jobId("fit", cell, link, r, "move")
+        )
+      }))
+    } else {
+      fitIds
+    }
+    add(
+      jobId("refscore", cell, link, refRep),
+      c(
+        jobId("acceptfinal", cell, link, refRep),
+        jobId("fixedk", cell, link, refRep),
+        seedFits
+      ),
+      big,
+      cell,
+      sprintf(
+        "@shipped refscore %s %s %d%s",
+        cell,
+        link,
+        refRep,
+        if (reg$id == "B") paste0(" ", bSeeds) else ""
+      )
+    )
+    add(
+      jobId("compact", cell, link, refRep),
+      jobId("refscore", cell, link, refRep),
+      big,
+      cell,
+      sprintf("@shipped compact %s %s %d", cell, link, refRep)
+    )
+  }
+  if (reg$id == "B" && rep == bSeeds && rep > 1L && "references" %in% phases) {
+    scoreRef(1L)
+  }
   if (ref && "references" %in% phases) {
     parts <- seq_len(refPartsPerKernel(cell))
     partIds <- character()
+    # at most refInFlight large references hold their draws at once: a large
+    # reference's parts wait for the compaction (or failure) of the large one
+    # refInFlight before it
+    partDeps <- design
+    if (!is.null(gate) && refMB(cell) >= refLargeMB) {
+      if (length(gate$large) >= refInFlight) {
+        partDeps <- c(
+          partDeps,
+          paste0("~", gate$large[length(gate$large) - refInFlight + 1L])
+        )
+      }
+      gate$large <- c(gate$large, jobId("compact", cell, link, rep))
+    }
     for (which in c("shipped", "move")) {
       for (part in parts) {
         id <- jobId("ref", cell, link, rep, which, part)
         add(
           id,
-          design,
+          partDeps,
           big,
           cell,
           sprintf("@%s reference run %s %s %d %d", which, cell, link, rep, part)
@@ -5152,46 +5302,16 @@ replicationJobs <- function(
       cell,
       sprintf("@shipped fixedk %s %s %d", cell, link, rep)
     )
-    seedFits <- if (reg$id == "B") {
-      unlist(lapply(seq_len(bSeeds), function(r) {
-        c(
-          jobId("fit", cell, link, r, "shipped"),
-          jobId("fit", cell, link, r, "move")
-        )
-      }))
-    } else {
-      fitIds
+    if (reg$id != "B" || bSeeds == 1L) {
+      scoreRef(rep)
     }
-    add(
-      jobId("refscore", cell, link, rep),
-      c(fin, jobId("fixedk", cell, link, rep), seedFits),
-      big,
-      cell,
-      sprintf(
-        "@shipped refscore %s %s %d%s",
-        cell,
-        link,
-        rep,
-        if (reg$id == "B") paste0(" ", bSeeds) else ""
-      ),
-      last = reg$id == "B"
-    )
-    add(
-      jobId("compact", cell, link, rep),
-      jobId("refscore", cell, link, rep),
-      big,
-      cell,
-      sprintf("@shipped compact %s %s %d", cell, link, rep),
-      last = reg$id == "B"
-    )
   }
 }
 
 writeJobs <- function(phase, path, tranche = 1L) {
   jobs <- list()
-  tail <- list()
-  add <- function(id, deps, big, cell, cmd, last = FALSE) {
-    line <- paste(
+  add <- function(id, deps, big, cell, cmd) {
+    jobs[[length(jobs) + 1L]] <<- paste(
       id,
       if (length(deps)) paste(deps, collapse = ",") else "-",
       as.integer(big),
@@ -5200,17 +5320,14 @@ writeJobs <- function(phase, path, tranche = 1L) {
       cmd,
       sep = "\t"
     )
-    if (last) {
-      tail[[length(tail) + 1L]] <<- line
-    } else {
-      jobs[[length(jobs) + 1L]] <<- line
-    }
   }
+  gate <- new.env()
+  gate$large <- character()
   allCells <- unlist(lapply(regimes, regimeCells))
   if (phase == "smoke") {
     for (cell in allCells) {
       for (link in cellRegime(cell)$links) {
-        replicationJobs(cell, link, 1L, tranche, add, bSeeds = 1L)
+        replicationJobs(cell, link, 1L, tranche, add, bSeeds = 1L, gate = gate)
       }
     }
   } else if (phase == "tranche1") {
@@ -5222,7 +5339,7 @@ writeJobs <- function(phase, path, tranche = 1L) {
     for (cell in order) {
       for (link in cellRegime(cell)$links) {
         for (rep in seq_len(repsFor(cell, tranche))) {
-          replicationJobs(cell, link, rep, tranche, add)
+          replicationJobs(cell, link, rep, tranche, add, gate = gate)
         }
       }
     }
@@ -5260,7 +5377,15 @@ writeJobs <- function(phase, path, tranche = 1L) {
     # references, without the long oracle
     for (cell in refCtlRegimes) {
       for (rep in seq_len(refsFor(cell, tranche))) {
-        replicationJobs(cell, "probit", rep, tranche, add, longReps = 0L)
+        replicationJobs(
+          cell,
+          "probit",
+          rep,
+          tranche,
+          add,
+          longReps = 0L,
+          gate = gate
+        )
       }
     }
   } else if (phase == "disc") {
@@ -5341,7 +5466,7 @@ writeJobs <- function(phase, path, tranche = 1L) {
   } else {
     stop("no phase ", phase)
   }
-  lines <- c(unlist(jobs), unlist(tail))
+  lines <- unlist(jobs)
   writeLines(lines, path)
   cat(sprintf("%d jobs written to %s\n", length(lines), path))
 }
