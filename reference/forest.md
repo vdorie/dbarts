@@ -25,7 +25,8 @@ arguments that take it, and elsewhere is written
 forest(
     vars = NULL, basis = NULL, sd = NULL,
     n.trees = NULL, base = NULL, power = NULL, amplitude = NULL,
-    interactions = NULL, blocks = NULL)
+    interactions = NULL, blocks = NULL,
+    proposal.probs = NULL, n.perturb.cuts = NULL, treeShift = NULL)
 ```
 
 ## Arguments
@@ -657,6 +658,24 @@ forest(
   the constructor is `dbartsPriors$fixed()`. It is stated for a forest
   of a model of several; a model of one forest has no amplitude to hold.
 
+- proposal.probs, n.perturb.cuts, treeShift:
+
+  This forest's tree moves - its proposal mixture, perturb window and
+  level-shifting step - as
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
+  describes each. Each one stated here governs this forest and each one
+  left out takes the control's: `$setControl` changes a forest's setting
+  only where the forest states none, and one stated here is fixed for
+  the sampler's life. A stated `proposal.probs` is a whole mixture,
+  filled against the package defaults as
+  [`dbartsControl()`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
+  is and not edits to the control's, so an omitted `birth` is 0.5. A
+  forest frozen by its own mixture is still grown by `n.grow.sweeps` and
+  replaced by `warm.start`, as under the control's, and `treeShift` acts
+  on the constant leaves of two or more trees, as the control's does.
+  `n =` and `p =` each abbreviate more than one argument, so write
+  `n.trees` and `power` in full.
+
 ## Details
 
 With two forests, the second carrying a two-level factor basis, this is
@@ -796,7 +815,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
 #>  level fiber gibbs step: auto
-#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
+#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50; perturb window 1
 #> data:
 #>  number of training observations: 100
 #>  number of test observations: 0
@@ -810,7 +829,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>   1 forest1: no basis; sd 2.278 (default)
 #>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)
 #> Running mcmc loop:
-#> total seconds in loop: 0.000481
+#> total seconds in loop: 0.000549
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 3 2 2 2 2 

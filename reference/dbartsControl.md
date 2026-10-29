@@ -118,13 +118,16 @@ dbartsControl(
   structures are frozen - every structural element of `proposal.probs`
   zero - where the leaf values are the only thing left moving. The
   decision is made afresh each iteration, so a mixture frozen with
-  `$setModel` part way through a run switches the step on from there.
+  `$setControl` part way through a run switches the step on from there.
   Where structure is being proposed the default takes no step and draws
   exactly the values it drew in previous versions. Applies to forests
   with the default constant leaves (including the monotone constraint
   and every binary, count, or survival family built on them); linear and
   Gaussian-process leaves and the heteroscedastic variance forest ignore
-  it. Fixed when the sampler is created.
+  it. It is the value of every forest that states none of its own
+  ([`forest`](https://vdorie.github.io/dbarts/reference/forest.md)), and
+  [`setControl`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  accepts a changed value between runs, installing it on those forests.
 
 - keepTrees:
 
@@ -360,10 +363,14 @@ dbartsControl(
   ordinal, and it is inert on an all-categorical design. Unlike the four
   engine settings above, this one is not fixed at creation:
   [`setControl`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
-  accepts a changed mixture between runs, installing it with the priors
-  exactly as at creation, on a heteroscedastic sampler's variance forest
-  as on its mean forest, and a refused install rolls the stored control
-  back.
+  accepts a changed mixture between runs, installing it on every forest
+  that states none of its own, on every sampler, DART fits, models of
+  several forests and multinomial ones included - with the priors, as at
+  creation, on a sampler whose `$setModel` takes a model - and a refused
+  install rolls the stored control back. It is the mixture of every
+  forest that states none of its own
+  ([`forest`](https://vdorie.github.io/dbarts/reference/forest.md),
+  [`varianceForest`](https://vdorie.github.io/dbarts/reference/varianceForest.md)).
 
 - n.perturb.cuts:
 
@@ -380,8 +387,10 @@ dbartsControl(
   changes how the proposal moves, not the posterior it targets;
   acceptance falls as the window widens. Like `proposal.probs`,
   [`setControl`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
-  accepts a changed value between runs, installing it with the mixture,
-  on a heteroscedastic sampler's variance forest as on its mean forest.
+  accepts a changed value between runs, installing it with the mixture.
+  It is the window of every forest that states none of its own
+  ([`forest`](https://vdorie.github.io/dbarts/reference/forest.md),
+  [`varianceForest`](https://vdorie.github.io/dbarts/reference/varianceForest.md)).
 
 - seed:
 

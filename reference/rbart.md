@@ -308,7 +308,7 @@ rbartFit <- suppressWarnings(
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
 #>  level fiber gibbs step: auto
-#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
+#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50; perturb window 1
 #> data:
 #>  number of training observations: 100
 #>  number of test observations: 0
@@ -334,7 +334,7 @@ rbartFit <- suppressWarnings(
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
 #>  level fiber gibbs step: auto
-#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
+#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50; perturb window 1
 #> data:
 #>  number of training observations: 100
 #>  number of test observations: 0

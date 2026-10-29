@@ -86,7 +86,8 @@ The constructor is not exported: it resolves by bare name inside the
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">forest</span><span class="op">(</span></span>
 <span>    vars <span class="op">=</span> <span class="cn">NULL</span>, basis <span class="op">=</span> <span class="cn">NULL</span>, sd <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    n.trees <span class="op">=</span> <span class="cn">NULL</span>, base <span class="op">=</span> <span class="cn">NULL</span>, power <span class="op">=</span> <span class="cn">NULL</span>, amplitude <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>    interactions <span class="op">=</span> <span class="cn">NULL</span>, blocks <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+<span>    interactions <span class="op">=</span> <span class="cn">NULL</span>, blocks <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>    proposal.probs <span class="op">=</span> <span class="cn">NULL</span>, n.perturb.cuts <span class="op">=</span> <span class="cn">NULL</span>, treeShift <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -622,6 +623,21 @@ The constructor is not exported: it resolves by bare name inside the
     the constructor is <code>dbartsPriors$fixed()</code>. It is stated for a forest
     of a model of several; a model of one forest has no amplitude to hold.</p></dd>
 
+  <dt id="arg-proposal-probs-n-perturb-cuts-treeshift">proposal.probs, n.perturb.cuts, treeShift<a class="anchor" aria-label="anchor" href="#arg-proposal-probs-n-perturb-cuts-treeshift"></a></dt>
+<dd><p>This forest's tree moves - its proposal mixture, perturb window and
+    level-shifting step - as <code><a href="dbartsControl.html">dbartsControl</a></code> describes each. Each
+    one stated here governs this forest and each one left out takes the
+    control's: <code>$setControl</code> changes a forest's setting only where the
+    forest states none, and one stated here is fixed for the sampler's life.
+    A stated <code>proposal.probs</code> is a whole mixture, filled against the
+    package defaults as <code><a href="dbartsControl.html">dbartsControl()</a></code>'s is and not edits to the
+    control's, so an omitted <code>birth</code> is 0.5. A forest frozen by its own
+    mixture is still grown by <code>n.grow.sweeps</code> and replaced by
+    <code>warm.start</code>, as under the control's, and <code>treeShift</code> acts on
+    the constant leaves of two or more trees, as the control's does.
+    <code>n =</code> and <code>p =</code> each abbreviate more than one argument, so
+    write <code>n.trees</code> and <code>power</code> in full.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -758,7 +774,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	power and base for tree prior: 2.000000 0.950000</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	use quantiles for rule cut points: false</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	level fiber gibbs step: auto</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 	proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 	proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50; perturb window 1</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> data:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	number of training observations: 100</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	number of test observations: 0</span>
@@ -772,7 +788,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span>   1 forest1: no basis; sd 2.278 (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000481</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000549</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 3 3 2 2 2 2 </span>

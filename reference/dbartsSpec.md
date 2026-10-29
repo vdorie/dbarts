@@ -46,7 +46,8 @@ dbartsSpec(
 
   As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
   (except that `proposal.probs` is a formal of this function rather than
-  of `control`), including the frozen `proposal.probs` mixture - all
+  of `control`; it is the control's, and does not reach a forest that
+  states its own), including the frozen `proposal.probs` mixture - all
   five structural probabilities zero, which proposes no structure and
   draws only the leaf values, `sigma` and the family's latents. The
   prior arguments are evaluated in dbarts's own prior vocabulary, so

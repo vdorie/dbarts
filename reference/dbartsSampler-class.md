@@ -253,13 +253,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   An object inheriting from
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
   When passed to `setControl`, it cannot change `n.trees`, `n.chains`,
-  `useQuantiles`, `treeShift`, or `seed` from the values the sampler was
-  created with, and cannot set `keepTrees = TRUE` without also giving
-  `n.samples`; either is an error. `treeShift` is guarded as one of the
-  three values it was given - `"always"`, `"never"`, or `"auto"` - so
-  restating `"auto"`, the default, is accepted while turning the step on
-  or off is not; under `"auto"` the step follows the mixture, which
-  `setModel` may freeze at any point.
+  `useQuantiles`, or `seed` from the values the sampler was created
+  with, and cannot set `keepTrees = TRUE` without also giving
+  `n.samples`; either is an error. Under `treeShift = "auto"` the step
+  follows the mixture, which `setControl` may freeze, on every forest
+  that states no mixture of its own.
 
 - newModel:
 

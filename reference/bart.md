@@ -2148,7 +2148,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
 #>  level fiber gibbs step: auto
-#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
+#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50; perturb window 1
 #> data:
 #>  number of training observations: 60
 #>  number of test observations: 0
@@ -2158,7 +2158,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001223
+#> total seconds in loop: 0.001454
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 2 3 2 3 2 2 1 1 2 3 3 3 2 2 
@@ -2197,7 +2197,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
 #>  level fiber gibbs step: auto
-#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
+#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50; perturb window 1
 #> data:
 #>  number of training observations: 60
 #>  number of test observations: 0
@@ -2211,7 +2211,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   1 forest1: no basis; sd 1.798 (default)
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #> Running mcmc loop:
-#> total seconds in loop: 0.001404
+#> total seconds in loop: 0.002774
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 1 2 2 3 4 

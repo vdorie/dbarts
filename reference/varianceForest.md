@@ -21,7 +21,9 @@ arguments that take it, and elsewhere is written
 ## Usage
 
 ``` r
-varianceForest(vars = NULL, n.trees = NULL, base = NULL, power = NULL)
+varianceForest(
+    vars = NULL, n.trees = NULL, base = NULL, power = NULL,
+    proposal.probs = NULL, n.perturb.cuts = NULL)
 ```
 
 ## Arguments
@@ -45,6 +47,21 @@ varianceForest(vars = NULL, n.trees = NULL, base = NULL, power = NULL)
 
   The variance forest's tree-structure prior. `NULL` (the default)
   inherits the mean forest's `tree.prior` `base`/`power`.
+
+- proposal.probs, n.perturb.cuts:
+
+  The variance forest's proposal mixture and perturb window, as
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
+  describes each. Each one stated here governs the variance forest and
+  each one left out takes the control's: `$setControl` changes it only
+  where none is stated here, and one stated here is fixed for the
+  sampler's life. A stated `proposal.probs` is a whole mixture, filled
+  against the package defaults as
+  [`dbartsControl()`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
+  is, and a positive `"rule_gibbs"` share is refused: that move does
+  nothing on the variance forest's leaves. `n =` and `p =` each
+  abbreviate more than one argument, so write `n.trees` and `power` in
+  full.
 
 ## Details
 
@@ -100,8 +117,10 @@ fit.restricted <- bart(x, y,
 
 dbartsForests$varianceForest(vars = ~x1, n.trees = 20L, base = 0.9, power = 1.5)
 #> dbarts variance forest specification
-#>   vars    = ~x1
-#>   n.trees = 20L
-#>   base    = 0.9
-#>   power   = 1.5
+#>   vars           = ~x1
+#>   n.trees        = 20L
+#>   base           = 0.9
+#>   power          = 1.5
+#>   proposal.probs = <control's>
+#>   n.perturb.cuts = <control's>
 ```

@@ -1370,7 +1370,7 @@ bartFit <- bartBT(x, y)
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
 #>  level fiber gibbs step: auto
-#>  proposal probabilities: birth/death 0.50, swap 0.10, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
+#>  proposal probabilities: birth/death 0.50, swap 0.10, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50; perturb window 1
 #> data:
 #>  number of training observations: 100
 #>  number of test observations: 0
@@ -1393,7 +1393,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.145745
+#> total seconds in loop: 0.171023
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

@@ -378,10 +378,11 @@ dbarts(
   specifications declaring the ensembles the mean is a weighted sum of,
   instead of the single ensemble `NULL` (the default) fits. Each forest
   carries its own tree count, structure prior, leaf scale, column
-  restriction and `interactions`/`blocks` constraints; a forest given a
-  `basis` enters the mean multiplied by the amplitudes on that basis's
-  columns. Any number of forests may be declared, each carrying a basis
-  of one numeric column or of two levels (see
+  restriction, `interactions`/`blocks` constraints and, where it states
+  them, `proposal.probs`, `n.perturb.cuts` and `treeShift`; a forest
+  given a `basis` enters the mean multiplied by the amplitudes on that
+  basis's columns. Any number of forests may be declared, each carrying
+  a basis of one numeric column or of two levels (see
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
   `basis` item); the two-forest case with a two-level factor basis is
   the Bayesian causal forest \\y = a \mu(x) + b_z \tau(x) + \epsilon\\:
@@ -425,11 +426,11 @@ dbarts(
   every forest's `sd` is stated in units of the latent index, `sigma` is
   pinned and there is no response transform to re-anchor. `"aft"`,
   `"ordinal"` and `"nbinom"` are refused at creation, each naming what
-  it is missing. The `control`'s `proposal.probs` mixture is a property
-  of the fit and reaches every forest of the declaration, the frozen
-  mixture included: an all-zero mixture holds every forest's tree
-  structures and leaves only the leaf values, the per-forest amplitudes,
-  `sigma` and the family's latents moving. The result is an ordinary
+  it is missing. The `control`'s `proposal.probs` mixture reaches every
+  forest of the declaration that states none of its own, the frozen
+  mixture included: an all-zero mixture holds those forests' tree
+  structures, and their leaf values move with the per-forest amplitudes,
+  `sigma` and the family's latents. The result is an ordinary
   `dbartsSampler`; per-forest fits and the per-forest amplitudes are
   read off the sampler rather than from the run's combined `train`
   channel. The columns of each basis are stored on the data object, as
