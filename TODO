@@ -328,6 +328,14 @@ items
     value being resolved once into the control (run 2026-10-11).
     Decide with dec-B254's per-forest tree priors whether it follows.
     Before 1.0-0.
+  variance-forest-tree-shift: after 1.0-0 (dec-B500, VD 2026-10-29).
+    The tree-shift step acts on the mean forests only; varianceForest()
+    takes no treeShift. Measure how a frozen variance forest's leaf
+    values mix (structures held, leaves redrawn) and, only if slow,
+    derive the multiplicative step - each tree's leaves scaled by
+    factors whose product is one, which under inverse-gamma leaves has
+    no closed-form draw - with its exactness gate; varianceForest()
+    then takes treeShift.
   treatsens-cibart-chains: after 1.0-0, on treatSens's own schedule
     (dec-B395, VD 2026-10-08). cibart runs its compiled Gibbs driver
     once per chain in parallel, each chain with its own confounder state
