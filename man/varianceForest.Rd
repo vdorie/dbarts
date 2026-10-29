@@ -51,8 +51,8 @@ varianceForest(
     \code{proposal.probs} is a whole mixture, filled against the package
     defaults as \code{dbartsControl()}'s is, and a positive
     \code{"rule_gibbs"} share is refused: that move does nothing on the
-    variance forest's leaves. With these arguments \code{n =} and \code{p =}
-    no longer abbreviate a single argument.
+    variance forest's leaves. \code{n =} and \code{p =} each abbreviate more
+    than one argument, so write \code{n.trees} and \code{power} in full.
   }
 }
 \details{

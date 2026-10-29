@@ -616,9 +616,9 @@ sampler$setLeafPrior(forests = list(forest(),
     control's, so an omitted \code{birth} is 0.5. A forest frozen by its own
     mixture is still grown by \code{n.grow.sweeps} and replaced by
     \code{warm.start}, as under the control's, and \code{treeShift} acts on
-    the constant leaves of two or more trees, as the control's does. With
-    these arguments \code{n =} and \code{p =} no longer abbreviate a single
-    argument; write \code{n.trees} and \code{power} in full.
+    the constant leaves of two or more trees, as the control's does.
+    \code{n =} and \code{p =} each abbreviate more than one argument, so
+    write \code{n.trees} and \code{power} in full.
   }
 }
 \details{
