@@ -902,6 +902,12 @@ Reviews: one Opus review of the branch, FIX FIRST; three fix rounds, each checke
 Gates on ab5adba: the testthat suite at home, 442 results, 0 failed, at the third round, and the stream tests 126 of 126 at the tip; the binary-U regression script identical to master's; CI sanitizers green.
 Record: treatSens R/parallelRNG.R, rngStreams, withSavedRNG; R/treatSensMLM.R, maxDrawFailures; tests/testthat/test-11-parallelSeed.R. Marked: blank; told the maintainer 2026-10-29. [dec-A236]
 
+**treatSens reads R-devel's generator state: the calls made building it**
+treatSens's copy of the seed reader refused any .Random.seed code above 11000, so on R-devel, whose binomial kind adds a digit at 100000 (default code 110403), every treatSens.BART and cibart fit warned that the seed was invalid and ran a clock-seeded Mersenne-Twister until the sampler reseeded from rngSeed (treatSens ab5adba..664db20). The fix ports dbarts's check: the uniform and normal kinds are decoded and validated one by one and higher digits are ignored, so a new kind R adds is not refused; a negative code is refused as R refuses it, which the old bound did and the port alone would not; and the old bound's case where a code under 11000 named a kind the library lacks, which returned no generator and no warning, now warns. The sanitizer job installs foreach and doParallel, so the seven parallel tests run under R-devel and the sanitizers. Not taken: halting on a UBSAN report in the sanitizer job, which could fail it on dependencies' reports.
+Reviews: one Sonnet review, FIX FIRST (the test's binomial loop set the kind whose digit is zero; the shared helper; negative codes), the fix round checked by the same reviewer, LAND; it swept 90,000 codes through the old and new reader in a C harness, no mismatch and no missing generator.
+Gates on 664db20: the testthat suite at home, 450 results, 0 failed; R CMD check --as-cran, the compilation-flags warning and the new-submission note as before; CI sanitizers green on R-devel with the parallel tests run and no seed warning.
+Record: treatSens src/external/randomBase.c, stdNormalTypeFromSeed0, ext_rng_createDefault; .github/workflows/sanitizers.yaml. Marked: blank; told the maintainer 2026-10-29. [dec-A237]
+
 ## B. Decisions with maintainer evidence
 
 **Missing predictors are modeled, not refused**
