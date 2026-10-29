@@ -341,25 +341,58 @@ dbartsTombstones <- list(
 ## ------------------------------------------------------------------
 
 ## bart2's formals are bart's, copied rather than restated: a consumer
-## reads formals(dbarts::bart2) for its defaults (bartCause does), so the
-## alias has to be a real closure over the real list and not function(...).
+## reads formals(dbarts::bart2) for its defaults, so the alias has to be a
+## real closure over the real list and not function(...).
+## The one default that differs is combineChains, FALSE as in 0.9-34's
+## bart2, so that bart2()$yhat.train is chains by samples by observations
+## again; the formal says so, and the forwarded call carries it when the
+## caller named none.
 ## The matched call forwards with only the function replaced, so every
 ## argument is still promised in - and evaluated in - the caller's frame,
 ## and an unsupplied argument stays unsupplied.
+## What the fit stores as its call is the call as the caller wrote it,
+## head included, with nothing the alias added: consumers match the head
+## (marginaleffects accepts only bart2 and dbarts::bart2). bart cannot see
+## the written head, so the alias leaves it, and the argument it injected,
+## in aliasForwardState for bart to take on entry.
+aliasForwardState <- new.env(parent = emptyenv())
+
+takeAliasForward <- function() {
+  forward <- aliasForwardState[["pending"]]
+  aliasForwardState[["pending"]] <- NULL
+  forward
+}
+
 bart2 <- function() {
   matchedCall <- match.call()
+  injected <- character(0L)
+  if (!("combineChains" %in% names(matchedCall))) {
+    matchedCall$combineChains <- FALSE
+    injected <- "combineChains"
+  }
+  aliasForwardState[["pending"]] <- list(
+    head = matchedCall[[1L]],
+    injected = injected
+  )
+  # bart takes the entry on its first line; an early failure in the
+  # forwarded promise evaluation must not leave it for another fit
+  on.exit(aliasForwardState[["pending"]] <- NULL)
   matchedCall[[1L]] <- quote(dbarts::bart)
   warnOnce(
     "tombstone.bart2",
     "'bart2' is now 'bart'; this call was forwarded. The alias is removed ",
     "in dbarts ",
     tombstoneExpiry,
+    ". 'bart' combines chains by default; 'bart2' keeps them separate, as ",
+    "0.9-x's did. Pass combineChains = FALSE to 'bart' to keep them ",
+    "separate.",
     class = "dbartsDeprecatedWarning"
   )
   onceWarnState[[frontDoorDefaultsKey]] <- TRUE
   eval(matchedCall, parent.frame())
 }
 formals(bart2) <- formals(bart)
+formals(bart2)$combineChains <- FALSE
 
 ## ------------------------------------------------------------------
 ## The BayesTree-spelled bart() call

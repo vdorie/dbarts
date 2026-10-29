@@ -1060,6 +1060,8 @@ bart <- function(
 ) {
   matchedCall <- match.call()
   callingEnv <- parent.frame()
+  # taken first, so no path below leaves it for another call
+  aliasForward <- takeAliasForward()
 
   # Two doors, one name for one release. A call carrying a BayesTree
   # spelling is a 0.9-x call and is fit by the legacy door with 0.9-x's
@@ -1388,6 +1390,11 @@ bart <- function(
   # what a caller that handed its arguments on by value wrote, as pdbart does
   storedCall <- writtenCall(matchedCall)
   storedCall$family <- suppliedFamily
+  # bart2 forwards here; the fit keeps the call as bart2 was written
+  if (!is.null(aliasForward)) {
+    storedCall[[1L]] <- aliasForward$head
+    storedCall[aliasForward$injected] <- NULL
+  }
   control@call <- if (keepCall) {
     expandForwardedCall(storedCall, callingEnv)
   } else {

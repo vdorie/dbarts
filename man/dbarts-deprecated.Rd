@@ -5,7 +5,7 @@
 \description{
   Names kept reachable for one release past their removal or rename, each pointing at its successor. They are removed in dbarts 1.1-0.
 
-  \code{bart2} is the former name of the modern front door, which is now \code{\link{bart}}; a \code{bart2} call is forwarded unchanged, with a warning the first time in a session.
+  \code{bart2} is the former name of the modern front door, which is now \code{\link{bart}}; a \code{bart2} call is forwarded, with a warning the first time in a session. Its one default that differs from \code{bart}'s is \code{combineChains = FALSE}, as in 0.9-34's \code{bart2}, so a multi-chain fit keeps its chains as a margin of its draws. The fit's stored call is the \code{bart2} call as written.
 
   \code{rbart_vi} and its methods are deprecated, and documented on \code{\link{rbart_vi}}.
 }
@@ -78,7 +78,7 @@
   Every entry above, \code{bart2} and \code{rbart_vi}, is one row of \code{dbarts:::dbartsTombstones}, the registry this page documents by hand.
 }
 \value{
-  \code{bart2} returns whatever \code{\link{bart}} returns.
+  \code{bart2} returns what \code{\link{bart}} returns, with the chains separate unless \code{combineChains = TRUE} is given.
 }
 \seealso{
   \code{\link{bart}}, \code{\link{bartBT}}

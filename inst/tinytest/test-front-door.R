@@ -118,8 +118,8 @@ expect_identical(
 )
 
 # --- bart2 is a real formal list, not function(...) - a consumer reads its
-# defaults - and forwards to bart bit for bit ---
-expect_identical(formals(dbarts::bart2), formals(dbarts::bart))
+# defaults - and forwards to bart bit for bit (its one default that differs
+# is pinned below) ---
 expect_false(identical(names(formals(dbarts::bart2)), "..."))
 expect_identical(
   eval(formals(dbarts::bart2)[["n.trees"]]),
@@ -149,6 +149,138 @@ expect_identical(
   )),
   0L
 )
+
+# --- bart2 keeps 0.9-34's separate chains; bart combines them (dec-A08) ---
+expect_identical(formals(dbarts::bart2)$combineChains, FALSE)
+expect_identical(formals(dbarts::bart)$combineChains, TRUE)
+expect_identical(
+  formals(dbarts::bart2)[setdiff(
+    names(formals(dbarts::bart)),
+    "combineChains"
+  )],
+  formals(dbarts::bart)[setdiff(names(formals(dbarts::bart)), "combineChains")]
+)
+chainsFD <- modernFD
+chainsFD$n.chains <- 2L
+chainsFD$n.threads <- 2L
+chainsFD$seed <- 6L
+resetWarnKey("tombstone.bart2")
+chainsMsgs <- character(0L)
+fitAlias2 <- withCallingHandlers(
+  do.call(dbarts::bart2, c(list(y ~ x1 + x2 + x3, dfFD), chainsFD)),
+  warning = function(w) {
+    chainsMsgs <<- c(chainsMsgs, conditionMessage(w))
+    invokeRestart("muffleWarning")
+  }
+)
+fitSep <- do.call(
+  dbarts::bart,
+  c(list(y ~ x1 + x2 + x3, dfFD), chainsFD, combineChains = FALSE)
+)
+fitMerged <- do.call(dbarts::bart, c(list(y ~ x1 + x2 + x3, dfFD), chainsFD))
+# chains by samples by observations, as 0.9-34's bart2 returned, draws
+# unchanged from bart's own
+expect_identical(dim(fitAlias2$yhat.train), c(2L, 40L, 90L))
+expect_identical(dim(fitAlias2$sigma), c(2L, 40L))
+expect_identical(fitAlias2$yhat.train, fitSep$yhat.train)
+expect_identical(fitAlias2$sigma, fitSep$sigma)
+expect_identical(dim(fitMerged$yhat.train), c(80L, 90L))
+expect_identical(dim(fitMerged$sigma), NULL)
+expect_identical(
+  as.vector(fitMerged$yhat.train),
+  as.vector(aperm(fitSep$yhat.train, c(2L, 1L, 3L)))
+)
+# the warning says the default differs and what keeps chains in bart
+expect_equal(length(chainsMsgs), 1L)
+expect_true(grepl(
+  "'bart' combines chains by default",
+  chainsMsgs,
+  fixed = TRUE
+))
+expect_true(grepl(
+  "combineChains = FALSE to 'bart' to keep them separate",
+  chainsMsgs,
+  fixed = TRUE
+))
+# an explicit value wins, in either direction
+fitAliasMerged <- suppressWarnings(
+  do.call(
+    dbarts::bart2,
+    c(list(y ~ x1 + x2 + x3, dfFD), chainsFD, combineChains = TRUE)
+  )
+)
+expect_identical(fitAliasMerged$yhat.train, fitMerged$yhat.train)
+# one chain drops the chain margin, as 0.9-34's did
+fitAlias1 <- suppressWarnings(
+  do.call(dbarts::bart2, c(list(y ~ x1 + x2 + x3, dfFD), modernFD))
+)
+expect_identical(dim(fitAlias1$yhat.train), c(40L, 90L))
+expect_identical(dim(fitAlias1$sigma), NULL)
+expect_identical(length(fitAlias1$sigma), 40L)
+
+# --- the fit stores the call as the caller wrote it ---
+bart2 <- dbarts::bart2
+writtenFD <- suppressWarnings(
+  bart2(
+    y ~ x1 + x2 + x3,
+    dfFD,
+    n.trees = 12L,
+    n.samples = 20L,
+    n.burn = 10L,
+    n.chains = 2L,
+    n.threads = 1L,
+    verbose = FALSE
+  )
+)
+expect_identical(writtenFD$call[[1L]], quote(bart2))
+expect_false("combineChains" %in% names(writtenFD$call))
+expect_identical(dim(writtenFD$yhat.train), c(2L, 20L, 90L))
+qualifiedFD <- suppressWarnings(
+  dbarts::bart2(
+    y ~ x1 + x2 + x3,
+    dfFD,
+    n.trees = 12L,
+    n.samples = 20L,
+    n.burn = 10L,
+    n.chains = 1L,
+    n.threads = 1L,
+    combineChains = TRUE,
+    verbose = FALSE
+  )
+)
+expect_identical(qualifiedFD$call[[1L]], quote(dbarts::bart2))
+# written by the caller, so it stays
+expect_identical(qualifiedFD$call[["combineChains"]], TRUE)
+# a bart fit after a bart2 call that failed keeps bart's own head: here the
+# alias's warning raised as an error before bart ran, and a formula bart
+# refused
+afterBart <- function() {
+  dbarts::bart(
+    y ~ x1 + x2 + x3,
+    dfFD,
+    n.trees = 12L,
+    n.samples = 20L,
+    n.burn = 10L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  )
+}
+resetWarnKey("tombstone.bart2")
+oldWarn <- options(warn = 2L)
+expect_error(bart2(y ~ x1, dfFD, n.threads = 1L, verbose = FALSE))
+options(oldWarn)
+expect_identical(afterBart()$call[[1L]], quote(dbarts::bart))
+expect_error(suppressWarnings(
+  bart2(y ~ nonexistent, dfFD, n.threads = 1L, verbose = FALSE)
+))
+expect_identical(afterBart()$call[[1L]], quote(dbarts::bart))
+expect_null(dbarts:::aliasForwardState[["pending"]])
+# update() re-runs the alias, so it keeps separate chains too
+updatedFD <- suppressWarnings(update(writtenFD, n.samples = 10L))
+expect_identical(dim(updatedFD$yhat.train), c(2L, 10L, 90L))
+expect_identical(updatedFD$call[[1L]], quote(bart2))
+rm(bart2)
 
 # --- a BayesTree-spelled bart call is the legacy door's fit, and warns
 # exactly once per session ---

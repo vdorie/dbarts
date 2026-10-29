@@ -26,7 +26,8 @@
       \item \code{bart} defaults to \code{combineChains = TRUE}, where
             \code{bart2} defaulted to \code{FALSE}, so the draws of a
             multi-chain fit come back with the chains merged. Pass
-            \code{combineChains = FALSE} for the previous shape.
+            \code{combineChains = FALSE} for the previous shape. The
+            \code{bart2} alias keeps the default \code{FALSE}.
       \item \code{pdbart} and \code{pd2bart} fit through \code{bart}, with
             its names and defaults (75 trees, four chains merged, so
             \code{fd} has 2000 rows by default; a factor is one predictor).
