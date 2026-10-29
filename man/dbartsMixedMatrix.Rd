@@ -5,6 +5,7 @@
 \alias{dimnames.dbartsMixedMatrix}
 \alias{[.dbartsMixedMatrix}
 \alias{as.matrix.dbartsMixedMatrix}
+\alias{as.data.frame.dbartsMixedMatrix}
 \description{
   The container a data frame's predictor columns assemble into whenever any
   column is sparse-backed (a \code{\link{sparseFactor}} column, or a
@@ -15,7 +16,9 @@
   one whenever \code{x} carries a sparse column; \code{\link{dbartsData}}'s
   x/y interface (and so \code{\link{dbarts}}'s and \code{\link{bart}}'s)
   returns one under the same condition and stores it in the resulting
-  \code{dbartsData} object's \code{x}/\code{x.test} slot. The formula
+  \code{dbartsData} object's \code{x}/\code{x.test} slot. A fit or sampler
+  made from a formula or a data frame holds one as its \code{data@x}
+  whether or not a column is sparse. The formula
   interface accepts a sparse column too, named like any other (including
   through \code{.}): a bare S4 column cannot survive
   \code{\link{model.frame}}, so it is lifted out of \code{data} first and
@@ -27,6 +30,7 @@
 \method{dimnames}{dbartsMixedMatrix}(x)
 \method{[}{dbartsMixedMatrix}(x, i, j, drop = TRUE)
 \method{as.matrix}{dbartsMixedMatrix}(x, \dots)
+\method{as.data.frame}{dbartsMixedMatrix}(x, row.names = NULL, optional = FALSE, \dots)
 }
 \arguments{
   \item{x}{
@@ -38,6 +42,13 @@
   }
   \item{drop}{
     Logical; as for a matrix, only consulted when \code{j} is supplied.
+  }
+  \item{row.names}{
+    \code{NULL}, the default, for a data frame's default row names, or a
+    vector of row names.
+  }
+  \item{optional}{
+    Unused.
   }
   \item{\dots}{
     Unused.
@@ -56,11 +67,20 @@
   zero-based) and is the escape hatch for any operation the container
   itself does not support.
 
+  \code{as.data.frame} gives the predictors as the model sees them, one
+  column per column of the container, named by \code{colnames(x)}: numeric
+  columns as numeric, and a factor column as a factor over its declared
+  levels, which keeps a level no row takes. For a fit made from a formula of
+  plain variables, \code{predict} and \code{setTestPredictor} take that data
+  frame as new data. A formula that transforms or expands a variable
+  (\code{I(z^2)}, \code{factor(i)}, a matrix term, \code{poly(z, 2)}) names
+  columns that are not the variables it reads, so new data for it is a data
+  frame of those variables, not this one.
+
   What is \strong{not} supported: matrix-style subassignment (\code{x[i, j]
-  <- value} errors), and coercion to a \code{\link{data.frame}}
-  (\code{as.data.frame(x)} errors - there is no \code{as.data.frame}
-  method). \code{is.matrix(x)} is \code{FALSE}. Code that needs either
-  should call \code{as.matrix(x)} first.
+  <- value} errors). \code{is.matrix(x)} is \code{FALSE}, and a base function
+  that does not dispatch on the class, such as \code{cbind}, does not see a
+  matrix. Code that needs a matrix should call \code{as.matrix(x)} first.
 }
 \value{
   \code{dim} returns an integer vector of length two. \code{dimnames}
@@ -68,7 +88,7 @@
   with \code{j} supplied returns a numeric vector or matrix, matching
   \code{drop}; with \code{j} missing it returns another
   \code{dbartsMixedMatrix}. \code{as.matrix} returns a plain numeric
-  matrix.
+  matrix, and \code{as.data.frame} a data frame.
 }
 \seealso{
   \code{\link{makeModelMatrixFromDataFrame}}, \code{\link{dbartsData}},

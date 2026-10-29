@@ -58,9 +58,12 @@ expect_identical(data.frame(xMixed), asDf)
 expect_identical(as.matrix(xMixed)[, "f"], as.double(as.integer(dfMD$f) - 1L))
 
 # a sparse factor column rides through as a factor, and sparse numeric
-# columns as numbers
+# columns as numbers; a declared level no row takes is kept
 set.seed(9)
-sf <- factor(sample(c("a", "b", "c"), nMD, TRUE, prob = c(0.7, 0.2, 0.1)))
+sf <- factor(
+  sample(c("a", "b", "c"), nMD, TRUE, prob = c(0.7, 0.2, 0.1)),
+  levels = c("a", "b", "c", "d")
+)
 dfSparse <- data.frame(y = rnorm(nMD) + (sf == "b"), z = runif(nMD) + 1)
 dfSparse$sf <- dbarts::sparseFactor(sf, reference = "b")
 fitSparse <- dbarts::bart(
@@ -78,7 +81,8 @@ fitSparse <- dbarts::bart(
 asDfSparse <- as.data.frame(fitSparse$fit$data@x)
 expect_identical(names(asDfSparse), c("z", "sf"))
 expect_true(is.factor(asDfSparse$sf))
-expect_identical(levels(asDfSparse$sf), c("a", "b", "c"))
+expect_identical(levels(asDfSparse$sf), c("a", "b", "c", "d"))
+expect_false("d" %in% as.character(asDfSparse$sf))
 expect_identical(as.character(asDfSparse$sf), as.character(sf))
 expect_identical(asDfSparse$z, dfSparse$z)
 expect_identical(

@@ -253,20 +253,26 @@
             \code{bartBT} expands as before.
       \item A fit's or sampler's \code{data@x}, when it was made from a
             formula or a data frame, is now a container that keeps each
-            factor as one column, not a numeric matrix. Use
-            \code{as.data.frame(data@x)} for the predictors as a data frame,
-            factors as factors with their declared levels, which
-            \code{predict} and \code{setTestPredictor} take as new data, and
-            \code{as.matrix(data@x)} for a numeric matrix with a factor as
-            its codes. Base functions that do not dispatch on the class,
-            such as \code{cbind}, do not see it as a matrix.
+            factor as one column, not a numeric matrix. \code{as.data.frame}
+            gives the predictors as the model sees them, factors as factors
+            over their declared levels, with the model matrix's column
+            names; \code{predict} and \code{setTestPredictor} take it as new
+            data for a formula of plain variables, but not for one that
+            transforms or expands a variable (\code{I(z^2)},
+            \code{factor(i)}, \code{poly(z, 2)}, a matrix term).
+            \code{as.matrix} gives a numeric matrix with a factor as its
+            codes. Base functions that do not dispatch on the class, such
+            as \code{cbind}, do not see it as a matrix.
       \item Rows with missing predictors are kept and their missingness
             modeled, where 0.9-34 dropped them. The new \code{na.action}
             of \code{bart}, \code{dbarts} and \code{dbartsData} defaults to
             \code{\link{na.keepPredictors}}, which drops only rows missing
             the response; \code{na.action = na.omit} restores the old rule.
             \code{xbart} always keeps such rows, and \code{bartBT} drops
-            them as before.
+            them as before. Hence \code{fitted}, \code{yhat.train} and
+            \code{predict} give one value per row passed in, rows with
+            missing predictors included, where 0.9-34 gave fewer; code that
+            fills only the complete rows by position must index every row.
       \item A predictor column that is first given a missing value after
             the sampler was created (\code{$setPredictor},
             \code{$setData}, \code{updatePredictorPerObservationJointly})

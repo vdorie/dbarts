@@ -198,7 +198,17 @@ expect_error(
   dbarts::bart(xCons, yCons, rngKind = "default", verbose = FALSE),
   pattern = "removed in dbarts 1.0-0"
 )
-rm(rngMsg)
+# either name alone gets the same account
+for (rngName in c("rngKind", "rngNormalKind")) {
+  rngAlone <- tryCatch(
+    do.call(dbarts::dbartsControl, structure(list("default"), names = rngName)),
+    error = conditionMessage
+  )
+  expect_true(grepl(paste0("unused argument '", rngName, "'"), rngAlone))
+  expect_true(grepl("removed in dbarts 1.0-0", rngAlone, fixed = TRUE))
+  expect_true(grepl("'seed'", rngAlone, fixed = TRUE))
+}
+rm(rngMsg, rngName, rngAlone)
 
 # --- names that never reached main (dec-2026-09-24) ---
 
