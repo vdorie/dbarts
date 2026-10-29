@@ -325,6 +325,14 @@ struct TestPeer {
                                                    std::size_t t) {
     return chain.forests_[f].muByTree[t];
   }
+  /// Forest f's tree t parameter blocks (a vector-parameter leaf), one block
+  /// of the leaf's numParams per node.
+  template <IntegrableLeafModel L, typename R>
+  static const std::vector<double>& forestParamsByTree(const Chain<L, R>& chain,
+                                                       std::size_t f,
+                                                       std::size_t t) {
+    return chain.forests_[f].paramsByTree[t];
+  }
   /// Forest f's blocks() group factors on its leaf scale, empty where none is
   /// stored.
   template <IntegrableLeafModel L, typename R>

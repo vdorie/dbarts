@@ -1614,6 +1614,23 @@ struct ScaleRecordingLeaf : ConstantGaussianLeaf {
   }
 };
 static_assert(ScalarLeafModel<ScaleRecordingLeaf>);
+
+/// A GP leaf recording, at every posterior node draw, the tree it is called on
+/// and the sum of squares it hands the k statistic.
+struct KRecordingGPLeaf : GPGaussianLeaf {
+  static std::vector<std::pair<const Tree*, FunctionLeafDrawStats>>& calls() {
+    static std::vector<std::pair<const Tree*, FunctionLeafDrawStats>> recorded;
+    return recorded;
+  }
+  FunctionLeafDrawStats drawFromPosteriorForNode(
+    ext_rng* rng, const Tree& tree, const double* y, const double* weights,
+    double k, double residualVariance, int32_t nodeIndex, double* fits) const {
+    FunctionLeafDrawStats stats = GPGaussianLeaf::drawFromPosteriorForNode(
+      rng, tree, y, weights, k, residualVariance, nodeIndex, fits);
+    calls().emplace_back(&tree, stats);
+    return stats;
+  }
+};
 }  // namespace
 
 static void testBlockGroupScale() {
@@ -1810,6 +1827,105 @@ static void testBlockGroupScale() {
           kStat.second == handLeaves &&
           std::fabs(unfactoredSum - handSum) > 1e-6 * handSum,
         "blocks scale: the k statistic sums (mu / f_g)^2 over occupied leaves");
+
+  // the linear leaf: every coordinate of an occupied leaf over its factor
+  const std::vector<size_t> leafCovariates = {0};
+  SamplerOptions drawnKLinear = drawnK;
+  drawnKLinear.leafCovariateColumns = leafCovariates.data();
+  drawnKLinear.numLeafCovariates = 1;
+  auto linearK = make.operator()<LinearGaussianLeaf>(drawnKLinear, 32);
+  linearK->run(10, 0, empty);
+  handSum = handLeaves = unfactoredSum = 0.0;
+  for (size_t t = 0; t < numTrees; ++t) {
+    const Tree& tree = TestPeer::forestTree(linearK->chain(0), 0, t);
+    const std::vector<double>& params =
+      TestPeer::forestParamsByTree(linearK->chain(0), 0, t);
+    const size_t numParams = params.size() / tree.nodes.size();
+    std::vector<int32_t> bottoms;
+    tree.fillBottom(0, bottoms);
+    for (int32_t b : bottoms) {
+      if (tree.at(b).numObservations() == 0) continue;
+      for (size_t j = 0; j < numParams; ++j) {
+        double value = params[static_cast<size_t>(b) * numParams + j];
+        double standardized = value / factor[groupOf(t)];
+        handSum += standardized * standardized;
+        unfactoredSum += value * value;
+        handLeaves += 1.0;
+      }
+    }
+  }
+  kStat = TestPeer::kStatistic(linearK->chain(0), 0);
+  check(handLeaves > 0.0 &&
+          std::fabs(kStat.first - handSum) <= 1e-12 * handSum &&
+          kStat.second == handLeaves &&
+          std::fabs(unfactoredSum - handSum) > 1e-6 * handSum,
+        "blocks scale: the linear leaf's k statistic sums (param / f_g)^2 over "
+        "occupied leaves");
+
+  // the GP leaf: each leaf's sum of squares over its factor squared, read from
+  // the draws of the last sweep
+  SamplerOptions drawnKGP = drawnKLinear;
+  drawnKGP.gpLeaves = true;
+  auto gpK = make.operator()<KRecordingGPLeaf>(drawnKGP, 33);
+  gpK->run(9, 0, empty);
+  KRecordingGPLeaf::calls().clear();
+  gpK->run(1, 0, empty);
+  handSum = handLeaves = unfactoredSum = 0.0;
+  bool gpTreesKnown = !KRecordingGPLeaf::calls().empty();
+  for (const auto& [tree, stats] : KRecordingGPLeaf::calls()) {
+    size_t t = 0;
+    while (t < numTrees && tree != &TestPeer::forestTree(gpK->chain(0), 0, t))
+      ++t;
+    if (t == numTrees) {
+      gpTreesKnown = false;
+      continue;
+    }
+    handSum += stats.sumSquaredParams / (factor[groupOf(t)] * factor[groupOf(t)]);
+    unfactoredSum += stats.sumSquaredParams;
+    handLeaves += stats.numParams;
+  }
+  kStat = TestPeer::kStatistic(gpK->chain(0), 0);
+  check(gpTreesKnown && std::fabs(kStat.first - handSum) <= 1e-12 * handSum &&
+          kStat.second == handLeaves &&
+          std::fabs(unfactoredSum - handSum) > 1e-6 * handSum,
+        "blocks scale: the GP leaf's k statistic sums each leaf's sum of "
+        "squares over f_g^2");
+
+  // ---- three and four groups: every count compared, not the first two ----
+  {
+    std::vector<double> x4(n * 4);
+    for (size_t i = 0; i < n * 4; ++i) x4[i] = runif01();
+    const std::vector<std::int32_t> threeOfColumn = {0, 1, 2, 2};
+    const std::vector<std::int32_t> fourOfColumn = {0, 1, 2, 3};
+    const std::vector<size_t> threeCounts = {7, 7, 6};
+    const std::vector<size_t> fourCounts = {5, 5, 5, 5};
+    auto makeWide = [&](const std::vector<std::int32_t>& ofColumn,
+                        const std::vector<size_t>& treeCounts,
+                        std::uint32_t seed) {
+      SamplerOptions options;
+      options.numTrees = numTrees;
+      options.numBlocks = treeCounts.size();
+      options.blockOfColumn = ofColumn.data();
+      options.blockTreeCounts = treeCounts.data();
+      ext_rng* r = newRng(seed);
+      return std::make_unique<Sampler<Constant>>(
+        x4.data(), y.data(), n, 4, nullptr, nullptr, ResponseFamily::gaussian,
+        1.0, 3.0, rawScale, options, &r);
+    };
+    auto three = makeWide(threeOfColumn, threeCounts, 51);
+    auto four = makeWide(fourOfColumn, fourCounts, 52);
+    const std::vector<double>& threeStored =
+      TestPeer::blockScaleFactor(three->chain(0), 0);
+    const double expected[3] = {std::sqrt(20.0 / 21.0), std::sqrt(20.0 / 21.0),
+                                std::sqrt(20.0 / 18.0)};
+    bool threeStores = threeStored.size() == 3;
+    for (size_t g = 0; threeStores && g < 3; ++g)
+      threeStores &= std::fabs(threeStored[g] - expected[g]) <= 1e-15;
+    check(threeStores,
+          "blocks scale: {7, 7, 6} stores sqrt(20/21), sqrt(20/21), sqrt(20/18)");
+    check(TestPeer::blockScaleFactor(four->chain(0), 0).empty(),
+          "blocks scale: {5, 5, 5, 5} stores no factor");
+  }
 
   // ---- the level shift's per-leaf precision ----
   auto shiftSampler = make.operator()<Constant>(blockOptions(&unequal), 41);

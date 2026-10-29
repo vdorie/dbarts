@@ -5,9 +5,9 @@ scratch/crit-2plans/report.md) and the maintainer's rulings dec-B503 (the tree c
 per forest) and dec-B506 (`blocks()` changed to match, slice B); amended again the same day for dec-B508
 (`forest()` takes no `leaf.prior`), dec-B509 (a forest with no basis takes the fitting function's leaf prior,
 held, in every model: D1 revised, the default flip in [Slice F: the default flip](#slice-f-the-default-flip)) and dec-B510. Slice B
-is built on this branch. Two calls held for the maintainer ([Open calls](#open-calls)): the constant basis column
-and `amplitude = fixed()` on a lone forest with no basis. Rulings: dec-B292, dec-B503,
-dec-B505, dec-B506 and dec-B509 (with dec-B291, dec-B274, dec-B307, dec-B508, dec-B510); window "Post-merge,
+is built on this branch. One call held for the maintainer ([Open calls](#open-calls)): the constant basis column;
+`amplitude = fixed()` on a lone forest with no basis is ruled, taken in slice F (dec-B513). Rulings: dec-B292,
+dec-B503, dec-B505, dec-B506, dec-B509 and dec-B513 (with dec-B291, dec-B274, dec-B307, dec-B508, dec-B510); window "Post-merge,
 pre-1.0" (VD 2026-10-07).
 
 agent: one opus implementer for slice B, then slices 1 and 2, then slice F; one opus review of slice B, one over
@@ -83,10 +83,9 @@ percent. Where a caller set uneven counts it is large: 5 and 15 trees out of 20 
 0.87 of the forest's size to 0.71 each. `blocks()` was not in 0.9-34, so no released fit changes. The whole
 item is about 3,570 lines and 41 agent-hours, these estimates from comparable work.
 
-Two questions for you, below: whether a constant basis column, today's workaround, should now be refused in favor
-of the plain spelling (I recommend refusing it); and whether `amplitude = fixed()` on a forest with no basis, which
-after the flip only restates its default, should be taken on a lone forest too, where it is refused today (I
-recommend taking it).
+One question for you, below: whether a constant basis column, today's workaround, should now be refused in favor
+of the plain spelling (I recommend refusing it). You ruled the other: `amplitude = fixed()` on a lone forest with no
+basis, which after the flip only restates its default, is taken there too, where it is refused today (dec-B513).
 
 ## Goal
 
@@ -298,13 +297,13 @@ D10. The rest of the surface, each MY CALL:
 
 - Holds. One rule for `amplitude` on a forest with no basis, in every model, after slice F: `fixed()` restates
   the default, held, and is taken, on a sharer, on a forest stating sd and on a lone forest (the last is
-  [Open calls](#open-calls) 4: refused today, "this model has one forest, which has no coefficient to hold";
-  the plan is written for taking it); `student(df)` is the opt-in drawn coefficient, taken as D3 says and refused
+  [Open calls](#open-calls) 4, ruled by dec-B513: refused today, "this model has one forest, which has no
+  coefficient to hold"; taken in slice F, with no message); `student(df)` is the opt-in drawn coefficient, taken as D3 says and refused
   on a lone forest, whose single-forest chain has no coefficient (the refusal reworded: "a model of one forest has
   no coefficient to draw: for a drawn size give leaf.prior = normal(k = chi())"). Sharers holding and not holding
   cannot mix: none draws. Slices 1 and 2 build this for models with two or more forests with no basis, all new;
   a lone forest with no basis beside a forest with a basis keeps main's drawn default and main's `amplitude` rules
-  until slice F, and a lone forest keeps main's refusal until slice F under open call 4.
+  until slice F, and a lone forest keeps main's refusal of `fixed()` until slice F takes it (dec-B513).
 - Starts. Where two or more forests have no basis, every drawn coefficient on such a forest (one stating
   `student()`) starts at 1, so none starts out of the model; a model with one keeps its start by position. No
   model main accepts moves; TODO drawn-coefficient-start-by-kind is noted.
@@ -426,10 +425,13 @@ category forests of a multinomial model.
 
 1. `installBlockMasks` computes f_g from the group counts and stores it on the forest only where the counts are
    unequal; a forest with equal groups or no groups stores none and takes today's code, operand for operand.
-2. The per-tree sweep: before tree t's moves and parameter draw, the leaf's scale is the forest's times
+2. Each tree's update: before tree t's moves and parameter draw, the leaf's scale is the forest's times
    f_{g(t)} (from `blockOfTree`), restored after; every read inside a tree's update (the leaf model's draws and
    integrated likelihood, the rule scan's prior variance in [scan.hpp](../../src/bartcore/scan.hpp)) sees the
-   group's scale with no change of its own.
+   group's scale with no change of its own. The same guard is required, not optional, on the grow-from-root
+   sweep and the prior leaf draw: both draw leaves the factored k statistic then reads, and a prior draw must
+   be the group's prior. The monotone joint-prior acceptance in `sampleTreesFromPrior` stays unfactored: it
+   orders leaves within one tree, and the order does not depend on the scale.
 3. The reads outside a tree's update take the tree's factor: the k statistic accumulates (mu / f_g)^2, so the k
    draw on the forest's scale is exact; [`Chain::drawLevelShift`](../../src/bartcore/chain.hpp)'s per-leaf
    precision; and the multinomial grand-level shift in
@@ -472,9 +474,12 @@ pin that moves as a finding.
 
 Tests and gates, slice B:
 
-- tests/cpp: the factor stored only for unequal counts; each tree's leaf scale s / sqrt(G m_g) during its
-  update and the forest's after; the k statistic against a hand sum of (mu / f_g)^2; the level shift's
-  precision with factors; the multinomial shift with factors; equal counts bitwise the old sweep.
+- tests/cpp: the factor stored only for unequal counts, every count compared ({7, 7, 6} stores three factors,
+  {5, 5, 5, 5} none); each tree's leaf scale s / sqrt(G m_g) during its update and the forest's after, in a
+  sweep, a grow-from-root sweep and a prior leaf draw; the k statistic against a hand sum on the constant leaf
+  ((mu / f_g)^2), the linear leaf ((param / f_g)^2 per coordinate) and the GP leaf (each leaf's sum of squares
+  over f_g^2), each apart from the unfactored sum; the level shift's precision with factors; the multinomial
+  shift with factors; equal counts bitwise the old sweep.
 - Exact posterior, a new benchmarks/R/blocks-exact.R joining exact-gates.yaml: gaussian, sigma fixed, one forest
   of three trees in two groups, x1 (two trees) and x2 (one tree), each a 0/1 column with one cut; the 8 tree
   structures (each tree a root or its one split) enumerated, leaves integrated in closed form under the group
@@ -482,7 +487,8 @@ Tests and gates, slice B:
   enumeration. A second arm with k drawn under chi(1.5, 2), an outer quadrature over k. The per-tree prior
   (T^2 / 3 on every leaf) fails it, which the gate is run against once to prove it discriminates.
 - tinytest, in test-blocks.R: an unequal fit (5 and 15) created, run, copied and reloaded after `storeState`,
-  continuing `identical()`; a warm start between two unequal samplers.
+  the copy continuing `identical()` to the reload and within 1e-12 of the live sampler (re-creation re-derives
+  the cached fits, as on main); a warm start between two unequal samplers.
 - The A/B against an e2f37f6d library, every channel `identical()`: no `blocks()`; `blocks()` with equal groups
   (75 over 3) on the single-forest chain, a forest of a bcf model and a multinomial model; a state, copy, reload
   and warm start of each. The unequal arm is excluded and covered by the exact gate.
@@ -490,7 +496,9 @@ Tests and gates, slice B:
   the trio and snapshots above, `R CMD check --as-cran`, `bench-sampler.R` compare (maintainer-run): the sweep
   gains one branch per tree.
 - Mutants, each to fail a named expectation: the factor sqrt(G m_g / m) inverted; the factor stored for equal
-  counts (fails the A/B); the scale not restored after a tree (fails the next tree's tests/cpp pin); the k
+  counts (fails its tests/cpp pin; a factor of 1 is exact, so the A/B cannot see it); the equal-counts check
+  reading only the first two groups (fails the {7, 7, 6} pin); the linear or GP leaf's k statistic unfactored
+  (fails its hand-sum pin); the scale not restored after a tree (fails the next tree's tests/cpp pin); the k
   statistic unfactored (fails the k arm); `drawLevelShift` or the multinomial shift reading the forest's scale
   (fails its tests/cpp pin).
 
@@ -519,8 +527,8 @@ Engine:
    of bcf.
 
 R: item 4 of [R surface](#r-surface) for a lone sharer beside a forest with a basis (k, `chi()`,
-`normal(sd = )` taken; the binary default drawn); item 5's holds, with `fixed()` on a lone forest as
-[Open calls](#open-calls) 4 rules; the record unchanged, the hold of a forest with no basis being the engine's
+`normal(sd = )` taken; the binary default drawn); item 5's holds, with `fixed()` on a lone forest taken as
+the default restated, with no message (dec-B513, [Open calls](#open-calls) 4), `student()` there still refused; the record unchanged, the hold of a forest with no basis being the engine's
 default and `heldAmplitude` the statement.
 
 What moves, a forest with no basis beside a forest with a basis:
@@ -568,7 +576,7 @@ Tests and gates, slice F:
   probit) and a named sd.
 - tinytest: the default beside a forest with a basis under gaussian, probit and logistic (the reader's k,
   `k.scale` and no `amplitude`; the coefficient 1 at every draw); `bart(k = 3)`, `chi()` and `normal(sd = )`
-  taken; `fixed()` on a lone forest taken (open call 4 (a)); `student(1)` with `sd = 1` under probit
+  taken; `fixed()` on a lone forest taken (dec-B513); `student(1)` with `sd = 1` under probit
   `identical()` to the pre-flip default.
 - An A/B (scratch) against a library of main after coefficient-prior-opt-in: every fit with no forest with a basis,
   every forest stating sd with `fixed()` or `student(1)` and the held gaussian default identical; the moved rows of
@@ -850,13 +858,15 @@ F. Slice F, the default flip (~590 lines; ~8 agent-hours). Tier: changes draws (
    each forest's leaf scale dividing its part among its own trees. The alternative, a part per tree, which this
    plan had recommended, was not taken. dec-B506 (VD: "Change blocks too.") changes `blocks()` to match, each
    group 1 / G of its forest's prior: [Slice B](#slice-b).
-4. `amplitude = fixed()` on a lone forest with no basis (`y ~ forest(x1, amplitude = fixed())`, or `bart()` with
+4. RULED, dec-B513 (VD 2026-10-29: "Use your recommendation for this item."): option (a), built in slice F. The
+   alternative, (b), was not taken.
+   `amplitude = fixed()` on a lone forest with no basis (`y ~ forest(x1, amplitude = fixed())`, or `bart()` with
    one `forest()` term). After slice F every forest with no basis is held by default, so `fixed()` there restates
    the default. Today it is refused: "this model has one forest, which has no coefficient to hold; 'amplitude'
    needs a model of several forests" (run). Beside other forests it is taken (D10).
-   - (a) Recommended. Taken on a lone forest, the default restated, with no message: one rule for `fixed()` on
-     every forest with no basis, and a call moved from a model of several forests to one keeps working. Cost: a
-     word that does nothing is accepted; ~10 lines and a pin.
+   - (a) Recommended and taken. Accepted on a lone forest, the default restated, with no message: one rule for
+     `fixed()` on every forest with no basis, and a call moved from a model of several forests to one keeps
+     working. Cost: a word that does nothing is accepted; ~10 lines and a pin.
    - (b) Refused as today. Cost: `fixed()` is taken on a forest with no basis in one model and refused in another
      that differs by a forest.
    `student()` on a lone forest stays refused under both: the single-forest chain has no coefficient to draw.
