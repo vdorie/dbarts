@@ -4980,6 +4980,173 @@ commandOutput <- function(cmd) {
   )
 }
 
+# The look rules on synthetic readings (the second amendment): the bounds
+# per look, each class's reading, and where a cell continues or stops.
+checkLooks <- function() {
+  ok <- list()
+  near <- function(a, b) abs(a - b) < 0.005
+  t5 <- c(qt(1 - alphaNoProblem, 5), qt(1 - alphaProblem, 5))
+  t11 <- c(qt(1 - alphaNoProblem, 11), qt(1 - alphaProblem, 11))
+  t23 <- c(qt(1 - alphaNoProblem, 23), qt(1 - alphaProblem, 23))
+  ok$bounds <- near(zNoProblem, 2.39) &&
+    near(zProblem, 3.71) &&
+    all(near(t5, c(3.53, 9.60)), near(t11, c(2.82, 5.43))) &&
+    all(near(t23, c(2.58, 4.40)))
+  cls <- function(d, se, look, g = d, band = FALSE, reps = 50L) {
+    sbcClassify(g, se, d, se, band, reps, look)
+  }
+  # a problem at 1.25 times the bar reads only past the first look
+  ok$firstLookBar <- cls(0.025, 0.004, 1L)$reading == "unresolved" &&
+    cls(0.025, 0.004, 1L)$suspected &&
+    cls(0.025, 0.004, 2L)$reading == "problem"
+  ok$sized <- cls(0.035, 0.004, 1L)$reading == "problem" &&
+    cls(0.035, 0.004, 1L)$sized &&
+    cls(0.035, 0.0055, 1L)$reading == "problem" &&
+    !cls(0.035, 0.0055, 1L)$sized
+  ok$measured <- cls(0.002, 0.006, 1L, g = 0.003)$reading == "measured" &&
+    cls(0.01, 0.003, 1L, band = TRUE)$reading == "measured" &&
+    cls(0.01, 0.006, 1L, reps = 19L)$reading == "unresolved"
+  sbcRows <- function(...) {
+    x <- list(...)
+    data.frame(
+      class = names(x),
+      sbcReading = vapply(x, `[`, "", 1L),
+      suspected = as.logical(vapply(x, `[`, "", 2L)),
+      sized = as.logical(vapply(x, `[`, "", 3L))
+    )
+  }
+  M <- c("measured", "FALSE", "TRUE")
+  U <- c("unresolved", "FALSE", "FALSE")
+  US <- c("unresolved", "TRUE", "FALSE")
+  P <- c("problem", "TRUE", "TRUE")
+  PU <- c("problem", "TRUE", "FALSE")
+  dec <- function(rows, k, prior = list()) {
+    sbcLookDecision(rows, k, prior)$continue
+  }
+  ok$sbcFirstStops <- !dec(sbcRows(fInt = M, ite = M, fTail = US, ate = US), 1L)
+  ok$sbcFirstFloor <- dec(sbcRows(fInt = M, ite = U, fTail = M), 1L)
+  ok$sbcFirstProblem <- !dec(sbcRows(fInt = P, ite = M), 1L) &&
+    dec(sbcRows(fInt = PU, ite = M), 1L)
+  ok$sbcSecond <- !dec(sbcRows(fInt = U), 2L, list(sbcRows(fInt = U))) &&
+    dec(sbcRows(fInt = US), 2L, list(sbcRows(fInt = U))) &&
+    !dec(sbcRows(fInt = US), 2L, list(sbcRows(fInt = M))) &&
+    !dec(sbcRows(ite = P), 2L, list(sbcRows(ite = PU))) &&
+    dec(sbcRows(ite = PU), 2L, list(sbcRows(ite = PU)))
+  fr <- sbcLookDecision(sbcRows(fInt = P), 2L, list(sbcRows(fInt = M)))$readings
+  ok$firstResolvedKept <- fr$reading == "measured" && fr$look == 1L
+  refRowsOf <- function(...) {
+    x <- list(...)
+    data.frame(
+      class = names(x),
+      refReading = vapply(x, `[`, "", 1L),
+      suspected = as.logical(vapply(x, `[`, "", 2L)),
+      sized = as.logical(vapply(x, `[`, "", 3L))
+    )
+  }
+  rdec <- function(rows, k, prior = list()) {
+    refLookDecision(rows, k, prior)$continue
+  }
+  ok$refSuspected <- rdec(refRowsOf(fInt = US, ate = M), 1L) &&
+    !rdec(refRowsOf(fInt = U, ate = M), 1L) &&
+    !rdec(refRowsOf(fInt = M, ate = M), 1L)
+  ok$refBandsIgnored <- !rdec(refRowsOf(fInt = M, bandF = US), 1L)
+  ok$refSecond <- rdec(refRowsOf(ite = PU), 2L, list(refRowsOf(ite = PU))) &&
+    !rdec(refRowsOf(ite = P), 2L, list(refRowsOf(ite = PU))) &&
+    !rdec(refRowsOf(ite = U), 2L, list(refRowsOf(ite = US)))
+  # a reference's suspicion: its estimate at the bar, or one reference at
+  # twice it
+  per <- function(S) {
+    data.frame(
+      rep = seq_along(S),
+      seed = 1L,
+      accepted = TRUE,
+      S = S,
+      Smove = S,
+      moveS = 0,
+      stuck = 0,
+      ctl = NA_real_,
+      shippedTransient = 0,
+      moveTransient = 0,
+      stationary = 0,
+      kFromMoveHalf = FALSE,
+      kShare = 0
+    )
+  }
+  susp <- function(S) {
+    refClassReading(per(S), "S6", "probit", "fInt", length(S), FALSE)$suspected
+  }
+  ok$refSuspicion <- susp(c(0, 0, 0, 0, 0, 0.045)) &&
+    !susp(c(0, 0, 0, 0, 0, 0.035)) &&
+    susp(rep(0.021, 6L))
+  report("looks", all(unlist(ok)), ok)
+}
+
+# The length guard on synthetic checks (the second amendment): a single
+# passing block end is refused, a failure extends to refBlockMax, past it
+# only effective draws with a passing projection escalate; and the rounds'
+# lengths, thinning and cuts.
+checkGuard <- function() {
+  ok <- list()
+  pass <- c(
+    halvesAgree = TRUE,
+    kAgree = TRUE,
+    rhatScalar = TRUE,
+    rhatRows = TRUE,
+    essScalar = TRUE,
+    essRows = TRUE,
+    kEss = TRUE
+  )
+  fail <- function(...) {
+    x <- pass
+    x[c(...)] <- FALSE
+    x
+  }
+  L <- refLengths()
+  g <- function(cur, prev, nextL, projected = TRUE, escalating = TRUE) {
+    guardDecision(cur, prev, nextL, projected, escalating)
+  }
+  ok$lengths <- identical(
+    as.integer(L),
+    tenth(c(8000, 12000, 16000, 20000, 40000, 80000, 100000))
+  )
+  ok$thin <- identical(
+    vapply(L, refThinAt, 0L),
+    c(20L, 20L, 20L, 20L, 40L, 80L, 80L)
+  ) &&
+    all(mcmc$refBlock %% vapply(L, refThinAt, 0L) == 0L) &&
+    all(diff(L) %% vapply(L[-1L], refThinAt, 0L) == 0L)
+  ok$rounds <- identical(refRoundsFor("S6"), 0:6) &&
+    identical(refRoundsFor("E1"), c(0L, 3L, 6L))
+  ok$luckyBlockRefused <- g(pass, fail("essRows"), L[2L]) == "extend" &&
+    g(fail("essRows"), pass, L[2L]) == "extend" &&
+    g(pass, pass, L[2L]) == "accepted"
+  ok$anyFailureExtends <- g(fail("rhatRows"), pass, L[4L]) == "extend" &&
+    g(fail("halvesAgree"), fail("kAgree"), L[3L]) == "extend"
+  ok$escalation <- g(fail("essRows", "kEss"), fail("essRows"), L[5L]) ==
+    "escalate" &&
+    g(fail("essRows"), fail("essRows"), L[5L], projected = FALSE) == "failed" &&
+    g(fail("rhatRows", "essRows"), pass, L[5L]) == "failed" &&
+    g(pass, fail("halvesAgree"), L[5L]) == "failed" &&
+    g(fail("essRows"), pass, L[5L], escalating = FALSE) == "failed" &&
+    g(fail("essRows"), fail("essRows"), NA) == "failed"
+  # a cut keeps the first block's draws and k
+  ref <- list(
+    shipped = list(
+      record = array(seq_len(2 * 400 * 3), c(2L, 400L, 3L)),
+      k = matrix(seq_len(800), 400L, 2L),
+      kPs = NULL,
+      sweeps = 8000L,
+      thin = 20L
+    )
+  )
+  cut <- cutReference(ref, "shipped", 4000L)$shipped
+  ok$cut <- identical(dim(cut$record), c(2L, 200L, 3L)) &&
+    identical(cut$record[2L, 200L, 3L], ref$shipped$record[2L, 200L, 3L]) &&
+    identical(dim(cut$k), c(200L, 2L)) &&
+    cut$sweeps == 4000L
+  report("guard", all(unlist(ok)), ok)
+}
+
 # The SBC null run: on S6, the oracle's and the long oracle's pooled coverage
 # within noise of nominal in every class, both links: |coverage - 0.90| within
 # the Bonferroni bound over the run's readings at two-sided 0.05 (12 readings:
@@ -6874,6 +7041,8 @@ main <- function(args) {
         graded = checkGraded(),
         refctl = checkRefCtl(),
         d2move = checkD2Move(),
+        looks = checkLooks(),
+        guard = checkGuard(),
         stop("no check ", a[1L])
       )
       if (!isTRUE(ok)) {
