@@ -1157,12 +1157,14 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     consumers' default at this merge.
   re-verify all four sister packages (stan4bart, treatSens, bartCause,
     bairrtt) against the final re-baked dbarts.h once, at the freeze.
-    Verified 2026-09-23 against f62ec0ef (hash 0x6380bf095d5cae3f),
-    full suites with the CRAN skips off: stan4bart bartcore 559/559 at
-    441c212, bartCause dbarts-1.0 790/790 at 579fde6, treatSens
-    dbarts-1.0 186/186, bairrtt main 206/206; every dbarts.h entry each
-    C consumer calls is present with its signature. Repeat if dbarts.h
-    or the R surface the R-level consumers call moves again.
+    Verified 2026-10-28 against 6447eeac (dbarts.h unchanged since
+    6735f088), full suites with the CRAN skips off, results unchanged
+    from 6533f4bf: stan4bart 1651 results at 3716b51, treatSens 316 at
+    babfaa6, bairrtt 207 at 3f57f61, bartCause 1447 at d975e77, none
+    failed; R CMD check --as-cran shows only each package's own NOTEs
+    (and bartCause's tmle cluster refused under the check's core limit
+    with NOT_CRAN set, its own default). Repeat if dbarts.h or the R
+    surface the R-level consumers call moves again.
     bartCause's bcf() and fitBCF now default n.threads to
     min(dbarts::guessNumCores(), n.chains), capped on its dbarts-1.0
     branch at bdaae47, so no multi-core fit warns under dec-B115.
