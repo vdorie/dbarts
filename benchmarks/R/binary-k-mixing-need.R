@@ -5282,6 +5282,111 @@ checkD2Move <- function(cell = "D2:r30", link = "probit") {
   )
 }
 
+# The read's defect rule on partial outputs in a scratch run directory (the
+# second amendment): a look counts once its look file exists, the last look,
+# which has no look job, once every output up to its count exists, a gated
+# first reference's recorded failure excepted; otherwise the read is
+# "incomplete", with no reading, and a look job refuses partial inputs.
+checkIncomplete <- function() {
+  old <- Sys.getenv("KMN_RUN")
+  on.exit(Sys.setenv(KMN_RUN = old))
+  Sys.setenv(KMN_RUN = tempfile("kmn-incomplete-"))
+  touch <- function(paths, x = list(quick = quick)) {
+    for (p in paths) {
+      saveAtomic(x, p)
+    }
+  }
+  go <- function(kind, cell, link, k) {
+    for (p in lookGoFile(kind, cell, link, k)) {
+      ensureDir(dirname(p))
+      file.create(p)
+    }
+  }
+  refOut <- function(cell, link, reps) {
+    c(refscoreFile(cell, link, reps), fixedkFile(cell, link, reps))
+  }
+  st <- function(kind, cell, link, n) lookState(kind, cell, link, n)
+  incomplete <- function(cell, link, tranche = 1L) {
+    r <- readCellLink(cell, link, tranche)
+    length(r) == 1L &&
+      identical(r[[1L]]$reading, "incomplete") &&
+      is.na(r[[1L]]$class)
+  }
+  ok <- list()
+  # 36 of the first look's 50 scores and no look file
+  touch(scoreFile("S6", "probit", 1:36))
+  ok$sbcPartial <- incomplete("S6", "probit") &&
+    inherits(
+      try(runLook("sbc", "S6", "probit", 1L), silent = TRUE),
+      "try-error"
+    ) &&
+    !file.exists(lookFile("sbc", "S6", "probit", 1L))
+  # a look file over partial outputs is not read
+  touch(lookFile("sbc", "S6", "probit", 1L))
+  ok$sbcPartial <- ok$sbcPartial && incomplete("S6", "probit")
+  # the first two looks ran; the third, at 400, has no look job: every score
+  touch(lookFile("sbc", "S6", "probit", 2L))
+  go("sbc", "S6", "probit", 2:3)
+  touch(scoreFile("S6", "probit", 37:399))
+  a <- st("sbc", "S6", "probit", 100L)
+  b <- st("sbc", "S6", "probit", 400L)
+  touch(scoreFile("S6", "probit", 400L))
+  c3 <- st("sbc", "S6", "probit", 400L)
+  ok$sbcLast <- identical(a$looks, 1:2) &&
+    is.null(a$incomplete) &&
+    !is.null(b$incomplete) &&
+    identical(c3$looks, 1:3) &&
+    is.null(c3$incomplete)
+  # a go file whose look never wrote its look file; a look never opened
+  touch(lookFile("ref", c("S6", "S2"), "probit", 1L))
+  touch(refOut("S6", "probit", 1:12))
+  touch(refOut("S2", "probit", 1:6))
+  go("ref", "S6", "probit", 2L)
+  d <- st("ref", "S6", "probit", 12L)
+  e <- st("ref", "S2", "probit", 12L)
+  ok$refLookFile <- identical(d$looks, 1L) &&
+    grepl("no look file", d$incomplete) &&
+    identical(e$looks, 1L) &&
+    is.null(e$incomplete)
+  # S3's last reference look, at 12, has no look job: 11 of 12 scorings
+  touch(lookFile("ref", "S3", "probit", 1L))
+  go("ref", "S3", "probit", 2L)
+  touch(setdiff(refOut("S3", "probit", 1:12), refscoreFile("S3", "probit", 7L)))
+  f <- st("ref", "S3", "probit", 12L)
+  touch(refscoreFile("S3", "probit", 7L))
+  ok$refLast <- !is.null(f$incomplete) &&
+    is.null(st("ref", "S3", "probit", 12L)$incomplete)
+  # D1: a failed gated first reference needs nothing more (its other designs
+  # never ran) and reads unresolved; a passed one, every reference's outputs
+  d1 <- "D1:arr1-mod"
+  acc <- function(accepted) {
+    list(
+      final = TRUE,
+      accepted = accepted,
+      resolve = list(coreHours = 2),
+      quick = quick
+    )
+  }
+  touch(acceptanceFile(d1, "probit", 1L), acc(FALSE))
+  r1 <- readCellLink(d1, "probit", 1L)
+  touch(acceptanceFile(d1, "logistic", 1L), acc(TRUE))
+  touch(refOut(d1, "logistic", c(1L, 2L, 4L)))
+  ok$gatedFailure <- length(r1) == 1L &&
+    identical(r1[[1L]]$reading, "unresolved") &&
+    identical(r1[[1L]]$refsFailed, 1L) &&
+    incomplete(d1, "logistic")
+  # B's one reference, passed, without its scoring
+  b1 <- regimeCells(regimes$B)[1L]
+  touch(acceptanceFile(b1, "probit", 1L), acc(TRUE))
+  ok$bScoring <- incomplete(b1, "probit")
+  # D2: the move pipeline's scoring is an input too
+  d2 <- "D2:r30"
+  touch(refOut(d2, "probit", 1:6))
+  touch(refscoreFile(paste0(d2, movePropSuffix), "probit", 1:5))
+  ok$d2Move <- length(lookMissing("ref", d2, "probit", 6L)) == 1L
+  report("incomplete reads", all(unlist(ok)), ok)
+}
+
 ## ------------------------------------------------------------------- read
 
 # Pooled coverage by class over a regime's scored replications, both links,
@@ -5847,6 +5952,21 @@ refLookDecision <- function(rows, k, prior = list()) {
 runLook <- function(kind, cell, link, k) {
   reg <- cellRegime(cell)
   looks <- if (kind == "sbc") reg$sbcLooks else reg$refLooks
+  miss <- lookMissing(kind, cell, link, looks[k])
+  if (length(miss)) {
+    stop(
+      sprintf(
+        "look %s %s %s %d: %d inputs missing, ",
+        kind,
+        cell,
+        link,
+        k,
+        length(miss)
+      ),
+      miss[1L],
+      " first"
+    )
+  }
   prior <- lapply(seq_len(k - 1L), function(j) {
     loadChecked(lookFile(kind, cell, link, j))$rows
   })
@@ -5893,18 +6013,68 @@ runLook <- function(kind, cell, link, k) {
   ))
 }
 
-# The looks a cell and link ran: the first, then each whose go file the one
-# before wrote, within the tranche's count.
-looksRun <- function(kind, cell, link, looks, most) {
-  k <- 1L
-  while (
-    k < length(looks) &&
-      looks[k + 1L] <= most &&
-      file.exists(lookGoFile(kind, cell, link, k + 1L))
-  ) {
-    k <- k + 1L
+# The outputs a look at count n reads that are missing: every replication's
+# score (SBC), or every reference's scoring and fixed-k reading, D2's move
+# pipeline's scoring too. A gated first reference's recorded failure has no
+# scoring, and the replications gated on its pass never ran.
+lookMissing <- function(kind, cell, link, n) {
+  reps <- seq_len(n)
+  if (kind == "sbc") {
+    f <- scoreFile(cell, link, reps)
+  } else {
+    if (refReadsGated(cell, 1L)) {
+      p <- acceptanceFile(cell, link, 1L)
+      acc <- if (file.exists(p)) loadChecked(p)
+      if (isTRUE(acc$final) && !isTRUE(acc$accepted)) {
+        return(character())
+      }
+    }
+    f <- c(refscoreFile(cell, link, reps), fixedkFile(cell, link, reps))
+    if (cellTask(cell) == "d2") {
+      f <- c(f, refscoreFile(paste0(cell, movePropSuffix), link, reps))
+    }
   }
-  seq_len(k)
+  f[!file.exists(f)]
+}
+
+# The looks a cell and link ran within the tranche's count n, or why its read
+# is incomplete: the first look, then each whose go file the one before
+# wrote. A look counts once every output up to its count exists and, one with
+# a look job (all but the last), once its look file does too. Otherwise the
+# read is incomplete (a missing input stops the read; it is not dropped).
+lookState <- function(kind, cell, link, n) {
+  reg <- cellRegime(cell)
+  looks <- if (kind == "sbc") reg$sbcLooks else reg$refLooks
+  ran <- integer()
+  for (k in seq_along(looks)) {
+    if (
+      looks[k] > n || (k > 1L && !file.exists(lookGoFile(kind, cell, link, k)))
+    ) {
+      break
+    }
+    why <- if (
+      k < length(looks) && !file.exists(lookFile(kind, cell, link, k))
+    ) {
+      "no look file"
+    } else {
+      miss <- lookMissing(kind, cell, link, looks[k])
+      if (length(miss)) {
+        sprintf(
+          "%d missing, %s first",
+          length(miss),
+          substring(miss[1L], nchar(runDir()) + 2L)
+        )
+      }
+    }
+    if (length(why)) {
+      return(list(
+        looks = ran,
+        incomplete = sprintf("%s look %d at %d: %s", kind, k, looks[k], why)
+      ))
+    }
+    ran <- c(ran, k)
+  }
+  list(looks = ran, incomplete = NULL)
 }
 
 # A cell's tier: the rarer of its regime's and its estimand's; a B problem
@@ -6090,128 +6260,154 @@ refCost <- function(cell, link, n) {
   list(failed = failed, hours = hours)
 }
 
-# The tranche's readings (the second amendment): per cell, link and class,
-# each side's reading at the first look at which it resolved, its estimates
-# at the last look run, and, unresolved, the count a resolution would take;
-# the combined reading; a cell's failed references and their cost to resolve.
+# One cell and link's readings in a tranche (the second amendment): per
+# class, each side's reading at the first look at which it resolved, its
+# estimates at the last look run, and, unresolved, the count a resolution
+# would take; the combined reading; the cell's failed references and their
+# cost to resolve. A look with a look job is read from its look file; the
+# last, from the outputs. A side whose read is incomplete gives one row
+# reading "incomplete" and no class reading.
+readCellLink <- function(cell, link, tranche) {
+  reg <- cellRegime(cell)
+  sbcSt <- if (reg$kind == "sbc") {
+    lookState("sbc", cell, link, repsFor(cell, tranche))
+  } else {
+    list(looks = integer())
+  }
+  refSt <- lookState("ref", cell, link, refsFor(cell, tranche))
+  inc <- c(sbcSt$incomplete, refSt$incomplete)
+  if (length(inc)) {
+    return(list(data.frame(
+      regime = reg$id,
+      cell = cell,
+      link = link,
+      class = NA,
+      tier = reg$tier,
+      reading = "incomplete",
+      incomplete = paste(inc, collapse = "; ")
+    )))
+  }
+  lookRows <- function(kind, k, looks, last) {
+    if (k < length(looks)) {
+      loadChecked(lookFile(kind, cell, link, k))$rows
+    } else {
+      last(looks[k], k)
+    }
+  }
+  sbcBy <- lapply(sbcSt$looks, function(k) {
+    lookRows("sbc", k, reg$sbcLooks, function(n, k) {
+      r <- sbcReading(reg$id, n, look = k)
+      r[r$link == link, , drop = FALSE]
+    })
+  })
+  sbcBy <- Filter(function(r) nrow(r) > 0L, sbcBy)
+  sFr <- if (length(sbcBy)) firstResolved(sbcBy, "sbcReading")
+  s <- if (length(sbcBy)) sbcBy[[length(sbcBy)]] else data.frame()
+  refBy <- Filter(
+    Negate(is.null),
+    lapply(refSt$looks, function(k) {
+      lookRows("ref", k, reg$refLooks, function(n, k) refRows(cell, link, n))
+    })
+  )
+  rFr <- if (length(refBy)) firstResolved(refBy, "refReading")
+  ref <- if (length(refBy)) refBy[[length(refBy)]] else NULL
+  cost <- refCost(cell, link, reg$refLooks[max(refSt$looks)])
+  classes <- union(
+    if (nrow(s)) s$class else character(),
+    if (!is.null(ref)) ref$class else character()
+  )
+  out <- list()
+  for (cl in classes) {
+    sr <- if (nrow(s) && cl %in% s$class) {
+      s[s$class == cl, , drop = FALSE]
+    } else {
+      NULL
+    }
+    rr <- if (!is.null(ref) && cl %in% ref$class) {
+      ref[ref$class == cl, , drop = FALSE]
+    } else {
+      NULL
+    }
+    sRead <- if (is.null(sr)) NA else sFr$reading[sFr$class == cl]
+    rRead <- if (is.null(rr)) NA else rFr$reading[rFr$class == cl]
+    out[[length(out) + 1L]] <- data.frame(
+      regime = reg$id,
+      cell = cell,
+      link = link,
+      class = cl,
+      tier = tryCatch(cellTier(cell, link, cl), error = function(e) {
+        NA_integer_
+      }),
+      G = if (is.null(sr)) NA else sr$G,
+      gSigned = if (is.null(sr)) NA else sr$gSigned,
+      seG = if (is.null(sr)) NA else sr$seG,
+      D = if (is.null(sr)) NA else sr$D,
+      seD = if (is.null(sr)) NA else sr$seD,
+      sbcReps = if (is.null(sr)) NA else sr$reps,
+      sbcLook = if (is.null(sr)) NA else sFr$look[sFr$class == cl],
+      sbcReading = sRead,
+      sbcNeed = if (is.null(sr) || !identical(sRead, "unresolved")) {
+        NA
+      } else {
+        sr$need
+      },
+      S = if (is.null(rr)) NA else rr$S,
+      seS = if (is.null(rr)) NA else rr$seS,
+      stuck = if (is.null(rr)) NA else rr$stuck,
+      seStuck = if (is.null(rr)) NA else rr$seStuck,
+      kShare = if (is.null(rr)) NA else rr$kShare,
+      seK = if (is.null(rr)) NA else rr$seK,
+      refs = if (is.null(rr)) NA else rr$refs,
+      passShare = if (is.null(rr)) NA else rr$passShare,
+      refLook = if (is.null(rr)) NA else rFr$look[rFr$class == cl],
+      refReading = rRead,
+      refReason = if (is.null(rr) || !identical(rRead, "unresolved")) {
+        NA
+      } else if (isTRUE(classInfo[[cl]]$band)) {
+        "a band: the look rule cannot read it"
+      } else {
+        rr$refReason
+      },
+      refNeed = if (is.null(rr) || !identical(rRead, "unresolved")) {
+        NA
+      } else {
+        rr$need
+      },
+      refsFailed = cost$failed,
+      resolveHours = cost$hours,
+      reading = combineReading(sRead, rRead)
+    )
+  }
+  if (!length(classes) && cost$failed > 0L) {
+    # every reference failed and its readings were gated on a pass
+    out[[length(out) + 1L]] <- data.frame(
+      regime = reg$id,
+      cell = cell,
+      link = link,
+      class = NA,
+      tier = reg$tier,
+      refsFailed = cost$failed,
+      resolveHours = cost$hours,
+      reading = "unresolved"
+    )
+  }
+  out
+}
+
+# The tranche's readings: every cell and link's (readCellLink).
 runRead <- function(tranche = 1L) {
   all <- list()
   for (reg in regimes) {
-    sbcAt <- list()
     for (cell in regimeCells(reg)) {
       for (link in reg$links) {
-        sbcK <- if (reg$kind == "sbc") {
-          looksRun("sbc", cell, link, reg$sbcLooks, repsFor(cell, tranche))
-        } else {
-          integer()
-        }
-        sbcBy <- lapply(sbcK, function(k) {
-          key <- as.character(k)
-          if (is.null(sbcAt[[key]])) {
-            sbcAt[[key]] <<- sbcReading(reg$id, reg$sbcLooks[k], look = k)
-          }
-          r <- sbcAt[[key]]
-          r[r$link == link, , drop = FALSE]
-        })
-        sbcBy <- Filter(function(r) nrow(r) > 0L, sbcBy)
-        sFr <- if (length(sbcBy)) firstResolved(sbcBy, "sbcReading")
-        s <- if (length(sbcBy)) sbcBy[[length(sbcBy)]] else data.frame()
-        refK <- looksRun(
-          "ref",
-          cell,
-          link,
-          reg$refLooks,
-          refsFor(cell, tranche)
-        )
-        refBy <- Filter(
-          Negate(is.null),
-          lapply(refK, function(k) refRows(cell, link, reg$refLooks[k]))
-        )
-        rFr <- if (length(refBy)) firstResolved(refBy, "refReading")
-        ref <- if (length(refBy)) refBy[[length(refBy)]] else NULL
-        cost <- refCost(cell, link, reg$refLooks[max(refK)])
-        classes <- union(
-          if (nrow(s)) s$class else character(),
-          if (!is.null(ref)) ref$class else character()
-        )
-        for (cl in classes) {
-          sr <- if (nrow(s) && cl %in% s$class) {
-            s[s$class == cl, , drop = FALSE]
-          } else {
-            NULL
-          }
-          rr <- if (!is.null(ref) && cl %in% ref$class) {
-            ref[ref$class == cl, , drop = FALSE]
-          } else {
-            NULL
-          }
-          sRead <- if (is.null(sr)) NA else sFr$reading[sFr$class == cl]
-          rRead <- if (is.null(rr)) NA else rFr$reading[rFr$class == cl]
-          all[[length(all) + 1L]] <- data.frame(
-            regime = reg$id,
-            cell = cell,
-            link = link,
-            class = cl,
-            tier = tryCatch(cellTier(cell, link, cl), error = function(e) {
-              NA_integer_
-            }),
-            G = if (is.null(sr)) NA else sr$G,
-            gSigned = if (is.null(sr)) NA else sr$gSigned,
-            seG = if (is.null(sr)) NA else sr$seG,
-            D = if (is.null(sr)) NA else sr$D,
-            seD = if (is.null(sr)) NA else sr$seD,
-            sbcReps = if (is.null(sr)) NA else sr$reps,
-            sbcLook = if (is.null(sr)) NA else sFr$look[sFr$class == cl],
-            sbcReading = sRead,
-            sbcNeed = if (is.null(sr) || !identical(sRead, "unresolved")) {
-              NA
-            } else {
-              sr$need
-            },
-            S = if (is.null(rr)) NA else rr$S,
-            seS = if (is.null(rr)) NA else rr$seS,
-            stuck = if (is.null(rr)) NA else rr$stuck,
-            seStuck = if (is.null(rr)) NA else rr$seStuck,
-            kShare = if (is.null(rr)) NA else rr$kShare,
-            seK = if (is.null(rr)) NA else rr$seK,
-            refs = if (is.null(rr)) NA else rr$refs,
-            passShare = if (is.null(rr)) NA else rr$passShare,
-            refLook = if (is.null(rr)) NA else rFr$look[rFr$class == cl],
-            refReading = rRead,
-            refReason = if (is.null(rr) || !identical(rRead, "unresolved")) {
-              NA
-            } else if (isTRUE(classInfo[[cl]]$band)) {
-              "a band: the look rule cannot read it"
-            } else {
-              rr$refReason
-            },
-            refNeed = if (is.null(rr) || !identical(rRead, "unresolved")) {
-              NA
-            } else {
-              rr$need
-            },
-            refsFailed = cost$failed,
-            resolveHours = cost$hours,
-            reading = combineReading(sRead, rRead)
-          )
-        }
-        if (!length(classes) && cost$failed > 0L) {
-          # every reference failed and its readings were gated on a pass
-          all[[length(all) + 1L]] <- data.frame(
-            regime = reg$id,
-            cell = cell,
-            link = link,
-            class = NA,
-            tier = reg$tier,
-            refsFailed = cost$failed,
-            resolveHours = cost$hours,
-            reading = "unresolved"
-          )
-        }
+        all <- c(all, readCellLink(cell, link, tranche))
       }
     }
   }
-  cols <- names(all[[which.max(vapply(all, ncol, 0L))]])
+  cols <- union(
+    names(all[[which.max(vapply(all, ncol, 0L))]]),
+    unlist(lapply(all, names))
+  )
   tab <- do.call(
     rbind,
     lapply(all, function(r) {
@@ -6230,6 +6426,14 @@ runRead <- function(tranche = 1L) {
     print(x, row.names = FALSE)
   }
   show(tab)
+  inc <- tab$reading == "incomplete"
+  if (any(inc)) {
+    cat(sprintf(
+      "\n%d cell and link reads incomplete, no reading: %s\n",
+      sum(inc),
+      paste(tab$cell[inc], tab$link[inc], collapse = ", ")
+    ))
+  }
   if (!is.null(d1)) {
     cat("\nD1 secondary reading (the pilot's replications; not deciding):\n")
     show(d1)
@@ -7043,6 +7247,7 @@ main <- function(args) {
         d2move = checkD2Move(),
         looks = checkLooks(),
         guard = checkGuard(),
+        incomplete = checkIncomplete(),
         stop("no check ", a[1L])
       )
       if (!isTRUE(ok)) {
