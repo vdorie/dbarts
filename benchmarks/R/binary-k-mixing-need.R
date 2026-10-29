@@ -4345,16 +4345,21 @@ commandOutput <- function(cmd) {
 }
 
 # The SBC null run: on S6, the oracle's and the long oracle's pooled coverage
-# within noise of nominal in every class, both links: |coverage - 0.90| at most
-# 2.81 bootstrap standard errors (two-sided 0.005, about 0.05 over the run's
-# ten or so readings).
+# within noise of nominal in every class, both links: |coverage - 0.90| within
+# the Bonferroni bound over the run's readings at two-sided 0.05 (12 readings:
+# 2.87 bootstrap standard errors).
 checkNull <- function(reps = 100L) {
   tab <- sbcTable("S6", reps, arms = c("oracle.default", "longOracle.default"))
   tab$z <- (tab$cov90 - 0.9) / tab$se90
-  saveAtomic(list(table = tab, quick = quick), checkFile("null.rds"))
+  zMax <- qnorm(1 - 0.025 / max(nrow(tab), 1L))
+  saveAtomic(
+    list(table = tab, zMax = zMax, quick = quick),
+    checkFile("null.rds")
+  )
+  cat(sprintf("null bound: %d readings, |z| <= %.3f\n", nrow(tab), zMax))
   report(
     "SBC null run",
-    nrow(tab) > 0L && all(abs(tab$z) <= 2.81, na.rm = TRUE),
+    nrow(tab) > 0L && all(abs(tab$z) <= zMax, na.rm = TRUE),
     tab
   )
 }
