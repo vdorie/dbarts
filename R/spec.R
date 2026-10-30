@@ -1187,7 +1187,7 @@ resolveSamplerSpec <- function(
     # is stated in the link's own units and sigma is pinned there.
     if (family %not_in% c("gaussian", "probit", "logistic")) {
       stop(
-        "a treatment forest does not support family \"",
+        "a model of several forests does not support family \"",
         family,
         "\": ",
         switch(
@@ -1258,9 +1258,12 @@ resolveSamplerSpec <- function(
     )
     if (any(unsupported)) {
       stop(
-        "a treatment forest does not support ",
+        "a model of several forests does not support ",
         paste0(names(unsupported)[unsupported], collapse = ", "),
-        "; drop it or fit a single-forest model"
+        "; drop it or fit a single-forest model",
+        if (any(unsupported[c("a 'k' hyperprior", "a non-default 'k'")])) {
+          "; a forest's size is stated as forest(sd = ), in the response's units"
+        }
       )
     }
     # every forest resolves its own knobs; a data object carrying bases with no
@@ -1481,6 +1484,13 @@ dbartsSpec <- function(
   }
   if (!inherits(control, "dbartsControl")) {
     stop("'control' must be a dbartsControl object; see ?dbartsControl")
+  }
+  # the tree-move mixture is the control's, as at dbarts() and bart(): the
+  # retired flat spelling is used with a warning, and refused beside a control
+  # whose own call named it
+  if ("proposal.probs" %in% names(matchedCall)) {
+    warnConsolidated("proposal.probs", "dbartsSpec")
+    refuseCollidingMixture(control)
   }
   familySpec <- resolveFamily(
     matchedCall$family,

@@ -3290,37 +3290,84 @@ varianceForest <- function(
   )
 }
 
-format.dbartsVarianceForest <- function(x, ...) {
-  describe <- function(value, default) {
-    if (inherits(value, "dbartsForestCode")) {
-      value <- value$expr
-    }
-    if (is.null(value)) default else paste(deparse(value), collapse = " ")
+## One knob of a forest specification as its statement reads: code as the
+## caller wrote it, a constructor's object by its name, a value deparsed on
+## one line, and `default` where the knob is not stated.
+describeKnob <- function(value, default) {
+  if (is.null(value)) {
+    return(default)
   }
-  knobs <- c(
-    "vars",
-    "n.trees",
-    "base",
-    "power",
-    "proposal.probs",
-    "n.perturb.cuts"
-  )
+  if (is.list(value) && !is.null(value$expr)) {
+    value <- value$expr
+  } else if (
+    isS4(value) || (is.list(value) && !is.null(attr(value, "class")))
+  ) {
+    name <- sub("Prior$", "", sub("^dbarts", "", class(value)[[1L]]))
+    return(paste0(tolower(substring(name, 1L, 1L)), substring(name, 2L), "()"))
+  }
+  text <- paste(deparse(value, width.cutoff = 500L), collapse = " ")
+  if (nchar(text) > 60L) paste0(substr(text, 1L, 57L), "...") else text
+}
+
+## The knobs of a specification, one line each.
+formatKnobs <- function(x, defaults) {
   paste0(
-    format(knobs),
+    format(names(defaults)),
     " = ",
+    vapply(
+      names(defaults),
+      function(knob) describeKnob(x[[knob]], defaults[[knob]]),
+      ""
+    )
+  )
+}
+
+format.dbartsVarianceForest <- function(x, ...) {
+  formatKnobs(
+    x,
     c(
-      describe(x$vars, "<all columns>"),
-      describe(x$n.trees, "<default 40>"),
-      describe(x$base, "<mean forest's>"),
-      describe(x$power, "<mean forest's>"),
-      describe(x$proposal.probs, "<control's>"),
-      describe(x$n.perturb.cuts, "<control's>")
+      vars = "<all columns>",
+      n.trees = "<default 40>",
+      base = "<mean forest's>",
+      power = "<mean forest's>",
+      proposal.probs = "<control's>",
+      n.perturb.cuts = "<control's>"
     )
   )
 }
 
 print.dbartsVarianceForest <- function(x, ...) {
   cat("dbarts variance forest specification\n")
+  cat(paste0("  ", format(x)), sep = "\n")
+  invisible(x)
+}
+
+## A forest's statement: the knobs it states, one line each, named in the
+## order forest() takes them.
+format.dbartsForest <- function(x, ...) {
+  knobs <- c(
+    "vars",
+    "basis",
+    "sd",
+    "n.trees",
+    "base",
+    "power",
+    "amplitude",
+    "interactions",
+    "blocks",
+    "proposal.probs",
+    "n.perturb.cuts",
+    "treeShift"
+  )
+  stated <- knobs[!vapply(knobs, function(knob) is.null(x[[knob]]), NA)]
+  if (length(stated) == 0L) {
+    return("every knob at its default")
+  }
+  formatKnobs(x, stats::setNames(rep("", length(stated)), stated))
+}
+
+print.dbartsForest <- function(x, ...) {
+  cat("dbarts forest specification\n")
   cat(paste0("  ", format(x)), sep = "\n")
   invisible(x)
 }
@@ -3359,13 +3406,23 @@ dbartsForests <- list(
 ## What the arguments that take a forest constructor resolve by bare name:
 ## dbartsForests and the prior constructors a forest's 'amplitude' takes,
 ## which stay under dbartsPriors for the caller who names them outside.
-forestConstructors <- c(dbartsForests, dbartsPriors[c("fixed", "student")])
+forestConstructors <- c(
+  dbartsForests,
+  dbartsPriors[c("fixed", "student", "invchi")]
+)
 
 ## Each door argument taking a forest constructor, and the vocabulary it
 ## resolves over. In the order the doors forced them before they resolved by
 ## name, so that an error names the same argument.
 FOREST_ARGUMENT_VOCABULARIES <- list(
-  forests = c("forest", "interactions", "blocks", "fixed", "student"),
+  forests = c(
+    "forest",
+    "interactions",
+    "blocks",
+    "fixed",
+    "student",
+    "invchi"
+  ),
   interactions = "interactions",
   blocks = "blocks",
   monotone = "monotone",

@@ -848,6 +848,22 @@ bartBTOnlyFormals <- setdiff(
   c(names(formals(bart)), consolidatedArgsFor$bart)
 )
 
+## The one warning a consolidated argument gets, once per name and entry
+## point.
+warnConsolidated <- function(name, caller) {
+  warnOnce(
+    paste0("tombstone.consolidated.", name, ".", caller),
+    "'",
+    name,
+    "' has left '",
+    caller,
+    "': ",
+    consolidatedArgReasons[[name]],
+    ". The value was used.",
+    class = "dbartsDeprecatedWarning"
+  )
+}
+
 ## Reads the consolidated names out of an entry point's '...', warning once
 ## per name and per entry point. The values come back under their old
 ## spellings; the caller maps each onto the object that now owns it, so the
@@ -856,17 +872,7 @@ resolveConsolidatedArgs <- function(matchedCall, supplied, caller, evalEnv) {
   names <- intersect(consolidatedArgsFor[[caller]], supplied)
   values <- list()
   for (name in names) {
-    warnOnce(
-      paste0("tombstone.consolidated.", name, ".", caller),
-      "'",
-      name,
-      "' has left '",
-      caller,
-      "': ",
-      consolidatedArgReasons[[name]],
-      ". The value was used.",
-      class = "dbartsDeprecatedWarning"
-    )
+    warnConsolidated(name, caller)
     # resid.prior alone is still written in a vocabulary this package holds:
     # the prior constructors, which are not exported
     values[name] <- list(

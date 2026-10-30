@@ -161,7 +161,7 @@ logistic, aft, ordinal, nbinom - takes `family = "multinomial"` directly
 variance forest through `variance =` ([`dbartsSpec`](../../R/spec.R), [`variance`](../../R/spec.R)); only hazard and hurdle
 stay out of its reach. A `forests =` fit resolves gaussian, probit or logistic only, aft,
 ordinal and nbinom being refused by name at the R layer, the bridge and the factory alike
-(["a treatment forest does not support family"](../../R/spec.R),
+(["a model of several forests does not support family"](../../R/spec.R),
 [`refusedAmplitudeFamilyReason`](../../src/R_interface_bartcore.cpp), [`createAmplitudeSampler`](../../src/bartcore/facade.hpp)); `bart()` reaches the
 same machinery through a `forest()` formula term, under an identical gate ([f6]).
 

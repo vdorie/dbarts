@@ -491,7 +491,8 @@ processHit <- function(hit, env) {
         "interactions",
         "blocks",
         "fixed",
-        "student"
+        "student",
+        "invchi"
       )],
       evalEnv = env
     )

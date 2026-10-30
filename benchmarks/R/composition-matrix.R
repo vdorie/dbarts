@@ -1136,7 +1136,11 @@ for (fam in c("aft", "ordinal", "nbinom")) {
         )
       },
       anchor = "A `forests =` fit resolves gaussian, probit or logistic only",
-      msg = paste0("a treatment forest does not support family \"", fam, "\"")
+      msg = paste0(
+        "a model of several forests does not support family \"",
+        fam,
+        "\""
+      )
     )
   })
 }

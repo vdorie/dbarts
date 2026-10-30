@@ -550,7 +550,7 @@ expect_identical(
     ))$warnings,
     error = function(e) conditionMessage(e)
   ),
-  "a treatment forest does not support a linear leaf prior; drop it or fit a single-forest model"
+  "a model of several forests does not support a linear leaf prior; drop it or fit a single-forest model"
 )
 
 # ---- one row in under every family ------------------------------------------
