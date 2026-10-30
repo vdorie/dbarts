@@ -5180,8 +5180,8 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
       length(noExtend) == 0L &&
       length(moveMissing) == 0L &&
       realNotBounded &&
-      ratioFinite,
-    longOwed,
+      ratioFinite &&
+      longOwed,
     list(
       jobs = length(ids),
       gatedJobs = sum(lengths(gates) > 0L),
