@@ -129,7 +129,9 @@ forestCounts <- function(sampler) {
     0L
   )
 }
-statedOf <- function(sampler) sampler$model@forests[[1L]]@stated
+statedOf <- function(sampler) {
+  if (!inherits(sampler, "error")) sampler$model@forests[[1L]]@stated
+}
 gridOf <- function(sampler) sampler$data@cutPoints[[1L]]
 isQuantile <- function(sampler) {
   gaps <- diff(gridOf(sampler))
@@ -425,7 +427,10 @@ for (family in names(families)) {
 
 notUsedMessage <- function(expr) {
   tryCatch(
-    suppressWarnings(expr, classes = "dbartsDeprecatedWarning"),
+    {
+      suppressWarnings(expr, classes = "dbartsDeprecatedWarning")
+      ""
+    },
     dbartsControlNotUsedWarning = conditionMessage
   )
 }
@@ -476,10 +481,7 @@ for (row in list(
 )) {
   expectRefused(row, onControl)
   expect_identical(row$deprecated, "n.trees")
-  expect_true(grepl(
-    "leave it out of dbartsControl",
-    conditionMessage(row$value)
-  ))
+  expectRefused(row, "leave it out of dbartsControl")
 }
 for (row in list(
   counted(terms(plainThirty, n.trees = 50L)),
