@@ -1214,14 +1214,17 @@ states how the checks are done, after the readings are known.
   work, or run this beside it and bias its stop.
 - **Check on the references as a class** (`refClassCheck`, action `refclass`) reads each regime, link and
   class: the accepted references' coverage of the truth, with a bootstrap over references (4,000 resamples)
-  and a Bonferroni bound over the 67 readings, on the compacted references, with no fits. The code's normal
-  bound (3.37) flags four: E3 probit interior 0.958, S8 probit individual effects 0.987, S2 logistic near 0
-  or 1 0.941, S9 probit inverse weights 0.598. With a t quantile at references minus 1, as references are
-  read elsewhere, the first two stay. No reference reading rests on the other two. In the first two the
-  shipped and told arms over-cover on the same replications (0.958 and 0.939; 0.980 and 0.988), which points
-  to those replications and not to acceptance. The readings resting on them are kept with a note; the rule
-  above withdraws them. That choice is the maintainer's. Under withdrawal: bounded 13, measured 53, problem
-  7, unresolved 165.
+  and a Bonferroni bound over the 67 readings, on the compacted references, with no fits. A stored quantile
+  is single precision and the truth double, so the comparison gives way by one single-precision spacing
+  (`coveredSingle`); without it a truth tied at an atom, as a bounded inverse weight is, reads uncovered by
+  rounding alone. The code's normal bound (3.37) flags three: E3 probit interior 0.958, S8 probit individual
+  effects 0.987, S2 logistic near 0 or 1 0.941. With a t quantile at references minus 1, as references are
+  read elsewhere, the first two stay, and no reference reading rests on the third. The t bound is 7.3 at 6
+  references, 9.3 at 5 and 14.3 at 4, so only an extreme can stand past it, and that others do not says
+  little. In the first two the shipped and told arms over-cover on the same replications (0.958 and 0.939;
+  0.980 and 0.988), which points to those replications and not to acceptance. The readings resting on them
+  are kept with a note; the rule above withdraws them. That choice is the maintainer's. Under withdrawal:
+  bounded 13, measured 53, problem 7, unresolved 165.
 - **Moved to pricing**: effective draws per second of row estimands and the share of harm due to the start,
   as the Goal and [What the result leads to](#what-the-result-leads-to) now say. No reading used them.
 
