@@ -7163,11 +7163,15 @@ refClassRows <- function(cell, link, rep) {
       evenRows(as.matrix(v$shipped), nrow(as.matrix(v$move))),
       as.matrix(v$move)
     )
-    b <- stats::quantile(d[, 1L], c(0.05, 0.95), names = FALSE)
+    b <- apply(d, 2L, stats::quantile, probs = c(0.05, 0.95), names = FALSE)
+    t <- truth[[nm]]
+    if (length(t) != ncol(d)) {
+      stop("truth and draws differ in length: ", cell, " ", nm)
+    }
     rows[[nm]] <- data.frame(
       class = nm,
-      n = 1,
-      cov90 = as.numeric(b[1L] <= truth[[nm]] && truth[[nm]] <= b[2L])
+      n = length(t),
+      cov90 = sum(b[1L, ] <= t & t <= b[2L, ])
     )
   }
   if (!length(rows)) {
