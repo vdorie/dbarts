@@ -1395,6 +1395,17 @@ classInfo <- list(
   maxIw = list(tier = 1L, row = FALSE)
 )
 
+# The log of each draw's mean probability over its columns (upper: of one less
+# the probability), on the log scale: a small k spreads the latent scale by
+# hundreds, so a mean of probabilities can underflow to 0, and a ratio of two
+# then reads Inf or NaN.
+logMeanProb <- function(L, link, upper = FALSE) {
+  fn <- if (identical(link, "probit")) stats::pnorm else stats::plogis
+  lp <- fn(L, lower.tail = !upper, log.p = TRUE)
+  top <- apply(lp, 1L, max)
+  log(rowMeans(exp(lp - top))) + top
+}
+
 # The raw latent columns a task's fits produce, as one draws-by-columns matrix
 # (chains pooled chain-major), and the classes computed from it in double
 # precision. `parts` carries what a class needs beside the latent draws: the
@@ -1418,12 +1429,10 @@ classesFrom <- function(L, design, link, parts = NULL, labels = NULL) {
     }
     if (isTRUE(cellRegime(design$cell)$par$ratio)) {
       q <- quartiles(design$x[[mostDistinct(design$x)]])
-      P <- invLink(L[, seq_len(n), drop = FALSE])
+      Ln <- L[, seq_len(n), drop = FALSE]
       out$logRR <- matrix(
-        log(
-          rowMeans(P[, q == max(q), drop = FALSE]) /
-            rowMeans(P[, q == min(q), drop = FALSE])
-        ),
+        logMeanProb(Ln[, q == max(q), drop = FALSE], link) -
+          logMeanProb(Ln[, q == min(q), drop = FALSE], link),
         ncol = 1L
       )
     }
@@ -1450,10 +1459,16 @@ classesFrom <- function(L, design, link, parts = NULL, labels = NULL) {
       numeric(nrow(E))
     )
     if (task %in% c("effect", "d2") && design$regime != "B") {
-      m1 <- rowMeans(P1)
-      m0 <- rowMeans(P0)
-      out$logRR <- matrix(log(m1 / m0), ncol = 1L)
-      out$logOR <- matrix(qlogis(m1) - qlogis(m0), ncol = 1L)
+      L1 <- L[, seq_len(n), drop = FALSE]
+      L0 <- L[, n + seq_len(n), drop = FALSE]
+      lm1 <- logMeanProb(L1, link)
+      lm0 <- logMeanProb(L0, link)
+      out$logRR <- matrix(lm1 - lm0, ncol = 1L)
+      out$logOR <- matrix(
+        (lm1 - logMeanProb(L1, link, upper = TRUE)) -
+          (lm0 - logMeanProb(L0, link, upper = TRUE)),
+        ncol = 1L
+      )
     }
     if (task == "d2") {
       e <- design$ps
@@ -4933,6 +4948,7 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
   }
   gateOf <- function(id) if (id %in% ids) gateByJob[[id]] else NA_character_
   realNotBounded <- checkRealNotBounded()
+  ratioFinite <- checkRatioFinite()
   missing <- character()
   ungated <- character()
   noExtend <- character()
@@ -5134,7 +5150,8 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
       length(extendBad) == 0L &&
       length(noExtend) == 0L &&
       length(moveMissing) == 0L &&
-      realNotBounded,
+      realNotBounded &&
+      ratioFinite,
     list(
       jobs = length(ids),
       gatedJobs = sum(lengths(gates) > 0L),
@@ -5149,9 +5166,31 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
       roundsUngated = head(extendBad, 10L),
       tier3Extended = head(noExtend, 10L),
       moveMissing = head(moveMissing, 10L),
-      realNotBounded = realNotBounded
+      realNotBounded = realNotBounded,
+      ratioFinite = ratioFinite
     )
   )
+}
+
+# A ratio of mean probabilities is finite however far a small k spreads the
+# latent scale, and equals the direct computation where nothing underflows.
+checkRatioFinite <- function() {
+  ok <- TRUE
+  for (link in both) {
+    inv <- linkFunction(link)
+    far <- rbind(c(-1400, -1300, -900), c(-2, -1, 0.5), c(40, 400, 900))
+    ok <- ok &&
+      all(is.finite(logMeanProb(far, link))) &&
+      all(is.finite(logMeanProb(far, link, upper = TRUE)))
+    x <- withSeed(1L, matrix(rnorm(60), 10L, 6L))
+    ok <- ok &&
+      isTRUE(all.equal(logMeanProb(x, link), log(rowMeans(inv(x))))) &&
+      isTRUE(all.equal(
+        logMeanProb(x, link, upper = TRUE),
+        log(rowMeans(1 - inv(x)))
+      ))
+  }
+  ok
 }
 
 # A single real dataset never reads bounded: its seeds share one reference,
