@@ -510,11 +510,13 @@ forest(
   are taken once, over the observations in the likelihood when the
   sampler is created (those `subset` and the missing-value handling
   keep, with a positive weight, and not masked out), and kept: replacing
-  the column, the weights or the mask later does not move the prior, and
-  a copy, a saved and reloaded sampler and a sampler made again from its
-  own control, model and data keep it. Where those observations hold
-  fewer than two distinct values of the response, both are taken over
-  every observation, under one warning (two by the route of
+  the column, the weights or the mask later does not move the prior,
+  unless the column is replaced with
+  `$setForestBasis(updateBasisScale = TRUE)`, and a copy, a saved and
+  reloaded sampler and a sampler made again from its own control, model
+  and data keep it. Where those observations hold fewer than two
+  distinct values of the response, both are taken over every
+  observation, under one warning (two by the route of
   [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
   and `new()`, see its `active`). `"probit"` and `"logistic"` read no
   \\\mathrm{sd}(y)\\, and where fewer than two observations are in,
@@ -526,12 +528,11 @@ forest(
   with the data, in its `basis.scale` slot (see
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)),
   and `$getLeafPrior(f)$basis.scale` reports it. A caller who replaces a
-  column and wants the default of the new one states it,
-
-      p <- sampler$getLeafPrior(2)
-      sampler$setLeafPrior(forests = list(forest(),
-        forest(sd = p$sd * p$basis.scale / sd(w.new))))
-
+  column during burn-in and wants the default of the new one replaces it
+  with `$setForestBasis(f, w.new, updateBasisScale = TRUE)`, which takes
+  \\\mathrm{sd}(w)\\ again over the observations in the likelihood then
+  (see
+  [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)).
   A column that is constant over those observations has no standard
   deviation and needs `sd` stated.
 
@@ -829,7 +830,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>   1 forest1: no basis; sd 2.278 (default)
 #>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)
 #> Running mcmc loop:
-#> total seconds in loop: 0.000520
+#> total seconds in loop: 0.000733
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 3 2 2 2 2 

@@ -494,8 +494,9 @@ The constructor is not exported: it resolves by bare name inside the
     once, over the observations in the likelihood when the sampler is created
     (those <code>subset</code> and the missing-value handling keep, with a positive
     weight, and not masked out), and kept: replacing the column, the weights
-    or the mask later does not move the prior, and a copy, a saved and
-    reloaded sampler and a sampler made again from its own control, model
+    or the mask later does not move the prior, unless the column is replaced
+    with <code>$setForestBasis(updateBasisScale = TRUE)</code>, and a copy, a saved
+    and reloaded sampler and a sampler made again from its own control, model
     and data keep it. Where those observations hold fewer than two distinct
     values of the response, both are taken over every observation, under one
     warning (two by the route of <code><a href="dbartsSpec.html">dbartsSpec</a></code> and <code>new()</code>,
@@ -508,10 +509,12 @@ The constructor is not exported: it resolves by bare name inside the
     by. \(\mathrm{sd}(w)\) is kept with the data, in its
     <code>basis.scale</code> slot (see <code><a href="dbartsData.html">dbartsData</a></code>), and
     <code>$getLeafPrior(f)$basis.scale</code> reports it. A caller who replaces a
-    column and wants the default of the new one states it,</p><div class="sourceCode"><pre><code><span><span class="va">p</span> <span class="op">&lt;-</span> <span class="va">sampler</span><span class="op">$</span><span class="fu">getLeafPrior</span><span class="op">(</span><span class="fl">2</span><span class="op">)</span></span>
-<span><span class="va">sampler</span><span class="op">$</span><span class="fu">setLeafPrior</span><span class="op">(</span>forests <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="../reference/forest.html">forest</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  <span class="fu"><a href="../reference/forest.html">forest</a></span><span class="op">(</span>sd <span class="op">=</span> <span class="va">p</span><span class="op">$</span><span class="va">sd</span> <span class="op">*</span> <span class="va">p</span><span class="op">$</span><span class="va">basis.scale</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/stats/sd.html" class="external-link">sd</a></span><span class="op">(</span><span class="va">w.new</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div><p>A column that is constant over those observations has no standard
-    deviation and needs <code>sd</code> stated.</p>
+    column during burn-in and wants the default of the new one replaces it
+    with <code>$setForestBasis(f, w.new, updateBasisScale = TRUE)</code>, which takes
+    \(\mathrm{sd}(w)\) again over the observations in the
+    likelihood then (see <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>). A column that
+    is constant over those observations has no standard deviation and needs
+    <code>sd</code> stated.</p>
 <p>A treatment belongs in a factor or a logical vector, where <code>sd</code> is
     the treatment effect. Written as a 0/1 number it is scaled as any number:
     \(\mathrm{sd}(z)\) is 0.5, 0.4 and 0.22 at 50, 20 and 5 percent
@@ -788,7 +791,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span>   1 forest1: no basis; sd 2.278 (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000520</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000733</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 3 3 2 2 2 2 </span>

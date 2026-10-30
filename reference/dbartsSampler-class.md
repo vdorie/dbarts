@@ -66,7 +66,8 @@ setActiveRows(
 # S4 method for class 'dbartsSampler'
 setForestWeights(forest, weights, updateState = NULL)
 # S4 method for class 'dbartsSampler'
-setForestBasis(forest, basis, updateState = NULL)
+setForestBasis(forest, basis, updateState = NULL,
+    updateBasisScale = FALSE)
 # S4 method for class 'dbartsSampler'
 setSigma(sigma, updateState = NULL)
 # S4 method for class 'dbartsSampler'
@@ -922,10 +923,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   amplitudes are preserved: an install leaves every one of them bitwise.
   A swap moves the basis and nothing else: no forest's prior moves, so a
   numeric forest keeps the `sd` per unit its creation gave it, a default
-  one the scale of the column it was created on (`data@basis.scale`); a
-  caller who wants the default of the new column states it (see `sd` in
-  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)). A
-  basis that is not one of the canonical shapes (a dense all-ones
+  one the scale of the column it was created on (`data@basis.scale`),
+  unless `updateBasisScale = TRUE` takes the default of the new column.
+  A basis that is not one of the canonical shapes (a dense all-ones
   column, or a complementary 0/1 pair) moves that forest onto the
   general amplitude conditional, which is a model fact and not
   revertible by a later data swap. The matrix is written to both the
@@ -936,6 +936,34 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   state carries no levels, so one installed from a sampler whose factor
   has the same levels in another order goes in by position, coefficient
   \\j\\ to this sampler's level \\j\\, with no message.
+
+- updateBasisScale:
+
+  For `setForestBasis`, `TRUE` or `FALSE`, the default. `TRUE`, meant
+  for burn-in, also takes the default of a numeric forest that states no
+  `sd` from the column installed: the column's standard deviation is
+  read over the observations in the likelihood at the call (a positive
+  weight, kept by the active-row mask; a forest's own weights from
+  `setForestWeights` are not read), and the forest's `sd` becomes one
+  unit of the response's scale for one standard deviation of the new
+  column, from the next sweep, as for a sampler created on that column
+  over those observations (see `sd` in
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)). The
+  trees, the coefficients and every other forest are left as they are,
+  and no draw is taken. The rows read are those in at the call, which
+  may not be the rows the response's scale was read from at creation,
+  and re-installing the column in force with `TRUE` is how to take its
+  scale again after the weights or the mask change. The new scale
+  replaces the forest's entry of `data@basis.scale`, so a copy, a saved
+  and reloaded sampler and a sampler made again from its own control,
+  model and data run the new prior. Where fewer than two observations
+  are in the likelihood, or the column takes one value over them, the
+  column is installed and the scale in force kept, with a warning the
+  first time the sampler keeps a scale; a sampler created on such a
+  column with no `sd` is refused. `TRUE` is refused, before anything is
+  installed, on a forest that states its `sd`, at creation or through
+  `setLeafPrior`, and on a forest multiplied by a factor, neither having
+  a default taken from a column.
 
 - forest:
 
