@@ -40,9 +40,8 @@
 # two ordinal columns of 6 and 2 distinct values as a FULL FACTORIAL with
 # useQuantiles = TRUE, which puts 5 and 1 cuts at the midpoints between
 # consecutive distinct values, so every leaf of every reachable tree holds a
-# cell and the target is the plain CGM prior. tree.prior = cgm(power = 0.5,
-# base = 0.95): the LOPSIDED cut counts, 5 against 1, are what give poison 2
-# its size, and the low power is what gives poison 1 its size, deepening trees
+# cell and the target is the plain CGM prior. power = 0.5, base = 0.95: the LOPSIDED cut counts, 5
+# against 1, are what give poison 2 its size, and the low power is what gives poison 1 its size, deepening trees
 # so that a candidate can exhaust a child's last variable. Every chain starts
 # at a bare root, so the run needs a burn-in it would not otherwise.
 #
@@ -488,7 +487,8 @@ runChains <- function(x, y, seed, numBurn, numKept, blockSize, mask) {
     x,
     y,
     control = ctl,
-    tree.prior = cgm(power = power, base = base),
+    power = power,
+    base = base,
     leaf.prior = normal(kLeaf),
     family = gaussian(sigma = fixed(1)),
     proposal.probs = proposalProbs
@@ -604,7 +604,7 @@ cat(sprintf(
   nThin
 ))
 cat(sprintf(
-  "  mixture: birth_death %.2f, change %.2f, rule_gibbs %.2f; cgm(%.2f, %.2f)\n",
+  "  mixture: birth_death %.2f, change %.2f, rule_gibbs %.2f; power %.2f, base %.2f\n",
   proposalProbs[["birth_death"]],
   proposalProbs[["change"]],
   proposalProbs[["rule_gibbs"]],

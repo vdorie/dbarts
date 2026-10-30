@@ -161,7 +161,8 @@ fitBartcore <- function(seed) {
       birth = 0.5
     ),
     leaf.prior = normal(k),
-    tree.prior = cgm(power, base)
+    power = power,
+    base = base
   )
   sampler$setTestOffset(NULL)
   r <- sampler$run(5000L, ndpost)
@@ -267,7 +268,8 @@ fitOrdered <- function(seed, n.cuts) {
       birth = 0.5
     ),
     leaf.prior = normal(k),
-    tree.prior = cgm(power, base)
+    power = power,
+    base = base
   )
   sampler$setTestOffset(NULL)
   r <- sampler$run(5000L, ndpost)

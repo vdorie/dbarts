@@ -171,7 +171,8 @@ fitSeed <- function(seed) {
     y,
     family = "ordinal",
     control = control,
-    tree.prior = cgm(power, base),
+    power = power,
+    base = base,
     proposal.probs = c(
       birth_death = 0.5,
       swap = 0.1,

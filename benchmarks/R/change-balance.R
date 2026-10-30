@@ -424,7 +424,8 @@ runEngine <- function(x, y, nCutsVec) {
     x,
     y,
     control = ctl,
-    tree.prior = cgm(power, base),
+    power = power,
+    base = base,
     leaf.prior = normal(kLeaf),
     family = gaussian(sigma = fixed(1))
   )

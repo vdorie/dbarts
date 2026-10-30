@@ -432,7 +432,8 @@ runChains <- function(x, y, seed, numBurn, numKept, blockSize, mask) {
     x,
     y,
     control = ctl,
-    tree.prior = cgm(power, base),
+    power = power,
+    base = base,
     leaf.prior = normal(kLeaf),
     family = gaussian(sigma = fixed(1)),
     proposal.probs = proposalProbs

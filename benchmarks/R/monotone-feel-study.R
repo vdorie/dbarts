@@ -4,11 +4,11 @@
 # (docs/plans/monotone-exact-birth-death.md, Default: feel study): how a user
 # would meet monotone(prior = "leaf") and monotone(prior = "joint") as the
 # default, beyond run time. Four arms, each fit through bart():
-#   leaf        monotone(c(x1 = "increasing"), prior = "leaf"), cgm()
-#   joint       monotone(c(x1 = "increasing"), prior = "joint"), cgm()
-#   joint.mbart the same under cgm(power = 0.8, base = 0.25), the mBART paper's
+#   leaf        monotone(c(x1 = "increasing"), prior = "leaf"), default power and base
+#   joint       monotone(c(x1 = "increasing"), prior = "joint"), default power and base
+#   joint.mbart the same under power = 0.8, base = 0.25, the mBART paper's
 #               tree prior
-#   free        no constraint, cgm(): the reference a user compares against
+#   free        no constraint, default power and base: the reference a user compares against
 # at 200, 50 and 5 trees.
 #
 # Prior predictive: 500 draws of f per arm and tree count through
@@ -97,8 +97,8 @@ truthSd <- function(truth) {
   sqrt(mean(f^2) - mean(f)^2)
 }
 
-# every monotone arm names its prior; monotone() and cgm() resolve by bare
-# name inside bart()
+# every monotone arm names its prior; monotone() resolves by bare name
+# inside bart()
 fitArm <- function(arm, data, test, n.trees, seed) {
   common <- list(
     formula = y ~ x1 + x2 + x3,
@@ -123,7 +123,8 @@ fitArm <- function(arm, data, test, n.trees, seed) {
     )),
     joint.mbart = quote(bart(
       monotone = monotone(c(x1 = "increasing"), prior = "joint"),
-      tree.prior = cgm(power = 0.8, base = 0.25)
+      power = 0.8,
+      base = 0.25
     )),
     free = quote(bart())
   )
@@ -156,7 +157,8 @@ priorSampler <- function(arm, n.trees) {
       y ~ x1 + x2,
       data = data,
       monotone = monotone(c(x1 = "increasing"), prior = "joint"),
-      tree.prior = cgm(power = 0.8, base = 0.25),
+      power = 0.8,
+      base = 0.25,
       control = control
     ),
     free = dbarts(y ~ x1 + x2, data = data, control = control)

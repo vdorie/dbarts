@@ -156,7 +156,8 @@ fitSingleTree <- function(seed, family, nodeScale, offset, linkinv) {
       birth = 0.5
     ),
     leaf.prior = normal(sd = nodeScale / k),
-    tree.prior = cgm(power, base)
+    power = power,
+    base = base
   )
   sampler$setTestOffset(NULL) # engine fits exclude the offset
   r <- sampler$run(5000L, exactNdpost)

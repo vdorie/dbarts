@@ -366,7 +366,8 @@ arm3 <- function() {
       test = xTest,
       family = "multinomial",
       control = control,
-      tree.prior = cgm(power, base)
+      power = power,
+      base = base
     )
     r <- bc$run(nburn, ndpost)
     pA <- apply(r$train[cell == 0L, , , drop = FALSE], 2L, mean)
@@ -819,7 +820,8 @@ armConstrained <- function() {
       factor(labels, levels = seq.int(0L, K - 1L)),
       family = "multinomial",
       control = control,
-      tree.prior = cgm(power, base),
+      power = power,
+      base = base,
       interactions = interactions(max.order = 1L)
     )
     # the enumeration's premise: a child holds no cut of its parent's column.

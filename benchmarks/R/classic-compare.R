@@ -95,6 +95,12 @@ residPriorArgs <- if (packageVersion("dbarts") < "1.0") {
 } else {
   list(family = quote(gaussian(sigma = chisq(3.0, 0.90))))
 }
+# 0.9-34 names the tree prior by its own argument; 1.0-0 takes power and base
+treePriorArgs <- if (packageVersion("dbarts") < "1.0") {
+  list(tree.prior = quote(cgm(2.0, 0.95)))
+} else {
+  list(power = 2.0, base = 0.95)
+}
 # 0.9-34's dbartsControl has no mixture slot (the model object carried it),
 # so xbart - which exposes no flat knob on either release - can only be set
 # through the control under 1.0-0.
@@ -525,10 +531,10 @@ makeSampler <- function(scn, nChains = 1L) {
       quote(scn[["y"]]),
       test = quote(scn[["x.test"]]),
       control = quote(makeControl(scn, nChains)),
-      tree.prior = quote(cgm(2.0, 0.95)),
       node.prior = nodePrior,
       sigma = NA_real_
     ),
+    treePriorArgs,
     residPriorArgs,
     # omitted, not passed as NULL, when the mixture is left to the release's
     # own default: 1.0-0 reads this name off '...', where a NULL is a value

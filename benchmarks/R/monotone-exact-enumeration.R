@@ -667,7 +667,8 @@ engineKeys <- function(design, nDraw, seed, prior) {
     y ~ .,
     data.frame(y = design$y, x),
     control = ctl,
-    tree.prior = cgm(power, base),
+    power = power,
+    base = base,
     leaf.prior = normal(kLeaf),
     family = gaussian(sigma = fixed(design$spec$sigma^2)),
     monotone = monotone(mono, prior = prior)

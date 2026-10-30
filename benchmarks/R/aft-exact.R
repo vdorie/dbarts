@@ -185,7 +185,8 @@ fitSingleTree <- function(seed) {
       change = 0.4,
       birth = 0.5
     ),
-    tree.prior = cgm(power, base),
+    power = power,
+    base = base,
     family = aft(sigma = fixed(sigmaFixed^2))
   )
   r <- sampler$run(5000L, exactNdpost)
@@ -231,7 +232,8 @@ fitVarianceTree <- function(seed) {
       change = 0.4,
       birth = 0.5
     ),
-    tree.prior = cgm(power, base),
+    power = power,
+    base = base,
     family = aft(sigma = chisq(df = varianceDf, quant = 0.9)),
     variance = varianceForest(n.trees = 1L),
     sigma = sigmaFixed

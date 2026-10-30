@@ -769,7 +769,7 @@ sbcMakeDartGenerator <- function(config, s0) {
       sigma = dbartsPriors$chisq(config$sigDf, config$sigQuant)
     ),
     leaf.prior = config$nodePrior,
-    tree.prior = dbartsPriors$cgm(split.probs = s0),
+    split.probs = s0,
     sigma = config$sigest,
     control = ctrl
   )
@@ -797,7 +797,7 @@ sbcMakeDartFit <- function(config, L, thin) {
       sigma = dbartsPriors$chisq(config$sigDf, config$sigQuant)
     ),
     leaf.prior = config$nodePrior,
-    tree.prior = dbartsPriors$dart(
+    split.probs = dbartsPriors$dart(
       alpha = config$dartAlpha,
       update.alpha = FALSE,
       update.delay = 100L

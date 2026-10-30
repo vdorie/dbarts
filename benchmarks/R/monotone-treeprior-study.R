@@ -2,12 +2,12 @@
 
 # The tree prior under monotone(prior = "joint")
 # (docs/plans/monotone-exact-birth-death.md, Tree prior under "joint"): whether
-# mBART's cgm(power = 0.8, base = 0.25) replaces cgm()'s defaults under every
+# mBART's power = 0.8, base = 0.25 replaces the default power and base under every
 # monotone fit, decided by a rule fixed before the run. Three arms, each fit
 # through bart():
-#   joint       monotone(<constrained> = "increasing", prior = "joint"), cgm()
-#   joint.mbart the same under cgm(power = 0.8, base = 0.25)
-#   free        no constraint, cgm(): the reference
+#   joint       monotone(<constrained> = "increasing", prior = "joint"), default power and base
+#   joint.mbart the same under power = 0.8, base = 0.25
+#   free        no constraint, default power and base: the reference
 # at 200 and 50 trees.
 #
 # Designs, predictors uniform on [0, 1]^p:
@@ -39,7 +39,7 @@
 #       score, the se over replicates; and
 #   (b) joint.mbart's mean coverage is at least 0.90 in every cell at 200 and
 #       50 trees.
-# Otherwise cgm()'s defaults stay. report computes the verdict and names the
+# Otherwise the default power and base stay. report computes the verdict and names the
 # cells failing each clause.
 #
 # Usage:
@@ -169,8 +169,8 @@ checkTruths <- function() {
   }
 }
 
-# every monotone arm names its prior; monotone() and cgm() resolve by bare
-# name inside bart()
+# every monotone arm names its prior; monotone() resolves by bare name
+# inside bart()
 fitArm <- function(arm, design, train, test, n.trees, seed) {
   directions <- stats::setNames(
     rep("increasing", length(design$constrained)),
@@ -196,7 +196,8 @@ fitArm <- function(arm, design, train, test, n.trees, seed) {
     )),
     joint.mbart = bquote(bart(
       monotone = monotone(.(directions), prior = "joint"),
-      tree.prior = cgm(power = 0.8, base = 0.25)
+      power = 0.8,
+      base = 0.25
     )),
     free = quote(bart())
   )
@@ -585,9 +586,9 @@ if (mode == "report") {
         if (done) "clean" else "missing or reporting jobs missing"
       )
     } else if (any(failsA) || any(failsB)) {
-      "cgm() defaults stay"
+      "the default power and base stay"
     } else {
-      "mBART's cgm(power = 0.8, base = 0.25) becomes the monotone tree prior"
+      "mBART's power = 0.8, base = 0.25 becomes the monotone tree prior"
     },
     "\n"
   )

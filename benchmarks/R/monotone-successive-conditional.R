@@ -95,7 +95,8 @@ makeSampler <- function(arm, seed) {
     yBuild,
     test = xTest,
     leaf.prior = dbartsPriors$normal(2),
-    tree.prior = dbartsPriors$cgm(treePower, 0.95),
+    power = treePower,
+    base = 0.95,
     sigest = sigest,
     control = control,
     family = dbartsFamilies$gaussian(

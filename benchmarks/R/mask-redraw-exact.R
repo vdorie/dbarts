@@ -297,7 +297,8 @@ makeSampler <- function(d, seed) {
     predictors,
     d$y,
     control = control,
-    tree.prior = cgm(power, base),
+    power = power,
+    base = base,
     leaf.prior = normal(kLeaf),
     family = if (d$family == "probit") {
       "probit"

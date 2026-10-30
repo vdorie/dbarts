@@ -618,8 +618,6 @@ samplerFit <- function(seed, arm, updateA, updateB, ndpost, thin) {
     n.cuts = arm$K - 1L,
     updateState = FALSE
   )
-  # cgm() is internal, reached the way every sibling gate reaches it: as an
-  # unevaluated argument, resolved inside dbarts()'s own frame
   bcfForests <- list(
     dbarts::dbartsForests$forest(
       sd = sdControl * arm$link$anchor,
@@ -640,7 +638,8 @@ samplerFit <- function(seed, arm, updateA, updateB, ndpost, thin) {
       arm$y,
       control = control,
       family = arm$link$name,
-      tree.prior = cgm(muPower, muBase),
+      power = muPower,
+      base = muBase,
       forests = bcfForests
     )
   } else {
@@ -650,7 +649,8 @@ samplerFit <- function(seed, arm, updateA, updateB, ndpost, thin) {
       weights = arm$weights,
       control = control,
       family = arm$link$name,
-      tree.prior = cgm(muPower, muBase),
+      power = muPower,
+      base = muBase,
       forests = bcfForests
     )
   }

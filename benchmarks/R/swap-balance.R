@@ -89,7 +89,7 @@ logSumExp <- function(v) {
 
 # ---- analytic target from the CGM tree prior ----
 #
-# Log-prior of a specific depth-2 tree under cgm(power, base): each internal
+# Log-prior of a specific depth-2 tree under power and base: each internal
 # node contributes log(psplit_depth) + rule, each leaf log(1 - psplit_depth),
 # with psplit_depth = base / (1 + depth)^power and the rule term
 # -log(numAvailVars) - log(availCuts_of_chosen_var). A and B share the shape
@@ -255,7 +255,8 @@ sampler <- dbarts(
   cbind(x1 = x1, x2 = x2),
   y,
   control = ctl,
-  tree.prior = cgm(power, base),
+  power = power,
+  base = base,
   leaf.prior = normal(kLeaf),
   family = gaussian(sigma = fixed(fixedVar)),
   proposal.probs = proposalProbs

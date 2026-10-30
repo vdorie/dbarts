@@ -360,7 +360,8 @@ samplerFit <- function(seed) {
     y,
     control = control,
     sigest = sigEst,
-    tree.prior = cgm(muPower, muBase),
+    power = muPower,
+    base = muBase,
     leaf.prior = normal(2),
     forests = list(
       forest(sd = sdControl * sdY, amplitude = fixed()),

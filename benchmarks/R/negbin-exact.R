@@ -237,7 +237,8 @@ fitSeed <- function(
     weights = weights,
     family = nbinom(shape = shape),
     control = control,
-    tree.prior = cgm(power, base),
+    power = power,
+    base = base,
     leaf.prior = normal(k),
     verbose = FALSE
   )

@@ -161,7 +161,8 @@ fitSingleTree <- function(seed) {
     y1,
     control = control,
     leaf.prior = normal(sd = nodeScale * fitRange / k),
-    tree.prior = cgm(power, base),
+    power = power,
+    base = base,
     proposal.probs = c(
       birth_death = 0.5,
       swap = 0.1,

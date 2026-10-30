@@ -193,7 +193,8 @@ engineArm <- function(xs, ys, weights = NULL) {
       test = matrix(as.double(seq_len(K)), ncol = 1L),
       weights = weights,
       control = ctl,
-      tree.prior = cgm(power, base),
+      power = power,
+      base = base,
       proposal.probs = c(
         birth_death = 0.5,
         swap = 0.1,

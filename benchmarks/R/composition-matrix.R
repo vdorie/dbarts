@@ -1227,7 +1227,7 @@ addCheck(
   "S",
   function(s, seed) NULL,
   setup = function(seed) {
-    buildBase("hetero", seed, list(tree.prior = dbarts:::dart()))
+    buildBase("hetero", seed, list(split.probs = dbarts:::dart()))
   },
   anchor = "It never takes DART either"
 )
@@ -1239,10 +1239,10 @@ addCheck(
   "dart bcf",
   "R",
   function(s, seed) {
-    buildBase("bcf", seed, list(tree.prior = dbarts:::dart()))
+    buildBase("bcf", seed, list(split.probs = dbarts:::dart()))
   },
   anchor = dartAnchor,
-  msg = "a treatment forest does not support a DART tree prior"
+  msg = "a model of several forests does not support 'split.probs'"
 )
 addCheck(
   "prose",
@@ -1252,11 +1252,11 @@ addCheck(
     d <- mkXY(seed)
     do.call(
       bart,
-      c(bartArgs("multinom", d), doorArgs(tree.prior = dbarts:::dart()))
+      c(bartArgs("multinom", d), doorArgs(split.probs = dbarts:::dart()))
     )
   },
   anchor = dartAnchor,
-  msg = "does not support a DART 'tree.prior'"
+  msg = "does not support 'split.probs' (a vector that is not uniform, or dart())"
 )
 
 # -- prose: warm start and grow-from-root
