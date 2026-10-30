@@ -5762,6 +5762,40 @@ SEXP bartcore_setForestSd(SEXP ptrExpr, SEXP forestExpr, SEXP sdExpr) {
   return R_NilValue;
 }
 
+// Installs one forest's tree prior on every chain: forest a 0-based mean
+// forest index, or -1 the variance forest. It reads explicit numbers, not
+// records, and checks them as creation does before any chain is written, so
+// a refusal changes nothing.
+SEXP bartcore_setForestTreePrior(SEXP ptrExpr, SEXP forestExpr,
+                                 SEXP baseExpr, SEXP powerExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
+  if (Rf_xlength(forestExpr) != 1) Rf_error("forest index out of range");
+  int forest = Rf_asInteger(forestExpr);
+  size_t forestIndex;
+  if (forest == -1) {
+    if (!shape.hasVarianceForest)
+      Rf_error("this sampler has no variance forest");
+    forestIndex = bartcore::varianceForestIndex;
+  } else if (forest < 0 ||
+             static_cast<size_t>(forest) >= shape.numForests) {
+    Rf_error("forest index out of range");
+  } else {
+    forestIndex = static_cast<size_t>(forest);
+  }
+  if (Rf_xlength(baseExpr) != 1 || Rf_xlength(powerExpr) != 1)
+    Rf_error("a tree prior's base and power must each be a single number");
+  double base = Rf_asReal(baseExpr), power = Rf_asReal(powerExpr);
+  if (!(base > 0.0 && base < 1.0))
+    Rf_error("tree prior base must be in (0, 1)");
+  if (!(power > 0.0)) Rf_error("tree prior power must be positive");
+  // the checks above are the engine's, so this answers only a caller that
+  // skips them
+  if (!holder.sampler->setForestTreePrior(forestIndex, base, power))
+    Rf_error("the tree prior install was refused");
+  return R_NilValue;
+}
+
 SEXP bartcore_getForestVariableCounts(SEXP ptrExpr, SEXP forestExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();

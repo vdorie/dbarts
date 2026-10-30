@@ -32,6 +32,8 @@ SEXP bartcore_getLeafPrior(SEXP ptr, SEXP forest);
 SEXP bartcore_setLeafPrior(SEXP ptr, SEXP forest, SEXP namedSd);
 SEXP bartcore_setForestK(SEXP ptr, SEXP k);
 SEXP bartcore_setForestSd(SEXP ptr, SEXP forest, SEXP sd);
+SEXP bartcore_setForestTreePrior(SEXP ptr, SEXP forest, SEXP base,
+                                 SEXP power);
 SEXP bartcore_getForestVariableCounts(SEXP ptr, SEXP forest);
 SEXP bartcore_run(SEXP ptr, SEXP numBurnIn, SEXP numSamples,
                   SEXP callbackFn, SEXP callbackContext, SEXP keepFits);
