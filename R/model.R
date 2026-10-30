@@ -327,7 +327,7 @@ treePriorConstructorHead <- function(expr) {
   priorsList <- list(
     quote(dbartsPriors),
     quote(dbarts::dbartsPriors),
-    quote(dbarts:::dbartsPriors)
+    call(":::", quote(dbarts), quote(dbartsPriors))
   )
   name <- if (is.symbol(head)) {
     as.character(head)
