@@ -479,7 +479,39 @@ statedFirst <- function(formula, ...) {
 }
 statedFirstFit <- statedFirst(yb ~ forest(x1, sd = 1) + forest(x2) + forest(x3))
 expect_false(is.null(statedFirstFit$k))
-expect_identical(length(extract(statedFirstFit, type = "k")), 24L)
+# extract names a drawn k per forest, as leaf.prior.sd does: the group's draws
+# on a part of the share and the 1 a forest outside it is pinned at, and
+# 'forest' selects among them as it does there
+statedK <- extract(statedFirstFit, type = "k")
+expect_identical(names(statedK), c("forest1", "forest2", "forest3"))
+expect_identical(statedK$forest1, 1)
+expect_identical(length(statedK$forest2), 24L)
+expect_identical(as.vector(statedK$forest2), as.vector(statedFirstFit$k))
+expect_identical(statedK$forest3, statedK$forest2)
+expect_identical(extract(statedFirstFit, "k", forest = "forest1"), 1)
+expect_identical(extract(statedFirstFit, "k", forest = 3L), statedK$forest3)
+expect_identical(
+  extract(statedFirstFit, "k", forest = c(1L, 3L)),
+  statedK[c("forest1", "forest3")]
+)
+expect_identical(
+  dim(extract(statedFirstFit, "k", combineChains = FALSE, forest = 2L)),
+  c(2L, 12L)
+)
+# a name or an index that is no forest is refused, as the held sibling and
+# leaf.prior.sd refuse it
+for (type in c("k", "leaf.prior.sd")) {
+  expect_error(
+    extract(statedFirstFit, type, forest = "zz"),
+    "'forest' names no forest of this model: \"zz\"",
+    fixed = TRUE
+  )
+  expect_error(
+    extract(statedFirstFit, type, forest = 9L),
+    "'forest' index must be between 1 and 3",
+    fixed = TRUE
+  )
+}
 
 # the gaussian sweep and the grow-from-root sweep draw the group's k
 sharedChi <- dbarts(
@@ -572,11 +604,30 @@ gaussianInvchiFit <- statedFirst(
 for (fit in list(
   binaryFit,
   gaussianChiFit,
-  gaussianInvchiFit,
   statedFirstFit
 )) {
   expect_true("k" %in% summary(fit)$stats$variable)
   expect_false("leaf.prior.sd" %in% summary(fit)$vars)
+}
+# summary reads the fit's k, which extract's per-forest list leaves as it was
+expect_equal(
+  summary(statedFirstFit, vars = "k")$stats$mean,
+  mean(statedFirstFit$k)
+)
+# a drawn total named by its sd shows leaf.prior.sd, as one forest does, and
+# the row asked for by name is the parts' k.scale over each draw of k
+expect_true("leaf.prior.sd" %in% summary(gaussianInvchiFit)$stats$variable)
+expect_false("k" %in% summary(gaussianInvchiFit)$vars)
+for (fit in list(
+  binaryFit,
+  gaussianChiFit,
+  gaussianInvchiFit,
+  statedFirstFit
+)) {
+  row <- summary(fit, vars = "leaf.prior.sd")$stats
+  expect_identical(row$variable, "leaf.prior.sd")
+  parts <- extract(fit, type = "leaf.prior.sd")
+  expect_equal(row$mean, mean(parts[[length(parts)]]))
 }
 expect_false("k" %in% summary(gaussianFit)$vars)
 expect_length(summary(gaussianFit)$fixed$leaf.prior.sd, 2L)
@@ -586,15 +637,26 @@ partSd <- extract(binaryFit, type = "leaf.prior.sd")
 expect_identical(names(partSd), c("forest1", "forest2"))
 expect_identical(
   partSd$forest1,
-  binaryFit$leaf.prior$forest1$k.scale / extract(binaryFit, type = "k")
+  binaryFit$leaf.prior$forest1$k.scale /
+    extract(binaryFit, type = "k", forest = 1L)
 )
-expect_identical(dim(partSd$forest2), dim(extract(binaryFit, type = "k")))
+expect_identical(
+  dim(partSd$forest2),
+  dim(extract(binaryFit, type = "k", forest = 2L))
+)
 statedSd <- extract(statedFirstFit, type = "leaf.prior.sd")
 expect_equivalent(statedSd$forest1, 1)
 expect_identical(
   dim(statedSd$forest2),
-  dim(extract(statedFirstFit, type = "k"))
+  dim(extract(statedFirstFit, type = "k", forest = 2L))
 )
+# the chains kept apart, k and each part
+for (type in c("k", "leaf.prior.sd")) {
+  apart <- extract(statedFirstFit, type, combineChains = FALSE)
+  expect_identical(dim(apart$forest2), c(2L, 12L), info = type)
+  expect_identical(dim(apart$forest3), c(2L, 12L), info = type)
+  expect_identical(length(apart$forest1), 1L, info = type)
+}
 expect_identical(
   extract(statedFirstFit, type = "leaf.prior.sd", forest = "forest3"),
   statedSd$forest3

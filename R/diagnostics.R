@@ -81,8 +81,14 @@ scalarFields <- c(
 drawsField <- function(object, v) {
   if (identical(v, "leaf.prior.sd")) {
     prior <- object[["leaf.prior"]]
-    if (is.null(object[["k"]]) || is.null(prior[["leaf.prior"]])) {
+    if (is.null(object[["k"]])) {
       return(NULL)
+    }
+    if (is.null(prior[["leaf.prior"]])) {
+      # several forests: the parts of a share have one k.scale, the group's
+      # parts being equal, so the first is each part's
+      shares <- Filter(sharesDrawnK, prior)
+      return(if (length(shares) > 0L) shares[[1L]]$k.scale / object[["k"]])
     }
     return(prior$k.scale / object[["k"]])
   }
@@ -468,22 +474,13 @@ defaultLeafScaleVars <- function(object, vars) {
     return(vars)
   }
   priors <- if (is.null(prior[["leaf.prior"]])) prior else list(prior)
-  # a drawn k is the one number forests sharing a total have, wherever they
-  # stand; their parts are its multiples
-  drawnShare <- vapply(
-    priors,
-    function(entry) {
-      identical(entry[["prior.sd.of"]], "forest, shared") &&
-        leafPriorIsDrawn(entry)
-    },
-    NA
-  )
-  if (any(drawnShare)) {
-    return(setdiff(vars, "leaf.prior.sd"))
-  }
-  prior <- priors[[1L]]
+  # forests sharing a total under a drawn k have the one number wherever they
+  # stand, named by the prior they share as one forest's is
+  shares <- Filter(sharesDrawnK, priors)
+  prior <- if (length(shares) > 0L) shares[[1L]] else priors[[1L]]
   named <- if (
-    !is.null(prior[["multiplier"]]) || !is.null(prior$leaf.prior@prior.sd)
+    (length(shares) == 0L && !is.null(prior[["multiplier"]])) ||
+      !is.null(prior$leaf.prior@prior.sd)
   ) {
     "leaf.prior.sd"
   } else {

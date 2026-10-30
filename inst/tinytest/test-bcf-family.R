@@ -39,10 +39,9 @@ seededControlBcfFamily <- function(...) {
 }
 # A model in which every forest has a basis takes no tree count from the
 # control and no tree prior from the fitting function. Its first forest states
-# the count and the tree prior the other fits of this file run under; where it
-# multiplies a constant column, which has no standard deviation to take a
-# default from, it states one unit of the response's scale too, the size a
-# factor takes by default.
+# the count and the tree prior the other fits of this file run under; it states
+# one unit of the response's scale too, the size a factor takes by default, so
+# that no numeric column's spread sets a size.
 everyForestHasBasis <- function(bases) !any(vapply(bases, is.null, NA))
 unitOf <- function(y, family) {
   switch(family, probit = 1, logistic = pi / sqrt(3), sd(y))
@@ -65,8 +64,8 @@ hFactor <- factor(x[, 1L] > 0.5)
 unitBases2 <- list(ones, zFactor)
 unitBases3 <- list(ones, zFactor, gLevel)
 unitBases4 <- list(ones, zFactor, gLevel, hFactor)
-# and one cell whose rows are four, which is what pins that a numeric column
-# multiplies its forest as it is given, never divided
+# and one cell whose column is four times the ramp, which is what pins that a
+# numeric column multiplies its forest as it is given, never divided
 scaledBases <- list(4 * ones, zFactor)
 # the product pin's own fixture, whose every factor discriminates; see (d)
 pinBases <- list(3 * ones, 5 * ones)
@@ -79,31 +78,22 @@ pinScalesFor <- function(s) {
   )
 }
 
-# creation refuses a constant column, so a fixture's goes in by the swap that
-# takes one, from a column that differs only in spread
-swapsConstants <- function(bases, create) {
-  constant <- vapply(bases, function(basis) is.matrix(basis), NA)
-  sampler <- create(replace(
-    bases,
-    constant,
-    lapply(bases[constant], function(basis) basis * seq(1, 2, length.out = n))
-  ))
-  for (f in which(constant)) {
-    sampler$setForestBasis(f, bases[[f]])
-  }
-  sampler
+# creation refuses a constant column, so a fixture's numeric column is created
+# as it times a ramp from 1 to 2, which has a spread
+rampedBases <- function(bases) {
+  lapply(bases, function(basis) {
+    if (is.matrix(basis)) basis * seq(1, 2, length.out = n) else basis
+  })
 }
 basisSampler <- function(y, bases, family = "auto", forests = NULL, ...) {
   resolved <- if (family == "auto") "gaussian" else family
-  swapsConstants(bases, function(bases) {
-    dbarts(
-      dbartsData(x, y, bases = bases),
-      control = uncountedControlBcfFamily(),
-      family = family,
-      forests = statedOnFirst(forests, unitOf(y, resolved)),
-      ...
-    )
-  })
+  dbarts(
+    dbartsData(x, y, bases = rampedBases(bases)),
+    control = uncountedControlBcfFamily(),
+    family = family,
+    forests = statedOnFirst(forests, unitOf(y, resolved)),
+    ...
+  )
 }
 priorScales <- function(sampler) {
   unname(vapply(
@@ -156,7 +146,8 @@ for (family in names(anchors)) {
   expect_identical(priorScales(balanced), priorScales(rare))
 
   # (b) THE ABSOLUTE ANCHOR: the map's own expression, with s written as a
-  # literal; the column of 4s stating one unit per unit of it is not divided
+  # literal; the column of 4 times the ramp stating one unit per unit of it is
+  # not divided
   expect_equal(priorScales(balanced), c(s, s) / 0.674, tolerance = 1e-12)
 
   # (c) THE INDUCED INDEX: sqrt(sum_f prior.sd_f^2 v_f ||B_f(i,.)||^2), a
@@ -300,23 +291,21 @@ expect_identical(rownames(countsAll), colnames(x))
 # two channels. Only gaussian, where the median is 2, discriminates. ---
 mapSampler <- function(y, bases, family, forests = NULL, ...) {
   allBasis <- everyForestHasBasis(bases)
-  swapsConstants(bases, function(bases) {
-    dbarts(
-      dbartsData(x, y, bases = bases),
-      control = if (allBasis) {
-        uncountedControlBcfFamily()
-      } else {
-        seededControlBcfFamily()
-      },
-      family = family,
-      forests = if (allBasis) {
-        statedOnFirst(forests, unitOf(y, family))
-      } else {
-        forests
-      },
-      ...
-    )
-  })
+  dbarts(
+    dbartsData(x, y, bases = rampedBases(bases)),
+    control = if (allBasis) {
+      uncountedControlBcfFamily()
+    } else {
+      seededControlBcfFamily()
+    },
+    family = family,
+    forests = if (allBasis) {
+      statedOnFirst(forests, unitOf(y, family))
+    } else {
+      forests
+    },
+    ...
+  )
 }
 # one entry of the reader for each forest, NA where the forest has none
 readerSlot <- function(sampler, name) {

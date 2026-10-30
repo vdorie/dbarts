@@ -985,7 +985,10 @@ refuseConstantBasis <- function(data, active, allRows, specs, labels) {
     if (is.null(detail)) {
       next
     }
+    # a stated sd is per unit of the column, so with no column it is the
+    # column's size times it; amplitude is written as it was
     stated <- specs[[index]]$sd
+    amplitude <- specs[[index]]$amplitude
     # a formula's forest() has its predictors as design columns by now, whose
     # names it takes as written
     vars <- specs[[index]]$vars
@@ -1003,7 +1006,18 @@ refuseConstantBasis <- function(data, active, allRows, specs, labels) {
       paste(
         c(
           written,
-          if (!is.null(stated)) paste0("sd = ", format(stated, digits = 15L))
+          if (!is.null(stated)) {
+            paste0("sd = ", format(abs(values[1L]) * stated, digits = 15L))
+          },
+          if (identical(amplitude, "fixed")) {
+            "amplitude = fixed()"
+          } else if (is(amplitude, "dbartsStudentPrior")) {
+            paste0(
+              "amplitude = student(",
+              if (amplitude@df != 1) format(amplitude@df, digits = 15L),
+              ")"
+            )
+          }
         ),
         collapse = ", "
       ),

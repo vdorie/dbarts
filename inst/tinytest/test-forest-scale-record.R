@@ -178,7 +178,7 @@ sentinelDraws <- function(column) {
 }
 expect_identical(sentinelDraws(d$wild), sentinelDraws(d$dose))
 # a dose constant over the rows of positive weight, varying over the others:
-# refused, an sd stated or not
+# refused, an sd stated or not, the sd 2 per unit of the 0.25 written as 0.5
 d$flat <- ifelse(w > 0, 0.25, dose)
 expect_error(
   dbarts(
@@ -199,7 +199,7 @@ expect_error(
     forests = list(forest(), forest(basis = ~flat, sd = 2)),
     control = recordControl()
   ),
-  "Write it with none, as forest(sd = 2)",
+  "Write it with none, as forest(sd = 0.5)",
   fixed = TRUE
 )
 
@@ -659,6 +659,109 @@ expect_error(
   "Write it with none, as forest()",
   fixed = TRUE
 )
+# a stated sd is per unit of the column, so with no column it is the column's
+# size times it, whatever the column's sign, and the amplitude is written as it
+# was given
+student <- dbartsPriors$student
+amplitudeTexts <- c(
+  "",
+  ", amplitude = fixed()",
+  ", amplitude = student()",
+  ", amplitude = student(3)"
+)
+sizedColumns <- list(
+  list(column = rep(3, n), sd = "6"),
+  list(column = rep(-3, n), sd = "6"),
+  list(column = rep(0.25, n), sd = "0.5"),
+  list(column = rep(-1e8 - 0.1, n), sd = "200000000.2")
+)
+spelled <- function(column, sdText, amplitudeText) {
+  d$col <- column
+  tryCatch(
+    dbarts(
+      stats::as.formula(paste0(
+        "y ~ forest(x1 + x2) + forest(x1, basis = col",
+        sdText,
+        amplitudeText,
+        ")"
+      )),
+      d,
+      control = recordControl()
+    ),
+    error = function(e) conditionMessage(e)
+  )
+}
+for (case in sizedColumns) {
+  for (amplitudeText in amplitudeTexts) {
+    info <- paste(case$column[1L], amplitudeText)
+    expect_true(
+      endsWith(
+        spelled(case$column, ", sd = 2", amplitudeText),
+        paste0("as forest(x1, sd = ", case$sd, amplitudeText, ")")
+      ),
+      info = info
+    )
+    expect_true(
+      endsWith(
+        spelled(case$column, "", amplitudeText),
+        paste0("as forest(x1", amplitudeText, ")")
+      ),
+      info = info
+    )
+  }
+}
+# and the spelling is the model the call stated: a column swapped in after
+# creation, which stays taken, runs under the size the spelling states, and with
+# the coefficient held and the trees alike the same draws
+for (amplitudeText in amplitudeTexts[1:3]) {
+  for (value in c(3, -3)) {
+    swapped <- dbarts(
+      stats::as.formula(paste0(
+        "y ~ forest(x1 + x2) + forest(x1, basis = dose, sd = 2",
+        amplitudeText,
+        ")"
+      )),
+      d,
+      control = recordControl()
+    )
+    swapped$setForestBasis(2L, rep(value, n))
+    offered <- dbarts(
+      stats::as.formula(paste0(
+        "y ~ forest(x1 + x2) + forest(x1, sd = 6",
+        amplitudeText,
+        ")"
+      )),
+      d,
+      control = recordControl()
+    )
+    expect_equal(
+      unname(swapped$getLeafPrior(2L)$sd) * abs(value),
+      unname(offered$getLeafPrior(2L)$sd),
+      info = paste(value, amplitudeText)
+    )
+  }
+}
+heldTrees <- ", amplitude = fixed(), n.trees = 75, base = 0.95, power = 2"
+swapped <- dbarts(
+  stats::as.formula(paste0(
+    "y ~ forest(x1 + x2) + forest(x1, basis = dose, sd = 2",
+    heldTrees,
+    ")"
+  )),
+  d,
+  control = recordControl()
+)
+swapped$setForestBasis(2L, rep(3, n))
+offered <- dbarts(
+  stats::as.formula(paste0(
+    "y ~ forest(x1 + x2) + forest(x1, sd = 6",
+    heldTrees,
+    ")"
+  )),
+  d,
+  control = recordControl()
+)
+expect_equal(swapped$run()$train, offered$run()$train, tolerance = 1e-10)
 # a held coefficient, and the other fitting function
 d$col <- rep(1, n)
 expect_error(
@@ -780,6 +883,13 @@ live <- dbarts(
 )
 live$setForestBasis(2L, rep(1, n))
 expect_true(inherits(live$copy(), "dbartsSampler"))
+live$storeState()
+liveFile <- tempfile(fileext = ".rds")
+saveRDS(live, liveFile)
+liveReloaded <- readRDS(liveFile)
+unlink(liveFile)
+expect_true(inherits(liveReloaded, "dbartsSampler"))
+expect_silent(liveReloaded$run(0L, 1L))
 expect_true(inherits(
   new("dbartsSampler", live$control, live$model, live$data),
   "dbartsSampler"
@@ -825,6 +935,84 @@ expect_equal(
   sd(far),
   tolerance = 1e-12
 )
+
+# R's rounding threshold is the engine's, 2^-26 of the column's largest value:
+# a column a tenth under it is refused at creation and again by the engine's
+# creation from a record-less data object, and one a tenth over it is taken by
+# both, at the sd it has
+alternating <- rep(c(-1, 1), length.out = n)
+tied <- function(times) 1 + times * 2^-26 * alternating
+for (times in c(0.9, 1.1)) {
+  column <- tied(times)
+  edited <- original$data
+  edited@bases[[2L]] <- matrix(column, ncol = 1L)
+  edited@basis.scale <- NULL
+  if (times < 1) {
+    expect_error(
+      constantDoors$list.matrix(column),
+      "'s basis is constant to rounding (its standard deviation is",
+      fixed = TRUE,
+      info = times
+    )
+    expect_error(
+      new("dbartsSampler", original$control, original$model, edited),
+      "states no sd and its basis is constant",
+      info = times
+    )
+  } else {
+    expect_equal(
+      recordOf(constantDoors$list.matrix(column)),
+      sd(column),
+      tolerance = 1e-12,
+      info = times
+    )
+    expect_equal(
+      recordOf(new("dbartsSampler", original$control, original$model, edited)),
+      sd(column[w > 0]),
+      tolerance = 1e-12,
+      info = times
+    )
+  }
+}
+
+# fewer than two distinct response values in the likelihood read the scale from
+# every row, and so does this check: a column flat over the two rows in and
+# varying over the rest is taken, with the fallback's one warning, and one flat
+# over two rows that tell two responses apart is not
+twoIn <- as.double(seq_len(n) <= 2L)
+d$sameY <- y
+d$sameY[1:2] <- 1.5
+d$flatIn <- c(7, 7, dose[-(1:2)])
+for (statedText in c("", ", sd = 2")) {
+  numWarnings <- 0L
+  fellBack <- counted(dbarts(
+    stats::as.formula(paste0(
+      "sameY ~ forest(x1 + x2) + forest(x1, basis = flatIn",
+      statedText,
+      ")"
+    )),
+    d,
+    weights = twoIn,
+    control = recordControl()
+  ))
+  expect_true(inherits(fellBack, "dbartsSampler"), info = statedText)
+  expect_identical(numWarnings, 1L, info = statedText)
+  expect_error(
+    dbarts(
+      stats::as.formula(paste0(
+        "y ~ forest(x1 + x2) + forest(x1, basis = flatIn",
+        statedText,
+        ")"
+      )),
+      d,
+      weights = twoIn,
+      control = recordControl()
+    ),
+    "'s basis is constant (7 on every row in the likelihood)",
+    fixed = TRUE,
+    info = statedText
+  )
+}
 
 # --- several forests, one prior-predictive door shut by name ---
 expect_error(

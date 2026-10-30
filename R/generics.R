@@ -1454,7 +1454,8 @@ labelTreeForests <- function(trees, object) {
 # forest, the forest's sd in the response's units as recorded: a list, as k is
 # a vector, named by the forests' labels, or the entry of the one 'forest'
 # selects. A forest sharing a total under a drawn k has draws there, k.scale
-# over the group's k. A fit saved before fits stored these descriptors answers from its
+# over the group's k, and k itself is then the same list, the group's draws on
+# each such forest and 1, where its calibration map pins it, on any other. A fit saved before fits stored these descriptors answers from its
 # channels where they suffice and refuses by name where they do not.
 extractParameter <- function(
   object,
@@ -1479,10 +1480,7 @@ extractParameter <- function(
     if (is.null(prior[["leaf.prior"]])) {
       sds <- lapply(unname(prior), function(forestPrior) {
         # a part of a total under a drawn k is k.scale over each draw of it
-        if (
-          identical(forestPrior[["prior.sd.of"]], "forest, shared") &&
-            leafPriorIsDrawn(forestPrior)
-        ) {
+        if (sharesDrawnK(forestPrior)) {
           forestPrior$k.scale /
             reshapeScalarChannel(object[["k"]], n.chains, combineChains)
         } else {
@@ -1514,6 +1512,25 @@ extractParameter <- function(
       attr(object, "forest.labels", exact = TRUE)
     ))
   }
+  prior <- object[["leaf.prior"]]
+  if (
+    type == "k" &&
+      is.null(fixed[["k"]]) &&
+      !is.null(prior) &&
+      is.null(prior[["leaf.prior"]])
+  ) {
+    # several forests under a drawn k: a part of the share has the group's
+    # draws, a forest outside it the 1 its calibration map pins k at
+    labels <- attr(object, "forest.labels", exact = TRUE)
+    draws <- reshapeScalarChannel(object[["k"]], n.chains, combineChains)
+    ks <- lapply(unname(prior), function(forestPrior) {
+      if (sharesDrawnK(forestPrior)) draws else 1
+    })
+    if (length(labels) == length(ks)) {
+      names(ks) <- labels
+    }
+    return(selectForests(ks, forest, labels))
+  }
   value <- fixed[[type]]
   if (!is.null(value)) {
     return(selectForests(
@@ -1533,6 +1550,13 @@ extractParameter <- function(
     )
   }
   reshapeScalarChannel(channel, n.chains, combineChains)
+}
+
+# whether a forest of several is a part of a total under a drawn k, whose draws
+# are the group's wherever its parts stand
+sharesDrawnK <- function(forestPrior) {
+  identical(forestPrior[["prior.sd.of"]], "forest, shared") &&
+    leafPriorIsDrawn(forestPrior)
 }
 
 # one entry per forest, named, or the forest selected by position or label:

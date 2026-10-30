@@ -189,8 +189,10 @@ forest(
     so: \code{basis = scale(age)}. A numeric column constant over the
     observations in the likelihood when the sampler is created is refused,
     \code{sd} stated or not: a forest multiplied by a constant is a forest
-    with no basis, written \code{forest(x2)} or \code{forest(x2, sd = 2)}. A
-    later \code{$setForestBasis} to such a column is taken.
+    with no basis, written \code{forest(x2)} or, for an \code{sd} per unit
+    of the column, with the column's size times it:
+    \code{forest(x2, sd = 6)} for \code{sd = 2} on a column of 3. A later
+    \code{$setForestBasis} to such a column is taken.
 
     \strong{One size.} In this version a basis is one numeric column, or a
     factor, a character or a logical vector of two levels, counted on the
