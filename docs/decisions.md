@@ -3200,6 +3200,10 @@ Record: docs/plans/control-migration.md. Marked: ruled by the maintainer, 2026-1
 dec-B307 left the constant basis column to forests-shared-total. Run on 2026-10-30 on main and on that branch, a treatment column left constant by a subset: all ones with no sd is refused, no sd to take a default from; all ones with sd = 2 is taken with no message; all zeros is refused, contributing nothing; a factor is refused, needing two levels, sd stated or not. lm gives a numeric constant an NA coefficient with no error and refuses a one-level factor. 0.9-34 had no such forests. Shown (a) refused at creation, sd or not, the message naming forest(x2) (recommended, about 60 lines), its costs that a forest with its own sign-symmetric coefficient on a constant can no longer be written and that a later swap to a constant column stays taken (dec-B346), (b) kept as built, and (c) taken with a warning, the maintainer on 2026-10-30: "Use your recommendation for this item." Forests-shared-total's forest(x1) + forest(x2) is the spelling a second plain forest now has. Revises dec-B265's letter here, which created it. See also: [dec-B307], [dec-B346], [dec-B265], [dec-B308].
 Record: docs/plans/forests-shared-total.md. Marked: ruled by the maintainer, 2026-10-30. [dec-B528]
 
+**The k study lands without the colleagues' multiple-treatments case, leaving room for an amendment**
+The plan for binary-k-mixing-need keeps a tier 1 slot, about 5 core-hours, for the maintainer's colleagues' multiple-treatments case if it is shared; it did not run, not having been shared. Asked on 2026-10-30 whether to send it or land without it, the maintainer: "I asked, it could be a while before we get an answer. Let's leave room for an amendment and proceed without it." The finding says the case did not run; the plan keeps the slot for an amendment when the case arrives. See also: [dec-B462].
+Record: docs/plans/binary-k-mixing-need.md. Marked: ruled by the maintainer, 2026-10-30. [dec-B529]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
