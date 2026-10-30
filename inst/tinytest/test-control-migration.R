@@ -140,13 +140,13 @@ threeForestsOf <- function(effectMoves) {
     y ~ x1 + x2 + x3,
     frame,
     forests = list(
-      plain = forest(n.trees = 9L, blocks = blocks(list(c("x1", "x2"), "x3"))),
+      plain = forest(n.trees = 9L, interactions = interactions(max.order = 1L)),
       effect = forest(
         x1 + x2,
         basis = ~ factor(z),
         n.trees = 6L,
         sd = 0.4,
-        interactions = interactions(max.order = 1L),
+        blocks = blocks(list("x1", "x2")),
         proposal.probs = effectMoves
       ),
       dose = forest(x3, basis = ~zn, n.trees = 4L, amplitude = fixed())
@@ -174,8 +174,8 @@ expect_identical(
   vapply(records, function(r) r@held.amplitude, NA),
   c(FALSE, FALSE, TRUE)
 )
-expect_identical(records[[2L]]@interactions$max.order, 1L)
-expect_false(is.null(records[[1L]]@blocks))
+expect_identical(records[[1L]]@interactions$max.order, 1L)
+expect_false(is.null(records[[2L]]@blocks))
 expect_identical(records[[2L]]@moves$proposal.probs[["swap"]], 0.1)
 expect_identical(vapply(records, function(r) r@stated, ""), rep("n.trees", 3L))
 expect_null(attr(threeForests$control, "bartcore.forests"))
