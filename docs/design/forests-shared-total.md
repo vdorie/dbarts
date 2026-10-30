@@ -1,8 +1,8 @@
 # Forests with no basis share one prior total
 
 Status: IN PROGRESS 2026-10-30: slice B, `blocks()` per group, slice 1, the shared total's engine and
-bridge, and slice 2, the R surface that reaches it, built on its branch; slice F, the default flip beside a
-forest with a basis, and slice 3, the constant column, not built. The plan is
+bridge, slice 2, the R surface that reaches it, and slice 3, the constant column, built on its branch; slice F, the
+default flip, not built. The plan is
 [forests-shared-total.md](../plans/forests-shared-total.md), which carries the steps, the gates and the calls
 made in planning; this note is the standing statement of the rule. Rulings: dec-B292, dec-B503, dec-B505,
 dec-B506, dec-B509 and dec-B513, in docs/decisions.md.
@@ -75,7 +75,10 @@ A lone forest with no basis keeps the map's entry it had before, so a model with
   unscaled; so it stays exact in every model whose sharers draw k.
 - The reader. `getLeafPrior` gives a sharer the fitting function's leaf prior as `leaf.prior`, its part in
   force as `sd` (NA where k is drawn), `sd.stated` FALSE, amplitude `fixed()` and `prior.sd.of` "forest,
-  shared". Print shows each forest's tree count, the total, and which forests share at what k.
+  shared". Print shows each forest's tree count, the total, and which forests share at what k. A fit records
+  the group's k wherever the sharers stand, each sharer's held coefficient in `fixed$amplitude` whether or not
+  `fixed()` is written; where k is drawn `summary` tabulates it and `extract(type = "leaf.prior.sd")` gives each
+  sharer's `k.scale` over each draw.
 - On a live sampler a sharer's `sd` through `$setLeafPrior(forests = )` and the sampler's `leaf.prior` are
   refused by name; a size or total is stated at creation, and changing either live waits on the forest door.
 
@@ -84,6 +87,10 @@ Without a forest with a basis, `y ~ forest(x1) + forest(x2) + forest(x3)` is the
 count. Gated by benchmarks/R/forest-prior-exact.R's shared-total arms (held sharers integrated in closed form,
 beside a held factor, beside a forest stating sd, at k 2 and 3 and at unequal counts, where an oracle at the
 full total or at T / K misses its fits by over 100 standard errors), probit-k-scale-exact.R's
-shared arms (two frozen sharers under one drawn k, alone and beside a held factor read as offset) and
-forests-blocks-equivalence.R (the two spellings by Welch z over seeds under gaussian and probit, at equal
-counts, at 38 and 37 and beside a stated count).
+shared arms (two frozen sharers under one drawn k, alone, beside a held factor read as offset and with a user
+offset) and forests-blocks-equivalence.R (the two spellings by Welch z over seeds under gaussian and probit, at
+equal counts, at 38 and 37 and beside a stated count, and under gaussian with k drawn).
+
+A numeric basis constant over the rows in the likelihood is refused at creation, sd stated or not, naming the
+spelling with no basis (dec-B528; [`refuseConstantBasis`](../../R/forestBasis.R)). A forest with no basis stating
+`sd` is that model; a later swap to such a column stays taken (dec-B346).

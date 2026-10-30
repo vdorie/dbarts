@@ -884,10 +884,10 @@ items
     forest with a basis keeps its own prior (dec-B292, dec-B291).
     Slices B, 1 and 2 built on its branch: several such forests are
     created, each sharer reporting the group's k (the plan's D8).
+    Slice 3 built there too: a constant numeric basis column is refused
+    at creation, sd stated or not (dec-B528).
     Left: slice F, the default flip
-    beside a forest with a basis (dec-B509), and slice 3, the constant
-    basis column, still created with sd stated (dec-B307), whose fate
-    is held for the maintainer. Before 1.0-0.
+    beside a forest with a basis (dec-B509). Before 1.0-0.
     Plan: docs/plans/forests-shared-total.md.
   drawn-coefficient-start-by-kind: a drawn coefficient on a forest with
     no basis or a factor starts by its forest's position (1, and 0 for
