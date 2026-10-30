@@ -440,34 +440,19 @@ resolveSamplerSpec <- function(
   # dbarts() and at dbartsSpec() alike
   checkBasisRecord(data)
   # a control taken from a fit whose first forest has a basis holds that
-  # forest's tree count, where the bridge reads it. The count this call is to
-  # inherit rides the forests' record and goes back on the slot before the
-  # record is cleared with the rest: a multiplied forest's count is never the
-  # next fit's. Only while the slot still holds that forest's count: any
-  # other is the caller's own edit, which stands as a stated count does
-  carried <- attr(control, "bartcore.forests", exact = TRUE)
+  # forest's tree count, which its sampler mirrored there. The count this call
+  # is to inherit rides the mirror's record and goes back on the slot before
+  # the record is cleared: a multiplied forest's count is never the next
+  # fit's. Only while the slot still holds the mirrored count: any other is
+  # the caller's own edit, which stands as a stated count does
+  mirror <- controlMirror(control)
   if (
-    !is.null(carried$control.n.trees) &&
-      control@n.trees == carried$params[[1L]][[1L]]
+    !is.null(mirror$control.n.trees) &&
+      isTRUE(control@n.trees == mirror$n.trees)
   ) {
-    control@n.trees <- carried$control.n.trees
+    control@n.trees <- mirror$control.n.trees
   }
-  # a caller-supplied control may have been taken from another fit, and the
-  # bartcore.* attributes are that fit's model configuration; this call
-  # attaches its own, so none of the incoming ones is honored
-  for (attrName in grep(
-    "^bartcore\\.",
-    names(attributes(control)),
-    value = TRUE
-  )) {
-    attr(control, attrName) <- NULL
-  }
-  # a forests = declaration puts a forest column on getTrees' table, whatever
-  # its count, and nothing else of the control tells a one-forest declaration
-  # from none
-  attr(control, "bartcore.forestsDeclared") <- if (length(forests) > 0L) {
-    TRUE
-  }
+  attr(control, controlMirrorAttr) <- NULL
   # what the caller stated of the arguments that are the forest with no
   # basis's own: bart()'s record of its own caller where it built this
   # control, and otherwise the control and the names 'written' in this call
@@ -522,22 +507,25 @@ resolveSamplerSpec <- function(
       "\" against their trials"
     )
   }
+  # the ordinal category count and the negative-binomial shape setting the
+  # model records, NA on every other family
+  numCategories <- NA_integer_
+  shapeSpec <- NA_real_
   if (identical(family, "multinomial")) {
     # the counts ARE the response and the bridge reads K off their column
-    # count, so nothing is recoded and no control attribute carries the
-    # category count; data@y is already the trials
+    # count, so nothing is recoded and the model records no category count;
+    # data@y is already the trials
     NULL
   } else if (identical(family, "ordinal")) {
     # ordinal (cumulative probit): a single-forest
     # fixed-unit-scale model like probit, but K-level. Recode the response to
-    # the 1-based category codes the engine reads, and attach K on the control
-    # attribute the bridge reads to select OrdinalResponse (the
-    # bartcore.survival precedent below). The resolved ordered levels ride the
-    # data object for the round-trip.
+    # the 1-based category codes the engine reads, and record K on the model,
+    # where the bridge reads it to select OrdinalResponse. The resolved ordered
+    # levels ride the data object for the round-trip.
     ordinal <- resolveOrdinalResponse(data)
     data@y <- ordinal$y
     data@response.levels <- ordinal$levels
-    attr(control, "bartcore.n.categories") <- ordinal$K
+    numCategories <- as.integer(ordinal$K)
   } else if (identical(family, "nbinom")) {
     # negative-binomial counts: the
     # count response has no unambiguous class, so "nbinom" is never auto - only
@@ -550,11 +538,10 @@ resolveSamplerSpec <- function(
     }
     # the shape r: NA (the default) estimates it on the capped integer grid;
     # a supplied value FIXES it and must be a positive integer (v1 ships the
-    # exact integer envelope, section 2). The C bridge reads the resolved spec
-    # off the control attribute the sampler build attaches below: a positive
-    # value fixes r, a non-positive value estimates it on the grid.
+    # exact integer envelope, section 2). The model records the resolved spec,
+    # where the bridge reads it: a positive value fixes r, a non-positive value
+    # estimates it on the grid.
     shapeSpec <- resolveShape(shape)
-    attr(control, "bartcore.shape") <- shapeSpec
   } else if (data@response.type == "numeric") {
     uniqueResponses <- unique(data@y)
     responseIsBinary <- length(uniqueResponses) == 2 &&
@@ -586,10 +573,10 @@ resolveSamplerSpec <- function(
   control@binary <- isBinaryFamily(family)
   # ordinal (cumulative probit) shares probit's fixed unit latent scale - sigma
   # fixed at 1, resid.prior fixed(1), no sigma estimate, leaf.scale 3.0 - but is
-  # NOT binary: the bridge selects it by the bartcore.n.categories attribute
-  # (not control@binary), and it reports K category levels. nbinom (counts) is
-  # likewise a fixed-unit-scale family (sigma fixed at 1, the counts entering
-  # kappa directly), selected by the bartcore.shape attribute.
+  # NOT binary: the bridge selects it by the model's category count, and it
+  # reports K category levels. nbinom (counts) is likewise a fixed-unit-scale
+  # family (sigma fixed at 1, the counts entering kappa directly), selected by
+  # the model's shape setting.
   # fixedUnitScale covers all
   # three families wherever the unit-scale handling matters.
   # multinomial (softmax) is the fourth: its K category forests take their leaf
@@ -893,7 +880,7 @@ resolveSamplerSpec <- function(
   # gaussian response carries them (the binary families and aft have their own
   # latent scale), refused here R-side to match the C bridge's backstop. The
   # resolved degrees of freedom ride the model's resid.df attribute the bridge
-  # reads - the bartcore.survival precedent above - absent for Gaussian errors.
+  # reads, absent for Gaussian errors.
   # NA in the settings means estimate, which the bridge spells 0.
   if (!is.null(residDf) && family != "gaussian") {
     stop(
@@ -1011,31 +998,30 @@ resolveSamplerSpec <- function(
     attr(model, "forest.columns") <- firstColumns
   }
 
-  # the AFT survival family reads its per-observation status off this control
-  # attribute; the C bridge validates it
+  # the AFT survival family reads its per-observation status off the data
+  # object; the C bridge validates it
   if (!is.null(survivalStatus)) {
     if (length(survivalStatus) != length(data@y)) {
       stop("survival status must have length ", length(data@y))
     }
-    attr(control, "bartcore.survival") <- survivalStatus
+    data@status <- survivalStatus
   }
-  # the discrete-time hazard marker: the
-  # period grid, parked here for packageBartResults to read into $periods. The
-  # C bridge never reads this attribute (unlike bartcore.survival), so a hazard
-  # fit's draw stream is byte-identical to the by-hand binary fit's.
-  if (!is.null(hazardPeriods)) {
-    attr(control, "bartcore.hazard.periods") <- hazardPeriods
-  }
+  # the discrete-time hazard marker: the period grid, which packageBartResults
+  # reads into $periods. The C bridge never reads it, so a hazard fit's draw
+  # stream is byte-identical to the by-hand binary fit's.
+  model@hazard.periods <- hazardPeriods
+  model@n.categories <- numCategories
+  model@shape <- shapeSpec
 
   # the heteroscedastic variance forest: a
   # `variance` selector installs a second forest modeling s^2(x); its config
-  # rides the control attribute the C bridge reads. Gaussian + constant leaf
+  # rides the model's variance record, which the C bridge reads. Gaussian + constant leaf
   # only (the C factory refuses otherwise; a friendly R check for the family).
   # `variance` accepts either the plain shorthand (NULL/FALSE/TRUE/formula/
   # character/index) or a varianceForest() object: its `vars`
   # slot routes through the SAME resolveVarianceColumns the shorthand uses -
   # one selector vocabulary - and its n.trees/base/power knobs land on the
-  # same control attribute the C factory reads.
+  # same record the C factory reads.
   varianceSpec <- if (inherits(variance, "dbartsVarianceForest")) {
     resolveForestMoves(variance, "varianceForest()")
   } else {
@@ -1112,20 +1098,24 @@ resolveSamplerSpec <- function(
     varianceBase <- if (is.null(varianceSpec)) NULL else varianceSpec$base
     variancePower <- if (is.null(varianceSpec)) NULL else varianceSpec$power
     n.trees <- if (is.null(varianceNTrees)) 40L else varianceNTrees
-    attr(control, "bartcore.variance") <- list(
-      n.trees = coerceOrError(n.trees, "integer"),
-      base = if (is.null(varianceBase)) {
-        model@tree.prior@base
-      } else {
-        as.double(varianceBase)
-      },
-      power = if (is.null(variancePower)) {
-        model@tree.prior@power
-      } else {
-        as.double(variancePower)
-      },
-      columns = if (allColumns) NULL else as.integer(varianceColumns)
-    )
+    varianceRecord <- new("dbartsVarianceRecord")
+    varianceRecord@n.trees <- coerceOrError(n.trees, "integer")
+    varianceRecord@base <- if (is.null(varianceBase)) {
+      model@tree.prior@base
+    } else {
+      as.double(varianceBase)
+    }
+    varianceRecord@power <- if (is.null(variancePower)) {
+      model@tree.prior@power
+    } else {
+      as.double(variancePower)
+    }
+    varianceRecord@columns <- if (allColumns) {
+      NULL
+    } else {
+      as.integer(varianceColumns)
+    }
+    model@variance <- varianceRecord
   }
 
   # the Bayesian causal forest: a second forest with a
@@ -1135,10 +1125,10 @@ resolveSamplerSpec <- function(
   # weights they mirror; a block put here by dbartsSpec() was finished there,
   # on the rows kept, and a data object handed in whole was checked on entry; the second forest's
   # CONFIGURATION - its tree count and structure prior, its column mask, the
-  # amplitude scales and the per-forest constraints - rides the control
-  # attribute the C bridge reads, exactly as the variance forest's does above.
-  # The bridge cross-checks the two halves in both directions, so a stripped
-  # attribute is a loud error, never a silent single-forest fit.
+  # amplitude scales and the per-forest constraints - rides the model's forest
+  # records the C bridge reads, as the variance forest's does above. The bridge
+  # cross-checks the two halves in both directions, so a stripped record is a
+  # loud error, never a silent single-forest fit.
   if (!is.null(bases)) {
     # a declaration's blocks, finished by the one caller that supplies them,
     # replace the data object's, and their levels with them; the scale the
@@ -1156,6 +1146,9 @@ resolveSamplerSpec <- function(
       data@basis.scale <- if (all(vapply(scales, is.null, NA))) NULL else scales
     }
   }
+  # the count a later fit given this control inherits, where it is not the
+  # slot's
+  inheritedCount <- NULL
   if (!is.null(data@bases)) {
     # the RESOLVED forest count, which is the data object's own bases or the
     # declaration that replaced them just above, and which the refusal below
@@ -1375,103 +1368,106 @@ resolveSamplerSpec <- function(
       numForests
     )
     refuseConstantBasis(data, active, allRows, specs, labels)
-    attr(control, "bartcore.forests") <- list(
-      # one length-4 numeric per forest; see forestParams()
-      params = params,
-      # what each forest states of its size, as written, NA where it states
-      # none: the engine holds the calibration map and its defaults, and
-      # reads what each forest multiplies from the data object
-      sd = statements$sd,
-      # resolved 1-based column indices per forest, or NULL for unrestricted
-      vars = forestColumns,
-      # one label for each forest; see forestLabels()
-      labels = labels,
-      # whether each forest's coefficient is held (amplitude = fixed()), which
-      # a fit records in fit$fixed
-      heldAmplitude = vapply(
-        specs,
-        function(spec) identical(spec$amplitude, "fixed"),
-        NA
-      ),
-      # the first forest's constraints are the model's, already resolved
-      # above; the rest take their own, and the plain forest the fitting
-      # function's where it states none, each resolved against the columns
-      # and the tree count of the forest it lands on
-      interactions = c(
-        list(interactionSpec),
-        lapply(
-          seq_len(numForests)[-1L],
-          function(index) {
-            own <- specs[[index]]$interactions
-            resolveInteractions(
-              if (is.null(own) && identical(index, plain)) {
-                fitInteractions
-              } else {
-                own
-              },
-              data
-            )
-          }
-        )
-      ),
-      blocks = c(
-        list(blockSpec),
-        lapply(
-          seq_len(numForests)[-1L],
-          function(index) {
-            own <- specs[[index]]$blocks
-            resolveBlocks(
-              if (is.null(own) && identical(index, plain)) fitBlocks else own,
-              data,
-              treeCounts[index],
-              availableColumns = forestColumns[[index]]
-            )
-          }
-        )
+    # the first forest's constraints are the model's, already resolved
+    # above; the rest take their own, and the plain forest the fitting
+    # function's where it states none, each resolved against the columns
+    # and the tree count of the forest it lands on
+    forestInteractions <- c(
+      list(interactionSpec),
+      lapply(
+        seq_len(numForests)[-1L],
+        function(index) {
+          own <- specs[[index]]$interactions
+          resolveInteractions(
+            if (is.null(own) && identical(index, plain)) fitInteractions else own,
+            data
+          )
+        }
       )
     )
-    # each forest's student() df, NA where none, recorded only where some
-    # forest states one
-    if (!is.null(statements$amplitude.df)) {
-      forestInfo <- attr(control, "bartcore.forests", exact = TRUE)
-      forestInfo$amplitude.df <- statements$amplitude.df
-      attr(control, "bartcore.forests") <- forestInfo
-    }
-    # what builds a basis written as code again at new rows, positional
-    # against the forests as data@bases is and NULL where a forest's basis
-    # is a value, which has no code to build from. Inert to the run: nothing
-    # the engine reads
-    if (!is.null(basisRecords)) {
-      forestInfo <- attr(control, "bartcore.forests", exact = TRUE)
-      forestInfo$basisTerms <- basisRecords
-      attr(control, "bartcore.forests") <- forestInfo
-    }
+    forestBlocks <- c(
+      list(blockSpec),
+      lapply(
+        seq_len(numForests)[-1L],
+        function(index) {
+          own <- specs[[index]]$blocks
+          resolveBlocks(
+            if (is.null(own) && identical(index, plain)) fitBlocks else own,
+            data,
+            treeCounts[index],
+            availableColumns = forestColumns[[index]]
+          )
+        }
+      )
+    )
+    # one record per forest: what it runs under (see forestParams()), what it
+    # states of its size and its coefficient's prior as written, NA where it
+    # states none (the engine holds the calibration map and its defaults, and
+    # reads what each forest multiplies from the data object), its resolved
+    # 1-based columns or NULL for unrestricted, its label (see
+    # forestLabels()), whether its coefficient is held (amplitude = fixed(),
+    # which a fit records in fit$fixed), its constraints, and what builds a
+    # basis written as code again at new rows (NULL where a forest's basis is
+    # a value, which has no code to build from; inert to the run)
+    records <- lapply(seq_len(numForests), function(index) {
+      record <- new("dbartsForestRecord")
+      record@n.trees <- treeCounts[index]
+      record@stated <- forestCountStated(specs[[index]], index %in% plain, stated)
+      record@base <- params[[index]][2L]
+      record@power <- params[[index]][3L]
+      record@held.amplitude <- identical(specs[[index]]$amplitude, "fixed")
+      record@sd <- statements$sd[index]
+      if (!is.null(statements$amplitude.df)) {
+        record@amplitude.df <- statements$amplitude.df[index]
+      }
+      record@vars <- forestColumns[[index]]
+      record@interactions <- forestInteractions[[index]]
+      record@blocks <- forestBlocks[[index]]
+      record@label <- labels[index]
+      if (index <= length(basisRecords)) {
+        record@basis.term <- basisRecords[[index]]
+      }
+      record
+    })
     # where the first forest has a basis the control's slot holds a multiplied
     # forest's count, and where forests with no basis split the count it holds
     # forest 1's part, so the count a later fit given this control inherits is
     # kept beside it: the plain forest's as it runs where there is one, else
     # the fitting function's own. Inert to the run
     if (!firstIsPlain || length(plain) > 1L) {
-      forestInfo <- attr(control, "bartcore.forests", exact = TRUE)
-      forestInfo$control.n.trees <- if (length(plain) == 1L) {
+      inheritedCount <- if (length(plain) == 1L) {
         treeCounts[plain]
       } else {
         fitTreeCount
       }
-      attr(control, "bartcore.forests") <- forestInfo
     }
+  } else {
+    records <- list(plainForestRecord(
+      control@n.trees,
+      forestCountStated(firstForest, TRUE, stated)
+    ))
   }
 
   # each forest's own move settings, where any forest states one; the
   # control's slots keep the control's, which every other forest runs
   moves <- forestMoveRecord(
     forestSpec,
-    if (is.null(data@bases)) 1L else length(data@bases),
+    length(records),
     varianceSpec
   )
   if (!is.null(moves)) {
-    attr(control, "bartcore.moves") <- moves
+    for (index in seq_along(records)) {
+      records[[index]]@moves <- moves$forests[[index]]
+    }
+    if (!is.null(moves$variance)) {
+      model@variance@moves <- moves$variance
+    }
   }
+  model@forests <- records
+  attr(model, "forests.declared") <- if (length(forests) > 0L) TRUE
+  # the quantile rule the control states is the data object's
+  data@useQuantiles <- control@useQuantiles
+  control <- mirrorControl(control, model, data, inheritedCount)
 
   # every resolution of "auto" is announced once, here, after the refusals
   # above: bart() reaches this through dbarts(), and dbartsSpec() reads its

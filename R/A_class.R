@@ -600,6 +600,113 @@ methods::setValidity("dbartsControl", function(object) {
 })
 
 
+methods::setClassUnion("matrixOrNULL", c("matrix", "NULL"))
+methods::setClassUnion("numericOrNULL", c("numeric", "NULL"))
+methods::setClassUnion("listOrNULL", c("list", "NULL"))
+methods::setClassUnion("integerOrNULL", c("integer", "NULL"))
+
+## One mean forest of a model as it was declared and runs: a model built by a
+## door carries one per mean forest, a model of one forest and a multinomial
+## model's category forests one. `n.trees` is the count it runs, NULL where
+## none is recorded (a record made by hand), and `stated` names what of the
+## record its caller stated. On a model of one forest the forest's tree prior
+## and constraints are the model's own (its tree prior and the attributes the
+## bridge reads), and `base`, `power` and the rest stay at the prototype; on a
+## model of several, the record holds each forest's. `moves` is the forest's
+## move settings, NULL where no forest of the model states any.
+methods::setClass(
+  "dbartsForestRecord",
+  slots = list(
+    n.trees = "integerOrNULL",
+    stated = "character",
+    base = "numeric",
+    power = "numeric",
+    held.amplitude = "logical",
+    sd = "numeric",
+    amplitude.df = "numeric",
+    vars = "integerOrNULL",
+    interactions = "listOrNULL",
+    blocks = "listOrNULL",
+    label = "character",
+    basis.term = "ANY",
+    moves = "listOrNULL"
+  ),
+  prototype = list(
+    n.trees = NULL,
+    stated = character(0L),
+    base = NA_real_,
+    power = NA_real_,
+    held.amplitude = FALSE,
+    sd = NA_real_,
+    amplitude.df = NA_real_,
+    vars = NULL,
+    interactions = NULL,
+    blocks = NULL,
+    label = "",
+    basis.term = NULL,
+    moves = NULL
+  )
+)
+methods::setValidity("dbartsForestRecord", function(object) {
+  count <- object@n.trees
+  if (!is.null(count) && (length(count) != 1L || is.na(count) || count < 1L)) {
+    return("a forest record's 'n.trees' must be NULL or a positive integer")
+  }
+  if (anyNA(object@stated)) {
+    return("a forest record's 'stated' must name what was stated")
+  }
+  for (name in c("base", "power", "sd", "amplitude.df")) {
+    if (length(methods::slot(object, name)) != 1L) {
+      return(paste0("a forest record's '", name, "' must be one number or NA"))
+    }
+  }
+  if (length(object@held.amplitude) != 1L || is.na(object@held.amplitude)) {
+    return("a forest record's 'held.amplitude' must be TRUE or FALSE")
+  }
+  if (length(object@label) != 1L || is.na(object@label)) {
+    return("a forest record's 'label' must be one string")
+  }
+  TRUE
+})
+
+## The variance forest of a model: its count, its tree prior, the 1-based
+## columns it may split on (NULL for every one) and its move settings, NULL
+## where it states none.
+methods::setClass(
+  "dbartsVarianceRecord",
+  slots = list(
+    n.trees = "integer",
+    base = "numeric",
+    power = "numeric",
+    columns = "integerOrNULL",
+    moves = "listOrNULL"
+  ),
+  prototype = list(
+    n.trees = 40L,
+    base = 0.95,
+    power = 2,
+    columns = NULL,
+    moves = NULL
+  )
+)
+methods::setValidity("dbartsVarianceRecord", function(object) {
+  if (
+    length(object@n.trees) != 1L ||
+      is.na(object@n.trees) ||
+      object@n.trees < 1L
+  ) {
+    return("a variance record's 'n.trees' must be a positive integer")
+  }
+  if (length(object@base) != 1L || length(object@power) != 1L) {
+    return("a variance record's 'base' and 'power' must be single numbers")
+  }
+  TRUE
+})
+methods::setClassUnion(
+  "varianceRecordOrNULL",
+  c("dbartsVarianceRecord", "NULL")
+)
+
 methods::setClass(
   "dbartsModel",
   slots = list(
@@ -617,7 +724,20 @@ methods::setClass(
     tree.prior = "dbartsTreePrior",
     leaf.prior = "dbartsLeafPrior",
     leaf.hyperprior = "dbartsLeafHyperprior",
-    resid.prior = "dbartsResidPrior"
+    resid.prior = "dbartsResidPrior",
+
+    # the model's mean forests, one dbartsForestRecord each; empty on a model
+    # made by hand, which records none
+    forests = "list",
+    # the variance forest, NULL where the model has none
+    variance = "varianceRecordOrNULL",
+    # an ordinal model's category count, NA on every other family
+    n.categories = "integer",
+    # a negative-binomial model's shape setting, a positive value fixing the
+    # shape and a non-positive one drawing it; NA on every other family
+    shape = "numeric",
+    # a hazard model's period grid, NULL on every other
+    hazard.periods = "ANY"
   ),
   prototype = list(
     leaf.scale = 0.5,
@@ -626,7 +746,12 @@ methods::setClass(
     tree.prior = new("dbartsCGMPrior"),
     leaf.prior = new("dbartsNormalPrior"),
     leaf.hyperprior = new("dbartsFixedHyperprior"),
-    resid.prior = new("dbartsChiSqPrior")
+    resid.prior = new("dbartsChiSqPrior"),
+    forests = list(),
+    variance = NULL,
+    n.categories = NA_integer_,
+    shape = NA_real_,
+    hazard.periods = NULL
   )
 )
 methods::setValidity("dbartsModel", function(object) {
@@ -669,12 +794,24 @@ methods::setValidity("dbartsModel", function(object) {
     )
   }
 
+  if (
+    !all(vapply(object@forests, is, logical(1L), "dbartsForestRecord"))
+  ) {
+    return("'forests' must hold one forest record for each mean forest")
+  }
+  if (
+    length(object@n.categories) != 1L ||
+      (!is.na(object@n.categories) && object@n.categories < 2L)
+  ) {
+    return("'n.categories' must be NA or an integer of at least 2")
+  }
+  if (length(object@shape) != 1L) {
+    return("'shape' must be a single number or NA")
+  }
+
   TRUE
 })
 
-methods::setClassUnion("matrixOrNULL", c("matrix", "NULL"))
-methods::setClassUnion("numericOrNULL", c("numeric", "NULL"))
-methods::setClassUnion("listOrNULL", c("list", "NULL"))
 
 methods::setClass(
   "dbartsData",
@@ -798,6 +935,12 @@ methods::setClass(
     offset.category = "matrixOrNULL",
     # Its test twin, one row per test row rather than per training row.
     offset.category.test = "matrixOrNULL",
+    # an aft fit's censoring status, one value per row, NULL on every other
+    # family
+    status = "numericOrNULL",
+    # whether a predictor's grid is taken at its quantiles where it is
+    # derived, NA where its caller stated no rule, which reads as uniform
+    useQuantiles = "logical",
 
     testUsesRegularOffset = "logical"
   ),
@@ -829,6 +972,8 @@ methods::setClass(
     counts = NULL,
     offset.category = NULL,
     offset.category.test = NULL,
+    status = NULL,
+    useQuantiles = NA,
 
     testUsesRegularOffset = NA
   )
@@ -1043,6 +1188,12 @@ methods::setValidity("dbartsData", function(object) {
 
   if (!is.na(object@sigma) && object@sigma <= 0.0) {
     return("'sigma' must be positive")
+  }
+  if (!is.null(object@status) && length(object@status) != numObservations) {
+    return("'status' must be null or have length equal to that of 'y'")
+  }
+  if (length(object@useQuantiles) != 1L) {
+    return("'useQuantiles' must be TRUE, FALSE or NA")
   }
   if (
     length(object@missing) != 1L ||

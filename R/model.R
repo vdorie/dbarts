@@ -1807,11 +1807,10 @@ resolveForestMoves <- function(spec, label) {
   spec
 }
 
-## The record of what each forest states of its move settings, as
-## attr(control, "bartcore.moves") carries it to the bridge: `forests`, one
-## entry for each of the numForests mean forests (a multinomial model's one
-## entry setting every category forest), and `variance`, the variance
-## forest's or NULL. An entry holds proposal.probs, n.perturb.cuts and, on a
+## What each forest states of its move settings, which the forest records and
+## the variance record carry to the bridge: `forests`, one entry for each of
+## the numForests mean forests (a multinomial model's one entry setting every
+## category forest), and `variance`, the variance forest's or NULL. An entry holds proposal.probs, n.perturb.cuts and, on a
 ## mean forest, levelGibbs, each NULL where the forest states none. NULL
 ## where no forest states any, so a fit stating none carries no record.
 forestMoveRecord <- function(specs, numForests, variance) {
@@ -2083,6 +2082,18 @@ nullWritten <- function(call, names, env) {
   names[vapply(names, isNull, NA)]
 }
 
+
+## What a forest's record says its caller stated of its count: "n.trees"
+## where the forest states its own or, for the forest with no basis, where
+## the fitting function's count is stated (plainForestStated's `stated`).
+forestCountStated <- function(spec, isPlain, stated) {
+  if (!is.null(spec$n.trees) || (isPlain && "n.trees" %in% names(stated))) {
+    "n.trees"
+  } else {
+    character(0L)
+  }
+}
+
 ## The refusal of what the fitting function states for the forest with no
 ## basis in a model that has none: each of the tree count, the tree prior's
 ## power and base, the leaf prior, 'interactions' and 'blocks' that is stated
@@ -2344,17 +2355,16 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
   resolved
 }
 
-## The four doubles attr(control, "bartcore.forests")$params carries FOR EACH
-## FOREST, in the order the C bridge reads them: the forest's tree count and
-## structure prior, and the amplitude update flag, 0 where the coefficient is
-## held. The first three are what the forest runs under, at every position:
+## The four doubles of each forest's count, base, power and drawn flag, which
+## its record carries: the forest's tree count and structure prior, and the
+## amplitude update flag, 0 where the coefficient is held. The first three are what the forest runs under, at every position:
 ## its own statement, else the default of its kind, `plain` holding the
 ## fitting function's count, base and power for the forests with no basis.
 ## Where two or more of those state no count they split the fitting
 ## function's whole count as blocks() splits a forest's trees, the first
 ## n %% K taking one more; a stated count is outside the split. The bridge
-## reads forest 1's three from the control and the model's tree prior, which
-## hold the same numbers.
+## reads forest 1's base and power from the model's tree prior, which holds
+## the same numbers.
 ##
 ## Nothing of a forest's size is here: its `sd` goes to the engine as written
 ## (forestStatements), and the engine holds the calibration map and every
