@@ -1228,6 +1228,30 @@ states how the checks are done, after the readings are known.
 - **Moved to pricing**: effective draws per second of row estimands and the share of harm due to the start,
   as the Goal and [What the result leads to](#what-the-result-leads-to) now say. No reading used them.
 
+**Amendment 4, 2026-10-30, before any further run (dec-B531).** The maintainer ruled that the near-miss long
+runs in tier 1 cells run a quarter first, under a stopping rule written now. Nothing below has been run.
+
+- **Frame.** The 48 long runs that failed at 20,000 sweeps with k agreeing and under 1 percent of quantities
+  past the agreement bound, in D1 (7), D2 (21), E2 (15), E3 (3) and S9 (2); 42 under probit, 6 under logistic.
+- **Pilot.** 12, drawn at seed 20261030, in proportion to each cell's share by largest remainder (D1 2, D2 5,
+  E2 4, E3 1, S9 0): D1:arr1-sep logistic 1; D1:arr1-sep probit 1; D2:r05 probit 4; D2:r30 probit 1; D2:r30
+  probit 5; D2:r30+mp probit 5; D2:r30+mp probit 6; E2 probit 9, 10, 19 and 20; E3 logistic 5.
+- **Run.** Both halves from the start on the run's own seeds to 40,000 recorded sweeps, thinned by 40, E2
+  included, in a directory of their own, so the runs at 20,000 stay as they are. Compaction removed the saved
+  samplers, so this is a rerun; whether its first 20,000 sweeps repeat the stored ones is reported, not gated.
+  40,000 is the only length.
+- **Pass.** The acceptance rule unchanged: its seven checks at 40,000 and one block before.
+- **Stop.** At least 6 of 12 pass: the other 36 run the same way, and each run's verdict at 40,000 replaces its
+  verdict at 20,000 for scoring and for a cell's 80 percent rule. The maintainer is asked first only if the
+  pilot's cost projects those 36 past 12 core-hours. 5 or fewer: the 36 do not run, no verdict or reading
+  changes, and the finding reports the 48 as not converging, with the pilot's count. One look: no second pilot,
+  no longer run, no drawn run replaced, no check relaxed. A crash reruns on the same seed; a run that cannot
+  finish counts as failing.
+- **Why these numbers.** A true pass share of 80 percent, what a cell needs, clears the bar with probability
+  0.996; 50 percent, 0.613; 30 percent, 0.118.
+- **Cost.** Sampling is 1.2 core-hours for the 12 and 4.7 for all 48 (the stored seconds, scaled by sweeps),
+  so about 2 and 8 with checks and scoring. It runs after the long oracle; the landing waits on it.
+
 ## Rulings and pending slots
 
 - **The link in the use tiers**: ruled, dec-B463. A logistic cell counts as the same cell under probit.
