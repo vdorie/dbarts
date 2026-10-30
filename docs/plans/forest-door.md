@@ -3,9 +3,11 @@
 Status: PLANNED 2026-10-30 on c55a1477 (dec-B518); amended after its blind critique (scratch/fd-crit/report.md,
 probes c1.R to c10.R there) and its re-check (scratch/fd-crit/recheck.md); rewritten the same day for the
 maintainer's rulings dec-B519 to dec-B525. Slice 1 is built and reviewed LAND (branch forest-door-s1, da875712).
-No call is held in the body; what the rulings leave open is at the end of [Open calls](#open-calls). Rulings:
+No call is held; the rulings' own open questions are ruled too, in [Open calls](#open-calls). Rulings:
 dec-B518 (the door), dec-B519 (a written NULL), dec-B520 (the names), dec-B521 (multinomial), dec-B522 (no return
-spelling), dec-B523 (later write wins), dec-B524 (the variance forest), dec-B525 (a sharer stating its size), with
+spelling), dec-B523 (later write wins), dec-B524 (the variance forest), dec-B525 (a sharer stating its size),
+dec-B535 (the multinomial reader), dec-B538 (the value in force handed back), dec-B539 (a drawn normal coefficient),
+dec-B540 (`$setLeafPrior` where the coefficient is drawn), with
 dec-B254 (parameters, never structure), dec-B276 (a forest by label or position), dec-B477 and dec-A239 (per-forest
 move settings), dec-B511 (the coefficient's prior live), dec-B512 (plain power and base), dec-B514 and dec-B515 (a
 setter means what creation means), dec-B516, dec-B129 (leaf where it means a leaf), dec-B247 (a live count does not
@@ -148,15 +150,17 @@ is one).
 |---|---|---|---|---|---|---|---|
 | `sd` | its size, written as `$setLeafPrior(normal(sd = v))` writes it | leaves the group, slice 3; refused until then | its size, held, or its median under `student(df)` | the level difference's size, held, or its prior median where drawn | the size per unit of the column, held or prior median | refused, as at creation | not a name |
 | `power`, `base` | its depth | its depth | its depth | its depth | as factor | its depth | its depth |
-| `amplitude` | `fixed()` | `fixed()`; `student()` refused, as at creation | `fixed()`, `student(df)` | `fixed()`, `normal()`, `student(df)` | as factor | not a name | not a name |
+| `amplitude` | `fixed()` | `fixed()`; `student()` refused, as at creation | `fixed()`, `student(df)`, `normal()` | `fixed()`, `normal()`, `student(df)` | as factor | not a name | not a name |
 | `proposal.probs`, `n.perturb.cuts` | its own | its own | its own | its own | its own | its own | its own |
 | `treeShift` | its own | its own | its own | its own | its own | its own | not a name (dec-B500) |
 
 `amplitude` takes the prior in force, as no change; a different one is refused until coefficient-prior-live.
 `forest(amplitude = normal())` becomes taken at creation and at the door on a forest with a basis, drawing and
 recording exactly as leaving it out does (~10 lines in [`validateForestAmplitude`](../../R/model.R)); only a bare
-`normal()`. On a forest with no basis see C in [Open calls](#open-calls). A coefficient has no way back to following
-a default: a hold is released by writing a shape (dec-B522).
+`normal()`. On a forest with no basis it is a drawn normal coefficient, taken where `student(df)` is (dec-B539; built by
+TODO forest-amplitude-normal after slice F, not here), and at this door the value in force only until
+coefficient-prior-live. A coefficient has no way back to following a default: a hold is released by writing a shape
+(dec-B522).
 
 Held against drawn follows the coefficient's hold, as at creation: `sd` is the exact size where held and the prior
 median where drawn, under the normal or under `student(df)` (dec-B510). A numeric forest's default `sd` re-derives
@@ -173,8 +177,9 @@ live sampler has no such refusal, because no level is recorded for it to contrad
   basis. Where there is exactly one, a lone forest or a lone forest with no basis beside forests with a basis or a
   multinomial model's one entry, it is written, whether it states its own or not. Where there are several, the door
   reaches those stating none of their own, and where all of them state their own it is refused, naming `$setForest`,
-  since the call would do nothing. Where there is none it is refused per name (tree-prior-flat's call 13). One corner,
-  a `student(df)` forest that has no k, is D in [Open calls](#open-calls).
+  since the call would do nothing. Where there is none it is refused per name (tree-prior-flat's call 13). A forest
+  stating `student(df)` or `normal()` has no k: there the door writes the coefficient's median, by dec-B540, in
+  setmodel-parameters' slice 4.
 - A value at a fitting-function door equal to the one in force is no change, which is how `$setModel(s$model)` and a
   bare `normal()` beside forests that all state `sd` stay taken.
 - `$setLeafPrior(normal())` on a probit `forest(sd = 2)` sampler returns k to drawn, from the spread in force (the
@@ -227,7 +232,8 @@ forest power 4 and variance forest power 2.
 The category forests take one statement (dec-B521):
 
 - `s$setForest(power = 4)` and `s$getForest()` take them together with `forest` left out.
-- `s$getForest(2)` and `s$getForest("b")` are taken like every other reader and return the one statement.
+- `s$getForest(2)` and `s$getForest("b")` are taken like every other reader and return the one statement, a plain list
+  like any other; one help sentence says it covers every category (dec-B535).
 - `s$setForest(2, power = 4)` and `s$setForest("b", power = 4)` are refused, a position or a level alike: "a
   multinomial model's forests take one statement, so this would change every category; write
   s$setForest(power = 4)".
@@ -624,15 +630,18 @@ setmodel-parameters' slice 4; this item's slice 3; coefficient-prior-live. Engin
    understanding: we size you at creation and after that it's your object to play with." and "It would behave similarly
    to how we set things from the data when construction priors."
 
-Left open by the rulings, each to be put to the maintainer and none assumed in the body above beyond what is stated:
-
-- A. How `$getForest(2)` on a multinomial sampler says it covers every category, dec-B521's words having relied on the
-  `in.force` attribute dec-B522 removed.
-- B. dec-B522's ledger entry says a forest that took a value from above "then states it" when given it back; this plan
-  follows the later instruction, and dec-B525's "the value in force handed back is no change", that it does not.
-- C. `amplitude = normal()` on a forest with no basis, which has no normal coefficient to draw after slice F.
-- D. A fitting-function door on a forest with no basis stating `student(df)` that is the only candidate, where dec-B523
-  says "written" and the forest has no k.
+7. RULED, dec-B535 (2026-10-30). How `$getForest(2)` on a multinomial sampler says it covers every category: a help
+   sentence alone. The maintainer: "A help sentence only is fine, but if we're only going to accept factor levels as
+   arguments isn't a little redundant? What am I missing here?"
+8. RULED, dec-B538 (2026-10-30). A value handed back that a forest took from above changes nothing, statedness
+   included; dec-B522's entry corrected. The maintainer: "Use (a)."
+9. RULED, dec-B539 (2026-10-30). `amplitude = normal()` on a forest with no basis. The maintainer: "Offer a drawn normal
+   coefficient here - I like the consistency."
+10. RULED, dec-B540 (2026-10-30). A fitting-function door on a forest with no basis that draws a coefficient and is the
+    only candidate: it writes the coefficient's median, reading the spelling from creation and not its calibration. The
+    maintainer: "I would point out that we do have some differences between calls creation and after. Some things (e.g.
+    data-drive defaults, diving the total sd) only make sense at creation. As long your recommendation is sensitive to
+    that distinction, we can use it."
 
 ## Not verified
 
