@@ -158,12 +158,11 @@ items
     versions and 1.0-0 may break it with 0.9-34 (dec-B461); a message
     naming the version and saying to refit is the item. Found by the state-frame-prior slice 1 review,
     the same before the slice.
-  multinomial-numeric-response: dbarts(family = "multinomial") refuses a
-    bare numeric response, with bart()'s message (dec-B536), where it now
-    reads whole numbers as 0-based codes and y in 1, 2, 3 builds an empty
-    category 0. R/data.R; inst/tinytest/test-multinomial-numeric-codes.R
-    becomes the refusal's pin; docs/design/multinomial.md's line. About 5
-    lines of R; batch it with the next small R-surface slice.
+  multinomial-door-gaps: bart(family = "multinomial") refuses a data frame
+    of counts that dbarts() takes, and takes a character matrix that
+    dbarts() refuses; $setCounts refuses a vector as the wrong category
+    count where 'counts must be a matrix' is what it means. Found reviewing
+    dec-B536's build (dec-A248); not ruled. Small.
   pdbart-closed-arguments: at 1.1-0, when pdbart's BayesTree spellings
     are refused, replace pdbart's and pd2bart's ... with bart's usable
     arguments listed explicitly, pinned by a test against bart's formals
