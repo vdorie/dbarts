@@ -640,8 +640,8 @@ declared <- dbarts::dbarts(
   control = treeControl
 )
 invisible(declared$run())
-expect_equal(colnames(declared$getTrees())[1L], "forest")
-expect_true(all(declared$getTrees()$forest == 1L))
+# the column follows the kind of model and not how the call was written
+expect_equal(colnames(declared$getTrees()), treeCols)
 
 twoForests <- dbarts::dbarts(
   y ~ x1,
@@ -654,8 +654,7 @@ expect_equal(colnames(twoForests$getTrees()), c("forest", treeCols))
 expect_equal(sort(unique(twoForests$getTrees()$forest)), 1:2)
 expect_error(twoForests$plotTree(1L, chainNum = 1L), "forest required")
 
-# the dbartsSpec() route, which builds the sampler by hand, marks a one-forest
-# declaration the same way
+# the dbartsSpec() route, which builds the sampler by hand, reads the same
 specDeclared <- dbarts::dbartsSpec(
   dbarts::dbartsData(y ~ x1, treeDf),
   treeControl,
@@ -668,15 +667,15 @@ specSampler <- new(
   specDeclared$data
 )
 invisible(specSampler$run())
-expect_equal(colnames(specSampler$getTrees()), c("forest", treeCols))
+expect_equal(colnames(specSampler$getTrees()), treeCols)
 
-# a one-forest declaration survives save/load and copy()
+# and after save/load and copy()
 declaredFile <- tempfile(fileext = ".rds")
 saveRDS(declared, declaredFile)
 reloaded <- readRDS(declaredFile)
 unlink(declaredFile)
-expect_equal(colnames(reloaded$getTrees()), c("forest", treeCols))
-expect_equal(colnames(declared$copy()$getTrees()), c("forest", treeCols))
+expect_equal(colnames(reloaded$getTrees()), treeCols)
+expect_equal(colnames(declared$copy()$getTrees()), treeCols)
 
 # a control taken from another sampler does not carry that sampler's
 # configuration: not a forests declaration, and not a variance forest
@@ -687,7 +686,6 @@ plainFromDeclared <- dbarts::dbarts(
 )
 invisible(plainFromDeclared$run())
 expect_equal(colnames(plainFromDeclared$getTrees()), treeCols)
-expect_null(attr(plainFromDeclared$model, "forests.declared"))
 
 plain <- dbarts::dbarts(y ~ x1, treeDf, control = treeControl)
 plain$setControl(declared$control)

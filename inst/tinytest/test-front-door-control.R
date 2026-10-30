@@ -203,7 +203,7 @@ flatFit <- fitFC(control = flatControl, n.cuts = 25L, keepSampler = TRUE)
 expect_equal(flatFit$fit$control@n.cuts, 25L)
 expect_equal(flatFit$fit$control@n.thin, 2L)
 
-# ---- a control carrying fit state is refused by name -----------------------
+# ---- a fit's control is taken: it holds run settings and copies --------------
 
 varianceSampler <- dbarts::dbarts(
   xFC,
@@ -212,27 +212,31 @@ varianceSampler <- dbarts::dbarts(
   control = dbarts::dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 5L,
+    n.trees = 6L,
     n.samples = 5L,
     updateState = FALSE
   )
 )
-expect_true(isTRUE(dbarts:::controlMirror(varianceSampler$control)$fit.state))
-expect_error(
-  fitFC(control = varianceSampler$control),
-  "pass a fresh dbartsControl"
+handedOn <- NULL
+expect_warning(
+  handedOn <- fitFC(control = varianceSampler$control, keepSampler = TRUE),
+  "the control's n.trees (6) is not used",
+  fixed = TRUE
 )
-expect_error(
-  dbarts::xbart(
+expect_null(handedOn$fit$model@variance)
+expect_warning(
+  handedOn <- dbarts::xbart(
     xFC,
     yFC,
     n.reps = 1L,
     n.threads = 1L,
     control = varianceSampler$control
   ),
-  "pass a fresh dbartsControl"
+  "the control's n.trees (6) is not used",
+  fixed = TRUE
 )
-rm(varianceSampler)
+expect_true(is.numeric(handedOn))
+rm(varianceSampler, handedOn)
 
 # ---- the mixture is still settable between runs, now through setControl ----
 
@@ -399,10 +403,6 @@ editedFit <- dbarts::bart(
   keepSampler = TRUE
 )
 expect_equal(editedFit$fit$control@n.trees, 11L)
-# the record is not a bartcore.* attribute, so the fit-state refusal ignores
-# it and setControl's attribute forwarding never carries it as fit state
-expect_false(any(startsWith(names(attributes(editedControl)), "bartcore.")))
-expect_silent(dbarts:::refuseFitStateControl(editedControl, "bart"))
 # a control carrying no record at all falls back to the differs-from-default
 # test, so an object saved before the record existed still merges
 bareControl <- methods::new("dbartsControl", n.chains = 1L, n.threads = 1L)

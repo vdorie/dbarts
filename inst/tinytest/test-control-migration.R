@@ -424,7 +424,8 @@ keeper <- dbarts(
 otherModel <- dbarts(
   y ~ x1 + x2 + x3,
   frame,
-  control = migrationControl()
+  variance = TRUE,
+  control = migrationControl(n.trees = 11L)
 )$model
 otherModel@tree.prior@power <- 1.5
 keeper$setModel(otherModel)
@@ -439,3 +440,590 @@ keeper$setControl(
 expect_true(mirrored(keeper))
 expect_identical(varianceCount(keeper), 40L)
 rm(keeper, otherModel)
+
+## ---- a control copied from a fit states nothing --------------------------------
+
+varianceSampler <- dbarts(
+  y ~ x1 + x2 + x3,
+  frame,
+  variance = varianceForest(n.trees = 7L),
+  control = migrationControl()
+)
+
+# the not-used warnings a call draws, and what else it draws, counted apart
+warned <- function(expr) {
+  notUsed <- character(0L)
+  value <- withCallingHandlers(expr, dbartsControlNotUsedWarning = function(w) {
+    notUsed <<- c(notUsed, conditionMessage(w))
+    invokeRestart("muffleWarning")
+  })
+  list(value = value, notUsed = notUsed)
+}
+expect_notUsed <- function(call, name, value) {
+  expect_identical(length(call$notUsed), length(name))
+  for (index in seq_along(name)) {
+    expect_true(
+      startsWith(
+        call$notUsed[index],
+        paste0(
+          "the control's ",
+          name[index],
+          " (",
+          value[index],
+          ") is not used"
+        )
+      )
+    )
+  }
+}
+fit50 <- dbarts(
+  y ~ x1 + x2 + x3,
+  frame,
+  control = migrationControl(n.trees = 50L)
+)
+fit75 <- dbarts(y ~ x1 + x2 + x3, frame, control = migrationControl())
+quantileFit <- dbarts(
+  y ~ x1 + x2 + x3,
+  frame,
+  control = migrationControl(useQuantiles = TRUE, n.cuts = 20L)
+)
+quantileDraws <- function(sampler) sampler$run()[c("train", "sigma")]
+expect_identical(fit50$control@n.trees, 50L)
+expect_false("n.trees" %in% dbarts:::controlSuppliedSlots(fit50$control))
+
+# dbarts(): the old fit's count, rule and cut count go, each with the warning
+copied <- warned(dbarts(y ~ x1 + x2 + x3, frame, control = fit50$control))
+expect_identical(forestCounts(copied$value), 75L)
+expect_notUsed(copied, "n.trees", 50L)
+expect_true(grepl("dbarts(n.trees = )", copied$notUsed, fixed = TRUE))
+expect_identical(
+  warned(dbarts(y ~ x1 + x2 + x3, frame, control = fit75$control))$notUsed,
+  character(0L)
+)
+copied <- warned(dbarts(y ~ x1 + x2 + x3, frame, control = quantileFit$control))
+expect_notUsed(copied, c("useQuantiles", "n.cuts"), c("TRUE", "20"))
+expect_identical(copied$value$data@n.cuts, rep(100L, 3L))
+expect_false(copied$value$control@useQuantiles)
+expect_identical(
+  quantileDraws(copied$value),
+  quantileDraws(dbarts(y ~ x1 + x2 + x3, frame, control = migrationControl()))
+)
+# the fit's own data object keeps its rule and count: nothing differs, the grid
+# is the one the data holds, and the run settings still come through
+sameData <- warned(dbarts(quantileFit$data, control = quantileFit$control))
+expect_identical(sameData$notUsed, character(0L))
+expect_true(sameData$value$data@useQuantiles)
+expect_identical(sameData$value$data@n.cuts, rep(20L, 3L))
+expect_true(sameData$value$control@useQuantiles)
+expect_identical(sameData$value$control@n.samples, 4L)
+
+# a value the caller wrote still counts: named, or edited on a copy
+named <- migrationControl(n.trees = 30L)
+expect_identical(forestCounts(dbarts(y ~ x1 + x2, frame, control = named)), 30L)
+expect_identical(forestCounts(dbarts(y ~ x1 + x2, frame, control = named)), 30L)
+edited <- fit50$control
+edited@n.trees <- 30L
+written <- warned(dbarts(y ~ x1 + x2 + x3, frame, control = edited))
+expect_identical(forestCounts(written$value), 30L)
+expect_identical(written$notUsed, character(0L))
+# the limit of what can be told: an edit back to the mirrored value is a copy
+edited@n.trees <- 50L
+expect_notUsed(
+  warned(dbarts(y ~ x1 + x2 + x3, frame, control = edited)),
+  "n.trees",
+  50L
+)
+# a slot other than the three leaves the copies copies
+edited <- fit50$control
+edited@n.samples <- 6L
+expect_identical(
+  forestCounts(warned(dbarts(y ~ x1 + x2, frame, control = edited))$value),
+  75L
+)
+
+# dbartsSpec(), which writes no count of its own
+copied <- warned(dbartsSpec(
+  dbartsData(y ~ x1 + x2 + x3, frame),
+  fit50$control
+))
+expect_identical(copied$value$model@forests[[1L]]@n.trees, 75L)
+expect_notUsed(copied, "n.trees", 50L)
+expect_true(grepl("dbartsSpec(n.trees = )", copied$notUsed, fixed = TRUE))
+
+# bart(): a copy is taken from any fit, its run settings with it
+bartQuick <- function(..., control) {
+  bart(
+    y ~ x1 + x2 + x3,
+    frame,
+    keepSampler = TRUE,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE,
+    ...,
+    control = control
+  )
+}
+copied <- warned(bartQuick(control = fit50$control))
+expect_identical(forestCounts(copied$value$fit), 75L)
+expect_identical(copied$value$fit$control@n.samples, 4L)
+expect_notUsed(copied, "n.trees", 50L)
+expect_true(grepl("bart(n.trees = )", copied$notUsed, fixed = TRUE))
+copied <- warned(bartQuick(n.trees = 50L, control = fit75$control))
+expect_identical(forestCounts(copied$value$fit), 50L)
+expect_notUsed(copied, "n.trees", 75L)
+copied <- warned(bartQuick(control = quantileFit$control))
+expect_notUsed(copied, c("useQuantiles", "n.cuts"), c("TRUE", "20"))
+expect_false(copied$value$fit$data@useQuantiles)
+fromVariance <- warned(bartQuick(control = varianceSampler$control))
+expect_null(fromVariance$value$fit$model@variance)
+fromVariance <- warned(dbarts(
+  y ~ x1 + x2 + x3,
+  frame,
+  control = varianceSampler$control
+))
+expect_null(fromVariance$value$model@variance)
+
+# xbart(), with the count its grid takes
+xbartOn <- function(control, ...) {
+  xbart(
+    x,
+    y,
+    n.samples = 3L,
+    n.burn = c(2L, 1L),
+    n.reps = 1L,
+    n.threads = 1L,
+    seed = 4L,
+    ...,
+    control = control
+  )
+}
+copied <- warned(xbartOn(fit50$control, n.trees = 5L))
+expect_notUsed(copied, "n.trees", 50L)
+written <- warned(xbartOn(fit50$control, n.trees = 50L))
+expect_identical(written$notUsed, character(0L))
+expect_notUsed(
+  warned(xbartOn(varianceSampler$control, n.trees = 5L)),
+  "n.trees",
+  75L
+)
+rm(copied, sameData, named, edited, written, fromVariance, bartQuick, xbartOn)
+
+## ---- the mirror reads the fitting function's level ------------------------------
+
+plainSecond <- function(control = migrationControl()) {
+  dbarts(
+    y ~ x1 + x2 + x3,
+    frame,
+    forests = list(
+      forest(x1, basis = ~ factor(z), n.trees = 7L),
+      forest(n.trees = 9L)
+    ),
+    control = control
+  )
+}
+secondSampler <- plainSecond()
+expect_identical(forestCounts(secondSampler), c(7L, 9L))
+expect_identical(secondSampler$control@n.trees, 9L)
+copiedTwins <- twins(secondSampler)
+expect_identical(copiedTwins$copy$control@n.trees, 9L)
+expect_identical(copiedTwins$reload$control@n.trees, 9L)
+expect_identical(copiedTwins$reload$getTrees()$tree[0L], integer(0L))
+# given back to its own formula, none
+handedBack <- warned(plainSecond(secondSampler$control))
+expect_identical(handedBack$notUsed, character(0L))
+expect_identical(forestCounts(handedBack$value), c(7L, 9L))
+# given to a formula of another count, the comparison is at the same level
+plainTaken <- warned(dbarts(
+  y ~ x1 + x2 + x3,
+  frame,
+  forests = list(forest(x1, basis = ~ factor(z)), forest(n.trees = 11L)),
+  control = secondSampler$control
+))
+expect_identical(forestCounts(plainTaken$value), c(50L, 11L))
+expect_notUsed(plainTaken, "n.trees", 9L)
+expect_true(grepl("forest with no basis", plainTaken$notUsed, fixed = TRUE))
+# every forest with a basis: the first forest's, and a copy is no statement
+allBasis <- function(control) {
+  dbarts(
+    y ~ x1 + x2 + x3,
+    frame,
+    forests = list(
+      forest(x1, basis = ~ factor(z), n.trees = 7L),
+      forest(x2, basis = ~zn)
+    ),
+    control = control
+  )
+}
+allBasisSampler <- allBasis(migrationControl())
+expect_identical(allBasisSampler$control@n.trees, 7L)
+overBart <- warned(allBasis(fit75$control))
+expect_identical(forestCounts(overBart$value), c(7L, 50L))
+expect_notUsed(overBart, "n.trees", 75L)
+# a multinomial model reads its one record
+multinomialFit <- dbarts(
+  x,
+  factor(cut(y, 3L, labels = FALSE)),
+  family = "multinomial",
+  control = migrationControl(n.trees = 8L)
+)
+expect_identical(multinomialFit$control@n.trees, 8L)
+expect_false(multinomialFit$control@binary)
+# what mirrors comes from the model and data and not the control's own slots
+slotted <- migrationControl()
+slotted@binary <- TRUE
+slotted@useQuantiles <- TRUE
+mirrorCheck <- dbarts:::mirrorControl(slotted, fit75$model, fit75$data)
+expect_false(mirrorCheck@binary)
+expect_false(mirrorCheck@useQuantiles)
+expect_identical(mirrorCheck@n.trees, 75L)
+rm(plainSecond, secondSampler, copiedTwins, handedBack, plainTaken, overBart)
+rm(allBasis, allBasisSampler, slotted, mirrorCheck)
+
+## ---- new("dbartsSampler", control, model, data) ---------------------------------
+
+direct <- function(control, from, data = from$data) {
+  warned(new("dbartsSampler", control, from$model, data))
+}
+# a copy: the model's count and the data object's rule, with the warning
+crossed <- direct(fit50$control, fit75)
+expect_identical(forestCounts(crossed$value), 75L)
+expect_identical(crossed$value$control@n.trees, 75L)
+expect_notUsed(crossed, "n.trees", 50L)
+expect_identical(direct(fit75$control, fit75)$notUsed, character(0L))
+crossed <- direct(fit75$control, quantileFit)
+expect_notUsed(crossed, c("useQuantiles", "n.cuts"), c("FALSE", "100"))
+expect_true(crossed$value$control@useQuantiles)
+crossed <- direct(quantileFit$control, fit75)
+expect_notUsed(crossed, c("useQuantiles", "n.cuts"), c("TRUE", "20"))
+expect_false(crossed$value$data@useQuantiles)
+expect_identical(
+  quantileDraws(crossed$value),
+  quantileDraws(new("dbartsSampler", fit75$control, fit75$model, fit75$data))
+)
+# re-creation, the mirror agreeing: no warning on a copy or a reload
+reloaded <- warned(twins(fit50))
+expect_identical(reloaded$notUsed, character(0L))
+expect_identical(forestCounts(reloaded$value$copy), 50L)
+expect_identical(forestCounts(reloaded$value$reload), 50L)
+recreated <- direct(fit50$control, fit50)
+expect_identical(recreated$notUsed, character(0L))
+# a fresh control is silent: what the model and data hold stands
+fresh <- direct(migrationControl(), fit50)
+expect_identical(fresh$notUsed, character(0L))
+expect_identical(forestCounts(fresh$value), 50L)
+expect_identical(fresh$value$control@n.trees, 50L)
+spec <- dbartsSpec(
+  dbartsData(y ~ x1 + x2 + x3, frame),
+  migrationControl(n.trees = 30L, useQuantiles = TRUE)
+)
+fresh <- direct(migrationControl(), spec)
+expect_identical(forestCounts(fresh$value), 30L)
+expect_true(fresh$value$data@useQuantiles)
+expect_true(fresh$value$control@useQuantiles)
+# a written count is still read here: where a model states none, and the rest
+# the door's own next change
+expect_identical(
+  forestCounts(direct(migrationControl(n.trees = 20L), fit75)$value),
+  20L
+)
+handModel <- fit75$model
+handModel@forests <- list()
+handSampler <- direct(fit50$control, list(model = handModel, data = fit75$data))
+expect_identical(handSampler$notUsed, character(0L))
+expect_identical(forestCounts(handSampler$value), 50L)
+
+# a plain fit's control beside a variance fit's model runs the variance forest
+crossedVariance <- direct(fit75$control, varianceSampler)
+expect_identical(crossedVariance$notUsed, character(0L))
+expect_false(is.null(crossedVariance$value$model@variance))
+expect_identical(varianceCount(crossedVariance$value), 7L)
+# a binary control beside a multinomial model runs that model, and reads FALSE
+probitFit <- dbarts(
+  x,
+  yb,
+  family = "probit",
+  control = migrationControl(n.trees = 8L)
+)
+expect_true(probitFit$control@binary)
+crossedBinary <- direct(probitFit$control, multinomialFit)
+expect_notUsed(crossedBinary, "binary", TRUE)
+expect_identical(crossedBinary$value$model@family, multinomialFit$model@family)
+expect_false(crossedBinary$value$control@binary)
+expect_identical(forestCounts(crossedBinary$value), rep(8L, 3L))
+twin <- new(
+  "dbartsSampler",
+  multinomialFit$control,
+  multinomialFit$model,
+  multinomialFit$data
+)
+expect_identical(crossedBinary$value$run()$train, twin$run()$train)
+rm(direct, crossed, reloaded, recreated, fresh, spec, handModel, handSampler)
+rm(crossedVariance, probitFit, crossedBinary, twin)
+
+## ---- $setControl ----------------------------------------------------------------
+
+livePair <- function() {
+  dbarts(y ~ x1 + x2 + x3, frame, control = migrationControl(n.trees = 12L))
+}
+# a carried count that differs: taken, the sampler's kept, the warning
+sampler <- livePair()
+carried <- fit50$control
+carried@n.thin <- 2L
+taken <- warned(sampler$setControl(carried))
+expect_notUsed(taken, "n.trees", 50L)
+expect_identical(sampler$control@n.trees, 12L)
+expect_identical(sampler$control@n.thin, 2L)
+expect_identical(forestCounts(sampler), 12L)
+expect_identical(sampler$copy()$control@n.trees, 12L)
+expect_true(grepl("keeps its 12", taken$notUsed, fixed = TRUE))
+# a written one: refused, the sampler untouched, no warning
+sampler <- livePair()
+before <- sampler$control
+expect_error(
+  sampler$setControl(migrationControl(n.trees = 50L)),
+  "changing 'n.trees' is not available on an existing sampler",
+  fixed = TRUE
+)
+expect_identical(sampler$control, before)
+edited <- fit50$control
+edited@n.trees <- 20L
+refusal <- warned(tryCatch(
+  sampler$setControl(edited),
+  error = conditionMessage
+))
+expect_identical(
+  refusal$value,
+  "changing 'n.trees' is not available on an existing sampler"
+)
+expect_identical(refusal$notUsed, character(0L))
+expect_identical(sampler$control, before)
+# the same value written: nothing to change
+agrees <- warned(sampler$setControl(migrationControl(
+  n.trees = 12L,
+  n.thin = 3L
+)))
+expect_identical(agrees$notUsed, character(0L))
+expect_identical(sampler$control@n.thin, 3L)
+# a fresh control: taken, the count kept, silent
+silent <- warned(sampler$setControl(migrationControl(n.thin = 4L)))
+expect_identical(silent$notUsed, character(0L))
+expect_identical(sampler$control@n.trees, 12L)
+expect_identical(sampler$control@n.thin, 4L)
+# the rule and the cut count read alike
+sampler <- dbarts(
+  y ~ x1 + x2 + x3,
+  frame,
+  control = migrationControl(useQuantiles = TRUE, n.cuts = 20L)
+)
+expect_error(
+  sampler$setControl(migrationControl(useQuantiles = FALSE, n.cuts = 20L)),
+  "changing 'useQuantiles' is not available on an existing sampler",
+  fixed = TRUE
+)
+expect_error(
+  sampler$setControl(migrationControl(useQuantiles = TRUE, n.cuts = 30L)),
+  "changing 'n.cuts' is not available on an existing sampler",
+  fixed = TRUE
+)
+expect_identical(
+  warned(sampler$setControl(migrationControl()))$notUsed,
+  character(0L)
+)
+expect_true(sampler$control@useQuantiles)
+expect_identical(sampler$control@n.cuts, 20L)
+taken <- warned(sampler$setControl(fit75$control))
+expect_notUsed(taken, c("useQuantiles", "n.cuts"), c("FALSE", "100"))
+expect_true(sampler$control@useQuantiles)
+expect_identical(sampler$control@n.cuts, 20L)
+rm(livePair, sampler, carried, taken, before, edited, refusal, agrees, silent)
+
+## ---- $setModel: structure is refused, move settings are installed ---------------
+
+structureRefused <- function(sampler, model, pattern) {
+  before <- list(sampler$model, sampler$control)
+  expect_error(sampler$setModel(model), pattern, fixed = TRUE)
+  expect_identical(list(sampler$model, sampler$control), before)
+  expect_true(is.numeric(sampler$run(0L, 1L)$train))
+}
+sampler <- dbarts(y ~ x1 + x2 + x3, frame, control = migrationControl())
+structureRefused(sampler, fit50$model, "forest 1's tree count")
+structureRefused(sampler, varianceSampler$model, "variance forest")
+structureRefused(
+  dbarts(
+    y ~ x1 + x2 + x3,
+    frame,
+    variance = TRUE,
+    control = migrationControl()
+  ),
+  fit75$model,
+  "variance forest"
+)
+varianceOf <- function(...) {
+  dbarts(
+    y ~ x1 + x2 + x3,
+    frame,
+    variance = varianceForest(...),
+    control = migrationControl()
+  )
+}
+sampler <- varianceOf(n.trees = 7L)
+structureRefused(
+  sampler,
+  varianceOf(n.trees = 8L)$model,
+  "variance forest's tree count"
+)
+structureRefused(
+  varianceOf(n.trees = 7L, vars = ~ x1 + x2),
+  sampler$model,
+  "columns of the variance forest"
+)
+# a variance forest's prior is a parameter: not refused, the sampler's kept
+parameter <- varianceOf(n.trees = 7L, base = 0.8, power = 1.5)$model
+sampler$setModel(parameter)
+expect_identical(sampler$model@variance@base, 0.95)
+expect_identical(sampler$model@variance@n.trees, 7L)
+sampler$setModel(sampler$model)
+
+ordinal <- function(k) {
+  dbarts(
+    x,
+    cut(y, k, ordered_result = TRUE),
+    family = "ordinal",
+    control = migrationControl()
+  )
+}
+structureRefused(ordinal(3L), ordinal(4L)$model, "number of categories")
+hazardOf <- function(times) {
+  dbarts(
+    x,
+    cbind(times, rep(1L, n)),
+    family = "hazard",
+    control = migrationControl()
+  )
+}
+periods <- rep_len(1:3, n)
+structureRefused(
+  hazardOf(periods),
+  hazardOf(rep_len(1:4, n))$model,
+  "hazard periods"
+)
+sampler <- dbarts(y ~ x1 + x2 + x3, frame, control = migrationControl())
+twoForest <- dbarts(
+  y ~ x1 + x2 + x3,
+  frame,
+  forests = list(forest(), forest(basis = ~ factor(z))),
+  control = migrationControl()
+)
+structureRefused(sampler, twoForest$model, "number of forests")
+
+# each field of a record, by the check itself: no sampler of several forests
+# reaches it yet. Only the fields named refuse: what else a record holds does not
+refusedBy <- function(field, value) {
+  changed <- twoForest$model
+  methods::slot(changed@forests[[2L]], field) <- value
+  dbarts:::movedStructureRefusal(changed, twoForest$model)
+}
+expect_null(dbarts:::movedStructureRefusal(twoForest$model, twoForest$model))
+expect_true(grepl("forest 2's tree count", refusedBy("n.trees", 3L)))
+expect_true(grepl("forest 2's 'vars'", refusedBy("vars", 1L)))
+expect_true(grepl(
+  "forest 2's 'interactions'",
+  refusedBy("interactions", list(1:2))
+))
+expect_true(grepl("forest 2's 'blocks'", refusedBy("blocks", list(block = 1L))))
+expect_true(grepl(
+  "forest 2's 'basis'",
+  refusedBy("basis.term", list(label = "b"))
+))
+expect_true(grepl("forest 2's label", refusedBy("label", "another")))
+expect_null(refusedBy("stated", c("n.trees", "sd", "share")))
+expect_null(refusedBy("base", 0.5))
+expect_null(refusedBy("power", 0.5))
+expect_null(refusedBy("sd", 0.5))
+expect_null(refusedBy("held.amplitude", TRUE))
+expect_null(refusedBy("amplitude.df", 3))
+expect_null(refusedBy("moves", list(proposal.probs = 1)))
+expect_null(refusedBy("n.trees", NULL))
+# a model made by hand states none of it: the sampler's stand
+handModel <- varianceSampler$model
+handModel@forests <- list()
+handModel@variance <- NULL
+expect_null(dbarts:::movedStructureRefusal(handModel, varianceSampler$model))
+live <- varianceOf(n.trees = 7L)
+live$setModel(handModel)
+expect_identical(live$model@variance@n.trees, 7L)
+expect_identical(live$model@forests[[1L]]@n.trees, 75L)
+
+# a model differing only in a forest's move settings is installed, the draws
+# then those of a sampler created with them
+moving <- c(birth_death = 0.3, swap = 0.2, change = 0.5, birth = 0.5)
+movesOf <- function(moves) {
+  dbarts(
+    y ~ x1 + x2 + x3,
+    frame,
+    forests = list(forest(proposal.probs = moves)),
+    variance = TRUE,
+    control = migrationControl()
+  )
+}
+stating <- movesOf(moving)
+expect_false(is.null(stating$model@forests[[1L]]@moves))
+installed <- dbarts(
+  y ~ x1 + x2 + x3,
+  frame,
+  variance = TRUE,
+  control = migrationControl()
+)
+withoutRun <- installed$copy()
+installed$setModel(stating$model)
+expect_identical(
+  installed$model@forests[[1L]]@moves,
+  stating$model@forests[[1L]]@moves
+)
+expect_identical(installed$run()$train, stating$run()$train)
+expect_false(identical(
+  withoutRun$copy()$run()$train,
+  stating$copy()$run()$train
+))
+# what the model's records state is what is in force: none, the control's again
+restated <- movesOf(moving)
+restated$setModel(withoutRun$model)
+expect_null(restated$model@forests[[1L]]@moves)
+expect_identical(
+  restated$run()$train,
+  dbarts(
+    y ~ x1 + x2 + x3,
+    frame,
+    variance = TRUE,
+    control = migrationControl()
+  )$run()$train
+)
+rm(structureRefused, sampler, varianceOf, parameter, ordinal, hazardOf, periods)
+rm(twoForest, refusedBy, handModel, live, moving, movesOf, stating, installed)
+rm(withoutRun, restated)
+
+## ---- getTrees()' column follows the kind of model -------------------------------
+
+columnOf <- function(...) {
+  sampler <- dbarts(
+    ...,
+    control = migrationControl(keepTrees = TRUE)
+  )
+  sampler$run()
+  "forest" %in% colnames(sampler$getTrees())
+}
+expect_false(columnOf(y ~ x1 + x2 + x3, frame))
+expect_false(columnOf(y ~ x1 + x2 + x3, frame, forests = list(forest())))
+expect_false(columnOf(y ~ forest(x1 + x2), frame))
+expect_true(columnOf(
+  y ~ x1 + x2 + x3,
+  frame,
+  forests = list(forest(), forest(basis = ~ factor(z)))
+))
+expect_true(columnOf(
+  x,
+  factor(cut(y, 3L, labels = FALSE)),
+  family = "multinomial"
+))
+rm(columnOf, warned, expect_notUsed, fit50, fit75, quantileFit, quantileDraws)
+rm(multinomialFit, varianceSampler)

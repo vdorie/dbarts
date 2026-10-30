@@ -496,12 +496,10 @@ expect_identical(
   levels(extract(named, "trees")$forest),
   c("prognostic", "treatment")
 )
-# a fit with one forest declared still has the column, its one level the name a
-# forest with no recorded label has, since a model of one records none; one
-# never declared has no column; a multinomial fit's category forests are
-# forest<i>
+# the column follows the kind of model: a fit of one forest has none however
+# it was written; a multinomial fit's category forests are forest<i>
 declared <- packaged(listFit(quote(list(only = forest()))))
-expect_identical(levels(extract(declared, "trees")$forest), "forest1")
+expect_null(extract(declared, "trees")$forest)
 expect_null(
   extract(
     bart(

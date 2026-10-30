@@ -75,7 +75,7 @@ build <- function(text, stated = FALSE, ...) {
 forestTable <- function(sampler) {
   info <- forestInfo(sampler)
   prior <- sampler$model@tree.prior
-  onModel <- c(sampler$control@n.trees, prior@base, prior@power)
+  onModel <- c(sampler$model@forests[[1L]]@n.trees, prior@base, prior@power)
   if (is.null(info)) {
     return(rbind(onModel, deparse.level = 0L))
   }
@@ -410,11 +410,6 @@ refusalBT <- function(...) {
 unstatedBT <- onBartBT(list(dose, age))
 expect_identical(forestTable(unstatedBT), tableOf(multiplied, multiplied))
 expect_null(attr(unstatedBT$control, "dbarts.stated", exact = TRUE))
-# the count a later fit inherits is bartBT's own default
-expect_identical(
-  dbarts:::controlMirror(unstatedBT$control)$control.n.trees,
-  200L
-)
 expect_identical(refusalBT(keepcall = FALSE), "created")
 # bartBT() has no forests to state a count on, so its refusal ends with what
 # its caller can do
@@ -770,14 +765,12 @@ expect_identical(allBasisSampler$control@n.trees, 50L)
 expect_identical(carriedTo(allBasisSampler), 75)
 expect_identical(carriedTo(allBasisSampler, allBasis[1L]), c(50, 50))
 namedSecond <- build(plainSecond[2L], stated = TRUE)
-expect_identical(namedSecond$control@n.trees, 50L)
-expect_identical(carriedTo(namedSecond), 15)
+expect_identical(namedSecond$control@n.trees, 15L)
+expect_identical(carriedTo(namedSecond), 75)
 ownSecond <- build(listOf("forest(basis = dose), forest(n.trees = 7L)"))
 ownFirst <- build(listOf("forest(n.trees = 7L), forest(basis = dose)"))
-expect_identical(carriedTo(ownSecond), 7)
-expect_identical(carriedTo(ownFirst), 7)
-# a control from a fit whose plain forest is first holds its own count already
-expect_null(dbarts:::controlMirror(ownFirst$control)$control.n.trees)
+expect_identical(carriedTo(ownSecond), 75)
+expect_identical(carriedTo(ownFirst), 75)
 # a count edited on a carried control is the caller's own: it is the next
 # fit's plain forest's wherever that stands, and where every forest has a
 # basis it is refused as any count on a control is
@@ -824,8 +817,8 @@ expect_identical(allBasisSampler$control@n.trees, 50L)
 expect_identical(allBasisSampler$control@n.burn, 7L)
 allBasisSampler$setControl(allBasisSampler$control)
 namedSecond$setControl(defaultsControl(n.trees = 15L))
-expect_identical(namedSecond$control@n.trees, 50L)
-expect_identical(carriedTo(namedSecond), 15)
+expect_identical(namedSecond$control@n.trees, 15L)
+expect_identical(carriedTo(namedSecond), 75)
 for (count in c(20L, 75L)) {
   expect_error(
     namedSecond$setControl(defaultsControl(n.trees = count)),

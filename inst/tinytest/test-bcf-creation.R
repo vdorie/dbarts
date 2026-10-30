@@ -1349,7 +1349,8 @@ plainSecondSpec <- dbartsSpec(
   dbartsData(x, y, bases = list(zFactor, NULL)),
   uncountedControlBcfCreation(n.trees = 20L)
 )
-expect_identical(plainSecondSpec$control@n.trees, 50L)
+expect_identical(plainSecondSpec$control@n.trees, 20L)
+expect_identical(plainSecondSpec$model@forests[[1L]]@n.trees, 50L)
 expect_equal(
   dbarts:::forestsRecord(plainSecondSpec$model)$params[[2L]][1:3],
   c(20, 0.95, 2)
