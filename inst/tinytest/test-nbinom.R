@@ -267,7 +267,7 @@ control <- dbartsControl(
 )
 sampler <- dbarts(x, y, family = "nbinom", control = control, verbose = FALSE)
 expect_equal(sampler$model@family, "nbinom")
-expect_equal(attr(sampler$control, "bartcore.shape"), -1)
+expect_equal(sampler$model@shape, -1)
 # the log-mean anchor, with k drawn under the binary families' chi(1.5, 2)
 expect_equal(sampler$model@leaf.scale, 3)
 expect_true(is(sampler$model@leaf.hyperprior, "dbartsChiHyperprior"))

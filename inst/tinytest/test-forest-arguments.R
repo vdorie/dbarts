@@ -33,7 +33,7 @@ twoForests <- function(...) {
   )
 }
 heldParams <- function(sampler, forest) {
-  attr(sampler$control, "bartcore.forests")$params[[forest]][4L]
+  dbarts:::forestsRecord(sampler$model)$params[[forest]][4L]
 }
 termControl <- list(
   n.trees = 5L,
@@ -160,7 +160,7 @@ heldSpec <- dbartsSpec(
   forests = list(forest(), forest(basis = ~z, amplitude = fixed()))
 )
 expect_identical(
-  attr(heldSpec$control, "bartcore.forests")$heldAmplitude,
+  dbarts:::forestsRecord(heldSpec$model)$heldAmplitude,
   c(FALSE, TRUE)
 )
 heldFit <- do.call(
@@ -368,8 +368,8 @@ local({
       y ~ x1 + x2 + forest(x1 + x2, basis = ~ factor(z), amplitude = fixed),
       dataFrame,
       control = argumentControl()
-    )$control |>
-      attr("bartcore.forests") |>
+    )$model |>
+      dbarts:::forestsRecord() |>
       (\(info) info$params[[2L]][4L])(),
     1
   )
@@ -441,7 +441,7 @@ local({
     control = argumentControl()
   )
   expect_identical(
-    attr(sampler$control, "bartcore.forests")$sd[2L],
+    dbarts:::forestsRecord(sampler$model)$sd[2L],
     2
   )
 })
@@ -526,7 +526,7 @@ expect_identical(swapped$data@bases, twin$data@bases)
 # the stored description too; the record of a basis written as code holds
 # the place its formula was written, which the two builds do not share
 describedBy <- function(sampler) {
-  described <- attr(sampler$control, "bartcore.forests")
+  described <- dbarts:::forestsRecord(sampler$model)
   described$basisTerms <- lapply(described$basisTerms, function(record) {
     record[c("label", "levels", "xlev", "rows")]
   })

@@ -226,7 +226,7 @@ diffOriginalZ <- max(abs(
 ))
 expect_true(diffOriginalZ > 1e-6)
 
-# --- BCF leg: setControl preserves attr(control, "bartcore.forests"), so
+# --- BCF leg: setControl keeps the model's forest records, so
 # getPointer()'s re-creation after a save/load round trip succeeds and
 # carries the same bases. Pre-fix, this raised "the data carry forest bases
 # but no basis forest was configured": setControl replaced control wholesale,

@@ -412,8 +412,8 @@ expect_identical(
   handedControl$data@forest.calibration,
   second$data@forest.calibration
 )
-expect_null(attr(first$control, "bartcore.forests")$anchor)
-expect_null(attr(first$control, "bartcore.forests")$unit)
+expect_null(dbarts:::forestsRecord(first$model)$anchor)
+expect_null(dbarts:::forestsRecord(first$model)$unit)
 # the record holds where the response moves: a copy and a reload after a
 # swap keep the anchor and unit of the response the sampler was made on
 first$setResponse(10 * y)

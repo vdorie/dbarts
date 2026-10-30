@@ -20,7 +20,7 @@ blockOf <- function(sampler) attr(sampler$model, "block.of.column")
 # environment of its own, the names its call bound, which two builds of one
 # model do not share: compared by what it holds
 forestsOf <- function(sampler) {
-  described <- attr(sampler$control, "bartcore.forests")
+  described <- dbarts:::forestsRecord(sampler$model)
   described$basisTerms <- lapply(described$basisTerms, function(record) {
     if (is.null(record)) {
       return(NULL)
@@ -31,7 +31,7 @@ forestsOf <- function(sampler) {
   })
   described
 }
-varianceOf <- function(sampler) attr(sampler$control, "bartcore.variance")
+varianceOf <- function(sampler) dbarts:::varianceRecordList(sampler$model)
 
 # --- the list ---------------------------------------------------------------
 

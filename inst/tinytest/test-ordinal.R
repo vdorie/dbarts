@@ -311,7 +311,7 @@ control <- dbartsControl(
 )
 sampler <- dbarts(x, y, family = "ordinal", control = control, verbose = FALSE)
 expect_equal(sampler$model@family, "ordinal")
-expect_equal(attr(sampler$control, "bartcore.n.categories"), 3L)
+expect_equal(sampler$model@n.categories, 3L)
 expect_equal(range(sampler$data@y), c(1, 3))
 expect_equal(sampler$data@response.levels, lv)
 expect_equal(sampler$model@leaf.scale, 3.0)

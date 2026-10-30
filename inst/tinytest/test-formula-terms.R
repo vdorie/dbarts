@@ -66,7 +66,7 @@ refuses <- function(formula, pattern, ..., fixed = TRUE) {
   )
 }
 forestInfo <- function(result) {
-  attr(result$fit$control, "bartcore.forests", exact = TRUE)
+  dbarts:::forestsRecord(result$fit$model)
 }
 predictors <- function(result) colnames(result$fit$data@x)
 # the terms a fit stores, which predict reads new rows by
@@ -362,7 +362,7 @@ separate <- dbarts::dbarts(
 )
 expect_identical(colnames(separate$data@x), c("x1", "x2", "x3"))
 expect_identical(
-  attr(separate$control, "bartcore.forests")$vars,
+  dbarts:::forestsRecord(separate$model)$vars,
   list(1:2, 3L)
 )
 splitCounts <- matrix(0, 3L, 2L, dimnames = list(c("x1", "x2", "x3"), NULL))
@@ -856,7 +856,7 @@ expect_identical(predictors(writtenAlone), c("x1", "x2"))
 expect_identical(writtenAlone$yhat.train, plain$yhat.train)
 expect_identical(writtenAlone$sigma, plain$sigma)
 expect_null(forestInfo(writtenAlone))
-expect_null(attr(writtenAlone$fit$control, "bartcore.forestsDeclared"))
+expect_null(attr(writtenAlone$fit$model, "forests.declared"))
 expect_identical(writtenAlone$fit$control@n.trees, plain$fit$control@n.trees)
 expect_identical(writtenAlone$fit$data@x, plain$fit$data@x)
 # with 'test', 'subset', weights and an offset, as any single-forest fit
@@ -1191,7 +1191,7 @@ expect_identical(engineTreeCounts(written), c(50L, 50L))
 expect_identical(written$control@n.trees, 50L)
 expect_identical(written$model@tree.prior@base, 0.25)
 expect_identical(written$model@tree.prior@power, 3)
-writtenInfo <- attr(written$control, "bartcore.forests")
+writtenInfo <- dbarts:::forestsRecord(written$model)
 expect_identical(
   lapply(writtenInfo$params, function(forest) forest[1:3]),
   list(c(50, 0.25, 3), c(50, 0.25, 3))
@@ -1206,7 +1206,7 @@ expect_identical(
 )
 expect_identical(
   writtenInfo$vars,
-  attr(listed$control, "bartcore.forests")$vars
+  dbarts:::forestsRecord(listed$model)$vars
 )
 expect_identical(written$data@bases, listed$data@bases)
 writtenRun <- written$run(0L, 20L)
@@ -1219,7 +1219,7 @@ expect_identical(written$getForestAmplitudes(), listed$getForestAmplitudes())
 expect_identical(colnames(reversed$data@x), c("x2", "x1"))
 expect_identical(engineTreeCounts(reversed), c(50L, 50L))
 expect_identical(
-  attr(reversed$control, "bartcore.forests")$params,
+  dbarts:::forestsRecord(reversed$model)$params,
   rev(writtenInfo$params)
 )
 expect_identical(reversed$data@bases, rev(written$data@bases))

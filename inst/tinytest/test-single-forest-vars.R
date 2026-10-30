@@ -477,7 +477,7 @@ twoForests <- function(groups) {
 firstOfTwo <- twoForests(list("a", "b"))
 expect_null(attr(firstOfTwo$model, "forest.columns"))
 expect_identical(
-  attr(firstOfTwo$control, "bartcore.forests")$vars,
+  dbarts:::forestsRecord(firstOfTwo$model)$vars,
   list(1:2, NULL)
 )
 firstCounts <- apply(firstOfTwo$run(0L, 200L)$varcount, 1:2, sum)

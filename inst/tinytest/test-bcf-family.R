@@ -240,7 +240,7 @@ for (fit in list(probit, logistic)) {
   # which a forest gets is the engine's, from what it multiplies: the control
   # carries no sd for either forest, so the numbers the reader reports are the
   # engine's own defaults.
-  transported <- attr(fit$control, "bartcore.forests")
+  transported <- dbarts:::forestsRecord(fit$model)
   expect_identical(transported$sd, c(NA_real_, NA_real_))
   free <- fit$getLeafPrior(1L)
   carried <- fit$getLeafPrior(2L)
@@ -524,7 +524,7 @@ doorSpec <- dbartsSpec(
   forests = twoForests
 )
 doorSpec$model@family <- "aft"
-attr(doorSpec$control, "bartcore.survival") <- rep(1, n)
+doorSpec$data@status <- rep(1, n)
 expect_error(
   new("dbartsSampler", doorSpec$control, doorSpec$model, doorSpec$data),
   "does not support an AFT"

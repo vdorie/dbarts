@@ -231,7 +231,7 @@ priorSpec <- dbartsSpec(
   seededControlForestBasisR5(),
   forests = list(forest(sd = 2.5), forest(sd = 1.25))
 )
-priorStated <- attr(priorSpec$control, "bartcore.forests")
+priorStated <- dbarts:::forestsRecord(priorSpec$model)
 expect_identical(priorStated$sd, c(2.5, 1.25))
 expect_null(priorStated$variance)
 expect_null(priorStated$hasBasis)
@@ -260,7 +260,7 @@ buildFromSpec <- function(spec) {
 }
 baseline <- buildFromSpec(priorSpec)$run(0L, 4L)$train
 movedMedian <- priorSpec
-attr(movedMedian$control, "bartcore.forests")$sd[1L] <- 5
+movedMedian$model@forests[[1L]]@sd <- 5
 expect_false(identical(
   buildFromSpec(movedMedian)$run(0L, 4L)$train,
   baseline

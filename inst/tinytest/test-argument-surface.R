@@ -458,16 +458,7 @@ varControl <- dbarts::dbartsControl(
   updateState = FALSE
 )
 varianceAttr <- function(variance, factors = "categorical") {
-  attr(
-    dbarts::dbarts(
-      varX,
-      varY,
-      control = varControl,
-      variance = variance,
-      factors = factors
-    )$control,
-    "bartcore.variance"
-  )
+  dbarts:::varianceRecordList(dbarts::dbarts( varX, varY, control = varControl, variance = variance, factors = factors )$model)
 }
 
 # round-trip identity (one argument, two accepted types): a varianceForest
@@ -504,26 +495,8 @@ dfFactorVar <- data.frame(
   x1 = rnorm(varN),
   z = factor(sample(letters[1:3], varN, replace = TRUE))
 )
-attrShorthandZ <- attr(
-  dbarts::dbarts(
-    y ~ x1 + z,
-    data.frame(y = varY, dfFactorVar),
-    control = varControl,
-    variance = ~z,
-    factors = "indicators"
-  )$control,
-  "bartcore.variance"
-)
-attrObjectZ <- attr(
-  dbarts::dbarts(
-    y ~ x1 + z,
-    data.frame(y = varY, dfFactorVar),
-    control = varControl,
-    variance = varianceForest(vars = ~z),
-    factors = "indicators"
-  )$control,
-  "bartcore.variance"
-)
+attrShorthandZ <- dbarts:::varianceRecordList(dbarts::dbarts( y ~ x1 + z, data.frame(y = varY, dfFactorVar), control = varControl, variance = ~z, factors = "indicators" )$model)
+attrObjectZ <- dbarts:::varianceRecordList(dbarts::dbarts( y ~ x1 + z, data.frame(y = varY, dfFactorVar), control = varControl, variance = varianceForest(vars = ~z), factors = "indicators" )$model)
 expect_identical(attrShorthandZ, attrObjectZ)
 expect_equal(attrShorthandZ$columns, 2:4) # z's 3 indicator columns
 

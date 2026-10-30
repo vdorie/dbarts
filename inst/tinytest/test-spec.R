@@ -79,7 +79,7 @@ additiveSpec <- dbarts::dbartsSpec(
 expect_equal(attr(additiveSpec$model, "interaction.max.order"), 1L)
 
 varianceSpec <- dbarts::dbartsSpec(data, control = control, variance = TRUE)
-expect_equal(attr(varianceSpec$control, "bartcore.variance")$n.trees, 40L)
+expect_equal(dbarts:::varianceRecordList(varianceSpec$model)$n.trees, 40L)
 
 studentSpec <- dbarts::dbartsSpec(
   data,
@@ -108,7 +108,7 @@ aftSpec <- dbarts::dbartsSpec(
   survival = status
 )
 expect_equal(aftSpec$family, "aft")
-expect_equal(attr(aftSpec$control, "bartcore.survival"), status)
+expect_equal(aftSpec$data@status, status)
 expect_error(
   dbarts::dbartsSpec(aftData, control = control, family = "aft"),
   "needs a 'survival' status vector"

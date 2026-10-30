@@ -34,7 +34,7 @@ fitStated <- c(15, 0.8, 3)
 multiplied <- c(50, 0.25, 3)
 
 forestInfo <- function(sampler) {
-  attr(sampler$control, "bartcore.forests", exact = TRUE)
+  dbarts:::forestsRecord(sampler$model)
 }
 specSampler <- function(spec) {
   new("dbartsSampler", spec$control, spec$model, spec$data)

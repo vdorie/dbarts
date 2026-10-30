@@ -36,7 +36,7 @@ unitControl <- function(...) {
   )
 }
 forestInfo <- function(sampler) {
-  attr(sampler$control, "bartcore.forests", exact = TRUE)
+  dbarts:::forestsRecord(sampler$model)
 }
 unitOf <- function(sampler) sampler$data@forest.calibration[["unit"]]
 numWarnings <- 0L

@@ -106,7 +106,7 @@ for (door in names(doors)) {
       )
     }
     expect_identical(
-      attr(sampler$control, "bartcore.forests", exact = TRUE)$amplitude.df,
+      dbarts:::forestsRecord(sampler$model)$amplitude.df,
       c(NA, 3, 3),
       info = info
     )
@@ -142,7 +142,7 @@ plain <- dbarts(
   control = ctl()
 )
 expect_null(
-  attr(plain$control, "bartcore.forests", exact = TRUE)[["amplitude.df"]]
+  dbarts:::forestsRecord(plain$model)[["amplitude.df"]]
 )
 expect_null(plain$getLeafPrior(2L)[["amplitude"]])
 

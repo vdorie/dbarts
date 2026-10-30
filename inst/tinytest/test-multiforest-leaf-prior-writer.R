@@ -51,7 +51,7 @@ multinomialSampler <- function(...) {
   ))
 }
 forestInfo <- function(sampler) {
-  attr(sampler$control, "bartcore.forests", exact = TRUE)
+  dbarts:::forestsRecord(sampler$model)
 }
 expectTwins <- function(a, b, info) {
   expect_identical(a$getLeafPrior(), b$getLeafPrior(), info = info)

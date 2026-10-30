@@ -155,11 +155,11 @@ knobs <- dbartsSpec(
 # to the engine as written, in the response's units, one a forest; no forest
 # states a variance for its coefficients
 expect_equal(
-  attr(knobs$control, "bartcore.forests")$params,
+  dbarts:::forestsRecord(knobs$model)$params,
   list(c(30, 0.7, 1.5, 0), c(15, 0.4, 2, 0))
 )
-expect_identical(attr(knobs$control, "bartcore.forests")$sd, c(2.5, 1.25))
-expect_null(attr(knobs$control, "bartcore.forests")$variance)
+expect_identical(dbarts:::forestsRecord(knobs$model)$sd, c(2.5, 1.25))
+expect_null(dbarts:::forestsRecord(knobs$model)$variance)
 expect_identical(knobs$control@n.trees, 30L)
 expect_equal(knobs$model@tree.prior@base, 0.7)
 expect_equal(knobs$model@tree.prior@power, 1.5)
@@ -363,14 +363,14 @@ offSlot <- dbartsSpec(
 # vector for the pair - and a forest that states no sd or variance sends NA for
 # each, the engine holding every default
 expect_equal(
-  attr(offSlot$control, "bartcore.forests")$params,
+  dbarts:::forestsRecord(offSlot$model)$params,
   list(c(50, 0.95, 2, 1), c(50, 0.25, 3, 1))
 )
 expect_identical(
-  attr(offSlot$control, "bartcore.forests")$sd,
+  dbarts:::forestsRecord(offSlot$model)$sd,
   c(NA_real_, NA_real_)
 )
-expect_null(attr(offSlot$control, "bartcore.forests")$variance)
+expect_null(dbarts:::forestsRecord(offSlot$model)$variance)
 # the same transport under a LATENT family, which no assertion above has
 # run: each forest's `sd` is carried in its own position as written, and the
 # family reaches the model without disturbing either. The two declared values
@@ -384,10 +384,10 @@ latentSlots <- dbartsSpec(
 )
 expect_equal(latentSlots$model@family, "logistic")
 expect_equal(
-  attr(latentSlots$control, "bartcore.forests")$params,
+  dbarts:::forestsRecord(latentSlots$model)$params,
   list(c(50, 0.95, 2, 1), c(50, 0.25, 3, 1))
 )
-expect_identical(attr(latentSlots$control, "bartcore.forests")$sd, c(3.5, 1.25))
+expect_identical(dbarts:::forestsRecord(latentSlots$model)$sd, c(3.5, 1.25))
 # and a basis declared alongside subset reaches dbartsData's own alignment
 subsetForests <- dbarts(
   x,
@@ -414,7 +414,7 @@ sdViaHasBasis <- dbartsSpec(
   seededControlBcfCreation(),
   forests = list(forest(sd = 3.5))
 )
-expect_identical(attr(sdViaHasBasis$control, "bartcore.forests")$sd[1L], 3.5)
+expect_identical(dbarts:::forestsRecord(sdViaHasBasis$model)$sd[1L], 3.5)
 
 noUpdateViaHasBasis <- dbartsSpec(
   dbartsData(x, y, bases = list(NULL, zFactor)),
@@ -422,7 +422,7 @@ noUpdateViaHasBasis <- dbartsSpec(
   forests = list(forest(amplitude = fixed()))
 )
 expect_equal(
-  attr(noUpdateViaHasBasis$control, "bartcore.forests")$params[[1L]][4L],
+  dbarts:::forestsRecord(noUpdateViaHasBasis$model)$params[[1L]][4L],
   0
 )
 
@@ -434,7 +434,7 @@ noBasisSecondForest <- dbartsSpec(
   forests = list(forest(), forest(n.trees = 25L))
 )
 expect_equal(
-  attr(noBasisSecondForest$control, "bartcore.forests")$params[[2L]][1L],
+  dbarts:::forestsRecord(noBasisSecondForest$model)$params[[2L]][1L],
   25
 )
 
@@ -447,7 +447,7 @@ muInteractionsSpec <- dbartsSpec(
   forests = list(forest(interactions = interactions(max.order = 1L)))
 )
 muInteractionAttr <-
-  attr(muInteractionsSpec$control, "bartcore.forests")$interactions[[1L]]
+  dbarts:::forestsRecord(muInteractionsSpec$model)$interactions[[1L]]
 expect_equal(muInteractionAttr$max.order, 1L)
 
 tauInteractionsSpec <- dbartsSpec(
@@ -459,7 +459,7 @@ tauInteractionsSpec <- dbartsSpec(
   )
 )
 tauInteractionAttr <-
-  attr(tauInteractionsSpec$control, "bartcore.forests")$interactions[[2L]]
+  dbarts:::forestsRecord(tauInteractionsSpec$model)$interactions[[2L]]
 expect_equal(tauInteractionAttr$max.order, 2L)
 
 tauBlocksSpec <- dbartsSpec(
@@ -470,7 +470,7 @@ tauBlocksSpec <- dbartsSpec(
     forest(blocks = blocks(groups = list(c("x1", "x2"), c("x3", "x4"))))
   )
 )
-tauBlockAttr <- attr(tauBlocksSpec$control, "bartcore.forests")$blocks[[2L]]
+tauBlockAttr <- dbarts:::forestsRecord(tauBlocksSpec$model)$blocks[[2L]]
 expect_equal(tauBlockAttr$block.of.column, c(0L, 0L, 1L, 1L))
 expect_equal(tauBlockAttr$block.tree.counts, c(25L, 25L))
 
@@ -731,7 +731,7 @@ firstForestVars <- dbarts(
   control = control
 )
 expect_equal(
-  attr(firstForestVars$control, "bartcore.forests")$vars[[1L]],
+  dbarts:::forestsRecord(firstForestVars$model)$vars[[1L]],
   1L
 )
 # a fractional 'vars' entry is refused, naming the argument, rather than
@@ -754,7 +754,7 @@ firstForestVarsNumeric <- dbarts(
   control = control
 )
 expect_equal(
-  attr(firstForestVarsNumeric$control, "bartcore.forests")$vars[[1L]],
+  dbarts:::forestsRecord(firstForestVarsNumeric$model)$vars[[1L]],
   2L
 )
 
@@ -1007,7 +1007,8 @@ resolved <- dbartsSpec(
   forests = twoForests
 )
 withVariance <- resolved
-attr(withVariance$control, "bartcore.variance") <- list(
+withVariance$model@variance <- methods::new(
+  "dbartsVarianceRecord",
   n.trees = 20L,
   base = 0.95,
   power = 2.0,
@@ -1044,7 +1045,7 @@ expect_error(
 # directions, so a stripped one is a loud refusal naming the missing piece
 # rather than a silent single-forest fit ---
 strippedConfig <- resolved
-attr(strippedConfig$control, "bartcore.forests") <- NULL
+strippedConfig$model@forests <- strippedConfig$model@forests[1L]
 expect_error(
   new(
     "dbartsSampler",
@@ -1224,7 +1225,7 @@ supportedKnobSampler <- dbarts(
   control = control
 )
 expect_equal(
-  attr(supportedKnobSampler$control, "bartcore.forests")$params[[2L]][1L],
+  dbarts:::forestsRecord(supportedKnobSampler$model)$params[[2L]][1L],
   30
 )
 
@@ -1266,7 +1267,7 @@ plainSecond <- dbarts(
   control = uncountedControlBcfCreation(n.trees = 20L)
 )
 expect_equal(
-  attr(plainSecond$control, "bartcore.forests")$params,
+  dbarts:::forestsRecord(plainSecond$model)$params,
   list(c(50, 0.25, 3, 1), c(20, 0.95, 2, 1))
 )
 # each forest's channel follows its kind, not its place: the first, a
@@ -1350,7 +1351,7 @@ plainSecondSpec <- dbartsSpec(
 )
 expect_identical(plainSecondSpec$control@n.trees, 50L)
 expect_equal(
-  attr(plainSecondSpec$control, "bartcore.forests")$params[[2L]][1:3],
+  dbarts:::forestsRecord(plainSecondSpec$model)$params[[2L]][1:3],
   c(20, 0.95, 2)
 )
 # the clause names the declaration when the caller wrote forests =

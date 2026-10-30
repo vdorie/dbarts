@@ -53,7 +53,7 @@ listed <- function(forests, formula = y ~ x1 + x2 + x3) {
   )
 }
 forestColumns <- function(sampler) {
-  attr(sampler$control, "bartcore.forests", exact = TRUE)$vars
+  dbarts:::forestsRecord(sampler$model)$vars
 }
 draws <- function(sampler) {
   run <- sampler$run(0L, 20L)
@@ -278,14 +278,7 @@ expect_identical(
 )
 # and through dbartsSpec
 expect_identical(
-  attr(
-    dbartsSpec(
-      dbartsData(x, y),
-      predictorControl(),
-      forests = list(forest(), forest(. - x1, basis = ~ factor(z)))
-    )$control,
-    "bartcore.forests"
-  )$vars,
+  dbarts:::forestsRecord(dbartsSpec( dbartsData(x, y), predictorControl(), forests = list(forest(), forest(. - x1, basis = ~ factor(z))) )$model)$vars,
   list(NULL, 2:3)
 )
 

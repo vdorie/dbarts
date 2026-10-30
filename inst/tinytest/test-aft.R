@@ -468,7 +468,7 @@ s.created <- r5.aft(all.events)
 s.set <- r5.aft(status.set)
 s.set$setResponse(s.set$data@y, status = all.events)
 # the mirror the re-creation path reads, written only after the engine accepts
-expect_equal(attr(s.set$control, "bartcore.survival"), all.events)
+expect_equal(s.set$data@status, all.events)
 run.created <- s.created$run(50L, 50L)
 run.set <- s.set$run(50L, 50L)
 expect_identical(run.created$train, run.set$train)
@@ -498,7 +498,7 @@ bad.na <- status.set
 bad.na[3L] <- NA_real_
 expect_error(s.set$setResponse(s.set$data@y, status = bad.na), "cannot be NA")
 # a refusal installs nothing: the response and the mirror are the ones in force
-expect_equal(attr(s.set$control, "bartcore.survival"), all.events)
+expect_equal(s.set$data@status, all.events)
 expect_equal(s.set$getLatents(), s.set$data@y)
 # the R5 method coerces, so an integer status reaches the engine as doubles;
 # the bridge still refuses a non-real vector from a raw caller, which it would
@@ -1128,7 +1128,7 @@ for (door in names(onceDoors)) {
     info = door
   )
   expect_identical(
-    attr(sampler$control, "bartcore.survival"),
+    sampler$data@status,
     onceStatus[rows],
     info = door
   )

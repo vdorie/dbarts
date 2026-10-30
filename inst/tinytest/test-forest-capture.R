@@ -121,7 +121,7 @@ valueFit <- function(value, ...) {
 }
 basisOf <- function(sampler, index = 2L) sampler$data@bases[[index]]
 labelsOf <- function(sampler) {
-  attr(sampler$control, "bartcore.forests", exact = TRUE)$labels
+  dbarts:::forestsRecord(sampler$model)$labels
 }
 draws <- function(sampler) {
   run <- sampler$run(0L, 12L)
@@ -693,7 +693,7 @@ for (form in names(tildeForms)) {
     c("forest1", "I(dose/k)", "I(dose/k).1"),
     info = form
   )
-  records <- attr(fit$control, "bartcore.forests")$basisTerms
+  records <- dbarts:::forestsRecord(fit$model)$basisTerms
   expect_identical(
     dbarts:::replayForestBasis(records[[2L]], newRows, 2L),
     column(newRows$dose / 10, "I(dose/k)"),
@@ -737,7 +737,7 @@ for (made in list(heldLoop, handedLoop, heldSaved)) {
   expect_identical(labelsOf(madeFit), c("forest1", "I(dose/k)", "I(dose/k).1"))
 }
 # at new rows too, and with the variables gone
-heldRecord <- attr(madeFit$control, "bartcore.forests")$basisTerms[[3L]]
+heldRecord <- dbarts:::forestsRecord(madeFit$model)$basisTerms[[3L]]
 rm(k, heldFormula)
 expect_identical(
   dbarts:::replayForestBasis(heldRecord, newRows, 3L),
@@ -838,7 +838,7 @@ for (form in names(keptForests)) {
   expect_identical(attr(keptFormula, "note"), "the caller's own", info = form)
   expect_identical(watched(madeIn), placeBefore, info = form)
   expect_true(isWorkingFormula(keptFormula, frame), info = form)
-  keptRecord <- attr(keptFit$control, "bartcore.forests")$basisTerms[[2L]]
+  keptRecord <- dbarts:::forestsRecord(keptFit$model)$basisTerms[[2L]]
   expect_true(isWorkingFormula(keptRecord$terms, frame), info = form)
   expect_identical(
     get("k", envir = environment(keptRecord$terms)),
@@ -861,7 +861,7 @@ tildeBefore <- watched(tildePlace)
 tildeForest <- evalq(forest(basis = ~ I(dose / k)), tildePlace)
 tildeFit <- builtFit(list(forest(), tildeForest), frame)
 expect_identical(watched(tildePlace), tildeBefore)
-tildeRecord <- attr(tildeFit$control, "bartcore.forests")$basisTerms[[2L]]
+tildeRecord <- dbarts:::forestsRecord(tildeFit$model)$basisTerms[[2L]]
 expect_true(isWorkingFormula(tildeRecord$terms, frame))
 expect_false(identical(environment(tildeRecord$terms), tildePlace))
 expect_identical(get("k", envir = environment(tildeRecord$terms)), 30)
@@ -869,7 +869,7 @@ expect_identical(get("k", envir = environment(tildeRecord$terms)), 30)
 k <- 10
 listRescaled <- builtFit(list(forest(), forest(basis = I(dose / k))), frame)
 k <- 1000
-listRecord <- attr(listRescaled$control, "bartcore.forests")$basisTerms[[2L]]
+listRecord <- dbarts:::forestsRecord(listRescaled$model)$basisTerms[[2L]]
 expect_identical(
   dbarts:::replayForestBasis(listRecord, newRows, 2L),
   column(newRows$dose / 10, "I(dose/k)")
@@ -1009,7 +1009,7 @@ held <- dbarts(
 )
 expect_identical(
   vapply(
-    attr(held$control, "bartcore.forests")$params,
+    dbarts:::forestsRecord(held$model)$params,
     function(params) params[4L],
     0
   ),
@@ -1081,7 +1081,7 @@ overNames <- dbarts(
   control = captureControl()
 )
 expect_identical(
-  attr(overNames$control, "bartcore.forests")$vars,
+  dbarts:::forestsRecord(overNames$model)$vars,
   list(NULL, 1L, 2L)
 )
 expect_identical(basisOf(overNames, 2L), column(frame$dose, "dose"))
@@ -1140,7 +1140,7 @@ expect_identical(
   c("forest1", "dose", "dose.1", "scale(age)")
 )
 expect_identical(
-  attr(handedOnFit$control, "bartcore.forests")$vars,
+  dbarts:::forestsRecord(handedOnFit$model)$vars,
   list(NULL, 1L, 3L, 1L)
 )
 # a name handed on that is a variable of Map()'s own cannot be read as the

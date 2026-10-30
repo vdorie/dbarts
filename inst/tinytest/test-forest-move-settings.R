@@ -362,24 +362,27 @@ expect_equal(fixedSigma(list(treeShift = "always", proposal.probs = moving)), 1)
 
 # three entries, for a sampler of one forest
 wrongCount <- function(sampler) {
-  control <- sampler$control
-  entry <- list(proposal.probs = moving, n.perturb.cuts = 3, levelGibbs = TRUE)
-  attr(control, "bartcore.moves") <- list(
-    forests = rep(list(entry), 3L),
-    variance = NULL
+  model <- sampler$model
+  record <- model@forests[[1L]]
+  record@moves <- list(
+    proposal.probs = moving,
+    n.perturb.cuts = 3,
+    levelGibbs = TRUE
   )
-  control
+  model@forests <- rep(list(record), 3L)
+  model
 }
 handed <- build("hetero", ctl())
 expect_error(
   .Call(
     dbarts:::C_dbarts_bartcore_setMoveSettings,
     handed$getPointer(),
+    handed$control,
     wrongCount(handed)
   ),
   "do not match this sampler's forests"
 )
-model <- handed$model
+model <- wrongCount(handed)
 model@tree.prior@power <- 3
 expect_error(
   .Call(
@@ -387,7 +390,7 @@ expect_error(
     handed$getPointer(),
     model,
     handed$data,
-    wrongCount(handed)
+    handed$control
   ),
   "do not match this sampler's forests"
 )
@@ -395,8 +398,8 @@ expect_identical(draws(handed), draws(build("hetero", ctl())))
 rm(handed, model)
 # a refused install through setControl rolls the stored control back
 handed <- build("one", ctl())
-recorded <- handed$control
-handed$control <- wrongCount(handed)
+recorded <- handed$model
+handed$model <- wrongCount(handed)
 expect_error(
   restate(handed, list(proposal.probs = frozen)),
   "do not match this sampler's forests"
@@ -405,7 +408,7 @@ expect_identical(
   unname(handed$control@proposal.probs),
   c(0.6, 0, 0.4, 0, 0, 0.5)
 )
-handed$control <- recorded
+handed$model <- recorded
 expect_identical(draws(handed), draws(build("one", ctl())))
 rm(handed, recorded)
 
@@ -517,12 +520,12 @@ for (stated in list(moving, shipped)) {
 
 # ---- a fit's control handed on, and the verbose summary ----
 
-# the record rides the control; dbarts() drops it with the other records
+# the record rides the model; a control handed on carries none
 stated <- build("two", ctl(), mean = list(proposal.probs = moving))
-expect_false(is.null(attr(stated$control, "bartcore.moves")))
-expect_null(attr(build("two", ctl())$control, "bartcore.moves"))
+expect_false(is.null(dbarts:::modelMoveRecord(stated$model)))
+expect_null(dbarts:::modelMoveRecord(build("two", ctl())$model))
 handedOn <- build("two", stated$control)
-expect_null(attr(handedOn$control, "bartcore.moves"))
+expect_null(dbarts:::modelMoveRecord(handedOn$model))
 expect_identical(draws(handedOn), draws(build("two", ctl())))
 rm(stated, handedOn)
 

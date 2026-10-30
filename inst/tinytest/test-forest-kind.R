@@ -307,7 +307,7 @@ expect_identical(
 expect_identical(made("data", dose)$levels, list(NULL, NULL))
 # a basis written as code records the levels its control's record holds
 for (door in codeDoors) {
-  record <- attr(made(door, zc)$sampler$control, "bartcore.forests")
+  record <- dbarts:::forestsRecord(made(door, zc)$sampler$model)
   expect_identical(
     record$basisTerms[[2L]]$levels,
     c("control", "treated"),
