@@ -215,6 +215,17 @@ A list of functions:
   `value`, when it is accepted with a message and is an error from
   dbarts 1.1-0 - and suppresses the sampler's own \\\sigma\\ draw.
 
+- `student(df = 1)`:
+
+  A Student-t prior with `df` degrees of freedom, finite and at least 1,
+  on a forest's drawn coefficient, given as a forest's `amplitude`; see
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md). A
+  bare `student()` means `df = 1` here, the half-Cauchy, while the
+  response family of the same name,
+  [`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md)`$student`,
+  estimates its df when none is given; each is read by where it is
+  written.
+
 ## Details
 
 Inside the prior arguments of the fitting functions - and inside a

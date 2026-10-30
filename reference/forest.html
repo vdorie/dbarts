@@ -604,7 +604,25 @@ The constructor is not exported: it resolves by bare name inside the
   <dt id="arg-amplitude">amplitude<a class="anchor" aria-label="anchor" href="#arg-amplitude"></a></dt>
 <dd><p>The prior on this forest's coefficient: the one a forest with no
     <code>basis</code> carries, or one for each level of its <code>basis</code>. Left out,
-    it is drawn each sweep. <code>fixed()</code> holds it for the sampler's life,
+    it is drawn each sweep, under a normal prior on a forest with a
+    <code>basis</code> and, on a forest with none, a half-Cauchy prior whose median
+    is the forest's <code>sd</code>. <code>student(df)</code> draws it under a Student-t
+    prior with <code>df</code> degrees of freedom, finite and at least 1;
+    <code>student()</code> is <code>student(1)</code>, the half-Cauchy. With a basis the
+    t is scaled so that its median size is the normal's, so the forest's
+    <code>sd</code> keeps its meaning, the prior median of what the forest
+    contributes, and only the tails move: a coefficient ten times its median
+    size has prior probability 0.06 under <code>student(1)</code>, 0.005 under
+    <code>student(3)</code> and about \(10^{-11}\) under the normal. That
+    tail lets the coefficient follow a multiplier whose scale is far from what
+    the <code>sd</code> states, at the cost of slower mixing along the ridge the
+    coefficient shares with the forest's leaves. With no basis the
+    coefficient's size is the forest's size, its median the <code>sd</code> or, where
+    none is stated, the size the forest has by default, so
+    <code>student(1)</code> restates that default and Bayesian causal forests'
+    prognostic prior is written <code>amplitude = student(1), sd = 2 * sd(y)</code>.
+    The draw is exact, a normal coefficient given a variance drawn from its
+    inverse-gamma conditional. <code>fixed()</code> holds it for the sampler's life,
     the choice being made at creation, wherever the forest stands: a held
     coefficient is 1, and what it multiplies is the basis, so a forest with no
     <code>basis</code> enters at 1, a forest on a numeric column at the column as
@@ -622,9 +640,15 @@ The constructor is not exported: it resolves by bare name inside the
     forest times -0.5 and 0.5. A held coefficient cannot adapt to an
     <code>sd</code> that is too small; where the effect may be larger, state
     <code>sd</code> or let the coefficient be drawn. <code>fixed</code> alone is taken as
-    <code>fixed()</code>, and no other value is. Outside the argument that takes it
-    the constructor is <code>dbartsPriors$fixed()</code>. It is stated for a forest
-    of a model of several; a model of one forest has no amplitude to hold.</p></dd>
+    <code>fixed()</code>, and <code>student</code> alone as <code>student()</code>; no other
+    value is, a response family among them. Outside the argument that takes
+    them the constructors are <code>dbartsPriors$fixed()</code> and
+    <code>dbartsPriors$student()</code>. The prior is stated for a forest of a model
+    of several, at creation; a model of one forest has no coefficient to give
+    a prior, and its size is drawn through the fitting function's leaf prior,
+    as <code>leaf.prior = normal(k = chi(1.5, 2))</code> or
+    <code>normal(sd = invchi(1.5, s))</code>.
+    <code>$getLeafPrior(f)$amplitude</code> reads it back.</p></dd>
 
   <dt id="arg-proposal-probs-n-perturb-cuts-treeshift">proposal.probs, n.perturb.cuts, treeShift<a class="anchor" aria-label="anchor" href="#arg-proposal-probs-n-perturb-cuts-treeshift"></a></dt>
 <dd><p>This forest's tree moves - its proposal mixture, perturb window and
@@ -791,7 +815,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span>   1 forest1: no basis; sd 2.278 (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000437</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000550</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 3 3 2 2 2 2 </span>

@@ -254,6 +254,14 @@ The residual priors chisq and fixed are what a family
       when it is accepted with a message and is an error from dbarts 1.1-0 - and
       suppresses the sampler's own \(\sigma\) draw.</p></dd>
 
+    <dt><code>student(df = 1)</code></dt>
+<dd><p>A Student-t prior with <code>df</code> degrees of freedom, finite and at least
+      1, on a forest's drawn coefficient, given as a forest's
+      <code>amplitude</code>; see <code><a href="forest.html">forest</a></code>. A bare <code>student()</code> means
+      <code>df = 1</code> here, the half-Cauchy, while the response family of the
+      same name, <code><a href="dbartsFamilies.html">dbartsFamilies</a>$student</code>, estimates its df when
+      none is given; each is read by where it is written.</p></dd>
+
 
 </dl></div>
     <div class="section level2">

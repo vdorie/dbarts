@@ -635,18 +635,35 @@ forest(
 
   The prior on this forest's coefficient: the one a forest with no
   `basis` carries, or one for each level of its `basis`. Left out, it is
-  drawn each sweep. `fixed()` holds it for the sampler's life, the
-  choice being made at creation, wherever the forest stands: a held
-  coefficient is 1, and what it multiplies is the basis, so a forest
-  with no `basis` enters at 1, a forest on a numeric column at the
-  column as given, and a forest on a factor, a character or a logical
-  vector of two levels at 0 for the first level and 1 for the second.
-  The forest is then held out of the first level and enters at full size
-  for the second, so it is the second level's difference from the first.
-  Another coding is another basis, and another size is `sd`, which a
-  held coefficient makes exact: the forest's contribution then has prior
-  standard deviation `sd`. A held forest with no basis that states no
-  `sd` has the size
+  drawn each sweep, under a normal prior on a forest with a `basis` and,
+  on a forest with none, a half-Cauchy prior whose median is the
+  forest's `sd`. `student(df)` draws it under a Student-t prior with
+  `df` degrees of freedom, finite and at least 1; `student()` is
+  `student(1)`, the half-Cauchy. With a basis the t is scaled so that
+  its median size is the normal's, so the forest's `sd` keeps its
+  meaning, the prior median of what the forest contributes, and only the
+  tails move: a coefficient ten times its median size has prior
+  probability 0.06 under `student(1)`, 0.005 under `student(3)` and
+  about \\10^{-11}\\ under the normal. That tail lets the coefficient
+  follow a multiplier whose scale is far from what the `sd` states, at
+  the cost of slower mixing along the ridge the coefficient shares with
+  the forest's leaves. With no basis the coefficient's size is the
+  forest's size, its median the `sd` or, where none is stated, the size
+  the forest has by default, so `student(1)` restates that default and
+  Bayesian causal forests' prognostic prior is written
+  `amplitude = student(1), sd = 2 * sd(y)`. The draw is exact, a normal
+  coefficient given a variance drawn from its inverse-gamma conditional.
+  `fixed()` holds it for the sampler's life, the choice being made at
+  creation, wherever the forest stands: a held coefficient is 1, and
+  what it multiplies is the basis, so a forest with no `basis` enters at
+  1, a forest on a numeric column at the column as given, and a forest
+  on a factor, a character or a logical vector of two levels at 0 for
+  the first level and 1 for the second. The forest is then held out of
+  the first level and enters at full size for the second, so it is the
+  second level's difference from the first. Another coding is another
+  basis, and another size is `sd`, which a held coefficient makes exact:
+  the forest's contribution then has prior standard deviation `sd`. A
+  held forest with no basis that states no `sd` has the size
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) gives the
   one forest of an ordinary fit under a continuous response, a quarter
   of the response's range, and one unit of the link's error under
@@ -655,9 +672,15 @@ forest(
   held is the forest times -0.5 and 0.5. A held coefficient cannot adapt
   to an `sd` that is too small; where the effect may be larger, state
   `sd` or let the coefficient be drawn. `fixed` alone is taken as
-  `fixed()`, and no other value is. Outside the argument that takes it
-  the constructor is `dbartsPriors$fixed()`. It is stated for a forest
-  of a model of several; a model of one forest has no amplitude to hold.
+  `fixed()`, and `student` alone as `student()`; no other value is, a
+  response family among them. Outside the argument that takes them the
+  constructors are `dbartsPriors$fixed()` and `dbartsPriors$student()`.
+  The prior is stated for a forest of a model of several, at creation; a
+  model of one forest has no coefficient to give a prior, and its size
+  is drawn through the fitting function's leaf prior, as
+  `leaf.prior = normal(k = chi(1.5, 2))` or
+  `normal(sd = invchi(1.5, s))`. `$getLeafPrior(f)$amplitude` reads it
+  back.
 
 - proposal.probs, n.perturb.cuts, treeShift:
 
@@ -830,7 +853,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>   1 forest1: no basis; sd 2.278 (default)
 #>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)
 #> Running mcmc loop:
-#> total seconds in loop: 0.000437
+#> total seconds in loop: 0.000550
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 3 2 2 2 2 

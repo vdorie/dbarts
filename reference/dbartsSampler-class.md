@@ -1033,14 +1033,14 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
   argument, `amplitude` included, is fixed at creation (a basis changes
   through `setForestBasis`). Each `sd` lands in the channel creation
-  gave it - the half-Cauchy median of a drawn forest created without a
-  basis, the forest's own leaf scale otherwise - divided by the
-  sampler's unit as creation divides it, leaves the scale a numeric
-  forest's default was taken from, states the forest from then on, also
-  where it is the number `getLeafPrior` reports in force, which moves
-  nothing, and is recorded on the `control` attribute creation reads, so
-  every re-creation builds with it. Give exactly one of `leaf.prior` and
-  `forests`.
+  gave it - the median of a drawn forest's coefficient where it was
+  created without a basis, the forest's own leaf scale otherwise -
+  divided by the sampler's unit as creation divides it, leaves the scale
+  a numeric forest's default was taken from, states the forest from then
+  on, also where it is the number `getLeafPrior` reports in force, which
+  moves nothing, and is recorded on the `control` attribute creation
+  reads, so every re-creation builds with it. Give exactly one of
+  `leaf.prior` and `forests`.
 
 - cuts:
 
@@ -2502,19 +2502,21 @@ written back leaves its forest as it is. The list then begins with
 scale times the unit the sampler derived at creation - `sd.stated`,
 `TRUE` or `FALSE`, `multiplier`, what the forest multiplies, `"none"`,
 `"factor"` or `"numeric"`, and `amplitude`, `fixed()` where the forest's
-coefficient is held and absent where it is drawn. `prior.sd.of` says
-what `sd` is the size of: `"forest"` for a forest with no basis,
-`"level difference"` for a factor and `"forest, per unit of basis"` for
-a numeric column, the size exactly where the coefficient is held, with
-`" (prior median)"` where it is drawn. A numeric forest's `sd` is per
-unit of its column and carries the column's name where the basis has
-one, and the list adds `basis.scale`, where the data object records one,
-the standard deviation of the column the default was taken from at
-creation, named as `sd` is. `k.scale` is the forest's own prior sd
-before its coefficient, in the response's units: `sd` itself where the
-coefficient is held, `sd` over 0.674 where it is drawn and the forest
-has a basis, and the unit where a drawn forest with no basis carries its
-`sd` as the median of its coefficient's half-Cauchy prior.
+coefficient is held, `student(df)` where it is drawn under the Student-t
+prior its creation stated, and absent where it is drawn under its
+default prior. `prior.sd.of` says what `sd` is the size of: `"forest"`
+for a forest with no basis, `"level difference"` for a factor and
+`"forest, per unit of basis"` for a numeric column, the size exactly
+where the coefficient is held, with `" (prior median)"` where it is
+drawn. A numeric forest's `sd` is per unit of its column and carries the
+column's name where the basis has one, and the list adds `basis.scale`,
+where the data object records one, the standard deviation of the column
+the default was taken from at creation, named as `sd` is. `k.scale` is
+the forest's own prior sd before its coefficient, in the response's
+units: `sd` itself where the coefficient is held, `sd` over 0.674 where
+it is drawn and the forest has a basis, and the unit where a drawn
+forest with no basis carries its `sd` as the median of its coefficient's
+prior.
 
 On a forest whose scale the multi-forest CALIBRATION MAP sets, on a
 sampler built with `forests =` or `dbartsData(bases = )` (see
@@ -2522,10 +2524,9 @@ sampler built with `forests =` or `dbartsData(bases = )` (see
 pinned at 1, `k.scale` is the map's leaf scale, and the entries above
 that the map adds are absent (so `NULL`) on every other forest, a
 multinomial one included. A drawn forest with no basis carries its `sd`
-as the median of its coefficient's half-Cauchy prior, which does not
-move with the mixture's own variance auxiliary, which is drawn; a
-level's coefficient is drawn under prior variance 1/2 and a numeric
-column's under 1.
+as the median of its coefficient's prior, which does not move with the
+mixture's own variance auxiliary, which is drawn; a level's coefficient
+is drawn under prior variance 1/2 and a numeric column's under 1.
 
 The spread (`k.scale / k`) describes the LEAF-PARAMETER scale of the
 forest total. It equals the prior standard deviation of \\f(x)\\ at
