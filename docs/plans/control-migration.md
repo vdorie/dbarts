@@ -358,7 +358,8 @@ the control's hidden facts refused the pair (100 of the 156 crossed triples main
 Different with no error: a copied control's count, rule and cut count at `dbarts()`, `dbartsSpec()`, `bart()` and
 `xbart()` (dec-B334, call 5) and its count and rule at the direct door (dec-B335), each with the not-used warning;
 at the direct door, from slice 1a, a control from one fit beside another fit's model and data follows the model and
-not the control's hidden facts (21 of the 156 crossed triples differ among those main ran, 35 identical): a plain
+not the control's hidden facts (21 of the 156 crossed triples differ among those main ran, 35 identical, 12 of
+those an unused-argument error on both builds, `binary` not being a `dbartsControl()` argument): a plain
 fit's control beside a variance fit's model runs the variance forest, and a binary control beside a multinomial
 model runs the multinomial model, with its draws, and reads `binary` FALSE; a fresh control beside a fit's model or
 a `dbartsSpec()` data object takes their count and rule (main: the control's 75 and uniform); `dbarts()` given a
