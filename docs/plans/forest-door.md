@@ -7,7 +7,7 @@ No call is held; the rulings' own open questions are ruled too, in [Open calls](
 dec-B518 (the door), dec-B519 (a written NULL), dec-B520 (the names), dec-B521 (multinomial), dec-B522 (no return
 spelling), dec-B523 (later write wins), dec-B524 (the variance forest), dec-B525 (a sharer stating its size),
 dec-B535 (the multinomial reader), dec-B538 (the value in force handed back), dec-B539 (a drawn normal coefficient),
-dec-B540 (`$setLeafPrior` where the coefficient is drawn), dec-B541 (`sd` sets the trees' scale on every option), with
+dec-B540 (`$setLeafPrior` where the coefficient is drawn), dec-B542 (`sd` sets a drawn coefficient's prior scale, a held forest's trees), with
 dec-B254 (parameters, never structure), dec-B276 (a forest by label or position), dec-B477 and dec-A239 (per-forest
 move settings), dec-B511 (the coefficient's prior live), dec-B512 (plain power and base), dec-B514 and dec-B515 (a
 setter means what creation means), dec-B516, dec-B129 (leaf where it means a leaf), dec-B247 (a live count does not
@@ -148,7 +148,7 @@ is one).
 
 | name | lone forest | sharer | no basis, stating `sd` | basis: factor | basis: numeric | multinomial, every category | variance forest |
 |---|---|---|---|---|---|---|---|
-| `sd` | its size, written as `$setLeafPrior(normal(sd = v))` writes it | leaves the group, slice 3; refused until then | its size, held, or under `student(df)` or `normal()` the prior median of the coefficient's size times the trees' scale, written on the trees' scale (dec-B541) | the level difference's size, held, or its prior median where drawn, the same way | the size per unit of the column, held or prior median, the same way | refused, as at creation | not a name |
+| `sd` | its size, written as `$setLeafPrior(normal(sd = v))` writes it | leaves the group, slice 3; refused until then | its size, held, written on the trees; or under `student(df)` or `normal()` the prior median of the coefficient's size in the response's units, written on the coefficient's prior (dec-B542) | the level difference's size, held, or its prior median where drawn, the same way | the size per unit of the column, held or prior median, the same way | refused, as at creation | not a name |
 | `power`, `base` | its depth | its depth | its depth | its depth | as factor | its depth | its depth |
 | `amplitude` | `fixed()` | `fixed()`; `student()` refused, as at creation | `fixed()`, `student(df)`, `normal()` | `fixed()`, `normal()`, `student(df)` | as factor | not a name | not a name |
 | `proposal.probs`, `n.perturb.cuts` | its own | its own | its own | its own | its own | its own | its own |
@@ -163,11 +163,12 @@ coefficient-prior-live. A coefficient has no way back to following a default: a 
 (dec-B522).
 
 Held against drawn follows the coefficient's hold, as at creation: `sd` is the exact size where held and the prior
-median where drawn, under the normal or under `student(df)` (dec-B510). On every option the write reaches the trees' scale and
-leaves the coefficient and leaves already drawn alone (dec-B541; forest-amplitude-normal builds that for `student(df)` on a forest
-with no basis and lands before this door's slice 2). After a restated `sd` on such a forest the coefficient takes some sweeps to
-settle and the fit's spread is wider while it does, as measured in forest-amplitude-normal; this door's help says so. A numeric forest's default `sd` re-derives on `setForestBasis(updateBasisScale = TRUE)` only
-while unstated.
+median where drawn, under the normal or under `student(df)` (dec-B510). Where the coefficient is drawn the write reaches its
+prior, on every kind of forest, and moves no leaf and no drawn coefficient, the trees staying at the response's unit; where it is
+held, the write reaches the trees' scale and leaves leaves already drawn alone (dec-B542; forest-amplitude-normal builds that and
+lands before this door's slice 2). On a basis forest whose coefficient has not been drawn, the write also moves the coefficient's
+start, so the sampler matches one created at that `sd`. A numeric forest's default `sd` re-derives on
+`setForestBasis(updateBasisScale = TRUE)` only while unstated, and reaches the same place.
 
 ### Forests one setting reaches from two doors
 
@@ -181,8 +182,8 @@ live sampler has no such refusal, because no level is recorded for it to contrad
   multinomial model's one entry, it is written, whether it states its own or not. Where there are several, the door
   reaches those stating none of their own, and where all of them state their own it is refused, naming `$setForest`,
   since the call would do nothing. Where there is none it is refused per name (tree-prior-flat's call 13). A forest
-  stating `student(df)` or `normal()` has no k: there the door writes the forest's sd, the trees' scale holding it, by dec-B540 and
-  dec-B541, in setmodel-parameters' slice 4.
+  stating `student(df)` or `normal()` has no k: there the door writes the forest's sd, the coefficient's prior holding it, by
+  dec-B540 and dec-B542, in setmodel-parameters' slice 4.
 - A value at a fitting-function door equal to the one in force is no change, which is how `$setModel(s$model)` and a
   bare `normal()` beside forests that all state `sd` stay taken.
 - `$setLeafPrior(normal())` on a probit `forest(sd = 2)` sampler returns k to drawn, from the spread in force (the
@@ -640,9 +641,9 @@ setmodel-parameters' slice 4; this item's slice 3; coefficient-prior-live. Engin
    included; dec-B522's entry corrected. The maintainer: "Use (a)."
 9. RULED, dec-B539 (2026-10-30). `amplitude = normal()` on a forest with no basis. The maintainer: "Offer a drawn normal
    coefficient here - I like the consistency."
-10. RULED, dec-B540 (2026-10-30), its "median" reading as the forest's sd by dec-B541. A fitting-function door on a forest with no
-    basis that draws a coefficient and is the only candidate: it writes that forest's sd, reading the spelling from creation and not
-    its calibration. The
+10. RULED, dec-B540 (2026-10-30), its "median" being the coefficient's prior median, the forest's sd, by dec-B542. A
+    fitting-function door on a forest with no basis that draws a coefficient and is the only candidate: it writes that forest's
+    sd, reading the spelling from creation and not its calibration. The
     maintainer: "I would point out that we do have some differences between calls creation and after. Some things (e.g.
     data-drive defaults, diving the total sd) only make sense at creation. As long your recommendation is sensitive to
     that distinction, we can use it."
