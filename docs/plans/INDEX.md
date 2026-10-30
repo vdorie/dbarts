@@ -27,7 +27,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | multiforest-veto-rate-falsifier.md | RUN AND REPORTED (YELLOW both column types), 2026-08-09 | Measured the acceptance-rate cost of the empty-leaf veto applying to every forest in an ensemble rather than one; the cost is acceptable. |
-| forest-amplitude-normal.md | PLANNED 2026-10-30 (dec-B539), not yet critiqued; one call held, not blocking | `forest(amplitude = normal())` on a forest with no basis: a drawn normal coefficient where `student(df)` is taken, with `sd` its prior median; no new prior, a statement and one branch in the calibration map, ~80 lines of package code in ~490, after forests-shared-total's slice F. |
+| forest-amplitude-normal.md | PLANNED 2026-10-30 (dec-B539), amended after its blind critique; one call held for the maintainer before the build | `forest(amplitude = normal())` on a forest with no basis: a drawn normal coefficient where `student(df)` is taken, with `sd` its prior median; no new prior, a statement and one branch in the calibration map, ~90 lines of package code in ~650, after forests-shared-total's slice F. |
 | one-forest-basis.md | NOT TAKEN 2026-09-29 (dec-A109) | Opens the lone basis-carrying forest, `y = shift + (B a) f(x)`, under gaussian, probit and logistic (dec-A109): the combiner stops rounding its forest count up to two, six bridge guards and four R gates key on carrying amplitudes rather than on two forests, xbart and rbart_vi refuse a bases-carrying data object, and it lands with an exact-posterior gate, SBC arms and equivalence scenarios. Records that the model is not VCBART's, which ships as K = p + 1. |
 
 ## Tau sampler cluster
