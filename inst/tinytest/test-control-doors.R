@@ -421,7 +421,7 @@ for (family in names(families)) {
   }
 }
 
-# --- rule 1: a flat value beats a written one, the not-used warning naming it ---
+# --- a flat value beats a written one, the not-used warning naming it ---
 
 notUsedMessage <- function(expr) {
   tryCatch(
@@ -456,7 +456,7 @@ tally <- function() {
 expect_identical(tally(), c(1L, 1L))
 expect_identical(tally(), c(0L, 1L))
 
-# --- rule 2: a count beside a forest's own ---
+# --- a count beside a forest's own ---
 
 plainThirty <- y ~ forest(x1 + x2, n.trees = 30L)
 beside <- y ~ forest(x1, n.trees = 30L) + forest(x2, basis = zn)
@@ -502,7 +502,7 @@ expectRow(row, 50L, u = c("n.cuts", quantile))
 row <- counted(terms(plainThirty, n.trees = NULL))
 expectRow(row, 30L)
 
-# --- rule 3: a count where every forest has a basis ---
+# --- a count where every forest has a basis ---
 
 allTerms <- y ~ forest(x1, basis = factor(z)) + forest(x2, basis = zn)
 flatRefusal <- "'n.trees' given to the fitting function is the tree count"
@@ -537,7 +537,7 @@ row <- counted(terms(
 ))
 expectRow(row, c(50L, 50L), u = "n.trees")
 
-# --- rule 4: cut settings beside a data object ---
+# --- cut settings beside a data object ---
 
 expect_true(is.na(plainData@useQuantiles))
 expect_true(anyNA(plainData@n.cuts))

@@ -735,7 +735,7 @@ buildHostSamplerCall <- function(
     callFormals = formals(dbarts::bart)
   )
   # the count and the cut settings go flat, and what the caller stated of them
-  # rides the control (rule: a wrapper's default is never a statement)
+  # rides the control: a wrapper's default is never a statement
   samplerCall[names(attr(control, wrapperCopiesAttr))] <- attr(
     control,
     wrapperCopiesAttr
