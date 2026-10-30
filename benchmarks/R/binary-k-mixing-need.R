@@ -2226,6 +2226,130 @@ runScore <- function(cell, link, rep, discriminate = "") {
   invisible(out)
 }
 
+# The move on a replication scored after the replication's own score: its
+# coverage under the labels that score already has, written to a path of its
+# own, so no earlier score or label is rewritten.
+moveScoreFile <- function(cell, link, rep) {
+  runDir("scores-move", link, cellFile(cell), paste0(repTag(rep), ".rds"))
+}
+
+runMoveScore <- function(cell, link, rep) {
+  sc <- loadChecked(scoreFile(cell, link, rep))
+  design <- loadDesign(cell, link, rep)
+  fit <- loadChecked(fitFile(cell, link, rep, "move"))
+  truth <- truthClasses(design, sc$labels)
+  res <- list()
+  for (r in names(fit$readings)) {
+    summ <- if (is.null(sc$labels)) {
+      fit$readings[[r]]$summary
+    } else {
+      relabel(fit$readings[[r]]$summary, sc$labels)
+    }
+    res[[paste("move", r, sep = ".")]] <- coverageOf(summ, truth, link)
+  }
+  out <- list(
+    cell = cell,
+    link = link,
+    rep = as.integer(rep),
+    coverage = res,
+    kMixing = fit$readings$default$mixing,
+    seconds = fit$seconds,
+    quick = quick
+  )
+  saveAtomic(out, moveScoreFile(cell, link, rep))
+  cat(sprintf("movescore %s %s %d\n", cell, link, as.integer(rep)))
+  invisible(out)
+}
+
+# The move's fit on a replication, unless a reference's job already made it
+# (the same arm, seed and output).
+runMoveFit <- function(cell, link, rep) {
+  if (file.exists(fitFile(cell, link, rep, "move"))) {
+    cat(sprintf("movefit %s %s %d: present\n", cell, link, as.integer(rep)))
+    return(invisible(NULL))
+  }
+  runArm(cell, link, rep, "move")
+}
+
+moveGoRel <- function(cell, link) {
+  file.path("looks", link, sprintf("%s-move-go", cellFile(cell)))
+}
+
+# Whether the move joins a cell and link's replications in tranche 2: the
+# cell shows or is suspected of a problem in any class, bands included, at
+# tranche 1's reading (shown: the class's reading at the first look it
+# resolved; suspected: its point estimates at the last look run). An
+# incomplete tranche 1 read stops the job.
+moveGateDecision <- function(bySide) {
+  why <- character()
+  for (side in names(bySide)) {
+    byLook <- bySide[[side]]
+    if (!length(byLook)) {
+      next
+    }
+    col <- if (side == "sbc") "sbcReading" else "refReading"
+    fr <- firstResolved(byLook, col)
+    last <- byLook[[length(byLook)]]
+    for (cl in fr$class) {
+      cur <- last[last$class == cl, , drop = FALSE]
+      if (fr$reading[fr$class == cl] == "problem") {
+        why <- c(why, paste(side, cl, "shown"))
+      } else if (nrow(cur) && isTRUE(cur$suspected)) {
+        why <- c(why, paste(side, cl, "suspected"))
+      }
+    }
+  }
+  why
+}
+
+runMoveGate <- function(cell, link) {
+  reg <- cellRegime(cell)
+  if (reg$kind != "sbc") {
+    stop("movegate: ", cell, " is not an SBC cell")
+  }
+  bySide <- list()
+  for (kind in c("sbc", "ref")) {
+    n <- if (kind == "sbc") repsFor(cell, 1L) else refsFor(cell, 1L)
+    st <- lookState(kind, cell, link, n)
+    if (length(st$incomplete)) {
+      stop(
+        "movegate ",
+        cell,
+        " ",
+        link,
+        ": tranche 1 incomplete: ",
+        st$incomplete
+      )
+    }
+    looks <- if (kind == "sbc") reg$sbcLooks else reg$refLooks
+    bySide[[kind]] <- Filter(
+      function(r) !is.null(r) && nrow(r) > 0L,
+      lapply(st$looks, function(k) {
+        if (k < length(looks)) {
+          loadChecked(lookFile(kind, cell, link, k))$rows
+        } else if (kind == "sbc") {
+          r <- sbcReading(reg$id, looks[k], look = k)
+          r[r$link == link, , drop = FALSE]
+        } else {
+          refRows(cell, link, looks[k])
+        }
+      })
+    )
+  }
+  why <- moveGateDecision(bySide)
+  if (length(why)) {
+    dir.create(dirname(runDir(moveGoRel(cell, link))), FALSE, TRUE)
+    file.create(runDir(moveGoRel(cell, link)))
+  }
+  cat(sprintf(
+    "movegate %s %s: %s%s\n",
+    cell,
+    link,
+    if (length(why)) "move joins" else "no move",
+    if (length(why)) paste0(" (", paste(why, collapse = "; "), ")") else ""
+  ))
+}
+
 ## ------------------------------------------------------------- references
 
 referenceDir <- function(cell, link, rep) {
@@ -4712,6 +4836,9 @@ checkHalves <- function() {
 # before; its `passed`, its last round's acceptance.
 gateWriter <- function(g, cellsByFile) {
   p <- strsplit(g, "/", fixed = TRUE)[[1L]]
+  if (p[1L] == "looks" && endsWith(p[3L], "-move-go")) {
+    return(jobId("movegate", cellsByFile[[sub("-move-go$", "", p[3L])]], p[2L]))
+  }
   if (p[1L] == "looks") {
     m <- regmatches(p[3L], regexec("^(.*)-(sbc|ref)-go([0-9]+)$", p[3L]))[[1L]]
     return(paste(
@@ -4754,8 +4881,23 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
     )
   ]
   depOk <- length(depBad) == 0L && !anyDuplicated(ids)
-  outs <- unlist(lapply(jobs$cmds, function(c) {
-    vapply(strsplit(c, " ;; ", fixed = TRUE)[[1L]], commandOutput, "")
+  outs <- unlist(lapply(seq_along(ids), function(i) {
+    o <- vapply(
+      strsplit(jobs$cmds[i], " ;; ", fixed = TRUE)[[1L]],
+      commandOutput,
+      ""
+    )
+    # a move fit that waits for a reference's move fit of the same
+    # replication, and skips when it is there, writes nothing of its own
+    p <- strsplit(ids[i], "-", fixed = TRUE)[[1L]]
+    if (
+      p[1L] == "movefit" &&
+        paste("fit", paste(p[-1L], collapse = "-"), "move", sep = "-") %in%
+          deps[[i]]
+    ) {
+      o <- ""
+    }
+    o
   }))
   outs <- outs[nzchar(outs)]
   unique <- !anyDuplicated(outs)
@@ -4801,11 +4943,51 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
       ungated <<- c(ungated, paste(id, g))
     }
   }
+  moveMissing <- character()
   for (reg in regimes) {
     for (cell in regimeCells(reg)) {
       for (link in reg$links) {
+        if (phase == "tranche2" && reg$kind == "sbc") {
+          # the move joins every replication of a cell and link its gate
+          # opens: tranche 1's that ran without it, and tranche 2's new ones
+          mg <- moveGoRel(cell, link)
+          gateId <- jobId("movegate", cell, link)
+          if (!gateId %in% ids) {
+            moveMissing <- c(moveMissing, gateId)
+          }
+          lookGate <- function(rep) {
+            k <- which(rep <= reg$sbcLooks)[1L]
+            if (k >= 2L) lookGoRel("sbc", cell, link, k)
+          }
+          for (rep in seqFrom(refsFor(cell, 1L) + 1L, repsFor(cell, 1L))) {
+            for (id in c(
+              jobId("movefit", cell, link, rep),
+              jobId("movescore", cell, link, rep)
+            )) {
+              for (g in c(mg, lookGate(rep))) {
+                wantGate(id, g)
+              }
+              if (id %in% ids && !gateId %in% deps[[pos[[id]]]]) {
+                moveMissing <- c(moveMissing, paste(id, "before its gate"))
+              }
+            }
+          }
+          if (regimeExtends(reg) && length(reg$sbcLooks) >= 3L) {
+            for (rep in seqFrom(reg$sbcLooks[2L] + 1L, repsFor(cell, 2L))) {
+              id <- jobId("fit", cell, link, rep, "move")
+              wantGate(id, mg)
+              wantGate(id, lookGoRel("sbc", cell, link, 3L))
+              sc <- jobId("score", cell, link, rep)
+              if (sc %in% ids && !id %in% deps[[pos[[sc]]]]) {
+                moveMissing <- c(moveMissing, paste(sc, "without the move"))
+              }
+            }
+          }
+        }
         if (phase == "tranche2" && !regimeExtends(reg)) {
-          if (any(grepl(paste0("-", cellFile(cell), "-"), ids, fixed = TRUE))) {
+          own <- grepl(paste0("-", cellFile(cell), "-"), ids, fixed = TRUE) &
+            !grepl("^move(gate|fit|score)-", ids)
+          if (any(own)) {
             noExtend <- c(noExtend, paste(cell, link))
           }
           next
@@ -4923,12 +5105,16 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
   }
   gateKind <- function(g) {
     ifelse(
-      grepl("-sbc-go", g),
-      "sbc look",
+      grepl("-move-go$", g),
+      "move gate",
       ifelse(
-        grepl("-ref-go", g),
-        "reference look",
-        ifelse(grepl("/go-", g), "round", "passed")
+        grepl("-sbc-go", g),
+        "sbc look",
+        ifelse(
+          grepl("-ref-go", g),
+          "reference look",
+          ifelse(grepl("/go-", g), "round", "passed")
+        )
       )
     )
   }
@@ -4947,6 +5133,7 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
       length(gateOrderBad) == 0L &&
       length(extendBad) == 0L &&
       length(noExtend) == 0L &&
+      length(moveMissing) == 0L &&
       realNotBounded,
     list(
       jobs = length(ids),
@@ -4961,6 +5148,7 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
       gateBeforeWriter = head(gateOrderBad, 20L),
       roundsUngated = head(extendBad, 10L),
       tier3Extended = head(noExtend, 10L),
+      moveMissing = head(moveMissing, 10L),
       realNotBounded = realNotBounded
     )
   )
@@ -4999,6 +5187,10 @@ commandOutput <- function(cmd) {
     a[1L],
     design = key(a[1:5]),
     fit = key(a[1:6]),
+    # the fit file a reference's move fit would write (runMoveFit skips it)
+    movefit = key(c("fit", a[2:4], "move")),
+    movescore = key(a[1:4]),
+    movegate = key(a[1:3]),
     score = key(a[1:5]),
     reference = switch(
       a[2L],
@@ -5447,13 +5639,24 @@ checkIncomplete <- function() {
 # Pooled coverage by class over a regime's scored replications, both links,
 # with bootstrap standard errors over replications (the same resample for
 # every link and class of the regime).
-sbcScores <- function(regimeId, reps, discriminate = "") {
+sbcScores <- function(regimeId, reps, discriminate = "", withMove = FALSE) {
   out <- list()
   for (link in regimes[[regimeId]]$links) {
     for (rep in seq_len(reps)) {
       f <- scoreFile(regimeId, link, rep, discriminate)
       if (file.exists(f)) {
-        out[[paste(link, rep)]] <- loadChecked(f)
+        s <- loadChecked(f)
+        # the move scored later on a replication, under its labels
+        m <- moveScoreFile(regimeId, link, rep)
+        if (
+          withMove &&
+            !nzchar(discriminate) &&
+            !any(startsWith(names(s$coverage), "move.")) &&
+            file.exists(m)
+        ) {
+          s$coverage <- c(s$coverage, loadChecked(m)$coverage)
+        }
+        out[[paste(link, rep)]] <- s
       }
     }
   }
@@ -5579,7 +5782,7 @@ sbcClassify <- function(gEst, seG, dEst, seD, band, reps, look = NA) {
 
 # G and D of a regime's SBC cells, with the reading of each at a look.
 sbcReading <- function(regimeId, reps, arm = "shipped.default", look = NA) {
-  sc <- sbcScores(regimeId, reps)
+  sc <- sbcScores(regimeId, reps, withMove = startsWith(arm, "move."))
   if (length(sc) == 0L) {
     return(data.frame())
   }
@@ -6586,11 +6789,13 @@ runRead <- function(tranche = 1L) {
   )
   d1 <- if (tranche == 1L) d1Secondary() else NULL
   bPooled <- bPooledReading()
+  moveSbc <- moveSbcReading(tranche)
   saveAtomic(
     list(
       table = tab,
       d1Secondary = d1,
       bPooled = bPooled,
+      moveSbc = moveSbc,
       tranche = tranche,
       quick = quick
     ),
@@ -6621,7 +6826,31 @@ runRead <- function(tranche = 1L) {
     )
     show(bPooled)
   }
+  if (!is.null(moveSbc)) {
+    cat("\nThe move's calibration where it ran (pricing; not deciding):\n")
+    show(moveSbc)
+  }
   invisible(tab)
+}
+
+# The move's G and D against the k-known sampler, per SBC cell, link and
+# class, over the replications where the move ran (its own scores and the
+# later move scores), read as the shipped arm is.
+moveSbcReading <- function(tranche) {
+  rows <- list()
+  for (reg in regimes) {
+    if (reg$kind != "sbc") {
+      next
+    }
+    r <- tryCatch(
+      sbcReading(reg$id, repsFor(reg$id, tranche), arm = "move.default"),
+      error = function(e) NULL
+    )
+    if (!is.null(r) && nrow(r)) {
+      rows[[reg$id]] <- r
+    }
+  }
+  if (length(rows)) do.call(rbind, rows) else NULL
 }
 
 ## -------------------------------------------------------------------- jobs
@@ -6707,7 +6936,8 @@ replicationJobs <- function(
   arms = NULL,
   inflight = NULL,
   whenAll = NULL,
-  whenRef = NULL
+  whenRef = NULL,
+  moveWhen = NULL
 ) {
   reg <- cellRegime(cell)
   big <- reg$big
@@ -6915,7 +7145,7 @@ replicationJobs <- function(
     if (reg$kind == "sbc") {
       arms <- c(arms, "oracle")
     }
-    if (ref || (reg$id == "B")) {
+    if (ref || (reg$id == "B") || !is.null(moveWhen)) {
       arms <- c(arms, "move")
     }
     if (
@@ -6940,7 +7170,12 @@ replicationJobs <- function(
           arm,
           disc
         ),
-        fitWhen
+        # the move joins a tranche 2 replication on its cell's move gate
+        if (arm == "move" && !ref && !is.null(moveWhen)) {
+          mergeWhen(fitWhen, moveWhen)
+        } else {
+          fitWhen
+        }
       )
       fitIds <- c(fitIds, id)
     }
@@ -7083,7 +7318,23 @@ cellJobs <- function(cell, link, tranche, add, inflight) {
         )
       }
     }
-  } else if (regimeExtends(reg)) {
+  } else {
+    # the move joins every replication of a cell and link that shows or is
+    # suspected of a problem at tranche 1's reading (moveGateDecision), in
+    # any class; tier 3 cells too, which do not extend
+    gateId <- jobId("movegate", cell, link)
+    moveWhen <- if (reg$kind == "sbc") {
+      add(
+        gateId,
+        character(),
+        FALSE,
+        cell,
+        sprintf("@shipped movegate %s %s", cell, link)
+      )
+      when(moveGoRel(cell, link), gateId)
+    }
+  }
+  if (tranche != 1L && regimeExtends(reg)) {
     if (reg$kind == "sbc" && length(sbcL) >= 3L) {
       for (rep in seqFrom(sbcL[2L] + 1L, min(sbcL[3L], repsFor(cell, 2L)))) {
         replicationJobs(
@@ -7093,7 +7344,8 @@ cellJobs <- function(cell, link, tranche, add, inflight) {
           2L,
           add,
           inflight = inflight,
-          whenAll = goWhen("sbc", 3L, after = FALSE)
+          whenAll = goWhen("sbc", 3L, after = FALSE),
+          moveWhen = moveWhen
         )
       }
     }
@@ -7116,6 +7368,41 @@ cellJobs <- function(cell, link, tranche, add, inflight) {
           whenRef = if (!designed) w
         )
       }
+    }
+  }
+  if (tranche != 1L && reg$kind == "sbc") {
+    # the move on tranche 1's replications that ran without it, scored under
+    # their labels to a path of its own; a replication a reference extension
+    # also gives the move waits for that fit and reuses it
+    refExt <- if (regimeExtends(reg) && length(refL) >= 3L) {
+      seqFrom(refL[2L] + 1L, min(refL[3L], refsFor(cell, 2L)))
+    } else {
+      integer()
+    }
+    for (rep in seqFrom(refsFor(cell, 1L) + 1L, repsFor(cell, 1L))) {
+      w <- mergeWhen(moveWhen, goWhen("sbc", lookOf(sbcL, rep), after = FALSE))
+      fitId <- jobId("movefit", cell, link, rep)
+      add(
+        fitId,
+        c(
+          w$deps,
+          if (rep %in% refExt) {
+            paste0("~", jobId("fit", cell, link, rep, "move"))
+          }
+        ),
+        FALSE,
+        cell,
+        sprintf("@move movefit %s %s %d", cell, link, rep),
+        w$gate
+      )
+      add(
+        jobId("movescore", cell, link, rep),
+        c(w$deps, fitId),
+        FALSE,
+        cell,
+        sprintf("@shipped movescore %s %s %d", cell, link, rep),
+        w$gate
+      )
     }
   }
 }
@@ -7148,6 +7435,7 @@ jobMem <- function(cmd) {
   ladder <- function(i) if (roundL(i) >= max(refLengths())) 1.15 else 1
   gb <- switch(
     kind,
+    movefit = ,
     fit = {
       long <- identical(a[5L], "longOracle")
       draws <- if (!long) {
@@ -7374,6 +7662,9 @@ main <- function(args) {
       runArm(a[1L], a[2L], as.integer(a[3L]), arm, opt(5L))
     },
     score = runScore(a[1L], a[2L], as.integer(a[3L]), opt(4L)),
+    movegate = runMoveGate(a[1L], a[2L]),
+    movefit = runMoveFit(a[1L], a[2L], as.integer(a[3L])),
+    movescore = runMoveScore(a[1L], a[2L], as.integer(a[3L])),
     reference = switch(
       a[1L],
       run = runReferencePart(
