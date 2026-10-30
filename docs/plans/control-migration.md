@@ -352,9 +352,8 @@ that today rode the control.
 Taken where main refuses: `forests = forest()`; `dbarts(n.trees = )`, `dbartsSpec(n.trees = )`,
 `dbarts(n.cuts = , useQuantiles = )`, `dbartsData(n.cuts = , useQuantiles = )`; any control at `bart()` and
 `xbart()`; a carried or fresh control's differing count or rule at `$setControl`; a carried control count beside
-forests that all have a basis; at the direct door, a
-control from one fit beside another fit's model and data where the control's hidden facts refused the pair (100 of
-the 156 crossed triples main was run on, slice 1a).
+forests that all have a basis; at the direct door, a control from one fit beside another fit's model and data where
+the control's hidden facts refused the pair (100 of the 156 crossed triples main was run on, slice 1a).
 
 Different with no error: a copied control's count, rule and cut count at `dbarts()`, `dbartsSpec()`, `bart()` and
 `xbart()` (dec-B334, call 5) and its count and rule at the direct door (dec-B335), each with the not-used warning;
@@ -362,8 +361,8 @@ at the direct door, from slice 1a, a control from one fit beside another fit's m
 not the control's hidden facts (21 of the 156 crossed triples differ among those main ran, 35 identical): a plain
 fit's control beside a variance fit's model runs the variance forest, and a binary control beside a multinomial
 model runs the multinomial model, with its draws, and reads `binary` FALSE; a fresh control beside a fit's model or
-a `dbartsSpec()` data object takes their count and rule (main: the control's 75 and uniform); `dbarts()` given a data object stating its own cut count or rule; a
-written cut setting beside a data object carrying a grid (0.9-34's result restored); at the direct door, a written
+a `dbartsSpec()` data object takes their count and rule (main: the control's 75 and uniform); `dbarts()` given a
+data object stating its own cut count or rule; a written cut setting beside a data object carrying a grid (0.9-34's result restored); at the direct door, a written
 rule beside a fit's data object re-deriving its grid (dec-B526; 0.9-34's result restored); a
 fit of one forest with no basis loses `getTrees()`' `forest` column however the forest was written (dec-B249);
 on a model whose forest with no basis is not first or which has several, `control@n.trees` reads the fitting
@@ -398,8 +397,8 @@ the mirror at the fitting function's level and the comparison there; `control.n.
 branches go; `$setModel`'s structure check gains the moved structure fields, and per-forest move settings are
 installed there; `getTrees`' column by dec-B249; the attribute refusal of a control at `bart()` and `xbart()` goes
 ([`requireDbartsControl`](../../R/dbarts.R) is the class check left), so both take any control; a fresh control at
-the direct door reads as silent. A written value keeps main's reading at every door until slice 2. ~600 lines: R ~200, tinytest ~380 (the dec-B334, dec-B335 and
-dec-B385 rows at every door; `$setModel` per structure field, sampler and stored model unchanged after a
+the direct door reads as silent. A written value keeps main's reading at every door but `$setControl` until slice
+2. ~600 lines: R ~200, tinytest ~380 (the dec-B334, dec-B335 and dec-B385 rows at every door; `$setModel` per structure field, sampler and stored model unchanged after a
 refusal; the column per model kind), docs ~20. The A/B's differing rows are exactly these.
 
 ### Slice 2: the doors (R)
