@@ -4790,6 +4790,7 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
     }
   }
   gateOf <- function(id) if (id %in% ids) gateByJob[[id]] else NA_character_
+  realNotBounded <- checkRealNotBounded()
   missing <- character()
   ungated <- character()
   noExtend <- character()
@@ -4945,7 +4946,8 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
       length(ungated) == 0L &&
       length(gateOrderBad) == 0L &&
       length(extendBad) == 0L &&
-      length(noExtend) == 0L,
+      length(noExtend) == 0L &&
+      realNotBounded,
     list(
       jobs = length(ids),
       gatedJobs = sum(lengths(gates) > 0L),
@@ -4958,9 +4960,34 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
       ungated = head(ungated, 20L),
       gateBeforeWriter = head(gateOrderBad, 20L),
       roundsUngated = head(extendBad, 10L),
-      tier3Extended = head(noExtend, 10L)
+      tier3Extended = head(noExtend, 10L),
+      realNotBounded = realNotBounded
     )
   )
+}
+
+# A single real dataset never reads bounded: its seeds share one reference,
+# so its stuck run is one value repeated and has no spread to bound it.
+checkRealNotBounded <- function() {
+  per <- data.frame(
+    rep = 1L,
+    seed = 1:6,
+    accepted = TRUE,
+    S = c(0.001, 0.002, 0.003, 0.001, 0.002, 0.003),
+    Smove = 0.002,
+    moveS = 0.002,
+    stuck = 0.003,
+    ctl = NA_real_,
+    shippedTransient = 0,
+    moveTransient = 0,
+    stationary = 0,
+    kFromMoveHalf = FALSE,
+    kShare = c(0.001, 0, -0.001, 0.001, 0, -0.001)
+  )
+  b <- refClassReading(per, "B1:check", "probit", "fInt", 1L, TRUE)
+  per$rep <- 1:6
+  s <- refClassReading(per, "S6", "probit", "fInt", 6L, FALSE)
+  b$refReading == "measured" && s$refReading == "bounded"
 }
 
 # A command's output path, for the uniqueness check.
@@ -5655,6 +5682,19 @@ correctedDistanceFloor <- function(observed, s) {
 # bounds; the 80 percent rule and its sensitivity reading. n: the references
 # read, the first n replications'.
 refRows <- function(cell, link, n) {
+  pers <- refPerClass(cell, link, n)
+  if (is.null(pers)) {
+    return(NULL)
+  }
+  isB <- cellRegime(cell)$id == "B"
+  rows <- lapply(names(pers), function(cl) {
+    refClassReading(pers[[cl]], cell, link, cl, n, isB)
+  })
+  do.call(rbind, rows)
+}
+
+# Per class, the per-reference (B: per-seed) values refClassReading reads.
+refPerClass <- function(cell, link, n) {
   reps <- seq_len(n)
   rs <- list()
   fk <- list()
@@ -5750,9 +5790,9 @@ refRows <- function(cell, link, n) {
       })
     )
     per$kShare <- per$shippedTransient - per$moveTransient
-    rows[[cl]] <- refClassReading(per, cell, link, cl, length(reps), isB)
+    rows[[cl]] <- per
   }
-  do.call(rbind, rows)
+  rows
 }
 
 refClassReading <- function(per, cell, link, cl, attempted, isB) {
@@ -5796,7 +5836,11 @@ refClassReading <- function(per, cell, link, cl, attempted, isB) {
         (is.finite(stuck[["se"]]) &&
           stuck[["est"]] >= bar &&
           stuck[["est"]] - tP * stuck[["se"]] > 0))
-    bounded <- is.finite(stuck[["se"]]) &&
+    # a real dataset's stuck run, stationary tails and fixed-k arms are one
+    # measurement on its one reference, shared by every seed: their spread
+    # over seeds is no measure of their noise, so no bounded reading
+    bounded <- !isB &&
+      is.finite(stuck[["se"]]) &&
       is.finite(k[["se"]]) &&
       stuck[["est"]] + tN * stuck[["se"]] < bar &&
       k[["est"]] + tN * k[["se"]] < bar
@@ -5881,6 +5925,90 @@ refClassReading <- function(per, cell, link, cl, attempted, isB) {
     sized = is.finite(main$S[["se"]]) && main$S[["se"]] <= sizingSe,
     need = need
   )
+}
+
+# The real datasets pooled, each a replication (the pre-registered
+# alternative to reading each dataset against its one reference), reported
+# beside the per-dataset readings and deciding nothing: per group (B1, B2),
+# link and class, a dataset's seed means of S, its transients and k's share
+# and its one stuck run; a dataset whose reference failed counts as a failed
+# replication. Read twice: under the 80 percent rule, and over the datasets
+# that passed alone.
+bPooledReading <- function() {
+  cells <- regimeCells(regimes$B)
+  group <- sub(":.*$", "", cells)
+  out <- list()
+  for (g in unique(group)) {
+    for (link in regimes$B$links) {
+      units <- list()
+      for (i in which(group == g)) {
+        pers <- refPerClass(cells[i], link, 1L)
+        units[[cells[i]]] <- if (is.null(pers)) {
+          NULL
+        } else {
+          lapply(pers, function(per) {
+            m <- function(v) mean(v, na.rm = TRUE)
+            data.frame(
+              rep = i,
+              seed = 1L,
+              accepted = all(per$accepted),
+              S = m(per$S),
+              Smove = m(per$Smove),
+              moveS = m(per$moveS),
+              stuck = per$stuck[1L],
+              ctl = NA_real_,
+              shippedTransient = m(per$shippedTransient),
+              moveTransient = m(per$moveTransient),
+              stationary = m(per$stationary),
+              kFromMoveHalf = per$kFromMoveHalf[1L],
+              kShare = m(per$kShare)
+            )
+          })
+        }
+      }
+      attempted <- sum(group == g)
+      classes <- unique(unlist(lapply(units, names)))
+      for (cl in classes) {
+        per <- do.call(rbind, lapply(units, `[[`, cl))
+        failed <- attempted - nrow(per)
+        if (failed > 0L) {
+          none <- per[rep(1L, failed), , drop = FALSE]
+          num <- setdiff(names(none), c("rep", "seed", "accepted"))
+          none[num] <- NA
+          none$accepted <- FALSE
+          none$kFromMoveHalf <- FALSE
+          none$rep <- -seq_len(failed)
+          per <- rbind(per, none)
+        }
+        key <- paste0(g, ":pooled")
+        all <- refClassReading(per, key, link, cl, attempted, FALSE)
+        pass <- refClassReading(
+          per[per$accepted, , drop = FALSE],
+          key,
+          link,
+          cl,
+          sum(per$accepted),
+          FALSE
+        )
+        out[[length(out) + 1L]] <- data.frame(
+          group = g,
+          link = link,
+          class = cl,
+          datasets = attempted,
+          passed = sum(per$accepted),
+          S = pass$S,
+          seS = pass$seS,
+          stuck = pass$stuck,
+          seStuck = pass$seStuck,
+          kShare = pass$kShare,
+          seK = pass$seK,
+          reading = all$refReading,
+          readingPassed = pass$refReading
+        )
+      }
+    }
+  }
+  if (length(out)) do.call(rbind, out) else NULL
 }
 
 ## ------------------------------------------------------------------ looks
@@ -6457,8 +6585,15 @@ runRead <- function(tranche = 1L) {
     })
   )
   d1 <- if (tranche == 1L) d1Secondary() else NULL
+  bPooled <- bPooledReading()
   saveAtomic(
-    list(table = tab, d1Secondary = d1, tranche = tranche, quick = quick),
+    list(
+      table = tab,
+      d1Secondary = d1,
+      bPooled = bPooled,
+      tranche = tranche,
+      quick = quick
+    ),
     runDir(sprintf("readings-t%d.rds", tranche))
   )
   show <- function(x) {
@@ -6478,6 +6613,13 @@ runRead <- function(tranche = 1L) {
   if (!is.null(d1)) {
     cat("\nD1 secondary reading (the pilot's replications; not deciding):\n")
     show(d1)
+  }
+  if (!is.null(bPooled)) {
+    cat(
+      "\nReal datasets pooled, each a replication (the pre-registered",
+      "alternative; not deciding):\n"
+    )
+    show(bPooled)
   }
   invisible(tab)
 }
