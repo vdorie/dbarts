@@ -38,6 +38,11 @@
 # over its pair. Every oracle's grid is checked against one twice as wide
 # (twice as fine on a quantile scale): its functionals agree to 1e-4.
 #
+# The shared-total arms follow: two or three held forests with no basis that
+# share one total, each at T / sqrt(K) over its own trees, beside a held
+# factor, beside a forest with no basis stating sd, alone at k 2 and 3, and at
+# unequal counts; the functional is their sum in each cell.
+#
 # Not seen here: probit and logistic, subset, a numeric multiplier under
 # logistic, and n for n - 1 in a column's scale on a held arm, which the
 # scale's literals in tests/cpp and the tinytest record's 1e-12 hold.
@@ -1019,6 +1024,129 @@ for (name in names(studentArms)) {
     ),
     fit = numericFit
   ) ||
+    anyFailure
+}
+# ---- the shared-total arms ----
+
+# Two or more held forests with no basis that state no sd share one total,
+# T = range(y) / (2 k): each has sd T / sqrt(K) over its own trees, whatever
+# its count, so their sum has sd T. On the rows of no factor the sampler sees
+# only that sum, so the functional is the sum of their terms in each cell,
+# with each forest's split probability; a forest's count, where it states
+# one, is its own.
+forestTrees <- function(arm) {
+  vapply(
+    arm$forests,
+    function(spec) if (is.null(spec$trees)) arm$trees else spec$trees,
+    0L
+  )
+}
+plainForests <- function(arm) {
+  which(vapply(arm$forests, function(spec) is.null(spec$basis), NA))
+}
+plainNames <- function(arm) {
+  plain <- plainForests(arm)
+  c(sprintf("term%d[0]", plain), sprintf("term%d[1]", plain))
+}
+sharedSampler <- function(arm, control) {
+  dbarts(
+    x,
+    y,
+    family = gaussian(sigma = dbartsPriors$fixed(sigma^2)),
+    leaf.prior = dbartsPriors$normal(k = arm$k),
+    forests = Map(heldForest, arm$forests, forestTrees(arm)),
+    control = control
+  )
+}
+sharedFit <- function(seed, arm, kept) {
+  set.seed(seed)
+  control <- dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.cuts = 1L,
+    updateState = FALSE,
+    keepTrainingFits = TRUE
+  )
+  sampler <- sharedSampler(arm, control)
+  result <- sampler$run(numBurn, kept)
+  shift <- sampler$getLeafPrior(1L)$response.shift
+  terms <- termDraws(result$train, shift, arm)
+  first <- plainForests(arm)[[1L]]
+  for (c in 0:1) {
+    terms[[sprintf("plain[%d]", c)]] <- terms[[sprintf("term%d[%d]", first, c)]]
+  }
+  terms <- terms[!names(terms) %in% plainNames(arm)]
+  trees <- forestTrees(arm)
+  splits <- lapply(seq_along(trees), function(f) {
+    result$varcount[1L, f, ] / trees[[f]]
+  })
+  names(splits) <- paste0("split", seq_along(trees))
+  vapply(c(terms, splits), mean, 0)
+}
+sharedOracle <- function(arm, share = sqrt) {
+  sampler <- sharedSampler(
+    arm,
+    dbartsControl(n.chains = 1L, n.threads = 1L, n.cuts = 1L)
+  )
+  unit <- sampler$data@forest.calibration[["unit"]]
+  shift <- sampler$getLeafPrior(1L)$response.shift
+  plain <- plainForests(arm)
+  numSharers <- sum(vapply(arm$forests[plain], function(s) is.null(s$sd), NA))
+  total <- diff(range(y)) / (2 * arm$k)
+  trees <- forestTrees(arm)
+  forests <- lapply(seq_along(arm$forests), function(f) {
+    spec <- arm$forests[[f]]
+    sd <- if (!is.null(spec$sd)) {
+      spec$sd
+    } else if (is.null(spec$basis)) {
+      total / share(numSharers)
+    } else {
+      unit
+    }
+    list(
+      multiplier = if (is.null(spec$basis)) rep(1, n) else spec$basis,
+      trees = trees[[f]],
+      sd = sd
+    )
+  })
+  exact <- exactPosterior(forests, shift)
+  for (c in 0:1) {
+    exact[[sprintf("plain[%d]", c)]] <- sum(
+      exact[sprintf("term%d[%d]", plain, c)]
+    )
+  }
+  exact[!names(exact) %in% plainNames(arm)]
+}
+sharedArms <- list(
+  "two sharers beside a held factor" = list(
+    forests = list(list(), list(), list(basis = z1)),
+    trees = 2L,
+    k = 2
+  ),
+  "three forests with no basis, one stating sd" = list(
+    forests = list(list(sd = 0.3 * unit), list(), list()),
+    trees = 2L,
+    k = 2
+  ),
+  "two sharers alone at k 2" = list(
+    forests = list(list(), list()),
+    trees = 2L,
+    k = 2
+  ),
+  "two sharers alone at normal(k = 3)" = list(
+    forests = list(list(), list()),
+    trees = 2L,
+    k = 3
+  ),
+  "two sharers of 2 and 3 trees" = list(
+    forests = list(list(trees = 2L), list(trees = 3L)),
+    trees = 2L,
+    k = 2
+  )
+)
+for (name in names(sharedArms)) {
+  arm <- sharedArms[[name]]
+  anyFailure <- runArm(name, arm, exact = sharedOracle(arm), fit = sharedFit) ||
     anyFailure
 }
 if (anyFailure) {
