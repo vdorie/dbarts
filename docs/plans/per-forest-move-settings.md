@@ -134,7 +134,7 @@ Read, and run on main at 7c264c37 (shipped build, arm64 macOS):
   `bartBT()` has none. `dbartsSpec(proposal.probs = )` writes the control's slot (run).
 - A control taken from a fit loses its `bartcore.*` attributes at `dbarts()` and `dbartsSpec()`
   (`resolveSamplerSpec`) and is refused at `bart()` and `xbart()`
-  ([`refuseFitStateControl`](../../R/dbarts.R); run).
+  (`refuseFitStateControl`, since gone; run).
 - The verbose creation summary ([`printInitialSummary`](../../src/R_interface_bartcore.cpp)) prints the
   control's shift mode and mixture as the fit's.
 - The shipped header. [`DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h) covers no creation and no

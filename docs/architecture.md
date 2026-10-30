@@ -80,7 +80,8 @@ periods ride their own model slots; the censoring status and the quantile rule
 ride the data object, in `data@status` and `data@useQuantiles`. A control holds
 run settings: its `n.trees`, `useQuantiles` and `binary` are copies the sampler
 writes from the model and data ([`mirrorControl`](../R/records.R)), and the bridge
-reads none of them. A forest's default tree count and tree prior go by whether
+reads none of them; a control taken from a fit states none of them to the next
+fit or sampler ([`controlValueKind`](../R/records.R)). A forest's default tree count and tree prior go by whether
 it has a basis, and the model's tree prior holds the first forest's
 (docs/design/forest-defaults-by-kind.md). The anchor and the unit the engine
 derived at the first creation ride the data object: the engine divides a stated

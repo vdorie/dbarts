@@ -162,7 +162,7 @@ matched call wins; otherwise the control's slot is taken when the
 constructor's `dbarts.supplied` record names it or the slot differs from
 a fresh control, so an explicit default and a post-construction slot
 edit both speak. A control carrying a `bartcore.*` attribute is refused
-by [`refuseFitStateControl`](../../R/dbarts.R). Review found and fixed:
+by `refuseFitStateControl`, since replaced by the class check [`requireDbartsControl`](../../R/dbarts.R). Review found and fixed:
 `keepTrees` and `seed` re-read as locals after the merge; xbart's cell
 samplers all seeded from a control-carried seed; the stale control
 after a refused mixture install; the retired `proposal.probs` beside a

@@ -428,8 +428,10 @@ forest(
     same count. Where every forest has a \code{basis} the fitting function's
     tree count and tree prior have no forest to belong to, and one that is
     stated is refused, the default's own value included: state it on a forest.
-    A sampler's \code{control@n.trees} and \code{model@tree.prior} hold its
-    first forest's.
+    A sampler's \code{control@n.trees} holds the count at the fitting
+    function's level: the forest with no \code{basis}'s, or the first forest's
+    where every forest has a \code{basis}. Its \code{model@tree.prior} holds
+    the first forest's.
   }
   \item{sd}{
     The size of what this forest contributes, in the response's units: the
