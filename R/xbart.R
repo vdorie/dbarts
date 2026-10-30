@@ -36,7 +36,7 @@ xbart <- function(
 ) {
   matchedCall <- match.call()
   # a NULL where the default is not NULL is refused by name
-  refuseNullArguments(n.trees, power, base)
+  refuseNullArguments(n.trees, n.cuts, useQuantiles, power, base)
   if (!missing(parallel)) {
     refuseNullArguments(parallel)
   }
@@ -122,34 +122,40 @@ xbart <- function(
     requireDbartsControl(control, "xbart"),
     "xbart"
   )
-  carried <- attr(control, controlCarriedAttr, exact = TRUE)$values
+  stated <- plainForestStated(control, names(matchedCall))
+  # the count, a grid of one where written on the control, and the cut settings,
+  # which go on the model records and the data object
+  copies <- list(
+    n.trees = n.trees,
+    n.cuts = n.cuts,
+    useQuantiles = useQuantiles
+  )
+  read <- readWrittenCopies(
+    control,
+    copies[intersect(names(copies), names(matchedCall))]
+  )
+  copies[names(read$flat)] <- read$flat
+  n.trees <- copies$n.trees
+  n.cuts <- copies$n.cuts
+  useQuantiles <- copies$useQuantiles
+  carried <- read$carried$values
+  control <- clearWrittenCopies(control)
   attr(control, controlCarriedAttr) <- NULL
   resolved <- mergeFrontDoorControl(
     control,
     matchedCall,
-    list(
-      n.cuts = n.cuts,
-      useQuantiles = useQuantiles,
-      n.thin = n.thin,
-      storage = storage,
-      n.trees = n.trees
-    )
+    list(n.thin = n.thin, storage = storage)
   )
-  n.cuts <- resolved$n.cuts
-  useQuantiles <- resolved$useQuantiles
   n.thin <- resolved$n.thin
   storage <- resolved$storage
-  # the grid and the RNG block read these; only the four knobs above are the
-  # control's own copies
-  n.trees <- resolved$n.trees
   for (name in names(carried)) {
-    if (!sameRecycled(carried[[name]], resolved[[name]])) {
+    if (!sameRecycled(carried[[name]], copies[[name]])) {
       warnControlNotUsed(
         name,
         carried[[name]],
         paste0(
           "this cross-validation takes ",
-          paste(unique(resolved[[name]]), collapse = ", "),
+          paste(unique(copies[[name]]), collapse = ", "),
           "; state it as xbart(",
           name,
           " = )"
@@ -163,8 +169,6 @@ xbart <- function(
   if (is.na(seed)) {
     seed <- control@seed
   }
-  control@n.cuts <- n.cuts
-  control@useQuantiles <- useQuantiles
   control@n.thin <- n.thin
   control@storage <- storage
   control@n.chains <- 1L
@@ -257,7 +261,10 @@ xbart <- function(
       "with bart()/dbarts() using family = \"aft\" or \"hazard\" instead"
     )
   }
-  data@n.cuts <- recycleNumCuts(control@n.cuts, ncol(data@x))
+  data <- applyCutSettings(
+    data,
+    list(n.cuts = n.cuts, useQuantiles = useQuantiles, stated = stated)
+  )
   data@sigma <- sigest
 
   # a factor/logical/character response is a classification; xbart cross-
@@ -350,8 +357,7 @@ xbart <- function(
     }
   }
 
-  # the grid comes from the formal where the caller named it and from the
-  # control's own slot where they did not, one value either way
+  # the grid: the formal, or a count written on the control
   n.trees <- coerceOrError(n.trees, "integer")
   if (anyNA(n.trees) || any(n.trees <= 0L)) {
     stop("'n.trees' must contain only positive integers")
@@ -572,7 +578,6 @@ xbart <- function(
   # each cell's tree count goes on its model's record (cellModel); the
   # quantile rule is the data object's, which the shared handle takes
   model@forests <- list(plainForestRecord(n.trees[1L]))
-  data@useQuantiles <- control@useQuantiles
 
   numObservations <- length(data@y)
   if (method == "k-fold") {
@@ -1185,7 +1190,6 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
       ) {
         treeIndex <- treeIndex + 1L
         cellControl <- spec$control
-        cellControl@n.trees <- spec$n.trees[cells$iTrees[cell]]
         cellControl@seed <- treeSeeds[treeIndex]
         sampler <- bartcoreSamplerFromHandle(
           handle,

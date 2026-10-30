@@ -79,7 +79,7 @@ rbart_vi <- function(
   matchedCall <- match.call()
   callingEnv <- parent.frame()
   # a NULL where the default is not NULL is refused by name
-  refuseNullArguments(n.trees, power, base)
+  refuseNullArguments(n.trees, n.cuts, useQuantiles, power, base)
   # 'k' is read in the prior vocabulary, so it is judged without forcing it
   if (length(nullWritten(match.call(), "k", callingEnv)) > 0L) {
     refuseNullArgument(NULL, "k")
@@ -136,19 +136,25 @@ rbart_vi <- function(
     stop("n.threads must be a non-negative integer")
   }
 
+  # the control names none of the count and the cut settings, which go flat to
+  # the sampler with a record of what this function's caller stated of them
+  checkFlatCopies(n.trees, n.cuts, useQuantiles)
   controlCall <- redirectCall(matchedCall, dbarts::dbartsControl)
   controlCall$seed <- NULL
+  controlCall[controlWrittenNames] <- NULL
   missingDefaults <- names(formals(rbart_vi))[
     names(formals(rbart_vi)) %in% names(formals(dbartsControl))
   ]
   missingDefaults <- missingDefaults[
-    missingDefaults %not_in% c(names(controlCall), "...", "seed")
+    missingDefaults %not_in%
+      c(names(controlCall), "...", "seed", controlWrittenNames)
   ]
   controlCall[missingDefaults] <- formals(rbart_vi)[missingDefaults]
   if ("n.threads" %in% missingDefaults) {
     controlCall[["n.threads"]] <- n.threads
   }
   control <- eval(controlCall, envir = callingEnv)
+  attr(control, plainStatedAttr) <- plainForestStated(NULL, argNames)
   control@keepFits <- TRUE
 
   control@call <- if (keepCall) matchedCall else call("NULL")
@@ -339,6 +345,7 @@ rbart_vi <- function(
   }
 
   dataCall <- redirectCall(matchedCall, dbarts::dbartsData)
+  dataCall[c("n.cuts", "useQuantiles")] <- NULL
   if (!inherits(formula, "dbartsData")) {
     dataCall$factors <- "indicators"
     dataCall$na.action <- quote(stats::na.omit)
@@ -422,6 +429,9 @@ rbart_vi <- function(
   samplerArgs <- namedList(
     formula = data,
     control,
+    n.trees,
+    n.cuts,
+    useQuantiles,
     power,
     base,
     leaf.prior,

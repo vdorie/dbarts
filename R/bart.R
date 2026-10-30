@@ -734,6 +734,13 @@ buildHostSamplerCall <- function(
     dbarts::dbarts,
     callFormals = formals(dbarts::bart)
   )
+  # the count and the cut settings go flat, and what the caller stated of them
+  # rides the control (rule: a wrapper's default is never a statement)
+  samplerCall[names(attr(control, wrapperCopiesAttr))] <- attr(
+    control,
+    wrapperCopiesAttr
+  )
+  attr(control, wrapperCopiesAttr) <- NULL
   samplerCall$control <- control
   samplerCall$n.samples <- NULL
   samplerCall$leaf.prior <- priors$leaf.prior
@@ -1063,7 +1070,7 @@ bart <- function(
   refuseForeignFrontDoorArgs(supplied, "bart", names(formals(dbarts::bart)))
   # a NULL where the default is not NULL is refused by name, ahead of the
   # statements read from what is written
-  refuseNullArguments(n.trees, power, base)
+  refuseNullArguments(n.trees, n.cuts, useQuantiles, power, base)
   if (!missing(samplerOnly)) {
     refuseNullArguments(samplerOnly)
   }
@@ -1295,13 +1302,15 @@ bart <- function(
     stop(naThreadsControlMessage, call. = FALSE)
   }
   controlCall <- redirectCall(matchedCall, dbarts::dbartsControl)
+  # the control built here names none of these, which go flat to the sampler
+  controlCall[controlWrittenNames] <- NULL
   # '...' is a formal of both and names no value, so it is excluded before
   # the shared names are evaluated as defaults
   sharedFormals <- setdiff(names(formals(dbarts::bart)), "...")
   missingDefaultArgs <- sharedFormals[
     sharedFormals %in%
       names(formals(dbarts::dbartsControl)) &
-      sharedFormals %not_in% names(matchedCall)
+      sharedFormals %not_in% c(names(matchedCall), controlWrittenNames)
   ]
   if (length(missingDefaultArgs) > 0L) {
     currentEnv <- sys.frame(sys.nframe())
@@ -1351,11 +1360,21 @@ bart <- function(
     setdiff(c(names(matchedCall), shorthandSupplied), nullByDefault),
     remedy = !inherits(formula, "dbartsData")
   )
-  attr(control, controlCarriedAttr) <- attr(
-    suppliedControl,
-    controlCarriedAttr,
-    exact = TRUE
+  # a value this function's caller wrote flat beats the control's, and one
+  # left out takes the control's or the default
+  flatCopies <- checkFlatCopies(
+    if (!missing(n.trees)) n.trees,
+    if (!missing(n.cuts)) n.cuts,
+    if (!missing(useQuantiles)) useQuantiles
   )
+  if (!is.null(suppliedControl)) {
+    read <- readWrittenCopies(suppliedControl, flatCopies)
+    flatCopies <- read$flat
+    attr(control, controlCarriedAttr) <- read$carried
+  }
+  defaults <- formals(dbarts::bart)[controlWrittenNames]
+  defaults[names(flatCopies)] <- flatCopies
+  attr(control, wrapperCopiesAttr) <- defaults
   # the retired flat spelling of the mixture wins over the control's slot, as
   # every other flat name does - unless the control's own call NAMED that slot,
   # which is one setting written twice and is refused by name. A slot merely
@@ -2530,7 +2549,7 @@ packageMultinomialResults <- function(
     levels.source = levels.source,
     K = K,
     n.chains = n.chains,
-    n.trees = control@n.trees,
+    n.trees = sampler$control@n.trees,
     y = y,
     yhat.train = shapeChannel(samples$train, trainNames),
     # the per-category varcount channel shares the fits' raw p x K x n.samples
@@ -2750,7 +2769,7 @@ packageOrdinalResults <- function(
     levels = levels,
     K = K,
     n.chains = n.chains,
-    n.trees = control@n.trees,
+    n.trees = sampler$control@n.trees,
     # the observed category as an ordered factor over the resolved levels, for
     # residuals() and printing (sampler$data@y holds 1-based codes)
     y = factor(
@@ -3022,7 +3041,7 @@ packageNegbinResults <- function(
     call = storedFitCall(control@call),
     family = "nbinom",
     n.chains = n.chains,
-    n.trees = control@n.trees,
+    n.trees = sampler$control@n.trees,
     y = sampler$data@y,
     # the per-draw shape r, the sigma-shaped count analog
     shape = convertSamplesFromDbartsToBart(
@@ -3301,11 +3320,15 @@ bart2Hurdle <- function(
   positiveCall["seed"] <- list(seeds[[2L]])
   positiveCall$keepTrees <- control@keepTrees
   # the thread-budget warning is once per session, and the zero component
-  # already raised it for the same n.threads and n.chains
+  # already raised it and the not-used warning for the same arguments
   positive <- withCallingHandlers(
     eval(positiveCall, callingEnv),
     warning = function(w) {
-      if (isExcessThreadsWarning(w)) invokeRestart("muffleWarning")
+      if (
+        isExcessThreadsWarning(w) || inherits(w, "dbartsControlNotUsedWarning")
+      ) {
+        invokeRestart("muffleWarning")
+      }
     }
   )
 
@@ -3990,7 +4013,7 @@ bartBT <- function(
   keepsampler = keeptrees
 ) {
   # a NULL where the default is not NULL is refused by name
-  refuseNullArguments(ntree, power, base)
+  refuseNullArguments(ntree, numcut, usequants, power, base)
   # 'k' is read in the prior vocabulary, so it is judged without forcing it
   if (length(nullWritten(match.call(), "k", parent.frame())) > 0L) {
     refuseNullArgument(NULL, "k")
@@ -4073,16 +4096,13 @@ bartBT <- function(
 
   control <- dbartsControl(
     keepTrainingFits = as.logical(keeptrainfits),
-    useQuantiles = as.logical(usequants),
     keepTrees = FALSE,
     n.burn = nskip,
-    n.trees = ntree,
     n.chains = nchain,
     n.threads = nthread,
     n.thin = keepevery,
     printEvery = printevery,
     printCutoffs = printcutoffs,
-    n.cuts = numcut,
     seed = if (is.na(seed)) NULL else seed,
     proposal.probs = proposalprobs
   )
@@ -4097,7 +4117,9 @@ bartBT <- function(
       n.trees = "ntree",
       power = "power",
       base = "base",
-      leaf.prior = "k"
+      leaf.prior = "k",
+      n.cuts = "numcut",
+      useQuantiles = "usequants"
     ),
     remedy = FALSE
   )
@@ -4156,6 +4178,9 @@ bartBT <- function(
     leaf.prior = leaf.prior,
     family = family,
     control = control,
+    n.trees = ntree,
+    n.cuts = numcut,
+    useQuantiles = as.logical(usequants),
     # dbarts() takes NULL for an estimate BayesTree spells NA
     sigest = sigest,
     factors = "indicators",
