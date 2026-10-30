@@ -700,6 +700,17 @@ items
     gaussian) and setActiveRows handing the redraw a zero fit (killer
     mask-redraw-exact.R quick probit). Both were run by hand at landing
     (docs/plans/empty-leaf-membership.md).
+  forest-amplitude-normal: ruled, not built (dec-B539). A forest with no
+    basis takes forest(amplitude = normal()), a drawn normal coefficient,
+    where it takes student(df), refused where student() is (a lone forest,
+    a sharer). sd is its prior median, and with no sd its median is
+    student(df)'s there. The engine's forestMapEntry draws a coefficient
+    of kind none only where a df is stated after the default flip, so it
+    needs a way to say normal. New prior: plan with a blind critique, opus
+    implementer, opus review with mutants, an exact gate. Unsized, a rough
+    guess of a few hundred lines. After forests-shared-total's slice F;
+    for 1.0-0, with forest-door, whose $getForest and amplitude table take
+    it. Forest-door's own normal() on a basis forest stays in its slice 2.
   forest-prior-args: how a model of several forests is written, and
     what a forest's sd means. Written: each forest() is one function,
     the first included (dec-B268); a multiplier is the basis argument,
