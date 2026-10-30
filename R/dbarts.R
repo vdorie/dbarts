@@ -541,8 +541,8 @@ dbartsControl <- function(
     seed = resolveSeedArg(seed, "dbartsControl", refuse = TRUE),
     updateState = as.logical(updateState)
   )
-  # a plain attribute, deliberately not a slot (a slot would enter every validity check and
-  # every stored control's printed form)
+  # a plain attribute, deliberately not a slot (a slot would enter every
+  # validity check and every stored control's printed form)
   attr(result, controlSuppliedAttr) <- unique(c(
     intersect(namedHere, names(formals(dbarts::dbartsControl))),
     # the retired spelling names the same slot
