@@ -35,6 +35,18 @@ xbart <- function(
   ...
 ) {
   matchedCall <- match.call()
+  # a NULL where the default is not NULL is refused by name
+  if (!missing(n.trees)) {
+    refuseNullArgument(n.trees, "n.trees")
+  }
+  # a NULL where the default is not NULL is refused by name
+  if (!missing(power)) {
+    refuseNullArgument(power, "power")
+  }
+  # a NULL where the default is not NULL is refused by name
+  if (!missing(base)) {
+    refuseNullArgument(base, "base")
+  }
   # the creation-time estimate is 'sigest'; 'sigma' is 0.9-x's spelling of it,
   # accepted for one release
   sigmaSupplied <- !missing(sigma) && !is.null(sigma)
@@ -339,6 +351,12 @@ xbart <- function(
   # in for a missing k argument, and the sd argument drives the same axis in
   # absolute spreads, with a named sd inside the prior standing in for it
   leafSpec <- NULL
+  # these default to NULL, so a written NULL is the name left out
+  matchedCall[nullWritten(
+    matchedCall,
+    c("k", "sd", "leaf.prior", "split.probs"),
+    evalEnv
+  )] <- NULL
   if (!is.null(matchedCall[["leaf.prior"]])) {
     leafSpec <- evalInVocabulary(
       matchedCall[["leaf.prior"]],

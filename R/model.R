@@ -2032,6 +2032,46 @@ plainForestStated <- function(
   stated
 }
 
+## The refusal of an argument written NULL whose default in the signature is
+## not NULL: NULL is no value there, and the argument left out takes its
+## default. Where the default is NULL a written NULL is the argument left out
+## (nullWritten) and never reaches this.
+refuseNullArgument <- function(value, name) {
+  if (is.null(value)) {
+    stop(
+      "'",
+      name,
+      "' cannot be NULL; leave it out for the default",
+      call. = FALSE
+    )
+  }
+  invisible(value)
+}
+
+## Which of `names` the call `call` writes with a value of NULL, judged by the
+## value in `env`'s prior vocabulary: a literal NULL, or a name or call that
+## evaluates to it. An expression that does not evaluate here is not NULL, and
+## is left to whatever reads it.
+nullWritten <- function(call, names, env) {
+  isNull <- function(name) {
+    if (!name %in% names(call)) {
+      return(FALSE)
+    }
+    expr <- call[[name]]
+    if (is.null(expr)) {
+      return(TRUE)
+    }
+    if (is.numeric(expr) || is.character(expr)) {
+      return(FALSE)
+    }
+    tryCatch(
+      is.null(evalInVocabulary(expr, dbartsPriors, env)),
+      error = function(e) FALSE
+    )
+  }
+  names[vapply(names, isNull, NA)]
+}
+
 ## The refusal of what the fitting function states for the forest with no
 ## basis in a model that has none: each of the tree count, the tree prior's
 ## power and base, the leaf prior, 'interactions' and 'blocks' that is stated

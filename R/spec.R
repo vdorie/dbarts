@@ -1474,6 +1474,12 @@ dbartsSpec <- function(
     "dbartsSpec"
   )
   matchedCall <- withRetiredTreePrior(matchedCall, retiredTreePrior)
+  if (!missing(power)) {
+    refuseNullArgument(power, "power")
+  }
+  if (!missing(base)) {
+    refuseNullArgument(base, "base")
+  }
   sigest <- resolveSigestArg(sigest, "dbartsSpec", "refuse")
   resolvedSigest <- resolveSigestRule(sigest, "dbartsSpec")
   sigest <- resolvedSigest$value

@@ -1040,6 +1040,17 @@ bart <- function(
     refuseRetiredTreePrior(matchedCall[["tree.prior"]], callingEnv, "bart")
   }
   refuseForeignFrontDoorArgs(supplied, "bart", names(formals(dbarts::bart)))
+  # a NULL where the default is not NULL is refused by name, ahead of the
+  # statements read from what is written
+  if (!missing(n.trees)) {
+    refuseNullArgument(n.trees, "n.trees")
+  }
+  if (!missing(power)) {
+    refuseNullArgument(power, "power")
+  }
+  if (!missing(base)) {
+    refuseNullArgument(base, "base")
+  }
   # the forest with no basis written in the formula states the count and the
   # tree prior this function's own 'n.trees', 'power' and 'base' state: one
   # of them, not both
@@ -1317,9 +1328,12 @@ bart <- function(
   # function's own caller stated of the arguments that are the forest with no
   # basis's is recorded on the control, for the sampler specification to read
   # and take off.
+  # 'k' and 'leaf.prior' default to NULL, so one written NULL is the name
+  # left out
+  nullByDefault <- nullWritten(matchedCall, c("k", "leaf.prior"), callingEnv)
   attr(control, plainStatedAttr) <- plainForestStated(
     suppliedControl,
-    c(names(matchedCall), shorthandSupplied),
+    setdiff(c(names(matchedCall), shorthandSupplied), nullByDefault),
     remedy = !inherits(formula, "dbartsData")
   )
   # the retired flat spelling of the mixture wins over the control's slot, as
@@ -1375,6 +1389,7 @@ bart <- function(
       if (!missing(data)) list(data = data)
     )
   )
+  matchedCall[nullByDefault] <- NULL
   # k forwarded through a wrapper's dots arrives as ..N, which the leaf prior
   # built below would force where the wrapper's caller wrote it, outside the
   # prior vocabulary; it is resolved here instead, as dbarts() resolves its
@@ -3957,6 +3972,22 @@ bartBT <- function(
   proposalprobs = NULL,
   keepsampler = keeptrees
 ) {
+  # a NULL where the default is not NULL is refused by name
+  if (!missing(ntree)) {
+    refuseNullArgument(ntree, "ntree")
+  }
+  # a NULL where the default is not NULL is refused by name
+  if (!missing(power)) {
+    refuseNullArgument(power, "power")
+  }
+  # a NULL where the default is not NULL is refused by name
+  if (!missing(base)) {
+    refuseNullArgument(base, "base")
+  }
+  # a NULL where the default is not NULL is refused by name
+  if (!missing(k)) {
+    refuseNullArgument(k, "k")
+  }
   # a count-matrix data object declares the multinomial model, which this
   # frozen BayesTree shim reports none of: its packaging is one location per
   # observation, so a K-location fit would be reshaped and returned without a

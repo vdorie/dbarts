@@ -78,6 +78,22 @@ rbart_vi <- function(
 ) {
   matchedCall <- match.call()
   callingEnv <- parent.frame()
+  # a NULL where the default is not NULL is refused by name
+  if (!missing(n.trees)) {
+    refuseNullArgument(n.trees, "n.trees")
+  }
+  # a NULL where the default is not NULL is refused by name
+  if (!missing(power)) {
+    refuseNullArgument(power, "power")
+  }
+  # a NULL where the default is not NULL is refused by name
+  if (!missing(base)) {
+    refuseNullArgument(base, "base")
+  }
+  # a NULL where the default is not NULL is refused by name
+  if (!missing(k)) {
+    refuseNullArgument(k, "k")
+  }
   warnOnce(
     "tombstone.rbart_vi",
     "'rbart_vi' is deprecated and is removed in dbarts ",

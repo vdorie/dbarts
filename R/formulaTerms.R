@@ -955,7 +955,18 @@ refuseGivenTwiceInFormula <- function(formula, names) {
   # the data at hand
   walked <- tryCatch(walkFormulaTerms(formula), error = function(e) NULL)
   for (hit in walked$hits) {
-    given <- tryCatch(names(forestCallArguments(hit)), error = function(e) NULL)
+    args <- tryCatch(forestCallArguments(hit), error = function(e) NULL)
+    # a NULL written in the forest, or held by what it names, is the name
+    # left out
+    heldNull <- function(expr) {
+      is.null(expr) ||
+        (is.language(expr) &&
+          tryCatch(
+            is.null(eval(expr, environment(formula))),
+            error = function(e) FALSE
+          ))
+    }
+    given <- names(args)[!vapply(args, heldNull, NA)]
     if ("basis" %in% given) {
       next
     }

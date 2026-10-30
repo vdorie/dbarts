@@ -28,8 +28,19 @@ moved to a forest or left out ([`refuseStatedWithNoPlainForest`](../../R/model.R
 
 ## What counts as stated
 
-Stated means named, the default's own value included: `n.trees = 75` beside two multiplied forests is
-refused, so that it cannot come to mean 50 in silence ([`plainForestStated`](../../R/model.R)).
+Stated means named with a value, the default's own value included: `n.trees = 75` beside two multiplied
+forests is refused, so that it cannot come to mean 50 in silence ([`plainForestStated`](../../R/model.R)).
+
+A written `NULL` follows the argument's default in the signature. Where the default is `NULL` (`k` and
+`leaf.prior` on `bart()` and `xbart()`, every argument of `forest()` and `varianceForest()`) it is the name
+left out and states nothing: `bart(y ~ forest(x1 + x2, sd = 2), k = NULL)` fits as it does without `k`, and
+`forest(x1 + x2, power = NULL)` beside `power = 3` on the fitting function is no collision. Anywhere else
+(`n.trees`, `power` and `base` on every door, `k` on `rbart_vi()` and `bartBT()`, `leaf.prior` on `dbarts()`
+and `dbartsSpec()`) it is refused, the message naming the argument and saying to leave it out. Names are judged
+by the value they hold, not by the code that wrote them: a wrapper's `power = power` is read as what `power`
+holds in the wrapper, and a `NULL` passed through `...` is the same as one written in place ([`nullWritten`](../../R/model.R),
+[`refuseNullArgument`](../../R/model.R)). `split.probs`, `sigest`, `seed` and the other arguments that default
+to `NULL` are absent when `NULL`, as before.
 
 | door | the count | the tree prior | the leaf prior |
 |---|---|---|---|

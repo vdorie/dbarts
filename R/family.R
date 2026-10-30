@@ -336,6 +336,9 @@ inlineForwardedArguments <- function(expr, vocabulary, env) {
 ## defaults, and a value of none of 'classes' is refused by name.
 resolvedAs <- function(name, classes, what, topic = "dbartsPriors") {
   function(value) {
+    if (is.null(value) && name == "leaf.prior" && !"NULL" %in% classes) {
+      refuseNullArgument(value, name)
+    }
     if (is.function(value)) {
       value <- value()
     }
