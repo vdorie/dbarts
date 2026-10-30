@@ -309,8 +309,7 @@ warnCarriedNotUsed <- function(carried, model, data) {
 ## The model and data a sampler takes from a control, a model and a data
 ## object handed to it. A count or rule the caller wrote on the control is
 ## read, and a model that records no count takes the control's; anything else
-## the model and data hold stands. A carried value that differs draws the
-## not-used warning, after the model is known to be taken.
+## the model and data hold stands.
 takeControlReadings <- function(control, model, data) {
   records <- model@forests
   if (length(records) == 0L) {

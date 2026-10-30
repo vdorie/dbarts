@@ -2848,7 +2848,7 @@ dbartsSampler <- setRefClass(
       taken <- takeControlReadings(control, model, data)
       model <- taken$model
       data <- taken$data
-      warnDirectDoorNotUsed(control, model, data)
+      handedControl <- control
       control <- mirrorControl(control, model, data)
       .self$control <- control
       .self$model <- model
@@ -2879,6 +2879,7 @@ dbartsSampler <- setRefClass(
       # re-creation from state (getPointer, setState) does not come through
       # here, and copy holds it off
       warnZeroTrials(dataCounts(data))
+      warnDirectDoorNotUsed(handedControl, model, data)
       # materialized lazily on first access (forcing it before saveRDS
       # captures the sampler), or eagerly by storeState / updateState runs.
       # A deserialized object can force the promise after its pointer has
