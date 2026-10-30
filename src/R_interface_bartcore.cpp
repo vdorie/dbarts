@@ -2206,10 +2206,14 @@ bool parseDartSettings(bartcore::DartPrior& dart, SEXP modelExpr) {
     Rf_getAttrib(treePriorExpr, Rf_install("b")), "dart b",
     RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
   double rho = REAL(Rf_getAttrib(treePriorExpr, Rf_install("rho")))[0];
+  if (std::isinf(rho))
+    Rf_error("dart rho must be finite");
   dart.rho = ISNAN(rho) ? 0.0 : rho;  // <= 0 means numPredictors
   dart.alpha = rc_getDouble(
     Rf_getAttrib(treePriorExpr, Rf_install("alpha")), "dart alpha",
     RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
+  if (!std::isfinite(dart.alpha))
+    Rf_error("dart alpha must be finite");
   dart.updateAlpha = rc_getBool(
     Rf_getAttrib(treePriorExpr, Rf_install("update.alpha")),
     "dart update.alpha", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_NA | RC_NO,
@@ -7281,9 +7285,12 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
     // own takes it back, and every forest the control's mode or its own.
     // Without a record this writes what setModel just wrote
     installMoveSettings(sampler, moveForests, moveVariance);
-    if (installsDf) sampler.setResidualDf(model.residualDf);
-    if (installsShape) sampler.setNegativeBinomialShape(model.shape);
-    if (installsDart) sampler.setDart(dart);
+    // everything above was checked, so a refusal here is a broken check and
+    // must not pass as a taken call with the sampler half written
+    if ((installsDf && !sampler.setResidualDf(model.residualDf)) ||
+        (installsShape && !sampler.setNegativeBinomialShape(model.shape)) ||
+        (installsDart && !sampler.setDart(dart)))
+      Rf_error("$setModel: an install the checks passed was refused");
 
     return R_NilValue;
   });

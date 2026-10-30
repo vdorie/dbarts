@@ -150,40 +150,77 @@ expect_null(sampler$model@leaf.prior@lengthscale)
 
 # ---- DART's settings --------------------------------------------------------
 
-drawnAlpha <- maker(tree.prior = dart())
+# update.delay = 0 throughout: at the default (half of n.burn) a run this short
+# never updates DART, and the pins would compare the initial state with itself
+dart0 <- function(...) dart(..., update.delay = 0)
+drawnAlpha <- maker(tree.prior = dart0())
 for (made in list(
-  maker(tree.prior = dart(a = 0.7, b = 2)),
-  maker(tree.prior = dart(rho = 2)),
-  maker(tree.prior = dart(alpha = 3)),
+  maker(tree.prior = dart0(a = 0.7, b = 2)),
+  maker(tree.prior = dart0(rho = 2)),
+  maker(tree.prior = dart0(alpha = 3)),
   maker(tree.prior = dart(update.delay = 1)),
-  maker(tree.prior = dart(alpha = 2, update.alpha = FALSE))
+  maker(tree.prior = dart0(alpha = 2, update.alpha = FALSE))
 )) {
   asCreated(drawnAlpha, made)
 }
-heldAlpha <- maker(tree.prior = dart(alpha = 2, update.alpha = FALSE))
-asCreated(heldAlpha, maker(tree.prior = dart(alpha = 5, update.alpha = FALSE)))
+heldAlpha <- maker(tree.prior = dart0(alpha = 2, update.alpha = FALSE))
+asCreated(heldAlpha, maker(tree.prior = dart0(alpha = 5, update.alpha = FALSE)))
 # held to drawn starts at the value in force; a drawn alpha restarts at a new
 # stated start and keeps its value under the same one
 handed <- heldAlpha()
-handed$setModel(build(tree.prior = dart(alpha = 5))$model)
+handed$setModel(build(tree.prior = dart0(alpha = 5))$model)
 expect_identical(stateOf(handed, "dart.alpha"), c(2, 2))
 sampler <- drawnAlpha()
 invisible(sampler$run(0L, 30L))
+expect_true(all(stateOf(sampler, "dart.alpha") != 1))
 alpha <- stateOf(sampler, "dart.alpha")
-sampler$setModel(build(tree.prior = dart(a = 0.7))$model)
+sampler$setModel(build(tree.prior = dart0(a = 0.7))$model)
 expect_identical(stateOf(sampler, "dart.alpha"), alpha)
-sampler$setModel(build(tree.prior = dart(a = 0.7, alpha = 3))$model)
+sampler$setModel(build(tree.prior = dart0(a = 0.7, alpha = 3))$model)
 expect_identical(stateOf(sampler, "dart.alpha"), c(3, 3))
 # the split weights and the count of skipped updates are kept mid-run
 sampler <- drawnAlpha()
 invisible(sampler$run(0L, 30L))
 sampler$storeState()
 weights <- lapply(sampler$state, `[[`, "dart.probabilities")
+expect_true(all(vapply(weights, function(w) any(abs(w - 1 / 3) > 1e-6), TRUE)))
 skipped <- lapply(sampler$state, `[[`, "dart.updates.skipped")
 sampler$setModel(build(tree.prior = dart(b = 3, update.delay = 50))$model)
 sampler$storeState()
 expect_identical(lapply(sampler$state, `[[`, "dart.probabilities"), weights)
 expect_identical(lapply(sampler$state, `[[`, "dart.updates.skipped"), skipped)
-agreeAfter(drawnAlpha, build(tree.prior = dart(a = 0.7, rho = 2))$model)
+agreeAfter(drawnAlpha, build(tree.prior = dart0(a = 0.7, rho = 2))$model)
 agreeAfter(drawnAlpha, heldAlpha()$model)
 agreeAfter(heldAlpha, drawnAlpha()$model)
+
+# a non-finite alpha or rho is refused by the constructor, and by $setModel
+# before anything is written (a record built by slot passes the constructor)
+expect_error(dart(alpha = Inf), "'alpha' must be positive and finite")
+expect_error(dart(rho = Inf), "'rho' must be positive and finite")
+for (arm in c("alpha", "rho")) {
+  sampler <- drawnAlpha()
+  twin <- drawnAlpha()
+  invisible(sampler$run(0L, 10L))
+  invisible(twin$run(0L, 10L))
+  model <- sampler$model
+  if (arm == "alpha") {
+    model@tree.prior@alpha <- Inf
+  } else {
+    model@tree.prior@rho <- Inf
+  }
+  model@tree.prior@power <- 3
+  expect_error(sampler$setModel(model), "must be finite")
+  expect_identical(sampler$model, twin$model)
+  expect_identical(sampler$run(0L, 10L)$train, twin$run(0L, 10L)$train)
+}
+
+# ---- negative-binomial shape: the unchanged model moves nothing --------------
+
+for (made in list(held4, drawnShape)) {
+  sampler <- made()
+  twin <- made()
+  invisible(sampler$run(0L, 10L))
+  invisible(twin$run(0L, 10L))
+  sampler$setModel(sampler$model)
+  expect_identical(sampler$run(0L, 10L)$train, twin$run(0L, 10L)$train)
+}
