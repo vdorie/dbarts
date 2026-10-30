@@ -2,7 +2,7 @@
 
 Status: PLANNED 2026-10-30 on c55a1477, against main as it stood once coefficient-prior-opt-in (dec-A245) and
 tree-prior-flat (dec-A246) landed; amended the same day after its blind critique (scratch/cm-crit/report.md, build
-after amendments) and the coordinator's calls on it. Slices 1a and 1b built on the branch, not reviewed. Both calls
+after amendments) and the coordinator's calls on it. Slices 1a, 1b and 2 built on the branch, not reviewed. Both calls
 held for the maintainer are ruled: dec-B526, dec-B527 ([Open calls](#open-calls)). Rulings: dec-B239, dec-B240,
 dec-B241 (the move), dec-B250 (when the mirrored slots go), dec-B334, dec-B335, dec-B385 (a control copied from a
 fit), dec-B247 (a live sampler's count), dec-B249 (the forest column), dec-B503 and dec-B505 (counts among
@@ -208,6 +208,9 @@ A control's value for `n.trees`, `useQuantiles` or `n.cuts` is one of three:
 - carried: the control holds a mirror record (`dbarts.mirror`, written with the slots) and the slot equals it;
 - silent: anything else, a fresh control's default.
 
+From slice 2 a cut count has no slot: written, it rides the `n.cuts` attribute; carried, it is a field of the mirror
+record.
+
 A written value is the relocated argument of dec-A02: it warns once a session (`dbartsDeprecatedWarning`, one key
 per name shared by `dbartsControl()` and the doors, since an edited slot or a control read from a file reaches a
 door with no constructor call) and is read exactly as the door's flat argument would be. A carried value is never
@@ -257,10 +260,10 @@ door's `n.cuts` and `useQuantiles`, or a written control value standing for them
 | `dbartsData()` | - | `n.cuts = NULL`, `useQuantiles = NULL`, last; NA refused, `NULL` states none |
 | `bart()`, `pdbart()`, `rbart_vi()` | their `n.trees`, passed flat to `dbarts()` by rule 6; the control they build names none of the three | their `n.cuts`, `useQuantiles`, passed flat by rule 6 |
 | `bartBT()` | `ntree`, 200 unless its caller names another, passed flat by rule 6 | `numcut`, `usequants`, passed flat by rule 6 |
-| `xbart()` | its grid; a written control count is a grid of one; each cell's count goes on the cell's model record | flat; the shared data handle takes the data object's rule |
+| `xbart()` | its grid; a written control count is a grid of one; each cell's count goes on the cell's model record | flat; the shared data handle takes the data object's rule; a data object's own count and rule stand as at `dbarts()`, row 4 |
 | a formula's `forest()` terms, `forests = ` | per forest; a bare `forest()` is one forest (dec-B241's call) | - |
 | a data object as `data` | the rule; a data object carries no count | the rule, row 4 |
-| `new("dbartsSampler", control, model, data)` | a copied control: the model's count, with the not-used warning where it differs (dec-B335); a fresh control: the model's, a silent value never being read; a written control count: used where the model states none, with the one-release warning, refused by name where it states another (dec-B526) | a copied control: the data object's rule and count, with the not-used warning where they differ; a fresh control: the data object's; a written rule: dec-B526's reading, the grid re-derived; a written count: the data object's, with the not-used warning, as 0.9-34 and main use the data object's |
+| `new("dbartsSampler", control, model, data)` | a copied control: the model's count, with the not-used warning where it differs (dec-B335); a fresh control: the model's, a silent value never being read; a written control count: used where the model states none, with the one-release warning, refused by name where it states another (dec-B526) or where every forest has a basis (rule 3) | a copied control: the data object's rule and count, with the not-used warning where they differ; a fresh control: the data object's; a written rule: dec-B526's reading, the grid re-derived; a written count: the data object's, with the not-used warning, as 0.9-34 and main use the data object's |
 | re-creation (`getPointer`, `setState`, `copy`, a reload, stan4bart's restore) | the stored model's; the mirror agrees, so no warning | the stored data's |
 | `$setControl(new)` | a carried count that differs: taken, the sampler's kept, the not-used warning (dec-B385); a written one that differs: refused, "changing 'n.trees' is not available on an existing sampler" (dec-B247) | the same two cases for each, the sampler's data holding them; the `n.cuts` attribute is stripped after the check |
 | `$setModel(model)` | refused by name before anything is stored where a structure field differs (dec-B254): a forest's count, vars, interactions, blocks, basis or label, the variance forest's count and columns, the category count, the hazard periods; the moved facts join setmodel-parameters' structure check. A parameter field (a forest's sd, base, power, the amplitude's hold and prior) goes where setmodel-parameters sends it (main refuses a sampler of several forests wholesale until its slice 4). Per-forest move settings are installed, as `$setControl` installs the control's (dec-B254: the moves "are not model"; dec-B518's `$setForest` changes them) | - |
@@ -344,7 +347,8 @@ creation, inst/include/dbarts/dbarts.h.
 ### What changes for a user
 
 Refused where main runs: a written control count beside a forest that states its own (dec-B527); a written
-control count or rule at the direct door beside a model or data object that states another (dec-B526); a written
+control count or rule at the direct door beside a model or data object that states another (dec-B526), and a
+written count there where every forest has a basis; a written
 `useQuantiles` or `n.cuts` on `$setControl` that differs from the sampler's (main refuses `useQuantiles` already;
 `n.cuts` is stored there and never reaches the engine); `$setModel` with a model of another structure in a fact
 that today rode the control.
@@ -362,7 +366,7 @@ not the control's hidden facts (21 of the 156 crossed triples differ among those
 those an unused-argument error on both builds, `binary` not being a `dbartsControl()` argument): a plain
 fit's control beside a variance fit's model runs the variance forest, and a binary control beside a multinomial
 model runs the multinomial model, with its draws, and reads `binary` FALSE; a fresh control beside a fit's model or
-a `dbartsSpec()` data object takes their count and rule (main: the control's 75 and uniform); `dbarts()` given a
+a `dbartsSpec()` data object takes their count and rule (main: the control's 75 and uniform); `dbarts()` and `xbart()` given a
 data object stating its own cut count or rule; a written cut setting beside a data object carrying a grid (0.9-34's result restored); at the direct door, a written
 rule beside a fit's data object re-deriving its grid (dec-B526; 0.9-34's result restored); a
 fit of one forest with no basis loses `getTrees()`' `forest` column however the forest was written (dec-B249);
@@ -571,6 +575,27 @@ The review runs each and requires a failing test:
 22. A parameter of the moved records (a variance forest's base and power, the shape setting) given to `$setModel`
     stays the sampler's as on main until setmodel-parameters sends it elsewhere. Alternative: refuse it now, against
     dec-B254.
+23. A written count at the direct door where every forest has a basis is refused by name, rule 3 at this door.
+    Alternative: the first forest takes it, as main, a count on a forest of another kind.
+24. A carried cut count is a field of the mirror record, since the slot goes, so a copied control's differing count
+    draws the not-used warning at every door. `@n.cuts` on a fit's control then errors, as a fresh control's does.
+    Alternative: carry nothing, a copied control's cut count changing the grid with no message.
+25. An edit of a fit's value back to a fresh control's reads as written, so it warns and is read. Alternative: treat
+    it as silent, dropping what the caller wrote.
+26. `xbart()` given a data object keeps the data object's count and rule under rule 4, as `dbarts()` does.
+    Alternative: main's overwrite, one fitting function reading a data object two ways.
+27. A written value agreeing with the model or data object at the direct door or `$setControl` is taken with the
+    deprecation warning alone. Alternative: refuse any written value there, an agreeing script stopping for nothing.
+28. `dbartsData(dd, n.cuts = )` on a data object joins that function's existing "are ignored" warning, a `NULL` not
+    counting. Alternative: re-derive the grid, which `dbarts(dd, n.cuts = )` does already.
+29. A written `NULL` at `bart()`'s, `xbart()`'s and `rbart_vi()`'s three and `bartBT()`'s `ntree`, `numcut` and
+    `usequants` is refused (dec-B519): their defaults are not `NULL`.
+30. A hurdle fit's positive part muffles the not-used warning, so the two parts give one between them. Alternative:
+    the same message twice from one call.
+31. The three slot rows of the registry carry dec-B250's `condition`, the form the registry's test requires of a row
+    with no fixed expiry.
+32. `resolveSamplerSpec` loses its `written` argument: the door stamps `dbarts.stated` on the control, so a wrapper
+    and a door are read one way.
 
 ## Open calls
 
