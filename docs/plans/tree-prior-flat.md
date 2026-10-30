@@ -3,7 +3,8 @@
 Status: PLANNED 2026-10-29 on 83cefe7d (dec-B512); amended the same day after its blind critique (build after
 amendments; scratch/tpf-crit/report.md, probes c1.R to c6.R rerun) and the coordinator's calls on it. No call is
 open for the maintainer. Rulings: dec-B512, with dec-B116, dec-B246 and dec-B252 (each revised by it), dec-B241
-and dec-B503 (the collision rule it extends), dec-B254, dec-B266, dec-B274, dec-B508, dec-B514 and dec-B515.
+and dec-B503 (the collision rule it extends), dec-B254, dec-B266, dec-B274, dec-B508, dec-B514, dec-B515 and
+dec-B518 (the live door).
 
 agent: slice 1 (the R that decides which model a call fits) one opus implementer (effort high) and one opus
 review (effort high) that runs the mutants below and checks the fix round. Slices 2 and 3 (help, docs, benchmark
@@ -367,8 +368,9 @@ and dec-B518 the door becomes:
   non-uniform vector on a DART sampler or `dart()` on an ordinary one is structure and is refused: "split.probs =
   dart() makes a DART sampler of an ordinary one, which changes the model's structure; make a new sampler
   instead".
-- `$setForest` takes `sd`, `amplitude` and the move settings beside `power` and `base`, and refuses only
-  structure (vars, n.trees, basis, interactions, blocks) by name; it is not built here.
+- `$setForest` takes `sd`, `amplitude` and the move settings beside `power` and `base`, refuses structure
+  (vars, n.trees, basis, interactions, blocks) by name, and refuses a statement where creation refuses the
+  same; it is not built here.
 - No `tree.prior` argument: it never shipped on a live sampler. `$setModel` keeps taking model objects
   (dec-B512), and slice 4's install from the record (its item 3) is unchanged.
 
