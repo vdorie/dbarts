@@ -334,13 +334,6 @@ items
     and slow fits, the fallback when the range cannot be estimated
     (dec-B437, VD 2026-10-10). About 1260 lines planned for the
     per-chain data, after response-scale-rows.
-  variance-forest-inherited-tree-prior: a variance forest created with
-    no base or power of its own (varianceForest(base = NULL)) takes
-    the mean forest's tree prior at creation and keeps it when
-    setModel changes that prior; live sampler and copy agree, the
-    value being resolved once into the control (run 2026-10-11).
-    Decide with dec-B254's per-forest tree priors whether it follows.
-    Before 1.0-0.
   variance-forest-tree-shift: after 1.0-0 (dec-B500, VD 2026-10-29).
     The tree-shift step acts on the mean forests only; varianceForest()
     takes no treeShift. Measure how a frozen variance forest's leaf
