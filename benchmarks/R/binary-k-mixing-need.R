@@ -5214,7 +5214,21 @@ checkRealNotBounded <- function() {
   b <- refClassReading(per, "B1:check", "probit", "fInt", 1L, TRUE)
   per$rep <- 1:6
   s <- refClassReading(per, "S6", "probit", "fInt", 6L, FALSE)
-  b$refReading == "measured" && s$refReading == "bounded"
+  # nor reads a problem through that one stuck run: the move test alone
+  high <- per
+  high$rep <- 1L
+  high$S <- c(0.040, 0.041, 0.042, 0.040, 0.041, 0.042)
+  high$Smove <- high$S
+  high$moveS <- 0.04
+  high$stuck <- 0.03
+  bHigh <- refClassReading(high, "B1:check", "probit", "fInt", 1L, TRUE)
+  high$rep <- 1:6
+  high$stuck <- c(0.029, 0.030, 0.031, 0.029, 0.030, 0.031)
+  sHigh <- refClassReading(high, "S6", "probit", "fInt", 6L, FALSE)
+  b$refReading == "measured" &&
+    s$refReading == "bounded" &&
+    bHigh$refReading != "problem" &&
+    sHigh$refReading == "problem"
 }
 
 # A command's output path, for the uniqueness check.
@@ -6075,7 +6089,8 @@ refClassReading <- function(per, cell, link, cl, attempted, isB) {
       S[["est"]] >= bar &&
       S[["est"]] - tP * S[["se"]] > 0 &&
       (moveTest ||
-        (is.finite(stuck[["se"]]) &&
+        (!isB &&
+          is.finite(stuck[["se"]]) &&
           stuck[["est"]] >= bar &&
           stuck[["est"]] - tP * stuck[["se"]] > 0))
     # a real dataset's stuck run, stationary tails and fixed-k arms are one
