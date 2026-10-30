@@ -2286,6 +2286,34 @@ runMoveFit <- function(cell, link, rep) {
   runArm(cell, link, rep, "move")
 }
 
+# The long oracle on a replication scored after the replication's own score,
+# as the move is: its coverage under that score's labels, at a path of its own.
+longScoreFile <- function(cell, link, rep) {
+  runDir("scores-long", link, cellFile(cell), paste0(repTag(rep), ".rds"))
+}
+
+runLongScore <- function(cell, link, rep) {
+  sc <- loadChecked(scoreFile(cell, link, rep))
+  design <- loadDesign(cell, link, rep)
+  fit <- loadChecked(fitFile(cell, link, rep, "longOracle"))
+  truth <- truthClasses(design, sc$labels)
+  summ <- fit$readings$default$summary
+  if (!is.null(sc$labels)) {
+    summ <- relabel(summ, sc$labels)
+  }
+  out <- list(
+    cell = cell,
+    link = link,
+    rep = as.integer(rep),
+    coverage = list(longOracle.default = coverageOf(summ, truth, link)),
+    seconds = fit$seconds,
+    quick = quick
+  )
+  saveAtomic(out, longScoreFile(cell, link, rep))
+  cat(sprintf("longscore %s %s %d\n", cell, link, as.integer(rep)))
+  invisible(out)
+}
+
 moveGoRel <- function(cell, link) {
   file.path("looks", link, sprintf("%s-move-go", cellFile(cell)))
 }
@@ -4949,6 +4977,7 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
   gateOf <- function(id) if (id %in% ids) gateByJob[[id]] else NA_character_
   realNotBounded <- checkRealNotBounded()
   ratioFinite <- checkRatioFinite()
+  longOwed <- checkLongOwed()
   missing <- character()
   ungated <- character()
   noExtend <- character()
@@ -5152,6 +5181,7 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
       length(moveMissing) == 0L &&
       realNotBounded &&
       ratioFinite,
+    longOwed,
     list(
       jobs = length(ids),
       gatedJobs = sum(lengths(gates) > 0L),
@@ -5167,13 +5197,25 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
       tier3Extended = head(noExtend, 10L),
       moveMissing = head(moveMissing, 10L),
       realNotBounded = realNotBounded,
-      ratioFinite = ratioFinite
+      ratioFinite = ratioFinite,
+      longOwed = longOwed
     )
   )
 }
 
 # A ratio of mean probabilities is finite however far a small k spreads the
 # latent scale, and equals the direct computation where nothing underflows.
+# The long oracle is owed by the default oracle's distance from nominal, bands
+# aside, beyond the regimes that already ran it.
+checkLongOwed <- function() {
+  tab <- data.frame(
+    regime = c("S2", "S2", "S3", "S1", "S6", "S4"),
+    class = c("fInt", "fTail", "bandF", "fTail", "fInt", "fInt"),
+    cov90 = c(0.895, 0.88, 0.5, 0.7, 0.9, 0.911)
+  )
+  identical(longOracleOwedFrom(tab), c("S2", "S4"))
+}
+
 checkRatioFinite <- function() {
   ok <- TRUE
   for (link in both) {
@@ -5692,7 +5734,13 @@ checkIncomplete <- function() {
 # Pooled coverage by class over a regime's scored replications, both links,
 # with bootstrap standard errors over replications (the same resample for
 # every link and class of the regime).
-sbcScores <- function(regimeId, reps, discriminate = "", withMove = FALSE) {
+sbcScores <- function(
+  regimeId,
+  reps,
+  discriminate = "",
+  withMove = FALSE,
+  withLong = FALSE
+) {
   out <- list()
   for (link in regimes[[regimeId]]$links) {
     for (rep in seq_len(reps)) {
@@ -5709,6 +5757,16 @@ sbcScores <- function(regimeId, reps, discriminate = "", withMove = FALSE) {
         ) {
           s$coverage <- c(s$coverage, loadChecked(m)$coverage)
         }
+        # the long oracle scored later on a replication, under its labels
+        l <- longScoreFile(regimeId, link, rep)
+        if (
+          withLong &&
+            !nzchar(discriminate) &&
+            is.null(s$coverage$longOracle.default) &&
+            file.exists(l)
+        ) {
+          s$coverage <- c(s$coverage, loadChecked(l)$coverage)
+        }
         out[[paste(link, rep)]] <- s
       }
     }
@@ -5716,8 +5774,14 @@ sbcScores <- function(regimeId, reps, discriminate = "", withMove = FALSE) {
   out
 }
 
-sbcTable <- function(regimeId, reps, arms = NULL, discriminate = "") {
-  sc <- sbcScores(regimeId, reps, discriminate)
+sbcTable <- function(
+  regimeId,
+  reps,
+  arms = NULL,
+  discriminate = "",
+  withLong = FALSE
+) {
+  sc <- sbcScores(regimeId, reps, discriminate, withLong = withLong)
   if (length(sc) == 0L) {
     return(data.frame())
   }
@@ -6967,8 +7031,235 @@ mergeWhen <- function(...) {
   )
 }
 
+# Tranche 1's long oracle. Any other regime gets one when its default oracle
+# is half the bar or more from nominal in a class, bands aside (their spread at
+# these counts is the trees' at every length, and every regime would qualify).
 longOracleRegimes <- c("S1", "S5", "S6", "S7", "E1")
 longOracleReps <- 25L
+# S1 probit's long oracle sits 7 points under nominal at 25 replications, too
+# few to say whether that is off nominal; 100 can.
+longOracleMore <- list(S1 = list(link = "probit", reps = 100L))
+
+longOracleOwedFrom <- function(tab, ran = longOracleRegimes) {
+  band <- vapply(
+    tab$class,
+    function(cl) isTRUE(classInfo[[cl]]$band),
+    logical(1L)
+  )
+  off <- !band & abs(tab$cov90 - 0.9) >= bar / 2 & !tab$regime %in% ran
+  sort(unique(tab$regime[off]))
+}
+
+defaultOracleTable <- function(tranche = 2L) {
+  rows <- list()
+  for (reg in regimes) {
+    if (reg$kind == "sbc") {
+      rows[[reg$id]] <- sbcTable(
+        reg$id,
+        repsFor(reg$id, tranche),
+        arms = "oracle.default"
+      )
+    }
+  }
+  do.call(rbind, rows)
+}
+
+# The long oracle against nominal, per regime, link and class, with the default
+# oracle beside it. Off nominal: |coverage - 0.90| past the Bonferroni bound over
+# the readings at two-sided 0.05, as in the null run. Off nominal is a mismatch
+# between the prior draw and the fit, which stops that regime; on nominal with
+# the default oracle off is the trees' cost.
+longOracleReading <- function(tranche = 2L) {
+  rows <- list()
+  for (reg in regimes) {
+    if (reg$kind != "sbc") {
+      next
+    }
+    tab <- sbcTable(
+      reg$id,
+      repsFor(reg$id, tranche),
+      arms = c("oracle.default", "longOracle.default"),
+      withLong = TRUE
+    )
+    if (is.null(tab) || !nrow(tab) || !"longOracle.default" %in% tab$arm) {
+      next
+    }
+    long <- tab[tab$arm == "longOracle.default", ]
+    told <- tab[tab$arm == "oracle.default", ]
+    i <- match(paste(long$link, long$class), paste(told$link, told$class))
+    rows[[reg$id]] <- data.frame(
+      regime = long$regime,
+      link = long$link,
+      class = long$class,
+      band = vapply(
+        long$class,
+        function(cl) isTRUE(classInfo[[cl]]$band),
+        logical(1L)
+      ),
+      default = told$cov90[i],
+      seDefault = told$se90[i],
+      long = long$cov90,
+      seLong = long$se90,
+      reps = long$reps,
+      z = (long$cov90 - 0.9) / long$se90
+    )
+  }
+  if (!length(rows)) {
+    return(NULL)
+  }
+  out <- do.call(rbind, rows)
+  rownames(out) <- NULL
+  out$zMax <- qnorm(1 - 0.025 / nrow(out))
+  out$off <- !out$band & abs(out$z) > out$zMax
+  out
+}
+
+runLongOracleRead <- function() {
+  out <- longOracleReading()
+  saveAtomic(list(table = out, quick = quick), runDir("readings-long.rds"))
+  if (!is.null(out)) {
+    num <- vapply(out, is.numeric, logical(1L))
+    out[num] <- lapply(out[num], function(v) round(v, 4L))
+    print(out, row.names = FALSE)
+    cat(sprintf("off nominal, bands aside: %d\n", sum(out$off)))
+  }
+  invisible(out)
+}
+
+# The check on the references as a class: on the accepted references of each
+# SBC regime, the pooled reference's coverage of the truth, read from the
+# compacted quantiles and draws, against nominal. Bootstrap over references;
+# flagged past the Bonferroni bound over the readings at two-sided 0.05, as in
+# the null run.
+refClassRows <- function(cell, link, rep) {
+  acc <- loadChecked(acceptanceFile(cell, link, rep))
+  if (!isTRUE(acc$final) || !isTRUE(acc$accepted)) {
+    return(NULL)
+  }
+  cp <- loadChecked(compactFile(cell, link, rep))
+  truth <- truthClasses(loadDesign(cell, link, rep), acc$labels)
+  lo <- which.min(abs(cp$probs - 0.05))
+  hi <- which.min(abs(cp$probs - 0.95))
+  rows <- list()
+  for (nm in intersect(names(cp$rows), names(truth))) {
+    r <- cp$rows[[nm]]
+    t <- truth[[nm]]
+    if (r$dims[2L] == 0L) {
+      next
+    }
+    if (length(t) != r$dims[2L]) {
+      stop("truth and quantiles differ in length: ", cell, " ", nm)
+    }
+    q <- readSingle(file.path(referenceDir(cell, link, rep), r$file), r$dims)
+    rows[[nm]] <- data.frame(
+      class = nm,
+      n = length(t),
+      cov90 = sum(q[lo, ] <= t & t <= q[hi, ])
+    )
+  }
+  for (nm in intersect(names(cp$scalars), names(truth))) {
+    v <- cp$scalars[[nm]]
+    d <- rbind(
+      evenRows(as.matrix(v$shipped), nrow(as.matrix(v$move))),
+      as.matrix(v$move)
+    )
+    b <- stats::quantile(d[, 1L], c(0.05, 0.95), names = FALSE)
+    rows[[nm]] <- data.frame(
+      class = nm,
+      n = 1,
+      cov90 = as.numeric(b[1L] <= truth[[nm]] && truth[[nm]] <= b[2L])
+    )
+  }
+  if (!length(rows)) {
+    return(NULL)
+  }
+  out <- do.call(rbind, rows)
+  out$rep <- as.integer(rep)
+  out
+}
+
+refClassCheck <- function() {
+  all <- list()
+  for (reg in regimes) {
+    if (reg$kind != "sbc") {
+      next
+    }
+    for (link in reg$links) {
+      per <- list()
+      for (rep in seq_len(max(reg$refs))) {
+        if (
+          file.exists(acceptanceFile(reg$id, link, rep)) &&
+            file.exists(compactFile(reg$id, link, rep))
+        ) {
+          per[[rep]] <- refClassRows(reg$id, link, rep)
+        }
+      }
+      per <- do.call(rbind, per)
+      if (is.null(per)) {
+        next
+      }
+      sc <- sbcScores(reg$id, repsFor(reg$id, 2L))
+      for (cl in unique(per$class)) {
+        x <- per[per$class == cl, ]
+        idx <- withSeed(
+          seedOf("refclass", reg$id, link, cl),
+          lapply(seq_len(bootstrapResamples), function(b) {
+            sample.int(nrow(x), nrow(x), replace = TRUE)
+          })
+        )
+        boot <- vapply(
+          idx,
+          function(i) sum(x$cov90[i]) / sum(x$n[i]),
+          0
+        )
+        # the same replications' default arms, under their own labels
+        arm <- function(a) {
+          v <- Filter(
+            function(s) {
+              s$link == link &&
+                s$rep %in% x$rep &&
+                !is.null(s$coverage[[a]][[cl]])
+            },
+            sc
+          )
+          if (!length(v)) {
+            return(NA_real_)
+          }
+          sum(vapply(v, function(s) s$coverage[[a]][[cl]][["cov90"]], 0)) /
+            sum(vapply(v, function(s) s$coverage[[a]][[cl]][["n"]], 0))
+        }
+        cov <- sum(x$cov90) / sum(x$n)
+        se <- max(sd(boot), sqrt(0.09 / sum(x$n)))
+        all[[length(all) + 1L]] <- data.frame(
+          regime = reg$id,
+          link = link,
+          class = cl,
+          refs = nrow(x),
+          coverage = cov,
+          se = se,
+          z = (cov - 0.9) / se,
+          told = arm("oracle.default"),
+          shipped = arm("shipped.default")
+        )
+      }
+    }
+  }
+  out <- do.call(rbind, all)
+  out$zMax <- qnorm(1 - 0.025 / nrow(out))
+  out$flag <- abs(out$z) > out$zMax
+  saveAtomic(list(table = out, quick = quick), runDir("readings-refclass.rds"))
+  num <- vapply(out, is.numeric, logical(1L))
+  shown <- out
+  shown[num] <- lapply(out[num], function(v) round(v, 4L))
+  print(shown, row.names = FALSE)
+  cat(sprintf(
+    "readings %d, |z| <= %.3f, flagged: %d\n",
+    nrow(out),
+    out$zMax[1L],
+    sum(out$flag)
+  ))
+  invisible(out)
+}
 
 # The jobs of one replication of one cell and link, in dependency order.
 # whenAll gates every job of the replication (a later look's replications, D1's
@@ -7566,6 +7857,52 @@ writeJobs <- function(phase, path, tranche = 1L) {
         )
       }
     }
+  } else if (phase == "longoracle") {
+    # on the replications already run: a job for each with a design and a score
+    owed <- longOracleOwedFrom(defaultOracleTable())
+    cat("long oracle owed:", owed, "\n")
+    plan <- lapply(owed, function(id) {
+      list(
+        id = id,
+        links = cellRegime(id)$links,
+        reps = seq_len(longOracleReps)
+      )
+    })
+    for (id in names(longOracleMore)) {
+      m <- longOracleMore[[id]]
+      plan <- c(
+        plan,
+        list(list(
+          id = id,
+          links = m$link,
+          reps = setdiff(seq_len(m$reps), seq_len(longOracleReps))
+        ))
+      )
+    }
+    for (p in plan) {
+      for (link in p$links) {
+        for (rep in p$reps) {
+          if (!file.exists(scoreFile(p$id, link, rep))) {
+            next
+          }
+          fit <- jobId("fit", p$id, link, rep, "longOracle")
+          add(
+            fit,
+            character(),
+            FALSE,
+            p$id,
+            sprintf("@shipped fit %s %s %d longOracle", p$id, link, rep)
+          )
+          add(
+            jobId("longscore", p$id, link, rep),
+            fit,
+            FALSE,
+            p$id,
+            sprintf("@shipped longscore %s %s %d", p$id, link, rep)
+          )
+        }
+      }
+    }
   } else if (phase == "null") {
     for (link in both) {
       for (rep in seq_len(100L)) {
@@ -7719,6 +8056,9 @@ main <- function(args) {
     movegate = runMoveGate(a[1L], a[2L]),
     movefit = runMoveFit(a[1L], a[2L], as.integer(a[3L])),
     movescore = runMoveScore(a[1L], a[2L], as.integer(a[3L])),
+    longscore = runLongScore(a[1L], a[2L], as.integer(a[3L])),
+    longoracle = runLongOracleRead(),
+    refclass = refClassCheck(),
     reference = switch(
       a[1L],
       run = runReferencePart(
