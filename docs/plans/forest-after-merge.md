@@ -1,11 +1,10 @@
 # forest-after-merge: re-derive a default forest's sd from a swapped column
 
-Status: PLANNED 2026-10-29 on 917f02c1; amended the same day after its blind critique (verdict: build after
-amendments; report scratch/crit-fam/report.md) and the coordinator's rulings on it. Three calls held for the
-maintainer ([Open calls](#open-calls)): the first, for slice 2, is ruled (dec-B504). Slice 1, the long form
-`forest(leaf.prior = normal(sd = ))`, was built and then removed under dec-B508, which has `forest()` state its
-size as `sd` alone; open calls 2 and 3 are moot. Rulings: dec-B276 (the window), dec-B265 and dec-B303
-(updateBasisScale and its rows), with dec-B346, dec-B362, dec-B364, dec-B465, dec-B479 and dec-B488.
+Status: LANDED 2026-10-30 (dec-A244), built in one slice, `$setForestBasis(updateBasisScale = TRUE)`, with one
+review and its fix; the call held for it was ruled (dec-B504). Slice 1, the long form `forest(leaf.prior =
+normal(sd = ))`, was built and then removed under dec-B508; open calls 2 and 3 are moot. Rulings: dec-B276 (the
+window), dec-B265 and dec-B303 (updateBasisScale and its rows), with dec-B346, dec-B362, dec-B364, dec-B465,
+dec-B479, dec-B488, dec-B504 and dec-B508.
 
 agent: slice 2 an opus
 implementer and one opus review that runs the mutants below, the same reviewer checking the fix round unless
@@ -348,3 +347,10 @@ Gates, on the slice's own libraries, `--preclean` on every commit:
   which the critique probed on all four row setters, but not traced through every other path.
 - 0.9-34 was probed for the setters' signatures only.
 - The pending plans were read at 96bf027c and f4b9256b, before their reviews; their calls may move.
+
+## Landing note
+
+Landed 2026-10-30 at f251f037 (dec-A244): `$setForestBasis(updateBasisScale = TRUE)` as slice 2 describes, its
+help, NEWS sentence and the design note's row. Neutral for every call main accepts (the A/B, both builds); the
+new path matches a creation on the column. x86-64 leg and CI green on the branch tip.
+`setData(updateBasisScale = )` stays in TODO.

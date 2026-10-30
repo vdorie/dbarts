@@ -795,13 +795,10 @@ items
     runs. A formula predictor with
     a non-syntactic name and no space, such as a column named x1:x2
     written backticked, stops in dbartsData.
-  forest-after-merge: built after the merge to main, for 1.0-0 still
-    (dec-B276, VD 2026-10-06): setForestBasis(updateBasisScale = TRUE),
-    which re-derives a default sd from a replaced column during
-    burn-in (dec-B265). Until then it is absent, a caller who replaces
-    the column of a default-sd forest stating the sd. The long form
-    leaf.prior = normal(sd = ) on forest() is not to be built
-    (dec-B508). Selecting a forest by its label is NOT deferred.
+  setdata-update-basis-scale: dec-B265 names setData(updateBasisScale = )
+    beside setForestBasis's; it waits for setData on several forests,
+    refused today (dec-B362). setForestBasis(updateBasisScale = TRUE)
+    landed (dec-A244).
   coefficient-prior-opt-in: a caller may opt a forest's drawn coefficient
     into a heavy-tailed prior (half-Cauchy; half-t(3) was measured too),
     as another value of forest()'s amplitude argument, beside fixed()
