@@ -702,6 +702,9 @@ items
     guess of a few hundred lines. After forests-shared-total's slice F;
     for 1.0-0, with forest-door, whose $getForest and amplitude table take
     it. Forest-door's own normal() on a basis forest stays in its slice 2.
+    By dec-B541 it also moves student(df) on a forest with no basis so sd
+    sets the trees' scale, as every other option has it; no new prior is
+    needed (plan on branch forest-amplitude-normal).
   forest-prior-args: how a model of several forests is written, and
     what a forest's sd means. Written: each forest() is one function,
     the first included (dec-B268); a multiplier is the basis argument,
