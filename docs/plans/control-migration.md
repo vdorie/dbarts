@@ -351,7 +351,8 @@ that today rode the control.
 
 Taken where main refuses: `forests = forest()`; `dbarts(n.trees = )`, `dbartsSpec(n.trees = )`,
 `dbarts(n.cuts = , useQuantiles = )`, `dbartsData(n.cuts = , useQuantiles = )`; any control at `bart()` and
-`xbart()`; a carried control count at `$setControl` and beside forests that all have a basis; at the direct door, a
+`xbart()`; a carried or fresh control's differing count or rule at `$setControl`; a carried control count beside
+forests that all have a basis; at the direct door, a
 control from one fit beside another fit's model and data where the control's hidden facts refused the pair (100 of
 the 156 crossed triples main was run on, slice 1a).
 
