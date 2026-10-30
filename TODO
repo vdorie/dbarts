@@ -743,8 +743,8 @@ items
     half-Cauchy prognostic prior becomes amplitude = student(1), which
     bartCause's bcf states with sd = 2 sd(y). First a check of
     treatment-effect interval coverage at equal time, held against
-    drawn, on bcf-like data; built with forests-shared-total (its D1)
-    and coefficient-prior-opt-in (its open call 2). For 1.0-0.
+    drawn, on bcf-like data; built with forests-shared-total (its D1);
+    student(1) landed with coefficient-prior-opt-in (dec-A245). For 1.0-0.
   control-migration: ruled, not built (dec-B239, dec-B240, dec-B241). The
     tree count moves to the model, per forest, with a plain n.trees on
     dbarts() and dbartsSpec() for the forest with no basis, refused
@@ -799,12 +799,6 @@ items
     beside setForestBasis's; it waits for setData on several forests,
     refused today (dec-B362). setForestBasis(updateBasisScale = TRUE)
     landed (dec-A244).
-  coefficient-prior-opt-in: a caller may opt a forest's drawn coefficient
-    into a heavy-tailed prior (half-Cauchy; half-t(3) was measured too),
-    as another value of forest()'s amplitude argument, beside fixed()
-    (dec-B271); the default stays normal (dec-B262). Its user is a caller who redraws
-    the multiplier, whose scale drifts during a run. Wanted for 1.0-0,
-    built after the merge to main (VD 2026-10-06).
   forest-vars-one-grammar: ruled, not built (dec-B517). forest()'s
     predictors, its basis and varianceForest()'s predictors take bare
     terms (the right-hand side of a model formula), a one-sided formula in
@@ -851,8 +845,8 @@ items
     and drawn (dec-B254) and between the normal and student(df), and a
     t's df, at the next sweep; a t's mixing variance starts at the
     normal's, a return to the normal resets it. Today 'amplitude' is
-    refused there. After setmodel-parameters' slice 4 and
-    coefficient-prior-opt-in; about 400 lines. To design: the spelling
+    refused there. After forest-door and setmodel-parameters' slice 4;
+    student(df) at creation landed (dec-A245); about 400 lines. To design: the spelling
     that returns a coefficient to the normal or releases a hold, an
     unstated amplitude changing nothing. For 1.0-0.
   factor-basis-per-level: forest(x, basis = ~ arm) on a factor of three

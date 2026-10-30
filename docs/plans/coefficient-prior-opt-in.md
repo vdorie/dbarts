@@ -1,9 +1,7 @@
 # coefficient-prior-opt-in: a heavy-tailed prior on a forest's drawn coefficient
 
-Status: PLANNED 2026-10-29 on 177fd104; amended the same day after its blind critique (build after amendments;
-scratch/crit-cpo/report.md) and the coordinator's rulings on it (scratch/crit-cpo/my-rulings.md); amended again
-the same day for the maintainer's rulings on its open calls, dec-B510 (call 1), dec-B509 (settling call 2) and
-dec-B511 (call 3), and for dec-B508. No call is held. Rulings: dec-B262 (the opt-in, its user and its
+Status: LANDED 2026-10-30 (dec-A245), built in two slices with one review and a text-only fix round; no call
+was held (dec-B509 to dec-B511 ruled the open ones). Rulings: dec-B262 (the opt-in, its user and its
 measurement), dec-B271 (one argument, `amplitude`, beside `fixed()`; `student(3)` the form shown), dec-B509 (a
 forest with no basis held by default, bcf's prior the opt-in `student(1)`), dec-B510 (`student()` is df 1, a df
 finite and at least 1) and dec-B511 (the live change its own item), with dec-B18, dec-B253, dec-B254, dec-B261,
@@ -294,7 +292,7 @@ setmodel-parameters-not-structure (8342bc31):
   `$setTreePrior(forests = )`, evaluated in the widened vocabulary, refuses `forest(amplitude = student(3))` as
   any knob but `base` and `power`.
 - coefficient-prior-live (dec-B511), after its slice 4 and this item, adds the live change through
-  `$setLeafPrior(forests = )`; the coefficient's prior is not the model's, so `$setModel` never carries it.
+  `$setForest(amplitude = )` (dec-B518); the coefficient's prior is not the model's, so `$setModel` never carries it.
 
 ### Sequencing
 
@@ -523,3 +521,11 @@ Gates, on the branch's own libraries:
 - A held prognostic forest against the drawn default was checked under gaussian (dec-B509's check: not clearly
   worse for the effects at equal time); the mixing of `student(df)` at df above 1 on a forest with no basis is not
   measured.
+
+## Landing note
+
+Landed 2026-10-30 (dec-A245), rebased onto forest-after-merge's landing: `forest(amplitude = student(df))` as
+both slices describe, with its help, NEWS clause, design notes and exact-posterior arms. Neutral for every call
+main accepts, structurally and by the A/B on both builds; `student(1)` on a forest with no basis is main's
+default bit for bit. x86-64 leg and CI green on the branch tip. The live change stays its own item,
+coefficient-prior-live, through `$setForest(amplitude = )` (dec-B518).
