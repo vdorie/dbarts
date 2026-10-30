@@ -1967,9 +1967,8 @@ multipliedForestDefaults <- list(n.trees = 50L, base = 0.25, power = 3)
 ## The attribute bart() and bartBT() stamp on the control they build with
 ## what their own caller stated (plainForestStated). That control always names
 ## a tree count and bartBT() always hands dbarts() a power and a base, so
-## dbarts() cannot read either from what it is given. Not a bartcore.*
-## attribute, which is fit state: the sampler specification takes it off the
-## control it resolves.
+## dbarts() cannot read either from what it is given. The sampler
+## specification takes it off the control it resolves.
 plainStatedAttr <- "dbarts.stated"
 
 ## Whether a control states a tree count: its constructor's call named one,

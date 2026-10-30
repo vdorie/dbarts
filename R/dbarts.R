@@ -541,9 +541,7 @@ dbartsControl <- function(
     seed = resolveSeedArg(seed, "dbartsControl", refuse = TRUE),
     updateState = as.logical(updateState)
   )
-  # a plain attribute, deliberately not a bartcore.* one (that prefix means
-  # fit state, which setControl carries forward and the front doors refuse)
-  # and deliberately not a slot (a slot would enter every validity check and
+  # a plain attribute, deliberately not a slot (a slot would enter every validity check and
   # every stored control's printed form)
   attr(result, controlSuppliedAttr) <- unique(c(
     intersect(namedHere, names(formals(dbarts::dbartsControl))),
@@ -617,27 +615,13 @@ refuseCollidingMixture <- function(control) {
   invisible(NULL)
 }
 
-## A control taken from a fitted sampler carries that fit's model configuration
-## on bartcore.* attributes - the variance forest, the shape, the survival
-## status, the forest map - which a new fit over new data has no claim to.
-## bart and xbart, which build their own control, refuse it by name; dbarts and
-## dbartsSpec, where passing a sampler's control on is a 0.9-x pattern, strip
-## the attributes instead, and neither carries them into the new fit.
-refuseFitStateControl <- function(control, caller) {
+## The class check of a control given to bart() and xbart(), which take any.
+requireDbartsControl <- function(control, caller) {
   if (!inherits(control, "dbartsControl")) {
     stop(
       "'control' argument to ",
       caller,
       " must be of class dbartsControl; use dbartsControl() to create one",
-      call. = FALSE
-    )
-  }
-  if (isTRUE(controlMirror(control)$fit.state)) {
-    stop(
-      "'control' carries the model configuration of the fit it was taken ",
-      "from; '",
-      caller,
-      "' builds its own - pass a fresh dbartsControl() instead",
       call. = FALSE
     )
   }
@@ -1276,6 +1260,7 @@ dbarts <- function(
   validateCall <- addCallArgument(validateCall, 2L, dbarts::dbarts)
   validateCall <- addCallArgument(validateCall, 3L, "dbarts")
   eval(validateCall, evalEnv, getNamespace("dbarts"))
+  control <- releaseCarriedControl(control, "dbarts")
 
   if (length(control@call) == 1L && control@call == call("NA")) {
     recordedCall <- matchedCall
@@ -1602,7 +1587,16 @@ dbarts <- function(
     data <- setDataRowNames(data, "test", hazardNames$test)
   }
 
-  data@n.cuts <- recycleNumCuts(control@n.cuts, ncol(data@x))
+  # a carried cut count states none, leaving the one a data object handed in
+  # holds
+  carriedCuts <- attr(control, controlCarriedAttr, exact = TRUE)$values$n.cuts
+  if (
+    is.null(carriedCuts) ||
+      length(data@n.cuts) != ncol(data@x) ||
+      anyNA(data@n.cuts)
+  ) {
+    data@n.cuts <- recycleNumCuts(control@n.cuts, ncol(data@x))
+  }
   data@sigma <- sigest
 
   # A basis written as code is built now, on the rows the data object kept,
@@ -2849,11 +2843,12 @@ dbartsSampler <- setRefClass(
       # the model, where an object saved by an earlier build has the range
       data <- checkDerivedRecord(data, model)
       attr(model, "response.range") <- NULL
-      # the model and data hold what the sampler runs, the control's tree
-      # count and quantile rule among them, and the control mirrors them
+      # the model and data hold what the sampler runs, the tree count and
+      # the quantile rule among them, and the control mirrors them
       taken <- takeControlReadings(control, model, data)
       model <- taken$model
       data <- taken$data
+      warnDirectDoorNotUsed(control, model, data)
       control <- mirrorControl(control, model, data)
       .self$control <- control
       .self$model <- model
@@ -3166,16 +3161,21 @@ dbartsSampler <- setRefClass(
       newControl@binary <- control@binary
       newControl@call <- control@call
 
-      # Where the first forest has a basis the stored control's count is that
-      # forest's, and the control the sampler was created under held another,
-      # which rides the mirror's record: the plain forest's, or the fitting
-      # function's own. A new control holding that count names no change.
-      createdUnder <- controlMirror(control)$control.n.trees
-      if (
-        !is.null(createdUnder) && identical(newControl@n.trees, createdUnder)
-      ) {
-        newControl@n.trees <- control@n.trees
+      # the tree count, the quantile rule and the cut count are the sampler's:
+      # a copy that differs from them is taken, the sampler's kept, the caller
+      # told; a value the caller wrote is refused below
+      notUsed <- character(0L)
+      for (slotName in c("n.trees", "useQuantiles", "n.cuts")) {
+        notUsed <- c(
+          notUsed,
+          setControlCopyReading(newControl, control, slotName)
+        )
       }
+      givenCopies <- lapply(
+        stats::setNames(notUsed, notUsed),
+        methods::slot,
+        object = newControl
+      )
 
       # settings fixed at creation: the generators, anything shaping the cut
       # grid, and the four engine limits, which the sampler reads once when it
@@ -3186,9 +3186,7 @@ dbartsSampler <- setRefClass(
       # mixture, window and tree-shift mode afresh, so a change is installed
       # (below) on every forest that states none of its own.
       for (slotName in c(
-        "n.trees",
         "n.chains",
-        "useQuantiles",
         "categoricalExhaustiveCap",
         "testFitParallelCutoff",
         "predictParallelCutoff",
@@ -3211,12 +3209,7 @@ dbartsSampler <- setRefClass(
       if (newControl@keepTrees && is.na(newControl@n.samples)) {
         stop("keepTrees requires 'n.samples' to be specified")
       }
-      newControl <- mirrorControl(
-        newControl,
-        model,
-        data,
-        controlMirror(control)$control.n.trees
-      )
+      newControl <- mirrorControl(newControl, model, data)
 
       # a monotone sampler is birth/death-only, as creation forces: a defaulted
       # mixture is rewritten and one proposing other moves refused, before
@@ -3261,6 +3254,18 @@ dbartsSampler <- setRefClass(
             .Call(C_dbarts_bartcore_setControl, ptr, oldControl)
             stop(e)
           }
+        )
+      }
+      # once the control is in, so a refusal never spends the message
+      for (slotName in names(givenCopies)) {
+        warnControlNotUsed(
+          slotName,
+          givenCopies[[slotName]],
+          paste0(
+            "this sampler keeps its ",
+            paste(unique(methods::slot(newControl, slotName)), collapse = ", "),
+            ", fixed when it was created"
+          )
         )
       }
 
@@ -3308,6 +3313,12 @@ dbartsSampler <- setRefClass(
           "'vars': they are fixed when a sampler is created; make a new ",
           "sampler instead"
         )
+      }
+      # the rest of the structure the model's records name, before anything
+      # is stored
+      refusal <- movedStructureRefusal(newModel, model)
+      if (!is.null(refusal)) {
+        stop(refusal, call. = FALSE)
       }
       # split probabilities are a parameter, held to what creation holds them
       # to on a restricted forest
@@ -4517,7 +4528,7 @@ dbartsSampler <- setRefClass(
         }
       }
       if (is.null(matchedCall$treeNums)) {
-        treeNums <- seq_len(control@n.trees)
+        treeNums <- seq_len(model@forests[[1L]]@n.trees)
       }
 
       ptr <- getPointer()
@@ -4635,7 +4646,7 @@ dbartsSampler <- setRefClass(
       # keeps no matrix); a sparse data@x is skipped for a NULL replay source
       trainingMatrix <- rawPredictorMatrix(data@x)
       hasForestColumn <- bartcoreNumForests(ptr) > 1L ||
-        isTRUE(attr(model, "forests.declared", exact = TRUE))
+        samplerCarriesAmplitudes(.self)
       blocks <- lapply(forestIndices, function(forestIndex) {
         forestTreeCount <- bartcoreForestTreeCount(ptr, forestIndex)
         forestTreeNums <- if (treeNumsSupplied) {

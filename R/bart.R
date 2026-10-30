@@ -1287,7 +1287,7 @@ bart <- function(
 
   controlSupplied <- "control" %in% names(matchedCall)
   suppliedControl <- if (controlSupplied) {
-    refuseFitStateControl(control, "bart")
+    releaseCarriedControl(requireDbartsControl(control, "bart"), "bart")
   } else {
     NULL
   }
@@ -1350,6 +1350,11 @@ bart <- function(
     suppliedControl,
     setdiff(c(names(matchedCall), shorthandSupplied), nullByDefault),
     remedy = !inherits(formula, "dbartsData")
+  )
+  attr(control, controlCarriedAttr) <- attr(
+    suppliedControl,
+    controlCarriedAttr,
+    exact = TRUE
   )
   # the retired flat spelling of the mixture wins over the control's slot, as
   # every other flat name does - unless the control's own call NAMED that slot,

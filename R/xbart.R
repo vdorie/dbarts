@@ -118,7 +118,12 @@ xbart <- function(
   # same name - so they are excluded. The fields below are forced after both:
   # a sweep runs one chain per cell, keeps no trees or training fits, stores
   # no state, prints nothing, and seeds each cell itself.
-  control <- refuseFitStateControl(control, "xbart")
+  control <- releaseCarriedControl(
+    requireDbartsControl(control, "xbart"),
+    "xbart"
+  )
+  carried <- attr(control, controlCarriedAttr, exact = TRUE)$values
+  attr(control, controlCarriedAttr) <- NULL
   resolved <- mergeFrontDoorControl(
     control,
     matchedCall,
@@ -137,6 +142,21 @@ xbart <- function(
   # the grid and the RNG block read these; only the four knobs above are the
   # control's own copies
   n.trees <- resolved$n.trees
+  for (name in names(carried)) {
+    if (!sameRecycled(carried[[name]], resolved[[name]])) {
+      warnControlNotUsed(
+        name,
+        carried[[name]],
+        paste0(
+          "this cross-validation takes ",
+          paste(unique(resolved[[name]]), collapse = ", "),
+          "; state it as xbart(",
+          name,
+          " = )"
+        )
+      )
+    }
+  }
   # 'seed' is resolved from its value, not from whether the call named it: a
   # wrapper forwarding its own seed = NULL must still defer to the control.
   seed <- resolveSeedArg(seed, "xbart")

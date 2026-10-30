@@ -439,20 +439,10 @@ resolveSamplerSpec <- function(
   # a data object handed in whole is held to its own record here, at
   # dbarts() and at dbartsSpec() alike
   checkBasisRecord(data)
-  # a control taken from a fit whose first forest has a basis holds that
-  # forest's tree count, which its sampler mirrored there. The count this call
-  # is to inherit rides the mirror's record and goes back on the slot before
-  # the record is cleared: a multiplied forest's count is never the next
-  # fit's. Only while the slot still holds the mirrored count: any other is
-  # the caller's own edit, which stands as a stated count does
-  mirror <- controlMirror(control)
-  if (
-    !is.null(mirror$control.n.trees) &&
-      isTRUE(control@n.trees == mirror$n.trees)
-  ) {
-    control@n.trees <- mirror$control.n.trees
-  }
-  attr(control, controlMirrorAttr) <- NULL
+  # what the door set aside of a control taken from a fit (a carried value
+  # states nothing), for the not-used warning below
+  carried <- attr(control, controlCarriedAttr, exact = TRUE)
+  attr(control, controlCarriedAttr) <- NULL
   # what the caller stated of the arguments that are the forest with no
   # basis's own: bart()'s record of its own caller where it built this
   # control, and otherwise the control and the names 'written' in this call
@@ -1146,9 +1136,6 @@ resolveSamplerSpec <- function(
       data@basis.scale <- if (all(vapply(scales, is.null, NA))) NULL else scales
     }
   }
-  # the count a later fit given this control inherits, where it is not the
-  # slot's
-  inheritedCount <- NULL
   if (!is.null(data@bases)) {
     # the RESOLVED forest count, which is the data object's own bases or the
     # declaration that replaced them just above, and which the refusal below
@@ -1429,18 +1416,6 @@ resolveSamplerSpec <- function(
       }
       record
     })
-    # where the first forest has a basis the control's slot holds a multiplied
-    # forest's count, and where forests with no basis split the count it holds
-    # forest 1's part, so the count a later fit given this control inherits is
-    # kept beside it: the plain forest's as it runs where there is one, else
-    # the fitting function's own. Inert to the run
-    if (!firstIsPlain || length(plain) > 1L) {
-      inheritedCount <- if (length(plain) == 1L) {
-        treeCounts[plain]
-      } else {
-        fitTreeCount
-      }
-    }
   } else {
     records <- list(plainForestRecord(
       control@n.trees,
@@ -1464,10 +1439,15 @@ resolveSamplerSpec <- function(
     }
   }
   model@forests <- records
-  attr(model, "forests.declared") <- if (length(forests) > 0L) TRUE
-  # the quantile rule the control states is the data object's
-  data@useQuantiles <- control@useQuantiles
-  control <- mirrorControl(control, model, data, inheritedCount)
+  # the quantile rule the control states is the data object's; a carried one
+  # states none, leaving the rule a data object handed in holds
+  if (is.null(carried$values$useQuantiles) || is.na(data@useQuantiles)) {
+    data@useQuantiles <- control@useQuantiles
+  }
+  control <- mirrorControl(control, model, data)
+  if (!is.null(carried)) {
+    warnCarriedNotUsed(carried, model, data)
+  }
 
   # every resolution of "auto" is announced once, here, after the refusals
   # above: bart() reaches this through dbarts(), and dbartsSpec() reads its
@@ -1563,6 +1543,7 @@ dbartsSpec <- function(
     warnConsolidated("proposal.probs", "dbartsSpec")
     refuseCollidingMixture(control)
   }
+  control <- releaseCarriedControl(control, "dbartsSpec")
   familySpec <- resolveFamily(
     matchedCall$family,
     eval(formals(dbarts::dbartsSpec)$family),
