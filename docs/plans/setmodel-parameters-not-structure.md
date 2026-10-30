@@ -303,13 +303,13 @@ Planned against:
    share 1 and it takes the leaf prior given, so `$setLeafPrior(normal())` on `forest(x1, sd = 2) + forest(x2, basis =
    z)` under probit returns k to drawn. A forest of a group of several that has left stays out (dec-B525): it is not the
    one candidate. Where the one candidate states `student(df)` or `normal()` it has no k, and the leaf prior given
-   writes that forest's sd, the trees' scale holding it (dec-B540, dec-B541): `normal(sd = v)` v, as `$setForest(1, sd = v)`
-   does; `normal(k = v)` the scale creation set over v; a `chi()` k that scale over the chi prior's median k, once, with no k drawn
-   afterward. It goes through [`Chain::setForestMapSd`](../../src/bartcore/chain.hpp), which writes the leaf scale and leaves the
-   coefficient and the leaves already drawn. The df stays; a stated sd goes. Only the spelling's reading comes from creation:
-   nothing is re-read from the data, since a door never recalibrates, and nothing is divided. The scale creation set is carried
-   on the record, this forest's reported `k.scale` then reading the current sd over z and not that scale. ~40 lines beside the
-   pins.
+   writes that forest's sd, the coefficient's prior holding it (dec-B540, dec-B542): `normal(sd = v)` v, as `$setForest(1, sd =
+   v)` does; `normal(k = v)` the scale creation set over v; a `chi()` k that scale over the chi prior's median k, once, with no k
+   drawn afterward. It goes through [`Chain::setForestMapSd`](../../src/bartcore/chain.hpp), which writes the coefficient's prior
+   and leaves the leaf scale, the leaves and the coefficient already drawn. The df stays; a stated sd goes. Only the spelling's
+   reading comes from creation: nothing is re-read from the data, since a door never recalibrates, and nothing is divided. The
+   scale creation set is carried on the record, this forest's reported `k.scale` being the response's unit and not that scale. ~40
+   lines beside the pins.
 2. Bridge. A group entry beside `bartcore_setForestTreePrior`, reading k, its drawn flag, the chi prior and a
    named sd from the model as creation's K-forest path reads them (forests-shared-total's bridge item 1), every
    check first. `bartcore_setModel` gains a route for samplers of several forests and multinomial ones that never
@@ -474,11 +474,11 @@ tinytest, a new test-setmodel-forests.R, every twin on two chains:
   records agreeing with the engine after each; `$setLeafPrior(normal())` on a probit `forest(sd = 2)` returning k to
   drawn, from the spread in force (call 8's exemption). A forest following the level still following after a level
   change. `$setTreePrior(power = NULL)` and a round trip of `$getForest` writing nothing.
-- The one candidate that draws a coefficient (dec-B540, dec-B541): `$setLeafPrior` with `normal(sd = )`, `normal(k = )` and a
-  `chi()` k writing the sd creation's reading gives on the same data, read on `$sd` and on `prior.scale` and `k.scale` at sd / z,
-  the coefficient's prior and the leaves unmoved, the df kept, `getK` still reporting no k, and draws matching `$setForest(1, sd =
-  )` at that sd; a stated sd cleared; after `$setResponse`, and after a second write, the sd still read from creation's scale and
-  not from `k.scale`; a copy and a reload continue.
+- The one candidate that draws a coefficient (dec-B540, dec-B542): `$setLeafPrior` with `normal(sd = )`, `normal(k = )` and a
+  `chi()` k writing the sd creation's reading gives on the same data, read on `$sd` and on the coefficient's prior scale, with
+  `prior.scale` and `k.scale` at the response's unit, the leaves and the coefficient already drawn unmoved, the df kept, `getK`
+  still reporting no k, and draws matching `$setForest(1, sd = )` at that sd; a stated sd cleared; after `$setResponse`, and after
+  a second write, the sd still read from creation's scale and not from `k.scale`; a copy and a reload continue.
 - The group's leaf prior through `$setModel` and through `$setLeafPrior(leaf.prior = )`: k held, drawn (from the
   k in force, call 8's exemption) and as an sd, every sharer's k equal and each its own leaf scale, a forest that
   stated sd unmoved; after slice F the same beside a forest with a basis, the lone sharer's held 2 restated
