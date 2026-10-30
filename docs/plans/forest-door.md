@@ -1,7 +1,8 @@
 # forest-door: a live sampler changes one forest through $setForest, by label, in forest()'s names
 
 Status: PLANNED 2026-10-30 on c55a1477 (dec-B518); amended the same day after its blind critique (REVISE FIRST,
-scratch/fd-crit/report.md, probes c1.R to c9.R there) and the coordinator's calls on it. Six calls are held for
+scratch/fd-crit/report.md, probes c1.R to c9.R there) and the coordinator's calls on it, and again after its
+re-check (BUILD AFTER AMENDMENTS, scratch/fd-crit/recheck.md, probe c10.R). Six calls are held for
 the maintainer ([Open calls](#open-calls)). Rulings: dec-B518 (the door), with dec-B254 (parameters, never
 structure), dec-B276 (a forest by label or position), dec-B477 and dec-A239 (per-forest move settings), dec-B511
 (the coefficient's prior live), dec-B512 (plain power and base), dec-B514 and dec-B515 (a setter means what
@@ -14,9 +15,11 @@ below, the same reviewer checking the fix round unless the fixes change engine b
 takes it, one opus implementer and one opus review. Tier "Changes draws"
 ([Process by risk](README.md#process-by-risk)): slice 1 adds an engine install and slice 2 a door that changes
 priors between sweeps; slice 3 edits the shared-total group in the engine.
-rng: NEUTRAL, bit for bit, for every call main accepts. The one main spelling this item removes,
-`$setLeafPrior(forests = )`, is respelled `$setForest(forest, sd = )` and draws bitwise as the old spelling did
-(an A/B against a c55a1477 build). Every new call is held to the twin oracle: before any run its next draws are
+rng: NEUTRAL, bit for bit, for every call main accepts and keeps. Three main calls, none shipped, stop being
+taken: `$setLeafPrior(forests = )`, removed and respelled `$setForest(forest, sd = )`, which draws bitwise as the
+old spelling did (an A/B against a c55a1477 build); and, under open call 5's (a), `$setLeafPrior(normal(k = 3))`
+on a `forest(sd = 2)` sampler and `$setModel` with a changed power on a `forest(x, power = )` sampler, each
+refused by name. Every new call is held to the twin oracle: before any run its next draws are
 those of a sampler created with the same statement, one named handoff excepted ([RNG class](#rng-class)). No
 call draws a random number.
 window: for 1.0-0, after the merge to main (dec-B518 names none; nothing per-forest shipped in 0.9-34).
@@ -76,7 +79,8 @@ Six questions for you, below:
    recommend it follows, which is how your ruling's words read.
 5. A forest that only the fitting function's setting reaches (a one-forest sampler's forest, for one), where the
    fitting function stated a value: I recommend refusing a forest-level statement there, as creation does, and
-   naming the fitting function's door.
+   naming the fitting function's door; to move the setting to the forest, the caller first clears the fitting
+   function's (`$setLeafPrior(NULL)`, `$setTreePrior(power = NULL)` under question 3's recommendation).
 6. A forest that shares the total with other forests with no basis, stating its own size live: I recommend
    refusing it for 1.0-0, as the shared-total plan does, because it would move the other forests' sizes too;
    taking it is about 420 lines of engine work and can be added later without breaking a call.
@@ -146,11 +150,15 @@ Run on a c55a1477 build (scratch/fd-plan/p1.R to p4.R; the critique's c1.R to c9
 
 The sampler keeps, from creation on:
 
-- the fitting function's level as its caller stated it: `power`, `base` and the leaf prior, each its value where
-  stated and NULL where not, apart from any forest's (a named NULL at creation counts as stated there, c5, as
-  creation reads it today);
+- the fitting function's level, apart from any forest's: `power`, `base` and the leaf prior, each its resolved
+  value always, with a flag beside it saying whether its caller stated it. The value is kept whether stated or
+  not, so a sampler built by `new("dbartsSampler", control, model, data)` whose model carries power 3, and its
+  reload, return a forest to 3 and not to the default (c10). A named NULL is recorded as not stated, as NULL
+  means a name not given (dec-B140); whether creation should stop counting a named NULL as stated (c5) is held
+  apart, open call 3's background;
 - for every forest, a lone forest and every multinomial model's one entry included, whether it stated its own
-  `sd`, `power` and `base`, beside the values it runs under; the move settings' record already holds NULL where
+  `sd`, `power` and `base`, beside the values it runs under, a named NULL counted as not stated; the move
+  settings' record already holds NULL where
   unstated, the hold and the coefficient's df where stated;
 - for the variance forest, whether it stated `power` and `base`.
 
@@ -195,7 +203,10 @@ recommendation, the same refusal holds in both directions:
 
 - `$setForest(f, sd = v)` (or `power`, `base`) is refused where the fitting function states that setting and no
   other forest would take it, naming `$setLeafPrior(normal(sd = v))` or `$setTreePrior(power = )` for the change
-  and the fitting-function level's clearing spelling (open call 3) for a move to the forest's own;
+  and, for a move to the forest's own level, the spelling that clears the fitting function's statement: under
+  open call 3's (a) `$setTreePrior(power = NULL)` (slice 4) and `$setLeafPrior(NULL)`, each returning that
+  level to its default recorded as not stated; a bare `normal()` stays a statement of the default, as at
+  creation (c1);
 - `$setLeafPrior(...)`, `$setTreePrior(...)` and `$setModel`'s tree prior are refused where every forest they
   would reach states its own, naming `$setForest(f, sd = NULL)`; so the forest record is never left stale against
   the engine (c3's case today). On a one-forest sampler `$setModel(s$model)` restates what is in force and is
@@ -370,7 +381,9 @@ tinytest, a new test-forest-door.R (~1000 lines), every R-side twin on two chain
 - Inert: the round trip on every kind, a subset restated, a NULL on an unstated name: draws bitwise equal to no
   call, and a following `$setControl` or the fitting function's door still reaching the forest.
 - Return to the level above: a stated `power` cleared, then reading the fitting function's value in force, set at
-  creation and changed since; a move setting cleared then following `$setControl`; a numeric forest's `sd`
+  creation and changed since, and on a sampler built by `new()` from a model carrying power 3, and its reload,
+  landing on 3; `$setLeafPrior(NULL)` and `$setTreePrior(power = NULL)` clearing the fitting function's level so
+  a forest may then state its own; a move setting cleared then following `$setControl`; a numeric forest's `sd`
   cleared to the recorded default, and to one derived over the rows in where creation stated it.
 - A saved statement restored after two later changes.
 - The two levels: both orders on a lone forest, `$setForest(1, sd = )` after `leaf.prior = normal(k = 3)` and
@@ -380,7 +393,8 @@ tinytest, a new test-forest-door.R (~1000 lines), every R-side twin on two chain
   same reason; structure by name; a refused call with one good and one bad name leaving the reader, records and
   draws as they were.
 - The variance forest: its own door; under open call 4's (a), an unstated one moving with the lone forest's
-  `$setForest(1, power = )` and a stated one not.
+  `$setForest(1, power = )` and a stated one not, name by name: one stating only `power` keeps it and still
+  follows the lone forest's `base` (c9).
 - Labels: a forest selected by label where the formula and a list put it at different positions; the multinomial
   door with `forest` left out.
 - The old spelling: on a c55a1477 build `$setLeafPrior(forests = )` and on the branch `$setForest(label, sd = )`,
@@ -420,8 +434,11 @@ Mutants, each to fail a named pin:
     the engine.
 15. A NULL return reading creation's fitting-function value instead of the current one: the return pin after a
     change at the fitting function's level.
-16. An R-side twin run on one chain: the pins assert two chains, and a per-chain write to chain 0 alone fails them.
-17. Slice 3 under (a): the other sharers' leaf scales left at 1/K after one leaves, or the leaver kept in the k
+16. The fitting function's record keeping NULL where unstated instead of the resolved value: a direct-door
+    sampler built with power 3, `$setForest(1, power = 4)`, then `power = NULL` landing on 2; and a named NULL
+    recorded as stated.
+17. An R-side twin run on one chain: the pins assert two chains, and a per-chain write to chain 0 alone fails them.
+18. Slice 3 under (a): the other sharers' leaf scales left at 1/K after one leaves, or the leaver kept in the k
     pool: the unequal-count twin.
 
 ## Interaction with the other pending plans, and order
@@ -534,12 +551,16 @@ serially.
    to the normal or a hold released). Background: a name left out changes nothing, so another spelling is needed.
    At creation a NULL named at the fitting function counts as stated (`bart(k = NULL)` beside a lone forest's
    `sd` is refused, c5), against dec-B140's NULL for absent; tree-prior-flat's planned `$setTreePrior(power =
-   NULL)` reads NULL as no change.
+   NULL)` reads NULL as no change. Whether creation keeps counting a named NULL as stated is a separate decision
+   held for the maintainer (the coordinator's decisions-pending #24, which also covers tree-prior-flat's
+   `power = NULL`); this call depends on it and does not settle it. The live records count a named NULL as not
+   stated either way.
    - (a) Recommended: an explicit NULL, `s$setForest("tau", sd = NULL)`, as `options(x = NULL)` and
      `modifyList(x, list(a = NULL))` clear an entry and as NULL means a name not stated in `forest()`; the reader
      writes NULL for an unstated name, so a saved statement restores. Cost: NULL and a name left out differ, which
      few R functions do; slice 4's `$setTreePrior` reads NULL the same way, a return to the default as dec-B514
-     reads a bare `normal()`; and it needs the fitting function's level recorded apart from the forests' (built
+     reads a bare `normal()`, and `$setLeafPrior(NULL)` clears the fitting function's leaf prior (open call 5);
+     and it needs the fitting function's level recorded apart from the forests' (built
      in slice 2, ~150 lines of it), since a NULL returns to that level as it stands.
    - (b) A constructor, `sd = inherit()`. Cost: a new exported name, the reader returning it; the same records.
    - (c) An argument naming what to clear, `unstate = "sd"`. Cost: the reader cannot carry it, so a saved
@@ -564,7 +585,11 @@ serially.
    item, would leave the forest's stated `sd` in the record while the engine runs k = 3 (c3).
    - (a) Recommended: refuse as creation does, in both directions: `$setForest` naming the fitting function's door
      where the fitting function states the setting, and `$setLeafPrior`, `$setTreePrior` and `$setModel` naming
-     `$setForest(f, ... = NULL)` where the forest states its own. Cost: two calls to move a setting between levels;
+     `$setForest(f, ... = NULL)` where the forest states its own. A setting moves to the forest's level by first
+     clearing the fitting function's: `$setTreePrior(power = NULL)` and `$setLeafPrior(NULL)` under open call 3's
+     (a), `$setLeafPrior` taking NULL for it (~10 lines; main refuses it, "'leaf.prior' must be a leaf prior
+     specification", c10); under open call 3's (b) or (c) that call's spelling. Cost: two calls to move a
+     setting between levels;
      `$setModel` with a changed power refused on a `forest(x, power = )` sampler, which main takes; needs the
      levels recorded (open call 3's cost, shared).
    - (b) The later write wins: a forest-level statement clears the fitting function's for that forest, and a
