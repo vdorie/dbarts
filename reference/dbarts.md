@@ -10,7 +10,7 @@ as to be mutable.
 dbarts(
     formula, data, test, subset, weights, offset, offset.test = offset,
     verbose = FALSE, n.samples = 800L,
-    tree.prior = cgm, leaf.prior = normal,
+    power = 2, base = 0.95, split.probs = NULL, leaf.prior = normal,
     monotone = NULL,
     interactions = NULL,
     blocks = NULL,
@@ -22,7 +22,7 @@ dbarts(
                "multinomial", "ordinal",
                "nbinom", "hazard", "hazard.probit", "hazard.logistic"),
     na.action = dbarts::na.keepPredictors,
-    sigma = NULL, node.prior = NULL, callback = NULL, ...)
+    sigma = NULL, node.prior = NULL, tree.prior = NULL, callback = NULL, ...)
 ```
 
 ## Arguments
@@ -203,13 +203,27 @@ dbarts(
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
   `n.samples` item for the full contract.
 
-- tree.prior:
+- power, base:
 
-  An expression of the form `cgm` or `cgm(power, base, split.probs)`
-  setting the tree prior used in fitting, or a prior object built with
-  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md).
-  In a model of several forests it is the prior of the forest with no
-  `basis`; see `forests`.
+  Real numbers setting the tree prior's probability that a node at a
+  given depth splits, \\base / (1 + depth)^{power}\\, as in
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md). In a
+  model of several forests they are the tree prior of the forest with no
+  `basis`, and a forest states its own on the forest, as
+  `forest(x1, power = 3)`; stating one on both the function and that
+  forest is refused, as for `n.trees`. See `forests`.
+
+- split.probs:
+
+  Prior probabilities that each predictor is chosen for a splitting
+  rule: `NULL` (the default) for equal probabilities, a numeric vector,
+  named or one per model-matrix column, `num.vars`, which stands for the
+  number of predictors (`1 / num.vars`), or `dart()` from
+  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md),
+  which runs DART (Linero 2018). A model of several forests, and
+  `family = "multinomial"`, take a uniform vector and refuse any other,
+  or `dart()`, by name. The mean forest's alone: a variance forest takes
+  none.
 
 - leaf.prior:
 
@@ -336,9 +350,9 @@ dbarts(
   [`varianceForest`](https://vdorie.github.io/dbarts/reference/varianceForest.md)
   object, which additionally sets the variance forest's own tree count
   (default `40`) and tree-structure prior (default the mean forest's
-  `tree.prior` `base`/`power`); a `varianceForest` with no `vars` reads
-  every predictor, matching `TRUE`. Gaussian and `"aft"` (survival)
-  responses and constant leaves only (a `linear()` or `gp()` leaf prior,
+  `base` and `power`); a `varianceForest` with no `vars` reads every
+  predictor, matching `TRUE`. Gaussian and `"aft"` (survival) responses
+  and constant leaves only (a `linear()` or `gp()` leaf prior,
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md),
   is refused by name); monotone constraints and the latent families
   (`"probit"`, `"logistic"`, `"ordinal"`, `"nbinom"`), which route their
@@ -391,13 +405,15 @@ dbarts(
   has no `basis`, at any place in the list, the amplitudes multiplying a
   basis being what distinguish the others from it. A forest's default
   tree count and tree prior go by whether it has a `basis`: the forest
-  with none takes the control's `n.trees` and this function's
-  `tree.prior`, and a forest with one takes 50 trees under
-  `cgm(3, 0.25)`, wherever each stands. Where every forest has a
-  `basis`, a control that names `n.trees` and a named `tree.prior`,
+  with none takes the control's `n.trees` and this function's `power`
+  and `base`, and a forest with one takes 50 trees under
+  `base = 0.25, power = 3`, wherever each stands. Where every forest has
+  a `basis`, a control that names `n.trees` and a named `power`, `base`,
   `leaf.prior`, `interactions` or `blocks` have no forest to belong to
   and are refused, the default's own value included; state them on a
-  forest. A single declared forest carrying a basis is refused: for
+  forest. Where only some forests have a basis, a `power` or `base`
+  stated here and on the forest with none is refused as one thing given
+  twice. A single declared forest carrying a basis is refused: for
   varying coefficients declare an intercept forest plus one basis forest
   per covariate,
   `forests = list(forest(), forest(basis = z1), forest(basis = z2))`, or
@@ -444,9 +460,9 @@ dbarts(
   [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),
   which always takes a pre-built data object and installs the
   declaration, replacing whatever bases it carried. Options a two-forest
-  model does not read - `monotone`, `variance`, a DART tree prior,
-  `split.probs`, a linear or Gaussian-process leaf prior, a `k`
-  hyperprior or non-default `k`, Student-t residuals,
+  model does not read - `monotone`, `variance`, a non-uniform
+  `split.probs` (a vector or `dart()`), a linear or Gaussian-process
+  leaf prior, a `k` hyperprior or non-default `k`, Student-t residuals,
   `storage = "single"`, per-column cut counts, and a `test` set - are
   refused at creation rather than ignored, as is any declaration the
   engine cannot honor. The constructors `forest`, `interactions` and
@@ -551,6 +567,18 @@ dbarts(
   The 0.9-x spelling of `leaf.prior`, accepted for one release with a
   once-per-session warning and removed in dbarts 1.1-0. Supplying both
   is an error.
+
+- tree.prior:
+
+  The 0.9-x spelling of the tree prior, accepted for one release with a
+  once-per-session warning (class `dbartsDeprecatedWarning`) and removed
+  in dbarts 1.1-0. The value is used, as the plain arguments it states:
+  `tree.prior = cgm(power = 3)` is `power = 3`, `cgm(3, 0.5)` is
+  `power = 3, base = 0.5`, and `dart(a = 1)` is
+  `split.probs = dart(a = 1)`; a prior object, such as one saved by
+  0.9-34, states its `power` and `base`, and its split probabilities
+  where they are not uniform. Given beside `power`, `base` or
+  `split.probs` it is an error. `NULL` states nothing.
 
 - callback:
 
@@ -689,11 +717,11 @@ dbarts(
   whose response and per-category offsets are mutable through
   `$setCounts`, `$setCategoryOffset` and `$setCategoryTestOffset`; see
   [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
-  for what the softmax refuses and why. `monotone`, a DART tree prior,
-  `split.probs`, a linear or Gaussian-process leaf prior, a `k`
-  hyperprior, a named `prior.scale`, `variance` and `storage = "single"`
-  are refused at creation rather than dropped, and the response uses the
-  matrix (`x.train`/`y.train`) interface.
+  for what the softmax refuses and why. `monotone`, a non-uniform
+  `split.probs` (a vector or `dart()`), a linear or Gaussian-process
+  leaf prior, a `k` hyperprior, a named `prior.scale`, `variance` and
+  `storage = "single"` are refused at creation rather than dropped, and
+  the response uses the matrix (`x.train`/`y.train`) interface.
 
   `"ordinal"` fits an ordered categorical response by a cumulative
   probit: a latent \\z = f(x) + \epsilon\\, \\\epsilon \sim N(0, 1)\\,
@@ -948,7 +976,7 @@ samples <- sampler$run()
 
 ## priors are given as expressions in dbarts's own vocabulary
 sampler <- dbarts(y ~ x, control = control,
-                  tree.prior = cgm(power = 1.5),
+                  power = 1.5,
                   leaf.prior = normal(k = chi(1.5, 2)),
                   family = gaussian(sigma = chisq(df = 5)))
 

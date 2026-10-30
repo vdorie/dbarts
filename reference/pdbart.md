@@ -206,9 +206,10 @@ plot(
   them (`x.train`, `y.train`, `ntree`, `ndpost`, `nskip`, `keepevery`,
   `binaryOffset` and the rest), are translated to `bart`'s with a
   once-per-session warning until dbarts 1.1-0, when they are refused;
-  `power`, `base` and `splitprobs` become `tree.prior = cgm()`, and
-  `proposalprobs` the control's `proposal.probs`. A setting given under
-  both spellings is refused.
+  `splitprobs` becomes `split.probs`, and `proposalprobs` the control's
+  `proposal.probs`. A setting given under both spellings is refused.
+  `power` and `base` are `bart`'s own names and are passed through as
+  they are.
 
   In `plot.pdbart`, arguments are passed on to
   [`plot`](https://rdrr.io/r/graphics/plot.default.html), except `type`,

@@ -24,6 +24,7 @@ takes no `family` argument and always fits the gaussian or probit model.
 bart(
     formula, data, test, subset, weights, offset, offset.test = offset,
     sigest = NULL, k = NULL,
+    power = 2, base = 0.95, split.probs = NULL,
     n.trees = 75L,
     n.samples = 500L, n.burn = 500L,
     n.chains = 4L, n.threads = min(dbarts::guessNumCores(), n.chains),
@@ -46,7 +47,7 @@ bart(
                "multinomial", "ordinal", "nbinom", "hazard", "hazard.probit",
                "hazard.logistic", "hurdle.lognormal"),
     na.action = dbarts::na.keepPredictors,
-    tree.prior = NULL, leaf.prior = NULL,
+    leaf.prior = NULL,
     storage = c("double", "single"), updateState = TRUE,
     keepFits = is.null(callback), callback = NULL,
     control = dbarts::dbartsControl(), ...)
@@ -536,9 +537,9 @@ print(x, ...)
   response is unchanged. A two-column matrix is never read as counts
   under `"auto"`, since it is equally a (time, status) pair: it needs
   `family = "multinomial"` (or a `Surv` response) to be fit. `weights`,
-  `subset`, `samplerOnly`, `warm.start`, `n.grow.sweeps`, a DART
-  `tree.prior`, `split.probs`, `monotone`, and `variance` are all
-  refused with an error naming the limitation (an integer weight is
+  `subset`, `samplerOnly`, `warm.start`, `n.grow.sweeps`, a non-uniform
+  `split.probs` (a vector or `dart()`), `monotone`, and `variance` are
+  all refused with an error naming the limitation (an integer weight is
   already expressible as row-wise count replication in the response, a
   non-integer one has no exact augmentation sampler, and the K-forest
   engine copies only power/base/proposal-probability fields from the
@@ -842,29 +843,48 @@ print(x, ...)
   `k` item, and the ‘Leaf prior parameter `k`’ details there, for the
   full calibration argument and its outlier-sensitivity caveat.
 
-- tree.prior, leaf.prior:
+- power, base:
+
+  Real numbers setting the tree prior's probability that a node at a
+  given depth splits, \\base / (1 + depth)^{power}\\, as in
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md). A
+  tree prior is written as these and `split.probs`; `bart` takes no
+  `tree.prior`, and given one says what to write. Both are honored on
+  every family, including both component fits of
+  `family = "hurdle.lognormal"`. In a model of several forests they are
+  those of the forest with no `basis`; see ‘Formula Terms’.
+
+- split.probs:
+
+  Prior probabilities that each predictor is chosen for a splitting
+  rule: `NULL` (the default) for equal probabilities, a numeric vector,
+  named or one per model-matrix column, `num.vars`, which stands for the
+  number of predictors (`1 / num.vars`), or `dart()` from
+  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md),
+  which runs DART (Linero 2018): the probabilities are drawn given the
+  splits, and the variables the trees use are selected. A model of
+  several forests, and `family = "multinomial"`, take a uniform vector
+  and refuse any other, or `dart()`, by name. These are the mean
+  forest's alone: a variance forest takes none.
+
+- leaf.prior:
 
   The full
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) tree
-  and leaf prior objects, forwarded unevaluated so a bare
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) leaf
+  prior object, forwarded unevaluated so a bare
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)
-  vocabulary name inside them (`cgm`, `dart`, `normal`, `linear`, `gp`)
-  resolves exactly as it does for `dbarts`:
-  `leaf.prior = linear(columns = 1:3)` and `gp(...)` are reachable this
-  way. `NULL` (the default for both) instead builds the tree and leaf
-  priors from `power`/`base`/`split.probs` and `k` respectively. A DART
-  prior is `tree.prior = dart()`; it has no shorthand of its own on this
-  signature. Supplying an object alongside a shorthand that would
-  otherwise help build the same prior is an error naming both:
-  `tree.prior` collides with any of `power`/`base`/`split.probs`;
-  `leaf.prior` with `k`. Both are honored on every family, including
-  both component fits of `family = "hurdle.lognormal"`, except that a
-  leaf prior naming `sd` is refused there (see `family`). The residual
-  prior is not on this list: it is a setting of the families that draw a
-  residual scale and rides the family object instead -
+  vocabulary name inside it (`normal`, `linear`, `gp`) resolves exactly
+  as it does for `dbarts`: `leaf.prior = linear(columns = 1:3)` and
+  `gp(...)` are reachable this way. `NULL` (the default) instead builds
+  the leaf prior from `k`. Supplying an object alongside `k` is an error
+  naming both. It is honored on every family, including both component
+  fits of `family = "hurdle.lognormal"`, except that a leaf prior naming
+  `sd` is refused there (see `family`). The residual prior is not on
+  this list: it is a setting of the families that draw a residual scale
+  and rides the family object instead -
   `family = gaussian(sigma = chisq(3, 0.9))`,
   `family = gaussian(sigma = fixed(1))`; see `family` below. In a model
-  of several forests they are those of the forest with no `basis`, and a
+  of several forests it is that of the forest with no `basis`, and a
   named leaf-prior `sd` is refused there: each forest states its size on
   the forest, in the response's units, as `forest(x1 + x2, sd = 2)`; see
   ‘Formula Terms’.
@@ -933,9 +953,9 @@ print(x, ...)
   [`varianceForest`](https://vdorie.github.io/dbarts/reference/varianceForest.md)`(vars = , n.trees = , base = , power = )`
   object, which additionally sets the variance forest's own tree count
   and tree-structure prior (defaulting to `40` trees and the mean
-  forest's `tree.prior`, exactly as the plain selector does). Gaussian
-  and `"aft"` (survival) responses only - the latent families route
-  their own precisions through the channel it divides into;
+  forest's `power` and `base`, exactly as the plain selector does).
+  Gaussian and `"aft"` (survival) responses only - the latent families
+  route their own precisions through the channel it divides into;
   `family = student()` residuals are refused with it too, unadjudicated
   rather than unsupported by design (see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)). The
@@ -1281,10 +1301,8 @@ print(x, ...)
   unrecognized name warns. On `bart` itself `...` is instead the
   transition release's retired-spelling channel, as on
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md): a
-  retired name (`power`, `base`, and `split.probs`, which ride
-  `tree.prior`, built with `cgm()` or `dart()`; `resid.prior`, `sigdf`,
-  and `sigquant`, which ride `family`, built with
-  `gaussian(sigma = chisq(df, quant))` or
+  retired name (`resid.prior`, `sigdf`, and `sigquant`, which ride
+  `family`, built with `gaussian(sigma = chisq(df, quant))` or
   `gaussian(sigma = fixed(value))`; `proposal.probs`, which rides
   `control`, built with `dbartsControl(proposal.probs = )`) reaches a
   message naming its successor instead of R's own “unused argument”
@@ -1441,18 +1459,19 @@ every family that takes a formula. A model has one such forest, so plain
 predictor terms beside a
 [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) with
 no `basis`, and two such terms, are refused. It is the model's first
-forest wherever it is written, and `bart`'s own `n.trees`, `tree.prior`,
-`interactions` and `blocks` are its: `n.trees`, `interactions` or
-`blocks` stated both on that term and as `bart`'s argument is refused as
-one thing given twice. The other forests keep the order they are written
-in, and each has 50 trees under `cgm(3, 0.25)` unless it states its own,
+forest wherever it is written, and `bart`'s own `n.trees`, `power`,
+`base`, `interactions` and `blocks` are its: `n.trees`, `power`, `base`,
+`interactions` or `blocks` stated both on that term and as `bart`'s
+argument is refused as one thing given twice, a default's own value
+included. The other forests keep the order they are written in, and each
+has 50 trees under `base = 0.25, power = 3` unless it states its own,
 whichever is written first. In a formula whose forests all have a
 `basis` those arguments of `bart` have no forest to belong to: each one
 that is stated is refused by name, its default's own value included, as
 are `leaf.prior`, `k` and a `control` that names `n.trees`. A
-`tree.prior`, `leaf.prior` or `k` written as `NULL` is named, and
-refused as any other is. State a count and a tree prior on a forest, as
-`forest(x1, basis = z, n.trees = 100)`.
+`leaf.prior` or `k` written as `NULL` is named, and refused as any other
+is. State a count and a tree prior on a forest, as
+`forest(x1, basis = z, n.trees = 100, power = 3)`.
 
 A forest's first argument is the predictors it splits on, written as the
 right-hand side of a model formula of its own: names joined by `+`,
@@ -2158,7 +2177,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001848
+#> total seconds in loop: 0.001472
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 2 3 2 3 2 2 1 1 2 3 3 3 2 2 
@@ -2166,6 +2185,78 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> 
 #> Variable Usage, last iteration (var:count):
 #> (1: 8) (2: 15) 
+#> DONE BART
+#> 
+
+## a shallower tree prior, and DART variable selection
+fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
+                    n.samples = 20L, n.burn = 20L, n.chains = 1L,
+                    n.trees = 20L, n.threads = 1L)
+#> family = "auto": 0/1 response detected, fitting family = "probit"; set 'family' to override
+#> 
+#> Running BART with binary y
+#> 
+#> number of trees: 20
+#> number of chains: 1, default number of threads 1
+#> tree thinning rate: 1
+#> Prior:
+#>  prior on k: chi with 1.500000 degrees of freedom and 2.000000 scale
+#>  power and base for tree prior: 3.000000 0.500000
+#>  use quantiles for rule cut points: false
+#>  level fiber gibbs step: auto
+#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50; perturb window 1
+#> data:
+#>  number of training observations: 60
+#>  number of test observations: 0
+#>  number of explanatory variables: 2
+#> 
+#> Cutoff rules c in x<=c vs x>c
+#> Number of cutoffs: (var: number of possible c):
+#> (1: 59) (2: 59) 
+#> Running mcmc loop:
+#> total seconds in loop: 0.000758
+#> 
+#> Tree sizes, last iteration:
+#> [1] 1 1 2 1 2 2 2 2 2 1 1 1 1 1 2 1 2 1 
+#> 2 2 
+#> 
+#> Variable Usage, last iteration (var:count):
+#> (1: 8) (2: 2) 
+#> DONE BART
+#> 
+fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
+                 n.samples = 20L, n.burn = 20L, n.chains = 1L,
+                 n.trees = 20L, n.threads = 1L)
+#> family = "auto": 0/1 response detected, fitting family = "probit"; set 'family' to override
+#> 
+#> Running BART with binary y
+#> 
+#> number of trees: 20
+#> number of chains: 1, default number of threads 1
+#> tree thinning rate: 1
+#> Prior:
+#>  prior on k: chi with 1.500000 degrees of freedom and 2.000000 scale
+#>  power and base for tree prior: 2.000000 0.950000
+#>  use quantiles for rule cut points: false
+#>  level fiber gibbs step: auto
+#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50; perturb window 1
+#> data:
+#>  number of training observations: 60
+#>  number of test observations: 0
+#>  number of explanatory variables: 2
+#> 
+#> Cutoff rules c in x<=c vs x>c
+#> Number of cutoffs: (var: number of possible c):
+#> (1: 59) (2: 59) 
+#> Running mcmc loop:
+#> total seconds in loop: 0.001263
+#> 
+#> Tree sizes, last iteration:
+#> [1] 3 4 3 1 3 2 2 3 3 2 2 5 3 5 2 2 2 2 
+#> 2 2 
+#> 
+#> Variable Usage, last iteration (var:count):
+#> (1: 19) (2: 14) 
 #> DONE BART
 #> 
 
@@ -2211,7 +2302,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   1 forest1: no basis; sd 1.798 (default)
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #> Running mcmc loop:
-#> total seconds in loop: 0.002240
+#> total seconds in loop: 0.001782
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 1 2 2 3 4 

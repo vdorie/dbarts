@@ -41,9 +41,10 @@ every change that can break existing code.
 - Missing predictor values modeled in place (MIA)
 - Priors as objects
   ([`?dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)):
-  the tree prior (`tree.prior = cgm(...)`, or DART variable selection
-  with `dart(...)`) and the leaf prior (`leaf.prior = normal(...)`, or
-  linear and Gaussian-process leaves with `linear(...)` and `gp(...)`)
+  the tree prior (`power` and `base`, or DART variable selection with
+  `split.probs = dart(...)`) and the leaf prior
+  (`leaf.prior = normal(...)`, or linear and Gaussian-process leaves
+  with `linear(...)` and `gp(...)`)
 - Categorical predictors split on level subsets
   (`factors = "categorical"`); sparse `Matrix::dgCMatrix` and mixed
   dense/sparse predictor input

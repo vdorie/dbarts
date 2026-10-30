@@ -341,10 +341,9 @@ d2 <- data.frame(v = runif(nJ), theta = thetaTrue)
 d2$y <- rbinom(nJ, 1L, pnorm(thetaTrue))
 
 control <- recipeControl(44L)
-treePrior <- dbartsPriors$cgm(power = 0.5)
-sA <- dbarts(y ~ theta + u, d1, control = control, tree.prior = treePrior)
+sA <- dbarts(y ~ theta + u, d1, control = control, power = 0.5)
 sB <- dbarts(y ~ v + theta, d2, family = "probit", control = control,
-             tree.prior = treePrior)
+             power = 0.5)
 invisible(sA$run(0L, 20L))
 invisible(sB$run(0L, 20L))
 

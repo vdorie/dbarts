@@ -101,7 +101,8 @@ The constructor is not exported: it resolves by bare name inside the
 
   <dt id="arg-base-power">base, power<a class="anchor" aria-label="anchor" href="#arg-base-power"></a></dt>
 <dd><p>The variance forest's tree-structure prior. <code>NULL</code> (the default)
-    inherits the mean forest's <code>tree.prior</code> <code>base</code>/<code>power</code>.</p></dd>
+    inherits the mean forest's <code>base</code> and <code>power</code>, those of the fitting
+    function or the lone mean forest's own.</p></dd>
 
   <dt id="arg-proposal-probs-n-perturb-cuts">proposal.probs, n.perturb.cuts<a class="anchor" aria-label="anchor" href="#arg-proposal-probs-n-perturb-cuts"></a></dt>
 <dd><p>The variance forest's proposal mixture and perturb window, as

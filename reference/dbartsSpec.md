@@ -11,7 +11,7 @@ in `dbarts.h` - and that supply their own design matrix.
 ``` r
 dbartsSpec(
     data, control = dbarts::dbartsControl(),
-    tree.prior = cgm, leaf.prior = normal,
+    power = 2, base = 0.95, split.probs = NULL, leaf.prior = normal,
     proposal.probs = c(
         birth_death = 0.6, swap = 0, change = 0.4, perturb = 0,
         rule_gibbs = 0, birth = 0.5),
@@ -21,7 +21,7 @@ dbartsSpec(
     sigest = NULL, seed = NULL,
     family = c("auto", "gaussian", "student", "probit", "logistic", "aft",
                "multinomial", "ordinal", "nbinom"),
-    survival = NULL,
+    survival = NULL, tree.prior = NULL,
     parentEnv = parent.frame(), ...)
 ```
 
@@ -41,8 +41,9 @@ dbartsSpec(
   in a one-line message when `control` was built with `verbose = TRUE`;
   this function has no `verbose` argument of its own.
 
-- control, tree.prior, leaf.prior, proposal.probs, monotone,
-  interactions, blocks, variance, forests, sigest, seed, family, ...:
+- control, power, base, split.probs, tree.prior, leaf.prior,
+  proposal.probs, monotone, interactions, blocks, variance, forests,
+  sigest, seed, family, ...:
 
   As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
   (except that `proposal.probs` is a formal of this function rather than

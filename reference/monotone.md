@@ -81,15 +81,13 @@ can be interrupted, which raises R's interrupt condition and leaves the
 pass over the trees partly applied, and a count that runs out of memory
 is an ordinary error; either way the sampler is left in a valid state.
 
-The tree prior is the fit's `tree.prior`, as without a constraint:
-`cgm()` at its defaults, `power = 2` and `base = 0.95` (see
-[`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)),
-unless another is given. The mBART paper used
-`cgm(power = 0.8, base = 0.25)`, which gives smaller trees; in a
-simulation study under `"joint"` at 200 trees it gave sharper and more
-accurate fits, but narrower intervals that under-covered with plentiful,
+The tree prior is the fit's, as without a constraint: `power = 2` and
+`base = 0.95`, unless others are given. The mBART paper used
+`power = 0.8, base = 0.25`, which gives smaller trees; in a simulation
+study under `"joint"` at 200 trees it gave sharper and more accurate
+fits, but narrower intervals that under-covered with plentiful,
 low-noise data, and at 50 trees it was less accurate with such data and
-under-covered more often. Pass it as `tree.prior` to opt in (see
+under-covered more often. Pass them as `power` and `base` to opt in (see
 Examples).
 
 The fit is monotone in a constrained predictor along every line on which
@@ -213,7 +211,7 @@ fit.leaf <- bart(y ~ x1 + x2 + x3, df,
 ## the mBART paper's tree prior, as an opt-in
 fit.mbart <- bart(y ~ x1 + x2 + x3, df,
                   monotone = c(x1 = "increasing", x2 = "decreasing"),
-                  tree.prior = cgm(power = 0.8, base = 0.25),
+                  power = 0.8, base = 0.25,
                   n.trees = 25L, n.samples = 20L, n.burn = 20L,
                   n.chains = 1L, verbose = FALSE)
 ```

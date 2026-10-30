@@ -63,7 +63,7 @@ Dorie</h4>
             
             <h4 data-toc-skip class="date">2026-08-15</h4>
       
-      <small class="dont-index">Source: <a href="https://github.com/vdorie/dbarts/blob/main/vignettes/dbarts-as-a-component.Rmd" class="external-link"><code>vignettes/dbarts-as-a-component.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/vdorie/dbarts/blob/tree-prior-flat/vignettes/dbarts-as-a-component.Rmd" class="external-link"><code>vignettes/dbarts-as-a-component.Rmd</code></a></small>
       <div class="d-none name"><code>dbarts-as-a-component.Rmd</code></div>
     </div>
 
@@ -413,10 +413,9 @@ means taking the mask, not the proposal. Nothing is reverted.</p>
 <span><span class="va">d2</span><span class="op">$</span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Binomial.html" class="external-link">rbinom</a></span><span class="op">(</span><span class="va">nJ</span>, <span class="fl">1L</span>, <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">pnorm</a></span><span class="op">(</span><span class="va">thetaTrue</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">control</span> <span class="op">&lt;-</span> <span class="fu">recipeControl</span><span class="op">(</span><span class="fl">44L</span><span class="op">)</span></span>
-<span><span class="va">treePrior</span> <span class="op">&lt;-</span> <span class="va">dbartsPriors</span><span class="op">$</span><span class="fu">cgm</span><span class="op">(</span>power <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span>
-<span><span class="va">sA</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">theta</span> <span class="op">+</span> <span class="va">u</span>, <span class="va">d1</span>, control <span class="op">=</span> <span class="va">control</span>, tree.prior <span class="op">=</span> <span class="va">treePrior</span><span class="op">)</span></span>
+<span><span class="va">sA</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">theta</span> <span class="op">+</span> <span class="va">u</span>, <span class="va">d1</span>, control <span class="op">=</span> <span class="va">control</span>, power <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span>
 <span><span class="va">sB</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">v</span> <span class="op">+</span> <span class="va">theta</span>, <span class="va">d2</span>, family <span class="op">=</span> <span class="st">"probit"</span>, control <span class="op">=</span> <span class="va">control</span>,</span>
-<span>             tree.prior <span class="op">=</span> <span class="va">treePrior</span><span class="op">)</span></span>
+<span>             power <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/invisible.html" class="external-link">invisible</a></span><span class="op">(</span><span class="va">sA</span><span class="op">$</span><span class="fu">run</span><span class="op">(</span><span class="fl">0L</span>, <span class="fl">20L</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/invisible.html" class="external-link">invisible</a></span><span class="op">(</span><span class="va">sB</span><span class="op">$</span><span class="fu">run</span><span class="op">(</span><span class="fl">0L</span>, <span class="fl">20L</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>

@@ -66,7 +66,7 @@ What distinguishes dbarts from other BART implementations is that its sampler is
 <li><p>Outlier-robust Student-t errors (<code>family = student(...)</code>) and a heteroscedastic variance forest (<code>variance</code>).</p></li>
 <li><p>Structural constraints: monotonicity (<code>monotone</code>), interaction limits (<code><a href="interactions.html">interactions</a></code>), and block-additivity (<code><a href="blocks.html">blocks</a></code>).</p></li>
 <li><p>Leaf models: constant, linear, or Gaussian-process (<code>leaf.prior</code>; see <code><a href="dbartsPriors.html">dbartsPriors</a></code>).</p></li>
-<li><p>Variable selection by the DART prior (<code>tree.prior = dart()</code>).</p></li>
+<li><p>Variable selection by the DART prior (<code>split.probs = dart()</code>).</p></li>
 <li><p>Predictors: missing values incorporated in place unconditionally, unordered factors split on level subsets (<code>factors</code>), and sparse or mixed dense/sparse input (<code>Matrix::dgCMatrix</code>, <code><a href="sparseFactor.html">sparseFactor</a></code>).</p></li>
 <li><p>Warm starts from a previous fit (<code>warm.start</code>) or by XBART-style grow-from-root (<code>n.grow.sweeps</code>).</p></li>
 </ul></div>

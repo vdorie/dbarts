@@ -48,22 +48,18 @@ in dbarts 1.1-0.
   `invchi()` and base R's `dchisq` spell it. Positional calls,
   `chi(1.5, 2)`, are unchanged.
 
-- `power`, `base`:
+- `tree.prior`:
 
-  On [`bart`](https://vdorie.github.io/dbarts/reference/bart.md):
-  tree-prior-only settings, now arguments of
-  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)'s
-  `cgm()` or `dart()` (`tree.prior = cgm(power, base)` or
-  `tree.prior = dart(power, base)`).
-
-- `split.probs`:
-
-  On [`bart`](https://vdorie.github.io/dbarts/reference/bart.md): a
-  tree-prior-only setting, now an argument of
-  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)'s
-  `cgm()` only (`tree.prior = cgm(split.probs = )`); a DART tree prior
-  draws its own split probabilities, so combining it with
-  `tree.prior = dart()` is refused.
+  On [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and
+  [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md):
+  the tree prior, now `power`, `base` and `split.probs`, as
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) takes them
+  (`tree.prior = cgm(power, base, split.probs)` is `power`, `base` and
+  `split.probs`, and `tree.prior = dart(a, b)` is
+  `split.probs = dart(a, b)`). A tree prior object saved by 0.9-34 is
+  read the same way. The value is used, with a once-per-session warning.
+  `bart` and `xbart` never took it and refuse it, naming the plain
+  spelling.
 
 - `resid.prior`, `sigdf`, `sigquant`:
 

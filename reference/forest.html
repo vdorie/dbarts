@@ -174,7 +174,7 @@ The constructor is not exported: it resolves by bare name inside the
     same residual scale estimate, that fit is the fit on the named columns
     alone, and its other columns report no splits. The estimate is taken from
     every column unless <code>sigest</code> states it, so the two fits agree draw
-    for draw when it does. On a single forest a <code>dart</code> tree prior beside <code>vars</code>
+    for draw when it does. On a single forest <code>split.probs = dart()</code> beside <code>vars</code>
     lays its Dirichlet over the named columns, every other column reporting
     probability 0, and <code>split.probs</code> keeps its ratios among the named
     columns and must give one of them a positive probability (see
@@ -438,16 +438,17 @@ The constructor is not exported: it resolves by bare name inside the
     has 50 trees at <code>base = 0.25</code>, <code>power = 3</code> - shallower and
     fewer than a prognostic forest's, the modulating surface normally being
     the smoother of the two. The forest with no <code>basis</code> has the fitting
-    function's: <code><a href="bart.html">bart</a></code>'s <code>n.trees</code> or the control's, and
-    <code>tree.prior</code>. A value stated here on that forest governs it over the
-    control's <code>n.trees</code> and the tree prior's <code>base</code> or
-    <code>power</code>, being the more specific of the two declarations, while
-    <code><a href="bart.html">bart</a></code> refuses its own <code>n.trees</code> beside one stated here,
-    the two being the same count. Where every forest has a <code>basis</code> the
-    fitting function's tree count and tree prior have no forest to belong to,
-    and one that is stated is refused, the default's own value included:
-    state it on a forest. A sampler's <code>control@n.trees</code> and
-    <code>model@tree.prior</code> hold its first forest's.</p></dd>
+    function's: <code><a href="bart.html">bart</a></code>'s <code>n.trees</code> or the control's, and its
+    <code>power</code> and <code>base</code>. The fitting function and the forest with no
+    <code>basis</code> state one setting between them: <code><a href="bart.html">bart</a></code> refuses
+    its own <code>n.trees</code>, <code>power</code> or <code>base</code> beside one stated
+    here, the default's own value included, the two being the same setting,
+    and a control that names <code>n.trees</code> beside one stated here is the
+    same count. Where every forest has a <code>basis</code> the fitting function's
+    tree count and tree prior have no forest to belong to, and one that is
+    stated is refused, the default's own value included: state it on a forest.
+    A sampler's <code>control@n.trees</code> and <code>model@tree.prior</code> hold its
+    first forest's.</p></dd>
 
   <dt id="arg-sd">sd<a class="anchor" aria-label="anchor" href="#arg-sd"></a></dt>
 <dd><p>The size of what this forest contributes, in the response's units: the
@@ -815,7 +816,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span>   1 forest1: no basis; sd 2.278 (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000700</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000573</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 3 3 2 2 2 2 </span>

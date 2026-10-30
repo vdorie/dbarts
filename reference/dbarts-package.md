@@ -91,7 +91,7 @@ noted.
 - Leaf models: constant, linear, or Gaussian-process (`leaf.prior`; see
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)).
 
-- Variable selection by the DART prior (`tree.prior = dart()`).
+- Variable selection by the DART prior (`split.probs = dart()`).
 
 - Predictors: missing values incorporated in place unconditionally,
   unordered factors split on level subsets (`factors`), and sparse or

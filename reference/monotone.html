@@ -129,15 +129,14 @@ The constructor is not exported: it resolves by bare name inside the
   the pass over the trees partly applied, and a
   count that runs out of memory is an ordinary error; either way the
   sampler is left in a valid state.</p>
-<p>The tree prior is the fit's <code>tree.prior</code>, as without a constraint:
-  <code>cgm()</code> at its defaults, <code>power = 2</code> and <code>base = 0.95</code>
-  (see <code><a href="dbartsPriors.html">dbartsPriors</a></code>), unless another is given. The mBART
-  paper used <code>cgm(power = 0.8, base = 0.25)</code>, which gives smaller
+<p>The tree prior is the fit's, as without a constraint: <code>power = 2</code>
+  and <code>base = 0.95</code>, unless others are given. The mBART
+  paper used <code>power = 0.8, base = 0.25</code>, which gives smaller
   trees; in a simulation study under <code>"joint"</code> at 200 trees it gave
   sharper and more accurate fits, but narrower intervals that under-covered
   with plentiful, low-noise data, and at 50 trees it was less accurate with
   such data and under-covered more often. Pass
-  it as <code>tree.prior</code> to opt in (see Examples).</p>
+  them as <code>power</code> and <code>base</code> to opt in (see Examples).</p>
 <p>The fit is monotone in a constrained predictor along every line on which
   that predictor is observed, the other predictors at any values, missing
   ones and every factor level included; nothing is claimed where the
@@ -243,7 +242,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-in"><span><span class="co">## the mBART paper's tree prior, as an opt-in</span></span></span>
 <span class="r-in"><span><span class="va">fit.mbart</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart.html">bart</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span>, <span class="va">df</span>,</span></span>
 <span class="r-in"><span>                  monotone <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>x1 <span class="op">=</span> <span class="st">"increasing"</span>, x2 <span class="op">=</span> <span class="st">"decreasing"</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>                  tree.prior <span class="op">=</span> <span class="fu">cgm</span><span class="op">(</span>power <span class="op">=</span> <span class="fl">0.8</span>, base <span class="op">=</span> <span class="fl">0.25</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>                  power <span class="op">=</span> <span class="fl">0.8</span>, base <span class="op">=</span> <span class="fl">0.25</span>,</span></span>
 <span class="r-in"><span>                  n.trees <span class="op">=</span> <span class="fl">25L</span>, n.samples <span class="op">=</span> <span class="fl">20L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span>,</span></span>
 <span class="r-in"><span>                  n.chains <span class="op">=</span> <span class="fl">1L</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
 </code></pre></div>

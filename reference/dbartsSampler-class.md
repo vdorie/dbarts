@@ -263,9 +263,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 - newModel:
 
   An object inheriting from `dbartsModel`. When passed to `setModel`, it
-  cannot switch a DART tree prior on or off relative to the sampler's
-  creation-time model, nor change the columns a single forest may split
-  on (its
+  cannot switch DART (`split.probs = dart()`) on or off relative to the
+  sampler's creation-time model, nor change the columns a single forest
+  may split on (its
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)
   `vars`); recreate the sampler instead.
 

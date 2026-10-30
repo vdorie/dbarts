@@ -21,7 +21,7 @@ xbart(
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic"),
     leaf.prior = NULL, n.cuts = 100L, useQuantiles = FALSE, n.thin = 1L,
-    storage = c("double", "single"), tree.prior = NULL,
+    storage = c("double", "single"),
     parallel = getOption("dbarts.parallel", "auto"), cl = NULL,
     control = dbarts::dbartsControl(), sigma = NULL, ...)
 ```
@@ -37,11 +37,10 @@ xbart(
 - ...:
 
   Not used for new code: the channel that lets a retired argument
-  spelling (`dart`, now `tree.prior = dart()`; `resid.prior`, now
-  `family = gaussian(sigma = )`, its one home, so writing it both ways
-  is refused where the two disagree) reach a message naming its
-  successor, instead of R's own “unused argument” error. Any other name
-  is refused. Removed in dbarts 1.1-0.
+  spelling (`resid.prior`, now `family = gaussian(sigma = )`, its one
+  home, so writing it both ways is refused where the two disagree) reach
+  a message naming its successor, instead of R's own “unused argument”
+  error. Any other name is refused. Removed in dbarts 1.1-0.
 
 - control:
 
@@ -294,9 +293,13 @@ xbart(
   Prior probabilities that a variable is used in a splitting rule, as in
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md). A single
   value or `NULL` yields the uniform default; a named or unnamed vector
-  assigns per-column probabilities. Fixed for the whole crossvalidation,
-  not part of the swept grid. Cannot be combined with a DART
-  `tree.prior`.
+  assigns per-column probabilities; `num.vars` stands for the number of
+  predictors; and `dart()` from
+  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)
+  runs DART (Linero 2018) in every cell. Fixed for the whole
+  crossvalidation, not part of the swept grid. `xbart` takes no
+  `tree.prior`: `power` and `base` are grid axes, and given a
+  `tree.prior` it refuses, naming the plain spelling.
 
 - drop:
 
@@ -464,22 +467,6 @@ xbart(
   Every cell's sampler is created over a shared per-fold data handle, a
   path the engine keeps in double precision regardless of family or leaf
   model; `"single"` is refused rather than silently ignored.
-
-- tree.prior:
-
-  An expression of the form `cgm` or `cgm(power, base, split.probs)`
-  that sets the tree structure prior, or a prior object built with
-  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md) -
-  `cgm(...)` or `dbartsPriors$dart(...)`. `power` and `base` are xbart's
-  grid axes, so a supplied object's own `power`/`base` are replaced by
-  the swept grid values every cell exactly as the `k` argument replaces
-  a supplied `leaf.prior`'s `k`; the object's other content - a `cgm`
-  object's `split.probs`, a DART object's Dirichlet hyperparameters -
-  rides every cell unchanged. Because `power`/`base` are grid axes here
-  rather than ordinary scalars, they may be supplied alongside
-  `tree.prior`; `dart` and `split.probs` would only duplicate what a
-  supplied `tree.prior` already specifies, so combining either with it
-  is an error naming both.
 
 ## Details
 

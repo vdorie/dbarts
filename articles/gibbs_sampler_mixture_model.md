@@ -405,7 +405,7 @@ samples.logistic <- fit.logistic$run(20L, 20L)
 
 When only a handful of predictors out of many are relevant, the CGM tree
 prior’s uniform choice of split variable wastes proposals on the rest.
-`tree.prior = dart(...)` replaces it with a Dirichlet prior over
+`split.probs = dart(...)` replaces it with a Dirichlet prior over
 split-variable probabilities (Linero 2018): the sampler learns which
 variables matter and increasingly proposes splits on them, which doubles
 as a variable-importance diagnostic.
@@ -417,7 +417,7 @@ n.dart <- 60
 x.dart <- matrix(runif(n.dart * 8), n.dart)
 y.dart <- 4 * x.dart[, 1] + rnorm(n.dart, 0, 0.2)
 
-fit.dart <- dbarts(y.dart ~ x.dart, tree.prior = dart(),
+fit.dart <- dbarts(y.dart ~ x.dart, split.probs = dart(),
                    control = dbartsControl(n.trees = 10L, n.burn = 100L,
                                             n.chains = 1L, n.threads = 1L))
 samples.dart <- fit.dart$run(100L, 30L)

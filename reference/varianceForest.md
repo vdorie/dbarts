@@ -46,7 +46,8 @@ varianceForest(
 - base, power:
 
   The variance forest's tree-structure prior. `NULL` (the default)
-  inherits the mean forest's `tree.prior` `base`/`power`.
+  inherits the mean forest's `base` and `power`, those of the fitting
+  function or the lone mean forest's own.
 
 - proposal.probs, n.perturb.cuts:
 

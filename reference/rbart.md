@@ -123,10 +123,9 @@ print(x, ...)
 
   Same as in
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md), except
-  `sigdf`, `sigquant`, `power` and `base`, which `bart` no longer takes
-  and which are as in
-  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md). `k`
-  is applied only when supplied; otherwise the defaults are those of
+  `sigdf` and `sigquant`, which `bart` no longer takes and which are as
+  in [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md).
+  `k` is applied only when supplied; otherwise the defaults are those of
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md). A
   `sigest` that is not a number is estimated once for each chain and
   once more beforehand, announced under `verbose` the one time, on one

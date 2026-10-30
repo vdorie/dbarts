@@ -1,7 +1,7 @@
 # Prior Specification Constructors
 
 A list of constructor functions building the prior specifications that
-the `tree.prior` and `leaf.prior` arguments of
+the `split.probs` (`dart()`) and `leaf.prior` arguments of
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and the
 fitting functions accept. Bundling them keeps generic names like
 `normal` out of the search path, where another package could mask them
@@ -18,26 +18,31 @@ A list of functions:
 
 - `cgm(power = 2, base = 0.95, split.probs = NULL)`:
 
-  The Chipman, George, and McCulloch tree prior; a `NULL` `power` or
-  `base` is the default. `split.probs` weights the choice of split
-  variable: `NULL` is uniform, a named vector assigns by column or term
-  name (with an optional `".default"` element), an unnamed vector
-  assigns by position. Entries must be non-negative and finite, with at
-  least one positive. Named or positional probabilities are matched to
-  the data when a sampler is built.
+  The value of the retired `tree.prior` argument of
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and
+  [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),
+  which is accepted with a warning until dbarts 1.1-0, when `cgm` is
+  removed. Write the tree prior as `power`, `base` and `split.probs`
+  instead. A `NULL` `power` or `base` is the default. `split.probs`
+  weights the choice of split variable: `NULL` is uniform, a named
+  vector assigns by column or term name (with an optional `".default"`
+  element), an unnamed vector assigns by position. Entries must be
+  non-negative and finite, with at least one positive. Named or
+  positional probabilities are matched to the data when a sampler is
+  built.
 
-- `dart(power = 2, base = 0.95, a = 0.5, b = 1, rho = NULL, alpha = 1, update.alpha = TRUE, update.delay = NULL)`:
+- `dart(a = 0.5, b = 1, rho = NULL, alpha = 1, update.alpha = TRUE, update.delay = NULL)`:
 
-  The CGM structure prior with DART (Linero 2018); a `NULL` `power` or
-  `base` is the default. A Dirichlet prior over the split-variable
-  probabilities inducing variable selection. `alpha` is the
-  concentration, optionally sampled (`update.alpha`) on a grid with a
-  Beta(`a`, `b`) prior on `alpha / (alpha + rho)`; `rho` defaults to the
-  number of predictors. `NA` is a missing value, not a spelling of the
-  default, and is refused for `rho` and `update.delay` alike. Updates
-  hold until `update.delay` iterations have passed (default: half the
-  control's burn-in), so the forest is likelihood-informed when counts
-  first enter the Dirichlet.
+  DART (Linero 2018), given as `split.probs = dart()`: a Dirichlet prior
+  over the split-variable probabilities inducing variable selection. The
+  tree's depth is the fitting function's `power` and `base`, as without
+  DART. `alpha` is the concentration, optionally sampled
+  (`update.alpha`) on a grid with a Beta(`a`, `b`) prior on
+  `alpha / (alpha + rho)`; `rho` defaults to the number of predictors.
+  `NA` is a missing value, not a spelling of the default, and is refused
+  for `rho` and `update.delay` alike. Updates hold until `update.delay`
+  iterations have passed (default: half the control's burn-in), so the
+  forest is likelihood-informed when counts first enter the Dirichlet.
 
 - `normal(k = NULL, sd = NULL)`:
 
@@ -238,7 +243,7 @@ with `num.vars`, the number of predictor columns. A prior object built
 ahead of time with `dbartsPriors$...` can be passed to the same
 arguments. A wrapper's named formal that forces a bare constructor call
 before passing it on reaches R's own could-not-find-function error
-instead, extended with a hint naming `dbartsPriors$cgm(...)` and its
+instead, extended with a hint naming `dbartsPriors$normal(...)` and its
 siblings.
 
 ## References
@@ -267,8 +272,7 @@ prior <- dbartsPriors$normal(dbartsPriors$chi(1.5))
 
 x <- matrix(runif(200), ncol = 2)
 y <- x[, 1] + rnorm(100, 0, 0.5)
-sampler <- dbarts(y ~ x, leaf.prior = prior,
-                  tree.prior = dbartsPriors$cgm(power = 1.5))
+sampler <- dbarts(y ~ x, leaf.prior = prior, power = 1.5)
 
 ## DART: a Dirichlet prior over split-variable probabilities, useful
 ## when only a handful of predictors out of many are relevant
@@ -276,7 +280,7 @@ set.seed(0)
 n <- 60L
 x.dart <- matrix(runif(n * 8), n)
 y.dart <- 4 * x.dart[, 1] + rnorm(n, 0, 0.2)
-fit.dart <- dbarts(y.dart ~ x.dart, tree.prior = dart(),
+fit.dart <- dbarts(y.dart ~ x.dart, split.probs = dart(),
                    control = dbartsControl(n.trees = 10L, n.chains = 1L,
                                             n.threads = 1L))
 samples.dart <- fit.dart$run(20L, 20L)

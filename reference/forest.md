@@ -126,11 +126,11 @@ forest(
   the same residual scale estimate, that fit is the fit on the named
   columns alone, and its other columns report no splits. The estimate is
   taken from every column unless `sigest` states it, so the two fits
-  agree draw for draw when it does. On a single forest a `dart` tree
-  prior beside `vars` lays its Dirichlet over the named columns, every
-  other column reporting probability 0, and `split.probs` keeps its
-  ratios among the named columns and must give one of them a positive
-  probability (see
+  agree draw for draw when it does. On a single forest
+  `split.probs = dart()` beside `vars` lays its Dirichlet over the named
+  columns, every other column reporting probability 0, and `split.probs`
+  keeps its ratios among the named columns and must give one of them a
+  positive probability (see
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)).
   On every forest of a hazard fit the `period` column the fit appends is
   always allowed, named or not: `vars` restricts the columns the caller
@@ -450,12 +450,12 @@ forest(
   being the smoother of the two. The forest with no `basis` has the
   fitting function's:
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
-  `n.trees` or the control's, and `tree.prior`. A value stated here on
-  that forest governs it over the control's `n.trees` and the tree
-  prior's `base` or `power`, being the more specific of the two
-  declarations, while
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) refuses
-  its own `n.trees` beside one stated here, the two being the same
+  `n.trees` or the control's, and its `power` and `base`. The fitting
+  function and the forest with no `basis` state one setting between
+  them: [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
+  refuses its own `n.trees`, `power` or `base` beside one stated here,
+  the default's own value included, the two being the same setting, and
+  a control that names `n.trees` beside one stated here is the same
   count. Where every forest has a `basis` the fitting function's tree
   count and tree prior have no forest to belong to, and one that is
   stated is refused, the default's own value included: state it on a
@@ -853,7 +853,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>   1 forest1: no basis; sd 2.278 (default)
 #>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)
 #> Running mcmc loop:
-#> total seconds in loop: 0.000700
+#> total seconds in loop: 0.000573
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 3 2 2 2 2 
