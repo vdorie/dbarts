@@ -1908,43 +1908,80 @@ predictForest <- function(
   )
 }
 
-# A list given forest by forest is read by position, so a name on an entry
-# must be that position's label or forest<i>, the name that selects it; any
-# other would read as a selection the list does not make.
-refuseMisnamedBases <- function(given, labels, numForests) {
-  if (is.null(given)) {
-    return(invisible(NULL))
-  }
-  if (!is.character(labels) || length(labels) != numForests) {
-    labels <- paste0("forest", seq_len(numForests))
-  }
-  for (index in seq_along(given)) {
-    if (!is.na(given[[index]]) && given[[index]] == paste0("forest", index)) {
-      taken <- forestNameTaken(given[[index]], index, labels, "bases")
-      if (!is.null(taken)) {
-        stop(taken)
-      }
+# A list of bases given forest by forest: a named entry selects the forest
+# whose label (or forest<i>) it is, an unnamed one the forest at its
+# position, and a forest no entry reaches is left as it is (NULL). Without a
+# name the list is one entry per forest. Two entries reaching one forest are
+# refused.
+placeBasesByLabel <- function(bases, labels, numForests) {
+  given <- names(bases)
+  named <- !is.na(given) & nzchar(given)
+  if (!any(named)) {
+    if (length(bases) != numForests) {
+      stop(
+        "'bases' must be a length-",
+        numForests,
+        " list, one entry per forest (NULL for a forest that declares none); ",
+        "got ",
+        length(bases)
+      )
     }
+    return(unname(bases))
   }
-  wrong <- which(
-    !is.na(given) &
-      nzchar(given) &
-      given != labels &
-      given != paste0("forest", seq_len(numForests))
+  target <- seq_along(bases)
+  # a name that is the label of the forest at its own position selects it, as
+  # it did when the list was read by position, even where it also reads as
+  # another position's forest<i>
+  ownLabel <- rep(FALSE, length(bases))
+  if (is.character(labels) && length(labels) == numForests) {
+    inRange <- named & seq_along(bases) <= numForests
+    ownLabel[inRange] <- given[inRange] == labels[which(inRange)]
+  }
+  named <- named & !ownLabel
+  target[named] <- tryCatch(
+    selectForest(given[named], labels, numForests, several = TRUE),
+    error = function(e) {
+      message <- sub("^'forest' ", "'bases' ", conditionMessage(e))
+      message <- sub(
+        "; select by position, as forest = [0-9]+$",
+        "; leave the name off to give the entry by position",
+        message
+      )
+      message <- sub(
+        "; a position is given as a number, forest = [0-9]+",
+        "",
+        message
+      )
+      stop(message, call. = FALSE)
+    }
   )
-  if (length(wrong) > 0L) {
-    index <- wrong[[1L]]
+  if (any(target > numForests)) {
     stop(
-      "'bases' names forest ",
-      index,
-      " \"",
-      given[[index]],
-      "\", and its label is \"",
-      labels[[index]],
-      "\"; give the bases in the forests' order"
+      "'bases' has an unnamed entry at position ",
+      which(target > numForests)[[1L]],
+      " and the fit has ",
+      numForests,
+      " forests; name the entry or give it at a position the fit has"
     )
   }
-  invisible(NULL)
+  twice <- which(duplicated(target))
+  if (length(twice) > 0L) {
+    first <- which(target == target[[twice[[1L]]]])
+    stop(
+      "'bases' gives forest ",
+      target[[twice[[1L]]]],
+      " twice, as entries ",
+      first[[1L]],
+      " and ",
+      first[[2L]],
+      "; give each forest once"
+    )
+  }
+  placed <- vector("list", numForests)
+  for (index in seq_along(bases)) {
+    placed[target[[index]]] <- list(bases[[index]])
+  }
+  placed
 }
 
 # The per-forest bases at the PREDICTED rows. A caller's own 'bases' wins
@@ -1998,17 +2035,8 @@ resolveForestBases <- function(
       bases <- vector("list", numForests)
       bases[[carriers]] <- value
     }
-    if (length(bases) != numForests) {
-      stop(
-        "'bases' must be a length-",
-        numForests,
-        " list, one entry per forest (NULL for a forest that declares none); ",
-        "got ",
-        length(bases)
-      )
-    }
-    refuseMisnamedBases(
-      names(bases),
+    bases <- placeBasesByLabel(
+      bases,
       attr(object, "forest.labels", exact = TRUE),
       numForests
     )

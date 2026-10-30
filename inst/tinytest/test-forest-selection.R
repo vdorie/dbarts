@@ -611,21 +611,52 @@ expect_identical(
 mixed <- atRows
 names(mixed) <- c("dose", "", "forest3")
 expect_identical(predict(fitted, newRows, bases = mixed, n.threads = 1L), plain)
-exchanged <- atRows
-names(exchanged) <- c("age", "dose", "scale(age)")
-expect_error(
+# a named entry selects its forest by label, in any order
+exchanged <- list(
+  `scale(age)` = newRows$age,
+  dose = newRows$dose,
+  age = newRows$age
+)
+expect_identical(
   predict(fitted, newRows, bases = exchanged, n.threads = 1L),
-  paste0(
-    "'bases' names forest 1 \"age\", and its label is \"dose\"; give the ",
-    "bases in the forests' order"
+  plain
+)
+# unnamed entries keep their positions beside named ones
+mixedOrder <- list(newRows$dose, `scale(age)` = newRows$age, age = newRows$age)
+expect_identical(
+  predict(fitted, newRows, bases = mixedOrder, n.threads = 1L),
+  plain
+)
+# a forest no entry names is left as it is: with newdata it needs its basis
+expect_error(
+  predict(
+    fitted,
+    newRows,
+    bases = list(`scale(age)` = newRows$age),
+    n.threads = 1L
   ),
+  "forest 1 carries a basis",
   fixed = TRUE
 )
 unknown <- atRows
 names(unknown) <- c("dose", "age", "other")
 expect_error(
   predict(fitted, newRows, bases = unknown, n.threads = 1L),
-  "'bases' names forest 3 \"other\", and its label is \"scale(age)\"",
+  "'bases' names no forest of this model: \"other\"",
+  fixed = TRUE
+)
+twice <- atRows
+names(twice) <- c("dose", "forest1", "age")
+expect_error(
+  predict(fitted, newRows, bases = twice, n.threads = 1L),
+  "'bases' gives forest 1 twice, as entries 1 and 2; give each forest once",
+  fixed = TRUE
+)
+reached <- atRows
+names(reached) <- c("age", "", "")
+expect_error(
+  predict(fitted, newRows, bases = reached, n.threads = 1L),
+  "'bases' gives forest 2 twice, as entries 1 and 2",
   fixed = TRUE
 )
 
@@ -718,7 +749,7 @@ names(swapped) <- c("forest1", "forest2")
 expect_identical(
   refusal(predict(takenFit, takenRows, bases = swapped, n.threads = 1L)),
   paste0(
-    "'bases' names forest 1 \"forest1\", which is the label of forest 2; ",
-    "name each entry by its own forest's label, or leave the names off"
+    "'bases' (\"forest1\") is the label of forest 2 and the name of ",
+    "position 1; leave the name off to give the entry by position"
   )
 )
