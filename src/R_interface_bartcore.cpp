@@ -5786,11 +5786,10 @@ SEXP bartcore_setForestTreePrior(SEXP ptrExpr, SEXP forestExpr,
   if (Rf_xlength(baseExpr) != 1 || Rf_xlength(powerExpr) != 1)
     Rf_error("a tree prior's base and power must each be a single number");
   double base = Rf_asReal(baseExpr), power = Rf_asReal(powerExpr);
-  if (!(base > 0.0 && base < 1.0))
-    Rf_error("tree prior base must be in (0, 1)");
-  if (!(power > 0.0)) Rf_error("tree prior power must be positive");
-  // the checks above are the engine's, so this answers only a caller that
-  // skips them
+  const char* which = forest == -1 ? "variance" : "tree prior";
+  if (!(base > 0.0 && base < 1.0)) Rf_error("%s base must be in (0, 1)", which);
+  if (!(power > 0.0)) Rf_error("%s power must be positive", which);
+  // unreachable while the checks above match the engine's
   if (!holder.sampler->setForestTreePrior(forestIndex, base, power))
     Rf_error("the tree prior install was refused");
   return R_NilValue;
