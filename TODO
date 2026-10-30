@@ -882,19 +882,12 @@ items
     basis, y ~ forest(x1) + forest(x2) + forest(x3), which share one
     prior total, each an equal part, as the trees of a forest do; a
     forest with a basis keeps its own prior (dec-B292, dec-B291).
-    After the merge to main and before 1.0-0 (VD 2026-10-07:
-    "Post-merge, pre-1.0"); until then several such forests stay
-    refused. To design: how the engine tells them apart (today by
-    their multipliers; the workaround is a basis column of ones),
-    whose the fitting function's tree count and tree prior are
-    (dec-B274), a stated sd on one of them, and probit and logistic.
-    Until then a constant basis column with sd stated is created, the
-    one way to write such forests (dec-B307); decide with this item
-    whether it stays a second spelling. Also with it, before 1.0-0:
-    k and k.scale on several forests stay as built (k = 1 for each
-    forest, k.scale the forest's own prior sd) until that item
-    decides what they report for a forest in a model of several
-    forests.
+    Slices B, 1 and 2 built on its branch: several such forests are
+    created, each sharer reporting the group's k (the plan's D8).
+    Left: slice F, the default flip
+    beside a forest with a basis (dec-B509), and slice 3, the constant
+    basis column, still created with sd stated (dec-B307), whose fate
+    is held for the maintainer. Before 1.0-0.
     Plan: docs/plans/forests-shared-total.md.
   drawn-coefficient-start-by-kind: a drawn coefficient on a forest with
     no basis or a factor starts by its forest's position (1, and 0 for

@@ -529,9 +529,11 @@ is divided by it in `forestMapEntry` and nowhere else; a default is a multiple
 of s and never passes through it ([forest-sd-unit.md](forest-sd-unit.md)).
 
 **Two further facts about the shipped prior, both load-bearing.** Adaptivity
-is capped at one forest, for any K: `resolveForests`
-([`resolveForests`](../../R/model.R), [`plainForest`](../../R/model.R)) takes one forest with no basis at most,
-at any place, and the map gives a forest with a basis a zero half-Cauchy scale
+is capped at one forest, for any K, outside a shared total: where a model has
+one forest with no basis ([`plainForest`](../../R/model.R)), and where several
+do, those stating no sd are held at 1 and share the single-forest chain's prior
+as one total, each at sqrt(1 / K) of its node scale, one k for the group
+([forests-shared-total.md](forests-shared-total.md)); and the map gives a forest with a basis a zero half-Cauchy scale
 ([`forestMapEntry`](../../src/bartcore/combiner.hpp)) - forests 2..K are
 ALWAYS fixed-variance unless held. There is NO per-K renormalization anywhere
 in the MAP: it disperses as `sqrt(K)` by construction (exponent exactly 1/2),
@@ -543,8 +545,8 @@ so the all-basis index prior is `1.4837 s` at K = 2 and grows as `sqrt(K)`, and
 with one basis-free forest the fixed-variance channel is `1.049120 sqrt(K-1) s`,
 0.699 of the `k = 2` binary budget `1.5 s` at K = 2 and past it from K = 4.
 The cost is the ruling's: a caller who adds forests widens the prior on their
-sum, most felt under probit and logistic, until forests can share one total
-(TODO forests-shared-total). A held forest has no variance channel: its
+sum, most felt under probit and logistic; forests with no basis that share one
+total do not widen it, their sum keeping the one forest's size. A held forest has no variance channel: its
 coefficient is a constant and its own sd is its `sd`, exactly
 ([forest-multiplier.md](forest-multiplier.md)).
 

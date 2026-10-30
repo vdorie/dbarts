@@ -4,8 +4,8 @@ Status: PLANNED 2026-10-29; amended the same day after its blind critique (build
 scratch/crit-2plans/report.md) and the maintainer's rulings dec-B503 (the tree count), dec-B505 (an equal part
 per forest) and dec-B506 (`blocks()` changed to match, slice B); amended again the same day for dec-B508
 (`forest()` takes no `leaf.prior`), dec-B509 (a forest with no basis takes the fitting function's leaf prior,
-held, in every model: D1 revised, the default flip in [Slice F: the default flip](#slice-f-the-default-flip)) and dec-B510. Slices B
-and 1 (the engine and bridge) are built on this branch. One call held for the maintainer ([Open calls](#open-calls)): the constant basis column;
+held, in every model: D1 revised, the default flip in [Slice F: the default flip](#slice-f-the-default-flip)) and dec-B510. Slices B,
+1 (the engine and bridge) and 2 (the R surface) are built on this branch. One call held for the maintainer ([Open calls](#open-calls)): the constant basis column;
 `amplitude = fixed()` on a lone forest with no basis is ruled, taken in slice F (dec-B513). Rulings: dec-B292,
 dec-B503, dec-B505, dec-B506, dec-B509 and dec-B513 (with dec-B291, dec-B274, dec-B307, dec-B508, dec-B510); window "Post-merge,
 pre-1.0" (VD 2026-10-07).
@@ -102,12 +102,11 @@ groups and, after slice F, models with a forest with a basis whose forest with n
 
 Read, and run on main at e2f37f6d (shipped build, arm64 macOS; the probes are in scratch/fst-plan, untracked):
 
-- The refusal. [`plainForest`](../../R/model.R) refuses a second forest with no basis ("a model has one forest
-  with no multiplier"), and the formula reader refuses it first
-  (["forest() terms with no basis"](../../R/formulaTerms.R); run: "the formula has 2 forest() terms with no
-  basis"). Pinned in ["twoPlain"](../../inst/tinytest/test-forest-defaults.R) and
-  ["the formula has 2 forest() terms with no basis"](../../inst/tinytest/test-formula-terms.R). Plain terms
-  beside a `forest()` with no basis are refused as two such forests.
+- The refusal, gone with slice 2. [`plainForest`](../../R/model.R) refused a second forest with no basis ("a
+  model has one forest with no multiplier"), and the formula reader refused it first (run: "the formula has 2
+  forest() terms with no basis"), pinned in inst/tinytest/test-forest-defaults.R and
+  inst/tinytest/test-formula-terms.R, whose pins are now creations. Plain terms beside a `forest()` with no
+  basis were refused as two such forests; they are refused by their two readings now.
 - The engine already takes any number of forests of kind none: [`ForestKind`](../../src/bartcore/combiner.hpp)
   is stated per forest and nothing in [`AmplitudeForestCombiner`](../../src/bartcore/combiner.hpp) counts them.
   Each forest has its own coefficient block, a drawn one with no basis under a half-Cauchy mixture.

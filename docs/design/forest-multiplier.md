@@ -34,7 +34,10 @@ in the response's units; U is the unit ([forest-sd-unit.md](forest-sd-unit.md)).
   held or drawn and whatever the number of forests (dec-B291). A drawn forest with no basis takes 2 U
   under gaussian and U under probit and logistic. A held forest with no basis takes, under gaussian, the
   size the one forest of a single-forest chain has at its defaults, a quarter of the response's range as
-  the engine holds it (dec-B290), and U under probit and logistic (dec-B293). A held numeric coefficient
+  the engine holds it (dec-B290), and U under probit and logistic (dec-B293). Two or more forests with no
+  basis that state no sd are held at 1 and share the fitting function's leaf prior as one total, its k
+  drawn under probit and logistic, an equal part each ([forests-shared-total.md](forests-shared-total.md)).
+  A held numeric coefficient
   that states no sd takes the drawn default: right at ordinary slopes, short under probit when the slope
   is two or three times larger, which the help says.
 - `student(nu)` takes nu finite and at least 1, `student()` being nu = 1 (dec-B510); the t's median

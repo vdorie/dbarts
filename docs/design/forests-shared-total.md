@@ -1,14 +1,16 @@
 # Forests with no basis share one prior total
 
-Status: IN PROGRESS 2026-10-29: slice B, `blocks()` per group, and slice 1, the shared total's
-engine and bridge, built on its branch; slice 2, the R surface that reaches it, not built. The plan is [forests-shared-total.md](../plans/forests-shared-total.md), which carries the steps,
-the gates and the calls made in planning; this note is the standing statement of the rule. Rulings: dec-B292,
-dec-B503, dec-B505 and dec-B506, in docs/decisions.md.
+Status: IN PROGRESS 2026-10-30: slice B, `blocks()` per group, slice 1, the shared total's engine and
+bridge, and slice 2, the R surface that reaches it, built on its branch; slice F, the default flip beside a
+forest with a basis, and slice 3, the constant column, not built. The plan is
+[forests-shared-total.md](../plans/forests-shared-total.md), which carries the steps, the gates and the calls
+made in planning; this note is the standing statement of the rule. Rulings: dec-B292, dec-B503, dec-B505,
+dec-B506, dec-B509 and dec-B513, in docs/decisions.md.
 
 Several forests with no basis share one prior total, each an equal part of its variance whatever its tree count
 (dec-B505); a forest partitioned by `blocks()` gives each of its groups an equal part of its own prior the same
 way (dec-B506), so the formula of several such forests and the matching `blocks()` call are one model at every
-count. This note states the `blocks()` half, which is built; the forests' half lands with slice 2.
+count.
 
 ## `blocks()`: each group an equal part
 
@@ -42,3 +44,46 @@ How the engine holds it, by symbol:
 Gated by benchmarks/R/blocks-exact.R: three trees in groups of two and one, the 8 structures enumerated and
 the leaves integrated in closed form, at a fixed k and under a drawn k; the per-tree prior misses its fits by
 over 300 standard errors.
+
+## Forests: each an equal part of the fitting function's prior
+
+The sharers are the forests with no basis that state no `sd` and no `amplitude = student()`, where two or more
+do ([`sharingForests`](../../R/model.R) in R, [`forestSharers`](../../src/bartcore/combiner.hpp) in the engine,
+each reading what the forests state; no flag passes between them). The total is the fitting function's leaf
+prior, as `bart()`'s one forest has it (dec-B509): k 2 under gaussian and k drawn under chi(1.5, 2) under probit
+and logistic by default, a stated `k`, `leaf.prior = normal(k = )` or a `chi()` on k, and `normal(sd = )` naming
+the total's size. Each sharer is held at 1, and with T the total's sd, sharer j of K over m_j trees has sd
+T / sqrt(K) and leaves N(0, T^2 / (K m_j)): [`forestMapEntry`](../../src/bartcore/combiner.hpp) gives it the
+single-forest chain's node scale times sqrt(1 / K), so the sum has sd T at every point, whatever the counts.
+A lone forest with no basis keeps the map's entry it had before, so a model with one draws as it did.
+
+- One k. A drawn k is drawn once for the group ([`Chain::drawSharedK`](../../src/bartcore/chain.hpp)), from
+  every sharer's leaves each standardized by its own leaf scale, and reported on each sharer: `getK` and a
+  fit's `k` give the group's.
+- A forest that states `sd` has that size and is outside the share; the others share
+  among themselves. `amplitude = student()` draws one forest's coefficient, so it is refused on a sharer and
+  taken with `sd` stated or on a forest with no basis that shares with none.
+- The tree count (dec-B503). The sharers that state no `n.trees` split the fitting function's as `blocks()`
+  splits a forest, the first n mod K taking one more (75 over two is 38 and 37); a stated count is outside the
+  split and decides how finely that forest divides its equal part, not its size
+  ([`plainTreeCounts`](../../R/model.R)). The fitting function's `n.trees`, `power` and `base` are refused as
+  given twice only where every forest with no basis states its own. `interactions` and `blocks` at the fitting
+  function, a partition of one forest's predictors, are refused beside two or more forests with no basis.
+- The probit rescaling step ([`Chain::drawForestRescale`](../../src/bartcore/chain.hpp)) scales the latents,
+  every sharer's leaves and k by one factor over the group's leaf count, and reads every other forest's fit,
+  a forest with a basis or one stating sd, as part of the offset, which its conditional already leaves
+  unscaled; so it stays exact in every model whose sharers draw k.
+- The reader. `getLeafPrior` gives a sharer the fitting function's leaf prior as `leaf.prior`, its part in
+  force as `sd` (NA where k is drawn), `sd.stated` FALSE, amplitude `fixed()` and `prior.sd.of` "forest,
+  shared". Print shows each forest's tree count, the total, and which forests share at what k.
+- On a live sampler a sharer's `sd` through `$setLeafPrior(forests = )` and the sampler's `leaf.prior` are
+  refused by name; a size or total is stated at creation, and changing either live waits on the forest door.
+
+Without a forest with a basis, `y ~ forest(x1) + forest(x2) + forest(x3)` is then the one-forest model
+`y ~ forest(x1 + x2 + x3, blocks = blocks(list("x1", "x2", "x3")))` with the same trees per group, at every
+count. Gated by benchmarks/R/forest-prior-exact.R's shared-total arms (held sharers integrated in closed form,
+beside a held factor, beside a forest stating sd, at k 2 and 3 and at unequal counts, where an oracle at the
+full total or at T / K misses its fits by over 100 standard errors), probit-k-scale-exact.R's
+shared arms (two frozen sharers under one drawn k, alone and beside a held factor read as offset) and
+forests-blocks-equivalence.R (the two spellings by Welch z over seeds under gaussian and probit, at equal
+counts, at 38 and 37 and beside a stated count).

@@ -6,16 +6,17 @@ dec-B246 as dec-B274 restates them, dec-B281 and dec-B282 for the held shapes, i
 
 ## The rule
 
-A forest has a basis or it has none. A model of several forests has at most one forest with no basis, the
-plain forest, and it may stand at any place in a `forests` list or in a data object's `bases`; in a formula
-it is the first forest wherever it is written. The kind is asked in one place,
-[`plainForest`](../../R/model.R), of the bases the model ends with.
+A forest has a basis or it has none. A forest with no basis, a plain forest, may stand at any place in a
+`forests` list or in a data object's `bases`; in a formula the plain forests come first, in the order
+written. A model may hold several: two or more that state no sd share the fitting function's leaf prior as
+one total and split its tree count ([forests-shared-total.md](forests-shared-total.md)). The kind is asked in
+one place, [`plainForest`](../../R/model.R), of the bases the model ends with.
 
 | | the plain forest | a forest with a basis |
 |---|---|---|
 | tree count | the fitting function's: `bart`'s `n.trees`, the control's at `dbarts` and `dbartsSpec`; 75 | 50 |
 | tree prior | the fitting function's `power` and `base`; `base = 0.95`, `power = 2` | `base = 0.25`, `power = 3` |
-| `interactions`, `blocks` | the fitting function's or its own; both given is refused | its own |
+| `interactions`, `blocks` | the fitting function's or its own; both given is refused; beside a second plain forest, its own | its own |
 
 A forest's own `n.trees`, `base` and `power` each govern that forest, and each one left out takes the
 default of the forest's kind. Position decides nothing: two forests of one kind written in the other order
@@ -116,7 +117,8 @@ shape held has its value).
 | held forest | position | held at | taken | lasts |
 |---|---|---|---|---|
 | no basis | first; third or later | 1 | yes | |
-| no basis | second | 0, so the forest would leave the model | refused | interim |
+| no basis, the only one | second | 0, so the forest would leave the model | refused | interim |
+| no basis, sharing a total | any | 1 | yes | |
 | a basis of two columns | second | (0, 1) | yes | two numeric columns are refused later with the basis itself (dec-B282) |
 | a basis of two columns | any other | (1, 1), no contrast | refused | interim for a factor of two levels |
 | a basis of three or more columns | any | (0, 1, 1, ...) or all 1 | refused | for good (dec-B281, dec-B282) |
