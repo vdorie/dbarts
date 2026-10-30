@@ -381,10 +381,12 @@ for (basis in list(quote(twoSided), quote(y ~ dose))) {
     fixed = TRUE
   )
 }
-# a tilde where the predictors go is still refused there
+# a tilde where the predictors go is the right-hand side; one with a
+# left-hand side is refused
+expect_identical(forest(~dose)$vars$expr, quote(dose))
 expect_error(
-  forest(~dose),
-  "forest()'s first argument is the predictors the forest splits on",
+  forest(y ~ dose),
+  "forest()'s first argument is a formula with a left-hand side",
   fixed = TRUE
 )
 

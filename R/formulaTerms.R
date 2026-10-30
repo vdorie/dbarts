@@ -574,8 +574,17 @@ readForestTerms <- function(entry, response, data, env) {
   if (is.name(expr) && !identical(expr, as.name("."))) {
     name <- as.character(expr)
     inData <- !is.null(data) && name %in% names(data)
-    if (!inData && inherits(get0(name, envir = env), "formula")) {
-      refuseHeldFormula(expr)
+    held <- if (!inData) get0(name, envir = env)
+    if (inherits(held, "formula")) {
+      # a formula held in a variable: its right-hand side, as written
+      if (length(held) != 2L) {
+        refuseHeldFormula(expr)
+      }
+      expr <- held[[2L]]
+    } else if (is.character(held) && !is.null(data)) {
+      # names held in a variable that no column of the data shadows
+      entry$spec$vars <- namedTerms(held, held)
+      return(entry)
     }
   }
   if (writesInterceptTerm(expr)) {

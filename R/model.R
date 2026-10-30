@@ -1052,6 +1052,19 @@ resolveVarianceColumns <- function(variance, data, argument = "variance") {
   }
   numColumns <- ncol(data@x)
   columnNames <- colnames(data@x)
+  if (inherits(variance, "dbartsForestCode")) {
+    # varianceForest()'s predictors, read as forest()'s are; a switch held in
+    # a variable is the switch
+    if (isTRUE(variance$evaluated) && is.logical(variance$value)) {
+      return(resolveVarianceColumns(variance$value, data, argument))
+    }
+    columns <- resolveForestVars(
+      variance,
+      data,
+      owner = "varianceForest()'s first argument"
+    )
+    return(if (is.null(columns)) seq_len(numColumns) else columns)
+  }
   if (isTRUE(variance)) {
     return(seq_len(numColumns))
   }
@@ -1139,14 +1152,15 @@ stripBackticks <- function(labels) {
   sub("^`(.*)`$", "\\1", labels)
 }
 
-## A name in forest()'s first argument that holds a formula: the terms are
-## written in place, or the names handed over.
-refuseHeldFormula <- function(expr) {
+## A name in forest()'s first argument that holds a formula with a left-hand
+## side: only the right-hand side of a one-sided formula names predictors.
+refuseHeldFormula <- function(expr, owner = "forest()'s first argument") {
   stop(
-    "forest()'s first argument, '",
+    owner,
+    ", '",
     paste(deparse(expr, width.cutoff = 500L), collapse = " "),
-    "', holds a formula; write its terms in place, as forest(x1 + x2), or ",
-    "give the predictors' names as a character vector",
+    "', holds a formula with a left-hand side; write the predictors as the ",
+    "right-hand side alone, as ~ x1 + x2",
     call. = FALSE
   )
 }
@@ -1277,7 +1291,12 @@ designColumnNames <- function(data) {
 ## written where the predictors go, would otherwise be read as a few columns;
 ## and so is a name that two columns carry. `allIsNull` makes a selection of
 ## every column NULL, the unrestricted forest it is.
-resolveForestVars <- function(vars, data, allIsNull = FALSE) {
+resolveForestVars <- function(
+  vars,
+  data,
+  allIsNull = FALSE,
+  owner = "forest()'s first argument"
+) {
   if (is.null(vars)) {
     return(NULL)
   }
@@ -1294,7 +1313,9 @@ resolveForestVars <- function(vars, data, allIsNull = FALSE) {
       name,
       "' is not a predictor of this fit (",
       paste(predictors, collapse = ", "),
-      "); here a forest()'s first argument selects among them",
+      "); here a ",
+      owner,
+      " selects among them",
       call. = FALSE
     )
   }
@@ -1336,7 +1357,11 @@ resolveForestVars <- function(vars, data, allIsNull = FALSE) {
         }
         vars <- vars$value
         if (inherits(vars, "formula")) {
-          refuseHeldFormula(expr)
+          # a formula held in a variable: its right-hand side, as written
+          if (length(vars) != 2L) {
+            refuseHeldFormula(expr, owner)
+          }
+          columns <- readSelectionTerms(vars[[2L]], data, refuseUnknown)
         }
         if (is.function(vars)) {
           refuseUnknown(shown)
@@ -1348,7 +1373,8 @@ resolveForestVars <- function(vars, data, allIsNull = FALSE) {
         refuseUnknown(vars$unbound[1L])
       } else {
         stop(
-          "forest()'s first argument, '",
+          owner,
+          ", '",
           shown,
           "': ",
           if (is.null(vars$error)) "it is no selection" else vars$error,
@@ -1362,7 +1388,8 @@ resolveForestVars <- function(vars, data, allIsNull = FALSE) {
     columns <- sort(unique(columns))
     if (length(columns) == 0L) {
       stop(
-        "forest()'s first argument, '",
+        owner,
+        ", '",
         shown,
         "', leaves the forest no predictor to split on",
         call. = FALSE
@@ -1371,7 +1398,8 @@ resolveForestVars <- function(vars, data, allIsNull = FALSE) {
   } else {
     if ((is.logical(vars) || is.factor(vars)) && !anyNA(vars)) {
       stop(
-        "forest()'s first argument is a ",
+        owner,
+        " is a ",
         if (is.factor(vars)) "factor" else "logical",
         "; a selection is names or positions. A multiplier is given as ",
         "'basis ='",
@@ -1392,7 +1420,8 @@ resolveForestVars <- function(vars, data, allIsNull = FALSE) {
         }
       }
       stop(
-        "forest()'s first argument selects predictors of the fit and names '",
+        owner,
+        " selects predictors of the fit and names '",
         format(repeated),
         "' more than once; name each once. A multiplier is given as 'basis ='",
         call. = FALSE
@@ -1401,7 +1430,8 @@ resolveForestVars <- function(vars, data, allIsNull = FALSE) {
     if (is.character(vars) && !anyNA(vars)) {
       if (!all(nzchar(vars))) {
         stop(
-          "forest()'s first argument has an empty name; a predictor with no ",
+          owner,
+          " has an empty name; a predictor with no ",
           "name is selected by position",
           call. = FALSE
         )
@@ -3176,18 +3206,23 @@ forestFormulaTerms <- function(expr, labels, columns = NULL, named = NULL) {
 
 ## forest()'s first argument as written. A value (names, positions, NULL) is
 ## kept as it is; code is kept unevaluated, and forest() puts beside it the
-## value it has at the call. A tilde there is a multiplier written where the
-## predictors go, and is refused rather than read as predictors.
-captureForestVars <- function(expr) {
+## value it has at the call. A one-sided formula written in place is its
+## right-hand side, the tilde accepted and never required; one with a
+## left-hand side is no selection and is refused.
+captureForestVars <- function(expr, owner = "forest()'s first argument") {
   if (!is.language(expr)) {
     return(expr)
   }
   if (is.call(expr) && identical(expr[[1L]], as.name("~"))) {
-    stop(
-      "forest()'s first argument is the predictors the forest splits on, ",
-      "written without '~', as forest(x1 + x2); a multiplier is 'basis ='",
-      call. = FALSE
-    )
+    if (length(expr) != 2L) {
+      stop(
+        owner,
+        " is a formula with a left-hand side; write the predictors as the ",
+        "right-hand side alone, as x1 + x2 or ~ x1 + x2",
+        call. = FALSE
+      )
+    }
+    expr <- expr[[2L]]
   }
   forestCode(expr)
 }
@@ -3228,6 +3263,20 @@ varianceForest <- function(
   proposal.probs = NULL,
   n.perturb.cuts = NULL
 ) {
+  # the predictors as forest()'s are read: code is kept with the value it has
+  # here, and read as terms over the fit's predictors once they are known
+  written <- captureForestVars(
+    substitute(vars),
+    "varianceForest()'s first argument"
+  )
+  if (inherits(written, "dbartsForestCode")) {
+    written <- takeAtCall(
+      written,
+      function() vars,
+      callingPlace(parent.frame())
+    )
+    vars <- written
+  }
   structure(
     list(
       vars = vars,
@@ -3243,6 +3292,9 @@ varianceForest <- function(
 
 format.dbartsVarianceForest <- function(x, ...) {
   describe <- function(value, default) {
+    if (inherits(value, "dbartsForestCode")) {
+      value <- value$expr
+    }
     if (is.null(value)) default else paste(deparse(value), collapse = " ")
   }
   knobs <- c(

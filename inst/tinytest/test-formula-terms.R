@@ -794,23 +794,11 @@ refuses(y ~ forest(basis = ~z), noPredictors)
 refuses(y ~ 0 + forest(basis = ~z), noPredictors)
 refuses(y ~ offset(o) + forest(basis = ~z), noPredictors)
 refuses(y ~ forest(basis = ~a) + forest(basis = ~b), noPredictors)
-# a tilde on the predictors: the multiplier of another order of arguments
+# a tilde on the predictors is accepted, so one written where a multiplier
+# goes is a second forest with no basis
 refuses(
   y ~ x1 + x2 + forest(~z),
-  paste0(
-    "forest()'s first argument is the predictors the forest splits on, ",
-    "written without '~', as forest(x1 + x2); a multiplier is 'basis ='"
-  )
-)
-# a formula held in a variable
-heldTerms <- ~ x1 + x2
-refuses(
-  y ~ x1 + x2 + forest(heldTerms, basis = ~z),
-  paste0(
-    "forest()'s first argument, 'heldTerms', holds a formula; write its ",
-    "terms in place, as forest(x1 + x2), or give the predictors' names as a ",
-    "character vector"
-  )
+  "each is the forest with no multiplier, and a model has one"
 )
 # an offset() and an intercept term are the fit's
 refuses(

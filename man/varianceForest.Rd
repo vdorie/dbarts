@@ -25,10 +25,11 @@ varianceForest(
 }
 \arguments{
   \item{vars}{
-    Which predictors drive the variance surface: a one-sided formula
-    (\code{~ x1 + x2}), or a character/integer column selector, resolved the
-    same way the plain \code{variance} selector is (a bare factor term name
-    expands to its indicator columns). \code{NULL} (the default) reads
+    Which predictors drive the variance surface, written as
+    \code{\link{forest}}'s \code{vars} is: bare terms (\code{x1 + x2}), a
+    one-sided formula in place or held in a variable (\code{~ x1 + x2}, the
+    tilde accepted and never required), or a character or integer column
+    selector (a bare factor term name expands to its indicator columns). \code{NULL} (the default) reads
     \emph{every} predictor - the object's own \dQuote{unrestricted} reading,
     distinct from \code{variance = NULL}, which declares no variance forest
     at all.

@@ -347,21 +347,13 @@ refusesSelection(
   quote(list(forest(), do.call(forest, list(z3, basis = ~z)))),
   repeated
 )
-# a tilde, and a formula held in a variable
+# a tilde on the predictors is accepted, so a multiplier written there is a
+# second forest with no basis
 refusesSelection(
   quote(list(forest(), forest(~ factor(z)))),
   paste0(
-    "forest()'s first argument is the predictors the forest splits on, ",
-    "written without '~', as forest(x1 + x2); a multiplier is 'basis ='"
-  )
-)
-heldFormula <- ~ x1 + x3
-refusesSelection(
-  quote(list(forest(), forest(heldFormula, basis = ~z))),
-  paste0(
-    "forest()'s first argument, 'heldFormula', holds a formula; write its ",
-    "terms in place, as forest(x1 + x2), or give the predictors' names as a ",
-    "character vector"
+    "forests 1 and 2 have no 'basis': a model has one forest with no ",
+    "multiplier, and every other forest states a 'basis'"
   )
 )
 # terms that leave nothing, and what is the fit's and no forest's

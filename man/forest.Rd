@@ -39,6 +39,10 @@ forest(
         predictors, \code{forest(x1 + x3)}, \code{forest(. - x2)}; names or
         positions do too, \code{forest(c("x1", "x3"))},
         \code{forest(c(1, 3))}.
+      \item A one-sided formula is its right-hand side, the tilde accepted
+        and never required: \code{forest(~ x1 + x2)}, or a formula held in a
+        variable, \code{f <- ~ x1 + x2} and then \code{forest(f)}. A formula
+        with a left-hand side is refused.
       \item A name of a predictor is that predictor. Anything else is read
         where \code{forest()} is called, at that moment.
     }
