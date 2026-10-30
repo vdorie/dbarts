@@ -76,11 +76,18 @@ for (entry in registry[kinds == "argument"]) {
   ownFormals <- names(formals(owner))
   expect_true(entry$name %in% ownFormals || "..." %in% ownFormals)
   # the successor is either formals that still stand on this entry point (a
-  # rename, or a setting split into plain arguments) or the argument of an
-  # object the setting moved onto, whose own formal is named first
+  # rename, or a setting split into plain arguments), the argument of an
+  # object the setting moved onto, whose own formal is named first, or an
+  # argument of the function it moved to
   target <- sub(" =.*$", "", entry$successor)
   successors <- strsplit(entry$successor, ", | and ")[[1L]]
-  expect_true(all(successors %in% ownFormals) || target %in% ownFormals)
+  moved <- regmatches(target, regexec("^(\\w+)\\((.+)$", target))[[1L]]
+  expect_true(
+    all(successors %in% ownFormals) ||
+      target %in% ownFormals ||
+      (length(moved) == 3L &&
+        moved[3L] %in% names(formals(getFromNamespace(moved[2L], "dbarts"))))
+  )
 }
 
 # --- rbart_vi is live: it warns of its deprecation, then fits ---

@@ -326,6 +326,58 @@ dbartsTombstones <- list(
     owner = "xbart",
     successor = "sigest",
     expires = tombstoneExpiry
+  ),
+  list(
+    name = "n.trees",
+    kind = "argument",
+    owner = "dbartsControl",
+    successor = "dbarts(n.trees = )",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "n.cuts",
+    kind = "argument",
+    owner = "dbartsControl",
+    successor = "dbarts(n.cuts = )",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "useQuantiles",
+    kind = "argument",
+    owner = "dbartsControl",
+    successor = "dbarts(useQuantiles = )",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "a count, cut count or quantile rule read from a control",
+    kind = "behavior",
+    owner = "dbartsControl",
+    successor = "dbarts(n.trees = , n.cuts = , useQuantiles = )",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "n.trees slot",
+    kind = "behavior",
+    owner = "dbartsControl",
+    successor = "model@forests",
+    condition = "goes once no CRAN package reads it, checked at the freeze",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "useQuantiles slot",
+    kind = "behavior",
+    owner = "dbartsControl",
+    successor = "data@useQuantiles",
+    condition = "goes once no CRAN package reads it, checked at the freeze",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "binary slot",
+    kind = "behavior",
+    owner = "dbartsControl",
+    successor = "model@family",
+    condition = "goes once no CRAN package reads it, checked at the freeze",
+    expires = tombstoneExpiry
   )
 )
 

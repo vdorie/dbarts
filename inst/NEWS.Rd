@@ -59,7 +59,10 @@
             \code{bart}, \code{dbarts} and \code{xbart},
             \code{resid.prior} becomes \code{family = gaussian(sigma = )};
             on \code{bart} and \code{dbarts}, \code{proposal.probs} becomes
-            \code{control = dbartsControl(proposal.probs = )}.
+            \code{control = dbartsControl(proposal.probs = )}. On
+            \code{dbartsControl}, \code{n.trees} moves to \code{dbarts},
+            \code{dbartsSpec} and \code{forest}, and \code{n.cuts} and
+            \code{useQuantiles} to \code{dbarts} and \code{dbartsData}.
             \code{rngSeed} (\code{bart}, \code{dbartsControl}) is now
             \code{seed}, \code{sigma} (\code{dbarts}, \code{xbart}) is now
             \code{sigest}, \code{node.prior} (\code{dbarts}) is now

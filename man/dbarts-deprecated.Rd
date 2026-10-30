@@ -34,6 +34,9 @@
     \item{\code{proposal.probs}}{
       On \code{\link{bart}} and \code{\link{dbarts}}: the tree-move mixture, now a \code{\link{dbartsControl}} slot and formal (\code{control = dbartsControl(proposal.probs = )}).
     }
+    \item{\code{n.trees}, \code{n.cuts}, \code{useQuantiles} on \code{\link{dbartsControl}}}{
+      What a model and its data hold: \code{n.trees} is now an argument of \code{\link{dbarts}}, \code{\link{dbartsSpec}} and \code{\link{forest}}, and \code{n.cuts} and \code{useQuantiles} of \code{dbarts} and \code{\link{dbartsData}}. A value written on a control is read after a once-per-session warning; a control's value that differs from what a call takes draws a warning on every call, and a value a fit left on its control states nothing.
+    }
     \item{A three-element \code{n.burn} on \code{\link{xbart}}}{
       Refused outright, naming \code{n.burn = c(fresh, warm)}: 0.9-x's third element was a per-replication burn-in, and a chain is never carried between replications now.
     }
