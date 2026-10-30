@@ -65,9 +65,9 @@ Each cell ends as "problem shown", "no problem" or "unresolved", and cells are w
 use is: effects at moderate prevalence, propensity weighting, your colleagues' case and embedded use
 first; rare outcomes, many predictors and small samples next; near-separated prediction last; a logistic
 cell counts as the same cell under probit (dec-B463), since shipped probit has a rescaling step for k and
-logistic has none, so logistic is where a problem is likeliest. A problem shown where
-use is common opens the pricing of moves; a problem shown only in rarer use leads to a scoped or opt-in
-option; no problem is written down with triggers for reopening, and the move stays parked on its branch.
+logistic has none, so logistic is where a problem is likeliest. A problem shown opens the pricing of the
+move, a sequence with each step's rule written before any fit (dec-B530); no problem is written down with
+triggers for reopening, and the move stays parked on its branch.
 If no problem is shown but some common-use cells stay unresolved, the move stays parked and those cells
 come to you with what resolving each would cost.
 
@@ -268,7 +268,8 @@ still touches only logistic fits.
 | 3, niche | near separation | probabilities near 0 or 1, other simultaneous bands, k |
 
 Each real dataset of B takes the tier of the regime its separation score and outcome rate place it in.
-What follows from each tier is under [What the result leads to](#what-the-result-leads-to).
+What follows is under [What the result leads to](#what-the-result-leads-to); since dec-B530 pricing does not
+weigh tiers, and the map stays as the record of where the problem sits.
 
 ## Regimes
 
@@ -700,26 +701,36 @@ plan's rule, bands and bars precedes the first study fit.
 ## What the result leads to
 
 **A problem shown** (k's, in some cell) opens the pricing step, a separate plan, which reads this study's
-outputs and measures only variants:
-- first, a direct test of the move's small-k tail, as a gate: under SBC the mean posterior share of k under
-  a cutoff should match the share of true k under it. The study has only a weak version of this, and almost
-  every logistic reference with that tail failed acceptance, so no long-run agreement checks it;
-- per problem cell, the effective draws per second of the affected estimands under both kernels, measured
-  afresh with a few fits in S4, S1 and S2 logistic, about a core-hour or a few: the study stores no
-  default-reading draws, compacts references to 1,000 quantiles a row and dropped the tails but for the audit
-  references, so only scalars and k survive. And the breakdown of the shortfall;
-- candidates: the built move every fourth sweep (207f740e); every sweep; during burn-in only, which removes
-  the transient and nothing else, so it suffices exactly where k's share of the transient is the whole
-  problem, and which settles the share of harm due to the start that the study leaves open; a longer default
-  burn-in; the move gated by a data-defined trigger (outcome rate or separation score), exact because it
-  reads the data alone, as the collapsed plan's size switch does; the collapsed plan's size and frequency
-  options; an opt-in argument;
-- what follows by tier: a tier 1 problem prices a default (the cheapest candidate that clears the bar
-  where the problem is, at its cost on every fit); tier 2 alone prices a scoped default (trigger) against
-  an opt-in, by the share of fits in those regimes, which the maintainer estimates; tier 3 alone leads to
-  documentation and a saturation-keyed diagnostic, with the move at most an opt-in;
-- the costs beside it: the collapsed plan's 1.4k to 2.9k lines, a posterior-changing slice, consumers'
-  expectations re-recorded, and, for the probit half, every binary stan4bart fit.
+outputs and measures only variants. It needs no estimate of how common strong signal is. It is a sequence, each
+step's rule fixed before any fit (dec-B530, which replaces the weighing by tier first written here):
+
+1. The move's small-k tail is right, tested on the simulated small-sample, near-separation and rare-outcome
+   regimes (S4, S1, S2) with k drawn from the prior. If it fails, pricing stops. Under SBC the mean posterior
+   share of k under a cutoff should match the share of true k under it. The study has only a weak version of
+   this, and almost every logistic reference with that tail failed acceptance, so no long-run agreement checks it.
+2. It wins at equal time on coverage (the maintainer's rule of 2026-10-17: a change to a hyperparameter's mixing
+   is judged by what users estimate, calibration its target, over-coverage counting as error, on interesting real
+   problems), on those regimes and on fits with no strong signal, which also gives the real benchmark of its cost.
+   If so, the move is on for every logistic fit, with no trigger.
+3. Only if that cost is too high, a check on the data, its form fixed on the simulated regimes alone and tested on
+   real logistic datasets not yet looked at, the 22 of B having been seen.
+4. An opt-in if both fail.
+
+Not sized: a rough guess of tens of core-hours, mostly step 2. What must be written before it starts is
+TODO k-move-pricing. Inputs and costs:
+- the effective draws per second of the affected estimands under both kernels, measured afresh with a few fits in
+  S4, S1 and S2 logistic, about a core-hour or a few: the study stores no default-reading draws, compacts references
+  to 1,000 quantiles a row and dropped the tails but for the audit references, so only scalars and k survive. And
+  the breakdown of the shortfall;
+- variants the pricing plan chooses among, none ruled: the built move every fourth sweep (207f740e); every sweep;
+  during burn-in only, which removes the transient and nothing else, so it suffices exactly where k's share of the
+  transient is the whole problem, and which settles the share of harm due to the start that the study leaves open;
+  a longer default burn-in; the collapsed plan's size and frequency options. A data-defined trigger (outcome rate
+  or separation score), exact because it reads the data alone, as the collapsed plan's size switch does, belongs
+  to step 3, and an opt-in argument to step 4;
+- the costs beside it: the collapsed plan's 1.4k to 2.9k lines, a posterior-changing slice, consumers' expectations
+  re-recorded, and, for the probit half, every binary stan4bart fit. dec-B530 speaks of logistic fits and is silent on
+  the probit half.
 
 **No problem** (every tier 1 and 2 cell no problem, bounded or measured):
 - written down in docs/design/binary-k-mixing-need.md: dec-B420 settles that k is drawn, not that it must
@@ -1257,9 +1268,21 @@ not run. No decision hangs on it since dec-B530, the 12 were never started, and 
 48 stay failed by the acceptance rule. The finding adds a reading of every long run against each half, labeled as read
 after results and replacing no rule. The long oracle runs every regime Amendment 3 owes.
 
+**Amendment 6, 2026-10-30, before any further run (dec-B530).** The maintainer ruled pricing a sequence with its
+rules written first, in place of weighing a scoped default against an opt-in by the share of fits with strong
+signal. [What the result leads to](#what-the-result-leads-to) and the summary now say so; no reading rule changes.
+
 ## Rulings and pending slots
 
 - **The link in the use tiers**: ruled, dec-B463. A logistic cell counts as the same cell under probit.
+- **Pricing**: ruled, dec-B530: a sequence with its rules written first; see Amendment 6.
+- **Real data**: ruled, dec-B532: single-dataset verdicts, with the pooled figures beside them labeled as covering
+  only those that passed.
+- **One-value estimands**: ruled, dec-B533: read on long runs alone, calibration's figure beside them, a large
+  problem there still counting against the reading.
+- **Accepted references that over-cover**: ruled, dec-B534: the readings are kept with a note, departing from the
+  rule of [References](#references) and answering the choice left open in Amendment 3.
+- **The near-miss long runs**: ruled, dec-B537, withdrawing dec-B531: they do not run; see Amendment 5.
 - **Full or lean**: the full design, the orchestrator's call under the maintainer's standing permission to
   raise compute ([Considered: a lean variant](#considered-a-lean-variant)).
 - **The colleagues' case (D1x)**: ruled, dec-B529: "Let's leave room for an amendment and proceed without
