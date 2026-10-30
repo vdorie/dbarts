@@ -200,7 +200,7 @@ rm(xval, xbartControl, captured)
 
 flatControl <- dbarts::dbartsControl(n.cuts = 40L, n.thin = 2L)
 flatFit <- fitFC(control = flatControl, n.cuts = 25L, keepSampler = TRUE)
-expect_equal(flatFit$fit$control@n.cuts, 25L)
+expect_true(all(flatFit$fit$data@n.cuts == 25L))
 expect_equal(flatFit$fit$control@n.thin, 2L)
 
 # ---- a fit's control is taken: it holds run settings and copies --------------

@@ -54,7 +54,6 @@ control <- dbartsControl(
   useQuantiles = TRUE,
   updateState = FALSE
 )
-expect_identical(control@n.cuts, 100L)
 sampler <- dbarts(x, y, control = control)
 cuts <- cutPointsOf(sampler)
 expect_identical(lengths(cuts), c(100L, 100L, 100L, 10L))
@@ -221,9 +220,7 @@ for (door in names(fewDoors)) {
 # column holds, and raises nothing: 10 cuts from 11 distinct values, refreshed
 # onto 60 under n.cuts = 10 and, below, under n.cuts = 100
 xRefresh <- cbind(rep(seq_len(11L), length.out = n), x[, 1L])
-controlTen <- control
-controlTen@n.cuts <- 10L
-sampler <- dbarts(xRefresh, y, control = controlTen)
+sampler <- dbarts(xRefresh, y, n.cuts = 10L, control = control)
 expect_identical(cutPointsOf(sampler)[[1L]], seq_len(10L) + 0.5)
 replacement <- rep(seq_len(60L), length.out = n)
 refreshWarnings <- warningsOf(

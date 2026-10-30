@@ -573,7 +573,7 @@ expect_identical(forestCounts(copied$value$fit), 50L)
 expect_notUsed(copied, "n.trees", 75L)
 copied <- warned(bartQuick(control = quantileFit$control))
 expect_notUsed(copied, c("useQuantiles", "n.cuts"), c("TRUE", "20"))
-expect_false(copied$value$fit$data@useQuantiles)
+expect_false(isTRUE(copied$value$fit$data@useQuantiles))
 fromVariance <- warned(bartQuick(control = varianceSampler$control))
 expect_null(fromVariance$value$fit$model@variance)
 fromVariance <- warned(dbarts(
@@ -695,7 +695,7 @@ expect_notUsed(crossed, c("useQuantiles", "n.cuts"), c("FALSE", "100"))
 expect_true(crossed$value$control@useQuantiles)
 crossed <- direct(quantileFit$control, fit75)
 expect_notUsed(crossed, c("useQuantiles", "n.cuts"), c("TRUE", "20"))
-expect_false(crossed$value$data@useQuantiles)
+expect_false(isTRUE(crossed$value$data@useQuantiles))
 expect_identical(
   quantileDraws(crossed$value),
   quantileDraws(new("dbartsSampler", fit75$control, fit75$model, fit75$data))
@@ -830,11 +830,11 @@ expect_identical(
   character(0L)
 )
 expect_true(sampler$control@useQuantiles)
-expect_identical(sampler$control@n.cuts, 20L)
+expect_identical(sampler$data@n.cuts, rep(20L, 3L))
 taken <- warned(sampler$setControl(fit75$control))
 expect_notUsed(taken, c("useQuantiles", "n.cuts"), c("FALSE", "100"))
 expect_true(sampler$control@useQuantiles)
-expect_identical(sampler$control@n.cuts, 20L)
+expect_identical(sampler$data@n.cuts, rep(20L, 3L))
 rm(livePair, sampler, carried, taken, before, edited, refusal, agrees, silent)
 
 ## ---- $setModel: structure is refused, move settings are installed ---------------

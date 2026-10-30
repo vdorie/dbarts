@@ -807,9 +807,13 @@ expect_identical(
   75
 )
 # the limit of what can be told: a slot edited to the first forest's own
-# count reads as untouched, and one edited to the default as not stated
+# count reads as untouched; one edited to the default is an edit like another
 expect_identical(editedCarry(allBasisSampler, 50L), 75)
-expect_identical(editedCarry(allBasisSampler, 75L, allBasis[1L]), c(50, 50))
+expect_error(
+  editedCarry(allBasisSampler, 75L, allBasis[1L]),
+  controlText,
+  fixed = TRUE
+)
 # and $setControl takes the control a sampler was created under, or its own,
 # the slot keeping the first forest's count
 allBasisSampler$setControl(defaultsControl(n.burn = 7L))

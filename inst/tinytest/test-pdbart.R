@@ -478,7 +478,10 @@ expect_identical(legacyControl@n.threads, 1L)
 expect_identical(legacyControl@n.thin, 2L)
 expect_identical(legacyControl@n.samples, 2L)
 expect_identical(legacyControl@printEvery, 3L)
-expect_identical(legacyControl@n.cuts, 13L)
+expect_identical(
+  pdbLegacy$fit$data@n.cuts,
+  rep(13L, ncol(pdbLegacy$fit$data@x))
+)
 expect_true(legacyControl@useQuantiles)
 expect_false(legacyControl@keepTrainingFits)
 expect_null(pdbLegacy$yhat.train)
@@ -546,7 +549,7 @@ pdbControl <- suppressWarnings(dbarts::pdbart(
   control = dbarts::dbartsControl(n.cuts = 9L),
   proposalprobs = c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5)
 ))
-expect_identical(pdbControl$fit$control@n.cuts, 9L)
+expect_true(all(pdbControl$fit$data@n.cuts == 9L))
 expect_equal(pdbControl$fit$control@proposal.probs[["birth_death"]], 0.6)
 # binaryOffset is the offset
 resetPdbartKeys()

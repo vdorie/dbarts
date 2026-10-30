@@ -63,7 +63,7 @@ for (name in c("n.trees", "power", "base")) {
   refused(xbart, name, y ~ x1 + x2, d, n.samples = 5L, n.burn = c(5L, 5L))
   refused(rbart_vi, name, y ~ x1 + x2, d, group.by = rep(1:5, 10L))
 }
-expect_error(dbartsControl(n.trees = NULL), refusal("n.trees"))
+expect_identical(dbartsControl(n.trees = NULL)@n.trees, 75L)
 for (name in c("power", "base", "leaf.prior")) {
   refused(dbarts, name, y ~ x1 + x2, d)
   refused(dbartsSpec, name, dbartsData(y ~ x1 + x2, d))

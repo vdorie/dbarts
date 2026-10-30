@@ -130,7 +130,7 @@ expect_true(sum(tauCounts[3:4, ]) > 0L)
 # a default here. ---
 knobs <- dbartsSpec(
   dbartsData(x, y),
-  seededControlBcfCreation(),
+  uncountedControlBcfCreation(),
   forests = list(
     forest(
       n.trees = 30L,
@@ -170,14 +170,6 @@ expect_equal(knobs$model@tree.prior@power, 1.5)
 # seven-tree fit, not the hundred-tree one it disagrees with. Its base and
 # power are the fitting function's own arguments, which beside it are one
 # setting written twice and refused ---
-disagreeingControl <- dbartsControl(
-  n.chains = 2L,
-  n.threads = 1L,
-  n.trees = 100L,
-  n.samples = 10L,
-  updateState = FALSE,
-  seed = 17L
-)
 sevenTreeControl <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,
@@ -191,7 +183,7 @@ expect_identical(
     x,
     y,
     forests = list(forest(n.trees = 7L, base = 0.3, power = 1.1)),
-    control = disagreeingControl
+    control = uncountedControlBcfCreation()
   )$run(0L, 5L)$train,
   dbarts(
     x,
@@ -207,7 +199,7 @@ expect_error(
     y,
     forests = list(forest(n.trees = 7L, base = 0.3, power = 1.1)),
     base = 0.6,
-    control = disagreeingControl
+    control = uncountedControlBcfCreation()
   ),
   paste0(
     "'base' is given to the fitting function and to the forest with no ",
@@ -248,7 +240,7 @@ expect_identical(
     x,
     y,
     forests = list(forest(n.trees = 50L)),
-    control = seededControlBcfCreation()
+    control = uncountedControlBcfCreation()
   )$run(0L, 5L)$train,
   plainResult$train
 )
@@ -267,7 +259,7 @@ expect_identical(
     x,
     y,
     forests = list(forest(n.trees = 20L)),
-    control = seededControlBcfCreation()
+    control = uncountedControlBcfCreation()
   )$run(0L, 5L)$train,
   dbarts(x, y, control = twentyTrees)$run(0L, 5L)$train
 )
@@ -900,7 +892,7 @@ expect_identical(
 )
 # the shape of the argument itself
 expect_error(
-  dbarts(x, y, forests = forest(), control = control),
+  dbarts(x, y, forests = 3L, control = control),
   "list of forest\\(\\) specifications"
 )
 expect_error(

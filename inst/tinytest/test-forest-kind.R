@@ -671,7 +671,7 @@ expect_identical(
 expect_identical(declared$data@bases, levelsData@bases)
 settingsOnly <- dbartsSpec(
   levelsData,
-  kindControl(),
+  dbartsControl(n.chains = 1L, n.threads = 1L, n.samples = 10L, n.burn = 0L),
   forests = list(forest(n.trees = 12L), forest(n.trees = 8L))
 )
 expect_identical(settingsOnly$data@basis.levels, levelsData@basis.levels)

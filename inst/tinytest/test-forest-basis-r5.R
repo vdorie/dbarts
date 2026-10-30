@@ -279,7 +279,13 @@ unevenTrees <- dbarts(
     forest(basis = ~ factor(z), n.trees = 31L),
     forest(basis = ~ g == "b", n.trees = 7L)
   ),
-  control = seededControlForestBasisR5()
+  control = dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.samples = 6L,
+    updateState = FALSE,
+    seed = 41L
+  )
 )
 expect_identical(unevenTrees$control@n.trees, 13L)
 # setControl cross-checks the control's count against the sampler's shape, so

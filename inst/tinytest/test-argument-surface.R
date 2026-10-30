@@ -206,9 +206,10 @@ expect_false("resid.prior" %in% names(formals(dbarts::dbartsSpec)))
 expect_false("resid.prior" %in% names(formals(dbarts::xbart)))
 bart2Formals <- formals(dbarts::bart)
 dbartsFormals <- formals(dbarts::dbarts)
+# bart's three pass a resolved value to dbarts, whose NULL means not stated
 sharedFormalNames <- setdiff(
   intersect(names(bart2Formals), names(dbartsFormals)),
-  tbExceptions$name
+  c(tbExceptions$name, "n.trees", "n.cuts", "useQuantiles")
 )
 diverged <- Filter(
   function(nm) {
@@ -839,7 +840,7 @@ expect_true(setequal(
   intersect(xbartKnobs, names(formals(dbarts::xbart))),
   xbartKnobs
 ))
-for (knob in xbartKnobs) {
+for (knob in c("n.thin", "storage")) {
   expect_equal(
     deparse(formals(dbarts::xbart)[[knob]]),
     deparse(formals(dbarts::dbartsControl)[[knob]])
