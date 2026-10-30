@@ -847,7 +847,9 @@ items
     (dec-B240), its n.cuts goes. forests = forest() without list() is
     taken (dec-B241). On main today dbarts(n.trees = ) is an unused
     argument and dbartsControl(n.trees = ) is the count (audit run
-    2026-10-29). For 1.0-0.
+    2026-10-29). For 1.0-0. Planned: docs/plans/control-migration.md,
+    with control-carried-count-edges, one open call (the direct door
+    given a hand-edited count).
   control-carried-count-edges: with the control migration (dec-A179).
     setControl given a control whose carried count differs takes it,
     keeps the sampler's count and warns (dec-B385).
@@ -862,7 +864,7 @@ items
     changing the count; both were taken before defaults went by kind.
     A count written into a carried control that equals the count it
     shows cannot be told from no edit and is replaced by the carried
-    one.
+    one. Planned with control-migration.
   copy-after-response-swap-ulp: a copy made after setResponse to a
     rescaled response runs within 1e-14 of the original and not bit
     for bit: the next 5 sweeps differ in the last bits (7.1e-15 at
