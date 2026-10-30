@@ -46,29 +46,42 @@
 # correctly: that mutant passes quick mode at a worst |z| of 4.3. The engine's
 # mapping test (tests/cpp, runForestRescaleTests) is what catches it.
 #
-# Two arms of forests that share one total follow. Two frozen single-tree
+# Three arms of forests that share one total follow. Two frozen single-tree
 # forests with no basis share one drawn k, the first holding three or four
 # leaves and the second a stump, each with leaf scale c / sqrt(2): the stump
 # is integrated in an outer quadrature on the standardized w = k mu / c', and
 # given it each leaf of the first tree by a grid in the leaf's fit. The second
 # arm adds a frozen stump of a factor forest held at sd 0.5 whose second level
 # is the rows of one leaf, so that leaf's fit carries an N(0, 0.25) the step
-# must read as offset and leave unscaled. Their statistics are P(k < q_j) and
-# E of each leaf's fit. The step has no switch, so it is on in both.
+# must read as offset and leave unscaled. The third is the first with o = 0.4 on
+# every row, the user's offset in the step beside the sharers' fit. Their
+# statistics are P(k < q_j) and E of each leaf's fit. The step has no switch, so
+# it is on in all three.
 #
 # Usage: Rscript probit-k-scale-exact.R [quick] [pure] [mixed] [offset] [mask]
-#   [shared] [shared-factor]
+#   [shared] [shared-factor] [shared-offset]
 
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
-allArms <- c("pure", "mixed", "offset", "mask", "shared", "shared-factor")
+allArms <- c(
+  "pure",
+  "mixed",
+  "offset",
+  "mask",
+  "shared",
+  "shared-factor",
+  "shared-offset"
+)
 armNames <- intersect(allArms, args)
 if (length(armNames) == 0L) {
   armNames <- allArms
 }
-sharedArmNames <- intersect(armNames, c("shared", "shared-factor"))
+sharedArmNames <- intersect(
+  armNames,
+  c("shared", "shared-factor", "shared-offset")
+)
 armNames <- setdiff(armNames, sharedArmNames)
 
 n <- 150L
@@ -277,7 +290,7 @@ for (arm in armNames) {
 # ---- the shared arms ----
 
 sharedScale <- leafScale / sqrt(2)
-sharedPosterior <- function(y, leaf, numLeaves, extra) {
+sharedPosterior <- function(y, leaf, numLeaves, extra, shift = 0) {
   fitStep <- 0.01
   fitGrid <- seq(-8, 8, by = fitStep)
   wStep <- 0.05
@@ -289,8 +302,8 @@ sharedPosterior <- function(y, leaf, numLeaves, extra) {
   for (l in seq_len(numLeaves)) {
     s <- 2 * y[leaf == l] - 1
     logLik <- sum(s > 0) *
-      pnorm(fitGrid, log.p = TRUE) +
-      sum(s < 0) * pnorm(-fitGrid, log.p = TRUE)
+      pnorm(shift + fitGrid, log.p = TRUE) +
+      sum(s < 0) * pnorm(-(shift + fitGrid), log.p = TRUE)
     logMax[l] <- max(logLik)
     likelihood[l, ] <- exp(logLik - logMax[l])
   }
@@ -329,6 +342,7 @@ sharedPosterior <- function(y, leaf, numLeaves, extra) {
 
 for (arm in sharedArmNames) {
   withFactor <- arm == "shared-factor"
+  shift <- if (arm == "shared-offset") 0.4 else 0
   forests <- list(
     dbartsForests$forest(n.trees = 1L),
     dbartsForests$forest(n.trees = 1L, base = 1e-9)
@@ -375,9 +389,12 @@ for (arm in sharedArmNames) {
   y <- as.double(rbinom(
     n,
     1L,
-    pnorm(c(0.8, -0.5, 0.3, -1.2)[sharedLeaf])
+    pnorm(shift + c(0.8, -0.5, 0.3, -1.2)[sharedLeaf])
   ))
-  exact <- sharedPosterior(y, sharedLeaf, numShared, extra)
+  exact <- sharedPosterior(y, sharedLeaf, numShared, extra, shift)
+  if (shift != 0) {
+    shared$setOffset(rep(shift, n))
+  }
 
   shared$setResponse(y)
   started <- proc.time()[[3L]]
@@ -388,7 +405,8 @@ for (arm in sharedArmNames) {
     seq_len(numShared),
     function(l) colMeans(run$train[sharedLeaf == l, , drop = FALSE]),
     numeric(ncol(run$train))
-  )
+  ) -
+    shift
   indicator <- lapply(exact$quantiles, function(q) as.numeric(k < q))
   zP <- (vapply(indicator, mean, 0) - deciles) /
     vapply(indicator, batchMeansError, 0)

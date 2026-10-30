@@ -4,13 +4,14 @@
 # the same trees per group, y ~ forest(x1) + forest(x2) + forest(x3) and
 # y ~ forest(x1 + x2 + x3, blocks = blocks(list("x1", "x2", "x3"))) are one
 # model, each group's leaves over its own trees with the total's variance
-# divided evenly among the groups. Four scenarios: three forests at 75 trees
-# (25 each) under gaussian at k 2 and under probit with k drawn; two forests
-# at 75 trees (38 and 37); and a stated count, forest(x1, n.trees = 10) beside
-# two forests that split the rest (38 and 37), against trees.per.group =
-# c(10, 38, 37) on a forest of 85. The functionals are the posterior mean of
-# the fit at each row and of sigma (gaussian) or k (probit), each spelling run
-# on its own seeds; a Welch z over seeds past 4 fails. With about a hundred
+# divided evenly among the groups. Six scenarios: three forests at 75 trees
+# (25 each) under gaussian at k 2, under probit with k drawn and under gaussian
+# with k drawn, whose sweep is the only thing moving k; two forests at 75 trees
+# (38 and 37); and a stated count, forest(x1, n.trees = 10) beside two forests
+# that split the rest (38 and 37), against trees.per.group = c(10, 38, 37) on a
+# forest of 85, under gaussian and under probit, whose pooled k reads unequal
+# leaf scales. The functionals are the posterior mean of the fit at each row and
+# of sigma (k held) or k (k drawn), each spelling run on its own seeds; a Welch z over seeds past 4 fails. With about a hundred
 # functionals a z between 4 and 5 is seen now and then (a spelling against
 # itself reaches 3.3), so such a scenario is run once more on a second set of
 # seeds and fails only if the same functional is out again.
@@ -64,24 +65,49 @@ scenarios <- list(
       ),
     family = "gaussian",
     blocksTrees = 85L
+  ),
+  "a stated count, probit" = list(
+    forests = z ~ forest(x1, n.trees = 10L) + forest(x2) + forest(x3),
+    blocks = z ~
+      forest(
+        x1 + x2 + x3,
+        blocks = blocks(
+          list("x1", "x2", "x3"),
+          trees.per.group = c(10L, 38L, 37L)
+        )
+      ),
+    family = "probit",
+    blocksTrees = 85L
+  ),
+  "three forests, gaussian k drawn" = list(
+    forests = y ~ forest(x1) + forest(x2) + forest(x3),
+    blocks = y ~ forest(x1 + x2 + x3, blocks = blocks(list("x1", "x2", "x3"))),
+    family = "gaussian",
+    leafPrior = dbartsPriors$normal(k = dbartsPriors$chi(1.25, Inf))
   )
 )
 
-posteriorMeans <- function(seed, formula, family, numTrees) {
-  sampler <- dbarts(
-    formula,
-    data,
-    family = family,
-    control = dbartsControl(
-      n.trees = numTrees,
-      n.chains = 1L,
-      n.threads = 1L,
-      updateState = FALSE,
-      seed = seed
-    )
+posteriorMeans <- function(seed, formula, family, numTrees, leafPrior) {
+  control <- dbartsControl(
+    n.trees = numTrees,
+    n.chains = 1L,
+    n.threads = 1L,
+    updateState = FALSE,
+    seed = seed
   )
+  sampler <- if (is.null(leafPrior)) {
+    dbarts(formula, data, family = family, control = control)
+  } else {
+    dbarts(
+      formula,
+      data,
+      family = family,
+      leaf.prior = leafPrior,
+      control = control
+    )
+  }
   run <- sampler$run(numBurn, numKept)
-  scalar <- if (family == "gaussian") {
+  scalar <- if (family == "gaussian" && is.null(leafPrior)) {
     c(sigma = mean(run$sigma))
   } else {
     c(k = mean(run$k))
@@ -91,7 +117,7 @@ posteriorMeans <- function(seed, formula, family, numTrees) {
   c(scalar, fit)
 }
 
-draws <- function(formula, family, offset, numTrees = 75L) {
+draws <- function(formula, family, offset, numTrees = 75L, leafPrior = NULL) {
   do.call(
     rbind,
     parallel::mclapply(
@@ -100,6 +126,7 @@ draws <- function(formula, family, offset, numTrees = 75L) {
       formula = formula,
       family = family,
       numTrees = numTrees,
+      leafPrior = leafPrior,
       mc.cores = numCores
     )
   )
@@ -114,12 +141,18 @@ cat(sprintf(
 ))
 anyFailure <- FALSE
 compare <- function(scenario, offset) {
-  forests <- draws(scenario$forests, scenario$family, offset)
+  forests <- draws(
+    scenario$forests,
+    scenario$family,
+    offset,
+    leafPrior = scenario$leafPrior
+  )
   blocked <- draws(
     scenario$blocks,
     scenario$family,
     offset + 1000L,
-    if (is.null(scenario$blocksTrees)) 75L else scenario$blocksTrees
+    if (is.null(scenario$blocksTrees)) 75L else scenario$blocksTrees,
+    scenario$leafPrior
   )
   z <- (colMeans(forests) - colMeans(blocked)) /
     sqrt((apply(forests, 2L, var) + apply(blocked, 2L, var)) / numSeeds)

@@ -124,12 +124,13 @@ the mode cpp-tests.yaml uses for both siblings' per-push compares.
 
 Two spellings of one model, live on one build: `y ~ forest(x1) + forest(x2) +
 forest(x3)`, forests with no basis sharing one prior total, against one forest
-with `blocks()` at the same trees per group. Four scenarios (three forests
-under gaussian and under probit with k drawn, two forests of 38 and 37 trees, a
-stated count beside two that split the rest), compared by Welch z over 40
-seeds a spelling (80 in full) on the posterior mean of the fit at each row and
-of sigma or k; a z past 4 fails, a lone one under 5 after a second set of
-seeds. Quick mode is under a minute.
+with `blocks()` at the same trees per group. Six scenarios (three forests
+under gaussian, and with k drawn under probit and under gaussian, two forests
+of 38 and 37 trees, a stated count beside two that split the rest under gaussian
+and under probit), compared by Welch z over 40 seeds a spelling (80 in full) on
+the posterior mean of the fit at each row and of sigma or k; a z past 4 fails, a
+lone one under 5 after a second set of seeds. In exact-gates.yaml's list, as a
+seeded statistical check. Quick mode takes under a minute, full about two.
 
     Rscript benchmarks/R/forests-blocks-equivalence.R quick
 
@@ -290,9 +291,9 @@ errors. Quick mode is about 10 seconds.
 probit-k-scale-exact is the gate for the probit rescaling step: one frozen
 tree under probit with k ~ chi(1.5, 2), whose posterior of k and leaf means are
 exact by one quadrature a leaf, on four arms (every leaf separated, none, an
-offset, a mask), and two arms of two frozen single-tree forests with no basis
-sharing one drawn k, the second a stump integrated in an outer quadrature,
-alone and beside a held factor stump the step reads as offset. It bounds
+offset, a mask), and three arms of two frozen single-tree forests with no basis
+sharing one drawn k, the second a stump integrated in an outer quadrature: alone,
+beside a held factor stump the step reads as offset, and with a user offset. It bounds
 P(k < q) at the exact deciles and the unseparated leaves' means at |z| 4.5, and the separated arm's batch-means error of P(k < q) at
 0.01 in full mode (0.014 quick), which a sampler without the step does not
 meet, so a step that silently declines fails. It cannot see k left unscaled

@@ -8,7 +8,8 @@
 # run with a fixed seed and compares
 # the engine's draws to an analytic or brute-force-enumerated target with a
 # z-score / tolerance bound it computes IN-SCRIPT (no recorded baseline), then
-# quit(status=1L) on deviation. That makes them deterministic regression
+# quit(status=1L) on deviation; forests-blocks-equivalence.R holds two spellings
+# of one model to each other the same way, at a seed. That makes them deterministic regression
 # detectors that catch engine-math breakage without false-alarming, so they
 # gate push / pull_request -- unlike the STATISTICAL gates (sbc.yaml,
 # equivalence.yaml) whose rank-uniformity / z-mode tests occasionally
@@ -145,6 +146,7 @@ jobs:
             rule-gibbs-balance.R
             aft-exact.R aft-hetero-pit.R backfit-exact.R bcf-exact.R bcf-exact-weak.R bcf-exact-restricted.R
             bcf-latent-exact.R blocks-exact.R forest-prior-exact.R
+            forests-blocks-equivalence.R
             categorical-exact.R heteroscedastic-exact.R linear-exact.R
             hazard-exact.R hurdle-exact.R mask-redraw-exact.R
             multinomial-exact.R negbin-exact.R negbin-mixing.R ordinal-exact.R
