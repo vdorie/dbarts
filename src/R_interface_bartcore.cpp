@@ -183,27 +183,8 @@ size_t validatePredictorMatrix(const bartcore::SamplerBase& sampler,
 // destructors, so the leak is deliberate and bounded by the R error.
 
 struct ParsedControl {
-  bool responseIsBinary = false;
-  // ordinal (cumulative-probit) response shape: the ordered category count
-  // K, the third response shape beside the binary and continuous ones. K >=
-  // 2 selects the ordinal family; 0 (absent) is a non-ordinal response, so
-  // every existing family parses unchanged. The R surface attaches the count
-  // (the bartcore.n.categories control attribute); parseControl reads it
-  // here.
-  size_t numOrdinalCategories = 0;
-  // negative-binomial count response shape: the fourth response shape
-  // beside the binary, ordinal, and continuous ones. countResponse marks it
-  // (a count is none of the others);
-  // shape is the r spec, the residualDf sign convention - a positive value
-  // fixes r there (an integer), a non-positive value estimates r on the grid.
-  // The dbarts()/bart2 surface attaches both through one control attribute
-  // (bartcore.shape); parseControl reads them here. Absent (the default) leaves a non-count response, so every
-  // existing family parses byte-for-byte unchanged.
-  bool countResponse = false;
-  double shape = NA_REAL;
   bool verbose = false;
   bool keepTrainingFits = true;
-  bool useQuantiles = false;
   // the level-fiber Gibbs step (control@levelGibbs, a tri-state logical: NA
   // is the automatic mode), the mode every forest is built with; a change
   // reaches the forests through the move install (resolveMoveSettings), never
@@ -215,14 +196,13 @@ struct ParsedControl {
   // model
   bool fp32Residual = false;
   size_t defaultNumSamples = 0;
-  size_t numTrees = 75;
   size_t numChains = 1;
   size_t numThreads = 1;
   uint32_t treeThinningRate = 1;
   uint32_t printEvery = 100;
   uint32_t printCutoffs = 0;
-  // the four engine limits the control exposes; creation-time, like
-  // useQuantiles, so bartcore_setControl never pushes them
+  // the four engine limits the control exposes; creation-time, so
+  // bartcore_setControl never pushes them
   size_t categoricalExhaustiveCap = bartcore::categoricalExhaustiveCap;
   size_t testFitParallelCutoff = 65536;
   size_t predictParallelCutoff = 0;
@@ -346,6 +326,9 @@ struct ParsedData {
   std::vector<SEXP> basisScales;
   double sigmaEstimate = 1.0;
   std::vector<uint32_t> maxNumCuts;
+  // whether a grid that is derived is taken at the predictor's quantiles:
+  // the data object's useQuantiles, NA (stated by none) reading as uniform
+  bool useQuantiles = false;
   // the data object's record of the columns its sampler has seen missing, a
   // byte per predictor; empty where it carries none. Read at creation only: a
   // setData takes the sampler's flags, not its argument's.
@@ -430,7 +413,31 @@ struct ParsedModel {
   bool gpLeaves = false;
   std::vector<double> gpLengthscales;
   size_t gpMaxLeafSize = 256;
+  // the first mean forest's tree count, from the model's first forest record
+  size_t numTrees = 75;
+  // whether the family is one of the binary latent families, probit or
+  // logistic, which the creation's family name says
+  bool responseIsBinary = false;
+  // ordinal (cumulative-probit) response shape: the ordered category count
+  // K the model records, the third response shape beside the binary and
+  // continuous ones. K >= 2 selects the ordinal family; 0 (NA on the model) is
+  // a non-ordinal response.
+  size_t numOrdinalCategories = 0;
+  // negative-binomial count response shape: the fourth response shape beside
+  // the binary, ordinal, and continuous ones, marked by the model's shape
+  // setting; shape is the r spec, the residualDf sign convention - a positive
+  // value fixes r there (an integer), a non-positive value estimates r on the
+  // grid. NA on the model leaves a non-count response.
+  bool countResponse = false;
+  double shape = NA_REAL;
 };
+
+/// A slot of an S4 object, with the marker R stores for a slot holding NULL
+/// read as R_NilValue. The result is borrowed from \p object.
+SEXP slotOrNull(SEXP object, const char* name) {
+  SEXP value = Rf_getAttrib(object, Rf_install(name));
+  return rc_isS4Null(value) ? R_NilValue : value;
+}
 
 // Slot temporaries feed rc_ validators and further attribute reads, both of
 // which can allocate; reprotecting each read keeps the temporary live over
@@ -502,11 +509,6 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
   PROTECT_INDEX slotIndex;
   PROTECT_WITH_INDEX(R_NilValue, &slotIndex);
 
-  REPROTECT_SLOT(slotExpr, controlExpr, "binary", slotIndex);
-  control.responseIsBinary =
-    rc_getBool(slotExpr, "binary response signifier", RC_LENGTH | RC_GEQ,
-               rc_asRLength(1), RC_END);
-
   REPROTECT_SLOT(slotExpr, controlExpr, "verbose", slotIndex);
   control.verbose = rc_getBool(slotExpr, "verbose", RC_LENGTH | RC_GEQ,
                                rc_asRLength(1), RC_END);
@@ -515,11 +517,6 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
   control.keepTrainingFits =
     rc_getBool(slotExpr, "keep training fits", RC_LENGTH | RC_EQ,
                rc_asRLength(1), RC_END);
-
-  REPROTECT_SLOT(slotExpr, controlExpr, "useQuantiles", slotIndex);
-  control.useQuantiles = rc_getBool(slotExpr, "use quantiles",
-                                    RC_LENGTH | RC_EQ, rc_asRLength(1),
-                                    RC_END);
 
   REPROTECT_SLOT(slotExpr, controlExpr, "levelGibbs", slotIndex);
   control.levelGibbs = parseLevelGibbs(slotExpr);
@@ -564,11 +561,6 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
     rc_getInt(slotExpr, "number of samples", RC_LENGTH | RC_EQ,
               rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_END));
 
-  REPROTECT_SLOT(slotExpr, controlExpr, "n.trees", slotIndex);
-  control.numTrees = static_cast<size_t>(
-    rc_getInt(slotExpr, "number of trees", RC_LENGTH | RC_EQ,
-              rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END));
-
   REPROTECT_SLOT(slotExpr, controlExpr, "n.chains", slotIndex);
   control.numChains = static_cast<size_t>(
     rc_getInt(slotExpr, "number of chains", RC_LENGTH | RC_EQ,
@@ -606,34 +598,6 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
   control.haveRngSeed = INTEGER(slotExpr)[0] != NA_INTEGER;
   if (control.haveRngSeed)
     control.rngSeed = static_cast<std::uint_least32_t>(INTEGER(slotExpr)[0]);
-
-  // optional ordinal shape: an integer K >= 2 the R surface attaches for an
-  // ordered-factor response, read raw and guarded like resid.df. Absent (the
-  // default) leaves a non-ordinal response, so every existing family parses
-  // byte-for-byte unchanged.
-  // An attribute of the rooted controlExpr cannot be collected, so the PROTECT
-  // is redundant to that rooting; it is what the PROTECT-balance analyzer reads,
-  // which sees only that Rf_isInteger may allocate (it tests for a factor).
-  SEXP ordinalExpr =
-    PROTECT(Rf_getAttrib(controlExpr, Rf_install("bartcore.n.categories")));
-  if (Rf_isInteger(ordinalExpr) && Rf_xlength(ordinalExpr) == 1 &&
-      INTEGER(ordinalExpr)[0] >= 2)
-    control.numOrdinalCategories =
-      static_cast<size_t>(INTEGER(ordinalExpr)[0]);
-  UNPROTECT(1);
-
-  // optional count shape: a length-1 real the R surface attaches for a
-  // count response, guarded like bartcore.n.categories. Its presence marks
-  // the count shape; its value is the shape spec (positive fixes r,
-  // non-positive estimates on the grid). Absent (the default) leaves a
-  // non-count response, so every existing family parses byte-for-byte
-  // unchanged.
-  SEXP shapeExpr =
-    Rf_getAttrib(controlExpr, Rf_install("bartcore.shape"));
-  if (Rf_isReal(shapeExpr) && Rf_xlength(shapeExpr) == 1) {
-    control.countResponse = true;
-    control.shape = REAL(shapeExpr)[0];
-  }
 
   UNPROTECT(1);
 }
@@ -1558,6 +1522,10 @@ void parseData(ParsedData& data, SEXP dataExpr) {
   // the per-forest amplitude bases ride the data object beside the weights they
   // mirror; absent (the usual case) leaves the list empty and every
   // single-forest path unchanged
+  REPROTECT_SLOT(slotExpr, dataExpr, "useQuantiles", slotIndex);
+  data.useQuantiles = Rf_isLogical(slotExpr) && Rf_xlength(slotExpr) == 1 &&
+                      LOGICAL(slotExpr)[0] == TRUE;
+
   REPROTECT_SLOT(slotExpr, dataExpr, "bases", slotIndex);
   readForestBases(rc_isS4Null(slotExpr) ? R_NilValue : slotExpr, data);
   // a forest's kind: levels where the object records a factor's levels for
@@ -1766,13 +1734,12 @@ bool proposalMixIsRefused(bartcore::LeafModelKind kind,
           settings.ruleGibbsProbability != 0.0);
 }
 
-/// A control's move settings as the bridge reads them: the control's own,
-/// which every forest stating none of its own runs, and the per-forest record
-/// attr(control, "bartcore.moves") where the R surface attached one. The
-/// record is list(forests = , variance = ), forests one entry per mean
-/// forest in forest order and variance an entry or NULL; an entry is
-/// list(proposal.probs = , n.perturb.cuts = , levelGibbs = ), each NULL where
-/// the forest states none, and a stated NA levelGibbs is automatic. Parsed
+/// The move settings as the bridge reads them: the control's own, which every
+/// forest stating none of its own runs, and each forest's from the `moves` of
+/// its record on the model, and the variance record's, where the R surface
+/// wrote any. An entry is list(proposal.probs = , n.perturb.cuts = ,
+/// levelGibbs = ), each NULL where the forest states none, and a stated NA
+/// levelGibbs is automatic; the variance forest's carries no mode. Parsed
 /// whole before anything is created or written, so a malformed record raises
 /// with nothing to undo.
 struct MoveRecord {
@@ -1789,8 +1756,7 @@ struct MoveRecord {
 void parseMoveEntry(bartcore::MoveSettings& settings, SEXP entryExpr,
                     bool readsMode) {
   if (!Rf_isNewList(entryExpr))
-    Rf_error("each entry of the control's 'bartcore.moves' record must be a "
-             "list");
+    Rf_error("a forest record's 'moves' must be a list");
   SEXP probsExpr = rc_getListElement(entryExpr, "proposal.probs");
   if (!Rf_isNull(probsExpr)) parseMixture(settings, probsExpr);
   SEXP widthExpr = rc_getListElement(entryExpr, "n.perturb.cuts");
@@ -1800,38 +1766,56 @@ void parseMoveEntry(bartcore::MoveSettings& settings, SEXP entryExpr,
     settings.levelGibbs = parseLevelGibbs(modeExpr);
 }
 
-void parseMoveRecord(MoveRecord& record, SEXP controlExpr) {
+/// The variance record's move settings, R_NilValue where the model has no
+/// variance forest or it states none.
+SEXP varianceMoves(SEXP modelExpr) {
+  SEXP varianceRecordExpr = slotOrNull(modelExpr, "variance");
+  return Rf_isNull(varianceRecordExpr)
+    ? R_NilValue : slotOrNull(varianceRecordExpr, "moves");
+}
+
+/// Whether any forest of the model, its variance forest included, carries
+/// move settings of its own.
+bool modelStatesMoves(SEXP modelExpr) {
+  SEXP forestsExpr = slotOrNull(modelExpr, "forests");
+  if (!Rf_isNewList(forestsExpr))
+    Rf_error("the model's 'forests' must be a list of forest records");
+  if (!Rf_isNull(varianceMoves(modelExpr))) return true;
+  for (R_xlen_t f = 0; f < XLENGTH(forestsExpr); ++f)
+    if (!Rf_isNull(slotOrNull(VECTOR_ELT(forestsExpr, f), "moves")))
+      return true;
+  return false;
+}
+
+void parseMoveRecord(MoveRecord& record, SEXP controlExpr, SEXP modelExpr) {
   parseControlMoves(record.control, controlExpr);
   SEXP slotExpr = PROTECT(Rf_getAttrib(controlExpr, Rf_install("levelGibbs")));
   record.control.levelGibbs = parseLevelGibbs(slotExpr);
-  SEXP recordExpr =
-    PROTECT(Rf_getAttrib(controlExpr, Rf_install("bartcore.moves")));
-  record.present = !Rf_isNull(recordExpr);
+  UNPROTECT(1);
+  record.present = modelStatesMoves(modelExpr);
+  SEXP forestsExpr = slotOrNull(modelExpr, "forests");
+  SEXP varianceExpr = varianceMoves(modelExpr);
+  R_xlen_t numForests = XLENGTH(forestsExpr);
   record.forests.clear();
   record.hasVariance = false;
   record.variance = record.control;
   if (record.present) {
-    SEXP forestsExpr = Rf_isNewList(recordExpr)
-      ? rc_getListElement(recordExpr, "forests") : R_NilValue;
-    if (!Rf_isNewList(forestsExpr) || XLENGTH(forestsExpr) == 0)
-      Rf_error("the control's 'bartcore.moves' record must hold a list of "
-               "forest entries");
-    record.forests.assign(static_cast<std::size_t>(XLENGTH(forestsExpr)),
+    record.forests.assign(static_cast<std::size_t>(numForests),
                           record.control);
-    for (R_xlen_t f = 0; f < XLENGTH(forestsExpr); ++f)
-      parseMoveEntry(record.forests[static_cast<std::size_t>(f)],
-                     VECTOR_ELT(forestsExpr, f), true);
-    SEXP varianceExpr = rc_getListElement(recordExpr, "variance");
+    for (R_xlen_t f = 0; f < numForests; ++f) {
+      SEXP entryExpr = slotOrNull(VECTOR_ELT(forestsExpr, f), "moves");
+      if (!Rf_isNull(entryExpr))
+        parseMoveEntry(record.forests[static_cast<std::size_t>(f)], entryExpr,
+                       true);
+    }
     record.hasVariance = !Rf_isNull(varianceExpr);
     if (record.hasVariance)
       parseMoveEntry(record.variance, varianceExpr, false);
   }
-  UNPROTECT(2);
 }
 
 const char* const moveRecordMismatchMessage =
-  "the control's per-forest move settings ('bartcore.moves') do not match "
-  "this sampler's forests";
+  "the model's per-forest move settings do not match this sampler's forests";
 
 /// Fits a parsed record to a sampler: \p forests receives the settings in
 /// force on each mean forest and \p variance the variance forest's, a
@@ -2174,6 +2158,35 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
   if (Rf_isReal(residDfExpr) && Rf_xlength(residDfExpr) == 1)
     model.residualDf = REAL(residDfExpr)[0];
 
+  // the first mean forest's tree count, from its record; every creation path
+  // of the R surface writes one
+  SEXP forestsExpr = slotOrNull(modelExpr, "forests");
+  if (!Rf_isNewList(forestsExpr) || Rf_xlength(forestsExpr) == 0)
+    Rf_error("the model records no forest; build it through dbarts() or "
+             "dbartsSpec()");
+  model.numTrees = static_cast<size_t>(rc_getInt(
+    slotOrNull(VECTOR_ELT(forestsExpr, 0), "n.trees"), "number of trees",
+    RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END));
+
+  // the ordinal category count, NA on every other family, so every other
+  // family parses unchanged
+  SEXP categoriesExpr = slotOrNull(modelExpr, "n.categories");
+  if (Rf_isInteger(categoriesExpr) && Rf_xlength(categoriesExpr) == 1 &&
+      INTEGER(categoriesExpr)[0] != NA_INTEGER &&
+      INTEGER(categoriesExpr)[0] >= 2)
+    model.numOrdinalCategories =
+      static_cast<size_t>(INTEGER(categoriesExpr)[0]);
+
+  // the count shape setting: its presence marks the count shape and its
+  // value is the spec (positive fixes r, non-positive estimates it on the
+  // grid); NA leaves a non-count response
+  SEXP shapeExpr = slotOrNull(modelExpr, "shape");
+  if (Rf_isReal(shapeExpr) && Rf_xlength(shapeExpr) == 1 &&
+      !ISNAN(REAL(shapeExpr)[0])) {
+    model.countResponse = true;
+    model.shape = REAL(shapeExpr)[0];
+  }
+
   UNPROTECT(3);
 }
 
@@ -2219,13 +2232,13 @@ void printInitialSummary(const ParsedControl& control,
                          const bartcore::SamplerBase& sampler,
                          const std::vector<bartcore::MoveSettings>& forests,
                          const bartcore::MoveSettings& variance) {
-  if (control.responseIsBinary)
+  if (model.responseIsBinary)
     ext_printf("\nRunning BART with binary y\n\n");
   else
     ext_printf("\nRunning BART with numeric y\n\n");
 
   ext_printf("number of trees: %lu\n",
-             static_cast<unsigned long>(control.numTrees));
+             static_cast<unsigned long>(model.numTrees));
   ext_printf("number of chains: %lu, default number of threads %lu\n",
              static_cast<unsigned long>(control.numChains),
              static_cast<unsigned long>(control.numThreads));
@@ -2247,7 +2260,7 @@ void printInitialSummary(const ParsedControl& control,
     ext_printf("\tprior on k: chi with %f degrees of freedom and %f scale\n",
                model.kDf, model.kScale);
   }
-  if (!control.responseIsBinary) {
+  if (!model.responseIsBinary) {
     if (model.sigmaIsFixed) {
       // the fixed residual variance prior's summary line
       ext_printf("\tresidual variance prior fixed to %f\n",
@@ -2284,7 +2297,7 @@ void printInitialSummary(const ParsedControl& control,
     ext_printf("\n");
   }
   ext_printf("\tuse quantiles for rule cut points: %s\n",
-             control.useQuantiles ? "true" : "false");
+             data.useQuantiles ? "true" : "false");
   const bartcore::MoveSettings& first = forests[0];
   ext_printf("\tlevel fiber gibbs step: %s\n",
              levelGibbsLabel(first.levelGibbs));
@@ -2313,7 +2326,7 @@ void printInitialSummary(const ParsedControl& control,
              static_cast<unsigned long>(data.numTestObservations));
   ext_printf("\tnumber of explanatory variables: %lu\n",
              static_cast<unsigned long>(data.numPredictors));
-  if (!control.responseIsBinary)
+  if (!model.responseIsBinary)
     ext_printf("\tinit sigma: %f, curr sigma: %f\n", data.sigmaEstimate,
                sampler.sigma(0));
   if (data.weights != NULL) ext_printf("\tusing observation weights\n");
@@ -2387,9 +2400,9 @@ void printInitialSummary(const ParsedControl& control,
 // response: "" or "gaussian" fits ordinary BART, "aft" the log-normal survival
 // model (censored latents via a control attribute). Each shape refuses the
 // others' family names by name.
-bartcore::ResponseFamily resolveFamily(const ParsedControl& control,
+bartcore::ResponseFamily resolveFamily(const ParsedModel& model,
                                        const char* familyName) {
-  if (control.responseIsBinary) {
+  if (model.responseIsBinary) {
     if (std::strcmp(familyName, "logistic") == 0)
       return bartcore::ResponseFamily::logistic;
     if (familyName[0] == '\0' || std::strcmp(familyName, "probit") == 0)
@@ -2398,14 +2411,14 @@ bartcore::ResponseFamily resolveFamily(const ParsedControl& control,
   }
   // ordinal is the K-level categorical shape: the cumulative probit is the
   // only family defined on it
-  if (control.numOrdinalCategories >= 2) {
+  if (model.numOrdinalCategories >= 2) {
     if (familyName[0] == '\0' || std::strcmp(familyName, "ordinal") == 0)
       return bartcore::ResponseFamily::ordinal;
     Rf_error("an ordinal (K-level) response supports only family \"ordinal\"");
   }
   // nbinom is the count shape: the negative binomial is the only family
   // defined on it
-  if (control.countResponse) {
+  if (model.countResponse) {
     if (familyName[0] == '\0' || std::strcmp(familyName, "nbinom") == 0)
       return bartcore::ResponseFamily::nbinom;
     Rf_error("a count response supports only family \"nbinom\"");
@@ -2418,7 +2431,7 @@ bartcore::ResponseFamily resolveFamily(const ParsedControl& control,
   if (std::strcmp(familyName, "nbinom") == 0)
     Rf_error("family \"nbinom\" requires a non-negative integer (count) response");
   // aft fits a continuous response (log survival times) with truncated latents
-  // for right-censored observations; the status arrives on a control attribute
+  // for right-censored observations; the status arrives on the data object
   if (std::strcmp(familyName, "aft") == 0)
     return bartcore::ResponseFamily::aft;
   if (familyName[0] != '\0' && std::strcmp(familyName, "gaussian") != 0)
@@ -2601,18 +2614,18 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
                                            const ParsedData& data,
                                            SEXP modelExpr, bool sigmaIsFixed) {
   bartcore::SamplerOptions options;
-  options.numTrees = control.numTrees;
+  options.numTrees = model.numTrees;
   options.sigmaIsFixed = sigmaIsFixed;
   // the gaussian construction path reads this: finite selects Student-t
   // errors, NaN keeps Gaussian errors
   options.residualDf = model.residualDf;
   // ordinal construction reads this: K >= 2 selects OrdinalResponse with a
   // K-1 threshold vector, 0 leaves a non-ordinal response
-  options.numCategories = control.numOrdinalCategories;
+  options.numCategories = model.numOrdinalCategories;
   // nbinom construction reads this: a positive value fixes the shape r,
   // a non-positive value estimates it on the grid; NaN (a non-count
   // response) is ignored
-  options.shape = control.shape;
+  options.shape = model.shape;
   options.k = model.k;
   options.nodeScale = model.nodeScale;
   // NA_REAL is a NaN, so the engine's isfinite test reads "unnamed" from it
@@ -2627,7 +2640,7 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.ruleGibbsProbability = model.ruleGibbsProbability;
   options.birthProbability = model.birthProbability;
   options.maxNumCutsPerVariable = data.maxNumCuts.data(); // copied at build
-  options.useQuantiles = control.useQuantiles;
+  options.useQuantiles = data.useQuantiles;
   options.levelGibbs = control.levelGibbs;
   options.categoricalExhaustiveCap = control.categoricalExhaustiveCap;
   options.testFitParallelCutoff = control.testFitParallelCutoff;
@@ -2838,11 +2851,11 @@ const double* validateSurvivalStatus(SEXP statusExpr, size_t numObservations) {
 // full creation reads it, and only for family aft. status outlives the options
 // borrow: the response copies it during construction. The public surface sets
 // the attribute from a Surv or (time, status) ingest.
-void applySurvivalAttribute(SEXP controlExpr, size_t numObservations,
-                            bartcore::ResponseFamily family,
-                            bartcore::SamplerOptions& options,
-                            std::vector<double>& status) {
-  SEXP statusExpr = Rf_getAttrib(controlExpr, Rf_install("bartcore.survival"));
+void applySurvivalStatus(SEXP dataExpr, size_t numObservations,
+                         bartcore::ResponseFamily family,
+                         bartcore::SamplerOptions& options,
+                         std::vector<double>& status) {
+  SEXP statusExpr = slotOrNull(dataExpr, "status");
   if (family != bartcore::ResponseFamily::aft) {
     if (!Rf_isNull(statusExpr))
       Rf_error("survival status supplied for a non-aft response family");
@@ -2855,25 +2868,24 @@ void applySurvivalAttribute(SEXP controlExpr, size_t numObservations,
   options.survivalStatus = status.data();
 }
 
-// The heteroscedastic variance forest arrives on an internal control
-// attribute `bartcore.variance`: a list carrying the
-// tree count, the tree-structure prior (base/power), and optional 1-based
+// The heteroscedastic variance forest arrives on the model's variance record:
+// the tree count, the tree-structure prior (base/power), and optional 1-based
 // column indices (the `variance = ~ subset` selector; null spans all mean
-// predictors). Absent leaves the fit homoscedastic. There is no family test
+// predictors). NULL leaves the fit homoscedastic. There is no family test
 // here: the factory refuses the combination outside the gaussian and aft
 // families, and outside the plain constant leaf, and the R surface mirrors
 // that refusal. columns outlives the options borrow (captured by value in
 // createHolder's lambda).
-void applyVarianceAttributes(SEXP controlExpr, size_t numPredictors,
-                             bartcore::SamplerOptions& options,
-                             std::vector<std::size_t>& columns) {
-  SEXP varExpr = Rf_getAttrib(controlExpr, Rf_install("bartcore.variance"));
+void applyVarianceRecord(SEXP modelExpr, size_t numPredictors,
+                         bartcore::SamplerOptions& options,
+                         std::vector<std::size_t>& columns) {
+  SEXP varExpr = slotOrNull(modelExpr, "variance");
   if (Rf_isNull(varExpr)) return;
 
-  SEXP nTreesExpr = rc_getListElement(varExpr, "n.trees");
-  SEXP baseExpr = rc_getListElement(varExpr, "base");
-  SEXP powerExpr = rc_getListElement(varExpr, "power");
-  SEXP columnsExpr = rc_getListElement(varExpr, "columns");
+  SEXP nTreesExpr = slotOrNull(varExpr, "n.trees");
+  SEXP baseExpr = slotOrNull(varExpr, "base");
+  SEXP powerExpr = slotOrNull(varExpr, "power");
+  SEXP columnsExpr = slotOrNull(varExpr, "columns");
   if (!Rf_isInteger(nTreesExpr) || Rf_xlength(nTreesExpr) != 1 ||
       !Rf_isReal(baseExpr) || Rf_xlength(baseExpr) != 1 ||
       !Rf_isReal(powerExpr) || Rf_xlength(powerExpr) != 1)
@@ -2989,33 +3001,17 @@ struct AmplitudeSpecStorage {
   std::vector<std::vector<double>> bases;
 };
 
-// One element of a per-forest list, or R_NilValue when the list is null or
-// too short. The lists the control attribute carries are all K-length and
-// parallel, but one that stops short leaves the rest at their defaults rather
-// than erroring twice for the same omission.
-SEXP forestListElement(SEXP listExpr, size_t f) {
-  if (Rf_isNull(listExpr) || !Rf_isNewList(listExpr)) return R_NilValue;
-  if (static_cast<R_xlen_t>(f) >= Rf_xlength(listExpr)) return R_NilValue;
-  return VECTOR_ELT(listExpr, static_cast<R_xlen_t>(f));
-}
-
-// Fill the K-length forest spec from the resolved R objects. The FIRST forest
-// takes its tree count and structure prior from the model, since the fit's
-// own control@n.trees and tree prior are its declaration; every forest takes
-// the rest from its own length-4 params vector - tree count, base, power and
-// the amplitude update flag. What a forest states of its size is not here:
-// applyForestStatements reads it. The per-forest vars/interactions()/blocks()
-// lists are optional and parallel.
-void applyAmplitudeSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
-                        SEXP blocksExpr, const ParsedModel& model,
+// Fill the K-length forest spec from the model's forest records. The FIRST
+// forest takes its tree count and structure prior from the model, since the
+// fit's own tree prior is its declaration; every forest takes the rest from
+// its own record - tree count, base, power and the amplitude update flag.
+// What a forest states of its size is not here: applyForestStatements reads
+// it. Each record's vars/interactions()/blocks() are optional.
+void applyAmplitudeSpec(SEXP recordsExpr, const ParsedModel& model,
                         size_t numTrees, size_t numPredictors,
                         bartcore::AmplitudeSpec& spec,
                         AmplitudeSpecStorage& storage) {
-  if (Rf_isNull(paramsExpr) || !Rf_isNewList(paramsExpr) ||
-      Rf_xlength(paramsExpr) < 2)
-    Rf_error("forest parameters must be a list of at least two per-forest "
-             "parameter vectors");
-  size_t numForests = static_cast<size_t>(Rf_xlength(paramsExpr));
+  size_t numForests = static_cast<size_t>(Rf_xlength(recordsExpr));
   spec.forests.assign(numForests, bartcore::ForestSpec{});
   storage.columns.resize(numForests);
   storage.pairs.resize(numForests);
@@ -3023,17 +3019,25 @@ void applyAmplitudeSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
   storage.blockGroups.resize(numForests);
 
   for (size_t f = 0; f < numForests; ++f) {
-    SEXP forestParamsExpr = VECTOR_ELT(paramsExpr, static_cast<R_xlen_t>(f));
-    if (!Rf_isReal(forestParamsExpr) || Rf_xlength(forestParamsExpr) != 4)
-      Rf_error("forest parameters must be a length-4 numeric vector per forest");
-    const double* params = REAL(forestParamsExpr);
+    SEXP recordExpr = VECTOR_ELT(recordsExpr, static_cast<R_xlen_t>(f));
+    SEXP countExpr = slotOrNull(recordExpr, "n.trees");
+    SEXP baseExpr = slotOrNull(recordExpr, "base");
+    SEXP powerExpr = slotOrNull(recordExpr, "power");
+    SEXP heldExpr = slotOrNull(recordExpr, "held.amplitude");
+    if (!Rf_isInteger(countExpr) || Rf_xlength(countExpr) != 1 ||
+        INTEGER(countExpr)[0] < 1 || !Rf_isReal(baseExpr) ||
+        Rf_xlength(baseExpr) != 1 || !Rf_isReal(powerExpr) ||
+        Rf_xlength(powerExpr) != 1 || !Rf_isLogical(heldExpr) ||
+        Rf_xlength(heldExpr) != 1)
+      Rf_error("each forest record must hold a tree count, a base, a power "
+               "and whether its coefficient is held");
     bartcore::ForestSpec& forest = spec.forests[f];
     // leaf scales come from the calibration map, not the host model
     forest.forest.numTrees =
-      f == 0 ? numTrees : static_cast<size_t>(params[0]);
-    forest.forest.base = f == 0 ? model.base : params[1];
-    forest.forest.power = f == 0 ? model.power : params[2];
-    forest.updateAmplitude = params[3] != 0.0;
+      f == 0 ? numTrees : static_cast<size_t>(INTEGER(countExpr)[0]);
+    forest.forest.base = f == 0 ? model.base : REAL(baseExpr)[0];
+    forest.forest.power = f == 0 ? model.power : REAL(powerExpr)[0];
+    forest.updateAmplitude = LOGICAL(heldExpr)[0] != TRUE;
     // Every forest is built with the control's mixture and window; a forest
     // stating its own takes it from the move install after creation
     // (resolveMoveSettings). Carried here because the K-forest chain builds
@@ -3053,7 +3057,7 @@ void applyAmplitudeSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
     // the forest's optional column restriction: 1-based indices resolved
     // R-side, or NULL for an unrestricted forest reading the full store.
     // Consumed at construction, so the buffer need only outlive the build.
-    SEXP forestVarsExpr = forestListElement(varsExpr, f);
+    SEXP forestVarsExpr = slotOrNull(recordExpr, "vars");
     if (!Rf_isNull(forestVarsExpr)) {
       if (!Rf_isInteger(forestVarsExpr))
         Rf_error("forest variables must be resolved integer column indices");
@@ -3074,9 +3078,9 @@ void applyAmplitudeSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
     // causal use) and block-additive partitions: each forest resolves its own
     // prior R-side over the columns it may split on, and the engine intersects
     // a restricted forest's block rows with its column mask at install
-    applyForestInteractions(forestListElement(interactionsExpr, f),
+    applyForestInteractions(slotOrNull(recordExpr, "interactions"),
                             numPredictors, forest.forest, storage.pairs[f]);
-    applyForestBlocks(forestListElement(blocksExpr, f), numPredictors,
+    applyForestBlocks(slotOrNull(recordExpr, "blocks"), numPredictors,
                       forest.forest.numTrees, forest.forest,
                       storage.blockGroups[f], storage.blockCounts[f]);
   }
@@ -3129,17 +3133,13 @@ void applyForestBases(const ParsedData& data, bartcore::AmplitudeSpec& spec,
   }
 }
 
-// One number or NA for each forest, from an entry of the forests'
-// configuration: null when the entry is absent, which states nothing.
-const double* forestNumbers(SEXP forestsExpr, const char* name,
-                            size_t numForests) {
-  SEXP valuesExpr = rc_getListElement(forestsExpr, name);
-  if (Rf_isNull(valuesExpr)) return NULL;
-  if (!Rf_isReal(valuesExpr) ||
-      static_cast<size_t>(Rf_xlength(valuesExpr)) != numForests)
-    Rf_error("the forests' '%s' must hold one number, or NA, for each forest",
-             name);
-  return REAL(valuesExpr);
+// One number or NA from a forest record's slot, NA where the slot holds no
+// single number.
+double forestRecordNumber(SEXP recordExpr, const char* name) {
+  SEXP valueExpr = slotOrNull(recordExpr, name);
+  if (!Rf_isReal(valueExpr) || Rf_xlength(valueExpr) != 1)
+    Rf_error("a forest record's '%s' must hold one number, or NA", name);
+  return REAL(valueExpr)[0];
 }
 
 // What each forest states of its size and its coefficient's prior, handed to
@@ -3147,36 +3147,38 @@ const double* forestNumbers(SEXP forestsExpr, const char* name,
 // df of a Student-t coefficient, NA where none is stated. Nothing is derived
 // here: the engine holds the map and its defaults, and a forest's kind comes
 // from the data object (applyForestBases).
-void applyForestStatements(SEXP forestsExpr, bartcore::AmplitudeSpec& spec) {
-  size_t numForests = spec.forests.size();
-  const double* sds = forestNumbers(forestsExpr, "sd", numForests);
-  const double* dfs = forestNumbers(forestsExpr, "amplitude.df", numForests);
-  for (size_t f = 0; f < numForests; ++f) {
+void applyForestStatements(SEXP recordsExpr, bartcore::AmplitudeSpec& spec) {
+  for (size_t f = 0; f < spec.forests.size(); ++f) {
+    SEXP recordExpr = VECTOR_ELT(recordsExpr, static_cast<R_xlen_t>(f));
     bartcore::ForestSpec& forest = spec.forests[f];
-    if (sds != NULL && !ISNAN(sds[f])) forest.sd = sds[f];
-    if (dfs != NULL && !ISNAN(dfs[f])) forest.amplitudeDf = dfs[f];
+    double sd = forestRecordNumber(recordExpr, "sd");
+    double df = forestRecordNumber(recordExpr, "amplitude.df");
+    if (!ISNAN(sd)) forest.sd = sd;
+    if (!ISNAN(df)) forest.amplitudeDf = df;
   }
 }
 
-// The multi-forest twin of applyVarianceAttributes: the forests' configuration
-// arrives on the internal control attribute `bartcore.forests`, a list
-// carrying the K-length params list, the parallel per-forest
-// vars/interactions()/blocks() lists and the forests' statements. Absent
-// leaves the fit single-forest and
-// returns false, so every existing creation path reads one attribute and moves
-// on. The bases themselves ride the data object; createHolder cross-checks the
-// two halves.
-bool applyForestAttributes(SEXP controlExpr, const ParsedModel& model,
-                           const ParsedData& data, size_t numTrees,
-                           bartcore::AmplitudeSpec& spec,
-                           AmplitudeSpecStorage& storage) {
-  SEXP forestsExpr = Rf_getAttrib(controlExpr, Rf_install("bartcore.forests"));
-  if (Rf_isNull(forestsExpr)) return false;
-  applyAmplitudeSpec(rc_getListElement(forestsExpr, "params"),
-                     rc_getListElement(forestsExpr, "vars"),
-                     rc_getListElement(forestsExpr, "interactions"),
-                     rc_getListElement(forestsExpr, "blocks"), model, numTrees,
-                     data.numPredictors, spec, storage);
+// The model's forest records, each a dbartsForestRecord; an empty list where
+// the model records none.
+SEXP modelForestRecords(SEXP modelExpr) {
+  SEXP recordsExpr = slotOrNull(modelExpr, "forests");
+  if (!Rf_isNewList(recordsExpr))
+    Rf_error("the model's 'forests' must be a list of forest records");
+  return recordsExpr;
+}
+
+// The multi-forest twin of applyVarianceRecord: the forests' configuration
+// arrives on the model's forest records, one per forest. A model of fewer
+// than two leaves the fit single-forest and returns false. The bases
+// themselves ride the data object; createHolder cross-checks the two halves.
+bool applyForestRecords(SEXP modelExpr, const ParsedModel& model,
+                        const ParsedData& data, size_t numTrees,
+                        bartcore::AmplitudeSpec& spec,
+                        AmplitudeSpecStorage& storage) {
+  SEXP recordsExpr = modelForestRecords(modelExpr);
+  if (Rf_xlength(recordsExpr) < 2) return false;
+  applyAmplitudeSpec(recordsExpr, model, numTrees, data.numPredictors, spec,
+                     storage);
   // the anchor s and the response units in one s that the data object
   // records, so a re-creation over a swapped response rebuilds on them; a
   // data object without the record computes both afresh
@@ -3184,7 +3186,7 @@ bool applyForestAttributes(SEXP controlExpr, const ParsedModel& model,
     spec.anchor = data.forestAnchor;
     spec.unit = data.forestUnit;
   }
-  applyForestStatements(forestsExpr, spec);
+  applyForestStatements(recordsExpr, spec);
   return true;
 }
 
@@ -3458,9 +3460,13 @@ bartcore::ResponseFamily parseSamplerSpecification(
   parseData(data, dataExpr);
   parseModel(model, modelExpr, data.numPredictors);
   parseProposalProbs(model, controlExpr);
+  // the binary latent families are named by the family the creation is
+  // handed, which the R surface resolves
+  model.responseIsBinary = std::strcmp(familyName, "probit") == 0 ||
+                           std::strcmp(familyName, "logistic") == 0;
 
-  bartcore::ResponseFamily family = resolveFamily(control, familyName);
-  sigmaIsFixed = !control.responseIsBinary && model.sigmaIsFixed;
+  bartcore::ResponseFamily family = resolveFamily(model, familyName);
+  sigmaIsFixed = !model.responseIsBinary && model.sigmaIsFixed;
   // documented semantics: fixed(value) holds the residual variance at
   // value, so sigma enters as sqrt(value) and is never drawn
   if (sigmaIsFixed) data.sigmaEstimate = std::sqrt(model.fixedSigmaSq);
@@ -3471,13 +3477,13 @@ bartcore::ResponseFamily parseSamplerSpecification(
   // conduit: the R surface checks it first, so this is a no-op there and the
   // real gate for the flat C API, which has no R layer ahead of it
   bartcore_bridge::validateResponseSupport(family,
-                                           control.numOrdinalCategories, data.y,
+                                           model.numOrdinalCategories, data.y,
                                            data.numObservations,
                                            "sampler creation");
   // a fixed shape r is a Polya-Gamma draw per unit per row per sweep, the
   // cost the logistic counts carry; the grid a drawn one comes from stops at 50
   if (family == bartcore::ResponseFamily::nbinom &&
-      control.shape > bartcore::maximumCount)
+      model.shape > bartcore::maximumCount)
     bartcore_bridge::refuseCountOverCap(
       "sampler creation", "nbinom", "a fixed 'shape'",
       "each unit of the shape is a Polya-Gamma draw per row per sweep");
@@ -4059,16 +4065,16 @@ const char* const forestSdUnitMessage =
 // A forest as a message names it, as R's forestName does: by position from
 // 1, with its label from the forests' record where the label is not the
 // position's own.
-std::string forestMessageName(SEXP controlExpr, size_t f) {
+std::string forestMessageName(SEXP modelExpr, size_t f) {
   std::string name = "forest " + std::to_string(f + 1);
-  SEXP forestsExpr = Rf_getAttrib(controlExpr, Rf_install("bartcore.forests"));
-  SEXP labelsExpr = Rf_isNull(forestsExpr)
-                      ? R_NilValue
-                      : rc_getListElement(forestsExpr, "labels");
-  if (!Rf_isString(labelsExpr) ||
-      Rf_xlength(labelsExpr) <= static_cast<R_xlen_t>(f))
+  SEXP recordsExpr = slotOrNull(modelExpr, "forests");
+  if (!Rf_isNewList(recordsExpr) ||
+      Rf_xlength(recordsExpr) <= static_cast<R_xlen_t>(f))
     return name;
-  SEXP labelExpr = STRING_ELT(labelsExpr, static_cast<R_xlen_t>(f));
+  SEXP labelsExpr =
+    slotOrNull(VECTOR_ELT(recordsExpr, static_cast<R_xlen_t>(f)), "label");
+  if (!Rf_isString(labelsExpr) || Rf_xlength(labelsExpr) != 1) return name;
+  SEXP labelExpr = STRING_ELT(labelsExpr, 0);
   if (labelExpr == NA_STRING) return name;
   std::string label = CHAR(labelExpr);
   if (label.empty() || label == "forest" + std::to_string(f + 1)) return name;
@@ -4080,7 +4086,7 @@ std::string forestMessageName(SEXP controlExpr, size_t f) {
 // in and what the column holds there, and this words it. The fitting functions
 // refuse such a column first, sd stated or not; a sampler assembled by hand
 // over a model and a data object reaches this.
-std::string basisScaleMessage(SEXP controlExpr,
+std::string basisScaleMessage(SEXP modelExpr,
                               const bartcore::BasisScaleError& error) {
   char detail[160];
   if (!std::isnan(error.value))
@@ -4095,7 +4101,7 @@ std::string basisScaleMessage(SEXP controlExpr,
                   "constant to rounding (its standard deviation is %.2g of "
                   "its largest value)",
                   error.ratio);
-  return forestMessageName(controlExpr, error.forest) +
+  return forestMessageName(modelExpr, error.forest) +
          " states no sd and its basis is " + detail +
          ", so there is no standard deviation to take a default from; a "
          "forest multiplied by a constant is a forest with no basis";
@@ -4213,15 +4219,14 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     bartcore::SamplerOptions options =
       optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
 
-    // AFT survival status arrives on an internal control attribute; the
-    // response copies it
-    applySurvivalAttribute(controlExpr, data.numObservations, family, options,
-                           survivalStatus);
-    // the heteroscedastic variance forest arrives on a control attribute; the
-    // factory refuses it outside the gaussian and aft families, and outside
-    // the plain constant leaf
-    applyVarianceAttributes(controlExpr, data.numPredictors, options,
-                            varianceColumns);
+    // AFT survival status arrives on the data object; the response copies it
+    applySurvivalStatus(dataExpr, data.numObservations, family, options,
+                        survivalStatus);
+    // the heteroscedastic variance forest arrives on the model's variance
+    // record; the factory refuses it outside the gaussian and aft families,
+    // and outside the plain constant leaf
+    applyVarianceRecord(modelExpr, data.numPredictors, options,
+                        varianceColumns);
     // opt-in fp32 residual (storage = "single") is v1-scoped to the gaussian
     // PLAIN constant-leaf path; refuse
     // every other model rather than silently ignore the request. The monotone
@@ -4241,16 +4246,15 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     }
 
     // The multi-forest model is selected by the two halves of a spec: the
-    // per-forest bases on the data object and the forests'
-    // configuration on the control attribute. Cross-check them in BOTH
-    // directions, so a half stripped in transit (a setControl that drops the
-    // attribute, a data object rebuilt without the slot) is a loud refusal
+    // per-forest bases on the data object and the forest records on the
+    // model. Cross-check them in BOTH directions, so a half stripped in
+    // transit (a model or a data object rebuilt without it) is a loud refusal
     // naming the missing piece rather than a silent single-forest fit.
     // the spec's forests vector owns its storage, so it rides the closure
     // beside the buffers it borrows: the refusals below jump past every local
     bool carriesAmplitudes =
-      applyForestAttributes(controlExpr, model, data, options.numTrees,
-                            amplitudeSpec, amplitudeStorage);
+      applyForestRecords(modelExpr, model, data, options.numTrees,
+                         amplitudeSpec, amplitudeStorage);
     // the creation mask, read for the rows a forest's scale or a leaf's
     // standardization is taken over, and installed by the caller afterward
     const double* active = nullptr;
@@ -4286,7 +4290,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     options.tooFewUnitsIn = tooFewUnits;
     // read whole before anything is created, so a malformed record has
     // nothing to tear down
-    parseMoveRecord(moveRecord, controlExpr);
+    parseMoveRecord(moveRecord, controlExpr, modelExpr);
 
     // COPY-ON-SET (R_interface_bartcore_common.hpp): the engine borrows these
     // for the sampler's lifetime, so it borrows buffers the holder owns rather
@@ -4343,7 +4347,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
           sdHasNoUnit = true;
           return nullptr;
         } catch (const bartcore::BasisScaleError& error) {
-          noBasisScale = basisScaleMessage(controlExpr, error);
+          noBasisScale = basisScaleMessage(modelExpr, error);
           return nullptr;
         }
       });
@@ -4620,7 +4624,7 @@ BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
     bool sigmaIsFixed;
     parseMultinomialData(controlExpr, modelExpr, dataExpr, control, model, data,
                          sigmaIsFixed, numCategories);
-    parseMoveRecord(moveRecord, controlExpr);
+    parseMoveRecord(moveRecord, controlExpr, modelExpr);
 
     size_t n = data.numObservations;
     // The DIMENSIONS are checked, not just the length, exactly as
@@ -4770,8 +4774,9 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
 }
 
 // Builds the two-layer store (cuts + codes) once for sharing across
-// row-subset samplers: control contributes useQuantiles, data contributes
-// x, the column types, and n.cuts. Internal, with no serialization.
+// row-subset samplers: control contributes the layout's density threshold,
+// data contributes x, the column types, n.cuts and the quantile rule.
+// Internal, with no serialization.
 SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr,
                                SEXP leafCovariateColumnsExpr) {
   return unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
@@ -4815,7 +4820,7 @@ SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr,
     // so this is the backstop rather than the gate; a discarded refusal would
     // publish a store whose later columns carry no grid and no codes
     if (!handle->build(data.predictors, data.maxNumCuts.data(), 0,
-                       control.useQuantiles,
+                       data.useQuantiles,
                        gatherColumns.empty() ? NULL : gatherColumns.data(),
                        gatherColumns.size())) {
       delete handle;
@@ -4868,8 +4873,8 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
                            static_cast<Rboolean>(FALSE));
 
     // xbart's folds state no forest of their own, and no door hands them a
-    // control that does
-    if (!Rf_isNull(Rf_getAttrib(controlExpr, Rf_install("bartcore.moves"))))
+    // model that does
+    if (modelStatesMoves(modelExpr))
       Rf_error("a sampler over a data handle takes no per-forest move "
                "settings; give them to the control instead");
     bool sigmaIsFixed;
@@ -7041,9 +7046,6 @@ SEXP bartcore_setControl(SEXP ptrExpr, SEXP controlExpr) {
   if (control.numChains != shape.numChains)
     Rf_error("the bartcore engine cannot change the number of chains of an "
              "existing sampler");
-  if (control.numTrees != shape.numTrees)
-    Rf_error("the bartcore engine cannot change the number of trees of an "
-             "existing sampler");
 
   // the store resize allocates, and fails as an R error with the store and
   // its draws as they were; it goes first so a refusal changes nothing else
@@ -7085,12 +7087,18 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
                         moveVariance =
                           bartcore::MoveSettings{}]() mutable -> SEXP {
     parseModel(model, modelExpr, shape.numPredictors);
+    // the tree count is fixed at creation; the R surface keeps the sampler's
+    // records on the model it installs, so this is the backstop for a caller
+    // that installs a model of its own
+    if (model.numTrees != shape.numTrees)
+      Rf_error("the bartcore engine cannot change the number of trees of an "
+               "existing sampler");
     parseProposalProbs(model, controlExpr);
     if (proposalMixIsRefused(shape.leafModel, model))
       Rf_error("%s", monotoneProposalMixMessage);
     // the settings in force on every forest after the install, resolved and
     // checked before the engine is touched so that a refusal changes nothing
-    parseMoveRecord(moveRecord, controlExpr);
+    parseMoveRecord(moveRecord, controlExpr, modelExpr);
     if (const char* refusal =
           resolveMoveSettings(moveForests, moveVariance, moveRecord, shape))
       Rf_error("%s", refusal);
@@ -7172,17 +7180,20 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
 /// control's mixture, perturb window and level-step mode, and a forest's own
 /// stays. No prior is installed and nothing else moves. Resolved and checked
 /// in full before any chain is written, so a refusal changes nothing.
-SEXP bartcore_setMoveSettings(SEXP ptrExpr, SEXP controlExpr) {
+SEXP bartcore_setMoveSettings(SEXP ptrExpr, SEXP controlExpr,
+                              SEXP modelExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
   if (!Rf_inherits(controlExpr, "dbartsControl"))
     Rf_error("'control' argument to $setControl not of class "
              "'dbartsControl'");
+  if (!Rf_inherits(modelExpr, "dbartsModel"))
+    Rf_error("'model' argument to $setControl not of class 'dbartsModel'");
   return unwindProtect([&, moveRecord = MoveRecord{},
                         moveForests = std::vector<bartcore::MoveSettings>{},
                         moveVariance =
                           bartcore::MoveSettings{}]() mutable -> SEXP {
-    parseMoveRecord(moveRecord, controlExpr);
+    parseMoveRecord(moveRecord, controlExpr, modelExpr);
     if (const char* refusal = resolveMoveSettings(
           moveForests, moveVariance, moveRecord, sampler.shape()))
       Rf_error("%s", refusal);
