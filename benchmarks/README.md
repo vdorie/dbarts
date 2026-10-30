@@ -130,7 +130,7 @@ of 38 and 37 trees, a stated count beside two that split the rest under gaussian
 and under probit), compared by Welch z over 40 seeds a spelling (80 in full) on
 the posterior mean of the fit at each row and of sigma or k; a z past 4 fails, a
 lone one under 5 after a second set of seeds. In exact-gates.yaml's list, as a
-seeded statistical check. Quick mode takes under a minute, full about two.
+seeded statistical check. Quick mode takes about 25 seconds, full about 70.
 
     Rscript benchmarks/R/forests-blocks-equivalence.R quick
 
@@ -298,7 +298,7 @@ P(k < q) at the exact deciles and the unseparated leaves' means at |z| 4.5, and 
 0.01 in full mode (0.014 quick), which a sampler without the step does not
 meet, so a step that silently declines fails. It cannot see k left unscaled
 after a correct draw; the engine's mapping test catches that. Quick mode is
-about 2 minutes, full about 6.
+about 2.5 minutes, full about 7.
 
     Rscript benchmarks/R/probit-k-scale-exact.R quick
 
