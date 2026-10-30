@@ -3702,7 +3702,7 @@ private:
   private:
     /// One cached tree, addressed as the engine holds it. The variance forest
     /// has no index in forests_, so it takes a sentinel in the forest slot.
-    static constexpr size_t varianceForest = static_cast<size_t>(-1);
+    static constexpr size_t varianceForest = varianceForestIndex;
     struct CachedTree {
       size_t chain, forest, tree;
     };

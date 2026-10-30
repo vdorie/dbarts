@@ -14740,8 +14740,9 @@ static void testForestTreePriorInstall() {
 
 // Installed before any run, the tree prior install is creating with the
 // values: the same draws, bitwise, on two chains, for the middle of three
-// forests and for the variance forest, where creating with the values draws
-// otherwise than the defaults do.
+// forests, for the variance forest and for a single forest choosing its split
+// variables by stated weights or by DART, where creating with the values
+// draws otherwise than the defaults do.
 static void testForestTreePriorMatchesCreation() {
   std::uint64_t savedRngState = rngState;
   MoveFixtureData d;
@@ -14799,6 +14800,56 @@ static void testForestTreePriorMatchesCreation() {
           "draw what creating with them draws");
     check(bothChains(*withValues) != bothChains(*plain),
           "variance tree prior twin: the values move the draws");
+    withValues.reset();
+    installed.reset();
+    plain.reset();
+    destroyRngs(rngs);
+  }
+  // a single forest choosing its split variables by stated weights or by
+  // DART: the install moves the depth alone, the selector kept
+  const double splitProbabilities[MoveFixtureData::p] = {0.8, 0.2};
+  for (bool dart : {false, true}) {
+    auto build = [&](std::vector<ext_rng*>& rngs, TreePriorValues prior) {
+      for (std::uint_least32_t c = 0; c < 2; ++c) {
+        ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+        ext_rng_setSeed(rng, 79u + c);
+        rngs.push_back(rng);
+      }
+      SamplerOptions options;
+      options.numTrees = 8;
+      options.numChains = 2;
+      options.base = prior.base;
+      options.power = prior.power;
+      if (dart)
+        options.useDart = true;
+      else
+        options.splitProbabilities = splitProbabilities;
+      return std::make_unique<ConstantLeafSampler>(
+        d.x.data(), d.y.data(), d.n, d.p, nullptr, nullptr,
+        ResponseFamily::gaussian, 1.0, 3.0, 0.37804942330213542, options,
+        rngs.data() + (rngs.size() - 2));
+    };
+    const char* name = dart ? "DART" : "split probabilities";
+    std::string message;
+    auto what = [&](const char* text) {
+      message = std::string(name) + " tree prior twin: " + text;
+      return message.c_str();
+    };
+    std::vector<ext_rng*> rngs;
+    auto withValues = build(rngs, moved);
+    auto installed = build(rngs, {});
+    auto plain = build(rngs, {});
+    check(installed->setForestTreePrior(0, moved.base, moved.power),
+          what("the install before any run is taken"));
+    Results results;
+    withValues->run(20, 5, results);
+    installed->run(20, 5, results);
+    plain->run(20, 5, results);
+    check(bothChains(*withValues) == bothChains(*installed),
+          what("installed before any run, the values draw what creating "
+               "with them draws"));
+    check(bothChains(*withValues) != bothChains(*plain),
+          what("the values move the draws"));
     withValues.reset();
     installed.reset();
     plain.reset();
