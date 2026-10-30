@@ -360,7 +360,7 @@ What mBART samples. Its paper defines only the "leaf" prior (Section 3), but
 Section 4.3's d = 1 drops the normalizer outright, which is exactly the "joint"
 move, evaluated on a grid; its base .25 and power .8 retune the tree prior to
 offset the Z_T factor. Its software (bd.cpp) matches Section 4.3, so mBART users
-have fit "joint" under that tree prior. Here "joint" keeps cgm()'s defaults, and
+have fit "joint" under that tree prior. Here "joint" keeps the default `power = 2` and `base = 0.95`, and
 the help names mBART's values as an opt-in (dec-B152): in a simulation study
 they fit sharper and more accurately at 200 trees, with narrower intervals that
 under-covered with plentiful low-noise data, and at 50 trees they were less

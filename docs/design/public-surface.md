@@ -299,6 +299,12 @@ the caller's environment; specs resolve against data/control at fit time
 - No new front end: `dbarts()` and `bart2` keep their names and signatures;
   `bart` stays the frozen BayesTree-compatibility shim.
 
+Revised 2026-10-30 (tree-prior-flat): a tree's depth is plain `power` and `base` at every door and split
+probabilities are `split.probs`, a vector or `dart()`. `tree.prior = cgm(power, base, split.probs)` is the
+retired spelling: `bart()` and `xbart()` refuse it, `dbarts()` and `dbartsSpec()` accept it with a
+once-per-session warning until 1.1-0 and read it as the plain arguments it states. The record a model
+holds is unchanged. `cgm` stays in `dbartsPriors` for that period.
+
 ## 4. DART exposure
 
 The Dirichlet split-variable machinery is engine-complete (s-update, alpha
@@ -324,6 +330,11 @@ Results member, filled only under DART) and on packaged bart2 fits next
 to `varcount`; bart2 takes `dart = TRUE` (defaults, with its `power` and
 `base`) or a full `dbartsPriors$dart(...)` spec, refusing `split.probs`
 alongside it.
+
+Revised 2026-10-30 (tree-prior-flat): DART is a value of `split.probs`, `split.probs = dart(a, b, rho, alpha,
+update.alpha, update.delay)`, at `bart()`, `dbarts()`, `dbartsSpec()` and `xbart()`; `dart()` no longer takes
+`power` and `base`, which are the fitting function's plain arguments, and the `dart = TRUE` flag and
+`tree.prior = dart(...)` are retired spellings.
 
 ## 5. Standalone data handle and CV views
 
@@ -558,7 +569,7 @@ and anchors: docs/design/bcf.md, "Public creation surface".
 defaulting to
 NULL - "not declared" - so an omitted knob takes the engine's default and a
 declaration colliding with a top-level argument of the same name refuses
-instead of silently winning. The fit's own `control@n.trees`, `tree.prior`,
+instead of silently winning. The fit's own `control@n.trees`, `power`, `base`,
 `interactions` and `blocks` are those of the forest with no basis, wherever
 it stands, and a forest with a basis takes the multiplied forest's defaults
 (docs/design/forest-defaults-by-kind.md). `forests = NULL` is byte-identical to the

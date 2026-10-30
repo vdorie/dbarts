@@ -49,9 +49,12 @@
             (\code{predict.rbart}, \code{extract.rbart},
             \code{fitted.rbart}, \code{residuals.rbart}, \code{plot.rbart},
             \code{print.rbart}) are deprecated; see the next item. On
-            \code{bart}, \code{power}, \code{base} and \code{split.probs}
-            become \code{tree.prior = cgm(power, base, split.probs)}, and
-            \code{sigdf} and \code{sigquant} become
+            \code{dbarts}, \code{tree.prior} becomes \code{power},
+            \code{base} and \code{split.probs}, as on \code{bart};
+            \code{tree.prior = cgm(power, base, split.probs)}, or a tree
+            prior saved by 0.9-34, is still accepted with a warning, once
+            a session, and its value used, and is refused from 1.1-0. On
+            \code{bart}, \code{sigdf} and \code{sigquant} become
             \code{family = gaussian(sigma = chisq(df, quant))}; on
             \code{bart}, \code{dbarts} and \code{xbart},
             \code{resid.prior} becomes \code{family = gaussian(sigma = )};
@@ -545,10 +548,11 @@
             number or under the new \code{invchi()} hyperprior. Available on
             \code{bart}, \code{dbarts} and \code{xbart}; see
             \code{\link{dbartsPriors}}.
-      \item Tree priors. \code{tree.prior = dart()} runs DART (Linero 2018),
-            a sparsity-inducing prior on which predictors the trees split
-            on, and \code{cgm(split.probs = )} sets fixed, unequal
-            split probabilities. \code{bart} gains \code{tree.prior} and
+      \item Tree priors. \code{split.probs = dart()} runs DART (Linero
+            2018), a sparsity-inducing prior on which predictors the trees
+            split on, on \code{bart}, \code{dbarts}, \code{dbartsSpec} and
+            \code{xbart}; \code{split.probs} also takes a vector of fixed,
+            unequal split probabilities. \code{bart} gains
             \code{leaf.prior}, taking the same prior objects as
             \code{dbarts}, which are listed in \code{\link{dbartsPriors}}.
       \item Multi-forest models. \code{dbarts(forests = )} takes a list of
@@ -697,8 +701,9 @@
             draws from a model's prior before fitting it. Runs can be
             interrupted with Ctrl-C.
       \item \code{xbart} runs over the same sampler as \code{bart}, so it
-            takes \code{family}, \code{factors}, \code{tree.prior},
-            \code{leaf.prior} and sparse predictors; it accepts only
+            takes \code{family}, \code{factors}, \code{split.probs}
+            (a vector or \code{dart()}), \code{leaf.prior} and sparse
+            predictors; it accepts only
             \code{storage = "double"}. Its
             \code{k} may mix fixed values and hyperpriors
             (\code{k = list(1, 2, chi())}), \code{sd} crossvalidates the
@@ -814,7 +819,7 @@
             deviation.
       \item Prior arguments no longer see internal variables named
             \code{control} and \code{data}, which had shadowed the caller's
-            own (as in \code{tree.prior = cgm(2, 0.95, data)}).
+            own (as in \code{split.probs = data}).
       \item An \code{offset.test} expression is evaluated in \code{test},
             then in \code{data}, each with the formula's environment, as
             \code{model.frame} evaluates its arguments, and failing that in

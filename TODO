@@ -993,6 +993,11 @@ front-door rename (decided, VD 2026-09-08; docs/decisions.md dec-B75;
   version reaches its expiry): in that release delete the file, the
   stubs, forwards and once-per-session warnings it lists, the
   .onAttach message, and their NAMESPACE entries.
+  tree.prior leaves with them (tree-prior-flat, D8): its trailing formal
+  on dbarts() and dbartsSpec(), the reading of a cgm()/dart() call or a
+  tree prior saved by 0.9-34 as plain arguments, and cgm from
+  dbartsPriors. The dbartsCGMPrior and dbartsDartPrior classes stay, as
+  the record a model holds.
 
 factor encoding (decided, VD 2026-09-08; docs/decisions.md dec-B78;
   LANDED; plan docs/plans/front-door.md)

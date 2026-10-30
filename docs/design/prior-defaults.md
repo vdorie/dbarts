@@ -21,7 +21,7 @@ instead to the `chi(1.5, 2)` hyperprior - an empirical choice, proper,
 not independently derived. See "Response scaling" below for the
 interaction with the response transform and `leaf.scale`.
 
-## power, base (tree prior, `cgm()`)
+## power, base (tree prior)
 
 2 and 0.95. CGM's empirical recommendation for the split-probability
 decay `base * (1 + depth)^-power`, tuned in their experiments to favor

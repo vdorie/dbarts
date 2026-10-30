@@ -148,7 +148,7 @@ match.arg cannot carry nu, so it needs a companion resid.df arg, splitting one
 concept in two. Recommend only paired with (b)/(c) for the df.
 
 (b) A residual-distribution constructor, resid.dist = student(df = 4), default
-gaussian(). Precedent: the priors-as-objects vocabulary (tree.prior = cgm,
+gaussian(). Precedent: the priors-as-objects vocabulary (split.probs = dart,
 node.prior = normal, family = gaussian(sigma = chisq); [`dbarts`](../../R/dbarts.R)) resolved by
 [`parsePriors`](../../R/model.R) from [`dbartsPriors`](../../R/model.R). student() composes df
 now and a sampled-nu spec later with no new top-level argument. Do NOT overload

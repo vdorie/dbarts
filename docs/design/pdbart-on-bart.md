@@ -53,8 +53,8 @@ Every name `bartBT` takes and `bart` does not is translated, less `x.test`
 and `sampleronly`, which are refused
 ([`pdbartBayesTreeNames`](../../R/tombstones.R),
 [`translatePdbartCall`](../../R/tombstones.R)). Each warns once per session
-per name and function, package callers included. `power`, `base` and
-`splitprobs` become one `tree.prior = cgm()`; `proposalprobs` is set on a
+per name and function, package callers included. `power` and `base` are
+`bart`'s own names and pass through with no warning; `splitprobs` becomes `split.probs`; `proposalprobs` is set on a
 copy of the caller's control or on a fresh one; `sigdf` and `sigquant` reach
 `bart` under their own names, since the residual prior rides a family that
 cannot be built before the response is known. A setting under both

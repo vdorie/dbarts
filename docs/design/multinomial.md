@@ -206,7 +206,7 @@ flat offset - it is the softmax's own null direction (a common
 per-observation shift) and is identically inert. The host sampler bart2
 builds to resolve its own tree prior is discarded after
 buildMultinomialSampler copies only power/base/proposal-probability fields
-out of it, so DART (via either the dart argument or a DART tree.prior),
+out of it, so DART (`split.probs = dart()`),
 split.probs, monotone, and variance are refused by name too, rather than
 silently reaching no K-forest engine slot. interactions() and blocks() are
 not refused: MultinomialForestSpec carries both and

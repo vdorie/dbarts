@@ -258,7 +258,7 @@ not the mean - `single_bart.cpp` draws `var_prob` from `rdirichlet` and
 updates it by Metropolis against the union of both models' variable counts.
 *Built:* own C++ (`BART.cpp`, `Node.cpp`, `grow.cpp`, `prune.cpp`,
 `change.cpp`), Rcpp, calling back into MCMCpack from C++. *Counterfactual:*
-**(B).** `$setModel` already accepts a fresh `cgm(power, base, split.probs)`
+**(B).** `$setModel` already accepts a model carrying a fresh tree prior (`power`, `base`, `split.probs`)
 mid-run, so a two-sampler R loop that reads `varcount`, draws the Dirichlet
 and re-installs the probabilities is expressible today - but `setModel` also
 re-pins sigma (engine-side, not in the R layer: `Chain::setModel` sets

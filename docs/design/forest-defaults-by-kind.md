@@ -14,7 +14,7 @@ it is the first forest wherever it is written. The kind is asked in one place,
 | | the plain forest | a forest with a basis |
 |---|---|---|
 | tree count | the fitting function's: `bart`'s `n.trees`, the control's at `dbarts` and `dbartsSpec`; 75 | 50 |
-| tree prior | the fitting function's `tree.prior`; `base = 0.95`, `power = 2` | `base = 0.25`, `power = 3` |
+| tree prior | the fitting function's `power` and `base`; `base = 0.95`, `power = 2` | `base = 0.25`, `power = 3` |
 | `interactions`, `blocks` | the fitting function's or its own; both given is refused | its own |
 
 A forest's own `n.trees`, `base` and `power` each govern that forest, and each one left out takes the
@@ -22,7 +22,7 @@ default of the forest's kind. Position decides nothing: two forests of one kind 
 are the same model, and other draws, since forests are swept in order.
 
 Where no forest is plain, what the fitting function states for the plain forest has no forest to belong
-to. Each of the tree count, the tree prior, the leaf prior, `interactions` and `blocks` that is stated is
+to. Each of the tree count, the tree prior (`power` and `base`, named one by one), the leaf prior, `interactions` and `blocks` that is stated is
 refused by name, in that order, before anything else is read from it, and the model is created once it is
 moved to a forest or left out ([`refuseStatedWithNoPlainForest`](../../R/model.R)).
 
@@ -33,9 +33,22 @@ refused, so that it cannot come to mean 50 in silence ([`plainForestStated`](../
 
 | door | the count | the tree prior | the leaf prior |
 |---|---|---|---|
-| `bart()` | `n.trees` named, or a `control` that states one | `tree.prior`, or the retired `power`, `base` or `split.probs` | `leaf.prior` or `k` |
-| `dbarts()`, `dbartsSpec()` | a control that states one | `tree.prior` | `leaf.prior`, or the retired `node.prior` |
-| `bartBT()` | `ntree` | `power`, `base` or `splitprobs` | `k` |
+| `bart()` | `n.trees` named, or a `control` that states one | `power` or `base` | `leaf.prior` or `k` |
+| `dbarts()`, `dbartsSpec()` | a control that states one | `power` or `base`, or the retired `tree.prior` | `leaf.prior`, or the retired `node.prior` |
+| `bartBT()` | `ntree` | `power` or `base` | `k` |
+
+`split.probs` is the plain forest's alone and is not among the stated names: a forest takes none, so it
+reaches no forest that could refuse it by name. Beside forests that all have a basis a uniform one states the
+default and is taken, and one that is not uniform, or `dart()`, meets the several-forest refusal. `bartBT()`
+forwards `power` and `base` always, and `splitprobs` only where its caller named it.
+
+Two levels, one rule. A `power` or `base` named on the fitting function and on the plain forest is one
+setting given twice and is refused by name, as `n.trees` is; named on only one of the two it governs the
+plain forest, the forest's own value winning where the fitting function's is the default. A variance forest
+that states none reads the plain forest's resolved values, and never rescues a value: a lone mean forest
+stating `power` beside the fitting function's `power` is refused whatever the variance forest states. Where
+no forest is plain the refusal names the argument given and the call to write, as
+`forest(x1, basis = a, power = 3)`.
 
 A control states a count when its constructor's call named `n.trees` or its slot is not the constructor's
 default. A slot edited back to 75 and a control made by `new()` read as not stated: that is the limit of
@@ -51,7 +64,7 @@ control's.
 ## Where the numbers live
 
 The bridge reads the first forest's tree count from the control and its tree prior from the model, so
-those two hold the first forest's, whatever its kind: 50 and `cgm(3, 0.25)` for a first forest with a basis
+those two hold the first forest's, whatever its kind: 50 and `base = 0.25, power = 3` for a first forest with a basis
 that states none. Each forest's record starts with the count, base and power that forest runs under, the
 first forest's included ([`forestParams`](../../R/model.R)).
 
