@@ -1233,7 +1233,7 @@ addCheck(
 )
 
 # -- prose: DART refused for both couplings
-dartAnchor <- "DART is refused for both multi-forest couplings by name"
+dartAnchor <- "DART is refused for both multi-forest couplings by value"
 addCheck(
   "prose",
   "dart bcf",
@@ -1256,7 +1256,7 @@ addCheck(
     )
   },
   anchor = dartAnchor,
-  msg = "does not support 'split.probs' (a vector that is not uniform, or dart())"
+  msg = "multinomial .softmax. model does not support .split.probs."
 )
 
 # -- prose: warm start and grow-from-root
