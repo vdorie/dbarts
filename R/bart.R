@@ -194,8 +194,8 @@ leafPriorIsDrawn <- function(prior) {
 # coefficient, its leaf priors, its channels of draws): the forest's label, a
 # forest with none of its own being forest<i>, so one forest has one name
 # everywhere. The labels are the record the sampler was created with.
-forestMarginNames <- function(control, numForests) {
-  labels <- attr(control, "bartcore.forests", exact = TRUE)$labels
+forestMarginNames <- function(model, numForests) {
+  labels <- modelForestLabels(model)
   if (is.character(labels) && length(labels) == numForests) {
     return(labels)
   }
@@ -221,7 +221,7 @@ fitDescriptors <- function(sampler, samples = NULL) {
     several <- FALSE
   }
   forestNames <- if (several) {
-    forestMarginNames(sampler$control, length(priors))
+    forestMarginNames(sampler$model, length(priors))
   }
   if (several) {
     names(priors) <- forestNames
@@ -269,7 +269,7 @@ fitDescriptors <- function(sampler, samples = NULL) {
   }
   # a forest whose coefficient is held by amplitude = fixed(), per forest:
   # the coefficient is 1, the basis carrying any coding (dec-B354)
-  held <- attr(sampler$control, "bartcore.forests", exact = TRUE)$heldAmplitude
+  held <- forestsRecord(sampler$model)$heldAmplitude
   # a forest with no basis has its coefficient held whether or not fixed() is
   # written, as the reader says
   if (several) {
@@ -284,7 +284,7 @@ fitDescriptors <- function(sampler, samples = NULL) {
   if (any(held)) {
     fixed$amplitude <- setNames(
       rep(1, sum(held)),
-      forestMarginNames(sampler$control, length(held))[held]
+      forestMarginNames(sampler$model, length(held))[held]
     )
   }
   df <- attr(model, "resid.df")
@@ -366,7 +366,7 @@ packageBartResults <- function(
   # the same probe samplerCarriesAmplitudes uses.
   numForests <- if (!is.null(fit$data@bases)) length(fit$data@bases) else 1L
   forestNames <- if (numForests > 1L) {
-    forestMarginNames(fit$control, numForests)
+    forestMarginNames(fit$model, numForests)
   } else {
     NULL
   }
@@ -587,16 +587,16 @@ packageBartResults <- function(
   }
 
   # the per-observation censoring status an aft (survival) fit needs so its
-  # log-likelihood can take the survival tail on censored rows; the survival
-  # ingestion parks it on the control attribute, and it is NULL (so the
-  # element stays absent) for every non-survival family
-  result$status <- attr(fit$control, "bartcore.survival")
+  # log-likelihood can take the survival tail on censored rows; the data
+  # object carries it, and it is NULL (so the element stays absent) for every
+  # non-survival family
+  result$status <- fit$data@status
 
-  # the discrete-time hazard period grid, present on every hazard fit (parked
-  # on the control attribute by dbarts()) and NULL - so absent - on every
-  # other; survivalProbabilities reads it once family() has said the fit is
-  # a hazard one
-  result$periods <- attr(fit$control, "bartcore.hazard.periods")
+  # the discrete-time hazard period grid, present on every hazard fit (the
+  # model records it) and NULL - so absent - on every other;
+  # survivalProbabilities reads it once family() has said the fit is a hazard
+  # one
+  result$periods <- fit$model@hazard.periods
 
   # the forest count, a descriptor every fit carries (1 for a single forest):
   # the widened varcount channel's trailing margin, the multi-forest analog
@@ -612,7 +612,7 @@ packageBartResults <- function(
     # and a forest of numbers' as its block, each what predict(bases = )
     # takes for its forest (storedBasisBlock gives an entry's block)
     result$bases <- storedForestBases(fit$data)
-    forestInfo <- attr(fit$control, "bartcore.forests")
+    forestInfo <- forestsRecord(fit$model)
     # the record of every basis written as code, at either door, which is
     # what lets the same basis be rebuilt at NEW rows; the element stays
     # absent on a fit whose bases all arrived as values, whose blend then
@@ -2610,7 +2610,7 @@ bart2Ordinal <- function(
     return(sampler)
   }
 
-  K <- attr(sampler$control, "bartcore.n.categories")
+  K <- sampler$model@n.categories
   levels <- sampler$data@response.levels
   n.chains <- control@n.chains
   n.obs <- length(sampler$data@y)

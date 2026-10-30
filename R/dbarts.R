@@ -632,7 +632,7 @@ refuseFitStateControl <- function(control, caller) {
       call. = FALSE
     )
   }
-  if (any(startsWith(names(attributes(control)), "bartcore."))) {
+  if (isTRUE(controlMirror(control)$fit.state)) {
     stop(
       "'control' carries the model configuration of the fit it was taken ",
       "from; '",
@@ -1057,10 +1057,9 @@ dbarts <- function(
   # BEFORE any family-keyed switch runs (leaf.scale, control@binary,
   # fixedUnitScale, the weight policy). The engine, bridge, and ResponseModels
   # then see an ordinary probit/logistic fit; the hazard provenance survives
-  # only as the period grid, parked on the control attribute the packaging
-  # reads into the $periods marker (the bartcore.survival -> $status
-  # precedent). No status vector or attribute reaches C++ - the censoring is
-  # baked into y'.
+  # only as the period grid, recorded on the model, which the packaging reads
+  # into the $periods marker (as the data object's status becomes $status).
+  # No status vector reaches C++ - the censoring is baked into y'.
   hazardPeriods <- NULL
   # the person-period row names, set on the data object once it exists, and
   # whether the expansion ran before the na.action did
@@ -1819,7 +1818,7 @@ samplePriorPredictive <- function(
   # prior predictive instead. "ev" needs no noise term and is unaffected.
   drawsVariance <- type == "ppd" &&
     !responseIsBinary &&
-    !is.null(attr(draw$control, "bartcore.variance"))
+    !is.null(draw$model@variance)
   if (drawsVariance) {
     # the surface is read through the draw sampler's own test rows, which is
     # where the variance forest evaluates off the training data; predict()
@@ -2187,7 +2186,7 @@ recordBasisScales <- function(sampler, ptr, active = NULL) {
     return(invisible(NULL))
   }
   n <- length(data@y)
-  labels <- samplerForestLabels(sampler$control)
+  labels <- samplerForestLabels(sampler$model)
   named <- vapply(fellBack, forestName, "", labels = labels)
   what <- if (length(named) == 1L) {
     paste0("the scale of ", named, "'s basis")
@@ -2266,7 +2265,7 @@ createEngine <- function(
     control,
     model,
     data,
-    if (model@family == "auto") "" else model@family,
+    bridgeFamily(control, model),
     if (!is.null(active)) as.double(active),
     if (tooFewUnits) TRUE
   )
@@ -2648,7 +2647,7 @@ modelWithLeafPriorUnclaimed <- function(model) {
 ## the per-forest sd, in the response's units as written, NA where none is
 ## stated.
 resolveForestSpreads <- function(sampler, forests) {
-  forestInfo <- attr(sampler$control, "bartcore.forests", exact = TRUE)
+  forestInfo <- forestsRecord(sampler$model)
   numForests <- length(forestInfo$params)
   if (is.list(forests)) {
     readBack <- vapply(
@@ -2754,25 +2753,20 @@ resolveForestSpreads <- function(sampler, forests) {
 }
 
 ## Writes each stated sd to the engine as written, which divides it by the
-## unit, and into the `sd` of the record creation reads, so that every
-## re-creation states the same number. A record made before one was stated
-## may hold no `sd`. Where the last forest taking the fitting function's leaf
-## prior states its own, the model's leaf prior is left with no forest, as a
-## creation with these statements has it.
+## unit, and into the `sd` of the forest's record, which creation reads, so
+## that every re-creation states the same number. Where the last forest taking
+## the fitting function's leaf prior states its own, the model's leaf prior is
+## left with no forest, as a creation with these statements has it.
 writeForestSpreads <- function(sampler, ptr, sds) {
-  forestInfo <- attr(sampler$control, "bartcore.forests", exact = TRUE)
-  if (is.null(forestInfo$sd)) {
-    forestInfo$sd <- rep(NA_real_, length(forestInfo$params))
-  }
+  newModel <- sampler$model
   for (index in which(!is.na(sds))) {
     .Call(C_dbarts_bartcore_setForestSd, ptr, index - 1L, sds[[index]])
-    forestInfo$sd[[index]] <- sds[[index]]
+    newModel@forests[[index]]@sd <- sds[[index]]
   }
-  newControl <- sampler$control
-  attr(newControl, "bartcore.forests") <- forestInfo
-  sampler$control <- newControl
+  sampler$model <- newModel
   hasBasis <- !vapply(sampler$data@bases, is.null, NA)
-  if (!any(!hasBasis & is.na(forestInfo$sd))) {
+  recordedSd <- vapply(newModel@forests, methods::slot, 0, "sd")
+  if (!any(!hasBasis & is.na(recordedSd))) {
     sampler$model <- modelWithLeafPriorUnclaimed(sampler$model)
   }
   invisible(NULL)
@@ -2855,6 +2849,12 @@ dbartsSampler <- setRefClass(
       # the model, where an object saved by an earlier build has the range
       data <- checkDerivedRecord(data, model)
       attr(model, "response.range") <- NULL
+      # the model and data hold what the sampler runs, the control's tree
+      # count and quantile rule among them, and the control mirrors them
+      taken <- takeControlReadings(control, model, data)
+      model <- taken$model
+      data <- taken$data
+      control <- mirrorControl(control, model, data)
       .self$control <- control
       .self$model <- model
       .self$data <- data
@@ -2865,7 +2865,7 @@ dbartsSampler <- setRefClass(
       # a latent family's 0/1 weights resolve to, installed below, gives the
       # rows a numeric column's scale is read from, and a hazard fit's
       # subjects in, which the engine cannot count, whether too few are in
-      units <- likelihoodUnits(.self$control, .self$data, active)
+      units <- likelihoodUnits(.self$model, .self$data, active)
       created <- createEngine(
         .self$control,
         .self$model,
@@ -2877,7 +2877,7 @@ dbartsSampler <- setRefClass(
       # what the engine holds is the record from here on, written on the
       # sampler's own data object and never on the caller's
       recordDerived(.self, .self$pointer, created$records)
-      if (!is.null(attr(control, "bartcore.forests", exact = TRUE))) {
+      if (modelCarriesForests(model)) {
         recordBasisScales(.self, .self$pointer, active)
       }
       # after the call, so a refused creation never spends the warning's key;
@@ -3151,7 +3151,7 @@ dbartsSampler <- setRefClass(
       )
     },
     setControl = function(newControl) {
-      "Sets the control object for the sampler to a new one. Preserves the call() slot and any bartcore.* control attributes."
+      "Sets the control object for the sampler to a new one. Preserves the call() slot; the tree count, the quantile rule and the binary flag are the sampler's, which the control mirrors."
       if (!inherits(newControl, "dbartsControl")) {
         stop("'control' must inherit from dbartsControl")
       }
@@ -3165,43 +3165,12 @@ dbartsSampler <- setRefClass(
 
       newControl@binary <- control@binary
       newControl@call <- control@call
-      # a control taken from another sampler brings that sampler's attributes;
-      # only this sampler's own are carried
-      for (attrName in grep(
-        "^bartcore\\.",
-        names(attributes(newControl)),
-        value = TRUE
-      )) {
-        attr(newControl, attrName) <- NULL
-      }
-      # bartcore.* attributes (the BCF, variance, survival and
-      # ordinal/nbinom configuration resolveSamplerSpec attaches at creation)
-      # live outside the S4 slots newControl replaces
-      # wholesale; a freshly built dbartsControl() never carries them, so
-      # carry them forward exactly as binary/call are. Without this, a
-      # legitimate setControl silently orphans the model configuration the
-      # stored state's forest counts were built against, and the next
-      # getPointer() re-creation refuses loudly instead (a multi-forest
-      # sampler: "the data carry forest bases but no basis forest was
-      # configured"; a heteroscedastic one: "state is not consistent with this
-      # sampler").
-      for (attrName in grep(
-        "^bartcore\\.",
-        names(attributes(control)),
-        value = TRUE
-      )) {
-        attr(newControl, attrName) <- attr(control, attrName)
-      }
 
       # Where the first forest has a basis the stored control's count is that
       # forest's, and the control the sampler was created under held another,
-      # which rides the forests' record: the plain forest's, or the fitting
+      # which rides the mirror's record: the plain forest's, or the fitting
       # function's own. A new control holding that count names no change.
-      createdUnder <- attr(
-        control,
-        "bartcore.forests",
-        exact = TRUE
-      )$control.n.trees
+      createdUnder <- controlMirror(control)$control.n.trees
       if (
         !is.null(createdUnder) && identical(newControl@n.trees, createdUnder)
       ) {
@@ -3242,6 +3211,12 @@ dbartsSampler <- setRefClass(
       if (newControl@keepTrees && is.na(newControl@n.samples)) {
         stop("keepTrees requires 'n.samples' to be specified")
       }
+      newControl <- mirrorControl(
+        newControl,
+        model,
+        data,
+        controlMirror(control)$control.n.trees
+      )
 
       # a monotone sampler is birth/death-only, as creation forces: a defaulted
       # mixture is rewritten and one proposing other moves refused, before
@@ -3279,7 +3254,7 @@ dbartsSampler <- setRefClass(
           if (mixtureMoved && !setModelRefused(.self)) {
             .self$setModel(model)
           } else {
-            bartcoreSetMoveSettings(ptr, newControl)
+            bartcoreSetMoveSettings(ptr, newControl, model)
           },
           error = function(e) {
             selfEnv$control <- oldControl
@@ -3344,6 +3319,8 @@ dbartsSampler <- setRefClass(
       selfEnv <- parent.env(environment())
 
       newModel@family <- model@family
+      # what the sampler holds for its life stays the sampler's
+      newModel <- keepModelRecords(newModel, model)
       # the transform the prior is anchored to is data and stays the
       # sampler's, recorded on its data object
       attr(newModel, "response.range") <- NULL
@@ -3405,7 +3382,7 @@ dbartsSampler <- setRefClass(
       }
       # raised last, as warnScaleKept is: a warning turned into an error
       # leaves the record and the stored state the new data's
-      units <- likelihoodUnits(control, data, activeRows)
+      units <- likelihoodUnits(model, data, activeRows)
       warnRowsFallBack(
         units$n,
         units$numIn,
@@ -3695,7 +3672,7 @@ dbartsSampler <- setRefClass(
         stop("forest weights must be finite and non-negative")
       }
 
-      index <- samplerForestIndex(forest, control, getPointer())
+      index <- samplerForestIndex(forest, model, getPointer())
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
 
@@ -3738,7 +3715,7 @@ dbartsSampler <- setRefClass(
         "its forests are its categories, which carry no amplitudes and so no ",
         "basis for any to multiply"
       )
-      index <- samplerForestIndex(forest, control, getPointer())
+      index <- samplerForestIndex(forest, model, getPointer())
       if (is.null(basis)) {
         stop("'basis' cannot be NULL")
       }
@@ -3755,7 +3732,7 @@ dbartsSampler <- setRefClass(
       # the forest takes the kind it was created with, read from the data
       # object, and nothing is stored before the value has been held to it
       current <- data@bases[[index + 1L]]
-      forestInfo <- attr(control, "bartcore.forests", exact = TRUE)
+      forestInfo <- forestsRecord(model)
       recorded <- dataBasisLevels(data)
       recorded <- if (index < length(recorded)) recorded[[index + 1L]]
       values <- conformBasis(
@@ -4044,7 +4021,7 @@ dbartsSampler <- setRefClass(
         )
       }
 
-      if (!is.null(attr(control, "bartcore.variance"))) {
+      if (!is.null(model@variance)) {
         return(NULL)
       }
       ptr <- getPointer()
@@ -4076,7 +4053,7 @@ dbartsSampler <- setRefClass(
         return(.Call(
           C_dbarts_bartcore_getForestFits,
           ptr,
-          samplerForestIndex(forest, control, getPointer())
+          samplerForestIndex(forest, model, getPointer())
         ))
       }
       # the bridge counts forests from 0, as resolveForestIndex converts to
@@ -4122,7 +4099,7 @@ dbartsSampler <- setRefClass(
         if (is.null(forest)) {
           NULL
         } else {
-          samplerForestIndex(forest, control, getPointer())
+          samplerForestIndex(forest, model, getPointer())
         }
       )
     },
@@ -4153,7 +4130,7 @@ dbartsSampler <- setRefClass(
         counts <- .Call(
           C_dbarts_bartcore_getForestVariableCounts,
           ptr,
-          samplerForestIndex(forest, control, getPointer())
+          samplerForestIndex(forest, model, getPointer())
         )
       }
       predictorNames <- colnames(data@x)
@@ -4173,7 +4150,7 @@ dbartsSampler <- setRefClass(
         )
       }
       if (!is.null(forest)) {
-        return(read(samplerForestIndex(forest, control, getPointer())))
+        return(read(samplerForestIndex(forest, model, getPointer())))
       }
       numForests <- bartcoreNumForests(ptr)
       if (numForests == 1L) {
@@ -4181,7 +4158,7 @@ dbartsSampler <- setRefClass(
       }
       priors <- lapply(seq_len(numForests) - 1L, read)
       # by the forests' labels, which a multinomial sampler's categories lack
-      names(priors) <- samplerForestLabels(control)
+      names(priors) <- samplerForestLabels(model)
       priors
     },
     getK = function(forest = NULL) {
@@ -4191,7 +4168,7 @@ dbartsSampler <- setRefClass(
         .Call(C_dbarts_bartcore_getLeafPrior, ptr, index)[, "k"]
       }
       if (!is.null(forest)) {
-        return(read(samplerForestIndex(forest, control, getPointer())))
+        return(read(samplerForestIndex(forest, model, getPointer())))
       }
       numForests <- bartcoreNumForests(ptr)
       if (numForests == 1L) {
@@ -4641,10 +4618,10 @@ dbartsSampler <- setRefClass(
       forestIndices <- if (is.null(forest)) {
         seq_len(bartcoreNumForests(ptr)) - 1L
       } else if (length(forest) == 0L) {
-        samplerForestIndex(forest, control, getPointer())
+        samplerForestIndex(forest, model, getPointer())
       } else {
         indices <- if (is.character(forest)) {
-          samplerForestIndex(forest, control, ptr, several = TRUE)
+          samplerForestIndex(forest, model, ptr, several = TRUE)
         } else {
           selectForest(forest, NULL, NA_integer_)
           vapply(forest, resolveForestIndex, 0L)
@@ -4658,7 +4635,7 @@ dbartsSampler <- setRefClass(
       # keeps no matrix); a sparse data@x is skipped for a NULL replay source
       trainingMatrix <- rawPredictorMatrix(data@x)
       hasForestColumn <- bartcoreNumForests(ptr) > 1L ||
-        isTRUE(attr(control, "bartcore.forestsDeclared"))
+        isTRUE(attr(model, "forests.declared", exact = TRUE))
       blocks <- lapply(forestIndices, function(forestIndex) {
         forestTreeCount <- bartcoreForestTreeCount(ptr, forestIndex)
         forestTreeNums <- if (treeNumsSupplied) {
@@ -4755,7 +4732,7 @@ dbartsSampler <- setRefClass(
         # contributes them; resolveForestIndex enforces a single positive
         # integer, its 0-based return unused since getTrees resolves forest
         # again on its own terms
-        samplerForestIndex(forest, control, getPointer())
+        samplerForestIndex(forest, model, getPointer())
       }
 
       tree <-

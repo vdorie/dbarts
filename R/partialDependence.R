@@ -59,10 +59,10 @@ pdbart.fitFamily <- function(fit) {
   }
 }
 
-# A hazard sampler's model reads as its binary link; the period grid on its
-# control is what marks it.
+# A hazard sampler's model reads as its binary link; the period grid its
+# model records is what marks it.
 pdbart.samplerFamily <- function(sampler) {
-  if (!is.null(attr(sampler$control, "bartcore.hazard.periods"))) {
+  if (!is.null(sampler$model@hazard.periods)) {
     "hazard"
   } else {
     sampler$model@family

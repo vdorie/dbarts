@@ -2615,7 +2615,7 @@ resolveOrdinalResponse <- function(data) {
 }
 
 # Resolve the negative-binomial shape argument to the length-1 real the C
-# bridge reads off the control's bartcore.shape attribute. NA (the
+# bridge reads off the model's shape slot. NA (the
 # default) estimates r on the capped integer grid, encoded as a non-positive
 # spec; a supplied value FIXES r as a single positive integer - the exact
 # integer envelope v1 ships, real shape not yet supported.
@@ -4240,7 +4240,7 @@ dbartsData <- function(
   # a Surv formula response's raw time/status, for dbarts() to decode
   # (above) - not a slot, since every other creation route (the matrix
   # interface, a pre-built dbartsData) has no use for it and carries it
-  # through its own channel instead (control@bartcore.survival)
+  # through its own channel instead (the data object's status)
   if (!is.null(survivalStatus)) {
     attr(result, "survivalStatus") <- survivalStatus
     attr(result, "survivalTime") <- survivalTime

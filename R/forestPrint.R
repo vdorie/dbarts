@@ -335,7 +335,7 @@ fitForestLines <- function(fit, full = FALSE) {
 ## forest, or its pointer has not survived a reload, which show does not
 ## re-create.
 samplerForestLines <- function(sampler, full = FALSE) {
-  info <- attr(sampler$control, "bartcore.forests", exact = TRUE)
+  info <- forestsRecord(sampler$model)
   if (
     is.null(info) ||
       !.Call(C_dbarts_bartcore_isValidPointer, sampler$pointer) ||

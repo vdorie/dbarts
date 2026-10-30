@@ -1434,7 +1434,7 @@ labelTreeForests <- function(trees, object) {
   }
   sampler <- object$fit
   labels <- forestMarginNames(
-    sampler$control,
+    sampler$model,
     bartcoreNumForests(sampler$getPointer())
   )
   trees$forest <- factor(labels[trees$forest], levels = labels)
@@ -4733,14 +4733,14 @@ setObservationsNA <- function(x, rows) {
   x
 }
 
-# The tree count of each forest of a kept sampler, in the forests' order. The
-# control's slot is the first forest's alone, so the forests of a model of
-# several are read from the engine, or from the forests' record, which holds
-# the same counts, where the sampler's pointer did not survive a reload.
+# The tree count of each forest of a kept sampler, in the forests' order:
+# from the engine, or from the model's forest records, which hold the same
+# counts, where the sampler's pointer did not survive a reload. A model of one
+# forest, or a multinomial one, reads its one record.
 fitTreeCounts <- function(fit) {
-  forestInfo <- attr(fit$control, "bartcore.forests", exact = TRUE)
+  forestInfo <- forestsRecord(fit$model)
   if (is.null(forestInfo)) {
-    return(fit$control@n.trees)
+    return(fit$model@forests[[1L]]@n.trees)
   }
   if (!.Call(C_dbarts_bartcore_isValidPointer, fit$pointer)) {
     return(vapply(

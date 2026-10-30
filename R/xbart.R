@@ -549,6 +549,10 @@ xbart <- function(
     prior.scale = kAnchors[[1L]],
     leaf.scale = defaultLeafScale(family)
   )
+  # each cell's tree count goes on its model's record (cellModel); the
+  # quantile rule is the data object's, which the shared handle takes
+  model@forests <- list(plainForestRecord(n.trees[1L]))
+  data@useQuantiles <- control@useQuantiles
 
   numObservations <- length(data@y)
   if (method == "k-fold") {
@@ -1126,6 +1130,7 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
 
   cellModel <- function(cell) {
     result <- spec$model
+    result@forests[[1L]]@n.trees <- spec$n.trees[cells$iTrees[cell]]
     result@tree.prior@power <- spec$power[cells$iPower[cell]]
     result@tree.prior@base <- spec$base[cells$iBase[cell]]
     result@leaf.hyperprior <- spec$kHyperpriors[[cells$iK[cell]]]

@@ -1015,7 +1015,7 @@ bartcoreSamplerSetPredictor <- function(
 
     x <- as.double(x)
     refusePeriodUpdate(
-      sampler$control,
+      sampler$model,
       currentX,
       x,
       column,
@@ -1114,7 +1114,7 @@ bartcoreSamplerSetPredictor <- function(
       }
     }
     refusePeriodUpdate(
-      sampler$control,
+      sampler$model,
       currentX,
       x,
       NULL,
@@ -1202,7 +1202,7 @@ bartcoreSamplerSetPredictor <- function(
     # throw there after acceptance would leave data@x describing the old design
     # (sampler re-creation after save/load reads it).
     refusePeriodUpdate(
-      sampler$control,
+      sampler$model,
       currentX,
       x,
       column,
@@ -1307,8 +1307,8 @@ bartcoreSamplerSetResponse <- function(
     )
   }
   # validate (the C length, family and support checks) before installing, so a
-  # rejected y or status never leaves data@y or the control attribute holding
-  # the bad replacement
+  # rejected y or status never leaves data@y or data@status holding the bad
+  # replacement
   scaleKept <- .Call(
     C_dbarts_bartcore_setResponse,
     sampler$getPointer(),
@@ -1319,11 +1319,9 @@ bartcoreSamplerSetResponse <- function(
   sampler$data@y <- y
   if (!is.null(status)) {
     # re-creation after save and load rebuilds the sampler from the control,
-    # model and data it holds, so the status it reads must be the current one -
-    # data@y's rule, on the channel the status travels
-    newControl <- sampler$control
-    attr(newControl, "bartcore.survival") <- status
-    sampler$control <- newControl
+    # model and data it holds, so the status it reads must be the current one,
+    # as data@y is
+    sampler$data@status <- status
   }
   invisible(scaleKept)
 }
@@ -1429,7 +1427,7 @@ rowSetterUnits <- function(
     return(NULL)
   }
   units <- likelihoodUnits(
-    sampler$control,
+    sampler$model,
     sampler$data,
     active,
     prefix,
@@ -1628,6 +1626,10 @@ bartcoreSamplerSetData <- function(
 
   newData@n.cuts <- sampler$data@n.cuts
   newData@sigma <- sampler$data@sigma
+  # the quantile rule and the censoring status the sampler was created with
+  # stay its own, as the count does
+  newData@useQuantiles <- sampler$data@useQuantiles
+  newData@status <- sampler$data@status
 
   # a probit or ordinal sampler carries no weight channel for the whole-data
   # conduit to fill, and 0/1 weights there name the rows in the data set: pull
@@ -1657,7 +1659,7 @@ bartcoreSamplerSetData <- function(
   # a hazard fit's subjects in, which the engine cannot count, refused before
   # anything moves where the rows do not say who they belong to
   tooFew <- tooFewUnitsIn(likelihoodUnits(
-    sampler$control,
+    sampler$model,
     newData,
     active,
     "$setData: "
@@ -1733,8 +1735,8 @@ leafFromAllRows <- function(sampler, records) {
 ## the period column, the data's last, so that a subject starts at its row at
 ## period 1; NULL off a hazard fit. Rows laid out otherwise are refused
 ## (refuseHazardLayout); 'prefix' opens the refusal.
-hazardRowSubjects <- function(control, data, prefix = "") {
-  column <- hazardPeriodColumn(control, data@x)
+hazardRowSubjects <- function(model, data, prefix = "") {
+  column <- hazardPeriodColumn(model, data@x)
   if (is.null(column)) {
     return(NULL)
   }
@@ -1744,8 +1746,8 @@ hazardRowSubjects <- function(control, data, prefix = "") {
 }
 
 ## A hazard fit's period column, the last of 'x'; NULL off a hazard fit.
-hazardPeriodColumn <- function(control, x) {
-  if (is.null(attr(control, "bartcore.hazard.periods", exact = TRUE))) {
+hazardPeriodColumn <- function(model, x) {
+  if (is.null(model@hazard.periods)) {
     return(NULL)
   }
   ncol(x)
@@ -1759,8 +1761,8 @@ hazardPeriodColumn <- function(control, x) {
 ## of 'columns' of 'currentX', as a matrix or as one vector column after column.
 ## A vector of another length is no update of 'columns': the door's own length
 ## check refuses it, in its own words, before anything moves.
-refusePeriodUpdate <- function(control, currentX, x, columns, prefix) {
-  periodColumn <- hazardPeriodColumn(control, currentX)
+refusePeriodUpdate <- function(model, currentX, x, columns, prefix) {
+  periodColumn <- hazardPeriodColumn(model, currentX)
   if (is.null(periodColumn)) {
     return(invisible(NULL))
   }
@@ -1833,7 +1835,7 @@ refuseHazardLayout <- function(period, prefix = "") {
 ## 'numIn' those in, 'allIn' whether every row is; 'prefix' opens a refusal of
 ## rows whose subjects cannot be counted (hazardRowSubjects).
 likelihoodUnits <- function(
-  control,
+  model,
   data,
   active,
   prefix = "",
@@ -1841,7 +1843,7 @@ likelihoodUnits <- function(
 ) {
   n <- length(data@y)
   rowsIn <- rowsInLikelihood(weights, active, n)
-  subject <- hazardRowSubjects(control, data, prefix)
+  subject <- hazardRowSubjects(model, data, prefix)
   if (is.null(subject)) {
     return(list(n = n, numIn = sum(rowsIn), subjects = FALSE))
   }
@@ -2224,9 +2226,9 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
 }
 
 # A built predictor store (cuts + codes) shared across row-subset samplers;
-# internal and unserializable. control contributes useQuantiles; data
-# contributes x, the column types, and
-# n.cuts. leafCovariateColumns names (1-based) the columns whose raw values
+# internal and unserializable. control contributes the sparse layout's
+# density threshold; data contributes x, the column types, n.cuts and the
+# quantile rule. leafCovariateColumns names (1-based) the columns whose raw values
 # a view's leaf model will read; the handle owns raw only for those, so a
 # constant-leaf caller passes none. A view designating an undeclared column
 # is refused when it is built.
@@ -2495,17 +2497,17 @@ selectForest <- function(forest, labels, numForests, several = FALSE) {
   vapply(forest, one, 0L, USE.NAMES = FALSE)
 }
 
-# The labels a sampler's forests carry, from the forests' record on its
-# control; NULL for a sampler that records none.
-samplerForestLabels <- function(control) {
-  attr(control, "bartcore.forests", exact = TRUE)$labels
+# The labels a sampler's forests carry, from its model's forest records;
+# NULL for a sampler of fewer than two forests.
+samplerForestLabels <- function(model) {
+  modelForestLabels(model)
 }
 
 # A sampler's reading of its 'forest' argument: its own labels, and its forest
 # count from the engine, asked only when a string needs it. `ptr` is not
 # evaluated for a number.
-samplerForestIndex <- function(forest, control, ptr, several = FALSE) {
-  labels <- samplerForestLabels(control)
+samplerForestIndex <- function(forest, model, ptr, several = FALSE) {
+  labels <- samplerForestLabels(model)
   numForests <- if (is.character(forest)) {
     bartcoreNumForests(ptr)
   } else {
@@ -2595,8 +2597,8 @@ setModelRefused <- function(sampler) {
 # Installs the control's move settings on every forest that states none of its
 # own, and nothing else: the route setControl takes where the prior install is
 # refused or would do more than the change asks.
-bartcoreSetMoveSettings <- function(ptr, control) {
-  invisible(.Call(C_dbarts_bartcore_setMoveSettings, ptr, control))
+bartcoreSetMoveSettings <- function(ptr, control, model) {
+  invisible(.Call(C_dbarts_bartcore_setMoveSettings, ptr, control, model))
 }
 
 # Drives a low-level bartcore handle (a bcSampler env holding $ptr) directly,
