@@ -17,7 +17,7 @@ xbart(
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic"),
     leaf.prior = NULL, n.cuts = 100L, useQuantiles = FALSE, n.thin = 1L,
-    storage = c("double", "single"), tree.prior = NULL,
+    storage = c("double", "single"),
     parallel = getOption("dbarts.parallel", "auto"), cl = NULL,
     control = dbarts::dbartsControl(), sigma = NULL, \dots)
 }
@@ -26,7 +26,7 @@ xbart(
     The 0.9-x spelling of \code{sigest}, accepted for one release with a once-per-session warning and removed in dbarts 1.1-0. Supplying both is an error.
   }
   \item{\dots}{
-    Not used for new code: the channel that lets a retired argument spelling (\code{dart}, now \code{tree.prior = dart()}; \code{resid.prior}, now \code{family = gaussian(sigma = )}, its one home, so writing it both ways is refused where the two disagree) reach a message naming its successor, instead of R's own \dQuote{unused argument} error. Any other name is refused. Removed in dbarts 1.1-0.
+    Not used for new code: the channel that lets a retired argument spelling (\code{resid.prior}, now \code{family = gaussian(sigma = )}, its one home, so writing it both ways is refused where the two disagree) reach a message naming its successor, instead of R's own \dQuote{unused argument} error. Any other name is refused. Removed in dbarts 1.1-0.
   }
   \item{control}{
     A \code{\link{dbartsControl}} object carrying the sampler and engine settings, including the ones \code{xbart} spells no flat name for: \code{categoricalExhaustiveCap}, \code{testFitParallelCutoff}, \code{predictParallelCutoff}, \code{sparseDensityThreshold}, \code{treeShift}, and the tree-move mixture \code{proposal.probs}. Precedence, one rule: a flat argument named in the call wins over the control's slot of the same name, and a slot the control speaks for - one its own \code{dbartsControl()} call named, or one edited afterwards to differ from a fresh control's - wins over this function's default, while a slot it never spoke for leaves that default standing. The fields a sweep forces - \code{n.chains}, the control's own \code{n.threads}, \code{keepTrees}, \code{keepTrainingFits}, \code{updateState}, \code{verbose} - are applied after both, and \code{n.burn} and \code{n.threads} here are the sweep's own grid axis and worker count rather than the control fields of the same name. A control taken from a fitted sampler carries that fit's model configuration and is refused by name - pass a fresh \code{dbartsControl()}.
@@ -92,7 +92,7 @@ xbart(
      A vector of real numbers in \eqn{(0, 1)}, setting the BART hyperparameter for the tree prior's growth probability.
    }
    \item{split.probs}{
-     Prior probabilities that a variable is used in a splitting rule, as in \code{\link{bart}}. A single value or \code{NULL} yields the uniform default; a named or unnamed vector assigns per-column probabilities. Fixed for the whole crossvalidation, not part of the swept grid. Cannot be combined with a DART \code{tree.prior}.
+     Prior probabilities that a variable is used in a splitting rule, as in \code{\link{bart}}. A single value or \code{NULL} yields the uniform default; a named or unnamed vector assigns per-column probabilities; \code{num.vars} stands for the number of predictors; and \code{dart()} from \code{\link{dbartsPriors}} runs DART (Linero 2018) in every cell. Fixed for the whole crossvalidation, not part of the swept grid. \code{xbart} takes no \code{tree.prior}: \code{power} and \code{base} are grid axes, and given a \code{tree.prior} it refuses, naming the plain spelling.
    }
    \item{drop}{
      Logical, determining if dimensions with a single value are dropped from the result.
@@ -125,9 +125,6 @@ xbart(
    }
    \item{storage}{
      A character string selecting the precision of the internal running residual, spelled and defaulted as in \code{\link{dbartsControl}}. Every cell's sampler is created over a shared per-fold data handle, a path the engine keeps in double precision regardless of family or leaf model; \code{"single"} is refused rather than silently ignored.
-   }
-   \item{tree.prior}{
-     An expression of the form \code{cgm} or \code{cgm(power, base, split.probs)} that sets the tree structure prior, or a prior object built with \code{\link{dbartsPriors}} - \code{cgm(...)} or \code{dbartsPriors$dart(...)}. \code{power} and \code{base} are xbart's grid axes, so a supplied object's own \code{power}/\code{base} are replaced by the swept grid values every cell exactly as the \code{k} argument replaces a supplied \code{leaf.prior}'s \code{k}; the object's other content - a \code{cgm} object's \code{split.probs}, a DART object's Dirichlet hyperparameters - rides every cell unchanged. Because \code{power}/\code{base} are grid axes here rather than ordinary scalars, they may be supplied alongside \code{tree.prior}; \code{dart} and \code{split.probs} would only duplicate what a supplied \code{tree.prior} already specifies, so combining either with it is an error naming both.
    }
 }
 \details{

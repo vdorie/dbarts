@@ -114,7 +114,7 @@ forest(
     same residual scale estimate, that fit is the fit on the named columns
     alone, and its other columns report no splits. The estimate is taken from
     every column unless \code{sigest} states it, so the two fits agree draw
-    for draw when it does. On a single forest a \code{dart} tree prior beside \code{vars}
+    for draw when it does. On a single forest \code{split.probs = dart()} beside \code{vars}
     lays its Dirichlet over the named columns, every other column reporting
     probability 0, and \code{split.probs} keeps its ratios among the named
     columns and must give one of them a positive probability (see
@@ -408,16 +408,17 @@ forest(
     has 50 trees at \code{base = 0.25}, \code{power = 3} - shallower and
     fewer than a prognostic forest's, the modulating surface normally being
     the smoother of the two. The forest with no \code{basis} has the fitting
-    function's: \code{\link{bart}}'s \code{n.trees} or the control's, and
-    \code{tree.prior}. A value stated here on that forest governs it over the
-    control's \code{n.trees} and the tree prior's \code{base} or
-    \code{power}, being the more specific of the two declarations, while
-    \code{\link{bart}} refuses its own \code{n.trees} beside one stated here,
-    the two being the same count. Where every forest has a \code{basis} the
-    fitting function's tree count and tree prior have no forest to belong to,
-    and one that is stated is refused, the default's own value included:
-    state it on a forest. A sampler's \code{control@n.trees} and
-    \code{model@tree.prior} hold its first forest's.
+    function's: \code{\link{bart}}'s \code{n.trees} or the control's, and its
+    \code{power} and \code{base}. The fitting function and the forest with no
+    \code{basis} state one setting between them: \code{\link{bart}} refuses
+    its own \code{n.trees}, \code{power} or \code{base} beside one stated
+    here, the default's own value included, the two being the same setting,
+    and a control that names \code{n.trees} beside one stated here is the
+    same count. Where every forest has a \code{basis} the fitting function's
+    tree count and tree prior have no forest to belong to, and one that is
+    stated is refused, the default's own value included: state it on a forest.
+    A sampler's \code{control@n.trees} and \code{model@tree.prior} hold its
+    first forest's.
   }
   \item{sd}{
     The size of what this forest contributes, in the response's units: the

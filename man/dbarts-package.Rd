@@ -30,7 +30,7 @@
     \item Outlier-robust Student-t errors (\code{family = student(...)}) and a heteroscedastic variance forest (\code{variance}).
     \item Structural constraints: monotonicity (\code{monotone}), interaction limits (\code{\link{interactions}}), and block-additivity (\code{\link{blocks}}).
     \item Leaf models: constant, linear, or Gaussian-process (\code{leaf.prior}; see \code{\link{dbartsPriors}}).
-    \item Variable selection by the DART prior (\code{tree.prior = dart()}).
+    \item Variable selection by the DART prior (\code{split.probs = dart()}).
     \item Predictors: missing values incorporated in place unconditionally, unordered factors split on level subsets (\code{factors}), and sparse or mixed dense/sparse input (\code{Matrix::dgCMatrix}, \code{\link{sparseFactor}}).
     \item Warm starts from a previous fit (\code{warm.start}) or by XBART-style grow-from-root (\code{n.grow.sweeps}).
   }

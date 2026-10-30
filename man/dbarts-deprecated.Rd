@@ -25,11 +25,8 @@
     \item{\code{degreesOfFreedom}}{
       On \code{\link{dbartsPriors}}'s \code{chi()}: the degrees of freedom of the hyperprior on \code{k}, now \code{df}, as \code{invchi()} and base R's \code{dchisq} spell it. Positional calls, \code{chi(1.5, 2)}, are unchanged.
     }
-    \item{\code{power}, \code{base}}{
-      On \code{\link{bart}}: tree-prior-only settings, now arguments of \code{\link{dbartsPriors}}'s \code{cgm()} or \code{dart()} (\code{tree.prior = cgm(power, base)} or \code{tree.prior = dart(power, base)}).
-    }
-    \item{\code{split.probs}}{
-      On \code{\link{bart}}: a tree-prior-only setting, now an argument of \code{\link{dbartsPriors}}'s \code{cgm()} only (\code{tree.prior = cgm(split.probs = )}); a DART tree prior draws its own split probabilities, so combining it with \code{tree.prior = dart()} is refused.
+    \item{\code{tree.prior}}{
+      On \code{\link{dbarts}} and \code{\link{dbartsSpec}}: the tree prior, now \code{power}, \code{base} and \code{split.probs}, as \code{\link{bart}} takes them (\code{tree.prior = cgm(power, base, split.probs)} is \code{power}, \code{base} and \code{split.probs}, and \code{tree.prior = dart(a, b)} is \code{split.probs = dart(a, b)}). A tree prior object saved by 0.9-34 is read the same way. The value is used, with a once-per-session warning. \code{bart} and \code{xbart} never took it and refuse it, naming the plain spelling.
     }
     \item{\code{resid.prior}, \code{sigdf}, \code{sigquant}}{
       The residual scale's prior is a setting of the families that draw one, so it rides the family object (\code{family = gaussian(sigma = chisq(df, quant))}, \code{family = gaussian(sigma = fixed(value))}); likewise \code{student(df, sigma = )}, \code{aft(sigma = )} and \code{hurdle.lognormal(sigma = )}. \code{sigdf} and \code{sigquant} are retired on \code{\link{bart}}; \code{resid.prior} is retired the same way on \code{\link{bart}}, \code{\link{dbarts}} and \code{\link{xbart}}, and \code{dbartsSpec} refuses it, so the prior has one home on every door. A call that writes it both ways - a retired spelling and a family whose call named \code{sigma} - is refused where the two disagree. \code{sigest}, the residual-scale estimate supplied at creation, is unaffected.

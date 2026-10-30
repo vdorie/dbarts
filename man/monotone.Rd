@@ -74,15 +74,14 @@ monotone(directions, prior = c("joint", "leaf"))
   count that runs out of memory is an ordinary error; either way the
   sampler is left in a valid state.
 
-  The tree prior is the fit's \code{tree.prior}, as without a constraint:
-  \code{cgm()} at its defaults, \code{power = 2} and \code{base = 0.95}
-  (see \code{\link{dbartsPriors}}), unless another is given. The mBART
-  paper used \code{cgm(power = 0.8, base = 0.25)}, which gives smaller
+  The tree prior is the fit's, as without a constraint: \code{power = 2}
+  and \code{base = 0.95}, unless others are given. The mBART
+  paper used \code{power = 0.8, base = 0.25}, which gives smaller
   trees; in a simulation study under \code{"joint"} at 200 trees it gave
   sharper and more accurate fits, but narrower intervals that under-covered
   with plentiful, low-noise data, and at 50 trees it was less accurate with
   such data and under-covered more often. Pass
-  it as \code{tree.prior} to opt in (see Examples).
+  them as \code{power} and \code{base} to opt in (see Examples).
 
   The fit is monotone in a constrained predictor along every line on which
   that predictor is observed, the other predictors at any values, missing
@@ -191,7 +190,7 @@ fit.leaf <- bart(y ~ x1 + x2 + x3, df,
 ## the mBART paper's tree prior, as an opt-in
 fit.mbart <- bart(y ~ x1 + x2 + x3, df,
                   monotone = c(x1 = "increasing", x2 = "decreasing"),
-                  tree.prior = cgm(power = 0.8, base = 0.25),
+                  power = 0.8, base = 0.25,
                   n.trees = 25L, n.samples = 20L, n.burn = 20L,
                   n.chains = 1L, verbose = FALSE)
 }

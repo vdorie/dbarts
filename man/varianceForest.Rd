@@ -40,7 +40,8 @@ varianceForest(
   }
   \item{base, power}{
     The variance forest's tree-structure prior. \code{NULL} (the default)
-    inherits the mean forest's \code{tree.prior} \code{base}/\code{power}.
+    inherits the mean forest's \code{base} and \code{power}, those of the fitting
+    function or the lone mean forest's own.
   }
   \item{proposal.probs, n.perturb.cuts}{
     The variance forest's proposal mixture and perturb window, as

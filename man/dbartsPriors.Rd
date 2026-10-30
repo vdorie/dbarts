@@ -4,8 +4,8 @@
 \title{Prior Specification Constructors}
 \description{
   A list of constructor functions building the prior specifications that the
-  \code{tree.prior} and \code{leaf.prior} arguments of \code{\link{dbarts}}
-  and the fitting functions accept. Bundling them keeps generic names like
+  \code{split.probs} (\code{dart()}) and \code{leaf.prior} arguments of
+  \code{\link{dbarts}} and the fitting functions accept. Bundling them keeps generic names like
   \code{normal} out of the search path, where another package could mask them
   or be masked depending on attach order.
 
@@ -19,7 +19,11 @@
   A list of functions:
   \describe{
     \item{\code{cgm(power = 2, base = 0.95, split.probs = NULL)}}{
-      The Chipman, George, and McCulloch tree prior; a \code{NULL} \code{power} or \code{base} is the default. \code{split.probs}
+      The value of the retired \code{tree.prior} argument of \code{\link{dbarts}}
+      and \code{\link{dbartsSpec}}, which is accepted with a warning until
+      dbarts 1.1-0, when \code{cgm} is removed. Write the tree prior as
+      \code{power}, \code{base} and \code{split.probs} instead. A
+      \code{NULL} \code{power} or \code{base} is the default. \code{split.probs}
       weights the choice of split variable: \code{NULL} is uniform, a named
       vector assigns by column or term name (with an optional
       \code{".default"} element), an unnamed vector assigns by position.
@@ -27,11 +31,12 @@
       Named or positional probabilities are matched to the data when a
       sampler is built.
     }
-    \item{\code{dart(power = 2, base = 0.95, a = 0.5, b = 1, rho = NULL,
+    \item{\code{dart(a = 0.5, b = 1, rho = NULL,
                      alpha = 1, update.alpha = TRUE, update.delay = NULL)}}{
-      The CGM structure prior with DART (Linero 2018); a \code{NULL}
-      \code{power} or \code{base} is the default. A Dirichlet prior
-      over the split-variable probabilities inducing variable selection.
+      DART (Linero 2018), given as \code{split.probs = dart()}: a Dirichlet
+      prior over the split-variable probabilities inducing variable
+      selection. The tree's depth is the fitting function's \code{power} and
+      \code{base}, as without DART.
       \code{alpha} is the concentration, optionally sampled
       (\code{update.alpha}) on a grid with a Beta(\code{a}, \code{b}) prior
       on \code{alpha / (alpha + rho)}; \code{rho} defaults to the number of
@@ -233,7 +238,7 @@
   A prior object built ahead of time with \code{dbartsPriors$...} can be
   passed to the same arguments. A wrapper's named formal that forces a bare
   constructor call before passing it on reaches R's own could-not-find-function
-  error instead, extended with a hint naming \code{dbartsPriors$cgm(...)} and
+  error instead, extended with a hint naming \code{dbartsPriors$normal(...)} and
   its siblings.
 }
 \examples{
@@ -241,8 +246,7 @@ prior <- dbartsPriors$normal(dbartsPriors$chi(1.5))
 
 x <- matrix(runif(200), ncol = 2)
 y <- x[, 1] + rnorm(100, 0, 0.5)
-sampler <- dbarts(y ~ x, leaf.prior = prior,
-                  tree.prior = dbartsPriors$cgm(power = 1.5))
+sampler <- dbarts(y ~ x, leaf.prior = prior, power = 1.5)
 
 ## DART: a Dirichlet prior over split-variable probabilities, useful
 ## when only a handful of predictors out of many are relevant
@@ -250,7 +254,7 @@ set.seed(0)
 n <- 60L
 x.dart <- matrix(runif(n * 8), n)
 y.dart <- 4 * x.dart[, 1] + rnorm(n, 0, 0.2)
-fit.dart <- dbarts(y.dart ~ x.dart, tree.prior = dart(),
+fit.dart <- dbarts(y.dart ~ x.dart, split.probs = dart(),
                    control = dbartsControl(n.trees = 10L, n.chains = 1L,
                                             n.threads = 1L))
 samples.dart <- fit.dart$run(20L, 20L)
