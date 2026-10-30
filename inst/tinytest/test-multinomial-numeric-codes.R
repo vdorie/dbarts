@@ -44,7 +44,7 @@ expect_identical(
   )
 )
 
-numeric.responses <- list(
+refused.responses <- list(
   zero.based = codes,
   one.based = codes + 1,
   integer = as.integer(codes),
@@ -53,13 +53,14 @@ numeric.responses <- list(
   zero.one = rep(c(0, 1), n / 2L),
   one.two = rep(c(1, 2), n / 2L),
   fractional = rep(c(0.5, 2, 1), 4L),
-  negative = rep(c(-1, 2, 1), 4L)
+  negative = rep(c(-1, 2, 1), 4L),
+  logical = rep(c(TRUE, FALSE), n / 2L)
 )
-for (label in names(numeric.responses)) {
+for (label in names(refused.responses)) {
   expect_identical(
     errorMessage(dbarts(
       x,
-      numeric.responses[[label]],
+      refused.responses[[label]],
       family = "multinomial",
       control = control
     )),
@@ -135,7 +136,7 @@ rm(
   fromFactor,
   d,
   expected,
-  numeric.responses,
+  refused.responses,
   bartMessage,
   errorMessage,
   control,

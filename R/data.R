@@ -2767,9 +2767,9 @@ multinomialResponseMessage <- paste0(
 # Coerce a raw multinomial response to the n x K count matrix the softmax
 # engine's response is. Two shapes arrive: an
 # n x K matrix (or data frame) of non-negative integer counts, whose trials are
-# its row sums, and a length-n vector of labels - a factor, character or
-# logical - which is the single-trial special case, one-hot expanded with every
-# trial 1. A number is refused: it names no category, and reading whole
+# its row sums, and a length-n vector of labels - a factor or character - which
+# is the single-trial special case, one-hot expanded with every trial 1. A
+# number or a logical is refused: neither names a category, and reading whole
 # numbers as codes would build an empty category for y in 1, 2, 3. The
 # category labels ride the result's COLUMN NAMES, the carrier that survives
 # both serialization and the engine's re-creation; the engine reads neither.
@@ -2791,7 +2791,7 @@ resolveMultinomialCounts <- function(y) {
     }
     return(y)
   }
-  if (is.character(y) || is.logical(y)) {
+  if (is.character(y)) {
     y <- factor(y)
   }
   if (!is.factor(y)) {
