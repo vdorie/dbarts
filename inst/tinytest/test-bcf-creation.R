@@ -864,26 +864,31 @@ expect_error(
   ),
   "is given to the fitting function and to the forest with no basis"
 )
-# two forests with no basis, and no basis reaching the data any other way,
-# are not distinct forests - RESTATED per forest under K, so the refusal names
-# the two by position
-expect_error(
-  dbarts(
+# two forests with no basis share one prior total, wherever they stand
+sharedPositions <- function(sampler) {
+  which(vapply(
+    unname(sampler$getLeafPrior()),
+    function(prior) identical(prior$prior.sd.of, "forest, shared"),
+    NA
+  ))
+}
+expect_identical(
+  sharedPositions(dbarts(
     x,
     y,
     forests = list(forest(), forest(n.trees = 25L)),
     control = control
-  ),
-  "forests 1 and 2 have no 'basis'"
+  )),
+  1:2
 )
-expect_error(
-  dbarts(
+expect_identical(
+  sharedPositions(dbarts(
     x,
     y,
     forests = list(forest(), forest(basis = ~ factor(z)), forest()),
     control = control
-  ),
-  "forests 1 and 3 have no 'basis'"
+  )),
+  c(1L, 3L)
 )
 # the shape of the argument itself
 expect_error(
@@ -1290,14 +1295,18 @@ expect_error(
 )
 
 # --- a data object whose bases are all NULL declares two basis-free forests,
-# refused as the forests = route refuses them ---
-expect_error(
-  dbarts(dbartsData(x, y, bases = list(NULL, NULL)), control = control),
-  "forests 1 and 2 have no 'basis'"
+# which share one total as the forests = route's do ---
+expect_identical(
+  sharedPositions(dbarts(
+    dbartsData(x, y, bases = list(NULL, NULL)),
+    control = control
+  )),
+  1:2
 )
-expect_error(
-  dbartsSpec(dbartsData(x, y, bases = list(NULL, NULL, zFactor)), control),
-  "forests 1 and 2 have no 'basis'"
+spec <- dbartsSpec(dbartsData(x, y, bases = list(NULL, NULL, zFactor)), control)
+expect_identical(
+  vapply(attr(spec$control, "bartcore.forests")$params, `[[`, 0, 1L),
+  c(25, 25, 50)
 )
 
 # --- xbart and rbart_vi fit one forest: a data object carrying bases is

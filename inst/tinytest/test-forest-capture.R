@@ -302,22 +302,22 @@ expect_identical(
 )
 
 ## --- Block C: what is no basis ----------------------------------------------
-# NULL, held or computed, states none: the list is then a list of two forests
-# with nothing to tell them apart
-noBasis <- "forests 1 and 2 have no 'basis'"
+# NULL, held or computed, states none: the list is then two forests with no
+# basis, which share one prior total
+sharesTotal <- function(sampler) {
+  is.null(basisOf(sampler)) &&
+    identical(sampler$getLeafPrior(2L)$prior.sd.of, "forest, shared")
+}
 nothing <- NULL
 useZ <- FALSE
-expect_error(listFit(quote(nothing)), noBasis, fixed = TRUE)
-expect_error(
-  listFit(quote(if (useZ) z else NULL)),
-  noBasis,
-  fixed = TRUE
-)
-expect_error(matrixFit(quote(nothing)), noBasis, fixed = TRUE)
-# and in a formula the term is then the forest with no multiplier
+expect_true(sharesTotal(listFit(quote(nothing))))
+expect_true(sharesTotal(listFit(quote(if (useZ) z else NULL))))
+expect_true(sharesTotal(matrixFit(quote(nothing))))
+# and in a formula the term is then a forest with no basis beside plain terms,
+# which read two ways
 expect_error(
   termFit(quote(nothing)),
-  "each is the forest with no multiplier",
+  "which has two readings: one forest with no multiplier, or a forest of its own beside it",
   fixed = TRUE
 )
 useZ <- TRUE
