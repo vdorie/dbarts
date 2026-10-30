@@ -54,6 +54,12 @@ struct TestPeer {
   static double leafScale(const Chain<L, R>& chain, std::size_t f) {
     return chain.forests_[f].leaf.scale;
   }
+  /// Mean forest f's tree prior in force.
+  template <IntegrableLeafModel L, typename R>
+  static const CGMTreePrior& forestTreePrior(const Chain<L, R>& chain,
+                                             std::size_t f) {
+    return chain.forests_[f].treePrior;
+  }
   /// Map forest f's entry, the factor and divisor of its node scale.
   template <IntegrableLeafModel L, typename R>
   static const ForestMapEntry& mapEntry(const Chain<L, R>& chain,

@@ -14589,6 +14589,225 @@ static void testForestsSharedTotal() {
   printf("ok: forests sharing one total\n");
 }
 
+namespace {
+
+/// A tree prior as a chain carries it, for the install pins below.
+struct TreePriorValues {
+  double base = 0.95, power = 2.0;
+  bool operator==(const TreePriorValues&) const = default;
+};
+
+TreePriorValues valuesOf(const CGMTreePrior& prior) {
+  return {prior.base, prior.power};
+}
+
+/// Three forests multiplying nothing, of unequal tree counts, over the move
+/// fixture's data on chains seeded from seed, seed + 1, ...; \p created, where
+/// non-null, gives each forest's tree prior at creation.
+std::unique_ptr<ConstantLeafSampler>
+makeThreeForestSampler(const MoveFixtureData& d, std::size_t numChains,
+                       std::uint_least32_t seed, std::vector<ext_rng*>& rngs,
+                       const TreePriorValues* created = nullptr) {
+  for (std::size_t c = 0; c < numChains; ++c) {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, seed + static_cast<std::uint_least32_t>(c));
+    rngs.push_back(rng);
+  }
+  ext_rng** chainRngs = rngs.data() + (rngs.size() - numChains);
+  SamplerOptions options;
+  options.numChains = numChains;
+  AmplitudeSpec spec;
+  spec.forests.resize(3);
+  const std::size_t trees[3] = {7, 5, 4};
+  for (std::size_t f = 0; f < 3; ++f) {
+    spec.forests[f].forest.numTrees = trees[f];
+    if (created != nullptr) {
+      spec.forests[f].forest.base = created[f].base;
+      spec.forests[f].forest.power = created[f].power;
+    }
+  }
+  return std::make_unique<ConstantLeafSampler>(
+    d.x.data(), d.y.data(), d.n, d.p, nullptr, nullptr, 1.0, 3.0,
+    0.37804942330213542, options, spec, chainRngs);
+}
+
+/// A gaussian sampler with a variance forest whose tree prior is \p variance.
+std::unique_ptr<ConstantLeafSampler>
+makeVarianceTreePriorSampler(const MoveFixtureData& d, std::size_t numChains,
+                             std::uint_least32_t seed,
+                             std::vector<ext_rng*>& rngs,
+                             TreePriorValues variance = {}) {
+  for (std::size_t c = 0; c < numChains; ++c) {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, seed + static_cast<std::uint_least32_t>(c));
+    rngs.push_back(rng);
+  }
+  ext_rng** chainRngs = rngs.data() + (rngs.size() - numChains);
+  SamplerOptions options;
+  options.numTrees = 8;
+  options.numChains = numChains;
+  options.numVarianceTrees = 5;
+  options.varianceBase = variance.base;
+  options.variancePower = variance.power;
+  return std::make_unique<ConstantLeafSampler>(
+    d.x.data(), d.y.data(), d.n, d.p, nullptr, nullptr,
+    ResponseFamily::gaussian, 1.0, 3.0, 0.37804942330213542, options,
+    chainRngs);
+}
+
+/// Chain chainNum's mean forests' tree priors, in forest order.
+std::vector<TreePriorValues> meanTreePriors(ConstantLeafSampler& sampler,
+                                            std::size_t chainNum) {
+  std::vector<TreePriorValues> out;
+  for (std::size_t f = 0; f < sampler.numForests(); ++f)
+    out.push_back(valuesOf(
+      TestPeer::forestTreePrior(sampler.chain(chainNum), f)));
+  return out;
+}
+
+}  // namespace
+
+// The tree prior install writes the named forest's base and power on every
+// chain and nothing else; every refusal - an index naming no forest, a base
+// outside (0, 1), a power not positive - writes no chain.
+static void testForestTreePriorInstall() {
+  std::uint64_t savedRngState = rngState;
+  MoveFixtureData d;
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  const TreePriorValues moved{0.5, 3.0};
+  const TreePriorValues defaults{};
+  {
+    std::vector<ext_rng*> rngs;
+    auto sampler = makeThreeForestSampler(d, 2, 61u, rngs);
+    const std::vector<TreePriorValues> created(3, defaults);
+    const struct { std::size_t forest; double base, power; } refused[] = {
+      {3, 0.5, 3.0}, {varianceForestIndex, 0.5, 3.0}, {1, 0.0, 3.0},
+      {1, 1.0, 3.0}, {1, -0.5, 3.0}, {1, nan, 3.0}, {1, 0.5, 0.0},
+      {1, 0.5, -1.0}, {1, 0.5, nan}};
+    bool allRefused = true, untouched = true;
+    for (const auto& r : refused) {
+      allRefused &= !sampler->setForestTreePrior(r.forest, r.base, r.power);
+      for (std::size_t c = 0; c < 2; ++c)
+        untouched &= meanTreePriors(*sampler, c) == created;
+    }
+    check(allRefused, "tree prior install: an index naming no forest, a base "
+                      "outside (0, 1) and a power not positive are refused");
+    check(untouched, "tree prior install: a refusal writes no chain");
+
+    check(sampler->setForestTreePrior(1, moved.base, moved.power),
+          "tree prior install: the middle forest's install is taken");
+    const std::vector<TreePriorValues> wanted{defaults, moved, defaults};
+    bool written = true;
+    for (std::size_t c = 0; c < 2; ++c)
+      written &= meanTreePriors(*sampler, c) == wanted;
+    check(written, "tree prior install: the middle forest alone moves, on "
+                   "every chain");
+    sampler.reset();
+    destroyRngs(rngs);
+  }
+  {
+    std::vector<ext_rng*> rngs;
+    auto sampler = makeVarianceTreePriorSampler(d, 2, 63u, rngs);
+    check(!sampler->setForestTreePrior(1, moved.base, moved.power) &&
+            !sampler->setForestTreePrior(varianceForestIndex, 1.5,
+                                         moved.power),
+          "variance tree prior install: a second mean forest and a bad base "
+          "are refused");
+    bool untouched = true;
+    for (std::size_t c = 0; c < 2; ++c)
+      untouched &=
+        valuesOf(TestPeer::varianceForest(sampler->chain(c)).treePrior) ==
+        defaults;
+    check(untouched, "variance tree prior install: a refusal writes nothing");
+    check(sampler->setForestTreePrior(varianceForestIndex, moved.base,
+                                      moved.power),
+          "variance tree prior install: the variance forest's is taken");
+    bool written = true;
+    for (std::size_t c = 0; c < 2; ++c)
+      written &=
+        valuesOf(TestPeer::varianceForest(sampler->chain(c)).treePrior) ==
+          moved &&
+        meanTreePriors(*sampler, c) ==
+          std::vector<TreePriorValues>{defaults};
+    check(written, "variance tree prior install: the variance forest alone "
+                   "moves, on every chain");
+    sampler.reset();
+    destroyRngs(rngs);
+  }
+  rngState = savedRngState;
+  printf("ok: per-forest tree prior install\n");
+}
+
+// Installed before any run, the tree prior install is creating with the
+// values: the same draws, bitwise, on two chains, for the middle of three
+// forests and for the variance forest, where creating with the values draws
+// otherwise than the defaults do.
+static void testForestTreePriorMatchesCreation() {
+  std::uint64_t savedRngState = rngState;
+  MoveFixtureData d;
+  const TreePriorValues moved{0.5, 3.0};
+  auto bothChains = [](ConstantLeafSampler& sampler) {
+    std::vector<double> out;
+    for (std::size_t c = 0; c < sampler.numChains(); ++c) {
+      Chain<ConstantGaussianLeaf>& chain = sampler.chain(c);
+      for (std::size_t f = 0; f < chain.numForests(); ++f) {
+        const std::vector<double>& total =
+          TestPeer::totalFitsInForest(chain, f);
+        out.insert(out.end(), total.begin(), total.end());
+      }
+      if (const double* variance = TestPeer::varianceFits(chain))
+        out.insert(out.end(), variance, variance + MoveFixtureData::n);
+    }
+    return out;
+  };
+  {
+    std::vector<ext_rng*> rngs;
+    const TreePriorValues created[3] = {{}, moved, {}};
+    auto withValues = makeThreeForestSampler(d, 2, 71u, rngs, created);
+    auto installed = makeThreeForestSampler(d, 2, 71u, rngs);
+    auto plain = makeThreeForestSampler(d, 2, 71u, rngs);
+    check(installed->setForestTreePrior(1, moved.base, moved.power),
+          "tree prior twin: the install before any run is taken");
+    Results results;
+    withValues->run(20, 5, results);
+    installed->run(20, 5, results);
+    plain->run(20, 5, results);
+    check(bothChains(*withValues) == bothChains(*installed),
+          "tree prior twin: installed before any run, the middle forest's "
+          "values draw what creating with them draws");
+    check(bothChains(*withValues) != bothChains(*plain),
+          "tree prior twin: the values move the draws");
+    withValues.reset();
+    installed.reset();
+    plain.reset();
+    destroyRngs(rngs);
+  }
+  {
+    std::vector<ext_rng*> rngs;
+    auto withValues = makeVarianceTreePriorSampler(d, 2, 73u, rngs, moved);
+    auto installed = makeVarianceTreePriorSampler(d, 2, 73u, rngs);
+    auto plain = makeVarianceTreePriorSampler(d, 2, 73u, rngs);
+    check(installed->setForestTreePrior(varianceForestIndex, moved.base,
+                                        moved.power),
+          "variance tree prior twin: the install before any run is taken");
+    Results results;
+    withValues->run(20, 5, results);
+    installed->run(20, 5, results);
+    plain->run(20, 5, results);
+    check(bothChains(*withValues) == bothChains(*installed),
+          "variance tree prior twin: installed before any run, the values "
+          "draw what creating with them draws");
+    check(bothChains(*withValues) != bothChains(*plain),
+          "variance tree prior twin: the values move the draws");
+    withValues.reset();
+    installed.reset();
+    plain.reset();
+    destroyRngs(rngs);
+  }
+  rngState = savedRngState;
+  printf("ok: per-forest tree prior install matches creation\n");
+}
+
 void runSamplerTests(ext_rng* rng) {
   testFitsWithoutOffset();
   testBCFTauModeratorRestriction(rng);
@@ -14687,4 +14906,6 @@ void runSamplerTests(ext_rng* rng) {
   testMoveSettingsMatchCreation();
   testLevelGibbsPerForest();
   testForestsSharedTotal();
+  testForestTreePriorInstall();
+  testForestTreePriorMatchesCreation();
 }

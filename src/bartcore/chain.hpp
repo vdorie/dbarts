@@ -2778,6 +2778,20 @@ public:
     }
   }
 
+  /// Writes mean forest \p forestIndex's tree prior depth parameters. The
+  /// caller checks the index and the values; nothing else moves.
+  void setForestTreePrior(std::size_t forestIndex, double base, double power) {
+    forests_[forestIndex].treePrior.base = base;
+    forests_[forestIndex].treePrior.power = power;
+  }
+
+  /// Writes the variance forest's tree prior depth parameters. The caller
+  /// checks that there is one and the values; nothing else moves.
+  void setVarianceTreePrior(double base, double power) {
+    varianceForest_->treePrior.base = base;
+    varianceForest_->treePrior.power = power;
+  }
+
   /// Writes each mean forest's move settings, forestSettings holding one per
   /// forest in forest order, and the variance forest's where
   /// varianceSettings is non-null. The caller checks the counts; nothing here

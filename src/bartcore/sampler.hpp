@@ -265,6 +265,10 @@ void spawnWorkers(std::vector<std::thread>& workers, std::size_t numWorkers,
 /// against the live store and leave its capacity alone.
 inline constexpr std::size_t keepStoreCapacity = static_cast<std::size_t>(-1);
 
+/// The forest index Sampler::setForestTreePrior reads as the variance forest.
+inline constexpr std::size_t varianceForestIndex =
+  static_cast<std::size_t>(-1);
+
 /// The sampler proper: a shared column store and one or more chains over it.
 /// Chains run independently (optionally on worker threads) and hold all
 /// per-chain state; the sampler owns the data and orchestrates transactions,
@@ -2195,6 +2199,24 @@ public:
   /// Install a replacement prior on every chain; see ModelParameters.
   void setModel(const ModelParameters& model) {
     for (auto& chain : chains_) chain->setModel(model);
+  }
+
+  /// Installs one forest's tree prior depth parameters on every chain: mean
+  /// forest \p forestIndex's, or the variance forest's at varianceForestIndex.
+  /// False, writing nothing, where the index names no forest or \p base is not
+  /// in (0, 1) or \p power is not positive; nothing else moves, so installed
+  /// before any run it matches creating with the values.
+  bool setForestTreePrior(std::size_t forestIndex, double base, double power) {
+    bool variance = forestIndex == varianceForestIndex;
+    if ((variance ? !hasVarianceForest() : forestIndex >= numForests()) ||
+        !(base > 0.0 && base < 1.0) || !(power > 0.0))
+      return false;
+    for (auto& chain : chains_)
+      if (variance)
+        chain->setVarianceTreePrior(base, power);
+      else
+        chain->setForestTreePrior(forestIndex, base, power);
+    return true;
   }
 
   /// Installs each forest's move settings on every chain: forestSettings

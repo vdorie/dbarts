@@ -47,7 +47,7 @@ enum class FacadeVirtual {
   sampleNodeParametersFromPrior, sampleVarianceForestFromPrior, growFromRoot,
   setNumThreads, setNumThin,
   setVerbose, fitScale, gpFallbackTally, slowCountTally, setTreeStorage,
-  setModel, setMoveSettings,
+  setModel, setForestTreePrior, setMoveSettings,
   sumOfSquaredResiduals,
   printTrees, rng, data, latents, sigma, shapeParameter, setForestBasis,
   setForestBasisRescaled, setForestWeights, forestCalibration, setForestNamedSd, setForestFixedK,
@@ -209,6 +209,8 @@ public:
   SPY_RET(SlowCountTally, slowCountTally, () const, ())
   SPY_VOID(setTreeStorage, (bool k, std::size_t n), (k, n))
   SPY_VOID(setModel, (const ModelParameters& m), (m))
+  SPY_RET(bool, setForestTreePrior, (std::size_t f, double b, double p),
+          (f, b, p))
   SPY_RET(bool, setMoveSettings,
           (const std::vector<MoveSettings>& f, const MoveSettings* v), (f, v))
   SPY_RET(double, sumOfSquaredResiduals, (std::size_t c), (c))
@@ -1217,6 +1219,39 @@ const Row rows[] = {
     f.d.base().setModel(model);
     check(f.d.impl().k(0) == 5.0,
           "facade setModel: the impl's chains take the replacement prior");
+  }},
+  {FacadeVirtual::setForestTreePrior, "setForestTreePrior", [](Fixtures& f) {
+    // the named forest alone, on every chain, base and power unswapped
+    check(!f.b.base().setForestTreePrior(2, 0.5, 3.0),
+          "facade setForestTreePrior: an index past the forests is refused");
+    check(f.b.base().setForestTreePrior(1, 0.5, 3.0),
+          "facade setForestTreePrior: a mean forest's install is taken");
+    bool taken = true;
+    for (std::size_t c = 0; c < 2; ++c) {
+      const CGMTreePrior& first =
+        TestPeer::forestTreePrior(f.b.impl().chain(c), 0);
+      const CGMTreePrior& second =
+        TestPeer::forestTreePrior(f.b.impl().chain(c), 1);
+      taken &= second.base == 0.5 && second.power == 3.0 &&
+               first.base == 0.95 && first.power == 2.0;
+    }
+    check(taken, "facade setForestTreePrior: the named forest of every chain "
+                 "takes the values");
+    check(!f.d.base().setForestTreePrior(varianceForestIndex, 0.5, 3.0),
+          "facade setForestTreePrior: a variance install off a variance "
+          "forest is refused");
+    check(f.v.base().setForestTreePrior(varianceForestIndex, 0.5, 3.0),
+          "facade setForestTreePrior: the variance forest's install is taken");
+    const CGMTreePrior& variance =
+      TestPeer::varianceForest(f.v.impl().chain(0)).treePrior;
+    const CGMTreePrior& mean = TestPeer::forestTreePrior(f.v.impl().chain(0), 0);
+    check(variance.base == 0.5 && variance.power == 3.0 &&
+            mean.base == 0.95 && mean.power == 2.0,
+          "facade setForestTreePrior: the variance forest alone takes them");
+    // back to creation's, so later rows on the fixtures draw as before
+    check(f.b.base().setForestTreePrior(1, 0.95, 2.0) &&
+            f.v.base().setForestTreePrior(varianceForestIndex, 0.95, 2.0),
+          "facade setForestTreePrior: creation's values go back");
   }},
   {FacadeVirtual::setMoveSettings, "setMoveSettings", [](Fixtures& f) {
     MoveSettings moved;

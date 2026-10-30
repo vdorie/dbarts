@@ -418,6 +418,9 @@ public:
   virtual SlowCountTally slowCountTally() const = 0;
   virtual void setTreeStorage(bool keepTrees, std::size_t numSamplesToStore) = 0;
   virtual void setModel(const ModelParameters& model) = 0;
+  /// Sampler::setForestTreePrior.
+  virtual bool setForestTreePrior(std::size_t forestIndex, double base,
+                                  double power) = 0;
   /// Sampler::setMoveSettings.
   virtual bool setMoveSettings(const std::vector<MoveSettings>& forestSettings,
                                const MoveSettings* varianceSettings) = 0;
@@ -787,6 +790,10 @@ public:
   }
   void setModel(const ModelParameters& model) override {
     impl_.setModel(model);
+  }
+  bool setForestTreePrior(std::size_t forestIndex, double base,
+                          double power) override {
+    return impl_.setForestTreePrior(forestIndex, base, power);
   }
   bool setMoveSettings(const std::vector<MoveSettings>& forestSettings,
                        const MoveSettings* varianceSettings) override {
