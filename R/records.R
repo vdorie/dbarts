@@ -128,7 +128,8 @@ freshControlValue <- function(name) {
   list(n.trees = 75L, useQuantiles = FALSE, binary = FALSE)[[name]]
 }
 
-## What the caller wrote on a control of controlWrittenNames, by name.
+## What the caller wrote on a control of controlWrittenNames, by name, judged as
+## the values it stands for: a slot takes any value of its class.
 writtenControlCopies <- function(control) {
   written <- list()
   for (name in c("n.trees", "useQuantiles")) {
@@ -137,7 +138,12 @@ writtenControlCopies <- function(control) {
     }
   }
   written[["n.cuts"]] <- attr(control, controlCutsAttr, exact = TRUE)
-  written
+  checked <- checkFlatCopies(
+    written$n.trees,
+    written$n.cuts,
+    written$useQuantiles
+  )
+  checked[names(written)]
 }
 
 ## The deprecation warning of a value written on a control, once a session per
@@ -487,12 +493,17 @@ warnCarriedNotUsed <- function(carried, model, data) {
 ## count or rule written on the control is used where the model or the data
 ## object states none, the grid then derived again under a rule, and refused by
 ## name where it states another; a count has no forest to go to where every
-## forest has a basis. Anything else the model and data hold stands.
+## forest has a basis. A data object taken from a survival fit keeps its status
+## only under a survival model. Anything else the model and data hold stands.
 takeControlReadings <- function(control, model, data) {
-  records <- model@forests
-  if (length(records) == 0L) {
-    records <- list(new("dbartsForestRecord"))
+  if (!identical(model@family, "aft")) {
+    data@status <- NULL
   }
+  written <- writtenControlCopies(control)
+  if (length(model@forests) == 0L) {
+    model@forests <- list(new("dbartsForestRecord"))
+  }
+  records <- model@forests
   refuse <- function(name, what) {
     stop(
       "the control's '",
@@ -505,7 +516,7 @@ takeControlReadings <- function(control, model, data) {
       call. = FALSE
     )
   }
-  if (identical(controlValueKind(control, "n.trees"), "written")) {
+  if (!is.null(written$n.trees)) {
     plain <- forestsWithNoBasis(model, data)
     if (length(plain) == 0L) {
       refuse(
@@ -515,10 +526,10 @@ takeControlReadings <- function(control, model, data) {
     }
     own <- records[[plain[1L]]]
     if (!("n.trees" %in% own@stated)) {
-      own@n.trees <- control@n.trees
+      own@n.trees <- written$n.trees
       own@stated <- c(own@stated, "n.trees")
       records[[plain[1L]]] <- own
-    } else if (!identical(own@n.trees, control@n.trees)) {
+    } else if (!identical(own@n.trees, written$n.trees)) {
       refuse(
         "n.trees",
         paste0(
@@ -532,11 +543,11 @@ takeControlReadings <- function(control, model, data) {
     records[[1L]]@n.trees <- control@n.trees
   }
   model@forests <- records
-  if (identical(controlValueKind(control, "useQuantiles"), "written")) {
+  if (!is.null(written$useQuantiles)) {
     if (is.na(data@useQuantiles)) {
-      data@useQuantiles <- control@useQuantiles
+      data@useQuantiles <- written$useQuantiles
       data@cutPoints <- NULL
-    } else if (!identical(data@useQuantiles, control@useQuantiles)) {
+    } else if (!identical(data@useQuantiles, written$useQuantiles)) {
       refuse(
         "useQuantiles",
         paste0(

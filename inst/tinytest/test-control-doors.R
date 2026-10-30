@@ -132,7 +132,9 @@ forestCounts <- function(sampler) {
 statedOf <- function(sampler) {
   if (!inherits(sampler, "error")) sampler$model@forests[[1L]]@stated
 }
-gridOf <- function(sampler) sampler$data@cutPoints[[1L]]
+gridOf <- function(sampler) {
+  if (!inherits(sampler, "error")) sampler$data@cutPoints[[1L]]
+}
 isQuantile <- function(sampler) {
   gaps <- diff(gridOf(sampler))
   !isTRUE(all.equal(gaps, rep(mean(gaps), length(gaps))))
@@ -168,6 +170,10 @@ expectRow <- function(
   expect_identical(row$notUsed, sort(u), info = info)
   expect_identical(row$other, character(), info = info)
 }
+# a slot of the control a row's sampler holds; a refused call has none
+controlSlot <- function(row, name) {
+  if (!inherits(row$value, "error")) slot(row$value$control, name)
+}
 # a refused call: by name, and a door's warnings unspent
 expectRefused <- function(row, pattern, info = "") {
   expect_inherits(row$value, "error", info = info)
@@ -186,7 +192,7 @@ row <- counted(dbartsControl())
 expect_identical(row$deprecated, character())
 expect_identical(row$value@n.trees, 75L)
 expect_false(row$value@useQuantiles)
-# a fresh control holds no cut count, as 0.9-34's did not
+# a fresh control holds no cut count, where 0.9-34's read 100
 expect_error(row$value@n.cuts, "no slot")
 expect_false("n.cuts" %in% slotNames("dbartsControl"))
 
@@ -256,7 +262,7 @@ row <- counted(gauss(n.trees = 30L, n.cuts = 20L, useQuantiles = TRUE))
 expectRow(row, 30L, 20L, TRUE)
 expect_identical(statedOf(row$value), "n.trees")
 expect_true(isQuantile(row$value))
-expect_identical(row$value$control@n.trees, 30L)
+expect_identical(controlSlot(row, "n.trees"), 30L)
 expect_true(length(gridOf(row$value)) <= 20L)
 row <- counted(gauss(n.cuts = 20L, useQuantiles = FALSE))
 expectRow(row, 75L, 20L, FALSE)
@@ -606,7 +612,7 @@ for (make in list(
   expect_true(points(counted(make(n.cuts = 10L))) > 3L)
   row <- counted(make(useQuantiles = TRUE))
   expect_true(points(row) > 3L)
-  expect_true(row$value$data@useQuantiles)
+  expect_true(!inherits(row$value, "error") && row$value$data@useQuantiles)
 }
 row <- counted(dbarts(gridSet$data, control = wrote(n.cuts = 10L)))
 expectRow(row, cuts = 10L, d = "n.cuts")
@@ -651,7 +657,10 @@ hazardData <- dbartsData(
   n.cuts = 7L
 )
 row <- counted(dbarts(hazardData, family = "hazard", control = run()))
-expect_identical(row$value$data@n.cuts, rep(7L, 3L))
+expect_false(inherits(row$value, "error"))
+if (!inherits(row$value, "error")) {
+  expect_identical(row$value$data@n.cuts, rep(7L, 3L))
+}
 
 # --- dbartsSpec() ---
 
@@ -881,7 +890,7 @@ expectRow(
 row <- counted(direct(wrote(n.trees = 20L), fit75))
 expectRow(row, 20L, d = "n.trees")
 expect_identical(statedOf(row$value), "n.trees")
-expect_identical(row$value$control@n.trees, 20L)
+expect_identical(controlSlot(row, "n.trees"), 20L)
 expect_identical(fit75$model@forests[[1L]]@n.trees, 75L)
 # written by an edit of a fit's control
 copyWritten <- fit75$control
@@ -944,7 +953,10 @@ expect_identical(gridOf(row$value), gridOf(fitRule))
 row <- counted(direct(wrote(n.cuts = 20L), fit75))
 expectRow(row, cuts = 100L, d = "n.cuts", u = "n.cuts")
 expect_identical(gridOf(row$value), gridOf(fit75))
-expect_null(attr(row$value$control, "n.cuts"))
+expect_null(attr(
+  if (!inherits(row$value, "error")) row$value$control,
+  "n.cuts"
+))
 row <- counted(direct(wrote(n.cuts = 100L), fit75))
 expectRow(row, cuts = 100L, d = "n.cuts")
 # the spec's data object, with no grid yet
@@ -973,6 +985,91 @@ for (made in list(fit75, fit200, fitRule, written20)) {
   expectRow(counted(direct(made$control, made)), trees)
 }
 
+# a model made by hand records no forest: a written count is its one forest's,
+# and comes back through $setControl, $copy and a reload
+strippedModel <- fit75$model
+strippedModel@forests <- list()
+for (handModel in list(
+  strippedModel,
+  new(
+    "dbartsModel",
+    fit75$model@tree.prior,
+    fit75$model@leaf.prior,
+    fit75$model@leaf.hyperprior,
+    fit75$model@resid.prior,
+    leaf.scale = fit75$model@leaf.scale
+  )
+)) {
+  row <- counted(direct(
+    wrote(n.trees = 20L),
+    list(model = handModel, data = fit75$data)
+  ))
+  expectRow(row, 20L, d = "n.trees")
+  handSampler <- row$value
+  expect_identical(controlSlot(row, "n.trees"), 20L)
+  expect_identical(statedOf(handSampler), "n.trees")
+  if (!inherits(handSampler, "error")) {
+    expectRow(
+      counted(handSampler$setControl(run(n.thin = 2L))),
+      d = character()
+    )
+    expect_identical(forestCounts(handSampler), 20L)
+    expect_identical(handSampler$control@n.trees, 20L)
+    expect_identical(handSampler$control@n.thin, 2L)
+    expectRow(counted(handSampler$copy()), 20L)
+    handSampler$storeState()
+    file <- tempfile(fileext = ".rds")
+    saveRDS(handSampler, file)
+    expectRow(counted(readRDS(file)), 20L)
+    unlink(file)
+  }
+}
+
+# --- a bad value written on a slot ---
+
+badCount <- run()
+badCount@n.trees <- 0L
+badTwoCounts <- run()
+badTwoCounts@n.trees <- 1:2
+badRule <- run()
+badRule@useQuantiles <- NA
+badTwoRules <- run()
+badTwoRules@useQuantiles <- c(TRUE, FALSE)
+badCuts <- run()
+attr(badCuts, "n.cuts") <- -1L
+badRows <- list(
+  list(badCount, "'n.trees' must be a positive integer"),
+  list(badTwoCounts, "'n.trees' must be of length 1"),
+  list(badRule, "'useQuantiles' must be TRUE/FALSE"),
+  list(badTwoRules, "'useQuantiles' must be of length 1"),
+  list(badCuts, "'n.cuts' must contain only positive integers")
+)
+for (bad in badRows) {
+  expectRefused(counted(gauss(bad[[1L]])), bad[[2L]], info = bad[[2L]])
+  expectRefused(counted(direct(bad[[1L]], fit75)), bad[[2L]], info = bad[[2L]])
+  expectRefused(
+    counted(barts(x, y, control = bad[[1L]])),
+    bad[[2L]],
+    info = bad[[2L]]
+  )
+  expectRefused(
+    counted(xbarts(x, y, control = bad[[1L]])),
+    bad[[2L]],
+    info = bad[[2L]]
+  )
+  expectRefused(
+    counted(dbartsSpec(fit75$data, bad[[1L]])),
+    bad[[2L]],
+    info = bad[[2L]]
+  )
+  # at $setControl it is a change, which is refused first
+  expectRefused(
+    counted(gauss()$setControl(bad[[1L]])),
+    "is not available on an existing",
+    info = bad[[2L]]
+  )
+}
+
 # --- $setControl ---
 
 setRow <- function(control, sampler = NULL) {
@@ -993,7 +1090,7 @@ expectRow(setRow(run()), 40L, 12L, TRUE)
 # carried and different: taken, the sampler's kept, told
 row <- setRow(fit200$control)
 expectRow(row, 40L, 12L, TRUE, u = copyNames)
-expect_identical(row$value$control@n.trees, 40L)
+expect_identical(controlSlot(row, "n.trees"), 40L)
 row <- setRow(gauss(n.trees = 40L, n.cuts = 8L, useQuantiles = TRUE)$control)
 expectRow(row, 40L, 12L, TRUE, u = "n.cuts")
 # written and different: refused, the sampler left alone
@@ -1009,8 +1106,13 @@ for (name in copyNames) {
 # written and agreeing: taken, warned once, and what it wrote comes off
 row <- setRow(wrote(n.trees = 40L, n.cuts = 12L, useQuantiles = TRUE))
 expectRow(row, 40L, 12L, TRUE, d = copyNames)
-expect_null(attr(row$value$control, "n.cuts"))
-named <- dbarts:::controlSuppliedSlots(row$value$control)
+expect_null(attr(
+  if (!inherits(row$value, "error")) row$value$control,
+  "n.cuts"
+))
+named <- if (!inherits(row$value, "error")) {
+  dbarts:::controlSuppliedSlots(row$value$control)
+}
 expect_false(any(copyNames %in% named))
 # a per-column count agrees when it recycles to the sampler's
 perColumn <- gauss(n.cuts = c(5L, 9L, 5L))
@@ -1049,6 +1151,36 @@ expect_identical(forestCounts(oneControl[[2L]]), 50L)
 row <- counted(dbarts(fit75$data, control = wrote(useQuantiles = TRUE)))
 expectRow(row, rule = TRUE, d = quantile)
 expect_true(isQuantile(row$value))
+# a survival fit's data object under another family: its status stays behind
+aftFit <- dbarts(x, cbind(time, status), family = "aft", control = run())
+expect_false(is.null(aftFit$data@status))
+aftSpec <- function() {
+  spec <- dbartsSpec(aftFit$data, run())
+  new("dbartsSampler", run(), spec$model, spec$data)
+}
+for (row in list(
+  counted(dbarts(aftFit$data, control = run())),
+  counted(barts(aftFit$data)),
+  counted(aftSpec()),
+  counted(direct(run(), list(model = fit75$model, data = aftFit$data)))
+)) {
+  expectRow(row, 75L)
+  if (!inherits(row$value, "error")) {
+    expect_identical(row$value$model@family, "gaussian")
+    expect_null(row$value$data@status)
+  }
+}
+row <- counted(dbarts(aftFit$data, control = run()))
+expect_false(inherits(row$value, "error"))
+if (!inherits(row$value, "error")) {
+  expect_identical(
+    row$value$run()$train,
+    dbarts(aftFit$data@x, aftFit$data@y, control = run())$run()$train
+  )
+}
+# and the sampler that has a status keeps it, and one that has none refuses one
+expect_false(is.null(aftFit$copy()$data@status))
+expect_error(gauss()$setResponse(y, status = rep(1, n)), "non-aft")
 # a variance fit's control into a plain fit
 varianceFit <- gauss(variance = TRUE)
 for (row in list(
@@ -1056,12 +1188,14 @@ for (row in list(
   counted(barts(x, y, control = varianceFit$control))
 )) {
   expectRow(row, 75L)
-  expect_null(row$value$model@variance)
+  expect_true(
+    !inherits(row$value, "error") && is.null(row$value$model@variance)
+  )
 }
 # a probit fit's control into a gaussian fit, with no word of binary
 row <- counted(gauss(dbarts(x, yb, control = run())$control))
 expectRow(row, 75L)
-expect_false(row$value$control@binary)
+expect_false(controlSlot(row, "binary"))
 # a stored fit's readers
 fit <- bart(
   x,
