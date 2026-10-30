@@ -848,8 +848,9 @@ items
     taken (dec-B241). On main today dbarts(n.trees = ) is an unused
     argument and dbartsControl(n.trees = ) is the count (audit run
     2026-10-29). For 1.0-0. Planned: docs/plans/control-migration.md,
-    with control-carried-count-edges, one open call (the direct door
-    given a hand-edited count).
+    with control-carried-count-edges, two open calls (a count or rule
+    written on a control at the direct door; a control count beside a
+    forest's own).
   control-carried-count-edges: with the control migration (dec-A179).
     setControl given a control whose carried count differs takes it,
     keeps the sampler's count and warns (dec-B385).
