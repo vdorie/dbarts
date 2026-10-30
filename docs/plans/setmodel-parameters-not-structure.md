@@ -307,7 +307,7 @@ Planned against:
    scale creation set over v; a `chi()` k that scale over the chi prior's median k, once, with no k drawn afterward.
    The df stays; a stated sd goes. Only the spelling's reading comes from creation: nothing is re-read from the
    data, since a door never recalibrates, and nothing is divided. The scale creation set is carried on the record,
-   this forest's reported `k.scale` being its median. ~40 lines beside the pins.
+   this forest's reported `k.scale` being the response's unit and not that scale. ~40 lines beside the pins.
 2. Bridge. A group entry beside `bartcore_setForestTreePrior`, reading k, its drawn flag, the chi prior and a
    named sd from the model as creation's K-forest path reads them (forests-shared-total's bridge item 1), every
    check first. `bartcore_setModel` gains a route for samplers of several forests and multinomial ones that never
