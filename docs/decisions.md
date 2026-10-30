@@ -3216,6 +3216,10 @@ Record: docs/plans/binary-k-mixing-need.md, Amendment 4. Marked: ruled by the ma
 Each real dataset has one long run, which can at best read no problem, measured, and 12 of the 22 prediction datasets failed theirs and have no reading. Counting the 10 that passed as replications reads bounded for interior probabilities and those near 0 or 1, under both links (shortfalls 0.003 and 0.007 under probit, 0.007 and 0.012 under logistic), but 10 of 22 is under the 80 percent rule and those 10 mostly lack strong signal. Offered single-dataset readings only, the pooled reading as the verdict, or single-dataset readings as the verdict with the pooled figures beside them, none costing compute and none changing pricing's path, the maintainer on 2026-10-30: "Use your recommendation for this item." That is the last.
 Record: docs/plans/binary-k-mixing-need.md. Marked: ruled by the maintainer, 2026-10-30. [dec-B532]
 
+**The k study reads one-value estimands on long runs alone**
+The plan says scalar estimands are resolved for "no problem" by long runs, since calibration, at one yes-or-no a replication, can show only a large problem for them; the rule as built asked every reading to clear, so the average effect at moderate prevalence under probit (shortfall -0.001, upper bound 0.005) and stan4bart's group standard deviation with twins (0.002, 0.019) read unresolved while all 6 of each's long runs passed. Offered reading them on long runs alone, or leaving them unresolved, neither costing compute nor changing pricing's path, the maintainer on 2026-10-30: "Read them on long runs alone." Calibration's figure stays beside them, and a large problem there still counts against the reading.
+Record: docs/plans/binary-k-mixing-need.md. Marked: ruled by the maintainer, 2026-10-30. [dec-B533]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
