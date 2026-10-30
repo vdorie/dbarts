@@ -5,10 +5,9 @@ amendments; scratch/crit-2plans/report.md). Slices 1 to 3 built and reviewed LAN
 Slice 4 amended 2026-10-30 against main 0766f069 for dec-B518 (a forest changed through `$setForest`, the
 sampler's doors keeping the fitting function's level), forest-door's slice 1 (the per-forest tree-prior install,
 branch forest-door-s1, reviewed LAND), tree-prior-flat's landing (dec-A246) and forests-shared-total as built on
-its branch. Open call 1 is answered by dec-B518. Open call 2, whether an unstated variance forest follows a live
-change of the tree prior, is held for the maintainer; slice 4 is buildable with it open, its dependent part a
-separable last step. Slice 4 waits on forests-shared-total (slice F included), forest-door and control-migration's
-slice 1a.
+its branch; again the same day for the rulings dec-B519, dec-B522, dec-B523 and dec-B524 and forest-door as
+rewritten for them. Open calls 1 and 2 are ruled. Slice 4 waits on forests-shared-total (slice F included),
+control-migration's slice 1a and forest-door's slices 1 and 2.
 
 agent: a sonnet implementer for slice 1 (R only) and one opus implementer for slices 2 to 4 (engine). Review by
 tier ([Process by risk](README.md#process-by-risk)): slice 1 one sonnet review; slices 2, 3 and 4 one opus review
@@ -17,18 +16,16 @@ behavior. The blind opus critique of this plan has run.
 rng: by slice. Slice 1 NEUTRAL, bit for bit: refusals and R checks only. Slice 2 POSTERIOR-CHANGING for a fit
 that states a zero split probability, and bitwise neutral for every other fit. Slices 3 and 4 NEUTRAL for every
 call main honors; they make honored what main accepts and ignores (a Student-t df, a negative-binomial shape, a
-lengthscale), which has no main draw to compare against, and add what main refuses. Under open call 2's
-recommendation one call main honors moves in slice 4's last step: `setModel` changing the tree prior of a
-heteroscedastic sampler whose variance forest stated none, posterior-changing for that call. How each class is
-gated: [Tests and gates](#tests-and-gates).
+lengthscale), which has no main draw to compare against, and add what main refuses. How each class is gated:
+[Tests and gates](#tests-and-gates).
 window: before 1.0-0, after the merge to main (dec-B254: "Build it for 1.0. It can be post main-merged."). Slice 4
-lands after forests-shared-total (slice F included), control-migration and forest-door, and is planned against
-forests-shared-total's D1, D7, D8 and D10 and forest-door's records of the two levels.
-budget: ~3480 lines in the tree: slice 1 ~630 (R ~240, help and NEWS ~60, tinytest ~330), slice 2 ~620 (engine
+lands after forests-shared-total (slice F included), control-migration's slice 1a and forest-door's slices 1 and 2,
+and before forest-door's slice 3; it is planned against forests-shared-total's D1, D7 and D8 and forest-door's
+per-forest stated flags.
+budget: ~3390 lines in the tree: slice 1 ~630 (R ~240, help and NEWS ~60, tinytest ~330), slice 2 ~620 (engine
 ~50, bridge ~40, tests/cpp ~110, tinytest ~150, a new exact gate ~230, design note and NEWS ~40), slice 3 ~1150
-(engine ~300, bridge ~160, R ~90, help ~50, tests/cpp ~250, tinytest ~300), slice 4 ~880 (engine ~80, bridge
-~130, R ~220, help ~60, tests/cpp ~90, tinytest ~300) and its last step ~150 under open call 2's (a), ~15 under
-(c); records ~50. Slice 4's tree-prior install, ~44 lines of engine, is forest-door's slice 1. Slice 3's engine was ~130 before the
+(engine ~300, bridge ~160, R ~90, help ~50, tests/cpp ~250, tinytest ~300), slice 4 ~940 (engine ~100, bridge
+~130, R ~205, help ~60, tests/cpp ~110, tinytest ~320, the variance forest's help and pin ~15); records ~50. Slice 4's tree-prior install, ~44 lines of engine, is forest-door's slice 1. Slice 3's engine was ~130 before the
 critique; four installs, each with its fixed and drawn handoffs, a check-first `Sampler` method and a facade
 virtual, the DART grid rebuild and the kernel flush, do not fit there. Out of the tree, ~400 lines of scratch
 A/B script.
@@ -55,15 +52,11 @@ state a zero, 0.9-34's included, and refuses a zero on a column in use. The thir
 carries; a number switched from fixed to drawn starts where it stands rather than where a new sampler would
 start it. The first three are built. The fourth comes after the items that let a model hold several forests
 with no basis and that give each forest its own door, `$setForest` (your dec-B518): a tree depth given to
-`setModel` or to a new `$setTreePrior(power, base, split.probs)` reaches every forest that did not state its own,
-and the size forests with no basis share is changed through `setModel` or `$setLeafPrior` as one forest's is. A
-single forest's own settings change through `$setForest`, not here.
-
-The fourth needs one answer from you, the same question the forest-door plan holds: whether a variance forest
-that never stated its own depth follows a depth changed through `setModel` or `$setTreePrior`. Today it keeps the
-one it was created with, though at creation it took the model's. I recommend it follow, as forest settings left
-unstated already follow a changed control; the cost is that one call that works today changes what it does. The
-slice is built so that this part comes last and either answer fits.
+`setModel` or to a new `$setTreePrior(power, base, split.probs)` reaches every forest with no basis that did not
+state its own, and the size forests with no basis share is changed through `setModel` or `$setLeafPrior` as one
+forest's is. As you ruled, where only one forest could take the value it is written whether it stated its own or not,
+the later write winning; where several could and all state their own the call is refused, naming `$setForest`. A
+variance forest stays as it is through all of these, as it does today, and changes through `$setVarianceForest`.
 
 ## Goal
 
@@ -276,13 +269,17 @@ Planned against:
   base where it states none (D7); after its slice F a lone forest with no basis beside a forest with a basis is a
   sharer too, a held k of 2 kept on dec-B290's map entry (its engine item 4). "Sharers" below are the forests its
   `forestSharers` names.
-- dec-B518 and the forest-door plan (branch forest-door, aa0a5699): a forest's own sd, power, base and move
-  settings change through `$setForest(forest, ...)`, the variance forest's through `$setVarianceForest`; the
-  sampler's `$setLeafPrior(leaf.prior)` and `$setTreePrior(power, base, split.probs)` take the fitting
-  function's level only. Its slice 2 records, on the model records control-migration's slice 1a creates, the
-  fitting function's level (each value resolved, with a stated flag) and, per forest and for the variance forest,
-  whether it stated sd, power and base; forest 1's depth stays in the model's tree-prior slot, which the bridge
-  reads. Slice 4 reads and writes those records and adds none.
+- dec-B518 and the forest-door plan as rewritten for dec-B519 to dec-B525 (branch forest-door): a forest's own sd,
+  power, base and move settings change through `$setForest(forest, ...)`, the variance forest's through
+  `$setVarianceForest`. Its slice 2 keeps, on the model records control-migration's slice 1a creates, each forest's
+  values in force and whether it states them: the record's `sd`, NA where none is stated, and `"power"` and `"base"`
+  in its `stated`; forest 1's depth stays in the model's tree-prior slot, which the bridge reads. Nothing records the
+  fitting function's level apart from the forests' (dec-B522), and no flag records a variance forest's statement
+  (dec-B524). Slice 4 reads and writes those records and adds none.
+- The reach of a fitting-function door (dec-B523). Its candidates are the forests with no basis. One candidate, a lone
+  forest, or the one beside forests with a basis, or a multinomial model's one entry: it is written whether it states
+  its own or not. Several: those stating none of their own, and where all state their own the door is refused, naming
+  `$setForest`. None: refused per name. A value equal to the one in force is no change, on every sampler.
 - tree-prior-flat (dec-A246): plain `power`, `base` and `split.probs`; its D5 (a fitting-function value that
   reaches no forest is refused per name), D6 (`split.probs` is the mean forest's; a non-uniform one is refused on
   several forests) and its call 13 (the live door refuses per name a statement that reaches no forest, naming the
@@ -301,7 +298,11 @@ Planned against:
    dec-B505) and every forest that is not a sharer stay as they are. It checks before writing any chain that the
    chain has sharers. After slice F, where the lone sharer beside a forest with a basis sits on dec-B290's map
    entry at a held k of 2, the install moves it to the k path for any other statement and back for a held 2, so
-   the twin with creation holds both ways.
+   the twin with creation holds both ways. Under dec-B523 the same switch takes the one candidate where it states its
+   own sd, a value written whether it states its own or not: its statement is cleared, its entry becomes a sharer's of
+   share 1 and it takes the leaf prior given, so `$setLeafPrior(normal())` on `forest(x1, sd = 2) + forest(x2, basis =
+   z)` under probit returns k to drawn. A forest of a group of several that has left stays out (dec-B525): it is not the
+   one candidate.
 2. Bridge. A group entry beside `bartcore_setForestTreePrior`, reading k, its drawn flag, the chi prior and a
    named sd from the model as creation's K-forest path reads them (forests-shared-total's bridge item 1), every
    check first. `bartcore_setModel` gains a route for samplers of several forests and multinomial ones that never
@@ -313,52 +314,45 @@ Planned against:
    ([`refuseAmplitudeMutation`](../../R/bartcore.R), [`refuseCountsMutation`](../../R/bartcore.R)) go;
    [`setModelRefused`](../../R/bartcore.R) keeps its meaning for `$setControl`'s route. After control-migration
    the new model carries every forest's record, so `$setModel` reads a difference by level:
-   - The fitting function's level, installed. `power` and `base` reach every mean forest with no basis that does
-     not state its own, forest-door's records saying which, a multinomial sampler's category forests included
-     unless their one entry states its own. Where, for a name, every such forest states its own, a changed value
-     is refused per name, naming them and `$setForest` (tree-prior-flat's call 13). Where forest 1 takes the
-     level, the model's tree-prior slot is the level, so a hand edit `m@tree.prior@power <- 3` changes the
+   - The fitting function's level, installed, by the reach above: `power` and `base` per name, a multinomial
+     sampler's category forests taking one value. Nothing holds the level but the forests that run it, so a level's
+     value in force is that of the first forest it reaches, and a changed value is one on all of those. Where forest 1
+     takes the level, the model's tree-prior slot is the level, so a hand edit `m@tree.prior@power <- 3` changes the
      level, as main takes it.
    - The leaf prior goes where `$setLeafPrior(leaf.prior = )` sends it (dec-B515), one writer behind both
      doors: on a sampler with sharers, to the group through item 1; on a multinomial sampler, to every category
-     forest's k, as `$setLeafPrior(normal(k = ))` writes it today; where no forest takes the fitting function's
-     leaf prior (every forest with no basis states sd, or every forest has a basis), the default restated is
-     taken and changes nothing, as creation takes it (forests-shared-total's call 21), and anything else is
-     refused, naming `$setForest(f, sd = )`. The refusal where every forest the leaf prior would reach states
-     its own sd is forest-door's (its open call 5), built in its slice 2.
+     forest's k, as `$setLeafPrior(normal(k = ))` writes it today; on the one candidate stating its own sd, through
+     item 1's switch, its record's `sd` going to NA; where several candidates all state sd, or every forest has a
+     basis, the model holds the fixed default creation writes there, so that default restated is equal to the value in
+     force and changes nothing, as creation takes it (forests-shared-total's call 21), and anything else is refused,
+     naming `$setForest(f, sd = )`. `$setLeafPrior(NULL)` stays refused, as on main. A group is read from the engine
+     (`samplerSharers`), not `sharingForests`, so that forest-door's slice 3 finds a group of one, or none, here with
+     nothing to change.
    - The residual prior, installed as on one forest.
-   - A forest's own statement, a stated sd, power or base that differs or a change in which it states, and the
-     variance forest's own: refused by name, naming `$setForest(label, ...)` or `$setVarianceForest(...)`
-     (dec-B518: one forest through the door that names it). A value that differs only because the forest
-     follows the level is not its own.
+   - A forest's own statement, a stated sd, power or base that differs or a change in which it states, on a sampler
+     with several candidates, and the variance forest's own: refused by name, naming `$setForest(label, ...)` or
+     `$setVarianceForest(...)` (dec-B518: one forest through the door that names it). A value that differs only
+     because the forest follows the level is not its own. The variance forest follows nothing: a changed mean depth
+     leaves it (dec-B524).
    - `split.probs`: on several forests a uniform one is the default and changes nothing, and a non-uniform one
      or `dart()` is refused by D6's message.
    - Structure: slice 1's check with control-migration's slice 1b fields, as built.
-   A level value equal to the one in force writes nothing, its stated flag included (forest-door's call 4); one
-   that differs is written and marked stated. Every forest that follows it gets the new value on its record, and
-   forest 1's goes into the model's tree-prior slot, so a copy and a reload re-create what the live sampler runs.
+   A level value equal to the one in force writes nothing (forest-door's call 4). One that differs is written on the
+   record of every forest it reaches, and forest 1's goes into the model's tree-prior slot, so a copy and a reload
+   re-create what the live sampler runs. It does not make those forests state it: they go on following.
 4. R, the door. `$setTreePrior(power, base, split.probs)`, the fitting function's level only, a thin writer
    over item 3's route (the stored model with the level changed, through `$setModel`'s path), so the two doors
    cannot differ. A name left out changes nothing. A `split.probs` vector changes the values; `dart(...)` on a
    DART sampler changes DART's settings through slice 3's install, a setting left out taking creation's default;
    `1` restores equal probabilities; `dart()` on an ordinary sampler, or a vector on a DART one, is structure and
-   refused (tree-prior-flat's live door). No `tree.prior`, `forests` or `variance` argument. An explicit NULL
-   follows forest-door's open call 3 as ruled: under its (a), `power = NULL` returns the level to the default,
-   recorded as not stated, the step that moves a depth to a forest's own level under its open call 5's (a);
-   under (b) or (c), NULL is a name not given and that call's spelling clears. On a one-forest sampler whose
-   forest term stated its own depth, `$setTreePrior(power = )` and `$setModel` with a changed depth follow
-   forest-door's open call 5 as ruled: refused naming `$setForest(1, power = NULL)` under (a), the later
-   write standing under (b). Both are forest-door's to build first for `$setModel`; slice 4 gives `$setTreePrior`
-   the same reading.
-5. The last step, open call 2 ([Open calls](#open-calls)), separable and its own commit, built after items 1 to 4
-   are green; items 1 to 4 leave the variance forest as main leaves it. Under (a): a variance forest that stated
-   neither power nor base (forest-door's variance record says which) takes the mean forest's new depth with it,
-   name by name, at `$setModel` and `$setTreePrior`, installed through `bartcore_setForestTreePrior(ptr, -1, ...)`
-   and written to the variance record; ~150 lines (R ~25, tinytest ~40, the heteroscedastic-exact.R arm ~80, help
-   and NEWS ~5). Under (c): it keeps creation's value and changes only through `$setVarianceForest`; ~15 lines,
-   a pin and a help sentence.
-6. TODO variance-forest-inherited-tree-prior is closed by item 5 under either answer: followed, or settable
-   through `$setVarianceForest`.
+   refused (tree-prior-flat's live door). No `tree.prior`, `forests` or `variance` argument. Every formal defaults to
+   NULL and a written NULL is a name left out (dec-B519, dec-B522): `$setTreePrior(power = NULL)` changes nothing.
+   There is no spelling that clears a level or returns a forest to it. On a one-forest sampler whose forest term stated
+   its own depth, `$setTreePrior(power = )` and `$setModel` with a changed depth write it, the later write winning
+   (dec-B523), as `$setModel` does on main.
+5. The variance forest (dec-B524): `$setModel` and `$setTreePrior` leave it, as main does; the help says so; ~15 lines,
+   a pin and a help sentence, part of items 3 and 4 and no last step. TODO variance-forest-inherited-tree-prior closes:
+   it changes through `$setVarianceForest`.
 
 The engine sees no record, no model object and no R name in any slice: the bridge converts.
 
@@ -378,7 +372,8 @@ The engine sees no record, no model object and no R name in any slice: the bridg
 - man/dbartsSampler-class.Rd: `setModel` says what it changes and what it refuses, each by name; slice 3 adds the
   df, shape, lengthscale and DART settings; slice 4 adds samplers of several forests and multinomial ones, what
   reaches the forests that follow the fitting function's level and what is refused naming `$setForest`, and the
-  usage and value of `$setTreePrior`, its formals as item 4 reads NULL (tools/check-rc-codoc.R covers it).
+  usage and value of `$setTreePrior`, its formals NULL by default (tools/check-rc-codoc.R covers it), and that the
+  variance forest stays as it is.
 - man/dbarts.Rd and the `split.probs` help of `cgm()`: a zero excludes the column, `vars`-like, on every path.
 - docs/design/single-forest-vars.md: "Left out" loses its first sentence and the zero rule gets a section, the
   design note slice 2's class needs.
@@ -453,25 +448,31 @@ the bridge installing before checking; the lengthscale installed with `invalidat
 cache, caught by the next-draws pin against a fresh sampler; a model with no lengthscale re-deriving the
 heuristic.
 
-Slice 4 (engine, neutral; its last step under open call 2's (a) moves one call). tests/cpp: the group install
+Slice 4 (engine, neutral). tests/cpp: the group install
 on two chains writing every sharer's k, drawn flag and chi prior and no other forest, sharers of unequal counts
 (38 and 37) keeping their own leaf scales, a named sd translated against the group's node scale, held to drawn
 starting at the k in force, the install refused on a chain with no sharers with nothing written, and an install
 before any run drawing what creation with the statement draws; after slice F, the lone sharer moved between
-dec-B290's map entry and the k path both ways. The tree-prior install's pins are forest-door's slice 1
+dec-B290's map entry and the k path both ways, and the one candidate moved from a stated sd to the k path. The tree-prior install's pins are forest-door's slice 1
 (`testForestTreePriorInstall`, `testForestTreePriorMatchesCreation`, test-forest-tree-prior-install.R).
 
 tinytest, a new test-setmodel-forests.R, every twin on two chains:
 
 - On three sharers, one stating power: `$setModel`'s and `$setTreePrior`'s power reaching the other two and not
   it, the twin oracle against creation with the fitting function's power and that forest's own, and a copy and a
-  reload `identical()` to the live sampler; the per-name refusal where every forest with no basis states its
-  own, naming them and `$setForest`; `$setTreePrior` and `$setModel` drawing bitwise alike for one level change.
+  reload `identical()` to the live sampler; the per-name refusal where several forests with no basis all state
+  their own, naming them and `$setForest`; `$setTreePrior` and `$setModel` drawing bitwise alike for one level change.
+- Later write wins (dec-B523): on a lone forest and on the one candidate beside a forest with a basis, stating its own
+  power or sd, `$setTreePrior`, `$setModel` and `$setLeafPrior` writing it, then `$setForest` writing it back, the
+  records agreeing with the engine after each; `$setLeafPrior(normal())` on a probit `forest(sd = 2)` returning k to
+  drawn, from the spread in force (call 8's exemption). A forest following the level still following after a level
+  change. `$setTreePrior(power = NULL)` and a round trip of `$getForest` writing nothing.
 - The group's leaf prior through `$setModel` and through `$setLeafPrior(leaf.prior = )`: k held, drawn (from the
   k in force, call 8's exemption) and as an sd, every sharer's k equal and each its own leaf scale, a forest that
   stated sd unmoved; after slice F the same beside a forest with a basis, the lone sharer's held 2 restated
-  bitwise inert and a held 3 drawing as creation with it; a multinomial sampler's level and k; the default
-  restated taken and anything else refused where no forest takes the leaf prior.
+  bitwise inert and a held 3 drawing as creation with it; a multinomial sampler's level and k, its one entry written
+  whether it stated its own or not; the default restated taken and anything else refused where several candidates
+  all state sd or every forest has a basis.
 - Refused by name with the sampler untouched: a forest's own difference naming `$setForest`, the variance
   forest's naming `$setVarianceForest`, a non-uniform `split.probs` on several forests; a uniform one inert.
 - Inert: `$setModel(s$model)` on every kind, stated flags included, so a following `$setForest` does what it
@@ -481,16 +482,13 @@ tinytest, a new test-setmodel-forests.R, every twin on two chains:
   next draws equal to a copy's) and its family pin (`$setModel` with a model of `family = student(5)` resolved as
   the family, carried at the branch's rebase); forest-after-merge's (`$setForestBasis(updateBasisScale = TRUE)`,
   then `$setModel(s$model)`, the reader's sd and the next draws unchanged, a copy equal).
-- The last step: under (a), an unstated variance forest following each door name by name and a stated one not,
-  one stating only power following base; under (c), neither following.
+- The variance forest: `$setModel` and `$setTreePrior` with a new depth leaving it, stated or not, its draws those of
+  a twin stating its old depth; `$setVarianceForest` then changing it.
 
-The A/B adds bcf and three-forest samplers through `$setModel(s$model)` and an unchanged level, and excludes the
-one changed call (a heteroscedastic `$setModel` with a new depth and an unstated variance forest), which the twin
-oracle and the exact arm cover. Gates as slice 3, plus forest-prior-exact.R (its sharer arms with the group's leaf
+The A/B adds bcf and three-forest samplers through `$setModel(s$model)` and an unchanged level, and a heteroscedastic
+`$setModel` with a new depth, which moves nothing main does. Gates as slice 3, plus forest-prior-exact.R (its sharer arms with the group's leaf
 prior installed by `$setModel` before the run), probit-k-scale-exact.R's shared arms, bcf-exact.R and
-multinomial-exact.R quick; and for the last step under (a) a new arm of heteroscedastic-exact.R's enumerated
-part: a sampler created under one depth and given another by `$setModel` before the run, its variance-forest
-posterior held to the enumeration under the new one.
+multinomial-exact.R quick. No heteroscedastic-exact arm: no main call moves.
 
 Mutants: the route installing forest 1's depth alone; the depth written over a forest that stated its own; the
 group's k written to the first sharer only; a named sd translated against the first sharer's leaf scale, or the
@@ -498,27 +496,26 @@ install resetting every sharer to one leaf scale (each fails the unequal-count p
 `Chain::setModel`'s leaf-scale write (the `student(3)` and forest-after-merge pins); a forest's own difference
 installed rather than refused; the stated flag written on an equal call (the inert pin); `$setTreePrior` given
 installs of its own that skip the group write (the agreement pin); after slice F, the lone sharer left on the map
-entry at a held 3; under (a), the variance forest's follow keyed on the mean forest's statedness rather than its
-own (the per-name pin).
+entry at a held 3; the one candidate stating its own refused or left unwritten (the later-write pins); several
+candidates all stating their own taken in silence (the refusal pin); a level change marking the forests it reaches as
+stating it (the still-following pin); a NULL read as a clearing (the NULL pin); the variance forest moved by a mean
+depth change (the variance pin).
 
 ## Order of work
 
 1. Slice 1 (R). 2. Slice 2 (engine, posterior-changing), independent of slice 1's code and gated alone. 3. Slice 3
 (engine). Slices 1 to 3 are built and reviewed LAND. 4. On main before slice 4 starts: forests-shared-total with
 its slice F, control-migration (slice 1a's records on the model) and forest-door (its slice 1, the tree-prior
-install, and its slice 2, the two levels' records and `$setForest`); forest-door orders itself after
-control-migration, and its own order of landing puts this slice after forests-shared-total. 5. Slice 4, the
-branch rebased onto that main by its builder, items 1 to 4 green first and the last step (item 5) after them as
-its own commit, built under open call 2 as ruled; the branch's merge waits on that ruling, nothing before it.
-Each slice lands green on the branch with its review; engine features merge into main serially, and this branch merges once, after slice 4 and the records: a
+install, and its slice 2, the stated flags and `$setForest`). 5. Slice 4, the branch rebased onto that main by its
+builder. 6. Forest-door's slice 3 follows, on its own, reading the group this slice's writers read. Each slice lands green on the branch with its review; engine features merge into main serially, and this branch merges once, after slice 4 and the records: a
 ledger entry for the calls made, this plan's Status and Landing note, the INDEX row, TODO's entry removed,
 single-forest-vars-leftovers' first half and variance-forest-inherited-tree-prior removed. The order is call 15.
 
 Before slice 4 is built, re-read on main, forests-shared-total's slice 2 and fix round having landed:
 
 - the refusal of `leaf.prior` on a live sampler with sharers in [`dbartsSampler`](../../R/dbarts.R)'s
-  `setLeafPrior`, which item 3 replaces with the group install, and the refusal of a sharer's sd, which moves to
-  `$setForest` under forest-door's open call 6;
+  `setLeafPrior`, which item 3 replaces with the group install; the refusal of a sharer's sd is `$setForest`'s by then,
+  until forest-door's slice 3 replaces it (dec-B525);
 - the engine's sharer paths (`forestSharers`, `installSharedLeafPrior`, `translateNamedSd`'s sharer branch,
   `drawSharedK`, `ForestCalibration`'s share), and every reader of the chain options' leaf prior after
   construction (a response re-anchor, a state install, a warm start), which item 1's install must update or
@@ -531,9 +528,8 @@ Before slice 4 is built, re-read on main, forests-shared-total's slice 2 and fix
 - [`reportLeafPrior`](../../R/dbarts.R) and `getK` on sharers (its D8), which the pins read;
 - slice F as built: whether `forestSharers` names a lone sharer beside a forest with a basis and how the held-2
   map entry is kept, which item 1's path switch follows;
-- forest-door's slice 2 as built: where the level's record and the per-forest stated flags live, how the model's
-  tree-prior slot and the level record are kept in step, and how its open calls 3 and 5 were ruled, which item 4
-  follows.
+- forest-door's slice 2 as built: where the per-forest stated flags live and how the model's tree-prior slot and
+  forest 1's record are kept in step.
 
 forest-after-merge and coefficient-prior-opt-in landed (dec-A244, dec-A245): slice 4 lands second to both and
 carries their pins (slice 4's tinytest). Shared file: [`SamplerBase`](../../src/bartcore/facade.hpp), to which
@@ -555,10 +551,9 @@ this plan does not touch it.
   model's records control-migration and forest-door create.
 - `$setModel` on a sampler of several forests refuses a forest's own difference that a model object can carry,
   naming `$setForest`: two calls where one model would have done, by dec-B518's one door per forest.
-- Slice 4 waits on three other items (forests-shared-total with slice F, control-migration, forest-door) and
-  follows two calls held in forest-door (its open calls 3 and 5) besides its own open call 2.
-- Under open call 2's recommendation, a heteroscedastic `$setModel` with a new tree prior moves the variance
-  forest's prior, which main leaves.
+- Slice 4 waits on three other items (forests-shared-total with slice F, control-migration, forest-door).
+- Two doors can overwrite each other in silence; a forest that states its own and is the only candidate is written
+  by the fitting function's door (dec-B523).
 - The k, df, shape and concentration handoffs from fixed to drawn are not creation's start, so the twin oracle
   carries a named exemption.
 
@@ -588,7 +583,7 @@ this plan does not touch it.
    written but is a jump the ruling does not ask for.
 9. A lengthscale change is refused while kept draws are held, as dec-B237's gp refusals are. Alternative: drop
    the kept draws.
-10. Moved to [Open calls](#open-calls) 2: whether an unstated variance forest follows `$setModel`'s tree prior.
+10. Moved to [Open calls](#open-calls) 2, ruled: an unstated variance forest does not follow `$setModel`'s tree prior.
 11. `$setModel` on samplers of several forests and multinomial ones takes the fitting function's level (tree,
     leaf and residual priors) and refuses a forest's own difference by name, naming `$setForest` or
     `$setVarianceForest` (call 19). Alternative: keep refusing those samplers, which leaves the group's k and the
@@ -611,7 +606,7 @@ this plan does not touch it.
     forest-door's per-forest stated flags, as that forest took the fitting function's at creation
     (forests-shared-total's D7, dec-B274). Alternative: the first forest alone, which gives one sharer a prior the
     others do not follow. The plan's earlier record of NULL for an unstated base and power is dropped for
-    forest-door's records.
+    forest-door's flags. Where one forest is the only candidate, dec-B523 writes it whether it states its own or not.
 18. The per-forest tree-prior install is forest-door's slice 1, one forest per call with the variance forest at
     index -1; slice 4 builds none. Alternative: the planned `setTreePriors` over every forest at once, which
     duplicates the counting the bridge does before its per-forest calls.
@@ -623,13 +618,13 @@ this plan does not touch it.
     `$setLeafPrior`, as this plan had it: two answers to one statement.
 21. `$setTreePrior` is a thin writer over `$setModel`'s route, as `$setControl` routes a changed mixture through
     `$setModel(model)`. Alternative: installs of its own, which can drift from `$setModel`'s.
-22. A level value equal to the one in force writes nothing, its stated flag included; one that differs is
-    written and marked stated (forest-door's call 4). Alternative: every `$setModel` marks the level stated, so
-    `$setModel(s$model)` changes what a later `$setForest` may do under forest-door's open call 5.
+22. A level value equal to the one in force writes nothing (forest-door's call 4); one that differs is written and
+    marks no forest as stating it, the level having no record (dec-B522). Alternative: a forest written by a level
+    door then states it, which ends the following the door exists for.
 23. Slice 4 reads forest-door's stated flags and waits for its slice 2. Alternative: record the flags itself if
     built first, two writers for one record.
-24. Open call 2's part is slice 4's last step, its own commit, sized under each answer, so items 1 to 4 build and
-    review while it is held. Alternative: hold the whole slice, as this plan had it.
+24. Where a level has no forest to be read from, none reaching it, a `$setModel` difference in the slot is a forest's
+    own and refused. Alternative: a record of the level, which dec-B522 rules out.
 
 ## Open calls
 
@@ -641,31 +636,15 @@ this plan does not touch it.
    `$setLeafPrior(leaf.prior)` and `$setTreePrior(power, base, split.probs)` take only the fitting function's
    level. Slice 4 is amended to it: its door is that `$setTreePrior`, and `$setModel` refuses a forest's own
    change naming `$setForest` (calls 18 to 21).
-2. Whether a variance forest that states no tree prior follows a live change of the depth it took at creation.
-   The same question is forest-door's open call 4; one ruling answers both. At creation it takes the mean
-   forest's resolved depth, the fitting function's or a lone forest term's own (tree-prior-flat's D5); today
-   `$setModel` leaves it at creation's (run: power 4 and base 0.5 leave the variance record at 2 and 0.95), and
-   TODO had it as "decide". For slice 4 only the fitting function's doors (`$setModel`, `$setTreePrior`) matter;
-   forest-door's options map onto them so:
-   - (a) Recommended, forest-door's (a) and (b) alike here. It follows, name by name: a variance forest that
-     stated neither power nor base takes the mean forest's new depth, as every forest with no basis that states
-     none does (call 17) and as an unstated move setting follows `$setControl` (dec-B477); dec-B518's words, the
-     sampler's doors "each reaching the forests that state none of their own", read this way. Cost: one call main
-     honors changes what it does (a heteroscedastic `$setModel` with a new depth and an unstated variance
-     forest), posterior-changing for that call, with a new arm of heteroscedastic-exact.R's enumerated part and
-     the A/B excluding that call; slice 4's last step ~150 lines. No consumer calls `$setModel`.
-   - (c) It keeps creation's value and changes only through `$setVarianceForest`. Cost: an unstated variance
-     forest follows the mean forest at creation and not after, unlike every other unstated setting; no main call
-     moves and no exact arm is needed; the last step ~15 lines.
+2. RULED, dec-B524 (2026-10-30). Whether a variance forest that states no tree prior follows a live change of the
+   depth it took at creation. Shown it following (recommended first) and keeping its value, the maintainer: "Will that
+   confuse users? Personally, and maybe this is just because I tend to know how these things are coded, I wouldn't
+   assume that the objects were tied together just because they shared something at creation. Feel free to push back
+   and tell me if I'm wrong.", then, shown the second: "Yes, use your revised recommendation." `$setTreePrior`,
+   `$setModel` and `$setForest(1, )` leave it and `$setVarianceForest` changes it; the help says so.
 
-Held in forest-door, followed by slice 4 as ruled (not this plan's to present):
-
-- Its open call 3, how an explicit NULL reads: under its (a), `$setTreePrior(power = NULL)` returns the fitting
-  function's power to the default recorded as not stated; under (b) or (c), NULL is a name not given. It rests on
-  the held question of whether creation counts a named NULL as stated.
-- Its open call 5, a setting one forest takes from two levels: under its (a), `$setTreePrior` and `$setModel`
-  with a changed depth are refused where every forest they would reach states its own, a lone forest included,
-  naming `$setForest(f, power = NULL)`; under (b), the later write stands.
+Ruled in forest-door, followed here: dec-B519 and dec-B522 (a written NULL at the door is a name left out; no return
+spelling; no record of the level) and dec-B523 (the later write wins; the reach above).
 
 ## Not verified
 
@@ -677,6 +656,8 @@ Held in forest-door, followed by slice 4 as ruled (not this plan's to present):
 - Slice 4 is planned against forests-shared-total's slices 1 and 2 as built on its branch, slice 2 not yet
   reviewed, and against its slice F, not built; the lone sharer's path switch assumes slice F keeps dec-B290's
   map entry as its plan says.
-- Slice 4 is planned against forest-door's slice 2 and control-migration's slice 1a, neither built: where the
-  records live and how the tree-prior slot and the level record are kept in step are from their plans.
+- Slice 4 is planned against forest-door's slice 2, not built, and control-migration's slice 1a, built on its branch:
+  how the tree-prior slot and forest 1's record are kept in step is from their plans.
+- The one candidate's switch from a stated sd to the k path is from reading; a `student(df)` forest as that candidate is
+  held in forest-door's open calls (its D).
 - 0.9-34 was rerun for the k column only; its behavior elsewhere is taken from the 2026-10-05 survey.
