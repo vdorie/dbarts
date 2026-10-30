@@ -794,9 +794,7 @@ methods::setValidity("dbartsModel", function(object) {
     )
   }
 
-  if (
-    !all(vapply(object@forests, is, logical(1L), "dbartsForestRecord"))
-  ) {
+  if (!all(vapply(object@forests, is, logical(1L), "dbartsForestRecord"))) {
     return("'forests' must hold one forest record for each mean forest")
   }
   if (

@@ -217,10 +217,7 @@ varianceSampler <- dbarts::dbarts(
     updateState = FALSE
   )
 )
-expect_true(any(startsWith(
-  names(attributes(varianceSampler$control)),
-  "bartcore."
-)))
+expect_true(isTRUE(dbarts:::controlMirror(varianceSampler$control)$fit.state))
 expect_error(
   fitFC(control = varianceSampler$control),
   "pass a fresh dbartsControl"

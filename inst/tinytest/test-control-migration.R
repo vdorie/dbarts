@@ -67,8 +67,12 @@ countWarnings <- function(expr) {
 varianceSampler <- dbarts(
   y ~ x1 + x2 + x3,
   frame,
-  variance = varianceForest(vars = ~ x1 + x2, n.trees = 7L, base = 0.8,
-    power = 1.5),
+  variance = varianceForest(
+    vars = ~ x1 + x2,
+    n.trees = 7L,
+    base = 0.8,
+    power = 1.5
+  ),
   control = migrationControl()
 )
 expect_null(attr(varianceSampler$control, "bartcore.variance"))
@@ -110,10 +114,18 @@ expect_identical(countSampler$model@shape, 3)
 for (twin in twins(countSampler)) {
   expect_equal(twin$getShape(), 3)
 }
-ordered <- cut(y, quantile(y, c(0, 0.25, 0.5, 0.75, 1)), include.lowest = TRUE,
-  ordered_result = TRUE)
-ordinalSampler <- dbarts(x, ordered, family = "ordinal",
-  control = migrationControl())
+ordered <- cut(
+  y,
+  quantile(y, c(0, 0.25, 0.5, 0.75, 1)),
+  include.lowest = TRUE,
+  ordered_result = TRUE
+)
+ordinalSampler <- dbarts(
+  x,
+  ordered,
+  family = "ordinal",
+  control = migrationControl()
+)
 expect_identical(ordinalSampler$model@n.categories, 4L)
 for (twin in twins(ordinalSampler)) {
   expect_identical(NROW(twin$run()$thresholds), 3L)
@@ -129,9 +141,14 @@ threeForestsOf <- function(effectMoves) {
     frame,
     forests = list(
       plain = forest(n.trees = 9L, blocks = blocks(list(c("x1", "x2"), "x3"))),
-      effect = forest(x1 + x2, basis = ~ factor(z), n.trees = 6L, sd = 0.4,
+      effect = forest(
+        x1 + x2,
+        basis = ~ factor(z),
+        n.trees = 6L,
+        sd = 0.4,
         interactions = interactions(max.order = 1L),
-        proposal.probs = effectMoves),
+        proposal.probs = effectMoves
+      ),
       dose = forest(x3, basis = ~zn, n.trees = 4L, amplitude = fixed())
     ),
     control = migrationControl(keepTrees = TRUE)
@@ -146,23 +163,29 @@ records <- threeForests$model@forests
 expect_identical(length(records), 3L)
 expect_true(all(vapply(records, is, NA, "dbartsForestRecord")))
 expect_identical(vapply(records, function(r) r@n.trees, 0L), c(9L, 6L, 4L))
-expect_identical(vapply(records, function(r) r@label, ""),
-  c("plain", "effect", "dose"))
+expect_identical(
+  vapply(records, function(r) r@label, ""),
+  c("plain", "effect", "dose")
+)
 expect_identical(records[[2L]]@vars, 1:2)
 expect_identical(records[[3L]]@vars, 3L)
 expect_equal(records[[2L]]@sd, 0.4)
-expect_identical(vapply(records, function(r) r@held.amplitude, NA),
-  c(FALSE, FALSE, TRUE))
+expect_identical(
+  vapply(records, function(r) r@held.amplitude, NA),
+  c(FALSE, FALSE, TRUE)
+)
 expect_identical(records[[2L]]@interactions$max.order, 1L)
 expect_false(is.null(records[[1L]]@blocks))
 expect_identical(records[[2L]]@moves$proposal.probs[["swap"]], 0.1)
-expect_identical(vapply(records, function(r) r@stated, ""),
-  rep("n.trees", 3L))
+expect_identical(vapply(records, function(r) r@stated, ""), rep("n.trees", 3L))
 expect_null(attr(threeForests$control, "bartcore.forests"))
 for (twin in twins(threeForests)) {
   expect_identical(forestCounts(twin), c(9L, 6L, 4L))
   # a reload rebuilds a basis term's environment, which holds nothing
-  expect_identical(lapply(twin$model@forests, termless), lapply(records, termless))
+  expect_identical(
+    lapply(twin$model@forests, termless),
+    lapply(records, termless)
+  )
   trees <- twin$getTrees(forest = "effect")
   expect_true(all(trees$var[trees$var > 0L] %in% 1:2))
   trees <- twin$getTrees(forest = 3L)
@@ -189,8 +212,10 @@ studentFit <- function(df) {
   dbarts(
     y ~ x1 + x2 + x3,
     frame,
-    forests = list(forest(), forest(basis = ~ factor(z),
-      amplitude = student(df))),
+    forests = list(
+      forest(),
+      forest(basis = ~ factor(z), amplitude = student(df))
+    ),
     control = migrationControl()
   )
 }
@@ -222,8 +247,10 @@ codeFit <- bart(
   keepTrees = TRUE
 )
 expect_false(is.null(codeFit$fit$model@forests[[2L]]@basis.term))
-expect_identical(codeFit$basis.terms[[2L]],
-  codeFit$fit$model@forests[[2L]]@basis.term)
+expect_identical(
+  codeFit$basis.terms[[2L]],
+  codeFit$fit$model@forests[[2L]]@basis.term
+)
 expect_identical(dim(predict(codeFit, frame[1:5, ])), c(4L, 5L))
 rm(codeFit)
 
@@ -247,8 +274,7 @@ rm(categories, multinomialSampler, twin)
 time <- rexp(n, exp(-x[, 1L]))
 status <- rbinom(n, 1L, 0.6)
 aftOf <- function(status) {
-  dbarts(x, cbind(time, status), family = "aft",
-    control = migrationControl())
+  dbarts(x, cbind(time, status), family = "aft", control = migrationControl())
 }
 expected <- aftOf(rep(1, n))$run()$train
 expect_false(identical(aftOf(status)$run()$train, expected))
@@ -294,8 +320,12 @@ mirrored <- function(sampler) {
 }
 for (family in c("gaussian", "probit", "logistic")) {
   response <- if (family == "gaussian") y else yb
-  sampler <- dbarts(x, response, family = family,
-    control = migrationControl(n.trees = 13L, useQuantiles = TRUE))
+  sampler <- dbarts(
+    x,
+    response,
+    family = family,
+    control = migrationControl(n.trees = 13L, useQuantiles = TRUE)
+  )
   expect_identical(sampler$model@forests[[1L]]@n.trees, 13L)
   expect_true(sampler$data@useQuantiles)
   expect_identical(sampler$control@binary, family != "gaussian")
@@ -304,12 +334,17 @@ for (family in c("gaussian", "probit", "logistic")) {
     expect_true(mirrored(twin))
   }
   # a sampler rebuilt from its stored triple, as stan4bart restores one
-  expect_identical(countWarnings(restored <- new(
-    "dbartsSampler",
-    sampler$control,
-    sampler$model,
-    sampler$data
-  )), 0L)
+  expect_identical(
+    countWarnings(
+      restored <- new(
+        "dbartsSampler",
+        sampler$control,
+        sampler$model,
+        sampler$data
+      )
+    ),
+    0L
+  )
   expect_true(mirrored(restored))
 }
 rm(family, response, sampler, twin, restored)
@@ -333,8 +368,11 @@ rm(fit, bare, control, handSampler, family)
 
 gridOf <- function(sampler) sampler$data@cutPoints[[1L]]
 uniform <- dbarts(x, y, control = migrationControl(n.cuts = 7L))
-quantile <- dbarts(x, y,
-  control = migrationControl(n.cuts = 7L, useQuantiles = TRUE))
+quantile <- dbarts(
+  x,
+  y,
+  control = migrationControl(n.cuts = 7L, useQuantiles = TRUE)
+)
 expect_false(isTRUE(uniform$data@useQuantiles))
 expect_true(quantile$data@useQuantiles)
 expect_false(identical(gridOf(uniform), gridOf(quantile)))
@@ -342,16 +380,36 @@ for (twin in twins(quantile)) {
   expect_identical(gridOf(twin), gridOf(quantile))
   expect_true(twin$data@useQuantiles)
 }
-spec <- dbartsSpec(dbartsData(x, y),
-  migrationControl(n.cuts = 7L, useQuantiles = TRUE))
+spec <- dbartsSpec(
+  dbartsData(x, y),
+  migrationControl(n.cuts = 7L, useQuantiles = TRUE)
+)
 expect_true(spec$data@useQuantiles)
 expect_true(spec$control@useQuantiles)
 # xbart's folds bin on the handle the data object's rule builds
-xbartUniform <- xbart(x, y, n.samples = 3L, n.burn = c(2L, 1L), n.reps = 1L,
-  n.trees = c(3L, 5L), n.threads = 1L, seed = 4L, n.cuts = 3L)
-xbartQuantile <- xbart(x, y, n.samples = 3L, n.burn = c(2L, 1L), n.reps = 1L,
-  n.trees = c(3L, 5L), n.threads = 1L, seed = 4L, n.cuts = 3L,
-  useQuantiles = TRUE)
+xbartUniform <- xbart(
+  x,
+  y,
+  n.samples = 3L,
+  n.burn = c(2L, 1L),
+  n.reps = 1L,
+  n.trees = c(3L, 5L),
+  n.threads = 1L,
+  seed = 4L,
+  n.cuts = 3L
+)
+xbartQuantile <- xbart(
+  x,
+  y,
+  n.samples = 3L,
+  n.burn = c(2L, 1L),
+  n.reps = 1L,
+  n.trees = c(3L, 5L),
+  n.threads = 1L,
+  seed = 4L,
+  n.cuts = 3L,
+  useQuantiles = TRUE
+)
 expect_false(identical(xbartUniform, xbartQuantile))
 rm(gridOf, uniform, quantile, spec, twin, xbartUniform, xbartQuantile)
 
@@ -363,8 +421,11 @@ keeper <- dbarts(
   variance = TRUE,
   control = migrationControl(n.trees = 11L, useQuantiles = TRUE)
 )
-otherModel <- dbarts(y ~ x1 + x2 + x3, frame,
-  control = migrationControl())$model
+otherModel <- dbarts(
+  y ~ x1 + x2 + x3,
+  frame,
+  control = migrationControl()
+)$model
 otherModel@tree.prior@power <- 1.5
 keeper$setModel(otherModel)
 expect_identical(keeper$model@forests[[1L]]@n.trees, 11L)

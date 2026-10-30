@@ -267,7 +267,7 @@ for (index in seq_along(selectable)) {
     expect_identical(
       dbarts:::samplerForestIndex(
         spelling,
-        sampler$control,
+        sampler$model,
         sampler$getPointer()
       ),
       index - 1L

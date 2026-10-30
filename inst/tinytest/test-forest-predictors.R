@@ -278,7 +278,13 @@ expect_identical(
 )
 # and through dbartsSpec
 expect_identical(
-  dbarts:::forestsRecord(dbartsSpec( dbartsData(x, y), predictorControl(), forests = list(forest(), forest(. - x1, basis = ~ factor(z))) )$model)$vars,
+  dbarts:::forestsRecord(
+    dbartsSpec(
+      dbartsData(x, y),
+      predictorControl(),
+      forests = list(forest(), forest(. - x1, basis = ~ factor(z)))
+    )$model
+  )$vars,
   list(NULL, 2:3)
 )
 
