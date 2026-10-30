@@ -91,8 +91,9 @@ rbart_vi <- function(
     refuseNullArgument(base, "base")
   }
   # a NULL where the default is not NULL is refused by name
-  if (!missing(k)) {
-    refuseNullArgument(k, "k")
+  # 'k' is read in the prior vocabulary, so it is judged without forcing it
+  if (length(nullWritten(match.call(), "k", callingEnv)) > 0L) {
+    refuseNullArgument(NULL, "k")
   }
   warnOnce(
     "tombstone.rbart_vi",

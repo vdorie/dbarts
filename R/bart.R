@@ -3985,8 +3985,9 @@ bartBT <- function(
     refuseNullArgument(base, "base")
   }
   # a NULL where the default is not NULL is refused by name
-  if (!missing(k)) {
-    refuseNullArgument(k, "k")
+  # 'k' is read in the prior vocabulary, so it is judged without forcing it
+  if (length(nullWritten(match.call(), "k", parent.frame())) > 0L) {
+    refuseNullArgument(NULL, "k")
   }
   # a count-matrix data object declares the multinomial model, which this
   # frozen BayesTree shim reports none of: its packaging is one location per

@@ -966,12 +966,13 @@ refuseGivenTwiceInFormula <- function(formula, names) {
             error = function(e) FALSE
           ))
     }
-    given <- names(args)[!vapply(args, heldNull, NA)]
-    if ("basis" %in% given) {
+    if ("basis" %in% names(args)) {
       next
     }
-    for (name in intersect(names, given)) {
-      refuseGivenTwice(name, paste0("'", shownCode(hit), "'"))
+    for (name in intersect(names, names(args))) {
+      if (!heldNull(args[[name]])) {
+        refuseGivenTwice(name, paste0("'", shownCode(hit), "'"))
+      }
     }
   }
   invisible(NULL)

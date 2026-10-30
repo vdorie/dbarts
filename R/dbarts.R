@@ -508,6 +508,7 @@ dbartsControl <- function(
   }
   unstatedThreads <- missing(n.threads)
   n.threads <- fallBackToOneThread(n.threads, unstatedThreads)
+  refuseNullArgument(n.trees, "n.trees")
   result <- newValidated(
     "dbartsControl",
     verbose = as.logical(verbose),
@@ -520,10 +521,7 @@ dbartsControl <- function(
     n.samples = coerceOrError(n.samples, "integer"),
     n.cuts = coerceOrError(n.cuts, "integer"),
     n.burn = coerceOrError(n.burn, "integer"),
-    n.trees = coerceOrError(
-      refuseNullArgument(n.trees, "n.trees"),
-      "integer"
-    ),
+    n.trees = coerceOrError(n.trees, "integer"),
     n.chains = coerceOrError(n.chains, "integer"),
     n.threads = coerceOrError(n.threads, "integer"),
     n.thin = coerceOrError(n.thin, "integer"),
@@ -954,11 +952,10 @@ dbarts <- function(
   writtenFormula <- NULL
   # the fitting function's power and base are the forest with no basis's, so a
   # formula that writes that forest with one of its own states it twice
-  if (!missing(power)) {
-    refuseNullArgument(power, "power")
-  }
-  if (!missing(base)) {
-    refuseNullArgument(base, "base")
+  # judged without forcing: power may hold a retired tree prior in its
+  # vocabulary
+  for (name in nullWritten(matchedCall, c("power", "base"), evalEnv)) {
+    refuseNullArgument(NULL, name)
   }
   givenPlain <- intersect(c("power", "base"), writtenArgs)
   if (length(givenPlain) > 0L && is.formula(formula)) {

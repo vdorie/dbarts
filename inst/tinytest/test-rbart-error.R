@@ -50,7 +50,7 @@ expect_error(
   "'group.by' not of length equal to that of data"
 )
 
-# a NULL power or base is the default
+# a NULL power or base is refused: the defaults are 2 and 0.95, not NULL
 rbartDefault <- function(...) {
   dbarts::rbart_vi(
     y ~ x,
@@ -67,14 +67,8 @@ rbartDefault <- function(...) {
     ...
   )
 }
-expect_identical(
-  rbartDefault(power = NULL)$yhat.train,
-  rbartDefault()$yhat.train
-)
-expect_identical(
-  rbartDefault(base = NULL)$yhat.train,
-  rbartDefault()$yhat.train
-)
+expect_error(rbartDefault(power = NULL), "'power' cannot be NULL; leave it out")
+expect_error(rbartDefault(base = NULL), "'base' cannot be NULL; leave it out")
 rm(rbartDefault)
 
 rm(testData)

@@ -677,11 +677,11 @@ expect_error(
   suppressWarnings(
     dbarts::dbarts(xLV, yLV, control = lvControl, node.prior = NULL)
   ),
-  pattern = "'leaf.prior' must be a leaf prior specification"
+  pattern = "'leaf.prior' cannot be NULL; leave it out"
 )
 expect_error(
   dbarts::dbarts(xLV, yLV, control = lvControl, leaf.prior = NULL),
-  pattern = "'leaf.prior' must be a leaf prior specification"
+  pattern = "'leaf.prior' cannot be NULL; leave it out"
 )
 
 # supplying both spellings is an error, even when they agree
@@ -965,39 +965,21 @@ suppressWarnings({
 expect_equal(fitPower$fit$model@tree.prior@power, 3)
 expect_equal(fitPowerNested$fit$model@tree.prior@power, 3)
 expect_equal(fitPowerRenamed$fit$model@tree.prior@power, 3)
-# a NULL power or base is the default, at bart and bartBT
-suppressWarnings({
-  fitDefault <- shadowFit(xCons, yCons)
-  fitNullPower <- shadowFit(xCons, yCons, power = NULL)
-  fitNullBase <- shadowFit(xCons, yCons, base = NULL)
-  bartBTArgs <- list(
-    xCons,
-    yCons,
-    ntree = 5L,
-    ndpost = 5L,
-    nskip = 2L,
-    nchain = 1L,
-    nthread = 1L,
-    verbose = FALSE,
-    keepsampler = TRUE,
-    seed = 313L
+# a NULL power or base is refused, at bart and bartBT: their defaults are not NULL
+for (name in c("power", "base")) {
+  refusal <- paste0("'", name, "' cannot be NULL; leave it out")
+  expect_error(
+    do.call(shadowFit, c(list(xCons, yCons), setNames(list(NULL), name))),
+    refusal
   )
-  bartBTDefault <- do.call(dbarts::bartBT, bartBTArgs)
-  bartBTNullPower <- do.call(dbarts::bartBT, c(bartBTArgs, list(power = NULL)))
-  bartBTNullBase <- do.call(dbarts::bartBT, c(bartBTArgs, list(base = NULL)))
-})
-expect_equal(fitNullPower$fit$model@tree.prior@power, 2)
-expect_equal(fitNullPower$fit$model@tree.prior@base, 0.95)
-expect_equal(fitNullBase$fit$model@tree.prior@power, 2)
-expect_equal(fitNullBase$fit$model@tree.prior@base, 0.95)
-expect_identical(fitNullPower$yhat.train, fitDefault$yhat.train)
-expect_identical(fitNullBase$yhat.train, fitDefault$yhat.train)
-for (nullFit in list(bartBTNullPower, bartBTNullBase)) {
-  expect_equal(nullFit$fit$model@tree.prior@power, 2)
-  expect_equal(nullFit$fit$model@tree.prior@base, 0.95)
-  expect_identical(nullFit$yhat.train, bartBTDefault$yhat.train)
+  expect_error(
+    do.call(
+      dbarts::bartBT,
+      c(list(xCons, yCons, verbose = FALSE), setNames(list(NULL), name))
+    ),
+    refusal
+  )
 }
-rm(nullFit)
 expect_equal(fitSdf$fit$model@resid.prior@df, 5)
 expect_equal(fitResid$fit$model@resid.prior@df, 5)
 expect_equal(fitResid$fit$model@resid.prior@quantile, 0.75)

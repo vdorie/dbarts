@@ -1474,11 +1474,10 @@ dbartsSpec <- function(
     "dbartsSpec"
   )
   matchedCall <- withRetiredTreePrior(matchedCall, retiredTreePrior)
-  if (!missing(power)) {
-    refuseNullArgument(power, "power")
-  }
-  if (!missing(base)) {
-    refuseNullArgument(base, "base")
+  # judged without forcing: power may hold a retired tree prior in its
+  # vocabulary
+  for (name in nullWritten(matchedCall, c("power", "base"), parentEnv)) {
+    refuseNullArgument(NULL, name)
   }
   sigest <- resolveSigestArg(sigest, "dbartsSpec", "refuse")
   resolvedSigest <- resolveSigestRule(sigest, "dbartsSpec")
