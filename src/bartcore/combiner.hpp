@@ -378,11 +378,13 @@ struct ForestStatement {
   /// (expandForestSpecs). Nothing outside the engine and its tests sets it.
   double sdMultiple = std::numeric_limits<double>::quiet_NaN();
   /// false holds the forest's amplitudes at its kind's values: 1 for a
-  /// forest with no basis, 0 and 1 for the two levels of a factor.
+  /// forest with no basis, 0 and 1 for the two levels of a factor. A forest
+  /// with no basis that states no df is held whatever this says.
   bool updateAmplitude = true;
   /// The degrees of freedom of a Student-t prior on a drawn coefficient,
   /// finite and at least 1; not a number where none is stated, which keeps
-  /// the kind's default prior. A held forest ignores it.
+  /// the kind's default prior, and holds a forest with no basis. A held forest
+  /// ignores it.
   double amplitudeDf = std::numeric_limits<double>::quiet_NaN();
 };
 
@@ -483,30 +485,15 @@ struct ForestSdUnitError : std::domain_error {
 /// calibration map's anchor s. A factor takes one unit, however many forests
 /// the model has (dec-B291), and a numeric column one unit for one standard
 /// deviation of the column, 1 / \p basisScale per unit of it, held or
-/// drawn. A drawn forest with no basis
-/// carries its default as the half-Cauchy median of its amplitude: 2 where
-/// sigma is drawn and s is the response's own sd, 1 where the link pins sigma
-/// and s is the link's error sd. A held one, \p held, has the size where
-/// sigma is drawn that the one forest of a single-forest chain has at its
-/// defaults, \p oneForestSize in units of s (dec-B290), and one unit where the
-/// link pins it (dec-B293).
-inline double defaultForestSd(ForestKind kind, bool held, double oneForestSize,
-                              ResponseFamily family, double basisScale) {
+/// drawn. A forest with no basis takes \p leafPriorSize, the size the fitting
+/// function's leaf prior gives one forest, in units of s: held, that is the
+/// forest's size (dec-B290, dec-B509), and a drawn coefficient, stating a df,
+/// takes it as its median.
+inline double defaultForestSd(ForestKind kind, double leafPriorSize,
+                              double basisScale) {
   if (kind == ForestKind::numeric) return 1.0 / basisScale;
   if (kind == ForestKind::levels) return 1.0;
-  // every enumerator listed and no default arm: a family added without one
-  // must fail the build rather than inherit another's default
-  switch (family) {
-  case ResponseFamily::gaussian:
-  case ResponseFamily::aft:
-    return held ? oneForestSize : 2.0;
-  case ResponseFamily::probit:
-  case ResponseFamily::ordinal:
-  case ResponseFamily::nbinom:
-  case ResponseFamily::logistic:
-    break;
-  }
-  return 1.0;
+  return leafPriorSize;
 }
 
 /// A forest's sd in the response's units where it is \p multiple of the
@@ -545,15 +532,15 @@ struct ForestMapEntry {
 
 /// The CALIBRATION MAP, general in K: one forest's statement resolved into the
 /// channel its magnitude is carried in. \p kind is what the forest multiplies,
-/// \p unit the response units in one s, \p oneForestSize the size a held
-/// forest with no basis defaults to where sigma is drawn (defaultForestSd), and
-/// \p basisScale a numeric column's scale, read only where its forest states
-/// no sd.
+/// \p unit the response units in one s, \p leafPriorSize the size a forest
+/// with no basis defaults to (defaultForestSd), and \p basisScale a numeric
+/// column's scale, read only where its forest states no sd.
 ///
-/// A drawn forest with NO basis has a scalar amplitude under a half-Cauchy
-/// scale mixture: its sd, in units of s, is that mixture's median, and its node
-/// scale stays at s (bcf's prognostic forest, factor and divisor both 1). A
-/// drawn forest WITH one has a fixed-variance amplitude block: its sd
+/// A forest with NO basis is held unless it states a df (dec-B509). Read on the
+/// statement, isnan and not a test of finiteness. Stating one, it has a scalar
+/// amplitude under a half-Cauchy scale mixture at df 1: its sd, in units of s,
+/// is that mixture's median, and its node scale stays at s (bcf's prognostic
+/// forest, factor and divisor both 1). A drawn forest WITH one has a fixed-variance amplitude block: its sd
 /// multiplies the node scale, divided through the half-normal median 0.674 so
 /// that the amplitude spread times that scale sits at sd units of s (bcf's
 /// treatment forest). A level's coefficient is N(0, 1/2), so the difference of
@@ -590,8 +577,8 @@ struct ForestMapEntry {
 /// states no sd with no scale that is, ForestSdUnitError on a stated sd
 /// against a unit that is not.
 inline ForestMapEntry forestMapEntry(
-  const ForestStatement& statement, ForestKind kind, ResponseFamily family,
-  double unit, double oneForestSize, double basisScale,
+  const ForestStatement& statement, ForestKind kind, double unit,
+  double leafPriorSize, double basisScale,
   double share = std::numeric_limits<double>::quiet_NaN()) {
   if (std::isfinite(share)) {
     ForestMapEntry entry;
@@ -603,9 +590,10 @@ inline ForestMapEntry forestMapEntry(
     entry.amplitudePrior.mixtureScale = 0.0;
     return entry;
   }
-  bool held = !statement.updateAmplitude;
   double df = statement.amplitudeDf;
   bool dfStated = !std::isnan(df);
+  bool held =
+    !statement.updateAmplitude || (kind == ForestKind::none && !dfStated);
   if (dfStated && (!(df >= 1.0) || !std::isfinite(df)))
     throw std::invalid_argument("a coefficient's df must be finite and at "
                                 "least 1");
@@ -614,8 +602,12 @@ inline ForestMapEntry forestMapEntry(
       (!(basisScale > 0.0) || !std::isfinite(basisScale)))
     throw std::invalid_argument("a numeric forest that states no sd needs "
                                 "its column's scale");
-  double multiple =
-    defaultForestSd(kind, held, oneForestSize, family, basisScale);
+  if (kind == ForestKind::none && defaulted &&
+      (!(leafPriorSize > 0.0) || !std::isfinite(leafPriorSize)))
+    throw std::invalid_argument("a forest with no basis that states no sd "
+                                "needs a leaf prior with a positive finite "
+                                "size");
+  double multiple = defaultForestSd(kind, leafPriorSize, basisScale);
   if (!std::isnan(statement.sd)) {
     if (!(statement.sd > 0.0) || !std::isfinite(statement.sd))
       throw std::invalid_argument("a forest's sd must be positive and finite");
@@ -630,7 +622,7 @@ inline ForestMapEntry forestMapEntry(
 
   ForestMapEntry entry;
   entry.sdMultiple = multiple;
-  entry.amplitudePrior.update = statement.updateAmplitude;
+  entry.amplitudePrior.update = !held;
   double variance = kind == ForestKind::levels ? 0.5 : 1.0;
   if (held) {
     entry.nodeScaleFactor = multiple;
@@ -665,11 +657,10 @@ inline ForestMapEntry forestMapEntry(
 
 /// The forests of a combining chain that share one prior total: those with no
 /// basis that state no sd and no df, in index order; a stated df draws the
-/// forest's own coefficient, which a sharer does not have. Each takes an equal part of the
-/// total's variance whatever its tree count, the total being the
-/// single-forest chain's leaf prior with one k for the group. Empty where
-/// fewer than two qualify: a lone forest with no basis keeps the map's own
-/// default.
+/// forest's own coefficient, which a sharer does not have. Each takes an equal
+/// part of the total's variance whatever its tree count, the total being the
+/// single-forest chain's leaf prior with one k for the group. A lone one is
+/// all of it.
 inline std::vector<std::size_t>
 forestSharers(const std::vector<ForestSpec>& forests) {
   std::vector<std::size_t> sharers;
@@ -677,8 +668,18 @@ forestSharers(const std::vector<ForestSpec>& forests) {
     if (forests[f].kind == ForestKind::none && std::isnan(forests[f].sd) &&
         std::isnan(forests[f].sdMultiple) && std::isnan(forests[f].amplitudeDf))
       sharers.push_back(f);
-  if (sharers.size() < 2) sharers.clear();
   return sharers;
+}
+
+/// Whether a forest takes its size from the fitting function's leaf prior: one
+/// with no basis stating no sd, as a sharer's size or a drawn coefficient's
+/// median.
+inline bool forestsTakeLeafPrior(const std::vector<ForestSpec>& forests) {
+  for (const ForestSpec& forest : forests)
+    if (forest.kind == ForestKind::none && std::isnan(forest.sd) &&
+        std::isnan(forest.sdMultiple))
+      return true;
+  return false;
 }
 
 /// The spec a BCF chain is built from. Two readings of one object: the K = 2
@@ -729,8 +730,8 @@ struct AmplitudeSpec {
 
 /// The thin adapter: bcf's two-forest spelling read as the K-length vector
 /// every other layer works in. mu states aPriorScale and tau sdModerate, both
-/// multiples of s, which the map carries as mu's half-Cauchy median and in
-/// tau's node scale; mu multiplies nothing and tau the two levels of the
+/// multiples of s, which the map carries as mu's half-Cauchy median, its df 1
+/// where it draws, and in tau's node scale; mu multiplies nothing and tau the two levels of the
 /// treatment indicator, whose pair the combiner synthesizes. A spec that
 /// already carries its own forests vector is returned as it stands.
 inline std::vector<ForestSpec> expandForestSpecs(const AmplitudeSpec& spec) {
@@ -739,6 +740,7 @@ inline std::vector<ForestSpec> expandForestSpecs(const AmplitudeSpec& spec) {
   forests[0].forest = spec.mu;
   forests[0].sdMultiple = spec.aPriorScale;
   forests[0].updateAmplitude = spec.updateA;
+  if (spec.updateA) forests[0].amplitudeDf = 1.0;
   forests[1].forest = spec.tau;
   forests[1].sdMultiple = spec.sdModerate;
   forests[1].updateAmplitude = spec.updateB;

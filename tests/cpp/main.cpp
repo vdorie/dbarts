@@ -14,6 +14,8 @@
 
 #include <misc/io.h>
 
+#include <R_ext/Arith.h>
+
 namespace {
 
 // misc.a's output hooks default to NULL (src/misc/io.h); this standalone
@@ -45,6 +47,11 @@ bool suiteSelected(const char* filter, const char* suite) {
 }  // namespace
 
 int main(int argc, char** argv) {
+  // libR's math reads these and only R's startup sets them: a quantile that
+  // reaches them (the chi-square's) reads 0 in a host that is not R
+  R_PosInf = HUGE_VAL;
+  R_NegInf = -HUGE_VAL;
+  R_NaN = std::numeric_limits<double>::quiet_NaN();
   // line-buffered stdout: a check that crashes the process (a bad index, a
   // stale map) otherwise takes the buffered "ok:" and "FAIL:" lines with it,
   // leaving a red CI job that names nothing.

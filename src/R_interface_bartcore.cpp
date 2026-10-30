@@ -2258,7 +2258,7 @@ void printInitialSummary(const ParsedControl& control,
   std::size_t numForests = sampler.shape().numForests, numSharers = 0;
   for (std::size_t f = 0; f < numForests; ++f)
     if (std::isfinite(sampler.forestCalibration(0, f).share)) ++numSharers;
-  if (numSharers > 0) {
+  if (numSharers > 1) {
     ext_printf("\tforests sharing one prior total:");
     for (std::size_t f = 0; f < numForests; ++f)
       if (std::isfinite(sampler.forestCalibration(0, f).share))
@@ -3239,19 +3239,19 @@ double defaultLeafScale(bartcore::ResponseFamily family) {
 // surface refuses the same list ahead of this backstop, which is what a
 // direct dbarts.h consumer meets.
 //
-// Where two or more forests share one total (bartcore::forestSharers), the
-// fitting function's leaf prior is theirs: k, a k hyperprior and a named sd
-// reach the engine, which hands them to the sharers.
+// Where a forest with no basis states no sd (bartcore::forestsTakeLeafPrior),
+// the fitting function's leaf prior is its size: k, a k hyperprior and a named
+// sd reach the engine, which reads them there.
 void refuseUnsupportedAmplitudeComposition(
     bartcore::ResponseFamily family, const ParsedModel& model,
     const ParsedData& data, const bartcore::SamplerOptions& options,
     const bartcore::AmplitudeSpec& spec) {
   // the forests' kinds ride the data object and are copied onto the spec
-  // later (applyForestBases); read here so the refusal can see the sharers
+  // later (applyForestBases); read here so the refusal can see who takes it
   std::vector<bartcore::ForestSpec> statements = spec.forests;
   for (size_t f = 0; f < statements.size() && f < data.basisKinds.size(); ++f)
     statements[f].kind = data.basisKinds[f];
-  bool shared = !bartcore::forestSharers(statements).empty();
+  bool shared = bartcore::forestsTakeLeafPrior(statements);
   if (const char* refused = refusedAmplitudeFamilyReason(family))
     Rf_error("a model of several forests does not support %s", refused);
   if (!data.predictors.isDenseColumnar())

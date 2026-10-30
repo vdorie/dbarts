@@ -1252,6 +1252,16 @@ public:
     std::vector<ForestAmplitudePrior> amplitudePriors(forestSpecs.size());
     // the forests sharing one total, each an equal part of its variance
     sharers_ = forestSharers(forestSpecs);
+    // a lone sharer at a held k of the default keeps the map's held entry, one
+    // spelling of that size, so that a held fit keeps its draws; it reads as
+    // the sharer it is (forestCalibration)
+    const bool heldAtDefaultK =
+      sharers_.size() == 1 && !options_.updateK &&
+      options_.k == SamplerOptions{}.k && !std::isfinite(options_.namedSd);
+    if (heldAtDefaultK) {
+      forestMap_[sharers_.front()].heldAtDefaultK = true;
+      sharers_.clear();
+    }
     const double share =
       sharers_.empty() ? std::numeric_limits<double>::quiet_NaN()
                        : 1.0 / static_cast<double>(sharers_.size());
@@ -1290,8 +1300,8 @@ public:
       const bool sharer =
         std::find(sharers_.begin(), sharers_.end(), f) != sharers_.end();
       mapped.entry = forestMapEntry(
-        mapped.statement, mapped.kind, spec.family, forestSdUnit_,
-        oneForestSize(), mapped.basisScale,
+        mapped.statement, mapped.kind, forestSdUnit_, leafPriorSize(),
+        mapped.basisScale,
         sharer ? share : std::numeric_limits<double>::quiet_NaN());
       amplitudePriors[f] = mapped.entry.amplitudePrior;
       buildSpecifiedForest(forestSpec.forest);
@@ -1505,11 +1515,18 @@ public:
       return false;
     return combiner_->setForestBasis(f, values, numColumns);
   }
-  /// The size a held forest with no basis defaults to under a drawn sigma, as
-  /// a multiple of the map's anchor: the one forest of a single-forest chain's
-  /// (singleForestDefaultSize), on the response scaled as this one is.
-  double oneForestSize() const {
-    return singleForestDefaultSize() / nodeScaleAnchor_;
+  /// The size the options' leaf prior gives one forest, as a multiple of the
+  /// map's anchor: a named sd, or its node scale over its k, at the chi prior's
+  /// median where k is drawn, the size being monotone in k. At the defaults
+  /// under a drawn sigma that is the one forest of a single-forest chain's
+  /// (singleForestDefaultSize). Read at creation, and at a restatement only as
+  /// the number a statement equal to it resolves to.
+  double leafPriorSize() const {
+    if (std::isfinite(options_.namedSd))
+      return options_.namedSd / forestSdUnit_;
+    const double k =
+      options_.updateK ? options_.kHyperprior.median() : options_.k;
+    return options_.nodeScale / k / nodeScaleAnchor_;
   }
   /// Forest f's leaf scale as the map derives it from the retained entry and
   /// anchor: the one expression the constructor and every restatement call,
@@ -1526,8 +1543,8 @@ public:
   bool isSharer(std::size_t f) const {
     return f < forestMap_.size() && std::isfinite(forestMap_[f].entry.share);
   }
-  /// The forests sharing one total, in index order; empty where fewer than two
-  /// do.
+  /// The forests sharing one total, in index order, empty where none does or
+  /// where the one that does keeps the map's held entry.
   const std::vector<std::size_t>& sharers() const { return sharers_; }
   /// Whether this chain's forest coupling permits the response-side conduit -
   /// setResponse and setOffset at updateScale = false, and setWeights, which
@@ -1706,6 +1723,12 @@ public:
         calibration.namedSd = forest.namedSd;
         calibration.mapSd = calibration.priorSd;
       }
+      // the k that size is the group's at, on the scale it is relative to
+      if (mapped.heldAtDefaultK) {
+        calibration.share = 1.0;
+        calibration.k = options_.k;
+        calibration.priorScale *= options_.k;
+      }
     }
     return calibration;
   }
@@ -1749,12 +1772,14 @@ public:
   /// and a held one, or one with a basis, re-derives its leaf scale. The
   /// forest is a stated one from then on.
   /// Where \p sd is the sd in force (ForestCalibration::mapSd) no bit of the
-  /// prior moves. False, writing nothing, off a map forest, on a sharer, whose
-  /// size is the group's, on an sd that is not positive and finite, and where
-  /// the unit is not.
+  /// prior moves. A lone sharer leaves the group's leaf prior for it, its k
+  /// pinned as a stated forest's is, the size no other forest's. False, writing
+  /// nothing, off a map forest, on a sharer among two or more, whose size is
+  /// the group's, on an sd that is not positive and finite, and where the unit
+  /// is not.
   bool setForestMapSd(std::size_t f, double sd) {
-    if (f >= forestMap_.size() || isSharer(f) || !(sd > 0.0) ||
-        !std::isfinite(sd) || !(forestSdUnit_ > 0.0) ||
+    if (f >= forestMap_.size() || (isSharer(f) && sharers_.size() > 1) ||
+        !(sd > 0.0) || !std::isfinite(sd) || !(forestSdUnit_ > 0.0) ||
         !std::isfinite(forestSdUnit_))
       return false;
     MapForest& mapped = forestMap_[f];
@@ -1763,10 +1788,11 @@ public:
     statement.sdMultiple = std::numeric_limits<double>::quiet_NaN();
     ForestMapEntry entry = mapped.entry;
     // the sd in force keeps the multiple it has, which a fixture's own
-    // multiple is not recovered from by the map
-    if (sd != forestCalibration(f).mapSd)
-      entry = forestMapEntry(statement, mapped.kind, family_, forestSdUnit_,
-                             oneForestSize(), mapped.basisScale);
+    // multiple is not recovered from by the map; a sharer has none to keep
+    const bool sharer = isSharer(f);
+    if (sharer || sd != forestCalibration(f).mapSd)
+      entry = forestMapEntry(statement, mapped.kind, forestSdUnit_,
+                             leafPriorSize(), mapped.basisScale);
     if (entry.amplitudePrior.mixtureScale !=
           mapped.entry.amplitudePrior.mixtureScale &&
         !combiner_->setAmplitudePriorScale(
@@ -1774,6 +1800,14 @@ public:
       return false;
     mapped.statement = statement;
     mapped.entry = entry;
+    mapped.heldAtDefaultK = false;
+    if (sharer) {
+      Forest<L, ResidT>& forest = forests_[f];
+      forest.updateK = false;
+      forest.k = 1.0;
+      forest.namedSd = std::numeric_limits<double>::quiet_NaN();
+      sharers_.clear();
+    }
     forests_[f].leaf.scale = mapLeafScale(f);
     return true;
   }
@@ -1803,8 +1837,8 @@ public:
       return false;
     MapForest& mapped = forestMap_[f];
     ForestMapEntry entry =
-      forestMapEntry(mapped.statement, mapped.kind, family_, forestSdUnit_,
-                     oneForestSize(), scale);
+      forestMapEntry(mapped.statement, mapped.kind, forestSdUnit_,
+                     leafPriorSize(), scale);
     mapped.basisScale = scale;
     mapped.basisScaleFromAllRows = false;
     mapped.entry = entry;
@@ -8277,12 +8311,15 @@ private:
     double basisScale = std::numeric_limits<double>::quiet_NaN();
     bool basisScaleFromAllRows = false;
     ForestMapEntry entry;
+    // a lone sharer at a held k of the default, carried on the map's entry
+    bool heldAtDefaultK = false;
   };
   // empty off the K-forest constructor, which is the guard every reader and
   // writer of the map takes
   std::vector<MapForest> forestMap_;
-  // the forests sharing one total (forestSharers), in index order; empty
-  // where fewer than two do, which is the guard every sharer path takes
+  // the forests sharing one total (forestSharers), in index order, which is
+  // the guard every sharer path takes; empty where none does and where a lone
+  // one keeps the map's held entry
   std::vector<std::size_t> sharers_;
   // the map's anchor s, and the response units in one s, which a stated sd is
   // divided by; both are creation's and no mutation moves either
