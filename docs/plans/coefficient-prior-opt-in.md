@@ -94,7 +94,7 @@ a two-level `z`. The critic reproduced every premise below on its own install (s
   `sd` (NA where none stated) and `heldAmplitude` (p4: `75 0.95 2 1`, `50 0.25 3 0`, `NA NA`, `FALSE TRUE`);
   a `copy()` keeps the hold (p4). The bridge reads the statements in
   [`applyForestStatements`](../../src/R_interface_bartcore.cpp) through
-  [`forestNumbers`](../../src/R_interface_bartcore.cpp), which returns nothing for an absent entry.
+  [`forestRecordNumber`](../../src/R_interface_bartcore.cpp), which returns NaN for an NA entry.
 - The reader ([`reportLeafPrior`](../../R/dbarts.R)): `amplitude` is `fixed()` on a held forest and absent on a
   drawn one; `prior.sd.of` is "forest (prior median)" for a drawn forest with no basis, "forest, per unit of basis
   (prior median)" for a drawn numeric one, "level difference" for a held factor; `k.scale` 1.93 (the unit) on the
@@ -216,7 +216,7 @@ R-agnostic: no R name, record or object. `--preclean` on every commit.
 ### Bridge (slice 1)
 
 - [`applyForestStatements`](../../src/R_interface_bartcore.cpp) reads `amplitude.df`, one number or NA a
-  forest, through [`forestNumbers`](../../src/R_interface_bartcore.cpp); NA and an absent entry state nothing.
+  forest, through [`forestRecordNumber`](../../src/R_interface_bartcore.cpp); NA states nothing.
 - [`bartcore_getLeafPrior`](../../src/R_interface_bartcore.cpp) gains the column `amplitude.df`.
 - No registration's arity changes; the shipped header does not move.
 

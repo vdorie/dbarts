@@ -29,7 +29,7 @@ those columns alone. A model whose restriction differs from the sampler's is ref
   [`applyAmplitudeSpec`](../../src/R_interface_bartcore.cpp) from the control's forests attribute, and
   [`Chain::buildSpecifiedForest`](../../src/bartcore/chain.hpp) turns them into the forest's `columnMask`,
   which every tree reads through [`Tree::collectAvailableVariables`](../../src/bartcore/tree.hpp). The
-  variance forest has the same thing ([`applyVarianceAttributes`](../../src/R_interface_bartcore.cpp),
+  variance forest has the same thing ([`applyVarianceRecord`](../../src/R_interface_bartcore.cpp),
   [`Chain::buildVarianceForest`](../../src/bartcore/chain.hpp)). A single mean forest is built from
   [`SamplerOptions`](../../src/bartcore/chain.hpp), which has no such field, and
   [`resolveSamplerSpec`](../../R/spec.R) reads the first forest's `n.trees`, `interactions` and `blocks`

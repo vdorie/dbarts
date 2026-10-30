@@ -95,7 +95,7 @@ effect on the next sweep, reinterprets no drawn value, and survives re-creation.
    - Accepted as no-op writes, because creation accepts them: `leaf.prior = normal()` and
      `normal(k = 2)`.
 4. Anchor carry. At first creation R records s, read off the engine, as `bartcore.forests$anchor`.
-   [`applyForestAttributes`](../../src/R_interface_bartcore.cpp) passes it to a new
+   [`applyForestRecords`](../../src/R_interface_bartcore.cpp) passes it to a new
    `AmplitudeSpec` field (implemented there rather than in `applyAmplitudeSpec`, which never sees
    the attribute list). When that field is finite, the
    constructor uses it instead of `latentScaleAnchor`.

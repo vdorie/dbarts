@@ -68,7 +68,7 @@ each value back. Closes TODO `state-frame-prior` and unblocks response-scale-row
   and derived at `setData` ([`Chain::applyNewData`](../../src/bartcore/chain.hpp)); the range on the model
   (retired: [`recordAnchor`](../../R/dbarts.R), gone in slice 1, and [`applyAnchor`](../../R/dbarts.R), copied by `setModel`); the anchor
   and unit on the control (the sampler's `initialize` in [R/dbarts.R](../../R/dbarts.R), read by
-  [`applyForestAttributes`](../../src/R_interface_bartcore.cpp)); [`samplePriorPredictive`](../../R/dbarts.R)
+  [`applyForestRecords`](../../src/R_interface_bartcore.cpp)); [`samplePriorPredictive`](../../R/dbarts.R)
   creates from `sampler$data` and applies the model's range.
 - Factories that build an engine: [`bartcore_create`](../../src/R_interface_bartcore.cpp),
   [`createMultinomialDataHolder`](../../src/R_interface_bartcore.cpp), and the

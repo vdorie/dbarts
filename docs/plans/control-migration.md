@@ -91,8 +91,8 @@ basisTerms, and `control.n.trees`, the carried count of [`resolveSamplerSpec`](.
 `bartcore.survival`, `bartcore.moves` (per-forest move settings, added by per-forest-move-settings after the
 2026-10-05 design); coefficient-prior-opt-in (acee2dbf, landing first) adds `amplitude.df` to
 `bartcore.forests`, read by the bridge. Lines naming one: R 44, src 17, tinytest 80. Bridge readers: [`parseControl`](../../src/R_interface_bartcore.cpp)
-(categories, shape, the moves), [`applySurvivalAttribute`](../../src/R_interface_bartcore.cpp),
-[`applyVarianceAttributes`](../../src/R_interface_bartcore.cpp), [`applyForestAttributes`](../../src/R_interface_bartcore.cpp)
+(categories, shape, the moves), `applySurvivalAttribute`,
+`applyVarianceAttributes`, `applyForestAttributes` (since slice 1a [`applySurvivalStatus`](../../src/R_interface_bartcore.cpp), [`applyVarianceRecord`](../../src/R_interface_bartcore.cpp), [`applyForestRecords`](../../src/R_interface_bartcore.cpp))
 and the forest-count read of [`bartcore_createDataHandle`](../../src/R_interface_bartcore.cpp)'s callers. The
 calibration anchor already lives on the data object (`forest.calibration`).
 
@@ -326,9 +326,9 @@ category count, the shape and the moves; [`parseModel`](../../src/R_interface_ba
 records (the first forest's count among them), the variance record, the category count, the shape and each
 forest's moves; [`parseData`](../../src/R_interface_bartcore.cpp) reads `useQuantiles` and the status. The binary
 flag the bridge uses (the summary, `sigmaIsFixed`, [`resolveFamily`](../../src/R_interface_bartcore.cpp)) comes
-from the parsed family. [`applyVarianceAttributes`](../../src/R_interface_bartcore.cpp),
-[`applySurvivalAttribute`](../../src/R_interface_bartcore.cpp) and [`applyForestAttributes`](../../src/R_interface_bartcore.cpp)
-read the model and data and are renamed for what they read. [`bartcore_setControl`](../../src/R_interface_bartcore.cpp)
+from the parsed family. `applyVarianceAttributes`,
+`applySurvivalAttribute` and `applyForestAttributes`
+read the model and data and are renamed for what they read: [`applyVarianceRecord`](../../src/R_interface_bartcore.cpp), [`applySurvivalStatus`](../../src/R_interface_bartcore.cpp), [`applyForestRecords`](../../src/R_interface_bartcore.cpp). [`bartcore_setControl`](../../src/R_interface_bartcore.cpp)
 loses its tree-count refusal (the control has none to compare); `bartcore_setModel` gains it as a backstop for
 callers that skip R's check (xbart's cell install). The data handle takes `useQuantiles` from the data object and
 `sparseDensityThreshold` from the control as now. A slot holding NULL reaches the bridge as R's S4 NULL marker;

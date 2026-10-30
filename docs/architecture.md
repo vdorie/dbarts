@@ -68,18 +68,25 @@ columns, in `data@basis.levels` (docs/design/forest-kind-by-class.md), and a
 numeric column's scale, which the engine takes at a first creation for a
 forest that states no sd, rides it in `data@basis.scale` and is handed to every
 later creation (docs/design/forest-multiplier.md); a fit's
-`bases` holds the factor for a forest of levels. The record that rebuilds a basis at new rows, R's
-own `terms`, rides the forests' configuration on the control
-(docs/design/written-surface.md). A forest's default tree count and tree
-prior go by whether it has a basis, and the control's count and the model's
-tree prior hold the first forest's, which is where the bridge reads them
-(docs/design/forest-defaults-by-kind.md). The same configuration holds four
-numbers a forest (tree count, base, power, the hold), each forest's stated `sd`
-and coefficient variance as written and NA where none is stated, whether the
-forest was created with a basis, and the anchor and the unit the engine derived
-at the first creation: the engine divides a stated `sd`, which is in the
-response's units, by the unit, and holds the calibration map and every default,
-so R derives none of it (docs/design/forest-sd-unit.md).
+`bases` holds the factor for a forest of levels. Each forest's record rides the model, in `model@forests` (one
+`dbartsForestRecord` a forest), and the bridge reads every forest's settings
+from it: the tree count and what the caller stated of it, base and power, the
+hold, the stated `sd` (NA where none is stated), a student() coefficient's
+degrees of freedom, the predictors, interactions, blocks, label and move
+settings, and the record that rebuilds a basis at new rows, R's own `terms`
+(docs/design/written-surface.md). The variance forest's record rides
+`model@variance`, and the category count, the shape setting and the hazard
+periods ride their own model slots; the censoring status and the quantile rule
+ride the data object, in `data@status` and `data@useQuantiles`. A control holds
+run settings: its `n.trees`, `useQuantiles` and `binary` are copies the sampler
+writes from the model and data ([`mirrorControl`](../R/records.R)), and the bridge
+reads none of them. A forest's default tree count and tree prior go by whether
+it has a basis, and the model's tree prior holds the first forest's
+(docs/design/forest-defaults-by-kind.md). The anchor and the unit the engine
+derived at the first creation ride the data object: the engine divides a stated
+`sd`, which is in the response's units, by the unit, and holds the calibration
+map and every default, so R derives none of it
+(docs/design/forest-sd-unit.md).
 
 The sampler lives in C++ and the R object holds an external pointer to it, a
 `bartcore::SamplerBase`. What the engine derived from the data and holds -

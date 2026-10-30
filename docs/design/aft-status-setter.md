@@ -19,7 +19,7 @@ fixed at creation. The enabled item is SBC coverage: aft is out of the matrix fo
 ## 1. What is fixed today
 
 [`AFTResponse`](../../src/bartcore/model.hpp) derives `censoredIndices_` and `censorBound_` once, in its constructor, from
-the status the bridge reads off the control attribute ([`applySurvivalAttribute`](../../src/R_interface_bartcore.cpp)),
+the status the bridge read off the control attribute (`applySurvivalAttribute`; now [`applySurvivalStatus`](../../src/R_interface_bartcore.cpp), off `data@status`),
 keeping no pointer to it. [`AFTResponse::setResponse`](../../src/bartcore/model.hpp) replaces the log-times and refreshes
 each bound BY INDEX, so a new response reaches the old censoring structure. Whole-data replacement is refused outright
 (["fix the censoring structure at creation"](../../src/R_interface_bartcore.cpp)).

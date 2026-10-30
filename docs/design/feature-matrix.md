@@ -136,7 +136,7 @@ object's external pointer.
 | hazard | M [`xbart`](../../R/xbart.R) | S, as probit [f5] |
 | hurdle | M | M [f10] |
 | bcf | M [`xbart`](../../R/xbart.R) | S [`dbartsSpec`](../../R/spec.R), [`forests`](../../R/spec.R) |
-| hetero | M [`xbart`](../../R/xbart.R) | S [`applyVarianceAttributes`](../../src/R_interface_bartcore.cpp) [f3] |
+| hetero | M [`xbart`](../../R/xbart.R) | S [`applyVarianceRecord`](../../src/R_interface_bartcore.cpp) [f3] |
 
 Construction reach through `bart()`, `bartBT()` and `dbarts()` + R5: gaussian and probit reach all
 three ([`bart`](../../R/bart.R), [`bartBT`](../../R/bart.R), [`dbarts`](../../R/dbarts.R)), `bartBT()` fitting a binary
@@ -265,8 +265,8 @@ augmentation entries alone.
 [f3] Ordinal and nbinom each ship a `DBARTS_FAMILY_*` enumerator; heteroscedastic has none,
 being a control-attribute decoration. The header's specification-attribute block
 (retired: ["SPECIFICATION ATTRIBUTES"](../../inst/include/dbarts/dbarts.h)) documents all three selectors - `bartcore.n.categories`,
-`bartcore.shape` ([`parseControl`](../../src/R_interface_bartcore.cpp)) and `bartcore.variance`
-([`applyVarianceAttributes`](../../src/R_interface_bartcore.cpp)).
+`bartcore.shape` and `bartcore.variance`, which now ride the model ([`parseModel`](../../src/R_interface_bartcore.cpp),
+[`applyVarianceRecord`](../../src/R_interface_bartcore.cpp)).
 
 [f4] `dbarts(x, y, family = "multinomial")` (matrix interface only) takes a counts matrix or a
 one-hot-expanded factor response ([`dbarts`](../../R/dbarts.R), [`multinomial`](../../R/dbarts.R),

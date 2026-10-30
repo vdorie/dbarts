@@ -63,8 +63,8 @@ DESCRIPTION drops the drop-in claim for a compatible-interface one;
 - Survival, matrix interface only today. `aft` response via
   [`extractSurvivalResponse`](../../R/dbarts.R) (wraps
   [`parseSurvivalResponse`](../../R/dbarts.R), `log()`); status rides the
-  unsubsetted `bartcore.survival` control attribute, read by the bridge
-  ([`applySurvivalAttribute`](../../src/R_interface_bartcore.cpp)) at
+  unsubsetted `data@status` slot, read by the bridge
+  ([`applySurvivalStatus`](../../src/R_interface_bartcore.cpp)) at
   `numObservations` rows - `subset` must subset that channel too. Hazard
   response via [`extractSurvivalTimes`](../../R/dbarts.R), expanded by
   [`expandDiscreteTimeHazard`](../../R/dbarts.R)/

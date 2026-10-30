@@ -48,7 +48,7 @@ and help page states an sd once, in the unit it keeps, and reads it back in the 
 with any other work in [`forestParams`](../../R/model.R), the multi-forest block of
 [`resolveSamplerSpec`](../../R/spec.R), [`reportLeafPrior`](../../R/dbarts.R),
 [`writeForestSpreads`](../../R/dbarts.R), [`extractParameter`](../../R/generics.R),
-[`applyForestAttributes`](../../src/R_interface_bartcore.cpp),
+[`applyForestRecords`](../../src/R_interface_bartcore.cpp),
 [`applyAmplitudeSpec`](../../src/R_interface_bartcore.cpp), [`ForestSpec`](../../src/bartcore/combiner.hpp),
 [`AmplitudeForestCombiner`](../../src/bartcore/combiner.hpp) or the K-forest constructor of
 [`Chain`](../../src/bartcore/chain.hpp). bartCause's edit lands the same day.
@@ -374,7 +374,7 @@ weights of which ten are 0.
      one's anchor and unit handed back has every leaf scale of the first, bit for bit. (f) The two
      throws.
 2. The bridge. [`applyAmplitudeSpec`](../../src/R_interface_bartcore.cpp) reads four numbers a forest
-   (tree count, base, power, the hold). [`applyForestAttributes`](../../src/R_interface_bartcore.cpp)
+   (tree count, base, power, the hold). [`applyForestRecords`](../../src/R_interface_bartcore.cpp)
    reads three more entries of the forests' configuration: `sd` and `variance`, one number or NA for
    each forest, and `unit`, as it reads `anchor`, with the two texts for a malformed one.
    [`bartcore_getLeafPrior`](../../src/R_interface_bartcore.cpp) reports the unit and the sd in force as

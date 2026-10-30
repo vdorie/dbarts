@@ -469,9 +469,9 @@ subject's at-risk periods with the ordinal period column appended, y' the
 per-period indicators. With the remap done (family now reads "probit" or
 "logistic"), that design flows through the dbarts -> dbartsData -> bridge
 -> binary-family path with no change downstream of the remap point. The
-engine, the bridge (resolveFamily, applySurvivalAttribute -
+engine, the bridge (resolveFamily, applySurvivalStatus -
 [`resolveFamily`](../../src/R_interface_bartcore.cpp),
-[`applySurvivalAttribute`](../../src/R_interface_bartcore.cpp)), and
+[`applySurvivalStatus`](../../src/R_interface_bartcore.cpp)), and
 the ResponseModels never learn the rows are person-periods; there is no
 bartcore.hazard attribute and no status vector to C++ (unlike aft,
 [`resolveSamplerSpec`](../../R/spec.R)) - the censoring is already baked into y'.
