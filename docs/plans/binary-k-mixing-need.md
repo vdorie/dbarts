@@ -79,9 +79,11 @@ plan's first estimate was 141; the stop stays at 211.
 
 After this study each regime and estimand class of [Regimes](#regimes) and [Estimands](#estimands) carries
 one reading per link, fixed by the rule of [What counts as a problem](#what-counts-as-a-problem): problem
-shown, no problem (bounded or measured), or unresolved, with the effective draws per second of every
-estimand under both kernels and the share of any harm due to the start. That map, weighed by use, says
-whether faster k moves are worth pricing and where.
+shown, no problem (bounded or measured), or unresolved. That map, weighed by use, says whether faster k
+moves are worth pricing and where. Two things first asked of this study moved to pricing (Amendment 3):
+the effective draws per second of the row estimands under both kernels, which the stored outputs cannot
+supply, and the share of any harm due to the start, which the study leaves unsettled; k's own effective
+draws are read here.
 
 ## What is known
 
@@ -412,7 +414,7 @@ being a shorter one's (the binary interval study's prefix check).
   predictors), S6, S7 and E1 (missing values) in tranche 1, and of any other regime whose default oracle
   is half the bar or more from nominal: a long oracle off nominal is a mismatch between the prior draw and
   the fit (a harness defect, which stops that regime), a long oracle on nominal with a default one off is
-  the trees' cost.
+  the trees' cost. Amendment 3 gives the regimes owed and what counts as off nominal.
 - **fixed k**: k fixed at the 10th, 50th and 90th percentiles of its posterior (the ruled arms, every
   chain), and at the 5th, 30th, 70th and 95th with one chain each, on every reference replication. With k
   fixed neither the probit step nor the move runs, so these fits are the same on both builds (a stage 1
@@ -535,7 +537,8 @@ outside its own posterior's interval, so any sampler that reached the posterior 
   full draws for 20 references chosen in advance (audit); about 1.2 MB a reference.
 - **Check on the references as a class**: under SBC, the references' own coverage of the truth must be
   nominal within noise over a regime's reference replications; a regime where it is not shows acceptance
-  passing references it should not, and its reference readings are withdrawn.
+  passing references it should not, and its reference readings are withdrawn. Amendment 3 gives how it is
+  computed and what it found.
 
 ## Replications and power
 
@@ -698,13 +701,19 @@ plan's rule, bands and bars precedes the first study fit.
 
 **A problem shown** (k's, in some cell) opens the pricing step, a separate plan, which reads this study's
 outputs and measures only variants:
-- per problem cell, the effective draws per second of the affected estimands under both kernels (from the
-  long readings and the stationary tails), and the breakdown of the shortfall;
+- first, a direct test of the move's small-k tail, as a gate: under SBC the mean posterior share of k under
+  a cutoff should match the share of true k under it. The study has only a weak version of this, and almost
+  every logistic reference with that tail failed acceptance, so no long-run agreement checks it;
+- per problem cell, the effective draws per second of the affected estimands under both kernels, measured
+  afresh with a few fits in S4, S1 and S2 logistic, about a core-hour or a few: the study stores no
+  default-reading draws, compacts references to 1,000 quantiles a row and dropped the tails but for the audit
+  references, so only scalars and k survive. And the breakdown of the shortfall;
 - candidates: the built move every fourth sweep (207f740e); every sweep; during burn-in only, which removes
   the transient and nothing else, so it suffices exactly where k's share of the transient is the whole
-  problem; a longer default burn-in; the move gated by a data-defined trigger (outcome rate or separation
-  score), exact because it reads the data alone, as the collapsed plan's size switch does; the collapsed
-  plan's size and frequency options; an opt-in argument;
+  problem, and which settles the share of harm due to the start that the study leaves open; a longer default
+  burn-in; the move gated by a data-defined trigger (outcome rate or separation score), exact because it
+  reads the data alone, as the collapsed plan's size switch does; the collapsed plan's size and frequency
+  options; an opt-in argument;
 - what follows by tier: a tier 1 problem prices a default (the cheapest candidate that clears the bar
   where the problem is, at its cost on every fit); tier 2 alone prices a scoped default (trigger) against
   an opt-in, by the share of fits in those regimes, which the maintainer estimates; tier 3 alone leads to
@@ -1184,14 +1193,46 @@ power](#replications-and-power) and [Cost](#cost).
   once any first look stopped a cell); an incomplete side withholds both sides' readings of its cell and
   link (alternative, report the complete side).
 
+**Amendment 3, 2026-10-30, after `read 2` and its review.** The review found two pre-registered checks
+neither run nor reported, and pricing's inputs not available as written. None of this changes a rule; it
+states how the checks are done, after the readings are known.
+
+- **Long oracle.** The code ran it on the five regimes named above and never applied the half-the-bar
+  trigger. `longOracleOwedFrom` now computes the regimes owed from the default oracle's coverage, bands
+  aside: S2, S3, S4, S8, S9 and E2. S8 is owed by one-value classes that may be noise; it runs on the strict
+  reading. E3 is owed only by a band and is left out (alternative, include it, about 0.4 core-hours), since
+  a band is not a reading the long oracle could verify at 25 replications. S1 under probit near 0 or 1 reads
+  0.829 (se 0.034) over 25, too few to say, so it extends to 100 (`longOracleMore`, about 0.2 core-hours;
+  the plan does not ask this). About 4 core-hours in all, at most 5, in phase `longoracle`; each scores
+  under its replication's existing labels (`runLongScore`), so no reading shifts.
+- **Off nominal** is |z| against 0.90 past a Bonferroni bound over the table's readings at two-sided 0.05,
+  bands aside, the form of the null run (`longOracleReading`). Alternative: a fixed distance such as the
+  bar, which at 25 replications would stop regimes on noise. On the five that ran, nothing is off nominal.
+- **The long oracle's start** is the orchestrator's call: the job list and launcher are ready and not
+  started, since the box's four cores are held by another study whose elapsed time feeds a pre-registered
+  stop. The finding states which comparators are verified and which are pending. Alternative: pause that
+  work, or run this beside it and bias its stop.
+- **Check on the references as a class** (`refClassCheck`, action `refclass`) reads each regime, link and
+  class: the accepted references' coverage of the truth, with a bootstrap over references (4,000 resamples)
+  and a Bonferroni bound over the 67 readings, on the compacted references, with no fits. The code's normal
+  bound (3.37) flags four: E3 probit interior 0.958, S8 probit individual effects 0.987, S2 logistic near 0
+  or 1 0.941, S9 probit inverse weights 0.598. With a t quantile at references minus 1, as references are
+  read elsewhere, the first two stay. No reference reading rests on the other two. In the first two the
+  shipped and told arms over-cover on the same replications (0.958 and 0.939; 0.980 and 0.988), which points
+  to those replications and not to acceptance. The readings resting on them are kept with a note; the rule
+  above withdraws them. That choice is the maintainer's. Under withdrawal: bounded 13, measured 53, problem
+  7, unresolved 165.
+- **Moved to pricing**: effective draws per second of row estimands and the share of harm due to the start,
+  as the Goal and [What the result leads to](#what-the-result-leads-to) now say. No reading used them.
+
 ## Rulings and pending slots
 
 - **The link in the use tiers**: ruled, dec-B463. A logistic cell counts as the same cell under probit.
 - **Full or lean**: the full design, the orchestrator's call under the maintainer's standing permission to
   raise compute ([Considered: a lean variant](#considered-a-lean-variant)).
-- **The colleagues' case (D1x)**: asked of the maintainer; pending. If their multiple-treatments problem is
-  shared before tranche 1 it runs as a tier 1 reference cell of about 5 core-hours, within the stop; if
-  later, as an addition.
+- **The colleagues' case (D1x)**: ruled, dec-B529: "Let's leave room for an amendment and proceed without
+  it." The study lands without it. D1x stays as that amendment's slot: when the case arrives it runs as a
+  tier 1 reference cell of about 5 core-hours, within the stop.
 
 ## Not verified
 
