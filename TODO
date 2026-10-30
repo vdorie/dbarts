@@ -294,6 +294,15 @@ items
     reaches bcf-shaped models. After the forest slices. Before then
     the help says a re-derived basis scale (updateBasisScale, dec-B303)
     and the response scale may span different rows.
+  named-null-by-signature: a written NULL at creation is taken where
+    the signature's default is NULL, reading as not written, and refused
+    elsewhere naming the leaving out (dec-B519). Reads the value, so a
+    wrapper's power = power is judged by what it holds. Changes the
+    stated-names readers, forest()'s and varianceForest()'s statements,
+    bart()'s leaf.prior and the "What counts as stated" section of
+    docs/design/forest-defaults-by-kind.md. About 60 lines, half tests;
+    no call that fits today moves except the NULLs it refuses. Before
+    1.0-0.
   nbinom-default-prior: the negative binomial default stays k drawn
     under chi(1.5, 2) (dec-B431, VD 2026-10-10) after the prior
     predictive study of dec-B412. The maintainer judged the study
