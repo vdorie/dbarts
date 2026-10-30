@@ -178,7 +178,7 @@ sentinelDraws <- function(column) {
 }
 expect_identical(sentinelDraws(d$wild), sentinelDraws(d$dose))
 # a dose constant over the rows of positive weight, varying over the others:
-# refused with no sd stated, created with one
+# refused, an sd stated or not
 d$flat <- ifelse(w > 0, 0.25, dose)
 expect_error(
   dbarts(
@@ -188,10 +188,10 @@ expect_error(
     forests = list(forest(), forest(basis = ~flat)),
     control = recordControl()
   ),
-  "forest 2 ('flat') states no sd and its basis is constant (0.25 on every row in the likelihood)",
+  "forest 2 ('flat')'s basis is constant (0.25 on every row in the likelihood)",
   fixed = TRUE
 )
-expect_true(inherits(
+expect_error(
   dbarts(
     y ~ x1 + x2,
     d,
@@ -199,8 +199,9 @@ expect_true(inherits(
     forests = list(forest(), forest(basis = ~flat, sd = 2)),
     control = recordControl()
   ),
-  "dbartsSampler"
-))
+  "Write it with none, as forest(sd = 2)",
+  fixed = TRUE
+)
 
 # under probit the rows in are the ones the 0/1 weights keep, which install as
 # the sampler's mask
@@ -347,7 +348,7 @@ expect_error(
     forests = list(forest(), forest(basis = ~twoFlat)),
     control = recordControl()
   ),
-  "forest 2 ('twoFlat') states no sd and its basis is constant (0.25 on every row in the likelihood)",
+  "forest 2 ('twoFlat')'s basis is constant (0.25 on every row in the likelihood)",
   fixed = TRUE
 )
 # a store of two rows with one in reads both
@@ -386,7 +387,7 @@ for (weights in list(oneIn, rep(0, n))) {
       control = recordControl()
     )),
     paste0(
-      "forest 2 ('allFlat') states no sd and its basis is constant (0.3 on ",
+      "forest 2 ('allFlat')'s basis is constant (0.3 on ",
       "every row, read because too few are in the likelihood)"
     ),
     fixed = TRUE,
@@ -402,7 +403,7 @@ expect_error(
     forests = list(forest(), forest(basis = ~flat)),
     control = recordControl()
   ),
-  "states no sd and its basis is constant (0.25 on every row",
+  "'s basis is constant (0.25 on every row",
   fixed = TRUE
 )
 
@@ -574,8 +575,8 @@ setters$setPredictor(x2 / 2, 2L)
 setters$setActiveRows(rep(c(TRUE, FALSE), length.out = n))
 expect_identical(readingOf(setters), settersBefore)
 
-# --- a column with no scale: refused at four doors where it states no sd,
-# created where it states one ---
+# --- a column with no scale: refused at four doors, sd stated or not, naming
+# the spelling with no basis ---
 constants <- list(
   ones = rep(1, n),
   tenth = rep(0.1, n),
@@ -626,22 +627,164 @@ for (name in names(constants)) {
     expect_error(
       constantDoors[[door]](column),
       paste0(
-        "states no sd and its basis is constant (",
+        "'s basis is constant (",
         value,
-        " on every row in the likelihood), so there is no standard ",
-        "deviation to take a default from; state one with sd ="
+        " on every row in the likelihood): a forest multiplied by a constant ",
+        "is a forest with no basis. Write it with none, as forest("
       ),
       fixed = TRUE,
       info = info
     )
-    expect_true(
-      inherits(constantDoors[[door]](column, sd = 2), "dbartsSampler"),
+    expect_error(
+      constantDoors[[door]](column, sd = 2),
+      "'s basis is constant (",
+      fixed = TRUE,
       info = info
     )
   }
 }
-# constant on the rows subset keeps, varying over the rest
+# the spelling it names keeps what the forest states
+expect_error(
+  constantDoors$term(rep(1, n), sd = 2),
+  "Write it with none, as forest(x1, sd = 2)",
+  fixed = TRUE
+)
+expect_error(
+  constantDoors$term(rep(1, n)),
+  "Write it with none, as forest(x1)",
+  fixed = TRUE
+)
+expect_error(
+  constantDoors$data(rep(1, n)),
+  "Write it with none, as forest()",
+  fixed = TRUE
+)
+# a held coefficient, and the other fitting function
+d$col <- rep(1, n)
+expect_error(
+  dbarts(
+    y ~ forest(x1 + x2) +
+      forest(x1, basis = col, sd = 2, amplitude = dbartsPriors$fixed()),
+    d,
+    control = recordControl()
+  ),
+  "'s basis is constant (1 on every row in the likelihood)",
+  fixed = TRUE
+)
+expect_error(
+  bart(
+    y ~ forest(x1 + x2) + forest(x1, basis = col, sd = 2),
+    d,
+    n.samples = 2L,
+    n.burn = 0L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  ),
+  "'s basis is constant (1 on every row in the likelihood)",
+  fixed = TRUE
+)
+spec <- tryCatch(
+  dbartsSpec(
+    dbartsData(x, y),
+    recordControl(),
+    forests = list(forest(), forest(basis = rep(1, n), sd = 2))
+  ),
+  error = function(e) conditionMessage(e)
+)
+expect_true(
+  is.character(spec) && grepl("'s basis is constant (1 ", spec, fixed = TRUE)
+)
+# not a numeric column's: a factor of one level and a logical column at one
+# value, and a column of zeros, keep their own refusals, sd stated or not
+d$oneLevel <- factor(rep("a", n))
+d$oneValue <- rep(TRUE, n)
+d$allZero <- rep(0, n)
+expect_error(
+  dbarts(
+    y ~ forest(x1 + x2) + forest(x1, basis = oneLevel, sd = 2),
+    d,
+    control = recordControl()
+  ),
+  "a 'basis' factor must have at least two levels",
+  fixed = TRUE
+)
+expect_error(
+  dbarts(
+    y ~ forest(x1 + x2) + forest(x1, basis = oneValue, sd = 2),
+    d,
+    control = recordControl()
+  ),
+  "would be multiplied by a constant",
+  fixed = TRUE
+)
+expect_error(
+  dbarts(
+    y ~ forest(x1 + x2) + forest(x1, basis = allZero, sd = 2),
+    d,
+    control = recordControl()
+  ),
+  "a 'basis' column of all zeros contributes nothing to a forest",
+  fixed = TRUE
+)
+# a column zero over the rows in but not over the rest is constant over them
+d$zeroOverIn <- ifelse(d$kept, 0, dose)
+expect_error(
+  dbarts(
+    y ~ forest(x1 + x2) + forest(x1, basis = zeroOverIn, sd = 2),
+    d,
+    subset = kept,
+    control = recordControl()
+  ),
+  "a 'basis' column of all zeros contributes nothing to a forest",
+  fixed = TRUE
+)
+expect_error(
+  dbarts(
+    y ~ forest(x1 + x2) + forest(x1, basis = zeroOverIn, sd = 2),
+    d,
+    weights = as.double(kept),
+    control = recordControl()
+  ),
+  "'s basis is constant (0 on every row in the likelihood)",
+  fixed = TRUE
+)
+# constant only over the rows a subset or a weight of zero leaves, sd stated
 d$subsetFlat <- ifelse(d$kept, 2.5, dose)
+expect_error(
+  dbarts(
+    y ~ forest(x1 + x2) + forest(x1, basis = subsetFlat, sd = 2),
+    d,
+    subset = kept,
+    control = recordControl()
+  ),
+  "forest 2 ('subsetFlat')'s basis is constant (2.5 on every row in the",
+  fixed = TRUE
+)
+expect_error(
+  dbarts(
+    y ~ forest(x1 + x2) + forest(x1, basis = subsetFlat, sd = 2),
+    d,
+    weights = as.double(d$kept),
+    control = recordControl()
+  ),
+  "forest 2 ('subsetFlat')'s basis is constant (2.5 on every row in the",
+  fixed = TRUE
+)
+# a later swap stays taken, its copy and a stated forest's reload with it, and
+# a sampler assembled by hand from such a data object is that same creation
+live <- dbarts(
+  y ~ forest(x1 + x2) + forest(x1, basis = dose, sd = 2),
+  d,
+  control = recordControl()
+)
+live$setForestBasis(2L, rep(1, n))
+expect_true(inherits(live$copy(), "dbartsSampler"))
+expect_true(inherits(
+  new("dbartsSampler", live$control, live$model, live$data),
+  "dbartsSampler"
+))
+# constant on the rows subset keeps, varying over the rest
 expect_error(
   dbarts(
     y ~ x1 + x2,
@@ -650,7 +793,7 @@ expect_error(
     forests = list(forest(), forest(basis = ~subsetFlat)),
     control = recordControl()
   ),
-  "forest 2 ('subsetFlat') states no sd and its basis is constant (2.5 on",
+  "forest 2 ('subsetFlat')'s basis is constant (2.5 on",
   fixed = TRUE
 )
 # and the same through a creation from a data object whose record is cleared
@@ -668,7 +811,12 @@ for (name in names(constants)) {
 wiggle <- 61.7 + 1e-9 * sin(seq_len(n))
 expect_error(
   constantDoors$list.matrix(wiggle),
-  "states no sd and its basis is constant to rounding (its standard deviation is",
+  "'s basis is constant to rounding (its standard deviation is",
+  fixed = TRUE
+)
+expect_error(
+  constantDoors$list.matrix(wiggle, sd = 2),
+  "'s basis is constant to rounding (its standard deviation is",
   fixed = TRUE
 )
 far <- 1e7 + seq_len(n)

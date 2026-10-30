@@ -294,7 +294,9 @@ kept <- counted(bart(
 ))
 printedKept <- printLines(kept)
 expect_identical(shortOf(printedKept), expectedFit)
-expect_true(any(startsWith(printedKept, "n.trees: ")))
+# a kept sampler adds the burn-in, and the block already has the counts
+expect_true(any(startsWith(printedKept, "n.burn: ")))
+expect_false(any(startsWith(printedKept, "n.trees: ")))
 # what else a fit held fixed stays on the line under the table
 sigmaHeld <- counted(bartFit(
   y ~ forest(x1 + x2) + forest(x1, basis = dose),
@@ -618,33 +620,34 @@ wildShort <- shortOf(showLines(wildMade$sampler))[3L]
 expect_false(grepl("range", wildShort, fixed = TRUE))
 expect_identical(wildShort, numericShort(2, "wild", wild, U / sd(wild)))
 
-# --- a constant column, which has a stated sd, prints no figure per sd ---
-flat <- rep(2, n)
-flatMade <- built(dbarts(
-  y ~ forest(x1 + x2) + forest(x1, basis = flat, sd = 5),
-  data.frame(d, flat),
-  control = printControl(verbose = TRUE)
-))
+# --- a column a swap left constant, under a stated sd, prints no figure per
+# sd; constant here is an sd under 1e-11 of its largest value ---
+swappedTo <- function(name, column) {
+  frame <- data.frame(d)
+  frame[[name]] <- dose
+  formula <- as.formula(paste0(
+    "y ~ forest(x1 + x2) + forest(x1, basis = ",
+    name,
+    ", sd = 5)"
+  ))
+  sampler <- dbarts(formula, frame, control = printControl())
+  sampler$setForestBasis(2L, column)
+  sampler
+}
+flatMade <- swappedTo("flat", rep(2, n))
 expect_identical(
-  flatMade$full[3L],
+  dbarts:::samplerForestLines(flatMade, full = TRUE)[3L],
   "  2 flat: numeric basis, mean 2, sd 0, range 2 to 2; sd 5 per unit (stated)"
 )
 expect_identical(
-  shortOf(showLines(flatMade$sampler))[3L],
+  shortOf(showLines(flatMade))[3L],
   "  2 flat: numeric basis, mean 2, sd 0; sd 5 per unit"
 )
-
-# --- a column that is constant to rounding, which has a stated sd, is
-# constant here too, where an exact zero is not what is asked ---
 nearly <- 61.7 + 1e-13 * sin(seq_len(n))
 expect_true(sd(nearly) > 0)
-nearlyMade <- built(dbarts(
-  y ~ forest(x1 + x2) + forest(x1, basis = nearly, sd = 5),
-  data.frame(d, nearly),
-  control = printControl(verbose = TRUE)
-))
+nearlyMade <- swappedTo("nearly", nearly)
 expect_identical(
-  nearlyMade$full[3L],
+  dbarts:::samplerForestLines(nearlyMade, full = TRUE)[3L],
   paste0(
     "  2 nearly: numeric basis, mean 61.7, sd ",
     g(sd(nearly)),
@@ -652,7 +655,7 @@ expect_identical(
   )
 )
 expect_identical(
-  shortOf(showLines(nearlyMade$sampler))[3L],
+  shortOf(showLines(nearlyMade))[3L],
   paste0(
     "  2 nearly: numeric basis, mean 61.7, sd ",
     g(sd(nearly)),

@@ -187,8 +187,10 @@ forest(
     columns; the two are not mixed in one forest. The forest does not center
     or scale a basis, so a multiplier that should be standardized is written
     so: \code{basis = scale(age)}. A numeric column constant over the
-    observations in the likelihood has no standard deviation to take the
-    default \code{sd} from, and is refused unless \code{sd} is stated.
+    observations in the likelihood when the sampler is created is refused,
+    \code{sd} stated or not: a forest multiplied by a constant is a forest
+    with no basis, written \code{forest(x2)} or \code{forest(x2, sd = 2)}. A
+    later \code{$setForestBasis} to such a column is taken.
 
     \strong{One size.} In this version a basis is one numeric column, or a
     factor, a character or a logical vector of two levels, counted on the
@@ -493,9 +495,9 @@ forest(
     column during burn-in and wants the default of the new one replaces it
     with \code{$setForestBasis(f, w.new, updateBasisScale = TRUE)}, which takes
     \eqn{\mathrm{sd}(w)}{sd(w)} again over the observations in the
-    likelihood then (see \code{\linkS4class{dbartsSampler}}). A column that
-    is constant over those observations has no standard deviation and needs
-    \code{sd} stated.
+    likelihood then (see \code{\linkS4class{dbartsSampler}}). At creation a
+    column constant over those observations is refused. A later swap to one
+    is taken and, with \code{updateBasisScale = TRUE}, keeps the scale it had.
 
     A treatment belongs in a factor or a logical vector, where \code{sd} is
     the treatment effect. Written as a 0/1 number it is scaled as any number:
@@ -543,8 +545,8 @@ forest(
     \eqn{\mathrm{sd}(y)}{sd(y)} (the link's error sd under \code{"probit"} and
     \code{"logistic"}) wherever the column, and the observations it is read
     over, are those the default was taken from, and for a stated \code{sd} it
-    is that \code{sd} times the column's sd. Where the column is constant it is the \code{sd} per
-    unit. For a factor it is the sd between the two levels. The sd per unit
+    is that \code{sd} times the column's sd. Where a swap left the column
+    constant it is the \code{sd} per unit. For a factor it is the sd between the two levels. The sd per unit
     of a numeric column, which is what \code{forest(sd = )} states, is in the
     full block and in the reader. The last line of the short block says where
     each forest's prior is to be had in full: \code{summary()} of a fit,
@@ -717,8 +719,8 @@ forest(
   \code{"forest, shared"}, and \code{$getK(f)} the group's \code{k}.
   The part is fixed at creation: \code{$setLeafPrior(forests = )} refuses an
   \code{sd} stated for such a forest, and \code{$setLeafPrior(leaf.prior)}
-  is refused on its sampler. Printed, each forest's line shows its tree
-  count, and a line after them the total and which forests share.
+  is refused on its sampler. Printed, a line after the forests' own gives
+  each forest's tree count and their total, and another which forests share.
 
   Both forests' leaf scales come from the model's own calibration map rather
   than from the leaf prior, which is why a \code{k} hyperprior, a non-default

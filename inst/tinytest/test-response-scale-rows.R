@@ -18,7 +18,9 @@ yA[out] <- y[out] + 50
 yB <- y
 yB[out] <- y[out] - 30
 off <- runif(n, 0, 0.5)
-df <- function(response) data.frame(y = response, x, z = z)
+df <- function(response) {
+  data.frame(y = response, x, z = z, dose = 1 + seq_len(n) / n)
+}
 
 control <- dbartsControl(
   n.chains = 1L,
@@ -149,12 +151,11 @@ startingLines <- function(expr) {
 
 three <- c(rep(1, 3L), rep(0, n - 3L))
 
-# z is 1 on every row in the likelihood, so a forest on it has no default to
-# take from its standard deviation there and states one
+# a forest on a numeric column stating its size, which reads no row's response
 
 bcf <- function(...) {
   dbarts(
-    y ~ forest(x1 + x2) + forest(x1 + x2, basis = z, sd = 1),
+    y ~ forest(x1 + x2) + forest(x1 + x2, basis = dose, sd = 1),
     control = control,
     ...
   )
@@ -1335,7 +1336,7 @@ stateArm(
 stateArm(
   function(r, ww) {
     dbarts(
-      y ~ forest(x1 + x2) + forest(x1 + x2, basis = z, sd = 1),
+      y ~ forest(x1 + x2) + forest(x1 + x2, basis = dose, sd = 1),
       df(r),
       weights = ww,
       control = control

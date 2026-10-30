@@ -946,6 +946,74 @@ forestCallText <- function(predictors, basis) {
   )
 }
 
+## The refusal of a numeric column constant over the rows in the likelihood, at
+## creation, sd stated or not: a forest multiplied by a constant is the forest
+## with no basis, and that is how it is written. The rows, the fallback to every
+## row and what counts as constant are basisColumnScale's. Not at a later swap,
+## which is taken, nor at a re-creation, which reads the column a swap left.
+refuseConstantBasis <- function(data, active, allRows, specs, labels) {
+  rowsIn <- rowsInLikelihood(data@weights, active, length(data@y))
+  fellBack <- allRows || sum(rowsIn) < 2L
+  if (fellBack) {
+    rowsIn[] <- TRUE
+  }
+  levels <- dataBasisLevels(data)
+  for (index in seq_along(data@bases)) {
+    basis <- data@bases[[index]]
+    if (is.null(basis) || NCOL(basis) != 1L || !is.null(levels[[index]])) {
+      next
+    }
+    values <- as.vector(basis)[rowsIn]
+    spread <- max(abs(values))
+    detail <- if (length(values) < 2L || all(values == values[1L])) {
+      paste0(
+        "constant (",
+        format(values[1L], digits = 15L),
+        if (fellBack) {
+          " on every row, read because too few are in the likelihood)"
+        } else {
+          " on every row in the likelihood)"
+        }
+      )
+    } else if (!(stats::sd(values) > 2^-26 * spread)) {
+      paste0(
+        "constant to rounding (its standard deviation is ",
+        format(stats::sd(values) / spread, digits = 2L),
+        " of its largest value)"
+      )
+    }
+    if (is.null(detail)) {
+      next
+    }
+    stated <- specs[[index]]$sd
+    # a formula's forest() has its predictors as design columns by now, whose
+    # names it takes as written
+    vars <- specs[[index]]$vars
+    written <- if (is.numeric(vars) && !is.null(colnames(data@x))) {
+      paste(designColumnNames(data)[vars], collapse = " + ")
+    } else {
+      writtenPredictors(vars)
+    }
+    stop(
+      forestName(index, labels),
+      "'s basis is ",
+      detail,
+      ": a forest multiplied by a constant is a forest with no basis. Write ",
+      "it with none, as forest(",
+      paste(
+        c(
+          written,
+          if (!is.null(stated)) paste0("sd = ", format(stated, digits = 15L))
+        ),
+        collapse = ", "
+      ),
+      ")",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
 ## A forest's predictors as its caller wrote them, for a message, or NULL
 ## where it names none.
 writtenPredictors <- function(vars) {

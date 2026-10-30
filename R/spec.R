@@ -1327,6 +1327,7 @@ resolveSamplerSpec <- function(
       lapply(basisRecords, function(record) record$label),
       numForests
     )
+    refuseConstantBasis(data, active, allRows, specs, labels)
     attr(control, "bartcore.forests") <- list(
       # one length-4 numeric per forest; see forestParams()
       params = params,

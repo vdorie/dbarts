@@ -431,13 +431,14 @@ expect_identical(swappedResult$sigma, twinResult$sigma)
 expect_identical(swappedResult$train, twinResult$train)
 
 # (iii) A STATED sd is per unit of the column as given: a column of 3s and one
-# of 5s, never divided, take the forest's sd over 0.674, and a swap to 7s
-# leaves both.
+# of 5s, swapped in as creation refuses a constant one and never divided, take
+# the forest's sd over 0.674, and a swap to 7s leaves both.
 ones <- matrix(1, n, 1L)
+ramp <- seq(1, 2, length.out = n)
 # No forest of this model is without a basis, so the count and the tree prior
 # are stated on a forest and the control names no count.
 declared <- dbarts(
-  dbartsData(x, yBinary, bases = list(3 * ones, 5 * ones)),
+  dbartsData(x, yBinary, bases = list(3 * ramp, 5 * ramp)),
   forests = list(
     forest(sd = 2.5, n.trees = 25L, base = 0.95, power = 2),
     forest(sd = 0.4)
@@ -450,6 +451,8 @@ declared <- dbarts(
     seed = 41L
   )
 )
+declared$setForestBasis(1L, 3 * ones)
+declared$setForestBasis(2L, 5 * ones)
 expect_equal(priorScale(declared, 1L), 2.5 / 0.674, tolerance = 1e-12)
 expect_equal(priorScale(declared, 2L), 0.4 / 0.674, tolerance = 1e-12)
 declared$run(5L, 1L)

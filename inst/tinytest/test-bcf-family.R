@@ -79,15 +79,31 @@ pinScalesFor <- function(s) {
   )
 }
 
+# creation refuses a constant column, so a fixture's goes in by the swap that
+# takes one, from a column that differs only in spread
+swapsConstants <- function(bases, create) {
+  constant <- vapply(bases, function(basis) is.matrix(basis), NA)
+  sampler <- create(replace(
+    bases,
+    constant,
+    lapply(bases[constant], function(basis) basis * seq(1, 2, length.out = n))
+  ))
+  for (f in which(constant)) {
+    sampler$setForestBasis(f, bases[[f]])
+  }
+  sampler
+}
 basisSampler <- function(y, bases, family = "auto", forests = NULL, ...) {
   resolved <- if (family == "auto") "gaussian" else family
-  dbarts(
-    dbartsData(x, y, bases = bases),
-    control = uncountedControlBcfFamily(),
-    family = family,
-    forests = statedOnFirst(forests, unitOf(y, resolved)),
-    ...
-  )
+  swapsConstants(bases, function(bases) {
+    dbarts(
+      dbartsData(x, y, bases = bases),
+      control = uncountedControlBcfFamily(),
+      family = family,
+      forests = statedOnFirst(forests, unitOf(y, resolved)),
+      ...
+    )
+  })
 }
 priorScales <- function(sampler) {
   unname(vapply(
@@ -284,21 +300,23 @@ expect_identical(rownames(countsAll), colnames(x))
 # two channels. Only gaussian, where the median is 2, discriminates. ---
 mapSampler <- function(y, bases, family, forests = NULL, ...) {
   allBasis <- everyForestHasBasis(bases)
-  dbarts(
-    dbartsData(x, y, bases = bases),
-    control = if (allBasis) {
-      uncountedControlBcfFamily()
-    } else {
-      seededControlBcfFamily()
-    },
-    family = family,
-    forests = if (allBasis) {
-      statedOnFirst(forests, unitOf(y, family))
-    } else {
-      forests
-    },
-    ...
-  )
+  swapsConstants(bases, function(bases) {
+    dbarts(
+      dbartsData(x, y, bases = bases),
+      control = if (allBasis) {
+        uncountedControlBcfFamily()
+      } else {
+        seededControlBcfFamily()
+      },
+      family = family,
+      forests = if (allBasis) {
+        statedOnFirst(forests, unitOf(y, family))
+      } else {
+        forests
+      },
+      ...
+    )
+  })
 }
 # one entry of the reader for each forest, NA where the forest has none
 readerSlot <- function(sampler, name) {
