@@ -596,6 +596,11 @@ The review runs each and requires a failing test:
     with no fixed expiry.
 32. `resolveSamplerSpec` loses its `written` argument: the door stamps `dbarts.stated` on the control, so a wrapper
     and a door are read one way.
+33. A fit whose call stated no rule keeps `NA` in its data object, which reads as uniform, so a written rule beside
+    that data object at the direct door is used and not refused. Alternative: write `FALSE` at the door, as slice 1b
+    did, against the script table's row and dec-B526.
+34. At the direct door a data object from `dbartsData()` stating no count still stops at the bridge ("maximum number
+    of cuts cannot be NA"), as on main. Alternative: apply the default there, a change no row of this plan asks for.
 
 ## Open calls
 
