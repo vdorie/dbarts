@@ -59,16 +59,17 @@ methods::setClass(
   )
 )
 methods::setValidity("dbartsDartPrior", function(object) {
-  if (object@a <= 0.0) {
-    return("'a' must be positive")
+  positiveFinite <- function(x) x > 0.0 && is.finite(x)
+  if (!positiveFinite(object@a)) {
+    return("'a' must be positive and finite")
   }
-  if (object@b <= 0.0) {
-    return("'b' must be positive")
+  if (!positiveFinite(object@b)) {
+    return("'b' must be positive and finite")
   }
-  if (!is.na(object@rho) && (object@rho <= 0.0 || is.infinite(object@rho))) {
+  if (!is.na(object@rho) && !positiveFinite(object@rho)) {
     return("'rho' must be positive and finite")
   }
-  if (object@alpha <= 0.0 || is.infinite(object@alpha)) {
+  if (!positiveFinite(object@alpha)) {
     return("'alpha' must be positive and finite")
   }
   if (!is.na(object@update.delay) && object@update.delay < 0.0) {

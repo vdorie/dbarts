@@ -197,7 +197,11 @@ agreeAfter(heldAlpha, drawnAlpha()$model)
 # before anything is written (a record built by slot passes the constructor)
 expect_error(dart(alpha = Inf), "'alpha' must be positive and finite")
 expect_error(dart(rho = Inf), "'rho' must be positive and finite")
-for (arm in c("alpha", "rho")) {
+expect_error(dart(a = Inf), "'a' must be positive and finite")
+expect_error(dart(b = Inf), "'b' must be positive and finite")
+expect_error(dart(a = NaN), "'a' must be positive and finite")
+expect_error(dart(alpha = NA_real_), "'alpha' must be positive and finite")
+for (arm in c("alpha", "rho", "a", "b")) {
   sampler <- drawnAlpha()
   twin <- drawnAlpha()
   invisible(sampler$run(0L, 10L))
@@ -205,8 +209,12 @@ for (arm in c("alpha", "rho")) {
   model <- sampler$model
   if (arm == "alpha") {
     model@tree.prior@alpha <- Inf
-  } else {
+  } else if (arm == "rho") {
     model@tree.prior@rho <- Inf
+  } else if (arm == "a") {
+    model@tree.prior@a <- Inf
+  } else {
+    model@tree.prior@b <- Inf
   }
   model@tree.prior@power <- 3
   expect_error(sampler$setModel(model), "must be finite")

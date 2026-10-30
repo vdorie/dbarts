@@ -2205,6 +2205,10 @@ bool parseDartSettings(bartcore::DartPrior& dart, SEXP modelExpr) {
   dart.betaB = rc_getDouble(
     Rf_getAttrib(treePriorExpr, Rf_install("b")), "dart b",
     RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
+  if (!std::isfinite(dart.betaA))
+    Rf_error("dart a must be finite");
+  if (!std::isfinite(dart.betaB))
+    Rf_error("dart b must be finite");
   double rho = REAL(Rf_getAttrib(treePriorExpr, Rf_install("rho")))[0];
   if (std::isinf(rho))
     Rf_error("dart rho must be finite");
