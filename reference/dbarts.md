@@ -694,8 +694,10 @@ dbarts(
   non-negative integer counts - column \\k\\ holding category \\k\\'s
   successes, with trials \\n_i = \sum_k y\_{ik} \ge 0\\, no larger than
   \\10^6\\ since each trial costs a Polya-Gamma draw per category per
-  sweep - or, the single-trial special case, a factor, character or
-  non-negative integer-code vector, which is one-hot expanded to exactly
+  sweep - or, the single-trial special case, a factor or character
+  vector (a numeric or logical one is refused, as
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) refuses
+  it: a number names no category), which is one-hot expanded to exactly
   that matrix with every trial 1. Column names on the matrix, or the
   levels of a factor, label the categories. Under `family = "auto"` a
   matrix of three or more columns of non-negative whole numbers is read
