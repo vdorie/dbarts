@@ -22,7 +22,6 @@ writerControl <- function(...) {
   dbartsControl(
     n.chains = 2L,
     n.threads = 1L,
-    n.trees = 15L,
     n.samples = 4L,
     updateState = FALSE,
     seed = 71L,
@@ -38,7 +37,13 @@ counted <- function(expr) {
 }
 amplitudeSampler <- function(forests, response = y, ...) {
   set.seed(5L)
-  counted(dbarts(x, response, forests = forests, control = writerControl(...)))
+  counted(dbarts(
+    x,
+    response,
+    forests = forests,
+    n.trees = 15L,
+    control = writerControl(...)
+  ))
 }
 multinomialSampler <- function(...) {
   set.seed(5L)
@@ -46,6 +51,7 @@ multinomialSampler <- function(...) {
     x,
     labels,
     family = "multinomial",
+    n.trees = 15L,
     control = writerControl(),
     ...
   ))
@@ -329,7 +335,7 @@ expect_error(
 )
 # every refusal came before any write
 expect_identical(a$getLeafPrior(), amplitudeSampler(twoDefault)$getLeafPrior())
-single <- counted(dbarts(x, y, control = writerControl()))
+single <- counted(dbarts(x, y, n.trees = 15L, control = writerControl()))
 expect_error(
   single$setLeafPrior(forests = list(forest(sd = 1))),
   "only a sampler whose forests carry amplitudes"
@@ -339,6 +345,7 @@ expect_error(
     x,
     y,
     forests = list(forest(sd = Inf), forest(basis = ~ factor(z))),
+    n.trees = 15L,
     control = writerControl()
   ),
   "forest 'sd' must be positive and finite"

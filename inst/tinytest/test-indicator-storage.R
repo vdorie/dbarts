@@ -151,8 +151,8 @@ callerFit <- function(...) {
   countWarnings(suppressMessages(dbarts::dbarts(
     y ~ .,
     d.caller,
+    n.trees = 5L,
     control = dbartsControl(
-      n.trees = 5L,
       n.burn = 0L,
       n.samples = 5L,
       n.chains = 1L,
@@ -277,10 +277,10 @@ expect_silent(dbarts:::sparseResidualStandardError(y4, mi4, NULL, NULL))
 expect_silent(dbarts(
   y4 ~ .,
   d4,
+  n.trees = 5L,
   control = dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 5L,
     updateState = FALSE
   )
 ))
