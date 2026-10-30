@@ -204,9 +204,9 @@ form.
 
 C: `Rf_error`'s only mechanism is its own printf placeholders (`%s`, `%d`,
 `%zu`) - no alternative exists. Quote `%s` in `'...'` when it echoes a name or
-a user-supplied choice; leave it bare for a descriptive phrase (`"a treatment
-forest does not support %s"`,
-["a treatment forest does not support %s"](../../src/R_interface_bartcore.cpp),
+a user-supplied choice; leave it bare for a descriptive phrase (`"a model of
+several forests does not support %s"`,
+["a model of several forests does not support %s"](../../src/R_interface_bartcore.cpp),
 where `refused` is a phrase like `"a DART tree prior"`, not a name).
 
 **External evidence.** Neither tidyverse nor rlang docs address the choice
@@ -544,8 +544,8 @@ mandated, when cheap.
 
 `"<subject> does not support <feature>[: <reason>]"` - clear majority (26 of
 37 R + 16 C "not support" hits use this exact verb). Conformance: `"a
-treatment forest does not support %s"`
-(["a treatment forest does not support %s"](../../src/R_interface_bartcore.cpp));
+model of several forests does not support %s"`
+(["a model of several forests does not support %s"](../../src/R_interface_bartcore.cpp));
 `"probit models do not support weights other than 0 and 1, which mark rows
 in and out of the likelihood as the sampler's $setActiveRows does; fit
 integer count weights with family = \"logistic\", or model continuous

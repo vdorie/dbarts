@@ -363,13 +363,6 @@ struct TestPeer {
   static void drawSharedK(Chain<L, R>& chain) {
     chain.drawSharedK();
   }
-  /// The amplitude combiner's combined location as last filled, read without
-  /// refilling it.
-  template <IntegrableLeafModel L, typename R>
-  static const std::vector<double>& cachedCombinedFits(const Chain<L, R>& chain) {
-    return static_cast<const AmplitudeForestCombiner<L, R>&>(*chain.combiner_)
-      .glue_.combined;
-  }
   /// Forest f's blocks() group factors on its leaf scale, empty where none is
   /// stored.
   template <IntegrableLeafModel L, typename R>

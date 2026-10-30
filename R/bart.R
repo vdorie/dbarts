@@ -270,6 +270,17 @@ fitDescriptors <- function(sampler, samples = NULL) {
   # a forest whose coefficient is held by amplitude = fixed(), per forest:
   # the coefficient is 1, the basis carrying any coding (dec-B354)
   held <- attr(sampler$control, "bartcore.forests", exact = TRUE)$heldAmplitude
+  # a forest sharing a total has its coefficient held whether or not fixed()
+  # is written, as the reader says
+  if (several) {
+    held <- held |
+      vapply(
+        priors,
+        function(prior) identical(prior[["prior.sd.of"]], "forest, shared"),
+        NA,
+        USE.NAMES = FALSE
+      )
+  }
   if (any(held)) {
     fixed$amplitude <- setNames(
       rep(1, sum(held)),

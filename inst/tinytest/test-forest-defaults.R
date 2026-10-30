@@ -835,12 +835,12 @@ for (count in c(20L, 75L)) {
 # a count for each forest, in the forests' order
 treeLine <- function(fit) {
   printed <- utils::capture.output(print(fit))
-  printed[startsWith(printed, "n.trees:")]
+  printed[startsWith(printed, "  trees:")]
 }
-expect_identical(treeLine(plainSecondFit), "n.trees: 50, 75")
+expect_identical(treeLine(plainSecondFit), "  trees: 50, 75; 125 in all")
 savedFit <- tempfile(fileext = ".rds")
 saveRDS(plainSecondFit, savedFit)
-expect_identical(treeLine(readRDS(savedFit)), "n.trees: 50, 75")
+expect_identical(treeLine(readRDS(savedFit)), "  trees: 50, 75; 125 in all")
 unlink(savedFit)
 oneForestFit <- bart(
   y ~ x1 + x2 + x3,
@@ -852,7 +852,7 @@ oneForestFit <- bart(
   verbose = FALSE,
   keepTrees = TRUE
 )
-expect_identical(treeLine(oneForestFit), "n.trees: 9")
+expect_true("n.trees: 9" %in% utils::capture.output(print(oneForestFit)))
 
 ## --- Block I: which held coefficients are taken -----------------------------
 # Until a held coefficient has a value of its own for every shape, one is held

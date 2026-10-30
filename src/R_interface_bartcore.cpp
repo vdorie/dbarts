@@ -3253,9 +3253,9 @@ void refuseUnsupportedAmplitudeComposition(
     statements[f].kind = data.basisKinds[f];
   bool shared = !bartcore::forestSharers(statements).empty();
   if (const char* refused = refusedAmplitudeFamilyReason(family))
-    Rf_error("a treatment forest does not support %s", refused);
+    Rf_error("a model of several forests does not support %s", refused);
   if (!data.predictors.isDenseColumnar())
-    Rf_error("a treatment forest requires dense predictors");
+    Rf_error("a model of several forests requires dense predictors");
   const char* offender = NULL;
   if (options.useDart) offender = "a DART tree prior";
   else if (options.splitProbabilities != NULL) offender = "split probabilities";
@@ -3285,7 +3285,7 @@ void refuseUnsupportedAmplitudeComposition(
       }
   }
   if (offender != NULL)
-    Rf_error("a treatment forest does not support %s; drop it or fit a "
+    Rf_error("a model of several forests does not support %s; drop it or fit a "
              "single-forest model", offender);
 }
 
@@ -3890,9 +3890,9 @@ bool testFitsAreUndefined(const bartcore::SamplerBase& sampler) {
 void refuseUndefinedTestFits(const bartcore::SamplerBase& sampler,
                              const char* caller) {
   if (!testFitsAreUndefined(sampler)) return;
-  Rf_error("%s: this sampler's forest amplitudes have no off-sample basis, "
-           "so its combined test fits are undefined; replay the forests "
-           "separately and recombine them with the amplitude glue instead",
+  Rf_error("%s: a sampler of several forests has no combined fit at rows other "
+           "than its own; replay the forests separately with $predictForests "
+           "and recombine them instead",
            caller);
 }
 
@@ -4068,7 +4068,9 @@ std::string forestMessageName(SEXP controlExpr, size_t f) {
 
 // The refusal of a numeric column with no scale over the rows its default is
 // read from, on a forest that states no sd: the engine decides which rows are
-// in and what the column holds there, and this words it.
+// in and what the column holds there, and this words it. The fitting functions
+// refuse such a column first, sd stated or not; a sampler assembled by hand
+// over a model and a data object reaches this.
 std::string basisScaleMessage(SEXP controlExpr,
                               const bartcore::BasisScaleError& error) {
   char detail[160];
@@ -4086,8 +4088,8 @@ std::string basisScaleMessage(SEXP controlExpr,
                   error.ratio);
   return forestMessageName(controlExpr, error.forest) +
          " states no sd and its basis is " + detail +
-         ", so there is no standard deviation to take a default from; state "
-         "one with sd =";
+         ", so there is no standard deviation to take a default from; a "
+         "forest multiplied by a constant is a forest with no basis";
 }
 
 // The door a leaf covariate's refused derivation came through, which the
@@ -6093,7 +6095,13 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   // k is recorded when the reported forest draws it now, which a setLeafPrior
   // can change after creation in either direction; the shape's flag is the
   // creation option and does not follow it
+  // the forests sharing one total record the group's k, wherever they stand
   bool kIsDrawn = sampler.forestCalibration(0, 0).kHasHyperprior;
+  for (std::size_t f = 1; !kIsDrawn && f < shape.numForests; ++f) {
+    const bartcore::ForestCalibration calibration =
+      sampler.forestCalibration(0, f);
+    kIsDrawn = std::isfinite(calibration.share) && calibration.kHasHyperprior;
+  }
   SEXP kExpr =
     installChannel("k", !kIsDrawn ? R_NilValue : allocScalarChannel());
   SEXP varprobsExpr = installChannel(

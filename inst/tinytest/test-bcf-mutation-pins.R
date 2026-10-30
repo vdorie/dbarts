@@ -33,17 +33,18 @@ bc$run(20L, 0L)
 expect_error(bc$setData(host$data), "carries forest amplitudes")
 expect_error(bc$setModel(host$model), "carries forest amplitudes")
 
-# --- refuses: the test surface is undefined without an off-sample basis
+# --- refuses: the test surface is undefined off the sampler's own rows
 expect_error(
   bc$predict(x[1:5, , drop = FALSE]),
-  "have no off-sample basis"
+  "has no combined fit at rows other than its own"
 )
 expect_error(
   bc$setTestPredictor(x[1:5, , drop = FALSE]),
-  "have no off-sample basis"
+  "has no combined fit at rows other than its own"
 )
-# the bridge's own "have no off-sample basis" refusal is unreachable through
-# this method on a sampler with no test matrix at all: $setTestOffset's own
+# the bridge's own "has no combined fit at rows other than its own" refusal is
+# unreachable through this method on a sampler with no test matrix at all:
+# $setTestOffset's own
 # precondition (data@x.test is NULL) fires first, R-side, before the .Call
 # (test-bcf-r5-surface.R notes the same gap)
 expect_error(

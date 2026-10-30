@@ -157,11 +157,11 @@ expect_error(refused$setForestBasis(3L, factor(z)), "out of range")
 # pre-existing, capability-independent check untouched here.
 expect_error(
   refused$predict(x[1:5, , drop = FALSE]),
-  "have no off-sample basis"
+  "has no combined fit at rows other than its own"
 )
 expect_error(
   refused$setTestPredictor(x[1:5, , drop = FALSE]),
-  "have no off-sample basis"
+  "has no combined fit at rows other than its own"
 )
 
 # regression canary: the new pre-checks fire on the capability alone and must

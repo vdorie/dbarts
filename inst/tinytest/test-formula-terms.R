@@ -795,10 +795,10 @@ refuses(y ~ 0 + forest(basis = ~z), noPredictors)
 refuses(y ~ offset(o) + forest(basis = ~z), noPredictors)
 refuses(y ~ forest(basis = ~a) + forest(basis = ~b), noPredictors)
 # a tilde on the predictors is accepted, so one written where a multiplier
-# goes is a second forest with no basis
+# goes is a forest with no basis beside plain terms
 refuses(
   y ~ x1 + x2 + forest(~z),
-  "each is the forest with no multiplier, and a model has one"
+  "which has two readings: one forest with no multiplier, or a forest of its"
 )
 # an offset() and an intercept term are the fit's
 refuses(

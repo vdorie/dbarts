@@ -467,9 +467,21 @@ defaultLeafScaleVars <- function(object, vars) {
   if (is.null(prior)) {
     return(vars)
   }
-  if (is.null(prior[["leaf.prior"]])) {
-    prior <- prior[[1L]]
+  priors <- if (is.null(prior[["leaf.prior"]])) prior else list(prior)
+  # a drawn k is the one number forests sharing a total have, wherever they
+  # stand; their parts are its multiples
+  drawnShare <- vapply(
+    priors,
+    function(entry) {
+      identical(entry[["prior.sd.of"]], "forest, shared") &&
+        leafPriorIsDrawn(entry)
+    },
+    NA
+  )
+  if (any(drawnShare)) {
+    return(setdiff(vars, "leaf.prior.sd"))
   }
+  prior <- priors[[1L]]
   named <- if (
     !is.null(prior[["multiplier"]]) || !is.null(prior$leaf.prior@prior.sd)
   ) {

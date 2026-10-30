@@ -1453,7 +1453,8 @@ labelTreeForests <- function(trees, object) {
 # has one k per forest and its leaf.prior.sd is the reader's `sd` for each
 # forest, the forest's sd in the response's units as recorded: a list, as k is
 # a vector, named by the forests' labels, or the entry of the one 'forest'
-# selects. A fit saved before fits stored these descriptors answers from its
+# selects. A forest sharing a total under a drawn k has draws there, k.scale
+# over the group's k. A fit saved before fits stored these descriptors answers from its
 # channels where they suffice and refuses by name where they do not.
 extractParameter <- function(
   object,
@@ -1476,7 +1477,18 @@ extractParameter <- function(
     }
     labels <- attr(object, "forest.labels", exact = TRUE)
     if (is.null(prior[["leaf.prior"]])) {
-      sds <- lapply(unname(prior), function(forestPrior) forestPrior$sd)
+      sds <- lapply(unname(prior), function(forestPrior) {
+        # a part of a total under a drawn k is k.scale over each draw of it
+        if (
+          identical(forestPrior[["prior.sd.of"]], "forest, shared") &&
+            leafPriorIsDrawn(forestPrior)
+        ) {
+          forestPrior$k.scale /
+            reshapeScalarChannel(object[["k"]], n.chains, combineChains)
+        } else {
+          forestPrior$sd
+        }
+      })
       if (length(labels) == length(sds)) {
         names(sds) <- labels
       }
@@ -4761,7 +4773,10 @@ fitSynopsis <- function(x) {
   cat("family: ", x$family, "\n", sep = "")
   cat("n.chains: ", n.chains, "\n", sep = "")
   if (!is.null(control)) {
-    cat("n.trees: ", toString(fitTreeCounts(fit)), "\n", sep = "")
+    # the block below shows a fit of several forests' counts, and their total
+    if (is.null(attr(x, "forest.trees", exact = TRUE))) {
+      cat("n.trees: ", toString(fitTreeCounts(fit)), "\n", sep = "")
+    }
     cat("n.burn: ", control@n.burn, "\n", sep = "")
   }
   if (!is.na(n.kept)) {

@@ -92,16 +92,16 @@ bcSampler$setForestBasis(2L, ~ factor(z))
 # out-of-range forest index errors
 expect_error(bcSampler$getForestFits(3L), "out of range")
 
-# the single-forest test-fit and prediction surface is undefined here (the
-# amplitudes have no off-sample basis): setTestPredictor and predict are
-# refused, pointing at the per-forest channels
+# the single-forest test-fit and prediction surface is undefined here (no
+# combined fit at other rows): setTestPredictor and predict are refused,
+# pointing at the per-forest channels
 expect_error(
   bcSampler$setTestPredictor(x[1:5, , drop = FALSE]),
-  "have no off-sample basis"
+  "has no combined fit at rows other than its own"
 )
 expect_error(
   bcSampler$predict(x[1:5, , drop = FALSE]),
-  "have no off-sample basis"
+  "has no combined fit at rows other than its own"
 )
 
 # state round-trip: store, restore into a fresh BCF sampler, continue

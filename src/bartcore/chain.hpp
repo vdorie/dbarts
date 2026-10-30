@@ -7467,9 +7467,6 @@ private:
           rebuildForestTotalFits(forest);
         }
       }
-      // the combiner's combined location read the sharers' fits before they
-      // moved; refilled so no reader sees the stale one
-      if (!sharers_.empty()) combiner_->combinedFits(forests_);
       return true;
     }
   }

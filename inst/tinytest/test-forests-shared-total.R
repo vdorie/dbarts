@@ -443,3 +443,173 @@ copyNext <- copied$run(0L, 5L)
 expect_identical(reloaded$run(0L, 5L), copyNext)
 expect_equal(liveNext$train, copyNext$train, tolerance = 1e-10)
 expect_identical(copied$getK(), reloaded$getK())
+
+# --- a drawn k wherever the sharers stand ---
+chi <- dbartsPriors$chi
+invchi <- dbartsPriors$invchi
+drawnFirst <- dbarts(
+  x,
+  yb,
+  forests = list(
+    forest(basis = z, sd = 0.5, amplitude = fixed()),
+    forest(),
+    forest()
+  ),
+  control = ctl()
+)
+drawnFirstRun <- drawnFirst$run()
+expect_false(is.null(drawnFirstRun$k))
+expect_identical(
+  as.numeric(utils::tail(drawnFirstRun$k, 1L)),
+  drawnFirst$getK()[2L]
+)
+expect_true(length(unique(as.numeric(drawnFirstRun$k))) > 1L)
+statedFirst <- function(formula, ...) {
+  bart(
+    formula,
+    d,
+    n.samples = 12L,
+    n.burn = 4L,
+    n.chains = 2L,
+    n.threads = 1L,
+    seed = 5L,
+    verbose = FALSE,
+    ...
+  )
+}
+statedFirstFit <- statedFirst(yb ~ forest(x1, sd = 1) + forest(x2) + forest(x3))
+expect_false(is.null(statedFirstFit$k))
+expect_identical(length(extract(statedFirstFit, type = "k")), 24L)
+
+# the gaussian sweep and the grow-from-root sweep draw the group's k
+sharedChi <- dbarts(
+  y ~ forest(x1) + forest(x2),
+  d,
+  leaf.prior = normal(k = chi(1.25, Inf)),
+  control = ctl()
+)
+expect_true(length(unique(as.numeric(sharedChi$run()$k))) > 1L)
+sharedGrown <- dbarts(
+  y ~ forest(x1) + forest(x2),
+  d,
+  leaf.prior = normal(k = chi(1.25, Inf)),
+  control = ctl()
+)
+kBefore <- as.numeric(sharedGrown$getK())
+invisible(sharedGrown$growFromRoot(5L))
+kAfter <- as.numeric(sharedGrown$getK())
+expect_true(kAfter[1L] != kBefore[1L])
+expect_identical(kAfter[1L], kAfter[2L])
+
+# a drawn named total starts at, and has its prior scale at, the statement
+namedDrawn <- dbarts(
+  y ~ forest(x1) + forest(x2),
+  d,
+  leaf.prior = normal(sd = invchi(1.25, 0.7)),
+  control = ctl()
+)
+expect_equal(
+  as.numeric(namedDrawn$getK()),
+  rep(namedDrawn$getLeafPrior(1L)$k.scale * sqrt(2) / 0.7, 2L)
+)
+
+# a held k stays through the probit rescaling step
+heldProbit <- dbarts(
+  yb ~ forest(x1) + forest(x2),
+  d,
+  leaf.prior = normal(k = 3),
+  control = ctl()
+)
+expect_true(is.null(heldProbit$run()$k))
+expect_true(all(heldProbit$getK() == 3))
+
+# a forest with no basis beside one stating sd shares with none, under probit
+# as under gaussian
+expect_true(is(
+  dbarts(yb ~ forest(x1) + forest(x2, sd = 1), d, control = ctl()),
+  "dbartsSampler"
+))
+
+# 'test' is refused by the formula's own message
+expect_error(
+  dbarts(y ~ forest(x1) + forest(x2), d, test = d[1:5, ], control = ctl()),
+  "a forest() formula term does not support 'test'",
+  fixed = TRUE
+)
+
+# the verbose creation summary names the group
+verboseLines <- capture.output(dbarts(
+  y ~ forest(x1) + forest(x2),
+  d,
+  control = dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.samples = 2L,
+    n.burn = 1L,
+    seed = 3L,
+    verbose = TRUE
+  )
+))
+expect_true(any(grepl(
+  "forests sharing one prior total: 1 2, each 1/2 of its variance",
+  verboseLines,
+  fixed = TRUE
+)))
+
+# --- what a fit reads of a drawn k ---
+binaryFit <- statedFirst(yb ~ forest(x1) + forest(x2))
+gaussianFit <- statedFirst(y ~ forest(x1) + forest(x2))
+gaussianChiFit <- statedFirst(
+  y ~ forest(x1) + forest(x2),
+  leaf.prior = normal(k = chi(1.25, Inf))
+)
+gaussianInvchiFit <- statedFirst(
+  y ~ forest(x1) + forest(x2),
+  leaf.prior = normal(sd = invchi(3, 1))
+)
+# summary shows the k row where it is drawn, wherever the sharers stand, as a
+# fit of one forest does, and a held k keeps each forest's size
+for (fit in list(
+  binaryFit,
+  gaussianChiFit,
+  gaussianInvchiFit,
+  statedFirstFit
+)) {
+  expect_true("k" %in% summary(fit)$stats$variable)
+  expect_false("leaf.prior.sd" %in% summary(fit)$vars)
+}
+expect_false("k" %in% summary(gaussianFit)$vars)
+expect_length(summary(gaussianFit)$fixed$leaf.prior.sd, 2L)
+# leaf.prior.sd is each draw's part, k.scale over the group's k, and the
+# stated forest's number beside it
+partSd <- extract(binaryFit, type = "leaf.prior.sd")
+expect_identical(names(partSd), c("forest1", "forest2"))
+expect_identical(
+  partSd$forest1,
+  binaryFit$leaf.prior$forest1$k.scale / extract(binaryFit, type = "k")
+)
+expect_identical(dim(partSd$forest2), dim(extract(binaryFit, type = "k")))
+statedSd <- extract(statedFirstFit, type = "leaf.prior.sd")
+expect_equivalent(statedSd$forest1, 1)
+expect_identical(
+  dim(statedSd$forest2),
+  dim(extract(statedFirstFit, type = "k"))
+)
+expect_identical(
+  extract(statedFirstFit, type = "leaf.prior.sd", forest = "forest3"),
+  statedSd$forest3
+)
+# held, one number each, as before
+expect_equal(
+  unname(unlist(extract(gaussianFit, type = "leaf.prior.sd"))),
+  unname(vapply(gaussianFit$leaf.prior, function(prior) unname(prior$sd), 0))
+)
+
+# fixed() on a sharer restates what the reader says: two spellings, one record
+statedHold <- statedFirst(
+  y ~ forest(x1, amplitude = fixed()) + forest(x2, amplitude = fixed())
+)
+expect_identical(gaussianFit$fixed$amplitude, c(forest1 = 1, forest2 = 1))
+expect_identical(statedHold$fixed$amplitude, gaussianFit$fixed$amplitude)
+beside <- statedFirst(y ~ forest(x1) + forest(x2) + forest(x3, sd = 1))
+expect_identical(beside$fixed$amplitude, c(forest1 = 1, forest2 = 1))

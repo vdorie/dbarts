@@ -347,14 +347,11 @@ refusesSelection(
   quote(list(forest(), do.call(forest, list(z3, basis = ~z)))),
   repeated
 )
-# a tilde on the predictors is accepted, so a multiplier written there is a
-# second forest with no basis
+# a tilde on the predictors is accepted, so a multiplier written there is read
+# as predictors, and refused as what it is not
 refusesSelection(
   quote(list(forest(), forest(~ factor(z)))),
-  paste0(
-    "forests 1 and 2 have no 'basis': a model has one forest with no ",
-    "multiplier, and every other forest states a 'basis'"
-  )
+  notPredictor("factor(z)")
 )
 # terms that leave nothing, and what is the fit's and no forest's
 refusesSelection(

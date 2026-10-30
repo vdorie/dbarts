@@ -13343,8 +13343,11 @@ static void testForestsSharedTotal() {
     specs[1].sd = std::numeric_limits<double>::quiet_NaN();
     specs[1].sdMultiple = 1.5;
     chosen = chosen && forestSharers(specs).empty();
+    std::vector<ForestSpec> withDf(3);
+    withDf[1].amplitudeDf = 3.0;
+    chosen = chosen && forestSharers(withDf) == std::vector<std::size_t>{0, 2};
     check(chosen, "shared total: the sharers are the forests with no basis "
-                  "stating no sd, two or more");
+                  "stating no sd and no df, two or more");
   }
 
   // ---- the map: the lone forest's node scale times sqrt(1 / K) ----
@@ -13428,8 +13431,53 @@ static void testForestsSharedTotal() {
               drawnEntry.nodeScale(plain.mapAnchor) / std::sqrt(12.0),
           "shared total: a lone forest with no basis keeps the map's drawn "
           "default, operand for operand");
-    check(!sampler->setForestMapSd(0, 0.7) && sampler->setForestMapSd(2, 0.7),
-          "shared total: a sharer's sd is not restated, a stated one's is");
+    double sharerSd = sampler->forestCalibration(0, 0).mapSd;
+    check(!sampler->setForestMapSd(0, 0.7) &&
+            !sampler->setForestMapSd(0, sharerSd) &&
+            sampler->setForestMapSd(2, 0.7),
+          "shared total: a sharer's sd is not restated, not even at the sd in "
+          "force; a stated one's is");
+
+    SamplerOptions named = optionsFor(ResponseFamily::gaussian, false);
+    named.namedSd = 0.7;
+    auto namedSampler = build(ResponseFamily::gaussian, {10, 10},
+                              Beside::statedSd, named, 6203);
+    check(namedSampler->forestCalibration(0, 0).namedSd == 0.7 &&
+            namedSampler->forestCalibration(0, 1).namedSd == 0.7 &&
+            namedSampler->forestCalibration(0, 2).namedSd != 0.7,
+          "shared total: a sharer reads the group's named sd");
+  }
+
+  // ---- a drawn k is recorded and delivered wherever the sharers stand ----
+  {
+    SamplerOptions options = optionsFor(ResponseFamily::gaussian, true);
+    AmplitudeSpec spec;
+    spec.family = ResponseFamily::gaussian;
+    spec.forests.resize(3);
+    spec.forests[0].sd = 0.6;
+    for (ForestSpec& forest : spec.forests) forest.forest.numTrees = 5;
+    std::vector<ext_rng*> rngs = rngsFor(6210);
+    ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr, 1.0,
+                                3.0, rawScale, options, spec, rngs.data());
+    std::vector<double> recorded(4), delivered;
+    Results results;
+    results.k = recorded.data();
+    DrawHook hook;
+    hook.fn = [](void* context, const DrawInfo* draw) {
+      static_cast<std::vector<double>*>(context)->push_back(draw->k);
+      return 0;
+    };
+    hook.context = &delivered;
+    sampler.run(3, 4, results, {}, {}, hook, nullptr);
+    Chain<ConstantGaussianLeaf>& chain = sampler.chain(0);
+    double groupK = TestPeer::forestKAt(chain, 1);
+    check(TestPeer::forestKAt(chain, 0) == 1.0 && recorded[3] == groupK &&
+            recorded[0] != 1.0,
+          "shared total: the fit records the group's k with a stated forest "
+          "first");
+    check(delivered == recorded,
+          "shared total: the draw hook delivers the group's k with a stated "
+          "forest first");
   }
 
   // ---- one k for the group, drawn from every sharer's leaves ----
@@ -13602,14 +13650,13 @@ static void testForestsSharedTotal() {
         largest = std::max(largest, std::fabs(cached - forestFit(f, i)));
       }
     }
-    const std::vector<double>& cachedCombined =
-      TestPeer::cachedCombinedFits(chain);
+    const double* combined = TestPeer::combinedFits(chain);
     double combinedGap = 0.0;
     for (size_t i = 0; i < n; ++i)
       combinedGap = std::max(
-        combinedGap, std::fabs(cachedCombined[i] - (forestFit(0, i) +
-                                                     forestFit(1, i) +
-                                                     otherFit(i))));
+        combinedGap, std::fabs(combined[i] - (forestFit(0, i) +
+                                              forestFit(1, i) +
+                                              otherFit(i))));
     check(scaledState && largest <= 1e-12 && combinedGap <= 1e-12,
           (std::string("shared total: after a step each sharer's fits and the "
                        "combined fits equal a re-derivation, ") + label).c_str());
@@ -13661,7 +13708,9 @@ static void testForestsSharedTotal() {
     factorSpec.numBasisColumns = 2;
     std::vector<double> two = startsOf({plain, factorSpec, plain}, 6502);
     std::vector<double> one = startsOf({factorSpec, plain}, 6503);
-    check(two.size() == 4 && two[0] == 1.0 && two[3] == 1.0,
+    std::vector<double> adjacent = startsOf({plain, plain}, 6504);
+    check(two.size() == 4 && two[0] == 1.0 && two[3] == 1.0 &&
+            adjacent.size() == 2 && adjacent[0] == 1.0 && adjacent[1] == 1.0,
           "shared total: with two forests with no basis each drawn "
           "coefficient starts at 1");
     check(one.size() == 3 && one[2] == 0.0,
