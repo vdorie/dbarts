@@ -1252,6 +1252,11 @@ runs in tier 1 cells run a quarter first, under a stopping rule written now. Not
 - **Cost.** Sampling is 1.2 core-hours for the 12 and 4.7 for all 48 (the stored seconds, scaled by sweeps),
   so about 2 and 8 with checks and scoring. It runs after the long oracle; the landing waits on it.
 
+**Amendment 5, 2026-10-30, before any further run (dec-B537).** Amendment 4 is withdrawn: the near-miss pilot does
+not run. No decision hangs on it since dec-B530, the 12 were never started, and the rule is withdrawn, not bent. The
+48 stay failed by the acceptance rule. The finding adds a reading of every long run against each half, labeled as read
+after results and replacing no rule. The long oracle runs every regime Amendment 3 owes.
+
 ## Rulings and pending slots
 
 - **The link in the use tiers**: ruled, dec-B463. A logistic cell counts as the same cell under probit.
