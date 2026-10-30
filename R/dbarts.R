@@ -1246,10 +1246,10 @@ dbarts <- function(
   # has no shape for, so it rides the data object's own 'counts' argument -
   # where 'subset' reaches it, where the validity method constrains it, and
   # where a re-created or reloaded sampler finds it without further discipline.
-  # A factor, character or integer-code response is the single-trial special
-  # case, one-hot expanded here. The matrix interface only, as the survival
-  # families are: a formula LHS carries no count matrix, and data@y is the
-  # DERIVED trials vector rather than anything the caller wrote.
+  # A factor or character response is the single-trial special case, one-hot
+  # expanded here; a numeric vector is refused. The matrix interface only, as
+  # the survival families are: a formula LHS carries no count matrix, and
+  # data@y is the DERIVED trials vector rather than anything the caller wrote.
   multinomialCounts <- NULL
   # family = "auto" reads a count matrix (3+ columns of non-negative whole
   # numbers) as multinomial; announced with the other resolutions, below

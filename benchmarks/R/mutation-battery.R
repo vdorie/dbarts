@@ -804,14 +804,10 @@ mutations <- c(
     r3(
       "m59",
       "R/data.R",
-      "codes <- if (is.factor(y)) as.integer(y) else as.integer(y) + 1L",
-      "codes <- if (is.factor(y)) as.integer(y) else as.integer(y)",
-      kTests(
-        "test-multinomial-numeric-codes.R",
-        "test-multinomial-surface.R",
-        "test-multinomial-generics.R"
-      ),
-      "multinomial numeric category codes not shifted to 1-based"
+      "  if (!is.factor(y)) {\n    stop(multinomialResponseMessage)\n  }",
+      "  if (!is.factor(y) && !is.numeric(y)) {\n    stop(multinomialResponseMessage)\n  }",
+      kTests("test-multinomial-numeric-codes.R"),
+      "multinomial numeric response reaches the coding instead of the refusal"
     ),
     r3(
       "m60",

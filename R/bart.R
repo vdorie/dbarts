@@ -1615,10 +1615,7 @@ bart <- function(
       y <- factor(y)
     }
     if (!is.factor(y)) {
-      stop(
-        "family = \"multinomial\" requires a factor (or character) response, ",
-        "or an n x K count matrix"
-      )
+      stop(multinomialResponseMessage)
     }
     if (anyNA(levels(y))) {
       stop("family = \"multinomial\" response levels must not include NA")

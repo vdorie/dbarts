@@ -145,7 +145,11 @@ applyNaActionToXY <- function(na.action, y, x) {
 ## response's own NA would: a count-matrix row is missing when any of its
 ## cells is NA (resolveMultinomialCounts marks a missing label the same way).
 multinomialResponseNA <- function(counts, y) {
-  if (is.null(counts) || NROW(counts) != length(y)) {
+  # a vector is not a count matrix: left for validateMultinomialCounts to
+  # refuse by name, as a row-count mismatch is
+  if (
+    is.null(counts) || length(dim(counts)) != 2L || NROW(counts) != length(y)
+  ) {
     return(y)
   }
   ifelse(rowSums(is.na(counts)) > 0L, NA_real_, y)
@@ -2753,14 +2757,22 @@ validateXYOffset <- function(
   list(offset = offset, offsetGivenAsScalar = offsetGivenAsScalar)
 }
 
+# The refusal for a multinomial response that is neither labels nor counts,
+# said by bart() and dbarts() alike: a bare number is not a category label.
+multinomialResponseMessage <- paste0(
+  "family = \"multinomial\" requires a factor (or character) response, ",
+  "or an n x K count matrix"
+)
+
 # Coerce a raw multinomial response to the n x K count matrix the softmax
 # engine's response is. Two shapes arrive: an
 # n x K matrix (or data frame) of non-negative integer counts, whose trials are
-# its row sums, and a length-n vector of labels - a factor, character, logical
-# or integer code - which is the single-trial special case, one-hot expanded
-# with every trial 1. The category labels ride the result's COLUMN NAMES, the
-# carrier that survives both serialization and the engine's re-creation; the
-# engine reads neither.
+# its row sums, and a length-n vector of labels - a factor, character or
+# logical - which is the single-trial special case, one-hot expanded with every
+# trial 1. A number is refused: it names no category, and reading whole
+# numbers as codes would build an empty category for y in 1, 2, 3. The
+# category labels ride the result's COLUMN NAMES, the carrier that survives
+# both serialization and the engine's re-creation; the engine reads neither.
 # A missing label one-hot-expands to an all-NA row rather than erroring: a
 # single-trial spike has no cell to put a missing category in, so the row
 # itself is what is missing, exactly as a count-matrix row is missing when
@@ -2782,22 +2794,11 @@ resolveMultinomialCounts <- function(y) {
   if (is.character(y) || is.logical(y)) {
     y <- factor(y)
   }
-  levels <- if (is.factor(y)) {
-    levels(y)
-  } else {
-    if (!is.numeric(y)) {
-      stop(
-        "a multinomial response must be a factor, a character vector, or an ",
-        "n x K count matrix"
-      )
-    }
-    observed <- y[!is.na(y)]
-    if (any(observed != round(observed)) || any(observed < 0)) {
-      stop("multinomial category codes must be non-negative whole numbers")
-    }
-    as.character(seq.int(0L, if (length(observed) > 0L) max(observed) else 0L))
+  if (!is.factor(y)) {
+    stop(multinomialResponseMessage)
   }
-  codes <- if (is.factor(y)) as.integer(y) else as.integer(y) + 1L
+  codes <- as.integer(y)
+  levels <- levels(y)
   K <- length(levels)
   counts <- matrix(0L, length(codes), K, dimnames = list(NULL, levels))
   complete <- !is.na(codes)

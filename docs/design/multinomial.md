@@ -231,10 +231,11 @@ both supported (below).
   observed integer data, never sampled, so the real-shape gap that
   constrains negative binomial's shape has no analog here (landed
   2bd34db, docs/plans/archive/multinomial-counts.md). Single-trial labels
-  (0..K-1 codes) enter as a one-hot counts matrix with unit trials, the
-  byte-identical n_i = 1 reduction that anchors every recorded
-  equivalence baseline; K defaults to one past the largest code on the
-  label entry and to the column count on the count entry. An empty row
+  (a factor or character vector) enter as a one-hot counts matrix with unit
+  trials, the byte-identical n_i = 1 reduction that anchors every recorded
+  equivalence baseline; K is the level count on the label entry and the
+  column count on the count entry. A bare number names no category and is
+  refused at dbarts() as bart() refuses it (dec-B536). An empty row
   (n_i = 0) is accepted at creation and through $setCounts, and the first
   in a session warns. Its likelihood
   factor is the constant 1 - PG(0, .) is the point mass at 0 and
