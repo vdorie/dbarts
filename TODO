@@ -836,14 +836,6 @@ items
     sampler refuses forests = even as list(forest()). The several-forest
     half is inside forests-shared-total; setmodel slice 4 follows it.
     About 40 lines. For 1.0-0.
-  tree-prior-flat: ruled, not built (dec-B512). A tree's depth is plain
-    base and power at every door (bart, xbart, dbarts, dbartsSpec,
-    forest, varianceForest, the live sampler's); split.probs takes a
-    vector or dart(), which loses base and power; tree.prior leaves
-    bart() and warns on dbarts()/dbartsSpec() until 1.1-0; the same name
-    at two levels on one forest is refused. Fixes xbart(tree.prior =
-    cgm()) fitting the default depth silently. Before setmodel-parameters'
-    slice 4; bartCause and stan4bart pass through. For 1.0-0.
   coefficient-prior-live: ruled, not built (dec-B511). On a live sampler,
     $setForest(amplitude = ) (dec-B518) changes a forest's coefficient between held
     and drawn (dec-B254) and between the normal and student(df), and a

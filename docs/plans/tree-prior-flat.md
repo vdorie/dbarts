@@ -1,10 +1,9 @@
 # tree-prior-flat: a tree's depth is plain base and power at every door, and DART a value of split.probs
 
-Status: PLANNED 2026-10-29 on 83cefe7d (dec-B512); amended the same day after its blind critique (build after
-amendments; scratch/tpf-crit/report.md, probes c1.R to c6.R rerun) and the coordinator's calls on it. No call is
-open for the maintainer. Rulings: dec-B512, with dec-B116, dec-B246 and dec-B252 (each revised by it), dec-B241
-and dec-B503 (the collision rule it extends), dec-B254, dec-B266, dec-B274, dec-B508, dec-B514, dec-B515 and
-dec-B518 (the live door).
+Status: LANDED 2026-10-30 (dec-A246), built in three slices, slice 1 with one review and its fix round, slices 2
+and 3 with one review; no call was held. Rulings: dec-B512, with dec-B116, dec-B246 and dec-B252 (each revised
+by it), dec-B241 and dec-B503 (the collision rule it extends), dec-B254, dec-B266, dec-B274, dec-B508, dec-B514,
+dec-B515 and dec-B518 (the live door).
 
 agent: slice 1 (the R that decides which model a call fits) one opus implementer (effort high) and one opus
 review (effort high) that runs the mutants below and checks the fix round. Slices 2 and 3 (help, docs, benchmark
@@ -670,3 +669,10 @@ forest follows a live change of the tree prior, remains that plan's, pending.
   crossvalidate change of k is from reading bayesOpt.R, not run.
 - On a one-forest sampler `$setModel` keeps main's behavior where the critic's third condition would refuse a
   changed power after a lone forest term stated its own; the live door section says why.
+
+## Landing note
+
+Landed 2026-10-30 (dec-A246) on coefficient-prior-opt-in: the doors of slice 1, the help, NEWS, docs and benchmark
+scripts of slice 2, and the consumer branches of slice 3, merged into bartCause's and stan4bart's main in the same
+sitting. Neutral for every call main accepts, by the A/B on both builds and the equivalence trio; x86-64 leg and
+CI green on the branch tip. The live door stays with setmodel-parameters' slice 4.
