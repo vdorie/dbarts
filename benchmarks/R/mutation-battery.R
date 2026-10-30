@@ -669,14 +669,14 @@ mutations <- c(
     r3(
       "m47",
       "R/dbarts.R",
-      "forestInfo$sd[[index]] <- sds[[index]]",
-      "forestInfo$variance[[index]] <- sds[[index]]",
+      "newModel@forests[[index]]@sd <- sds[[index]]",
+      "newModel@forests[[index]]@sd <- newModel@forests[[index]]@sd",
       kTests(
         "test-multiforest-leaf-prior-writer.R",
         "test-calibration-midchain.R",
         "test-forest-basis-r5.R"
       ),
-      "leaf-prior writer: the control mirror writes the wrong entry, so a re-creation restates the creation sd"
+      "leaf-prior writer: the forest record keeps the creation sd, so a re-creation restates it"
     ),
     r3(
       "m48",
