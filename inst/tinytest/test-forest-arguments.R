@@ -33,7 +33,7 @@ twoForests <- function(...) {
   )
 }
 heldParams <- function(sampler, forest) {
-  dbarts:::forestsRecord(sampler$model)$params[[forest]][4L]
+  if (sampler$model@forests[[forest]]@held.amplitude) 0 else 1
 }
 termControl <- list(
   n.trees = 5L,
@@ -160,7 +160,7 @@ heldSpec <- dbartsSpec(
   forests = list(forest(), forest(basis = ~z, amplitude = fixed()))
 )
 expect_identical(
-  dbarts:::forestsRecord(heldSpec$model)$heldAmplitude,
+  vapply(heldSpec$model@forests, slot, NA, "held.amplitude"),
   c(FALSE, TRUE)
 )
 heldFit <- do.call(
@@ -368,10 +368,8 @@ local({
       y ~ x1 + x2 + forest(x1 + x2, basis = ~ factor(z), amplitude = fixed),
       dataFrame,
       control = argumentControl()
-    )$model |>
-      dbarts:::forestsRecord() |>
-      (\(info) info$params[[2L]][4L])(),
-    1
+    )$model@forests[[2L]]@held.amplitude,
+    FALSE
   )
 })
 local({
@@ -441,7 +439,7 @@ local({
     control = argumentControl()
   )
   expect_identical(
-    dbarts:::forestsRecord(sampler$model)$sd[2L],
+    vapply(sampler$model@forests, slot, 0, "sd")[2L],
     2
   )
 })
@@ -526,14 +524,20 @@ expect_identical(swapped$data@bases, twin$data@bases)
 # the stored description too; the record of a basis written as code holds
 # the place its formula was written, which the two builds do not share
 describedBy <- function(sampler) {
-  described <- dbarts:::forestsRecord(sampler$model)
-  described$basisTerms <- lapply(described$basisTerms, function(record) {
-    record[c("label", "levels", "xlev", "rows")]
+  lapply(sampler$model@forests, function(record) {
+    if (!is.null(record@basis.term)) {
+      record@basis.term <- record@basis.term[c(
+        "label",
+        "levels",
+        "xlev",
+        "rows"
+      )]
+    }
+    record
   })
-  described
 }
 expect_identical(describedBy(swapped), describedBy(twin))
-expect_identical(describedBy(swapped)$basisTerms[[2L]]$label, "factor(z)")
+expect_identical(describedBy(swapped)[[2L]]@basis.term$label, "factor(z)")
 expect_identical(swapped$run(0L, 5L), twin$run(0L, 5L))
 expect_equal(swapped$getForestAmplitudes()[, 1L], c(1, 0, 1))
 expect_error(

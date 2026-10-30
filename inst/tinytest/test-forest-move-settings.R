@@ -522,8 +522,11 @@ for (stated in list(moving, shipped)) {
 
 # the record rides the model; a control handed on carries none
 stated <- build("two", ctl(), mean = list(proposal.probs = moving))
-expect_false(is.null(dbarts:::modelMoveRecord(stated$model)))
-expect_null(dbarts:::modelMoveRecord(build("two", ctl())$model))
+statesMoves <- function(sampler) {
+  !all(vapply(sampler$model@forests, function(r) is.null(r@moves), NA))
+}
+expect_true(statesMoves(stated))
+expect_false(statesMoves(build("two", ctl())))
 # ...and no tree count: the next fit takes the default, and is told
 handedOn <- NULL
 expect_warning(
@@ -531,7 +534,7 @@ expect_warning(
   "the control's n.trees (4) is not used",
   fixed = TRUE
 )
-expect_null(dbarts:::modelMoveRecord(handedOn$model))
+expect_false(statesMoves(handedOn))
 atDefault <- ctl()
 atDefault@n.trees <- 75L
 expect_identical(draws(handedOn), draws(build("two", atDefault)))

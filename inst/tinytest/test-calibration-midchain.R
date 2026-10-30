@@ -498,8 +498,10 @@ expect_identical(bcfCalibration2$prior.sd.of, "level difference (prior median)")
 expect_true(bcfCalibration$k.scale > 0 && bcfCalibration2$k.scale > 0)
 # the control carries no number for either: the engine's defaults are what
 # the reader reports, and the reader has no entry for the engine's channels
-bcfStated <- dbarts:::forestsRecord(bcf$model)
-expect_identical(bcfStated$sd, c(NA_real_, NA_real_))
+expect_identical(
+  vapply(bcf$model@forests, slot, 0, "sd"),
+  c(NA_real_, NA_real_)
+)
 expect_identical(
   names(bcfCalibration2),
   c(

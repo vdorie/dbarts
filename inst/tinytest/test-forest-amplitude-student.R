@@ -106,7 +106,7 @@ for (door in names(doors)) {
       )
     }
     expect_identical(
-      dbarts:::forestsRecord(sampler$model)$amplitude.df,
+      vapply(sampler$model@forests, slot, 0, "amplitude.df"),
       c(NA, 3, 3),
       info = info
     )
@@ -141,9 +141,7 @@ plain <- dbarts(
   d,
   control = ctl()
 )
-expect_null(
-  dbarts:::forestsRecord(plain$model)[["amplitude.df"]]
-)
+expect_true(all(is.na(vapply(plain$model@forests, slot, 0, "amplitude.df"))))
 expect_null(plain$getLeafPrior(2L)[["amplitude"]])
 
 # --- student() and a bare student are student(1) ---

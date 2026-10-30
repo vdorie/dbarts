@@ -2207,7 +2207,7 @@ recordBasisScales <- function(sampler, ptr, active = NULL) {
     return(invisible(NULL))
   }
   n <- length(data@y)
-  labels <- samplerForestLabels(sampler$model)
+  labels <- vapply(sampler$model@forests, methods::slot, "", "label")
   named <- vapply(fellBack, forestName, "", labels = labels)
   what <- if (length(named) == 1L) {
     paste0("the scale of ", named, "'s basis")
@@ -2668,8 +2668,7 @@ modelWithLeafPriorUnclaimed <- function(model) {
 ## the per-forest sd, in the response's units as written, NA where none is
 ## stated.
 resolveForestSpreads <- function(sampler, forests) {
-  forestInfo <- forestsRecord(sampler$model)
-  numForests <- length(forestInfo$params)
+  numForests <- length(sampler$model@forests)
   if (is.list(forests)) {
     readBack <- vapply(
       seq_along(forests),
@@ -2704,10 +2703,7 @@ resolveForestSpreads <- function(sampler, forests) {
   }
   given <- names(forests)
   if (!is.null(given)) {
-    labels <- forestInfo$labels
-    if (is.null(labels)) {
-      labels <- rep("", numForests)
-    }
+    labels <- vapply(sampler$model@forests, methods::slot, "", "label")
     for (index in seq_along(given)) {
       if (!is.na(given[[index]]) && given[[index]] == paste0("forest", index)) {
         taken <- forestNameTaken(given[[index]], index, labels, "forests")
@@ -2899,7 +2895,7 @@ dbartsSampler <- setRefClass(
       # what the engine holds is the record from here on, written on the
       # sampler's own data object and never on the caller's
       recordDerived(.self, .self$pointer, created$records)
-      if (modelCarriesForests(model)) {
+      if (length(model@forests) >= 2L) {
         recordBasisScales(.self, .self$pointer, active)
       }
       # after the call, so a refused creation never spends the warning's key;
@@ -3763,7 +3759,7 @@ dbartsSampler <- setRefClass(
       # the forest takes the kind it was created with, read from the data
       # object, and nothing is stored before the value has been held to it
       current <- data@bases[[index + 1L]]
-      forestInfo <- forestsRecord(model)
+      labels <- vapply(model@forests, methods::slot, "", "label")
       recorded <- dataBasisLevels(data)
       recorded <- if (index < length(recorded)) recorded[[index + 1L]]
       values <- conformBasis(
@@ -3771,7 +3767,7 @@ dbartsSampler <- setRefClass(
         forestBasisKind(current, recorded),
         recorded,
         "basis",
-        forestName(index + 1L, forestInfo$labels)
+        forestName(index + 1L, labels)
       )
       if (nrow(values) != length(data@y)) {
         stop("'basis' must have the same length as 'y'")
@@ -3786,7 +3782,7 @@ dbartsSampler <- setRefClass(
       if (updateBasisScale) {
         refuseBasisScaleUpdate(
           .Call(C_dbarts_bartcore_getLeafPrior, ptr, index),
-          forestName(index + 1L, forestInfo$labels)
+          forestName(index + 1L, labels)
         )
       }
       selfEnv <- parent.env(environment())
@@ -3826,7 +3822,7 @@ dbartsSampler <- setRefClass(
       if (updateBasisScale) {
         warnBasisScaleKept(
           tryResult,
-          forestName(index + 1L, forestInfo$labels),
+          forestName(index + 1L, labels),
           length(data@y),
           sum(rowsInLikelihood(data@weights, activeRows, length(data@y)))
         )
@@ -4189,7 +4185,9 @@ dbartsSampler <- setRefClass(
       }
       priors <- lapply(seq_len(numForests) - 1L, read)
       # by the forests' labels, which a multinomial sampler's categories lack
-      names(priors) <- samplerForestLabels(model)
+      if (length(model@forests) == numForests) {
+        names(priors) <- vapply(model@forests, methods::slot, "", "label")
+      }
       priors
     },
     getK = function(forest = NULL) {
@@ -4665,8 +4663,7 @@ dbartsSampler <- setRefClass(
       # saved-tree replay reads the current training predictors (the engine
       # keeps no matrix); a sparse data@x is skipped for a NULL replay source
       trainingMatrix <- rawPredictorMatrix(data@x)
-      hasForestColumn <- bartcoreNumForests(ptr) > 1L ||
-        samplerCarriesAmplitudes(.self)
+      hasForestColumn <- bartcoreNumForests(ptr) > 1L
       blocks <- lapply(forestIndices, function(forestIndex) {
         forestTreeCount <- bartcoreForestTreeCount(ptr, forestIndex)
         forestTreeNums <- if (treeNumsSupplied) {

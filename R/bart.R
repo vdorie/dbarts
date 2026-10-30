@@ -195,9 +195,8 @@ leafPriorIsDrawn <- function(prior) {
 # forest with none of its own being forest<i>, so one forest has one name
 # everywhere. The labels are the record the sampler was created with.
 forestMarginNames <- function(model, numForests) {
-  labels <- modelForestLabels(model)
-  if (is.character(labels) && length(labels) == numForests) {
-    return(labels)
+  if (numForests >= 2L && length(model@forests) == numForests) {
+    return(vapply(model@forests, methods::slot, "", "label"))
   }
   paste0("forest", seq_len(numForests))
 }
@@ -269,7 +268,7 @@ fitDescriptors <- function(sampler, samples = NULL) {
   }
   # a forest whose coefficient is held by amplitude = fixed(), per forest:
   # the coefficient is 1, the basis carrying any coding (dec-B354)
-  held <- forestsRecord(sampler$model)$heldAmplitude
+  held <- vapply(sampler$model@forests, methods::slot, NA, "held.amplitude")
   # a forest with no basis has its coefficient held whether or not fixed() is
   # written, as the reader says
   if (several) {
@@ -612,18 +611,26 @@ packageBartResults <- function(
     # and a forest of numbers' as its block, each what predict(bases = )
     # takes for its forest (storedBasisBlock gives an entry's block)
     result$bases <- storedForestBases(fit$data)
-    forestInfo <- forestsRecord(fit$model)
+    records <- fit$model@forests
     # the record of every basis written as code, at either door, which is
     # what lets the same basis be rebuilt at NEW rows; the element stays
     # absent on a fit whose bases all arrived as values, whose blend then
     # needs the caller's own at those rows
-    result$basis.terms <- forestInfo$basisTerms
+    basisTerms <- lapply(records, methods::slot, "basis.term")
+    if (!all(vapply(basisTerms, is.null, NA))) {
+      result$basis.terms <- basisTerms
+    }
     # one label for each forest, always
-    attr(result, "forest.labels") <- forestInfo$labels
+    attr(result, "forest.labels") <- vapply(
+      records,
+      methods::slot,
+      "",
+      "label"
+    )
     # each forest's tree count, which the printed block shows
     attr(result, "forest.trees") <- vapply(
-      forestInfo$params,
-      function(forest) as.integer(forest[1L]),
+      records,
+      function(record) as.integer(record@n.trees),
       0L
     )
     # the number the forests' sds are stated in, which the printed block names,

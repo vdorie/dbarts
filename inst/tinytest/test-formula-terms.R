@@ -7,6 +7,11 @@
 # the forest with no basis. Block E: the tree count given twice. Block F:
 # every forest multiplied. Block G: what else is refused.
 
+source(
+  system.file("common", "forestParams.R", package = "dbarts"),
+  local = TRUE
+)
+
 n <- 60L
 set.seed(0)
 x1 <- runif(n)
@@ -65,9 +70,8 @@ refuses <- function(formula, pattern, ..., fixed = TRUE) {
     info = deparse(formula)
   )
 }
-forestInfo <- function(result) {
-  dbarts:::forestsRecord(result$fit$model)
-}
+forestRecords <- function(result) result$fit$model@forests
+forestVars <- function(result) lapply(forestRecords(result), slot, "vars")
 predictors <- function(result) colnames(result$fit$data@x)
 # the terms a fit stores, which predict reads new rows by
 storedTerms <- function(result) attr(result$fit$data@x, "terms")
@@ -83,13 +87,13 @@ design <- function(result) {
 }
 # the columns each forest splits on, by name; every column where unrestricted
 splitsOn <- function(result) {
-  lapply(forestInfo(result)$vars, function(columns) {
+  lapply(forestVars(result), function(columns) {
     if (is.null(columns)) predictors(result) else predictors(result)[columns]
   })
 }
 # the tree count of each forest: the first forest's is the control's
 treeCounts <- function(result) {
-  counts <- vapply(forestInfo(result)$params, function(p) p[[1L]], 0)
+  counts <- as.double(vapply(forestRecords(result), slot, 0L, "n.trees"))
   counts[1L] <- result$fit$control@n.trees
   counts
 }
@@ -106,7 +110,7 @@ expectSameForest <- function(formulaA, formulaB, ...) {
     info = info
   )
   expect_identical(fitA$fit$data@bases, fitB$fit$data@bases, info = info)
-  expect_identical(forestInfo(fitA), forestInfo(fitB), info = info)
+  expect_identical(forestRecords(fitA), forestRecords(fitB), info = info)
   expect_identical(fitA$yhat.train, fitB$yhat.train, info = info)
   expect_identical(fitA$sigma, fitB$sigma, info = info)
   # nolint end
@@ -362,7 +366,7 @@ separate <- dbarts::dbarts(
 )
 expect_identical(colnames(separate$data@x), c("x1", "x2", "x3"))
 expect_identical(
-  dbarts:::forestsRecord(separate$model)$vars,
+  lapply(separate$model@forests, slot, "vars"),
   list(1:2, 3L)
 )
 splitCounts <- matrix(0, 3L, 2L, dimnames = list(c("x1", "x2", "x3"), NULL))
@@ -397,7 +401,7 @@ indicatorFit <- fit(
   factors = "indicators"
 )
 expect_identical(predictors(indicatorFit)[3:5], c("zf.u", "zf.v", "zf.w"))
-expect_identical(forestInfo(indicatorFit)$vars[[2L]], 3:5)
+expect_identical(forestVars(indicatorFit)[[2L]], 3:5)
 
 # a term's columns are those the term produced, not those whose names begin
 # as it does: a factor beside predictors named like its columns
@@ -412,21 +416,21 @@ expect_identical(
   predictors(clashing),
   c("x1", "g.u", "g.v", "g.w", "g.total", "g2", "g.u")
 )
-expect_identical(forestInfo(clashing)$vars, list(NULL, 2:4))
+expect_identical(forestVars(clashing), list(NULL, 2:4))
 expect_identical(
-  forestInfo(fit(
+  forestVars(fit(
     y ~ forest(. - z - g) + forest(g, basis = ~z),
     data = clash,
     factors = "indicators"
-  ))$vars,
+  )),
   list(1:4, 5:7)
 )
 expect_identical(
-  forestInfo(fit(
+  forestVars(fit(
     y ~ forest(. - z) - g.total + forest(g.total + g.u, basis = ~z),
     data = clash,
     factors = "indicators"
-  ))$vars,
+  )),
   list(1:6, 6:7)
 )
 
@@ -706,7 +710,7 @@ expect_identical(
 # no first argument: every predictor of the fit
 everyPredictor <- fit(y ~ x1 + x2 + forest(basis = ~z))
 expect_identical(splitsOn(everyPredictor), list(c("x1", "x2"), c("x1", "x2")))
-expect_null(forestInfo(everyPredictor)$vars[[2L]])
+expect_null(forestVars(everyPredictor)[[2L]])
 # naming every predictor is no restriction
 expectSameForest(
   y ~ x1 + x2 + forest(basis = ~z),
@@ -855,7 +859,7 @@ writtenAlone <- fit(y ~ forest(x1 + x2))
 expect_identical(predictors(writtenAlone), c("x1", "x2"))
 expect_identical(writtenAlone$yhat.train, plain$yhat.train)
 expect_identical(writtenAlone$sigma, plain$sigma)
-expect_null(forestInfo(writtenAlone))
+expect_identical(length(forestRecords(writtenAlone)), 1L)
 expect_null(attr(writtenAlone$fit$model, "forests.declared"))
 expect_identical(writtenAlone$fit$control@n.trees, plain$fit$control@n.trees)
 expect_identical(writtenAlone$fit$data@x, plain$fit$data@x)
@@ -1081,8 +1085,8 @@ constrainedAtTop <- fit(
   y ~ x1 + x2 + forest(x1, basis = ~z),
   interactions = dbarts::dbartsForests$interactions(max.order = 1L)
 )
-expect_false(is.null(forestInfo(constrained)$interactions[[1L]]))
-expect_identical(forestInfo(constrained), forestInfo(constrainedAtTop))
+expect_false(is.null(forestRecords(constrained)[[1L]]@interactions))
+expect_identical(forestRecords(constrained), forestRecords(constrainedAtTop))
 expect_identical(constrained$yhat.train, constrainedAtTop$yhat.train)
 expect_false(identical(
   constrained$yhat.train,
@@ -1191,12 +1195,11 @@ expect_identical(engineTreeCounts(written), c(50L, 50L))
 expect_identical(written$control@n.trees, 50L)
 expect_identical(written$model@tree.prior@base, 0.25)
 expect_identical(written$model@tree.prior@power, 3)
-writtenInfo <- dbarts:::forestsRecord(written$model)
 expect_identical(
-  lapply(writtenInfo$params, function(forest) forest[1:3]),
+  lapply(forestParamsOf(written$model), function(forest) forest[1:3]),
   list(c(50, 0.25, 3), c(50, 0.25, 3))
 )
-expect_identical(writtenInfo$vars, list(1L, 2L))
+expect_identical(lapply(written$model@forests, slot, "vars"), list(1L, 2L))
 expect_identical(
   written$data@bases,
   list(
@@ -1205,8 +1208,8 @@ expect_identical(
   )
 )
 expect_identical(
-  writtenInfo$vars,
-  dbarts:::forestsRecord(listed$model)$vars
+  lapply(written$model@forests, slot, "vars"),
+  lapply(listed$model@forests, slot, "vars")
 )
 expect_identical(written$data@bases, listed$data@bases)
 writtenRun <- written$run(0L, 20L)
@@ -1219,8 +1222,8 @@ expect_identical(written$getForestAmplitudes(), listed$getForestAmplitudes())
 expect_identical(colnames(reversed$data@x), c("x2", "x1"))
 expect_identical(engineTreeCounts(reversed), c(50L, 50L))
 expect_identical(
-  dbarts:::forestsRecord(reversed$model)$params,
-  rev(writtenInfo$params)
+  forestParamsOf(reversed$model),
+  rev(forestParamsOf(written$model))
 )
 expect_identical(reversed$data@bases, rev(written$data@bases))
 expect_false(identical(reversed$run(0L, 20L)$train, writtenRun$train))

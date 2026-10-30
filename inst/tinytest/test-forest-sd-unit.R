@@ -35,8 +35,8 @@ unitControl <- function(...) {
     ...
   )
 }
-forestInfo <- function(sampler) {
-  dbarts:::forestsRecord(sampler$model)
+forestSds <- function(sampler) {
+  vapply(sampler$model@forests, slot, 0, "sd")
 }
 unitOf <- function(sampler) sampler$data@forest.calibration[["unit"]]
 numWarnings <- 0L
@@ -256,7 +256,7 @@ for (family in c("gaussian", "probit", "logistic")) {
         expect_identical(multiplied$sd, unitOf(sampler), info = info)
       }
     }
-    expect_identical(forestInfo(sampler)$sd, rep(NA_real_, numForests))
+    expect_identical(forestSds(sampler), rep(NA_real_, numForests))
   }
   # three forests at their defaults are the twin whose forests with a basis
   # state the number the reader gives, draw for draw
@@ -278,10 +278,6 @@ for (family in c("gaussian", "probit", "logistic")) {
     info = family
   )
 }
-# no variance is stated for a forest's coefficients
-expect_null(
-  forestInfo(twoForests(list(forest(), forest(basis = d$zf))))$variance
-)
 
 # --- one path at a time ---
 created <- twoForests()
@@ -373,8 +369,8 @@ expectStated(writtenCopy, 2L, 0.25, "a write, then a copy")
 writtenCopy$setLeafPrior(forests = list(forest(), forest(sd = 0.75)))
 expectStated(writtenCopy, 1L, 3, "a second write")
 expectStated(writtenCopy, 2L, 0.75, "a second write")
-expect_identical(forestInfo(writtenCopy)$sd, c(3, 0.75))
-expect_identical(forestInfo(written)$sd, c(3, 0.25))
+expect_identical(forestSds(writtenCopy), c(3, 0.75))
+expect_identical(forestSds(written), c(3, 0.25))
 
 # a swap to another factor of the same levels derives the forest's own scale
 # again, from the stated number
@@ -426,7 +422,7 @@ for (forests in list(twoStated, list(forest(), forest(basis = d$zf)))) {
     forests = lapply(readBack$getLeafPrior(), function(prior) prior$leaf.prior)
   )
   expect_identical(sdsOf(readBack), sdsOf(twin))
-  expect_identical(forestInfo(readBack)$sd, forestInfo(twin)$sd)
+  expect_identical(forestSds(readBack), forestSds(twin))
   expect_identical(readBack$run(0L, 20L), twin$run(0L, 20L))
 }
 # a default's number, stated: the forest is a stated one, and no bit moves,
@@ -760,7 +756,7 @@ namedOnList <- twoForests(
 )
 expect_identical(namedOnList$getLeafPrior(1L)$sd, 2)
 expect_identical(namedOnList$getLeafPrior(2L)$sd, 0.5)
-expect_identical(forestInfo(namedOnList)$sd, c(2, 0.5))
+expect_identical(forestSds(namedOnList), c(2, 0.5))
 expect_identical(namedOnList$run()$train, unnamedDraws)
 namedOnTerm <- dbarts(
   y ~ forest(x1 + x2, sd = pars["t"]) +
@@ -782,7 +778,7 @@ namedWrite$setLeafPrior(
   forests = list(forest(sd = pars["t"]), forest(sd = pars["s"]))
 )
 expect_identical(namedWrite$getLeafPrior(2L)$sd, 0.5)
-expect_identical(forestInfo(namedWrite)$sd, c(2, 0.5))
+expect_identical(forestSds(namedWrite), c(2, 0.5))
 expect_identical(namedWrite$run()$train, unnamedDraws)
 expect_identical(
   dbarts(

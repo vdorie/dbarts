@@ -231,10 +231,7 @@ priorSpec <- dbartsSpec(
   seededControlForestBasisR5(),
   forests = list(forest(sd = 2.5), forest(sd = 1.25))
 )
-priorStated <- dbarts:::forestsRecord(priorSpec$model)
-expect_identical(priorStated$sd, c(2.5, 1.25))
-expect_null(priorStated$variance)
-expect_null(priorStated$hasBasis)
+expect_identical(vapply(priorSpec$model@forests, slot, 0, "sd"), c(2.5, 1.25))
 priorSampler <- new(
   "dbartsSampler",
   priorSpec$control,

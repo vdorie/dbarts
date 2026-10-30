@@ -2497,17 +2497,13 @@ selectForest <- function(forest, labels, numForests, several = FALSE) {
   vapply(forest, one, 0L, USE.NAMES = FALSE)
 }
 
-# The labels a sampler's forests carry, from its model's forest records;
-# NULL for a sampler of fewer than two forests.
-samplerForestLabels <- function(model) {
-  modelForestLabels(model)
-}
-
-# A sampler's reading of its 'forest' argument: its own labels, and its forest
-# count from the engine, asked only when a string needs it. `ptr` is not
-# evaluated for a number.
+# A sampler's reading of its 'forest' argument: its own labels, none on a model
+# of fewer than two records, and its forest count from the engine, asked only
+# when a string needs it. `ptr` is not evaluated for a number.
 samplerForestIndex <- function(forest, model, ptr, several = FALSE) {
-  labels <- samplerForestLabels(model)
+  labels <- if (length(model@forests) >= 2L) {
+    vapply(model@forests, methods::slot, "", "label")
+  }
   numForests <- if (is.character(forest)) {
     bartcoreNumForests(ptr)
   } else {

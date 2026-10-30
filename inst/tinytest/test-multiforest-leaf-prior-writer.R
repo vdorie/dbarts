@@ -5,6 +5,11 @@
 # so a sampler created with P that writes P' at once is bitwise the sampler
 # created with P' under the same seed, on every chain and every channel.
 
+source(
+  system.file("common", "forestParams.R", package = "dbarts"),
+  local = TRUE
+)
+
 forest <- dbartsForests$forest
 
 set.seed(71)
@@ -56,12 +61,13 @@ multinomialSampler <- function(...) {
     ...
   ))
 }
-forestInfo <- function(sampler) {
-  dbarts:::forestsRecord(sampler$model)
-}
 expectTwins <- function(a, b, info) {
   expect_identical(a$getLeafPrior(), b$getLeafPrior(), info = info)
-  expect_identical(forestInfo(a)$params, forestInfo(b)$params, info = info)
+  expect_identical(
+    forestParamsOf(a$model),
+    forestParamsOf(b$model),
+    info = info
+  )
   expect_identical(
     a$data@forest.calibration,
     b$data@forest.calibration,

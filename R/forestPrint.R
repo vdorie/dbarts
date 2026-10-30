@@ -335,9 +335,9 @@ fitForestLines <- function(fit, full = FALSE) {
 ## forest, or its pointer has not survived a reload, which show does not
 ## re-create.
 samplerForestLines <- function(sampler, full = FALSE) {
-  info <- forestsRecord(sampler$model)
+  records <- sampler$model@forests
   if (
-    is.null(info) ||
+    length(records) < 2L ||
       !.Call(C_dbarts_bartcore_isValidPointer, sampler$pointer) ||
       bartcoreNumForests(sampler$pointer) < 2L
   ) {
@@ -345,7 +345,7 @@ samplerForestLines <- function(sampler, full = FALSE) {
   }
   forestPriorLines(
     sampler$getLeafPrior(),
-    info$labels,
+    vapply(records, methods::slot, "", "label"),
     storedForestBases(sampler$data),
     sampler$data@weights,
     sampler$activeRows,

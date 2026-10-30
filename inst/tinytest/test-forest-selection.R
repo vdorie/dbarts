@@ -231,7 +231,7 @@ sampler <- fourForests()
 invisible(sampler$run())
 selectable <- c("a", "forest2", "scale(age)", "I(dose/30)")
 expect_identical(
-  dbarts:::forestsRecord(sampler$model)$labels,
+  vapply(sampler$model@forests, slot, "", "label"),
   selectable
 )
 
@@ -695,7 +695,7 @@ takenSampler <- dbarts(
   control = selectionControl()
 )
 expect_identical(
-  dbarts:::forestsRecord(takenSampler$model)$labels,
+  vapply(takenSampler$model@forests, slot, "", "label"),
   c("forest2", "dose", "forest1")
 )
 expect_identical(

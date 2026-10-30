@@ -20,18 +20,17 @@ blockOf <- function(sampler) attr(sampler$model, "block.of.column")
 # environment of its own, the names its call bound, which two builds of one
 # model do not share: compared by what it holds
 forestsOf <- function(sampler) {
-  described <- dbarts:::forestsRecord(sampler$model)
-  described$basisTerms <- lapply(described$basisTerms, function(record) {
-    if (is.null(record)) {
-      return(NULL)
+  lapply(sampler$model@forests, function(record) {
+    term <- record@basis.term
+    if (!is.null(term)) {
+      term$bound <- as.list(environment(term$terms))
+      environment(term$terms) <- globalenv()
+      record@basis.term <- term
     }
-    record$bound <- as.list(environment(record$terms))
-    environment(record$terms) <- globalenv()
     record
   })
-  described
 }
-varianceOf <- function(sampler) dbarts:::varianceRecordList(sampler$model)
+varianceOf <- function(sampler) sampler$model@variance
 
 # --- the list ---------------------------------------------------------------
 
@@ -184,7 +183,7 @@ nested <- forestsOf(dbarts::dbarts(
   y,
   forests = list(forest(), forest(basis = ~z, interactions = interactions))
 ))
-expect_equal(nested$interactions[[2L]]$max.order, 1L)
+expect_equal(nested[[2L]]@interactions$max.order, 1L)
 
 # (21) and in a formula term's knobs, which resolve in the formula's environment
 df <- data.frame(y = y, x1 = x[, 1L], x2 = x[, 2L], z = z)
@@ -390,9 +389,9 @@ nestedDots <- function(...) {
   )
 }
 expect_equal(
-  forestsOf(nestedDots(interactions(max.order = 1)))$interactions[[
+  forestsOf(nestedDots(interactions(max.order = 1)))[[
     2L
-  ]]$max.order,
+  ]]@interactions$max.order,
   1L
 )
 
@@ -408,7 +407,7 @@ lambdaDots <- function(...) {
   )
 }
 expect_equal(
-  forestsOf(lambdaDots())$interactions[[2L]]$max.order,
+  forestsOf(lambdaDots())[[2L]]@interactions$max.order,
   1L
 )
 

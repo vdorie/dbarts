@@ -698,13 +698,13 @@ varianceDonor <- dbarts::dbarts(
   variance = varianceForest(n.trees = 5L),
   control = treeControl
 )
-expect_false(is.null(dbarts:::varianceRecordList(varianceDonor$model)))
+expect_false(is.null(varianceDonor$model@variance))
 noVariance <- dbarts::dbarts(y ~ x1, treeDf, control = varianceDonor$control)
-expect_null(dbarts:::varianceRecordList(noVariance$model))
+expect_null(noVariance$model@variance)
 invisible(noVariance$run())
 expect_null(noVariance$run()$variance)
 plain$setControl(varianceDonor$control)
-expect_null(dbarts:::varianceRecordList(plain$model))
+expect_null(plain$model@variance)
 
 # a variance forest's trees are not read by getTrees, so no forest column
 varianceFit <- dbarts::bart(

@@ -12,82 +12,6 @@ plainForestRecord <- function(n.trees, stated = character(0L), moves = NULL) {
   record
 }
 
-## The forests' configuration of a model of several forests as parallel lists,
-## one entry per forest: `params`, the count, base, power and drawn flag of
-## each (forestParams' layout), `sd`, `vars`, `labels`, `heldAmplitude`,
-## `interactions` and `blocks`, with `amplitude.df` where some forest states
-## one and `basisTerms` where some basis was written as code. NULL on a model
-## of fewer than two forests.
-forestsRecord <- function(model) {
-  records <- model@forests
-  if (length(records) < 2L) {
-    return(NULL)
-  }
-  field <- function(name) lapply(records, methods::slot, name)
-  result <- list(
-    params = lapply(records, function(record) {
-      as.double(c(
-        record@n.trees,
-        record@base,
-        record@power,
-        if (record@held.amplitude) 0 else 1
-      ))
-    }),
-    sd = vapply(records, methods::slot, 0, "sd"),
-    vars = field("vars"),
-    labels = vapply(records, methods::slot, "", "label"),
-    heldAmplitude = vapply(records, methods::slot, NA, "held.amplitude"),
-    interactions = field("interactions"),
-    blocks = field("blocks")
-  )
-  df <- vapply(records, methods::slot, 0, "amplitude.df")
-  if (!all(is.na(df))) {
-    result$amplitude.df <- df
-  }
-  terms <- field("basis.term")
-  if (!all(vapply(terms, is.null, NA))) {
-    result$basisTerms <- terms
-  }
-  result
-}
-
-## The move settings a model's forests state as one record: `forests`, the
-## entry of each mean forest, and `variance`, the variance forest's or NULL;
-## NULL where no forest states any.
-modelMoveRecord <- function(model) {
-  forests <- lapply(model@forests, methods::slot, "moves")
-  variance <- if (!is.null(model@variance)) model@variance@moves
-  if (all(vapply(forests, is.null, NA)) && is.null(variance)) {
-    return(NULL)
-  }
-  list(forests = forests, variance = variance)
-}
-
-## Whether a model carries the forests of an amplitude coupling, two or more.
-modelCarriesForests <- function(model) {
-  length(model@forests) >= 2L
-}
-
-## The labels of a model's forests, NULL on a model of fewer than two.
-modelForestLabels <- function(model) {
-  forestsRecord(model)$labels
-}
-
-## The variance forest of a model as a list of its count, base, power and
-## columns, NULL where it has none.
-varianceRecordList <- function(model) {
-  record <- model@variance
-  if (is.null(record)) {
-    return(NULL)
-  }
-  list(
-    n.trees = record@n.trees,
-    base = record@base,
-    power = record@power,
-    columns = record@columns
-  )
-}
-
 ## The attribute a control carries beside the slots the sampler writes into
 ## it from the model and data: the values written.
 controlMirrorAttr <- "dbarts.mirror"
@@ -96,17 +20,15 @@ controlMirror <- function(control) {
   attr(control, controlMirrorAttr, exact = TRUE)
 }
 
-## The control's copies of what the model and data hold. A copy never states
-## anything; the caller's own value in one of these slots does.
-controlCopyNames <- c("n.trees", "useQuantiles", "binary")
-
 ## The names a caller can write on a control for the model and data to hold,
 ## read for one release: the count and the rule on their slots, and the cut
 ## count on an attribute, which a control keeps only until a sampler stores it.
 controlWrittenNames <- c("n.trees", "n.cuts", "useQuantiles")
 controlCutsAttr <- "n.cuts"
 
-## How a control holds one of controlCopyNames: "written", the caller's
+## How a control holds its copy of what the model and data hold, n.trees,
+## useQuantiles or binary. A copy never states anything; the caller's own value
+## does. "written", the caller's
 ## dbartsControl() call named it or its slot differs from the value the sampler
 ## last mirrored there, or, on a control with no mirror, from a fresh control's;
 ## "carried", the slot equals the mirrored value; "silent", a fresh control's
@@ -123,7 +45,7 @@ controlValueKind <- function(control, name) {
   if (identical(value, freshControlValue(name))) "silent" else "written"
 }
 
-## A fresh control's value of one of controlCopyNames.
+## A fresh control's value of one of those copies.
 freshControlValue <- function(name) {
   list(n.trees = 75L, useQuantiles = FALSE, binary = FALSE)[[name]]
 }
@@ -235,10 +157,9 @@ readWrittenCopies <- function(control, flat) {
   list(flat = flat, carried = carried)
 }
 
-## The control a door goes on with, holding nothing of controlWrittenNames.
+## The control a door goes on with, naming nothing of controlWrittenNames: what
+## its slots hold the sampler's mirror writes over.
 clearWrittenCopies <- function(control) {
-  control@n.trees <- freshControlValue("n.trees")
-  control@useQuantiles <- freshControlValue("useQuantiles")
   attr(control, controlCutsAttr) <- NULL
   named <- attr(control, controlSuppliedAttr, exact = TRUE)
   if (!is.null(named)) {
@@ -360,14 +281,7 @@ mirrorControl <- function(control, model, data) {
   if (!identical(model@family, "auto")) {
     control@binary <- isBinaryFamily(model@family)
   }
-  attr(control, controlCutsAttr) <- NULL
-  named <- attr(control, controlSuppliedAttr, exact = TRUE)
-  if (!is.null(named)) {
-    attr(control, controlSuppliedAttr) <- setdiff(
-      named,
-      c(controlCopyNames, controlWrittenNames)
-    )
-  }
+  control <- clearWrittenCopies(control)
   attr(control, controlMirrorAttr) <- list(
     n.trees = control@n.trees,
     useQuantiles = control@useQuantiles,
@@ -628,90 +542,95 @@ bridgeFamily <- function(control, model) {
 ## holds is not structure: a parameter stays the sampler's and a move setting
 ## is installed (keepModelRecords).
 movedStructureRefusal <- function(newModel, model) {
-  shown <- function(value) {
-    if (is.null(value)) "none" else paste(value, collapse = ", ")
-  }
-  differs <- function(what, own, given) {
-    paste0(
-      "$setModel cannot change ",
-      what,
-      ": this sampler's is ",
-      shown(own),
-      " and the model's is ",
-      shown(given),
-      "; make a new sampler instead"
-    )
-  }
-  moved <- function(what) {
-    paste0("$setModel cannot change ", what, "; make a new sampler instead")
-  }
   if (length(newModel@forests) == 0L) {
     return(NULL)
   }
-  if (length(newModel@forests) != length(model@forests)) {
-    return(differs(
-      "the number of forests",
-      length(model@forests),
-      length(newModel@forests)
-    ))
+  # what, this sampler's and the given model's, and whether the refusal shows them
+  row <- function(what, own, given, shown = TRUE) {
+    list(what = what, own = own, given = given, shown = shown)
   }
-  for (index in seq_along(model@forests)) {
-    own <- model@forests[[index]]
-    given <- newModel@forests[[index]]
-    forest <- paste0("forest ", index, "'s ")
-    if (!is.null(given@n.trees) && !identical(given@n.trees, own@n.trees)) {
-      return(differs(paste0(forest, "tree count"), own@n.trees, given@n.trees))
+  rows <- list(row(
+    "the number of forests",
+    length(model@forests),
+    length(newModel@forests)
+  ))
+  if (length(newModel@forests) == length(model@forests)) {
+    for (index in seq_along(model@forests)) {
+      own <- model@forests[[index]]
+      given <- newModel@forests[[index]]
+      forest <- paste0("forest ", index, "'s ")
+      givenCount <- if (is.null(given@n.trees)) own@n.trees else given@n.trees
+      rows <- c(
+        rows,
+        list(
+          row(paste0(forest, "tree count"), own@n.trees, givenCount),
+          row(paste0(forest, "'vars'"), own@vars, given@vars),
+          row(
+            paste0(forest, "'interactions'"),
+            own@interactions,
+            given@interactions,
+            FALSE
+          ),
+          row(paste0(forest, "'blocks'"), own@blocks, given@blocks, FALSE),
+          row(
+            paste0(forest, "'basis'"),
+            own@basis.term$label,
+            given@basis.term$label
+          ),
+          row(paste0(forest, "label"), own@label, given@label)
+        )
+      )
     }
-    if (!identical(given@vars, own@vars)) {
-      return(differs(paste0(forest, "'vars'"), own@vars, given@vars))
-    }
-    if (!identical(given@interactions, own@interactions)) {
-      return(moved(paste0(forest, "'interactions'")))
-    }
-    if (!identical(given@blocks, own@blocks)) {
-      return(moved(paste0(forest, "'blocks'")))
-    }
-    if (!identical(given@basis.term$label, own@basis.term$label)) {
-      return(differs(
-        paste0(forest, "'basis'"),
-        own@basis.term$label,
-        given@basis.term$label
+  }
+  own <- model@variance
+  given <- newModel@variance
+  rows <- c(
+    rows,
+    list(row(
+      "whether there is a variance forest",
+      is.null(own),
+      is.null(given),
+      FALSE
+    )),
+    if (!is.null(own) && !is.null(given)) {
+      list(
+        row("the variance forest's tree count", own@n.trees, given@n.trees),
+        row("the columns of the variance forest", own@columns, given@columns)
+      )
+    },
+    list(
+      row(
+        "the number of categories",
+        model@n.categories,
+        newModel@n.categories
+      ),
+      row(
+        "the hazard periods",
+        model@hazard.periods,
+        newModel@hazard.periods,
+        FALSE
+      )
+    )
+  )
+  shown <- function(value) {
+    if (is.null(value)) "none" else paste(value, collapse = ", ")
+  }
+  for (moved in rows) {
+    if (!identical(moved$own, moved$given)) {
+      return(paste0(
+        "$setModel cannot change ",
+        moved$what,
+        if (moved$shown) {
+          paste0(
+            ": this sampler's is ",
+            shown(moved$own),
+            " and the model's is ",
+            shown(moved$given)
+          )
+        },
+        "; make a new sampler instead"
       ))
     }
-    if (!identical(given@label, own@label)) {
-      return(differs(paste0(forest, "label"), own@label, given@label))
-    }
-  }
-  ownVariance <- model@variance
-  givenVariance <- newModel@variance
-  if (is.null(ownVariance) != is.null(givenVariance)) {
-    return(moved("whether there is a variance forest"))
-  }
-  if (!is.null(ownVariance)) {
-    if (!identical(givenVariance@n.trees, ownVariance@n.trees)) {
-      return(differs(
-        "the variance forest's tree count",
-        ownVariance@n.trees,
-        givenVariance@n.trees
-      ))
-    }
-    if (!identical(givenVariance@columns, ownVariance@columns)) {
-      return(differs(
-        "the columns of the variance forest",
-        ownVariance@columns,
-        givenVariance@columns
-      ))
-    }
-  }
-  if (!identical(newModel@n.categories, model@n.categories)) {
-    return(differs(
-      "the number of categories",
-      model@n.categories,
-      newModel@n.categories
-    ))
-  }
-  if (!identical(newModel@hazard.periods, model@hazard.periods)) {
-    return(moved("the hazard periods"))
   }
   NULL
 }

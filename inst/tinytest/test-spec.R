@@ -79,7 +79,7 @@ additiveSpec <- dbarts::dbartsSpec(
 expect_equal(attr(additiveSpec$model, "interaction.max.order"), 1L)
 
 varianceSpec <- dbarts::dbartsSpec(data, control = control, variance = TRUE)
-expect_equal(dbarts:::varianceRecordList(varianceSpec$model)$n.trees, 40L)
+expect_equal(varianceSpec$model@variance@n.trees, 40L)
 
 studentSpec <- dbarts::dbartsSpec(
   data,

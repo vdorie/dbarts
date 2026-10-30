@@ -240,8 +240,10 @@ for (fit in list(probit, logistic)) {
   # which a forest gets is the engine's, from what it multiplies: the control
   # carries no sd for either forest, so the numbers the reader reports are the
   # engine's own defaults.
-  transported <- dbarts:::forestsRecord(fit$model)
-  expect_identical(transported$sd, c(NA_real_, NA_real_))
+  expect_identical(
+    vapply(fit$model@forests, slot, 0, "sd"),
+    c(NA_real_, NA_real_)
+  )
   free <- fit$getLeafPrior(1L)
   carried <- fit$getLeafPrior(2L)
   # no coefficient of its own to give a median, and a drawn k with no one size

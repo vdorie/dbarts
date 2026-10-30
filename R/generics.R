@@ -4738,19 +4738,15 @@ setObservationsNA <- function(x, rows) {
 # counts, where the sampler's pointer did not survive a reload. A model of one
 # forest, or a multinomial one, reads its one record.
 fitTreeCounts <- function(fit) {
-  forestInfo <- forestsRecord(fit$model)
-  if (is.null(forestInfo)) {
-    return(fit$model@forests[[1L]]@n.trees)
+  records <- fit$model@forests
+  if (length(records) < 2L) {
+    return(records[[1L]]@n.trees)
   }
   if (!.Call(C_dbarts_bartcore_isValidPointer, fit$pointer)) {
-    return(vapply(
-      forestInfo$params,
-      function(forest) as.integer(forest[1L]),
-      0L
-    ))
+    return(vapply(records, methods::slot, 0L, "n.trees"))
   }
   vapply(
-    seq_along(forestInfo$params),
+    seq_along(records),
     function(index) bartcoreForestTreeCount(fit$pointer, index - 1L),
     0L
   )

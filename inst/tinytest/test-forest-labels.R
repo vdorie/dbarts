@@ -34,7 +34,7 @@ labelControl <- function() {
   )
 }
 labelsOf <- function(sampler) {
-  dbarts:::forestsRecord(sampler$model)$labels
+  vapply(sampler$model@forests, slot, "", "label")
 }
 termFit <- function(formula, data = frame) {
   dbarts(formula, data, control = labelControl())

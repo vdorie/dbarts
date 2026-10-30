@@ -459,15 +459,13 @@ varControl <- dbarts::dbartsControl(
   updateState = FALSE
 )
 varianceAttr <- function(variance, factors = "categorical") {
-  dbarts:::varianceRecordList(
-    dbarts::dbarts(
-      varX,
-      varY,
-      control = varControl,
-      variance = variance,
-      factors = factors
-    )$model
-  )
+  dbarts::dbarts(
+    varX,
+    varY,
+    control = varControl,
+    variance = variance,
+    factors = factors
+  )$model@variance
 }
 
 # round-trip identity (one argument, two accepted types): a varianceForest
@@ -492,9 +490,9 @@ objectAttr <- varianceAttr(
     power = 1.5
   )
 )
-expect_equal(objectAttr$n.trees, 20L)
-expect_equal(objectAttr$base, 0.9)
-expect_equal(objectAttr$power, 1.5)
+expect_equal(objectAttr@n.trees, 20L)
+expect_equal(objectAttr@base, 0.9)
+expect_equal(objectAttr@power, 1.5)
 expect_false(identical(objectAttr, varianceAttr(~x1)))
 
 # factor-term expansion through vars = ~z under factors = "indicators" (the
@@ -504,26 +502,22 @@ dfFactorVar <- data.frame(
   x1 = rnorm(varN),
   z = factor(sample(letters[1:3], varN, replace = TRUE))
 )
-attrShorthandZ <- dbarts:::varianceRecordList(
-  dbarts::dbarts(
-    y ~ x1 + z,
-    data.frame(y = varY, dfFactorVar),
-    control = varControl,
-    variance = ~z,
-    factors = "indicators"
-  )$model
-)
-attrObjectZ <- dbarts:::varianceRecordList(
-  dbarts::dbarts(
-    y ~ x1 + z,
-    data.frame(y = varY, dfFactorVar),
-    control = varControl,
-    variance = varianceForest(vars = ~z),
-    factors = "indicators"
-  )$model
-)
+attrShorthandZ <- dbarts::dbarts(
+  y ~ x1 + z,
+  data.frame(y = varY, dfFactorVar),
+  control = varControl,
+  variance = ~z,
+  factors = "indicators"
+)$model@variance
+attrObjectZ <- dbarts::dbarts(
+  y ~ x1 + z,
+  data.frame(y = varY, dfFactorVar),
+  control = varControl,
+  variance = varianceForest(vars = ~z),
+  factors = "indicators"
+)$model@variance
 expect_identical(attrShorthandZ, attrObjectZ)
-expect_equal(attrShorthandZ$columns, 2:4) # z's 3 indicator columns
+expect_equal(attrShorthandZ@columns, 2:4) # z's 3 indicator columns
 
 # variance = NULL/FALSE still declare no variance forest (the object's own
 # NULL vars means "every column", the opposite of variance = NULL's meaning,

@@ -438,7 +438,7 @@ perLevel <- dbarts(
   control = sizeControl()
 )
 expect_identical(
-  dbarts:::forestsRecord(perLevel$model)$labels,
+  vapply(perLevel$model@forests, slot, "", "label"),
   c("forest1", "arm == \"b\"", "arm == \"c\"")
 )
 expect_identical(

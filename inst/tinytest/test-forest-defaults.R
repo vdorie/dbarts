@@ -8,6 +8,11 @@
 # given twice at bart(). Block G: a control carried to another fit. Block H:
 # print. Block I: which held coefficients are taken.
 
+source(
+  system.file("common", "forestParams.R", package = "dbarts"),
+  local = TRUE
+)
+
 set.seed(71)
 n <- 150L
 frame <- data.frame(x1 = runif(n), x2 = runif(n), x3 = runif(n))
@@ -33,9 +38,6 @@ fitDefault <- c(75, 0.95, 2)
 fitStated <- c(15, 0.8, 3)
 multiplied <- c(50, 0.25, 3)
 
-forestInfo <- function(sampler) {
-  dbarts:::forestsRecord(sampler$model)
-}
 specSampler <- function(spec) {
   new("dbartsSampler", spec$control, spec$model, spec$data)
 }
@@ -73,23 +75,23 @@ build <- function(text, stated = FALSE, ...) {
 # each forest's tree count from the engine and its base and power from its
 # record, one row a forest; the first forest's as the bridge reads them too
 forestTable <- function(sampler) {
-  info <- forestInfo(sampler)
   prior <- sampler$model@tree.prior
   onModel <- c(sampler$model@forests[[1L]]@n.trees, prior@base, prior@power)
-  if (is.null(info)) {
+  if (length(sampler$model@forests) < 2L) {
     return(rbind(onModel, deparse.level = 0L))
   }
+  params <- forestParamsOf(sampler$model)
   # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
-  expect_identical(info$params[[1L]][1:3], onModel)
+  expect_identical(params[[1L]][1:3], onModel)
   pointer <- sampler$getPointer()
   counts <- vapply(
-    seq_along(info$params),
+    seq_along(params),
     function(index) dbarts:::bartcoreForestTreeCount(pointer, index - 1L),
     0L
   )
   cbind(
     counts,
-    do.call(rbind, lapply(info$params, `[`, 2:3)),
+    do.call(rbind, lapply(params, `[`, 2:3)),
     deparse.level = 0L
   )
 }
@@ -132,12 +134,15 @@ for (index in seq_along(plainSecond)) {
   first <- build(plainFirst[index], stated = TRUE)
   info <- plainSecond[index]
   expect_identical(
-    forestInfo(second)$params,
-    rev(forestInfo(first)$params),
+    forestParamsOf(second$model),
+    rev(forestParamsOf(first$model)),
     info = info
   )
   expect_identical(forestTable(second), tableOf(multiplied, fitStated))
-  expect_identical(forestInfo(second)$vars, rev(forestInfo(first)$vars))
+  expect_identical(
+    lapply(second$model@forests, slot, "vars"),
+    rev(lapply(first$model@forests, slot, "vars"))
+  )
   expect_identical(unname(second$data@bases), rev(unname(first$data@bases)))
   expect_null(second$data@bases[[2L]])
   expect_identical(dim(second$data@bases[[1L]]), c(n, 1L))
@@ -157,7 +162,7 @@ ahead <- second$run(0L, 3L)
 second$setState(stored)
 expect_equal(second$run(0L, 3L)$train, ahead$train)
 copied <- second$copy()
-expect_identical(forestInfo(copied), forestInfo(second))
+expect_identical(copied$model@forests, second$model@forests)
 expect_identical(dim(copied$run(0L, 3L)$forestFits), c(n, 2L, 3L))
 second$setForestBasis(1L, age)
 expect_identical(second$data@bases[[1L]][, 1L], age)
@@ -343,7 +348,11 @@ expect_identical(refusal(onBart, control = "edited(30L)"), controlText)
 for (text in allBasis[c(1L, 7L)]) {
   # with no control at all; nothing is run
   expect_identical(
-    lapply(forestInfo(suppressWarnings(eval(str2lang(text))))$params, `[`, 1:3),
+    lapply(
+      forestParamsOf(suppressWarnings(eval(str2lang(text)))$model),
+      `[`,
+      1:3
+    ),
     list(multiplied, multiplied)
   )
   for (named in c(
@@ -632,7 +641,7 @@ moved <- build(listOf(paste0(
   "), forest(basis = age)"
 )))
 expect_identical(forestTable(moved), tableOf(fitStated, multiplied))
-expect_identical(forestInfo(moved)$sd[1L], 2)
+expect_identical(moved$model@forests[[1L]]@sd, 2)
 besidePlain <- build(
   plainSecond[2L],
   stated = TRUE,
@@ -645,12 +654,12 @@ expect_identical(forestTable(besidePlain), tableOf(multiplied, fitStated))
 ## --- Block E: 'interactions' and 'blocks' follow the plain forest -----------
 # given to the fitting function they are the plain forest's, at its position
 # and with its tree count, and never the first forest's for being first
-constraints <- forestInfo(besidePlain)
-expect_null(constraints$interactions[[1L]])
-expect_identical(constraints$interactions[[2L]]$max.order, 1L)
+constraints <- besidePlain$model@forests
+expect_null(constraints[[1L]]@interactions)
+expect_identical(constraints[[2L]]@interactions$max.order, 1L)
 expect_null(attr(besidePlain$model, "interaction.max.order", exact = TRUE))
-expect_null(constraints$blocks[[1L]])
-expect_identical(sum(constraints$blocks[[2L]]$block.tree.counts), 15L)
+expect_null(constraints[[1L]]@blocks)
+expect_identical(sum(constraints[[2L]]@blocks$block.tree.counts), 15L)
 expect_null(attr(besidePlain$model, "block.of.column", exact = TRUE))
 # the largest number of predictors on one path of a tree, its nodes depth first
 pathPredictors <- function(vars) {
@@ -691,8 +700,8 @@ twoConstraints <- build(
   ),
   interactions = "interactions(max.order = 1L)"
 )
-expect_identical(forestInfo(twoConstraints)$interactions[[1L]]$max.order, 2L)
-expect_identical(forestInfo(twoConstraints)$interactions[[2L]]$max.order, 1L)
+expect_identical(twoConstraints$model@forests[[1L]]@interactions$max.order, 2L)
+expect_identical(twoConstraints$model@forests[[2L]]@interactions$max.order, 1L)
 expect_identical(attr(twoConstraints$model, "interaction.max.order"), 2L)
 # on the plain forest and at the top: one constraint twice, at either position
 for (constraint in list(

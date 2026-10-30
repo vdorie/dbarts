@@ -626,7 +626,8 @@ for (probs in list(quote(c(1, 2, 1)), quote(dart()))) {
 
 ## --- the variance forest ------------------------------------------------------
 varianceOf <- function(sampler) {
-  unlist(dbarts:::varianceRecordList(sampler$model)[c("power", "base")])
+  record <- sampler$model@variance
+  c(power = record@power, base = record@base)
 }
 expect_identical(
   varianceOf(onBart(y ~ ., frame, power = 3, base = 0.5, variance = ~x3)),
@@ -655,10 +656,7 @@ dartVariance <- onBart(
   split.probs = dart(),
   variance = ~x3
 )
-expect_identical(
-  names(dbarts:::varianceRecordList(dartVariance$model)),
-  c("n.trees", "base", "power", "columns")
-)
+expect_true(is(dartVariance$model@variance, "dbartsVarianceRecord"))
 
 ## --- pdbart -------------------------------------------------------------------
 resetKey("tombstone.pdbart.splitprobs")
