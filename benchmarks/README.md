@@ -120,6 +120,19 @@ either way, so `--bitwise` only closes the drawn channels' statistical escape
 hatch - the same effect equivalence.R's `--bitwise` has (c8ff7726). This is
 the mode cpp-tests.yaml uses for both siblings' per-push compares.
 
+## R/forests-blocks-equivalence.R - forests that share one total against blocks()
+
+Two spellings of one model, live on one build: `y ~ forest(x1) + forest(x2) +
+forest(x3)`, forests with no basis sharing one prior total, against one forest
+with `blocks()` at the same trees per group. Four scenarios (three forests
+under gaussian and under probit with k drawn, two forests of 38 and 37 trees, a
+stated count beside two that split the rest), compared by Welch z over 40
+seeds a spelling (80 in full) on the posterior mean of the fit at each row and
+of sigma or k; a z past 4 fails, a lone one under 5 after a second set of
+seeds. Quick mode is under a minute.
+
+    Rscript benchmarks/R/forests-blocks-equivalence.R quick
+
 ## R/classic-compare.R - the 0.9-34 comparison (measurement, not a gate)
 
 Widens the cross-release evidence past equivalence.R's nine-scenario
@@ -277,12 +290,14 @@ errors. Quick mode is about 10 seconds.
 probit-k-scale-exact is the gate for the probit rescaling step: one frozen
 tree under probit with k ~ chi(1.5, 2), whose posterior of k and leaf means are
 exact by one quadrature a leaf, on four arms (every leaf separated, none, an
-offset, a mask). It bounds P(k < q) at the exact deciles and the unseparated leaves'
-means at |z| 4.5, and the separated arm's batch-means error of P(k < q) at
+offset, a mask), and two arms of two frozen single-tree forests with no basis
+sharing one drawn k, the second a stump integrated in an outer quadrature,
+alone and beside a held factor stump the step reads as offset. It bounds
+P(k < q) at the exact deciles and the unseparated leaves' means at |z| 4.5, and the separated arm's batch-means error of P(k < q) at
 0.01 in full mode (0.014 quick), which a sampler without the step does not
 meet, so a step that silently declines fails. It cannot see k left unscaled
 after a correct draw; the engine's mapping test catches that. Quick mode is
-about 30 seconds, full about 2 minutes.
+about 2 minutes, full about 6.
 
     Rscript benchmarks/R/probit-k-scale-exact.R quick
 
