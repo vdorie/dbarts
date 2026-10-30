@@ -69,6 +69,10 @@ items
     prog4 (0.1061, 0.1209) without the amplitude rescaling move
     (2026-09-24); it does not reach the tail regime this door names.
     research-open, decision-gated.
+  bartBT-keepcall-splitprobs: bartBT(keepcall = FALSE) drops a named
+    splitprobs (0.9-34 does too), fitting equal probabilities. A separate
+    change that moves draws for those calls: about 3 lines, a pin and a
+    NEWS line. Found reviewing tree-prior-flat.
   capi-unwind-protect: closed but for one arm. A host draw callback's R
     error is now caught at the callback itself, where R_UnwindProtect can
     still turn it into a C++ unwind, so the engine's run frames run their

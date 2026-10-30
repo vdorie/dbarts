@@ -45,10 +45,12 @@ already is. In bartCause, a cross-validated fit given `power` now cross-validate
 and draws change; its NEWS says so.
 
 The live door. setmodel-parameters' slice 4 had planned `$setTreePrior(tree.prior = cgm(...))`; under your
-ruling it takes `power`, `base` and `split.probs` plainly, with `forests` and `variance` as planned. Where a
-statement there reaches no forest, because every forest with no basis stated its own, it is refused with the
-exact call to write, as creation refuses the same statement (dec-B515). Whether an unstated variance forest
-follows a live change of the tree prior is that plan's open question with you; slice 4 waits on it.
+ruling it takes `power`, `base` and `split.probs` plainly, and only the fitting function's level (dec-B518). A
+forest's own depth changes through `$setForest(forest, power = , base = )` and the variance forest's through
+`$setVarianceForest`, both built by the forest-door item. Where a statement at the fitting function's level
+reaches no forest, because every forest with no basis stated its own, it is refused with the exact call to
+write, as creation refuses the same statement (dec-B515). Whether an unstated variance forest follows a live
+change of the tree prior is that plan's open question with you (held decision #6); slice 4 waits on it.
 
 bartCause and stan4bart drop their translations into `cgm()` and pass the plain arguments through; treatSens
 does not change. Their branches merge right after this one.
@@ -142,7 +144,7 @@ scratch/tree-prior-design/p1.R to p10.R rerun there as q2, q5 and q8). Data: 120
   `split.probs` and `tree.prior`.
 - The live sampler. `$setModel` with `m@tree.prior@power <- 1` is honored on a one-forest sampler, refused on a
   DART one and on one of several forests; `$setLeafPrior(forests = list(forest(power = 1)))` is "'power' is fixed
-  at creation" (q8). No `$setTreePrior` exists.
+  at creation" (q8). No `$setTreePrior` exists, and no `$setForest`.
 - Consumers. bartCause's `bcf()` builds `quote(cgm(power, base))` for `dbarts(tree.prior = )` and states
   `treatment.base`, `treatment.power` on the treatment forest; its `translateRetiredBartArguments` turns `bartc`'s
   `power`, `base`, `split.probs` into `tree.prior = cgm(...)` for `bart()` and, under `crossvalidate = TRUE`, for
@@ -254,7 +256,7 @@ setmodel-parameters' slices 1 to 3 (which read DART's settings and the class off
 bartCause's tests reading `model@tree.prior@power` keep working, and the record main writes for a call is the
 record this item writes for its respelling, slot for slot. Getters: `s$model` shows the same slots; the verbose
 summary's "power and base for tree prior" line stays; `print` and `summary` show no tree prior, as now. No reader
-is added here (a per-forest tree-prior reader belongs with slice 4's door).
+is added here (a forest's reader is `$getForest(forest)`, built by the forest-door item).
 
 D2. `dart()` takes `a`, `b`, `rho`, `alpha`, `update.alpha`, `update.delay` and returns the record class with
 `power` and `base` at 2 and 0.95, which the door overwrites with its own. `dart(power = 3)` is R's
@@ -338,42 +340,45 @@ D8. `cgm` stays in `dbartsPriors`, documented as the value of the retired `tree.
 
 Slice 4 of setmodel-parameters (on its branch, planned at a628e48e) is to give a live sampler the tree priors of
 every forest, through `$setTreePrior(tree.prior = , forests = , variance = )`, its open call 1 (a). Under dec-B512
-the door becomes:
+and dec-B518 the door becomes:
 
-    $setTreePrior(power = NULL, base = NULL, split.probs = NULL, forests = NULL, variance = NULL)
+    $setTreePrior(power = NULL, base = NULL, split.probs = NULL)
 
-- Two levels on every sampler, as creation gives them and as dec-B515 rules for `$setLeafPrior`: `power` and
-  `base` are the fitting function's, and `forests = list(forest(power = , base = ), ...)` each forest's own, by
-  position or label, `forest()` leaving a forest as it is, on a sampler of one forest too. Statedness is per
-  forest and per name, as creation recorded it (a lone forest term stating `power` states it at the forest's
-  level, so slice 4 records it on the one-forest path as well) and as this door sets it from then on.
+- One level: `power` and `base` are the fitting function's, and `$setTreePrior` takes no `forests` or `variance`.
+  A forest's own depth changes through `$setForest(forest, power = , base = )`, by label or position, and the
+  variance forest's through `$setVarianceForest(power = , base = )`; both belong to the forest-door item, whose
+  name, labels for a multinomial sampler's category forests and spelling for returning a forest to the fitting
+  function's level are open with the maintainer. Statedness is per forest and per name, as creation recorded it
+  (a lone forest term stating `power` states it at the forest's level, so slice 4 records it on the one-forest
+  path as well) and as `$setForest` sets it from then on.
 - `power`, `base`: each reaches every forest with no basis that does not state its own; NULL leaves it as it is.
   Where, for a name, every forest with no basis stated its own, the call is refused, because creation refuses the
   same statement (dec-B512's collision rule; dec-B515: a setter refuses only where creation refuses the same
   statement). The check is per name, and the refusal names the forests that stated it and the call to write:
   "'power' given to $setTreePrior reaches no forest: forest 1, the forest with no basis, states its own; change
-  it with forests = list(forest(power = 3), forest())". Stated at the top and on that forest in one call, the same
-  refusal. The same rule covers `$setModel` with a changed `power` or `base` on a sampler of several forests,
-  where slice 4 makes its tree prior the fitting function's level, and `$setLeafPrior(normal(sd = ))` where every
-  forest with no basis stated its own `sd` (dec-B515's writer, its own item). On a sampler of one forest
-  `$setModel` keeps main's behavior: its model's tree prior is that forest's record (D1), which it replaces whole.
+  it with $setForest(1, power = 3)". The same rule covers `$setModel` with a changed `power` or `base` on a
+  sampler of several forests, where slice 4 makes its tree prior the fitting function's level, and
+  `$setLeafPrior(normal(sd = ))` where every forest with no basis stated its own `sd` (dec-B515's writer, its own
+  item). On a sampler of one forest `$setModel` keeps main's behavior: its model's tree prior is that forest's
+  record (D1), which it replaces whole.
 - `split.probs`: a vector changes the values (a parameter, dec-B254); `dart(...)` on a DART sampler changes
   DART's settings, a setting it leaves out taking creation's default for it, as creation with `dart(...)` would
   (dec-B514's principle; slice 3's install); `1` restores equal probabilities, as creation with none has; a
   non-uniform vector on a DART sampler or `dart()` on an ordinary one is structure and is refused: "split.probs =
   dart() makes a DART sampler of an ordinary one, which changes the model's structure; make a new sampler
   instead".
-- `forests`: any knob but `power` and `base` is refused as fixed at creation, `sd` naming `$setLeafPrior`.
-- `variance`: `varianceForest(power = , base = )`.
+- `$setForest` takes `sd`, `amplitude` and the move settings beside `power` and `base`, and refuses only
+  structure (vars, n.trees, basis, interactions, blocks) by name; it is not built here.
 - No `tree.prior` argument: it never shipped on a live sampler. `$setModel` keeps taking model objects
   (dec-B512), and slice 4's install from the record (its item 3) is unchanged.
 
 Whether a variance forest that stated no tree prior follows a live change of the fitting function's (slice 4's
-open call 2) is pending with the maintainer; slice 4 waits on it. This item does not decide it.
+open call 2, held decision #6) is pending with the maintainer; slice 4 waits on it. This item does not decide it.
 
-This item builds none of the door: slice 4 builds it after forests-shared-total. The amendment to that plan (its
-door, item 4, its open call 1, and the respelling below) is a records step for that branch's writer, before
-slice 4 is built.
+This item builds none of the door: slice 4 builds `$setTreePrior` after forests-shared-total, and the forest-door
+item builds `$setForest` and `$setVarianceForest`. The amendment to the setmodel-parameters plan (its door, item
+4, its open call 1, and the respelling below) is a records step for that branch's writer, before slice 4 is
+built.
 
 The setmodel-parameters branch's slices 1 to 3 add about 36 lines in the old spellings, each respelled when the
 branch rebases onto this item (counted at a628e48e): inst/tinytest/test-setmodel-parameters.R 13 (`tree.prior =
@@ -406,8 +411,8 @@ Every pair of levels at which one setting can be stated twice, and what happens.
 | pdbart's BayesTree name and bart's | `pdbart(y ~ ., splitprobs = p, split.probs = p)` | refused, as now ("both set one setting") |
 | bcf()'s and bart()'s, bartCause | `bcf(..., power =, treatment.power =)` | two forests; no collision |
 | stan4bart `bart_args` | `bart_args = list(power = 2.5, tree.prior = cgm())` | refused by dbartsSpec, D3 |
-| live door, top and forest | `$setTreePrior(power = 3, forests = list(forest(power = 2), forest()))` | refused, the live door's rule |
-| live door, top, forest stated at creation | `$setTreePrior(power = 3)`, every forest with no basis having stated power | refused naming those forests and `forests =` |
+| live door, forest stated at creation | `$setTreePrior(power = 3)`, every forest with no basis having stated power | refused naming those forests and `$setForest` |
+| live door, one forest | `$setForest(1, power = 2)` | changes that forest only; the fitting function's level is `$setTreePrior`'s |
 | live door and `$setModel` | separate calls | each installs; the later stands |
 
 A value no forest can take, each refused by name: the fitting function's `power` or `base` where no mean forest
@@ -633,9 +638,9 @@ Mutants, each to fail a named expectation:
     alias (D3), so stan4bart's `bart_args$tree.prior`, keyed on the formals, keeps working; a positional tenth
     argument holding a tree prior is read as it. Alternative: `tree.prior` on `...`, which turns stan4bart's
     `bart_args$tree.prior` into an unknown name.
-13. The live door takes no `tree.prior`, and `split.probs = 1` restores equal probabilities there. A statement
-    that reaches no forest is refused per name, naming the forests that stated it, by dec-B512's collision rule
-    and dec-B515; the same rule covers `$setModel` on several forests and `$setLeafPrior(normal(sd = ))`
+13. The live door takes no `tree.prior`, only the fitting function's level (dec-B518), and `split.probs = 1`
+    restores equal probabilities there. A statement that reaches no forest is refused per name, naming the forests
+    that stated it and `$setForest`, by dec-B512's collision rule and dec-B515; the same rule covers `$setModel` on several forests and `$setLeafPrior(normal(sd = ))`
     (the coordinator's call, formerly this plan's open call 1). Alternatives: the statement overwriting the
     forests' own, or taken and changing nothing.
 14. Consumers merge right after dbarts, from branches made green against it first. Alternative: a shim in each
