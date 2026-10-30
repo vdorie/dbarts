@@ -222,7 +222,9 @@ no argument for it and overwrote the slot from the response.
 The not-used warning (`dbartsWarning`, every call, not once a session): where a written or carried value on a
 control differs from what the call takes, "the control's n.trees (50) is not used: this fit has 75 trees in its
 forest with no basis; state the count as dbarts(n.trees = ) or forest(n.trees = )", worded per setting and per
-door. That is dec-B334's warning; dec-B335 and dec-B385 name the same one.
+door. That is dec-B334's warning; dec-B335 and dec-B385 name the same one. The remedy names what the call can do:
+a wrapper given a data object has no forest term to write, so `bart(dd, control = )` says "state the count as
+bart(n.trees = )", and "fit with dbarts() to state the count" where every forest of that data object has a basis.
 
 ### The rule at each door
 
@@ -340,7 +342,10 @@ read the model and data and are renamed for what they read: [`applyVarianceRecor
 loses its tree-count refusal (the control has none to compare); `bartcore_setModel` gains it as a backstop for
 callers that skip R's check (xbart's cell install). The data handle takes `useQuantiles` from the data object and
 `sparseDensityThreshold` from the control as now. A slot holding NULL reaches the bridge as R's S4 NULL marker;
-every new NULL-able slot is read through the normalizing helper `parseData` uses for `bases`. Unchanged:
+every new NULL-able slot is read through the normalizing helper `parseData` uses for `bases`. A survival fit's data
+object under another family runs: [`takeControlReadings`](../../R/records.R), which every door passes through, leaves
+the status behind unless the model's family is `aft`, so no sampler stores it. The bridge's refusal stays, as the
+backstop `$setResponse(status = )` reaches on a family that is not `aft`. Unchanged:
 src/bartcore, the facade, `SamplerOptions` and what goes into it, the order of construction and generator
 creation, inst/include/dbarts/dbarts.h.
 
@@ -351,7 +356,9 @@ control count or rule at the direct door beside a model or data object that stat
 written count there where every forest has a basis; a written
 `useQuantiles` or `n.cuts` on `$setControl` that differs from the sampler's (main refuses `useQuantiles` already;
 `n.cuts` is stored there and never reaches the engine); `$setModel` with a model of another structure in a fact
-that today rode the control.
+that today rode the control; at the direct door, a basis forest's model beside a data object with no bases,
+`new("dbartsSampler", run(), bcfFit$model, f75$data)`, which the bridge refuses ("a basis forest was configured but
+the data carry no forest bases") where main followed the control and fit gaussian with 75 trees.
 
 Taken where main refuses: `forests = forest()`; `dbarts(n.trees = )`, `dbartsSpec(n.trees = )`,
 `dbarts(n.cuts = , useQuantiles = )`, `dbartsData(n.cuts = , useQuantiles = )`; any control at `bart()` and
@@ -477,7 +484,9 @@ RNG gates, on every slice's tip and on the merged tree: tests/cpp; the full tiny
 default ncpu; the equivalence trio bit for bit on a reference build (55, 19 and 11 "identical draws" lines, no
 `max |z|`); the four snapshot files unchanged; a scratch A/B digesting seeded draws for a matrix of calls (every
 door, family, forest layout, cut setting, a copy, a reload, `xbart`) on a c55a1477-plus-tree-prior-flat build and
-on the slice, identical except the listed rows, which must match their expected new values. The fit object
+on the slice, identical except the listed rows, which must match their expected new values. The matrix and the door
+tests hold a survival fit's data object under another family at each door, and a hand model with an empty forest
+list at the direct door, `$setControl`, `$copy` and a reload. The fit object
 carries new slots, so `.github/workflows/exact-gates.yaml`'s gates run with `quick`. On slice 1a's tip the A/B
 is identical but for a control crossed with another fit's model and data at the direct door; on 1b's and 2's it differs exactly on
 [What changes for a user](#what-changes-for-a-user)'s rows. Slice 1a: sanitizers on
@@ -559,7 +568,8 @@ The review runs each and requires a failing test:
 16. Slice order: records before doors, so the doors are written once against the records.
 17. A fresh control at the direct door is silent, so the model's count and the data object's rule stand, from slice
     1b: a silent value is never read. Alternative: keep main's 75 and uniform until slice 2, overruling a model that
-    states a count with an object that states nothing.
+    states a count with an object that states nothing. dec-B335; NEWS says it for the count, and for the rule when
+    the ruling on where the cut settings live is in.
 18. Slice 1b's control still has its `n.cuts` slot, so the mirror records it and writes it from the data object, and
     a carried one stops speaking with the count and the rule (call 5). Alternative: leave `n.cuts` speaking until
     slice 2 removes the slot, one more copied value carried a slice longer.
@@ -575,15 +585,17 @@ The review runs each and requires a failing test:
 22. A parameter of the moved records (a variance forest's base and power, the shape setting) given to `$setModel`
     stays the sampler's as on main until setmodel-parameters sends it elsewhere. Alternative: refuse it now, against
     dec-B254.
-23. A written count at the direct door where every forest has a basis is refused by name, rule 3 at this door.
-    Alternative: the first forest takes it, as main, a count on a forest of another kind.
+23. A written count at the direct door where every forest has a basis is refused by name, rule 3 at this door. This
+    narrows dec-B526(d), whose "used where they state none" would otherwise take it; rule 3 and dec-B527 refuse it, and
+    no release ran the shape. Alternative: the first forest takes it, as main, a count on a forest of another kind.
 24. A carried cut count is a field of the mirror record, since the slot goes, so a copied control's differing count
     draws the not-used warning at every door. `@n.cuts` on a fit's control then errors, as a fresh control's does.
     Alternative: carry nothing, a copied control's cut count changing the grid with no message.
 25. An edit of a fit's value back to a fresh control's reads as written, so it warns and is read. Alternative: treat
     it as silent, dropping what the caller wrote.
-26. `xbart()` given a data object keeps the data object's count and rule under rule 4, as `dbarts()` does.
-    Alternative: main's overwrite, one fitting function reading a data object two ways.
+26. RULED, dec-B544. `xbart()` given a data object keeps the data object's count and rule under rule 4, as `dbarts()`
+    does. Alternative: main's overwrite, one fitting function reading a data object two ways. NEWS has it already: a
+    data object saved by 0.9-34 is rebuilt with `dbartsData()`.
 27. A written value agreeing with the model or data object at the direct door or `$setControl` is taken with the
     deprecation warning alone. Alternative: refuse any written value there, an agreeing script stopping for nothing.
 28. `dbartsData(dd, n.cuts = )` on a data object joins that function's existing "are ignored" warning, a `NULL` not

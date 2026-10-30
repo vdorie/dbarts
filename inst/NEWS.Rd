@@ -213,6 +213,12 @@
       \item The sampler's \code{$setControl} refuses a control whose
             \code{n.trees} differs from the sampler's; 0.9-34 resized the
             sampler in place. Create a new sampler with the count wanted.
+      \item A sampler assembled by hand, \code{new("dbartsSampler", control,
+            model, data)}, takes its tree count from the model where the
+            control's is fresh or copied from a fit, with a warning where a
+            copied count differs; 0.9-34 read the control's. A count written
+            on the control is used where the model states none and refused
+            where it states another.
     }
   }
   \subsection{USER-VISIBLE CHANGES}{
