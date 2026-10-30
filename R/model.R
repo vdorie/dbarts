@@ -1971,15 +1971,6 @@ multipliedForestDefaults <- list(n.trees = 50L, base = 0.25, power = 3)
 ## specification takes it off the control it resolves.
 plainStatedAttr <- "dbarts.stated"
 
-## Whether a control states a tree count: its constructor's call named one,
-## or the slot is not that constructor's default. A slot edited back to the
-## default and a control made by new() read as not stated.
-controlStatesTreeCount <- function(control) {
-  "n.trees" %in%
-    controlSuppliedSlots(control) ||
-    !identical(control@n.trees, formals(dbarts::dbartsControl)$n.trees)
-}
-
 ## The names under which a fitting function takes the arguments that are the
 ## forest with no basis's own, each in the order it is looked for. The split
 ## probabilities are not among them: they are the model's, judged by their
@@ -1988,17 +1979,19 @@ plainForestArgNames <- list(
   n.trees = "n.trees",
   power = "power",
   base = "base",
-  leaf.prior = c("leaf.prior", "k", "node.prior")
+  leaf.prior = c("leaf.prior", "k", "node.prior"),
+  n.cuts = "n.cuts",
+  useQuantiles = "useQuantiles"
 )
 
 ## What the caller of a fitting function stated of the arguments that are the
-## forest with no basis's own: the tree count, the tree prior's power and base,
-## and the leaf prior. Stated means named, the default's own value included.
-## `written` holds the argument names the caller wrote, `control` the control
-## the caller gave, NULL for none, and `argNames` that function's names for
-## them. Returns, for each of "n.trees", "power", "base" and "leaf.prior" that
-## is stated, the name it was stated under, "control" for a count the control
-## states. `remedy` says whether the fitting function can be told to state
+## forest with no basis's own (the tree count, the tree prior's power and base,
+## and the leaf prior) and of the cut settings. Stated means named, the
+## default's own value included. `written` holds the argument names the caller
+## wrote, `control` the control the caller gave, NULL for none, and `argNames`
+## that function's names for them. Returns, for each of "n.trees", "power",
+## "base", "leaf.prior", "n.cuts" and "useQuantiles" that is stated, the name
+## it was stated under, "control" for a value written on the control. `remedy` says whether the fitting function can be told to state
 ## these on a forest; where it cannot (bartBT() has no `forests` and refuses
 ## forest() terms, and bart() given a data object has its bases from the
 ## object) the value carries a "noForestRemedy" attribute, which the refusal
@@ -2013,16 +2006,22 @@ plainForestStated <- function(
     hits <- names[names %in% written]
     if (length(hits) > 0L) hits[[1L]]
   }
-  countName <- firstWritten(argNames$n.trees)
-  stated <- c(
-    n.trees = if (!is.null(countName)) {
-      countName
-    } else if (!is.null(control) && controlStatesTreeCount(control)) {
+  onControl <- if (!is.null(control)) names(writtenControlCopies(control))
+  flatOrControl <- function(name) {
+    flat <- firstWritten(argNames[[name]])
+    if (!is.null(flat)) {
+      flat
+    } else if (name %in% onControl) {
       "control"
-    },
+    }
+  }
+  stated <- c(
+    n.trees = flatOrControl("n.trees"),
     power = firstWritten(argNames$power),
     base = firstWritten(argNames$base),
-    leaf.prior = firstWritten(argNames$leaf.prior)
+    leaf.prior = firstWritten(argNames$leaf.prior),
+    n.cuts = flatOrControl("n.cuts"),
+    useQuantiles = flatOrControl("useQuantiles")
   )
   if (is.null(stated)) {
     stated <- character(0L)
@@ -2215,33 +2214,39 @@ refuseConstraintOnSeveralPlain <- function(interactions, blocks, numPlain) {
 ## and that those forests state too: 'n.trees', 'power' and 'base', each
 ## refused by name where every forest with no basis states it, the fitting
 ## function's then reaching none. A forest's statement of one leaves the others
-## the fitting function's. A count the control states is not the fitting
-## function's to give twice, and is left to the forests'. `stated` is
+## the fitting function's. A count written on the control is the fitting
+## function's in another spelling, and is refused the same way. `stated` is
 ## plainForestStated's value, `plainSpecs` those forests' resolved knobs and
 ## `where` how the refusal shows the first.
 refuseStatedOnPlainForest <- function(stated, plainSpecs, where) {
   for (name in c("n.trees", "power", "base")) {
-    isStated <- name %in% names(stated)
     if (
-      isStated &&
-        !identical(stated[[name]], "control") &&
+      name %in% names(stated) &&
         length(plainSpecs) > 0L &&
         all(vapply(plainSpecs, function(spec) !is.null(spec[[name]]), NA))
     ) {
-      refuseGivenTwice(name, where, length(plainSpecs))
+      refuseGivenTwice(
+        name,
+        where,
+        length(plainSpecs),
+        identical(stated[[name]], "control")
+      )
     }
   }
   invisible(NULL)
 }
 
 ## The refusal of one of 'n.trees', 'power' and 'base' given to the fitting
-## function and to the forest with no basis, shown as `where`.
-refuseGivenTwice <- function(name, where, numPlain = 1L) {
+## function and to the forest with no basis, shown as `where`. `onControl` says
+## the fitting function's was written on the control.
+refuseGivenTwice <- function(name, where, numPlain = 1L, onControl = FALSE) {
   if (numPlain > 1L) {
     stop(
       "'",
       name,
-      "' is given to the fitting function and to every forest with no basis (",
+      "' is given to ",
+      if (onControl) "the control" else "the fitting function",
+      " and to every forest with no basis (",
       where,
       " among them), so it reaches none; give it to the fitting function or ",
       "to the forests",
@@ -2251,11 +2256,14 @@ refuseGivenTwice <- function(name, where, numPlain = 1L) {
   stop(
     "'",
     name,
-    "' is given to the fitting function and to the forest with no basis (",
+    "' is given to ",
+    if (onControl) "the control" else "the fitting function",
+    " and to the forest with no basis (",
     where,
     "), which are the same ",
     if (name == "n.trees") "count" else "setting",
     "; give one",
+    if (onControl) ", and leave it out of dbartsControl()",
     call. = FALSE
   )
 }
@@ -3608,6 +3616,10 @@ resolveForestArguments <- function(
         )
       }
     )
+  }
+  # a bare forest() is one forest
+  if (inherits(resolved$forests, "dbartsForest")) {
+    resolved$forests <- list(resolved$forests)
   }
   resolved
 }

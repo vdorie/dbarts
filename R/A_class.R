@@ -279,7 +279,6 @@ methods::setClass(
     keepTrees = "logical",
     storage = "character",
     n.samples = "integer",
-    n.cuts = "integer",
     n.burn = "integer",
     n.trees = "integer",
     n.chains = "integer",
@@ -312,7 +311,6 @@ methods::setClass(
     keepTrees = FALSE,
     storage = "double",
     n.samples = NA_integer_,
-    n.cuts = 100L,
     n.burn = 200L,
     n.trees = 75L,
     n.chains = 4L,
@@ -582,12 +580,6 @@ methods::setValidity("dbartsControl", function(object) {
 
   if (is.na(object@updateState)) {
     return("'updateState' must be TRUE/FALSE")
-  }
-
-  ## n.cuts may be length 1 (recycled per-predictor by dbarts()/dbartsData())
-  ## or already one value per predictor, so no length-1 constraint here
-  if (anyNA(object@n.cuts) || any(object@n.cuts <= 0L)) {
-    return("'n.cuts' must contain only positive integers")
   }
 
   ## handle this in particular b/c it is set through dbarts, not

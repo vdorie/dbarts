@@ -431,7 +431,6 @@ resolveSamplerSpec <- function(
   residPrior = NULL,
   familySpec = NULL,
   basisRecords = NULL,
-  written = names(matchedCall),
   sigestRule = "auto",
   basisLevels = NULL,
   treePrior = NULL
@@ -444,12 +443,8 @@ resolveSamplerSpec <- function(
   carried <- attr(control, controlCarriedAttr, exact = TRUE)
   attr(control, controlCarriedAttr) <- NULL
   # what the caller stated of the arguments that are the forest with no
-  # basis's own: bart()'s record of its own caller where it built this
-  # control, and otherwise the control and the names 'written' in this call
+  # basis's own, recorded at the door (readDoorCopies)
   stated <- attr(control, plainStatedAttr, exact = TRUE)
-  if (is.null(stated)) {
-    stated <- plainForestStated(control, written)
-  }
   attr(control, plainStatedAttr) <- NULL
 
   # a factor/logical/character response declares a classification model. The
@@ -690,8 +685,8 @@ resolveSamplerSpec <- function(
     forestSpec[[index]]
   })
   # the fitting function's own 'n.trees', 'power' and 'base' and the plain
-  # forests' are one setting each, reaching the forests that state none; the
-  # control's count beside the forests' own leaves theirs to govern
+  # forests' are one setting each, reaching the forests that state none, the
+  # count in either spelling
   if (length(plainSpecs) == length(plain) && length(plain) > 0L) {
     refuseStatedOnPlainForest(
       stated,
@@ -1439,15 +1434,8 @@ resolveSamplerSpec <- function(
     }
   }
   model@forests <- records
-  # the quantile rule the control states is the data object's; a carried one
-  # states none, leaving the rule a data object handed in holds
-  if (is.null(carried$values$useQuantiles) || is.na(data@useQuantiles)) {
-    data@useQuantiles <- control@useQuantiles
-  }
   control <- mirrorControl(control, model, data)
-  if (!is.null(carried)) {
-    warnCarriedNotUsed(carried, model, data)
-  }
+  warnCarriedNotUsed(carried, model, data)
 
   # every resolution of "auto" is announced once, here, after the refusals
   # above: bart() reaches this through dbarts(), and dbartsSpec() reads its
@@ -1485,6 +1473,7 @@ dbartsSpec <- function(
   blocks = NULL,
   variance = NULL,
   forests = NULL,
+  n.trees = NULL,
   sigest = NULL,
   seed = NULL,
   family = c(
@@ -1543,7 +1532,14 @@ dbartsSpec <- function(
     warnConsolidated("proposal.probs", "dbartsSpec")
     refuseCollidingMixture(control)
   }
-  control <- releaseCarriedControl(control, "dbartsSpec")
+  # the count as this call states it, flat or written on the control; the cut
+  # settings have no flat spelling here
+  copies <- readDoorCopies(
+    releaseCarriedControl(control, "dbartsSpec"),
+    list(n.trees = n.trees),
+    names(matchedCall)
+  )
+  control <- copies$control
   familySpec <- resolveFamily(
     matchedCall$family,
     eval(formals(dbarts::dbartsSpec)$family),
@@ -1585,12 +1581,8 @@ dbartsSpec <- function(
     control@seed <- seed
   }
 
-  # the control owns the cut-point count, as it does inside dbarts(), but a data
-  # object already carrying resolved per-column counts keeps them - a consumer
-  # that set them deliberately is not silently overridden
-  if (length(data@n.cuts) != ncol(data@x) || anyNA(data@n.cuts)) {
-    data@n.cuts <- recycleNumCuts(control@n.cuts, ncol(data@x))
-  }
+  # read as dbarts() reads them beside the same data object
+  data <- applyCutSettings(data, copies)
   # an explicit sigest overrides whatever the data carries, a number by
   # replacing it and "dense" or "sparse" by estimating over it; NULL and
   # "auto" leave it alone, so a consumer's own starting estimate survives (an

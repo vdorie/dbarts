@@ -442,14 +442,14 @@ dbartsControl <- function(
   verbose = FALSE,
   keepTrainingFits = TRUE,
   keepFits = TRUE,
-  useQuantiles = FALSE,
+  useQuantiles = NULL,
   treeShift = c("auto", "always", "never"),
   keepTrees = FALSE,
   storage = c("double", "single"),
   n.samples = NULL,
-  n.cuts = 100L,
+  n.cuts = NULL,
   n.burn = 200L,
-  n.trees = 75L,
+  n.trees = NULL,
   n.chains = 4L,
   n.threads = min(dbarts::guessNumCores(), n.chains),
   n.thin = 1L,
@@ -476,6 +476,18 @@ dbartsControl <- function(
   # off the object: a slot set to the same value the constructor would have
   # chosen is otherwise indistinguishable from an untouched one
   namedHere <- names(match.call())[-1L]
+  # these three default to NULL, so a written NULL is the name left out
+  namedHere <- setdiff(
+    namedHere,
+    names(Filter(
+      is.null,
+      list(
+        n.trees = n.trees,
+        n.cuts = n.cuts,
+        useQuantiles = useQuantiles
+      )
+    ))
+  )
   # '...' exists only so a retired argument name reaches a message naming
   # its successor; R refuses an unknown name before any body runs
   supplied <- dotNames(...)
@@ -508,20 +520,28 @@ dbartsControl <- function(
   }
   unstatedThreads <- missing(n.threads)
   n.threads <- fallBackToOneThread(n.threads, unstatedThreads)
-  refuseNullArguments(n.trees, proposal.probs)
+  refuseNullArguments(proposal.probs)
+  copies <- checkFlatCopies(n.trees, n.cuts, useQuantiles)
   result <- newValidated(
     "dbartsControl",
     verbose = as.logical(verbose),
     keepTrainingFits = as.logical(keepTrainingFits),
     keepFits = as.logical(keepFits),
-    useQuantiles = as.logical(useQuantiles),
+    useQuantiles = if (is.null(useQuantiles)) {
+      freshControlValue("useQuantiles")
+    } else {
+      copies$useQuantiles
+    },
     levelGibbs = levelGibbs,
     keepTrees = as.logical(keepTrees),
     storage = storage,
     n.samples = coerceOrError(n.samples, "integer"),
-    n.cuts = coerceOrError(n.cuts, "integer"),
     n.burn = coerceOrError(n.burn, "integer"),
-    n.trees = coerceOrError(n.trees, "integer"),
+    n.trees = if (is.null(n.trees)) {
+      freshControlValue("n.trees")
+    } else {
+      copies$n.trees
+    },
     n.chains = coerceOrError(n.chains, "integer"),
     n.threads = coerceOrError(n.threads, "integer"),
     n.thin = coerceOrError(n.thin, "integer"),
@@ -548,6 +568,10 @@ dbartsControl <- function(
     # the retired spelling names the same slot
     if ("rngSeed" %in% supplied) "seed"
   ))
+  # the tombstoned cut count rides the attribute 0.9-34 kept it on, so
+  # ctl@n.cuts reads what the caller wrote
+  attr(result, controlCutsAttr) <- copies$n.cuts
+  warnWrittenCopies(intersect(namedHere, controlWrittenNames))
   result
 }
 
@@ -575,7 +599,8 @@ controlSuppliedSlots <- function(control) {
 ## which is what the dbarts.supplied record is for, since a value equal to the
 ## constructor's default is otherwise indistinguishable from an untouched slot
 ## - or when it differs from a fresh control's, which is how a post-
-## construction edit (ctl@n.trees <- 200L) still speaks.
+## construction edit (ctl@n.burn <- 200L) still speaks. The tree count, the cut
+## count and the quantile rule are not among these: readWrittenCopies has them.
 mergeFrontDoorControl <- function(control, matchedCall, flat) {
   supplied <- names(matchedCall)
   # no control named, nothing to merge: the door's own defaults stand, and the
@@ -732,10 +757,13 @@ dbarts <- function(
   blocks = NULL,
   variance = NULL,
   forests = NULL,
+  n.trees = NULL,
   control = dbarts::dbartsControl(),
   sigest = NULL,
   seed = NULL,
   factors = c("categorical", "indicators"),
+  n.cuts = NULL,
+  useQuantiles = NULL,
   family = c(
     "auto",
     "gaussian",
@@ -1260,7 +1288,14 @@ dbarts <- function(
   validateCall <- addCallArgument(validateCall, 2L, dbarts::dbarts)
   validateCall <- addCallArgument(validateCall, 3L, "dbarts")
   eval(validateCall, evalEnv, getNamespace("dbarts"))
-  control <- releaseCarriedControl(control, "dbarts")
+  # the count and the cut settings as this call states them, flat or written
+  # on the control; a wrapper has read them and passes them flat
+  copies <- readDoorCopies(
+    releaseCarriedControl(control, "dbarts"),
+    list(n.trees = n.trees, n.cuts = n.cuts, useQuantiles = useQuantiles),
+    writtenArgs
+  )
+  control <- copies$control
 
   if (length(control@call) == 1L && control@call == call("NA")) {
     recordedCall <- matchedCall
@@ -1308,6 +1343,8 @@ dbarts <- function(
   }
 
   dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData))
+  # read above, and set once the data object has the columns it fits
+  dataCall[c("n.cuts", "useQuantiles")] <- NULL
   # Every argument that holds rows is evaluated once for a fit, and what this
   # function has read is handed to the data object as its value (handOn):
   # evaluated again there, an argument that draws its rows would give the fit
@@ -1587,16 +1624,7 @@ dbarts <- function(
     data <- setDataRowNames(data, "test", hazardNames$test)
   }
 
-  # a carried cut count states none, leaving the one a data object handed in
-  # holds
-  carriedCuts <- attr(control, controlCarriedAttr, exact = TRUE)$values$n.cuts
-  if (
-    is.null(carriedCuts) ||
-      length(data@n.cuts) != ncol(data@x) ||
-      anyNA(data@n.cuts)
-  ) {
-    data@n.cuts <- recycleNumCuts(control@n.cuts, ncol(data@x))
-  }
+  data <- applyCutSettings(data, copies)
   data@sigma <- sigest
 
   # A basis written as code is built now, on the rows the data object kept,
@@ -1666,7 +1694,6 @@ dbarts <- function(
       residPrior = residPrior,
       familySpec = familySpec,
       basisRecords = basisRecords,
-      written = writtenArgs,
       sigestRule = sigestRule,
       treePrior = retiredTreePrior$record
     ),
@@ -3166,17 +3193,29 @@ dbartsSampler <- setRefClass(
       # a copy that differs from them is taken, the sampler's kept, the caller
       # told; a value the caller wrote is refused below
       notUsed <- character(0L)
-      for (slotName in c("n.trees", "useQuantiles", "n.cuts")) {
+      for (slotName in c("n.trees", "useQuantiles")) {
         notUsed <- c(
           notUsed,
           setControlCopyReading(newControl, control, slotName)
         )
       }
+      givenCuts <- attr(newControl, controlCutsAttr, exact = TRUE)
+      if (!is.null(givenCuts) && !sameRecycled(givenCuts, data@n.cuts)) {
+        stop(
+          "changing 'n.cuts' is not available on an existing sampler",
+          call. = FALSE
+        )
+      }
+      writtenCopies <- names(writtenControlCopies(newControl))
       givenCopies <- lapply(
         stats::setNames(notUsed, notUsed),
         methods::slot,
         object = newControl
       )
+      carriedCuts <- controlMirror(newControl)$n.cuts
+      if (!is.null(carriedCuts) && !sameRecycled(carriedCuts, data@n.cuts)) {
+        givenCopies$n.cuts <- carriedCuts
+      }
 
       # settings fixed at creation: the generators, anything shaping the cut
       # grid, and the four engine limits, which the sampler reads once when it
@@ -3258,13 +3297,19 @@ dbartsSampler <- setRefClass(
         )
       }
       # once the control is in, so a refusal never spends the message
+      warnWrittenCopies(writtenCopies)
       for (slotName in names(givenCopies)) {
+        kept <- if (identical(slotName, "n.cuts")) {
+          data@n.cuts
+        } else {
+          methods::slot(newControl, slotName)
+        }
         warnControlNotUsed(
           slotName,
           givenCopies[[slotName]],
           paste0(
             "this sampler keeps its ",
-            paste(unique(methods::slot(newControl, slotName)), collapse = ", "),
+            paste(unique(kept), collapse = ", "),
             ", fixed when it was created"
           )
         )

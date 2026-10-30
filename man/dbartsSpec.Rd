@@ -13,7 +13,7 @@ dbartsSpec(
         rule_gibbs = 0, birth = 0.5),
     monotone = NULL, interactions = NULL, blocks = NULL,
     variance = NULL,
-    forests = NULL,
+    forests = NULL, n.trees = NULL,
     sigest = NULL, seed = NULL,
     family = c("auto", "gaussian", "student", "probit", "logistic", "aft",
                "multinomial", "ordinal", "nbinom"),
@@ -50,6 +50,7 @@ dbartsSpec(
 }
 \value{
   A list with components
+  \item{n.trees}{the number of trees of the forest with no \code{basis}, as in \code{\link{dbarts}}.}
   \item{control}{a \code{dbartsControl}, holding the run settings; its \code{n.trees}, \code{useQuantiles} and \code{binary} are copies of the model's and the data's.}
   \item{model}{a \code{dbartsModel}, carrying the parsed priors, each forest's record and the variance forest's, the category count, the shape setting, the hazard periods, and any monotone, interaction, block, and residual-degrees-of-freedom attributes.}
   \item{data}{a \code{dbartsData}, with the response coded, \code{sigma} resolved, and the censoring status and quantile rule recorded.}

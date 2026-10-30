@@ -9,11 +9,11 @@
 \usage{
 dbartsControl(
     verbose = FALSE, keepTrainingFits = TRUE, keepFits = TRUE,
-    useQuantiles = FALSE,
+    useQuantiles = NULL,
     treeShift = c("auto", "always", "never"),
     keepTrees = FALSE, storage = c("double", "single"),
     n.samples = NULL,
-    n.cuts = 100L, n.burn = 200L, n.trees = 75L, n.chains = 4L,
+    n.cuts = NULL, n.burn = 200L, n.trees = NULL, n.chains = 4L,
     n.threads = min(dbarts::guessNumCores(), n.chains), n.thin = 1L, printEvery = 100L,
     printCutoffs = 0L,
     categoricalExhaustiveCap = 10L, testFitParallelCutoff = 65536L,

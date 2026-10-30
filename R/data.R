@@ -2996,8 +2996,11 @@ dbartsData <- function(
   factors = c("categorical", "indicators"),
   na.action = dbarts::na.keepPredictors,
   bases = NULL,
-  counts = NULL
+  counts = NULL,
+  n.cuts = NULL,
+  useQuantiles = NULL
 ) {
+  stated <- checkFlatCopies(n.cuts = n.cuts, useQuantiles = useQuantiles)
   dataIsMissing <- missing(data)
   testIsMissing <- missing(test)
   offsetIsMissing <- missing(offset)
@@ -3073,7 +3076,10 @@ dbartsData <- function(
       "bases",
       "counts"
     )
-    ignored <- ignored[ignored %in% names(matchedCall)]
+    ignored <- c(
+      ignored[ignored %in% names(matchedCall)],
+      intersect(c("n.cuts", "useQuantiles"), names(stated))
+    )
     if (length(ignored) > 0L) {
       warning(
         "if data supplied as dbartsData, remaining arguments are ignored: ",
@@ -4227,6 +4233,12 @@ dbartsData <- function(
     n.cuts = NA_integer_,
     sigma = NA_real_
   )
+  if (!is.null(stated$n.cuts)) {
+    result@n.cuts <- recycleNumCuts(stated$n.cuts, ncol(result@x))
+  }
+  if (!is.null(stated$useQuantiles)) {
+    result@useQuantiles <- stated$useQuantiles
+  }
   result@na.action <- naOmitted
   if (!is.null(offsetArgument)) {
     attr(result, "offset.argument") <- offsetArgument
