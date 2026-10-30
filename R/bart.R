@@ -179,8 +179,8 @@ sharedValue <- function(x) {
 # forest pins it, and elsewhere the reader states a drawn k as a distribution
 # object and a fixed one as a number.
 leafPriorIsDrawn <- function(prior) {
-  # a forest whose size the calibration map sets has no k to draw; one sharing
-  # a total runs under the fitting function's leaf prior, as one forest does
+  # a forest whose size the calibration map sets has no k to draw; one taking
+  # the fitting function's leaf prior runs under it, as one forest does
   if (
     !is.null(prior[["multiplier"]]) && !is(prior$leaf.prior, "dbartsLeafPrior")
   ) {
@@ -270,13 +270,13 @@ fitDescriptors <- function(sampler, samples = NULL) {
   # a forest whose coefficient is held by amplitude = fixed(), per forest:
   # the coefficient is 1, the basis carrying any coding (dec-B354)
   held <- attr(sampler$control, "bartcore.forests", exact = TRUE)$heldAmplitude
-  # a forest sharing a total has its coefficient held whether or not fixed()
-  # is written, as the reader says
+  # a forest with no basis has its coefficient held whether or not fixed() is
+  # written, as the reader says
   if (several) {
     held <- held |
       vapply(
         priors,
-        function(prior) identical(prior[["prior.sd.of"]], "forest, shared"),
+        function(prior) is(prior[["amplitude"]], "dbartsFixedPrior"),
         NA,
         USE.NAMES = FALSE
       )

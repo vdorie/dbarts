@@ -722,10 +722,10 @@ resolveSamplerSpec <- function(
       forestKnobLabel(forests, plain[1L])
     )
   }
-  # the forests that share one total, which take the fitting function's leaf
-  # prior as one forest's
-  sharers <- if (length(plain) > 1L) sharingForests(forestSpec, plain)
-  shares <- length(sharers) > 0L
+  # the forests that take the fitting function's leaf prior as one forest's:
+  # the share of a total, or a drawn coefficient's median
+  shares <- !is.null(declaredBases) &&
+    length(leafPriorForests(forestSpec, plain)) > 0L
   # the fitting function's own, read once before any forest's statement is
   # written over the slot
   fitTreeCount <- control@n.trees
@@ -1251,8 +1251,8 @@ resolveSamplerSpec <- function(
       "'monotone'" = !is.null(monotoneDirections),
       "a linear leaf prior" = is(priors$leaf.prior, "dbartsLinearPrior"),
       "a Gaussian-process leaf prior" = is(priors$leaf.prior, "dbartsGPPrior"),
-      # the forests that share one total take the fitting function's leaf
-      # prior as one forest does; with none sharing it has no forest
+      # a forest with no basis stating no sd takes the fitting function's
+      # leaf prior as one forest does; with none it has no forest
       "a 'k' hyperprior" = !shares &&
         is(priors$leaf.hyperprior, "dbartsChiHyperprior"),
       "a non-default 'k'" = !shares &&
@@ -1282,6 +1282,32 @@ resolveSamplerSpec <- function(
           "; a forest's size is stated as forest(sd = ), in the response's units"
         }
       )
+    }
+    # a drawn coefficient stating no 'sd' has as its median the size the leaf
+    # prior gives, which a flat prior on k or an infinite k does not
+    hyperprior <- priors$leaf.hyperprior
+    sizeless <- if (is(hyperprior, "dbartsChiHyperprior")) {
+      is.infinite(hyperprior@scale)
+    } else {
+      is(hyperprior, "dbartsFixedHyperprior") && is.infinite(hyperprior@k)
+    }
+    if (sizeless && is.na(model@prior.scale)) {
+      for (index in seq_along(forestSpec)) {
+        spec <- forestSpec[[index]]
+        if (
+          is(spec$amplitude, "dbartsStudentPrior") &&
+            is.null(spec$sd) &&
+            index %in% plain
+        ) {
+          stop(
+            forestKnobLabel(forests, index),
+            ": amplitude = student() with no 'sd' takes its median from the ",
+            "fitting function's leaf prior, which here gives no size; state ",
+            "the forest's 'sd'",
+            call. = FALSE
+          )
+        }
+      }
     }
     # every forest resolves its own knobs; a data object carrying bases with no
     # forests = declaration at all resolves to the same defaults, which is what

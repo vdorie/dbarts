@@ -2338,8 +2338,8 @@ reportLeafPrior <- function(sampler, raw, index) {
   shared <- function(column) raw[[1L, column]]
   model <- sampler$model
   hyperprior <- model@leaf.hyperprior
-  # a forest sharing one total runs under the fitting function's leaf prior
-  # and reads as one forest does, its sd its part of the total
+  # a forest taking the fitting function's leaf prior runs under it and reads
+  # as one forest does, its sd its part of the total
   sharer <- "share" %in% colnames(raw) && !is.nan(raw[1L, "share"])
   mapped <- !is.nan(raw[1L, "map.anchor"]) && !sharer
   drawn <- raw[1L, "k.has.hyperprior"] != 0
@@ -2424,12 +2424,13 @@ reportLeafPrior <- function(sampler, raw, index) {
   prior
 }
 
-## The reader's entry for a forest that shares one prior total, from the
-## one-forest entry `prior` its leaf prior gives: that leaf prior as stated,
-## then sd, its part of the total in force where that is one number (a fixed
-## k) and NA where k is drawn, sd.stated FALSE, multiplier "none", its held
-## coefficient as fixed() and, in prior.sd.of, that the size is a share.
-## k.scale over k is its sd, k being the group's.
+## The reader's entry for a forest that takes the fitting function's leaf
+## prior, from the one-forest entry `prior` that prior gives: the leaf prior as
+## stated, then sd, its part of the total in force where that is one number (a
+## fixed k) and NA where k is drawn, sd.stated FALSE, multiplier "none", its
+## held coefficient as fixed() and, in prior.sd.of, that the size is a share
+## where other forests take the rest. k.scale over k is its sd, k being the
+## group's.
 sharerLeafPrior <- function(prior, raw) {
   drawn <- raw[[1L, "k.has.hyperprior"]] != 0
   statement <- list(
@@ -2440,12 +2441,12 @@ sharerLeafPrior <- function(prior, raw) {
     amplitude = fixed()
   )
   prior <- c(statement, prior[-1L])
-  prior$prior.sd.of <- "forest, shared"
+  prior$prior.sd.of <- if (raw[[1L, "share"]] < 1) "forest, shared" else "forest"
   prior
 }
 
-## The 1-based positions of a sampler's forests that share one prior total,
-## empty where none does.
+## The 1-based positions of a sampler's forests that take the fitting
+## function's leaf prior as a share of its total, empty where none does.
 samplerSharers <- function(sampler, ptr = sampler$getPointer()) {
   numForests <- bartcoreNumForests(ptr)
   if (numForests < 2L || samplerCarriesCounts(sampler)) {
@@ -2607,15 +2608,42 @@ restateLeafPrior <- function(sampler, spec, expr) {
   model
 }
 
+## A model of several forests none of which takes the fitting function's leaf
+## prior: the prior a creation with no leaf prior given writes there, k fixed at
+## 2 whatever the family.
+modelWithLeafPriorUnclaimed <- function(model) {
+  model@leaf.prior@k <- NULL
+  model@leaf.prior@prior.sd <- NULL
+  model@leaf.hyperprior <- newValidated("dbartsFixedHyperprior", k = 2.0)
+  model@prior.scale <- NA_real_
+  model
+}
+
 ## The sds a $setLeafPrior(forests = ) call states on a sampler whose
 ## forests carry amplitudes: forest(sd = ) in creation's positions, validated
 ## whole before anything is written. A NULL sd leaves its forest as it is,
-## stated or not; every other knob is fixed at creation. Returns the
-## per-forest sd, in the response's units as written, NA where none is
+## stated or not, and so does the leaf prior the reader gives for a forest
+## under the fitting function's; every other knob is fixed at creation. Returns
+## the per-forest sd, in the response's units as written, NA where none is
 ## stated.
 resolveForestSpreads <- function(sampler, forests) {
   forestInfo <- attr(sampler$control, "bartcore.forests", exact = TRUE)
   numForests <- length(forestInfo$params)
+  if (is.list(forests)) {
+    readBack <- vapply(
+      seq_along(forests),
+      function(index) {
+        index <= numForests &&
+          is(forests[[index]], "dbartsLeafPrior") &&
+          identical(
+            forests[[index]],
+            sampler$getLeafPrior(index)$leaf.prior
+          )
+      },
+      NA
+    )
+    forests[readBack] <- list(forest())
+  }
   if (
     !is.list(forests) ||
       !all(vapply(forests, inherits, logical(1L), "dbartsForest"))
@@ -2674,8 +2702,9 @@ resolveForestSpreads <- function(sampler, forests) {
     seq_along(forests),
     function(index) {
       spec <- forests[[index]]
-      # a sharer leaving the share would move every other sharer's size
-      if (!is.null(spec$sd) && index %in% sharers) {
+      # a sharer leaving the share would move every other sharer's size; a
+      # lone one has no other to move
+      if (!is.null(spec$sd) && length(sharers) > 1L && index %in% sharers) {
         stop(
           "$setLeafPrior's 'forests' states forest ",
           index,
@@ -2706,7 +2735,9 @@ resolveForestSpreads <- function(sampler, forests) {
 ## Writes each stated sd to the engine as written, which divides it by the
 ## unit, and into the `sd` of the record creation reads, so that every
 ## re-creation states the same number. A record made before one was stated
-## may hold no `sd`.
+## may hold no `sd`. Where the last forest taking the fitting function's leaf
+## prior states its own, the model's leaf prior is left with no forest, as a
+## creation with these statements has it.
 writeForestSpreads <- function(sampler, ptr, sds) {
   forestInfo <- attr(sampler$control, "bartcore.forests", exact = TRUE)
   if (is.null(forestInfo$sd)) {
@@ -2719,6 +2750,10 @@ writeForestSpreads <- function(sampler, ptr, sds) {
   newControl <- sampler$control
   attr(newControl, "bartcore.forests") <- forestInfo
   sampler$control <- newControl
+  hasBasis <- !vapply(sampler$data@bases, is.null, NA)
+  if (!any(!hasBasis & is.na(forestInfo$sd))) {
+    sampler$model <- modelWithLeafPriorUnclaimed(sampler$model)
+  }
   invisible(NULL)
 }
 
@@ -4208,7 +4243,8 @@ dbartsSampler <- setRefClass(
       )
       # after the argument checks above, so a malformed call is answered on its
       # own terms rather than by the refusal that would follow a well-formed one
-      if (amplitudes && length(samplerSharers(.self)) > 0L) {
+      sharers <- if (amplitudes) samplerSharers(.self) else integer(0L)
+      if (length(sharers) > 1L) {
         stop(
           "$setLeafPrior on a sampler whose forests share one prior total ",
           "takes no 'leaf.prior': the total is the leaf prior they were ",
@@ -4217,9 +4253,18 @@ dbartsSampler <- setRefClass(
         )
       }
       if (amplitudes) {
+        # the leaf prior a lone forest with no basis runs under restated, or
+        # with no forest under it the k creation writes
+        k <- if (is.numeric(spec@k)) as.double(spec@k) else spec@k
+        inForce <- if (length(sharers) == 1L) {
+          getLeafPrior(sharers)$leaf.prior
+        } else {
+          normal(k = 2)
+        }
         inert <- is(spec, "dbartsNormalPrior") &&
-          is.null(spec@prior.sd) &&
-          (is.null(spec@k) || identical(spec@k, 2) || identical(spec@k, 2L))
+          ((is.null(k) && is.null(spec@prior.sd)) ||
+            (identical(k, inForce@k) &&
+              identical(spec@prior.sd, inForce@prior.sd)))
         if (!inert) {
           stop(
             "$setLeafPrior on a sampler whose forests carry amplitudes takes ",

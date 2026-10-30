@@ -1947,19 +1947,19 @@ plainForest <- function(hasBasis) {
   which(!hasBasis)
 }
 
-## Of the forests with no basis at `plain`, which share one prior total: those
-## stating neither an 'sd' nor amplitude = student(), where two or more do,
-## else none. The engine reads the same rule from the same statements.
-sharingForests <- function(specs, plain) {
-  sharers <- plain[vapply(
+## Of the forests with no basis at `plain`, which take the fitting function's
+## leaf prior: those stating no 'sd', a sharer's total or the median of an
+## amplitude = student(). The engine reads the same rule from the same
+## statements.
+leafPriorForests <- function(specs, plain) {
+  plain[vapply(
     plain,
     function(index) {
       spec <- if (index <= length(specs)) specs[[index]]
-      is.null(spec$sd) && !is(spec$amplitude, "dbartsStudentPrior")
+      is.null(spec$sd)
     },
     NA
   )]
-  if (length(sharers) < 2L) integer(0L) else sharers
 }
 
 ## The tree count and tree prior of a forest with a basis that states none.
@@ -2301,12 +2301,6 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
         "prior; a lone forest draws its size through the fitting ",
         "function's leaf prior, as leaf.prior = normal(k = chi(1.5, 2)) or ",
         "normal(sd = invchi(1.5, s)) with s a size in the response's units"
-      )
-    }
-    if (!is.null(first$amplitude) && !any(hasBasis)) {
-      stop(
-        "this model has one forest, which has no coefficient to hold; ",
-        "'amplitude' needs a model of several forests"
       )
     }
   }

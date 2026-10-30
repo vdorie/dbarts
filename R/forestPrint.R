@@ -55,16 +55,17 @@ printedColumn <- function(column, rowsIn) {
 printedForest <- function(entry, basis, rowsIn, full, label) {
   how <- if (isTRUE(entry$sd.stated)) "stated" else "default"
   size <- printedNumber(entry$sd)
-  if (identical(entry$prior.sd.of, "forest, shared")) {
-    # a share of the total: its sd where k is held, nothing to print where it
-    # is drawn, and never a coefficient of its own
+  if (is(entry$leaf.prior, "dbartsLeafPrior")) {
+    # under the fitting function's leaf prior: its sd where k is held, nothing
+    # to print where it is drawn, and never a coefficient of its own
+    part <- if (identical(entry$prior.sd.of, "forest, shared")) {
+      "a share of the total"
+    } else {
+      "the fitting function's leaf prior"
+    }
     return(paste0(
       "no basis; ",
-      if (is.na(entry$sd)) {
-        "a share of the total"
-      } else {
-        paste0("sd ", size, ", a share of the total")
-      }
+      if (is.na(entry$sd)) part else paste0("sd ", size, ", ", part)
     ))
   }
   amplitude <- entry[["amplitude"]]
@@ -216,13 +217,13 @@ forestPriorLines <- function(
 }
 
 ## The lines after the forests: each forest's tree count and their total,
-## where the counts are known, and, where forests share one prior total,
-## which do and the group's k, a number where it is held and its prior where
-## it is drawn, or the total's named sd.
+## where the counts are known, and, where forests take the fitting function's
+## leaf prior, which do and the group's k, a number where it is held and its
+## prior where it is drawn, or the total's named sd.
 forestTotalLines <- function(priors, treeCounts) {
   sharers <- which(vapply(
     priors,
-    function(entry) identical(entry$prior.sd.of, "forest, shared"),
+    function(entry) is(entry$leaf.prior, "dbartsLeafPrior"),
     NA
   ))
   counts <- if (length(treeCounts) == length(priors)) {
@@ -238,9 +239,15 @@ forestTotalLines <- function(priors, treeCounts) {
     spec <- priors[[sharers[1L]]]$leaf.prior
     k <- spec@k
     paste0(
-      "  forests ",
-      paste(sharers, collapse = ", "),
-      " share one prior total",
+      if (length(sharers) > 1L) {
+        paste0(
+          "  forests ",
+          paste(sharers, collapse = ", "),
+          " share one prior total"
+        )
+      } else {
+        paste0("  forest ", sharers, " takes the fitting function's leaf prior")
+      },
       if (!is.null(spec@prior.sd)) {
         paste0(", sd ", deparsedPrior(spec@prior.sd))
       } else if (!is.null(k)) {

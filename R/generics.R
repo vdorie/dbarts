@@ -1552,11 +1552,10 @@ extractParameter <- function(
   reshapeScalarChannel(channel, n.chains, combineChains)
 }
 
-# whether a forest of several is a part of a total under a drawn k, whose draws
+# whether a forest of several takes the fitting function's drawn k, whose draws
 # are the group's wherever its parts stand
 sharesDrawnK <- function(forestPrior) {
-  identical(forestPrior[["prior.sd.of"]], "forest, shared") &&
-    leafPriorIsDrawn(forestPrior)
+  !is.null(forestPrior[["multiplier"]]) && leafPriorIsDrawn(forestPrior)
 }
 
 # one entry per forest, named, or the forest selected by position or label:
