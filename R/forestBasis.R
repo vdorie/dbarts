@@ -948,7 +948,8 @@ forestCallText <- function(predictors, basis) {
 
 ## The refusal of a numeric column constant over the rows in the likelihood, at
 ## creation, sd stated or not: a forest multiplied by a constant is the forest
-## with no basis, and that is how it is written. The rows, the fallback to every
+## with no basis, and that is how it is written. A basis of levels with one of
+## them in the likelihood is refused in its own words. The rows, the fallback to every
 ## row and what counts as constant are basisColumnScale's. Not at a later swap,
 ## which is taken, nor at a re-creation, which reads the column a swap left.
 refuseConstantBasis <- function(data, active, allRows, specs, labels) {
@@ -960,7 +961,26 @@ refuseConstantBasis <- function(data, active, allRows, specs, labels) {
   levels <- dataBasisLevels(data)
   for (index in seq_along(data@bases)) {
     basis <- data@bases[[index]]
-    if (is.null(basis) || NCOL(basis) != 1L || !is.null(levels[[index]])) {
+    if (is.null(basis)) {
+      next
+    }
+    if (!is.null(levels[[index]])) {
+      # a level with no row in the likelihood leaves its coefficient at its
+      # prior, which is not the forest with no basis, so no spelling is offered
+      present <- colSums(basis[rowsIn, , drop = FALSE] != 0) > 0
+      if (sum(present) == 1L) {
+        stop(
+          forestName(index, labels),
+          "'s basis is ",
+          encodeString(levels[[index]][present], quote = "\""),
+          " on every row in the likelihood, so its other level has no ",
+          "observations there and the forest would be multiplied by a constant",
+          call. = FALSE
+        )
+      }
+      next
+    }
+    if (NCOL(basis) != 1L) {
       next
     }
     values <- as.vector(basis)[rowsIn]

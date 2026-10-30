@@ -1014,6 +1014,133 @@ for (statedText in c("", ", sd = 2")) {
   )
 }
 
+# --- a basis of levels left with one by the weights is refused at creation, as
+# the subset's sibling and a numeric column are, sd stated or not, and at no
+# later swap or weight; two levels in the likelihood are taken ---
+d$fk <- factor(d$kept)
+d$lk <- d$kept
+levelWeights <- as.double(d$kept)
+levelDoors <- list(
+  term = function(column, response, family, stated) {
+    d$col <- column
+    dbarts(
+      stats::as.formula(paste0(
+        response,
+        " ~ forest(x1 + x2) + forest(x1, basis = col",
+        if (stated) ", sd = 2",
+        ")"
+      )),
+      d,
+      weights = levelWeights,
+      family = family,
+      control = recordControl()
+    )
+  },
+  list.formula = function(column, response, family, stated) {
+    d$col <- column
+    dbarts(
+      stats::as.formula(paste(response, "~ x1 + x2")),
+      d,
+      weights = levelWeights,
+      family = family,
+      forests = list(
+        forest(),
+        if (stated) forest(basis = ~col, sd = 2) else forest(basis = ~col)
+      ),
+      control = recordControl()
+    )
+  },
+  list.matrix = function(column, response, family, stated) {
+    dbarts(
+      x,
+      d[[response]],
+      weights = levelWeights,
+      family = family,
+      forests = list(
+        forest(),
+        if (stated) forest(basis = column, sd = 2) else forest(basis = column)
+      ),
+      control = recordControl()
+    )
+  },
+  data = function(column, response, family, stated) {
+    dbarts(
+      dbartsData(
+        x,
+        d[[response]],
+        weights = levelWeights,
+        bases = list(NULL, column)
+      ),
+      family = family,
+      forests = list(forest(), if (stated) forest(sd = 2) else forest()),
+      control = recordControl()
+    )
+  }
+)
+oneLevelText <- paste0(
+  "'s basis is \"TRUE\" on every row in the likelihood, so its other level ",
+  "has no observations there and the forest would be multiplied by a constant"
+)
+for (family in c("gaussian", "probit")) {
+  response <- if (family == "gaussian") "y" else "yb"
+  for (stated in c(FALSE, TRUE)) {
+    for (door in names(levelDoors)) {
+      info <- paste(family, stated, door)
+      expect_error(
+        levelDoors[[door]](d$fk, response, family, stated),
+        oneLevelText,
+        fixed = TRUE,
+        info = info
+      )
+      expect_true(
+        inherits(
+          levelDoors[[door]](d$zf, response, family, stated),
+          "dbartsSampler"
+        ),
+        info = info
+      )
+    }
+    expect_error(
+      levelDoors$term(d$lk, response, family, stated),
+      oneLevelText,
+      fixed = TRUE,
+      info = paste(family, stated, "logical")
+    )
+  }
+}
+# no spelling is offered, and the subset's sibling keeps its own refusal
+expect_false(grepl(
+  "Write it",
+  tryCatch(
+    levelDoors$term(d$fk, "y", "gaussian", TRUE),
+    error = conditionMessage
+  ),
+  fixed = TRUE
+))
+expect_error(
+  dbarts(
+    y ~ forest(x1 + x2) + forest(x1, basis = fk, sd = 2),
+    d,
+    subset = kept,
+    control = recordControl()
+  ),
+  "a 'basis' factor must have at least two levels",
+  fixed = TRUE
+)
+# a later weight, swap or copy is taken, creation being the only check
+levelLive <- dbarts(
+  y ~ forest(x1 + x2) + forest(x1, basis = zf, sd = 2),
+  d,
+  control = recordControl()
+)
+expect_silent(levelLive$setWeights(z))
+expect_silent(levelLive$setForestBasis(2L, zf))
+expect_silent(levelLive$setForestBasis(
+  2L,
+  factor(rep("1", n), levels = levels(zf))
+))
+expect_true(inherits(levelLive$copy(), "dbartsSampler"))
+
 # --- several forests, one prior-predictive door shut by name ---
 expect_error(
   samplePriorPredictive(original),
