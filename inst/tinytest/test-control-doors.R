@@ -1187,65 +1187,6 @@ expect_identical(
   )
 )
 
-# --- $setControl ---
-
-setRow <- function(control, sampler = NULL) {
-  if (is.null(sampler)) {
-    sampler <- gauss(n.trees = 40L, n.cuts = 12L, useQuantiles = TRUE)
-  }
-  stored <- sampler$control
-  row <- counted({
-    sampler$setControl(control)
-    sampler
-  })
-  row$unchanged <- identical(sampler$control, stored)
-  row$sampler <- sampler
-  row
-}
-# a fresh control: the sampler's kept, silently
-expectRow(setRow(run()), 40L, 12L, TRUE)
-# carried and different: taken, the sampler's kept, told
-row <- setRow(fit200$control)
-expectRow(row, 40L, 12L, TRUE, u = copyNames)
-expect_identical(controlSlot(row, "n.trees"), 40L)
-row <- setRow(gauss(n.trees = 40L, n.cuts = 8L, useQuantiles = TRUE)$control)
-expectRow(row, 40L, 12L, TRUE, u = "n.cuts")
-# written and different: refused, the sampler left alone
-for (name in copyNames) {
-  arguments <- list(n.trees = 20L, n.cuts = 20L, useQuantiles = FALSE)[name]
-  row <- setRow(do.call(wrote, arguments))
-  pattern <- paste0("changing '", name, "' is not available on an existing")
-  expectRefused(row, pattern, info = name)
-  expect_true(row$unchanged, info = name)
-  expect_identical(forestCounts(row$sampler), 40L, info = name)
-  expect_identical(row$deprecated, character(), info = name)
-}
-# written and agreeing: taken, warned once, and what it wrote comes off
-row <- setRow(wrote(n.trees = 40L, n.cuts = 12L, useQuantiles = TRUE))
-expectRow(row, 40L, 12L, TRUE, d = copyNames)
-expect_null(attr(
-  if (!inherits(row$value, "error")) row$value$control,
-  "n.cuts"
-))
-named <- if (!inherits(row$value, "error")) {
-  dbarts:::controlSuppliedSlots(row$value$control)
-}
-expect_false(any(copyNames %in% named))
-# a per-column count agrees when it recycles to the sampler's
-perColumn <- gauss(n.cuts = c(5L, 9L, 5L))
-row <- setRow(wrote(n.cuts = c(5L, 9L)), perColumn)
-expect_false(inherits(row$value, "error"))
-# an edit of the sampler's own control
-own <- gauss(n.trees = 40L)
-stored <- own$control
-stored@n.trees <- 20L
-expectRefused(setRow(stored, own), "changing 'n.trees' is not available")
-expect_identical(forestCounts(own), 40L)
-# a run setting moves, the count stays
-own <- gauss(n.trees = 40L)
-expectRow(setRow(run(n.thin = 3L), own), 40L)
-expect_identical(own$control@n.thin, 3L)
-
 # --- the scripts ---
 
 # twice with one control: one warning a session

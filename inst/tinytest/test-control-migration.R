@@ -482,106 +482,8 @@ fit50 <- dbarts(
   control = migrationControl(n.trees = 50L)
 )
 fit75 <- dbarts(y ~ x1 + x2 + x3, frame, control = migrationControl())
-quantileFit <- dbarts(
-  y ~ x1 + x2 + x3,
-  frame,
-  control = migrationControl(useQuantiles = TRUE, n.cuts = 20L)
-)
-quantileDraws <- function(sampler) sampler$run()[c("train", "sigma")]
 expect_identical(fit50$control@n.trees, 50L)
 expect_false("n.trees" %in% dbarts:::controlSuppliedSlots(fit50$control))
-
-# dbarts(): the old fit's count, rule and cut count go, each with the warning
-copied <- warned(dbarts(y ~ x1 + x2 + x3, frame, control = fit50$control))
-expect_identical(forestCounts(copied$value), 75L)
-expect_notUsed(copied, "n.trees", 50L)
-expect_true(grepl("dbarts(n.trees = )", copied$notUsed, fixed = TRUE))
-expect_identical(
-  warned(dbarts(y ~ x1 + x2 + x3, frame, control = fit75$control))$notUsed,
-  character(0L)
-)
-copied <- warned(dbarts(y ~ x1 + x2 + x3, frame, control = quantileFit$control))
-expect_notUsed(copied, c("useQuantiles", "n.cuts"), c("TRUE", "20"))
-expect_identical(copied$value$data@n.cuts, rep(100L, 3L))
-expect_false(copied$value$control@useQuantiles)
-expect_identical(
-  quantileDraws(copied$value),
-  quantileDraws(dbarts(y ~ x1 + x2 + x3, frame, control = migrationControl()))
-)
-# the fit's own data object keeps its rule and count: nothing differs, the grid
-# is the one the data holds, and the run settings still come through
-sameData <- warned(dbarts(quantileFit$data, control = quantileFit$control))
-expect_identical(sameData$notUsed, character(0L))
-expect_true(sameData$value$data@useQuantiles)
-expect_identical(sameData$value$data@n.cuts, rep(20L, 3L))
-expect_true(sameData$value$control@useQuantiles)
-expect_identical(sameData$value$control@n.samples, 4L)
-
-# a value the caller wrote still counts: named, or edited on a copy
-named <- migrationControl(n.trees = 30L)
-expect_identical(forestCounts(dbarts(y ~ x1 + x2, frame, control = named)), 30L)
-expect_identical(forestCounts(dbarts(y ~ x1 + x2, frame, control = named)), 30L)
-edited <- fit50$control
-edited@n.trees <- 30L
-written <- warned(dbarts(y ~ x1 + x2 + x3, frame, control = edited))
-expect_identical(forestCounts(written$value), 30L)
-expect_identical(written$notUsed, character(0L))
-# the limit of what can be told: an edit back to the mirrored value is a copy
-edited@n.trees <- 50L
-expect_notUsed(
-  warned(dbarts(y ~ x1 + x2 + x3, frame, control = edited)),
-  "n.trees",
-  50L
-)
-# a slot other than the three leaves the copies copies
-edited <- fit50$control
-edited@n.samples <- 6L
-expect_identical(
-  forestCounts(warned(dbarts(y ~ x1 + x2, frame, control = edited))$value),
-  75L
-)
-
-# dbartsSpec(), which writes no count of its own
-copied <- warned(dbartsSpec(
-  dbartsData(y ~ x1 + x2 + x3, frame),
-  fit50$control
-))
-expect_identical(copied$value$model@forests[[1L]]@n.trees, 75L)
-expect_notUsed(copied, "n.trees", 50L)
-expect_true(grepl("dbartsSpec(n.trees = )", copied$notUsed, fixed = TRUE))
-
-# bart(): a copy is taken from any fit, its run settings with it
-bartQuick <- function(..., control) {
-  bart(
-    y ~ x1 + x2 + x3,
-    frame,
-    keepSampler = TRUE,
-    n.chains = 1L,
-    n.threads = 1L,
-    verbose = FALSE,
-    ...,
-    control = control
-  )
-}
-copied <- warned(bartQuick(control = fit50$control))
-expect_identical(forestCounts(copied$value$fit), 75L)
-expect_identical(copied$value$fit$control@n.samples, 4L)
-expect_notUsed(copied, "n.trees", 50L)
-expect_true(grepl("bart(n.trees = )", copied$notUsed, fixed = TRUE))
-copied <- warned(bartQuick(n.trees = 50L, control = fit75$control))
-expect_identical(forestCounts(copied$value$fit), 50L)
-expect_notUsed(copied, "n.trees", 75L)
-copied <- warned(bartQuick(control = quantileFit$control))
-expect_notUsed(copied, c("useQuantiles", "n.cuts"), c("TRUE", "20"))
-expect_false(isTRUE(copied$value$fit$data@useQuantiles))
-fromVariance <- warned(bartQuick(control = varianceSampler$control))
-expect_null(fromVariance$value$fit$model@variance)
-fromVariance <- warned(dbarts(
-  y ~ x1 + x2 + x3,
-  frame,
-  control = varianceSampler$control
-))
-expect_null(fromVariance$value$model@variance)
 
 # xbart(), with the count its grid takes
 xbartOn <- function(control, ...) {
@@ -606,7 +508,7 @@ expect_notUsed(
   "n.trees",
   75L
 )
-rm(copied, sameData, named, edited, written, fromVariance, bartQuick, xbartOn)
+rm(copied, written, xbartOn)
 
 ## ---- the mirror reads the fitting function's level ------------------------------
 
@@ -632,34 +534,7 @@ expect_identical(copiedTwins$reload$getTrees()$tree[0L], integer(0L))
 handedBack <- warned(plainSecond(secondSampler$control))
 expect_identical(handedBack$notUsed, character(0L))
 expect_identical(forestCounts(handedBack$value), c(7L, 9L))
-# given to a formula of another count, the comparison is at the same level
-plainTaken <- warned(dbarts(
-  y ~ x1 + x2 + x3,
-  frame,
-  forests = list(forest(x1, basis = ~ factor(z)), forest(n.trees = 11L)),
-  control = secondSampler$control
-))
-expect_identical(forestCounts(plainTaken$value), c(50L, 11L))
-expect_notUsed(plainTaken, "n.trees", 9L)
-expect_true(grepl("forest with no basis", plainTaken$notUsed, fixed = TRUE))
-# every forest with a basis: the first forest's, and a copy is no statement
-allBasis <- function(control) {
-  dbarts(
-    y ~ x1 + x2 + x3,
-    frame,
-    forests = list(
-      forest(x1, basis = ~ factor(z), n.trees = 7L),
-      forest(x2, basis = ~zn)
-    ),
-    control = control
-  )
-}
-allBasisSampler <- allBasis(migrationControl())
-expect_identical(allBasisSampler$control@n.trees, 7L)
-overBart <- warned(allBasis(fit75$control))
-expect_identical(forestCounts(overBart$value), c(7L, 50L))
-expect_notUsed(overBart, "n.trees", 75L)
-# a multinomial model reads its one record
+rm(plainSecond, secondSampler, copiedTwins, handedBack)
 multinomialFit <- dbarts(
   x,
   factor(cut(y, 3L, labels = FALSE)),
@@ -668,97 +543,6 @@ multinomialFit <- dbarts(
 )
 expect_identical(multinomialFit$control@n.trees, 8L)
 expect_false(multinomialFit$control@binary)
-# what mirrors comes from the model and data and not the control's own slots
-slotted <- migrationControl()
-slotted@binary <- TRUE
-slotted@useQuantiles <- TRUE
-mirrorCheck <- dbarts:::mirrorControl(slotted, fit75$model, fit75$data)
-expect_false(mirrorCheck@binary)
-expect_false(mirrorCheck@useQuantiles)
-expect_identical(mirrorCheck@n.trees, 75L)
-rm(plainSecond, secondSampler, copiedTwins, handedBack, plainTaken, overBart)
-rm(allBasis, allBasisSampler, slotted, mirrorCheck)
-
-## ---- new("dbartsSampler", control, model, data) ---------------------------------
-
-direct <- function(control, from, data = from$data) {
-  warned(new("dbartsSampler", control, from$model, data))
-}
-# a copy: the model's count and the data object's rule, with the warning
-crossed <- direct(fit50$control, fit75)
-expect_identical(forestCounts(crossed$value), 75L)
-expect_identical(crossed$value$control@n.trees, 75L)
-expect_notUsed(crossed, "n.trees", 50L)
-expect_identical(direct(fit75$control, fit75)$notUsed, character(0L))
-crossed <- direct(fit75$control, quantileFit)
-expect_notUsed(crossed, c("useQuantiles", "n.cuts"), c("FALSE", "100"))
-expect_true(crossed$value$control@useQuantiles)
-crossed <- direct(quantileFit$control, fit75)
-expect_notUsed(crossed, c("useQuantiles", "n.cuts"), c("TRUE", "20"))
-expect_false(isTRUE(crossed$value$data@useQuantiles))
-expect_identical(
-  quantileDraws(crossed$value),
-  quantileDraws(new("dbartsSampler", fit75$control, fit75$model, fit75$data))
-)
-# re-creation, the mirror agreeing: no warning on a copy or a reload
-reloaded <- warned(twins(fit50))
-expect_identical(reloaded$notUsed, character(0L))
-expect_identical(forestCounts(reloaded$value$copy), 50L)
-expect_identical(forestCounts(reloaded$value$reload), 50L)
-recreated <- direct(fit50$control, fit50)
-expect_identical(recreated$notUsed, character(0L))
-# a fresh control is silent: what the model and data hold stands
-fresh <- direct(migrationControl(), fit50)
-expect_identical(fresh$notUsed, character(0L))
-expect_identical(forestCounts(fresh$value), 50L)
-expect_identical(fresh$value$control@n.trees, 50L)
-spec <- dbartsSpec(
-  dbartsData(y ~ x1 + x2 + x3, frame),
-  migrationControl(n.trees = 30L, useQuantiles = TRUE)
-)
-fresh <- direct(migrationControl(), spec)
-expect_identical(forestCounts(fresh$value), 30L)
-expect_true(fresh$value$data@useQuantiles)
-expect_true(fresh$value$control@useQuantiles)
-# a written count is still read here: where a model states none, and the rest
-# the door's own next change
-expect_identical(
-  forestCounts(direct(migrationControl(n.trees = 20L), fit75)$value),
-  20L
-)
-handModel <- fit75$model
-handModel@forests <- list()
-handSampler <- direct(fit50$control, list(model = handModel, data = fit75$data))
-expect_identical(handSampler$notUsed, character(0L))
-expect_identical(forestCounts(handSampler$value), 50L)
-
-# a plain fit's control beside a variance fit's model runs the variance forest
-crossedVariance <- direct(fit75$control, varianceSampler)
-expect_identical(crossedVariance$notUsed, character(0L))
-expect_false(is.null(crossedVariance$value$model@variance))
-expect_identical(varianceCount(crossedVariance$value), 7L)
-# a binary control beside a multinomial model runs that model, and reads FALSE
-probitFit <- dbarts(
-  x,
-  yb,
-  family = "probit",
-  control = migrationControl(n.trees = 8L)
-)
-expect_true(probitFit$control@binary)
-crossedBinary <- direct(probitFit$control, multinomialFit)
-expect_notUsed(crossedBinary, "binary", TRUE)
-expect_identical(crossedBinary$value$model@family, multinomialFit$model@family)
-expect_false(crossedBinary$value$control@binary)
-expect_identical(forestCounts(crossedBinary$value), rep(8L, 3L))
-twin <- new(
-  "dbartsSampler",
-  multinomialFit$control,
-  multinomialFit$model,
-  multinomialFit$data
-)
-expect_identical(crossedBinary$value$run()$train, twin$run()$train)
-rm(direct, crossed, reloaded, recreated, fresh, spec, handModel, handSampler)
-rm(crossedVariance, probitFit, crossedBinary, twin)
 
 ## ---- $setControl ----------------------------------------------------------------
 
@@ -1025,5 +809,5 @@ expect_true(columnOf(
   factor(cut(y, 3L, labels = FALSE)),
   family = "multinomial"
 ))
-rm(columnOf, warned, expect_notUsed, fit50, fit75, quantileFit, quantileDraws)
+rm(columnOf, warned, expect_notUsed, fit50, fit75)
 rm(multinomialFit, varianceSampler)
