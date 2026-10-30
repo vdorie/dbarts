@@ -1705,7 +1705,7 @@ validateForestAmplitude <- function(amplitude) {
   }
   if (!is(amplitude, "dbartsFixedPrior")) {
     stop(
-      "a forest's 'amplitude' is fixed(), which holds its coefficient, ",
+      "a forest's 'amplitude' must be fixed(), which holds its coefficient, ",
       "student(df), which draws it under a Student-t prior, or left out, ",
       "which draws it under its default prior",
       if (is(amplitude, "dbartsFamily")) {
@@ -2005,7 +2005,7 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
       stop(
         "this model has one forest, which has no coefficient to give a ",
         "prior; a lone forest draws its size through the fitting ",
-        "function's leaf prior, as k = chi(1.5, 2) or leaf.prior = ",
+        "function's leaf prior, as leaf.prior = normal(k = chi(1.5, 2)) or ",
         "normal(sd = invchi(1.5, s)) with s a size in the response's units"
       )
     }

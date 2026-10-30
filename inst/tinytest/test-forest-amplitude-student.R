@@ -218,14 +218,14 @@ refused(
     forests = list(forest(), forest(basis = zf, amplitude = "student")),
     control = ctl()
   ),
-  "a forest's 'amplitude' is fixed(), which holds its coefficient, student(df)"
+  "a forest's 'amplitude' must be fixed(), which holds its coefficient, student(df)"
 )
 refused(
   dbarts(y ~ forest(x1, amplitude = student(3)), d, control = ctl()),
   paste0(
     "which has no coefficient to give a prior; a lone forest draws its size ",
-    "through the fitting function's leaf prior, as k = chi(1.5, 2) or ",
-    "leaf.prior = normal(sd = invchi(1.5, s)) with s a size in the ",
+    "through the fitting function's leaf prior, as leaf.prior = normal(k = chi(1.5, 2)) or ",
+    "normal(sd = invchi(1.5, s)) with s a size in the ",
     "response's units"
   )
 )
