@@ -990,9 +990,6 @@ resolveSamplerSpec <- function(
       stop("survival status must have length ", length(data@y))
     }
     data@status <- survivalStatus
-  } else {
-    # a data object taken from a survival fit, under another family
-    data@status <- NULL
   }
   # the discrete-time hazard marker: the period grid, which packageBartResults
   # reads into $periods. The C bridge never reads it, so a hazard fit's draw
