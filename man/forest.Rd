@@ -159,8 +159,9 @@ forest(
     amplitude: \eqn{K = 1}{K = 1} for a numeric column, and the two columns
     of a factor's levels, \eqn{K = 2}{K = 2}. A forest with no basis is
     multiplied by a single coefficient.
-    A model has one forest with no basis, or none; every other forest states
-    one, and a model whose only forest has a basis is refused.
+    A model may have several forests with no basis, which then share one
+    prior size (see Details), or none; a model whose only forest has a basis
+    is refused.
 
     \strong{Writing it.} A basis is the right-hand side of a model formula,
     without the tilde, and means what it means in \code{\link{lm}}:
@@ -683,10 +684,47 @@ forest(
   \code{sd}. Read the values in force off
   \code{$getLeafPrior(f)}'s \code{sd} entry, in the response's units.
 
+  \strong{Several forests with no basis.} A model may hold any number, as
+  \code{y ~ forest(x1) + forest(x2) + forest(x3)}, a \code{forests} list or
+  a data object's \code{bases} with several \code{NULL} entries. Two or more
+  of them that state no \code{sd} and no \code{amplitude = student()} share
+  one prior total, the size the fitting function gives its one forest: its
+  \code{k} or \code{leaf.prior}, \code{k = 2} by default under a continuous
+  response and \code{k} drawn under \code{chi(1.5, 2)} under
+  \code{"probit"} and \code{"logistic"}. Each of the \eqn{K}{K} forests
+  that share is held at 1 and takes an equal part, \eqn{1/K}{1/K}, of the
+  total's variance whatever its number of trees, so the sum has the one
+  forest's prior at every point and each forest 0.71 of its sd at two, 0.58
+  at three; a drawn \code{k} is one \code{k} for the group, and a named
+  \code{leaf.prior = normal(sd = )} is the total's size. The model is the
+  one forest with its trees in \code{\link{blocks}}, a block for each
+  forest. The forests with no basis split the fitting function's
+  \code{n.trees} as \code{blocks()} splits a forest's trees, the first
+  ones taking one more: 38 and 37 of 75. A forest stating \code{n.trees}
+  keeps its own, outside the split, and its count says how finely it divides
+  its part, not how large the part is. The fitting function's
+  \code{n.trees}, \code{power} and \code{base} reach each such forest that
+  states none, and are refused only where every one states its own; its
+  \code{interactions} and \code{blocks}, a constraint on one forest, are
+  refused and stated on the forest they constrain. A forest that states
+  \code{sd} has that size and leaves the share, its coefficient drawn or
+  held as a lone forest with no basis beside forests with a basis has it.
+  \code{amplitude = fixed()} on a forest that shares is taken and changes
+  nothing; \code{student()} is refused there, since such a forest has no
+  coefficient of its own. \code{$getLeafPrior(f)} on it gives the fitting
+  function's leaf prior as \code{leaf.prior}, its part in force as
+  \code{sd} (\code{NA} where \code{k} is drawn) and \code{prior.sd.of}
+  \code{"forest, shared"}, and \code{$getK(f)} the group's \code{k}.
+  The part is fixed at creation: \code{$setLeafPrior(forests = )} refuses an
+  \code{sd} stated for such a forest, and \code{$setLeafPrior(leaf.prior)}
+  is refused on its sampler. Printed, each forest's line shows its tree
+  count, and a line after them the total and which forests share.
+
   Both forests' leaf scales come from the model's own calibration map rather
   than from the leaf prior, which is why a \code{k} hyperprior, a non-default
   \code{k}, a named leaf-prior \code{sd}, and a linear or Gaussian-process
-  leaf prior are refused when a second forest is declared, the size of the
+  leaf prior are refused when a second forest is declared and no forests
+  share a total (above), the size of the
   forest with no basis being written on the forest, as
   \code{forest(x1 + x2, sd = 2)}, in the response's units as
   \code{normal(sd = )} is. In a model of several forests this \code{sd}

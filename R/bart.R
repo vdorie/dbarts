@@ -179,7 +179,11 @@ sharedValue <- function(x) {
 # forest pins it, and elsewhere the reader states a drawn k as a distribution
 # object and a fixed one as a number.
 leafPriorIsDrawn <- function(prior) {
-  if (!is.null(prior[["multiplier"]])) {
+  # a forest whose size the calibration map sets has no k to draw; one sharing
+  # a total runs under the fitting function's leaf prior, as one forest does
+  if (
+    !is.null(prior[["multiplier"]]) && !is(prior$leaf.prior, "dbartsLeafPrior")
+  ) {
     return(FALSE)
   }
   spec <- prior$leaf.prior
@@ -605,6 +609,12 @@ packageBartResults <- function(
     result$basis.terms <- forestInfo$basisTerms
     # one label for each forest, always
     attr(result, "forest.labels") <- forestInfo$labels
+    # each forest's tree count, which the printed block shows
+    attr(result, "forest.trees") <- vapply(
+      forestInfo$params,
+      function(forest) as.integer(forest[1L]),
+      0L
+    )
     # the number the forests' sds are stated in, which the printed block names,
     # as the data object records it
     attr(result, "forest.unit") <- dataForestCalibration(fit$data)[["unit"]]

@@ -733,17 +733,13 @@ ingestFormulaTerms <- function(formula, family, data) {
       paste(plainWritten, collapse = " + "),
       ") and a forest() with no basis ('",
       shownCode(written[[which(!multiplied)[1L]]]$call),
-      "'): each is the forest with no multiplier, and a model has one. ",
-      "Write the plain terms inside that forest(), or give it a 'basis'",
-      call. = FALSE
-    )
-  }
-  if (sum(!multiplied) > 1L) {
-    stop(
-      "the formula has ",
-      sum(!multiplied),
-      " forest() terms with no basis; a model has one forest with no ",
-      "multiplier, and every other forest states a 'basis'",
+      "'), which has two readings: one forest with no multiplier, or a ",
+      "forest of its own beside it. Write each forest as a forest(), as ",
+      "forest(",
+      paste(plainWritten, collapse = " + "),
+      ") + ",
+      shownCode(written[[which(!multiplied)[1L]]]$call),
+      ", or the plain terms inside that forest()",
       call. = FALSE
     )
   }
@@ -766,15 +762,19 @@ ingestFormulaTerms <- function(formula, family, data) {
   # the fit builds, an indicator of a factor among them, which no formula can
   # be read against before the design exists: beside a removal that is
   # refused, not left with a column the removal was meant to take.
+  #
+  # Several forests with no basis are read alike, each keeping the terms it
+  # names: the formula's removals take a term from whichever names it, and a
+  # forest left with none is refused. They stand first, in the order written.
   bare <- which(!multiplied)
-  if (length(bare) == 1L) {
-    bareVars <- written[[bare]]$spec$vars
+  for (index in bare) {
+    bareVars <- written[[index]]$spec$vars
     if (is.null(bareVars)) {
-      others <- unique(unlist(lapply(written[multiplied], function(entry) {
+      others <- unique(unlist(lapply(written[-index], function(entry) {
         termLabels(entry$spec$vars)
       })))
       if (length(others) > 0L) {
-        written[[bare]]$spec$vars <- forestFormulaTerms(
+        written[[index]]$spec$vars <- forestFormulaTerms(
           quote(.),
           labels = others,
           named = TRUE
@@ -787,7 +787,7 @@ ingestFormulaTerms <- function(formula, family, data) {
     ) {
       stop(
         "'",
-        shownCode(written[[bare]]$call),
+        shownCode(written[[index]]$call),
         "': '",
         bareVars$columns[1L],
         "' is a column the fit builds, not a column of the data, and what ",
@@ -812,16 +812,19 @@ ingestFormulaTerms <- function(formula, family, data) {
   first <- if (!is.null(reduced)) {
     readRhsTerms(reduced, response, termData, formulaEnv)
   }
+  leftNone <- function(index) {
+    stop(
+      "'",
+      shownCode(written[[index]]$call),
+      "': what the formula removes beside it leaves the forest no ",
+      "predictor to split on",
+      call. = FALSE
+    )
+  }
   bareTerms <- if (length(bare) == 1L) termLabels(written[[bare]]$spec$vars)
   if (length(first$labels) == 0L) {
     if (length(bareTerms) > 0L) {
-      stop(
-        "'",
-        shownCode(written[[bare]]$call),
-        "': what the formula removes beside it leaves the forest no ",
-        "predictor to split on",
-        call. = FALSE
-      )
+      leftNone(bare)
     }
     if (length(plainWritten) > 0L) {
       stop(
@@ -834,10 +837,22 @@ ingestFormulaTerms <- function(formula, family, data) {
     }
   }
 
+  for (index in bare[length(bare) > 1L]) {
+    own <- termLabels(written[[index]]$spec$vars)
+    if (length(own) > 0L) {
+      kept <- own[own %in% first$labels]
+      if (length(kept) == 0L) {
+        leftNone(index)
+      }
+      written[[index]]$spec$vars$labels <- kept
+    }
+  }
   entries <- if (length(bare) == 1L) {
     if (length(bareTerms) > 0L) {
       written[[bare]]$spec$vars$labels <- first$labels
     }
+    c(written[bare], written[-bare])
+  } else if (length(bare) > 1L) {
     c(written[bare], written[-bare])
   } else if (length(first$labels) > 0L) {
     plainForest <- forest()
@@ -954,19 +969,29 @@ refuseGivenTwiceInFormula <- function(formula, names) {
   # what the formula itself refuses is the fitting function's to say, with
   # the data at hand
   walked <- tryCatch(walkFormulaTerms(formula), error = function(e) NULL)
+  bare <- list()
   for (hit in walked$hits) {
     args <- tryCatch(forestCallArguments(hit), error = function(e) NULL)
-    if ("basis" %in% names(args)) {
-      next
+    if (!("basis" %in% names(args))) {
+      # a NULL written in the forest, or held by the name it gives, is the
+      # name left out
+      given <- setdiff(
+        intersect(names, names(args)),
+        nullWritten(args, names, environment(formula))
+      )
+      bare[[length(bare) + 1L]] <- list(hit = hit, given = given)
     }
-    # a NULL written in the forest, or held by the name it gives, is the name
-    # left out
-    stated <- setdiff(
-      intersect(names, names(args)),
-      nullWritten(args, names, environment(formula))
-    )
-    for (name in stated) {
-      refuseGivenTwice(name, paste0("'", shownCode(hit), "'"))
+  }
+  # beside several, the fitting function's reaches each forest that states
+  # none, and is refused only where every one states it
+  for (name in names) {
+    stating <- vapply(bare, function(entry) name %in% entry$given, NA)
+    if (length(bare) > 0L && all(stating)) {
+      refuseGivenTwice(
+        name,
+        paste0("'", shownCode(bare[[1L]]$hit), "'"),
+        length(bare)
+      )
     }
   }
   invisible(NULL)

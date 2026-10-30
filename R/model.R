@@ -1937,26 +1937,29 @@ validateForestSd <- function(sd) {
   as.double(sd)
 }
 
-## The position of the forest with no basis among a model's forests, or 0
+## The positions of the forests with no basis among a model's forests, empty
 ## where every forest has one. `hasBasis` says of each forest whether the
 ## model ends with a basis for it. This is the one place a forest's kind is
-## asked: its tree count and tree prior default by it and the fitting
-## function's 'interactions' and 'blocks' go to it, whatever its position. A
-## model has at most one forest with no basis.
+## asked: their tree counts and tree prior default by it and the fitting
+## function's 'interactions' and 'blocks' go to the one there is, whatever its
+## position.
 plainForest <- function(hasBasis) {
-  bare <- which(!hasBasis)
-  if (length(bare) > 1L) {
-    stop(
-      "forests ",
-      paste(bare[-length(bare)], collapse = ", "),
-      " and ",
-      bare[length(bare)],
-      " have no 'basis': a model has one forest with no multiplier, and ",
-      "every other forest states a 'basis'",
-      call. = FALSE
-    )
-  }
-  if (length(bare) == 1L) bare else 0L
+  which(!hasBasis)
+}
+
+## Of the forests with no basis at `plain`, which share one prior total: those
+## stating neither an 'sd' nor amplitude = student(), where two or more do,
+## else none. The engine reads the same rule from the same statements.
+sharingForests <- function(specs, plain) {
+  sharers <- plain[vapply(
+    plain,
+    function(index) {
+      spec <- if (index <= length(specs)) specs[[index]]
+      is.null(spec$sd) && !is(spec$amplitude, "dbartsStudentPrior")
+    },
+    NA
+  )]
+  if (length(sharers) < 2L) integer(0L) else sharers
 }
 
 ## The tree count and tree prior of a forest with a basis that states none.
@@ -2173,22 +2176,49 @@ refuseStatedWithNoPlainForest <- function(
   invisible(NULL)
 }
 
-## The fitting function's settings that are the forest with no basis's own and
-## that the forest states too: its 'n.trees', 'power' and 'base', each one
-## setting written twice and refused by name, the forest's statement of one
-## leaving the others the fitting function's. A count the control states is
-## not the fitting function's to give twice, and is left to the forest's.
-## `stated` is plainForestStated's value, `plainSpec` that forest's resolved
-## knobs and `where` how the refusal shows it.
-refuseStatedOnPlainForest <- function(stated, plainSpec, where) {
+## The refusal of 'interactions' or 'blocks' given to the fitting function
+## beside `numPlain`, two or more, forests with no basis: a constraint on one
+## forest's predictors is not each forest's, and is stated on the forest.
+refuseConstraintOnSeveralPlain <- function(interactions, blocks, numPlain) {
+  example <- c(
+    interactions = "forest(x1 + x2, interactions = interactions(max.order = 1))",
+    blocks = "forest(x1 + x2, blocks = blocks(list(\"x1\", \"x2\")))"
+  )
+  for (name in names(example)) {
+    if (!is.null(if (name == "interactions") interactions else blocks)) {
+      stop(
+        "'",
+        name,
+        "' given to the fitting function is a constraint on the forest with ",
+        "no basis, and this model has ",
+        numPlain,
+        "; state it on the forest it constrains, as ",
+        example[[name]],
+        call. = FALSE
+      )
+    }
+  }
+  invisible(NULL)
+}
+
+## The fitting function's settings that are the forests with no basis's own
+## and that those forests state too: 'n.trees', 'power' and 'base', each
+## refused by name where every forest with no basis states it, the fitting
+## function's then reaching none. A forest's statement of one leaves the others
+## the fitting function's. A count the control states is not the fitting
+## function's to give twice, and is left to the forests'. `stated` is
+## plainForestStated's value, `plainSpecs` those forests' resolved knobs and
+## `where` how the refusal shows the first.
+refuseStatedOnPlainForest <- function(stated, plainSpecs, where) {
   for (name in c("n.trees", "power", "base")) {
     isStated <- name %in% names(stated)
     if (
       isStated &&
         !identical(stated[[name]], "control") &&
-        !is.null(plainSpec[[name]])
+        length(plainSpecs) > 0L &&
+        all(vapply(plainSpecs, function(spec) !is.null(spec[[name]]), NA))
     ) {
-      refuseGivenTwice(name, where)
+      refuseGivenTwice(name, where, length(plainSpecs))
     }
   }
   invisible(NULL)
@@ -2196,7 +2226,18 @@ refuseStatedOnPlainForest <- function(stated, plainSpec, where) {
 
 ## The refusal of one of 'n.trees', 'power' and 'base' given to the fitting
 ## function and to the forest with no basis, shown as `where`.
-refuseGivenTwice <- function(name, where) {
+refuseGivenTwice <- function(name, where, numPlain = 1L) {
+  if (numPlain > 1L) {
+    stop(
+      "'",
+      name,
+      "' is given to the fitting function and to every forest with no basis (",
+      where,
+      " among them), so it reaches none; give it to the fitting function or ",
+      "to the forests",
+      call. = FALSE
+    )
+  }
   stop(
     "'",
     name,
@@ -2269,9 +2310,34 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
       )
     }
   }
+  # where two or more forests with no basis share one total, none has a
+  # coefficient of its own to give a prior; one stating its 'sd' leaves the
+  # share and has its own
+  unsized <- plain[vapply(
+    plain,
+    function(index) is.null(resolved[[index]]$sd),
+    NA
+  )]
+  if (length(unsized) > 1L) {
+    for (index in unsized) {
+      if (is(resolved[[index]]$amplitude, "dbartsStudentPrior")) {
+        stop(
+          forestKnobLabel(forests, index),
+          ": amplitude = student() draws one forest's coefficient; these ",
+          "forests share one total: state each forest's 'sd' to give it its ",
+          "own",
+          call. = FALSE
+        )
+      }
+    }
+  }
   for (name in c("interactions", "blocks")) {
     top <- if (name == "interactions") interactions else blocks
-    if (plain > 0L && !is.null(resolved[[plain]][[name]]) && !is.null(top)) {
+    if (
+      length(plain) == 1L &&
+        !is.null(resolved[[plain]][[name]]) &&
+        !is.null(top)
+    ) {
       stop(
         "'",
         name,
@@ -2289,9 +2355,12 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
 ## structure prior, and the amplitude update flag, 0 where the coefficient is
 ## held. The first three are what the forest runs under, at every position:
 ## its own statement, else the default of its kind, `plain` holding the
-## fitting function's count, base and power for the forest with no basis. The
-## bridge reads forest 1's three from the control and the model's tree prior,
-## which hold the same numbers.
+## fitting function's count, base and power for the forests with no basis.
+## Where two or more of those state no count they split the fitting
+## function's whole count as blocks() splits a forest's trees, the first
+## n %% K taking one more; a stated count is outside the split. The bridge
+## reads forest 1's three from the control and the model's tree prior, which
+## hold the same numbers.
 ##
 ## Nothing of a forest's size is here: its `sd` goes to the engine as written
 ## (forestStatements), and the engine holds the calibration map and every
@@ -2300,16 +2369,49 @@ forestParams <- function(specs, hasBasis, plain) {
   declared <- function(value, default) {
     if (is.null(value)) default else value
   }
+  counts <- plainTreeCounts(specs, hasBasis, plain$n.trees)
   lapply(seq_along(specs), function(index) {
     spec <- specs[[index]]
     kind <- if (hasBasis[index]) multipliedForestDefaults else plain
     as.double(c(
-      declared(spec$n.trees, kind$n.trees),
+      declared(spec$n.trees, declared(counts[[index]], kind$n.trees)),
       declared(spec$base, kind$base),
       declared(spec$power, kind$power),
       if (identical(spec$amplitude, "fixed")) 0 else 1
     ))
   })
+}
+
+## Each forest's share of the fitting function's `numTrees`, a list with one
+## entry per forest: NULL where the forest has a basis or states its own
+## count, and for two or more forests with no basis that state none, an even
+## split, the first numTrees %% K one tree more, refused where it would leave
+## a forest none.
+plainTreeCounts <- function(specs, hasBasis, numTrees) {
+  counts <- rep(list(NULL), length(specs))
+  unstated <- which(
+    !hasBasis & vapply(specs, function(spec) is.null(spec$n.trees), NA)
+  )
+  numUnstated <- length(unstated)
+  if (numUnstated < 2L) {
+    return(counts)
+  }
+  numTrees <- as.integer(numTrees)
+  if (numTrees < numUnstated) {
+    stop(
+      "the fitting function's ",
+      numTrees,
+      " tree(s) split among ",
+      numUnstated,
+      " forests with no basis that state no 'n.trees' leave a forest none; ",
+      "give more trees or state a count on each forest",
+      call. = FALSE
+    )
+  }
+  split <- rep.int(numTrees %/% numUnstated, numUnstated) +
+    (seq_len(numUnstated) <= numTrees %% numUnstated)
+  counts[unstated] <- as.list(split)
+  counts
 }
 
 ## What each forest states of its size and its coefficient's prior, as the

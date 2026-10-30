@@ -51,6 +51,10 @@ blocks(groups, trees.per.group = NULL)
   without groups has. \code{trees.per.group} says how complex each group's
   function may be, not how much of the response it explains. With equal
   counts every tree has the leaf prior of the same forest without groups.
+  Several forests with no basis written as their own terms,
+  \code{y ~ forest(x1) + forest(x2)}, are the same model as the one forest
+  \code{y ~ forest(x1 + x2, blocks = blocks(list("x1", "x2")))} at the same
+  tree counts (see \code{\link{forest}}'s Details).
 
   Unlike \code{\link{interactions}}\code{(groups = )}, which is a per-path
   allow-list that leaves un-named predictors unconstrained, \code{blocks}

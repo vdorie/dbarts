@@ -184,17 +184,21 @@ expect_equal(
   plainSecondFit$yhat.train,
   check.attributes = FALSE
 )
-# two forests with no basis are refused by their positions, wherever they are
-twoPlain <- " have no 'basis': a model has one forest with no multiplier, and every other forest states a 'basis'"
+# two or more forests with no basis are taken at every door, wherever they
+# stand, splitting the fitting function's count as blocks() splits a forest's
 for (entry in list(
-  c(listOf("forest(), forest()"), "1 and 2"),
-  c(listOf("forest(), forest(basis = z), forest()"), "1 and 3"),
-  c(listOf("forest(basis = z), forest(), forest()", TRUE), "2 and 3"),
-  c(specOf("forest(), forest(), forest()"), "1, 2 and 3"),
-  c(dataOf("NULL, NULL"), "1 and 2"),
-  c(dataOf("dose, NULL, NULL", "dbartsSpec"), "2 and 3")
+  list(listOf("forest(), forest()"), c(38L, 37L)),
+  list(listOf("forest(), forest(basis = z), forest()"), c(38L, 50L, 37L)),
+  list(listOf("forest(basis = z), forest(), forest()", TRUE), c(50L, 38L, 37L)),
+  list(specOf("forest(), forest(), forest()"), c(25L, 25L, 25L)),
+  list(dataOf("NULL, NULL"), c(38L, 37L)),
+  list(dataOf("dose, NULL, NULL", "dbartsSpec"), c(50L, 38L, 37L))
 )) {
-  expect_identical(refusal(entry[1L]), paste0("forests ", entry[2L], twoPlain))
+  expect_identical(
+    as.integer(forestTable(suppressWarnings(build(entry[[1L]])))[, 1L]),
+    entry[[2L]],
+    info = entry[[1L]]
+  )
 }
 # one forest with a basis keeps its own refusal
 expect_match(

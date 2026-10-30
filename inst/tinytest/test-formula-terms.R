@@ -1013,26 +1013,34 @@ refuses(
   y ~ x1 + x2 + forest(x1 + x2),
   paste0(
     "the formula has plain terms (x1 + x2) and a forest() with no basis ",
-    "('forest(x1 + x2)'): each is the forest with no multiplier, and a model ",
-    "has one. Write the plain terms inside that forest(), or give it a 'basis'"
+    "('forest(x1 + x2)'), which has two readings: one forest with no ",
+    "multiplier, or a forest of its own beside it. Write each forest as a ",
+    "forest(), as forest(x1 + x2) + forest(x1 + x2), or the plain terms ",
+    "inside that forest()"
   )
 )
 refuses(
   y ~ x3 + offset(o) + forest(x1 + x2) + forest(x1, basis = ~z),
   "the formula has plain terms (x3) and a forest() with no basis"
 )
-# and twice
-refuses(
-  y ~ forest(x1) + forest(x2),
-  paste0(
-    "the formula has 2 forest() terms with no basis; a model has one forest ",
-    "with no multiplier, and every other forest states a 'basis'"
-  )
+# two or more are forests of their own, first in the order written, each with
+# the terms it names; a removal takes a term from whichever names it
+twice <- fit(
+  y ~ forest(x1) + forest(x2, basis = ~z) + forest(x3),
+  n.trees = 4L
 )
+expect_identical(splitsOn(twice), list("x1", "x3", "x2"))
+expect_identical(treeCounts(twice), c(2, 2, 50))
+expect_identical(predictors(twice), c("x1", "x3", "x2"))
+removed <- fit(y ~ forest(x1 + x2) + forest(x3) - x2)
+expect_identical(splitsOn(removed), list("x1", "x3"))
 refuses(
-  y ~ forest(x1) + forest(x2) + forest(x3) + forest(x1, basis = ~z),
-  "the formula has 3 forest() terms with no basis"
+  y ~ forest(x1) + forest(x2) - x2,
+  "'forest(x2)': what the formula removes beside it leaves the forest no"
 )
+# one written with no predictors takes every other forest's
+everyOther <- fit(y ~ forest(x1) + forest() + forest(x2, basis = ~z))
+expect_identical(splitsOn(everyOther), list("x1", c("x1", "x2"), "x2"))
 # a forest with a basis stands beside another forest
 refuses(
   y ~ forest(x1 + x2, basis = ~z),

@@ -55,6 +55,18 @@ printedColumn <- function(column, rowsIn) {
 printedForest <- function(entry, basis, rowsIn, full, label) {
   how <- if (isTRUE(entry$sd.stated)) "stated" else "default"
   size <- printedNumber(entry$sd)
+  if (identical(entry$prior.sd.of, "forest, shared")) {
+    # a share of the total: its sd where k is held, nothing to print where it
+    # is drawn, and never a coefficient of its own
+    return(paste0(
+      "no basis; ",
+      if (is.na(entry$sd)) {
+        "a share of the total"
+      } else {
+        paste0("sd ", size, ", a share of the total")
+      }
+    ))
+  }
   amplitude <- entry[["amplitude"]]
   held <- if (!full || is.null(amplitude)) {
     ""
@@ -142,7 +154,8 @@ forestPriorLines <- function(
   family = "gaussian",
   unit,
   full = FALSE,
-  pointer = NULL
+  pointer = NULL,
+  treeCounts = NULL
 ) {
   if (
     !is.list(priors) ||
@@ -195,10 +208,71 @@ forestPriorLines <- function(
     },
     ""
   )
+  lines <- c(lines, forestTotalLines(priors, treeCounts))
   footer <- if (!full && !is.null(pointer)) {
     paste0("(each forest's prior in full: ", pointer, ")")
   }
   c(header, lines, footer)
+}
+
+## The lines after the forests: each forest's tree count and their total,
+## where the counts are known, and, where forests share one prior total,
+## which do and the group's k, a number where it is held and its prior where
+## it is drawn, or the total's named sd.
+forestTotalLines <- function(priors, treeCounts) {
+  sharers <- which(vapply(
+    priors,
+    function(entry) identical(entry$prior.sd.of, "forest, shared"),
+    NA
+  ))
+  counts <- if (length(treeCounts) == length(priors)) {
+    paste0(
+      "  trees: ",
+      paste(treeCounts, collapse = ", "),
+      "; ",
+      sum(treeCounts),
+      " in all"
+    )
+  }
+  share <- if (length(sharers) > 0L) {
+    spec <- priors[[sharers[1L]]]$leaf.prior
+    k <- spec@k
+    paste0(
+      "  forests ",
+      paste(sharers, collapse = ", "),
+      " share one prior total",
+      if (!is.null(spec@prior.sd)) {
+        paste0(", sd ", deparsedPrior(spec@prior.sd))
+      } else if (!is.null(k)) {
+        paste0(", k ", deparsedPrior(k))
+      }
+    )
+  }
+  c(counts, share)
+}
+
+## A prior object as the block prints it, chi(1.5, 2) for a chi prior on k
+## and invchi(df, scale) for one on the sd; a number as printedNumber gives it.
+deparsedPrior <- function(prior) {
+  if (is(prior, "dbartsChiHyperprior")) {
+    paste0(
+      "chi(",
+      printedNumber(prior@degreesOfFreedom),
+      ", ",
+      printedNumber(prior@scale),
+      ")"
+    )
+  } else if (is(prior, "dbartsSdHyperprior")) {
+    paste0(
+      "invchi(",
+      printedNumber(prior@df),
+      ", ",
+      printedNumber(prior@scale),
+      ")"
+    )
+  } else {
+    printedNumber(prior)
+  }
 }
 
 ## The block of a fit, from what the fit stores: the short one of its synopsis,
@@ -213,7 +287,8 @@ fitForestLines <- function(fit, full = FALSE) {
     fit[["family"]],
     attr(fit, "forest.unit", exact = TRUE),
     full,
-    "summary()"
+    "summary()",
+    attr(fit, "forest.trees", exact = TRUE)
   )
 }
 
@@ -239,6 +314,7 @@ samplerForestLines <- function(sampler, full = FALSE) {
     sampler$model@family,
     dataForestCalibration(sampler$data)[["unit"]],
     full,
-    "$getLeafPrior()"
+    "$getLeafPrior()",
+    vapply(info$params, function(forest) as.integer(forest[1L]), 0L)
   )
 }

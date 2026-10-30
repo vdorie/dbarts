@@ -689,7 +689,7 @@ resolveSamplerSpec <- function(
   plain <- if (is.null(declaredBases)) 1L else plainForest(declaredHasBasis)
   # ahead of every other reading of these arguments, so that each is told
   # where it belongs and not what a model of several forests cannot take
-  if (plain == 0L && length(declaredBases) > 1L) {
+  if (length(plain) == 0L && length(declaredBases) > 1L) {
     refuseStatedWithNoPlainForest(
       stated,
       interactions,
@@ -704,29 +704,45 @@ resolveSamplerSpec <- function(
       }
     )
   }
-  plainSpec <- if (plain > 0L && length(forestSpec) >= plain) {
-    forestSpec[[plain]]
+  # a partition or a constraint of one forest's predictors cannot be each
+  # forest's: beside two or more forests with no basis it is stated on one
+  if (length(plain) > 1L) {
+    refuseConstraintOnSeveralPlain(interactions, blocks, length(plain))
   }
+  plainSpecs <- lapply(plain[plain <= length(forestSpec)], function(index) {
+    forestSpec[[index]]
+  })
   # the fitting function's own 'n.trees', 'power' and 'base' and the plain
-  # forest's are one setting each; the control's count beside the forest's
-  # own leaves the forest's to govern
-  if (!is.null(plainSpec)) {
+  # forests' are one setting each, reaching the forests that state none; the
+  # control's count beside the forests' own leaves theirs to govern
+  if (length(plainSpecs) == length(plain) && length(plain) > 0L) {
     refuseStatedOnPlainForest(
       stated,
-      plainSpec,
-      forestKnobLabel(forests, plain)
+      plainSpecs,
+      forestKnobLabel(forests, plain[1L])
     )
   }
+  # the forests that share one total, which take the fitting function's leaf
+  # prior as one forest's
+  sharers <- if (length(plain) > 1L) sharingForests(forestSpec, plain)
+  shares <- length(sharers) > 0L
   # the fitting function's own, read once before any forest's statement is
   # written over the slot
   fitTreeCount <- control@n.trees
   fitInteractions <- interactions
   fitBlocks <- blocks
-  firstIsPlain <- plain == 1L
+  firstIsPlain <- 1L %in% plain
+  firstSplit <- if (firstIsPlain && length(plain) > 1L) {
+    allSpecs <- rep(list(NULL), length(declaredHasBasis))
+    allSpecs[seq_along(forestSpec)] <- forestSpec
+    plainTreeCounts(allSpecs, declaredHasBasis, fitTreeCount)[[1L]]
+  }
   if (!is.null(firstForest$n.trees)) {
     control@n.trees <- firstForest$n.trees
   } else if (!firstIsPlain) {
     control@n.trees <- multipliedForestDefaults$n.trees
+  } else if (!is.null(firstSplit)) {
+    control@n.trees <- as.integer(firstSplit)
   }
   # the model carries the first forest's constraints: its own, and the fitting
   # function's where it is the plain forest
@@ -766,7 +782,7 @@ resolveSamplerSpec <- function(
   # a multi-forest fit is the one whose forests carry amplitude bases; the
   # calibration map pins every forest's k, so the binary chi-k default is
   # redirected to the fixed 2 rather than refused below
-  parsePriorsCall$multiForest <- !is.null(declaredBases)
+  parsePriorsCall$multiForest <- !is.null(declaredBases) && !shares
   parsePriorsCall$kHyperprior <- drawsLeafKByDefault(family)
   parsePriorsCall$parentEnv <- evalEnv
   # the one forest of a single-forest model states its size as the fitting
@@ -1235,11 +1251,12 @@ resolveSamplerSpec <- function(
       "'monotone'" = !is.null(monotoneDirections),
       "a linear leaf prior" = is(priors$leaf.prior, "dbartsLinearPrior"),
       "a Gaussian-process leaf prior" = is(priors$leaf.prior, "dbartsGPPrior"),
-      "a 'k' hyperprior" = is(priors$leaf.hyperprior, "dbartsChiHyperprior"),
-      "a non-default 'k'" = is(
-        priors$leaf.hyperprior,
-        "dbartsFixedHyperprior"
-      ) &&
+      # the forests that share one total take the fitting function's leaf
+      # prior as one forest does; with none sharing it has no forest
+      "a 'k' hyperprior" = !shares &&
+        is(priors$leaf.hyperprior, "dbartsChiHyperprior"),
+      "a non-default 'k'" = !shares &&
+        is(priors$leaf.hyperprior, "dbartsFixedHyperprior") &&
         priors$leaf.hyperprior@k != 2.0,
       # "differs from the family default": defaultLeafScale(family), not a
       # gaussian-only literal
@@ -1249,7 +1266,7 @@ resolveSamplerSpec <- function(
       # own latent scale, so a named anchor has nowhere to land and the
       # leaf.scale gate above does not fire on it; parsePriors refuses a named
       # sd first, so this backstops a model built by hand
-      "a named leaf-prior 'sd'" = !is.na(model@prior.scale),
+      "a named leaf-prior 'sd'" = !shares && !is.na(model@prior.scale),
       "Student-t residuals" = !is.null(residDf),
       "'variance'" = !is.null(varianceColumns),
       "storage = \"single\"" = identical(control@storage, "single"),
@@ -1339,7 +1356,11 @@ resolveSamplerSpec <- function(
           function(index) {
             own <- specs[[index]]$interactions
             resolveInteractions(
-              if (is.null(own) && index == plain) fitInteractions else own,
+              if (is.null(own) && identical(index, plain)) {
+                fitInteractions
+              } else {
+                own
+              },
               data
             )
           }
@@ -1352,7 +1373,7 @@ resolveSamplerSpec <- function(
           function(index) {
             own <- specs[[index]]$blocks
             resolveBlocks(
-              if (is.null(own) && index == plain) fitBlocks else own,
+              if (is.null(own) && identical(index, plain)) fitBlocks else own,
               data,
               treeCounts[index],
               availableColumns = forestColumns[[index]]
@@ -1378,12 +1399,13 @@ resolveSamplerSpec <- function(
       attr(control, "bartcore.forests") <- forestInfo
     }
     # where the first forest has a basis the control's slot holds a multiplied
-    # forest's count, so the count a later fit given this control inherits is
-    # kept beside it: the plain forest's as it runs, or the fitting function's
-    # own where no forest is plain. Inert to the run
-    if (!firstIsPlain) {
+    # forest's count, and where forests with no basis split the count it holds
+    # forest 1's part, so the count a later fit given this control inherits is
+    # kept beside it: the plain forest's as it runs where there is one, else
+    # the fitting function's own. Inert to the run
+    if (!firstIsPlain || length(plain) > 1L) {
       forestInfo <- attr(control, "bartcore.forests", exact = TRUE)
-      forestInfo$control.n.trees <- if (plain > 0L) {
+      forestInfo$control.n.trees <- if (length(plain) == 1L) {
         treeCounts[plain]
       } else {
         fitTreeCount
@@ -1604,9 +1626,13 @@ dbartsSpec <- function(
       finished$levels,
       forests
     )
-    # as in dbarts(): a list in which no forest declares a basis names no
-    # multi-forest model, and falls through to resolveForests' refusal
-    if (any(!vapply(built$bases, is.null, logical(1L)))) {
+    # as in dbarts(): a list of two or more in which no forest declares a
+    # basis is a model of several forests with none, unless the data object
+    # carries bases, which such a list states knobs for
+    if (
+      any(!vapply(built$bases, is.null, logical(1L))) ||
+        (length(built$bases) > 1L && is.null(data@bases))
+    ) {
       basis <- built$bases
       basisLevels <- built$levels
       if (any(!vapply(built$records, is.null, logical(1L)))) {

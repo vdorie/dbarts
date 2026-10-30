@@ -37,6 +37,17 @@ latentHeader <- function(errorSd) {
   paste0("forests, sd on the latent scale (error sd ", g(errorSd), "):")
 }
 shortHeader <- "forests:"
+# the line after the forests: each one's tree count and their total
+treesLine <- function(...) {
+  counts <- c(...)
+  paste0(
+    "  trees: ",
+    paste(counts, collapse = ", "),
+    "; ",
+    sum(counts),
+    " in all"
+  )
+}
 fitFooter <- "(each forest's prior in full: summary())"
 samplerFooter <- "(each forest's prior in full: $getLeafPrior())"
 # a numeric forest's line as far as the column goes: its mean and sd
@@ -113,7 +124,8 @@ expectedFull <- c(
     "  4 factor(z): factor basis, 2 levels; sd ",
     g(U),
     " between the two levels (default); coefficient held"
-  )
+  ),
+  treesLine(75, 50, 50, 50)
 )
 shortForests <- c(
   paste0("  1 forest1: no basis; sd ", g(2 * U)),
@@ -123,7 +135,8 @@ shortForests <- c(
     "  4 factor(z): factor basis, 2 levels; sd ",
     g(U),
     " between the two levels"
-  )
+  ),
+  treesLine(75, 50, 50, 50)
 )
 expectedFit <- c(shortHeader, shortForests, fitFooter)
 # a default's figure on the short line is sd(y), whatever the column's units
@@ -291,7 +304,7 @@ sigmaHeld <- counted(bartFit(
 heldLines <- summaryLines(sigmaHeld)
 expect_true("(Fixed, not sampled: sigma = 0.5)" %in% heldLines)
 expect_false(any(grepl("leaf.prior.sd[", heldLines, fixed = TRUE)))
-expect_identical(length(fullOf(heldLines)), 3L)
+expect_identical(length(fullOf(heldLines)), 4L)
 # a fit made without keeping its fits keeps no bases and no labels, so it
 # prints no block, short or full, and its summary keeps the sds on the line
 # under the table
@@ -398,6 +411,7 @@ expect_identical(
     paste0("  1 forest1: no basis; sd ", g(heldSd)),
     numericShort(2, "dose", dose, 30),
     "  3 factor(z): factor basis, 2 levels; sd 0.5 between the two levels",
+    treesLine(75, 50, 50),
     samplerFooter
   )
 )
@@ -415,12 +429,14 @@ for (family in c("probit", "logistic")) {
   latentFull <- c(
     latentHeader(errorSd),
     paste0("  1 forest1: no basis; sd ", g(errorSd), " (default)"),
-    numericLine(2, "dose", dose, errorSd / sd(dose), "default")
+    numericLine(2, "dose", dose, errorSd / sd(dose), "default"),
+    treesLine(75, 50)
   )
   latentShort <- c(
     shortHeader,
     paste0("  1 forest1: no basis; sd ", g(errorSd)),
-    numericShort(2, "dose", dose, errorSd / sd(dose))
+    numericShort(2, "dose", dose, errorSd / sd(dose)),
+    treesLine(75, 50)
   )
   expect_identical(latentMade$full, latentFull, info = family)
   expect_identical(
@@ -524,7 +540,8 @@ expect_identical(weightedLines[1L], header(unitIn))
 weightedShort <- c(
   shortHeader,
   paste0("  1 forest1: no basis; sd ", g(2 * unitIn)),
-  numericShort(2, "dose", dose[rowsIn], perUnitIn)
+  numericShort(2, "dose", dose[rowsIn], perUnitIn),
+  treesLine(75, 50)
 )
 expect_identical(
   shortOf(showLines(weighted)),
@@ -674,8 +691,8 @@ tenMade <- built(dbarts(
   control = printControl(verbose = TRUE)
 ))
 tenShort <- shortOf(showLines(tenMade$sampler))
-expect_identical(length(tenMade$full), 11L)
-expect_identical(length(tenShort), 12L)
+expect_identical(length(tenMade$full), 12L)
+expect_identical(length(tenShort), 13L)
 for (tenLines in list(tenMade$full, tenShort)) {
   expect_true(starts(tenLines[2L], "   1 f1: no basis; sd "))
   expect_true(starts(tenLines[3L], "   2 f2: numeric basis, "))
@@ -696,7 +713,8 @@ offsetFull <- c(
     "  2 factor(z): factor basis, 2 levels; sd ",
     g(sd(yOff - off)),
     " between the two levels (default)"
-  )
+  ),
+  treesLine(75, 50)
 )
 offsetMade <- built(dbarts(
   yOff ~ forest(x1 + x2) + forest(x1, basis = factor(z)),
@@ -716,7 +734,8 @@ dConstant <- data.frame(d, yConstant = 3)
 constantFull <- c(
   "forests, sd in the response's units (sd(y) 0.25):",
   "  1 forest1: no basis; sd 0.5 (default)",
-  "  2 factor(z): factor basis, 2 levels; sd 0.25 between the two levels (default)"
+  "  2 factor(z): factor basis, 2 levels; sd 0.25 between the two levels (default)",
+  treesLine(75, 50)
 )
 constantSampler <- collected(dbarts(
   yConstant ~ forest(x1 + x2) + forest(x1, basis = factor(z)),
@@ -738,6 +757,7 @@ expect_identical(
     shortHeader,
     "  1 forest1: no basis; sd 0.5",
     "  2 factor(z): factor basis, 2 levels; sd 0.25 between the two levels",
+    treesLine(75, 50),
     fitFooter
   )
 )
@@ -760,12 +780,14 @@ expect_identical(shortOf(showLines(replaced)), beforeReplaceShort)
 maskedFull <- c(
   latentHeader(1),
   "  1 forest1: no basis; sd 1 (default)",
-  numericLine(2, "dose", dose[rowsIn], 1 / sd(dose[rowsIn]), "default")
+  numericLine(2, "dose", dose[rowsIn], 1 / sd(dose[rowsIn]), "default"),
+  treesLine(75, 50)
 )
 maskedShort <- c(
   shortHeader,
   "  1 forest1: no basis; sd 1",
-  numericShort(2, "dose", dose[rowsIn], 1 / sd(dose[rowsIn]))
+  numericShort(2, "dose", dose[rowsIn], 1 / sd(dose[rowsIn])),
+  treesLine(75, 50)
 )
 maskedMade <- built(dbarts(
   yb ~ forest(x1 + x2) + forest(x1, basis = dose),
@@ -796,12 +818,14 @@ expect_identical(fullOf(summaryLines(maskedFit)), maskedFull)
 fallbackFull <- c(
   latentHeader(1),
   "  1 forest1: no basis; sd 1 (default)",
-  numericLine(2, "dose", dose, 1 / sd(dose), "default")
+  numericLine(2, "dose", dose, 1 / sd(dose), "default"),
+  treesLine(75, 50)
 )
 fallbackShort <- c(
   shortHeader,
   "  1 forest1: no basis; sd 1",
-  numericShort(2, "dose", dose, 1 / sd(dose))
+  numericShort(2, "dose", dose, 1 / sd(dose)),
+  treesLine(75, 50)
 )
 fallbackSampler <- collected(dbarts(
   yb ~ forest(x1 + x2) + forest(x1, basis = dose),
