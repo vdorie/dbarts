@@ -4978,6 +4978,7 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
   realNotBounded <- checkRealNotBounded()
   ratioFinite <- checkRatioFinite()
   longOwed <- checkLongOwed()
+  tiedSingle <- checkCoveredSingle()
   missing <- character()
   ungated <- character()
   noExtend <- character()
@@ -5181,7 +5182,8 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
       length(moveMissing) == 0L &&
       realNotBounded &&
       ratioFinite &&
-      longOwed,
+      longOwed &&
+      tiedSingle,
     list(
       jobs = length(ids),
       gatedJobs = sum(lengths(gates) > 0L),
@@ -5203,8 +5205,20 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
   )
 }
 
-# A ratio of mean probabilities is finite however far a small k spreads the
-# latent scale, and equals the direct computation where nothing underflows.
+# A truth tied at an atom is covered however its bound rounds to single
+# precision, and a truth a real distance outside is not.
+checkCoveredSingle <- function() {
+  bound <- 1 / 0.975
+  q <- readBin(writeBin(bound, raw(), size = 4L), "numeric", size = 4L)
+  report(
+    "a truth at an atom is covered through single-precision rounding",
+    q != bound &&
+      coveredSingle(q, q, bound) &&
+      !coveredSingle(q, q, bound * (1 + 1e-5)) &&
+      !coveredSingle(q, q, bound * (1 - 1e-5))
+  )
+}
+
 # The long oracle is owed by the default oracle's distance from nominal, bands
 # aside, beyond the regimes that already ran it.
 checkLongOwed <- function() {
@@ -5216,6 +5230,8 @@ checkLongOwed <- function() {
   identical(longOracleOwedFrom(tab), c("S2", "S4"))
 }
 
+# A ratio of mean probabilities is finite however far a small k spreads the
+# latent scale, and equals the direct computation where nothing underflows.
 checkRatioFinite <- function() {
   ok <- TRUE
   for (link in both) {
@@ -7131,6 +7147,14 @@ runLongOracleRead <- function() {
 # compacted quantiles and draws, against nominal. Bootstrap over references;
 # flagged past the Bonferroni bound over the readings at two-sided 0.05, as in
 # the null run.
+# Stored quantiles are single precision and the truth double: a truth tied at an
+# atom, such as a bounded inverse weight, reads past its quantile by rounding
+# alone, so each end gives way by one single-precision spacing.
+coveredSingle <- function(lo, hi, truth) {
+  tol <- 2^-23 * abs(truth)
+  lo - tol <= truth & truth <= hi + tol
+}
+
 refClassRows <- function(cell, link, rep) {
   acc <- loadChecked(acceptanceFile(cell, link, rep))
   if (!isTRUE(acc$final) || !isTRUE(acc$accepted)) {
@@ -7154,7 +7178,7 @@ refClassRows <- function(cell, link, rep) {
     rows[[nm]] <- data.frame(
       class = nm,
       n = length(t),
-      cov90 = sum(q[lo, ] <= t & t <= q[hi, ])
+      cov90 = sum(coveredSingle(q[lo, ], q[hi, ], t))
     )
   }
   for (nm in intersect(names(cp$scalars), names(truth))) {
