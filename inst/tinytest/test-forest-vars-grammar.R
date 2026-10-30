@@ -170,7 +170,7 @@ expect_identical(
 expect_identical(
   refusal(eval(withVariance(quote(varianceForest(nosuch + x2))))),
   paste0(
-    "'nosuch' is not a predictor of this fit (x1, x2, x3); here a ",
+    "'nosuch' is not a predictor of this fit (x1, x2, x3); here ",
     "varianceForest()'s first argument selects among them"
   )
 )

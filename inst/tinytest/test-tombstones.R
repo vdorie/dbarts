@@ -666,19 +666,10 @@ fitLeafPrior <- dbarts::dbarts(
 )
 expect_identical(fitNodePrior$run(5L, 5L)$train, fitLeafPrior$run(5L, 5L)$train)
 
-# node.prior = NULL is a supplied value, not an absent one (missing() is
-# FALSE), so the warning still fires and the NULL still reaches parsePriors
-# as leaf.prior's value; it must refuse exactly as leaf.prior = NULL does,
-# not silently fall back to leaf.prior's own normal default (F1: a plain
-# matchedCall$leaf.prior <- matchedCall$node.prior assignment of NULL
-# deletes the element instead of setting it)
 warnEnv[["tombstone.node.prior.dbarts"]] <- NULL
-expect_error(
-  suppressWarnings(
-    dbarts::dbarts(xLV, yLV, control = lvControl, node.prior = NULL)
-  ),
-  pattern = "'leaf.prior' cannot be NULL; leave it out"
-)
+# node.prior defaults to NULL in the signature, so a written NULL is the name
+# left out: no warning, and the default leaf prior
+expect_silent(dbarts::dbarts(xLV, yLV, control = lvControl, node.prior = NULL))
 expect_error(
   dbarts::dbarts(xLV, yLV, control = lvControl, leaf.prior = NULL),
   pattern = "'leaf.prior' cannot be NULL; leave it out"

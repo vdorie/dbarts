@@ -1313,7 +1313,7 @@ resolveForestVars <- function(
       name,
       "' is not a predictor of this fit (",
       paste(predictors, collapse = ", "),
-      "); here a ",
+      "); here ",
       owner,
       " selects among them",
       call. = FALSE
@@ -2048,10 +2048,18 @@ refuseNullArgument <- function(value, name) {
   invisible(value)
 }
 
-## Which of `names` the call `call` writes with a value of NULL, judged by the
-## value in `env`'s prior vocabulary: a literal NULL, or a name or call that
-## evaluates to it. An expression that does not evaluate here is not NULL, and
-## is left to whatever reads it.
+## `refuseNullArgument` for each argument handed over by name.
+refuseNullArguments <- function(...) {
+  names <- vapply(as.list(substitute(list(...)))[-1L], deparse1, "")
+  values <- list(...)
+  for (i in seq_along(values)) {
+    refuseNullArgument(values[[i]], names[[i]])
+  }
+}
+
+## Which of `names` the call `call` writes as NULL: a literal NULL, or a bare
+## name (a wrapper's variable, a forwarded `..1`) that holds it. Any other
+## expression is left to whatever reads it, so none is evaluated twice.
 nullWritten <- function(call, names, env) {
   isNull <- function(name) {
     if (!name %in% names(call)) {
@@ -2061,7 +2069,7 @@ nullWritten <- function(call, names, env) {
     if (is.null(expr)) {
       return(TRUE)
     }
-    if (is.numeric(expr) || is.character(expr)) {
+    if (!is.symbol(expr)) {
       return(FALSE)
     }
     tryCatch(

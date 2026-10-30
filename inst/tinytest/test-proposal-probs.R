@@ -546,13 +546,18 @@ bcfFit <- function(probs) {
     xBcf,
     yBcf,
     forests = bcfForests,
-    control = dbarts::dbartsControl(
-      n.chains = 1L,
-      n.threads = 1L,
-      n.trees = 25L,
-      updateState = FALSE,
-      seed = 17L,
-      proposal.probs = probs
+    control = do.call(
+      dbarts::dbartsControl,
+      c(
+        list(
+          n.chains = 1L,
+          n.threads = 1L,
+          n.trees = 25L,
+          updateState = FALSE,
+          seed = 17L
+        ),
+        if (!is.null(probs)) list(proposal.probs = probs)
+      )
     )
   )
 }

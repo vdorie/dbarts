@@ -758,7 +758,7 @@ expectSameForest(
 refuses(
   y ~ x1 + x2 + forest(c("x1", "nosuch"), basis = ~z),
   paste0(
-    "'nosuch' is not a predictor of this fit (x1, x2); here a forest()'s ",
+    "'nosuch' is not a predictor of this fit (x1, x2); here forest()'s ",
     "first argument selects among them"
   )
 )

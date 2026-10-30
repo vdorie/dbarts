@@ -36,16 +36,9 @@ xbart <- function(
 ) {
   matchedCall <- match.call()
   # a NULL where the default is not NULL is refused by name
-  if (!missing(n.trees)) {
-    refuseNullArgument(n.trees, "n.trees")
-  }
-  # a NULL where the default is not NULL is refused by name
-  if (!missing(power)) {
-    refuseNullArgument(power, "power")
-  }
-  # a NULL where the default is not NULL is refused by name
-  if (!missing(base)) {
-    refuseNullArgument(base, "base")
+  refuseNullArguments(n.trees, power, base)
+  if (!missing(parallel)) {
+    refuseNullArguments(parallel)
   }
   # the creation-time estimate is 'sigest'; 'sigma' is 0.9-x's spelling of it,
   # accepted for one release

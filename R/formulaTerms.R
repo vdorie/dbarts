@@ -956,23 +956,17 @@ refuseGivenTwiceInFormula <- function(formula, names) {
   walked <- tryCatch(walkFormulaTerms(formula), error = function(e) NULL)
   for (hit in walked$hits) {
     args <- tryCatch(forestCallArguments(hit), error = function(e) NULL)
-    # a NULL written in the forest, or held by what it names, is the name
-    # left out
-    heldNull <- function(expr) {
-      is.null(expr) ||
-        (is.language(expr) &&
-          tryCatch(
-            is.null(eval(expr, environment(formula))),
-            error = function(e) FALSE
-          ))
-    }
     if ("basis" %in% names(args)) {
       next
     }
-    for (name in intersect(names, names(args))) {
-      if (!heldNull(args[[name]])) {
-        refuseGivenTwice(name, paste0("'", shownCode(hit), "'"))
-      }
+    # a NULL written in the forest, or held by the name it gives, is the name
+    # left out
+    stated <- setdiff(
+      intersect(names, names(args)),
+      nullWritten(args, names, environment(formula))
+    )
+    for (name in stated) {
+      refuseGivenTwice(name, paste0("'", shownCode(hit), "'"))
     }
   }
   invisible(NULL)

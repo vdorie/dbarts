@@ -298,7 +298,7 @@ notPredictor <- function(name) {
   paste0(
     "'",
     name,
-    "' is not a predictor of this fit (x1, x2, x3); here a forest()'s first ",
+    "' is not a predictor of this fit (x1, x2, x3); here forest()'s first ",
     "argument selects among them"
   )
 }

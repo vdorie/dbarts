@@ -508,7 +508,7 @@ dbartsControl <- function(
   }
   unstatedThreads <- missing(n.threads)
   n.threads <- fallBackToOneThread(n.threads, unstatedThreads)
-  refuseNullArgument(n.trees, "n.trees")
+  refuseNullArguments(n.trees, proposal.probs)
   result <- newValidated(
     "dbartsControl",
     verbose = as.logical(verbose),
@@ -875,6 +875,12 @@ dbarts <- function(
   # is the 0.9-x spelling, accepted for one release. Both flags are read
   # before either name is assigned: an assignment makes missing() false.
   nodePriorSupplied <- !missing(node.prior)
+  # its default is NULL, so a written NULL is the name left out
+  if (length(nullWritten(matchedCall, "node.prior", evalEnv)) > 0L) {
+    nodePriorSupplied <- FALSE
+    matchedCall$node.prior <- NULL
+    writtenArgs <- setdiff(writtenArgs, "node.prior")
+  }
   leafPriorSupplied <- !missing(leaf.prior)
   matchedCall <- resolveRenamedLeafPrior(
     matchedCall,
@@ -950,13 +956,13 @@ dbarts <- function(
 
   # the formula as written, kept for the call a sampler records
   writtenFormula <- NULL
-  # the fitting function's power and base are the forest with no basis's, so a
-  # formula that writes that forest with one of its own states it twice
   # judged without forcing: power may hold a retired tree prior in its
   # vocabulary
   for (name in nullWritten(matchedCall, c("power", "base"), evalEnv)) {
     refuseNullArgument(NULL, name)
   }
+  # the fitting function's power and base are the forest with no basis's, so a
+  # formula that writes that forest with one of its own states it twice
   givenPlain <- intersect(c("power", "base"), writtenArgs)
   if (length(givenPlain) > 0L && is.formula(formula)) {
     refuseGivenTwiceInFormula(formula, givenPlain)

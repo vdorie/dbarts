@@ -99,3 +99,119 @@ expect_equal(through(y ~ forest(x1 + x2, sd = 2), d, k = NULL), sized)
 expect_error(through(y ~ x1 + x2, d, power = NULL), refusal("power"))
 p <- NULL
 expect_equal(fit(y ~ forest(x1 + x2, power = p), d, power = 3), powered)
+
+# a written call is evaluated once, not once to test it for NULL and again to
+# use it: k = runif() draws what it draws without the test
+set.seed(7L)
+drawn <- fit(y ~ x1 + x2, d, k = runif(1L, 1, 3))
+set.seed(7L)
+held <- runif(1L, 1, 3)
+expect_equal(
+  drawn,
+  fit(y ~ x1 + x2, d, k = held),
+  info = "k = runif() draws once"
+)
+ticks <- 0L
+tick <- function(value) {
+  ticks <<- ticks + 1L
+  value
+}
+once <- function(info, ...) {
+  ticks <<- 0L
+  suppressWarnings(suppressMessages(...))
+  expect_identical(ticks, 1L, info = info)
+}
+once("bart k", fit(y ~ x1 + x2, d, k = tick(2)))
+once(
+  "xbart k",
+  xbart(
+    y ~ x1 + x2,
+    d,
+    n.samples = 5L,
+    n.burn = c(5L, 5L),
+    n.reps = 1L,
+    n.threads = 1L,
+    n.test = 5,
+    verbose = FALSE,
+    k = tick(2)
+  )
+)
+once(
+  "xbart sd",
+  xbart(
+    y ~ x1 + x2,
+    d,
+    n.samples = 5L,
+    n.burn = c(5L, 5L),
+    n.reps = 1L,
+    n.threads = 1L,
+    n.test = 5,
+    verbose = FALSE,
+    sd = tick(1)
+  )
+)
+once("dbarts power", dbarts(y ~ x1 + x2, d, power = tick(2)))
+once("dbarts base", dbarts(y ~ x1 + x2, d, base = tick(0.95)))
+once(
+  "dbartsSpec power",
+  dbartsSpec(dbartsData(y ~ x1 + x2, d), power = tick(2))
+)
+once(
+  "bartBT k",
+  dbarts:::bartBT(
+    d[, 1:2],
+    d$y,
+    ndpost = 5L,
+    nskip = 5L,
+    ntree = 5L,
+    verbose = FALSE,
+    k = tick(2)
+  )
+)
+once(
+  "rbart_vi k",
+  rbart_vi(
+    y ~ x1 + x2,
+    d,
+    group.by = rep(1:5, 10L),
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 5L,
+    verbose = FALSE,
+    k = tick(2)
+  )
+)
+
+# settings that default to a value refuse a NULL as well
+expect_error(dbartsControl(proposal.probs = NULL), refusal("proposal.probs"))
+expect_error(fit(y ~ x1 + x2, d, samplerOnly = NULL), refusal("samplerOnly"))
+expect_error(
+  xbart(
+    y ~ x1 + x2,
+    d,
+    n.samples = 5L,
+    n.burn = c(5L, 5L),
+    n.reps = 1L,
+    parallel = NULL
+  ),
+  refusal("parallel")
+)
+
+# node.prior defaults to NULL in the signature, as tree.prior does: a written
+# NULL is the name left out
+expect_silent(nodeNull <- dbarts(y ~ x1 + x2, d, node.prior = NULL))
+expect_silent(dbarts(y ~ x1 + x2, d, tree.prior = NULL))
+expect_identical(
+  nodeNull$model@leaf.prior,
+  dbarts(y ~ x1 + x2, d)$model@leaf.prior
+)
+
+# a held formula selects the forest's predictors as the bare spelling does
+f <- ~ x1 + x2
+expect_equal(
+  fit(y ~ forest(f), d),
+  fit(y ~ forest(x1 + x2), d),
+  info = "held formula door"
+)

@@ -79,18 +79,7 @@ rbart_vi <- function(
   matchedCall <- match.call()
   callingEnv <- parent.frame()
   # a NULL where the default is not NULL is refused by name
-  if (!missing(n.trees)) {
-    refuseNullArgument(n.trees, "n.trees")
-  }
-  # a NULL where the default is not NULL is refused by name
-  if (!missing(power)) {
-    refuseNullArgument(power, "power")
-  }
-  # a NULL where the default is not NULL is refused by name
-  if (!missing(base)) {
-    refuseNullArgument(base, "base")
-  }
-  # a NULL where the default is not NULL is refused by name
+  refuseNullArguments(n.trees, power, base)
   # 'k' is read in the prior vocabulary, so it is judged without forcing it
   if (length(nullWritten(match.call(), "k", callingEnv)) > 0L) {
     refuseNullArgument(NULL, "k")
