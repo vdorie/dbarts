@@ -148,21 +148,6 @@ xbart <- function(
   )
   n.thin <- resolved$n.thin
   storage <- resolved$storage
-  for (name in names(carried)) {
-    if (!sameRecycled(carried[[name]], copies[[name]])) {
-      warnControlNotUsed(
-        name,
-        carried[[name]],
-        paste0(
-          "this cross-validation takes ",
-          paste(unique(copies[[name]]), collapse = ", "),
-          "; state it as xbart(",
-          name,
-          " = )"
-        )
-      )
-    }
-  }
   # 'seed' is resolved from its value, not from whether the call named it: a
   # wrapper forwarding its own seed = NULL must still defer to the control.
   seed <- resolveSeedArg(seed, "xbart")
@@ -362,6 +347,16 @@ xbart <- function(
   if (anyNA(n.trees) || any(n.trees <= 0L)) {
     stop("'n.trees' must contain only positive integers")
   }
+  # against the grid and the data object the cross-validation takes
+  warnNotUsed(
+    carried,
+    list(
+      n.trees = n.trees,
+      useQuantiles = isTRUE(data@useQuantiles),
+      n.cuts = data@n.cuts
+    ),
+    notUsedWords("xbart")
+  )
 
   # a supplied leaf.prior contributes the leaf model shape - normal(k), the
   # default, linear(columns, k), or gp(columns, k, ...), whose designated

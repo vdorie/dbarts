@@ -3191,30 +3191,19 @@ dbartsSampler <- setRefClass(
 
       # the tree count, the quantile rule and the cut count are the sampler's:
       # a copy that differs from them is taken, the sampler's kept, the caller
-      # told; a value the caller wrote is refused below
-      notUsed <- character(0L)
-      for (slotName in c("n.trees", "useQuantiles")) {
-        notUsed <- c(
-          notUsed,
-          setControlCopyReading(newControl, control, slotName)
-        )
-      }
-      givenCuts <- attr(newControl, controlCutsAttr, exact = TRUE)
-      if (!is.null(givenCuts) && !sameRecycled(givenCuts, data@n.cuts)) {
-        stop(
-          "changing 'n.cuts' is not available on an existing sampler",
-          call. = FALSE
-        )
-      }
-      writtenCopies <- names(writtenControlCopies(newControl))
-      givenCopies <- lapply(
-        stats::setNames(notUsed, notUsed),
-        methods::slot,
-        object = newControl
-      )
-      carriedCuts <- controlMirror(newControl)$n.cuts
-      if (!is.null(carriedCuts) && !sameRecycled(carriedCuts, data@n.cuts)) {
-        givenCopies$n.cuts <- carriedCuts
+      # told once the control is in; a value the caller wrote that differs is
+      # refused
+      held <- controlCopiesHeld(newControl)
+      takes <- heldCopies(model, data)
+      for (name in names(held$written)) {
+        if (!sameRecycled(held$written[[name]], takes[[name]])) {
+          stop(
+            "changing '",
+            name,
+            "' is not available on an existing sampler",
+            call. = FALSE
+          )
+        }
       }
 
       # settings fixed at creation: the generators, anything shaping the cut
@@ -3297,23 +3286,8 @@ dbartsSampler <- setRefClass(
         )
       }
       # once the control is in, so a refusal never spends the message
-      warnWrittenCopies(writtenCopies)
-      for (slotName in names(givenCopies)) {
-        kept <- if (identical(slotName, "n.cuts")) {
-          data@n.cuts
-        } else {
-          methods::slot(newControl, slotName)
-        }
-        warnControlNotUsed(
-          slotName,
-          givenCopies[[slotName]],
-          paste0(
-            "this sampler keeps its ",
-            paste(unique(kept), collapse = ", "),
-            ", fixed when it was created"
-          )
-        )
-      }
+      warnWrittenCopies(names(held$written))
+      warnNotUsed(held$carried, takes, notUsedWords("sampler"))
 
       invisible(NULL)
     },

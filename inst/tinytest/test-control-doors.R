@@ -662,6 +662,100 @@ if (!inherits(row$value, "error")) {
   expect_identical(row$value$data@n.cuts, rep(7L, 3L))
 }
 
+# xbart's comparison is with what it takes: a data object's count and rule
+agreeing <- dbartsData(x, y, n.cuts = 25L, useQuantiles = TRUE)
+quantileFit <- gauss(n.trees = 50L, n.cuts = 25L, useQuantiles = TRUE)
+row <- counted(xbarts(agreeing, n.trees = 50L, control = quantileFit$control))
+expect_identical(row$notUsed, character())
+own <- dbartsData(x, y, n.cuts = 10L, useQuantiles = TRUE)
+row <- counted(xbarts(own, n.trees = 5L, control = quantileFit$control))
+expect_identical(row$notUsed, sort(c("n.trees", "n.cuts")))
+# a per-column count is not the first of them
+perColumn <- gauss(n.cuts = c(5L, 7L, 9L))
+row <- counted(xbarts(x, y, n.cuts = 5L, control = perColumn$control))
+expect_identical(row$notUsed, "n.cuts")
+row <- counted(gauss(perColumn$control, n.cuts = 5L))
+expect_identical(row$notUsed, "n.cuts")
+# one per column of another count of columns, all alike, is the same count
+sameCuts <- gauss(n.cuts = 8L)
+row <- counted(terms(y ~ x1, sameCuts$control, n.cuts = 8L))
+expect_identical(row$notUsed, character())
+
+# what each door says, whatever the comparison
+said <- function(expr) {
+  told <- character()
+  withCallingHandlers(
+    tryCatch(expr, error = function(e) stop(e)),
+    dbartsControlNotUsedWarning = function(w) {
+      told <<- c(told, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+  told
+}
+expect_identical(
+  said(gauss(quantileFit$control)),
+  c(
+    "the control's n.trees (50) is not used: this fit has 75 trees; state the count as dbarts(n.trees = ) or forest(n.trees = )",
+    "the control's useQuantiles (TRUE) is not used: this fit takes FALSE; state the rule as dbarts(useQuantiles = ) or dbartsData(useQuantiles = )",
+    "the control's n.cuts (25) is not used: this fit takes 100; state the count as dbarts(n.cuts = ) or dbartsData(n.cuts = )"
+  )
+)
+expect_identical(
+  said(dbartsSpec(dbartsData(x, y), quantileFit$control)),
+  c(
+    "the control's n.trees (50) is not used: this fit has 75 trees; state the count as dbartsSpec(n.trees = ) or forest(n.trees = )",
+    "the control's useQuantiles (TRUE) is not used: this fit takes FALSE; state the rule as dbartsData(useQuantiles = )",
+    "the control's n.cuts (25) is not used: this fit takes 100; state the count as dbartsData(n.cuts = )"
+  )
+)
+expect_identical(
+  said(barts(x, y, control = quantileFit$control))[1L],
+  "the control's n.trees (50) is not used: this fit has 75 trees; state the count as bart(n.trees = ) or forest(n.trees = )"
+)
+# bart() given a data object takes no forest
+expect_identical(
+  said(barts(quantileFit$data, n.trees = 75L, control = quantileFit$control)),
+  "the control's n.trees (50) is not used: this fit has 75 trees; state the count as bart(n.trees = )"
+)
+expect_identical(
+  said(xbarts(x, y, n.trees = 5L, control = quantileFit$control)),
+  c(
+    "the control's n.trees (50) is not used: this cross-validation takes 5; state it as xbart(n.trees = )",
+    "the control's useQuantiles (TRUE) is not used: this cross-validation takes FALSE; state it as xbart(useQuantiles = )",
+    "the control's n.cuts (25) is not used: this cross-validation takes 100; state it as xbart(n.cuts = )"
+  )
+)
+expect_identical(
+  said(terms(
+    y ~ x1 + x2 + x3,
+    quantileFit$control,
+    forests = list(forest(), forest(basis = ~zn))
+  ))[1L],
+  "the control's n.trees (50) is not used: this fit has 75 trees in its forest with no basis; state the count as dbarts(n.trees = ) or forest(n.trees = )"
+)
+expect_identical(
+  said(terms(
+    y ~ x1 + x2 + x3,
+    quantileFit$control,
+    forests = list(
+      forest(x1, basis = ~zn, n.trees = 7L),
+      forest(x2, basis = ~z)
+    )
+  ))[1L],
+  "the control's n.trees (50) is not used: this fit's first forest has 7 trees; state the count as forest(n.trees = )"
+)
+# the same at bart() given a data object whose every forest has a basis
+allBasisData <- dbartsData(
+  y ~ x1 + x2 + x3,
+  frame,
+  bases = list(as.matrix(zn), as.matrix(z))
+)
+expect_identical(
+  said(barts(allBasisData, control = gauss(n.trees = 60L)$control))[1L],
+  "the control's n.trees (60) is not used: this fit's first forest has 50 trees; fit with dbarts() to state the count"
+)
+
 # --- dbartsSpec() ---
 
 row <- counted(specSampler(plainData, run(), n.trees = 30L))
@@ -1069,6 +1163,29 @@ for (bad in badRows) {
     info = bad[[2L]]
   )
 }
+
+# what this door says
+probitFit <- dbarts(x, yb, family = "probit", control = run())
+expect_identical(
+  said(direct(quantileFit$control, fit75)),
+  c(
+    "the control's n.trees (50) is not used: a sampler assembled by hand takes the model's count, 75",
+    "the control's useQuantiles (TRUE) is not used: a sampler assembled by hand takes the data object's rule, FALSE",
+    "the control's n.cuts (25) is not used: a sampler assembled by hand takes the data object's count, 100"
+  )
+)
+expect_identical(
+  said(direct(probitFit$control, fit75)),
+  "the control's binary (TRUE) is not used: a sampler assembled by hand takes the model's family, \"gaussian\""
+)
+expect_identical(
+  said(fit75$copy()$setControl(quantileFit$control)),
+  c(
+    "the control's n.trees (50) is not used: this sampler keeps its 75, fixed when it was created",
+    "the control's useQuantiles (TRUE) is not used: this sampler keeps its FALSE, fixed when it was created",
+    "the control's n.cuts (25) is not used: this sampler keeps its 100, fixed when it was created"
+  )
+)
 
 # --- $setControl ---
 

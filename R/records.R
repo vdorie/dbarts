@@ -128,16 +128,26 @@ freshControlValue <- function(name) {
   list(n.trees = 75L, useQuantiles = FALSE, binary = FALSE)[[name]]
 }
 
-## What the caller wrote on a control of controlWrittenNames, by name, judged as
-## the values it stands for: a slot takes any value of its class.
-writtenControlCopies <- function(control) {
-  written <- list()
+## What a control holds of controlWrittenNames, by name under `written` and
+## `carried`: its slots by their kind, the written cut count on its attribute and
+## the carried one in its mirror. A silent value is in neither.
+controlCopiesHeld <- function(control) {
+  held <- list(written = list(), carried = list())
   for (name in c("n.trees", "useQuantiles")) {
-    if (identical(controlValueKind(control, name), "written")) {
-      written[[name]] <- methods::slot(control, name)
+    kind <- controlValueKind(control, name)
+    if (!identical(kind, "silent")) {
+      held[[kind]][[name]] <- methods::slot(control, name)
     }
   }
-  written[["n.cuts"]] <- attr(control, controlCutsAttr, exact = TRUE)
+  held$written$n.cuts <- attr(control, controlCutsAttr, exact = TRUE)
+  held$carried$n.cuts <- controlMirror(control)$n.cuts
+  held
+}
+
+## What the caller wrote on a control of controlWrittenNames, judged as the
+## values it stands for: a slot takes any value of its class.
+writtenControlCopies <- function(control) {
+  written <- controlCopiesHeld(control)$written
   checked <- checkFlatCopies(
     written$n.trees,
     written$n.cuts,
@@ -325,17 +335,28 @@ forestsWithNoBasis <- function(model, data) {
   which(!hasBasis[seq_len(numForests)])
 }
 
+## What a model and data object hold of what a control copies, as a sampler over
+## them runs it: the count at the fitting function's level, the rule, an unstated
+## one reading as uniform, and the cut count.
+heldCopies <- function(model, data) {
+  list(
+    n.trees = fittingLevelCount(model, data),
+    useQuantiles = isTRUE(data@useQuantiles),
+    n.cuts = data@n.cuts
+  )
+}
+
 ## Writes the control's n.trees, useQuantiles and binary from the model and data
 ## a sampler takes: the count at the fitting function's level, the data object's
 ## rule, and whether the family is binary, a model whose family is "auto"
 ## leaving the control's own. The mirror is written beside them, the slots stop
 ## reading as named by the caller and a written cut count comes off.
 mirrorControl <- function(control, model, data) {
-  count <- fittingLevelCount(model, data)
-  if (!is.null(count)) {
-    control@n.trees <- count
+  copies <- heldCopies(model, data)
+  if (!is.null(copies$n.trees)) {
+    control@n.trees <- copies$n.trees
   }
-  control@useQuantiles <- isTRUE(data@useQuantiles)
+  control@useQuantiles <- copies$useQuantiles
   if (!identical(model@family, "auto")) {
     control@binary <- isBinaryFamily(model@family)
   }
@@ -351,7 +372,7 @@ mirrorControl <- function(control, model, data) {
     n.trees = control@n.trees,
     useQuantiles = control@useQuantiles,
     binary = control@binary,
-    n.cuts = data@n.cuts
+    n.cuts = copies$n.cuts
   )
   control
 }
@@ -371,89 +392,59 @@ releaseCarriedControl <- function(control, door) {
     carried <- list(door = door, values = list())
   }
   if (!is.null(controlMirror(control))) {
-    named <- controlSuppliedSlots(control)
-    for (name in setdiff(controlCopyNames, "binary")) {
-      kind <- controlValueKind(control, name)
-      if (identical(kind, "carried")) {
-        carried$values[[name]] <- methods::slot(control, name)
-        methods::slot(control, name) <- freshControlValue(name)
-      } else if (identical(kind, "written")) {
-        named <- union(named, name)
-      }
+    held <- controlCopiesHeld(control)
+    carried$values[names(held$carried)] <- held$carried
+    for (name in setdiff(names(held$carried), "n.cuts")) {
+      methods::slot(control, name) <- freshControlValue(name)
     }
-    carried$values$n.cuts <- controlMirror(control)$n.cuts
-    attr(control, controlSuppliedAttr) <- named
+    attr(control, controlSuppliedAttr) <- union(
+      controlSuppliedSlots(control),
+      setdiff(names(held$written), "n.cuts")
+    )
     attr(control, controlMirrorAttr) <- NULL
   }
   attr(control, controlCarriedAttr) <- carried
   control
 }
 
-## The not-used warning: on every call, where a control's value differs from
-## what the call takes.
-warnControlNotUsed <- function(name, value, what) {
-  warnClassed(
-    "dbartsControlNotUsedWarning",
-    "the control's ",
-    name,
-    " (",
-    paste(unique(value), collapse = ", "),
-    ") is not used: ",
-    what
-  )
-}
-
-## Whether a control's value, recycled, is the one per entry of `held`: a cut
-## count against a data object's per column, a count against xbart's grid.
-sameRecycled <- function(value, held) {
-  identical(
-    rep_len(as.integer(value), length(held)),
-    as.integer(held)
-  )
-}
-
-## The not-used warning for the values a fitting function set aside
-## (releaseCarriedControl), against the model and data it ended with.
-warnCarriedNotUsed <- function(carried, model, data) {
-  values <- carried$values
-  door <- carried$door
-  count <- fittingLevelCount(model, data)
-  if ("n.trees" %in% names(values) && !identical(values$n.trees, count)) {
-    plain <- length(forestsWithNoBasis(model, data))
-    numForests <- length(model@forests)
-    warnControlNotUsed(
-      "n.trees",
-      values$n.trees,
-      if (numForests == 1L) {
-        paste0(
-          "this fit has ",
-          count,
-          " trees; state the count as ",
-          door,
-          "(n.trees = ) or forest(n.trees = )"
-        )
-      } else if (plain > 0L) {
-        paste0(
-          "this fit has ",
-          count,
-          " trees in its forest",
-          if (plain > 1L) "s",
-          " with no basis; state the count as ",
-          door,
-          "(n.trees = ) or forest(n.trees = )"
-        )
-      } else {
-        paste0(
-          "this fit's first forest has ",
-          count,
-          " trees; state the count as forest(n.trees = )"
-        )
-      }
-    )
+## The not-used warning, on every call: each of `values`, a control's by name,
+## that differs from what the call takes, `takes`, gets the door's words, `says`,
+## "%s" standing for what the call takes.
+warnNotUsed <- function(values, takes, says) {
+  shown <- function(value) paste(unique(value), collapse = ", ")
+  for (name in intersect(names(takes), names(values))) {
+    if (!sameRecycled(values[[name]], takes[[name]])) {
+      warnClassed(
+        "dbartsControlNotUsedWarning",
+        "the control's ",
+        name,
+        " (",
+        shown(values[[name]]),
+        ") is not used: ",
+        sub("%s", shown(takes[[name]]), says[[name]], fixed = TRUE)
+      )
+    }
   }
+  invisible(NULL)
+}
+
+## Whether a control's value and what a call takes are one when the shorter is
+## recycled: a cut count against a data object's per column, a count against
+## xbart's grid.
+sameRecycled <- function(value, held) {
+  size <- max(length(value), length(held))
+  identical(rep_len(as.integer(value), size), rep_len(as.integer(held), size))
+}
+
+## What the not-used warning says of each value at a door: "sampler" at
+## $setControl, "xbart", "hand" at new("dbartsSampler", ...), or the fitting
+## function that names itself in its remedy, where `forests` says whether the
+## call can take forest(n.trees = ).
+notUsedWords <- function(door, model, data, forests = TRUE) {
+  named <- function(words) stats::setNames(as.list(words), controlWrittenNames)
   remedy <- function(name, what) {
     paste0(
-      "; state the ",
+      "this fit takes %s; state the ",
       what,
       " as ",
       if (!identical(door, "dbartsSpec")) paste0(door, "(", name, " = ) or "),
@@ -462,30 +453,63 @@ warnCarriedNotUsed <- function(carried, model, data) {
       " = )"
     )
   }
-  rule <- isTRUE(data@useQuantiles)
-  if (
-    "useQuantiles" %in% names(values) && !identical(values$useQuantiles, rule)
-  ) {
-    warnControlNotUsed(
-      "useQuantiles",
-      values$useQuantiles,
-      paste0("this fit takes ", rule, remedy("useQuantiles", "rule"))
-    )
-  }
-  if (
-    "n.cuts" %in% names(values) && !sameRecycled(values$n.cuts, data@n.cuts)
-  ) {
-    warnControlNotUsed(
-      "n.cuts",
-      values$n.cuts,
-      paste0(
-        "this fit takes ",
-        paste(unique(data@n.cuts), collapse = ", "),
-        remedy("n.cuts", "count")
+  switch(
+    door,
+    sampler = named(rep(
+      "this sampler keeps its %s, fixed when it was created",
+      length(controlWrittenNames)
+    )),
+    xbart = named(paste0(
+      "this cross-validation takes %s; state it as xbart(",
+      controlWrittenNames,
+      " = )"
+    )),
+    hand = c(
+      named(paste0(
+        "a sampler assembled by hand takes the ",
+        c("model's count", "data object's count", "data object's rule"),
+        ", %s"
+      )),
+      list(
+        binary = paste0(
+          "a sampler assembled by hand takes the model's family, \"",
+          model@family,
+          "\""
+        )
       )
+    ),
+    list(
+      n.trees = fitCountWords(door, model, data, forests),
+      n.cuts = remedy("n.cuts", "count"),
+      useQuantiles = remedy("useQuantiles", "rule")
     )
+  )
+}
+
+## What the not-used warning says of a count at a fitting function: where the
+## count it takes sits among the forests, and how to state another.
+fitCountWords <- function(door, model, data, forests) {
+  plain <- length(forestsWithNoBasis(model, data))
+  if (plain == 0L) {
+    return(paste0(
+      "this fit's first forest has %s trees; ",
+      if (forests) {
+        "state the count as forest(n.trees = )"
+      } else {
+        "fit with dbarts() to state the count"
+      }
+    ))
   }
-  invisible(NULL)
+  paste0(
+    "this fit has %s trees",
+    if (length(model@forests) > 1L) {
+      paste0(" in its forest", if (plain > 1L) "s", " with no basis")
+    },
+    "; state the count as ",
+    door,
+    "(n.trees = )",
+    if (forests) " or forest(n.trees = )"
+  )
 }
 
 ## The model and data a sampler takes from a control, a model and a data
@@ -567,85 +591,21 @@ takeControlReadings <- function(control, model, data) {
 ## object's governs there, and any binary flag beside a model that names its
 ## family.
 warnDirectDoorNotUsed <- function(control, model, data) {
-  written <- writtenControlCopies(control)
-  warnWrittenCopies(names(written))
-  kind <- function(name) controlValueKind(control, name)
-  count <- fittingLevelCount(model, data)
+  held <- controlCopiesHeld(control)
+  warnWrittenCopies(names(held$written))
+  values <- held$carried
+  if (!is.null(held$written$n.cuts)) {
+    values$n.cuts <- held$written$n.cuts
+  }
+  takes <- heldCopies(model, data)
   if (
-    identical(kind("n.trees"), "carried") && !identical(control@n.trees, count)
+    !identical(controlValueKind(control, "binary"), "silent") &&
+      !identical(model@family, "auto")
   ) {
-    warnControlNotUsed(
-      "n.trees",
-      control@n.trees,
-      paste0("a sampler assembled by hand takes the model's count, ", count)
-    )
+    values$binary <- control@binary
+    takes$binary <- isBinaryFamily(model@family)
   }
-  rule <- isTRUE(data@useQuantiles)
-  if (
-    identical(kind("useQuantiles"), "carried") &&
-      !identical(control@useQuantiles, rule)
-  ) {
-    warnControlNotUsed(
-      "useQuantiles",
-      control@useQuantiles,
-      paste0("a sampler assembled by hand takes the data object's rule, ", rule)
-    )
-  }
-  cuts <- if (is.null(written$n.cuts)) {
-    controlMirror(control)$n.cuts
-  } else {
-    written$n.cuts
-  }
-  if (
-    !is.null(cuts) && !anyNA(data@n.cuts) && !sameRecycled(cuts, data@n.cuts)
-  ) {
-    warnControlNotUsed(
-      "n.cuts",
-      cuts,
-      paste0(
-        "a sampler assembled by hand takes the data object's count, ",
-        paste(unique(data@n.cuts), collapse = ", ")
-      )
-    )
-  }
-  if (
-    !identical(kind("binary"), "silent") &&
-      !identical(model@family, "auto") &&
-      !identical(control@binary, isBinaryFamily(model@family))
-  ) {
-    warnControlNotUsed(
-      "binary",
-      control@binary,
-      paste0(
-        "a sampler assembled by hand takes the model's family, \"",
-        model@family,
-        "\""
-      )
-    )
-  }
-  invisible(NULL)
-}
-
-## $setControl's reading of a control's count or rule against the sampler's:
-## nothing where they agree, a refusal where the caller wrote another, and
-## otherwise the name, the sampler's being kept. A silent value keeps it with
-## no message.
-setControlCopyReading <- function(newControl, control, name) {
-  given <- methods::slot(newControl, name)
-  own <- methods::slot(control, name)
-  if (identical(given, own)) {
-    return(NULL)
-  }
-  kind <- controlValueKind(newControl, name)
-  if (identical(kind, "written")) {
-    stop(
-      "changing '",
-      name,
-      "' is not available on an existing sampler",
-      call. = FALSE
-    )
-  }
-  if (identical(kind, "carried")) name
+  warnNotUsed(values, takes, notUsedWords("hand", model))
 }
 
 ## The family the bridge is handed for a model: its own, a model whose family

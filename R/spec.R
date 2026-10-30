@@ -1438,7 +1438,16 @@ resolveSamplerSpec <- function(
   }
   model@forests <- records
   control <- mirrorControl(control, model, data)
-  warnCarriedNotUsed(carried, model, data)
+  warnNotUsed(
+    carried$values,
+    heldCopies(model, data),
+    notUsedWords(
+      carried$door,
+      model,
+      data,
+      !isTRUE(attr(stated, "noForestRemedy", exact = TRUE))
+    )
+  )
 
   # every resolution of "auto" is announced once, here, after the refusals
   # above: bart() reaches this through dbarts(), and dbartsSpec() reads its
