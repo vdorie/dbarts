@@ -613,11 +613,45 @@ expect_identical(
   made("data", onlyOnDropped, response = yDropped)$refused,
   atDoor(allZero$refused, "data")
 )
-# a row of weight zero is a row the fit keeps: its level stays
+# a row of weight zero is a row the fit keeps: its level stays. A factor of
+# three levels with one of them all at weight zero has all three, which a basis
+# of two levels refuses at every door, in the words it has with no weights
+threeLeft <- as.double(g != "c")
+for (door in sevenDoors) {
+  refused <- made(door, arm, weights = threeLeft)$refused
+  expect_identical(refused, made(door, arm)$refused, info = door)
+  expect_true(
+    grepl("has a basis of 3 levels ('a', 'b', 'c')", refused, fixed = TRUE),
+    info = door
+  )
+}
+# a factor of two levels with one of them all at weight zero has one level in
+# the likelihood, where the basis is a constant: refused at every door, the code
+# doors naming the forest's term
 zeroWeights <- as.double(z == 1)
 weighted <- expectOneReading(zf, sevenDoors, "", weights = zeroWeights)
-expect_identical(weighted$levels, list(NULL, c("0", "1")))
-expect_identical(weighted$block, unname(cbind(1 - z, z)))
+expect_false(is.null(weighted$refused))
+for (door in sevenDoors) {
+  expect_identical(
+    made(door, zf, weights = zeroWeights)$refused,
+    paste0(
+      "forest 2",
+      if (door %in% codeDoors) " ('B')",
+      "'s basis is \"1\" on every row in the likelihood, so its other level ",
+      "has no observations there and the forest would be multiplied by a ",
+      "constant"
+    ),
+    info = door
+  )
+}
+# and with rows of weight zero at each level, both levels stay and every row is
+# in the block
+crossed <- as.double(
+  !(seq_len(n) %in% c(which(z == 0)[1:5], which(z == 1)[1:5]))
+)
+crossedBoth <- expectOneReading(zf, sevenDoors, "", weights = crossed)
+expect_identical(crossedBoth$levels, list(NULL, c("0", "1")))
+expect_identical(crossedBoth$block, unname(cbind(1 - z, z)))
 # NA as a level: refused where a kept row is at it, at every door, and
 # dropped as any level no row has where none is
 atNaLevel <- is.na(as.character(withNaLevel))

@@ -8,7 +8,9 @@
 set.seed(20261011L)
 n <- 120L
 x <- matrix(runif(n * 2L), n, 2L, dimnames = list(NULL, c("x1", "x2")))
-z <- as.double(seq_len(n) %% 2L)
+# a 0/1 column that crosses the rows out, so that a factor of it has both
+# levels among the rows in
+z <- as.double(seq_len(n) %% 4L %in% c(1L, 2L))
 out <- seq_len(n) %% 2L == 0L
 rows.in <- !out
 w01 <- as.double(rows.in)
@@ -165,7 +167,7 @@ bcf <- function(...) {
 # Two fits that differ only in the response of the rows out at creation are
 # identical at the rows in, in sigma and in every reader, and agree at the rows
 # out to rounding.
-expectInert <- function(build, label) {
+expectInert <- function(build, label, outTolerance = 1e-12) {
   a <- build(yA)
   b <- build(yB)
   expect_identical(readers(a), readers(b), info = label)
@@ -173,7 +175,7 @@ expectInert <- function(build, label) {
   da <- a$run(10L, 8L)
   db <- b$run(10L, 8L)
   expect_identical(da$train[rows.in, ], db$train[rows.in, ], info = label)
-  expect_equal(da$train, db$train, tolerance = 1e-12, info = label)
+  expect_equal(da$train, db$train, tolerance = outTolerance, info = label)
   if (!is.null(da$sigma)) {
     expect_identical(da$sigma, db$sigma, info = label)
   }
@@ -215,7 +217,11 @@ expectInert(
       control = control
     )
   },
-  "two forests, a factor basis"
+  "two forests, a factor basis",
+  # a fit at a row out is read back through a residual the size of the response
+  # out, which moves by 50: it agrees to that rounding, 6e-11 here, and the
+  # rows in are identical
+  outTolerance = 1e-9
 )
 expectInert(
   function(r) {
