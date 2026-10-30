@@ -48,6 +48,11 @@ forest(
     predictors, `forest(x1 + x3)`, `forest(. - x2)`; names or positions
     do too, `forest(c("x1", "x3"))`, `forest(c(1, 3))`.
 
+  - A one-sided formula is its right-hand side, the tilde accepted and
+    never required: `forest(~ x1 + x2)`, or a formula held in a
+    variable, `f <- ~ x1 + x2` and then `forest(f)`. A formula with a
+    left-hand side is refused.
+
   - A name of a predictor is that predictor. Anything else is read where
     `forest()` is called, at that moment.
 
@@ -853,7 +858,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>   1 forest1: no basis; sd 2.278 (default)
 #>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)
 #> Running mcmc loop:
-#> total seconds in loop: 0.000728
+#> total seconds in loop: 0.000715
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 3 2 2 2 2 

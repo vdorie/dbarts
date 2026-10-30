@@ -187,19 +187,22 @@ family(object, ...)
   extreme \\y\\ values compress the effective prior on everything else,
   for which the published workaround is to log-transform or winsorize
   such values before fitting, or to let `k` adapt via the `chi`
-  hyperprior.
+  hyperprior. A written `NULL` is refused, saying to leave the argument
+  out for its default.
 
 - power:
 
   Power parameter for tree prior. Default 2, Chipman, George, and
   McCulloch's empirical recommendation (see References) for the
   split-probability decay \\base (1 + depth)^{-power}\\, not derived
-  from a formula.
+  from a formula. A written `NULL` is refused, saying to leave the
+  argument out for its default.
 
 - base:
 
   Base parameter for tree prior. Default 0.95, from the same source as
-  `power`.
+  `power`. A written `NULL` is refused, saying to leave the argument out
+  for its default.
 
 - splitprobs:
 
@@ -262,7 +265,8 @@ family(object, ...)
   `printevery`, `nthread`, `nchain`, `printcutoffs`), a fractional value
   is refused, naming the argument, rather than silently truncated; see
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
-  for the shared whole-number rule.
+  for the shared whole-number rule. A written `NULL` is refused, saying
+  to leave the argument out for its default.
 
 - ndpost:
 
@@ -633,11 +637,12 @@ family(object, ...)
 
   For `predict` on an amplitude-coupled multi-forest fit: the bases each
   forest's amplitudes multiply AT the predicted rows, which off the
-  training rows only the caller knows. A length-K list, in the forests'
-  order, entry k either `NULL` (for a forest that declared no basis,
-  whose amplitude multiplies an implicit all-ones column) or a value of
-  the class the forest was created with, which decides what it
-  multiplies (see
+  training rows only the caller knows. A list with one entry per forest,
+  in the forests' order, or with entries named by the forests' labels
+  (`forest<i>` also selects position i), entry k either `NULL` (for a
+  forest that declared no basis, whose amplitude multiplies an implicit
+  all-ones column) or a value of the class the forest was created with,
+  which decides what it multiplies (see
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
   `basis` item) and cannot change. For a forest of levels, created with
   a factor, a character vector or a logical vector, hand over a factor,
@@ -662,16 +667,19 @@ family(object, ...)
   refit with `keepFits = TRUE`. A missing value is refused on a row the
   prediction keeps and passed by on a row the `na.action` drops (see
   [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md)).
-  A name on an entry is refused unless it is that forest's label or
-  `forest<i>`, since the list is read by position. When exactly one
-  forest carries a basis the bare value may be given on its own, without
-  the list: for a Bayesian causal forest fit with its arm as
-  `factor(z)`, `bases = factor(zstar, levels = levels(factor(z)))` is
-  the counterfactual arm being predicted under, and `bases = fit$bases`
-  at the training rows is the training fit, to rounding. With no
-  `newdata` a `NULL` entry for a forest that carries a basis is refused,
-  as at `newdata`, since it does not stand for the fit's own; the
-  message names the way to keep the fit's own bases and change others,
+  A named entry selects the forest whose label it is and an unnamed one
+  the forest at its position, in any order and any subset; a forest no
+  entry names is left as it is, which at `newdata` is an error for a
+  forest that carries a basis, and two entries for one forest are
+  refused. When exactly one forest carries a basis the bare value may be
+  given on its own, without the list: for a Bayesian causal forest fit
+  with its arm as `factor(z)`,
+  `bases = factor(zstar, levels = levels(factor(z)))` is the
+  counterfactual arm being predicted under, and `bases = fit$bases` at
+  the training rows is the training fit, to rounding. With no `newdata`
+  a `NULL` entry for a forest that carries a basis is refused, as at
+  `newdata`, since it does not stand for the fit's own; the message
+  names the way to keep the fit's own bases and change others,
   `b <- fit$bases; b[[2]] <- z1; predict(fit, bases = b)`. Unlike at fit
   time, a column of all zeros on a forest of numbers and, on a forest of
   levels, a factor or a character vector with every row at one of the
@@ -1393,7 +1401,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.221835
+#> total seconds in loop: 0.222337
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

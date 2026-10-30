@@ -841,7 +841,8 @@ print(x, ...)
   BART-package default, or `chi(1.5, Inf)` for the old improper prior.
   See [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
   `k` item, and the ‘Leaf prior parameter `k`’ details there, for the
-  full calibration argument and its outlier-sensitivity caveat.
+  full calibration argument and its outlier-sensitivity caveat. A
+  written `NULL` is the argument left out.
 
 - power, base:
 
@@ -852,7 +853,8 @@ print(x, ...)
   `tree.prior`, and given one says what to write. Both are honored on
   every family, including both component fits of
   `family = "hurdle.lognormal"`. In a model of several forests they are
-  those of the forest with no `basis`; see ‘Formula Terms’.
+  those of the forest with no `basis`; see ‘Formula Terms’. A written
+  `NULL` is refused, saying to leave the argument out for its default.
 
 - split.probs:
 
@@ -887,7 +889,7 @@ print(x, ...)
   of several forests it is that of the forest with no `basis`, and a
   named leaf-prior `sd` is refused there: each forest states its size on
   the forest, in the response's units, as `forest(x1 + x2, sd = 2)`; see
-  ‘Formula Terms’.
+  ‘Formula Terms’. A written `NULL` is the argument left out.
 
 - monotone:
 
@@ -979,7 +981,8 @@ print(x, ...)
 
   The number of trees in the sum-of-trees formulation. In a model of
   several forests it is the count of the forest with no `basis`; see
-  ‘Formula Terms’.
+  ‘Formula Terms’. A written `NULL` is refused, saying to leave the
+  argument out for its default.
 
 - n.samples:
 
@@ -2177,7 +2180,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001808
+#> total seconds in loop: 0.001820
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 2 3 2 3 2 2 1 1 2 3 3 3 2 2 
@@ -2214,7 +2217,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000969
+#> total seconds in loop: 0.000930
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 1 2 1 2 2 2 2 2 1 1 1 1 1 2 1 2 1 
@@ -2249,7 +2252,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001421
+#> total seconds in loop: 0.001426
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 4 3 1 3 2 2 3 3 2 2 5 3 5 2 2 2 2 
@@ -2302,7 +2305,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   1 forest1: no basis; sd 1.798 (default)
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #> Running mcmc loop:
-#> total seconds in loop: 0.002263
+#> total seconds in loop: 0.002219
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 1 2 2 3 4 

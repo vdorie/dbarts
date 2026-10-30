@@ -30,12 +30,15 @@ varianceForest(
 
 - vars:
 
-  Which predictors drive the variance surface: a one-sided formula
-  (`~ x1 + x2`), or a character/integer column selector, resolved the
-  same way the plain `variance` selector is (a bare factor term name
-  expands to its indicator columns). `NULL` (the default) reads *every*
-  predictor - the object's own “unrestricted” reading, distinct from
-  `variance = NULL`, which declares no variance forest at all.
+  Which predictors drive the variance surface, written as
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
+  `vars` is: bare terms (`x1 + x2`), a one-sided formula in place or
+  held in a variable (`~ x1 + x2`, the tilde accepted and never
+  required), or a character or integer column selector (a bare factor
+  term name expands to its indicator columns). `NULL` (the default)
+  reads *every* predictor - the object's own “unrestricted” reading,
+  distinct from `variance = NULL`, which declares no variance forest at
+  all.
 
 - n.trees:
 
@@ -118,7 +121,7 @@ fit.restricted <- bart(x, y,
 
 dbartsForests$varianceForest(vars = ~x1, n.trees = 20L, base = 0.9, power = 1.5)
 #> dbarts variance forest specification
-#>   vars           = ~x1
+#>   vars           = x1
 #>   n.trees        = 20L
 #>   base           = 0.9
 #>   power          = 1.5

@@ -232,7 +232,8 @@ xbart(
 
   A vector of positive integers setting the BART hyperparameter for the
   number of trees in the sum-of-trees formulation. See
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md).
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md). A written
+  `NULL` is refused, saying to leave the argument out for its default.
 
 - k:
 
@@ -255,7 +256,7 @@ xbart(
   `k` axis is un-permuted back to the order given, so results do not
   depend on the order `k` is listed in; cells still warm-start off the
   previous one, so this is order-invariance, not an unbiased estimate
-  for each cell taken alone.
+  for each cell taken alone. A written `NULL` is the argument left out.
 
 - sd:
 
@@ -281,12 +282,14 @@ xbart(
 
   A vector of real numbers greater than one, setting the BART
   hyperparameter for the tree prior's growth probability, given by
-  \\{base} / (1 + depth)^{power}\\.
+  \\{base} / (1 + depth)^{power}\\. A written `NULL` is refused, saying
+  to leave the argument out for its default.
 
 - base:
 
   A vector of real numbers in \\(0, 1)\\, setting the BART
-  hyperparameter for the tree prior's growth probability.
+  hyperparameter for the tree prior's growth probability. A written
+  `NULL` is refused, saying to leave the argument out for its default.
 
 - split.probs:
 
@@ -427,7 +430,8 @@ xbart(
   two distinct values of a gaussian response, the fold reads its
   response's scale and the covariates over every training row; otherwise
   a fold whose such rows hold one value of a covariate refuses the call,
-  unless its `gp` leaf states `lengthscale`.
+  unless its `gp` leaf states `lengthscale`. A written `NULL` is the
+  argument left out.
 
   A named `sd` inside the prior (`normal(sd = )`, and likewise for
   `linear` and `gp`) stands in for a missing `sd` argument, as a

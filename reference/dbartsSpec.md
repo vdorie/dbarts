@@ -46,16 +46,19 @@ dbartsSpec(
   sigest, seed, family, ...:
 
   As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
-  (except that `proposal.probs` is a formal of this function rather than
-  of `control`; it is the control's, and does not reach a forest that
-  states its own), including the frozen `proposal.probs` mixture - all
-  five structural probabilities zero, which proposes no structure and
-  draws only the leaf values, `sigma` and the family's latents. The
-  prior arguments are evaluated in dbarts's own prior vocabulary, so
-  bare expressions such as `normal(k = chi(1.25, Inf))` resolve
-  regardless of what the caller has attached; so do the forest
-  constructors inside `monotone`, `interactions`, `blocks`, `variance`
-  and `forests`, evaluated in `parentEnv` (see
+  (except that `proposal.probs`, the control's setting, is still
+  accepted here as it is at
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md): it is
+  used, with a deprecation warning, is refused beside a `control` whose
+  own call named it, and does not reach a forest that states its own),
+  including the frozen `proposal.probs` mixture - all five structural
+  probabilities zero, which proposes no structure and draws only the
+  leaf values, `sigma` and the family's latents. The prior arguments are
+  evaluated in dbarts's own prior vocabulary, so bare expressions such
+  as `normal(k = chi(1.25, Inf))` resolve regardless of what the caller
+  has attached; so do the forest constructors inside `monotone`,
+  `interactions`, `blocks`, `variance` and `forests`, evaluated in
+  `parentEnv` (see
   [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md)).
   The residual prior rides `family` here as everywhere
   (`family = gaussian(sigma = chisq(df, quant))`); the 0.9-x spellings

@@ -104,6 +104,10 @@ The constructor is not exported: it resolves by bare name inside the
         predictors, <code>forest(x1 + x3)</code>, <code>forest(. - x2)</code>; names or
         positions do too, <code>forest(c("x1", "x3"))</code>,
         <code>forest(c(1, 3))</code>.</p></li>
+<li><p>A one-sided formula is its right-hand side, the tilde accepted
+        and never required: <code>forest(~ x1 + x2)</code>, or a formula held in a
+        variable, <code>f &lt;- ~ x1 + x2</code> and then <code>forest(f)</code>. A formula
+        with a left-hand side is refused.</p></li>
 <li><p>A name of a predictor is that predictor. Anything else is read
         where <code>forest()</code> is called, at that moment.</p></li>
 </ul><p>The rest of this item is the detail of each.</p>
@@ -816,7 +820,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span>   1 forest1: no basis; sd 2.278 (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000728</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000715</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 3 3 2 2 2 2 </span>

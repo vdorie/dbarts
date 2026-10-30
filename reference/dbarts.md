@@ -211,7 +211,8 @@ dbarts(
   model of several forests they are the tree prior of the forest with no
   `basis`, and a forest states its own on the forest, as
   `forest(x1, power = 3)`; stating one on both the function and that
-  forest is refused, as for `n.trees`. See `forests`.
+  forest is refused, as for `n.trees`. See `forests`. A written `NULL`
+  is refused, saying to leave the argument out for its default.
 
 - split.probs:
 
@@ -263,7 +264,8 @@ dbarts(
   `forest(x1 + x2, sd = 2)`, in the response's units as `normal(sd = )`
   is. The one forest of a model of one forest states its size either
   way, `forest(sd = )` being this prior's `normal(sd = )`, and not at
-  both.
+  both. A written `NULL` is refused, saying to leave the argument out
+  for its default.
 
 - monotone:
 

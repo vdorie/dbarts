@@ -215,7 +215,8 @@ dbartsControl(
   sampler's forest with no `basis` had, or the default where it had
   none, and not the count it shows; a count the caller then writes into
   it is taken as stated, unless it is the very count the control already
-  shows, which cannot be told from no edit.
+  shows, which cannot be told from no edit. A written `NULL` is refused,
+  saying to leave the argument out for its default.
 
 - n.chains:
 
