@@ -690,7 +690,19 @@ resolveSamplerSpec <- function(
   # ahead of every other reading of these arguments, so that each is told
   # where it belongs and not what a model of several forests cannot take
   if (plain == 0L && length(declaredBases) > 1L) {
-    refuseStatedWithNoPlainForest(stated, interactions, blocks)
+    refuseStatedWithNoPlainForest(
+      stated,
+      interactions,
+      blocks,
+      function(name) {
+        plainTreePriorValue(
+          matchedCall,
+          name,
+          evalEnv,
+          multipliedForestDefaults[[name]]
+        )
+      }
+    )
   }
   plainSpec <- if (plain > 0L && length(forestSpec) >= plain) {
     forestSpec[[plain]]

@@ -438,6 +438,42 @@ expect_identical(
   )
 )
 
+# a value (not a written call) with uniform split probabilities shows no
+# split.probs, and states power and base both
+constructed <- dbartsPriors$cgm(power = 3)
+expect_identical(
+  errorOf(onBart(y ~ ., frame, tree.prior = constructed)),
+  paste0(
+    "'tree.prior' is not an argument of 'bart': write the tree prior as ",
+    "plain arguments, power = 3, base = 0.95"
+  )
+)
+
+## --- the retired tree.prior reaches the record at dbartsSpec() -----------------
+expect_identical(
+  suppressWarnings(dbarts::dbartsSpec(
+    dbarts::dbartsData(x, y),
+    control = control,
+    tree.prior = dbartsPriors$cgm(power = 3, split.probs = splitProbs)
+  ))$model@tree.prior,
+  dbarts::dbartsSpec(
+    dbarts::dbartsData(x, y),
+    control = control,
+    power = 3,
+    split.probs = splitProbs
+  )$model@tree.prior
+)
+
+## --- a whole-number power or base is taken at the plain doors -------------------
+expect_identical(
+  recordOf(dbarts::dbarts(y ~ ., frame, control = control, power = 3L)),
+  plain(power = 3)
+)
+expect_identical(
+  recordOf(onBart(y ~ ., frame, power = 3L)),
+  recordOf(onBart(y ~ ., frame, power = 3))
+)
+
 ## --- a setting given at both levels --------------------------------------------
 twice <- function(name, where) {
   paste0(
@@ -458,6 +494,22 @@ expect_identical(
   errorOf(onBart(twoForests, frame, power = 2)),
   twice("power", "('forest(x1 + x2, power = 1)')")
 )
+# a qualified written cgm() states only what it names
+for (written in list(
+  quote(dbarts:::cgm(power = 3)),
+  quote(dbartsPriors$cgm(power = 3))
+)) {
+  expect_identical(
+    errorOf(eval(bquote(dbarts::dbarts(
+      y ~ forest(x1 + x2, base = 0.5) + forest(x3, basis = factor(z)),
+      frame,
+      control = control,
+      tree.prior = .(written)
+    )))),
+    "created",
+    info = deparse(written)
+  )
+}
 # names one by one: base beside the forest's power is taken
 expect_identical(errorOf(onBart(twoForests, frame, base = 0.5)), "created")
 # a forest with a basis stating it is taken
@@ -529,7 +581,7 @@ expect_identical(
 )
 expect_identical(
   errorOf(onAllBasis(base = 0.5)),
-  noPlain("base", "base = 0.25")
+  noPlain("base", "base = 0.5")
 )
 
 ## --- split probabilities judged by their value --------------------------------
@@ -610,6 +662,8 @@ expect_identical(
 
 ## --- pdbart -------------------------------------------------------------------
 resetKey("tombstone.pdbart.splitprobs")
+resetKey("tombstone.pdbart.power")
+resetKey("tombstone.pdbart.base")
 pdbartWarnings <- warningsOf(dbarts::pdbart(
   x,
   y,
@@ -651,7 +705,10 @@ unlink(serialized)
 loaded$storeState()
 expect_identical(loaded$state, continued$state)
 expect_identical(recordOf(loaded), recordOf(continued))
-expect_silent(invisible(loaded$run(0L, 1L)))
+# a copy and a reload continue the original's streams, to the last digits
+nextRun <- continued$run(0L, 3L)
+expect_equal(copied$run(0L, 3L), nextRun, tolerance = 1e-10)
+expect_equal(loaded$run(0L, 3L), nextRun, tolerance = 1e-10)
 # a one-forest $setModel changing power is taken
 oneForest <- dbarts::dbarts(y ~ ., frame, control = control)
 model <- oneForest$model

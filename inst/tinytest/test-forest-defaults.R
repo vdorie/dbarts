@@ -555,8 +555,9 @@ given <- function(argument, what, remedy) {
   )
 }
 onForest <- "state it on a forest, as forest(x1, basis = a, "
-powerRemedy <- paste0(onForest, "power = 3)")
-baseRemedy <- paste0(onForest, "base = 0.25)")
+# the remedy repeats the value the caller gave
+powerRemedy <- function(value) paste0(onForest, "power = ", value, ")")
+baseRemedy <- function(value) paste0(onForest, "base = ", value, ")")
 leafRemedy <- "state a forest's size on the forest, as forest(x1, basis = a, sd = 2)"
 someBlocks <- "blocks(list(\"x1\", c(\"x2\", \"x3\")))"
 for (text in allBasis[c(1L, 2L, 4L, 6L, 7L)]) {
@@ -567,7 +568,7 @@ for (text in allBasis[c(1L, 2L, 4L, 6L, 7L)]) {
   )
   expect_identical(
     refusal(text, base = 0.8),
-    given("base", "the tree prior of", baseRemedy),
+    given("base", "the tree prior of", baseRemedy(0.8)),
     info = text
   )
   expect_identical(
@@ -601,8 +602,8 @@ for (text in allBasis[c(1L, 2L, 4L, 6L, 7L)]) {
   )
 }
 for (entry in list(
-  list("power", 2, "the tree prior of", powerRemedy),
-  list("base", 0.9, "the tree prior of", baseRemedy),
+  list("power", 2, "the tree prior of", powerRemedy(2)),
+  list("base", 0.9, "the tree prior of", baseRemedy(0.9)),
   list("k", 2, "the leaf prior of", leafRemedy),
   list("node.prior", "normal", "the leaf prior of", leafRemedy)
 )) {

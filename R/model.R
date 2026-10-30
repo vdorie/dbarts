@@ -381,7 +381,7 @@ plainTreePriorValue <- function(matchedCall, name, parentEnv, default) {
       call. = FALSE
     )
   }
-  value
+  as.double(value)
 }
 
 ## The record a split.probs expression builds, resolved in its vocabulary over
@@ -2006,8 +2006,14 @@ plainForestStated <- function(
 ## basis in a model that has none: each of the tree count, the tree prior's
 ## power and base, the leaf prior, 'interactions' and 'blocks' that is stated
 ## has no forest to belong to. In that order, the first one stated. `stated`
-## is plainForestStated's value.
-refuseStatedWithNoPlainForest <- function(stated, interactions, blocks) {
+## is plainForestStated's value, `treeValue` a function of "power" or "base"
+## returning the value the caller gave, which the remedy repeats.
+refuseStatedWithNoPlainForest <- function(
+  stated,
+  interactions,
+  blocks,
+  treeValue = function(name) multipliedForestDefaults[[name]]
+) {
   # where the fitting function cannot take an argument on a forest, the caller
   # is told what it can do: leave the argument out, or fit with dbarts()
   noRemedy <- isTRUE(attr(stated, "noForestRemedy", exact = TRUE))
@@ -2053,7 +2059,7 @@ refuseStatedWithNoPlainForest <- function(stated, interactions, blocks) {
           "state it on a forest, as forest(x1, basis = a, ",
           name,
           " = ",
-          multipliedForestDefaults[[name]],
+          treeValue(name),
           ")"
         )
       )
