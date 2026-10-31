@@ -66,7 +66,9 @@ prior gives ([`Chain::leafPriorSize`](../../src/bartcore/chain.hpp)): a named sd
 over the chi prior's median k, 1.574 under probit and 2.855 under logistic at chi(1.5, 2). A flat prior on k gives
 no size and is refused by name. bcf's mu states df 1 ([`expandForestSpecs`](../../src/bartcore/combiner.hpp)) so
 the K = 2 fixtures keep their half-Cauchy. A leaf prior given to the fitting function where every forest with no
-basis states its size has no forest and is refused by name, the default restated taken.
+basis states its size has no forest and is refused by name, the default restated taken. The check behind the
+flip (dec-B509) found a held prognostic forest not clearly worse for the effects, and f's coverage about half a
+point lower than under the drawn coefficient.
 
 - One k. A drawn k is drawn once for the group ([`Chain::drawSharedK`](../../src/bartcore/chain.hpp)), from
   every sharer's leaves each standardized by its own leaf scale, and reported on each sharer: `getK` and a
