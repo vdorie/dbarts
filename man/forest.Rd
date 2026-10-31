@@ -666,12 +666,13 @@ forest(
 }
 \details{
   With two forests, the second carrying a two-level factor basis, this is the
-  Bayesian causal forest
+  shape of the Bayesian causal forest
   \eqn{y = a\,\mu(x) + b_z\,\tau(x) + \epsilon}{y = a mu(x) + b_z tau(x) +
   eps}: a prognostic forest \eqn{\mu}{mu} over every predictor, a modulating
   forest \eqn{\tau}{tau} over the columns \code{vars} allows, and the
   amplitudes \eqn{(a, b_0, b_1)}{(a, b0, b1)} joining them, read back with
-  \code{$getForestAmplitudes}. Gaussian, \code{"probit"} and \code{"logistic"}
+  \code{$getForestAmplitudes}; \eqn{a}{a} is 1 unless the prognostic forest
+  states \code{amplitude = student(1)}, as Bayesian causal forests' prior does. Gaussian, \code{"probit"} and \code{"logistic"}
   responses; under a latent family the combination is the index rather than
   the mean, on the link's own fixed scale, and \code{"aft"}, \code{"ordinal"}
   and \code{"nbinom"} are refused at creation naming what each is missing.

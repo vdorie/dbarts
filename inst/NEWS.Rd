@@ -559,8 +559,9 @@
             \code{\link{forest}} specifications, each with its own trees,
             priors and predictors, and fits the mean as their sum, a forest
             given a \code{basis} entering multiplied by it. The Bayesian
-            causal forest is the two-forest case with a treatment
-            factor of two levels as the basis. In a \code{bart} or
+            causal forest has the shape of the two-forest case with a
+            treatment factor of two levels as the basis, its prognostic
+            forest stating \code{amplitude = student(1)}. In a \code{bart} or
             \code{dbarts} formula, each forest is a term:
             \code{y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z))}
             declares the same thing. Several forests with no basis,
