@@ -78,7 +78,7 @@ dbarts(
     The number of trees of the forest with no \code{basis}; \code{NULL}, the default, leaves it to the forest's own \code{n.trees} and otherwise takes 75 trees. Given beside a forest with no \code{basis} that states its own, or where every forest has a \code{basis}, it is refused by name.
   }
   \item{n.cuts, useQuantiles}{
-    The maximum number of cut points per predictor, recycled over the columns, and whether to place them at the predictors' quantiles. \code{NULL}, the default, takes what a \code{\link{dbartsData}} object given as \code{formula} holds, and otherwise 100 and uniformly spaced. A value given beside a data object that carries a grid derives the grid again.
+    The maximum number of cut points per predictor and whether to place them at the predictors' quantiles. \code{n.cuts} is one number for every column, one per column, or named, as \code{split.probs} is, by column or term name with \code{.default} for the rest; see \code{\link{bart}}. \code{NULL}, the default, takes what a \code{\link{dbartsData}} object given as \code{formula} holds, and otherwise 100 and uniformly spaced. A value given beside a data object that carries a grid derives the grid again.
   }
   \item{control}{
     An object inheriting from \code{dbartsControl}, created by the \code{\link{dbartsControl}} function. In a model of several forests its \code{n.trees} is the count of the forest with no \code{basis}; see \code{forests}.

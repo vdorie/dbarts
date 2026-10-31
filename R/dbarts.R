@@ -3189,7 +3189,7 @@ dbartsSampler <- setRefClass(
       # a copy that differs from them is taken, the sampler's kept, the caller
       # told once the control is in; a value the caller wrote that differs is
       # refused
-      held <- controlCopiesHeld(newControl)
+      held <- controlCopiesHeld(newControl, data@x)
       takes <- heldCopies(model, data)
       for (name in names(held$written)) {
         if (!sameRecycled(held$written[[name]], takes[[name]])) {

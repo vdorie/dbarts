@@ -277,8 +277,8 @@ expect_false(isQuantile(row$value))
 expect_identical(statedOf(row$value), character())
 row <- counted(gauss())
 expectRow(row, 75L, 100L, NA)
-# per column, recycled
-expect_identical(gauss(n.cuts = c(5L, 9L))$data@n.cuts, c(5L, 9L, 5L))
+# per column
+expect_identical(gauss(n.cuts = c(5L, 9L, 7L))$data@n.cuts, c(5L, 9L, 7L))
 expect_error(gauss(n.cuts = 1:4), "'n.cuts' has 4")
 # bad values, by name
 for (bad in list(0L, NA, 1:2)) {
@@ -649,7 +649,7 @@ expect_silent(nulls <- dbartsData(y ~ x1, frame, n.cuts = NULL))
 expect_silent(nulls <- dbartsData(y ~ x1, frame, useQuantiles = nullName))
 expect_true(is.na(nulls@useQuantiles))
 expect_true(anyNA(nulls@n.cuts))
-matrixData <- dbartsData(x, y, n.cuts = c(4L, 8L), useQuantiles = FALSE)
+matrixData <- dbartsData(x, y, n.cuts = c(4L, 8L, 4L), useQuantiles = FALSE)
 expect_identical(matrixData@n.cuts, c(4L, 8L, 4L))
 expect_false(matrixData@useQuantiles)
 # a data object takes no more arguments, as before, and a NULL is not one

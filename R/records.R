@@ -53,7 +53,7 @@ freshControlValue <- function(name) {
 ## What a control holds of controlWrittenNames, by name under `written` and
 ## `carried`: its slots by their kind, the written cut count on its attribute and
 ## the carried one in its mirror. A silent value is in neither.
-controlCopiesHeld <- function(control) {
+controlCopiesHeld <- function(control, x = NULL) {
   held <- list(written = list(), carried = list())
   for (name in c("n.trees", "useQuantiles")) {
     kind <- controlValueKind(control, name)
@@ -62,6 +62,9 @@ controlCopiesHeld <- function(control) {
     }
   }
   held$written$n.cuts <- attr(control, controlCutsAttr, exact = TRUE)
+  if (!is.null(x) && !is.null(held$written$n.cuts)) {
+    held$written$n.cuts <- readCutCounts(held$written$n.cuts, x)
+  }
   held$carried$n.cuts <- controlMirror(control)$n.cuts
   held
 }
@@ -120,7 +123,9 @@ checkFlatCopies <- function(
     result$n.trees <- n.trees
   }
   if (!is.null(n.cuts)) {
+    spelled <- names(n.cuts)
     n.cuts <- coerceOrError(n.cuts, "integer")
+    names(n.cuts) <- spelled
     if (length(n.cuts) == 0L || anyNA(n.cuts) || any(n.cuts <= 0L)) {
       stop("'n.cuts' must contain only positive integers", call. = FALSE)
     }
@@ -242,11 +247,11 @@ applyCutSettings <- function(data, copies) {
   cutsStated <- "n.cuts" %in% names(copies$stated)
   ruleStated <- "useQuantiles" %in% names(copies$stated)
   if (cutsStated) {
-    data@n.cuts <- recycleNumCuts(copies$n.cuts, numColumns)
+    data@n.cuts <- readCutCounts(copies$n.cuts, data@x)
   } else if (length(data@n.cuts) == 0L || anyNA(data@n.cuts)) {
-    data@n.cuts <- recycleNumCuts(
+    data@n.cuts <- readCutCounts(
       if (is.null(copies$n.cuts)) 100L else copies$n.cuts,
-      numColumns
+      data@x
     )
   } else if (length(data@n.cuts) != numColumns) {
     data@n.cuts <- rep_len(data@n.cuts, numColumns)
@@ -533,7 +538,7 @@ takeControlReadings <- function(control, model, data) {
 ## object's governs there, and any binary flag beside a model that names its
 ## family.
 warnDirectDoorNotUsed <- function(control, model, data) {
-  held <- controlCopiesHeld(control)
+  held <- controlCopiesHeld(control, data@x)
   warnWrittenCopies(names(held$written))
   values <- held$carried
   if (!is.null(held$written$n.cuts)) {

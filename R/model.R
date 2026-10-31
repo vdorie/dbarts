@@ -546,51 +546,11 @@ resolveSplitProbabilities <- function(prior, data) {
     refuseInvalidSplitProbabilities(split.probs)
     split.probs <- numeric()
   } else if (!is.null(names(split.probs))) {
-    default <- NA_real_
-    split.names <- names(split.probs)
-    defaultMatch <- split.names %in% ".default"
-    if (sum(defaultMatch) > 1L) {
-      stop(
-        "cannot assign split probabilities: default specified multiple times"
-      )
-    }
-    if (sum(defaultMatch) == 1L) {
-      default <- split.probs[[which(defaultMatch)]]
-      split.probs <- split.probs[!defaultMatch]
-      split.names <- names(split.probs)
-    }
-
-    result <- rep(default, ncol(data@x))
-    names(result) <- colnames(data@x)
-
-    if (is.null(names(result)) && length(split.names) > 0L) {
-      stop(
-        "cannot assign split probabilities: model matrix has no column names"
-      )
-    }
-
-    namesMatch <- match(split.names, names(result))
-    result[namesMatch[!is.na(namesMatch)]] <- split.probs[!is.na(namesMatch)]
-
-    split.probs <- split.probs[is.na(namesMatch)]
-    split.names <- names(split.probs)
-
-    for (i in seq_along(split.probs)) {
-      if (split.names[i] %not_in% attr(data@x, "term.labels")) {
-        stop(
-          "cannot assign split probabilities: unrecognized variable name '",
-          split.names[i],
-          "'"
-        )
-      }
-      factorMatch <- which(startsWith(
-        names(result),
-        paste0(split.names[i], ".")
-      ))
-      result[factorMatch] <- split.probs[i]
-    }
-
-    split.probs <- result
+    split.probs <- valuesByColumnName(
+      split.probs,
+      data@x,
+      "split probabilities"
+    )
   } else {
     if (length(split.probs) != ncol(data@x)) {
       stop(
@@ -605,20 +565,10 @@ resolveSplitProbabilities <- function(prior, data) {
 
   if (length(split.probs) > 0L) {
     if (anyNA(split.probs)) {
-      if (!is.null(names(split.probs))) {
-        stop(
-          "cannot assign split probabilities: missing values for columns ",
-          paste0(
-            paste0("'", names(split.probs)[is.na(split.probs)], "'"),
-            collapse = ", "
-          )
-        )
-      } else {
-        stop(
-          "cannot assign split probabilities: missing values for columns ",
-          paste0(which(is.na(split.probs)), collapse = ", ")
-        )
-      }
+      stop(
+        "cannot assign split probabilities: missing values for columns ",
+        paste0(which(is.na(split.probs)), collapse = ", ")
+      )
     }
 
     # ahead of the normalization, which a negative sum turns into

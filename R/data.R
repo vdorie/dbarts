@@ -4234,7 +4234,7 @@ dbartsData <- function(
     sigma = NA_real_
   )
   if (!is.null(stated$n.cuts)) {
-    result@n.cuts <- recycleNumCuts(stated$n.cuts, ncol(result@x))
+    result@n.cuts <- readCutCounts(stated$n.cuts, result@x)
   }
   if (!is.null(stated$useQuantiles)) {
     result@useQuantiles <- stated$useQuantiles

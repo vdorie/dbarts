@@ -98,7 +98,9 @@ xbart <- function(
   # the four flat knobs: shape-checked at the surface, mirroring
   # dbartsControl's own validity messages, then folded into the control
   # xbart builds for itself below
+  spelled <- names(n.cuts)
   n.cuts <- coerceOrError(n.cuts, "integer")
+  names(n.cuts) <- spelled
   if (length(n.cuts) == 0L || anyNA(n.cuts) || any(n.cuts <= 0L)) {
     stop("'n.cuts' must contain positive integers")
   }

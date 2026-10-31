@@ -213,6 +213,13 @@
       \item The sampler's \code{$setControl} refuses a control whose
             \code{n.trees} differs from the sampler's; 0.9-34 resized the
             sampler in place. Create a new sampler with the count wanted.
+      \item A per-column \code{n.cuts} reads as \code{split.probs} reads, at
+            every function that takes it: by column or term name with
+            \code{.default} for the rest, or unnamed, one value or one per
+            column. In 0.9-34 it was read by position, names ignored, and
+            shorter vectors recycled, so \code{c(x2 = 10)} and \code{c(25, 10)}
+            on three columns, taken then, are now refused, and
+            \code{c(x3 = 5, x1 = 25, x2 = 10)} gives each column its own.
       \item A sampler assembled by hand, \code{new("dbartsSampler", control,
             model, data)}, takes its tree count from the model and its
             quantile rule from the data object where the control's are fresh

@@ -222,10 +222,14 @@ expect_silent(suppressMessages(bart(
   verbose = FALSE
 )))
 
-## n.cuts recycles a short vector and refuses a long one.
+## n.cuts is one value or one per column, and refuses any other length.
 x3 <- matrix(runif(120L), 40L, 3L)
-sampler <- dbarts(x3, y, control = dbartsControl(n.cuts = c(5L, 6L)))
-expect_equal(sampler$data@n.cuts, c(5L, 6L, 5L))
+sampler <- dbarts(x3, y, control = dbartsControl(n.cuts = c(5L, 6L, 7L)))
+expect_equal(sampler$data@n.cuts, c(5L, 6L, 7L))
+expect_error(
+  dbarts(x3, y, control = dbartsControl(n.cuts = c(5L, 6L))),
+  "'n.cuts' has 2 values but the model has 3 predictor columns"
+)
 expect_error(
   quietBart(x3[, 1:2], y, n.cuts = 5:7),
   "'n.cuts' has 3 values but the model has 2 predictor columns"

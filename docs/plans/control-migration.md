@@ -385,6 +385,10 @@ that made it, an unstated rule reading as even, where main keeps the sampler's 2
 gives 25 even points beside 10 quantile on the first refresh; one stating neither keeps the sampler's, and
 `updateCutPoints = "none"` keeps the sampler's whatever is stated (A/B rows `b546.*`). `fit$data@useQuantiles` reads
 plain `TRUE` or `FALSE` on anything a sampler holds (dec-B548), where main has no slot to read (A/B row `b548.read`).
+A per-column `n.cuts` at every door that takes it reads as `split.probs` reads (dec-B547): `c(x3 = 5, x1 = 25, x2 = 10)`
+gives each column its own, where main and 0.9-34 read it by position; `c(x2 = 10)` and `c(25, 10)` on three columns,
+which they took, are refused, as is an unknown name they ignored; a hazard fit's period is a column, so one value per
+predictor there is refused where it was recycled (A/B rows `b547.*`).
 
 ## Slices
 

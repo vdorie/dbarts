@@ -134,7 +134,7 @@ extract(object, \dots)
      When \code{TRUE}, determine tree decision rules using estimated quantiles derived from the \code{x.train} variables. When \code{FALSE}, splits are determined using values equally spaced across the range of a variable, or, for a variable with fewer distinct values than \code{numcut}, half-way between neighboring values. See details for more information.
    }
    \item{numcut}{
-     The maximum number of possible values used in decision rules (see \code{usequants}, details). If a single number, it is recycled for all variables; otherwise must be a vector of length equal to \code{ncol(x.train)}. Fewer rules may be used if a covariate lacks enough unique values.
+     The maximum number of possible values used in decision rules (see \code{usequants}, details). A single number applies to every column; otherwise a vector of length equal to \code{ncol(x.train)}, or named as \code{\link{bart}}'s \code{n.cuts} reads. Fewer rules may be used if a covariate lacks enough unique values.
    }
    \item{printcutoffs}{
      The number of cutoff rules to printed to screen before the MCMC is run. Given a single integer, the same value will be used for all variables. If 0, nothing is printed.

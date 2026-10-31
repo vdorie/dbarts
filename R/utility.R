@@ -437,21 +437,85 @@ ifelse_3 <- function(cond1, cond2, then1, then2, else_) {
   }
 }
 
-## n.cuts per predictor column: a shorter vector recycles, as dbartsControl
-## documents; a longer one is refused, since its extra entries could never
-## apply.
-recycleNumCuts <- function(n.cuts, numPredictors) {
-  if (length(n.cuts) > numPredictors) {
+## A named vector's values per column of the model matrix `x`: a name is a
+## column's or a term's, for each of that term's columns, and ".default" gives
+## the rest. An unknown name, or a column left with no value, is refused; `what`
+## says of what.
+valuesByColumnName <- function(values, x, what) {
+  refuse <- function(...) stop("cannot assign ", what, ": ", ...)
+  default <- NA
+  valueNames <- names(values)
+  defaultMatch <- valueNames %in% ".default"
+  if (sum(defaultMatch) > 1L) {
+    refuse("default specified multiple times")
+  }
+  if (sum(defaultMatch) == 1L) {
+    default <- values[[which(defaultMatch)]]
+    values <- values[!defaultMatch]
+    valueNames <- names(values)
+  }
+
+  result <- rep(default, ncol(x))
+  names(result) <- colnames(x)
+
+  if (is.null(names(result)) && length(valueNames) > 0L) {
+    refuse("model matrix has no column names")
+  }
+
+  namesMatch <- match(valueNames, names(result))
+  result[namesMatch[!is.na(namesMatch)]] <- values[!is.na(namesMatch)]
+
+  values <- values[is.na(namesMatch)]
+  valueNames <- names(values)
+
+  for (i in seq_along(values)) {
+    if (valueNames[i] %not_in% attr(x, "term.labels")) {
+      refuse("unrecognized variable name '", valueNames[i], "'")
+    }
+    factorMatch <- which(startsWith(
+      names(result),
+      paste0(valueNames[i], ".")
+    ))
+    result[factorMatch] <- values[i]
+  }
+
+  if (anyNA(result)) {
+    refuse(
+      "missing values for columns ",
+      if (is.null(names(result))) {
+        paste0(which(is.na(result)), collapse = ", ")
+      } else {
+        paste0(
+          paste0("'", names(result)[is.na(result)], "'"),
+          collapse = ", "
+        )
+      }
+    )
+  }
+  result
+}
+
+## One cut count per column of the model matrix `x` from what a caller wrote: as
+## split.probs reads, by column or term name with ".default" for the rest, a
+## single named value counting as named; unnamed, one value or one per column.
+readCutCounts <- function(n.cuts, x) {
+  numColumns <- ncol(x)
+  if (!is.null(names(n.cuts))) {
+    return(unname(valuesByColumnName(n.cuts, x, "'n.cuts'")))
+  }
+  if (length(n.cuts) != 1L && length(n.cuts) != numColumns) {
     stop(
       "'n.cuts' has ",
       length(n.cuts),
       " values but the model has ",
-      numPredictors,
+      numColumns,
       " predictor column",
-      if (numPredictors != 1L) "s"
+      if (numColumns != 1L) "s",
+      "; give one value, one per column, or values by name",
+      call. = FALSE
     )
   }
-  rep_len(n.cuts, numPredictors)
+  rep_len(n.cuts, numColumns)
 }
 
 ## evaluates the expression 'e' after first replacing all instances of 'x' with
