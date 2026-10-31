@@ -6,7 +6,8 @@ per forest) and dec-B506 (`blocks()` changed to match, slice B); amended again t
 (`forest()` takes no `leaf.prior`), dec-B509 (a forest with no basis takes the fitting function's leaf prior,
 held, in every model: D1 revised, the default flip in [Slice F: the default flip](#slice-f-the-default-flip)) and dec-B510. Slices B,
 1 (the engine and bridge), 2 (the R surface) and 3 (the constant basis column, dec-B528) are built on this branch;
-no call is held. `amplitude = fixed()` on a lone forest with no basis is ruled, taken in slice F (dec-B513). Rulings:
+no call is held. Slice F (the default flip) is built on this branch, its review to follow; the Landing note below
+holds what the next item owes. `amplitude = fixed()` on a lone forest with no basis is ruled, taken in slice F (dec-B513). Rulings:
 dec-B292, dec-B503, dec-B505, dec-B506, dec-B509, dec-B513 and dec-B528 (with dec-B291, dec-B274, dec-B307, dec-B508,
 dec-B510, dec-B525); window "Post-merge, pre-1.0" (VD 2026-10-07).
 
@@ -289,6 +290,12 @@ model (dec-B509), reports the group's k, one value reported on each, and `k.scal
 / k is its share, and `getK` and `extract(type = "k")` give the drawn k on each. `bart(k = )`, `leaf.prior =
 normal(k = )` and a `chi()` beside a forest with a basis are the group's, no longer refused. MY CALL. Alternative:
 k 1 everywhere, which would hide the drawn k.
+
+The item after this one, forest-amplitude-normal (dec-B542), changes the first sentence's scope. "A forest with a
+basis or one stating sd reports k 1 and `k.scale` that sd" is true for slice F; after that item it holds only where
+the coefficient is held: a drawn forest of any kind reports k 1 and `k.scale` the response's unit, and `$sd` keeps
+the sd. So slice F's new pins read `$sd`, and pin a drawn `k.scale` only on a forest with no basis stating
+`student(df)`.
 
 D9. The constant basis column (dec-B307's revisit). RULED, dec-B528, [Open calls](#open-calls) 2: refused at creation,
 sd stated or not, naming the plain spelling, in slice 3. Constant is what
@@ -577,9 +584,12 @@ Baselines and snapshots, by name, with the verdict expected:
   (its unit is exactly 1, run), the held gaussian scenario identical (engine item 4's exception), the logistic
   scenarios identical (R's pi / sqrt(3) is the engine's unit bit for bit, its draws `identical()`, run), and the
   gaussian drawn scenarios changed in rounding only, R's sd(y) and the engine's unit differing in the last place:
-  z mode against 20eed7ed, then re-recorded. MY CALL. Alternative: state sd as twice the engine's unit read from a
+  `bcf-equivalence.R compare <baseline> --cross-host` against 20eed7ed, tier 1 with varcount identical, then
+  re-recorded. z mode was the first gate named here and fails main against itself under a changed seed (17 of 19
+  scenarios |z| 2.2 to 15.3, run). MY CALL. Alternative: state sd as twice the engine's unit read from a
   probe sampler (a factor forest's default sd is exactly one unit), bitwise with no re-record, at a probe per
-  scenario in a gate script.
+  scenario in a gate script. As built: 16 of 19 bitwise, glue_toggle, set_treatment and per_observation_partial
+  moved by rounding, tier 1's largest deviation ratio 9.3e-07, varcount identical on all 19.
 - multinomial-equivalence-80b1c8d4: 11 identical. The four snapshot files use no forest with a basis: unchanged.
 - Exact gates: bcf-exact.R, bcf-exact-weak.R and bcf-latent-exact.R add `amplitude = student(1)` to their drawn
   modes, which already state sd: the same chains, passing unchanged; their held modes and bcf-exact-restricted.R
@@ -808,6 +818,13 @@ F. Slice F, the default flip (~590 lines; ~8 agent-hours). Tier: changes draws (
 - The probit rescaling step does not move a forest with a basis (D5): a binary causal model's k mixes better than
   without the step, by an amount unmeasured.
 
+## Landing note for the next item
+
+Slice F's re-recorded bcf-equivalence baseline holds until forest-amplitude-normal (dec-B542), which re-records
+again, judged by the same tier 1 of `--cross-host`. That item also re-pins what test-bcf-family.R,
+test-forest-sd-unit.R and test-forest-leaf-prior-reader.R already pin of a drawn basis forest's units; slice F added
+none.
+
 ## Calls made
 
 1. RULED, dec-B509: the total is the fitting function's leaf prior, held, in every model (D1).
@@ -857,11 +874,33 @@ F. Slice F, the default flip (~590 lines; ~8 agent-hours). Tier: changes draws (
 21. A leaf prior given to the fitting function where no forest shares is taken silently when it restates the
     default (`normal(2)`, `k = 2`), as main takes it, and refused by name otherwise (R item 4). Alternative:
     refuse any, which breaks three exact gates and refuses a harmless restatement.
-22. bcf-equivalence's helper restates bcf's prior with R's sd(y), its gaussian drawn scenarios compared in z mode
-    and re-recorded (Slice F). Alternative: twice the engine's unit read from a probe sampler, bitwise.
+22. bcf-equivalence's helper restates bcf's prior with R's sd(y), its gaussian drawn scenarios compared with
+    `--cross-host`, tier 1 with varcount identical, and re-recorded (Slice F). Alternative: twice the engine's unit
+    read from a probe sampler, bitwise.
 23. A forest with no basis stating `student()` and no sd takes as median the prior median of the size it would
     otherwise have, the chi prior's median k where k is drawn (Slice F engine item 3); set with
     coefficient-prior-opt-in, which records the alternatives.
+24. A lone sharer's `$setLeafPrior(forests = list(forest(sd = )))` is taken, leaving the leaf prior with k pinned at
+    1 (dec-B525's end state); the refusal's reason, moving others' shares, does not apply to one. The model's leaf
+    prior goes back to a fixed k of 2 when no forest takes it, so a copy passes the bridge. Alternative: refuse it
+    as among two or more.
+25. `forestMapEntry` and `defaultForestSd` lose their family argument: after the flip nothing reads it.
+26. Engine item 4's exception keys on a held k equal to the default and no named sd, with no branch on the family:
+    probit at a stated k of 2 also takes the held map entry, the same prior.
+27. A lone sharer reads `prior.sd.of` "forest", not "forest, shared", and has no group line in print or verbose; its
+    print line is "no basis; sd X (default)", "(leaf prior)" where k is not the default, or "no basis; k chi(1.5, 2)".
+    Its reader's amplitude is `fixed()`, as a sharer's among two or more (the plan's test wording said none; slice 2
+    built it so).
+28. `student()` with no sd under a flat chi prior or an infinite k is refused by name, having no median, the engine's
+    throw as a backstop.
+29. The reader's `leaf.prior` written back through `forests =` is nothing written; `$setLeafPrior(leaf.prior)` on a
+    lone sharer takes only a restatement of the one in force, so `normal(k = 2)` is refused under probit, naming
+    `forests =`.
+30. `fit$fixed$amplitude` is read from the reader, so a forest stating sd, now held, is listed.
+31. A leaf prior with no forest to take it is refused in new words, "no forest of this model takes a leaf prior's
+    'k'" and "... 'sd'": the old ones, "a model of several forests does not support a non-default 'k'" and "...
+    states each forest's size on the forest", are false once such a model takes both where a forest has no sd.
+    A multinomial model, which declares no bases, keeps the old 'k' words.
 
 ## Open calls
 

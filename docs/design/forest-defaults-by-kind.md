@@ -8,8 +8,9 @@ dec-B246 as dec-B274 restates them, dec-B281 and dec-B282 for the held shapes, i
 
 A forest has a basis or it has none. A forest with no basis, a plain forest, may stand at any place in a
 `forests` list or in a data object's `bases`; in a formula the plain forests come first, in the order
-written. A model may hold several: two or more that state no sd share the fitting function's leaf prior as
-one total and split its tree count ([forests-shared-total.md](forests-shared-total.md)). The kind is asked in
+written. One that states no sd takes the fitting function's leaf prior as the one forest of a fit does, held at
+1, whatever stands beside it (dec-B509). A model may hold several: two or more that state no sd share that leaf
+prior as one total and split its tree count ([forests-shared-total.md](forests-shared-total.md)). The kind is asked in
 one place, [`plainForest`](../../R/model.R), of the bases the model ends with.
 
 | | the plain forest | a forest with a basis |
@@ -17,6 +18,7 @@ one place, [`plainForest`](../../R/model.R), of the bases the model ends with.
 | tree count | the fitting function's: `bart`'s `n.trees`, the control's at `dbarts` and `dbartsSpec`; 75 | 50 |
 | tree prior | the fitting function's `power` and `base`; `base = 0.95`, `power = 2` | `base = 0.25`, `power = 3` |
 | `interactions`, `blocks` | the fitting function's or its own; both given is refused; beside a second plain forest, its own | its own |
+| leaf prior and size | the fitting function's leaf prior, held; `sd` states its own, held; `student()` draws | its `sd`, drawn |
 
 A forest's own `n.trees`, `base` and `power` each govern that forest, and each one left out takes the
 default of the forest's kind. Position decides nothing: two forests of one kind written in the other order

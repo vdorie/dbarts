@@ -109,7 +109,11 @@ bartCause expects bcf-like behavior:
   unit is the response's own sd(y) and sigma is drawn. Under probit and
   logistic the same slot's default is 1, the unit being the link's own fixed
   error sd with nothing to absorb a mis-scaled prognostic total
-  (`binary-kforest-prior-default`, Fork 1c).
+  (`binary-kforest-prior-default`, Fork 1c). In the formula model a forest with
+  no basis is held at the fitting function's leaf prior unless it states a prior
+  (dec-B509, revising dec-B18 for that model), so this prior is written
+  `forest(amplitude = student(1), sd = 2 * sd(y))`, sd 1 or pi / sqrt(3) under the
+  links; `bartCause::bcf` writes it, and the engine's K = 2 shape states it.
 
 Scale anchoring. The package range-anchors globally: y net of offset maps to
 [-0.5, 0.5] by observed min/max, every constant calibrated against that range so

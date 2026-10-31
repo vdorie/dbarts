@@ -568,8 +568,11 @@
             prior total, the fitting function's leaf prior and its
             \code{k}, each an equal part, and split its \code{n.trees} as
             \code{blocks()} splits a forest's trees, so the model is one
-            forest with its trees in blocks; a forest stating its
-            \code{sd} has its own size. A basis is one numeric column, with
+            forest with its trees in blocks; one with no basis beside
+            others takes that leaf prior whole, held at 1, as \code{bart}'s
+            one forest does; and a forest stating its
+            \code{sd} has its own size, drawn only under
+            \code{amplitude = student()}. A basis is one numeric column, with
             one coefficient, or a factor, a character vector or a logical
             vector of two levels, with a coefficient for each level; its
             class decides which, whatever its values, so a 0/1 number is

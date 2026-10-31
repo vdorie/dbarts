@@ -47,15 +47,26 @@ over 300 standard errors.
 
 ## Forests: each an equal part of the fitting function's prior
 
-The sharers are the forests with no basis that state no `sd` and no `amplitude = student()`, where two or more
-do ([`sharingForests`](../../R/model.R) in R, [`forestSharers`](../../src/bartcore/combiner.hpp) in the engine,
+The sharers are the forests with no basis that state no `sd` and no `amplitude = student()`
+([`leafPriorForests`](../../R/model.R) in R, [`forestSharers`](../../src/bartcore/combiner.hpp) in the engine,
 each reading what the forests state; no flag passes between them). The total is the fitting function's leaf
 prior, as `bart()`'s one forest has it (dec-B509): k 2 under gaussian and k drawn under chi(1.5, 2) under probit
 and logistic by default, a stated `k`, `leaf.prior = normal(k = )` or a `chi()` on k, and `normal(sd = )` naming
 the total's size. Each sharer is held at 1, and with T the total's sd, sharer j of K over m_j trees has sd
 T / sqrt(K) and leaves N(0, T^2 / (K m_j)): [`forestMapEntry`](../../src/bartcore/combiner.hpp) gives it the
 single-forest chain's node scale times sqrt(1 / K), so the sum has sd T at every point, whatever the counts.
-A lone forest with no basis keeps the map's entry it had before, so a model with one draws as it did.
+One sharer alone beside other forests has the whole of the total, the k path with share 1 (dec-B509), its
+coefficient held and its reader as one forest's: `prior.sd.of` is "forest", no group line prints. At a held k of
+2 stating no sd it keeps the map's held entry operand for operand (dec-B290), which is the same prior, so a held
+gaussian fit keeps its draws.
+
+A forest with no basis is held unless it states a df ([`forestMapEntry`](../../src/bartcore/combiner.hpp) reads
+the statement, isnan and not a test of finiteness). With `student()` and no `sd`, its median is the size the leaf
+prior gives ([`Chain::leafPriorSize`](../../src/bartcore/chain.hpp)): a named sd, the node scale over a held k, or
+over the chi prior's median k, 1.574 under probit and 2.855 under logistic at chi(1.5, 2). A flat prior on k gives
+no size and is refused by name. bcf's mu states df 1 ([`expandForestSpecs`](../../src/bartcore/combiner.hpp)) so
+the K = 2 fixtures keep their half-Cauchy. A leaf prior given to the fitting function where every forest with no
+basis states its size has no forest and is refused by name, the default restated taken.
 
 - One k. A drawn k is drawn once for the group ([`Chain::drawSharedK`](../../src/bartcore/chain.hpp)), from
   every sharer's leaves each standardized by its own leaf scale, and reported on each sharer: `getK` and a
@@ -79,8 +90,11 @@ A lone forest with no basis keeps the map's entry it had before, so a model with
   the group's k wherever the sharers stand, each sharer's held coefficient in `fixed$amplitude` whether or not
   `fixed()` is written; where k is drawn `summary` tabulates it and `extract(type = "leaf.prior.sd")` gives each
   sharer's `k.scale` over each draw.
-- On a live sampler a sharer's `sd` through `$setLeafPrior(forests = )` and the sampler's `leaf.prior` are
-  refused by name; a size or total is stated at creation, and changing either live waits on the forest door.
+- On a live sampler, with two or more sharers, a sharer's `sd` through `$setLeafPrior(forests = )` and the
+  sampler's `leaf.prior` are refused by name; a size or total is stated at creation, and changing either live
+  waits on the forest door. A lone sharer takes the `sd` and leaves the leaf prior, k pinned at 1, as creation
+  stating it does (dec-B525's end state); the reader's own `leaf.prior` written back moves nothing, and
+  `$setLeafPrior(leaf.prior)` takes only a restatement of the one in force.
 
 Without a forest with a basis, `y ~ forest(x1) + forest(x2) + forest(x3)` is then the one-forest model
 `y ~ forest(x1 + x2 + x3, blocks = blocks(list("x1", "x2", "x3")))` with the same trees per group, at every

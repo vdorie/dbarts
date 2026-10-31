@@ -20,7 +20,7 @@ in the response's units; U is the unit ([forest-sd-unit.md](forest-sd-unit.md)).
 
 | the forest multiplies | drawn | drawn, `amplitude = student(nu)` | held, `amplitude = fixed()` |
 |---|---|---|---|
-| nothing | F has sd U, the coefficient's size half-Cauchy with median s / U | F has sd U, the coefficient t with nu df and median size s / U; `student(1)` is the drawn default | the coefficient is 1; F has sd s, exactly |
+| nothing | not by default: a forest with no basis is held unless it states `student()` (dec-B509) | F has sd U, the coefficient t with nu df and median size s / U; `student(1)`, the half-Cauchy, is bcf's prior | the default; the coefficient is 1; F has sd s, exactly |
 | two levels | each level's coefficient N(0, 1/2); F has sd s / 0.674 | the pair bivariate t with nu df, one variance, scale sqrt(1/2) z_.75 / t_nu,.75, so the difference keeps the normal's median; F has sd s / 0.674 | (0, 1); F has sd s, exactly, the second level against the first |
 | a numeric column w | the coefficient N(0, 1), starting at 1; F has sd s / 0.674, per unit of w | the coefficient t with nu df, scale z_.75 / t_nu,.75, starting at 1; F has sd s / 0.674, per unit of w | the coefficient is 1; F has sd s, exactly, per unit of w |
 
@@ -31,12 +31,13 @@ in the response's units; U is the unit ([forest-sd-unit.md](forest-sd-unit.md)).
 - A numeric column is used as given: never centered and never divided, at the fit, after a swap and at
   new rows. A stated sd is per unit of the column, and nothing is read from the data for it.
 - Defaults. A factor takes U, and a number U for one standard deviation of the column, s = U / sd(w),
-  held or drawn and whatever the number of forests (dec-B291). A drawn forest with no basis takes 2 U
-  under gaussian and U under probit and logistic. A held forest with no basis takes, under gaussian, the
-  size the one forest of a single-forest chain has at its defaults, a quarter of the response's range as
-  the engine holds it (dec-B290), and U under probit and logistic (dec-B293). Two or more forests with no
-  basis that state no sd are held at 1 and share the fitting function's leaf prior as one total, its k
-  drawn under probit and logistic, an equal part each ([forests-shared-total.md](forests-shared-total.md)).
+  held or drawn and whatever the number of forests (dec-B291). A forest with no basis that states no sd
+  takes the fitting function's leaf prior as the one forest of a single-forest chain does: by default a
+  quarter of the response's range as the engine holds it under gaussian (dec-B290), and k drawn under
+  chi(1.5, 2) under probit and logistic (dec-B509, replacing dec-B293's U). Stating `student()` and no sd,
+  its median is that size, the chi prior's median k where k is drawn. Two or more forests with no
+  basis that state no sd share that leaf prior as one total, an equal part each
+  ([forests-shared-total.md](forests-shared-total.md)).
   A held numeric coefficient
   that states no sd takes the drawn default: right at ordinary slopes, short under probit when the slope
   is two or three times larger, which the help says.
