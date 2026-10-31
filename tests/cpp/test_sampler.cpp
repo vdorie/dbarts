@@ -13874,6 +13874,17 @@ static void testForestsSharedTotal() {
       refused = true;
     }
     check(refused, "median: a flat prior on k has no median to take");
+    // the hold reads the statement: a df that is stated is never held, +inf
+    // included, which is refused until a coefficient can draw there
+    bool infiniteRefused = false;
+    try {
+      ForestStatement infinite;
+      infinite.amplitudeDf = std::numeric_limits<double>::infinity();
+      forestMapEntry(infinite, ForestKind::none, 1.0, 1.0, 1.0);
+    } catch (const std::invalid_argument&) {
+      infiniteRefused = true;
+    }
+    check(infiniteRefused, "hold: an infinite df is stated, and is not held");
 
     // a stated sd leaves the leaf prior out of it
     statement.sd = 0.9;
