@@ -1247,6 +1247,21 @@ resolveSamplerSpec <- function(
         call. = FALSE
       )
     }
+    # every forest with no basis states its size, so none has this k to take
+    if (
+      !is.null(declaredBases) &&
+        !shares &&
+        (is(priors$leaf.hyperprior, "dbartsChiHyperprior") ||
+          (is(priors$leaf.hyperprior, "dbartsFixedHyperprior") &&
+            priors$leaf.hyperprior@k != 2.0))
+    ) {
+      stop(
+        "no forest of this model takes a leaf prior's 'k': each forest with ",
+        "no basis states its own size, as forest(sd = ), in the response's ",
+        "units; drop 'k'",
+        call. = FALSE
+      )
+    }
     unsupported <- c(
       "'monotone'" = !is.null(monotoneDirections),
       "a linear leaf prior" = is(priors$leaf.prior, "dbartsLinearPrior"),
@@ -1277,10 +1292,7 @@ resolveSamplerSpec <- function(
       stop(
         "a model of several forests does not support ",
         paste0(names(unsupported)[unsupported], collapse = ", "),
-        "; drop it or fit a single-forest model",
-        if (any(unsupported[c("a 'k' hyperprior", "a non-default 'k'")])) {
-          "; a forest's size is stated as forest(sd = ), in the response's units"
-        }
+        "; drop it or fit a single-forest model"
       )
     }
     # a drawn coefficient stating no 'sd' has as its median the size the leaf

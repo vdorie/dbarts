@@ -2893,10 +2893,10 @@ resolveLeafPrior <- function(
   }
   if (multiForest) {
     stop(
-      "a model of several forests states each forest's size on the forest: ",
-      "write the size of the forest with no basis as forest(x1 + x2, sd = 2), ",
-      "which is in the response's units as leaf.prior = normal(sd = ) is, and ",
-      "leave 'sd' out of 'leaf.prior'"
+      "no forest of this model takes a leaf prior's 'sd': each forest with no ",
+      "basis states its own, as forest(x1 + x2, sd = 2), which is in the ",
+      "response's units as leaf.prior = normal(sd = ) is; leave 'sd' out of ",
+      "'leaf.prior'"
     )
   }
   if (is.numeric(sd)) {
