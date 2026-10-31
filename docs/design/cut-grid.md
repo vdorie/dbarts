@@ -46,7 +46,7 @@ position holding its value, so the restored chain did not continue as stored.
   where the points are equally likely; a copy and a reload are created on the grid and weights the data
   object records ([state-frame-prior.md](state-frame-prior.md)), and no install writes either. A row-subset view (an xbart fold) copies them with the grid.
 - A refresh derives the grid a creation would for the values
-  ([`ColumnStore::deriveNumericCuts`](../../src/bartcore/data.hpp)): up to the `n.cuts` asked for at creation,
+  ([`ColumnStore::deriveNumericCuts`](../../src/bartcore/data.hpp)): up to the `n.cuts` the sampler holds (dec-B546),
   whatever number of points the column held, and fewer where the values supply fewer. It never fails for
   want of distinct points.
 - Every grid a sampler accepts holds each point once: `setCutPoints` refuses a repeat, and a state or a

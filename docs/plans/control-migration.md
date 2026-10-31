@@ -262,7 +262,7 @@ door's `n.cuts` and `useQuantiles`, or a written control value standing for them
 | `dbartsData()` | - | `n.cuts = NULL`, `useQuantiles = NULL`, last; NA refused, `NULL` states none |
 | `bart()`, `pdbart()`, `rbart_vi()` | their `n.trees`, passed flat to `dbarts()` by rule 6; the control they build names none of the three | their `n.cuts`, `useQuantiles`, passed flat by rule 6 |
 | `bartBT()` | `ntree`, 200 unless its caller names another, passed flat by rule 6 | `numcut`, `usequants`, passed flat by rule 6 |
-| `xbart()` | its grid; a written control count is a grid of one; each cell's count goes on the cell's model record | flat; the shared data handle takes the data object's rule; a data object's own count and rule stand as at `dbarts()`, row 4 |
+| `xbart()` | its grid; a written control count is a grid of one; each cell's count goes on the cell's model record | flat; the shared data handle takes the data object's rule and a grid it carries (dec-B549); a data object's own count and rule stand as at `dbarts()`, row 4 |
 | a formula's `forest()` terms, `forests = ` | per forest; a bare `forest()` is one forest (dec-B241's call) | - |
 | a data object as `data` | the rule; a data object carries no count | the rule, row 4 |
 | `new("dbartsSampler", control, model, data)` | a copied control: the model's count, with the not-used warning where it differs (dec-B335); a fresh control: the model's, a silent value never being read; a written control count: used where the model states none, with the one-release warning, refused by name where it states another (dec-B526) or where every forest has a basis (rule 3) | a copied control: the data object's rule and count, with the not-used warning where they differ; a fresh control: the data object's; a written rule: dec-B526's reading, the grid re-derived; a written count: the data object's, with the not-used warning, as 0.9-34 and main use the data object's |
@@ -340,12 +340,14 @@ from the parsed family. `applyVarianceAttributes`,
 `applySurvivalAttribute` and `applyForestAttributes`
 read the model and data and are renamed for what they read: [`applyVarianceRecord`](../../src/R_interface_bartcore.cpp), [`applySurvivalStatus`](../../src/R_interface_bartcore.cpp), [`applyForestRecords`](../../src/R_interface_bartcore.cpp). [`bartcore_setControl`](../../src/R_interface_bartcore.cpp)
 loses its tree-count refusal (the control has none to compare); `bartcore_setModel` gains it as a backstop for
-callers that skip R's check (xbart's cell install). The data handle takes `useQuantiles` from the data object and
+callers that skip R's check (xbart's cell install). The data handle takes `useQuantiles` and a grid it records
+(dec-B549) from the data object and
 `sparseDensityThreshold` from the control as now. A slot holding NULL reaches the bridge as R's S4 NULL marker;
-every new NULL-able slot is read through the normalizing helper `parseData` uses for `bases`. A survival fit's data
+every new NULL-able slot is read through the normalizing helper `parseData` uses for `bases`. `bartcore_setData` hands
+the engine the count and rule R chose, on `DataReplacement` (dec-B546), the one change under src/bartcore. A survival fit's data
 object under another family runs: [`takeControlReadings`](../../R/records.R), which every door passes through, leaves
 the status behind unless the model's family is `aft`, so no sampler stores it. The bridge's refusal stays, as the
-backstop `$setResponse(status = )` reaches on a family that is not `aft`. Unchanged:
+backstop `$setResponse(status = )` reaches on a family that is not `aft`. Otherwise unchanged:
 src/bartcore, the facade, `SamplerOptions` and what goes into it, the order of construction and generator
 creation, inst/include/dbarts/dbarts.h.
 
@@ -358,7 +360,10 @@ written count there where every forest has a basis; a written
 `n.cuts` is stored there and never reaches the engine); `$setModel` with a model of another structure in a fact
 that today rode the control; at the direct door, a basis forest's model beside a data object with no bases,
 `new("dbartsSampler", run(), bcfFit$model, f75$data)`, which the bridge refuses ("a basis forest was configured but
-the data carry no forest bases") where main followed the control and fit gaussian with 75 trees.
+the data carry no forest bases") where main followed the control and fit gaussian with 75 trees; an `n.cuts` naming
+no column or term, leaving a column with no value, or unnamed and neither one value nor one per column (dec-B547), so
+`c(x2 = 10)` and `c(25, 10)` on three columns, which main and 0.9-34 take, and a hazard fit's one value per predictor,
+its period being a column, which they recycle.
 
 Taken where main refuses: `forests = forest()`; `dbarts(n.trees = )`, `dbartsSpec(n.trees = )`,
 `dbarts(n.cuts = , useQuantiles = )`, `dbartsData(n.cuts = , useQuantiles = )`; any control at `bart()` and
@@ -386,9 +391,10 @@ gives 25 even points beside 10 quantile on the first refresh; one stating neithe
 `updateCutPoints = "none"` keeps the sampler's whatever is stated (A/B rows `b546.*`). `fit$data@useQuantiles` reads
 plain `TRUE` or `FALSE` on anything a sampler holds (dec-B548), where main has no slot to read (A/B row `b548.read`).
 A per-column `n.cuts` at every door that takes it reads as `split.probs` reads (dec-B547): `c(x3 = 5, x1 = 25, x2 = 10)`
-gives each column its own, where main and 0.9-34 read it by position; `c(x2 = 10)` and `c(25, 10)` on three columns,
-which they took, are refused, as is an unknown name they ignored; a hazard fit's period is a column, so one value per
-predictor there is refused where it was recycled (A/B rows `b547.*`).
+gives each column its own, where main and 0.9-34 read it by position (A/B rows `b547.*`). `xbart()` given a data object carrying a grid
+takes it for every fold (dec-B549), a stated `n.cuts` or `useQuantiles` deriving it again: a fit's own object with its
+predictors as they were gives the number the formula gives, to the bit, and a hand grid or edited predictors stay on
+the grid carried, where main and 0.9-34 derive (A/B rows `b549.*`).
 
 ## Slices
 
@@ -602,8 +608,8 @@ The review runs each and requires a failing test:
 25. An edit of a fit's value back to a fresh control's reads as written, so it warns and is read. Alternative: treat
     it as silent, dropping what the caller wrote.
 26. RULED, dec-B544. `xbart()` given a data object keeps the data object's count and rule under rule 4, as `dbarts()`
-    does. Alternative: main's overwrite, one fitting function reading a data object two ways. NEWS has it already: a
-    data object saved by 0.9-34 is rebuilt with `dbartsData()`.
+    does, and dec-B549 adds the grid it carries. Alternative: main's overwrite, one fitting function reading a data
+    object two ways. NEWS has it already: a data object saved by 0.9-34 is rebuilt with `dbartsData()`.
 27. A written value agreeing with the model or data object at the direct door or `$setControl` is taken with the
     deprecation warning alone. Alternative: refuse any written value there, an agreeing script stopping for nothing.
 28. `dbartsData(dd, n.cuts = )` on a data object joins that function's existing "are ignored" warning, a `NULL` not

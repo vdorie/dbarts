@@ -363,9 +363,10 @@ expect_identical(gridless$data@response.range, carried@response.range)
 expect_identical(priorOf(sampler), priorOf(doors$new))
 expect_false(identical(priorOf(sampler), priorOf(gridless)))
 
-# ---- xbart ignores ---------------------------------------------------------
+# ---- xbart -----------------------------------------------------------------
 
-# its folds derive their own grid and range from their training rows
+# its folds take the grid the object carries, and derive their range from their
+# training rows
 crossValidated <- function(data) {
   set.seed(9L)
   dbarts::xbart(
@@ -379,7 +380,10 @@ crossValidated <- function(data) {
     verbose = FALSE
   )
 }
-expect_identical(crossValidated(carried), crossValidated(fresh))
+expect_false(identical(crossValidated(carried), crossValidated(fresh)))
+onCarriedGrid <- fresh
+onCarriedGrid@cutPoints <- carried@cutPoints
+expect_identical(crossValidated(carried), crossValidated(onCarriedGrid))
 
 # ---- control anchor --------------------------------------------------------
 

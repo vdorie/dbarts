@@ -2609,6 +2609,17 @@ void validateCategoricalPredictors(const ParsedData& data) {
   }
 }
 
+/// The grids a data object records, for a creation build or a data handle's
+/// build to take in place of deriving them; none where it records none.
+bartcore::SuppliedCutGrid suppliedCutGridOf(const ParsedData& data) {
+  bartcore::SuppliedCutGrid supplied;
+  if (!data.suppliedCutPoints.empty()) {
+    supplied.points = &data.suppliedCutPoints;
+    supplied.mass = &data.suppliedCutMass;
+  }
+  return supplied;
+}
+
 bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
                                            const ParsedModel& model,
                                            const ParsedData& data,
@@ -2651,12 +2662,9 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.predictors = data.predictors;
   options.missingSeen = data.missingSeen.empty()
     ? NULL : data.missingSeen.data();  // consumed at construction
-  // consumed by a creation build; a sampler over a data handle's store
-  // builds none, so its folds derive their own (xbart)
-  if (!data.suppliedCutPoints.empty()) {
-    options.suppliedCutGrid.points = &data.suppliedCutPoints;
-    options.suppliedCutGrid.mass = &data.suppliedCutMass;
-  }
+  // consumed by a creation build; a sampler over a data handle's store builds
+  // none, the store having taken the grid at its own build
+  options.suppliedCutGrid = suppliedCutGridOf(data);
   options.splitProbabilities = model.splitProbabilities; // copied by ctor
   options.monotoneDirections = model.monotoneDirections.empty()
     ? NULL : model.monotoneDirections.data();  // consumed at construction
@@ -4775,7 +4783,8 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
 
 // Builds the two-layer store (cuts + codes) once for sharing across
 // row-subset samplers: control contributes the layout's density threshold,
-// data contributes x, the column types, n.cuts and the quantile rule.
+// data contributes x, the column types, n.cuts, the quantile rule and any grid
+// it records.
 // Internal, with no serialization.
 SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr,
                                SEXP leafCovariateColumnsExpr) {
@@ -4822,7 +4831,7 @@ SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr,
     if (!handle->build(data.predictors, data.maxNumCuts.data(), 0,
                        data.useQuantiles,
                        gatherColumns.empty() ? NULL : gatherColumns.data(),
-                       gatherColumns.size())) {
+                       gatherColumns.size(), suppliedCutGridOf(data))) {
       delete handle;
       Rf_error("a predictor column holds a level code the store cannot "
                "represent");
@@ -6695,8 +6704,7 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
     if (replacement.grid == bartcore::DerivedValueChoice::supply) {
       if (data.suppliedCutPoints.empty())
         Rf_error("$setData: the data carry no 'cutPoints' record");
-      replacement.suppliedGrid.points = &data.suppliedCutPoints;
-      replacement.suppliedGrid.mass = &data.suppliedCutMass;
+      replacement.suppliedGrid = suppliedCutGridOf(data);
     }
     // the record R chose for the sampler: what the grid is derived at, now and
     // by any later refresh

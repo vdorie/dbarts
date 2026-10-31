@@ -336,7 +336,9 @@
             sampler$data)} and \code{samplePriorPredictive(sampler)} are made
             on the sampler's cut points and response range, where 0.9-34
             derived them again from the data. A data object made afresh
-            derives them, as before. A copy and a reloaded sampler are made
+            derives them, as before. \code{xbart(sampler$data)} takes the
+            cut points in every fold and derives the rest there. A copy and a
+            reloaded sampler are made
             on the record: a copy of a sampler takes its current chain, where
             0.9-34 installed the last stored state, and a sampler saved after
             \code{$setCutPoints} with no \code{$storeState()} since reloads
@@ -350,7 +352,10 @@
             sampler$setData(d)}), keeps the sampler's cut points and
             response range, where 0.9-34 derived them again from the new
             data, while a data object made by \code{dbartsData()} records
-            none and derives them, as before. Its new arguments
+            none and derives them, as before. A cut count or quantile rule
+            the object states wins and the sampler derives by it from then
+            on, where 0.9-34 kept the sampler's, and an object carrying cut
+            points brings the count and rule that made them. Its new arguments
             \code{updateCutPoints}, \code{updateScale} and
             \code{updateStandardization}, after \code{updateState}, derive a
             value (\code{"position"}, \code{"value"} or \code{TRUE}) or keep

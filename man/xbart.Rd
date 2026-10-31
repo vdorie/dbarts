@@ -115,7 +115,7 @@ xbart(
      A named \code{sd} inside the prior (\code{normal(sd = )}, and likewise for \code{linear} and \code{gp}) stands in for a missing \code{sd} argument, as a one-cell \code{sd} axis. Beside a \code{k} or \code{sd} grid it is refused, since both would state the spread: name the spreads in the \code{sd} grid. Two calls with the same \code{seed} use the same folds whatever their spreads, so one call per \code{sd} reproduces each cell a grid's fresh start would.
    }
    \item{n.cuts}{
-     The number of decision rules used for each predictor, as \code{\link{bart}}'s \code{n.cuts} reads: one positive integer for every column, one per column, or by column or term name with \code{.default} for the rest.
+     The number of decision rules used for each predictor, as \code{\link{bart}}'s \code{n.cuts} reads: one positive integer for every column, one per column, or by column or term name with \code{.default} for the rest. A \code{\link{dbartsData}} object given as \code{formula} keeps its own, and a grid it carries, its \code{cutPoints}, is the one every fold takes, as \code{\link{dbarts}} takes it; stating \code{n.cuts} or \code{useQuantiles} derives the grid again.
    }
    \item{useQuantiles}{
      Logical; as in \code{\link{bart}}, determines whether decision rules are placed at the empirical quantiles of each predictor's values rather than spaced uniformly through its range. Either way a fold takes the full data's rules and their weights, so on a predictor with fewer distinct values than \code{n.cuts} it holds a rule between held-out values as well.

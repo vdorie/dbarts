@@ -252,6 +252,10 @@ xbart <- function(
     data,
     list(n.cuts = n.cuts, useQuantiles = useQuantiles, stated = stated)
   )
+  # a grid the data object still carries is what its folds take, as dbarts()
+  # takes it
+  data <- checkCutPointsRecord(data)
+  refuseCarriedOrderedGrid(data, list(cutPoints = orderedFactorGrids(data)))
   data@sigma <- sigest
 
   # a factor/logical/character response is a classification; xbart cross-

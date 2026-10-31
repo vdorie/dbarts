@@ -415,16 +415,74 @@ checkDerivedRecord <- function(
   model,
   covariates = leafCovariateNames(model, data)
 ) {
-  refuse <- function(slot, ...) {
-    stop(
-      "the data's '",
-      slot,
-      "' record ",
-      ...,
-      "; set it to NULL to derive it from the data",
-      call. = FALSE
+  refuse <- refuseDerivedRecord
+  data <- checkCutPointsRecord(data)
+  # a count family's record is its center c, held as (c, c + 1), which is
+  # never an equal pair; a pair of another width, as a range recorded under
+  # another family is, is read by its first number and recorded in that form
+  # at every door, so the sampler's record is the window it holds
+  range <- dataResponseRange(data)
+  count <- identical(model@family, "nbinom")
+  if (
+    !is.null(range) &&
+      (!is.numeric(range) ||
+        length(range) != 2L ||
+        !all(is.finite(range)) ||
+        range[[2L]] < range[[1L]] ||
+        (count && range[[2L]] == range[[1L]]))
+  ) {
+    refuse(
+      "response.range",
+      "must be two finite numbers, the second ",
+      if (count) "above" else "not below",
+      " the first"
     )
   }
+  if (count && !is.null(range)) {
+    data@response.range <- as.double(range[[1L]]) + c(0, 1)
+  }
+  calibration <- dataForestCalibration(data)
+  if (
+    !is.null(calibration) &&
+      (!is.numeric(calibration) ||
+        length(calibration) != 2L ||
+        !all(is.finite(calibration)) ||
+        any(calibration <= 0) ||
+        !(is.null(names(calibration)) ||
+          identical(names(calibration), c("anchor", "unit"))))
+  ) {
+    refuse(
+      "forest.calibration",
+      "must be two positive finite numbers, c(anchor = , unit = )"
+    )
+  }
+  standardization <- dataStandardization(data)
+  if (!is.null(standardization)) {
+    data@standardization <- checkStandardizationRecord(
+      standardization,
+      model,
+      covariates,
+      refuse
+    )
+  }
+  data
+}
+
+refuseDerivedRecord <- function(slot, ...) {
+  stop(
+    "the data's '",
+    slot,
+    "' record ",
+    ...,
+    "; set it to NULL to derive it from the data",
+    call. = FALSE
+  )
+}
+
+## A data object's grid record held to its columns' kinds and put in the order a
+## grid takes, as a sampler or xbart()'s store is built on it.
+checkCutPointsRecord <- function(data) {
+  refuse <- refuseDerivedRecord
   grids <- dataCutPoints(data)
   if (!is.null(grids)) {
     varTypes <- data@varTypes
@@ -501,54 +559,6 @@ checkDerivedRecord <- function(
       grids[[j]] <- grid
     }
     data@cutPoints <- grids
-  }
-  # a count family's record is its center c, held as (c, c + 1), which is
-  # never an equal pair; a pair of another width, as a range recorded under
-  # another family is, is read by its first number and recorded in that form
-  # at every door, so the sampler's record is the window it holds
-  range <- dataResponseRange(data)
-  count <- identical(model@family, "nbinom")
-  if (
-    !is.null(range) &&
-      (!is.numeric(range) ||
-        length(range) != 2L ||
-        !all(is.finite(range)) ||
-        range[[2L]] < range[[1L]] ||
-        (count && range[[2L]] == range[[1L]]))
-  ) {
-    refuse(
-      "response.range",
-      "must be two finite numbers, the second ",
-      if (count) "above" else "not below",
-      " the first"
-    )
-  }
-  if (count && !is.null(range)) {
-    data@response.range <- as.double(range[[1L]]) + c(0, 1)
-  }
-  calibration <- dataForestCalibration(data)
-  if (
-    !is.null(calibration) &&
-      (!is.numeric(calibration) ||
-        length(calibration) != 2L ||
-        !all(is.finite(calibration)) ||
-        any(calibration <= 0) ||
-        !(is.null(names(calibration)) ||
-          identical(names(calibration), c("anchor", "unit"))))
-  ) {
-    refuse(
-      "forest.calibration",
-      "must be two positive finite numbers, c(anchor = , unit = )"
-    )
-  }
-  standardization <- dataStandardization(data)
-  if (!is.null(standardization)) {
-    data@standardization <- checkStandardizationRecord(
-      standardization,
-      model,
-      covariates,
-      refuse
-    )
   }
   data
 }
@@ -682,6 +692,22 @@ refuseCarriedOrderedGrid <- function(data, records) {
     }
   }
   invisible(NULL)
+}
+
+## What an ordered factor's cut points are, from its levels alone, for a caller
+## with no sampler to ask: one between each pair, by level code.
+orderedFactorGrids <- function(data) {
+  grids <- vector("list", length(data@varTypes))
+  levelTables <- attr(data@x, "factor.levels")
+  for (j in which(data@varTypes == ORDERED_FACTOR_VARIABLE)) {
+    numLevels <- length(levelTables[[j]])
+    grids[[j]] <- if (numLevels >= 2L) {
+      seq_len(numLevels - 1L) - 0.5
+    } else {
+      dataCutPoints(data)[[j]]
+    }
+  }
+  grids
 }
 
 ## Brings a sampler's record of what it derived from its data up to its

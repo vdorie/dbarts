@@ -82,9 +82,10 @@ and if values are supplied, use them. If explicit arguments are given, we could 
   returns one unchanged), so `bart(s$data)` and `dbarts(s$data)` carry the sampler's record; a formula and a
   frame build a fresh object, which derives as now. A record that does not fit the data is refused, naming
   the slot and saying that setting it to `NULL` derives it ([Smaller calls](#smaller-calls)).
-- `xbart`. Its folds are views of one store inside the engine, built through the data handle. The handle
-  ignores every carried record and derives as today: dec-B304 has each fold take its scale from its own
-  training rows, which a whole-data record would override. `xbart(s$data)` is therefore today's `xbart`.
+- `xbart`. Its folds are views of one store inside the engine, built through the data handle. The handle takes
+  a carried grid, as a creation build does (dec-B549), and ignores the other records: dec-B304 has each fold take its
+  scale from its own training rows, which a whole-data record would override. A fit's own object with its predictors
+  as they were therefore gives today's `xbart`, and one edited or holding another grid gives that grid's.
 - `setData(newData, updateState = NULL, updateCutPoints = NULL, updateScale = NULL, updateStandardization =
   NULL)`. Each record separately: an argument given is followed (derive, or keep what the sampler holds); with
   none, a record `newData` carries is used, and one it lacks is derived. Presence alone decides: a record
@@ -93,7 +94,10 @@ and if values are supplied, use them. If explicit arguments are given, we could 
   and kept, are converted wherever the standardization changes (dec-B329), and kept draws are rewritten
   wherever the range changes, as today ([`Chain::applyNewData`](../../src/bartcore/chain.hpp)). Each argument
   defaults to `NULL`, the rule; `updateCutPoints` takes "none", "position" or "value", the other two `TRUE`
-  (derive) or `FALSE` (keep the sampler's own, never the carried one), all after `updateState` (dec-B460).
+  (derive) or `FALSE` (keep the sampler's own, never the carried one), all after `updateState` (dec-B460). The
+  cut count and the rule a grid is derived by follow the object, now and at any later refresh: what it states wins,
+  one carrying a grid brings what made it, an unstated rule reading as even, and one stating neither, or a call
+  keeping the grid in force, keeps the sampler's (dec-B546).
 - `setPredictor(x, column, forceUpdate, updateCutPoints = "none", updateState = NULL, updateStandardization =
   FALSE)`. `TRUE` derives the center, scale and heuristic lengthscale of the leaf covariates among the columns
   it replaces over their new values, as `updateCutPoints` derives their grids, keeps the other covariates', and
@@ -148,7 +152,7 @@ the runs). "Held" was emulated on the tip with the calls that exist: `setCutPoin
 | `setData` of a fresh `dbartsData()` | derived | derived | derived, unchanged |
 | creation from `s$data`: `new()`, `dbarts()`, `bart()`, `dbartsSpec()`, `samplePriorPredictive` | grid and range derived from the data | the same; the range from the model where the door re-creates | the sampler's grid and range; `samplePriorPredictive` on the sampler's grid where it derived one from the data |
 | a control taken from a sampler of several forests, handed other data | no anchor | the control's anchor (0.190 where the data give 0.0796) | the data's own, derived |
-| `xbart(s$data)` | derived | derived | derived: the handle ignores records |
+| `xbart(s$data)` | derived | derived | the grid carried, the same points as derived on a fit's own predictors (dec-B549); the rest derived per fold |
 | `copy()` of a live sampler whose stored state is older than `setCutPoints(c(0.25, 0.5, 0.75), 1)` (`updateState = FALSE`) | the state's grid and chain | the state's 100 points and its 17 splits, where the sampler has 3 and 16; the same for a multinomial sampler | the live chain on the 3 points: the sampler as it stands |
 | a reload of the same object | the state's grid | the state's 100 points, 17 splits | the 3 points, the stored splits moved onto them, 16 |
 | the same with `updateState = TRUE` | 3 points | 3 points, 16 splits | the same |
