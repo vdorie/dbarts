@@ -262,3 +262,38 @@ expect_error(gaussian$setLeafPrior(normal(k = 3)), "forests =", fixed = TRUE)
 probit <- fit("probit", withBasis)
 expect_error(probit$setLeafPrior(normal(k = 2)), "forests =", fixed = TRUE)
 probit$setLeafPrior(reader(probit)$leaf.prior)
+
+## --- a copy and a reload continue as one, and as the live sampler -----------
+for (family in families) {
+  for (rhs in c(withBasis, withSd)) {
+    info <- paste(family, rhs)
+    args <- list(
+      as.formula(paste(if (family == "gaussian") "y" else "yb", "~", rhs)),
+      d,
+      control = dbartsControl(
+        n.chains = 1L,
+        n.threads = 1L,
+        n.samples = 3L,
+        n.burn = 3L,
+        seed = 13L,
+        updateState = TRUE
+      )
+    )
+    if (family == "logistic") {
+      args$family <- "logistic"
+    }
+    kept <- do.call(dbarts, args)
+    invisible(kept$run())
+    kept$storeState()
+    copied <- kept$copy()
+    path <- tempfile(fileext = ".rds")
+    saveRDS(kept, path)
+    reloaded <- readRDS(path)
+    unlink(path)
+    liveNext <- kept$run(0L, 3L)
+    copyNext <- copied$run(0L, 3L)
+    expect_identical(reloaded$run(0L, 3L), copyNext, info = info)
+    expect_equal(liveNext$train, copyNext$train, tolerance = 1e-10, info = info)
+    expect_identical(copied$getK(), reloaded$getK(), info = info)
+  }
+}
