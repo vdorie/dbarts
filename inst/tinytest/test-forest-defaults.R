@@ -141,8 +141,8 @@ for (index in seq_along(plainSecond)) {
   expect_identical(unname(second$data@bases), rev(unname(first$data@bases)))
   expect_null(second$data@bases[[2L]])
   expect_identical(dim(second$data@bases[[1L]]), c(n, 1L))
-  # the half-Cauchy channel is on the plain forest wherever it stands
-  expect_identical(second$getLeafPrior(2L)$prior.sd.of, "forest (prior median)")
+  # the leaf prior's size is on the plain forest wherever it stands
+  expect_identical(second$getLeafPrior(2L)$prior.sd.of, "forest")
   expect_identical(
     second$getLeafPrior(1L)$prior.sd.of,
     "forest, per unit of basis (prior median)"

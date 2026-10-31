@@ -217,7 +217,7 @@ heldFit <- bart(
   verbose = FALSE
 )
 expect_identical(attr(heldFit, "forest.labels"), c("forest1", "dose"))
-expect_identical(heldFit$fixed$amplitude, c(dose = 1))
+expect_identical(heldFit$fixed$amplitude, c(forest1 = 1, dose = 1))
 expect_identical(names(heldFit$fixed$k), c("forest1", "dose"))
 expect_identical(names(heldFit$leaf.prior), c("forest1", "dose"))
 expect_identical(names(extract(heldFit, "k")), c("forest1", "dose"))
@@ -288,7 +288,7 @@ valueFit <- dbarts:::packageBartResults(
   TRUE
 )
 expect_identical(attr(valueFit, "forest.labels"), c("forest1", "forest2"))
-expect_identical(valueFit$fixed$amplitude, c(forest2 = 1))
+expect_identical(valueFit$fixed$amplitude, c(forest1 = 1, forest2 = 1))
 expect_identical(names(valueFit$fixed$k), c("forest1", "forest2"))
 expect_identical(names(valueFit$leaf.prior), c("forest1", "forest2"))
 expect_identical(lastMargin(valueFit$forestFits), c("forest1", "forest2"))

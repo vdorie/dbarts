@@ -22,7 +22,7 @@ refusal <- function(expr) {
 ## --- messages ---------------------------------------------------------------
 expect_identical(
   refusal(dbarts(
-    y ~ forest(x1) + forest(x2, basis = w),
+    y ~ forest(x1, sd = 1) + forest(x2, basis = w),
     frame,
     leaf.prior = normal(k = 3)
   )),
@@ -134,4 +134,4 @@ expect_identical(
   capture.output(print(read[[2L]]$leaf.prior)),
   c("dbarts forest specification", "  sd = 0.5")
 )
-expect_false(any(grepl("NULL", capture.output(print(read[[1L]]$leaf.prior)))))
+expect_false(any(grepl("NULL", capture.output(print(forest())))))

@@ -140,7 +140,7 @@ fit.bcf <- suppressWarnings(bart(
   n.threads = 1L,
   verbose = FALSE
 ))
-expect_identical(fit.bcf$fixed$amplitude, c(`factor(z)` = 1))
+expect_identical(fit.bcf$fixed$amplitude, c(forest1 = 1, `factor(z)` = 1))
 fit.free <- suppressWarnings(bart(
   y ~ a + b + c + forest(a + b, basis = ~ factor(z)),
   df,
@@ -151,4 +151,4 @@ fit.free <- suppressWarnings(bart(
   n.threads = 1L,
   verbose = FALSE
 ))
-expect_null(fit.free$fixed$amplitude)
+expect_identical(fit.free$fixed$amplitude, c(forest1 = 1))

@@ -241,13 +241,12 @@ priorSampler <- new(
   priorSpec$model,
   priorSpec$data
 )
-# forest 1: no basis -> its size is its coefficient's, so its own scale is the
-# response's standard deviation; forest 2: a factor -> its size is in its own
-# scale, over the half-normal median
+# forest 1: no basis -> held at the sd it states; forest 2: a factor -> its
+# size is in its own scale, over the half-normal median
 priorFree <- priorSampler$getLeafPrior(1L)
 expect_identical(priorFree$sd, 2.5)
 expect_identical(priorFree$multiplier, "none")
-expect_equal(priorFree$k.scale, sd(y), tolerance = 1e-12)
+expect_identical(priorFree$k.scale, 2.5)
 priorBasis <- priorSampler$getLeafPrior(2L)
 expect_identical(priorBasis$sd, 1.25)
 expect_identical(priorBasis$multiplier, "factor")
@@ -413,7 +412,7 @@ staleBefore <- stale$getLeafPrior(2L)
 stale$setForestBasis(2L, 4 * z)
 expect_identical(stale$getLeafPrior(2L), staleBefore)
 # and the untouched forest keeps its own
-expect_equal(priorScale(stale, 1L), 1, tolerance = 1e-12)
+expect_equal(priorScale(stale, 1L), 3, tolerance = 1e-12)
 
 # (ii) BITWISE: a re-install of the SAME values is the identity, on the
 # calibration and on every draw after it.
@@ -485,10 +484,10 @@ recipientScale <- priorScale(recipient, 2L)
 recipient$setState(donorState)
 expect_identical(priorScale(recipient, 2L), recipientScale)
 expect_equal(priorScale(recipient, 2L), 0.5 / 0.674, tolerance = 1e-12)
-expect_equal(priorScale(recipient, 1L), 1, tolerance = 1e-12)
-# neither sampler states the first forest's sd, so both carry the family's
-# default, one unit under this probit fixture rather than gaussian's two
-expect_identical(recipient$getLeafPrior(1L)$sd, 1)
+expect_equal(priorScale(recipient, 1L), 3, tolerance = 1e-12)
+# neither sampler states the first forest's sd, so both carry the leaf prior,
+# under this probit fixture a drawn k with no one size to read
+expect_identical(recipient$getLeafPrior(1L)$sd, NA_real_)
 
 # (c) A SWAP AFTER THE INSTALL. The recipient here multiplies a number, which
 # is what takes a rescaled column, and the stated sd stands per unit of it.

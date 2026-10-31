@@ -161,7 +161,7 @@ for (build in list(
   } else {
     a$setLeafPrior(forests = lapply(a$getLeafPrior(), `[[`, "leaf.prior"))
     a$setLeafPrior(normal())
-    a$setLeafPrior(normal(k = 2))
+    a$setLeafPrior(a$getLeafPrior(1L)$leaf.prior)
   }
   expectTwins(a, b, "round trip")
 }
@@ -189,7 +189,7 @@ a <- amplitudeSampler(twoDefault)
 b <- amplitudeSampler(twoDefault)
 a$setLeafPrior(forests = list(forest(sd = 0.35 * sd(y))))
 expect_equal(a$getLeafPrior(1L)$sd, 0.35 * sd(y), tolerance = 1e-14)
-expect_identical(a$getLeafPrior(1L)$k.scale, b$getLeafPrior(1L)$k.scale)
+expect_equal(a$getLeafPrior(1L)$k.scale, 0.35 * sd(y), tolerance = 1e-14)
 expect_false(identical(counted(a$run(3L, 2L)), counted(b$run(3L, 2L))))
 
 # --- re-creation: the anchor s is carried, so a response swap at
@@ -260,7 +260,7 @@ expect_error(
   fixed = TRUE
 )
 expect_identical(a$getLeafPrior(1L)$leaf.prior, forest(sd = 0.35))
-expect_identical(a$getLeafPrior(1L)$prior.sd.of, "forest (prior median)")
+expect_identical(a$getLeafPrior(1L)$prior.sd.of, "forest")
 expect_identical(
   a$getLeafPrior(2L)$prior.sd.of,
   "level difference (prior median)"

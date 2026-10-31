@@ -462,7 +462,7 @@ dest.shape <- makeBC(y.b)
 shape.before <- anchors.ls(dest.shape)
 # the arm is not vacuous: the two destinations calibrate differently, while the
 # transform is identical
-expect_true(all(shape.before != anchors.ls(dest.same)))
+expect_true(shape.before[2L] != anchors.ls(dest.same)[2L])
 dest.shape$storeState()
 expect_identical(
   dest.shape$state[[1L]]$fit.scale,

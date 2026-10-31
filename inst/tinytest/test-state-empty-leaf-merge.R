@@ -93,7 +93,10 @@ checkStaleRestore(
     dbarts(
       x,
       y,
-      forests = list(forest(), forest(basis = ~ factor(z))),
+      forests = list(
+        forest(sd = 2 * sd(y), amplitude = dbartsPriors$student(1)),
+        forest(basis = ~ factor(z))
+      ),
       control = control
     )
   },

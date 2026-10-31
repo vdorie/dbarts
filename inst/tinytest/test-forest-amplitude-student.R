@@ -92,7 +92,10 @@ for (door in names(doors)) {
     info <- paste(door, family)
     arm <- families[[family]]
     sampler <- doors[[door]](arm$response, arm$family)
-    expect_null(sampler$getLeafPrior(1L)[["amplitude"]], info = info)
+    expect_true(
+      is(sampler$getLeafPrior(1L)[["amplitude"]], "dbartsFixedPrior"),
+      info = info
+    )
     for (f in 2:3) {
       prior <- sampler$getLeafPrior(f)
       expect_identical(prior$amplitude, studentPrior(3), info = info)
@@ -125,8 +128,8 @@ fit <- bart(
 )
 expect_identical(fit$leaf.prior[[2L]]$amplitude, studentPrior(3))
 expect_identical(fit$leaf.prior[[3L]]$amplitude, dbartsPriors$fixed())
-expect_null(fit$leaf.prior[[1L]][["amplitude"]])
-expect_identical(fit$fixed$amplitude, c(dose = 1))
+expect_true(is(fit$leaf.prior[[1L]][["amplitude"]], "dbartsFixedPrior"))
+expect_identical(fit$fixed$amplitude, c(forest1 = 1, dose = 1))
 full <- summary(fit)$forests[-1L]
 expect_true(endsWith(full[[2L]], "(default); coefficient student(3)"))
 expect_true(endsWith(full[[3L]], "; coefficient held"))
@@ -229,10 +232,6 @@ refused(
     "response's units"
   )
 )
-refused(
-  dbarts(y ~ forest(x1, amplitude = dbartsPriors$fixed()), d, control = ctl()),
-  "which has no coefficient to hold; 'amplitude' needs a model of several"
-)
 live <- dbarts(y ~ forest(x1 + x2) + forest(x1, basis = zf), d, control = ctl())
 refused(
   live$setLeafPrior(forests = list(forest(), forest(amplitude = student(3)))),
@@ -274,7 +273,8 @@ expect_identical(
   "student"
 )
 
-# --- a forest with no basis: student(1) is the drawn default restated ---
+# --- a forest with no basis: student(df) with no sd has as its median the size
+# the forest would otherwise hold, the same chain as that number stated ---
 noBasis <- function(amplitude, family = "gaussian", response = "y", sd = NULL) {
   first <- if (is.null(amplitude)) {
     forest(sd = sd)
@@ -290,14 +290,27 @@ noBasis <- function(amplitude, family = "gaussian", response = "y", sd = NULL) {
   sampler
 }
 draws <- function(sampler) sampler$run(10L, 5L)
-expect_identical(draws(noBasis(studentPrior(1))), draws(noBasis(NULL)))
-expect_identical(
-  draws(noBasis(studentPrior(1), "probit", "yb", sd = 1)),
-  draws(noBasis(NULL, "probit", "yb"))
-)
-expect_identical(
-  draws(noBasis(studentPrior(), "logistic", "yb")),
-  draws(noBasis(NULL, "logistic", "yb"))
+sizeOf <- function(sampler) unname(sampler$getLeafPrior(1L)$sd)
+for (arm in list(
+  list("gaussian", "y", NA),
+  list("probit", "yb", 3 / (2 * sqrt(qchisq(0.5, 1.5)))),
+  list("logistic", "yb", pi * sqrt(3) / (2 * sqrt(qchisq(0.5, 1.5))))
+)) {
+  bare <- noBasis(studentPrior(1), arm[[1L]], arm[[2L]])
+  if (!is.na(arm[[3L]])) {
+    expect_equal(sizeOf(bare), arm[[3L]], tolerance = 1e-12, info = arm[[1L]])
+  }
+  expect_identical(unname(bare$getK(1L)), 1, info = arm[[1L]])
+  expect_identical(
+    draws(bare),
+    draws(noBasis(studentPrior(1), arm[[1L]], arm[[2L]], sd = sizeOf(bare))),
+    info = arm[[1L]]
+  )
+}
+expect_equal(
+  sizeOf(noBasis(studentPrior(1))),
+  diff(range(d$y)) / 4,
+  tolerance = 1e-12
 )
 heavy <- noBasis(studentPrior(3))
 expect_identical(heavy$getLeafPrior(1L)$amplitude, studentPrior(3))

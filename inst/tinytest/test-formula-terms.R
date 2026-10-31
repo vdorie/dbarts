@@ -1066,9 +1066,9 @@ refuses(
   "this model has one forest and states its size twice",
   leaf.prior = quote(normal(sd = 3))
 )
-refuses(
-  y ~ forest(x1 + x2, amplitude = fixed()),
-  "this model has one forest, which has no coefficient to hold"
+expect_identical(
+  fit(y ~ forest(x1 + x2, amplitude = fixed()))$yhat.train,
+  fit(y ~ forest(x1 + x2))$yhat.train
 )
 
 # the written first forest's constraints are the fit's: served there, and

@@ -213,9 +213,9 @@ for (family in c("probit", "logistic")) {
   )
 }
 
-# --- not stated: the engine's own multiple, which never meets the unit; a
-# factor takes one unit and a number one unit for one sd of its column,
-# however many forests there are ---
+# --- not stated: a forest with no basis is under the leaf prior, a factor
+# takes one unit and a number one unit for one sd of its column, however many
+# forests there are ---
 for (family in c("gaussian", "probit", "logistic")) {
   response <- if (family == "gaussian") y else d$yb
   for (numForests in 2:4) {
@@ -232,14 +232,16 @@ for (family in c("gaussian", "probit", "logistic")) {
     )
     info <- paste(family, numForests)
     plain <- sampler$getLeafPrior(1L)
-    median <- if (family == "gaussian") 2 else 1
-    expect_identical(
-      engineEntry(sampler, 1L, "amplitude.prior.scale"),
-      median,
+    expect_true(
+      is.nan(engineEntry(sampler, 1L, "amplitude.prior.scale")),
       info = info
     )
     expect_false(plain$sd.stated, info = info)
-    expect_identical(plain$sd, median * unitOf(sampler), info = info)
+    if (family == "gaussian") {
+      expect_equal(plain$sd, diff(range(y)) / 4, tolerance = 1e-12, info = info)
+    } else {
+      expect_identical(plain$sd, NA_real_, info = info)
+    }
     for (f in seq_len(numForests)[-1L]) {
       multiplied <- sampler$getLeafPrior(f)
       expect_false(multiplied$sd.stated, info = info)
@@ -319,11 +321,7 @@ factorRows <- chainRows(twoChains, 2L)
 expect_identical(nrow(plainRows), 2L)
 expect_identical(unname(plainRows[, "named.sd"]), c(3, 3))
 expect_identical(unname(plainRows[, "map.sd"]), c(3, 3))
-expect_equal(
-  unname(plainRows[, "amplitude.prior.scale"]) * unitOf(twoChains),
-  c(3, 3),
-  tolerance = 1e-12
-)
+expect_equal(unname(plainRows[, "prior.scale"]), c(3, 3), tolerance = 1e-12)
 expect_identical(unname(factorRows[, "named.sd"]), c(0.25, 0.25))
 expect_identical(unname(factorRows[, "map.sd"]), c(0.25, 0.25))
 expect_equal(
@@ -408,7 +406,7 @@ expect_error(
 expect_identical(swappedBasis$getLeafPrior(1L)$sd, 2)
 expect_identical(
   swappedBasis$getLeafPrior(1L)$prior.sd.of,
-  "forest (prior median)"
+  "forest"
 )
 expect_identical(
   swappedBasis$copy()$getLeafPrior(1L),
@@ -444,13 +442,16 @@ for (numForests in 2:3) {
   stated$setLeafPrior(forests = lapply(inForce, function(sd) forest(sd = sd)))
   expect_true(all(vapply(stated$getLeafPrior(), `[[`, NA, "sd.stated")))
   expect_identical(lapply(stated$getLeafPrior(), `[[`, "sd"), inForce)
+  # the forest with no basis read k 2 under the leaf prior and reads 1 stated
+  twinScales <- lapply(twin$getLeafPrior(), `[[`, "k.scale")
+  twinScales[[1L]] <- twinScales[[1L]] / 2
   expect_identical(
     lapply(stated$getLeafPrior(), `[[`, "k.scale"),
-    lapply(twin$getLeafPrior(), `[[`, "k.scale")
+    twinScales
   )
   expect_identical(
     lapply(stated$copy()$getLeafPrior(), `[[`, "k.scale"),
-    lapply(twin$getLeafPrior(), `[[`, "k.scale")
+    twinScales
   )
   expect_identical(stated$run(0L, 20L), twin$run(0L, 20L))
 }
@@ -498,7 +499,9 @@ statingDefaults <- list(
     inexact
   )
 )
+# the forest with no basis read k 2 under the leaf prior and reads 1 stated
 twinChannels <- channelsOf(twin)
+twinChannels[[1L]]$k.scale <- twinChannels[[1L]]$k.scale / 2
 twinDraws <- twin$run(0L, 20L)
 for (path in names(statingDefaults)) {
   sampler <- statingDefaults[[path]]
@@ -510,7 +513,7 @@ for (path in names(statingDefaults)) {
   for (f in 1:3) {
     expect_identical(
       engineEntry(sampler, f, "prior.scale"),
-      engineEntry(twin, f, "prior.scale"),
+      engineEntry(twin, f, "prior.scale") / if (f == 1L) 2 else 1,
       info = path
     )
   }
@@ -664,16 +667,6 @@ expect_error(
   sub("'leaf.prior'", "'k'", statedTwice, fixed = TRUE),
   fixed = TRUE
 )
-expect_error(
-  dbarts(
-    x,
-    y,
-    forests = list(forest(amplitude = fixed())),
-    control = oneControl()
-  ),
-  "this model has one forest, which has no coefficient to hold",
-  fixed = TRUE
-)
 
 # --- a response with no spread: the unit is a quarter of the window of width
 # one the response is scaled by, the size the one forest of an ordinary fit
@@ -705,7 +698,7 @@ onConstant <- flat(list(forest(), forest(basis = factor(zFlat))))
 expect_identical(unitOf(onConstant), 0.25)
 expect_identical(
   lapply(onConstant$getLeafPrior(), `[[`, "sd"),
-  list(forest1 = 0.5, `factor(zFlat)` = 0.25)
+  list(forest1 = 0.25, `factor(zFlat)` = 0.25)
 )
 single <- suppressWarnings(dbarts(xFlat, rep(3, nFlat), control = flatControl))
 expect_identical(single$getLeafPrior()$k.scale, 0.5)
@@ -744,7 +737,10 @@ expect_identical(onConstant$getLeafPrior(1L)$sd, 0.7)
 # the fitting function's normal(sd = ) beside several forests says where the
 # size is written
 expect_error(
-  twoForests(list(forest(), forest(basis = d$zf)), leaf.prior = normal(sd = 2)),
+  twoForests(
+    list(forest(sd = 1), forest(basis = d$zf)),
+    leaf.prior = normal(sd = 2)
+  ),
   paste0(
     "a model of several forests states each forest's size on the forest: ",
     "write the size of the forest with no basis as forest(x1 + x2, sd = 2), ",

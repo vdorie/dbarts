@@ -202,7 +202,7 @@ expect_identical(
   c(
     forest1 = "forest, shared",
     forest2 = "forest, shared",
-    forest3 = "forest (prior median)",
+    forest3 = "forest",
     z = "level difference (prior median)"
   )
 )
@@ -674,4 +674,7 @@ statedHold <- statedFirst(
 expect_identical(gaussianFit$fixed$amplitude, c(forest1 = 1, forest2 = 1))
 expect_identical(statedHold$fixed$amplitude, gaussianFit$fixed$amplitude)
 beside <- statedFirst(y ~ forest(x1) + forest(x2) + forest(x3, sd = 1))
-expect_identical(beside$fixed$amplitude, c(forest1 = 1, forest2 = 1))
+expect_identical(
+  beside$fixed$amplitude,
+  c(forest1 = 1, forest2 = 1, forest3 = 1)
+)

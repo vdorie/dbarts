@@ -523,18 +523,21 @@ expect_error(
   ),
   "Gaussian-process leaf prior"
 )
+# with a forest under it the fitting function's leaf prior is taken; with none
+# it has no forest
+noneTakes <- list(dbartsForests$forest(sd = 1), dbartsForests$forest(basis = ~ factor(z)))
 expect_error(
   dbarts(
     x,
     y,
-    forests = twoForests,
+    forests = noneTakes,
     leaf.prior = normal(chi(1.5)),
     control = control
   ),
   "'k' hyperprior"
 )
 expect_error(
-  dbarts(x, y, forests = twoForests, leaf.prior = normal(3), control = control),
+  dbarts(x, y, forests = noneTakes, leaf.prior = normal(3), control = control),
   "non-default 'k'"
 )
 expect_error(
@@ -825,15 +828,17 @@ expect_error(
   ),
   "needs at least two forests"
 )
-expect_error(
-  dbarts(
-    x,
-    y,
-    forests = list(forest(amplitude = fixed())),
-    control = control
-  ),
-  "this model has one forest, which has no coefficient to hold"
+# fixed() on a lone forest restates its default, with no message (dec-B513)
+set.seed(44L)
+loneHeld <- dbarts(
+  x,
+  y,
+  forests = list(forest(amplitude = fixed())),
+  control = control
 )
+set.seed(44L)
+lonePlain <- dbarts(x, y, control = control)
+expect_identical(loneHeld$run(0L, 3L), lonePlain$run(0L, 3L))
 expect_error(
   dbarts(
     x,
@@ -1276,10 +1281,10 @@ expect_equal(
 )
 expect_equal(
   plainSecondPriors[[2L]]$sd,
-  2 * plainSecondPriors[[2L]]$k.scale,
+  plainSecondPriors[[2L]]$k.scale / 2,
   tolerance = 1e-12
 )
-expect_identical(plainSecondPriors[[2L]]$prior.sd.of, "forest (prior median)")
+expect_identical(plainSecondPriors[[2L]]$prior.sd.of, "forest")
 
 # --- dec-A109: the lone basis forest stays refused, and the refusal points at
 # the p + 1 forest form and linear() leaves ---

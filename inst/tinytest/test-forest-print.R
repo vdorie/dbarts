@@ -117,7 +117,7 @@ fourForests <- function(verbose = FALSE, ...) {
 }
 expectedFull <- c(
   header(),
-  paste0("  1 forest1: no basis; sd ", g(2 * U), " (default)"),
+  paste0("  1 forest1: no basis; sd ", g(diff(range(y)) / 4), " (default)"),
   numericLine(2, "dose", dose, U / sd(dose), "default"),
   numericLine(3, "age", age, U / sd(age), "default"),
   paste0(
@@ -128,7 +128,7 @@ expectedFull <- c(
   treesLine(75, 50, 50, 50)
 )
 shortForests <- c(
-  paste0("  1 forest1: no basis; sd ", g(2 * U)),
+  paste0("  1 forest1: no basis; sd ", g(diff(range(y)) / 4)),
   numericShort(2, "dose", dose, U / sd(dose)),
   numericShort(3, "age", age, U / sd(age)),
   paste0(
@@ -394,7 +394,7 @@ expect_identical(
   paste0(
     "  1 forest1: no basis; sd ",
     g(heldSd),
-    " (default); coefficient held"
+    " (default)"
   )
 )
 expect_identical(
@@ -430,13 +430,13 @@ for (family in c("probit", "logistic")) {
   errorSd <- if (family == "probit") 1 else pi / sqrt(3)
   latentFull <- c(
     latentHeader(errorSd),
-    paste0("  1 forest1: no basis; sd ", g(errorSd), " (default)"),
+    "  1 forest1: no basis; k chi(1.5, 2)",
     numericLine(2, "dose", dose, errorSd / sd(dose), "default"),
     treesLine(75, 50)
   )
   latentShort <- c(
     shortHeader,
-    paste0("  1 forest1: no basis; sd ", g(errorSd)),
+    "  1 forest1: no basis; k chi(1.5, 2)",
     numericShort(2, "dose", dose, errorSd / sd(dose)),
     treesLine(75, 50)
   )
@@ -541,7 +541,7 @@ expect_identical(
 expect_identical(weightedLines[1L], header(unitIn))
 weightedShort <- c(
   shortHeader,
-  paste0("  1 forest1: no basis; sd ", g(2 * unitIn)),
+  paste0("  1 forest1: no basis; sd ", g(diff(range(y[rowsIn])) / 4)),
   numericShort(2, "dose", dose[rowsIn], perUnitIn),
   treesLine(75, 50)
 )
@@ -711,7 +711,11 @@ dOff <- data.frame(d, yOff)
 expect_true(g(sd(yOff)) != g(sd(yOff - off)))
 offsetFull <- c(
   header(sd(yOff - off)),
-  paste0("  1 forest1: no basis; sd ", g(2 * sd(yOff - off)), " (default)"),
+  paste0(
+    "  1 forest1: no basis; sd ",
+    g(diff(range(yOff - off)) / 4),
+    " (default)"
+  ),
   paste0(
     "  2 factor(z): factor basis, 2 levels; sd ",
     g(sd(yOff - off)),
@@ -736,7 +740,7 @@ expect_identical(fullOf(summaryLines(offsetFit)), offsetFull)
 dConstant <- data.frame(d, yConstant = 3)
 constantFull <- c(
   "forests, sd in the response's units (sd(y) 0.25):",
-  "  1 forest1: no basis; sd 0.5 (default)",
+  "  1 forest1: no basis; sd 0.25 (default)",
   "  2 factor(z): factor basis, 2 levels; sd 0.25 between the two levels (default)",
   treesLine(75, 50)
 )
@@ -758,7 +762,7 @@ expect_identical(
   shortOf(printLines(constantFit)),
   c(
     shortHeader,
-    "  1 forest1: no basis; sd 0.5",
+    "  1 forest1: no basis; sd 0.25",
     "  2 factor(z): factor basis, 2 levels; sd 0.25 between the two levels",
     treesLine(75, 50),
     fitFooter
@@ -782,13 +786,13 @@ expect_identical(shortOf(showLines(replaced)), beforeReplaceShort)
 # in the column, on a sampler and on a fit ---
 maskedFull <- c(
   latentHeader(1),
-  "  1 forest1: no basis; sd 1 (default)",
+  "  1 forest1: no basis; k chi(1.5, 2)",
   numericLine(2, "dose", dose[rowsIn], 1 / sd(dose[rowsIn]), "default"),
   treesLine(75, 50)
 )
 maskedShort <- c(
   shortHeader,
-  "  1 forest1: no basis; sd 1",
+  "  1 forest1: no basis; k chi(1.5, 2)",
   numericShort(2, "dose", dose[rowsIn], 1 / sd(dose[rowsIn])),
   treesLine(75, 50)
 )
@@ -820,13 +824,13 @@ expect_identical(fullOf(summaryLines(maskedFit)), maskedFull)
 # creation's one warning and none at show, print or summary ---
 fallbackFull <- c(
   latentHeader(1),
-  "  1 forest1: no basis; sd 1 (default)",
+  "  1 forest1: no basis; k chi(1.5, 2)",
   numericLine(2, "dose", dose, 1 / sd(dose), "default"),
   treesLine(75, 50)
 )
 fallbackShort <- c(
   shortHeader,
-  "  1 forest1: no basis; sd 1",
+  "  1 forest1: no basis; k chi(1.5, 2)",
   numericShort(2, "dose", dose, 1 / sd(dose)),
   treesLine(75, 50)
 )

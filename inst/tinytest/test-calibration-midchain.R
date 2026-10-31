@@ -476,23 +476,22 @@ bcf <- dbarts(
 )
 bcfCalibration <- bcf$getLeafPrior(1L)
 bcfCalibration2 <- bcf$getLeafPrior(2L)
-# BCF pins k at 1 per its map, which the sampler-wide option does not say, so
-# each forest has a spread of its own, in the response's units: twice the
-# response's standard deviation on the forest without a basis, carried as its
-# half-Cauchy median, and one standard deviation on the factor, carried in its
-# leaf scale over 0.674 (no offset, subset or zero weight here), and neither
-# stated, so the statement the reader returns is empty and goes back as it
-# came
-expect_identical(bcf$getK(1L), c(1, 1))
-expect_identical(bcfCalibration$leaf.prior, dbartsForests$forest())
+# Each forest has a spread of its own, in the response's units: the forest
+# without a basis the fitting function's leaf prior, k 2 on a quarter of the
+# range held, and the factor one standard deviation, carried in its leaf scale
+# over 0.674 with its k pinned at 1 (no offset, subset or zero weight here).
+# Neither is stated, so the statements the reader returns go back as they came
+expect_identical(bcf$getK(1L), c(2, 2))
+expect_identical(bcf$getK(2L), c(1, 1))
+expect_identical(bcfCalibration$leaf.prior@k, 2)
 expect_identical(bcfCalibration2$leaf.prior, dbartsForests$forest())
 expect_false(bcfCalibration$sd.stated)
 expect_false(bcfCalibration2$sd.stated)
-expect_equal(bcfCalibration$sd, 2 * sd(yBCF), tolerance = 1e-12)
+expect_equal(bcfCalibration$sd, diff(range(yBCF)) / 4, tolerance = 1e-12)
 expect_equal(bcfCalibration2$sd, sd(yBCF), tolerance = 1e-12)
-expect_equal(bcfCalibration$k.scale, sd(yBCF), tolerance = 1e-12)
+expect_equal(bcfCalibration$k.scale, diff(range(yBCF)) / 2, tolerance = 1e-12)
 expect_equal(bcfCalibration2$k.scale, sd(yBCF) / 0.674, tolerance = 1e-12)
-expect_identical(bcfCalibration$prior.sd.of, "forest (prior median)")
+expect_identical(bcfCalibration$prior.sd.of, "forest")
 expect_identical(bcfCalibration2$prior.sd.of, "level difference (prior median)")
 expect_true(bcfCalibration$k.scale > 0 && bcfCalibration2$k.scale > 0)
 # the control carries no number for either: the engine's defaults are what
@@ -500,7 +499,7 @@ expect_true(bcfCalibration$k.scale > 0 && bcfCalibration2$k.scale > 0)
 bcfStated <- attr(bcf$control, "bartcore.forests")
 expect_identical(bcfStated$sd, c(NA_real_, NA_real_))
 expect_identical(
-  names(bcfCalibration),
+  names(bcfCalibration2),
   c(
     "leaf.prior",
     "sd",
@@ -514,7 +513,7 @@ expect_identical(
     "response.shift"
   )
 )
-expect_identical(names(bcfCalibration2), names(bcfCalibration))
+expect_true(is(bcfCalibration$amplitude, "dbartsFixedPrior"))
 expect_identical(bcfCalibration$multiplier, "none")
 expect_identical(bcfCalibration2$multiplier, "factor")
 

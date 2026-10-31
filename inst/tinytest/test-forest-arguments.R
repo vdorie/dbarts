@@ -171,7 +171,7 @@ heldFit <- do.call(
     termControl
   )
 )
-expect_identical(unname(heldFit$fixed$amplitude), 1)
+expect_identical(unname(heldFit$fixed$amplitude), c(1, 1))
 # a held FIRST forest of an all-multiplied model is held at 1 as well; no
 # forest of that model is without a basis, so the count and the tree prior
 # are stated on a forest and the control names no count
@@ -261,17 +261,6 @@ for (refused in list(quote(dbartsPriors$normal()), "fixed", FALSE)) {
     fixed = TRUE
   )
 }
-# a model of one forest has no coefficient to hold
-expect_error(
-  dbarts(
-    x,
-    y,
-    forests = list(forest(amplitude = fixed())),
-    control = argumentControl()
-  ),
-  "this model has one forest, which has no coefficient to hold; 'amplitude' needs a model of several forests",
-  fixed = TRUE
-)
 # but it has a size: its sd is the fitting function's leaf.prior = normal(sd = ),
 # in the same units, so the two spellings are one fit, draw for draw, and stated
 # at both places is refused

@@ -371,7 +371,7 @@ expect_identical(names(perForest), c("forest1", "z"))
 expect_identical(extract(forests, "leaf.prior.sd"), sds)
 expect_equal(
   extract(forests, "k"),
-  c(forest1 = 1, z = 1)
+  c(forest1 = 2, z = 1)
 )
 expect_equal(
   extract(forests, "k", combineChains = FALSE),
@@ -385,7 +385,7 @@ expect_equal(
   extract(forests, "leaf.prior.sd", forest = "forest1"),
   sds[[1L]]
 )
-expect_equal(forests$fixed$k, c(forest1 = 1, z = 1))
+expect_equal(forests$fixed$k, c(forest1 = 2, z = 1))
 # summary keeps each forest's sd, in the response's units, by the forest's
 # label: the numbers extract returns. It prints them in the block after its
 # table, and the line under the table does not name them

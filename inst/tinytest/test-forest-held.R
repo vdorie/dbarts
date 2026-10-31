@@ -1,10 +1,10 @@
 # A held coefficient is 1 and what it multiplies is the basis (dec-B354): 1
 # for a forest with no basis and 0 and 1 for the two levels of a factor,
 # wherever the forest stands and at every door, and the forest's sd is then
-# the size of what it contributes, exactly. A held forest with no basis that
-# states no sd has the size bart() gives its one forest under a continuous
-# response (dec-B290) and one unit of the link's error otherwise (dec-B293).
-# A held numeric column is held at 1, the column as given (dec-B354).
+# the size of what it contributes, exactly. A forest with no basis is held
+# whether or not fixed() is written, and stating no sd has the size the fitting
+# function's leaf prior gives its one forest (dec-B290, dec-B509). A held
+# numeric column is held at 1, the column as given (dec-B354).
 
 forest <- dbartsForests$forest
 fixed <- dbartsPriors$fixed
@@ -142,7 +142,7 @@ for (shape in shapes) {
       )
       expect_identical(
         is.null(prior[["amplitude"]]),
-        !heldIn(shape[[f]]),
+        !heldIn(shape[[f]]) && kind != "none",
         info = info
       )
     }
@@ -184,7 +184,9 @@ for (name in names(families)) {
     info <- paste(name, if (is.na(sds[1L])) "default" else "stated")
     for (f in 1:2) {
       prior <- sampler$getLeafPrior(f)
-      expect_equal(prior$k.scale, prior$sd, tolerance = 1e-12, info = info)
+      if (f == 2L || !is.na(sds[f])) {
+        expect_equal(prior$k.scale, prior$sd, tolerance = 1e-12, info = info)
+      }
       if (!is.na(sds[f])) {
         expect_identical(prior$sd, sds[f], info = info)
       }
@@ -195,8 +197,8 @@ for (name in names(families)) {
       )
     }
     if (is.na(sds[1L])) {
-      # a held factor's default is the unit, and under a latent family so is
-      # a held forest with no basis
+      # a held factor's default is the unit; a held forest with no basis is
+      # under the fitting function's leaf prior, a drawn k under a latent family
       expect_identical(
         sampler$getLeafPrior(2L)$sd,
         unitOf(sampler),
@@ -204,7 +206,13 @@ for (name in names(families)) {
       )
       if (name != "gaussian") {
         expect_identical(unitOf(sampler), family$unit, info = info)
-        expect_identical(sampler$getLeafPrior(1L)$sd, family$unit, info = info)
+        expect_identical(sampler$getLeafPrior(1L)$sd, NA_real_, info = info)
+        expect_equal(
+          sampler$getLeafPrior(1L)$k.scale,
+          3 * family$unit,
+          tolerance = 1e-12,
+          info = info
+        )
       }
     }
   }
@@ -309,7 +317,7 @@ expect_identical(
       forest(x1, basis = dose) +
       forest(x1, basis = zf, amplitude = fixed())
   )$fixed$amplitude,
-  c(zf = 1)
+  c(forest1 = 1, zf = 1)
 )
 expect_identical(
   fitOf(
@@ -317,8 +325,14 @@ expect_identical(
   )$fixed$amplitude,
   c(zf = 1)
 )
+expect_identical(
+  fitOf(y ~ forest(x1 + x2) + forest(x1, basis = zf))$fixed$amplitude,
+  c(forest1 = 1)
+)
 expect_null(
-  fitOf(y ~ forest(x1 + x2) + forest(x1, basis = zf))$fixed$amplitude
+  fitOf(
+    y ~ forest(x1, basis = zf) + forest(x2, basis = dose)
+  )$fixed$amplitude
 )
 
 # --- the size, from the engine's prior draws: the held forest's term at a
@@ -489,8 +503,8 @@ heldDose <- bart(
   seed = 43L,
   verbose = FALSE
 )
-expect_identical(unname(heldDose$fixed$amplitude), 1)
-expect_identical(names(heldDose$fixed$amplitude), "dose")
+expect_identical(unname(heldDose$fixed$amplitude), c(1, 1))
+expect_identical(names(heldDose$fixed$amplitude), c("forest1", "dose"))
 
 # --- another coding is another basis: z - 0.5 held at 1 is the forest's fit
 # times -0.5 and 0.5 ---

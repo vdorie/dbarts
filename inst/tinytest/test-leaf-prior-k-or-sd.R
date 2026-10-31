@@ -226,7 +226,7 @@ for (namedSd in list(0.5, priors$invchi(1.5, 0.5))) {
     dbarts(
       x,
       yg,
-      forests = list(forest(), forest(basis = ~ factor(z))),
+      forests = list(forest(sd = 1), forest(basis = ~ factor(z))),
       leaf.prior = normal(sd = namedSd),
       control = pinControl()
     ),

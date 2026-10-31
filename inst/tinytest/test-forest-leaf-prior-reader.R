@@ -61,10 +61,10 @@ engineMedian <- function(sampler, f) {
 # --- the literals of the table ---
 expected <- list(
   forest1 = list(
-    sd = 2 * U,
+    sd = diff(range(y)) / 4,
     multiplier = "none",
-    held = FALSE,
-    of = "forest (prior median)"
+    held = TRUE,
+    of = "forest"
   ),
   dose = list(
     sd = c(dose = U / sd(dose)),
@@ -135,7 +135,14 @@ expectEngine <- function(sampler, info) {
     prior <- sampler$getLeafPrior(f)
     where <- paste(info, f)
     drawn <- is.null(prior[["amplitude"]])
-    if (drawn && prior$multiplier == "none") {
+    if (is(prior$leaf.prior, "dbartsLeafPrior")) {
+      expect_equal(
+        prior$k.scale / prior$leaf.prior@k,
+        unname(prior$sd),
+        tolerance = 1e-12,
+        info = where
+      )
+    } else if (drawn && prior$multiplier == "none") {
       expect_equal(
         engineMedian(sampler, f) * unit,
         prior$sd,

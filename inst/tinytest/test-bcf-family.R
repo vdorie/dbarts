@@ -210,8 +210,8 @@ for (family in names(anchors)) {
   }
 }
 
-# --- positive builds on the shipped two-forest shape, where forest 1 carries
-# the half-Cauchy amplitude and forest 2 the fixed-variance pair ---
+# --- positive builds on the shipped two-forest shape, where forest 1 takes the
+# leaf prior, held, and forest 2 carries the fixed-variance pair ---
 twoForests <- list(
   dbarts::dbartsForests$forest(),
   dbarts::dbartsForests$forest(basis = ~ factor(z))
@@ -234,22 +234,19 @@ expect_equal(probit$model@family, "probit")
 expect_equal(logistic$model@family, "logistic")
 for (fit in list(probit, logistic)) {
   s <- anchors[[fit$model@family]]
-  # forest 1 declares no basis, so its leaf scale stays at the anchor itself
-  expect_equal(priorScales(fit), c(s, s / 0.674), tolerance = 1e-12)
-  # a basis-free forest carries the half-Cauchy scale mixture and its median,
-  # a basis forest none, and which a forest gets is the engine's, from what it
-  # multiplies: the control carries no sd for either forest, so the numbers
-  # the reader reports are the engine's own defaults.
+  # forest 1 declares no basis, so it is bart()'s forest, three standard
+  # deviations of the link's error, under the drawn k
+  expect_equal(priorScales(fit), c(3 * s, s / 0.674), tolerance = 1e-12)
+  # which a forest gets is the engine's, from what it multiplies: the control
+  # carries no sd for either forest, so the numbers the reader reports are the
+  # engine's own defaults.
   transported <- attr(fit$control, "bartcore.forests")
   expect_identical(transported$sd, c(NA_real_, NA_real_))
   free <- fit$getLeafPrior(1L)
   carried <- fit$getLeafPrior(2L)
-  # and the median that reaches it is the FAMILY's own default, one anchor unit
-  # rather than gaussian's two: under a pinned sigma nothing absorbs the
-  # difference, and at 1 the induced index prior sits on the shipped
-  # single-forest binary default's coverage rather than 1.6x outside it
-  expect_equal(engineSlot(fit, 1L, "amplitude.prior.scale"), 1)
-  expect_equal(free$sd, s)
+  # no coefficient of its own to give a median, and a drawn k with no one size
+  expect_true(is.nan(engineSlot(fit, 1L, "amplitude.prior.scale")))
+  expect_identical(free$sd, NA_real_)
   expect_identical(free$multiplier, "none")
   expect_identical(carried$multiplier, "factor")
   expect_true(is.nan(engineSlot(fit, 2L, "amplitude.prior.scale")))
@@ -322,33 +319,22 @@ freeBases2 <- list(NULL, zFactor)
 freeBases3 <- list(NULL, zFactor, gLevel)
 freeBases4 <- list(NULL, zFactor, gLevel, hFactor)
 
-# the basis-free channel's half-Cauchy median is the FAMILY's: 2 where the
-# anchor is the response's own sd and sigma is DRAWN, 1 where the anchor is the
-# link's error sd and sigma is PINNED
-expect_equal(
-  engineSlot(
-    mapSampler(yContinuous, freeBases2, "gaussian"),
-    1L,
-    "amplitude.prior.scale"
-  ),
-  2
-)
-expect_equal(
-  engineSlot(
-    mapSampler(yBalanced, freeBases2, "probit"),
-    1L,
-    "amplitude.prior.scale"
-  ),
-  1
-)
-expect_equal(
-  engineSlot(
-    mapSampler(yBalanced, freeBases2, "logistic"),
-    1L,
-    "amplitude.prior.scale"
-  ),
-  1
-)
+# the basis-free forest has no half-Cauchy median of its own, under any family
+expect_true(is.nan(engineSlot(
+  mapSampler(yContinuous, freeBases2, "gaussian"),
+  1L,
+  "amplitude.prior.scale"
+)))
+expect_true(is.nan(engineSlot(
+  mapSampler(yBalanced, freeBases2, "probit"),
+  1L,
+  "amplitude.prior.scale"
+)))
+expect_true(is.nan(engineSlot(
+  mapSampler(yBalanced, freeBases2, "logistic"),
+  1L,
+  "amplitude.prior.scale"
+)))
 
 # a factor's sd is one unit at K = 2, 3 and 4: a forest with a basis defaults
 # to one unit whatever the number of forests (dec-B291), all-basis or beside a
@@ -400,16 +386,20 @@ declaredShape <- mapSampler(
   )
 )
 expect_equal(readerSlot(declaredShape, "sd"), c(2, 1, 1))
-expect_equal(engineSlot(declaredShape, 1L, "amplitude.prior.scale"), 2)
+expect_true(is.nan(engineSlot(declaredShape, 1L, "amplitude.prior.scale")))
 
 # --- the two adjacent guards that fire on the plainest binary two-forest call
 # unless they are keyed to the family. Both are silent above, which is what
 # makes those builds positive evidence; here is the other half, that an
 # explicit non-default is still refused by name. ---
-expect_true(is(probit$model@leaf.hyperprior, "dbartsFixedHyperprior"))
-expect_equal(probit$model@leaf.hyperprior@k, 2)
+expect_true(is(probit$model@leaf.hyperprior, "dbartsChiHyperprior"))
+expect_equal(probit$model@leaf.hyperprior@scale, 2)
 expect_equal(probit$model@leaf.scale, 3.0)
 expect_equal(logistic$model@leaf.scale, pi * sqrt(3.0))
+noneTakes <- list(
+  dbarts::dbartsForests$forest(sd = 1),
+  dbarts::dbartsForests$forest(basis = ~ factor(z))
+)
 for (family in c("probit", "logistic")) {
   # the prior vocabulary resolves inside the call, so these are stated here
   # rather than through the helper above
@@ -417,7 +407,7 @@ for (family in c("probit", "logistic")) {
     dbarts(
       x,
       yBalanced,
-      forests = twoForests,
+      forests = noneTakes,
       family = family,
       leaf.prior = normal(chi(1.5, 2)),
       control = seededControlBcfFamily()
@@ -428,7 +418,7 @@ for (family in c("probit", "logistic")) {
     dbarts(
       x,
       yBalanced,
-      forests = twoForests,
+      forests = noneTakes,
       family = family,
       leaf.prior = normal(sd = 0.75),
       control = seededControlBcfFamily()
@@ -439,7 +429,7 @@ for (family in c("probit", "logistic")) {
     dbarts(
       x,
       yBalanced,
-      forests = twoForests,
+      forests = noneTakes,
       family = family,
       leaf.prior = normal(sd = invchi(1.5, 1)),
       control = seededControlBcfFamily()
