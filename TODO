@@ -849,6 +849,13 @@ items
     sampler refuses forests = even as list(forest()). The several-forest
     half is inside forests-shared-total; setmodel slice 4 follows it.
     About 40 lines. For 1.0-0.
+  split-probs-one-named-value: split.probs = c(x2 = .9) reads today as uniform with no
+    message, a length-one specification losing its name, where n.cuts = c(x2 = 10) is refused
+    (dec-B547). Run 2026-10-30. To put to the maintainer, with the rest of split.probs's doors.
+  mixed-matrix-column-write: d@x[, 1] <- new, the idiom dec-B458 quotes, stops on a data object
+    from a formula, "incorrect number of subscripts", on main and control-migration, x being a
+    dbartsMixedMatrix; it worked on 0.9-34 and works from a matrix. Run 2026-10-30 by an adviser,
+    not rerun.
   coefficient-prior-live: ruled, not built (dec-B511). On a live sampler,
     $setForest(amplitude = ) (dec-B518) changes a forest's coefficient between held
     and drawn (dec-B254) and between the normal and student(df), and a
