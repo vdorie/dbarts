@@ -776,19 +776,20 @@ items
   forest-amplitude-normal: ruled, not built (dec-B539). A forest with no
     basis takes forest(amplitude = normal()), a drawn normal coefficient,
     where it takes student(df), refused where student() is (a lone forest,
-    a sharer). sd is its prior median, and with no sd its median is
-    student(df)'s there. The engine's forestMapEntry draws a coefficient
-    of kind none only where a df is stated after the default flip, so it
-    needs a way to say normal. New prior: plan with a blind critique, opus
-    implementer, opus review with mutants, an exact gate. Unsized, a rough
-    guess of a few hundred lines. After forests-shared-total's slice F;
+    a sharer). Its median is 1, and with no sd the trees take the size
+    student(df)'s take there. The engine's forestMapEntry draws a
+    coefficient of kind none only where a df is stated after the default
+    flip, so it needs a way to say normal. Plan with a blind critique, opus
+    implementer, opus review with mutants, exact arms: ~160 lines of
+    package code in ~1,150, ~23 agent-hours. After forests-shared-total's
+    slice F;
     for 1.0-0, with forest-door, whose $getForest and amplitude table take
     it. Forest-door's own normal() on a basis forest stays in its slice 2.
     By dec-B550 the trees carry sd on every forest, held or drawn, and a
     drawn coefficient is a multiplier with median 1, the chain at creation
     staying to rounding; a write of sd sets the trees' scale and moves no
-    leaf or coefficient. Prototype and its runs in the ruling (plan on
-    branch forest-amplitude-normal, being rewritten from dec-B542's form).
+    leaf or coefficient. Prototype and its runs in the ruling; plan on
+    branch forest-amplitude-normal, rewritten for dec-B550.
     $setLeafPrior's help says a write changes the model, in those words at
     most (dec-B550).
   written-sd-fresh-gap: after a column swap and a live sd write, a
