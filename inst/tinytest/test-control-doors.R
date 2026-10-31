@@ -158,8 +158,14 @@ expectRow <- function(
     expect_identical(forestCounts(row$value), as.integer(trees), info = info)
   }
   if (!is.null(cuts)) {
-    held <- unique(row$value$data@n.cuts)
-    expect_identical(held, as.integer(cuts), info = info)
+    held <- row$value$data@n.cuts
+    # a hazard fit's appended period column is not among the counts stated,
+    # and holds the default
+    if (!is.null(row$value$model@hazard.periods)) {
+      expect_identical(held[length(held)], 100L, info = info)
+      held <- held[-length(held)]
+    }
+    expect_identical(unique(held), as.integer(cuts), info = info)
   }
   # a rule of NA is one no caller stated, which a sampler's data object reads
   # as FALSE
@@ -657,7 +663,8 @@ expect_false(matrixData@useQuantiles)
 expect_warning(dbartsData(ownData, n.cuts = 3L), "are ignored: 'n.cuts'")
 expect_silent(same <- dbartsData(ownData, n.cuts = NULL, useQuantiles = NULL))
 expect_identical(same@n.cuts, ownData@n.cuts)
-# a hazard fit's appended column takes the data object's count
+# a hazard fit's appended column takes 100, the count the data object carries
+# being for the predictors it was built on
 hazardFrame <- cbind(frame, time = ceiling(time * 3), status = status)
 hazardData <- dbartsData(
   survival::Surv(time, status) ~ x1 + x2,
@@ -667,7 +674,7 @@ hazardData <- dbartsData(
 row <- counted(dbarts(hazardData, family = "hazard", control = run()))
 expect_false(inherits(row$value, "error"))
 if (!inherits(row$value, "error")) {
-  expect_identical(row$value$data@n.cuts, rep(7L, 3L))
+  expect_identical(row$value$data@n.cuts, c(7L, 7L, 100L))
 }
 
 # xbart's comparison is with what it takes: a data object's count and rule

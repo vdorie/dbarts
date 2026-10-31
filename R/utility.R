@@ -498,10 +498,19 @@ valuesByColumnName <- function(values, x, what) {
 ## One cut count per column of the model matrix `x` from what a caller wrote: as
 ## split.probs reads, by column or term name with ".default" for the rest, a
 ## single named value counting as named; unnamed, one value or one per column.
-readCutCounts <- function(n.cuts, x) {
-  numColumns <- ncol(x)
+## On a hazard fit, `x` ends in the period column the package appended, which a
+## count reaches only by its own name or as the last of one value per column
+## and one more; otherwise it is 100.
+readCutCounts <- function(n.cuts, x, hazard = FALSE) {
+  numColumns <- ncol(x) - hazard
   if (!is.null(names(n.cuts))) {
+    if (hazard && "period" %not_in% names(n.cuts)) {
+      n.cuts <- c(n.cuts, period = 100L)
+    }
     return(unname(valuesByColumnName(n.cuts, x, "'n.cuts'")))
+  }
+  if (hazard && length(n.cuts) == numColumns + 1L) {
+    return(n.cuts)
   }
   if (length(n.cuts) != 1L && length(n.cuts) != numColumns) {
     stop(
@@ -515,7 +524,8 @@ readCutCounts <- function(n.cuts, x) {
       call. = FALSE
     )
   }
-  rep_len(n.cuts, numColumns)
+  n.cuts <- rep_len(n.cuts, numColumns)
+  if (hazard) c(n.cuts, 100L) else n.cuts
 }
 
 ## evaluates the expression 'e' after first replacing all instances of 'x' with

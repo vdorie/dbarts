@@ -53,7 +53,7 @@ freshControlValue <- function(name) {
 ## What a control holds of controlWrittenNames, by name under `written` and
 ## `carried`: its slots by their kind, the written cut count on its attribute and
 ## the carried one in its mirror. A silent value is in neither.
-controlCopiesHeld <- function(control, x = NULL) {
+controlCopiesHeld <- function(control, x = NULL, hazard = FALSE) {
   held <- list(written = list(), carried = list())
   for (name in c("n.trees", "useQuantiles")) {
     kind <- controlValueKind(control, name)
@@ -63,7 +63,7 @@ controlCopiesHeld <- function(control, x = NULL) {
   }
   held$written$n.cuts <- attr(control, controlCutsAttr, exact = TRUE)
   if (!is.null(x) && !is.null(held$written$n.cuts)) {
-    held$written$n.cuts <- readCutCounts(held$written$n.cuts, x)
+    held$written$n.cuts <- readCutCounts(held$written$n.cuts, x, hazard)
   }
   held$carried$n.cuts <- controlMirror(control)$n.cuts
   held
@@ -242,17 +242,20 @@ holdDataRule <- function(data) {
 ## count the data object holds otherwise stands, recycled over any column a
 ## hazard fit has appended. With none, an unstated count is `copies$n.cuts`
 ## where a wrapper passed its own, and 100; an unstated rule stays NA.
-applyCutSettings <- function(data, copies) {
+applyCutSettings <- function(data, copies, hazard = FALSE) {
   numColumns <- ncol(data@x)
   cutsStated <- "n.cuts" %in% names(copies$stated)
   ruleStated <- "useQuantiles" %in% names(copies$stated)
   if (cutsStated) {
-    data@n.cuts <- readCutCounts(copies$n.cuts, data@x)
+    data@n.cuts <- readCutCounts(copies$n.cuts, data@x, hazard)
   } else if (length(data@n.cuts) == 0L || anyNA(data@n.cuts)) {
     data@n.cuts <- readCutCounts(
       if (is.null(copies$n.cuts)) 100L else copies$n.cuts,
-      data@x
+      data@x,
+      hazard
     )
+  } else if (hazard && length(data@n.cuts) == numColumns - 1L) {
+    data@n.cuts <- c(data@n.cuts, 100L)
   } else if (length(data@n.cuts) != numColumns) {
     data@n.cuts <- rep_len(data@n.cuts, numColumns)
   }
@@ -538,7 +541,7 @@ takeControlReadings <- function(control, model, data) {
 ## object's governs there, and any binary flag beside a model that names its
 ## family.
 warnDirectDoorNotUsed <- function(control, model, data) {
-  held <- controlCopiesHeld(control, data@x)
+  held <- controlCopiesHeld(control, data@x, !is.null(model@hazard.periods))
   warnWrittenCopies(names(held$written))
   values <- held$carried
   if (!is.null(held$written$n.cuts)) {
