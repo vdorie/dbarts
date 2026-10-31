@@ -126,7 +126,6 @@ Doors on main (probes p03, p05):
 | `new("dbartsSampler", fit50$control, fit75$model, fit75$data)` | 50 | the control's |
 | `fit75$setControl(fit50$control)`; `fit200$setControl(dbartsControl())` | refused | resized |
 | `dbarts(..., n.cuts = 10)`; `dbartsData(..., n.cuts = 10)` | unused argument | unused argument |
-| `dbarts(dd)`, `dd@n.cuts` set to 10 by hand | 100, the control's default | 100 |
 | `dbartsSpec(dd, dbartsControl(n.cuts = 20))` | 10, the control's dropped | - |
 | `dbarts(fit$data, control = dbartsControl(n.cuts = 20))` | the fit's grid, the 20 dropped | 20 |
 | a probit fit's control into a gaussian `dbarts()` | gaussian | error |
@@ -363,8 +362,8 @@ stating none is taken and keeps the sampler's, as on main; A/B rows `b551.*`); a
 `new("dbartsSampler", run(), bcfFit$model, f75$data)`, which the bridge refuses ("a basis forest was configured but
 the data carry no forest bases") where main followed the control and fit gaussian with 75 trees; an `n.cuts` naming
 no column or term, leaving a column with no value, or unnamed and neither one value nor one per column (dec-B547), so
-`c(x2 = 10)` and `c(25, 10)` on three columns, which main and 0.9-34 take, and a hazard fit's one value per predictor,
-its period being a column, which they recycle; `dbartsControl()@n.cuts` and a sampler's `control@n.cuts`, which read
+`c(x2 = 10)` and `c(25, 10)` on three columns, which main and 0.9-34 take (a hazard fit's period column is read by its
+own name only, so that its refusals count the caller's predictors, dec-B553); `dbartsControl()@n.cuts` and a sampler's `control@n.cuts`, which read
 100 on main and error here, "no slot of name" (dec-B552; a written `dbartsControl(n.cuts = 20L)@n.cuts` reads 20 on
 both; A/B rows `b552.*`).
 
@@ -394,7 +393,16 @@ gives 25 even points beside 10 quantile on the first refresh; one stating neithe
 `updateCutPoints = "none"` keeps the sampler's whatever is stated (A/B rows `b546.*`). `fit$data@useQuantiles` reads
 plain `TRUE` or `FALSE` on anything a sampler holds (dec-B548), where main has no slot to read (A/B row `b548.read`).
 A per-column `n.cuts` at every door that takes it reads as `split.probs` reads (dec-B547): `c(x3 = 5, x1 = 25, x2 = 10)`
-gives each column its own, where main and 0.9-34 read it by position (A/B rows `b547.*`). `xbart()` given a data object carrying a grid
+gives each column its own, where main and 0.9-34 read it by position (A/B rows `b547.*`). On a hazard fit the appended `period` column takes `n.cuts` only by its own name and is otherwise
+at the default 100 (dec-B553, revising dec-B547 in part): `c(5, 7, 9)` on three predictors gives 5, 7, 9, 100, `5`
+gives 5, 5, 5, 100, `c(x1 = 5, .default = 9)` gives 5, 9, 9, 100 and `c(period = 5, .default = 5)` gives 5, 5, 5, 5; four
+unnamed values stay by position, `c(x2 = 7)` and `c(5, 7)` are refused counting the caller's predictors, and a count a
+data object carries for its predictors leaves the period at 100. Main recycled `5` over the period and took
+`c(5, 7, 9)`, reading the period at 5 and 100; a hazard fit at `n.cuts = 5` no longer matches the binary fit on the
+expanded design at `5` unless it names `period`, and draws move only on a hazard fit stating a count (A/B rows
+`b553.*`). `split.probs` keeps its refusal naming `period`. A data object's slots are read-only copies (dec-B554): a
+count is stated through `dbartsData(n.cuts = )` or `dbarts(n.cuts = )`, and a count written on the slot by hand is no
+way in, so this plan has no row for it. `xbart()` given a data object carrying a grid
 takes it for every fold (dec-B549), a stated `n.cuts` or `useQuantiles` deriving it again: a fit's own object with its
 predictors as they were gives the number the formula gives, to the bit, and a hand grid or edited predictors stay on
 the grid carried, where main and 0.9-34 derive (A/B rows `b549.*`).
@@ -633,6 +641,9 @@ The review runs each and requires a failing test:
     refused. The marker goes with `dbartsControl(useQuantiles = )` at 1.1-0.
 34. At the direct door a data object from `dbartsData()` stating no count still stops at the bridge ("maximum number
     of cuts cannot be NA"), as on main. Alternative: apply the default there, a change no row of this plan asks for.
+35. RULED, dec-B553. A hazard fit's period column takes `n.cuts` only by its own name and is otherwise at the
+    default 100, so one value or one per predictor leaves it there. Alternatives: refuse a count that leaves it out
+    (as built before), or let a single value cap it.
 
 ## Open calls
 
