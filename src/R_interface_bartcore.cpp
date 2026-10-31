@@ -6698,6 +6698,10 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
       replacement.suppliedGrid.points = &data.suppliedCutPoints;
       replacement.suppliedGrid.mass = &data.suppliedCutMass;
     }
+    // the record R chose for the sampler: what the grid is derived at, now and
+    // by any later refresh
+    replacement.maxNumCuts = data.maxNumCuts.data();
+    replacement.useQuantiles = data.useQuantiles;
     replacement.standardization = derivedValueChoiceFromExpression(
       updateStandardizationExpr, "standardization");
     if (replacement.standardization == bartcore::DerivedValueChoice::supply) {

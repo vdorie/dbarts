@@ -2397,6 +2397,12 @@ public:
     std::vector<std::vector<double>> oldCutPoints(data_.cutPoints);
     std::vector<std::uint8_t> raisedMissing(data_.hasMissing);
 
+    if (replacement.maxNumCuts != nullptr) {
+      data_.requestedNumCuts.assign(
+        replacement.maxNumCuts,
+        replacement.maxNumCuts + data_.numPredictors);
+      data_.useQuantiles = replacement.useQuantiles;
+    }
     if (!data_.setData(x, numObservations, replacement.grid,
                        replacement.suppliedGrid))
       return false;

@@ -176,7 +176,9 @@ enum class DerivedValueChoice { derive, keep, supply };
 /// 0/1 mask the host installs once the replacement is in, one value per new
 /// row, null for none: read only for the rows a derived leaf standardization
 /// is read from, the replacement dropping every mask in force. Borrowed for
-/// the call; the host checks the values.
+/// the call; the host checks the values. maxNumCuts, one per column, and
+/// useQuantiles are what a grid is derived at by this call and by any refresh
+/// after it; a null maxNumCuts keeps both of those in force.
 struct DataReplacement {
   DerivedValueChoice grid = DerivedValueChoice::derive;
   SplitPlacement placement = SplitPlacement::byValue;
@@ -187,6 +189,8 @@ struct DataReplacement {
   double rangeMin = 0.0, rangeMax = 0.0;
   const double* activeRows = nullptr;
   bool tooFewUnitsIn = false;  // as SamplerOptions::tooFewUnitsIn
+  const std::uint32_t* maxNumCuts = nullptr;
+  bool useQuantiles = false;
 };
 
 /// One dense column's raw as ingestion reads it: the host's doubles, or its
@@ -920,7 +924,8 @@ struct ColumnStore {
   // channel that says how many levels a column has - numCuts answers only how
   // many cut points it has.
   std::vector<std::uint32_t> categoryCounts;
-  // per column, the cut count asked for at build. Fixed once built: every
+  // per column, the cut count asked for at build or by a whole-data
+  // replacement (DataReplacement::maxNumCuts): every
   // derivation of a numeric column's grid (build, setData, a refresh) counts
   // from it, whatever grid the column held before, so a grid set longer or
   // derived shorter than the request leaves nothing behind once it is

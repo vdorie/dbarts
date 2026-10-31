@@ -7899,6 +7899,29 @@ static void testDataReplacement() {
   };
   using Choice = DerivedValueChoice;
 
+  // a count and a rule named: the grid derived at them, and they stay what the
+  // store derives by; none named keeps those in force
+  {
+    std::unique_ptr<SamplerBase> sampler = make(11u, false);
+    const std::vector<std::uint32_t> counts = {5, 8};
+    DataReplacement named;
+    named.maxNumCuts = counts.data();
+    named.useQuantiles = true;
+    check(sampler->setData(xEdit.data(), yEdit.data(), n, nullptr, nullptr,
+                           nullptr, 0, nullptr, named),
+          "data replacement, a named count: the replacement is taken");
+    check(sampler->data().numCuts[0] == 5 && sampler->data().numCuts[1] == 8 &&
+            sampler->data().requestedNumCuts == counts &&
+            sampler->data().useQuantiles,
+          "data replacement, a named count: the grid and the store's request");
+    check(sampler->setData(x.data(), y.data(), n, nullptr, nullptr, nullptr, 0,
+                           nullptr),
+          "data replacement, then none named: the replacement is taken");
+    check(sampler->data().numCuts[0] == 5 && sampler->data().numCuts[1] == 8 &&
+            sampler->data().useQuantiles,
+          "data replacement, then none named: the count and rule in force");
+  }
+
   // keep: every value held, the new values quantized on the grid in force,
   // and nothing rewritten
   {

@@ -645,6 +645,10 @@ alignDataFactorLevels <- function(newData, x.train) {
     if (length(grids) == length(order)) {
       newData@cutPoints <- grids[order]
     }
+    # and so does a count
+    if (length(newData@n.cuts) == length(order)) {
+      newData@n.cuts <- newData@n.cuts[order]
+    }
     newNames <- names
   }
   tables <- attr(x.train, "factor.levels")
@@ -1556,6 +1560,29 @@ setDataChoices <- function(
   )
 }
 
+## The count and the rule a sampler goes on with from a data object handed to
+## $setData, what a later refresh derives by. What the object states wins. One
+## carrying a grid brings what made it, an unstated rule reading as even. One
+## stating nothing, and a call that keeps the grid in force, keep the sampler's.
+takeDataCutSettings <- function(newData, own, carriesGrid, keepsGrid) {
+  statesCount <- length(newData@n.cuts) > 0L && !anyNA(newData@n.cuts)
+  newData@n.cuts <- if (statesCount && !keepsGrid) {
+    rep_len(newData@n.cuts, ncol(newData@x))
+  } else {
+    own@n.cuts
+  }
+  if (!keepsGrid && dataStatesRule(newData)) {
+    return(newData)
+  }
+  if (!keepsGrid && carriesGrid) {
+    newData@useQuantiles <- NA
+    return(holdDataRule(newData))
+  }
+  newData@useQuantiles <- own@useQuantiles
+  attr(newData, ruleUnstatedAttr) <- attr(own, ruleUnstatedAttr, exact = TRUE)
+  newData
+}
+
 bartcoreSamplerSetData <- function(
   sampler,
   newData,
@@ -1611,6 +1638,12 @@ bartcoreSamplerSetData <- function(
     updateScale,
     updateStandardization
   )
+  newData <- takeDataCutSettings(
+    newData,
+    sampler$data,
+    !is.null(dataCutPoints(newData)),
+    choices$grid == "none"
+  )
   # a record the call does not take is not handed on; the sampler's own is
   # written after it
   if (choices$grid != "record") {
@@ -1624,11 +1657,8 @@ bartcoreSamplerSetData <- function(
   }
   newData@forest.calibration <- NULL
 
-  newData@n.cuts <- sampler$data@n.cuts
   newData@sigma <- sampler$data@sigma
-  # the quantile rule and the censoring status the sampler was created with
-  # stay its own, as the count does
-  newData@useQuantiles <- sampler$data@useQuantiles
+  # the censoring status the sampler was created with stays its own
   newData@status <- sampler$data@status
 
   # a probit or ordinal sampler carries no weight channel for the whole-data
@@ -1692,6 +1722,11 @@ bartcoreSamplerSetData <- function(
   sampler$data@missing.seen <- .Call(C_dbarts_bartcore_getMissingSeen, ptr)
   records <- .Call(C_dbarts_bartcore_derivedRecords, ptr, TRUE)
   recordDerived(sampler, ptr, records)
+  sampler$control <- mirrorControl(
+    sampler$control,
+    sampler$model,
+    sampler$data
+  )
   # the swap cleared whatever mask was in force, so the mirror that would
   # otherwise re-apply one at re-creation goes with it; setActiveRows records
   # the replacement's own below

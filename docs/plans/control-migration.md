@@ -269,7 +269,7 @@ door's `n.cuts` and `useQuantiles`, or a written control value standing for them
 | re-creation (`getPointer`, `setState`, `copy`, a reload, stan4bart's restore) | the stored model's; the mirror agrees, so no warning | the stored data's |
 | `$setControl(new)` | a carried count that differs: taken, the sampler's kept, the not-used warning (dec-B385); a written one that differs: refused, "changing 'n.trees' is not available on an existing sampler" (dec-B247) | the same two cases for each, the sampler's data holding them; the `n.cuts` attribute is stripped after the check |
 | `$setModel(model)` | refused by name before anything is stored where a structure field differs (dec-B254): a forest's count, vars, interactions, blocks, basis or label, the variance forest's count and columns, the category count, the hazard periods; the moved facts join setmodel-parameters' structure check. A parameter field (a forest's sd, base, power, the amplitude's hold and prior) goes where setmodel-parameters sends it (main refuses a sampler of several forests wholesale until its slice 4). Per-forest move settings are installed, as `$setControl` installs the control's (dec-B254: the moves "are not model"; dec-B518's `$setForest` changes them) | - |
-| `$setData(data)` | - | `useQuantiles` joins `n.cuts` and `sigma` among what the sampler keeps from its own data, as `setData` documents for `n.cuts` |
+| `$setData(data)` | - | a count or rule the data object states wins, one carrying a grid brings what made it, one stating neither keeps the sampler's, and the sampler's record follows; `updateCutPoints = "none"` keeps the sampler's (dec-B546) |
 | `$setForest()`, `$getForest()` (dec-B518, unbuilt) | `n.trees` is structure, refused by name at `$setForest`; it is not in `$getForest`'s list | neither: the cut settings are data, changed through `setCutPoints` and `setPredictor(updateCutPoints = )` |
 
 `binary`: the model's family decides at every door. At the direct door a control whose `binary` differs from the
@@ -379,7 +379,12 @@ rule beside a fit's data object re-deriving its grid (dec-B526; 0.9-34's result 
 fit of one forest with no basis loses `getTrees()`' `forest` column however the forest was written (dec-B249);
 on a model whose forest with no basis is not first or which has several, `control@n.trees` reads the fitting
 function's level; `$setModel` installs the move settings of a model's records, where main left the sampler's;
-`dbartsControl()`'s three arguments warn.
+`dbartsControl()`'s three arguments warn. `$setData` with a data object stating a cut count or rule, or carrying a
+grid (dec-B546): what it states wins and the sampler's record follows, one carrying a grid bringing the count and rule
+that made it, an unstated rule reading as even, where main keeps the sampler's 25 even and after another fit's object
+gives 25 even points beside 10 quantile on the first refresh; one stating neither keeps the sampler's, and
+`updateCutPoints = "none"` keeps the sampler's whatever is stated (A/B rows `b546.*`). `fit$data@useQuantiles` reads
+plain `TRUE` or `FALSE` on anything a sampler holds (dec-B548), where main has no slot to read (A/B row `b548.read`).
 
 ## Slices
 
