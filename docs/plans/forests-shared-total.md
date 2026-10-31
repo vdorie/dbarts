@@ -594,7 +594,8 @@ Baselines and snapshots, by name, with the verdict expected:
 - Exact gates: bcf-exact.R, bcf-exact-weak.R and bcf-latent-exact.R add `amplitude = student(1)` to their drawn
   modes, which already state sd: the same chains, passing unchanged; their held modes and bcf-exact-restricted.R
   and forest-prior-exact.R state sd and `fixed()` and do not move. probit-k-scale-exact.R's arm from slice 1
-  covers the step beside a forest with a basis. sbc.R's bcf arm adds `student(1)` where it draws (its next full
+  covers the step beside a forest with a basis, and gains a lone-factor arm: one frozen forest with no basis under
+  one drawn k beside a held factor, the lone sharer's own path. sbc.R's bcf arm adds `student(1)` where it draws (its next full
   run, not CI). bench-sampler-127f04ee is not re-recorded.
 - tinytest: about twelve files pin the drawn default beside a forest with a basis or the k refusal
   (test-bcf-creation.R, test-bcf.R, test-bcf-family.R, test-calibration-midchain.R, test-forest-arguments.R,
@@ -820,7 +821,7 @@ F. Slice F, the default flip (~590 lines; ~8 agent-hours). Tier: changes draws (
 
 ## Landing note for the next item
 
-Slice F's re-recorded bcf-equivalence baseline holds until forest-amplitude-normal (dec-B542), which re-records
+Slice F's re-recorded bcf-equivalence baseline, bcf-equivalence-1380accf beside equivalence-1380accf, holds until forest-amplitude-normal (dec-B542), which re-records
 again, judged by the same tier 1 of `--cross-host`. That item also re-pins what test-bcf-family.R,
 test-forest-sd-unit.R and test-forest-leaf-prior-reader.R already pin of a drawn basis forest's units; slice F added
 none.
