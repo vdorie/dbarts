@@ -297,3 +297,28 @@ for (family in families) {
     expect_identical(copied$getK(), reloaded$getK(), info = info)
   }
 }
+
+## --- printed and read as the fit's: the leaf prior's size and its drawn k ----
+fullBlock <- function(sampler) {
+  dbarts:::samplerForestLines(sampler, full = TRUE)
+}
+expect_true(any(grepl(
+  "no basis; sd [0-9.]+ \\(default\\)",
+  fullBlock(fit("gaussian", withBasis))
+)))
+expect_true(any(grepl(
+  "no basis; sd [0-9.]+ \\(leaf prior\\)",
+  fullBlock(fit("gaussian", withBasis, leaf.prior = normal(k = 3)))
+)))
+drawnFit <- bart(
+  yb ~ forest(x1) + forest(x2, basis = z),
+  d,
+  n.samples = 5L,
+  n.burn = 0L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_identical(length(extract(drawnFit, type = "k", forest = 1L)), 5L)
+expect_identical(length(unique(c(extract(drawnFit, "k", forest = 2L)))), 1L)
+expect_true("k" %in% summary(drawnFit)$vars)
