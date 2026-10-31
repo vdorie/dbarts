@@ -199,7 +199,8 @@ row <- counted(dbartsControl())
 expect_identical(row$deprecated, character())
 expect_identical(row$value@n.trees, 75L)
 expect_false(row$value@useQuantiles)
-# a fresh control holds no cut count, where 0.9-34's read 100
+# a fresh control holds no cut count, so reading one errors; 0.9-34's read 100,
+# from an attribute, while a sampler's control there errored as it does here
 expect_error(row$value@n.cuts, "no slot")
 expect_false("n.cuts" %in% slotNames("dbartsControl"))
 

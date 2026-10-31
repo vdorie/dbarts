@@ -364,7 +364,9 @@ stating none is taken and keeps the sampler's, as on main; A/B rows `b551.*`); a
 the data carry no forest bases") where main followed the control and fit gaussian with 75 trees; an `n.cuts` naming
 no column or term, leaving a column with no value, or unnamed and neither one value nor one per column (dec-B547), so
 `c(x2 = 10)` and `c(25, 10)` on three columns, which main and 0.9-34 take, and a hazard fit's one value per predictor,
-its period being a column, which they recycle.
+its period being a column, which they recycle; `dbartsControl()@n.cuts` and a sampler's `control@n.cuts`, which read
+100 on main and error here, "no slot of name" (dec-B552; a written `dbartsControl(n.cuts = 20L)@n.cuts` reads 20 on
+both; A/B rows `b552.*`).
 
 Taken where main refuses: `forests = forest()`; `dbarts(n.trees = )`, `dbartsSpec(n.trees = )`,
 `dbarts(n.cuts = , useQuantiles = )`, `dbartsData(n.cuts = , useQuantiles = )`; any control at `bart()` and
@@ -605,7 +607,9 @@ The review runs each and requires a failing test:
     narrows dec-B526(d), whose "used where they state none" would otherwise take it; rule 3 and dec-B527 refuse it, and
     no release ran the shape. Alternative: the first forest takes it, as main, a count on a forest of another kind.
 24. A carried cut count is a field of the mirror record, since the slot goes, so a copied control's differing count
-    draws the not-used warning at every door. `@n.cuts` on a fit's control then errors, as a fresh control's does.
+    draws the not-used warning at every door. `@n.cuts` on a fit's control then errors, as a fresh control's does, on
+    this branch only: both read 100 on main, and on 0.9-34 a fresh control's reads 100 and a fit's errors (dec-B552,
+    which leaves the error).
     Alternative: carry nothing, a copied control's cut count changing the grid with no message.
 25. An edit of a fit's value back to a fresh control's reads as written, so it warns and is read. Alternative: treat
     it as silent, dropping what the caller wrote.
