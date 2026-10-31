@@ -48,7 +48,7 @@ bool suiteSelected(const char* filter, const char* suite) {
 
 int main(int argc, char** argv) {
   // libR's math reads these and only R's startup sets them: a quantile that
-  // reaches them (the chi-square's) reads 0 in a host that is not R
+  // reaches them (the chi-square's) reads 0 in a process that is not R
   R_PosInf = HUGE_VAL;
   R_NegInf = -HUGE_VAL;
   R_NaN = std::numeric_limits<double>::quiet_NaN();
