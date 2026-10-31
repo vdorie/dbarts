@@ -42,7 +42,10 @@ expect_identical(
   xb(form, data = frame, n.cuts = 25L, useQuantiles = TRUE)
 )
 fitPerColumn <- fitOf(n.cuts = c(x2 = 5L, x1 = 30L))
-expect_identical(xb(fitPerColumn$data), xb(form, data = frame, n.cuts = c(30L, 5L)))
+expect_identical(
+  xb(fitPerColumn$data),
+  xb(form, data = frame, n.cuts = c(30L, 5L))
+)
 # a column of few values, whose points carry weights
 fewFrame <- frame
 fewFrame$x2 <- sample(c(0, 1, 5), n, TRUE)
@@ -53,11 +56,17 @@ expect_identical(xb(fitFew$data), xb(form, data = fewFrame, n.cuts = 25L))
 # factor columns, ordered and not
 factorFrame <- frame
 factorFrame$x2 <- factor(sample(c("a", "b", "c"), n, TRUE))
-factorFrame$o <- factor(sample(c("low", "mid", "high"), n, TRUE), ordered = TRUE)
+factorFrame$o <- factor(
+  sample(c("low", "mid", "high"), n, TRUE),
+  ordered = TRUE
+)
 factorForm <- y ~ x1 + x2 + o
 fitFactors <- dbarts(factorForm, factorFrame, n.cuts = 25L, control = run())
 invisible(fitFactors$run(0L, 2L))
-expect_identical(xb(fitFactors$data), xb(factorForm, data = factorFrame, n.cuts = 25L))
+expect_identical(
+  xb(fitFactors$data),
+  xb(factorForm, data = factorFrame, n.cuts = 25L)
+)
 
 # a fold splits on the grid carried: at one point per column a draw's fits take
 # at most four values over the held-out rows, as they do not on the grid derived
@@ -107,7 +116,10 @@ expect_identical(
   xb(handGrid(c(0.8, 0.2, 0.5), c(1.5, 0.5))),
   xb(atSome)
 )
-expect_error(xb(handGrid(0.5)), "'cutPoints' record must be a list with one entry")
+expect_error(
+  xb(handGrid(0.5)),
+  "'cutPoints' record must be a list with one entry"
+)
 expect_error(xb(handGrid(0.5, c(1, 1))), "repeats a point")
 ownOrdered <- fitFactors$data
 expect_identical(
@@ -115,4 +127,7 @@ expect_identical(
   xb(factorForm, data = factorFrame, n.cuts = 25L)
 )
 ownOrdered@cutPoints[[3L]] <- c(0.25, 1.25)
-expect_error(xb(ownOrdered), "an ordered factor, other cut points than those of its levels")
+expect_error(
+  xb(ownOrdered),
+  "an ordered factor, other cut points than those of its levels"
+)

@@ -15,14 +15,19 @@ run <- function(...) {
 written <- function(...) suppressWarnings(run(...))
 form <- y ~ x1 + x2 + x3
 doors <- list(
-  dbarts = function(v) dbarts(form, frame, n.cuts = v, control = run())$data@n.cuts,
+  dbarts = function(v) {
+    dbarts(form, frame, n.cuts = v, control = run())$data@n.cuts
+  },
   matrix = function(v) dbarts(X, y, n.cuts = v, control = run())$data@n.cuts,
   data = function(v) dbartsData(form, frame, n.cuts = v)@n.cuts,
   control = function(v) {
     suppressWarnings(dbarts(form, frame, control = run(n.cuts = v)))$data@n.cuts
   },
   spec = function(v) {
-    suppressWarnings(dbartsSpec(dbartsData(form, frame), run(n.cuts = v)))$data@n.cuts
+    suppressWarnings(dbartsSpec(
+      dbartsData(form, frame),
+      run(n.cuts = v)
+    ))$data@n.cuts
   },
   bart = function(v) {
     bart(
@@ -40,13 +45,29 @@ doors <- list(
 )
 for (door in names(doors)) {
   read <- doors[[door]]
-  expect_identical(read(c(x3 = 5L, x1 = 25L, x2 = 10L)), c(25L, 10L, 5L), info = door)
-  expect_identical(read(c(x3 = 5, x1 = 25, x2 = 10)), c(25L, 10L, 5L), info = door)
-  expect_identical(read(c(x2 = 10L, .default = 7L)), c(7L, 10L, 7L), info = door)
+  expect_identical(
+    read(c(x3 = 5L, x1 = 25L, x2 = 10L)),
+    c(25L, 10L, 5L),
+    info = door
+  )
+  expect_identical(
+    read(c(x3 = 5, x1 = 25, x2 = 10)),
+    c(25L, 10L, 5L),
+    info = door
+  )
+  expect_identical(
+    read(c(x2 = 10L, .default = 7L)),
+    c(7L, 10L, 7L),
+    info = door
+  )
   expect_identical(read(c(.default = 7L)), rep(7L, 3L), info = door)
   expect_identical(read(7L), rep(7L, 3L), info = door)
   expect_identical(read(c(5L, 6L, 7L)), c(5L, 6L, 7L), info = door)
-  expect_error(read(c(x2 = 10L)), "missing values for columns 'x1', 'x3'", info = door)
+  expect_error(
+    read(c(x2 = 10L)),
+    "missing values for columns 'x1', 'x3'",
+    info = door
+  )
   expect_error(
     read(c(zz = 10L, x1 = 25L, x2 = 5L, x3 = 1L)),
     "unrecognized variable name 'zz'",
@@ -59,7 +80,11 @@ for (door in names(doors)) {
     "default specified multiple times",
     info = door
   )
-  expect_error(read(c(x1 = 5L, 6L, 7L)), "unrecognized variable name ''", info = door)
+  expect_error(
+    read(c(x1 = 5L, 6L, 7L)),
+    "unrecognized variable name ''",
+    info = door
+  )
 }
 
 # a single named value is named, taken where it names the only column
@@ -90,13 +115,25 @@ expect_identical(
 )
 
 # the count reaches the column it names
-sampler <- dbarts(form, frame, n.cuts = c(x3 = 5L, x1 = 25L, x2 = 10L), control = run())
+sampler <- dbarts(
+  form,
+  frame,
+  n.cuts = c(x3 = 5L, x1 = 25L, x2 = 10L),
+  control = run()
+)
 invisible(sampler$run(0L, 2L))
 expect_identical(lengths(sampler$data@cutPoints), c(25L, 10L, 5L))
 
 # the other doors that read one: bartBT names its own argument
 expect_error(
-  suppressWarnings(bartBT(X, y, numcut = c(zz = 5L, .default = 6L), ndpost = 2L, nskip = 0L, verbose = FALSE)),
+  suppressWarnings(bartBT(
+    X,
+    y,
+    numcut = c(zz = 5L, .default = 6L),
+    ndpost = 2L,
+    nskip = 0L,
+    verbose = FALSE
+  )),
   "cannot assign 'numcut': unrecognized variable name 'zz'"
 )
 expect_error(
@@ -130,14 +167,22 @@ xb <- function(...) {
     seed = 3L
   )
 }
-expect_identical(xb(n.cuts = c(x3 = 5, x1 = 25, x2 = 10)), xb(n.cuts = c(25L, 10L, 5L)))
-expect_error(xb(n.cuts = c(zz = 5L, .default = 6L)), "unrecognized variable name 'zz'")
+expect_identical(
+  xb(n.cuts = c(x3 = 5, x1 = 25, x2 = 10)),
+  xb(n.cuts = c(25L, 10L, 5L))
+)
+expect_error(
+  xb(n.cuts = c(zz = 5L, .default = 6L)),
+  "unrecognized variable name 'zz'"
+)
 expect_error(xb(n.cuts = c(25L, 10L)), "'n.cuts' has 2 values")
 
 # a count written on a control is read the same beside a sampler's and a door's:
 # agreeing by name is agreeing, and differing by position is differing
 sampler <- dbarts(form, frame, n.cuts = c(25L, 10L, 5L), control = run())
-expect_silent(sampler$setControl(written(n.cuts = c(x3 = 5L, x1 = 25L, x2 = 10L))))
+expect_silent(sampler$setControl(written(
+  n.cuts = c(x3 = 5L, x1 = 25L, x2 = 10L)
+)))
 expect_error(
   sampler$setControl(written(n.cuts = c(5L, 25L, 10L))),
   "changing 'n.cuts' is not available on an existing sampler"
@@ -158,7 +203,10 @@ notUsedAtDirect <- function(...) {
   )
   told
 }
-expect_identical(notUsedAtDirect(n.cuts = c(x3 = 5L, x1 = 25L, x2 = 10L)), character())
+expect_identical(
+  notUsedAtDirect(n.cuts = c(x3 = 5L, x1 = 25L, x2 = 10L)),
+  character()
+)
 expect_identical(length(notUsedAtDirect(n.cuts = c(5L, 25L, 10L))), 1L)
 expect_error(notUsedAtDirect(n.cuts = c(25L, 10L)), "'n.cuts' has 2 values")
 

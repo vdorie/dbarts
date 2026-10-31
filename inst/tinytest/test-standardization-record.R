@@ -361,7 +361,10 @@ crossValidated <- function(data, leafPrior = quote(linear(columns = "a"))) {
 fresh <- dbarts::dbartsData(carried@x, carried@y)
 fresh@cutPoints <- carried@cutPoints
 for (leafPrior in list(quote(linear(columns = "a")), quote(normal()))) {
-  expect_identical(crossValidated(carried, leafPrior), crossValidated(fresh, leafPrior))
+  expect_identical(
+    crossValidated(carried, leafPrior),
+    crossValidated(fresh, leafPrior)
+  )
 }
 
 # ---- gp kept refused -------------------------------------------------------

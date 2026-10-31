@@ -45,7 +45,11 @@ refresh <- function(sampler) {
 # is derived at what the object states and a refresh goes on deriving by it
 statesCount <- dbartsData(y ~ x1 + x2, other, n.cuts = 10L)
 statesRule <- dbartsData(y ~ x1 + x2, other, useQuantiles = TRUE)
-for (given in list(list(), list(updateCutPoints = "value"), list(updateCutPoints = "position"))) {
+for (given in list(
+  list(),
+  list(updateCutPoints = "value"),
+  list(updateCutPoints = "position")
+)) {
   info <- paste(unlist(given), collapse = "")
   sampler <- fit(n.cuts = 25L)
   do.call(sampler$setData, c(list(statesCount), given))
@@ -139,7 +143,9 @@ expectRecord(reloaded, c(10L, 10L), TRUE)
 expectRecord(refresh(reloaded), c(10L, 10L), TRUE)
 
 # $setControl keeps refusing both, against what the sampler now holds
-written <- function(...) suppressWarnings(dbartsControl(n.chains = 1L, n.threads = 1L, ...))
+written <- function(...) {
+  suppressWarnings(dbartsControl(n.chains = 1L, n.threads = 1L, ...))
+}
 expect_error(
   sampler$setControl(written(n.cuts = 25L)),
   "changing 'n.cuts' is not available on an existing sampler"
