@@ -701,17 +701,21 @@ items
     guess of a few hundred lines. After forests-shared-total's slice F;
     for 1.0-0, with forest-door, whose $getForest and amplitude table take
     it. Forest-door's own normal() on a basis forest stays in its slice 2.
-    By dec-B542 it also moves every drawn coefficient on a forest with a
-    basis so sd sets the coefficient's prior scale, the trees staying at
-    the response's unit, the chain staying to rounding; where a coefficient
-    is held sd still sets the trees (plan on branch
-    forest-amplitude-normal, being rewritten from dec-B541's form).
+    By dec-B550 the trees carry sd on every forest, held or drawn, and a
+    drawn coefficient is a multiplier with median 1, the chain at creation
+    staying to rounding; a write of sd sets the trees' scale and moves no
+    leaf or coefficient. Prototype and its runs in the ruling (plan on
+    branch forest-amplitude-normal, being rewritten from dec-B542's form).
+    $setLeafPrior's help says a write changes the model, in those words at
+    most (dec-B550).
   written-sd-fresh-gap: after a column swap and a live sd write, a
     sampler's fit differs from one created fresh at that prior by rms 0.025
     in its mean over 2,000 draws after 2,000 more sweeps, largest |z| 5.34
     over 16 seeds, on main (0.031, |z| 8.29 under dec-B542's patched copy).
-    Unexplained: slow mixing along the coefficient's ridge or a prior the
-    write leaves different. Read it before 1.0-0.
+    A rerun on one data set, the fresh sampler created at twice the sd in
+    force, found no gap at 2,000, 6,000 or 10,000 sweeps on main (rms z
+    1.0, largest |z| 3.4), so the first probe may have compared another
+    prior. Compare the two and close it before 1.0-0.
   forest-size-reader: nothing reports a drawn forest's posterior size, the
     median of its coefficient's size times the trees' scale; summary()
     prints only the prior. An adviser on the shape of sd asked for a reader
