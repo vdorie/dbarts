@@ -211,16 +211,27 @@ recordChannels <- function(bcSampler, result) {
 # only in scope inside a forests = argument's own NSE, so this
 # helper (built outside one) spells it out as dbartsForests$forest, as
 # test-bcf-creation.R's own top-level twoForests does.
+#
+# A forest with no basis is held unless it states a prior, so where bcf's
+# prognostic forest draws it states its half-Cauchy and `sdControl`: twice the
+# response's standard deviation under gaussian, the link's latent scale under a
+# latent family.
 bcfForests <- function(
   z,
   n.trees.treatment,
+  sdControl,
   moderators = NULL,
   update.a = TRUE,
   update.b = TRUE
 ) {
   list(
     dbarts::dbartsForests$forest(
-      amplitude = if (update.a) NULL else dbarts::dbartsPriors$fixed()
+      amplitude = if (update.a) {
+        dbarts::dbartsPriors$student(1)
+      } else {
+        dbarts::dbartsPriors$fixed()
+      },
+      sd = if (update.a) sdControl
     ),
     dbarts::dbartsForests$forest(
       basis = ~ factor(z),
@@ -243,7 +254,7 @@ runScenarios <- function() {
     bc <- dbarts(
       d$x,
       d$y,
-      forests = bcfForests(d$z, n.trees.tau),
+      forests = bcfForests(d$z, n.trees.tau, 2 * sd(d$y)),
       control = makeControl()
     )
     res <- bc$run(n.burn, n.samples)
@@ -258,7 +269,12 @@ runScenarios <- function() {
     bc <- dbarts(
       d$x,
       d$y,
-      forests = bcfForests(d$z, n.trees.tau, moderators = c("x1", "x3")),
+      forests = bcfForests(
+        d$z,
+        n.trees.tau,
+        2 * sd(d$y),
+        moderators = c("x1", "x3")
+      ),
       control = makeControl()
     )
     res <- bc$run(n.burn, n.samples)
@@ -277,6 +293,7 @@ runScenarios <- function() {
       forests = bcfForests(
         d$z,
         n.trees.tau,
+        2 * sd(d$y),
         update.a = TRUE,
         update.b = FALSE
       ),
@@ -298,7 +315,7 @@ runScenarios <- function() {
       d$x,
       d$y,
       weights = weights,
-      forests = bcfForests(d$z, n.trees.tau),
+      forests = bcfForests(d$z, n.trees.tau, 2 * sd(d$y)),
       control = makeControl()
     )
     res <- bc$run(n.burn, n.samples)
@@ -316,7 +333,7 @@ runScenarios <- function() {
     bc <- dbarts(
       d$x,
       d$y,
-      forests = bcfForests(d$z, n.trees.tau),
+      forests = bcfForests(d$z, n.trees.tau, 2 * sd(d$y)),
       control = makeControl()
     )
     bc$run(n.burn, n.samples)
@@ -345,7 +362,7 @@ runScenarios <- function() {
     bc <- dbarts(
       d$x,
       d$y,
-      forests = bcfForests(d$z, n.trees.tau),
+      forests = bcfForests(d$z, n.trees.tau, 2 * sd(d$y)),
       control = makeControl()
     )
     bc$run(n.burn, n.samples)
@@ -377,7 +394,7 @@ runScenarios <- function() {
     bc <- dbarts(
       d$x,
       d$y,
-      forests = bcfForests(d$z, n.trees.tau),
+      forests = bcfForests(d$z, n.trees.tau, 2 * sd(d$y)),
       control = makeControl()
     )
     bc$run(n.burn, n.samples)
@@ -398,7 +415,7 @@ runScenarios <- function() {
     bc <- dbarts(
       d$x,
       d$y,
-      forests = bcfForests(d$z, n.trees.tau),
+      forests = bcfForests(d$z, n.trees.tau, 2 * sd(d$y)),
       control = makeControl()
     )
     bc$run(n.burn, n.samples)
@@ -420,7 +437,7 @@ runScenarios <- function() {
     bc <- dbarts(
       d$x,
       d$y,
-      forests = bcfForests(d$z, n.trees.tau),
+      forests = bcfForests(d$z, n.trees.tau, 2 * sd(d$y)),
       control = makeControl()
     )
     bc$run(n.burn, n.samples)
@@ -454,7 +471,7 @@ runScenarios <- function() {
     bc <- dbarts(
       d$x,
       d$y,
-      forests = bcfForests(d$z, n.trees.tau),
+      forests = bcfForests(d$z, n.trees.tau, 2 * sd(d$y)),
       control = makeControl()
     )
     bc$run(n.burn, n.samples)
@@ -473,7 +490,7 @@ runScenarios <- function() {
     bc <- dbarts(
       d$x,
       d$y,
-      forests = bcfForests(d$z, n.trees.tau),
+      forests = bcfForests(d$z, n.trees.tau, 2 * sd(d$y)),
       control = makeControl()
     )
     bc$run(n.burn, n.samples)
@@ -503,7 +520,7 @@ runScenarios <- function() {
     bc <- dbarts(
       d$x,
       d$y,
-      forests = bcfForests(d$z, n.trees.tau),
+      forests = bcfForests(d$z, n.trees.tau, 2 * sd(d$y)),
       control = makeControl()
     )
     bc$run(n.burn, n.samples)
@@ -534,7 +551,7 @@ runScenarios <- function() {
     bc <- dbarts(
       d$x,
       d$y,
-      forests = bcfForests(d$z, n.trees.tau),
+      forests = bcfForests(d$z, n.trees.tau, 1),
       control = makeControl()
     )
     res <- bc$run(n.burn, n.samples)
@@ -553,7 +570,7 @@ runScenarios <- function() {
       d$x,
       d$y,
       family = "logistic",
-      forests = bcfForests(d$z, n.trees.tau),
+      forests = bcfForests(d$z, n.trees.tau, pi / sqrt(3)),
       control = makeControl()
     )
     res <- bc$run(n.burn, n.samples)
@@ -577,7 +594,7 @@ runScenarios <- function() {
       d$y,
       weights = weights,
       family = "logistic",
-      forests = bcfForests(d$z, n.trees.tau),
+      forests = bcfForests(d$z, n.trees.tau, pi / sqrt(3)),
       control = makeControl()
     )
     res <- bc$run(n.burn, n.samples)
@@ -592,11 +609,14 @@ runScenarios <- function() {
   # records is gated bit for bit against: a scale taken twice, or a record
   # dropped, moves them. Seeds are literals kept out of the guarded `seeds`
   # vector, as (f)-(o)'s are, and each runs after the scenarios above.
-  numericForests <- function(dose, held = FALSE) {
+  numericForests <- function(d, held = FALSE) {
     list(
-      dbarts::dbartsForests$forest(),
       dbarts::dbartsForests$forest(
-        basis = dose,
+        amplitude = dbarts::dbartsPriors$student(1),
+        sd = 2 * sd(d$y)
+      ),
+      dbarts::dbartsForests$forest(
+        basis = d$dose,
         n.trees = n.trees.tau,
         amplitude = if (held) dbarts::dbartsPriors$fixed()
       )
@@ -616,7 +636,7 @@ runScenarios <- function() {
     bc <- dbarts(
       d$x,
       d$y,
-      forests = numericForests(d$dose),
+      forests = numericForests(d),
       control = makeControl()
     )
     res <- bc$run(n.burn, n.samples)
@@ -632,7 +652,7 @@ runScenarios <- function() {
     bc <- dbarts(
       d$x,
       d$y,
-      forests = numericForests(d$dose),
+      forests = numericForests(d),
       control = makeControl()
     )
     bc$run(n.burn, n.samples)
@@ -657,7 +677,7 @@ runScenarios <- function() {
     bc <- dbarts(
       d$x,
       d$y,
-      forests = numericForests(d$dose, held = TRUE),
+      forests = numericForests(d, held = TRUE),
       control = makeControl()
     )
     res <- bc$run(n.burn, n.samples)

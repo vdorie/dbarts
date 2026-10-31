@@ -284,7 +284,7 @@ samplerFit <- function(seed) {
     base = muBase,
     leaf.prior = normal(2),
     forests = list(
-      forest(sd = sdControl * sdY),
+      forest(sd = sdControl * sdY, amplitude = student(1)),
       forest(
         basis = ~ factor(z),
         n.trees = 1L,

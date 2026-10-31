@@ -621,7 +621,11 @@ samplerFit <- function(seed, arm, updateA, updateB, ndpost, thin) {
   bcfForests <- list(
     dbarts::dbartsForests$forest(
       sd = sdControl * arm$link$anchor,
-      amplitude = if (updateA) NULL else dbarts::dbartsPriors$fixed()
+      amplitude = if (updateA) {
+        dbarts::dbartsPriors$student(1)
+      } else {
+        dbarts::dbartsPriors$fixed()
+      }
     ),
     dbarts::dbartsForests$forest(
       basis = ~ factor(arm$z),

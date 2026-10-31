@@ -1381,7 +1381,11 @@ sbcMakeBCF <- function(config, L, thin, fixedGlue = FALSE) {
   forests <- list(
     dbarts::dbartsForests$forest(
       sd = config$sdControl * unit,
-      amplitude = if (fixedGlue) dbarts::dbartsPriors$fixed()
+      amplitude = if (fixedGlue) {
+        dbarts::dbartsPriors$fixed()
+      } else {
+        dbarts::dbartsPriors$student(1)
+      }
     ),
     dbarts::dbartsForests$forest(
       basis = ~ factor(config$z),
