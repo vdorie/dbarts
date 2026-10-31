@@ -593,7 +593,8 @@ Baselines and snapshots, by name, with the verdict expected:
 - multinomial-equivalence-80b1c8d4: 11 identical. The four snapshot files use no forest with a basis: unchanged.
 - Exact gates: bcf-exact.R, bcf-exact-weak.R and bcf-latent-exact.R add `amplitude = student(1)` to their drawn
   modes, which already state sd: the same chains, passing unchanged; their held modes and bcf-exact-restricted.R
-  and forest-prior-exact.R state sd and `fixed()` and do not move. probit-k-scale-exact.R's arm from slice 1
+  and forest-prior-exact.R state sd and `fixed()` and do not move, save forest-prior-exact.R's arm of a forest with
+  no basis under `student(1)` at no sd, whose oracle's median moves from 2 units to engine item 3's size. probit-k-scale-exact.R's arm from slice 1
   covers the step beside a forest with a basis, and gains a lone-factor arm: one frozen forest with no basis under
   one drawn k beside a held factor, the lone sharer's own path. sbc.R's bcf arm adds `student(1)` where it draws (its next full
   run, not CI). bench-sampler-127f04ee is not re-recorded.

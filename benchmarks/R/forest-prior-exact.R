@@ -965,7 +965,13 @@ noBasisArm <- function(prior, sd = NULL) {
       list(basis = z1, levels = TRUE)
     ),
     read = list(
-      coefficient = read(1L, prior, if (is.null(sd)) 2 else sd / unit)
+      # with no sd its median is the size the leaf prior gives, at gaussian's
+      # default k a quarter of the response's range
+      coefficient = read(
+        1L,
+        prior,
+        if (is.null(sd)) diff(range(y)) / 4 / unit else sd / unit
+      )
     )
   )
 }
