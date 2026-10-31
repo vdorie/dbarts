@@ -1085,6 +1085,9 @@ resolveSamplerSpec <- function(
     n.trees <- if (is.null(varianceNTrees)) 40L else varianceNTrees
     varianceRecord <- new("dbartsVarianceRecord")
     varianceRecord@n.trees <- coerceOrError(n.trees, "integer")
+    if (!is.null(varianceNTrees)) {
+      varianceRecord@stated <- "n.trees"
+    }
     varianceRecord@base <- if (is.null(varianceBase)) {
       model@tree.prior@base
     } else {

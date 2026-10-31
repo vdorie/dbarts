@@ -668,6 +668,47 @@ expect_identical(sampler$model@variance@base, 0.95)
 expect_identical(sampler$model@variance@n.trees, 7L)
 sampler$setModel(sampler$model)
 
+# a count its record does not state is a default, not a choice, so the sampler
+# keeps its own; a stated one is compared, the variance forest's as a forest's
+specData <- dbartsData(y ~ x1 + x2 + x3, frame)
+at200 <- function() {
+  dbarts(y ~ x1 + x2 + x3, frame, n.trees = 200L, control = migrationControl())
+}
+sampler <- at200()
+sampler$setModel(dbartsSpec(specData, power = 3)$model)
+expect_identical(sampler$control@n.trees, 200L)
+expect_identical(sampler$model@forests[[1L]]@n.trees, 200L)
+expect_identical(sampler$model@tree.prior@power, 3)
+expect_true(is.numeric(sampler$run(0L, 1L)$train))
+sampler <- at200()
+sampler$setModel(fit75$model)
+expect_identical(sampler$control@n.trees, 200L)
+sampler <- at200()
+sampler$setModel(dbartsSpec(specData, n.trees = 200L, power = 3)$model)
+expect_identical(sampler$control@n.trees, 200L)
+expect_identical(sampler$model@tree.prior@power, 3)
+structureRefused(
+  at200(),
+  dbartsSpec(specData, n.trees = 75L, power = 3)$model,
+  "forest 1's tree count"
+)
+sampler <- varianceOf(n.trees = 7L)
+sampler$setModel(dbartsSpec(specData, variance = TRUE)$model)
+expect_identical(sampler$model@variance@n.trees, 7L)
+sampler$setModel(
+  dbartsSpec(specData, variance = varianceForest(base = 0.8))$model
+)
+expect_identical(sampler$model@variance@n.trees, 7L)
+sampler$setModel(
+  dbartsSpec(specData, variance = varianceForest(n.trees = 7L))$model
+)
+expect_identical(sampler$model@variance@n.trees, 7L)
+structureRefused(
+  sampler,
+  dbartsSpec(specData, variance = varianceForest(n.trees = 40L))$model,
+  "variance forest's tree count"
+)
+
 ordinal <- function(k) {
   dbarts(
     x,
@@ -708,7 +749,14 @@ refusedBy <- function(field, value) {
   dbarts:::movedStructureRefusal(changed, twoForest$model)
 }
 expect_null(dbarts:::movedStructureRefusal(twoForest$model, twoForest$model))
-expect_true(grepl("forest 2's tree count", refusedBy("n.trees", 3L)))
+expect_null(refusedBy("n.trees", 3L))
+statesAnother <- twoForest$model
+statesAnother@forests[[2L]]@n.trees <- 3L
+statesAnother@forests[[2L]]@stated <- "n.trees"
+expect_true(grepl(
+  "forest 2's tree count",
+  dbarts:::movedStructureRefusal(statesAnother, twoForest$model)
+))
 expect_true(grepl("forest 2's 'vars'", refusedBy("vars", 1L)))
 expect_true(grepl(
   "forest 2's 'interactions'",

@@ -268,7 +268,7 @@ door's `n.cuts` and `useQuantiles`, or a written control value standing for them
 | `new("dbartsSampler", control, model, data)` | a copied control: the model's count, with the not-used warning where it differs (dec-B335); a fresh control: the model's, a silent value never being read; a written control count: used where the model states none, with the one-release warning, refused by name where it states another (dec-B526) or where every forest has a basis (rule 3) | a copied control: the data object's rule and count, with the not-used warning where they differ; a fresh control: the data object's; a written rule: dec-B526's reading, the grid re-derived; a written count: the data object's, with the not-used warning, as 0.9-34 and main use the data object's |
 | re-creation (`getPointer`, `setState`, `copy`, a reload, stan4bart's restore) | the stored model's; the mirror agrees, so no warning | the stored data's |
 | `$setControl(new)` | a carried count that differs: taken, the sampler's kept, the not-used warning (dec-B385); a written one that differs: refused, "changing 'n.trees' is not available on an existing sampler" (dec-B247) | the same two cases for each, the sampler's data holding them; the `n.cuts` attribute is stripped after the check |
-| `$setModel(model)` | refused by name before anything is stored where a structure field differs (dec-B254): a forest's count, vars, interactions, blocks, basis or label, the variance forest's count and columns, the category count, the hazard periods; the moved facts join setmodel-parameters' structure check. A parameter field (a forest's sd, base, power, the amplitude's hold and prior) goes where setmodel-parameters sends it (main refuses a sampler of several forests wholesale until its slice 4). Per-forest move settings are installed, as `$setControl` installs the control's (dec-B254: the moves "are not model"; dec-B518's `$setForest` changes them) | - |
+| `$setModel(model)` | refused by name before anything is stored where a structure field differs (dec-B254): a forest's count, vars, interactions, blocks, basis or label, the variance forest's count and columns, the category count, the hazard periods, a count compared only where the model's record states it, one it does not state leaving the sampler's (dec-B551); the moved facts join setmodel-parameters' structure check. A parameter field (a forest's sd, base, power, the amplitude's hold and prior) goes where setmodel-parameters sends it (main refuses a sampler of several forests wholesale until its slice 4). Per-forest move settings are installed, as `$setControl` installs the control's (dec-B254: the moves "are not model"; dec-B518's `$setForest` changes them) | - |
 | `$setData(data)` | - | a count or rule the data object states wins, one carrying a grid brings what made it, one stating neither keeps the sampler's, and the sampler's record follows; `updateCutPoints = "none"` keeps the sampler's (dec-B546) |
 | `$setForest()`, `$getForest()` (dec-B518, unbuilt) | `n.trees` is structure, refused by name at `$setForest`; it is not in `$getForest`'s list | neither: the cut settings are data, changed through `setCutPoints` and `setPredictor(updateCutPoints = )` |
 
@@ -358,7 +358,8 @@ control count or rule at the direct door beside a model or data object that stat
 written count there where every forest has a basis; a written
 `useQuantiles` or `n.cuts` on `$setControl` that differs from the sampler's (main refuses `useQuantiles` already;
 `n.cuts` is stored there and never reaches the engine); `$setModel` with a model of another structure in a fact
-that today rode the control; at the direct door, a basis forest's model beside a data object with no bases,
+that today rode the control, a tree count among them only where the model's record states it (dec-B551; a spec
+stating none is taken and keeps the sampler's, as on main; A/B rows `b551.*`); at the direct door, a basis forest's model beside a data object with no bases,
 `new("dbartsSampler", run(), bcfFit$model, f75$data)`, which the bridge refuses ("a basis forest was configured but
 the data carry no forest bases") where main followed the control and fit gaussian with 75 trees; an `n.cuts` naming
 no column or term, leaving a column with no value, or unnamed and neither one value nor one per column (dec-B547), so
@@ -593,7 +594,8 @@ The review runs each and requires a failing test:
     the count the call takes is known.
 20. The not-used warning names the flat arguments slice 2 adds (`dbarts(n.trees = )`), since one feature merges once
     (dec-B494). Alternative: name them from slice 2, rewording every message and pin twice.
-21. `$setModel`'s check names a model with no forest record, one made by hand, as stating no change, so it keeps the
+21. `$setModel`'s check names a model with no forest record, one made by hand, as stating no change, and by dec-B551
+    (ruled) a record not stating its count, so it keeps the
     sampler's structure as main does, and compares only the fields this plan names: `stated` and what forest-door
     adds to a record do not refuse. Alternative: compare whole records, which would refuse forest-door's additions.
 22. A parameter of the moved records (a variance forest's base and power, the shape setting) given to `$setModel`

@@ -571,9 +571,10 @@ bridgeFamily <- function(control, model) {
 ## the text of a refusal or NULL: each forest's count, columns, interactions,
 ## blocks, basis and label, the variance forest's count and columns, the
 ## category count and the hazard periods. A model recording no forest, one made
-## by hand, and a record stating no count state no change. What else a record
-## holds is not structure: a parameter stays the sampler's and a move setting
-## is installed (keepModelRecords).
+## by hand, and a record not stating its count state no change: a count nobody
+## stated is a default, and the sampler keeps its own. What else a record holds
+## is not structure: a parameter stays the sampler's and a move setting is
+## installed (keepModelRecords).
 movedStructureRefusal <- function(newModel, model) {
   if (length(newModel@forests) == 0L) {
     return(NULL)
@@ -581,6 +582,9 @@ movedStructureRefusal <- function(newModel, model) {
   # what, this sampler's and the given model's, and whether the refusal shows them
   row <- function(what, own, given, shown = TRUE) {
     list(what = what, own = own, given = given, shown = shown)
+  }
+  statedCount <- function(given, own) {
+    if ("n.trees" %in% given@stated) given@n.trees else own@n.trees
   }
   rows <- list(row(
     "the number of forests",
@@ -592,11 +596,14 @@ movedStructureRefusal <- function(newModel, model) {
       own <- model@forests[[index]]
       given <- newModel@forests[[index]]
       forest <- paste0("forest ", index, "'s ")
-      givenCount <- if (is.null(given@n.trees)) own@n.trees else given@n.trees
       rows <- c(
         rows,
         list(
-          row(paste0(forest, "tree count"), own@n.trees, givenCount),
+          row(
+            paste0(forest, "tree count"),
+            own@n.trees,
+            statedCount(given, own)
+          ),
           row(paste0(forest, "'vars'"), own@vars, given@vars),
           row(
             paste0(forest, "'interactions'"),
@@ -627,7 +634,11 @@ movedStructureRefusal <- function(newModel, model) {
     )),
     if (!is.null(own) && !is.null(given)) {
       list(
-        row("the variance forest's tree count", own@n.trees, given@n.trees),
+        row(
+          "the variance forest's tree count",
+          own@n.trees,
+          statedCount(given, own)
+        ),
         row("the columns of the variance forest", own@columns, given@columns)
       )
     },

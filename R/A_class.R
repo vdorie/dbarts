@@ -661,13 +661,14 @@ methods::setValidity("dbartsForestRecord", function(object) {
   TRUE
 })
 
-## The variance forest of a model: its count, its tree prior, the 1-based
-## columns it may split on (NULL for every one) and its move settings, NULL
-## where it states none.
+## The variance forest of a model: its count, what of it the caller stated, its
+## tree prior, the 1-based columns it may split on (NULL for every one) and its
+## move settings, NULL where it states none.
 methods::setClass(
   "dbartsVarianceRecord",
   slots = list(
     n.trees = "integer",
+    stated = "character",
     base = "numeric",
     power = "numeric",
     columns = "integerOrNULL",
@@ -675,6 +676,7 @@ methods::setClass(
   ),
   prototype = list(
     n.trees = 40L,
+    stated = character(0L),
     base = 0.95,
     power = 2,
     columns = NULL,
