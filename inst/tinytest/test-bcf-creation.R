@@ -525,7 +525,10 @@ expect_error(
 )
 # with a forest under it the fitting function's leaf prior is taken; with none
 # it has no forest
-noneTakes <- list(dbartsForests$forest(sd = 1), dbartsForests$forest(basis = ~ factor(z)))
+noneTakes <- list(
+  dbartsForests$forest(sd = 1),
+  dbartsForests$forest(basis = ~ factor(z))
+)
 expect_error(
   dbarts(
     x,

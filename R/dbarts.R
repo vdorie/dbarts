@@ -2441,7 +2441,11 @@ sharerLeafPrior <- function(prior, raw) {
     amplitude = fixed()
   )
   prior <- c(statement, prior[-1L])
-  prior$prior.sd.of <- if (raw[[1L, "share"]] < 1) "forest, shared" else "forest"
+  prior$prior.sd.of <- if (raw[[1L, "share"]] < 1) {
+    "forest, shared"
+  } else {
+    "forest"
+  }
   prior
 }
 
