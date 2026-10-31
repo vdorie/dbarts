@@ -639,13 +639,13 @@ mutations <- c(
       "m45",
       "src/bartcore/chain.hpp",
       paste0(
-        "    mapped.statement = statement;\n",
-        "    mapped.entry = entry;\n",
+        "      sharers_.clear();\n",
+        "    }\n",
         "    forests_[f].leaf.scale = mapLeafScale(f);\n"
       ),
       paste0(
-        "    mapped.statement = statement;\n",
-        "    mapped.entry = entry;\n"
+        "      sharers_.clear();\n",
+        "    }\n"
       ),
       kTests(
         "test-multiforest-leaf-prior-writer.R",
