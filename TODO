@@ -857,10 +857,11 @@ items
     message, a length-one specification losing its name, where n.cuts = c(x2 = 10) is refused
     (dec-B547). Run 2026-10-30. To put to the maintainer, with the rest of split.probs's doors,
     among them a hazard fit's refusal of a vector leaving out period, where n.cuts takes it (dec-B553).
-  mixed-matrix-column-write: d@x[, 1] <- new, the idiom dec-B458 quotes, stops on a data object
-    from a formula, "incorrect number of subscripts", on main and control-migration, x being a
-    dbartsMixedMatrix; it worked on 0.9-34 and works from a matrix. Run 2026-10-30 by an adviser,
-    not rerun.
+  consumer-slot-writes: stan4bart (R/generics.R, R/stan4bart_fit.R, R/stan4bart.R), bartCause
+    (R/responseFit.R) and treatSens (R/cibart.R) write a data object's slots before handing it on
+    (x, x.test, sigma, n.cuts). A data object's slots are read-only copies (dec-B554): move each to
+    an accessor where one exists, and name what is missing. treatSens's n.cuts goes with
+    control-migration's consumers.
   coefficient-prior-live: ruled, not built (dec-B511). On a live sampler,
     $setForest(amplitude = ) (dec-B518) changes a forest's coefficient between held
     and drawn (dec-B254) and between the normal and student(df), and a
