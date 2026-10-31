@@ -680,6 +680,10 @@ expect_identical(row$notUsed, "n.cuts")
 sameCuts <- gauss(n.cuts = 8L)
 row <- counted(terms(y ~ x1, sameCuts$control, n.cuts = 8L))
 expect_identical(row$notUsed, character())
+# and one that differs among them is not, however few columns this fit has
+mixedCuts <- gauss(n.cuts = c(8L, 8L, 5L))
+row <- counted(terms(y ~ x1, mixedCuts$control, n.cuts = 8L))
+expect_identical(row$notUsed, "n.cuts")
 
 # what each door says, whatever the comparison
 said <- function(expr) {

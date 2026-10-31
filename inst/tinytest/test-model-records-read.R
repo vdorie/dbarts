@@ -200,3 +200,50 @@ for (grid in list(c(1L, 40L), c(40L, 1L))) {
   expect_true(all(losses[, "1"] <= 2), info = paste(grid, collapse = " "))
   expect_true(all(losses[, "40"] > 2), info = paste(grid, collapse = " "))
 }
+
+## The rule a fit runs is the one its verbose summary reports.
+summaryOf <- function(...) {
+  capture.output(dbarts(x, y, ..., control = run(verbose = TRUE)))
+}
+expect_true(any(grepl(
+  "use quantiles for rule cut points: true",
+  summaryOf(useQuantiles = TRUE),
+  fixed = TRUE
+)))
+expect_true(any(grepl(
+  "use quantiles for rule cut points: false",
+  summaryOf(),
+  fixed = TRUE
+)))
+
+## A fit's margins take the forests' labels, a forest held by amplitude = fixed()
+## is named, and a fit's printed count is its record's.
+fixed <- dbartsPriors$fixed
+labeled <- bart(
+  y ~ forest(x1 + x2) + forest(x3, basis = zn, amplitude = fixed()),
+  frame,
+  n.samples = 20L,
+  n.burn = 0L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 9L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+labels <- vapply(labeled$fit$model@forests, methods::slot, "", "label")
+expect_false(identical(labels, c("forest1", "forest2")))
+expect_identical(names(labeled$leaf.prior), labels)
+expect_identical(names(labeled$fixed$amplitude), labels[2L])
+printed <- capture.output(print(bart(
+  y ~ x1 + x2 + x3,
+  frame,
+  n.trees = 30L,
+  n.samples = 20L,
+  n.burn = 0L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 9L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)))
+expect_true("n.trees: 30" %in% printed)

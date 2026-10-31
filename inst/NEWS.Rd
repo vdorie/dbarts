@@ -214,10 +214,11 @@
             \code{n.trees} differs from the sampler's; 0.9-34 resized the
             sampler in place. Create a new sampler with the count wanted.
       \item A sampler assembled by hand, \code{new("dbartsSampler", control,
-            model, data)}, takes its tree count from the model where the
-            control's is fresh or copied from a fit, with a warning where a
-            copied count differs; 0.9-34 read the control's. A count written
-            on the control is used where the model states none and refused
+            model, data)}, takes its tree count from the model and its
+            quantile rule from the data object where the control's are fresh
+            or copied from a fit, with a warning where a copied value differs;
+            0.9-34 read the control's. A count or rule written on the control
+            is used where the model or the data object states none and refused
             where it states another.
     }
   }

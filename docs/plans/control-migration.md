@@ -174,8 +174,8 @@ Consumers, read at their main branches (stan4bart 566a1d9, bartCause f7edf5b, tr
 | the variance forest | the model's variance record (count, base, power, columns, moves) | `varianceForest()`, `variance =` | yes |
 | ordinal category count, negative-binomial shape setting, hazard periods | the model | the family | yes; the held shape a parameter (setmodel-parameters) |
 | survival status | the data object, one value per row | the response, `setResponse(status = )` | no |
-| cut count | the data object (`n.cuts`, exists) | `dbarts(n.cuts = )`, `dbartsData(n.cuts = )` | the grid is data (dec-B231) |
-| quantile rule | the data object (`useQuantiles`, new; `NA` where its caller stated none, read as `FALSE`) | `dbarts(useQuantiles = )`, `dbartsData(useQuantiles = )` | as the cut count |
+| cut count | the data object (`n.cuts`, exists; dec-B545) | `dbarts(n.cuts = )`, `dbartsData(n.cuts = )` | the grid is data (dec-B231) |
+| quantile rule | the data object (`useQuantiles`, new, dec-B545; `NA` where its caller stated none, read as `FALSE`) | `dbarts(useQuantiles = )`, `dbartsData(useQuantiles = )` | as the cut count |
 | binary | none: the model's family | the family | yes |
 
 New homes are typed S4 slots with validity, set after `new()` where `initialize` is closed. Every model built by a
@@ -568,8 +568,7 @@ The review runs each and requires a failing test:
 16. Slice order: records before doors, so the doors are written once against the records.
 17. A fresh control at the direct door is silent, so the model's count and the data object's rule stand, from slice
     1b: a silent value is never read. Alternative: keep main's 75 and uniform until slice 2, overruling a model that
-    states a count with an object that states nothing. dec-B335; NEWS says it for the count, and for the rule when
-    the ruling on where the cut settings live is in.
+    states a count with an object that states nothing. dec-B335; NEWS says it.
 18. Slice 1b's control still has its `n.cuts` slot, so the mirror records it and writes it from the data object, and
     a carried one stops speaking with the count and the rule (call 5). Alternative: leave `n.cuts` speaking until
     slice 2 removes the slot, one more copied value carried a slice longer.
