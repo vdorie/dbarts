@@ -1065,7 +1065,12 @@ expect_identical(
   attr(sampler$data@x, "factor.levels")[[1L]],
   levels(levels6)
 )
-handed@n.cuts <- sampler$data@n.cuts
+# the same data again, stating the sampler's counts as the object it is given
+handed <- dbarts::dbartsData(
+  y ~ a + b,
+  data.frame(y = y[kept], a = droplevels(levels6[kept]), b = x[kept, 2L]),
+  n.cuts = sampler$data@n.cuts
+)
 handed@sigma <- sampler$data@sigma
 handed@missing.seen <- sampler$data@missing.seen
 sampler$data <- handed

@@ -635,8 +635,12 @@ expect_error(
 )
 # per-column cut counts survive only through dbartsSpec(), which keeps a data
 # object's own resolved n.cuts
-unevenCuts <- dbartsData(x, y, bases = list(NULL, zFactor))
-unevenCuts@n.cuts <- c(50L, 100L, 100L, 100L)
+unevenCuts <- dbartsData(
+  x,
+  y,
+  bases = list(NULL, zFactor),
+  n.cuts = c(50L, 100L, 100L, 100L)
+)
 expect_error(
   dbartsSpec(unevenCuts, seededControlBcfCreation()),
   "per-column 'n.cuts'"

@@ -209,8 +209,7 @@ onGrid <- vapply(
 expect_true(length(onGrid) > 0L && all(onGrid))
 
 # shape mismatches between the data object and the handle are refused
-data.short <- dbartsData(x[-1L, , drop = FALSE], y[-1L])
-data.short@n.cuts <- rep_len(100L, p)
+data.short <- dbartsData(x[-1L, , drop = FALSE], y[-1L], n.cuts = 100L)
 data.short@sigma <- sampler$data@sigma
 expect_error(
   dbarts:::bartcoreSamplerFromHandle(
