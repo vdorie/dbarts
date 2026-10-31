@@ -204,6 +204,34 @@ readDoorCopies <- function(control, flat, written) {
   )
 }
 
+## A sampler's data object holds its rule as plain TRUE or FALSE. That no caller
+## stated a FALSE is this marker, read where a rule written on a control is used
+## beside one nobody stated and where $setData keeps the sampler's beside it. It
+## goes in dbarts 1.1-0 with dbartsControl()'s useQuantiles argument.
+ruleUnstatedAttr <- "dbarts.ruleUnstated"
+
+## Whether a data object's caller stated its rule.
+dataStatesRule <- function(data) {
+  !is.na(data@useQuantiles) &&
+    is.null(attr(data, ruleUnstatedAttr, exact = TRUE))
+}
+
+## A data object with its rule stated.
+stateDataRule <- function(data, useQuantiles) {
+  data@useQuantiles <- useQuantiles
+  attr(data, ruleUnstatedAttr) <- NULL
+  data
+}
+
+## A data object as a sampler holds it: a rule nobody stated reads FALSE.
+holdDataRule <- function(data) {
+  if (is.na(data@useQuantiles)) {
+    data@useQuantiles <- FALSE
+    attr(data, ruleUnstatedAttr) <- TRUE
+  }
+  data
+}
+
 ## The cut settings a data object goes on with: a stated count or rule is used,
 ## and beside a grid the data object carries, the grid is derived again at it. A
 ## count the data object holds otherwise stands, recycled over any column a
@@ -224,7 +252,7 @@ applyCutSettings <- function(data, copies) {
     data@n.cuts <- rep_len(data@n.cuts, numColumns)
   }
   if (ruleStated) {
-    data@useQuantiles <- copies$useQuantiles
+    data <- stateDataRule(data, copies$useQuantiles)
   }
   if (cutsStated || ruleStated) {
     data@cutPoints <- NULL
@@ -482,8 +510,8 @@ takeControlReadings <- function(control, model, data) {
   }
   model@forests <- records
   if (!is.null(written$useQuantiles)) {
-    if (is.na(data@useQuantiles)) {
-      data@useQuantiles <- written$useQuantiles
+    if (!dataStatesRule(data)) {
+      data <- stateDataRule(data, written$useQuantiles)
       data@cutPoints <- NULL
     } else if (!identical(data@useQuantiles, written$useQuantiles)) {
       refuse(
@@ -496,7 +524,7 @@ takeControlReadings <- function(control, model, data) {
       )
     }
   }
-  list(model = model, data = data)
+  list(model = model, data = holdDataRule(data))
 }
 
 ## The warnings at new("dbartsSampler", control, model, data): the deprecation

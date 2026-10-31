@@ -161,9 +161,16 @@ expectRow <- function(
     held <- unique(row$value$data@n.cuts)
     expect_identical(held, as.integer(cuts), info = info)
   }
+  # a rule of NA is one no caller stated, which a sampler's data object reads
+  # as FALSE
   if (!is.null(rule)) {
     control <- row$value$control
-    expect_identical(row$value$data@useQuantiles, rule, info = info)
+    expect_identical(row$value$data@useQuantiles, isTRUE(rule), info = info)
+    expect_identical(
+      dbarts:::dataStatesRule(row$value$data),
+      !is.na(rule),
+      info = info
+    )
     expect_identical(control@useQuantiles, isTRUE(rule), info = info)
   }
   expect_identical(row$deprecated, sort(d), info = info)
@@ -1031,11 +1038,31 @@ row <- counted(direct(wrote(useQuantiles = TRUE), gridSet))
 expectRow(row, rule = TRUE, d = quantile)
 expect_true(points(row) > 3L)
 expect_true(isQuantile(row$value))
-expect_true(is.na(gridSet$data@useQuantiles))
+expect_false(gridSet$data@useQuantiles)
 expect_identical(length(gridOf(gridSet)), 3L)
 row <- counted(direct(wrote(useQuantiles = FALSE), gridSet))
 expectRow(row, rule = FALSE, d = quantile)
 expect_true(points(row) > 3L)
+# a sampler's data object reads its rule plain, whoever stated it, and what it
+# reads may be stated
+reloadedFit <- {
+  saved <- tempfile(fileext = ".rds")
+  saveRDS(fit75, saved)
+  readRDS(saved)
+}
+unlink(saved)
+for (held in list(fit75, fit75$copy(), reloadedFit)) {
+  expect_identical(held$data@useQuantiles, FALSE)
+  expect_false(dbarts:::dataStatesRule(held$data))
+  row <- counted(direct(wrote(useQuantiles = TRUE), held))
+  expectRow(row, rule = TRUE, d = "useQuantiles")
+}
+expect_true(is.na(dbartsData(x, y)@useQuantiles))
+restated <- dbartsData(x, y, useQuantiles = fit75$data@useQuantiles)
+expect_identical(restated@useQuantiles, FALSE)
+expect_true(dbarts:::dataStatesRule(restated))
+expect_true(dbarts:::dataStatesRule(gauss(useQuantiles = FALSE)$data))
+
 # a written rule beside one the data object states: refused where it differs
 row <- counted(direct(wrote(useQuantiles = FALSE), fitRule))
 expectRefused(

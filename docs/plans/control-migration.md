@@ -175,7 +175,7 @@ Consumers, read at their main branches (stan4bart 566a1d9, bartCause f7edf5b, tr
 | ordinal category count, negative-binomial shape setting, hazard periods | the model | the family | yes; the held shape a parameter (setmodel-parameters) |
 | survival status | the data object, one value per row | the response, `setResponse(status = )` | no |
 | cut count | the data object (`n.cuts`, exists; dec-B545) | `dbarts(n.cuts = )`, `dbartsData(n.cuts = )` | the grid is data (dec-B231) |
-| quantile rule | the data object (`useQuantiles`, new, dec-B545; `NA` where its caller stated none, read as `FALSE`) | `dbarts(useQuantiles = )`, `dbartsData(useQuantiles = )` | as the cut count |
+| quantile rule | the data object (`useQuantiles`, new, dec-B545; plain `TRUE` or `FALSE` on anything a sampler holds, `NA` only on a fresh object stating none, dec-B548) | `dbarts(useQuantiles = )`, `dbartsData(useQuantiles = )` | as the cut count |
 | binary | none: the model's family | the family | yes |
 
 New homes are typed S4 slots with validity, set after `new()` where `initialize` is closed. Every model built by a
@@ -558,7 +558,7 @@ The review runs each and requires a failing test:
 10. At the direct door a written control cut count is not read: the data object's count is used, with the
     not-used warning where it differs, as 0.9-34 and main both read the data object's there. The written rule is
     dec-B526's.
-11. A data object that states no rule and carries no grid takes the default, uniform; `NA` in its slot means not
+11. A data object that states no rule and carries no grid takes the default, uniform; `NA` in a fresh one's slot means not
     stated.
 12. The forest record keeps whether its count was stated, for dec-B526.
 13. No guarded accessors for development-build objects (compatibility is owed to shipped versions only).
@@ -607,9 +607,9 @@ The review runs each and requires a failing test:
     with no fixed expiry.
 32. `resolveSamplerSpec` loses its `written` argument: the door stamps `dbarts.stated` on the control, so a wrapper
     and a door are read one way.
-33. A fit whose call stated no rule keeps `NA` in its data object, which reads as uniform, so a written rule beside
-    that data object at the direct door is used and not refused. Alternative: write `FALSE` at the door, as slice 1b
-    did, against the script table's row and dec-B526.
+33. REPLACED by dec-B548. A fit whose call stated no rule reads `FALSE` in its data object, with a private marker
+    that no caller stated it, so a written rule beside that data object at the direct door is still used and not
+    refused. The marker goes with `dbartsControl(useQuantiles = )` at 1.1-0.
 34. At the direct door a data object from `dbartsData()` stating no count still stops at the bridge ("maximum number
     of cuts cannot be NA"), as on main. Alternative: apply the default there, a change no row of this plan asks for.
 
