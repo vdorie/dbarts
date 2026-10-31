@@ -396,7 +396,7 @@ expect_error(
     leaf.prior = normal(k = 3),
     control = ctl()
   ),
-  "a non-default 'k'",
+  "no forest of this model takes a leaf prior's 'k'",
   fixed = TRUE
 )
 # a sharer's part is fixed at creation

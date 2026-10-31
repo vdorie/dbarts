@@ -198,7 +198,7 @@ expect_error(
     control = refControl(),
     leaf.prior = normal(sd = 0.75)
   ),
-  "a model of several forests states each forest's size on the forest"
+  "no forest of this model takes a leaf prior's 'sd'"
 )
 # (ii) and again at the bridge, for a hand-built model the R layer never emits
 resolved <- dbartsSpec(

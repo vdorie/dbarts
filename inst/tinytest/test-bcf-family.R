@@ -412,7 +412,7 @@ for (family in c("probit", "logistic")) {
       leaf.prior = normal(chi(1.5, 2)),
       control = seededControlBcfFamily()
     ),
-    "a 'k' hyperprior"
+    "takes a leaf prior's 'k'"
   )
   expect_error(
     dbarts(
@@ -423,7 +423,7 @@ for (family in c("probit", "logistic")) {
       leaf.prior = normal(sd = 0.75),
       control = seededControlBcfFamily()
     ),
-    "a model of several forests states each forest's size on the forest.*leave 'sd' out of 'leaf.prior'"
+    "no forest of this model takes a leaf prior's 'sd'.*leave 'sd' out of 'leaf.prior'"
   )
   expect_error(
     dbarts(
@@ -434,7 +434,7 @@ for (family in c("probit", "logistic")) {
       leaf.prior = normal(sd = invchi(1.5, 1)),
       control = seededControlBcfFamily()
     ),
-    "a model of several forests states each forest's size on the forest"
+    "no forest of this model takes a leaf prior's 'sd'"
   )
   # leaf.scale is written by the family switch rather than by the caller, so
   # the bridge's own backstop is where a non-default one can be stated at all

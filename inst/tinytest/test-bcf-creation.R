@@ -534,11 +534,11 @@ expect_error(
     leaf.prior = normal(chi(1.5)),
     control = control
   ),
-  "'k' hyperprior"
+  "takes a leaf prior's 'k'"
 )
 expect_error(
   dbarts(x, y, forests = noneTakes, leaf.prior = normal(3), control = control),
-  "non-default 'k'"
+  "takes a leaf prior's 'k'"
 )
 expect_error(
   dbarts(x, y, forests = twoForests, variance = TRUE, control = control),

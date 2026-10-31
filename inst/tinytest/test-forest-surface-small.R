@@ -27,9 +27,9 @@ expect_identical(
     leaf.prior = normal(k = 3)
   )),
   paste0(
-    "a model of several forests does not support a non-default 'k'; drop it ",
-    "or fit a single-forest model; a forest's size is stated as ",
-    "forest(sd = ), in the response's units"
+    "no forest of this model takes a leaf prior's 'k': each forest with no ",
+    "basis states its own size, as forest(sd = ), in the response's units; ",
+    "drop 'k'"
   )
 )
 counts <- transform(frame, y = rpois(n, 4))
