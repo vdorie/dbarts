@@ -342,7 +342,8 @@ for (door in names(doors)) {
 derived <- make(data = carried@x)
 expect_false(identical(inForce(derived), recordOf(holder)))
 # xbart's folds derive their own: the carried record changes nothing, and
-# folds whose leaves take no covariate are never handed it
+# folds whose leaves take no covariate are never handed it. The grid a data
+# object carries does reach the folds, so the fresh object carries the same one
 crossValidated <- function(data, leafPrior = quote(linear(columns = "a"))) {
   set.seed(9L)
   eval(bquote(dbarts::xbart(
@@ -357,11 +358,10 @@ crossValidated <- function(data, leafPrior = quote(linear(columns = "a"))) {
     verbose = FALSE
   )))
 }
+fresh <- dbarts::dbartsData(carried@x, carried@y)
+fresh@cutPoints <- carried@cutPoints
 for (leafPrior in list(quote(linear(columns = "a")), quote(normal()))) {
-  expect_identical(
-    crossValidated(carried, leafPrior),
-    crossValidated(dbarts::dbartsData(carried@x, carried@y), leafPrior)
-  )
+  expect_identical(crossValidated(carried, leafPrior), crossValidated(fresh, leafPrior))
 }
 
 # ---- gp kept refused -------------------------------------------------------
