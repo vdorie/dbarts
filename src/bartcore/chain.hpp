@@ -1517,13 +1517,16 @@ public:
   }
   /// The size the options' leaf prior gives one forest, as a multiple of the
   /// map's anchor: a named sd, or its node scale over its k, at the chi prior's
-  /// median where k is drawn, the size being monotone in k. At the defaults
-  /// under a drawn sigma that is the one forest of a single-forest chain's
-  /// (singleForestDefaultSize). Read at creation, and at a restatement only as
-  /// the number a statement equal to it resolves to.
+  /// median where k is drawn, the size being monotone in k. A named sd under a
+  /// drawn k is the scale of an inverse chi prior, sd = namedSd / chi, so its
+  /// median is the scale over the chi's median, the chi prior's scale not
+  /// entering. At the defaults under a drawn sigma that is the one forest of a
+  /// single-forest chain's (singleForestDefaultSize). Read at creation, and at
+  /// a restatement only as the number a statement equal to it resolves to.
   double leafPriorSize() const {
     if (std::isfinite(options_.namedSd))
-      return options_.namedSd / forestSdUnit_;
+      return options_.namedSd / forestSdUnit_ /
+             (options_.updateK ? options_.kHyperprior.medianOfChi() : 1.0);
     const double k =
       options_.updateK ? options_.kHyperprior.median() : options_.k;
     return options_.nodeScale / k / nodeScaleAnchor_;
@@ -1771,9 +1774,11 @@ public:
   /// as its mixture's median, leaving its leaf scale and the live auxiliary,
   /// and a held one, or one with a basis, re-derives its leaf scale. The
   /// forest is a stated one from then on.
-  /// Where \p sd is the sd in force (ForestCalibration::mapSd) no bit of the
-  /// prior moves. A lone sharer leaves the group's leaf prior for it, its k
-  /// pinned as a stated forest's is, the size no other forest's. False, writing
+  /// Where \p sd is the sd in force (ForestCalibration::mapSd) the prior does
+  /// not move: no bit of it on a forest with a map entry to keep, and to
+  /// rounding on a lone sharer under a named sd, whose entry is re-derived.
+  /// A lone sharer leaves the group's leaf prior for it, its k pinned as a
+  /// stated forest's is, the size no other forest's. False, writing
   /// nothing, off a map forest, on a sharer among two or more, whose size is
   /// the group's, on an sd that is not positive and finite, and where the unit
   /// is not.

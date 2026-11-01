@@ -540,7 +540,8 @@ struct ForestMapEntry {
 /// statement, isnan and not a test of finiteness. Stating one, it has a scalar
 /// amplitude under a half-Cauchy scale mixture at df 1: its sd, in units of s,
 /// is that mixture's median, and its node scale stays at s (bcf's prognostic
-/// forest, factor and divisor both 1). A drawn forest WITH one has a fixed-variance amplitude block: its sd
+/// forest, factor and divisor both 1). A drawn forest WITH one has a
+/// fixed-variance amplitude block: its sd
 /// multiplies the node scale, divided through the half-normal median 0.674 so
 /// that the amplitude spread times that scale sits at sd units of s (bcf's
 /// treatment forest). A level's coefficient is N(0, 1/2), so the difference of
@@ -731,8 +732,9 @@ struct AmplitudeSpec {
 /// The thin adapter: bcf's two-forest spelling read as the K-length vector
 /// every other layer works in. mu states aPriorScale and tau sdModerate, both
 /// multiples of s, which the map carries as mu's half-Cauchy median, its df 1
-/// where it draws, and in tau's node scale; mu multiplies nothing and tau the two levels of the
-/// treatment indicator, whose pair the combiner synthesizes. A spec that
+/// where it draws, and in tau's node scale; mu multiplies nothing and tau the
+/// two levels of the treatment indicator, whose pair the combiner synthesizes.
+/// A spec that
 /// already carries its own forests vector is returned as it stands.
 inline std::vector<ForestSpec> expandForestSpecs(const AmplitudeSpec& spec) {
   if (!spec.forests.empty()) return spec.forests;

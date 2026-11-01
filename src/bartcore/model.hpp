@@ -4475,10 +4475,13 @@ struct ChiKHyperprior {
   double degreesOfFreedom = 1.5;
   double scale = HUGE_VAL;  // infinite = flat in the rate term
 
-  /// The prior's median k: infinite under the flat prior.
-  double median() const {
-    return scale * std::sqrt(ext_quantileOfChiSquared(0.5, degreesOfFreedom));
+  /// The median of the chi variable the prior scales.
+  double medianOfChi() const {
+    return std::sqrt(ext_quantileOfChiSquared(0.5, degreesOfFreedom));
   }
+
+  /// The prior's median k: infinite under the flat prior.
+  double median() const { return scale * medianOfChi(); }
 
   double draw(ext_rng* rng, double sumSquaredParams, double totalNumLeaves,
               double leafScale) const {

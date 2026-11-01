@@ -613,9 +613,10 @@ forest(
     the \code{sd} states, at the cost of slower mixing along the ridge the
     coefficient shares with the forest's leaves. With no basis the
     coefficient's size is the forest's size, its median the \code{sd} or, where
-    none is stated, the size the fitting function's leaf prior gives, at the
-    median \code{k} where \code{k} has a \code{chi()} prior and refused where
-    that prior or \code{k} is flat and gives no size. Bayesian causal forests'
+    none is stated, the size the fitting function's leaf prior gives, its
+    prior median where \code{k} has a \code{chi()} prior or the \code{sd} an
+    \code{invchi()} prior, and refused where that prior or \code{k} is flat and
+    gives no size. Bayesian causal forests'
     prognostic prior is written \code{amplitude = student(1), sd = 2 * sd(y)},
     with \code{sd = 1} under \code{"probit"} and \code{sd = pi / sqrt(3)} under
     \code{"logistic"}.

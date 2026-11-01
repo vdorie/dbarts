@@ -13362,6 +13362,27 @@ static void testForestsSharedTotal() {
                   "stating no sd and no df, a lone one among them");
   }
 
+  // ---- which forests take the leaf prior: the bridge's backstop ----
+  {
+    std::vector<ForestSpec> specs(2);
+    bool takes = forestsTakeLeafPrior(specs);
+    specs[0].sd = 0.5;
+    takes = takes && forestsTakeLeafPrior(specs);
+    specs[1].sdMultiple = 1.5;
+    bool stated = !forestsTakeLeafPrior(specs);
+    specs[1].sdMultiple = std::numeric_limits<double>::quiet_NaN();
+    specs[1].kind = ForestKind::levels;
+    stated = stated && !forestsTakeLeafPrior(specs);
+    // a df and no sd takes the leaf prior's size as its median, sharing none
+    std::vector<ForestSpec> withDf(1);
+    withDf[0].amplitudeDf = 1.0;
+    takes = takes && forestsTakeLeafPrior(withDf);
+    check(takes, "takes the leaf prior: a forest with no basis stating no sd, "
+                 "with or without a df");
+    check(stated, "takes the leaf prior: not a forest stating its size, nor a "
+                  "forest with a basis");
+  }
+
   // ---- the map: the lone forest's node scale times sqrt(1 / K) ----
   const std::vector<std::vector<size_t>> countSets = {
     {10, 10}, {5, 15}, {7, 7, 6}};
@@ -13853,7 +13874,8 @@ static void testForestsSharedTotal() {
     checkNear(logistic->forestCalibration(0, 0).mapSd, 2.8547, 5.0e-4,
               "median: 2.85 under logistic, in the link's units");
 
-    // a named sd, as given, fixed or under a drawn k
+    // a named sd as given where fixed; under a drawn k it is the scale of an
+    // inverse chi prior, whose median is that scale over the chi's median
     SamplerOptions named = optionsFor(ResponseFamily::gaussian, false);
     named.namedSd = 0.7;
     auto namedFixed = beside(ResponseFamily::gaussian, named, statement, 6705);
@@ -13861,7 +13883,8 @@ static void testForestsSharedTotal() {
           "median: a named sd as given");
     named.updateK = true;
     auto namedDrawn = beside(ResponseFamily::gaussian, named, statement, 6706);
-    check(ulps(namedDrawn->forestCalibration(0, 0).mapSd, 0.7, 4.0),
+    check(ulps(namedDrawn->forestCalibration(0, 0).mapSd,
+               0.7 / named.kHyperprior.medianOfChi(), 4.0),
           "median: and under a drawn k");
 
     // a prior on k with no median gives no size
