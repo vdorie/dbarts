@@ -629,7 +629,7 @@ Tests and gates, slice F:
   probit and logistic (the reader's k, `k.scale` and no `amplitude`; the coefficient 1 at every draw); `bart(k = 3)`,
   `chi()` and `normal(sd = )` taken; `fixed()` on a lone forest taken (dec-B513); `student(1)` with `sd = 1` under probit
   `identical()` to the pre-flip default; the two spellings of one drawn prior one median; the sd in force written on a
-  lone forest the same prior, to rounding under a named sd.
+  lone forest the same prior, to rounding on a lone sharer and bitwise at a held k of 2.
 - An A/B (scratch) against a library of main after coefficient-prior-opt-in: every fit of one forest, every model in
   which each forest with no basis states sd with `fixed()` or `student(1)`, and the held gaussian default identical;
   the moved rows of the table changed, as listed. The same rows beside a forest with no basis stating sd are held
@@ -752,7 +752,8 @@ Gates, on the branch's own libraries:
   at k 2 and probit under the drawn k; two forests at 75 trees (38 and 37) against `blocks()` at 75; and a
   stated count, `forest(x1, n.trees = 10) + forest(x2) + forest(x3)` against `trees.per.group = c(10, 38, 37)`:
   posterior mean fit by row, sigma, k, with two scenarios that see a k error, gaussian under a drawn k and unequal
-  counts under one. With slice B in, the two spellings are one model at every count (dec-B506); a |z| past 4 is a
+  counts under one. The probit arm alone cannot see a scale error under about 8 percent, because k absorbs it; the
+  forest-prior and gaussian arms cover that. With slice B in, the two spellings are one model at every count (dec-B506); a |z| past 4 is a
   stop. It joins exact-gates.yaml.
 - The full tinytest suite, one process; `lintr::lint_package()`, `air format --check .`, `tools/check-rc-codoc.R`,
   `tools/check-win-drift.R`, `tools/check-doc-freshness.R`, each on its own exit status; `inst/NEWS.Rd` parses;
@@ -815,7 +816,7 @@ F. Slice F, the default flip (~590 lines; ~8 agent-hours). Tier: changes draws (
    [Slice F: the default flip](#slice-f-the-default-flip) lists. The branch merges only after bartCause's `bcf()`
    change is on bartCause's main.
 3. Slice 3, the constant column (~60 lines: R ~15, help ~10, tinytest ~30, records). Tier: R surface, no draw
-   change; sonnet review. Built under dec-B528. Independent of slices B, 1 and 2. ~2 agent-hours.
+   change; read by the second opus review of slices 1 and 2. Built under dec-B528. Independent of slices B, 1 and 2. ~2 agent-hours.
 4. Records: the ledger entry for the calls made, this plan's Status and Landing note, the INDEX row, the design
    note's Status, TODO, and dec-B506's record line pointing at slice B's landing; dec-B509's at slice F's, and
    dec-B293 marked revised in part. One merge at the end.
@@ -842,7 +843,7 @@ F. Slice F, the default flip (~590 lines; ~8 agent-hours). Tier: changes draws (
 
 ## Landing note
 
-Owed before the merge: the fresh review of slice F's fix round; slice B's bench-sampler compare on a quiet machine;
+Owed before the merge: slice B's bench-sampler compare on a quiet machine;
 the rebase, the x86 leg and CI on the tip; bartCause's branch bcf-tests-state-prior, its two tests' hand-written
 drivers and a comment, merged with this item; the records of Order of work's item 4. Current baselines:
 equivalence-1380accf and bcf-equivalence-1380accf, multinomial-equivalence-80b1c8d4 unmoved.
@@ -929,15 +930,17 @@ none. forest-door's slice 3 takes the refusal of a sharer's sd (dec-B525).
     states each forest's size on the forest", are false once such a model takes both where a forest has no sd.
     A multinomial model, which declares no bases, keeps the old 'k' words.
 32. `student()` with no sd under `normal(sd = invchi(df, s))` has as median that prior's, s over the chi's median, as
-    the same prior written `normal(k = chi(df, k.scale / s))` has. As first built it read s, which gave one prior two
+    the same prior written `normal(k = chi(df, k.scale / s))` has, k.scale there being the data's, where the reader's
+    `k.scale` on a `student()` forest reads the unit (0.5886 against 1.2129 on the review's call). As first built it read s, which gave one prior two
     medians (0.976 and 1.501 on the review's call).
 33. A lone forest's print line says "(default)" only where its family holds k at 2 by default, gaussian, and "(leaf
     prior)" at `normal(k = 2)` under probit and logistic, whose default is drawn. A forest with no basis stating
-    `student()` and no sd says "(leaf prior)" at every leaf prior: that is true of each, and neither a fit's record nor
-    the reader says whether a leaf prior was stated. Alternative: "(leaf prior)" on every lone forest, or a new field
+    `student()` and no sd says "(leaf prior)" at every leaf prior: that is true of each, the reader cannot say whether a
+    leaf prior was stated, and a fit's call is the only record, which is fragile to read. Alternative: "(leaf prior)" on every lone forest, or a new field
     on the reader to tell a student() forest's default apart.
-34. The sd in force written on a lone sharer under `normal(sd = )` re-derives its entry, so it keeps the prior to
-    rounding, draws within about 7e-15, not bitwise; the help says so. At a held k of 2 and 3 it is identical.
+34. The sd in force written on a lone sharer re-derives its entry, so it keeps the prior to rounding, not bitwise:
+    draws within about 2e-13 over 30 data sets across the three families, at named sizes and at k other than 2; the
+    help says so. At a held k of 2 it is identical.
     Alternative: a branch keeping the entry, for no difference a posterior can see.
 
 ## Open calls

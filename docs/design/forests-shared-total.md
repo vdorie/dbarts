@@ -98,7 +98,7 @@ point lower than under the drawn coefficient.
   sampler's `leaf.prior` are refused by name; a size or total is stated at creation, and changing either live
   waits on the forest door, the sd on its slice 3, a sharer leaves the group (dec-B525). A lone sharer takes the `sd`
   and leaves the leaf prior, k pinned at 1, as creation stating it does (dec-B525's end state), the sd in force
-  keeping the prior, to rounding under a named sd; the reader's own `leaf.prior` written back moves nothing, and
+  keeping the prior, bitwise at a held k of 2 and otherwise to rounding; the reader's own `leaf.prior` written back moves nothing, and
   `$setLeafPrior(leaf.prior)` takes only a restatement of the one in force.
 
 Without a forest with a basis, `y ~ forest(x1) + forest(x2) + forest(x3)` is then the one-forest model

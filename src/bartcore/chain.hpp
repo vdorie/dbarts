@@ -1776,7 +1776,8 @@ public:
   /// forest is a stated one from then on.
   /// Where \p sd is the sd in force (ForestCalibration::mapSd) the prior does
   /// not move: no bit of it on a forest with a map entry to keep, and to
-  /// rounding on a lone sharer under a named sd, whose entry is re-derived.
+  /// rounding on a lone sharer, whose entry is re-derived, bitwise at a held k
+  /// of 2.
   /// A lone sharer leaves the group's leaf prior for it, its k pinned as a
   /// stated forest's is, the size no other forest's. False, writing
   /// nothing, off a map forest, on a sharer among two or more, whose size is

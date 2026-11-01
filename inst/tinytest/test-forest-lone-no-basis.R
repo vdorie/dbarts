@@ -477,6 +477,12 @@ expect_true(endsWith(
   )),
   "(stated); coefficient student(1)"
 ))
+# the short line carries no source
+expect_false(any(grepl(
+  "(leaf prior)",
+  dbarts:::samplerForestLines(fit("gaussian", studentRhs)),
+  fixed = TRUE
+)))
 # a named drawn total prints as its prior, on the sd
 expect_true(grepl(
   "no basis; sd invchi(1.5, 2)",
