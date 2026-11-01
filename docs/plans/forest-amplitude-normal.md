@@ -806,16 +806,39 @@ release draws from 1.
 
 ## Not verified
 
-- Slice F is in review: its tip was read and the port runs on it, and a fix round may move it. Every count of re-pins is on 7f53d1c78.
+- Every count of re-pins is on slice F's 7f53d1c78. F landed with only comments, words, one pin and renamed baselines past that, and this branch was rebased onto it.
 - The port has the map, the start, what goes but `nodeScaleDivisor` (kept at 1 so tests/cpp compile) and the R that takes `normal()`. Not the predicate and decoder
   as one function each, the refusals' words, or the column clause.
 - The door, `$getForest` and slice 4 are not built, so their rows are from those plans' text. coefficient-prior-live is not built: its rows are from reading and one
   hook on a prototype.
-- sbc's bcf arms under this are owed, not run: a small bcf-weak run shows the generator's fault and is too small for a verdict. bartCause's other test files were not run on the port.
+- sbc's bcf arms: run, see the [Landing note](#landing-note). They have no power on a fork beyond what a new seed has.
 - The transient on a write is one data set, 8 seeds. Coverage of f or of a treatment effect at equal time is not measured: the kernel is the same up to rounding, and the
   start stays.
 - How often a seed forks is counted on nine calls of 4 seeds at 4,000 sweeps; past that and on other data it is not. The ruling ran a binary bcf() over 72 seeds, a probit at `sd` 0.05 forked, and bcf-equivalence's 19 did not.
 - No exact arm of this gate reaches probit or logistic (`normal: the same chain as a column of ones` and bcf-latent-exact stand nearest), a drawn sigma (every arm holds it), weights other than 0 and 1, or a
   forest beside sharers. No arm sees a median to better than about 0.5 percent, the literal pin's job. No new arm is planned for these.
 - Test predictors with `normal()` were not run: the refusal is of every model of several forests.
-- x86, ASan and the full exact gate were not run on the port. New tests/cpp and tinytest line counts are estimates, raised for the record of plans here running low.
+- x86 was not run by the build; the leak-sanitizer leg is owed before landing. New tests/cpp and tinytest line counts are estimates, raised for the record of plans here running low.
+
+## Landing note
+
+sbc's bcf arms, R 200 and L 150 on every arm: `bcf` thin 120 burn 72000, `bcf-weak` thin 120 burn 18000, the four latent arms thin 50 burn 12000. Both libraries' 12 runs took about 2.5 hours, the replications below 1.5 more.
+
+The pass rule as written trips. On the driver's own seed the tree flags, past the band of 0.0924, what the base does not: `prog4` 0.1034 and `prog5` 0.0955 on `bcf-weak`, `prog2` 0.1237 and `p2` 0.1041 on `bcf-probit`, `p3` 0.1221 on `bcf-probit-weak`, and the ill-posed raw `a` 0.0994 on `bcf-weak`. The base flags what the tree does not on the same runs: `prog2` 0.1086 on `bcf-weak`, `p3` 0.1029 on `bcf-probit`, `a` and `abs.a` on `bcf-probit-weak`, `prog2` and `prog3` on `bcf-logistic-weak`, `b1.minus.b0`, `eff1` and `prog3` on `bcf`. `bcf-logistic` flags nothing on either.
+
+The rule assumed one seed gives the two libraries one comparison. It does not: one sampler serves all 200 replications, so once the two chains part every later replication has another stream, and the two runs are two draws of a noisy verdict. Read on `bcf-weak`: the first replication's ranks stand near each other, `sigma` 57 and 65, `abs.a` 60 and 63, so its data agree and the chains parted inside its 36,000 sweeps; the second's are apart, `sigma` 32 and 145. So a gaussian chain too is the same to rounding only until it parts, a longer run than the summary's counts read. So those three arms were run on two fresh seeds on both libraries:
+
+| arm | seed | base flags | tree flags |
+|---|---|---|---|
+| `bcf-weak` | 20261101 | none | none |
+| `bcf-weak` | 20261102 | `sigma` 0.0969, `eff2` 0.1025 | `b1.minus.b0` 0.0958, `eff4` 0.1055 |
+| `bcf-probit` | 20261101 | `b1.minus.b0` 0.0925 | `eff1` 0.1029 |
+| `bcf-probit` | 20261102 | none | `p1` 0.1121 |
+| `bcf-probit-weak` | 20261101 | none | none |
+| `bcf-probit-weak` | 20261102 | `a` 0.0965, `b1.minus.b0` 0.0944, `p3` 0.0966 | `a` 0.1019, `b1.minus.b0` 0.1046, `prog1` 0.0942 |
+
+No functional the tree flagged on the first seed flags again, and no identified functional flags twice on the tree in any arm. Over the 12 runs, leaving out the two ill-posed functionals, the base flags 10 of 140 and the tree 9 of 140. The mean gap on `bcf-probit` is 0.0609 and 0.0633 over the three seeds, on `bcf-probit-weak` 0.0645 and 0.0641. So the read is a seed's noise, which the base shows as often, and not a bias. That reading replaces the rule's verdict and is a call for the review: the rule as stated would stop the build.
+
+The discrimination check, the old generator against the new engine on `bcf-weak` at the same size: `abs.diff` 0.1740 flags against 0.0671, its chi-square p 0.000. `abs.a` does not separate them at this size, 0.0576 against 0.0697, and the small run's gap of 0.31 against 0.18 does not repeat. The generator's self-check reads the rule's IQR of 2 and b's sd of 1.049.
+
+The burn ladders as a cost check, not gating, 40,000 sweeps over 28 data sets: `burn-bcf-probit` 181 us a sweep, `burn-bcf-logistic` 206. Read as cost only: no burn was adjudicated.
