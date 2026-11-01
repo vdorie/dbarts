@@ -347,10 +347,11 @@
             saved with no stored state refuses to be copied or run, where
             0.9-34 made the copy afresh and ran from a fresh start.
       \item \code{$setData} uses what the data object it is handed
-            records in the same way: the sampler's own data object, edited
-            (\code{d <- sampler$data; d@x[, 1] <- newValues;
-            sampler$setData(d)}), keeps the sampler's cut points and
-            response range, where 0.9-34 derived them again from the new
+            records in the same way: the sampler's own data object, handed back
+            whole (\code{sampler$setData(sampler$data)}), keeps the
+            sampler's cut points and response range, as does
+            \code{sampler$setPredictor(newValues, 1, forceUpdate = TRUE)} for
+            one column, where 0.9-34 derived them again from the new
             data, while a data object made by \code{dbartsData()} records
             none and derives them, as before. A cut count or quantile rule
             the object states wins and the sampler derives by it from then

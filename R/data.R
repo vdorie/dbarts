@@ -4260,7 +4260,20 @@ dbartsData <- function(
     sigma = NA_real_
   )
   if (!is.null(stated$n.cuts)) {
-    result@n.cuts <- readCutCounts(stated$n.cuts, result@x)
+    counts <- stated$n.cuts
+    # one value per predictor of a hazard fit, whose period column is not the
+    # caller's: held as written for the sampler that reads it, the period at 100
+    result@n.cuts <- if (
+      is.null(names(counts)) &&
+        length(counts) > 1L &&
+        length(counts) == ncol(result@x) - 1L &&
+        identical(utils::tail(colnames(result@x), 1L), "period")
+    ) {
+      c(counts, 100L)
+    } else {
+      readCutCounts(counts, result@x)
+    }
+    attr(result, statedCountAttr) <- counts
   }
   if (!is.null(stated$useQuantiles)) {
     result@useQuantiles <- stated$useQuantiles

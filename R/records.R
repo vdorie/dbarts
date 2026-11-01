@@ -155,7 +155,7 @@ readWrittenCopies <- function(control, flat) {
   for (name in names(written)) {
     if (is.null(flat[[name]])) {
       flat[[name]] <- written[[name]]
-    } else {
+    } else if (!identical(flat[[name]], written[[name]])) {
       carried$values[[name]] <- written[[name]]
     }
   }
@@ -237,27 +237,34 @@ holdDataRule <- function(data) {
   data
 }
 
+## The cut count a caller stated to dbartsData(), as written. A sampler reads it
+## again over the columns it holds, a hazard fit's period among them, which
+## dbartsData() cannot know, and a sampler's own data object carries none.
+statedCountAttr <- "dbarts.statedCount"
+
+## A data object with its stated count read as a sampler of `hazard` reads it.
+restateCount <- function(data, hazard) {
+  stated <- attr(data, statedCountAttr, exact = TRUE)
+  if (!is.null(stated)) {
+    data@n.cuts <- readCutCounts(stated, data@x, hazard)
+    attr(data, statedCountAttr) <- NULL
+  }
+  data
+}
+
 ## The cut settings a data object goes on with: a stated count or rule is used,
 ## and beside a grid the data object carries, the grid is derived again at it. A
-## count the data object holds otherwise stands, recycled over any column a
-## hazard fit has appended. With none, an unstated count is `copies$n.cuts`
-## where a wrapper passed its own, and 100; an unstated rule stays NA.
+## count the data object holds otherwise stands, read over the columns of a
+## hazard fit, its period among them. With none, an unstated count is 100; an
+## unstated rule stays NA.
 applyCutSettings <- function(data, copies, hazard = FALSE) {
-  numColumns <- ncol(data@x)
+  data <- restateCount(data, hazard)
   cutsStated <- "n.cuts" %in% names(copies$stated)
   ruleStated <- "useQuantiles" %in% names(copies$stated)
   if (cutsStated) {
     data@n.cuts <- readCutCounts(copies$n.cuts, data@x, hazard)
   } else if (length(data@n.cuts) == 0L || anyNA(data@n.cuts)) {
-    data@n.cuts <- readCutCounts(
-      if (is.null(copies$n.cuts)) 100L else copies$n.cuts,
-      data@x,
-      hazard
-    )
-  } else if (hazard && length(data@n.cuts) == numColumns - 1L) {
-    data@n.cuts <- c(data@n.cuts, 100L)
-  } else if (length(data@n.cuts) != numColumns) {
-    data@n.cuts <- rep_len(data@n.cuts, numColumns)
+    data@n.cuts <- rep_len(100L, ncol(data@x))
   }
   if (ruleStated) {
     data <- stateDataRule(data, copies$useQuantiles)
@@ -470,6 +477,7 @@ fitCountWords <- function(door, model, data, forests) {
 ## forest has a basis. A data object taken from a survival fit keeps its status
 ## only under a survival model. Anything else the model and data hold stands.
 takeControlReadings <- function(control, model, data) {
+  data <- restateCount(data, !is.null(model@hazard.periods))
   if (!identical(model@family, "aft")) {
     data@status <- NULL
   }

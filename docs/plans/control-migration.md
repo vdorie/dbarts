@@ -708,6 +708,8 @@ Both are ruled; the text is what the maintainer was shown.
    from its plan whichever lands first. Its bridge edits (`createHolder`, `printInitialSummary`,
    `bartcore_getLeafPrior`) meet slice 1a's in src/R_interface_bartcore.cpp. Engine features merge serially;
    slice 1a edits no engine file.
+   forest-amplitude-normal lands after forests-shared-total, and nothing forces it before slice 1a: only
+   forest-door's slice 2 and setmodel-parameters' slice 4 need it first.
 4. setmodel-parameters has not landed, its structure check (`modelStructureRefusal`) and its `$setModel` shape
    write are on its own branch. Slice 1b checks the moved fields in
    [`movedStructureRefusal`](../../R/records.R), which the second to land joins to `modelStructureRefusal`; whichever

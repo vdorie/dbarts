@@ -1566,16 +1566,13 @@ setDataChoices <- function(
 ## stating nothing, and a call that keeps the grid in force, keep the sampler's.
 takeDataCutSettings <- function(newData, own, carriesGrid, keepsGrid) {
   statesCount <- length(newData@n.cuts) > 0L && !anyNA(newData@n.cuts)
-  newData@n.cuts <- if (statesCount && !keepsGrid) {
-    rep_len(newData@n.cuts, ncol(newData@x))
-  } else {
-    own@n.cuts
+  if (!statesCount || keepsGrid) {
+    newData@n.cuts <- own@n.cuts
   }
   if (!keepsGrid && dataStatesRule(newData)) {
     return(newData)
   }
   if (!keepsGrid && carriesGrid) {
-    newData@useQuantiles <- NA
     return(holdDataRule(newData))
   }
   newData@useQuantiles <- own@useQuantiles
@@ -1617,6 +1614,7 @@ bartcoreSamplerSetData <- function(
   if (ncol(newData@x) != ncol(sampler$data@x)) {
     stop("$setData: requires the same predictors")
   }
+  newData <- restateCount(newData, !is.null(sampler$model@hazard.periods))
   newData <- alignDataFactorLevels(newData, sampler$data@x)
   # the columns are the sampler's once aligned, by name or else by position,
   # so a standardization is matched to its leaf covariates by the sampler's

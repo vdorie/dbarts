@@ -124,18 +124,6 @@ expect_identical(
   dbarts(hazardData, family = "hazard", control = run())$data@n.cuts,
   c(5L, 7L, 9L, 100L)
 )
-expanded <- dbarts(form, frame, family = "hazard", control = run())$data
-expanded@n.cuts <- NA_integer_
-carried <- expanded
-carried@n.cuts <- c(5L, 7L, 9L)
-expect_identical(
-  dbarts:::applyCutSettings(carried, list(stated = character()), TRUE)@n.cuts,
-  c(5L, 7L, 9L, 100L)
-)
-expect_identical(
-  dbarts:::applyCutSettings(carried, list(stated = character()), FALSE)@n.cuts,
-  c(5L, 7L, 9L, 5L)
-)
 
 # the oracle: a hazard fit at a stated count draws as the binary fit on the
 # expanded design at the counts that gives, and at the period named as well to
@@ -192,4 +180,137 @@ expect_error(
     control = run()
   ),
   "period"
+)
+
+# a count stated to dbartsData() on a hazard sampler's person-period matrix is
+# read as creation reads it, at $setData and at the direct door: the period is
+# named or else 100
+hazardFit <- dbarts(x, Y, family = "hazard", n.cuts = 5L, control = run())
+personPeriod <- hazardFit$data@x
+atDoors <- function(value) {
+  given <- dbartsData(personPeriod, hazardFit$data@y, n.cuts = value)
+  swapped <- hazardFit$copy()
+  swapped$setData(given)
+  by.hand <- new("dbartsSampler", run(), hazardFit$model, given)
+  list(setData = swapped$data@n.cuts, hand = by.hand$data@n.cuts)
+}
+for (case in list(
+  list(7L, c(7L, 7L, 7L, 100L)),
+  list(c(x1 = 3L, .default = 7L), c(3L, 7L, 7L, 100L)),
+  list(c(period = 3L, .default = 7L), c(7L, 7L, 7L, 3L)),
+  list(c(7L, 8L, 9L, 10L), c(7L, 8L, 9L, 10L)),
+  list(c(7L, 8L, 9L), c(7L, 8L, 9L, 100L))
+)) {
+  got <- atDoors(case[[1L]])
+  expect_identical(got$setData, case[[2L]], info = deparse(case[[1L]]))
+  expect_identical(got$hand, case[[2L]], info = deparse(case[[1L]]))
+}
+# the count taken from the sampler's own data object keeps its values
+back <- hazardFit$copy()
+back$setData(hazardFit$data)
+expect_identical(back$data@n.cuts, c(5L, 5L, 5L, 100L))
+
+# the oracle: draws as a sampler created with the same count
+seven <- dbarts(
+  x,
+  Y,
+  family = "hazard",
+  n.cuts = 7L,
+  control = run(),
+  seed = 5L
+)
+expected <- seven$run(0L, 4L)$train
+fiveFit <- dbarts(
+  x,
+  Y,
+  family = "hazard",
+  n.cuts = 5L,
+  control = run(),
+  seed = 5L
+)
+fiveFit$setData(dbartsData(personPeriod, hazardFit$data@y, n.cuts = 7L))
+expect_identical(fiveFit$run(0L, 4L)$train, expected)
+by.hand <- new(
+  "dbartsSampler",
+  run(seed = 5L),
+  seven$model,
+  dbartsData(personPeriod, hazardFit$data@y, n.cuts = 7L)
+)
+expect_identical(by.hand$run(0L, 4L)$train, expected)
+
+# without hazard the same data object is read over all its columns, and a value
+# per predictor only is refused
+plainFit <- dbarts(personPeriod, hazardFit$data@y, control = run())
+plainFit$setData(dbartsData(personPeriod, hazardFit$data@y, n.cuts = 7L))
+expect_identical(plainFit$data@n.cuts, rep(7L, 4L))
+expect_error(
+  plainFit$setData(
+    dbartsData(personPeriod, hazardFit$data@y, n.cuts = c(7L, 8L, 9L))
+  ),
+  "predictor column"
+)
+
+# a count stated on the control beside the same one given flat is no mismatch
+notUsed <- function(e) {
+  w <- character()
+  withCallingHandlers(
+    e,
+    dbartsControlNotUsedWarning = function(c) {
+      w <<- c(w, conditionMessage(c))
+      invokeRestart("muffleWarning")
+    }
+  )
+  w
+}
+expect_identical(
+  notUsed(dbarts(
+    x,
+    Y,
+    family = "hazard",
+    n.cuts = 7L,
+    control = run(n.cuts = 7L)
+  )),
+  character()
+)
+
+# the direct door beside a control that states a count
+expect_identical(
+  notUsed(new(
+    "dbartsSampler",
+    run(n.cuts = 5L),
+    hazardFit$model,
+    hazardFit$data
+  )),
+  character()
+)
+expect_identical(
+  notUsed(new(
+    "dbartsSampler",
+    run(n.cuts = c(5L, 5L, 5L)),
+    hazardFit$model,
+    hazardFit$data
+  )),
+  character()
+)
+expect_true(grepl(
+  "(9, 100)",
+  notUsed(new(
+    "dbartsSampler",
+    run(n.cuts = 9L),
+    hazardFit$model,
+    hazardFit$data
+  )),
+  fixed = TRUE
+))
+
+# a single value on a hazard fit with no predictors leaves the period alone
+expect_identical(
+  dbarts(
+    matrix(numeric(), n, 0L),
+    Y,
+    family = "hazard",
+    n.cuts = 5L,
+    control = run()
+  )$data@n.cuts,
+  100L
 )

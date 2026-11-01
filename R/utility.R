@@ -442,7 +442,9 @@ ifelse_3 <- function(cond1, cond2, then1, then2, else_) {
 ## the rest. An unknown name, or a column left with no value, is refused; `what`
 ## says of what.
 valuesByColumnName <- function(values, x, what) {
-  refuse <- function(...) stop("cannot assign ", what, ": ", ...)
+  refuse <- function(...) {
+    stop("cannot assign ", what, ": ", ..., call. = FALSE)
+  }
   default <- NA
   valueNames <- names(values)
   defaultMatch <- valueNames %in% ".default"
@@ -509,7 +511,7 @@ readCutCounts <- function(n.cuts, x, hazard = FALSE) {
     }
     return(unname(valuesByColumnName(n.cuts, x, "'n.cuts'")))
   }
-  if (hazard && length(n.cuts) == numColumns + 1L) {
+  if (hazard && numColumns > 0L && length(n.cuts) == numColumns + 1L) {
     return(n.cuts)
   }
   if (length(n.cuts) != 1L && length(n.cuts) != numColumns) {
