@@ -7,6 +7,7 @@ normal <- dbartsPriors$normal
 fixed <- dbartsPriors$fixed
 student <- dbartsPriors$student
 chi <- dbartsPriors$chi
+invchi <- dbartsPriors$invchi
 
 set.seed(20261030)
 n <- 90L
@@ -322,3 +323,177 @@ drawnFit <- bart(
 expect_identical(length(extract(drawnFit, type = "k", forest = 1L)), 5L)
 expect_identical(length(unique(c(extract(drawnFit, "k", forest = 2L)))), 1L)
 expect_true("k" %in% summary(drawnFit)$vars)
+
+## --- the two spellings of one drawn prior give one median --------------------
+kScale <- scaleOf[["gaussian"]]
+chiMedian <- sqrt(qchisq(0.5, 3))
+asK <- fit("gaussian", studentRhs, leaf.prior = normal(k = chi(3, 1)))
+asSd <- fit(
+  "gaussian",
+  studentRhs,
+  leaf.prior = normal(sd = invchi(3, kScale))
+)
+expect_equal(unname(reader(asK)$sd), kScale / chiMedian)
+expect_equal(unname(reader(asSd)$sd), kScale / chiMedian)
+expect_equal(asSd$run(0L, 4L)$train, asK$run(0L, 4L)$train, tolerance = 1e-8)
+# the scale itself is not the median, which a scale of 1 shows plainly
+expect_equal(
+  unname(
+    reader(fit(
+      "gaussian",
+      studentRhs,
+      leaf.prior = normal(sd = invchi(3, 1))
+    ))$sd
+  ),
+  1 / chiMedian
+)
+# beside a stated forest, and through a copy
+keptCtl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.samples = 4L,
+  n.burn = 0L,
+  updateState = TRUE,
+  keepTrees = TRUE,
+  seed = 3L
+)
+kept <- function(rhs, ...) {
+  dbarts(as.formula(paste("y ~", rhs)), d, control = keptCtl, ...)
+}
+beside <- kept(
+  "forest(x1, amplitude = student(1)) + forest(x2, sd = 2)",
+  leaf.prior = normal(sd = invchi(3, kScale))
+)
+expect_equal(unname(reader(beside)$sd), kScale / chiMedian)
+expect_identical(beside$copy()$getLeafPrior(1L)$sd, reader(beside)$sd)
+
+## --- the sd in force written on a lone forest is the same prior --------------
+for (family in families) {
+  for (written in list(normal(k = 3), normal(sd = 1.1))) {
+    info <- paste(family, deparse(written@k), deparse(written@prior.sd))
+    build <- function() {
+      args <- list(
+        as.formula(paste(
+          if (family == "gaussian") "y" else "yb",
+          "~",
+          withBasis
+        )),
+        d,
+        control = keptCtl,
+        leaf.prior = written
+      )
+      if (family == "logistic") {
+        args$family <- "logistic"
+      }
+      do.call(dbarts, args)
+    }
+    wrote <- build()
+    twin <- build()
+    inForce <- unname(wrote$getLeafPrior(1L)$sd)
+    wrote$setLeafPrior(forests = list(forest(sd = inForce), forest()))
+    expect_equal(unname(wrote$getLeafPrior(1L)$sd), inForce, info = info)
+    expect_identical(wrote$getK(forest = 1L)[[1L]], 1, info = info)
+    expect_true(
+      max(abs(wrote$run(0L, 6L)$train - twin$run(0L, 6L)$train)) < 1e-10,
+      info = info
+    )
+  }
+}
+
+## --- a lone forest's written sd: what the sampler keeps of the leaf prior -----
+for (written in list(normal(k = 3), normal(sd = 1.1))) {
+  sampler <- kept(withBasis, leaf.prior = written)
+  invisible(sampler$run(0L, 2L))
+  sampler$setLeafPrior(forests = list(forest(sd = 0.4), forest()))
+  # nothing of the leaf prior stays on the model, and a copy passes the bridge
+  expect_null(sampler$model@leaf.prior@k)
+  expect_null(sampler$model@leaf.prior@prior.sd)
+  expect_identical(sampler$model@prior.scale, NA_real_)
+  expect_equal(
+    tryCatch(
+      unname(sampler$copy()$getLeafPrior(1L)$sd),
+      error = conditionMessage
+    ),
+    0.4
+  )
+}
+
+## --- $setLeafPrior(leaf.prior) on a lone forest restates, and only that -------
+sampler <- kept(withBasis, leaf.prior = normal(sd = 1.1))
+expect_error(sampler$setLeafPrior(normal(sd = 9)), "takes forests =")
+expect_equal(unname(reader(sampler)$sd), 1.1)
+sampler <- kept(withBasis)
+expect_silent(sampler$setLeafPrior(normal(k = 2L)))
+
+## --- a size the leaf prior cannot give is refused only where it is asked for --
+expect_error(
+  kept(studentRhs, leaf.prior = normal(k = Inf)),
+  "student.*gives no size"
+)
+flat <- normal(k = chi(1.5, Inf))
+flatTaken <- function(rhs) {
+  tryCatch(
+    {
+      kept(rhs, leaf.prior = flat)
+      TRUE
+    },
+    error = conditionMessage
+  )
+}
+expect_true(flatTaken(
+  "forest(x1) + forest(x2, basis = z, amplitude = student(1))"
+))
+expect_true(flatTaken(
+  "forest(x1, sd = 0.4) + forest(x2) + forest(x2, basis = z)"
+))
+expect_true(flatTaken(
+  "forest(x1, sd = 0.4, amplitude = student(1)) + forest(x2) + forest(x2, basis = z)"
+))
+
+## --- "(default)" is printed only where it is true ----------------------------
+lineOf <- function(sampler) fullBlock(sampler)[2L]
+expect_true(endsWith(lineOf(fit("gaussian", withBasis)), "(default)"))
+expect_true(endsWith(
+  lineOf(fit("gaussian", withBasis, leaf.prior = normal(k = 2))),
+  "(default)"
+))
+for (family in c("probit", "logistic")) {
+  expect_true(
+    endsWith(
+      lineOf(fit(family, withBasis, leaf.prior = normal(k = 2))),
+      "(leaf prior)"
+    ),
+    info = family
+  )
+}
+expect_true(endsWith(
+  lineOf(fit("gaussian", studentRhs, leaf.prior = normal(k = 3))),
+  "(leaf prior); coefficient student(1)"
+))
+expect_true(endsWith(
+  lineOf(fit(
+    "gaussian",
+    "forest(x1, sd = 2, amplitude = student(1)) + forest(x2, basis = z)"
+  )),
+  "(stated); coefficient student(1)"
+))
+# a named drawn total prints as its prior, on the sd
+expect_true(grepl(
+  "no basis; sd invchi(1.5, 2)",
+  lineOf(fit("gaussian", withBasis, leaf.prior = normal(sd = invchi(1.5, 2)))),
+  fixed = TRUE
+))
+
+## --- verbose creation names a group only where there is one -------------------
+verboseLines <- function(rhs) {
+  capture.output(dbarts(
+    as.formula(paste("y ~", rhs)),
+    d,
+    control = ctl(verbose = TRUE)
+  ))
+}
+expect_false(any(grepl("sharing one prior total", verboseLines(withBasis))))
+expect_true(any(grepl(
+  "sharing one prior total",
+  verboseLines("forest(x1) + forest(x2) + forest(x2, basis = z)")
+)))
