@@ -27,18 +27,16 @@ df <- function(response) {
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 10L,
   updateState = FALSE,
   n.samples = 10L,
   seed = 7L
 )
 sampler <- function(response, ..., ctl = control) {
-  dbarts(y ~ x1 + x2, df(response), control = ctl, ...)
+  dbarts(y ~ x1 + x2, df(response), control = ctl, n.trees = 10L, ...)
 }
 verboseControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 10L,
   updateState = FALSE,
   verbose = TRUE,
   seed = 7L
@@ -159,6 +157,7 @@ bcf <- function(...) {
   dbarts(
     y ~ forest(x1 + x2) + forest(x1 + x2, basis = dose, sd = 1),
     control = control,
+    n.trees = 10L,
     ...
   )
 }
@@ -214,7 +213,8 @@ expectInert(
       y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
       df(r),
       weights = w,
-      control = control
+      control = control,
+      n.trees = 10L
     )
   },
   "two forests, a factor basis",
@@ -229,7 +229,8 @@ expectInert(
       y ~ forest(x1 + x2) + forest(x1 + x2, basis = x2),
       df(r),
       weights = w,
-      control = control
+      control = control,
+      n.trees = 10L
     )
   },
   "two forests, a numeric basis"
@@ -308,7 +309,8 @@ s <- sampler(yA, weights = w)
 sub <- dbarts(
   y ~ x1 + x2,
   df(yA)[rows.in, ],
-  control = control
+  control = control,
+  n.trees = 10L
 )
 expect_equal(recordedRange(s), inRange, tolerance = 1e-14)
 lp <- readers(s)
@@ -332,6 +334,7 @@ expect_equal(
       y ~ x1 + x2,
       df(yA)[rows.in, ],
       control = control,
+      n.trees = 10L,
       leaf.prior = normal(sd = 0.65)
     )
   )$k.scale,
@@ -502,7 +505,6 @@ for (chains in 1:2) {
         ctl = dbartsControl(
           n.chains = chains,
           n.threads = 1L,
-          n.trees = 10L,
           updateState = FALSE,
           n.samples = 10L,
           seed = 7L
@@ -595,7 +597,6 @@ strict <- caught(sampler(
   ctl = dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 10L,
     updateState = TRUE,
     n.samples = 10L,
     seed = 7L
@@ -730,7 +731,8 @@ refused <- caught(tryCatch(
     cbind(exp(y), 1),
     weights = creationCases$one$w,
     family = "aft",
-    control = control
+    control = control,
+    n.trees = 10L
   ),
   error = function(e) e
 ))
@@ -837,7 +839,6 @@ target <- sampler(
   ctl = dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 10L,
     updateState = TRUE,
     n.samples = 10L,
     seed = 7L
@@ -887,7 +888,9 @@ sigestCases(
 if (requireNamespace("Matrix", quietly = TRUE)) {
   sparseX <- Matrix::Matrix(x, sparse = TRUE)
   sigestCases(
-    function() dbarts(sparseX, yA, weights = three, control = control),
+    function() {
+      dbarts(sparseX, yA, weights = three, control = control, n.trees = 10L)
+    },
     "dgCMatrix"
   )
   sigestCases(
@@ -897,6 +900,7 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
         yA,
         weights = three,
         control = control,
+        n.trees = 10L,
         sigest = "sparse"
       )
     },
@@ -1117,6 +1121,7 @@ expect_equal(
 spec <- dbartsSpec(
   dbartsData(y ~ x1 + x2, df(countsA), weights = w),
   control = control,
+  n.trees = 10L,
   family = "nbinom"
 )
 byHand <- new("dbartsSampler", spec$control, spec$model, spec$data)
@@ -1135,7 +1140,6 @@ unitFrame$w <- 1
 storing <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 10L,
   updateState = TRUE,
   n.samples = 10L,
   seed = 7L
@@ -1151,7 +1155,8 @@ offsetForms <- list(
       weights = w,
       offset = 0.7,
       family = "nbinom",
-      control = ctl
+      control = ctl,
+      n.trees = 10L
     )
   },
   vector = function(frame, ctl = control) {
@@ -1162,7 +1167,8 @@ offsetForms <- list(
       weights = w,
       offset = o,
       family = "nbinom",
-      control = ctl
+      control = ctl,
+      n.trees = 10L
     )
   },
   term = function(frame, ctl = control) {
@@ -1172,7 +1178,8 @@ offsetForms <- list(
       test = frame[testRows, ],
       weights = w,
       family = "nbinom",
-      control = ctl
+      control = ctl,
+      n.trees = 10L
     )
   },
   explicit = function(frame, ctl = control) {
@@ -1184,7 +1191,8 @@ offsetForms <- list(
       offset = o,
       offset.test = off[testRows] + 0.125,
       family = "nbinom",
-      control = ctl
+      control = ctl,
+      n.trees = 10L
     )
   }
 )
@@ -1258,7 +1266,8 @@ for (form in names(offsetForms)) {
     test = unitFrame[testRows, ],
     offset = 0.25,
     family = "nbinom",
-    control = storing
+    control = storing,
+    n.trees = 10L
   ))$value
   replacement <- masked$value$data
   replacement@weights <- w
@@ -1345,7 +1354,8 @@ stateArm(
       y ~ forest(x1 + x2) + forest(x1 + x2, basis = dose, sd = 1),
       df(r),
       weights = ww,
-      control = control
+      control = control,
+      n.trees = 10L
     )
   },
   sameForests

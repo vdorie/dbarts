@@ -33,14 +33,14 @@ checkDataHandleViews <- function(formula, df, leaf.prior, n.trees, n, mu) {
   control.view <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = n.trees,
     updateState = FALSE
   )
   sampler.view <- dbarts(
     formula,
     df,
     leaf.prior = leaf.prior,
-    control = control.view
+    control = control.view,
+    n.trees = n.trees
   )
   handle <- dbarts:::bartcoreDataHandle(
     sampler.view$control,
@@ -56,7 +56,13 @@ checkDataHandleViews <- function(formula, df, leaf.prior, n.trees, n, mu) {
     trainRows = seq_len(n)
   )
   set.seed(7)
-  full <- dbarts(formula, df, leaf.prior = leaf.prior, control = control.view)
+  full <- dbarts(
+    formula,
+    df,
+    leaf.prior = leaf.prior,
+    control = control.view,
+    n.trees = n.trees
+  )
   samples.view <- dbarts:::bartcoreRun(view, 40L, 20L)
   samples.full <- full$run(40L, 20L)
   # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
@@ -103,7 +109,6 @@ checkStateRoundTrip <- function(formula, df, leaf.prior, n.trees) {
   control.state <- dbartsControl(
     n.chains = 2L,
     n.threads = 1L,
-    n.trees = n.trees,
     n.samples = 5L,
     updateState = FALSE
   )
@@ -111,7 +116,8 @@ checkStateRoundTrip <- function(formula, df, leaf.prior, n.trees) {
     formula,
     df,
     leaf.prior = leaf.prior,
-    control = control.state
+    control = control.state,
+    n.trees = n.trees
   )
   invisible(sampler.state$run(30L, 2L))
   sampler.state$storeState()
@@ -123,7 +129,8 @@ checkStateRoundTrip <- function(formula, df, leaf.prior, n.trees) {
     formula,
     df,
     leaf.prior = leaf.prior,
-    control = control.state
+    control = control.state,
+    n.trees = n.trees
   )
   sampler.restored$setState(sampler.state$state)
   sampler.restored$storeState()

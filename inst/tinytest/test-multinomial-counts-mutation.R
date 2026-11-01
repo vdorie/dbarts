@@ -40,7 +40,6 @@ storage.mode(countsB) <- "integer"
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 25L,
   updateState = FALSE
 )
 
@@ -67,13 +66,13 @@ buildSamplerCountsMutation <- function(counts, n.chains = 1L) {
   ctrl <- dbartsControl(
     n.chains = n.chains,
     n.threads = n.chains,
-    n.trees = 25L,
     updateState = FALSE
   )
   dbarts(
     dbartsData(x, counts = counts, test = x.test),
     family = "multinomial",
-    control = ctrl
+    control = ctrl,
+    n.trees = 25L
   )
 }
 
@@ -116,7 +115,8 @@ sampler.labels <- dbarts(
   factor(labels, levels = seq.int(0L, K - 1L)),
   test = x.test,
   family = "multinomial",
-  control = control
+  control = control,
+  n.trees = 25L
 )
 sampler.labels$setCounts(countsB, updateState = FALSE)
 arm.labels <- recordChannelsCountsMutation(
@@ -219,7 +219,7 @@ sampler.mn <- buildSamplerCountsMutation(countsA)
 # the capability probe is not a forest count: a gaussian sampler and a BCF
 # sampler (two forests) both own no counts, and both must name the family
 # situation rather than the forest count
-sampler.gaussian <- dbarts(x, rnorm(n), control = control)
+sampler.gaussian <- dbarts(x, rnorm(n), control = control, n.trees = 25L)
 expect_error(
   sampler.gaussian$setCounts(countsA),
   "no count response"
@@ -230,7 +230,8 @@ sampler.bcf <- dbarts(
   x,
   rnorm(n),
   forests = list(forest(), forest(basis = ~ factor(z), n.trees = 10L)),
-  control = control
+  control = control,
+  n.trees = 25L
 )
 expect_error(
   sampler.bcf$setCounts(countsA),

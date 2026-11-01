@@ -13,13 +13,12 @@ oldSeed <- if (exists(".Random.seed")) {
   .Random.seed
 }
 control <- dbarts::dbartsControl(
-  n.trees = n.trees,
   n.chains = 1L,
   n.threads = 1L,
   verbose = FALSE,
   updateState = FALSE
 )
-sampler <- dbarts::dbarts(y ~ x, testData, control = control)
+sampler <- dbarts::dbarts(y ~ x, testData, control = control, n.trees = n.trees)
 invisible(sampler$run(0L, 5L))
 expect_true(any(.Random.seed != oldSeed))
 
@@ -29,24 +28,22 @@ rm(sampler, control, oldSeed, n.trees)
 # test that rng with fixed seed matches native, one chain, one thread
 set.seed(1234L, kind = "Mersenne-Twister", normal.kind = "Inversion")
 control <- dbarts::dbartsControl(
-  n.trees = 5L,
   n.chains = 1L,
   n.threads = 1L,
   verbose = FALSE,
   updateState = FALSE
 )
-sampler <- dbarts::dbarts(y ~ x, testData, control = control)
+sampler <- dbarts::dbarts(y ~ x, testData, control = control, n.trees = 5L)
 builtInResults <- sampler$run(0L, 5L)
 
 control <- dbarts::dbartsControl(
-  n.trees = 5L,
   n.chains = 1L,
   n.threads = 1L,
   verbose = FALSE,
   updateState = FALSE,
   seed = 1234L
 )
-sampler <- dbarts::dbarts(y ~ x, testData, control = control)
+sampler <- dbarts::dbarts(y ~ x, testData, control = control, n.trees = 5L)
 seedOnlyResults <- sampler$run(0L, 5L)
 
 expect_equal(builtInResults$train, seedOnlyResults$train)
@@ -54,26 +51,43 @@ expect_equal(builtInResults$train, seedOnlyResults$train)
 # the dbarts() seed argument mirrors dbartsControl(seed = ) and, when
 # given, overrides a seed already set in the control
 control <- dbarts::dbartsControl(
-  n.trees = 5L,
   n.chains = 1L,
   n.threads = 1L,
   verbose = FALSE,
   updateState = FALSE
 )
-sampler <- dbarts::dbarts(y ~ x, testData, control = control, seed = 1234L)
+sampler <- dbarts::dbarts(
+  y ~ x,
+  testData,
+  control = control,
+  seed = 1234L,
+  n.trees = 5L
+)
 seedArgResults <- sampler$run(0L, 5L)
 expect_equal(seedArgResults$train, seedOnlyResults$train)
 
 control@seed <- 999L
-sampler <- dbarts::dbarts(y ~ x, testData, control = control, seed = 1234L)
+sampler <- dbarts::dbarts(
+  y ~ x,
+  testData,
+  control = control,
+  seed = 1234L,
+  n.trees = 5L
+)
 overrideResults <- sampler$run(0L, 5L)
 expect_equal(overrideResults$train, seedOnlyResults$train)
 
 # seed = NULL means not given here and defers to the control's own seed,
 # exactly as leaving the argument out does
-sampler <- dbarts::dbarts(y ~ x, testData, control = control)
+sampler <- dbarts::dbarts(y ~ x, testData, control = control, n.trees = 5L)
 controlSeedResults <- sampler$run(0L, 5L)
-sampler <- dbarts::dbarts(y ~ x, testData, control = control, seed = NULL)
+sampler <- dbarts::dbarts(
+  y ~ x,
+  testData,
+  control = control,
+  seed = NULL,
+  n.trees = 5L
+)
 expect_equal(sampler$run(0L, 5L)$train, controlSeedResults$train)
 
 rm(

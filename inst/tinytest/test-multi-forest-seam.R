@@ -19,10 +19,9 @@ x.test <- matrix(runif(nTest * p), nTest, p)
 control.one <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 40L,
   updateState = FALSE
 )
-sampler.one <- dbarts(x, y, test = x.test, control = control.one)
+sampler.one <- dbarts(x, y, test = x.test, control = control.one, n.trees = 40L)
 bc.one <- sampler.one
 numSamples <- 30L
 result.one <- bc.one$run(50L, numSamples)
@@ -38,10 +37,15 @@ numChains <- 2L
 control.many <- dbartsControl(
   n.chains = numChains,
   n.threads = numChains,
-  n.trees = 40L,
   updateState = FALSE
 )
-sampler.many <- dbarts(x, y, test = x.test, control = control.many)
+sampler.many <- dbarts(
+  x,
+  y,
+  test = x.test,
+  control = control.many,
+  n.trees = 40L
+)
 bc.many <- sampler.many
 result.many <- bc.many$run(50L, numSamples)
 
@@ -68,12 +72,13 @@ expect_null(dimnames(result.many$test))
 set.seed(11)
 z <- rbinom(n, 1L, 0.5)
 y.bcf <- f + z * (1 + 2 * x[, 3L]) + rnorm(n, sd = 0.2)
-sampler.bcf.host <- dbarts(x, y.bcf, control = control.one)
+sampler.bcf.host <- dbarts(x, y.bcf, control = control.one, n.trees = 40L)
 bc.bcf <- dbarts(
   x,
   y.bcf,
   forests = list(forest(), forest(basis = ~ factor(z), n.trees = 20L)),
-  control = control.one
+  control = control.one,
+  n.trees = 40L
 )
 
 # refused for memory safety too, not only staleness: the combiner's per-forest
@@ -197,7 +202,8 @@ bcfWeightArm <- function(build, swap) {
     weights = build,
     family = gaussian(sigma = fixed(1)),
     forests = list(forest(), forest(basis = ~ factor(z), n.trees = 20L)),
-    control = control.one
+    control = control.one,
+    n.trees = 40L
   )
   if (!is.null(swap)) {
     bc$setWeights(swap)
@@ -256,7 +262,8 @@ bc.mn <- dbarts(
   factor(labels),
   family = "multinomial",
   test = x.test.mn,
-  control = control.one
+  control = control.one,
+  n.trees = 40L
 )
 # these four are refused R-side (refuseCountsMutation), before the bridge's
 # generic wording is reached

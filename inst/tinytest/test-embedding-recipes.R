@@ -15,7 +15,6 @@ recipeControl <- function(seed, n.trees = 25L) {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = n.trees,
     updateState = FALSE,
     seed = seed
   )
@@ -36,7 +35,8 @@ host <- dbarts(
   x1,
   2 * y1 - 1 - o1,
   control = recipeControl(31L),
-  family = gaussian(sigma = fixed(1))
+  family = gaussian(sigma = fixed(1)),
+  n.trees = 25L
 )
 host$setLeafPrior(normal(sd = 1))
 composed1 <- matrix(0, n, nDraws)
@@ -52,7 +52,8 @@ native <- dbarts(
   offset = o1,
   family = "probit",
   control = recipeControl(31L),
-  leaf.prior = normal(sd = 1)
+  leaf.prior = normal(sd = 1),
+  n.trees = 25L
 )
 nativeFit <- rowMeans(native$run(nBurn, nDraws)$train) - o1
 composedFit <- rowMeans(composed1)
@@ -80,7 +81,13 @@ f2 <- 3 * (x2[, 1L] - 0.5)^2 + sin(2 * pi * x2[, 2L])
 y2 <- rnorm(n, f2 + alphaTrue * w2, 0.5)
 
 alpha <- 0
-sampler2 <- dbarts(x2, y2, offset = alpha * w2, control = recipeControl(8L))
+sampler2 <- dbarts(
+  x2,
+  y2,
+  offset = alpha * w2,
+  control = recipeControl(8L),
+  n.trees = 25L
+)
 keepAlpha <- rep(NA_real_, nDraws)
 keepFit <- matrix(0, n, nDraws)
 offsetIdentity <- rep(NA_real_, nDraws)
@@ -121,7 +128,6 @@ wSbc <- rnorm(nSbc)
 sbcControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 10L,
   updateState = FALSE
 )
 
@@ -130,7 +136,8 @@ newSbcSampler <- function() {
     xSbc,
     seq(-3, 3, length.out = nSbc),
     control = sbcControl,
-    family = gaussian(sigma = fixed(sigma0^2))
+    family = gaussian(sigma = fixed(sigma0^2)),
+    n.trees = 10L
   )
   s$setLeafPrior(normal(sd = 1))
   s
@@ -212,7 +219,7 @@ y3 <- rnorm(n, f3, 0.5)
 
 blocks <- list(x3[, 1:2, drop = FALSE], x3[, 3:4, drop = FALSE])
 samplers <- lapply(blocks, function(xb) {
-  dbarts(xb, y3, control = recipeControl(5L))
+  dbarts(xb, y3, control = recipeControl(5L), n.trees = 25L)
 })
 base <- samplers[[1L]]$getLeafPrior()$k.scale / samplers[[1L]]$getK()[[1L]]
 # MUTATION 1 lives here: drop this loop
@@ -220,7 +227,7 @@ for (s in samplers) {
   s$setLeafPrior(normal(sd = base / sqrt(kForest)))
 }
 
-single <- dbarts(x3, y3, control = recipeControl(5L))
+single <- dbarts(x3, y3, control = recipeControl(5L), n.trees = 25L)
 priorTotalSd <- function(group) {
   draws <- replicate(200L, {
     total <- 0
@@ -283,14 +290,16 @@ latentStep <- function(seed) {
     y ~ theta + u,
     d1,
     control = recipeControl(44L),
-    power = deepPower
+    power = deepPower,
+    n.trees = 25L
   )
   sB <- dbarts(
     y ~ v + theta,
     d2,
     family = "probit",
     control = recipeControl(44L),
-    power = deepPower
+    power = deepPower,
+    n.trees = 25L
   )
   invisible(sA$run(0L, 20L))
   invisible(sB$run(0L, 20L))
@@ -358,7 +367,8 @@ sampler5 <- dbarts(
   x5,
   y5,
   control = recipeControl(55L),
-  family = gaussian(sigma = fixed(sigma5^2))
+  family = gaussian(sigma = fixed(sigma5^2)),
+  n.trees = 25L
 )
 keepSigma <- rep(NA_real_, nDraws)
 for (i in seq_len(nBurn + nDraws)) {
@@ -374,7 +384,7 @@ expect_true(abs(mean(keepSigma) - 0.75) < 0.2)
 sampler5$setSigma(2)
 sampler5$run(0L, 1L)
 expect_equal(as.numeric(sampler5$getSigmas()), 2)
-freeSigma <- dbarts(x5, y5, control = recipeControl(55L))
+freeSigma <- dbarts(x5, y5, control = recipeControl(55L), n.trees = 25L)
 freeSigma$setSigma(2)
 freeSigma$run(0L, 1L)
 expect_true(abs(as.numeric(freeSigma$getSigmas()) - 2) > 0.5)
@@ -384,7 +394,8 @@ probit5 <- dbarts(
   x5,
   rbinom(n, 1L, 0.5),
   family = "probit",
-  control = recipeControl(55L)
+  control = recipeControl(55L),
+  n.trees = 25L
 )
 expect_error(
   probit5$setSigma(1),
@@ -409,7 +420,8 @@ sampler6 <- dbarts(
   y6,
   offset = gamma * v6,
   family = "probit",
-  control = recipeControl(20L)
+  control = recipeControl(20L),
+  n.trees = 25L
 )
 keepGamma <- rep(NA_real_, nDraws)
 shortfall <- rep(NA_real_, nDraws)

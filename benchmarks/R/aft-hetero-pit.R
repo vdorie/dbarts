@@ -66,7 +66,6 @@ cat(sprintf(
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 50L,
   updateState = FALSE,
   seed = 91L
 )
@@ -75,7 +74,8 @@ sampler <- dbarts(
   cbind(exp(obsLogT), status),
   family = "aft",
   control = control,
-  variance = varianceForest(n.trees = 20L)
+  variance = varianceForest(n.trees = 20L),
+  n.trees = 50L
 )
 # the censoring bounds as the sampler logged them, which exp/log need not
 # return bitwise

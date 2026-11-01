@@ -25,7 +25,6 @@ labelControl <- function() {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 5L,
     n.samples = 3L,
     n.burn = 1L,
     updateState = FALSE,
@@ -37,7 +36,7 @@ labelsOf <- function(sampler) {
   vapply(sampler$model@forests, slot, "", "label")
 }
 termFit <- function(formula, data = frame) {
-  dbarts(formula, data, control = labelControl())
+  dbarts(formula, data, control = labelControl(), n.trees = 5L)
 }
 listFit <- function(forests, data = frame) {
   eval(
@@ -45,7 +44,8 @@ listFit <- function(forests, data = frame) {
       y ~ x1 + x2 + x3,
       data,
       forests = .(forests),
-      control = labelControl()
+      control = labelControl(),
+      n.trees = 5L
     )),
     list(data = data),
     parent.frame()
@@ -142,7 +142,8 @@ expect_identical(
 expect_identical(
   labelsOf(dbarts(
     dbartsData(x, y, bases = list(NULL, frame$dose, frame$age)),
-    control = labelControl()
+    control = labelControl(),
+    n.trees = 5L
   )),
   c("forest1", "forest2", "forest3")
 )

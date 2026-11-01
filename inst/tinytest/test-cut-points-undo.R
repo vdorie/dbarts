@@ -35,9 +35,6 @@ for (useQuantiles in c(FALSE, TRUE)) {
     dbartsControl(
       n.chains = 1L,
       n.threads = 1L,
-      n.trees = n.trees,
-      n.cuts = 20L,
-      useQuantiles = useQuantiles,
       updateState = FALSE,
       seed = 7L
     )
@@ -48,8 +45,22 @@ for (useQuantiles in c(FALSE, TRUE)) {
   # restored, and the sampler derives at setData what a twin that restored
   # its own state, its own copy and its reload derive, and draws what the
   # twin draws
-  sampler <- warmed(x, y, control = control)
-  twin <- warmed(x, y, control = control)
+  sampler <- warmed(
+    x,
+    y,
+    control = control,
+    n.trees = 10L,
+    n.cuts = 20L,
+    useQuantiles = useQuantiles
+  )
+  twin <- warmed(
+    x,
+    y,
+    control = control,
+    n.trees = 10L,
+    n.cuts = 20L,
+    useQuantiles = useQuantiles
+  )
   stored <- sampler$state
   original <- attr(stored, "cutPoints")
   expect_identical(lengths(original), c(20L, 20L), info = rule)
@@ -83,7 +94,14 @@ for (useQuantiles in c(FALSE, TRUE)) {
 
   # a longer grid left in place does not reach the derivation either, and
   # the data object's count is what it was
-  sampler <- warmed(x, y, control = control)
+  sampler <- warmed(
+    x,
+    y,
+    control = control,
+    n.trees = 10L,
+    n.cuts = 20L,
+    useQuantiles = useQuantiles
+  )
   sampler$setCutPoints(longer, 1L)
   sampler$setData(newData)
   expect_identical(cutPointsOf(sampler), derived, info = rule)
@@ -92,10 +110,24 @@ for (useQuantiles in c(FALSE, TRUE)) {
   # nor does a state bring one: a state stored on the longer grid leaves the
   # sampler's grid as it is, declined as stored and moved onto it when
   # forced, and setData derives n.cuts points
-  donor <- warmed(x, y, control = control)
+  donor <- warmed(
+    x,
+    y,
+    control = control,
+    n.trees = 10L,
+    n.cuts = 20L,
+    useQuantiles = useQuantiles
+  )
   donor$setCutPoints(longer, 1L)
   donor$storeState()
-  sampler <- warmed(x, y, control = control)
+  sampler <- warmed(
+    x,
+    y,
+    control = control,
+    n.trees = 10L,
+    n.cuts = 20L,
+    useQuantiles = useQuantiles
+  )
   expect_false(sampler$setState(donor$state), info = rule)
   expect_identical(cutPointsOf(sampler), original, info = rule)
   expect_null(sampler$setState(donor$state, forceUpdate = TRUE), info = rule)
@@ -109,7 +141,14 @@ for (useQuantiles in c(FALSE, TRUE)) {
   for (count in c(3L, 50L)) {
     info <- paste(rule, count)
     set <- seq(0.01, 0.99, length.out = count)
-    sampler <- dbarts(x, y, control = control)
+    sampler <- dbarts(
+      x,
+      y,
+      control = control,
+      n.trees = 10L,
+      n.cuts = 20L,
+      useQuantiles = useQuantiles
+    )
     sampler$setCutPoints(set, 1L)
     refreshed <- outcomeOf(
       sampler$setPredictor(
@@ -122,7 +161,14 @@ for (useQuantiles in c(FALSE, TRUE)) {
     expect_null(refreshed, info = info)
     expect_identical(cutPointsOf(sampler)[[1L]], derived[[1L]], info = info)
   }
-  sampler <- dbarts(x, y, control = control)
+  sampler <- dbarts(
+    x,
+    y,
+    control = control,
+    n.trees = 10L,
+    n.cuts = 20L,
+    useQuantiles = useQuantiles
+  )
   sampler$setCutPoints(c(0.25, 0.5, 0.75), 1L)
   sampler$setData(newData)
   expect_identical(cutPointsOf(sampler), derived, info = rule)
@@ -130,16 +176,37 @@ for (useQuantiles in c(FALSE, TRUE)) {
   # states that come and go leave a longer grid as it was: one on a shorter
   # grid declined and then forced onto it, then one refused, and the column
   # still refreshes to the grid a derivation gives it
-  sampler <- warmed(x, y, control = control)
+  sampler <- warmed(
+    x,
+    y,
+    control = control,
+    n.trees = 10L,
+    n.cuts = 20L,
+    useQuantiles = useQuantiles
+  )
   sampler$setCutPoints(longer, 1L)
   held <- cutPointsOf(sampler)
   expect_identical(lengths(held), c(50L, 20L), info = rule)
-  donor <- warmed(x, y, control = control)
+  donor <- warmed(
+    x,
+    y,
+    control = control,
+    n.trees = 10L,
+    n.cuts = 20L,
+    useQuantiles = useQuantiles
+  )
   expect_false(sampler$setState(donor$state), info = rule)
   expect_identical(cutPointsOf(sampler), held, info = rule)
   expect_null(sampler$setState(donor$state, forceUpdate = TRUE), info = rule)
   expect_identical(cutPointsOf(sampler), held, info = rule)
-  donor <- warmed(x, y, control = controlWith(7L))
+  donor <- warmed(
+    x,
+    y,
+    control = controlWith(7L),
+    n.trees = 7L,
+    n.cuts = 20L,
+    useQuantiles = useQuantiles
+  )
   expect_error(
     sampler$setState(donor$state),
     pattern = "state is not consistent with this sampler",
@@ -173,7 +240,10 @@ for (useQuantiles in c(FALSE, TRUE)) {
       ),
       y,
       control = control,
-      sigest = sd(y)
+      sigest = sd(y),
+      n.trees = 10L,
+      n.cuts = 20L,
+      useQuantiles = useQuantiles
     )
     for (count in c(50L, 3L)) {
       info <- paste(rule, "sparse", count)
@@ -201,7 +271,6 @@ for (useQuantiles in c(FALSE, TRUE)) {
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 10L,
   updateState = FALSE,
   seed = 7L
 )
@@ -216,7 +285,7 @@ o <- factor(
 )
 y <- sin(4 * a) + (f == "b") + as.integer(o) / 2 + rnorm(n, 0, 0.3)
 
-sampler <- warmed(cbind(a, const, narrow), y, control = control)
+sampler <- warmed(cbind(a, const, narrow), y, control = control, n.trees = 10L)
 stored <- sampler$state
 own <- attr(stored, "cutPoints")
 expect_identical(lengths(own), c(100L, 1L, 4L))
@@ -266,7 +335,7 @@ for (cuts in list(
 expect_identical(cutPointsOf(sampler), own)
 # over a column of zeros the grid is one zero; a zero beside a negative zero
 # is one point given twice
-zeros <- dbarts(cbind(a, zero = 0), y, control = control)
+zeros <- dbarts(cbind(a, zero = 0), y, control = control, n.trees = 10L)
 held <- cutPointsOf(zeros)[[2L]]
 expect_identical(held, 0)
 expect_silent(zeros$setCutPoints(held, 2L))
@@ -278,16 +347,21 @@ expect_error(zeros$setCutPoints(c(-0, 0), 2L), pattern = refusal, fixed = TRUE)
 # original: a copy holds its leaves' rows in another order and draws its
 # original's draws to rounding only.
 for (grid in list(c(0.75, 0.25, 0.5), c(0.5, 0.75, 0.25))) {
-  sorted <- warmed(cbind(a, const, narrow), y, control = control)
-  shuffled <- warmed(cbind(a, const, narrow), y, control = control)
+  sorted <- warmed(cbind(a, const, narrow), y, control = control, n.trees = 10L)
+  shuffled <- warmed(
+    cbind(a, const, narrow),
+    y,
+    control = control,
+    n.trees = 10L
+  )
   sorted$setCutPoints(c(0.25, 0.5, 0.75), 1L)
   shuffled$setCutPoints(grid, 1L)
   expect_identical(cutPointsOf(shuffled), cutPointsOf(sorted))
   expect_identical(shuffled$run(0L, 5L)$train, sorted$run(0L, 5L)$train)
 }
 # two changes in turn
-sorted <- warmed(cbind(a, const, narrow), y, control = control)
-shuffled <- warmed(cbind(a, const, narrow), y, control = control)
+sorted <- warmed(cbind(a, const, narrow), y, control = control, n.trees = 10L)
+shuffled <- warmed(cbind(a, const, narrow), y, control = control, n.trees = 10L)
 sorted$setCutPoints(c(0.25, 0.5, 0.75), 1L)
 shuffled$setCutPoints(list(c(0.75, 0.25, 0.5)), 1L)
 expect_identical(cutPointsOf(shuffled), cutPointsOf(sorted))
@@ -296,8 +370,8 @@ shuffled$setCutPoints(list(rev(own[[1L]]), own[[2L]], rev(own[[3L]])))
 expect_identical(cutPointsOf(shuffled), own)
 expect_identical(shuffled$run(0L, 5L)$train, sorted$run(0L, 5L)$train)
 # a data frame is the list of its columns
-sorted <- warmed(cbind(a, b = a^2), y, control = control)
-shuffled <- warmed(cbind(a, b = a^2), y, control = control)
+sorted <- warmed(cbind(a, b = a^2), y, control = control, n.trees = 10L)
+shuffled <- warmed(cbind(a, b = a^2), y, control = control, n.trees = 10L)
 both <- cutPointsOf(sorted)
 sorted$setCutPoints(both)
 shuffled$setCutPoints(data.frame(rev(both[[1L]]), rev(both[[2L]])))
@@ -358,7 +432,12 @@ expect_identical(cutPointsOf(sampler)[[1L]], c(0, 1))
 # neither warns nor fails, whatever it is. The numeric entries are held to
 # the rule; naming a factor column stays refused, and so does a list of
 # another length.
-sampler <- warmed(y ~ a + f + o, data.frame(y, a, f, o), control = control)
+sampler <- warmed(
+  y ~ a + f + o,
+  data.frame(y, a, f, o),
+  control = control,
+  n.trees = 10L
+)
 own <- attr(sampler$state, "cutPoints")
 expect_identical(lengths(own), c(100L, 0L, 2L))
 expect_silent(sampler$setCutPoints(own))
@@ -418,7 +497,12 @@ expect_identical(cutPointsOf(sampler), c(list(c(0.3, 0.6)), own[-1L]))
 
 # a design of factor columns alone leaves a whole list nothing to install:
 # the call returns and the sampler is as it was
-sampler <- warmed(y ~ f + o, data.frame(y, f, o), control = control)
+sampler <- warmed(
+  y ~ f + o,
+  data.frame(y, f, o),
+  control = control,
+  n.trees = 10L
+)
 stored <- sampler$state
 expect_identical(lengths(attr(stored, "cutPoints")), c(0L, 2L))
 expect_silent(sampler$setCutPoints(list(levels(f), mean)))
@@ -431,8 +515,13 @@ expect_identical(sampler$state, stored)
 # after it are pins that hold without the hand-back too, a state bringing its
 # own grid: the sampler continues as a twin that restored its own state.
 design <- data.frame(y, a, const, f, o)
-sampler <- warmed(y ~ a + const + f + o, design, control = control)
-twin <- warmed(y ~ a + const + f + o, design, control = control)
+sampler <- warmed(
+  y ~ a + const + f + o,
+  design,
+  control = control,
+  n.trees = 10L
+)
+twin <- warmed(y ~ a + const + f + o, design, control = control, n.trees = 10L)
 stored <- sampler$state
 sampler$setCutPoints(c(0.3, 0.6), 1L)
 expect_identical(lengths(cutPointsOf(sampler)), c(2L, 1L, 0L, 2L))

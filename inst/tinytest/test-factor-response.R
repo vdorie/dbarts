@@ -26,7 +26,6 @@ controlFactorResponse <- function() {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 25L,
     updateState = FALSE
   )
 }
@@ -37,12 +36,18 @@ set.seed(7)
 s.form <- suppressMessages(dbarts(
   yf2 ~ x1 + x2 + x3,
   df,
-  control = controlFactorResponse()
+  control = controlFactorResponse(),
+  n.trees = 25L
 ))
 expect_equal(s.form$model@family, "probit")
 expect_true(s.form$control@binary)
 set.seed(7)
-s.xy <- suppressMessages(dbarts(x, yf2, control = controlFactorResponse()))
+s.xy <- suppressMessages(dbarts(
+  x,
+  yf2,
+  control = controlFactorResponse(),
+  n.trees = 25L
+))
 expect_equal(s.xy$model@family, "probit")
 expect_identical(s.form$run(30L, 30L)$train, s.xy$run(30L, 30L)$train)
 
@@ -50,49 +55,100 @@ expect_identical(s.form$run(30L, 30L)$train, s.xy$run(30L, 30L)$train)
 # default verbose is FALSE, so the message needs an explicit opt-in, and
 # verbose = FALSE (the default) stays silent
 expect_message(
-  dbarts(x, yf2, verbose = TRUE, control = controlFactorResponse()),
+  dbarts(
+    x,
+    yf2,
+    verbose = TRUE,
+    control = controlFactorResponse(),
+    n.trees = 25L
+  ),
   "2-level factor response detected, fitting family = \"probit\""
 )
-expect_silent(dbarts(x, yf2, control = controlFactorResponse()))
+expect_silent(dbarts(x, yf2, control = controlFactorResponse(), n.trees = 25L))
 
 # --- logical response == 0/1-numeric probit, bit for bit ---
 set.seed(8)
-s.log <- suppressMessages(dbarts(x, ylog, control = controlFactorResponse()))
+s.log <- suppressMessages(dbarts(
+  x,
+  ylog,
+  control = controlFactorResponse(),
+  n.trees = 25L
+))
 set.seed(8)
-s.num <- dbarts(x, as.double(yb), control = controlFactorResponse())
+s.num <- dbarts(
+  x,
+  as.double(yb),
+  control = controlFactorResponse(),
+  n.trees = 25L
+)
 expect_equal(s.log$model@family, "probit")
 expect_equal(s.num$model@family, "probit")
 expect_identical(s.log$run(30L, 30L)$train, s.num$run(30L, 30L)$train)
 
 # --- character response routes as a factor (probit here, 2 levels) ---
 set.seed(7)
-s.char <- suppressMessages(dbarts(x, ychar, control = controlFactorResponse()))
+s.char <- suppressMessages(dbarts(
+  x,
+  ychar,
+  control = controlFactorResponse(),
+  n.trees = 25L
+))
 expect_equal(s.char$model@family, "probit")
 set.seed(7)
 s.charForm <- suppressMessages(
-  dbarts(ychar ~ x1 + x2 + x3, df, control = controlFactorResponse())
+  dbarts(
+    ychar ~ x1 + x2 + x3,
+    df,
+    control = controlFactorResponse(),
+    n.trees = 25L
+  )
 )
 expect_identical(s.char$run(30L, 30L)$train, s.charForm$run(30L, 30L)$train)
 
 # --- 2-level ordered factor: binary, so probit (a 3+-level ordered factor
 # --- auto-dispatches to ordinal instead; test-ordinal.R covers that) ---
 expect_message(
-  dbarts(x, ordered(yf2), verbose = TRUE, control = controlFactorResponse()),
+  dbarts(
+    x,
+    ordered(yf2),
+    verbose = TRUE,
+    control = controlFactorResponse(),
+    n.trees = 25L
+  ),
   "2-level ordered factor response detected, fitting family = \"probit\""
 )
-expect_silent(dbarts(x, ordered(yf2), control = controlFactorResponse()))
+expect_silent(dbarts(
+  x,
+  ordered(yf2),
+  control = controlFactorResponse(),
+  n.trees = 25L
+))
 
 # --- an explicit family that contradicts a factor response errors ---
 expect_error(
-  dbarts(x, yf2, family = "gaussian", control = controlFactorResponse()),
+  dbarts(
+    x,
+    yf2,
+    family = "gaussian",
+    control = controlFactorResponse(),
+    n.trees = 25L
+  ),
   "cannot fit a factor response"
 )
 
 # --- a 3+-level factor errors informatively in the single-forest
 # entry points (never a silent gaussian on the integer level codes) ---
-expect_error(dbarts(x, y3, control = controlFactorResponse()), "multinomial")
 expect_error(
-  dbarts(y3 ~ x1 + x2 + x3, df, control = controlFactorResponse()),
+  dbarts(x, y3, control = controlFactorResponse(), n.trees = 25L),
+  "multinomial"
+)
+expect_error(
+  dbarts(
+    y3 ~ x1 + x2 + x3,
+    df,
+    control = controlFactorResponse(),
+    n.trees = 25L
+  ),
   "multinomial"
 )
 expect_error(

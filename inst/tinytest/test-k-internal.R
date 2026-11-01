@@ -28,7 +28,6 @@ kControl <- function(n.chains = 1L, keepTrees = FALSE, n.samples = 4L) {
   dbartsControl(
     n.chains = n.chains,
     n.threads = 1L,
-    n.trees = 20L,
     n.samples = n.samples,
     n.burn = 0L,
     keepTrees = keepTrees,
@@ -37,7 +36,14 @@ kControl <- function(n.chains = 1L, keepTrees = FALSE, n.samples = 4L) {
   )
 }
 make <- function(leaf.prior, response = y, control = kControl(), ...) {
-  dbarts(x, response, control = control, leaf.prior = leaf.prior, ...)
+  dbarts(
+    x,
+    response,
+    control = control,
+    leaf.prior = leaf.prior,
+    n.trees = 20L,
+    ...
+  )
 }
 burned <- function(...) {
   sampler <- make(...)

@@ -60,7 +60,6 @@ rm(new.data, new.z, new.x, z, n, sampler)
 set.seed(11)
 dimTrain <- data.frame(qux = testData$x, frob = testData$z, y = testData$y)
 dimControl <- dbarts::dbartsControl(
-  n.trees = 20L,
   n.burn = 0L,
   n.samples = 1L,
   n.chains = 1L,
@@ -68,7 +67,12 @@ dimControl <- dbarts::dbartsControl(
   updateState = FALSE,
   verbose = FALSE
 )
-dimSampler <- dbarts::dbarts(y ~ qux + frob, dimTrain, control = dimControl)
+dimSampler <- dbarts::dbarts(
+  y ~ qux + frob,
+  dimTrain,
+  control = dimControl,
+  n.trees = 20L
+)
 invisible(dimSampler$run(50L, 1L)) # grow real splits, not just root leaves
 n <- testData$n
 
@@ -88,7 +92,8 @@ expect_equal(colnames(dimSampler$data@x), c("qux", "frob"))
 bareSampler <- dbarts::dbarts(
   unname(as.matrix(dimTrain[c("qux", "frob")])),
   dimTrain$y,
-  control = dimControl
+  control = dimControl,
+  n.trees = 20L
 )
 invisible(bareSampler$run(50L, 1L))
 namedX <- matrix(rnorm(2L * n), n, dimnames = list(NULL, c("zork", "gleep")))

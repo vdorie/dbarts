@@ -45,7 +45,6 @@ runOnce <- function(nTest, nThreads) {
   xTest <- matrix(runif(nTest * p), nTest, p)
   colnames(xTest) <- colnames(x)
   control <- dbartsControl(
-    n.trees = nTrees,
     n.chains = 1L,
     n.threads = nThreads,
     n.samples = nIter,
@@ -53,7 +52,7 @@ runOnce <- function(nTest, nThreads) {
     updateState = FALSE,
     verbose = FALSE
   )
-  sampler <- dbarts(x, y, xTest, control = control)
+  sampler <- dbarts(x, y, xTest, control = control, n.trees = nTrees)
   invisible(sampler$run(nIter, 0L)) # warm the trees and the pool
   best <- Inf
   for (round in seq_len(nRounds)) {

@@ -23,7 +23,6 @@ controlWith <- function(...) {
   settings <- list(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 10L,
     n.samples = 4L,
     keepTrees = TRUE,
     updateState = FALSE,
@@ -34,7 +33,13 @@ controlWith <- function(...) {
 # a sampler past its burn-in holding its own stored state; built twice the
 # same way, two are the same sampler
 warmed <- function(..., control = controlWith(), data = x, response = y) {
-  sampler <- dbarts::dbarts(data, response, ..., control = control)
+  sampler <- dbarts::dbarts(
+    data,
+    response,
+    ...,
+    control = control,
+    n.trees = 10L
+  )
   if (control@keepTrees) {
     invisible(sampler$run(20L, control@n.samples))
   } else {
@@ -122,7 +127,9 @@ for (bad in list(NA, "partial", c(TRUE, FALSE), 1, NULL)) {
 # the sampler's own state, and a recorded chain put into a fresh sampler
 expectClean(warmed, own$state, "own state")
 expectClean(
-  function() dbarts::dbarts(x, y, control = controlWith(seed = 77L)),
+  function() {
+    dbarts::dbarts(x, y, control = controlWith(seed = 77L), n.trees = 10L)
+  },
   own$state,
   "a recorded chain in a fresh sampler"
 )
@@ -581,7 +588,8 @@ warmedWide <- function(n.samples, more = 0L) {
   sampler <- dbarts::dbarts(
     yWide ~ a + f,
     wide,
-    control = controlWith(n.samples = n.samples)
+    control = controlWith(n.samples = n.samples),
+    n.trees = 10L
   )
   invisible(sampler$run(40L, n.samples))
   if (more > 0L) {
@@ -689,7 +697,7 @@ for (case in cases) {
 # a state does not bring its cut points: one whose thresholds the sampler's
 # points do not hold is declined, the sampler as it was, and forced it is
 # moved onto the sampler's points, which stay
-coarse <- afterCollapse(control = controlWith(n.cuts = 20L))
+coarse <- afterCollapse(control = controlWith(), n.cuts = 20L)
 expect_false(identical(
   attr(coarse()$state, "cutPoints"),
   attr(own$state, "cutPoints")

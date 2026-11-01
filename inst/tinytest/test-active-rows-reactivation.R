@@ -26,7 +26,6 @@ expect_true(sum(reactivated) > 10L)
 control <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   n.samples = 5L,
   updateState = FALSE,
   seed = 13L
@@ -42,31 +41,56 @@ student <- function() {
     y.heavy,
     weights = w.positive,
     family = dbarts:::student(df = nu),
-    control = control
+    control = control,
+    n.trees = 20L
   )
 }
 arms <- list(
   probit = list(
     make = function() {
-      dbarts::dbarts(x, y.binary, family = "probit", control = control)
+      dbarts::dbarts(
+        x,
+        y.binary,
+        family = "probit",
+        control = control,
+        n.trees = 20L
+      )
     },
     install = byMask
   ),
   ordinal = list(
     make = function() {
-      dbarts::dbarts(x, y.ordinal, family = "ordinal", control = control)
+      dbarts::dbarts(
+        x,
+        y.ordinal,
+        family = "ordinal",
+        control = control,
+        n.trees = 20L
+      )
     },
     install = byMask
   ),
   logistic = list(
     make = function() {
-      dbarts::dbarts(x, y.binary, family = "logistic", control = control)
+      dbarts::dbarts(
+        x,
+        y.binary,
+        family = "logistic",
+        control = control,
+        n.trees = 20L
+      )
     },
     install = byMask
   ),
   nbinom = list(
     make = function() {
-      dbarts::dbarts(x, y.counts, family = "nbinom", control = control)
+      dbarts::dbarts(
+        x,
+        y.counts,
+        family = "nbinom",
+        control = control,
+        n.trees = 20L
+      )
     },
     install = byMask
   ),

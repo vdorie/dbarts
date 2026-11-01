@@ -27,7 +27,6 @@ makeControl <- function(...) {
   settings <- list(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 20L,
     n.samples = 1L,
     updateState = FALSE,
     verbose = FALSE
@@ -41,7 +40,7 @@ control <- makeControl()
 # column, and so differs between a design and its sub-matrix
 sampler <- function(design, response, ..., settings = control) {
   set.seed(7L)
-  dbarts(design, response, ..., control = settings, sigest = 1)
+  dbarts(design, response, ..., control = settings, n.trees = 20L, sigest = 1)
 }
 restrictTo <- function(vars, ...) list(forest(vars = vars, ...))
 # total splits per column over a run
@@ -95,10 +94,11 @@ estimatedOnList <- dbarts(
   x,
   y,
   forests = restrictTo(allowed),
-  control = control
+  control = control,
+  n.trees = 20L
 )
 set.seed(7L)
-estimatedOnColumns <- dbarts(x[, allowed], y, control = control)
+estimatedOnColumns <- dbarts(x[, allowed], y, control = control, n.trees = 20L)
 expect_false(estimatedOnList$data@sigma == estimatedOnColumns$data@sigma)
 expect_false(identical(
   estimatedOnList$run(0L, 20L)$train,
@@ -172,7 +172,8 @@ runOut <- function(...) {
     x.binary,
     y.runout,
     ...,
-    settings = makeControl(n.cuts = c(1L, 1L, 100L))
+    settings = makeControl(),
+    n.cuts = c(1L, 1L, 100L)
   )
   expect_equal(fit$data@n.cuts, c(1, 1, 100))
   splits(fit$run(0L, 2000L))
@@ -193,7 +194,8 @@ spec <- dbartsSpec(
   dbartsData(x, y),
   control,
   forests = restrictTo(allowed),
-  sigest = 1
+  sigest = 1,
+  n.trees = 20L
 )
 expect_identical(attr(spec$model, "forest.columns"), 1:2)
 door <- new("dbartsSampler", spec$control, spec$model, spec$data)
@@ -220,7 +222,7 @@ expect_true(is.environment(viewOver(NULL)))
 
 # the attribute alone restricts a model built without it, and the bridge
 # checks what it is handed
-plainSpec <- dbartsSpec(dbartsData(x, y), control, sigest = 1)
+plainSpec <- dbartsSpec(dbartsData(x, y), control, sigest = 1, n.trees = 20L)
 byHand <- plainSpec$model
 attr(byHand, "forest.columns") <- 1:2
 door <- new("dbartsSampler", plainSpec$control, byHand, plainSpec$data)
@@ -260,7 +262,8 @@ withFactor <- dbarts(
   y ~ a + g + b + c,
   frame,
   forests = restrictTo(c("a", "g")),
-  control = control
+  control = control,
+  n.trees = 20L
 )
 expect_identical(attr(withFactor$model, "forest.columns"), 1:2)
 factorSplits <- splits(withFactor$run(0L, 200L))
@@ -369,7 +372,14 @@ y.category <- cut(
 )
 categoryCounts <- function(...) {
   set.seed(7L)
-  fit <- dbarts(x, y.category, family = "multinomial", ..., control = control)
+  fit <- dbarts(
+    x,
+    y.category,
+    family = "multinomial",
+    ...,
+    control = control,
+    n.trees = 20L
+  )
   apply(fit$run(0L, 150L)$varcount, 1:2, sum)
 }
 restrictedCategories <- categoryCounts(forests = restrictTo(allowed))
@@ -397,7 +407,8 @@ hazard <- dbarts(
   cbind(time, status),
   family = "hazard",
   forests = restrictTo(allowed),
-  control = control
+  control = control,
+  n.trees = 20L
 )
 expect_identical(colnames(hazard$data@x), c("a", "b", "c", "period"))
 expect_identical(attr(hazard$model, "forest.columns"), c(1L, 2L, 4L))
@@ -417,7 +428,8 @@ hazardForests <- function(vars, basisVars = NULL) {
       forest(vars = vars),
       forest(vars = basisVars, basis = rep_len(c(0, 1), sum(time)))
     ),
-    control = control
+    control = control,
+    n.trees = 20L
   )
   apply(fit$run(0L, 200L)$varcount, 1:2, sum)
 }
@@ -471,7 +483,8 @@ twoForests <- function(groups) {
       forest(vars = allowed, blocks = blocks(groups = groups)),
       forest(basis = z)
     ),
-    control = control
+    control = control,
+    n.trees = 20L
   )
 }
 firstOfTwo <- twoForests(list("a", "b"))

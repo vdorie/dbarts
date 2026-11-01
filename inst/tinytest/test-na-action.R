@@ -201,7 +201,6 @@ keptBasis <- nBasis - 1L
 basisControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 5L,
   n.samples = 4L,
   n.burn = 2L,
   updateState = FALSE,
@@ -213,7 +212,8 @@ formulaBasis <- dbarts::dbarts(
   y ~ a,
   dBasis,
   forests = list(forest(), forest(basis = ~z)),
-  control = basisControl
+  control = basisControl,
+  n.trees = 5L
 )
 expect_equal(length(formulaBasis$data@y), keptBasis)
 expect_equal(nrow(formulaBasis$data@bases[[2L]]), keptBasis)
@@ -227,7 +227,8 @@ formulaBasisMatrix <- dbarts::dbarts(
   y ~ a,
   dBasis,
   forests = list(forest(), forest(basis = basisFactor)),
-  control = basisControl
+  control = basisControl,
+  n.trees = 5L
 )
 expect_equal(nrow(formulaBasisMatrix$data@bases[[2L]]), keptBasis)
 expect_equal(

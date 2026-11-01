@@ -221,7 +221,6 @@ fitSeed <- function(
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = numTrees,
     updateState = FALSE,
     proposal.probs = c(
       birth_death = 0.5,
@@ -240,7 +239,8 @@ fitSeed <- function(
     power = power,
     base = base,
     leaf.prior = normal(k),
-    verbose = FALSE
+    verbose = FALSE,
+    n.trees = numTrees
   )
   shiftGap <- abs(
     sampler$getLeafPrior()$response.shift - shiftOf(offset, yy, inRows)

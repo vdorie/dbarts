@@ -16,7 +16,6 @@ frame <- data.frame(
   w = rnorm(n)
 )
 control <- dbartsControl(
-  n.trees = 6L,
   n.chains = 1L,
   n.threads = 1L,
   n.samples = 8L,
@@ -55,7 +54,8 @@ inList <- function(vars) {
     y ~ x1 + x2 + x3,
     frame,
     forests = list(forest(.(vars)), forest(x3, basis = w)),
-    control = control
+    control = control,
+    n.trees = 6L
   ))
 }
 same(list(
@@ -74,7 +74,8 @@ inFormula <- function(vars) {
   bquote(dbarts(
     y ~ forest(.(vars)) + forest(x3, basis = w),
     frame,
-    control = control
+    control = control,
+    n.trees = 6L
   ))
 }
 same(list(
@@ -91,17 +92,20 @@ same(list(
   quote(dbarts(
     y ~ forest(x1) + forest(x2, basis = w),
     frame,
-    control = control
+    control = control,
+    n.trees = 6L
   )),
   quote(dbarts(
     y ~ forest(x1) + forest(x2, basis = ~w),
     frame,
-    control = control
+    control = control,
+    n.trees = 6L
   )),
   quote(dbarts(
     y ~ forest(x1) + forest(x2, basis = heldBasis),
     frame,
-    control = control
+    control = control,
+    n.trees = 6L
   ))
 ))
 
@@ -111,7 +115,8 @@ withVariance <- function(variance) {
     y ~ x1 + x2 + x3,
     frame,
     variance = .(variance),
-    control = control
+    control = control,
+    n.trees = 6L
   ))
 }
 same(list(

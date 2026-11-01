@@ -19,11 +19,10 @@ y <- 2 *
   complete$x2 +
   as.integer(complete$f) / 2 +
   rnorm(n, sd = 0.1)
-controlOf <- function(n.chains = 2L, n.trees = 15L) {
+controlOf <- function(n.chains = 2L) {
   dbartsControl(
     n.chains = n.chains,
     n.threads = 1L,
-    n.trees = n.trees,
     n.burn = 30L,
     n.samples = 20L,
     keepTrees = TRUE,
@@ -31,8 +30,19 @@ controlOf <- function(n.chains = 2L, n.trees = 15L) {
     verbose = FALSE
   )
 }
-make <- function(data = complete, seed = 11L, control = controlOf()) {
-  sampler <- dbarts(y ~ x1 + x2 + f, data, control = control, seed = seed)
+make <- function(
+  data = complete,
+  seed = 11L,
+  control = controlOf(),
+  n.trees = 15L
+) {
+  sampler <- dbarts(
+    y ~ x1 + x2 + f,
+    data,
+    control = control,
+    seed = seed,
+    n.trees = n.trees
+  )
   invisible(sampler$run())
   sampler
 }
@@ -136,7 +146,8 @@ for (seed in 11:40) {
     complete,
     forests = list(forest(), forest(basis = z)),
     control = controlOf(),
-    seed = seed
+    seed = seed,
+    n.trees = 15L
   )
   invisible(sampler$run())
   before <- sidesByForest(sampler)
@@ -156,7 +167,7 @@ expect_identical(length(after), 4L)
 
 right <- total <- c(kept = 0L, current = 0L)
 for (seed in 1:40) {
-  sampler <- make(seed = seed, control = controlOf(1L, 10L))
+  sampler <- make(seed = seed, control = controlOf(1L), n.trees = 10L)
   sampler$setPredictor(holed$x1, "x1", forceUpdate = TRUE)
   drawn <- list(kept = sides(sampler), current = sides(sampler, TRUE))
   right <- right + vapply(drawn, function(side) sum(side == "R"), 0L)
@@ -245,7 +256,7 @@ attr(old, "missing.seen") <- NULL
 expect_false(methods::.hasSlot(old, "missing.seen"))
 expect_null(dbarts:::dataMissingSeen(old))
 expect_error(
-  dbarts(old, control = controlOf(), seed = 3L)$predict(asked),
+  dbarts(old, control = controlOf(), seed = 3L, n.trees = 15L)$predict(asked),
   refusal,
   fixed = TRUE
 )
@@ -299,9 +310,15 @@ oneWay <- function(sampler) {
   state[[1L]]$forests[[1L]] <- forest
   state
 }
-single <- controlOf(1L, 1L)
+single <- controlOf(1L)
 single@keepTrees <- FALSE
-never <- dbarts(y ~ x1 + x2 + f, complete, control = single, seed = 5L)
+never <- dbarts(
+  y ~ x1 + x2 + f,
+  complete,
+  control = single,
+  seed = 5L,
+  n.trees = 1L
+)
 expect_error(
   never$setState(oneWay(never)),
   "state is not consistent with this sampler",
@@ -309,7 +326,13 @@ expect_error(
 )
 holedF <- complete
 holedF$f[gone] <- NA
-held <- dbarts(y ~ x1 + x2 + f, holedF, control = single, seed = 5L)
+held <- dbarts(
+  y ~ x1 + x2 + f,
+  holedF,
+  control = single,
+  seed = 5L,
+  n.trees = 1L
+)
 expect_true(held$setState(oneWay(held)))
 expect_identical(held$getTrees()$missing, c("R", NA, NA))
 held$setPredictor(complete$f, "f", forceUpdate = TRUE)
@@ -331,7 +354,13 @@ expect_identical(nrow(held$getTrees()), 1L)
 lone <- complete
 lone$x1[1L] <- -5
 loneLeft <- function(seed) {
-  sampler <- dbarts(y ~ x1 + x2 + f, lone, control = single, seed = seed)
+  sampler <- dbarts(
+    y ~ x1 + x2 + f,
+    lone,
+    control = single,
+    seed = seed,
+    n.trees = 1L
+  )
   sampler$storeState()
   state <- sampler$state
   forest <- state[[1L]]$forests[[1L]]

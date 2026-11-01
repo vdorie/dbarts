@@ -170,8 +170,6 @@ fitSingleTree <- function(seed) {
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 1L,
-    n.cuts = 3L,
     updateState = FALSE
   )
   sampler <- dbarts(
@@ -187,7 +185,9 @@ fitSingleTree <- function(seed) {
     ),
     power = power,
     base = base,
-    family = aft(sigma = fixed(sigmaFixed^2))
+    family = aft(sigma = fixed(sigmaFixed^2)),
+    n.trees = 1L,
+    n.cuts = 3L
   )
   r <- sampler$run(5000L, exactNdpost)
   # every observation in a cell shares its leaf's fit; take one per cell
@@ -217,8 +217,6 @@ fitVarianceTree <- function(seed) {
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 1L,
-    n.cuts = 3L,
     updateState = FALSE
   )
   sampler <- dbarts(
@@ -236,7 +234,9 @@ fitVarianceTree <- function(seed) {
     base = base,
     family = aft(sigma = chisq(df = varianceDf, quant = 0.9)),
     variance = varianceForest(n.trees = 1L),
-    sigma = sigmaFixed
+    sigma = sigmaFixed,
+    n.trees = 1L,
+    n.cuts = 3L
   )
   r <- sampler$run(5000L, exactNdpost)
   reps <- vapply(1:4, function(cc) which(cell == cc)[1L], integer(1L))

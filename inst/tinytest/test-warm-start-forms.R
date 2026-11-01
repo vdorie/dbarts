@@ -112,7 +112,6 @@ controlWith <- function(...) {
   settings <- list(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 4L,
     n.samples = 3L,
     n.burn = 0L,
     updateState = FALSE,
@@ -125,7 +124,8 @@ make <- function(..., data = x, response = y, sweeps = 0L, control = list()) {
   sampler <- dbarts::dbarts(
     data,
     response,
-    control = do.call(controlWith, control),
+    control = do.call(controlWith, control[names(control) != "n.trees"]),
+    n.trees = if (is.null(control$n.trees)) 4L else control$n.trees,
     ...
   )
   if (sweeps > 0L) {
@@ -582,13 +582,18 @@ gen <- function(n, seed) {
 monoControl <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 30L,
   n.samples = 50L,
   n.burn = 0L,
   updateState = FALSE
 )
 fixture <- gen(300L, 1L)
-freeDonor <- dbarts::dbarts(y ~ ., fixture, control = monoControl, seed = 11L)
+freeDonor <- dbarts::dbarts(
+  y ~ .,
+  fixture,
+  control = monoControl,
+  seed = 11L,
+  n.trees = 30L
+)
 invisible(freeDonor$run(200L, 50L))
 increasing <- function(data = fixture) {
   dbarts::dbarts(
@@ -596,7 +601,8 @@ increasing <- function(data = fixture) {
     data,
     control = monoControl,
     seed = 3L,
-    monotone = c(x1 = "increasing", x2 = "increasing")
+    monotone = c(x1 = "increasing", x2 = "increasing"),
+    n.trees = 30L
   )
 }
 # a tree's leaves, each row reached by a leaf's count, by tree
@@ -913,7 +919,7 @@ expect_true(max(abs(fitOf(recipient, here) - fitOf(sloped, here))) > 1e-3)
 # merged
 framed <- function(x4, ...) {
   frame <- data.frame(y = y, x[, 1L:3L], x4 = x4)
-  dbarts::dbarts(y ~ ., frame, control = controlWith(...))
+  dbarts::dbarts(y ~ ., frame, control = controlWith(...), n.trees = 4L)
 }
 levels4 <- ordered(cut(x[, 4L], 4L, labels = FALSE))
 levels6 <- ordered(cut(x[, 4L], 6L, labels = FALSE))
@@ -1105,7 +1111,8 @@ stores <- list(
     dbarts::dbarts(
       mixedFrame(rows),
       response,
-      control = controlWith(n.trees = 50L)
+      control = controlWith(),
+      n.trees = 50L
     )
   }
 )
@@ -1118,7 +1125,8 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
     dbarts::dbarts(
       sparsely(rows),
       response,
-      control = controlWith(n.trees = 50L)
+      control = controlWith(),
+      n.trees = 50L
     )
   }
 }

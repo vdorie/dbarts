@@ -14,7 +14,6 @@ y <- mu + z * tau + rnorm(n, sd = 0.2)
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 50L,
   updateState = FALSE
 )
 
@@ -22,7 +21,8 @@ bcSampler <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
-  control = control
+  control = control,
+  n.trees = 50L
 )
 
 result <- bcSampler$run(100L, 100L)
@@ -73,7 +73,8 @@ expect_error(
     x,
     y,
     forests = list(forest(), forest(basis = zeroBasis)),
-    control = dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 5L)
+    control = dbartsControl(n.chains = 1L, n.threads = 1L),
+    n.trees = 5L
   ),
   "all zeros"
 )
@@ -82,7 +83,8 @@ onNumber <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = z)),
-  control = dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 5L)
+  control = dbartsControl(n.chains = 1L, n.threads = 1L),
+  n.trees = 5L
 )
 onNumber$setForestBasis(2L, ~ rep(0, n))
 expect_identical(unname(onNumber$data@bases[[2L]]), matrix(0, n, 1L))
@@ -121,7 +123,8 @@ restored <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
-  control = control
+  control = control,
+  n.trees = 50L
 )
 restored$setState(state)
 
@@ -157,7 +160,8 @@ bcFixed <- dbarts(
       amplitude = fixed()
     )
   ),
-  control = control
+  control = control,
+  n.trees = 50L
 )
 bcFixed$run(50L, 50L)
 expect_equal(bcFixed$getForestAmplitudes()[, 1L], c(1, 0, 1))
@@ -175,7 +179,8 @@ bcPi <- dbarts(
   x.pi,
   y,
   forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
-  control = control
+  control = control,
+  n.trees = 50L
 )
 bcPi$run(100L, 20L)
 
@@ -202,14 +207,14 @@ y.m <- (2 * sin(pi * x.m[, 1L]) + x.m[, 2L]) +
 control.m <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 60L,
   updateState = FALSE
 )
 bcMove <- dbarts(
   x.m,
   y.m,
   forests = list(forest(), forest(basis = ~ factor(z.m), n.trees = 30L)),
-  control = control.m
+  control = control.m,
+  n.trees = 60L
 )
 res.move <- bcMove$run(200L, 100L)
 expect_true(all(is.finite(res.move$train)))
@@ -221,7 +226,6 @@ expect_true(all(is.finite(muMove)) && sum(muMove^2) > 0)
 control.k <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 60L,
   updateState = FALSE,
   keepTrees = TRUE,
   n.samples = 50L
@@ -230,7 +234,8 @@ bcKeep <- dbarts(
   x.m,
   y.m,
   forests = list(forest(), forest(basis = ~ factor(z.m), n.trees = 30L)),
-  control = control.k
+  control = control.k,
+  n.trees = 60L
 )
 res.keep <- bcKeep$run(100L, 50L)
 expect_equal(dim(res.keep$train), c(n.m, 50L))
@@ -249,7 +254,8 @@ bcModSpec <- function(x, moderators) {
     x,
     y,
     forests = list(forest(), forest(basis = ~ factor(z), vars = moderators)),
-    control = control
+    control = control,
+    n.trees = 50L
   )
 }
 expect_error(bcModSpec(x.mod, "nope"), "not found")
@@ -269,7 +275,8 @@ bcMod <- dbarts(
     forest(),
     forest(basis = ~ factor(z), n.trees = 25L, vars = c("x1", "x3"))
   ),
-  control = control
+  control = control,
+  n.trees = 50L
 )
 result.mod <- bcMod$run(100L, 50L)
 expect_equal(dim(result.mod$train), c(n, 50L))
@@ -288,7 +295,8 @@ bcOmit <- dbarts(
   x.mod,
   y,
   forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
-  control = control
+  control = control,
+  n.trees = 50L
 )
 fit.omit <- bcOmit$run(20L, 20L)$train
 set.seed(20)
@@ -299,7 +307,8 @@ bcNull <- dbarts(
     forest(),
     forest(basis = ~ factor(z), n.trees = 25L, vars = colnames(x.mod))
   ),
-  control = control
+  control = control,
+  n.trees = 50L
 )
 fit.null <- bcNull$run(20L, 20L)$train
 expect_identical(fit.null, fit.omit)
@@ -387,7 +396,8 @@ bcfSwapArm <- function(swap) {
     x,
     y,
     forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
-    control = control
+    control = control,
+    n.trees = 50L
   )
   bc$run(50L, 1L)
   before <- bcfMap(bc)
@@ -433,7 +443,6 @@ y.b[n.ls] <- 1
 control.ls <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 30L,
   updateState = FALSE
 )
 makeBC <- function(y) {
@@ -442,7 +451,8 @@ makeBC <- function(y) {
     y,
     forests = list(forest(), forest(basis = ~ factor(z.ls), n.trees = 15L)),
     control = control.ls,
-    family = gaussian(sigma = fixed(0.2))
+    family = gaussian(sigma = fixed(0.2)),
+    n.trees = 30L
   )
 }
 anchors.ls <- function(bc) vapply(bc$getLeafPrior(), `[[`, 0, "k.scale")

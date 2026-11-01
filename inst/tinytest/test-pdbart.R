@@ -79,20 +79,19 @@ expect_equal(pdb1$fd[[1L]][, 4L], rowMeans(predict(fitWithTrees, atValue)))
 
 # a sampler passed in, with saved trees, against its own $predict
 control <- dbarts::dbartsControl(
-  n.trees = 5L,
   n.samples = 10L,
   n.burn = 5L,
   n.chains = 1L,
   n.threads = 1L,
   keepTrees = TRUE
 )
-sampler <- dbarts::dbarts(x, y, control = control)
+sampler <- dbarts::dbarts(x, y, control = control, n.trees = 5L)
 invisible(sampler$run())
 pdbSampler <- dbarts::pdbart(sampler, xind = 1L, levs = levs[1L], pl = FALSE)
 expect_equal(pdbSampler$fd[[1L]][, 4L], colMeans(sampler$predict(atValue)))
 # without saved trees it runs, with a warning, and averages its test fits
 control@keepTrees <- FALSE
-sampler <- dbarts::dbarts(x, y, control = control)
+sampler <- dbarts::dbarts(x, y, control = control, n.trees = 5L)
 invisible(sampler$run())
 warnings.sampler <- captureWarnings(
   pdbRun <- dbarts::pdbart(sampler, xind = 1L, levs = levs[1L], pl = FALSE)
@@ -110,13 +109,13 @@ offsetSampler <- function() {
     y,
     offset = x[, 3L],
     control = dbarts::dbartsControl(
-      n.trees = 5L,
       n.samples = 10L,
       n.burn = 5L,
       n.chains = 1L,
       n.threads = 1L,
       seed = 7L
-    )
+    ),
+    n.trees = 5L
   )
   invisible(s$run())
   s
@@ -546,8 +545,9 @@ pdbControl <- suppressWarnings(dbarts::pdbart(
   nchain = 1L,
   nthread = 1L,
   verbose = FALSE,
-  control = dbarts::dbartsControl(n.cuts = 9L),
-  proposalprobs = c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5)
+  control = dbarts::dbartsControl(),
+  proposalprobs = c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5),
+  n.cuts = 9L
 ))
 expect_true(all(pdbControl$fit$data@n.cuts == 9L))
 expect_equal(pdbControl$fit$control@proposal.probs[["birth_death"]], 0.6)
@@ -946,7 +946,6 @@ set.seed(8)
 xTwo <- matrix(runif(100L), 50L, 2L, dimnames = list(NULL, c("x1", "x2")))
 yTwo <- 2 * xTwo[, 1L] + rnorm(50L, sd = 0.1)
 twoControl <- dbarts::dbartsControl(
-  n.trees = 10L,
   n.samples = 10L,
   n.burn = 10L,
   n.chains = 1L,
@@ -954,7 +953,7 @@ twoControl <- dbarts::dbartsControl(
 )
 for (keepTrees in c(TRUE, FALSE)) {
   twoControl@keepTrees <- keepTrees
-  twoSampler <- dbarts::dbarts(xTwo, yTwo, control = twoControl)
+  twoSampler <- dbarts::dbarts(xTwo, yTwo, control = twoControl, n.trees = 10L)
   invisible(twoSampler$run())
   pd2 <- suppressWarnings(pd2bart(twoSampler, xind = c(1L, 2L), pl = FALSE))
   expect_equal(dim(pd2$fd), c(10L, 121L))

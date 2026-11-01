@@ -25,13 +25,12 @@ makeSampler <- function(
   burn = 40L
 ) {
   ctl <- dbarts::dbartsControl(
-    n.trees = trees,
     n.chains = 1L,
     n.threads = 1L,
     updateState = FALSE,
     verbose = FALSE
   )
-  s <- dbarts::dbarts(form, d, control = ctl, seed = seed)
+  s <- dbarts::dbarts(form, d, control = ctl, seed = seed, n.trees = trees)
   if (burn > 0L) {
     invisible(s$run(burn, 1L))
   }

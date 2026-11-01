@@ -21,7 +21,6 @@ controlWith <- function(...) {
   settings <- list(
     n.chains = 2L,
     n.threads = 1L,
-    n.trees = 10L,
     n.samples = 4L,
     n.burn = 0L,
     keepTrees = TRUE,
@@ -45,14 +44,16 @@ make <- function(
       data,
       response,
       leaf.prior = linear(columns = "a"),
-      control = do.call(controlWith, control),
+      control = do.call(controlWith, control[names(control) != "n.trees"]),
+      n.trees = if (is.null(control$n.trees)) 10L else control$n.trees,
       ...
     )
   } else {
     sampler <- dbarts::dbarts(
       data,
       response,
-      control = do.call(controlWith, control),
+      control = do.call(controlWith, control[names(control) != "n.trees"]),
+      n.trees = if (is.null(control$n.trees)) 10L else control$n.trees,
       ...
     )
   }
@@ -123,7 +124,8 @@ handed <- dbarts::dbartsData(x, y)
 linearFit <- dbarts::dbarts(
   handed,
   leaf.prior = linear(columns = "a"),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 10L
 )
 record <- linearFit$data@standardization
 expect_identical(length(record), 1L)
@@ -163,7 +165,8 @@ flat[, 2L] <- 3
 twoFit <- dbarts::dbarts(
   recordedFlat(flat, "b", 3),
   leaf.prior = linear(columns = c("b", "a")),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 10L
 )
 expect_identical(names(twoFit$data@standardization[[1L]]$center), c("b", "a"))
 expect_identical(twoFit$data@standardization[[1L]]$scale[["b"]], NA_real_)
@@ -183,7 +186,8 @@ expect_null(
       dbarts::dbartsForests$forest(),
       dbarts::dbartsForests$forest(basis = factor(rep_len(0:1, n)))
     ),
-    control = controlWith()
+    control = controlWith(),
+    n.trees = 10L
   )$data@standardization
 )
 
@@ -317,7 +321,8 @@ doors <- list(
   dbarts = dbarts::dbarts(
     carried,
     leaf.prior = linear(columns = "a"),
-    control = controlWith()
+    control = controlWith(),
+    n.trees = 10L
   ),
   bart = dbarts::bart(
     carried,
@@ -400,7 +405,8 @@ longer@standardization[[1L]]$lengthscale <- 2 *
 gpLonger <- dbarts::dbarts(
   longer,
   leaf.prior = gp(columns = "a"),
-  control = controlWith(seed = 9L)
+  control = controlWith(seed = 9L),
+  n.trees = 10L
 )
 expect_identical(
   inForce(gpLonger)[c("center", "scale")],
@@ -420,7 +426,8 @@ wider@standardization[[1L]]$scale <- 2 * wider@standardization[[1L]]$scale
 gpWider <- dbarts::dbarts(
   wider,
   leaf.prior = gp(columns = "a"),
-  control = controlWith(seed = 9L)
+  control = controlWith(seed = 9L),
+  n.trees = 10L
 )
 expect_identical(
   inForce(gpWider)[c("center", "lengthscale")],
@@ -488,7 +495,8 @@ givenLengthscale@standardization <- list(list(
 supplied <- dbarts::dbarts(
   givenLengthscale,
   leaf.prior = gp(columns = "a", lengthscale = 0.5),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 10L
 )
 expect_identical(
   inForce(supplied),
@@ -550,14 +558,16 @@ flatDonor <- dbarts::dbarts(
   recordedFlat(constantAt(0), "a", 0),
   leaf.prior = linear(columns = "a"),
   split.probs = c(0, 1),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 10L
 )
 invisible(flatDonor$run(30L, 4L))
 flatRecipient <- dbarts::dbarts(
   recordedFlat(constantAt(3), "a", 3),
   leaf.prior = linear(columns = "a"),
   split.probs = c(0, 1),
-  control = controlWith(keepTrees = FALSE, seed = 9L)
+  control = controlWith(keepTrees = FALSE, seed = 9L),
+  n.trees = 10L
 )
 expect_identical(inForce(flatRecipient)$scale, NA_real_)
 expect_true(flatRecipient$installTrees(flatDonor, samples = newest))
@@ -580,7 +590,7 @@ fresh <- function(leafPrior) {
   inForce(eval(bquote(make(leaf.prior = .(leafPrior)))))
 }
 # leaves taking no covariate, at creation and at setData
-constantFit <- dbarts::dbarts(carried, control = controlWith())
+constantFit <- dbarts::dbarts(carried, control = controlWith(), n.trees = 10L)
 expect_null(constantFit$data@standardization)
 constantBart <- dbarts::bart(
   carried,
@@ -600,14 +610,16 @@ expect_null(constantFit$data@standardization)
 otherCovariate <- dbarts::dbarts(
   carried,
   leaf.prior = linear(columns = "b"),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 10L
 )
 expect_identical(inForce(otherCovariate), fresh(quote(linear(columns = "b"))))
 expect_identical(names(otherCovariate$data@standardization[[1L]]$center), "b")
 both <- dbarts::dbarts(
   carried,
   leaf.prior = linear(columns = c("b", "a")),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 10L
 )
 expect_identical(
   lapply(recordOf(both), `[`, 2L),
@@ -638,7 +650,8 @@ served <- list(
     held = inForce(dbarts::dbarts(
       withRecord(list(list(center = c(a = 0.5), scale = c(a = NA_real_)))),
       leaf.prior = linear(columns = "a"),
-      control = controlWith()
+      control = controlWith(),
+      n.trees = 10L
     ))
   )
 )
@@ -647,7 +660,8 @@ for (case in names(served)) {
   taken <- dbarts::dbarts(
     withRecord(served[[case]]$record),
     leaf.prior = linear(columns = "a"),
-    control = controlWith()
+    control = controlWith(),
+    n.trees = 10L
   )
   expect_identical(inForce(taken), served[[case]]$held, info = case)
   sampler$setData(withRecord(served[[case]]$record))
@@ -657,7 +671,8 @@ for (record in list(fits, list(lapply(fits[[1L]], unname)))) {
   taken <- dbarts::dbarts(
     withRecord(record),
     leaf.prior = linear(columns = "a"),
-    control = controlWith()
+    control = controlWith(),
+    n.trees = 10L
   )
   expect_identical(inForce(taken), list(center = 0.5, scale = 0.3))
   expect_identical(taken$data@standardization, fits)
@@ -726,7 +741,8 @@ for (columns in list(c(1L, 3L), 2:1)) {
   other <- dbarts::dbarts(
     byPosition$data,
     leaf.prior = linear(columns = columns),
-    control = controlWith()
+    control = controlWith(),
+    n.trees = 10L
   )
   info <- paste(columns, collapse = " ")
   expect_identical(inForce(other), freshOn(unnamed, columns), info = info)
@@ -746,7 +762,8 @@ expect_identical(
   inForce(dbarts::dbarts(
     stripped,
     leaf.prior = linear(columns = 1:2),
-    control = controlWith()
+    control = controlWith(),
+    n.trees = 10L
   )),
   freshOn(unname(x[, c("b", "a")]), 1:2)
 )
@@ -758,7 +775,8 @@ expect_identical(
   inForce(dbarts::dbarts(
     named,
     leaf.prior = linear(columns = c("a", "b")),
-    control = controlWith()
+    control = controlWith(),
+    n.trees = 10L
   )),
   freshOn(named@x, c("a", "b"))
 )
@@ -803,13 +821,15 @@ for (names in list(c("a", "", ""), c("a", "x", "x"), c("a", NA, NA))) {
       dbarts::dbarts(
         source$data,
         leaf.prior = linear(columns = 2:3),
-        control = controlWith()
+        control = controlWith(),
+        n.trees = 10L
       )
     } else {
       dbarts::dbarts(
         source$data,
         leaf.prior = gp(columns = 2:3),
-        control = controlWith()
+        control = controlWith(),
+        n.trees = 10L
       )
     }
     for (door in list(source$copy(), reloadOf(source), created)) {
@@ -836,7 +856,8 @@ for (columns in list(list(from = 2:3, to = 1:2), list(from = 1:2, to = 2:3))) {
   carried <- dbarts::dbarts(
     carrier$data,
     leaf.prior = linear(columns = columns$to),
-    control = controlWith()
+    control = controlWith(),
+    n.trees = 10L
   )
   expect_identical(
     inForce(carried),
@@ -854,7 +875,8 @@ renamed@cutPoints <- NULL
 fromNamed <- dbarts::dbarts(
   renamed,
   leaf.prior = linear(columns = 1:2),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 10L
 )
 expect_identical(inForce(fromNamed), freshOn(renamed@x, 1:2))
 
@@ -863,7 +885,8 @@ gpCarried <- make(leaf.prior = gp(columns = "a"))
 gpBoth <- dbarts::dbarts(
   gpCarried$data,
   leaf.prior = gp(columns = c("a", "b")),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 10L
 )
 expect_true(all(is.finite(inForce(gpBoth)$lengthscale)))
 expect_identical(inForce(gpBoth), fresh(quote(gp(columns = c("a", "b")))))
@@ -931,7 +954,8 @@ for (case in names(malformed)) {
       eval(bquote(dbarts::dbarts(
         data,
         leaf.prior = .(leafPrior),
-        control = controlWith()
+        control = controlWith(),
+        n.trees = 10L
       ))),
       message,
       fixed = TRUE,
@@ -952,6 +976,7 @@ expect_false(methods::.hasSlot(old, "standardization"))
 fromOld <- dbarts::dbarts(
   old,
   leaf.prior = linear(columns = "a"),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 10L
 )
 expect_identical(inForce(fromOld), inForce(derived))

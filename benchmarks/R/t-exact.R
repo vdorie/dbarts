@@ -152,8 +152,6 @@ fitSingleTree <- function(seed) {
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 1L,
-    n.cuts = 3L,
     updateState = FALSE
   )
   sampler <- dbarts(
@@ -172,7 +170,9 @@ fitSingleTree <- function(seed) {
     family = dbarts::dbartsFamilies$student(
       df = nu,
       sigma = dbarts::dbartsPriors$fixed(sigmaFixed^2)
-    )
+    ),
+    n.trees = 1L,
+    n.cuts = 3L
   )
   r <- sampler$run(exactBurn, exactNdpost)
   # every observation in a cell shares its leaf's fit; take one per cell

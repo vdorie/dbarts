@@ -138,20 +138,22 @@ priorSampler <- function(arm, n.trees) {
   side <- seq(0, 1, length.out = 41L)
   data <- data.frame(x1 = rep(side, 41L), x2 = rep(side, each = 41L))
   data$y <- rep_len(c(-0.5, 0.5), nrow(data))
-  control <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = n.trees)
+  control <- dbartsControl(n.chains = 1L, n.threads = 1L)
   switch(
     arm,
     leaf = dbarts(
       y ~ x1 + x2,
       data = data,
       monotone = monotone(c(x1 = "increasing"), prior = "leaf"),
-      control = control
+      control = control,
+      n.trees = n.trees
     ),
     joint = dbarts(
       y ~ x1 + x2,
       data = data,
       monotone = monotone(c(x1 = "increasing"), prior = "joint"),
-      control = control
+      control = control,
+      n.trees = n.trees
     ),
     joint.mbart = dbarts(
       y ~ x1 + x2,
@@ -159,9 +161,15 @@ priorSampler <- function(arm, n.trees) {
       monotone = monotone(c(x1 = "increasing"), prior = "joint"),
       power = 0.8,
       base = 0.25,
-      control = control
+      control = control,
+      n.trees = n.trees
     ),
-    free = dbarts(y ~ x1 + x2, data = data, control = control)
+    free = dbarts(
+      y ~ x1 + x2,
+      data = data,
+      control = control,
+      n.trees = n.trees
+    )
   )
 }
 

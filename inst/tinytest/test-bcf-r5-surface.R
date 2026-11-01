@@ -18,7 +18,6 @@ seededControlBcfR5Surface <- function(...) {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 40L,
     n.samples = 10L,
     updateState = FALSE,
     seed = 23L,
@@ -33,7 +32,8 @@ sampler <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = seededControlBcfR5Surface()
+  control = seededControlBcfR5Surface(),
+  n.trees = 40L
 )
 result <- sampler$run(0L, 5L)
 
@@ -65,7 +65,8 @@ namedSampler <- dbarts(
   namedX,
   y,
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = seededControlBcfR5Surface()
+  control = seededControlBcfR5Surface(),
+  n.trees = 40L
 )
 namedSampler$run(0L, 5L)
 namedCounts <- namedSampler$getForestVariableCounts(1L)
@@ -90,7 +91,8 @@ refused <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = seededControlBcfR5Surface()
+  control = seededControlBcfR5Surface(),
+  n.trees = 40L
 )
 
 expect_error(refused$setData(refused$data), "carries forest amplitudes")
@@ -167,7 +169,7 @@ expect_error(
 # regression canary: the new pre-checks fire on the capability alone and must
 # not reach an
 # ordinary single-forest sampler (exercised at scale by the rest of the suite)
-plain <- dbarts(x, y, control = seededControlBcfR5Surface())
+plain <- dbarts(x, y, control = seededControlBcfR5Surface(), n.trees = 40L)
 expect_silent(plain$setResponse(y, updateScale = TRUE))
 
 # --- the basis-mirror contract, both halves: $setForestBasis mirrors the
@@ -177,7 +179,8 @@ mirror <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = seededControlBcfR5Surface()
+  control = seededControlBcfR5Surface(),
+  n.trees = 40L
 )
 mirror$run(10L, 5L)
 z2 <- rep(0, n)
@@ -237,7 +240,8 @@ controlled <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = seededControlBcfR5Surface()
+  control = seededControlBcfR5Surface(),
+  n.trees = 40L
 )
 controlled$run(0L, 5L)
 controlled$storeState()
@@ -266,7 +270,8 @@ varSampler <- dbarts(
   x,
   y,
   variance = varianceForest(n.trees = 10L),
-  control = varControl
+  control = varControl,
+  n.trees = 40L
 )
 varSampler$run(0L, 5L)
 varSampler$storeState()

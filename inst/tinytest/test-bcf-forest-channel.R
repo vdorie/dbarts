@@ -11,7 +11,6 @@ y <- 2 * sin(pi * x[, 1L]) + z * (1 + x[, 2L]) + rnorm(n, sd = 0.2)
 fastControl <- function(n.chains = 1L) {
   dbartsControl(
     n.threads = 1L,
-    n.trees = 8L,
     n.chains = n.chains,
     n.samples = 6L,
     n.burn = 2L,
@@ -25,7 +24,8 @@ packageFrom <- function(forests, n.chains = 1L, combineChains = TRUE) {
     x,
     y,
     forests = forests,
-    control = fastControl(n.chains)
+    control = fastControl(n.chains),
+    n.trees = 8L
   )
   burn <- dbarts:::runWithBurnIn(sampler, sampler$control, FALSE)
   dbarts:::packageBartResults(

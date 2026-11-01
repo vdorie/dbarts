@@ -28,14 +28,13 @@ resetExcess()
 excessControl <- dbarts::dbartsControl(
   n.chains = 4L,
   n.threads = 8L,
-  n.trees = 3L,
   n.samples = 2L,
   n.burn = 1L,
   verbose = FALSE,
   updateState = FALSE
 )
 expect_warning(
-  dbarts::dbarts(y ~ x, testData, control = excessControl),
+  dbarts::dbarts(y ~ x, testData, control = excessControl, n.trees = 3L),
   pattern = "n.threads (8) exceeds n.chains (4)",
   fixed = TRUE
 )
@@ -45,7 +44,7 @@ resetExcess()
 excessMsgs <- character(0L)
 for (rep in 1:3) {
   withCallingHandlers(
-    dbarts::dbarts(y ~ x, testData, control = excessControl),
+    dbarts::dbarts(y ~ x, testData, control = excessControl, n.trees = 3L),
     warning = function(w) {
       excessMsgs <<- c(excessMsgs, conditionMessage(w))
       invokeRestart("muffleWarning")
@@ -66,13 +65,17 @@ resetExcess()
 evenControl <- dbarts::dbartsControl(
   n.chains = 4L,
   n.threads = 4L,
-  n.trees = 3L,
   n.samples = 2L,
   n.burn = 1L,
   verbose = FALSE,
   updateState = FALSE
 )
-expect_silent(dbarts::dbarts(y ~ x, testData, control = evenControl))
+expect_silent(dbarts::dbarts(
+  y ~ x,
+  testData,
+  control = evenControl,
+  n.trees = 3L
+))
 
 # bartBT's own arguments are the 0.9-x names, so its warning names what its
 # caller typed
@@ -240,7 +243,7 @@ noCores <- tryCatch(
     heldControl <- dbarts::dbartsControl()
     shapes <- list(
       controlFit(dbarts::dbartsControl()),
-      controlFit(dbarts::dbartsControl(n.trees = 3L, n.burn = 1L)),
+      controlFit(dbarts::dbartsControl(n.burn = 1L), n.trees = 3L),
       controlFit(dbarts::dbartsControl(n.chains = 2L, n.burn = 1L)),
       controlFit(dbarts::dbartsControl(n.burn = 1L), n.chains = 2L),
       controlFit(methods::new("dbartsControl"), n.burn = 1L),
@@ -288,16 +291,16 @@ noCores <- tryCatch(
     )
     # a control whose count was set to NA after it was built has a slot to
     # name, not an argument to leave out
-    badControl <- dbarts::dbartsControl(n.trees = 3L, n.chains = 1L)
+    badControl <- dbarts::dbartsControl(n.chains = 1L)
     badControl@n.threads <- NA_integer_
     slotMessage <- "a control's 'n.threads' slot must be a positive integer"
     expect_error(
-      dbarts::dbarts(y ~ x, groupData, control = badControl),
+      dbarts::dbarts(y ~ x, groupData, control = badControl, n.trees = 3L),
       slotMessage,
       fixed = TRUE
     )
     expect_error(
-      dbarts::bart(y ~ x, groupData, control = badControl),
+      dbarts::bart(y ~ x, groupData, control = badControl, n.trees = 3L),
       slotMessage,
       fixed = TRUE
     )

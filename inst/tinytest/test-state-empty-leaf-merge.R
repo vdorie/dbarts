@@ -22,7 +22,6 @@ xNew[interior, 1L] <- 0.5
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   n.samples = 3L,
   keepTrees = TRUE,
   updateState = FALSE,
@@ -81,11 +80,13 @@ checkStaleRestore <- function(make, info) {
 }
 
 checkStaleRestore(
-  function(x) dbarts(x, y, control = control),
+  function(x) dbarts(x, y, control = control, n.trees = 20L),
   "gaussian:"
 )
 checkStaleRestore(
-  function(x) dbarts(x, labels, family = "multinomial", control = control),
+  function(x) {
+    dbarts(x, labels, family = "multinomial", control = control, n.trees = 20L)
+  },
   "multinomial:"
 )
 checkStaleRestore(
@@ -97,7 +98,8 @@ checkStaleRestore(
         forest(sd = 2 * sd(y), amplitude = dbartsPriors$student(1)),
         forest(basis = ~ factor(z))
       ),
-      control = control
+      control = control,
+      n.trees = 20L
     )
   },
   "bcf:"
@@ -105,7 +107,7 @@ checkStaleRestore(
 
 # a restore with every leaf occupied merges nothing: it reinstalls the stored
 # trees as they were, and says so
-exact <- dbarts(x, y, control = control)
+exact <- dbarts(x, y, control = control, n.trees = 20L)
 invisible(exact$run(40L, 3L))
 exact$storeState()
 held <- exact$state
@@ -145,7 +147,6 @@ makeLatentSampler <- function(name, seed) {
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 20L,
     n.samples = 3L,
     updateState = FALSE,
     seed = seed
@@ -156,10 +157,23 @@ makeLatentSampler <- function(name, seed) {
       x,
       as.integer(y > 2.5),
       family = binomial(link = "logit"),
-      control = control
+      control = control,
+      n.trees = 20L
     ),
-    nbinom = dbarts(x, yCount, family = "nbinom", control = control),
-    student = dbarts(x, y, family = student(df = 5), control = control)
+    nbinom = dbarts(
+      x,
+      yCount,
+      family = "nbinom",
+      control = control,
+      n.trees = 20L
+    ),
+    student = dbarts(
+      x,
+      y,
+      family = student(df = 5),
+      control = control,
+      n.trees = 20L
+    )
   )
 }
 for (name in c("logistic", "nbinom", "student")) {
@@ -192,10 +206,10 @@ for (name in c("logistic", "nbinom", "student")) {
 # a warm start whose donor leaves a leaf with no rows is declined as it
 # stands; forced, the destination's trees are merged, so it carries no empty
 # leaf, and it restores and copies itself
-donor <- dbarts(x, y, control = control)
+donor <- dbarts(x, y, control = control, n.trees = 20L)
 invisible(donor$run(40L, 3L))
 donor$storeState()
-destination <- dbarts(xNew, y, control = control)
+destination <- dbarts(xNew, y, control = control, n.trees = 20L)
 expect_identical(destination$installTrees(donor), FALSE)
 expect_null(destination$installTrees(donor, forceUpdate = TRUE))
 invisible(destination$run(0L, 1L))

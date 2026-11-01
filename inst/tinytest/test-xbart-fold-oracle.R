@@ -356,17 +356,17 @@ rebuildCell <- function(useUnitSeed = TRUE) {
     control = dbarts::dbartsControl(
       n.chains = 1L,
       n.threads = 1L,
-      n.trees = n.trees,
       n.samples = n.samples,
-      n.cuts = n.cuts,
-      useQuantiles = FALSE,
       keepTrees = FALSE,
       keepTrainingFits = FALSE,
       updateState = FALSE,
       verbose = FALSE,
       seed = if (useUnitSeed) unitSeed else splitSeed
     ),
-    sigest = sigest
+    sigest = sigest,
+    n.trees = n.trees,
+    n.cuts = n.cuts,
+    useQuantiles = FALSE
   )
   samples <- sampler$run(n.burn[1L], n.samples)
   sqrt(mean((y[testRows] - rowMeans(samples$test))^2))
@@ -385,10 +385,9 @@ held <- which(few == 25)
 fewControl <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = n.trees,
   updateState = FALSE
 )
-full <- dbarts::dbarts(cbind(few), y, control = fewControl)
+full <- dbarts::dbarts(cbind(few), y, control = fewControl, n.trees = n.trees)
 handle <- dbarts:::bartcoreDataHandle(full$control, full$data)
 fold <- dbarts:::bartcoreSamplerFromHandle(
   handle,

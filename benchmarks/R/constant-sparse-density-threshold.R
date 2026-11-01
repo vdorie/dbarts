@@ -68,7 +68,6 @@ measure <- function(density) {
   storedNonzeros <- length(x@x)
 
   control <- dbartsControl(
-    n.trees = nTrees,
     n.chains = 1L,
     n.threads = 1L,
     n.samples = nIter,
@@ -81,7 +80,7 @@ measure <- function(density) {
   # read the resident set BEFORE the first sweep: run() allocates the index
   # buffers and the per-tree fits, which cost the same in either layout and
   # would swamp the difference the column store makes
-  sampler <- suppressWarnings(dbarts(x, y, control = control))
+  sampler <- suppressWarnings(dbarts(x, y, control = control, n.trees = nTrees))
   after <- residentKB()
   invisible(sampler$run(nIter, 0L))
 

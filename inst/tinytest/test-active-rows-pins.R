@@ -9,7 +9,6 @@ y.binary <- as.double(x[, 1L] + rnorm(n, 0, 0.3) > 0.5)
 control <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   updateState = FALSE,
   seed = 7L
 )
@@ -22,7 +21,8 @@ sampler.probit <- dbarts::dbarts(
   x,
   y.binary,
   family = "probit",
-  control = control
+  control = control,
+  n.trees = 20L
 )
 expect_silent(sampler.probit$setWeights(rep(1, n)))
 expect_true(is.null(sampler.probit$data@weights))
@@ -62,7 +62,8 @@ makeSamplerActiveRowsPins <- function(weights = NULL, ...) {
     control = control,
     sigest = 1,
     n.samples = 10L,
-    ...
+    ...,
+    n.trees = 20L
   )
 }
 
@@ -105,7 +106,8 @@ masked.bcf <- dbarts::dbarts(
   forests = list(forest(), forest(basis = ~ factor(z.bcf))),
   weights = w,
   control = control,
-  sigest = 1
+  sigest = 1,
+  n.trees = 20L
 )
 masked.bcf$setActiveRows(a)
 composed.bcf <- dbarts::dbarts(
@@ -114,7 +116,8 @@ composed.bcf <- dbarts::dbarts(
   forests = list(forest(), forest(basis = ~ factor(z.bcf))),
   weights = w,
   control = control,
-  sigest = 1
+  sigest = 1,
+  n.trees = 20L
 )
 composed.bcf$setWeights(w * a)
 draws.masked.bcf <- masked.bcf$run(20L, 10L)
@@ -210,13 +213,20 @@ rm(empty, draws.empty)
 # every active row's recorded draw bitwise. Because the truncated-normal
 # primitive is a rejection sampler, this fails outright if an inactive row's
 # latent is drawn and discarded rather than skipped.
-probit.a <- dbarts::dbarts(x, y.binary, family = "probit", control = control)
+probit.a <- dbarts::dbarts(
+  x,
+  y.binary,
+  family = "probit",
+  control = control,
+  n.trees = 20L
+)
 probit.a$setActiveRows(a)
 probit.b <- dbarts::dbarts(
   x,
   ifelse(a == 0, 1 - y.binary, y.binary),
   family = "probit",
-  control = control
+  control = control,
+  n.trees = 20L
 )
 probit.b$setActiveRows(a)
 train.a <- probit.a$run(20L, 10L)$train
@@ -244,7 +254,8 @@ heteroSampler <- function(weights) {
     variance = varianceForest(n.trees = 10L),
     control = control,
     sigest = 1,
-    n.samples = 10L
+    n.samples = 10L,
+    n.trees = 20L
   )
 }
 hetero <- heteroSampler(w)
@@ -266,13 +277,13 @@ gp <- dbarts::dbarts(
   control = dbarts::dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 5L,
     updateState = FALSE,
     seed = 7L
   ),
   sigest = 1,
   n.samples = 10L,
-  leaf.prior = dbarts:::gp("x1", max.leaf.size = n)
+  leaf.prior = dbarts:::gp("x1", max.leaf.size = n),
+  n.trees = 5L
 )
 gp$setActiveRows(a)
 draws.gp <- gp$run(20L, 10L)
@@ -312,7 +323,8 @@ ordinalSampler <- function(codes) {
     x,
     ordered(levels.ord[codes], levels = levels.ord),
     family = "ordinal",
-    control = control
+    control = control,
+    n.trees = 20L
   )
   sampler$setActiveRows(a)
   sampler
@@ -337,7 +349,8 @@ logisticSamplerActiveRowsPins <- function(
     y.logistic,
     weights = trials,
     family = "logistic",
-    control = control
+    control = control,
+    n.trees = 20L
   )
   if (!is.null(mask)) {
     sampler$setActiveRows(mask)
@@ -354,7 +367,13 @@ counts <- as.double(rpois(n, 3))
 counts.other <- counts
 counts.other[a == 0] <- c(sum(counts[a == 0]), rep(0, sum(a == 0) - 1L))
 nbinomSamplerActiveRowsPins <- function(y.count, mask = a) {
-  sampler <- dbarts::dbarts(x, y.count, family = "nbinom", control = control)
+  sampler <- dbarts::dbarts(
+    x,
+    y.count,
+    family = "nbinom",
+    control = control,
+    n.trees = 20L
+  )
   if (!is.null(mask)) {
     sampler$setActiveRows(mask)
   }
@@ -394,7 +413,8 @@ aftSamplerActiveRowsPins <- function(logTime, mask = a) {
     family = "aft",
     control = control,
     sigest = 1,
-    n.samples = 10L
+    n.samples = 10L,
+    n.trees = 20L
   )
   if (!is.null(mask)) {
     sampler$setActiveRows(mask)
@@ -446,7 +466,8 @@ multinomialSamplerActiveRowsPins <- function(counts, mask = a) {
   sampler <- dbarts::dbarts(
     dbarts::dbartsData(x, counts = counts),
     family = "multinomial",
-    control = control
+    control = control,
+    n.trees = 20L
   )
   if (!is.null(mask)) {
     sampler$setActiveRows(mask)
@@ -506,7 +527,7 @@ priorNodes <- function(mask) {
   sampler <- multinomialSamplerActiveRowsPins(counts.mn, mask)
   sampler$sampleTreesFromPrior()
   sampler$getTrees(
-    treeNums = seq_len(control@n.trees),
+    treeNums = seq_len(20L),
     chainNums = 1L,
     current = TRUE,
     forest = 1L
@@ -520,7 +541,7 @@ expect_identical(
 )
 expect_true(all(maskedPrior$n[maskedPrior$var == -1L] > 0L))
 # non-vacuity: the category forest grows past its roots
-expect_true(nrow(unmaskedPrior) > 2L * control@n.trees)
+expect_true(nrow(unmaskedPrior) > 2L * 20L)
 
 rm(
   K.mn,

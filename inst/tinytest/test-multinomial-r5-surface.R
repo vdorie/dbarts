@@ -31,7 +31,6 @@ oneHot[cbind(seq_len(n), as.integer(labels))] <- 1L
 
 control <- dbartsControl(
   n.chains = 1L,
-  n.trees = 25L,
   n.samples = 8L,
   n.burn = 0L,
   updateState = FALSE,
@@ -46,7 +45,8 @@ sampler <- dbarts(
   labels,
   test = x.test,
   family = "multinomial",
-  control = control
+  control = control,
+  n.trees = 25L
 )
 expect_inherits(sampler, "dbartsSampler")
 expect_identical(sampler$model@family, "multinomial")
@@ -116,7 +116,13 @@ for (k in seq_len(K)) {
 set.seed(11)
 grouped <- matrix(rpois(n * K, 2), n, K)
 grouped[rowSums(grouped) == 0L, 1L] <- 1L
-groupedSampler <- dbarts(x, grouped, family = "multinomial", control = control)
+groupedSampler <- dbarts(
+  x,
+  grouped,
+  family = "multinomial",
+  control = control,
+  n.trees = 25L
+)
 expect_identical(groupedSampler$data@y, as.double(rowSums(grouped)))
 expect_identical(storage.mode(groupedSampler$data@counts), "integer")
 expect_identical(dim(groupedSampler$run(4L, 8L)$train), c(n, K, 8L))
@@ -124,10 +130,15 @@ expect_identical(dim(groupedSampler$run(4L, 8L)$train), c(n, K, 8L))
 # --- dbartsSpec reaches the same family through the data object -------------
 # a counts-carrying data object IS the declaration, so "auto" resolves to it
 specData <- dbartsData(x, counts = oneHot)
-spec <- dbartsSpec(specData, control = control)
+spec <- dbartsSpec(specData, control = control, n.trees = 25L)
 expect_identical(spec$family, "multinomial")
 expect_identical(
-  dbartsSpec(specData, control = control, family = "multinomial")$family,
+  dbartsSpec(
+    specData,
+    control = control,
+    family = "multinomial",
+    n.trees = 25L
+  )$family,
   "multinomial"
 )
 
@@ -167,7 +178,7 @@ expect_error(
 )
 # a counts-carrying object fits only the family whose response it is
 expect_error(
-  dbartsSpec(specData, control = control, family = "gaussian"),
+  dbartsSpec(specData, control = control, family = "gaussian", n.trees = 25L),
   "only family \"multinomial\" fits"
 )
 expect_error(
@@ -176,7 +187,8 @@ expect_error(
     labels[seq_len(n)],
     family = "multinomial",
     control = control,
-    weights = runif(n, 0.5, 1.5)
+    weights = runif(n, 0.5, 1.5),
+    n.trees = 25L
   ),
   "row-wise replication"
 )
@@ -185,14 +197,21 @@ expect_error(
   dbartsSpec(
     dbartsData(x, rnorm(n)),
     control = control,
-    family = "multinomial"
+    family = "multinomial",
+    n.trees = 25L
   ),
   "needs an n x K count-matrix response"
 )
 # a formula LHS carries no count matrix
 formulaFrame <- data.frame(y = labels, x1 = x[, 1L], x2 = x[, 2L])
 expect_error(
-  dbarts(y ~ x1 + x2, formulaFrame, family = "multinomial", control = control),
+  dbarts(
+    y ~ x1 + x2,
+    formulaFrame,
+    family = "multinomial",
+    control = control,
+    n.trees = 25L
+  ),
   "matrix interface"
 )
 
@@ -203,7 +222,8 @@ expect_error(
     labels,
     family = "multinomial",
     control = control,
-    monotone = c(1, 0, 0, 0)
+    monotone = c(1, 0, 0, 0),
+    n.trees = 25L
   ),
   "does not support 'monotone'"
 )
@@ -213,7 +233,8 @@ expect_error(
     labels,
     family = "multinomial",
     control = control,
-    split.probs = dart
+    split.probs = dart,
+    n.trees = 25L
   ),
   "does not support 'split.probs' (a vector that is not uniform, or dart())",
   fixed = TRUE
@@ -224,12 +245,20 @@ expect_error(
     labels,
     family = "multinomial",
     control = control,
-    leaf.prior = normal(chi(1.25))
+    leaf.prior = normal(chi(1.25)),
+    n.trees = 25L
   ),
   "does not support a 'k' hyperprior"
 )
 expect_error(
-  dbarts(x, labels, family = "multinomial", control = control, variance = TRUE),
+  dbarts(
+    x,
+    labels,
+    family = "multinomial",
+    control = control,
+    variance = TRUE,
+    n.trees = 25L
+  ),
   "requires family = \"gaussian\""
 )
 
@@ -323,7 +352,7 @@ sampler$setCategoryTestOffset(NULL)
 expect_null(sampler$data@offset.category.test)
 
 # the three channels are the softmax's own, and are refused by name elsewhere
-plain <- dbarts(x, rnorm(n), control = control)
+plain <- dbarts(x, rnorm(n), control = control, n.trees = 25L)
 expect_error(plain$setCounts(oneHot), "carries no count response")
 expect_error(
   plain$setCategoryOffset(matrix(0.0, n, K)),
@@ -479,7 +508,8 @@ roundTrip <- dbarts(
   labels,
   test = x.test,
   family = "multinomial",
-  control = control
+  control = control,
+  n.trees = 25L
 )
 invisible(roundTrip$run(6L, 8L))
 roundTrip$setCategoryOffset(categoryOffset)

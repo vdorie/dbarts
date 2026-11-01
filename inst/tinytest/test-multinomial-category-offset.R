@@ -41,7 +41,6 @@ controlCategoryOffset <- function(n.chains = 1L) {
   dbartsControl(
     n.chains = n.chains,
     n.threads = n.chains,
-    n.trees = 25L,
     updateState = FALSE
   )
 }
@@ -67,7 +66,8 @@ buildSamplerCategoryOffset <- function(offset = NULL, n.chains = 1L) {
   sampler <- dbarts(
     dbartsData(x, counts = counts),
     family = "multinomial",
-    control = controlCategoryOffset(n.chains)
+    control = controlCategoryOffset(n.chains),
+    n.trees = 25L
   )
   if (!is.null(offset)) {
     sampler$setCategoryOffset(offset, updateState = FALSE)
@@ -112,14 +112,16 @@ sampler.labels <- dbarts(
   x,
   factor(labels, levels = seq.int(0L, K - 1L)),
   family = "multinomial",
-  control = controlCategoryOffset()
+  control = controlCategoryOffset(),
+  n.trees = 25L
 )
 sampler.labels$setCategoryOffset(offset, updateState = FALSE)
 set.seed(4242)
 sampler.onehot <- dbarts(
   dbartsData(x, counts = labelCounts),
   family = "multinomial",
-  control = controlCategoryOffset()
+  control = controlCategoryOffset(),
+  n.trees = 25L
 )
 sampler.onehot$setCategoryOffset(offset, updateState = FALSE)
 expect_identical(
@@ -249,7 +251,12 @@ sampler.mn <- buildSamplerCategoryOffset(NULL)
 # the capability probe is not a forest count: a gaussian sampler and a BCF
 # sampler (two forests) both own no category offset, and both must name the
 # family situation rather than the forest count
-sampler.gaussian <- dbarts(x, rnorm(n), control = controlCategoryOffset())
+sampler.gaussian <- dbarts(
+  x,
+  rnorm(n),
+  control = controlCategoryOffset(),
+  n.trees = 25L
+)
 expect_error(
   sampler.gaussian$setCategoryOffset(offset),
   "no count response"
@@ -260,7 +267,8 @@ sampler.bcf <- dbarts(
   x,
   rnorm(n),
   forests = list(forest(), forest(basis = ~ factor(z), n.trees = 10L)),
-  control = controlCategoryOffset()
+  control = controlCategoryOffset(),
+  n.trees = 25L
 )
 expect_error(
   sampler.bcf$setCategoryOffset(offset),
@@ -341,7 +349,8 @@ set.seed(4242)
 sampler.createTest <- dbarts(
   dbartsData(x, counts = counts, test = x.test),
   family = "multinomial",
-  control = controlCategoryOffset()
+  control = controlCategoryOffset(),
+  n.trees = 25L
 )
 sampler.createTest$setCategoryOffset(offset, updateState = FALSE)
 res.createTest <- sampler.createTest$run(20L, 8L)
@@ -360,14 +369,16 @@ sampler.labelsTest <- dbarts(
   factor(labels, levels = seq.int(0L, K - 1L)),
   test = x.test,
   family = "multinomial",
-  control = controlCategoryOffset()
+  control = controlCategoryOffset(),
+  n.trees = 25L
 )
 expect_silent(sampler.labelsTest$setCategoryOffset(offset, updateState = FALSE))
 # installing the train offset on a sampler that already holds test data
 sampler.test <- dbarts(
   dbartsData(x, counts = counts, test = x.test),
   family = "multinomial",
-  control = controlCategoryOffset()
+  control = controlCategoryOffset(),
+  n.trees = 25L
 )
 expect_silent(sampler.test$setCategoryOffset(offset, updateState = FALSE))
 # and the reverse direction: test data installs on a sampler already holding a

@@ -23,7 +23,6 @@ seededControlForestWeightsR5 <- function(...) {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 30L,
     n.samples = 6L,
     updateState = FALSE,
     seed = 71L,
@@ -35,7 +34,8 @@ build <- function() {
     x,
     y,
     forests = list(forest(), forest(basis = ~ factor(z))),
-    control = seededControlForestWeightsR5()
+    control = seededControlForestWeightsR5(),
+    n.trees = 30L
   )
 }
 
@@ -209,7 +209,7 @@ expect_true(abs(mean(tau0)) > 0.1)
 # --- the two refusals reachable through the public method: an
 # ordinary (non-BCF) sampler, and a multinomial fit's $fit, whose per-forest
 # leaf scales come from a log-sum-exp margin rather than an amplitude ---
-plain <- dbarts(x, y, control = seededControlForestWeightsR5())
+plain <- dbarts(x, y, control = seededControlForestWeightsR5(), n.trees = 30L)
 expect_error(
   plain$setForestWeights(1L, wt),
   "requires a sampler that carries forest amplitudes"

@@ -1020,3 +1020,13 @@ for (shorthand in c("power", "base")) {
   )
 }
 rm(shorthand, args)
+
+# the controls above write counts and the rule on purpose; give the keys of the
+# warnings that read them back to the next file
+onceState <- dbarts:::onceWarnState
+for (key in paste0(
+  "tombstone.control.",
+  c("n.trees", "n.cuts", "useQuantiles")
+)) {
+  onceState[[key]] <- NULL
+}

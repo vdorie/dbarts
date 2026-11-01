@@ -20,14 +20,18 @@ source(
 makeSamplerUpdatePredictorJointly <- function(y, x, seed, ntree = 1L) {
   ctrl <- dbarts::dbartsControl(
     n.chains = 1L,
-    n.trees = ntree,
     n.samples = 1L,
     n.burn = 0L,
     updateState = FALSE,
     verbose = FALSE,
     seed = seed
   )
-  s <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
+  s <- dbarts::dbarts(
+    y ~ x,
+    data.frame(x = x, y = y),
+    control = ctrl,
+    n.trees = ntree
+  )
   invisible(s$run(40L, 1L))
   s
 }
@@ -235,7 +239,6 @@ w <- rnorm(n)
 v <- rnorm(n)
 ctrl <- dbarts::dbartsControl(
   n.chains = 1L,
-  n.trees = 10L,
   n.samples = 1L,
   n.burn = 0L,
   updateState = FALSE,
@@ -245,12 +248,14 @@ ctrl <- dbarts::dbartsControl(
 A <- dbarts::dbarts(
   y ~ theta + w,
   data.frame(theta = x, w = w, y = x + rnorm(n)),
-  control = ctrl
+  control = ctrl,
+  n.trees = 10L
 )
 B <- dbarts::dbarts(
   y ~ v + theta,
   data.frame(v = v, theta = x, y = -x + rnorm(n)),
-  control = ctrl
+  control = ctrl,
+  n.trees = 10L
 )
 invisible(A$run(20L, 1L))
 invisible(B$run(20L, 1L))
@@ -274,12 +279,14 @@ expect_true(noEmptyLeaf(B))
 C <- dbarts::dbarts(
   y ~ alpha + theta,
   data.frame(alpha = v, theta = x, y = x + rnorm(n)),
-  control = ctrl
+  control = ctrl,
+  n.trees = 10L
 )
 D <- dbarts::dbarts(
   y ~ theta + alpha,
   data.frame(theta = x, alpha = v, y = -x + rnorm(n)),
-  control = ctrl
+  control = ctrl,
+  n.trees = 10L
 )
 invisible(C$run(20L, 1L))
 invisible(D$run(20L, 1L))
@@ -336,7 +343,8 @@ expect_error(
 C <- dbarts::dbarts(
   y ~ q,
   data.frame(q = rnorm(n), y = rnorm(n)),
-  control = ctrl
+  control = ctrl,
+  n.trees = 10L
 )
 invisible(C$run(5L, 1L))
 expect_error(
@@ -346,7 +354,8 @@ expect_error(
 D <- dbarts::dbarts(
   y ~ theta,
   data.frame(theta = rnorm(n + 5L), y = rnorm(n + 5L)),
-  control = ctrl
+  control = ctrl,
+  n.trees = 10L
 )
 invisible(D$run(5L, 1L))
 expect_error(
@@ -374,7 +383,6 @@ nr <- 80L
 xr <- rnorm(nr)
 rctrl <- dbarts::dbartsControl(
   n.chains = 2L,
-  n.trees = 40L,
   n.samples = 1L,
   n.burn = 0L,
   updateState = FALSE,
@@ -385,12 +393,14 @@ rctrl <- dbarts::dbartsControl(
 RA <- dbarts::dbarts(
   y ~ theta,
   data.frame(theta = xr, y = xr + rnorm(nr)),
-  control = rctrl
+  control = rctrl,
+  n.trees = 40L
 )
 RB <- dbarts::dbarts(
   y ~ theta,
   data.frame(theta = xr, y = -xr + rnorm(nr)),
-  control = rctrl
+  control = rctrl,
+  n.trees = 40L
 )
 invisible(RA$run(50L, 1L))
 invisible(RB$run(50L, 1L))

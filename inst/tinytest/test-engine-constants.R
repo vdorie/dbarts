@@ -11,11 +11,11 @@ y <- x[, 1L] + rnorm(n)
 ## the per-column cut ceiling refuses by name rather than clamping: a caller
 ## who asks for 100000 cuts must not silently receive 65533
 expect_error(
-  dbarts(y ~ x, control = dbartsControl(n.cuts = 100000L, n.chains = 1L)),
+  dbarts(y ~ x, control = dbartsControl(n.chains = 1L), n.cuts = 100000L),
   "over the cap of 65533"
 )
 expect_error(
-  dbarts(y ~ x, control = dbartsControl(n.cuts = 65534L, n.chains = 1L)),
+  dbarts(y ~ x, control = dbartsControl(n.chains = 1L), n.cuts = 65534L),
   "over the cap of 65533"
 )
 
@@ -23,7 +23,8 @@ expect_error(
 ## the distinct values a column actually has
 sampler <- dbarts(
   y ~ x,
-  control = dbartsControl(n.cuts = 65533L, n.chains = 1L, updateState = FALSE)
+  control = dbartsControl(n.chains = 1L, updateState = FALSE),
+  n.cuts = 65533L
 )
 expect_true(all(sampler$data@n.cuts == 65533L))
 expect_true(all(is.finite(sampler$run(0L, 2L)$train)))
@@ -56,11 +57,11 @@ growTrees <- function(nLevels, cap) {
     frame,
     response,
     control = dbarts::dbartsControl(
-      n.trees = 20L,
       n.chains = 1L,
       updateState = FALSE,
       categoricalExhaustiveCap = cap
-    )
+    ),
+    n.trees = 20L
   )
   sampler$growFromRoot(2L)
   trees <- sampler$getTrees(current = TRUE)
@@ -81,14 +82,13 @@ testFitWorkers <- function(cutoff, nTest) {
   yTrain <- xTrain[, 1L] + rnorm(200L)
   xTest <- matrix(rnorm(nTest * 2L), nTest)
   control <- dbarts::dbartsControl(
-    n.trees = 5L,
     n.chains = 1L,
     n.threads = 4L,
     updateState = FALSE,
     testFitParallelCutoff = cutoff
   )
   sampler <- suppressWarnings(
-    dbarts::dbarts(xTrain, yTrain, xTest, control = control)
+    dbarts::dbarts(xTrain, yTrain, xTest, control = control, n.trees = 5L)
   )
   fits <- sampler$run(0L, 2L)
   partition <- .Call(dbarts:::C_dbarts_bartcore_lastTestFitPartition)
@@ -122,7 +122,6 @@ xNew <- matrix(rnorm(500L * 2L), 500L)
 
 predictWorkers <- function(cutoff, threads) {
   control <- dbarts::dbartsControl(
-    n.trees = 25L,
     n.chains = 1L,
     n.threads = threads,
     n.samples = 10L,
@@ -133,7 +132,7 @@ predictWorkers <- function(cutoff, threads) {
   )
   set.seed(6L)
   sampler <- suppressWarnings(
-    dbarts::dbarts(xFit, yFit, control = control)
+    dbarts::dbarts(xFit, yFit, control = control, n.trees = 25L)
   )
   invisible(sampler$run(0L, 10L))
   values <- sampler$predict(xNew)
@@ -182,12 +181,12 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
       xCsc,
       ySparse,
       control = dbarts::dbartsControl(
-        n.trees = 5L,
         n.chains = 1L,
         updateState = FALSE,
         sparseDensityThreshold = threshold
       ),
-      sigest = 1
+      sigest = 1,
+      n.trees = 5L
     )
     sparse <- .Call(
       dbarts:::C_dbarts_bartcore_columnStorageIsSparse,
@@ -230,17 +229,15 @@ expect_equal(defaults@sparseDensityThreshold, 0.2)
 
 fitAt <- function(control) {
   set.seed(11L)
-  sampler <- dbarts::dbarts(y ~ x, control = control)
+  sampler <- dbarts::dbarts(y ~ x, control = control, n.trees = 5L)
   sampler$run(0L, 3L)$train
 }
 expect_identical(
   fitAt(dbarts::dbartsControl(
-    n.trees = 5L,
     n.chains = 1L,
     updateState = FALSE
   )),
   fitAt(dbarts::dbartsControl(
-    n.trees = 5L,
     n.chains = 1L,
     updateState = FALSE,
     categoricalExhaustiveCap = 10L,
@@ -290,7 +287,8 @@ expect_error(
 ## never see (and that a re-creation from the stored control would then act on)
 fixedSampler <- dbarts::dbarts(
   y ~ x,
-  control = dbartsControl(n.trees = 5L, n.chains = 1L, updateState = FALSE)
+  control = dbartsControl(n.chains = 1L, updateState = FALSE),
+  n.trees = 5L
 )
 for (change in list(
   c("categoricalExhaustiveCap", 12),
@@ -326,7 +324,6 @@ nGP <- 300L
 gpFrame <- data.frame(x1 = runif(nGP), x2 = runif(nGP))
 gpY <- sin(3 * gpFrame$x1) + gpFrame$x2 + rnorm(nGP, 0, 0.2)
 gpControl <- dbarts::dbartsControl(
-  n.trees = 10L,
   n.chains = 1L,
   n.samples = 5L,
   n.burn = 0L,
@@ -340,7 +337,8 @@ degenerate <- dbarts::dbarts(
   gpY ~ x1 + x2,
   gpFrame,
   control = gpControl,
-  leaf.prior = gp("x1", max.leaf.size = 32L)
+  leaf.prior = gp("x1", max.leaf.size = 32L),
+  n.trees = 10L
 )
 warned <- NULL
 degenerateSamples <- withCallingHandlers(
@@ -371,7 +369,8 @@ healthy <- dbarts::dbarts(
   gpY ~ x1 + x2,
   gpFrame,
   control = gpControl,
-  leaf.prior = gp("x1", max.leaf.size = 4096L)
+  leaf.prior = gp("x1", max.leaf.size = 4096L),
+  n.trees = 10L
 )
 quiet <- TRUE
 healthySamples <- withCallingHandlers(
@@ -389,7 +388,8 @@ expect_true(attr(healthySamples, "gp.fallback")[["evaluations"]] > 0)
 plainSamples <- dbarts::dbarts(
   gpY ~ x1 + x2,
   gpFrame,
-  control = gpControl
+  control = gpControl,
+  n.trees = 10L
 )$run(0L, 5L)
 expect_null(attr(plainSamples, "gp.fallback"))
 

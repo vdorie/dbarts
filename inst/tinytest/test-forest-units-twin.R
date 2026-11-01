@@ -106,7 +106,8 @@ sizeCheck <- function(
       forest(basis = column, sd = sd, amplitude = amplitude),
       forest(basis = factor(treated))
     ),
-    control = twinControl(n.trees = 20L)
+    control = twinControl(),
+    n.trees = 20L
   )
   unit <- sampler$data@forest.calibration[["unit"]]
   set.seed(5)

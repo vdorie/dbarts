@@ -8,7 +8,6 @@ n <- 40L
 x <- matrix(runif(n * 2L), n)
 y <- x[, 1L] + rnorm(n, 0, 0.3)
 ctl <- dbartsControl(
-  n.trees = 3L,
   n.samples = 3L,
   n.burn = 0L,
   n.chains = 1L,
@@ -64,7 +63,14 @@ bartQuick <- function(...) {
 resetMsg()
 expect_message(
   s <- viaSigma(
-    dbarts(x, y, resid.prior = fixedPrior(1), sigma = 1, control = ctl),
+    dbarts(
+      x,
+      y,
+      resid.prior = fixedPrior(1),
+      sigma = 1,
+      control = ctl,
+      n.trees = 3L
+    ),
     "dbarts",
     retired = 1L
   ),
@@ -72,21 +78,40 @@ expect_message(
 )
 expect_true(is(s$model@resid.prior, "dbartsFixedPrior"))
 # the message is shown once per session
-expect_silent(dbarts(x, y, family = fx, sigest = 2, control = ctl))
+expect_silent(dbarts(
+  x,
+  y,
+  family = fx,
+  sigest = 2,
+  control = ctl,
+  n.trees = 3L
+))
 
 # agreeing: a message, no error, at each door
 resetMsg()
-expect_message(dbarts(x, y, family = fx, sigest = 2, control = ctl), agreeMsg)
+expect_message(
+  dbarts(x, y, family = fx, sigest = 2, control = ctl, n.trees = 3L),
+  agreeMsg
+)
 resetMsg()
 expect_message(
-  viaSigma(dbarts(x, y, family = fx, sigma = 2, control = ctl), "dbarts"),
+  viaSigma(
+    dbarts(x, y, family = fx, sigma = 2, control = ctl, n.trees = 3L),
+    "dbarts"
+  ),
   agreeMsg
 )
 resetMsg()
 expect_message(bartQuick(family = fx, sigest = 2), agreeMsg)
 resetMsg()
 expect_message(
-  dbartsSpec(dbartsData(x, y), family = fx, sigest = 2, control = ctl),
+  dbartsSpec(
+    dbartsData(x, y),
+    family = fx,
+    sigest = 2,
+    control = ctl,
+    n.trees = 3L
+  ),
   agreeMsg
 )
 resetMsg()
@@ -135,24 +160,37 @@ expect_message(
     y,
     family = gauss(sigma = fixedPrior(0.09)),
     sigest = 0.3,
-    control = ctl
+    control = ctl,
+    n.trees = 3L
   ),
   agreeMsg
 )
 expect_error(
-  dbarts(x, y, family = fx, sigest = 2 + 1e-6, control = ctl),
+  dbarts(x, y, family = fx, sigest = 2 + 1e-6, control = ctl, n.trees = 3L),
   differ
 )
 
 # differing: refused at each door
-expect_error(dbarts(x, y, family = fx, sigest = 1.5, control = ctl), differ)
 expect_error(
-  viaSigma(dbarts(x, y, family = fx, sigma = 1.5, control = ctl), "dbarts"),
+  dbarts(x, y, family = fx, sigest = 1.5, control = ctl, n.trees = 3L),
+  differ
+)
+expect_error(
+  viaSigma(
+    dbarts(x, y, family = fx, sigma = 1.5, control = ctl, n.trees = 3L),
+    "dbarts"
+  ),
   "'sigma' has no effect"
 )
 expect_error(bartQuick(family = fx, sigest = 1.5), differ)
 expect_error(
-  dbartsSpec(dbartsData(x, y), family = fx, sigest = 1.5, control = ctl),
+  dbartsSpec(
+    dbartsData(x, y),
+    family = fx,
+    sigest = 1.5,
+    control = ctl,
+    n.trees = 3L
+  ),
   differ
 )
 expect_error(

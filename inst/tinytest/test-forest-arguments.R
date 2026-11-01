@@ -18,7 +18,6 @@ argumentControl <- function() {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 10L,
     n.samples = 5L,
     updateState = FALSE,
     seed = 23L
@@ -29,7 +28,8 @@ twoForests <- function(...) {
     x,
     y,
     forests = list(forest(...), forest(basis = ~ factor(z), ...)),
-    control = argumentControl()
+    control = argumentControl(),
+    n.trees = 10L
   )
 }
 heldParams <- function(sampler, forest) {
@@ -65,7 +65,8 @@ sampler <- dbarts(
     forest(amplitude = fixed()),
     forest(basis = ~ factor(z), amplitude = fixed())
   ),
-  control = argumentControl()
+  control = argumentControl(),
+  n.trees = 10L
 )
 sampler$run(0L, 10L)
 expect_equal(sampler$getForestAmplitudes()[, 1L], c(1, 0, 1))
@@ -80,7 +81,8 @@ for (basis in list(quote(I(1 - z) + z), cbind(1 - z, z))) {
         forest(amplitude = fixed()),
         forest(basis = .(basis), amplitude = fixed())
       ),
-      control = argumentControl()
+      control = argumentControl(),
+      n.trees = 10L
     ))),
     "forest 2.* has a basis of 2 numeric columns",
     info = deparse(basis)
@@ -91,7 +93,8 @@ plainHeld <- dbarts(
   x,
   y,
   forests = list(forest(amplitude = fixed()), forest(basis = ~ factor(z))),
-  control = argumentControl()
+  control = argumentControl(),
+  n.trees = 10L
 )
 plainHeld$run(0L, 10L)
 expect_equal(plainHeld$getForestAmplitudes()[1L, 1L], 1)
@@ -103,14 +106,16 @@ factorHeld <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z), amplitude = fixed())),
-  control = argumentControl()
+  control = argumentControl(),
+  n.trees = 10L
 )
 factorHeld$run(0L, 10L)
 expect_equal(factorHeld$getForestAmplitudes()[2:3, 1L], c(0, 1))
 termHeld <- dbarts(
   y ~ x1 + x2 + forest(x1 + x2, basis = ~ factor(z), amplitude = fixed()),
   dataFrame,
-  control = argumentControl()
+  control = argumentControl(),
+  n.trees = 10L
 )
 termHeld$run(0L, 10L)
 expect_equal(termHeld$getForestAmplitudes()[2:3, 1L], c(0, 1))
@@ -133,7 +138,8 @@ expect_identical(
     x,
     y,
     forests = list(forest(), forest(basis = ~z, amplitude = fixed())),
-    control = argumentControl()
+    control = argumentControl(),
+    n.trees = 10L
   )),
   1
 )
@@ -142,7 +148,8 @@ expect_identical(
     x,
     y,
     forests = list(forest(), forest(basis = z, amplitude = fixed())),
-    control = argumentControl()
+    control = argumentControl(),
+    n.trees = 10L
   )),
   1
 )
@@ -150,14 +157,16 @@ expect_identical(
   heldOnNumber(dbarts(
     y ~ x1 + x2 + forest(x1 + x2, basis = ~z, amplitude = fixed()),
     dataFrame,
-    control = argumentControl()
+    control = argumentControl(),
+    n.trees = 10L
   )),
   1
 )
 heldSpec <- dbartsSpec(
   dbartsData(x, y),
   argumentControl(),
-  forests = list(forest(), forest(basis = ~z, amplitude = fixed()))
+  forests = list(forest(), forest(basis = ~z, amplitude = fixed())),
+  n.trees = 10L
 )
 expect_identical(
   vapply(heldSpec$model@forests, slot, NA, "held.amplitude"),
@@ -207,7 +216,8 @@ expect_silent(dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~z)),
-  control = argumentControl()
+  control = argumentControl(),
+  n.trees = 10L
 ))
 
 # --- what 'amplitude' takes, and what each spelling holds (a wrapper's dots
@@ -226,7 +236,8 @@ for (entry in list(
       forest(),
       forest(basis = ~ factor(z), amplitude = .(entry[[1L]]))
     ),
-    control = argumentControl()
+    control = argumentControl(),
+    n.trees = 10L
   )))
   expect_identical(
     heldParams(sampler, 2L),
@@ -255,7 +266,8 @@ for (refused in list(quote(dbartsPriors$normal()), "fixed", FALSE)) {
         forest(),
         forest(basis = ~ factor(z), amplitude = .(refused))
       ),
-      control = argumentControl()
+      control = argumentControl(),
+      n.trees = 10L
     ))),
     "a forest's 'amplitude' must be fixed(), which holds its coefficient",
     fixed = TRUE
@@ -269,9 +281,16 @@ expect_identical(
     x,
     y,
     forests = list(forest(sd = 2)),
-    control = argumentControl()
+    control = argumentControl(),
+    n.trees = 10L
   )$run(0L, 5L),
-  dbarts(x, y, leaf.prior = normal(sd = 2), control = argumentControl())$run(
+  dbarts(
+    x,
+    y,
+    leaf.prior = normal(sd = 2),
+    control = argumentControl(),
+    n.trees = 10L
+  )$run(
     0L,
     5L
   )
@@ -282,7 +301,8 @@ expect_error(
     y,
     forests = list(forest(sd = 2)),
     leaf.prior = normal(sd = 3),
-    control = argumentControl()
+    control = argumentControl(),
+    n.trees = 10L
   ),
   "this model has one forest and states its size twice",
   fixed = TRUE
@@ -297,7 +317,8 @@ expect_error(
       forest(),
       forest(basis = ~ factor(z), update.amplitude = FALSE)
     ),
-    control = argumentControl()
+    control = argumentControl(),
+    n.trees = 10L
   ),
   "unused argument (update.amplitude = FALSE)",
   fixed = TRUE
@@ -328,7 +349,8 @@ built <- as.call(list(
     forest(amplitude = fixed()),
     forest(basis = ~ factor(z), amplitude = fixed())
   )),
-  control = argumentControl()
+  control = argumentControl(),
+  n.trees = 10L
 ))
 bareEnv <- list2env(list(z = z), parent = baseenv())
 bareHeld <- eval(built, bareEnv)
@@ -336,7 +358,13 @@ bareHeld$run(0L, 5L)
 expect_equal(bareHeld$getForestAmplitudes()[, 1L], c(1, 0, 1))
 heldBy <- function(forests) {
   sampler <- eval(
-    bquote(dbarts(x, y, forests = .(forests), control = argumentControl())),
+    bquote(dbarts(
+      x,
+      y,
+      forests = .(forests),
+      control = argumentControl(),
+      n.trees = 10L
+    )),
     parent.frame()
   )
   heldParams(sampler, 2L)
@@ -367,7 +395,8 @@ local({
     dbarts(
       y ~ x1 + x2 + forest(x1 + x2, basis = ~ factor(z), amplitude = fixed),
       dataFrame,
-      control = argumentControl()
+      control = argumentControl(),
+      n.trees = 10L
     )$model@forests[[2L]]@held.amplitude,
     FALSE
   )
@@ -386,7 +415,8 @@ local({
     dbarts(
       y ~ x1 + x2 + forest(x1 + x2, basis = ~ factor(z), amplitude = fixed),
       dataFrame,
-      control = argumentControl()
+      control = argumentControl(),
+      n.trees = 10L
     ),
     "a forest's 'amplitude' must be fixed()",
     fixed = TRUE
@@ -436,7 +466,8 @@ local({
       forest(),
       forest(basis = ~ factor(z), sd = wave(amplitude = fixed))
     ),
-    control = argumentControl()
+    control = argumentControl(),
+    n.trees = 10L
   )
   expect_identical(
     vapply(sampler$model@forests, slot, 0, "sd")[2L],
@@ -445,7 +476,9 @@ local({
 })
 # forests forwarded through a wrapper's dots resolve it as they resolve
 # interactions(), one wrapper deep and two
-wrap <- function(...) dbarts(x, y, ..., control = argumentControl())
+wrap <- function(...) {
+  dbarts(x, y, ..., control = argumentControl(), n.trees = 10L)
+}
 wrapTwice <- function(...) wrap(...)
 for (wrapper in list(wrap, wrapTwice)) {
   sampler <- wrapper(
@@ -476,7 +509,8 @@ for (name in c("interactions", "blocks", "monotone")) {
           x,
           y,
           ..(setNames(list(quote(fixed())), name)),
-          control = argumentControl()
+          control = argumentControl(),
+          n.trees = 10L
         ),
         splice = TRUE
       )),
@@ -509,7 +543,8 @@ heldSwap <- function() {
       forest(amplitude = fixed()),
       forest(basis = ~ factor(z), amplitude = fixed())
     ),
-    control = argumentControl()
+    control = argumentControl(),
+    n.trees = 10L
   )
 }
 swapped <- heldSwap()
@@ -566,7 +601,8 @@ numericSwap <- dbarts(
   x,
   y,
   forests = list(forest(), do.call(forest, list(basis = x[, 1L]))),
-  control = argumentControl()
+  control = argumentControl(),
+  n.trees = 10L
 )
 numericSwap$setForestBasis(2L, x[, 3L])
 expect_identical(
@@ -752,7 +788,7 @@ expect_match(
 expect_identical(sdMessage(c(a = 1), "front"), "accepted")
 expect_identical(dbartsPriors$normal(sd = c(a = 1.5))@prior.sd, 1.5)
 expect_match(sdMessage(c(a = -1), "front"), "'sd' must be positive")
-frontSampler <- dbarts(x, y, control = argumentControl())
+frontSampler <- dbarts(x, y, control = argumentControl(), n.trees = 10L)
 frontSampler$setLeafPrior(dbartsPriors$normal(sd = c(a = 0.7)))
 expect_equal(
   unname(frontSampler$getLeafPrior()$k.scale / frontSampler$getK()[1L]),

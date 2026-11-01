@@ -35,7 +35,7 @@ uncountedControlBcfFamily <- function(...) {
   )
 }
 seededControlBcfFamily <- function(...) {
-  uncountedControlBcfFamily(n.trees = 25L, ...)
+  uncountedControlBcfFamily(...)
 }
 # A model in which every forest has a basis takes no tree count from the
 # control and no tree prior from the fitting function. Its first forest states
@@ -223,6 +223,7 @@ kForest <- function(y, family = "auto", ...) {
     forests = twoForests,
     family = family,
     control = seededControlBcfFamily(),
+    n.trees = 25L,
     ...
   )
 }
@@ -297,6 +298,7 @@ mapSampler <- function(y, bases, family, forests = NULL, ...) {
     } else {
       seededControlBcfFamily()
     },
+    n.trees = if (allBasis) NULL else 25L,
     family = family,
     forests = if (allBasis) {
       statedOnFirst(forests, unitOf(y, family))
@@ -412,7 +414,8 @@ for (family in c("probit", "logistic")) {
       forests = noneTakes,
       family = family,
       leaf.prior = normal(chi(1.5, 2)),
-      control = seededControlBcfFamily()
+      control = seededControlBcfFamily(),
+      n.trees = 25L
     ),
     "takes a leaf prior's 'k'"
   )
@@ -423,7 +426,8 @@ for (family in c("probit", "logistic")) {
       forests = noneTakes,
       family = family,
       leaf.prior = normal(sd = 0.75),
-      control = seededControlBcfFamily()
+      control = seededControlBcfFamily(),
+      n.trees = 25L
     ),
     "no forest of this model takes a leaf prior's 'sd'.*leave 'sd' out of 'leaf.prior'"
   )
@@ -434,7 +438,8 @@ for (family in c("probit", "logistic")) {
       forests = noneTakes,
       family = family,
       leaf.prior = normal(sd = invchi(1.5, 1)),
-      control = seededControlBcfFamily()
+      control = seededControlBcfFamily(),
+      n.trees = 25L
     ),
     "no forest of this model takes a leaf prior's 'sd'"
   )
@@ -444,7 +449,8 @@ for (family in c("probit", "logistic")) {
     dbartsData(x, yBalanced),
     seededControlBcfFamily(),
     forests = twoForests,
-    family = family
+    family = family,
+    n.trees = 25L
   )
   spec$model@leaf.scale <- 0.9
   expect_error(
@@ -504,7 +510,8 @@ expect_error(
     counts,
     forests = twoForests,
     family = "nbinom",
-    control = seededControlBcfFamily()
+    control = seededControlBcfFamily(),
+    n.trees = 25L
   ),
   "does not support family \"nbinom\""
 )
@@ -514,7 +521,8 @@ expect_error(
     cbind(exp(yContinuous), 1),
     forests = twoForests,
     family = "aft",
-    control = seededControlBcfFamily()
+    control = seededControlBcfFamily(),
+    n.trees = 25L
   ),
   "does not support family \"aft\""
 )
@@ -523,7 +531,8 @@ expect_error(
 doorSpec <- dbartsSpec(
   dbartsData(x, yContinuous),
   seededControlBcfFamily(),
-  forests = twoForests
+  forests = twoForests,
+  n.trees = 25L
 )
 doorSpec$model@family <- "aft"
 doorSpec$data@status <- rep(1, n)

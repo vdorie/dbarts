@@ -17,14 +17,17 @@ y <- ifelse(x <= cutoffs[1L] | x > cutoffs[n.cuts], beta.1, beta.2) +
   rnorm(n, 0L, 0.15)
 
 control <- dbarts::dbartsControl(
-  n.trees = 1L,
-  n.cuts = n.cuts,
   n.chains = 1L,
   n.threads = 1L,
   updateState = FALSE,
   verbose = FALSE
 )
-sampler <- dbarts::dbarts(y ~ x, control = control)
+sampler <- dbarts::dbarts(
+  y ~ x,
+  control = control,
+  n.trees = 1L,
+  n.cuts = n.cuts
+)
 
 samples1 <- sampler$run(500L, 1000L)
 

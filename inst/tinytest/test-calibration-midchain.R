@@ -17,7 +17,6 @@ midControl <- function(n.chains = 2L, n.trees = 20L, ...) {
   dbartsControl(
     n.chains = n.chains,
     n.threads = 1L,
-    n.trees = n.trees,
     n.samples = 10L,
     updateState = FALSE,
     seed = 23L,
@@ -31,7 +30,8 @@ namedSampler <- function(response = y, ...) {
     response,
     control = midControl(),
     leaf.prior = normal(sd = 0.75),
-    ...
+    ...,
+    n.trees = 20L
   )
 }
 # the spread in force on each chain, which the reader states as anchor / k
@@ -52,7 +52,7 @@ engineReading <- function(sampler, forest = 1L) {
 # the reported shape: the prior alone, a list of the nine documented
 # elements. The EXACT-SET form is what makes a reordering visible; a subset
 # check would not see one.
-plain <- dbarts(x, y, control = midControl())
+plain <- dbarts(x, y, control = midControl(), n.trees = 20L)
 calibration <- plain$getLeafPrior()
 expect_identical(
   names(calibration),
@@ -105,7 +105,8 @@ expect_identical(
     x,
     y,
     control = midControl(),
-    leaf.prior = linear("x1")
+    leaf.prior = linear("x1"),
+    n.trees = 20L
   )$getLeafPrior()$prior.sd.of,
   "coefficient"
 )
@@ -114,7 +115,8 @@ expect_identical(
     x,
     y,
     control = midControl(),
-    leaf.prior = gp("x1")
+    leaf.prior = gp("x1"),
+    n.trees = 20L
   )$getLeafPrior()$prior.sd.of,
   "amplitude"
 )
@@ -139,13 +141,15 @@ inertSdA <- dbarts(
   x,
   y / 5,
   control = midControl(),
-  leaf.prior = normal(sd = 1)
+  leaf.prior = normal(sd = 1),
+  n.trees = 20L
 )
 inertSdB <- dbarts(
   x,
   y / 5,
   control = midControl(),
-  leaf.prior = normal(sd = 1)
+  leaf.prior = normal(sd = 1),
+  n.trees = 20L
 )
 sdScaleBefore <- leafScales(inertSdB)
 inertSdB$setLeafPrior(normal(sd = 1))
@@ -153,25 +157,25 @@ expect_identical(leafScales(inertSdB), sdScaleBefore)
 expect_identical(inertSdA$run(20L, 10L)$train, inertSdB$run(20L, 10L)$train)
 # the same on the UNNAMED default, whose in-force value is an inherited range
 # rather than a round number and so is the harder round trip
-inertC <- dbarts(x, y, control = midControl())
-inertD <- dbarts(x, y, control = midControl())
+inertC <- dbarts(x, y, control = midControl(), n.trees = 20L)
+inertD <- dbarts(x, y, control = midControl(), n.trees = 20L)
 inertD$setLeafPrior(normal(sd = priorSdOf(inertD)[[1L]]))
 expect_identical(inertC$run(20L, 10L)$train, inertD$run(20L, 10L)$train)
 # a scaling whose response-unit round trip ROUNDS, so the arm needs the skip
 yRounding <- 3 * y
-inertF <- dbarts(x, yRounding, control = midControl())
+inertF <- dbarts(x, yRounding, control = midControl(), n.trees = 20L)
 scaleBefore <- leafScales(inertF)
 inertF$setLeafPrior(normal(sd = priorSdOf(inertF)[[1L]]))
 expect_identical(leafScales(inertF), scaleBefore)
-inertG <- dbarts(x, yRounding, control = midControl())
-inertH <- dbarts(x, yRounding, control = midControl())
+inertG <- dbarts(x, yRounding, control = midControl(), n.trees = 20L)
+inertH <- dbarts(x, yRounding, control = midControl(), n.trees = 20L)
 inertH$setLeafPrior(normal(sd = priorSdOf(inertH)[[1L]]))
 expect_identical(inertG$run(20L, 10L)$train, inertH$run(20L, 10L)$train)
 # a binary default: the read sd distribution written back is inert, and so
 # is the k spelling of the unnamed default
 yBinary <- rbinom(n, 1L, pnorm(x[, 1L] - x[, 2L]))
-binaryA <- dbarts(x, yBinary, control = midControl())
-binaryB <- dbarts(x, yBinary, control = midControl())
+binaryA <- dbarts(x, yBinary, control = midControl(), n.trees = 20L)
+binaryB <- dbarts(x, yBinary, control = midControl(), n.trees = 20L)
 binaryRead <- binaryB$getLeafPrior()
 expect_identical(binaryRead$leaf.prior, priorOf(normal(k = chi(1.5, 2))))
 binaryB$setLeafPrior(normal(sd = invchi(1.5, binaryRead$k.scale / 2)))
@@ -185,7 +189,8 @@ roundTrip <- function(leafPrior) {
       x,
       yBinary,
       control = midControl(),
-      leaf.prior = .(leafPrior)
+      leaf.prior = .(leafPrior),
+      n.trees = 20L
     )))
   })
   twins[[2L]]$setLeafPrior(twins[[2L]]$getLeafPrior()$leaf.prior)
@@ -203,13 +208,15 @@ improperA <- dbarts(
   x,
   yBinary,
   control = midControl(),
-  leaf.prior = normal(k = chi(1.25, Inf))
+  leaf.prior = normal(k = chi(1.25, Inf)),
+  n.trees = 20L
 )
 improperB <- dbarts(
   x,
   yBinary,
   control = midControl(),
-  leaf.prior = normal(k = chi(1.25, Inf))
+  leaf.prior = normal(k = chi(1.25, Inf)),
+  n.trees = 20L
 )
 expect_identical(
   improperB$getLeafPrior()$leaf.prior,
@@ -255,8 +262,9 @@ staticSampler <- function(numTrees) {
   dbarts(
     x,
     y,
-    control = midControl(n.chains = 1L, n.trees = numTrees),
-    leaf.prior = normal(k = 2)
+    control = midControl(n.chains = 1L),
+    leaf.prior = normal(k = 2),
+    n.trees = numTrees
   )
 }
 # the READ, absolutely: an unnamed model runs the family-keyed leaf scale of
@@ -323,11 +331,11 @@ naModel <- divergedScale$model
 naModel@leaf.prior <- naSd
 expect_error(divergedScale$setModel(naModel), "'sd' is NA.*name a value")
 expect_error(
-  dbarts(x, y, control = midControl(), leaf.prior = naSd),
+  dbarts(x, y, control = midControl(), leaf.prior = naSd, n.trees = 20L),
   "'sd' is NA"
 )
 expect_error(new("dbartsNormalPrior", prior.sd = NA_real_), "'sd' is NA")
-divergedK <- dbarts(x, y, control = midControl())
+divergedK <- dbarts(x, y, control = midControl(), n.trees = 20L)
 divergedK$storeState()
 kState <- divergedK$state
 expect_null(kState[[2L]]$forests[[1L]]$k)
@@ -374,7 +382,8 @@ linearSampler <- dbarts(
   x,
   y,
   control = midControl(),
-  leaf.prior = linear("x1", sd = 0.5)
+  leaf.prior = linear("x1", sd = 0.5),
+  n.trees = 20L
 )
 expect_error(
   linearSampler$setLeafPrior(linear("x2", sd = 1)),
@@ -392,7 +401,8 @@ gpSampler <- dbarts(
   x,
   y,
   control = midControl(),
-  leaf.prior = gp("x1", sd = 0.5, lengthscale = 0.3)
+  leaf.prior = gp("x1", sd = 0.5, lengthscale = 0.3),
+  n.trees = 20L
 )
 expect_error(
   gpSampler$setLeafPrior(gp(sd = 1, lengthscale = 0.4)),
@@ -405,7 +415,13 @@ expect_error(
 gpSampler$setLeafPrior(gp(sd = 1, lengthscale = 0.3))
 expect_equal(unname(priorSdOf(gpSampler)), c(1, 1))
 # an sd hyperprior under a monotone constraint, as at creation
-monotoneSampler <- dbarts(x, y, control = midControl(), monotone = c(x1 = 1))
+monotoneSampler <- dbarts(
+  x,
+  y,
+  control = midControl(),
+  monotone = c(x1 = 1),
+  n.trees = 20L
+)
 expect_error(
   monotoneSampler$setLeafPrior(normal(sd = invchi(1.5, 1))),
   "monotone"
@@ -448,7 +464,7 @@ expect_identical(recipe$getLeafPrior()$prior.mean, recipeMean)
 
 # a drawn k: the sd distribution is written and survives the k draws of a
 # run, which move the reported spread and not the distribution
-sampledK <- dbarts(x, yBinary, control = midControl())
+sampledK <- dbarts(x, yBinary, control = midControl(), n.trees = 20L)
 sdHyperpriorScale <- function(sampler) {
   sampler$getLeafPrior()$leaf.prior@prior.sd@scale
 }
@@ -474,7 +490,8 @@ bcf <- dbarts(
   x,
   yBCF,
   forests = list(forest(), forest(basis = ~ factor(zBCF))),
-  control = midControl()
+  control = midControl(),
+  n.trees = 20L
 )
 bcfCalibration <- bcf$getLeafPrior(1L)
 bcfCalibration2 <- bcf$getLeafPrior(2L)
@@ -542,7 +559,8 @@ multinomial <- dbarts(
   x,
   factor(labels),
   family = "multinomial",
-  control = midControl(n.chains = 1L)
+  control = midControl(n.chains = 1L),
+  n.trees = 20L
 )
 multinomialCalibration <- multinomial$getLeafPrior(1L)
 expect_true(priorSdOf(multinomial) > 0)
@@ -584,7 +602,8 @@ dartSampler <- dbarts(
   y,
   control = midControl(),
   split.probs = dart(),
-  leaf.prior = normal(sd = 0.75)
+  leaf.prior = normal(sd = 0.75),
+  n.trees = 20L
 )
 expect_error(dartSampler$setModel(dartSampler$model), "DART")
 dartSampler$setLeafPrior(normal(sd = 0.2))
@@ -599,19 +618,25 @@ expect_true(sum(dartRun$varcount) > 0)
 # constructor, and the tags say which
 leafArms <- list(
   constant = list(
-    dbarts(x, y, control = midControl()),
+    dbarts(x, y, control = midControl(), n.trees = 20L),
     quote(normal(sd = 0.75))
   ),
   monotone = list(
-    dbarts(x, y, control = midControl(), monotone = c(x1 = 1)),
+    dbarts(x, y, control = midControl(), monotone = c(x1 = 1), n.trees = 20L),
     quote(normal(sd = 0.75))
   ),
   linear = list(
-    dbarts(x, y, control = midControl(), leaf.prior = linear("x1")),
+    dbarts(
+      x,
+      y,
+      control = midControl(),
+      leaf.prior = linear("x1"),
+      n.trees = 20L
+    ),
     quote(linear(sd = 0.75))
   ),
   gp = list(
-    dbarts(x, y, control = midControl(), leaf.prior = gp("x1")),
+    dbarts(x, y, control = midControl(), leaf.prior = gp("x1"), n.trees = 20L),
     quote(gp(sd = 0.75))
   )
 )
@@ -642,14 +667,14 @@ absolute$setData(dbartsData(x, y / 8))
 expect_true(max(abs(priorSdOf(absolute) / 1 - 1)) < 1e-14)
 # non-vacuity: a k-named sampler is relative to the data, so the same channel
 # moves its spread with the response
-relative <- dbarts(x, y, control = midControl())
+relative <- dbarts(x, y, control = midControl(), n.trees = 20L)
 relativeSd <- priorSdOf(relative)
 relative$setResponse(y / 8, updateScale = TRUE)
 expect_equal(priorSdOf(relative), relativeSd / 8)
 
 # setResponse / setOffset at the default updateScale = FALSE hold the
 # transform, so the prior in force does not move: the composition path
-held <- dbarts(x, y, control = midControl())
+held <- dbarts(x, y, control = midControl(), n.trees = 20L)
 heldSd <- priorSdOf(held)
 held$setResponse(y / 8)
 expect_identical(priorSdOf(held), heldSd)
@@ -677,7 +702,8 @@ drawnIsolated <- dbarts(
   x,
   y,
   control = midControl(),
-  leaf.prior = normal(sd = invchi(3, 0.75))
+  leaf.prior = normal(sd = invchi(3, 0.75)),
+  n.trees = 20L
 )
 invisible(drawnIsolated$run(10L, 5L))
 kBefore <- drawnIsolated$getK()
@@ -696,7 +722,8 @@ repinned <- dbarts(
   y,
   control = midControl(),
   leaf.prior = normal(sd = 0.75),
-  family = gaussian(sigma = dbartsPriors$fixed(1))
+  family = gaussian(sigma = dbartsPriors$fixed(1)),
+  n.trees = 20L
 )
 repinned$setSigma(3.5)
 repinned$setLeafPrior(normal(sd = 0.5))
@@ -763,7 +790,8 @@ spreadAfter <- function(from, to, response = y) {
     x,
     response,
     control = midControl(),
-    leaf.prior = .(from)
+    leaf.prior = .(from),
+    n.trees = 20L
   )))
   invisible(sampler$run(200L, 1L))
   before <- priorSdOf(sampler)
@@ -807,7 +835,8 @@ chiScale <- dbarts(
   x,
   y,
   control = midControl(),
-  leaf.prior = normal(k = chi(1.5, 2))
+  leaf.prior = normal(k = chi(1.5, 2)),
+  n.trees = 20L
 )
 invisible(chiScale$run(200L, 1L))
 chiK <- chiScale$getK()
@@ -821,7 +850,8 @@ reanchored <- dbarts(
   x,
   y,
   control = midControl(),
-  leaf.prior = normal(sd = invchi(3, 2))
+  leaf.prior = normal(sd = invchi(3, 2)),
+  n.trees = 20L
 )
 invisible(reanchored$run(200L, 1L))
 reanchoredK <- reanchored$getK()

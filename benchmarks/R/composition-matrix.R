@@ -276,7 +276,6 @@ ctl <- function(seed, ...) {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 4L,
     n.burn = 0L,
     n.samples = 1L,
     updateState = TRUE,
@@ -307,55 +306,62 @@ buildBase <- function(variant, seed, extra = list()) {
   # (docs/design/bcf.md), and none of the cells this fixture backs need one
   args <- switch(
     variant,
-    gaussian = list(d$x, d$y, test = test, control = ctl(seed)),
+    gaussian = list(d$x, d$y, test = test, control = ctl(seed), n.trees = 4L),
     student = list(
       d$x,
       d$y,
       test = test,
       family = dbarts:::student(df = 5),
-      control = ctl(seed)
+      control = ctl(seed),
+      n.trees = 4L
     ),
     probit = list(
       d$x,
       d$yBin,
       test = test,
       family = "probit",
-      control = ctl(seed)
+      control = ctl(seed),
+      n.trees = 4L
     ),
     logistic = list(
       d$x,
       d$yBin,
       test = test,
       family = "logistic",
-      control = ctl(seed)
+      control = ctl(seed),
+      n.trees = 4L
     ),
     ordinal = list(
       d$x,
       d$yOrd,
       test = test,
       family = "ordinal",
-      control = ctl(seed)
+      control = ctl(seed),
+      n.trees = 4L
     ),
     nbinom = list(
       d$x,
       d$yNb,
       test = test,
       family = dbarts:::nbinom(shape = 5),
-      control = ctl(seed)
+      control = ctl(seed),
+      n.trees = 4L
     ),
     multinom = list(
       d$x,
       factor(d$label),
       test = test,
       family = "multinomial",
-      control = ctl(seed)
+      control = ctl(seed),
+      n.trees = 4L
     ),
     aft = list(
       d$x,
       cbind(d$time, d$status),
       test = test,
       family = "aft",
-      control = ctl(seed)
+      control = ctl(seed),
+      n.trees = 4L
     ),
     aft.var = list(
       d$x,
@@ -363,47 +369,60 @@ buildBase <- function(variant, seed, extra = list()) {
       test = test,
       family = "aft",
       variance = varForest(),
-      control = ctl(seed)
+      control = ctl(seed),
+      n.trees = 4L
     ),
     hazard = list(
       d$x,
       survival::Surv(d$time, d$status),
       family = "hazard",
-      control = ctl(seed)
+      control = ctl(seed),
+      n.trees = 4L
     ),
     hazard.logistic = list(
       d$x,
       survival::Surv(d$time, d$status),
       family = "hazard.logistic",
-      control = ctl(seed)
+      control = ctl(seed),
+      n.trees = 4L
     ),
     hurdle = list(
       d$x,
       ifelse(d$yBin == 1L, exp(d$x[, 1L]) + 0.1, 0),
       family = "hurdle.lognormal",
-      control = ctl(seed)
+      control = ctl(seed),
+      n.trees = 4L
     ),
-    bcf = list(d$x, d$y, forests = bcfForests(), control = ctl(seed)),
+    bcf = list(
+      d$x,
+      d$y,
+      forests = bcfForests(),
+      control = ctl(seed),
+      n.trees = 4L
+    ),
     bcf.probit = list(
       d$x,
       d$yBin,
       forests = bcfForests(),
       family = "probit",
-      control = ctl(seed)
+      control = ctl(seed),
+      n.trees = 4L
     ),
     bcf.logistic = list(
       d$x,
       d$yBin,
       forests = bcfForests(),
       family = "logistic",
-      control = ctl(seed)
+      control = ctl(seed),
+      n.trees = 4L
     ),
     hetero = list(
       d$x,
       d$y,
       test = test,
       variance = varForest(),
-      control = ctl(seed)
+      control = ctl(seed),
+      n.trees = 4L
     ),
     stop("composition-matrix: no base fixture recipe for '", variant, "'")
   )
@@ -1132,7 +1151,8 @@ for (fam in c("aft", "ordinal", "nbinom")) {
             dbartsForests$forest(basis = ~ factor(d$z))
           ),
           family = fam,
-          control = ctl(seed)
+          control = ctl(seed),
+          n.trees = 4L
         )
       },
       anchor = "A `forests =` fit resolves gaussian, probit or logistic only",

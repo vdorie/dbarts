@@ -33,8 +33,7 @@ pinControl <- function(n.chains = 2L) {
     n.threads = 1L,
     n.samples = 15L,
     n.burn = 10L,
-    seed = 7L,
-    n.trees = 20L
+    seed = 7L
   )
 }
 modelOf <- function(y, leafPrior, family, ...) {
@@ -45,7 +44,8 @@ modelOf <- function(y, leafPrior, family, ...) {
       leaf.prior = .(leafPrior),
       family = .(family),
       control = pinControl(),
-      ...
+      ...,
+      n.trees = 20L
     )
   ))$model
 }
@@ -99,7 +99,8 @@ drawsOf <- function(y, leafPrior, family = "gaussian", ...) {
       leaf.prior = .(leafPrior),
       family = .(family),
       control = pinControl(),
-      ...
+      ...,
+      n.trees = 20L
     )
   ))
   run <- sampler$run()
@@ -213,7 +214,8 @@ expect_error(
     yg,
     leaf.prior = normal(sd = invchi(1.5, 1)),
     monotone = c(x1 = 1),
-    control = pinControl()
+    control = pinControl(),
+    n.trees = 20L
   ),
   "'sd' hyperprior is not supported under a monotone"
 )
@@ -228,7 +230,8 @@ for (namedSd in list(0.5, priors$invchi(1.5, 0.5))) {
       yg,
       forests = list(forest(sd = 1), forest(basis = ~ factor(z))),
       leaf.prior = normal(sd = namedSd),
-      control = pinControl()
+      control = pinControl(),
+      n.trees = 20L
     ),
     "takes a leaf prior's 'sd'.*forest\\(x1 \\+ x2, sd = 2\\)"
   )
@@ -402,7 +405,8 @@ handBuilt <- dbarts(
   x,
   yg,
   leaf.prior = dbartsPriors$normal(k = dbartsPriors$chi(1.5, 2)),
-  control = pinControl()
+  control = pinControl(),
+  n.trees = 20L
 )
 badModel <- handBuilt$model
 badModel@leaf.hyperprior <- methods::new(
@@ -422,7 +426,8 @@ bare <- dbarts(
   x,
   yg,
   leaf.prior = dbartsPriors$normal(sd = 0.65),
-  control = pinControl()
+  control = pinControl(),
+  n.trees = 20L
 )
 bareModel <- bare$model
 bareModel@leaf.prior@prior.sd <- NULL
@@ -438,7 +443,8 @@ bareDrawn <- dbarts(
   x,
   yg,
   leaf.prior = dbartsPriors$normal(sd = dbartsPriors$invchi(1.5, 0.65)),
-  control = pinControl()
+  control = pinControl(),
+  n.trees = 20L
 )
 drawnModel <- bareDrawn$model
 drawnModel@leaf.prior@prior.sd <- NULL

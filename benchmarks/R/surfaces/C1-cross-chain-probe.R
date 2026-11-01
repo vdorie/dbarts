@@ -249,7 +249,6 @@ probeRunCell <- function(name, spec) {
 
   control <- dbartsControl(
     verbose = FALSE,
-    n.trees = nTrees,
     n.chains = nChains,
     n.threads = 1L,
     n.samples = spacing,
@@ -257,7 +256,7 @@ probeRunCell <- function(name, spec) {
     updateState = FALSE,
     seed = surfacesSamplerSeed(spec$replicate)
   )
-  sampler <- dbarts(x, y, control = control)
+  sampler <- dbarts(x, y, control = control, n.trees = nTrees)
   invisible(sampler$run(nBurn, spacing))
 
   set.seed(1000L + spec$replicate)

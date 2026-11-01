@@ -23,7 +23,6 @@ priorControl <- function() {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 20L,
     n.samples = 1L,
     updateState = FALSE,
     seed = 13L,
@@ -48,7 +47,8 @@ constantSampler <- dbarts(
   x,
   y,
   control = priorControl(),
-  leaf.prior = normal(sd = priorSd)
+  leaf.prior = normal(sd = priorSd),
+  n.trees = 20L
 )
 set.seed(3)
 constantDraws <- priorDraws(constantSampler, x[1:4, , drop = FALSE])
@@ -63,7 +63,8 @@ inheritedSampler <- dbarts(
   x,
   y,
   control = priorControl(),
-  leaf.prior = normal(k = 2)
+  leaf.prior = normal(k = 2),
+  n.trees = 20L
 )
 set.seed(3)
 inheritedDraws <- priorDraws(inheritedSampler, x[1:4, , drop = FALSE], 400L)
@@ -76,14 +77,16 @@ kFormSampler <- dbarts(
   x,
   y,
   control = priorControl(),
-  leaf.prior = normal(k = 4)
+  leaf.prior = normal(k = 4),
+  n.trees = 20L
 )
 kFormSd <- kFormSampler$getLeafPrior()$k.scale / kFormSampler$getK()[[1L]]
 sdSampler <- dbarts(
   x,
   y,
   control = priorControl(),
-  leaf.prior = normal(sd = kFormSd)
+  leaf.prior = normal(sd = kFormSd),
+  n.trees = 20L
 )
 set.seed(3)
 sdDraws <- priorDraws(sdSampler, x[1:4, , drop = FALSE], 300L)
@@ -107,7 +110,8 @@ linearData@standardization <- list(list(
 linearSampler <- dbarts(
   linearData,
   control = priorControl(),
-  leaf.prior = linear(c("x1", "x2", "x4"), sd = priorSd)
+  leaf.prior = linear(c("x1", "x2", "x4"), sd = priorSd),
+  n.trees = 20L
 )
 standardize <- function(column, values) {
   observed <- xLinear[, column]
@@ -151,7 +155,8 @@ gpSampler <- dbarts(
   x,
   y,
   control = priorControl(),
-  leaf.prior = gp("x1", sd = priorSd)
+  leaf.prior = gp("x1", sd = priorSd),
+  n.trees = 20L
 )
 gpRows <- rbind(x[1L, ], x[2L, ], x[1L, ], x[1L, ], x[1L, ], x[1L, ])
 gpRows[3L, 1L] <- 1.25
@@ -182,7 +187,8 @@ monotoneSampler <- dbarts(
   y,
   control = priorControl(),
   monotone = monotone(c(x1 = 1), prior = "leaf"),
-  leaf.prior = normal(sd = priorSd)
+  leaf.prior = normal(sd = priorSd),
+  n.trees = 20L
 )
 monotoneRows <- rbind(x[1L, ], x[1L, ], x[1L, ], x[1L, ], x[1L, ])
 monotoneRows[, 1L] <- c(0.1, 0.35, 0.5, 0.65, 0.9)
@@ -226,7 +232,7 @@ yOrdered <- factor(
   ordered = TRUE
 )
 anchorSamplers <- list(
-  gaussian = anchorSampler(y, control = priorControl()),
+  gaussian = anchorSampler(y, control = priorControl(), n.trees = 20L),
   # a bare family constructor is NSE and cannot be forwarded through a
   # helper's dots
   student = dbarts(
@@ -234,30 +240,40 @@ anchorSamplers <- list(
     y,
     control = priorControl(),
     family = student(5),
-    leaf.prior = normal(sd = priorSd)
+    leaf.prior = normal(sd = priorSd),
+    n.trees = 20L
   ),
   aft = anchorSampler(
     cbind(yPositive, rep(1L, n)),
     control = priorControl(),
-    family = "aft"
+    family = "aft",
+    n.trees = 20L
   ),
-  probit = anchorSampler(yBinary, control = priorControl()),
+  probit = anchorSampler(yBinary, control = priorControl(), n.trees = 20L),
   logistic = anchorSampler(
     yBinary,
     control = priorControl(),
-    family = "logistic"
+    family = "logistic",
+    n.trees = 20L
   ),
   ordinal = anchorSampler(
     yOrdered,
     control = priorControl(),
-    family = "ordinal"
+    family = "ordinal",
+    n.trees = 20L
   ),
-  nbinom = anchorSampler(yCounts, control = priorControl(), family = "nbinom"),
+  nbinom = anchorSampler(
+    yCounts,
+    control = priorControl(),
+    family = "nbinom",
+    n.trees = 20L
+  ),
   weightedLogistic = anchorSampler(
     yBinary,
     control = priorControl(),
     family = "logistic",
-    weights = rep_len(c(1, 2), n)
+    weights = rep_len(c(1, 2), n),
+    n.trees = 20L
   ),
   # the heteroscedastic path is ungated by construction rather than by a
   # guard - the conversion runs at the leaf-scale assignment, before the
@@ -268,7 +284,8 @@ anchorSamplers <- list(
   heteroscedastic = anchorSampler(
     y,
     control = priorControl(),
-    variance = varianceForest(vars = ~x1, n.trees = 5L)
+    variance = varianceForest(vars = ~x1, n.trees = 5L),
+    n.trees = 20L
   )
 )
 for (familyName in names(anchorSamplers)) {

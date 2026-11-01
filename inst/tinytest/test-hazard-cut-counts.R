@@ -9,9 +9,20 @@ status <- rbinom(n, 1L, 0.7)
 Y <- cbind(time, status)
 frame <- data.frame(x, time = time, status = status)
 form <- survival::Surv(time, status) ~ x1 + x2 + x3
-# the tree count written on a control is read with a warning, which is not
-# what this file tests
 run <- function(...) {
+  dbartsControl(
+    n.samples = 4L,
+    n.burn = 0L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE,
+    updateState = FALSE,
+    ...
+  )
+}
+# a count written on a control is read with a warning, which is not what this
+# file tests
+written <- function(...) {
   suppressWarnings(dbartsControl(
     n.trees = 5L,
     n.samples = 4L,
@@ -23,17 +34,23 @@ run <- function(...) {
     ...
   ))
 }
-written <- run
 
 doors <- list(
   dbarts = function(v) {
-    dbarts(x, Y, family = "hazard", n.cuts = v, control = run())
+    dbarts(x, Y, family = "hazard", n.cuts = v, control = run(), n.trees = 5L)
   },
   control = function(v) {
     dbarts(x, Y, family = "hazard", control = written(n.cuts = v))
   },
   formula = function(v) {
-    dbarts(form, frame, family = "hazard", n.cuts = v, control = run())
+    dbarts(
+      form,
+      frame,
+      family = "hazard",
+      n.cuts = v,
+      control = run(),
+      n.trees = 5L
+    )
   },
   bart = function(v) {
     bart(
@@ -106,7 +123,14 @@ for (door in names(doors)) {
 }
 
 # a count that agrees with the sampler's is the sampler's
-sampler <- dbarts(x, Y, family = "hazard", n.cuts = 5L, control = run())
+sampler <- dbarts(
+  x,
+  Y,
+  family = "hazard",
+  n.cuts = 5L,
+  control = run(),
+  n.trees = 5L
+)
 expect_silent(sampler$setControl(written(n.cuts = 5L)))
 expect_silent(sampler$setControl(written(n.cuts = c(5L, 5L, 5L, 100L))))
 expect_error(
@@ -121,7 +145,12 @@ expect_identical(reloaded$data@n.cuts, c(5L, 5L, 5L, 100L))
 # period takes 100
 hazardData <- dbartsData(form, frame, n.cuts = c(5L, 7L, 9L))
 expect_identical(
-  dbarts(hazardData, family = "hazard", control = run())$data@n.cuts,
+  dbarts(
+    hazardData,
+    family = "hazard",
+    control = run(),
+    n.trees = 5L
+  )$data@n.cuts,
   c(5L, 7L, 9L, 100L)
 )
 
@@ -137,7 +166,8 @@ drawsOf <- function(fit, counts, seed = 5L) {
     family = link,
     n.cuts = counts,
     control = run(),
-    seed = seed
+    seed = seed,
+    n.trees = 5L
   )
   list(
     hazard = fit$run(0L, 4L)$train,
@@ -150,7 +180,8 @@ fiveAll <- dbarts(
   family = "hazard",
   n.cuts = 5L,
   control = run(),
-  seed = 5L
+  seed = 5L,
+  n.trees = 5L
 )
 oracle <- drawsOf(fiveAll, c(5L, 5L, 5L, 100L))
 expect_identical(oracle$hazard, oracle$binary)
@@ -160,7 +191,8 @@ named <- dbarts(
   family = "hazard",
   n.cuts = c(period = 5L, .default = 5L),
   control = run(),
-  seed = 5L
+  seed = 5L,
+  n.trees = 5L
 )
 oracle <- drawsOf(named, 5L)
 expect_identical(oracle$hazard, oracle$binary)
@@ -177,7 +209,8 @@ expect_error(
     Y,
     family = "hazard",
     split.probs = c(x1 = 0.5, x2 = 0.5, x3 = 0.5),
-    control = run()
+    control = run(),
+    n.trees = 5L
   ),
   "period"
 )
@@ -185,7 +218,14 @@ expect_error(
 # a count stated to dbartsData() on a hazard sampler's person-period matrix is
 # read as creation reads it, at $setData and at the direct door: the period is
 # named or else 100
-hazardFit <- dbarts(x, Y, family = "hazard", n.cuts = 5L, control = run())
+hazardFit <- dbarts(
+  x,
+  Y,
+  family = "hazard",
+  n.cuts = 5L,
+  control = run(),
+  n.trees = 5L
+)
 personPeriod <- hazardFit$data@x
 atDoors <- function(value) {
   given <- dbartsData(personPeriod, hazardFit$data@y, n.cuts = value)
@@ -217,7 +257,8 @@ seven <- dbarts(
   family = "hazard",
   n.cuts = 7L,
   control = run(),
-  seed = 5L
+  seed = 5L,
+  n.trees = 5L
 )
 expected <- seven$run(0L, 4L)$train
 fiveFit <- dbarts(
@@ -226,7 +267,8 @@ fiveFit <- dbarts(
   family = "hazard",
   n.cuts = 5L,
   control = run(),
-  seed = 5L
+  seed = 5L,
+  n.trees = 5L
 )
 fiveFit$setData(dbartsData(personPeriod, hazardFit$data@y, n.cuts = 7L))
 expect_identical(fiveFit$run(0L, 4L)$train, expected)
@@ -240,7 +282,12 @@ expect_identical(by.hand$run(0L, 4L)$train, expected)
 
 # without hazard the same data object is read over all its columns, and a value
 # per predictor only is refused
-plainFit <- dbarts(personPeriod, hazardFit$data@y, control = run())
+plainFit <- dbarts(
+  personPeriod,
+  hazardFit$data@y,
+  control = run(),
+  n.trees = 5L
+)
 plainFit$setData(dbartsData(personPeriod, hazardFit$data@y, n.cuts = 7L))
 expect_identical(plainFit$data@n.cuts, rep(7L, 4L))
 expect_error(
@@ -268,7 +315,7 @@ expect_identical(
     Y,
     family = "hazard",
     n.cuts = 7L,
-    control = run(n.cuts = 7L)
+    control = written(n.cuts = 7L)
   )),
   character()
 )
@@ -277,7 +324,7 @@ expect_identical(
 expect_identical(
   notUsed(new(
     "dbartsSampler",
-    run(n.cuts = 5L),
+    written(n.cuts = 5L),
     hazardFit$model,
     hazardFit$data
   )),
@@ -286,7 +333,7 @@ expect_identical(
 expect_identical(
   notUsed(new(
     "dbartsSampler",
-    run(n.cuts = c(5L, 5L, 5L)),
+    written(n.cuts = c(5L, 5L, 5L)),
     hazardFit$model,
     hazardFit$data
   )),
@@ -296,7 +343,7 @@ expect_true(grepl(
   "(9, 100)",
   notUsed(new(
     "dbartsSampler",
-    run(n.cuts = 9L),
+    written(n.cuts = 9L),
     hazardFit$model,
     hazardFit$data
   )),
@@ -310,7 +357,18 @@ expect_identical(
     Y,
     family = "hazard",
     n.cuts = 5L,
-    control = run()
+    control = run(),
+    n.trees = 5L
   )$data@n.cuts,
   100L
 )
+
+# the controls above write counts and the rule on purpose; give the keys of the
+# warnings that read them back to the next file
+onceState <- dbarts:::onceWarnState
+for (key in paste0(
+  "tombstone.control.",
+  c("n.trees", "n.cuts", "useQuantiles")
+)) {
+  onceState[[key]] <- NULL
+}

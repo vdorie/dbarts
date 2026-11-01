@@ -104,7 +104,6 @@ drawnK <- dbartsPriors$normal(dbartsPriors$chi(
 ))
 frozen <- c(birth_death = 0, swap = 0, change = 0, perturb = 0, rule_gibbs = 0)
 control <- dbartsControl(
-  n.trees = 1L,
   n.chains = 1L,
   n.threads = 1L,
   n.samples = as.integer(numSweeps / thin),
@@ -119,7 +118,8 @@ sampler <- dbarts(
   as.double(rep_len(0:1, n)),
   leaf.prior = drawnK,
   control = control,
-  family = "probit"
+  family = "probit",
+  n.trees = 1L
 )
 repeat {
   sampler$sampleTreesFromPrior()

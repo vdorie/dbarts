@@ -39,7 +39,6 @@ composeProbit <- function(
     control = dbartsControl(
       n.chains = numChains,
       n.threads = 1L,
-      n.trees = numTrees,
       n.samples = 1L,
       updateState = FALSE,
       seed = 29L,
@@ -50,7 +49,8 @@ composeProbit <- function(
     } else {
       dbartsPriors$normal(sd = priorScale / 2)
     },
-    family = gaussian(sigma = dbartsPriors$fixed(1))
+    family = gaussian(sigma = dbartsPriors$fixed(1)),
+    n.trees = numTrees
   )
   if (useRecipe) {
     # the documented location lever: prior.mean is the response transform's
@@ -147,13 +147,13 @@ nativeSampler <- dbarts(
   control = dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 50L,
     n.samples = 1L,
     updateState = FALSE,
     seed = 29L,
     keepTrees = FALSE
   ),
-  leaf.prior = dbartsPriors$normal(k = 2)
+  leaf.prior = dbartsPriors$normal(k = 2),
+  n.trees = 50L
 )
 native <- t(nativeSampler$run(o2Sweeps %/% 2L, o2Sweeps %/% 2L)$train)
 namedComposition <- composeO2(3, 3)
@@ -181,7 +181,6 @@ refControl <- function(...) {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 20L,
     n.samples = 10L,
     updateState = FALSE,
     seed = 17L,
@@ -196,7 +195,8 @@ expect_error(
     yRef,
     forests = list(forest(sd = 1), forest(basis = ~ factor(zRef))),
     control = refControl(),
-    leaf.prior = normal(sd = 0.75)
+    leaf.prior = normal(sd = 0.75),
+    n.trees = 20L
   ),
   "no forest of this model takes a leaf prior's 'sd'"
 )
@@ -204,7 +204,8 @@ expect_error(
 resolved <- dbartsSpec(
   dbartsData(xRef, yRef),
   refControl(),
-  forests = list(forest(sd = 1), forest(basis = ~ factor(zRef)))
+  forests = list(forest(sd = 1), forest(basis = ~ factor(zRef))),
+  n.trees = 20L
 )
 resolved$model@prior.scale <- 1.5
 expect_error(
@@ -257,7 +258,8 @@ expect_equal(
     xRef,
     zRef,
     control = refControl(),
-    leaf.prior = normal(sd = 0.75)
+    leaf.prior = normal(sd = 0.75),
+    n.trees = 20L
   )$model@prior.scale,
   1.5
 )
@@ -265,7 +267,8 @@ invchiModel <- dbarts(
   xRef,
   zRef,
   control = refControl(),
-  leaf.prior = normal(sd = invchi(1.5, 0.75))
+  leaf.prior = normal(sd = invchi(1.5, 0.75)),
+  n.trees = 20L
 )$model
 expect_equal(invchiModel@prior.scale, 1.5)
 expect_identical(invchiModel@leaf.hyperprior, dbartsPriors$chi(1.5, 2))
@@ -277,7 +280,8 @@ dartSampler <- dbarts(
   yRef,
   control = refControl(),
   split.probs = dart(),
-  leaf.prior = normal(sd = 0.75)
+  leaf.prior = normal(sd = 0.75),
+  n.trees = 20L
 )
 expect_equal(dartSampler$model@prior.scale, 1.5)
 expect_true(all(is.finite(dartSampler$run(20L, 10L)$train)))
@@ -289,7 +293,8 @@ expect_equal(
     yRef,
     control = refControl(),
     monotone = c(x1 = 1),
-    leaf.prior = normal(sd = 0.75)
+    leaf.prior = normal(sd = 0.75),
+    n.trees = 20L
   )$model@prior.scale,
   1.5
 )
@@ -298,7 +303,8 @@ expect_equal(
     xRef,
     yRef,
     control = refControl(),
-    leaf.prior = linear("x1", sd = 0.75)
+    leaf.prior = linear("x1", sd = 0.75),
+    n.trees = 20L
   )$model@prior.scale,
   1.5
 )
@@ -307,7 +313,8 @@ expect_equal(
     xRef,
     yRef,
     control = refControl(),
-    leaf.prior = gp("x1", sd = 0.75)
+    leaf.prior = gp("x1", sd = 0.75),
+    n.trees = 20L
   )$model@prior.scale,
   1.5
 )
@@ -315,13 +322,14 @@ expect_equal(
 # --- the channels the named calibration must survive. ---
 
 # the model slot records the INTENT and nothing else writes it
-plain <- dbarts(xRef, yRef, control = refControl())
+plain <- dbarts(xRef, yRef, control = refControl(), n.trees = 20L)
 expect_true(is.na(plain$model@prior.scale))
 named <- dbarts(
   xRef,
   yRef,
   control = refControl(),
-  leaf.prior = normal(sd = 0.75)
+  leaf.prior = normal(sd = 0.75),
+  n.trees = 20L
 )
 expect_equal(named$model@prior.scale, 1.5)
 named$setResponse(yRef + 1, updateScale = TRUE)
@@ -333,7 +341,6 @@ expect_equal(named$model@prior.scale, 1.5)
 roundTripControl <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,
-  n.trees = 20L,
   n.samples = 10L,
   updateState = FALSE,
   seed = 17L,
@@ -343,13 +350,15 @@ withoutSetModel <- dbarts(
   xRef,
   yRef,
   control = roundTripControl,
-  leaf.prior = normal(sd = 0.75)
+  leaf.prior = normal(sd = 0.75),
+  n.trees = 20L
 )
 withSetModel <- dbarts(
   xRef,
   yRef,
   control = roundTripControl,
-  leaf.prior = normal(sd = 0.75)
+  leaf.prior = normal(sd = 0.75),
+  n.trees = 20L
 )
 withSetModel$setModel(withSetModel$model)
 expect_identical(
@@ -362,7 +371,8 @@ reverted <- dbarts(
   xRef,
   yRef,
   control = roundTripControl,
-  leaf.prior = normal(sd = 0.75)
+  leaf.prior = normal(sd = 0.75),
+  n.trees = 20L
 )
 strippedModel <- reverted$model
 strippedModel@prior.scale <- NA_real_

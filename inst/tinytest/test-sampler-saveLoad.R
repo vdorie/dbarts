@@ -36,10 +36,14 @@ control <- dbarts::dbartsControl(
   updateState = FALSE,
   n.burn = 0L,
   n.chains = 1L,
-  n.trees = 3L,
   verbose = FALSE
 )
-sampler <- dbarts::dbarts(testData$x, testData$y, control = control)
+sampler <- dbarts::dbarts(
+  testData$x,
+  testData$y,
+  control = control,
+  n.trees = 3L
+)
 invisible(sampler$run(0L, 7L))
 
 tempFile <- tempfile()

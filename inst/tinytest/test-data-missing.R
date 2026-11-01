@@ -58,10 +58,15 @@ test.df <- df[seq_len(20L), c("x1", "x2", "g")]
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 50L,
   updateState = FALSE
 )
-sampler <- dbarts(y ~ x1 + x2 + g, df, test = test.df, control = control)
+sampler <- dbarts(
+  y ~ x1 + x2 + g,
+  df,
+  test = test.df,
+  control = control,
+  n.trees = 50L
+)
 samples <- sampler$run(200L, 200L)
 fits <- rowMeans(samples$train)
 expect_true(mean(fits[isMissing]) - mean(fits[!isMissing]) > 1)
@@ -73,12 +78,16 @@ expect_true(!anyNA(samples$test))
 control.keep <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 25L,
   n.samples = 5L,
   keepTrees = TRUE,
   updateState = FALSE
 )
-sampler.keep <- dbarts(y ~ x1 + x2 + g, df, control = control.keep)
+sampler.keep <- dbarts(
+  y ~ x1 + x2 + g,
+  df,
+  control = control.keep,
+  n.trees = 25L
+)
 invisible(sampler.keep$run(100L, 5L))
 trees <- sampler.keep$getTrees()
 expect_true("missing" %in% names(trees))
@@ -113,7 +122,11 @@ expect_true(!anyNA(predictions))
 
 # a sampler whose data object carries the "error" missing policy refuses NA
 # updates
-sampler.strict <- dbarts(strictData(y ~ x2, df), control = control)
+sampler.strict <- dbarts(
+  strictData(y ~ x2, df),
+  control = control,
+  n.trees = 50L
+)
 x2.bad <- df$x2
 x2.bad[1L] <- NA
 expect_error(
@@ -137,11 +150,10 @@ df.mv <- data.frame(x1 = x1.mv, x2 = x2, y = y.mv)
 control.mv <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 50L,
   updateState = FALSE,
   seed = 3L
 )
-sampler.mv <- dbarts(y.mv ~ x1 + x2, df.mv, control = control.mv)
+sampler.mv <- dbarts(y.mv ~ x1 + x2, df.mv, control = control.mv, n.trees = 50L)
 fits.before <- rowMeans(sampler.mv$run(200L, 200L)$train)
 sampler.mv$setPredictor(x1.moved, "x1")
 run.after <- sampler.mv$run(200L, 200L)
@@ -160,14 +172,23 @@ source(
 control.state <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,
-  n.trees = 10L,
   n.samples = 5L,
   updateState = FALSE
 )
-sampler.state <- dbarts(y ~ x1 + x2 + g, df, control = control.state)
+sampler.state <- dbarts(
+  y ~ x1 + x2 + g,
+  df,
+  control = control.state,
+  n.trees = 10L
+)
 invisible(sampler.state$run(30L, 2L))
 sampler.state$storeState()
-sampler.restored <- dbarts(y ~ x1 + x2 + g, df, control = control.state)
+sampler.restored <- dbarts(
+  y ~ x1 + x2 + g,
+  df,
+  control = control.state,
+  n.trees = 10L
+)
 sampler.restored$setState(sampler.state$state)
 sampler.restored$storeState()
 statesAgree(sampler.restored$state, sampler.state$state)
@@ -208,7 +229,12 @@ expect_equal(dim(predictions.x1na), c(20L, 5L))
 # every offending column is named, not just the first: x3 is a second,
 # genuinely training-complete predictor
 df.extra <- data.frame(x1 = x1, x2 = x2, x3 = seq_len(n), g = g, y = y)
-sampler.extra <- dbarts(y ~ x1 + x2 + x3 + g, df.extra, control = control)
+sampler.extra <- dbarts(
+  y ~ x1 + x2 + x3 + g,
+  df.extra,
+  control = control,
+  n.trees = 50L
+)
 test.df.extra <- test.df
 test.df.extra$x3 <- seq_len(20L)
 test.df.extra$x2[1L] <- NA_real_
@@ -218,7 +244,13 @@ expect_error(sampler.extra$predict(test.df.extra), pattern = "'x3'")
 
 # the fit-time twin: dbarts(..., test = ) validates through the same path
 expect_error(
-  dbarts(y ~ x1 + x2 + g, df, test = test.df.x2na, control = control),
+  dbarts(
+    y ~ x1 + x2 + g,
+    df,
+    test = test.df.x2na,
+    control = control,
+    n.trees = 50L
+  ),
   pattern = "'x2'"
 )
 

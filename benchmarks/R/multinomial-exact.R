@@ -122,14 +122,14 @@ arm1 <- function() {
     control <- dbartsControl(
       n.chains = 1L,
       n.threads = 1L,
-      n.trees = 50L,
       updateState = FALSE
     )
     bc <- dbarts(
       x,
       factor(labels, levels = seq.int(0L, K - 1L)),
       family = "multinomial",
-      control = control
+      control = control,
+      n.trees = 50L
     )
     r <- bc$run(nburn, ndpost)
     # every observation shares the intercept-only probabilities; average them
@@ -171,7 +171,6 @@ arm2 <- function() {
     dbartsControl(
       n.chains = 1L,
       n.threads = 1L,
-      n.trees = 50L,
       updateState = FALSE
     )
   }
@@ -186,7 +185,8 @@ arm2 <- function() {
       offset = 0,
       family = "logistic",
       control = control(),
-      verbose = FALSE
+      verbose = FALSE,
+      n.trees = 50L
     )
     r <- bc$run(nburn, ndpost)
     rowMeans(plogis(r$train)) # r$train is the latent log-odds
@@ -197,7 +197,8 @@ arm2 <- function() {
       x,
       factor(y, levels = 0:1),
       family = "multinomial",
-      control = control()
+      control = control(),
+      n.trees = 50L
     )
     r <- bc$run(nburn, ndpost)
     apply(r$train[, 2L, , drop = FALSE], 1L, mean) # P(y = 1)
@@ -351,7 +352,6 @@ arm3 <- function() {
     control <- dbartsControl(
       n.chains = 1L,
       n.threads = 1L,
-      n.trees = 1L,
       updateState = FALSE,
       proposal.probs = c(
         birth_death = 0.5,
@@ -367,7 +367,8 @@ arm3 <- function() {
       family = "multinomial",
       control = control,
       power = power,
-      base = base
+      base = base,
+      n.trees = 1L
     )
     r <- bc$run(nburn, ndpost)
     pA <- apply(r$train[cell == 0L, , , drop = FALSE], 2L, mean)
@@ -469,13 +470,13 @@ armCount <- function() {
     control <- dbartsControl(
       n.chains = 1L,
       n.threads = 1L,
-      n.trees = 50L,
       updateState = FALSE
     )
     bc <- dbarts(
       dbartsData(x, counts = counts),
       family = "multinomial",
-      control = control
+      control = control,
+      n.trees = 50L
     )
     r <- bc$run(nburn, ndpost)
     # every observation shares the intercept-only probabilities; average them
@@ -579,14 +580,14 @@ armOffset <- function() {
     control <- dbartsControl(
       n.chains = 1L,
       n.threads = 1L,
-      n.trees = 50L,
       updateState = FALSE
     )
     bc <- dbarts(
       x,
       factor(labels, levels = seq.int(0L, K - 1L)),
       family = "multinomial",
-      control = control
+      control = control,
+      n.trees = 50L
     )
     bc$setCategoryOffset(offset, updateState = FALSE)
     r <- bc$run(nburn, ndpost)
@@ -647,14 +648,14 @@ armLevel <- function() {
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 75L,
     updateState = FALSE
   )
   bc <- dbarts(
     x,
     factor(labels, levels = seq.int(0L, K - 1L)),
     family = "multinomial",
-    control = control
+    control = control,
+    n.trees = 75L
   )
   bc$run(nburn, 1L)
   level <- vapply(
@@ -806,7 +807,6 @@ armConstrained <- function() {
     control <- dbartsControl(
       n.chains = 1L,
       n.threads = 1L,
-      n.trees = 1L,
       updateState = FALSE,
       proposal.probs = c(
         birth_death = 0.5,
@@ -822,7 +822,8 @@ armConstrained <- function() {
       control = control,
       power = power,
       base = base,
-      interactions = interactions(max.order = 1L)
+      interactions = interactions(max.order = 1L),
+      n.trees = 1L
     )
     # the enumeration's premise: a child holds no cut of its parent's column.
     # More points on a 0/1 column leave the children splittable in the prior,

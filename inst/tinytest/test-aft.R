@@ -15,7 +15,6 @@ log.t <- f + sigma.true * rnorm(n)
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 50L,
   updateState = FALSE,
   seed = 271L
 )
@@ -28,7 +27,8 @@ aftSampler <- function(y, status, weights = NULL) {
     cbind(exp(y), status),
     weights = weights,
     family = "aft",
-    control = control
+    control = control,
+    n.trees = 50L
   )
 }
 
@@ -38,7 +38,7 @@ bc.a <- aftSampler(log.t, rep(1, n)) # every observation an event
 expect_identical(bc.a$model@family, "aft")
 res.a <- bc.a$run(100L, 200L)
 
-samp.g <- dbarts(x, bc.a$data@y, control = control)
+samp.g <- dbarts(x, bc.a$data@y, control = control, n.trees = 50L)
 expect_identical(samp.g$model@family, "gaussian")
 res.g <- samp.g$run(100L, 200L)
 # the engine's own family: aft imputes a latent log-time per row, all of them
@@ -65,7 +65,7 @@ recover <- function(censor.rate) {
   fit.aft <- rowMeans(res$train)
 
   # ignoring the censoring underestimates the mean log-time
-  samp.naive <- dbarts(x, obs.log.t, control = control)
+  samp.naive <- dbarts(x, obs.log.t, control = control, n.trees = 50L)
   res.naive <- samp.naive$run(200L, 400L)
   list(
     rate = mean(status == 0),
@@ -458,11 +458,16 @@ expect_true(sum(status.set == 0) > 10L)
 r5.control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 50L,
   seed = 271L
 )
 r5.aft <- function(status) {
-  dbarts(x, cbind(exp(obs.set), status), family = "aft", control = r5.control)
+  dbarts(
+    x,
+    cbind(exp(obs.set), status),
+    family = "aft",
+    control = r5.control,
+    n.trees = 50L
+  )
 }
 s.created <- r5.aft(all.events)
 s.set <- r5.aft(status.set)
@@ -485,7 +490,7 @@ expect_true(all(lat.joint[status.joint == 0] >= y.joint[status.joint == 0]))
 
 # ---- refusals: the status is validated before anything installs ----
 
-s.gauss <- dbarts(x, log.t, control = r5.control)
+s.gauss <- dbarts(x, log.t, control = r5.control, n.trees = 50L)
 expect_error(s.gauss$setResponse(log.t, status = all.events), "non-aft")
 expect_error(
   s.set$setResponse(s.set$data@y, status = all.events[-1L]),
@@ -532,14 +537,14 @@ expect_true(any(newly))
 hs.control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 25L,
   seed = 909L
 )
 s.hs <- dbarts(
   x,
   cbind(exp(obs.hs), status.hs),
   family = "aft",
-  control = hs.control
+  control = hs.control,
+  n.trees = 25L
 )
 invisible(s.hs$run(50L, 10L))
 expect_inherits(s.hs$state, "bartcoreState")
@@ -1079,7 +1084,8 @@ onceDoors <- list(
       family = "aft",
       subset = drawSubset(),
       offset = onceOffset,
-      control = control
+      control = control,
+      n.trees = 50L
     )
   },
   bart = function() {
@@ -1109,7 +1115,8 @@ onceDoors <- list(
       subset = drawSubset(),
       offset = onceOffset,
       na.action = na.omit,
-      control = control
+      control = control,
+      n.trees = 50L
     )
   }
 )
@@ -1143,7 +1150,8 @@ plainOnce <- dbarts(
   subset = drawSubset(),
   weights = onceWeights,
   offset = onceOffset,
-  control = control
+  control = control,
+  n.trees = 50L
 )
 expect_identical(length(subsetDraws), 1L)
 rows <- as.integer(plainOnce$data@x[, "id"])
@@ -1157,7 +1165,8 @@ hazardOnce <- dbarts(
   cbind(ceiling(onceTime), onceStatus),
   family = "hazard",
   subset = drawSubset(),
-  control = control
+  control = control,
+  n.trees = 50L
 )
 expect_identical(length(subsetDraws), 1L)
 expect_true(all(hazardOnce$data@x[, "id"] %in% subsetDraws[[1L]]))
@@ -1191,10 +1200,10 @@ rangeSampler <- function(made = rangeOffsets[[1L]], status = rangeStatus) {
     control = dbartsControl(
       n.chains = 2L,
       n.threads = 1L,
-      n.trees = 10L,
       updateState = FALSE,
       seed = 19L
-    )
+    ),
+    n.trees = 10L
   )
   invisible(sampler$run(0L, 20L))
   sampler

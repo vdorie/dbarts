@@ -47,7 +47,6 @@ expect_error(
 
 # fitting recovers the varying slope structure
 control <- dbartsControl(
-  n.trees = 20L,
   n.chains = 1L,
   n.samples = 40L,
   n.burn = 150L,
@@ -60,7 +59,8 @@ sampler <- dbarts(
   df,
   test = df[1:5, c("x1", "x2", "x3")],
   leaf.prior = linear("x2"),
-  control = control
+  control = control,
+  n.trees = 20L
 )
 samples <- sampler$run()
 fits <- rowMeans(samples$train)
@@ -111,7 +111,8 @@ sampler.mut <- dbarts(
   y ~ x1 + x2 + x3,
   df,
   leaf.prior = linear("x2"),
-  control = control
+  control = control,
+  n.trees = 20L
 )
 invisible(sampler.mut$run(50L, 5L))
 x2.new <- df$x2 * 1.1
@@ -131,7 +132,8 @@ sampler.fresh <- dbarts(
   y ~ x1 + x2 + x3,
   df.mut,
   leaf.prior = linear("x2"),
-  control = control
+  control = control,
+  n.trees = 20L
 )
 fits.fresh <- rowMeans(sampler.fresh$run(150L, 200L)$train)
 # rmse between independently-seeded fits of the same mutated data, 60
@@ -146,7 +148,8 @@ sampler.binary <- dbarts(
   z ~ x1 + x2 + x3,
   df.binary,
   leaf.prior = linear("x2"),
-  control = control
+  control = control,
+  n.trees = 20L
 )
 samples.binary <- sampler.binary$run(100L, 20L)
 expect_true(all(is.finite(samples.binary$train)))
@@ -277,7 +280,6 @@ n <- 120L
 df.roll <- data.frame(x1 = runif(n), x2 = runif(n, -1, 1))
 df.roll$y <- ifelse(df.roll$x1 > 0.5, df.roll$x2, 0) + rnorm(n, 0, 0.2)
 control.roll <- dbartsControl(
-  n.trees = 10L,
   n.chains = 1L,
   n.threads = 1L,
   n.samples = 20L,
@@ -289,7 +291,8 @@ makeRollSampler <- function() {
     y ~ x1 + x2,
     df.roll,
     leaf.prior = linear("x2"),
-    control = control.roll
+    control = control.roll,
+    n.trees = 10L
   )
   set.seed(713)
   invisible(sampler$run(30L, 0L))
@@ -322,13 +325,13 @@ for (q in c(9L, 12L)) {
     yWide,
     leaf.prior = linear(seq_len(q)),
     control = dbartsControl(
-      n.trees = 10L,
       n.chains = 1L,
       n.samples = 20L,
       n.burn = 20L,
       keepTrees = TRUE,
       updateState = FALSE
-    )
+    ),
+    n.trees = 10L
   )
   wideSamples <- wideSampler$run()
   expect_true(all(is.finite(wideSamples$train)))

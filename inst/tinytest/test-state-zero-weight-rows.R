@@ -20,19 +20,19 @@ controlFor <- function(chains = 1L, seed = 902L) {
   dbarts::dbartsControl(
     n.chains = chains,
     n.threads = 1L,
-    n.trees = 20L,
     updateState = FALSE,
     seed = seed
   )
 }
 # zeros go in through $setWeights, creation warning about them; a NULL df is
 # estimated
-studentAt <- function(weights, control = controlFor(), df = nu) {
+studentAt <- function(weights, control = controlFor(), n.trees = 20L, df = nu) {
   sampler <- dbarts::dbarts(
     x,
     yContinuous,
     weights = wA,
     control = control,
+    n.trees = 20L,
     family = if (is.null(df)) dbarts:::student() else dbarts:::student(df)
   )
   sampler$setWeights(weights)
@@ -84,6 +84,7 @@ unweightedState <- storedFrom(dbarts::dbarts(
   x,
   yContinuous,
   control = controlFor(),
+  n.trees = 20L,
   family = dbarts:::student(nu)
 ))
 expect_identical(attr(unweightedState, "weights.zero"), raw(n))
@@ -92,11 +93,23 @@ masked$setActiveRows(mask)
 maskedState <- storedFrom(masked)
 expect_identical(attr(maskedState, "weights.zero"), as.raw(wStored == 0))
 gaussianAt <- function(weights) {
-  dbarts::dbarts(x, yContinuous, weights = weights, control = controlFor())
+  dbarts::dbarts(
+    x,
+    yContinuous,
+    weights = weights,
+    control = controlFor(),
+    n.trees = 20L
+  )
 }
 gaussianState <- storedFrom(gaussianAt(wA))
 for (family in c("logistic", "probit")) {
-  other <- dbarts::dbarts(x, yBinary, family = family, control = controlFor())
+  other <- dbarts::dbarts(
+    x,
+    yBinary,
+    family = family,
+    control = controlFor(),
+    n.trees = 20L
+  )
   expect_null(attr(storedFrom(other), "weights.zero"))
 }
 expect_null(attr(gaussianState, "weights.zero"))

@@ -62,12 +62,16 @@ expect_equal(data.matrix.inc@varTypes, data.formula.inc@varTypes)
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   updateState = FALSE,
   seed = 5L
 )
-sampler.matrix <- dbarts::dbarts(xMat, y, control = control)
-sampler.formula <- dbarts::dbarts(y ~ x1 + x2, df, control = control)
+sampler.matrix <- dbarts::dbarts(xMat, y, control = control, n.trees = 20L)
+sampler.formula <- dbarts::dbarts(
+  y ~ x1 + x2,
+  df,
+  control = control,
+  n.trees = 20L
+)
 samples.matrix <- sampler.matrix$run(100L, 50L)
 samples.formula <- sampler.formula$run(100L, 50L)
 expect_identical(samples.matrix$train, samples.formula$train)
@@ -77,7 +81,12 @@ expect_true(any(is.na(sampler.matrix$data@x[, "x1"])))
 # the unnamed matrix interface has no column names to report by, so a
 # refused column is named by INDEX instead
 xMat.unnamed <- unname(xMat)
-sampler.unnamed <- dbarts::dbarts(xMat.unnamed, y, control = control)
+sampler.unnamed <- dbarts::dbarts(
+  xMat.unnamed,
+  y,
+  control = control,
+  n.trees = 20L
+)
 test.unnamed.na <- xMat.unnamed[1:5, ]
 test.unnamed.na[1L, 2L] <- NA_real_
 expect_error(

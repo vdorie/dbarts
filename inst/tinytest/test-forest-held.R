@@ -362,7 +362,8 @@ sizeCheck <- function(sds, draws, tolerance) {
         forest(amplitude = fixed(), sd = sds[1L]),
         forest(basis = zf, amplitude = fixed(), sd = sds[2L])
       ),
-      control = heldControl(n.trees = 20L)
+      control = heldControl(),
+      n.trees = 20L
     )
     set.seed(5)
     for (f in 1:2) {

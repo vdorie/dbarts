@@ -240,7 +240,6 @@ runFit <- function(nTrees, n, p, nc, seed, nBurn, nKept) {
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = nTrees,
     n.samples = nKept,
     keepTrees = TRUE,
     updateState = FALSE,
@@ -251,7 +250,8 @@ runFit <- function(nTrees, n, p, nc, seed, nBurn, nKept) {
     x,
     y,
     control = control,
-    monotone = monotone(directions, prior = "leaf")
+    monotone = monotone(directions, prior = "leaf"),
+    n.trees = nTrees
   )
   invisible(sampler$run(nBurn, 0L))
   seconds <- system.time(invisible(sampler$run(0L, nKept)))[["elapsed"]]

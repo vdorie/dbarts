@@ -71,7 +71,6 @@ expect_stdout(show(dbartsFamilies$hazard()), "link = \"probit\"")
 control <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   n.samples = 30L,
   updateState = FALSE
 )
@@ -80,13 +79,37 @@ control <- dbarts::dbartsControl(
 # caller's frame, exactly as the split-probability vocabulary does inside
 # split.probs
 expect_false(exists("student", envir = globalenv(), inherits = FALSE))
-samplerNSE <- dbarts::dbarts(x, y, control = control, family = student(df = 6))
+samplerNSE <- dbarts::dbarts(
+  x,
+  y,
+  control = control,
+  family = student(df = 6),
+  n.trees = 20L
+)
 expect_equal(attr(samplerNSE$model, "resid.df"), 6)
 
 # the same family spelled three ways gives the same specification
-samplerToken <- dbarts::dbarts(x, y, control = control, family = "gaussian")
-samplerObject <- dbarts::dbarts(x, y, control = control, family = gaussian())
-samplerBare <- dbarts::dbarts(x, y, control = control, family = gaussian)
+samplerToken <- dbarts::dbarts(
+  x,
+  y,
+  control = control,
+  family = "gaussian",
+  n.trees = 20L
+)
+samplerObject <- dbarts::dbarts(
+  x,
+  y,
+  control = control,
+  family = gaussian(),
+  n.trees = 20L
+)
+samplerBare <- dbarts::dbarts(
+  x,
+  y,
+  control = control,
+  family = gaussian,
+  n.trees = 20L
+)
 expect_equal(samplerToken$model@family, samplerObject$model@family)
 expect_equal(samplerToken$model@family, samplerBare$model@family)
 
@@ -99,7 +122,8 @@ expect_equal(
     x,
     yBinary,
     control = control,
-    family = heldToken
+    family = heldToken,
+    n.trees = 20L
   )$model@family,
   "probit"
 )
@@ -108,21 +132,29 @@ expect_equal(
     x,
     yBinary,
     control = control,
-    family = heldObject
+    family = heldObject,
+    n.trees = 20L
   )$model@family,
   "probit"
 )
 
 # a family this entry point does not fit is refused by name
 expect_error(
-  dbarts::dbarts(x, y, control = control, family = hurdle.lognormal()),
+  dbarts::dbarts(
+    x,
+    y,
+    control = control,
+    family = hurdle.lognormal(),
+    n.trees = 20L
+  ),
   "does not fit family"
 )
 expect_error(
   dbarts::dbartsSpec(
     dbarts::dbartsData(x, y),
     control = control,
-    family = hazard()
+    family = hazard(),
+    n.trees = 20L
   ),
   "does not fit family"
 )
@@ -136,9 +168,13 @@ expect_error(
 # a call forwarded through one or more wrappers' dots resolves as it would
 # written directly, at every entry point and in the prior arguments too
 residDf <- function(sampler) attr(sampler$model, "resid.df")
-viaDots <- function(...) dbarts::dbarts(x, y, control = control, ...)
+viaDots <- function(...) {
+  dbarts::dbarts(x, y, control = control, ..., n.trees = 20L)
+}
 viaNested <- function(...) viaDots(...)
-viaBinary <- function(...) dbarts::dbarts(x, yBinary, control = control, ...)
+viaBinary <- function(...) {
+  dbarts::dbarts(x, yBinary, control = control, ..., n.trees = 20L)
+}
 expect_equal(residDf(viaDots(family = student(3))), 3)
 expect_equal(residDf(viaNested(family = student(4))), 4)
 expect_equal(
@@ -151,7 +187,13 @@ expect_equal(viaBinary(family = probit)$model@family, "probit")
 expect_error(
   viaNested(family = student(df = -1)),
   tryCatch(
-    dbarts::dbarts(x, y, control = control, family = student(df = -1)),
+    dbarts::dbarts(
+      x,
+      y,
+      control = control,
+      family = student(df = -1),
+      n.trees = 20L
+    ),
     error = conditionMessage
   ),
   fixed = TRUE
@@ -166,13 +208,20 @@ expect_equal(
   c(2, rep(1, ncol(x) - 1L)) / (ncol(x) + 1)
 )
 viaClosure <- function(...) {
-  inner <- function() dbarts::dbarts(x, y, control = control, ...)
+  inner <- function() {
+    dbarts::dbarts(x, y, control = control, ..., n.trees = 20L)
+  }
   inner()
 }
 expect_equal(residDf(viaClosure(family = student(6))), 6)
 expect_error(
   (function(...) {
-    dbarts::dbartsSpec(dbarts::dbartsData(x, y), control = control, ...)
+    dbarts::dbartsSpec(
+      dbarts::dbartsData(x, y),
+      control = control,
+      ...,
+      n.trees = 20L
+    )
   })(family = hazard(breaks = 4)),
   "does not fit family"
 )
@@ -261,7 +310,7 @@ expect_equal(
   0.3
 )
 viaEval <- function(...) {
-  eval(quote(dbarts::dbarts(x, yBinary, control = control, ...)))
+  eval(quote(dbarts::dbarts(x, yBinary, control = control, ..., n.trees = 20L)))
 }
 expect_equal(
   do.call(viaEval, list(family = quote(heldToken)), envir = e)$model@family,
@@ -272,7 +321,7 @@ expect_equal(
 # stays unresolved rather than read off the generic's call
 viaGeneric <- function(obj, ...) UseMethod("viaGeneric")
 viaGeneric.default <- function(obj, ...) {
-  dbarts::dbarts(x, yBinary, control = control, ...)
+  dbarts::dbarts(x, yBinary, control = control, ..., n.trees = 20L)
 }
 viaGeneric.token <- function(obj, ...) {
   heldToken <- "logistic"
@@ -333,7 +382,7 @@ expect_equal(
 # a wrapper's own formal is an ordinary variable: it forwards a token or an
 # object, not a constructor call
 viaFormal <- function(fam) {
-  dbarts::dbarts(x, y, control = control, family = fam)
+  dbarts::dbarts(x, y, control = control, family = fam, n.trees = 20L)
 }
 expect_equal(residDf(viaFormal(dbartsFamilies$student(7))), 7)
 expect_error(viaFormal(student(7)), "could not find function")
@@ -344,21 +393,39 @@ expect_error(viaFormal(student(7)), "could not find function")
 # the estimate mode is the bridge's 0
 expect_equal(
   attr(
-    dbarts::dbarts(x, y, control = control, family = student(3))$model,
+    dbarts::dbarts(
+      x,
+      y,
+      control = control,
+      family = student(3),
+      n.trees = 20L
+    )$model,
     "resid.df"
   ),
   3
 )
 expect_equal(
   attr(
-    dbarts::dbarts(x, y, control = control, family = student())$model,
+    dbarts::dbarts(
+      x,
+      y,
+      control = control,
+      family = student(),
+      n.trees = 20L
+    )$model,
     "resid.df"
   ),
   0
 )
 expect_null(
   attr(
-    dbarts::dbarts(x, y, control = control, family = gaussian())$model,
+    dbarts::dbarts(
+      x,
+      y,
+      control = control,
+      family = gaussian(),
+      n.trees = 20L
+    )$model,
     "resid.df"
   )
 )
@@ -366,7 +433,8 @@ expect_null(
 specStudent <- dbarts::dbartsSpec(
   dbarts::dbartsData(x, y),
   control = control,
-  family = student(df = 9)
+  family = student(df = 9),
+  n.trees = 20L
 )
 expect_equal(attr(specStudent$model, "resid.df"), 9)
 expect_equal(specStudent$family, "gaussian")
@@ -561,7 +629,6 @@ expect_true(all(abs(fitFixed$sigma - 1) < 1e-8))
 residControl <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 5L,
   n.samples = 5L,
   seed = 217L,
   updateState = FALSE
@@ -570,7 +637,8 @@ samplerViaFamily <- dbarts::dbarts(
   x,
   y,
   family = gaussian(sigma = fixed(2)),
-  control = residControl
+  control = residControl,
+  n.trees = 5L
 )
 expect_inherits(samplerViaFamily$model@resid.prior, "dbartsFixedPrior")
 expect_equal(samplerViaFamily$model@resid.prior@value, 2)
@@ -589,7 +657,8 @@ expect_silent(dbarts::dbarts(
   y,
   family = gaussian(sigma = chisq(5, 0.9)),
   sigest = 1.5,
-  control = residControl
+  control = residControl,
+  n.trees = 5L
 ))
 expect_error(
   dbarts::dbarts(
@@ -597,7 +666,8 @@ expect_error(
     y,
     family = gaussian(sigma = fixed(2)),
     sigest = 1.5,
-    control = residControl
+    control = residControl,
+    n.trees = 5L
   ),
   pattern = "no effect under a fixed residual scale"
 )

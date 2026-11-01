@@ -11,7 +11,6 @@ labels <- factor(sample(0:2, n, replace = TRUE))
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 5L,
   n.samples = 4L,
   seed = 71L
 )
@@ -21,13 +20,19 @@ hasName <- function(prior) {
   expect_false("anchor" %in% names(prior))
 }
 
-single <- dbarts(x, y, control = control)
+single <- dbarts(x, y, control = control, n.trees = 5L)
 hasName(single$getLeafPrior())
 expect_true(is.numeric(single$getLeafPrior()$k.scale))
 expect_true(is.null(attr(single$model, "response.anchor", exact = TRUE)))
 expect_equal(length(single$data@response.range), 2L)
 
-multi <- dbarts(x, labels, family = "multinomial", control = control)
+multi <- dbarts(
+  x,
+  labels,
+  family = "multinomial",
+  control = control,
+  n.trees = 5L
+)
 for (prior in multi$getLeafPrior()) {
   hasName(prior)
 }

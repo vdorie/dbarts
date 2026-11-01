@@ -306,10 +306,16 @@ expect_null(samplerW1$data@weights)
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = n.trees,
   updateState = TRUE
 )
-sampler <- dbarts(x, y, family = "ordinal", control = control, verbose = FALSE)
+sampler <- dbarts(
+  x,
+  y,
+  family = "ordinal",
+  control = control,
+  verbose = FALSE,
+  n.trees = n.trees
+)
 expect_equal(sampler$model@family, "ordinal")
 expect_equal(sampler$model@n.categories, 3L)
 expect_equal(range(sampler$data@y), c(1, 3))
@@ -327,8 +333,22 @@ expect_true(all(diff(state1[[1L]]$thresholds) > 0))
 # --- state save/load through the R surface: restore is deterministic ---
 
 saved <- sampler$state
-samplerB <- dbarts(x, y, family = "ordinal", control = control, verbose = FALSE)
-samplerC <- dbarts(x, y, family = "ordinal", control = control, verbose = FALSE)
+samplerB <- dbarts(
+  x,
+  y,
+  family = "ordinal",
+  control = control,
+  verbose = FALSE,
+  n.trees = n.trees
+)
+samplerC <- dbarts(
+  x,
+  y,
+  family = "ordinal",
+  control = control,
+  verbose = FALSE,
+  n.trees = n.trees
+)
 samplerB$setState(saved)
 samplerC$setState(saved)
 statesAgree(samplerB$state, saved)

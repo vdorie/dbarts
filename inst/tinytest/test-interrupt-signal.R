@@ -20,7 +20,7 @@ if (at_home() && .Platform$OS.type == "unix") {
       "y <- rnorm(50L)",
       "fit <- function() {",
       "  dbarts(y ~ x, control = dbartsControl(n.threads = 1L, n.chains = 1L,",
-      "    n.trees = 10L, n.samples = 1L, updateState = FALSE))",
+      "    n.samples = 1L, updateState = FALSE), n.trees = 10L)",
       "}",
       "started <- 0L",
       "outcome <- tryCatch(",

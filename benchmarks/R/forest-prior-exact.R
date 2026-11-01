@@ -192,7 +192,6 @@ samplerFit <- function(seed, arm, kept) {
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.cuts = 1L,
     updateState = FALSE,
     keepTrainingFits = TRUE
   )
@@ -201,7 +200,8 @@ samplerFit <- function(seed, arm, kept) {
     y,
     family = gaussian(sigma = dbartsPriors$fixed(sigma^2)),
     forests = lapply(arm$forests, heldForest, trees = arm$trees),
-    control = control
+    control = control,
+    n.cuts = 1L
   )
   result <- sampler$run(numBurn, kept)
   shift <- sampler$getLeafPrior(1L)$response.shift
@@ -220,7 +220,8 @@ samplerConstants <- function(arm) {
     y,
     family = gaussian(sigma = dbartsPriors$fixed(sigma^2)),
     forests = lapply(arm$forests, heldForest, trees = arm$trees),
-    control = dbartsControl(n.chains = 1L, n.threads = 1L, n.cuts = 1L)
+    control = dbartsControl(n.chains = 1L, n.threads = 1L),
+    n.cuts = 1L
   )
   list(
     unit = sampler$data@forest.calibration[["unit"]],
@@ -520,7 +521,8 @@ numericSampler <- function(arm, control) {
     weights = arm$weights,
     family = gaussian(sigma = dbartsPriors$fixed(sigma^2)),
     forests = lapply(arm$forests, numericForest, trees = arm$trees),
-    control = control
+    control = control,
+    n.cuts = 1L
   )
 }
 
@@ -531,7 +533,6 @@ numericFit <- function(seed, arm, kept) {
     dbartsControl(
       n.chains = 1L,
       n.threads = 1L,
-      n.cuts = 1L,
       updateState = FALSE,
       keepTrainingFits = TRUE
     )
@@ -580,7 +581,7 @@ numericFit <- function(seed, arm, kept) {
 numericOracle <- function(arm, posterior = numericPosterior) {
   sampler <- numericSampler(
     arm,
-    dbartsControl(n.chains = 1L, n.threads = 1L, n.cuts = 1L)
+    dbartsControl(n.chains = 1L, n.threads = 1L)
   )
   unit <- sampler$data@forest.calibration[["unit"]]
   shift <- sampler$getLeafPrior(1L)$response.shift
@@ -780,9 +781,9 @@ priorFit <- function(seed, arm, kept) {
     control = dbartsControl(
       n.chains = 1L,
       n.threads = 1L,
-      n.cuts = 1L,
       updateState = FALSE
-    )
+    ),
+    n.cuts = 1L
   )
   glue <- sampler$run(numBurn, kept)$glue
   unlist(lapply(names(arm$read), function(name) {

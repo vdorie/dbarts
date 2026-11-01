@@ -178,7 +178,6 @@ control <- dbarts::dbartsControl(
   n.burn = 0L,
   n.samples = 1L,
   n.thin = 1L,
-  n.trees = n.trees,
   keepTrees = FALSE,
   n.chains = 1L,
   n.threads = 1L,
@@ -189,7 +188,8 @@ sampler <- dbarts::dbarts(
   y ~ .,
   df,
   control = control,
-  split.probs = c(X4 = 2, .default = 1)
+  split.probs = c(X4 = 2, .default = 1),
+  n.trees = n.trees
 )
 sampler$sampleTreesFromPrior()
 
@@ -217,7 +217,6 @@ control <- dbarts::dbartsControl(
   n.burn = 1000L,
   n.samples = 100L,
   n.thin = 1L,
-  n.trees = n.trees,
   keepTrees = FALSE,
   n.chains = 1L,
   n.threads = 1L,
@@ -228,7 +227,8 @@ sampler <- dbarts::dbarts(
   y ~ .,
   df,
   control = control,
-  split.probs = c(X6 = 2, .default = 1)
+  split.probs = c(X6 = 2, .default = 1),
+  n.trees = n.trees
 )
 # 1000 burn + 1000 samples: the 2x prior split weight on X6 only clears the
 # per-variable varcount noise over a run this long

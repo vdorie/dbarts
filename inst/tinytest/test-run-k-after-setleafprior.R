@@ -12,8 +12,7 @@ makeControl <- function() {
     n.threads = 1L,
     n.samples = 15L,
     n.burn = 10L,
-    seed = 7L,
-    n.trees = 20L
+    seed = 7L
   )
 }
 
@@ -22,7 +21,8 @@ sampler <- dbarts(
   x,
   y,
   leaf.prior = normal(k = 2),
-  control = makeControl()
+  control = makeControl(),
+  n.trees = 20L
 )
 expect_null(sampler$run(0L, 5L)$k)
 sampler$setLeafPrior(normal(k = chi(1.5, 2)))
@@ -50,7 +50,8 @@ created <- dbarts(
   x,
   y,
   leaf.prior = normal(k = chi(1.5, 2)),
-  control = makeControl()
+  control = makeControl(),
+  n.trees = 20L
 )
 expect_identical(dim(created$run(0L, 4L)$k), c(4L, 2L))
 created$setLeafPrior(normal(k = 3))

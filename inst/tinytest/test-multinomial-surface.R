@@ -41,7 +41,6 @@ internalMultinomialFit <- function(
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = n.trees,
     n.samples = n.samples,
     updateState = FALSE
   )
@@ -50,7 +49,8 @@ internalMultinomialFit <- function(
     factor(labels, levels = seq.int(0L, K - 1L)),
     family = "multinomial",
     test = test,
-    control = control
+    control = control,
+    n.trees = n.trees
   )
   internalMultinomialFitCore(sampler, n.burn, n.samples, offset = offset)
 }
@@ -349,14 +349,14 @@ internalMultinomialCountFit <- function(
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = n.trees,
     n.samples = n.samples,
     updateState = FALSE
   )
   sampler <- dbarts(
     dbartsData(x, counts = counts, test = test),
     family = "multinomial",
-    control = control
+    control = control,
+    n.trees = n.trees
   )
   internalMultinomialFitCore(sampler, n.burn, n.samples, offset = offset)
 }
@@ -732,9 +732,9 @@ expect_error(
     control = dbartsControl(
       n.chains = 1L,
       n.threads = 1L,
-      n.trees = 5L,
       updateState = FALSE
-    )
+    ),
+    n.trees = 5L
   ),
   "softmax's own null direction"
 )
@@ -768,9 +768,9 @@ expect_error(
     control = dbartsControl(
       n.chains = 1L,
       n.threads = 1L,
-      n.trees = 5L,
       updateState = FALSE
-    )
+    ),
+    n.trees = 5L
   ),
   "softmax's own null direction"
 )
@@ -785,9 +785,9 @@ samplerSigma <- dbarts(
   control = dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 5L,
     updateState = FALSE
-  )
+  ),
+  n.trees = 5L
 )
 expect_error(
   samplerSigma$setSigma(5),

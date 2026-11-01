@@ -350,9 +350,6 @@ samplerFit <- function(seed) {
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 1L,
-    n.cuts = nCuts,
-    useQuantiles = TRUE,
     updateState = FALSE
   )
   bc <- dbarts(
@@ -374,7 +371,10 @@ samplerFit <- function(seed) {
         sd = sdModerate * sdY,
         amplitude = fixed()
       )
-    )
+    ),
+    n.trees = 1L,
+    n.cuts = nCuts,
+    useQuantiles = TRUE
   )
   bc$run(nburn, 1L)
   # containment: a restricted tau forest splits on x1 only, so its fit is

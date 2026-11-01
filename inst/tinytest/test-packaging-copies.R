@@ -70,7 +70,6 @@ for (case in list(
     n.samples = 12L,
     n.burn = 5L,
     n.chains = case$n.chains,
-    n.trees = 10L,
     n.threads = 1L,
     verbose = FALSE,
     updateState = FALSE
@@ -79,7 +78,8 @@ for (case in list(
     response ~ x,
     data.frame(response = case$response, x = I(x)),
     test = data.frame(x = I(x.test)),
-    control = control
+    control = control,
+    n.trees = 10L
   )
   sampler$sampleTreesFromPrior(updateState = FALSE)
   samples <- sampler$run(5L, 12L)

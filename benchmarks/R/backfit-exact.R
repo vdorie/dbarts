@@ -112,7 +112,6 @@ backfitArm <- function(
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = m,
     keepTrees = TRUE,
     n.samples = nSweep,
     n.burn = nBurn,
@@ -126,7 +125,8 @@ backfitArm <- function(
     weights = weights,
     offset = offset,
     control = control,
-    leaf.prior = normal(k = kLeaf)
+    leaf.prior = normal(k = kLeaf),
+    n.trees = m
   )
   result <- sampler$run(nBurn, nSweep)
   trees <- sampler$getTrees()

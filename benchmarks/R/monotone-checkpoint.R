@@ -71,7 +71,6 @@ runChild <- function(specFile) {
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = spec$trees,
     n.samples = spec$kept,
     updateState = FALSE,
     seed = spec$seed + 1L
@@ -81,7 +80,8 @@ runChild <- function(specFile) {
     x,
     y,
     control = control,
-    monotone = dbartsForests$monotone(directions, prior = "leaf")
+    monotone = dbartsForests$monotone(directions, prior = "leaf"),
+    n.trees = spec$trees
   )
   burn <- system.time(invisible(sampler$run(spec$burn, 0L)))[["elapsed"]]
   kept <- system.time(invisible(sampler$run(0L, spec$kept)))[["elapsed"]]
@@ -111,8 +111,9 @@ checkCensusBuild <- function(dir) {
     "dimnames = list(NULL, c('x1', 'x2')));",
     "y <- x[, 1] + rnorm(100, 0, 0.1);",
     "s <- dbarts(x, y, control = dbartsControl(n.chains = 1L,",
-    "n.threads = 1L, n.trees = 1L, updateState = FALSE),",
-    "monotone = dbartsForests$monotone(c(x1 = 1L), prior = 'leaf'));",
+    "n.threads = 1L, updateState = FALSE),",
+    "monotone = dbartsForests$monotone(c(x1 = 1L), prior = 'leaf'),",
+    "n.trees = 1L);",
     "invisible(s$run(5L, 5L))"
   )
   status <- system2(

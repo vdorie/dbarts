@@ -753,7 +753,6 @@ sbcCheckDirichlet <- function(alpha, p, nDraws = 2e4L) {
 # fixed s0 (non-DART). One MCMC-free prior draw yields f0 with splits ~ s0.
 sbcMakeDartGenerator <- function(config, s0) {
   ctrl <- dbartsControl(
-    n.trees = config$nTrees,
     n.chains = 1L,
     n.threads = 1L,
     n.samples = 1L,
@@ -771,7 +770,8 @@ sbcMakeDartGenerator <- function(config, s0) {
     leaf.prior = config$nodePrior,
     split.probs = s0,
     sigma = config$sigest,
-    control = ctrl
+    control = ctrl,
+    n.trees = config$nTrees
   )
 }
 
@@ -780,7 +780,6 @@ sbcMakeDartGenerator <- function(config, s0) {
 # kept. Rebuilt once and reused across replications via setResponse.
 sbcMakeDartFit <- function(config, L, thin) {
   ctrl <- dbartsControl(
-    n.trees = config$nTrees,
     n.chains = 1L,
     n.threads = 1L,
     n.samples = L,
@@ -803,7 +802,8 @@ sbcMakeDartFit <- function(config, L, thin) {
       update.delay = 100L
     ),
     sigma = config$sigest,
-    control = ctrl
+    control = ctrl,
+    n.trees = config$nTrees
   )
 }
 
@@ -952,7 +952,6 @@ sbcConfigAft <- function(n = 150L, nTrees = 50L) {
 # status is all events, the structure the first $setResponse replaces.
 sbcMakeAftSampler <- function(config, thin) {
   ctrl <- dbartsControl(
-    n.trees = config$nTrees,
     n.chains = 1L,
     n.threads = 1L,
     n.samples = 1L,
@@ -968,7 +967,8 @@ sbcMakeAftSampler <- function(config, thin) {
     family = aft(sigma = dbartsPriors$chisq(config$sigDf, config$sigQuant)),
     leaf.prior = config$nodePrior,
     sigma = config$sigest,
-    control = ctrl
+    control = ctrl,
+    n.trees = config$nTrees
   )
 }
 
@@ -1094,7 +1094,6 @@ sbcConfigHeteroAft <- function(n = 150L, nTrees = 50L, nVarianceTrees = 20L) {
 # here calls it.
 sbcMakeHeteroSampler <- function(config, thin) {
   ctrl <- dbartsControl(
-    n.trees = config$nTrees,
     n.chains = 1L,
     n.threads = 1L,
     n.samples = 1L,
@@ -1121,7 +1120,8 @@ sbcMakeHeteroSampler <- function(config, thin) {
       aft(sigma = dbartsPriors$chisq(config$sigDf, config$sigQuant))
     } else {
       gaussian(sigma = dbartsPriors$chisq(config$sigDf, config$sigQuant))
-    }
+    },
+    n.trees = config$nTrees
   )
 }
 
@@ -1355,7 +1355,6 @@ sbcBCFFunctionals <- function(
 # from the glue draw for diagnosis.
 sbcMakeBCF <- function(config, L, thin, fixedGlue = FALSE) {
   ctrl <- dbartsControl(
-    n.trees = config$nTrees,
     n.chains = 1L,
     n.threads = 1L,
     n.samples = L,
@@ -1403,7 +1402,8 @@ sbcMakeBCF <- function(config, L, thin, fixedGlue = FALSE) {
       family = config$family,
       leaf.prior = config$nodePrior,
       control = ctrl,
-      forests = forests
+      forests = forests,
+      n.trees = config$nTrees
     )
   } else {
     dbarts(
@@ -1415,7 +1415,8 @@ sbcMakeBCF <- function(config, L, thin, fixedGlue = FALSE) {
       leaf.prior = config$nodePrior,
       sigma = config$sigest,
       control = ctrl,
-      forests = forests
+      forests = forests,
+      n.trees = config$nTrees
     )
   }
   # recover the affine reported/internal map from one warm sample
@@ -1709,7 +1710,6 @@ sbcOrdinalProbs <- function(eta, gamma) {
 # count so a rebuilt fit's simulated y never drops a category.
 sbcMakeMultinomial <- function(config, labels, thin, seed) {
   ctrl <- dbartsControl(
-    n.trees = config$nTrees,
     n.chains = 1L,
     n.threads = 1L,
     n.samples = 1L,
@@ -1725,7 +1725,8 @@ sbcMakeMultinomial <- function(config, labels, thin, seed) {
     leaf.prior = config$nodePrior,
     sigma = config$sigest,
     control = ctrl,
-    family = "multinomial"
+    family = "multinomial",
+    n.trees = config$nTrees
   )
 }
 

@@ -185,7 +185,6 @@ gewekeDesign <- function(arm) {
 ## the prior probe, which needs the likelihood out of the structure moves.
 gewekeSampler <- function(arm, flat = FALSE) {
   control <- dbartsControl(
-    n.trees = arm$m,
     n.chains = 1L,
     n.threads = 1L,
     n.samples = 1L,
@@ -206,7 +205,8 @@ gewekeSampler <- function(arm, flat = FALSE) {
     # a fixed residual scale IS the estimate - the engine overwrites sigest
     # with its square root - so only the chisq arm names one
     sigma = if (flat) NA_real_ else sigest,
-    control = control
+    control = control,
+    n.trees = arm$m
   )
 }
 

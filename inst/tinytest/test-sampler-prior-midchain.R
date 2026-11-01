@@ -17,14 +17,13 @@ y <- testData$y
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 25L,
   updateState = FALSE,
   keepTrees = FALSE
 )
 
 makeSamplerPriorMidchainGaussian <- function(seed) {
   set.seed(seed)
-  dbarts(x, y, test = x, control = control)
+  dbarts(x, y, test = x, control = control, n.trees = 25L)
 }
 
 # the channels of a plain continued sweep agree, so the fixture itself is not
@@ -70,7 +69,7 @@ z <- testData$Z
 
 makeSamplerPriorMidchainProbit <- function(seed) {
   set.seed(seed)
-  dbarts(x, z, test = x, control = control)
+  dbarts(x, z, test = x, control = control, n.trees = 25L)
 }
 
 sampler <- makeSamplerPriorMidchainProbit(5L)

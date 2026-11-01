@@ -10,7 +10,6 @@ codes <- rep(c(0, 2, 1), 4L)
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 5L,
   n.samples = 5L,
   updateState = FALSE
 )
@@ -62,7 +61,8 @@ for (label in names(refused.responses)) {
       x,
       refused.responses[[label]],
       family = "multinomial",
-      control = control
+      control = control,
+      n.trees = 5L
     )),
     bartMessage,
     info = label
@@ -76,7 +76,8 @@ fromFactor <- dbarts(
   x,
   factor(codes),
   family = "multinomial",
-  control = control
+  control = control,
+  n.trees = 5L
 )
 expect_equal(unname(fromFactor$data@counts), expected)
 expect_equal(colnames(fromFactor$data@counts), c("0", "1", "2"))
@@ -84,10 +85,11 @@ fromCharacter <- dbarts(
   x,
   as.character(codes),
   family = "multinomial",
-  control = control
+  control = control,
+  n.trees = 5L
 )
 expect_identical(fromCharacter$data@counts, fromFactor$data@counts)
-fromMatrix <- dbarts(x, expected, family = "multinomial", control = control)
+fromMatrix <- dbarts(x, expected, family = "multinomial", control = control, n.trees = 5L)
 expect_equal(unname(fromMatrix$data@counts), expected)
 
 # the other doors a numeric vector could reach: a data object's counts takes a
@@ -115,18 +117,18 @@ expect_error(
 # a formula never carries a multinomial response at dbarts()
 d <- data.frame(y = codes, x1 = x[, 1L], x2 = x[, 2L])
 expect_error(
-  dbarts(y ~ x1 + x2, d, family = "multinomial", control = control),
+  dbarts(y ~ x1 + x2, d, family = "multinomial", control = control, n.trees = 5L),
   "multinomial fits currently use the matrix interface"
 )
 
 # the other families read a numeric response as they always did: 0/1 is binary
 # under "auto", and ordinal keeps whole numbers as its ordered levels
 expect_identical(
-  dbarts(x, rep(c(0, 1), n / 2L), control = control)$model@family,
+  dbarts(x, rep(c(0, 1), n / 2L), control = control, n.trees = 5L)$model@family,
   "probit"
 )
 expect_identical(
-  dbarts(x, codes + 1, family = "ordinal", control = control)$model@family,
+  dbarts(x, codes + 1, family = "ordinal", control = control, n.trees = 5L)$model@family,
   "ordinal"
 )
 

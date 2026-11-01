@@ -241,7 +241,6 @@ nDraws <- 500L
 augControl <- function() {
   dbartsControl(
     n.threads = 1L,
-    n.trees = 50L,
     n.chains = 1L,
     updateState = FALSE,
     seed = 917L
@@ -261,14 +260,16 @@ augAgreement <- function(family, y, coldStart, link) {
     offset = augOffset,
     family = family,
     control = augControl(),
-    leaf.prior = normal(k = 2)
+    leaf.prior = normal(k = 2),
+    n.trees = 50L
   )
   nativeFit <- rowMeans(native$run(nBurn, nDraws)$train) - augOffset
   host <- dbarts(
     xAug,
     coldStart - augOffset,
     control = augControl(),
-    family = gaussian(sigma = fixed(1))
+    family = gaussian(sigma = fixed(1)),
+    n.trees = 50L
   )
   host$setLeafPrior(normal(
     sd = native$getLeafPrior()$k.scale / native$getK()[[1L]]

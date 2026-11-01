@@ -296,7 +296,6 @@ yb <- 2 * sin(pi * xb[, 3]) + xb[, 4] + z * tau + rnorm(n, sd = 0.2)
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   updateState = FALSE
 )
 bc <- dbarts(
@@ -311,7 +310,8 @@ bc <- dbarts(
       blocks = dbarts::dbartsForests$blocks(groups = list("x1", "x2"))
     )
   ),
-  control = control
+  control = control,
+  n.trees = 20L
 )
 invisible(bc$run(150L, 0L))
 tauTrees <- bc$getTrees(
@@ -339,7 +339,8 @@ expect_error(
         )
       )
     ),
-    control = control
+    control = control,
+    n.trees = 20L
   ),
   "available predictors"
 )
@@ -353,13 +354,12 @@ expect_error(
 wsControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   n.burn = 40L,
   n.samples = 15L,
   updateState = TRUE,
   keepTrees = FALSE
 )
-wsDonor <- dbarts(y ~ x1 + x2 + x3, df, control = wsControl)
+wsDonor <- dbarts(y ~ x1 + x2 + x3, df, control = wsControl, n.trees = 20L)
 invisible(wsDonor$run())
 
 wsTarget <- dbarts(
@@ -369,7 +369,8 @@ wsTarget <- dbarts(
   blocks = blocks(
     groups = list("x1", c("x2", "x3")),
     trees.per.group = c(15L, 5L)
-  )
+  ),
+  n.trees = 20L
 )
 expect_identical(wsTarget$installTrees(wsDonor), FALSE)
 
@@ -393,7 +394,6 @@ yc <- factor(ifelse(x1 > 0.5 & x2 > 0.5, "a", ifelse(x3 > 0.5, "b", "c")))
 mnControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 10L,
   n.samples = 1L,
   updateState = FALSE
 )
@@ -405,7 +405,8 @@ mnBlocked <- dbarts(
     groups = list("x1", c("x2", "x3")),
     trees.per.group = c(5L, 5L)
   ),
-  control = mnControl
+  control = mnControl,
+  n.trees = 10L
 )
 invisible(mnBlocked$run(100L, 0L))
 mnTrees <- mnBlocked$getTrees(current = TRUE)

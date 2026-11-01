@@ -327,14 +327,12 @@ restrictedPartition <- vapply(
 ctl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 1L,
   keepTrees = TRUE,
   n.samples = batchSize,
   n.burn = nBurn,
   n.thin = nThin,
   updateState = TRUE,
-  seed = engineSeed,
-  n.cuts = numCutsAsked
+  seed = engineSeed
 )
 sampler <- dbarts(
   matrix(x, ncol = 1L),
@@ -345,7 +343,9 @@ sampler <- dbarts(
   base = base,
   leaf.prior = normal(kLeaf),
   family = gaussian(sigma = fixed(1)),
-  proposal.probs = proposalProbs
+  proposal.probs = proposalProbs,
+  n.trees = 1L,
+  n.cuts = numCutsAsked
 )
 stopifnot(is.null(sampler$data@offset))
 if (narrowArm || constMissingArm || weightedArm) {

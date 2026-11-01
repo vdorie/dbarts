@@ -59,11 +59,16 @@ fitSampler <- function(x, y, ..., after = NULL, rows = NULL) {
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 10L,
     updateState = FALSE,
     seed = 11L
   )
-  sampler <- suppressWarnings(dbarts(x, y, control = control, ...))
+  sampler <- suppressWarnings(dbarts(
+    x,
+    y,
+    control = control,
+    ...,
+    n.trees = 10L
+  ))
   if (!is.null(after)) {
     suppressWarnings(after(sampler))
   }

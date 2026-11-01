@@ -16,17 +16,16 @@ y <- rowSums(x[, 1:2]) + rnorm(n, 0, 0.5)
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   updateState = FALSE
 )
-sampler <- dbarts(x, y, control = control)
+sampler <- dbarts(x, y, control = control, n.trees = 20L)
 handle <- dbarts:::bartcoreDataHandle(sampler$control, sampler$data)
 
 # a view over every row reproduces the ordinary sampler bitwise: same
 # store contents, and creation under the same R seed hands both chains
 # the same generator seed
 set.seed(7)
-sampler.full <- dbarts(x, y, control = control)
+sampler.full <- dbarts(x, y, control = control, n.trees = 20L)
 set.seed(7)
 bc.view <- dbarts:::bartcoreSamplerFromHandle(
   handle,
@@ -164,12 +163,11 @@ x.wide[2L, 1L] <- 1
 control.trees <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 10L,
   keepTrees = TRUE,
   n.samples = 10L,
   updateState = FALSE
 )
-sampler.wide <- dbarts(x.wide, y, control = control.trees)
+sampler.wide <- dbarts(x.wide, y, control = control.trees, n.trees = 10L)
 handle.wide <- dbarts:::bartcoreDataHandle(
   sampler.wide$control,
   sampler.wide$data
@@ -246,7 +244,13 @@ expect_error(
 # offsets: the view slices the regular offset by row and takes its test
 # offset from offset[testRows]; a constant offset must appear in test fits
 offset <- rep(100, n)
-sampler.off <- dbarts(x, y + offset, offset = offset, control = control)
+sampler.off <- dbarts(
+  x,
+  y + offset,
+  offset = offset,
+  control = control,
+  n.trees = 20L
+)
 handle.off <- dbarts:::bartcoreDataHandle(sampler.off$control, sampler.off$data)
 bc.off <- dbarts:::bartcoreSamplerFromHandle(
   handle.off,
@@ -262,7 +266,13 @@ expect_true(abs(mean(r.off$test) - mean(y[testRows] + 100)) < 1)
 # conditional gather: the handle owns raw only for the leaf covariate columns
 # it is told to gather. A view whose leaf model reads an undeclared column is
 # refused; declaring the column lets the same view build and run.
-sampler.linear <- dbarts(x, y, leaf.prior = linear(2L), control = control)
+sampler.linear <- dbarts(
+  x,
+  y,
+  leaf.prior = linear(2L),
+  control = control,
+  n.trees = 20L
+)
 leafColumns <- sampler.linear$model@leaf.prior@columns
 
 handle.bare <- dbarts:::bartcoreDataHandle(

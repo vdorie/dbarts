@@ -52,7 +52,6 @@ controlTestOffset <- function(
   dbartsControl(
     n.chains = n.chains,
     n.threads = n.chains,
-    n.trees = 25L,
     keepTrees = keepTrees,
     n.samples = n.samples,
     updateState = FALSE
@@ -69,7 +68,8 @@ buildSamplerTestOffset <- function(
   sampler <- dbarts(
     dbartsData(x, counts = counts, test = x.test),
     family = "multinomial",
-    control = controlTestOffset(n.chains, keepTrees, n.samples)
+    control = controlTestOffset(n.chains, keepTrees, n.samples),
+    n.trees = 25L
   )
   if (!is.null(offset)) {
     sampler$setCategoryOffset(offset, updateState = FALSE)
@@ -230,7 +230,8 @@ sampler.gaussian <- dbarts(
   x,
   rnorm(n),
   test = x.test,
-  control = controlTestOffset()
+  control = controlTestOffset(),
+  n.trees = 25L
 )
 expect_error(
   sampler.gaussian$setCategoryTestOffset(testOffset),
@@ -242,7 +243,8 @@ sampler.bcf <- dbarts(
   x,
   rnorm(n),
   forests = list(forest(), forest(basis = ~ factor(z), n.trees = 10L)),
-  control = controlTestOffset()
+  control = controlTestOffset(),
+  n.trees = 25L
 )
 expect_error(
   sampler.bcf$setCategoryTestOffset(testOffset),
@@ -287,7 +289,8 @@ for (bad in c(NA_real_, NaN, Inf, -Inf)) {
 sampler.notest <- dbarts(
   dbartsData(x, counts = counts),
   family = "multinomial",
-  control = controlTestOffset()
+  control = controlTestOffset(),
+  n.trees = 25L
 )
 expect_error(
   sampler.notest$setCategoryTestOffset(testOffset),
@@ -704,7 +707,8 @@ expect_identical(
 sampler.nm <- dbarts(
   dbartsData(x, counts = named(counts, c("p", "q", "r")), test = x.test),
   family = "multinomial",
-  control = controlTestOffset()
+  control = controlTestOffset(),
+  n.trees = 25L
 )
 sampler.nm$setCategoryOffset(
   named(offset[, rev3], c("r", "q", "p")),

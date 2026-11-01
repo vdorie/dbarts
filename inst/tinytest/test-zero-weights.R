@@ -31,11 +31,17 @@ fitZeroWeight <- function(resp, leafPrior) {
   ctrl <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 25L,
     updateState = FALSE,
     seed = 5L
   )
-  args <- list(x, resp, weights = w, control = ctrl, sigest = 1.0)
+  args <- list(
+    x,
+    resp,
+    weights = w,
+    control = ctrl,
+    sigest = 1.0,
+    n.trees = 25L
+  )
   if (!is.null(leafPrior)) {
     args$leaf.prior <- leafPrior
   }

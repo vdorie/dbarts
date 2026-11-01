@@ -20,7 +20,6 @@ y <- 2 * x[, 1L] - x[, 2L] + rnorm(n, 0, 0.5)
 control <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   updateState = FALSE,
   seed = 11L
 )
@@ -28,7 +27,13 @@ control <- dbarts::dbartsControl(
 # 300 forests of 20 trees each, all from the C-side stream the control seed
 # fixes, so the counts are deterministic
 drawAndCountLeaves <- function(weights) {
-  sampler <- dbarts::dbarts(x, y, weights = weights, control = control)
+  sampler <- dbarts::dbarts(
+    x,
+    y,
+    weights = weights,
+    control = control,
+    n.trees = 20L
+  )
   empty <- 0L
   weightless <- 0L
   leaves <- 0L
@@ -66,7 +71,7 @@ expect_identical(weighted$structure, counted$structure)
 
 # nor on an active-row mask, an all-zeros one included: the forests are the
 # same draws, not one bare root per tree
-masked <- dbarts::dbarts(x, y, control = control)
+masked <- dbarts::dbarts(x, y, control = control, n.trees = 20L)
 masked$setActiveRows(rep(0, n))
 masked$sampleTreesFromPrior()
 maskedTrees <- masked$getTrees(current = TRUE)

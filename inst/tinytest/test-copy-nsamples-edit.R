@@ -22,13 +22,13 @@ make <- function(seed = 3L, updateState = TRUE, keepTrees = TRUE, ...) {
       updateState = updateState,
       n.chains = 1L,
       n.threads = 1L,
-      n.trees = 10L,
       n.samples = 20L,
       n.burn = 5L,
       verbose = FALSE,
       seed = seed
     ),
-    ...
+    ...,
+    n.trees = 10L
   )
 }
 
@@ -90,11 +90,11 @@ build2 <- function(updateState) {
       updateState = updateState,
       n.chains = 1L,
       n.threads = 1L,
-      n.trees = 10L,
       n.samples = 6L,
       verbose = FALSE,
       seed = 5L
-    )
+    ),
+    n.trees = 10L
   )
 }
 for (updateState in c(TRUE, FALSE)) {

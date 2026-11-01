@@ -16,7 +16,6 @@ control <- dbartsControl(
   n.threads = 1L,
   n.samples = 4L,
   n.burn = 6L,
-  n.trees = 5L,
   updateState = FALSE
 )
 onBart <- function(...) {
@@ -76,7 +75,8 @@ atDbarts <- dbarts::dbarts(
   control = control,
   power = 3,
   base = 0.5,
-  split.probs = splitProbs
+  split.probs = splitProbs,
+  n.trees = 5L
 )
 expect_identical(recordOf(atDbarts), resolved(cgmRecord, atDbarts))
 atSpec <- dbarts::dbartsSpec(
@@ -84,7 +84,8 @@ atSpec <- dbarts::dbartsSpec(
   control = control,
   power = 3,
   base = 0.5,
-  split.probs = splitProbs
+  split.probs = splitProbs,
+  n.trees = 5L
 )
 expect_identical(atSpec$model@tree.prior, recordOf(atDbarts))
 atBart <- onBart(y ~ ., frame, power = 3, base = 0.5, split.probs = splitProbs)
@@ -183,7 +184,8 @@ dartDbarts <- dbarts::dbarts(
   control = control,
   power = 3,
   base = 0.5,
-  split.probs = dart(a = 1)
+  split.probs = dart(a = 1),
+  n.trees = 5L
 )
 expect_identical(recordOf(dartDbarts), recordOf(dartBart))
 
@@ -277,7 +279,7 @@ expect_identical(recordOf(wrapper(split.probs = dart(a = 1)))@a, 1)
 retired <- function(...) {
   warnings <- character(0L)
   sampler <- withCallingHandlers(
-    dbarts::dbarts(y ~ ., frame, control = control, ...),
+    dbarts::dbarts(y ~ ., frame, control = control, ..., n.trees = 5L),
     warning = function(w) {
       warnings <<- c(warnings, conditionMessage(w))
       invokeRestart("muffleWarning")
@@ -286,7 +288,7 @@ retired <- function(...) {
   list(sampler = sampler, warnings = warnings)
 }
 plain <- function(...) {
-  recordOf(dbarts::dbarts(y ~ ., frame, control = control, ...))
+  recordOf(dbarts::dbarts(y ~ ., frame, control = control, ..., n.trees = 5L))
 }
 leftText <- paste0(
   "'tree.prior' has left 'dbarts': write the tree prior as power, base and ",
@@ -301,8 +303,18 @@ expect_identical(recordOf(first$sampler), plain(power = 3))
 expect_identical(retired(tree.prior = cgm(power = 3))$warnings, character(0L))
 resetKey("tombstone.tree.prior.dbartsSpec")
 specWarnings <- warningsOf({
-  dbarts::dbartsSpec(dbartsData(x, y), control = control, tree.prior = cgm())
-  dbarts::dbartsSpec(dbartsData(x, y), control = control, tree.prior = cgm())
+  dbarts::dbartsSpec(
+    dbartsData(x, y),
+    control = control,
+    tree.prior = cgm(),
+    n.trees = 5L
+  )
+  dbarts::dbartsSpec(
+    dbartsData(x, y),
+    control = control,
+    tree.prior = cgm(),
+    n.trees = 5L
+  )
 })
 expect_identical(
   specWarnings,
@@ -345,7 +357,8 @@ expect_identical(
     y ~ forest(x1 + x2, base = 0.5) + forest(x3, basis = factor(z)),
     frame,
     control = control,
-    tree.prior = cgm(power = 3)
+    tree.prior = cgm(power = 3),
+    n.trees = 5L
   )),
   "created"
 )
@@ -360,7 +373,8 @@ expect_match(
     y ~ forest(x1 + x2, base = 0.5) + forest(x3, basis = factor(z)),
     frame,
     control = control,
-    tree.prior = constructed
+    tree.prior = constructed,
+    n.trees = 5L
   )),
   "'base' is given to the fitting function and to the forest with no basis",
   fixed = TRUE
@@ -378,7 +392,8 @@ dartRead <- withCallingHandlers(
     y ~ .,
     frame,
     control = longBurn,
-    tree.prior = recordOf(dartDbarts)
+    tree.prior = recordOf(dartDbarts),
+    n.trees = 5L
   ),
   warning = function(w) invokeRestart("muffleWarning")
 )
@@ -404,7 +419,8 @@ positional <- withCallingHandlers(
     FALSE,
     4L,
     cgm(power = 3),
-    control = control
+    control = control,
+    n.trees = 5L
   ),
   warning = function(w) invokeRestart("muffleWarning")
 )
@@ -416,7 +432,8 @@ expect_identical(
     frame,
     control = control,
     power = 3,
-    tree.prior = cgm()
+    tree.prior = cgm(),
+    n.trees = 5L
   )),
   "'tree.prior' and 'power' both set the tree prior of 'dbarts'; give 'power' alone"
 )
@@ -454,19 +471,27 @@ expect_identical(
   suppressWarnings(dbarts::dbartsSpec(
     dbarts::dbartsData(x, y),
     control = control,
-    tree.prior = dbartsPriors$cgm(power = 3, split.probs = splitProbs)
+    tree.prior = dbartsPriors$cgm(power = 3, split.probs = splitProbs),
+    n.trees = 5L
   ))$model@tree.prior,
   dbarts::dbartsSpec(
     dbarts::dbartsData(x, y),
     control = control,
     power = 3,
-    split.probs = splitProbs
+    split.probs = splitProbs,
+    n.trees = 5L
   )$model@tree.prior
 )
 
 ## --- a whole-number power or base is taken at the plain doors -------------------
 expect_identical(
-  recordOf(dbarts::dbarts(y ~ ., frame, control = control, power = 3L)),
+  recordOf(dbarts::dbarts(
+    y ~ .,
+    frame,
+    control = control,
+    power = 3L,
+    n.trees = 5L
+  )),
   plain(power = 3)
 )
 expect_identical(
@@ -504,7 +529,8 @@ for (written in list(
       y ~ forest(x1 + x2, base = 0.5) + forest(x3, basis = factor(z)),
       frame,
       control = control,
-      tree.prior = .(written)
+      tree.prior = .(written),
+      n.trees = 5L
     )))),
     "created",
     info = deparse(written)
@@ -528,7 +554,8 @@ expect_identical(
     y,
     control = control,
     forests = list(forest(basis = factor(z)), forest(base = 0.5)),
-    base = 0.8
+    base = 0.8,
+    n.trees = 5L
   )),
   twice("base", "(forest 2)")
 )
@@ -689,7 +716,8 @@ continued <- dbarts::dbarts(
   y ~ .,
   frame,
   control = dartControl,
-  split.probs = dart()
+  split.probs = dart(),
+  n.trees = 5L
 )
 invisible(continued$run(10L, 2L))
 continued$storeState()
@@ -708,7 +736,7 @@ nextRun <- continued$run(0L, 3L)
 expect_equal(copied$run(0L, 3L), nextRun, tolerance = 1e-10)
 expect_equal(loaded$run(0L, 3L), nextRun, tolerance = 1e-10)
 # a one-forest $setModel changing power is taken
-oneForest <- dbarts::dbarts(y ~ ., frame, control = control)
+oneForest <- dbarts::dbarts(y ~ ., frame, control = control, n.trees = 5L)
 model <- oneForest$model
 model@tree.prior@power <- 1
 oneForest$setModel(model)

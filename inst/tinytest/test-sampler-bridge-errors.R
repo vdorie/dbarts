@@ -9,13 +9,12 @@ y <- 2 * x[, 1L] + rnorm(n, 0, 0.3)
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 10L,
   updateState = FALSE
 )
 
 # a sampler with no test predictors refuses a test offset. The R method gates
 # it first with a message about the NULL test matrix ...
-sampler <- dbarts(y ~ x, control = control)
+sampler <- dbarts(y ~ x, control = control, n.trees = 10L)
 expect_true(is.null(sampler$data@x.test))
 expect_error(
   sampler$setTestOffset(rep(0.1, n)),
@@ -32,46 +31,51 @@ expect_error(
   pattern = "cannot set a test offset without test predictors"
 )
 
+# the controls below write the tree count and the rule on purpose, so that a
+# written value which differs is refused; the warning that reads them is not
+# what this test pins, and its keys are given back
+onceState <- dbarts:::onceWarnState
+
 # setControl cannot change counts fixed at creation: chains, trees, quantile
 # use are all rejected
 expect_error(
-  sampler$setControl(dbartsControl(
+  suppressWarnings(sampler$setControl(dbartsControl(
     n.chains = 2L,
     n.threads = 1L,
     n.trees = 10L,
     updateState = FALSE
-  )),
+  ))),
   pattern = "changing 'n.chains'"
 )
 expect_error(
-  sampler$setControl(dbartsControl(
+  suppressWarnings(sampler$setControl(dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
     n.trees = 20L,
     updateState = FALSE
-  )),
+  ))),
   pattern = "changing 'n.trees'"
 )
 expect_error(
-  sampler$setControl(dbartsControl(
+  suppressWarnings(sampler$setControl(dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
     n.trees = 10L,
     useQuantiles = TRUE,
     updateState = FALSE
-  )),
+  ))),
   pattern = "changing 'useQuantiles'"
 )
 
 # retaining trees needs an explicit sample count
 expect_error(
-  sampler$setControl(dbartsControl(
+  suppressWarnings(sampler$setControl(dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
     n.trees = 10L,
     keepTrees = TRUE,
     updateState = FALSE
-  )),
+  ))),
   pattern = "keepTrees requires 'n.samples'"
 )
 
@@ -98,3 +102,7 @@ for (value in c(0.5, -1, 2)) {
 rm(value)
 
 rm(sampler, control, x, y, n)
+
+for (key in c("tombstone.control.n.trees", "tombstone.control.useQuantiles")) {
+  onceState[[key]] <- NULL
+}

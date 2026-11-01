@@ -140,13 +140,13 @@ declaredSampler <- dbarts(
   y ~ f + z,
   declaredUL,
   control = dbartsControl(
-    n.trees = 5L,
     n.samples = 6L,
     n.burn = 4L,
     n.chains = 1L,
     n.threads = 1L,
     verbose = FALSE
-  )
+  ),
+  n.trees = 5L
 )
 expect_silent(declaredSampler$setTestPredictor(declaredNew))
 # on a sampler without the levels, setTestPredictor is refused the same way
@@ -154,13 +154,13 @@ plainSampler <- dbarts(
   y ~ f + z,
   dUL,
   control = dbartsControl(
-    n.trees = 5L,
     n.samples = 6L,
     n.burn = 4L,
     n.chains = 1L,
     n.threads = 1L,
     verbose = FALSE
-  )
+  ),
+  n.trees = 5L
 )
 expect_identical(
   messageOf(plainSampler$setTestPredictor(oneNew)),
@@ -394,13 +394,13 @@ declaredLabelsSampler <- dbarts(
   y ~ f + z,
   declaredLabels,
   control = dbartsControl(
-    n.trees = 5L,
     n.samples = 6L,
     n.burn = 4L,
     n.chains = 1L,
     n.threads = 1L,
     verbose = FALSE
-  )
+  ),
+  n.trees = 5L
 )
 expect_silent(declaredLabelsSampler$setPredictor(rep_len(labelsUL, nUL), 1L))
 expect_silent(declaredLabelsSampler$setData(dbartsData(
@@ -414,13 +414,13 @@ testSamplerUL <- dbarts(
   dUL,
   test = data.frame(f = factor(c("L1", "L2")), z = c(0, 0)),
   control = dbartsControl(
-    n.trees = 5L,
     n.samples = 6L,
     n.burn = 4L,
     n.chains = 1L,
     n.threads = 1L,
     verbose = FALSE
-  )
+  ),
+  n.trees = 5L
 )
 expect_identical(
   messageOf(testSamplerUL$setTestPredictor(c("L1", "new1"), 1L)),
@@ -554,13 +554,13 @@ expect_error(
       forest(basis = factor(rep_len(paste0("b", 1:8), nUL)))
     ),
     control = dbartsControl(
-      n.trees = 5L,
       n.samples = 6L,
       n.burn = 4L,
       n.chains = 1L,
       n.threads = 1L,
       verbose = FALSE
-    )
+    ),
+    n.trees = 5L
   ),
   pattern = "has a basis of 8 levels ('b1', 'b2', 'b3', 'b4', 'b5' and 3 more)",
   fixed = TRUE

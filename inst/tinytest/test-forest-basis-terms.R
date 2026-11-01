@@ -52,7 +52,6 @@ basisControl <- function() {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 5L,
     n.samples = 3L,
     n.burn = 1L,
     updateState = FALSE,
@@ -65,7 +64,7 @@ asCode <- function(basis) if (is.character(basis)) str2lang(basis) else basis
 termFit <- function(basis, data = frame, ...) {
   formula <- eval(bquote(y ~ x1 + x2 + forest(x1, basis = .(asCode(basis)))))
   environment(formula) <- parent.frame()
-  call <- quote(dbarts(formula, data, control = basisControl()))
+  call <- quote(dbarts(formula, data, control = basisControl(), n.trees = 5L))
   eval(as.call(c(as.list(call), list(...))))
 }
 listFit <- function(basis, data = frame, ...) {
@@ -73,7 +72,8 @@ listFit <- function(basis, data = frame, ...) {
     y ~ x1 + x2,
     data,
     forests = list(forest(), forest(x1, basis = .(asCode(basis)))),
-    control = basisControl()
+    control = basisControl(),
+    n.trees = 5L
   ))
   eval(as.call(c(as.list(call), list(...))), list(data = data), parent.frame())
 }
@@ -81,7 +81,14 @@ doors <- list(term = termFit, list = listFit)
 # the same basis handed over as a value, which reads no code
 valueFit <- function(value, data = frame, ...) {
   forests <- list(forest(), do.call(forest, list("x1", basis = value)))
-  dbarts(y ~ x1 + x2, data, forests = forests, control = basisControl(), ...)
+  dbarts(
+    y ~ x1 + x2,
+    data,
+    forests = forests,
+    control = basisControl(),
+    ...,
+    n.trees = 5L
+  )
 }
 bartFit <- function(basis, data = frame, ...) {
   formula <- eval(bquote(y ~ x1 + x2 + forest(x1, basis = .(asCode(basis)))))
@@ -605,7 +612,8 @@ for (text in c("dose", "I(dose / 30)", "scale(age)", "dose:age", "~ dose")) {
     heldAt(eval(bquote(dbarts(
       y ~ x1 + x2 + forest(x1, basis = .(code), amplitude = fixed()),
       frame,
-      control = basisControl()
+      control = basisControl(),
+      n.trees = 5L
     )))),
     1,
     info = text
@@ -618,7 +626,8 @@ for (text in c("dose", "I(dose / 30)", "scale(age)", "dose:age", "~ dose")) {
         forest(),
         forest(x1, basis = .(code), amplitude = fixed())
       ),
-      control = basisControl()
+      control = basisControl(),
+      n.trees = 5L
     )))),
     1,
     info = text
@@ -628,7 +637,8 @@ expect_true(sizeRefused(
   refusal(dbarts(
     y ~ x1 + x2 + forest(x1, basis = dose + age, amplitude = fixed()),
     frame,
-    control = basisControl()
+    control = basisControl(),
+    n.trees = 5L
   )),
   2L
 ))
@@ -854,7 +864,8 @@ throughDots <- function(...) {
     y ~ x1 + x2 + forest(x1, basis = g),
     frame,
     control = basisControl(),
-    ...
+    ...,
+    n.trees = 5L
   )
 }
 expect_identical(
@@ -889,7 +900,8 @@ matrixFit <- dbarts(
   yVector,
   subset = which(noW),
   forests = list(forest(), forest(x1, basis = gVector)),
-  control = basisControl()
+  control = basisControl(),
+  n.trees = 5L
 )
 expect_identical(
   basisOf(matrixFit),
@@ -904,7 +916,8 @@ matrixMissing <- dbarts(
   yMissing,
   subset = 3:60,
   forests = list(forest(), forest(x1, basis = doseVector)),
-  control = basisControl()
+  control = basisControl(),
+  n.trees = 5L
 )
 expect_identical(length(matrixMissing$data@y), 56L)
 expect_identical(
@@ -1277,7 +1290,8 @@ subsetDoors <- list(
       y ~ x1 + id + forest(x1, basis = dose) + forest(x1, basis = g),
       .(data),
       subset = .(subset),
-      control = basisControl()
+      control = basisControl(),
+      n.trees = 5L
     ))
   },
   termTilde = function(data, subset) {
@@ -1285,7 +1299,8 @@ subsetDoors <- list(
       y ~ x1 + id + forest(x1, basis = ~dose) + forest(x1, basis = ~g),
       .(data),
       subset = .(subset),
-      control = basisControl()
+      control = basisControl(),
+      n.trees = 5L
     ))
   },
   bart = function(data, subset) {
@@ -1308,7 +1323,8 @@ subsetDoors <- list(
         forest(x1, basis = dose),
         forest(x1, basis = g)
       ),
-      control = basisControl()
+      control = basisControl(),
+      n.trees = 5L
     ))
   },
   listTilde = function(data, subset) {
@@ -1321,7 +1337,8 @@ subsetDoors <- list(
         forest(x1, basis = ~dose),
         forest(x1, basis = ~g)
       ),
-      control = basisControl()
+      control = basisControl(),
+      n.trees = 5L
     ))
   },
   listValue = function(data, subset, rows = quote(seq_len(n))) {
@@ -1334,7 +1351,8 @@ subsetDoors <- list(
         do.call(forest, list("x1", basis = doseRows[.(rows)])),
         do.call(forest, list("x1", basis = factor(gRows)[.(rows)]))
       ),
-      control = basisControl()
+      control = basisControl(),
+      n.trees = 5L
     ))
   },
   matrix = function(data, subset, rows = quote(seq_len(n))) {
@@ -1347,7 +1365,8 @@ subsetDoors <- list(
         forest(x1, basis = doseRows[.(rows)]),
         forest(x1, basis = gRows[.(rows)])
       ),
-      control = basisControl()
+      control = basisControl(),
+      n.trees = 5L
     ))
   },
   matrixTilde = function(data, subset, rows = quote(seq_len(n))) {
@@ -1360,7 +1379,8 @@ subsetDoors <- list(
         forest(x1, basis = ~ doseRows[.(rows)]),
         forest(x1, basis = ~ gRows[.(rows)])
       ),
-      control = basisControl()
+      control = basisControl(),
+      n.trees = 5L
     ))
   },
   matrixValue = function(data, subset, rows = quote(seq_len(n))) {
@@ -1373,7 +1393,8 @@ subsetDoors <- list(
         do.call(forest, list("x1", basis = doseRows[.(rows)])),
         do.call(forest, list("x1", basis = factor(gRows)[.(rows)]))
       ),
-      control = basisControl()
+      control = basisControl(),
+      n.trees = 5L
     ))
   },
   dataObject = function(data, subset, rows = quote(seq_len(n))) {
@@ -1384,7 +1405,8 @@ subsetDoors <- list(
         subset = .(subset),
         bases = list(NULL, doseRows[.(rows)], factor(gRows)[.(rows)])
       ),
-      control = basisControl()
+      control = basisControl(),
+      n.trees = 5L
     ))
   }
 )
@@ -1467,7 +1489,8 @@ builtOnce <- dbarts(
     subset = drawRows(),
     bases = list(NULL, doseRows)
   ),
-  control = basisControl()
+  control = basisControl(),
+  n.trees = 5L
 )
 expect_identical(readings, 1L)
 # and a plain fit reads its subset once
@@ -1476,7 +1499,8 @@ invisible(dbarts(
   y ~ x1 + id,
   rowed,
   subset = drawRows(),
-  control = basisControl()
+  control = basisControl(),
+  n.trees = 5L
 ))
 expect_identical(readings, 1L)
 # what each term computes across rows comes from every row at the matrix
@@ -1490,7 +1514,8 @@ matrixComputed <- dbarts(
     forest(x1, basis = scale(ageRows)),
     forest(x1, basis = poly(doseRows, 1))
   ),
-  control = basisControl()
+  control = basisControl(),
+  n.trees = 5L
 )
 expect_identical(
   matrixComputed$data@bases[[2L]],
@@ -1513,14 +1538,16 @@ thirdForest <- list(
     y ~ x1 + id + forest(x1, basis = dose) + forest(x1, basis = g3),
     rowed,
     subset = withoutW,
-    control = basisControl()
+    control = basisControl(),
+    n.trees = 5L
   ),
   list = dbarts(
     y ~ x1 + id,
     rowed,
     subset = withoutW,
     forests = list(forest(), forest(x1, basis = dose), forest(x1, basis = g3)),
-    control = basisControl()
+    control = basisControl(),
+    n.trees = 5L
   ),
   matrix = dbarts(
     xRowed,
@@ -1531,7 +1558,8 @@ thirdForest <- list(
       forest(x1, basis = doseRows),
       forest(x1, basis = g3Rows)
     ),
-    control = basisControl()
+    control = basisControl(),
+    n.trees = 5L
   )
 )
 for (door in names(thirdForest)) {
@@ -1548,7 +1576,8 @@ scaledResponse <- dbarts(
   I(kTimes * y) ~ x1 + id + forest(x1, basis = dose),
   rowed,
   subset = keptLogical,
-  control = basisControl()
+  control = basisControl(),
+  n.trees = 5L
 )
 expect_identical(
   as.integer(scaledResponse$data@x[, "id"]),
@@ -1591,7 +1620,8 @@ dataDoors <- list(
       y ~ x1 + id + forest(x1, basis = dose) + forest(x1, basis = zl),
       .(data),
       subset = .(subset),
-      control = basisControl()
+      control = basisControl(),
+      n.trees = 5L
     ))
   },
   termTilde = function(data, subset) {
@@ -1599,7 +1629,8 @@ dataDoors <- list(
       y ~ x1 + id + forest(x1, basis = ~dose) + forest(x1, basis = ~zl),
       .(data),
       subset = .(subset),
-      control = basisControl()
+      control = basisControl(),
+      n.trees = 5L
     ))
   },
   bart = function(data, subset) {
@@ -1622,7 +1653,8 @@ dataDoors <- list(
         forest(x1, basis = dose),
         forest(x1, basis = zl)
       ),
-      control = basisControl()
+      control = basisControl(),
+      n.trees = 5L
     ))
   },
   listTilde = function(data, subset) {
@@ -1635,7 +1667,8 @@ dataDoors <- list(
         forest(x1, basis = ~dose),
         forest(x1, basis = ~zl)
       ),
-      control = basisControl()
+      control = basisControl(),
+      n.trees = 5L
     ))
   }
 )
@@ -1709,7 +1742,8 @@ for (kind in names(emptied)) {
     yTwo,
     subset = which(zlRows),
     forests = list(forest(), forest(x1, basis = .(emptied[[kind]]$code))),
-    control = basisControl()
+    control = basisControl(),
+    n.trees = 5L
   ))))
   expect_false(is.na(written), info = kind)
   # a value has no text to be named by
@@ -1720,7 +1754,8 @@ for (kind in names(emptied)) {
       twoLevel,
       subset = zl,
       forests = list(forest(), valueForest(value)),
-      control = basisControl()
+      control = basisControl(),
+      n.trees = 5L
     )),
     words,
     info = kind
@@ -1731,7 +1766,8 @@ for (kind in names(emptied)) {
       yTwo,
       subset = which(zlRows),
       forests = list(forest(), valueForest(value)),
-      control = basisControl()
+      control = basisControl(),
+      n.trees = 5L
     )),
     words,
     info = kind
@@ -1744,7 +1780,8 @@ for (kind in names(emptied)) {
       y ~ x1 + x2,
       missingResponse,
       forests = list(forest(), valueForest(value)),
-      control = basisControl()
+      control = basisControl(),
+      n.trees = 5L
     )),
     words,
     info = kind
@@ -1756,7 +1793,8 @@ expect_identical(
     yTwo,
     subset = which(zlRows),
     forests = list(forest(), forest(x1, basis = zlRows)),
-    control = basisControl()
+    control = basisControl(),
+    n.trees = 5L
   )),
   paste0(
     "'basis' (zlRows) is TRUE on every row the fit keeps, so its other level ",
@@ -1769,7 +1807,8 @@ keptBoth <- dbarts(
   twoLevel,
   subset = x1 > 0.3,
   forests = list(forest(), valueForest(zlRows), valueForest(twoLevel$dose)),
-  control = basisControl()
+  control = basisControl(),
+  n.trees = 5L
 )
 expect_identical(
   unname(keptBoth$data@bases[[2L]]),

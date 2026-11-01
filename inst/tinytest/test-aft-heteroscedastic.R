@@ -236,7 +236,6 @@ rm(fit.no.test.scale, fit.test.bare, loc.test, sp.test)
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   updateState = FALSE
 )
 sampler <- dbarts(
@@ -244,7 +243,8 @@ sampler <- dbarts(
   cbind(time, status),
   family = "aft",
   variance = varianceForest(n.trees = 8L),
-  control = control
+  control = control,
+  n.trees = 20L
 )
 
 # the variance forest owns the residual scale, so sigma is not settable - the
@@ -286,7 +286,6 @@ expect_error(
 control.seeded <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 25L,
   updateState = FALSE,
   seed = 271L
 )
@@ -297,12 +296,19 @@ samp.a <- dbarts(
   cbind(exp(log.t), rep(1, n)),
   family = "aft",
   control = control.seeded,
-  variance = TRUE
+  variance = TRUE,
+  n.trees = 25L
 )
 expect_identical(samp.a$model@family, "aft")
 res.a <- samp.a$run(100L, 100L)
 
-samp.g <- dbarts(x, samp.a$data@y, control = control.seeded, variance = TRUE)
+samp.g <- dbarts(
+  x,
+  samp.a$data@y,
+  control = control.seeded,
+  variance = TRUE,
+  n.trees = 25L
+)
 expect_identical(samp.g$model@family, "gaussian")
 res.g <- samp.g$run(100L, 100L)
 # the engine's own family: aft imputes a latent log-time per row, all observed
@@ -349,7 +355,8 @@ swapSampler <- dbarts(
   variance = varianceForest(n.trees = 8L),
   control = control,
   sigest = 1.3,
-  seed = 77L
+  seed = 77L,
+  n.trees = 20L
 )
 swapSampler$setResponse(3 * logTimeSwap, updateScale = TRUE)
 expect_true(

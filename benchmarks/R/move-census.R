@@ -150,7 +150,6 @@ censusProposalProbs <- function() {
 censusControl <- function() {
   dbartsControl(
     verbose = FALSE,
-    n.trees = nTrees,
     n.chains = 1L,
     n.threads = 1L,
     n.samples = nSamples,
@@ -168,7 +167,8 @@ cells <- list(
       data$x,
       data$y,
       proposal.probs = censusProposalProbs(),
-      control = censusControl()
+      control = censusControl(),
+      n.trees = nTrees
     )
   },
   lownoise = function() {
@@ -177,7 +177,8 @@ cells <- list(
       data$x,
       data$y,
       proposal.probs = censusProposalProbs(),
-      control = censusControl()
+      control = censusControl(),
+      n.trees = nTrees
     )
   },
   wide = function() {
@@ -186,7 +187,8 @@ cells <- list(
       data$x,
       data$y,
       proposal.probs = censusProposalProbs(),
-      control = censusControl()
+      control = censusControl(),
+      n.trees = nTrees
     )
   },
   bcf = function() {
@@ -197,7 +199,8 @@ cells <- list(
       data$y,
       forests = list(forest(), forest(basis = ~ factor(z))),
       proposal.probs = censusProposalProbs(),
-      control = censusControl()
+      control = censusControl(),
+      n.trees = nTrees
     )
   },
   c1 = function() {
@@ -217,7 +220,8 @@ cells <- list(
       data$x,
       data$y,
       proposal.probs = censusProposalProbs(),
-      control = censusControl()
+      control = censusControl(),
+      n.trees = nTrees
     )
   }
 )

@@ -149,10 +149,15 @@ rm(newRows, ppdCounts, fit.p, ppdProbit)
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 25L,
   updateState = FALSE
 )
-sampler <- dbarts(y ~ x, weights = w, family = "logistic", control = control)
+sampler <- dbarts(
+  y ~ x,
+  weights = w,
+  family = "logistic",
+  control = control,
+  n.trees = 25L
+)
 samples <- sampler$run(50L, 50L)
 expect_equal(length(unique(samples$sigma)), 1L) # logistic sd is fixed, not drawn
 expect_true(all(is.finite(samples$train)))

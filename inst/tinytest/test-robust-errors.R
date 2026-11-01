@@ -38,19 +38,19 @@ expect_error(dbartsFamilies$student(df = "4"), "single positive finite")
 control <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   n.samples = 30L,
   updateState = FALSE
 )
 
-samplerGaussian <- dbarts::dbarts(x, y, control = control)
+samplerGaussian <- dbarts::dbarts(x, y, control = control, n.trees = 20L)
 expect_null(attr(samplerGaussian$model, "resid.df"))
 
 samplerFixed <- dbarts::dbarts(
   x,
   y,
   control = control,
-  family = student(df = 4)
+  family = student(df = 4),
+  n.trees = 20L
 )
 expect_equal(attr(samplerFixed$model, "resid.df"), 4)
 
@@ -58,7 +58,8 @@ samplerEstimate <- dbarts::dbarts(
   x,
   y,
   control = control,
-  family = student()
+  family = student(),
+  n.trees = 20L
 )
 expect_equal(attr(samplerEstimate$model, "resid.df"), 0) # 0 signals estimate
 
@@ -73,7 +74,8 @@ samplerBinary <- dbarts::dbarts(
   x,
   yBinary,
   control = control,
-  family = "probit"
+  family = "probit",
+  n.trees = 20L
 )
 expect_null(attr(samplerBinary$model, "resid.df"))
 

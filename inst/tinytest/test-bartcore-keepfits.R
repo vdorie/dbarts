@@ -23,13 +23,13 @@ makeVarianceSampler <- function(keepFits = TRUE) {
     control = dbarts::dbartsControl(
       n.chains = numChains,
       n.threads = numChains,
-      n.trees = 10L,
       n.samples = numSamples,
       n.burn = 0L,
       keepFits = keepFits,
       updateState = FALSE,
       seed = 4242L
-    )
+    ),
+    n.trees = 10L
   )
 }
 
@@ -70,13 +70,13 @@ makeForestSampler <- function(keepFits = TRUE) {
     control = dbarts::dbartsControl(
       n.chains = numChains,
       n.threads = numChains,
-      n.trees = 10L,
       n.samples = numSamples,
       n.burn = 0L,
       keepFits = keepFits,
       updateState = FALSE,
       seed = 5150L
-    )
+    ),
+    n.trees = 10L
   )
 }
 

@@ -25,7 +25,6 @@ ctl <- function(n.chains = 1L, n.trees = 8L, ...) {
   dbartsControl(
     n.chains = n.chains,
     n.threads = 1L,
-    n.trees = n.trees,
     n.samples = 1L,
     n.burn = 0L,
     seed = 3L,
@@ -39,7 +38,8 @@ bcfSampler <- function(...) {
     y,
     forests = list(forest(), forest(basis = ~ factor(z))),
     control = ctl(),
-    ...
+    ...,
+    n.trees = 8L
   )
 }
 # the trailing sweep dimension is last on every reported channel, whatever the
@@ -72,7 +72,6 @@ yb <- rbinom(nb, 1L, pnorm(vb))
 binaryCtl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 1L,
   n.samples = 1L,
   n.burn = 0L,
   seed = 7L,
@@ -83,7 +82,8 @@ binarySampler <- function(fam) {
     yb ~ vb,
     data.frame(vb = vb, yb = yb),
     control = binaryCtl,
-    family = fam
+    family = fam,
+    n.trees = 1L
   )
   invisible(s$run(40L, 1L))
   s
@@ -172,7 +172,7 @@ donorSample <- function(d, s) d$fit$getTrees(sampleNums = s, chainNums = 1L)$var
 donor <- warmDonor(X)
 
 # multi-chain: one donor sample per chain, and each chain gets ITS sample
-warmChains <- dbarts(X, y, control = ctl(n.chains = 2L))
+warmChains <- dbarts(X, y, control = ctl(n.chains = 2L), n.trees = 8L)
 warmChains$installTrees(donor, samples = c(1L, 3L))
 donor1 <- donorSample(donor, 1L)
 donor3 <- donorSample(donor, 3L)
@@ -185,7 +185,7 @@ expect_identical(
   donor3
 )
 expect_false(identical(donor1, donor3))
-warmChainsAgain <- dbarts(X, y, control = ctl(n.chains = 2L))
+warmChainsAgain <- dbarts(X, y, control = ctl(n.chains = 2L), n.trees = 8L)
 warmChainsAgain$installTrees(donor, samples = c(1L, 3L))
 expect_identical(
   warmChains$run(0L, 3L)$train,
@@ -195,7 +195,13 @@ expect_identical(
 # linear leaves: the donor's leaf parameters are vectors, and a constant-leaf
 # donor seeds them with slopes of 0
 linDonor <- warmDonor(X, leaf.prior = linearLeaf)
-warmLinear <- dbarts(X, y, leaf.prior = linearLeaf, control = ctl())
+warmLinear <- dbarts(
+  X,
+  y,
+  leaf.prior = linearLeaf,
+  control = ctl(),
+  n.trees = 8L
+)
 warmLinear$installTrees(linDonor, samples = 2L)
 expect_identical(
   warmLinear$getTrees(current = TRUE)$var,
@@ -212,7 +218,7 @@ expect_identical(
 Xna <- X
 Xna$v2[c(3L, 17L, 40L)] <- NA_real_
 naDonor <- warmDonor(Xna)
-warmMissing <- dbarts(Xna, y, control = ctl())
+warmMissing <- dbarts(Xna, y, control = ctl(), n.trees = 8L)
 warmMissing$installTrees(naDonor, samples = 2L)
 expect_identical(
   warmMissing$getTrees(current = TRUE)$var,
@@ -241,7 +247,7 @@ drawnCuts <- function(sampler, column) {
 }
 
 # a single-forest control first: the OLD grid becomes undrawable
-gridBefore <- dbarts(X, y, control = ctl(n.trees = 20L))
+gridBefore <- dbarts(X, y, control = ctl(), n.trees = 20L)
 invisible(gridBefore$run(50L, 1L))
 oldCuts <- drawnCuts(gridBefore, 1L)
 expect_true(length(oldCuts) > 1L)
@@ -250,7 +256,7 @@ gridRun <- gridBefore$run(0L, 40L)
 expect_identical(drawnCuts(gridBefore, 1L), 0.5)
 expect_true(sum(gridRun$varcount[1L, ]) > 0L)
 # and a cut OUTSIDE the old grid becomes drawable
-gridWiden <- dbarts(X, y, control = ctl(n.trees = 20L, n.cuts = 5L))
+gridWiden <- dbarts(X, y, control = ctl(), n.trees = 20L, n.cuts = 5L)
 invisible(gridWiden$run(50L, 1L))
 widened <- c(0.011, 0.987)
 # the engine's own uniform grid for the column it is replacing: the new cuts
@@ -274,7 +280,13 @@ expect_true(all(is.finite(cutBcf$getForestFits(2L))))
 
 # a leaf-covariate column carries a split grid AND a leaf regressor; coarsening
 # it must not disturb the leaf model
-cutLinear <- dbarts(X, y, leaf.prior = linearLeaf, control = ctl())
+cutLinear <- dbarts(
+  X,
+  y,
+  leaf.prior = linearLeaf,
+  control = ctl(),
+  n.trees = 8L
+)
 invisible(cutLinear$run(20L, 1L))
 cutLinear$setCutPoints(list(0.4), 3L)
 # no one draw need split on the column, so the splits of each of twenty are
@@ -288,7 +300,7 @@ for (sweep in seq_len(20L)) {
 expect_identical(unique(linCuts), 0.4)
 
 # NA-carrying column: the imputed rows ride the new grid like any other
-cutMissing <- dbarts(Xna, y, control = ctl())
+cutMissing <- dbarts(Xna, y, control = ctl(), n.trees = 8L)
 invisible(cutMissing$run(20L, 1L))
 cutMissing$setCutPoints(list(0.4), 2L)
 naCutRun <- cutMissing$run(0L, 20L)
@@ -308,17 +320,36 @@ chainArms <- list(
       X,
       y,
       forests = list(forest(), forest(basis = ~ factor(z))),
-      control = ctl(n.chains = k)
+      control = ctl(n.chains = k),
+      n.trees = 8L
     )
   },
   dart = function(k) {
-    dbarts(X, y, split.probs = dart(), control = ctl(n.chains = k))
+    dbarts(
+      X,
+      y,
+      split.probs = dart(),
+      control = ctl(n.chains = k),
+      n.trees = 8L
+    )
   },
   linear = function(k) {
-    dbarts(X, y, leaf.prior = linearLeaf, control = ctl(n.chains = k))
+    dbarts(
+      X,
+      y,
+      leaf.prior = linearLeaf,
+      control = ctl(n.chains = k),
+      n.trees = 8L
+    )
   },
   gp = function(k) {
-    dbarts(X, y, leaf.prior = gp("v3", k = 2), control = ctl(n.chains = k))
+    dbarts(
+      X,
+      y,
+      leaf.prior = gp("v3", k = 2),
+      control = ctl(n.chains = k),
+      n.trees = 8L
+    )
   }
 )
 for (arm in names(chainArms)) {
@@ -440,10 +471,12 @@ continuationArm <- function(
 mnLabels <- rbinom(n, 2L, 0.4)
 continuationArms <- list(
   gaussian = function() {
-    continuationArm(function() dbarts(X, y, control = ctl()))
+    continuationArm(function() dbarts(X, y, control = ctl(), n.trees = 8L))
   },
   weighted = function() {
-    continuationArm(function() dbarts(X, y, weights = wts, control = ctl()))
+    continuationArm(function() {
+      dbarts(X, y, weights = wts, control = ctl(), n.trees = 8L)
+    })
   },
   bcf = function() continuationArm(bcfSampler),
   multinomial = function() {
@@ -452,7 +485,8 @@ continuationArms <- list(
         X,
         factor(mnLabels, levels = 0:2),
         family = "multinomial",
-        control = ctl()
+        control = ctl(),
+        n.trees = 8L
       )
     })
   }

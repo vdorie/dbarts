@@ -23,12 +23,11 @@ keepSampler <- function(n.samples, n.chains = 1L, n.thin = 1L, n.trees = 5L) {
     n.chains = n.chains,
     n.thin = n.thin,
     n.threads = 1L,
-    n.trees = n.trees,
     updateState = FALSE,
     verbose = FALSE
   )
   set.seed(7L)
-  dbarts::dbarts(x, y, control = control)
+  dbarts::dbarts(x, y, control = control, n.trees = n.trees)
 }
 
 # no offset and a gaussian response, so the replayed surface IS the recorded
@@ -165,7 +164,6 @@ sampler.forests <- local({
     n.samples = 6L,
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 5L,
     updateState = FALSE,
     verbose = FALSE
   )
@@ -175,7 +173,8 @@ sampler.forests <- local({
     x,
     y,
     forests = list(forest(), forest(basis = ~ factor(z))),
-    control = control
+    control = control,
+    n.trees = 5L
   )
 })
 invisible(sampler.forests$run(0L, 2L))

@@ -16,7 +16,6 @@ df <- data.frame(x1, x2, g, y)
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 10L,
   updateState = FALSE
 )
 
@@ -27,7 +26,8 @@ sampler.cat <- dbarts(
   df,
   split.probs = dart(),
   factors = "categorical",
-  control = control
+  control = control,
+  n.trees = 10L
 )
 expect_equal(ncol(sampler.cat$data@x), 3L)
 # NA is modeled, not dropped; @x is the columnar container, so materialize
@@ -47,7 +47,8 @@ sampler.ind <- dbarts(
   df,
   split.probs = dart(),
   factors = "indicators",
-  control = control
+  control = control,
+  n.trees = 10L
 )
 expect_equal(ncol(sampler.ind$data@x), 6L) # x1, x2, g.a..g.d
 

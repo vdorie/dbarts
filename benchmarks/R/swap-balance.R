@@ -241,15 +241,12 @@ classifyExact <- function(sub, shape) {
 ctl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 1L,
-  useQuantiles = TRUE,
   keepTrees = TRUE,
   n.samples = batchSize,
   n.burn = nBurn,
   n.thin = nThin,
   updateState = TRUE,
-  seed = engineSeed,
-  n.cuts = 100L
+  seed = engineSeed
 )
 sampler <- dbarts(
   cbind(x1 = x1, x2 = x2),
@@ -259,7 +256,10 @@ sampler <- dbarts(
   base = base,
   leaf.prior = normal(kLeaf),
   family = gaussian(sigma = fixed(fixedVar)),
-  proposal.probs = proposalProbs
+  proposal.probs = proposalProbs,
+  n.trees = 1L,
+  useQuantiles = TRUE,
+  n.cuts = 100L
 )
 stopifnot(is.null(sampler$data@offset))
 

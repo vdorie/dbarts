@@ -23,7 +23,6 @@ x2.new <- df$x2 * 1.1 # the mutated designated column
 control <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,
-  n.trees = 10L,
   n.samples = 5L,
   updateState = FALSE
 )
@@ -33,7 +32,8 @@ warm.lin <- dbarts(
   y ~ x1 + x2 + x3,
   df,
   leaf.prior = linear("x2"),
-  control = control
+  control = control,
+  n.trees = 10L
 )
 invisible(warm.lin$run(20L, 2L))
 warm.lin$setPredictor(x2.new, "x2", forceUpdate = TRUE)
@@ -44,7 +44,8 @@ cold.lin <- dbarts(
   y ~ x1 + x2 + x3,
   df,
   leaf.prior = linear("x2"),
-  control = control
+  control = control,
+  n.trees = 10L
 )
 cold.lin$setPredictor(x2.new, "x2", forceUpdate = TRUE)
 cold.lin$setState(warm.lin$state)
@@ -56,7 +57,8 @@ warm.gp <- dbarts(
   y ~ x1 + x2 + x3,
   df,
   leaf.prior = gp("x2", max.leaf.size = 50L),
-  control = control
+  control = control,
+  n.trees = 10L
 )
 # the small leaf cap keeps the run fast; the cap's constant fallback is
 # reported by each run and pinned here (about half the evaluations at this
@@ -78,7 +80,8 @@ cold.gp <- dbarts(
   y ~ x1 + x2 + x3,
   df,
   leaf.prior = gp("x2", max.leaf.size = 50L),
-  control = control
+  control = control,
+  n.trees = 10L
 )
 cold.gp$setPredictor(x2.new, "x2", forceUpdate = TRUE)
 cold.gp$setState(warm.gp$state)
@@ -86,13 +89,13 @@ cold.gp$storeState()
 statesAgree(cold.gp$state, warm.gp$state)
 
 # default constant leaf: the mutation-then-restore flow with the base prior
-warm.const <- dbarts(y ~ x1 + x2 + x3, df, control = control)
+warm.const <- dbarts(y ~ x1 + x2 + x3, df, control = control, n.trees = 10L)
 invisible(warm.const$run(20L, 2L))
 warm.const$setPredictor(x2.new, "x2", forceUpdate = TRUE)
 invisible(warm.const$run(0L, 2L))
 warm.const$storeState()
 
-cold.const <- dbarts(y ~ x1 + x2 + x3, df, control = control)
+cold.const <- dbarts(y ~ x1 + x2 + x3, df, control = control, n.trees = 10L)
 cold.const$setPredictor(x2.new, "x2", forceUpdate = TRUE)
 cold.const$setState(warm.const$state)
 cold.const$storeState()
@@ -113,7 +116,6 @@ recreated <- function(sampler) {
 keep.control <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,
-  n.trees = 10L,
   n.samples = 3L,
   keepTrees = TRUE,
   updateState = FALSE
@@ -127,7 +129,8 @@ for (leaf in c("linear", "gp")) {
     } else {
       gp("x2", max.leaf.size = 200L)
     },
-    control = keep.control
+    control = keep.control,
+    n.trees = 10L
   )
   invisible(live$run(20L, 3L))
   expect_true(live$setPredictor(2 * x2.new, "x2"), info = leaf)

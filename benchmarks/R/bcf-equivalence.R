@@ -154,7 +154,6 @@ makeControl <- function() {
   dbartsControl(
     n.chains = 1L,
     n.threads = n.threads,
-    n.trees = n.trees.mu,
     updateState = FALSE
   )
 }
@@ -255,7 +254,8 @@ runScenarios <- function() {
       d$x,
       d$y,
       forests = bcfForests(d$z, n.trees.tau, 2 * sd(d$y)),
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees.mu
     )
     res <- bc$run(n.burn, n.samples)
     result$default <- recordChannels(bc, res)
@@ -275,7 +275,8 @@ runScenarios <- function() {
         2 * sd(d$y),
         moderators = c("x1", "x3")
       ),
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees.mu
     )
     res <- bc$run(n.burn, n.samples)
     result$restricted <- recordChannels(bc, res)
@@ -297,7 +298,8 @@ runScenarios <- function() {
         update.a = TRUE,
         update.b = FALSE
       ),
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees.mu
     )
     res <- bc$run(n.burn, n.samples)
     result$glue_toggle <- recordChannels(bc, res)
@@ -316,7 +318,8 @@ runScenarios <- function() {
       d$y,
       weights = weights,
       forests = bcfForests(d$z, n.trees.tau, 2 * sd(d$y)),
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees.mu
     )
     res <- bc$run(n.burn, n.samples)
     result$weighted <- recordChannels(bc, res)
@@ -334,7 +337,8 @@ runScenarios <- function() {
       d$x,
       d$y,
       forests = bcfForests(d$z, n.trees.tau, 2 * sd(d$y)),
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees.mu
     )
     bc$run(n.burn, n.samples)
     bc$setForestBasis(2L, factor(z2))
@@ -363,7 +367,8 @@ runScenarios <- function() {
       d$x,
       d$y,
       forests = bcfForests(d$z, n.trees.tau, 2 * sd(d$y)),
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees.mu
     )
     bc$run(n.burn, n.samples)
     bc$setPredictor(x2, forceUpdate = TRUE)
@@ -395,7 +400,8 @@ runScenarios <- function() {
       d$x,
       d$y,
       forests = bcfForests(d$z, n.trees.tau, 2 * sd(d$y)),
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees.mu
     )
     bc$run(n.burn, n.samples)
     accepted <- bc$setPredictor(x2, forceUpdate = FALSE)
@@ -416,7 +422,8 @@ runScenarios <- function() {
       d$x,
       d$y,
       forests = bcfForests(d$z, n.trees.tau, 2 * sd(d$y)),
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees.mu
     )
     bc$run(n.burn, n.samples)
     accepted <- bc$setPredictor(v, 3L)
@@ -438,7 +445,8 @@ runScenarios <- function() {
       d$x,
       d$y,
       forests = bcfForests(d$z, n.trees.tau, 2 * sd(d$y)),
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees.mu
     )
     bc$run(n.burn, n.samples)
     accepted <- bc$setPredictor(
@@ -472,7 +480,8 @@ runScenarios <- function() {
       d$x,
       d$y,
       forests = bcfForests(d$z, n.trees.tau, 2 * sd(d$y)),
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees.mu
     )
     bc$run(n.burn, n.samples)
     installed <- bc$setPredictor(v, 3L, forceUpdate = "partial")
@@ -491,7 +500,8 @@ runScenarios <- function() {
       d$x,
       d$y,
       forests = bcfForests(d$z, n.trees.tau, 2 * sd(d$y)),
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees.mu
     )
     bc$run(n.burn, n.samples)
     installed <- bc$setPredictor(
@@ -521,7 +531,8 @@ runScenarios <- function() {
       d$x,
       d$y,
       forests = bcfForests(d$z, n.trees.tau, 2 * sd(d$y)),
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees.mu
     )
     bc$run(n.burn, n.samples)
     bc$setActiveRows(mask)
@@ -552,7 +563,8 @@ runScenarios <- function() {
       d$x,
       d$y,
       forests = bcfForests(d$z, n.trees.tau, 1),
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees.mu
     )
     res <- bc$run(n.burn, n.samples)
     recordChannels(bc, res)
@@ -571,7 +583,8 @@ runScenarios <- function() {
       d$y,
       family = "logistic",
       forests = bcfForests(d$z, n.trees.tau, pi / sqrt(3)),
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees.mu
     )
     res <- bc$run(n.burn, n.samples)
     recordChannels(bc, res)
@@ -595,7 +608,8 @@ runScenarios <- function() {
       weights = weights,
       family = "logistic",
       forests = bcfForests(d$z, n.trees.tau, pi / sqrt(3)),
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees.mu
     )
     res <- bc$run(n.burn, n.samples)
     recordChannels(bc, res)
@@ -637,7 +651,8 @@ runScenarios <- function() {
       d$x,
       d$y,
       forests = numericForests(d),
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees.mu
     )
     res <- bc$run(n.burn, n.samples)
     recordChannels(bc, res)
@@ -653,7 +668,8 @@ runScenarios <- function() {
       d$x,
       d$y,
       forests = numericForests(d),
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees.mu
     )
     bc$run(n.burn, n.samples)
     bc$setForestBasis(2L, 10 * d$dose)
@@ -678,7 +694,8 @@ runScenarios <- function() {
       d$x,
       d$y,
       forests = numericForests(d, held = TRUE),
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees.mu
     )
     res <- bc$run(n.burn, n.samples)
     recordChannels(bc, res)
@@ -693,7 +710,8 @@ runScenarios <- function() {
       d$x,
       d$y,
       forests = bcfForests(d$z, n.trees.tau, update.a = FALSE),
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees.mu
     )
     res <- bc$run(n.burn, n.samples)
     recordChannels(bc, res)

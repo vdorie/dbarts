@@ -53,12 +53,10 @@ runSampler <- function(
   ctl <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 1L,
     keepTrees = TRUE,
     n.samples = batch,
     updateState = TRUE,
-    seed = seed,
-    n.cuts = length(unique(x)) - 1L
+    seed = seed
   )
   directions <- c(1L)
   names(directions) <- colnames(x)
@@ -74,7 +72,9 @@ runSampler <- function(
     # internal (range-scaled) residual variance is priorSigma^2 / yRange^2 =
     # (priorSigma / yRange)^2, matching residVar in the quadrature
     family = gaussian(sigma = fixed(priorSigma^2)),
-    monotone = monotone(directions, prior = "leaf")
+    monotone = monotone(directions, prior = "leaf"),
+    n.trees = 1L,
+    n.cuts = length(unique(x)) - 1L
   )
   stopifnot(sampler$control@proposal.probs[["birth_death"]] == 1)
   stopifnot(is.null(sampler$data@offset))

@@ -357,12 +357,12 @@ separate <- dbarts::dbarts(
   control = dbarts::dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 5L,
     n.samples = 1L,
     updateState = FALSE,
     verbose = FALSE,
     seed = 5L
-  )
+  ),
+  n.trees = 5L
 )
 expect_identical(colnames(separate$data@x), c("x1", "x2", "x3"))
 expect_identical(
@@ -1165,10 +1165,8 @@ allMultiplied <- function(..., n.trees = NULL) {
   )
   dbarts::dbarts(
     ...,
-    control = do.call(
-      dbarts::dbartsControl,
-      c(settings, if (!is.null(n.trees)) list(n.trees = n.trees))
-    )
+    control = do.call(dbarts::dbartsControl, settings),
+    n.trees = n.trees
   )
 }
 engineTreeCounts <- function(sampler) {
@@ -1234,7 +1232,7 @@ expect_error(
     d,
     n.trees = 15L
   ),
-  "the control's 'n.trees' is the tree count of the forest with no basis, and every forest of this model has a basis",
+  "'n.trees' given to the fitting function is the tree count of the forest with no basis, and every forest of this model has a basis",
   fixed = TRUE
 )
 
@@ -1266,12 +1264,12 @@ expect_error(
     forests = list(forest(), forest(basis = ~z)),
     control = dbarts::dbartsControl(
       n.chains = 1L,
-      n.trees = 3L,
       n.burn = 3L,
       n.samples = 3L,
       n.threads = 1L,
       verbose = FALSE
-    )
+    ),
+    n.trees = 3L
   ),
   "only be declared one way"
 )

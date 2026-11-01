@@ -11,21 +11,25 @@ y.continuous <- f + rnorm(n, 0, 0.5)
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 50L,
   updateState = FALSE
 )
 
 # auto preserves the existing dispatch
-sampler.auto <- dbarts(y.binary ~ x, control = control)
+sampler.auto <- dbarts(y.binary ~ x, control = control, n.trees = 50L)
 expect_equal(sampler.auto$model@family, "probit")
 expect_true(sampler.auto$control@binary)
 expect_equal(
-  dbarts(y.continuous ~ x, control = control)$model@family,
+  dbarts(y.continuous ~ x, control = control, n.trees = 50L)$model@family,
   "gaussian"
 )
 
 # gaussian on a 0/1 response is allowed and fits a continuous model
-sampler.gauss <- dbarts(y.binary ~ x, family = "gaussian", control = control)
+sampler.gauss <- dbarts(
+  y.binary ~ x,
+  family = "gaussian",
+  control = control,
+  n.trees = 50L
+)
 expect_false(sampler.gauss$control@binary)
 samples.gauss <- sampler.gauss$run(50L, 50L)
 expect_true(
@@ -35,7 +39,7 @@ expect_true(
 
 # binary families need a 0/1 response
 expect_error(
-  dbarts(y.continuous ~ x, family = "probit", control = control),
+  dbarts(y.continuous ~ x, family = "probit", control = control, n.trees = 50L),
   pattern = "requires a response coded 0/1"
 )
 
@@ -54,12 +58,12 @@ countWarnings <- function(expr) {
 }
 y.ones <- rep(1, n)
 res <- countWarnings(
-  dbarts(y.ones ~ x, family = "probit", control = control)
+  dbarts(y.ones ~ x, family = "probit", control = control, n.trees = 50L)
 )
 expect_identical(length(res$warnings), 1L)
 expect_true(grepl("single class", res$warnings, fixed = TRUE))
 res <- countWarnings(
-  dbarts(x, rep(0, n), family = "logistic", control = control)
+  dbarts(x, rep(0, n), family = "logistic", control = control, n.trees = 50L)
 )
 expect_identical(length(res$warnings), 1L)
 expect_true(grepl("single class", res$warnings, fixed = TRUE))
@@ -68,7 +72,13 @@ expect_true(grepl("single class", res$warnings, fixed = TRUE))
 for (cls in c(0, 1)) {
   for (familyName in c("probit", "logistic")) {
     sampler <- suppressWarnings(
-      dbarts(x, rep(cls, n), family = familyName, control = control)
+      dbarts(
+        x,
+        rep(cls, n),
+        family = familyName,
+        control = control,
+        n.trees = 50L
+      )
     )
     samples <- sampler$run(20L, 50L)
     expect_true(all(is.finite(samples$train)), info = paste(cls, familyName))
@@ -115,13 +125,16 @@ if (requireNamespace("survival", quietly = TRUE)) {
     surv <- survival::Surv(case$time, case$status)
     for (familyName in c("hazard", "hazard.probit", "hazard.logistic")) {
       doors <- list(
-        xy = function() dbarts(x, surv, family = familyName, control = control),
+        xy = function() {
+          dbarts(x, surv, family = familyName, control = control, n.trees = 50L)
+        },
         matrix = function() {
           dbarts(
             x,
             cbind(case$time, case$status),
             family = familyName,
-            control = control
+            control = control,
+            n.trees = 50L
           )
         },
         formula = function() {
@@ -129,7 +142,8 @@ if (requireNamespace("survival", quietly = TRUE)) {
             survival::Surv(time, status) ~ x1 + x2,
             hazardData,
             family = familyName,
-            control = control
+            control = control,
+            n.trees = 50L
           )
         },
         bart.xy = function() {
@@ -212,7 +226,8 @@ if (requireNamespace("survival", quietly = TRUE)) {
       x,
       survival::Surv(1 + rpois(n, 2), rbinom(n, 1L, 0.5)),
       family = "hazard",
-      control = control
+      control = control,
+      n.trees = 50L
     )
   )
   expect_identical(length(res$warnings), 0L)
@@ -254,7 +269,8 @@ for (encoding in names(singleClassResponses)) {
         x,
         singleClassResponses[[encoding]],
         family = familyName,
-        control = control
+        control = control,
+        n.trees = 50L
       )
     )
     expect_identical(
@@ -273,7 +289,13 @@ for (encoding in names(singleClassResponses)) {
 nearConstantWarnings <- list()
 expect_error(
   withCallingHandlers(
-    dbarts(x, 1e15 + runif(n, 0, 1e-3), family = "probit", control = control),
+    dbarts(
+      x,
+      1e15 + runif(n, 0, 1e-3),
+      family = "probit",
+      control = control,
+      n.trees = 50L
+    ),
     warning = function(w) {
       nearConstantWarnings[[length(nearConstantWarnings) + 1L]] <<- w
       invokeRestart("muffleWarning")
@@ -297,8 +319,13 @@ rm(
   nearConstantWarnings
 )
 
-control.bc <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 50L)
-sampler.logit <- dbarts(y.binary ~ x, family = "logistic", control = control.bc)
+control.bc <- dbartsControl(n.chains = 1L, n.threads = 1L)
+sampler.logit <- dbarts(
+  y.binary ~ x,
+  family = "logistic",
+  control = control.bc,
+  n.trees = 50L
+)
 expect_equal(sampler.logit$model@family, "logistic")
 expect_inherits(sampler.logit$model@leaf.hyperprior, "dbartsChiHyperprior")
 expect_equal(sampler.logit$model@leaf.scale, pi * sqrt(3))

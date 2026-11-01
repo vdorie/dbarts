@@ -24,7 +24,6 @@ numTrees <- 20L
 control <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = numTrees,
   updateState = FALSE,
   seed = 11L
 )
@@ -49,7 +48,8 @@ makeBCF <- function(...) {
         power = deep$power,
         ...
       )
-    )
+    ),
+    n.trees = numTrees
   )
 }
 
@@ -80,7 +80,8 @@ reference <- dbarts::dbarts(
   y,
   control = control,
   power = deep$power,
-  base = deep$base
+  base = deep$base,
+  n.trees = numTrees
 )
 
 tauLeaves <- 0L
@@ -138,7 +139,8 @@ masked <- dbarts::dbarts(
   y,
   control = control,
   power = deep$power,
-  base = deep$base
+  base = deep$base,
+  n.trees = numTrees
 )
 masked$setActiveRows(rep(0, n))
 masked$sampleTreesFromPrior()

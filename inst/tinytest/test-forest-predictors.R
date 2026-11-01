@@ -32,7 +32,6 @@ predictorControl <- function() {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 8L,
     n.samples = 5L,
     updateState = FALSE,
     verbose = FALSE,
@@ -47,7 +46,8 @@ listed <- function(forests, formula = y ~ x1 + x2 + x3) {
       .(formula),
       frame,
       forests = .(forests),
-      control = predictorControl()
+      control = predictorControl(),
+      n.trees = 8L
     )),
     parent.frame()
   )
@@ -263,7 +263,8 @@ built <- dbarts(
   y ~ x1 + x2 + x3,
   frame,
   forests = buildForests(c("x2", "x3")),
-  control = predictorControl()
+  control = predictorControl(),
+  n.trees = 8L
 )
 expect_identical(forestColumns(built), list(NULL, 2:3))
 # with no data frame: the matrix interface's column names
@@ -272,7 +273,8 @@ expect_identical(
     x,
     y,
     forests = list(forest(), forest(x1 + x3, basis = ~ factor(z))),
-    control = predictorControl()
+    control = predictorControl(),
+    n.trees = 8L
   )),
   list(NULL, c(1L, 3L))
 )
@@ -282,7 +284,8 @@ expect_identical(
     dbartsSpec(
       dbartsData(x, y),
       predictorControl(),
-      forests = list(forest(), forest(. - x1, basis = ~ factor(z)))
+      forests = list(forest(), forest(. - x1, basis = ~ factor(z))),
+      n.trees = 8L
     )$model@forests,
     slot,
     "vars"
@@ -445,7 +448,7 @@ refusesSelection(quote(list(forest(z3))), repeated)
 # fit the model written: by the columns every forest splits on, and draw for
 # draw against the selection spelled out.
 built <- function(forests) {
-  dbarts(x, y, forests = forests, control = predictorControl())
+  dbarts(x, y, forests = forests, control = predictorControl(), n.trees = 8L)
 }
 selected <- function(sampler) {
   lapply(forestColumns(sampler), function(columns) {
@@ -516,7 +519,8 @@ expect_identical(
     x,
     y,
     forests = c(list(forest()), lapply(c("x1", "x3"), forest, basis = ~z)),
-    control = predictorControl()
+    control = predictorControl(),
+    n.trees = 8L
   )),
   oneEachColumns
 )
@@ -647,7 +651,8 @@ expect_identical(
     y ~ x3 + x1 + x2,
     reordered,
     forests = byTerms,
-    control = predictorControl()
+    control = predictorControl(),
+    n.trees = 8L
   )),
   list(NULL, 1:2)
 )
@@ -657,7 +662,8 @@ expect_error(
     y ~ a + b + c,
     renamed,
     forests = byTerms,
-    control = predictorControl()
+    control = predictorControl(),
+    n.trees = 8L
   ),
   "'x1' is not a predictor of this fit (a, b, c)",
   fixed = TRUE
@@ -764,7 +770,8 @@ onDesign <- function(design, forests) {
       .(design),
       y,
       forests = .(forests),
-      control = predictorControl()
+      control = predictorControl(),
+      n.trees = 8L
     )),
     parent.frame()
   )
@@ -805,7 +812,8 @@ for (case in labeled) {
       .(case[[1L]]),
       namedFrame,
       forests = list(forest(), forest(.(case[[2L]]), basis = ~z)),
-      control = predictorControl()
+      control = predictorControl(),
+      n.trees = 8L
     )))
   } else {
     onDesign(
@@ -1011,7 +1019,8 @@ onClash <- function(forests) {
       clash,
       factors = "indicators",
       forests = .(forests),
-      control = predictorControl()
+      control = predictorControl(),
+      n.trees = 8L
     )),
     parent.frame()
   )

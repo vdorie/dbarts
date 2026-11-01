@@ -95,7 +95,6 @@ controlWith <- function(...) {
   settings <- list(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 20L,
     n.samples = 4L,
     n.burn = 0L,
     updateState = FALSE,
@@ -105,8 +104,13 @@ controlWith <- function(...) {
 }
 # a sampler past a short burn-in, or one whose trees are all single leaves;
 # built twice the same way, two are the same sampler
-make <- function(..., run = TRUE, data = x, response = y) {
-  sampler <- dbarts::dbarts(data, response, control = controlWith(...))
+make <- function(..., run = TRUE, data = x, response = y, n.trees = 20L) {
+  sampler <- dbarts::dbarts(
+    data,
+    response,
+    control = controlWith(...),
+    n.trees = n.trees
+  )
   if (run) {
     invisible(sampler$run(20L, 1L))
   }
@@ -419,7 +423,13 @@ expectTwoCalls(make, 2L, three, "second column")
 xTest <- x[seq_len(40L), 2L:1L]
 colnames(xTest) <- colnames(x)
 withTest <- function() {
-  sampler <- dbarts::dbarts(x, y, test = xTest, control = controlWith())
+  sampler <- dbarts::dbarts(
+    x,
+    y,
+    test = xTest,
+    control = controlWith(),
+    n.trees = 20L
+  )
   invisible(sampler$run(20L, 1L))
   sampler
 }
@@ -454,7 +464,8 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
       xSparse,
       y,
       test = xSparseTest,
-      control = controlWith()
+      control = controlWith(),
+      n.trees = 20L
     )
     invisible(sampler$run(20L, 1L))
     sampler
@@ -706,17 +717,27 @@ frame <- data.frame(
 caseWeights <- runif(n, 0.5, 2)
 few <- cbind(a = as.double(seq_len(n) %% 6L), b = x[, 2L])
 fixtures <- list(
-  numeric = function() dbarts::dbarts(x, y, control = controlWith()),
+  numeric = function() {
+    dbarts::dbarts(x, y, control = controlWith(), n.trees = 20L)
+  },
   weights = function() {
-    dbarts::dbarts(x, y, weights = caseWeights, control = controlWith())
+    dbarts::dbarts(
+      x,
+      y,
+      weights = caseWeights,
+      control = controlWith(),
+      n.trees = 20L
+    )
   },
   unordered = function() {
-    dbarts::dbarts(y ~ a + b + f, frame, control = controlWith())
+    dbarts::dbarts(y ~ a + b + f, frame, control = controlWith(), n.trees = 20L)
   },
   ordered = function() {
-    dbarts::dbarts(y ~ a + b + o, frame, control = controlWith())
+    dbarts::dbarts(y ~ a + b + o, frame, control = controlWith(), n.trees = 20L)
   },
-  few = function() dbarts::dbarts(few, y, control = controlWith())
+  few = function() {
+    dbarts::dbarts(few, y, control = controlWith(), n.trees = 20L)
+  }
 )
 for (name in names(fixtures)) {
   sampler <- fixtures[[name]]()
@@ -810,7 +831,13 @@ varianceThresholds <- function(state, column) {
   )
   values[chain$variance.vars == column]
 }
-sampler <- dbarts::dbarts(x, y, variance = TRUE, control = controlWith())
+sampler <- dbarts::dbarts(
+  x,
+  y,
+  variance = TRUE,
+  control = controlWith(),
+  n.trees = 20L
+)
 invisible(sampler$run(20L, 1L))
 sampler$setCutPoints(coarse, 1L, splits = "value")
 onCoarse <- stateOf(sampler)
@@ -884,7 +911,8 @@ sampler <- dbarts::dbarts(
   y ~ a + b,
   twoForests,
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = controlWith(n.trees = 10L)
+  control = controlWith(),
+  n.trees = 10L
 )
 invisible(sampler$run(20L, 1L))
 sampler$setCutPoints(coarse, 1L, splits = "value")
@@ -969,7 +997,8 @@ kindOf <- function(kind) {
   sampler <- dbarts::dbarts(
     y ~ a + b,
     levelFrame(kind),
-    control = controlWith()
+    control = controlWith(),
+    n.trees = 20L
   )
   invisible(sampler$run(20L, 1L))
   sampler
@@ -1013,7 +1042,8 @@ expect_true(sampler$setState(held))
 sampler <- dbarts::dbarts(
   y ~ a + b,
   levelFrame("ordered"),
-  control = controlWith(n.trees = 5L)
+  control = controlWith(),
+  n.trees = 5L
 )
 held <- stateOf(sampler)
 expect_identical(attr(held, "cutPoints")[[1L]], c(0.5, 1.5, 2.5))
@@ -1053,7 +1083,8 @@ kept <- as.integer(levels6) <= 4L
 sampler <- dbarts::dbarts(
   y ~ a + b,
   data.frame(a = levels6, b = x[, 2L]),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 20L
 )
 invisible(sampler$run(20L, 1L))
 handed <- dbarts::dbartsData(
@@ -1113,7 +1144,8 @@ expect_identical(answerOf(reloaded$setState(reloaded$state)), visibly(FALSE))
 sampler <- dbarts::dbarts(
   y ~ a + b + f,
   frame,
-  control = controlWith(n.trees = 5L)
+  control = controlWith(),
+  n.trees = 5L
 )
 state <- stateOf(sampler)
 expect_null(attr(state, "cutPoints")[[3L]])
@@ -1196,12 +1228,13 @@ expect_identical(sampler$run(0L, 5L), twin$run(0L, 5L))
 
 # a linear leaf that is not merged keeps its intercept and slope through a
 # move
-linearWith <- function(...) {
+linearWith <- function(..., n.trees = 20L) {
   dbarts::dbarts(
     x,
     y,
     leaf.prior = linear("b"),
-    control = controlWith(...)
+    control = controlWith(...),
+    n.trees = n.trees
   )
 }
 sampler <- linearWith(n.trees = 5L)
@@ -1231,7 +1264,8 @@ gpWith <- function() {
     x,
     y,
     leaf.prior = gp("b"),
-    control = controlWith(n.trees = 5L)
+    control = controlWith(),
+    n.trees = 5L
   )
   invisible(sampler$run(10L, 1L))
   sampler

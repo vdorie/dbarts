@@ -14,7 +14,6 @@ z.logit <- rbinom(n, 1L, plogis(f + o))
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 10L,
   updateState = FALSE
 )
 
@@ -23,7 +22,8 @@ sampler <- dbarts(
   z.logit ~ x,
   family = "logistic",
   offset = o,
-  control = control
+  control = control,
+  n.trees = 10L
 )
 expect_equal(sampler$model@family, "logistic")
 expect_equal(sampler$data@offset, o)
@@ -61,7 +61,8 @@ sampler.probit <- dbarts(
   z.probit ~ x,
   family = "probit",
   offset = o,
-  control = control
+  control = control,
+  n.trees = 10L
 )
 expect_equal(sampler.probit$model@family, "probit")
 samples.probit <- sampler.probit$run(200L, 200L)

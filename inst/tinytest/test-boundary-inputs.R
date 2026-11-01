@@ -12,7 +12,6 @@ source(
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 10L,
   updateState = FALSE
 )
 
@@ -21,7 +20,7 @@ set.seed(1)
 n <- 100L
 x.p1 <- matrix(runif(n), n, 1L)
 y.p1 <- 2 * x.p1[, 1L] + rnorm(n, 0, 0.3)
-sampler.p1 <- dbarts(y.p1 ~ x.p1, control = control)
+sampler.p1 <- dbarts(y.p1 ~ x.p1, control = control, n.trees = 10L)
 # a non-degenerate fit is unaffected by estimateSigmaFromLinearModel's floor
 expect_equal(sampler.p1$data@sigma, summary(lm(y.p1 ~ x.p1))$sigma)
 expect_equal(ncol(sampler.p1$data@x), 1L)
@@ -37,14 +36,18 @@ expect_true(all(is.finite(samples.p1$sigma)))
 x.n2 <- matrix(c(0.2, 0.8, 0.3, 0.7), 2L, 2L)
 y.n2 <- c(1.0, -1.0)
 warnings.n2 <- captureWarnings(
-  sampler.n2 <- dbarts(y.n2 ~ x.n2, control = control)
+  sampler.n2 <- dbarts(y.n2 ~ x.n2, control = control, n.trees = 10L)
 )
 expect_equal(length(warnings.n2), 0L)
 expect_equal(sampler.n2$data@sigma, sd(y.n2), tolerance = 0)
 verboseControl <- control
 verboseControl@verbose <- TRUE
 expect_message(
-  invisible(capture.output(dbarts(y.n2 ~ x.n2, control = verboseControl))),
+  invisible(capture.output(dbarts(
+    y.n2 ~ x.n2,
+    control = verboseControl,
+    n.trees = 10L
+  ))),
   "starting sigma is the sd of the response (1.414): the linear model on 2",
   fixed = TRUE
 )
@@ -59,7 +62,7 @@ expect_true(all(is.finite(samples.n2$sigma)))
 x.n1 <- matrix(c(0.2, 0.3), 1L, 2L)
 y.n1 <- c(1.0)
 warnings.n1 <- captureWarnings(
-  sampler.n1 <- dbarts(y.n1 ~ x.n1, control = control)
+  sampler.n1 <- dbarts(y.n1 ~ x.n1, control = control, n.trees = 10L)
 )
 expect_equal(length(warnings.n1), 1L)
 expect_true(grepl("indistinguishable", conditionMessage(warnings.n1[[1L]])))
@@ -77,7 +80,7 @@ set.seed(1)
 x.const <- matrix(runif(n * 2L), n, 2L)
 y.const <- rep(3.0, n)
 warnings.const <- captureWarnings(
-  sampler.const <- dbarts(y.const ~ x.const, control = control)
+  sampler.const <- dbarts(y.const ~ x.const, control = control, n.trees = 10L)
 )
 # The starting-sigma least squares raises no warning of its own - it takes
 # summary.lm's expression for sigma without going through summary.lm, so that
@@ -113,7 +116,13 @@ y.c <- 2 * x2.c + rnorm(n, 0, 0.3)
 df.c <- data.frame(x1 = x1.c, x2 = x2.c, y = y.c)
 
 expect_error(
-  dbarts(y ~ x1 + x2, df.c, leaf.prior = linear("x1"), control = control),
+  dbarts(
+    y ~ x1 + x2,
+    df.c,
+    leaf.prior = linear("x1"),
+    control = control,
+    n.trees = 10L
+  ),
   paste0(
     'the leaf covariate "x1" holds one value over the rows in the ',
     "likelihood \\(100 of 100 observations are in it\\), so its center ",
@@ -121,7 +130,13 @@ expect_error(
   )
 )
 expect_error(
-  dbarts(y ~ x1 + x2, df.c, leaf.prior = gp("x1"), control = control),
+  dbarts(
+    y ~ x1 + x2,
+    df.c,
+    leaf.prior = gp("x1"),
+    control = control,
+    n.trees = 10L
+  ),
   "state its lengthscale in gp\\(\\), drop it from gp\\(\\)"
 )
 
@@ -129,7 +144,8 @@ sampler.gp <- dbarts(
   y ~ x1 + x2,
   df.c,
   leaf.prior = gp("x1", lengthscale = 1),
-  control = control
+  control = control,
+  n.trees = 10L
 )
 expect_identical(sampler.gp$data@standardization[[1L]]$center[["x1"]], 0.5)
 expect_true(is.na(sampler.gp$data@standardization[[1L]]$scale[["x1"]]))

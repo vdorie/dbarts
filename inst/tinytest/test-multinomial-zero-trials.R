@@ -68,14 +68,13 @@ maskEmpty <- c(rep(1, n), rep(0, numEmpty))
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 25L,
   updateState = FALSE,
   verbose = FALSE
 )
 build <- function(xs, cs, seed, mask = NULL) {
   set.seed(seed)
   sampler <- suppressZeroTrials(
-    dbarts(xs, cs, family = "multinomial", control = control)
+    dbarts(xs, cs, family = "multinomial", control = control, n.trees = 25L)
   )
   if (!is.null(mask)) {
     sampler$setActiveRows(mask)
@@ -92,14 +91,26 @@ isSimplex <- function(p) {
 resetZeroTrialsKey()
 expect_silent(dbartsData(xAll, counts = countsEmpty))
 created <- countZeroTrialsWarnings(
-  dbarts(xAll, countsEmpty, family = "multinomial", control = control)
+  dbarts(
+    xAll,
+    countsEmpty,
+    family = "multinomial",
+    control = control,
+    n.trees = 25L
+  )
 )
 expect_identical(created$numWarnings, 1L)
 expect_true(isTRUE(dbarts:::onceWarnState[[zeroTrialsKey]]))
 # the counts the message reports
 resetZeroTrialsKey()
 caught <- tryCatch(
-  dbarts(xAll, countsEmpty, family = "multinomial", control = control),
+  dbarts(
+    xAll,
+    countsEmpty,
+    family = "multinomial",
+    control = control,
+    n.trees = 25L
+  ),
   warning = function(w) w
 )
 expect_inherits(caught, "warning")
@@ -110,7 +121,13 @@ expect_true(grepl(
 ))
 # a second creation is silent
 second <- countZeroTrialsWarnings(
-  dbarts(xAll, countsEmpty, family = "multinomial", control = control)
+  dbarts(
+    xAll,
+    countsEmpty,
+    family = "multinomial",
+    control = control,
+    n.trees = 25L
+  )
 )
 expect_identical(second$numWarnings, 0L)
 # a creation refused after the counts validated does not spend the key
@@ -121,7 +138,8 @@ expect_error(
     countsEmpty,
     family = "multinomial",
     control = control,
-    split.probs = dart()
+    split.probs = dart(),
+    n.trees = 25L
   ),
   "dart()",
   fixed = TRUE
@@ -322,7 +340,7 @@ dev.off()
 allZero <- matrix(0L, n, K)
 resetZeroTrialsKey()
 created <- countZeroTrialsWarnings(
-  dbarts(x, allZero, family = "multinomial", control = control)
+  dbarts(x, allZero, family = "multinomial", control = control, n.trees = 25L)
 )
 expect_identical(created$numWarnings, 1L)
 allZeroRun <- created$value$run(10L, 10L)
@@ -410,7 +428,13 @@ controlState@updateState <- TRUE
 buildState <- function(cs, seed, mask = NULL) {
   set.seed(seed)
   sampler <- suppressZeroTrials(
-    dbarts(xAll, cs, family = "multinomial", control = controlState)
+    dbarts(
+      xAll,
+      cs,
+      family = "multinomial",
+      control = controlState,
+      n.trees = 25L
+    )
   )
   if (!is.null(mask)) {
     sampler$setActiveRows(mask)

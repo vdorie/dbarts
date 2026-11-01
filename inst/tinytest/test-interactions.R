@@ -200,11 +200,11 @@ additive <- dbarts(
   df,
   interactions = dbarts::dbartsForests$interactions(max.order = 1),
   control = dbartsControl(
-    n.trees = fitArgs$n.trees,
     n.chains = 1L,
     n.threads = 1L,
     updateState = FALSE
-  )
+  ),
+  n.trees = fitArgs$n.trees
 )
 expect_identical(additive$installTrees(donor), FALSE)
 expect_null(additive$installTrees(donor, forceUpdate = TRUE))
@@ -222,7 +222,6 @@ yb <- 2 * sin(pi * xb[, 1]) + xb[, 3] + z * tau + rnorm(n, sd = 0.2)
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 30L,
   updateState = FALSE
 )
 bc <- dbarts(
@@ -236,7 +235,8 @@ bc <- dbarts(
       interactions = dbarts::dbartsForests$interactions(max.order = 1)
     )
   ),
-  control = control
+  control = control,
+  n.trees = 30L
 )
 invisible(bc$run(150L, 0L))
 tauTrees <- bc$getTrees(
@@ -267,7 +267,8 @@ donorBC <- dbarts(
   xb,
   yb,
   forests = list(forest(), forest(basis = ~ factor(z), n.trees = 30L)),
-  control = control
+  control = control,
+  n.trees = 30L
 )
 invisible(donorBC$run(150L, 0L))
 donorBC$storeState()
@@ -280,7 +281,8 @@ targetBC <- dbarts(
     forest(),
     forest(basis = ~ factor(z), n.trees = 30L, vars = 1L)
   ),
-  control = control
+  control = control,
+  n.trees = 30L
 )
 # a raw .Call, not $installTrees(): the R5 method's own pre-check
 # (refuseMultiForestWarmStart) raises a differently-worded refusal before
@@ -304,7 +306,6 @@ yc <- factor(ifelse(x1 > 0.5 & x2 > 0.5, "a", ifelse(x3 > 0.5, "b", "c")))
 mnControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 10L,
   n.samples = 1L,
   updateState = FALSE
 )
@@ -312,7 +313,8 @@ mnFree <- dbarts(
   cbind(x1, x2, x3),
   yc,
   family = "multinomial",
-  control = mnControl
+  control = mnControl,
+  n.trees = 10L
 )
 invisible(mnFree$run(100L, 0L))
 expect_true(worstOrder(mnFree$getTrees(current = TRUE)) >= 2L)
@@ -322,7 +324,8 @@ mnCapped <- dbarts(
   yc,
   family = "multinomial",
   interactions = interactions(max.order = 1L),
-  control = mnControl
+  control = mnControl,
+  n.trees = 10L
 )
 invisible(mnCapped$run(100L, 0L))
 mnTrees <- mnCapped$getTrees(current = TRUE)
@@ -363,11 +366,10 @@ expect_false(anyCoOccur(extract(mnFit, type = "trees"), c(1L, 2L)))
 ssControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 10L,
   n.samples = 1L,
   updateState = FALSE
 )
-ssFree <- dbarts(y ~ x1 + x2 + x3, df, control = ssControl)
+ssFree <- dbarts(y ~ x1 + x2 + x3, df, control = ssControl, n.trees = 10L)
 invisible(ssFree$run(100L, 0L))
 expect_true(worstOrder(ssFree$getTrees(current = TRUE)) >= 2L)
 ssFree$storeState()
@@ -375,7 +377,8 @@ ssCapped <- dbarts(
   y ~ x1 + x2 + x3,
   df,
   interactions = interactions(max.order = 1L),
-  control = ssControl
+  control = ssControl,
+  n.trees = 10L
 )
 expect_identical(ssCapped$setState(ssFree$state), FALSE)
 expect_null(ssCapped$setState(ssFree$state, forceUpdate = TRUE))

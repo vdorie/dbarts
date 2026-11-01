@@ -27,7 +27,6 @@ y <- 2 *
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 50L,
   updateState = FALSE
 )
 bcSampler <- dbarts(
@@ -42,7 +41,8 @@ bcSampler <- dbarts(
       amplitude = fixed()
     )
   ),
-  control = control
+  control = control,
+  n.trees = 50L
 )
 invisible(bcSampler$run(100L, 25L))
 

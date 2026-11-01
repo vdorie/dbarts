@@ -13,7 +13,6 @@ effect.fl <- c(a = 0, b = 2, c = 4, d = 0, e = 2, f = 4, g = 1, h = 3)
 control.fl <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   n.samples = 10L,
   n.burn = 0L,
   keepTrees = TRUE,
@@ -36,7 +35,12 @@ samplerOf <- function(ordered = FALSE, missing = FALSE, frame = NULL) {
     frame <- frameOf(letters[1:6], letters[1:6], 1L, ordered, missing)
   }
   set.seed(4L)
-  sampler <- dbarts::dbarts(y ~ a + f, frame, control = control.fl)
+  sampler <- dbarts::dbarts(
+    y ~ a + f,
+    frame,
+    control = control.fl,
+    n.trees = 20L
+  )
   set.seed(5L)
   invisible(sampler$run(30L, 10L))
   sampler
@@ -225,7 +229,12 @@ yes.fl <- data.frame(
 yes.fl$y <- 3 * (yes.fl$f == "yes") + rnorm(n.fl, 0, 0.3)
 pairOf <- function() {
   set.seed(4L)
-  sampler <- dbarts::dbarts(y ~ f + g, yes.fl, control = control.fl)
+  sampler <- dbarts::dbarts(
+    y ~ f + g,
+    yes.fl,
+    control = control.fl,
+    n.trees = 20L
+  )
   set.seed(5L)
   invisible(sampler$run(30L, 10L))
   sampler
@@ -284,7 +293,12 @@ for (ordered in c(FALSE, TRUE)) {
   start <- twoOf(letters[1:6], c("u", "v", "w"), 1L, ordered)
   pairs <- lapply(1:2, function(i) {
     set.seed(4L)
-    sampler <- dbarts::dbarts(y ~ a + f + g, start, control = control.fl)
+    sampler <- dbarts::dbarts(
+      y ~ a + f + g,
+      start,
+      control = control.fl,
+      n.trees = 20L
+    )
     set.seed(5L)
     invisible(sampler$run(30L, 10L))
     sampler
@@ -372,7 +386,8 @@ for (term in c("poly(a, 2)", "ns(a, df = 3)")) {
     sampler <- dbarts::dbarts(
       inOrder,
       spread(1L, n.fl, 1),
-      control = control.fl
+      control = control.fl,
+      n.trees = 20L
     )
     set.seed(5L)
     invisible(sampler$run(10L, 5L))
@@ -474,7 +489,7 @@ expect_error(
 codes <- cbind(a = a.fl, f = as.double(rep_len(0:5, n.fl)))
 attr(codes, "varTypes") <- c(0L, 1L)
 set.seed(4L)
-sampler <- dbarts::dbarts(codes, frame$y, control = control.fl)
+sampler <- dbarts::dbarts(codes, frame$y, control = control.fl, n.trees = 20L)
 codes[, 2L] <- rep_len(c(2, 0, 1), n.fl)
 sampler$setData(dbarts::dbartsData(codes, frame$y))
 expect_identical(sampler$data@x[, 2L], codes[, 2L])
@@ -508,7 +523,6 @@ for (case in cases) {
   control <- dbarts::dbartsControl(
     n.chains = case$chains,
     n.threads = case$threads,
-    n.trees = 15L,
     n.samples = 6L,
     n.burn = 0L,
     keepTrees = TRUE,
@@ -522,7 +536,8 @@ for (case in cases) {
       familyFrame(letters[1:6], letters[1:6], 1L, case$family),
       weights = case$w,
       family = case$family,
-      control = control
+      control = control,
+      n.trees = 15L
     )
     set.seed(5L)
     invisible(sampler$run(20L, 6L))

@@ -18,11 +18,10 @@ y <- 2 *
   complete$x2 +
   as.integer(complete$f) / 2 +
   rnorm(n, sd = 0.1)
-controlOf <- function(n.chains = 2L, n.trees = 15L, n.samples = 20L) {
+controlOf <- function(n.chains = 2L, n.samples = 20L) {
   dbartsControl(
     n.chains = n.chains,
     n.threads = 1L,
-    n.trees = n.trees,
     n.burn = 30L,
     n.samples = n.samples,
     keepTrees = TRUE,
@@ -30,8 +29,21 @@ controlOf <- function(n.chains = 2L, n.trees = 15L, n.samples = 20L) {
     verbose = FALSE
   )
 }
-make <- function(data = complete, seed = 11L, control = controlOf(), ...) {
-  sampler <- dbarts(y ~ x1 + x2 + f, data, control = control, seed = seed, ...)
+make <- function(
+  data = complete,
+  seed = 11L,
+  control = controlOf(),
+  n.trees = 15L,
+  ...
+) {
+  sampler <- dbarts(
+    y ~ x1 + x2 + f,
+    data,
+    control = control,
+    seed = seed,
+    n.trees = n.trees,
+    ...
+  )
   invisible(sampler$run())
   sampler
 }
@@ -334,7 +346,7 @@ expectDeclined <- function(make, state, info) {
   )
   forced
 }
-single <- controlOf(1L, 1L)
+single <- controlOf(1L)
 single@keepTrees <- FALSE
 # One tree, cut on x1 below every value but the first row's, which is alone
 # in the left leaf, in a state stored while x1 could hold no missing value.
@@ -345,7 +357,13 @@ lone <- complete
 lone$x1[1L] <- -5
 brought <- replace(lone$x1, 1L, NA)
 loneLeft <- function(seed, bring = TRUE) {
-  sampler <- dbarts(y ~ x1 + x2 + f, lone, control = single, seed = seed)
+  sampler <- dbarts(
+    y ~ x1 + x2 + f,
+    lone,
+    control = single,
+    seed = seed,
+    n.trees = 1L
+  )
   state <- stored(sampler)
   forest <- state[[1L]]$forests[[1L]]
   forest$tree.vars <- c(1L, -1L, -1L)
@@ -394,7 +412,13 @@ expect_identical(met, c(declined = TRUE, clean = TRUE))
 # them the other way the rule splits nothing, and the state is refused, with
 # and without force, the sampler left as it was.
 contradicting <- function(seed) {
-  sampler <- dbarts(y ~ x1 + x2 + f, holedF, control = single, seed = seed)
+  sampler <- dbarts(
+    y ~ x1 + x2 + f,
+    holedF,
+    control = single,
+    seed = seed,
+    n.trees = 1L
+  )
   state <- stored(sampler)
   forest <- state[[1L]]$forests[[1L]]
   forest$tree.vars <- c(3L, -1L, 3L, -1L, -1L)
@@ -449,7 +473,13 @@ expect_identical(met, c(refused = TRUE, clean = TRUE))
 # where it can: each receiving chain draws the side of every rule on x1 from
 # its own generator, before its first sweep.
 receiving <- function(seed, data = holed) {
-  dbarts(y ~ x1 + x2 + f, data, control = controlOf(), seed = seed)
+  dbarts(
+    y ~ x1 + x2 + f,
+    data,
+    control = controlOf(),
+    seed = seed,
+    n.trees = 15L
+  )
 }
 donor <- make()
 recipient <- receiving(3L)
@@ -520,7 +550,13 @@ for (bad in list(c(1, 0, 0), c(TRUE, NA, FALSE), "x1")) {
 aboveAll <- function(top, seed, bring) {
   data <- complete
   data$x1[1L] <- top
-  sampler <- dbarts(y ~ x1 + x2 + f, data, control = single, seed = seed)
+  sampler <- dbarts(
+    y ~ x1 + x2 + f,
+    data,
+    control = single,
+    seed = seed,
+    n.trees = 1L
+  )
   if (bring) {
     sampler$setPredictor(replace(data$x1, 1L, NA), "x1", forceUpdate = TRUE)
   }

@@ -21,7 +21,6 @@ controlWith <- function(...) {
   settings <- list(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 15L,
     n.samples = 4L,
     n.burn = 0L,
     keepTrees = TRUE,
@@ -32,7 +31,7 @@ controlWith <- function(...) {
 }
 # a sampler of linear leaves on column b unless another leaf prior is named,
 # as written or quoted in a variable, run so that it holds kept draws
-make <- function(leaf.prior, data = x, response = y, ...) {
+make <- function(leaf.prior, data = x, response = y, n.trees = 15L, ...) {
   prior <- if (missing(leaf.prior)) {
     quote(linear(columns = "b"))
   } else {
@@ -45,7 +44,8 @@ make <- function(leaf.prior, data = x, response = y, ...) {
     data,
     response,
     leaf.prior = .(prior),
-    control = controlWith(...)
+    control = controlWith(...),
+    n.trees = n.trees
   )))
   invisible(sampler$run(10L, 4L))
   sampler
@@ -135,7 +135,8 @@ countSampler <- dbarts::dbarts(
   x,
   counts,
   family = "nbinom",
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 15L
 )
 center <- countSampler$data@response.range
 edited <- countSampler$data
@@ -166,7 +167,12 @@ expect_error(
   fixed = TRUE
 )
 expect_error(
-  dbarts::dbarts(edited, family = "nbinom", control = controlWith()),
+  dbarts::dbarts(
+    edited,
+    family = "nbinom",
+    control = controlWith(),
+    n.trees = 15L
+  ),
   "'response.range' record must be two finite numbers, the second above",
   fixed = TRUE
 )
@@ -182,7 +188,8 @@ makeCount <- function(data) {
     data,
     family = "nbinom",
     leaf.prior = gp(columns = "b"),
-    control = controlWith()
+    control = controlWith(),
+    n.trees = 15L
   )
 }
 window <- makeCount(dbarts::dbartsData(x, counts))$data
@@ -196,7 +203,13 @@ expect_identical(fromWide$run(5L, 4L), fromWindow$run(5L, 4L))
 expect_silent(fromWide$setData(wide))
 expect_identical(fromWide$data@response.range, center + c(0, 1))
 # a Student-t sampler holds its range as a gaussian one does
-student <- dbarts::dbarts(x, y, family = "student", control = controlWith())
+student <- dbarts::dbarts(
+  x,
+  y,
+  family = "student",
+  control = controlWith(),
+  n.trees = 15L
+)
 invisible(student$run(5L, 4L))
 before <- readerOf(student)$response.range
 keptBefore <- kept(student)
@@ -214,7 +227,8 @@ for (seed in 1:20) {
   sampler <- dbarts::dbarts(
     x,
     y,
-    control = controlWith(seed = seed, keepTrees = FALSE)
+    control = controlWith(seed = seed, keepTrees = FALSE),
+    n.trees = 15L
   )
   invisible(sampler$run(10L, 0L))
   before <- stateOf(sampler)
@@ -228,7 +242,7 @@ ordered <- data.frame(
   a = x[, 1L],
   o = factor(rep_len(c("l", "m", "h"), n), c("l", "m", "h"), ordered = TRUE)
 )
-sampler <- dbarts::dbarts(ordered, y, control = controlWith())
+sampler <- dbarts::dbarts(ordered, y, control = controlWith(), n.trees = 15L)
 before <- stateOf(sampler)
 edited <- sampler$data
 edited@cutPoints[[2L]] <- 1.5
@@ -238,7 +252,11 @@ for (case in c("setData", "setData, none", "creation")) {
       case,
       "setData" = sampler$setData(edited),
       "setData, none" = sampler$setData(edited, updateCutPoints = "none"),
-      "creation" = dbarts::dbarts(edited, control = controlWith())
+      "creation" = dbarts::dbarts(
+        edited,
+        control = controlWith(),
+        n.trees = 15L
+      )
     ),
     paste0(
       "the data's 'cutPoints' record gives predictor 2, an ordered factor, ",
@@ -597,7 +615,8 @@ probit <- dbarts::dbarts(
   as.double(y > median(y)),
   family = "probit",
   leaf.prior = gp(columns = "b"),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 15L
 )
 invisible(probit$run(5L, 4L))
 expect_silent(probit$setData(probit$data))
@@ -611,7 +630,8 @@ unkept <- dbarts::dbarts(
   x,
   y,
   leaf.prior = gp(columns = "b"),
-  control = controlWith(keepTrees = FALSE)
+  control = controlWith(keepTrees = FALSE),
+  n.trees = 15L
 )
 invisible(unkept$run(5L, 2L))
 expect_silent(unkept$setData(dbarts::dbartsData(x.other, y.other)))
@@ -654,7 +674,8 @@ flat <- dbarts::dbarts(
   cbind(a = x[, 1L], b = rep(0.3, n)),
   y,
   leaf.prior = gp(columns = "b", lengthscale = 1),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 15L
 )
 invisible(flat$run(5L, 4L))
 expect_true(is.na(flat$data@standardization[[1L]]$scale[[1L]]))

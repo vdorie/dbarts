@@ -15,7 +15,6 @@ if (!requireNamespace("Matrix", quietly = TRUE)) {
 control <- dbartsControl(
   n.samples = 5L,
   n.burn = 0L,
-  n.trees = 20L,
   n.chains = 1L,
   n.threads = 1L,
   updateState = FALSE
@@ -24,9 +23,16 @@ control <- dbartsControl(
 ## A sampler over `design` run to a fixed state, then mutated: the fits it
 ## reports afterwards and the source it maintains R-side are what the two
 ## spellings of one mutation must agree on.
-mutatedState <- function(design, y, mutate, ctrl = control) {
+mutatedState <- function(design, y, mutate, quantiles = FALSE) {
   set.seed(91L)
-  sampler <- dbarts(design, y, control = ctrl, sigest = sd(y))
+  sampler <- dbarts(
+    design,
+    y,
+    control = control,
+    n.trees = 20L,
+    useQuantiles = if (quantiles) TRUE,
+    sigest = sd(y)
+  )
   invisible(sampler$run(30L, 5L))
   result <- mutate(sampler)
   sampler$storeState()
@@ -52,7 +58,7 @@ expectTwinsAgree <- function(
   column = NULL,
   forceUpdate = TRUE,
   updateCutPoints = "none",
-  ctrl = control
+  quantiles = FALSE
 ) {
   mutate <- function(value) {
     function(sampler) {
@@ -72,9 +78,12 @@ expectTwinsAgree <- function(
       }
     }
   }
-  sparse <- mutatedState(design, y, mutate(sparse.arg), ctrl)
+  sparse <- mutatedState(design, y, mutate(sparse.arg), quantiles)
   # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
-  expect_identical(sparse, mutatedState(design, y, mutate(dense.arg), ctrl))
+  expect_identical(
+    sparse,
+    mutatedState(design, y, mutate(dense.arg), quantiles)
+  )
   invisible(sparse)
 }
 
@@ -134,7 +143,13 @@ expectTwinsAgree(x.a, y.a, sparseBlock(a.new), a.new)
 # over rather than densifying it, so the agreement above is the engine's
 # entry-wise install and not a coincidence of two dense calls
 set.seed(91L)
-sampler.bridge <- dbarts(x.a, y.a, control = control, sigest = sd(y.a))
+sampler.bridge <- dbarts(
+  x.a,
+  y.a,
+  control = control,
+  n.trees = 20L,
+  sigest = sd(y.a)
+)
 expect_true(.Call(
   dbarts:::C_dbarts_bartcore_setPredictor,
   sampler.bridge$getPointer(),
@@ -225,7 +240,13 @@ expect_true(any(explicit@x == 0))
 expectTwinsAgree(b.frame, y.b, explicit, zero.column, column = 3L)
 
 set.seed(91L)
-sampler.zeros <- dbarts(b.frame, y.b, control = control, sigest = sd(y.b))
+sampler.zeros <- dbarts(
+  b.frame,
+  y.b,
+  control = control,
+  n.trees = 20L,
+  sigest = sd(y.b)
+)
 sampler.zeros$setPredictor(explicit, column = 3L, forceUpdate = TRUE)
 stored.zeros <- sampler.zeros$data@x$sparse
 kept <- seq.int(
@@ -247,7 +268,13 @@ empty <- Matrix::sparseMatrix(
 expectTwinsAgree(x.a, y.a, empty, rep(0, n), column = 1L)
 
 set.seed(91L)
-sampler.degenerate <- dbarts(x.a, y.a, control = control, sigest = sd(y.a))
+sampler.degenerate <- dbarts(
+  x.a,
+  y.a,
+  control = control,
+  n.trees = 20L,
+  sigest = sd(y.a)
+)
 invisible(sampler.degenerate$run(30L, 5L))
 before.degenerate <- sampler.degenerate$data@x
 expect_false(
@@ -266,7 +293,13 @@ bad.frame$z <- sparseFactor(
 bad.container <- dbarts:::makeCategoricalModelMatrix(bad.frame)
 expect_false(is.na(bad.container$sparseReference[1L]))
 set.seed(91L)
-sampler.reference <- dbarts(b.frame, y.b, control = control, sigest = sd(y.b))
+sampler.reference <- dbarts(
+  b.frame,
+  y.b,
+  control = control,
+  n.trees = 20L,
+  sigest = sd(y.b)
+)
 expect_error(
   sampler.reference$setPredictor(
     bad.container,
@@ -302,6 +335,7 @@ na.column <- Matrix::sparseMatrix(
 sampler.strict <- dbarts(
   strictData(x.a, y.a),
   control = control,
+  n.trees = 20L,
   sigest = sd(y.a)
 )
 expect_error(
@@ -328,7 +362,13 @@ expect_error(
 # setState leaves the sampler's cut points alone; set by hand first, the
 # stored points go back and the state with them
 set.seed(91L)
-sampler.after <- dbarts(x.a, y.a, control = control, sigest = sd(y.a))
+sampler.after <- dbarts(
+  x.a,
+  y.a,
+  control = control,
+  n.trees = 20L,
+  sigest = sd(y.a)
+)
 invisible(sampler.after$run(30L, 5L))
 sampler.after$setPredictor(sparseBlock(a.new), forceUpdate = TRUE)
 expect_null(dbarts:::rawPredictorMatrix(sampler.after$data@x))
@@ -364,7 +404,6 @@ expect_equal(sampler.after$getSumsOfSquaredResiduals(), ssr.after)
 mirror.control <- dbartsControl(
   n.samples = 5L,
   n.burn = 0L,
-  n.trees = 20L,
   n.chains = 1L,
   n.threads = 1L,
   updateState = TRUE
@@ -374,7 +413,8 @@ sampler.mirror <- dbarts(
   b.frame,
   y.b,
   control = mirror.control,
-  sigest = sd(y.b)
+  sigest = sd(y.b),
+  n.trees = 20L
 )
 invisible(sampler.mirror$run(20L, 5L))
 sampler.mirror$setPredictor(b.container, forceUpdate = TRUE)
@@ -392,19 +432,17 @@ expect_equal(run.mutated$sigma, run.recreated$sigma)
 
 # --- a cut refresh reads the replacement's stored entries: uniform and
 # quantile grids, whole and by column, land the dense twin's grid
-quantile.control <- control
-quantile.control@useQuantiles <- TRUE
 # denser than the design, so a quantile grid keeps its count
 a.fine <- vapply(seq_len(p.a), function(j) newColumn(0.5), double(n))
 b.cut <- cbind(rnorm(n), a.fine[, 3L])
-for (ctrl in list(control, quantile.control)) {
+for (quantiles in c(FALSE, TRUE)) {
   expectTwinsAgree(
     x.a,
     y.a,
     sparseBlock(a.fine),
     a.fine,
     updateCutPoints = "position",
-    ctrl = ctrl
+    quantiles = quantiles
   )
   expectTwinsAgree(
     b.frame,
@@ -413,7 +451,7 @@ for (ctrl in list(control, quantile.control)) {
     b.cut,
     column = c(1L, 3L),
     updateCutPoints = "position",
-    ctrl = ctrl
+    quantiles = quantiles
   )
 }
 
@@ -461,11 +499,18 @@ expectRefusalLeavesTwin <- function(
   columns,
   updateCutPoints,
   pattern,
-  ctrl = control
+  quantiles = FALSE
 ) {
   runAfter <- function(mutate) {
     set.seed(91L)
-    sampler <- dbarts(design, y, control = ctrl, sigest = sd(y))
+    sampler <- dbarts(
+      design,
+      y,
+      control = control,
+      n.trees = 20L,
+      useQuantiles = if (quantiles) TRUE,
+      sigest = sd(y)
+    )
     invisible(sampler$run(30L, 5L))
     before <- sampler$data@x
     outcome <- mutate(sampler)
@@ -519,7 +564,7 @@ expectRefusalLeavesTwin(
   list(NULL, 1:3),
   "position",
   NULL,
-  quantile.control
+  TRUE
 )
 expectRefusalLeavesTwin(
   x.three,
@@ -599,7 +644,13 @@ for (k in seq_along(other.classes)) {
 # a test set of another class stays resident and predicts as its dgCMatrix
 testPredictions <- function(x.test) {
   set.seed(91L)
-  sampler <- dbarts(x.a, y.a, control = control, sigest = sd(y.a))
+  sampler <- dbarts(
+    x.a,
+    y.a,
+    control = control,
+    n.trees = 20L,
+    sigest = sd(y.a)
+  )
   sampler$setTestPredictor(x.test)
   list(
     class = class(sampler$data@x.test),
@@ -637,7 +688,7 @@ signedCuts <- function(value) {
         updateCutPoints = "position"
       )
     },
-    quantile.control
+    TRUE
   )$cutPoints[[1L]]
 }
 sparse.cuts <- signedCuts(negative)

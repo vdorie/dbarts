@@ -50,11 +50,9 @@ expect_identical(
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 5L,
-  useQuantiles = TRUE,
   updateState = FALSE
 )
-sampler <- dbarts(x, y, control = control)
+sampler <- dbarts(x, y, control = control, n.trees = 5L, useQuantiles = TRUE)
 cuts <- cutPointsOf(sampler)
 expect_identical(lengths(cuts), c(100L, 100L, 100L, 10L))
 
@@ -189,9 +187,9 @@ fewDoors <- withNotices(
       control = dbartsControl(
         n.chains = 1L,
         n.threads = 1L,
-        n.trees = 5L,
         updateState = FALSE
-      )
+      ),
+      n.trees = 5L
     ),
     bart = do.call(dbarts::bart, fewArgs)$fit,
     bartBT = do.call(dbarts::bartBT, fewLegacy)$fit,
@@ -220,7 +218,14 @@ for (door in names(fewDoors)) {
 # column holds, and raises nothing: 10 cuts from 11 distinct values, refreshed
 # onto 60 under n.cuts = 10 and, below, under n.cuts = 100
 xRefresh <- cbind(rep(seq_len(11L), length.out = n), x[, 1L])
-sampler <- dbarts(xRefresh, y, n.cuts = 10L, control = control)
+sampler <- dbarts(
+  xRefresh,
+  y,
+  n.cuts = 10L,
+  control = control,
+  n.trees = 5L,
+  useQuantiles = TRUE
+)
 expect_identical(cutPointsOf(sampler)[[1L]], seq_len(10L) + 0.5)
 replacement <- rep(seq_len(60L), length.out = n)
 refreshWarnings <- warningsOf(
@@ -238,7 +243,13 @@ expect_identical(refreshed[[1L]], c(3, 9, 15, 21, 27, 33, 39, 45, 51, 57) + 0.5)
 expect_identical(refreshed[[2L]], spreadMidpoints(x[, 1L], 10L))
 # under n.cuts = 100 the same refresh takes every midpoint of the 60 values,
 # where the column held 10 cuts
-sampler <- dbarts(xRefresh, y, control = control)
+sampler <- dbarts(
+  xRefresh,
+  y,
+  control = control,
+  n.trees = 5L,
+  useQuantiles = TRUE
+)
 expect_identical(cutPointsOf(sampler)[[1L]], seq_len(10L) + 0.5)
 expect_null(sampler$setPredictor(
   replacement,

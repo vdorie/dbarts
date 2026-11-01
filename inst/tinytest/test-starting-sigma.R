@@ -18,22 +18,33 @@ o.ss <- rnorm(n)
 control.ss <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 5L,
   updateState = FALSE
 )
-sampler.ss <- dbarts(y.ss ~ ., df.ss, control = control.ss)
+sampler.ss <- dbarts(y.ss ~ ., df.ss, control = control.ss, n.trees = 5L)
 x.ss <- dbarts::extract(sampler.ss, "predictors")
 x.ind <- makeModelMatrixFromDataFrame(df.ss)
 
 expect_identical(sampler.ss$data@sigma, summary(lm(y.ss ~ x.ind))$sigma)
 
-sampler.ssw <- dbarts(y.ss ~ ., df.ss, weights = w.ss, control = control.ss)
+sampler.ssw <- dbarts(
+  y.ss ~ .,
+  df.ss,
+  weights = w.ss,
+  control = control.ss,
+  n.trees = 5L
+)
 expect_identical(
   sampler.ssw$data@sigma,
   summary(lm(y.ss ~ x.ind, weights = w.ss))$sigma
 )
 
-sampler.sso <- dbarts(y.ss ~ ., df.ss, offset = o.ss, control = control.ss)
+sampler.sso <- dbarts(
+  y.ss ~ .,
+  df.ss,
+  offset = o.ss,
+  control = control.ss,
+  n.trees = 5L
+)
 expect_identical(
   sampler.sso$data@sigma,
   summary(lm(y.ss ~ x.ind, offset = o.ss))$sigma

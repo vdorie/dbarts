@@ -42,10 +42,9 @@ onControl <- dbarts::dbartsControl(
   treeShift = "always",
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 10L,
   n.samples = 5L
 )
-onSampler <- dbarts::dbarts(y ~ x, testData, control = onControl)
+onSampler <- dbarts::dbarts(y ~ x, testData, control = onControl, n.trees = 10L)
 expect_true(onSampler$control@levelGibbs)
 
 # ---- changed between runs ----
@@ -65,9 +64,9 @@ offSampler <- dbarts::dbarts(
   control = dbarts::dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 10L,
     n.samples = 5L
-  )
+  ),
+  n.trees = 10L
 )
 # from the default, which is NA and not FALSE
 turnedOn <- offSampler$control
@@ -167,14 +166,13 @@ frozenTail <- function(...) {
   control <- dbarts::dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 10L,
     n.burn = 0L,
     n.samples = 25L,
     updateState = FALSE,
     seed = 29L,
     ...
   )
-  sampler <- dbarts::dbarts(y ~ x, testData, control = control)
+  sampler <- dbarts::dbarts(y ~ x, testData, control = control, n.trees = 10L)
   invisible(sampler$run(50L, 0L))
   sampler$setControl(freeze(sampler$control))
   sampler$run(0L, 25L)$train
@@ -195,7 +193,6 @@ frozenThroughout <- function(...) {
   control <- dbarts::dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 10L,
     n.burn = 0L,
     n.samples = 25L,
     updateState = FALSE,
@@ -210,7 +207,7 @@ frozenThroughout <- function(...) {
     rule_gibbs = 0,
     birth = 0.5
   )
-  sampler <- dbarts::dbarts(y ~ x, testData, control = control)
+  sampler <- dbarts::dbarts(y ~ x, testData, control = control, n.trees = 10L)
   sampler$run(25L, 25L)$train
 }
 alwaysFrozen <- frozenThroughout()

@@ -64,12 +64,11 @@ genFriedman <- function(n, p = 10L) {
 newSampler <- function(x, y, n.trees) {
   control <- dbartsControl(
     verbose = FALSE,
-    n.trees = n.trees,
     n.chains = 1L,
     n.threads = 1L,
     updateState = FALSE
   )
-  dbarts(x, y, control = control)
+  dbarts(x, y, control = control, n.trees = n.trees)
 }
 
 timeMedian <- function(fn, reps) {

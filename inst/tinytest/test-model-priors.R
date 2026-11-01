@@ -34,7 +34,6 @@ expect_equal(dbartsPriors$normal("2.5")@k, 2.5)
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 25L,
   updateState = FALSE
 )
 set.seed(1)
@@ -44,7 +43,8 @@ sampler.obj <- dbarts(
   power = 1.5,
   base = 0.9,
   leaf.prior = dbartsPriors$normal(3),
-  control = control
+  control = control,
+  n.trees = 25L
 )
 samples.obj <- sampler.obj$run(20L, 20L)
 set.seed(1)
@@ -54,7 +54,8 @@ sampler.sugar <- dbarts(
   power = 1.5,
   base = 0.9,
   leaf.prior = normal(3),
-  control = control
+  control = control,
+  n.trees = 25L
 )
 samples.sugar <- sampler.sugar$run(20L, 20L)
 expect_identical(samples.obj$train, samples.sugar$train)
@@ -71,7 +72,8 @@ sampler.masked <- dbarts(
   base = 0.9,
   split.probs = dart(a = 0.7),
   leaf.prior = normal(3),
-  control = control
+  control = control,
+  n.trees = 25L
 )
 expect_inherits(sampler.masked$model@leaf.hyperprior, "dbartsFixedHyperprior")
 expect_equal(sampler.masked$model@leaf.hyperprior@k, 3)
@@ -83,7 +85,8 @@ sampler.nv <- dbarts(
   y ~ a + b,
   df,
   split.probs = 1 / num.vars,
-  control = control
+  control = control,
+  n.trees = 25L
 )
 expect_equal(length(sampler.nv$model@tree.prior@splitProbabilities), 0L)
 
@@ -94,7 +97,8 @@ sampler.caller <- dbarts(
   y ~ a + b,
   df,
   split.probs = data,
-  control = control
+  control = control,
+  n.trees = 25L
 )
 expect_equal(
   unname(sampler.caller$model@tree.prior@splitProbabilities),
@@ -108,7 +112,8 @@ sampler.split <- dbarts(
   y ~ a + b,
   df,
   split.probs = c(a = 3, .default = 1),
-  control = control
+  control = control,
+  n.trees = 25L
 )
 expect_equal(
   sampler.split$model@tree.prior@splitProbabilities,
@@ -124,7 +129,7 @@ expect_error(
 
 # binary responses keep their default k hyperprior
 df$y.binary <- rbinom(n, 1L, 0.5)
-sampler.bin <- dbarts(y.binary ~ a + b, df, control = control)
+sampler.bin <- dbarts(y.binary ~ a + b, df, control = control, n.trees = 25L)
 expect_inherits(sampler.bin$model@leaf.hyperprior, "dbartsChiHyperprior")
 
 # DART: a Dirichlet prior over the split-variable probabilities
@@ -139,7 +144,6 @@ expect_error(dbartsPriors$dart(alpha = 0), pattern = "'alpha' must be positive")
 control.bc <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 75L,
   n.burn = 500L,
   updateState = TRUE
 )
@@ -153,7 +157,8 @@ y.dart <- 6 *
 sampler.dart <- dbarts(
   y.dart ~ x.dart,
   split.probs = dart(),
-  control = control.bc
+  control = control.bc,
+  n.trees = 75L
 )
 expect_equal(sampler.dart$model@tree.prior@update.delay, 250)
 
@@ -168,7 +173,12 @@ expect_equal(dim(samples.dart$varprobs), c(10L, 500L))
 expect_true(all(samples.dart$varprobs >= 0 & samples.dart$varprobs <= 1))
 expect_equal(unname(colSums(samples.dart$varprobs)), rep(1, 500L))
 expect_true(mean(colSums(samples.dart$varprobs[1:2, ])) > 0.9)
-expect_null(dbarts(y.dart ~ x.dart, control = control.bc)$run(0L, 5L)$varprobs)
+expect_null(
+  dbarts(y.dart ~ x.dart, control = control.bc, n.trees = 75L)$run(
+    0L,
+    5L
+  )$varprobs
+)
 
 # the Dirichlet machinery is fixed at creation
 expect_error(

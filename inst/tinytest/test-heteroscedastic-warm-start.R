@@ -19,7 +19,6 @@ hetControl <- function(keepTrees) {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 10L,
     n.samples = nSamples,
     keepTrees = keepTrees,
     updateState = FALSE
@@ -30,7 +29,8 @@ hetSampler <- function(keepTrees, x = xHet) {
     x,
     yHet,
     control = hetControl(keepTrees),
-    variance = varianceForest(n.trees = nVarianceTrees)
+    variance = varianceForest(n.trees = nVarianceTrees),
+    n.trees = 10L
   )
 }
 
@@ -152,12 +152,12 @@ wideSampler <- function(keepTrees) {
     control = dbartsControl(
       n.chains = 1L,
       n.threads = 1L,
-      n.trees = 10L,
       n.samples = nWideSamples,
       keepTrees = keepTrees,
       updateState = FALSE
     ),
-    variance = varianceForest(n.trees = nVarianceTrees)
+    variance = varianceForest(n.trees = nVarianceTrees),
+    n.trees = 10L
   )
 }
 wideDonor <- wideSampler(TRUE)
@@ -246,7 +246,8 @@ restrictedSampler <- function() {
     xHet,
     yHet,
     control = hetControl(FALSE),
-    variance = varianceForest(vars = 2L, n.trees = nVarianceTrees)
+    variance = varianceForest(vars = 2L, n.trees = nVarianceTrees),
+    n.trees = 10L
   )
 }
 maskDonor <- hetSampler(FALSE)

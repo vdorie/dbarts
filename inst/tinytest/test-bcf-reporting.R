@@ -18,7 +18,6 @@ y <- mu + z * tau + rnorm(n, sd = 0.2)
 reportingControl <- function(...) {
   dbartsControl(
     n.threads = 1L,
-    n.trees = 40L,
     updateState = FALSE,
     seed = 47L,
     ...
@@ -33,7 +32,8 @@ sampler <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = reportingControl(n.chains = 1L)
+  control = reportingControl(n.chains = 1L),
+  n.trees = 40L
 )
 batched <- sampler$run(0L, numSamples)
 
@@ -84,7 +84,8 @@ looped <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = reportingControl(n.chains = 1L)
+  control = reportingControl(n.chains = 1L),
+  n.trees = 40L
 )
 loopFits <- array(0, dim(batched$forestFits))
 loopGlue <- array(0, dim(batched$glue))
@@ -106,7 +107,8 @@ multi <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = reportingControl(n.chains = 2L)
+  control = reportingControl(n.chains = 2L),
+  n.trees = 40L
 )
 multiResult <- multi$run(0L, numSamples)
 multi$storeState()
@@ -127,7 +129,7 @@ for (chain in seq_len(2L)) {
 
 # --- null by default: a single-forest sampler's result list is the exact six
 # slots it always was, so nothing is allocated or computed for either channel ---
-plain <- dbarts(x, y, control = reportingControl(n.chains = 1L))
+plain <- dbarts(x, y, control = reportingControl(n.chains = 1L), n.trees = 40L)
 plainResult <- plain$run(0L, 2L)
 expect_null(plainResult$forestFits)
 expect_null(plainResult$glue)
@@ -145,7 +147,8 @@ mn <- dbarts(
   x,
   factor(labels, levels = 0:2),
   family = "multinomial",
-  control = reportingControl(n.chains = 1L)
+  control = reportingControl(n.chains = 1L),
+  n.trees = 40L
 )
 mnResult <- mn$run(0L, 2L)
 expect_null(mnResult$forestFits)
@@ -162,7 +165,8 @@ counting <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = reportingControl(n.chains = 2L, n.thin = 1L)
+  control = reportingControl(n.chains = 2L, n.thin = 1L),
+  n.trees = 40L
 )
 countingResult <- counting$run(0L, numSamples)
 
@@ -214,7 +218,8 @@ restrictedCounts <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z), vars = c(3L, 4L))),
-  control = reportingControl(n.chains = 2L)
+  control = reportingControl(n.chains = 2L),
+  n.trees = 40L
 )
 restrictedResult <- restrictedCounts$run(0L, numSamples)
 expect_true(all(restrictedResult$varcount[1:2, 2L, , ] == 0L))
@@ -228,7 +233,8 @@ unrestrictedCounts <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = reportingControl(n.chains = 2L)
+  control = reportingControl(n.chains = 2L),
+  n.trees = 40L
 )
 unrestrictedResult <- unrestrictedCounts$run(0L, numSamples)
 expect_true(sum(unrestrictedResult$varcount[1:2, 2L, , ]) > 0L)
@@ -236,7 +242,12 @@ expect_true(sum(unrestrictedResult$varcount[1:2, 2L, , ]) > 0L)
 # --- and the channel is UNCHANGED on a single-forest sampler: the forest axis
 # appears only when there is more than one forest to report, so every existing
 # caller's n.predictors x n.samples x n.chains array is what it always was ---
-plainCounts <- dbarts(x, y, control = reportingControl(n.chains = 2L))
+plainCounts <- dbarts(
+  x,
+  y,
+  control = reportingControl(n.chains = 2L),
+  n.trees = 40L
+)
 plainCountsResult <- plainCounts$run(0L, numSamples)
 expect_equal(dim(plainCountsResult$varcount), c(p, numSamples, 2L))
 expect_identical(

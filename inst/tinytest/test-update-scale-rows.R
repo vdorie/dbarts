@@ -31,7 +31,6 @@ offKeep <- rep(0.25, n)
 ctl <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,
-  n.trees = 10L,
   updateState = FALSE,
   n.samples = 10L,
   seed = 7L
@@ -39,7 +38,6 @@ ctl <- dbartsControl(
 ctlKeep <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,
-  n.trees = 10L,
   updateState = FALSE,
   n.samples = 10L,
   seed = 7L,
@@ -48,7 +46,6 @@ ctlKeep <- dbartsControl(
 ctlStore <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,
-  n.trees = 10L,
   updateState = TRUE,
   n.samples = 10L,
   seed = 7L
@@ -58,6 +55,7 @@ mkG <- function(
   weights = NULL,
   offset = off,
   control = ctl,
+  n.trees = 10L,
   ...
 ) {
   dbarts(
@@ -66,6 +64,7 @@ mkG <- function(
     weights = weights,
     offset = offset,
     control = control,
+    n.trees = n.trees,
     ...
   )
 }
@@ -74,6 +73,7 @@ mkC <- function(
   weights = NULL,
   offset = off,
   control = ctl,
+  n.trees = 10L,
   ...
 ) {
   dbarts(
@@ -83,20 +83,23 @@ mkC <- function(
     offset = offset,
     family = "nbinom",
     control = control,
+    n.trees = n.trees,
     ...
   )
 }
 mkS <- function(
   logTime = ySurv,
   offset = off,
-  control = ctl
+  control = ctl,
+  n.trees = 10L
 ) {
   dbarts(
     x,
     cbind(exp(logTime), status),
     offset = offset,
     family = "aft",
-    control = control
+    control = control,
+    n.trees = n.trees
   )
 }
 studentFamily <- dbarts:::student(df = 4)
@@ -231,7 +234,7 @@ expectEntering(survBuild, maskCall(w2), "survival entering")
 expectIdentity(function() mkS(), maskCall(w01), "survival leaving")
 # kept draws: the call rewrites them so they predict what they did
 keptBuild <- function() {
-  s <- mkG(control = ctlKeep)
+  s <- mkG(control = ctlKeep, n.trees = 10L)
   s$run(0L, 5L)
   s
 }
@@ -243,7 +246,9 @@ kept$setWeights(w01, updateScale = TRUE)
 expect_true(max(abs(kept$predict(x) - predicted)) < 1e-10)
 # a gp sampler's saved draws refuse, and a call before one is saved does not
 expectIdentity(
-  function() mkG(control = ctlKeep, leaf.prior = gp("x1", k = 2)),
+  function() {
+    mkG(control = ctlKeep, leaf.prior = gp("x1", k = 2), n.trees = 10L)
+  },
   weightsCall(w01),
   "gp leaves, keepTrees on, no draw yet"
 )
@@ -258,7 +263,8 @@ mkT <- function() {
     yA,
     test = x[testRows, ],
     offset = 0.7,
-    control = ctl
+    control = ctl,
+    n.trees = 10L
   )
 }
 viaCall <- mkT()
@@ -362,7 +368,8 @@ subset <- dbarts(
   cbind(exp(ySurv[rows.in]), status[rows.in]),
   offset = off[rows.in],
   family = "aft",
-  control = ctl
+  control = ctl,
+  n.trees = 10L
 )
 expect_equal(
   recordedRange(sv),
@@ -611,7 +618,8 @@ mkTwoForests <- function() {
   dbarts(
     y ~ forest(x1 + x2) + forest(x1 + x2, basis = z),
     frame,
-    control = ctl
+    control = ctl,
+    n.trees = 10L
   )
 }
 mkTwoProbit <- function() {
@@ -619,7 +627,8 @@ mkTwoProbit <- function() {
     y ~ forest(x1 + x2) + forest(x1 + x2, basis = z),
     data.frame(y = binary, x, z = z),
     family = "probit",
-    control = ctl
+    control = ctl,
+    n.trees = 10L
   )
 }
 mkMultinomial <- function() {
@@ -627,11 +636,12 @@ mkMultinomial <- function() {
     x,
     factor(rep(c("a", "b", "c"), length.out = n)),
     family = "multinomial",
-    control = ctl
+    control = ctl,
+    n.trees = 10L
   )
 }
 mkGpSaved <- function() {
-  s <- mkG(control = ctlKeep, leaf.prior = gp("x1", k = 2))
+  s <- mkG(control = ctlKeep, leaf.prior = gp("x1", k = 2), n.trees = 10L)
   s$run(0L, 3L)
   s
 }
@@ -690,7 +700,14 @@ expectRefused(
   "mask holding 0.5"
 )
 logisticBuild <- function() {
-  dbarts(x, binary, weights = rep(2, n), family = "logistic", control = ctl)
+  dbarts(
+    x,
+    binary,
+    weights = rep(2, n),
+    family = "logistic",
+    control = ctl,
+    n.trees = 10L
+  )
 }
 expectRefused(
   logisticBuild,
@@ -727,7 +744,9 @@ for (entry in c("setWeights", "setActiveRows")) {
 # and ignore it, under a mask that brings rows back.
 nothingBuilders <- list(
   probit = list(
-    build = function() dbarts(x, binary, family = "probit", control = ctl),
+    build = function() {
+      dbarts(x, binary, family = "probit", control = ctl, n.trees = 10L)
+    },
     start = w01,
     call = w2
   ),
@@ -737,14 +756,17 @@ nothingBuilders <- list(
         x,
         factor(rep(1:3, length.out = n), ordered = TRUE),
         family = "ordinal",
-        control = ctl
+        control = ctl,
+        n.trees = 10L
       )
     },
     start = w01,
     call = w2
   ),
   logistic = list(
-    build = function() dbarts(x, binary, family = "logistic", control = ctl),
+    build = function() {
+      dbarts(x, binary, family = "logistic", control = ctl, n.trees = 10L)
+    },
     start = w01,
     call = w2
   ),
@@ -754,7 +776,8 @@ nothingBuilders <- list(
         x,
         cbind(rep(1:5, length.out = n), as.double(seq_len(n) %% 4L != 0L)),
         family = "hazard",
-        control = ctl
+        control = ctl,
+        n.trees = 10L
       )
     },
     start = NULL,
@@ -802,6 +825,7 @@ countSampler <- function(weights = w01, ...) {
     offset = off,
     family = "nbinom",
     control = ctl,
+    n.trees = 10L,
     ...
   )
 }
@@ -814,6 +838,7 @@ countSpec <- function(weights = w01, response = countsA) {
       offset = off
     ),
     control = ctl,
+    n.trees = 10L,
     family = "nbinom"
   )
 }
@@ -850,6 +875,7 @@ expectByHand(
 probitSpec <- dbartsSpec(
   dbartsData(y ~ x1 + x2, data.frame(y = binary, x), weights = w01),
   control = ctl,
+  n.trees = 10L,
   family = "probit"
 )
 expectByHand(
@@ -859,7 +885,8 @@ expectByHand(
     data.frame(y = binary, x),
     weights = w01,
     family = "probit",
-    control = ctl
+    control = ctl,
+    n.trees = 10L
   ),
   "probit list"
 )
@@ -871,6 +898,7 @@ expectByHand(
   byHandOf(dbartsSpec(
     dbartsData(y ~ x1 + x2, ordinalFrame, weights = w01),
     control = ctl,
+    n.trees = 10L,
     family = "ordinal"
   )),
   dbarts(
@@ -878,7 +906,8 @@ expectByHand(
     ordinalFrame,
     weights = w01,
     family = "ordinal",
-    control = ctl
+    control = ctl,
+    n.trees = 10L
   ),
   "ordinal list"
 )
@@ -893,7 +922,12 @@ basesData <- function() {
     bases = list(NULL, matrix(x[, 1L], n, 1L))
   )
 }
-basesSpec <- dbartsSpec(basesData(), control = ctl, family = "probit")
+basesSpec <- dbartsSpec(
+  basesData(),
+  control = ctl,
+  n.trees = 10L,
+  family = "probit"
+)
 expect_false(is.null(basesSpec$active))
 expectByHand(
   new(
@@ -903,7 +937,7 @@ expectByHand(
     basesSpec$data,
     active = basesSpec$active
   ),
-  dbarts(basesData(), family = "probit", control = ctl),
+  dbarts(basesData(), family = "probit", control = ctl, n.trees = 10L),
   "probit bases list"
 )
 refusedHand <- new(
@@ -922,7 +956,8 @@ for (family in list(NULL, studentFamily)) {
   gFrame <- data.frame(y = yA, x)
   args <- list(
     dbartsData(y ~ x1 + x2, gFrame, weights = w01, offset = off),
-    control = ctl
+    control = ctl,
+    n.trees = 10L
   )
   if (!is.null(family)) {
     args$family <- family
@@ -933,7 +968,14 @@ for (family in list(NULL, studentFamily)) {
   expectByHand(
     hand,
     if (is.null(family)) {
-      dbarts(y ~ x1 + x2, gFrame, weights = w01, offset = off, control = ctl)
+      dbarts(
+        y ~ x1 + x2,
+        gFrame,
+        weights = w01,
+        offset = off,
+        control = ctl,
+        n.trees = 10L
+      )
     } else {
       dbarts(
         y ~ x1 + x2,
@@ -941,7 +983,8 @@ for (family in list(NULL, studentFamily)) {
         weights = w01,
         offset = off,
         family = family,
-        control = ctl
+        control = ctl,
+        n.trees = 10L
       )
     },
     "gaussian list"
@@ -964,7 +1007,8 @@ viaDbarts <- caught(
     weights = three,
     offset = off,
     family = "nbinom",
-    control = ctl
+    control = ctl,
+    n.trees = 10L
   )
 )
 expect_equal(length(viaDbarts$scale), 1L)
@@ -1044,7 +1088,7 @@ for (i in 1:5) {
 expect_identical(gByCall$sampler$run(0L, 5L), gByIdentity$sampler$run(0L, 5L))
 
 # --- the record -------------------------------------------------------------
-recorded <- mkG(control = ctlStore)
+recorded <- mkG(control = ctlStore, n.trees = 10L)
 earlier <- recorded$state
 recorded$setWeights(w01, updateScale = TRUE)
 now <- readers(recorded)

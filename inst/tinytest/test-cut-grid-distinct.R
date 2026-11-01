@@ -25,9 +25,6 @@ controlWith <- function(n.cuts = 100L, useQuantiles = FALSE, n.trees = 10L) {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = n.trees,
-    n.cuts = n.cuts,
-    useQuantiles = useQuantiles,
     updateState = FALSE,
     seed = 11L
   )
@@ -74,19 +71,40 @@ for (useQuantiles in c(FALSE, TRUE)) {
 
   # a grid is a set of distinct thresholds
   ctl <- controlWith(100L, useQuantiles)
-  sampler <- dbarts(cbind(z, narrow), y, control = ctl)
+  sampler <- dbarts(
+    cbind(z, narrow),
+    y,
+    control = ctl,
+    n.trees = 10L,
+    n.cuts = 100L,
+    useQuantiles = useQuantiles
+  )
   expect_identical(
     lengths(cutPointsOf(sampler)),
     c(100L, numNarrow),
     info = rule
   )
-  sampler <- dbarts(cbind(z, constNA), y, control = ctl)
+  sampler <- dbarts(
+    cbind(z, constNA),
+    y,
+    control = ctl,
+    n.trees = 10L,
+    n.cuts = 100L,
+    useQuantiles = useQuantiles
+  )
   expect_identical(cutPointsOf(sampler)[[2L]], 3, info = rule)
 
   # a refresh derives up to n.cuts points from the new values, whatever the
   # column held; setData already did
   ctl <- controlWith(20L, useQuantiles)
-  sampler <- dbarts(cbind(z, latent = 0), y, control = ctl)
+  sampler <- dbarts(
+    cbind(z, latent = 0),
+    y,
+    control = ctl,
+    n.trees = 10L,
+    n.cuts = 20L,
+    useQuantiles = useQuantiles
+  )
   expect_identical(cutPointsOf(sampler)[[2L]], 0, info = rule)
   expect_null(
     sampler$setPredictor(
@@ -136,18 +154,39 @@ for (useQuantiles in c(FALSE, TRUE)) {
   ctl <- controlWith(100L, useQuantiles)
   counts <- c(100L, 4L, 1L, 1L, 1L, 5L)
 
-  sampler <- dbarts(columns, y, control = ctl)
+  sampler <- dbarts(
+    columns,
+    y,
+    control = ctl,
+    n.trees = 10L,
+    n.cuts = 100L,
+    useQuantiles = useQuantiles
+  )
   created <- cutPointsOf(sampler)
   expect_true(strictly(created), info = rule)
   expect_identical(lengths(created), counts, info = rule)
   expect_identical(created[3L:4L], list(3, 3), info = rule)
 
   # setData and a refresh from a sampler created on other values
-  replaced <- dbarts(others, y, control = ctl)
+  replaced <- dbarts(
+    others,
+    y,
+    control = ctl,
+    n.trees = 10L,
+    n.cuts = 100L,
+    useQuantiles = useQuantiles
+  )
   replaced$setData(dbartsData(columns, y))
   expect_identical(cutPointsOf(replaced), created, info = rule)
   for (word in refreshWords) {
-    refreshed <- dbarts(others, y, control = ctl)
+    refreshed <- dbarts(
+      others,
+      y,
+      control = ctl,
+      n.trees = 10L,
+      n.cuts = 100L,
+      useQuantiles = useQuantiles
+    )
     expect_null(
       refreshed$setPredictor(
         columns,
@@ -177,19 +216,32 @@ for (useQuantiles in c(FALSE, TRUE)) {
   if (requireNamespace("Matrix", quietly = TRUE)) {
     plain <- cbind(binary, narrow, zero = 0, six)
     start <- cbind(binary, narrow = w, zero = z, six = w^2)
-    dense <- cutPointsOf(dbarts(plain, y, control = ctl))
+    dense <- cutPointsOf(dbarts(
+      plain,
+      y,
+      control = ctl,
+      n.trees = 10L,
+      n.cuts = 100L,
+      useQuantiles = useQuantiles
+    ))
     sparse <- dbarts(
       Matrix::Matrix(plain, sparse = TRUE),
       y,
       control = ctl,
-      sigest = sd(y)
+      sigest = sd(y),
+      n.trees = 10L,
+      n.cuts = 100L,
+      useQuantiles = useQuantiles
     )
     expect_identical(cutPointsOf(sparse), dense, info = rule)
     sparse <- dbarts(
       Matrix::Matrix(start, sparse = TRUE),
       y,
       control = ctl,
-      sigest = sd(y)
+      sigest = sd(y),
+      n.trees = 10L,
+      n.cuts = 100L,
+      useQuantiles = useQuantiles
     )
     expect_null(
       sparse$setPredictor(
@@ -210,7 +262,14 @@ for (useQuantiles in c(FALSE, TRUE)) {
   rule <- if (useQuantiles) "quantile" else "uniform"
   ctl <- controlWith(20L, useQuantiles)
   createdOn <- function(values) {
-    cutPointsOf(dbarts(cbind(z, v = values), y, control = ctl))[[2L]]
+    cutPointsOf(dbarts(
+      cbind(z, v = values),
+      y,
+      control = ctl,
+      n.trees = 10L,
+      n.cuts = 20L,
+      useQuantiles = useQuantiles
+    ))[[2L]]
   }
   cases <- list(
     placeholder = list(rep(0, n), w),
@@ -223,7 +282,14 @@ for (useQuantiles in c(FALSE, TRUE)) {
     onto <- cases[[case]][[2L]]
     for (word in refreshWords) {
       info <- paste(rule, case, word)
-      sampler <- dbarts(cbind(z, v = from), y, control = ctl)
+      sampler <- dbarts(
+        cbind(z, v = from),
+        y,
+        control = ctl,
+        n.trees = 10L,
+        n.cuts = 20L,
+        useQuantiles = useQuantiles
+      )
       expect_null(
         sampler$setPredictor(
           onto,
@@ -236,7 +302,14 @@ for (useQuantiles in c(FALSE, TRUE)) {
       expect_identical(cutPointsOf(sampler)[[2L]], createdOn(onto), info = info)
     }
     # without a refresh the grid is kept
-    sampler <- dbarts(cbind(z, v = from), y, control = ctl)
+    sampler <- dbarts(
+      cbind(z, v = from),
+      y,
+      control = ctl,
+      n.trees = 10L,
+      n.cuts = 20L,
+      useQuantiles = useQuantiles
+    )
     expect_null(sampler$setPredictor(onto, 2L, forceUpdate = TRUE), info = case)
     expect_identical(cutPointsOf(sampler)[[2L]], createdOn(from), info = case)
     expect_null(
@@ -251,7 +324,14 @@ for (useQuantiles in c(FALSE, TRUE)) {
     expect_identical(cutPointsOf(sampler)[[2L]], createdOn(from), info = case)
   }
   # over a grid set at 60 points
-  sampler <- dbarts(cbind(z, v = w), y, control = ctl)
+  sampler <- dbarts(
+    cbind(z, v = w),
+    y,
+    control = ctl,
+    n.trees = 10L,
+    n.cuts = 20L,
+    useQuantiles = useQuantiles
+  )
   sampler$setCutPoints(seq(-2, 2, length.out = 60L), 2L)
   expect_null(
     sampler$setPredictor(
@@ -267,8 +347,24 @@ for (useQuantiles in c(FALSE, TRUE)) {
 
 # ---- a shrink -------------------------------------------------------------
 
-warmed <- function(x, response = y, control = controlWith(n.trees = 20L), ...) {
-  sampler <- dbarts(x, response, control = control, ...)
+warmed <- function(
+  x,
+  response = y,
+  control = controlWith(),
+  ...,
+  n.trees = 20L,
+  n.cuts = 100L,
+  useQuantiles = FALSE
+) {
+  sampler <- dbarts(
+    x,
+    response,
+    control = control,
+    ...,
+    n.trees = n.trees,
+    n.cuts = n.cuts,
+    useQuantiles = useQuantiles
+  )
   invisible(sampler$run(20L, 5L))
   sampler$storeState()
   sampler
@@ -338,7 +434,10 @@ for (case in names(restoreCases)) {
     sampler <- warmed(
       cbind(z, column),
       response,
-      controlWith(100L, useQuantiles, 20L)
+      control = controlWith(100L, useQuantiles, 20L),
+      n.trees = 20L,
+      n.cuts = 100L,
+      useQuantiles = useQuantiles
     )
     expect_true(strictly(cutPointsOf(sampler)), info = info)
     expect_true(nrow(splitsOn(sampler, 2L)) > 0L, info = info)
@@ -376,9 +475,21 @@ donorRefusal <- paste(
   "(0.5): a cut grid holds each point once"
 )
 cutsRefusal <- "a cut point may appear only once in 'cuts'"
-ctl <- controlWith(20L, n.trees = 10L)
-sampler <- warmed(cbind(z, w), control = ctl)
-twin <- warmed(cbind(z, w), control = ctl)
+ctl <- controlWith(20L)
+sampler <- warmed(
+  cbind(z, w),
+  control = ctl,
+  n.trees = 10L,
+  n.cuts = 20L,
+  useQuantiles = FALSE
+)
+twin <- warmed(
+  cbind(z, w),
+  control = ctl,
+  n.trees = 10L,
+  n.cuts = 20L,
+  useQuantiles = FALSE
+)
 good <- sampler$state
 sampler$setCutPoints(c(0.25, 0.5, 0.75), 2L)
 twin$setCutPoints(c(0.25, 0.5, 0.75), 2L)
@@ -398,8 +509,22 @@ reloaded <- readRDS(path)
 unlink(path)
 expect_error(reloaded$run(0L, 1L), pattern = stateRefusal, fixed = TRUE)
 # a warm start from it is refused in the donor's own words
-recipient <- dbarts(cbind(z, w), y, control = ctl)
-recipientTwin <- dbarts(cbind(z, w), y, control = ctl)
+recipient <- dbarts(
+  cbind(z, w),
+  y,
+  control = ctl,
+  n.trees = 10L,
+  n.cuts = 20L,
+  useQuantiles = FALSE
+)
+recipientTwin <- dbarts(
+  cbind(z, w),
+  y,
+  control = ctl,
+  n.trees = 10L,
+  n.cuts = 20L,
+  useQuantiles = FALSE
+)
 expect_error(
   recipient$installTrees(doubled),
   pattern = donorRefusal,
@@ -459,7 +584,14 @@ stackedState <- function(sampler, childCut) {
   state
 }
 wNA <- replace(w, seq(1L, n, by = 4L), NA)
-sampler <- dbarts(cbind(z, wNA), y, control = controlWith(20L, n.trees = 5L))
+sampler <- dbarts(
+  cbind(z, wNA),
+  y,
+  control = controlWith(20L),
+  n.trees = 5L,
+  n.cuts = 20L,
+  useQuantiles = FALSE
+)
 ordered <- stackedState(sampler, function(cuts) cuts[length(cuts) %/% 4L])
 expect_true(sampler$setState(ordered))
 expect_identical(sum(sampler$getTrees()$var == 2L), 2L)
@@ -707,7 +839,10 @@ twoForests <- dbarts(
   cbind(z, w),
   y,
   forests = list(forest(), forest(basis = ~ factor(arm))),
-  control = controlWith(n.trees = 20L)
+  control = controlWith(),
+  n.trees = 20L,
+  n.cuts = 100L,
+  useQuantiles = FALSE
 )
 invisible(twoForests$run(20L, 5L))
 created <- cutPointsOf(twoForests)[[2L]]
@@ -823,16 +958,24 @@ expect_identical(mass, list(NULL, c(0, 1, 4, 9, 16, 25), NULL))
 quantiled <- dbarts(
   cbind(z, squares, binary),
   y,
-  control = controlWith(
-    useQuantiles = TRUE
-  )
+  control = controlWith(),
+  n.trees = 10L,
+  n.cuts = 100L,
+  useQuantiles = TRUE
 )
 expect_identical(cutPointsOf(quantiled)[2L:3L], grid[2L:3L])
 expect_null(massOf(quantiled))
 
 # a 0/1 column holds its one point whatever n.cuts asks: the draws do not move
 onBinary <- function(n.cuts) {
-  dbarts(cbind(binary), y, control = controlWith(n.cuts))$run(5L, 5L)
+  dbarts(
+    cbind(binary),
+    y,
+    control = controlWith(n.cuts),
+    n.trees = 10L,
+    n.cuts = n.cuts,
+    useQuantiles = FALSE
+  )$run(5L, 5L)
 }
 expect_identical(onBinary(3L), onBinary(100L))
 

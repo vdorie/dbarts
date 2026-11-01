@@ -404,10 +404,10 @@ samplerKT <- dbarts::dbarts(
   control = dbarts::dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 5L,
     n.samples = 5L,
     n.burn = 5L
-  )
+  ),
+  n.trees = 5L
 )
 expect_error(
   extract(samplerKT, sample = "train"),

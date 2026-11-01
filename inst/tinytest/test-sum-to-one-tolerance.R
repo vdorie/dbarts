@@ -19,10 +19,9 @@ y <- rowSums(x) + rnorm(n, sd = 0.2)
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 5L,
   updateState = FALSE
 )
-sampler <- dbarts(x, y, control = control)
+sampler <- dbarts(x, y, control = control, n.trees = 5L)
 create <- function(control = sampler$control, model = sampler$model) {
   .Call(
     dbarts:::C_dbarts_bartcore_create,

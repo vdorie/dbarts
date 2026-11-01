@@ -451,7 +451,6 @@ varX <- matrix(
 varY <- rnorm(varN)
 varControl <- dbarts::dbartsControl(
   n.chains = 1L,
-  n.trees = 3L,
   n.samples = 5L,
   n.burn = 2L,
   n.threads = 1L,
@@ -464,7 +463,8 @@ varianceAttr <- function(variance, factors = "categorical") {
     varY,
     control = varControl,
     variance = variance,
-    factors = factors
+    factors = factors,
+    n.trees = 3L
   )$model@variance
 }
 
@@ -507,14 +507,16 @@ attrShorthandZ <- dbarts::dbarts(
   data.frame(y = varY, dfFactorVar),
   control = varControl,
   variance = ~z,
-  factors = "indicators"
+  factors = "indicators",
+  n.trees = 3L
 )$model@variance
 attrObjectZ <- dbarts::dbarts(
   y ~ x1 + z,
   data.frame(y = varY, dfFactorVar),
   control = varControl,
   variance = varianceForest(vars = ~z),
-  factors = "indicators"
+  factors = "indicators",
+  n.trees = 3L
 )$model@variance
 expect_identical(attrShorthandZ, attrObjectZ)
 expect_equal(attrShorthandZ@columns, 2:4) # z's 3 indicator columns
@@ -542,7 +544,13 @@ expect_error(
 # dbarts()/dbartsSpec() have no dots at all, so R's own unused-argument
 # refusal fires instead
 expect_error(
-  dbarts::dbarts(varX, varY, control = varControl, n.trees.variance = 10L),
+  dbarts::dbarts(
+    varX,
+    varY,
+    control = varControl,
+    n.trees.variance = 10L,
+    n.trees = 3L
+  ),
   pattern = "unused argument"
 )
 
@@ -599,14 +607,14 @@ samplerViaDbartsLinear <- dbarts::dbarts(
   dfLeaf,
   leaf.prior = dbarts::dbartsPriors$linear("x2"),
   control = dbarts::dbartsControl(
-    n.trees = 5L,
     n.samples = 5L,
     n.burn = 0L,
     n.chains = 1L,
     n.threads = 1L,
     seed = reachSeed,
     verbose = FALSE
-  )
+  ),
+  n.trees = 5L
 )
 samplesViaBart2Linear <- samplerViaBart2Linear$run()
 samplesViaDbartsLinear <- samplerViaDbartsLinear$run()
@@ -631,14 +639,14 @@ samplerViaDbartsFixed <- dbarts::dbarts(
   y.gaussian,
   family = gaussian(sigma = fixed(1)),
   control = dbarts::dbartsControl(
-    n.trees = 3L,
     n.samples = 5L,
     n.burn = 0L,
     n.chains = 1L,
     n.threads = 1L,
     seed = reachSeed,
     verbose = FALSE
-  )
+  ),
+  n.trees = 3L
 )
 samplesViaBart2Fixed <- samplerViaBart2Fixed$run()
 samplesViaDbartsFixed <- samplerViaDbartsFixed$run()
@@ -773,7 +781,6 @@ tezf <- factor(sample(c("lo", "hi"), teN, replace = TRUE))
 
 teControl <- dbarts::dbartsControl(
   n.threads = 1L,
-  n.trees = 10L,
   n.chains = 1L,
   n.samples = 8L,
   n.burn = 2L,
@@ -786,7 +793,8 @@ fitMultiForest <- function(basis) {
     tex,
     tey,
     forests = list(forest(), forest(basis = basis)),
-    control = teControl
+    control = teControl,
+    n.trees = 10L
   )
   burn <- dbarts:::runWithBurnIn(sampler, sampler$control, FALSE)
   fit <- dbarts:::packageBartResults(

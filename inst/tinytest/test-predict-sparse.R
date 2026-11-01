@@ -23,11 +23,11 @@ sampler <- dbarts(
   y.tr,
   sigest = 1.0,
   control = dbartsControl(
-    n.trees = 20L,
     n.chains = 1L,
     n.threads = 1L,
     updateState = FALSE
-  )
+  ),
+  n.trees = 20L
 )
 sampler$run(10L, 20L)
 
@@ -146,11 +146,11 @@ sampler.num <- dbarts(
   y.num,
   sigest = 1.0,
   control = dbartsControl(
-    n.trees = 15L,
     n.chains = 1L,
     n.threads = 1L,
     updateState = FALSE
-  )
+  ),
+  n.trees = 15L
 )
 sampler.num$run(10L, 15L)
 
@@ -203,11 +203,11 @@ sampler.leaf <- dbarts(
   sigest = 1.0,
   leaf.prior = linear("a"),
   control = dbartsControl(
-    n.trees = 15L,
     n.chains = 1L,
     n.threads = 1L,
     updateState = FALSE
-  )
+  ),
+  n.trees = 15L
 )
 sampler.leaf$run(10L, 5L)
 expect_error(
@@ -231,11 +231,11 @@ sampler.pool <- dbarts(
   y.pool,
   sigest = 1.0,
   control = dbartsControl(
-    n.trees = 20L,
     n.chains = 1L,
     n.threads = 1L,
     updateState = FALSE
-  )
+  ),
+  n.trees = 20L
 )
 sampler.pool$run(20L, 20L)
 

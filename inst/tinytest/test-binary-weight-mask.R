@@ -15,7 +15,6 @@ a <- as.double(seq_len(n) %% 4L != 1L)
 control <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   # dbartsSpec() leaves the sample count for the sampler to carry, unlike
   # dbarts(), which fills it in; every run below names its own counts anyway
   n.samples = 10L,
@@ -24,7 +23,14 @@ control <- dbarts::dbartsControl(
 )
 
 probitSampler <- function(...) {
-  dbarts::dbarts(x, y.binary, family = "probit", control = control, ...)
+  dbarts::dbarts(
+    x,
+    y.binary,
+    family = "probit",
+    control = control,
+    ...,
+    n.trees = 20L
+  )
 }
 countWarnings <- function(expr) {
   count <- 0L
@@ -38,7 +44,14 @@ countWarnings <- function(expr) {
   count
 }
 ordinalSampler <- function(...) {
-  dbarts::dbarts(x, y.ordinal, family = "ordinal", control = control, ...)
+  dbarts::dbarts(
+    x,
+    y.ordinal,
+    family = "ordinal",
+    control = control,
+    ...,
+    n.trees = 20L
+  )
 }
 
 # --- creation: the weights ARE the mask, bitwise -------------------------
@@ -162,7 +175,8 @@ rm(bySetData, byMask)
 spec <- dbarts::dbartsSpec(
   dbarts::dbartsData(x, y.binary, weights = a),
   control = control,
-  family = "probit"
+  family = "probit",
+  n.trees = 20L
 )
 expect_identical(spec$active, a)
 expect_true(is.null(spec$data@weights))

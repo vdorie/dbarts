@@ -40,7 +40,6 @@ y <- x[, 1L] + rnorm(nObs)
 control <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 5L,
   n.samples = 4L,
   n.burn = 2L,
   verbose = FALSE
@@ -89,7 +88,7 @@ expect_error(callBart(sigest = c(1, 2)), "'sigest'")
 expect_identical(callBart(sigest = 2, seed = 3L)$sigest, 2)
 
 sigmaSampler <- function(...) {
-  dbarts::dbarts(x, y, control = control, ...)
+  dbarts::dbarts(x, y, control = control, ..., n.trees = 5L)
 }
 defaultSigma <- sigmaSampler()$data@sigma
 expect_no_warning_of(nullSampler <- sigmaSampler(sigest = NULL))
@@ -107,7 +106,7 @@ expect_identical(sigmaSampler(sigest = 1.5)$data@sigma, 1.5)
 specData <- dbarts::dbartsData(x, y)
 specData@sigma <- 0.7
 specOf <- function(...) {
-  dbarts::dbartsSpec(specData, control = control, ...)$data@sigma
+  dbarts::dbartsSpec(specData, control = control, ..., n.trees = 5L)$data@sigma
 }
 resetKeys(naKey("sigest", "dbartsSpec"))
 expect_identical(specOf(), 0.7)
@@ -266,12 +265,17 @@ expect_identical(
 seededControl <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 5L,
   n.samples = 4L,
   seed = 9L
 )
 expect_identical(
-  dbarts::dbarts(x, y, control = seededControl, seed = NULL)$control@seed,
+  dbarts::dbarts(
+    x,
+    y,
+    control = seededControl,
+    seed = NULL,
+    n.trees = 5L
+  )$control@seed,
   9L
 )
 # the retired rngSeed = NA is covered by the retired name's own warning
@@ -284,7 +288,7 @@ expect_one_warning(
 expect_error(dbarts::dbartsControl(rngSeed = NaN), "rngSeed")
 # never shipped on these two: refused as a missing value, naming NULL
 expect_error(
-  dbarts::dbartsSpec(specData, control = control, seed = NA),
+  dbarts::dbartsSpec(specData, control = control, seed = NA, n.trees = 5L),
   "'seed' must not be NA on 'dbartsSpec'.*NULL"
 )
 expect_error(
@@ -299,7 +303,7 @@ expect_error(
   "'seed' must not be NA on 'dbartsValidateComposition'.*NULL"
 )
 expect_error(
-  dbarts::dbartsSpec(specData, control = control, seed = 1.5),
+  dbarts::dbartsSpec(specData, control = control, seed = 1.5, n.trees = 5L),
   "seed"
 )
 
@@ -514,7 +518,13 @@ expect_identical(priors$dart(update.delay = NULL)@update.delay, NA_real_)
 # ---- site 9: the tombstones ----
 
 # 0.9-34's test setters had no updateState, so none is accepted
-setterSampler <- dbarts::dbarts(x, y, test = x[1:5, ], control = control)
+setterSampler <- dbarts::dbarts(
+  x,
+  y,
+  test = x[1:5, ],
+  control = control,
+  n.trees = 5L
+)
 expect_error(
   setterSampler$setTestPredictor(x[1:5, ], updateState = TRUE),
   "unused argument"

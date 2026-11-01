@@ -1532,14 +1532,14 @@ fitViaSamplerApi <- function(scenario) {
   control <- dbartsControl(
     n.chains = n.chains,
     n.threads = 1L,
-    n.trees = if (!is.null(scenario$nTrees)) scenario$nTrees else ntree,
     updateState = FALSE
   )
   dbartsArgs <- list(
     scenario$x,
     scenario$y,
     test = scenario$x.test,
-    control = control
+    control = control,
+    n.trees = if (!is.null(scenario$nTrees)) scenario$nTrees else ntree
   )
   if (!is.null(scenario$weights)) {
     dbartsArgs$weights <- scenario$weights

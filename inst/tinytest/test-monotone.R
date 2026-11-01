@@ -307,7 +307,6 @@ expect_equal(
 ctrlD4 <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 10L,
   n.samples = 5L,
   n.burn = 5L,
   seed = 55L
@@ -316,7 +315,8 @@ defaultedD4 <- dbarts::dbarts(
   x,
   y,
   monotone = c(a = "increasing"),
-  control = ctrlD4
+  control = ctrlD4,
+  n.trees = 10L
 )
 defaultedD4$sampleTreesFromPrior()
 samplesDefaultedD4 <- defaultedD4$run(0L, 5L)
@@ -326,7 +326,8 @@ explicitNullD4 <- dbarts::dbarts(
   y,
   monotone = c(a = "increasing"),
   proposal.probs = NULL,
-  control = ctrlD4
+  control = ctrlD4,
+  n.trees = 10L
 )
 explicitNullD4$sampleTreesFromPrior()
 samplesExplicitNullD4 <- explicitNullD4$run(0L, 5L)
@@ -445,10 +446,10 @@ priorSampler <- function(prior) {
     control = dbarts::dbartsControl(
       n.chains = 1L,
       n.threads = 1L,
-      n.trees = 5L,
       seed = 77L,
       updateState = FALSE
-    )
+    ),
+    n.trees = 5L
   )
 }
 leafSampler <- priorSampler("leaf")
@@ -512,7 +513,8 @@ samplerPri <- dbarts::dbarts(
   xPri,
   xPri[, 1L] + rnorm(nPri, 0, 0.3),
   monotone = c(x1 = "increasing"),
-  control = dbarts::dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 25L)
+  control = dbarts::dbartsControl(n.chains = 1L, n.threads = 1L),
+  n.trees = 25L
 )
 
 priorEv <- samplePriorPredictive(samplerPri, n.samples = 100L, type = "ev")
@@ -557,7 +559,6 @@ controlReach <- function(n.trees = 20L, ...) {
   dbarts::dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = n.trees,
     n.samples = 1L,
     updateState = TRUE,
     ...
@@ -576,9 +577,15 @@ monoReach <- dbarts::dbarts(
   xReach,
   yReach,
   monotone = c(x1 = "increasing"),
-  control = controlReach()
+  control = controlReach(),
+  n.trees = 20L
 )
-freeReach <- dbarts::dbarts(xReach, yReach, control = controlReach())
+freeReach <- dbarts::dbarts(
+  xReach,
+  yReach,
+  control = controlReach(),
+  n.trees = 20L
+)
 invisible(freeReach$run(200L, 1L))
 invisible(monoReach$run(50L, 1L))
 birthDeath <- c(
@@ -667,7 +674,8 @@ handReach <- dbarts::dbarts(
   xReach,
   yReach,
   monotone = c(x1 = "increasing"),
-  control = controlReach(n.trees = 1L)
+  control = controlReach(),
+  n.trees = 1L
 )
 handState <- handReach$state
 cuts <- attr(handState, "cutPoints")
@@ -723,7 +731,8 @@ donorReach <- dbarts::dbarts(
   xReach,
   -yReach,
   monotone = c(x1 = "increasing"),
-  control = controlReach()
+  control = controlReach(),
+  n.trees = 20L
 )
 invisible(donorReach$run(300L, 1L))
 xGap <- xReach
@@ -732,7 +741,8 @@ gapReach <- dbarts::dbarts(
   xGap,
   -yReach,
   monotone = c(x1 = "increasing"),
-  control = controlReach()
+  control = controlReach(),
+  n.trees = 20L
 )
 expect_true(gapReach$installTrees(donorReach))
 gapReach$setControl(controlReach(
@@ -906,10 +916,10 @@ slowSampler <- function(prior, n.trees = 4L) {
     control = dbarts::dbartsControl(
       n.chains = 1L,
       n.threads = 1L,
-      n.trees = n.trees,
       n.samples = 1L,
       updateState = FALSE
-    )
+    ),
+    n.trees = n.trees
   )
 }
 maxDropSlow <- function(sampler) {
@@ -1058,17 +1068,17 @@ for (prior in c("leaf", "joint")) {
     control = dbarts::dbartsControl(
       n.chains = 1L,
       n.threads = 1L,
-      n.trees = 1L,
       n.samples = 20000L,
       n.burn = 1000L,
-      n.cuts = 1L,
       seed = 1L
     ),
     power = 2,
     base = 0.95,
     leaf.prior = normal(2),
     family = gaussian(sigma = fixed(sigmaCut^2)),
-    monotone = monotone(c(x = "increasing"), prior = prior)
+    monotone = monotone(c(x = "increasing"), prior = prior),
+    n.trees = 1L,
+    n.cuts = 1L
   )
   expect_equal(
     mean(sampler$run()$varcount > 0L),
@@ -1287,10 +1297,10 @@ timeLimited <- dbarts::dbarts(
   control = dbarts::dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 10L,
     n.samples = 1L,
     updateState = FALSE
-  )
+  ),
+  n.trees = 10L
 )
 limited <- tryCatch(
   {

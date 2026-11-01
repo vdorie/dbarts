@@ -22,7 +22,6 @@ y.count <- as.double(rpois(n, exp(0.3 * x[, "b"] + 1)))
 control.gp <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 8L,
   n.samples = 3L,
   n.burn = 5L,
   keepTrees = TRUE,
@@ -30,7 +29,13 @@ control.gp <- dbartsControl(
   verbose = FALSE
 )
 samplerOf <- function(...) {
-  sampler <- dbarts(x, ..., control = control.gp, leaf.prior = gp(columns = 2L))
+  sampler <- dbarts(
+    x,
+    ...,
+    control = control.gp,
+    leaf.prior = gp(columns = 2L),
+    n.trees = 8L
+  )
   invisible(sampler$run())
   sampler
 }
@@ -198,14 +203,14 @@ bare <- dbarts(
   control = dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 8L,
     n.samples = 3L,
     n.burn = 5L,
     keepTrees = FALSE,
     updateState = FALSE,
     verbose = FALSE
   ),
-  leaf.prior = gp(columns = 2L)
+  leaf.prior = gp(columns = 2L),
+  n.trees = 8L
 )
 invisible(bare$run())
 expect_silent(bare$setResponse(y + 1, updateScale = TRUE))

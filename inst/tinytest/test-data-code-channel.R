@@ -62,7 +62,6 @@ expect_equal(data.frame.chan@varTypes, data.matrix.chan@varTypes)
 expect_equal(data.frame.chan@varTypes, c(1L, 2L, 0L))
 
 control.chan <- dbarts::dbartsControl(
-  n.trees = 5L,
   n.chains = 1L,
   n.threads = 1L,
   n.burn = 0L,
@@ -74,7 +73,8 @@ sampler.frame.chan <- dbarts::dbarts(
   df.chan,
   y.chan,
   df.test.chan,
-  control = control.chan
+  control = control.chan,
+  n.trees = 5L
 )
 fit.frame.chan <- sampler.frame.chan$run(10L, 20L)
 
@@ -83,7 +83,8 @@ sampler.matrix.chan <- dbarts:::withCodedPredictors(dbarts::dbarts(
   x.chan,
   y.chan,
   x.test.chan,
-  control = control.chan
+  control = control.chan,
+  n.trees = 5L
 ))
 fit.matrix.chan <- sampler.matrix.chan$run(10L, 20L)
 
@@ -116,9 +117,19 @@ attr(x.bad.chan, "factor.levels") <- attr(x.chan, "factor.levels")
 data.bad.chan <- dbarts::dbartsData(x.bad.chan, y.chan)
 
 set.seed(11L)
-sampler.kept.chan <- dbarts::dbarts(df.chan, y.chan, control = control.chan)
+sampler.kept.chan <- dbarts::dbarts(
+  df.chan,
+  y.chan,
+  control = control.chan,
+  n.trees = 5L
+)
 set.seed(11L)
-sampler.refused.chan <- dbarts::dbarts(df.chan, y.chan, control = control.chan)
+sampler.refused.chan <- dbarts::dbarts(
+  df.chan,
+  y.chan,
+  control = control.chan,
+  n.trees = 5L
+)
 expect_error(
   sampler.refused.chan$setData(data.bad.chan),
   pattern = "categorical predictor values must be existing category codes"

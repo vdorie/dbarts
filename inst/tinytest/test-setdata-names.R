@@ -13,7 +13,6 @@ frame.nm$y <- frame.nm$a + 2 * frame.nm$b + rnorm(n.nm, 0, 0.1)
 control.nm <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 10L,
   n.samples = 5L,
   n.burn = 0L,
   keepTrees = TRUE,
@@ -22,7 +21,12 @@ control.nm <- dbarts::dbartsControl(
 )
 samplerOf <- function(data = frame.nm) {
   set.seed(4L)
-  sampler <- dbarts::dbarts(y ~ a + b, data, control = control.nm)
+  sampler <- dbarts::dbarts(
+    y ~ a + b,
+    data,
+    control = control.nm,
+    n.trees = 10L
+  )
   set.seed(5L)
   invisible(sampler$run(10L, 5L))
   sampler$storeState()
@@ -139,7 +143,7 @@ twin$setData(dbarts::dbartsData(sameOrder.nm, frame.nm$y))
 expect_identical(unname(sampler$data@x), unname(twin$data@x))
 # a sampler with no names takes data that carry some, by position, and its
 # record takes them
-bare <- dbarts::dbarts(unnamed, frame.nm$y, control = control.nm)
+bare <- dbarts::dbarts(unnamed, frame.nm$y, control = control.nm, n.trees = 10L)
 expect_null(colnames(bare$data@x))
 expect_identical(
   warningsOf(bare$setData(dbarts::dbartsData(y ~ c + e, renamed.nm))),
@@ -151,7 +155,12 @@ expect_identical(colnames(bare$data@x), c("c", "e"))
 # ones are refused as names that are not the sampler's, and the same ones in
 # another order cannot be told apart by name
 repeated <- cbind(x = frame.nm$a, b = frame.nm$b, x = frame.nm$a^2)
-sampler <- dbarts::dbarts(repeated, frame.nm$y, control = control.nm)
+sampler <- dbarts::dbarts(
+  repeated,
+  frame.nm$y,
+  control = control.nm,
+  n.trees = 10L
+)
 expect_identical(
   warningsOf(sampler$setData(dbarts::dbartsData(repeated, frame.nm$y))),
   character()
@@ -237,7 +246,7 @@ expect_equal(
   as.numeric(as.matrix(new.nm))
 )
 # a sampler with no names takes a frame by position
-bare <- dbarts::dbarts(unnamed, frame.nm$y, control = control.nm)
+bare <- dbarts::dbarts(unnamed, frame.nm$y, control = control.nm, n.trees = 10L)
 expect_identical(
   warningsOf(invisible(bare$setPredictor(renamed.nm[c("c", "e")]))),
   character()
@@ -264,7 +273,12 @@ three.nm <- data.frame(
 three.nm$y <- three.nm$a + three.nm$c / 20 + rnorm(n.nm, 0, 0.1)
 threeOf <- function() {
   set.seed(4L)
-  sampler <- dbarts::dbarts(y ~ a + b + c, three.nm, control = control.nm)
+  sampler <- dbarts::dbarts(
+    y ~ a + b + c,
+    three.nm,
+    control = control.nm,
+    n.trees = 10L
+  )
   set.seed(5L)
   invisible(sampler$run(10L, 5L))
   sampler$storeState()
@@ -325,7 +339,12 @@ for (order in list(c("c", "a", "b"), c("b", "c", "a"), c("c", "b", "a"))) {
 codes.nm <- unname(cbind(frame.nm$a, as.double(rep_len(0:2, n.nm))))
 attr(codes.nm, "varTypes") <- c(0L, 1L)
 attr(codes.nm, "factor.levels") <- list(NULL, c("u", "v", "w"))
-bare.factor <- dbarts::dbarts(codes.nm, frame.nm$y, control = control.nm)
+bare.factor <- dbarts::dbarts(
+  codes.nm,
+  frame.nm$y,
+  control = control.nm,
+  n.trees = 10L
+)
 expect_null(colnames(bare.factor$data@x))
 expect_error(
   bare.factor$setData(dbarts::dbartsData(

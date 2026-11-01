@@ -118,7 +118,6 @@ makeControl <- function() {
   dbartsControl(
     n.chains = 1L,
     n.threads = n.threads,
-    n.trees = n.trees,
     updateState = FALSE
   )
 }
@@ -204,7 +203,8 @@ runScenarios <- function() {
       factor(labels, levels = seq.int(0L, K - 1L)),
       test = x.test,
       family = "multinomial",
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees
     )
     res <- bc$run(n.burn, n.samples)
     result$k3 <- recordChannels(bc, res, K)
@@ -223,7 +223,8 @@ runScenarios <- function() {
       factor(labels, levels = seq.int(0L, K - 1L)),
       test = x.test,
       family = "multinomial",
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees
     )
     res <- bc$run(n.burn, n.samples)
     result$k2 <- recordChannels(bc, res, K)
@@ -258,7 +259,8 @@ runScenarios <- function() {
     bc <- dbarts(
       dbartsData(x, counts = counts, test = x.test),
       family = "multinomial",
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees
     )
     res <- bc$run(n.burn, n.samples)
     result$k3counts <- recordChannels(bc, res, K)
@@ -299,7 +301,8 @@ runScenarios <- function() {
       factor(labels, levels = seq.int(0L, K - 1L)),
       test = x.test,
       family = "multinomial",
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees
     )
     bc$run(n.burn, n.samples)
     bc$setPredictor(x2, forceUpdate = TRUE)
@@ -352,7 +355,8 @@ runScenarios <- function() {
       factor(d$labels, levels = seq.int(0L, d$K - 1L)),
       test = d$x[seq_len(25L), , drop = FALSE],
       family = "multinomial",
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees
     )
     bc$run(n.burn, n.samples)
     accepted <- bc$setPredictor(x2, forceUpdate = FALSE)
@@ -372,7 +376,8 @@ runScenarios <- function() {
       factor(d$labels, levels = seq.int(0L, d$K - 1L)),
       test = d$x[seq_len(25L), , drop = FALSE],
       family = "multinomial",
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees
     )
     bc$run(n.burn, n.samples)
     accepted <- bc$setPredictor(v, 2L, forceUpdate = FALSE)
@@ -391,7 +396,8 @@ runScenarios <- function() {
       factor(d$labels, levels = seq.int(0L, d$K - 1L)),
       test = d$x[seq_len(25L), , drop = FALSE],
       family = "multinomial",
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees
     )
     bc$run(n.burn, n.samples)
     accepted <- bc$setPredictor(
@@ -423,7 +429,8 @@ runScenarios <- function() {
       factor(d$labels, levels = seq.int(0L, d$K - 1L)),
       test = d$x[seq_len(25L), , drop = FALSE],
       family = "multinomial",
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees
     )
     bc$run(n.burn, n.samples)
     installed <- bc$setPredictor(v, 2L, forceUpdate = "partial")
@@ -442,7 +449,8 @@ runScenarios <- function() {
       factor(d$labels, levels = seq.int(0L, d$K - 1L)),
       test = d$x[seq_len(25L), , drop = FALSE],
       family = "multinomial",
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees
     )
     bc$run(n.burn, n.samples)
     installed <- bc$setPredictor(
@@ -484,7 +492,8 @@ runScenarios <- function() {
       factor(d$labels, levels = seq.int(0L, d$K - 1L)),
       test = x.test,
       family = "multinomial",
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees
     )
     bc$setCategoryOffset(offset, updateState = FALSE)
     bc$setCategoryTestOffset(offset.test)
@@ -532,7 +541,8 @@ runScenarios <- function() {
     bc <- dbarts(
       dbartsData(x, counts = counts, test = x[seq_len(25L), , drop = FALSE]),
       family = "multinomial",
-      control = makeControl()
+      control = makeControl(),
+      n.trees = n.trees
     )
     bc$run(n.burn, n.samples)
     bc$setCounts(counts2, updateState = FALSE)

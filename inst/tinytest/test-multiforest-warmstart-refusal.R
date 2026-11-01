@@ -29,7 +29,6 @@ controlWarmStartRefusal <- function(...) {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 20L,
     n.samples = 5L,
     updateState = FALSE,
     ...
@@ -38,7 +37,12 @@ controlWarmStartRefusal <- function(...) {
 
 # the warm-start donor every arm below offers: an ordinary single-forest fit
 # over the same predictors, so nothing but the forest count can be the refusal
-donor <- dbarts(x, y, control = controlWarmStartRefusal(keepTrees = TRUE))
+donor <- dbarts(
+  x,
+  y,
+  control = controlWarmStartRefusal(keepTrees = TRUE),
+  n.trees = 20L
+)
 donor$sampleTreesFromPrior()
 invisible(donor$run(0L, 3L))
 
@@ -46,7 +50,8 @@ bcf <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = controlWarmStartRefusal()
+  control = controlWarmStartRefusal(),
+  n.trees = 20L
 )
 
 # --- the R5 surface: the method, the shape and the count a caller can read
@@ -124,7 +129,8 @@ softmax <- dbarts(
   x,
   labels,
   family = "multinomial",
-  control = controlWarmStartRefusal()
+  control = controlWarmStartRefusal(),
+  n.trees = 20L
 )
 expect_error(
   softmax$installTrees(donor),
@@ -134,7 +140,7 @@ expect_silent(softmax$growFromRoot(2L))
 
 # --- and the shapes the guard must not catch. A plain single-forest sampler
 # takes a donor, silently, as it always has ---
-single <- dbarts(x, y, control = controlWarmStartRefusal())
+single <- dbarts(x, y, control = controlWarmStartRefusal(), n.trees = 20L)
 expect_silent(single$installTrees(donor))
 
 # a heteroscedastic sampler's variance forest is not one of the forests the
@@ -144,11 +150,18 @@ heteroDonor <- dbarts(
   x,
   y,
   variance = TRUE,
-  control = controlWarmStartRefusal(keepTrees = TRUE)
+  control = controlWarmStartRefusal(keepTrees = TRUE),
+  n.trees = 20L
 )
 heteroDonor$sampleTreesFromPrior()
 invisible(heteroDonor$run(0L, 3L))
-hetero <- dbarts(x, y, variance = TRUE, control = controlWarmStartRefusal())
+hetero <- dbarts(
+  x,
+  y,
+  variance = TRUE,
+  control = controlWarmStartRefusal(),
+  n.trees = 20L
+)
 expect_silent(hetero$installTrees(heteroDonor))
 
 # --- the refusal raises and warns about nothing: an entrance that warned and

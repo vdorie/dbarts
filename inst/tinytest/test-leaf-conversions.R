@@ -26,7 +26,6 @@ control <- function(
   dbartsControl(
     n.chains = n.chains,
     n.threads = 1L,
-    n.trees = 8L,
     n.samples = n.samples,
     n.burn = n.burn,
     keepTrees = keepTrees,
@@ -115,6 +114,7 @@ x.flat.new <- cbind(x1 = runif(20L), x2 = 1000 + rnorm(20L))
 flat <- dbarts(
   onRecord(x.flat),
   control = control(),
+  n.trees = 8L,
   leaf.prior = linear(columns = 2L)
 )
 invisible(flat$run())
@@ -137,6 +137,7 @@ expect_true(max(abs(flat.step(2) - 2 * flat.step(1))) < 1e-10)
 flat.twin <- dbarts(
   onRecord(x.flat),
   control = control(seed = 8L),
+  n.trees = 8L,
   leaf.prior = linear(columns = 2L)
 )
 flat$storeState()
@@ -203,6 +204,7 @@ varied <- dbarts(
   x.varying,
   y,
   control = control(keepTrees = FALSE, seed = 9L),
+  n.trees = 8L,
   leaf.prior = linear(columns = 2L)
 )
 varied.standardization <- standardization(varied)
@@ -222,6 +224,7 @@ for (n.chains in 1:2) {
     x,
     y,
     control = control(n.chains = n.chains),
+    n.trees = 8L,
     leaf.prior = linear(columns = 2L)
   )
   invisible(linear.fit$run())
@@ -241,7 +244,12 @@ for (n.chains in 1:2) {
   expect_true(all(is.finite(linear.fit$run(0L, 2L)$train)), info = n.chains)
 
   # a constant leaf beside it holds no coefficient to restate
-  constant.fit <- dbarts(x, y, control = control(n.chains = n.chains))
+  constant.fit <- dbarts(
+    x,
+    y,
+    control = control(n.chains = n.chains),
+    n.trees = 8L
+  )
   invisible(constant.fit$run())
   before <- keptDraws(constant.fit)
   constant.fit$setData(dbartsData(x.stretched, y))
@@ -262,6 +270,7 @@ appended <- dbarts(
   x,
   y,
   control = control(keepTrees = FALSE),
+  n.trees = 8L,
   leaf.prior = linear(columns = 2L)
 )
 invisible(appended$run())
@@ -286,15 +295,25 @@ expect_true(max(abs(after - before)) < 1e-12)
 ## 3 f + 10 for a response of 3 y + 10.
 y.moved <- 3 * y + 10
 reanchored <- list(
-  constant = function() dbarts(x, y, control = control()),
-  student = function() dbarts(x, y, family = "student", control = control()),
+  constant = function() dbarts(x, y, control = control(), n.trees = 8L),
+  student = function() {
+    dbarts(x, y, family = "student", control = control(), n.trees = 8L)
+  },
   monotone = function() {
-    dbarts(x, y, monotone = c(x2 = 1), control = control())
+    dbarts(x, y, monotone = c(x2 = 1), control = control(), n.trees = 8L)
   },
   linear = function() {
-    dbarts(x, y, leaf.prior = linear(columns = 2L), control = control())
+    dbarts(
+      x,
+      y,
+      leaf.prior = linear(columns = 2L),
+      control = control(),
+      n.trees = 8L
+    )
   },
-  variance = function() dbarts(x, y, variance = ~x1, control = control())
+  variance = function() {
+    dbarts(x, y, variance = ~x1, control = control(), n.trees = 8L)
+  }
 )
 for (kind in names(reanchored)) {
   calls <- list(
@@ -337,7 +356,13 @@ expect_identical(length(keptDraws(variance.fit)), 4L)
 # aft: the range is that of the log times
 time <- exp(y / 3)
 status <- rbinom(n, 1L, 0.8)
-aft.fit <- dbarts(x, cbind(time, status), family = "aft", control = control())
+aft.fit <- dbarts(
+  x,
+  cbind(time, status),
+  family = "aft",
+  control = control(),
+  n.trees = 8L
+)
 invisible(aft.fit$run())
 before <- keptDraws(aft.fit)
 aft.fit$setResponse(aft.fit$data@y + 0.5, updateScale = TRUE)
@@ -345,7 +370,13 @@ expect_true(worstGap(before, keptDraws(aft.fit)) < 1e-12)
 
 # nbinom: the shift is the log of the mean count
 counts <- rpois(n, exp(0.5 * sin(4 * x[, 1L]) + 0.5 * x[, 2L] + 1))
-count.fit <- dbarts(x, counts, family = "nbinom", control = control())
+count.fit <- dbarts(
+  x,
+  counts,
+  family = "nbinom",
+  control = control(),
+  n.trees = 8L
+)
 invisible(count.fit$run())
 before <- keptDraws(count.fit)
 count.fit$setResponse(3L * counts, updateScale = TRUE)
@@ -353,7 +384,7 @@ expect_true(worstGap(before, keptDraws(count.fit)) < 1e-12)
 
 # a store the runs have part filled: the draws a later run adds are the new
 # range's, and the earlier ones are still what they were
-partial <- dbarts(x, y, control = control(n.samples = 6L))
+partial <- dbarts(x, y, control = control(n.samples = 6L), n.trees = 8L)
 invisible(partial$run(30L, 2L))
 before <- keptDraws(partial)
 partial$setResponse(y.moved, updateScale = TRUE)
@@ -375,6 +406,7 @@ donor <- dbarts(
   x,
   y,
   control = control(n.burn = 60L, n.samples = 4L),
+  n.trees = 8L,
   leaf.prior = linear(columns = 2L)
 )
 invisible(donor$run())
@@ -385,6 +417,7 @@ offStandard <- function(seed, grid = donor.grid) {
     x.stretched,
     y,
     control = warm.control(seed = seed),
+    n.trees = 8L,
     leaf.prior = linear(columns = 2L)
   )
   invisible(recipient$setPredictor(x, forceUpdate = TRUE))
@@ -413,6 +446,7 @@ twin <- dbarts(
   x,
   y,
   control = warm.control(seed = 22L),
+  n.trees = 8L,
   leaf.prior = linear(columns = 2L)
 )
 twin$installTrees(donor, samples = c(6L, 1L))
@@ -440,6 +474,7 @@ twin <- dbarts(
   x,
   y,
   control = warm.control(seed = 24L),
+  n.trees = 8L,
   leaf.prior = linear(columns = 2L)
 )
 expect_identical(standardization(twin), standardization(donor))
@@ -527,6 +562,7 @@ gp.donor <- dbarts(
   x,
   y,
   control = warm.control(),
+  n.trees = 8L,
   leaf.prior = gp(columns = 2L)
 )
 invisible(gp.donor$run())
@@ -535,6 +571,7 @@ gpOffStandard <- function(seed, grid) {
     x.stretched,
     y,
     control = warm.control(seed = seed),
+    n.trees = 8L,
     leaf.prior = gp(columns = 2L)
   )
   invisible(recipient$setPredictor(x, forceUpdate = TRUE))
@@ -578,6 +615,7 @@ madeOn <- function(rows, seed = 7L, response = y, ...) {
     return(dbarts(
       onRecord(rows, response),
       control = control(n.burn = 60L, seed = seed, ...),
+      n.trees = 8L,
       leaf.prior = linear(columns = 2L)
     ))
   }
@@ -585,6 +623,7 @@ madeOn <- function(rows, seed = 7L, response = y, ...) {
     rows,
     response,
     control = control(n.burn = 60L, seed = seed, ...),
+    n.trees = 8L,
     leaf.prior = linear(columns = 2L)
   )
 }
@@ -835,6 +874,7 @@ gpSampler <- function(response = y, ..., keepTrees = TRUE) {
     response,
     ...,
     control = gpControl(keepTrees = keepTrees),
+    n.trees = 8L,
     leaf.prior = gp(columns = 2L)
   )
 }
@@ -1004,7 +1044,8 @@ sampler <- dbarts(
   x,
   y,
   leaf.prior = linear(columns = 2L),
-  control = gpControl()
+  control = gpControl(),
+  n.trees = 8L
 )
 invisible(sampler$run())
 before <- keptDraws(sampler)

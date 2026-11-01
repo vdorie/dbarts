@@ -27,7 +27,6 @@ seededControlForestBasisR5 <- function(...) {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 25L,
     n.samples = 6L,
     updateState = FALSE,
     seed = 41L,
@@ -40,7 +39,8 @@ twoForests <- function(...) {
     x,
     y,
     forests = list(forest(), forest(basis = ~ factor(z))),
-    control = seededControlForestBasisR5(...)
+    control = seededControlForestBasisR5(...),
+    n.trees = 25L
   )
 }
 
@@ -175,7 +175,8 @@ threeForests <- dbarts(
     forest(basis = ~ factor(z)),
     forest(basis = ~ g == "b")
   ),
-  control = seededControlForestBasisR5()
+  control = seededControlForestBasisR5(),
+  n.trees = 25L
 )
 threeResult <- threeForests$run(5L, 4L)
 expect_equal(dim(threeResult$glue), c(5L, 4L))
@@ -229,7 +230,8 @@ expect_error(threeForests$getForestAmplitudes(0L), "single positive integer")
 priorSpec <- dbartsSpec(
   dbartsData(x, y, bases = list(NULL, factor(z))),
   seededControlForestBasisR5(),
-  forests = list(forest(sd = 2.5), forest(sd = 1.25))
+  forests = list(forest(sd = 2.5), forest(sd = 1.25)),
+  n.trees = 25L
 )
 expect_identical(vapply(priorSpec$model@forests, slot, 0, "sd"), c(2.5, 1.25))
 priorSampler <- new(
@@ -287,15 +289,17 @@ unevenTrees <- dbarts(
 expect_identical(unevenTrees$control@n.trees, 13L)
 # setControl cross-checks the control's count against the sampler's shape, so
 # it accepts forest 0's and refuses either of the others
+# (a count written on a control is read with a warning, which is not what this
+# row pins, and its key is given back after)
 treeCountControl <- function(numTrees) {
-  dbartsControl(
+  suppressWarnings(dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
     n.trees = numTrees,
     n.samples = 6L,
     updateState = FALSE,
     seed = 41L
-  )
+  ))
 }
 expect_silent(unevenTrees$setControl(treeCountControl(13L)))
 expect_error(
@@ -306,6 +310,8 @@ expect_error(
   unevenTrees$setControl(treeCountControl(7L)),
   "changing .n.trees. is not available on an existing sampler"
 )
+onceState <- dbarts:::onceWarnState
+onceState[["tombstone.control.n.trees"]] <- NULL
 
 # --- dbartsData(bases = ) takes a CONTINUOUS basis, the positive route the
 # "not a numeric basis column" refusal relaxed into: creation succeeds, the
@@ -314,7 +320,11 @@ expect_error(
 # alone, so a basis accepted and dropped would still fail. ---
 continuous <- x[, 1L] - 0.5
 continuousData <- dbartsData(x, y, bases = list(NULL, cbind(continuous)))
-continuousFit <- dbarts(continuousData, control = seededControlForestBasisR5())
+continuousFit <- dbarts(
+  continuousData,
+  control = seededControlForestBasisR5(),
+  n.trees = 25L
+)
 expect_equal(ncol(continuousFit$data@bases[[2L]]), 1L)
 expect_equal(continuousFit$data@bases[[2L]][, 1L], continuous)
 continuousResult <- continuousFit$run(5L, 3L)
@@ -342,7 +352,7 @@ expect_true(continuousError < 1e-12)
 # amplitudes", and is deliberately NOT a forest count, which a K-forest
 # multinomial (which carries no amplitudes at all) would defeat ---
 expect_true(dbarts:::samplerCarriesAmplitudes(threeForests))
-plain <- dbarts(x, y, control = seededControlForestBasisR5())
+plain <- dbarts(x, y, control = seededControlForestBasisR5(), n.trees = 25L)
 expect_false(dbarts:::samplerCarriesAmplitudes(plain))
 # a plain sampler has no basis to change at all, so the refusal names that
 # rather than claiming a forest index is out of range
@@ -372,7 +382,8 @@ mn <- dbarts(
   x,
   factor(mnLabels, levels = 0:2),
   family = "multinomial",
-  control = seededControlForestBasisR5()
+  control = seededControlForestBasisR5(),
+  n.trees = 25L
 )
 expect_error(
   mn$getForestAmplitudes(1L),
@@ -393,7 +404,8 @@ probitForests <- function() {
     x,
     yBinary,
     forests = list(forest(), forest(basis = ~ factor(z))),
-    control = seededControlForestBasisR5()
+    control = seededControlForestBasisR5(),
+    n.trees = 25L
   )
 }
 priorScale <- function(sampler, forest) {
@@ -407,7 +419,8 @@ stale <- dbarts(
   x,
   yBinary,
   forests = list(forest(), forest(basis = z)),
-  control = seededControlForestBasisR5()
+  control = seededControlForestBasisR5(),
+  n.trees = 25L
 )
 expect_equal(priorScale(stale, 2L), 1 / (0.674 * sd(z)), tolerance = 1e-12)
 stale$run(5L, 1L)
@@ -469,7 +482,8 @@ donorForests <- function(sd, basis = ~ factor(z)) {
     x,
     yBinary,
     forests = list(forest(), do.call(forest, multiplied)),
-    control = seededControlForestBasisR5()
+    control = seededControlForestBasisR5(),
+    n.trees = 25L
   )
 }
 donor <- donorForests(2)
@@ -546,7 +560,8 @@ expect_identical(
       x,
       y,
       forests = list(forest(), forest(basis = emptyLevel)),
-      control = seededControlForestBasisR5()
+      control = seededControlForestBasisR5(),
+      n.trees = 25L
     )$data@bases[[2L]]
   ),
   c("emptyLevel0", "emptyLevel1")
@@ -556,7 +571,8 @@ fromValue <- dbarts(
   x,
   y,
   forests = list(forest(), do.call(forest, list(basis = emptyLevel))),
-  control = seededControlForestBasisR5()
+  control = seededControlForestBasisR5(),
+  n.trees = 25L
 )
 expect_identical(fromValue$data@basis.levels, list(NULL, c("0", "1")))
 expect_identical(fromValue$data@bases[[2L]], unname(cbind(1 - z, z)))
@@ -565,7 +581,8 @@ expect_error(
     x,
     y,
     forests = list(forest(), forest(basis = rep(1e300, n))),
-    control = seededControlForestBasisR5()
+    control = seededControlForestBasisR5(),
+    n.trees = 25L
   ),
   "row's norm is not representable"
 )

@@ -20,7 +20,6 @@ y <- signal + rnorm(n, 0, 0.5)
 control <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 50L,
   updateState = FALSE,
   seed = 7L
 )
@@ -36,7 +35,14 @@ leavesOf <- function(sampler) {
 }
 
 fitAndReport <- function(weights, ...) {
-  sampler <- dbarts::dbarts(x, y, weights = weights, control = control, ...)
+  sampler <- dbarts::dbarts(
+    x,
+    y,
+    weights = weights,
+    control = control,
+    ...,
+    n.trees = 50L
+  )
   draws <- sampler$run(100L, 50L)
   list(leaves = leavesOf(sampler), fits = draws$train)
 }
@@ -69,7 +75,7 @@ structureOf <- function(sampler) {
 
 # every row zeroed: every leaf scores nothing, so the forest sits at its prior -
 # which is a distribution over structures, not a fixed structure
-grown <- dbarts::dbarts(x, y, control = control)
+grown <- dbarts::dbarts(x, y, control = control, n.trees = 50L)
 invisible(grown$run(100L, 1L))
 beforeInstall <- structureOf(grown)
 grown$setWeights(rep(0, n))
@@ -81,7 +87,7 @@ expect_true(all(leavesOf(grown)$members > 0L))
 
 # partially zeroed: the forest goes on moving, every leaf holds a row, and
 # leaves inside the zero-weight half-space stay legal
-partial <- dbarts::dbarts(x, y, control = control)
+partial <- dbarts::dbarts(x, y, control = control, n.trees = 50L)
 invisible(partial$run(100L, 1L))
 partial$setWeights(w)
 beforeInstall <- structureOf(partial)

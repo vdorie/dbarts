@@ -27,11 +27,11 @@ dest <- dbarts::dbarts(
   x,
   y,
   control = dbarts::dbartsControl(
-    n.trees = 8L,
     n.chains = 1L,
     updateState = FALSE,
     keepTrees = FALSE
-  )
+  ),
+  n.trees = 8L
 )
 dest$installTrees(donor, samples = 3L)
 destTrees <- dest$getTrees(current = TRUE, chainNums = 1L)
@@ -47,11 +47,11 @@ fewer <- dbarts::dbarts(
   x,
   y,
   control = dbarts::dbartsControl(
-    n.trees = 5L,
     n.chains = 1L,
     updateState = FALSE,
     keepTrees = FALSE
-  )
+  ),
+  n.trees = 5L
 )
 expect_false(fewer$installTrees(donor, samples = 3L))
 expect_null(fewer$installTrees(donor, samples = 3L, forceUpdate = TRUE))
@@ -124,7 +124,8 @@ expect_error(
 liveSampler <- dbarts::dbarts(
   x,
   y,
-  control = dbarts::dbartsControl(n.trees = 8L, n.chains = 1L, n.threads = 1L)
+  control = dbarts::dbartsControl(n.chains = 1L, n.threads = 1L),
+  n.trees = 8L
 )
 invisible(liveSampler$run(5L, 5L))
 rawState <- liveSampler$state

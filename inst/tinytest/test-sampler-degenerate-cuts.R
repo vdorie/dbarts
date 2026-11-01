@@ -11,10 +11,14 @@ y <- rnorm(n)
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 5L,
   updateState = FALSE
 )
-sampler <- dbarts(y ~ f, data.frame(f = factor(rep("a", n))), control = control)
+sampler <- dbarts(
+  y ~ f,
+  data.frame(f = factor(rep("a", n))),
+  control = control,
+  n.trees = 5L
+)
 
 res <- sampler$run(0L, 5L)
 
@@ -34,7 +38,7 @@ rm(sampler, res, trees)
 # relative to a last cut that is not there. The entrance that sets a grid
 # refuses an empty one rather than build that store.
 x <- matrix(runif(n * 2L), n, 2L)
-sampler <- dbarts(x, y, control = control)
+sampler <- dbarts(x, y, control = control, n.trees = 5L)
 expect_error(
   sampler$setCutPoints(list(numeric(0)), 1L),
   pattern = "at least one cut point"
@@ -54,11 +58,15 @@ xConst <- cbind(rep(1.0, n), rnorm(n))
 quantileControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 5L,
-  useQuantiles = TRUE,
   updateState = FALSE
 )
-sampler <- dbarts(xConst, y, control = quantileControl)
+sampler <- dbarts(
+  xConst,
+  y,
+  control = quantileControl,
+  n.trees = 5L,
+  useQuantiles = TRUE
+)
 sampler$storeState()
 cutPoints <- attr(sampler$state, "cutPoints")
 expect_equal(length(cutPoints[[1L]]), 1L)
@@ -81,11 +89,11 @@ verboseOutput <- capture.output(
     control = dbartsControl(
       n.chains = 1L,
       n.threads = 1L,
-      n.trees = 5L,
-      useQuantiles = TRUE,
       printCutoffs = 10L,
       verbose = TRUE
-    )
+    ),
+    n.trees = 5L,
+    useQuantiles = TRUE
   ))
 )
 expect_true(any(grepl("x(1) cutoffs: 1.000000", verboseOutput, fixed = TRUE)))
@@ -150,7 +158,8 @@ expect_identical(predict(reloaded, frame[1:3, ]), expected)
 sampler <- dbarts(
   cbind(a = runif(40L), b = 0),
   rnorm(40L),
-  control = dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 5L)
+  control = dbartsControl(n.chains = 1L, n.threads = 1L),
+  n.trees = 5L
 )
 invisible(sampler$run(5L, 5L))
 expect_true(inherits(sampler$copy(), "dbartsSampler"))
@@ -162,7 +171,8 @@ expect_true(status)
 sampler <- dbarts(
   cbind(a = 1e15 + 4 * runif(40L)),
   rnorm(40L),
-  control = dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 5L)
+  control = dbartsControl(n.chains = 1L, n.threads = 1L),
+  n.trees = 5L
 )
 invisible(sampler$run(5L, 5L))
 expect_silent(status <- sampler$setState(sampler$state))
@@ -173,7 +183,8 @@ expect_true(status)
 sampler <- dbarts(
   cbind(a = runif(40L)),
   rnorm(40L),
-  control = dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 5L)
+  control = dbartsControl(n.chains = 1L, n.threads = 1L),
+  n.trees = 5L
 )
 expect_error(
   sampler$setCutPoints(seq(0, 0.9, length.out = 65534L), 1L),

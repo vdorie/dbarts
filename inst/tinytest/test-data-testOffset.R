@@ -270,12 +270,12 @@ wrapper <- function(o) {
     offset.test = o,
     control = dbarts::dbartsControl(
       verbose = FALSE,
-      n.trees = 5L,
       n.samples = 5L,
       n.burn = 5L,
       n.chains = 1L,
       n.threads = 1L
-    )
+    ),
+    n.trees = 5L
   )
 }
 expect_null(wrapper(NULL)$data@offset.test)

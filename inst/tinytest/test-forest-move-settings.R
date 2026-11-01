@@ -31,7 +31,6 @@ ctl <- function(...) {
   dbarts::dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 4L,
     n.burn = 0L,
     n.samples = 3L,
     updateState = FALSE,
@@ -45,7 +44,8 @@ build <- function(
   control,
   mean = list(),
   second = mean,
-  variance = list()
+  variance = list(),
+  n.trees = 4L
 ) {
   set.seed(23L)
   first <- forest(
@@ -59,7 +59,8 @@ build <- function(
       y ~ a + b + c,
       dat,
       forests = list(first),
-      control = control
+      control = control,
+      n.trees = n.trees
     ),
     hetero = dbarts::dbarts(
       y ~ a + b + c,
@@ -70,7 +71,8 @@ build <- function(
         proposal.probs = variance$proposal.probs,
         n.perturb.cuts = variance$n.perturb.cuts
       ),
-      control = control
+      control = control,
+      n.trees = n.trees
     ),
     two = dbarts::dbarts(
       y ~ a + b + c,
@@ -85,20 +87,23 @@ build <- function(
           treeShift = second$treeShift
         )
       ),
-      control = control
+      control = control,
+      n.trees = n.trees
     ),
     multi = dbarts::dbarts(
       dbarts::dbartsData(x, counts = counts),
       family = "multinomial",
       forests = list(first),
-      control = control
+      control = control,
+      n.trees = n.trees
     ),
     dart = dbarts::dbarts(
       y ~ a + b + c,
       dat,
       forests = list(first),
       split.probs = dart(),
-      control = control
+      control = control,
+      n.trees = n.trees
     )
   )
 }
@@ -530,15 +535,13 @@ expect_false(statesMoves(build("two", ctl())))
 # ...and no tree count: the next fit takes the default, and is told
 handedOn <- NULL
 expect_warning(
-  handedOn <- build("two", stated$control),
+  handedOn <- build("two", stated$control, n.trees = NULL),
   "the control's n.trees (4) is not used",
   fixed = TRUE
 )
 expect_false(statesMoves(handedOn))
-atDefault <- ctl()
-atDefault@n.trees <- 75L
-expect_identical(draws(handedOn), draws(build("two", atDefault)))
-rm(stated, handedOn, atDefault)
+expect_identical(draws(handedOn), draws(build("two", ctl(), n.trees = NULL)))
+rm(stated, handedOn)
 
 printed <- capture.output(invisible(
   build(

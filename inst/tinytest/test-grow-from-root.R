@@ -11,11 +11,11 @@ makeSamplerGrowFromRoot <- function(n.trees = 25L) {
     x,
     y,
     control = dbarts::dbartsControl(
-      n.trees = n.trees,
       n.chains = 1L,
       updateState = FALSE,
       keepTrees = FALSE
-    )
+    ),
+    n.trees = n.trees
   )
 }
 
@@ -65,22 +65,22 @@ donor <- dbarts::dbarts(
   x,
   y,
   control = dbarts::dbartsControl(
-    n.trees = 8L,
     n.chains = 1L,
     updateState = FALSE,
     keepTrees = FALSE
-  )
+  ),
+  n.trees = 8L
 )
 donor$growFromRoot(2L)
 target <- dbarts::dbarts(
   x,
   y,
   control = dbarts::dbartsControl(
-    n.trees = 8L,
     n.chains = 1L,
     updateState = FALSE,
     keepTrees = FALSE
-  )
+  ),
+  n.trees = 8L
 )
 target$installTrees(donor)
 expect_equal(as.vector(target$predict(x)), as.vector(donor$predict(x)))
@@ -102,10 +102,10 @@ linSampler <- dbarts::dbarts(
   y,
   leaf.prior = linear(1L),
   control = dbarts::dbartsControl(
-    n.trees = 8L,
     n.chains = 1L,
     updateState = FALSE
-  )
+  ),
+  n.trees = 8L
 )
 expect_error(linSampler$growFromRoot(2L), "constant-leaf")
 
@@ -124,11 +124,11 @@ nostore <- dbarts::dbarts(
   x,
   y,
   control = dbarts::dbartsControl(
-    n.trees = 10L,
     n.chains = 1L,
     updateState = FALSE,
     keepTrees = FALSE
-  )
+  ),
+  n.trees = 10L
 )
 nostore$growFromRoot(2L) # default updateState = NULL, control FALSE -> no store
 expect_null(nostore$state)
@@ -137,11 +137,11 @@ optin <- dbarts::dbarts(
   x,
   y,
   control = dbarts::dbartsControl(
-    n.trees = 10L,
     n.chains = 1L,
     updateState = FALSE,
     keepTrees = FALSE
-  )
+  ),
+  n.trees = 10L
 )
 optin$growFromRoot(2L, updateState = TRUE) # explicit TRUE stores anyway
 expect_false(is.null(optin$state))
@@ -150,11 +150,11 @@ store <- dbarts::dbarts(
   x,
   y,
   control = dbarts::dbartsControl(
-    n.trees = 10L,
     n.chains = 1L,
     updateState = TRUE,
     keepTrees = FALSE
-  )
+  ),
+  n.trees = 10L
 )
 initialState <- store$state # realize the cache on the initial (stump) forest
 store$growFromRoot(2L) # default NA, control TRUE -> stores, refreshing state
@@ -181,7 +181,6 @@ muGrow <- 4 * xGrow[, 1L]
 yGrow <- muGrow + ifelse(xGrow[, 2L] < 0.5, 0.1, 3) * rnorm(nGrow)
 growControl <- dbarts::dbartsControl(
   n.chains = 1L,
-  n.trees = 25L,
   n.burn = 0L,
   verbose = FALSE
 )
@@ -194,12 +193,14 @@ fitHeteroscedastic <- growInit(dbarts::dbarts(
   xGrow,
   yGrow,
   control = growControl,
-  variance = varianceForest(n.trees = 10L)
+  variance = varianceForest(n.trees = 10L),
+  n.trees = 25L
 ))
 fitHomoscedastic <- growInit(dbarts::dbarts(
   xGrow,
   yGrow,
-  control = growControl
+  control = growControl,
+  n.trees = 25L
 ))
 expect_true(
   cor(fitHeteroscedastic, muGrow) > cor(fitHomoscedastic, muGrow)
@@ -241,11 +242,11 @@ missingSampler <- dbarts::dbarts(
   xMissing,
   yMissing,
   control = dbarts::dbartsControl(
-    n.trees = 25L,
     n.chains = 1L,
     updateState = FALSE,
     keepTrees = FALSE
-  )
+  ),
+  n.trees = 25L
 )
 missingSampler$growFromRoot(2L)
 missingTrees <- missingSampler$getTrees()

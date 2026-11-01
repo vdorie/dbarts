@@ -51,19 +51,16 @@ fitFromPredictBlend <- function(
   n.trees = 8L,
   design = x
 ) {
-  # the control's count is the count of the forest with no basis; a model in
+  # the count is that of the forest with no basis; a model in
   # which every forest has a basis hands over NULL and states its own
-  control <- if (is.null(n.trees)) {
-    keptControlPredictBlend(n.chains)
-  } else {
-    keptControlPredictBlend(n.chains, n.trees = n.trees)
-  }
+  control <- keptControlPredictBlend(n.chains)
   sampler <- dbarts(
     design,
     response,
     forests = forests,
     family = family,
-    control = control
+    control = control,
+    n.trees = n.trees
   )
   burn <- dbarts:::runWithBurnIn(sampler, sampler$control, keepTrees)
   dbarts:::packageBartResults(

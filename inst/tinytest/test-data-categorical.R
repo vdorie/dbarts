@@ -113,13 +113,17 @@ df.ord$y <- ifelse(as.integer(df.ord$o) == 150L, 4, 0) + rnorm(n.ord, 0, 0.2)
 control.ord <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 25L,
   n.samples = 100L,
-  n.cuts = 100L,
   keepTrees = TRUE,
   updateState = FALSE
 )
-sampler.ord <- dbarts(y ~ o, df.ord, control = control.ord)
+sampler.ord <- dbarts(
+  y ~ o,
+  df.ord,
+  control = control.ord,
+  n.trees = 25L,
+  n.cuts = 100L
+)
 fit.ord <- rowMeans(sampler.ord$run(100L, 100L)$train)
 expect_true(
   mean(fit.ord[as.integer(df.ord$o) == 150L]) -
@@ -164,7 +168,6 @@ expect_error(
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 75L,
   updateState = FALSE
 )
 sampler <- dbarts(
@@ -172,7 +175,8 @@ sampler <- dbarts(
   df,
   test = df.test,
   control = control,
-  factors = "categorical"
+  factors = "categorical",
+  n.trees = 75L
 )
 samples <- sampler$run(150L, 300L)
 fitMeans <- rowMeans(samples$train) - df$z
@@ -190,7 +194,6 @@ expect_equal(sampler$data@x.test[, "g"], data.cat2@x.test[, "g"])
 control.keep <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 25L,
   n.samples = 5L,
   keepTrees = TRUE,
   updateState = FALSE
@@ -199,7 +202,8 @@ sampler.keep <- dbarts(
   y ~ g + o + z + b + s,
   df,
   control = control.keep,
-  factors = "categorical"
+  factors = "categorical",
+  n.trees = 25L
 )
 invisible(sampler.keep$run(50L, 5L))
 trees <- sampler.keep$getTrees()
@@ -250,26 +254,25 @@ x.codes <- matrix(as.double(rep(c(0, 1, 2, 3), 10L)), ncol = 1L)
 x.codes[1L] <- 1e13
 y.codes <- rnorm(n.codes)
 control.codes <- dbartsControl(
-  n.trees = 1L,
   n.chains = 1L,
   n.threads = 1L,
   updateState = FALSE
 )
 attr(x.codes, "varTypes") <- 2L # ordered factor
 expect_error(
-  dbarts(x.codes, y.codes, control = control.codes),
+  dbarts(x.codes, y.codes, control = control.codes, n.trees = 1L),
   pattern = "ordered factor predictors must hold integer level codes"
 )
 attr(x.codes, "varTypes") <- 1L # categorical
 expect_error(
-  dbarts(x.codes, y.codes, control = control.codes),
+  dbarts(x.codes, y.codes, control = control.codes, n.trees = 1L),
   pattern = "categorical predictors must hold integer category codes"
 )
 # and a column whose codes ARE in range is accepted under either kind
 x.codes[1L] <- 3
 attr(x.codes, "varTypes") <- 2L # ordered factor
 expect_inherits(
-  dbarts(x.codes, y.codes, control = control.codes),
+  dbarts(x.codes, y.codes, control = control.codes, n.trees = 1L),
   "dbartsSampler"
 )
 
@@ -281,11 +284,12 @@ expect_error(
     x.codes,
     y.codes,
     test = matrix(c(0, 1, 2.5), ncol = 1L),
-    control = control.codes
+    control = control.codes,
+    n.trees = 1L
   ),
   pattern = "ordered factor test predictors must hold existing level codes"
 )
-sampler.codes <- dbarts(x.codes, y.codes, control = control.codes)
+sampler.codes <- dbarts(x.codes, y.codes, control = control.codes, n.trees = 1L)
 expect_error(
   sampler.codes$setTestPredictor(matrix(2.5, ncol = 1L)),
   pattern = "ordered factor predictor values must be existing level codes"

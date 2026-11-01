@@ -25,14 +25,18 @@ x <- rnorm(n)
 y <- x + rnorm(n)
 ctrl <- dbarts::dbartsControl(
   n.chains = 1L,
-  n.trees = 10L,
   n.samples = 1L,
   n.burn = 0L,
   updateState = FALSE,
   verbose = FALSE,
   seed = 7L
 )
-sampler <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
+sampler <- dbarts::dbarts(
+  y ~ x,
+  data.frame(x = x, y = y),
+  control = ctrl,
+  n.trees = 10L
+)
 invisible(sampler$run(20L, 1L))
 
 orig <- as.numeric(sampler$data@x[, 1L])
@@ -56,14 +60,18 @@ x <- rnorm(n)
 y <- x + rnorm(n)
 ctrl <- dbarts::dbartsControl(
   n.chains = 1L,
-  n.trees = 1L,
   n.samples = 1L,
   n.burn = 0L,
   updateState = FALSE,
   verbose = FALSE,
   seed = 7L
 )
-sampler <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
+sampler <- dbarts::dbarts(
+  y ~ x,
+  data.frame(x = x, y = y),
+  control = ctrl,
+  n.trees = 1L
+)
 invisible(sampler$run(40L, 1L))
 
 col <- 1L
@@ -155,14 +163,18 @@ x <- rnorm(n)
 y <- x + rnorm(n)
 ctrl <- dbarts::dbartsControl(
   n.chains = 1L,
-  n.trees = 30L,
   n.samples = 1L,
   n.burn = 0L,
   updateState = FALSE,
   verbose = FALSE,
   seed = 3L
 )
-sampler <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
+sampler <- dbarts::dbarts(
+  y ~ x,
+  data.frame(x = x, y = y),
+  control = ctrl,
+  n.trees = 30L
+)
 invisible(sampler$run(30L, 1L))
 
 set.seed(123L)
@@ -201,7 +213,6 @@ x <- rnorm(n)
 y <- x + rnorm(n)
 ctrl <- dbarts::dbartsControl(
   n.chains = 2L,
-  n.trees = 40L,
   n.samples = 1L,
   n.burn = 0L,
   updateState = FALSE,
@@ -209,7 +220,12 @@ ctrl <- dbarts::dbartsControl(
   verbose = FALSE,
   seed = 22L
 )
-sampler <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
+sampler <- dbarts::dbarts(
+  y ~ x,
+  data.frame(x = x, y = y),
+  control = ctrl,
+  n.trees = 40L
+)
 invisible(sampler$run(50L, 1L))
 
 cur <- as.numeric(sampler$data@x[, 1L])
@@ -248,14 +264,18 @@ x <- rnorm(n)
 y <- x + rnorm(n)
 ctrl <- dbarts::dbartsControl(
   n.chains = 1L,
-  n.trees = 1L,
   n.samples = 1L,
   n.burn = 0L,
   updateState = FALSE,
   verbose = FALSE,
   seed = 9L
 )
-sampler <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
+sampler <- dbarts::dbarts(
+  y ~ x,
+  data.frame(x = x, y = y),
+  control = ctrl,
+  n.trees = 1L
+)
 invisible(sampler$run(40L, 1L))
 
 col <- 1L
@@ -317,7 +337,6 @@ x2 <- rnorm(n)
 y <- x1 + rnorm(n)
 ctrl <- dbarts::dbartsControl(
   n.chains = 1L,
-  n.trees = 5L,
   n.samples = 1L,
   n.burn = 0L,
   updateState = FALSE,
@@ -327,7 +346,8 @@ ctrl <- dbarts::dbartsControl(
 sampler <- dbarts::dbarts(
   y ~ x1 + x2,
   data.frame(x1 = x1, x2 = x2, y = y),
-  control = ctrl
+  control = ctrl,
+  n.trees = 5L
 )
 invisible(sampler$run(5L, 1L))
 

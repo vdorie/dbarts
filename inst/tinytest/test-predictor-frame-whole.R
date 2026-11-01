@@ -12,7 +12,6 @@ frame <- data.frame(
 )
 frame$y <- frame$a + as.integer(frame$f) / 3 + rnorm(n, 0, 0.2)
 control <- dbartsControl(
-  n.trees = 10L,
   n.chains = 1L,
   n.threads = 1L,
   n.samples = 5L,
@@ -20,7 +19,7 @@ control <- dbartsControl(
   updateState = FALSE
 )
 make <- function(test = NULL) {
-  dbarts(y ~ a + f + b, frame, test = test, control = control)
+  dbarts(y ~ a + f + b, frame, test = test, control = control, n.trees = 10L)
 }
 predictors <- frame[c("a", "f", "b")]
 
@@ -86,7 +85,8 @@ expect_true(all(is.finite(sampler$copy()$run(0L, 2L)$train)))
 numeric.sampler <- dbarts(
   frame$y ~ a + b,
   frame,
-  control = control
+  control = control,
+  n.trees = 10L
 )
 invisible(numeric.sampler$run())
 numeric.matrix <- as.matrix(frame[c("a", "b")])[rev(seq_len(n)), ]
@@ -172,7 +172,8 @@ expect_error(
     y ~ a + f + b,
     frame,
     test = as.matrix(sampler.fit$data@x)[1:5, ],
-    control = control
+    control = control,
+    n.trees = 10L
   ),
   "the predictor 'f' is a factor"
 )

@@ -42,7 +42,6 @@ captureControl <- function() {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 6L,
     n.samples = 4L,
     updateState = FALSE,
     verbose = FALSE,
@@ -54,7 +53,7 @@ captureControl <- function() {
 termFit <- function(basis, data = frame, ...) {
   formula <- eval(bquote(y ~ x1 + x2 + x3 + forest(x1 + x3, basis = .(basis))))
   environment(formula) <- parent.frame()
-  dbarts(formula, data, control = captureControl(), ...)
+  dbarts(formula, data, control = captureControl(), ..., n.trees = 6L)
 }
 bartFit <- function(basis, data = frame, ...) {
   formula <- eval(bquote(y ~ x1 + x2 + x3 + forest(x1 + x3, basis = .(basis))))
@@ -78,7 +77,8 @@ listFit <- function(basis, data = frame, ...) {
     y ~ x1 + x2 + x3,
     data,
     forests = list(forest(), forest(x1 + x3, basis = .(basis))),
-    control = captureControl()
+    control = captureControl(),
+    n.trees = 6L
   ))
   eval(as.call(c(as.list(call), list(...))), list(data = data), parent.frame())
 }
@@ -88,7 +88,8 @@ matrixFit <- function(basis) {
       x,
       y,
       forests = list(forest(), forest(x1 + x3, basis = .(basis))),
-      control = captureControl()
+      control = captureControl(),
+      n.trees = 6L
     )),
     parent.frame()
   )
@@ -96,13 +97,14 @@ matrixFit <- function(basis) {
 # a list of forests built ahead of the fit
 builtFit <- function(forests, data = NULL) {
   if (is.null(data)) {
-    dbarts(x, y, forests = forests, control = captureControl())
+    dbarts(x, y, forests = forests, control = captureControl(), n.trees = 6L)
   } else {
     dbarts(
       y ~ x1 + x2 + x3,
       data,
       forests = forests,
-      control = captureControl()
+      control = captureControl(),
+      n.trees = 6L
     )
   }
 }
@@ -116,7 +118,8 @@ valueFit <- function(value, ...) {
       do.call(forest, list(vars = c("x1", "x3"), basis = value))
     ),
     control = captureControl(),
-    ...
+    ...,
+    n.trees = 6L
   )
 }
 basisOf <- function(sampler, index = 2L) sampler$data@bases[[index]]
@@ -172,7 +175,8 @@ local({
       forest(),
       do.call(forest, list(vars = c("x1", "x3"), basis = dose))
     ),
-    control = captureControl()
+    control = captureControl(),
+    n.trees = 6L
   )
   expect_identical(unname(basisOf(handed)), unname(column(dose, "dose")))
   expect_null(colnames(basisOf(handed)))
@@ -186,7 +190,8 @@ local({
         do.call(forest, list(basis = as.name(name)))
       })
     ),
-    control = captureControl()
+    control = captureControl(),
+    n.trees = 6L
   )
   expect_identical(basisOf(named, 2L), column(frame$dose, "dose"))
   expect_identical(basisOf(named, 3L), column(frame$age, "age"))
@@ -262,7 +267,8 @@ local({
       dbartsForests$forest(),
       dbartsForests$forest(basis = forest)
     ),
-    control = captureControl()
+    control = captureControl(),
+    n.trees = 6L
   )
   expect_identical(basisOf(fit), column(frame$age, "forest"))
 })
@@ -960,7 +966,8 @@ local({
     x,
     y,
     forests = list(forest(), forest(x1 + x3, basis = ~ factor(fixed))),
-    control = captureControl()
+    control = captureControl(),
+    n.trees = 6L
   )
   expect_identical(
     unname(basisOf(fit)),
@@ -992,7 +999,8 @@ attached <- tryCatch(
     x,
     y,
     forests = list(forest(), forest(basis = fixed)),
-    control = captureControl()
+    control = captureControl(),
+    n.trees = 6L
   ),
   finally = detach()
 )
@@ -1005,7 +1013,8 @@ held <- dbarts(
     forest(amplitude = fixed()),
     forest(basis = factor(frame$z), amplitude = fixed())
   ),
-  control = captureControl()
+  control = captureControl(),
+  n.trees = 6L
 )
 expect_identical(
   vapply(held$model@forests, slot, NA, "held.amplitude"),
@@ -1074,7 +1083,8 @@ overNames <- dbarts(
   y ~ X + i + dots + x1,
   loopNamed,
   forests = c(list(forest()), lapply(c("X", "i"), forest, basis = dose)),
-  control = captureControl()
+  control = captureControl(),
+  n.trees = 6L
 )
 expect_identical(
   lapply(overNames$model@forests, slot, "vars"),

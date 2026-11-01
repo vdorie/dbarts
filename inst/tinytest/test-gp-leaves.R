@@ -62,13 +62,14 @@ expect_error(
 
 # the chi hyperprior composes with gp leaves: k is sampled from the drawn
 # functions' standardized magnitudes
-control.chi <- dbartsControl(n.trees = 10L, n.chains = 1L, updateState = FALSE)
+control.chi <- dbartsControl(n.chains = 1L, updateState = FALSE)
 set.seed(3)
 sampler.chi <- dbarts(
   y ~ x1 + x2,
   df,
   leaf.prior = gp("x1", k = chi(1.25), max.leaf.size = 100L),
-  control = control.chi
+  control = control.chi,
+  n.trees = 10L
 )
 samples.chi <- runCapped(sampler.chi, 100L, 20L)
 expect_true(all(is.finite(samples.chi$k)) && all(samples.chi$k > 0))
@@ -80,7 +81,8 @@ sampler.chi.binary <- dbarts(
   z ~ x1 + x2,
   df.binary,
   leaf.prior = gp("x1", max.leaf.size = 100L),
-  control = control.chi
+  control = control.chi,
+  n.trees = 10L
 )
 samples.chi.binary <- runCapped(sampler.chi.binary, 60L, 10L)
 expect_true(all(is.finite(samples.chi.binary$train)))
@@ -96,7 +98,8 @@ sampler.w0 <- suppressWarnings(
     df,
     weights = w0,
     leaf.prior = gp("x1", k = 2, max.leaf.size = 100L),
-    control = control.chi
+    control = control.chi,
+    n.trees = 10L
   )
 )
 samples.w0 <- runCapped(sampler.w0, 60L, 10L)
@@ -106,7 +109,6 @@ expect_true(all(is.finite(samples.w0$sigma)))
 # fitting recovers the smooth signal; the small cap keeps large leaves on
 # the constant fallback while splits grow
 control <- dbartsControl(
-  n.trees = 10L,
   n.chains = 1L,
   n.samples = 40L,
   n.burn = 150L,
@@ -119,7 +121,8 @@ sampler <- dbarts(
   df,
   test = df[1:5, c("x1", "x2")],
   leaf.prior = gp("x1", max.leaf.size = 100L),
-  control = control
+  control = control,
+  n.trees = 10L
 )
 samples <- sampler$run()
 fits <- rowMeans(samples$train)
@@ -175,7 +178,8 @@ sampler.mut <- dbarts(
   y ~ x1 + x2,
   df,
   leaf.prior = gp("x1", max.leaf.size = 100L),
-  control = control
+  control = control,
+  n.trees = 10L
 )
 invisible(runCapped(sampler.mut, 50L, 5L))
 x1.new <- pmin(df$x1 * 1.1, 1)
@@ -195,7 +199,8 @@ sampler.fresh <- dbarts(
   y ~ x1 + x2,
   df.mut,
   leaf.prior = gp("x1", max.leaf.size = 100L),
-  control = control
+  control = control,
+  n.trees = 10L
 )
 fits.fresh <- rowMeans(runCapped(sampler.fresh, 150L, 200L)$train)
 # rmse between independently-seeded fits of the same mutated data, 30
@@ -208,7 +213,8 @@ sampler.binary <- dbarts(
   z ~ x1 + x2,
   df.binary,
   leaf.prior = gp("x1", k = 2, max.leaf.size = 100L),
-  control = control
+  control = control,
+  n.trees = 10L
 )
 samples.binary <- runCapped(sampler.binary, 100L, 20L)
 expect_true(all(is.finite(samples.binary$train)))
@@ -339,13 +345,13 @@ for (q in c(9L, 12L)) {
     test = xWideTest,
     leaf.prior = gp(seq_len(q), max.leaf.size = 60L),
     control = dbartsControl(
-      n.trees = 10L,
       n.chains = 1L,
       n.samples = 20L,
       n.burn = 20L,
       keepTrees = TRUE,
       updateState = FALSE
-    )
+    ),
+    n.trees = 10L
   )
   wideSamples <- runCapped(wideSampler)
   expect_true(all(is.finite(wideSamples$train)))
@@ -404,12 +410,12 @@ for (contName in names(contCases)) {
         updateState = updateState,
         n.chains = 2L,
         n.threads = 2L,
-        n.trees = 15L,
         n.samples = 10L,
         n.burn = 3L,
         verbose = FALSE,
         seed = seed
-      )
+      ),
+      n.trees = 15L
     )
     args$weights <- contCase$weights
     sampler <- do.call(dbarts, args)

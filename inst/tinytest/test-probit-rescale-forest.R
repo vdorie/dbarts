@@ -15,7 +15,6 @@ xTest <- matrix(runif(30L), 10L, 3L, dimnames = list(NULL, colnames(x)))
 
 stepControl <- function(n.chains = 1L, n.threads = 1L) {
   dbarts::dbartsControl(
-    n.trees = 10L,
     n.chains = n.chains,
     n.threads = n.threads,
     n.burn = 0L,
@@ -30,7 +29,8 @@ twoChains <- function(n.threads) {
   dbarts::dbarts(
     x,
     yBinary,
-    control = stepControl(n.chains = 2L, n.threads = n.threads)
+    control = stepControl(n.chains = 2L, n.threads = n.threads),
+    n.trees = 10L
   )$run(10L, 20L)
 }
 oneThread <- twoChains(1L)
@@ -70,7 +70,8 @@ masked <- dbarts::dbarts(
   yBinary,
   offset = 0.3 * x[, 3L],
   leaf.prior = normal(k = chi(1.5, Inf)),
-  control = stepControl()
+  control = stepControl(),
+  n.trees = 10L
 )
 invisible(masked$run(20L, 1L))
 masked$setActiveRows(rep(c(1, 1, 1, 1, 0), length.out = n))
@@ -82,12 +83,12 @@ rm(masked, maskedRun)
 
 # a sampler restored from the store and a reload of the same store continue
 # identically, k and the fits both
-stored <- dbarts::dbarts(x, yBinary, control = stepControl())
+stored <- dbarts::dbarts(x, yBinary, control = stepControl(), n.trees = 10L)
 invisible(stored$run(10L, 1L))
 stored$storeState()
 serialized <- tempfile(fileext = ".rds")
 saveRDS(stored, serialized)
-restored <- dbarts::dbarts(x, yBinary, control = stepControl())
+restored <- dbarts::dbarts(x, yBinary, control = stepControl(), n.trees = 10L)
 restored$setState(stored$state)
 reloaded <- readRDS(serialized)
 unlink(serialized)

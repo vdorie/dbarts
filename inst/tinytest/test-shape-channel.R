@@ -29,7 +29,6 @@ shapeGrid <- c(1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30, 50)
 samplerControlShapeChannel <- function(n.chains = 1L, ...) {
   dbartsControl(
     n.threads = 1L,
-    n.trees = 20L,
     updateState = FALSE,
     seed = 77L,
     n.chains = n.chains,
@@ -46,7 +45,8 @@ nbinomSamplerShapeChannel <- function(
     yCount,
     family = nbinom(shape = shape),
     control = samplerControlShapeChannel(n.chains),
-    verbose = FALSE
+    verbose = FALSE,
+    n.trees = 20L
   )
 }
 
@@ -167,7 +167,8 @@ samplerGauss <- dbarts(
   x,
   yGauss,
   control = samplerControlShapeChannel(),
-  verbose = FALSE
+  verbose = FALSE,
+  n.trees = 20L
 )
 rGauss <- samplerGauss$run(0L, 2L)
 expect_true("shape" %in% names(rMulti1))
@@ -180,7 +181,8 @@ samplerProbit <- dbarts(
   x,
   yBinary,
   control = samplerControlShapeChannel(),
-  verbose = FALSE
+  verbose = FALSE,
+  n.trees = 20L
 )
 expect_null(samplerProbit$run(0L, 2L)$shape)
 expect_null(samplerProbit$getShape())
@@ -198,7 +200,8 @@ samplerOrdinal <- dbarts(
   yOrdinal,
   family = "ordinal",
   control = samplerControlShapeChannel(),
-  verbose = FALSE
+  verbose = FALSE,
+  n.trees = 20L
 )
 rOrdinal <- samplerOrdinal$run(0L, 2L)
 expect_null(rOrdinal$shape)
@@ -215,7 +218,8 @@ samplerVariance <- dbarts(
   yGauss,
   variance = varianceForest(n.trees = 10L),
   control = samplerControlShapeChannel(),
-  verbose = FALSE
+  verbose = FALSE,
+  n.trees = 20L
 )
 rVariance <- samplerVariance$run(0L, 2L)
 expect_null(rVariance$shape)
@@ -242,7 +246,8 @@ samplerBcf <- dbarts(
   yBcf,
   forests = list(forest(), forest(basis = ~ factor(z))),
   control = samplerControlShapeChannel(),
-  verbose = FALSE
+  verbose = FALSE,
+  n.trees = 20L
 )
 rBcf <- samplerBcf$run(0L, 2L)
 expect_null(rBcf$shape)

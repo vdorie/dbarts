@@ -575,7 +575,7 @@ oneFit <- bart(
 expect_identical(extract(oneFit, type = "leaf.prior.sd"), 2)
 
 # --- one forest: its sd is the fitting function's normal(sd = ) ---
-oneControl <- function() unitControl(n.trees = 12L)
+oneControl <- function() unitControl()
 for (family in c("gaussian", "probit")) {
   response <- if (family == "gaussian") y else d$yb
   frame <- d
@@ -585,14 +585,16 @@ for (family in c("gaussian", "probit")) {
     response,
     family = family,
     leaf.prior = normal(sd = 2),
-    control = oneControl()
+    control = oneControl(),
+    n.trees = 12L
   )$run()
   expect_identical(
     dbarts(
       response ~ forest(x1 + x2, sd = 2),
       frame,
       family = family,
-      control = oneControl()
+      control = oneControl(),
+      n.trees = 12L
     )$run(),
     reference,
     info = family
@@ -603,7 +605,8 @@ for (family in c("gaussian", "probit")) {
       frame,
       family = family,
       forests = list(forest(sd = 2)),
-      control = oneControl()
+      control = oneControl(),
+      n.trees = 12L
     )$run(),
     reference,
     info = family
@@ -614,7 +617,8 @@ for (family in c("gaussian", "probit")) {
       response,
       family = family,
       forests = list(forest(sd = 2)),
-      control = oneControl()
+      control = oneControl(),
+      n.trees = 12L
     )$run(),
     reference,
     info = family
@@ -651,7 +655,8 @@ for (leafPrior in list(
       y ~ forest(x1 + x2, sd = 2),
       d,
       leaf.prior = .(leafPrior),
-      control = oneControl()
+      control = oneControl(),
+      n.trees = 12L
     ))),
     statedTwice,
     fixed = TRUE,
@@ -676,7 +681,6 @@ zFlat <- rbinom(nFlat, 1L, 0.5)
 flatControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 5L,
   n.samples = 5L,
   n.burn = 0L,
   updateState = FALSE,
@@ -687,7 +691,8 @@ flat <- function(forests) {
     xFlat,
     rep(3, nFlat),
     forests = forests,
-    control = flatControl
+    control = flatControl,
+    n.trees = 5L
   ))
 }
 onConstant <- flat(list(forest(), forest(basis = factor(zFlat))))
@@ -696,7 +701,12 @@ expect_identical(
   lapply(onConstant$getLeafPrior(), `[[`, "sd"),
   list(forest1 = 0.25, `factor(zFlat)` = 0.25)
 )
-single <- suppressWarnings(dbarts(xFlat, rep(3, nFlat), control = flatControl))
+single <- suppressWarnings(dbarts(
+  xFlat,
+  rep(3, nFlat),
+  control = flatControl,
+  n.trees = 5L
+))
 expect_identical(single$getLeafPrior()$k.scale, 0.5)
 expect_identical(
   flat(list(forest(), forest(basis = factor(zFlat), sd = 0.7)))$getLeafPrior(
@@ -785,9 +795,16 @@ expect_identical(
     x,
     y,
     forests = list(forest(sd = pars["t"])),
-    control = oneControl()
+    control = oneControl(),
+    n.trees = 12L
   )$run(),
-  dbarts(x, y, leaf.prior = normal(sd = 2), control = oneControl())$run()
+  dbarts(
+    x,
+    y,
+    leaf.prior = normal(sd = 2),
+    control = oneControl(),
+    n.trees = 12L
+  )$run()
 )
 longSd <- paste0(
   "forest 'sd' must be a single number, not a vector of length 2: a forest ",
@@ -823,7 +840,6 @@ flatSampler <- function(forests, family) {
   sizeControl <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 20L,
     n.samples = 1L,
     n.burn = 0L,
     n.thin = 3L,
@@ -836,7 +852,8 @@ flatSampler <- function(forests, family) {
       y,
       family = gaussian(sigma = fixed(1e16)),
       forests = forests,
-      control = sizeControl
+      control = sizeControl,
+      n.trees = 20L
     ))
   }
   sampler <- dbarts(
@@ -844,7 +861,8 @@ flatSampler <- function(forests, family) {
     d$yb,
     family = family,
     forests = forests,
-    control = sizeControl
+    control = sizeControl,
+    n.trees = 20L
   )
   sampler$setActiveRows(rep(FALSE, n))
   sampler

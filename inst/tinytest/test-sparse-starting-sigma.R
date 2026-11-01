@@ -10,7 +10,6 @@ if (!requireNamespace("Matrix", quietly = TRUE)) {
 }
 
 control <- dbartsControl(
-  n.trees = 3L,
   n.chains = 1L,
   n.threads = 1L,
   updateState = FALSE
@@ -107,7 +106,7 @@ signals <- function(expr) {
 }
 silent <- list(message = character(), warning = character())
 sigmaOf <- function(x, y, ...) {
-  dbarts(x, y, control = control, verbose = FALSE, ...)$data@sigma
+  dbarts(x, y, control = control, verbose = FALSE, ..., n.trees = 3L)$data@sigma
 }
 bartOf <- function(x, y, verbose = FALSE, ...) {
   bart(
@@ -245,7 +244,7 @@ expect_identical(
 
 binary <- as.numeric(y > median(y))
 spec <- function(data, ...) {
-  dbartsSpec(data, control = control, ...)$data@sigma
+  dbartsSpec(data, control = control, ..., n.trees = 3L)$data@sigma
 }
 taking <- list(
   dbarts = sigmaOf,
@@ -325,7 +324,13 @@ expect_identical(
   )
 )
 expect_error(
-  suppressWarnings(dbarts(frame, y, control = control, sigma = "sparse")),
+  suppressWarnings(dbarts(
+    frame,
+    y,
+    control = control,
+    sigma = "sparse",
+    n.trees = 3L
+  )),
   "must be coercible to numeric type"
 )
 for (rule in c("auto", "dense")) {
@@ -344,7 +349,7 @@ expect_identical(spec(carried, sigest = 2), 2)
 expect_identical(spec(carried, sigest = "dense"), sigmaOf(frame, y))
 expect_equal(spec(carried, sigest = "sparse"), sigmaOf(frame, y))
 expect_identical(
-  dbarts(carried, control = control, sigest = "auto")$data@sigma,
+  dbarts(carried, control = control, sigest = "auto", n.trees = 3L)$data@sigma,
   sigmaOf(frame, y)
 )
 
@@ -577,7 +582,7 @@ grouped <- function(verbose, n.threads = 1L, ...) {
 fitters <- list(
   dbarts = function(verbose, ...) {
     control@verbose <- verbose
-    dbarts(levelPerRow, y30, control = control, ...)$data@sigma
+    dbarts(levelPerRow, y30, control = control, ..., n.trees = 3L)$data@sigma
   },
   bart = function(verbose, ...) bartOf(levelPerRow, y30, verbose, ...)$sigest,
   bartBT = function(verbose, ...) {

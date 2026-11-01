@@ -22,7 +22,6 @@ logisticControl <- function(n.chains = 1L) {
   dbartsControl(
     n.chains = n.chains,
     n.threads = 1L,
-    n.trees = 20L,
     updateState = FALSE,
     seed = 902L
   )
@@ -33,7 +32,8 @@ logisticSamplerWeightSwap <- function(weights, n.chains = 1L) {
     y,
     weights = weights,
     family = "logistic",
-    control = logisticControl(n.chains)
+    control = logisticControl(n.chains),
+    n.trees = 20L
   )
 }
 
@@ -100,7 +100,6 @@ wTied <- ifelse(yAlt == 1, 4, 1)
 altControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 40L,
   updateState = FALSE,
   seed = 77L
 )
@@ -110,7 +109,8 @@ altSampler <- function(weights) {
     yAlt,
     weights = weights,
     family = "logistic",
-    control = altControl
+    control = altControl,
+    n.trees = 40L
   )
 }
 alternating <- altSampler(wTied)
@@ -218,7 +218,13 @@ masked <- list(
 )
 for (name in names(masked)) {
   cell <- masked[[name]]
-  fit <- dbarts(x, cell$y, family = name, control = logisticControl())
+  fit <- dbarts(
+    x,
+    cell$y,
+    family = name,
+    control = logisticControl(),
+    n.trees = 20L
+  )
   expect_silent(fit$setWeights(w1))
   expect_true(is.null(fit$data@weights), info = name)
   expect_silent(fit$setData(dbartsData(x, cell$y, weights = w1)))
@@ -234,7 +240,8 @@ aftFit <- dbarts(
   x,
   cbind(exp(f + rnorm(n)), rep_len(c(1L, 0L), n)),
   family = "aft",
-  control = logisticControl()
+  control = logisticControl(),
+  n.trees = 20L
 )
 expect_error(
   aftFit$setWeights(w1),

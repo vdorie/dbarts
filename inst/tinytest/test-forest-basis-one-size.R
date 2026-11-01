@@ -29,7 +29,6 @@ sizeControl <- function() {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 5L,
     n.samples = 3L,
     n.burn = 0L,
     updateState = FALSE,
@@ -51,7 +50,8 @@ codeDoors <- list(
       y ~ x1 + x2 + .(codeForest(code, held)),
       d,
       control = sizeControl(),
-      ...
+      ...,
+      n.trees = 5L
     )))
   },
   term.bart = function(code, held, ...) {
@@ -74,7 +74,8 @@ codeDoors <- list(
       d,
       forests = list(forest(), .(codeForest(code, held))),
       control = sizeControl(),
-      ...
+      ...,
+      n.trees = 5L
     )))
   },
   list.matrix = function(code, held, ...) {
@@ -83,14 +84,16 @@ codeDoors <- list(
       y,
       forests = list(forest(), .(codeForest(code, held))),
       control = sizeControl(),
-      ...
+      ...,
+      n.trees = 5L
     )))
   },
   spec = function(code, held, ...) {
     eval(bquote(dbartsSpec(
       dbartsData(x, y, ...),
       sizeControl(),
-      forests = list(forest(), .(codeForest(code, held)))
+      forests = list(forest(), .(codeForest(code, held))),
+      n.trees = 5L
     )))
   }
 )
@@ -111,7 +114,8 @@ valueDoors <- list(
       d,
       forests = valueForests(value, held),
       control = sizeControl(),
-      ...
+      ...,
+      n.trees = 5L
     )
   },
   list.matrix = function(value, held, ...) {
@@ -120,21 +124,24 @@ valueDoors <- list(
       y,
       forests = valueForests(value, held),
       control = sizeControl(),
-      ...
+      ...,
+      n.trees = 5L
     )
   },
   spec = function(value, held, ...) {
     dbartsSpec(
       dbartsData(x, y, ...),
       sizeControl(),
-      forests = valueForests(value, held)
+      forests = valueForests(value, held),
+      n.trees = 5L
     )
   },
   data = function(value, held, ...) {
     dbarts(
       dbartsData(x, y, bases = list(NULL, value), ...),
       forests = if (held) list(forest(), forest(amplitude = fixed())),
-      control = sizeControl()
+      control = sizeControl(),
+      n.trees = 5L
     )
   }
 )
@@ -232,7 +239,12 @@ for (text in c(
 )) {
   example <- exampleOf(refusedCode[[text]])
   formula <- str2lang(paste("y ~ forest(x1 + x2) +", example))
-  sampler <- eval(bquote(dbarts(.(formula), d, control = sizeControl())))
+  sampler <- eval(bquote(dbarts(
+    .(formula),
+    d,
+    control = sizeControl(),
+    n.trees = 5L
+  )))
   expect_identical(length(sampler$data@bases), 3L, info = text)
   expect_identical(
     vapply(sampler$data@bases[2:3], NCOL, 0L),
@@ -245,7 +257,8 @@ expect_identical(
     dbarts(
       y ~ x1 + x2 + forest(x1, basis = dose),
       d,
-      control = sizeControl()
+      control = sizeControl(),
+      n.trees = 5L
     )$data@bases[[2L]]
   ),
   1L
@@ -304,7 +317,8 @@ expect_identical(
     y ~ x1 + x2,
     d,
     forests = list(forest(), treat = do.call(forest, list("x1", basis = arm))),
-    control = sizeControl()
+    control = sizeControl(),
+    n.trees = 5L
   )),
   sub("forest 2", "forest 2 ('treat')", valueLevels, fixed = TRUE)
 )
@@ -313,7 +327,8 @@ expect_identical(
     y ~ x1 + x2,
     d,
     forests = list(forest(), treat = forest(x1, basis = arm)),
-    control = sizeControl()
+    control = sizeControl(),
+    n.trees = 5L
   )),
   sub("('arm')", "('treat')", refusedCode$arm, fixed = TRUE)
 )
@@ -327,7 +342,8 @@ expect_identical(
       forest(),
       do.call(forest, list(basis = dose)),
       do.call(forest, list(basis = arm))
-    )
+    ),
+    n.trees = 5L
   )),
   sub("forest 2", "forest 3", valueLevels, fixed = TRUE)
 )
@@ -335,7 +351,8 @@ expect_identical(
   refusal(dbarts(
     y ~ forest(x1 + x2) + forest(x1, basis = dose) + forest(x1, basis = arm),
     d,
-    control = sizeControl()
+    control = sizeControl(),
+    n.trees = 5L
   )),
   sub("forest 2", "forest 3", refusedCode$arm, fixed = TRUE)
 )
@@ -435,7 +452,8 @@ perLevel <- dbarts(
     forest(x1, basis = arm == "b") +
     forest(x1, basis = arm == "c"),
   d,
-  control = sizeControl()
+  control = sizeControl(),
+  n.trees = 5L
 )
 expect_identical(
   vapply(perLevel$model@forests, slot, "", "label"),
@@ -448,7 +466,8 @@ expect_identical(
 perColumn <- dbarts(
   y ~ forest(x1 + x2) + forest(x1, basis = dose) + forest(x1, basis = age),
   d,
-  control = sizeControl()
+  control = sizeControl(),
+  n.trees = 5L
 )
 expect_identical(length(perColumn$data@bases), 3L)
 expect_identical(vapply(perColumn$data@bases[2:3], ncol, 0L), c(1L, 1L))
@@ -458,7 +477,8 @@ numericSampler <- function() {
   dbarts(
     y ~ x1 + x2 + forest(x1, basis = dose),
     d,
-    control = sizeControl()
+    control = sizeControl(),
+    n.trees = 5L
   )
 }
 swapped <- numericSampler()
@@ -505,13 +525,13 @@ expect_identical(dim(predict(fit, d, bases = list(NULL, age))), c(3L, n))
 
 ## --- edited by hand, each at a named door ------------------------------------
 numericData <- dbartsData(x, y, bases = list(NULL, dose))
-proto <- dbartsSpec(numericData, sizeControl())
+proto <- dbartsSpec(numericData, sizeControl(), n.trees = 5L)
 madeFrom <- list(
   new = function(data) {
     new("dbartsSampler", proto$control, proto$model, data)
   },
-  dbarts = function(data) dbarts(data, control = sizeControl()),
-  dbartsSpec = function(data) dbartsSpec(data, sizeControl()),
+  dbarts = function(data) dbarts(data, control = sizeControl(), n.trees = 5L),
+  dbartsSpec = function(data) dbartsSpec(data, sizeControl(), n.trees = 5L),
   validObject = function(data) validObject(data)
 )
 twoColumns <- numericData
@@ -545,7 +565,8 @@ for (door in names(madeFrom)) {
 levelsSampler <- dbarts(
   y ~ x1 + x2 + forest(x1, basis = factor(z)),
   d,
-  control = sizeControl()
+  control = sizeControl(),
+  n.trees = 5L
 )
 levelsSampler$setForestBasis(2L, factor(rep(1, n), levels = 0:1))
 expect_identical(dim(levelsSampler$copy()$run(0L, 2L)$train), c(n, 2L))

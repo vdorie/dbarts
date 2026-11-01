@@ -49,13 +49,15 @@ make <- function(kind, seed = 72L, n.chains = 1L, active = NULL) {
   control <- dbartsControl(
     n.chains = n.chains,
     n.threads = 1L,
-    n.trees = 5L,
     n.samples = 4L,
     updateState = FALSE,
     seed = seed,
     verbose = FALSE
   )
-  sampler <- do.call(dbarts, c(list(x), kinds[[kind]], list(control = control)))
+  sampler <- do.call(
+    dbarts,
+    c(list(x), kinds[[kind]], list(control = control, n.trees = 5L))
+  )
   if (!is.null(active)) {
     sampler$setActiveRows(active)
   }

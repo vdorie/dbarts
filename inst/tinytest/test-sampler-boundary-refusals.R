@@ -179,10 +179,10 @@ bcf <- dbarts(
   control = dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 20L,
     updateState = FALSE,
     verbose = FALSE
-  )
+  ),
+  n.trees = 20L
 )
 bcf$setOffset(rep(0.5, nb), updateScale = FALSE)
 expect_error(
@@ -202,13 +202,13 @@ if (at_home() && !nzchar(Sys.getenv("ASAN_OPTIONS"))) {
       x,
       y,
       control = dbartsControl(
-        n.trees = 200000L,
         n.samples = .Machine$integer.max,
         keepTrees = TRUE,
         n.chains = 1L,
         n.threads = 1L,
         verbose = FALSE
-      )
+      ),
+      n.trees = 200000L
     ),
     "sampler creation failed"
   )
@@ -216,14 +216,14 @@ if (at_home() && !nzchar(Sys.getenv("ASAN_OPTIONS"))) {
     x,
     y,
     control = dbartsControl(
-      n.trees = 200000L,
       n.samples = 4L,
       keepTrees = TRUE,
       n.chains = 2L,
       n.threads = 1L,
       updateState = FALSE,
       verbose = FALSE
-    )
+    ),
+    n.trees = 200000L
   )
   wideControl <- wide$control
   wideControl@n.samples <- .Machine$integer.max
@@ -250,7 +250,6 @@ storeControl <- function(n.samples, n.trees = 5L) {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = n.trees,
     n.samples = n.samples,
     keepTrees = TRUE,
     updateState = FALSE,
@@ -258,10 +257,10 @@ storeControl <- function(n.samples, n.trees = 5L) {
     seed = 9L
   )
 }
-held <- dbarts(x, y, control = storeControl(5L))
+held <- dbarts(x, y, control = storeControl(5L), n.trees = 5L)
 invisible(held$run(2L, 5L))
 heldPredict <- held$predict(x)
-other <- dbarts(x, y, control = storeControl(3L))
+other <- dbarts(x, y, control = storeControl(3L), n.trees = 5L)
 invisible(other$run(2L, 3L))
 other$storeState()
 otherPredict <- other$predict(x)
@@ -271,7 +270,7 @@ expect_identical(held$predict(x), otherPredict)
 invisible(held$run(0L, 4L))
 expect_identical(dim(held$predict(x)), c(n, 5L))
 heldPredict <- held$predict(x)
-wrongTrees <- dbarts(x, y, control = storeControl(3L, n.trees = 6L))
+wrongTrees <- dbarts(x, y, control = storeControl(3L), n.trees = 6L)
 invisible(wrongTrees$run(2L, 3L))
 wrongTrees$storeState()
 expect_error(
@@ -302,13 +301,12 @@ yw <- xw$a + rnorm(nw)
 warmControl <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,
-  n.trees = 3L,
   keepTrees = TRUE,
   updateState = FALSE,
   verbose = FALSE,
   seed = 3L
 )
-donor <- dbarts(yw ~ ., xw, control = warmControl)
+donor <- dbarts(yw ~ ., xw, control = warmControl, n.trees = 3L)
 invisible(donor$run(2L, 2L))
 invisible(donor$setPredictor(xw$c * 2, 3L))
 # the grid derived again for the doubled column, which the record the data
@@ -317,8 +315,8 @@ donor$setData(donor$data, updateCutPoints = "value")
 recipientControl <- warmControl
 recipientControl@keepTrees <- FALSE
 recipientControl@seed <- 7L
-recipient <- dbarts(yw ~ ., xw, control = recipientControl)
-twin <- dbarts(yw ~ ., xw, control = recipientControl)
+recipient <- dbarts(yw ~ ., xw, control = recipientControl, n.trees = 3L)
+twin <- dbarts(yw ~ ., xw, control = recipientControl, n.trees = 3L)
 invisible(recipient$run(5L, 1L))
 invisible(twin$run(5L, 1L))
 predictBefore <- recipient$predict(xw)
@@ -346,14 +344,14 @@ hetero <- function(keepTrees, seed, numVarianceTrees, numChains) {
     yh,
     variance = dbartsForests$varianceForest(n.trees = numVarianceTrees),
     control = dbartsControl(
-      n.trees = 6L,
       n.chains = numChains,
       n.threads = 1L,
       seed = seed,
       keepTrees = keepTrees,
       updateState = TRUE,
       verbose = FALSE
-    )
+    ),
+    n.trees = 6L
   )
 }
 heteroDonor <- hetero(TRUE, 1L, 4L, 1L)

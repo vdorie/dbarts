@@ -185,11 +185,11 @@ runGateFit <- function(frame, y) {
     y,
     sigest = 1.0,
     control = dbartsControl(
-      n.trees = 25L,
       n.chains = 1L,
       n.threads = 1L,
       updateState = FALSE
-    )
+    ),
+    n.trees = 25L
   )
   sampler$run(20L, 40L)
 }
@@ -275,11 +275,11 @@ sampler.mat <- dbarts(
   rnorm(n),
   sigest = 1.0,
   control = dbartsControl(
-    n.trees = 5L,
     n.chains = 1L,
     n.threads = 1L,
     updateState = FALSE
-  )
+  ),
+  n.trees = 5L
 )
 expect_equal(extract(sampler.mat, "predictors")[, 2L], as.double(expectedCodes))
 
@@ -318,11 +318,11 @@ runTestGate <- function(test, seed) {
     sigest = 1.0,
     test = test,
     control = dbartsControl(
-      n.trees = 20L,
       n.chains = 1L,
       n.threads = 1L,
       updateState = FALSE
-    )
+    ),
+    n.trees = 20L
   )
   sampler$run(10L, 20L)
 }
@@ -338,8 +338,9 @@ expect_error(
     train.dense,
     y.tr,
     test = data.frame(x1 = x1.te, g = factor(unseenLabels)),
-    control = dbartsControl(n.trees = 5L, updateState = FALSE),
-    sigest = 1
+    control = dbartsControl(updateState = FALSE),
+    sigest = 1,
+    n.trees = 5L
   ),
   pattern = "has a level not present in the training data: 'L5'"
 )
@@ -354,8 +355,9 @@ expect_error(
     train.dense,
     y.tr,
     test = test.unseen,
-    control = dbartsControl(n.trees = 5L, updateState = FALSE),
-    sigest = 1
+    control = dbartsControl(updateState = FALSE),
+    sigest = 1,
+    n.trees = 5L
   ),
   pattern = "has a level not present in the training data: 'L5'"
 )
@@ -368,11 +370,11 @@ sampler.resident <- dbarts(
   sigest = 1.0,
   test = test.sparse,
   control = dbartsControl(
-    n.trees = 20L,
     n.chains = 1L,
     n.threads = 1L,
     updateState = FALSE
-  )
+  ),
+  n.trees = 20L
 )
 expect_inherits(sampler.resident$data@x.test, "dbartsMixedMatrix")
 expect_true(dbarts:::predictorSourceIsSparse(sampler.resident$data@x.test))
@@ -415,11 +417,11 @@ makeMixedSampler <- function(test, seed) {
     sigest = 1.0,
     test = test,
     control = dbartsControl(
-      n.trees = 20L,
       n.chains = 1L,
       n.threads = 1L,
       updateState = FALSE
-    )
+    ),
+    n.trees = 20L
   )
 }
 sampler.mix.sparse <- makeMixedSampler(test.mix.sparse, 77L)
@@ -441,12 +443,12 @@ expect_error(
     test = test.mix.sparse,
     leaf.prior = linear("s"),
     control = dbartsControl(
-      n.trees = 5L,
       n.chains = 1L,
       n.threads = 1L,
       updateState = FALSE
     ),
-    sigest = 1
+    sigest = 1,
+    n.trees = 5L
   ),
   pattern = "leaf covariate"
 )
@@ -577,11 +579,11 @@ sampler.leaf.mut <- dbarts(
   test = test.mix.dense,
   leaf.prior = linear("s"),
   control = dbartsControl(
-    n.trees = 10L,
     n.chains = 1L,
     n.threads = 1L,
     updateState = FALSE
-  )
+  ),
+  n.trees = 10L
 )
 expect_error(
   sampler.leaf.mut$setTestPredictor(test.mix.sparse),
@@ -601,7 +603,6 @@ expect_false(anyNA(result.leaf.mut$test))
 # refused rather than clamped. The refusal lands at the sampler constructor;
 # dbartsData never sees the training grid.
 boundControl <- dbartsControl(
-  n.trees = 10L,
   n.chains = 1L,
   n.threads = 1L,
   updateState = FALSE
@@ -623,7 +624,8 @@ sampler.bound <- dbarts(
   train.bound,
   y.bound,
   control = boundControl,
-  sigest = 1
+  sigest = 1,
+  n.trees = 10L
 )
 
 # two foreign containers: one whose STORED codes run past the training K = 3,
@@ -654,7 +656,8 @@ expect_error(
   dbarts(
     dbartsData(train.bound, y.bound, test = over.codes),
     control = boundControl,
-    sigest = 1
+    sigest = 1,
+    n.trees = 10L
   ),
   pattern = levelMessage
 )
@@ -662,7 +665,8 @@ expect_error(
   dbarts(
     dbartsData(train.bound, y.bound, test = over.reference),
     control = boundControl,
-    sigest = 1
+    sigest = 1,
+    n.trees = 10L
   ),
   pattern = levelMessage
 )
@@ -692,7 +696,8 @@ expect_error(
   dbarts:::withCodedPredictors(dbarts(
     dbartsData(train.bound, y.bound, test = test.dense.over),
     control = boundControl,
-    sigest = 1
+    sigest = 1,
+    n.trees = 10L
   )),
   pattern = codeMessage
 )
@@ -700,7 +705,8 @@ expect_error(
   dbarts(
     dbartsData(train.bound, y.bound, test = test.dense.over),
     control = boundControl,
-    sigest = 1
+    sigest = 1,
+    n.trees = 10L
   ),
   pattern = "the predictor 'f' is a factor"
 )
@@ -714,7 +720,8 @@ sampler.bound.dense <- dbarts(
   train.bound.dense,
   y.bound,
   control = boundControl,
-  sigest = 1
+  sigest = 1,
+  n.trees = 10L
 )
 expect_error(
   sampler.bound.dense$setTestPredictor(over.codes),
@@ -724,7 +731,8 @@ expect_error(
   dbarts(
     dbartsData(train.bound.dense, y.bound, test = over.reference),
     control = boundControl,
-    sigest = 1
+    sigest = 1,
+    n.trees = 10L
   ),
   pattern = levelMessage
 )
@@ -742,7 +750,8 @@ sampler.pooled <- dbarts(
   train.pooled,
   y.pooled,
   control = boundControl,
-  sigest = 1
+  sigest = 1,
+  n.trees = 10L
 )
 over.pooled <- dbartsData(
   sparseFrame(c("P002", "P150", "P200"), sprintf("P%03d", 1:220), "P001"),
@@ -756,7 +765,8 @@ expect_error(
   dbarts(
     dbartsData(train.pooled, y.pooled, test = over.pooled),
     control = boundControl,
-    sigest = 1
+    sigest = 1,
+    n.trees = 10L
   ),
   pattern = levelMessage
 )
@@ -766,7 +776,7 @@ expect_error(
 data.over.k <- dbartsData(train.bound, y.bound)
 data.over.k@x$sparseCategoryCount <- 2L
 expect_error(
-  dbarts(data.over.k, control = boundControl, sigest = 1),
+  dbarts(data.over.k, control = boundControl, sigest = 1, n.trees = 10L),
   pattern = "categorical predictors must hold integer category codes"
 )
 
@@ -775,7 +785,6 @@ sampler.saved <- dbarts(
   train.bound,
   y.bound,
   control = dbartsControl(
-    n.trees = 10L,
     n.chains = 1L,
     n.threads = 1L,
     n.samples = 5L,
@@ -783,7 +792,8 @@ sampler.saved <- dbarts(
     updateState = FALSE,
     keepTrees = TRUE
   ),
-  sigest = 1
+  sigest = 1,
+  n.trees = 10L
 )
 invisible(sampler.saved$run(20L, 5L))
 expect_error(sampler.saved$predict(over.codes), pattern = levelMessage)
@@ -888,7 +898,13 @@ dense.bound <- data.frame(
 )
 mutationGate <- function(frame, seed) {
   set.seed(seed)
-  sampler <- dbarts(frame, y.bound, sigest = 1.0, control = boundControl)
+  sampler <- dbarts(
+    frame,
+    y.bound,
+    sigest = 1.0,
+    control = boundControl,
+    n.trees = 10L
+  )
   invisible(sampler$run(5L, 5L))
   invisible(sampler$setPredictor(new.labels, column = 2L, forceUpdate = TRUE))
   sampler$run(0L, 10L)
@@ -917,7 +933,13 @@ frame.zero$s <- Matrix::sparseVector(
   length = n.zero
 )
 y.zero <- rnorm(n.zero) + match(labels.zero, levels.small)
-sampler.zero <- dbarts(frame.zero, y.zero, control = boundControl, sigest = 1)
+sampler.zero <- dbarts(
+  frame.zero,
+  y.zero,
+  control = boundControl,
+  sigest = 1,
+  n.trees = 10L
+)
 invisible(sampler.zero$run(5L, 5L))
 categorical.rank <- -sampler.zero$data@x$map[2L]
 entriesFor <- function(container, rank) {
@@ -983,14 +1005,19 @@ expect_equal(after.transaction[, -1L], before.transaction[, -1L])
 # SAVE/RE-CREATE: the C sampler is rebuilt from data@x after a mutation, so a
 # restored continuation has to reproduce the mutated one
 stateControl <- dbartsControl(
-  n.trees = 10L,
   n.chains = 1L,
   n.threads = 1L,
   n.samples = 5L,
   n.burn = 0L,
   updateState = TRUE
 )
-sampler.state <- dbarts(frame.zero, y.zero, control = stateControl, sigest = 1)
+sampler.state <- dbarts(
+  frame.zero,
+  y.zero,
+  control = stateControl,
+  sigest = 1,
+  n.trees = 10L
+)
 invisible(sampler.state$run(5L, 5L))
 invisible(sampler.state$setPredictor(
   new.ordinal,
@@ -1032,7 +1059,8 @@ sampler.align <- dbarts(
   train.bound,
   y.bound,
   control = boundControl,
-  sigest = 1
+  sigest = 1,
+  n.trees = 10L
 )
 sampler.align$setTestPredictor(container.align)
 aligned <- sampler.align$data@x.test
@@ -1054,7 +1082,8 @@ alignmentGateSparseFactor <- function(test, seed) {
     y.bound,
     sigest = 1.0,
     test = test,
-    control = boundControl
+    control = boundControl,
+    n.trees = 10L
   )$run(5L, 10L)
 }
 expect_identical(
@@ -1102,12 +1131,12 @@ sampler.ord <- dbarts(
   train.ord,
   y.ord,
   control = dbartsControl(
-    n.trees = 1L,
     n.chains = 1L,
     n.threads = 1L,
     updateState = FALSE
   ),
-  sigest = 1
+  sigest = 1,
+  n.trees = 1L
 )
 invisible(sampler.ord$run(50L, 1L))
 
@@ -1157,7 +1186,8 @@ expect_inherits(
   dbarts:::withCodedPredictors(dbarts(
     dbartsData(train.na, y.bound, test = test.dense.na),
     control = boundControl,
-    sigest = 1
+    sigest = 1,
+    n.trees = 10L
   )),
   "dbartsSampler"
 )

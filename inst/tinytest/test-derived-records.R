@@ -18,7 +18,6 @@ controlWith <- function(...) {
   settings <- list(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 15L,
     n.samples = 4L,
     n.burn = 0L,
     updateState = FALSE,
@@ -27,7 +26,12 @@ controlWith <- function(...) {
   do.call(dbarts::dbartsControl, utils::modifyList(settings, list(...)))
 }
 make <- function(..., data = x, response = y, run = TRUE) {
-  sampler <- dbarts::dbarts(data, response, control = controlWith(...))
+  sampler <- dbarts::dbarts(
+    data,
+    response,
+    control = controlWith(...),
+    n.trees = 15L
+  )
   if (run) {
     invisible(sampler$run(10L, 1L))
   }
@@ -69,7 +73,7 @@ three <- c(0.25, 0.5, 0.75)
 # at every door the record is the engine's, and the object handed in carries
 # none
 handed <- dbarts::dbartsData(x, y)
-sampler <- dbarts::dbarts(handed, control = controlWith())
+sampler <- dbarts::dbarts(handed, control = controlWith(), n.trees = 15L)
 expectRecordIsReader(sampler, "dbarts")
 expect_identical(lengths(sampler$data@cutPoints), c(100L, 100L))
 expect_identical(sampler$data@response.range, range(y))
@@ -91,24 +95,27 @@ expect_null(resolved@response.range)
 yBinary <- as.integer(y > median(y))
 yOrdinal <- cut(y, 3L, labels = FALSE)
 noRange <- list(
-  probit = dbarts::dbarts(x, yBinary, control = controlWith()),
+  probit = dbarts::dbarts(x, yBinary, control = controlWith(), n.trees = 15L),
   logistic = dbarts::dbarts(
     x,
     yBinary,
     family = "logistic",
-    control = controlWith()
+    control = controlWith(),
+    n.trees = 15L
   ),
   ordinal = dbarts::dbarts(
     x,
     yOrdinal,
     family = "ordinal",
-    control = controlWith()
+    control = controlWith(),
+    n.trees = 15L
   ),
   multinomial = dbarts::dbarts(
     x,
     factor(yOrdinal),
     family = "multinomial",
-    control = controlWith()
+    control = controlWith(),
+    n.trees = 15L
   )
 )
 for (family in names(noRange)) {
@@ -134,7 +141,8 @@ fixtures <- list(
       x,
       y,
       weights = caseWeights,
-      control = controlWith()
+      control = controlWith(),
+      n.trees = 15L
     )
     invisible(sampler$run(10L, 1L))
     sampler
@@ -145,12 +153,17 @@ fixtures <- list(
       f = factor(rep_len(c("p", "q", "r"), n)),
       o = ordered(rep_len(1:4, n))
     )
-    sampler <- dbarts::dbarts(frame, y, control = controlWith())
+    sampler <- dbarts::dbarts(frame, y, control = controlWith(), n.trees = 15L)
     invisible(sampler$run(10L, 1L))
     sampler
   },
   probit = function() {
-    sampler <- dbarts::dbarts(x, yBinary, control = controlWith())
+    sampler <- dbarts::dbarts(
+      x,
+      yBinary,
+      control = controlWith(),
+      n.trees = 15L
+    )
     invisible(sampler$run(10L, 1L))
     sampler
   },
@@ -163,7 +176,8 @@ fixtures <- list(
         dbarts::dbartsForests$forest(),
         dbarts::dbartsForests$forest(basis = factor(z))
       ),
-      control = controlWith()
+      control = controlWith(),
+      n.trees = 15L
     )
     invisible(sampler$run(10L, 1L))
     sampler
@@ -173,7 +187,8 @@ fixtures <- list(
       x,
       factor(yOrdinal),
       family = "multinomial",
-      control = controlWith()
+      control = controlWith(),
+      n.trees = 15L
     )
     invisible(sampler$run(10L, 1L))
     sampler
@@ -325,10 +340,10 @@ expect_false(identical(carried@cutPoints[[1L]], created))
 expect_identical(carried@response.range, range(3 * y + 10))
 expect_identical(carried@y, y)
 fresh <- dbarts::dbartsData(carried@x, carried@y)
-spec <- dbarts::dbartsSpec(carried, control = controlWith())
+spec <- dbarts::dbartsSpec(carried, control = controlWith(), n.trees = 15L)
 doors <- list(
   new = new("dbartsSampler", sampler$control, sampler$model, carried),
-  dbarts = dbarts::dbarts(carried, control = controlWith()),
+  dbarts = dbarts::dbarts(carried, control = controlWith(), n.trees = 15L),
   bart = dbarts::bart(
     carried,
     n.trees = 15L,
@@ -349,7 +364,7 @@ for (door in names(doors)) {
   )
   expectRecordIsReader(doors[[door]], door)
 }
-derived <- dbarts::dbarts(fresh, control = controlWith())
+derived <- dbarts::dbarts(fresh, control = controlWith(), n.trees = 15L)
 expect_false(identical(derived$data@cutPoints, carried@cutPoints))
 # the prior predictive draws on the sampler's grid
 priorOf <- function(sampler) {
@@ -398,7 +413,8 @@ severalOn <- function(response, control = controlWith()) {
       dbarts::dbartsForests$forest(),
       dbarts::dbartsForests$forest(basis = zBasis)
     ),
-    control = control
+    control = control,
+    n.trees = 15L
   )
 }
 first <- severalOn(y)
@@ -440,14 +456,24 @@ countData@response.range <- range(counts) + c(-1, 2)
 countSampler <- dbarts::dbarts(
   countData,
   family = "nbinom",
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 15L
 )
 expect_identical(countSampler$data@response.range, min(counts) - 1 + c(0, 1))
 binaryData <- dbarts::dbartsData(x, yBinary)
 binaryData@response.range <- gaussianRange
-binarySampler <- dbarts::dbarts(binaryData, control = controlWith())
+binarySampler <- dbarts::dbarts(
+  binaryData,
+  control = controlWith(),
+  n.trees = 15L
+)
 expect_null(binarySampler$data@response.range)
-plainBinary <- dbarts::dbarts(x, yBinary, control = controlWith())
+plainBinary <- dbarts::dbarts(
+  x,
+  yBinary,
+  control = controlWith(),
+  n.trees = 15L
+)
 expect_identical(binarySampler$run(0L, 5L), plainBinary$run(0L, 5L))
 
 # ---- weights ride ----------------------------------------------------------
@@ -502,7 +528,8 @@ expect_error(
 )
 unsorted <- dbarts::dbarts(
   withSlot("cutPoints", list(rev(three), three)),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 15L
 )
 expect_identical(unsorted$data@cutPoints, list(three, three))
 expect_identical(cutPointsOf(unsorted), list(three, three))
@@ -511,13 +538,14 @@ weighted <- rev(three)
 attr(weighted, "mass") <- c(0, 1, 3, 6)
 unsorted <- dbarts::dbarts(
   withSlot("cutPoints", list(weighted, three)),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 15L
 )
 expect_identical(attr(unsorted$data@cutPoints[[1L]], "mass"), c(0, 3, 5, 6))
 expect_identical(attr(stateOf(unsorted), "cutMass")[[1L]], c(0, 3, 5, 6))
 # an ordered factor's grid is its levels', and a factor's entry is NULL
 frame <- data.frame(a = x[, 1L], o = ordered(rep_len(1:4, n)))
-ordinal <- dbarts::dbarts(frame, y, control = controlWith())
+ordinal <- dbarts::dbarts(frame, y, control = controlWith(), n.trees = 15L)
 expect_identical(ordinal$data@cutPoints[[2L]], c(0.5, 1.5, 2.5))
 moved <- ordinal$data
 moved@cutPoints[[2L]] <- c(0.5, 1.5)
@@ -528,7 +556,8 @@ expect_error(
 withFactor <- dbarts::dbarts(
   data.frame(a = x[, 1L], f = factor(rep_len(c("p", "q"), n))),
   y,
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 15L
 )
 expect_null(withFactor$data@cutPoints[[2L]])
 pointed <- withFactor$data
@@ -548,8 +577,18 @@ expect_identical(stateOf(sampler), before)
 # a record carried in another column order is put in the sampler's with its
 # columns and held
 factorFrame <- data.frame(a = x[, 1L], f = factor(rep_len(c("p", "q"), n)))
-inOrder <- dbarts::dbarts(factorFrame, y, control = controlWith())
-reordered <- dbarts::dbarts(factorFrame[2:1], y, control = controlWith())
+inOrder <- dbarts::dbarts(
+  factorFrame,
+  y,
+  control = controlWith(),
+  n.trees = 15L
+)
+reordered <- dbarts::dbarts(
+  factorFrame[2:1],
+  y,
+  control = controlWith(),
+  n.trees = 15L
+)
 expect_null(reordered$data@cutPoints[[1L]])
 inOrder$setData(reordered$data)
 expectRecordIsReader(inOrder, "setData of a reordered record")
@@ -564,8 +603,12 @@ attr(old, "cutPoints") <- NULL
 attr(old, "response.range") <- NULL
 attr(old, "forest.calibration") <- NULL
 expect_false(methods::.hasSlot(old, "cutPoints"))
-fromOld <- dbarts::dbarts(old, control = controlWith())
-fromFresh <- dbarts::dbarts(dbarts::dbartsData(x, y), control = controlWith())
+fromOld <- dbarts::dbarts(old, control = controlWith(), n.trees = 15L)
+fromFresh <- dbarts::dbarts(
+  dbarts::dbartsData(x, y),
+  control = controlWith(),
+  n.trees = 15L
+)
 expect_identical(recordOf(fromOld), recordOf(fromFresh))
 expect_identical(fromOld$run(0L, 5L), fromFresh$run(0L, 5L))
 

@@ -28,7 +28,6 @@ expect_false(identical(wA, wB))
 stateControl <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   updateState = FALSE,
   seed = 902L
 )
@@ -38,11 +37,18 @@ logisticSamplerStateWeightPairing <- function(weights) {
     yBinary,
     weights = weights,
     family = "logistic",
-    control = stateControl
+    control = stateControl,
+    n.trees = 20L
   )
 }
 gaussianSampler <- function(weights) {
-  dbarts::dbarts(x, yContinuous, weights = weights, control = stateControl)
+  dbarts::dbarts(
+    x,
+    yContinuous,
+    weights = weights,
+    control = stateControl,
+    n.trees = 20L
+  )
 }
 studentSampler <- function(weights) {
   dbarts::dbarts(
@@ -50,6 +56,7 @@ studentSampler <- function(weights) {
     yContinuous,
     weights = weights,
     control = stateControl,
+    n.trees = 20L,
     family = dbarts:::student(5)
   )
 }
@@ -59,11 +66,18 @@ varianceSampler <- function(weights) {
     yContinuous,
     weights = weights,
     control = stateControl,
+    n.trees = 20L,
     variance = varianceForest(n.trees = 10L)
   )
 }
 multinomialSampler <- function() {
-  dbarts::dbarts(x, yCategory, family = "multinomial", control = stateControl)
+  dbarts::dbarts(
+    x,
+    yCategory,
+    family = "multinomial",
+    control = stateControl,
+    n.trees = 20L
+  )
 }
 storedFrom <- function(sampler) {
   invisible(sampler$run(10L, 5L))
@@ -169,12 +183,13 @@ withoutDigest <- function(state) {
   state
 }
 # zeros go in through $setWeights, creation warning about them
-studentAt <- function(weights, control = stateControl) {
+studentAt <- function(weights, control = stateControl, n.trees = 20L) {
   sampler <- dbarts::dbarts(
     x,
     yContinuous,
     weights = wA,
     control = control,
+    n.trees = n.trees,
     family = dbarts:::student(5)
   )
   sampler$setWeights(weights)
@@ -216,7 +231,8 @@ aftSampler <- function(status) {
     x,
     cbind(pmin(time, bound), status),
     family = "aft",
-    control = stateControl
+    control = stateControl,
+    n.trees = 20L
   )
 }
 aftState <- storedFrom(aftSampler(as.double(time <= bound)))
@@ -247,7 +263,8 @@ nullSource <- dbarts::dbarts(
   x,
   yBinary,
   family = "logistic",
-  control = stateControl
+  control = stateControl,
+  n.trees = 20L
 )
 nullState <- storedFrom(nullSource)
 onesDest <- logisticSamplerStateWeightPairing(rep(1, n))
@@ -257,7 +274,8 @@ nullDest <- dbarts::dbarts(
   x,
   yBinary,
   family = "logistic",
-  control = stateControl
+  control = stateControl,
+  n.trees = 20L
 )
 nullDest$setState(withoutDigest(nullState))
 expect_identical(onesDest$run(0L, 3L)$train, nullDest$run(0L, 3L)$train)

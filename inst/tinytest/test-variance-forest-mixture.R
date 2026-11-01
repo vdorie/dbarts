@@ -11,7 +11,6 @@ mixtureControl <- function(...) {
   dbarts::dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 5L,
     updateState = FALSE,
     ...
   )
@@ -22,7 +21,8 @@ heteroscedastic <- function(control, seed) {
     x,
     y,
     variance = varianceForest(n.trees = 5L),
-    control = control
+    control = control,
+    n.trees = 5L
   )
 }
 # what a run reports and the surface it leaves, the two forests' draws
@@ -201,9 +201,9 @@ twoChains <- dbarts::dbarts(
   control = dbarts::dbartsControl(
     n.chains = 2L,
     n.threads = 1L,
-    n.trees = 5L,
     updateState = FALSE
-  )
+  ),
+  n.trees = 5L
 )
 set.seed(13L)
 invisible(twoChains$run(50L, 1L))
@@ -218,7 +218,8 @@ oneTree <- dbarts::dbarts(
   x,
   y,
   variance = varianceForest(n.trees = 1L),
-  control = mixtureControl()
+  control = mixtureControl(),
+  n.trees = 5L
 )
 set.seed(15L)
 invisible(oneTree$run(50L, 1L))
@@ -236,7 +237,8 @@ ownPrior <- function(control, seed) {
     x,
     y,
     variance = varianceForest(n.trees = 5L, base = 0.7, power = 1.2),
-    control = control
+    control = control,
+    n.trees = 5L
   )
 }
 createdOwn <- ownPrior(mixtureControl(proposal.probs = movingProbs), 5L)

@@ -16,9 +16,7 @@ y <- ifelse(x[, 1] > 0.5, 1, -1) + rnorm(n, 0, 0.1)
 control <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   n.samples = 5L,
-  n.cuts = 50L,
   updateState = TRUE
 )
 
@@ -27,7 +25,7 @@ control <- dbarts::dbartsControl(
 # setResponse/setOffset, which mutate 'data' rather than tree/RNG structure
 # and so leave $state's content identical either way, whether or not it is
 # re-stored)
-sampler <- dbarts::dbarts(y ~ x, control = control)
+sampler <- dbarts::dbarts(y ~ x, control = control, n.trees = 20L, n.cuts = 50L)
 invisible(sampler$run(50L, 5L))
 stateBefore <- sampler$state # forces the promise once
 
@@ -50,12 +48,15 @@ rm(sampler, stateBefore, stateAfterDefault)
 controlNoUpdate <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   n.samples = 5L,
-  n.cuts = 50L,
   updateState = FALSE
 )
-sampler2 <- dbarts::dbarts(y ~ x, control = controlNoUpdate)
+sampler2 <- dbarts::dbarts(
+  y ~ x,
+  control = controlNoUpdate,
+  n.trees = 20L,
+  n.cuts = 50L
+)
 invisible(sampler2$run(50L, 5L))
 stateBefore2 <- sampler2$state # forces the promise once
 
@@ -71,7 +72,12 @@ rm(sampler2, stateBefore2, controlNoUpdate)
 # an unforced state promise is unaffected by the mutator's resolved default:
 # a mutate-then-first-read sequence still reflects the mutation, since the
 # delayedAssign fires (and captures CURRENT state) at first access
-sampler3 <- dbarts::dbarts(y ~ x, control = control)
+sampler3 <- dbarts::dbarts(
+  y ~ x,
+  control = control,
+  n.trees = 20L,
+  n.cuts = 50L
+)
 invisible(sampler3$run(50L, 5L))
 sampler3$setCutPoints(list(c(0.5)), 1L) # default updateState = NULL, control TRUE
 stateAfterMutation <- sampler3$state # first access: forces to current state
@@ -88,7 +94,14 @@ rm(sampler3, stateAfterMutation)
 yBin <- as.integer(y > 0)
 w <- rep(1, n)
 w[1:5] <- 0
-sampler5 <- dbarts::dbarts(x, yBin, weights = w, control = control)
+sampler5 <- dbarts::dbarts(
+  x,
+  yBin,
+  weights = w,
+  control = control,
+  n.trees = 20L,
+  n.cuts = 50L
+)
 invisible(sampler5$run(20L, 5L, updateState = FALSE))
 statePromised <- sampler5$state
 sampler5$storeState()
@@ -104,7 +117,12 @@ rm(sampler5, statePromised, yBin, w)
 # all seven mutators accept updateState = TRUE without error (a wiring
 # smoke test, independent of whether content actually changes for a given
 # one)
-sampler4 <- dbarts::dbarts(y ~ x, control = control)
+sampler4 <- dbarts::dbarts(
+  y ~ x,
+  control = control,
+  n.trees = 20L,
+  n.cuts = 50L
+)
 invisible(sampler4$run(10L, 2L))
 expect_silent(sampler4$setData(dbarts::dbartsData(y ~ x), updateState = TRUE))
 expect_silent(sampler4$setResponse(y, updateState = TRUE))

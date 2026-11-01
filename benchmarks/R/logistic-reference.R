@@ -138,8 +138,6 @@ fitSingleTree <- function(seed, family, nodeScale, offset, linkinv) {
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 1L,
-    n.cuts = 3L,
     updateState = FALSE
   )
   sampler <- dbarts(
@@ -157,7 +155,9 @@ fitSingleTree <- function(seed, family, nodeScale, offset, linkinv) {
     ),
     leaf.prior = normal(sd = nodeScale / k),
     power = power,
-    base = base
+    base = base,
+    n.trees = 1L,
+    n.cuts = 3L
   )
   sampler$setTestOffset(NULL) # engine fits exclude the offset
   r <- sampler$run(5000L, exactNdpost)
@@ -247,7 +247,6 @@ if (requireNamespace("BART", quietly = TRUE)) {
     control <- dbartsControl(
       n.chains = 1L,
       n.threads = 1L,
-      n.trees = ntree,
       updateState = FALSE
     )
     sampler <- dbarts(
@@ -257,7 +256,8 @@ if (requireNamespace("BART", quietly = TRUE)) {
       offset = offset,
       family = family,
       control = control,
-      leaf.prior = normal(sd = nodeScale / k)
+      leaf.prior = normal(sd = nodeScale / k),
+      n.trees = ntree
     )
     sampler$setTestOffset(NULL)
     r <- sampler$run(nskip, ndpost)

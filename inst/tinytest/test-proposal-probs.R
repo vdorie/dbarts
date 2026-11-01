@@ -12,7 +12,6 @@ y <- x[, 1L] - x[, 3L] + rnorm(n, 0, 0.2)
 control <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 5L,
   updateState = FALSE
 )
 # the mixture is a control setting; a fit's resolved copy is read back off the
@@ -21,18 +20,17 @@ mixtureControl <- function(probs) {
   dbarts::dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 5L,
     updateState = FALSE,
     proposal.probs = probs
   )
 }
 fit <- function(probs, ...) {
-  dbarts::dbarts(x, y, control = mixtureControl(probs), ...)
+  dbarts::dbarts(x, y, control = mixtureControl(probs), ..., n.trees = 5L)
 }
 
 # ---- the shipped default ---------------------------------------------------
 
-defaulted <- dbarts::dbarts(x, y, control = control)$control
+defaulted <- dbarts::dbarts(x, y, control = control, n.trees = 5L)$control
 expect_equal(defaulted@proposal.probs[["birth_death"]], 0.6)
 expect_equal(defaulted@proposal.probs[["swap"]], 0)
 expect_equal(defaulted@proposal.probs[["change"]], 0.4)
@@ -75,13 +73,12 @@ threeMove <- c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5)
 oneTree <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 1L,
   n.burn = 0L,
   n.samples = 20L,
   updateState = FALSE,
   proposal.probs = threeMove
 )
-sampler <- dbarts::dbarts(x, y, control = oneTree)
+sampler <- dbarts::dbarts(x, y, control = oneTree, n.trees = 1L)
 expect_equal(sampler$control@proposal.probs[["birth_death"]], 0.5)
 expect_equal(sampler$control@proposal.probs[["swap"]], 0.1)
 expect_equal(sampler$control@proposal.probs[["change"]], 0.4)
@@ -101,11 +98,11 @@ printed <- capture.output(
     control = dbarts::dbartsControl(
       n.chains = 1L,
       n.threads = 1L,
-      n.trees = 1L,
       updateState = FALSE,
       verbose = TRUE,
       proposal.probs = threeMove
-    )
+    ),
+    n.trees = 1L
   )
 )
 expect_true(any(grepl(
@@ -234,7 +231,6 @@ expect_equal(forcedFull@proposal.probs[["rule_gibbs"]], 0)
 perturbControl <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 1L,
   n.burn = 0L,
   n.samples = 60L,
   keepTrees = TRUE,
@@ -247,7 +243,7 @@ perturbControl <- dbarts::dbartsControl(
     birth = 0.5
   )
 )
-perturbSampler <- dbarts::dbarts(x, y, control = perturbControl)
+perturbSampler <- dbarts::dbarts(x, y, control = perturbControl, n.trees = 1L)
 set.seed(41L)
 perturbSamples <- perturbSampler$run()
 expect_true(all(is.finite(perturbSamples$train)))
@@ -315,13 +311,12 @@ expect_error(
 frozenControl <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 3L,
   n.burn = 50L,
   n.samples = 25L,
   keepTrees = TRUE,
   updateState = FALSE
 )
-frozenSampler <- dbarts::dbarts(x, y, control = frozenControl)
+frozenSampler <- dbarts::dbarts(x, y, control = frozenControl, n.trees = 3L)
 frozenAfter <- frozenControl
 frozenAfter@proposal.probs <- frozenModel@proposal.probs
 set.seed(23L)
@@ -370,7 +365,7 @@ expect_true(all(is.finite(frozenSamples$train)))
 # at the same forest when it lands, and part only from the sweep after it.
 frozenOff <- frozenControl
 frozenOff@levelGibbs <- FALSE
-frozenOffSampler <- dbarts::dbarts(x, y, control = frozenOff)
+frozenOffSampler <- dbarts::dbarts(x, y, control = frozenOff, n.trees = 3L)
 frozenOffAfter <- frozenOff
 frozenOffAfter@proposal.probs <- frozenModel@proposal.probs
 set.seed(23L)
@@ -388,7 +383,6 @@ rm(frozenOff, frozenOffAfter, frozenOffSampler)
 replayControl <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 5L,
   n.burn = 10L,
   n.samples = 20L,
   updateState = FALSE
@@ -396,7 +390,7 @@ replayControl <- dbarts::dbartsControl(
 # a sampler takes its seed off the R stream at creation, so the seed is set
 # ahead of each one rather than ahead of each run
 set.seed(59L)
-replayA <- dbarts::dbarts(x, y, control = replayControl)$run()
+replayA <- dbarts::dbarts(x, y, control = replayControl, n.trees = 5L)$run()
 set.seed(59L)
 replayControlSpelled <- replayControl
 replayControlSpelled@proposal.probs <- dbarts:::resolveProposalProbs(c(
@@ -406,7 +400,12 @@ replayControlSpelled@proposal.probs <- dbarts:::resolveProposalProbs(c(
   perturb = 0,
   birth = 0.5
 ))
-replayB <- dbarts::dbarts(x, y, control = replayControlSpelled)$run()
+replayB <- dbarts::dbarts(
+  x,
+  y,
+  control = replayControlSpelled,
+  n.trees = 5L
+)$run()
 expect_identical(replayA$train, replayB$train)
 expect_identical(replayA$sigma, replayB$sigma)
 
@@ -430,7 +429,6 @@ gibbsY <- gibbsX$a -
 gibbsControl <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 1L,
   n.burn = 0L,
   n.samples = 80L,
   keepTrees = TRUE,
@@ -444,7 +442,12 @@ gibbsControl@proposal.probs <- dbarts:::resolveProposalProbs(c(
   rule_gibbs = 0.8,
   birth = 0.5
 ))
-gibbsSampler <- dbarts::dbarts(gibbsY ~ ., gibbsX, control = gibbsControl)
+gibbsSampler <- dbarts::dbarts(
+  gibbsY ~ .,
+  gibbsX,
+  control = gibbsControl,
+  n.trees = 1L
+)
 set.seed(43L)
 gibbsSamples <- gibbsSampler$run()
 expect_true(all(is.finite(gibbsSamples$train)))
@@ -552,13 +555,13 @@ bcfFit <- function(probs) {
         list(
           n.chains = 1L,
           n.threads = 1L,
-          n.trees = 25L,
           updateState = FALSE,
           seed = 17L
         ),
         if (!is.null(probs)) list(proposal.probs = probs)
       )
-    )
+    ),
+    n.trees = 25L
   )
 }
 # total splits in each forest, read off the live sampler after its run

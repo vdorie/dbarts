@@ -19,7 +19,6 @@ expect_equal(nlevels(g.gap), 4L)
 expect_equal(max(as.integer(g.gap)), 3L) # the gap: declared 4, observed 3
 
 control <- dbartsControl(
-  n.trees = 20L,
   n.chains = 1L,
   n.threads = 1L,
   updateState = FALSE
@@ -31,13 +30,18 @@ test.gap <- data.frame(
 
 # CREATION: the design ingests and fits, and the unobserved level owns the
 # top code, so getTrees decodes one direction per DECLARED level
-sampler.gap <- dbarts(train.gap, y.gap, test = test.gap, control = control)
+sampler.gap <- dbarts(
+  train.gap,
+  y.gap,
+  test = test.gap,
+  control = control,
+  n.trees = 20L
+)
 samples.gap <- sampler.gap$run(20L, 20L)
 expect_true(all(is.finite(samples.gap$train)))
 expect_true(all(is.finite(samples.gap$test)))
 
 control.keep <- dbartsControl(
-  n.trees = 20L,
   n.chains = 1L,
   n.threads = 1L,
   n.samples = 5L,
@@ -45,7 +49,7 @@ control.keep <- dbartsControl(
   keepTrees = TRUE,
   updateState = FALSE
 )
-sampler.keep <- dbarts(train.gap, y.gap, control = control.keep)
+sampler.keep <- dbarts(train.gap, y.gap, control = control.keep, n.trees = 20L)
 invisible(sampler.keep$run(20L, 5L))
 trees.gap <- sampler.keep$getTrees()
 isRule.g <- trees.gap$var == 2L
@@ -53,7 +57,7 @@ expect_true(any(isRule.g))
 expect_true(all(nchar(trees.gap$directions[isRule.g]) == 4L))
 
 # SET TEST DATA: a later test set carrying the gap level installs and fits
-sampler.set <- dbarts(train.gap, y.gap, control = control)
+sampler.set <- dbarts(train.gap, y.gap, control = control, n.trees = 20L)
 sampler.set$setTestPredictor(test.gap)
 expect_true(all(is.finite(sampler.set$run(20L, 20L)$test)))
 
@@ -64,7 +68,7 @@ expect_true(all(is.finite(predictions.gap)))
 
 # SET PREDICTOR: installing the gap level into the training column is a valid
 # mutation, and the sampler still fits
-sampler.mut <- dbarts(train.gap, y.gap, control = control)
+sampler.mut <- dbarts(train.gap, y.gap, control = control, n.trees = 20L)
 labels.mut <- as.character(g.gap)
 labels.mut[1L] <- "d" # the declared-but-unobserved top level
 expect_true(sampler.mut$setPredictor(labels.mut, column = 2L))
@@ -73,7 +77,7 @@ expect_true(all(is.finite(sampler.mut$run(20L, 20L)$train)))
 
 # a column update takes the column's labels, for the test set as for the
 # training column, and installs what a whole-frame update installs
-sampler.col <- dbarts(train.gap, y.gap, control = control)
+sampler.col <- dbarts(train.gap, y.gap, control = control, n.trees = 20L)
 sampler.col$setTestPredictor(test.gap)
 whole <- sampler.col$data@x.test
 sampler.col$setTestPredictor(test.gap[c(2:6, 1L), ])
@@ -116,7 +120,13 @@ expect_equal(
 rm(sampler.col, whole)
 # once the training column has held a missing value its test column takes
 # one: by the record of it, the training column now holding none
-sampler.seen <- dbarts(train.gap, y.gap, test = test.gap, control = control)
+sampler.seen <- dbarts(
+  train.gap,
+  y.gap,
+  test = test.gap,
+  control = control,
+  n.trees = 20L
+)
 for (column in c("g", "x1")) {
   expect_true(
     sampler.seen$setPredictor(replace(train.gap[[column]], 3L, NA), column)
@@ -143,14 +153,16 @@ colnames(test.over) <- c("x1", "g")
 expect_error(
   dbarts:::withCodedPredictors(dbarts(
     dbartsData(train.gap, y.gap, test = test.over),
-    control = control
+    control = control,
+    n.trees = 20L
   )),
   pattern = "categorical test predictors must hold existing category codes"
 )
 expect_error(
   dbarts(
     dbartsData(train.gap, y.gap, test = test.over),
-    control = control
+    control = control,
+    n.trees = 20L
   ),
   pattern = "the predictor 'g' is a factor"
 )
@@ -165,7 +177,8 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
     y.gap,
     test = test.gap,
     control = control,
-    sigest = 1
+    sigest = 1,
+    n.trees = 20L
   )
   expect_true(all(is.finite(sampler.sparse$run(20L, 20L)$test)))
 
@@ -181,7 +194,12 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
   data.mixed <- dbartsData(train.mixed, y.gap)
   expect_inherits(data.mixed@x, "dbartsMixedMatrix")
   expect_equal(data.mixed@varTypes, c(0L, 1L, 0L))
-  sampler.mixed <- dbarts(data.mixed, control = control, sigest = 1)
+  sampler.mixed <- dbarts(
+    data.mixed,
+    control = control,
+    sigest = 1,
+    n.trees = 20L
+  )
   expect_true(all(is.finite(sampler.mixed$run(20L, 20L)$train)))
 
   test.mixed <- data.frame(x1 = rnorm(6L), g = test.gap$g)
@@ -205,7 +223,6 @@ z.wide <- rnorm(n.wide)
 y.wide <- ifelse(codes.wide >= 30L, 1.5, 0) + z.wide + rnorm(n.wide, 0, 0.4)
 
 control.wide <- dbartsControl(
-  n.trees = 15L,
   n.chains = 1L,
   n.threads = 1L,
   n.samples = 5L,
@@ -215,13 +232,15 @@ control.wide <- dbartsControl(
 sampler.declared <- dbarts(
   data.frame(z = z.wide, g = g.declared),
   y.wide,
-  control = control.wide
+  control = control.wide,
+  n.trees = 15L
 )
 invisible(sampler.declared$run(20L, 5L))
 sampler.trimmed <- dbarts(
   data.frame(z = z.wide, g = g.trimmed),
   y.wide,
-  control = control.wide
+  control = control.wide,
+  n.trees = 15L
 )
 invisible(sampler.trimmed$run(20L, 5L))
 
@@ -243,7 +262,8 @@ state.declared <- sampler.declared$state
 sampler.restore <- dbarts(
   data.frame(z = z.wide, g = g.declared),
   y.wide,
-  control = control.wide
+  control = control.wide,
+  n.trees = 15L
 )
 sampler.restore$setState(state.declared)
 sampler.restore$storeState()
@@ -302,13 +322,13 @@ local({
     response ~ a + f + o,
     frame,
     control = dbartsControl(
-      n.trees = 20L,
       n.chains = 1L,
       n.threads = 1L,
       n.samples = 5L,
       n.burn = 50L,
       updateState = FALSE
-    )
+    ),
+    n.trees = 20L
   )
   invisible(sampler$run())
   levelsBefore <- attr(sampler$data@x, "factor.levels")

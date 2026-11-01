@@ -145,7 +145,6 @@ fitBartcore <- function(seed) {
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 1L,
     updateState = FALSE
   )
   sampler <- dbarts(
@@ -162,7 +161,8 @@ fitBartcore <- function(seed) {
     ),
     leaf.prior = normal(k),
     power = power,
-    base = base
+    base = base,
+    n.trees = 1L
   )
   sampler$setTestOffset(NULL)
   r <- sampler$run(5000L, ndpost)
@@ -251,8 +251,6 @@ fitOrdered <- function(seed, n.cuts) {
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 1L,
-    n.cuts = n.cuts,
     updateState = FALSE
   )
   sampler <- dbarts(
@@ -269,7 +267,9 @@ fitOrdered <- function(seed, n.cuts) {
     ),
     leaf.prior = normal(k),
     power = power,
-    base = base
+    base = base,
+    n.trees = 1L,
+    n.cuts = n.cuts
   )
   sampler$setTestOffset(NULL)
   r <- sampler$run(5000L, ndpost)

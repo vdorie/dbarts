@@ -417,15 +417,12 @@ runChains <- function(x, y, seed, numBurn, numKept, blockSize, mask) {
   ctl <- dbartsControl(
     n.chains = nChains,
     n.threads = 1L,
-    n.trees = 1L,
-    useQuantiles = TRUE,
     keepTrees = TRUE,
     n.samples = blockSize,
     n.burn = numBurn,
     n.thin = nThin,
     updateState = TRUE,
     seed = seed,
-    n.cuts = 100L,
     n.perturb.cuts = windowWidth
   )
   sampler <- dbarts(
@@ -436,7 +433,10 @@ runChains <- function(x, y, seed, numBurn, numKept, blockSize, mask) {
     base = base,
     leaf.prior = normal(kLeaf),
     family = gaussian(sigma = fixed(1)),
-    proposal.probs = proposalProbs
+    proposal.probs = proposalProbs,
+    n.trees = 1L,
+    useQuantiles = TRUE,
+    n.cuts = 100L
   )
   stopifnot(is.null(sampler$data@offset))
   if (mask) {

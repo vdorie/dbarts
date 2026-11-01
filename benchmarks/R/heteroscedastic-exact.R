@@ -68,16 +68,21 @@ partA <- function() {
   ctl <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 20L,
     updateState = FALSE,
     seed = 51L
   )
 
-  het <- dbarts(x, y, control = ctl, variance = varianceForest(n.trees = 1L))
+  het <- dbarts(
+    x,
+    y,
+    control = ctl,
+    variance = varianceForest(n.trees = 1L),
+    n.trees = 20L
+  )
   rHet <- het$run(nburn, ndpost)
   s2Post <- mean(rHet$variance)
 
-  homo <- dbarts(x, y, control = ctl)
+  homo <- dbarts(x, y, control = ctl, n.trees = 20L)
   rHomo <- homo$run(nburn, ndpost)
   sigma2Post <- mean(rHomo$sigma^2)
 
@@ -312,7 +317,6 @@ partB <- function() {
   ctl <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 1L,
     updateState = FALSE
   )
 
@@ -331,7 +335,8 @@ partB <- function() {
         change = 0.4,
         birth = 0.5
       ),
-      variance = varianceForest(n.trees = 2L, base = base, power = power)
+      variance = varianceForest(n.trees = 2L, base = base, power = power),
+      n.trees = 1L
     )
     # the enumeration's premise: a split's children hold no cut. More points
     # on the binary column leave them splittable in the prior, each owing a

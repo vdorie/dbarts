@@ -163,7 +163,6 @@ fitSeed <- function(seed) {
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = numTrees,
     updateState = FALSE
   )
   sampler <- dbarts(
@@ -180,7 +179,8 @@ fitSeed <- function(seed) {
       birth = 0.5
     ),
     leaf.prior = normal(k),
-    verbose = FALSE
+    verbose = FALSE,
+    n.trees = numTrees
   )
 
   iA <- which(cell == 0L)[1L]

@@ -12,7 +12,6 @@ widthControl <- function(...) {
   dbarts::dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 5L,
     updateState = FALSE,
     proposal.probs = perturbing,
     ...
@@ -20,7 +19,7 @@ widthControl <- function(...) {
 }
 drawsAt <- function(control) {
   set.seed(7L)
-  dbarts::dbarts(x, y, control = control)$run(20L, 20L)$train
+  dbarts::dbarts(x, y, control = control, n.trees = 5L)$run(20L, 20L)$train
 }
 
 # ---- the default changes no draw ---------------------------------------------
@@ -41,7 +40,7 @@ for (bad in list(0, -1, 1.5, NA, NA_real_, c(1, 2))) {
   )
 }
 # the bridge holds the same rule for a slot written past the constructor
-backstop <- dbarts::dbarts(x, y, control = widthControl())
+backstop <- dbarts::dbarts(x, y, control = widthControl(), n.trees = 5L)
 backstop$control@n.perturb.cuts <- 0
 expect_error(backstop$copy(), "'n.perturb.cuts' must be a positive whole")
 rm(backstop)
@@ -89,7 +88,12 @@ written <- widthControl()
 written@n.perturb.cuts <- 70000
 expect_error(validObject(written), overCap, fixed = TRUE)
 expect_error(dbarts::dbarts(x, y, control = written), overCap, fixed = TRUE)
-live <- dbarts::dbarts(x, y, control = widthControl(n.perturb.cuts = 3L))
+live <- dbarts::dbarts(
+  x,
+  y,
+  control = widthControl(n.perturb.cuts = 3L),
+  n.trees = 5L
+)
 expect_error(live$setControl(written), overCap, fixed = TRUE)
 expect_identical(live$control@n.perturb.cuts, 3)
 for (taken in list(65533, Inf)) {
@@ -114,7 +118,9 @@ smallGrid <- function(width) {
   dbarts::dbarts(
     x,
     y,
-    control = widthControl(n.cuts = 5L, n.perturb.cuts = width)
+    control = widthControl(n.perturb.cuts = width),
+    n.trees = 5L,
+    n.cuts = 5L
   )$run(20L, 20L)$train
 }
 expect_identical(smallGrid(60000), smallGrid(5L))
@@ -122,7 +128,7 @@ expect_identical(smallGrid(5L), smallGrid(65533))
 expect_identical(smallGrid(5L), smallGrid(Inf))
 # the bridge still clamps a slot that reaches it unchecked, as a backstop
 copiedAt <- function(width) {
-  written <- dbarts::dbarts(x, y, control = widthControl())
+  written <- dbarts::dbarts(x, y, control = widthControl(), n.trees = 5L)
   written$control@n.perturb.cuts <- width
   set.seed(7L)
   written$copy()$run(20L, 20L)$train
@@ -148,7 +154,8 @@ bcfDraws <- function(width) {
     x,
     y + z,
     forests = bcfForests,
-    control = widthControl(n.perturb.cuts = width)
+    control = widthControl(n.perturb.cuts = width),
+    n.trees = 5L
   )$run(20L, 20L)$train
 }
 bcfAtThree <- bcfDraws(3L)
@@ -162,7 +169,8 @@ multinomialDraws <- function(width) {
   dbarts::dbarts(
     dbarts::dbartsData(x, counts = counts),
     family = "multinomial",
-    control = widthControl(n.perturb.cuts = width)
+    control = widthControl(n.perturb.cuts = width),
+    n.trees = 5L
   )$run(20L, 20L)$train
 }
 multinomialAtThree <- multinomialDraws(3L)
@@ -175,7 +183,8 @@ varianceDraws <- function(width) {
     x,
     y,
     variance = varianceForest(n.trees = 5L),
-    control = widthControl(n.perturb.cuts = width)
+    control = widthControl(n.perturb.cuts = width),
+    n.trees = 5L
   )$run(20L, 20L)$train
 }
 varianceAtThree <- varianceDraws(3L)
@@ -191,7 +200,8 @@ expect_false(identical(varianceAtThree, varianceDraws(1L)))
 keptSampler <- dbarts::dbarts(
   x,
   y,
-  control = widthControl(n.perturb.cuts = 3L, n.samples = 10L)
+  control = widthControl(n.perturb.cuts = 3L, n.samples = 10L),
+  n.trees = 5L
 )
 set.seed(9L)
 invisible(keptSampler$run(20L, 10L))
@@ -214,8 +224,8 @@ expect_false(identical(reloadedNarrow$run(0L, 10L)$train, continued))
 
 # ---- taken by setControl between runs ----------------------------------------
 
-widened <- dbarts::dbarts(x, y, control = widthControl())
-narrow <- dbarts::dbarts(x, y, control = widthControl())
+widened <- dbarts::dbarts(x, y, control = widthControl(), n.trees = 5L)
+narrow <- dbarts::dbarts(x, y, control = widthControl(), n.trees = 5L)
 set.seed(3L)
 invisible(widened$run(20L, 1L))
 set.seed(3L)
@@ -234,9 +244,20 @@ expect_false(identical(widenedDraws, narrow$run(0L, 20L)$train))
 multinomial <- dbarts::dbarts(
   dbarts::dbartsData(x, counts = counts),
   family = "multinomial",
-  control = widthControl()
+  control = widthControl(),
+  n.trees = 5L
 )
 widerMultinomial <- multinomial$control
 widerMultinomial@n.perturb.cuts <- 3
 expect_null(multinomial$setControl(widerMultinomial))
 expect_identical(multinomial$control@n.perturb.cuts, 3)
+
+# the controls above write counts and the rule on purpose; give the keys of the
+# warnings that read them back to the next file
+onceState <- dbarts:::onceWarnState
+for (key in paste0(
+  "tombstone.control.",
+  c("n.trees", "n.cuts", "useQuantiles")
+)) {
+  onceState[[key]] <- NULL
+}

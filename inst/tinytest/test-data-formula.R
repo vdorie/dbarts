@@ -265,7 +265,6 @@ drawData <- function(size = onceRows, replace = FALSE) {
 onceControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 3L,
   n.samples = 2L,
   n.burn = 0L,
   updateState = FALSE,
@@ -288,7 +287,8 @@ onceDoors <- list(
       subset = x1 > 0.5,
       weights = w,
       offset = o,
-      control = onceControl
+      control = onceControl,
+      n.trees = 3L
     )))$data
   },
   bart = function(data) {
@@ -352,7 +352,12 @@ invisible(xbart(
 ))
 expect_identical(length(dataDraws), 1L)
 # and the call a fit keeps shows what the caller wrote, not the value read
-keptCall <- dbarts(y ~ x1 + id, drawData(), control = onceControl)$control@call
+keptCall <- dbarts(
+  y ~ x1 + id,
+  drawData(),
+  control = onceControl,
+  n.trees = 3L
+)$control@call
 expect_identical(keptCall$data, quote(drawData()))
 keptCall <- bart(
   y ~ x1 + id,
@@ -392,14 +397,20 @@ onceLevels <- factor(rep_len(c("a", "b", "c"), onceRows))
 matrixDoors <- list(
   dbartsData = function() dbartsData(drawX(), ofDrawn(onceData$y)),
   dbarts = function() {
-    dbarts(drawX(), ofDrawn(onceData$y), control = onceControl)$data
+    dbarts(
+      drawX(),
+      ofDrawn(onceData$y),
+      control = onceControl,
+      n.trees = 3L
+    )$data
   },
   aft = function() {
     dbarts(
       drawX(),
       cbind(exp(ofDrawn(onceData$y)), 1),
       family = "aft",
-      control = onceControl
+      control = onceControl,
+      n.trees = 3L
     )$data
   },
   bart = function() {
@@ -519,7 +530,8 @@ stackSizes <- vapply(
         subset = x1 > 0.2,
         weights = x2,
         offset = x2,
-        control = onceControl
+        control = onceControl,
+        n.trees = 3L
       )),
       bart = stackSize(bart(y ~ x1 + nosuch, big, verbose = FALSE)),
       matrix = stackSize(dbarts(
@@ -527,7 +539,8 @@ stackSizes <- vapply(
         big$y,
         subset = seq_len(50L),
         weights = c(1, 2),
-        control = onceControl
+        control = onceControl,
+        n.trees = 3L
       )),
       bartMatrix = stackSize(bart(bigX, big$y, weights = 1:2, verbose = FALSE))
     )

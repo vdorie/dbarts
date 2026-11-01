@@ -36,7 +36,6 @@ stateControl <- function(...) {
   dbartsControl(
     n.chains = 2L,
     n.threads = 1L,
-    n.trees = 12L,
     n.samples = 4L,
     updateState = FALSE,
     seed = 17L,
@@ -45,7 +44,7 @@ stateControl <- function(...) {
 }
 make <- function(..., response = y, control = stateControl()) {
   set.seed(5L)
-  sampler <- dbarts(x, response, control = control, ...)
+  sampler <- dbarts(x, response, control = control, n.trees = 12L, ...)
   invisible(sampler$run(10L, 0L))
   sampler
 }
@@ -592,12 +591,12 @@ weak <- function() {
     control = dbartsControl(
       n.chains = 2L,
       n.threads = 1L,
-      n.trees = 15L,
       n.samples = 1500L,
       n.burn = 500L,
       updateState = FALSE,
       seed = 71L
-    )
+    ),
+    n.trees = 15L
   )
 }
 own <- weak()

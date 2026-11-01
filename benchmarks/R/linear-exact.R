@@ -174,14 +174,12 @@ exactFit <- (colSums(w * fitScaled) + 0.5) * yRange + min(y)
 ctl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 1L,
   keepTrees = TRUE,
   n.samples = batchSize,
   n.burn = nBurn,
   n.thin = nThin,
   updateState = TRUE,
-  seed = engineSeed,
-  n.cuts = K - 1L
+  seed = engineSeed
 )
 engineArm <- function(xs, ys, weights = NULL) {
   # the test rows are read for their fits alone, so the notice that weights
@@ -202,7 +200,9 @@ engineArm <- function(xs, ys, weights = NULL) {
         birth = 0.5
       ),
       leaf.prior = linear(1L, k = kLeaf),
-      family = gaussian(sigma = fixed(1))
+      family = gaussian(sigma = fixed(1)),
+      n.trees = 1L,
+      n.cuts = K - 1L
     ),
     warning = function(w) {
       if (grepl("ignored for test data", conditionMessage(w), fixed = TRUE)) {

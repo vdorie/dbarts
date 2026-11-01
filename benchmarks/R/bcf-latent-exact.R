@@ -614,8 +614,6 @@ samplerFit <- function(seed, arm, updateA, updateB, ndpost, thin) {
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 1L,
-    n.cuts = arm$K - 1L,
     updateState = FALSE
   )
   bcfForests <- list(
@@ -644,7 +642,9 @@ samplerFit <- function(seed, arm, updateA, updateB, ndpost, thin) {
       family = arm$link$name,
       power = muPower,
       base = muBase,
-      forests = bcfForests
+      forests = bcfForests,
+      n.trees = 1L,
+      n.cuts = arm$K - 1L
     )
   } else {
     dbarts(
@@ -655,7 +655,9 @@ samplerFit <- function(seed, arm, updateA, updateB, ndpost, thin) {
       family = arm$link$name,
       power = muPower,
       base = muBase,
-      forests = bcfForests
+      forests = bcfForests,
+      n.trees = 1L,
+      n.cuts = arm$K - 1L
     )
   }
   bc$run(nBurn, 1L)

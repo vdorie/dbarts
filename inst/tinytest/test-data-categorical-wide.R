@@ -23,7 +23,6 @@ expect_equal(length(attr(data.wide@x, "factor.levels")[[1L]]), 70L)
 control <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,
-  n.trees = 50L,
   n.samples = 60L,
   keepTrees = TRUE,
   updateState = FALSE
@@ -33,7 +32,8 @@ sampler <- dbarts(
   df,
   test = df[seq_len(50L), ],
   control = control,
-  factors = "categorical"
+  factors = "categorical",
+  n.trees = 50L
 )
 samples <- sampler$run(400L, 60L)
 
@@ -91,7 +91,8 @@ sampler2 <- dbarts(
   df,
   test = df[seq_len(50L), ],
   control = control,
-  factors = "categorical"
+  factors = "categorical",
+  n.trees = 50L
 )
 sampler2$setState(state)
 sampler2$storeState()
@@ -114,7 +115,8 @@ sampler.na <- dbarts(
   y ~ g + h + z,
   df.na,
   control = control,
-  factors = "categorical"
+  factors = "categorical",
+  n.trees = 50L
 )
 samples.na <- sampler.na$run(50L, 10L)
 expect_true(all(is.finite(samples.na$sigma)))

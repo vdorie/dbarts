@@ -27,7 +27,6 @@ offsetOrdinal <- 0.5 * (x[, 2L] - 0.5)
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = n.trees,
   updateState = FALSE,
   seed = 13L
 )
@@ -43,7 +42,14 @@ recordOrdinal <- function(sampler) {
 
 ordinalSampler <- function(offset) {
   if (is.null(offset)) {
-    dbarts(x, codes, family = "ordinal", control = control, verbose = FALSE)
+    dbarts(
+      x,
+      codes,
+      family = "ordinal",
+      control = control,
+      verbose = FALSE,
+      n.trees = n.trees
+    )
   } else {
     dbarts(
       x,
@@ -51,7 +57,8 @@ ordinalSampler <- function(offset) {
       family = "ordinal",
       offset = offset,
       control = control,
-      verbose = FALSE
+      verbose = FALSE,
+      n.trees = n.trees
     )
   }
 }
@@ -93,7 +100,14 @@ recordNbinom <- function(sampler) {
 
 nbinomSampler <- function(offset) {
   if (is.null(offset)) {
-    dbarts(x, yCount, family = "nbinom", control = control, verbose = FALSE)
+    dbarts(
+      x,
+      yCount,
+      family = "nbinom",
+      control = control,
+      verbose = FALSE,
+      n.trees = n.trees
+    )
   } else {
     dbarts(
       x,
@@ -101,7 +115,8 @@ nbinomSampler <- function(offset) {
       family = "nbinom",
       offset = offset,
       control = control,
-      verbose = FALSE
+      verbose = FALSE,
+      n.trees = n.trees
     )
   }
 }
@@ -160,7 +175,8 @@ hazardSampler <- function(status, offset = NULL) {
       response,
       family = "hazard",
       control = control,
-      verbose = FALSE
+      verbose = FALSE,
+      n.trees = n.trees
     )
   } else {
     dbarts(
@@ -169,7 +185,8 @@ hazardSampler <- function(status, offset = NULL) {
       family = "hazard",
       offset = offset,
       control = control,
-      verbose = FALSE
+      verbose = FALSE,
+      n.trees = n.trees
     )
   }
 }

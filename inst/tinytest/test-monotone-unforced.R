@@ -22,7 +22,6 @@ y <- x1 + rnorm(n, sd = 0.1)
 df <- data.frame(y, x1, f)
 controlOf <- function(n.chains = 1L, n.trees = 1L) {
   dbarts::dbartsControl(
-    n.trees = n.trees,
     n.chains = n.chains,
     n.threads = 1L,
     updateState = FALSE,
@@ -94,7 +93,8 @@ make <- function(
     data,
     monotone = c(x1 = direction),
     control = controlOf(length(values), n.trees),
-    seed = seed
+    seed = seed,
+    n.trees = n.trees
   )
   stopifnot(isTRUE(sampler$setState(handState(sampler, values, at))))
   sampler
@@ -199,7 +199,13 @@ sidesOf <- function(sampler) {
 jointly <- function(labels, plainFirst = FALSE) {
   function(s) {
     plain <- if (plainFirst) {
-      list(dbarts::dbarts(y ~ x1 + f, df, control = controlOf(), seed = 3L))
+      list(dbarts::dbarts(
+        y ~ x1 + f,
+        df,
+        control = controlOf(),
+        seed = 3L,
+        n.trees = 1L
+      ))
     }
     dbarts::updatePredictorPerObservationJointly(c(plain, s), labels, "f")
   }
@@ -470,7 +476,8 @@ shifted <- function(seed) {
     dfShifted,
     monotone = c(x1 = "increasing"),
     control = controlOf(),
-    seed = seed
+    seed = seed,
+    n.trees = 1L
   )
 }
 onto <- shifted(7L)
@@ -531,7 +538,8 @@ emptied <- function() {
     data.frame(y, x1, f = fEmptied),
     monotone = c(x1 = "increasing"),
     control = controlOf(),
-    seed = 7L
+    seed = 7L,
+    n.trees = 1L
   )
 }
 sampler <- emptied()
@@ -610,7 +618,8 @@ sampler <- dbarts::dbarts(
   dfPooled,
   monotone = c(x1 = "increasing"),
   control = controlOf(),
-  seed = 7L
+  seed = 7L,
+  n.trees = 1L
 )
 expect_true(installPooled(sampler, holds))
 # the column loses its missing values and may still hold one, so values that

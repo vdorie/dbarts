@@ -26,7 +26,6 @@ twoForests <- list(
 keptControlPredictForest <- function(n.chains = 1L, keepTrees = FALSE) {
   dbartsControl(
     n.threads = 1L,
-    n.trees = 8L,
     n.chains = n.chains,
     n.samples = n.samples,
     n.burn = 2L,
@@ -41,7 +40,8 @@ fitFromPredictForest <- function(forests, n.chains = 1L, combineChains = TRUE) {
     x,
     y,
     forests = forests,
-    control = keptControlPredictForest(n.chains)
+    control = keptControlPredictForest(n.chains),
+    n.trees = 8L
   )
   burn <- dbarts:::runWithBurnIn(sampler, sampler$control, TRUE)
   dbarts:::packageBartResults(
@@ -163,7 +163,8 @@ factorSampler <- dbarts(
   y ~ x1 + f,
   dfFactor,
   forests = twoForests,
-  control = keptControlPredictForest(keepTrees = TRUE)
+  control = keptControlPredictForest(keepTrees = TRUE),
+  n.trees = 8L
 )
 factorSampler$run(2L, n.samples)
 newFactor <- data.frame(
@@ -185,7 +186,8 @@ sampler <- dbarts(
   x,
   y,
   forests = twoForests,
-  control = keptControlPredictForest(keepTrees = TRUE)
+  control = keptControlPredictForest(keepTrees = TRUE),
+  n.trees = 8L
 )
 sampler$run(2L, n.samples)
 before <- sampler$predictForests(xNew)

@@ -28,7 +28,6 @@ controlWith <- function(...) {
   settings <- list(
     n.chains = 2L,
     n.threads = 1L,
-    n.trees = 10L,
     n.samples = 5L,
     n.burn = 0L,
     updateState = FALSE,
@@ -64,7 +63,8 @@ make <- function(
     weights = weights,
     family = entry$family,
     leaf.prior = leaf.prior,
-    control = controlWith(...)
+    control = controlWith(...),
+    n.trees = 10L
   )
 }
 # the record the sampler writes and the engine's own, unnamed
@@ -173,7 +173,8 @@ for (prior in list(dbartsPriors$linear("x1"), dbartsPriors$gp("x1"))) {
       x[inRows, ],
       y[inRows],
       leaf.prior = prior,
-      control = controlWith()
+      control = controlWith(),
+      n.trees = 10L
     ))
   )
 }
@@ -308,7 +309,8 @@ byHand <- fallbacks({
   spec <- dbartsSpec(
     dbartsData(x, y, weights = none),
     control = controlWith(),
-    leaf.prior = dbartsPriors$linear("x1")
+    leaf.prior = dbartsPriors$linear("x1"),
+    n.trees = 10L
   )
   new("dbartsSampler", spec$control, spec$model, spec$data)
 })
@@ -401,7 +403,8 @@ for (label in names(cases)) {
       dbartsData(case$data, yBinary, weights = case$w),
       control = controlWith(),
       leaf.prior = prior,
-      family = "probit"
+      family = "probit",
+      n.trees = 10L
     ))
     expect_error(
       new(
@@ -506,7 +509,8 @@ made <- fallbacks(dbarts::dbarts(
   weights = w,
   offset = ifelse(w == 1, y, 0),
   leaf.prior = dbartsPriors$linear("x1"),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 10L
 ))
 expect_identical(made$warnings, halfIn)
 expectRecord(made$value, literal(x1), "an offset taking y to one value")
@@ -518,7 +522,8 @@ made <- fallbacks(dbarts::dbarts(
   offset = log(1 + x2),
   family = "nbinom",
   leaf.prior = dbartsPriors$linear("x1"),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 10L
 ))
 expect_identical(made$warnings, halfIn)
 expectRecord(made$value, literal(x1), "one count beside differing offsets")
@@ -546,7 +551,8 @@ expect_identical(
       data.frame(y = y, x),
       weights = oneIn,
       leaf.prior = dbartsPriors$linear("x1"),
-      control = controlWith()
+      control = controlWith(),
+      n.trees = 10L
     ))$warnings,
     error = function(e) conditionMessage(e)
   ),
@@ -632,7 +638,8 @@ byHand <- fallbacks({
     dbartsData(x, yBinary, weights = oneIn),
     control = controlWith(),
     leaf.prior = dbartsPriors$linear("x1"),
-    family = "probit"
+    family = "probit",
+    n.trees = 10L
   )
   new(
     "dbartsSampler",
@@ -648,7 +655,8 @@ spec <- dbartsSpec(
   dbartsData(x, yBinary),
   control = controlWith(),
   leaf.prior = dbartsPriors$gp("x1"),
-  family = "logistic"
+  family = "logistic",
+  n.trees = 10L
 )
 made <- fallbacks(new(
   "dbartsSampler",
@@ -730,7 +738,8 @@ expect_error(
     weights = 2,
     leaf.prior = dbartsPriors$linear("x1"),
     sigest = 1,
-    control = controlWith()
+    control = controlWith(),
+    n.trees = 10L
   )),
   "holds one value over the rows in the likelihood (1 of 1 observation is",
   fixed = TRUE
@@ -742,7 +751,8 @@ made <- fallbacks(dbarts::dbarts(
   weights = c(1, 0),
   family = "probit",
   leaf.prior = dbartsPriors$linear("x1"),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 10L
 ))
 expect_identical(made$warnings, oneRowLeafOf(2L))
 expectRecord(made$value, literal(x1[1:2]), "two rows, one in")
@@ -840,7 +850,8 @@ hazardFit <- function(
       dbartsFamilies$hazard(breaks = breaks, link = link)
     },
     leaf.prior = leaf,
-    control = controlWith()
+    control = controlWith(),
+    n.trees = 10L
   )
 }
 subjectIn <- function(i) as.double(seq_len(numSubjects) %in% i)
@@ -1311,7 +1322,8 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
     weights = subjectIn(4:5),
     family = dbartsFamilies$hazard(breaks = 0:5),
     leaf.prior = dbartsPriors$linear(c("x1", "period")),
-    control = controlWith()
+    control = controlWith(),
+    n.trees = 10L
   )
   expect_true(dbarts:::predictorSourceIsSparse(s$data@x))
   s$setActiveRows(subjectRows(s, 5L))
@@ -1494,7 +1506,7 @@ expect_identical(
 )
 # a fit that is not a hazard fit has no subjects: one row of one in is read
 # as rows, "the fit's one observation", not as the fit's one subject
-s <- dbarts::dbarts(x[1:3, ], y[1:3], control = controlWith())
+s <- dbarts::dbarts(x[1:3, ], y[1:3], control = controlWith(), n.trees = 10L)
 made <- suppressWarnings(fallbacks(s$setData(
   dbartsData(x[1L, , drop = FALSE], y[1L], weights = 0),
   updateScale = TRUE
@@ -1654,7 +1666,8 @@ expect_identical(as.vector(as.matrix(s$data@x)), as.vector(design))
 other <- dbarts::dbarts(
   design,
   rnorm(nrow(design)),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 10L
 )
 expect_error(
   updatePredictorPerObservationJointly(list(other, s), reversed, "period"),
@@ -1724,7 +1737,8 @@ for (kind in c("probit", "nbinom")) {
     dbartsData(x, entry$response, weights = w),
     control = controlWith(),
     leaf.prior = dbartsPriors$linear("x1"),
-    family = entry$family
+    family = entry$family,
+    n.trees = 10L
   )
   withActive <- new(
     "dbartsSampler",
@@ -2162,7 +2176,8 @@ expect_identical(recordOf(s), before)
 spec <- dbartsSpec(
   dbartsData(x, y, weights = w),
   control = controlWith(n.chains = 1L),
-  leaf.prior = dbartsPriors$linear("x1")
+  leaf.prior = dbartsPriors$linear("x1"),
+  n.trees = 10L
 )
 handle <- dbarts:::bartcoreDataHandle(spec$control, spec$data, 1L)
 trainRows <- seq(1L, n, by = 2L)
@@ -2190,7 +2205,8 @@ expect_equal(
 specMade <- fallbacks(dbartsSpec(
   dbartsData(x, y, weights = oneIn),
   control = controlWith(n.chains = 1L),
-  leaf.prior = dbartsPriors$linear("x1")
+  leaf.prior = dbartsPriors$linear("x1"),
+  n.trees = 10L
 ))
 expect_identical(length(specMade$warnings), 1L)
 spec <- specMade$value
@@ -2380,7 +2396,8 @@ s <- dbarts::dbarts(
   yLast,
   weights = w,
   leaf.prior = leafPriorOf(FALSE),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 10L
 )
 range <- s$data@response.range
 before <- recordOf(s)
@@ -2415,7 +2432,8 @@ s <- dbarts::dbarts(
   yLast,
   weights = w,
   leaf.prior = leafPriorOf(FALSE),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 10L
 )
 before <- recordOf(s)
 alone <- fallbacks(s$setWeights(wLast, updateStandardization = TRUE))
@@ -2441,7 +2459,8 @@ tied <- list(
         replace(y, in5, 1),
         weights = weights,
         leaf.prior = leafPriorOf(FALSE),
-        control = controlWith()
+        control = controlWith(),
+        n.trees = 10L
       )
     },
     rows = as.double(in5)
@@ -2522,11 +2541,12 @@ noLeaf <- list(
     dbarts::dbarts(
       y ~ forest(x1 + x2) + forest(x1 + x2, basis = b),
       data.frame(y = y, x, b = as.double(seq_len(n) %% 2L)),
-      control = controlWith()
+      control = controlWith(),
+      n.trees = 10L
     )
   },
   "constant leaves" = function() {
-    dbarts::dbarts(x, y, weights = w, control = controlWith())
+    dbarts::dbarts(x, y, weights = w, control = controlWith(), n.trees = 10L)
   }
 )
 for (label in names(noLeaf)) {
@@ -2550,7 +2570,8 @@ s <- dbarts::dbarts(
   y,
   weights = w,
   leaf.prior = leafPriorOf(FALSE),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 10L
 )
 before <- recordOf(s)
 kept <- fallbacks(s$setWeights(wLast, updateStandardization = TRUE))
@@ -2577,7 +2598,8 @@ s <- dbarts::dbarts(
   y,
   weights = w,
   leaf.prior = leafPriorOf(FALSE),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 10L
 )
 invisible(fallbacks(s$setOffset(ifelse(w == 1, y - 1, 0), updateScale = TRUE)))
 expect_identical(
@@ -2591,7 +2613,8 @@ s <- dbarts::dbarts(
   weights = w,
   family = "probit",
   leaf.prior = leafPriorOf(FALSE),
-  control = controlWith()
+  control = controlWith(),
+  n.trees = 10L
 )
 expect_identical(
   fallbacks(s$setActiveRows(wLast, updateStandardization = TRUE))$warnings,
@@ -2676,14 +2699,16 @@ s <- dbarts::dbarts(
   y,
   weights = w,
   leaf.prior = dbartsPriors$linear("x1"),
-  control = loopControl
+  control = loopControl,
+  n.trees = 10L
 )
 twin <- dbarts::dbarts(
   x,
   y,
   weights = w,
   leaf.prior = dbartsPriors$linear("x1"),
-  control = loopControl
+  control = loopControl,
+  n.trees = 10L
 )
 trained <- list()
 for (i in seq_along(passes)) {

@@ -41,7 +41,6 @@ kForestX <- cbind(testData$x, testData$z)
 kForestControl <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,
-  n.trees = 25L,
   updateState = FALSE,
   seed = 12L
 )
@@ -52,7 +51,8 @@ for (bases in list(
 )) {
   kForest <- dbarts(
     dbartsData(kForestX, testData$y, bases = bases),
-    control = kForestControl
+    control = kForestControl,
+    n.trees = 25L
   )
   kResult <- kForest$run(20L, 1L)
   expect_equal(

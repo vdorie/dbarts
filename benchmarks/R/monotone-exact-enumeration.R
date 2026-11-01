@@ -648,14 +648,13 @@ engineKeys <- function(design, nDraw, seed, prior) {
   ctl <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 1L,
     keepTrees = TRUE,
     n.samples = block,
     updateState = TRUE,
-    seed = seed,
-    # an axis given values keeps the default n.cuts and its grid a point a gap
-    n.cuts = if (is.null(design$spec$values)) as.integer(nc - 1L) else 100L
+    seed = seed
   )
+  # an axis given values keeps the default n.cuts and its grid a point a gap
+  numCuts <- if (is.null(design$spec$values)) as.integer(nc - 1L) else 100L
   mono <- setNames(dirs, colnames(design$x))[dirs != 0L]
   # a factor axis's cells are its levels, in order
   factorAxis <- design$spec$factor
@@ -671,7 +670,9 @@ engineKeys <- function(design, nDraw, seed, prior) {
     base = base,
     leaf.prior = normal(kLeaf),
     family = gaussian(sigma = fixed(design$spec$sigma^2)),
-    monotone = monotone(mono, prior = prior)
+    monotone = monotone(mono, prior = prior),
+    n.trees = 1L,
+    n.cuts = numCuts
   )
   cuts <- if (is.null(design$spec$values)) {
     lapply(nc, function(n) seq(1, n, length.out = n + 1L)[-c(1L, n + 1L)])

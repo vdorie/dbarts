@@ -114,10 +114,9 @@ expect_equal(ncol(fit.test$yhat.test), 20L)
 control <- dbartsControl(
   n.samples = 10L,
   n.burn = 0L,
-  n.trees = 25L,
   updateState = FALSE
 )
-sampler <- dbarts(x.sparse, y, control = control, sigest = 1)
+sampler <- dbarts(x.sparse, y, control = control, sigest = 1, n.trees = 25L)
 invisible(sampler$run())
 expect_silent(sampler$setResponse(y))
 
@@ -174,12 +173,17 @@ expect_error(
 control.state <- dbartsControl(
   n.samples = 10L,
   n.burn = 0L,
-  n.trees = 25L,
   n.chains = 2L,
   n.threads = 1L,
   updateState = TRUE
 )
-sampler.state <- dbarts(x.sparse, y, control = control.state, sigest = 1)
+sampler.state <- dbarts(
+  x.sparse,
+  y,
+  control = control.state,
+  sigest = 1,
+  n.trees = 25L
+)
 set.seed(99)
 run.before <- sampler.state$run(numBurnIn = 20L, numSamples = 10L)
 sampler.state$storeState()
@@ -230,7 +234,6 @@ expect_true(dbarts:::predictorSourceIsSparse(data.denseTrainSparseTest@x.test))
 fitControl <- dbartsControl(
   n.samples = 15L,
   n.burn = 10L,
-  n.trees = 15L,
   n.chains = 1L,
   n.threads = 1L,
   updateState = FALSE
@@ -244,7 +247,8 @@ run.sparseTrain.sparseTest <- dbarts(
   y,
   test = x.test.sparse,
   control = fitControl,
-  sigest = 1
+  sigest = 1,
+  n.trees = 15L
 )$run()
 set.seed(201)
 run.sparseTrain.denseTest <- dbarts(
@@ -252,7 +256,8 @@ run.sparseTrain.denseTest <- dbarts(
   y,
   test = x.test.dense,
   control = fitControl,
-  sigest = 1
+  sigest = 1,
+  n.trees = 15L
 )$run()
 expect_identical(
   run.sparseTrain.sparseTest$test,
@@ -267,7 +272,8 @@ run.denseTrain.sparseTest <- dbarts(
   y,
   test = x.test.sparse,
   control = fitControl,
-  sigest = 1
+  sigest = 1,
+  n.trees = 15L
 )$run()
 set.seed(202)
 run.denseTrain.denseTest <- dbarts(
@@ -275,7 +281,8 @@ run.denseTrain.denseTest <- dbarts(
   y,
   test = x.test.dense,
   control = fitControl,
-  sigest = 1
+  sigest = 1,
+  n.trees = 15L
 )$run()
 expect_identical(run.denseTrain.sparseTest$test, run.denseTrain.denseTest$test)
 
@@ -288,7 +295,8 @@ run.permuted.sparseTest <- dbarts(
   y,
   test = x.test.sparse[, permutation, drop = FALSE],
   control = fitControl,
-  sigest = 1
+  sigest = 1,
+  n.trees = 15L
 )$run()
 set.seed(203)
 run.permuted.denseTest <- dbarts(
@@ -296,7 +304,8 @@ run.permuted.denseTest <- dbarts(
   y,
   test = x.test.dense[, permutation, drop = FALSE],
   control = fitControl,
-  sigest = 1
+  sigest = 1,
+  n.trees = 15L
 )$run()
 expect_identical(run.permuted.sparseTest$test, run.permuted.denseTest$test)
 

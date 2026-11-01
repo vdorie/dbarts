@@ -28,7 +28,6 @@ kindControl <- function() {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 15L,
     n.samples = 10L,
     n.burn = 0L,
     updateState = FALSE
@@ -43,7 +42,10 @@ doors <- list(
   term.dbarts = function(B, y, more) {
     d$y <- y
     formula <- y ~ forest(x1 + x2) + forest(x1 + x2, basis = B)
-    do.call(dbarts, c(list(formula, d, control = kindControl()), more))
+    do.call(
+      dbarts,
+      c(list(formula, d, control = kindControl(), n.trees = 15L), more)
+    )
   },
   term.bart = function(B, y, more) {
     d$y <- y
@@ -65,16 +67,25 @@ doors <- list(
     d$y <- y
     forests <- list(forest(), forest(basis = B))
     fixedArgs <- list(y ~ x1 + x2, d, forests = forests)
-    do.call(dbarts, c(fixedArgs, list(control = kindControl()), more))
+    do.call(
+      dbarts,
+      c(fixedArgs, list(control = kindControl(), n.trees = 15L), more)
+    )
   },
   list.value = function(B, y, more) {
     d$y <- y
     fixedArgs <- list(y ~ x1 + x2, d, forests = valueForests(B))
-    do.call(dbarts, c(fixedArgs, list(control = kindControl()), more))
+    do.call(
+      dbarts,
+      c(fixedArgs, list(control = kindControl(), n.trees = 15L), more)
+    )
   },
   matrix.value = function(B, y, more) {
     fixedArgs <- list(x, y, forests = valueForests(B))
-    do.call(dbarts, c(fixedArgs, list(control = kindControl()), more))
+    do.call(
+      dbarts,
+      c(fixedArgs, list(control = kindControl(), n.trees = 15L), more)
+    )
   },
   # dbartsSpec() takes a data object, whose rows are already cut: the value
   # it is handed has those rows
@@ -82,17 +93,26 @@ doors <- list(
     data <- do.call(dbartsData, c(list(x, y), more))
     kept <- if (is.null(more$subset)) !is.na(y) else more$subset & !is.na(y)
     cut <- if (is.null(dim(B))) B[kept] else B[kept, , drop = FALSE]
-    spec <- dbartsSpec(data, kindControl(), forests = valueForests(cut))
+    spec <- dbartsSpec(
+      data,
+      kindControl(),
+      forests = valueForests(cut),
+      n.trees = 15L
+    )
     new("dbartsSampler", spec$control, spec$model, spec$data)
   },
   data = function(B, y, more) {
     data <- do.call(dbartsData, c(list(x, y, bases = list(NULL, B)), more))
-    dbarts(data, control = kindControl())
+    dbarts(data, control = kindControl(), n.trees = 15L)
   },
   data.formula = function(B, y, more) {
     d$y <- y
     fixedArgs <- list(y ~ x1 + x2, d, bases = list(NULL, B))
-    dbarts(do.call(dbartsData, c(fixedArgs, more)), control = kindControl())
+    dbarts(
+      do.call(dbartsData, c(fixedArgs, more)),
+      control = kindControl(),
+      n.trees = 15L
+    )
   }
 )
 codeDoors <- c("term.dbarts", "term.bart", "list.code")
@@ -487,7 +507,8 @@ expect_error(
     x,
     y,
     forests = list(mu = forest(), tau = do.call(forest, list(basis = d))),
-    control = kindControl()
+    control = kindControl(),
+    n.trees = 15L
   ),
   "'basis' gives forest 2 ('tau') a data frame",
   fixed = TRUE
@@ -499,12 +520,12 @@ labeled <- list(
 )
 labeledText <- paste0("'basis' gives forest 2 ('tau')", naLevel)
 expect_error(
-  dbarts(x, y, forests = labeled, control = kindControl()),
+  dbarts(x, y, forests = labeled, control = kindControl(), n.trees = 15L),
   labeledText,
   fixed = TRUE
 )
 expect_error(
-  dbartsSpec(dbartsData(x, y), kindControl(), forests = labeled),
+  dbartsSpec(dbartsData(x, y), kindControl(), forests = labeled, n.trees = 15L),
   labeledText,
   fixed = TRUE
 )
@@ -551,7 +572,12 @@ expect_identical(
 # rows, and one of the data's full length is refused for its length
 subsetData <- dbartsData(x, y, subset = keep)
 expect_error(
-  dbartsSpec(subsetData, kindControl(), forests = valueForests(zf)),
+  dbartsSpec(
+    subsetData,
+    kindControl(),
+    forests = valueForests(zf),
+    n.trees = 15L
+  ),
   "'basis' must have the same length as 'y'",
   fixed = TRUE
 )
@@ -559,7 +585,8 @@ expect_identical(
   dbartsSpec(
     subsetData,
     kindControl(),
-    forests = valueForests(zf[keep])
+    forests = valueForests(zf[keep]),
+    n.trees = 15L
   )$data@basis.levels,
   list(NULL, c("0", "1"))
 )
@@ -662,7 +689,12 @@ expect_identical(named$levels, list(NULL, c("control", "treated")))
 # replaces the block and its levels, and a list that states none leaves both
 numericData <- dbartsData(x, y, bases = list(NULL, dose))
 levelsData <- dbartsData(x, y, bases = list(NULL, zc))
-declared <- dbartsSpec(numericData, kindControl(), forests = valueForests(zc))
+declared <- dbartsSpec(
+  numericData,
+  kindControl(),
+  forests = valueForests(zc),
+  n.trees = 15L
+)
 expect_identical(
   declared$data@basis.levels,
   list(NULL, c("control", "treated"))
@@ -678,7 +710,8 @@ expect_identical(settingsOnly$data@bases, levelsData@bases)
 renumbered <- dbartsSpec(
   levelsData,
   kindControl(),
-  forests = valueForests(dose)
+  forests = valueForests(dose),
+  n.trees = 15L
 )
 expect_identical(renumbered$data@basis.levels, list(NULL, NULL))
 expect_identical(renumbered$data@bases, numericData@bases)
@@ -688,20 +721,20 @@ expect_identical(renumbered$data@bases, numericData@bases)
 # takes numbers; with a factor's block of two it is two numeric columns,
 # refused at each. The class's validity refuses it, in R's words, and no door
 # calls that
-proto <- dbartsSpec(levelsData, kindControl())
+proto <- dbartsSpec(levelsData, kindControl(), n.trees = 15L)
 slotless <- proto$data
 attr(slotless, "basis.levels") <- NULL
 expect_error(validObject(slotless), "basis.levels", fixed = TRUE)
-numericProto <- dbartsSpec(numericData, kindControl())
+numericProto <- dbartsSpec(numericData, kindControl(), n.trees = 15L)
 numericSlotless <- numericProto$data
 attr(numericSlotless, "basis.levels") <- NULL
 madeFrom <- list(
   new = function(data, from = proto) {
     new("dbartsSampler", from$control, from$model, data)
   },
-  dbarts = function(data) dbarts(data, control = kindControl()),
+  dbarts = function(data) dbarts(data, control = kindControl(), n.trees = 15L),
   dbartsSpec = function(data) {
-    spec <- dbartsSpec(data, kindControl())
+    spec <- dbartsSpec(data, kindControl(), n.trees = 15L)
     new("dbartsSampler", spec$control, spec$model, spec$data)
   }
 )
@@ -740,13 +773,17 @@ countText <- paste0(
 for (door in names(madeFrom)) {
   expect_error(madeFrom[[door]](miscounted), countText, fixed = TRUE)
 }
-expect_error(dbartsSpec(miscounted, kindControl()), countText, fixed = TRUE)
+expect_error(
+  dbartsSpec(miscounted, kindControl(), n.trees = 15L),
+  countText,
+  fixed = TRUE
+)
 expect_error(validObject(miscounted), countText, fixed = TRUE)
 # fewer levels than columns are refused as more are
 tooFew <- proto$data
 tooFew@basis.levels <- list(NULL, "a")
 expect_error(
-  dbarts(tooFew, control = kindControl()),
+  dbarts(tooFew, control = kindControl(), n.trees = 15L),
   sub("3 levels", "1 level", countText, fixed = TRUE),
   fixed = TRUE
 )
@@ -760,7 +797,7 @@ strippedText <- sub(
   fixed = TRUE
 )
 expect_error(
-  dbarts(stripped, control = kindControl()),
+  dbarts(stripped, control = kindControl(), n.trees = 15L),
   strippedText,
   fixed = TRUE
 )
@@ -781,14 +818,20 @@ packaged <- function(forests, ...) {
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 15L,
     n.samples = 20L,
     n.burn = 5L,
     keepTrees = TRUE,
     updateState = FALSE,
     seed = 11L
   )
-  sampler <- dbarts(x, y, forests = forests, control = control, ...)
+  sampler <- dbarts(
+    x,
+    y,
+    forests = forests,
+    control = control,
+    ...,
+    n.trees = 15L
+  )
   run <- dbarts:::runWithBurnIn(sampler, sampler$control, TRUE)
   dbarts:::packageBartResults(
     sampler,
@@ -955,7 +998,13 @@ swapValues <- c(
 )
 swapSampler <- function(B) {
   set.seed(7)
-  sampler <- dbarts(x, y, forests = valueForests(B), control = kindControl())
+  sampler <- dbarts(
+    x,
+    y,
+    forests = valueForests(B),
+    control = kindControl(),
+    n.trees = 15L
+  )
   sampler$run(0L, 3L)
   sampler
 }
@@ -1057,7 +1106,13 @@ heldForests <- list(
   forest(),
   do.call(forest, list(basis = zc, amplitude = fixed()))
 )
-held <- dbarts(x, y, forests = heldForests, control = kindControl())
+held <- dbarts(
+  x,
+  y,
+  forests = heldForests,
+  control = kindControl(),
+  n.trees = 15L
+)
 creationBlock <- held$data@bases[[2L]]
 expect_identical(creationBlock, unname(cbind(1 - z, z)))
 expect_null(refusalOf(held$setForestBasis(2L, reversed)))
@@ -1137,7 +1192,8 @@ basisFirst <- dbarts(
   x,
   y,
   forests = list(do.call(forest, list(basis = zc)), forest()),
-  control = kindControl()
+  control = kindControl(),
+  n.trees = 15L
 )
 expect_identical(
   basisFirst$data@basis.levels,
@@ -1234,7 +1290,13 @@ twoOfLevels <- list(
   do.call(forest, list(basis = zc)),
   do.call(forest, list(basis = half))
 )
-three <- dbarts(x, y, forests = twoOfLevels, control = kindControl())
+three <- dbarts(
+  x,
+  y,
+  forests = twoOfLevels,
+  control = kindControl(),
+  n.trees = 15L
+)
 expect_identical(
   three$data@basis.levels,
   list(NULL, c("control", "treated"), c("lower", "upper"))
@@ -1335,7 +1397,7 @@ expect_identical(
 # --- $setData on a sampler of one forest ---
 plain <- function() {
   set.seed(7)
-  dbarts(x, y, control = kindControl())
+  dbarts(x, y, control = kindControl(), n.trees = 15L)
 }
 oneForest <- plain()
 untouched <- plain()

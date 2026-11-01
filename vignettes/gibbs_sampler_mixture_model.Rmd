@@ -235,13 +235,13 @@ y.mf <- g1.true + z.mf * g2.true + rnorm(n.mf, 0, 0.5)
 m <- list(rep(1, n.mf), as.double(z.mf))
 K <- length(m)
 
-control.mf <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 25L,
+control.mf <- dbartsControl(n.chains = 1L, n.threads = 1L,
                             updateState = FALSE)
 # every sampler is built on the SAME response, with k fixed and sigma owned
 # by the outer loop
 samplers <- lapply(seq_len(K), function(f)
     dbarts(x.mf, y.mf, control = control.mf, leaf.prior = normal(k = 1),
-           family = gaussian(sigma = fixed(1))))
+           family = gaussian(sigma = fixed(1)), n.trees = 25L))
 # one prior budget divided among the forests, rather than K copies of the
 # budget for the whole of the sum
 base.mf <- samplers[[1L]]$getLeafPrior()$k.scale / samplers[[1L]]$getK()[1L]
@@ -343,8 +343,8 @@ x.fam <- runif(n.fam)
 y.fam <- rbinom(n.fam, 1, plogis(3 * (x.fam - 0.5)))
 
 fit.logistic <- dbarts(y.fam ~ x.fam, family = "logistic",
-                       control = dbartsControl(n.trees = 10L, n.chains = 1L,
-                                                n.threads = 1L))
+                       control = dbartsControl(n.chains = 1L,
+                                                n.threads = 1L), n.trees = 10L)
 samples.logistic <- fit.logistic$run(20L, 20L)
 ```
 
@@ -359,8 +359,9 @@ x.dart <- matrix(runif(n.dart * 8), n.dart)
 y.dart <- 4 * x.dart[, 1] + rnorm(n.dart, 0, 0.2)
 
 fit.dart <- dbarts(y.dart ~ x.dart, split.probs = dart(),
-                   control = dbartsControl(n.trees = 10L, n.burn = 100L,
-                                            n.chains = 1L, n.threads = 1L))
+                   control = dbartsControl(n.burn = 100L,
+                                            n.chains = 1L, n.threads = 1L),
+                                            n.trees = 10L)
 samples.dart <- fit.dart$run(100L, 30L)
 
 # One row per predictor, averaged over the retained samples: only the first
@@ -426,8 +427,8 @@ n_samples_ri <- 500L
 
 control_ri <- dbartsControl(updateState = FALSE, verbose = FALSE,
                             n.burn = 0L, n.samples = 1L, n.chains = 1L,
-                            n.threads = 1L, n.trees = 50L)
-sampler_ri <- dbarts(x_ri, y_ri, control = control_ri)
+                            n.threads = 1L)
+sampler_ri <- dbarts(x_ri, y_ri, control = control_ri, n.trees = 50L)
 
 # rows of each group, and its size; the conjugate draw needs both
 rows_of  <- split(seq_len(n_ri), g)

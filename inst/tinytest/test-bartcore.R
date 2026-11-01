@@ -14,10 +14,9 @@ colnames(x) <- colnames(x.test) <- paste0("x", seq_len(p))
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 50L,
   updateState = FALSE
 )
-sampler <- dbarts(x, y, test = x.test, control = control)
+sampler <- dbarts(x, y, test = x.test, control = control, n.trees = 50L)
 
 result <- sampler$run(100L, 200L)
 
@@ -46,7 +45,13 @@ expect_null(sampler$getLatents())
 # this exercises the fixed-k path (the default binary chi hyperprior is
 # tested below)
 y.binary <- rbinom(n, 1L, pnorm(scale(f)))
-sampler.binary <- dbarts(x, y.binary, control = control, leaf.prior = normal(2))
+sampler.binary <- dbarts(
+  x,
+  y.binary,
+  control = control,
+  leaf.prior = normal(2),
+  n.trees = 50L
+)
 invisible(sampler.binary$run(50L, 1L))
 
 latents <- sampler.binary$getLatents()
@@ -59,7 +64,7 @@ expect_true(
 expect_null(result$k)
 
 # the default binary spec uses the chi hyperprior on k
-sampler.chik <- dbarts(x, y.binary, control = control)
+sampler.chik <- dbarts(x, y.binary, control = control, n.trees = 50L)
 result.chik <- sampler.chik$run(50L, 30L)
 expect_equal(length(result.chik$k), 30L)
 expect_true(all(result.chik$k > 0) && sd(result.chik$k) > 0)
@@ -67,7 +72,7 @@ expect_true(all(result.chik$k > 0) && sd(result.chik$k) > 0)
 # predictor mutation; on dedicated copies of x, since column and
 # per-observation updates write into the borrowed matrix in place
 x.mut <- x + 0
-sampler.mut <- dbarts(x.mut, y, control = control)
+sampler.mut <- dbarts(x.mut, y, control = control, n.trees = 50L)
 invisible(sampler.mut$run(100L, 1L))
 
 # an identity swap is always accepted; degenerate predictors would empty a
@@ -118,8 +123,8 @@ x.jointB <- x + 0
 x.jointB[, 2L:p] <- matrix(runif(n * (p - 1L)), n, p - 1L)
 y.jointB <- -2 * x.jointB[, 1L] + rnorm(n)
 colnames(x.jointA) <- colnames(x.jointB) <- paste0("x", seq_len(p))
-sampler.jointA <- dbarts(x.jointA, y, control = control)
-sampler.jointB <- dbarts(x.jointB, y.jointB, control = control)
+sampler.jointA <- dbarts(x.jointA, y, control = control, n.trees = 50L)
+sampler.jointB <- dbarts(x.jointB, y.jointB, control = control, n.trees = 50L)
 invisible(sampler.jointA$run(100L, 1L))
 invisible(sampler.jointB$run(100L, 1L))
 
@@ -143,12 +148,16 @@ x.quants[, 3L] <- round(x.quants[, 3L], 1L) # 11 levels -> 10 quantile cuts
 control.quants <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
+  updateState = FALSE
+)
+sampler.quants <- dbarts(
+  x.quants,
+  y,
+  control = control.quants,
   n.trees = 50L,
-  updateState = FALSE,
   useQuantiles = TRUE,
   n.cuts = c(100L, 50L, 100L, 100L, 25L)
 )
-sampler.quants <- dbarts(x.quants, y, control = control.quants)
 result.quants <- sampler.quants$run(100L, 100L)
 expect_equal(dim(result.quants$train), c(n, 100L))
 fitMean.quants <- rowMeans(result.quants$train)
@@ -190,10 +199,15 @@ expect_error(
 control.chains <- dbartsControl(
   n.chains = 2L,
   n.threads = 2L,
-  n.trees = 50L,
   updateState = FALSE
 )
-sampler.chains <- dbarts(x + 0, y, test = x.test, control = control.chains)
+sampler.chains <- dbarts(
+  x + 0,
+  y,
+  test = x.test,
+  control = control.chains,
+  n.trees = 50L
+)
 result.chains <- sampler.chains$run(100L, 60L)
 expect_equal(dim(result.chains$sigma), c(60L, 2L))
 expect_equal(dim(result.chains$train), c(n, 60L, 2L))
@@ -220,7 +234,12 @@ expect_true(all(is.finite(
 )))
 
 # multi-chain binary: latents and k gain the chain dimension
-sampler.chains.binary <- dbarts(x + 0, y.binary, control = control.chains)
+sampler.chains.binary <- dbarts(
+  x + 0,
+  y.binary,
+  control = control.chains,
+  n.trees = 50L
+)
 result.chains.binary <- sampler.chains.binary$run(50L, 10L)
 expect_equal(dim(result.chains.binary$k), c(10L, 2L))
 latents.chains <- sampler.chains.binary$getLatents()
@@ -230,13 +249,18 @@ expect_equal(dim(latents.chains), c(n, 2L))
 control.engine <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 50L,
   n.burn = 100L,
   n.samples = 100L
 )
 x.engine <- x + 0
 colnames(x.engine) <- paste0("x", seq_len(p))
-sampler.engine <- dbarts(x.engine, y, test = x.test, control = control.engine)
+sampler.engine <- dbarts(
+  x.engine,
+  y,
+  test = x.test,
+  control = control.engine,
+  n.trees = 50L
+)
 r.engine <- sampler.engine$run()
 expect_equal(dim(r.engine$train), c(n, 100L))
 expect_equal(dim(r.engine$test), c(10L, 100L))
@@ -346,7 +370,8 @@ sampler.offset <- dbarts(
   y,
   test = x.test,
   offset = 0.5,
-  control = control.engine
+  control = control.engine,
+  n.trees = 50L
 )
 expect_equal(sampler.offset$data@offset.test, rep(0.5, 10L))
 invisible(sampler.offset$run(20L, 1L))
@@ -364,9 +389,21 @@ expect_error(
 # recorded test fits carry exactly the test offset: the same creation seed
 # with and without an offset differs by it alone
 set.seed(11)
-sampler.to1 <- dbarts(x.engine + 0, y, test = x.test, control = control.engine)
+sampler.to1 <- dbarts(
+  x.engine + 0,
+  y,
+  test = x.test,
+  control = control.engine,
+  n.trees = 50L
+)
 set.seed(11)
-sampler.to2 <- dbarts(x.engine + 0, y, test = x.test, control = control.engine)
+sampler.to2 <- dbarts(
+  x.engine + 0,
+  y,
+  test = x.test,
+  control = control.engine,
+  n.trees = 50L
+)
 sampler.to2$setTestOffset(rep(2, 10L))
 r.to1 <- sampler.to1$run(20L, 3L)
 r.to2 <- sampler.to2$run(20L, 3L)
@@ -403,16 +440,20 @@ expect_equal(dim(sampler.to2$run(0L, 2L)$test), c(5L, 2L))
 control.thin <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 25L,
   n.thin = 2L
 )
-sampler.thin <- dbarts(x + 0, y, control = control.thin)
+sampler.thin <- dbarts(x + 0, y, control = control.thin, n.trees = 25L)
 r.thin <- sampler.thin$run(50L, 20L)
 expect_equal(dim(r.thin$train), c(n, 20L))
 
 # multiple chains through the flag: chain-dimensioned results and latents
-control.engine2 <- dbartsControl(n.chains = 2L, n.threads = 2L, n.trees = 50L)
-sampler.engine2 <- dbarts(x + 0, y.binary, control = control.engine2)
+control.engine2 <- dbartsControl(n.chains = 2L, n.threads = 2L)
+sampler.engine2 <- dbarts(
+  x + 0,
+  y.binary,
+  control = control.engine2,
+  n.trees = 50L
+)
 r.engine2 <- sampler.engine2$run(50L, 10L)
 expect_equal(dim(r.engine2$k), c(10L, 2L))
 expect_equal(dim(sampler.engine2$getLatents()), c(n, 2L))
@@ -421,8 +462,13 @@ expect_equal(length(sampler.engine2$getSigmas()), 2L)
 # the package-level joint updater over full samplers
 x.jointC <- x + 0
 colnames(x.jointC) <- paste0("x", seq_len(p))
-sampler.jointC <- dbarts(x.jointC, y, control = control.engine)
-sampler.jointD <- dbarts(x.jointC + 0, y, control = control.engine)
+sampler.jointC <- dbarts(x.jointC, y, control = control.engine, n.trees = 50L)
+sampler.jointD <- dbarts(
+  x.jointC + 0,
+  y,
+  control = control.engine,
+  n.trees = 50L
+)
 invisible(sampler.jointC$run(50L, 1L))
 invisible(sampler.jointD$run(50L, 1L))
 installed.engine.joint <- updatePredictorPerObservationJointly(
@@ -434,8 +480,8 @@ expect_equal(length(installed.engine.joint), n)
 
 # whole-data replacement: cut points rebuild, splits remap, observation
 # counts may change, and sigma holds on the original scale
-control.setdata <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 50L)
-sampler.setdata <- dbarts(x + 0, y, control = control.setdata)
+control.setdata <- dbartsControl(n.chains = 1L, n.threads = 1L)
+sampler.setdata <- dbarts(x + 0, y, control = control.setdata, n.trees = 50L)
 invisible(sampler.setdata$run(100L, 1L))
 
 sigma.before <- sampler.setdata$getSigmas()
@@ -483,7 +529,12 @@ expect_equal(sampler.setdata$data@offset.test, rep(0.5, 10L))
 expect_true(all(is.finite(sampler.setdata$run(0L, 1L)$test)))
 
 # binary samplers resize their latents with the data
-sampler.setdata.binary <- dbarts(x + 0, y.binary, control = control.setdata)
+sampler.setdata.binary <- dbarts(
+  x + 0,
+  y.binary,
+  control = control.setdata,
+  n.trees = 50L
+)
 invisible(sampler.setdata.binary$run(50L, 1L))
 y2.binary <- rbinom(n2, 1L, 0.5)
 sampler.setdata.binary$setData(dbartsData(x2, y2.binary))
@@ -498,7 +549,8 @@ sampler.logit <- dbarts(
   y.binary,
   family = "logistic",
   leaf.prior = normal(sd = invchi(1.5, 1.5)),
-  control = control
+  control = control,
+  n.trees = 50L
 )
 result.logit <- sampler.logit$run(100L, 100L)
 expect_equal(dim(result.logit$train), c(n, 100L))
@@ -512,17 +564,23 @@ expect_true(all(omega > 0))
 
 # family validation
 expect_error(
-  dbarts(x, y.binary, family = "cauchit", control = control),
+  dbarts(x, y.binary, family = "cauchit", control = control, n.trees = 50L),
   pattern = "'family' should be one of"
 )
 expect_error(
-  dbarts(x, y, family = "logistic", control = control),
+  dbarts(x, y, family = "logistic", control = control, n.trees = 50L),
   pattern = "requires a response coded 0/1"
 )
 
 # probit weights are rejected: a weighted probit has no tractable form
 expect_error(
-  dbarts(x, y.binary, weights = runif(n, 0.5, 1.5), control = control),
+  dbarts(
+    x,
+    y.binary,
+    weights = runif(n, 0.5, 1.5),
+    control = control,
+    n.trees = 50L
+  ),
   pattern = "probit models do not support weights"
 )
 
@@ -534,7 +592,8 @@ y.cat <- mu.cat + 2 * x.cat[, 2L] + rnorm(n, 0, 0.5)
 sampler.cat <- dbarts(
   data.frame(a = factor(x.cat[, 1L]), b = x.cat[, 2L]),
   y.cat,
-  control = control
+  control = control,
+  n.trees = 50L
 )
 result.cat <- sampler.cat$run(100L, 100L)
 expect_true(all(is.finite(result.cat$train)))
@@ -588,7 +647,7 @@ x.cat.bad <- x.cat
 x.cat.bad[1L, 1L] <- 0.5
 attr(x.cat.bad, "varTypes") <- c(1L, 0L)
 expect_error(
-  dbarts(x.cat.bad, y.cat, control = control),
+  dbarts(x.cat.bad, y.cat, control = control, n.trees = 50L),
   pattern = "integer category codes"
 )
 
@@ -616,7 +675,8 @@ y.wide <- ifelse(x.wide[, 1L] >= 27, 2, 0) + rnorm(n.wide, 0, 0.3)
 sampler.wide <- dbarts(
   data.frame(w = factor(x.wide[, 1L])),
   y.wide,
-  control = control
+  control = control,
+  n.trees = 50L
 )
 result.wide <- sampler.wide$run(100L, 100L)
 group.means <- tapply(rowMeans(result.wide$train), x.wide[, 1L] >= 27, mean)
@@ -626,7 +686,7 @@ x.over <- x.wide
 x.over[1L, 1L] <- 65535
 attr(x.over, "varTypes") <- 1L
 expect_error(
-  dbarts(x.over, y.wide, control = control),
+  dbarts(x.over, y.wide, control = control, n.trees = 50L),
   pattern = "codes in \\[0, 65535\\)"
 )
 
@@ -635,13 +695,18 @@ expect_error(
 control.keep <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   n.samples = 25L,
   n.burn = 50L,
   keepTrees = TRUE,
   updateState = FALSE
 )
-sampler.keep <- dbarts(x, y, test = x.test, control = control.keep)
+sampler.keep <- dbarts(
+  x,
+  y,
+  test = x.test,
+  control = control.keep,
+  n.trees = 20L
+)
 result.keep <- sampler.keep$run()
 predictions.keep <- sampler.keep$predict(x.test)
 expect_equal(dim(predictions.keep), c(10L, 25L))
@@ -715,10 +780,9 @@ expect_error(
 control.bc <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   updateState = FALSE
 )
-sampler.livepred <- dbarts(x, y, control = control.bc)
+sampler.livepred <- dbarts(x, y, control = control.bc, n.trees = 20L)
 invisible(sampler.livepred$run(50L, 1L))
 predictions.live <- sampler.livepred$predict(x.test)
 expect_equal(length(predictions.live), 10L)
@@ -732,12 +796,11 @@ expect_equal(
 control.keep2 <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,
-  n.trees = 10L,
   n.samples = 5L,
   keepTrees = TRUE,
   updateState = FALSE
 )
-sampler.keep2 <- dbarts(x, y, control = control.keep2)
+sampler.keep2 <- dbarts(x, y, control = control.keep2, n.trees = 10L)
 invisible(sampler.keep2$run(30L, 5L))
 expect_equal(dim(sampler.keep2$predict(x.test)), c(10L, 5L, 2L))
 trees.keep2 <- sampler.keep2$getTrees()
@@ -767,29 +830,28 @@ source(
 control.state <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,
-  n.trees = 10L,
   n.samples = 5L,
   updateState = FALSE
 )
-sampler.state <- dbarts(x, y, control = control.state)
+sampler.state <- dbarts(x, y, control = control.state, n.trees = 10L)
 invisible(sampler.state$run(30L, 2L))
 sampler.state$storeState()
 state <- sampler.state$state
 expect_inherits(state, "bartcoreState")
 
-sampler.restored <- dbarts(x, y, control = control.state)
+sampler.restored <- dbarts(x, y, control = control.state, n.trees = 10L)
 sampler.restored$setState(state)
 sampler.restored$storeState()
 statesAgree(sampler.restored$state, state)
 
 # a single chain's state carries its generator like any other, so a restored
 # sampler reproduces the model without any R-stream synchronization
-sampler.state1 <- dbarts(x, y, control = control.bc)
+sampler.state1 <- dbarts(x, y, control = control.bc, n.trees = 20L)
 invisible(sampler.state1$run(30L, 1L))
 sampler.state1$storeState()
 state1 <- sampler.state1$state
 expect_true(length(sampler.state1$state[[1L]]$rng.state) > 0L)
-sampler.restored1 <- dbarts(x, y, control = control.bc)
+sampler.restored1 <- dbarts(x, y, control = control.bc, n.trees = 20L)
 sampler.restored1$setState(state1)
 sampler.restored1$storeState()
 statesAgree(sampler.restored1$state, state1)
@@ -799,10 +861,9 @@ statesAgree(sampler.restored1$state, state1)
 control.us <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,
-  n.trees = 10L,
   n.samples = 5L
 )
-sampler.us <- dbarts(x, y, control = control.us)
+sampler.us <- dbarts(x, y, control = control.us, n.trees = 10L)
 invisible(sampler.us$run(20L, 2L))
 expect_inherits(sampler.us$state, "bartcoreState")
 state.us <- sampler.us$state
@@ -835,7 +896,7 @@ expect_error(sampler.us$setState(state.bad), pattern = "not consistent")
 # both versions, and mutates nothing; a current-version state still restores
 # it. A FUTURE additive version, by contrast, loads (test-sampler-state-format
 # covers that by-name path); only a below-floor encoding is refused.
-sampler.version <- dbarts(x, y, control = control.state)
+sampler.version <- dbarts(x, y, control = control.state, n.trees = 10L)
 invisible(sampler.version$run(30L, 2L))
 sampler.version$storeState()
 state.goodVersion <- sampler.version$state
@@ -843,7 +904,7 @@ state.oldVersion <- state.goodVersion
 attr(state.oldVersion, "formatVersion") <-
   attr(state.oldVersion, "formatVersion") - 1L
 
-sampler.reference <- dbarts(x, y, control = control.state)
+sampler.reference <- dbarts(x, y, control = control.state, n.trees = 10L)
 expect_error(
   sampler.reference$setState(state.oldVersion),
   pattern = "encoding version.*oldest"
@@ -866,7 +927,6 @@ expect_true(abs(mean(cont.a$sigma) - mean(cont.b$sigma)) < 8 * mcse)
 control.prior.bc <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 50L,
   updateState = FALSE
 )
 samplePrior <- function(sampler, numReplications) {
@@ -882,7 +942,7 @@ samplePrior <- function(sampler, numReplications) {
   }
   list(counts = leafCounts, values = leafValues)
 }
-sampler.prior.bc <- dbarts(x, y, control = control.prior.bc)
+sampler.prior.bc <- dbarts(x, y, control = control.prior.bc, n.trees = 50L)
 set.seed(20)
 prior.bc <- samplePrior(sampler.prior.bc, 10L)
 
@@ -902,12 +962,11 @@ expect_true(all(is.finite(sampler.prior.bc$run(0L, 2L)$train)))
 control.sc <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   n.samples = 8L,
   n.burn = 50L,
   updateState = FALSE
 )
-sampler.sc <- dbarts(x, y, test = x.test, control = control.sc)
+sampler.sc <- dbarts(x, y, test = x.test, control = control.sc, n.trees = 20L)
 control.burn <- control.sc
 control.burn@keepTrainingFits <- FALSE
 sampler.sc$setControl(control.burn)
@@ -957,17 +1016,16 @@ rm(control.before)
 control.thin <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   n.samples = 5L,
   n.thin = 3L,
   updateState = FALSE
 )
 set.seed(31)
-sampler.thin1 <- dbarts(x, y, control = control.thin)
+sampler.thin1 <- dbarts(x, y, control = control.thin, n.trees = 20L)
 control.nothin <- control.thin
 control.nothin@n.thin <- 1L
 set.seed(31)
-sampler.thin2 <- dbarts(x, y, control = control.nothin)
+sampler.thin2 <- dbarts(x, y, control = control.nothin, n.trees = 20L)
 sampler.thin2$setControl(control.thin)
 r.thin1 <- sampler.thin1$run(5L, 5L)
 r.thin2 <- sampler.thin2$run(5L, 5L)
@@ -977,12 +1035,11 @@ expect_identical(r.thin1, r.thin2)
 control.sm <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   n.samples = 5L,
   updateState = FALSE
 )
 set.seed(43)
-sampler.sm1 <- dbarts(x, y, control = control.sm)
+sampler.sm1 <- dbarts(x, y, control = control.sm, n.trees = 20L)
 model.new <- sampler.sm1$model
 model.new@tree.prior@power <- 1.5
 model.new@tree.prior@base <- 0.8
@@ -995,7 +1052,8 @@ sampler.sm2 <- dbarts(
   control = control.sm,
   power = 1.5,
   base = 0.8,
-  leaf.prior = normal(3)
+  leaf.prior = normal(3),
+  n.trees = 20L
 )
 r.sm1 <- sampler.sm1$run(20L, 5L)
 r.sm2 <- sampler.sm2$run(20L, 5L)
@@ -1007,7 +1065,8 @@ sampler.fix <- dbarts(
   x,
   y,
   family = gaussian(sigma = fixed(4)),
-  control = control.sm
+  control = control.sm,
+  n.trees = 20L
 )
 r.fix <- sampler.fix$run(10L, 3L)
 expect_equal(unique(r.fix$sigma), 2)
@@ -1019,7 +1078,7 @@ expect_equal(sampler.sm1$getSigmas(), 3)
 
 # sums of squared residuals report on the original scale against the current
 # (last recorded) fits
-sampler.ssr <- dbarts(x, y, control = control.sm)
+sampler.ssr <- dbarts(x, y, control = control.sm, n.trees = 20L)
 r.ssr <- sampler.ssr$run(20L, 1L)
 expect_equal(
   sampler.ssr$getSumsOfSquaredResiduals(),
@@ -1032,7 +1091,6 @@ mkVerboseControl <- function() {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 10L,
     n.samples = 5L,
     verbose = TRUE,
     printEvery = 2L,
@@ -1045,7 +1103,8 @@ out.create.bc <- capture.output(
     y,
     test = x.test,
     offset = 0.5,
-    control = mkVerboseControl()
+    control = mkVerboseControl(),
+    n.trees = 10L
   )
 )
 expect_true(any(out.create.bc == "Running BART with numeric y"))
@@ -1076,14 +1135,13 @@ expect_identical(
 control.threaded <- dbartsControl(
   n.chains = 2L,
   n.threads = 2L,
-  n.trees = 10L,
   n.samples = 5L,
   verbose = TRUE,
   printEvery = 25L,
   updateState = FALSE
 )
 out.threaded <- capture.output({
-  sampler.vt <- dbarts(x, y, control = control.threaded)
+  sampler.vt <- dbarts(x, y, control = control.threaded, n.trees = 10L)
   invisible(sampler.vt$run(25L, 25L))
 })
 expect_true(any(grepl("^\\[1\\] iteration: ", out.threaded)))
@@ -1096,10 +1154,9 @@ expect_true(any(grepl("^\\[2\\] iteration: ", out.threaded)))
 control.sc <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 25L,
   updateState = FALSE
 )
-sampler.sc <- dbarts(x, y, control = control.sc, sigest = 1)
+sampler.sc <- dbarts(x, y, control = control.sc, sigest = 1, n.trees = 25L)
 set.seed(31)
 invisible(sampler.sc$run(20L, 0L))
 offset.sc <- 2 * sin(0.1 * seq_len(n))
@@ -1115,7 +1172,8 @@ sampler.sc2 <- dbarts(
   y,
   offset = offset.sc,
   control = control.sc,
-  sigest = 1
+  sigest = 1,
+  n.trees = 25L
 )
 sampler.sc2$setState(state.sc)
 
@@ -1138,12 +1196,11 @@ states.g <- lapply(1:3, function(i) {
   control.g <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 11L,
     keepTrees = TRUE,
     n.samples = 6L,
     updateState = FALSE
   )
-  sampler.g <- dbarts(x, y, control = control.g, sigest = 1)
+  sampler.g <- dbarts(x, y, control = control.g, sigest = 1, n.trees = 11L)
   invisible(sampler.g$run(7L, 6L))
   sampler.g$storeState()
   sampler.g$state
@@ -1151,12 +1208,11 @@ states.g <- lapply(1:3, function(i) {
 control.g3 <- dbartsControl(
   n.chains = 3L,
   n.threads = 1L,
-  n.trees = 11L,
   keepTrees = TRUE,
   n.samples = 6L,
   updateState = FALSE
 )
-sampler.g3 <- dbarts(x, y, control = control.g3, sigest = 1)
+sampler.g3 <- dbarts(x, y, control = control.g3, sigest = 1, n.trees = 11L)
 state.g <- states.g[[1L]]
 state.g[[2L]] <- states.g[[2L]][[1L]]
 state.g[[3L]] <- states.g[[3L]][[1L]]
@@ -1169,12 +1225,11 @@ for (i in 1:3) {
   control.g1 <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 11L,
     keepTrees = TRUE,
     n.samples = 6L,
     updateState = FALSE
   )
-  sampler.g1 <- dbarts(x, y, control = control.g1, sigest = 1)
+  sampler.g1 <- dbarts(x, y, control = control.g1, sigest = 1, n.trees = 11L)
   sampler.g1$setState(states.g[[i]])
   expect_equal(
     sampler.g1$predict(x[1:4, , drop = FALSE]),

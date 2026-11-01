@@ -173,8 +173,9 @@ y.lin <- 3 * x1.lin + rnorm(n.lin, 0, 0.2)
 linearFit <- dbarts(
     y.lin ~ x1.lin + x2.lin, data.frame(x1.lin, x2.lin, y.lin),
     leaf.prior = linear("x1.lin"),
-    control = dbartsControl(n.trees = 3L, n.chains = 1L, n.threads = 1L,
-                            keepTrees = TRUE, n.samples = 2L, n.burn = 10L))
+    control = dbartsControl(n.chains = 1L, n.threads = 1L,
+                            keepTrees = TRUE, n.samples = 2L, n.burn = 10L),
+    n.trees = 3L)
 invisible(linearFit$run())
 linearTrees <- subset(linearFit$getTrees(), sample == 1 & tree == 1)
 print(rebuildTree(linearTrees, list(fit = linearFit)))

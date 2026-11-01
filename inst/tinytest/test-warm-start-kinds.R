@@ -129,7 +129,6 @@ controlWith <- function(...) {
   settings <- list(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 4L,
     n.samples = 3L,
     n.burn = 0L,
     updateState = FALSE,
@@ -141,7 +140,8 @@ make <- function(..., data = x, response = y, sweeps = 0L, control = list()) {
   sampler <- dbarts::dbarts(
     data,
     response,
-    control = do.call(controlWith, control),
+    control = do.call(controlWith, control[names(control) != "n.trees"]),
+    n.trees = if (is.null(control$n.trees)) 4L else control$n.trees,
     ...
   )
   if (sweeps > 0L) {

@@ -14,7 +14,6 @@ counts <- as.double(rpois(n, 3))
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 5L,
   updateState = FALSE,
   seed = 17L
 )
@@ -33,7 +32,14 @@ weightRefusal <- function(caller) refusal(caller, "logistic", "'weights'")
 
 # --- logistic weights: creation, $setWeights, $setData ---
 expect_error(
-  dbarts(x, y, weights = overCap, family = "logistic", control = control),
+  dbarts(
+    x,
+    y,
+    weights = overCap,
+    family = "logistic",
+    control = control,
+    n.trees = 5L
+  ),
   weightRefusal("sampler creation"),
   fixed = TRUE
 )
@@ -42,7 +48,8 @@ sampler <- dbarts(
   y,
   weights = atCap,
   family = "logistic",
-  control = control
+  control = control,
+  n.trees = 5L
 )
 expect_identical(sampler$data@weights, atCap)
 expect_error(
@@ -61,11 +68,23 @@ expect_identical(sampler$data@weights, atCap)
 
 # --- a fixed nbinom shape at creation; a drawn one at a state install ---
 expect_error(
-  dbarts(x, counts, family = nbinom(shape = 1e6 + 1), control = control),
+  dbarts(
+    x,
+    counts,
+    family = nbinom(shape = 1e6 + 1),
+    control = control,
+    n.trees = 5L
+  ),
   refusal("sampler creation", "nbinom", "a fixed 'shape'"),
   fixed = TRUE
 )
-fixed <- dbarts(x, counts, family = nbinom(shape = 1e6), control = control)
+fixed <- dbarts(
+  x,
+  counts,
+  family = nbinom(shape = 1e6),
+  control = control,
+  n.trees = 5L
+)
 expect_equal(fixed$getShape(), 1e6)
 
 drawn <- dbarts(
@@ -75,10 +94,10 @@ drawn <- dbarts(
   control = dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 5L,
     updateState = TRUE,
     seed = 17L
-  )
+  ),
+  n.trees = 5L
 )
 invisible(drawn$run(5L, 1L))
 state <- drawn$state
@@ -121,7 +140,6 @@ overTrialCap <- mnCounts(c(1e6 - 1, 1, 1))
 mnControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 5L,
   updateState = TRUE,
   seed = 17L
 )
@@ -129,20 +147,28 @@ expect_error(
   dbarts(
     dbartsData(x, counts = overTrialCap),
     family = "multinomial",
-    control = mnControl
+    control = mnControl,
+    n.trees = 5L
   ),
   trialRefusal("sampler creation"),
   fixed = TRUE
 )
 expect_error(
-  bart(x, overTrialCap, family = "multinomial", control = mnControl),
+  bart(
+    x,
+    overTrialCap,
+    family = "multinomial",
+    control = mnControl,
+    n.trees = 5L
+  ),
   trialRefusal("sampler creation"),
   fixed = TRUE
 )
 multinomial <- dbarts(
   dbartsData(x, counts = atTrialCap),
   family = "multinomial",
-  control = mnControl
+  control = mnControl,
+  n.trees = 5L
 )
 expect_error(
   multinomial$setCounts(overTrialCap),

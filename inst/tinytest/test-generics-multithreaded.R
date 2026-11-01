@@ -209,14 +209,14 @@ bcfSampler <- dbarts::dbarts(
   forests = list(forest(), forest(basis = ~ factor(zBcf))),
   control = dbarts::dbartsControl(
     n.threads = 1L,
-    n.trees = 8L,
     n.chains = 1L,
     n.samples = n.samples,
     n.burn = 2L,
     keepTrees = FALSE,
     updateState = FALSE,
     seed = 811L
-  )
+  ),
+  n.trees = 8L
 )
 bcfBurn <- dbarts:::runWithBurnIn(bcfSampler, bcfSampler$control, TRUE)
 bcfFit <- dbarts:::packageBartResults(

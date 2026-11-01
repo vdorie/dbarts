@@ -269,14 +269,12 @@ makeSampler <- function(d, seed) {
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 1L,
     keepTrees = FALSE,
     n.samples = 1L,
     n.burn = 0L,
     n.thin = 1L,
     updateState = FALSE,
-    seed = seed,
-    n.cuts = K - 1L
+    seed = seed
   )
   if (d$factor) {
     # as categorical-exact.R: with one tree and one variable only swap rotates
@@ -304,7 +302,9 @@ makeSampler <- function(d, seed) {
       "probit"
     } else {
       gaussian(sigma = fixed(sigma^2))
-    }
+    },
+    n.trees = 1L,
+    n.cuts = K - 1L
   )
 }
 

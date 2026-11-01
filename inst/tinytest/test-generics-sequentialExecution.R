@@ -26,12 +26,12 @@ sampler <- dbarts::dbarts(
   control = dbartsControl(
     n.samples = 5,
     n.burn = 0L,
-    n.trees = 4L,
     n.chains = 1L,
     n.threads = 1L,
     keepTrees = TRUE,
     updateState = FALSE
-  )
+  ),
+  n.trees = 4L
 )
 # the prior draw must reach the engine: the live trees are stumps before the
 # call and carry splits after it (the yhat comparison below cannot see this -
@@ -60,12 +60,12 @@ sampler <- dbarts::dbarts(
   control = dbartsControl(
     n.samples = 5,
     n.burn = 0L,
-    n.trees = 4L,
     n.chains = 1L,
     n.threads = 1L,
     keepTrees = TRUE,
     updateState = FALSE
-  )
+  ),
+  n.trees = 4L
 )
 sampler$sampleTreesFromPrior()
 for (i in seq_len(6L)) {

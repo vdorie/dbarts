@@ -31,7 +31,6 @@ holed$f[goneF] <- NA
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   n.samples = 3L,
   keepTrees = TRUE,
   updateState = FALSE,
@@ -39,7 +38,7 @@ control <- dbartsControl(
 )
 make <- function(data, seed = control@seed) {
   control@seed <- seed
-  dbarts(y ~ x1 + f + x2, data, control = control)
+  dbarts(y ~ x1 + f + x2, data, control = control, n.trees = 20L)
 }
 fill <- function(sampler) {
   sampler$setPredictor(filled$x1, column = 1L, forceUpdate = TRUE)
@@ -222,7 +221,7 @@ twoChains <- control
 twoChains@n.chains <- 2L
 twoChains@n.threads <- 2L
 checkRestores(
-  dbarts(y ~ x1 + f + x2, holed, control = twoChains),
+  dbarts(y ~ x1 + f + x2, holed, control = twoChains, n.trees = 20L),
   fill,
   "two chains"
 )
@@ -241,7 +240,8 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
         Matrix::Matrix(thinHoled, sparse = TRUE),
         yThin,
         control = control,
-        sigest = 1
+        sigest = 1,
+        n.trees = 20L
       ),
       function(sampler) {
         sampler$setPredictor(

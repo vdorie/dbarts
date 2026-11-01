@@ -115,7 +115,6 @@ preData <- data.frame(x = x, y = y)
 preControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 10L,
   n.samples = 4L,
   keepTrees = TRUE,
   updateState = FALSE
@@ -125,7 +124,8 @@ makePre <- function() {
     y ~ x,
     preData,
     variance = varianceForest(n.trees = 5L),
-    control = preControl
+    control = preControl,
+    n.trees = 10L
   )
 }
 preDonor <- makePre()
@@ -266,12 +266,12 @@ expect_inherits(
       n.chains = 1L,
       n.samples = 2L,
       n.burn = 2L,
-      n.trees = 5L,
       n.threads = 1L,
       updateState = FALSE,
       seed = 7L
     ),
-    variance = varianceForest(n.trees = 3L)
+    variance = varianceForest(n.trees = 3L),
+    n.trees = 5L
   ),
   "dbartsSampler"
 )
@@ -299,7 +299,6 @@ yPrior <- 2 * xPrior[, 2L] + sPrior * rnorm(nPrior)
 priorControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   n.samples = 4L,
   updateState = FALSE,
   seed = 41L
@@ -309,7 +308,8 @@ priorSampler <- dbarts(
   yPrior,
   test = xPrior[1:10, , drop = FALSE],
   variance = varianceForest(n.trees = 5L),
-  control = priorControl
+  control = priorControl,
+  n.trees = 20L
 )
 beforeDraw <- priorSampler$run(20L, 4L)
 beforeTrees <- priorSampler$getTrees()
@@ -349,7 +349,8 @@ restored <- dbarts(
   yPrior,
   test = xPrior[1:10, , drop = FALSE],
   variance = varianceForest(n.trees = 5L),
-  control = priorControl
+  control = priorControl,
+  n.trees = 20L
 )
 expect_silent(status <- restored$setState(drawnState))
 expect_true(status)
@@ -359,17 +360,16 @@ expect_true(status)
 homoControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   n.samples = 4L,
   updateState = FALSE,
   seed = 41L
 )
-homo <- dbarts(xPrior, yPrior, control = homoControl)
+homo <- dbarts(xPrior, yPrior, control = homoControl, n.trees = 20L)
 homoBefore <- homo$run(5L, 4L)
 # a homoscedastic run still carries its sigma draws and no variance channel
 expect_identical(length(homoBefore$sigma), 4L)
 expect_false("variance" %in% names(homoBefore))
-homoAgain <- dbarts(xPrior, yPrior, control = homoControl)
+homoAgain <- dbarts(xPrior, yPrior, control = homoControl, n.trees = 20L)
 expect_silent(homoAgain$sampleVarianceForestFromPrior())
 expect_identical(homoAgain$run(5L, 4L)$train, homoBefore$train)
 
@@ -393,7 +393,6 @@ xAccTest <- xAcc[1:10, , drop = FALSE]
 accControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   n.samples = 4L,
   updateState = FALSE,
   seed = 23L
@@ -403,7 +402,8 @@ accSampler <- dbarts(
   yAcc,
   test = xAccTest,
   variance = varianceForest(n.trees = 5L),
-  control = accControl
+  control = accControl,
+  n.trees = 20L
 )
 accRun <- accSampler$run(20L, 4L)
 
@@ -421,7 +421,6 @@ expect_identical(
 multiControl <- dbartsControl(
   n.chains = 3L,
   n.threads = 1L,
-  n.trees = 20L,
   n.samples = 2L,
   updateState = FALSE,
   seed = 24L
@@ -431,7 +430,8 @@ multiSampler <- dbarts(
   yAcc,
   test = xAccTest,
   variance = varianceForest(n.trees = 5L),
-  control = multiControl
+  control = multiControl,
+  n.trees = 20L
 )
 multiRun <- multiSampler$run(10L, 2L)
 expect_identical(multiSampler$getVariance(), multiRun$variance[, 2L, ])
@@ -442,14 +442,21 @@ expect_identical(
 
 # NULL exactly where the channels report nothing: no variance forest, and a
 # test read with no test rows
-homoAccessor <- dbarts(xAcc, yAcc, test = xAccTest, control = accControl)
+homoAccessor <- dbarts(
+  xAcc,
+  yAcc,
+  test = xAccTest,
+  control = accControl,
+  n.trees = 20L
+)
 expect_null(homoAccessor$getVariance())
 expect_null(homoAccessor$getVariance(test = TRUE))
 noTestSampler <- dbarts(
   xAcc,
   yAcc,
   variance = varianceForest(n.trees = 5L),
-  control = accControl
+  control = accControl,
+  n.trees = 20L
 )
 noTestSampler$run(5L, 1L)
 expect_null(noTestSampler$getVariance(test = TRUE))
@@ -481,7 +488,6 @@ expect_true(all(afterPriorDraw > 0))
 flatControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   n.samples = 1L,
   updateState = FALSE,
   seed = 25L
@@ -490,7 +496,8 @@ flatSampler <- dbarts(
   xAcc,
   yAcc,
   variance = varianceForest(n.trees = 1L, base = 1e-10),
-  control = flatControl
+  control = flatControl,
+  n.trees = 20L
 )
 # the seeded surface before any draw is the variance the calibration is stated
 # against, so nothing here assumes a response transform
@@ -522,7 +529,6 @@ expect_true(abs(2 / var(leafDraws) - residDf) < 0.6)
 ppdControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   n.samples = 4L,
   updateState = FALSE,
   seed = 26L
@@ -534,7 +540,8 @@ ppdSampler <- dbarts(
   test = ppdTest,
   variance = varianceForest(n.trees = 5L),
   leaf.prior = normal(k = 40),
-  control = ppdControl
+  control = ppdControl,
+  n.trees = 20L
 )
 set.seed(27L)
 ppdDraws <- samplePriorPredictive(
@@ -574,7 +581,6 @@ stateRows <- 41:50
 stateControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   n.samples = 2L,
   updateState = TRUE,
   seed = 28L
@@ -585,7 +591,8 @@ makeStateSampler <- function(control) {
     yAcc,
     test = xAcc[stateRows, , drop = FALSE],
     variance = varianceForest(n.trees = 5L),
-    control = control
+    control = control,
+    n.trees = 20L
   )
 }
 
@@ -619,7 +626,6 @@ expect_identical(copied$getVariance(test = TRUE), donorTest)
 keepControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   n.samples = 2L,
   updateState = FALSE,
   keepTrees = TRUE,

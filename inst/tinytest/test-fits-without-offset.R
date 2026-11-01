@@ -23,7 +23,6 @@ x <- matrix(runif(n * p), n, p)
 samplerControlFitsWithoutOffset <- function(n.chains = 1L, ...) {
   dbartsControl(
     n.threads = 1L,
-    n.trees = 20L,
     updateState = FALSE,
     seed = 61L,
     n.chains = n.chains,
@@ -59,7 +58,8 @@ samplerGauss <- dbarts(
   x,
   yGauss,
   offset = offGauss,
-  control = samplerControlFitsWithoutOffset(n.chains = 2L)
+  control = samplerControlFitsWithoutOffset(n.chains = 2L),
+  n.trees = 20L
 )
 cell <- fitIdentity(samplerGauss)
 expect_true(!is.null(cell$fits))
@@ -75,7 +75,8 @@ cell <- fitIdentity(
     x,
     yBinary,
     offset = offBinary,
-    control = samplerControlFitsWithoutOffset(2L)
+    control = samplerControlFitsWithoutOffset(2L),
+    n.trees = 20L
   )
 )
 expect_true(!is.null(cell$fits))
@@ -87,7 +88,8 @@ cell <- fitIdentity(dbarts(
   yBinary,
   offset = offBinary,
   family = "logistic",
-  control = samplerControlFitsWithoutOffset()
+  control = samplerControlFitsWithoutOffset(),
+  n.trees = 20L
 ))
 expect_true(!is.null(cell$fits))
 expect_equal(dim(cell$fits), cell$shape)
@@ -106,7 +108,8 @@ cell <- fitIdentity(dbarts(
   yOrdinal,
   offset = offBinary,
   family = "ordinal",
-  control = samplerControlFitsWithoutOffset()
+  control = samplerControlFitsWithoutOffset(),
+  n.trees = 20L
 ))
 expect_true(!is.null(cell$fits))
 expect_equal(dim(cell$fits), cell$shape)
@@ -121,7 +124,8 @@ cell <- fitIdentity(dbarts(
   cbind(timeAft, statusAft),
   offset = offBinary,
   family = "aft",
-  control = samplerControlFitsWithoutOffset()
+  control = samplerControlFitsWithoutOffset(),
+  n.trees = 20L
 ))
 expect_true(!is.null(cell$fits))
 expect_equal(dim(cell$fits), cell$shape)
@@ -135,7 +139,8 @@ cell <- fitIdentity(dbarts(
   yGauss,
   offset = offGauss,
   family = student(df = 4),
-  control = samplerControlFitsWithoutOffset()
+  control = samplerControlFitsWithoutOffset(),
+  n.trees = 20L
 ))
 expect_true(!is.null(cell$fits))
 expect_equal(dim(cell$fits), cell$shape)
@@ -149,7 +154,8 @@ samplerNbinom <- dbarts(
   yCount,
   offset = offBinary,
   family = "nbinom",
-  control = samplerControlFitsWithoutOffset()
+  control = samplerControlFitsWithoutOffset(),
+  n.trees = 20L
 )
 cell <- fitIdentity(samplerNbinom)
 expect_true(!is.null(cell$fits))
@@ -182,7 +188,8 @@ samplerBcf <- dbarts(
   yBcf,
   offset = offBcf,
   forests = list(forest(), forest(basis = ~ factor(z))),
-  control = samplerControlFitsWithoutOffset()
+  control = samplerControlFitsWithoutOffset(),
+  n.trees = 20L
 )
 cell <- fitIdentity(samplerBcf)
 expect_true(!is.null(cell$fits))
@@ -197,7 +204,8 @@ cell <- fitIdentity(dbarts(
   yGauss,
   offset = offGauss,
   variance = varianceForest(n.trees = 10L),
-  control = samplerControlFitsWithoutOffset()
+  control = samplerControlFitsWithoutOffset(),
+  n.trees = 20L
 ))
 expect_true(!is.null(cell$fits))
 expect_equal(dim(cell$fits), cell$shape)
@@ -210,7 +218,8 @@ samplerMasked <- dbarts(
   x,
   yGauss,
   offset = offGauss,
-  control = samplerControlFitsWithoutOffset()
+  control = samplerControlFitsWithoutOffset(),
+  n.trees = 20L
 )
 samplerMasked$setActiveRows(rep(c(1, 0), length.out = n))
 cell <- fitIdentity(samplerMasked)
@@ -227,7 +236,8 @@ multinomial <- dbarts(
   x,
   factor(rbinom(n, 2L, 0.5), levels = 0:2),
   family = "multinomial",
-  control = samplerControlFitsWithoutOffset()
+  control = samplerControlFitsWithoutOffset(),
+  n.trees = 20L
 )
 expect_error(
   multinomial$getFitsWithoutOffset(),

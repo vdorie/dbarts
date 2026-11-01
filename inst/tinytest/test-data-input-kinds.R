@@ -224,10 +224,10 @@ expect_silent(suppressMessages(bart(
 
 ## n.cuts is one value or one per column, and refuses any other length.
 x3 <- matrix(runif(120L), 40L, 3L)
-sampler <- dbarts(x3, y, control = dbartsControl(n.cuts = c(5L, 6L, 7L)))
+sampler <- dbarts(x3, y, control = dbartsControl(), n.cuts = c(5L, 6L, 7L))
 expect_equal(sampler$data@n.cuts, c(5L, 6L, 7L))
 expect_error(
-  dbarts(x3, y, control = dbartsControl(n.cuts = c(5L, 6L))),
+  dbarts(x3, y, control = dbartsControl(), n.cuts = c(5L, 6L)),
   "'n.cuts' has 2 values but the model has 3 predictor columns"
 )
 expect_error(

@@ -27,12 +27,11 @@ d <- makeFactorSignalData(seed = 20260812L)
 ## columns 1 and 2; gNoise, x1, x2 carry no signal)
 set.seed(1L)
 control <- dbarts::dbartsControl(
-  n.trees = 50L,
   n.chains = 1L,
   updateState = FALSE,
   keepTrees = FALSE
 )
-sampler <- dbarts::dbarts(d$x, d$y, control = control)
+sampler <- dbarts::dbarts(d$x, d$y, control = control, n.trees = 50L)
 sampler$growFromRoot(2L)
 trees <- sampler$getTrees(current = TRUE)
 isSignalRule <- trees$var %in% c(1L, 2L)
@@ -117,7 +116,8 @@ xDegenerate <- data.frame(h1 = h1, h2 = h2, x1 = x1Degenerate)
 degenerateSampler <- dbarts::dbarts(
   xDegenerate,
   yDegenerate,
-  control = control
+  control = control,
+  n.trees = 50L
 )
 degenerateSampler$growFromRoot(2L)
 degenerateFitted <- as.vector(degenerateSampler$predict(xDegenerate))

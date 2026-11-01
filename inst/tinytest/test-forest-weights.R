@@ -32,7 +32,6 @@ y <- mu.true + z * tau.true + rnorm(n, sd = 0.2)
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 50L,
   updateState = FALSE
 )
 
@@ -60,7 +59,8 @@ runBCF <- function(
         amplitude = if (fixed.glue) fixed()
       )
     ),
-    control = control
+    control = control,
+    n.trees = 50L
   )
   if (!is.null(forest)) {
     bc$setForestWeights(forest, weights)
@@ -131,7 +131,8 @@ bc.toggle <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
-  control = control
+  control = control,
+  n.trees = 50L
 )
 invisible(bc.toggle$run(20L, 5L))
 toggled <- lapply(
@@ -153,7 +154,8 @@ bc <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
-  control = control
+  control = control,
+  n.trees = 50L
 )
 expect_error(
   bc$setForestWeights(2L, rep(-1, n)),
@@ -218,14 +220,20 @@ expect_error(
 # runs BEFORE any forest count - a K-forest multinomial carries forest 1 and
 # would sail through a count test. $setForestWeights has no R-side amplitude
 # pre-check of its own, so this is the bridge's capability probe.
-plain <- dbarts(x, y, control = control)
+plain <- dbarts(x, y, control = control, n.trees = 50L)
 expect_error(
   plain$setForestWeights(1L, rep(1, n)),
   "requires a sampler that carries forest amplitudes"
 )
 set.seed(4007)
 labels <- rbinom(n, 2L, 0.5)
-mn <- dbarts(x, factor(labels), family = "multinomial", control = control)
+mn <- dbarts(
+  x,
+  factor(labels),
+  family = "multinomial",
+  control = control,
+  n.trees = 50L
+)
 # a softmax coupling refuses this R-side (refuseCountsMutation), ahead of the
 # bridge's own "applies to every category" refusal
 expect_error(
@@ -250,7 +258,6 @@ expect_error(
 control.keep <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 50L,
   updateState = FALSE,
   keepTrees = TRUE,
   n.samples = 10L
@@ -260,7 +267,8 @@ bc.keep <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
-  control = control.keep
+  control = control.keep,
+  n.trees = 50L
 )
 bc.keep$setForestWeights(2L, rep(0, n))
 result.keep <- bc.keep$run(10L, 10L)
@@ -300,7 +308,8 @@ roundTripState <- function(weight) {
     x,
     y,
     forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
-    control = control
+    control = control,
+    n.trees = 50L
   )
   bc$setForestWeights(2L, weight)
   invisible(bc$run(5L, 0L))
@@ -321,7 +330,8 @@ installDonor <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
-  control = control
+  control = control,
+  n.trees = 50L
 )
 invisible(installDonor$run(5L, 0L))
 installDonor$storeState()
@@ -330,7 +340,8 @@ installTarget <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
-  control = control
+  control = control,
+  n.trees = 50L
 )
 installTarget$setForestWeights(2L, rep(0, n))
 # a raw .Call, not $installTrees(): the R5 method's own pre-check

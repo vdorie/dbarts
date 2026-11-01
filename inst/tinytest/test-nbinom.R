@@ -262,10 +262,16 @@ expect_error(
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = n.trees,
   updateState = TRUE
 )
-sampler <- dbarts(x, y, family = "nbinom", control = control, verbose = FALSE)
+sampler <- dbarts(
+  x,
+  y,
+  family = "nbinom",
+  control = control,
+  verbose = FALSE,
+  n.trees = n.trees
+)
 expect_equal(sampler$model@family, "nbinom")
 expect_equal(sampler$model@shape, -1)
 # the log-mean anchor, with k drawn under the binary families' chi(1.5, 2)
@@ -285,15 +291,30 @@ offsetSampler <- dbarts(
   family = "nbinom",
   offset = rep(0, n),
   control = control,
-  verbose = FALSE
+  verbose = FALSE,
+  n.trees = n.trees
 )
 expect_false(is.null(offsetSampler$data@offset))
 
 # --- state save/load through the R surface: restore is deterministic ---
 
 saved <- sampler$state
-samplerB <- dbarts(x, y, family = "nbinom", control = control, verbose = FALSE)
-samplerC <- dbarts(x, y, family = "nbinom", control = control, verbose = FALSE)
+samplerB <- dbarts(
+  x,
+  y,
+  family = "nbinom",
+  control = control,
+  verbose = FALSE,
+  n.trees = n.trees
+)
+samplerC <- dbarts(
+  x,
+  y,
+  family = "nbinom",
+  control = control,
+  verbose = FALSE,
+  n.trees = n.trees
+)
 samplerB$setState(saved)
 samplerC$setState(saved)
 statesAgree(samplerB$state, saved)
@@ -387,7 +408,8 @@ capSampler <- dbarts(
   as.double(y),
   family = "nbinom",
   control = control,
-  verbose = FALSE
+  verbose = FALSE,
+  n.trees = n.trees
 )
 expect_error(capSampler$setResponse(overBound), capRefusal)
 expect_error(capSampler$setData(dbartsData(x, overBound)), capRefusal)
@@ -404,7 +426,8 @@ atBound <- dbarts(
   as.double(replace(y, 1L, 1000000)),
   family = "nbinom",
   control = control,
-  verbose = FALSE
+  verbose = FALSE,
+  n.trees = n.trees
 )
 expect_equal(max(atBound$data@y), 1e6)
 

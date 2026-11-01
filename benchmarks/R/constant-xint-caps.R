@@ -46,11 +46,8 @@ set.seed(43)
 x <- matrix(runif(n * 2L), n, 2L)
 colnames(x) <- c("x1", "x2")
 y <- x[, 1L] + rnorm(n)
-baseControl <- function(nCuts) {
+baseControl <- function() {
   dbartsControl(
-    n.cuts = nCuts,
-    useQuantiles = TRUE,
-    n.trees = 5L,
     n.chains = 1L,
     n.threads = 1L,
     n.samples = 1L,
@@ -63,13 +60,27 @@ baseControl <- function(nCuts) {
 cat("channel                              request  outcome\n")
 for (nCuts in c(65532L, 65533L, 65534L, 100000L)) {
   report(
-    "control n.cuts",
+    "n.cuts",
     nCuts,
-    outcomeOf(dbarts(x, y, control = baseControl(nCuts)))
+    outcomeOf(dbarts(
+      x,
+      y,
+      control = baseControl(),
+      n.cuts = nCuts,
+      useQuantiles = TRUE,
+      n.trees = 5L
+    ))
   )
 }
 
-sampler <- dbarts(x, y, control = baseControl(100L))
+sampler <- dbarts(
+  x,
+  y,
+  control = baseControl(),
+  n.cuts = 100L,
+  useQuantiles = TRUE,
+  n.trees = 5L
+)
 for (nCuts in c(65533L, 65534L)) {
   cuts <- seq.int(0, 1, length.out = nCuts + 2L)[-c(1L, nCuts + 2L)]
   report(
@@ -114,7 +125,14 @@ if (!quick) {
   cat("\nwhat asking for the widest grid costs (n = 70000, 5 trees):\n")
   cat(sprintf("%12s %14s\n", "n.cuts", "msec/iter"))
   for (nCuts in c(100L, maxNumCutsRepresentable)) {
-    fitSampler <- dbarts(x, y, control = baseControl(nCuts))
+    fitSampler <- dbarts(
+      x,
+      y,
+      control = baseControl(),
+      n.cuts = nCuts,
+      useQuantiles = TRUE,
+      n.trees = 5L
+    )
     invisible(fitSampler$run(5L, 0L))
     start <- Sys.time()
     invisible(fitSampler$run(0L, 20L))

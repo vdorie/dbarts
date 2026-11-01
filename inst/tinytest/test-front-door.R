@@ -770,17 +770,22 @@ expect_true("sigest" %in% names(formals(dbarts::dbartsSpec)))
 sigControl <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 5L,
   updateState = FALSE
 )
 expect_equal(
-  dbarts::dbarts(xFD, yFD, control = sigControl, sigest = 1.25)$data@sigma,
+  dbarts::dbarts(
+    xFD,
+    yFD,
+    control = sigControl,
+    sigest = 1.25,
+    n.trees = 5L
+  )$data@sigma,
   1.25
 )
 resetWarnKey("tombstone.sigma.dbarts")
 sigmaWarnings <- character(0L)
 sigmaSampler <- withCallingHandlers(
-  dbarts::dbarts(xFD, yFD, control = sigControl, sigma = 1.25),
+  dbarts::dbarts(xFD, yFD, control = sigControl, sigma = 1.25, n.trees = 5L),
   warning = function(w) {
     sigmaWarnings <<- c(sigmaWarnings, conditionMessage(w))
     invokeRestart("muffleWarning")
@@ -789,7 +794,14 @@ sigmaSampler <- withCallingHandlers(
 expect_equal(length(sigmaWarnings), 1L)
 expect_equal(sigmaSampler$data@sigma, 1.25)
 expect_error(
-  dbarts::dbarts(xFD, yFD, control = sigControl, sigma = 1.25, sigest = 2.0),
+  dbarts::dbarts(
+    xFD,
+    yFD,
+    control = sigControl,
+    sigma = 1.25,
+    sigest = 2.0,
+    n.trees = 5L
+  ),
   pattern = "supply one"
 )
 

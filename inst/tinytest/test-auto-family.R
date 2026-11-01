@@ -10,7 +10,6 @@ frame <- data.frame(x, counts)
 frame$cm <- counts
 
 ctl <- dbartsControl(
-  n.trees = 10L,
   n.samples = 15L,
   n.burn = 10L,
   n.chains = 1L,
@@ -42,10 +41,17 @@ fitExplicit <- quiet(bart(
   counts,
   family = "multinomial",
   control = ctl,
-  verbose = FALSE
+  verbose = FALSE,
+  n.trees = 10L
 ))
 set.seed(5)
-fitMatrix <- quiet(bart(x, counts, control = ctl, verbose = FALSE))
+fitMatrix <- quiet(bart(
+  x,
+  counts,
+  control = ctl,
+  verbose = FALSE,
+  n.trees = 10L
+))
 expect_identical(fitMatrix$yhat.train, fitExplicit$yhat.train)
 expect_identical(fitMatrix$levels, c("a", "b", "c"))
 
@@ -54,7 +60,8 @@ fitCbind <- quiet(bart(
   cbind(a, b, c) ~ x1 + x2 + x3,
   frame,
   control = ctl,
-  verbose = FALSE
+  verbose = FALSE,
+  n.trees = 10L
 ))
 set.seed(5)
 fitCbindExplicit <- quiet(bart(
@@ -62,7 +69,8 @@ fitCbindExplicit <- quiet(bart(
   frame,
   family = "multinomial",
   control = ctl,
-  verbose = FALSE
+  verbose = FALSE,
+  n.trees = 10L
 ))
 expect_identical(fitCbind$yhat.train, fitCbindExplicit$yhat.train)
 
@@ -71,7 +79,8 @@ fitColumn <- quiet(bart(
   cm ~ x1 + x2 + x3,
   frame,
   control = ctl,
-  verbose = FALSE
+  verbose = FALSE,
+  n.trees = 10L
 ))
 set.seed(5)
 fitColumnExplicit <- quiet(bart(
@@ -79,7 +88,8 @@ fitColumnExplicit <- quiet(bart(
   frame,
   family = "multinomial",
   control = ctl,
-  verbose = FALSE
+  verbose = FALSE,
+  n.trees = 10L
 ))
 expect_identical(fitColumn$yhat.train, fitColumnExplicit$yhat.train)
 
@@ -87,44 +97,53 @@ expect_identical(fitColumn$yhat.train, fitColumnExplicit$yhat.train)
 countsNA <- counts
 countsNA[2L, 1L] <- NA
 set.seed(5)
-fitNA <- quiet(bart(x, countsNA, control = ctl, verbose = FALSE))
+fitNA <- quiet(bart(x, countsNA, control = ctl, verbose = FALSE, n.trees = 10L))
 set.seed(5)
 fitNAExplicit <- quiet(bart(
   x,
   countsNA,
   family = "multinomial",
   control = ctl,
-  verbose = FALSE
+  verbose = FALSE,
+  n.trees = 10L
 ))
 expect_identical(fitNA$yhat.train, fitNAExplicit$yhat.train)
 
 # dbarts() takes the matrix interface; a formula is refused by name
-sampler <- dbarts(x, counts, control = ctl)
+sampler <- dbarts(x, counts, control = ctl, n.trees = 10L)
 expect_identical(sampler$model@family, "multinomial")
 expect_error(
-  dbarts(cbind(a, b, c) ~ x1 + x2, frame, control = ctl),
+  dbarts(cbind(a, b, c) ~ x1 + x2, frame, control = ctl, n.trees = 10L),
   "is fit by bart\\(cbind\\(c1, c2, c3\\) ~ x, data\\), which needs .data."
 )
 
 # --- refusals, each naming what to write ---
 twoColumn <- "family = \"multinomial\".*survival::Surv.*family = \"aft\" / \"hazard\""
-expect_error(bart(x, counts[, 1:2], control = ctl), twoColumn)
-expect_error(bart(cbind(a, b) ~ x1, frame, control = ctl), twoColumn)
-expect_error(dbarts(x, counts[, 1:2], control = ctl), twoColumn)
+expect_error(bart(x, counts[, 1:2], control = ctl, n.trees = 10L), twoColumn)
 expect_error(
-  bart(x, counts + 0.5, control = ctl),
+  bart(cbind(a, b) ~ x1, frame, control = ctl, n.trees = 10L),
+  twoColumn
+)
+expect_error(dbarts(x, counts[, 1:2], control = ctl, n.trees = 10L), twoColumn)
+expect_error(
+  bart(x, counts + 0.5, control = ctl, n.trees = 10L),
   "does not read as multinomial counts"
 )
 expect_error(
-  bart(x, counts - 1, control = ctl),
+  bart(x, counts - 1, control = ctl, n.trees = 10L),
   "non-negative whole numbers"
 )
 expect_error(
-  bart(cbind(a, b, c) ~ x1, transform(frame, a = a + 0.5), control = ctl),
+  bart(
+    cbind(a, b, c) ~ x1,
+    transform(frame, a = a + 0.5),
+    control = ctl,
+    n.trees = 10L
+  ),
   "non-negative whole numbers"
 )
 expect_error(
-  dbarts(x, counts + 0.5, control = ctl),
+  dbarts(x, counts + 0.5, control = ctl, n.trees = 10L),
   "non-negative whole numbers"
 )
 expect_error(
@@ -137,7 +156,7 @@ expect_error(
 )
 # an explicit family that takes one column says so under its own name
 expect_error(
-  bart(x, counts, family = "gaussian", control = ctl),
+  bart(x, counts, family = "gaussian", control = ctl, n.trees = 10L),
   "family = \"gaussian\" takes a single-column response"
 )
 
@@ -157,45 +176,52 @@ expected <- function(description, family) {
   )
 }
 expect_identical(
-  autoLines(bart(x, yCont, control = ctl)),
+  autoLines(bart(x, yCont, control = ctl, n.trees = 10L)),
   expected("continuous response", "gaussian")
 )
 expect_identical(
-  autoLines(bart(x, yBin, control = ctl)),
+  autoLines(bart(x, yBin, control = ctl, n.trees = 10L)),
   expected("0/1 response", "probit")
 )
 expect_identical(
-  autoLines(bart(x, factor(yBin), control = ctl)),
+  autoLines(bart(x, factor(yBin), control = ctl, n.trees = 10L)),
   expected("2-level factor response", "probit")
 )
 expect_identical(
-  autoLines(bart(x, yFac3, control = ctl)),
+  autoLines(bart(x, yFac3, control = ctl, n.trees = 10L)),
   expected("3-level factor response", "multinomial")
 )
 expect_identical(
-  autoLines(bart(x, yOrd, control = ctl)),
+  autoLines(bart(x, yOrd, control = ctl, n.trees = 10L)),
   expected("3-level ordered factor response", "ordinal")
 )
 expect_identical(
-  autoLines(bart(x, counts, control = ctl)),
+  autoLines(bart(x, counts, control = ctl, n.trees = 10L)),
   expected("3-column count matrix response", "multinomial")
 )
 expect_identical(
-  autoLines(bart(cbind(a, b, c) ~ x1, frame, control = ctl)),
+  autoLines(bart(cbind(a, b, c) ~ x1, frame, control = ctl, n.trees = 10L)),
   expected("3-column count matrix response", "multinomial")
 )
 expect_identical(
-  autoLines(bart(cm ~ x1, frame, control = ctl)),
+  autoLines(bart(cm ~ x1, frame, control = ctl, n.trees = 10L)),
   expected("3-column count matrix response", "multinomial")
 )
 expect_identical(
-  autoLines(bart(x, yCont, control = ctl, keepTrees = TRUE, n.chains = 2L)),
+  autoLines(bart(
+    x,
+    yCont,
+    control = ctl,
+    keepTrees = TRUE,
+    n.chains = 2L,
+    n.trees = 10L
+  )),
   expected("continuous response", "gaussian")
 )
 if (requireNamespace("survival", quietly = TRUE)) {
   survY <- survival::Surv(rexp(n), rbinom(n, 1L, 0.7))
   expect_identical(
-    autoLines(bart(x, survY, control = ctl)),
+    autoLines(bart(x, survY, control = ctl, n.trees = 10L)),
     expected("survival (Surv) response", "aft")
   )
 }
@@ -258,32 +284,44 @@ expect_identical(
 
 # never under verbose = FALSE or an explicit family
 expect_identical(
-  autoLines(bart(x, yCont, control = ctl, verbose = FALSE)),
+  autoLines(bart(x, yCont, control = ctl, verbose = FALSE, n.trees = 10L)),
   character()
 )
 expect_identical(
-  autoLines(bart(x, counts, control = ctl, verbose = FALSE)),
+  autoLines(bart(x, counts, control = ctl, verbose = FALSE, n.trees = 10L)),
   character()
 )
 expect_identical(
-  autoLines(bart(x, yCont, family = "gaussian", control = ctl)),
+  autoLines(bart(x, yCont, family = "gaussian", control = ctl, n.trees = 10L)),
   character()
 )
 expect_identical(
-  autoLines(bart(x, counts, family = "multinomial", control = ctl)),
+  autoLines(bart(
+    x,
+    counts,
+    family = "multinomial",
+    control = ctl,
+    n.trees = 10L
+  )),
   character()
 )
 expect_identical(
-  autoLines(bart(x, yOrd, family = "ordinal", control = ctl)),
+  autoLines(bart(x, yOrd, family = "ordinal", control = ctl, n.trees = 10L)),
   character()
 )
 
 # expect_message with a pattern, once
 expect_message(
-  quiet(bart(x, yCont, control = ctl)),
+  quiet(bart(x, yCont, control = ctl, n.trees = 10L)),
   "fitting family = \"gaussian\""
 )
-expect_silent(quiet(bart(x, yCont, control = ctl, verbose = FALSE)))
+expect_silent(quiet(bart(
+  x,
+  yCont,
+  control = ctl,
+  verbose = FALSE,
+  n.trees = 10L
+)))
 
 # --- rbart_vi and bartBT: one line, or none ---
 frame$g <- factor(rep(1:4, length.out = n))
@@ -333,12 +371,12 @@ expect_identical(
     x,
     yCont,
     control = dbartsControl(
-      n.trees = 10L,
       n.samples = 10L,
       n.burn = 5L,
       n.chains = 2L,
       n.threads = 2L
-    )
+    ),
+    n.trees = 10L
   )),
   expected("continuous response", "gaussian")
 )
@@ -346,7 +384,7 @@ expect_identical(
 # a refusal comes before the announcement
 expect_identical(
   autoLines(try(
-    bart(x, counts, weights = rep(1, n), control = ctl),
+    bart(x, counts, weights = rep(1, n), control = ctl, n.trees = 10L),
     silent = TRUE
   )),
   character()
@@ -356,7 +394,7 @@ b <- counts[, 2L]
 c <- counts[, 3L]
 x1 <- x[, 1L]
 expect_error(
-  bart(cbind(a, b, c) ~ x1, control = ctl),
+  bart(cbind(a, b, c) ~ x1, control = ctl, n.trees = 10L),
   "needs 'data'"
 )
 rm(a, b, c, x1)

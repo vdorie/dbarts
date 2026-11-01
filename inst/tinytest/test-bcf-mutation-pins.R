@@ -16,15 +16,15 @@ y <- mu + z * tau + rnorm(n, sd = 0.2)
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 50L,
   updateState = FALSE
 )
-host <- dbarts(x, y, control = control)
+host <- dbarts(x, y, control = control, n.trees = 50L)
 bc <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
-  control = control
+  control = control,
+  n.trees = 50L
 )
 bc$run(20L, 0L)
 
@@ -125,7 +125,6 @@ expect_equal(reconTrain, reconResult$train[, 1L], tolerance = 1e-10)
 control.loop <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,
-  n.trees = 30L,
   updateState = FALSE,
   seed = 71L
 )
@@ -136,7 +135,8 @@ makeLoopSampler <- function() {
     x,
     y,
     forests = list(forest(), forest(basis = ~ factor(z), n.trees = 15L)),
-    control = control.loop
+    control = control.loop,
+    n.trees = 30L
   )
 }
 

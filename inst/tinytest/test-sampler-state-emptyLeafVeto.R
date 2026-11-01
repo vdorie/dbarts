@@ -32,7 +32,6 @@ control <- dbarts::dbartsControl(
   keepTrees = TRUE,
   n.samples = 60L,
   n.burn = 0L,
-  n.trees = 50L,
   n.chains = 1L,
   n.threads = 1L,
   updateState = TRUE,
@@ -44,7 +43,8 @@ control <- dbarts::dbartsControl(
 sampler <- dbarts::dbarts(
   y ~ x,
   control = control,
-  family = gaussian(sigma = fixed(1e-6))
+  family = gaussian(sigma = fixed(1e-6)),
+  n.trees = 50L
 )
 invisible(sampler$run(100L, 60L))
 sampler$storeState()
@@ -60,7 +60,8 @@ expect_true(max(state[[1L]]$forests[[1L]]$tree.sizes) >= 30L)
 restored <- dbarts::dbarts(
   y ~ x,
   control = control,
-  family = gaussian(sigma = fixed(1e-6))
+  family = gaussian(sigma = fixed(1e-6)),
+  n.trees = 50L
 )
 expect_silent(status <- restored$setState(state))
 expect_true(status)

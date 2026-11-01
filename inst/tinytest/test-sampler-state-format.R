@@ -107,7 +107,6 @@ for (oldValue in list(0.2, c(1, 2), "not a number")) {
 control.ls <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 25L,
   updateState = FALSE
 )
 makeSF <- function(x, y) {
@@ -116,7 +115,8 @@ makeSF <- function(x, y) {
     x,
     y,
     control = control.ls,
-    family = gaussian(sigma = dbarts::dbartsPriors$fixed(0.3))
+    family = gaussian(sigma = dbarts::dbartsPriors$fixed(0.3)),
+    n.trees = 25L
   )
 }
 grabState <- function(s) {
@@ -177,13 +177,17 @@ rm(
 control.tx <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 5L,
   n.samples = 3L,
   updateState = TRUE,
   verbose = FALSE
 )
 set.seed(7L)
-sampler.tx <- dbarts::dbarts(testData$x, testData$y, control = control.tx)
+sampler.tx <- dbarts::dbarts(
+  testData$x,
+  testData$y,
+  control = control.tx,
+  n.trees = 5L
+)
 invisible(sampler.tx$run(10L, 3L))
 sampler.tx$storeState()
 

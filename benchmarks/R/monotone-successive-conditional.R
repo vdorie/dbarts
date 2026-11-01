@@ -68,7 +68,6 @@ drawSigma <- function() {
 
 makeSampler <- function(arm, seed) {
   control <- dbartsControl(
-    n.trees = 1L,
     n.chains = 1L,
     n.threads = 1L,
     n.samples = 1L,
@@ -99,6 +98,7 @@ makeSampler <- function(arm, seed) {
     base = 0.95,
     sigest = sigest,
     control = control,
+    n.trees = 1L,
     family = dbartsFamilies$gaussian(
       sigma = dbartsPriors$chisq(sigDf, sigQuant)
     )

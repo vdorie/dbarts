@@ -13,12 +13,11 @@ z <- rbinom(n, 1L, pnorm(x[, 1L] - x[, 2L]))
 
 control.plain <- dbartsControl(
   n.chains = 1L,
-  n.threads = 1L,
-  n.trees = 15L
+  n.threads = 1L
 )
 
-sampler.gauss <- dbarts(y ~ x, control = control.plain)
-sampler.binary <- dbarts(z ~ x, control = control.plain)
+sampler.gauss <- dbarts(y ~ x, control = control.plain, n.trees = 15L)
+sampler.binary <- dbarts(z ~ x, control = control.plain, n.trees = 15L)
 colnames(x) <- colnames(sampler.gauss$data@x)
 
 x.test <- matrix(runif(6L * p), 6L, p)
@@ -93,10 +92,9 @@ expect_identical(repeatBinary1, repeatBinary2)
 control.pinned <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 15L,
   seed = 99L
 )
-sampler.pinned <- dbarts(y ~ x, control = control.pinned)
+sampler.pinned <- dbarts(y ~ x, control = control.pinned, n.trees = 15L)
 pinned1 <- samplePriorPredictive(sampler.pinned, n.samples = 20L, type = "ev")
 pinned2 <- samplePriorPredictive(sampler.pinned, n.samples = 20L, type = "ev")
 expect_identical(pinned1, pinned2)
@@ -142,7 +140,8 @@ expect_error(
 sampler.variance <- dbarts(
   y ~ x,
   control = control.plain,
-  variance = varianceForest(n.trees = 5L)
+  variance = varianceForest(n.trees = 5L),
+  n.trees = 15L
 )
 # a fractional varianceForest(n.trees) is refused by name too, not merely
 # by "value" (R/spec.R hoists the if-expression coerceOrError otherwise
@@ -151,7 +150,8 @@ expect_error(
   dbarts(
     y ~ x,
     control = control.plain,
-    variance = varianceForest(n.trees = 5.5)
+    variance = varianceForest(n.trees = 5.5),
+    n.trees = 15L
   ),
   "'n.trees' must be a whole number; got '5.5'",
   fixed = TRUE

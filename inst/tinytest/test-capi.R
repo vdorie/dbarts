@@ -115,7 +115,6 @@ nSamples <- 7L
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 25L,
   updateState = FALSE,
   seed = 99L
 )
@@ -124,7 +123,7 @@ control <- dbartsControl(
 # which is what every ptr below is - so the R object has to stay reachable
 # for as long as the C side holds one, and a fresh sampler is a fresh
 # dbarts() call rather than a second creation off one specification.
-spec <- dbarts(x, y, test = x.test, control = control)
+spec <- dbarts(x, y, test = x.test, control = control, n.trees = 25L)
 
 # queries and a run into caller-owned buffers
 ptr1 <- spec$getPointer()
@@ -145,7 +144,7 @@ expect_true(all(colSums(matrix(r1$varcount, p)) > 0))
 expect_true(abs(mean(r1$train) - mean(y)) < 1)
 
 # a seeded single-chain sampler reproduces bitwise across creations
-spec2 <- dbarts(x, y, test = x.test, control = control)
+spec2 <- dbarts(x, y, test = x.test, control = control, n.trees = 25L)
 ptr2 <- spec2$getPointer()
 CALL("capi_sample_trees_from_prior", ptr2)
 r2 <- CALL("capi_run", ptr2, 5L, nSamples, TRUE, TRUE)
@@ -156,7 +155,7 @@ expect_identical(r1, r2)
 # declared size, even for fields the sampler produces (varcount, test) - a
 # size-blind write would crash on the poisoned pointers the canary installs
 # past the boundary
-specGuard <- dbarts(x, y, test = x.test, control = control)
+specGuard <- dbarts(x, y, test = x.test, control = control, n.trees = 25L)
 ptrGuard <- specGuard$getPointer()
 CALL("capi_sample_trees_from_prior", ptrGuard)
 expect_true(CALL("capi_run_guard", ptrGuard, 5L, nSamples))
@@ -165,7 +164,7 @@ expect_true(CALL("capi_run_guard", ptrGuard, 5L, nSamples))
 # (leaves it 0) is rejected outright, not silently given an all-skip no-op that
 # leaves its buffers uninitialized - the flat-API footgun that garbaged a
 # consumer's Gibbs loop
-specZero <- dbarts(x, y, test = x.test, control = control)
+specZero <- dbarts(x, y, test = x.test, control = control, n.trees = 25L)
 ptrZero <- specZero$getPointer()
 CALL("capi_sample_trees_from_prior", ptrZero)
 expect_error(
@@ -176,7 +175,7 @@ expect_error(
 # the per-observation log-likelihood channel: for a gaussian sampler it must
 # equal dnorm(y, train, sigma, log = TRUE) recomputed on the same draws (train
 # is n x nSamples, sigma constant within a draw), pairing observation-fastest
-specLL <- dbarts(x, y, test = x.test, control = control)
+specLL <- dbarts(x, y, test = x.test, control = control, n.trees = 25L)
 ptrLL <- specLL$getPointer()
 CALL("capi_sample_trees_from_prior", ptrLL)
 rLL <- CALL("capi_run_loglik", ptrLL, 5L, nSamples)
@@ -194,7 +193,7 @@ expect_equal(rLL$loglik, expectedLL, tolerance = 1e-12)
 # not nSamples + 5, and the draw indices run 0, 1, ... within the chain. The
 # consumer's status word is how it reports a disagreement - a callback cannot
 # raise - so a nonzero sum here is a malformed draw, not a failed comparison.
-specDraw <- dbarts(x, y, test = x.test, control = control)
+specDraw <- dbarts(x, y, test = x.test, control = control, n.trees = 25L)
 ptrDraw <- specDraw$getPointer()
 CALL("capi_draw_reset", -1L)
 CALL("capi_set_draw_callback", ptrDraw, TRUE)
@@ -249,7 +248,7 @@ invisible(gc(FALSE))
 # protects itself against the jump: the run stops at the raising draw, the
 # entry does NOT return, and the condition reaches R carrying the callback's
 # own message.
-specRaise <- dbarts(x, y, control = control)
+specRaise <- dbarts(x, y, control = control, n.trees = 25L)
 ptrRaise <- specRaise$getPointer()
 
 # registered but idle first, so raising is the only difference between the two
@@ -294,11 +293,10 @@ invisible(gc(FALSE))
 controlRaiseChains <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,
-  n.trees = 25L,
   updateState = FALSE,
   seed = 11L
 )
-specRaiseChains <- dbarts(x, y, control = controlRaiseChains)
+specRaiseChains <- dbarts(x, y, control = controlRaiseChains, n.trees = 25L)
 ptrRaiseChains <- specRaiseChains$getPointer()
 CALL("capi_set_raising_callback", ptrRaiseChains, 1L)
 expect_error(
@@ -311,7 +309,7 @@ expect_false(chainRaiseReport$returned)
 
 # the session is intact afterwards, which is the check standing in for a
 # memory-check run here: a FRESH sampler builds and runs ...
-specAfterRaise <- dbarts(x, y, control = control)
+specAfterRaise <- dbarts(x, y, control = control, n.trees = 25L)
 ptrAfterRaise <- specAfterRaise$getPointer()
 afterFresh <- CALL("capi_run", ptrAfterRaise, 2L, 3L, TRUE, FALSE)
 expect_true(all(is.finite(afterFresh$sigma)) && all(afterFresh$sigma > 0))
@@ -328,11 +326,10 @@ invisible(gc(FALSE))
 controlChains <- dbartsControl(
   n.chains = 2L,
   n.threads = 2L,
-  n.trees = 25L,
   updateState = FALSE,
   seed = 7L
 )
-specChains <- dbarts(x, y, control = controlChains)
+specChains <- dbarts(x, y, control = controlChains, n.trees = 25L)
 ptrChains <- specChains$getPointer()
 CALL("capi_draw_reset", -1L)
 CALL("capi_set_draw_callback", ptrChains, TRUE)
@@ -455,11 +452,16 @@ rangeOffset <- 4 * x[, 3L] - 1
 namedControl <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,
-  n.trees = 25L,
   updateState = FALSE,
   seed = 99L
 )
-heldSd <- dbarts(x, y, control = namedControl, leaf.prior = normal(sd = 0.6))
+heldSd <- dbarts(
+  x,
+  y,
+  control = namedControl,
+  leaf.prior = normal(sd = 0.6),
+  n.trees = 25L
+)
 heldBefore <- engineLeafPrior(heldSd)
 expect_true(max(abs(heldBefore[, "prior.sd"] / 0.6 - 1)) < 1e-12)
 expect_equal(
@@ -478,7 +480,8 @@ drawnSd <- dbarts(
   x,
   y,
   control = namedControl,
-  leaf.prior = normal(sd = invchi(3, 0.6))
+  leaf.prior = normal(sd = invchi(3, 0.6)),
+  n.trees = 25L
 )
 invisible(CALL("capi_run", drawnSd$getPointer(), 20L, 1L, FALSE, FALSE))
 drawnBefore <- engineLeafPrior(drawnSd)
@@ -518,7 +521,12 @@ keepWeights <- replace(numeric(n), keepRows, 1)
 keepOffset <- replace(rangeOffset, keepRows, 0.25)
 keepResponse <- replace(3 * y + 10, keepRows, 7)
 keepSampler <- function() {
-  sampler <- dbarts(x, replace(y, keepRows, 1.5), control = namedControl)
+  sampler <- dbarts(
+    x,
+    replace(y, keepRows, 1.5),
+    control = namedControl,
+    n.trees = 25L
+  )
   sampler$setWeights(keepWeights)
   sampler
 }
@@ -576,7 +584,7 @@ expect_identical(
   1L
 )
 # two rows in at two values are enough: 1, and the transform is theirs
-twoRows <- dbarts(x, y, control = namedControl)
+twoRows <- dbarts(x, y, control = namedControl, n.trees = 25L)
 twoRows$setWeights(replace(numeric(n), 4:5, 1))
 expect_identical(CALL("capi_set_response", twoRows$getPointer(), y, TRUE), 1L)
 expect_identical(
@@ -584,7 +592,7 @@ expect_identical(
   rep(max(y[4:5]) - min(y[4:5]), 2L)
 )
 # a constant response with every row in takes its window and answers 1
-constantRows <- dbarts(x, y, control = namedControl)
+constantRows <- dbarts(x, y, control = namedControl, n.trees = 25L)
 expect_identical(
   CALL("capi_set_response", constantRows$getPointer(), rep(3, n), TRUE),
   1L
@@ -596,7 +604,13 @@ expect_identical(
 # a count sampler under a mask keeping rows of one count keeps its center
 # counts written out, not drawn: nothing here moves the session's stream
 keepCounts <- replace(as.double(seq_len(n) %% 5L), keepRows, 2)
-countRows <- dbarts(x, keepCounts, family = "nbinom", control = namedControl)
+countRows <- dbarts(
+  x,
+  keepCounts,
+  family = "nbinom",
+  control = namedControl,
+  n.trees = 25L
+)
 countBefore <- engineLeafPrior(countRows)
 countRows$setActiveRows(keepWeights)
 expect_identical(
@@ -608,7 +622,7 @@ expect_identical(
   countBefore[, "response.shift"]
 )
 # a probit sampler takes nothing from its response, so it has nothing to keep
-probitRows <- dbarts(x, as.double(y > 2), control = namedControl)
+probitRows <- dbarts(x, as.double(y > 2), control = namedControl, n.trees = 25L)
 probitRows$setActiveRows(keepWeights)
 expect_identical(
   CALL("capi_set_offset", probitRows$getPointer(), rangeOffset / 10, TRUE),
@@ -620,7 +634,8 @@ specFixed <- dbarts(
   x,
   y,
   family = gaussian(sigma = fixed(1)),
-  control = control
+  control = control,
+  n.trees = 25L
 )
 ptrFixed <- specFixed$getPointer()
 expect_equal(CALL("capi_set_sigma", ptrFixed, 0.37), 1L)
@@ -658,7 +673,7 @@ expect_true(is.character(printed))
 # useLiveTrees forces the live branch on a sampler that has tree storage on
 # but nothing recorded yet: FALSE still hits the empty-store refusal there,
 # TRUE bypasses it and prints
-specLiveTrees <- dbarts(x, y, test = x.test, control = control)
+specLiveTrees <- dbarts(x, y, test = x.test, control = control, n.trees = 25L)
 ptrLiveTrees <- specLiveTrees$getPointer()
 CALL("capi_set_tree_storage", ptrLiveTrees, TRUE, 2L)
 expect_true(
@@ -675,7 +690,7 @@ invisible(gc(FALSE))
 expect_null(CALL("capi_get_latents", ptr1))
 
 yBinary <- rbinom(n, 1L, pnorm(scale(y)))
-specBinary <- dbarts(x, yBinary, control = control)
+specBinary <- dbarts(x, yBinary, control = control, n.trees = 25L)
 ptrBinary <- specBinary$getPointer()
 invisible(CALL("capi_run", ptrBinary, 3L, 2L, FALSE, FALSE))
 latents <- CALL("capi_get_latents", ptrBinary)
@@ -719,7 +734,13 @@ expect_equal(CALL("capi_set_sigma", ptrBinary, 0.5), 0L)
 # conduit that swaps y here both carry it. The counts are built without drawing,
 # so the stream stays where the seeds above put it
 yCount <- as.double(seq_len(n) %% 7L)
-specCount <- dbarts(x, yCount, family = "nbinom", control = control)
+specCount <- dbarts(
+  x,
+  yCount,
+  family = "nbinom",
+  control = control,
+  n.trees = 25L
+)
 ptrCount <- specCount$getPointer()
 capRefusal <- "counts no larger than 1000000"
 expect_error(
@@ -846,11 +867,10 @@ ySrc <- 2 * match(labelsSrc, levelsSrc) + rnorm(nSrc, 0, 0.2)
 controlSrc <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   updateState = FALSE,
   seed = 17L
 )
-specSrc <- dbarts(frameSrc, ySrc, control = controlSrc)
+specSrc <- dbarts(frameSrc, ySrc, control = controlSrc, n.trees = 20L)
 ptrSrc <- specSrc$getPointer()
 CALL("capi_set_tree_storage", ptrSrc, TRUE, 4L)
 rSrc <- CALL("capi_run", ptrSrc, 20L, 4L, FALSE, FALSE)
@@ -1171,7 +1191,13 @@ expect_false(identical(printSrcLive, printSrcSaved))
 # distribution is selected by the model's resid.df attribute rather than
 # by the family string. The slot is NA-poisoned before the run, so an
 # unfilled channel cannot pass for a filled one
-specT <- dbarts(x, y, family = student(df = 5), control = control)
+specT <- dbarts(
+  x,
+  y,
+  family = student(df = 5),
+  control = control,
+  n.trees = 25L
+)
 ptrT <- specT$getPointer()
 dfT <- CALL("capi_run_residual_df", ptrT, 2L, 3L)
 expect_true(dfT$present)
@@ -1201,8 +1227,8 @@ invisible(gc(FALSE))
 # (The fits alone would not discriminate: gaussian bakes y into its working
 # scale at set time, so the leak shows only where the vector is re-read.)
 # ---------------------------------------------------------------------------
-specCopyA <- dbarts(x, y, control = control)
-specCopyB <- dbarts(x, y, control = control)
+specCopyA <- dbarts(x, y, control = control, n.trees = 25L)
+specCopyB <- dbarts(x, y, control = control, n.trees = 25L)
 yConditioned <- y + 3
 yClobber <- y - 99
 expect_equal(
@@ -1225,7 +1251,7 @@ expect_identical(
 # and the clobbered values are not merely equal to the conditioned ones: a
 # sampler actually set from them scores differently, so the assertion above
 # has somewhere to fail
-specCopyC <- dbarts(x, y, control = control)
+specCopyC <- dbarts(x, y, control = control, n.trees = 25L)
 expect_equal(
   CALL("capi_set_response", specCopyC$getPointer(), yClobber, FALSE),
   1L
@@ -1235,8 +1261,8 @@ expect_false(identical(
   CALL("capi_run_loglik", specCopyB$getPointer(), 5L, 3L)
 ))
 # the offset conduit carries the same contract, and the same channel reads it
-specOffA <- dbarts(x, y, control = control)
-specOffB <- dbarts(x, y, control = control)
+specOffA <- dbarts(x, y, control = control, n.trees = 25L)
+specOffB <- dbarts(x, y, control = control, n.trees = 25L)
 offsetConditioned <- rep(2, n)
 expect_equal(
   CALL(
@@ -1264,7 +1290,7 @@ invisible(gc(FALSE))
 # pointer - which is exactly what a save/load round trip makes it do. A
 # consumer re-reads the handle afterwards and drives the re-created engine.
 # ---------------------------------------------------------------------------
-specRestore <- dbarts(x, y, control = control)
+specRestore <- dbarts(x, y, control = control, n.trees = 25L)
 handleBefore <- specRestore$getPointer()
 invisible(CALL("capi_run", handleBefore, 5L, 2L, FALSE, FALSE))
 specRestore$storeState()
@@ -1285,7 +1311,7 @@ invisible(gc(FALSE))
 # state, and its own methods re-create from a stored state or refuse for want
 # of one. A second destroy is the one call a destroyed handle still takes.
 # ---------------------------------------------------------------------------
-specDestroy <- dbarts(x, y, control = control)
+specDestroy <- dbarts(x, y, control = control, n.trees = 25L)
 invisible(CALL("capi_run", specDestroy$getPointer(), 5L, 2L, FALSE, FALSE))
 specDestroy$storeState()
 handleDestroyed <- specDestroy$getPointer()
@@ -1302,7 +1328,7 @@ expect_true(all(is.finite(
 )))
 
 # and without a stored state the R object refuses rather than re-creating
-specNoState <- dbarts(x, y, control = control)
+specNoState <- dbarts(x, y, control = control, n.trees = 25L)
 CALL("capi_destroy", specNoState$getPointer())
 expect_error(
   specNoState$getPointer(),
@@ -1408,7 +1434,7 @@ if (!is.null(libCorrectExact)) {
 
 # the flat conduits refuse a non-finite value, as creation does, and the
 # sampler runs on unharmed
-specFinite <- dbarts(x, y, control = control)
+specFinite <- dbarts(x, y, control = control, n.trees = 25L)
 ptrFinite <- specFinite$getPointer()
 expect_error(
   CALL("capi_set_response", ptrFinite, replace(y, 1L, Inf), FALSE),
@@ -1435,14 +1461,14 @@ specKernel <- dbarts(
   control = dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 8L,
     n.samples = 3L,
     n.burn = 10L,
     keepTrees = TRUE,
     updateState = FALSE,
     seed = 99L
   ),
-  leaf.prior = gp(columns = 2L)
+  leaf.prior = gp(columns = 2L),
+  n.trees = 8L
 )
 invisible(specKernel$run())
 ptrKernel <- specKernel$getPointer()
@@ -1495,14 +1521,14 @@ for (kind in c("probit", "logistic", "ordinal")) {
     control = dbartsControl(
       n.chains = 1L,
       n.threads = 1L,
-      n.trees = 8L,
       n.samples = 3L,
       n.burn = 10L,
       keepTrees = TRUE,
       updateState = FALSE,
       seed = 99L
     ),
-    leaf.prior = gp(columns = 2L)
+    leaf.prior = gp(columns = 2L),
+    n.trees = 8L
   )
   invisible(specFree$run())
   ptrFree <- specFree$getPointer()
@@ -1522,7 +1548,13 @@ for (kind in c("probit", "logistic", "ordinal")) {
 }
 rm(yBinary, yOrdinal, responseOf, specFree, ptrFree, freeDraws, kind)
 # with nothing saved the same entries take the re-derived range
-specBare <- dbarts(x, y, control = control, leaf.prior = gp(columns = 2L))
+specBare <- dbarts(
+  x,
+  y,
+  control = control,
+  leaf.prior = gp(columns = 2L),
+  n.trees = 25L
+)
 ptrBare <- specBare$getPointer()
 expect_equal(served("capi_set_response", ptrBare, 3 * y + 10, TRUE), 1L)
 expect_equal(served("capi_set_offset", ptrBare, rep(-5, n), TRUE), 1L)
@@ -1531,7 +1563,7 @@ rm(served)
 
 # a store too large to hold raises from the flat setter rather than aborting,
 # and leaves the store at its previous capacity
-specStorage <- dbarts(x, y, control = control)
+specStorage <- dbarts(x, y, control = control, n.trees = 25L)
 ptrStorage <- specStorage$getPointer()
 CALL("capi_set_tree_storage", ptrStorage, TRUE, 3L)
 expect_error(
@@ -1547,7 +1579,7 @@ rm(specStorage, ptrStorage)
 # capacity, so predict and run work as on the live one
 storageControl <- control
 storageControl@keepTrees <- FALSE
-specFlatStore <- dbarts(x, y, control = storageControl)
+specFlatStore <- dbarts(x, y, control = storageControl, n.trees = 25L)
 CALL("capi_set_tree_storage", specFlatStore$getPointer(), TRUE, 4L)
 invisible(specFlatStore$run(3L, 4L))
 specFlatStore$storeState()
@@ -1591,7 +1623,6 @@ widthControl <- function(keepTrees = TRUE) {
   dbartsControl(
     n.chains = 2L,
     n.threads = 1L,
-    n.trees = 8L,
     n.samples = 4L,
     keepTrees = keepTrees,
     updateState = FALSE,
@@ -1599,13 +1630,14 @@ widthControl <- function(keepTrees = TRUE) {
   )
 }
 gaussianW <- function(keepTrees = TRUE) {
-  dbarts(xW, yW, test = xTestW, control = widthControl(keepTrees))
+  dbarts(xW, yW, test = xTestW, control = widthControl(keepTrees), n.trees = 8L)
 }
 multinomialW <- function(keepTrees = TRUE) {
   dbarts(
     dbartsData(xW, counts = countsW, test = xTestW),
     family = "multinomial",
-    control = widthControl(keepTrees)
+    control = widthControl(keepTrees),
+    n.trees = 8L
   )
 }
 bcfW <- function() {
@@ -1613,7 +1645,8 @@ bcfW <- function() {
     xW,
     yW,
     forests = list(forest(), forest(basis = ~ factor(zW))),
-    control = widthControl()
+    control = widthControl(),
+    n.trees = 8L
   )
 }
 threeW <- function() {
@@ -1625,7 +1658,8 @@ threeW <- function() {
       forest(basis = ~ factor(zW)),
       forest(basis = ~wW)
     ),
-    control = widthControl()
+    control = widthControl(),
+    n.trees = 8L
   )
 }
 
@@ -1635,7 +1669,8 @@ probitW <- dbarts(
   xW,
   as.numeric(yW > 1),
   family = "probit",
-  control = widthControl()
+  control = widthControl(),
+  n.trees = 8L
 )
 for (case in list(
   list(sampler = multinomialW(), F = KW),

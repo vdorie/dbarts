@@ -410,15 +410,12 @@ runEngine <- function(x, y, nCutsVec) {
   ctl <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 1L,
-    useQuantiles = TRUE,
     keepTrees = TRUE,
     n.samples = batchSize,
     n.burn = nBurn,
     n.thin = nThin,
     updateState = TRUE,
-    seed = engineSeed,
-    n.cuts = nCutsVec
+    seed = engineSeed
   )
   s <- dbarts(
     x,
@@ -427,7 +424,10 @@ runEngine <- function(x, y, nCutsVec) {
     power = power,
     base = base,
     leaf.prior = normal(kLeaf),
-    family = gaussian(sigma = fixed(1))
+    family = gaussian(sigma = fixed(1)),
+    n.trees = 1L,
+    useQuantiles = TRUE,
+    n.cuts = nCutsVec
   )
   stopifnot(is.null(s$data@offset))
   nBatch <- as.integer(ceiling(nKept / batchSize))

@@ -181,7 +181,6 @@ y <- x + rnorm(n)
 makeSamplerTrees <- function(keepTrees) {
   ctrl <- dbarts::dbartsControl(
     n.chains = 1L,
-    n.trees = 10L,
     n.samples = 5L,
     n.burn = 0L,
     updateState = TRUE,
@@ -189,7 +188,12 @@ makeSamplerTrees <- function(keepTrees) {
     verbose = FALSE,
     seed = 9L
   )
-  sampler <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
+  sampler <- dbarts::dbarts(
+    y ~ x,
+    data.frame(x = x, y = y),
+    control = ctrl,
+    n.trees = 10L
+  )
   invisible(sampler$run(30L, 5L))
   sampler
 }
@@ -248,7 +252,6 @@ x <- rnorm(n)
 y <- x + rnorm(n)
 ctrl <- dbarts::dbartsControl(
   n.chains = 1L,
-  n.trees = 10L,
   n.samples = 5L,
   n.burn = 0L,
   updateState = TRUE,
@@ -256,11 +259,21 @@ ctrl <- dbarts::dbartsControl(
   verbose = FALSE,
   seed = 3L
 )
-keptSampler <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
+keptSampler <- dbarts::dbarts(
+  y ~ x,
+  data.frame(x = x, y = y),
+  control = ctrl,
+  n.trees = 10L
+)
 invisible(keptSampler$run(30L, 5L))
 
 ctrl@keepTrees <- FALSE
-liveSampler <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
+liveSampler <- dbarts::dbarts(
+  y ~ x,
+  data.frame(x = x, y = y),
+  control = ctrl,
+  n.trees = 10L
+)
 invisible(liveSampler$run(30L, 5L))
 
 trainX <- keptSampler$data@x
@@ -380,14 +393,14 @@ forestSampler <- dbarts::dbarts(
   data.frame(x = x, y = y),
   control = dbarts::dbartsControl(
     n.chains = 1L,
-    n.trees = 5L,
     n.samples = 3L,
     n.burn = 0L,
     updateState = TRUE,
     keepTrees = TRUE,
     verbose = FALSE,
     seed = 5L
-  )
+  ),
+  n.trees = 5L
 )
 invisible(forestSampler$run(10L, 3L))
 
@@ -494,7 +507,6 @@ yMore <- xMore[, 1L] + zMore * xMore[, 2L] + rnorm(n, 0, 0.2)
 moreControl <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 8L,
   n.samples = 3L,
   n.burn = 2L,
   keepTrees = TRUE,
@@ -505,7 +517,8 @@ moreSampler <- dbarts::dbarts(
   xMore,
   yMore,
   forests = list(forest(), forest(basis = ~ factor(zMore), n.trees = 30L)),
-  control = moreControl
+  control = moreControl,
+  n.trees = 8L
 )
 invisible(moreSampler$run(2L, 3L))
 moreTrees <- moreSampler$getTrees()
@@ -620,7 +633,6 @@ for (nChains in 1:2) {
 
 treeControl <- dbarts::dbartsControl(
   n.chains = 1L,
-  n.trees = 3L,
   n.samples = 3L,
   n.burn = 1L,
   n.threads = 1L,
@@ -637,7 +649,8 @@ declared <- dbarts::dbarts(
   y ~ x1,
   treeDf,
   forests = list(forest()),
-  control = treeControl
+  control = treeControl,
+  n.trees = 3L
 )
 invisible(declared$run())
 # the column follows the kind of model and not how the call was written
@@ -647,7 +660,8 @@ twoForests <- dbarts::dbarts(
   y ~ x1,
   treeDf,
   forests = list(forest(), forest(basis = ~z)),
-  control = treeControl
+  control = treeControl,
+  n.trees = 3L
 )
 invisible(twoForests$run())
 expect_equal(colnames(twoForests$getTrees()), c("forest", treeCols))
@@ -658,7 +672,8 @@ expect_error(twoForests$plotTree(1L, chainNum = 1L), "forest required")
 specDeclared <- dbarts::dbartsSpec(
   dbarts::dbartsData(y ~ x1, treeDf),
   treeControl,
-  forests = list(forest())
+  forests = list(forest()),
+  n.trees = 3L
 )
 specSampler <- new(
   "dbartsSampler",
@@ -687,7 +702,7 @@ plainFromDeclared <- dbarts::dbarts(
 invisible(plainFromDeclared$run())
 expect_equal(colnames(plainFromDeclared$getTrees()), treeCols)
 
-plain <- dbarts::dbarts(y ~ x1, treeDf, control = treeControl)
+plain <- dbarts::dbarts(y ~ x1, treeDf, control = treeControl, n.trees = 3L)
 plain$setControl(declared$control)
 invisible(plain$run())
 expect_equal(colnames(plain$getTrees()), treeCols)
@@ -696,7 +711,8 @@ varianceDonor <- dbarts::dbarts(
   y ~ x1,
   treeDf,
   variance = varianceForest(n.trees = 5L),
-  control = treeControl
+  control = treeControl,
+  n.trees = 3L
 )
 expect_false(is.null(varianceDonor$model@variance))
 noVariance <- dbarts::dbarts(y ~ x1, treeDf, control = varianceDonor$control)

@@ -119,13 +119,13 @@ runCell <- function(dir, cell) {
     data$y,
     control = dbartsControl(
       verbose = FALSE,
-      n.trees = nTrees,
       n.chains = 1L,
       n.threads = 1L,
       n.samples = nSamples,
       updateState = FALSE,
       seed = surfacesSamplerSeed(replicate)
-    )
+    ),
+    n.trees = nTrees
   )
   if (!is.null(arm)) {
     call$proposal.probs <- arm

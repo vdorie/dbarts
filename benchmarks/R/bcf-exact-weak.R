@@ -271,8 +271,6 @@ samplerFit <- function(seed) {
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 1L,
-    n.cuts = K - 1L,
     updateState = FALSE
   )
   bc <- dbarts(
@@ -293,7 +291,9 @@ samplerFit <- function(seed) {
         sd = sdModerate * sdY,
         amplitude = fixed()
       )
-    )
+    ),
+    n.trees = 1L,
+    n.cuts = K - 1L
   )
   bc$run(nburn, 1L)
   muM <- matrix(0, ndpost, K)
