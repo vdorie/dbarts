@@ -193,8 +193,8 @@ Each block starts at what it starts at on slice F, times its start scale, once, 
 | held, any | its kind's value | the same |
 | a mixture's v | kappa, or 1 on kind none | kappa / c^2, or 1 / m^2 |
 
-On kind none both reads of m stay finite and positive: at an `sd` so extreme that 1 / m or 1 / m^2 leaves a double's normal range the start
-takes the range's end, and the chain runs from there, as the base runs. Nothing else reads it. [Calls made](#calls-made) 17.
+On kind none both reads of m are held: the start scale to 1e-100 through 1e100 and v's start to the squares of those, and the chain runs from there, as the base runs. Nothing else
+reads them. A finite v alone does not do: a sweep squares the coefficient, so a start past about 1e154 overflows there. Up to `sd` 1e100 and down to 1e-100 the chain is still the base's to rounding. [Calls made](#calls-made) 17.
 
 Why this keeps the chain: with g = c on a basis forest and g = m with none, (a, F) on the base is (a / g, g F) here, the same state in
 other units, so the first conditional is the same draw and so is each one after it, v scaling by 1 / g^2. Run on the port against
@@ -268,7 +268,7 @@ column.
    basis means what no df means (3 lines of comment).
 2. [`forestMapEntry`](../../src/bartcore/combiner.hpp), as the table above: `normalStated` kept apart from a finite df's `dfStated`,
    with the hold still on `isnan(df)`, so no local excludes the normal; one node factor; the two constants; `startScale`.
-3. `ForestMapEntry::startScale`, and v's start, each kept in a double's normal range (Calls made 17); `startScales` on [`AmplitudeForestCombiner`](../../src/bartcore/combiner.hpp)'s constructor; the
+3. `ForestMapEntry::startScale`, and v's start, each held to 1e100 and its square (Calls made 17); `startScales` on [`AmplitudeForestCombiner`](../../src/bartcore/combiner.hpp)'s constructor; the
    K-forest [`Chain`](../../src/bartcore/chain.hpp) constructor's vector.
 4. What goes, above. No facade virtual, so [`DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h) does not move; `--preclean`
    regardless.
@@ -797,7 +797,7 @@ bridge, and the R edits here apply to its R but for F's own sharer refusal (the 
 15. A new slot from a width change stays 1, the multiplier's median, against the earlier form's scaled slot. No R path widens a forest today.
 16. No `larger-sampler` pin: a short run has no power, at an effective sample size of 34 to 41 per 5,000. The full run stays a scratch script (scratch/fan-sw/outer2.R, sd's quartiles 0.869, 1.045, 1.286 against 0.875, 1.059, 1.318), not a gate. Alternative: a benchmarks/R gate, ~80 lines.
 17. At an extreme `sd` a drawn forest with no basis keeps its start finite in the engine and is not refused. The base runs at `sd` 1e-160 and 1e300 on a drawn `student()` forest with no basis; with the start as written, 1 / m^2 overflows v's start or underflows it, and `train` and `sigma` are NaN with no message. A start is
-    not a model, and a refusal would be a new restriction on a value the prior takes. Pinned at both values (`extreme sd`, `extreme-sd`). Alternative: refuse past some multiple, a limit with no reason in the model.
+    not a model, and a refusal would be a new restriction on a value the prior takes. The bound is 1e100 on the start scale and 1e200 on v's start: a finite v alone still gave NaN, since a sweep squares the coefficient, which overflows past about 1e154. At `sd` 1e-100 and 1e100 the fit reads the base's (rmse .289 and .284, .278 and .28, gaussian); past them the chain runs and the forest may be off for a while (.39, .324), with no NaN at `sd` 1e-320 to 1e300, gaussian and probit, df 1 and 3. Pinned at both values (`extreme sd`, `extreme-sd`). Alternative: refuse past some multiple, a limit with no reason in the model.
 
 ## Open calls
 
