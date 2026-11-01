@@ -428,6 +428,23 @@ expect_identical(
   c(NaN, NaN)
 )
 
+# and on the record creation reads: Inf on the forest stating it, NA beside it,
+# absent where none is stated, as on a basis forest whose normal() is its default
+recordOf <- function(forests) {
+  attr(make(forests)$control, "bartcore.forests", exact = TRUE)[[
+    "amplitude.df"
+  ]]
+}
+expect_identical(
+  recordOf(list(forest(sd = 1, amplitude = normalPrior()), forest(basis = zf))),
+  c(Inf, NA_real_)
+)
+expect_null(recordOf(list(forest(), forest(basis = zf))))
+expect_null(recordOf(list(
+  forest(),
+  forest(basis = zf, amplitude = normalPrior())
+)))
+
 # --- a basis forest's normal() is its default: same record, same draws ---
 for (basis in list(zf, dose)) {
   written <- make(list(
@@ -628,6 +645,27 @@ expect_error(
   fixed = TRUE
 )
 
+# the multinomial entry, whose category forests are lone ones
+expect_identical(
+  refusal(dbarts(
+    x,
+    factor(rep(c("a", "b", "c"), length.out = n)),
+    family = "multinomial",
+    forests = list(forest(amplitude = normalPrior())),
+    control = ctl()
+  )),
+  lone
+)
+# a variance forest refuses the whole model, in its own words
+expect_identical(
+  refusal(dbarts(
+    y ~ forest(x1, sd = 1, amplitude = normal()) + forest(x2, basis = zf),
+    d,
+    variance = ~x1,
+    control = ctl()
+  )),
+  "a model of several forests does not support 'variance'; drop it or fit a single-forest model"
+)
 # --- a caller's own normal: forest()'s vocabulary is the package's, a function
 # of that name is not reached inside it, and a variable or column stays theirs ---
 local({
