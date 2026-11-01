@@ -571,7 +571,7 @@
             \code{blocks()} splits a forest's trees, so the model is one
             forest with its trees in blocks; one with no basis beside
             others takes that leaf prior whole, held at 1, as \code{bart}'s
-            one forest does; and a forest stating its
+            one forest does; and one with no basis stating its
             \code{sd} has its own size, drawn only under
             \code{amplitude = student()}. A basis is one numeric column, with
             one coefficient, or a factor, a character vector or a logical

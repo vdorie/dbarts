@@ -50,9 +50,10 @@ printedColumn <- function(column, rowsIn) {
 
 ## One forest's line, after its label. `entry` is the reader's entry for it,
 ## `basis` the forest's stored basis (NULL, a factor or a column), `rowsIn`
-## the rows in the likelihood, `full` whether the line is the full block's and
-## `label` the forest's, which names the column in a short line.
-printedForest <- function(entry, basis, rowsIn, full, label) {
+## the rows in the likelihood, `full` whether the line is the full block's,
+## `label` the forest's, which names the column in a short line, and `family`
+## the response's.
+printedForest <- function(entry, basis, rowsIn, full, label, family) {
   how <- if (isTRUE(entry$sd.stated)) "stated" else "default"
   size <- printedNumber(entry$sd)
   if (identical(entry$prior.sd.of, "forest, shared")) {
@@ -79,7 +80,14 @@ printedForest <- function(entry, basis, rowsIn, full, label) {
       if (full) {
         paste0(
           " (",
-          if (identical(entry$leaf.prior@k, 2)) "default" else "leaf prior",
+          # a held k of 2 is the default only where the family does not draw k
+          if (
+            identical(entry$leaf.prior@k, 2) && !drawsLeafKByDefault(family)
+          ) {
+            "default"
+          } else {
+            "leaf prior"
+          },
           ")"
         )
       }
@@ -98,7 +106,14 @@ printedForest <- function(entry, basis, rowsIn, full, label) {
   }
   switch(
     entry$multiplier,
-    none = paste0("no basis; sd ", size, source(), held),
+    # with no sd stated, a drawn forest with no basis has its median from the
+    # leaf prior, whichever that is
+    none = paste0(
+      "no basis; sd ",
+      size,
+      if (full && how == "default") " (leaf prior)" else source(),
+      held
+    ),
     factor = paste0(
       "factor basis, ",
       nlevels(basis),
@@ -220,7 +235,8 @@ forestPriorLines <- function(
           bases[[index]],
           rows,
           full,
-          labels[index]
+          labels[index],
+          family
         )
       )
     },
