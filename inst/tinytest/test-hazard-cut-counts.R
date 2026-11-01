@@ -54,30 +54,32 @@ doors <- list(
 
 for (door in names(doors)) {
   read <- function(v) doors[[door]](v)$data@n.cuts
-  expect_identical(read(c(5L, 7L, 9L)), c(5L, 7L, 9L, 100L), info = door)
-  expect_identical(read(5L), c(5L, 5L, 5L, 100L), info = door)
+  # a refusal of a count that should be taken fails the expectation
+  got <- function(v) tryCatch(read(v), error = conditionMessage)
+  expect_identical(got(c(5L, 7L, 9L)), c(5L, 7L, 9L, 100L), info = door)
+  expect_identical(got(5L), c(5L, 5L, 5L, 100L), info = door)
   expect_identical(
-    read(c(x1 = 5L, x2 = 7L, x3 = 9L)),
+    got(c(x1 = 5L, x2 = 7L, x3 = 9L)),
     c(5L, 7L, 9L, 100L),
     info = door
   )
   expect_identical(
-    read(c(x1 = 5L, .default = 9L)),
+    got(c(x1 = 5L, .default = 9L)),
     c(5L, 9L, 9L, 100L),
     info = door
   )
   expect_identical(
-    read(c(period = 5L, .default = 5L)),
+    got(c(period = 5L, .default = 5L)),
     c(5L, 5L, 5L, 5L),
     info = door
   )
   expect_identical(
-    read(c(x1 = 5L, x2 = 7L, x3 = 9L, period = 11L)),
+    got(c(x1 = 5L, x2 = 7L, x3 = 9L, period = 11L)),
     c(5L, 7L, 9L, 11L),
     info = door
   )
   # four unnamed values stay by position
-  expect_identical(read(c(5L, 7L, 9L, 11L)), c(5L, 7L, 9L, 11L), info = door)
+  expect_identical(got(c(5L, 7L, 9L, 11L)), c(5L, 7L, 9L, 11L), info = door)
   if (door != "bart") {
     expect_identical(
       doors[[door]](NULL)$data@n.cuts,
