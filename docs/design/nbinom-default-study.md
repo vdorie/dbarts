@@ -2,28 +2,34 @@
 
 Status: FINDING, 2026-10-31 (dec-B432, dec-B502). The redesigned study of the default prior of
 `family = "nbinom"`, run as pre-registered in [nbinom-default-study.md](../plans/nbinom-default-study.md). Its
-first look decided: the rule keeps the default, k drawn under chi(1.5, 2). Awaiting the opus review against the
-pre-registration, then the maintainer's ruling; nothing is built until then.
+first look decided: the rule keeps the default, k drawn under chi(1.5, 2). An opus review read this against the
+pre-registration and found the outcome and the numbers sound; its corrections are in this version. It awaits the
+maintainer's ruling, and nothing is built until then.
 
 ## Summary
 
-The rule recommends keeping the default. The default fails Part A: 4.0 to 8.4 percent of its prior datasets
-span a spread of the log mean above 4, against 1 percent allowed. Five candidates pass Part A, and all five fail
-Part B at the first look. So what passing A would cost in fits is measured, and it is more than the rule
-allows: each candidate loses coverage or interval score somewhere the rule forbids.
+The rule recommends keeping the default, and it keeps a default that fails the prior check the maintainer ruled.
+The default fails Part A: 4.0 to 8.4 percent of its prior datasets span a spread of the log mean above 4, against
+1 percent allowed. Five candidates pass Part A, and all five fail Part B at the first look.
 
 - **chi(4, 1.03)** and **chi(5, 0.9)** widen intervals on narrow and null data past the 10 percent guard (null
-  data 21 and 26 percent), and lose coverage of group means on epil's small samples.
+  data 21 and 26 percent). This is a loss on narrow data, not on wide data.
 - **C4 at 0.6** and **C4 at 0.75**, the default with k kept above a floor, leave narrow data exactly as they
-  are, and make the interval score of group means 25 and 39 percent worse.
+  are. They fail on the interval score of group means, an average of 1.25 and 1.39 times the default's against a
+  bar of 1.05. That average comes from 4 of 68 cells, epil's three widened cells and mite-w3, at 2.0 to 5.4 times
+  the default's; the median cell's ratio is 1.000 and no other cell is above 1.05.
 - **C5 at 1.3**, the half-normal, under-covers one narrow cell (0.60 against the default's 0.78) and loses
-  coverage of group means on epil's widened cells.
+  coverage of group means on two of epil's cells.
 
-The losses center on cells whose truth is wider than the prior now allows. On epil widened to a spread of 3, a
-spread over all rows of 4.43, past Part A's line of 4, the default's 90 percent intervals for group means
-already cover only 0.73 to 0.78. The candidates' narrower intervals cover 0.35 to 0.75. On average they gain
-elsewhere: F's and R's interval scores fall 22 to 39 percent, most of it on a few wide small-sample cells. The
-rule does not trade a loss on one class or cell against a gain on another.
+The coverage of group means lost on epil's cells is almost all on groups whose true mean count is near zero. Of the
+42 group readings C4 at 0.6 loses there, 35 have a true mean below 0.01, with a median of 0.0003, and on 40 the truth
+lies below the interval. A floor on k stops the fit reaching that far down. The plan sets such rows apart in F and
+P, because how far the prior lets the log mean fall decides their coverage, but not in G. With them set apart in G
+as well, a line drawn only after seeing the scores, C4 at 0.6 would no longer fail. That does not change the outcome
+here; [Sensitivity](#sensitivity) reports it as found in review and does not offer it as an option.
+
+What a change would buy is mostly the prior check. Candidates do improve intervals, but about 70 percent of the fall
+in F's interval score comes from one cell, D4-3, where the default covers only 0.54.
 
 The first look used 94.5 of the 110 core-hours allowed in the sizing table's units. No guard run and no
 confirmation block is called for.
@@ -83,7 +89,9 @@ Look 1 read 540 replications, 485 on truths and 55 folds. Its information fracti
 3.46: a group-sequential statistic passes at z of at least 3.46 and fails at z of at most -3.46. Step 2 fails if
 any part fails. A look decides when the recommendation is the same under every way its pending results could
 resolve. All five fail, so only one outcome is left: the default. Step 3 has no pair to read, and step 5 finds no
-candidate to check, so no guard runs. The reading is final at this look.
+candidate to check, so no guard runs and no block is funded. This look decides because no pending result can change
+the outcome. It is not what the plan calls a final look, where pending results are read as failures and the
+information fraction is set to 1.
 
 Each candidate's gap less the default's (standard error) and status. The gap is the distance from the expected
 coverage on either side, corrected for noise. The bar is 0.02.
@@ -149,6 +157,20 @@ Cells worse by the bar, each candidate's gap less the default's on that cell:
 
 No shape-below-1 cell is worse by the bar for any candidate.
 
+The flags on epil's three cells are a loss at the bottom of the range. Group readings on those cells that the default
+covers and the candidate misses, of 150 in all:
+
+| candidate | lost | true mean below 0.01 | truth below the interval | median true mean | median lower end, count scale |
+|---|---|---|---|---|---|
+| chi(4, 1.03) | 19 | 17 | 18 | 0.00019 | 0.0007 |
+| chi(5, 0.9) | 25 | 20 | 22 | 0.00020 | 0.0013 |
+| C4 at 0.6 | 42 | 35 | 40 | 0.00033 | 0.0032 |
+| C4 at 0.75 | 49 | 36 | 47 | 0.00038 | 0.0089 |
+| C5 at 1.3 | 35 | 31 | 33 | 0.00031 | 0.0015 |
+
+On those cells groups at or above 0.01 are covered 0.82 by the default, and 0.73 to 0.82 by the candidates (C4 at
+0.6, 0.80). Groups below 0.01 are covered 0.66 by the default, and 0 to 0.35 by the candidates (C4 at 0.6, 0.02).
+
 How the five fail, and how firmly:
 
 | candidate | inside the spending | outside it, fixed-level t tests |
@@ -205,6 +227,39 @@ P:
 | middle | 0.888 | 0.888 | 0.888 | 0.888 | 0.888 | 0.888 | 0.900 |
 | wide | 0.897 | 0.897 | 0.896 | 0.898 | 0.899 | 0.897 | 0.900 |
 | small | 0.900 | 0.892 | 0.892 | 0.897 | 0.895 | 0.897 | 0.900 |
+
+The 50, 80 and 95 percent coverages, read beside and not by the rule; each entry gives the three in that order.
+P is read at 90 percent only.
+
+F:
+
+| band | C0 | chi(4, 1.03) | chi(5, 0.9) | C4 at 0.6 | C4 at 0.75 | C5 at 1.3 |
+|---|---|---|---|---|---|---|
+| narrow | 0.58 / 0.88 / 0.97 | 0.61 / 0.89 / 0.98 | 0.61 / 0.89 / 0.98 | 0.58 / 0.88 / 0.97 | 0.58 / 0.88 / 0.97 | 0.54 / 0.83 / 0.95 |
+| middle | 0.55 / 0.84 / 0.96 | 0.55 / 0.84 / 0.96 | 0.55 / 0.84 / 0.96 | 0.55 / 0.84 / 0.96 | 0.55 / 0.84 / 0.96 | 0.55 / 0.85 / 0.96 |
+| wide | 0.55 / 0.84 / 0.97 | 0.55 / 0.84 / 0.97 | 0.55 / 0.84 / 0.97 | 0.55 / 0.85 / 0.97 | 0.56 / 0.85 / 0.97 | 0.55 / 0.85 / 0.97 |
+| small | 0.51 / 0.78 / 0.94 | 0.52 / 0.80 / 0.94 | 0.52 / 0.80 / 0.94 | 0.52 / 0.81 / 0.96 | 0.51 / 0.80 / 0.95 | 0.52 / 0.80 / 0.95 |
+
+G:
+
+| band | C0 | chi(4, 1.03) | chi(5, 0.9) | C4 at 0.6 | C4 at 0.75 | C5 at 1.3 |
+|---|---|---|---|---|---|---|
+| narrow | 0.55 / 0.85 / 0.96 | 0.59 / 0.87 / 0.95 | 0.56 / 0.87 / 0.96 | 0.55 / 0.85 / 0.96 | 0.55 / 0.85 / 0.96 | 0.53 / 0.81 / 0.94 |
+| middle | 0.45 / 0.73 / 0.91 | 0.44 / 0.73 / 0.91 | 0.45 / 0.73 / 0.91 | 0.45 / 0.73 / 0.91 | 0.44 / 0.73 / 0.91 | 0.44 / 0.72 / 0.91 |
+| wide | 0.46 / 0.76 / 0.94 | 0.47 / 0.76 / 0.94 | 0.47 / 0.75 / 0.94 | 0.47 / 0.75 / 0.92 | 0.46 / 0.75 / 0.92 | 0.46 / 0.75 / 0.93 |
+| small | 0.44 / 0.73 / 0.91 | 0.42 / 0.72 / 0.88 | 0.42 / 0.71 / 0.88 | 0.40 / 0.69 / 0.87 | 0.38 / 0.67 / 0.86 | 0.41 / 0.71 / 0.88 |
+
+R:
+
+| band | C0 | chi(4, 1.03) | chi(5, 0.9) | C4 at 0.6 | C4 at 0.75 | C5 at 1.3 |
+|---|---|---|---|---|---|---|
+| narrow | 0.48 / 0.74 / 0.94 | 0.54 / 0.77 / 0.97 | 0.54 / 0.78 / 0.97 | 0.48 / 0.74 / 0.94 | 0.48 / 0.74 / 0.94 | 0.52 / 0.71 / 0.91 |
+| middle | 0.43 / 0.70 / 0.92 | 0.43 / 0.71 / 0.92 | 0.41 / 0.71 / 0.92 | 0.42 / 0.70 / 0.92 | 0.42 / 0.70 / 0.92 | 0.42 / 0.70 / 0.92 |
+| wide | 0.60 / 0.90 / 0.99 | 0.61 / 0.90 / 0.99 | 0.60 / 0.90 / 0.99 | 0.59 / 0.89 / 0.99 | 0.58 / 0.87 / 0.98 | 0.59 / 0.89 / 0.99 |
+| small | 0.57 / 0.91 / 0.99 | 0.57 / 0.88 / 0.99 | 0.56 / 0.88 / 0.99 | 0.52 / 0.84 / 0.98 | 0.51 / 0.80 / 0.98 | 0.54 / 0.84 / 0.98 |
+
+The shape r is reported and not read. The median of the default's runs' median r, by group: narrow 17.5, middle 3,
+wide 1, small 8, the shape-below-1 cells 1 (the grid's floor), the folds 12.
 
 ## Rows whose true mean is below 0.01
 
@@ -263,20 +318,33 @@ At default length k has not mixed, and the intervals on wide small-sample data a
 reading's (F 3.07 against 5.65). Coverage on F and P holds; on G and R it falls by 0.02 to 0.03 in the wide and
 small bands, and on the rows below 0.01 it falls from 0.85 to 0.73 on wide data and from 0.89 to 0.73 on small.
 
-## What keeping the default costs
+If the collapsed move later lands for negative binomial, the default reading changes and the long reading does not.
 
-The default keeps a prior whose top tail spends its mass where no count data have been seen: 4.0 to 8.4 percent
-of prior datasets past a spread of 4, by design, against the 1 percent of Part A. A change of default was expected
-to buy a coherent prior predictive, not better intervals; that part stays unbought.
+## What keeping the default costs, and what a change would cost
 
-It also keeps very wide intervals on a few wide small-sample cells. The interval score of F on D4-3 (n = 60,
-spread 3) is 64.3 under the default against 9.0 under C4 at 0.6, and 10.5 against 4.5 on epil-n100-3. These few
-cells produce most of the fall in F's and R's interval score ratios: over the small band F's score is 7.18 under
-the default and 3.22 to 4.57 under the candidates, and over the wide band 1.90 against 1.64 to 1.85. RMSE of the
-log mean moves with it (wide band 0.494 against 0.398 to 0.476).
+**Keeping it.** The default keeps a prior whose top tail spends its mass where no count data have been seen: 4.0 to
+8.4 percent of prior datasets past a spread of 4, against the 1 percent of Part A. A change of default was expected
+to buy a coherent prior predictive, not better intervals, and that stays unbought.
 
-What the default does not keep is good coverage of group means where the truth is widest: 0.73 to 0.78 on epil's
-widened cells, and 0.84 over the small band against an expected 0.90. Every candidate is worse there, not better.
+It also keeps some poor intervals on the widest small samples. On D4-3 (n = 60, spread 3) F covers 0.54 with a gap of
+0.356, and a mean width of 46 on the log scale; the candidates cover 0.63 to 0.77, their gaps smaller by 0.088 to
+0.227. F's interval score there is 64.3 under the default against 6.7 to 24.0. That one cell is 68 to 76 percent of
+the fall in F's interval score: 0.69 of 0.97 for C4 at 0.6. Over the small band F's score is 7.18 under the default
+and 3.22 to 4.57 under the candidates, and over the wide band 1.90 against 1.64 to 1.85. RMSE of the log mean moves
+with it (wide band 0.494 against 0.398 to 0.476).
+
+The default also keeps weak coverage of group means on epil's widened cells: 0.73 to 0.78 on the long reading against
+an expected 0.90, and 0.48 to 0.63 at default length, which is what users get. The candidates' long readings on those
+cells cover 0.35 to 0.75, so at default length the default sits about where they do on the long reading. Their default
+readings were not run, so the two cannot be compared like with like.
+
+**Changing it.** Every candidate gives something up:
+
+- the chi priors, wider intervals on narrow data, where the default does well (interval score 1.21 and 1.26 times the
+  default's on null data);
+- every candidate, coverage on rows and groups whose true mean is near zero. On rows below 0.01 F's coverage falls
+  from 0.89 to between 0.57 and 0.82 on small data, and from 0.85 to between 0.72 and 0.83 on wide;
+- C5, coverage on Traffic-bart (0.60 against 0.78); C4 at 0.75, coverage on D4-3's rate ratios (0.59 against 1.00).
 
 ## The long reading's check, run lengths and what stayed unsettled
 
@@ -303,25 +371,62 @@ averages; one wide cell of 26 does not reach the third of a band that would stop
 kept them in the band averages; see [Disclosures](#disclosures). Taken out, every candidate's verdict and the
 outcome are unchanged.
 
-**Mixing, for the collapsed move's plan.** Sweeps per effective draw of k on the scratch build, pooled over 4
-chains, at each run's stop: median 28 on narrow, 89 on middle, 239 on wide, 157 on small, and 146 on the folds
-with a 90th percentile of 1,519. Probes of today's sampler measured 440 to 620 on narrow data and 1,140 to 8,000
-where the spread is 1 or more. The rule stops on effective draws and not on R-hat: k's split R-hat at the stop has
-median 1.035, 90th percentile 1.09 and largest 1.55, and the mean count's largest is 1.09. On as-fitted real data
-the median is 18 to 159, mite the largest. Trees on mite's real outcomes and BART-fitted truth mix slowly enough
-that the rows, not k, set the length.
+**Mixing, for the collapsed move's plan.** Total sweeps per effective draw of k, at each run's stop. The same datasets
+under today's sampler and under the scratch build, on the real outcomes. Today's figures and the first column for
+the move are the probes' long runs; the study's are the median of 5 folds, each four fifths of the rows; mite's are at
+the cap.
+
+| real outcome | today's sampler, probes | the move, probes | the move, this study's folds | today over this study |
+|---|---|---|---|---|
+| Traffic | 620 | 37 | 24 | 26 times |
+| roaches | 1,200 | 236 | 146 | 8 times |
+| solder | 3,720 | 1,430 | 1,403 | 2.7 times |
+| mite | 8,000 | 1,600 | 2,010 | 4 times |
+
+The move costs 17 to 24 percent more a sweep, so the gain in effective draws a second is about a fifth less than
+these ratios. Over all 11 datasets' folds the median is 18 (Insurance) to 2,010 (mite). The gain on k does not reach
+the rows on the slowest datasets: the probes' slowest estimand went from 1,910 to 2,390 on solder and from 6,110 to
+4,020 on mite, and on mite's folds the rows, not k, set the length, at 60 effective draws where k has 199.
+
+Counts simulated from truths mix faster than real outcomes do, and do not compare with the table: the median is 28 on
+narrow, 89 on middle, 239 on wide and 157 on small. The rule stops on effective draws and not on R-hat: k's split R-hat
+at the stop has median 1.035, 90th percentile 1.09 and largest 1.55, and the mean count's largest is 1.09.
 
 ## The shape's prior
 
-C6 is a separate decision and is read where its per-draw weights hold: 133 of 540 replications, 121 of them on
-truths, in 31 cells, one narrow replication and 7 small among them. There its gap differences are -0.001 to 0, and
-its interval score ratios 0.98 to 1.00. Elsewhere it is unscored. Its verdict is unfinished for that reason and says
-nothing in favor of a change; it would take its own runs to read.
+C6 is a separate decision. The look scored it on only 133 of 540 replications, and the reason is a harness defect,
+not the weights. The weights take at most 13 values, one for each point on the shape's grid, and the Pareto tail fit
+usually returns no value on so few distinct values. The job counted that as a failure. So k-hat is missing on 359 of 540
+replications and above 0.7 on 15 more, while the weights keep at least 47 percent of the draws on all 540 (median 89
+percent). The decision is not touched, since C6 is not among the five fitted candidates.
+
+Read on every replication from the 500 draws each run stores, with the harness's own reading and statistics and no
+fit:
+
+| statistic | C6 less the default, or C6 over the default | status at 3.46 |
+|---|---|---|
+| F | -0.0022 (0.0008) | pass |
+| G | -0.0027 (0.0026) | pass |
+| R | +0.0019 (0.0011) | pass |
+| P | -0.0006 (0.0009) | pass |
+| widest F | -0.0034 (0.0024) | pass |
+| widest G | +0.0172 (0.0116) | pending |
+| widest R | +0.0004 (0.0001) | pass |
+| widest P | +0.0001 (0.0007) | pass |
+| interval score F | 0.999 (0.007) | pass |
+| interval score G | 0.995 (0.005) | pass |
+| interval score R | 0.999 (0.004) | pass |
+
+No cell and no shape-below-1 cell is worse by the bar, the width guard passes on all 8 narrow cells (0.97 to 1.00),
+and the log score is 0.0017 nats a row better than the default's. Thinning costs little: a replication's coverage from
+500 draws differs from its full reading by 0.008 on average, for both the default and C6. C6 leaves the spread's prior
+as it is, so it does nothing for Part A. On this reading it neither loses nor gains much, and there is no case here
+for changing the shape's prior.
 
 ## Cost
 
 Look 1 in box core-hours, against the pre-registered sizing at the calibrated speed. In the sizing table's units,
-in which the stop is set, it comes to 94.5 of 110.
+in which the stop is set, it comes to 94.5 of 110. By component, in the harness's seconds, which the stop reads:
 
 | component | sized | measured |
 |---|---|---|
@@ -331,6 +436,8 @@ in which the stop is set, it comes to 94.5 of 110.
 | the default's default readings | 1.55 | 0.96 |
 | all | 32.46 | 66.55 |
 
+By group, in the workers' seconds, which add R's start and the saving of each job's output:
+
 | group | sized | measured |
 |---|---|---|
 | narrow | 3.31 | 3.73 |
@@ -339,6 +446,7 @@ in which the stop is set, it comes to 94.5 of 110.
 | small | 5.28 | 7.88 |
 | shape below 1 | 0.92 | 1.97 |
 | folds | 2.54 | 16.92 |
+| all | 32.39 | 66.76 |
 
 Almost all of the overrun is real price. The workers' processes took 238,942 CPU seconds against 240,342 s of job
 time, so waiting for a core cost at most 0.6 percent. Other guests on the same machine added about 0.15 to its load for the first seven
@@ -370,15 +478,20 @@ Each candidate's own runs, which are 0.56 to 0.92 of the default's length on the
 - **Unsettled cells stayed in the band averages.** The plan reports a cell with more than 20 percent of its
   replications unsettled apart from its band's average. The harness that made the decision kept `mite-bart` and
   mite's folds in. Recomputed without them, on the same scores and boundary, all five verdicts and the outcome are
-  the same. It is the one departure this reading found between the plan and the decision's code.
+  the same.
+- **C6 went mostly unscored because of a harness defect.** A k-hat the tail fit cannot return was counted as a failed
+  check; see [The shape's prior](#the-shapes-prior). The five fitted candidates' k-hat is never missing, so their own-run
+  choices and the decision are not touched.
+- These are the two departures found between the plan and the code. G scoring its near-zero groups with the rest is
+  not one: the plan sets such rows apart in F and P only. Its effect is in [Sensitivity](#sensitivity).
 - **The price.** Look 1 cost about twice its sizing, for the reasons under [Cost](#cost). The stop was not reached,
   and this look's result does not depend on it: every candidate fails whatever the stop reads.
   At measured prices a block of 5 replications on every band costs 63.4 in the table's units against the 37
   pre-registered, of which 15.5 was left; no block is called for.
 - **Pending parts.** G and the widest cells' G are pending for several candidates. They do not matter here, since
   each of those candidates has already failed on another part.
-- **The rescoring for this note.** The tables here come from a read-only rescoring of the same outputs. It reproduces
-  the decision's statistics exactly and writes no decision or queue.
+- **The rescoring for this note.** The tables here come from read-only rescoring of the same outputs. It reproduces
+  the decision's statistics exactly and writes no decision or queue. The review's separate recomputation agrees.
 
 ## Readings by cell
 
@@ -579,7 +692,8 @@ R, rate ratios of a binary covariate:
 | roaches-n30-2 | small | 10 | 0.913 | 0.000 | 0.903 | +0.000 | +0.000 | +0.000 | +0.000 | +0.000 |
 | roaches-n30-3 | small | 10 | 0.983 | 0.084 | 0.963 | +0.000 | +0.000 | +0.000 | -0.006 | +0.000 |
 
-P, a new count at a held-out row, on truths and on the folds:
+P, a new count at a held-out row, on truths and on the folds. D4-3 has no row here: in all 10 replications all 12 of
+its held-out rows have a true mean below 0.01 (the largest 0.0015), so they are scored apart.
 
 | cell | band | m | C0 cover | C0 gap | C0 default cover | chi(4, 1.03) | chi(5, 0.9) | C4 at 0.6 | C4 at 0.75 | C5 at 1.3 |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -690,6 +804,38 @@ where weights hold, which is where the prior matters least and so flatters them:
 Fixed k was not run. chi(1.5, 3) fails Part A's A1 at 4.62 percent under every reading but the last, and under the
 last it gains nothing.
 
-How much rests on one family: without epil's widened and small-sample cells, C4 at 0.6 would be pending, its
-G interval score and cell failures gone, and the look would be unresolved between C0 and C4 at 0.6; the other four
-still fail. Those cells were fixed before any fit, and the study was built to put thin priors at risk on them.
+### What decides C4 at 0.6: found in review, after scoring
+
+This was found by the opus review after the scores were seen. It is not offered as an option, and it cannot re-decide
+anything by itself.
+
+C4 at 0.6 fails only on groups whose true mean count is below about 0.001. The plan scores rows below 0.01 apart in F
+and P, because how far each prior lets the log mean fall decides their coverage. It has no such rule for G, and the
+code follows the plan. This table runs the decision's own code with G's groups below a line of true mean count set
+apart, the boundary recomputed at each line:
+
+| line | information fraction | boundary | outcome | C4 at 0.6 |
+|---|---|---|---|---|
+| none, as registered | 0.379 | 3.46 | the default | fails |
+| 0.001 | 0.379 | 3.46 | unresolved, the default or C4 at 0.6 | pending, widest R at z 3.44 |
+| 0.003 | 0.381 | 3.45 | unresolved, the default or C4 at 0.6 | pending, widest R at z 3.44 |
+| 0.01 | 0.387 | 3.42 | C4 at 0.6 | passes |
+| 0.03 | 0.401 | 3.35 | C4 at 0.6 | passes |
+| 0.1 | 0.401 | 3.35 | C4 at 0.6 | passes |
+
+At the 0.01 line the pass is narrow: widest R's estimate is -0.016, in the candidate's favor, at z 3.44 against 3.42. G's
+interval score ratio goes from 1.25 to 0.91. The other four fail at every line: both chi priors on the width guard, C4
+at 0.75 on R in D4-3, and C5 on F in Traffic-bart.
+
+Near-zero means are still paid for. Under C4 at 0.6, F's coverage on rows below 0.01 falls from 0.89 to 0.68 on small
+data and from 0.85 to 0.77 on wide, and G's on epil's groups below 0.01 from 0.66 to 0.02. Those rows are scored apart,
+not ignored.
+
+Reading G as F and P are read would be a deviation from the pre-registration, which only the maintainer can rule and
+the finding would disclose. It would leave C4 at 0.6 as the only candidate, with step 5 still unread: its 540
+default-length runs have never run, and they would cost about 1 to 1.5 box core-hours (the default's took 1.10). C4 is
+also about 150 lines of engine work and an exact gate. So a ruling that way would call for the guard run before any
+change.
+
+Dropping epil's widened and small-sample cells altogether, a coarser cut, leaves C4 at 0.6 pending and the look
+unresolved between the default and C4 at 0.6, and the other four still fail. Those cells were fixed before any fit.
