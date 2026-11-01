@@ -50,13 +50,6 @@ heldTwin <- function() {
     control = readerControl()
   )
 }
-engineMedian <- function(sampler, f) {
-  .Call(
-    dbarts:::C_dbarts_bartcore_getLeafPrior,
-    sampler$getPointer(),
-    f - 1L
-  )[[1L, "amplitude.prior.scale"]]
-}
 
 # --- the literals of the table ---
 expected <- list(
@@ -70,13 +63,13 @@ expected <- list(
     sd = c(dose = U / sd(dose)),
     multiplier = "numeric",
     held = FALSE,
-    of = "forest, per unit of basis (prior median)"
+    of = "forest, per unit of basis (at a coefficient of 1)"
   ),
   age = list(
     sd = c(age = U / sd(age)),
     multiplier = "numeric",
     held = FALSE,
-    of = "forest, per unit of basis (prior median)"
+    of = "forest, per unit of basis (at a coefficient of 1)"
   ),
   `factor(z)` = list(
     sd = U,
@@ -126,15 +119,11 @@ expect_identical(heldPrior$sd, c(dose = 30))
 expect_identical(heldPrior$prior.sd.of, "forest, per unit of basis")
 expect_true(is(heldPrior$amplitude, "dbartsFixedPrior"))
 
-# --- through the engine: each forest's own scale is its sd, over the
-# half-normal median where its coefficient is drawn, and a drawn forest with
-# no basis carries its sd as its half-Cauchy median times the unit ---
+# --- through the engine: each forest's own scale is its sd ---
 expectEngine <- function(sampler, info) {
-  unit <- sampler$data@forest.calibration[["unit"]]
   for (f in seq_along(sampler$data@bases)) {
     prior <- sampler$getLeafPrior(f)
     where <- paste(info, f)
-    drawn <- is.null(prior[["amplitude"]])
     if (is(prior$leaf.prior, "dbartsLeafPrior")) {
       expect_equal(
         prior$k.scale / prior$leaf.prior@k,
@@ -142,16 +131,9 @@ expectEngine <- function(sampler, info) {
         tolerance = 1e-12,
         info = where
       )
-    } else if (drawn && prior$multiplier == "none") {
-      expect_equal(
-        engineMedian(sampler, f) * unit,
-        prior$sd,
-        tolerance = 1e-12,
-        info = where
-      )
     } else {
       expect_equal(
-        prior$k.scale * if (drawn) 0.674 else 1,
+        prior$k.scale,
         unname(prior$sd),
         tolerance = 1e-12,
         info = where

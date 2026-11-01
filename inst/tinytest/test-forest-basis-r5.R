@@ -241,7 +241,7 @@ priorSampler <- new(
   priorSpec$data
 )
 # forest 1: no basis -> held at the sd it states; forest 2: a factor -> its
-# size is in its own scale, over the half-normal median
+# size is in its own scale
 priorFree <- priorSampler$getLeafPrior(1L)
 expect_identical(priorFree$sd, 2.5)
 expect_identical(priorFree$multiplier, "none")
@@ -249,7 +249,7 @@ expect_identical(priorFree$k.scale, 2.5)
 priorBasis <- priorSampler$getLeafPrior(2L)
 expect_identical(priorBasis$sd, 1.25)
 expect_identical(priorBasis$multiplier, "factor")
-expect_equal(priorBasis$k.scale, 1.25 / 0.674, tolerance = 1e-12)
+expect_equal(priorBasis$k.scale, 1.25, tolerance = 1e-12)
 
 # and second, the statement is really READ: the half-Cauchy median moves every
 # subsequent draw. A bridge that ignored the transported statement would leave
@@ -413,7 +413,7 @@ priorScale <- function(sampler, forest) {
 }
 
 # (i) A NUMBER swapped to four times itself keeps the prior its creation took
-# from the first column: one unit for one sd of z, over 0.674. RED against a
+# from the first column: one unit for one sd of z. RED against a
 # scale taken again at the swap.
 stale <- dbarts(
   x,
@@ -422,7 +422,7 @@ stale <- dbarts(
   control = seededControlForestBasisR5(),
   n.trees = 25L
 )
-expect_equal(priorScale(stale, 2L), 1 / (0.674 * sd(z)), tolerance = 1e-12)
+expect_equal(priorScale(stale, 2L), 1 / sd(z), tolerance = 1e-12)
 stale$run(5L, 1L)
 staleBefore <- stale$getLeafPrior(2L)
 stale$setForestBasis(2L, 4 * z)
@@ -446,7 +446,7 @@ expect_identical(swappedResult$sigma, twinResult$sigma)
 expect_identical(swappedResult$train, twinResult$train)
 
 # (iii) A STATED sd is per unit of the column as given: 3 times a ramp and 5
-# times it, never divided, take the forest's sd over 0.674, and a later swap to
+# times it, never divided, take the forest's sd, and a later swap to
 # a constant column of 7s, which stays taken, leaves both.
 ones <- matrix(1, n, 1L)
 ramp <- seq(1, 2, length.out = n)
@@ -466,12 +466,12 @@ declared <- dbarts(
     seed = 41L
   )
 )
-expect_equal(priorScale(declared, 1L), 2.5 / 0.674, tolerance = 1e-12)
-expect_equal(priorScale(declared, 2L), 0.4 / 0.674, tolerance = 1e-12)
+expect_equal(priorScale(declared, 1L), 2.5, tolerance = 1e-12)
+expect_equal(priorScale(declared, 2L), 0.4, tolerance = 1e-12)
 declared$run(5L, 1L)
 declared$setForestBasis(2L, 7 * ones)
-expect_equal(priorScale(declared, 2L), 0.4 / 0.674, tolerance = 1e-12)
-expect_equal(priorScale(declared, 1L), 2.5 / 0.674, tolerance = 1e-12)
+expect_equal(priorScale(declared, 2L), 0.4, tolerance = 1e-12)
+expect_equal(priorScale(declared, 1L), 2.5, tolerance = 1e-12)
 
 # --- the SPEC ECHO across a state install. A state carries no leaf scale and
 # no fixed amplitude variance - both are model - so the recipient's prior is
@@ -500,7 +500,7 @@ recipientScale <- priorScale(recipient, 2L)
 # widths and tree counts agree - and the recipient runs under its own scale.
 recipient$setState(donorState)
 expect_identical(priorScale(recipient, 2L), recipientScale)
-expect_equal(priorScale(recipient, 2L), 0.5 / 0.674, tolerance = 1e-12)
+expect_equal(priorScale(recipient, 2L), 0.5, tolerance = 1e-12)
 expect_equal(priorScale(recipient, 1L), 3, tolerance = 1e-12)
 # neither sampler states the first forest's sd, so both carry the leaf prior,
 # under this probit fixture a drawn k with no one size to read
@@ -514,7 +514,7 @@ donor$storeState()
 recipient <- donorForests(0.5, as.double(z))
 recipient$setState(donor$state)
 recipient$setForestBasis(2L, 4 * z)
-expect_equal(priorScale(recipient, 2L), 0.5 / 0.674, tolerance = 1e-12)
+expect_equal(priorScale(recipient, 2L), 0.5, tolerance = 1e-12)
 expect_identical(unname(recipient$getLeafPrior(2L)$sd), 0.5)
 
 # (b) SELF-RESTORE. A store, a run and a restore of a sampler's OWN state
@@ -527,7 +527,7 @@ ownPrior <- selfRestore$getLeafPrior(2L)
 selfRestore$run(0L, 1L)
 selfRestore$setState(ownState)
 expect_identical(selfRestore$getLeafPrior(2L), ownPrior)
-expect_equal(priorScale(selfRestore, 2L), 2 / 0.674, tolerance = 1e-12)
+expect_equal(priorScale(selfRestore, 2L), 2, tolerance = 1e-12)
 
 # The C entry re-checks what the R method already refuses, and it holds an
 # owning transposition buffer while it does: a non-finite value is rejected

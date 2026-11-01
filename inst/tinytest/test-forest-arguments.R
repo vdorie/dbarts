@@ -257,7 +257,7 @@ for (bad in list(c(1, 1), NA_real_, NaN)) {
   )
 }
 expect_error(twoForests(amplitude = dbartsPriors$fixed(TRUE)), ".")
-for (refused in list(quote(dbartsPriors$normal()), "fixed", FALSE)) {
+for (refused in list("fixed", FALSE)) {
   expect_error(
     eval(bquote(dbarts(
       x,

@@ -111,8 +111,7 @@ sizeCheck <- function(
   )
   unit <- sampler$data@forest.calibration[["unit"]]
   set.seed(5)
-  measured <- priorSize(sampler, 2L, 1L, draws) *
-    if (is.null(amplitude)) qnorm(0.75) else 1
+  measured <- priorSize(sampler, 2L, 1L, draws)
   expected <- if (is.null(sd)) unit / stats::sd(column) else sd
   abs(measured / expected - 1) < tolerance
 }

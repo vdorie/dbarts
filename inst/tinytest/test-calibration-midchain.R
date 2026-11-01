@@ -498,7 +498,7 @@ bcfCalibration2 <- bcf$getLeafPrior(2L)
 # Each forest has a spread of its own, in the response's units: the forest
 # without a basis the fitting function's leaf prior, k 2 on a quarter of the
 # range held, and the factor one standard deviation, carried in its leaf scale
-# over 0.674 with its k pinned at 1 (no offset, subset or zero weight here).
+# with its k pinned at 1 (no offset, subset or zero weight here).
 # Neither is stated, so the statements the reader returns go back as they came
 expect_identical(bcf$getK(1L), c(2, 2))
 expect_identical(bcf$getK(2L), c(1, 1))
@@ -509,9 +509,9 @@ expect_false(bcfCalibration2$sd.stated)
 expect_equal(bcfCalibration$sd, diff(range(yBCF)) / 4, tolerance = 1e-12)
 expect_equal(bcfCalibration2$sd, sd(yBCF), tolerance = 1e-12)
 expect_equal(bcfCalibration$k.scale, diff(range(yBCF)) / 2, tolerance = 1e-12)
-expect_equal(bcfCalibration2$k.scale, sd(yBCF) / 0.674, tolerance = 1e-12)
+expect_equal(bcfCalibration2$k.scale, sd(yBCF), tolerance = 1e-12)
 expect_identical(bcfCalibration$prior.sd.of, "forest")
-expect_identical(bcfCalibration2$prior.sd.of, "level difference (prior median)")
+expect_identical(bcfCalibration2$prior.sd.of, "level difference (at a coefficient of 1)")
 expect_true(bcfCalibration$k.scale > 0 && bcfCalibration2$k.scale > 0)
 # the control carries no number for either: the engine's defaults are what
 # the reader reports, and the reader has no entry for the engine's channels

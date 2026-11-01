@@ -275,7 +275,7 @@ expect_identical(a$getLeafPrior(1L)$leaf.prior, forest(sd = 0.35))
 expect_identical(a$getLeafPrior(1L)$prior.sd.of, "forest")
 expect_identical(
   a$getLeafPrior(2L)$prior.sd.of,
-  "level difference (prior median)"
+  "level difference (at a coefficient of 1)"
 )
 
 # --- refusals ---

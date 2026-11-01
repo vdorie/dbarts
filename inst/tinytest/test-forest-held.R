@@ -439,7 +439,7 @@ numericOf <- function(holdFactor) {
 }
 beside <- numericOf(TRUE)
 expect_identical(beside$k.scale, numericOf(FALSE)$k.scale)
-expect_identical(beside$prior.sd.of, "forest, per unit of basis (prior median)")
+expect_identical(beside$prior.sd.of, "forest, per unit of basis (at a coefficient of 1)")
 expect_null(beside[["amplitude"]])
 
 # --- a held numeric column: its sd exact, stated or one unit for one sd of

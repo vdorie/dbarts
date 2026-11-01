@@ -66,7 +66,7 @@ expectRule <- function(sampler, scale, f = 2L, info = NULL) {
     info = info
   )
   expect_equal(
-    prior$k.scale * 0.674,
+    prior$k.scale,
     unname(prior$sd),
     tolerance = 1e-12,
     info = info
@@ -666,6 +666,7 @@ student <- dbartsPriors$student
 amplitudeTexts <- c(
   "",
   ", amplitude = fixed()",
+  ", amplitude = normal()",
   ", amplitude = student()",
   ", amplitude = student(3)"
 )
@@ -697,7 +698,20 @@ for (case in sizedColumns) {
     expect_true(
       endsWith(
         spelled(case$column, ", sd = 2", amplitudeText),
-        paste0("as forest(x1, sd = ", case$sd, amplitudeText, ")")
+        paste0(
+          "as forest(x1, sd = ",
+          case$sd,
+          amplitudeText,
+          ")",
+          # with no prior stated the refusal also names the spelling that draws
+          if (!nzchar(amplitudeText)) {
+            paste0(
+              "; for a drawn coefficient, forest(x1, sd = ",
+              case$sd,
+              ", amplitude = normal())"
+            )
+          }
+        )
       ),
       info = info
     )

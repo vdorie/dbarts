@@ -1031,6 +1031,8 @@ refuseConstantBasis <- function(data, active, allRows, specs, labels) {
           },
           if (identical(amplitude, "fixed")) {
             "amplitude = fixed()"
+          } else if (is(amplitude, "dbartsNormalPrior")) {
+            "amplitude = normal()"
           } else if (is(amplitude, "dbartsStudentPrior")) {
             paste0(
               "amplitude = student(",
@@ -1042,6 +1044,15 @@ refuseConstantBasis <- function(data, active, allRows, specs, labels) {
         collapse = ", "
       ),
       ")",
+      if (!is.null(stated) && is.null(amplitude)) {
+        paste0(
+          "; for a drawn coefficient, forest(",
+          written,
+          ", sd = ",
+          format(abs(values[1L]) * stated, digits = 15L),
+          ", amplitude = normal())"
+        )
+      },
       call. = FALSE
     )
   }

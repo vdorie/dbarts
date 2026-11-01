@@ -98,6 +98,8 @@ printedForest <- function(entry, basis, rowsIn, full, label, family) {
     ""
   } else if (is(amplitude, "dbartsFixedPrior")) {
     "; coefficient held"
+  } else if (is(amplitude, "dbartsNormalPrior")) {
+    "; coefficient normal"
   } else {
     paste0("; coefficient student(", printedNumber(amplitude@df), ")")
   }

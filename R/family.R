@@ -210,7 +210,7 @@ forceCallerCode <- function(
         dbartsForests = dbartsForests,
         dbartsPriors = dbartsPriors[names(dbartsPriors) != "student"],
         dbartsFamilies = dbartsFamilies,
-        forestPriors = dbartsPriors[c("fixed", "student")]
+        forestPriors = dbartsPriors[c("fixed", "student", "normal")]
       )[hintLists]
       name <- unlist(lapply(sources, names), use.names = FALSE)
       topic <- sub(

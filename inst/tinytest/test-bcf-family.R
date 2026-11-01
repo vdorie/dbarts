@@ -122,7 +122,7 @@ for (bases in list(unitBases2, unitBases3, scaledBases)) {
   for (forestIndex in seq_along(bases)) {
     reported <- fit$getLeafPrior(forestIndex)
     expect_equal(
-      reported$k.scale * 0.674,
+      reported$k.scale,
       unname(reported$sd),
       tolerance = 1e-12
     )
@@ -148,10 +148,10 @@ for (family in names(anchors)) {
   # (b) THE ABSOLUTE ANCHOR: the map's own expression, with s written as a
   # literal; the column of 4 times the ramp stating one unit per unit of it is
   # not divided
-  expect_equal(priorScales(balanced), c(s, s) / 0.674, tolerance = 1e-12)
+  expect_equal(priorScales(balanced), c(s, s), tolerance = 1e-12)
 
   # (c) THE INDUCED INDEX: sqrt(sum_f prior.sd_f^2 v_f ||B_f(i,.)||^2), a
-  # numeric coefficient's variance 1 and a level's 1/2. Each forest with a
+  # numeric coefficient's variance 1 over 0.674^2 and a level's half that. Each forest with a
   # basis defaults to one unit whatever the number of forests (dec-B291), so
   # the map disperses as 1.04912 sqrt(K + 1) with a numeric forest among them:
   # the index prior grows with every forest the caller adds, which is the
@@ -159,7 +159,7 @@ for (family in names(anchors)) {
   # rather than a value at one K.
   for (bases in list(unitBases2, unitBases3, unitBases4)) {
     scales <- priorScales(basisSampler(yBalanced, bases, family))
-    variances <- c(1, rep(0.5, length(bases) - 1L))
+    variances <- c(1, rep(0.5, length(bases) - 1L)) / 0.674^2
     expect_equal(
       sqrt(sum(scales^2 * variances)),
       1.04912 * sqrt(length(bases) + 1) * s,
@@ -170,7 +170,7 @@ for (family in names(anchors)) {
   # column four times as large induces four times the prior on the index
   scaled <- priorScales(basisSampler(yBalanced, scaledBases, family))
   expect_equal(
-    sqrt(sum(scaled^2 * c(1, 0.5) * c(4, 1)^2)),
+    sqrt(sum(scaled^2 * c(1, 0.5) / 0.674^2 * c(4, 1)^2)),
     1.04912 * sqrt(2 * 16 + 1) * s,
     tolerance = 1e-4
   )
@@ -178,11 +178,11 @@ for (family in names(anchors)) {
   # (d) THE PRODUCT ITSELF, at a DECLARED forest(sd = ). Each factor
   # discriminates: the multiple of s the forest states (sd = 2.5 s and 0.4 s,
   # in the response's units, so the leaf scale factor is the multiple) in
-  # {2.5, 0.4}, s in {1, 1.813799} and the divisor 0.674, none 1, on columns
-  # of 3s and 5s that a stated sd never reads.
+  # {2.5, 0.4} and s in {1, 1.813799}, on columns of 3s and 5s that a stated sd
+  # never reads.
   #
   # BOTH families, because probit ALONE CANNOT SEE A DROPPED ANCHOR - s = 1
-  # there, so sd / 0.674 and sd s / 0.674 are the same number. Under logistic
+  # there, so sd and sd s are the same number. Under logistic
   # they differ by 81 percent. Deleting the logistic arm leaves the anchor
   # unpinned, which is the near-miss this test guards against.
   declaredMap <- basisSampler(
@@ -193,16 +193,16 @@ for (family in names(anchors)) {
   )
   expect_equal(
     priorScales(declaredMap),
-    c(2.5, 0.4) * s / 0.674,
+    c(2.5, 0.4) * s,
     tolerance = 1e-12
   )
-  # (e) and the reader's sd is the number stated, its own scale that over the
-  # half-normal median, with no half-Cauchy median on a forest with a basis
+  # (e) and the reader's sd is the number stated, its own scale that number,
+  # with no mixture on a forest with a basis
   for (f in seq_along(pinBases)) {
     reported <- declaredMap$getLeafPrior(f)
     expect_equal(unname(reported$sd), c(2.5, 0.4)[f] * s, tolerance = 1e-12)
     expect_equal(
-      reported$k.scale * 0.674,
+      reported$k.scale,
       unname(reported$sd),
       tolerance = 1e-12
     )
@@ -237,7 +237,7 @@ for (fit in list(probit, logistic)) {
   s <- anchors[[fit$model@family]]
   # forest 1 declares no basis, so it is bart()'s forest, three standard
   # deviations of the link's error, under the drawn k
-  expect_equal(priorScales(fit), c(3 * s, s / 0.674), tolerance = 1e-12)
+  expect_equal(priorScales(fit), c(3 * s, s), tolerance = 1e-12)
   # which a forest gets is the engine's, from what it multiplies: the control
   # carries no sd for either forest, so the numbers the reader reports are the
   # engine's own defaults.

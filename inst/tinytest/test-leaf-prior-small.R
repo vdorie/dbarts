@@ -240,7 +240,7 @@ studentOne <- function(leaf.prior) {
   dbarts(studentForests, d, leaf.prior = leaf.prior, control = ctl())
 }
 sizeless <- paste0(
-  "forest 1: amplitude = student() with no 'sd' takes its median from the ",
+  "forest 1: amplitude = student() with no 'sd' takes its size from the ",
   "fitting function's leaf prior, which here gives no size; state the ",
   "forest's 'sd' or give the prior on k or the sd more degrees of freedom"
 )

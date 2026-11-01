@@ -150,7 +150,7 @@ for (index in seq_along(plainSecond)) {
   expect_identical(second$getLeafPrior(2L)$prior.sd.of, "forest")
   expect_identical(
     second$getLeafPrior(1L)$prior.sd.of,
-    "forest, per unit of basis (prior median)"
+    "forest, per unit of basis (at a coefficient of 1)"
   )
   expect_true(all(is.finite(second$run(0L, 5L)$train)), info = info)
 }

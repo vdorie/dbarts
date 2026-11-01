@@ -1790,15 +1790,26 @@ forestMoveRecord <- function(specs, numForests, variance) {
 
 ## A forest's 'amplitude': NULL, which draws its coefficient under its kind's
 ## default prior; fixed(), which holds it at 1, the basis carrying the coding;
-## or student(df), which draws it under a Student-t prior at the default's
-## median. Returns "fixed" for the hold and the student() object as it is. A
-## bare fixed or student is the constructor called, as a constructor given
-## where a value is.
+## or normal() or student(df), which draw it under that prior with median 1.
+## Returns "fixed" for the hold and the normal() or student() object as it is. A
+## bare fixed, normal or student is the constructor called, as a constructor
+## given where a value is.
 validateForestAmplitude <- function(amplitude) {
   if (identical(amplitude, fixed)) {
     amplitude <- fixed()
   } else if (identical(amplitude, studentPrior)) {
     amplitude <- studentPrior()
+  } else if (identical(amplitude, normal)) {
+    amplitude <- normal()
+  }
+  if (is(amplitude, "dbartsNormalPrior")) {
+    if (!isBareNormalPrior(amplitude)) {
+      stop(
+        "'amplitude = normal()' takes no 'k' or 'sd': a drawn coefficient's ",
+        "size is the forest's own 'sd'"
+      )
+    }
+    return(amplitude)
   }
   if (is(amplitude, "dbartsStudentPrior")) {
     return(amplitude)
@@ -1806,7 +1817,7 @@ validateForestAmplitude <- function(amplitude) {
   if (!is(amplitude, "dbartsFixedPrior")) {
     stop(
       "a forest's 'amplitude' must be fixed(), which holds its coefficient, ",
-      "student(df), which draws it under a Student-t prior, or left out, ",
+      "normal() or student(df), which draw it under that prior, or left out, ",
       "which draws it under its default prior",
       if (is(amplitude, "dbartsFamily")) {
         "; dbartsFamilies$student is the response's family"
@@ -2265,7 +2276,7 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
 
   first <- resolved[[1L]]
   if (numForests == 1L) {
-    if (is(first$amplitude, "dbartsStudentPrior") && !any(hasBasis)) {
+    if (statesCoefficientPrior(first$amplitude) && !any(hasBasis)) {
       stop(
         "this model has one forest, which has no coefficient to give a ",
         "prior; a lone forest draws its size through the fitting ",
@@ -2284,12 +2295,13 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
   )]
   if (length(unsized) > 1L) {
     for (index in unsized) {
-      if (is(resolved[[index]]$amplitude, "dbartsStudentPrior")) {
+      if (statesCoefficientPrior(resolved[[index]]$amplitude)) {
         stop(
           forestKnobLabel(forests, index),
-          ": amplitude = student() draws one forest's coefficient; these ",
-          "forests share one total: state each forest's 'sd' to give it its ",
-          "own",
+          ": amplitude = ",
+          writtenCoefficientPrior(resolved[[index]]$amplitude),
+          " draws one forest's coefficient; these forests share one total: ",
+          "state each forest's 'sd' to give it its own",
           call. = FALSE
         )
       }
@@ -2380,9 +2392,11 @@ plainTreeCounts <- function(specs, hasBasis, numTrees) {
 ## What each forest states of its size and its coefficient's prior, as the
 ## forests' record carries it to the engine: `sd`, in the response's units, as
 ## written and NA where none is stated, and `amplitude.df`, a student()
-## coefficient's df and NA elsewhere, present only where some forest states
+## coefficient's df, Inf for a normal() coefficient on a forest with no basis,
+## where it is what draws the forest, and NA elsewhere, as normal() on a basis
+## forest, which is that forest's default; present only where some forest states
 ## one, so that a record made without it is as it was.
-forestStatements <- function(specs) {
+forestStatements <- function(specs, hasBasis = rep(FALSE, length(specs))) {
   statements <- list(
     sd = vapply(
       specs,
@@ -2391,10 +2405,13 @@ forestStatements <- function(specs) {
     )
   )
   df <- vapply(
-    specs,
-    function(spec) {
+    seq_along(specs),
+    function(index) {
+      spec <- specs[[index]]
       if (is(spec$amplitude, "dbartsStudentPrior")) {
         spec$amplitude@df
+      } else if (is(spec$amplitude, "dbartsNormalPrior") && !hasBasis[index]) {
+        Inf
       } else {
         NA_real_
       }
@@ -2965,8 +2982,36 @@ studentPriorRefusal <- function(df) {
   ) {
     paste0(
       "a coefficient's student(df) takes one finite df of 1 or more; ",
-      "student() is student(1), the half-Cauchy"
+      "student() is student(1), the half-Cauchy, and normal() is the normal"
     )
+  }
+}
+
+## Whether a forest's 'amplitude' states a prior that draws its coefficient.
+statesCoefficientPrior <- function(amplitude) {
+  is(amplitude, "dbartsStudentPrior") || is(amplitude, "dbartsNormalPrior")
+}
+
+## That prior as a call would write it, for a message.
+writtenCoefficientPrior <- function(amplitude) {
+  if (is(amplitude, "dbartsNormalPrior")) "normal()" else "student()"
+}
+
+## Whether a normal() states nothing: the one a forest's 'amplitude' takes.
+isBareNormalPrior <- function(prior) {
+  is.null(prior@k) && is.null(prior@prior.sd)
+}
+
+## The coefficient prior a forest's record states: fixed() where it is held,
+## normal() at a df of Inf, its code, student(df) at a finite one, NULL where it
+## states none. The one reader of that code.
+statedCoefficientPrior <- function(df, held) {
+  if (held) {
+    fixed()
+  } else if (is.infinite(df)) {
+    normal()
+  } else if (!is.na(df)) {
+    studentPrior(df)
   }
 }
 
@@ -3525,7 +3570,7 @@ dbartsForests <- list(
 ## which stay under dbartsPriors for the caller who names them outside.
 forestConstructors <- c(
   dbartsForests,
-  dbartsPriors[c("fixed", "student", "invchi")]
+  dbartsPriors[c("fixed", "student", "invchi", "normal")]
 )
 
 ## Each door argument taking a forest constructor, and the vocabulary it
@@ -3538,7 +3583,8 @@ FOREST_ARGUMENT_VOCABULARIES <- list(
     "blocks",
     "fixed",
     "student",
-    "invchi"
+    "invchi",
+    "normal"
   ),
   interactions = "interactions",
   blocks = "blocks",

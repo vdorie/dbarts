@@ -1292,15 +1292,16 @@ resolveSamplerSpec <- function(
       for (index in seq_along(forestSpec)) {
         spec <- forestSpec[[index]]
         if (
-          is(spec$amplitude, "dbartsStudentPrior") &&
+          statesCoefficientPrior(spec$amplitude) &&
             is.null(spec$sd) &&
             index %in% plain
         ) {
           stop(
             forestKnobLabel(forests, index),
-            ": amplitude = student() with no 'sd' takes its median from the ",
-            "fitting function's leaf prior, which here gives no size; state ",
-            "the forest's 'sd'",
+            ": amplitude = ",
+            writtenCoefficientPrior(spec$amplitude),
+            " with no 'sd' takes its size from the fitting function's leaf ",
+            "prior, which here gives no size; state the forest's 'sd'",
             if (is(hyperprior, "dbartsChiHyperprior") && !flat) {
               " or give the prior on k or the sd more degrees of freedom"
             },
@@ -1334,7 +1335,7 @@ resolveSamplerSpec <- function(
     }
     hasBasis <- !vapply(data@bases, is.null, logical(1L))
     params <- forestParams(specs, hasBasis, fitTree)
-    statements <- forestStatements(specs)
+    statements <- forestStatements(specs, hasBasis)
     treeCounts <- vapply(params, function(forest) as.integer(forest[1L]), 0L)
     forestColumns <- lapply(
       seq_len(numForests),

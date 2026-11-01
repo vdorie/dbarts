@@ -176,8 +176,8 @@ for (family in families) {
   drawn <- fit(family, studentRhs)
   prior <- reader(drawn)
   expect_equal(unname(prior$sd), medianOf[[family]], info = info)
-  expect_equal(unname(prior$k.scale), unitOf[[family]], info = info)
-  expect_identical(prior$prior.sd.of, "forest (prior median)", info = info)
+  expect_equal(unname(prior$k.scale), medianOf[[family]], info = info)
+  expect_identical(prior$prior.sd.of, "forest (at a coefficient of 1)", info = info)
   expect_identical(drawn$getK(forest = 1L)[[1L]], 1, info = info)
   expect_true(length(unique(coefficientDraws(drawn))) > 1L, info = info)
   # at a held k, a named sd, and a stated sd
@@ -193,7 +193,7 @@ for (family in families) {
   # a flat prior on k gives no size
   expect_error(
     fit(family, studentRhs, leaf.prior = normal(k = chi(1.5, Inf))),
-    "forest 1: amplitude = student() with no 'sd' takes its median from the fitting function's leaf prior, which here gives no size",
+    "forest 1: amplitude = student() with no 'sd' takes its size from the fitting function's leaf prior, which here gives no size",
     fixed = TRUE,
     info = info
   )

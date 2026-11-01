@@ -74,7 +74,7 @@ leavesPerTree <- function(nodes) tapply(nodes$var == -1L, nodes$tree, sum)
 # single forest of the same design, prior and cut grid, not the smaller one
 # that conditioning on the 40 treated rows would give.
 sampler <- makeBCF()
-expect_equal(as.vector(sampler$getForestAmplitudes()), c(1, 0, 1))
+expect_equal(as.vector(sampler$getForestAmplitudes()), c(1, 0, 1 / 0.674))
 reference <- dbarts::dbarts(
   x,
   y,

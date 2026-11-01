@@ -49,13 +49,8 @@ counted <- function(expr, class = "warning") {
   })
 }
 # forest `f` of `sampler` states `value`: the reader returns the number
-# itself, and the forest's own scale is the number's. A forest with a basis
-# carries it in k.scale, over the half-normal median and per unit of row
-# norm; one with none carries it as its half-Cauchy median, in units of the
-# unit.
-# the engine's own reading of forest `f`, the first chain's: the half-Cauchy
-# median a drawn forest with no basis carries its sd in, which the reader does
-# not report
+# itself, and the forest's own scale is the number's, in k.scale on every kind.
+# the engine's own reading of forest `f`, the first chain's
 engineEntry <- function(sampler, f, column) {
   .Call(
     dbarts:::C_dbarts_bartcore_getLeafPrior,
@@ -67,13 +62,7 @@ expectStated <- function(sampler, f, value, info) {
   prior <- sampler$getLeafPrior(f)
   expect_identical(unname(prior$sd), value, info = info)
   expect_true(prior$sd.stated, info = info)
-  median <- engineEntry(sampler, f, "amplitude.prior.scale")
-  inForce <- if (is.nan(median)) {
-    prior$k.scale * if (is.null(prior[["amplitude"]])) 0.674 else 1
-  } else {
-    median * unitOf(sampler)
-  }
-  expect_equal(inForce, value, tolerance = 1e-12, info = info)
+  expect_equal(prior$k.scale, value, tolerance = 1e-12, info = info)
 }
 twoStated <- list(forest(sd = 2), forest(basis = d$zf, sd = 0.5))
 twoForests <- function(forests = twoStated, response = y, ...) {
@@ -321,7 +310,7 @@ expect_equal(unname(plainRows[, "prior.scale"]), c(3, 3), tolerance = 1e-12)
 expect_identical(unname(factorRows[, "named.sd"]), c(0.25, 0.25))
 expect_identical(unname(factorRows[, "map.sd"]), c(0.25, 0.25))
 expect_equal(
-  unname(factorRows[, "prior.scale"]) * 0.674,
+  unname(factorRows[, "prior.scale"]),
   c(0.25, 0.25),
   tolerance = 1e-12
 )

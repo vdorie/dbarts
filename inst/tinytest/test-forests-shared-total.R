@@ -186,7 +186,7 @@ expect_identical(
     forest1 = "forest, shared",
     forest2 = "forest, shared",
     forest3 = "forest",
-    z = "level difference (prior median)"
+    z = "level difference (at a coefficient of 1)"
   )
 )
 expect_equal(
@@ -329,7 +329,7 @@ ownCoefficient <- dbarts(
 )
 expect_identical(
   ownCoefficient$getLeafPrior(3L)$prior.sd.of,
-  "forest (prior median)"
+  "forest (at a coefficient of 1)"
 )
 expect_error(
   bart(

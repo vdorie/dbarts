@@ -219,7 +219,7 @@ refused(
     forests = list(forest(), forest(basis = zf, amplitude = "student")),
     control = ctl()
   ),
-  "a forest's 'amplitude' must be fixed(), which holds its coefficient, student(df)"
+  "a forest's 'amplitude' must be fixed(), which holds its coefficient, normal() or student(df)"
 )
 refused(
   dbarts(y ~ forest(x1, amplitude = student(3)), d, control = ctl()),
@@ -384,7 +384,7 @@ coefficientSizes <- function(amplitude) {
 for (prior in list(NULL, studentPrior(3))) {
   sizes <- coefficientSizes(prior)
   quantiles <- quantile(sizes, c(0.5, 0.9), names = FALSE)
-  expect_true(abs(quantiles[1L] - 0.674) < 0.1, info = quantiles[1L])
+  expect_true(abs(quantiles[1L] - 1.0007) < 0.1, info = quantiles[1L])
   ratio <- quantiles[2L] / quantiles[1L]
   if (is.null(prior)) {
     expect_true(ratio < 2.7, info = ratio)

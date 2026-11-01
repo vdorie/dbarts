@@ -1384,7 +1384,7 @@ bothExcused <- dbarts(
 )
 expect_identical(
   unname(vapply(bothExcused$getLeafPrior(), `[[`, "", "prior.sd.of")),
-  rep("level difference (prior median)", 2L)
+  rep("level difference (at a coefficient of 1)", 2L)
 )
 # a second forest that has no basis anywhere is the model's forest with no
 # basis, which may stand at any place: it takes the control's count and the
@@ -1406,11 +1406,11 @@ plainSecondPriors <- plainSecond$getLeafPrior()
 expect_null(plainSecondPriors[[1L]]$amplitude.prior.scale)
 expect_identical(
   plainSecondPriors[[1L]]$prior.sd.of,
-  "level difference (prior median)"
+  "level difference (at a coefficient of 1)"
 )
 expect_equal(
   plainSecondPriors[[1L]]$k.scale,
-  plainSecondPriors[[1L]]$sd / 0.674,
+  plainSecondPriors[[1L]]$sd,
   tolerance = 1e-12
 )
 expect_equal(
