@@ -769,14 +769,6 @@ items
     forest() is called. A forest built by a wrapper whose formal holds the basis,
     function(b) forest(basis = b), is given the formal's value, so
     such a wrapper cannot pass on a column of the data by its name.
-  no-basis-forest-prior: ruled, not built (dec-B509). A forest with no
-    basis takes the fitting function's leaf prior, held, beside forests
-    with a basis too (k, a drawn k, normal(sd = ) accepted there); the
-    half-Cauchy prognostic prior becomes amplitude = student(1), which
-    bartCause's bcf states with sd = 2 sd(y). First a check of
-    treatment-effect interval coverage at equal time, held against
-    drawn, on bcf-like data; built with forests-shared-total (its D1);
-    student(1) landed with coefficient-prior-opt-in (dec-A245). For 1.0-0.
   control-migration: ruled, not built (dec-B239, dec-B240, dec-B241). The
     tree count moves to the model, per forest, with a plain n.trees on
     dbarts() and dbartsSpec() for the forest with no basis, refused
@@ -878,17 +870,13 @@ items
     sure the sugar form that gets forests for all levels is scheduled
     for later"). To design: the forests' labels, where sd and
     amplitude stated on the term go, vars, and the list door.
-  forests-shared-total: a model may hold several forests with no
-    basis, y ~ forest(x1) + forest(x2) + forest(x3), which share one
-    prior total, each an equal part, as the trees of a forest do; a
-    forest with a basis keeps its own prior (dec-B292, dec-B291).
-    Slices B, 1 and 2 built on its branch: several such forests are
-    created, each sharer reporting the group's k (the plan's D8).
-    Slice 3 built there too: a constant numeric basis column is refused
-    at creation, sd stated or not (dec-B528).
-    Left: slice F, the default flip
-    beside a forest with a basis (dec-B509). Before 1.0-0.
-    Plan: docs/plans/forests-shared-total.md.
+  leaf-prior-integer-k: bart(k = 2L) and normal(k = 2L) stop with "k must be of real type", on 0.9-34
+    too (run 2026-10-31), where an integer k means one thing. Coerce it. The verbose line under
+    normal(sd = invchi(3, 1)) reads "chi with 3 df and 2 scale", the reference scale: word it from
+    the statement. normal(sd = invchi(0.001, 1)) with student() and no sd stops with the engine's
+    "positive finite size" at creation, not a refusal from R. A student() forest with no sd created
+    at normal(k = 3) refuses $setLeafPrior(normal(k = 3)) and silently takes normal(k = 2): one
+    clause in the help until the forest door replaces it. For 1.0-0, in a small-items slice.
   drawn-coefficient-start-by-kind: a drawn coefficient on a forest with
     no basis or a factor starts by its forest's position (1, and 0 for
     the second forest's first level); a start by kind, the cleaner rule,

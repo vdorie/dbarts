@@ -1,6 +1,6 @@
 # Forests with no basis share one prior total
 
-Status: BUILT on its branch 2026-10-31, not landed: slice B, `blocks()` per group, slice 1, the shared total's engine
+Status: LANDED 2026-10-31 (d57cf916a): slice B, `blocks()` per group, slice 1, the shared total's engine
 and bridge, slice 2, the R surface that reaches it, slice 3, the constant column, and slice F, the default flip. The
 plan is [forests-shared-total.md](../plans/forests-shared-total.md), which carries the steps, the gates and the calls
 made in planning; this note is the standing statement of the rule. Rulings: dec-B292, dec-B503, dec-B505,

@@ -1,10 +1,9 @@
 # forests-shared-total: several forests with no basis share one prior total
 
-Status: BUILT on this branch 2026-10-31, not landed. Slices B, 1 (the engine and bridge), 2 (the R surface), 3 (the
-constant basis column, dec-B528, dec-B543) and F (the default flip) are built, each reviewed and its findings fixed;
-no call is held. Slice F's fix round changes engine behavior in one place, the median of `student()` with no sd under
-`normal(sd = invchi())` ([Calls made](#calls-made) 32), so a fresh review of that round comes before the landing; the
-[Landing note](#landing-note) holds the rest. Planned 2026-10-29; amended the same day after its blind critique
+Status: LANDED 2026-10-31 (d57cf916a): slices B, 1 (the engine and bridge), 2 (the R surface), 3 (the constant basis
+column, dec-B528, dec-B543) and F (the default flip), each reviewed and its findings fixed; no call held. Slice F's fix
+round changed engine behavior in one place, the median of `student()` with no sd under `normal(sd = invchi())`
+([Calls made](#calls-made) 32), and took a fresh review. Planned 2026-10-29; amended the same day after its blind critique
 (build after amendments; scratch/crit-2plans/report.md) and the maintainer's rulings dec-B503 (the tree count),
 dec-B505 (an equal part per forest) and dec-B506 (`blocks()` changed to match, slice B); amended again the same day
 for dec-B508 (`forest()` takes no `leaf.prior`), dec-B509 (a forest with no basis takes the fitting function's leaf
@@ -843,10 +842,14 @@ F. Slice F, the default flip (~590 lines; ~8 agent-hours). Tier: changes draws (
 
 ## Landing note
 
-Owed before the merge: slice B's bench-sampler compare on a quiet machine;
-the rebase, the x86 leg and CI on the tip; bartCause's branch bcf-tests-state-prior, its two tests' hand-written
-drivers and a comment, merged with this item; the records of Order of work's item 4. Current baselines:
-equivalence-e346b018 and bcf-equivalence-e346b018, multinomial-equivalence-80b1c8d4 unmoved.
+Gates on d57cf916a, the code as merged less these records. On the x86 box: tests/cpp plain and under ASan and UBSan with
+the leak sanitizer, 419 passing and no report; the suite under at_home, 33,076 results, none failed; equivalence 55 of 55
+in statistical mode; bcf-equivalence and the multinomial by the cross-host tier 1. A same-machine `bench-sampler.R` compare
+of main against the tip, slice B's owed: no metric past 5 percent, the largest 1.6 percent slower, on an idle box. The
+last review's text and pin round is on top of its gates: tests/cpp, the suite, the trio on the reference build, the
+snapshots and the exact gates ran on the code before it, and only a comment, help and one pin moved. Current baselines:
+equivalence-e346b018 and bcf-equivalence-e346b018, multinomial-equivalence-80b1c8d4 unmoved. bartCause's branch
+bcf-tests-state-prior, its two tests' hand-written drivers and a comment, merges with this item.
 
 For the next item: slice F's re-recorded bcf-equivalence baseline holds until forest-amplitude-normal (dec-B542), which re-records
 again, judged by the same tier 1 of `--cross-host`. That item also re-pins what test-bcf-family.R,
