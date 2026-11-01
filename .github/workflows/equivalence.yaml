@@ -61,4 +61,4 @@ jobs:
       - name: Run the statistical equivalence gate
         run: |
           Rscript benchmarks/R/equivalence.R compare \
-            benchmarks/baselines/equivalence-1380accf.rds --strict-coverage
+            benchmarks/baselines/equivalence-e346b018.rds --strict-coverage

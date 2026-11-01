@@ -261,7 +261,7 @@ jobs:
           fail=0
           echo "::group::bcf-equivalence --cross-host"
           if Rscript benchmarks/R/bcf-equivalence.R compare \
-            benchmarks/baselines/bcf-equivalence-1380accf.rds --cross-host; then
+            benchmarks/baselines/bcf-equivalence-e346b018.rds --cross-host; then
             echo "PASS bcf-equivalence"
           else
             echo "::error::cross-host gate bcf-equivalence FAILED"

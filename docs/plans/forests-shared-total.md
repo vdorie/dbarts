@@ -846,7 +846,7 @@ F. Slice F, the default flip (~590 lines; ~8 agent-hours). Tier: changes draws (
 Owed before the merge: slice B's bench-sampler compare on a quiet machine;
 the rebase, the x86 leg and CI on the tip; bartCause's branch bcf-tests-state-prior, its two tests' hand-written
 drivers and a comment, merged with this item; the records of Order of work's item 4. Current baselines:
-equivalence-1380accf and bcf-equivalence-1380accf, multinomial-equivalence-80b1c8d4 unmoved.
+equivalence-e346b018 and bcf-equivalence-e346b018, multinomial-equivalence-80b1c8d4 unmoved.
 
 For the next item: slice F's re-recorded bcf-equivalence baseline holds until forest-amplitude-normal (dec-B542), which re-records
 again, judged by the same tier 1 of `--cross-host`. That item also re-pins what test-bcf-family.R,
