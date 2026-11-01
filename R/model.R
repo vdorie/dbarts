@@ -2396,7 +2396,7 @@ plainTreeCounts <- function(specs, hasBasis, numTrees) {
 ## where it is what draws the forest, and NA elsewhere, as normal() on a basis
 ## forest, which is that forest's default; present only where some forest states
 ## one, so that a record made without it is as it was.
-forestStatements <- function(specs, hasBasis = rep(FALSE, length(specs))) {
+forestStatements <- function(specs, hasBasis) {
   statements <- list(
     sd = vapply(
       specs,
