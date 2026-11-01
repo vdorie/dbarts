@@ -259,13 +259,14 @@ dbarts(
   the same specifications through its own `leaf.prior` argument. See
   “Response scaling” below for how `k` interacts with the response's
   internal scaling. In a model of several forests it is the leaf prior
-  of the forest with no `basis`; see `forests`. A named `sd` is refused
-  there: each forest states its size on the forest, as
+  of the forest with no `basis` stating no `sd`, taken as one forest
+  takes it; see `forests`. A forest states its own size as
   `forest(x1 + x2, sd = 2)`, in the response's units as `normal(sd = )`
-  is. The one forest of a model of one forest states its size either
-  way, `forest(sd = )` being this prior's `normal(sd = )`, and not at
-  both. A written `NULL` is refused, saying to leave the argument out
-  for its default.
+  is, and where every forest with no `basis` does a `k` or `sd` here is
+  refused, the default restated taken. The one forest of a model of one
+  forest states its size either way, `forest(sd = )` being this prior's
+  `normal(sd = )`, and not at both. A written `NULL` is refused, saying
+  to leave the argument out for its default.
 
 - monotone:
 
@@ -400,24 +401,33 @@ dbarts(
   basis's columns. Any number of forests may be declared, each carrying
   a basis of one numeric column or of two levels (see
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
-  `basis` item); the two-forest case with a two-level factor basis is
-  the Bayesian causal forest \\y = a \mu(x) + b_z \tau(x) + \epsilon\\:
-  a prognostic forest \\\mu\\ over every predictor and a modulating
-  forest \\\tau\\ over the columns its `vars` allows. At most one forest
-  has no `basis`, at any place in the list, the amplitudes multiplying a
-  basis being what distinguish the others from it. A forest's default
-  tree count and tree prior go by whether it has a `basis`: the forest
-  with none takes the control's `n.trees` and this function's `power`
-  and `base`, and a forest with one takes 50 trees under
-  `base = 0.25, power = 3`, wherever each stands. Where every forest has
-  a `basis`, a control that names `n.trees` and a named `power`, `base`,
-  `leaf.prior`, `interactions` or `blocks` have no forest to belong to
-  and are refused, the default's own value included; state them on a
-  forest. Where only some forests have a basis, a `power` or `base`
-  stated here and on the forest with none is refused as one thing given
-  twice. A single declared forest carrying a basis is refused: for
-  varying coefficients declare an intercept forest plus one basis forest
-  per covariate,
+  `basis` item); the two-forest case with a two-level factor basis has
+  the shape of the Bayesian causal forest \\y = a \mu(x) + b_z \tau(x) +
+  \epsilon\\: a prognostic forest \\\mu\\ over every predictor and a
+  modulating forest \\\tau\\ over the columns its `vars` allows, \\a\\
+  being 1 unless \\\mu\\ states `amplitude = student(1)`. Any number of
+  forests may have no `basis`, at any place in the list; one that states
+  no `sd` takes this function's leaf prior as a single forest does, held
+  at 1, and two or more of them share it as one prior total, each an
+  equal part of its variance (see
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
+  Details), which is where `leaf.prior`, a `k` prior and a non-default
+  `k` are taken beside other forests. A forest's default tree count and
+  tree prior go by whether it has a `basis`: a forest with none takes
+  the control's `n.trees` and this function's `power` and `base`,
+  several stating no count splitting `n.trees` among them as
+  [`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md) does,
+  and a forest with one takes 50 trees under `base = 0.25, power = 3`,
+  wherever each stands. Where every forest has a `basis`, a control that
+  names `n.trees` and a named `power`, `base`, `leaf.prior`,
+  `interactions` or `blocks` have no forest to belong to and are
+  refused, the default's own value included; state them on a forest.
+  Where only some forests have a basis, a `power` or `base` stated here
+  and on every forest with none is refused as one thing given twice;
+  beside two or more forests with no basis, `interactions` and `blocks`
+  are refused here and stated on a forest. A single declared forest
+  carrying a basis is refused: for varying coefficients declare an
+  intercept forest plus one basis forest per covariate,
   `forests = list(forest(), forest(basis = z1), forest(basis = z2))`, or
   use one forest with `linear()` leaves. A `basis` is written as the
   right-hand side of a model formula, without the tilde, and read as
@@ -464,13 +474,13 @@ dbarts(
   declaration, replacing whatever bases it carried. Options a two-forest
   model does not read - `monotone`, `variance`, a non-uniform
   `split.probs` (a vector or `dart()`), a linear or Gaussian-process
-  leaf prior, a `k` hyperprior or non-default `k`, Student-t residuals,
-  `storage = "single"`, per-column cut counts, and a `test` set - are
-  refused at creation rather than ignored, as is any declaration the
-  engine cannot honor. The constructors `forest`, `interactions` and
-  `blocks` resolve by bare name inside this argument, whatever the
-  caller has attached, and a bare name the caller has bound to a value
-  is that value; see
+  leaf prior, a `k` hyperprior or non-default `k` where no forests share
+  a total, Student-t residuals, `storage = "single"`, per-column cut
+  counts, and a `test` set - are refused at creation rather than
+  ignored, as is any declaration the engine cannot honor. The
+  constructors `forest`, `interactions` and `blocks` resolve by bare
+  name inside this argument, whatever the caller has attached, and a
+  bare name the caller has bound to a value is that value; see
   [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md).
 
 - control:

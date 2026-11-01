@@ -1014,8 +1014,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   or anything else about the model, is `setModel`'s. A multinomial
   sampler takes `normal(k = )` with a fixed `k`, `Inf` included, as its
   creation does. A sampler whose forests carry amplitudes takes
-  `forests` instead; its creation also accepts `normal()` and
-  `normal(k = 2)`, which change nothing here.
+  `forests` instead; its creation also accepts `normal()`, which changes
+  nothing here, and `normal(k = 2)`, which changes nothing where no
+  forest takes the leaf prior.
 
 - forests:
 
@@ -1038,9 +1039,10 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   divided by the sampler's unit as creation divides it, leaves the scale
   a numeric forest's default was taken from, states the forest from then
   on, also where it is the number `getLeafPrior` reports in force, which
-  moves nothing, and is recorded on the `control` attribute creation
-  reads, so every re-creation builds with it. Give exactly one of
-  `leaf.prior` and `forests`.
+  keeps the prior, to rounding on a lone forest with no basis, bitwise
+  at a held `k` of 2, and is recorded on the `control` attribute
+  creation reads, so every re-creation builds with it. Give exactly one
+  of `leaf.prior` and `forests`.
 
 - cuts:
 
@@ -2317,11 +2319,14 @@ For `getK`, each chain's current `k`, the value `run()$k` records per
 draw when `k` is drawn in that run (a run records no `k` while it is
 fixed), read without running, as `getSigmas` reports `sigma`: after a
 run it is bitwise the last draw. A fixed `k` is reported once per chain,
-and a forest whose scale a calibration map sets reports 1. It is `k`
-whatever terms the prior was named in, relative to
-`getLeafPrior()$k.scale`: under an `sd`-named prior, that scale over the
-spread in force. A numeric vector of length equal to the number of
-chains at one forest, or, at the default `forest = NULL` on a
+and a forest whose scale a calibration map sets reports 1; a forest with
+no basis stating neither `sd` nor `student()` reports the leaf prior's
+`k`, and those that share one prior total (see
+[`forest`](https://vdorie.github.io/dbarts/reference/forest.md)) each
+the group's one. It is `k` whatever terms the prior was named in,
+relative to `getLeafPrior()$k.scale`: under an `sd`-named prior, that
+scale over the spread in force. A numeric vector of length equal to the
+number of chains at one forest, or, at the default `forest = NULL` on a
 multi-forest sampler, an n.forests x n.chains matrix; a single-forest
 sampler's `NULL` read is bitwise its `forest = 1` read.
 
@@ -2516,7 +2521,14 @@ the forest's own prior sd before its coefficient, in the response's
 units: `sd` itself where the coefficient is held, `sd` over 0.674 where
 it is drawn and the forest has a basis, and the unit where a drawn
 forest with no basis carries its `sd` as the median of its coefficient's
-prior.
+prior. A forest with no basis stating neither `sd` nor `student()`,
+alone or sharing one prior total with others (see
+[`forest`](https://vdorie.github.io/dbarts/reference/forest.md)), reads
+as one forest does, under the fitting function's leaf prior:
+`leaf.prior` is that prior as named, `sd` the forest's part of the total
+in force, `NA` where `k` is drawn, `sd.stated` `FALSE`, `multiplier`
+`"none"`, `amplitude` `fixed()`, `prior.sd.of` `"forest"` alone and
+`"forest, shared"` in a group, and `k.scale` over the `k` its part.
 
 On a forest whose scale the multi-forest CALIBRATION MAP sets, on a
 sampler built with `forests =` or `dbartsData(bases = )` (see
@@ -2576,16 +2588,24 @@ the write keeps the chains' spread, on a sampler that has not yet run it
 is not the start that creation under the new prior would make. The write
 takes effect on the next sweep, reinterpreting no leaf value already
 drawn; a write that reproduces what is already in force is skipped
-bitwise, so a read followed by a write cannot perturb a draw. It is
-total over the four leaf models, and a DART sampler, which `setModel`
-refuses, is served. A multinomial sampler takes `normal(k = )` and
-applies the `k` to every category forest, leaving the softmax map's leaf
-scale; a named sd or a `k` hyperprior is refused there, as at creation.
-A sampler whose forests carry amplitudes takes
-`forests = list(forest(sd = ), ...)`, restating each named forest's
-spread, in the response's units, in the channel its creation gave it,
-and any `leaf.prior` other than the no-ops `normal()` and
-`normal(k = 2)` is refused there. Both writes are recorded where
+bitwise, so a read followed by a write cannot perturb a draw, the
+rounding named at `forests` aside. It is total over the four leaf
+models, and a DART sampler, which `setModel` refuses, is served. A
+multinomial sampler takes `normal(k = )` and applies the `k` to every
+category forest, leaving the softmax map's leaf scale; a named sd or a
+`k` hyperprior is refused there, as at creation. A sampler whose forests
+carry amplitudes takes `forests = list(forest(sd = ), ...)`, restating
+each named forest's spread, in the response's units, in the channel its
+creation gave it, and any `leaf.prior` other than `normal()` and, where
+no forest takes the leaf prior, `normal(k = 2)`, which change nothing,
+is refused there. A forest with no basis stating neither `sd` nor
+`student()` alone leaves the leaf prior at an `sd` stated for it, its
+`k` then pinned at 1, and takes a `leaf.prior` only restating the one in
+force, so `normal(k = 2)` is refused unless it is the one in force.
+Where forests with no basis share one prior total, their part is fixed
+at creation: an `sd` stated in `forests` for one of them is refused, as
+is every `leaf.prior`, the total being the leaf prior they were created
+under; make a new sampler to change it. Both writes are recorded where
 re-creation reads them. The map's k.scale is recorded at creation too,
 so a re-creation after `setResponse` or `setOffset` at
 `updateScale = FALSE` states every forest against the same k.scale as

@@ -841,8 +841,12 @@ print(x, ...)
   BART-package default, or `chi(1.5, Inf)` for the old improper prior.
   See [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
   `k` item, and the ‘Leaf prior parameter `k`’ details there, for the
-  full calibration argument and its outlier-sensitivity caveat. A
-  written `NULL` is the argument left out.
+  full calibration argument and its outlier-sensitivity caveat. In a
+  model of several forests it is that of the forest with no `basis`
+  stating no `sd`, or the group's where two or more share one total;
+  where every forest with no `basis` states one it is refused unless it
+  is the default (see ‘Formula Terms’). A written `NULL` is the argument
+  left out.
 
 - power, base:
 
@@ -886,10 +890,14 @@ print(x, ...)
   and rides the family object instead -
   `family = gaussian(sigma = chisq(3, 0.9))`,
   `family = gaussian(sigma = fixed(1))`; see `family` below. In a model
-  of several forests it is that of the forest with no `basis`, and a
-  named leaf-prior `sd` is refused there: each forest states its size on
-  the forest, in the response's units, as `forest(x1 + x2, sd = 2)`; see
-  ‘Formula Terms’. A written `NULL` is the argument left out.
+  of several forests it is that of the forest with no `basis` stating no
+  `sd`, taken as one forest takes it: see ‘Formula Terms’. Where two or
+  more share one total it is that total, `normal(sd = )` its size and
+  `k` or a `chi()` prior on `k` its `k`, one for the group.
+  `forest(sd = )` is one forest's own size, in the response's units, and
+  where every forest with no `basis` states one a `k` or `sd` here is
+  refused, the default restated taken. A written `NULL` is the argument
+  left out.
 
 - monotone:
 
@@ -980,9 +988,10 @@ print(x, ...)
 - n.trees:
 
   The number of trees in the sum-of-trees formulation. In a model of
-  several forests it is the count of the forest with no `basis`; see
-  ‘Formula Terms’. A written `NULL` is refused, saying to leave the
-  argument out for its default.
+  several forests it is the count of the forest with no `basis`, split
+  among several such forests that state none; see ‘Formula Terms’. A
+  written `NULL` is refused, saying to leave the argument out for its
+  default.
 
 - n.samples:
 
@@ -1454,26 +1463,44 @@ crossed with another term: `z:forest(x1 + x2)` and `z * forest(x1 + x2)`
 are refused, the message giving the term to write,
 `forest(x1 + x2, basis = z)`.
 
-The forest with no `basis` is the forest with no multiplier. It may be
-left as plain terms, `y ~ x1 + x2 + forest(x1 + x2, basis = z)`, which
-is the same model as the first line above, draw for draw; and written
-alone, `y ~ forest(x1 + x2)` is the single-forest fit `y ~ x1 + x2`, in
-every family that takes a formula. A model has one such forest, so plain
-predictor terms beside a
+The forest with no `basis` is the forest with no multiplier, and takes
+`bart`'s own leaf prior and `k` as a single forest does, whatever stands
+beside it: held at 1, it is the forest `bart` would fit alone, unless it
+states `sd` or `amplitude = student()`. It may be left as plain terms,
+`y ~ x1 + x2 + forest(x1 + x2, basis = z)`, which is the same model as
+the first line above, draw for draw; and written alone,
+`y ~ forest(x1 + x2)` is the single-forest fit `y ~ x1 + x2`, in every
+family that takes a formula. Plain predictor terms beside a
 [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) with
-no `basis`, and two such terms, are refused. It is the model's first
-forest wherever it is written, and `bart`'s own `n.trees`, `power`,
-`base`, `interactions` and `blocks` are its: `n.trees`, `power`, `base`,
-`interactions` or `blocks` stated both on that term and as `bart`'s
-argument is refused as one thing given twice, a default's own value
-included. The other forests keep the order they are written in, and each
-has 50 trees under `base = 0.25, power = 3` unless it states its own,
-whichever is written first. In a formula whose forests all have a
-`basis` those arguments of `bart` have no forest to belong to: each one
-that is stated is refused by name, its default's own value included, as
-are `leaf.prior`, `k` and a `control` that names `n.trees`. A
-`leaf.prior` or `k` written as `NULL` is named, and refused as any other
-is. State a count and a tree prior on a forest, as
+no `basis` are refused, being two readings, one forest or two; write
+each as a
+[`forest()`](https://vdorie.github.io/dbarts/reference/forest.md). It is
+the model's first forest wherever it is written, and `bart`'s own
+`n.trees`, `power`, `base`, `interactions` and `blocks` are its:
+`n.trees`, `power`, `base`, `interactions` or `blocks` stated both on
+that term and as `bart`'s argument is refused as one thing given twice,
+a default's own value included. Several
+[`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) terms
+with no `basis`, `y ~ forest(x1) + forest(x2) + forest(x3)`, are the
+first forests, in the order written, and share one prior total, `bart`'s
+own leaf prior, each an equal part (see
+[`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
+Details): the model is `bart`'s one forest with its trees in
+[`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md). They
+split `n.trees` as
+[`blocks()`](https://vdorie.github.io/dbarts/reference/blocks.md) does,
+38 and 37 of 75, a term stating `n.trees` keeping its own outside the
+split; `bart`'s `n.trees`, `power` and `base` reach each term that
+states none and are refused only where every one states its own, and its
+`interactions` and `blocks` are refused, stated on a term instead. The
+other forests keep the order they are written in, and each has 50 trees
+under `base = 0.25, power = 3` unless it states its own, whichever is
+written first. In a formula whose forests all have a `basis` those
+arguments of `bart` have no forest to belong to: each one that is stated
+is refused by name, its default's own value included, as are
+`leaf.prior`, `k` and a `control` that names `n.trees`. A `leaf.prior`
+or `k` written as `NULL` is named, and refused as any other is. State a
+count and a tree prior on a forest, as
 `forest(x1, basis = z, n.trees = 100, power = 3)`.
 
 A forest's first argument is the predictors it splits on, written as the
@@ -2180,7 +2207,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001909
+#> total seconds in loop: 0.001486
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 2 3 2 3 2 2 1 1 2 3 3 3 2 2 
@@ -2217,7 +2244,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000895
+#> total seconds in loop: 0.000766
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 1 2 1 2 2 2 2 2 1 1 1 1 1 2 1 2 1 
@@ -2252,7 +2279,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001397
+#> total seconds in loop: 0.001151
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 4 3 1 3 2 2 3 3 2 2 5 3 5 2 2 2 2 
@@ -2302,16 +2329,17 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> forests, sd in the response's units (sd(y) 0.899):
-#>   1 forest1: no basis; sd 1.798 (default)
+#>   1 forest1: no basis; sd 0.8068 (default)
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
+#>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.002160
+#> total seconds in loop: 0.001704
 #> 
 #> Tree sizes, last iteration:
-#> [1] 3 2 2 2 3 1 2 2 3 4 
+#> [1] 2 2 3 3 2 3 2 3 3 2 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 5) (2: 9) 
+#> (1: 6) (2: 9) 
 #> DONE BART
 #> 
 fit.bcf$n.forests

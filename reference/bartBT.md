@@ -829,7 +829,10 @@ for a short time with a flat prior (`scale = Inf`) can show the range of
 A fit stores the `k` its sampler recorded, whatever terms the leaf prior
 was named in (`k`, or `sd` through `leaf.prior`; see
 [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md));
-`extract(type = "k")` returns it on every fit. It is relative to the
+`extract(type = "k")` returns it on every fit; on a fit with several
+forests under a drawn `k` it is a list named by the forests' labels, the
+group's draws for each forest sharing a total and 1, the value `k` is
+pinned at, for any other, as `leaf.prior.sd` is. It is relative to the
 data's scale, which the fit stores as `leaf.prior$k.scale`, whatever
 terms the prior was named in: under an `sd`-named prior it is that scale
 over the spread, a held `sd` being stored as the held `k` that states
@@ -849,7 +852,10 @@ reported it when the run ended (see
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)),
 in the response's units: the number the forest stated, or its default,
 before its amplitude multiplies the forest, and for a forest on a
-numeric column per unit of that column, named by it. It comes back as a
+numeric column per unit of that column, named by it. A forest sharing
+one prior total under a drawn `k` has draws there instead, its `k.scale`
+over the group's `k`, and `summary` tabulates that `k`, or that
+`leaf.prior.sd` where the total was named by an `sd`. It comes back as a
 list named by the forests' labels, or as the entry itself that `forest`
 selects; `k` is pinned at 1 on each. A hurdle fit returns a list of its
 zero and positive parts, each in its own units.
@@ -1401,7 +1407,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.219889
+#> total seconds in loop: 0.171822
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

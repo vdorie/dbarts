@@ -93,7 +93,8 @@ The constructor is not exported: it resolves by bare name inside the
     <code>n.trees</code> trees each group receives; the entries must be positive and
     sum to <code>n.trees</code>. <code>NULL</code> (the default) distributes the trees as
     evenly as possible, with the first <code>n.trees %% length(groups)</code> groups
-    receiving one extra tree.</p></dd>
+    receiving one extra tree. A group's count sets how finely it divides its
+    part of the forest's prior, not the size of that part; see Details.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -104,6 +105,17 @@ The constructor is not exported: it resolves by bare name inside the
   deterministic and contiguous (the first <code>trees.per.group[1]</code> trees to
   group 1, the next <code>trees.per.group[2]</code> to group 2, and so on) and
   consumes no random numbers, so a fit is exactly reproducible.</p>
+<p>Each of the \(G\) groups takes an equal part, \(1/G\), of the forest's
+  prior variance, whatever its tree count: a group of \(m_g\) trees gives
+  each of its leaves the variance \(s^2 / (G m_g)\), \(s\) the forest's
+  prior standard deviation, so the forest as a whole keeps the prior a forest
+  without groups has. <code>trees.per.group</code> says how complex each group's
+  function may be, not how much of the response it explains. With equal
+  counts every tree has the leaf prior of the same forest without groups.
+  Several forests with no basis written as their own terms,
+  <code>y ~ forest(x1) + forest(x2)</code>, are the same model as the one forest
+  <code>y ~ forest(x1 + x2, blocks = blocks(list("x1", "x2")))</code> at the same
+  tree counts (see <code><a href="forest.html">forest</a></code>'s Details).</p>
 <p>Unlike <code><a href="interactions.html">interactions</a></code><code>(groups = )</code>, which is a per-path
   allow-list that leaves un-named predictors unconstrained, <code>blocks</code>
   lowers to a static per-tree column mask: a predictor named in no block would

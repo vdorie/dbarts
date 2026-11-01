@@ -39,7 +39,9 @@ blocks(groups, trees.per.group = NULL)
   `n.trees` trees each group receives; the entries must be positive and
   sum to `n.trees`. `NULL` (the default) distributes the trees as evenly
   as possible, with the first `n.trees %% length(groups)` groups
-  receiving one extra tree.
+  receiving one extra tree. A group's count sets how finely it divides
+  its part of the forest's prior, not the size of that part; see
+  Details.
 
 ## Details
 
@@ -49,6 +51,20 @@ ensemble - mixes predictors from different groups. The assignment is
 deterministic and contiguous (the first `trees.per.group[1]` trees to
 group 1, the next `trees.per.group[2]` to group 2, and so on) and
 consumes no random numbers, so a fit is exactly reproducible.
+
+Each of the \\G\\ groups takes an equal part, \\1/G\\, of the forest's
+prior variance, whatever its tree count: a group of \\m_g\\ trees gives
+each of its leaves the variance \\s^2 / (G m_g)\\, \\s\\ the forest's
+prior standard deviation, so the forest as a whole keeps the prior a
+forest without groups has. `trees.per.group` says how complex each
+group's function may be, not how much of the response it explains. With
+equal counts every tree has the leaf prior of the same forest without
+groups. Several forests with no basis written as their own terms,
+`y ~ forest(x1) + forest(x2)`, are the same model as the one forest
+`y ~ forest(x1 + x2, blocks = blocks(list("x1", "x2")))` at the same
+tree counts (see
+[`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
+Details).
 
 Unlike
 [`interactions`](https://vdorie.github.io/dbarts/reference/interactions.md)`(groups = )`,
