@@ -5579,9 +5579,10 @@ static void testBCFCombinerSeam() {
       ext_rng* reference = makeSeamRng();
       combiner.drawGlue(live, 1.0, y.data(), nullptr, forests);
 
-      double refA = ext_rng_simulateStandardNormal(reference);
+      // with no fits a's variance is the mixture's start, 1 / 2^2
+      double refA = 0.5 * ext_rng_simulateStandardNormal(reference);
       double rate =
-        0.5 * refA * refA + 0.5 * spec.aPriorScale * spec.aPriorScale;
+        0.5 * refA * refA + 0.5;
       double refAVariance =
         1.0 / ext_rng_simulateGamma(reference, 1.0, 1.0 / rate);
       double refB0 = ext_rng_simulateStandardNormal(reference);
@@ -5630,9 +5631,10 @@ static void testBCFCombinerSeam() {
       ext_rng* live = makeSeamRng();
       ext_rng* reference = makeSeamRng();
       combiner.drawGlue(live, 1.0, y.data(), nullptr, forests);
-      double refA = ext_rng_simulateStandardNormal(reference);
+      // with no fits a's variance is the mixture's start, 1 / 2^2
+      double refA = 0.5 * ext_rng_simulateStandardNormal(reference);
       double rate =
-        0.5 * refA * refA + 0.5 * spec.aPriorScale * spec.aPriorScale;
+        0.5 * refA * refA + 0.5;
       (void) ext_rng_simulateGamma(reference, 1.0, 1.0 / rate);
       ChainStateData drawn;
       combiner.serializeGlue(drawn);
@@ -6178,7 +6180,7 @@ static void testGeneralAmplitudeConditional() {
   // strongest statement true of them, since the group accumulators form their
   // per-row products before a branch and the design-row loop does not.
   {
-    const double aScale = 2.0;  // AmplitudeSpec::aPriorScale, the mixture's
+    const double aScale = 1.0;  // the mixture's
     std::vector<double> yE(n), wE(n), muE(n), tauE(n);
     for (size_t i = 0; i < n; ++i) {
       yE[i] = static_cast<double>(i % 9) - 4.0;
@@ -8991,7 +8993,7 @@ static void testForestUnitRowsIn() {
           "a constant response has anchor and unit a quarter of its window");
     check(plain.mapSd == 0.25 && level.mapSd == 0.25 &&
             TestPeer::leafScale(flat.sampler->chain(0), 1) ==
-              1.0 * 0.25 / (0.674 * 1.0) / std::sqrt(8.0),
+              1.0 * 0.25 / std::sqrt(8.0),
           "and the forests' defaults are those of that unit");
     check(flat.sampler->setForestMapSd(1, 0.4) &&
             flat.sampler->forestCalibration(0, 1).mapSd == 0.4,
@@ -10179,9 +10181,7 @@ static void testForestMapStatements() {
         check(plain.amplitudeHeld && std::isnan(plain.amplitudePriorScale) &&
                 plain.k == 2.0 && plain.share == 1.0 &&
                 TestPeer::mapEntry(sampler.chain(0), 0).nodeScaleFactor ==
-                  size &&
-                TestPeer::mapEntry(sampler.chain(0), 0).nodeScaleDivisor ==
-                  1.0,
+                  size,
               "map statements: a forest with no basis is held at the leaf "
               "prior's size, and reads the group's k");
         check(TestPeer::leafScale(sampler.chain(0), 0) ==
@@ -10199,18 +10199,16 @@ static void testForestMapStatements() {
           // a factor takes one unit, a number one unit for one sd of it
           double multiple = numeric ? 1.0 / multiplied.basisScale : 1.0;
           check(entry.nodeScaleFactor == multiple &&
-                  entry.nodeScaleDivisor == 0.674 &&
                   multiplied.amplitudePriorVariance ==
-                    (numeric ? 1.0 : 0.5) &&
+                    (numeric ? 1.0 : 0.5) / (0.674 * 0.674) &&
                   std::isnan(multiplied.amplitudePriorScale) &&
                   (numeric ? ulps(multiplied.basisScale, doseScale, 4.0)
                            : std::isnan(multiplied.basisScale)),
-                "map statements: a factor takes one unit over 0.674 under "
-                "the variance 1/2, a number one unit per sd of it under "
-                "variance 1, whatever K");
+                "map statements: a factor takes one unit under the variance "
+                "1/2 over 0.674^2, a number one unit per sd of it under "
+                "variance 1 over 0.674^2, whatever K");
           check(TestPeer::leafScale(sampler.chain(0), f) ==
-                  multiple * s / 0.674 /
-                    std::sqrt(static_cast<double>(trees[f])),
+                  multiple * s / std::sqrt(static_cast<double>(trees[f])),
                 "map statements: its leaf scale is the expression's bits");
           check(std::isnan(multiplied.namedSd) &&
                   multiplied.mapSd == multiple * unit,
@@ -10343,7 +10341,7 @@ static void testHeldCoefficients() {
     drawnBits = drawnBits &&
                 TestPeer::leafScale(sampler.chain(0), g) ==
                   1.0 / sampler.forestCalibration(0, g).basisScale * s /
-                    0.674 / std::sqrt(static_cast<double>(trees[2])) &&
+                    std::sqrt(static_cast<double>(trees[2])) &&
                 !sampler.forestCalibration(0, g).amplitudeHeld;
     destroyDrawRngs(built.second);
   }
@@ -10353,7 +10351,7 @@ static void testHeldCoefficients() {
   check(exact, "held coefficients: a held forest's leaf scale is its sd over "
                "the unit times the anchor, with no divisor");
   check(drawnBits, "held coefficients: the drawn numeric forest beside them "
-                   "takes one unit for one sd of its column, over 0.674");
+                   "takes one unit for one sd of its column");
 
   // (b) a held forest with no basis that states no sd: the leaf prior's size
   // under every family, by the one expression
@@ -10912,20 +10910,21 @@ static void testNumericMultiplierRule() {
       const ForestMapEntry& entry = TestPeer::mapEntry(sampler.chain(0), 2);
       std::vector<double> amplitudes(sampler.totalAmplitudes());
       sampler.amplitudes(0, amplitudes.data());
-      double divisor = held ? 1.0 : 0.674;
+      double quartile = held ? 1.0 : 0.674;
       check(numeric.basisScale == 0.25 && entry.nodeScaleFactor == 4.0 &&
-              entry.nodeScaleDivisor == divisor &&
               ulps(TestPeer::leafScale(sampler.chain(0), 2),
-                   4.0 * s / divisor / std::sqrt(5.0), 4.0) &&
-              numeric.amplitudePriorVariance == 1.0 && amplitudes[3] == 1.0 &&
+                   4.0 * s / std::sqrt(5.0), 4.0) &&
+              numeric.amplitudePriorVariance == 1.0 / (quartile * quartile) &&
+              amplitudes[3] == 1.0 / quartile &&
               ulps(numeric.mapSd, 4.0 * unit, 4.0) &&
               numeric.amplitudeHeld == held,
             "numeric rule: one unit per sd of 0.25 is four per unit of the "
-            "column, under variance 1 and starting at 1");
+            "column, under variance 1 and starting at 1, over 0.674 where "
+            "drawn");
       ForestCalibration level = sampler.forestCalibration(0, 1);
-      check(level.amplitudePriorVariance == 0.5 &&
+      check(level.amplitudePriorVariance == 0.5 / (0.674 * 0.674) &&
               TestPeer::mapEntry(sampler.chain(0), 1).nodeScaleFactor == 1.0 &&
-              amplitudes[1] == 0.0 && amplitudes[2] == 1.0,
+              amplitudes[1] == 0.0 && amplitudes[2] == 1.0 / 0.674,
             "numeric rule: the factor beside it keeps its rule and start");
       destroyDrawRngs(built.second);
     }
@@ -10946,9 +10945,9 @@ static void testNumericMultiplierRule() {
       std::vector<double> amplitudes(sampler.totalAmplitudes());
       sampler.amplitudes(0, amplitudes.data());
       check(amplitudes.size() == 2 && amplitudes[0] == 1.0 &&
-              amplitudes[1] == 1.0,
+              amplitudes[1] == 1.0 / 0.674,
             "numeric rule: a drawn numeric coefficient standing second "
-            "starts at 1");
+            "starts at 1 over 0.674");
     }
     destroyDrawRngs(rngs);
   }
@@ -10986,7 +10985,7 @@ static void testNumericMultiplierRule() {
   }
 
   // (d) the coefficient's prior: its conditional given the forests' fits,
-  // against the closed form whose prior precision is 1
+  // against the closed form whose prior precision is 0.674 squared
   {
     ColumnStore data;
     built(data.build(x.data(), n, p, 100));
@@ -11011,7 +11010,7 @@ static void testNumericMultiplierRule() {
     forests[0].totalFits.assign(n, 0.3);
     forests[1].totalFits = fit;
     const double sigma = 1.0;
-    double precision = 1.0, moment = 0.0;
+    double precision = 0.674 * 0.674, moment = 0.0;
     for (size_t i = 0; i < n; ++i) {
       double design = w[i] * fit[i];
       precision += design * design / (sigma * sigma);
@@ -11034,7 +11033,8 @@ static void testNumericMultiplierRule() {
     check(std::fabs(drawnMean - mean) < 4.0 * std::sqrt(variance / numDraws) &&
             std::fabs(drawnVariance / variance - 1.0) <
               4.0 * std::sqrt(2.0 / numDraws),
-          "numeric rule: the coefficient's conditional has prior precision 1");
+          "numeric rule: the coefficient's conditional has prior precision "
+          "0.674 squared");
   }
 
   // (e) paths: the scale handed back, a swap and a write
@@ -11060,14 +11060,14 @@ static void testNumericMultiplierRule() {
           "scale is the first one's; with none handed, it is not");
     auto agrees = [&](ConstantLeafSampler& sampler, bool held) {
       ForestCalibration c = sampler.forestCalibration(0, 2);
-      return ulps(TestPeer::leafScale(sampler.chain(0), 2) *
-                    std::sqrt(5.0) * (held ? 1.0 : 0.674) / c.mapAnchor *
-                    c.mapUnit,
+      (void)held;
+      return ulps(TestPeer::leafScale(sampler.chain(0), 2) * std::sqrt(5.0) /
+                    c.mapAnchor * c.mapUnit,
                   c.mapSd, 4.0);
     };
     check(agrees(*first.first, false),
-          "numeric rule: after a swap the leaf scale times its divisor is "
-          "the sd the reader reports");
+          "numeric rule: after a swap the leaf scale is the sd the reader "
+          "reports");
     check(first.first->setForestMapSd(2, 3.7) && agrees(*first.first, false) &&
             first.first->forestCalibration(0, 2).basisScale == scale,
           "numeric rule: after a write too, and the scale stays");
@@ -11581,7 +11581,7 @@ static void testForestSdUnit() {
     // (a) the derived unit
     Built unstated = build(family, response, nullptr, nullptr, nullptr, nan,
                            nan);
-    // forest 0, stating a df, takes the leaf prior's size as its median
+    // forest 0, stating a df, takes the leaf prior's size
     const double median =
       0.25 / unstated.sampler->forestCalibration(0, 0).mapAnchor;
     // one unit for a factor at K = 3 (dec-B291), and one unit for one sd of
@@ -11610,16 +11610,15 @@ static void testForestSdUnit() {
       ForestCalibration a = created.sampler->forestCalibration(1, f);
       ForestCalibration b = spelled.sampler->forestCalibration(1, f);
       near = near && ulps(a.priorScale, b.priorScale, 4.0) &&
-             (f == 0 ? ulps(a.amplitudePriorScale, b.amplitudePriorScale, 4.0)
-                     : ulps(TestPeer::mapEntry(created.sampler->chain(1), f)
-                              .nodeScaleFactor,
-                            TestPeer::mapEntry(spelled.sampler->chain(1), f)
-                              .nodeScaleFactor,
-                            4.0));
+             ulps(TestPeer::mapEntry(created.sampler->chain(1), f)
+                    .nodeScaleFactor,
+                  TestPeer::mapEntry(spelled.sampler->chain(1), f)
+                    .nodeScaleFactor,
+                  4.0);
     }
     check(near, "sd unit: a stated sd is its quotient by the unit, in the "
-                "channel the forest's kind gives it");
-    check(created.sampler->forestCalibration(0, 0).amplitudePriorScale ==
+                "trees on every kind");
+    check(TestPeer::mapEntry(created.sampler->chain(0), 0).nodeScaleFactor ==
               stated[0] / unit &&
             TestPeer::mapEntry(created.sampler->chain(0), 1).nodeScaleFactor ==
               stated[1] / unit &&
@@ -11628,14 +11627,16 @@ static void testForestSdUnit() {
           "sd unit: divided once, by the unit the chain reports");
     check(TestPeer::leafScale(created.sampler->chain(0), 2) !=
             TestPeer::leafScale(unstated.sampler->chain(0), 2) &&
-            TestPeer::leafScale(created.sampler->chain(0), 0) ==
-              TestPeer::leafScale(unstated.sampler->chain(0), 0),
-          "sd unit: a forest with a basis carries it in its leaf scale and "
-          "one with none in its median");
+            TestPeer::leafScale(created.sampler->chain(0), 0) !=
+              TestPeer::leafScale(unstated.sampler->chain(0), 0) &&
+            created.sampler->forestCalibration(0, 0).amplitudePriorScale ==
+              unstated.sampler->forestCalibration(0, 0).amplitudePriorScale,
+          "sd unit: a forest carries it in its leaf scale, with a basis or "
+          "with none, and no coefficient's prior reads it");
     Built spelledDefaults = build(family, response, nullptr, nullptr, defaults,
                                   nan, nan);
     check(leafScales(unstated) == leafScales(spelledDefaults) &&
-            unstated.sampler->forestCalibration(0, 0).amplitudePriorScale ==
+            TestPeer::mapEntry(unstated.sampler->chain(0), 0).nodeScaleFactor ==
               median,
           "sd unit: a forest stating none has the base spelling's bits");
 
@@ -11717,7 +11718,7 @@ static void testForestSdUnit() {
       Built again = build(family, response, nullptr, inForce, nullptr, nan,
                           nan);
       check(leafScales(again) == leafScales(unstated) &&
-              again.sampler->forestCalibration(0, 0).amplitudePriorScale ==
+              TestPeer::mapEntry(again.sampler->chain(0), 0).nodeScaleFactor ==
                 median &&
               TestPeer::mapEntry(again.sampler->chain(0), 1).nodeScaleFactor ==
                 1.0,
@@ -11739,8 +11740,20 @@ static void testForestSdUnit() {
       }
       check(moved && same,
             "sd unit: a write of another value is the chain created with it");
-      check(draws(*other.sampler, 20) == draws(*created.sampler, 20),
-            "sd unit: draw for draw");
+      // draw for draw on the forests whose start does not read the sd, those
+      // with a basis: the start of forest 0 is set once, at creation
+      {
+        const double besideFirst[K] = {nan, stated[1], stated[2]};
+        Built basisCreated = build(family, response, nullptr, besideFirst,
+                                   nullptr, nan, nan);
+        Built basisWritten = build(family, response, nullptr, nullptr, nullptr,
+                                   nan, nan);
+        bool written = basisWritten.sampler->setForestMapSd(1, stated[1]) &&
+                       basisWritten.sampler->setForestMapSd(2, stated[2]);
+        check(written && draws(*basisWritten.sampler, 20) ==
+                           draws(*basisCreated.sampler, 20),
+              "sd unit: draw for draw");
+      }
       check(!other.sampler->setForestMapSd(0, -1.0) &&
               !other.sampler->setForestMapSd(
                 1, std::numeric_limits<double>::infinity()) &&
@@ -11801,7 +11814,7 @@ static void testForestSdUnit() {
                      std::isnan(a.basisScale);
           product = product &&
                     TestPeer::leafScale(swapped.sampler->chain(c), f) ==
-                      stated[f] / unit * s / 0.674 /
+                      stated[f] / unit * s /
                         std::sqrt(static_cast<double>(trees[f]));
           same = same && a.priorScale == b.priorScale;
         }
@@ -11847,9 +11860,8 @@ static void testForestSdUnit() {
             ForestCalibration after = written.sampler->forestCalibration(c, f);
             stood = stood && after.namedSd == before.mapSd &&
                     after.mapSd == before.mapSd &&
-                    (f == 0 ? after.amplitudePriorScale
-                            : TestPeer::mapEntry(written.sampler->chain(c), f)
-                                .nodeScaleFactor) == multiples[f];
+                    TestPeer::mapEntry(written.sampler->chain(c), f)
+                        .nodeScaleFactor == multiples[f];
           }
         }
         check(taken && stood,
@@ -11893,15 +11905,14 @@ static void testForestSdUnit() {
         for (size_t f = 0; f < K; ++f) {
           ForestCalibration a = anchored.sampler->forestCalibration(c, f);
           divided = divided &&
-                    (f == 0 ? a.amplitudePriorScale
-                            : TestPeer::mapEntry(anchored.sampler->chain(c), f)
-                                .nodeScaleFactor) == stated[f] / ownUnit;
+                    TestPeer::mapEntry(anchored.sampler->chain(c), f)
+                        .nodeScaleFactor == stated[f] / ownUnit;
         }
       }
       check(divided, "sd unit: with the anchor handed and the unit not, a "
                      "stated sd is divided by the response's own unit");
       check(TestPeer::leafScale(anchored.sampler->chain(1), 1) ==
-              stated[1] / ownUnit * handed / (0.674 * 1.0) /
+              stated[1] / ownUnit * handed /
                 std::sqrt(static_cast<double>(trees[1])),
             "sd unit: with the anchor handed and the unit not, the leaf scale "
             "is that quotient on the handed anchor");
@@ -11961,7 +11972,7 @@ static void testForestSdUnit() {
     statement.sd = nan;
     statement.sdMultiple = 1.25;
     check(forestMapEntry(statement, ForestKind::none, nan, 0.25, 1.0)
-            .amplitudePrior.mixtureScale == 1.25,
+            .nodeScaleFactor == 1.25,
           "sd unit: a multiple of the anchor is taken as it is");
   }
 
@@ -12003,7 +12014,7 @@ static void testForestSdUnit() {
 }
 
 /// The calibration map's PRODUCT: a forest's node scale is
-/// nodeScaleFactor * s / nodeScaleDivisor, and under a latent family
+/// nodeScaleFactor * s, and under a latent family
 /// forestCalibration reports it exactly - fitScale is 1 and priorScale's
 /// sqrt(m) cancels the map's, so the reported number IS the map's node scale
 /// rather than a transform of it. A basis multiplies the forest as it is
@@ -12018,8 +12029,7 @@ static void testForestSdUnit() {
 /// cancellation is read per forest rather than off forest 0's.
 ///
 /// BOTH latent families, because probit ALONE CANNOT SEE A DROPPED ANCHOR:
-/// s = 1 there, so factor * s / divisor and factor / divisor are the same
-/// number. Under logistic they differ by 81 percent.
+/// s = 1 there, so factor * s and factor are the same number. Under logistic they differ by 81 percent.
 static void testBCFCalibrationMap() {
   const size_t n = 24, p = 2;
   std::vector<double> x(n * p), y(n);
@@ -12037,14 +12047,15 @@ static void testBCFCalibrationMap() {
 
   const size_t K = 4;
   const double factors[K] = {1.0, 2.5, 0.4, 1.75};
-  const double divisors[K] = {1.0, 0.674, 0.674, 0.674};
   // the amplitude prior each forest carries, EXCLUSIVE per forest: forest 0
   // takes the half-Cauchy scale mixture and reports a NaN variance, the
   // others a fixed variance and a NaN scale, 1 for the numeric column and
-  // 1/2 for a level, so a reader wired to the wrong member of the pair
-  // cannot pass.
-  const double halfCauchyScale = 1.5;
-  const double variances[K] = {0.0, 1.0, 0.5, 0.5};
+  // 1/2 for a level, each over 0.674^2, so a reader wired to the wrong member
+  // of the pair cannot pass.
+  const double multipleNone = 1.5;
+  const double quartile = 0.674 * 0.674;
+  const double variances[K] = {0.0, 1.0 / quartile, 0.5 / quartile,
+                               0.5 / quartile};
   const size_t trees[K] = {30, 15, 40, 25};
   const double* bases[K] = {nullptr, b0.data(), b1.data(), b2.data()};
   const size_t widths[K] = {1, 1, 2, 2};
@@ -12070,7 +12081,7 @@ static void testBCFCalibrationMap() {
       spec.forests[f].kind = kinds[f];
       spec.forests[f].basis = bases[f];
       spec.forests[f].numBasisColumns = widths[f];
-      spec.forests[f].sdMultiple = f == 0 ? halfCauchyScale : factors[f];
+      spec.forests[f].sdMultiple = f == 0 ? multipleNone : factors[f];
     }
     spec.forests[0].amplitudeDf = 1.0;
     std::unique_ptr<SamplerBase> sampler =
@@ -12080,8 +12091,8 @@ static void testBCFCalibrationMap() {
     if (sampler != nullptr) {
       for (size_t f = 0; f < K; ++f) {
         ForestCalibration calibration = sampler->forestCalibration(0, f);
-        checkNear(calibration.priorScale, factors[f] * s / divisors[f],
-                  1.0e-12,
+        checkNear(calibration.priorScale,
+                  (f == 0 ? multipleNone : factors[f]) * s, 1.0e-12,
                   "calibration map: the reported scale is the map's product, "
                   "whatever the basis's units");
         // and what makes that read exact rather than up to a transform
@@ -12096,10 +12107,10 @@ static void testBCFCalibrationMap() {
         // and the amplitude prior, in whichever of its two exclusive spellings
         // the forest carries
         if (f == 0)
-          check(calibration.amplitudePriorScale == halfCauchyScale &&
+          check(calibration.amplitudePriorScale == 1.0 &&
                   std::isnan(calibration.amplitudePriorVariance),
                 "calibration map: a scale-mixture forest reports its "
-                "half-Cauchy median and no variance");
+                "half-Cauchy scale, 1, and no variance");
         else
           check(calibration.amplitudePriorVariance == variances[f] &&
                   std::isnan(calibration.amplitudePriorScale),
@@ -12122,7 +12133,8 @@ static void testBCFCalibrationMap() {
       x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0, 0.37804942330213542,
       options, zeroSpec, &zeroRng);
     check(zero != nullptr &&
-            zero->forestCalibration(0, 1).priorScale == 0.9 * s / 0.674,
+            std::fabs(zero->forestCalibration(0, 1).priorScale - 0.9 * s) <=
+              1e-14 * s,
           "calibration map: a numeric column of zeros that states its size "
           "builds and reports a finite scale");
     ext_rng_destroy(zeroRng);
@@ -12217,7 +12229,6 @@ static void testForestAmplitudeStudent() {
   auto sameEntry = [](const ForestMapEntry& x, const ForestMapEntry& y) {
     const ForestAmplitudePrior &a = x.amplitudePrior, &b = y.amplitudePrior;
     return x.nodeScaleFactor == y.nodeScaleFactor &&
-           x.nodeScaleDivisor == y.nodeScaleDivisor &&
            x.sdMultiple == y.sdMultiple && a.variance == b.variance &&
            a.mixtureScale == b.mixtureScale && a.update == b.update &&
            std::isnan(a.mixtureDf) == std::isnan(b.mixtureDf) &&
@@ -12242,12 +12253,13 @@ static void testForestAmplitudeStudent() {
                         : kind == ForestKind::levels ? 1.0
                                                      : 0.25;
       bool drawn = kind != ForestKind::none && !held;
+      double quartile = drawn ? 0.674 : 1.0;
       check(unstated.sdMultiple == multiple &&
               unstated.nodeScaleFactor == multiple &&
-              unstated.nodeScaleDivisor == (drawn ? 0.674 : 1.0) &&
               unstated.amplitudePrior.update == drawn &&
               unstated.amplitudePrior.variance ==
-                (kind == ForestKind::levels ? 0.5 : 1.0) &&
+                (kind == ForestKind::levels ? 0.5 : 1.0) /
+                  (quartile * quartile) &&
               unstated.amplitudePrior.mixtureScale == 0.0 &&
               std::isnan(unstated.amplitudePrior.mixtureDf),
             "student: a forest stating no df resolves to its kind's entry");
@@ -12262,43 +12274,43 @@ static void testForestAmplitudeStudent() {
     for (double nu : {1.0, 3.0}) {
       ForestMapEntry stated = entryOf(kind, false, nu);
       check(stated.nodeScaleFactor == unstated.nodeScaleFactor &&
-              stated.nodeScaleDivisor == unstated.nodeScaleDivisor &&
               stated.amplitudePrior.variance ==
                 unstated.amplitudePrior.variance &&
               stated.amplitudePrior.mixtureDf == nu,
             "student: a forest with a basis keeps its node scale and starts v "
-            "at kappa");
+            "at the normal's variance");
     }
     checkNear(entryOf(kind, false, 1.0).amplitudePrior.mixtureScale,
-              root * zQuartile, 1e-15,
-              "student: at df 1 the scale is sqrt(kappa) z_.75");
+              root * zQuartile / 0.674, 1e-15,
+              "student: at df 1 the scale is sqrt(kappa) z_.75 / 0.674");
     checkNear(entryOf(kind, false, 3.0).amplitudePrior.mixtureScale,
-              root * 0.88181006025141628, 1e-12,
-              "student: at df 3 the scale is sqrt(kappa) z_.75 / t_3,.75");
+              root * 0.88181006025141628 / 0.674, 1e-12,
+              "student: at df 3 the scale is sqrt(kappa) z_.75 / t_3,.75 / "
+              "0.674");
   }
   check(entryOf(ForestKind::numeric, false, 1.0).amplitudePrior.mixtureScale ==
-          zQuartile,
+          zQuartile / 0.674,
         "student: the median matched is the normal's own quartile, to the "
         "last place");
   {
     ForestMapEntry one = entryOf(ForestKind::none, false, 1.0);
-    check(one.amplitudePrior.update && one.nodeScaleFactor == 1.0 &&
-            one.amplitudePrior.mixtureScale == 0.25 &&
+    check(one.amplitudePrior.update && one.nodeScaleFactor == 0.25 &&
+            one.amplitudePrior.mixtureScale == 1.0 &&
             std::isnan(one.amplitudePrior.mixtureDf),
-          "student: df 1 on a forest with no basis draws, its median the leaf "
-          "prior's size, with no df to carry");
+          "student: df 1 on a forest with no basis draws, its trees at the leaf "
+          "prior's size and the coefficient's median 1, with no df to carry");
   }
   {
     ForestMapEntry three = entryOf(ForestKind::none, false, 3.0);
-    check(three.nodeScaleFactor == 1.0 && three.nodeScaleDivisor == 1.0 &&
-            three.amplitudePrior.variance == 1.0 &&
+    check(three.nodeScaleFactor == 0.25 &&
+            three.amplitudePrior.variance == 1.0 / (0.25 * 0.25) &&
             three.amplitudePrior.mixtureDf == 3.0,
-          "student: a forest with no basis keeps its leaf scale at the unit");
-    checkNear(three.amplitudePrior.mixtureScale, 0.25 / tQuartile3, 1e-12,
-              "student: a forest with no basis divides its median by "
+          "student: a forest with no basis has its leaf scale at its sd");
+    checkNear(three.amplitudePrior.mixtureScale, 1.0 / tQuartile3, 1e-12,
+              "student: a forest with no basis has the scale one over "
               "t_nu,.75");
   }
-  for (double bad : {0.0, -1.0, 0.5, inf, -inf}) {
+  for (double bad : {0.0, -1.0, 0.5, -inf}) {
     for (ForestKind kind : kinds) {
       bool thrown = false;
       try {
@@ -12306,7 +12318,7 @@ static void testForestAmplitudeStudent() {
       } catch (const std::invalid_argument&) {
         thrown = true;
       }
-      check(thrown, "student: a df below 1 or not finite throws");
+      check(thrown, "student: a df below 1 throws");
     }
   }
 
@@ -12343,8 +12355,8 @@ static void testForestAmplitudeStudent() {
 
     ChainStateData start;
     combiner.serializeGlue(start);
-    check(start.amplitudeVariances[0] == 1.0 &&
-            start.amplitudeVariances[1] == 0.5,
+    check(start.amplitudeVariances[0] == priors[0].variance &&
+            start.amplitudeVariances[1] == priors[1].variance,
           "student: v starts at the variance the map gives the block");
 
     double worst = 0.0;
@@ -12512,7 +12524,7 @@ static void testForestAmplitudeStudent() {
     }
     if (reads)
       checkNear(sampler->forestCalibration(0, 1).amplitudePriorScale,
-                std::sqrt(0.5) * 0.88181006025141628, 1e-12,
+                std::sqrt(0.5) * 0.88181006025141628 / 0.674, 1e-12,
                 "student: the calibration reports the mixture scale");
     check(reads, "student: the calibration reports the stated df and the "
                  "mixture scale, NaN on a held forest");
@@ -12533,8 +12545,9 @@ static void testForestAmplitudeStudent() {
     donor->getState(fromStudent);
     normal->getState(fromNormal);
     const std::vector<double>& vDonor = fromStudent.chains[0].amplitudeVariances;
-    check(vDonor[1] != 0.5 && vDonor[2] != 1.0,
-          "student: the donor's v has moved off kappa");
+    check(vDonor[1] != 0.5 / (0.674 * 0.674) &&
+            vDonor[2] != 1.0 / (0.674 * 0.674),
+          "student: the donor's v has moved off its start");
 
     check(recipient->setState(fromStudent, nullptr), "student: a state "
                                                      "installs");
@@ -12545,21 +12558,656 @@ static void testForestAmplitudeStudent() {
     check(recipient->setState(fromNormal, nullptr), "student: a normal "
                                                     "state installs");
     recipient->getState(read);
-    check(read.chains[0].amplitudeVariances[1] == 0.5 &&
-            read.chains[0].amplitudeVariances[2] == 1.0,
+    check(read.chains[0].amplitudeVariances[1] == 0.5 / (0.674 * 0.674) &&
+            read.chains[0].amplitudeVariances[2] == 1.0 / (0.674 * 0.674),
           "student: a normal donor's variance installs as v");
 
     check(normal->setState(fromStudent, nullptr), "student: a student state "
                                                   "installs on a normal one");
     normal->getState(read);
-    check(read.chains[0].amplitudeVariances[1] == 0.5 &&
-            read.chains[0].amplitudeVariances[2] == 1.0,
+    check(read.chains[0].amplitudeVariances[1] == 0.5 / (0.674 * 0.674) &&
+            read.chains[0].amplitudeVariances[2] == 1.0 / (0.674 * 0.674),
           "student: a student donor's v does not reach a normal recipient");
     ext_rng_destroy(rngD);
     ext_rng_destroy(rngR);
     ext_rng_destroy(rngN);
   }
   printf("ok: a Student-t coefficient\n");
+}
+
+/// The calibration map's rule on every kind: the trees carry the forest's sd, a
+/// drawn coefficient is a multiplier with prior median 1 whose prior does not
+/// read the sd, its start is set once, at creation, and a live write moves the
+/// trees' scale and nothing drawn. And forest(amplitude = normal()) on a forest
+/// with no basis, stated to the engine as a df of +inf.
+static void testForestAmplitudeNormal() {
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  const double inf = std::numeric_limits<double>::infinity();
+  const double c = 0.674, z = 0.6744897501960817, t3 = 0.76489232840434518;
+  const double unit = 1.3, leafSize = 0.25, basisScale = 0.8;
+  auto sameEntry = [](const ForestMapEntry& x, const ForestMapEntry& y) {
+    const ForestAmplitudePrior &a = x.amplitudePrior, &b = y.amplitudePrior;
+    return x.nodeScaleFactor == y.nodeScaleFactor &&
+           x.sdMultiple == y.sdMultiple && x.startScale == y.startScale &&
+           a.variance == b.variance && a.mixtureScale == b.mixtureScale &&
+           a.update == b.update &&
+           std::isnan(a.mixtureDf) == std::isnan(b.mixtureDf) &&
+           (std::isnan(a.mixtureDf) || a.mixtureDf == b.mixtureDf);
+  };
+  auto entryAt = [&](ForestKind kind, bool held, double df, double sd) {
+    ForestStatement statement;
+    statement.updateAmplitude = !held;
+    statement.amplitudeDf = df;
+    statement.sd = sd;
+    return forestMapEntry(statement, kind, unit, leafSize, basisScale);
+  };
+  auto entryOf = [&](ForestKind kind, bool held, double df) {
+    return entryAt(kind, held, df, nan);
+  };
+
+  // ---- the map: every row, by what the rule says and not by the code ----
+  for (double sd : {nan, 0.91}) {
+    const bool stated = !std::isnan(sd);
+    const double none = stated ? sd / unit : leafSize;
+    const double levels = stated ? sd / unit : 1.0;
+    const double numeric = stated ? sd / unit : 1.0 / basisScale;
+    // held, on each kind: the trees at m, the kind's variance, no mixture, no
+    // start scale, whatever df is stated
+    for (double df : {nan, 3.0, inf}) {
+      ForestMapEntry row = entryAt(ForestKind::none, true, df, sd);
+      check(row.nodeScaleFactor == none && !row.amplitudePrior.update &&
+              row.amplitudePrior.variance == 1.0 &&
+              row.amplitudePrior.mixtureScale == 0.0 && row.startScale == 1.0,
+            "map: a held forest with no basis");
+      row = entryAt(ForestKind::levels, true, df, sd);
+      check(row.nodeScaleFactor == levels && !row.amplitudePrior.update &&
+              row.amplitudePrior.variance == 0.5 &&
+              row.amplitudePrior.mixtureScale == 0.0 && row.startScale == 1.0,
+            "map: a held factor");
+      row = entryAt(ForestKind::numeric, true, df, sd);
+      check(row.nodeScaleFactor == numeric && !row.amplitudePrior.update &&
+              row.amplitudePrior.variance == 1.0 &&
+              row.amplitudePrior.mixtureScale == 0.0 && row.startScale == 1.0,
+            "map: a held numeric forest");
+    }
+    // a forest with no basis stating no df is held whatever it says
+    check(!entryAt(ForestKind::none, false, nan, sd).amplitudePrior.update,
+          "map: no basis and no df is held");
+    // a basis forest, drawn: the trees at m, 0.674 in the prior and the start
+    for (double df : {nan, inf}) {
+      ForestMapEntry row = entryAt(ForestKind::levels, false, df, sd);
+      check(row.nodeScaleFactor == levels && row.amplitudePrior.update &&
+              row.amplitudePrior.variance == 0.5 / (0.674 * 0.674) &&
+              row.amplitudePrior.mixtureScale == 0.0 &&
+              std::isnan(row.amplitudePrior.mixtureDf) &&
+              row.startScale == 1.0 / 0.674,
+            "map: a drawn factor");
+      row = entryAt(ForestKind::numeric, false, df, sd);
+      check(row.nodeScaleFactor == numeric && row.amplitudePrior.update &&
+              row.amplitudePrior.variance == 1.0 / (0.674 * 0.674) &&
+              row.amplitudePrior.mixtureScale == 0.0 &&
+              std::isnan(row.amplitudePrior.mixtureDf) &&
+              row.startScale == 1.0 / 0.674,
+            "map: a drawn numeric forest");
+    }
+    for (double nu : {1.0, 3.0}) {
+      const double t = nu == 1.0 ? 1.0 : t3;
+      ForestMapEntry row = entryAt(ForestKind::levels, false, nu, sd);
+      check(row.nodeScaleFactor == levels &&
+              row.amplitudePrior.variance == 0.5 / (0.674 * 0.674) &&
+              row.amplitudePrior.mixtureDf == nu &&
+              row.startScale == 1.0 / 0.674,
+            "map: a factor under student(df)");
+      checkNear(row.amplitudePrior.mixtureScale, std::sqrt(0.5) * z / t / 0.674,
+                1e-12, "map: a factor's mixture scale");
+      row = entryAt(ForestKind::numeric, false, nu, sd);
+      check(row.nodeScaleFactor == numeric &&
+              row.amplitudePrior.variance == 1.0 / (0.674 * 0.674) &&
+              row.amplitudePrior.mixtureDf == nu &&
+              row.startScale == 1.0 / 0.674,
+            "map: a numeric forest under student(df)");
+      checkNear(row.amplitudePrior.mixtureScale, z / t / 0.674, 1e-12,
+                "map: a numeric forest's mixture scale");
+    }
+    // no basis: the normal's exact quartile, the median exactly 1
+    {
+      ForestMapEntry row = entryAt(ForestKind::none, false, inf, sd);
+      check(row.nodeScaleFactor == none && row.amplitudePrior.update &&
+              row.amplitudePrior.variance == 1.0 / (z * z) &&
+              row.amplitudePrior.mixtureScale == 0.0 &&
+              std::isnan(row.amplitudePrior.mixtureDf) &&
+              row.startScale == 1.0 / none,
+            "map: no basis under the normal");
+      row = entryAt(ForestKind::none, false, 1.0, sd);
+      check(row.nodeScaleFactor == none && row.amplitudePrior.update &&
+              row.amplitudePrior.variance == 1.0 / (none * none) &&
+              row.amplitudePrior.mixtureScale == 1.0 &&
+              std::isnan(row.amplitudePrior.mixtureDf) &&
+              row.startScale == 1.0 / none,
+            "map: no basis at df 1, the half-Cauchy");
+      row = entryAt(ForestKind::none, false, 3.0, sd);
+      check(row.nodeScaleFactor == none && row.amplitudePrior.update &&
+              row.amplitudePrior.variance == 1.0 / (none * none) &&
+              row.amplitudePrior.mixtureDf == 3.0 &&
+              row.startScale == 1.0 / none,
+            "map: no basis at df 3");
+      checkNear(row.amplitudePrior.mixtureScale, 1.0 / t3, 1e-12,
+                "map: no basis at df 3, one over the t's quartile");
+    }
+  }
+  // no field of a drawn entry's prior moves with sd: only v's start and the
+  // start scale read it, and on a basis forest neither does
+  for (double df : {inf, 1.0, 3.0}) {
+    ForestMapEntry at = entryAt(ForestKind::none, false, df, 0.91);
+    ForestMapEntry other = entryAt(ForestKind::none, false, df, 4.2);
+    check(at.amplitudePrior.mixtureScale == other.amplitudePrior.mixtureScale &&
+            at.startScale != other.startScale,
+          "map: no basis, the prior's scale does not read the sd");
+    if (df == inf)
+      check(at.amplitudePrior.variance == other.amplitudePrior.variance,
+            "map: no basis, the normal's variance does not read the sd");
+  }
+  for (ForestKind kind : {ForestKind::levels, ForestKind::numeric}) {
+    for (double df : {nan, inf, 3.0}) {
+      ForestMapEntry at = entryAt(kind, false, df, 0.91);
+      ForestMapEntry other = entryAt(kind, false, df, 4.2);
+      check(at.nodeScaleFactor != other.nodeScaleFactor &&
+              at.amplitudePrior.variance == other.amplitudePrior.variance &&
+              at.amplitudePrior.mixtureScale ==
+                other.amplitudePrior.mixtureScale &&
+              at.startScale == other.startScale,
+            "map: a basis forest's coefficient reads nothing of the sd");
+    }
+  }
+
+  // ---- the normal's code ----
+  for (ForestKind kind : {ForestKind::levels, ForestKind::numeric}) {
+    check(sameEntry(entryOf(kind, false, inf), entryOf(kind, false, nan)),
+          "normal: a basis keeps its own entry, 0.674 and not the quartile");
+    check(sameEntry(entryAt(kind, false, inf, 0.91),
+                    entryAt(kind, false, nan, 0.91)),
+          "normal: a basis keeps its own entry at a stated sd");
+  }
+  for (ForestKind kind :
+       {ForestKind::none, ForestKind::levels, ForestKind::numeric})
+    check(sameEntry(entryOf(kind, true, inf), entryOf(kind, true, nan)),
+          "normal: a held forest ignores it");
+  for (double bad : {-inf, 0.0, 0.5, -1.0}) {
+    for (ForestKind kind :
+         {ForestKind::none, ForestKind::levels, ForestKind::numeric}) {
+      bool thrown = false;
+      try {
+        entryOf(kind, false, bad);
+      } catch (const std::invalid_argument&) {
+        thrown = true;
+      }
+      check(thrown, "normal: what is refused");
+    }
+  }
+
+  // ---- the sampler's fixture ----
+  const size_t n = 60, p = 2;
+  std::vector<double> x(n * p), y(n), yBinary(n), levels(2 * n), numbers(n),
+    ones(n, 1.0);
+  std::uint64_t state = 20261031u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+  for (double& value : x) value = unif();
+  for (size_t i = 0; i < n; ++i) {
+    bool treated = unif() < 0.5;
+    levels[2 * i] = treated ? 0.0 : 1.0;
+    levels[2 * i + 1] = treated ? 1.0 : 0.0;
+    numbers[i] = 4.0 * unif() - 1.0;
+    y[i] = std::sin(3.0 * x[i]) + (treated ? 0.8 : 0.0) +
+           0.5 * numbers[i] * x[i + n] + 0.3 * (unif() - 0.5);
+    yBinary[i] = y[i] > 0.6 ? 1.0 : 0.0;
+  }
+  struct Stated {
+    ForestKind kind;
+    bool held;
+    double df, multiple;
+  };
+  using Sampler = ConstantLeafSampler;
+  struct Built {
+    std::unique_ptr<Sampler> sampler;
+    std::vector<ext_rng*> rngs;
+    Built() = default;
+    Built(Built&&) = default;
+    ~Built() {
+      if (!rngs.empty()) destroyDrawRngs(rngs);
+    }
+  };
+  auto build = [&](ResponseFamily family, const std::vector<Stated>& stated,
+                   unsigned seed, size_t numTrees = 12,
+                   const double* numericBasis = nullptr) {
+    AmplitudeSpec spec;
+    spec.family = family;
+    spec.forests.resize(stated.size());
+    for (size_t f = 0; f < stated.size(); ++f) {
+      ForestSpec& forest = spec.forests[f];
+      forest.forest.numTrees = numTrees;
+      forest.kind = stated[f].kind;
+      if (stated[f].kind == ForestKind::levels) {
+        forest.basis = levels.data();
+        forest.numBasisColumns = 2;
+      } else if (stated[f].kind == ForestKind::numeric) {
+        forest.basis = numericBasis != nullptr ? numericBasis : numbers.data();
+        forest.numBasisColumns = 1;
+      }
+      forest.updateAmplitude = !stated[f].held;
+      forest.amplitudeDf = stated[f].df;
+      forest.sdMultiple = stated[f].multiple;
+    }
+    SamplerOptions options;
+    options.numChains = 1;
+    Built built;
+    built.rngs = makeDrawRngs(1, seed);
+    built.sampler = std::make_unique<Sampler>(
+      x.data(), family == ResponseFamily::gaussian ? y.data() : yBinary.data(),
+      n, p, nullptr, nullptr, 1.0, 3.0, 0.37804942330213542, options, spec,
+      built.rngs.data());
+    return built;
+  };
+  auto block = [](Sampler& sampler) {
+    std::vector<double> out(sampler.totalAmplitudes());
+    sampler.amplitudes(0, out.data());
+    return out;
+  };
+  auto auxiliaries = [](Sampler& sampler) {
+    SamplerStateData read;
+    sampler.getState(read);
+    return read.chains[0].amplitudeVariances;
+  };
+  auto fitsOf = [&](Sampler& sampler, size_t f) {
+    std::vector<double> out(n);
+    sampler.forestTotalFits(0, f, out.data());
+    return out;
+  };
+  auto draws = [&](Sampler& sampler, size_t sweeps) {
+    std::vector<double> sigma(sweeps), fits(n * sweeps);
+    Results results;
+    results.sigma = sigma.data();
+    results.trainingFits = fits.data();
+    sampler.run(0, sweeps, results);
+    fits.insert(fits.end(), sigma.begin(), sigma.end());
+    return fits;
+  };
+  auto largestGap = [inf](const std::vector<double>& a,
+                       const std::vector<double>& b) {
+    double gap = a.size() == b.size() ? 0.0 : inf;
+    for (size_t i = 0; i < a.size() && i < b.size(); ++i)
+      gap = std::max(gap, std::fabs(a[i] - b[i]));
+    return gap;
+  };
+  const Stated noneHeld = {ForestKind::none, true, nan, 1.0};
+  const Stated factorDrawn = {ForestKind::levels, false, nan, 1.0};
+  const Stated numberDrawn = {ForestKind::numeric, false, nan, 1.0};
+  const Stated numberUnstated = {ForestKind::numeric, false, nan, nan};
+
+  // ---- the start: every row, through the chain ----
+  {
+    const double m = 0.7;
+    for (double df : {inf, 1.0, 3.0}) {
+      const Stated none = {ForestKind::none, false, df, m};
+      const bool mixes = df != inf;
+      // standing first
+      Built first = build(ResponseFamily::gaussian, {none, factorDrawn}, 7001);
+      std::vector<double> a = block(*first.sampler);
+      check(a[0] == 1.0 / m, "start: no basis standing first, one over m");
+      check(a[1] == 0.0 && a[2] == 1.0 / c,
+            "start: a factor standing second, (0, 1 / c)");
+      if (mixes)
+        check(auxiliaries(*first.sampler)[0] == 1.0 / (m * m),
+              "start: no basis, v at one over m squared");
+      // a basis forest first, the only forest with no basis: 0 stays 0
+      Built second = build(ResponseFamily::gaussian, {factorDrawn, none}, 7002);
+      a = block(*second.sampler);
+      check(a[0] == 1.0 / c && a[1] == 1.0 / c,
+            "start: a factor standing first, (1 / c, 1 / c)");
+      check(a[2] == 0.0, "start: no basis behind a basis forest, the only "
+                         "one with none, 0");
+      // two forests with no basis
+      Built two = build(ResponseFamily::gaussian, {noneHeld, none, factorDrawn},
+                        7003);
+      a = block(*two.sampler);
+      check(a[0] == 1.0 && a[1] == 1.0 / m,
+            "start: no basis beside another with none, one over m");
+    }
+    Built third = build(ResponseFamily::gaussian,
+                        {noneHeld, factorDrawn, factorDrawn}, 7004);
+    std::vector<double> a = block(*third.sampler);
+    check(a[1] == 0.0 && a[2] == 1.0 / c && a[3] == 1.0 / c && a[4] == 1.0 / c,
+          "start: a factor standing second and third");
+    Built numeric = build(ResponseFamily::gaussian, {noneHeld, numberDrawn},
+                          7005);
+    a = block(*numeric.sampler);
+    check(a[0] == 1.0 && a[1] == 1.0 / c, "start: a numeric forest, 1 / c");
+    Built student = build(ResponseFamily::gaussian,
+                          {{ForestKind::numeric, false, 3.0, 1.0},
+                           {ForestKind::levels, false, 3.0, 1.0}},
+                          7006);
+    a = block(*student.sampler);
+    std::vector<double> v = auxiliaries(*student.sampler);
+    check(a[0] == 1.0 / c && a[1] == 0.0 && a[2] == 1.0 / c,
+          "start: under student(df), the same blocks");
+    check(v[0] == 1.0 / (c * c) && v[1] == 0.5 / (c * c),
+          "start: a basis forest's v at kappa over c squared");
+    Built held = build(ResponseFamily::gaussian,
+                       {{ForestKind::numeric, true, nan, 1.0},
+                        {ForestKind::levels, true, nan, 1.0},
+                        noneHeld},
+                       7007);
+    a = block(*held.sampler);
+    check(a[0] == 1.0 && a[1] == 0.0 && a[2] == 1.0 && a[3] == 1.0,
+          "start: a held forest, its kind's value");
+
+    // a combiner built directly takes no scale, and one handed some keeps none
+    ColumnStore data;
+    built(data.build(x.data(), n, p, 100));
+    AmplitudeSpec spec;
+    spec.forests.resize(2);
+    spec.forests[1].kind = ForestKind::levels;
+    spec.forests[1].basis = levels.data();
+    spec.forests[1].numBasisColumns = 2;
+    std::vector<ForestAmplitudePrior> priors(2);
+    priors[0].update = true;
+    priors[1].update = true;
+    AmplitudeForestCombiner<ConstantGaussianLeaf> neutral(data, spec, priors, 2);
+    std::vector<double> out(neutral.totalAmplitudes());
+    neutral.amplitudes(out.data());
+    check(out[0] == 1.0 && out[1] == 0.0 && out[2] == 1.0,
+          "start: a combiner built directly is neutral");
+    AmplitudeForestCombiner<ConstantGaussianLeaf> scaled(
+      data, spec, priors, 2, std::vector<double>{2.0, 4.0});
+    scaled.amplitudes(out.data());
+    check(out[0] == 2.0 && out[1] == 0.0 && out[2] == 4.0,
+          "start: a scale reaches a drawn block");
+    priors[1].update = false;
+    AmplitudeForestCombiner<ConstantGaussianLeaf> notHeld(
+      data, spec, priors, 2, std::vector<double>{1.0, 4.0});
+    notHeld.amplitudes(out.data());
+    check(out[1] == 0.0 && out[2] == 1.0,
+          "start: a scale does not reach a held block");
+  }
+
+  // ---- the start: the chain stays. The units a chain was stated in by hand
+  // (the trees at m / c and variance kappa on a basis forest; the trees at the
+  // anchor and a mixture scale of m with none, v at 1) against the map's ----
+  {
+    const double m = 0.7, nu = 3.0;
+    const double root = std::sqrt(0.5);
+    for (double df : {nan, nu}) {
+      for (ForestKind kind :
+           {ForestKind::none, ForestKind::levels, ForestKind::numeric}) {
+        double stated = kind == ForestKind::none && std::isnan(df) ? 1.0 : df;
+        std::vector<Stated> forests = {
+          {kind, false, stated, m},
+          kind == ForestKind::levels ? numberDrawn : factorDrawn};
+        Built mapped = build(ResponseFamily::gaussian, forests, 7101);
+        Built hand = build(ResponseFamily::gaussian, forests, 7101);
+        auto& chain = hand.sampler->chain(0);
+        double s = hand.sampler->forestCalibration(0, 0).mapAnchor;
+        double trees = std::sqrt(12.0);
+        for (size_t f = 0; f < 2; ++f) {
+          ForestKind other = f == 0 ? kind : forests[1].kind;
+          double multiple = f == 0 ? m : 1.0;
+          double dfHere = f == 0 ? stated : nan;
+          ForestAmplitudePrior prior;
+          prior.update = true;
+          double scale;
+          std::vector<double> start;
+          if (other == ForestKind::none) {
+            scale = s / trees;
+            prior.variance = 1.0;
+            prior.mixtureScale = dfHere == 1.0 ? multiple : multiple / t3;
+            if (dfHere != 1.0) prior.mixtureDf = dfHere;
+            start = {1.0};
+          } else {
+            double kappa = other == ForestKind::levels ? 0.5 : 1.0;
+            scale = multiple * s / 0.674 / trees;
+            prior.variance = kappa;
+            if (!std::isnan(dfHere)) {
+              prior.mixtureDf = dfHere;
+              prior.mixtureScale = (other == ForestKind::levels ? root : 1.0) *
+                                   z / t3;
+            }
+            if (other == ForestKind::numeric) start = {1.0};
+            else if (f == 1) start = {0.0, 1.0};
+            else start = {1.0, 1.0};
+          }
+          TestPeer::setForestUnits(chain, f, scale, prior, start);
+        }
+        double gap = largestGap(draws(*mapped.sampler, 30),
+                                draws(*hand.sampler, 30));
+        check(gap < 1e-9, "start: the chain stays, to rounding");
+      }
+    }
+  }
+
+  // ---- a write moves the trees' scale and nothing drawn ----
+  const std::vector<std::vector<Stated>> writeCases = {
+    {{ForestKind::none, false, inf, 0.7}, factorDrawn},
+    {{ForestKind::none, false, 3.0, 0.7}, factorDrawn},
+    {{ForestKind::none, false, 1.0, 0.7}, factorDrawn},
+    {noneHeld, {ForestKind::levels, false, nan, 0.7}},
+    {noneHeld, {ForestKind::levels, false, 3.0, 0.7}},
+    {noneHeld, {ForestKind::numeric, false, nan, 0.7}},
+    {noneHeld, {ForestKind::numeric, false, 3.0, 0.7}},
+    {{ForestKind::none, true, nan, 0.7}, factorDrawn},
+    {noneHeld, {ForestKind::levels, true, nan, 0.7}},
+    {noneHeld, {ForestKind::numeric, true, nan, 0.7}}};
+  for (const std::vector<Stated>& forests : writeCases) {
+    const size_t f = forests[0].kind == ForestKind::none &&
+                         forests[0].multiple == 0.7
+                       ? 0
+                       : 1;
+    enum class When { unswept, priorDrawn, swept };
+    for (When when : {When::unswept, When::priorDrawn, When::swept}) {
+      Built written = build(ResponseFamily::gaussian, forests, 7201);
+      if (when == When::priorDrawn) written.sampler->sampleTreesFromPrior();
+      if (when == When::swept) draws(*written.sampler, 10);
+      std::vector<double> a = block(*written.sampler);
+      std::vector<double> v = auxiliaries(*written.sampler);
+      std::vector<double> first = fitsOf(*written.sampler, 0);
+      std::vector<double> other = fitsOf(*written.sampler, 1);
+      ForestCalibration before = written.sampler->forestCalibration(0, f);
+      const double sd = 3.1;
+      check(written.sampler->setForestMapSd(f, sd),
+            "write: the sd is taken");
+      check(block(*written.sampler) == a, "write: no coefficient moves");
+      check(auxiliaries(*written.sampler) == v, "write: no auxiliary moves");
+      check(fitsOf(*written.sampler, 0) == first &&
+              fitsOf(*written.sampler, 1) == other,
+            "write: no leaf moves");
+      ForestCalibration after = written.sampler->forestCalibration(0, f);
+      check(after.mapSd == sd && after.namedSd == sd,
+            "write: the reader takes it");
+      std::vector<Stated> at = forests;
+      at[f].multiple = sd / before.mapUnit;
+      Built created = build(ResponseFamily::gaussian, at, 7201);
+      check(TestPeer::leafScale(written.sampler->chain(0), f) ==
+              TestPeer::leafScale(created.sampler->chain(0), f),
+            "write: the leaf scale is a creation's, to the bit");
+      check(std::memcmp(&after.amplitudePriorScale,
+                        &before.amplitudePriorScale, sizeof(double)) == 0 &&
+              std::memcmp(&after.amplitudePriorVariance,
+                          &before.amplitudePriorVariance, sizeof(double)) == 0,
+            "write: the prior stands");
+    }
+
+    // the sd in force: no bit moves
+    {
+      Built twin = build(ResponseFamily::gaussian, forests, 7202);
+      Built written = build(ResponseFamily::gaussian, forests, 7202);
+      draws(*twin.sampler, 5);
+      draws(*written.sampler, 5);
+      double inForce = written.sampler->forestCalibration(0, f).mapSd;
+      check(written.sampler->setForestMapSd(f, inForce) &&
+              TestPeer::leafScale(written.sampler->chain(0), f) ==
+                TestPeer::leafScale(twin.sampler->chain(0), f),
+            "write: the sd in force moves no leaf scale");
+      check(draws(*written.sampler, 15) == draws(*twin.sampler, 15),
+            "write: the sd in force, the untouched twin's draws");
+    }
+    // stated at creation and written back: the same bits
+    {
+      Built twin = build(ResponseFamily::gaussian, forests, 7203);
+      Built written = build(ResponseFamily::gaussian, forests, 7203);
+      double inForce = written.sampler->forestCalibration(0, f).mapSd;
+      check(twin.sampler->setForestMapSd(f, inForce), "write: in force taken");
+      check(written.sampler->setForestMapSd(f, 2.0 * inForce) &&
+              written.sampler->setForestMapSd(f, inForce),
+            "write: there and back taken");
+      check(TestPeer::leafScale(written.sampler->chain(0), f) ==
+              TestPeer::leafScale(twin.sampler->chain(0), f),
+            "write: there and back, the same leaf scale");
+      check(draws(*written.sampler, 15) == draws(*twin.sampler, 15),
+            "write: there and back, the same draws");
+    }
+    // store, write, sweep, restore, write back: the stored block and v
+    {
+      Built written = build(ResponseFamily::gaussian, forests, 7204);
+      draws(*written.sampler, 10);
+      SamplerStateData stored;
+      written.sampler->getState(stored);
+      std::vector<double> a = block(*written.sampler);
+      std::vector<double> v = auxiliaries(*written.sampler);
+      double inForce = written.sampler->forestCalibration(0, f).mapSd;
+      check(written.sampler->setForestMapSd(f, 10.0 * inForce),
+            "write: restore's write taken");
+      draws(*written.sampler, 10);
+      check(written.sampler->setState(stored, nullptr),
+            "write: the state restores");
+      check(written.sampler->setForestMapSd(f, inForce),
+            "write: restore's write back taken");
+      check(block(*written.sampler) == a && auxiliaries(*written.sampler) == v,
+            "write: restore commutes");
+    }
+  }
+  // the restate: the leaf scale only, as a creation on a column of that scale
+  {
+    Built restated = build(ResponseFamily::gaussian, {noneHeld, numberUnstated},
+                           7301);
+    Built made = build(ResponseFamily::gaussian, {noneHeld, numberUnstated},
+                       7301);
+    double scale = 2.0 * made.sampler->forestCalibration(0, 1).basisScale;
+    std::vector<double> a = block(*restated.sampler);
+    check(restated.sampler->chain(0).restateForestBasisScale(1, scale) &&
+            block(*restated.sampler) == a,
+          "write: restate leaves the block");
+    check(made.sampler->chain(0).restateForestBasisScale(1, scale),
+          "write: restate on the twin");
+    std::vector<double> doubled(n);
+    for (size_t i = 0; i < n; ++i) doubled[i] = 2.0 * numbers[i];
+    Built created = build(ResponseFamily::gaussian, {noneHeld, numberUnstated},
+                          7301, 12, doubled.data());
+    checkNear(TestPeer::leafScale(restated.sampler->chain(0), 1),
+              TestPeer::leafScale(created.sampler->chain(0), 1), 1e-12,
+          "write: restate, the leaf scale of a sampler made at that scale");
+    check(draws(*restated.sampler, 15) == draws(*made.sampler, 15),
+          "write: restate twins draw equal, the start not reading the scale");
+  }
+  // a chain re-created at the written sd is a creation: the sharers' absence
+  // and the size read through the map
+  {
+    AmplitudeSpec spec;
+    spec.forests.resize(3);
+    spec.forests[0].amplitudeDf = inf;
+    spec.forests[1].amplitudeDf = inf;
+    spec.forests[1].sdMultiple = 0.7;
+    spec.forests[2].amplitudeDf = nan;
+    std::vector<ForestSpec> forests = spec.forests;
+    std::vector<std::size_t> sharers = forestSharers(forests);
+    check(sharers.size() == 1 && sharers[0] == 2,
+          "normal: no sharer, with sd and without");
+  }
+
+  // ---- the same chain as a column of ones ----
+  // the coefficient's prior and the trees' scale in the gauge g = z / c, at the
+  // one multiple where the two starts agree: forest(amplitude = normal()) at m
+  // against a numeric column of ones at m c / z, drawn under its own prior
+  for (ResponseFamily family :
+       {ResponseFamily::gaussian, ResponseFamily::probit,
+        ResponseFamily::logistic}) {
+    Built plain = build(family, {{ForestKind::none, false, inf, z}, factorDrawn},
+                        7401);
+    Built column = build(family, {{ForestKind::numeric, false, nan, c},
+                                  factorDrawn},
+                         7401, 12, ones.data());
+    check(largestGap(draws(*plain.sampler, 30), draws(*column.sampler, 30)) <
+            1e-9,
+          "normal: the same chain as a column of ones");
+  }
+
+  // ---- an extreme sd: the start stays in a double's normal range ----
+  for (double multiple : {1e-160, 1e300}) {
+    for (double df : {inf, 1.0, 3.0}) {
+      ForestStatement statement;
+      statement.amplitudeDf = df;
+      statement.sdMultiple = multiple;
+      ForestMapEntry entry =
+        forestMapEntry(statement, ForestKind::none, unit, leafSize, basisScale);
+      check(std::isfinite(entry.startScale) && entry.startScale > 0.0 &&
+              std::isfinite(entry.amplitudePrior.variance) &&
+              entry.amplitudePrior.variance > 0.0,
+            "extreme sd: the start is finite and positive");
+      Built built = build(ResponseFamily::gaussian,
+                          {{ForestKind::none, false, df, multiple}, factorDrawn},
+                          7501);
+      bool finite = true;
+      for (double value : draws(*built.sampler, 20))
+        finite = finite && std::isfinite(value);
+      check(finite, "extreme sd: a sweep's fit and sigma are finite");
+    }
+  }
+
+  // ---- the size with no sd, and the reader ----
+  {
+    SamplerOptions held;
+    held.numChains = 1;
+    held.k = 2.0;
+    SamplerOptions drawn = held;
+    drawn.updateK = true;
+    drawn.kHyperprior.degreesOfFreedom = 1.5;
+    drawn.kHyperprior.scale = 2.0;
+    SamplerOptions named = held;
+    named.namedSd = 0.7;
+    for (const SamplerOptions* options : {&held, &drawn, &named}) {
+      auto makeBeside = [&](double df, unsigned seed,
+                            std::vector<ext_rng*>& rngs) {
+        AmplitudeSpec spec;
+        spec.forests.resize(2);
+        spec.forests[0].amplitudeDf = df;
+        spec.forests[0].forest.numTrees = 12;
+        spec.forests[1].forest.numTrees = 6;
+        spec.forests[1].kind = ForestKind::levels;
+        spec.forests[1].basis = levels.data();
+        spec.forests[1].numBasisColumns = 2;
+        rngs = makeDrawRngs(1, seed);
+        return std::make_unique<ConstantLeafSampler>(
+          x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
+          0.37804942330213542, *options, spec, rngs.data());
+      };
+      std::vector<ext_rng*> rngsA, rngsB;
+      auto normal = makeBeside(inf, 7601, rngsA);
+      auto student = makeBeside(3.0, 7601, rngsB);
+      check(TestPeer::mapEntry(normal->chain(0), 0).sdMultiple ==
+              TestPeer::mapEntry(student->chain(0), 0).sdMultiple &&
+              TestPeer::leafScale(normal->chain(0), 0) ==
+                TestPeer::leafScale(student->chain(0), 0),
+            "normal: the no-sd size is df 3's");
+      ForestCalibration read = normal->forestCalibration(0, 0);
+      check(read.amplitudePriorVariance == 1.0 / (z * z) &&
+              std::isnan(read.amplitudePriorScale) && read.amplitudeDf == inf &&
+              !read.amplitudeHeld,
+            "normal: the calibration reader");
+      destroyDrawRngs(rngsA);
+      destroyDrawRngs(rngsB);
+    }
+  }
+  printf("ok: the trees carry a forest's sd, and a normal coefficient\n");
 }
 
 // The frozen mixture: all five structural probabilities exactly zero, so no
@@ -13732,7 +14380,7 @@ static void testForestsSharedTotal() {
     };
     ForestSpec plain, factorSpec;
     plain.forest.numTrees = 5;
-    plain.sd = 0.5;
+    plain.sdMultiple = 0.5;
     plain.amplitudeDf = 1.0;
     factorSpec.forest.numTrees = 5;
     factorSpec.kind = ForestKind::levels;
@@ -13741,10 +14389,10 @@ static void testForestsSharedTotal() {
     std::vector<double> two = startsOf({plain, factorSpec, plain}, 6502);
     std::vector<double> one = startsOf({factorSpec, plain}, 6503);
     std::vector<double> adjacent = startsOf({plain, plain}, 6504);
-    check(two.size() == 4 && two[0] == 1.0 && two[3] == 1.0 &&
-            adjacent.size() == 2 && adjacent[0] == 1.0 && adjacent[1] == 1.0,
+    check(two.size() == 4 && two[0] == 2.0 && two[3] == 2.0 &&
+            adjacent.size() == 2 && adjacent[0] == 2.0 && adjacent[1] == 2.0,
           "shared total: with two forests with no basis each drawn "
-          "coefficient starts at 1");
+          "coefficient starts at 1 over its size");
     check(one.size() == 3 && one[2] == 0.0,
           "shared total: with one, its drawn coefficient starts by position");
   }
@@ -13838,7 +14486,7 @@ static void testForestsSharedTotal() {
     }
   }
 
-  // ---- a forest with no basis stating a df and no sd: the median ----
+  // ---- a forest with no basis stating a df and no sd: the size ----
   {
     ForestStatement statement;
     statement.amplitudeDf = 1.0;
@@ -13846,13 +14494,15 @@ static void testForestsSharedTotal() {
     auto held2 = beside(ResponseFamily::gaussian, options, statement, 6701);
     ForestCalibration read = held2->forestCalibration(0, 0);
     check(!read.amplitudeHeld && std::isnan(read.share) && read.k == 1.0 &&
-            read.amplitudePriorScale == 0.25 / read.mapAnchor &&
+            TestPeer::mapEntry(held2->chain(0), 0).nodeScaleFactor ==
+              0.25 / read.mapAnchor &&
+            read.amplitudePriorScale == 1.0 &&
             TestPeer::sharers(held2->chain(0)).empty(),
           "median: at a held k of 2 the size that k gives, the forest with no "
           "k of its own and no sharer");
     options.k = 4.0;
     auto held4 = beside(ResponseFamily::gaussian, options, statement, 6702);
-    check(held4->forestCalibration(0, 0).amplitudePriorScale ==
+    check(TestPeer::mapEntry(held4->chain(0), 0).nodeScaleFactor ==
             0.5 / 4.0 / read.mapAnchor,
           "median: at a held k of 4 the size that k gives");
 
@@ -13898,16 +14548,14 @@ static void testForestsSharedTotal() {
     }
     check(refused, "median: a flat prior on k has no median to take");
     // the hold reads the statement: a df that is stated is never held, +inf
-    // included, which is refused until a coefficient can draw there
-    bool infiniteRefused = false;
-    try {
+    // included, which states a normal coefficient
+    {
       ForestStatement infinite;
       infinite.amplitudeDf = std::numeric_limits<double>::infinity();
-      forestMapEntry(infinite, ForestKind::none, 1.0, 1.0, 1.0);
-    } catch (const std::invalid_argument&) {
-      infiniteRefused = true;
+      check(forestMapEntry(infinite, ForestKind::none, 1.0, 1.0, 1.0)
+              .amplitudePrior.update,
+            "hold: an infinite df is stated, and draws");
     }
-    check(infiniteRefused, "hold: an infinite df is stated, and is not held");
 
     // a stated sd leaves the leaf prior out of it
     statement.sd = 0.9;
@@ -13929,10 +14577,11 @@ static void testForestsSharedTotal() {
     check(updates, "bcf shape: mu states df 1 where it draws, and no other");
     ForestMapEntry mu = forestMapEntry(drawnShape[0], ForestKind::none, 1.0,
                                        0.25, noScale);
-    check(mu.amplitudePrior.update && mu.amplitudePrior.mixtureScale == 2.0 &&
+    check(mu.amplitudePrior.update && mu.amplitudePrior.mixtureScale == 1.0 &&
             std::isnan(mu.amplitudePrior.mixtureDf) &&
-            mu.nodeScaleFactor == 1.0,
-          "bcf shape: which resolves to bcf's half-Cauchy at median 2");
+            mu.nodeScaleFactor == 2.0 && mu.startScale == 0.5,
+          "bcf shape: which resolves to a half-Cauchy at median 1 on trees at "
+          "2, the chain of bcf's half-Cauchy at median 2");
   }
 
   for (ext_rng* r : allRngs) ext_rng_destroy(r);
@@ -14033,6 +14682,7 @@ void runSamplerTests(ext_rng* rng) {
   testForestSdUnit();
   testBCFCalibrationMap();
   testForestAmplitudeStudent();
+  testForestAmplitudeNormal();
   testMoveSettingsInstall();
   testMoveSettingsMatchCreation();
   testLevelGibbsPerForest();

@@ -416,6 +416,19 @@ struct TestPeer {
     a = glue.a(); b0 = glue.b0(); b1 = glue.b1();
     return true;
   }
+  /// States forest f of a combining chain by hand before its first sweep: its
+  /// leaf scale, its coefficient's prior and its block, as no map resolves them.
+  template <IntegrableLeafModel L, typename R>
+  static void setForestUnits(Chain<L, R>& chain, std::size_t f, double leafScale,
+                             const ForestAmplitudePrior& prior,
+                             const std::vector<double>& block) {
+    chain.forests_[f].leaf.scale = leafScale;
+    auto* combiner =
+      dynamic_cast<AmplitudeForestCombiner<L, R>*>(chain.combiner_.get());
+    combiner->glue_.prior[f] = prior;
+    double* amplitudes = combiner->glue_.amplitudesOf(f);
+    for (std::size_t j = 0; j < block.size(); ++j) amplitudes[j] = block[j];
+  }
   /// Writes bcf's (a, b0, b1) whatever the forests' update switches say,
   /// which restoreGlue does not: a pinned amplitude is model there.
   template <IntegrableLeafModel L, typename R>
