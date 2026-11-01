@@ -74,7 +74,7 @@ data <- dbartsData(train[, c("x", "g")], train$y, test)
 ## build a sampler on it, rather than letting dbarts() ingest again
 sampler <- dbarts(data, control = dbartsControl(
   n.chains = 1L, n.threads = 1L, n.samples = 10L, n.burn = 10L,
-  n.trees = 25L, updateState = FALSE))
+  updateState = FALSE), n.trees = 25L)
 samples <- sampler$run()
 str(samples$test)
 }

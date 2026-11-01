@@ -419,18 +419,19 @@ forest(
     has 50 trees at \code{base = 0.25}, \code{power = 3} - shallower and
     fewer than a prognostic forest's, the modulating surface normally being
     the smoother of the two. The forest with no \code{basis} has the fitting
-    function's: \code{\link{bart}}'s \code{n.trees} or the control's, and its
-    \code{power} and \code{base}. The fitting function and the forest with no
+    function's: the \code{n.trees} of \code{\link{dbarts}} or \code{\link{bart}},
+    and its \code{power} and \code{base}. The fitting function and the forest with no
     \code{basis} state one setting between them: \code{\link{bart}} refuses
     its own \code{n.trees}, \code{power} or \code{base} beside one stated
     here, the default's own value included, the two being the same setting,
-    and a control that names \code{n.trees} beside one stated here is the
-    same count. Where every forest has a \code{basis} the fitting function's
+    and a count written on a control beside one stated here is refused, since
+    a control holds run settings only. Where every forest has a \code{basis} the fitting function's
     tree count and tree prior have no forest to belong to, and one that is
     stated is refused, the default's own value included: state it on a forest.
-    A sampler's \code{control@n.trees} holds the count at the fitting
-    function's level: the forest with no \code{basis}'s, or the first forest's
-    where every forest has a \code{basis}. Its \code{model@tree.prior} holds
+    The count at the fitting function's level is the model's and not the
+    control's: a sampler's \code{control@n.trees} is a copy of it, the count of the
+    forest with no \code{basis}, or of the first forest where every forest has
+    a \code{basis}. Its \code{model@tree.prior} holds
     the first forest's.
   }
   \item{sd}{
@@ -805,8 +806,9 @@ sampler <- dbarts(x, y,
                   forests = list(forest(),
                                  forest(x1 + x3, basis = factor(z),
                                         n.trees = 25L, sd = 1.5)),
-                  control = dbartsControl(n.chains = 1L, n.trees = 25L,
-                                          n.samples = 20L, n.burn = 20L))
+                  control = dbartsControl(n.chains = 1L,
+                                          n.samples = 20L, n.burn = 20L),
+                  n.trees = 25L)
 samples <- sampler$run(20L, 20L)
 amplitudes <- sampler$getForestAmplitudes()
 
@@ -823,7 +825,7 @@ d <- data.frame(y = y, x1 = x[, 1], x2 = x[, 2], x3 = x[, 3], z = z,
                 w = 50 + 10 * rnorm(n))
 written <- dbarts(y ~ forest(x1 + x2 + x3) +
                     forest(x1 + x3, basis = factor(z), n.trees = 25L, sd = 1.5),
-                  d, control = dbartsControl(n.chains = 1L, n.trees = 25L))
+                  d, control = dbartsControl(n.chains = 1L), n.trees = 25L)
 colnames(written$data@bases[[2L]])
 
 # a standardized multiplier: predict centers and scales the new rows by the
@@ -840,13 +842,13 @@ forests <- list(forest())
 for (k in c(25, 100))
   forests[[length(forests) + 1L]] <- forest(x1, basis = I(w / k))
 looped <- dbarts(y ~ x1 + x3, d, forests = forests,
-                 control = dbartsControl(n.chains = 1L, n.trees = 10L))
+                 control = dbartsControl(n.chains = 1L), n.trees = 10L)
 vapply(looped$data@bases[-1L], function(basis) basis[1L, 1L], 0) * c(25, 100)
 
 # two columns are a forest each, with a coefficient each; I() holds arithmetic
 perColumn <- dbarts(y ~ forest(x1 + x3) + forest(x1, basis = z) +
                       forest(x1, basis = I(w / 50)),
-                    d, control = dbartsControl(n.chains = 1L, n.trees = 10L))
+                    d, control = dbartsControl(n.chains = 1L), n.trees = 10L)
 lapply(perColumn$data@bases[-1L], colnames)
 }
 \keyword{models}

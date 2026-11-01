@@ -255,8 +255,8 @@ n <- 60L
 x.dart <- matrix(runif(n * 8), n)
 y.dart <- 4 * x.dart[, 1] + rnorm(n, 0, 0.2)
 fit.dart <- dbarts(y.dart ~ x.dart, split.probs = dart(),
-                   control = dbartsControl(n.trees = 10L, n.chains = 1L,
-                                            n.threads = 1L))
+                   control = dbartsControl(n.chains = 1L,
+                                            n.threads = 1L), n.trees = 10L)
 samples.dart <- fit.dart$run(20L, 20L)
 
 ## linear leaves: each leaf fits an intercept plus a slope in x1,
@@ -268,8 +268,8 @@ x2 <- runif(n)
 y.lin <- 3 * x1 + rnorm(n, 0, 0.2)
 df.lin <- data.frame(x1, x2, y.lin)
 fit.lin <- dbarts(y.lin ~ x1 + x2, df.lin, leaf.prior = linear("x1"),
-                  control = dbartsControl(n.trees = 10L, n.chains = 1L,
-                                           n.threads = 1L))
+                  control = dbartsControl(n.chains = 1L,
+                                           n.threads = 1L), n.trees = 10L)
 samples.lin <- fit.lin$run(20L, 20L)
 
 ## gp leaves: each leaf fits a smooth Gaussian-process function of x1,
@@ -279,8 +279,8 @@ y.gp <- sin(2 * pi * x1) + rnorm(n, 0, 0.2)
 df.gp <- data.frame(x1, x2, y.gp)
 fit.gp <- dbarts(y.gp ~ x1 + x2, df.gp,
                  leaf.prior = gp("x1", max.leaf.size = 52L),
-                 control = dbartsControl(n.trees = 10L, n.chains = 1L,
-                                          n.threads = 1L))
+                 control = dbartsControl(n.chains = 1L,
+                                          n.threads = 1L), n.trees = 10L)
 samples.gp <- fit.gp$run(20L, 20L)
 ## the cap of 52 observations per leaf sends some leaves to the constant
 ## fallback (about a tenth of the evaluations here), counted in gp.fallback;

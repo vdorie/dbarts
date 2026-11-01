@@ -210,9 +210,22 @@
             NULL}, as base R fits without a call do, so \code{update}
             refuses it as it refuses such an \code{lm} fit; 0.9-34 stored
             the placeholder call \code{NULL()}.
-      \item The sampler's \code{$setControl} refuses a control whose
-            \code{n.trees} differs from the sampler's; 0.9-34 resized the
-            sampler in place. Create a new sampler with the count wanted.
+      \item The sampler's \code{$setControl} keeps the sampler's tree
+            count; 0.9-34 resized the sampler in place. A control that names
+            another count is refused, and one that carries another, as a
+            control taken from a fit does, is taken with a warning and the
+            sampler's count kept. Create a new sampler with the count wanted.
+      \item A control taken from a fit carries that fit's run settings and
+            nothing else, and can be given to any function that takes a
+            control, \code{bart} and \code{xbart} among them. It sets no
+            tree count, cut count or quantile rule for the next fit,
+            and one it carries that differs from what the call takes draws a
+            warning, on every call, saying it is not used. The same holds of
+            the control handed to \code{new("dbartsSampler", ...)}.
+      \item \code{control@n.cuts} is an error on a control that no one
+            wrote a cut count to and on a sampler's control; the cut count is
+            the data object's. \code{control@n.trees}, \code{@useQuantiles}
+            and \code{@binary} read what the sampler runs.
       \item A per-column \code{n.cuts} reads as \code{split.probs} reads, at
             every function that takes it: by column or term name with
             \code{.default} for the rest, or unnamed, one value or one per
@@ -489,6 +502,14 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item \code{dbarts} and \code{dbartsSpec} take \code{n.trees}, the
+            tree count of the forest with no \code{basis}, and \code{dbarts}
+            and \code{dbartsData} take \code{n.cuts} and
+            \code{useQuantiles}, so a control holds run settings only. The
+            three arguments of \code{dbartsControl} still work, with a
+            warning once per session, and are removed in dbarts 1.1-0.
+            \code{forests = forest()} takes a single forest without
+            \code{list()}.
       \item The sampler's \code{$setWeights} takes \code{updateScale}, after
             \code{updateState}: with \code{TRUE} it takes the response's
             scale, and a negative binomial fit's center, again from the rows

@@ -15,7 +15,7 @@ one place, [`plainForest`](../../R/model.R), of the bases the model ends with.
 
 | | the plain forest | a forest with a basis |
 |---|---|---|
-| tree count | the fitting function's: `bart`'s `n.trees`, the control's at `dbarts` and `dbartsSpec`; 75 | 50 |
+| tree count | the fitting function's `n.trees`, at `bart`, `dbarts` and `dbartsSpec`; 75 | 50 |
 | tree prior | the fitting function's `power` and `base`; `base = 0.95`, `power = 2` | `base = 0.25`, `power = 3` |
 | `interactions`, `blocks` | the fitting function's or its own; both given is refused; beside a second plain forest, its own | its own |
 | leaf prior and size | the fitting function's leaf prior, held; `sd` states its own, held; `student()` draws | its `sd`, drawn |
@@ -47,8 +47,8 @@ to `NULL` are absent when `NULL`, as before.
 
 | door | the count | the tree prior | the leaf prior |
 |---|---|---|---|
-| `bart()` | `n.trees` named, or a `control` that states one | `power` or `base` | `leaf.prior` or `k` |
-| `dbarts()`, `dbartsSpec()` | a control that states one | `power` or `base`, or the retired `tree.prior` | `leaf.prior`, or the retired `node.prior` |
+| `bart()` | `n.trees` named, or a `control` that writes one | `power` or `base` | `leaf.prior` or `k` |
+| `dbarts()`, `dbartsSpec()` | `n.trees` named, or a `control` that writes one | `power` or `base`, or the retired `tree.prior` | `leaf.prior`, or the retired `node.prior` |
 | `bartBT()` | `ntree` | `power` or `base` | `k` |
 
 `split.probs` is the plain forest's alone and is not among the stated names: a forest takes none, so it
@@ -64,32 +64,32 @@ stating `power` beside the fitting function's `power` is refused whatever the va
 no forest is plain the refusal names the argument given and the call to write, as
 `forest(x1, basis = a, power = 3)`.
 
-A control states a count when its constructor's call named `n.trees` or its slot is not the constructor's
-default. A slot edited back to 75 and a control made by `new()` read as not stated: that is the limit of
-what can be told. `bart()` and `bartBT()` each build their own control and always hand `dbarts()` a tree
-prior, so each records what its own caller stated, under its own names, on the control it hands over, and
-the record is taken off when the sampler's specification is resolved. `bartBT()` reaches a model of
-several forests through a data object's `bases` alone.
+A control writes a count only when its constructor's call named `n.trees` or its slot differs from the one the
+sampler left on it ([`controlValueKind`](../../R/records.R)); a slot edited back to the sampler's reads as
+carried. `bart()` and `bartBT()` build their own control and pass the count flat, so each hands `dbarts()` a
+control naming none and a tree prior, and what the caller stated rides the specification until it is resolved.
+`bartBT()` reaches a model of several forests through a data object's `bases` alone. A count named flat beats a
+written one, which waits with the carried ones for the not-used warning.
 
 `bart()` refuses its own `n.trees` beside one on the plain forest, judged on the model, so a forest
-written with `basis = NULL` is the plain forest too. At `dbarts()` the forest's own count governs over the
-control's.
+written with `basis = NULL` is the plain forest too. At `dbarts()` a count written on the control beside
+one a forest states is refused.
 
 ## Where the numbers live
 
-The bridge reads the first forest's tree count from the control and its tree prior from the model, so
-those two hold the first forest's, whatever its kind: 50 and `base = 0.25, power = 3` for a first forest with a basis
-that states none. Each forest's record starts with the count, base and power that forest runs under, the
-first forest's included ([`forestParams`](../../R/model.R)).
+Each forest's record holds the count, base and power that forest runs under, the first forest's included
+([`forestParams`](../../R/model.R)), and the bridge reads them from there; the model's tree prior holds the first
+forest's, so a first forest with a basis that states none holds 50 and `base = 0.25, power = 3`. The control
+holds none of it: its `n.trees` is a copy the sampler writes, the count at the fitting function's level
+([`fittingLevelCount`](../../R/records.R)), the forest with no basis's or else the first forest's, by
+[`mirrorControl`](../../R/records.R).
 
-A control taken from a fit and given to another never carries a multiplied forest's count. Where the first
-forest has a basis the forests' record keeps the count the next fit is to inherit, the plain forest's as
-it ran or the fitting function's own where no forest was plain, and it goes back on the control before
-that fit reads it. It goes back only while the control still holds the first forest's count: any other
-count there is the caller's edit and stands as a stated count does, the plain forest's in the next fit
-and refused where every forest of it has a basis. An edit to the first forest's own count cannot be told
-from none. `$setControl` takes the control a sampler was created under as well as the sampler's
-own. `print` of a fit gives a count for each forest, `n.trees: 50, 75`.
+A control taken from a fit and given to another sets no count: the copy is read as carried, not written
+([`controlValueKind`](../../R/records.R)), so the next fit takes the count it is given and the forests' own,
+and a warning says when the control's differs. A count a caller writes on a control is a stated one, the
+plain forest's, and is refused where every forest has a basis or the forest states its own.
+`$setControl` keeps the sampler's count. `print` of a fit gives a count for each forest,
+`n.trees: 50, 75`.
 
 ## What changes
 

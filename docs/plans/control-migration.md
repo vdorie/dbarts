@@ -2,7 +2,7 @@
 
 Status: PLANNED 2026-10-30 on c55a1477, against main as it stood once coefficient-prior-opt-in (dec-A245) and
 tree-prior-flat (dec-A246) landed; amended the same day after its blind critique (scratch/cm-crit/report.md, build
-after amendments) and the coordinator's calls on it. Slices 1a, 1b and 2 built on the branch, not reviewed. Both calls
+after amendments) and the coordinator's calls on it. Slices 1a, 1b and 2 built on the branch and reviewed, the review's fix batch in; slices 3 and 4 and the consumer branches built, not reviewed. Both calls
 held for the maintainer are ruled: dec-B526, dec-B527 ([Open calls](#open-calls)). Rulings: dec-B239, dec-B240,
 dec-B241 (the move), dec-B250 (when the mirrored slots go), dec-B334, dec-B335, dec-B385 (a control copied from a
 fit), dec-B247 (a live sampler's count), dec-B249 (the forest column), dec-B503 and dec-B505 (counts among
@@ -479,7 +479,9 @@ Consumers, each on its own branch, green against this branch's tip before the me
   `dbarts()`. Its restore through `new()` reads agreeing mirrors and stays silent. ~60 lines with tests.
 - bartCause: `bcf()` keeps `n.cuts` and `useQuantiles` out of the control and lets its `dbarts()` loop pass them;
   test-21's `@n.trees` read stays right. ~20 lines.
-- treatSens, bairrtt: nothing; both suites run against the tip.
+- treatSens: its `data.bart@n.cuts` write at `makeBartSpecs` moves to `dbartsData(n.cuts = )` (a data object's
+  slot is no way in, dec-B554); the rest of the slot writes in the consumers wait on their own entry in the TODO
+  (consumer-slot-writes). bairrtt: nothing; the suite runs against the tip.
 
 ## Tests and gates
 

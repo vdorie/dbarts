@@ -50,7 +50,7 @@ dbartsSpec(
 }
 \value{
   A list with components
-  \item{control}{a \code{dbartsControl}, holding the run settings; its \code{n.trees}, \code{useQuantiles} and \code{binary} are copies of the model's and the data's.}
+  \item{control}{a \code{dbartsControl}, holding the run settings; its \code{n.trees}, \code{useQuantiles} and \code{binary} are copies of the model's and the data's, which a sampler built from the list writes on it.}
   \item{model}{a \code{dbartsModel}, carrying the parsed priors, each forest's record and the variance forest's, the category count, the shape setting, the hazard periods, and any monotone, interaction, block, and residual-degrees-of-freedom attributes.}
   \item{data}{a \code{dbartsData}, with the response coded, \code{sigma} resolved, and the censoring status and quantile rule recorded.}
   \item{family}{the resolved family token, never \code{"auto"}.}
@@ -74,11 +74,10 @@ Ey <- f(x)
 y  <- rnorm(n, Ey, sigma)
 
 data <- dbartsData(x, y)
-control <- dbartsControl(n.chains = 1L, n.samples = 20L, n.burn = 10L,
-                         n.trees = 25L, updateState = FALSE)
+control <- dbartsControl(n.chains = 1L, n.samples = 20L, n.burn = 10L, updateState = FALSE)
 
 ## an ordinary specification, then the sampler it describes
-spec <- dbartsSpec(data, control = control)
+spec <- dbartsSpec(data, control = control, n.trees = 25L)
 spec$family
 
 sampler <- new("dbartsSampler", spec$control, spec$model, spec$data)
@@ -87,6 +86,6 @@ samples <- sampler$run()
 ## additive-only fit, monotone in the fourth predictor
 constrained <- dbartsSpec(data, control = control,
                           interactions = interactions(max.order = 1L),
-                          monotone = c(rep(0, 3), 1, rep(0, 6)))
+                          monotone = c(rep(0, 3), 1, rep(0, 6)), n.trees = 25L)
 attr(constrained$model, "interaction.max.order")
 }

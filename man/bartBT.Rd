@@ -429,8 +429,8 @@ x.na[1:5, 1] <- NA
 y.na <- x.na[,2] + rnorm(n, 0, 0.3)
 y.na[is.na(x.na[,1])] <- y.na[is.na(x.na[,1])] + 2
 fit.na <- dbarts(y.na ~ x.na, control = dbartsControl(
-                   n.samples = 20L, n.burn = 20L, n.chains = 1L,
-                   n.trees = 20L, n.threads = 1L))
+                   n.samples = 20L, n.burn = 20L, n.chains = 1L, n.threads = 1L),
+                   n.trees = 20L)
 samples.na <- fit.na$run()
 
 ## recipe: between-draws row subsetting on a latent family (e.g. principal
@@ -448,7 +448,8 @@ x.strat <- matrix(runif(n * 2), n, 2)
 y.strat <- rbinom(n, 1L, plogis(2 * x.strat[,1] - 1))
 sampler.strat <- dbarts(x.strat, y.strat, family = "probit",
                         control = dbartsControl(n.chains = 1L, n.threads = 1L,
-                          n.trees = 20L, updateState = FALSE))
+                                                updateState = FALSE),
+                        n.trees = 20L)
 
 stratum <- rbinom(n, 1L, 0.6)  # this iteration's stratum membership
 sampler.strat$setActiveRows(stratum)

@@ -537,6 +537,8 @@ for (i in seq_len(n.burn + n.keep)) {
 
   Besides \code{\link{dbarts}}, a sampler is created by \code{new("dbartsSampler", control, model, data, active = NULL)} from the list \code{\link{dbartsSpec}} returns. \code{active} is the 0/1 mask that list's \code{active} element holds, installed once the sampler is built, as \code{setActiveRows(active)} installs it. Under \code{"probit"} and \code{"logistic"} creation also reads it: a forest on a numeric column that states no \code{sd} takes the column's scale over the rows the mask keeps, every row where it keeps none. Under every other family creation reads nothing from it, the scale being taken over the rows the data object's weights keep, and the mask is installed afterwards.
 
+  A sampler made this way takes its tree count from the model and its quantile rule and cut count from the data object, where they state them. A control that is fresh, or copied from a fit, says nothing of them, and a copied count or rule that differs draws a warning saying it is not used. A count or rule written on the control is used where the model or the data object states none and is refused, by name, where it states another, or, for a count, where every forest has a \code{basis}. Whether the family is binary is the model's family alone.
+
   \subsection{Reading the fit}{
     Six methods report a fitted quantity and no two report the same one. They differ along three axes - the SCALE the values live on, whether the installed OFFSET is in them, and whether they answer from the CURRENT state or from stored draws:
 
