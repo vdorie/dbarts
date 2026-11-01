@@ -511,7 +511,10 @@ expect_equal(bcfCalibration2$sd, sd(yBCF), tolerance = 1e-12)
 expect_equal(bcfCalibration$k.scale, diff(range(yBCF)) / 2, tolerance = 1e-12)
 expect_equal(bcfCalibration2$k.scale, sd(yBCF), tolerance = 1e-12)
 expect_identical(bcfCalibration$prior.sd.of, "forest")
-expect_identical(bcfCalibration2$prior.sd.of, "level difference (at a coefficient of 1)")
+expect_identical(
+  bcfCalibration2$prior.sd.of,
+  "level difference (at a coefficient of 1)"
+)
 expect_true(bcfCalibration$k.scale > 0 && bcfCalibration2$k.scale > 0)
 # the control carries no number for either: the engine's defaults are what
 # the reader reports, and the reader has no entry for the engine's channels

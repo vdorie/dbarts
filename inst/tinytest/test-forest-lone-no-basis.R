@@ -177,7 +177,11 @@ for (family in families) {
   prior <- reader(drawn)
   expect_equal(unname(prior$sd), medianOf[[family]], info = info)
   expect_equal(unname(prior$k.scale), medianOf[[family]], info = info)
-  expect_identical(prior$prior.sd.of, "forest (at a coefficient of 1)", info = info)
+  expect_identical(
+    prior$prior.sd.of,
+    "forest (at a coefficient of 1)",
+    info = info
+  )
   expect_identical(drawn$getK(forest = 1L)[[1L]], 1, info = info)
   expect_true(length(unique(coefficientDraws(drawn))) > 1L, info = info)
   # at a held k, a named sd, and a stated sd

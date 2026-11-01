@@ -39,7 +39,7 @@ start is set once at creation where the chain stays. So the chain is the same to
 sweeps, none past 1e-6. Under probit it is the same for about 1,000 sweeps, and then a run can fork where rounding flips a decision:
 a half-Cauchy forest with no basis forked in 4 of 4 runs, at sweeps 811 to 2,266; a numeric forest in 1 of 4, at 3,723; a factor in 0 of 4. A
 forked chain is another run of the same chain: after the fork the fits differ draw by draw by 1.5 to 3.3 and not on average, over 288 seeds
-z -0.39 on the grand mean. No exact arm crosses a fork, so that is a comparison of chains and not an exact reading: [forks](#forks). The engine has about 100 lines touched and two things go: the mixture-scale write and the 0.674 node
+z -0.39 on the grand mean. No exact arm crosses a fork, so that is a comparison of chains and not an exact reading: [Forks](#forks). The engine has about 100 lines touched and two things go: the mixture-scale write and the 0.674 node
 divisor.
 
 `sd` is the trees' prior scale, so it is the forest's size at a coefficient of 1, and not the prior median of the forest's contribution,
@@ -522,7 +522,7 @@ neutral glue passing on a fixture; F's rules add the `shared total` start, the `
 A write before the first sweep on a drawn forest with no basis is the same model and not creation's draws, settling by about sweep 80 rather than 20 after a tenfold write
 (dec-B550's run): the block starts at the unit over the `sd` in force at creation. On every other forest the start does not read `sd` and the twin holds, `identical()` (run). The 3
 `sd unit: draw for draw` checks re-pin on a forest whose start does not read `sd`, and the new `write` checks pin that this block stays. No twin and no bcf-equivalence scenario then reads
-this path, so what replaces the twin as evidence of the distribution is the [exact arms that follow a write](#the-exact-gate).
+this path, so what replaces the twin as evidence of the distribution is the exact arms that follow a write ([The exact gate](#the-exact-gate)).
 
 ### tests/cpp, new
 

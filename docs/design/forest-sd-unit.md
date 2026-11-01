@@ -73,7 +73,7 @@ changes it.
 - A fit that states no forest sd draws what it drew before the unit moved, to the bit, in every family.
 - This note did not touch the calibration map. Since dec-B550 a forest's number reaches one place on every
   kind, the node scale, and the coefficient's prior does not read it
-  ([forest-multiplier.md](forest-multiplier.md#1-the-rule)).
+  ([1. The rule](forest-multiplier.md#1-the-rule)).
 - The conversion is made once for each construction and once for each restatement, in
   [`forestMapEntry`](../../src/bartcore/combiner.hpp), against the recorded unit. A stated sd equal to the
   number its default comes to ([`forestSdInForce`](../../src/bartcore/combiner.hpp)) resolves to the default's
