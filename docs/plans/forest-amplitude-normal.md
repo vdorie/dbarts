@@ -114,7 +114,7 @@ Slice F is on branch forests-shared-total, tip 7f53d1c78, built and in review, n
 - The map loses `family` and `oneForestSize` for `leafPriorSize`. No sd on a drawn forest with no basis takes the leaf prior's size.
 - A sharer's entry is its own, `share` finite, node factor sqrt(share), and takes no part here.
 - Start: where two or more forests have no basis a drawn one starts at 1 rather than by position.
-- Baselines: bcf-equivalence-1380accf and equivalence-1380accf are the current ones.
+- Baselines: bcf-equivalence-e346b018 and equivalence-e346b018 are the current ones.
 - Pins: forests with no basis stating `sd` and no prior are held, so their write twins pass unchanged here. F's tests added 3 results
   and 6 messages that this item re-pins, and its `hold: an infinite df is stated, and is not held` flips: +inf draws after this.
 - Its D8 sentence, written for dec-B542, is stale: under dec-B550 "reports k 1 and `k.scale` that sd" holds on every forest stating
@@ -689,8 +689,8 @@ tier 1's.
 
 | baseline | status | run on the port |
 |---|---|---|
-| bcf-equivalence-1380accf, F's | re-recorded, with a MANIFEST row | `compare --cross-host`: tier 1 on 19 of 19, worst ratio 4.2e-4, varcount identical. Against 20eed7ed the same, the check the ruling ran on its prototype. `numeric_held` and any scenario with no drawn forest bitwise |
-| equivalence-1380accf, F's | re-recorded with a MANIFEST row, for one cell, `bart2twoforest`, whose factor forest is drawn | `compare --bitwise --strict-coverage` on a reference build: 54 of 55 bitwise; `bart2twoforest` not, 209 summaries, largest \|z\| 1.48 |
+| bcf-equivalence-e346b018, F's | re-recorded, with a MANIFEST row | `compare --cross-host`: tier 1 on 19 of 19, worst ratio 4.2e-4, varcount identical. Against 20eed7ed the same, the check the ruling ran on its prototype. `numeric_held` and any scenario with no drawn forest bitwise |
+| equivalence-e346b018, F's | re-recorded with a MANIFEST row, for one cell, `bart2twoforest`, whose factor forest is drawn | `compare --bitwise --strict-coverage` on a reference build: 54 of 55 bitwise; `bart2twoforest` not, 209 summaries, largest \|z\| 1.48 |
 | multinomial-80b1c8d4 | no re-record | `compare --bitwise` on a reference build: 11 of 11 |
 | the four snapshot files | unchanged | run whole on a reference build: 7, 3, 14 and 3 results, none failing |
 | bench-sampler | not re-recorded, no compare owed | the sweeps are one conditional's: the same up to rounding |
