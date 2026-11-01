@@ -351,26 +351,29 @@ BCF creation. Let s be the sample sd of the range-scaled working
 response (y net of offset mapped to [-0.5, 0.5]); range-anchoring makes
 s the sd(y) magnitude in internal units.
 
-- Prognostic. The mu forest's node scale is s, so the leaves of its
-  trees sum to mu ~ N(0, s^2). The half-Cauchy scalar a has median
-  |a| = aPriorScale = sd.control, putting the prognostic
-  total a mu at a median sd.control sd(y) - bcf's use_muscale. The
+- Prognostic. The mu forest's node scale is sd.control s, so the leaves of its
+  trees sum to mu ~ N(0, (sd.control s)^2). The half-Cauchy scalar a has median
+  |a| = 1, the same prior on the prognostic total a mu as bcf's use_muscale. The
   DEFAULT sd.control is the family's rather than a literal: 2 under
   gaussian, the value this paragraph's sd(y) reading is stated at, and 1
   under probit and logistic, where s is the link's own fixed error sd,
   sigma is pinned, and 2 s asserts the median prognostic signal is twice
   the noise before any moderating forest is added.
-- Treatment. The tau forest's node scale is sd.moderate s / 0.674, so
-  tau ~ N(0, (sd.moderate s / 0.674)^2). With b0, b1 ~ N(0, 1/2) the
-  contrast b1 - b0 ~ N(0, 1) has half-normal median 0.674, so the
-  effect (b1 - b0) tau sits at a median sd.moderate sd(y) - bcf's
-  use_tauscale correction. Where b is held at (0, 1) there is no median to
-  correct for: the node scale is sd.moderate s and tau's prior sd is the
+- Treatment. The tau forest's node scale is sd.moderate s, so
+  tau ~ N(0, (sd.moderate s)^2). With b0, b1 ~ N(0, 1/2 / 0.674^2) the
+  contrast b1 - b0 ~ N(0, 1 / 0.674^2) has half-normal median 1.0007, the same
+  prior on the effect (b1 - b0) tau as bcf's use_tauscale. Where b is held at
+  (0, 1) the node scale is the same and tau's prior sd is the
   effect's, exactly; and a held a is 1 with mu's node scale sd.control s,
   or under gaussian a quarter of the response's range where no sd.control
   is stated (dec-B290, [forest-multiplier.md](forest-multiplier.md)).
-- Both forests fix k = 1; the map overrides the host model's node prior
-  and k for mu, since the adaptive magnitude lives entirely in the glue.
+- Both forests fix k = 1; the map overrides the node prior and k of the model
+  around it for mu, since the adaptive magnitude lives entirely in the glue.
+
+dec-B18's parity holds for the prior and not for any coefficient's units: a, b0, b1 and the raw forests do not
+read on the bcf package's scale, where a is scaled by sd.control and tau over 0.674. Only the products do. bcf 2.0.2 itself puts
+`sd_control` on the trees, with a coefficient starting at 1. A coefficient starts where it starts on the other
+units' chain, 1 / sd.control and 1 / 0.674, once, at creation.
 
 sd.control and sd.moderate name the two magnitudes as multiples of s; the
 public `forest()` spelling of both is `sd`, which states a number of the

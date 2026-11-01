@@ -71,9 +71,9 @@ changes it.
 ## 3. Constraints
 
 - A fit that states no forest sd draws what it drew before the unit moved, to the bit, in every family.
-- The calibration map is not touched: which channel a forest's number reaches, the 0.674, the coefficient's
-  variance, the row norm, the held values and the starts by position, the defaults and the K in them. Every
-  expression keeps its order of operations.
+- This note did not touch the calibration map. Since dec-B550 a forest's number reaches one place on every
+  kind, the node scale, and the coefficient's prior does not read it
+  ([forest-multiplier.md](forest-multiplier.md#1-the-rule)).
 - The conversion is made once for each construction and once for each restatement, in
   [`forestMapEntry`](../../src/bartcore/combiner.hpp), against the recorded unit. A stated sd equal to the
   number its default comes to ([`forestSdInForce`](../../src/bartcore/combiner.hpp)) resolves to the default's

@@ -228,7 +228,7 @@ rescale in `AmplitudeForestCombiner::rescaleAmplitudeRidge` and its call from
 `AmplitudeForestCombiner::afterCombine` (src/bartcore/combiner.hpp), the
 per-forest `ridge` flags and the bridge's derivation of them from
 `amplitudePriorScale > 0` (retired: that field is gone, the half-Cauchy scale
-now reaching the combiner as `ForestAmplitudePrior::halfCauchyScale`), and the GIG generator in external/random.{h,c}. A
+now reaching the combiner as `ForestAmplitudePrior::mixtureScale`), and the GIG generator in external/random.{h,c}. A
 restoration must follow the forest cache rule
 ([`ForestCombiner`](../../src/bartcore/combiner.hpp)'s `afterCombine`): after
 every rescale, re-derive the moved forest's cached fits from its leaves in
@@ -340,9 +340,9 @@ creation route a forest's amplitude is a scale mixture if and only if it is
 basis-FREE: R hands the engine each forest's statement and whether it was
 created with a basis ([`forestStatements`](../../R/model.R)), and the engine's
 one map ([`forestMapEntry`](../../src/bartcore/combiner.hpp)) gives a forest
-with a basis a zero `halfCauchyScale` and a forest with none the half-Cauchy
-median, the family's own default (2 under gaussian and aft, 1 otherwise) where
-it states no sd. So every basis-carrying forest has a fixed prior variance.
+with a basis a zero `mixtureScale` unless it states a t, and a forest with none
+the half-Cauchy of scale 1 under `student(1)`. So a basis-carrying forest stating
+no t has a fixed prior variance.
 
 ## The basis is read, not classified
 
@@ -471,7 +471,7 @@ Stated on `ForestSpec` (as a [`ForestStatement`](../../src/bartcore/combiner.hpp
 an sd in the response's units or none, a hold, a coefficient variance or none)
 and resolved in one function, [`forestMapEntry`](../../src/bartcore/combiner.hpp),
 which [`Chain`](../../src/bartcore/chain.hpp) calls once for each forest at each
-construction. The node scale is `nodeScaleFactor * s / nodeScaleDivisor`, s
+construction. The node scale is `nodeScaleFactor * s`, s
 the family's own LATENT SCALE; a basis multiplies the forest as it is given and
 enters no node scale (the median row norm it was once divided by went with
 forest-multiplier's push 2):
@@ -482,16 +482,15 @@ forest-multiplier's push 2):
 | probit | 1 |
 | logistic | pi/sqrt(3) |
 
-Two branches, which are the two ways a magnitude can be carried. A
-SCALE-MIXTURE amplitude carries it in `amplitudePriorScale` and leaves the node
-scale at s - bcf's prognostic forest, factor and divisor both 1, giving
-`mu ~ N(0, s^2)` with the half-Cauchy a at `aPriorScale` units of s. A
-FIXED-VARIANCE amplitude carries it in the node scale, divided through the
-half-normal median 0.674 - bcf's treatment forest, giving
-`tau ~ N(0, (sdModerate s / 0.674)^2)`, so `(b1 - b0) tau` sits at
-`sdModerate` units of s, each level's coefficient N(0, 1/2); a numeric
-column's one coefficient is N(0, 1) under the same divisor, so `a f` has median
-size the forest's sd per unit of the column, and with no sd stated the forest
+One channel. The node scale carries the magnitude on every forest (dec-B550): m s,
+m being the forest's sd over the unit, or sqrt(share) on a sharer. A coefficient's
+prior is a constant of its kind and df and reads no m. bcf's prognostic forest
+has `mu ~ N(0, (sdControl s)^2)` with a half-Cauchy a of scale 1, the same prior on
+the product as a half-Cauchy of scale `sdControl` on trees at s. bcf's treatment
+forest has `tau ~ N(0, (sdModerate s)^2)` with each level's coefficient
+N(0, 1/2 / 0.674^2), the same prior on the product as N(0, 1/2) on trees at
+`sdModerate s / 0.674`; a numeric column's one coefficient is N(0, 1 / 0.674^2),
+and with no sd stated the forest
 takes one unit for one standard deviation of the column, taken once over the
 rows in the likelihood and recorded with the data
 ([forest-multiplier.md](forest-multiplier.md)). Under gaussian s IS `sd(y)`; under probit and
@@ -502,19 +501,20 @@ A forest that states a Student-t coefficient, `ForestStatement::amplitudeDf` nu,
 keeps its branch and adds a scale mixture to it: the coefficient block is
 N(0, v I) with one v ~ IG(nu / 2, nu c^2 / 2), drawn after the block from
 IG((nu + q) / 2, (nu c^2 + |a|^2) / 2), the mixture's `mixtureDf` nu and
-`mixtureScale` c. With a basis the node scale and the variance kappa it starts
-v at do not move and c = sqrt(kappa) z_.75 / t_nu,.75, the median match: a
-numeric coefficient's size, and a factor's difference, keep the normal's
-median exactly and only the tails move. With none, c is the forest's median
-over t_nu,.75; at nu = 1 that quantile is exactly 1 and the entry is the
+`mixtureScale` c. With a basis v starts at kappa / 0.674^2 and
+c = sqrt(kappa) z_.75 / (t_nu,.75 0.674), the median match: a numeric
+coefficient's size, and a factor's difference, keep the normal's median exactly
+and only the tails move. With none, c is 1 / t_nu,.75, a median size of 1, and v
+starts at 1 / m^2; at nu = 1 that quantile is exactly 1 and the entry is the
 unstated one, `mixtureDf` left NaN, so the half-Cauchy's own shape and rate
 expressions draw it. A forest stating no df takes those expressions behind a
 branch on `mixtureDf`, never the nu ones at nu = 1.
 
-The divisor is CARRIED rather than derived from the prior, so a forest
-declaring a zero scale keeps the node scale its host asked for. Both
-expressions are written exactly as bcf's were, which is what keeps the K = 2
-instance bitwise.
+The chain stays where these units moved from the older ones, in which a forest with a basis had trees
+at `m / 0.674` and a coefficient's prior without the 0.674, and a forest with none trees at 1 and a mixture
+scale of m: each block starts at the rescaled value, `ForestMapEntry::startScale`, once, at creation, and a
+mixture's variance at its square. (a, F) there is (a / g, g F) here, the same state in other units, so the chain
+is the same up to rounding. No later path reads the field.
 
 s is computed once, at a sampler's first creation. R records it on the
 data object, `data@forest.calibration`, and every re-creation passes it back as
@@ -533,7 +533,7 @@ is capped at one forest, for any K, outside a shared total: where a model has
 one forest with no basis ([`plainForest`](../../R/model.R)), and where several
 do, those stating no sd are held at 1 and share the single-forest chain's prior
 as one total, each at sqrt(1 / K) of its node scale, one k for the group
-([forests-shared-total.md](forests-shared-total.md)); and the map gives a forest with a basis a zero half-Cauchy scale
+([forests-shared-total.md](forests-shared-total.md)); and the map gives a forest with a basis a zero mixture scale
 ([`forestMapEntry`](../../src/bartcore/combiner.hpp)) - forests 2..K are
 ALWAYS fixed-variance unless held. There is NO per-K renormalization anywhere
 in the MAP: it disperses as `sqrt(K)` by construction (exponent exactly 1/2),

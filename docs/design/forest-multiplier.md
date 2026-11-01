@@ -18,11 +18,21 @@ by the class of its basis ([forest-kind-by-class.md](forest-kind-by-class.md)). 
 the basis row times the forest's coefficients, times the forest's own fit F. s is the forest's `sd`
 in the response's units; U is the unit ([forest-sd-unit.md](forest-sd-unit.md)).
 
-| the forest multiplies | drawn | drawn, `amplitude = student(nu)` | held, `amplitude = fixed()` |
+F has sd s on every row, held or drawn (dec-B550). A drawn coefficient is a multiplier with prior median 1,
+and no coefficient's prior reads s. z is z_.75, the normal's upper quartile; c is bcf's rounding of it, 0.674.
+
+| the forest multiplies | drawn, `normal()` or left out | drawn, `amplitude = student(nu)` | held, `amplitude = fixed()` |
 |---|---|---|---|
-| nothing | not by default: a forest with no basis is held unless it states `student()` (dec-B509) | F has sd U, the coefficient t with nu df and median size s / U; `student(1)`, the half-Cauchy, is bcf's prior | the default; the coefficient is 1; F has sd s, exactly |
-| two levels | each level's coefficient N(0, 1/2); F has sd s / 0.674 | the pair bivariate t with nu df, one variance, scale sqrt(1/2) z_.75 / t_nu,.75, so the difference keeps the normal's median; F has sd s / 0.674 | (0, 1); F has sd s, exactly, the second level against the first |
-| a numeric column w | the coefficient N(0, 1), starting at 1; F has sd s / 0.674, per unit of w | the coefficient t with nu df, scale z_.75 / t_nu,.75, starting at 1; F has sd s / 0.674, per unit of w | the coefficient is 1; F has sd s, exactly, per unit of w |
+| nothing | only as `normal()`: a forest with no basis is held unless it states a prior (dec-B509, dec-B539). The coefficient N(0, 1 / z^2), median size 1, starting at U / s | the coefficient t with nu df, scale 1 / t_nu,.75, median size 1, starting at U / s; `student(1)`, the half-Cauchy, on trees at s is bcf's prior | the default; the coefficient is 1 |
+| two levels | each level's coefficient N(0, 1 / (2 c^2)), so the difference has median size z / c = 1.0007, starting at (0, 1 / c) standing second and (1 / c, 1 / c) otherwise | the pair bivariate t with nu df, one variance, scale sqrt(1/2) z / (t_nu,.75 c), so the difference keeps that median | (0, 1), the second level against the first |
+| a numeric column w | the coefficient N(0, 1 / c^2), median size 1.0007, starting at 1 / c; per unit of w | the coefficient t with nu df, scale z / (t_nu,.75 c), starting at 1 / c; per unit of w | the coefficient is 1; per unit of w |
+
+A forest's size is its coefficient times s, so s is the size exactly where the coefficient is held and at a coefficient
+of 1 where it is drawn. It is not the prior median of the contribution, a product of two random numbers: 0.54 s under
+`normal()`. The start is set once, at creation, a field apart from the prior; on a forest with no basis it is held to
+1e100, and a mixture's variance, which starts at its square, to 1e200, since a sweep squares the coefficient. Inside the
+engine `normal()` is a df of +inf, an internal code: no t is drawn and no auxiliary kept. A write of s sets the trees'
+scale and moves no leaf, coefficient or auxiliary, before the first sweep too.
 
 - A held coefficient is 1, and what it multiplies is the basis (dec-B354): 1 with no basis, 0 and 1
   for a factor's two levels, the column as given for a number. It goes by the forest's kind and never
@@ -34,15 +44,15 @@ in the response's units; U is the unit ([forest-sd-unit.md](forest-sd-unit.md)).
   held or drawn and whatever the number of forests (dec-B291). A forest with no basis that states no sd
   takes the fitting function's leaf prior as the one forest of a single-forest chain does: by default a
   quarter of the response's range as the engine holds it under gaussian (dec-B290), and k drawn under
-  chi(1.5, 2) under probit and logistic (dec-B509, replacing dec-B293's U). Stating `student()` and no sd,
-  its median is that size, the chi prior's median k where k is drawn. Two or more forests with no
+  chi(1.5, 2) under probit and logistic (dec-B509, replacing dec-B293's U). Stating `normal()` or `student()`
+  and no sd, its trees take that size, at the chi prior's median k where k is drawn. Two or more forests with no
   basis that state no sd share that leaf prior as one total, an equal part each
   ([forests-shared-total.md](forests-shared-total.md)).
   A held numeric coefficient
   that states no sd takes the drawn default: right at ordinary slopes, short under probit when the slope
   is two or three times larger, which the help says.
 - `student(nu)` takes nu finite and at least 1, `student()` being nu = 1 (dec-B510); the t's median
-  is the default's, so the forest's sd keeps its meaning and only the tails move. The draw is a
+  is the normal's, so only the tails move. The draw is a
   two-block Gibbs scan, the coefficient given its variance and the variance given the coefficient,
   exact. The prior is fixed at creation; a live change is its own item (dec-B511).
 - The variance of a coefficient is not an argument: `amplitude.prior.variance` is gone.
@@ -120,8 +130,8 @@ leaf scale was divided by, is gone.
 
 The reader ([`reportLeafPrior`](../../R/dbarts.R)) gives `sd` (a numeric forest's per unit of its column
 and named by it), `sd.stated`, `multiplier` ("none", "factor", "numeric"), `amplitude` (`fixed()` where
-held, absent where drawn), `prior.sd.of` ("forest", "level difference", "forest, per unit of basis",
-each with " (prior median)" where drawn) and, on a numeric forest whose data records one, `basis.scale`.
+held, the prior a creation stated where drawn, absent under the default), `prior.sd.of` ("forest", "level difference", "forest, per unit of basis",
+each with " (at a coefficient of 1)" where drawn) and, on a numeric forest whose data records one, `basis.scale`.
 The channels the map carried its numbers in are no longer reported. `extract(type = "leaf.prior.sd")`
 returns the entries by label, and one forest's entry itself. `samplePriorPredictive` refuses a sampler
 of several forests by name, their coefficients not being drawn from their prior there.

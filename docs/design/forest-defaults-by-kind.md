@@ -18,7 +18,7 @@ one place, [`plainForest`](../../R/model.R), of the bases the model ends with.
 | tree count | the fitting function's `n.trees`, at `bart`, `dbarts` and `dbartsSpec`; 75 | 50 |
 | tree prior | the fitting function's `power` and `base`; `base = 0.95`, `power = 2` | `base = 0.25`, `power = 3` |
 | `interactions`, `blocks` | the fitting function's or its own; both given is refused; beside a second plain forest, its own | its own |
-| leaf prior and size | the fitting function's leaf prior, held; `sd` states its own, held; `student()` draws | its `sd`, drawn |
+| leaf prior and size | the fitting function's leaf prior, held; `sd` states its own, held; `normal()` or `student()` draws | its `sd`, drawn |
 
 A forest's own `n.trees`, `base` and `power` each govern that forest, and each one left out takes the
 default of the forest's kind. Position decides nothing: two forests of one kind written in the other order

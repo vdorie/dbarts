@@ -468,7 +468,9 @@ forest(
     Where the coefficient is held, by \code{amplitude = fixed()} or on a forest
     with no basis that states no prior, it is 1, what it multiplies is the
     basis, and "size" is the prior standard deviation, exactly. Where it is
-    drawn the size is itself uncertain, and \code{sd} is its prior median.
+    drawn it is a multiplier with prior median 1: the forest's size is the
+    coefficient times \code{sd}, uncertain, and a coefficient of 1 means the size
+    stated.
 
     Not stated, \code{sd} for a forest with no basis is the size the fitting
     function's leaf prior gives the one forest of a fit, beside whatever other
@@ -604,19 +606,22 @@ forest(
     \code{basis} carries, or one for each level of its \code{basis}. Left out,
     it is drawn each sweep under a normal prior on a forest with a
     \code{basis}, and a forest with none is held at 1, its size the
-    \code{sd} it states or its leaf prior's. \code{student(df)} draws it under a Student-t
+    \code{sd} it states or its leaf prior's. \code{normal()} draws it under a
+    normal prior, on a forest with no basis too, and takes no \code{k} or
+    \code{sd} of its own. \code{student(df)} draws it under a Student-t
     prior with \code{df} degrees of freedom, finite and at least 1;
-    \code{student()} is \code{student(1)}, the half-Cauchy. With a basis the
-    t is scaled so that its median size is the normal's, so the forest's
-    \code{sd} keeps its meaning, the prior median of what the forest
-    contributes, and only the tails move: a coefficient ten times its median
-    size has prior probability 0.06 under \code{student(1)}, 0.005 under
+    \code{student()} is \code{student(1)}, the half-Cauchy. On every kind a
+    drawn coefficient's prior median size is 1, under \code{normal()} and
+    \code{student(df)}, so only the tails move: a coefficient ten times its
+    median size has prior probability 0.06 under \code{student(1)}, 0.005 under
     \code{student(3)} and about \eqn{10^{-11}}{1e-11} under the normal. That
     tail lets the coefficient follow a multiplier whose scale is far from what
     the \code{sd} states, at the cost of slower mixing along the ridge the
-    coefficient shares with the forest's leaves. With no basis the
-    coefficient's size is the forest's size, its median the \code{sd} or, where
-    none is stated, the size the fitting function's leaf prior gives, its
+    coefficient shares with the forest's leaves. At one \code{sd}, a drawn
+    normal's contribution has about 1.48 times the standard deviation of a
+    \code{fixed()} forest's, since the coefficient and the trees are both
+    random, and thinner tails than \code{student(df)}'s. With no basis
+    \code{sd} is the size of the trees or, where none is stated, the size the fitting function's leaf prior gives, its
     prior median where \code{k} has a \code{chi()} prior or the \code{sd} an
     \code{invchi()} prior, and refused where that prior or \code{k} is flat and
     gives no size. Bayesian causal forests'
@@ -641,13 +646,15 @@ forest(
     forest times -0.5 and 0.5. A held coefficient cannot adapt to an
     \code{sd} that is too small; where the effect may be larger, state
     \code{sd} or let the coefficient be drawn. \code{fixed} alone is taken as
-    \code{fixed()}, and \code{student} alone as \code{student()}; no other
-    value is, a response family among them. Outside the argument that takes
-    them the constructors are \code{dbartsPriors$fixed()} and
-    \code{dbartsPriors$student()}. The prior is stated for a forest of a model
+    \code{fixed()}, \code{normal} alone as \code{normal()} and \code{student}
+    alone as \code{student()}; no other value is, a response family among them.
+    Outside the argument that takes them the constructors are
+    \code{dbartsPriors$fixed()}, \code{dbartsPriors$normal()} and
+    \code{dbartsPriors$student()}, and inside \code{forest()} a function of your
+    own named \code{normal} is not reached. The prior is stated for a forest of a model
     of several, at creation; a model of one forest has no coefficient to give
-    a prior, so there \code{fixed()} restates the default and \code{student()}
-    is refused, its size being drawn through the fitting function's leaf prior,
+    a prior, so there \code{fixed()} restates the default and \code{normal()}
+    and \code{student()} are refused, its size being drawn through the fitting function's leaf prior,
     as \code{leaf.prior = normal(k = chi(1.5, 2))} or
     \code{normal(sd = invchi(1.5, s))}.
     \code{$getLeafPrior(f)$amplitude} reads it back.
@@ -676,7 +683,8 @@ forest(
   forest \eqn{\tau}{tau} over the columns \code{vars} allows, and the
   amplitudes \eqn{(a, b_0, b_1)}{(a, b0, b1)} joining them, read back with
   \code{$getForestAmplitudes}; \eqn{a}{a} is 1 unless the prognostic forest
-  states \code{amplitude = student(1)}, as Bayesian causal forests' prior does. Gaussian, \code{"probit"} and \code{"logistic"}
+  states \code{amplitude = student(1)}, as Bayesian causal forests' prior does, or
+  \code{normal()}. Gaussian, \code{"probit"} and \code{"logistic"}
   responses; under a latent family the combination is the index rather than
   the mean, on the link's own fixed scale, and \code{"aft"}, \code{"ordinal"}
   and \code{"nbinom"} are refused at creation naming what each is missing.
@@ -709,10 +717,10 @@ forest(
   \code{$getLeafPrior(f)} and \code{$getK(f)} reading as one forest's, so the
   forest is what \code{\link{bart}} would fit, the other forests added. It
   leaves that prior by stating \code{sd}, held at it, or
-  \code{amplitude = student()}, drawn. A model may hold any number, as
+  \code{amplitude = normal()} or \code{student()}, drawn. A model may hold any number, as
   \code{y ~ forest(x1) + forest(x2) + forest(x3)}, a \code{forests} list or
   a data object's \code{bases} with several \code{NULL} entries. Two or more
-  of them that state no \code{sd} and no \code{amplitude = student()} share
+  of them that state no \code{sd} and no \code{amplitude = normal()} or \code{student()} share
   one prior total, the size the fitting function gives its one forest: its
   \code{k} or \code{leaf.prior}, \code{k = 2} by default under a continuous
   response and \code{k} drawn under \code{chi(1.5, 2)} under
@@ -733,9 +741,9 @@ forest(
   \code{interactions} and \code{blocks}, a constraint on one forest, are
   refused and stated on the forest they constrain. A forest that states
   \code{sd} has that size and leaves the share, its coefficient held unless
-  it states \code{amplitude = student()}.
+  it states \code{amplitude = normal()} or \code{student()}.
   \code{amplitude = fixed()} on a forest that shares is taken and changes
-  nothing; \code{student()} is refused there, since such a forest has no
+  nothing; \code{normal()} and \code{student()} are refused there, since such a forest has no
   coefficient of its own. \code{$getLeafPrior(f)} on it gives the fitting
   function's leaf prior as \code{leaf.prior}, its part in force as
   \code{sd} (\code{NA} where \code{k} is drawn) and \code{prior.sd.of}
@@ -816,8 +824,8 @@ amplitudes <- sampler$getForestAmplitudes()
 # than recomputed from the call: forest 2 is the one carrying a basis
 calibration <- sampler$getLeafPrior(2L)
 basis <- sampler$data@bases[[2L]]
-# its coefficients' prior variance is 1/2
-indexSd <- sqrt(calibration$k.scale^2 * 0.5 * rowSums(basis^2))
+# its coefficients' prior variance is 1/2 over 0.674^2
+indexSd <- sqrt((calibration$k.scale / 0.674)^2 * 0.5 * rowSums(basis^2))
 
 # the same model written in a formula, the first forest written out; the
 # columns of a basis are named as lm() would name them
