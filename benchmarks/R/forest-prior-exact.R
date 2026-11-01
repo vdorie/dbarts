@@ -28,9 +28,10 @@
 # coefficient is a multiplier: its prior's scale is 1 / 0.674 with a basis and
 # 1 / z with none, z the normal's upper quartile, a factor's sqrt(1/2) of that,
 # and a t's scale that scale's z over the t's upper quartile, so its median
-# size is 1 with no basis and z / 0.674 with one. The functionals there are the posterior mean of the fit in each
-# class of rows that share a cell and the basis's value, the probability that
-# each tree splits and that a drawn coefficient is within 0.5, 1 and 2.
+# size is 1 with no basis and z / 0.674 with one. The functionals there are the
+# posterior mean of the fit in each class of rows that share a cell and the
+# basis's value, the probability that each tree splits and that a drawn
+# coefficient is within 0.5, 1 and 2.
 #
 # The Student-t arms (amplitude = student(df)) follow: a prior arm, with
 # sigma held so large that the likelihood is flat, where a drawn
@@ -321,13 +322,13 @@ runArm <- function(name, arm, exact = NULL, fit = samplerFit) {
 
 # ---- the numeric arms ----
 
-# A numeric forest enters as a w_i F(x_i): a drawn coefficient a is N(0, 1)
-# and F has prior sd s / 0.674, s its sd per unit of w, which is one unit of
-# the response's scale for one standard deviation of w where none is stated,
-# that standard deviation R's sd() over the rows of positive weight; a held
-# coefficient is 1 and F has prior sd s. Given a and how many of each forest's
-# trees split the cell values are jointly normal, so the only quadrature is
-# over a, on a grid under its N(0, 1) prior. A row of weight zero leaves the
+# A numeric forest enters as a w_i F(x_i): a drawn coefficient a is
+# N(0, 1 / 0.674^2) and F has prior sd s, s its sd per unit of w, which is one
+# unit of the response's scale for one standard deviation of w where none is
+# stated, that standard deviation R's sd() over the rows of positive weight; a
+# held coefficient is 1 and F has prior sd s. Given a and how many of each
+# forest's trees split the cell values are jointly normal, so the only quadrature
+# is over a, on a grid under its prior. A row of weight zero leaves the
 # likelihood; the unit is read over the rows in it.
 #
 # The columns, by group of the design: a 0/1 column, and one of four values
