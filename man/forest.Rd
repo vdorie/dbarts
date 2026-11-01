@@ -684,7 +684,7 @@ forest(
   carrying no basis - a probit model's prior puts
   \eqn{P(p < 0.01 \mathrm{~or~} p > 0.99)}{P(p < 0.01 or p > 0.99)} at 0.29,
   the forest with no basis alone having the shipped single-forest binary
-  default's own 0.239. A forest's default does not depend on how many forests
+  default's own 0.238. A forest's default does not depend on how many forests
   the model has, so each forest added widens the prior on the combined
   location. When every forest carries
   a factor the induced prior standard deviation of the index is
