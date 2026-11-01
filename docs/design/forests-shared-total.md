@@ -1,11 +1,10 @@
 # Forests with no basis share one prior total
 
-Status: IN PROGRESS 2026-10-30: slice B, `blocks()` per group, slice 1, the shared total's engine and
-bridge, slice 2, the R surface that reaches it, and slice 3, the constant column, built on its branch; slice F, the
-default flip, not built. The plan is
-[forests-shared-total.md](../plans/forests-shared-total.md), which carries the steps, the gates and the calls
+Status: BUILT on its branch 2026-10-31, not landed: slice B, `blocks()` per group, slice 1, the shared total's engine
+and bridge, slice 2, the R surface that reaches it, slice 3, the constant column, and slice F, the default flip. The
+plan is [forests-shared-total.md](../plans/forests-shared-total.md), which carries the steps, the gates and the calls
 made in planning; this note is the standing statement of the rule. Rulings: dec-B292, dec-B503, dec-B505,
-dec-B506, dec-B509 and dec-B513, in docs/decisions.md.
+dec-B506, dec-B509, dec-B513, dec-B525, dec-B528 and dec-B543, in docs/decisions.md.
 
 Several forests with no basis share one prior total, each an equal part of its variance whatever its tree count
 (dec-B505); a forest partitioned by `blocks()` gives each of its groups an equal part of its own prior the same
@@ -61,10 +60,11 @@ coefficient held and its reader as one forest's: `prior.sd.of` is "forest", no g
 gaussian fit keeps its draws.
 
 A forest with no basis is held unless it states a df ([`forestMapEntry`](../../src/bartcore/combiner.hpp) reads
-the statement, isnan and not a test of finiteness). With `student()` and no `sd`, its median is the size the leaf
-prior gives ([`Chain::leafPriorSize`](../../src/bartcore/chain.hpp)): a named sd, the node scale over a held k, or
-over the chi prior's median k, 1.574 under probit and 2.855 under logistic at chi(1.5, 2). A flat prior on k gives
-no size and is refused by name. bcf's mu states df 1 ([`expandForestSpecs`](../../src/bartcore/combiner.hpp)) so
+the statement, isnan and not a test of finiteness). With `student()` and no `sd`, its median is the prior median of
+the size the leaf prior gives ([`Chain::leafPriorSize`](../../src/bartcore/chain.hpp)): a fixed named sd as given, or
+under `invchi(df, s)` s over the chi's median; the node scale over a held k, or over the chi prior's median k, 1.574
+under probit and 2.855 under logistic at chi(1.5, 2). `normal(k = chi(df, c))` and `normal(sd = invchi(df, k.scale /
+c))`, one prior, so give one median. A flat prior on k gives no size and is refused by name. bcf's mu states df 1 ([`expandForestSpecs`](../../src/bartcore/combiner.hpp)) so
 the K = 2 fixtures keep their half-Cauchy. A leaf prior given to the fitting function where every forest with no
 basis states its size has no forest and is refused by name, the default restated taken. The check behind the
 flip (dec-B509) found a held prognostic forest not clearly worse for the effects, and f's coverage about half a
@@ -88,14 +88,17 @@ point lower than under the drawn coefficient.
   unscaled; so it stays exact in every model whose sharers draw k.
 - The reader. `getLeafPrior` gives a sharer the fitting function's leaf prior as `leaf.prior`, its part in
   force as `sd` (NA where k is drawn), `sd.stated` FALSE, amplitude `fixed()` and `prior.sd.of` "forest,
-  shared". Print shows each forest's tree count, the total, and which forests share at what k. A fit records
-  the group's k wherever the sharers stand, each sharer's held coefficient in `fixed$amplitude` whether or not
-  `fixed()` is written; where k is drawn `summary` tabulates it and `extract(type = "leaf.prior.sd")` gives each
-  sharer's `k.scale` over each draw.
+  shared". Print shows each forest's tree count, the total, and which forests share at what k; a lone forest's full
+  line says "(default)" only where its family holds k at 2 by default, and "(leaf prior)" otherwise and on a forest
+  stating `student()` and no sd. A fit records the group's k wherever the sharers stand, each sharer's held
+  coefficient in `fixed$amplitude` whether or not `fixed()` is written; where k is drawn `summary` tabulates it, a
+  named drawn total as `leaf.prior.sd`, and `extract` reads per forest: `type = "k"` a sharer's draws and another
+  forest's number, `type = "leaf.prior.sd"` each sharer's `k.scale` over each draw, `forest = NULL` the named list.
 - On a live sampler, with two or more sharers, a sharer's `sd` through `$setLeafPrior(forests = )` and the
   sampler's `leaf.prior` are refused by name; a size or total is stated at creation, and changing either live
-  waits on the forest door. A lone sharer takes the `sd` and leaves the leaf prior, k pinned at 1, as creation
-  stating it does (dec-B525's end state); the reader's own `leaf.prior` written back moves nothing, and
+  waits on the forest door, the sd on its slice 3, a sharer leaves the group (dec-B525). A lone sharer takes the `sd`
+  and leaves the leaf prior, k pinned at 1, as creation stating it does (dec-B525's end state), the sd in force
+  keeping the prior, to rounding under a named sd; the reader's own `leaf.prior` written back moves nothing, and
   `$setLeafPrior(leaf.prior)` takes only a restatement of the one in force.
 
 Without a forest with a basis, `y ~ forest(x1) + forest(x2) + forest(x3)` is then the one-forest model
@@ -108,5 +111,7 @@ offset) and forests-blocks-equivalence.R (the two spellings by Welch z over seed
 equal counts, at 38 and 37 and beside a stated count, and under gaussian with k drawn).
 
 A numeric basis constant over the rows in the likelihood is refused at creation, sd stated or not, naming the
-spelling with no basis (dec-B528; [`refuseConstantBasis`](../../R/forestBasis.R)). A forest with no basis stating
-`sd` is that model; a later swap to such a column stays taken (dec-B346).
+spelling with no basis, the same model: `sd` the column's absolute value times the sd stated, `amplitude` as written
+(dec-B528; [`refuseConstantBasis`](../../R/forestBasis.R)). A forest with no basis stating `sd` is that model; a
+later swap to such a column stays taken (dec-B346). A factor, character or logical basis left with one level by the
+weights is refused too, naming no spelling, its absent level's coefficient being at its prior (dec-B543).

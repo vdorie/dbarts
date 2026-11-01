@@ -1,21 +1,24 @@
 # forests-shared-total: several forests with no basis share one prior total
 
-Status: PLANNED 2026-10-29; amended the same day after its blind critique (build after amendments;
-scratch/crit-2plans/report.md) and the maintainer's rulings dec-B503 (the tree count), dec-B505 (an equal part
-per forest) and dec-B506 (`blocks()` changed to match, slice B); amended again the same day for dec-B508
-(`forest()` takes no `leaf.prior`), dec-B509 (a forest with no basis takes the fitting function's leaf prior,
-held, in every model: D1 revised, the default flip in [Slice F: the default flip](#slice-f-the-default-flip)) and dec-B510. Slices B,
-1 (the engine and bridge), 2 (the R surface) and 3 (the constant basis column, dec-B528) are built on this branch;
-no call is held. Slice F (the default flip) is built on this branch, its review to follow; the Landing note below
-holds what the next item owes. `amplitude = fixed()` on a lone forest with no basis is ruled, taken in slice F (dec-B513). Rulings:
-dec-B292, dec-B503, dec-B505, dec-B506, dec-B509, dec-B513 and dec-B528 (with dec-B291, dec-B274, dec-B307, dec-B508,
-dec-B510, dec-B525); window "Post-merge, pre-1.0" (VD 2026-10-07).
+Status: BUILT on this branch 2026-10-31, not landed. Slices B, 1 (the engine and bridge), 2 (the R surface), 3 (the
+constant basis column, dec-B528, dec-B543) and F (the default flip) are built, each reviewed and its findings fixed;
+no call is held. Slice F's fix round changes engine behavior in one place, the median of `student()` with no sd under
+`normal(sd = invchi())` ([Calls made](#calls-made) 32), so a fresh review of that round comes before the landing; the
+[Landing note](#landing-note) holds the rest. Planned 2026-10-29; amended the same day after its blind critique
+(build after amendments; scratch/crit-2plans/report.md) and the maintainer's rulings dec-B503 (the tree count),
+dec-B505 (an equal part per forest) and dec-B506 (`blocks()` changed to match, slice B); amended again the same day
+for dec-B508 (`forest()` takes no `leaf.prior`), dec-B509 (a forest with no basis takes the fitting function's leaf
+prior, held, in every model: D1 revised, the default flip in [Slice F: the default flip](#slice-f-the-default-flip))
+and dec-B510. `amplitude = fixed()` on a lone forest with no basis is ruled, taken in slice F (dec-B513). Rulings:
+dec-B292, dec-B503, dec-B505, dec-B506, dec-B509, dec-B513, dec-B528 and dec-B543 (with dec-B291, dec-B274, dec-B307,
+dec-B508, dec-B510, dec-B525); window "Post-merge, pre-1.0" (VD 2026-10-07).
 
 agent: one opus implementer for slice B, then slices 1 and 2, then slice F; one opus review of slice B, one over
 slices 1 and 2 and one of slice F, each running the mutants below, the same reviewer checking the fix round unless
 the fixes change engine behavior. Tier "Changes draws" ([Process by risk](README.md#process-by-risk)): slice B
 changes the `blocks()` prior; slice 1 edits the engine's calibration map, k draw and rescaling step; slice 2
-opens a new prior; slice F changes a default. Slice 3 is R surface, one sonnet review.
+opens a new prior; slice F changes a default. Slice 3 is R surface, planned for one sonnet review; the second opus
+review of slices 1 and 2 read it instead, its two findings fixed there.
 rng: slice B POSTERIOR-CHANGING for a `blocks()` fit whose groups hold unequal tree counts, the default 75 trees
 over two groups included, and bitwise neutral for every other fit (its gates in [Slice B](#slice-b)).
 Slices 1 and 2 NEUTRAL, bit for bit, for every call main accepts: no such call has two forests with no basis, and
@@ -302,11 +305,18 @@ sd stated or not, naming the plain spelling, in slice 3. Constant is what
 [`basisColumnScale`](../../src/bartcore/combiner.hpp) finds no scale in, over the same rows: by its values, or to
 rounding, over the rows in the likelihood, and over every row where too few are in. It is one refusal at the one
 function every fitting function's door goes through ([`resolveSamplerSpec`](../../R/spec.R)): a formula's term, a
-`forests` list, a data object's `bases`. A later swap to a constant column stays taken (dec-B346), and a re-creation
-reads what the swap left, so a copy and a reload are not creations and nothing in the engine refuses a stated sd; a
-sampler assembled by hand with `new()` over a model and a data object, indistinguishable there from a copy, reaches
-only the engine's refusal of a column that states no sd. A factor of one level and a logical column at one value
-stay refused by their own messages at every door, sd stated or not; a column of zeros by its own.
+`forests` list, a data object's `bases`. The spelling it names is the same model: a stated sd is per unit of the
+column, so it offers `sd` as the column's absolute value times the sd stated (`basis = rep(3, n), sd = 2` is
+`forest(x1, sd = 6)`), and it keeps `amplitude = fixed()` or `student()` as written. A later swap to a constant column
+stays taken (dec-B346), and a re-creation reads what the swap left, so a copy and a reload are not creations. `new()`
+over a live sampler's control and model and a data object whose column was edited to a constant is taken too, where
+an sd is stated and, with none, where the data's `basis.scale` record stands; the engine refuses only a column with
+neither (run). It cannot be told from `new()` over a swapped sampler's parts, and the route is nearly closed, a plain
+control refused and a fresh `dbartsData` failing on `n.cuts`, so no refusal is added there. A factor of one level and
+a logical column at one value stay refused by their own messages at every door, sd stated or not; a column of zeros
+by its own. A factor, character or logical basis left with one level in the likelihood by the weights is refused the
+same way, naming no spelling, a level with no row leaving its coefficient at its prior (dec-B543, at creation only,
+as dec-B528).
 
 D10. The rest of the surface, each MY CALL:
 
@@ -323,8 +333,9 @@ D10. The rest of the surface, each MY CALL:
   `student()`) starts at 1, so none starts out of the model; a model with one keeps its start by position. No
   model main accepts moves; TODO drawn-coefficient-start-by-kind is noted.
 - A restated sd. dec-B525 replaces this paragraph's refusal: a sharer may state its own size live, leaving the group
-  with the others' shares unchanged. forest-door's slices 2 and 3 take the refusal and remove it; this branch keeps
-  the refusal it built until then. `$setLeafPrior(forests = )` restating a sharer's sd is refused by name: membership is fixed at
+  with the others' shares unchanged. The refusal goes to forest-door's slice 3, a sharer leaves the group, which
+  removes it; this branch keeps it, among two or more sharers, until then, and a lone sharer takes the sd already
+  ([Calls made](#calls-made) 24). `$setLeafPrior(forests = )` restating a sharer's sd is refused by name: membership is fixed at
   creation, and a sharer leaving would move the others' share. A forest that stated sd restates it as today, and
   `forest()` written back stays the no-op it is (dec-B508: `forest()` states a size as `sd` alone). On a live
   sampler with sharers, in every model, the group's leaf prior (its k, drawn or held, or a named sd) is a
@@ -372,11 +383,14 @@ the model is `blocks()` with `trees.per.group` at every count.
 5. Holds (D10): `fixed()` on a forest with no basis taken as the default restated; `student()` on a sharer refused
    where two or more share (D3).
 6. `$setLeafPrior(forests = )` refuses a sharer's sd ([`resolveForestSpreads`](../../R/dbarts.R)). dec-B525 replaces
-   this: forest-door's slices 2 and 3 take the refusal and remove it, and this branch keeps the refusal it built.
+   this: the refusal goes to forest-door's slice 3, a sharer leaves the group, and this branch keeps it until then.
 7. [`reportLeafPrior`](../../R/dbarts.R) and the k readers follow D8; `prior.sd.of` gains ", shared" on a sharer;
    [`forestPriorLines`](../../R/forestPrint.R) marks the share and gains each forest's tree count, and the fit's
    print the total, on every model of several forests. A fit of sharers with a drawn k stores it as a one-forest
-   fit stores its k.
+   fit stores its k, wherever the sharers stand. `extract(type = "k")` reads it per forest as
+   `type = "leaf.prior.sd"` does: a sharer the draws, a forest outside the group its own number, a name or index that
+   is no forest refused, `forest = NULL` the named list. `summary` tabulates the drawn k, and `vars = "leaf.prior.sd"`
+   the row `extract` has; a named drawn total, `normal(sd = invchi())`, reads `leaf.prior.sd`, as one forest does.
 
 ### Bridge
 
@@ -415,10 +429,11 @@ the model is `blocks()` with `trees.per.group` at every count.
 6. The probit rescaling step (D5): [`Chain::forestRescaleApplies`](../../src/bartcore/chain.hpp) admits a K-forest
    chain whose sharers draw k on constant leaves, today refused by its `combiner_` test, whatever other forests it
    has; the step reads R and Q with f the sharers' summed fit and the offset the user's plus every other forest's
-   current contribution (the combined fit less the sharers'), scales each sharer's leaves, `totalFits` and
-   `totalFitsScale` under the existing bound and rule, and the combiner's combined-fit cache (`glue_.combined`,
-   which [`AmplitudeForestCombiner::combinedFits`](../../src/bartcore/combiner.hpp) fills), or refills it before
-   its next reader; M is the group's leaf count. No other forest's leaves, coefficient or fits are touched. The step's conditional reads no leaf scale: (mu, k) -> (alpha mu,
+   current contribution (the combined fit less the sharers'), and scales each sharer's leaves, `totalFits` and
+   `totalFitsScale` under the existing bound and rule. The combiner's combined-fit cache (`glue_.combined`) needs no
+   refill: it is read only inside [`AmplitudeForestCombiner::combinedFits`](../../src/bartcore/combiner.hpp), which
+   fills it, so a refill planned here was dropped, the draws bitwise without it. M, the group's leaf count, cancels
+   between the Jacobian and the leaf prior, so the step reads none. No other forest's leaves, coefficient or fits are touched. The step's conditional reads no leaf scale: (mu, k) -> (alpha mu,
    k / alpha) leaves every standardized leaf mu k / s unchanged whatever s is, so the leaf prior's Jacobian is
    alpha^-M with one scale per forest or per group as with one in all. Per-forest scales need no weighting there;
    a tests/cpp pin holds the step's density at unequal scales to a direct evaluation.
@@ -548,7 +563,8 @@ Engine:
    [`defaultForestSd`](../../src/bartcore/combiner.hpp)'s 2 or 1, is the prior median of the size it would
    otherwise have: `k.scale` / k at a held k, `k.scale` over the chi prior's median k at a drawn one (the size is
    monotone in k; scale times the square root of the chi-square median at its df, through the support library),
-   a named sd as given. At `bart()`'s binary default that is 3 / 1.906 = 1.574 under probit and 5.44 / 1.906 =
+   a named sd as given, and under `normal(sd = invchi(df, s))` that prior's median, s over the chi's, so that it and
+   `normal(k = chi(df, k.scale / s))`, one prior, give one median. At `bart()`'s binary default that is 3 / 1.906 = 1.574 under probit and 5.44 / 1.906 =
    2.85 under logistic, in the link's units; the forest then has no k (coefficient-prior-opt-in).
 4. [`expandForestSpecs`](../../src/bartcore/combiner.hpp): the K = 2 mu/tau shape states df 1 on mu where
    `updateA`, so the tests/cpp bcf fixtures keep bcf's prior and their draws, the shape staying a pure re-spelling
@@ -608,11 +624,12 @@ Tests and gates, slice F:
 
 - tests/cpp: kind none held without a df and drawn with one; `expandForestSpecs`' df 1, the bcf fixtures bitwise;
   the lone sharer at a held k of 2 bitwise dec-B290's entry; the no-sd median at a held k, a drawn k (1.574 under
-  probit) and a named sd.
+  probit), a named sd and a named sd under a drawn k; `forestsTakeLeafPrior` directly.
 - tinytest: the default beside a forest with a basis and beside a forest with no basis stating sd, under gaussian,
   probit and logistic (the reader's k, `k.scale` and no `amplitude`; the coefficient 1 at every draw); `bart(k = 3)`,
   `chi()` and `normal(sd = )` taken; `fixed()` on a lone forest taken (dec-B513); `student(1)` with `sd = 1` under probit
-  `identical()` to the pre-flip default.
+  `identical()` to the pre-flip default; the two spellings of one drawn prior one median; the sd in force written on a
+  lone forest the same prior, to rounding under a named sd.
 - An A/B (scratch) against a library of main after coefficient-prior-opt-in: every fit of one forest, every model in
   which each forest with no basis states sd with `fixed()` or `student(1)`, and the held gaussian default identical;
   the moved rows of the table changed, as listed. The same rows beside a forest with no basis stating sd are held
@@ -699,8 +716,8 @@ tinytest, a new test-forests-shared-total.R, small n:
 
 Mutants, each to fail a named expectation: the scale times s_j rather than sqrt(s_j); the share m_j / M where
 1 / K is ruled; the share counting forests that state sd; the pooled k standardized by the first sharer's scale
-for all; the pooled k from the first forest's leaves; the rescaling step's M of one forest; the rescaling step
-leaving the combined-fit cache unscaled; the rescaling step scaling a non-sharer's fit, or leaving it out of the
+for all; the pooled k from the first forest's leaves; the rescaling step's leaf write stopping at the first sharer,
+the step reading no M for the M of one forest planned here to break; the rescaling step scaling a non-sharer's fit, or leaving it out of the
 offset (each fails the probit arm beside a frozen basis tree); `student()` taken on a sharer among two; the start rule applied at K = 1; the count split counting a stated forest, or subtracting it from the
 total; `bart(n.trees = )` refused beside one stated count; `leaf.prior = normal(sd = )` still redirected with no
 basis forest.
@@ -725,15 +742,18 @@ Gates, on the branch's own libraries:
   in closed form: two sharers beside a held factor, three forests with no basis one stating sd, two sharers
   alone at k 2 and at `normal(k = 3)`, and two sharers of unequal counts, each at T / sqrt(2);
   benchmarks/R/probit-k-scale-exact.R, an arm of two frozen trees sharing one drawn k, the second a stump
-  integrated in an outer quadrature, and an arm of the same two sharers beside a frozen single-tree factor forest
-  held at a stated sd (the offset reading of D5), each with the rescaling step on and off. The existing arms of
-  both pass unchanged. bcf-exact.R gains no mode: the shared coefficient is gone.
+  integrated in an outer quadrature, an arm of the same two sharers beside a frozen single-tree factor forest
+  held at a stated sd (the offset reading of D5), and an arm with a user offset, which alone sees the step drop it,
+  each with the rescaling step on; the review ran them with the step removed too, from a library of its own, the arms
+  passing, so the step keeps the target. The existing arms of both pass unchanged. bcf-exact.R gains no mode: the
+  shared coefficient is gone.
 - Statistical equivalence (a new script in benchmarks/R, z mode over seeds): `y ~ forest(x1) +
   forest(x2) + forest(x3)` against `y ~ forest(x1 + x2 + x3, blocks = )` with the same trees per group, gaussian
   at k 2 and probit under the drawn k; two forests at 75 trees (38 and 37) against `blocks()` at 75; and a
   stated count, `forest(x1, n.trees = 10) + forest(x2) + forest(x3)` against `trees.per.group = c(10, 38, 37)`:
-  posterior mean fit by row, sigma, k. With slice B in, the two spellings are one model at every count
-  (dec-B506); a |z| past 4 is a stop.
+  posterior mean fit by row, sigma, k, with two scenarios that see a k error, gaussian under a drawn k and unequal
+  counts under one. With slice B in, the two spellings are one model at every count (dec-B506); a |z| past 4 is a
+  stop. It joins exact-gates.yaml.
 - The full tinytest suite, one process; `lintr::lint_package()`, `air format --check .`, `tools/check-rc-codoc.R`,
   `tools/check-win-drift.R`, `tools/check-doc-freshness.R`, each on its own exit status; `inst/NEWS.Rd` parses;
   `R CMD check --as-cran` from a tarball of a clean copy staged outside the tree; exact-gates.yaml's list in quick
@@ -820,12 +840,17 @@ F. Slice F, the default flip (~590 lines; ~8 agent-hours). Tier: changes draws (
 - The probit rescaling step does not move a forest with a basis (D5): a binary causal model's k mixes better than
   without the step, by an amount unmeasured.
 
-## Landing note for the next item
+## Landing note
 
-Slice F's re-recorded bcf-equivalence baseline, bcf-equivalence-1380accf beside equivalence-1380accf, holds until forest-amplitude-normal (dec-B542), which re-records
+Owed before the merge: the fresh review of slice F's fix round; slice B's bench-sampler compare on a quiet machine;
+the rebase, the x86 leg and CI on the tip; bartCause's branch bcf-tests-state-prior, its two tests' hand-written
+drivers and a comment, merged with this item; the records of Order of work's item 4. Current baselines:
+equivalence-1380accf and bcf-equivalence-1380accf, multinomial-equivalence-80b1c8d4 unmoved.
+
+For the next item: slice F's re-recorded bcf-equivalence baseline holds until forest-amplitude-normal (dec-B542), which re-records
 again, judged by the same tier 1 of `--cross-host`. That item also re-pins what test-bcf-family.R,
 test-forest-sd-unit.R and test-forest-leaf-prior-reader.R already pin of a drawn basis forest's units; slice F added
-none.
+none. forest-door's slice 3 takes the refusal of a sharer's sd (dec-B525).
 
 ## Calls made
 
@@ -854,8 +879,8 @@ none.
     stating each.
 14. Print shows each forest's tree count and the total, on every model of several forests. Alternative: the
     counts in the synopsis only, as today; all four panelists asked for this.
-15. The rescaling step, admitted on a K-forest chain, scales the combiner's combined-fit cache with the sharers'
-    fits, or refills it before its next reader, and reads every other forest's fit as offset (D5). Alternatives:
+15. The rescaling step, admitted on a K-forest chain, reads every other forest's fit as offset, the combined fit less
+    the sharers' (D5); the combined-fit cache has no reader but the fill, so it is neither scaled nor refilled. Alternatives:
     scale every forest's contribution, ~60 more engine lines, a fuller move, unmeasured; or decline beside a
     forest with a basis, which leaves the default probit bcf model's k mixing as a lone forest's did before the
     step.
@@ -903,6 +928,17 @@ none.
     'k'" and "... 'sd'": the old ones, "a model of several forests does not support a non-default 'k'" and "...
     states each forest's size on the forest", are false once such a model takes both where a forest has no sd.
     A multinomial model, which declares no bases, keeps the old 'k' words.
+32. `student()` with no sd under `normal(sd = invchi(df, s))` has as median that prior's, s over the chi's median, as
+    the same prior written `normal(k = chi(df, k.scale / s))` has. As first built it read s, which gave one prior two
+    medians (0.976 and 1.501 on the review's call).
+33. A lone forest's print line says "(default)" only where its family holds k at 2 by default, gaussian, and "(leaf
+    prior)" at `normal(k = 2)` under probit and logistic, whose default is drawn. A forest with no basis stating
+    `student()` and no sd says "(leaf prior)" at every leaf prior: that is true of each, and neither a fit's record nor
+    the reader says whether a leaf prior was stated. Alternative: "(leaf prior)" on every lone forest, or a new field
+    on the reader to tell a student() forest's default apart.
+34. The sd in force written on a lone sharer under `normal(sd = )` re-derives its entry, so it keeps the prior to
+    rounding, 2.4e-15 gaussian and 3.1e-15 probit, not bitwise; the help says so. At a held k of 2 and 3 it is identical.
+    Alternative: a branch keeping the entry, for no difference a posterior can see.
 
 ## Open calls
 
@@ -940,17 +976,14 @@ none.
 
 ## Not verified
 
-- Nothing is built. The equality of slice 2's models with `blocks()` after slice B is argued from the leaf scales
-  and the sweep order and is a gate, not a measurement.
+- The equality of slice 2's models with `blocks()` after slice B is argued from the leaf scales and the sweep order;
+  forests-blocks-equivalence.R gates it by z over seeds, which sees a difference and does not prove none.
 - The probe is pure R at 400 draws (the drawn-coefficient quantiles carry Cauchy noise of several percent); it
   does not use the engine.
-- Whether the K-forest chain's gaussian sigma prior and starting sigma equal the single-forest chain's; the
-  `blocks()` equivalence gate checks it.
 - How well the shared k mixes under logistic before dec-B404's move is built; coverage at equal time is the
   measure, as for one forest.
 - How well the drawn k mixes beside a forest with a basis under probit, with the step reading that forest as
   offset, and under logistic with no step; the check measured gaussian alone.
-- The engine's size is estimated from reading the paths it touches, not from a prototype.
 - The effect of slice B on main's `blocks()` fits at the default splits is computed on the prior (the table in
   [Slice B](#slice-b)), not measured on a posterior.
 - The agent-hours are estimates from comparable landings.
