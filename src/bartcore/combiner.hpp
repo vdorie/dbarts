@@ -489,8 +489,7 @@ struct ForestSdUnitError : std::domain_error {
 /// deviation of the column, 1 / \p basisScale per unit of it, held or
 /// drawn. A forest with no basis takes \p leafPriorSize, the size the fitting
 /// function's leaf prior gives one forest, in units of s: held, that is the
-/// forest's size (dec-B290, dec-B509), and a drawn coefficient, stating a df,
-/// takes it as its median.
+/// forest's size (dec-B290, dec-B509), and a drawn forest's trees take it too.
 inline double defaultForestSd(ForestKind kind, double leafPriorSize,
                               double basisScale) {
   if (kind == ForestKind::numeric) return 1.0 / basisScale;
@@ -680,8 +679,7 @@ forestSharers(const std::vector<ForestSpec>& forests) {
 }
 
 /// Whether a forest takes its size from the fitting function's leaf prior: one
-/// with no basis stating no sd, as a sharer's size or a drawn coefficient's
-/// median.
+/// with no basis stating no sd, as a sharer's total or a drawn forest's trees.
 inline bool forestsTakeLeafPrior(const std::vector<ForestSpec>& forests) {
   for (const ForestSpec& forest : forests)
     if (forest.kind == ForestKind::none && std::isnan(forest.sd) &&
@@ -703,7 +701,7 @@ struct AmplitudeSpec {
   // parameter list so a fixture that names none keeps bcf's own family.
   ResponseFamily family = ResponseFamily::gaussian;
   const double* z = nullptr;    // borrowed 0/1 treatment indicator per obs
-  // Half-Cauchy median for the mu scalar a, in units of s. Deliberately NOT
+  // mu's multiple of s, the scale of its trees, not a mixture's. Deliberately NOT
   // family-aware, unlike the default it shadows (defaultForestSd, which is 1
   // under probit and logistic): this initializer is a FIXTURE default that no
   // consumer reaches - createAmplitudeSampler has no flat-C entry point, and
@@ -738,8 +736,8 @@ struct AmplitudeSpec {
 
 /// The thin adapter: bcf's two-forest spelling read as the K-length vector
 /// every other layer works in. mu states aPriorScale and tau sdModerate, both
-/// multiples of s, which the map carries as mu's half-Cauchy median, its df 1
-/// where it draws, and in tau's node scale; mu multiplies nothing and tau the
+/// multiples of s, which the map carries in each forest's node scale, mu's df 1
+/// where it draws; mu multiplies nothing and tau the
 /// two levels of the treatment indicator, whose pair the combiner synthesizes.
 /// A spec that
 /// already carries its own forests vector is returned as it stands.
