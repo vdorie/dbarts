@@ -2971,7 +2971,12 @@ normal <- function(k = NULL, sd = NULL) {
 }
 
 chisq <- function(df = 3, quant = 0.9) {
-  newValidated("dbartsChiSqPrior", df = df, quantile = quant)
+  # an integer means what the same number as a double does
+  newValidated(
+    "dbartsChiSqPrior",
+    df = if (is.numeric(df)) as.double(df) else df,
+    quantile = if (is.numeric(quant)) as.double(quant) else quant
+  )
 }
 
 fixed <- function(value = 1.0) {

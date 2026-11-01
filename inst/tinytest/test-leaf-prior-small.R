@@ -8,6 +8,7 @@
 normal <- dbartsPriors$normal
 chi <- dbartsPriors$chi
 invchi <- dbartsPriors$invchi
+chisq <- dbartsPriors$chisq
 forest <- dbartsForests$forest
 
 set.seed(20261101)
@@ -281,3 +282,46 @@ for (created in list(normal(), normal(k = 3))) {
   expect_silent(s$setLeafPrior(normal(k = 2)))
   expect_identical(s$getLeafPrior(1L)$sd, before)
 }
+
+# --- integers beyond k --------------------------------------------------------
+# chi() and chisq() store doubles
+expect_identical(chi(3L, 2L)@degreesOfFreedom, 3)
+expect_identical(chi(3L, 2L)@scale, 2)
+expect_identical(chisq(3L)@df, 3)
+# an integer degrees of freedom, which bart()'s sigdf reaches, or offset draws
+# as the same number as a double
+drawsOf <- function(...) {
+  dbarts(y ~ x1, d, control = ctl(), ...)$run()$train
+}
+expect_identical(
+  drawsOf(family = gaussian(sigma = chisq(3L))),
+  drawsOf(family = gaussian(sigma = chisq(3)))
+)
+expect_identical(
+  drawsOf(offset = rep(1L, nrow(d))),
+  drawsOf(offset = rep(1, nrow(d)))
+)
+expect_identical(
+  dbartsData(y ~ x1, d, offset = rep(1L, nrow(d)))@offset,
+  rep(1, nrow(d))
+)
+
+# --- the refusal's hint -------------------------------------------------------
+# a flat prior gives no median that more degrees of freedom would mend
+flatMessage <- tryCatch(
+  studentOne(normal(k = chi(3, Inf))),
+  error = conditionMessage
+)
+expect_true(is.character(flatMessage))
+expect_false(grepl("more degrees of freedom", flatMessage, fixed = TRUE))
+
+# --- a sharer's sd.stated -----------------------------------------------------
+# on several forests it says whether the forest names an sd of its own
+sharer <- dbarts(
+  y ~ forest(x1) + forest(x2, basis = z),
+  d,
+  leaf.prior = normal(sd = 0.5),
+  control = ctl()
+)$getLeafPrior(1L)
+expect_equivalent(sharer$sd, 0.5)
+expect_identical(sharer$sd.stated, FALSE)

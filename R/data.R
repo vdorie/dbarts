@@ -826,8 +826,9 @@ methods::setMethod(
       .Object@x.test <- modelMatrices$x.test
       .Object@weights <- modelMatrices$weights
       .Object@weights.test <- modelMatrices$weights.test
-      .Object@offset <- modelMatrices$offset
-      .Object@offset.test <- modelMatrices$offset.test
+      # an integer means what the same number as a double does
+      .Object@offset <- integerToDouble(modelMatrices$offset)
+      .Object@offset.test <- integerToDouble(modelMatrices$offset.test)
       .Object@bases <- modelMatrices$bases
       .Object@basis.levels <- modelMatrices$basisLevels
       .Object@counts <- modelMatrices$counts
@@ -2733,6 +2734,13 @@ validateForestBases <- function(
 # against 'y', and restricted to 'subset'. offsetGivenAsScalar is threaded in
 # and back out so a NULL offset leaves it untouched. The offsetIsMissing guard
 # that produces the NULL stays inline at each call site.
+integerToDouble <- function(x) {
+  if (is.integer(x)) {
+    storage.mode(x) <- "double"
+  }
+  x
+}
+
 validateXYOffset <- function(
   offset,
   initialNumObservations,

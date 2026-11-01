@@ -931,9 +931,11 @@
             An \code{offset.test} bound to \code{NULL} is no test offset
             in the matrix interface, as with a formula; 0.9-34 refused it
             there as not found.
-      \item An integer \code{k}, as in \code{bart(x, y, k = 2L)} or
-            \code{normal(k = 2L)}, is the same number as a double. 0.9-34
-            stopped with \dQuote{k must be of real type}.
+      \item An integer \code{k}, \code{sigdf} or \code{offset}, as in
+            \code{bart(x, y, k = 2L)}, \code{normal(k = 2L)} or
+            \code{chisq(3L)}, is the same number as a double, where 0.9-34
+            stopped with an error such as \dQuote{k must be of real type if
+            NA is not allowable and no default is specified}.
       \item Weights given as a column of \code{test} are read whether or not
             \code{test} has the response column, and whether or not a
             vector \code{offset} was given. 0.9-34 dropped them, with a
