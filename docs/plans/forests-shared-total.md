@@ -937,7 +937,7 @@ none. forest-door's slice 3 takes the refusal of a sharer's sd (dec-B525).
     the reader says whether a leaf prior was stated. Alternative: "(leaf prior)" on every lone forest, or a new field
     on the reader to tell a student() forest's default apart.
 34. The sd in force written on a lone sharer under `normal(sd = )` re-derives its entry, so it keeps the prior to
-    rounding, 2.4e-15 gaussian and 3.1e-15 probit, not bitwise; the help says so. At a held k of 2 and 3 it is identical.
+    rounding, draws within about 7e-15, not bitwise; the help says so. At a held k of 2 and 3 it is identical.
     Alternative: a branch keeping the entry, for no difference a posterior can see.
 
 ## Open calls
