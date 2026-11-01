@@ -621,8 +621,8 @@ forest(
     normal's contribution has about 1.48 times the standard deviation of a
     \code{fixed()} forest's, since the coefficient and the trees are both
     random, and thinner tails than \code{student(df)}'s. With no basis
-    \code{sd} is the size of the trees or, where none is stated, the size the fitting function's leaf prior gives, its
-    prior median where \code{k} has a \code{chi()} prior or the \code{sd} an
+    \code{sd} is the size of the trees or, where none is stated, the size the
+    fitting function's leaf prior gives, its prior median where \code{k} has a \code{chi()} prior or the \code{sd} an
     \code{invchi()} prior, and refused where that prior or \code{k} is flat and
     gives no size. Bayesian causal forests'
     prognostic prior is written \code{amplitude = student(1), sd = 2 * sd(y)},
