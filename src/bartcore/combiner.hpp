@@ -381,10 +381,12 @@ struct ForestStatement {
   /// forest with no basis, 0 and 1 for the two levels of a factor. A forest
   /// with no basis that states no df is held whatever this says.
   bool updateAmplitude = true;
-  /// The degrees of freedom of a Student-t prior on a drawn coefficient,
-  /// finite and at least 1; not a number where none is stated, which keeps
-  /// the kind's default prior, and holds a forest with no basis. A held forest
-  /// ignores it.
+  /// What a drawn coefficient's prior is. Finite and at least 1, the degrees of
+  /// freedom of a Student-t; +inf, an internal code for the normal, on which no
+  /// t is drawn, no auxiliary kept and no quantile taken, and which on a forest
+  /// with a basis means what no df means; not a number where none is stated,
+  /// which keeps the kind's default prior, and holds a forest with no basis. A
+  /// held forest ignores it.
   double amplitudeDf = std::numeric_limits<double>::quiet_NaN();
 };
 
@@ -505,17 +507,19 @@ inline double forestSdInForce(double multiple, double unit) {
 
 /// What the calibration map resolves one forest's statement into.
 ///
-/// The node scale is nodeScaleFactor * s / nodeScaleDivisor, with s the map's
-/// anchor (the FAMILY'S OWN LATENT SCALE: the sample sd of the range-scaled
+/// The node scale is nodeScaleFactor * s, with s the map's anchor (the FAMILY'S OWN LATENT SCALE: the sample sd of the range-scaled
 /// response under gaussian, 1 under probit, pi/sqrt(3) under logistic). A
 /// numeric column multiplies the forest as it is given, never centered and
 /// never divided, so its forest's scale is stated PER UNIT OF THE COLUMN.
 struct ForestMapEntry {
-  double nodeScaleFactor = 1.0, nodeScaleDivisor = 1.0;
-  /// The forest's sd as a multiple of s, in whichever of the two channels
-  /// carries it.
+  double nodeScaleFactor = 1.0;
+  /// The forest's sd as a multiple of s, which the trees carry.
   double sdMultiple = 1.0;
   ForestAmplitudePrior amplitudePrior;
+  /// What a drawn block's start is multiplied by at creation. Read once, by the
+  /// chain that hands it to the combiner's constructor, and by nothing after:
+  /// it is no part of the model, and a re-resolved entry's is ignored.
+  double startScale = 1.0;
   /// A sharer's part of its group's prior variance (forestSharers), NaN on
   /// every other forest. A sharer's size is not stated on the anchor: its node
   /// scale is the single-forest chain's times nodeScaleFactor, sqrt(share), and
@@ -523,42 +527,37 @@ struct ForestMapEntry {
   double share = std::numeric_limits<double>::quiet_NaN();
 
   /// The forest's node scale on anchor \p s, before its tree count divides
-  /// it. Association and operand order are the K = 2 instance's, which is
-  /// what keeps it bitwise and a re-derivation from unchanged inputs inert.
-  double nodeScale(double s) const {
-    return nodeScaleFactor * s / nodeScaleDivisor;
-  }
+  /// it. A re-derivation from unchanged inputs is inert.
+  double nodeScale(double s) const { return nodeScaleFactor * s; }
 };
 
-/// The CALIBRATION MAP, general in K: one forest's statement resolved into the
-/// channel its magnitude is carried in. \p kind is what the forest multiplies,
-/// \p unit the response units in one s, \p leafPriorSize the size a forest
-/// with no basis defaults to (defaultForestSd), and \p basisScale a numeric
-/// column's scale, read only where its forest states no sd.
+/// The CALIBRATION MAP, general in K: one forest's statement resolved into its
+/// node scale and its coefficient's prior. \p kind is what the forest
+/// multiplies, \p unit the response units in one s, \p leafPriorSize the size a
+/// forest with no basis defaults to (defaultForestSd), and \p basisScale a
+/// numeric column's scale, read only where its forest states no sd.
 ///
-/// A forest with NO basis is held unless it states a df (dec-B509). Read on the
-/// statement, isnan and not a test of finiteness. Stating one, it has a scalar
-/// amplitude under a half-Cauchy scale mixture at df 1: its sd, in units of s,
-/// is that mixture's median, and its node scale stays at s (bcf's prognostic
-/// forest, factor and divisor both 1). A drawn forest WITH one has a
-/// fixed-variance amplitude block: its sd
-/// multiplies the node scale, divided through the half-normal median 0.674 so
-/// that the amplitude spread times that scale sits at sd units of s (bcf's
-/// treatment forest). A level's coefficient is N(0, 1/2), so the difference of
-/// two is N(0, 1); a numeric column's one coefficient is N(0, 1). Both
-/// expressions are bcf's own, which is what keeps the two-forest instance
-/// bitwise. A HELD forest's coefficient is its kind's value, 1, the levels'
-/// (0, 1) or 1 on a numeric column, so its sd is its own node scale's,
-/// exactly: the sd multiplies the node scale with no divisor, and no mixture
-/// is drawn.
+/// The trees carry the forest's sd on every forest but a sharer: the node scale
+/// is the sd's multiple m of s, held or drawn. A coefficient is a multiplier,
+/// and its prior does not read m. A HELD forest's coefficient is its kind's
+/// value: 1, the levels' (0, 1) or 1 on a numeric column. A forest with NO
+/// basis is held unless it states a df: read on the statement, isnan and not a
+/// test of finiteness. A DRAWN forest's coefficient has prior median size 1,
+/// exactly with no basis, where the normal has variance 1 / z_.75^2 and a t
+/// mixture scale 1 / t_nu,.75 (1 at nu = 1, the half-Cauchy, mixtureDf NaN). With
+/// a basis it is z_.75 / 0.674, bcf's rounding of the same quartile: the variance
+/// is kappa / 0.674^2, kappa being 1/2 on a level and 1 on a numeric column, so
+/// the difference of two levels has the numeric coefficient's prior, and a t's
+/// mixture scale is sqrt(kappa) z_.75 / (t_nu,.75 0.674).
 ///
-/// A drawn forest that states a df nu (ForestStatement::amplitudeDf) takes a
-/// Student-t coefficient with nu degrees of freedom at the median its default
-/// has. With a basis its node scale and variance kappa do not move and the
-/// mixture scale is sqrt(kappa) z_.75 / t_nu,.75, so a numeric coefficient's
-/// size and a factor's difference keep the normal's median exactly. With
-/// none the scale is the forest's median over t_nu,.75; at nu = 1 that
-/// quantile is exactly 1 and the entry is the unstated one, mixtureDf NaN.
+/// The scale between a coefficient and its trees is a gauge: (a / g, g F) is the
+/// same model and each conditional is equivariant in g. startScale and a
+/// mixture's starting variance set where in it a chain starts, 1 / 0.674 with a
+/// basis and 1 / m with none, and every seeded chain with a drawn forest rests on
+/// them. They read m once, for creation; a live write resolves the entry again
+/// and neither reaches the combiner. Past 1e100 either way a start is held at
+/// 1e100, its square at 1e200: a sweep squares a coefficient and its trees' fits,
+/// and a start is not a model, so an extreme m runs where the arithmetic does.
 ///
 /// A stated sd is in the response's units and is DIVIDED BY THE UNIT HERE, and
 /// nowhere else: once for each construction and once for each restatement. A
@@ -592,12 +591,13 @@ inline ForestMapEntry forestMapEntry(
     return entry;
   }
   double df = statement.amplitudeDf;
-  bool dfStated = !std::isnan(df);
-  bool held =
-    !statement.updateAmplitude || (kind == ForestKind::none && !dfStated);
-  if (dfStated && (!(df >= 1.0) || !std::isfinite(df)))
-    throw std::invalid_argument("a coefficient's df must be finite and at "
-                                "least 1");
+  bool normalStated = df == std::numeric_limits<double>::infinity();
+  bool dfStated = !std::isnan(df) && !normalStated;
+  bool held = !statement.updateAmplitude ||
+              (kind == ForestKind::none && std::isnan(df));
+  if (dfStated && !(df >= 1.0))
+    throw std::invalid_argument("a coefficient's df must be at least 1, or "
+                                "+inf for the normal");
   bool defaulted = std::isnan(statement.sd) && std::isnan(statement.sdMultiple);
   if (kind == ForestKind::numeric && defaulted &&
       (!(basisScale > 0.0) || !std::isfinite(basisScale)))
@@ -624,33 +624,40 @@ inline ForestMapEntry forestMapEntry(
   ForestMapEntry entry;
   entry.sdMultiple = multiple;
   entry.amplitudePrior.update = !held;
-  double variance = kind == ForestKind::levels ? 0.5 : 1.0;
+  entry.nodeScaleFactor = multiple;
+  double kappa = kind == ForestKind::levels ? 0.5 : 1.0;
+  const double basisQuartile = 0.674;
+  const double normalQuartile = 0.6744897501960817;
   if (held) {
-    entry.nodeScaleFactor = multiple;
-    entry.amplitudePrior.variance = variance;
+    entry.amplitudePrior.variance = kappa;
     entry.amplitudePrior.mixtureScale = 0.0;
   } else if (kind != ForestKind::none) {
-    entry.nodeScaleFactor = multiple;
-    entry.nodeScaleDivisor = 0.674;  // the half-normal median
-    entry.amplitudePrior.variance = variance;
+    entry.startScale = 1.0 / basisQuartile;
+    entry.amplitudePrior.variance = kappa / (basisQuartile * basisQuartile);
     entry.amplitudePrior.mixtureScale = 0.0;
     if (dfStated) {
-      // the live auxiliary starts at the normal's variance, so the first draw
-      // of the block is the default's
-      const double normalUpperQuartile = 0.6744897501960817;
       entry.amplitudePrior.mixtureDf = df;
-      entry.amplitudePrior.mixtureScale = std::sqrt(variance) *
-                                          normalUpperQuartile /
-                                          ext_quantileOfStudentT(0.75, df);
+      entry.amplitudePrior.mixtureScale = std::sqrt(kappa) * normalQuartile /
+                                          ext_quantileOfStudentT(0.75, df) /
+                                          basisQuartile;
     }
   } else {
-    // the variance is the mixture's live auxiliary, which starts at 1
-    entry.amplitudePrior.variance = 1.0;
-    entry.amplitudePrior.mixtureScale = multiple;
-    if (dfStated && df != 1.0) {
-      entry.amplitudePrior.mixtureDf = df;
-      entry.amplitudePrior.mixtureScale =
-        multiple / ext_quantileOfStudentT(0.75, df);
+    const double startLimit = 1e100;
+    entry.startScale =
+      std::clamp(1.0 / multiple, 1.0 / startLimit, startLimit);
+    if (normalStated) {
+      entry.amplitudePrior.variance = 1.0 / (normalQuartile * normalQuartile);
+      entry.amplitudePrior.mixtureScale = 0.0;
+    } else {
+      entry.amplitudePrior.variance =
+        std::clamp(1.0 / (multiple * multiple), 1.0 / (startLimit * startLimit),
+                   startLimit * startLimit);
+      entry.amplitudePrior.mixtureScale = 1.0;
+      if (df != 1.0) {
+        entry.amplitudePrior.mixtureDf = df;
+        entry.amplitudePrior.mixtureScale =
+          1.0 / ext_quantileOfStudentT(0.75, df);
+      }
     }
   }
   return entry;
@@ -929,7 +936,6 @@ struct ForestCombiner {
   /// when f names no forest or its amplitude prior is not a scale mixture.
   /// The live variance auxiliary is left as drawn, refreshed under the new
   /// scale after the block's next draw. Inert in the base.
-  virtual bool setAmplitudePriorScale(std::size_t, double) { return false; }
 
   /// Whether this coupling OWNS its response as a count matrix that can be
   /// replaced on a live sampler at fixed n and K. True only for a combiner
@@ -1135,6 +1141,9 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   /// layout that keeps every drawn block's start: 1 for a forest with no
   /// basis, (0, 1) for the two levels of a factor, 1 for a numeric column
   /// (dec-B354). A drawn numeric coefficient starts at 1 wherever it stands.
+  /// startScales multiplies each drawn block's start, once, and is not kept;
+  /// where it does not reach a forest, as on a fixture's combiner, the block
+  /// starts as it stands.
   ///
   /// \throws std::invalid_argument for a forest whose kind does not fit its
   /// basis (one with none handed a basis, one of levels or numbers handed
@@ -1143,7 +1152,8 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   /// value.
   AmplitudeForestCombiner(const ColumnStore& data, const AmplitudeSpec& spec,
                     const std::vector<ForestAmplitudePrior>& priors,
-                    std::size_t numForests = 2)
+                    std::size_t numForests = 2,
+                    const std::vector<double>& startScales = {})
       : data_(data), numForests_(numForests < 2 ? 2 : numForests) {
     std::size_t n = data_.numObservations;
     std::vector<ForestSpec> forests = expandForestSpecs(spec);
@@ -1191,6 +1201,10 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
                (numPlain > 1 && forests[f].kind == ForestKind::none))
         glue_.amplitudesOf(f)[0] = 1.0;
     }
+    for (std::size_t f = 0; f < numForests_ && f < startScales.size(); ++f)
+      if (glue_.prior[f].update)
+        for (std::size_t j = 0; j < glue_.numAmplitudes(f); ++j)
+          glue_.amplitudesOf(f)[j] *= startScales[f];
   }
 
   /// The SOLE basis-mutation route, at any forest and any width, and therefore
@@ -1207,13 +1221,6 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   bool setForestBasis(std::size_t f, const double* values,
                       std::size_t numColumns) override {
     return installForestBasis(f, values, numColumns);
-  }
-
-  bool setAmplitudePriorScale(std::size_t f, double scale) override {
-    if (f >= glue_.prior.size() || !(glue_.prior[f].mixtureScale > 0.0))
-      return false;
-    glue_.prior[f].mixtureScale = scale;
-    return true;
   }
 
   bool installForestBasis(std::size_t f, const double* values,

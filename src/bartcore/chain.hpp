@@ -1250,6 +1250,7 @@ public:
     std::vector<ForestSpec> forestSpecs = expandForestSpecs(spec);
     forestMap_.resize(forestSpecs.size());
     std::vector<ForestAmplitudePrior> amplitudePriors(forestSpecs.size());
+    std::vector<double> startScales(forestSpecs.size(), 1.0);
     // the forests sharing one total, each an equal part of its variance
     sharers_ = forestSharers(forestSpecs);
     // a lone sharer at a held k of the default keeps the map's held entry, one
@@ -1304,13 +1305,14 @@ public:
         mapped.basisScale,
         sharer ? share : std::numeric_limits<double>::quiet_NaN());
       amplitudePriors[f] = mapped.entry.amplitudePrior;
+      startScales[f] = mapped.entry.startScale;
       buildSpecifiedForest(forestSpec.forest);
       forests_[f].leaf.scale = mapLeafScale(f);
       if (sharer) installSharedLeafPrior(forests_[f]);
     }
 
     combiner_ = std::make_unique<AmplitudeForestCombiner<L, ResidT>>(
-      data, spec, amplitudePriors, forests_.size());
+      data, spec, amplitudePriors, forests_.size(), startScales);
     resizeTestStorage();
   }
 
@@ -1770,10 +1772,9 @@ public:
 
   /// States map forest f's sd, response units, as a creation stating it does:
   /// the map resolves the statement again (forestMapEntry, which divides by
-  /// the unit), keeping its df, a drawn forest with no basis takes the result
-  /// as its mixture's median, leaving its leaf scale and the live auxiliary,
-  /// and a held one, or one with a basis, re-derives its leaf scale. The
-  /// forest is a stated one from then on.
+  /// the unit), keeping its df, and the forest re-derives its leaf scale. No
+  /// leaf, coefficient or auxiliary moves, and no prior on a coefficient does
+  /// since none reads the sd. The forest is a stated one from then on.
   /// Where \p sd is the sd in force (ForestCalibration::mapSd) the prior does
   /// not move: no bit of it on a forest with a map entry to keep, and to
   /// rounding on a lone sharer, whose entry is re-derived, bitwise at a held k
@@ -1799,11 +1800,6 @@ public:
     if (sharer || sd != forestCalibration(f).mapSd)
       entry = forestMapEntry(statement, mapped.kind, forestSdUnit_,
                              leafPriorSize(), mapped.basisScale);
-    if (entry.amplitudePrior.mixtureScale !=
-          mapped.entry.amplitudePrior.mixtureScale &&
-        !combiner_->setAmplitudePriorScale(
-          f, entry.amplitudePrior.mixtureScale))
-      return false;
     mapped.statement = statement;
     mapped.entry = entry;
     mapped.heldAtDefaultK = false;
@@ -1831,9 +1827,9 @@ public:
   /// one it reads: the map resolves the forest's own default statement again
   /// (forestMapEntry) and its leaf scale is derived from the result
   /// (mapLeafScale), so a chain made on a column of that scale holds the same
-  /// bits. The scale is then not one read from every row. A numeric
-  /// coefficient's prior does not depend on the scale, so no amplitude prior
-  /// moves; nor does a tree, a coefficient or another forest. False, writing
+  /// bits. The scale is then not one read from every row. No coefficient's
+  /// prior reads the scale, so no amplitude prior moves; nor does a tree, a
+  /// coefficient or another forest. False, writing
   /// nothing, where the forest does not take its default from its column
   /// (restatesForestBasisScale) and on a scale that is not positive and
   /// finite.

@@ -3152,8 +3152,8 @@ double forestRecordNumber(SEXP recordExpr, const char* name) {
 
 // What each forest states of its size and its coefficient's prior, handed to
 // the engine as written: `sd` in the response's units and `amplitude.df` the
-// df of a Student-t coefficient, NA where none is stated. Nothing is derived
-// here: the engine holds the map and its defaults, and a forest's kind comes
+// df of a Student-t coefficient, +Inf for a normal one, NA where none is stated.
+// Nothing is derived here: the engine holds the map and its defaults, and a forest's kind comes
 // from the data object (applyForestBases).
 void applyForestStatements(SEXP recordsExpr, bartcore::AmplitudeSpec& spec) {
   for (size_t f = 0; f < spec.forests.size(); ++f) {
@@ -5621,8 +5621,8 @@ static const char* leafModelName(bartcore::LeafModelKind kind) {
 // coefficient is held; both NaN off the map. basis.scale is the scale a
 // numeric forest holds, NaN where it holds none, and basis.scale.all.rows 1
 // where it was read from every row because too few were in the likelihood.
-// amplitude.df is the df a drawn forest states of its coefficient, NaN where
-// none is stated.
+// amplitude.df is the df a drawn forest states of its coefficient, +Inf for a
+// normal one, NaN where none is stated.
 // share is a forest's part of the prior total it shares with the other
 // forests with no basis that state no sd, NaN on every other forest; such a
 // forest's k is the group's and its named.sd the group's.
