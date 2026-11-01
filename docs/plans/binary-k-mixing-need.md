@@ -1,13 +1,14 @@
 # binary-k-mixing-need: does slow k mixing harm the estimands users report, and where?
 
-Status: PLANNED 2026-10-17, PRE-REGISTERED 2026-10-29, amended the same day after review and for sizing.
-Runs after the merge to main and before 1.0-0 (dec-B462), behind the work that stops the merge. The study
+Status: RUN AND READ 2026-10-31; finding in design/binary-k-mixing-need.md. PLANNED 2026-10-17, PRE-REGISTERED
+2026-10-29, amended since; the last ruling is dec-B555.
+Ran after the merge to main and before 1.0-0 (dec-B462), behind the work that stops the merge. The study
 dec-B462 rules, revising dec-B456 for it; its bar is dec-B455's; its use tiers count a logistic cell as
 the same cell under probit (dec-B463). Revised from its blind critique (scratch/kmn/crit/crit-report.md,
 SOUND AFTER CHANGES) and the orchestrator's calls on it ([Calls made in
 planning](#calls-made-in-planning)). Stage 0, stage 1 and the smoke ran 2026-10-29; the rule, bands and
-bars are fixed in [Pre-registration](#pre-registration). No study fit yet. One slot waits on the
-maintainer's colleagues ([Rulings and pending slots](#rulings-and-pending-slots)).
+bars are fixed in [Pre-registration](#pre-registration). One slot stays for the maintainer's colleagues
+([Rulings and pending slots](#rulings-and-pending-slots)).
 
 agent: one opus implementer writes the harness, runs it on the bench box and writes the finding; one
 review of the harness and smoke (the gate-only tier of the plan README); one review of the tranche 1
@@ -413,9 +414,10 @@ being a shorter one's (the binary interval study's prefix check).
   once its trees mix: it is the "k known" sampler. D, the shipped arm's signed difference from it, is what
   is k's. A **long oracle**, 10 times every length, on 25 replications of S1 (factor covariates), S5 (250
   predictors), S6, S7 and E1 (missing values) in tranche 1, and of any other regime whose default oracle
-  is half the bar or more from nominal: a long oracle off nominal is a mismatch between the prior draw and
+  is half the bar or more from nominal: a long oracle off nominal that also fails at a longer run is a mismatch between the prior draw and
   the fit (a harness defect, which stops that regime), a long oracle on nominal with a default one off is
-  the trees' cost. Amendment 3 gives the regimes owed and what counts as off nominal.
+  the trees' cost. Amendment 3 gives the regimes owed and what counts as off nominal; Amendment 7 why a
+  longer run is asked.
 - **fixed k**: k fixed at the 10th, 50th and 90th percentiles of its posterior (the ruled arms, every
   chain), and at the 5th, 30th, 70th and 95th with one chain each, on every reference replication. With k
   fixed neither the probit step nor the move runs, so these fits are the same on both builds (a stage 1
@@ -1217,12 +1219,11 @@ states how the checks are done, after the readings are known.
   the plan does not ask this). About 4 core-hours in all, at most 5, in phase `longoracle`; each scores
   under its replication's existing labels (`runLongScore`), so no reading shifts.
 - **Off nominal** is |z| against 0.90 past a Bonferroni bound over the table's readings at two-sided 0.05,
-  bands aside, the form of the null run (`longOracleReading`). Alternative: a fixed distance such as the
-  bar, which at 25 replications would stop regimes on noise. On the five that ran, nothing is off nominal.
-- **The long oracle's start** is the orchestrator's call: the job list and launcher are ready and not
-  started, since the box's four cores are held by another study whose elapsed time feeds a pre-registered
-  stop. The finding states which comparators are verified and which are pending. Alternative: pause that
-  work, or run this beside it and bias its stop.
+  bands counted, the form of the null run (`longOracleReading`). Alternative: a fixed distance such as the
+  bar, which at 25 replications would stop regimes on noise. Amendment 7 has the reading.
+- **The long oracle's start** was the orchestrator's call: it waited for the box's four cores, held by
+  another study whose elapsed time feeds a pre-registered stop, and everything owed then ran. Alternative:
+  pause that work, or run this beside it and bias its stop.
 - **Check on the references as a class** (`refClassCheck`, action `refclass`) reads each regime, link and
   class: the accepted references' coverage of the truth, with a bootstrap over references (4,000 resamples)
   and a Bonferroni bound over the 67 readings, on the compacted references, with no fits. A stored quantile
@@ -1272,6 +1273,17 @@ after results and replacing no rule. The long oracle runs every regime Amendment
 rules written first, in place of weighing a scoped default against an opt-in by the share of fits with strong
 signal. [What the result leads to](#what-the-result-leads-to) and the summary now say so; no reading rule changes.
 
+**Amendment 7, 2026-11-01, after the reading (dec-B555).** Of the long oracle's 86 readings, two stand past the bound of
+3.44 standard errors (it counts the bands; bands aside, 3.38 over 69, and the same two pass), both under probit: near 0 or
+1 near separation, 0.854 (0.013) over 100 replications, and S9's inverse weights, 0.929 (0.007) over 25. The plan read
+either as a harness defect that stops its regime. Two checks under no rule of the plan, run after the results, read
+neither as one. At forty times the length the first reads 0.885 (0.008), inside the bound, still climbing where the true k
+is under 0.5, which is the trees' cost at more than ten times the length, a case the plan did not foresee. The second's
+weights are clipped, and its fit puts 0.943 (0.005) of its mass inside its interval, an exact sampler's target. The
+maintainer ruled the readings kept with a note and the rule reworded: a long oracle off nominal is a defect only if it
+also fails at a longer run. This rewords a pre-registered rule after its result, as this amendment discloses. Counts stay
+bounded 20, measured 52, problem 7, unresolved 159.
+
 ## Rulings and pending slots
 
 - **The link in the use tiers**: ruled, dec-B463. A logistic cell counts as the same cell under probit.
@@ -1283,6 +1295,7 @@ signal. [What the result leads to](#what-the-result-leads-to) and the summary no
 - **Accepted references that over-cover**: ruled, dec-B534: the readings are kept with a note, departing from the
   rule of [References](#references) and answering the choice left open in Amendment 3.
 - **The near-miss long runs**: ruled, dec-B537, withdrawing dec-B531: they do not run; see Amendment 5.
+- **An off-nominal long oracle**: ruled, dec-B555: a defect only if it also fails at a longer run; see Amendment 7.
 - **Full or lean**: the full design, the orchestrator's call under the maintainer's standing permission to
   raise compute ([Considered: a lean variant](#considered-a-lean-variant)).
 - **The colleagues' case (D1x)**: ruled, dec-B529: "Let's leave room for an amendment and proceed without

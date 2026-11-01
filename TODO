@@ -282,12 +282,67 @@ items
     missing value would read as that level. setData matches it by
     level (dec-B454); bring the other doors to it, beside dec-A210's
     refusal of an NA level for a basis.
+  k-move-pricing: after the k study lands, before 1.0-0 (dec-B530, VD
+    2026-10-30: "Sure, let's try it."). Prices the collapsed move under
+    logistic as a sequence, each step's rule fixed before any fit: (1)
+    the move's small-k tail is right, on the simulated small-sample,
+    near-separation and rare-outcome regimes with k drawn from the
+    prior, and if it fails pricing stops; (2) it wins at equal time on
+    coverage (VD 2026-10-17: calibration the target, over-coverage
+    counting as error, on interesting real problems), on those regimes
+    and on fits with no strong signal, which also gives the real
+    benchmark of its cost: if so, the move is on for every logistic
+    fit, with no trigger; (3) only if that cost is too high, a check on
+    the data, its form fixed on the simulated regimes alone and tested
+    on real logistic datasets not yet looked at, the 22 of the k study
+    having been seen; (4) an opt-in if both fail. Not sized; a rough
+    guess of tens of core-hours, mostly step 2. Record
+    docs/plans/binary-k-mixing-need.md, What the result leads to;
+    move on wt/collapsed-move-plan, plan
+    docs/plans/collapsed-scale-move.md.
+    Must be written before pricing starts. Proposed by the independent
+    critique of the k study, none of them a ruling:
+    - Proposal: Step 1, a prior tilted toward small k: only 5 of 1,040
+      true k fall under 0.05, so the step as stated cannot fail. Run
+      calibration with a tilted prior in both the truth and the fit;
+      chi(1.5, 0.1) puts about 22 percent of true k under 0.05. About a
+      core-hour. Require rank uniformity and coverage of near-0-or-1
+      rows there, plus numerics.
+    - Proposal: State the length of any told fit read at a small true
+      k. Near 0 or 1 near separation it reads, below a true k of 0.5,
+      0.890 at ten times the default under logistic, but 0.803 at ten
+      times and 0.869 at forty under probit, so a step reading it under
+      probit, or under a prior tilted further toward small k, sizes its
+      length first.
+    - Proposal: A burn-in-only arm: moving k only during burn-in costs
+      almost nothing per sweep and may make step 3 moot; the plan lists
+      it and the sequence does not.
+    - Proposal: Held-out scores as a gate, with the datasets named:
+      coverage has no truth on real outcomes, and held-out outcomes do.
+      An exploratory probe has been seen on 20 datasets, so those are
+      spent for this purpose. About 1 to 2 core-hours.
+    - Proposal: What "wins" means: absolute error from nominal, by
+      estimand class, both pooled over rows and per fit.
+    - Proposal: The no-harm margin on fits with no strong signal,
+      checked against nominal and not against the told fit, which itself
+      sits about 1 point low under logistic.
+    - Proposal: How equal time is measured.
+    - Proposal: A number for "cost too high".
+    - Proposal: Whether the probit half stays out: dec-B530 speaks of
+      logistic fits and is silent on it.
+    - Note, from the maintainer's question at dec-B555: the study's
+      "k's" means that getting k right closes the gap with today's tree
+      moves, not that the trees are clear. Whether better tree moves
+      close the same gaps was not run, and all seven problems are on
+      probabilities and bands on them, none on an effect, so a gain on
+      effects is not what this evidence predicts.
+    - Proposal: Whether the move's code size, 1,400 to 2,900 lines with
+      a slice that changes the posterior, is a gate or only reported.
   k-mixing-pg-families: after the merge, before 1.0-0 (dec-B404,
     dec-B420, VD 2026-10-09; timing VD 2026-10-17). Binary fits keep a
     drawn k under chi(1.5, 2). Whether k must mix fast for intervals of
-    f and effects is measured first, by the study on
-    wt/binary-interval-study (docs/plans/binary-k-mixing-need.md),
-    which lands its records with it; then the move is priced. Plan
+    f and effects is measured (docs/design/binary-k-mixing-need.md);
+    the move's pricing is k-move-pricing. Plan
     docs/plans/collapsed-scale-move.md on wt/collapsed-move-plan, its
     probit half, a switch and negative binomial still open calls.
     Negative binomial's k (docs/design/k-mixing-pg-families.md) is
@@ -675,6 +730,17 @@ items
     brainstorm rounds (sec 15, 16). Durable record
     docs/design/tree-mixing-proposals.md (ranking
     sec 4.1 as amended, specialization addendum sec 12).
+    Reference-only heated chains (a note from the k study, not a ruling):
+    141 of its 292 long runs failed acceptance at 20,000 sweeps, and
+    under probit it is the trees and not k that hold them, as the
+    multiple-treatments miss and the gaps both samplers share point to
+    the trees too. Heated companion chains (design doc, section 4.4) keep
+    only the cold chain's draws, so they target the exact posterior, and
+    a reference has none of a user fit's cost limit. Used only to make
+    long-run references, they need no default to change and no consumer
+    to re-record, and a study could check them by agreement with the
+    ordinary kernel. That makes reference use a cheaper first test of
+    them than a default would be.
   vartypes-attribute: door, no plan doc of its own. dbartsData's
     initialize and validateXTest honor a "varTypes" attribute on a user's
     predictor matrix, which marks columns categorical by code; nothing

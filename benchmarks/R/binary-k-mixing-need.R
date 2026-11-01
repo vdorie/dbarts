@@ -7082,9 +7082,9 @@ defaultOracleTable <- function(tranche = 2L) {
 
 # The long oracle against nominal, per regime, link and class, with the default
 # oracle beside it. Off nominal: |coverage - 0.90| past the Bonferroni bound over
-# the readings at two-sided 0.05, as in the null run. Off nominal is a mismatch
-# between the prior draw and the fit, which stops that regime; on nominal with
-# the default oracle off is the trees' cost.
+# the readings at two-sided 0.05, as in the null run. Off nominal that also fails
+# at a longer run is a mismatch between the prior draw and the fit, which stops
+# that regime; on nominal with the default oracle off is the trees' cost.
 longOracleReading <- function(tranche = 2L) {
   rows <- list()
   for (reg in regimes) {
