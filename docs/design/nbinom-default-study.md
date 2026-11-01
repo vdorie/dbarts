@@ -2,37 +2,47 @@
 
 Status: FINDING, 2026-10-31 (dec-B432, dec-B502). The redesigned study of the default prior of
 `family = "nbinom"`, run as pre-registered in [nbinom-default-study.md](../plans/nbinom-default-study.md). Its
-first look decided: the rule keeps the default, k drawn under chi(1.5, 2). An opus review read this against the
-pre-registration and found the outcome and the numbers sound; its corrections are in this version. It awaits the
-maintainer's ruling, and nothing is built until then.
+first look decided: the rule keeps the default, k drawn under chi(1.5, 2). It awaits the maintainer's ruling, and
+nothing is built until then.
 
 ## Summary
 
-The rule recommends keeping the default, and it keeps a default that fails the prior check the maintainer ruled.
-The default fails Part A: 4.0 to 8.4 percent of its prior datasets span a spread of the log mean above 4, against
-1 percent allowed. Five candidates pass Part A, and all five fail Part B at the first look.
+The rule keeps the default, and that default fails the prior check the maintainer ruled.
 
-- **chi(4, 1.03)** and **chi(5, 0.9)** widen intervals on narrow and null data past the 10 percent guard (null
-  data 21 and 26 percent). This is a loss on narrow data, not on wide data.
-- **C4 at 0.6** and **C4 at 0.75**, the default with k kept above a floor, leave narrow data exactly as they
-  are. They fail on the interval score of group means, an average of 1.25 and 1.39 times the default's against a
-  bar of 1.05. That average comes from 4 of 68 cells, epil's three widened cells and mite-w3, at 2.0 to 5.4 times
-  the default's; the median cell's ratio is 1.000 and no other cell is above 1.05.
-- **C5 at 1.3**, the half-normal, under-covers one narrow cell (0.60 against the default's 0.78) and loses
-  coverage of group means on two of epil's cells.
+On a negative binomial fit the forest models the log mean, and k sets how far that log mean can spread across rows: a
+small k allows a wide spread. The default draws k from chi(1.5, 2). The rule was fixed before any fit was scored. A
+check on the prior alone asks, among other things, that at most 1 percent of the datasets the prior generates have a
+spread of the log mean above 4 (Part A). Fits then read intervals on known truths, and real outcomes (Part B). A
+candidate that passes the prior check replaces a default that fails it only if it loses nothing on the fits.
 
-The coverage of group means lost on epil's cells is almost all on groups whose true mean count is near zero. Of the
-42 group readings C4 at 0.6 loses there, 35 have a true mean below 0.01, with a median of 0.0003, and on 40 the truth
-lies below the interval. A floor on k stops the fit reaching that far down. The plan sets such rows apart in F and
-P, because how far the prior lets the log mean fall decides their coverage, but not in G. With them set apart in G
-as well, a line drawn only after seeing the scores, C4 at 0.6 would no longer fail. That does not change the outcome
-here; [Sensitivity](#sensitivity) reports it as found in review and does not offer it as an option.
+The default fails the prior check: 4.0 to 8.4 percent of its datasets pass a spread of 4. Five candidates pass, and
+all five lose on the fits. A cell below is one dataset or design at one spread.
 
-What a change would buy is mostly the prior check. Candidates do improve intervals, but about 70 percent of the fall
-in F's interval score comes from one cell, D4-3, where the default covers only 0.54.
+- **Tighter chi priors, chi(4, 1.03) and chi(5, 0.9),** have about the default's median with less room near zero.
+  They fail the check that intervals on narrow data grow by at most 10 percent: on null data, where the forest has
+  nothing to find, intervals are 21 and 26 percent wider. They also lose coverage of group means on one and two small
+  samples of the `epil` data.
+- **A floor on k, at 0.6 and at 0.75,** leaves narrow data exactly as it is. These fail on the interval score of group
+  means, on average 1.25 and 1.39 times the default's against a limit of 1.05. That average comes from 4 of 68 cells,
+  all widened or small-sample versions of the `epil` and `mite` data, at 2.0 to 5.4 times the default's; the median
+  cell's ratio is 1.000 and no other cell is above 1.05. They also lose coverage of group means on two and four cells.
+- **A half-normal prior with median 1.3** under-covers one narrow cell, the Traffic data with a BART-fitted truth (0.60
+  against the default's 0.78), and loses coverage of group means on two `epil` cells.
 
-The first look used 94.5 of the 110 core-hours allowed in the sizing table's units. No guard run and no
-confirmation block is called for.
+The coverage of group means lost on `epil` is mostly on groups whose true mean count is near zero. Of the 42 group
+readings the floor at 0.6 loses there, 35 have a true mean below 0.01, with a median of 0.0003, and on 40 the truth
+lies below the interval: a floor on k stops the fit reaching that far down. The plan scores rows below 0.01 apart for
+the log mean at a row and for a new count, because how far the prior lets the log mean fall decides their coverage, but
+not for group means. With them set apart for group means too, a line drawn only after seeing the scores, the floor at
+0.6 would no longer fail. That does not change the outcome here; [Sensitivity](#sensitivity) reports it as found in
+review and does not offer it as an option.
+
+A change would buy the prior check and lower interval scores on the log mean and on rate ratios. About 70 percent of
+the log mean's fall comes from one design, 60 rows at a spread of 3, where the default's 90 percent intervals cover
+only 0.54. Without that design the log mean's ratio is 0.82 to 0.92, from the 10 to 14 of 68 cells below 0.95, and the
+median cell's is about 1.
+
+The study used 94.5 of the 110 core-hours allowed. No further runs are called for.
 
 ## The question and the rule
 
@@ -389,8 +399,9 @@ the rows on the slowest datasets: the probes' slowest estimand went from 1,910 t
 4,020 on mite, and on mite's folds the rows, not k, set the length, at 60 effective draws where k has 199.
 
 Counts simulated from truths mix faster than real outcomes do, and do not compare with the table: the median is 28 on
-narrow, 89 on middle, 239 on wide and 157 on small. The rule stops on effective draws and not on R-hat: k's split R-hat
-at the stop has median 1.035, 90th percentile 1.09 and largest 1.55, and the mean count's largest is 1.09.
+narrow, 89 on middle, 239 on wide and 157 on small. The rule stops on effective draws and not on R-hat: on the default's
+runs k's split R-hat at the stop has median 1.035, 90th percentile 1.09 and largest 1.55 (1.68 over all runs), and the
+mean count's largest is 1.09.
 
 ## The shape's prior
 
@@ -420,8 +431,8 @@ fit:
 No cell and no shape-below-1 cell is worse by the bar, the width guard passes on all 8 narrow cells (0.97 to 1.00),
 and the log score is 0.0017 nats a row better than the default's. Thinning costs little: a replication's coverage from
 500 draws differs from its full reading by 0.008 on average, for both the default and C6. C6 leaves the spread's prior
-as it is, so it does nothing for Part A. On this reading it neither loses nor gains much, and there is no case here
-for changing the shape's prior.
+as it is, so it does nothing for Part A. Step 2 reads pending on widest G alone, mostly one cell, quakes-w3 (0.85 to
+0.75 over 5 replications). On this reading it neither loses nor gains much.
 
 ## Cost
 
@@ -831,11 +842,8 @@ Near-zero means are still paid for. Under C4 at 0.6, F's coverage on rows below 
 data and from 0.85 to 0.77 on wide, and G's on epil's groups below 0.01 from 0.66 to 0.02. Those rows are scored apart,
 not ignored.
 
-Reading G as F and P are read would be a deviation from the pre-registration, which only the maintainer can rule and
-the finding would disclose. It would leave C4 at 0.6 as the only candidate, with step 5 still unread: its 540
-default-length runs have never run, and they would cost about 1 to 1.5 box core-hours (the default's took 1.10). C4 is
-also about 150 lines of engine work and an exact gate. So a ruling that way would call for the guard run before any
-change.
+Reading G as F and P are read would be a deviation from the pre-registration, which only the maintainer can rule. Step
+5 would still be unread: C4 at 0.6's default-length runs have not been run.
 
 Dropping epil's widened and small-sample cells altogether, a coarser cut, leaves C4 at 0.6 pending and the look
 unresolved between the default and C4 at 0.6, and the other four still fail. Those cells were fixed before any fit.
