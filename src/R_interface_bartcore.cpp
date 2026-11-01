@@ -2232,8 +2232,17 @@ void printInitialSummary(const ParsedControl& control,
   ext_printf("tree thinning rate: %u\n", control.treeThinningRate);
 
   ext_printf("Prior:\n");
+  // a named sd rides a reference k of 2, so the lines name the sd, not the k
+  bool sdNamed = std::isfinite(model.namedSd);
   if (!model.updateK) {
-    ext_printf("\tk prior fixed to %f\n", model.k);
+    if (sdNamed)
+      ext_printf("\tsd prior fixed to %f\n", model.namedSd);
+    else
+      ext_printf("\tk prior fixed to %f\n", model.k);
+  } else if (sdNamed) {
+    ext_printf("\tprior on the sd: inverse chi with %f degrees of freedom and "
+               "%f scale\n",
+               model.kDf, model.namedSd);
   } else {
     ext_printf("\tprior on k: chi with %f degrees of freedom and %f scale\n",
                model.kDf, model.kScale);

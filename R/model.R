@@ -738,7 +738,7 @@ resolveLeafHyperprior <- function(
     )
   }
   if (is.numeric(k)) {
-    return(newValidated("dbartsFixedHyperprior", k = k))
+    return(newValidated("dbartsFixedHyperprior", k = as.double(k)))
   }
   if (is(k, "dbartsLeafHyperprior")) {
     return(k)
@@ -2963,6 +2963,10 @@ normal <- function(k = NULL, sd = NULL) {
       "family's scale) to a leaf prior, not both"
     )
   }
+  # an integer k means what the same number as a double does
+  if (is.numeric(k)) {
+    k <- as.double(k)
+  }
   new("dbartsNormalPrior", k = k, prior.sd = sd)
 }
 
@@ -3018,7 +3022,11 @@ chi <- function(df = 1.5, scale = 2.0, degreesOfFreedom) {
     )
     df <- degreesOfFreedom
   }
-  newValidated("dbartsChiHyperprior", degreesOfFreedom = df, scale = scale)
+  newValidated(
+    "dbartsChiHyperprior",
+    degreesOfFreedom = if (is.numeric(df)) as.double(df) else df,
+    scale = if (is.numeric(scale)) as.double(scale) else scale
+  )
 }
 
 invchi <- function(df = 1.5, scale) {

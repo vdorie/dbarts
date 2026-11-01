@@ -49,7 +49,7 @@ engineReading <- function(sampler, forest = 1L) {
   )
 }
 
-# the reported shape: the prior alone, a list of the seven documented
+# the reported shape: the prior alone, a list of the nine documented
 # elements. The EXACT-SET form is what makes a reordering visible; a subset
 # check would not see one.
 plain <- dbarts(x, y, control = midControl())
@@ -58,6 +58,8 @@ expect_identical(
   names(calibration),
   c(
     "leaf.prior",
+    "sd",
+    "sd.stated",
     "leaf.model",
     "prior.sd.of",
     "prior.mean",
@@ -67,7 +69,7 @@ expect_identical(
   )
 )
 expect_identical(calibration$leaf.model, "constant")
-expect_identical(calibration$prior.sd.of, "leaf value")
+expect_identical(calibration$prior.sd.of, "forest")
 # and the calibration map's entries are absent on a single-forest sampler:
 # its leaf scale is not map-derived, which the reader says positively rather
 # than by reporting a plausible 1 a caller would multiply by

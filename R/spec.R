@@ -1296,14 +1296,20 @@ resolveSamplerSpec <- function(
       )
     }
     # a drawn coefficient stating no 'sd' has as its median the size the leaf
-    # prior gives, which a flat prior on k or an infinite k does not
+    # prior gives, which a flat prior on k or an infinite k does not, nor a
+    # chi prior whose median the engine's quantile rounds to zero (it tests
+    # the size for positive and finite, the quotient of the prior's scale by
+    # that median)
     hyperprior <- priors$leaf.hyperprior
+    flat <- FALSE
     sizeless <- if (is(hyperprior, "dbartsChiHyperprior")) {
-      is.infinite(hyperprior@scale)
+      median <- sqrt(stats::qchisq(0.5, hyperprior@degreesOfFreedom))
+      flat <- is.infinite(hyperprior@scale)
+      flat || !(is.finite(median) && median > 0)
     } else {
       is(hyperprior, "dbartsFixedHyperprior") && is.infinite(hyperprior@k)
     }
-    if (sizeless && is.na(model@prior.scale)) {
+    if (sizeless) {
       for (index in seq_along(forestSpec)) {
         spec <- forestSpec[[index]]
         if (
@@ -1316,6 +1322,9 @@ resolveSamplerSpec <- function(
             ": amplitude = student() with no 'sd' takes its median from the ",
             "fitting function's leaf prior, which here gives no size; state ",
             "the forest's 'sd'",
+            if (is(hyperprior, "dbartsChiHyperprior") && !flat) {
+              " or give the prior on k or the sd more degrees of freedom"
+            },
             call. = FALSE
           )
         }
