@@ -308,7 +308,13 @@ samplerFit <- function(seed) {
   list(
     tau = colMeans(tauM),
     aMu = colMeans(muM * aVec),
-    probA = vapply(aThresholds, function(q) mean(abs(aVec) <= q), 0),
+    # the exact side's a is the forest's size, the coefficient times the sd the
+    # trees carry
+    probA = vapply(
+      aThresholds,
+      function(q) mean(abs(aVec) <= q / aPriorScale),
+      0
+    ),
     aAcf1 = acf(abs(aVec), plot = FALSE, lag.max = 1L)$acf[2L]
   )
 }

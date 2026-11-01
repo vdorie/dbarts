@@ -24,7 +24,11 @@
 # seeds and fails only if the same functional is out again.
 #
 # The numeric arms follow (a numeric multiplier, its coefficient drawn or
-# held), and the functionals there are the posterior mean of the fit in each
+# held). Every forest's trees have prior sd its size, held or drawn. A drawn
+# coefficient is a multiplier: its prior's scale is 1 / 0.674 with a basis and
+# 1 / z with none, z the normal's upper quartile, a factor's sqrt(1/2) of that,
+# and a t's scale that scale's z over the t's upper quartile, so its median
+# size is 1 with no basis and z / 0.674 with one. The functionals there are the posterior mean of the fit in each
 # class of rows that share a cell and the basis's value, the probability that
 # each tree splits and that a drawn coefficient is within 0.5, 1 and 2.
 #
@@ -37,6 +41,11 @@
 # factor at its default and under student(3), a two-dimensional quadrature
 # over its pair. Every oracle's grid is checked against one twice as wide
 # (twice as fine on a quantile scale): its functionals agree to 1e-4.
+#
+# The arms that follow a write state the sampler at another sd, write the arm's
+# before the first sweep or after 50 sweeps, and read the oracle of the written
+# sd: a write sets the trees' scale and nothing else, so the chain then targets
+# that posterior from wherever it stands.
 #
 # The shared-total arms follow: two or three held forests with no basis that
 # share one total, each at T / sqrt(K) over its own trees, beside a held
@@ -340,9 +349,9 @@ normalQuartile <- qnorm(0.75)
 # list(df =), is the midpoints of `points` times `wide` equal shares of
 # probability, a = c qt(u, df) with c the median match's scale, z_.75 /
 # t_df,.75, each point standing for its share.
-coefficientGrid <- function(prior, wide, points = 4000L) {
-  if (is.null(prior)) {
-    values <- seq(-8 * wide, 8 * wide, by = 0.005)
+coefficientGrid <- function(prior, wide, spread = 1, points = 4000L) {
+  if (is.null(prior) || isTRUE(prior$normal)) {
+    values <- spread * seq(-8 * wide, 8 * wide, by = 0.005)
     step <- values[2L] - values[1L]
     within <- vapply(
       thresholds,
@@ -351,12 +360,12 @@ coefficientGrid <- function(prior, wide, points = 4000L) {
     )
     return(list(
       values = values,
-      logPrior = dnorm(values, log = TRUE),
+      logPrior = dnorm(values, sd = spread, log = TRUE),
       within = within
     ))
   }
   size <- points * wide
-  scale <- normalQuartile / qt(0.75, prior$df)
+  scale <- spread * normalQuartile / qt(0.75, prior$df)
   values <- scale * qt((seq_len(size) - 0.5) / size, prior$df)
   within <- vapply(
     thresholds,
@@ -391,7 +400,7 @@ numericPosterior <- function(forests, shift, rows, classes, wide = 1) {
   residual <- (y - shift)[rows]
   drawn <- which(vapply(forests, `[[`, NA, "drawn"))
   grid <- if (length(drawn) > 0L) {
-    coefficientGrid(forests[[drawn]]$prior, wide)
+    coefficientGrid(forests[[drawn]]$prior, wide, forests[[drawn]]$spread)
   } else {
     list(values = 1, logPrior = 0)
   }
@@ -505,6 +514,8 @@ numericForest <- function(spec, trees) {
   }
   if (!isTRUE(spec$drawn)) {
     arguments$amplitude <- dbarts::dbartsPriors$fixed()
+  } else if (isTRUE(spec$prior$normal)) {
+    arguments$amplitude <- dbarts::dbartsPriors$normal()
   } else if (!is.null(spec$prior)) {
     arguments$amplitude <- dbarts::dbartsPriors$student(spec$prior$df)
   }
@@ -514,16 +525,34 @@ numericForest <- function(spec, trees) {
   do.call(dbarts::dbartsForests$forest, arguments)
 }
 
+# An arm with writeFrom is created at that sd on forest writeForest, then
+# written the arm's own sd, in mid-chain with writeMid and otherwise before the
+# first sweep.
 numericSampler <- function(arm, control) {
-  dbarts(
+  created <- arm$forests
+  if (!is.null(arm$writeFrom)) {
+    created[[arm$writeForest]]$sd <- arm$writeFrom
+  }
+  sampler <- dbarts(
     x,
     y,
     weights = arm$weights,
     family = gaussian(sigma = dbartsPriors$fixed(sigma^2)),
-    forests = lapply(arm$forests, numericForest, trees = arm$trees),
+    forests = lapply(created, numericForest, trees = arm$trees),
     control = control,
     n.cuts = 1L
   )
+  if (!is.null(arm$writeFrom)) {
+    if (isTRUE(arm$writeMid)) {
+      invisible(sampler$run(50L, 1L))
+    }
+    written <- rep(list(dbarts::dbartsForests$forest()), length(created))
+    written[[arm$writeForest]] <- dbarts::dbartsForests$forest(
+      sd = arm$forests[[arm$writeForest]]$sd
+    )
+    sampler$setLeafPrior(forests = written)
+  }
+  sampler
 }
 
 numericFit <- function(seed, arm, kept) {
@@ -603,7 +632,14 @@ numericOracle <- function(arm, posterior = numericPosterior) {
       drawn = drawn,
       prior = spec$prior,
       trees = arm$trees,
-      sd = if (drawn) size / 0.674 else size
+      sd = size,
+      spread = if (!drawn) {
+        1
+      } else if (is.null(spec$basis)) {
+        1 / normalQuartile
+      } else {
+        1 / 0.674
+      }
     )
   })
   oracle <- posterior(forests, shift, rows, rowClasses(arm))
@@ -634,8 +670,12 @@ factorPosterior <- function(
 ) {
   size <- points * wide
   prior <- forests[[2L]]$prior
+  if (isTRUE(prior$normal)) {
+    prior <- NULL
+  }
   df <- if (is.null(prior)) Inf else prior$df
-  scale <- sqrt(0.5) *
+  scale <- forests[[2L]]$spread *
+    sqrt(0.5) *
     if (is.null(prior)) 1 else normalQuartile / qt(0.75, df)
   margin <- scale * qt((seq_len(size) - 0.5) / size, df)
   first <- vapply(classes, `[`, 0L, 1L)
@@ -956,7 +996,10 @@ coefficientArm <- function(prior) {
       list(basis = fourValues, drawn = TRUE, prior = prior),
       list(basis = z2, levels = TRUE, drawn = TRUE, prior = prior)
     ),
-    read = list(number = read(2L, prior), difference = read(3:4, prior))
+    read = list(
+      number = read(2L, prior, normalQuartile / 0.674),
+      difference = read(3:4, prior, normalQuartile / 0.674)
+    )
   )
 }
 noBasisArm <- function(prior, sd = NULL) {
@@ -968,11 +1011,7 @@ noBasisArm <- function(prior, sd = NULL) {
     read = list(
       # with no sd its median is the size the leaf prior gives, at gaussian's
       # default k a quarter of the response's range
-      coefficient = read(
-        1L,
-        prior,
-        if (is.null(sd)) diff(range(y)) / 4 / unit else sd / unit
-      )
+      coefficient = read(1L, prior, 1)
     )
   )
 }
@@ -1154,6 +1193,189 @@ sharedArms <- list(
 for (name in names(sharedArms)) {
   arm <- sharedArms[[name]]
   anyFailure <- runArm(name, arm, exact = sharedOracle(arm), fit = sharedFit) ||
+    anyFailure
+}
+
+# ---- forests with no basis under each prior, and a drawn basis at other sizes ----
+
+Normal <- list(normal = TRUE)
+noneBeside <- function(prior, sd = NULL) {
+  list(
+    forests = list(
+      list(drawn = TRUE, prior = prior, sd = sd),
+      list(basis = z1, levels = TRUE)
+    ),
+    trees = 1L
+  )
+}
+nonePosterior <- function(prior) {
+  list(
+    default = noneBeside(prior),
+    `0.7 of the unit` = noneBeside(prior, 0.7 * unit),
+    `3 of the unit` = noneBeside(prior, 3 * unit),
+    `beside a numeric held` = list(
+      forests = list(
+        list(drawn = TRUE, prior = prior, sd = 0.7 * unit),
+        list(basis = fourValues)
+      ),
+      trees = 1L
+    ),
+    `three forests of three trees` = list(
+      forests = list(
+        list(drawn = TRUE, prior = prior, sd = 0.7 * unit),
+        list(basis = fourValues),
+        list(basis = z2, levels = TRUE, sd = 0.4 * unit)
+      ),
+      trees = 3L
+    ),
+    `rows of weight zero` = list(
+      forests = list(
+        list(drawn = TRUE, prior = prior, sd = 0.7 * unit),
+        list(basis = weightedColumn)
+      ),
+      trees = 1L,
+      weights = caseWeights
+    )
+  )
+}
+for (spec in list(
+  list(label = "normal()", prior = Normal, read = NULL),
+  list(label = "student(1)", prior = studentT(1), read = studentT(1)),
+  list(label = "student(3)", prior = studentT(3), read = studentT(3))
+)) {
+  arms2 <- nonePosterior(spec$prior)
+  for (name in names(arms2)) {
+    arm <- arms2[[name]]
+    anyFailure <- runArm(
+      paste("no basis under", spec$label, name),
+      arm,
+      exact = numericOracle(arm),
+      fit = numericFit
+    ) ||
+      anyFailure
+  }
+}
+priorNormal <- list(
+  "prior: no basis under normal() at its default" = noBasisArm(Normal),
+  "prior: no basis under normal() at 0.7 of the unit" = noBasisArm(
+    Normal,
+    0.7 * unit
+  ),
+  "prior: no basis under normal() at 3 of the unit" = noBasisArm(
+    Normal,
+    3 * unit
+  )
+)
+for (name in names(priorNormal)) {
+  arm <- priorNormal[[name]]
+  arm$read$coefficient$prior <- NULL
+  anyFailure <- runArm(name, arm, exact = priorExact(arm), fit = priorFit) ||
+    anyFailure
+}
+basisArms <- list(
+  "four values drawn under normal()" = numericArm(
+    fourValues,
+    TRUE,
+    prior = Normal
+  ),
+  "four values under normal() at 3 of the unit" = numericArm(
+    fourValues,
+    TRUE,
+    3 * unit,
+    prior = Normal
+  ),
+  "four values under student(3) at 3 of the unit" = numericArm(
+    fourValues,
+    TRUE,
+    3 * unit,
+    prior = studentT(3)
+  ),
+  "four values under student(1) at 0.6 of the unit" = numericArm(
+    fourValues,
+    TRUE,
+    0.6 * unit,
+    prior = studentT(1)
+  ),
+  "a 0/1 column under student(3)" = numericArm(
+    binaryColumn,
+    TRUE,
+    prior = studentT(3)
+  )
+)
+for (name in names(basisArms)) {
+  arm <- basisArms[[name]]
+  anyFailure <- runArm(
+    name,
+    arm,
+    exact = numericOracle(arm),
+    fit = numericFit
+  ) ||
+    anyFailure
+}
+factorArm2 <- function(prior, sd = NULL) {
+  arm <- factorArm(prior)
+  arm$forests[[2L]]$sd <- sd
+  arm
+}
+factorArms <- list(
+  "a factor under normal()" = factorArm2(Normal),
+  "a factor under normal() at 3 of the unit" = factorArm2(Normal, 3 * unit),
+  "a factor under student(3) at 0.6 of the unit" = factorArm2(
+    studentT(3),
+    0.6 * unit
+  ),
+  "a factor under student(1)" = factorArm2(studentT(1))
+)
+for (name in names(factorArms)) {
+  arm <- factorArms[[name]]
+  anyFailure <- runArm(
+    name,
+    arm,
+    exact = numericOracle(arm, factorPosterior),
+    fit = numericFit
+  ) ||
+    anyFailure
+}
+# ---- following a write ----
+
+writtenArm <- function(prior, from, to, mid = FALSE) {
+  c(
+    noneBeside(prior, to * unit),
+    list(writeFrom = from * unit, writeForest = 1L, writeMid = mid)
+  )
+}
+writtenArms <- list(
+  "written before the sweep, normal(), 0.7 to 3 of the unit" = writtenArm(
+    Normal,
+    0.7,
+    3
+  ),
+  "written in mid-chain, normal(), 0.7 to 3 of the unit" = writtenArm(
+    Normal,
+    0.7,
+    3,
+    TRUE
+  ),
+  "written before the sweep, student(3), 3 to 0.7 of the unit" = writtenArm(
+    studentT(3),
+    3,
+    0.7
+  ),
+  "written in mid-chain, student(1), 0.7 to 3 of the unit" = writtenArm(
+    studentT(1),
+    0.7,
+    3,
+    TRUE
+  )
+)
+for (name in names(writtenArms)) {
+  arm <- writtenArms[[name]]
+  anyFailure <- runArm(
+    name,
+    arm,
+    exact = numericOracle(arm),
+    fit = numericFit
+  ) ||
     anyFailure
 }
 if (anyFailure) {

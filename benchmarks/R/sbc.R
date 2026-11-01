@@ -364,8 +364,9 @@ sbcAddMissing <- function(config, columns, frac = 0.15) {
 
 # Add BCF glue to a base config: a fixed 0/1 treatment (assigned by a propensity
 # in x1 so mu(x, pihat) has something to condition on) and the glue prior
-# scales. The prognostic scalar prior is Cauchy(0, sd.control); the treatment
-# coefficients' prior variance is the engine's, 1/2, which no forest states.
+# scales. A forest's sd is its trees' scale, so no coefficient's prior reads it:
+# the prognostic scalar prior is Cauchy(0, 1), and the treatment coefficients'
+# prior variance the engine's, 1/2 over 0.674^2, which no forest states.
 sbcAddBCF <- function(
   config,
   sdControl = 2,
@@ -376,7 +377,8 @@ sbcAddBCF <- function(
   config$z <- as.double(rbinom(config$n, 1L, pi))
   config$sdControl <- sdControl
   config$sdModerate <- sdModerate
-  config$bPriorVariance <- 0.5
+  config$aPriorScale <- 1
+  config$bPriorVariance <- 0.5 / 0.674^2
   config
 }
 
@@ -1191,8 +1193,9 @@ sbcCheckVarianceChannel <- function(config, seed = 99L) {
 # --- BCF (Bayesian causal forest glue) -------------------------------------
 
 # BCF (docs/design/bcf.md): y = a*mu(x,pihat) + b_{z}*tau(x) + eps. Prognostic
-# scalar a ~ Cauchy(0, aPriorScale = sd.control) (a scale-mixture, chain.hpp
-# drawGlue); treatment coefficients b0, b1 ~ N(0, bPriorVariance) so the effect
+# scalar a ~ Cauchy(0, 1) (a scale-mixture, chain.hpp drawGlue), its trees at
+# sd.control; treatment coefficients b0, b1 ~ N(0, bPriorVariance), the trees at
+# sd.moderate, so the effect
 # is (b1 - b0)*tau(x). The a-glue prior precision was the one true gate
 # survivor, so its calibration is the headline. BCF is a public two-forest
 # dbartsSampler (dbarts(forests = )); refuseAmplitudeMutation only gates
@@ -1246,7 +1249,7 @@ sbcBCFGlueDraw <- function(aPriorScale, bPriorVariance) {
   }
 }
 
-# Moment check for the glue priors: a ~ Cauchy(0, s) (median 0, IQR 2s),
+# Moment check for the glue priors: a ~ Cauchy(0, s) (median 0, IQR 2s, s being 1),
 # b0/b1 ~ N(0, bVar) (sd sqrt(bVar)), b1 - b0 ~ N(0, 2 bVar).
 sbcCheckBCFGlue <- function(aPriorScale, bPriorVariance, nDraws = 2e5L) {
   a <- rcauchy(nDraws, 0, aPriorScale)
@@ -1521,7 +1524,7 @@ runSbcBCF <- function(
   drawGlue <- if (fixedGlue) {
     function() list(a = 1, b0 = 0, b1 = 1) # the engine's fixed initial glue
   } else {
-    sbcBCFGlueDraw(config$sdControl, config$bPriorVariance)
+    sbcBCFGlueDraw(config$aPriorScale, config$bPriorVariance)
   }
   idx <- seq_len(config$nTest) # first nTest training rows are the eval points
   ranks <- NULL
@@ -1761,10 +1764,14 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
     } else {
       link
     }
-    # poison (ii): the generator's a-prior scale at gaussian's 2 while the
-    # sampler runs at the family default. Inert under a held glue, which is the
-    # control this poison carries and the other two do not
-    glueScale <- if ("glue-sd" %in% poison) 2 else config$sdControl
+    # poison (ii): the generator's a-prior scale at gaussian's 2 over the
+    # family default's while the sampler runs at that default. Inert under a held
+    # glue, which is the control this poison carries and the other two do not
+    glueScale <- if ("glue-sd" %in% poison) {
+      2 / config$sdControl
+    } else {
+      config$aPriorScale
+    }
     drawGlue <- if (fixedGlue) {
       function() list(a = 1, b0 = 0, b1 = 1) # the engine's fixed initial glue
     } else {
@@ -3240,7 +3247,7 @@ if (sys.nframe() == 0L) {
     ))
   }
   if (isBCF) {
-    gc <- sbcCheckBCFGlue(config$sdControl, config$bPriorVariance)
+    gc <- sbcCheckBCFGlue(config$aPriorScale, config$bPriorVariance)
     cat(sprintf(
       "  glue: a Cauchy IQR %.4f vs %.4f; b sd %.4f vs %.4f -> %s\n",
       gc$aIqrEmp,
