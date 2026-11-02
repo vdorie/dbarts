@@ -1013,6 +1013,24 @@ Gates: `check defects` on both job files (tranche 1 identical to the box's), che
 
 Record: benchmarks/R/binary-k-mixing-need.R, logMeanProb, runMoveGate, runMoveFit, runMoveScore, moveSbcReading, bPooledReading, refClassReading, longOracleOwedFrom, longOracleReading, refClassCheck; docs/plans/binary-k-mixing-need.md. Marked: blank; told the maintainer 2026-11-01. See also: [dec-B420], [dec-B462], [dec-B463], [dec-B529], [dec-B530], [dec-B531], [dec-B532], [dec-B533], [dec-B534], [dec-B537], [dec-B555]. [dec-A252]
 
+**The small leaf-prior items: what a lone forest's reader says and how far an integer reaches**
+
+Under dec-B515 and the TODO items leaf-prior-writer-by-level and leaf-prior-integer-k. The orchestrator's calls, not put to the maintainer.
+
+getLeafPrior's prior.sd.of reads "forest" on a sampler of one forest, dec-B515's word; alternative, its old "leaf value".
+
+The creation summary's line under normal(sd = invchi(3, 1)) is worded from the statement and no longer names the reference scale; the wording is the orchestrator's.
+
+A sharer's sd.stated stays FALSE where a lone forest's reads TRUE under normal(sd = .5): the first says whether the forest's own forest(sd = v) stated it, the second whether its leaf prior is named by an sd, and the help says why; alternative, one meaning across the two, which forests-shared-total's records would have to change.
+
+The refusal of a drawn size with no median at a Student-t forest tests the chi median, the engine's own call, and does not mirror the engine's overflow quotient. normal(k = 1e-308) and normal(k = chi(0.0019, 1e-200)) still reach the engine's "positive finite size", as they did before; alternative, test the quotient in R.
+
+An integer is the same number as a double wherever one number is meant, beyond k as filed: sigdf, offset and offset.test, chisq(), chi(), normal(), fixed() and dart(). The TODO item named k and normal() alone. dart() is new since 0.9-34, so NEWS names k, sigdf and offset. A factor is left to the doors' own refusals, and chisq(factor(3)) stands as it did.
+
+No draw moves: the coercions touch only integers and the four seeded-drift files pass on the reference build. Gates at the second fix round, the same code less this record: test-leaf-prior-small.R 82 of 82, test-calibration-midchain.R 184 of 184, lintr, air, codoc, win-drift, doc-freshness; mutants of each coercion killed by a named expectation.
+
+Record: R/data.R, integerToDouble; R/model.R; R/dbarts.R; inst/tinytest/test-leaf-prior-small.R; TODO leaf-prior-writer-by-level. Marked: blank; told the maintainer 2026-11-02. See also: [dec-B515], [dec-B518], [dec-B528]. [dec-A253]
+
 ## B. Decisions with maintainer evidence
 
 **Missing predictors are modeled, not refused**
