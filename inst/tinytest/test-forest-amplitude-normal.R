@@ -1,6 +1,6 @@
 # The trees carry a forest's sd on every forest, held or drawn; a drawn
-# coefficient is a multiplier with prior median 1, whose prior does not read the
-# sd; a live write sets the trees' scale and moves nothing drawn (dec-B550). And
+# coefficient is a multiplier with prior median size 1, whose prior does not
+# read the sd; a live write sets the trees' scale and moves nothing drawn (dec-B550). And
 # forest(amplitude = normal()) on a forest with no basis, taken where student(df)
 # is and refused where it is (dec-B539).
 
@@ -26,16 +26,22 @@ ctl <- function(...) {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 10L,
     n.samples = 5L,
     n.burn = 0L,
-    n.cuts = 20L,
     updateState = FALSE,
     ...
   )
 }
 make <- function(forests, ..., response = y) {
-  dbarts(x, response, forests = forests, ..., control = ctl(seed = 7L))
+  dbarts(
+    x,
+    response,
+    forests = forests,
+    ...,
+    n.trees = 10L,
+    n.cuts = 20L,
+    control = ctl(seed = 7L)
+  )
 }
 
 # the cases of a forest's kind and coefficient option: where it stands, and the
@@ -79,9 +85,11 @@ writeSd <- function(sampler, index, sd) {
   invisible(sampler)
 }
 coefficients <- function(sampler, index) sampler$getForestAmplitudes(index)
+# the chain's glue as the state carries it: the coefficients and the mixture
+# variances drawn beside them, which a write of sd leaves alone
 auxiliaries <- function(sampler) {
   sampler$storeState()
-  sampler$state[[1L]]$amplitudeVariances
+  sampler$state[[1L]]$glue
 }
 engineSlot <- function(sampler, index, name) {
   .Call(
@@ -136,6 +144,7 @@ for (name in names(cases)) {
   before <- coefficients(sampler, index)
   fits <- sampler$getForestFits(index)
   v <- auxiliaries(sampler)
+  expect_true(is.numeric(v) && length(v) > 0L, info = name)
   writeSd(sampler, index, 2.1)
   expect_identical(coefficients(sampler, index), before, info = name)
   expect_identical(sampler$getForestFits(index), fits, info = name)
@@ -277,6 +286,8 @@ sampler <- dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = zf, n.trees = 1L, sd = sdIndex)),
+  n.trees = 10L,
+  n.cuts = 20L,
   control = ctl(seed = 11L)
 )
 indexValue <- eval(
@@ -316,6 +327,8 @@ for (family in names(families)) {
         response,
         family = link,
         forests = forests,
+        n.trees = 10L,
+        n.cuts = 20L,
         control = ctl()
       )$getLeafPrior(1L)
     }
@@ -348,6 +361,8 @@ expect_equal(
       yb,
       family = "probit",
       forests = list(forest(amplitude = normalPrior()), forest(basis = zf)),
+      n.trees = 10L,
+      n.cuts = 20L,
       control = ctl()
     )$getLeafPrior(1L)$sd
   ),
@@ -361,6 +376,8 @@ expect_equal(
       yb,
       family = "logistic",
       forests = list(forest(amplitude = normalPrior()), forest(basis = zf)),
+      n.trees = 10L,
+      n.cuts = 20L,
       control = ctl()
     )$getLeafPrior(1L)$sd
   ),
@@ -428,22 +445,23 @@ expect_identical(
   c(NaN, NaN)
 )
 
-# and on the record creation reads: Inf on the forest stating it, NA beside it,
-# absent where none is stated, as on a basis forest whose normal() is its default
+# and on the record creation reads: Inf on the forest stating it, NA beside it
+# and where none is stated, as on a basis forest whose normal() is its default
 recordOf <- function(forests) {
-  attr(make(forests)$control, "bartcore.forests", exact = TRUE)[[
-    "amplitude.df"
-  ]]
+  vapply(make(forests)$model@forests, slot, 0, "amplitude.df")
 }
 expect_identical(
   recordOf(list(forest(sd = 1, amplitude = normalPrior()), forest(basis = zf))),
   c(Inf, NA_real_)
 )
-expect_null(recordOf(list(forest(), forest(basis = zf))))
-expect_null(recordOf(list(
-  forest(),
-  forest(basis = zf, amplitude = normalPrior())
-)))
+expect_identical(
+  recordOf(list(forest(), forest(basis = zf))),
+  c(NA_real_, NA_real_)
+)
+expect_identical(
+  recordOf(list(forest(), forest(basis = zf, amplitude = normalPrior()))),
+  c(NA_real_, NA_real_)
+)
 
 # --- a basis forest's normal() is its default: same record, same draws ---
 for (basis in list(zf, dose)) {
@@ -461,6 +479,8 @@ reference <- dbarts(
   y ~ x1 + x2,
   d,
   forests = list(forest(sd = 0.7, amplitude = normal()), forest(basis = zf)),
+  n.trees = 10L,
+  n.cuts = 20L,
   control = ctl(seed = 13L)
 )$run(0L, 5L)$train
 doorDraws <- list(
@@ -468,17 +488,23 @@ doorDraws <- list(
     y ~ x1 + x2,
     d,
     forests = list(forest(sd = 0.7, amplitude = normal), forest(basis = zf)),
+    n.trees = 10L,
+    n.cuts = 20L,
     control = ctl(seed = 13L)
   ),
   term = dbarts(
     y ~ forest(x1 + x2, sd = 0.7, amplitude = normal()) +
       forest(x1 + x2, basis = zf),
     d,
+    n.trees = 10L,
+    n.cuts = 20L,
     control = ctl(seed = 13L)
   ),
   data = dbarts(
     dbartsData(x, y, bases = list(NULL, zf)),
     forests = list(forest(sd = 0.7, amplitude = normal()), forest()),
+    n.trees = 10L,
+    n.cuts = 20L,
     control = ctl(seed = 13L)
   ),
   object = dbarts(
@@ -488,6 +514,8 @@ doorDraws <- list(
       forest(sd = 0.7, amplitude = normalPrior()),
       forest(basis = zf)
     ),
+    n.trees = 10L,
+    n.cuts = 20L,
     control = ctl(seed = 13L)
   )
 )
@@ -518,6 +546,8 @@ weighted <- dbarts(
   d,
   forests = list(forest(sd = 0.7, amplitude = normal()), forest(basis = zf)),
   weights = rep(c(1, 1, 0), length.out = n),
+  n.trees = 10L,
+  n.cuts = 20L,
   control = ctl()
 )
 expect_true(all(is.finite(weighted$run(0L, 5L)$train)))
@@ -526,6 +556,8 @@ sharers <- function(first) {
   dbarts(
     y ~ forest(x1) + forest(x2) + forest(x3, sd = 0.7, amplitude = first),
     d,
+    n.trees = 10L,
+    n.cuts = 20L,
     control = ctl(seed = 17L)
   )
 }
@@ -570,6 +602,8 @@ expect_identical(
   refusal(dbarts(
     y ~ forest(x1, amplitude = normal()) + forest(x2) + forest(x3),
     d,
+    n.trees = 10L,
+    n.cuts = 20L,
     control = ctl()
   )),
   paste0(
@@ -621,6 +655,8 @@ expect_identical(
     d,
     leaf.prior = normalPrior(k = dbartsPriors$chi(1.5, Inf)),
     forests = list(forest(amplitude = normal()), forest(basis = zf)),
+    n.trees = 10L,
+    n.cuts = 20L,
     control = ctl()
   )),
   paste0(
@@ -630,7 +666,13 @@ expect_identical(
   )
 )
 expect_error(
-  dbarts(y ~ forest(x1, amplitude = normal()), d, control = ctl()),
+  dbarts(
+    y ~ forest(x1, amplitude = normal()),
+    d,
+    n.trees = 10L,
+    n.cuts = 20L,
+    control = ctl()
+  ),
   "this model has one forest",
   fixed = TRUE
 )
@@ -652,6 +694,8 @@ expect_identical(
     factor(rep(c("a", "b", "c"), length.out = n)),
     family = "multinomial",
     forests = list(forest(amplitude = normalPrior())),
+    n.trees = 10L,
+    n.cuts = 20L,
     control = ctl()
   )),
   lone
@@ -662,6 +706,8 @@ expect_identical(
     y ~ forest(x1, sd = 1, amplitude = normal()) + forest(x2, basis = zf),
     d,
     variance = ~x1,
+    n.trees = 10L,
+    n.cuts = 20L,
     control = ctl()
   )),
   "a model of several forests does not support 'variance'; drop it or fit a single-forest model"
@@ -674,6 +720,8 @@ local({
     dbarts(
       y ~ forest(x1, sd = normal(0.5)) + forest(x2, basis = zf),
       d,
+      n.trees = 10L,
+      n.cuts = 20L,
       control = ctl()
     ),
     "forest 'sd' must be a number, not a dbartsNormalPrior",
@@ -684,6 +732,8 @@ local({
       y ~ x1 + x2,
       d,
       forests = list(forest(sd = normal(0.5)), forest(basis = zf)),
+      n.trees = 10L,
+      n.cuts = 20L,
       control = ctl()
     ),
     "forest 'sd' must be a number, not a dbartsNormalPrior",
@@ -696,6 +746,8 @@ local({
     y ~ x1 + x2,
     d,
     forests = list(forest(sd = 0.7, amplitude = normal()), forest(basis = zf)),
+    n.trees = 10L,
+    n.cuts = 20L,
     control = ctl()
   )
   expect_true(is(sampler$getLeafPrior(1L)$amplitude, "dbartsNormalPrior"))
@@ -707,6 +759,8 @@ local({
   sampler <- dbarts(
     y ~ forest(x1 + normal) + forest(x2, basis = normal),
     dn,
+    n.trees = 10L,
+    n.cuts = 20L,
     control = ctl()
   )
   expect_identical(colnames(sampler$data@bases[[2L]]), "normal")
@@ -719,6 +773,8 @@ one <- rep(1, n)
 constantRefusal <- refusal(dbarts(
   y ~ forest(x1) + forest(x2, basis = one, sd = 2),
   d,
+  n.trees = 10L,
+  n.cuts = 20L,
   control = ctl()
 ))
 expect_true(
@@ -732,6 +788,8 @@ expect_true(
 written <- dbarts(
   y ~ forest(x1) + forest(x2, sd = 2, amplitude = normal()),
   d,
+  n.trees = 10L,
+  n.cuts = 20L,
   control = ctl()
 )
 expect_true(is(written$getLeafPrior(2L)$amplitude, "dbartsNormalPrior"))
@@ -740,6 +798,8 @@ expect_true(is(written$getLeafPrior(2L)$amplitude, "dbartsNormalPrior"))
 plainTerms <- refusal(dbarts(
   y ~ x1 + forest(x2, sd = 2, amplitude = normal()),
   d,
+  n.trees = 10L,
+  n.cuts = 20L,
   control = ctl()
 ))
 expect_true(
