@@ -73,6 +73,9 @@ rbart_vi and its methods are deprecated, and documented on rbart_vi."></head><bo
     <dt><code>proposal.probs</code></dt>
 <dd><p>On <code><a href="bart.html">bart</a></code> and <code><a href="dbarts.html">dbarts</a></code>: the tree-move mixture, now a <code><a href="dbartsControl.html">dbartsControl</a></code> slot and formal (<code>control = dbartsControl(proposal.probs = )</code>).</p></dd>
 
+    <dt><code>n.trees</code>, <code>n.cuts</code>, <code>useQuantiles</code> on <code><a href="dbartsControl.html">dbartsControl</a></code></dt>
+<dd><p>What a model and its data hold: <code>n.trees</code> is now an argument of <code><a href="dbarts.html">dbarts</a></code>, <code><a href="dbartsSpec.html">dbartsSpec</a></code> and <code><a href="forest.html">forest</a></code>, and <code>n.cuts</code> and <code>useQuantiles</code> of <code>dbarts</code> and <code><a href="dbartsData.html">dbartsData</a></code>. A value written on a control is read after a once-per-session warning; a control's value that differs from what a call takes draws a warning on every call, and a value a fit left on its control states nothing.</p></dd>
+
     <dt>A three-element <code>n.burn</code> on <code><a href="xbart.html">xbart</a></code></dt>
 <dd><p>Refused outright, naming <code>n.burn = c(fresh, warm)</code>: 0.9-x's third element was a per-replication burn-in, and a chain is never carried between replications now.</p></dd>
 

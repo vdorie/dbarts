@@ -129,9 +129,9 @@ df2 <- data.frame(v = runif(n), theta = theta)
 df2$y <- 0.5 * theta + rnorm(n, 0, 0.2)
 
 control <- dbartsControl(n.chains = 1L, n.threads = 1L, n.burn = 0L,
-                         n.samples = 1L, n.trees = 25L, updateState = FALSE)
-s1 <- dbarts(y ~ theta + w, df1, control = control)
-s2 <- dbarts(y ~ v + theta, df2, control = control)
+                         n.samples = 1L, updateState = FALSE)
+s1 <- dbarts(y ~ theta + w, df1, control = control, n.trees = 25L)
+s2 <- dbarts(y ~ v + theta, df2, control = control, n.trees = 25L)
 invisible(s1$run())
 invisible(s2$run())
 

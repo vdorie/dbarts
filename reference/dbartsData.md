@@ -12,7 +12,7 @@ dbartsData(
     factors = c("categorical", "indicators"),
     na.action = dbarts::na.keepPredictors,
     bases = NULL,
-    counts = NULL)
+    counts = NULL, n.cuts = NULL, useQuantiles = NULL)
 ```
 
 ## Arguments
@@ -78,6 +78,27 @@ dbartsData(
   basis forest per covariate, `bases = list(NULL, z1, z2)`.
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) and
   `rbart_vi` refuse a data object carrying bases.
+
+- n.cuts, useQuantiles:
+
+  The maximum number of cut points per predictor, one number for every
+  column, one per column, or by column or term name with `.default` for
+  the rest, as
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s `n.cuts`
+  reads, and whether to place them at the predictors' quantiles, which
+  the data object then states; see
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
+  `NULL`, the default, states none. A count is kept as written and read
+  again by the sampler it goes to, over the predictors that sampler
+  holds: handed to a hazard sampler's `$setData` or to
+  `new("dbartsSampler", ...)` with a person-period matrix, `n.cuts = 7`
+  gives the predictors 7 and the appended `period` column 100, as
+  `dbarts(n.cuts = 7, family = "hazard")` does, and `period` takes a
+  count only by its own name. A count one value short, or by name
+  without `period`, is kept so a hazard sampler can read it, and any
+  other sampler refuses it when it reads it; `dbartsData` itself refuses
+  a count no sampler could read. Ignored, with the warning the other
+  arguments draw, when `formula` is already a data object.
 
 - counts:
 
@@ -224,7 +245,15 @@ a sampler holds it records, once a predictor has been changed, the
 columns that sampler can hold missing values in, as a logical per
 predictor column (see ‘Missing values in predictors’ in
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)),
-and a sampler created from such an object takes them.
+and a sampler created from such an object takes them. Its `status` slot
+is `NULL` as created; on the data object an `aft` sampler holds it
+records the censoring status in force, 1 for an event and 0 for a
+censored row, which `setResponse(status = )` rewrites and a copy or a
+reload is created from. Its `useQuantiles` slot is `NA` as created; on
+the data object a sampler holds it records whether the cut points are
+placed at the predictors' quantiles (see `useQuantiles` in
+[`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)),
+the value the sampler's control then carries.
 
 Four more slots record what a sampler derives from its data; where
 `basis.scale` keeps the value of the sampler's first creation, they
@@ -267,25 +296,24 @@ sampler's `setData` does the same unless its `updateCutPoints`,
 `updateScale` or `updateStandardization` says to derive a value or to
 keep the sampler's (see
 [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)),
-so `sampler$setData(d)` of the sampler's own data object, edited, keeps
+so `sampler$setData(sampler$data)`, the object handed back whole, keeps
 them. [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md)
-derives them in each fold, from the fold's training rows, whatever the
-object records. A record that fits no data - another number of columns,
-cut points for an unordered factor, on an ordered factor other than
-those of its levels, repeated or not finite, a range that is not two
-finite numbers, a standardization whose centers are not finite, whose
-scales are neither positive nor `NA`, whose lengthscales are not
-positive, whose names are missing, empty or repeated, or whose `columns`
-are not one position per center - is refused, naming the slot; setting
-it to `NULL` derives the value instead. Cut points out of order are
-sorted. Which covariates the leaves take is the model's, so a
-standardization is matched to them by its keys, names to leaf columns
-whose names could key one, the others deriving, `columns` where a leaf
-column's name could not, and one with neither by position where the
-counts agree: an entry for a covariate the leaves do not take is not
-read, a covariate without one is derived, and a `lengthscale` the model
-supplies is used in place of the record's. The slots can be set by hand,
-and are not checked against the rows.
+takes `cutPoints` for every fold and derives the others in each fold,
+from the fold's training rows, whatever the object records. A record
+that fits no data - another number of columns, cut points for an
+unordered factor, on an ordered factor other than those of its levels,
+repeated or not finite, a range that is not two finite numbers, a
+standardization whose centers are not finite, whose scales are neither
+positive nor `NA`, whose lengthscales are not positive, whose names are
+missing, empty or repeated, or whose `columns` are not one position per
+center - is refused, naming the slot; setting it to `NULL` derives the
+value instead. Cut points out of order are sorted. Which covariates the
+leaves take is the model's, so a standardization is matched to them by
+its keys, names to leaf columns whose names could key one, the others
+deriving, `columns` where a leaf column's name could not, and one with
+neither by position where the counts agree: an entry for a covariate the
+leaves do not take is not read, a covariate without one is derived, and
+a `lengthscale` the model supplies is used in place of the record's.
 
 ## See also
 
@@ -474,6 +502,12 @@ data
 #> Slot "offset.category.test":
 #> NULL
 #> 
+#> Slot "status":
+#> NULL
+#> 
+#> Slot "useQuantiles":
+#> [1] NA
+#> 
 #> Slot "testUsesRegularOffset":
 #> [1] NA
 #> 
@@ -487,7 +521,7 @@ data <- dbartsData(train[, c("x", "g")], train$y, test)
 ## build a sampler on it, rather than letting dbarts() ingest again
 sampler <- dbarts(data, control = dbartsControl(
   n.chains = 1L, n.threads = 1L, n.samples = 10L, n.burn = 10L,
-  n.trees = 25L, updateState = FALSE))
+  updateState = FALSE), n.trees = 25L)
 samples <- sampler$run()
 str(samples$test)
 #>  num [1:20, 1:10] 0.283 0.78 0.663 0.536 0.478 ...

@@ -61,9 +61,10 @@ xbart(
   `keepTrainingFits`, `updateState`, `verbose` - are applied after both,
   and `n.burn` and `n.threads` here are the sweep's own grid axis and
   worker count rather than the control fields of the same name. A
-  control taken from a fitted sampler carries that fit's model
-  configuration and is refused by name - pass a fresh
-  [`dbartsControl()`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
+  control taken from a fitted sampler carries that fit's run settings
+  and nothing else: it sets no tree count, cut count or quantile rule
+  for this fit, and one that differs from what the call takes draws a
+  warning saying it is not used.
 
 - formula:
 
@@ -442,14 +443,20 @@ xbart(
 
 - n.cuts:
 
-  A positive integer giving the number of decision rules used for each
-  predictor, as in
-  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
+  The number of decision rules used for each predictor, as
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s `n.cuts`
+  reads: one positive integer for every column, one per column, or by
+  column or term name with `.default` for the rest. A
+  [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
+  object given as `formula` keeps its own, and a grid it carries, its
+  `cutPoints`, is the one every fold takes, as
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) takes
+  it; stating `n.cuts` or `useQuantiles` derives the grid again.
 
 - useQuantiles:
 
   Logical; as in
-  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md),
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
   determines whether decision rules are placed at the empirical
   quantiles of each predictor's values rather than spaced uniformly
   through its range. Either way a fold takes the full data's rules and

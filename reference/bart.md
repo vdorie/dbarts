@@ -679,10 +679,11 @@ print(x, ...)
   `"hazard.logistic"`), and the fit is EXACTLY an ordinary
   `"probit"`/`"logistic"` fit on the expanded rows - a hazard fit is
   byte-identical, draw for draw, to the binary fit on the hand-expanded
-  design with the same seed. The time grid defaults to the sorted
-  distinct observed times of the subjects in the likelihood, those of
-  positive weight (the BART `surv.bart` convention; every subject's if
-  none is in, under a warning of class `dbartsScaleFallbackWarning`);
+  design with the same seed and the same `n.cuts`, the period column's
+  included (see `n.cuts`). The time grid defaults to the sorted distinct
+  observed times of the subjects in the likelihood, those of positive
+  weight (the BART `surv.bart` convention; every subject's if none is
+  in, under a warning of class `dbartsScaleFallbackWarning`);
   `family = hazard(breaks = )` replaces it (a single integer bins at
   that many quantiles of those times, a boundary vector gives explicit
   right-closed intervals), and `hazard(max.rows = )` guards the
@@ -1056,11 +1057,20 @@ print(x, ...)
   The maximum number of possible values used in decision rules (see
   `useQuantiles`, and
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
-  ‘Decision Rules’ details). A vector shorter than the number of
-  predictor columns is recycled, so a single number applies to every
-  column; a longer one is refused. Fewer rules may be used if a
-  covariate lacks enough unique values. Factor predictors take no rules
-  from it, of either kind: a factor's grid follows its level table.
+  ‘Decision Rules’ details). A single number applies to every column; a
+  vector gives one per column, in their order, or, named as
+  `split.probs` is, reads by column or term name with `.default` for the
+  rest, so `c(x1 = 10, .default = 50)` gives `x1` 10 and every other
+  column 50. A name that is no column or term, a named vector leaving a
+  column with no value, and an unnamed vector of any other length are
+  refused. A hazard fit's own `period` column, appended after the
+  predictors, reads a count only by its own name,
+  `c(period = 20, .default = 50)`, and otherwise has 100, so a single
+  number or a vector of one per predictor leaves it at 100; an unnamed
+  vector with one more value than the predictors gives it the last.
+  Fewer rules may be used if a covariate lacks enough unique values.
+  Factor predictors take no rules from it, of either kind: a factor's
+  grid follows its level table.
 
 - useQuantiles:
 
@@ -1297,12 +1307,13 @@ print(x, ...)
   call named, or one edited afterwards to differ from a fresh
   control's - wins over this function's default, while a slot it never
   spoke for leaves that default standing. A control taken from a fitted
-  sampler carries that fit's model configuration and is refused by
-  name - pass a fresh
-  [`dbartsControl()`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
-  For example, `control = dbartsControl(categoricalExhaustiveCap = 15)`
-  raises the grow-from-root exhaustive-enumeration cap while every other
-  engine setting, and every flat argument here, keeps its own default.
+  sampler carries that fit's run settings and nothing else: it sets no
+  tree count, cut count or quantile rule for this fit, and one that
+  differs from what the call takes draws a warning saying it is not
+  used. For example,
+  `control = dbartsControl(categoricalExhaustiveCap = 15)` raises the
+  grow-from-root exhaustive-enumeration cap while every other engine
+  setting, and every flat argument here, keeps its own default.
 
 - ...:
 
@@ -2207,7 +2218,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001306
+#> total seconds in loop: 0.001616
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 2 3 2 3 2 2 1 1 2 3 3 3 2 2 
@@ -2244,7 +2255,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000710
+#> total seconds in loop: 0.000931
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 1 2 1 2 2 2 2 2 1 1 1 1 1 2 1 2 1 
@@ -2279,7 +2290,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001071
+#> total seconds in loop: 0.001265
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 4 3 1 3 2 2 3 3 2 2 5 3 5 2 2 2 2 
@@ -2333,7 +2344,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.001404
+#> total seconds in loop: 0.001771
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 3 2 3 2 3 3 2 

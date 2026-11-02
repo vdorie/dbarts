@@ -87,6 +87,19 @@ in dbarts 1.1-0.
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
   slot and formal (`control = dbartsControl(proposal.probs = )`).
 
+- `n.trees`, `n.cuts`, `useQuantiles` on
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md):
+
+  What a model and its data hold: `n.trees` is now an argument of
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
+  [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
+  and [`forest`](https://vdorie.github.io/dbarts/reference/forest.md),
+  and `n.cuts` and `useQuantiles` of `dbarts` and
+  [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md).
+  A value written on a control is read after a once-per-session warning;
+  a control's value that differs from what a call takes draws a warning
+  on every call, and a value a fit left on its control states nothing.
+
 - A three-element `n.burn` on
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md):
 

@@ -15,9 +15,10 @@ dbarts(
     interactions = NULL,
     blocks = NULL,
     variance = NULL,
-    forests = NULL,
+    forests = NULL, n.trees = NULL,
     control = dbarts::dbartsControl(), sigest = NULL, seed = NULL,
     factors = c("categorical", "indicators"),
+    n.cuts = NULL, useQuantiles = NULL,
     family = c("auto", "gaussian", "student", "probit", "logistic", "aft",
                "multinomial", "ordinal",
                "nbinom", "hazard", "hazard.probit", "hazard.logistic"),
@@ -392,7 +393,9 @@ dbarts(
 
   Optional list of
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)
-  specifications declaring the ensembles the mean is a weighted sum of,
+  specifications, or a single
+  [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) for
+  a list of one, declaring the ensembles the mean is a weighted sum of,
   instead of the single ensemble `NULL` (the default) fits. Each forest
   carries its own tree count, structure prior, leaf scale, column
   restriction, `interactions`/`blocks` constraints and, where it states
@@ -414,20 +417,20 @@ dbarts(
   Details), which is where `leaf.prior`, a `k` prior and a non-default
   `k` are taken beside other forests. A forest's default tree count and
   tree prior go by whether it has a `basis`: a forest with none takes
-  the control's `n.trees` and this function's `power` and `base`,
-  several stating no count splitting `n.trees` among them as
+  this function's `n.trees`, `power` and `base`, several stating no
+  count splitting `n.trees` among them as
   [`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md) does,
   and a forest with one takes 50 trees under `base = 0.25, power = 3`,
-  wherever each stands. Where every forest has a `basis`, a control that
-  names `n.trees` and a named `power`, `base`, `leaf.prior`,
-  `interactions` or `blocks` have no forest to belong to and are
-  refused, the default's own value included; state them on a forest.
-  Where only some forests have a basis, a `power` or `base` stated here
-  and on every forest with none is refused as one thing given twice;
-  beside two or more forests with no basis, `interactions` and `blocks`
-  are refused here and stated on a forest. A single declared forest
-  carrying a basis is refused: for varying coefficients declare an
-  intercept forest plus one basis forest per covariate,
+  wherever each stands. Where every forest has a `basis`, a stated
+  `n.trees` and a named `power`, `base`, `leaf.prior`, `interactions` or
+  `blocks` have no forest to belong to and are refused, the default's
+  own value included; state them on a forest. Where only some forests
+  have a basis, a `power` or `base` stated here and on every forest with
+  none is refused as one thing given twice; beside two or more forests
+  with no basis, `interactions` and `blocks` are refused here and stated
+  on a forest. A single declared forest carrying a basis is refused: for
+  varying coefficients declare an intercept forest plus one basis forest
+  per covariate,
   `forests = list(forest(), forest(basis = z1), forest(basis = z2))`, or
   use one forest with `linear()` leaves. A `basis` is written as the
   right-hand side of a model formula, without the tilde, and read as
@@ -483,12 +486,39 @@ dbarts(
   bare name the caller has bound to a value is that value; see
   [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md).
 
+- n.trees:
+
+  The number of trees of the forest with no `basis`; `NULL`, the
+  default, leaves it to the forest's own `n.trees` and otherwise takes
+  75 trees. Given beside a forest with no `basis` that states its own,
+  or where every forest has a `basis`, it is refused by name.
+
+- n.cuts, useQuantiles:
+
+  The maximum number of cut points per predictor and whether to place
+  them at the predictors' quantiles. `n.cuts` is one number for every
+  column, one per column, or named, as `split.probs` is, by column or
+  term name with `.default` for the rest; see
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md). `NULL`,
+  the default, takes what a
+  [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
+  object given as `formula` holds, and otherwise 100 and uniformly
+  spaced. A value given beside a data object that carries a grid derives
+  the grid again.
+
 - control:
 
   An object inheriting from `dbartsControl`, created by the
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
-  function. In a model of several forests its `n.trees` is the count of
-  the forest with no `basis`; see `forests`.
+  function, holding the run settings. The tree count, the cut count and
+  the quantile rule are not its settings: state them as `n.trees`,
+  `n.cuts` and `useQuantiles` (or on a
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)),
+  since a value written on a control is read only with a warning, once
+  per session, and is removed in dbarts 1.1-0. A control taken from a
+  fitted sampler carries its run settings and nothing else into this
+  fit; a count or rule it carries that differs from what this call takes
+  draws a warning, on every call, saying it is not used.
 
 - sigest:
 
@@ -973,11 +1003,11 @@ x <- matrix(runif(n * 3L), n, 3L)
 y <- 2 * x[, 1L] - x[, 2L] + rnorm(n, 0, 0.2)
 
 control <- dbartsControl(n.chains = 1L, n.threads = 1L, n.burn = 0L,
-                         n.samples = 1L, n.trees = 25L, updateState = FALSE)
+                         n.samples = 1L, updateState = FALSE)
 
 ## The sampler is created once and then run repeatedly, so that BART can act
 ## as a conditional model inside a larger Gibbs/Metropolis-Hastings sampler.
-sampler <- dbarts(y ~ x, control = control)
+sampler <- dbarts(y ~ x, control = control, n.trees = 25L)
 samples <- sampler$run(numBurnIn = 50L, numSamples = 1L)
 str(samples$train)
 #>  num [1:100, 1] 0.1826 0.3443 1.2289 0.8974 -0.0939 ...
@@ -992,16 +1022,16 @@ samples <- sampler$run()
 sampler <- dbarts(y ~ x, control = control,
                   power = 1.5,
                   leaf.prior = normal(k = chi(1.5, 2)),
-                  family = gaussian(sigma = chisq(df = 5)))
+                  family = gaussian(sigma = chisq(df = 5)), n.trees = 25L)
 
 ## an additive fit that is monotone increasing in the first predictor
 sampler <- dbarts(y ~ x, control = control,
                   interactions = interactions(max.order = 1L),
-                  monotone = c(1, 0, 0))
+                  monotone = c(1, 0, 0), n.trees = 25L)
 samples <- sampler$run(numBurnIn = 20L, numSamples = 5L)
 
 ## a non-gaussian family: counts by negative binomial, offset a log-exposure
 counts <- rnbinom(n, size = 4, mu = exp(0.5 * x[, 1L]) * 4)
-sampler <- dbarts(x, counts, family = "nbinom", control = control)
+sampler <- dbarts(x, counts, family = "nbinom", control = control, n.trees = 25L)
 samples <- sampler$run(numBurnIn = 20L, numSamples = 5L)
 ```

@@ -17,7 +17,7 @@ dbartsSpec(
         rule_gibbs = 0, birth = 0.5),
     monotone = NULL, interactions = NULL, blocks = NULL,
     variance = NULL,
-    forests = NULL,
+    forests = NULL, n.trees = NULL,
     sigest = NULL, seed = NULL,
     family = c("auto", "gaussian", "student", "probit", "logistic", "aft",
                "multinomial", "ordinal", "nbinom"),
@@ -43,7 +43,7 @@ dbartsSpec(
 
 - control, power, base, split.probs, tree.prior, leaf.prior,
   proposal.probs, monotone, interactions, blocks, variance, forests,
-  sigest, seed, family, ...:
+  n.trees, sigest, seed, family, ...:
 
   As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
   (except that `proposal.probs`, the control's setting, is still
@@ -104,9 +104,10 @@ separable things: it ingests a formula or a pair of matrices into a
 `dbartsData`, and it then resolves that data into a full sampler
 specification - choosing the response family, coding the response,
 applying the family's weight policy, estimating a starting `sigma`,
-parsing the priors, and attaching the attributes that carry
-monotonicity, interaction and block constraints, a variance forest,
-residual degrees of freedom, and survival status.
+parsing the priors, and recording on the model and data the
+monotonicity, interaction and block constraints, the forests and a
+variance forest, the residual degrees of freedom, and the survival
+status.
 [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
 exposes the first half. This function exposes the second, and returns
 the pieces rather than a sampler.
@@ -167,16 +168,21 @@ A list with components
 
 - control:
 
-  a `dbartsControl`, carrying any family and variance-forest attributes.
+  a `dbartsControl`, holding the run settings; its `n.trees`,
+  `useQuantiles` and `binary` are copies of the model's and the data's,
+  which a sampler built from the list writes on it.
 
 - model:
 
-  a `dbartsModel`, carrying the parsed priors and any monotone,
-  interaction, block, and residual-degrees-of-freedom attributes.
+  a `dbartsModel`, carrying the parsed priors, each forest's record and
+  the variance forest's, the category count, the shape setting, the
+  hazard periods, and any monotone, interaction, block, and
+  residual-degrees-of-freedom attributes.
 
 - data:
 
-  a `dbartsData`, with the response coded and `sigma` resolved.
+  a `dbartsData`, with the response coded, `sigma` resolved, and the
+  censoring status and quantile rule recorded.
 
 - family:
 
@@ -246,11 +252,10 @@ Ey <- f(x)
 y  <- rnorm(n, Ey, sigma)
 
 data <- dbartsData(x, y)
-control <- dbartsControl(n.chains = 1L, n.samples = 20L, n.burn = 10L,
-                         n.trees = 25L, updateState = FALSE)
+control <- dbartsControl(n.chains = 1L, n.samples = 20L, n.burn = 10L, updateState = FALSE)
 
 ## an ordinary specification, then the sampler it describes
-spec <- dbartsSpec(data, control = control)
+spec <- dbartsSpec(data, control = control, n.trees = 25L)
 spec$family
 #> [1] "gaussian"
 
@@ -260,7 +265,7 @@ samples <- sampler$run()
 ## additive-only fit, monotone in the fourth predictor
 constrained <- dbartsSpec(data, control = control,
                           interactions = interactions(max.order = 1L),
-                          monotone = c(rep(0, 3), 1, rep(0, 6)))
+                          monotone = c(rep(0, 3), 1, rep(0, 6)), n.trees = 25L)
 attr(constrained$model, "interaction.max.order")
 #> [1] 1
 ```

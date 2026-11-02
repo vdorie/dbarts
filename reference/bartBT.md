@@ -302,10 +302,11 @@ family(object, ...)
 - numcut:
 
   The maximum number of possible values used in decision rules (see
-  `usequants`, details). If a single number, it is recycled for all
-  variables; otherwise must be a vector of length equal to
-  `ncol(x.train)`. Fewer rules may be used if a covariate lacks enough
-  unique values.
+  `usequants`, details). A single number applies to every column;
+  otherwise a vector of length equal to `ncol(x.train)`, or named as
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s `n.cuts`
+  reads. Fewer rules may be used if a covariate lacks enough unique
+  values.
 
 - printcutoffs:
 
@@ -1407,7 +1408,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.165467
+#> total seconds in loop: 0.213425
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1453,8 +1454,8 @@ x.na[1:5, 1] <- NA
 y.na <- x.na[,2] + rnorm(n, 0, 0.3)
 y.na[is.na(x.na[,1])] <- y.na[is.na(x.na[,1])] + 2
 fit.na <- dbarts(y.na ~ x.na, control = dbartsControl(
-                   n.samples = 20L, n.burn = 20L, n.chains = 1L,
-                   n.trees = 20L, n.threads = 1L))
+                   n.samples = 20L, n.burn = 20L, n.chains = 1L, n.threads = 1L),
+                   n.trees = 20L)
 samples.na <- fit.na$run()
 
 ## recipe: between-draws row subsetting on a latent family (e.g. principal
@@ -1472,7 +1473,8 @@ x.strat <- matrix(runif(n * 2), n, 2)
 y.strat <- rbinom(n, 1L, plogis(2 * x.strat[,1] - 1))
 sampler.strat <- dbarts(x.strat, y.strat, family = "probit",
                         control = dbartsControl(n.chains = 1L, n.threads = 1L,
-                          n.trees = 20L, updateState = FALSE))
+                                                updateState = FALSE),
+                        n.trees = 20L)
 
 stratum <- rbinom(n, 1L, 0.6)  # this iteration's stratum membership
 sampler.strat$setActiveRows(stratum)

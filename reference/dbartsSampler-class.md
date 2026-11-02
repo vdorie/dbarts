@@ -253,12 +253,15 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
   An object inheriting from
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
-  When passed to `setControl`, it cannot change `n.trees`, `n.chains`,
-  `useQuantiles`, or `seed` from the values the sampler was created
-  with, and cannot set `keepTrees = TRUE` without also giving
-  `n.samples`; either is an error. Under `treeShift = "auto"` the step
-  follows the mixture, which `setControl` may freeze, on every forest
-  that states no mixture of its own.
+  When passed to `setControl`, it cannot change `n.chains` or `seed`
+  from the values the sampler was created with, a `n.trees`,
+  `useQuantiles` or `n.cuts` its caller wrote cannot differ from the
+  sampler's, and it cannot set `keepTrees = TRUE` without also giving
+  `n.samples`; each is an error. A control taken from another fit that
+  holds another of those three is taken with a warning, and a fresh
+  control silently, the sampler keeping its own. Under
+  `treeShift = "auto"` the step follows the mixture, which `setControl`
+  may freeze, on every forest that states no mixture of its own.
 
 - newModel:
 
@@ -267,7 +270,10 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   sampler's creation-time model, nor change the columns a single forest
   may split on (its
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)
-  `vars`); recreate the sampler instead.
+  `vars`), nor state another tree count for a forest or the variance
+  forest; recreate the sampler instead. A count the model does not
+  state, as in `dbartsSpec(data, power = 3)$model`, leaves the
+  sampler's.
 
 - newData:
 
@@ -300,11 +306,26 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   records (its `cutPoints`, `response.range` and `standardization`
   slots, see
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md))
-  is used and one it does not record is derived from it. The sampler
-  writes its values into its own data object, so `sampler$setData(d)`
-  with `d <- sampler$data` edited, `d@x[, 1] <- newValues` say, keeps
-  the cut points, the range and the standardization the sampler held,
-  where 0.9-x derived them again, and a data object made by
+  is used and one it does not record is derived from it. A cut count or
+  quantile rule `newData` states wins over the sampler's (see `n.cuts`
+  and `useQuantiles` on
+  [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)),
+  and the sampler derives by what it takes from then on, in this call
+  and in any later refresh; an object carrying `cutPoints` brings the
+  count and rule that made them, an unstated rule reading as even; an
+  object stating neither keeps the sampler's, a count stated to
+  [`dbartsData()`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
+  is read over the predictors the sampler holds, a hazard sampler's
+  `period` column among them, which takes a count only by its own name
+  and is otherwise 100, and `updateCutPoints = "none"` keeps the
+  sampler's whatever the object states. The sampler writes its values
+  into its own data object, so `sampler$setData(sampler$data)`, the
+  object handed back whole, keeps the cut points, the range and the
+  standardization the sampler held, where 0.9-x derived them again; to
+  change a column and keep them,
+  `sampler$setPredictor(newValues, 1, forceUpdate = TRUE)` takes the
+  values and keeps the cut points and the record; and a data object made
+  by
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
   records none and derives every one, as before. Draws the sampler has
   saved (`keepTrees`) stay the functions they were, so `predict` returns
@@ -1147,29 +1168,28 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   points (split candidate locations) of the replaced column(s) and the
   weights they carry. The other two derive them again from the new
   values, as a new sampler would for those values: up to the `n.cuts`
-  the sampler was created with, whatever number the column held, and
-  fewer where the values supply fewer, a constant column getting one,
-  and under the default rule one per gap, weighted by width, on a column
-  with fewer distinct values than `n.cuts`. They differ in where the
-  splits already on such a column go. Under `"position"` each keeps its
-  position on the grid, which is what `TRUE` did in 0.9-x; when the
-  number of cut points changes, the position is rescaled to the new
-  number. Under `"value"` each moves to the new cut point nearest its
-  old threshold. In either case a split stays between the splits above
-  it in its tree; one left with no cut point there is merged when the
-  update is forced, and otherwise the update is refused and rolled back,
-  trees and cut points included. A later `setState` does not bring back
-  the cut points a state was stored on (see ‘Saving’). Anything but
-  `"none"` cannot be combined with `forceUpdate = "partial"`. For
-  `setData` the same three words, or `NULL`, the default: `"none"` keeps
-  the sampler's cut points and their weights, the new values read on
-  them, `"position"` and `"value"` derive them from the new data as
-  above, and `NULL` takes the `cutPoints` the new data object records, a
-  split on a column whose cut points that changes moving to the nearest
-  of them, and otherwise derives them as `"value"` does, as `setData`
-  always did. For `setPredictor`, a logical is taken until dbarts 1.1-0,
-  `TRUE` as `"position"` and `FALSE` as `"none"`, with a warning once
-  per session
+  the sampler holds, whatever number the column held, and fewer where
+  the values supply fewer, a constant column getting one, and under the
+  default rule one per gap, weighted by width, on a column with fewer
+  distinct values than `n.cuts`. They differ in where the splits already
+  on such a column go. Under `"position"` each keeps its position on the
+  grid, which is what `TRUE` did in 0.9-x; when the number of cut points
+  changes, the position is rescaled to the new number. Under `"value"`
+  each moves to the new cut point nearest its old threshold. In either
+  case a split stays between the splits above it in its tree; one left
+  with no cut point there is merged when the update is forced, and
+  otherwise the update is refused and rolled back, trees and cut points
+  included. A later `setState` does not bring back the cut points a
+  state was stored on (see ‘Saving’). Anything but `"none"` cannot be
+  combined with `forceUpdate = "partial"`. For `setData` the same three
+  words, or `NULL`, the default: `"none"` keeps the sampler's cut points
+  and their weights, the new values read on them, `"position"` and
+  `"value"` derive them from the new data as above, and `NULL` takes the
+  `cutPoints` the new data object records, a split on a column whose cut
+  points that changes moving to the nearest of them, and otherwise
+  derives them as `"value"` does, as `setData` always did. For
+  `setPredictor`, a logical is taken until dbarts 1.1-0, `TRUE` as
+  `"position"` and `FALSE` as `"none"`, with a warning once per session
   ([`dbarts-deprecated`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)).
 
 - updateStandardization:
@@ -1474,6 +1494,15 @@ the rows the mask keeps, every row where it keeps none. Under every
 other family creation reads nothing from it, the scale being taken over
 the rows the data object's weights keep, and the mask is installed
 afterwards.
+
+A sampler made this way takes its tree count from the model and its
+quantile rule and cut count from the data object, where they state them.
+A control that is fresh, or copied from a fit, says nothing of them, and
+a copied count or rule that differs draws a warning saying it is not
+used. A count or rule written on the control is used where the model or
+the data object states none and is refused, by name, where it states
+another, or, for a count, where every forest has a `basis`. Whether the
+family is binary is the model's family alone.
 
 ### Reading the fit
 

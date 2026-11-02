@@ -35,10 +35,11 @@ every recipe builds its sampler the same way:
 n <- 200L
 nBurn <- 100L
 nDraws <- 100L
+nTrees <- 25L
 
 # a single seeded chain that serializes no state on a per-sweep mutation
 recipeControl <- function(seed) {
-  dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 25L,
+  dbartsControl(n.chains = 1L, n.threads = 1L,
                 updateState = FALSE, seed = seed)
 }
 ```
@@ -70,7 +71,7 @@ y <- rbinom(n, 1L, pnorm(fTrue + o))
 control <- recipeControl(31L)
 
 # the host: a gaussian sampler on the working response, sigma pinned at 1
-host <- dbarts(x, 2 * y - 1 - o, control = control,
+host <- dbarts(x, 2 * y - 1 - o, control = control, n.trees = nTrees,
                family = gaussian(sigma = fixed(1)))
 host$setLeafPrior(normal(sd = 1))
 
@@ -86,6 +87,7 @@ for (i in seq_len(nBurn + nDraws)) {
 
 # a native probit sampler, given the SAME leaf prior, targets the same posterior
 native <- dbarts(x, y, offset = o, family = "probit", control = control,
+                 n.trees = nTrees,
                  leaf.prior = normal(sd = 1))
 nativeFit <- rowMeans(native$run(nBurn, nDraws)$train) - o
 c(agreement = cor(rowMeans(composed), nativeFit),
@@ -127,7 +129,7 @@ y <- rnorm(n, fTrue + alphaTrue * w, 0.5)
 alpha <- 0
 control <- recipeControl(8L)
 # created WITH the offset the loop's first sweep will run against
-sampler <- dbarts(x, y, offset = alpha * w, control = control)
+sampler <- dbarts(x, y, offset = alpha * w, control = control, n.trees = nTrees)
 
 keepAlpha <- rep(NA_real_, nDraws)
 for (i in seq_len(nBurn + nDraws)) {
@@ -169,13 +171,14 @@ tauSbc <- 1
 set.seed(4L)
 xSbc <- matrix(runif(nSbc * 2L), nSbc, 2L)
 wSbc <- rnorm(nSbc)
-sbcControl <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 10L,
+sbcControl <- dbartsControl(n.chains = 1L, n.threads = 1L,
                             updateState = FALSE)
 
 # the response the sampler is BUILT on fixes the response transform, and the
 # leaf prior is then stated outright, so every replication shares one prior
 newSampler <- function() {
   s <- dbarts(xSbc, seq(-3, 3, length.out = nSbc), control = sbcControl,
+              n.trees = 10L,
               family = gaussian(sigma = fixed(sigma0^2)))
   s$setLeafPrior(normal(sd = 1))
   s
@@ -255,7 +258,7 @@ y <- rnorm(n, fTrue, 0.5)
 
 control <- recipeControl(5L)
 blocks <- list(x[, 1:2, drop = FALSE], x[, 3:4, drop = FALSE])
-samplers <- lapply(blocks, function(xb) dbarts(xb, y, control = control))
+samplers <- lapply(blocks, function(xb) dbarts(xb, y, control = control, n.trees = nTrees))
 
 base <- samplers[[1L]]$getLeafPrior()$k.scale / samplers[[1L]]$getK()[1L]
 for (s in samplers) s$setLeafPrior(normal(sd = base / sqrt(K)))
@@ -273,7 +276,7 @@ priorSd <- function(samplers) {
   })
   mean(apply(draws, 1L, sd))
 }
-single <- dbarts(x, y, control = control)
+single <- dbarts(x, y, control = control, n.trees = nTrees)
 c(composed = priorSd(samplers), single = priorSd(list(single)))
 ```
 
@@ -341,8 +344,9 @@ d2 <- data.frame(v = runif(nJ), theta = thetaTrue)
 d2$y <- rbinom(nJ, 1L, pnorm(thetaTrue))
 
 control <- recipeControl(44L)
-sA <- dbarts(y ~ theta + u, d1, control = control, power = 0.5)
+sA <- dbarts(y ~ theta + u, d1, control = control, n.trees = nTrees, power = 0.5)
 sB <- dbarts(y ~ v + theta, d2, family = "probit", control = control,
+             n.trees = nTrees,
              power = 0.5)
 invisible(sA$run(0L, 20L))
 invisible(sB$run(0L, 20L))
@@ -390,7 +394,7 @@ y <- rnorm(n, fTrue, 0.75)
 
 sigma <- 1
 control <- recipeControl(55L)
-sampler <- dbarts(x, y, control = control,
+sampler <- dbarts(x, y, control = control, n.trees = nTrees,
                   family = gaussian(sigma = fixed(sigma^2)))
 
 keepSigma <- rep(NA_real_, nDraws)
@@ -414,7 +418,7 @@ accepting it and quietly rescaling every leaf posterior:
 
 ``` r
 
-probit <- dbarts(x, rbinom(n, 1L, 0.5), family = "probit", control = control)
+probit <- dbarts(x, rbinom(n, 1L, 0.5), family = "probit", control = control, n.trees = nTrees)
 probit$setSigma(1)
 ```
 
@@ -446,7 +450,7 @@ y <- rbinom(n, 1L, pnorm(fTrue + gammaTrue * v))
 gamma <- 0
 control <- recipeControl(20L)
 sampler <- dbarts(x, y, offset = gamma * v, family = "probit",
-                  control = control)
+                  control = control, n.trees = nTrees)
 
 keepGamma <- rep(NA_real_, nDraws)
 for (i in seq_len(nBurn + nDraws)) {

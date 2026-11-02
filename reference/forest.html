@@ -449,17 +449,20 @@ The constructor is not exported: it resolves by bare name inside the
     has 50 trees at <code>base = 0.25</code>, <code>power = 3</code> - shallower and
     fewer than a prognostic forest's, the modulating surface normally being
     the smoother of the two. The forest with no <code>basis</code> has the fitting
-    function's: <code><a href="bart.html">bart</a></code>'s <code>n.trees</code> or the control's, and its
-    <code>power</code> and <code>base</code>. The fitting function and the forest with no
+    function's: the <code>n.trees</code> of <code><a href="dbarts.html">dbarts</a></code> or <code><a href="bart.html">bart</a></code>,
+    and its <code>power</code> and <code>base</code>. The fitting function and the forest with no
     <code>basis</code> state one setting between them: <code><a href="bart.html">bart</a></code> refuses
     its own <code>n.trees</code>, <code>power</code> or <code>base</code> beside one stated
     here, the default's own value included, the two being the same setting,
-    and a control that names <code>n.trees</code> beside one stated here is the
-    same count. Where every forest has a <code>basis</code> the fitting function's
+    and a count written on a control beside one stated here is refused, since
+    a control holds run settings only. Where every forest has a <code>basis</code> the fitting function's
     tree count and tree prior have no forest to belong to, and one that is
     stated is refused, the default's own value included: state it on a forest.
-    A sampler's <code>control@n.trees</code> and <code>model@tree.prior</code> hold its
-    first forest's.</p></dd>
+    The count at the fitting function's level is the model's and not the
+    control's: a sampler's <code>control@n.trees</code> is a copy of it, the count of the
+    forest with no <code>basis</code>, or of the first forest where every forest has
+    a <code>basis</code>. Its <code>model@tree.prior</code> holds
+    the first forest's.</p></dd>
 
   <dt id="arg-sd">sd<a class="anchor" aria-label="anchor" href="#arg-sd"></a></dt>
 <dd><p>The size of what this forest contributes, in the response's units: the
@@ -822,8 +825,9 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-in"><span>                  forests <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu">forest</span><span class="op">(</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>                                 <span class="fu">forest</span><span class="op">(</span><span class="va">x1</span> <span class="op">+</span> <span class="va">x3</span>, basis <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">z</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>                                        n.trees <span class="op">=</span> <span class="fl">25L</span>, sd <span class="op">=</span> <span class="fl">1.5</span><span class="op">)</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>                  control <span class="op">=</span> <span class="fu"><a href="dbartsControl.html">dbartsControl</a></span><span class="op">(</span>n.chains <span class="op">=</span> <span class="fl">1L</span>, n.trees <span class="op">=</span> <span class="fl">25L</span>,</span></span>
-<span class="r-in"><span>                                          n.samples <span class="op">=</span> <span class="fl">20L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span>                  control <span class="op">=</span> <span class="fu"><a href="dbartsControl.html">dbartsControl</a></span><span class="op">(</span>n.chains <span class="op">=</span> <span class="fl">1L</span>,</span></span>
+<span class="r-in"><span>                                          n.samples <span class="op">=</span> <span class="fl">20L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>                  n.trees <span class="op">=</span> <span class="fl">25L</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">samples</span> <span class="op">&lt;-</span> <span class="va">sampler</span><span class="op">$</span><span class="fu">run</span><span class="op">(</span><span class="fl">20L</span>, <span class="fl">20L</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">amplitudes</span> <span class="op">&lt;-</span> <span class="va">sampler</span><span class="op">$</span><span class="fu">getForestAmplitudes</span><span class="op">(</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
@@ -840,7 +844,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-in"><span>                w <span class="op">=</span> <span class="fl">50</span> <span class="op">+</span> <span class="fl">10</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">written</span> <span class="op">&lt;-</span> <span class="fu"><a href="dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="fu">forest</span><span class="op">(</span><span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span><span class="op">)</span> <span class="op">+</span></span></span>
 <span class="r-in"><span>                    <span class="fu">forest</span><span class="op">(</span><span class="va">x1</span> <span class="op">+</span> <span class="va">x3</span>, basis <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">z</span><span class="op">)</span>, n.trees <span class="op">=</span> <span class="fl">25L</span>, sd <span class="op">=</span> <span class="fl">1.5</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>                  <span class="va">d</span>, control <span class="op">=</span> <span class="fu"><a href="dbartsControl.html">dbartsControl</a></span><span class="op">(</span>n.chains <span class="op">=</span> <span class="fl">1L</span>, n.trees <span class="op">=</span> <span class="fl">25L</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span>                  <span class="va">d</span>, control <span class="op">=</span> <span class="fu"><a href="dbartsControl.html">dbartsControl</a></span><span class="op">(</span>n.chains <span class="op">=</span> <span class="fl">1L</span><span class="op">)</span>, n.trees <span class="op">=</span> <span class="fl">25L</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">written</span><span class="op">$</span><span class="va">data</span><span class="op">@</span><span class="va">bases</span><span class="op">[[</span><span class="fl">2L</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] "factor(z)0" "factor(z)1"</span>
 <span class="r-in"><span></span></span>
@@ -881,7 +885,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   trees: 10, 10; 20 in all</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000461</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000573</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 2 2 5 2 3 2 </span>
@@ -909,14 +913,14 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-in"><span><span class="kw">for</span> <span class="op">(</span><span class="va">k</span> <span class="kw">in</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">25</span>, <span class="fl">100</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span>  <span class="va">forests</span><span class="op">[[</span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">forests</span><span class="op">)</span> <span class="op">+</span> <span class="fl">1L</span><span class="op">]</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fu">forest</span><span class="op">(</span><span class="va">x1</span>, basis <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/AsIs.html" class="external-link">I</a></span><span class="op">(</span><span class="va">w</span> <span class="op">/</span> <span class="va">k</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">looped</span> <span class="op">&lt;-</span> <span class="fu"><a href="dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x3</span>, <span class="va">d</span>, forests <span class="op">=</span> <span class="va">forests</span>,</span></span>
-<span class="r-in"><span>                 control <span class="op">=</span> <span class="fu"><a href="dbartsControl.html">dbartsControl</a></span><span class="op">(</span>n.chains <span class="op">=</span> <span class="fl">1L</span>, n.trees <span class="op">=</span> <span class="fl">10L</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span>                 control <span class="op">=</span> <span class="fu"><a href="dbartsControl.html">dbartsControl</a></span><span class="op">(</span>n.chains <span class="op">=</span> <span class="fl">1L</span><span class="op">)</span>, n.trees <span class="op">=</span> <span class="fl">10L</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="va">looped</span><span class="op">$</span><span class="va">data</span><span class="op">@</span><span class="va">bases</span><span class="op">[</span><span class="op">-</span><span class="fl">1L</span><span class="op">]</span>, <span class="kw">function</span><span class="op">(</span><span class="va">basis</span><span class="op">)</span> <span class="va">basis</span><span class="op">[</span><span class="fl">1L</span>, <span class="fl">1L</span><span class="op">]</span>, <span class="fl">0</span><span class="op">)</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">25</span>, <span class="fl">100</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 58.93674 58.93674</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># two columns are a forest each, with a coefficient each; I() holds arithmetic</span></span></span>
 <span class="r-in"><span><span class="va">perColumn</span> <span class="op">&lt;-</span> <span class="fu"><a href="dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="fu">forest</span><span class="op">(</span><span class="va">x1</span> <span class="op">+</span> <span class="va">x3</span><span class="op">)</span> <span class="op">+</span> <span class="fu">forest</span><span class="op">(</span><span class="va">x1</span>, basis <span class="op">=</span> <span class="va">z</span><span class="op">)</span> <span class="op">+</span></span></span>
 <span class="r-in"><span>                      <span class="fu">forest</span><span class="op">(</span><span class="va">x1</span>, basis <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/AsIs.html" class="external-link">I</a></span><span class="op">(</span><span class="va">w</span> <span class="op">/</span> <span class="fl">50</span><span class="op">)</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>                    <span class="va">d</span>, control <span class="op">=</span> <span class="fu"><a href="dbartsControl.html">dbartsControl</a></span><span class="op">(</span>n.chains <span class="op">=</span> <span class="fl">1L</span>, n.trees <span class="op">=</span> <span class="fl">10L</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span>                    <span class="va">d</span>, control <span class="op">=</span> <span class="fu"><a href="dbartsControl.html">dbartsControl</a></span><span class="op">(</span>n.chains <span class="op">=</span> <span class="fl">1L</span><span class="op">)</span>, n.trees <span class="op">=</span> <span class="fl">10L</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">perColumn</span><span class="op">$</span><span class="va">data</span><span class="op">@</span><span class="va">bases</span><span class="op">[</span><span class="op">-</span><span class="fl">1L</span><span class="op">]</span>, <span class="va">colnames</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [[1]]</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] "z"</span>

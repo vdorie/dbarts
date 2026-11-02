@@ -16,11 +16,11 @@ since it too is coerced through this construction.
 ``` r
 dbartsControl(
     verbose = FALSE, keepTrainingFits = TRUE, keepFits = TRUE,
-    useQuantiles = FALSE,
+    useQuantiles = NULL,
     treeShift = c("auto", "always", "never"),
     keepTrees = FALSE, storage = c("double", "single"),
     n.samples = NULL,
-    n.cuts = 100L, n.burn = 200L, n.trees = 75L, n.chains = 4L,
+    n.cuts = NULL, n.burn = 200L, n.trees = NULL, n.chains = 4L,
     n.threads = min(dbarts::guessNumCores(), n.chains), n.thin = 1L, printEvery = 100L,
     printCutoffs = 0L,
     categoricalExhaustiveCap = 10L, testFitParallelCutoff = 65536L,
@@ -88,8 +88,17 @@ dbartsControl(
 
 - useQuantiles:
 
-  Logical to determine if the empirical quantiles of the columns of
-  predictors should be used to determine the tree decision rules. If
+  Deprecated: the rule belongs to the data, stated as `useQuantiles` on
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and
+  [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md).
+  A value written here is read, after a warning once per session naming
+  where to state it, and the argument is removed in dbarts 1.1-0. The
+  slot is a copy: a sampler writes it with the rule its data object
+  holds, so reading it gives the rule the sampler runs. A rule on a
+  control taken from a fit is not the next fit's, and one that differs
+  from what a call takes draws a warning on every call saying it is not
+  used. Logical to determine if the empirical quantiles of the columns
+  of predictors should be used to determine the tree decision rules. If
   `FALSE`, the rules are spaced uniformly throughout the range of
   covariate values, except that a numeric predictor with fewer distinct
   values than `n.cuts` gets one rule half-way between each pair of
@@ -182,17 +191,26 @@ dbartsControl(
 
 - n.cuts:
 
-  A positive integer or integer vector giving the number of decision
-  rules to be used for each given predictor. If of length less than the
-  number of predictors, earlier values are recycled; a longer vector is
-  refused when the sampler is built. If for any predictor more values
-  are specified than are coherent, fewer are used: a cut point is held
-  once, so a predictor whose range is too narrow to hold that many
-  distinct equally spaced points gets fewer, and a constant predictor
-  gets one. It does not reach a factor predictor of either kind: an
-  unordered factor splits on level subsets and an ordered one at its
-  declared level midpoints, a factor's grid following its level table
-  rather than a count. See the ‘Decision Rules’ section of
+  Deprecated: the cut count belongs to the data, stated as `n.cuts` on
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and
+  [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md).
+  A value written here is read, after a warning once per session naming
+  where to state it, and the argument is removed in dbarts 1.1-0. A
+  control holds the count only until a fit takes it, and a sampler's
+  control has none to read: `control@n.cuts` on a control no one wrote a
+  count to is an error. A positive integer or integer vector giving the
+  number of decision rules to be used for each given predictor, read as
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s `n.cuts`
+  is: one number for every column, one per column, or by column or term
+  name with `.default` for the rest, anything else being refused when
+  the sampler is built. If for any predictor more values are specified
+  than are coherent, fewer are used: a cut point is held once, so a
+  predictor whose range is too narrow to hold that many distinct equally
+  spaced points gets fewer, and a constant predictor gets one. It does
+  not reach a factor predictor of either kind: an unordered factor
+  splits on level subsets and an ordered one at its declared level
+  midpoints, a factor's grid following its level table rather than a
+  count. See the ‘Decision Rules’ section of
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) for
   how the rules themselves are placed.
 
@@ -203,20 +221,23 @@ dbartsControl(
 
 - n.trees:
 
-  A positive integer giving the number of trees used in the sum-of-trees
-  formulation. Default 75, dbarts's own historical choice; BayesTree's
-  and [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
-  default is 200. In a model of several forests it is the count of the
-  forest with no `basis` and is refused, when named, where every forest
-  has one; see
-  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md). The
-  control a sampler holds has the count of the sampler's first forest.
-  Given to a new fit as it is, such a control hands on the count the
-  sampler's forest with no `basis` had, or the default where it had
-  none, and not the count it shows; a count the caller then writes into
-  it is taken as stated, unless it is the very count the control already
-  shows, which cannot be told from no edit. A written `NULL` is refused,
-  saying to leave the argument out for its default.
+  Deprecated: the number of trees belongs to the model, stated as
+  `n.trees` on
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
+  [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
+  and [`bart`](https://vdorie.github.io/dbarts/reference/bart.md), or on
+  a [`forest`](https://vdorie.github.io/dbarts/reference/forest.md). A
+  count written here is read, after a warning once per session naming
+  where to state it, and the argument is removed in dbarts 1.1-0; beside
+  a forest that states its own count it is refused, and where every
+  forest has a `basis` it has no forest to belong to and is refused. The
+  slot is a copy: a sampler writes it with the count at the fitting
+  function's level, that of the forest with no `basis`, or of the first
+  forest where every forest has one, so reading it gives what the
+  sampler runs. A control taken from a fit sets no count for the next
+  one, and a count it carries that differs from what the call takes
+  draws a warning on every call saying it is not used. A written `NULL`
+  is the argument left out, and a fresh control states none.
 
 - n.chains:
 
@@ -454,7 +475,13 @@ bitwise, as its entry above says.
 
 ## Value
 
-An object of class `dbartsControl`.
+An object of class `dbartsControl`. Besides the settings it was given,
+its `n.trees`, `useQuantiles` and `binary` slots read what the sampler
+that holds it runs, the model's count, the data's rule and whether the
+family is binary; they are copies the sampler writes, kept so that code
+that reads them goes on working, and the family alone decides `binary`.
+A control taken from a fit carries its run settings and nothing else
+into the next fit, through any function that takes a control.
 
 ## See also
 
@@ -466,8 +493,7 @@ An object of class `dbartsControl`.
 ## a small, single-chain, reproducible control for embedding a sampler in a
 ## larger Gibbs loop: one sample per run(), no burn-in, state cached on demand
 control <- dbartsControl(n.chains = 1L, n.threads = 1L,
-                         n.burn = 0L, n.samples = 1L,
-                         n.trees = 25L, seed = 7L,
+                         n.burn = 0L, n.samples = 1L, seed = 7L,
                          updateState = FALSE)
 control
 #> An object of class "dbartsControl"
@@ -498,14 +524,11 @@ control
 #> Slot "n.samples":
 #> [1] 1
 #> 
-#> Slot "n.cuts":
-#> [1] 100
-#> 
 #> Slot "n.burn":
 #> [1] 0
 #> 
 #> Slot "n.trees":
-#> [1] 25
+#> [1] 75
 #> 
 #> Slot "n.chains":
 #> [1] 1
@@ -554,7 +577,7 @@ control
 n <- 50L
 x <- matrix(runif(n * 2L), n, 2L)
 y <- x[, 1L] - x[, 2L] + rnorm(n, 0, 0.2)
-sampler <- dbarts(y ~ x, control = control)
+sampler <- dbarts(y ~ x, control = control, n.trees = 25L)
 samples <- sampler$run()
 str(samples$train)
 #>  num [1:50, 1] 0.0124 -0.6906 0.3492 0.2187 -0.6906 ...
