@@ -281,8 +281,9 @@ NULL, so a written NULL is the same as leaving the name out (dec-B519).
    [`bartcore_setMoveSettings`](../../src/R_interface_bartcore.cpp), as `$setControl`'s move install does; `power` and
    `base` through slice 1's entry, every category on a multinomial model; last `sd`, through
    [`bartcore_setForestSd`](../../src/R_interface_bartcore.cpp), or on a model of one forest through the leaf-prior
-   install. What the `sd` refuses undoes the two before it. No statement a sampler can reach now gets that far, the
-   checks answering it first.
+   install. What the `sd` refuses undoes the two before it: on a model of one forest, an `sd` whose k overflows, which
+   the leaf-prior install refuses in `$setLeafPrior`'s words; on a model of several nothing a sampler can reach now, the
+   bridge's refusal being a backstop.
 5. Record, once the engine holds the values and as creation with that statement would write it, so `identical()`
    holds between the live sampler's records and a creation twin's. Forest 1's depth in the model's tree prior on every
    sampler, the bridge still reading it there, and on a model of several every forest's in its record too, its

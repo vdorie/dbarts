@@ -640,7 +640,11 @@ case("reader forest argument", {
     "'forest' must be given: this sampler has 3 forests",
     "left out, setter"
   )
-  expectFound(refusal(sampler$getForest(4L)), "forest", "out of range")
+  expectFound(
+    refusal(sampler$getForest(4L)),
+    "forest index out of range",
+    "out of range"
+  )
   expectFound(
     refusal(sampler$getForest("nope")),
     "names no forest of this model",
@@ -1301,8 +1305,8 @@ for (row in atomicRows) {
   })
 }
 # The checks come first, and what a write then refuses undoes what went before
-# it: here the engine's own refusal, which a check ahead of it answers on every
-# statement a sampler can now reach.
+# it. A lone forest's sd of 1e308 above is one the leaf-prior install refuses;
+# here is the same on a forest whose sd has no refusal left to reach.
 refusingWrite <- function(sampler, forest, ...) {
   writer <- dbarts:::writeForestDoor
   environment(writer) <- list2env(
@@ -1417,6 +1421,21 @@ case("the variance reader", {
     info = "no variance forest reads"
   )
 })
+case("the variance door stores when told", {
+  sampler <- buildVariance()
+  invisible(sampler$run(0L, 2L))
+  stored <- sampler$state
+  sampler$setVarianceForest(
+    power = sampler$getVarianceForest()$power,
+    updateState = TRUE
+  )
+  expect_identical(sampler$state, stored, info = "variance, no change")
+  sampler$setVarianceForest(power = 0.5, updateState = TRUE)
+  expect_false(
+    identical(sampler$state, stored),
+    info = "variance, a change stores"
+  )
+})
 case("the mean door leaves the variance forest", {
   live <- buildVariance(variance = list(power = 2))
   live$setForest(1L, power = 0.5)
@@ -1470,7 +1489,20 @@ varianceRefusals <- list(
   ),
   list("power", list(power = -1), "forest 'power' must be"),
   list("base with power", list(power = 0.5, base = 2), "forest 'base' must be"),
-  list("rule_gibbs", list(proposal.probs = shipped + c(0, 0, 0, 0, 0.1, 0)), "")
+  list(
+    "rule_gibbs",
+    list(
+      proposal.probs = c(
+        birth_death = 0.4,
+        swap = 0.1,
+        change = 0.2,
+        perturb = 0.2,
+        rule_gibbs = 0.1,
+        birth = 0.5
+      )
+    ),
+    "gives 'rule_gibbs' a positive share"
+  )
 )
 for (row in varianceRefusals) {
   info <- paste("variance refuses,", row[[1L]])
@@ -1568,10 +1600,21 @@ case("the multinomial door takes the forest left out", {
   }
   expectFound(
     refusal(live$getForest(4L)),
-    "forest",
+    "forest index out of range",
     "multinomial, out of range"
   )
   expectAsUntouched(live, buildMultinomial(), NULL, "refused setters")
+  # the reader gives the one statement, whichever category was named and whatever
+  # a hand write left on one of them
+  handWritten <- buildMultinomial()
+  .Call(
+    dbarts:::C_dbarts_bartcore_setForestTreePrior,
+    handWritten$getPointer(),
+    1L,
+    0.6,
+    0.5
+  )
+  expect_identical(handWritten$getForest(2L), read, info = "one statement")
   # the depth reaches every category, from any reader
   live$setForest(power = 0.5)
   for (which in list(1L, 2L, "c")) {
@@ -1591,10 +1634,11 @@ case("the multinomial statement refuses what it has none of", {
     expectFound(message, "multinomial", paste("door reason", name))
     expectAsUntouched(live, buildMultinomial(), NULL, paste("refused", name))
   }
-  expectFound(
+  live <- buildMultinomial()
+  expect_identical(
+    refusal(live$setForest(sd = 1)),
     refusal(buildMultinomial(list(sd = 1))),
-    "multinomial",
-    "creation refuses sd"
+    info = "an sd in the words of creation"
   )
 })
 case("a name on the multinomial entry", {
