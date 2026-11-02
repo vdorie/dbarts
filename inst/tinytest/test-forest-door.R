@@ -1577,6 +1577,7 @@ case("a level read by every forest-indexed reader", {
     getLeafPrior = sampler$getLeafPrior,
     getK = sampler$getK,
     getForestFits = sampler$getForestFits,
+    getForestVariableCounts = sampler$getForestVariableCounts,
     getForest = sampler$getForest
   )
   for (reader in names(readers)) {
@@ -1604,15 +1605,21 @@ case("a level read by every forest-indexed reader", {
     c("a", "b", "c"),
     "a NULL read names its list by levels"
   )
-  colliding <- factor(sample(c("forest2", "b", "c"), n, TRUE))
-  # a level spelled forest<i> names position i, or is refused where it is another
+  # a level spelled forest<i> at another position names two forests and is refused
+  colliding <- factor(
+    sample(c("forest2", "b", "c"), n, TRUE),
+    levels = c("forest2", "b", "c")
+  )
   spelled <- buildMultinomial(response = colliding)
-  levelsThere <- levels(colliding)
-  same(levelsThere, c("b", "c", "forest2"), "the fixture puts forest2 last")
   expectFound(
     refusal(spelled$getForest("forest2")),
-    "forest2",
-    "a level at another position's name is refused by the conflict"
+    "'forest' (\"forest2\") is the label of forest 1 and the name of position 2",
+    "a level at another position's name, by the conflict"
+  )
+  same(
+    spelled$getForest("b"),
+    spelled$getForest(2L),
+    "the level beside it reads by its position"
   )
 })
 
