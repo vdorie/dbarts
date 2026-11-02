@@ -646,6 +646,17 @@ The review runs each and requires a failing test:
 35. RULED, dec-B553. A hazard fit's period column takes `n.cuts` only by its own name and is otherwise at the
     default 100, so one value or one per predictor leaves it there. Alternatives: refuse a count that leaves it out
     (as built before), or let a single value cap it.
+36. `dbartsData()` tests no column's name: it refuses at once only a count no sampler could read, too long, naming a
+    column that is not there, or missing a column other than the last, and keeps the rest for the sampler that
+    reads it. A count one value short is then refused later, by any sampler but a hazard one, and on a plain matrix
+    of three columns `c(7, 8)` could be two predictors and a period, so it waits too. Alternative: a test of the last
+    column's name, under which a person-period matrix with that column named `t` was refused at once.
+37. A hazard door given a count with names on a matrix whose last column is not named `period` refuses with
+    "unrecognized variable name 'period'", a name the caller did not write. Left as is: it takes that matrix and
+    that count, and the sampler is unchanged. Alternative: a message of its own.
+38. Beside several forests with no basis that all state a count, a count on the control is refused by name, as dec-B527
+    has it beside one and dec-B503 for the fitting function's own; one forest leaving it out reads it. Main ran the
+    call and ignored the control's count. No release had `forests`. Alternative: main's silence.
 
 ## Open calls
 
