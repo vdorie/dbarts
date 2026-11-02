@@ -162,14 +162,14 @@ tiers takes the higher.
 
 ## Studies
 
-A study behind a default or a model choice holds up to academic scrutiny,
-and is presented as a small research report: a PDF of at most 5 pages of
-text with as many graphs as needed, self contained and easily read. For a
-default prior it argues as others argue for one, and does not invent its own
-kind of argument (dec-B559). The maintainer's questions of the negative
-binomial study (dec-B558) are ones a study should answer: whether its datasets
-are ones people meet, whether its estimands are natural to each dataset, and
-whether it scores RMSE, bias and, where they apply, heterogeneous effects.
+A study behind changing a default prior holds up to academic scrutiny, and is
+presented as a small research report: a PDF of at most 5 pages of text with as
+many graphs as needed, self contained and easily read. It argues as others argue
+for a default prior, and does not invent its own kind of argument (dec-B559). The
+maintainer's questions of the negative binomial study (dec-B558) are ones it
+should answer: whether its datasets are ones people meet, whether its estimands
+are natural to each dataset, and whether it scores RMSE, bias and, where they
+apply, heterogeneous effects.
 
 ## Landing
 
