@@ -299,11 +299,18 @@ expect_error(m$setLeafPrior(normal(k = chi())), "'k' hyperprior is not suppo")
 expect_error(m$setLeafPrior(normal(k = "chi(1.5)")), "'k' hyperprior")
 expect_error(m$setForest(sd = 1), "a named leaf-prior 'sd'", fixed = TRUE)
 a <- amplitudeSampler(twoDefault)
-expect_error(a$setLeafPrior(normal(k = 3)), "$setForest(forest, sd = )", fixed = TRUE)
+expect_error(
+  a$setLeafPrior(normal(k = 3)),
+  "$setForest(forest, sd = )",
+  fixed = TRUE
+)
 expect_error(a$setLeafPrior(normal(sd = 1)), "multi-forest calibration map")
 expect_error(a$setLeafPrior(forests = list(forest())), "unused argument")
 for (bad in list(0, -1, Inf)) {
-  expect_error(a$setForest(1, sd = bad), "forest 'sd' must be positive and finite")
+  expect_error(
+    a$setForest(1, sd = bad),
+    "forest 'sd' must be positive and finite"
+  )
 }
 for (bad in list(NaN, NA)) {
   expect_error(a$setForest(1, sd = bad), "forest 'sd' must not be NA")

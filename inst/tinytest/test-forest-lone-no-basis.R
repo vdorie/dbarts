@@ -397,8 +397,16 @@ for (family in families) {
     inForce <- unname(wrote$getLeafPrior(1L)$sd)
     wrote$setForest(1, sd = inForce)
     expect_identical(unname(wrote$getLeafPrior(1L)$sd), inForce, info = info)
-    expect_identical(wrote$getK(forest = 1L), twin$getK(forest = 1L), info = info)
-    expect_identical(wrote$run(0L, 6L)$train, twin$run(0L, 6L)$train, info = info)
+    expect_identical(
+      wrote$getK(forest = 1L),
+      twin$getK(forest = 1L),
+      info = info
+    )
+    expect_identical(
+      wrote$run(0L, 6L)$train,
+      twin$run(0L, 6L)$train,
+      info = info
+    )
   }
 }
 
