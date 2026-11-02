@@ -156,6 +156,10 @@ kinds <- list(
   three = list(
     forests = list(mu = list(), tau = factorBasis, gamma = numericBasis),
     target = 3L
+  ),
+  bases.only = list(
+    forests = list(tau = factorBasis, gamma = numericBasis),
+    target = 1L
   )
 )
 
@@ -172,7 +176,11 @@ build <- function(kind, stated = list(), target = NULL) {
     x,
     response,
     forests = forests,
-    n.trees = 8L,
+    n.trees = if (all(vapply(entries, function(e) !is.null(e$basis), NA))) {
+      NULL
+    } else {
+      8L
+    },
     control = ctl(proposal.probs = shipped)
   )
 }

@@ -2342,7 +2342,7 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
   resolved
 }
 
-## A 'amplitude' that states a prior where a forest has no coefficient of its own
+## An 'amplitude' that states a prior where a forest has no coefficient of its own
 ## to give one: a model of one forest, and where two or more forests with no
 ## basis share one total; one stating its 'sd' leaves the share and has its own.
 ## Creation and $setForest refuse it alike.
