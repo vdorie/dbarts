@@ -10,6 +10,14 @@ chi <- dbartsPriors$chi
 invchi <- dbartsPriors$invchi
 chisq <- dbartsPriors$chisq
 forest <- dbartsForests$forest
+fixed <- dbartsPriors$fixed
+dart <- dbartsPriors$dart
+
+# A call that stops reports as its message, so a pin fails by name and the rest
+# of the file still runs.
+reported <- function(expr) {
+  tryCatch(expr, error = conditionMessage)
+}
 
 set.seed(20261101)
 n <- 60L
@@ -118,22 +126,24 @@ fitK <- function(k, ...) {
     ...
   )
 }
-expect_identical(fitK(2L)$yhat.train, fitK(2)$yhat.train)
-expect_identical(fitK(2L)$k, fitK(2)$k)
+expect_identical(reported(fitK(2L)$yhat.train), fitK(2)$yhat.train)
+expect_identical(reported(fitK(2L)$k), fitK(2)$k)
 expect_identical(
-  lone(leaf.prior = normal(k = 2L))$run()$train,
+  reported(lone(leaf.prior = normal(k = 2L))$run()$train),
   lone(leaf.prior = normal(k = 2))$run()$train
 )
 expect_identical(normal(k = 2L)@k, 2)
 expect_true(is.double(chi(1L, 2L)@degreesOfFreedom))
 expect_true(is.double(chi(1L, 2L)@scale))
 expect_identical(
-  lone(leaf.prior = normal(k = chi(2L, 3L)))$getLeafPrior()$leaf.prior,
+  reported(
+    lone(leaf.prior = normal(k = chi(2L, 3L)))$getLeafPrior()$leaf.prior
+  ),
   lone(leaf.prior = normal(k = chi(2, 3)))$getLeafPrior()$leaf.prior
 )
 # a prior object built by hand holds the integer in its slot
 expect_true(is(
-  lone(leaf.prior = new("dbartsNormalPrior", k = 2L)),
+  reported(lone(leaf.prior = new("dbartsNormalPrior", k = 2L))),
   "dbartsSampler"
 ))
 live <- lone()
@@ -142,7 +152,7 @@ expect_identical(unname(live$getK()), 3)
 expect_silent(live$setLeafPrior(normal(k = chi(3L, 2L))))
 # the other doors that take a number
 expect_true(is(
-  dbarts(x, y, leaf.prior = normal(k = 2L), control = ctl()),
+  reported(dbarts(x, y, leaf.prior = normal(k = 2L), control = ctl())),
   "dbartsSampler"
 ))
 expect_true(is(
@@ -284,26 +294,63 @@ for (created in list(normal(), normal(k = 3))) {
 }
 
 # --- integers beyond k --------------------------------------------------------
-# chi() and chisq() store doubles
+# the prior constructors store doubles
 expect_identical(chi(3L, 2L)@degreesOfFreedom, 3)
 expect_identical(chi(3L, 2L)@scale, 2)
 expect_identical(chisq(3L)@df, 3)
+expect_identical(fixed(1L)@value, 1)
+dartInteger <- dart(a = 1L, b = 1L, alpha = 1L, rho = 2L)
+expect_identical(dartInteger@a, 1)
+expect_identical(dartInteger@b, 1)
+expect_identical(dartInteger@alpha, 1)
+expect_identical(dartInteger@rho, 2)
 # an integer degrees of freedom, which bart()'s sigdf reaches, or offset draws
 # as the same number as a double
 drawsOf <- function(...) {
   dbarts(y ~ x1, d, control = ctl(), ...)$run()$train
 }
 expect_identical(
-  drawsOf(family = gaussian(sigma = chisq(3L))),
+  reported(drawsOf(family = gaussian(sigma = chisq(3L)))),
   drawsOf(family = gaussian(sigma = chisq(3)))
 )
 expect_identical(
-  drawsOf(offset = rep(1L, nrow(d))),
+  reported(drawsOf(family = gaussian(sigma = fixed(1L)))),
+  drawsOf(family = gaussian(sigma = fixed(1)))
+)
+expect_identical(
+  reported(
+    dbarts(
+      y ~ x1 + x2,
+      d,
+      split.probs = dartInteger,
+      control = ctl()
+    )$run()$train
+  ),
+  dbarts(
+    y ~ x1 + x2,
+    d,
+    split.probs = dart(a = 1, b = 1, alpha = 1, rho = 2),
+    control = ctl()
+  )$run()$train
+)
+expect_identical(
+  reported(drawsOf(offset = rep(1L, nrow(d)))),
   drawsOf(offset = rep(1, nrow(d)))
 )
 expect_identical(
-  dbartsData(y ~ x1, d, offset = rep(1L, nrow(d)))@offset,
+  reported(dbartsData(y ~ x1, d, offset = rep(1L, nrow(d)))@offset),
   rep(1, nrow(d))
+)
+expect_identical(
+  reported(
+    dbartsData(
+      y ~ x1,
+      d,
+      test = d[1:5, "x1", drop = FALSE],
+      offset.test = rep(1L, 5L)
+    )@offset.test
+  ),
+  rep(1, 5L)
 )
 
 # --- the refusal's hint -------------------------------------------------------

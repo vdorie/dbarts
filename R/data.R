@@ -826,7 +826,6 @@ methods::setMethod(
       .Object@x.test <- modelMatrices$x.test
       .Object@weights <- modelMatrices$weights
       .Object@weights.test <- modelMatrices$weights.test
-      # an integer means what the same number as a double does
       .Object@offset <- integerToDouble(modelMatrices$offset)
       .Object@offset.test <- integerToDouble(modelMatrices$offset.test)
       .Object@bases <- modelMatrices$bases
@@ -2727,13 +2726,7 @@ validateForestBases <- function(
   })
 }
 
-# Validate and subset a user-supplied offset vector for the x/y interfaces
-# (shared by both x/y branches): a NULL passes through unchanged, otherwise
-# the vector is numeric-checked, length-1 recycled (which
-# sets offsetGivenAsScalar = TRUE, a longer vector FALSE), length-validated
-# against 'y', and restricted to 'subset'. offsetGivenAsScalar is threaded in
-# and back out so a NULL offset leaves it untouched. The offsetIsMissing guard
-# that produces the NULL stays inline at each call site.
+# An integer means what the same number as a double does; a factor is not one.
 integerToDouble <- function(x) {
   if (is.integer(x)) {
     storage.mode(x) <- "double"
@@ -2741,6 +2734,13 @@ integerToDouble <- function(x) {
   x
 }
 
+# Validate and subset a user-supplied offset vector for the x/y interfaces
+# (shared by both x/y branches): a NULL passes through unchanged, otherwise
+# the vector is numeric-checked, length-1 recycled (which
+# sets offsetGivenAsScalar = TRUE, a longer vector FALSE), length-validated
+# against 'y', and restricted to 'subset'. offsetGivenAsScalar is threaded in
+# and back out so a NULL offset leaves it untouched. The offsetIsMissing guard
+# that produces the NULL stays inline at each call site.
 validateXYOffset <- function(
   offset,
   initialNumObservations,

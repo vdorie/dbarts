@@ -2963,24 +2963,15 @@ normal <- function(k = NULL, sd = NULL) {
       "family's scale) to a leaf prior, not both"
     )
   }
-  # an integer k means what the same number as a double does
-  if (is.numeric(k)) {
-    k <- as.double(k)
-  }
-  new("dbartsNormalPrior", k = k, prior.sd = sd)
+  new("dbartsNormalPrior", k = integerToDouble(k), prior.sd = sd)
 }
 
 chisq <- function(df = 3, quant = 0.9) {
-  # an integer means what the same number as a double does
-  newValidated(
-    "dbartsChiSqPrior",
-    df = if (is.numeric(df)) as.double(df) else df,
-    quantile = if (is.numeric(quant)) as.double(quant) else quant
-  )
+  newValidated("dbartsChiSqPrior", df = integerToDouble(df), quantile = quant)
 }
 
 fixed <- function(value = 1.0) {
-  newValidated("dbartsFixedPrior", value = value)
+  newValidated("dbartsFixedPrior", value = integerToDouble(value))
 }
 
 ## A coefficient's Student-t prior, student(df) at a forest's 'amplitude' and
@@ -3029,8 +3020,8 @@ chi <- function(df = 1.5, scale = 2.0, degreesOfFreedom) {
   }
   newValidated(
     "dbartsChiHyperprior",
-    degreesOfFreedom = if (is.numeric(df)) as.double(df) else df,
-    scale = if (is.numeric(scale)) as.double(scale) else scale
+    degreesOfFreedom = integerToDouble(df),
+    scale = integerToDouble(scale)
   )
 }
 
@@ -3078,10 +3069,10 @@ dart <- function(
     base = 0.95,
     splitProbabilities = numeric(),
     splitProbabilitiesSpec = NULL,
-    a = a,
-    b = b,
-    rho = if (is.null(rho)) NA_real_ else rho,
-    alpha = alpha,
+    a = integerToDouble(a),
+    b = integerToDouble(b),
+    rho = if (is.null(rho)) NA_real_ else integerToDouble(rho),
+    alpha = integerToDouble(alpha),
     update.alpha = update.alpha,
     update.delay = if (is.null(update.delay)) {
       NA_real_
