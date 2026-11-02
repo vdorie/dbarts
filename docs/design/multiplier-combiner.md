@@ -514,7 +514,7 @@ The chain stays where these units moved from the older ones, in which a forest w
 at `m / 0.674` and a coefficient's prior without the 0.674, and a forest with none trees at 1 and a mixture
 scale of m: each block starts at the rescaled value, `ForestMapEntry::startScale`, once, at creation, and a
 mixture's variance at its square. (a, F) there is (a / g, g F) here, the same state in other units, so the chain
-is the same up to rounding. No later path reads the field.
+is the same kernel, and the same chain until a rounding flips a decision. No later path reads the field.
 
 s is computed once, at a sampler's first creation. R records it on the
 data object, `data@forest.calibration`, and every re-creation passes it back as

@@ -35,8 +35,9 @@ forest with no basis. After it, doubling `sd` doubles the trees' scale on every 
 coefficient has prior median 1; a write of `sd` changes the trees' scale and moves nothing already drawn.
 
 Nothing changes in the model for what runs today. The prior on the coefficient times the trees is the same, and the coefficient's
-start is set once at creation where the chain stays. So the chain is the same to rounding under gaussian and logistic: 24 runs of 4,000
-sweeps, none past 1e-6. Under probit it is the same for about 1,000 sweeps, and then a run can fork where rounding flips a decision:
+start is set once at creation where the chain stays. So the chain is the same until a rounding flips a decision. Under gaussian and logistic: 24 runs of 4,000
+sweeps, none past 1e-6, and 24 of 40,000, none past 1.1e-7; but a run of 20,000 sweeps can part there too, on sbc's first replication in 4 of 6 runs of
+`bcf-weak`, 2 of 6 of `bcf-logistic`, 5 of 6 of `bcf-logistic-weak` and 6 of 6 of `bcf-probit`. Under probit it is the same for about 1,000 sweeps, and then a run can fork where rounding flips a decision:
 a half-Cauchy forest with no basis forked in 4 of 4 runs, at sweeps 811 to 2,266; a numeric forest in 1 of 4, at 3,723; a factor in 0 of 4. A
 forked chain is another run of the same chain: after the fork the fits differ draw by draw by 1.5 to 3.3 and not on average, over 288 seeds
 z -0.39 on the grand mean. No exact arm crosses a fork, so that is a comparison of chains and not an exact reading: [Forks](#forks). The engine has about 100 lines touched and two things go: the mixture-scale write and the 0.674 node
@@ -136,8 +137,8 @@ moves every treatment forest's draws for a 0.07 percent reading.
 
 (a, F) on slice F is (a / g, g F) under this plan, g being 0.674 on a basis forest and the multiple with none: [The start](#the-start). The scale between a
 coefficient and its trees is a gauge. Each block's conditional is equivariant in it, a row's zero bound is relative, a mixture's
-variance scales by the square and its scale by the factor. So if the block starts at the rescaled value the two chains are one chain
-up to rounding.
+variance scales by the square and its scale by the factor. So if the block starts at the rescaled value the two chains are one kernel,
+and one chain until a rounding flips a decision ([Forks](#forks)).
 
 ## Design
 
@@ -194,7 +195,7 @@ Each block starts at what it starts at on slice F, times its start scale, once, 
 | a mixture's v | kappa, or 1 on kind none | kappa / c^2, or 1 / m^2 |
 
 On kind none both reads of m are held: the start scale to 1e-100 through 1e100 and v's start to the squares of those, and the chain runs from there, as the base runs. Nothing else
-reads them. A finite v alone does not do: a sweep squares the coefficient, so a start past about 1e154 overflows there. Up to `sd` 1e100 and down to 1e-100 the chain is still the base's to rounding. [Calls made](#calls-made) 17.
+reads them. A finite v alone does not do: a sweep squares the coefficient, so a start past about 1e154 overflows there. The bound is on the multiple m, `sd` over the unit, and not on `sd`: at a unit of 0.55, `sd` 1e99 and 1e-100 hold (worst difference 3.7e-12) and 1e100 and 1e-101 part (by 1.2 to 1.3 from sweep 1), and at m = 1e100 and 1e-100 exactly the chain holds (worst 1e-8). Where it holds the chain is the base's until a rounding flips a decision. [Calls made](#calls-made) 17.
 
 Why this keeps the chain: with g = c on a basis forest and g = m with none, (a, F) on the base is (a / g, g F) here, the same state in
 other units, so the first conditional is the same draw and so is each one after it, v scaling by 1 / g^2. Run on the port against
@@ -367,7 +368,7 @@ Run on the port at `sd` 0.7, a forest's unit 0.576: every `k.scale` read 0.7, an
 | the map's `amplitude.prior.variance` | kappa / c^2; was kappa | 1 / z^2 under the normal; NaN under a mixture | kappa |
 | `$getForestAmplitudes(f)`, `fit$glue`, raw extract's coefficients | 1.48 times today's; prior median size 1.0007 | today's over m; prior median size 1 | its kind's value |
 | raw `$getForestFits`, `$predictForests`, `extract(fit, "forest")`, `predict(type = "forest")`, `fit$forestFits` | today's times 0.674 | today's times m | as today |
-| `extract(contribution = TRUE)`, the fit, `predict(type = "ppd")` | unchanged to rounding | unchanged to rounding; new under the normal | unchanged |
+| `extract(contribution = TRUE)`, the fit, `predict(type = "ppd")` | unchanged until a rounding flips a decision | unchanged until a rounding flips a decision; new under the normal | unchanged |
 | `print(sampler)`, `print(fit)` | unchanged: `$sd` | "1 forest1: no basis; sd 0.7" | as today |
 | `summary(fit)`, the verbose creation summary | unchanged | "...sd 0.7 (stated); coefficient normal" | as today |
 
@@ -797,7 +798,7 @@ bridge, and the R edits here apply to its R but for F's own sharer refusal (the 
 15. A new slot from a width change stays 1, the multiplier's median, against the earlier form's scaled slot. No R path widens a forest today.
 16. No `larger-sampler` pin: a short run has no power, at an effective sample size of 34 to 41 per 5,000. The full run stays a scratch script (scratch/fan-sw/outer2.R, sd's quartiles 0.869, 1.045, 1.286 against 0.875, 1.059, 1.318), not a gate. Alternative: a benchmarks/R gate, ~80 lines.
 17. At an extreme `sd` a drawn forest with no basis keeps its start finite in the engine and is not refused. The base runs at `sd` 1e-160 and 1e300 on a drawn `student()` forest with no basis; with the start as written, 1 / m^2 overflows v's start or underflows it, and `train` and `sigma` are NaN with no message. A start is
-    not a model, and a refusal would be a new restriction on a value the prior takes. The bound is 1e100 on the start scale and 1e200 on v's start: a finite v alone still gave NaN, since a sweep squares the coefficient, which overflows past about 1e154. At `sd` 1e-100 and 1e100 the fit reads the base's (rmse .289 and .284, .278 and .28, gaussian); past them the chain runs and the forest may be off for a while (.39, .324), with no NaN at `sd` 1e-320 to 1e300, gaussian and probit, df 1 and 3. Pinned at both values (`extreme sd`, `extreme-sd`). Alternative: refuse past some multiple, a limit with no reason in the model.
+    not a model, and a refusal would be a new restriction on a value the prior takes. The bound is 1e100 on the start scale and 1e200 on v's start: a finite v alone still gave NaN, since a sweep squares the coefficient, which overflows past about 1e154. At the multiples 1e-100 and 1e100 the fit reads the base's (rmse .289 and .284, .278 and .28, gaussian); past them the chain runs and the forest may be off for a while (.39, .324), with no NaN at `sd` 1e-320 to 1e300, gaussian and probit, df 1 and 3. Pinned at both values (`extreme sd`, `extreme-sd`). Alternative: refuse past some multiple, a limit with no reason in the model.
 
 ## Open calls
 
