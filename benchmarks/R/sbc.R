@@ -3408,6 +3408,9 @@ if (sys.nframe() == 0L) {
     if (!is.null(burnSweeps)) {
       bcfArgs$burn <- as.integer(ceiling(burnSweeps / thin))
     }
+    if (!is.null(runSeed)) {
+      bcfArgs$seed <- runSeed
+    }
     do.call(runSbcBCF, bcfArgs)
   } else {
     plainArgs <- list(config, R = R, L = L, thin = thin)
