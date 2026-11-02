@@ -676,12 +676,7 @@ runScenarios <- function() {
     copied <- bc$copy()
     copied$run(n.burn, n.samples)
     doubled <- 2 * unname(copied$getLeafPrior(2L)$sd)
-    copied$setLeafPrior(
-      forests = list(
-        dbarts::dbartsForests$forest(),
-        dbarts::dbartsForests$forest(sd = doubled)
-      )
-    )
+    copied$setForest(2L, sd = doubled)
     res <- copied$run(n.burn, n.samples)
     recordChannels(copied, res)
   })

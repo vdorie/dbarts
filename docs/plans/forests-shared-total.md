@@ -380,7 +380,7 @@ the model is `blocks()` with `trees.per.group` at every count.
    forests stands.
 5. Holds (D10): `fixed()` on a forest with no basis taken as the default restated; `student()` on a sharer refused
    where two or more share (D3).
-6. `$setLeafPrior(forests = )` refuses a sharer's sd ([`resolveForestSpreads`](../../R/dbarts.R)). dec-B525 replaces
+6. `$setLeafPrior(forests = )` refuses a sharer's sd (`resolveForestSpreads`). dec-B525 replaces
    this: the refusal goes to forest-door's slice 3, a sharer leaves the group, and this branch keeps it until then.
 7. [`reportLeafPrior`](../../R/dbarts.R) and the k readers follow D8; `prior.sd.of` gains ", shared" on a sharer;
    [`forestPriorLines`](../../R/forestPrint.R) marks the share and gains each forest's tree count, and the fit's

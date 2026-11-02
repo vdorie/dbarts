@@ -324,7 +324,7 @@ arrives on it; that slice changes the example.
   `updateBasisScale`, or of `dbarts()`'s own `n.trees` rides along.
 - No reader, `extract` or margin is renamed by label; dec-B275's list is the multiplier slice's.
 - A number given as `forest` does what it does today, in every method, with today's texts.
-- The two mutation-battery anchors in [`writeForestSpreads`](../../R/dbarts.R) are not edited.
+- The two mutation-battery anchors in `writeForestSpreads` are not edited.
 - No consumer is edited. bartCause's `bcf()` holds the two shapes step 1.10 keeps.
 - Each push leaves the help saying what the code does. Base R calls stay within DESCRIPTION's R floor.
 

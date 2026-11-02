@@ -3,6 +3,7 @@
 Status: PLANNED 2026-10-30 on c55a1477 (dec-B518); amended after its blind critique (scratch/fd-crit/report.md,
 probes c1.R to c10.R there) and its re-check (scratch/fd-crit/recheck.md); rewritten the same day for the
 maintainer's rulings dec-B519 to dec-B525. Slice 1 is built and reviewed LAND (branch forest-door-s1, da875712).
+Slice 2 is built on branch forest-door over 341a1c1ed, its step 0 amending this plan; a fresh review and its mutants follow.
 No call is held; the rulings' own open questions are ruled too, in [Open calls](#open-calls). Rulings:
 dec-B518 (the door), dec-B519 (a written NULL), dec-B520 (the names), dec-B521 (multinomial), dec-B522 (no return
 spelling), dec-B523 (later write wins), dec-B524 (the variance forest), dec-B525 (a sharer stating its size),
@@ -92,7 +93,8 @@ control-migration's slice 1a (60b960ed) and forests-shared-total (c8ad05e2):
   which restates `sd` alone, refuses itself on one forest, and is used at 45 call sites in 9 tinytest files; and
   `setForestBasis` and `setForestWeights`, by label or position through
   [`samplerForestIndex`](../../R/bartcore.R). The forest-indexed readers are `getLeafPrior`, `getK`,
-  `getForestFits`, `getForestAmplitudes`, `getForestVariableCounts`, `getTrees(forest = )` and `predictForests`.
+  `getForestFits`, `getForestAmplitudes`, `getForestVariableCounts` and `getTrees(forest = )`. `predictForests` takes
+  no forest and refuses a multinomial model.
 - After slice 1a the model holds one `dbartsForestRecord` per forest of a model of several (`n.trees`, `stated`,
   `base`, `power`, `held.amplitude`, `sd`, `amplitude.df`, `vars`, `interactions`, `blocks`, `label`, `basis.term`,
   `moves`) and a `dbartsVarianceRecord`. `stated` is a character slot, today only the count's. A record's `sd` is NA
@@ -111,10 +113,12 @@ control-migration's slice 1a (60b960ed) and forests-shared-total (c8ad05e2):
   `forest(sd = 2)` sampler, k drawn again, and `$setModel` with a changed power on a `forest(x, power = 3)` sampler.
   dec-B523 keeps all three.
 - A multinomial sampler (matrix interface only) takes one `forests` entry for every category forest; a name on that
-  entry is taken and ignored (c6); the category forests have no labels, though print shows the levels, which
-  `data@response.levels` holds. Slice 1's engine install takes a per-category value and moves draws, so a
+  entry is taken and ignored (c6); the category forests have no labels. The levels are the column names of the count
+  matrix ([`dataCounts`](../../R/bartcore.R)), there being no `data@response.levels` and no levels block in print.
+  Slice 1's engine install takes a per-category value and moves draws, so a
   per-category change could be made; it is simply not offered (dec-B521).
-- `forest(amplitude = normal())` is refused; `fixed()` and `student(df)` are taken.
+- `forest(amplitude = normal())` is taken (forest-amplitude-normal, built over forests-shared-total); `fixed()` and
+  `student(df)` too. On a forest with a basis it records and draws what leaving it out does.
 - `getLeafPrior(2)` on a heteroscedastic sampler is out of range; no reader shows a forest's power or base.
 
 ## Design
@@ -148,7 +152,7 @@ is one).
 
 | name | lone forest | sharer | no basis, stating `sd` | basis: factor | basis: numeric | multinomial, every category | variance forest |
 |---|---|---|---|---|---|---|---|
-| `sd` | its size, written as `$setLeafPrior(normal(sd = v))` writes it | leaves the group, slice 3; refused until then | the trees' scale: its size, held, or under `student(df)` or `normal()` its size at a coefficient of 1, the coefficient's prior median (dec-B550) | the level difference's size, the same way | the size per unit of the column, the same way | refused, as at creation | not a name |
+| `sd` | its size, written as `$setLeafPrior(normal(sd = v))` writes it | a group of two or more: leaves the group, slice 3, refused until then; a lone forest with no basis beside forests with a basis: taken, leaving the leaf prior with no forest as creation's `sd` does | the trees' scale: its size, held, or under `student(df)` or `normal()` its size at a coefficient of 1, the coefficient's prior median (dec-B550) | the level difference's size, the same way | the size per unit of the column, the same way | refused, as at creation | not a name |
 | `power`, `base` | its depth | its depth | its depth | its depth | as factor | its depth | its depth |
 | `amplitude` | `fixed()` | `fixed()`; `student()` refused, as at creation | `fixed()`, `student(df)`, `normal()` | `fixed()`, `normal()`, `student(df)` | as factor | not a name | not a name |
 | `proposal.probs`, `n.perturb.cuts` | its own | its own | its own | its own | its own | its own | its own |
@@ -228,8 +232,8 @@ into `$setLeafPrior(forests = )` and says its `sd` is the one `$setForest` state
 ### The variance forest
 
 It takes the mean forest's depth at creation; after that `$setTreePrior`, `$setModel` and `$setForest(1, )` leave it
-as it is and `$setVarianceForest` changes it (dec-B524). The help says so, on `$setForest`, `$setTreePrior`,
-`$setModel` and `$setVarianceForest`; ~15 lines with its pin. No heteroscedastic-exact arm: main's call does not
+as it is and `$setVarianceForest` changes it (dec-B524). The help says so, on `$setForest`, `$setModel` and
+`$setVarianceForest`, and on `$setTreePrior` with setmodel-parameters' slice 4, which builds it; ~15 lines with its pin. No heteroscedastic-exact arm: main's call does not
 move. So the twin of `$setForest(1, power = 4)` on a heteroscedastic sampler created at 2 is a creation stating
 forest power 4 and variance forest power 2.
 
@@ -240,14 +244,14 @@ The category forests take one statement (dec-B521):
 - `s$setForest(power = 4)` and `s$getForest()` take them together with `forest` left out.
 - `s$getForest(2)` and `s$getForest("b")` are taken like every other reader and return the one statement, a plain list
   like any other; one help sentence says it covers every category (dec-B535).
-- `s$setForest(2, power = 4)` and `s$setForest("b", power = 4)` are refused, a position or a level alike: "a
+- `s$setForest(2, power = 4)` and `s$setForest("b", power = 4)` are refused, position 1 too, a position or a level alike: "a
   multinomial model's forests take one statement, so this would change every category; write
   s$setForest(power = 4)".
 - A name on the one creation entry is refused at creation ("a multinomial model's one forest entry states every
   category forest and takes no name"), ~10 lines, a call main takes and no release had.
 - The category forests take the response's levels as labels on every forest-indexed reader (`getLeafPrior("b")`,
   `getK("b")`, `getForestFits`, `getForestAmplitudes`, `getForestVariableCounts`, `getTrees(forest = "b")`,
-  `predictForests` and `getForest`), `forest<i>` still position i, a level that collides with another position's
+  and `getForest`), `forest<i>` still position i, a level that collides with another position's
   `forest<i>` refused by `selectForest`'s existing conflict message. The NULL-reads that name their list by labels
   name it by levels. This pays dec-B276's debt; ~120 lines, ~50 of code. TODO multinomial-forest-labels closes.
 
@@ -272,20 +276,25 @@ NULL, so a written NULL is the same as leaving the name out (dec-B519).
    sharers, the multinomial refusals of [`refuseMultinomialLeafPrior`](../../R/dbarts.R)), factored out of
    [`resolveSamplerSpec`](../../R/spec.R) where they are inline so that one function serves both doors. Creation's
    rule against one setting at two levels stays creation's.
-4. Install each changed part, every check done first: `sd` through
-   [`bartcore_setForestSd`](../../src/R_interface_bartcore.cpp), or on a lone forest through the single-forest
-   leaf-prior install; `power` and `base` through slice 1's entry, every category on a multinomial model; move
-   settings by rewriting the move record and calling
-   [`bartcore_setMoveSettings`](../../src/R_interface_bartcore.cpp), as `$setControl`'s move install does. A failure
-   after a write rolls back, as `$setControl` rolls its control back.
-5. Record: the forest's record as creation with that statement would write it, `stated` gaining what was written;
-   the model's tree prior for forest 1 on every sampler, and the leaf prior on a lone forest, so `identical()` holds
-   between the live sampler's records and a creation twin's.
+4. Install each changed part, every check done first, in the order that leaves only the `sd` able to refuse after a
+   write: move settings by rewriting the move record and calling
+   [`bartcore_setMoveSettings`](../../src/R_interface_bartcore.cpp), as `$setControl`'s move install does; `power` and
+   `base` through slice 1's entry, every category on a multinomial model; last `sd`, through
+   [`bartcore_setForestSd`](../../src/R_interface_bartcore.cpp), or on a model of one forest through the leaf-prior
+   install. What the `sd` refuses undoes the two before it. No statement a sampler can reach now gets that far, the
+   checks answering it first.
+5. Record, once the engine holds the values and as creation with that statement would write it, so `identical()`
+   holds between the live sampler's records and a creation twin's. Forest 1's depth in the model's tree prior on every
+   sampler, the bridge still reading it there, and on a model of several every forest's in its record too, its
+   `stated` gaining the name in creation's order; a model of one has no depth or statedness in its record (NA). A
+   model of one's `sd` in the leaf prior, by what `$setLeafPrior` writes in that leaf model; on a model of several in
+   the record, and where it was the last forest with no basis stating none, the fitting function's leaf prior is left
+   with no forest, as creation leaves it.
 
 ### What goes and what is never built
 
-- `$setLeafPrior(forests = )` goes with [`resolveForestSpreads`](../../R/dbarts.R) and
-  [`writeForestSpreads`](../../R/dbarts.R); `forests = ` becomes R's unused-argument error, as `forest(leaf.prior = )`
+- `$setLeafPrior(forests = )` goes with `resolveForestSpreads` and
+  `writeForestSpreads`; `forests = ` becomes R's unused-argument error, as `forest(leaf.prior = )`
   did under dec-B508. It never shipped, so it takes no tombstone. `$setLeafPrior` keeps `leaf.prior`. Its 45 call
   sites are respelled.
 - `$setTreePrior(forests = , variance = )` is never built: setmodel-parameters' slice 4 builds `$setTreePrior(power,
@@ -332,11 +341,14 @@ pins and test-forest-tree-prior-install.R. It merges with slice 2. Neutral: noth
 3. `$setLeafPrior(forests = )` removed; the 45 call sites respelled to `$setForest`.
 4. The cross-forest checks factored out of [`resolveSamplerSpec`](../../R/spec.R) where they are inline.
 5. [Multinomial models](#multinomial-models), the labels included.
-6. `forest(amplitude = normal())`.
+6. `forest(amplitude = normal())`: built already by forest-amplitude-normal; the door only reads it.
 7. The variance forest's help sentences and pin.
-8. A sharer's `sd`, by whatever `samplerSharers` names, refused, a value equal to the one in force excepted: "this
-   forest shares one prior total with forests ...; a forest's own size cannot be changed live yet: make a new
-   sampler". On main only; slice 3 replaces it. It moves here from forests-shared-total's `resolveForestSpreads`.
+8. A sharer's `sd`, where `samplerSharers` names two or more, refused, a value equal to the one in force excepted:
+   "this forest shares one prior total with forests ...; a forest's own size cannot be changed live yet: make a new
+   sampler". On main only; slice 3 replaces it. It moves here from forests-shared-total's `resolveForestSpreads`. A
+   lone forest with no basis beside forests with a basis is named by `samplerSharers` too, at a share of 1; its `sd` is
+   taken, as forests-shared-total's own route took it, dec-B525's end state with no group to leave, and its twin is a
+   creation stating that `sd`.
 
 Slice 2 builds on slice 1a's tip because the door reads and writes the records slice 1a moves onto the model.
 
@@ -554,7 +566,7 @@ setmodel-parameters' slice 4; this item's slice 3; coefficient-prior-live. Engin
    `stated`'s new names or `share`. dec-B526, dec-B527: nothing here reads them; `$setForest(n.trees = )` is refused
    whatever they say. Records step for its writer.
 3. forests-shared-total: its D10 "a restated sd" and R item 6 are replaced by dec-B525; slice 2 moves its refusal to
-   `$setForest` and slice 3 removes it. Both edit [`resolveForestSpreads`](../../R/dbarts.R), which this item deletes.
+   `$setForest` and slice 3 removes it. Both edit `resolveForestSpreads`, which this item deletes.
    dec-B528 touches nothing here. Records step for its writer.
 4. setmodel-parameters' slice 4: takes slice 1's install and reads `stated`; owns the fitting-function doors on several
    forests under dec-B522 and dec-B523; closes its open call 2 by dec-B524. Its R reads the group from the engine, not
@@ -611,6 +623,29 @@ setmodel-parameters' slice 4; this item's slice 3; coefficient-prior-live. Engin
 14. `share` on `ForestSpec` and not `ForestStatement`: a statement is what a forest's caller wrote, and no caller wrote
     this. Alternative: on the statement, where `setForestMapSd`'s copy would carry it past a leave.
 
+## Calls made at slice 2
+
+Each the builder's, none in a ruling; the alternative after it.
+
+1. The reader's `sd` on a numeric forest carries no column name: the value `forest(sd = )` takes, whose named form is
+   refused. Alternative: the column's name, as `getLeafPrior` reads it.
+2. The reader's `sd` is NULL wherever no one positive finite number is in force, beyond the drawn k the plan names:
+   `normal(k = Inf)`, a unit that is not positive. Alternative: the 0 or Inf, which the door refuses handed back.
+3. `$getVarianceForest()` reads NULL on a sampler with none. Alternative: refused, as its setter is.
+4. An inert call with `updateState = TRUE` stores nothing, writing nothing being the rule. Alternative: store, as
+   `$setLeafPrior`'s inert path does.
+5. A multinomial `s$setForest(1, power = )` is refused as position 2 is. Alternative: position 1 taken, which reads as
+   one category.
+6. `$getForest` on a lone forest and a sharer reads `amplitude = fixed()`, the plan's table. A lone forest refuses every
+   other `amplitude` in creation's words.
+7. What a forest has no name for in its door is "unused argument 'x': $setForest takes forest, sd, ...", not R's bare
+   form, because `...` catches it. Alternative: R's own message, which cannot be had past `...`.
+8. A multinomial `amplitude` at the door is refused "a multinomial model's forests have no coefficient: its forests take
+   no 'amplitude'", and at creation `forest(amplitude = fixed())` on that entry is still taken and ignored, as on main,
+   while `student()` and `normal()` are refused for having one forest. The two doors differ on `fixed()` only. Recommended
+   for a later sweep: refuse it at creation by the door's words. Alternative: take the value in force at the door, of a
+   name the kind does not have.
+
 ## Open calls
 
 1. RULED, dec-B520 (2026-10-30). The door's name. Shown `setForest` (recommended), `updateForest` and `setForestPrior`,
@@ -653,7 +688,7 @@ setmodel-parameters' slice 4; this item's slice 3; coefficient-prior-live. Engin
 ## Not verified
 
 - Slice 3's engine is from reading forests-shared-total as built, not a prototype: every row of its table is a reading.
-  Slice F is not built; the lone sharer's paths are from its plan.
+  Slice F is built and slice 2 ran its lone sharer's paths.
 - The stated-sizes twin's 1e-8 is a judgment: rounding could flip an accept within a short run on some seed, and the
   builder fixes the seed and says so.
 - control-migration's slice 1a is built and awaits a ruling on its direct-door rows, with no effect on what this plan

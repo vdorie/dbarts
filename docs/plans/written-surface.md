@@ -435,7 +435,7 @@ multiplier-rule slice's, in tests/cpp; nothing in R states one and this slice ad
   and defaults are a later slice's).
 - Nothing of `tree.prior`, of `leaf.prior` on `forest()` or of `updateBasisScale` rides along.
 - `dbartsForests$forest(n.trees = )` called outside any argument keeps working: three consumers call it.
-- The two mutation-battery anchors in [`writeForestSpreads`](../../R/dbarts.R) are not edited.
+- The two mutation-battery anchors in `writeForestSpreads` are not edited.
 - Each push leaves the help saying what the code does.
 - Base R calls stay within DESCRIPTION's R floor.
 
@@ -475,7 +475,7 @@ reader's sake; the implementer may name them otherwise.
     on a basis of one numeric column is refused until the multiplier slice holds that column at 1: at
     creation, every door, with the [1] text naming the forest by its position (`resolveSamplerSpec`), and
     by `$setForestBasis` on a forest that holds its coefficient, before anything is installed.
-    [`resolveForestSpreads`](../../R/dbarts.R) names `amplitude` in its fixed-at-creation text.
+    `resolveForestSpreads` names `amplitude` in its fixed-at-creation text.
     Tests, a new file test-forest-arguments.R: `fixed()` on both forests leaves the amplitudes at their
     starting values over 50 sweeps and gives other draws than the drawn model (fails today: could not find
     function); `fixed`, `fixed(1)`, `fixed(1L)` and `NULL` accepted, each asserting the eighth number it gives, `fixed(2)`, `fixed(c(1, 1))`,
@@ -670,7 +670,7 @@ reader's sake; the implementer may name them otherwise.
     is refused.
 3.6 Labels, by "The label rule": the multi-forest block of [`resolveSamplerSpec`](../../R/spec.R) records
     them, [`packageBartResults`](../../R/bart.R) attaches them always, and
-    [`resolveForestSpreads`](../../R/dbarts.R) checks names against them. Tests: every literal of the
+    `resolveForestSpreads` checks names against them. Tests: every literal of the
     rule at both doors (fails today: `NULL`), the two refusals, the suffix, a held formula's label, the
     labels unchanged by a swap.
 3.7 [`setForestBasis`](../../R/dbarts.R): a value, or a one-sided formula read as a basis is; columns by

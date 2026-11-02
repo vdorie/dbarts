@@ -547,11 +547,10 @@ numericSampler <- function(arm, control) {
     if (isTRUE(arm$writeMid)) {
       invisible(sampler$run(50L, 1L))
     }
-    written <- rep(list(dbarts::dbartsForests$forest()), length(created))
-    written[[arm$writeForest]] <- dbarts::dbartsForests$forest(
+    sampler$setForest(
+      arm$writeForest,
       sd = arm$forests[[arm$writeForest]]$sd
     )
-    sampler$setLeafPrior(forests = written)
   }
   sampler
 }

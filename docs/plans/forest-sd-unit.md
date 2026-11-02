@@ -47,7 +47,7 @@ read from, and before the kind by class and the multiplier slice, so that every 
 and help page states an sd once, in the unit it keeps, and reads it back in the shape it keeps. Serial
 with any other work in [`forestParams`](../../R/model.R), the multi-forest block of
 [`resolveSamplerSpec`](../../R/spec.R), [`reportLeafPrior`](../../R/dbarts.R),
-[`writeForestSpreads`](../../R/dbarts.R), [`extractParameter`](../../R/generics.R),
+`writeForestSpreads`, [`extractParameter`](../../R/generics.R),
 [`applyForestRecords`](../../src/R_interface_bartcore.cpp),
 [`applyAmplitudeSpec`](../../src/R_interface_bartcore.cpp), [`ForestSpec`](../../src/bartcore/combiner.hpp),
 [`AmplitudeForestCombiner`](../../src/bartcore/combiner.hpp) or the K-forest constructor of
@@ -141,7 +141,7 @@ the coefficient is held.
 
   | place | today | unit |
   |---|---|---|
-  | `forest(sd = s)` at creation; `$setLeafPrior(forests = list(forest(sd = s)))` | s goes to the engine as given ([`forestParams`](../../R/model.R), [`writeForestSpreads`](../../R/dbarts.R)) | of L |
+  | `forest(sd = s)` at creation; `$setLeafPrior(forests = list(forest(sd = s)))` | s goes to the engine as given ([`forestParams`](../../R/model.R), `writeForestSpreads`) | of L |
   | `$getLeafPrior(f)$leaf.prior` | `forest(sd = s)`, s the engine's own number, stated or not | of L |
   | `$getLeafPrior(f)$k.scale` | the forest's own prior standard deviation, before its coefficient: L for a forest with no basis, s L / 0.674 over the row norm for one with a basis | the response's |
   | `amplitude.prior.scale`, `leaf.scale.factor` entries | s again | of L |
@@ -426,9 +426,9 @@ weights of which ten are 0.
      draws (the pair script's row), and the reader's entry says 2.
 4. The reader, the writer and `extract`. [`reportLeafPrior`](../../R/dbarts.R) builds `leaf.prior`,
    `sd` and `sd.stated` from what the bridge reports, by rule 5, and names the list it returns for
-   every forest by the forests' labels; [`resolveForestSpreads`](../../R/dbarts.R) keeps the writer's
+   every forest by the forests' labels; `resolveForestSpreads` keeps the writer's
    form, one number a forest, an entry with no sd leaving its forest alone, and
-   [`writeForestSpreads`](../../R/dbarts.R) writes the stated number to the engine and into the
+   `writeForestSpreads` writes the stated number to the engine and into the
    configuration's `sd`; [`extractParameter`](../../R/generics.R) returns, for a fit of several forests,
    the list of the stored reader's `sd` entries named by label, and
    [`selectForests`](../../R/generics.R) hands back the entry itself where one forest is selected, as it

@@ -106,7 +106,7 @@ a two-level `z`. The critic reproduced every premise below on its own install (s
   the reader's entries in `fit$leaf.prior` and the hold in `fit$fixed$amplitude` (p3).
 - A live sampler: `$setLeafPrior(forests = list(forest(), forest(amplitude = fixed())))` is "$setLeafPrior
   restates only a forest's 'sd': 'amplitude' is fixed at creation" (p3;
-  [`resolveForestSpreads`](../../R/dbarts.R)).
+  `resolveForestSpreads`).
 - The family door resolves families and priors in one vocabulary, `c(dbartsFamilies, dbartsPriors)`, whose names
   its comment calls disjoint ([`resolveFamily`](../../R/family.R)). Where two entries share a name the FIRST is
   bound: `vocabularyEnv` assigns `vocabulary[[name]]` (the critic's probe).

@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (130 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (131 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:` line or `## Status` section; the one plan with neither,
@@ -27,6 +27,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | multiforest-veto-rate-falsifier.md | RUN AND REPORTED (YELLOW both column types), 2026-08-09 | Measured the acceptance-rate cost of the empty-leaf veto applying to every forest in an ensemble rather than one; the cost is acceptable. |
+| forest-door.md | BUILT slices 1 and 2 on branch forest-door over 341a1c1ed (dec-B518 to B525); slice 3 after setmodel-parameters' slice 4 | A live sampler changes one forest through `$setForest`, by label, in `forest()`'s names, with its reader, a variance forest's pair, and a sharer leaving its group |
 | forest-amplitude-normal.md | LANDED 2026-11-03 (dec-B562); planned 2026-10-30 (dec-B539), rewritten for dec-B550; sbc's bcf-probit `abs.a` tripped dec-B557's rule, read as shared with the base, a longer-burn rerun to follow | The trees carry `sd` on every forest, held or drawn, a drawn coefficient is a multiplier with median 1, a write of `sd` moves no leaf, coefficient or auxiliary, and `forest(amplitude = normal())` on a forest with no basis: no new prior, the chain the same until a rounding flips a decision through a start set once at creation. |
 | one-forest-basis.md | NOT TAKEN 2026-09-29 (dec-A109) | Opens the lone basis-carrying forest, `y = shift + (B a) f(x)`, under gaussian, probit and logistic (dec-A109): the combiner stops rounding its forest count up to two, six bridge guards and four R gates key on carrying amplitudes rather than on two forests, xbart and rbart_vi refuse a bases-carrying data object, and it lands with an exact-posterior gate, SBC arms and equivalence scenarios. Records that the model is not VCBART's, which ships as K = p + 1. |
 

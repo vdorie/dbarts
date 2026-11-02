@@ -170,7 +170,7 @@ Ruled after the first two were applied:
    become optional in both, `dart.alpha` no longer required beside `dart.probabilities`.
 3. R. Re-state a named sd after the install in the three paths that install a state. Drop every NA branch of
    [`reportLeafPrior`](../../R/dbarts.R) and the NA-sd refusal in
-   [`resolveForestSpreads`](../../R/dbarts.R).
+   `resolveForestSpreads`.
 4. `setSigma` on a sampler that does not draw sigma records the value on the model field.
 5. The warm start through the same install rule; the lengthscale refusal, with its own flag beside those the
    install already reports.

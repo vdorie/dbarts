@@ -855,30 +855,17 @@ items
     beside setForestBasis's; it waits for setData on several forests,
     refused today (dec-B362). setForestBasis(updateBasisScale = TRUE)
     landed (dec-A244).
-  forest-door: ruled, not built (dec-B518). A live sampler changes one
-    forest through $setForest(forest, sd = , power = , base = ,
-    amplitude = , proposal.probs = , n.perturb.cuts = ), by label or
-    position, changing only what it states and refusing structure by name;
-    $getForest(forest) gives the statement in force in the same names;
-    the variance forest has $setVarianceForest(...) and its reader;
-    setForestBasis and setForestWeights stay. $setLeafPrior and
-    $setTreePrior keep only the fitting function's level. Replaces the
-    forests = lists of setmodel slice 4's door and dec-B515's second
-    level. Open, for VD: the name, multinomial category labels, the
-    spelling that returns a forest to the fitting function's level. For
-    1.0-0, with setmodel slice 4. forest(amplitude = normal()) at
-    creation on every kind landed with forest-amplitude-normal, and with
-    it statedCoefficientPrior, the decoder $getForest and its "value in
-    force" comparison take; slice 2 keeps the door half.
+  forest-door: ruled (dec-B518 to B525, B535, B538 to B540, B550). Slices 1 and 2 are built on
+    the branch forest-door: $setForest, $getForest, $setVarianceForest, $getVarianceForest;
+    $setLeafPrior(forests = ) gone. Slice 3, a sharer leaving its group, is required for 1.0-0 and
+    follows setmodel-parameters' slice 4. docs/plans/forest-door.md.
   leaf-prior-writer-by-level: the reader is built (getLeafPrior carries sd and
     sd.stated on one forest, one record, the size called the forest's; a drawn
     k reads sd NA, as a sharer's does). Owed (dec-B515, dec-B518):
     $setLeafPrior(leaf.prior) on a sampler of several forests, reaching each
     forest that states no sd of its own and refused only where creation
-    refuses the same statement (setmodel-parameters' slice 4); forests = on a
-    sampler of one forest, which the $setForest door takes (forest-door).
-    The help clause on a student() forest with no sd refusing $setLeafPrior goes with
-    forest-door. The creation summary of invchi(df, 0) still reads "chi ... inf scale".
+    refuses the same statement (setmodel-parameters' slice 4). The creation
+    summary of invchi(df, 0) still reads "chi ... inf scale".
   split-probs-one-named-value: split.probs = c(x2 = .9) reads today as uniform with no
     message, a length-one specification losing its name, where n.cuts = c(x2 = 10) is refused
     (dec-B547). Run 2026-10-30. To put to the maintainer, with the rest of split.probs's doors,

@@ -77,7 +77,7 @@ Read, and run on main at 7c264c37 (shipped build, arm64 macOS):
   base = 0.95, power = 2, columns = NULL)`), so they do not follow `setModel` (TODO
   variance-forest-inherited-tree-prior). `setControl` refuses a changed `n.trees`; `$setLeafPrior(forests = )`
   restates a forest's `sd` and refuses any other knob as "fixed at creation"
-  ([`resolveForestSpreads`](../../R/dbarts.R); run).
+  (`resolveForestSpreads`; run).
 - The mixture and window at creation. The bridge reads the control's slots
   ([`parseProposalProbs`](../../src/R_interface_bartcore.cpp)) into
   [`SamplerOptions`](../../src/bartcore/chain.hpp). The single-forest chain copies them onto its one

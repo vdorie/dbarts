@@ -418,7 +418,7 @@ the forest record; the mirror helper and record; the bridge reads of [The bridge
 [`resolveSamplerSpec`](../../R/spec.R) writes the records in place of the attributes, from what main resolves;
 the readers move: [`fitTreeCounts`](../../R/generics.R), [`forestPriorLines`](../../R/forestPrint.R), the fit
 packagers in R/bart.R, the hazard periods of partial dependence, `getSigmas`, `samplePriorPredictive`,
-`getTrees` (its column still as main), [`resolveForestSpreads`](../../R/dbarts.R) and
+`getTrees` (its column still as main), `resolveForestSpreads` and
 [`writeLeafPrior`](../../R/dbarts.R), `setResponse(status = )`, xbart's cell models and handle, forest-after-merge's
 label read if it has landed; `$setControl`'s attribute loops go. No reading changes: the doors read the count and
 the cut settings from the control exactly where main does, `control.n.trees`, the carried count of a model whose
