@@ -397,7 +397,7 @@ gives each column its own, where main and 0.9-34 read it by position (A/B rows `
 at the default 100 (dec-B553, revising dec-B547 in part): `c(5, 7, 9)` on three predictors gives 5, 7, 9, 100, `5`
 gives 5, 5, 5, 100, `c(x1 = 5, .default = 9)` gives 5, 9, 9, 100 and `c(period = 5, .default = 5)` gives 5, 5, 5, 5; four
 unnamed values stay by position, `c(x2 = 7)` and `c(5, 7)` are refused counting the caller's predictors, and a count a
-data object carries for its predictors leaves the period at 100. Main recycled `5` over the period and took
+data object carries for its predictors leaves the period at 100. `dbartsData()` takes a count a hazard sampler could read, one value short or by name without `period`, as written, and a sampler of any other kind refuses it where it reads it; no column's name switches a check, and it refuses at once only a count no sampler could read. Main recycled `5` over the period and took
 `c(5, 7, 9)`, reading the period at 5 and 100; a hazard fit at `n.cuts = 5` no longer matches the binary fit on the
 expanded design at `5` unless it names `period`, and draws move only on a hazard fit stating a count (A/B rows
 `b553.*`). `split.probs` keeps its refusal naming `period`. A data object's slots are read-only copies (dec-B554): a

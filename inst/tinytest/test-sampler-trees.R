@@ -694,10 +694,15 @@ expect_equal(colnames(declared$copy()$getTrees()), treeCols)
 
 # a control taken from another sampler does not carry that sampler's
 # configuration: not a forests declaration, and not a variance forest
-plainFromDeclared <- dbarts::dbarts(
-  y ~ x1,
-  treeDf,
-  control = declared$control
+# the donor's 3 trees are not this fit's 75, and the control says so
+expect_warning(
+  plainFromDeclared <- dbarts::dbarts(
+    y ~ x1,
+    treeDf,
+    control = declared$control
+  ),
+  "is not used",
+  class = "dbartsControlNotUsedWarning"
 )
 invisible(plainFromDeclared$run())
 expect_equal(colnames(plainFromDeclared$getTrees()), treeCols)
@@ -715,7 +720,11 @@ varianceDonor <- dbarts::dbarts(
   n.trees = 3L
 )
 expect_false(is.null(varianceDonor$model@variance))
-noVariance <- dbarts::dbarts(y ~ x1, treeDf, control = varianceDonor$control)
+expect_warning(
+  noVariance <- dbarts::dbarts(y ~ x1, treeDf, control = varianceDonor$control),
+  "is not used",
+  class = "dbartsControlNotUsedWarning"
+)
 expect_null(noVariance$model@variance)
 invisible(noVariance$run())
 expect_null(noVariance$run()$variance)

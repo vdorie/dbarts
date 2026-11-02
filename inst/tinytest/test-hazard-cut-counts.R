@@ -228,7 +228,14 @@ hazardFit <- dbarts(
 )
 personPeriod <- hazardFit$data@x
 atDoors <- function(value) {
-  given <- dbartsData(personPeriod, hazardFit$data@y, n.cuts = value)
+  given <- NULL
+  expect_silent(
+    given <- dbartsData(personPeriod, hazardFit$data@y, n.cuts = value),
+    info = deparse(value)
+  )
+  if (is.null(given)) {
+    return(list(setData = NULL, hand = NULL))
+  }
   swapped <- hazardFit$copy()
   swapped$setData(given)
   by.hand <- new("dbartsSampler", run(), hazardFit$model, given)
@@ -239,7 +246,8 @@ for (case in list(
   list(c(x1 = 3L, .default = 7L), c(3L, 7L, 7L, 100L)),
   list(c(period = 3L, .default = 7L), c(7L, 7L, 7L, 3L)),
   list(c(7L, 8L, 9L, 10L), c(7L, 8L, 9L, 10L)),
-  list(c(7L, 8L, 9L), c(7L, 8L, 9L, 100L))
+  list(c(7L, 8L, 9L), c(7L, 8L, 9L, 100L)),
+  list(c(x1 = 4L, x2 = 5L, x3 = 6L), c(4L, 5L, 6L, 100L))
 )) {
   got <- atDoors(case[[1L]])
   expect_identical(got$setData, case[[2L]], info = deparse(case[[1L]]))
@@ -296,6 +304,55 @@ expect_error(
   ),
   "predictor column"
 )
+# and so is a count missing the period by name, at every door that reads it as
+# a plain model: dbartsData() keeps both as written, since a hazard fit's
+# sampler reads them
+shortCounts <- list(
+  unnamed = list(c(7L, 8L, 9L), "predictor column"),
+  named = list(
+    c(x1 = 4L, x2 = 5L, x3 = 6L),
+    "missing values for columns 'period'"
+  )
+)
+for (case in names(shortCounts)) {
+  given <- NULL
+  expect_silent(
+    given <- dbartsData(
+      personPeriod,
+      hazardFit$data@y,
+      n.cuts = shortCounts[[case]][[1L]]
+    ),
+    info = case
+  )
+  if (is.null(given)) {
+    next
+  }
+  expect_error(
+    plainFit$copy()$setData(given),
+    shortCounts[[case]][[2L]],
+    info = case
+  )
+  expect_error(
+    new("dbartsSampler", run(), plainFit$model, given),
+    shortCounts[[case]][[2L]],
+    info = case
+  )
+  expect_error(
+    dbarts(given, control = run(), n.trees = 5L),
+    shortCounts[[case]][[2L]],
+    info = case
+  )
+}
+# a hazard fit created with the named count reads it as the data object does
+named <- dbarts(
+  x,
+  Y,
+  family = "hazard",
+  n.cuts = c(x1 = 4L, x2 = 5L, x3 = 6L),
+  control = run(),
+  n.trees = 5L
+)
+expect_identical(named$data@n.cuts, c(4L, 5L, 6L, 100L))
 
 # a count stated on the control beside the same one given flat is no mismatch
 notUsed <- function(e) {

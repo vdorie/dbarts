@@ -4261,18 +4261,20 @@ dbartsData <- function(
   )
   if (!is.null(stated$n.cuts)) {
     counts <- stated$n.cuts
-    # one value per predictor of a hazard fit, whose period column is not the
-    # caller's: held as written for the sampler that reads it, the period at 100
-    result@n.cuts <- if (
-      is.null(names(counts)) &&
-        length(counts) > 1L &&
-        length(counts) == ncol(result@x) - 1L &&
-        identical(utils::tail(colnames(result@x), 1L), "period")
-    ) {
-      c(counts, 100L)
-    } else {
-      readCutCounts(counts, result@x)
-    }
+    # a count over every column is read here. One a hazard fit's sampler could
+    # read, over the columns before the period it appends, which dbartsData()
+    # cannot know, is held as written for the sampler that reads it, and a
+    # sampler of any other kind refuses it there. One no sampler could read is
+    # refused here, with the message of the plain reading.
+    result@n.cuts <- tryCatch(
+      readCutCounts(counts, result@x),
+      error = function(plain) {
+        tryCatch(
+          readCutCounts(counts, result@x, hazard = TRUE),
+          error = function(hazard) stop(plain)
+        )
+      }
+    )
     attr(result, statedCountAttr) <- counts
   }
   if (!is.null(stated$useQuantiles)) {

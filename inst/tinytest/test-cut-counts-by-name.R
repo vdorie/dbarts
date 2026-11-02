@@ -19,7 +19,11 @@ doors <- list(
     dbarts(form, frame, n.cuts = v, control = run())$data@n.cuts
   },
   matrix = function(v) dbarts(X, y, n.cuts = v, control = run())$data@n.cuts,
-  data = function(v) dbartsData(form, frame, n.cuts = v)@n.cuts,
+  # a data object states the count as written, and the sampler it goes to reads
+  # it over its columns, so a refusal is the door's
+  data = function(v) {
+    dbarts(dbartsData(form, frame, n.cuts = v), control = run())$data@n.cuts
+  },
   control = function(v) {
     suppressWarnings(dbarts(form, frame, control = run(n.cuts = v)))$data@n.cuts
   },
@@ -86,6 +90,21 @@ for (door in names(doors)) {
     info = door
   )
 }
+
+# dbartsData() refuses only a count that no door could read. One short in
+# values, which a hazard fit's sampler reads over the columns before the period
+# it appends, is kept as written and refused where a sampler reads it; the
+# refusals above are the doors'
+expect_silent(dbartsData(form, frame, n.cuts = c(25L, 10L)))
+expect_error(dbartsData(form, frame, n.cuts = 1:4), "'n.cuts' has 4 values")
+expect_error(
+  dbartsData(form, frame, n.cuts = c(zz = 10L, x1 = 25L, x2 = 5L, x3 = 1L)),
+  "unrecognized variable name 'zz'"
+)
+expect_error(
+  dbartsData(form, frame, n.cuts = c(x2 = 10L)),
+  "missing values for columns 'x1', 'x3'"
+)
 
 # a single named value is named, taken where it names the only column
 expect_identical(

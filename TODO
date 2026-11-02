@@ -922,9 +922,10 @@ items
     among them a hazard fit's refusal of a vector leaving out period, where n.cuts takes it (dec-B553).
   consumer-slot-writes: stan4bart (R/generics.R, R/stan4bart_fit.R, R/stan4bart.R), bartCause
     (R/responseFit.R) and treatSens (R/cibart.R) write a data object's slots before handing it on
-    (x, x.test, sigma, n.cuts). A data object's slots are read-only copies (dec-B554): move each to
-    an accessor where one exists, and name what is missing. treatSens's n.cuts goes with
-    control-migration's consumers.
+    (x, x.test, sigma, n.cuts, useQuantiles). A data object's slots are read-only copies (dec-B554):
+    move each to an accessor where one exists, and name what is missing. treatSens's n.cuts goes
+    with control-migration's consumers. stan4bart's n.cuts and useQuantiles writes stay until its
+    dbartsData call, built before bart_args is read, can take bart_args.
   coefficient-prior-live: ruled, not built (dec-B511). On a live sampler,
     $setForest(amplitude = ) (dec-B518) changes a forest's coefficient between held
     and drawn (dec-B254) and between the normal and student(df), and a

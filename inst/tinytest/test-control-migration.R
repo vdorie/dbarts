@@ -177,7 +177,10 @@ expect_identical(
 expect_identical(records[[1L]]@interactions$max.order, 1L)
 expect_false(is.null(records[[2L]]@blocks))
 expect_identical(records[[2L]]@moves$proposal.probs[["swap"]], 0.1)
-expect_identical(vapply(records, function(r) r@stated, ""), rep("n.trees", 3L))
+expect_identical(
+  lapply(records, function(r) r@stated),
+  rep(list("n.trees"), 3L)
+)
 expect_null(attr(threeForests$control, "bartcore.forests"))
 for (twin in twins(threeForests)) {
   expect_identical(forestCounts(twin), c(9L, 6L, 4L))
