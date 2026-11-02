@@ -285,7 +285,7 @@ for (created in list(normal(), normal(k = 3))) {
   before <- s$getLeafPrior(1L)$sd
   expect_error(
     s$setLeafPrior(normal(k = 4)),
-    "takes forests = ",
+    "state a forest's size with $setForest(forest, sd = )",
     fixed = TRUE
   )
   expect_silent(s$setLeafPrior(normal(k = 2)))

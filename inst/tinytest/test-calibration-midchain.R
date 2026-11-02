@@ -371,7 +371,7 @@ expect_error(badValues$setLeafPrior(prior.sd = 1), "unused argument")
 expect_error(badValues$setLeafPrior(prior.mean = 0), "unused argument")
 expect_error(
   badValues$setLeafPrior(normal(sd = 1), forest = 1L),
-  "takes no 'forest' index"
+  "unused argument"
 )
 # the leaf model is $setModel's to change
 expect_error(
@@ -553,7 +553,7 @@ expect_identical(bcf$getK(), rbind(bcf$getK(1L), bcf$getK(2L)))
 
 expect_error(
   bcf$setLeafPrior(normal(sd = 0.75)),
-  "multi-forest calibration map.*forest\\(sd = \\)"
+  "multi-forest calibration map.*setForest\\(forest, sd = \\)"
 )
 
 # the multinomial coupling, through the public sampler its forests live on
