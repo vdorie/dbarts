@@ -138,9 +138,12 @@
 \S4method{getK}{dbartsSampler}(forest = NULL)
 \S4method{setLeafPrior}{dbartsSampler}(leaf.prior, updateState = NULL)
 \S4method{getForest}{dbartsSampler}(forest = NULL)
-\S4method{setForest}{dbartsSampler}(forest = NULL, sd = NULL, power = NULL, base = NULL, amplitude = NULL, proposal.probs = NULL, n.perturb.cuts = NULL, treeShift = NULL, updateState = NULL, ...)
+\S4method{setForest}{dbartsSampler}(forest = NULL, sd = NULL, power = NULL, base = NULL,
+    amplitude = NULL, proposal.probs = NULL, n.perturb.cuts = NULL, treeShift = NULL,
+    updateState = NULL, ...)
 \S4method{getVarianceForest}{dbartsSampler}()
-\S4method{setVarianceForest}{dbartsSampler}(power = NULL, base = NULL, proposal.probs = NULL, n.perturb.cuts = NULL, updateState = NULL, ...)
+\S4method{setVarianceForest}{dbartsSampler}(power = NULL, base = NULL,
+    proposal.probs = NULL, n.perturb.cuts = NULL, updateState = NULL, ...)
 \S4method{installTrees}{dbartsSampler}(donor, samples = NULL, forceUpdate = FALSE)
 \S4method{sampleNodeParametersFromPrior}{dbartsSampler}(updateState = NULL)
 \S4method{startThreads}{dbartsSampler}(n.threads = control@n.threads)
