@@ -94,12 +94,11 @@ point lower than under the drawn coefficient.
   coefficient in `fixed$amplitude` whether or not `fixed()` is written; where k is drawn `summary` tabulates it, a
   named drawn total as `leaf.prior.sd`, and `extract` reads per forest: `type = "k"` a sharer's draws and another
   forest's number, `type = "leaf.prior.sd"` each sharer's `k.scale` over each draw, `forest = NULL` the named list.
-- On a live sampler, with two or more sharers, a sharer's `sd` through `$setLeafPrior(forests = )` and the
+- On a live sampler, with two or more sharers, a sharer's `sd` through `$setForest` and the
   sampler's `leaf.prior` are refused by name; a size or total is stated at creation, and changing either live
   waits on the forest door, the sd on its slice 3, a sharer leaves the group (dec-B525). A lone sharer takes the `sd`
-  and leaves the leaf prior, k pinned at 1, as creation stating it does (dec-B525's end state), the sd in force
-  keeping the prior, bitwise at a held k of 2 and otherwise to rounding; the reader's own `leaf.prior` written back moves nothing, and
-  `$setLeafPrior(leaf.prior)` takes only a restatement of the one in force.
+  and leaves the leaf prior, k pinned at 1, as creation stating it does (dec-B525's end state); the sd in force given back moves nothing
+  (dec-B538), and `$setLeafPrior(leaf.prior)` takes only a restatement of the one in force.
 
 Without a forest with a basis, `y ~ forest(x1) + forest(x2) + forest(x3)` is then the one-forest model
 `y ~ forest(x1 + x2 + x3, blocks = blocks(list("x1", "x2", "x3")))` with the same trees per group, at every

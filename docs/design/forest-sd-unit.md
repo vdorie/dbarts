@@ -7,7 +7,7 @@ dec-B269 as dec-B280 and dec-B282 revise it, and dec-B296, dec-B302 and dec-B309
 from, in docs/decisions.md.
 
 A forest's `sd` is a number of the response's units wherever it is written or read: `forest(sd = )` at
-creation, `$setLeafPrior(forests = )`, what `$getLeafPrior()` returns, and `extract(type = "leaf.prior.sd")`.
+creation, `$setForest(f, sd = )`, what `$getLeafPrior()` returns, and `extract(type = "leaf.prior.sd")`.
 The units are those of y under a gaussian response and those of the latent index under probit and logistic.
 
 ## 1. The rule
@@ -32,9 +32,8 @@ The units are those of y under a gaussian response and those of the latent index
    where one was stated, and `forest()` where none was); `sd`, the number in force in the response's units,
    which is v bit for bit or the default's multiple times the unit; and `sd.stated`. With no forest it returns
    those lists named by the forests' labels.
-6. Write. `$setLeafPrior(forests = )` with `forest(sd = v)` states v: the forest is a stated one from then on,
-   also where v is the number in force, in which case no bit of the prior moves
-   ([`Chain::setForestMapSd`](../../src/bartcore/chain.hpp)). An entry `forest()` leaves its forest as it is.
+6. Write. `$setForest(f, sd = v)`, v not the number in force, which changes nothing, states v: the forest is a stated one from then on
+   ([`Chain::setForestMapSd`](../../src/bartcore/chain.hpp)).
 7. `extract(type = "leaf.prior.sd")` on a fit of several forests returns the reader's `sd` entries as a list
    named by label, and the entry itself where one forest is selected.
 8. The unit is derived once, by the engine, at a first creation, and recorded beside the anchor

@@ -156,5 +156,5 @@ and `"trees"`, and `predict(type = "forest")`. One function reads the argument,
   label. `extract(type = "trees")` and `plotTree` hand their forest to the sampler.
 
 A list given forest by forest is read by position. A name on an entry of `predict(bases = )` or of
-`$setLeafPrior(forests = )` must be that position's label or `forest<i>`, and any other is refused, so that a
+`$setLeafPrior(forests = )`, since replaced by `$setForest`, which selects a forest as the readers do, must be that position's label or `forest<i>`, and any other is refused, so that a
 list in another order is not read in silence as the order of its positions.

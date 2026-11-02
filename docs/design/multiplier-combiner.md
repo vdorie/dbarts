@@ -651,7 +651,7 @@ reported forest, in exactly the bytes a one-forest declaration receives.
   ([`Chain::setForestNamedSd`](../../src/bartcore/chain.hpp)). What a live
   sampler restates is what its creation took: a forest's `sd`, in the channel
   creation gave it ([`Chain::setForestMapSd`](../../src/bartcore/chain.hpp)),
-  reached from `$setLeafPrior(forests = )`. There is no flat C entry for it.
+  reached from `$setForest(f, sd = )`. There is no flat C entry for it.
 
 The classes the family ENABLES, and their evidence status, are
 [D4. The general per-forest multiplier (basis/amplitude) channel - CLOSED (2026-08-13 to 2026-08-14)](model-space-survey.md#d4-the-general-per-forest-multiplier-basisamplitude-channel---closed-2026-08-13-to-2026-08-14):

@@ -538,9 +538,10 @@ forest(
     \code{leaf.prior = normal(sd = )}, in the same units, and stating the size
     at both places is refused.
 
-    It is the one argument a live sampler restates:
-    \code{$setLeafPrior(forests = list(forest(sd = ), ...))} states it from
-    then on, also where it is the number in force, and leaves the recorded
+    A live sampler restates it through \code{$setForest(forest, sd = )}, as
+    it does \code{power}, \code{base} and the move settings; it states it
+    from then on, unless it is the number in force, which changes nothing,
+    and leaves the recorded
     \eqn{\mathrm{sd}(w)}{sd(w)}. \code{$getLeafPrior(f)$leaf.prior} returns
     the statement, \code{forest(sd = )} where one was stated and
     \code{forest()} where none was, and \code{forest()} written back leaves
@@ -751,10 +752,10 @@ forest(
   function's leaf prior as \code{leaf.prior}, its part in force as
   \code{sd} (\code{NA} where \code{k} is drawn) and \code{prior.sd.of}
   \code{"forest, shared"}, and \code{$getK(f)} the group's \code{k}.
-  The part of a group is fixed at creation: \code{$setLeafPrior(forests = )}
-  refuses an \code{sd} stated for such a forest, and
+  The part of a group is fixed at creation: \code{$setForest} refuses an
+  \code{sd} other than the one in force for such a forest, and
   \code{$setLeafPrior(leaf.prior)} is refused on its sampler. One forest alone
-  leaves the leaf prior by \code{$setLeafPrior(forests = )} as by stating
+  leaves the leaf prior by \code{$setForest(forest, sd = )} as by stating
   \code{sd} at creation, its \code{k} then pinned at 1. Printed, a line after the forests' own gives
   each forest's tree count and their total, and another which forests share.
 

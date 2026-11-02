@@ -644,7 +644,7 @@
             (\code{type = "forest"}) or combined. A forest's size is its
             \code{sd}, \code{forest(sd = )}, a number of the response's
             units (those of the latent index under probit and logistic),
-            which \code{$setLeafPrior(forests = )} restates and
+            which \code{$setForest} restates and
             \code{$getLeafPrior()} returns, with whether it was stated; the
             one forest of a single-forest model states its size as
             \code{leaf.prior = normal(sd = )}. A numeric forest that
@@ -665,6 +665,14 @@
             \code{extract} and \code{predict} as \code{type = "sigma"}
             in place of a scalar sigma. For gaussian and \code{"aft"}
             responses.
+      \item A live sampler changes one forest through
+            \code{$setForest(forest, sd = , power = , base = , amplitude = ,
+            proposal.probs = , n.perturb.cuts = , treeShift = )}, by label or
+            position, in \code{forest()}'s names, leaving the trees as they
+            are, and \code{$getForest(forest)} gives every value in force as
+            a list that goes back with no change.
+            \code{$setVarianceForest} and \code{$getVarianceForest} do the
+            same for the variance forest.
       \item Constraints. \code{monotone = c(x1 = "increasing", x2 =
             "decreasing")}, or \code{1}, \code{-1} and \code{0} by name
             or position, makes the fit monotone in those predictors
