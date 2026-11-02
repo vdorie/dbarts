@@ -324,11 +324,21 @@ startAt <- function(multiple, prior) {
 }
 for (prior in list(normalPrior(), studentPrior(3), studentPrior(1))) {
   info <- class(prior)
-  expect_equal(startAt(1e60, prior), 1e-60, tolerance = 1e-12, info = info)
+  expect_equal(startAt(1e60, prior) / 1e-60, 1, tolerance = 1e-12, info = info)
   expect_equal(startAt(1e-60, prior), 1e60, tolerance = 1e-12, info = info)
-  expect_equal(startAt(1e100, prior), 1e-100, tolerance = 1e-12, info = info)
+  expect_equal(
+    startAt(1e100, prior) / 1e-100,
+    1,
+    tolerance = 1e-12,
+    info = info
+  )
   expect_equal(startAt(1e-100, prior), 1e100, tolerance = 1e-12, info = info)
-  expect_equal(startAt(1e101, prior), 1e-100, tolerance = 1e-12, info = info)
+  expect_equal(
+    startAt(1e101, prior) / 1e-100,
+    1,
+    tolerance = 1e-12,
+    info = info
+  )
   expect_equal(startAt(1e-101, prior), 1e100, tolerance = 1e-12, info = info)
 }
 
