@@ -355,16 +355,19 @@ items
     the help says a re-derived basis scale (updateBasisScale, dec-B303)
     and the response scale may span different rows.
   nbinom-default-prior: the negative binomial default stays k drawn
-    under chi(1.5, 2) (dec-B431, VD 2026-10-10) after the prior
-    predictive study of dec-B412. The maintainer judged the study
-    flawed and the default improvable: under it 1 prior dataset in 100
-    has a spread of the log mean across rows ten times the widest real
-    dataset's, and 5 to 10 percent hold a count the package refuses.
-    A redesigned study (the criterion fixed first and in absolute
-    terms, count data with wide spreads, chains long enough for k to
-    mix, candidates beyond the prior on k) runs before 1.0-0, after the
-    merge to main (dec-B432, VD 2026-10-10); a change of default comes
-    back to the maintainer. The first study's note:
+    under chi(1.5, 2) for now, and the question is not closed (dec-B558,
+    VD 2026-11-02: "I don't feel like we're done with this, but we can
+    keep (a) for now."). The redesigned study (dec-B432) kept it under
+    its rule; two referees returned major revision and neither supports
+    a change on its evidence. At real spreads the priors barely differ,
+    what decided lay in small stretched cells, and the prior still fails
+    the prior check. Reopening takes a study to the standard of dec-B559:
+    arguing as others argue for default priors (Murray's data-scaled rule
+    for log-linear BART was never scored), on estimands natural to each
+    dataset, with RMSE, bias and heterogeneous effects scored. Some
+    failures are not a prior's: on the study's confounded design, error
+    in individual effects is 0.218 against a true effect sd of 0.183, and
+    group means cover 0.456, under either prior. The first study's note:
     docs/design/nbinom-prior-predictive.md.
   per-chain-responses: for VD to schedule (dec-B419, VD 2026-10-09;
     note docs/design/per-chain-responses.md). Responses and offsets
