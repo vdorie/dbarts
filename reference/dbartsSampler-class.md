@@ -2477,25 +2477,30 @@ carrying one of `k`, a number or a `chi()` prior, or `sd`, a number or
 an `invchi()` prior, the family default when none was named - which goes
 back into `setLeafPrior` or a fitting function's `leaf.prior` as is;
 `leaf.model`, one of `"constant"`, `"monotone"`, `"linear"`, or `"gp"`;
-`prior.sd.of`, what the sd is the sd of: `"leaf value"`, `"coefficient"`
+`prior.sd.of`, what the sd is the sd of: `"forest"`, `"coefficient"`
 (linear, per standardized covariate) or `"amplitude"` (gp);
 `prior.mean`; `k.scale`, the value `k` is relative to, so the spread in
 force on each chain is `k.scale / getK()` - the data's scale, which the
 family and the response transform fix and no spelling of the prior
 moves, so that under an `sd`-named prior `k` is `k.scale` over the sd;
-and `response.scale` and `response.shift`. A fixed `k` is the one in
-force, read off the engine; an `sd`, a number or under `invchi()`, is
-reported as it was named. Every chain runs under the sampler's one prior
-and one response transform, which no state install moves, so every value
-is shared by the chains. A drawn `k` is chain state, read by `getK`. At
-the default `forest = NULL` a multi-forest sampler returns a list of one
-prior per forest, named by the forests' labels where the forests have
-them, which a multinomial sampler's category forests do not; a
-single-forest sampler's `NULL` read is bitwise its `forest = 1` read. An
-`NA` spread is refused by `setLeafPrior`, `setModel` and the fitting
-functions. On a forest whose scale a multi-forest calibration map sets,
-`k` is pinned at 1 and `leaf.prior` is the statement of the forest's
-size:
+and `response.scale` and `response.shift`. A forest the calibration map
+does not set also carries, after `leaf.prior`, `sd`, its size in force
+in the response's units - `k.scale` over `k` at a fixed `k`, the number
+as stated where an `sd` was, and `NA` where `k` is drawn or the `sd` is
+under `invchi()`, which have no one number - and `sd.stated`, whether
+the leaf prior is named by an `sd`, at creation or through
+`setLeafPrior`. A fixed `k` is the one in force, read off the engine; an
+`sd`, a number or under `invchi()`, is reported as it was named. Every
+chain runs under the sampler's one prior and one response transform,
+which no state install moves, so every value is shared by the chains. A
+drawn `k` is chain state, read by `getK`. At the default `forest = NULL`
+a multi-forest sampler returns a list of one prior per forest, named by
+the forests' labels where the forests have them, which a multinomial
+sampler's category forests do not; a single-forest sampler's `NULL` read
+is bitwise its `forest = 1` read. An `NA` spread is refused by
+`setLeafPrior`, `setModel` and the fitting functions. On a forest whose
+scale a multi-forest calibration map sets, `k` is pinned at 1 and
+`leaf.prior` is the statement of the forest's size:
 [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)`(sd = v)`,
 `v` the number as it was written, where an `sd` was stated, and
 [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) where
@@ -2526,8 +2531,10 @@ alone or sharing one prior total with others (see
 [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)), reads
 as one forest does, under the fitting function's leaf prior:
 `leaf.prior` is that prior as named, `sd` the forest's part of the total
-in force, `NA` where `k` is drawn, `sd.stated` `FALSE`, `multiplier`
-`"none"`, `amplitude` `fixed()`, `prior.sd.of` `"forest"` alone and
+in force, `NA` where `k` is drawn, `sd.stated` `FALSE`, the sd being the
+fitting function's and not its own (a one-forest sampler reads `TRUE`
+when its leaf prior is named by an sd), `multiplier` `"none"`,
+`amplitude` `fixed()`, `prior.sd.of` `"forest"` alone and
 `"forest, shared"` in a group, and `k.scale` over the `k` its part.
 
 On a forest whose scale the multi-forest CALIBRATION MAP sets, on a
@@ -2601,17 +2608,21 @@ no forest takes the leaf prior, `normal(k = 2)`, which change nothing,
 is refused there. A forest with no basis stating neither `sd` nor
 `student()` alone leaves the leaf prior at an `sd` stated for it, its
 `k` then pinned at 1, and takes a `leaf.prior` only restating the one in
-force, so `normal(k = 2)` is refused unless it is the one in force.
-Where forests with no basis share one prior total, their part is fixed
-at creation: an `sd` stated in `forests` for one of them is refused, as
-is every `leaf.prior`, the total being the leaf prior they were created
-under; make a new sampler to change it. Both writes are recorded where
-re-creation reads them. The map's k.scale is recorded at creation too,
-so a re-creation after `setResponse` or `setOffset` at
-`updateScale = FALSE` states every forest against the same k.scale as
-the live sampler. A value that is not a single positive finite number is
-an error. A heteroscedastic sampler's variance forest is a separate leaf
-model and is not addressable. `setModel` changes everything else.
+force, so `normal(k = 2)` is refused unless it is the one in force. A
+forest with no basis stating `student()` and no `sd` takes its size from
+the leaf prior at creation only: `normal()` and `normal(k = 2)` are
+taken and change nothing, whatever `k` it was created at, and every
+other `leaf.prior` is refused. Where forests with no basis share one
+prior total, their part is fixed at creation: an `sd` stated in
+`forests` for one of them is refused, as is every `leaf.prior`, the
+total being the leaf prior they were created under; make a new sampler
+to change it. Both writes are recorded where re-creation reads them. The
+map's k.scale is recorded at creation too, so a re-creation after
+`setResponse` or `setOffset` at `updateScale = FALSE` states every
+forest against the same k.scale as the live sampler. A value that is not
+a single positive finite number is an error. A heteroscedastic sampler's
+variance forest is a separate leaf model and is not addressable.
+`setModel` changes everything else.
 
 For `storeState`, `NULL` invisibly; it is called for its side effect of
 capturing the sampler's current engine state into the serializable
