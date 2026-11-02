@@ -146,6 +146,7 @@ forestCoefficientInForce <- function(raw) {
 ## to. A multinomial model's forests take one statement, read from its one
 ## record.
 forestInForce <- function(sampler, index, ptr) {
+  force(index)
   model <- sampler$model
   multinomial <- samplerCarriesCounts(sampler)
   holder <- forestDepthHolder(model, if (multinomial) 1L else index)
@@ -183,8 +184,8 @@ varianceForestInForce <- function(sampler) {
 
 ## The names of `given`, a door's arguments with those NULL gone, each validated
 ## as creation validates it, and with those equal to the value in force dropped
-## too. treeShift's validated value is the slot's tri-state, which forest()
-## takes in words.
+## too; a name with no value in force is not equal to one. treeShift's validated
+## value is the slot's tri-state, which forest() takes in words.
 changedForestSettings <- function(given, inForce, label) {
   given <- given[!vapply(given, is.null, NA)]
   if (length(given) == 0L) {
@@ -196,6 +197,9 @@ changedForestSettings <- function(given, inForce, label) {
     function(name) {
       value <- given[[name]]
       current <- inForce[[name]]
+      if (is.null(current)) {
+        return(TRUE)
+      }
       switch(
         name,
         amplitude = !sameCoefficientPrior(
