@@ -1790,7 +1790,7 @@ forestMoveRecord <- function(specs, numForests, variance) {
 
 ## A forest's 'amplitude': NULL, which draws its coefficient under its kind's
 ## default prior; fixed(), which holds it at 1, the basis carrying the coding;
-## or normal() or student(df), which draw it under that prior with median 1.
+## or normal() or student(df), which draw it under that prior with median size 1.
 ## Returns "fixed" for the hold and the normal() or student() object as it is. A
 ## bare fixed, normal or student is the constructor called, as a constructor
 ## given where a value is.
@@ -1867,7 +1867,7 @@ sdKindRefused <- function(sd) {
 ## A forest's 'sd', at creation and on $setLeafPrior: one number, finite and
 ## positive, a name on it dropped as base R drops one. Infinity states no
 ## prior the map can scale, so it is refused rather than carried into a leaf
-## scale or a half-Cauchy median. A number is a numeric or integer, whatever
+## scale. A number is a numeric or integer, whatever
 ## class it carries.
 validateForestSd <- function(sd) {
   if (isSingleNA(sd) || (is.numeric(sd) && length(sd) == 1L && is.nan(sd))) {
@@ -1908,8 +1908,8 @@ plainForest <- function(hasBasis) {
 }
 
 ## Of the forests with no basis at `plain`, which take the fitting function's
-## leaf prior: those stating no 'sd', a sharer's total or the median of an
-## amplitude = student(). The engine reads the same rule from the same
+## leaf prior: those stating no 'sd', a sharer's total or the size of a drawn
+## coefficient's trees. The engine reads the same rule from the same
 ## statements.
 leafPriorForests <- function(specs, plain) {
   plain[vapply(

@@ -108,7 +108,7 @@ printedForest <- function(entry, basis, rowsIn, full, label, family) {
   }
   switch(
     entry$multiplier,
-    # with no sd stated, a drawn forest with no basis has its median from the
+    # with no sd stated, a drawn forest with no basis has its size from the
     # leaf prior, whichever that is
     none = paste0(
       "no basis; sd ",

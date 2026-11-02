@@ -102,8 +102,9 @@
       and on a hurdle fit, whose two parts are on different scales.
       \code{NULL} leaves either unnamed; \code{NA} is a missing value and is
       refused, here and in \code{linear} and \code{gp}. A bare \code{normal()}
-      given as a forest's \code{amplitude} is something else, a normal prior with
-      median 1 on that forest's drawn coefficient; see \code{\link{forest}}.
+      given as a forest's \code{amplitude} is something else, a normal prior on
+      that forest's drawn coefficient whose median size is 1 (on a factor, the
+      difference between two levels' coefficients); see \code{\link{forest}}.
     }
     \item{\code{linear(columns, k = NULL, sd = NULL)}}{
       Each leaf fits an intercept plus a linear term in the designated

@@ -18,7 +18,7 @@ by the class of its basis ([forest-kind-by-class.md](forest-kind-by-class.md)). 
 the basis row times the forest's coefficients, times the forest's own fit F. s is the forest's `sd`
 in the response's units; U is the unit ([forest-sd-unit.md](forest-sd-unit.md)).
 
-F has sd s on every row, held or drawn (dec-B550). A drawn coefficient is a multiplier with prior median 1,
+F has sd s on every row, held or drawn (dec-B550). A drawn coefficient is a multiplier with prior median size 1,
 and no coefficient's prior reads s. z is z_.75, the normal's upper quartile; c is bcf's rounding of it, 0.674.
 
 | the forest multiplies | drawn, `normal()` or left out | drawn, `amplitude = student(nu)` | held, `amplitude = fixed()` |

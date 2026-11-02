@@ -648,8 +648,9 @@
             \code{$setForestBasis(updateBasisScale = TRUE)} reads again
             from the replacement column, for burn-in. A forest's \code{sd} is
             the scale of its trees; a drawn coefficient is a multiplier with
-            prior median 1, under a normal prior, or a heavy-tailed one as
-            \code{amplitude = student(df)}.
+            prior median size 1 (on a factor, the difference between two
+            levels' coefficients), under a normal prior, or a heavy-tailed one
+            as \code{amplitude = student(df)}.
       \item Heteroscedastic BART (Pratola et al. 2020): \code{variance = ~ x1
             + x2}, \code{variance = TRUE} or a
             \code{\link{varianceForest}} in \code{bart} and \code{dbarts}

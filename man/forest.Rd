@@ -468,9 +468,10 @@ forest(
     Where the coefficient is held, by \code{amplitude = fixed()} or on a forest
     with no basis that states no prior, it is 1, what it multiplies is the
     basis, and "size" is the prior standard deviation, exactly. Where it is
-    drawn it is a multiplier with prior median 1: the forest's size is the
-    coefficient times \code{sd}, uncertain, and a coefficient of 1 means the size
-    stated.
+    drawn it is a multiplier whose prior median size is 1 (on a factor, the
+    difference between two levels' coefficients, a level's own being 0.71): the
+    forest's size is the coefficient times \code{sd}, uncertain, and a
+    coefficient of size 1 means the size stated.
 
     Not stated, \code{sd} for a forest with no basis is the size the fitting
     function's leaf prior gives the one forest of a fit, beside whatever other
@@ -612,7 +613,9 @@ forest(
     prior with \code{df} degrees of freedom, finite and at least 1;
     \code{student()} is \code{student(1)}, the half-Cauchy. On every kind a
     drawn coefficient's prior median size is 1, under \code{normal()} and
-    \code{student(df)}, so only the tails move: a coefficient ten times its
+    \code{student(df)}, so only the tails move (on a factor it is the
+    difference between two levels' coefficients that has median size 1, a
+    level's own having 0.71): a coefficient ten times its
     median size has prior probability 0.06 under \code{student(1)}, 0.005 under
     \code{student(3)} and about \eqn{10^{-11}}{1e-11} under the normal. That
     tail lets the coefficient follow a multiplier whose scale is far from what
@@ -628,8 +631,9 @@ forest(
     prognostic prior is written \code{amplitude = student(1), sd = 2 * sd(y)},
     with \code{sd = 1} under \code{"probit"} and \code{sd = pi / sqrt(3)} under
     \code{"logistic"}.
-    The draw is exact, a normal coefficient given a variance drawn from its
-    inverse-gamma conditional. \code{fixed()} holds it for the sampler's life,
+    The draw is exact: under \code{student(df)} a normal coefficient given a
+    variance drawn from its inverse-gamma conditional, under \code{normal()}
+    a normal coefficient alone. \code{fixed()} holds it for the sampler's life,
     the choice being made at creation, wherever the forest stands: a held
     coefficient is 1, and what it multiplies is the basis, so a forest with no
     \code{basis} enters at 1, a forest on a numeric column at the column as
@@ -650,8 +654,7 @@ forest(
     alone as \code{student()}; no other value is, a response family among them.
     Outside the argument that takes them the constructors are
     \code{dbartsPriors$fixed()}, \code{dbartsPriors$normal()} and
-    \code{dbartsPriors$student()}, and inside \code{forest()} a function of your
-    own named \code{normal} is not reached. The prior is stated for a forest of a model
+    \code{dbartsPriors$student()}. The prior is stated for a forest of a model
     of several, at creation; a model of one forest has no coefficient to give
     a prior, so there \code{fixed()} restates the default and \code{normal()}
     and \code{student()} are refused, its size being drawn through the fitting function's leaf prior,

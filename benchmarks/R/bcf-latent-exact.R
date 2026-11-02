@@ -126,7 +126,10 @@ nodeScaleDivisor <- 0.674 # the half-normal median of b1 - b0 ~ N(0, 1)
 # each forest's leaf prior sd, by whether its coefficients are held: a held
 # forest's sd is its own, exactly; a drawn prognostic forest's own is the
 # anchor, its sd being a's half-Cauchy median; a drawn treatment forest's is
-# its sd over the half-normal median
+# its sd over the half-normal median. These are the units of the product of
+# coefficient and trees, the model; the engine runs the trees at the forest's
+# sd under a coefficient of prior median 1, a difference of levels' through
+# 0.674, and the same product.
 scalesFor <- function(arm, heldA, heldB) {
   anchor <- arm$link$anchor
   c(

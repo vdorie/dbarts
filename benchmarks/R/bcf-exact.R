@@ -18,7 +18,10 @@
 # (2b) b0/b1 free (N(0, 1/2)), a fixed - match E[mu], E[(b1-b0)tau].
 # A held forest's leaf prior sd is its sd exactly; a drawn treatment forest's
 # is its sd over the half-normal median 0.674, and a drawn prognostic
-# forest's is s, its sd being the median of a's half-Cauchy prior.
+# forest's is s, its sd being the median of a's half-Cauchy prior. These are
+# the units of the product of coefficient and trees, the model; the engine
+# runs the trees at the forest's sd under a coefficient of prior median 1, a
+# difference of levels' through 0.674, and the same product.
 #
 # Usage: Rscript bcf-exact.R [quick]
 

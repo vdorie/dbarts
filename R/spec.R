@@ -696,7 +696,7 @@ resolveSamplerSpec <- function(
     )
   }
   # the forests that take the fitting function's leaf prior as one forest's:
-  # the share of a total, or a drawn coefficient's median
+  # the share of a total, or the size of a drawn coefficient's trees
   shares <- !is.null(declaredBases) &&
     length(leafPriorForests(forestSpec, plain)) > 0L
   # the fitting function's own, read once before any forest's statement is
@@ -1274,8 +1274,8 @@ resolveSamplerSpec <- function(
         "; drop it or fit a single-forest model"
       )
     }
-    # a drawn coefficient stating no 'sd' has as its median the size the leaf
-    # prior gives, which a flat prior on k or an infinite k does not, nor a
+    # a drawn coefficient stating no 'sd' takes its trees' size from the leaf
+    # prior, which a flat prior on k or an infinite k does not, nor a
     # chi prior whose median the engine's quantile rounds to zero (it tests
     # the size for positive and finite, the quotient of the prior's scale by
     # that median)

@@ -481,9 +481,9 @@ public:
   /// draws its k, or a calibration map pins it. Chain::setForestFixedK states
   /// the semantics.
   virtual bool setForestFixedK(std::size_t forestIndex, double k) = 0;
-  /// Restates a calibration-map forest's spread on every chain, in the channel
-  /// its amplitude prior names (half-Cauchy median or leaf-scale factor);
-  /// false, writing nothing, off a map forest. Chain::setForestMapSd states
+  /// Restates a calibration-map forest's spread on every chain: the trees'
+  /// leaf scale, which no coefficient's prior reads; false, writing nothing,
+  /// off a map forest. Chain::setForestMapSd states
   /// the semantics.
   virtual bool setForestMapSd(std::size_t forestIndex, double sd) = 0;
   /// Installs (or clears, at a null pointer) a per-observation 0/1 active-row

@@ -930,11 +930,6 @@ struct ForestCombiner {
     return false;
   }
 
-  /// Restates forest f's amplitude mixture scale; false, writing nothing,
-  /// when f names no forest or its amplitude prior is not a scale mixture.
-  /// The live variance auxiliary is left as drawn, refreshed under the new
-  /// scale after the block's next draw. Inert in the base.
-
   /// Whether this coupling OWNS its response as a count matrix that can be
   /// replaced on a live sampler at fixed n and K. True only for a combiner
   /// whose response is the borrowed counts it reads directly - the chain's y
