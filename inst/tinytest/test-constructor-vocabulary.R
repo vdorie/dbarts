@@ -447,3 +447,64 @@ failure <- tryCatch(
 )
 expect_identical(failure, "forwarded")
 expect_identical(warned, 0L)
+
+# --- normal() among the constructors a forest's 'amplitude' takes --------------
+# Each door is its own expectation, and an error is read as a failed one, so
+# that a door that lost the name does not stop the rest of the file.
+amplitudeDf <- function(call) {
+  sampler <- tryCatch(call, error = function(e) e)
+  if (inherits(sampler, "error")) {
+    return(conditionMessage(sampler))
+  }
+  vapply(sampler$model@forests, slot, 0, "amplitude.df")
+}
+drawnFirst <- c(Inf, NA_real_)
+frame <- data.frame(y = y, x1 = x[, 1], x2 = x[, 2], z = z)
+# the list, by its bare constructor name
+expect_identical(
+  amplitudeDf(dbarts::dbarts(
+    x,
+    y,
+    forests = list(
+      forest(sd = 1, amplitude = normal()),
+      forest(basis = ~z)
+    ),
+    n.trees = 5L
+  )),
+  drawnFirst
+)
+# a bare constructor, as normal() itself
+expect_identical(
+  amplitudeDf(dbarts::dbarts(
+    x,
+    y,
+    forests = list(
+      forest(sd = 1, amplitude = normal),
+      forest(basis = ~z)
+    ),
+    n.trees = 5L
+  )),
+  drawnFirst
+)
+# a formula term
+expect_identical(
+  amplitudeDf(dbarts::dbarts(
+    y ~ forest(x1, sd = 1, amplitude = normal()) + forest(x2, basis = z),
+    frame,
+    n.trees = 5L
+  )),
+  drawnFirst
+)
+# passed on through a caller's argument, a name found nowhere gains its hint
+passOnAmplitude <- function(amplitude) {
+  dbarts::dbarts(
+    x,
+    y,
+    forests = list(forest(), forest(basis = ~z, amplitude = amplitude)),
+    n.trees = 5L
+  )
+}
+expect_error(
+  passOnAmplitude(normal()),
+  "outside the argument that takes it, write dbartsPriors\\$normal"
+)

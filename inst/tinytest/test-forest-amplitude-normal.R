@@ -22,9 +22,9 @@ yb <- as.double(y > median(y))
 x <- cbind(x1 = x1, x2 = x2)
 d <- data.frame(y, yb, x1, x2, x3, zf, dose)
 
-ctl <- function(...) {
+ctl <- function(chains = 1L, ...) {
   dbartsControl(
-    n.chains = 1L,
+    n.chains = chains,
     n.threads = 1L,
     n.samples = 5L,
     n.burn = 0L,
@@ -32,7 +32,7 @@ ctl <- function(...) {
     ...
   )
 }
-make <- function(forests, ..., response = y) {
+make <- function(forests, ..., response = y, chains = 1L) {
   dbarts(
     x,
     response,
@@ -40,9 +40,30 @@ make <- function(forests, ..., response = y) {
     ...,
     n.trees = 10L,
     n.cuts = 20L,
-    control = ctl(seed = 7L)
+    control = ctl(chains, seed = 7L)
   )
 }
+
+# --- the creation and the reader, before anything else reads them: each is
+# its own expectation, and an error is a failed one, so that a refusal of
+# normal() or of the reader's answer does not stop the file ---
+readAmplitude <- function(amplitude) {
+  tryCatch(
+    make(list(
+      forest(sd = 1, amplitude = amplitude),
+      forest(basis = zf)
+    ))$getLeafPrior(1L)$amplitude,
+    error = function(e) conditionMessage(e)
+  )
+}
+expect_true(
+  is(readAmplitude(normalPrior()), "dbartsNormalPrior"),
+  info = "the reader gives back normal()"
+)
+expect_true(
+  is(readAmplitude(normalPrior), "dbartsNormalPrior"),
+  info = "a bare normal is normal()"
+)
 
 # the cases of a forest's kind and coefficient option: where it stands, and the
 # model at a given sd
@@ -253,6 +274,24 @@ expect_identical(coefficients(restated, 2L), before)
 expect_identical(restated$getForestFits(2L), fits)
 expect_equal(unname(restated$getLeafPrior(2L)$k.scale), unname(scale) / 2)
 
+# --- several chains: a write reaches every chain's trees and moves no chain's
+# draws; at a tiny sd each chain's forest is tiny after a few sweeps ---
+for (name in names(cases)) {
+  index <- cases[[name]][[1L]]
+  build <- cases[[name]][[2L]]
+  sampler <- make(build(0.7), chains = 2L)
+  invisible(sampler$run(0L, 8L))
+  before <- coefficients(sampler, index)
+  writeSd(sampler, index, 1e-4)
+  expect_identical(ncol(before), 2L, info = name)
+  expect_identical(coefficients(sampler, index), before, info = name)
+  invisible(sampler$run(0L, 3L))
+  expect_true(
+    all(apply(abs(sampler$getForestFits(index)), 2L, max) < 0.01),
+    info = name
+  )
+}
+
 # --- an extreme sd: the start is kept finite, with no refusal ---
 for (sd in c(1e-160, 1e300)) {
   for (prior in list(normalPrior(), studentPrior(3), studentPrior(1))) {
@@ -266,6 +305,31 @@ for (sd in c(1e-160, 1e300)) {
     expect_true(all(is.finite(result$train)), info = paste(sd, class(prior)))
     expect_true(all(is.finite(result$sigma)), info = paste(sd, class(prior)))
   }
+}
+
+# the start is 1 / m, m the multiple of the unit, held to 1e-100 through 1e100,
+# so a multiple of 1e60 starts at 1e-60 and a multiple past the bound at its
+# edge
+unit <- unname(make(list(
+  forest(),
+  forest(basis = zf)
+))$data@forest.calibration[[
+  "unit"
+]])
+startAt <- function(multiple, prior) {
+  as.vector(make(list(
+    forest(sd = multiple * unit, amplitude = prior),
+    forest(basis = zf)
+  ))$getForestAmplitudes(1L))
+}
+for (prior in list(normalPrior(), studentPrior(3), studentPrior(1))) {
+  info <- class(prior)
+  expect_equal(startAt(1e60, prior), 1e-60, tolerance = 1e-12, info = info)
+  expect_equal(startAt(1e-60, prior), 1e60, tolerance = 1e-12, info = info)
+  expect_equal(startAt(1e100, prior), 1e-100, tolerance = 1e-12, info = info)
+  expect_equal(startAt(1e-100, prior), 1e100, tolerance = 1e-12, info = info)
+  expect_equal(startAt(1e101, prior), 1e-100, tolerance = 1e-12, info = info)
+  expect_equal(startAt(1e-101, prior), 1e100, tolerance = 1e-12, info = info)
 }
 
 # --- forest.Rd's indexSd, as the help has it, against the product's spread ---
