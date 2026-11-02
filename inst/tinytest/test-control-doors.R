@@ -503,6 +503,19 @@ for (row in list(
   expect_identical(row$deprecated, "n.trees")
   expectRefused(row, "leave it out of dbartsControl")
 }
+# several forests with no basis: every one stating its own is refused, one
+# leaving it out reads the control
+row <- counted(terms(
+  y ~ forest(x1, n.trees = 30L) + forest(x2, n.trees = 40L),
+  wrote(n.trees = 50L)
+))
+expectRefused(row, "given to the control and to every forest with no basis")
+expectRefused(row, "leave it out of dbartsControl")
+row <- counted(terms(
+  y ~ forest(x1, n.trees = 30L) + forest(x2),
+  wrote(n.trees = 50L)
+))
+expectRow(row, c(30L, 50L), d = "n.trees")
 for (row in list(
   counted(terms(plainThirty, n.trees = 50L)),
   counted(terms(y ~ x1, forests = forest(n.trees = 30L), n.trees = 50L)),

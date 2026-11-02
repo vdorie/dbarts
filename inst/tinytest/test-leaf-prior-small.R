@@ -29,7 +29,6 @@ ctl <- function(verbose = FALSE) {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 10L,
     n.samples = 3L,
     n.burn = 0L,
     verbose = verbose,

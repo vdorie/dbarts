@@ -96,8 +96,8 @@ sampler <- dbarts::dbarts(
   testData,
   weights = weights,
   n.samples = n.sims,
+  n.trees = 50L,
   control = dbarts::dbartsControl(
-    n.tree = 50L,
     n.chains = 1L,
     n.threads = 1L,
     updateState = FALSE

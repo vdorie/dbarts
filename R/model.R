@@ -2201,6 +2201,7 @@ refuseGivenTwice <- function(name, where, numPlain = 1L, onControl = FALSE) {
       where,
       " among them), so it reaches none; give it to the fitting function or ",
       "to the forests",
+      if (onControl) ", and leave it out of dbartsControl()",
       call. = FALSE
     )
   }

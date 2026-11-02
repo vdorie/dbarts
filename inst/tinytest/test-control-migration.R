@@ -19,14 +19,18 @@ x <- as.matrix(frame[c("x1", "x2", "x3")])
 y <- frame$y
 yb <- as.numeric(y > median(y))
 
+# the old spellings are this file's subject; test-control-doors.R pins their warnings
 migrationControl <- function(...) {
-  dbartsControl(
-    n.chains = 1L,
-    n.threads = 1L,
-    n.samples = 4L,
-    n.burn = 2L,
-    seed = 9L,
-    ...
+  suppressWarnings(
+    dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      n.samples = 4L,
+      n.burn = 2L,
+      seed = 9L,
+      ...
+    ),
+    classes = "dbartsDeprecatedWarning"
   )
 }
 
