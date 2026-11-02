@@ -2112,7 +2112,7 @@ refuseBasisScaleUpdate <- function(raw, name) {
       " states its sd, ",
       format(stated),
       ", so it has no default to update; restate it with ",
-      "$setLeafPrior(forests = ) or leave updateBasisScale FALSE",
+      "$setForest or leave updateBasisScale FALSE",
       call. = FALSE
     )
   }
@@ -2654,135 +2654,6 @@ modelWithLeafPriorUnclaimed <- function(model) {
   model@leaf.hyperprior <- newValidated("dbartsFixedHyperprior", k = 2.0)
   model@prior.scale <- NA_real_
   model
-}
-
-## The sds a $setLeafPrior(forests = ) call states on a sampler whose
-## forests carry amplitudes: forest(sd = ) in creation's positions, validated
-## whole before anything is written. A NULL sd leaves its forest as it is,
-## stated or not, and so does the leaf prior the reader gives for a forest
-## under the fitting function's; every other knob is fixed at creation. Returns
-## the per-forest sd, in the response's units as written, NA where none is
-## stated.
-resolveForestSpreads <- function(sampler, forests) {
-  numForests <- length(sampler$model@forests)
-  if (is.list(forests)) {
-    readBack <- vapply(
-      seq_along(forests),
-      function(index) {
-        index <= numForests &&
-          is(forests[[index]], "dbartsLeafPrior") &&
-          identical(
-            forests[[index]],
-            sampler$getLeafPrior(index)$leaf.prior
-          )
-      },
-      NA
-    )
-    forests[readBack] <- list(forest())
-  }
-  if (
-    !is.list(forests) ||
-      !all(vapply(forests, inherits, logical(1L), "dbartsForest"))
-  ) {
-    stop(
-      "$setLeafPrior's 'forests' must be a list of forest() specifications, ",
-      "as at creation"
-    )
-  }
-  if (length(forests) == 0L || length(forests) > numForests) {
-    stop(
-      "$setLeafPrior's 'forests' names ",
-      length(forests),
-      " forests; this sampler has ",
-      numForests
-    )
-  }
-  given <- names(forests)
-  if (!is.null(given)) {
-    labels <- vapply(sampler$model@forests, methods::slot, "", "label")
-    for (index in seq_along(given)) {
-      if (!is.na(given[[index]]) && given[[index]] == paste0("forest", index)) {
-        taken <- forestNameTaken(given[[index]], index, labels, "forests")
-        if (!is.null(taken)) {
-          stop(taken)
-        }
-      }
-    }
-    labels <- labels[seq_along(given)]
-    mismatched <- which(
-      nzchar(given) &
-        given != labels &
-        given != paste0("forest", seq_along(given))
-    )
-    if (length(mismatched) > 0L) {
-      index <- mismatched[[1L]]
-      stop(
-        "$setLeafPrior's 'forests' names forest ",
-        index,
-        " '",
-        given[[index]],
-        "', but it was created ",
-        if (nzchar(labels[[index]])) {
-          paste0("as '", labels[[index]], "'")
-        } else {
-          "unnamed"
-        }
-      )
-    }
-  }
-  sharers <- samplerSharers(sampler)
-  vapply(
-    seq_along(forests),
-    function(index) {
-      spec <- forests[[index]]
-      # a sharer leaving the share would move every other sharer's size; a
-      # lone one has no other to move
-      if (!is.null(spec$sd) && length(sharers) > 1L && index %in% sharers) {
-        stop(
-          "$setLeafPrior's 'forests' states forest ",
-          index,
-          "'s 'sd', but it shares one prior total with forests ",
-          paste(sharers, collapse = ", "),
-          "; a forest's own size is stated at creation: make a new sampler"
-        )
-      }
-      for (knob in setdiff(names(spec), "sd")) {
-        if (!is.null(spec[[knob]])) {
-          stop(
-            "$setLeafPrior restates only a forest's 'sd': '",
-            knob,
-            "' is fixed at creation",
-            if (knob == "basis") "; change it with $setForestBasis"
-          )
-        }
-      }
-      if (is.null(spec$sd)) {
-        return(NA_real_)
-      }
-      validateForestSd(spec$sd)
-    },
-    numeric(1L)
-  )
-}
-
-## Writes each stated sd to the engine as written, which divides it by the
-## unit, and into the `sd` of the forest's record, which creation reads, so
-## that every re-creation states the same number. Where the last forest taking
-## the fitting function's leaf prior states its own, the model's leaf prior is
-## left with no forest, as a creation with these statements has it.
-writeForestSpreads <- function(sampler, ptr, sds) {
-  newModel <- sampler$model
-  for (index in which(!is.na(sds))) {
-    .Call(C_dbarts_bartcore_setForestSd, ptr, index - 1L, sds[[index]])
-    newModel@forests[[index]]@sd <- sds[[index]]
-  }
-  sampler$model <- newModel
-  hasBasis <- !vapply(sampler$data@bases, is.null, NA)
-  recordedSd <- vapply(newModel@forests, methods::slot, 0, "sd")
-  if (!any(!hasBasis & is.na(recordedSd))) {
-    sampler$model <- modelWithLeafPriorUnclaimed(sampler$model)
-  }
-  invisible(NULL)
 }
 
 ## What a multinomial sampler's creation refuses, refused again on a write:
@@ -3699,7 +3570,7 @@ dbartsSampler <- setRefClass(
         stop("forest weights must be finite and non-negative")
       }
 
-      index <- samplerForestIndex(forest, model, getPointer())
+      index <- samplerForestIndex(forest, model, data, getPointer())
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
 
@@ -3742,7 +3613,7 @@ dbartsSampler <- setRefClass(
         "its forests are its categories, which carry no amplitudes and so no ",
         "basis for any to multiply"
       )
-      index <- samplerForestIndex(forest, model, getPointer())
+      index <- samplerForestIndex(forest, model, data, getPointer())
       if (is.null(basis)) {
         stop("'basis' cannot be NULL")
       }
@@ -4080,7 +3951,7 @@ dbartsSampler <- setRefClass(
         return(.Call(
           C_dbarts_bartcore_getForestFits,
           ptr,
-          samplerForestIndex(forest, model, getPointer())
+          samplerForestIndex(forest, model, data, getPointer())
         ))
       }
       # the bridge counts forests from 0, as resolveForestIndex converts to
@@ -4126,7 +3997,7 @@ dbartsSampler <- setRefClass(
         if (is.null(forest)) {
           NULL
         } else {
-          samplerForestIndex(forest, model, getPointer())
+          samplerForestIndex(forest, model, data, getPointer())
         }
       )
     },
@@ -4157,7 +4028,7 @@ dbartsSampler <- setRefClass(
         counts <- .Call(
           C_dbarts_bartcore_getForestVariableCounts,
           ptr,
-          samplerForestIndex(forest, model, getPointer())
+          samplerForestIndex(forest, model, data, getPointer())
         )
       }
       predictorNames <- colnames(data@x)
@@ -4177,17 +4048,14 @@ dbartsSampler <- setRefClass(
         )
       }
       if (!is.null(forest)) {
-        return(read(samplerForestIndex(forest, model, getPointer())))
+        return(read(samplerForestIndex(forest, model, data, getPointer())))
       }
       numForests <- bartcoreNumForests(ptr)
       if (numForests == 1L) {
         return(read(0L))
       }
       priors <- lapply(seq_len(numForests) - 1L, read)
-      # by the forests' labels, which a multinomial sampler's categories lack
-      if (length(model@forests) == numForests) {
-        names(priors) <- vapply(model@forests, methods::slot, "", "label")
-      }
+      names(priors) <- samplerForestLabels(model, data)
       priors
     },
     getK = function(forest = NULL) {
@@ -4197,7 +4065,7 @@ dbartsSampler <- setRefClass(
         .Call(C_dbarts_bartcore_getLeafPrior, ptr, index)[, "k"]
       }
       if (!is.null(forest)) {
-        return(read(samplerForestIndex(forest, model, getPointer())))
+        return(read(samplerForestIndex(forest, model, data, getPointer())))
       }
       numForests <- bartcoreNumForests(ptr)
       if (numForests == 1L) {
@@ -4205,56 +4073,15 @@ dbartsSampler <- setRefClass(
       }
       do.call(rbind, lapply(seq_len(numForests) - 1L, read))
     },
-    setLeafPrior = function(leaf.prior, forests = NULL, updateState = NULL) {
+    setLeafPrior = function(leaf.prior, updateState = NULL) {
       "Restates the leaf prior's spread, or the hyperprior it is drawn under, on every chain, in the vocabulary a fitting function's leaf.prior takes: normal(sd = ), normal(k = ), an invchi() prior on the sd, linear(sd = ) or gp(sd = ). The specification must name the sampler's own leaf model; leaf-model details such as a linear leaf's columns may be omitted and, if given, must match. Nothing else moves - not the tree prior, the response transform or sigma. Into a drawn prior each chain's spread in force is kept at the call, from a fixed k or sd as from a drawn one: k.scale is the data's under every prior, so k is not touched and the new prior acts from the next draw of k. A fixed k or sd stated is taken as written, a fixed sd as k = k.scale / sd. Since the write keeps the chains' spread, on a sampler not yet run it is not the start creation under the new prior would make. A multinomial sampler takes normal(k = ) with a fixed k, Inf included, applied to every category forest. A sampler whose forests carry amplitudes takes forests = list(forest(sd = ), ...) instead of leaf.prior, as its creation does: the same positions and names, a short list reaching the first forests, and a forest whose sd is not stated left as it is; an sd is a number of the response's units, as at creation, and states the forest from then on, also where it is the number getLeafPrior reports in force, which keeps the prior, to rounding on a lone forest with no basis, bitwise at a held k of 2; normal() changes nothing, and normal(k = 2), which its creation also accepts, changes nothing where no forest takes the leaf prior. A write changes the model. A forest with no basis stating neither sd nor a coefficient's prior alone leaves the leaf prior at an sd stated for it, its k then pinned at 1, and takes a leaf.prior only restating the one in force, so normal(k = 2) is refused unless it is the one in force. A forest with no basis stating a coefficient's prior and no sd takes its size from the leaf prior at creation only: normal() and normal(k = 2) are taken and change nothing, whatever k it was created at, and every other leaf.prior is refused. Where forests with no basis share one prior total their part is fixed at creation: an sd stated for one of them and every leaf.prior are refused. Give exactly one of leaf.prior and forests. The write takes effect on the next sweep, reinterpreting no value already drawn; a write equal to what is in force is bitwise inert, that rounding aside. The write is recorded on the model field, or for forests on the control, so a re-creation or a later re-anchoring channel restates it rather than the creation value. setModel changes everything else. updateState follows control@updateState; see setData."
-      # a forest = index would otherwise match forests = partially
-      if ("forest" %in% names(sys.call())) {
-        stop(
-          "$setLeafPrior takes no 'forest' index; a sampler whose forests ",
-          "carry amplitudes restates them as forests = list(forest(sd = ), ...)"
-        )
-      }
       updateState <- checkUpdateState(updateState)
       multinomial <- samplerCarriesCounts(.self)
       amplitudes <- samplerCarriesAmplitudes(.self)
-      if (!missing(forests)) {
-        forests <- evalInForestVocabulary(
-          substitute(forests),
-          forestConstructors[FOREST_ARGUMENT_VOCABULARIES$forests],
-          parent.frame()
-        )
-      }
-      if (!is.null(forests)) {
-        if (multinomial) {
-          stop(
-            multinomialLeafPriorMessage,
-            "its forests are its categories; normal(k = ) states every one",
-            call. = FALSE
-          )
-        }
-        if (!amplitudes) {
-          stop(
-            "$setLeafPrior's 'forests' restates a forest's 'sd', which only a ",
-            "sampler whose forests carry amplitudes has; state this sampler's ",
-            "leaf prior as leaf.prior"
-          )
-        }
-        if (!missing(leaf.prior)) {
-          stop("give $setLeafPrior either 'leaf.prior' or 'forests', not both")
-        }
-        sds <- resolveForestSpreads(.self, forests)
-        ptr <- getPointer()
-        writeForestSpreads(.self, ptr, sds)
-        if (resolveUpdateState(updateState, control)) {
-          storeState(ptr)
-        }
-        return(invisible(NULL))
-      }
       if (missing(leaf.prior)) {
         stop(
           "'leaf.prior' must be given: a leaf prior specification such as ",
-          "normal(sd = 1)",
-          if (amplitudes) ", or forests = list(forest(sd = ), ...)"
+          "normal(sd = 1)"
         )
       }
       expr <- substitute(leaf.prior)
@@ -4295,9 +4122,9 @@ dbartsSampler <- setRefClass(
         if (!inert) {
           stop(
             "$setLeafPrior on a sampler whose forests carry amplitudes takes ",
-            "forests = : the multi-forest calibration map sets every ",
-            "forest's leaf scale; state a forest's spread as at creation, ",
-            "forests = list(forest(sd = ), ...)",
+            "only the leaf prior in force: the multi-forest calibration map ",
+            "sets every forest's leaf scale; state a forest's size with ",
+            "$setForest(forest, sd = )",
             call. = FALSE
           )
         }
@@ -4326,6 +4153,80 @@ dbartsSampler <- setRefClass(
         storeState(ptr)
       }
       invisible(NULL)
+    },
+    getForest = function(forest = NULL) {
+      "DOC_GETFOREST"
+      ptr <- getPointer()
+      forestInForce(.self, doorForestIndex(.self, forest, ptr), ptr)
+    },
+    setForest = function(
+      forest = NULL,
+      sd = NULL,
+      power = NULL,
+      base = NULL,
+      amplitude = NULL,
+      proposal.probs = NULL,
+      n.perturb.cuts = NULL,
+      treeShift = NULL,
+      updateState = NULL,
+      ...
+    ) {
+      "DOC_SETFOREST"
+      vocabulary <- forestConstructors[FOREST_ARGUMENT_VOCABULARIES$forests]
+      if (!missing(sd)) {
+        sd <- evalInForestVocabulary(
+          substitute(sd),
+          vocabulary,
+          parent.frame()
+        )
+      }
+      if (!missing(amplitude)) {
+        amplitude <- evalInForestVocabulary(
+          substitute(amplitude),
+          vocabulary,
+          parent.frame()
+        )
+      }
+      writeForestDoor(
+        .self,
+        forest,
+        list(
+          sd = sd,
+          power = power,
+          base = base,
+          amplitude = amplitude,
+          proposal.probs = proposal.probs,
+          n.perturb.cuts = n.perturb.cuts,
+          treeShift = treeShift
+        ),
+        dotNames(...),
+        updateState
+      )
+    },
+    getVarianceForest = function() {
+      "DOC_GETVARIANCE"
+      varianceForestInForce(.self)
+    },
+    setVarianceForest = function(
+      power = NULL,
+      base = NULL,
+      proposal.probs = NULL,
+      n.perturb.cuts = NULL,
+      updateState = NULL,
+      ...
+    ) {
+      "DOC_SETVARIANCE"
+      writeVarianceForestDoor(
+        .self,
+        list(
+          power = power,
+          base = base,
+          proposal.probs = proposal.probs,
+          n.perturb.cuts = n.perturb.cuts
+        ),
+        dotNames(...),
+        updateState
+      )
     },
     reapplyForestWeights = function(ptr) {
       "Re-installs every forest weight mirrored on this sampler onto ptr, a freshly (re-)created or restated engine pointer that carries none of them. Called from getPointer, setState and copy, never recursing through getPointer."
@@ -4647,10 +4548,10 @@ dbartsSampler <- setRefClass(
       forestIndices <- if (is.null(forest)) {
         seq_len(bartcoreNumForests(ptr)) - 1L
       } else if (length(forest) == 0L) {
-        samplerForestIndex(forest, model, getPointer())
+        samplerForestIndex(forest, model, data, getPointer())
       } else {
         indices <- if (is.character(forest)) {
-          samplerForestIndex(forest, model, ptr, several = TRUE)
+          samplerForestIndex(forest, model, data, ptr, several = TRUE)
         } else {
           selectForest(forest, NULL, NA_integer_)
           vapply(forest, resolveForestIndex, 0L)
@@ -4760,7 +4661,7 @@ dbartsSampler <- setRefClass(
         # contributes them; resolveForestIndex enforces a single positive
         # integer, its 0-based return unused since getTrees resolves forest
         # again on its own terms
-        samplerForestIndex(forest, model, getPointer())
+        samplerForestIndex(forest, model, data, getPointer())
       }
 
       tree <-

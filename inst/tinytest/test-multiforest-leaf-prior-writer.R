@@ -1,6 +1,6 @@
-# $setLeafPrior on the two multi-forest samplers: a multinomial sampler takes
-# normal(k = ) on every category forest, and a sampler whose forests carry
-# amplitudes takes forests = list(forest(sd = ), ...) in creation's channels.
+# The writers of a multi-forest sampler's sizes: a multinomial sampler's
+# $setLeafPrior takes normal(k = ) on every category forest, and a sampler whose
+# forests carry amplitudes takes $setForest(forest, sd = ) in creation's channels.
 # The main oracle is the twin: creation consumes R's RNG and a write does not,
 # so a sampler created with P that writes P' at once is bitwise the sampler
 # created with P' under the same seed, on every chain and every channel.
@@ -142,17 +142,26 @@ twinCases <- list(
     )
   )
 )
+# each forest's stated sd written through the door
+writeStated <- function(sampler, forests) {
+  for (index in seq_along(forests)) {
+    sd <- forests[[index]]$sd
+    if (!is.null(sd)) {
+      sampler$setForest(index, sd = sd)
+    }
+  }
+}
 for (case in twinCases) {
   default <- if (length(case[[4L]]) == 3L) threeDefault else twoDefault
   a <- amplitudeSampler(default, case[[2L]])
-  a$setLeafPrior(forests = case[[3L]])
+  writeStated(a, case[[3L]])
   expectTwins(a, amplitudeSampler(case[[4L]], case[[2L]]), case[[1L]])
 }
 
 # --- mid-run half-Cauchy median, which rides no state: both install A's ---
 a <- amplitudeSampler(twoDefault)
 counted(a$run(5L, 2L))
-a$setLeafPrior(forests = list(forest(sd = 0.35)))
+a$setForest(1, sd = 0.35)
 a$storeState()
 b <- amplitudeSampler(list(forest(sd = 0.35), forest(basis = ~ factor(z))))
 a$setState(a$state)
@@ -171,7 +180,9 @@ for (build in list(
   if (dbarts:::samplerCarriesCounts(a)) {
     a$setLeafPrior(a$getLeafPrior(1L)$leaf.prior)
   } else {
-    a$setLeafPrior(forests = lapply(a$getLeafPrior(), `[[`, "leaf.prior"))
+    for (index in seq_along(a$model@forests)) {
+      do.call(a$setForest, c(list(index), a$getForest(index)))
+    }
     a$setLeafPrior(normal())
     a$setLeafPrior(a$getLeafPrior(1L)$leaf.prior)
   }
@@ -188,7 +199,7 @@ a <- amplitudeSampler(twoDefault)
 b <- amplitudeSampler(twoDefault)
 # 0.6 of the response's standard deviation, which is the default size of this
 # forest (a factor forest at two forests: 1 of it), in the response's units
-a$setLeafPrior(forests = list(forest(), forest(sd = 0.6 * sd(y))))
+a$setForest(2, sd = 0.6 * sd(y))
 expect_equal(
   a$getLeafPrior(2L)$k.scale / b$getLeafPrior(2L)$k.scale,
   0.6,
@@ -199,7 +210,7 @@ expect_identical(a$getLeafPrior(1L), b$getLeafPrior(1L))
 expect_false(identical(counted(a$run(3L, 2L)), counted(b$run(3L, 2L))))
 a <- amplitudeSampler(twoDefault)
 b <- amplitudeSampler(twoDefault)
-a$setLeafPrior(forests = list(forest(sd = 0.35 * sd(y))))
+a$setForest(1, sd = 0.35 * sd(y))
 expect_equal(a$getLeafPrior(1L)$sd, 0.35 * sd(y), tolerance = 1e-14)
 expect_equal(a$getLeafPrior(1L)$k.scale, 0.35 * sd(y), tolerance = 1e-14)
 expect_false(identical(counted(a$run(3L, 2L)), counted(b$run(3L, 2L))))
@@ -227,8 +238,8 @@ for (other in list(copied, loaded, rebased)) {
   expect_false(is.na(factorOf(other)))
 }
 spread <- list(forest(sd = 1.3), forest(sd = 0.9))
-live$setLeafPrior(forests = spread)
-copied$setLeafPrior(forests = spread)
+writeStated(live, spread)
+writeStated(copied, spread)
 expect_identical(copied$getLeafPrior(), live$getLeafPrior())
 
 # a write followed by a stateless copy keeps the k, the factor and the median
@@ -237,7 +248,8 @@ a$setLeafPrior(normal(k = 3))
 expect_null(a$state)
 expect_identical(a$copy()$getK(), a$getK())
 a <- amplitudeSampler(twoDefault)
-a$setLeafPrior(forests = list(forest(sd = 0.35), forest(sd = 0.6)))
+a$setForest(1, sd = 0.35)
+a$setForest(2, sd = 0.6)
 expect_null(a$state)
 copied <- a$copy()
 expect_identical(copied$getLeafPrior(1L)$leaf.prior, forest(sd = 0.35))
@@ -252,9 +264,11 @@ a <- amplitudeSampler(twoDefault)
 twin <- amplitudeSampler(twoDefault)
 a$storeState()
 before <- a$state
-a$setLeafPrior(forests = list(forest(sd = 0.35), forest(sd = 0.6)))
+a$setForest(1, sd = 0.35)
+a$setForest(2, sd = 0.6)
 a$setState(before)
-twin$setLeafPrior(forests = list(forest(sd = 0.35), forest(sd = 0.6)))
+twin$setForest(1, sd = 0.35)
+twin$setForest(2, sd = 0.6)
 twin$storeState()
 twin$setState(twin$state)
 expect_identical(a$getLeafPrior(2L)$leaf.prior, forest(sd = 0.6))
@@ -265,7 +279,7 @@ expect_identical(a$run(0L, 3L), twin$run(0L, 3L))
 # the scale-mixture forest was created with no basis and takes none, so no
 # basis install reaches it: the refusal leaves its median and channel
 a <- amplitudeSampler(twoDefault)
-a$setLeafPrior(forests = list(forest(sd = 0.35)))
+a$setForest(1, sd = 0.35)
 expect_error(
   a$setForestBasis(1L, matrix(2, n, 1L)),
   "'basis' gives forest 1 a basis, and forest 1 was created without one",
@@ -283,69 +297,23 @@ m <- multinomialSampler()
 expect_error(m$setLeafPrior(normal(sd = 1)), "named 'sd' has nowhere to land")
 expect_error(m$setLeafPrior(normal(k = chi())), "'k' hyperprior is not suppo")
 expect_error(m$setLeafPrior(normal(k = "chi(1.5)")), "'k' hyperprior")
-expect_error(
-  m$setLeafPrior(forests = list(forest())),
-  "its forests are its categories"
-)
+expect_error(m$setForest(sd = 1), "a named leaf-prior 'sd'", fixed = TRUE)
 a <- amplitudeSampler(twoDefault)
-expect_error(a$setLeafPrior(normal(k = 3)), "forests = list\\(forest\\(sd")
+expect_error(a$setLeafPrior(normal(k = 3)), "$setForest(forest, sd = )", fixed = TRUE)
 expect_error(a$setLeafPrior(normal(sd = 1)), "multi-forest calibration map")
-expect_error(
-  a$setLeafPrior(forests = list(forest(n.trees = 5L))),
-  "'n.trees' is fixed at creation"
-)
-expect_error(
-  a$setLeafPrior(forests = list(forest(), forest(basis = ~ factor(z)))),
-  "change it with \\$setForestBasis"
-)
-expect_error(
-  a$setLeafPrior(forests = list(forest(), forest(), forest())),
-  "names 3 forests; this sampler has 2"
-)
-expect_error(
-  a$setLeafPrior(forests = list(first = forest(sd = 1))),
-  "names forest 1 'first', but it was created as 'forest1'"
-)
-expect_error(
-  a$setLeafPrior(forests = list(dbartsPriors$normal())),
-  "forest\\(\\) specif"
-)
+expect_error(a$setLeafPrior(forests = list(forest())), "unused argument")
 for (bad in list(0, -1, Inf)) {
-  expect_error(
-    a$setLeafPrior(forests = list(forest(sd = bad))),
-    "forest 'sd' must be positive and finite"
-  )
+  expect_error(a$setForest(1, sd = bad), "forest 'sd' must be positive and finite")
 }
 for (bad in list(NaN, NA)) {
-  expect_error(
-    a$setLeafPrior(forests = list(forest(sd = bad))),
-    "forest 'sd' must not be NA"
-  )
+  expect_error(a$setForest(1, sd = bad), "forest 'sd' must not be NA")
 }
 expect_error(
-  a$setLeafPrior(forests = list(forest(sd = c(1, 2)))),
+  a$setForest(1, sd = c(1, 2)),
   "forest 'sd' must be a single number, not a vector of length 2"
-)
-expect_error(
-  a$setLeafPrior(normal(), forests = list(forest())),
-  "not both"
-)
-labeled <- amplitudeSampler(list(
-  mu = forest(),
-  tau = forest(basis = ~ factor(z))
-))
-labeled$setLeafPrior(forests = list(mu = forest(), tau = forest(sd = 0.6)))
-expect_error(
-  labeled$setLeafPrior(forests = list(tau = forest(sd = 0.6))),
-  "created as 'mu'"
 )
 # every refusal came before any write
 expect_identical(a$getLeafPrior(), amplitudeSampler(twoDefault)$getLeafPrior())
-single <- counted(dbarts(x, y, n.trees = 15L, control = writerControl()))
-expect_error(
-  single$setLeafPrior(forests = list(forest(sd = 1))),
-  "only a sampler whose forests carry amplitudes"
-)
 expect_error(
   dbarts(
     x,

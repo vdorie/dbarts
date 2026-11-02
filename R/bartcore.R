@@ -2412,8 +2412,8 @@ forestNameTaken <- function(name, position, labels, argument) {
 }
 
 # The one reader of a 'forest' argument that is not NULL, given the labels
-# the model's forests carry (NULL where it records none: a sampler of one
-# forest, a multinomial one) and the number of forests. A number is a
+# the model's forests carry (NULL where it has none: a sampler of one forest)
+# and the number of forests. A number is a
 # position, as `[[` reads one, and is returned untouched for the caller's own
 # checks. A string is never a position: it is the forest with that label;
 # failing that, the forest whose label is the same code; and "forest<i>" is
@@ -2530,13 +2530,23 @@ selectForest <- function(forest, labels, numForests, several = FALSE) {
   vapply(forest, one, 0L, USE.NAMES = FALSE)
 }
 
-# A sampler's reading of its 'forest' argument: its own labels, none on a model
-# of fewer than two records, and its forest count from the engine, asked only
-# when a string needs it. `ptr` is not evaluated for a number.
-samplerForestIndex <- function(forest, model, ptr, several = FALSE) {
-  labels <- if (length(model@forests) >= 2L) {
+# The labels of a sampler's forests: a multinomial model's category forests take
+# the response's levels, and a model of several its records' own. NULL where
+# there are none: a model of one forest, and a count matrix with no column names.
+samplerForestLabels <- function(model, data) {
+  counts <- dataCounts(data)
+  if (!is.null(counts)) {
+    colnames(counts)
+  } else if (length(model@forests) >= 2L) {
     vapply(model@forests, methods::slot, "", "label")
   }
+}
+
+# A sampler's reading of its 'forest' argument: its own labels, and its forest
+# count from the engine, asked only when a string needs it. `ptr` is not
+# evaluated for a number.
+samplerForestIndex <- function(forest, model, data, ptr, several = FALSE) {
+  labels <- samplerForestLabels(model, data)
   numForests <- if (is.character(forest)) {
     bartcoreNumForests(ptr)
   } else {

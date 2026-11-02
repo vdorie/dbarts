@@ -831,19 +831,11 @@ resolveSamplerSpec <- function(
   # non-default one conflicts and errors.
   if (!is.null(monotoneDirections)) {
     control@proposal.probs <- monotoneProposalProbs(control@proposal.probs)
-    # a forest's own mixture was chosen, so it is never rewritten: one
-    # proposing any move but birth and death is refused, the package
-    # default's included
     for (index in seq_along(forestSpec)) {
-      probs <- forestSpec[[index]]$proposal.probs
-      if (any(probs[c("swap", "change", "perturb", "rule_gibbs")] != 0)) {
-        stop(
-          "'monotone' forces birth/death-only proposals; ",
-          forestKnobLabel(forests, index),
-          "'s 'proposal.probs' proposes other moves",
-          call. = FALSE
-        )
-      }
+      refuseMonotoneForestMixture(
+        forestSpec[[index]]$proposal.probs,
+        forestKnobLabel(forests, index)
+      )
     }
   }
   validObject(control)
@@ -955,13 +947,15 @@ resolveSamplerSpec <- function(
       "storage = \"single\"" = identical(control@storage, "single")
     )
     if (any(unsupportedMultinomial)) {
+      refuseMultinomialStatement(
+        names(unsupportedMultinomial)[unsupportedMultinomial]
+      )
+    }
+    if (any(nzchar(names(forests)))) {
       stop(
-        "a multinomial (softmax) model does not support ",
-        paste0(
-          names(unsupportedMultinomial)[unsupportedMultinomial],
-          collapse = ", "
-        ),
-        "; drop it or fit a single-forest model"
+        "a multinomial model's one forest entry states every category forest ",
+        "and takes no name",
+        call. = FALSE
       )
     }
   }
@@ -1013,16 +1007,7 @@ resolveSamplerSpec <- function(
   } else {
     NULL
   }
-  # the rule_gibbs move redraws no scale leaf, so a share of it stated on
-  # the variance forest could move nothing
-  if (isTRUE(varianceSpec$proposal.probs[["rule_gibbs"]] > 0)) {
-    stop(
-      "varianceForest()'s 'proposal.probs' gives 'rule_gibbs' a positive ",
-      "share, a move that does nothing on the variance forest's leaves; give ",
-      "it 0",
-      call. = FALSE
-    )
-  }
+  refuseVarianceRuleGibbs(varianceSpec$proposal.probs)
   # vars = NULL on the OBJECT means every column (resolveVarianceColumns'
   # TRUE reading), unlike variance = NULL's "no variance forest" - the two
   # NULLs mean opposite things, so the object's own NULL is translated to
@@ -1403,10 +1388,9 @@ resolveSamplerSpec <- function(
     records <- lapply(seq_len(numForests), function(index) {
       record <- new("dbartsForestRecord")
       record@n.trees <- treeCounts[index]
-      record@stated <- forestCountStated(
-        specs[[index]],
-        index %in% plain,
-        stated
+      record@stated <- c(
+        forestCountStated(specs[[index]], index %in% plain, stated),
+        forestDepthStated(specs[[index]])
       )
       record@base <- params[[index]][2L]
       record@power <- params[[index]][3L]
@@ -1467,6 +1451,16 @@ resolveSamplerSpec <- function(
   }
 
   namedList(control, model, data, family, active)
+}
+
+## What a multinomial model's creation and $setForest refuse, by its name.
+refuseMultinomialStatement <- function(named) {
+  stop(
+    "a multinomial (softmax) model does not support ",
+    paste0(named, collapse = ", "),
+    "; drop it or fit a single-forest model",
+    call. = FALSE
+  )
 }
 
 ## The exported consumer surface: resolves

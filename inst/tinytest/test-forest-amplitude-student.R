@@ -232,8 +232,8 @@ refused(
 )
 live <- dbarts(y ~ forest(x1 + x2) + forest(x1, basis = zf), d, control = ctl())
 refused(
-  live$setLeafPrior(forests = list(forest(), forest(amplitude = student(3)))),
-  "'amplitude' is fixed at creation"
+  live$setForest(2, amplitude = student(3)),
+  "a forest's coefficient prior cannot be changed live yet"
 )
 refused(
   bart(x, y, leaf.prior = student(3), verbose = FALSE),
@@ -316,7 +316,7 @@ expect_identical(heavy$getLeafPrior(1L)$sd, noBasis(NULL)$getLeafPrior(1L)$sd)
 expect_false(heavy$getLeafPrior(1L)$sd.stated)
 expect_true(all(is.finite(draws(heavy)$glue)))
 # a restated sd keeps the prior: the df rides the statement
-heavy$setLeafPrior(forests = list(forest(sd = 1.5), forest()))
+heavy$setForest(1, sd = 1.5)
 expect_identical(heavy$getLeafPrior(1L)$amplitude, studentPrior(3))
 expect_identical(heavy$getLeafPrior(1L)$sd, 1.5)
 expect_true(all(is.finite(draws(heavy)$glue)))

@@ -1,7 +1,7 @@
 # forest()'s coefficient and size arguments. A forest's coefficient
 # distribution is one argument, 'amplitude': fixed() holds the coefficient and
 # nothing stated draws it. A forest's 'sd' is one number, a name on it dropped,
-# judged one way at creation, through $setLeafPrior(forests = ) and in the
+# judged one way at creation, through $setForest and in the
 # front door's normal(sd = ).
 
 forest <- dbartsForests$forest
@@ -521,17 +521,15 @@ for (name in c("interactions", "blocks", "monotone")) {
     info = name
   )
 }
-# the writer resolves it too, and refuses it as fixed at creation
+# the door resolves it too, and refuses it as another prior than the one in force
 writerHeld <- twoForests()
 expect_error(
-  writerHeld$setLeafPrior(
-    forests = list(forest(), forest(amplitude = fixed()))
-  ),
-  "'amplitude' is fixed at creation"
+  writerHeld$setForest(2, amplitude = fixed()),
+  "a forest's coefficient prior cannot be changed live yet"
 )
 expect_error(
-  writerHeld$setLeafPrior(forests = list(forest(), forest(amplitude = fixed))),
-  "'amplitude' is fixed at creation"
+  writerHeld$setForest(2, amplitude = fixed),
+  "a forest's coefficient prior cannot be changed live yet"
 )
 
 # --- a held forest keeps the kind and the width it was created with ---
@@ -670,7 +668,7 @@ for (entry in sdValues) {
     ),
     writer = !inherits(
       try(
-        writer$setLeafPrior(forests = list(forest(), forest(sd = value))),
+        writer$setForest(2, sd = value),
         silent = TRUE
       ),
       "try-error"
@@ -695,9 +693,7 @@ sdMessage <- function(value, place = c("creation", "writer", "front")) {
       switch(
         place,
         creation = twoForests(sd = value),
-        writer = writer$setLeafPrior(
-          forests = list(forest(), forest(sd = value))
-        ),
+        writer = writer$setForest(2, sd = value),
         front = dbartsPriors$normal(sd = value)
       )
       "accepted"

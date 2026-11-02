@@ -390,8 +390,8 @@ live <- dbarts(
   control = ctl()
 )
 expect_error(
-  live$setLeafPrior(forests = list(forest(sd = 1))),
-  "states forest 1's 'sd', but it shares one prior total with forests 1, 2",
+  live$setForest(1, sd = 1),
+  "this forest shares one prior total with forests 1, 2",
   fixed = TRUE
 )
 expect_error(
@@ -399,7 +399,7 @@ expect_error(
   "takes no 'leaf.prior': the total is the leaf prior they were created under",
   fixed = TRUE
 )
-live$setLeafPrior(forests = list(forest(), forest(), forest(sd = 0.4)))
+live$setForest(3, sd = 0.4)
 expect_identical(unname(live$getLeafPrior(3L)$sd), 0.4)
 
 # --- a copy and a reload continue as one, and as the live sampler ---

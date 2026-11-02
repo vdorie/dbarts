@@ -514,7 +514,7 @@ expect_equal(
   tolerance = 1e-12
 )
 # a stated line never takes the suffix, whatever column it was stated on
-swapped$setLeafPrior(forests = list(forest(), forest(sd = 30)))
+swapped$setForest(2, sd = 30)
 expect_identical(
   fullNow(swapped)[3L],
   numericLine(2, "dose", dose / 10, 30, "stated")

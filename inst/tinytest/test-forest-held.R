@@ -268,7 +268,7 @@ held <- dbarts(
   forests = list(forest(), forest(basis = zf, amplitude = fixed())),
   control = heldControl()
 )
-held$setLeafPrior(forests = list(forest(), forest(sd = 0.4)))
+held$setForest(2, sd = 0.4)
 written <- held$getLeafPrior(2L)
 expect_identical(written$sd, 0.4)
 expect_equal(written$k.scale, 0.4, tolerance = 1e-12)

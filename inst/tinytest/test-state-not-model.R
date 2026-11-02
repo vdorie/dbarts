@@ -116,7 +116,8 @@ storeWriteRestore(
   "forest spread",
   function() make(forests = list(forest(), forest(basis = ~ factor(z)))),
   function(s) {
-    s$setLeafPrior(forests = list(forest(sd = 0.35), forest(sd = 0.6)))
+    s$setForest(1, sd = 0.35)
+    s$setForest(2, sd = 0.6)
   }
 )
 

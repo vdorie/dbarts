@@ -100,9 +100,7 @@ cases <- list(
   })
 )
 writeSd <- function(sampler, index, sd) {
-  written <- rep(list(forest()), length(sampler$getLeafPrior()))
-  written[[index]] <- forest(sd = sd)
-  sampler$setLeafPrior(forests = written)
+  sampler$setForest(index, sd = sd)
   invisible(sampler)
 }
 coefficients <- function(sampler, index) sampler$getForestAmplitudes(index)
@@ -754,10 +752,8 @@ expect_error(
   make(
     list(forest(sd = 1, amplitude = normalPrior()), forest(basis = zf)),
     response = y
-  )$setLeafPrior(
-    forests = list(forest(amplitude = normalPrior()), forest())
-  ),
-  "$setLeafPrior restates only a forest's 'sd': 'amplitude' is fixed at creation",
+  )$setForest(1, amplitude = studentPrior(3)),
+  "a forest's coefficient prior cannot be changed live yet: forest 1 keeps normal()",
   fixed = TRUE
 )
 

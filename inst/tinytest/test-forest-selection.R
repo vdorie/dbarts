@@ -268,6 +268,7 @@ for (index in seq_along(selectable)) {
       dbarts:::samplerForestIndex(
         spelling,
         sampler$model,
+        sampler$data,
         sampler$getPointer()
       ),
       index - 1L
@@ -445,19 +446,23 @@ expect_identical(
   multinomial$fit$getLeafPrior("forest2"),
   multinomial$fit$getLeafPrior(2L)
 )
+# the response's levels are the category forests' labels, q the second
+expect_identical(
+  multinomial$fit$getLeafPrior("q"),
+  multinomial$fit$getLeafPrior(2L)
+)
 expect_match(
-  refusal(multinomial$fit$getLeafPrior("q")),
-  "this sampler's forests have no labels",
+  refusal(multinomial$fit$getLeafPrior("nope")),
+  "its forests are ",
   fixed = TRUE
 )
 expect_identical(
   extract(multinomial, "trees", forest = "forest2"),
   extract(multinomial, "trees", forest = 2L)
 )
-expect_match(
-  refusal(extract(multinomial, "trees", forest = "q")),
-  "have no labels",
-  fixed = TRUE
+expect_identical(
+  extract(multinomial, "trees", forest = "q"),
+  extract(multinomial, "trees", forest = 2L)
 )
 
 ## --- Block C: a fit ---------------------------------------------------------
@@ -660,24 +665,12 @@ expect_error(
   fixed = TRUE
 )
 
-# $setLeafPrior(forests = ) reads its list by position, in label order
-inOrder <- list(a = forest(sd = 1.5), forest(), `scale(age)` = forest(sd = 2.5))
-expect_silent(sampler$setLeafPrior(forests = inOrder))
-expect_error(
-  sampler$setLeafPrior(
-    forests = list(forest(), a = forest(sd = 1.5), forest())
-  ),
-  "names forest 2 'a', but it was created as 'forest2'",
-  fixed = TRUE
-)
-expect_silent(sampler$setLeafPrior(
-  forests = list(forest1 = forest(sd = 1.5), forest2 = forest())
-))
-expect_error(
-  sampler$setLeafPrior(forests = list(forest2 = forest(sd = 1.5))),
-  "names forest 1 'forest2', but it was created as 'a'",
-  fixed = TRUE
-)
+# $setForest reads its forest as the readers do, a label, forest<i> or a position
+expect_silent(sampler$setForest("a", sd = 1.5))
+expect_silent(sampler$setForest("scale(age)", sd = 2.5))
+expect_silent(sampler$setForest("forest1", sd = 1.25))
+expect_identical(sampler$getForest(1L)$sd, 1.25)
+expect_identical(sampler$getForest("scale(age)")$sd, 2.5)
 
 # a name that is another forest's label is not read as this position's
 # forest<i>: forests labeled forest2, dose, forest1
@@ -706,20 +699,18 @@ expect_identical(
   )
 )
 expect_identical(
-  refusal(takenSampler$setLeafPrior(forests = list(forest1 = forest(sd = 9)))),
+  refusal(takenSampler$setForest("forest1", sd = 9)),
   paste0(
-    "'forests' names forest 1 \"forest1\", which is the label of forest 3; ",
-    "name each entry by its own forest's label, or leave the names off"
+    "'forest' (\"forest1\") is the label of forest 3 and the name of ",
+    "position 1; select by position, as forest = 3"
   )
 )
 expect_identical(
   vapply(1:3, function(i) takenSampler$getLeafPrior(i)$leaf.prior$sd, 0),
   c(1, 2, 3)
 )
-# its own label at its own position is still accepted
-expect_silent(takenSampler$setLeafPrior(
-  forests = list(forest2 = forest(sd = 9), dose = forest(sd = 8))
-))
+expect_silent(takenSampler$setForest(1, sd = 9))
+expect_silent(takenSampler$setForest("dose", sd = 8))
 expect_identical(
   vapply(1:3, function(i) takenSampler$getLeafPrior(i)$leaf.prior$sd, 0),
   c(9, 8, 3)

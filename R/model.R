@@ -1864,7 +1864,7 @@ sdKindRefused <- function(sd) {
   }
 }
 
-## A forest's 'sd', at creation and on $setLeafPrior: one number, finite and
+## A forest's 'sd', at creation and on $setForest: one number, finite and
 ## positive, a name on it dropped as base R drops one. Infinity states no
 ## prior the map can scale, so it is refused rather than carried into a leaf
 ## scale. A number is a numeric or integer, whatever
@@ -1920,6 +1920,35 @@ leafPriorForests <- function(specs, plain) {
     },
     NA
   )]
+}
+
+## A forest's own mixture was chosen, so a monotone model never rewrites it: one
+## proposing any move but birth and death is refused, the package default's
+## included.
+refuseMonotoneForestMixture <- function(probs, label) {
+  if (any(probs[c("swap", "change", "perturb", "rule_gibbs")] != 0)) {
+    stop(
+      "'monotone' forces birth/death-only proposals; ",
+      label,
+      "'s 'proposal.probs' proposes other moves",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
+## The rule_gibbs move redraws no scale leaf, so a share of it stated on the
+## variance forest could move nothing.
+refuseVarianceRuleGibbs <- function(probs) {
+  if (isTRUE(probs[["rule_gibbs"]] > 0)) {
+    stop(
+      "varianceForest()'s 'proposal.probs' gives 'rule_gibbs' a positive ",
+      "share, a move that does nothing on the variance forest's leaves; give ",
+      "it 0",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
 }
 
 ## The tree count and tree prior of a forest with a basis that states none.
@@ -2051,6 +2080,13 @@ forestCountStated <- function(spec, isPlain, stated) {
   } else {
     character(0L)
   }
+}
+
+## What a forest's record says its caller stated of its depth: a real value
+## named on the forest, the default's own included. A forest taking the fitting
+## function's goes on following it.
+forestDepthStated <- function(spec) {
+  c("power", "base")[c(!is.null(spec$power), !is.null(spec$base))]
 }
 
 ## The refusal of what the fitting function states for the forest with no
@@ -2274,38 +2310,18 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
   )
   plain <- plainForest(withBasis)
 
-  first <- resolved[[1L]]
-  if (numForests == 1L) {
-    if (statesCoefficientPrior(first$amplitude) && !any(hasBasis)) {
-      stop(
-        "this model has one forest, which has no coefficient to give a ",
-        "prior; a lone forest draws its size through the fitting ",
-        "function's leaf prior, as leaf.prior = normal(k = chi(1.5, 2)) or ",
-        "normal(sd = invchi(1.5, s)) with s a size in the response's units"
-      )
-    }
-  }
-  # where two or more forests with no basis share one total, none has a
-  # coefficient of its own to give a prior; one stating its 'sd' leaves the
-  # share and has its own
   unsized <- plain[vapply(
     plain,
     function(index) is.null(resolved[[index]]$sd),
     NA
   )]
-  if (length(unsized) > 1L) {
-    for (index in unsized) {
-      if (statesCoefficientPrior(resolved[[index]]$amplitude)) {
-        stop(
-          forestKnobLabel(forests, index),
-          ": amplitude = ",
-          writtenCoefficientPrior(resolved[[index]]$amplitude),
-          " draws one forest's coefficient; these forests share one total: ",
-          "state each forest's 'sd' to give it its own",
-          call. = FALSE
-        )
-      }
-    }
+  for (index in seq_len(numForests)) {
+    refuseCoefficientPriorWithNoForest(
+      resolved[[index]]$amplitude,
+      forestKnobLabel(forests, index),
+      lone = numForests == 1L && !any(hasBasis),
+      sharing = length(unsized) > 1L && index %in% unsized
+    )
   }
   for (name in c("interactions", "blocks")) {
     top <- if (name == "interactions") interactions else blocks
@@ -2324,6 +2340,40 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
     }
   }
   resolved
+}
+
+## A 'amplitude' that states a prior where a forest has no coefficient of its own
+## to give one: a model of one forest, and where two or more forests with no
+## basis share one total; one stating its 'sd' leaves the share and has its own.
+## Creation and $setForest refuse it alike.
+refuseCoefficientPriorWithNoForest <- function(
+  amplitude,
+  label,
+  lone,
+  sharing
+) {
+  if (!statesCoefficientPrior(amplitude)) {
+    return(invisible(NULL))
+  }
+  if (lone) {
+    stop(
+      "this model has one forest, which has no coefficient to give a ",
+      "prior; a lone forest draws its size through the fitting ",
+      "function's leaf prior, as leaf.prior = normal(k = chi(1.5, 2)) or ",
+      "normal(sd = invchi(1.5, s)) with s a size in the response's units"
+    )
+  }
+  if (sharing) {
+    stop(
+      label,
+      ": amplitude = ",
+      writtenCoefficientPrior(amplitude),
+      " draws one forest's coefficient; these forests share one total: ",
+      "state each forest's 'sd' to give it its own",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
 }
 
 ## The four doubles of each forest's count, base, power and drawn flag, which

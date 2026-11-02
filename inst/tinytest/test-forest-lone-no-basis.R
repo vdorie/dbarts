@@ -246,9 +246,10 @@ for (family in families) {
   sampler$run(0L, 1L)
   # the reader's own value goes back as nothing written
   before <- sampler$getLeafPrior()
-  sampler$setLeafPrior(forests = lapply(before, `[[`, "leaf.prior"))
+  do.call(sampler$setForest, c(list(1L), sampler$getForest(1L)))
+  do.call(sampler$setForest, c(list(2L), sampler$getForest(2L)))
   expect_identical(sampler$getLeafPrior(), before, info = info)
-  sampler$setLeafPrior(forests = list(forest(sd = 1.5), forest()))
+  sampler$setForest(1, sd = 1.5)
   prior <- reader(sampler)
   expect_identical(unname(prior$sd), 1.5, info = info)
   expect_equivalent(prior$k.scale, 1.5, info = info)
@@ -263,9 +264,9 @@ for (family in families) {
 gaussian <- fit("gaussian", withBasis)
 gaussian$setLeafPrior(normal(k = 2))
 expect_equivalent(reader(gaussian)$k.scale, scaleOf[["gaussian"]])
-expect_error(gaussian$setLeafPrior(normal(k = 3)), "forests =", fixed = TRUE)
+expect_error(gaussian$setLeafPrior(normal(k = 3)), "$setForest", fixed = TRUE)
 probit <- fit("probit", withBasis)
-expect_error(probit$setLeafPrior(normal(k = 2)), "forests =", fixed = TRUE)
+expect_error(probit$setLeafPrior(normal(k = 2)), "$setForest", fixed = TRUE)
 probit$setLeafPrior(reader(probit)$leaf.prior)
 
 ## --- a copy and a reload continue as one, and as the live sampler -----------
@@ -394,13 +395,10 @@ for (family in families) {
     wrote <- build()
     twin <- build()
     inForce <- unname(wrote$getLeafPrior(1L)$sd)
-    wrote$setLeafPrior(forests = list(forest(sd = inForce), forest()))
-    expect_equal(unname(wrote$getLeafPrior(1L)$sd), inForce, info = info)
-    expect_identical(wrote$getK(forest = 1L)[[1L]], 1, info = info)
-    expect_true(
-      max(abs(wrote$run(0L, 6L)$train - twin$run(0L, 6L)$train)) < 1e-10,
-      info = info
-    )
+    wrote$setForest(1, sd = inForce)
+    expect_identical(unname(wrote$getLeafPrior(1L)$sd), inForce, info = info)
+    expect_identical(wrote$getK(forest = 1L), twin$getK(forest = 1L), info = info)
+    expect_identical(wrote$run(0L, 6L)$train, twin$run(0L, 6L)$train, info = info)
   }
 }
 
@@ -408,7 +406,7 @@ for (family in families) {
 for (written in list(normal(k = 3), normal(sd = 1.1))) {
   sampler <- kept(withBasis, leaf.prior = written)
   invisible(sampler$run(0L, 2L))
-  sampler$setLeafPrior(forests = list(forest(sd = 0.4), forest()))
+  sampler$setForest(1, sd = 0.4)
   # nothing of the leaf prior stays on the model, and a copy passes the bridge
   expect_null(sampler$model@leaf.prior@k)
   expect_null(sampler$model@leaf.prior@prior.sd)
@@ -424,7 +422,7 @@ for (written in list(normal(k = 3), normal(sd = 1.1))) {
 
 ## --- $setLeafPrior(leaf.prior) on a lone forest restates, and only that -------
 sampler <- kept(withBasis, leaf.prior = normal(sd = 1.1))
-expect_error(sampler$setLeafPrior(normal(sd = 9)), "takes forests =")
+expect_error(sampler$setLeafPrior(normal(sd = 9)), "state a forest's size")
 expect_equal(unname(reader(sampler)$sd), 1.1)
 sampler <- kept(withBasis)
 expect_silent(sampler$setLeafPrior(normal(k = 2L)))

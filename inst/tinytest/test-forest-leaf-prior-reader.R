@@ -99,9 +99,7 @@ expect_equal(priors$age$basis.scale, c(age = sd(age)), tolerance = 1e-12)
 expect_null(priors$forest1$basis.scale)
 expect_null(priors[["factor(z)"]]$basis.scale)
 # a stated sd reads as stated, per unit of its column, before and after a write
-sampler$setLeafPrior(
-  forests = list(forest(), forest(sd = 30), forest(), forest())
-)
+sampler$setForest(2, sd = 30)
 expect_identical(sampler$getLeafPrior(2L)$sd, c(dose = 30))
 expect_true(sampler$getLeafPrior(2L)$sd.stated)
 expect_identical(
@@ -144,14 +142,9 @@ expectEngine <- function(sampler, info) {
 for (build in list(default = fourForests, held = heldTwin)) {
   sampler <- build()
   expectEngine(sampler, "creation")
-  sampler$setLeafPrior(
-    forests = list(
-      forest(sd = 1.3),
-      forest(sd = 25),
-      forest(),
-      forest(sd = 0.8)
-    )
-  )
+  sampler$setForest(1, sd = 1.3)
+  sampler$setForest(2, sd = 25)
+  sampler$setForest(4, sd = 0.8)
   expectEngine(sampler, "write")
   sampler$setForestBasis(2L, dose / 10)
   expectEngine(sampler, "swap")
@@ -166,14 +159,12 @@ for (build in list(default = fourForests, held = heldTwin)) {
 }
 
 # --- read then write: a default numeric forest written back its own number,
-# the column's name left on it, is stated and draws as its untouched twin ---
+# the column's name left on it, stays unstated and draws as its untouched twin ---
 twin <- fourForests()
 written <- fourForests()
 read <- written$getLeafPrior(2L)
-written$setLeafPrior(
-  forests = list(forest(), forest(sd = read$sd), forest(), forest())
-)
-expect_true(written$getLeafPrior(2L)$sd.stated)
+written$setForest(2, sd = read$sd)
+expect_false(written$getLeafPrior(2L)$sd.stated)
 expect_identical(written$getLeafPrior(2L)$sd, read$sd)
 expect_identical(written$run(0L, 20L), twin$run(0L, 20L))
 

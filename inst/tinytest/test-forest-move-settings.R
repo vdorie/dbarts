@@ -496,17 +496,6 @@ expect_error(
   fixed = TRUE
 )
 expect_error(varianceForest(treeShift = "always"), "unused argument")
-leafPriorSampler <- build("two", ctl())
-for (knob in names(all3)) {
-  expect_error(
-    leafPriorSampler$setLeafPrior(
-      forests = list(do.call(forest, c(list(sd = 1), all3[knob])))
-    ),
-    paste0("'", knob, "' is fixed at creation"),
-    fixed = TRUE
-  )
-}
-rm(leafPriorSampler)
 # a monotone forest's stated mixture is never rewritten, the package
 # default's included
 for (stated in list(moving, shipped)) {

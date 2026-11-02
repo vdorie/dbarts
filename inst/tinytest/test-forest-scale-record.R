@@ -505,7 +505,7 @@ expect_true(inherits(
 
 # --- stated, then put back: a write leaves the record ---
 written <- twoDose()
-written$setLeafPrior(forests = list(forest(), forest(sd = 0.5)))
+written$setForest(2, sd = 0.5)
 written$storeState()
 file <- tempfile(fileext = ".rds")
 saveRDS(written, file)

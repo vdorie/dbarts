@@ -301,13 +301,11 @@ expect_error(
   "'forest' names no forest of this model: \"age\"",
   fixed = TRUE
 )
-# the writer checks a list's names against them
-expect_silent(sampler$setLeafPrior(
-  forests = list(forest(), dose = forest(sd = 1.5))
-))
+# the door reads them as the readers do
+expect_silent(sampler$setForest("dose", sd = 1.5))
 expect_error(
-  sampler$setLeafPrior(forests = list(forest(), age = forest(sd = 1.5))),
-  "names forest 2 'age', but it was created as 'dose'",
+  sampler$setForest("age", sd = 1.5),
+  "'forest' names no forest of this model: \"age\"",
   fixed = TRUE
 )
 

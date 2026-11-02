@@ -1,5 +1,5 @@
 # A forest's sd is a number of the response's units wherever it is written or
-# read: forest(sd = ) at creation, $setLeafPrior(forests = ), what
+# read: forest(sd = ) at creation, $setForest, what
 # $getLeafPrior() returns and extract(type = "leaf.prior.sd"). The engine
 # divides a stated number by a unit it derives once, at a first creation, and
 # R records; a default never meets the unit. Each path below states an sd and
@@ -274,7 +274,8 @@ expectStated(created, 1L, 2, "creation")
 expectStated(created, 2L, 0.5, "creation")
 
 written <- twoForests(list(forest(), forest(basis = d$zf)))
-written$setLeafPrior(forests = list(forest(sd = 3), forest(sd = 0.25)))
+written$setForest(1, sd = 3)
+written$setForest(2, sd = 0.25)
 expectStated(written, 1L, 3, "the writer")
 expectStated(written, 2L, 0.25, "the writer")
 
@@ -300,7 +301,8 @@ twoChains <- dbarts(
     seed = 31L
   )
 )
-twoChains$setLeafPrior(forests = list(forest(sd = 3), forest(sd = 0.25)))
+twoChains$setForest(1, sd = 3)
+twoChains$setForest(2, sd = 0.25)
 plainRows <- chainRows(twoChains, 1L)
 factorRows <- chainRows(twoChains, 2L)
 expect_identical(nrow(plainRows), 2L)
@@ -355,7 +357,7 @@ expect_identical(unitOf(swappedCopy), unitOf(created))
 writtenCopy <- written$copy()
 expectStated(writtenCopy, 1L, 3, "a write, then a copy")
 expectStated(writtenCopy, 2L, 0.25, "a write, then a copy")
-writtenCopy$setLeafPrior(forests = list(forest(), forest(sd = 0.75)))
+writtenCopy$setForest(2, sd = 0.75)
 expectStated(writtenCopy, 1L, 3, "a second write")
 expectStated(writtenCopy, 2L, 0.75, "a second write")
 expect_identical(forestSds(writtenCopy), c(3, 0.75))
@@ -407,15 +409,15 @@ for (forests in list(twoStated, list(forest(), forest(basis = d$zf)))) {
   readBack <- twoForests(forests)
   invisible(twin$run(0L, 5L))
   invisible(readBack$run(0L, 5L))
-  readBack$setLeafPrior(
-    forests = lapply(readBack$getLeafPrior(), function(prior) prior$leaf.prior)
-  )
+  for (index in seq_along(readBack$getLeafPrior())) {
+    do.call(readBack$setForest, c(list(index), readBack$getForest(index)))
+  }
   expect_identical(sdsOf(readBack), sdsOf(twin))
   expect_identical(forestSds(readBack), forestSds(twin))
   expect_identical(readBack$run(0L, 20L), twin$run(0L, 20L))
 }
-# a default's number, stated: the forest is a stated one, and no bit moves,
-# on the sampler and on a copy made from the record
+# a default's number given back changes nothing: the forest stays unstated and
+# no bit moves, on the sampler and on a copy made from the record
 for (numForests in 2:3) {
   forests <- list(forest(), forest(basis = d$zf), forest(basis = d$dose))
   forests <- forests[seq_len(numForests)]
@@ -424,12 +426,12 @@ for (numForests in 2:3) {
   invisible(twin$run(0L, 5L))
   invisible(stated$run(0L, 5L))
   inForce <- lapply(stated$getLeafPrior(), function(prior) prior$sd)
-  stated$setLeafPrior(forests = lapply(inForce, function(sd) forest(sd = sd)))
-  expect_true(all(vapply(stated$getLeafPrior(), `[[`, NA, "sd.stated")))
+  for (index in seq_along(inForce)) {
+    stated$setForest(index, sd = inForce[[index]])
+  }
+  expect_false(any(vapply(stated$getLeafPrior(), `[[`, NA, "sd.stated")))
   expect_identical(lapply(stated$getLeafPrior(), `[[`, "sd"), inForce)
-  # the forest with no basis read k 2 under the leaf prior and reads 1 stated
   twinScales <- lapply(twin$getLeafPrior(), `[[`, "k.scale")
-  twinScales[[1L]] <- twinScales[[1L]] / 2
   expect_identical(
     lapply(stated$getLeafPrior(), `[[`, "k.scale"),
     twinScales
@@ -466,15 +468,12 @@ expect_false(is.null(inexact))
 twin <- twoForests(threeDefaults, inexact)
 written <- twoForests(threeDefaults, inexact)
 inForce <- lapply(written$getLeafPrior(), function(prior) prior$sd)
-written$setLeafPrior(forests = lapply(inForce, function(sd) forest(sd = sd)))
 channelsOf <- function(sampler) {
   lapply(sampler$getLeafPrior(), function(prior) {
     list(sd = prior$sd, k.scale = prior$k.scale)
   })
 }
 statingDefaults <- list(
-  write = written,
-  copy = written$copy(),
   creation = twoForests(
     list(
       forest(sd = inForce[[1L]], amplitude = dbartsPriors$fixed()),
@@ -727,7 +726,7 @@ for (how in names(again)) {
 }
 copied <- onConstant$copy()
 expect_identical(copied$run(0L, 5L), onConstant$run(0L, 5L))
-onConstant$setLeafPrior(forests = list(forest(sd = 0.7)))
+onConstant$setForest(1, sd = 0.7)
 expect_identical(onConstant$getLeafPrior(1L)$sd, 0.7)
 # the fitting function's normal(sd = ) beside several forests says where the
 # size is written
@@ -773,9 +772,8 @@ namedOnColumn <- twoForests(
 expect_identical(unname(namedOnColumn$getLeafPrior(2L)$sd), 0.5)
 expect_false(identical(names(namedOnColumn$getLeafPrior(2L)$sd), "s"))
 namedWrite <- twoForests(list(forest(), forest(basis = d$zf)))
-namedWrite$setLeafPrior(
-  forests = list(forest(sd = pars["t"]), forest(sd = pars["s"]))
-)
+namedWrite$setForest(1, sd = pars["t"])
+namedWrite$setForest(2, sd = pars["s"])
 expect_identical(namedWrite$getLeafPrior(2L)$sd, 0.5)
 expect_identical(forestSds(namedWrite), c(2, 0.5))
 expect_identical(namedWrite$run()$train, unnamedDraws)
@@ -816,7 +814,7 @@ for (long in list(c(dose = 1, age = 2), c(1, 2))) {
     fixed = TRUE
   )
   expect_error(
-    namedWrite$setLeafPrior(forests = list(forest(), forest(sd = long))),
+    namedWrite$setForest(2, sd = long),
     longSd,
     fixed = TRUE
   )

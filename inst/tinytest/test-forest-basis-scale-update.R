@@ -205,14 +205,12 @@ refusedOn(
   paste0(
     "forest 3 ('column') states its sd, 0.4, so it has no default to ",
     "update; restate ",
-    "it with $setLeafPrior(forests = ) or leave updateBasisScale FALSE"
+    "it with $setForest or leave updateBasisScale FALSE"
   )
 )
 statedLater <- threeForests(dose)
 invisible(statedLater$run(0L, 2L))
-statedLater$setLeafPrior(
-  forests = list(forest(), forest(), forest(sd = 0.25))
-)
+statedLater$setForest(3, sd = 0.25)
 refusedOn(
   statedLater,
   3L,
@@ -220,7 +218,7 @@ refusedOn(
   paste0(
     "forest 3 ('column') states its sd, 0.25, so it has no default to ",
     "update; restate ",
-    "it with $setLeafPrior(forests = ) or leave updateBasisScale FALSE"
+    "it with $setForest or leave updateBasisScale FALSE"
   )
 )
 refusedOn(
