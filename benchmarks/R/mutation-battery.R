@@ -656,10 +656,11 @@ mutations <- c(
     ),
     r3(
       "m46",
-      "R/dbarts.R",
-      ".Call(C_dbarts_bartcore_setForestSd, ptr, index - 1L, sds[[index]])",
-      ".Call(C_dbarts_bartcore_setForestSd, ptr, index, sds[[index]])",
+      "R/forestDoor.R",
+      ".Call(C_dbarts_bartcore_setForestSd, ptr, index - 1L, changed$sd)",
+      ".Call(C_dbarts_bartcore_setForestSd, ptr, index, changed$sd)",
       kTests(
+        "test-forest-door.R",
         "test-multiforest-leaf-prior-writer.R",
         "test-calibration-midchain.R",
         "test-forest-basis-r5.R"
@@ -668,10 +669,11 @@ mutations <- c(
     ),
     r3(
       "m47",
-      "R/dbarts.R",
-      "newModel@forests[[index]]@sd <- sds[[index]]",
-      "newModel@forests[[index]]@sd <- newModel@forests[[index]]@sd",
+      "R/forestDoor.R",
+      "model@forests[[index]]@sd <- sd",
+      "model@forests[[index]]@sd <- model@forests[[index]]@sd",
       kTests(
+        "test-forest-door.R",
         "test-multiforest-leaf-prior-writer.R",
         "test-calibration-midchain.R",
         "test-forest-basis-r5.R"
