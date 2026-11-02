@@ -1174,7 +1174,7 @@ every narrow replication, since its weight against the default grows as a power 
 default-length runs. No other candidate runs: the five stay failed. The harness's code does not change.
 
 **The stop** rises by 27 units to 137 (dec-B556), against 109.9 spent, so 27.1 units, about 19.1 box core-hours.
-The block as priced comes to about 29.9: long and own runs 26.9, default-length runs 2. So mite-bart, 3.1 units, is
+The block as priced comes to about 29: long and own runs 26.9, default-length runs 2. So mite-bart, 3.1 units, is
 cut now, the deviation from "cut to its cheapest cells" being that epil-w3, the costliest cell and the reason the wide
 band runs, is kept. Order: default-length runs held in reserve; narrow, middle, small-sample; then the wide band,
 epil-w3 first and the rest cheapest first, so mite-w3 comes last. Whatever the stop does not reach stays out and is
