@@ -1131,6 +1131,70 @@ main run is about 12 hours of wall time at the laptop's speed; its stored output
 measured: C4 at its floor and C5 on null data have not run at full length, and own runs are priced at
 C0's length.
 
+## Amendment before the fresh block
+
+Made 2026-11-02 under dec-B556, after the first look and before any fit on the replications below. Where it
+differs from the text above, it governs. The first look's outcome as registered is unchanged.
+
+**The search.** It read only the prior check and stored draws, and no fit was made for it. Screened: df 2 to 4
+by 0.25 against scale 1.25 to 3.5 by 0.25, 90 settings, on A1 (the stored forests) and A3 (crimtab's spread,
+160,000 forests, standard error about 0.03). Eight pass both. Each was then read from the first look's 500
+stored draws a run, by readRun, scoreReading and lookStatistics at the first look's boundary, with no own runs,
+so this is a screen and not the rule's reading.
+
+| prior | A1, limit 1 | A3, floor 1 | step 2 | rank | widest width guard | cells worse | narrow F interval score | smallest Kish, largest k-hat |
+|---|---|---|---|---|---|---|---|---|
+| chi(2.25, 3) | 0.87 | 1.10 | pending | -0.002 | 1.22 Traffic-bart | | 0.982 | 0.01, 0.84 |
+| chi(2.5, 2.25) | 0.99 | 1.33 | fail | -0.001 | 1.07 Traffic-bart | Traffic-bart | 0.986 | 0.48, 0.47 |
+| chi(2.5, 2.5) | 0.77 | 1.01 | fail | -0.001 | 1.11 Traffic-bart | Traffic-bart | 0.981 | 0.07, 0.64 |
+| chi(2.75, 2) | 0.82 | 1.20 | pending | -0.001 | 1.04 Traffic-bart | | 0.994 | 0.52, 0.30 |
+| chi(3, 1.75) | 0.75 | 1.13 | pending | -0.001 | 1.02 D5 | | 1.005 | 0.54, 0.31 |
+| chi(3.25, 1.5) | 0.79 | 1.19 | fail | -0.002 | 1.07 D5 | epil-w3 | 1.022 | 0.46, 0.31 |
+| chi(3.5, 1.25) | 0.98 | 1.66 | fail | -0.000 | 1.14 D5 | epil-n30-3, epil-w3 | 1.049 | 0.22, 0.36 |
+| chi(3.75, 1.25) | 0.69 | 1.18 | fail | -0.001 | 1.14 D5 | epil-n30-3, epil-w3 | 1.047 | 0.23, 0.38 |
+
+Rank is the band-weighted gap over F and R less the default's: all eight are tied by step 3's 0.005.
+
+**The pick: chi(2.75, 2)**, by the rule's order. Along the passing settings a larger scale loses on Traffic-bart
+and a smaller one on D5's width and epil-w3. Traffic-bart's flag is not noise from the weights: F's gap there rises
+with the scale, at -0.001, 0.018, 0.035 and 0.051 from chi(3, 1.75) to chi(2.5, 2.5), and every one of its five
+replications has the larger interval score. chi(2.25, 3) escapes the flag only by its noise: its gap is 0.043 and
+its weights keep as few as 4 effective draws, so stored draws cannot read it and the rule would ask for own runs
+on 101 replications. Its median k is 3.8, twice the default's. That leaves chi(2.75, 2) and chi(3, 1.75), tied, and
+the narrow band's interval score takes chi(2.75, 2). No setting between them can be separated from these two on
+stored draws, so the search stops. The stored read has overstated epil's losses before, so chi(3.25, 1.5)'s flag may
+not stand, but it also loses that tie-break. Not read: any setting off the grid, and own runs for any setting but
+these two, as dec-B556's rule has it. chi(2.75, 2) sits close to the cell bar on Traffic-bart's F, at 0.018 against
+0.02, which the block retests.
+
+**The block.** Five new replications on each cell that is not a fold, with each cell's replications continuing
+from its last, 6 to 10 or 11 to 15, by the harness's seeds; the folds never grow. On each: C0's long run; chi(2.75,
+2)'s own run wherever the rule asks for one (Kish below 0.3, k-hat above 0.7, or under 100 effective draws), and on
+every narrow replication, since its weight against the default grows as a power of k; C0's and chi(2.75, 2)'s
+default-length runs. No other candidate runs: the five stay failed. The harness's code does not change.
+
+**The stop** rises by 27 units to 137 (dec-B556), against 109.9 spent, so 27.1 units, about 19.1 box core-hours.
+The block as priced comes to about 29.9: long and own runs 26.9, default-length runs 2. So mite-bart, 3.1 units, is
+cut now, the deviation from "cut to its cheapest cells" being that epil-w3, the costliest cell and the reason the wide
+band runs, is kept. Order: default-length runs held in reserve; narrow, middle, small-sample; then the wide band,
+epil-w3 first and the rest cheapest first, so mite-w3 comes last. Whatever the stop does not reach stays out and is
+named. Runs stop early if a result is settled that no remaining cell could change.
+
+**Two readings, both stated now.** Neither is a final-look reading of the kind the first look's added section used.
+
+1. The rule as registered: the first look's and the block's replications together, the first look's readings of
+   chi(2.75, 2) as composed, at the Lan-DeMets boundary for the realized information fraction, about 2.45. This look
+   is the last, but its boundary stays the spending boundary and not the 1.96 of a look made final by the stop.
+   A statistic still pending reads as not passed.
+2. The block alone, free of how the prior was chosen: the same statistics, bars, cell rule and width guard, on the
+   new replications, with its z at 1.96. The held-out log score rests on the folds, which do not grow, so it is
+   not part of this reading.
+
+Step 5 reads the default-length runs on all replications, and on the block alone. The rule recommends chi(2.75, 2) only
+if both readings and step 5 pass. If either fails, the rule keeps the default, and how it failed is reported. Each
+reading's numbers are reported either way, and the result goes to the maintainer (dec-B432); nothing is built until
+the maintainer rules.
+
 ## How the result goes to the maintainer
 
 The finding is written to docs/design/nbinom-default-study.md (Status FINDING): Part A's table and verdicts
