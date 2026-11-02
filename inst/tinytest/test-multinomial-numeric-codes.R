@@ -89,7 +89,13 @@ fromCharacter <- dbarts(
   n.trees = 5L
 )
 expect_identical(fromCharacter$data@counts, fromFactor$data@counts)
-fromMatrix <- dbarts(x, expected, family = "multinomial", control = control, n.trees = 5L)
+fromMatrix <- dbarts(
+  x,
+  expected,
+  family = "multinomial",
+  control = control,
+  n.trees = 5L
+)
 expect_equal(unname(fromMatrix$data@counts), expected)
 
 # the other doors a numeric vector could reach: a data object's counts takes a
@@ -117,7 +123,13 @@ expect_error(
 # a formula never carries a multinomial response at dbarts()
 d <- data.frame(y = codes, x1 = x[, 1L], x2 = x[, 2L])
 expect_error(
-  dbarts(y ~ x1 + x2, d, family = "multinomial", control = control, n.trees = 5L),
+  dbarts(
+    y ~ x1 + x2,
+    d,
+    family = "multinomial",
+    control = control,
+    n.trees = 5L
+  ),
   "multinomial fits currently use the matrix interface"
 )
 
@@ -128,7 +140,13 @@ expect_identical(
   "probit"
 )
 expect_identical(
-  dbarts(x, codes + 1, family = "ordinal", control = control, n.trees = 5L)$model@family,
+  dbarts(
+    x,
+    codes + 1,
+    family = "ordinal",
+    control = control,
+    n.trees = 5L
+  )$model@family,
   "ordinal"
 )
 

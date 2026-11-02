@@ -1062,7 +1062,8 @@ sharedSampler <- function(arm, control) {
     family = gaussian(sigma = dbartsPriors$fixed(sigma^2)),
     leaf.prior = dbartsPriors$normal(k = arm$k),
     forests = Map(heldForest, arm$forests, forestTrees(arm)),
-    control = control
+    control = control,
+    n.cuts = 1L
   )
 }
 sharedFit <- function(seed, arm, kept) {
@@ -1070,7 +1071,6 @@ sharedFit <- function(seed, arm, kept) {
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.cuts = 1L,
     updateState = FALSE,
     keepTrainingFits = TRUE
   )
@@ -1093,7 +1093,7 @@ sharedFit <- function(seed, arm, kept) {
 sharedOracle <- function(arm, share = sqrt) {
   sampler <- sharedSampler(
     arm,
-    dbartsControl(n.chains = 1L, n.threads = 1L, n.cuts = 1L)
+    dbartsControl(n.chains = 1L, n.threads = 1L)
   )
   unit <- sampler$data@forest.calibration[["unit"]]
   shift <- sampler$getLeafPrior(1L)$response.shift

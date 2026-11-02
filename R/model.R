@@ -2171,7 +2171,8 @@ refuseConstraintOnSeveralPlain <- function(interactions, blocks, numPlain) {
 refuseStatedOnPlainForest <- function(stated, plainSpecs, where) {
   for (name in c("n.trees", "power", "base")) {
     if (
-      name %in% names(stated) &&
+      name %in%
+        names(stated) &&
         length(plainSpecs) > 0L &&
         all(vapply(plainSpecs, function(spec) !is.null(spec[[name]]), NA))
     ) {

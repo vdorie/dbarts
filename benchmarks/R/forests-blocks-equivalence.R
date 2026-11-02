@@ -89,21 +89,27 @@ scenarios <- list(
 
 posteriorMeans <- function(seed, formula, family, numTrees, leafPrior) {
   control <- dbartsControl(
-    n.trees = numTrees,
     n.chains = 1L,
     n.threads = 1L,
     updateState = FALSE,
     seed = seed
   )
   sampler <- if (is.null(leafPrior)) {
-    dbarts(formula, data, family = family, control = control)
+    dbarts(
+      formula,
+      data,
+      family = family,
+      control = control,
+      n.trees = numTrees
+    )
   } else {
     dbarts(
       formula,
       data,
       family = family,
       leaf.prior = leafPrior,
-      control = control
+      control = control,
+      n.trees = numTrees
     )
   }
   run <- sampler$run(numBurn, numKept)

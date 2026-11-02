@@ -353,6 +353,6 @@ samplerForestLines <- function(sampler, full = FALSE) {
     dataForestCalibration(sampler$data)[["unit"]],
     full,
     "$getLeafPrior()",
-    vapply(info$params, function(forest) as.integer(forest[1L]), 0L)
+    vapply(records, function(record) as.integer(record@n.trees), 0L)
   )
 }

@@ -126,10 +126,7 @@ for (family in c("gaussian", "probit", "logistic")) {
       check.attributes = FALSE,
       info = info
     )
-    expect_identical(
-      attr(sampler$control, "bartcore.forests", exact = TRUE)$params[[2L]][1L],
-      25
-    )
+    expect_identical(sampler$model@forests[[2L]]@n.trees, 25L)
     if (family == "gaussian") {
       expect_equal(
         sds(sampler),
@@ -158,14 +155,7 @@ for (family in c("gaussian", "probit", "logistic")) {
 # and 37 with a count stated; a part per tree would make them differ ---
 total <- loneSd("gaussian")[["k.scale"]]
 two <- dbarts(y ~ forest(x1) + forest(x2), d, control = ctl())
-expect_identical(
-  vapply(
-    attr(two$control, "bartcore.forests")$params,
-    function(p) p[[1L]],
-    0
-  ),
-  c(38, 37)
-)
+expect_identical(vapply(two$model@forests, slot, 0L, "n.trees"), c(38L, 37L))
 expect_equal(kScales(two), rep(total / sqrt(2), 2L), tolerance = 1e-12)
 stated <- dbarts(
   y ~ forest(x1, n.trees = 10) + forest(x2) + forest(x3),
@@ -173,20 +163,13 @@ stated <- dbarts(
   control = ctl()
 )
 expect_identical(
-  vapply(
-    attr(stated$control, "bartcore.forests")$params,
-    function(p) p[[1L]],
-    0
-  ),
-  c(10, 38, 37)
+  vapply(stated$model@forests, slot, 0L, "n.trees"),
+  c(10L, 38L, 37L)
 )
 expect_equal(kScales(stated), rep(total / sqrt(3), 3L), tolerance = 1e-12)
-# the control the next fit inherits keeps the fitting function's count
-expect_identical(stated$control@n.trees, 10L)
-expect_identical(
-  attr(stated$control, "bartcore.forests")$control.n.trees,
-  75L
-)
+# the control reads the fitting function's count: the parts of the forests with
+# no basis, summed
+expect_identical(stated$control@n.trees, 85L)
 
 # --- beside a forest with a basis and one stating sd: those keep their own,
 # and a stated k or leaf.prior = normal(sd = ) is the group's ---
@@ -322,7 +305,8 @@ expect_error(
     x,
     y,
     forests = list(forest(), forest(), forest()),
-    control = dbartsControl(n.trees = 2L, n.chains = 1L)
+    control = dbartsControl(n.chains = 1L),
+    n.trees = 2L
   ),
   "the fitting function's 2 tree(s) split among 3 forests with no basis",
   fixed = TRUE

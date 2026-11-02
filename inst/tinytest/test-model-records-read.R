@@ -233,7 +233,8 @@ labeled <- bart(
 labels <- vapply(labeled$fit$model@forests, methods::slot, "", "label")
 expect_false(identical(labels, c("forest1", "forest2")))
 expect_identical(names(labeled$leaf.prior), labels)
-expect_identical(names(labeled$fixed$amplitude), labels[2L])
+# the forest with no basis is held at 1 as well, as the leaf prior reader says
+expect_identical(names(labeled$fixed$amplitude), labels)
 printed <- capture.output(print(bart(
   y ~ x1 + x2 + x3,
   frame,

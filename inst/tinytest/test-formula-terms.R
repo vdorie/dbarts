@@ -93,9 +93,7 @@ splitsOn <- function(result) {
 }
 # the tree count of each forest: the first forest's is the control's
 treeCounts <- function(result) {
-  counts <- as.double(vapply(forestRecords(result), slot, 0L, "n.trees"))
-  counts[1L] <- result$fit$control@n.trees
-  counts
+  as.double(vapply(forestRecords(result), slot, 0L, "n.trees"))
 }
 # two spellings of one model: the same design, bases, forests and draws
 expectSameForest <- function(formulaA, formulaB, ...) {

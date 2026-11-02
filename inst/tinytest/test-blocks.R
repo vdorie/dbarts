@@ -428,7 +428,6 @@ expect_true(all(mnTrees$var[mnTrees$tree <= 5L & mnTrees$var > 0L] == 1L))
 ueControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 20L,
   n.burn = 0L,
   n.samples = 10L,
   updateState = TRUE,
@@ -442,6 +441,7 @@ ueSampler <- dbarts(
   y ~ x1 + x2 + x3,
   df,
   control = ueControl,
+  n.trees = 20L,
   blocks = ueBlocks
 )
 invisible(ueSampler$run(40L, 0L))
@@ -466,6 +466,7 @@ ueTarget <- function() {
     y ~ x1 + x2 + x3,
     df,
     control = ueControl,
+    n.trees = 20L,
     blocks = ueBlocks,
     seed = 2026L
   )

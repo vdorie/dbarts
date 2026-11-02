@@ -1364,7 +1364,11 @@ resolveSamplerSpec <- function(
         function(index) {
           own <- specs[[index]]$interactions
           resolveInteractions(
-            if (is.null(own) && identical(index, plain)) fitInteractions else own,
+            if (is.null(own) && identical(index, plain)) {
+              fitInteractions
+            } else {
+              own
+            },
             data
           )
         }
@@ -1397,7 +1401,11 @@ resolveSamplerSpec <- function(
     records <- lapply(seq_len(numForests), function(index) {
       record <- new("dbartsForestRecord")
       record@n.trees <- treeCounts[index]
-      record@stated <- forestCountStated(specs[[index]], index %in% plain, stated)
+      record@stated <- forestCountStated(
+        specs[[index]],
+        index %in% plain,
+        stated
+      )
       record@base <- params[[index]][2L]
       record@power <- params[[index]][3L]
       record@held.amplitude <- identical(specs[[index]]$amplitude, "fixed")

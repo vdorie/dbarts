@@ -143,19 +143,19 @@ makeSampler <- function(leafPrior, seed) {
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 3L,
     keepTrees = FALSE,
     n.samples = batchSize,
     n.burn = 0L,
     n.thin = 1L,
     updateState = FALSE,
-    seed = seed,
-    n.cuts = 1L
+    seed = seed
   )
   dbarts(
     data.frame(x1 = x1, x2 = x2),
     y,
     control = control,
+    n.trees = 3L,
+    n.cuts = 1L,
     tree.prior = cgm(power, base),
     leaf.prior = leafPrior,
     family = gaussian(sigma = fixed(sigma^2)),
