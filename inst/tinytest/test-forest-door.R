@@ -261,9 +261,21 @@ expectAsUntouched <- function(sampler, untouched, target, info) {
   if (is.null(target) && length(sampler$model@forests) > 1L) {
     target <- 1L
   }
-  same(sampler$getForest(target), untouched$getForest(target), "reader")
-  same(modelOf(sampler), modelOf(untouched), "records")
-  same(draws(sampler), draws(untouched), "draws")
+  expect_identical(
+    sampler$getForest(target),
+    untouched$getForest(target),
+    info = paste(info, "reader")
+  )
+  expect_identical(
+    modelOf(sampler),
+    modelOf(untouched),
+    info = paste(info, "records")
+  )
+  expect_identical(
+    draws(sampler),
+    draws(untouched),
+    info = paste(info, "draws")
+  )
 }
 
 # what each name is written to, each differing from every default it meets
@@ -470,9 +482,13 @@ everyName <- c(
   "treeShift"
 )
 expectPlainList <- function(read, expected, info) {
-  same(class(read), "list", "class")
-  same(names(attributes(read)), "names", "attributes")
-  same(names(read), expected, "names")
+  expect_identical(class(read), "list", info = paste(info, "class"))
+  expect_identical(
+    names(attributes(read)),
+    "names",
+    info = paste(info, "attributes")
+  )
+  expect_identical(names(read), expected, info = paste(info, "names"))
 }
 for (kind in names(kinds)) {
   case(paste("reader", kind), {
@@ -677,15 +693,14 @@ for (kind in inertKinds) {
         info = paste("round trip", kind, target)
       )
       for (name in names(read)) {
-        info <- paste("inert", kind, target, name)
         # a subset restated, and a NULL on the name
         doorAny(sampler, kind, target, read[name])
-        same(sampler$model, before, "restated")
+        same(sampler$model, before, target, name, "restated")
         cleared <- list(NULL)
         names(cleared) <- name
         doorAny(sampler, kind, target, cleared)
-        same(sampler$model, before, "NULL")
-        same(readerAny(sampler, kind, target), read, "reader")
+        same(sampler$model, before, target, name, "NULL")
+        same(readerAny(sampler, kind, target), read, target, name, "reader")
       }
     }
     expect_identical(
@@ -840,7 +855,11 @@ agree <- function(sampler, info) {
     },
     info = paste(info, "reader and engine")
   )
-  same(sampler$copy()$getLeafPrior(), sampler$getLeafPrior(), "a copy reads it")
+  expect_identical(
+    sampler$copy()$getLeafPrior(),
+    sampler$getLeafPrior(),
+    info = paste(info, "a copy reads it")
+  )
 }
 case("later write, sd after a leaf prior's k", {
   live <- dbarts(
