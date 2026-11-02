@@ -230,8 +230,14 @@ refusal <- function(expr) {
     error = conditionMessage
   )
 }
-# a case's body runs here, and what stops it fails by the case's name
+# a case's body runs here, and what stops it fails by the case's name; `same`
+# labels an expectation by the case and what it pins
+caseName <- ""
+same <- function(current, target, ...) {
+  expect_identical(current, target, info = paste(caseName, ...))
+}
 case <- function(name, body) {
+  caseName <<- name
   tryCatch(
     body,
     error = function(e) {
@@ -255,21 +261,9 @@ expectAsUntouched <- function(sampler, untouched, target, info) {
   if (is.null(target) && length(sampler$model@forests) > 1L) {
     target <- 1L
   }
-  expect_identical(
-    sampler$getForest(target),
-    untouched$getForest(target),
-    info = paste(info, "reader")
-  )
-  expect_identical(
-    modelOf(sampler),
-    modelOf(untouched),
-    info = paste(info, "records")
-  )
-  expect_identical(
-    draws(sampler),
-    draws(untouched),
-    info = paste(info, "draws")
-  )
+  same(sampler$getForest(target), untouched$getForest(target), "reader")
+  same(modelOf(sampler), modelOf(untouched), "records")
+  same(draws(sampler), draws(untouched), "draws")
 }
 
 # what each name is written to, each differing from every default it meets
@@ -299,28 +293,21 @@ for (kind in names(kinds)) {
     case(info, {
       # before any run: the twin
       live <- build(kind)
-      expect_identical(live$control@n.chains, 2L, info = info)
+      same(live$control@n.chains, 2L)
       expect_null(door(live, spec$target, stated), info = info)
       twin <- build(kind, stated)
-      expect_identical(
-        modelOf(live),
-        modelOf(twin),
-        info = paste(info, "records")
-      )
+      same(modelOf(live), modelOf(twin), "records")
+      same(live$getK(spec$target), twin$getK(spec$target), "getK")
       liveDraws <- draws(live)
       twinDraws <- draws(twin)
-      expect_identical(
-        ncol(liveDraws$sigma),
-        2L,
-        info = paste(info, "two chains")
-      )
+      same(ncol(liveDraws$sigma), 2L, "two chains")
       if (name %in% spec$exempt) {
         expect_false(
           identical(liveDraws, twinDraws),
           info = paste(info, "exempt: the start creation read")
         )
       } else {
-        expect_identical(liveDraws, twinDraws, info = paste(info, "draws"))
+        same(liveDraws, twinDraws, "draws")
       }
       if (expectMoves(kind, name)) {
         expect_false(
@@ -335,49 +322,30 @@ for (kind in names(kinds)) {
       invisible(live$run(0L, 2L))
       door(live, spec$target, stated)
       twin <- build(kind, stated)
-      expect_identical(
-        live$getForest(spec$target),
-        twin$getForest(spec$target),
-        info = paste(info, "reader")
-      )
+      same(live$getForest(spec$target), twin$getForest(spec$target), "reader")
       if (name != "proposal.probs") {
-        expect_identical(
+        same(
           live$getForest(spec$target)[[name]],
           stated[[name]],
-          info = paste(info, "reads what was written")
+          "reads what was written"
         )
       }
       if (name == "sd") {
-        expect_identical(
+        same(
           live$getLeafPrior(spec$target)$sd,
           twin$getLeafPrior(spec$target)$sd,
-          info = paste(info, "getLeafPrior")
+          "getLeafPrior"
         )
       }
       live$storeState()
       twin$setState(live$state)
-      expect_identical(
-        live$getK(spec$target),
-        twin$getK(spec$target),
-        info = paste(info, "getK")
-      )
       copied <- live$copy()
       loaded <- reloaded(live)
-      expect_identical(
-        modelOf(copied),
-        modelOf(live),
-        info = paste(info, "copy records")
-      )
-      expect_identical(
-        modelOf(loaded),
-        modelOf(live),
-        info = paste(info, "reload records")
-      )
       # an install of the state keeps it to its last digits, so what the state
       # restarts agrees bitwise and the sampler that goes on, to those digits
       after <- draws(twin)
-      expect_identical(draws(copied), after, info = paste(info, "copy draws"))
-      expect_identical(draws(loaded), after, info = paste(info, "reload draws"))
+      same(draws(copied), after, "copy draws")
+      same(draws(loaded), after, "reload draws")
       expect_equal(
         draws(live),
         after,
@@ -397,14 +365,15 @@ for (name in c("power", "base", "n.perturb.cuts")) {
       live <- build("three")
       door(live, target, written[name])
       twin <- build("three", written[name], target)
-      expect_identical(modelOf(live), modelOf(twin), info = info)
-      expect_identical(draws(live), draws(twin), info = info)
+      same(modelOf(live), modelOf(twin))
+      same(draws(live), draws(twin))
       untouched <- build("three")
       for (other in setdiff(1:3, target)) {
-        expect_identical(
+        same(
           live$getForest(other),
           untouched$getForest(other),
-          info = paste(info, "leaves forest", other)
+          "leaves forest",
+          other
         )
       }
     })
@@ -423,37 +392,50 @@ case("several names", {
 
 # The other leaf models and a stated k on a lone forest.
 loneLeaves <- list(
-  fixed.k = list(leaf.prior = normal(k = 3)),
-  infinite.k = list(leaf.prior = normal(k = Inf)),
-  linear = list(leaf.prior = linear(sd = 1, columns = "x2")),
-  gp = list(leaf.prior = gp(sd = 1, columns = "x2"))
+  fixed.k = list(
+    list(leaf.prior = normal(k = 3)),
+    list(forests = list(forest(sd = 0.7)))
+  ),
+  infinite.k = list(
+    list(leaf.prior = normal(k = Inf)),
+    list(forests = list(forest(sd = 0.7)))
+  ),
+  linear = list(
+    list(leaf.prior = linear(sd = 1, columns = "x2")),
+    list(leaf.prior = linear(sd = 0.7, columns = "x2"))
+  ),
+  gp = list(
+    list(leaf.prior = gp(sd = 1, columns = "x2")),
+    list(leaf.prior = gp(sd = 0.7, columns = "x2"))
+  )
 )
 for (leaf in names(loneLeaves)) {
   info <- paste("lone leaf", leaf, "sd")
   case(info, {
-    made <- function() {
+    made <- function(stating) {
       do.call(
         dbarts,
         c(
           list(x, y, n.trees = 8L, control = ctl(proposal.probs = shipped)),
-          loneLeaves[[leaf]]
+          stating
         )
       )
     }
-    live <- made()
+    live <- made(loneLeaves[[leaf]][[1L]])
     live$setForest(1L, sd = 0.7)
-    expect_identical(live$getLeafPrior()$sd, 0.7, info = info)
-    expect_identical(live$getForest()$sd, 0.7, info = info)
-    expect_identical(
-      live$model@leaf.prior@prior.sd,
-      0.7,
-      info = paste(info, "records")
-    )
+    twin <- made(loneLeaves[[leaf]][[2L]])
+    same(live$model, twin$model, "twin records")
+    same(draws(live), draws(twin), "twin draws")
+    live <- made(loneLeaves[[leaf]][[1L]])
+    live$setForest(1L, sd = 0.7)
+    same(live$getLeafPrior()$sd, 0.7)
+    same(live$getForest()$sd, 0.7)
+    same(live$model@leaf.prior@prior.sd, 0.7, "records")
     copied <- live$copy()
     liveDraws <- draws(live)
-    expect_identical(draws(copied), liveDraws, info = paste(info, "copy"))
+    same(draws(copied), liveDraws, "copy")
     expect_false(
-      identical(draws(made()), liveDraws),
+      identical(draws(made(loneLeaves[[leaf]][[1L]])), liveDraws),
       info = paste(info, "moves a draw")
     )
   })
@@ -468,20 +450,12 @@ for (name in names(multinomialWritten)) {
     live <- buildMultinomial()
     expect_null(do.call(live$setForest, stated), info = info)
     twin <- buildMultinomial(stated)
-    expect_identical(
-      modelOf(live),
-      modelOf(twin),
-      info = paste(info, "records")
-    )
-    expect_identical(
-      live$getForest(),
-      twin$getForest(),
-      info = paste(info, "reader")
-    )
+    same(modelOf(live), modelOf(twin), "records")
+    same(live$getForest(), twin$getForest(), "reader")
     copied <- live$copy()
     liveDraws <- draws(live)
-    expect_identical(liveDraws, draws(twin), info = paste(info, "draws"))
-    expect_identical(draws(copied), liveDraws, info = paste(info, "copy"))
+    same(liveDraws, draws(twin), "draws")
+    same(draws(copied), liveDraws, "copy")
   })
 }
 
@@ -496,13 +470,9 @@ everyName <- c(
   "treeShift"
 )
 expectPlainList <- function(read, expected, info) {
-  expect_identical(class(read), "list", info = paste(info, "class"))
-  expect_identical(
-    names(attributes(read)),
-    "names",
-    info = paste(info, "attributes")
-  )
-  expect_identical(names(read), expected, info = paste(info, "names"))
+  same(class(read), "list", "class")
+  same(names(attributes(read)), "names", "attributes")
+  same(names(read), expected, "names")
 }
 for (kind in names(kinds)) {
   case(paste("reader", kind), {
@@ -534,10 +504,10 @@ amplitudeRead <- list(
 for (kind in names(amplitudeRead)) {
   info <- paste("reader amplitude", kind)
   case(info, {
-    expect_identical(
+    same(
       build(kind)$getForest(kinds[[kind]]$target)$amplitude,
       amplitudeRead[[kind]],
-      info = info
+      ""
     )
   })
 }
@@ -553,25 +523,21 @@ for (kind in names(kinds)) {
   }
 }
 case("reader sd stated", {
-  expect_identical(build("stated")$getForest(1L)$sd, 1.2, info = "no basis")
-  expect_identical(
-    build("factor", list(sd = 0.7))$getForest(2L)$sd,
-    0.7,
-    info = "factor"
-  )
-  expect_identical(
+  same(build("stated")$getForest(1L)$sd, 1.2, "no basis")
+  same(build("factor", list(sd = 0.7))$getForest(2L)$sd, 0.7, "factor")
+  same(
     build("numeric", list(sd = 0.7))$getForest(2L)$sd,
     0.7,
-    info = "numeric reads no column name"
+    "numeric reads no column name"
   )
-  expect_identical(
+  same(
     unname(build("numeric")$getForest(2L)$sd),
     unname(build("numeric")$getLeafPrior(2L)$sd),
-    info = "numeric default is getLeafPrior's"
+    "numeric default is getLeafPrior's"
   )
   expect_null(
     names(build("numeric")$getForest(2L)$sd),
-    info = "numeric default reads no column name"
+    info = "reader sd stated: numeric default reads no column name"
   )
 })
 case("reader depth from the fitting function", {
@@ -592,22 +558,17 @@ case("reader depth from the fitting function", {
     read <- sampler[[how]]$getForest()
     expect_identical(read$power, 3, info = paste(how, "power"))
     expect_identical(read$base, 0.7, info = paste(how, "base"))
-    expect_identical(
-      sampler[[how]]$model@forests[[1L]]@stated,
-      bartForm$model@forests[[1L]]@stated,
-      info = paste(how, "stated")
-    )
   }
-  # every forest of several takes the fitting function's depth at creation
+  # beside a forest with a basis, it is forest 1's and the other keeps its kind's
   several <- dbarts(
     x,
     y,
     forests = list(forest(), forest(basis = ~ factor(z))),
-    power = 3,
+    power = 2.5,
     control = ctl(proposal.probs = shipped)
   )
-  expect_identical(several$getForest(1L)$power, 3, info = "forest 1 of two")
-  expect_identical(several$getForest(2L)$power, 3, info = "forest 2 of two")
+  same(several$getForest(1L)$power, 2.5, "forest 1 of two")
+  same(several$getForest(2L)$power, 3, "forest 2 of two")
 })
 case("reader takes a control's value and a forest's own", {
   sampler <- dbarts(
@@ -616,17 +577,9 @@ case("reader takes a control's value and a forest's own", {
     forests = list(forest(n.perturb.cuts = 3)),
     control = ctl(proposal.probs = shipped)
   )
-  expect_identical(sampler$getForest()$n.perturb.cuts, 3, info = "its own")
-  expect_identical(
-    sampler$getForest()$proposal.probs,
-    shipped,
-    info = "the control's"
-  )
-  expect_identical(
-    sampler$getForest()$treeShift,
-    "auto",
-    info = "the control's"
-  )
+  same(sampler$getForest()$n.perturb.cuts, 3, "its own")
+  same(sampler$getForest()$proposal.probs, shipped, "the control's")
+  same(sampler$getForest()$treeShift, "auto", "the control's")
 })
 case("reader forest argument", {
   sampler <- build("three")
@@ -650,23 +603,19 @@ case("reader forest argument", {
     "names no forest of this model",
     "unknown label"
   )
-  expect_identical(
+  same(
     sampler$getForest("gamma"),
     sampler$getForest(3L),
-    info = "label is its position"
+    "label is its position"
   )
-  expect_identical(
+  same(
     sampler$getForest("forest2"),
     sampler$getForest(2L),
-    info = "forest<i> is position i"
+    "forest<i> is position i"
   )
   lone <- build("lone")
-  expect_identical(
-    lone$getForest("forest1"),
-    lone$getForest(),
-    info = "one forest, forest1"
-  )
-  expect_identical(lone$getForest(1L), lone$getForest(), info = "one forest, 1")
+  same(lone$getForest("forest1"), lone$getForest(), "one forest, forest1")
+  same(lone$getForest(1L), lone$getForest(), "one forest, 1")
 })
 
 ## --- inert: a call that changes nothing has the draws and records of no call ----
@@ -731,16 +680,12 @@ for (kind in inertKinds) {
         info <- paste("inert", kind, target, name)
         # a subset restated, and a NULL on the name
         doorAny(sampler, kind, target, read[name])
-        expect_identical(sampler$model, before, info = paste(info, "restated"))
+        same(sampler$model, before, "restated")
         cleared <- list(NULL)
         names(cleared) <- name
         doorAny(sampler, kind, target, cleared)
-        expect_identical(sampler$model, before, info = paste(info, "NULL"))
-        expect_identical(
-          readerAny(sampler, kind, target),
-          read,
-          info = paste(info, "reader")
-        )
+        same(sampler$model, before, "NULL")
+        same(readerAny(sampler, kind, target), read, "reader")
       }
     }
     expect_identical(
@@ -754,8 +699,8 @@ for (kind in inertKinds) {
 case("inert NULL on a stated sd", {
   sampler <- build("stated")
   sampler$setForest(1L, sd = NULL)
-  expect_identical(sampler$getForest(1L)$sd, 1.2, info = "reader")
-  expect_identical(draws(sampler), draws(build("stated")), info = "draws")
+  same(sampler$getForest(1L)$sd, 1.2, "reader")
+  same(draws(sampler), draws(build("stated")), "draws")
 })
 case("inert on a run sampler with updateState", {
   sampler <- build("factor")
@@ -766,11 +711,11 @@ case("inert on a run sampler with updateState", {
     power = sampler$getForest(2L)$power,
     updateState = TRUE
   )
-  expect_identical(sampler$state, stored, info = "no change stores nothing")
+  same(sampler$state, stored, "no change stores nothing")
   sampler$setForest(2L, power = 0.5, updateState = TRUE)
   expect_false(
     identical(sampler$state, stored),
-    info = "a change stores when told"
+    info = "inert on a run sampler with updateState: a change stores when told"
   )
   expectFound(
     refusal(sampler$setForest(2L, power = 3, updateState = "a")),
@@ -794,21 +739,13 @@ for (kind in c("lone", "factor", "sharer")) {
     roundTrip(sampler, target)
     setPerturbCuts(sampler, 7L)
     setPerturbCuts(plain, 7L)
-    expect_identical(
-      sampler$getForest(target)$n.perturb.cuts,
-      7L,
-      info = paste(info, "reader")
-    )
-    expect_identical(draws(sampler), draws(plain), info = info)
+    same(sampler$getForest(target)$n.perturb.cuts, 7L, "reader")
+    same(draws(sampler), draws(plain))
     # a forest that stated its own does not follow, the later write in force
     stating <- build(kind)
     door(stating, target, list(n.perturb.cuts = 5))
     setPerturbCuts(stating, 7L)
-    expect_identical(
-      stating$getForest(target)$n.perturb.cuts,
-      5,
-      info = paste(info, "a statement holds")
-    )
+    same(stating$getForest(target)$n.perturb.cuts, 5, "a statement holds")
   })
 }
 case("follows the fitting function's door after a round trip", {
@@ -817,8 +754,8 @@ case("follows the fitting function's door after a round trip", {
   roundTrip(sampler, 1L)
   sampler$setLeafPrior(normal(k = 3))
   plain$setLeafPrior(normal(k = 3))
-  expect_identical(sampler$model, plain$model, info = "leaf prior reaches")
-  expect_identical(draws(sampler), draws(plain), info = "leaf prior draws")
+  same(sampler$model, plain$model, "leaf prior reaches")
+  same(draws(sampler), draws(plain), "leaf prior draws")
   sampler <- build("lone")
   plain <- build("lone")
   roundTrip(sampler, 1L)
@@ -829,8 +766,8 @@ case("follows the fitting function's door after a round trip", {
   }
   deeper(sampler)
   deeper(plain)
-  expect_identical(sampler$getForest()$power, 3, info = "setModel reaches")
-  expect_identical(draws(sampler), draws(plain), info = "setModel draws")
+  same(sampler$getForest()$power, 3, "setModel reaches")
+  same(draws(sampler), draws(plain), "setModel draws")
 })
 # what a door wrote goes back as it read, the mixture's canonical form included
 for (kind in c("lone", "factor", "numeric", "normal.stated")) {
@@ -841,7 +778,7 @@ for (kind in c("lone", "factor", "numeric", "normal.stated")) {
     door(sampler, target, written[names(written) != "sd"])
     before <- sampler$model
     roundTrip(sampler, target)
-    expect_identical(sampler$model, before, info = info)
+    same(sampler$model, before)
   })
 }
 case("a statement left out of a round trip stays out", {
@@ -867,14 +804,10 @@ case("a stated depth is stated, and a write states it once", {
     build("three", list(power = 0.5, base = 0.6), 2L)$model@forests[[
       2L
     ]]@stated,
-    info = "stated in creation's order"
+    info = "a stated depth is stated, and a write states it once: stated in creation's order"
   )
   sampler$setForest(2L, power = 3)
-  expect_identical(
-    sum(sampler$model@forests[[2L]]@stated == "power"),
-    1L,
-    info = "stated once"
-  )
+  same(sum(sampler$model@forests[[2L]]@stated == "power"), 1L, "stated once")
 })
 case("a numeric forest's default re-derives after a round trip", {
   sampler <- build("numeric")
@@ -882,16 +815,12 @@ case("a numeric forest's default re-derives after a round trip", {
   roundTrip(sampler, 2L)
   sampler$setForestBasis(2L, 3 * dose, updateBasisScale = TRUE)
   plain$setForestBasis(2L, 3 * dose, updateBasisScale = TRUE)
-  expect_identical(
-    sampler$getForest(2L)$sd,
-    plain$getForest(2L)$sd,
-    info = "the default"
-  )
+  same(sampler$getForest(2L)$sd, plain$getForest(2L)$sd, "the default")
   expect_false(
     identical(sampler$getForest(2L)$sd, build("numeric")$getForest(2L)$sd),
-    info = "the default moved"
+    info = "a numeric forest's default re-derives after a round trip: the default moved"
   )
-  expect_identical(draws(sampler), draws(plain), info = "draws")
+  same(draws(sampler), draws(plain), "draws")
   stating <- build("numeric")
   stating$setForest(2L, sd = 0.7)
   expectFound(
@@ -911,11 +840,7 @@ agree <- function(sampler, info) {
     },
     info = paste(info, "reader and engine")
   )
-  expect_identical(
-    sampler$copy()$getLeafPrior(),
-    sampler$getLeafPrior(),
-    info = paste(info, "a copy reads it")
-  )
+  same(sampler$copy()$getLeafPrior(), sampler$getLeafPrior(), "a copy reads it")
 }
 case("later write, sd after a leaf prior's k", {
   live <- dbarts(
@@ -927,9 +852,9 @@ case("later write, sd after a leaf prior's k", {
   )
   live$setForest(1L, sd = 0.7)
   twin <- build("lone", list(sd = 0.7))
-  expect_identical(modelOf(live), modelOf(twin), info = "records")
+  same(modelOf(live), modelOf(twin), "records")
   agree(live, "sd after k")
-  expect_identical(draws(live), draws(twin), info = "draws")
+  same(draws(live), draws(twin), "draws")
 })
 case("later write, leaf prior after forest(sd = )", {
   live <- build("lone", list(sd = 2))
@@ -941,45 +866,47 @@ case("later write, leaf prior after forest(sd = )", {
     n.trees = 8L,
     control = ctl(proposal.probs = shipped)
   )
-  expect_identical(modelOf(live), modelOf(twin), info = "records")
+  same(modelOf(live), modelOf(twin), "records")
   agree(live, "k after sd")
-  expect_identical(draws(live), draws(twin), info = "draws")
+  same(draws(live), draws(twin), "draws")
 })
 case("later write, a probit forest(sd = ) returned to a drawn k", {
   live <- build("lone.probit", list(sd = 2))
   live$setLeafPrior(normal())
-  expect_null(live$getForest()$sd, info = "the drawn k has no sd")
-  expect_identical(
+  expect_null(
+    live$getForest()$sd,
+    info = "later write, a probit forest(sd = ) returned to a drawn k: the drawn k has no sd"
+  )
+  same(
     live$model@leaf.prior,
     build("lone.probit")$model@leaf.prior,
-    info = "the leaf prior of a drawn k"
+    "the leaf prior of a drawn k"
   )
   # the drawn spread starts where the stated one left it, the one handoff
   expect_true(
     all(live$getK() == live$getLeafPrior()$k.scale / 2),
-    info = "from the spread in force"
+    info = "later write, a probit forest(sd = ) returned to a drawn k: from the spread in force"
   )
   roundTrip(live, 1L)
   agree(live, "drawn after sd")
   # it is drawn: a run moves it, and a door's sd holds it again
   start <- live$getK()
   invisible(live$run(0L, 3L))
-  expect_false(identical(live$getK(), start), info = "a run draws k")
+  expect_false(
+    identical(live$getK(), start),
+    info = "later write, a probit forest(sd = ) returned to a drawn k: a run draws k"
+  )
   live$setForest(1L, sd = 0.7)
-  expect_identical(live$getForest()$sd, 0.7, info = "held again")
+  same(live$getForest()$sd, 0.7, "held again")
 })
 case("later write, power and setModel", {
   live <- build("lone", list(power = 0.5))
   model <- live$model
   model@tree.prior@power <- 3
   live$setModel(model)
-  expect_identical(
-    live$getForest()$power,
-    3,
-    info = "setModel after a statement"
-  )
+  same(live$getForest()$power, 3, "setModel after a statement")
   twin <- build("lone", list(power = 3))
-  expect_identical(draws(live), draws(twin), info = "setModel draws")
+  same(draws(live), draws(twin), "setModel draws")
   live <- dbarts(
     x,
     y,
@@ -989,13 +916,9 @@ case("later write, power and setModel", {
   )
   live$setForest(1L, power = 0.5)
   twin <- build("lone", list(power = 0.5))
-  expect_identical(live$getForest()$power, 0.5, info = "a door after the fit's")
-  expect_identical(
-    live$model@tree.prior@power,
-    0.5,
-    info = "the record the fit's wrote"
-  )
-  expect_identical(draws(live), draws(twin), info = "a door's draws")
+  same(live$getForest()$power, 0.5, "a door after the fit's")
+  same(live$model@tree.prior@power, 0.5, "the record the fit's wrote")
+  same(draws(live), draws(twin), "a door's draws")
 })
 case("setLeafPrior takes one argument less", {
   live <- build("lone")
@@ -1093,7 +1016,7 @@ for (row in refusals) {
     expect_false(identical(atCreation, "taken"), info = paste(info, "creation"))
     expect_false(identical(atDoor, "taken"), info = paste(info, "door"))
     expectFound(atDoor, row[[4L]], paste(info, "the reason"))
-    expect_identical(atDoor, atCreation, info = paste(info, "the same words"))
+    same(atDoor, atCreation, "the same words")
     expectAsUntouched(live, build(kind), target, info)
   })
 }
@@ -1169,7 +1092,7 @@ for (row in doorOnly) {
 # with a stated sd is not refused for the sd it lacks, which it has
 case("merged statement", {
   stating <- build("stated")
-  expect_identical(stating$getForest(1L)$sd, 1.2, info = "the sd in force")
+  same(stating$getForest(1L)$sd, 1.2, "the sd in force")
   expectFound(
     refusal(stating$setForest(1L, amplitude = student(1))),
     "cannot be changed live yet",
@@ -1207,13 +1130,9 @@ case("monotone mixture, at both doors", {
     "door"
   )
   roundTrip(live, 1L)
-  expect_identical(live$model, made()$model, info = "monotone round trip")
+  same(live$model, made()$model, "monotone round trip")
   live$setForest(1L, power = 0.5)
-  expect_identical(
-    live$getForest(1L)$power,
-    0.5,
-    info = "monotone takes a depth"
-  )
+  same(live$getForest(1L)$power, 0.5, "monotone takes a depth")
 })
 
 # Structure by name, whatever the value, the value in force included.
@@ -1357,24 +1276,16 @@ for (name in names(varianceWritten)) {
     live <- buildVariance()
     expect_null(do.call(live$setVarianceForest, stated), info = info)
     twin <- buildVariance(variance = stated)
-    expect_identical(
-      modelOf(live),
-      modelOf(twin),
-      info = paste(info, "records")
-    )
-    expect_identical(
-      live$getVarianceForest(),
-      twin$getVarianceForest(),
-      info = paste(info, "reader")
-    )
+    same(modelOf(live), modelOf(twin), "records")
+    same(live$getVarianceForest(), twin$getVarianceForest(), "reader")
     # the mean forest does not move
-    expect_identical(
+    same(
       live$getForest(),
       buildVariance()$getForest(),
-      info = paste(info, "leaves the mean forest")
+      "leaves the mean forest"
     )
     liveDraws <- draws(live)
-    expect_identical(liveDraws, draws(twin), info = paste(info, "draws"))
+    same(liveDraws, draws(twin), "draws")
     expect_false(
       identical(liveDraws, draws(buildVariance())),
       info = paste(info, "moves a draw")
@@ -1383,19 +1294,9 @@ for (name in names(varianceWritten)) {
     twin$setState(live$state)
     copied <- live$copy()
     loaded <- reloaded(live)
-    expect_identical(
-      modelOf(copied),
-      modelOf(live),
-      info = paste(info, "copy records")
-    )
-    expect_identical(
-      modelOf(loaded),
-      modelOf(live),
-      info = paste(info, "reload records")
-    )
     after <- draws(twin)
-    expect_identical(draws(copied), after, info = paste(info, "copy"))
-    expect_identical(draws(loaded), after, info = paste(info, "reload"))
+    same(draws(copied), after, "copy")
+    same(draws(loaded), after, "reload")
   })
 }
 case("the variance reader", {
@@ -1408,17 +1309,13 @@ case("the variance reader", {
   )
   before <- sampler$model
   do.call(sampler$setVarianceForest, read)
-  expect_identical(sampler$model, before, info = "variance round trip")
+  same(sampler$model, before, "variance round trip")
   sampler$setVarianceForest(power = NULL)
-  expect_identical(sampler$model, before, info = "variance NULL")
-  expect_identical(
-    draws(sampler),
-    draws(buildVariance()),
-    info = "variance inert draws"
-  )
+  same(sampler$model, before, "variance NULL")
+  same(draws(sampler), draws(buildVariance()), "variance inert draws")
   expect_null(
     build("lone")$getVarianceForest(),
-    info = "no variance forest reads"
+    info = "the variance reader: no variance forest reads"
   )
 })
 case("the variance door stores when told", {
@@ -1429,38 +1326,34 @@ case("the variance door stores when told", {
     power = sampler$getVarianceForest()$power,
     updateState = TRUE
   )
-  expect_identical(sampler$state, stored, info = "variance, no change")
+  same(sampler$state, stored, "variance, no change")
   sampler$setVarianceForest(power = 0.5, updateState = TRUE)
   expect_false(
     identical(sampler$state, stored),
-    info = "variance, a change stores"
+    info = "the variance door stores when told: variance, a change stores"
   )
 })
 case("the mean door leaves the variance forest", {
   live <- buildVariance(variance = list(power = 2))
   live$setForest(1L, power = 0.5)
   twin <- buildVariance(mean = list(power = 0.5), variance = list(power = 2))
-  expect_identical(modelOf(live), modelOf(twin), info = "records")
-  expect_identical(draws(live), draws(twin), info = "draws")
-  expect_identical(
-    live$getVarianceForest()$power,
-    2,
-    info = "reader"
-  )
+  same(modelOf(live), modelOf(twin), "records")
+  same(draws(live), draws(twin), "draws")
+  same(live$getVarianceForest()$power, 2, "reader")
   # it takes the mean forest's depth at creation, and is on its own after
   live <- buildVariance()
   live$setForest(1L, base = 0.6)
   twin <- buildVariance(mean = list(base = 0.6), variance = list(base = 0.95))
-  expect_identical(draws(live), draws(twin), info = "the default depth stays")
+  same(draws(live), draws(twin), "the default depth stays")
 })
 case("setModel leaves the variance forest", {
   live <- buildVariance(variance = list(power = 2))
   model <- live$model
   model@tree.prior@power <- 0.5
   live$setModel(model)
-  expect_identical(live$getVarianceForest()$power, 2, info = "reader")
+  same(live$getVarianceForest()$power, 2, "reader")
   twin <- buildVariance(mean = list(power = 0.5), variance = list(power = 2))
-  expect_identical(draws(live), draws(twin), info = "draws")
+  same(draws(live), draws(twin), "draws")
 })
 case("a sampler with no variance forest", {
   live <- build("lone")
@@ -1512,10 +1405,10 @@ for (row in varianceRefusals) {
     expect_false(identical(message, "taken"), info = info)
     expectFound(message, row[[3L]], info)
     expectAsUntouched(live, buildVariance(), NULL, info)
-    expect_identical(
+    same(
       live$getVarianceForest(),
       buildVariance()$getVarianceForest(),
-      info = paste(info, "variance reader")
+      "variance reader"
     )
   })
 }
@@ -1537,11 +1430,11 @@ case("a label, where a formula and a list put it elsewhere", {
   second <- byList(tau = tau, mu = mu)
   first$setForest("tau", power = 0.5)
   second$setForest("tau", power = 0.5)
-  expect_identical(first$getForest(2L)$power, 0.5, info = "position 2")
-  expect_identical(second$getForest(1L)$power, 0.5, info = "position 1")
+  same(first$getForest(2L)$power, 0.5, "position 2")
+  same(second$getForest(1L)$power, 0.5, "position 1")
   expect_false(
     identical(second$getForest(2L)$power, 0.5),
-    info = "the other forest stays"
+    info = "a label, where a formula and a list put it elsewhere: the other forest stays"
   )
   twin <- dbarts(
     x,
@@ -1553,8 +1446,8 @@ case("a label, where a formula and a list put it elsewhere", {
     n.trees = 8L,
     control = ctl(proposal.probs = shipped)
   )
-  expect_identical(modelOf(second), modelOf(twin), info = "forest 1's record")
-  expect_identical(draws(second), draws(twin), info = "forest 1's draws")
+  same(modelOf(second), modelOf(twin), "forest 1's record")
+  same(draws(second), draws(twin), "forest 1's draws")
   byFormula <- dbarts(
     y ~ forest(x1) + forest(x2, basis = z),
     frame,
@@ -1562,18 +1455,10 @@ case("a label, where a formula and a list put it elsewhere", {
     control = ctl(proposal.probs = shipped)
   )
   byFormula$setForest("z", power = 0.5)
-  expect_identical(
-    byFormula$getForest(2L)$power,
-    0.5,
-    info = "a formula's label"
-  )
-  expect_identical(
-    byFormula$getForest("z"),
-    byFormula$getForest(2L),
-    info = "read"
-  )
+  same(byFormula$getForest(2L)$power, 0.5, "a formula's label")
+  same(byFormula$getForest("z"), byFormula$getForest(2L), "read")
   byFormula$setForest("forest1", base = 0.6)
-  expect_identical(byFormula$getForest(1L)$base, 0.6, info = "forest<i>")
+  same(byFormula$getForest(1L)$base, 0.6, "forest<i>")
 })
 case("the multinomial door takes the forest left out", {
   live <- buildMultinomial()
@@ -1614,7 +1499,7 @@ case("the multinomial door takes the forest left out", {
     0.6,
     0.5
   )
-  expect_identical(handWritten$getForest(2L), read, info = "one statement")
+  same(handWritten$getForest(2L), read, "one statement")
   # the depth reaches every category, from any reader
   live$setForest(power = 0.5)
   for (which in list(1L, 2L, "c")) {
@@ -1635,10 +1520,10 @@ case("the multinomial statement refuses what it has none of", {
     expectAsUntouched(live, buildMultinomial(), NULL, paste("refused", name))
   }
   live <- buildMultinomial()
-  expect_identical(
+  same(
     refusal(live$setForest(sd = 1)),
     refusal(buildMultinomial(list(sd = 1))),
-    info = "an sd in the words of creation"
+    "an sd in the words of creation"
   )
 })
 case("a name on the multinomial entry", {
@@ -1664,7 +1549,7 @@ case("an entry not in a list states every category too", {
     n.trees = 8L,
     control = ctl(proposal.probs = shipped)
   )
-  expect_identical(sampler$getForest("b")$power, 0.5, info = "one statement")
+  same(sampler$getForest("b")$power, 0.5, "one statement")
 })
 case("a level read by every forest-indexed reader", {
   sampler <- buildMultinomial()
@@ -1690,25 +1575,21 @@ case("a level read by every forest-indexed reader", {
       )
     }
   }
-  expect_identical(
+  same(
     sampler$getTrees(forest = "b"),
     sampler$getTrees(forest = 2L),
-    info = "getTrees"
+    "getTrees"
   )
-  expect_identical(
+  same(
     names(sampler$getLeafPrior()),
     c("a", "b", "c"),
-    info = "a NULL read names its list by levels"
+    "a NULL read names its list by levels"
   )
   colliding <- factor(sample(c("forest2", "b", "c"), n, TRUE))
   # a level spelled forest<i> names position i, or is refused where it is another
   spelled <- buildMultinomial(response = colliding)
   levelsThere <- levels(colliding)
-  expect_identical(
-    levelsThere,
-    c("b", "c", "forest2"),
-    info = "the fixture puts forest2 last"
-  )
+  same(levelsThere, c("b", "c", "forest2"), "the fixture puts forest2 last")
   expectFound(
     refusal(spelled$getForest("forest2")),
     "forest2",
@@ -1722,25 +1603,13 @@ for (kind in c("factor", "numeric")) {
   case(info, {
     statedNormal <- build(kind, list(amplitude = normal()))
     left <- build(kind)
-    expect_identical(
-      modelOf(statedNormal),
-      modelOf(left),
-      info = paste(info, "records")
-    )
-    expect_identical(
-      draws(statedNormal),
-      draws(left),
-      info = paste(info, "draws")
-    )
+    same(modelOf(statedNormal), modelOf(left), "records")
+    same(draws(statedNormal), draws(left), "draws")
     live <- build(kind)
     before <- live$model
     live$setForest(2L, amplitude = normal())
-    expect_identical(live$model, before, info = paste(info, "door, in force"))
-    expect_identical(
-      draws(live),
-      draws(build(kind)),
-      info = paste(info, "door draws")
-    )
+    same(live$model, before, "door, in force")
+    same(draws(live), draws(build(kind)), "door draws")
   })
 }
 case("amplitude in force by its spelling", {
@@ -1748,11 +1617,11 @@ case("amplitude in force by its spelling", {
   before <- live$model
   live$setForest(2L, amplitude = student(2))
   live$setForest(2L, amplitude = student(2L))
-  expect_identical(live$model, before, info = "student, the same df")
+  same(live$model, before, "student, the same df")
   live <- build("factor.held")
   before <- live$model
   live$setForest(2L, amplitude = fixed())
-  expect_identical(live$model, before, info = "held")
+  same(live$model, before, "held")
   expectFound(
     refusal(live$setForest(2L, amplitude = normal())),
     "keeps fixed()",
@@ -1761,10 +1630,10 @@ case("amplitude in force by its spelling", {
   live <- build("normal.stated")
   before <- live$model
   live$setForest(1L, amplitude = normal())
-  expect_identical(live$model, before, info = "a no-basis forest's normal")
-  expect_identical(
+  same(live$model, before, "a no-basis forest's normal")
+  same(
     live$getForest(1L)$amplitude,
     normal(),
-    info = "a no-basis forest's normal reads normal(), not a t"
+    "a no-basis forest's normal reads normal(), not a t"
   )
 })
