@@ -3,8 +3,9 @@
 # data up to Monte Carlo error, and the count semantics are enforced.
 # Probit weights are refused (intractable); gaussian weights are unrestricted.
 
-# pin the sampler kind: an earlier suite file leaks sample.kind = "Rounding",
-# which would shift the drawn data and the Monte Carlo comparison below
+# pin the sampler kind: the kind the process carries in is outside this file's
+# control, and another would shift the drawn data and the Monte Carlo
+# comparison below
 set.seed(2, sample.kind = "Rejection")
 n <- 160L
 x <- matrix(runif(n * 2L), n)

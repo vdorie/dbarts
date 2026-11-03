@@ -238,7 +238,10 @@ rm(mm, drop, df)
 
 rm(getTestDataFrame)
 
-# test that make model matrix handles character vectors correctly
+# test that make model matrix handles character vectors correctly; the file
+# draws under the pre-3.6.0 sample kind and restores the caller's at its end,
+# since test_package runs every file in one process
+oldRNGkind <- RNGkind()
 n <- 1000L
 if (getRversion() >= "3.6.0") {
   suppressWarnings(set.seed(
@@ -543,3 +546,6 @@ mm <- dbarts::makeModelMatrixFromDataFrame(df)
 expect_identical(unname(mm[, 2:3]), cbind(c(1, NA, 3), c(2, 5, NA)))
 expect_identical(unname(mm[, 4:5]), cbind(c(1, NA, 0), c(0, 1, NA)))
 rm(df, mm, mmTest, newdata)
+
+suppressWarnings(RNGkind(oldRNGkind[1L], oldRNGkind[2L], oldRNGkind[3L]))
+rm(oldRNGkind)
