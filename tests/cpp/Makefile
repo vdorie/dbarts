@@ -201,6 +201,9 @@ standalone-config:
 	  fi; \
 	  a=$$($(RCC) $(RCFLAGS) -dM -E -x c $$ours | awk '$$2 != "DBARTS_REFERENCE_BUILD"'); \
 	  b=$$($(RCC) $(RCFLAGS) -dM -E -x c $$generated | awk '$$2 != "DBARTS_REFERENCE_BUILD"'); \
+	  if [ -z "$$a" ] || [ -z "$$b" ]; then \
+	    echo "error: the preprocessor gave no macros for $$ours or $$generated" >&2; exit 1; \
+	  fi; \
 	  differ=$$(printf '%s\n%s\n' "$$a" "$$b" | sort | uniq -u | awk '{ print $$2 }' | sort -u); \
 	  if [ -n "$$differ" ]; then \
 	    echo "error: $$ours and $$generated differ in:" $$differ >&2; status=1; \
