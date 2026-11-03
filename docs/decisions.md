@@ -3516,6 +3516,10 @@ Record: docs/plans/approximate-draws.md, open call 1, on branch approximate-draw
 The exact sum, the exact accept-or-keep route of dec-B583 and the truly approximate samplers the design measured (the truncated series with a moment-matched remainder used without the accept step, the saddle-point sampler, a moment-matched normal) are all built, each chosen by a setting, until a study determines reasonable default behavior. This takes the place of the design's gate, under which the approximation study ran only if the exact route missed a speed tolerance (its open call 2, not yet put), and leaves its open call 3, default or opt-in, to that study. Not ruled here: the default until the study, whether the approximate settings ship in 1.0-0 against dec-B14, and the settings' shape. The maintainer, 2026-11-03: "In the past, you discussed some sampling techniques that were truly approximate. I think for now, we would want them all built and to give them knobs, until we could do a study to determine reasonable default behaviors."
 Record: docs/plans/approximate-draws.md, on branch approximate-draws. Marked: ruled by the maintainer, 2026-11-03. See also: [dec-B14], [dec-B143], [dec-B583]. [dec-B584]
 
+**Which Polya-Gamma samplers are built is sized by effective draws per second**
+Revises dec-B584: not every candidate is built. A sampler that another beats on both accuracy and cost is dropped, and the rest are sized by effective draws per second of whole fits across the shapes users fit, so that only those that change what a user can get per second are built, each chosen by a setting until a study sets the defaults. The maintainer, 2026-11-03: "Oh, I don't know if we need to build them all. Maybe we do? Are some strictly dominated? Maybe size that to see what we actually need for ESS / sec".
+Record: docs/plans/approximate-draws.md, on branch approximate-draws. Marked: ruled by the maintainer, 2026-11-03. See also: [dec-B583], [dec-B584]. [dec-B585]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
