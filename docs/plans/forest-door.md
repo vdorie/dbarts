@@ -372,6 +372,17 @@ Before it starts, re-read slice F as built: whether a lone sharer held at 2 on d
 engine, which of `$setForest`'s two routes it takes and what its record's `share` then says; and setmodel slice 4's
 group install.
 
+Step 0, read on a24ede5b8 (setmodel slice 4's tip). A lone sharer held at 2 on dec-B290's entry is not a sharer in the
+engine (`sharers_` empty, its entry's `share` NaN) but reads share 1 in `forestCalibration`, so `samplerSharers` names it
+and `$setForest` takes the route of a model of several, `bartcore_setForestSd` and `Chain::setForestMapSd`, which already
+takes a lone sharer out (slice 2's call 9); its record's `share` is 1 from creation. Setmodel slice 4's group install,
+`Chain::installFittingLeafPrior`, sent a group of one to `resolveLoneSharer`, which resolves it at share 1: one left of
+a group would be divided again, mutant 24's defect, so that branch keys on a share of 1. Its R writer, `levelLeafPrior`,
+makes the one candidate a sharer, so the record's `share` goes to 1 there. Bridge item 2 is built (forests-shared-total
+reads forest 1's flag, then any sharer's) and takes only its pin. R item 3 is built: slice 2's `modelWithForestSd`
+leaves the leaf prior with no forest where no forest with no basis states no sd, which the last leave of a group reaches
+unchanged. The table's rows hold as read, each against the code. The items below are amended to what was built.
+
 Engine, on forests-shared-total as built (c8ad05e2):
 
 1. `ForestSpec` gains `share`, NaN where none is handed. `ForestMapEntry` has one, read by every path below, but
@@ -381,17 +392,18 @@ Engine, on forests-shared-total as built (c8ad05e2):
    each sharer's share from the spec where handed, otherwise 1 / K as built, and hands it to
    `forestMapEntry` per forest. Slice F's held-2 exception for a lone sharer must key on a share of 1, not on one
    sharer: one left of two at a held k of 2 keeps its share, and dec-B290's entry would give it the whole size.
-2. `Chain::leaveSharedTotal(f, sd)`: false, writing nothing, off a sharer, on an sd not positive and finite, or where
-   the unit is not (as `setForestMapSd`). Erases f from `sharers_`, with no re-clearing below two; states the sd and
+2. The leave is `Chain::setForestMapSd(f, sd)` on a sharer of several, which took a lone sharer's leave already, and
+   not a new method (call 16): false, writing nothing, off a map forest, on an sd not positive and finite, or where the
+   unit is not (`takesForestMapSd`). Erases f from `sharers_`, with no re-clearing below two; states the sd and
    re-derives the forest's `forestMapEntry` with no share, a held entry whose coefficient prior is a sharer's, so no
    combiner write; `leaf.scale = mapLeafScale(f)`; `updateK = false`, `k = 1`, `namedSd` NaN. Touches no other forest
-   and no leaf value. `Sampler` method behind a facade virtual, checked on every chain before writing any, as slice
-   1's is.
+   and no leaf value. `Sampler::setForestMapSd` checks every chain before writing any. `installFittingLeafPrior`'s group
+   of one goes to `resolveLoneSharer` only where its share is 1, and otherwise takes the leaf prior at its share.
 3. State. `fs.k` is absent for a forest not drawing k (the capture in `Chain`), and both installs write k per forest
    where `updateK`. A state captured after a leave and installed on a sampler where that forest still shares would leave
    the group's k unequal, which `drawSharedK` and the rescale step assume it is not. Both installs write the first k
-   the state holds among the sharers to every sharer. Bitwise on every state where the sharers' k agree, which is
-   every state today.
+   the state holds among the sharers to every sharer, in `installDrawnScalars`, which both call after their per-forest
+   loop. Bitwise on every state where the sharers' k agree, which is every state today.
 
 Every other `sharers_` path needs no edit and takes a pin:
 
@@ -406,12 +418,12 @@ Every other `sharers_` path needs no edit and takes a pin:
 
 Bridge:
 
-1. `bartcore_leaveSharedTotal(ptr, forest, sd)`, every check first; the unit's message as `bartcore_setForestSd`.
-   `applyForestStatements` reads the record's `share` and hands it on; a forest with no basis stating no sd, no df and
-   no share beside a forest with a share is refused.
-2. `run()`'s `kIsDrawn` reads `forestCalibration(0, 0)` alone, so forest 1 leaving would drop the group's k column.
-   It reads any forest's `kHasHyperprior`.
-3. `printInitialSummary`'s "each 1/K" counts the sharers; it reads the share.
+1. No new entry: `bartcore_setForestSd` reaches the leave. `applyForestStatements` reads the record's `share` and hands
+   it on; a forest with no basis stating no sd, no df and no share beside a forest with a share is refused, after
+   `applyForestBases`, where the kinds are known (`refuseUnsharedSharer`).
+2. Built: `run()`'s `kIsDrawn` reads forest 1's `kHasHyperprior`, then any sharer's, so forest 1 leaving keeps the
+   group's k column. A pin only.
+3. `printInitialSummary`'s "each 1/K" counts the sharers; it reads the share, and prints one left of a group.
 
 R:
 
@@ -423,9 +435,12 @@ R:
 3. The last leave. `refuseUnsupportedAmplitudeComposition` refuses a k hyperprior, a k other than 2 and a named sd
    where no forest shares, so a reload with the group's leaf prior still on the model would fail. When the last sharer
    leaves the model's leaf prior and hyperprior are written as creation with every forest stating sd writes them (the
-   fixed default), so the records are `identical()` to that twin's and the reload runs.
-4. `forestPriorLines` and `sharerLeafPrior` read the share rather than counting. `samplerSharers` keeps reading the
-   engine, so one left is named.
+   fixed default), so the records are `identical()` to that twin's and the reload runs. Built by slice 2's
+   `modelWithForestSd`; a group's last leave reaches it.
+4. `sharerLeafPrior` reads the share already ("forest, shared" below 1), and `forestPriorLines` reads that, so one left
+   of a group still reads as sharing; its line names one forest. `samplerSharers` keeps reading the engine, so one left
+   is named.
+5. The one candidate made a sharer by `levelLeafPrior` (setmodel slice 4) records a share of 1.
 
 Help: `$setForest` says a sharer's `sd` leaves the group, that the others keep their sizes, and that there is no way
 back; `$setLeafPrior` that the total reaches the forests still sharing, each at its creation share. docs/design's
@@ -669,6 +684,28 @@ Each the builder's or the review's fix round, none in a ruling; the alternative 
     breaks positional calls. An unnamed value past the eighth lands on `n.trees`.
 15. The refusal of a sharer's own size names the refused forest first, as the other refusals do: `forest "mu2" shares one
     prior total with forests 1, 2; ...`.
+
+## Calls made at slice 3
+
+Each the builder's, none in a ruling; the alternative after it.
+
+16. The leave is `Chain::setForestMapSd` on a sharer of several, which took a lone sharer's leave already, reached by
+    `bartcore_setForestSd`: no new method, facade virtual or bridge entry. Alternative: the planned
+    `Chain::leaveSharedTotal` and `bartcore_leaveSharedTotal`, a second route to one write.
+17. A share is recorded on every sharer at creation, a lone one's 1, the held-2 forest's included, as its reader
+    reports it; the one candidate `levelLeafPrior` makes a sharer records 1 too. Alternative: shares only on a group
+    of two or more.
+18. `$setModel` refuses a differing share, after the `sd` refusals, so a model saved before a leave reads the
+    withdrawn-statement refusal, and a model with other shares reads "$setModel cannot change forest 2's share of the
+    prior total: a share is set once, when the sampler is created; make a new sampler instead". The one candidate is
+    not read, the leaf prior reaching it whatever it states. Alternative: compare every forest, which refuses
+    `$setModel` returning a lone forest to the leaf prior with a twin's model.
+19. Records whose shares do not name one group, which a creation never writes, are refused by the bridge in its own
+    words; a share outside (0, 1] or beside a stated `sd` is refused by the record's validity and by the engine.
+    Alternative: no check, the engine taking the forests with a share as the group.
+20. One left of a group prints "forest 2 holds its part of one prior total, k 2" in the forests block and "forest
+    sharing one prior total: 2, 1/3 of its variance" in the verbose summary, which names the part from the share.
+    Alternative: the group's wording for one forest.
 
 ## Open calls
 
