@@ -639,12 +639,12 @@ mutations <- c(
       "m45",
       "src/bartcore/chain.hpp",
       paste0(
-        "      sharers_.clear();\n",
+        "      sharers_.erase(std::find(sharers_.begin(), sharers_.end(), f));\n",
         "    }\n",
         "    forests_[f].leaf.scale = mapLeafScale(f);\n"
       ),
       paste0(
-        "      sharers_.clear();\n",
+        "      sharers_.erase(std::find(sharers_.begin(), sharers_.end(), f));\n",
         "    }\n"
       ),
       kTests(
