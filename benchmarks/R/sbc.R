@@ -3395,8 +3395,13 @@ sbcPooledRead <- function(
 # replication: the simulated response's sum, and the combined index a mu +
 # b_z tau summed at the fit's start and after `sweeps` of burn, and at the first
 # row after it. Each library writes its own file; sbcDoorCompare reads two.
+# A run's burn counts thinned blocks, so `sweeps` is a multiple of the build's
+# thin of 20 and runs as sweeps / 20 blocks.
 sbcDoorReplay <- function(config, R = 40L, sweeps = 20L, seed = 20260709L) {
   thin <- 20L
+  if (sweeps < thin || sweeps %% thin != 0L) {
+    stop("the replay's sweeps must be a positive multiple of ", thin)
+  }
   latent <- sbcBCFLatent(config)
   set.seed(seed)
   built <- sbcMakeBCF(config, 1L, thin)
@@ -3431,7 +3436,7 @@ sbcDoorReplay <- function(config, R = 40L, sweeps = 20L, seed = 20260709L) {
     bcf$sampleLeafParametersFromPrior()
     bcf$setResponse(y0, updateScale = FALSE)
     start <- index()
-    invisible(bcf$run(sweeps, 0L))
+    invisible(bcf$run(sweeps %/% thin, 0L))
     end <- index()
     out[r, ] <- c(sum(y0), sum(start), sum(end), end[1L])
   }
