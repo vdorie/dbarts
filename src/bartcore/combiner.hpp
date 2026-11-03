@@ -414,12 +414,18 @@ struct ForestStatement {
 /// (basisColumnScale), handed back so that a re-creation builds on the same
 /// prior whatever column is then in force; not a number takes it from the
 /// basis. Read only for a numeric forest that states no sd.
+///
+/// share is a sharer's part of its group's prior variance as a first creation
+/// set it (forestSharers), handed back so that a re-creation keeps it after
+/// forests have left the group; not a number where none is handed. No caller
+/// states it: it is not part of the statement.
 struct ForestSpec : ForestStatement {
   ForestStructureSpec forest;
   ForestKind kind = ForestKind::none;
   const double* basis = nullptr;
   std::size_t numBasisColumns = 1;
   double basisScale = std::numeric_limits<double>::quiet_NaN();
+  double share = std::numeric_limits<double>::quiet_NaN();
 };
 
 /// Thrown where a numeric column has no scale over the rows it is read from:
@@ -676,15 +682,20 @@ inline ForestMapEntry forestMapEntry(
 /// forest's own coefficient, which a sharer does not have. Each takes an equal
 /// part of the total's variance whatever its tree count, the total being the
 /// single-forest chain's leaf prior with one k for the group. A lone one is
-/// all of it.
+/// all of it. Where any of those carries a handed share (ForestSpec::share)
+/// the group is those that do, whatever their number, one included: what is
+/// left of a group after forests stated their own sd.
 inline std::vector<std::size_t>
 forestSharers(const std::vector<ForestSpec>& forests) {
-  std::vector<std::size_t> sharers;
+  std::vector<std::size_t> sharers, handed;
   for (std::size_t f = 0; f < forests.size(); ++f)
     if (forests[f].kind == ForestKind::none && std::isnan(forests[f].sd) &&
-        std::isnan(forests[f].sdMultiple) && std::isnan(forests[f].amplitudeDf))
+        std::isnan(forests[f].sdMultiple) &&
+        std::isnan(forests[f].amplitudeDf)) {
       sharers.push_back(f);
-  return sharers;
+      if (std::isfinite(forests[f].share)) handed.push_back(f);
+    }
+  return handed.empty() ? sharers : handed;
 }
 
 /// Whether a forest takes its size from the fitting function's leaf prior: one

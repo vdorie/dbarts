@@ -1265,21 +1265,32 @@ public:
     forestMap_.resize(forestSpecs.size());
     std::vector<ForestAmplitudePrior> amplitudePriors(forestSpecs.size());
     std::vector<double> startScales(forestSpecs.size(), 1.0);
-    // the forests sharing one total, each an equal part of its variance
+    // the forests sharing one total, each an equal part of its variance or
+    // the part a first creation handed back
     sharers_ = forestSharers(forestSpecs);
-    // a lone sharer at a held k of the default keeps the map's held entry, one
-    // spelling of that size, so that a held fit keeps its draws; it reads as
-    // the sharer it is (forestCalibration)
+    for (std::size_t f : sharers_)
+      if (std::isfinite(forestSpecs[f].share) &&
+          !(forestSpecs[f].share > 0.0 && forestSpecs[f].share <= 1.0))
+        throw std::invalid_argument("a sharer's share must be in (0, 1]");
+    const double equalShare =
+      sharers_.empty() ? std::numeric_limits<double>::quiet_NaN()
+                       : 1.0 / static_cast<double>(sharers_.size());
+    auto shareOf = [&](std::size_t f) {
+      return std::isfinite(forestSpecs[f].share) ? forestSpecs[f].share
+                                                 : equalShare;
+    };
+    // a lone sharer holding the whole total at a held k of the default keeps
+    // the map's held entry, one spelling of that size, so that a held fit
+    // keeps its draws; it reads as the sharer it is (forestCalibration). One
+    // left of a group keeps its part on the k path.
     const bool heldAtDefaultK =
-      sharers_.size() == 1 && !options_.updateK &&
-      options_.k == SamplerOptions{}.k && !std::isfinite(options_.namedSd);
+      sharers_.size() == 1 && shareOf(sharers_.front()) == 1.0 &&
+      !options_.updateK && options_.k == SamplerOptions{}.k &&
+      !std::isfinite(options_.namedSd);
     if (heldAtDefaultK) {
       forestMap_[sharers_.front()].heldAtDefaultK = true;
       sharers_.clear();
     }
-    const double share =
-      sharers_.empty() ? std::numeric_limits<double>::quiet_NaN()
-                       : 1.0 / static_cast<double>(sharers_.size());
     ScaleRows scaleRows;
     for (std::size_t f = 0; f < forestSpecs.size(); ++f) {
       const ForestSpec& forestSpec = forestSpecs[f];
@@ -1317,7 +1328,7 @@ public:
       mapped.entry = forestMapEntry(
         mapped.statement, mapped.kind, forestSdUnit_, leafPriorSize(),
         mapped.basisScale,
-        sharer ? share : std::numeric_limits<double>::quiet_NaN());
+        sharer ? shareOf(f) : std::numeric_limits<double>::quiet_NaN());
       amplitudePriors[f] = mapped.entry.amplitudePrior;
       startScales[f] = mapped.entry.startScale;
       buildSpecifiedForest(forestSpec.forest);
@@ -1827,18 +1838,18 @@ public:
   /// since none reads the sd. The forest is a stated one from then on.
   /// Where \p sd is the sd in force (ForestCalibration::mapSd) the prior does
   /// not move: no bit of it on a forest with a map entry to keep, and to
-  /// rounding on a lone sharer, whose entry is re-derived, bitwise at a held k
-  /// of 2.
-  /// A lone sharer leaves the group's leaf prior for it, its k pinned as a
-  /// stated forest's is, the size no other forest's. False, writing
-  /// nothing, off a map forest, on a sharer among two or more, whose size is
-  /// the group's, on an sd that is not positive and finite, and where the unit
-  /// is not.
+  /// rounding on a sharer, whose entry is re-derived, bitwise at a held k of
+  /// 2 on a lone one.
+  ///
+  /// A sharer leaves the group for it, its k pinned as a stated forest's is:
+  /// its entry is resolved again with no share, a held entry whose
+  /// coefficient's prior is the one a sharer has, so the combiner is not
+  /// written. The forests still sharing keep their shares, leaf scales and k;
+  /// a group of one stays a group. Where the leaver drew the group's k first,
+  /// the next sharer draws it. False, writing nothing, where
+  /// takesForestMapSd does not hold.
   bool setForestMapSd(std::size_t f, double sd) {
-    if (f >= forestMap_.size() || (isSharer(f) && sharers_.size() > 1) ||
-        !(sd > 0.0) || !std::isfinite(sd) || !(forestSdUnit_ > 0.0) ||
-        !std::isfinite(forestSdUnit_))
-      return false;
+    if (!takesForestMapSd(f, sd)) return false;
     MapForest& mapped = forestMap_[f];
     ForestStatement statement = mapped.statement;
     statement.sd = sd;
@@ -1858,10 +1869,17 @@ public:
       forest.updateK = false;
       forest.k = 1.0;
       forest.namedSd = std::numeric_limits<double>::quiet_NaN();
-      sharers_.clear();
+      sharers_.erase(std::find(sharers_.begin(), sharers_.end(), f));
     }
     forests_[f].leaf.scale = mapLeafScale(f);
     return true;
+  }
+
+  /// Whether setForestMapSd can state \p sd on forest f: a map forest, an sd
+  /// positive and finite, and a unit that is too.
+  bool takesForestMapSd(std::size_t f, double sd) const {
+    return f < forestMap_.size() && sd > 0.0 && std::isfinite(sd) &&
+           forestSdUnit_ > 0.0 && std::isfinite(forestSdUnit_);
   }
 
   /// Whether installFittingLeafPrior can write \p prior on this chain: a
@@ -1894,8 +1912,10 @@ public:
   /// df, takes its trees' scale from the prior's size (leafPriorSize), no k
   /// being drawn on it; no leaf, coefficient or auxiliary moves. Where several
   /// have none, the forests sharing the total take it and the rest keep their
-  /// own; a lone one moves between the map's held entry and the group's k
-  /// both ways. On a sharer a held k is written, a drawn k is not: from a held
+  /// own; a lone one holding the whole total moves between the map's held
+  /// entry and the group's k both ways, and one left of a group after the
+  /// others stated their own sd keeps its share on the k path, the total
+  /// reaching it at that share and not divided again. On a sharer a held k is written, a drawn k is not: from a held
   /// one it starts at the k in force (the spread in force, on a forest that
   /// stated its sd), and a named sd is stated against the prior scale. Each
   /// sharer keeps its own leaf scale. Requires takesFittingLeafPrior.
@@ -1934,7 +1954,10 @@ public:
     if (group.empty())
       for (std::size_t f : candidates)
         if (forestMap_[f].heldAtDefaultK) group.push_back(f);
-    if (group.size() == 1) {
+    // a lone sharer holding the whole total moves between the map's held
+    // entry and the k path; one left of a group keeps its part on the k path
+    if (group.size() == 1 && (!isSharer(group.front()) ||
+                              forestMap_[group.front()].entry.share == 1.0)) {
       std::size_t f = group.front();
       resolveLoneSharer(f, isSharer(f) ? forests_[f].k : kWas,
                         std::numeric_limits<double>::quiet_NaN());
@@ -5771,9 +5794,18 @@ public:
   /// concentration go in only where this chain draws them and the state holds
   /// one, sigma as stored, on the internal scale. A sigma the chain holds
   /// fixed is model and is not touched. The DART split weights and delay
-  /// counter are state whatever the concentration is.
+  /// counter are state whatever the concentration is. The forests sharing a
+  /// total take one k, the first the state holds among them, so that a state
+  /// captured where some of them had left the group leaves the group's k one
+  /// number.
   void installDrawnScalars(const ChainStateData& state) {
     if (drawsSigma() && !std::isnan(state.sigma)) sigma_ = state.sigma;
+    for (std::size_t f : sharers_) {
+      if (f >= state.forests.size() || std::isnan(state.forests[f].k)) continue;
+      for (std::size_t g : sharers_)
+        if (forests_[g].updateK) forests_[g].k = state.forests[f].k;
+      break;
+    }
     Forest<L, ResidT>& forest = forests_[0];
     if (forest.useDart && !state.dartProbabilities.empty()) {
       // the tree prior points at this vector's storage; overwrite in place

@@ -14341,12 +14341,11 @@ static void testForestsSharedTotal() {
               heldEntry.nodeScale(plain.mapAnchor) / std::sqrt(12.0),
           "shared total: a lone forest with no basis at a held k of 2 keeps "
           "the map's held entry, operand for operand, and reads k 2");
-    double sharerSd = sampler->forestCalibration(0, 0).mapSd;
-    check(!sampler->setForestMapSd(0, 0.7) &&
-            !sampler->setForestMapSd(0, sharerSd) &&
-            sampler->setForestMapSd(2, 0.7),
-          "shared total: a sharer's sd is not restated, not even at the sd in "
-          "force; a stated one's is");
+    check(sampler->setForestMapSd(2, 0.7) &&
+            !sampler->setForestMapSd(2, -1.0) &&
+            !sampler->setForestMapSd(3, 0.7),
+          "shared total: a stated forest's sd is restated, a bad sd and a "
+          "forest past the last refused");
 
     SamplerOptions named = optionsFor(ResponseFamily::gaussian, false);
     named.namedSd = 0.7;
@@ -14898,6 +14897,481 @@ std::vector<TreePriorValues> meanTreePriors(ConstantLeafSampler& sampler,
 
 }  // namespace
 
+// ---------------------------------------------------------------------------
+// A sharer leaving its group (Chain::setForestMapSd on a sharer of several):
+// it takes the sd stated, its k pinned at 1, and the forests still sharing
+// keep their shares, leaf scales and k, a group of one included; a share
+// handed at construction (ForestSpec::share) rebuilds that group, so a
+// re-creation from what the live sampler records draws what it draws. Three
+// sharers at unequal counts beside a factor forest, on two chains.
+// RNG-neutral (restores rngState; local seeded generators).
+// ---------------------------------------------------------------------------
+static void testSharerLeave() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 525252u;
+  const size_t n = 160, p = 3, numChains = 2;
+  const std::vector<size_t> counts = {38, 37, 37};
+  auto normal = [] {
+    double u1 = runif01(), u2 = runif01();
+    return std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
+  };
+  std::vector<double> x(n * p), y(n), yBinary(n), block(2 * n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    double eta = std::sin(3.0 * x[i]) + x[i + n] - 0.5 * x[i + 2 * n];
+    y[i] = eta + 0.3 * normal();
+    yBinary[i] = eta - 0.2 + normal() > 0.0 ? 1.0 : 0.0;
+    double level = x[i + 2 * n] > 0.5 ? 1.0 : 0.0;
+    block[2 * i] = 1.0 - level;
+    block[2 * i + 1] = level;
+  }
+  const double rawScale = 0.37804942330213542;
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  std::vector<std::vector<ext_rng*>> allRngs;
+  auto optionsFor = [&](ResponseFamily family, bool drawn) {
+    SamplerOptions options;
+    options.numChains = numChains;
+    options.nodeScale = family == ResponseFamily::gaussian ? 0.5 : 3.0;
+    options.updateK = drawn;
+    options.kHyperprior.degreesOfFreedom = 1.5;
+    options.kHyperprior.scale = 2.0;
+    return options;
+  };
+  // sds[f] states forest f's sd where not NaN, shares[f] hands its share
+  auto build = [&](ResponseFamily family, const SamplerOptions& options,
+                   const std::vector<double>& sds,
+                   const std::vector<double>& shares, unsigned seed) {
+    AmplitudeSpec spec;
+    spec.family = family;
+    spec.forests.resize(counts.size() + 1);
+    for (size_t f = 0; f < counts.size(); ++f) {
+      spec.forests[f].forest.numTrees = counts[f];
+      if (f < sds.size()) spec.forests[f].sd = sds[f];
+      if (f < shares.size()) spec.forests[f].share = shares[f];
+    }
+    ForestSpec& factor = spec.forests.back();
+    factor.forest.numTrees = 6;
+    factor.kind = ForestKind::levels;
+    factor.basis = block.data();
+    factor.numBasisColumns = 2;
+    allRngs.push_back(makeDrawRngs(numChains, seed));
+    return std::make_unique<ConstantLeafSampler>(
+      x.data(),
+      family == ResponseFamily::gaussian ? y.data() : yBinary.data(), n, p,
+      nullptr, nullptr, 1.0, 3.0, rawScale, options, spec,
+      allRngs.back().data());
+  };
+  auto drawsOf = [&](ConstantLeafSampler& sampler, size_t sweeps) {
+    std::vector<double> sigma(numChains * sweeps), k(numChains * sweeps),
+      fits(numChains * n * sweeps);
+    Results results;
+    results.sigma = sigma.data();
+    results.k = k.data();
+    results.trainingFits = fits.data();
+    sampler.run(0, sweeps, results);
+    fits.insert(fits.end(), sigma.begin(), sigma.end());
+    fits.insert(fits.end(), k.begin(), k.end());
+    return fits;
+  };
+  // the spread every leaf of forest f is drawn under, on chain c
+  auto spread = [](ConstantLeafSampler& sampler, size_t c, size_t f) {
+    return TestPeer::leafScale(sampler.chain(c), f) /
+           TestPeer::forestKAt(sampler.chain(c), f);
+  };
+  auto sharerScale = [&](const SamplerOptions& options, double share,
+                         size_t f) {
+    return options.nodeScale * std::sqrt(share) /
+           std::sqrt(static_cast<double>(counts[f]));
+  };
+  auto everyChain = [&](ConstantLeafSampler& sampler, auto predicate) {
+    bool all = true;
+    for (size_t c = 0; c < numChains; ++c)
+      all = all && predicate(sampler.chain(c), c);
+    return all;
+  };
+  const double third = 1.0 / 3.0;
+  const std::vector<double> thirds = {third, third, third};
+  struct Setting {
+    ResponseFamily family;
+    bool drawn;
+    const char* label;
+  };
+  const Setting settings[] = {{ResponseFamily::gaussian, false, "held"},
+                              {ResponseFamily::gaussian, true, "drawn"},
+                              {ResponseFamily::probit, true, "probit"}};
+
+  // ---- which forests share, where shares are handed ----
+  {
+    std::vector<ForestSpec> specs(4);
+    specs[3].kind = ForestKind::levels;
+    bool chosen = forestSharers(specs) == std::vector<std::size_t>{0, 1, 2};
+    specs[1].share = third;
+    chosen = chosen && forestSharers(specs) == std::vector<std::size_t>{1};
+    specs[2].share = third;
+    chosen = chosen && forestSharers(specs) == std::vector<std::size_t>{1, 2};
+    specs[0].sd = 0.4;
+    specs[0].share = third;
+    chosen = chosen && forestSharers(specs) == std::vector<std::size_t>{1, 2};
+    check(chosen, "sharer leave: a handed share names the group, one "
+                  "included; a forest stating sd is outside it whatever it "
+                  "carries");
+  }
+
+  for (const Setting& setting : settings) {
+    std::string label = std::string(" (") + setting.label + ")";
+    SamplerOptions options = optionsFor(setting.family, setting.drawn);
+    std::string message;
+    auto say = [&](const char* text) {
+      message = text + label;
+      return message.c_str();
+    };
+
+    // ---- shares handed equal to the derived ones are the same chain ----
+    {
+      auto derived = build(setting.family, options, {}, {}, 7101);
+      auto handed = build(setting.family, options, {}, thirds, 7101);
+      check(drawsOf(*derived, 12) == drawsOf(*handed, 12),
+            say("sharer leave: shares handed at creation draw bitwise as "
+                "derived ones"));
+    }
+
+    // ---- one leaving, before any run: the recorded twin ----
+    {
+      auto live = build(setting.family, options, {}, {}, 7102);
+      std::vector<double> kBefore(numChains);
+      for (size_t c = 0; c < numChains; ++c)
+        kBefore[c] = TestPeer::forestKAt(live->chain(c), 1);
+      check(live->setForestMapSd(0, 0.4), say("sharer leave: taken"));
+      bool left = everyChain(*live, [&](Chain<ConstantGaussianLeaf>& chain,
+                                        size_t c) {
+        ForestCalibration leaver = live->forestCalibration(c, 0);
+        return TestPeer::sharers(chain) == std::vector<std::size_t>{1, 2} &&
+               std::isnan(leaver.share) && leaver.k == 1.0 &&
+               !leaver.kHasHyperprior && leaver.mapSd == 0.4 &&
+               live->forestCalibration(c, 1).share == third &&
+               live->forestCalibration(c, 2).share == third &&
+               TestPeer::leafScale(chain, 1) == sharerScale(options, third, 1) &&
+               TestPeer::leafScale(chain, 2) == sharerScale(options, third, 2) &&
+               TestPeer::forestKAt(chain, 1) == kBefore[c] &&
+               TestPeer::forestKAt(chain, 2) == kBefore[c] &&
+               TestPeer::forestUpdateKAt(chain, 1) == setting.drawn;
+      });
+      check(left, say("sharer leave: the leaver is out at its sd with k 1, "
+                      "the others keep their shares, scales and k"));
+      auto recorded =
+        build(setting.family, options, {0.4}, {nan, third, third}, 7102);
+      auto rederived = build(setting.family, options, {0.4}, {}, 7102);
+      check(TestPeer::leafScale(rederived->chain(0), 1) !=
+              TestPeer::leafScale(live->chain(0), 1),
+            say("sharer leave: a constructor deriving the share from who is "
+                "left gives another scale"));
+      check(drawsOf(*live, 12) == drawsOf(*recorded, 12),
+            say("sharer leave: one leaving draws bitwise as a creation from "
+                "its record, two chains"));
+    }
+
+    // ---- two leaving: one left of the group ----
+    {
+      auto live = build(setting.family, options, {}, {}, 7103);
+      check(live->setForestMapSd(0, 0.4) && live->setForestMapSd(2, 0.3),
+            say("sharer leave: two taken"));
+      bool one = everyChain(*live, [&](Chain<ConstantGaussianLeaf>& chain,
+                                       size_t c) {
+        return TestPeer::sharers(chain) == std::vector<std::size_t>{1} &&
+               live->forestCalibration(c, 1).share == third &&
+               TestPeer::leafScale(chain, 1) == sharerScale(options, third, 1) &&
+               TestPeer::forestUpdateKAt(chain, 1) == setting.drawn;
+      });
+      check(one, say("sharer leave: one left keeps its share on the k path"));
+      auto recorded =
+        build(setting.family, options, {0.4, nan, 0.3}, {nan, third, nan},
+              7103);
+      check(everyChain(*recorded,
+                       [&](Chain<ConstantGaussianLeaf>& chain, size_t c) {
+                         return TestPeer::sharers(chain) ==
+                                  std::vector<std::size_t>{1} &&
+                                recorded->forestCalibration(c, 1).share ==
+                                  third;
+                       }),
+            say("sharer leave: a group of one rebuilt from its share stays "
+                "one, at a held 2 too"));
+      check(drawsOf(*live, 12) == drawsOf(*recorded, 12),
+            say("sharer leave: two leaving draws bitwise as a creation from "
+                "the records"));
+    }
+
+    // ---- all leaving: the creation twin proper ----
+    {
+      auto live = build(setting.family, options, {}, {}, 7104);
+      check(live->setForestMapSd(1, 0.5) && live->setForestMapSd(0, 0.4) &&
+              live->setForestMapSd(2, 0.3),
+            say("sharer leave: all taken"));
+      auto created = build(setting.family, options, {0.4, 0.5, 0.3}, {}, 7104);
+      check(everyChain(*live,
+                       [&](Chain<ConstantGaussianLeaf>& chain, size_t) {
+                         return TestPeer::sharers(chain).empty() &&
+                                !TestPeer::forestRescaleApplies(chain);
+                       }),
+            say("sharer leave: none left, and no rescaling step"));
+      std::vector<double> liveDraws = drawsOf(*live, 12);
+      check(liveDraws == drawsOf(*created, 12),
+            say("sharer leave: all leaving draws bitwise as a creation "
+                "stating every sd"));
+      check(liveDraws.back() == 1.0 &&
+              liveDraws[liveDraws.size() - 12 * numChains] == 1.0,
+            say("sharer leave: none left records forest 1's k of 1"));
+    }
+  }
+
+  // ---- the stated-sizes twin: the parts in force, stated ----
+  for (double k : {2.0, 3.0}) {
+    SamplerOptions options = optionsFor(ResponseFamily::gaussian, false);
+    options.k = k;
+    for (int numLeaving : {1, 2}) {
+      auto live = build(ResponseFamily::gaussian, options, {}, {}, 7201);
+      live->setForestMapSd(0, 0.4);
+      if (numLeaving == 2) live->setForestMapSd(2, 0.3);
+      std::vector<double> sds = {0.4, live->forestCalibration(0, 1).mapSd,
+                                 numLeaving == 2
+                                   ? 0.3
+                                   : live->forestCalibration(0, 2).mapSd};
+      auto stated = build(ResponseFamily::gaussian, options, sds, {}, 7201);
+      bool scales = true;
+      for (size_t c = 0; c < numChains; ++c)
+        for (size_t f = 0; f < 3; ++f)
+          scales = scales && std::fabs(spread(*live, c, f) -
+                                       spread(*stated, c, f)) <=
+                               1e-12 * spread(*stated, c, f);
+      std::vector<double> a = drawsOf(*live, 10), b = drawsOf(*stated, 10);
+      // the k channel, last, differs by what it reports: the group's k,
+      // against forest 1's 1
+      double gap = 0.0;
+      for (size_t i = 0; i + 10 * numChains < a.size(); ++i)
+        gap = std::max(gap, std::fabs(a[i] - b[i]) /
+                              std::max(1.0, std::fabs(b[i])));
+      check(scales && gap <= 1e-8,
+            (std::string("sharer leave: the parts left stated reach the same "
+                         "sizes, k ") +
+             std::to_string(static_cast<int>(k)) + ", " +
+             std::to_string(numLeaving) + " leaving")
+              .c_str());
+    }
+  }
+
+  // ---- the group's k draw over what is left, the leaver first ----
+  {
+    SamplerOptions options = optionsFor(ResponseFamily::gaussian, true);
+    auto live = build(ResponseFamily::gaussian, options, {}, {}, 7301);
+    drawsOf(*live, 4);
+    live->setForestMapSd(0, 0.4);
+    std::vector<double> drawn = drawsOf(*live, 4);
+    bool moved = everyChain(*live, [&](Chain<ConstantGaussianLeaf>& chain,
+                                       size_t c) {
+      double k = TestPeer::forestKAt(chain, 1);
+      return TestPeer::forestKAt(chain, 0) == 1.0 &&
+             TestPeer::forestKAt(chain, 2) == k &&
+             drawn[n * 4 * numChains + 4 * numChains + 4 * c + 3] == k;
+    });
+    check(moved, "sharer leave: the next sharer draws the group's k, the "
+                 "leaver held at 1, the fit recording it");
+    Chain<ConstantGaussianLeaf>& chain = live->chain(0);
+    double pooled = 0.0, leaves = 0.0;
+    for (size_t f : {size_t(1), size_t(2)}) {
+      std::pair<double, double> stat = TestPeer::kStatistic(chain, f);
+      double scale = TestPeer::leafScale(chain, f);
+      pooled += stat.first / (scale * scale);
+      leaves += stat.second;
+    }
+    ext_rng* reference = cloneRng(TestPeer::rng(chain));
+    double expected =
+      TestPeer::kHyperpriorAt(chain, 1).draw(reference, pooled, leaves, 1.0);
+    ext_rng_destroy(reference);
+    TestPeer::drawSharedK(chain);
+    check(std::fabs(TestPeer::forestKAt(chain, 1) - expected) <=
+              1e-12 * expected &&
+            TestPeer::forestKAt(chain, 2) == TestPeer::forestKAt(chain, 1) &&
+            TestPeer::forestKAt(chain, 0) == 1.0,
+          "sharer leave: the k draw reads the leaves of the forests left");
+  }
+
+  // ---- the rescaling step over one forest left, and over none ----
+  {
+    SamplerOptions options = optionsFor(ResponseFamily::probit, true);
+    auto live = build(ResponseFamily::probit, options, {}, {}, 7401);
+    drawsOf(*live, 5);
+    live->setForestMapSd(0, 0.6);
+    live->setForestMapSd(1, 0.5);
+    drawsOf(*live, 20);
+    Chain<ConstantGaussianLeaf>& chain = live->chain(0);
+    bool admitted = TestPeer::forestRescaleApplies(chain);
+    const double* z = TestPeer::latents(chain);
+    const double* combined = TestPeer::combinedFits(chain);
+    const std::vector<double>& scaled = TestPeer::totalFitsInForest(chain, 2);
+    double residualSquares = 0.0, offsetCross = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      double residual = z[i] - scaled[i];
+      residualSquares += residual * residual;
+      offsetCross += (combined[i] - scaled[i]) * residual;
+    }
+    const ChiKHyperprior& prior = TestPeer::kHyperpriorAt(chain, 2);
+    double k = TestPeer::forestKAt(chain, 2);
+    double kTerm = k * k / (2.0 * prior.scale * prior.scale);
+    double power = static_cast<double>(n) - prior.degreesOfFreedom;
+    auto logDensity = [=](double v) {
+      double e = std::exp(v);
+      return power * v - 0.5 * residualSquares * e * e + offsetCross * e -
+             kTerm / (e * e);
+    };
+    ext_rng* reference = cloneRng(TestPeer::rng(chain));
+    double expected = std::exp(sliceFromZero(
+      reference, logDensity, rescaleSliceWidth, rescaleSliceStepLimit));
+    ext_rng_destroy(reference);
+    std::vector<std::vector<double>> leaverMu;
+    for (size_t t = 0; t < counts[0]; ++t)
+      leaverMu.push_back(TestPeer::forestMuByTree(chain, 0, t));
+    double alpha = 1.0;
+    bool taken = TestPeer::drawForestRescale(chain, &alpha);
+    bool leaverStill = TestPeer::forestKAt(chain, 0) == 1.0 &&
+                       TestPeer::forestKAt(chain, 1) == 1.0 &&
+                       TestPeer::forestKAt(chain, 2) == k / alpha;
+    for (size_t t = 0; t < counts[0]; ++t)
+      leaverStill =
+        leaverStill && TestPeer::forestMuByTree(chain, 0, t) == leaverMu[t];
+    check(admitted && taken && alpha != 1.0 &&
+            std::fabs(alpha - expected) <= 1e-9 * expected && leaverStill,
+          "sharer leave: the rescaling step scales the one forest left, the "
+          "leavers read as offset and unscaled");
+
+    live->setForestMapSd(2, 0.4);
+    Chain<ConstantGaussianLeaf>& emptied = live->chain(1);
+    ext_rng* before = cloneRng(TestPeer::rng(emptied));
+    alpha = 0.0;
+    bool declined = !TestPeer::forestRescaleApplies(emptied) &&
+                    !TestPeer::drawForestRescale(emptied, &alpha) &&
+                    alpha == 1.0;
+    double next = ext_rng_simulateContinuousUniform(TestPeer::rng(emptied));
+    double untouched = ext_rng_simulateContinuousUniform(before);
+    ext_rng_destroy(before);
+    check(declined && next == untouched,
+          "sharer leave: with none left the step declines and draws nothing");
+  }
+
+  // ---- a named sd: the forests left keep the group's k against it ----
+  {
+    SamplerOptions options = optionsFor(ResponseFamily::gaussian, false);
+    options.namedSd = 0.7;
+    auto live = build(ResponseFamily::gaussian, options, {}, {}, 7501);
+    ForestCalibration before = live->forestCalibration(1, 2);
+    live->setForestMapSd(0, 0.4);
+    ForestCalibration after = live->forestCalibration(1, 2);
+    check(after.namedSd == 0.7 && after.k == before.k &&
+            after.priorSd == before.priorSd && after.share == third,
+          "sharer leave: a named sd stays the group's, the k of those left "
+          "unmoved");
+  }
+
+  // ---- the state, captured on one side of a leave, installed on the other ----
+  {
+    SamplerOptions options = optionsFor(ResponseFamily::gaussian, true);
+    auto left = build(ResponseFamily::gaussian, options, {}, {}, 7601);
+    drawsOf(*left, 5);
+    left->setForestMapSd(0, 0.4);
+    drawsOf(*left, 5);
+    SamplerStateData afterLeave;
+    left->getState(afterLeave);
+    bool absent = true;
+    for (size_t c = 0; c < numChains; ++c)
+      absent = absent && std::isnan(afterLeave.chains[c].forests[0].k) &&
+               !std::isnan(afterLeave.chains[c].forests[1].k);
+    auto sharing = build(ResponseFamily::gaussian, options, {}, {}, 7602);
+    drawsOf(*sharing, 3);
+    bool installed = sharing->setState(afterLeave, nullptr);
+    auto oneK = [&](ConstantLeafSampler& sampler, const SamplerStateData& state,
+                    size_t from) {
+      return everyChain(sampler, [&](Chain<ConstantGaussianLeaf>& chain,
+                                     size_t c) {
+        double k = state.chains[c].forests[from].k;
+        return TestPeer::forestKAt(chain, 0) == k &&
+               TestPeer::forestKAt(chain, 1) == k &&
+               TestPeer::forestKAt(chain, 2) == k;
+      });
+    };
+    check(absent && installed && oneK(*sharing, afterLeave, 1),
+          "sharer leave: a state from after a leave gives every sharer of a "
+          "sampler where all share the one k it holds");
+    auto warm = build(ResponseFamily::gaussian, options, {}, {}, 7603);
+    drawsOf(*warm, 3);
+    const std::vector<std::pair<size_t, int>> liveMap = {{0, -1}, {1, -1}};
+    check(warm->installForests(afterLeave, liveMap, x.data()) ==
+              WarmStartResult::ok &&
+            oneK(*warm, afterLeave, 1),
+          "sharer leave: so does a warm start from it");
+
+    SamplerStateData allShare;
+    sharing->getState(allShare);
+    auto leaving = build(ResponseFamily::gaussian, options, {}, {}, 7604);
+    leaving->setForestMapSd(0, 0.4);
+    bool back = leaving->setState(allShare, nullptr) &&
+                everyChain(*leaving, [&](Chain<ConstantGaussianLeaf>& chain,
+                                         size_t c) {
+                  double k = allShare.chains[c].forests[0].k;
+                  return TestPeer::forestKAt(chain, 0) == 1.0 &&
+                         !TestPeer::forestUpdateKAt(chain, 0) &&
+                         TestPeer::forestKAt(chain, 1) == k &&
+                         TestPeer::forestKAt(chain, 2) == k;
+                });
+    check(back, "sharer leave: a state from before a leave gives those left "
+                "its k and the leaver keeps 1");
+  }
+
+  // ---- the fitting function's leaf prior after a leave ----
+  {
+    SamplerOptions options = optionsFor(ResponseFamily::gaussian, false);
+    auto live = build(ResponseFamily::gaussian, options, {}, {}, 7701);
+    live->setForestMapSd(0, 0.4);
+    live->setForestMapSd(1, 0.5);
+    FittingLeafPrior three;
+    three.k = 3.0;
+    check(live->setFittingLeafPrior(three) &&
+            everyChain(*live,
+                       [&](Chain<ConstantGaussianLeaf>& chain, size_t c) {
+                         return TestPeer::sharers(chain) ==
+                                  std::vector<std::size_t>{2} &&
+                                live->forestCalibration(c, 2).share == third &&
+                                TestPeer::leafScale(chain, 2) ==
+                                  sharerScale(options, third, 2) &&
+                                TestPeer::forestKAt(chain, 2) == 3.0 &&
+                                TestPeer::forestKAt(chain, 0) == 1.0 &&
+                                TestPeer::forestKAt(chain, 1) == 1.0;
+                       }),
+          "sharer leave: a total stated after it reaches the one left at its "
+          "share, not divided again");
+    FittingLeafPrior two;
+    check(live->setFittingLeafPrior(two) &&
+            everyChain(*live,
+                       [&](Chain<ConstantGaussianLeaf>& chain, size_t c) {
+                         return TestPeer::sharers(chain) ==
+                                  std::vector<std::size_t>{2} &&
+                                live->forestCalibration(c, 2).share == third &&
+                                TestPeer::forestKAt(chain, 2) == 2.0;
+                       }),
+          "sharer leave: a held 2 keeps the one left on its share");
+    live->setForestMapSd(2, 0.3);
+    std::vector<double> scales(3);
+    for (size_t f = 0; f < 3; ++f)
+      scales[f] = TestPeer::leafScale(live->chain(0), f);
+    check(!live->setFittingLeafPrior(three) &&
+            TestPeer::leafScale(live->chain(0), 2) == scales[2] &&
+            TestPeer::forestKAt(live->chain(0), 2) == 1.0,
+          "sharer leave: with none left the fitting function's leaf prior "
+          "reaches no forest and writes nothing");
+  }
+
+  for (std::vector<ext_rng*>& rngs : allRngs) destroyDrawRngs(rngs);
+  rngState = savedRngState;
+  printf("ok: sharer leave\n");
+}
+
 // The tree prior install writes the named forest's base and power on every
 // chain and nothing else; every refusal - an index naming no forest, a base
 // outside (0, 1), a power not positive - writes no chain.
@@ -15188,6 +15662,7 @@ void runSamplerTests(ext_rng* rng) {
   testMoveSettingsMatchCreation();
   testLevelGibbsPerForest();
   testForestsSharedTotal();
+  testSharerLeave();
   testFittingLeafPriorInstall();
   testForestTreePriorInstall();
   testForestTreePriorMatchesCreation();
