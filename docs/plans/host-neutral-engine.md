@@ -1,7 +1,8 @@
 # host-neutral-engine: a plain-C specification the engine is built from, build-time math and printing, a status from every entry point, and a creation entry in dbarts.h
 
 Status: PLANNED 2026-11-03 on main (c3d268c8f), for dec-B85; amended the same day after a blind critique (BUILD AFTER
-AMENDMENTS). Not built. Rulings, quoted where they settle a call: dec-B85 (the staged route), dec-B84 (the header is pure C),
+AMENDMENTS, then BUILD), for the maintainer's rulings on every open call, and rebased onto main at 8fce28568 after forest-door
+landed. Not built. Rulings, quoted where they settle a call: dec-B85 (the staged route), dec-B84 (the header is pure C),
 dec-B119 (a status from every entry point, the unwind to the entry point staying), dec-A74 (printing chosen at build time, the
 run-time print pointers removed), dec-A73 (a plain-C sigma getter rides this header change), dec-B124 (the specification's
 predictor part is `dbarts_predictor_source`, its dense channel stated per column), dec-A50 (the engine's R touchpoints), dec-A20
@@ -11,10 +12,11 @@ lookup), dec-B60, dec-A139 and dec-B424 (the version pair stays 1/0 before the r
 hash-to-minor CI assertion), dec-B160 and dec-B163 (multinomial run and predict through the flat API, its creation a post-release
 door), dec-B186 (the C consumer test compiles and runs on CRAN), dec-A36 (consumers check the boundary under sanitizers
 themselves), dec-A32 (a returned integer is a value or a capability status), dec-C01 (full symbol names), dec-C04 (the support
-library's print pointers), dec-B571, dec-B572 and dec-B575 (this plan's open calls 1 to 3, ruled; see
-[Ruled](#ruled)), and the frequency-weights rulings dec-B563 to dec-B570 (the reading of a weight is fixed at creation
-and the header gains its field in this change; real weights where the draw is exact; probit and ordinal membership as 0/1
-weights; a zero weight alike on every family; a binomial response for logistic). The runs behind it: reads of the tree at
+library's print pointers), dec-B571, dec-B572, dec-B575, dec-B582, dec-B577, dec-B578, dec-B579 and dec-B581 (this plan's
+open calls, all ruled, and the status words; see [Ruled](#ruled)), and the frequency-weights rulings dec-B563 to dec-B570 and
+dec-B580 (the reading of a weight is fixed at creation and the header gains its field in this change; real weights where the
+draw is exact; probit and ordinal membership as 0/1 weights; a zero weight alike on every family, its predictive draws NA; a
+binomial response for logistic). The runs behind it: reads of the tree at
 c3d268c8f, of stan4bart main (27ef163) and treatSens master (268b2db), and of frequency-weights (da210ce2d); the critic's probe of
 R 4.6.2's nmath against Rmath (17,304 points, below). No prototype was built here.
 
@@ -31,10 +33,10 @@ and is an interface change"). Two features. S1 (build-time math and printing, br
 creation code and lands on its own whenever it is green, serial with other engine merges. The main feature (branch
 host-neutral-engine: S2a, S2b, S3, then S5) starts after forest-door and coefficient-prior-live land and merges once (dec-B494),
 the consumer ports (S4) merging right after it.
-budget: ~5,350 lines written in this tree plus ~6,000 copied unedited from R's math library and ~400 of reduced R headers: S1
-~350, S2a ~900, S2b ~1,600, S3 ~2,500; S4 ~80 in stan4bart and ~50 in treatSens. Agent time, estimated and not measured: S1 ~8,
-S2a ~20, S2b ~29, S3 ~23, S4 ~6, S5 ~1, rebases onto main after the pending plans ~3: ~90. Plans here run 1.5 to 2 times low,
-so 135 to 180. Counted under dec-B575's middle course (51 fields), with the forward-compatibility work it asks for
+budget: ~5,650 lines written in this tree plus ~6,000 copied unedited from R's math library and ~400 of reduced R headers: S1
+~350, S2a ~900, S2b ~1,600, S3 ~2,800; S4 ~80 in stan4bart and ~50 in treatSens. Agent time, estimated and not measured: S1 ~8,
+S2a ~20, S2b ~29, S3 ~26, S4 ~6, S5 ~1, rebases onto main after the pending plans ~3: ~93. Plans here run 1.5 to 2 times low,
+so 140 to 185. The callback statuses and the status words (dec-B579, dec-B581) are about 300 of S3's lines and 3 of its hours. Counted under dec-B575's middle course (51 fields), with the forward-compatibility work it asks for
 ([Forward compatibility with several forests and multinomial](#forward-compatibility-with-several-forests-and-multinomial)):
 about 300 lines and 4 hours over the bare middle course, which itself took 400 lines and 10 hours off every one-forest model.
 
@@ -61,23 +63,21 @@ prior's quantile into a scale, parsing the prior vocabulary, and naming columns 
 sees changes. Then the header changes once, so the two compiled packages rebuild once: a program can create a sampler from that
 description, every entry that can fail returns a status in place of raising an R error, the failure's message can be read back,
 each chain's current sigma can be read, and the predictor description says column by column which block a column's values sit
-in, as you ruled. stan4bart and treatSens are then changed to check those statuses; with the helper recommended below, an R user
-of either sees the same errors, interrupts and time limits as today.
+in, as you ruled. stan4bart and treatSens are then changed to check those statuses; with the helper you chose, an R user of
+either sees the same errors, interrupts and time limits as today.
 
-You ruled three choices on 2026-11-03: entries that cannot fail keep returning their value; a failure's message is read from
-one call, per thread; and a C program creates the middle of the model in 1.0 - every family, constant leaves, the standard tree
-prior and DART, weights, offset, test predictors and run settings - with the 1.0 description shaped so that models of several
-forests and the multinomial model can be added later without changing what any 1.0 field means. The plan now says what that
-later addition looks like, what a 1.0 description keeps meaning under it, what 1.0 must refuse so nothing changes meaning, and
-a test that compiles a 1.0 description against a build carrying the addition and checks it reads the same.
+You have ruled every choice this plan raised. Entries that cannot fail keep returning their value. A failure's message is read
+from one call, per thread, and a second call gives fixed words for each status, the same text for every program, which the R
+helper falls back on and never replaces with words of its own. A C program creates the middle of the model in 1.0, with the
+description shaped so that models of several forests and the multinomial model can be added later without changing what any
+1.0 field means; the plan says what that addition looks like and tests that a 1.0 description reads the same under it. The
+description is one struct with a size field and an initializer. Creating from C requires a seed. And a callback's return now
+says what happened: zero continues, a positive value stops the run on purpose, a negative value reports the callback's own
+failure, and a C++ exception thrown from a callback is caught on whatever thread ran it and reported the same way.
 
-Four choices remain yours: whether the description is one struct or built up by calls; whether creating from C requires a seed;
-how an R package that calls dbarts' C code turns a status back into R's error or interrupt; and how a run a callback stopped on
-purpose is reported.
-
-What it costs: about 5,350 lines here plus the copied math code, and roughly 135 to 180 agent-hours, most of it in rewriting how
-samplers are created. The main piece has to wait for the forest door and the live coefficient prior, which rework the same
-creation code; frequency weights' field joins the new description whichever lands first.
+What it costs: about 5,650 lines here plus the copied math code, and roughly 140 to 185 agent-hours, most of it in rewriting how
+samplers are created. The forest door has landed; the main piece still waits for the live coefficient prior, which reworks the
+same creation code. Frequency weights' field joins the new description whichever lands first.
 
 ## Goal
 
@@ -230,7 +230,7 @@ Two plain-C structs, one shipped and one internal:
   ([Forward compatibility with several forests and multinomial](#forward-compatibility-with-several-forests-and-multinomial)). Until then the R parse hands these to the build stage
   through the internal extension, in the layout the append will ship.
 
-  `DBARTS_SAMPLER_SPEC_INIT` and `dbarts_sampler_spec_init()` (open call 4) set `structSize` and `dbarts()`'s defaults for a
+  `DBARTS_SAMPLER_SPEC_INIT` and `dbarts_sampler_spec_init()` (dec-B582) set `structSize` and `dbarts()`'s defaults for a
   gaussian response wherever they are numbers, NULL for every vector, `weightsType` PRECISION, and no seed (`hasSeed` 0). The
   header lists the values R resolves per family (probit's node scale, for one), since the spec carries no "the family's default"
   marker: one resolution home, as dbartsSpec()'s design argued.
@@ -240,8 +240,10 @@ Two plain-C structs, one shipped and one internal:
   refuses no spec without weights (a logistic one, for instance). With weights, the build checks the pair against dec-B563,
   dec-B564 and dec-B568 to dec-B570 (FREQUENCY on the gaussian-type families at real weights and the Polya-Gamma families at
   whole numbers; PRECISION only where there is a residual scale; 0/1 weights under either, membership on probit and ordinal;
-  a 0 a row out of the likelihood on every family, logistic included) with the words frequency weights gives R, prefixed. Until frequency weights' engine work lands, FREQUENCY is taken only where it reads
-  as the family's own (the Polya-Gamma families' counts, 0/1 weights).
+  a 0 a row out of the likelihood on every family, logistic included) with the words frequency weights gives R, prefixed.
+  Until frequency weights' engine work lands, FREQUENCY is taken only where it reads as the family's own (the Polya-Gamma
+  families' counts, 0/1 weights). The spec says nothing of predictive draws: a 0 row is still drawn, so the stream is what it
+  was, and its draws are set to NA where dec-B580 puts it, on every family, its fitted value still reported.
 - `bartcore_bridge::SpecExtension`, internal (src/spec_internal.h, plain C structs and arrays), in two parts. The PUBLIC-SHAPED
   part holds what later appends will ship, already in their sketched layout: the one-forest groups 1.0 leaves out (leaf models,
   monotone, constraints, moves, variance forest), the several-forest records (`ForestRecord`, field for field the sketched
@@ -276,7 +278,7 @@ const double* categoryOffset;         /* MULTINOMIAL: n x K offset, category-maj
 
 typedef struct {                      /* one forest of a several-forest sampler */
   size_t numTrees; double base, power;                    /* tree prior */
-  double sd, sdMultiple; int updateAmplitude; double amplitudeDf; double share;  /* size: the forest statement */
+  double sd, sdMultiple; int updateAmplitude; double amplitudeDf;   /* size: the forest statement */
   const size_t* columns; size_t numColumns;               /* columns it may split on, NULL all */
   int kind;                           /* dbarts_forest_kind: NONE 0, LEVELS 1, NUMERIC 2 */
   const double* basis; size_t numBasisColumns;            /* the forest's coefficient basis */
@@ -285,7 +287,10 @@ typedef struct {                      /* one forest of a several-forest sampler 
 ```
 
 The element is the engine's [`ForestSpec`](../../src/bartcore/combiner.hpp) (a `ForestStatement`, a `ForestStructureSpec`, a
-kind and a basis) in C, with the share forest-door adds. The multinomial part is the engine's
+kind and a basis) in C. It carries no share: forest-door, landed, keeps `ForestSpec::share` as a sharer's part of its group's
+prior variance "as a first creation set it", which "No caller states"; the build derives the group (`forestSharers`: the forests
+with no basis that state no sd and no df), and the share rides the extension's R-only part as a re-creation record. The
+multinomial part is the engine's
 [`MultinomialSpec`](../../src/bartcore/combiner.hpp): K is the 1.0 field `numCategories`, the shared category forest is the 1.0
 tree and leaf fields (`numTrees`, `base`, `power`, `k`, `nodeScale`), and counts, trials and the category offset are the three
 appended pointers. The result side is already there: the flat run sizes `dbarts_results` by F
@@ -303,10 +308,14 @@ Invariants every 1.0 description keeps, under the append and any later one:
    zero, and otherwise returns UNSUPPORTED naming the first unknown nonzero byte's offset, the rule Linux's extensible structs
    (`openat2`, `clone3`) follow. A newer caller using only 1.0 features runs on a 1.0 library; one asking for several forests
    is refused, never silently given one.
-4. The 1.0 tree and leaf fields describe THE forest when there is one: the single forest, or under MULTINOMIAL the forest every
-   category forest copies, as `MultinomialSpec` shares one `MultinomialForestSpec`. With `numForests` > 0 they are not read; every
-   forest is stated in its element, and nothing is inherited from them. A sampler-wide field (data, family part, sigma, DART,
-   run settings, engine limits) keeps its meaning under every structure.
+4. The 1.0 tree prior fields (`numTrees`, `base`, `power`) describe THE forest when there is one: the single forest, or under
+   MULTINOMIAL the forest every category forest copies, as `MultinomialSpec` shares one `MultinomialForestSpec`. With
+   `numForests` > 0 they are not read; every forest states its trees in its element, and nothing is inherited from them. The
+   1.0 leaf prior fields (`k`, `nodeScale`, `namedSd`, `kIsDrawn`, `kPriorDf`, `kPriorScale`) keep one meaning under every
+   structure: the model's leaf prior, the single forest's, or under several forests the total the sharing forests divide, "the
+   single-forest chain's leaf prior with one k for the group", as forest-door built it; a forest stating its own sd or df is
+   sized by its element instead. A sampler-wide field (data, family part, sigma, DART, run settings, engine limits) keeps its
+   meaning under every structure.
 5. `family` keeps naming the likelihood. Several forests is a structure over GAUSSIAN, PROBIT or LOGISTIC, not a family value;
    MULTINOMIAL (8) is a family. Values are never renumbered: AUTO 0 is refused at C creation; 1 to 7 are created at 1.0;
    MULTINOMIAL and every value past 8, reserved for families appended later, return UNSUPPORTED at 1.0 ("this build creates no
@@ -343,7 +352,8 @@ field, which returns UNSUPPORTED. The two struct definitions never meet in one t
 The spec takes either `hasSeed` 1 with `seed` (every 32-bit value valid, 0 included) and `chainSeeds` NULL - one generator
 seeded from it hands each chain its seed, which is the `control@seed` path today and gives the same draws - or `chainSeeds`, one
 per chain, used as they stand, which is how the R parse passes the seeds it draws from R's stream when the control states none.
-R's draws are therefore unchanged on both paths. A spec with neither is refused (open call 5).
+R's draws are therefore unchanged on both paths. A spec with neither is refused (dec-B577), and a binding fills the seed from
+its own environment's stream, as dbarts' R code fills it from R's.
 
 ### Refusals inside the shared code
 
@@ -367,12 +377,12 @@ minor, so a caller tests the sign and treats an unknown negative as a failure.
 |---|---|---|
 | 0 | `DBARTS_OK` | done |
 | 1 | `DBARTS_SCALE_KEPT` | setResponse or setOffset swapped and kept the transform in force (today's SCALE_KEPT) |
-| 2 | `DBARTS_STOPPED` | a callback's nonzero return stopped a run (open call 7) |
+| 2 | `DBARTS_STOPPED` | a draw callback's positive return stopped a run on purpose (dec-B581) |
 | -1 | `DBARTS_UNSUPPORTED` | the sampler cannot do this at all (today's capability 0) |
 | -2 | `DBARTS_INVALID_ARGUMENT` | this call is wrong (today's `Rf_error` "this call is wrong") |
 | -3 | `DBARTS_OUT_OF_MEMORY` | an allocation failed or a size exceeds what can be addressed |
 | -4 | `DBARTS_INTERRUPTED` | the build's poll stopped a run: an interrupt, or under R an error raised while polling (a time limit) |
-| -5 | `DBARTS_CALLBACK_ERROR` | a draw callback threw a C++ exception; its `what()` is the message |
+| -5 | `DBARTS_CALLBACK_FAILED` | a draw callback returned a negative value or threw a C++ exception (dec-B581) |
 | -6 | `DBARTS_FAILED` | the engine could not complete the call; the message says why |
 
 Engine exceptions map by type: `std::invalid_argument`, `std::domain_error` and `std::out_of_range` to INVALID_ARGUMENT,
@@ -380,12 +390,12 @@ Engine exceptions map by type: `std::invalid_argument`, `std::domain_error` and 
 Predict's join (S3) rethrows a failed worker's exception in its own category, an allocation failure as an allocation failure,
 with the message text it has today, so R's words hold and a C caller sees OUT_OF_MEMORY.
 
-Per entry (the infallible ones keep returning their value under open call 1's recommendation), with what a failure leaves:
+Per entry (the infallible ones keep returning their value, dec-B571), with what a failure leaves:
 
 | entry | returns | can fail with | after a failure |
 |---|---|---|---|
 | `dbarts_sampler_create` | status, handle through an out pointer | INVALID_ARGUMENT, UNSUPPORTED (multinomial), OUT_OF_MEMORY, FAILED | `*sampler` NULL, nothing allocated |
-| `dbarts_sampler_run` | status | INVALID_ARGUMENT (structSize 0), INTERRUPTED, CALLBACK_ERROR, OUT_OF_MEMORY, FAILED; STOPPED | the chains stand where they stopped, a valid state to run on from; this call's results and saved trees discarded; after OUT_OF_MEMORY or FAILED, valid to read and destroy |
+| `dbarts_sampler_run` | status | INVALID_ARGUMENT (structSize 0), INTERRUPTED, CALLBACK_FAILED, OUT_OF_MEMORY, FAILED; STOPPED | the chains stand where they stopped, a valid state to run on from; this call's results and saved trees discarded; after OUT_OF_MEMORY or FAILED, valid to read and destroy |
 | `dbarts_sampler_sampleTreesFromPrior` | status | FAILED (every draw of a tree left an empty leaf), OUT_OF_MEMORY | trees already drawn stand; drawing again is valid |
 | `dbarts_sampler_setResponse`, `setOffset` | status | UNSUPPORTED, INVALID_ARGUMENT (support, finiteness, updateScale refusals); SCALE_KEPT | unchanged |
 | `dbarts_sampler_setSigma` | status | UNSUPPORTED (pinned), INVALID_ARGUMENT (not finite and positive) | unchanged |
@@ -396,18 +406,69 @@ Per entry (the infallible ones keep returning their value under open call 1's re
 | `dbarts_sampler_printTrees` | status | INVALID_ARGUMENT (an index out of range) | nothing printed |
 | `dbarts_sampler_setVerbose` | status | INVALID_ARGUMENT (printEvery 0) | unchanged |
 | `dbarts_sampler_numTrees` | status, count through an out pointer | INVALID_ARGUMENT (forest out of range) | out untouched |
-| `destroy`, `setDrawCallback`, `setNumThreads`, the other accessors, the version triple, `dbarts_lastErrorMessage`, `dbarts_sampler_spec_init` | value, void, or OK | nothing (spec_init: INVALID_ARGUMENT on a structSize below the first release's) | - |
+| `destroy`, `setDrawCallback`, `setNumThreads`, the other accessors, the version triple, `dbarts_lastErrorMessage`, `dbarts_statusString`, `dbarts_sampler_spec_init` | value, void, or OK | nothing (spec_init: INVALID_ARGUMENT on a structSize below the first release's) | - |
 
 The message: `const char* dbarts_lastErrorMessage(void)`, the message of the most recent call on this thread that returned a
 negative status, a capability probe included, self-prefixed with the entry's name as today (`"dbarts_sampler_run:
-results.structSize is 0 - ..."`), valid until the next failing call on the thread; a success leaves it (open call 2). The
-thread's record also notes, for INTERRUPTED under R, whether the poll consumed an interrupt or an error, which the R raise reads.
+results.structSize is 0 - ..."`), valid until the next failing call on the thread; a success leaves it (dec-B572). The record
+is a fixed thread-local buffer, so writing it never allocates; every failing call overwrites it, with the empty string when no
+message could be formed (memory ran out before one was), so an empty message always belongs to the latest failure. The record
+also notes, for INTERRUPTED under R, whether the poll consumed an interrupt or an error, which the R raise reads.
 
-Three things stay as they are, because a status cannot carry them: a draw callback that RAISES an R error on an inline run is
-R's own jump, which the entry resumes after the unwind exactly as now (abandoning it would drop the target of an enclosing
-`tryCatch`); the stub view's handshake, consumer code in an R-only view, still raises; and the slow-count warning goes out through
-the build's warning routing, last, as now (under R an R warning, which `options(warn = 2)` can still turn into a jump; standalone,
-a line on standard output).
+The words: `const char* dbarts_statusString(int status)` (dec-B579), fixed words per status, as zlib's `zError`, SQLite's
+`sqlite3_errstr` and libcurl's `curl_easy_strerror` give. It cannot fail, needs no handle and no thread record, and returns
+static strings:
+
+| status | words |
+|---|---|
+| `DBARTS_OK` | `success` |
+| `DBARTS_SCALE_KEPT` | `success; the response transform was kept` |
+| `DBARTS_STOPPED` | `stopped by the draw callback` |
+| `DBARTS_UNSUPPORTED` | `not supported by this sampler` |
+| `DBARTS_INVALID_ARGUMENT` | `invalid argument` |
+| `DBARTS_OUT_OF_MEMORY` | `out of memory` |
+| `DBARTS_INTERRUPTED` | `interrupted` |
+| `DBARTS_CALLBACK_FAILED` | `the draw callback failed` |
+| `DBARTS_FAILED` | `the sampler could not complete the call` |
+| any other | `unknown status` |
+
+A binding names its exceptions from it, and it is the text a caller falls back on when `dbarts_lastErrorMessage()` is empty.
+The table is generated from `DBARTS_STATUS_LIST`, whose X-macro gains the words beside each value, so a status cannot be added
+without its words, and the words are folded into the hash with the values.
+
+Two things stay as they are, because a status cannot carry them: the stub view's handshake, consumer code in an R-only view,
+still raises; and the slow-count warning goes out through the build's warning routing, last, as now (under R an R warning, which
+`options(warn = 2)` can still turn into a jump; standalone, a line on standard output). A draw callback's R error on an inline run
+under R stays R's jump too ([The draw callback](#the-draw-callback)).
+
+### The draw callback
+
+dec-B581 makes the callback's return sign decide, and catches what a callback throws on every thread and in every build. The
+contract, which replaces the RETURN and RAISING paragraphs of `dbarts_draw_callback` today:
+
+- RETURN. 0 continues. A POSITIVE return stops the run on purpose: every chain stops at its next sweep boundary and
+  `dbarts_sampler_run` returns STOPPED, a positive status, with this call's results and saved trees discarded (the sample
+  cursors have not advanced past draws already written into their slots, exactly as on the interrupt path). A NEGATIVE return
+  reports the callback's own failure: the run stops the same way and returns CALLBACK_FAILED, the message
+  `dbarts_sampler_run: the draw callback for chain %zu returned %d`. When chains return differently in one sweep, a failure
+  wins over a stop, and the first failing chain by index is the one named, so the status does not depend on thread timing.
+- EXCEPTIONS. A C++ exception escaping the callback is caught AT THE CALL, on the main thread and on every worker, in the R
+  build and the standalone one, and the run stops and returns CALLBACK_FAILED with `dbarts_sampler_run: the draw callback for
+  chain %zu threw: <what()>` (`an exception not derived from std::exception` where there is no `what()`). An R
+  package sees it through `DBARTS_R_CHECK` as an R error with that message; today an inline exception reached R as an error
+  carrying `what()` alone, and no consumer registers a callback. Worker threads called the callback unprotected until now, so a
+  worker's exception ended the process; the catch is new there.
+- R ERRORS. Under R, on an inline run (min(numThreads, numChains) <= 1), the callback MAY raise an R error: the call is made
+  under `R_UnwindProtect`, the jump becomes a C++ unwind at the callback, every frame to the entry is destroyed, and the entry
+  resumes R's jump, exactly as now; the run returns nothing, and the sampler is left as a stop leaves it. From a worker an R
+  raise stays undefined, as now: the header says to return negative instead.
+- A BINDING catches its own exception in its wrapper, keeps it in the context, returns -1, and re-raises it once the run returns
+  CALLBACK_FAILED, as C callbacks from Python are written; libgit2's callbacks abort with a negative value the call returns.
+
+The catch is in the build's callback unit (src/host_r.cpp beside the `R_UnwindProtect` leaf, standalone/host_standalone.cpp's
+plain call), shared by the inline call and the worker trampoline, so one wrapper serves every thread. About 40 engine and bridge
+lines, as the ruling estimated; the three-way stop record (continue, stop, failure with chain and value or text) replaces
+today's one stop flag.
 
 ### Threads
 
@@ -491,6 +552,7 @@ is a `dbarts_status`):
   X(int, dbarts_apiMinorVersion, (void), ())                                   /* V */ \
   X(uint64_t, dbarts_apiHash, (void), ())                                      /* V */ \
   X(const char*, dbarts_lastErrorMessage, (void), ())                          /* new */ \
+  X(const char*, dbarts_statusString, (int status), (status))                  /* new, dec-B579 */ \
   X(dbarts_status, dbarts_sampler_spec_init, \
     (dbarts_sampler_spec* spec, size_t structSize), (spec, structSize))        /* new */ \
   X(dbarts_status, dbarts_sampler_create, \
@@ -533,14 +595,30 @@ is a `dbarts_status`):
   X(size_t, dbarts_sampler_numFittedValuesPerObservation, (const dbarts_sampler* sampler), (sampler)) \
   X(size_t, dbarts_sampler_numVariableCountForests, (const dbarts_sampler* sampler), (sampler))
 
-/* R-hosted view only (DBARTS_USE_STUBS), open call 6 (a) */
+/* the status list carries each status's fixed words, read by dbarts_statusString */
+#define DBARTS_STATUS_LIST(X) \
+  X(DBARTS_OK, 0, "success") \
+  X(DBARTS_SCALE_KEPT, 1, "success; the response transform was kept") \
+  X(DBARTS_STOPPED, 2, "stopped by the draw callback") \
+  X(DBARTS_UNSUPPORTED, -1, "not supported by this sampler") \
+  X(DBARTS_INVALID_ARGUMENT, -2, "invalid argument") \
+  X(DBARTS_OUT_OF_MEMORY, -3, "out of memory") \
+  X(DBARTS_INTERRUPTED, -4, "interrupted") \
+  X(DBARTS_CALLBACK_FAILED, -5, "the draw callback failed") \
+  X(DBARTS_FAILED, -6, "the sampler could not complete the call")
+
+/* R-hosted view only (DBARTS_USE_STUBS), dec-B578 */
 #define DBARTS_C_API_R_LIST(X) \
   X(void, dbarts_R_raiseStatus, (dbarts_status status), (status))
 #define DBARTS_R_CHECK(call) \
   do { dbarts_status dbarts_s_ = (call); if (dbarts_s_ < 0) dbarts_R_raiseStatus(dbarts_s_); } while (0)
+
+/* dbarts_draw_callback keeps its type; its return now has three meanings (dec-B581) */
+typedef int (*dbarts_draw_callback)(void* context, const dbarts_draw* draw);  /* 0 go, > 0 stop, < 0 failed */
 ```
 
-Types: `DBARTS_STATUS_LIST` and `dbarts_status` added, `DBARTS_SWAP_STATUS_LIST` and `dbarts_swap_status` removed;
+Types: `DBARTS_STATUS_LIST` and `dbarts_status` added (the list takes three arguments, so it gets its own enumerator macro beside
+`DBARTS_ENUMERATOR`, and the library's word table expands the third), `DBARTS_SWAP_STATUS_LIST` and `dbarts_swap_status` removed;
 `DBARTS_WEIGHTS_TYPE_LIST` and `dbarts_weights_type` added; `dbarts_sampler_spec` and `DBARTS_SAMPLER_SPEC_INIT` added; in
 `dbarts_predictor_source` the field `denseChannels` (per column, k >= 0 double column k of `denseValues`, k < 0 code column ~k
 of `denseCodes`, NULL every dense column in `denseValues` at `columnSources[j]`) is added above the boundary beside `denseCodes`
@@ -550,22 +628,27 @@ and `numDenseCodeColumns`, which move above it too, and the kind-selected readin
 `dbarts_dense_predictor_source` follow. `dbarts_results`, `dbarts_draw`, `dbarts_column_type`, `dbarts_leaf_model` and
 `dbarts_family` keep their layout and values (the family and leaf enums gain a reader in the spec).
 
-`dbarts_R_raiseStatus` raises, never returns: for INTERRUPTED it re-raises the condition the poll consumed, R's interrupt
-condition as the flat run raises it today or the R error raised while polling (a time limit's "reached elapsed time limit"); for
-any other negative status, `Rf_error("%s", dbarts_lastErrorMessage())`. Its list is folded into the hash and stubbed only under
-`DBARTS_USE_STUBS`.
+`dbarts_R_raiseStatus` raises, never returns, and writes no words of its own (dec-B578): it chooses R's condition and forwards
+text it reads through the neutral calls. For INTERRUPTED it re-raises the condition the poll consumed: R's interrupt condition as
+the flat run raises it today, or an R error whose text is `dbarts_lastErrorMessage()`, where the R build's poll recorded the R
+condition's own message (a time limit's "reached elapsed time limit"). For any other negative status it raises
+`Rf_error("%s", m)`, m being `dbarts_lastErrorMessage()`, or `dbarts_statusString(status)` when that is empty. Its list is folded
+into the hash and stubbed only under `DBARTS_USE_STUBS`.
 
 Prose: the contract block's error paragraph is rewritten from "An Rf_error means THIS call is wrong ... longjmps" to the status
 rule and the table above; dec-A32's two meanings become "a value entry cannot fail; every other entry returns a status"; THE
-HANDLE gains the C-created origin and its lifetime; the thread paragraph states [Threads](#threads); the RAISING paragraph of
-`dbarts_draw_callback` says a thrown exception becomes CALLBACK_ERROR and an R raise is still R's jump; `dbarts_sampler_run`'s
-interrupt, callback-stop and slow-count paragraphs follow the statuses; `dbarts_sampler_predict` drops "main-R-thread-only ...
+HANDLE gains the C-created origin and its lifetime; the thread paragraph states [Threads](#threads); the RETURN and RAISING
+paragraphs of `dbarts_draw_callback` are replaced by the four of [The draw callback](#the-draw-callback) (RETURN, EXCEPTIONS,
+R ERRORS, A BINDING), and the WORKER-thread paragraph says to return negative; `dbarts_sampler_run`'s interrupt, callback-stop
+and slow-count paragraphs follow the statuses, the stop paragraph naming STOPPED and CALLBACK_FAILED; `dbarts_statusString` and
+`dbarts_lastErrorMessage` document the fallback; `dbarts_sampler_predict` drops "main-R-thread-only ...
 R_alloc"; `dbarts_sampler_getLatents` gains frequency weights' sentence on a frequency row's latent (dec-B564's note); every
 per-entry "raises" becomes the status it returns; the spec's block states invariants 1 to 7 of the forward-compatibility
-section, the reserved family values and the zero-tail rule. About +550/-150 lines in the header.
+section, the reserved family values and the zero-tail rule. About +600/-180 lines in the header.
 
 The hash: [`dbarts_foldLayout`](../../src/C_interface.cpp) gains the spec's size and every field's name and offset in pointer
-units, as `dbarts_results`, and `DBARTS_STATUS_LIST` and `DBARTS_WEIGHTS_TYPE_LIST` join the enum fold; both tokens are re-baked
+units, as `dbarts_results`, and `DBARTS_STATUS_LIST` (values and words) and `DBARTS_WEIGHTS_TYPE_LIST` join the enum fold;
+`dbarts_statusString` enters the hash as a list entry like any other; both tokens are re-baked
 ([`dbarts_apiSignatureToken`](../../src/C_interface.cpp) and the literal). Several by-value doubles in the spec make its offsets
 differ by platform in pointer units, as `dbarts_draw`'s do, so the spec folds as `dbarts_draw` does: field count, and doubles by
 name, position and width. tools/check-api-hash.sh is unchanged and still skips (no release tag).
@@ -596,6 +679,11 @@ stage with the text it has today, and the tinytest pins hold them. New words rea
 - `block tree counts must sum to numTrees`; and the engine's own creation refusals (leaf covariates, variance forest, monotone
   with a proposal mix, storage single), worded as the engine words them, with the entry's prefix.
 
+The run's callback failures (CALLBACK_FAILED), under `dbarts_sampler_run`'s prefix: `the draw callback for chain %zu returned
+%d`; `the draw callback for chain %zu threw: %s`; `the draw callback for chain %zu threw an exception not derived from
+std::exception`. A deliberate stop (STOPPED) is not a failure and writes no message. Every status's fixed words are the
+`dbarts_statusString` table above, which is also the text of a failure that left no message.
+
 ## RNG class
 
 Neutral on the R build, by construction and by gate:
@@ -620,7 +708,8 @@ Neutral on the R build, by construction and by gate:
 
 ## Ruled
 
-The maintainer ruled this plan's first three open calls on 2026-11-03:
+The maintainer ruled every open call of this plan on 2026-11-03, and added two rulings it now builds (dec-B579 and the words
+clause of dec-B578); the numbers are the plan's open-call numbers, which the ledger's records cite:
 
 1. dec-B571: in the shipped header only an entry that can fail returns a status; the counts and the other accessors return their
    value, and numTrees moves to a status since its forest index can be out of range. The maintainer: "For the host-neutral
@@ -633,6 +722,25 @@ The maintainer ruled this plan's first three open calls on 2026-11-03:
    multinomial as an append. The maintainer: "You can do (b), but it would be a good time to make sure that whatever is
    necessary for (c) will be forwards compatible. Basically, make sure we're ready to do (c) when the time comes." The plan
    answers it in [Forward compatibility with several forests and multinomial](#forward-compatibility-with-several-forests-and-multinomial).
+4. dec-B582: the description is one struct the caller fills, led by `structSize`, with `DBARTS_SAMPLER_SPEC_INIT` for C and
+   `dbarts_sampler_spec_init(spec, sizeof *spec)` for bindings that cannot expand a macro; its field order is fixed at 1.0 and
+   grows only at the end, the several-forest append coming as an array of element structs at a stated stride, with an element
+   initializer. The maintainer: "I think a struct with a size field."
+5. dec-B577: the creation entry refuses a description with no seed, saying so, and a binding fills the seed from its own
+   environment's stream. The maintainer: "Use (a)."
+6. dec-B578: `DBARTS_R_CHECK(call)`, backed by one R-only entry, raises a failure as an R error, an interrupt as R's interrupt
+   and a time limit as its error; "the R helper only chooses R's condition and forwards text it reads through the neutral
+   calls, and writes none of its own." The maintainer: "For the host-neutral engine call, you can use (a), but if there is any
+   translation of error codes into strings, I assume that that might also want to be platform independent too, right?"
+   Built in [The header diff](#the-header-diff).
+   - dec-B579, from that question: `const char* dbarts_statusString(int status)`, fixed words per status, which cannot fail,
+     returns fixed words for an unknown status, and is the fallback of a binding and of `DBARTS_R_CHECK` when a failure left
+     no message. The maintainer: "Yes, makes sense. Do (a)." Built in [Statuses](#statuses).
+7. dec-B581, revising the call: the callback's return sign decides - 0 continues, a positive return stops on purpose and the run
+   returns STOPPED, a negative return returns CALLBACK_FAILED with the value in the message - and a C++ exception escaping a
+   callback is caught at the call on every thread and in every build and returned as CALLBACK_FAILED with its `what()`; an R
+   error raised in the callback on a single-threaded run under R stays R's jump. The maintainer: "Use your revised
+   recommendation." Built in [The draw callback](#the-draw-callback).
 
 ## Calls made
 
@@ -670,8 +778,9 @@ The maintainer ruled this plan's first three open calls on 2026-11-03:
 11. Two handles may be used at once from two threads, and `predictPartition` becomes `thread_local`. Alternative: keep predict
     main-thread-only under every build; free, but "the main thread" means nothing to a C program, and a binding predicting with
     several samplers on a thread pool would race on one global without a word in the header.
-12. A callback's R raise on an inline run is still R's jump, resumed at the entry. Alternative: swallow it into CALLBACK_ERROR,
-    which drops the target of an enclosing tryCatch and leaves R's condition stack inconsistent.
+12. When chains of one run end differently, a callback failure wins over a deliberate stop and the lowest failing chain index is
+    named. Alternative: report whichever chain's callback returned first, which makes the status and its message depend on
+    thread timing.
 13. The poll's consumed error is INTERRUPTED with the error's message and a note on the thread's record, so the R raise restores
     it as an error. Alternative: a separate status for "an error raised while polling", a code that only the R build can return.
 14. The slow-count warning goes through the build's warning routing, raised last as today. Alternative: a status note, which no
@@ -701,11 +810,19 @@ The maintainer ruled this plan's first three open calls on 2026-11-03:
     around them.
 26. S1 is its own feature; the rest is one branch merged once, the header change landing whole in S3 so stan4bart and treatSens
     rebuild once. Alternative: S1 on the main branch, which holds a byte-neutral change with no dependency behind forest-door.
-27. Under several forests the 1.0 tree and leaf fields are not read; every forest is stated in its element. Alternatives: (i)
-    they are forest 1's, the array holding forests 2 onward, which makes the array's first element differ from the rest and
-    puts one forest's settings in two places; (ii) they are defaults each element inherits where it leaves a field unset, which
-    needs an "unset" value for every element field and makes a forest's value depend on two places, the drift dbartsSpec()
-    ended.
+27. Under several forests the 1.0 tree prior fields are not read; every forest states its trees in its element, while the 1.0
+    leaf prior fields keep their one meaning, the model's leaf prior the sharing forests divide, as forest-door built it.
+    Alternatives: (i) the 1.0 tree fields are forest 1's, the array holding forests 2 onward, which makes the array's first
+    element differ from the rest and puts one forest's settings in two places; (ii) they are defaults each element inherits
+    where it leaves a field unset, which needs an "unset" value for every element field and makes a forest's value depend on
+    two places, the drift dbartsSpec() ended.
+32. The status words live beside the values in `DBARTS_STATUS_LIST`, so the table is generated and a status cannot be added
+    without its words. Alternative: a separate switch in the library, which can fall behind the list.
+33. The thread's message record is overwritten by every failure, empty when none could be formed. Alternative: leave the last
+    message in place when a failure cannot write one, which shows a stale, unrelated message beside the new status.
+34. The callback catch sits in the build's callback unit, one wrapper for the inline call and the worker trampoline.
+    Alternative: a catch in each of the engine's call sites, several places to keep alike, and an engine that would then know
+    the callback's failure text.
 28. A nested array versions by one stride on the parent. Alternative: a `structSize` in each element, which repeats one number
     per element and lets elements of one array disagree, a state with no meaning.
 29. Forward compatibility rests on "zero means absent" and on refusing a nonzero byte past the known size, with no placeholder
@@ -719,52 +836,7 @@ The maintainer ruled this plan's first three open calls on 2026-11-03:
 
 ## Open calls
 
-Each is something stan4bart, treatSens and any future binding code against, and none is settled by a ruling. Calls 1 to 3 are
-ruled ([Ruled](#ruled)); the numbers are kept so the ledger's references hold.
-
-4. **Is the description one struct or built up by calls?** Background: dec-B575 makes the description grow later, by one-forest
-   groups and then by an array of forests, so the shape has to take a nested array as well as flat fields. Options: (a) one
-   struct the caller fills, with a size field, an `INIT` macro holding dbarts()'s defaults for C, and
-   `dbarts_sampler_spec_init(spec, sizeof *spec)` doing the same for bindings such as Python's ctypes and cffi, which cannot
-   expand a macro; the forests come later as an array of element structs at a stated stride, with an element initializer;
-   cost: its field order is fixed at 1.0, appends only after; a binding builds an array of structs (ctypes and cffi both do)
-   and states two sizes; one more entry now and one at the append. (b) the struct and macro alone; cost: a binding writes every
-   default itself, the forest elements' too, and drifts when one changes. (c) an opaque description object with a creation call
-   and one setter per setting; nesting is where it is strongest, `addForest` returning an index the forest setters take, with
-   no stride and no "unset" problem; cost: about 51 entries at 1.0 and, at the append, one per forest field again with an index,
-   about 20 more, each frozen under dec-B86 and checked one call at a time. (d) the 1.0 struct plus typed extension structs
-   chained by a pointer, as Vulkan's `pNext`, each later part (the forests, multinomial) its own size-led struct with a type
-   tag; cost: the chain's walk and duplicate-tag rules in every build, for a growth the zero-tail append already gives.
-   Recommendation: (a), unchanged. The nested array narrows (c)'s advantage less than it seems: the stride rule and "zero means
-   absent" give the element the same versioning the parent has, and a builder's own strength, knowing what was never set, is
-   what the zero rule already says.
-5. **Does creating from C require a seed?** Background: R draws chain seeds from its own stream when none is given; a C program
-   has no such stream. Options: (a) required: a spec with no seed is refused; cost: one more field a caller sets. (b) a fixed
-   default seed in the initializer, as XGBoost and LightGBM default to seed 0; cost: two runs a caller meant as independent
-   silently give the same draws. (c) a seed from the clock and process id when none is given; cost: a run that cannot be
-   repeated unless the caller thought to seed it, and a platform-specific source in an entry meant to have none. The append
-   changes nothing here: every forest of a chain, and every category forest, draws from the chain's one generator.
-   Recommendation: (a).
-6. **How does an R package turn a status back into R's error, interrupt or time limit?** Background: today a failing flat call
-   raises the R error itself, an interrupted run raises R's interrupt condition, and a time limit set with `setTimeLimit`
-   expiring mid-run raises its error. Under statuses stan4bart and treatSens must do it, and the poll has already consumed the
-   condition, so only dbarts can raise it again. Options: (a) the R-only part of the header gives `DBARTS_R_CHECK(call)`, backed
-   by one R-only entry dbarts registers, raising the message as an R error, an interrupt as an interrupt and a time limit as
-   its error; cost: one more symbol in the R-hosted view, and the two consumers wrap each fallible call. (b) each consumer
-   writes `if (status < 0) Rf_error("%s", dbarts_lastErrorMessage())`; cost: Ctrl-C during a stan4bart fit reaches the user as
-   an error, which `tryCatch(interrupt = )` and the quiet interrupt behavior miss. (c) under the R build a flat run keeps
-   raising the interrupt or time limit itself, as R's own jump after the unwind, and returns statuses for everything else;
-   cost: the run entry has two failure channels that differ by build, a departure from "every entry point" for one case,
-   though consumers need nothing for interrupts. The append adds no entry and no status, so nothing here moves.
-   Recommendation: (a).
-7. **How is a run a callback stopped on purpose reported?** Background: a draw callback that returns nonzero stops the run; this
-   call's results and saved trees are then discarded. Today the run returns normally with no sign of it, so a caller must
-   remember its callback stopped. Options: (a) a positive status, STOPPED, a success with a note; cost: a caller that tests
-   only for failure (`< 0`) reads discarded buffers unless it also checks for OK. (b) a negative status; cost: the R helper of
-   open call 6 raises an error for a stop the caller asked for, and a binding treats a deliberate stop as a failure. (c) OK, as
-   today; cost: the one entry whose buffers can be invalid on OK. Several forests and multinomial already run through the
-   flat run with the same callback and buffers, so the append changes nothing. Recommendation: (a); neither consumer registers
-   a callback.
+None. Every call this plan raised is ruled ([Ruled](#ruled)).
 
 ## Slices
 
@@ -817,16 +889,25 @@ review ~7, gates ~4.
 
 ### S3: statuses, the creation entry, the sigma getter, the header (bridge, flat entry file, tests)
 
-Steps: `DBARTS_STATUS_LIST`; the list as in [The header diff](#the-header-diff); `dbarts_sampler_create`, `spec_init`,
-`getSigmas`, `lastErrorMessage`; C_interface.cpp off R (owned scratch, statuses, the thread's record); `predictPartition`
-thread_local; predict's join keeping its category; src/host_r.cpp and standalone/host_standalone.cpp; the holder's origin and
-destroy; `dbarts_R_raiseStatus` and `DBARTS_R_CHECK` (open call 6); `denseChannels` in the shipped source; the hash folder and
-both tokens; the header's prose. Tests: consumer.c and test-capi.R rewritten for statuses (each entry's failure reached and its
+Steps: `DBARTS_STATUS_LIST` with its words and `dbarts_statusString`; the list as in [The header diff](#the-header-diff);
+`dbarts_sampler_create`, `spec_init`, `getSigmas`, `lastErrorMessage` with the overwrite-on-every-failure record; C_interface.cpp
+off R (owned scratch, statuses, the thread's record); `predictPartition` thread_local; predict's join keeping its category;
+src/host_r.cpp and standalone/host_standalone.cpp, with the callback catch for the inline call and the worker trampoline; the
+engine's three-way stop record (continue, stop, failure with chain and value or text) in place of the one stop flag, and the
+lowest-failing-chain rule; the holder's origin and destroy; `dbarts_R_raiseStatus` and `DBARTS_R_CHECK` (dec-B578), forwarding
+only neutral text; `denseChannels` in the shipped source; the hash folder and both tokens; the header's prose, the callback
+contract rewritten. Tests: consumer.c and test-capi.R rewritten for statuses (each entry's failure reached and its
 status and message read; INIT plus data and seed against `dbarts()`'s draws bitwise; a C-created sampler against the R-created
 one bitwise; `denseChannels` with packed blocks against the dense source; getSigmas on two chains and its UNSUPPORTED on a
 heteroscedastic sampler; `DBARTS_R_CHECK` raising an error, through the interrupt test hook an interrupt, and under
-`setTimeLimit` the time limit's error, as test-monotone.R pins for R's run; two samplers predicting on two threads; a C-created
-handle destroyed), the five handshake arms kept; tests/cpp's `standalone-consumer` target: a C99 file including the prototype
+`setTimeLimit` the time limit's error, as test-monotone.R pins for R's run; `DBARTS_R_CHECK` on a failure whose message is
+empty raising `dbarts_statusString`'s words; two samplers predicting on two threads; a C-created handle destroyed; and the four
+callback paths, each run on a gaussian sampler of two chains: a positive return on chain 1 (STOPPED, no message, results
+discarded, a second run valid from where it stopped), a negative return (CALLBACK_FAILED, the message naming the chain and the
+value), a `std::runtime_error` thrown on a worker (two threads, CALLBACK_FAILED with its `what()`, the process alive), and the
+same thrown inline (one thread, the same status and message); and, under R on an inline run, an `Rf_error` from the callback
+still reaching R as its own error), the five handshake arms kept; a tests/cpp unit for `dbarts_statusString`, every listed status
+against its words and an unlisted one against "unknown status"; tests/cpp's `standalone-consumer` target: a C99 file including the prototype
 view, creating gaussian, probit and Student-t samplers, running, predicting, reading sigma, refusing, destroying, built and
 linked with no R, `nm` showing no undefined R symbol, and its draws compared with the R-created sampler's at the same spec and
 seed; the `spec-append` target of [Forward compatibility with several forests and multinomial](#forward-compatibility-with-several-forests-and-multinomial)
@@ -835,11 +916,12 @@ cpp-tests workflow runs both. Docs: dbarts-embedding.Rd's C section, the archite
 NEWS.
 
 Gates: as S2a, plus test-capi.R under ASan on the R-loaded path, tests/cpp's standalone consumer under ASan and ThreadSanitizer
-for the two-thread arm, on the x86 leg LeakSanitizer (C-created handles are new owners); the header-compiles target;
+for the two-thread and worker-exception arms, on the x86 leg LeakSanitizer (C-created handles are new owners); the header-compiles target;
 `sh tools/check-api-hash.sh`.
 
-Budget: ~2,500 lines (header +500/-150 with the test-only append ~80, C_interface.cpp ~500, build units ~250, bridge ~120,
-consumer.c ~480, test-capi.R ~320, tests/cpp ~550, workflow ~20, docs ~120). Agent ~14, review ~5, gates ~4.
+Budget: ~2,800 lines (header +600/-180 with the test-only append ~80, C_interface.cpp ~530, build units ~290 with the callback
+catch, engine stop record ~40, bridge ~120, consumer.c ~600, test-capi.R ~340, tests/cpp ~580, workflow ~20, docs ~130). Agent
+~16, review ~6, gates ~4.
 
 ### S4: the consumer ports (stan4bart, treatSens)
 
@@ -918,14 +1000,29 @@ The reviewer of each slice runs these; each must fail the named gate, and is rev
 20. S2b: the zero-tail check dropped, a nonzero appended byte accepted - the `spec-append` target's refusal arm.
 21. S2b: the 1.0 tree fields read under `numForests` > 0 - the two-forest arm against the BCF scenario.
 22. S2b: MULTINOMIAL accepted at C creation - consumer.c's reserved-family arm.
+23. S3: a negative callback return mapped to STOPPED - consumer.c's negative-return arm.
+24. S3: a positive return mapped to CALLBACK_FAILED - the positive-stop arm (and `DBARTS_R_CHECK` raising for a deliberate stop).
+25. S3: the worker trampoline's catch removed - the worker-exception arm (the process ends).
+26. S3: the inline catch dropping `what()` - the inline-exception arm's message check.
+27. S3: the first chain to return named instead of the lowest failing one - a two-chain arm where both fail, run 20 times.
+28. S3: a failure leaving the previous message in place when it cannot form one - a tests/cpp unit that arms an allocation
+    failure in the message path and reads an empty message, then `DBARTS_R_CHECK` raising the status words.
+29. S3: `dbarts_statusString` missing one status's words - its tests/cpp unit (and the X-macro makes the omission a build error).
+30. S3: `dbarts_R_raiseStatus` writing its own text for UNSUPPORTED - test-capi.R's arm comparing the R message with the neutral
+    one.
 
 ## Interaction with the other pending plans, and order
 
-- S1 depends on nothing; it lands when green, serial with forest-door's and coefficient-prior-live's merges (engine features
-  merge serially), rebasing onto whichever lands first (two qt lines in combiner.hpp are its only overlap).
-- forest-door (slices 1 to 3) and coefficient-prior-live land before S2a starts. They rework the forest records, the calibration
-  map and the live forest writes in the same bridge and engine files; S2b's extension carries the forest records as they leave
-  them (the share among them), and S1's qt and chi-median copies serve their live restatements.
+- S1 depends on nothing; it lands when green, serial with coefficient-prior-live's merge (engine features merge serially),
+  rebasing onto whichever lands first (two qt lines in combiner.hpp are its only overlap).
+- forest-door (slices 1 to 3, with setmodel-parameters' slice 4) LANDED on main; this plan was rebased onto 8fce28568. What it
+  moved: `ForestSpec` gained `share`, documented "No caller states it", the group derived by `forestSharers`, so the share left
+  the sketched public element for the extension's R-only part; the leaf prior of a several-forest chain is the total the sharers
+  divide, so the 1.0 leaf prior fields keep one meaning under several forests (invariant 4 and call 27 rewritten); the bridge
+  gained the leaf-prior install on several forests and `setForestTreePrior`, which S2a's validator count and S2b's parse rework
+  take as they stand. The math touchpoints, the three `runtime_error` sites and the two process-wide channels are unchanged.
+- coefficient-prior-live lands before S2a starts. It reworks the live forest writes in the same bridge and engine files, and
+  S1's qt and chi-median copies serve its live restatements.
 - Frequency weights (dec-B563 to dec-B566) and the binomial response (dec-B567) are ruled; their design note and plan are not
   built. The spec carries the resolved weights reading from S2b whichever lands first (dec-B564: "the shipped header gains one
   field in dec-B85's change"); if frequency weights' engine work lands later, its plan widens what the build takes for
@@ -933,17 +1030,18 @@ The reviewer of each slice runs these; each must fail the named gate, and is rev
   gives the engine (likely a per-row trial count beside y under logistic): in S2b if it lands first, else appended by its own
   work before 1.0-0, a hash move that rebuilds no one, since neither consumer creates through C.
 - multinomial-doors' C creation path stays post-release (dec-B160, dec-B575); this plan ships the shape it will append to and
-  the R route it will expose. forest-door's share and kind are in the sketched element; if its slice 3 changes them, the
-  extension's `ForestRecord` follows and the sketch with it, before the header freezes.
+  the R route it will expose.
+- Frequency weights' dec-B580 (a 0 row's predictive draws NA on every family) asks nothing of the spec: the row is drawn and its
+  draws set to NA after, so the stream holds, and the spec states only the weights and their reading.
 - The sister re-verification at the freeze follows this arc (TODO), with stan4bart's sanitizer job dispatched against the final
   header (dec-A36).
 - Nothing else touching src/ merges while S2a, S2b or S3 is in review.
 
 ## Cost
 
-About 5,350 lines written here, 6,000 copied and 400 reduced headers, none of them in the tarball; ~130 in the two consumers;
-~90 agent-hours estimated, 135 to 180 by the record of plans here, S2a and S2b most of it. The forward-compatibility work is
-about 300 of those lines and 4 of those hours.
+About 5,650 lines written here, 6,000 copied and 400 reduced headers, none of them in the tarball; ~130 in the two consumers;
+~93 agent-hours estimated, 140 to 185 by the record of plans here, S2a and S2b most of it. The forward-compatibility work is
+about 300 of those lines and 4 of those hours; the callback statuses and the status words about 300 and 3.
 
 ## Not verified
 
@@ -954,12 +1052,12 @@ about 300 of those lines and 4 of those hours.
   destroy"; S3's tests pin what the table states, and the header promises no more than they show.
 - That no other process-wide mutable state is on the predict path beyond the two channels named; a ThreadSanitizer arm in S3 is
   the check.
-- How forest-door slice 3 and coefficient-prior-live leave the forest records, which S2b's extension must mirror; their
-  branches were read for the files they touch, not field by field.
+- How coefficient-prior-live leaves the forest records, which S2b's extension must mirror; forest-door's, landed, were read on
+  main at 8fce28568 for `ForestSpec` and `forestSharers` only, not every bridge record.
+- Where the engine's sweep loop can carry a chain index and a callback value to the stop record without a cost per sweep; the
+  ruling's "about 40 lines" is its estimate, not measured.
 - The binomial response's engine form, not yet designed.
 - Whether the engine's several-forest chain takes DART, split probabilities and the k prior per forest; the sketch leaves them
   sampler-wide and the append refuses what the factory refuses.
-- That forest-door's final share is a per-forest number a C caller can state, rather than a grouping the build derives; the
-  sketch carries it per forest.
 - stan4bart's and treatSens' call sites were read on their main and master; their 1.0 compat branches may differ.
 - That no R-hosted consumer other than the two links dbarts.h; the reverse LinkingTo list on CRAN was not queried.
