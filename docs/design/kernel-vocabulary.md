@@ -177,6 +177,4 @@ SIMD specializations only when profiling justifies them.
   gates it); cross-host agreement is statistical only.
 - Instruction-set switching is a test/bench facility only; production
   installs once at load.
-- misc.a is R-free: output goes through the `misc_printf`/`misc_flushOutput`
-  hooks (misc/io.h), which default to stderr; the package points them at
-  `Rprintf`/`R_FlushConsole` on load. Standalone consumers need no stubs.
+- misc.a is R-free and prints nothing; standalone consumers need no stubs.

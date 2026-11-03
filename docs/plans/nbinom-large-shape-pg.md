@@ -129,7 +129,8 @@ order, so no dispatch level can flip an accept
 
 Placement: a new host-agnostic C file, src/external/randomPolyaGamma.c, beside the Devroye sampler, exporting
 `ext_rng_simulatePolyaGammaLargeShape(generator, b, psi)` through src/include/external/random.h. It uses only
-the support library's existing math ([`Rf_pchisq`](../../src/include/external/stats.h), `Rf_pnorm5`, lgamma).
+the support library's math ([`ext_pnorm`](../../src/include/external/nmath.h), lgamma) and a chi-squared
+probability added beside it there, R's pchisq under R and its copy in standalone/nmath otherwise.
 The threshold lives at the seam: [`simulatePolyaGammaShape`](../../src/bartcore/model.hpp) keeps the integer sum
 for b <= 64 and calls the new primitive above that. Both nbinom callers go through the seam, so both are
 covered. The seam's comment promising "an approximate primitive" for fractional b is rewritten (dec-B14).
