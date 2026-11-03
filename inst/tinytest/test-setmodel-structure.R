@@ -248,53 +248,6 @@ refused(
   "monotone"
 )
 
-# parameters the engine does not install yet are refused by name
-refused(
-  function() build(family = student(df = 3)),
-  build(family = student(df = 30))$model,
-  "Student-t degrees of freedom.*yet"
-)
-refused(
-  function() build(family = student(df = 3)),
-  build(family = student())$model,
-  "Student-t degrees of freedom.*yet"
-)
-refused(
-  function() build(family = student()),
-  build(family = student(df = 3))$model,
-  "Student-t degrees of freedom.*yet"
-)
-refused(
-  function() build(yCount, family = nbinom(shape = 4)),
-  build(yCount, family = nbinom(shape = 10))$model,
-  "negative-binomial shape.*yet"
-)
-refused(
-  function() build(yCount, family = nbinom(shape = 4)),
-  build(yCount, family = nbinom())$model,
-  "negative-binomial shape.*yet"
-)
-refused(
-  function() build(leaf.prior = gp(1L, lengthscale = 1)),
-  build(leaf.prior = gp(1L, lengthscale = 0.2))$model,
-  "lengthscale.*yet"
-)
-dartSettings <- list(
-  a = function() build(tree.prior = dart(a = 1)),
-  b = function() build(tree.prior = dart(b = 2)),
-  rho = function() build(tree.prior = dart(rho = 2)),
-  alpha = function() build(tree.prior = dart(alpha = 2)),
-  update.alpha = function() build(tree.prior = dart(update.alpha = FALSE)),
-  update.delay = function() build(tree.prior = dart(update.delay = 1))
-)
-for (setting in names(dartSettings)) {
-  refused(
-    function() build(tree.prior = dart()),
-    dartSettings[[setting]]()$model,
-    paste0("DART's '", setting, "'.*yet")
-  )
-}
-
 # a family with no residual scale takes no residual prior; the sampler's own
 # stands, and a family with one takes any
 local({

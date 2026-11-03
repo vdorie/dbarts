@@ -2656,22 +2656,15 @@ modelFamilyKind <- function(model) {
   model@family
 }
 
-# A negative-binomial shape as the engine holds it: a positive whole number,
-# or -1 for one estimated on the grid.
-nbShapeValue <- function(shape) {
-  if (is.null(shape) || is.na(shape) || shape <= 0) -1 else as.double(shape)
-}
-
 # Whether the family has no residual scale for a prior to describe.
 familyHasNoResidualScale <- function(family) {
   family %in% c("probit", "logistic", "ordinal", "nbinom", "multinomial")
 }
 
 # What $setModel refuses by name, before anything is stored: a model that
-# differs from the sampler's in a structural fact, a parameter the engine does
-# not yet install, a residual prior on a family with no residual scale, and a
-# raw leaf specification out of step with its resolved slots. Messages name
-# the sampler's value and the model's.
+# differs from the sampler's in a structural fact, a residual prior on a
+# family with no residual scale, and a raw leaf specification out of step
+# with its resolved slots. Messages name the sampler's value and the model's.
 modelStructureRefusal <- function(sampler, newModel) {
   model <- sampler$model
   differs <- function(what, own, given) {
@@ -2826,61 +2819,6 @@ modelStructureRefusal <- function(sampler, newModel) {
       varsText(model),
       varsText(newModel)
     )
-  }
-
-  # parameters the engine does not install yet
-  yet <- function(what) {
-    stop(
-      "$setModel: ",
-      what,
-      " cannot be changed on an existing sampler yet",
-      call. = FALSE
-    )
-  }
-  if (
-    identical(ownKind, "student") &&
-      !is.null(attr(newModel, "resid.df", exact = TRUE))
-  ) {
-    ownDf <- as.double(attr(model, "resid.df", exact = TRUE))
-    newDf <- as.double(attr(newModel, "resid.df", exact = TRUE))
-    if (!identical(ownDf, newDf)) {
-      yet("the Student-t degrees of freedom")
-    }
-  }
-  newSpec <- attr(newModel, "family.spec", exact = TRUE)
-  if (identical(model@family, "nbinom") && !is.null(newSpec)) {
-    ownShape <- nbShapeValue(
-      attr(sampler$control, "bartcore.shape", exact = TRUE)
-    )
-    if (!identical(ownShape, nbShapeValue(newSpec@settings[["shape"]]))) {
-      yet("the negative-binomial shape")
-    }
-  }
-  if (
-    is(ownLeaf, "dbartsGPPrior") &&
-      !is.null(newLeaf@lengthscale) &&
-      !identical(ownLeaf@lengthscale, newLeaf@lengthscale)
-  ) {
-    yet("a gp leaf's lengthscale")
-  }
-  if (ownDart && newDart) {
-    for (slotName in c(
-      "a",
-      "b",
-      "rho",
-      "alpha",
-      "update.alpha",
-      "update.delay"
-    )) {
-      if (
-        !identical(
-          methods::slot(model@tree.prior, slotName),
-          methods::slot(newModel@tree.prior, slotName)
-        )
-      ) {
-        yet(paste0("DART's '", slotName, "'"))
-      }
-    }
   }
 
   # a family with no residual scale has no prior to give one

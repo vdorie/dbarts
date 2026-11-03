@@ -47,7 +47,8 @@ enum class FacadeVirtual {
   sampleNodeParametersFromPrior, sampleVarianceForestFromPrior, growFromRoot,
   setNumThreads, setNumThin,
   setVerbose, fitScale, gpFallbackTally, slowCountTally, setTreeStorage,
-  setModel, setForestTreePrior, liveSplitOnZeroProbability, setMoveSettings,
+  setModel, setForestTreePrior, liveSplitOnZeroProbability, setResidualDf,
+  setNegativeBinomialShape, setLeafLengthscales, setDart, setMoveSettings,
   sumOfSquaredResiduals,
   printTrees, rng, data, latents, sigma, shapeParameter, setForestBasis,
   setForestBasisRescaled, setForestWeights, forestCalibration, setForestNamedSd, setForestFixedK,
@@ -213,6 +214,11 @@ public:
           (f, b, p))
   SPY_RET(std::int32_t, liveSplitOnZeroProbability, (const double* p) const,
           (p))
+  SPY_RET(bool, setResidualDf, (double d), (d))
+  SPY_RET(bool, setNegativeBinomialShape, (double s), (s))
+  SPY_RET(bool, setLeafLengthscales,
+          (const double* l, std::size_t c, bool* h), (l, c, h))
+  SPY_RET(bool, setDart, (const DartPrior& d), (d))
   SPY_RET(bool, setMoveSettings,
           (const std::vector<MoveSettings>& f, const MoveSettings* v), (f, v))
   SPY_RET(double, sumOfSquaredResiduals, (std::size_t c), (c))
@@ -1274,6 +1280,41 @@ const Row rows[] = {
             base.liveSplitOnZeroProbability(zeroSecond) == 1,
           "facade liveSplitOnZeroProbability: a column the trees split on is "
           "named");
+  }},
+  {FacadeVirtual::setResidualDf, "setResidualDf", [](Fixtures& f) {
+    check(!f.d.base().setResidualDf(7.0),
+          "facade setResidualDf: a family carrying no df is refused");
+    check(f.t.base().setResidualDf(7.0) &&
+            TestPeer::response(f.t.impl().chain(0)).residualDf() == 7.0,
+          "facade setResidualDf: the impl's chain takes the df");
+    check(f.t.base().setResidualDf(5.0),
+          "facade setResidualDf: creation's df goes back");
+  }},
+  {FacadeVirtual::setNegativeBinomialShape, "setNegativeBinomialShape",
+   [](Fixtures& f) {
+    check(!f.d.base().setNegativeBinomialShape(3.0) &&
+            !f.nb.base().setNegativeBinomialShape(3.5),
+          "facade setNegativeBinomialShape: another family, and a shape not "
+          "whole, are refused");
+    check(f.nb.impl().shape(0) == 2.5,
+          "facade setNegativeBinomialShape: a refusal writes nothing");
+    // drawn from here, starting at the shape in force, which the
+    // shapeParameter row reads
+    check(f.nb.base().setNegativeBinomialShape(-1.0) &&
+            TestPeer::response(f.nb.impl().chain(0)).drawsShape() &&
+            f.nb.impl().shape(0) == 2.5,
+          "facade setNegativeBinomialShape: the impl's chain takes the shape");
+  }},
+  {FacadeVirtual::setLeafLengthscales, "setLeafLengthscales", [](Fixtures& f) {
+    const double lengthscale = 0.5;
+    bool held = true;
+    check(!f.d.base().setLeafLengthscales(&lengthscale, 1, &held) && !held,
+          "facade setLeafLengthscales: a leaf without a kernel is refused");
+  }},
+  {FacadeVirtual::setDart, "setDart", [](Fixtures& f) {
+    DartPrior stated;
+    check(!f.d.base().setDart(stated),
+          "facade setDart: a sampler without DART is refused");
   }},
   {FacadeVirtual::setMoveSettings, "setMoveSettings", [](Fixtures& f) {
     MoveSettings moved;

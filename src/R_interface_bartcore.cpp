@@ -2190,6 +2190,38 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
   UNPROTECT(3);
 }
 
+/// Reads DART's settings off the model's tree prior into \p dart - a, b,
+/// rho (NA the allowed column count, stored as 0), alpha, update.alpha and
+/// update.delay - and returns true, or returns false, reading nothing, where
+/// the prior is not DART's. The one reader of them, at creation and at
+/// $setModel.
+bool parseDartSettings(bartcore::DartPrior& dart, SEXP modelExpr) {
+  SEXP treePriorExpr = Rf_getAttrib(modelExpr, Rf_install("tree.prior"));
+  if (!Rf_inherits(treePriorExpr, "dbartsDartPrior")) return false;
+  PROTECT(treePriorExpr);
+  dart.betaA = rc_getDouble(
+    Rf_getAttrib(treePriorExpr, Rf_install("a")), "dart a",
+    RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
+  dart.betaB = rc_getDouble(
+    Rf_getAttrib(treePriorExpr, Rf_install("b")), "dart b",
+    RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
+  double rho = REAL(Rf_getAttrib(treePriorExpr, Rf_install("rho")))[0];
+  dart.rho = ISNAN(rho) ? 0.0 : rho;  // <= 0 means numPredictors
+  dart.alpha = rc_getDouble(
+    Rf_getAttrib(treePriorExpr, Rf_install("alpha")), "dart alpha",
+    RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
+  dart.updateAlpha = rc_getBool(
+    Rf_getAttrib(treePriorExpr, Rf_install("update.alpha")),
+    "dart update.alpha", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_NA | RC_NO,
+    RC_END);
+  dart.updateDelay = static_cast<size_t>(rc_getDouble(
+    Rf_getAttrib(treePriorExpr, Rf_install("update.delay")),
+    "dart update.delay", RC_LENGTH | RC_EQ, rc_asRLength(1),
+    RC_VALUE | RC_GEQ, 0.0, RC_END));
+  UNPROTECT(1);
+  return true;
+}
+
 /// Whether two forests' settings differ in anything the variance forest
 /// reads: the mixture and the window.
 bool mixtureDiffers(const bartcore::MoveSettings& a,
@@ -2721,29 +2753,7 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
 
   // the generic slot parse above reads the CGM structure a DART prior
   // contains; the Dirichlet configuration comes off the R object directly
-  SEXP treePriorExpr =
-    PROTECT(Rf_getAttrib(modelExpr, Rf_install("tree.prior")));
-  if (Rf_inherits(treePriorExpr, "dbartsDartPrior")) {
-    options.useDart = true;
-    options.dart.betaA = rc_getDouble(
-      Rf_getAttrib(treePriorExpr, Rf_install("a")), "dart a",
-      RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
-    options.dart.betaB = rc_getDouble(
-      Rf_getAttrib(treePriorExpr, Rf_install("b")), "dart b",
-      RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
-    double rho = REAL(Rf_getAttrib(treePriorExpr, Rf_install("rho")))[0];
-    options.dart.rho = ISNAN(rho) ? 0.0 : rho;  // <= 0 means numPredictors
-    options.dart.alpha = rc_getDouble(
-      Rf_getAttrib(treePriorExpr, Rf_install("alpha")), "dart alpha",
-      RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
-    options.dart.updateAlpha = rc_getBool(
-      Rf_getAttrib(treePriorExpr, Rf_install("update.alpha")), "dart update.alpha",
-      RC_LENGTH | RC_EQ, rc_asRLength(1), RC_NA | RC_NO, RC_END);
-    options.dart.updateDelay = static_cast<size_t>(rc_getDouble(
-      Rf_getAttrib(treePriorExpr, Rf_install("update.delay")), "dart update.delay",
-      RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_END));
-  }
-  UNPROTECT(1);
+  options.useDart = parseDartSettings(options.dart, modelExpr);
   options.updateK = model.updateK;
   options.kHyperprior.degreesOfFreedom = model.kDf;
   options.kHyperprior.scale = model.kScale;
@@ -7134,7 +7144,8 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
   return unwindProtect([&, model = ParsedModel{}, moveRecord = MoveRecord{},
                         moveForests = std::vector<bartcore::MoveSettings>{},
                         moveVariance = bartcore::MoveSettings{},
-                        refusal = std::string{}]() mutable -> SEXP {
+                        refusal = std::string{},
+                        dart = bartcore::DartPrior{}]() mutable -> SEXP {
     parseModel(model, modelExpr, shape.numPredictors);
     // the tree count is fixed at creation; the R surface keeps the sampler's
     // records on the model it installs, so this is the backstop for a caller
@@ -7231,12 +7242,48 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
       }
     }
 
+    // the parameters beyond the prior: a Student-t df, a negative-binomial
+    // shape (the model's record, as at creation), DART's settings and a gp
+    // lengthscale, each checked here so that the installs after the prior's
+    // cannot fail
+    bool installsDf = std::isfinite(model.residualDf);
+    if (installsDf && !shape.carriesResidualDf)
+      Rf_error("$setModel: this sampler has no Student-t degrees of freedom "
+               "('resid.df') to change");
+    bool installsShape = model.countResponse;
+    if (installsShape &&
+        (!shape.carriesShape ||
+         (model.shape > 0.0 && (model.shape != std::round(model.shape) ||
+                                model.shape > bartcore::maximumCount))))
+      Rf_error("$setModel: the negative-binomial shape must be a whole number "
+               "no larger than %g, on a negative-binomial sampler",
+               bartcore::maximumCount);
+    bool installsDart = parseDartSettings(dart, modelExpr);
+    if (installsDart != shape.usesDart)
+      Rf_error("$setModel cannot change the tree prior's kind");
+    // the lengthscale alone can be refused by what the sampler holds, so it
+    // goes in before anything else is written
+    if (!model.gpLengthscales.empty()) {
+      bool heldBySavedDraws = false;
+      if (!sampler.setLeafLengthscales(model.gpLengthscales.data(),
+                                       model.gpLengthscales.size(),
+                                       &heldBySavedDraws))
+        Rf_error("%s", heldBySavedDraws
+          ? "$setModel cannot change a gp leaf's lengthscale on a sampler "
+            "holding kept draws, which replay only under the kernel they were "
+            "drawn with; make a new sampler instead"
+          : "$setModel: the gp leaf's lengthscales do not fit this sampler");
+    }
+
     // split probabilities are copied per chain before the model goes away
     sampler.setModel(parameters);
     // setModel wrote the control's mixture and width; a forest stating its
     // own takes it back, and every forest the control's mode or its own.
     // Without a record this writes what setModel just wrote
     installMoveSettings(sampler, moveForests, moveVariance);
+    if (installsDf) sampler.setResidualDf(model.residualDf);
+    if (installsShape) sampler.setNegativeBinomialShape(model.shape);
+    if (installsDart) sampler.setDart(dart);
 
     return R_NilValue;
   });

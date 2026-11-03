@@ -248,6 +248,15 @@ struct TestPeer {
   static ChiKHyperprior& kHyperprior(Chain<L, R>& chain) {
     return chain.forests_[0].kHyperprior;
   }
+  /// The family's response model, and the first forest's DART prior.
+  template <IntegrableLeafModel L, typename R>
+  static const ResponseModel& response(const Chain<L, R>& chain) {
+    return *chain.response_;
+  }
+  template <IntegrableLeafModel L, typename R>
+  static DartPrior& dart(Chain<L, R>& chain) {
+    return chain.forests_[0].dart;
+  }
   /// The family's latents and offset, and a restore of the former that
   /// rebuilds the working response.
   template <IntegrableLeafModel L, typename R>

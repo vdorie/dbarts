@@ -424,6 +424,16 @@ public:
   /// Sampler::liveSplitOnZeroProbability.
   virtual std::int32_t liveSplitOnZeroProbability(
     const double* splitProbabilities) const = 0;
+  /// Sampler::setResidualDf.
+  virtual bool setResidualDf(double residualDf) = 0;
+  /// Sampler::setNegativeBinomialShape.
+  virtual bool setNegativeBinomialShape(double shape) = 0;
+  /// Sampler::setLeafLengthscales.
+  virtual bool setLeafLengthscales(const double* lengthscales,
+                                   std::size_t count,
+                                   bool* heldBySavedDraws) = 0;
+  /// Sampler::setDart.
+  virtual bool setDart(const DartPrior& stated) = 0;
   /// Sampler::setMoveSettings.
   virtual bool setMoveSettings(const std::vector<MoveSettings>& forestSettings,
                                const MoveSettings* varianceSettings) = 0;
@@ -801,6 +811,19 @@ public:
   std::int32_t liveSplitOnZeroProbability(
     const double* splitProbabilities) const override {
     return impl_.liveSplitOnZeroProbability(splitProbabilities);
+  }
+  bool setResidualDf(double residualDf) override {
+    return impl_.setResidualDf(residualDf);
+  }
+  bool setNegativeBinomialShape(double shape) override {
+    return impl_.setNegativeBinomialShape(shape);
+  }
+  bool setLeafLengthscales(const double* lengthscales, std::size_t count,
+                           bool* heldBySavedDraws) override {
+    return impl_.setLeafLengthscales(lengthscales, count, heldBySavedDraws);
+  }
+  bool setDart(const DartPrior& stated) override {
+    return impl_.setDart(stated);
   }
   bool setMoveSettings(const std::vector<MoveSettings>& forestSettings,
                        const MoveSettings* varianceSettings) override {

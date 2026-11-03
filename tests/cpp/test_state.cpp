@@ -2350,6 +2350,192 @@ static std::vector<std::vector<std::uint8_t>> liveSplitColumns(S& sampler,
   return used;
 }
 
+// The parameters $setModel installs beyond the prior - a Student-t df, a
+// negative-binomial shape, a gp leaf's lengthscales and DART's settings - go
+// on every chain, a refusal writes nothing, and an install before any run
+// leaves the chains as creating with the parameter does. One handed from held
+// to drawn starts at the value in force; DART keeps its split weights and its
+// count of skipped updates.
+static void testModelParameterInstalls() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 818181u;
+  const size_t n = 120, p = 2;
+  std::vector<double> x(n * p), y(n), counts(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = runif01();
+    y[i] = 2.0 * x[i] - x[i + n] + 0.3 * (runif01() - 0.5);
+    counts[i] = static_cast<double>(i % 5);
+  }
+  std::vector<ext_rng*> rngs;
+  auto make = [&]<typename L>(SamplerOptions options, ResponseFamily family,
+                              const double* response, std::uint32_t seed) {
+    options.numTrees = 8;
+    options.numChains = 2;
+    ext_rng* pair[2];
+    for (size_t c = 0; c < 2; ++c) {
+      pair[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      ext_rng_setSeed(pair[c], seed + static_cast<std::uint32_t>(c));
+      rngs.push_back(pair[c]);
+    }
+    return std::make_unique<Sampler<L>>(x.data(), response, n, p, nullptr,
+                                        nullptr, family, 1.0, 3.0,
+                                        0.37804942330213542, options, pair);
+  };
+  auto constant = [&](SamplerOptions options, ResponseFamily family,
+                      const double* response, std::uint32_t seed) {
+    return make.template operator()<ConstantGaussianLeaf>(options, family,
+                                                          response, seed);
+  };
+  Results empty;
+
+  // the df: refused off a t error, held to drawn from the value in force,
+  // drawn to held at the stated value
+  check(!constant(SamplerOptions{}, ResponseFamily::gaussian, y.data(), 100u)
+           ->setResidualDf(3.0),
+        "setResidualDf: a Gaussian error has no df");
+  SamplerOptions heldDf;
+  heldDf.residualDf = 3.0;
+  auto t = constant(heldDf, ResponseFamily::gaussian, y.data(), 110u);
+  t->run(5, 0, empty);
+  check(!t->setResidualDf(std::nan("")) && t->setResidualDf(0.0),
+        "setResidualDf: a df that is not finite is refused, 0 taken");
+  for (size_t c = 0; c < 2; ++c) {
+    const ResponseModel& response = TestPeer::response(t->chain(c));
+    check(response.drawsResidualDf() && response.residualDf() == 3.0,
+          "setResidualDf: held to drawn starts at the df in force, every "
+          "chain");
+  }
+  check(t->setResidualDf(30.0), "setResidualDf: a held df is taken");
+  for (size_t c = 0; c < 2; ++c) {
+    const ResponseModel& response = TestPeer::response(t->chain(c));
+    check(!response.drawsResidualDf() && response.residualDf() == 30.0,
+          "setResidualDf: drawn to held sets the stated df, every chain");
+  }
+
+  // the shape: a new r restarts omega cold under it, as creation leaves it
+  SamplerOptions held4, held9;
+  held4.shape = 4.0;
+  held9.shape = 9.0;
+  auto installed = constant(held4, ResponseFamily::nbinom, counts.data(), 200u);
+  auto created = constant(held9, ResponseFamily::nbinom, counts.data(), 200u);
+  check(!installed->setNegativeBinomialShape(4.5) &&
+          !installed->setNegativeBinomialShape(2.0e6) &&
+          installed->shape(0) == 4.0,
+        "setNegativeBinomialShape: a shape not whole or past maximumCount is "
+        "refused, writing nothing");
+  check(installed->setNegativeBinomialShape(9.0),
+        "setNegativeBinomialShape: a whole shape is taken");
+  for (size_t c = 0; c < 2; ++c)
+    check(installed->shape(c) == 9.0 &&
+            std::equal(TestPeer::workingResponse(installed->chain(c)),
+                       TestPeer::workingResponse(installed->chain(c)) + n,
+                       TestPeer::workingResponse(created->chain(c))),
+          "setNegativeBinomialShape: before a run every chain stands as "
+          "creating with the shape leaves it");
+  installed->run(5, 0, empty);
+  check(installed->setNegativeBinomialShape(-1.0),
+        "setNegativeBinomialShape: an estimated shape is taken");
+  for (size_t c = 0; c < 2; ++c)
+    check(TestPeer::response(installed->chain(c)).drawsShape() &&
+            installed->shape(c) == 9.0,
+          "setNegativeBinomialShape: held to drawn starts at the shape in "
+          "force, every chain");
+
+  // the lengthscales: count and value checked, kept draws hold the kernel
+  SamplerOptions gpOptions;
+  const size_t covariates[] = {0, 1};
+  gpOptions.leafCovariateColumns = covariates;
+  gpOptions.numLeafCovariates = 2;
+  gpOptions.gpMaxLeafSize = 100;
+  gpOptions.keepTrees = true;
+  gpOptions.numSamplesToStore = 2;
+  auto gp = make.template operator()<GPGaussianLeaf>(
+    gpOptions, ResponseFamily::gaussian, y.data(), 300u);
+  const double one[] = {0.5}, negative[] = {0.5, -1.0}, stated[] = {0.5, 2.0},
+               other[] = {1.0, 1.0};
+  const std::vector<double> heuristic = gp->chain(0).leaf().lengthscales();
+  bool held = true;
+  check(!gp->setLeafLengthscales(one, 1, &held) && !held &&
+          !gp->setLeafLengthscales(negative, 2, &held) && !held &&
+          gp->chain(1).leaf().lengthscales() == heuristic,
+        "setLeafLengthscales: a count or value that does not fit is refused, "
+        "writing nothing");
+  check(gp->setLeafLengthscales(stated, 2, &held),
+        "setLeafLengthscales: lengthscales are taken without kept draws");
+  for (size_t c = 0; c < 2; ++c)
+    check(gp->chain(c).leaf().lengthscales() ==
+              std::vector<double>(stated, stated + 2) &&
+            gp->chain(c).leaf().lengthscalesAreSupplied(),
+          "setLeafLengthscales: every chain holds them, as supplied");
+  Results kept;
+  gp->run(0, 2, kept);
+  check(!gp->setLeafLengthscales(other, 2, &held) && held &&
+          gp->chain(1).leaf().lengthscales() ==
+            std::vector<double>(stated, stated + 2),
+        "setLeafLengthscales: kept draws refuse another kernel, writing "
+        "nothing");
+  check(gp->setLeafLengthscales(stated, 2, &held) && !held,
+        "setLeafLengthscales: the lengthscales in force are taken with kept "
+        "draws");
+  check(!constant(SamplerOptions{}, ResponseFamily::gaussian, y.data(), 310u)
+           ->setLeafLengthscales(stated, 2, &held),
+        "setLeafLengthscales: a leaf without a kernel is refused");
+
+  // DART: the grid rebuilt, the weights and skipped count kept
+  SamplerOptions dartOptions;
+  dartOptions.useDart = true;
+  dartOptions.dart.updateDelay = 10;
+  SamplerOptions statedDart = dartOptions;
+  statedDart.dart.betaA = 2.0;
+  statedDart.dart.betaB = 3.0;
+  statedDart.dart.alpha = 4.0;
+  auto dartInstalled =
+    constant(dartOptions, ResponseFamily::gaussian, y.data(), 400u);
+  auto dartCreated =
+    constant(statedDart, ResponseFamily::gaussian, y.data(), 400u);
+  DartPrior refused = statedDart.dart;
+  refused.betaA = 0.0;
+  check(!dartInstalled->setDart(refused) &&
+          TestPeer::dart(dartInstalled->chain(1)).betaA == 0.5,
+        "setDart: a = 0 is refused, writing nothing");
+  check(dartInstalled->setDart(statedDart.dart), "setDart: settings taken");
+  dartInstalled->run(30, 0, empty);
+  dartCreated->run(30, 0, empty);
+  for (size_t c = 0; c < 2; ++c) {
+    DartPrior& a = TestPeer::dart(dartInstalled->chain(c));
+    DartPrior& b = TestPeer::dart(dartCreated->chain(c));
+    check(a.alpha == b.alpha && a.probabilities == b.probabilities,
+          "setDart: before a run every chain draws as creating with the "
+          "settings");
+  }
+  std::vector<std::vector<double>> weights;
+  std::vector<double> alphas;
+  for (size_t c = 0; c < 2; ++c) {
+    weights.push_back(TestPeer::dart(dartInstalled->chain(c)).probabilities);
+    alphas.push_back(TestPeer::dart(dartInstalled->chain(c)).alpha);
+  }
+  DartPrior later = statedDart.dart;
+  later.betaB = 5.0;
+  later.updateDelay = 100;
+  check(dartInstalled->setDart(later), "setDart: later settings taken");
+  for (size_t c = 0; c < 2; ++c) {
+    DartPrior& a = TestPeer::dart(dartInstalled->chain(c));
+    check(a.probabilities == weights[c] && a.numUpdatesSkipped() == 10 &&
+            a.alpha == alphas[c] && a.updateDelay == 100 && a.betaB == 5.0,
+          "setDart: every chain keeps its weights, skipped count and drawn "
+          "alpha under the same start");
+  }
+  later.alpha = 7.0;
+  later.updateAlpha = false;
+  check(dartInstalled->setDart(later) &&
+          TestPeer::dart(dartInstalled->chain(1)).alpha == 7.0,
+        "setDart: a held alpha takes the stated value");
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+}
+
 // A zero split probability excludes its column as a column list does: the
 // forest's mask is the list intersected with the columns of positive
 // probability, built at creation, rebuilt by setModel with the block rows
@@ -8364,6 +8550,7 @@ void runStateTests(ext_rng* rng) {
   testBlockGroupScale();
   testSingleForestColumnRestriction();
   testZeroSplitProbability();
+  testModelParameterInstalls();
   testCrossGridWarmStart();
   testWarmStartForms();
   testWarmStartTreeCounts();

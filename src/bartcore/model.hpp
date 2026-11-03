@@ -3222,6 +3222,14 @@ struct GPGaussianLeaf {
   /// regather paths above.
   void invalidateKernels() const { clearKernelCaches(); }
 
+  /// Holds the kernel lengthscales at \p lengthscales, one per covariate on
+  /// the standardized scale, as supplied ones, and drops the cached kernels.
+  void setLengthscales(const double* lengthscales) {
+    suppliedLengthscales_.assign(lengthscales, lengthscales + numCovariates_);
+    lengthscales_ = suppliedLengthscales_;
+    clearKernelCaches();
+  }
+
   /// Reset the per-draw prediction cache before one tree's parameter sweep;
   /// draws fill it node by node and the test-fit loop reads it while the
   /// tree's partitions are unchanged.
@@ -4402,20 +4410,20 @@ struct DartPrior {
     probabilities.assign(numPredictors, 1.0 / p);
     for (std::size_t j = 0; j < columnMask_.size(); ++j)
       if (columnMask_[j] == 0) probabilities[j] = 0.0;
-    if (rho <= 0.0) rho = p;
-    if (updateAlpha) {
-      gridAlpha_.resize(gridSize);
-      gridConstant_.resize(gridSize);
-      gridWeight_.resize(gridSize);
-      for (std::size_t k = 0; k < gridSize; ++k) {
-        double lambda = static_cast<double>(k + 1) / static_cast<double>(gridSize + 1);
-        double alphaK = lambda * rho / (1.0 - lambda);
-        gridAlpha_[k] = alphaK;
-        gridConstant_[k] = std::lgamma(alphaK) - p * std::lgamma(alphaK / p) +
-                           (betaA - 1.0) * std::log(lambda) +
-                           (betaB - 1.0) * std::log(1.0 - lambda);
-      }
-    }
+    buildGrid();
+  }
+
+  /// Takes \p stated's a, b, rho, update delay and whether alpha is drawn,
+  /// and rebuilds the concentration grid. The split weights, the count of
+  /// updates skipped and alpha are kept; alpha is the caller's. Requires
+  /// initialize.
+  void reconfigure(const DartPrior& stated) {
+    betaA = stated.betaA;
+    betaB = stated.betaB;
+    rho = stated.rho;
+    updateAlpha = stated.updateAlpha;
+    updateDelay = stated.updateDelay;
+    buildGrid();
   }
 
   void update(ext_rng* rng, const std::uint32_t* splitCounts) {
@@ -4463,6 +4471,25 @@ struct DartPrior {
   void setNumUpdatesSkipped(std::size_t value) { numUpdatesSkipped_ = value; }
 
 private:
+  /// Resolves rho <= 0 to the allowed column count and, where alpha is
+  /// drawn, fills the grid's alphas and log-prior constants.
+  void buildGrid() {
+    double p = static_cast<double>(numAllowed_);
+    if (rho <= 0.0) rho = p;
+    if (!updateAlpha) return;
+    gridAlpha_.resize(gridSize);
+    gridConstant_.resize(gridSize);
+    gridWeight_.resize(gridSize);
+    for (std::size_t k = 0; k < gridSize; ++k) {
+      double lambda = static_cast<double>(k + 1) / static_cast<double>(gridSize + 1);
+      double alphaK = lambda * rho / (1.0 - lambda);
+      gridAlpha_[k] = alphaK;
+      gridConstant_[k] = std::lgamma(alphaK) - p * std::lgamma(alphaK / p) +
+                         (betaA - 1.0) * std::log(lambda) +
+                         (betaB - 1.0) * std::log(1.0 - lambda);
+    }
+  }
+
   std::vector<double> gridAlpha_, gridConstant_, gridWeight_;
   // the columns the Dirichlet is laid over (empty = every column) and their
   // count
@@ -4910,6 +4937,10 @@ public:
   virtual bool drawsResidualDf() const { return false; }
   virtual double residualDf() const { return 0.0; }
   virtual void restoreResidualDf(double /*nu*/) {}
+  /// Installs the df as a model change: \p residualDf > 0 holds nu there, a
+  /// non-positive value draws it from the next sweep on, starting at the value
+  /// in force. Does nothing off a family carrying one.
+  virtual void installResidualDf(double /*residualDf*/) {}
 
   /// Ordinal (cumulative-probit) responses (OrdinalResponse) carry a length-
   /// (K-1) threshold vector the state block serializes as a by-name
@@ -4934,6 +4965,10 @@ public:
   virtual bool drawsShape() const { return false; }
   virtual double shape() const { return 0.0; }
   virtual void restoreShape(double /*r*/) {}
+  /// Installs the shape as a model change: \p shape > 0, whole, holds r
+  /// there, a non-positive value draws it from the next sweep on, starting at
+  /// the value in force. Does nothing off a family carrying one.
+  virtual void installShape(double /*shape*/) {}
 
   /// The run's cancel function, which the Polya-Gamma refreshes poll inside
   /// their draws and answer by throwing RefreshCanceled; null outside a run.
@@ -6819,6 +6854,11 @@ public:
   bool drawsResidualDf() const override { return estimateNu_; }
   double residualDf() const override { return nu_; }
   void restoreResidualDf(double nu) override { nu_ = nu; }
+  /// The mixing precisions stay: they are redrawn given nu at the next sweep.
+  void installResidualDf(double residualDf) override {
+    estimateNu_ = !(residualDf > 0.0);
+    if (!estimateNu_) nu_ = residualDf;
+  }
 
   void getScale(double& min, double& max) const override {
     gaussian_->getScale(min, max);
@@ -7241,6 +7281,15 @@ public:
   double shape() const override { return r_; }
   void restoreShape(double shape) override {
     setShape(shape);
+  }
+  /// A new r in force restarts omega at its cold start under that r, as
+  /// creation leaves it, the working response rebuilt.
+  void installShape(double shape) override {
+    estimateR_ = !(shape > 0.0);
+    if (estimateR_ || shape == r_) return;
+    setShape(shape);
+    coldStart();
+    recompose();
   }
 
   /// log dnbinom(y_i; r, mu_i) with log mu_i = f(x_i) + c + offset_i, in

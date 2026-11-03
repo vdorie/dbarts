@@ -2235,6 +2235,69 @@ public:
     return -1;
   }
 
+  /// Installs a Student-t residual df on every chain
+  /// (ResponseModel::installResidualDf); false, writing nothing, off a family
+  /// carrying one or at a value that is not finite.
+  bool setResidualDf(double residualDf) {
+    if (!carriesResidualDf() || !std::isfinite(residualDf)) return false;
+    for (auto& chain : chains_) chain->setResidualDf(residualDf);
+    return true;
+  }
+
+  /// Installs a negative-binomial shape on every chain
+  /// (ResponseModel::installShape); false, writing nothing, off a family
+  /// carrying one, or at a NaN or a positive shape that is not whole or exceeds
+  /// maximumCount.
+  bool setNegativeBinomialShape(double shape) {
+    if (!carriesShape() || std::isnan(shape) ||
+        (shape > 0.0 && (shape != std::round(shape) || shape > maximumCount)))
+      return false;
+    for (auto& chain : chains_) chain->setNegativeBinomialShape(shape);
+    return true;
+  }
+
+  /// Holds a gp leaf's kernel lengthscales at \p lengthscales on every chain
+  /// (GPGaussianLeaf::setLengthscales); false, writing nothing, off a gp leaf,
+  /// at a count other than its covariates' or a value not positive and
+  /// finite, or where values other than those in force would leave kept draws
+  /// to replay under another kernel, which sets *\p heldBySavedDraws. Supplied
+  /// values equal to those in force are not rewritten.
+  bool setLeafLengthscales(const double* lengthscales, std::size_t count,
+                           bool* heldBySavedDraws) {
+    *heldBySavedDraws = false;
+    if constexpr (!L::hasFunctionParams) {
+      return false;
+    } else {
+      const L& leaf = chains_[0]->leaf();
+      if (count != leaf.numCovariates()) return false;
+      for (std::size_t j = 0; j < count; ++j)
+        if (!(lengthscales[j] > 0.0 && lengthscales[j] < HUGE_VAL))
+          return false;
+      bool same = std::equal(lengthscales, lengthscales + count,
+                             leaf.lengthscales().begin());
+      if (same && leaf.lengthscalesAreSupplied()) return true;
+      if (!same && filledSavedDraws() > 0) {
+        *heldBySavedDraws = true;
+        return false;
+      }
+      for (auto& chain : chains_) chain->setLeafLengthscales(lengthscales);
+      return true;
+    }
+  }
+
+  /// Installs DART's settings on every chain (Chain::setDart); false, writing
+  /// nothing, off DART, where a, b or alpha is not positive and finite, or
+  /// where rho is not finite.
+  bool setDart(const DartPrior& stated) {
+    auto positive = [](double x) { return x > 0.0 && x < HUGE_VAL; };
+    if (!chains_[0]->usesDart() || !positive(stated.betaA) ||
+        !positive(stated.betaB) || !positive(stated.alpha) ||
+        !std::isfinite(stated.rho))
+      return false;
+    for (auto& chain : chains_) chain->setDart(stated);
+    return true;
+  }
+
   /// Installs each forest's move settings on every chain: forestSettings
   /// holds one per mean forest, in forest order, and varianceSettings the
   /// variance forest's, non-null exactly where the sampler has one. The

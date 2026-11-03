@@ -1501,6 +1501,33 @@ public:
     return combiner_ != nullptr && combiner_->forestReportingIsDefined();
   }
   bool usesDart() const { return forests_[0].useDart; }
+  /// ResponseModel::installResidualDf.
+  void setResidualDf(double residualDf) {
+    response_->installResidualDf(residualDf);
+  }
+  /// ResponseModel::installShape.
+  void setNegativeBinomialShape(double shape) { response_->installShape(shape); }
+  /// GPGaussianLeaf::setLengthscales on the first forest; does nothing off a
+  /// gp leaf.
+  void setLeafLengthscales(const double* lengthscales) {
+    if constexpr (L::hasFunctionParams)
+      forests_[0].leaf.setLengthscales(lengthscales);
+  }
+  /// Installs DART's settings on the first forest (DartPrior::reconfigure),
+  /// the split weights and the count of skipped updates kept. A held alpha
+  /// takes \p stated's; a drawn one keeps the value in force, except that one
+  /// drawn before restarts at a stated start other than the last one. Requires
+  /// DART.
+  void setDart(const DartPrior& stated) {
+    DartPrior& dart = forests_[0].dart;
+    double alpha = dart.alpha;
+    if (!stated.updateAlpha ||
+        (dart.updateAlpha && stated.alpha != options_.dart.alpha))
+      alpha = stated.alpha;
+    dart.reconfigure(stated);
+    dart.alpha = alpha;
+    options_.dart = stated;
+  }
   /// Installs forest f's n x numColumns amplitude basis, ROW-major and COPIED;
   /// false, installing nothing, off a coupling that carries amplitudes or on a
   /// basis it refuses. The sole basis-mutation route; every multiplier, the

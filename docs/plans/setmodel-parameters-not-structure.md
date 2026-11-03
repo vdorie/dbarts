@@ -236,8 +236,10 @@ periods) need no refusal until the migration moves them; this item adds none for
    - Student-t df: a fixed value sets nu; fixed to drawn sets the estimate flag, nu starting at the value in force
      and drawn from its full conditional on the grid at the next sweep; drawn to fixed sets the stated value. The
      scale latents are redrawn given nu at the next sweep, as now.
-   - Negative-binomial shape: the same three cases through `NBResponse::restoreShape`'s contract, the working
-     response rebuilt.
+   - Negative-binomial shape: the same three cases; a new r in force restarts omega at its cold start under that
+     r, the working response rebuilt, as creation leaves it, since the first sweep's trees read it. Keeping omega
+     and rebuilding the working response alone, as a state install does, would not draw before a run what
+     creation draws.
    - gp lengthscale: per-column lengthscales installed as creation installs supplied ones, every chain's kernel
      cache flushed ([`GPGaussianLeaf`](../../src/bartcore/model.hpp)'s `invalidateKernels`) before the next
      sweep. A model that states no lengthscale states no change: the value in force stays, the one the data
@@ -247,10 +249,12 @@ periods) need no refusal until the migration moves them; this item adds none for
      refusals of dec-B237 are.
    - DART: `a`, `b`, `rho` (NA the allowed column count), `alpha`, `update.alpha` and `update.delay` installed,
      the concentration grid rebuilt, the split weights and the count of skipped updates kept; `alpha` handed
-     between drawn and held as nu is.
-2. Bridge: `bartcore_setModel` reads `resid.df`, the shape `family.spec` states, the lengthscale and the DART
-   slots, checks them all before the engine's `setModel`, and installs them after it, so a refusal changes
-   nothing. A state keeps stating these only where drawn (dec-B196), so no state block changes.
+     between drawn and held as nu is, and a drawn `alpha` given a new stated start restarts there, as creation
+     would, while the same start keeps the value in force.
+2. Bridge: `bartcore_setModel` reads `resid.df`, the shape from the control's record, which R writes from the
+   shape `family.spec` states, the lengthscale and the DART slots (one reader, shared with creation), checks them
+   all before the engine's `setModel`, and installs them after it, the lengthscale, which the sampler's kept
+   draws can refuse, before it, so a refusal changes nothing. A state keeps stating these only where drawn (dec-B196), so no state block changes.
 3. R: slice 1's interim refusals go; a changed shape is also written to the control's `bartcore.shape`, which a
    copy reads; after a lengthscale call, stated or not, the record a copy reads the lengthscale from carries the
    value in force, so a model stating none after one that stated a value leaves the copy on that value.
