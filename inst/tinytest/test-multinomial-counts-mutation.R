@@ -385,14 +385,11 @@ expect_error(
   "'updateScale' must be TRUE or FALSE"
 )
 
-# the whole-data and whole-model mutations the multinomial battery had never
-# pinned, and the pinned-sigma refusal: none of them is opened by the counts
-# channel, which replaces the response and nothing else
+# the whole-data mutation the multinomial battery had never pinned, and the
+# pinned-sigma refusal: neither is opened by the counts channel, which
+# replaces the response and nothing else; the sampler's own model is taken
 expect_error(sampler.mn$setData(sampler.mn$data), "not available")
-expect_error(
-  sampler.mn$setModel(sampler.mn$model),
-  "not available"
-)
+expect_silent(sampler.mn$setModel(sampler.mn$model))
 expect_error(
   sampler.mn$setSigma(5),
   "the softmax carries no residual scale to set"

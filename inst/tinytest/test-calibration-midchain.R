@@ -551,10 +551,11 @@ expect_identical(
 expect_identical(plain$getK(), plain$getK(1L))
 expect_identical(bcf$getK(), rbind(bcf$getK(1L), bcf$getK(2L)))
 
-expect_error(
-  bcf$setLeafPrior(normal(sd = 0.75)),
-  "multi-forest calibration map.*setForest\\(forest, sd = \\)"
-)
+# the one forest with no basis takes the fitting function's leaf prior, and
+# the forest with a basis keeps its own
+expect_silent(bcf$setLeafPrior(normal(sd = 0.75)))
+expect_equal(unname(bcf$getLeafPrior(1L)$sd), 0.75, tolerance = 1e-12)
+expect_identical(bcf$getLeafPrior(2L), bcfCalibration2)
 
 # the multinomial coupling, through the public sampler its forests live on
 labels <- sample(0:2, n, replace = TRUE)

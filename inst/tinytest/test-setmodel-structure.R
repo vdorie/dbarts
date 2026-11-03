@@ -300,14 +300,13 @@ local({
     model,
     "does not resolve"
   )
-  # a multinomial sampler reaches its wholesale refusal, not this one
+  # a multinomial sampler and one whose forests carry amplitudes check it alike
   makeCategories <- function() {
     build(factor(c("p", "q", "r")[yCount %% 3L + 1L]), family = multinomial())
   }
   model <- makeCategories()$model
   model@leaf.prior@k <- 9
-  refused(makeCategories, model, "not available on a multinomial sampler")
-  # and a sampler whose forests carry amplitudes reaches its own
+  refused(makeCategories, model, "does not resolve")
   makeAmplitudes <- function() {
     build(
       forests = list(
@@ -318,7 +317,7 @@ local({
   }
   model <- makeAmplitudes()$model
   model@leaf.prior@k <- 9
-  refused(makeAmplitudes, model, "carries forest amplitudes")
+  refused(makeAmplitudes, model, "does not resolve")
 })
 
 # a consistent one is taken, in each spelling

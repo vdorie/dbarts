@@ -272,7 +272,7 @@ expect_error(sampler$setOffset(rep(0.1, n)), "null direction")
 expect_error(sampler$setWeights(rep(1.0, n)), "row-wise replication")
 expect_error(sampler$setSigma(1.0), "no residual scale")
 expect_error(sampler$setData(sampler$data), "fix their data at creation")
-expect_error(sampler$setModel(sampler$model), "calibrated at creation")
+expect_silent(sampler$setModel(sampler$model))
 # a fixed k is the one spread it restates, on every category forest; the
 # write back to the default leaves the draws below as they were
 sampler$setLeafPrior(normal(k = 3))

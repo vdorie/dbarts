@@ -96,7 +96,7 @@ refused <- dbarts(
 )
 
 expect_error(refused$setData(refused$data), "carries forest amplitudes")
-expect_error(refused$setModel(refused$model), "carries forest amplitudes")
+expect_silent(refused$setModel(refused$model))
 expect_error(
   refused$setResponse(y, updateScale = TRUE),
   "carries forest amplitudes"

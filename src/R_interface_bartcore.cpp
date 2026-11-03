@@ -3603,7 +3603,7 @@ bool isMultiForest(const bartcore::SamplerBase& sampler) {
 
 void refuseMultiForestMutation(const bartcore::SamplerBase& sampler,
                                const char* caller) {
-  if (!isMultiForest(sampler)) return;
+  if (!bartcore_bridge::isMultiForest(sampler)) return;
   Rf_error("%s: a multi-forest sampler fixes its data at creation; make a "
            "new sampler instead", caller);
 }
@@ -7133,6 +7133,80 @@ SEXP bartcore_setControl(SEXP ptrExpr, SEXP controlExpr) {
   return R_NilValue;
 }
 
+} // extern "C"
+
+namespace {
+
+/// Writes the residual prior half of \p model into \p parameters: gaussian
+/// and aft both draw sigma from a variance prior; the binary families fix it,
+/// so a model install leaves their sigma alone.
+void fillResidualParameters(bartcore::ModelParameters& parameters,
+                            const ParsedModel& model, SEXP dataExpr,
+                            const bartcore::SamplerShape& shape) {
+  bool drawsSigma = shape.family == bartcore::ResponseFamily::gaussian ||
+                    shape.family == bartcore::ResponseFamily::aft;
+  if (!drawsSigma) return;
+  // the prior half travels in both arms: a homoscedastic chain reads it only
+  // when sigma is drawn, but a heteroscedastic one recalibrates its scale leaf
+  // from the whole triple whatever fixed() says about sigma
+  parameters.sigmaDf = model.sigmaDf;
+  parameters.sigmaRawScale = model.sigmaRawScale;
+  if (model.sigmaIsFixed) {
+    // documented semantics: fixed(value) holds the residual variance
+    parameters.sigmaIsFixed = true;
+    parameters.sigmaEstimate = std::sqrt(model.fixedSigmaSq);
+  } else {
+    parameters.sigmaEstimate = rc_getDouble(
+      Rf_getAttrib(dataExpr, Rf_install("sigma")), "sigma estimate",
+      RC_LENGTH | RC_EQ, rc_asRLength(1), RC_NA | RC_YES, RC_VALUE | RC_GT,
+      0.0, RC_END);
+  }
+}
+
+/// The fitting function's leaf prior \p model states, for the engine.
+bartcore::FittingLeafPrior fittingLeafPriorOf(const ParsedModel& model) {
+  bartcore::FittingLeafPrior prior;
+  prior.k = model.k;
+  prior.updateK = model.updateK;
+  prior.kHyperprior.degreesOfFreedom = model.kDf;
+  prior.kHyperprior.scale = model.kScale;
+  prior.namedSd = model.namedSd;
+  return prior;
+}
+
+/// Whether \p sampler has forests the fitting function's leaf prior reaches,
+/// as installFittingLeafPrior writes them: a multinomial sampler's category
+/// forests always, an amplitude sampler's where the engine has a forest for
+/// it. Writes nothing.
+bool takesFittingLeafPrior(const bartcore::SamplerBase& sampler,
+                           const ParsedModel& model) {
+  if (sampler.shape().supportsCountsMutation)
+    return !model.updateK && !std::isfinite(model.namedSd) && model.k > 0.0;
+  return true;
+}
+
+/// Installs the fitting function's leaf prior \p model states on every
+/// forest it reaches: a held k on every category forest of a multinomial
+/// sampler, leaving the softmax map's scale; on an amplitude sampler the
+/// forests with no basis it reaches (Sampler::setFittingLeafPrior). The one
+/// writer behind $setLeafPrior and $setModel on samplers of several forests.
+/// False, writing nothing, where no forest takes it.
+bool installFittingLeafPrior(bartcore::SamplerBase& sampler,
+                             const ParsedModel& model) {
+  bartcore::SamplerShape shape = sampler.shape();
+  if (shape.supportsCountsMutation) {
+    if (!takesFittingLeafPrior(sampler, model)) return false;
+    for (std::size_t f = 0; f < shape.numForests; ++f)
+      if (!sampler.setForestFixedK(f, model.k)) return false;
+    return true;
+  }
+  return sampler.setFittingLeafPrior(fittingLeafPriorOf(model));
+}
+
+} // namespace
+
+extern "C" {
+
 /// Prior replacement; installing a model before any run matches creating
 /// with it.
 SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
@@ -7187,11 +7261,6 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
       Rf_error("the leaf covariate designation is fixed when a sampler is "
                "created; make a new sampler instead");
 
-    // gaussian and aft both draw sigma from a variance prior; the binary
-    // families fix it, so setModel leaves their sigma alone
-    bool drawsSigma = shape.family == bartcore::ResponseFamily::gaussian ||
-                      shape.family == bartcore::ResponseFamily::aft;
-
     bartcore::ModelParameters parameters;
     parameters.base = model.base;
     parameters.power = model.power;
@@ -7215,23 +7284,7 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
     } else {
       parameters.k = model.k;
     }
-    if (drawsSigma) {
-      // the prior half travels in both arms: a homoscedastic chain reads it
-      // only when sigma is drawn, but a heteroscedastic one recalibrates its
-      // scale leaf from the whole triple whatever fixed() says about sigma
-      parameters.sigmaDf = model.sigmaDf;
-      parameters.sigmaRawScale = model.sigmaRawScale;
-      if (model.sigmaIsFixed) {
-        // documented semantics: fixed(value) holds the residual variance
-        parameters.sigmaIsFixed = true;
-        parameters.sigmaEstimate = std::sqrt(model.fixedSigmaSq);
-      } else {
-        parameters.sigmaEstimate = rc_getDouble(
-          Rf_getAttrib(dataExpr, Rf_install("sigma")), "sigma estimate",
-          RC_LENGTH | RC_EQ, rc_asRLength(1), RC_NA | RC_YES,
-          RC_VALUE | RC_GT, 0.0, RC_END);
-      }
-    }
+    fillResidualParameters(parameters, model, dataExpr, shape);
 
     // a zero clears its column from the forest's mask, which a live tree
     // splitting on it would contradict; checked over every chain before any
@@ -7296,6 +7349,90 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
         (installsDart && !sampler.setDart(dart)))
       Rf_error("$setModel: an install the checks passed was refused");
 
+    return R_NilValue;
+  });
+}
+
+/// $setModel on a sampler of several forests or a multinomial one, which
+/// never takes the single forest's install: its leaf-scale write would
+/// discard a sharer's share and a calibrated scale. The residual prior, each
+/// mean forest's depth from \p basesExpr and \p powersExpr, one per forest,
+/// the move settings and, where \p leafPriorExpr is TRUE, the fitting
+/// function's leaf prior (installFittingLeafPrior). Every check comes before
+/// the first write, so a refusal changes nothing.
+SEXP bartcore_setModelForests(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
+                              SEXP controlExpr, SEXP basesExpr,
+                              SEXP powersExpr, SEXP leafPriorExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerBase& sampler(*holder.sampler);
+  bartcore::SamplerShape shape = sampler.shape();
+  if (!bartcore_bridge::isMultiForest(sampler))
+    Rf_error("$setModel: this route is for a sampler of several forests");
+  if (!Rf_inherits(modelExpr, "dbartsModel"))
+    Rf_error("'model' argument to $setModel not of class 'dbartsModel'");
+  if (!Rf_inherits(controlExpr, "dbartsControl"))
+    Rf_error("'control' argument to $setModel not of class "
+             "'dbartsControl'");
+  if (!Rf_isReal(basesExpr) || !Rf_isReal(powersExpr) ||
+      static_cast<std::size_t>(Rf_xlength(basesExpr)) != shape.numForests ||
+      static_cast<std::size_t>(Rf_xlength(powersExpr)) != shape.numForests)
+    Rf_error("$setModel: one base and one power for each forest");
+  bool installsLeafPrior = Rf_asLogical(leafPriorExpr) == TRUE;
+  const double* bases = REAL(basesExpr);
+  const double* powers = REAL(powersExpr);
+  for (std::size_t f = 0; f < shape.numForests; ++f) {
+    if (!(bases[f] > 0.0 && bases[f] < 1.0))
+      Rf_error("tree prior base must be in (0, 1)");
+    if (!(powers[f] > 0.0)) Rf_error("tree prior power must be positive");
+  }
+
+  return unwindProtect([&, model = ParsedModel{}, moveRecord = MoveRecord{},
+                        moveForests = std::vector<bartcore::MoveSettings>{},
+                        moveVariance = bartcore::MoveSettings{}]() mutable
+                       -> SEXP {
+    parseModel(model, modelExpr, shape.numPredictors);
+    parseMoveRecord(moveRecord, controlExpr, modelExpr);
+    if (const char* refusal =
+          resolveMoveSettings(moveForests, moveVariance, moveRecord, shape))
+      Rf_error("%s", refusal);
+    bartcore::ModelParameters parameters;
+    fillResidualParameters(parameters, model, dataExpr, shape);
+    if (installsLeafPrior && !takesFittingLeafPrior(sampler, model))
+      Rf_error("$setModel: no forest of this sampler takes the fitting "
+               "function's leaf prior");
+
+    // the leaf prior alone can be refused by what the chains hold, so it
+    // goes in first
+    if (installsLeafPrior && !installFittingLeafPrior(sampler, model))
+      Rf_error("$setModel: no forest of this sampler takes the fitting "
+               "function's leaf prior");
+    for (std::size_t f = 0; f < shape.numForests; ++f)
+      if (!sampler.setForestTreePrior(f, bases[f], powers[f]))
+        Rf_error("$setModel: an install the checks passed was refused");
+    sampler.setResidualPrior(parameters);
+    installMoveSettings(sampler, moveForests, moveVariance);
+    return R_NilValue;
+  });
+}
+
+/// The fitting function's leaf prior \p modelExpr states, alone, on a sampler
+/// of several forests or a multinomial one (installFittingLeafPrior): the
+/// write behind $setLeafPrior there. False-free: a refusal is an error and
+/// writes nothing.
+SEXP bartcore_setFittingLeafPrior(SEXP ptrExpr, SEXP modelExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerBase& sampler(*holder.sampler);
+  bartcore::SamplerShape shape = sampler.shape();
+  if (!bartcore_bridge::isMultiForest(sampler))
+    Rf_error("the fitting function's leaf prior is written this way only on "
+             "a sampler of several forests");
+  if (!Rf_inherits(modelExpr, "dbartsModel"))
+    Rf_error("'model' argument not of class 'dbartsModel'");
+  return unwindProtect([&, model = ParsedModel{}]() mutable -> SEXP {
+    parseModel(model, modelExpr, shape.numPredictors);
+    if (!installFittingLeafPrior(sampler, model))
+      Rf_error("no forest of this sampler takes the fitting function's leaf "
+               "prior");
     return R_NilValue;
   });
 }

@@ -364,14 +364,15 @@ expect_error(
   ),
   fixed = TRUE
 )
-# the four refusals it gates stay red on a multi-forest sampler
+# three of the refusals it gates stay red on a multi-forest sampler, and the
+# sampler's own model is taken
 expect_error(threeForests$setResponse(y, updateScale = TRUE), "does not supp")
 expect_error(
   threeForests$setOffset(rep(0, n), updateScale = TRUE),
   "does not supp"
 )
 expect_error(threeForests$setData(dbartsData(x, y)), "does not support")
-expect_error(threeForests$setModel(threeForests$model), "does not support")
+expect_silent(threeForests$setModel(threeForests$model))
 # and $setLeafPrior takes the no-op creation also accepts
 threeLeafPrior <- threeForests$getLeafPrior()
 threeForests$setLeafPrior(normal(k = 2))

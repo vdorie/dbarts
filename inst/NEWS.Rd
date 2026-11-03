@@ -684,6 +684,11 @@
             a list that goes back with no change.
             \code{$setVarianceForest} and \code{$getVarianceForest} do the
             same for the variance forest.
+            \code{$setTreePrior(power = , base = , split.probs = )} changes
+            the fitting function's tree prior; it, \code{$setModel} and
+            \code{$setLeafPrior} reach, on a sampler of several forests, the
+            forests that state none of their own, and the one forest with no
+            basis whatever it states.
       \item Constraints. \code{monotone = c(x1 = "increasing", x2 =
             "decreasing")}, or \code{1}, \code{-1} and \code{0} by name
             or position, makes the fit monotone in those predictors

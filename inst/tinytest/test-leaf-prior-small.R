@@ -279,17 +279,19 @@ expect_true(is(
 ))
 
 # --- $setLeafPrior on a Student-t forest with no sd ---------------------------
-# the forest takes its size from the leaf prior at creation only
+# the one forest with no basis takes the leaf prior's size, as at creation
 for (created in list(normal(), normal(k = 3))) {
   s <- studentOne(created)
-  before <- s$getLeafPrior(1L)$sd
-  expect_error(
-    s$setLeafPrior(normal(k = 4)),
-    "state a forest's size with $setForest(forest, sd = )",
-    fixed = TRUE
+  expect_silent(s$setLeafPrior(normal(k = 4)))
+  expect_identical(
+    s$getLeafPrior(1L)$sd,
+    studentOne(normal(k = 4))$getLeafPrior(1L)$sd
   )
   expect_silent(s$setLeafPrior(normal(k = 2)))
-  expect_identical(s$getLeafPrior(1L)$sd, before)
+  expect_identical(
+    s$getLeafPrior(1L)$sd,
+    studentOne(normal())$getLeafPrior(1L)$sd
+  )
 }
 
 # --- integers beyond k --------------------------------------------------------

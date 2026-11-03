@@ -28,10 +28,11 @@ bc <- dbarts(
 )
 bc$run(20L, 0L)
 
-# --- refuses: a whole-data or whole-model mutation on a sampler that carries
-# forest amplitudes is refused R-side, before either .Call is reached
+# --- refuses: a whole-data mutation on a sampler that carries forest
+# amplitudes is refused R-side, before the .Call is reached, and a model of
+# one forest is another structure
 expect_error(bc$setData(host$data), "carries forest amplitudes")
-expect_error(bc$setModel(host$model), "carries forest amplitudes")
+expect_error(bc$setModel(host$model), "cannot change the number of forests")
 
 # --- refuses: the test surface is undefined off the sampler's own rows
 expect_error(

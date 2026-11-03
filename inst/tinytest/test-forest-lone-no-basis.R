@@ -260,14 +260,23 @@ for (family in families) {
   expect_identical(unname(reader(copied)$sd), 1.5, info = info)
   expect_identical(copied$run(0L, 1L)$k, sampler$run(0L, 1L)$k, info = info)
 }
-# restating what is in force is taken; another k through this door is not
+# restating what is in force is taken, and another k is written as creation
+# with it writes it
 gaussian <- fit("gaussian", withBasis)
 gaussian$setLeafPrior(normal(k = 2))
 expect_equivalent(reader(gaussian)$k.scale, scaleOf[["gaussian"]])
-expect_error(gaussian$setLeafPrior(normal(k = 3)), "$setForest", fixed = TRUE)
+gaussian$setLeafPrior(normal(k = 3))
+expect_identical(
+  reader(gaussian),
+  reader(fit("gaussian", withBasis, leaf.prior = normal(k = 3)))
+)
 probit <- fit("probit", withBasis)
-expect_error(probit$setLeafPrior(normal(k = 2)), "$setForest", fixed = TRUE)
 probit$setLeafPrior(reader(probit)$leaf.prior)
+probit$setLeafPrior(normal(k = 2))
+expect_identical(
+  reader(probit),
+  reader(fit("probit", withBasis, leaf.prior = normal(k = 2)))
+)
 
 ## --- a copy and a reload continue as one, and as the live sampler -----------
 for (family in families) {
@@ -428,10 +437,10 @@ for (written in list(normal(k = 3), normal(sd = 1.1))) {
   )
 }
 
-## --- $setLeafPrior(leaf.prior) on a lone forest restates, and only that -------
+## --- $setLeafPrior(leaf.prior) on a lone forest writes it -------------------
 sampler <- kept(withBasis, leaf.prior = normal(sd = 1.1))
-expect_error(sampler$setLeafPrior(normal(sd = 9)), "state a forest's size")
-expect_equal(unname(reader(sampler)$sd), 1.1)
+expect_silent(sampler$setLeafPrior(normal(sd = 9)))
+expect_equal(unname(reader(sampler)$sd), 9)
 sampler <- kept(withBasis)
 expect_silent(sampler$setLeafPrior(normal(k = 2L)))
 

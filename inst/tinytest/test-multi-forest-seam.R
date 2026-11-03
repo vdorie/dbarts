@@ -114,15 +114,16 @@ w.zero[seq_len(10L)] <- 0
 expect_silent(bc.bcf$setWeights(w.zero))
 expect_true(all(is.finite(bc.bcf$run(0L, 5L)$train)))
 bc.bcf$setWeights(rep(1, n))
-# setModel writes forest 0's leaf scale from the prior alone (Chain::
-# setModel), which would silently discard BCF's calibrated mu leaf scale;
-# refused regardless of the argument's class. $setModel always pairs the new
-# model with the sampler's OWN current data/control, so only the model is
-# passed here.
+# a model of one forest is another structure; the sampler's own takes a route
+# that never writes forest 0's leaf scale from the prior alone, which would
+# discard BCF's calibrated mu leaf scale
 expect_error(
   bc.bcf$setModel(sampler.bcf.host$model),
-  "carries forest amplitudes"
+  "cannot change the number of forests"
 )
+before <- bc.bcf$getLeafPrior()
+expect_silent(bc.bcf$setModel(bc.bcf$model))
+expect_identical(bc.bcf$getLeafPrior(), before)
 
 # transactional (non-force) predictor updates are ACCEPTED: the two-phase
 # revalidation loops every forest, so a whole-matrix or column proposal

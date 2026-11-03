@@ -383,7 +383,7 @@ expect_error(
   "no forest of this model takes a leaf prior's 'k'",
   fixed = TRUE
 )
-# a sharer's part is fixed at creation
+# a sharer's part is fixed at creation; the group's leaf prior changes
 live <- dbarts(
   y ~ forest(x1) + forest(x2) + forest(x3, basis = z),
   d,
@@ -394,11 +394,8 @@ expect_error(
   "forest 1 shares one prior total with forests 1, 2",
   fixed = TRUE
 )
-expect_error(
-  live$setLeafPrior(normal(k = 3)),
-  "takes no 'leaf.prior': the total is the leaf prior they were created under",
-  fixed = TRUE
-)
+expect_silent(live$setLeafPrior(normal(k = 3)))
+expect_identical(unname(live$getK()[1:2, 1L]), c(3, 3))
 live$setForest(3, sd = 0.4)
 expect_identical(unname(live$getLeafPrior(3L)$sd), 0.4)
 

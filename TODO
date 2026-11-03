@@ -859,13 +859,9 @@ items
     the branch forest-door: $setForest, $getForest, $setVarianceForest, $getVarianceForest;
     $setLeafPrior(forests = ) gone. Slice 3, a sharer leaving its group, is required for 1.0-0 and
     follows setmodel-parameters' slice 4. docs/plans/forest-door.md.
-  leaf-prior-writer-by-level: the reader is built (getLeafPrior carries sd and
-    sd.stated on one forest, one record, the size called the forest's; a drawn
-    k reads sd NA, as a sharer's does). Owed (dec-B515, dec-B518):
-    $setLeafPrior(leaf.prior) on a sampler of several forests, reaching each
-    forest that states no sd of its own and refused only where creation
-    refuses the same statement (setmodel-parameters' slice 4). The creation
-    summary of invchi(df, 0) still reads "chi ... inf scale".
+  leaf-prior-writer-by-level: the reader and the writer are built
+    (setmodel-parameters' slice 4). The creation summary of invchi(df, 0)
+    still reads "chi ... inf scale".
   split-probs-one-named-value: split.probs = c(x2 = .9) reads today as uniform with no
     message, a length-one specification losing its name, where n.cuts = c(x2 = 10) is refused
     (dec-B547). Run 2026-10-30. To put to the maintainer, with the rest of split.probs's doors,

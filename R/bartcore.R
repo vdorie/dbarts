@@ -2835,33 +2835,30 @@ modelStructureRefusal <- function(sampler, newModel) {
   }
 
   # the raw leaf specification must resolve to the slots that act, as
-  # $setLeafPrior resolves it; a sampler of several forests or categories is
-  # refused wholesale after this
-  if (!samplerCarriesAmplitudes(sampler) && !samplerCarriesCounts(sampler)) {
-    refuseInvalidLeafPrior(newLeaf)
-    resolved <- tryCatch(
-      resolveLeafPrior(
-        newLeaf,
-        drawsLeafKByDefault(model@family),
-        monotone = !is.null(attr(model, "monotone", exact = TRUE))
-      ),
-      error = function(e) e
+  # $setLeafPrior resolves it
+  refuseInvalidLeafPrior(newLeaf)
+  resolved <- tryCatch(
+    resolveLeafPrior(
+      newLeaf,
+      drawsLeafKByDefault(model@family),
+      monotone = !is.null(attr(model, "monotone", exact = TRUE))
+    ),
+    error = function(e) e
+  )
+  if (
+    inherits(resolved, "error") ||
+      !identical(resolved$leaf.hyperprior, newModel@leaf.hyperprior) ||
+      !identical(resolved$prior.scale, newModel@prior.scale)
+  ) {
+    stop(
+      "$setModel: the model's leaf prior specification (its 'k' or 'sd') ",
+      "does not resolve to the leaf hyperprior and prior scale it carries; ",
+      "restate the leaf prior with $setLeafPrior",
+      if (inherits(resolved, "error")) {
+        paste0(" (", conditionMessage(resolved), ")")
+      },
+      call. = FALSE
     )
-    if (
-      inherits(resolved, "error") ||
-        !identical(resolved$leaf.hyperprior, newModel@leaf.hyperprior) ||
-        !identical(resolved$prior.scale, newModel@prior.scale)
-    ) {
-      stop(
-        "$setModel: the model's leaf prior specification (its 'k' or 'sd') ",
-        "does not resolve to the leaf hyperprior and prior scale it carries; ",
-        "restate the leaf prior with $setLeafPrior",
-        if (inherits(resolved, "error")) {
-          paste0(" (", conditionMessage(resolved), ")")
-        },
-        call. = FALSE
-      )
-    }
   }
   invisible(NULL)
 }

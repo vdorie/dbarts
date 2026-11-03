@@ -3159,24 +3159,13 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setModel = function(newModel) {
-      "Sets the model object for the sampler to a new one, changing the numbers inside the model and refusing, by name and before anything is stored, a model of another structure. It takes power and base, the split probabilities, the leaf scale as k or sd (and a k drawn or held), the residual prior and a held residual sd, under the ordinary tree prior or DART alike; a split probability of zero on a column some chain's trees split on is refused, naming the column. It refuses a model of another response family (a Student-t error against a Gaussian one included), another kind of leaf or leaf covariate columns, a gp leaf's max.leaf.size, other interaction limits or blocks, DART against the ordinary tree prior, other columns a forest may split on, other monotone directions, a multinomial sampler or one whose forests carry amplitudes, a residual prior other than its own on a family with no residual scale (probit, logistic, ordinal, negative binomial, hazard), and a raw leaf specification whose k or sd does not resolve to the leaf hyperprior and prior scale the model carries; $setLeafPrior restates a leaf prior. It takes the Student-t degrees of freedom, a negative-binomial shape, a gp leaf's lengthscale and DART's own settings; a df, shape or DART concentration handed from held to drawn starts at the value in force, and a new lengthscale is refused on a sampler holding kept draws. A model stating no family, df or lengthscale keeps the sampler's. The sampler's own model, as after setResponse or setOffset, is always accepted."
+      "Sets the model object for the sampler to a new one, changing the numbers inside the model and refusing, by name and before anything is stored, a model of another structure. It takes power and base, the split probabilities, the leaf scale as k or sd (and a k drawn or held), the residual prior and a held residual sd, under the ordinary tree prior or DART alike; a split probability of zero on a column some chain's trees split on is refused, naming the column. It refuses a model of another response family (a Student-t error against a Gaussian one included), another kind of leaf or leaf covariate columns, a gp leaf's max.leaf.size, other interaction limits or blocks, DART against the ordinary tree prior, other columns a forest may split on, other monotone directions, a residual prior other than its own on a family with no residual scale (probit, logistic, ordinal, negative binomial, hazard), and a raw leaf specification whose k or sd does not resolve to the leaf hyperprior and prior scale the model carries; $setLeafPrior restates a leaf prior. It takes the Student-t degrees of freedom, a negative-binomial shape, a gp leaf's lengthscale and DART's own settings; a df, shape or DART concentration handed from held to drawn starts at the value in force, and a new lengthscale is refused on a sampler holding kept draws. A model stating no family, df or lengthscale keeps the sampler's. On a sampler of several forests or a multinomial one it takes the fitting function's level: a changed power or base reaches the forests with no basis that state none of their own, and the one such forest, or a multinomial model's category forests, whatever it states; the leaf prior goes where setLeafPrior sends it; and the residual prior. A forest's own difference is refused naming setForest, and split probabilities other than equal by name. A variance forest stays as it is, whatever the model's record of it says; setVarianceForest changes it. The sampler's own model, as after setResponse or setOffset, is always accepted."
       if (!inherits(newModel, "dbartsModel")) {
         stop("'model' must inherit from dbartsModel")
       }
       modelStructureRefusal(.self, newModel)
-      refuseCountsMutation(
-        .self,
-        "$setModel",
-        "every category forest's prior is calibrated at creation from the ",
-        "softmax map; make a new sampler instead"
-      )
       refuseInvalidLeafPrior(newModel@leaf.prior)
-      refuseAmplitudeMutation(
-        .self,
-        "setModel",
-        "every forest's node and tree priors are calibrated at creation; ",
-        "make a new sampler instead"
-      )
+      given <- newModel
       # the rest of the structure the model's records name, before anything
       # is stored
       refusal <- movedStructureRefusal(newModel, model)
@@ -3226,6 +3215,12 @@ dbartsSampler <- setRefClass(
       # the transform the prior is anchored to is data and stays the
       # sampler's, recorded on its data object
       attr(newModel, "response.range") <- NULL
+      # several forests take the fitting function's level by its own route,
+      # which stores only once the engine holds it
+      if (bartcoreNumForests(ptr) > 1L) {
+        selfEnv$model <- setModelOnForests(.self, newModel, given)
+        return(invisible(NULL))
+      }
       oldModel <- model
       selfEnv$model <- newModel
       tryResult <- tryCatch(
@@ -4078,7 +4073,7 @@ dbartsSampler <- setRefClass(
       do.call(rbind, lapply(seq_len(numForests) - 1L, read))
     },
     setLeafPrior = function(leaf.prior, updateState = NULL) {
-      "Restates the leaf prior's spread, or the hyperprior it is drawn under, on every chain, in the vocabulary a fitting function's leaf.prior takes: normal(sd = ), normal(k = ), an invchi() prior on the sd, linear(sd = ) or gp(sd = ). The specification must name the sampler's own leaf model; leaf-model details such as a linear leaf's columns may be omitted and, if given, must match. Nothing else moves - not the tree prior, the response transform or sigma. Into a drawn prior each chain's spread in force is kept at the call, from a fixed k or sd as from a drawn one: k.scale is the data's under every prior, so k is not touched and the new prior acts from the next draw of k. A fixed k or sd stated is taken as written, a fixed sd as k = k.scale / sd. Since the write keeps the chains' spread, on a sampler not yet run it is not the start creation under the new prior would make. A multinomial sampler takes normal(k = ) with a fixed k, Inf included, applied to every category forest. A sampler whose forests carry amplitudes states a forest's size through setForest; here normal() changes nothing, and normal(k = 2), which its creation also accepts, changes nothing where no forest takes the leaf prior. A write changes the model. A forest with no basis stating neither sd nor a coefficient's prior alone takes a leaf.prior only restating the one in force, so normal(k = 2) is refused unless it is the one in force; setForest(forest, sd = ) takes it out of the leaf prior. A forest with no basis stating a coefficient's prior and no sd takes its size from the leaf prior at creation only: normal() and normal(k = 2) are taken and change nothing, whatever k it was created at, and every other leaf.prior is refused; its size is stated through setForest. Where forests with no basis share one prior total their part is fixed at creation, and every leaf.prior is refused. The write takes effect on the next sweep, reinterpreting no value already drawn; a write equal to what is in force is bitwise inert, that rounding aside. The write is recorded on the model field, so a re-creation or a later re-anchoring channel restates it rather than the creation value. setModel changes everything else. updateState follows control@updateState; see setData."
+      "Restates the leaf prior's spread, or the hyperprior it is drawn under, on every chain, in the vocabulary a fitting function's leaf.prior takes: normal(sd = ), normal(k = ), an invchi() prior on the sd, linear(sd = ) or gp(sd = ). The specification must name the sampler's own leaf model; leaf-model details such as a linear leaf's columns may be omitted and, if given, must match. Nothing else moves - not the tree prior, the response transform or sigma. Into a drawn prior each chain's spread in force is kept at the call, from a fixed k or sd as from a drawn one: k.scale is the data's under every prior, so k is not touched and the new prior acts from the next draw of k. A fixed k or sd stated is taken as written, a fixed sd as k = k.scale / sd. Since the write keeps the chains' spread, on a sampler not yet run it is not the start creation under the new prior would make. A multinomial sampler takes normal(k = ) with a fixed k, Inf included, applied to every category forest. On a sampler whose forests carry amplitudes it is the fitting function's leaf prior, written on the forests it reaches as creation under it gives them. Where one forest has no basis it is written there whatever that forest states, a stated sd going; on a forest stating a coefficient's prior, which has no k, it sets the size the prior gives at the scale creation set, and no k is drawn there. Where several have none, the forests sharing one prior total take it, each keeping its own part, and those stating their own sd keep it; where none shares, as where every forest has a basis or every one with no basis states its sd, the default restated changes nothing and any other leaf.prior is refused, naming setForest(forest, sd = ). Into a drawn k a forest starts at the spread in force. A write changes the model. The write takes effect on the next sweep, reinterpreting no value already drawn; a write equal to what is in force is bitwise inert, that rounding aside. The write is recorded on the model field, so a re-creation or a later re-anchoring channel restates it rather than the creation value. setModel changes everything else. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
       multinomial <- samplerCarriesCounts(.self)
       amplitudes <- samplerCarriesAmplitudes(.self)
@@ -4099,59 +4094,22 @@ dbartsSampler <- setRefClass(
           "leaf prior specification"
         )
       )
-      # after the argument checks above, so a malformed call is answered on its
-      # own terms rather than by the refusal that would follow a well-formed one
-      sharers <- if (amplitudes) samplerSharers(.self) else integer(0L)
-      if (length(sharers) > 1L) {
-        stop(
-          "$setLeafPrior on a sampler whose forests share one prior total ",
-          "takes no 'leaf.prior': the total is the leaf prior they were ",
-          "created under; make a new sampler to change it",
-          call. = FALSE
-        )
-      }
-      if (amplitudes) {
-        # the leaf prior a lone forest with no basis runs under restated, or
-        # with no forest under it the k creation writes
-        k <- if (is.numeric(spec@k)) as.double(spec@k) else spec@k
-        inForce <- if (length(sharers) == 1L) {
-          getLeafPrior(sharers)$leaf.prior
-        } else {
-          normal(k = 2)
-        }
-        inert <- is(spec, "dbartsNormalPrior") &&
-          ((is.null(k) && is.null(spec@prior.sd)) ||
-            (identical(k, inForce@k) &&
-              identical(spec@prior.sd, inForce@prior.sd)))
-        if (!inert) {
-          stop(
-            "$setLeafPrior on a sampler whose forests carry amplitudes takes ",
-            "only the leaf prior in force: the multi-forest calibration map ",
-            "sets every forest's leaf scale; state a forest's size with ",
-            "$setForest(forest, sd = )",
-            call. = FALSE
-          )
+      selfEnv <- parent.env(environment())
+      # the fitting function's leaf prior on several forests, by the writer
+      # $setModel shares
+      if (amplitudes || multinomial) {
+        written <- setLeafPriorOnForests(.self, spec, expr)
+        if (!is.null(written)) {
+          selfEnv$model <- written
         }
         if (resolveUpdateState(updateState, control)) {
           storeState()
         }
         return(invisible(NULL))
       }
-      if (multinomial) {
-        refuseMultinomialLeafPrior(spec)
-      }
       newModel <- restateLeafPrior(.self, spec, expr)
       ptr <- getPointer()
-      if (multinomial) {
-        .Call(
-          C_dbarts_bartcore_setForestK,
-          ptr,
-          as.double(newModel@leaf.hyperprior@k)
-        )
-      } else {
-        writeLeafPrior(.self, ptr, newModel)
-      }
-      selfEnv <- parent.env(environment())
+      writeLeafPrior(.self, ptr, newModel)
       selfEnv$model <- newModel
       if (resolveUpdateState(updateState, control)) {
         storeState(ptr)
@@ -4219,6 +4177,16 @@ dbartsSampler <- setRefClass(
           dotNames(...)
         ),
         updateState
+      )
+    },
+    setTreePrior = function(power = NULL, base = NULL, split.probs = NULL) {
+      "Changes the fitting function's tree prior on a live sampler, as power, base and split.probs mean at creation, through setModel's route, so the two cannot differ. A name left out or NULL changes nothing, and so does a value equal to the one in force. power and base reach the forests with no basis that state none of their own and, where one forest has no basis, or on a multinomial sampler's category forests, that forest whatever it states, the later write winning; they make no forest state them, and nothing returns a forest that states its own to following, short of a new sampler. A name that reaches no forest is refused, naming the forests that state it and setForest. split.probs is a vector, which changes the values, 1 for equal probabilities, or on a DART sampler dart(...), which changes DART's settings, a setting left out taking creation's default; dart() on an ordinary sampler and a vector on a DART one change the model's structure and are refused, and a sampler of several forests takes equal probabilities only. A variance forest stays as it is; setVarianceForest changes it."
+      splitExpr <- if (!missing(split.probs)) substitute(split.probs)
+      writeTreePriorLevel(
+        .self,
+        list(power = power, base = base),
+        splitExpr,
+        parent.frame()
       )
     },
     getVarianceForest = function() {

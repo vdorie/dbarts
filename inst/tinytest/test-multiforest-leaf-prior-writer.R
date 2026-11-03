@@ -299,12 +299,6 @@ expect_error(m$setLeafPrior(normal(k = chi())), "'k' hyperprior is not suppo")
 expect_error(m$setLeafPrior(normal(k = "chi(1.5)")), "'k' hyperprior")
 expect_error(m$setForest(sd = 1), "a named leaf-prior 'sd'", fixed = TRUE)
 a <- amplitudeSampler(twoDefault)
-expect_error(
-  a$setLeafPrior(normal(k = 3)),
-  "$setForest(forest, sd = )",
-  fixed = TRUE
-)
-expect_error(a$setLeafPrior(normal(sd = 1)), "multi-forest calibration map")
 expect_error(a$setLeafPrior(forests = list(forest())), "unused argument")
 for (bad in list(0, -1, Inf)) {
   expect_error(
@@ -321,6 +315,20 @@ expect_error(
 )
 # every refusal came before any write
 expect_identical(a$getLeafPrior(), amplitudeSampler(twoDefault)$getLeafPrior())
+# the one forest with no basis takes the fitting function's leaf prior, as
+# creation with it gives it
+a$setLeafPrior(normal(k = 3))
+expect_identical(
+  a$getLeafPrior(),
+  dbarts(
+    x,
+    y,
+    forests = twoDefault,
+    n.trees = 15L,
+    leaf.prior = normal(k = 3),
+    control = writerControl()
+  )$getLeafPrior()
+)
 expect_error(
   dbarts(
     x,
