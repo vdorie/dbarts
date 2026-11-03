@@ -497,7 +497,10 @@ binary outcomes and root-mean-squared error for continuous outcomes,
 misclassification rates for binary outcomes, or a `function` with
 arguments `y.test` and `y.test.hat`. `y.test.hat` is of dimensions equal
 to `length(y.test)` \\\times\\ `n.samples`, on the latent scale for
-binary outcomes. A third option is to pass a list of
+binary outcomes. For a binary outcome the built-in `"rmse"` compares the
+response with the posterior mean probability (the link applied to each
+draw, then averaged), as `"log"` and `"mcr"` do, while a supplied
+function receives the latent draws. A third option is to pass a list of
 `list(function, evaluationEnvironment)`, so as to provide default
 bindings. The binary losses `"log"` and `"mcr"` cannot apply to
 continuous responses.
