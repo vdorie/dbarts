@@ -2563,8 +2563,9 @@ static void testZeroSplitProbability() {
 
   std::vector<ext_rng*> rngs;
   auto make = [&](SamplerOptions options, std::uint32_t seed,
-                  size_t numChains = 1, size_t count = numTrees) {
-    options.numTrees = count;
+                  size_t numChains = 1, size_t count = 0) {
+    // a local may not be a default argument, so 0 stands for numTrees
+    options.numTrees = count == 0 ? numTrees : count;
     options.numChains = numChains;
     std::vector<ext_rng*> chainRngs(numChains);
     for (size_t c = 0; c < numChains; ++c) {
