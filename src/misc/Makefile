@@ -50,13 +50,18 @@ simd.source.neon = $(simd.source.neon.$(have.neon))
 simd.sources = $(simd.source.avx2) $(simd.source.neon)
 simd.objects = $(simd.sources:.c=.o)
 
-LOCAL_SOURCES=io.c linearAlgebra.c moments.c partition.c simd.c thread.c $(simd.sources)
-LOCAL_OBJECTS=io.o linearAlgebra.o moments.o partition.o simd.o thread.o $(simd.objects)
+LOCAL_SOURCES=linearAlgebra.c moments.c partition.c simd.c thread.c $(simd.sources)
+LOCAL_OBJECTS=linearAlgebra.o moments.o partition.o simd.o thread.o $(simd.objects)
 
 all : library
 
+# The R package builds in place; a build elsewhere (the standalone recipe in
+# tests/cpp) runs this file from its own directory with VPATH at this one and
+# names its own archive, which is why every rule below reads $< and $@.
+MISC_LIB = ../misc.a
+
 library : $(LOCAL_OBJECTS)
-	$(AR) $(ARFLAGS) ../misc.a $(LOCAL_OBJECTS)
+	$(AR) $(ARFLAGS) $(MISC_LIB) $(LOCAL_OBJECTS)
 
 clean :
 	@-rm -f config.h
@@ -67,7 +72,6 @@ rebuild : clean all
 
 $(INCLUDE_DIR)/misc/alloca.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/intrinsic.h :
-$(INCLUDE_DIR)/misc/io.h :
 $(INCLUDE_DIR)/misc/linearAlgebra.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/partition.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/simd.h :
@@ -75,30 +79,27 @@ $(INCLUDE_DIR)/misc/stats.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/stddef.h :
 $(INCLUDE_DIR)/misc/thread.h : $(INCLUDE_DIR)/misc/stddef.h
 
-io.o : io.c $(INCLUDE_DIR)/misc/io.h
-	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c io.c -o io.o
-
 linearAlgebra.o : linearAlgebra.c $(INCLUDE_DIR)/misc/linearAlgebra.h
-	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c linearAlgebra.c -o linearAlgebra.o
+	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c $< -o $@
 
-linearAlgebra_sse2.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) $(SSE2_FLAG) -c linearAlgebra_sse2.c -o linearAlgebra_sse2.o
-linearAlgebra_sse2.false = touch linearAlgebra_sse2.o
+linearAlgebra_sse2.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) $(SSE2_FLAG) -c $< -o $@
+linearAlgebra_sse2.false = touch $@
 compile.linearAlgebra_sse2 = $(linearAlgebra_sse2.$(have.sse2))
 
 linearAlgebra_sse2.o : linearAlgebra_sse2.c $(INCLUDE_DIR)/misc/linearAlgebra.h
 	echo $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c linearAlgebra_sse2.c -o linearAlgebra_sse2.c
 	@$(compile.linearAlgebra_sse2)
 
-linearAlgebra_avx.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) $(AVX_FLAG) -c linearAlgebra_avx.c -o linearAlgebra_avx.o
-linearAlgebra_avx.false = touch linearAlgebra_avx.o
+linearAlgebra_avx.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) $(AVX_FLAG) -c $< -o $@
+linearAlgebra_avx.false = touch $@
 compile.linearAlgebra_avx = $(linearAlgebra_avx.$(have.avx))
 
 linearAlgebra_avx.o : linearAlgebra_avx.c $(INCLUDE_DIR)/misc/linearAlgebra.h
 	echo $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c linearAlgebra_avx.c -o linearAlgebra_avx.c
 	@$(compile.linearAlgebra_avx)
 
-linearAlgebra_neon.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c linearAlgebra_neon.c -o linearAlgebra_neon.o
-linearAlgebra_neon.false = touch linearAlgebra_neon.o
+linearAlgebra_neon.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c $< -o $@
+linearAlgebra_neon.false = touch $@
 compile.linearAlgebra_neon = $(linearAlgebra_neon.$(have.neon))
 
 linearAlgebra_neon.o : linearAlgebra_neon.c $(INCLUDE_DIR)/misc/linearAlgebra.h
@@ -106,10 +107,10 @@ linearAlgebra_neon.o : linearAlgebra_neon.c $(INCLUDE_DIR)/misc/linearAlgebra.h
 	@$(compile.linearAlgebra_neon)
 
 moments.o : moments.c $(INCLUDE_DIR)/misc/stats.h $(INCLUDE_DIR)/misc/simd.h
-	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c moments.c -o moments.o
+	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c $< -o $@
 
-moments_sse2.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) $(SSE2_FLAG) -c moments_sse2.c -o moments_sse2.o
-moments_sse2.false = touch moments_sse2.o
+moments_sse2.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) $(SSE2_FLAG) -c $< -o $@
+moments_sse2.false = touch $@
 compile.moments_sse2 = $(moments_sse2.$(have.sse2))
 
 moments_sse2.o : moments_sse2.c $(INCLUDE_DIR)/misc/stats.h
@@ -117,34 +118,34 @@ moments_sse2.o : moments_sse2.c $(INCLUDE_DIR)/misc/stats.h
 	@$(compile.moments_sse2)
 
 partition.o : partition.c $(INCLUDE_DIR)/misc/partition.h partition_body.c
-	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c partition.c -o partition.o
+	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c $< -o $@
 
-partition_sse2.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) $(SSE2_FLAG) -c partition_sse2.c -o partition_sse2.o
-partition_sse2.false = touch partition_sse2.o
+partition_sse2.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) $(SSE2_FLAG) -c $< -o $@
+partition_sse2.false = touch $@
 compile.partition_sse2 = $(partition_sse2.$(have.sse2))
 
 partition_sse2.o : partition_sse2.c $(INCLUDE_DIR)/misc/partition.h partition_body.c
 	echo $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c partition_sse2.c -o partition_sse2.o
 	@$(compile.partition_sse2)
 
-partition_sse4.1.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) $(SSE4_1_FLAG) -c partition_sse4_1.c -o partition_sse4_1.o
-partition_sse4.1.false = touch partition_sse4_1.o
+partition_sse4.1.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) $(SSE4_1_FLAG) -c $< -o $@
+partition_sse4.1.false = touch $@
 compile.partition_sse4.1 = $(partition_sse4.1.$(have.sse4.1))
 
 partition_sse4_1.o : partition_sse4_1.c $(INCLUDE_DIR)/misc/partition.h partition_body.c
 	echo $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c partition_sse4_1.c -o partition_sse4_1.o
 	@$(compile.partition_sse4.1)
 
-partition_avx2.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) $(AVX2_FLAG) -c partition_avx2.c -o partition_avx2.o
-partition_avx2.false = touch partition_avx2.o
+partition_avx2.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) $(AVX2_FLAG) -c $< -o $@
+partition_avx2.false = touch $@
 compile.partition_avx2 = $(partition_avx2.$(have.avx2))
 
 partition_avx2.o : partition_avx2.c $(INCLUDE_DIR)/misc/partition.h partition_body.c
 	echo $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c partition_avx2.c -o partition_avx2.o
 	@$(compile.partition_avx2)
 
-partition_neon.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c partition_neon.c -o partition_neon.o
-partition_neon.false = touch partition_neon.o
+partition_neon.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c $< -o $@
+partition_neon.false = touch $@
 compile.partition_neon = $(partition_neon.$(have.neon))
 
 partition_neon.o : partition_neon.c $(INCLUDE_DIR)/misc/partition.h partition_body.c
@@ -152,10 +153,10 @@ partition_neon.o : partition_neon.c $(INCLUDE_DIR)/misc/partition.h partition_bo
 	@$(compile.partition_neon)
 
 simd.o : simd.c $(INCLUDE_DIR)/misc/simd.h
-	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c simd.c -o simd.o
+	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c $< -o $@
 
 thread.o : thread.c $(INCLUDE_DIR)/misc/thread.h pthread.h
-	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c thread.c -o thread.o
+	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c $< -o $@
 
 partition_body.c : 
 

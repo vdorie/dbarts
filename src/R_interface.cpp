@@ -17,7 +17,6 @@
 
 #include <rc/util.h>
 
-#include <misc/io.h>
 #include <misc/simd.h>
 
 #include <dbarts/dbarts.h>
@@ -375,8 +374,5 @@ void attribute_visible R_init_dbarts(DllInfo* info) {
   }
 
   misc_simd_init();
-
-  misc_printf = &Rprintf;
-  misc_flushOutput = &R_FlushConsole;
 }
 }
