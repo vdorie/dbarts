@@ -690,7 +690,11 @@
             the fitting function's tree prior; it, \code{$setModel} and
             \code{$setLeafPrior} reach, on a sampler of several forests, the
             forests that state none of their own, and the one forest with no
-            basis whatever it states.
+            basis whatever it states. \code{$setModel} refuses, by name and
+            before storing anything, a model that differs in structure
+            or in a forest's own setting, the second naming
+            \code{$setForest}, and one that gives a forest another part of
+            a shared total.
       \item Constraints. \code{monotone = c(x1 = "increasing", x2 =
             "decreasing")}, or \code{1}, \code{-1} and \code{0} by name
             or position, makes the fit monotone in those predictors

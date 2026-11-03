@@ -1,9 +1,11 @@
 # forest-door: a live sampler changes one forest through $setForest, by label, in forest()'s names
 
-Status: PLANNED 2026-10-30 on c55a1477 (dec-B518); amended after its blind critique (scratch/fd-crit/report.md,
+Status: LANDED 2026-11-03, slices 1 to 3 with setmodel-parameters-not-structure's slice 4 beneath slice 3, each reviewed LAND
+([Landing note](#landing-note)). PLANNED 2026-10-30 on c55a1477 (dec-B518); amended after its blind critique (scratch/fd-crit/report.md,
 probes c1.R to c10.R there) and its re-check (scratch/fd-crit/recheck.md); rewritten the same day for the
 maintainer's rulings dec-B519 to dec-B525. Slice 1 is built and reviewed LAND (branch forest-door-s1, da875712).
-Slice 2 is built on branch forest-door over 341a1c1ed, its step 0 amending this plan; a fresh review and its mutants follow.
+Slice 2 was built on branch forest-door over 341a1c1ed, its step 0 amending this plan, reviewed with its mutants and fixed; slice 3 followed on
+setmodel-parameters' slice 4.
 No call is held; the rulings' own open questions are ruled too, in [Open calls](#open-calls). Rulings:
 dec-B518 (the door), dec-B519 (a written NULL), dec-B520 (the names), dec-B521 (multinomial), dec-B522 (no return
 spelling), dec-B523 (later write wins), dec-B524 (the variance forest), dec-B525 (a sharer stating its size),
@@ -605,7 +607,7 @@ setmodel-parameters' slice 4; this item's slice 3; coefficient-prior-live. Engin
 - A refusal list that must track creation's; the shared check function and the refusal table carry it.
 - After a leave a sampler's forests run sizes that no longer add up to the total it reads, and it is a state no fitting
   function can write (dec-B525).
-- Forest-door's feature merges twice, and main refuses a sharer's `sd` between the two.
+- Forest-door's three slices and setmodel-parameters' slice 4 landed together, so main never refused a sharer's `sd` between them.
 - Until coefficient-prior-live lands, a changed `amplitude` is refused by name.
 
 ## Calls made
@@ -707,6 +709,41 @@ Each the builder's, none in a ruling; the alternative after it.
 20. One left of a group prints "forest 2 keeps its part, 1/3, of the prior total, k 2" in the forests block and "forest
     sharing one prior total: 2, 1/3 of its variance" in the verbose summary, which names the part from the share.
     Alternative: the group's wording for one forest.
+
+## Landing note
+
+Landed 2026-11-03 as one stack: this plan's slices 1 to 3 and setmodel-parameters-not-structure's slice 4, in the order
+slice 1, slice 2, setmodel slice 4, slice 3, on the branch r-small-legacy's tip. No release carries any of it, so
+main never refused a sharer's `sd` between the slices.
+
+Reviews, each by a fresh Opus reviewer who ran the mutants named in the plan:
+
+- Slice 1: LAND after a fix round (a missing pin for the split probabilities a rebuilt prior loses, and the bridge's own
+  pins in test-forest-tree-prior-install.R).
+- Slice 2: FIX FIRST, then LAND on the fix round. Four small defects: an ambiguous short name let through at the door,
+  one stale help line, the sd-overflow message, an inert call that stored no state; one more, unlabeled forests named
+  differently at the two doors. All fixed and each pinned; calls 9 to 15 record them. Mutants: 121 rerun against the final
+  file, none lost, the survivors equivalent.
+- Slice 3: FIX FIRST on tests only (four behavior-changing mutants alive and one unreadable refusal), then LAND on the
+  re-check. The fix round pinned the four, reworded the `$setModel` share refusal and the one-left print, and dropped
+  `forest.shares` from a fit, which no fit could reach.
+
+Gates, as run at each slice:
+
+| Slice | tests/cpp | Suite, one process | Reference-build trio (equivalence, bcf, multinomial) | Other |
+|---|---|---|---|---|
+| 1 | 419 ok, plain and ASan+UBSan | not run (nothing in R reaches it) | 55/55, 19/19, 11/11 bitwise | the pin file 30 of 30 |
+| 2 | 422 ok, plain and ASan+UBSan | 39991 passed, 0 failed | as slice 1 | door file 3063/0; R-loaded ASan, 0 diagnostics; verify-anchors clean |
+| 3 | 426 ok, plain and ASan+UBSan | 40626 passed, 0 failed | 55/55, 19/19, 11/11 | exact gates quick, 43 of 43 |
+
+On the rebased tip: the full suite in one process, 40641 passed and 0 failed with two warnings from one fixture in
+test-single-forest-vars.R (the retired control and tree-prior spellings), which now gives n.cuts and split.probs to
+`dbarts()`: the suite then prints none. lintr, air, codoc, win-drift and doc-freshness are clean. The x86 leg and CI
+follow the rebase onto main.
+
+The calls the plan and its builders made are in dec-A257 (slice 2) and dec-A259 (slice 3), beside setmodel-parameters'
+dec-A258. A changed `amplitude` is still refused by name at the door, `$setForest(1, sd = v, amplitude = student(df))`
+included, until coefficient-prior-live, which is its own item on its own branch.
 
 ## Open calls
 

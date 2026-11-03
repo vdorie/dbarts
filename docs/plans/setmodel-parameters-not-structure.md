@@ -1,6 +1,7 @@
 # setmodel-parameters-not-structure: setModel changes a model's parameters and refuses its structure
 
-Status: PLANNED 2026-10-29 on e2f37f6d (dec-B254); amended the same day after its blind critique (build after
+Status: LANDED 2026-11-03, all four slices built and reviewed LAND ([Landing note](#landing-note)); none is left.
+PLANNED 2026-10-29 on e2f37f6d (dec-B254); amended the same day after its blind critique (build after
 amendments; scratch/crit-2plans/report.md). Slices 1 to 3 built and reviewed LAND on e2f37f6d (tip abdcea31).
 Slice 4 amended 2026-10-30 against main 0766f069 for dec-B518 (a forest changed through `$setForest`, the
 sampler's doors keeping the fitting function's level), forest-door's slice 1 (the per-forest tree-prior install,
@@ -578,7 +579,7 @@ this plan does not touch it.
   the model's records control-migration and forest-door create.
 - `$setModel` on a sampler of several forests refuses a forest's own difference that a model object can carry,
   naming `$setForest`: two calls where one model would have done, by dec-B518's one door per forest.
-- Slice 4 waits on three other items (forests-shared-total with slice F, control-migration, forest-door).
+- Slice 4 waited on three other items (forests-shared-total with slice F, control-migration, forest-door) and landed with the last.
 - Two doors can overwrite each other in silence; a forest that states its own and is the only candidate is written
   by the fitting function's door (dec-B523).
 - The k, df, shape and concentration handoffs from fixed to drawn are not creation's start, so the twin oracle
@@ -695,6 +696,30 @@ this plan does not touch it.
     wrapper is a name left out (dec-B519). A refusal on `$setModel`'s route reached through `$setTreePrior` names
     `$setTreePrior`. A statement withdrawn on a model's record is refused naming a new sampler, never `$setForest`,
     which refuses an NA (dec-B522). Alternative: name `$setModel` throughout, the door the user did not call.
+
+## Landing note
+
+Landed 2026-11-03 with forest-door's slices 1 to 3, as one stack on the branch r-small-legacy's tip: forest-door's slices 1
+and 2, then this plan's slice 4, then forest-door's slice 3. No slice is left. Slices 1 to 3 were built and reviewed LAND
+first, on e2f37f6d; slice 4 was built on forest-door's slice 2.
+
+Slice 4's review: FIX FIRST, then LAND on the fix round. Two defects in `$setTreePrior` (a DART update delay left out
+failed where creation fills it; a NULL through a variable reset the split probabilities), five draw-changing behaviors no
+pin held (the leaf-scale refusal on several forests, a bare `normal()` returning sharers to the default, drawn-to-drawn
+k after a run, a forest's own move settings through `$setModel`, a lone sharer among several candidates) and some wording.
+All fixed and pinned, each pin failing on the unfixed code; the twin oracle, main A/B (27 calls main accepts, bitwise),
+and the exact arms held throughout.
+
+Gates at slice 4: full suite in one process 40828 passed, 0 failed; tests/cpp 425 ok, plain and ASan+UBSan; R-loaded
+ASan+UBSan on the touched files 0 diagnostics; reference build equivalence 55/55, bcf 19/19, multinomial 11/11 bitwise;
+exact arms (forest-prior-exact shared, probit-k-scale-exact, created-held-then-chi, bcf-exact, multinomial-exact), quick,
+pass; lintr, air, codoc, win-drift, doc-freshness, verify-anchors clean. On the rebased tip: the suite in one process,
+40641 passed, 0 failed, then none of the warnings a retired spelling gave. The x86 leg and CI follow the rebase onto
+main.
+
+The calls made at slice 4 are in dec-A258. The follow-up TODO item setmodel-variance-forest-record names the one
+difference left between creation and `$setModel`: creation from a model reads its variance-forest record and
+`$setModel` keeps the sampler's (call 31).
 
 ## Open calls
 

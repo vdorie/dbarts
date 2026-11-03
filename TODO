@@ -189,26 +189,6 @@ items
     probability as the variable moves, a category margin on the result
     and one line per category in the plots. Refused until then.
     Scheduled after 1.0-0 (VD 2026-10-04, dec-B209).
-  setmodel-parameters-not-structure: setModel changes a model's
-    parameters and refuses a model that differs in structure, by name,
-    before anything is stored (VD 2026-10-05, dec-B254). To build, for
-    1.0-0, after the merge to main if need be: the refusal of every
-    structural difference (today another family's model, a Student-t
-    change, interaction limits, blocks and Gaussian-process settings are
-    accepted and not honored); setters for the Student-t degrees of
-    freedom, a fixed negative-binomial shape, a Gaussian-process
-    lengthscale and tree priors on forests past the first and on the
-    variance forest; DART's own settings, and the ordinary prior
-    settings on a DART sampler; and five defects: run()'s k column after
-    k is switched between fixed and drawn (a regression against 0.9-34),
-    a zero split probability on a column the trees use (and, with it,
-    that a zero-probability column is still split on once the
-    positive ones run out along a path, as in 0.9-34:
-    CGMTreePrior::drawSplitVariable returns the first available column
-    whatever its probability), a tree-move
-    mixture that does not reach the variance forest, raw leaf-prior
-    slots edited alone, and a residual prior stored on a family with no
-    residual scale.
   setmodel-variance-forest-record: a model's variance-forest record is
     read at creation from a model, new("dbartsSampler", control, model,
     data) with model@variance@power = 4 running variance power 4, while
@@ -865,10 +845,6 @@ items
     beside setForestBasis's; it waits for setData on several forests,
     refused today (dec-B362). setForestBasis(updateBasisScale = TRUE)
     landed (dec-A244).
-  forest-door: ruled (dec-B518 to B525, B535, B538 to B540, B550). Slices 1 and 2 are built on
-    the branch forest-door: $setForest, $getForest, $setVarianceForest, $getVarianceForest;
-    $setLeafPrior(forests = ) gone. Slice 3, a sharer leaving its group, is required for 1.0-0 and
-    follows setmodel-parameters' slice 4. docs/plans/forest-door.md.
   leaf-prior-writer-by-level: the reader and the writer are built
     (setmodel-parameters' slice 4). The creation summary of invchi(df, 0)
     still reads "chi ... inf scale".
@@ -900,7 +876,7 @@ items
     measure). Costs as ruled: a hold at a large sd jumps, a release with
     no basis at a large sd is slower, and holding a factor changes the
     model (docs/plans/forest-amplitude-normal.md, Every live path). After
-    forest-door and setmodel-parameters' slice 4; about 400 lines as
+    forest-door and setmodel-parameters' slice 4, both landed; about 400 lines as
     estimated before dec-B550, which should fall. To design: the spelling that returns a
     coefficient to the normal or releases a hold, an unstated amplitude
     changing nothing. For 1.0-0.
@@ -997,18 +973,10 @@ items
     fits that are not finite. No stored state holds such a value; a
     block edited by hand can, within one family as across two
     (docs/plans/state-family-record-removal.md, landing note).
-  single-forest-vars-leftovers: two things the column restriction on a
-    single declared forest left (docs/design/single-forest-vars.md). A
-    zero split probability does not exclude a column once the positive
-    ones run out along a path, with split.probs alone and no vars: with
-    two 0/1 columns held to one cut each (n.cuts of 1, or quantile cuts)
-    beside a column given probability zero, that column is split on
-    about 45000 times in 2000 sweeps of 20 trees, in nearly every sweep.
-    On the default grid of 100 cuts it is rare, not absent: none on
-    five fixtures of six and about 3500 such splits on the sixth.
-    setmodel-parameters-not-structure carries the fix. And the model's
-    forest.columns attribute moves into the first forest's record when
-    the control migration gives every model one.
+  single-forest-vars-leftovers: the column restriction on a single declared
+    forest left one thing (docs/design/single-forest-vars.md): the model's
+    forest.columns attribute moves into the first forest's record when the
+    control migration gives every model one.
   weighted-binary: arbitrary real weights on the binary families need
     a real-shape Polya-Gamma sampler; IPW is a pseudo-likelihood trap,
     and the approximate-PG decision is shared with
