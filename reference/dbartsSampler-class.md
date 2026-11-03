@@ -1054,9 +1054,7 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   refused, as at creation; every other
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
   argument, `amplitude` included, is fixed at creation (a basis changes
-  through `setForestBasis`). Each `sd` lands in the channel creation
-  gave it - the median of a drawn forest's coefficient where it was
-  created without a basis, the forest's own leaf scale otherwise -
+  through `setForestBasis`). Each `sd` sets the forest's leaf scale,
   divided by the sampler's unit as creation divides it, leaves the scale
   a numeric forest's default was taken from, states the forest from then
   on, also where it is the number `getLeafPrior` reports in force, which
@@ -2349,8 +2347,8 @@ draw when `k` is drawn in that run (a run records no `k` while it is
 fixed), read without running, as `getSigmas` reports `sigma`: after a
 run it is bitwise the last draw. A fixed `k` is reported once per chain,
 and a forest whose scale a calibration map sets reports 1; a forest with
-no basis stating neither `sd` nor `student()` reports the leaf prior's
-`k`, and those that share one prior total (see
+no basis stating neither `sd` nor a coefficient's prior reports the leaf
+prior's `k`, and those that share one prior total (see
 [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)) each
 the group's one. It is `k` whatever terms the prior was named in,
 relative to `getLeafPrior()$k.scale`: under an `sd`-named prior, that
@@ -2459,16 +2457,18 @@ n.forests x n.chains (bitwise the `forest = 1` read on a single-forest
 sampler). For `getForestAmplitudes`, the named forest's amplitudes - one
 per basis column - as a q x n.chains matrix, or, at the default
 `forest = NULL`, every forest's stacked forest-major into a sum(q) x
-n.chains matrix. The vector is *ragged*: a Bayesian causal forest's
-forest `1` carries the single \\a\\ on its implicit intercept and its
-forest `2` the pair \\(b_0, b_1)\\, so the stacked read is the \\(a,
-b_0, b_1)\\ of \\y = a \mu(x) + b_z \tau(x) + \epsilon\\. For
-`getForestVariableCounts`, the requested forest's current per-predictor
-split counts, an n.predictors x n.chains integer matrix, or, at the
-default `forest = NULL`, every forest stacked the same way as
-`getForestFits`, n.predictors x n.forests x n.chains; its rows are named
-by the training matrix's column names when that matrix carries them (on
-margin 1 in both shapes), and left unnamed otherwise.
+n.chains matrix. A drawn one has prior median size 1, on a factor the
+difference between two levels' amplitudes, a level's own having 0.71.
+The vector is *ragged*: a Bayesian causal forest's forest `1` carries
+the single \\a\\ on its implicit intercept and its forest `2` the pair
+\\(b_0, b_1)\\, so the stacked read is the \\(a, b_0, b_1)\\ of \\y = a
+\mu(x) + b_z \tau(x) + \epsilon\\. For `getForestVariableCounts`, the
+requested forest's current per-predictor split counts, an n.predictors x
+n.chains integer matrix, or, at the default `forest = NULL`, every
+forest stacked the same way as `getForestFits`, n.predictors x n.forests
+x n.chains; its rows are named by the training matrix's column names
+when that matrix carries them (on margin 1 in both shapes), and left
+unnamed otherwise.
 
 For `predictForests`, the off-sample twin of `getForestFits`: every
 forest replayed separately at `x.test`, as an n.test x n.forests x
@@ -2542,20 +2542,19 @@ scale times the unit the sampler derived at creation - `sd.stated`,
 `TRUE` or `FALSE`, `multiplier`, what the forest multiplies, `"none"`,
 `"factor"` or `"numeric"`, and `amplitude`, `fixed()` where the forest's
 coefficient is held, `student(df)` where it is drawn under the Student-t
-prior its creation stated, and absent where it is drawn under its
-default prior. `prior.sd.of` says what `sd` is the size of: `"forest"`
-for a forest with no basis, `"level difference"` for a factor and
-`"forest, per unit of basis"` for a numeric column, the size exactly
-where the coefficient is held, with `" (prior median)"` where it is
-drawn. A numeric forest's `sd` is per unit of its column and carries the
-column's name where the basis has one, and the list adds `basis.scale`,
-where the data object records one, the standard deviation of the column
-the default was taken from at creation, named as `sd` is. `k.scale` is
-the forest's own prior sd before its coefficient, in the response's
-units: `sd` itself where the coefficient is held, `sd` over 0.674 where
-it is drawn and the forest has a basis, and the unit where a drawn
-forest with no basis carries its `sd` as the median of its coefficient's
-prior. A forest with no basis stating neither `sd` nor `student()`,
+prior its creation stated, `normal()` where a forest with no basis is
+drawn under the normal prior its creation stated, and absent where it is
+drawn under its default prior. `prior.sd.of` says what `sd` is the size
+of: `"forest"` for a forest with no basis, `"level difference"` for a
+factor and `"forest, per unit of basis"` for a numeric column, the size
+exactly where the coefficient is held, with `" (at a coefficient of 1)"`
+where it is drawn. A numeric forest's `sd` is per unit of its column and
+carries the column's name where the basis has one, and the list adds
+`basis.scale`, where the data object records one, the standard deviation
+of the column the default was taken from at creation, named as `sd` is.
+`k.scale` is the forest's own prior sd before its coefficient, in the
+response's units: the forest's `sd`, on every forest but a sharer. A
+forest with no basis stating neither `sd` nor a coefficient's prior,
 alone or sharing one prior total with others (see
 [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)), reads
 as one forest does, under the fitting function's leaf prior:
@@ -2571,10 +2570,10 @@ sampler built with `forests =` or `dbartsData(bases = )` (see
 [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)), `k` is
 pinned at 1, `k.scale` is the map's leaf scale, and the entries above
 that the map adds are absent (so `NULL`) on every other forest, a
-multinomial one included. A drawn forest with no basis carries its `sd`
-as the median of its coefficient's prior, which does not move with the
-mixture's own variance auxiliary, which is drawn; a level's coefficient
-is drawn under prior variance 1/2 and a numeric column's under 1.
+multinomial one included. A drawn coefficient is a multiplier with prior
+median size 1 - on a factor the difference between two levels'
+coefficients, a level's own having 0.71 - and on a numeric column
+through bcf's 0.674.
 
 The spread (`k.scale / k`) describes the LEAF-PARAMETER scale of the
 forest total. It equals the prior standard deviation of \\f(x)\\ at
@@ -2631,27 +2630,27 @@ multinomial sampler takes `normal(k = )` and applies the `k` to every
 category forest, leaving the softmax map's leaf scale; a named sd or a
 `k` hyperprior is refused there, as at creation. A sampler whose forests
 carry amplitudes takes `forests = list(forest(sd = ), ...)`, restating
-each named forest's spread, in the response's units, in the channel its
-creation gave it, and any `leaf.prior` other than `normal()` and, where
-no forest takes the leaf prior, `normal(k = 2)`, which change nothing,
-is refused there. A forest with no basis stating neither `sd` nor
-`student()` alone leaves the leaf prior at an `sd` stated for it, its
-`k` then pinned at 1, and takes a `leaf.prior` only restating the one in
-force, so `normal(k = 2)` is refused unless it is the one in force. A
-forest with no basis stating `student()` and no `sd` takes its size from
-the leaf prior at creation only: `normal()` and `normal(k = 2)` are
-taken and change nothing, whatever `k` it was created at, and every
-other `leaf.prior` is refused. Where forests with no basis share one
-prior total, their part is fixed at creation: an `sd` stated in
-`forests` for one of them is refused, as is every `leaf.prior`, the
-total being the leaf prior they were created under; make a new sampler
-to change it. Both writes are recorded where re-creation reads them. The
-map's k.scale is recorded at creation too, so a re-creation after
-`setResponse` or `setOffset` at `updateScale = FALSE` states every
-forest against the same k.scale as the live sampler. A value that is not
-a single positive finite number is an error. A heteroscedastic sampler's
-variance forest is a separate leaf model and is not addressable.
-`setModel` changes everything else.
+each named forest's spread, in the response's units, and any
+`leaf.prior` other than `normal()` and, where no forest takes the leaf
+prior, `normal(k = 2)`, which change nothing, is refused there. A write
+changes the model. A forest with no basis stating neither `sd` nor a
+coefficient's prior alone leaves the leaf prior at an `sd` stated for
+it, its `k` then pinned at 1, and takes a `leaf.prior` only restating
+the one in force, so `normal(k = 2)` is refused unless it is the one in
+force. A forest with no basis stating a coefficient's prior and no `sd`
+takes its size from the leaf prior at creation only: `normal()` and
+`normal(k = 2)` are taken and change nothing, whatever `k` it was
+created at, and every other `leaf.prior` is refused. Where forests with
+no basis share one prior total, their part is fixed at creation: an `sd`
+stated in `forests` for one of them is refused, as is every
+`leaf.prior`, the total being the leaf prior they were created under;
+make a new sampler to change it. Both writes are recorded where
+re-creation reads them. The map's k.scale is recorded at creation too,
+so a re-creation after `setResponse` or `setOffset` at
+`updateScale = FALSE` states every forest against the same k.scale as
+the live sampler. A value that is not a single positive finite number is
+an error. A heteroscedastic sampler's variance forest is a separate leaf
+model and is not addressable. `setModel` changes everything else.
 
 For `storeState`, `NULL` invisibly; it is called for its side effect of
 capturing the sampler's current engine state into the serializable

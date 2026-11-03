@@ -143,7 +143,10 @@ The residual priors chisq and fixed are what a family
       stated through <code><a href="forest.html">forest</a>(sd = )</code>, a different quantity),
       and on a hurdle fit, whose two parts are on different scales.
       <code>NULL</code> leaves either unnamed; <code>NA</code> is a missing value and is
-      refused, here and in <code>linear</code> and <code>gp</code>.</p></dd>
+      refused, here and in <code>linear</code> and <code>gp</code>. A bare <code>normal()</code>
+      given as a forest's <code>amplitude</code> is something else, a normal prior on
+      that forest's drawn coefficient whose median size is 1 (on a factor, the
+      difference between two levels' coefficients); see <code><a href="forest.html">forest</a></code>.</p></dd>
 
     <dt><code>linear(columns, k = NULL, sd = NULL)</code></dt>
 <dd><p>Each leaf fits an intercept plus a linear term in the designated

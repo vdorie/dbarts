@@ -494,7 +494,10 @@ The constructor is not exported: it resolves by bare name inside the
 <p>Where the coefficient is held, by <code>amplitude = fixed()</code> or on a forest
     with no basis that states no prior, it is 1, what it multiplies is the
     basis, and "size" is the prior standard deviation, exactly. Where it is
-    drawn the size is itself uncertain, and <code>sd</code> is its prior median.</p>
+    drawn it is a multiplier whose prior median size is 1 (on a factor, the
+    difference between two levels' coefficients, a level's own being 0.71): the
+    forest's size is the coefficient times <code>sd</code>, uncertain, and a
+    coefficient of size 1 means the size stated.</p>
 <p>Not stated, <code>sd</code> for a forest with no basis is the size the fitting
     function's leaf prior gives the one forest of a fit, beside whatever other
     forests the model has: by default a quarter of the response's range under a
@@ -624,27 +627,33 @@ The constructor is not exported: it resolves by bare name inside the
     <code>basis</code> carries, or one for each level of its <code>basis</code>. Left out,
     it is drawn each sweep under a normal prior on a forest with a
     <code>basis</code>, and a forest with none is held at 1, its size the
-    <code>sd</code> it states or its leaf prior's. <code>student(df)</code> draws it under a Student-t
+    <code>sd</code> it states or its leaf prior's. <code>normal()</code> draws it under a
+    normal prior, on a forest with no basis too, and takes no <code>k</code> or
+    <code>sd</code> of its own. <code>student(df)</code> draws it under a Student-t
     prior with <code>df</code> degrees of freedom, finite and at least 1;
-    <code>student()</code> is <code>student(1)</code>, the half-Cauchy. With a basis the
-    t is scaled so that its median size is the normal's, so the forest's
-    <code>sd</code> keeps its meaning, the prior median of what the forest
-    contributes, and only the tails move: a coefficient ten times its median
-    size has prior probability 0.06 under <code>student(1)</code>, 0.005 under
+    <code>student()</code> is <code>student(1)</code>, the half-Cauchy. On every kind a
+    drawn coefficient's prior median size is 1, under <code>normal()</code> and
+    <code>student(df)</code>, so only the tails move (on a factor it is the
+    difference between two levels' coefficients that has median size 1, a
+    level's own having 0.71): a coefficient ten times its
+    median size has prior probability 0.06 under <code>student(1)</code>, 0.005 under
     <code>student(3)</code> and about \(10^{-11}\) under the normal. That
     tail lets the coefficient follow a multiplier whose scale is far from what
     the <code>sd</code> states, at the cost of slower mixing along the ridge the
-    coefficient shares with the forest's leaves. With no basis the
-    coefficient's size is the forest's size, its median the <code>sd</code> or, where
-    none is stated, the size the fitting function's leaf prior gives, its
-    prior median where <code>k</code> has a <code>chi()</code> prior or the <code>sd</code> an
+    coefficient shares with the forest's leaves. At one <code>sd</code>, a drawn
+    normal's contribution has about 1.48 times the standard deviation of a
+    <code>fixed()</code> forest's, since the coefficient and the trees are both
+    random, and thinner tails than <code>student(df)</code>'s. With no basis
+    <code>sd</code> is the size of the trees or, where none is stated, the size the
+    fitting function's leaf prior gives, its prior median where <code>k</code> has a <code>chi()</code> prior or the <code>sd</code> an
     <code>invchi()</code> prior, and refused where that prior or <code>k</code> is flat and
     gives no size. Bayesian causal forests'
     prognostic prior is written <code>amplitude = student(1), sd = 2 * sd(y)</code>,
     with <code>sd = 1</code> under <code>"probit"</code> and <code>sd = pi / sqrt(3)</code> under
     <code>"logistic"</code>.
-    The draw is exact, a normal coefficient given a variance drawn from its
-    inverse-gamma conditional. <code>fixed()</code> holds it for the sampler's life,
+    The draw is exact: under <code>student(df)</code> a normal coefficient given a
+    variance drawn from its inverse-gamma conditional, under <code>normal()</code>
+    a normal coefficient alone. <code>fixed()</code> holds it for the sampler's life,
     the choice being made at creation, wherever the forest stands: a held
     coefficient is 1, and what it multiplies is the basis, so a forest with no
     <code>basis</code> enters at 1, a forest on a numeric column at the column as
@@ -661,13 +670,14 @@ The constructor is not exported: it resolves by bare name inside the
     forest times -0.5 and 0.5. A held coefficient cannot adapt to an
     <code>sd</code> that is too small; where the effect may be larger, state
     <code>sd</code> or let the coefficient be drawn. <code>fixed</code> alone is taken as
-    <code>fixed()</code>, and <code>student</code> alone as <code>student()</code>; no other
-    value is, a response family among them. Outside the argument that takes
-    them the constructors are <code>dbartsPriors$fixed()</code> and
+    <code>fixed()</code>, <code>normal</code> alone as <code>normal()</code> and <code>student</code>
+    alone as <code>student()</code>; no other value is, a response family among them.
+    Outside the argument that takes them the constructors are
+    <code>dbartsPriors$fixed()</code>, <code>dbartsPriors$normal()</code> and
     <code>dbartsPriors$student()</code>. The prior is stated for a forest of a model
     of several, at creation; a model of one forest has no coefficient to give
-    a prior, so there <code>fixed()</code> restates the default and <code>student()</code>
-    is refused, its size being drawn through the fitting function's leaf prior,
+    a prior, so there <code>fixed()</code> restates the default and <code>normal()</code>
+    and <code>student()</code> are refused, its size being drawn through the fitting function's leaf prior,
     as <code>leaf.prior = normal(k = chi(1.5, 2))</code> or
     <code>normal(sd = invchi(1.5, s))</code>.
     <code>$getLeafPrior(f)$amplitude</code> reads it back.</p></dd>
@@ -696,7 +706,8 @@ The constructor is not exported: it resolves by bare name inside the
   forest \(\tau\) over the columns <code>vars</code> allows, and the
   amplitudes \((a, b_0, b_1)\) joining them, read back with
   <code>$getForestAmplitudes</code>; \(a\) is 1 unless the prognostic forest
-  states <code>amplitude = student(1)</code>, as Bayesian causal forests' prior does. Gaussian, <code>"probit"</code> and <code>"logistic"</code>
+  states <code>amplitude = student(1)</code>, as Bayesian causal forests' prior does, or
+  <code>normal()</code>. Gaussian, <code>"probit"</code> and <code>"logistic"</code>
   responses; under a latent family the combination is the index rather than
   the mean, on the link's own fixed scale, and <code>"aft"</code>, <code>"ordinal"</code>
   and <code>"nbinom"</code> are refused at creation naming what each is missing.</p>
@@ -727,10 +738,10 @@ The constructor is not exported: it resolves by bare name inside the
   <code>$getLeafPrior(f)</code> and <code>$getK(f)</code> reading as one forest's, so the
   forest is what <code><a href="bart.html">bart</a></code> would fit, the other forests added. It
   leaves that prior by stating <code>sd</code>, held at it, or
-  <code>amplitude = student()</code>, drawn. A model may hold any number, as
+  <code>amplitude = normal()</code> or <code>student()</code>, drawn. A model may hold any number, as
   <code>y ~ forest(x1) + forest(x2) + forest(x3)</code>, a <code>forests</code> list or
   a data object's <code>bases</code> with several <code>NULL</code> entries. Two or more
-  of them that state no <code>sd</code> and no <code>amplitude = student()</code> share
+  of them that state no <code>sd</code> and no <code>amplitude = normal()</code> or <code>student()</code> share
   one prior total, the size the fitting function gives its one forest: its
   <code>k</code> or <code>leaf.prior</code>, <code>k = 2</code> by default under a continuous
   response and <code>k</code> drawn under <code>chi(1.5, 2)</code> under
@@ -751,9 +762,9 @@ The constructor is not exported: it resolves by bare name inside the
   <code>interactions</code> and <code>blocks</code>, a constraint on one forest, are
   refused and stated on the forest they constrain. A forest that states
   <code>sd</code> has that size and leaves the share, its coefficient held unless
-  it states <code>amplitude = student()</code>.
+  it states <code>amplitude = normal()</code> or <code>student()</code>.
   <code>amplitude = fixed()</code> on a forest that shares is taken and changes
-  nothing; <code>student()</code> is refused there, since such a forest has no
+  nothing; <code>normal()</code> and <code>student()</code> are refused there, since such a forest has no
   coefficient of its own. <code>$getLeafPrior(f)</code> on it gives the fitting
   function's leaf prior as <code>leaf.prior</code>, its part in force as
   <code>sd</code> (<code>NA</code> where <code>k</code> is drawn) and <code>prior.sd.of</code>
@@ -835,8 +846,8 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-in"><span><span class="co"># than recomputed from the call: forest 2 is the one carrying a basis</span></span></span>
 <span class="r-in"><span><span class="va">calibration</span> <span class="op">&lt;-</span> <span class="va">sampler</span><span class="op">$</span><span class="fu">getLeafPrior</span><span class="op">(</span><span class="fl">2L</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">basis</span> <span class="op">&lt;-</span> <span class="va">sampler</span><span class="op">$</span><span class="va">data</span><span class="op">@</span><span class="va">bases</span><span class="op">[[</span><span class="fl">2L</span><span class="op">]</span><span class="op">]</span></span></span>
-<span class="r-in"><span><span class="co"># its coefficients' prior variance is 1/2</span></span></span>
-<span class="r-in"><span><span class="va">indexSd</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="va">calibration</span><span class="op">$</span><span class="va">k.scale</span><span class="op">^</span><span class="fl">2</span> <span class="op">*</span> <span class="fl">0.5</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowSums</a></span><span class="op">(</span><span class="va">basis</span><span class="op">^</span><span class="fl">2</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="co"># its coefficients' prior variance is 1/2 over 0.674^2</span></span></span>
+<span class="r-in"><span><span class="va">indexSd</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="op">(</span><span class="va">calibration</span><span class="op">$</span><span class="va">k.scale</span> <span class="op">/</span> <span class="fl">0.674</span><span class="op">)</span><span class="op">^</span><span class="fl">2</span> <span class="op">*</span> <span class="fl">0.5</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowSums</a></span><span class="op">(</span><span class="va">basis</span><span class="op">^</span><span class="fl">2</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># the same model written in a formula, the first forest written out; the</span></span></span>
 <span class="r-in"><span><span class="co"># columns of a basis are named as lm() would name them</span></span></span>
@@ -885,7 +896,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   trees: 10, 10; 20 in all</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000474</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000586</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 2 2 5 2 3 2 </span>

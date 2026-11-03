@@ -104,7 +104,11 @@ A list of functions:
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)`(sd = )`,
   a different quantity), and on a hurdle fit, whose two parts are on
   different scales. `NULL` leaves either unnamed; `NA` is a missing
-  value and is refused, here and in `linear` and `gp`.
+  value and is refused, here and in `linear` and `gp`. A bare `normal()`
+  given as a forest's `amplitude` is something else, a normal prior on
+  that forest's drawn coefficient whose median size is 1 (on a factor,
+  the difference between two levels' coefficients); see
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md).
 
 - `linear(columns, k = NULL, sd = NULL)`:
 

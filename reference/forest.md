@@ -508,7 +508,10 @@ forest(
   Where the coefficient is held, by `amplitude = fixed()` or on a forest
   with no basis that states no prior, it is 1, what it multiplies is the
   basis, and "size" is the prior standard deviation, exactly. Where it
-  is drawn the size is itself uncertain, and `sd` is its prior median.
+  is drawn it is a multiplier whose prior median size is 1 (on a factor,
+  the difference between two levels' coefficients, a level's own being
+  0.71): the forest's size is the coefficient times `sd`, uncertain, and
+  a coefficient of size 1 means the size stated.
 
   Not stated, `sd` for a forest with no basis is the size the fitting
   function's leaf prior gives the one forest of a fit, beside whatever
@@ -653,36 +656,42 @@ forest(
   `basis` carries, or one for each level of its `basis`. Left out, it is
   drawn each sweep under a normal prior on a forest with a `basis`, and
   a forest with none is held at 1, its size the `sd` it states or its
-  leaf prior's. `student(df)` draws it under a Student-t prior with `df`
-  degrees of freedom, finite and at least 1; `student()` is
-  `student(1)`, the half-Cauchy. With a basis the t is scaled so that
-  its median size is the normal's, so the forest's `sd` keeps its
-  meaning, the prior median of what the forest contributes, and only the
-  tails move: a coefficient ten times its median size has prior
-  probability 0.06 under `student(1)`, 0.005 under `student(3)` and
-  about \\10^{-11}\\ under the normal. That tail lets the coefficient
-  follow a multiplier whose scale is far from what the `sd` states, at
-  the cost of slower mixing along the ridge the coefficient shares with
-  the forest's leaves. With no basis the coefficient's size is the
-  forest's size, its median the `sd` or, where none is stated, the size
-  the fitting function's leaf prior gives, its prior median where `k`
-  has a `chi()` prior or the `sd` an `invchi()` prior, and refused where
-  that prior or `k` is flat and gives no size. Bayesian causal forests'
-  prognostic prior is written `amplitude = student(1), sd = 2 * sd(y)`,
-  with `sd = 1` under `"probit"` and `sd = pi / sqrt(3)` under
-  `"logistic"`. The draw is exact, a normal coefficient given a variance
-  drawn from its inverse-gamma conditional. `fixed()` holds it for the
-  sampler's life, the choice being made at creation, wherever the forest
-  stands: a held coefficient is 1, and what it multiplies is the basis,
-  so a forest with no `basis` enters at 1, a forest on a numeric column
-  at the column as given, and a forest on a factor, a character or a
-  logical vector of two levels at 0 for the first level and 1 for the
-  second. The forest is then held out of the first level and enters at
-  full size for the second, so it is the second level's difference from
-  the first. Another coding is another basis, and another size is `sd`,
-  which a held coefficient makes exact: the forest's contribution then
-  has prior standard deviation `sd`. A held forest with no basis that
-  states no `sd` takes the leaf prior
+  leaf prior's. `normal()` draws it under a normal prior, on a forest
+  with no basis too, and takes no `k` or `sd` of its own. `student(df)`
+  draws it under a Student-t prior with `df` degrees of freedom, finite
+  and at least 1; `student()` is `student(1)`, the half-Cauchy. On every
+  kind a drawn coefficient's prior median size is 1, under `normal()`
+  and `student(df)`, so only the tails move (on a factor it is the
+  difference between two levels' coefficients that has median size 1, a
+  level's own having 0.71): a coefficient ten times its median size has
+  prior probability 0.06 under `student(1)`, 0.005 under `student(3)`
+  and about \\10^{-11}\\ under the normal. That tail lets the
+  coefficient follow a multiplier whose scale is far from what the `sd`
+  states, at the cost of slower mixing along the ridge the coefficient
+  shares with the forest's leaves. At one `sd`, a drawn normal's
+  contribution has about 1.48 times the standard deviation of a
+  `fixed()` forest's, since the coefficient and the trees are both
+  random, and thinner tails than `student(df)`'s. With no basis `sd` is
+  the size of the trees or, where none is stated, the size the fitting
+  function's leaf prior gives, its prior median where `k` has a `chi()`
+  prior or the `sd` an `invchi()` prior, and refused where that prior or
+  `k` is flat and gives no size. Bayesian causal forests' prognostic
+  prior is written `amplitude = student(1), sd = 2 * sd(y)`, with
+  `sd = 1` under `"probit"` and `sd = pi / sqrt(3)` under `"logistic"`.
+  The draw is exact: under `student(df)` a normal coefficient given a
+  variance drawn from its inverse-gamma conditional, under `normal()` a
+  normal coefficient alone. `fixed()` holds it for the sampler's life,
+  the choice being made at creation, wherever the forest stands: a held
+  coefficient is 1, and what it multiplies is the basis, so a forest
+  with no `basis` enters at 1, a forest on a numeric column at the
+  column as given, and a forest on a factor, a character or a logical
+  vector of two levels at 0 for the first level and 1 for the second.
+  The forest is then held out of the first level and enters at full size
+  for the second, so it is the second level's difference from the first.
+  Another coding is another basis, and another size is `sd`, which a
+  held coefficient makes exact: the forest's contribution then has prior
+  standard deviation `sd`. A held forest with no basis that states no
+  `sd` takes the leaf prior
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) gives the
   one forest of an ordinary fit, so `fixed()` restates what such a
   forest has with no prior stated. A numeric column held enters as
@@ -690,15 +699,15 @@ forest(
   `basis = z - 0.5` held is the forest times -0.5 and 0.5. A held
   coefficient cannot adapt to an `sd` that is too small; where the
   effect may be larger, state `sd` or let the coefficient be drawn.
-  `fixed` alone is taken as `fixed()`, and `student` alone as
-  `student()`; no other value is, a response family among them. Outside
-  the argument that takes them the constructors are
-  `dbartsPriors$fixed()` and `dbartsPriors$student()`. The prior is
-  stated for a forest of a model of several, at creation; a model of one
-  forest has no coefficient to give a prior, so there `fixed()` restates
-  the default and `student()` is refused, its size being drawn through
-  the fitting function's leaf prior, as
-  `leaf.prior = normal(k = chi(1.5, 2))` or
+  `fixed` alone is taken as `fixed()`, `normal` alone as `normal()` and
+  `student` alone as `student()`; no other value is, a response family
+  among them. Outside the argument that takes them the constructors are
+  `dbartsPriors$fixed()`, `dbartsPriors$normal()` and
+  `dbartsPriors$student()`. The prior is stated for a forest of a model
+  of several, at creation; a model of one forest has no coefficient to
+  give a prior, so there `fixed()` restates the default and `normal()`
+  and `student()` are refused, its size being drawn through the fitting
+  function's leaf prior, as `leaf.prior = normal(k = chi(1.5, 2))` or
   `normal(sd = invchi(1.5, s))`. `$getLeafPrior(f)$amplitude` reads it
   back.
 
@@ -728,11 +737,11 @@ the shape of the Bayesian causal forest \\y = a\\\mu(x) + b_z\\\tau(x) +
 modulating forest \\\tau\\ over the columns `vars` allows, and the
 amplitudes \\(a, b_0, b_1)\\ joining them, read back with
 `$getForestAmplitudes`; \\a\\ is 1 unless the prognostic forest states
-`amplitude = student(1)`, as Bayesian causal forests' prior does.
-Gaussian, `"probit"` and `"logistic"` responses; under a latent family
-the combination is the index rather than the mean, on the link's own
-fixed scale, and `"aft"`, `"ordinal"` and `"nbinom"` are refused at
-creation naming what each is missing.
+`amplitude = student(1)`, as Bayesian causal forests' prior does, or
+`normal()`. Gaussian, `"probit"` and `"logistic"` responses; under a
+latent family the combination is the index rather than the mean, on the
+link's own fixed scale, and `"aft"`, `"ordinal"` and `"nbinom"` are
+refused at creation naming what each is missing.
 
 What the defaults put on the combined location, since under a latent
 family that location IS the index and no drawn \\\sigma\\ stands between
@@ -759,10 +768,11 @@ fitting function's leaf prior as its one forest does, whole: its `k`, a
 `$getLeafPrior(f)` and `$getK(f)` reading as one forest's, so the forest
 is what [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
 would fit, the other forests added. It leaves that prior by stating
-`sd`, held at it, or `amplitude = student()`, drawn. A model may hold
-any number, as `y ~ forest(x1) + forest(x2) + forest(x3)`, a `forests`
-list or a data object's `bases` with several `NULL` entries. Two or more
-of them that state no `sd` and no `amplitude = student()` share one
+`sd`, held at it, or `amplitude = normal()` or `student()`, drawn. A
+model may hold any number, as
+`y ~ forest(x1) + forest(x2) + forest(x3)`, a `forests` list or a data
+object's `bases` with several `NULL` entries. Two or more of them that
+state no `sd` and no `amplitude = normal()` or `student()` share one
 prior total, the size the fitting function gives its one forest: its `k`
 or `leaf.prior`, `k = 2` by default under a continuous response and `k`
 drawn under `chi(1.5, 2)` under `"probit"` and `"logistic"`. Each of the
@@ -784,16 +794,17 @@ that states none, and are refused only where every one states its own;
 its `interactions` and `blocks`, a constraint on one forest, are refused
 and stated on the forest they constrain. A forest that states `sd` has
 that size and leaves the share, its coefficient held unless it states
-`amplitude = student()`. `amplitude = fixed()` on a forest that shares
-is taken and changes nothing; `student()` is refused there, since such a
-forest has no coefficient of its own. `$getLeafPrior(f)` on it gives the
-fitting function's leaf prior as `leaf.prior`, its part in force as `sd`
-(`NA` where `k` is drawn) and `prior.sd.of` `"forest, shared"`, and
-`$getK(f)` the group's `k`. The part of a group is fixed at creation:
-`$setLeafPrior(forests = )` refuses an `sd` stated for such a forest,
-and `$setLeafPrior(leaf.prior)` is refused on its sampler. One forest
-alone leaves the leaf prior by `$setLeafPrior(forests = )` as by stating
-`sd` at creation, its `k` then pinned at 1. Printed, a line after the
+`amplitude = normal()` or `student()`. `amplitude = fixed()` on a forest
+that shares is taken and changes nothing; `normal()` and `student()` are
+refused there, since such a forest has no coefficient of its own.
+`$getLeafPrior(f)` on it gives the fitting function's leaf prior as
+`leaf.prior`, its part in force as `sd` (`NA` where `k` is drawn) and
+`prior.sd.of` `"forest, shared"`, and `$getK(f)` the group's `k`. The
+part of a group is fixed at creation: `$setLeafPrior(forests = )`
+refuses an `sd` stated for such a forest, and
+`$setLeafPrior(leaf.prior)` is refused on its sampler. One forest alone
+leaves the leaf prior by `$setLeafPrior(forests = )` as by stating `sd`
+at creation, its `k` then pinned at 1. Printed, a line after the
 forests' own gives each forest's tree count and their total, and another
 which forests share.
 
@@ -872,8 +883,8 @@ amplitudes <- sampler$getForestAmplitudes()
 # than recomputed from the call: forest 2 is the one carrying a basis
 calibration <- sampler$getLeafPrior(2L)
 basis <- sampler$data@bases[[2L]]
-# its coefficients' prior variance is 1/2
-indexSd <- sqrt(calibration$k.scale^2 * 0.5 * rowSums(basis^2))
+# its coefficients' prior variance is 1/2 over 0.674^2
+indexSd <- sqrt((calibration$k.scale / 0.674)^2 * 0.5 * rowSums(basis^2))
 
 # the same model written in a formula, the first forest written out; the
 # columns of a basis are named as lm() would name them
@@ -922,7 +933,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)
 #>   trees: 10, 10; 20 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.000474
+#> total seconds in loop: 0.000586
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 2 5 2 3 2 

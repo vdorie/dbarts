@@ -1071,9 +1071,10 @@ returned. In the numeric \\y\\ case, the list has components:
   RESPONSE-scale raw total at each draw, i.e. \\\mathrm{response.scale}
   \times f_k(x)\\, with NO amplitude (`glue`) folded in - the same
   quantity the sampler's `$getForestFits` reports, up to that one
-  scalar. The trailing margin is named by the forests' labels (a name in
-  `forests`, else the text of the forest's `basis`, else `forest<i>` for
-  a forest with neither; see
+  scalar, a raw total of prior scale the forest's `sd`, whose
+  coefficient has prior median 1 where it is drawn. The trailing margin
+  is named by the forests' labels (a name in `forests`, else the text of
+  the forest's `basis`, else `forest<i>` for a forest with neither; see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
   `forests` item), as is every per-forest margin or list of the fit and
   of what `extract`, `fitted` and `predict` return, so one forest has
@@ -1408,7 +1409,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.188098
+#> total seconds in loop: 0.207966
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
