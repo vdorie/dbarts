@@ -100,8 +100,7 @@ are compiled once per instruction set in separate translation units that
 cannot move into a consumer's.
 
 Below the bridge, the math and the printing are chosen when the code is
-compiled, not installed at run time. The engine and the support libraries
-call six math names ([`ext_pnorm`, `ext_qnorm`, `ext_dnorm`, `ext_dt`, `ext_qt`, `ext_qchisq`](../src/include/external/nmath.h)),
+compiled. The engine and the support library call six math names ([`ext_pnorm`, `ext_qnorm`, `ext_dnorm`, `ext_dt`, `ext_qt`, `ext_qchisq`](../src/include/external/nmath.h)),
 which in the R package are R's own routines, so every draw is what R
 computes, and print through [`ext_printf`](../src/include/external/io.h),
 R's console there. A build that defines `DBARTS_HOST_STANDALONE` gets a copy
