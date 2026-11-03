@@ -3219,7 +3219,9 @@ dbartsSampler <- setRefClass(
       # recorded on the model, which a copy reads
       familySpec <- attr(newModel, "family.spec", exact = TRUE)
       if (identical(model@family, "nbinom") && !is.null(familySpec)) {
-        newModel@shape <- resolveShape(familySpec@settings[["shape"]])
+        newModel@shape <- resolveShape(
+          familySetting(familySpec, "shape", NA_real_)
+        )
       }
       # the transform the prior is anchored to is data and stays the
       # sampler's, recorded on its data object
