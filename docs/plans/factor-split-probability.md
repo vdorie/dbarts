@@ -1,7 +1,8 @@
 # factor-split-probability: should a factor's prior split probability grow with its number of levels?
 
-Status: PLANNED 2026-11-03; AMENDED the same day from its blind critique (verdict: run after amendments;
-[Amendments after the blind critique](#amendments-after-the-blind-critique)). Research item of TODO "factor
+Status: PLANNED 2026-11-03; AMENDED twice the same day from its blind critique and the critique's re-check
+(both: run after amendments; [Amendments after the blind critique](#amendments-after-the-blind-critique),
+[Amendments after the re-check](#amendments-after-the-re-check)). Research item of TODO "factor
 encoding" (dec-B78), scheduled between the merge to main and the 1.0-0 submission (VD 2026-09-28). Nothing
 has run beyond the sizing probes below.
 
@@ -15,8 +16,8 @@ needs a scratch build (about 30 lines, never landed). A change of default the st
 draw-changing slice with its own plan.
 window: after the merge to main, before 1.0-0 (dec-B78, VD 2026-09-28).
 budget: harness about 800 lines of R (benchmarks/R/factor-split-probability.R) reusing the house's binary
-dataset loaders. Compute about 9 box core-hours if no candidate passes the real-data reading, 20 to 56 if
-one does (the treatment-effect guard is sized to its margin), stop at 65 ([Sizing](#sizing)); report about
+dataset loaders. Compute about 9 box core-hours if no candidate passes the real-data reading, 20 to 46 if
+one does (the treatment-effect guard is sized to its margins), stop at 65 ([Sizing](#sizing)); report about
 5 pages of text plus figures.
 
 ## Summary for the maintainer
@@ -60,16 +61,19 @@ effects. Small published simulations explain the mechanism and do not decide.
 **What decides, fixed before any fit.** Today's rule stays unless a candidate is practically better across
 the real datasets: a gain of more than 1 percent in held-out error, the margin and the test (a Bayesian
 signed-rank test across datasets) both taken from a standard tutorial on comparing methods over many
-datasets (Benavoli, Corani, Demsar and Zaffalon 2017). A candidate that passes must then lose no more
-than that margin on any of the competition's treatment-effect measures (error, bias, interval
-calibration with over- and under-coverage both counting). A result of no difference is reported as such,
-not only as a failure to find one.
+datasets (Benavoli, Corani, Demsar and Zaffalon 2017), with no single dataset made practically worse by
+the same tutorial's test within a dataset; a loss on any one dataset makes the result a trade-off, and
+today's rule stays. The margin is on the error of predicted outcomes, not of the fitted function. A
+candidate that passes must then lose no more than 1 percent in error, and no more than 2 points of
+interval calibration (your bar from the binary interval study, over- and under-coverage both counting),
+on the competition's treatment effects; their bias is reported. A result of no difference is reported as
+such, not only as a failure to find one.
 
 **Your call** (below): whether the bias in split-count importance that a weighted rule brings by
 construction is a reason on its own to keep today's rule. Recommended: no; report it, and say it in the
 manual if a weighted rule wins.
 
-**Cost.** About 9 core-hours on the box if no candidate passes on real data; 20 to 56 if one does, most of
+**Cost.** About 9 core-hours on the box if no candidate passes on real data; 20 to 46 if one does, most of
 it the treatment-effect check, sized so that a candidate as good as today's rule can pass it; stop at 65.
 The result comes to you as a short PDF report after two independent referees.
 
@@ -176,14 +180,16 @@ binary factor weight 1.
   old coding gave 4 to 6 times (probe separation). A 50-level factor beside 10 numeric columns takes 83
   percent of the prior splits.
 - M, matched to the old coding's separating power: w = 4 (1 - 2^(1 - K)) for K >= 3, that is 3, 3.5,
-  3.75 at K = 3, 4, 5 and about 4 beyond. It is the ratio of the indicator coding's pair-separating power
-  to the subset split's, with equal level frequencies; it is the literal reading of what the old coding
-  "gave implicitly" on the new one, and the only rule here that does not grow without bound in K.
+  3.75 at K = 3, 4, 5 and about 4 beyond. It is the ratio of the indicator coding's pair-separating power,
+  2 (1 - sum p_k^2), to the subset split's, (1 - sum p_k^2) 2^(K-2) / (2^(K-1) - 1), so it holds for any
+  level frequencies p_k: the frequency term cancels. It is the literal reading of what the old coding
+  "gave implicitly" on the new one, and the only rule here that does not grow without bound in K. It was
+  derived in this study, not taken from a source, and the report says so.
 - S, sqrt(K - 1). No source argues it. It lies between A and B for every K and crosses M near K = 17, so
   a gain at B and a loss at A cannot both be missed through an unsearched middle of the family.
 - R, reference only: `factors = "indicators"`, the old coding and weight together, on the real regression
-  block and the competition data. Not a candidate (dec-B78 rules the coding); it says what 0.9-34 users
-  had.
+  block and the competition data's 10-replication pilot. Not a candidate (dec-B78 rules the coding); it says
+  what 0.9-34 users had.
 - Dropped after the critique: C, w = K - 1, which differs from B only at K = 3 and 4.
 - Considered and not fitted: the log of the number of distinct subset splits, log2(2^(K-1) - 1), within
   0.2 of K - 1 for K >= 4; a node-local weight from the levels reaching the node, an engine change reached
@@ -219,11 +225,11 @@ nominal, over- and under-coverage both counting; width is reported beside covera
 - Level means, the average of f over the rows at each level, the quantity an analyst reports for a
   factor: RMSE, root-mean-square bias over levels and coverage.
 - Treatment effects (ACIC 2016), as Dorie, Hill, Shalit, Scott and Cervone (2019) scored the competition:
-  the average effect on the treated (bias, RMSE, coverage and width), individual effects (PEHE and the
-  coverage of their intervals), and the effect on the treated within each level of the 16-level factor
+  the average effect on the treated (bias, reported; RMSE, coverage and width), individual effects (PEHE and
+  the coverage of their intervals), and the effect on the treated within each level of the 16-level factor
   x_21, each level weighted by its treated rows. x_21's levels hold 8 to 2,561 rows, so unweighted levels
-  would let a level of 8 rows count as much as one of 2,561; weighting by rows scores the effect per
-  treated individual, the competition's own unit.
+  would let a level of 8 rows count as much as one of 2,561; weighting by rows scores the effect per treated
+  individual, the competition's own unit.
 - Real outcomes: held-out RMSE (CGM 2010; Deshpande's SMSE ratio is its square), summarized also as CGM's
   relative RMSE; coverage of predictive intervals; for binary outcomes, held-out log loss and Brier score.
 - Variable importance: each predictor's share of splits (CGM 2010 sec 5.2 reads usage on the Friedman
@@ -260,14 +266,18 @@ burn-in and draws scaled by the time ratio.
    3-level factors, so every rule gives every column the same weight and the arms are the same model;
    and mushroom, whose classes are separated almost exactly by single predictors, so held-out log loss is
    near zero for every arm. That leaves adult, bank, german, creditapproval, cleveland, infert and birthwt
-   (step 1 confirms each has such a factor). The house's split and cap: 80/20, at most 4,000 training rows
-   past 5,000 rows. 20 splits each.
+   (step 1 confirms each has such a factor). The span condition of Data 1 applies here too, since this
+   block can pass R1 on its own. The house's split and cap: 80/20, at most 4,000 training rows past 5,000
+   rows. 20 splits each.
 3. **ACIC 2016**, run only for a candidate that passes R1 (Dorie et al. 2019; aciccomp2016): 4,802 rows of
-   real covariates, 58 columns with factors of 6, 16 and 5 levels (x_2 and x_24 each have one level
-   holding 98 and 72 percent of the rows); all 77 published settings; the competition's potential outcomes
-   as truth. A fit puts the treatment as a predictor and reads effects from the two counterfactual
-   predictions (Hill 2011). One covariate set: a guard against harm to effects, not evidence that a gain
-   generalizes.
+   real covariates, 58 columns with factors of 6, 16 and 5 levels (x_2 and x_24 each have one level holding
+   98 and 72 percent of the rows); all 77 published settings, taken as fixed: they are the competition's
+   whole design, a grid of the organizers' settings (Dorie et al. 2019) rather than a sample from a
+   population of settings, and the competition reported its scores over them. So the estimand is the average
+   over these 77, and its error comes from replication within settings alone; the competition's potential
+   outcomes are the truth. A fit puts the treatment as a predictor and reads effects from the two
+   counterfactual predictions (Hill 2011). One covariate set: a guard against harm to effects, not evidence
+   that a gain generalizes.
 4. **Designed, to explain the mechanism (they do not decide)**: flexBART DGP 1-4 (Deshpande 2024, sec 4.1;
    ten uniform numerics and one 10-level factor driving the function), n = 1000, 25 replications, 500 test
    points fixed across replications; Strobl et al. (2007), the power case at its four relevance values and
@@ -281,27 +291,45 @@ burn-in and draws scaled by the time ratio.
 For candidate c (B, M or S) and real dataset j, L_cj is the mean over splits of log(RMSE_c / RMSE_A); for
 binary data, of the ratio of held-out log loss. The region of practical equivalence is [-0.01, 0.01], a
 1 percent relative difference in error, Benavoli et al.'s 1 percent carried from accuracy to relative
-error.
+error. It is a margin on the error of predicted outcomes, which on noise-dominated data (Alcohol's SMSE
+is 0.96) is a far larger relative change in the error of the fitted function; the report words
+"equivalent" as equivalent in predicted outcomes, not in f.
 
 - **R1, real outcomes**, by Benavoli et al.'s Bayesian signed-rank test (s = 0.5, pseudo-observation at 0)
   on the L_cj of each block: c passes if in at least one block the posterior probability that c is
   practically better (the region where that probability is the largest of the three) exceeds 0.95, and in
-  neither block does the probability that c is practically worse exceed 0.95. Among several that pass,
-  the one with the larger probability in the regression block. No multiplicity correction: under no
-  difference the test declared a gain in 0 of 400 simulations per candidate (probe bsr), so three
-  candidates add at most three times that. CGM's relative-RMSE boxplots and the per-dataset correlated
-  t-tests are reported, not decisive. A candidate whose probability of practical equivalence exceeds 0.95
+  neither block does the probability that c is practically worse exceed 0.95; and no single dataset is
+  practically worse: by the same tutorial's correlated Bayesian t-test within each dataset (posterior
+  Student t on the split-level log ratios, n - 1 degrees of freedom, scale sqrt(1/n + rho / (1 - rho))
+  times their sd, rho the test share of the rows), any dataset whose probability of L_cj above 0.01
+  exceeds 0.95 makes the result a reported trade-off, not a pass. Among several that pass, the one with
+  the larger probability in the regression block. No multiplicity correction: per candidate, a false pass
+  under no difference ran 0 at precise per-dataset errors and 1.5 percent (regression) and 0.7 percent
+  (binary) at noisy ones (probe bsr2), so the three candidates' family-wise rate is at most about 7
+  percent at the noisy errors by the union bound, near the conventional 5. CGM's relative-RMSE boxplots
+  are reported, not decisive. A candidate whose probability of practical equivalence exceeds 0.95
   is reported as equivalent to today's rule; otherwise as inconclusive.
-- **R2, treatment effects (ACIC 2016)**, for a candidate that passed R1: a non-inferiority reading at the
-  same margin. For each measure, the difference c minus A (log ratio for SATT RMSE, PEHE and the x_21
-  per-level RMSE; difference in distance from 0.95 for the coverage of SATT, of individual effects and of
-  f(x)) is averaged within each of the 77 settings, and c passes the measure if the upper 95 percent bound
-  of the mean over settings lies below 0.01. c passes R2 only if it passes every measure; requiring every
-  one is an intersection-union test, which needs no multiplicity correction (Berger 1982). The number of
-  replications per setting is set from the first 10 by the observed between-setting standard deviation of
-  each measure's difference, to give 80 percent power at a true difference of 0 (an internal pilot that
-  re-estimates only a variance, Wittes and Brittain 1990), capped at 40 by budget; a measure still short of
-  its power at the cap leaves R2 inconclusive.
+- **R2, treatment effects (ACIC 2016)**, for a candidate that passed R1: non-inferiority, measure by
+  measure, over the 77 fixed settings. For each measure the difference c minus A is averaged within each
+  setting, then over settings with equal weight; its standard error is from the within-setting variances
+  alone, sqrt(sum_s sigma_s^2 / R) / 77. c passes a measure if the one-sided 97.5 percent upper bound
+  (the upper end of a two-sided 95 percent interval, the usual non-inferiority convention, ICH E9) lies
+  below the measure's margin:
+  - error measures, the log ratio of SATT RMSE, of PEHE and of the x_21 per-level RMSE: 0.01, the margin
+    of R1 (Benavoli et al.). SATT's bias is inside its RMSE and is reported, not guarded separately;
+  - calibration measures, the coverage of SATT, of individual effects and of f(x), each scored as a
+    setting's distance from 0.95 corrected for the noise in its coverage as the binary interval study
+    corrects it (dec-B455): 0.02, the maintainer's bar for a coverage gap in that study (dec-B455). A
+    1 percent margin carried from error to coverage points had no argument, and on SATT's one yes-or-no
+    outcome per fit it would need about 1,000 d replications per setting, d the rate at which the arms
+    disagree, which the budget cannot reach.
+
+  c passes R2 only if it passes every measure, an intersection-union test, which needs no multiplicity
+  correction (Berger 1982). Replications: the first 10 per setting are an internal pilot that re-estimates
+  only the within-setting variances (Wittes and Brittain 1990); the count R for A and c is then the
+  smallest giving 80 percent power at a true difference of 0 on every measure, R = 7.85 sum_s sigma_s^2 /
+  (77 m)^2 for margin m, capped at 40 by budget; a measure short of its power at the cap leaves R2
+  inconclusive.
 - **Verdict.** A candidate passing R1 and R2 is recommended. Otherwise today's rule stays: if no candidate
   passes R1, reported with each candidate's equivalence reading; if one passes R1 and fails or cannot
   settle R2, reported as a trade-off.
@@ -310,23 +338,25 @@ error.
 
 ## Sizing
 
-What the rule detects, from probe bsr at the per-dataset precision the probes show (SE 0.002 to 0.05;
-a dataset's SE under the overlap correction is 0.62 times its per-split sd at 20 splits and 0.59 at 50).
+What R1 detects, from probe bsr2 (the signed-rank test with the per-dataset harm guard, 400
+simulations) at two per-dataset precisions: precise, SE 0.002 to 0.05, and noisy, SE 0.004 to 0.12 (the
+critic's re-check; p3's mpg-like data reach 0.12). A dataset's SE under the overlap correction is 0.62
+times its per-split sd at 20 splits and 0.59 at 50.
 
 | component | question | size | box core-h | what it resolves | sequential stop |
 |---|---|---|---|---|---|
-| real regression | R1 | 14 x 20 splits x 5 arms (A, B, M, S, R) = 1,400 fits | 6.6 | a uniform 2 percent gain, 0.86; 5 percent on 8 of 14, 0.87; on 6 of 14, 0.38; a 0.5 percent gain, never | none: more splits do not move a dataset's corrected SE |
-| real binary | R1 | 7 x 20 x 4 arms = 560 | 1.1 | fewer datasets than the regression block, so a gain must be more consistent to be declared | none |
+| real regression | R1 | 14 x 20 splits x 5 arms (A, B, M, S, R) = 1,400 fits | 6.6 | passes, precise / noisy: uniform 2 percent gain 0.87 / 0.39; uniform 5 percent 0.99 / 0.92; 5 percent on 8 of 14, 0.82 / 0.55; on 6 of 14, 0.37 / 0.38; no difference 0 / 0.015; one dataset losing 49 percent beside 13 gaining 2, 0 / 0 (the guard fires every time, where the signed-rank test alone declared a gain 0.62) | none: more splits do not move a dataset's corrected SE |
+| real binary | R1 | 7 x 20 x 4 arms = 560 | 1.1 | passes, precise / noisy: uniform 2 percent 0.42 / 0.24; 5 percent 0.95 / 0.69; no difference 0 / 0.007 | none |
 | flexBART DGPs | explain | 4 x 25 x 4 arms = 400 | 0.4 | log RMSE ratio SE 0.014 (p1 sd 0.07): 3 percent; paired coverage SE 0.004 | stop at 25 |
 | Strobl | importance | 4 relevances x 50 + 20 null, x 4 arms = 880 | 0.5 | split share SE about 0.001 (p5 sd 0.006); the informative predictor's rank | stop at 50 |
 | Friedman + null factors | explain | 25 x 4 arms = 100 | 0.1 | log RMSE ratio SE 0.03 on an effect of 0.4 | stop at 25 |
-| ACIC 2016 (on an R1 pass) | R2 | 77 settings x 10 to 40 reps x 3 arms (A, c, R) | 10.6 to 42 | at 10 reps, the critic's detectable 2.6 percent PEHE and 1.6 points of coverage at 5 reps shrink by about a third; the pilot sets the count | replications set once from the first 10 |
+| ACIC 2016 (on an R1 pass) | R2 | pilot 77 x 10 x 3 arms (A, c, R) = 2,310; then A and c to R reps, at most 77 x 30 x 2 = 4,620 more | 10.6 to 31.8 | R = 1,019 sigma^2 for an error measure (per-fit sd sigma of the log ratio: 10 reps at 0.1, 41 at 0.2) and 255 d for a coverage measure (13 reps at d = 0.05, 38 at 0.15) | the count set once from the pilot |
 | long chains (on an R1 pass) | mixing or prior | 4 x 10 x 2 arms, 4x length | 0.4 | the p1 gap of 0.07 at SE 0.02 | none |
 | DART (on an R1 and R2 pass) | does the weighted base measure hold | A and c under DART, real blocks and 10 ACIC reps | about 5 | as above | none |
 
 Box core-hours are laptop core-seconds times 1.5, a ratio not yet measured that the smoke re-prices; fits
-at the default 4 chains. About 9 if no candidate passes R1 (8.7, run first); 20 to 51 if one passes, 25
-to 56 with the DART stage; stop at 65.
+at the default 4 chains. About 9 if no candidate passes R1 (8.7, run first); 20 to 41 if one passes, 25
+to 46 with the DART stage, near the top if PEHE's per-fit spread is near 0.2; stop at 65.
 
 ## Steps
 
@@ -341,13 +371,13 @@ to 56 with the DART stage; stop at 65.
 2. Smoke on the laptop at 2 cores: one split or replication per block per arm; time per fit, re-pricing
    the table above.
 3. Opus review of the harness and smoke (pairing, per-draw summaries, fixed test points, the Bayesian
-   signed-rank test against Benavoli et al.'s worked example, the R2 bounds and pilot, the truth from
-   ACIC). Fix round.
+   signed-rank and correlated t-tests against Benavoli et al.'s worked examples, the R2 bounds and pilot,
+   the truth from ACIC). Fix round.
 4. Pre-registration: commit the plan, any amendment from step 3, and the harness at one hash before the
    main run; later amendments are labeled as such.
 5. Main run on the box, real blocks first, then the designed cells. Read R1.
 6. For a candidate passing R1: ACIC replications 1 to 10 for A, c and R, the replication count from the
-   pilot, the rest, then R2; the long chains; the equal-time re-read if c is slower.
+   pilot, the rest for A and c only, then R2; the long chains; the equal-time re-read if c is slower.
 7. For a candidate passing R1 and R2: the DART stage on a scratch build whose base measure is
    alpha * w_j / sum(w); the node-local variant is named as follow-up work.
 8. Report: R Markdown source docs/design/factor-split-probability-report.Rmd rendering every figure from the
@@ -395,17 +425,20 @@ to 56 with the DART stage; stop at 65.
 ## Open calls for the maintainer
 
 1. **Does split-count importance decide on its own?** Background: with no signal, the share of splits each
-   predictor takes after fitting equals the prior share (probe p5), so any weighted rule makes split
-   counts favor many-level factors by exactly its weight; the tree literature calls that a defect in an
-   importance measure. dbarts reports split counts, and users read them as importance. Options: (a)
-   importance decides alongside the estimates: every weighted rule fails it by construction, so today's
-   rule stands without the study, saving its cost; (b) the estimates decide (R1 and R2), importance is
-   reported, and a winning weighted rule ships with the manual saying split counts then favor many-level
-   factors in proportion to their weights; no extra cost; (c) the estimates decide, and a winning rule must
-   also not lose the informative predictor in the Strobl power case; no extra cost, a rule that may fail
-   on a 120-row design. Recommended (b): estimates and intervals are what users act on (your stated
-   priority, 2026-10-17, that f and treatment effects come first), and a user who wants even counts can
-   state `split.probs`.
+   predictor takes after fitting equals the prior share (probe p5), so any weighted rule makes split counts
+   favor many-level factors by exactly its weight. This is the prior's own stated belief that such a factor
+   is more likely to be split on, not the flaw of greedy search the tree literature names (Strobl et al.
+   2007), though the symptom is the same; and a split count can be read against a permutation null, as
+   Bleich et al. (2014) read BART's inclusion proportions, which removes the prior's share from the reading.
+   dbarts reports split counts, and users read them as importance. Options: (a) importance decides alongside
+   the estimates: every weighted rule fails it by construction, so today's rule stands without the study,
+   saving about 9 core-hours (the cost unless a candidate passes on real data); (b) the estimates decide (R1
+   and R2), importance is reported, and a winning weighted rule ships with the manual saying split counts
+   then favor many-level factors in proportion to their weights; no extra cost; (c) the estimates decide,
+   and a winning rule must also not lose the informative predictor in the Strobl power case; no extra cost,
+   a rule that may fail on a 120-row design. Recommended (b): estimates and intervals are what users act on
+   (your stated priority, 2026-10-17, that f and treatment effects come first), and a user who wants even
+   counts can state `split.probs`.
 
 ## Amendments after the blind critique
 
@@ -453,6 +486,42 @@ The critique (verdict: run after amendments) made ten amendments; each was check
 Also changed: the equal-time rule no longer has a 10 percent trigger; any passing candidate slower than A
 is re-read at matched time.
 
+## Amendments after the re-check
+
+The critique's re-check of the first amendment (verdict: run after amendments) made ten more; each was
+checked first, by rerunning its probe (scratch/fsp-crit/probes/bsr-check.R, which reproduced every number
+it quotes) and a new one (probe bsr2).
+
+1. A per-dataset harm guard. Done: R1 now fails to a reported trade-off when any dataset's correlated
+   Bayesian t-test (Benavoli et al. 2017) puts more than 0.95 on a practical loss. Checked: one dataset
+   losing 49 percent beside 13 gaining 2 percent, which the signed-rank test alone passed 0.62 of the
+   time, now never passes; the guard costs little power (a uniform 2 percent gain, 0.88 to 0.87 precise).
+2. ACIC's settings fixed or sampled. Done: fixed, the competition's whole design; the standard error and
+   the pilot now use within-setting variance alone, so the count does shrink with replications. Taken as
+   sampled, a true effect varying across settings by more than about 0.035 would put the bound out of
+   reach at any count (the critic's figure), and the estimand would be a population of settings the
+   competition never defined.
+3. Coverage margins and the side of the bound. Done: coverage measures take 0.02, the maintainer's bar for
+   a coverage gap (dec-B455), with that study's noise correction; the bound is one-sided 97.5 percent
+   (ICH E9). The 1-point margin carried from error had no argument and was out of the budget's reach.
+4. A bias guard for SATT, or drop "bias". Done the second way: SATT's bias is inside the RMSE guard and is
+   reported; the summary no longer says the guard covers bias.
+5. R1's power and false-gain rate at both error scenarios. Done in the sizing table; the multiplicity
+   statement now rests on the noisy rate (1.5 percent regression, 0.7 percent binary per candidate; at
+   most about 7 percent family-wise by the union bound), not on "0 of 400".
+6. "Equivalent" as outcome error. Done in the rule and the summary.
+7. The span floor on the binary block. Done (adult's 41-level factor and cleveland, infert and birthwt,
+   all under 6 levels, are expected to meet it; step 1 checks).
+8. The indicator arm only through the pilot. Done: R runs on ACIC replications 1 to 10 only; the pass
+   path drops about 10 core-hours.
+9. M for any level frequencies, derived here. Done; the cancellation is written out under Candidates.
+10. The open call's background. Done: it names the prior mechanism, the permutation null (Bleich et al.
+    2014) and that option (a) saves about 9 core-hours.
+
+Numbers that changed: the pass path is 20 to 41 core-hours (25 to 46 with DART), from 20 to 51 (25 to
+56); the critic's re-check expected about 50 with the indicator arm run throughout. R1's quoted power at
+a uniform 2 percent gain is 0.87 at precise errors and 0.39 at noisy ones, where it was 0.86 alone.
+
 ## Not verified
 
 - The x86 box's speed against the laptop (the 1.5 factor); the smoke re-prices.
@@ -461,10 +530,12 @@ is re-read at matched time.
   cause as Caschool's (a response defined from predictors) is not checked; it is left out on the published
   scores.
 - That mushroom is separated almost exactly by single predictors is recalled (odor), not run here.
-- The per-fit spread of ACIC's effect measures, which sets R2's replication count; the pilot measures it.
-- Cited from knowledge, not read here: Breiman et al. 1984, Loh and Shih 1997, Kim and Loh 2001, Hothorn
-  et al. 2006, Bleich et al. 2014, Benavoli et al. 2016, Morris et al. 2019, Berger 1982, Wittes and
-  Brittain 1990, Nadeau and Bengio 2003, Dorie et al. 2019's scoring, Linero 2018. Read: CGM 2010,
-  Deshpande 2024, Linero and Yang 2018, Strobl et al. 2007, Benavoli et al. 2017, and the package sources
-  in the table.
+- The per-fit spread of ACIC's effect measures and the arms' coverage discordance, which set R2's
+  replication count; the pilot measures them. That the 77 settings were built as a grid rather than drawn
+  is read from the competition's design, not rechecked here.
+- Cited from knowledge, not read here: Breiman et al. 1984, Loh and Shih 1997, Kim and Loh 2001, Hothorn et
+  al. 2006, Bleich et al. 2014, Benavoli et al. 2016, Morris et al. 2019, Berger 1982, Wittes and Brittain
+  1990, ICH E9 (1998), Nadeau and Bengio 2003, Dorie et al. 2019's scoring, Linero 2018. Read: CGM 2010,
+  Deshpande 2024, Linero and Yang 2018, Strobl et al. 2007, Benavoli et al. 2017, and the package sources in
+  the table.
 - Time on factors of more than 63 levels in a 20,000-row dataset beyond the critic's 84-level probe.
