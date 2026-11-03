@@ -46,7 +46,11 @@
 # The arms that follow a write state the sampler at another sd, write the arm's
 # before the first sweep or after 50 sweeps, and read the oracle of the written
 # sd: a write sets the trees' scale and nothing else, so the chain then targets
-# that posterior from wherever it stands.
+# that posterior from wherever it stands. The arms that follow a coefficient
+# prior's write do the same with $setForest(amplitude = ): a numeric forest
+# released before the first sweep, a factor held and a numeric forest moved to
+# student(3) after 50 sweeps, and a forest with no basis stating sd moved from
+# student(3) to normal() after 50.
 #
 # The shared-total arms follow: two or three held forests with no basis that
 # share one total, each at T / sqrt(K) over its own trees, beside a held
@@ -506,6 +510,18 @@ rowClasses <- function(arm) {
   classes
 }
 
+# a forest spec's coefficient prior, NULL for the default a drawn one with a
+# basis takes
+coefficientPrior <- function(spec) {
+  if (!isTRUE(spec$drawn)) {
+    dbarts::dbartsPriors$fixed()
+  } else if (isTRUE(spec$prior$normal)) {
+    dbarts::dbartsPriors$normal()
+  } else if (!is.null(spec$prior)) {
+    dbarts::dbartsPriors$student(spec$prior$df)
+  }
+}
+
 numericForest <- function(spec, trees) {
   arguments <- list(n.trees = trees, base = base, power = power)
   if (!is.null(spec$basis)) {
@@ -515,13 +531,7 @@ numericForest <- function(spec, trees) {
       spec$basis
     }
   }
-  if (!isTRUE(spec$drawn)) {
-    arguments$amplitude <- dbarts::dbartsPriors$fixed()
-  } else if (isTRUE(spec$prior$normal)) {
-    arguments$amplitude <- dbarts::dbartsPriors$normal()
-  } else if (!is.null(spec$prior)) {
-    arguments$amplitude <- dbarts::dbartsPriors$student(spec$prior$df)
-  }
+  arguments$amplitude <- coefficientPrior(spec)
   if (!is.null(spec$sd)) {
     arguments$sd <- spec$sd
   }
@@ -530,11 +540,17 @@ numericForest <- function(spec, trees) {
 
 # An arm with writeFrom is created at that sd on forest writeForest, then
 # written the arm's own sd, in mid-chain with writeMid and otherwise before the
-# first sweep.
+# first sweep. One with amplitudeFrom is created with that coefficient prior
+# (drawn and prior) on forest writeForest and written the arm's own the same
+# way.
 numericSampler <- function(arm, control) {
   created <- arm$forests
   if (!is.null(arm$writeFrom)) {
     created[[arm$writeForest]]$sd <- arm$writeFrom
+  }
+  if (!is.null(arm$amplitudeFrom)) {
+    created[[arm$writeForest]]["drawn"] <- list(arm$amplitudeFrom$drawn)
+    created[[arm$writeForest]]["prior"] <- list(arm$amplitudeFrom$prior)
   }
   sampler <- dbarts(
     x,
@@ -552,6 +568,16 @@ numericSampler <- function(arm, control) {
     sampler$setForest(
       arm$writeForest,
       sd = arm$forests[[arm$writeForest]]$sd
+    )
+  }
+  if (!is.null(arm$amplitudeFrom)) {
+    if (isTRUE(arm$writeMid)) {
+      invisible(sampler$run(50L, 1L))
+    }
+    written <- coefficientPrior(arm$forests[[arm$writeForest]])
+    sampler$setForest(
+      arm$writeForest,
+      amplitude = if (is.null(written)) dbartsPriors$normal() else written
     )
   }
   sampler
@@ -1384,6 +1410,61 @@ writtenArms <- list(
 )
 for (name in names(writtenArms)) {
   arm <- writtenArms[[name]]
+  anyFailure <- runArm(
+    name,
+    arm,
+    exact = numericOracle(arm),
+    fit = numericFit
+  ) ||
+    anyFailure
+}
+# ---- following a coefficient prior's write ----
+
+# The arms that follow a coefficient prior's write: each is created under
+# another prior on forest writeForest and written the arm's by
+# $setForest(amplitude = ), and reads the oracle of the prior written. A hold
+# sets the coefficient at once and a release draws it from the held value; a
+# write moves no trees' scale, so the chain then targets that posterior.
+amplitudeArm <- function(arm, forest, drawn, prior = NULL, mid = FALSE) {
+  c(
+    arm,
+    list(
+      amplitudeFrom = list(drawn = drawn, prior = prior),
+      writeForest = forest,
+      writeMid = mid
+    )
+  )
+}
+heldFactor <- factorArm(NULL)
+heldFactor$forests[[2L]]$drawn <- FALSE
+amplitudeArms <- list(
+  "released before the sweep, four values, fixed() to normal()" = amplitudeArm(
+    numericArm(fourValues, TRUE),
+    2L,
+    FALSE
+  ),
+  "held in mid-chain, a factor, normal() to fixed()" = amplitudeArm(
+    heldFactor,
+    2L,
+    TRUE,
+    mid = TRUE
+  ),
+  "in mid-chain, four values, normal() to student(3)" = amplitudeArm(
+    numericArm(fourValues, TRUE, prior = studentT(3)),
+    2L,
+    TRUE,
+    mid = TRUE
+  ),
+  "in mid-chain, no basis at 0.7 of the unit, student(3) to normal()" = amplitudeArm(
+    noneBeside(Normal, 0.7 * unit),
+    1L,
+    TRUE,
+    studentT(3),
+    mid = TRUE
+  )
+)
+for (name in names(amplitudeArms)) {
+  arm <- amplitudeArms[[name]]
   anyFailure <- runArm(
     name,
     arm,

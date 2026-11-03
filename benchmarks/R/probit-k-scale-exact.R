@@ -67,9 +67,14 @@
 # and the two stumps' sum at the same sd, both under k, beside the leaver's
 # N(0, 0.49).
 #
+# lone-factor-released is lone-factor with its forest with no basis released
+# to normal() by $setForest after 50 sweeps, which takes it off the k path, and
+# held again after 50 more, which puts it back on it, its k starting at the
+# spread in force; it reads lone-factor's oracle.
+#
 # Usage: Rscript probit-k-scale-exact.R [quick] [pure] [mixed] [offset] [mask]
-#   [shared] [shared-factor] [shared-offset] [lone-factor] [shared-leave]
-#   [shared-leave-counts]
+#   [shared] [shared-factor] [shared-offset] [lone-factor]
+#   [lone-factor-released] [shared-leave] [shared-leave-counts]
 
 suppressPackageStartupMessages(library(dbarts))
 
@@ -85,7 +90,9 @@ allArms <- c(
   "shared-offset",
   "lone-factor",
   "shared-leave",
-  "shared-leave-counts"
+  "shared-leave-counts",
+  # last, as each arm's seed is its position
+  "lone-factor-released"
 )
 armNames <- intersect(allArms, args)
 if (length(armNames) == 0L) {
@@ -98,6 +105,7 @@ sharedArmNames <- intersect(
     "shared-factor",
     "shared-offset",
     "lone-factor",
+    "lone-factor-released",
     "shared-leave",
     "shared-leave-counts"
   )
@@ -387,8 +395,9 @@ sharedPosterior <- function(
 
 heldSd <- 0.7
 for (arm in sharedArmNames) {
-  lone <- arm == "lone-factor"
-  withFactor <- arm %in% c("shared-factor", "lone-factor")
+  released <- arm == "lone-factor-released"
+  lone <- arm == "lone-factor" || released
+  withFactor <- arm %in% c("shared-factor", "lone-factor") || released
   shift <- if (arm == "shared-offset") 0.4 else 0
   counts <- arm == "shared-leave-counts"
   forests <- list(dbartsForests$forest(n.trees = 1L))
@@ -468,6 +477,16 @@ for (arm in sharedArmNames) {
   }
 
   shared$setResponse(y)
+  if (released) {
+    # off the k path, k pinned at 1 and the coefficient drawn, then back on it
+    # at the spread in force
+    invisible(shared$run(50L, 1L))
+    shared$setForest(1L, amplitude = dbartsPriors$normal())
+    stopifnot(all(shared$getK(1L) == 1))
+    invisible(shared$run(50L, 1L))
+    shared$setForest(1L, amplitude = dbartsPriors$fixed())
+    stopifnot(abs(shared$getLeafPrior(1L)$k.scale - firstScale) < 1e-12)
+  }
   started <- proc.time()[[3L]]
   run <- shared$run(2000L, as.integer(numSweeps / thin))
   elapsed <- proc.time()[[3L]] - started
