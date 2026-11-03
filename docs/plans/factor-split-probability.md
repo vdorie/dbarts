@@ -1,10 +1,9 @@
 # factor-split-probability: should a factor's prior split probability grow with its number of levels?
 
-Status: PLANNED 2026-11-03; AMENDED twice the same day from its blind critique and the critique's re-check
-(both: run after amendments; [Amendments after the blind critique](#amendments-after-the-blind-critique),
-[Amendments after the re-check](#amendments-after-the-re-check)). Research item of TODO "factor
-encoding" (dec-B78), scheduled between the merge to main and the 1.0-0 submission (VD 2026-09-28). Nothing
-has run beyond the sizing probes below.
+Status: CLOSED 2026-11-03 without a run (dec-B576): a factor keeps one column's share of the split prior,
+since a prior should treat variables alike and no source argues a factor deserves more. Planned and amended
+twice the same day; kept for its survey of what the literature and other packages do and its probes. Nothing
+ran beyond the sizing probes below.
 
 agent: the blind critique (opus) ran; this revision answers it. One opus implementer writes the harness,
 runs the smoke on the laptop and the main run on the bench box, and drafts the report; one opus review of
