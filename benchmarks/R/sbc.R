@@ -56,6 +56,9 @@
 # verdict; an unknown name refuses the run. SBC_FIXED_GLUE (env var, opt-in) holds a BCF
 # arm's glue at the engine's initial (1, 0, 1) - the control that isolates the
 # two-forest backfit from the glue draw, and the one "glue-sd" carries.
+# SBC_TRUTH_START (env var, opt-in) starts each BCF chain at theta0 entire,
+# keeping its trees and leaves instead of redrawing them from the prior: a
+# stationary start, so a burn too short shows as an inverted U, never a U.
 # SBC_RANKS_OUT (env var, opt-in) names an .rds file the run's ranks are saved
 # to, with its arm, seed, sizes and library, for the pooled read. SBC_UNSCALED_TREES
 # (env var, opt-in) draws a BCF arm's glue for a library whose trees draw at unit
@@ -1557,6 +1560,7 @@ runSbcBCF <- function(
   fixedGlue = FALSE
 ) {
   set.seed(seed)
+  truthStart <- isTRUE(config$truthStart)
   built <- sbcMakeBCF(config, L, thin, fixedGlue = fixedGlue)
   bcf <- built$bcf
   drawSigma <- sbcSigmaDraw(config$sigest, config$sigDf, config$sigQuant)
@@ -1590,9 +1594,11 @@ runSbcBCF <- function(
     eff0 <- (g0$b1 - g0$b0) * tau0[idx]
 
     # overdispersed init (fresh prior forests), the glue and sigma at theta0's,
-    # then fit and collect
-    bcf$sampleTreesFromPrior()
-    bcf$sampleLeafParametersFromPrior()
+    # then fit and collect; under truthStart theta0's forests are kept too
+    if (!truthStart) {
+      bcf$sampleTreesFromPrior()
+      bcf$sampleLeafParametersFromPrior()
+    }
     bcf$setResponse(y0, updateScale = FALSE)
     sbcInstallBCFSigma(bcf, sig0, built$fitScale)
     invisible(bcf$run(burn, 0L))
@@ -1798,6 +1804,7 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
     }
     poison <- sbcBCFPoison(config$poison)
     fixedGlue <- isTRUE(config$fixedGlue)
+    truthStart <- isTRUE(config$truthStart)
     link <- sbcBCFLink(config$family)
     # poison (i): the generator's link, wrong on purpose
     simLink <- if ("link" %in% poison) {
@@ -1850,9 +1857,13 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
     spec <- list(
       draw = drawOne,
       drawAt = drawOne,
+      # the start keeps the glue drawOne installed; under truthStart it keeps
+      # drawOne's forests as well, so the chain starts at theta0 entire
       fit = function(y) {
-        bcf$sampleTreesFromPrior()
-        bcf$sampleLeafParametersFromPrior()
+        if (!truthStart) {
+          bcf$sampleTreesFromPrior()
+          bcf$sampleLeafParametersFromPrior()
+        }
         bcf$setResponse(y, updateScale = FALSE)
         bcf
       },
@@ -3756,6 +3767,7 @@ if (sys.nframe() == 0L) {
   if (isBCF) {
     config$poison <- poison
     config$fixedGlue <- nzchar(Sys.getenv("SBC_FIXED_GLUE", ""))
+    config$truthStart <- nzchar(Sys.getenv("SBC_TRUTH_START", ""))
   }
   unscaledTrees <- isBCF && nzchar(Sys.getenv("SBC_UNSCALED_TREES", ""))
   if (unscaledTrees) {
