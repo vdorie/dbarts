@@ -1,6 +1,8 @@
 #ifndef EXTERNAL_STATS_H
 #define EXTERNAL_STATS_H
 
+#ifndef DBARTS_HOST_STANDALONE
+
 #ifndef R_NO_REMAP_RMATH
 #  define UNMAP_R_NO_REMAP_RMATH
 #  ifndef R_NO_REMAP
@@ -20,30 +22,6 @@
 
 #undef USE_FC_LEN_T
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#define ext_quantileOfChiSquared(_P_, _NU_) Rf_qchisq((_P_), (_NU_), 1, 0)
-#define ext_percentileOfChiSquared(_Q_, _NU_) Rf_pchisq((_Q_), (_NU_), 1, 0)
-  
-#define ext_densityOfNormal(_X_, _MU_, _SIGMA_) Rf_dnorm4((_X_), (_MU_), (_SIGMA_), 0)
-#define ext_cumulativeProbabilityOfNormal(_Q_, _MU_, _SIGMA_) Rf_pnorm5((_Q_), (_MU_), (_SIGMA_), 1, 0)
-#define ext_quantileOfNormal(_P_, _MU_, _SIGMA_) Rf_qnorm5((_P_), (_MU_), (_SIGMA_), 1, 0)
-#define ext_quantileOfStudentT(_P_, _NU_) Rf_qt((_P_), (_NU_), 1, 0)
-
-extern double Rf_dnorm4(double, double, double, int);
-extern double Rf_dt(double, double, int);
-extern double Rf_pnorm5(double, double, double, int, int);
-extern double Rf_qnorm5(double, double, double, int, int);
-extern double Rf_qt(double, double, int, int);
-extern double Rf_pchisq(double, double, int, int);
-extern double Rf_qchisq(double, double, int, int);
-
-#ifdef __cplusplus
-}
-#endif
-
 #ifdef UNMAP_R_NO_REMAP_RMATH
 #  undef R_NO_REMAP_RMATH
 #  ifdef UNMAP_R_NO_REMAP
@@ -53,5 +31,15 @@ extern double Rf_qchisq(double, double, int, int);
 #  undef UNMAP_R_NO_REMAP_RMATH
 #endif
 
-#endif // EXTERNAL_STATS_H
+#endif // DBARTS_HOST_STANDALONE
 
+#include <external/nmath.h> // the six ext_ names and their implementation
+
+#define ext_quantileOfChiSquared(_P_, _NU_) ext_qchisq((_P_), (_NU_), 1, 0)
+
+#define ext_densityOfNormal(_X_, _MU_, _SIGMA_) ext_dnorm((_X_), (_MU_), (_SIGMA_), 0)
+#define ext_cumulativeProbabilityOfNormal(_Q_, _MU_, _SIGMA_) ext_pnorm((_Q_), (_MU_), (_SIGMA_), 1, 0)
+#define ext_quantileOfNormal(_P_, _MU_, _SIGMA_) ext_qnorm((_P_), (_MU_), (_SIGMA_), 1, 0)
+#define ext_quantileOfStudentT(_P_, _NU_) ext_qt((_P_), (_NU_), 1, 0)
+
+#endif // EXTERNAL_STATS_H

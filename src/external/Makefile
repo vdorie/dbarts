@@ -18,20 +18,21 @@ clean :
 rebuild : clean all
 
 $(INCLUDE_DIR)/external/io.h :
+$(INCLUDE_DIR)/external/nmath.h :
 $(INCLUDE_DIR)/external/R.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/external/random.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/external/Rinternals.h : $(INCLUDE_DIR)/misc/stddef.h
-$(INCLUDE_DIR)/external/stats.h : $(INCLUDE_DIR)/misc/stddef.h
+$(INCLUDE_DIR)/external/stats.h : $(INCLUDE_DIR)/external/nmath.h
 
 io.o : io.c $(INCLUDE_DIR)/external/io.h
 	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c io.c -o io.o
 
-random.o : random.c $(INCLUDE_DIR)/external/random.h
+random.o : random.c $(INCLUDE_DIR)/external/random.h $(INCLUDE_DIR)/external/nmath.h
 	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c random.c -o random.o
 
 randomBase.o : randomBase.c $(INCLUDE_DIR)/external/random.h
 	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c randomBase.c -o randomBase.o
 
-randomNorm.o : randomNorm.c $(INCLUDE_DIR)/external/random.h
+randomNorm.o : randomNorm.c $(INCLUDE_DIR)/external/random.h $(INCLUDE_DIR)/external/stats.h
 	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c randomNorm.c -o randomNorm.o
 

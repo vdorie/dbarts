@@ -24,7 +24,7 @@
 #include <vector>
 
 #include <external/random.h>
-#include <external/stats.h> // Rf_dnorm4, Rf_pnorm5, Rf_dt for the log-likelihood channel
+#include <external/stats.h> // ext_dnorm, ext_pnorm, ext_dt for the log-likelihood channel
 #include <misc/stats.h>
 #include <misc/linearAlgebra.h>
 
@@ -437,7 +437,7 @@ inline double gaussianPdf(double z) {
   return std::exp(-0.5 * z * z) / std::sqrt(2.0 * std::numbers::pi);
 }
 inline double gaussianCdf(double z) {
-  return Rf_pnorm5(z, 0.0, 1.0, 1, 0);
+  return ext_pnorm(z, 0.0, 1.0, 1, 0);
 }
 
 /// Adaptive Simpson quadrature of a smooth integrand over [a, b] to the
@@ -498,11 +498,11 @@ inline double logStandardNormalMass(double lo, double hi) {
   bool upperTail = lo > 0.0;
   double nearTail, farTail;
   if (upperTail) {
-    nearTail = Rf_pnorm5(lo, 0.0, 1.0, 0, 1);
-    farTail = std::isinf(hi) ? -HUGE_VAL : Rf_pnorm5(hi, 0.0, 1.0, 0, 1);
+    nearTail = ext_pnorm(lo, 0.0, 1.0, 0, 1);
+    farTail = std::isinf(hi) ? -HUGE_VAL : ext_pnorm(hi, 0.0, 1.0, 0, 1);
   } else {
-    nearTail = std::isinf(hi) ? 0.0 : Rf_pnorm5(hi, 0.0, 1.0, 1, 1);
-    farTail = std::isinf(lo) ? -HUGE_VAL : Rf_pnorm5(lo, 0.0, 1.0, 1, 1);
+    nearTail = std::isinf(hi) ? 0.0 : ext_pnorm(hi, 0.0, 1.0, 1, 1);
+    farTail = std::isinf(lo) ? -HUGE_VAL : ext_pnorm(lo, 0.0, 1.0, 1, 1);
   }
   double d = farTail - nearTail;  // < 0 when resolved
   if (std::isfinite(farTail) &&
@@ -2244,7 +2244,7 @@ struct MonotoneConstantGaussianLeaf {
                                    double sR) {
     if (!(lowR < hiR) || !(aL < bL)) return -HUGE_VAL;
     if (lowR == -HUGE_VAL && hiR == HUGE_VAL && bL == HUGE_VAL)
-      return Rf_pnorm5((mR - mL) / std::sqrt(sL * sL + sR * sR), 0.0, 1.0, 1,
+      return ext_pnorm((mR - mL) / std::sqrt(sL * sL + sR * sR), 0.0, 1.0, 1,
                        1);
     const double logRoot2Pi = 0.5 * std::log(2.0 * std::numbers::pi);
     if (sL < sR) {
@@ -2283,7 +2283,7 @@ struct MonotoneConstantGaussianLeaf {
     double lo = (a - mean) / stdDev, hi = (b - mean) / stdDev;
     if (!(hi > lo)) return 0.0;
     if (lo > 0.0)
-      return Rf_pnorm5(lo, 0.0, 1.0, 0, 0) - Rf_pnorm5(hi, 0.0, 1.0, 0, 0);
+      return ext_pnorm(lo, 0.0, 1.0, 0, 0) - ext_pnorm(hi, 0.0, 1.0, 0, 0);
     return gaussianCdf(hi) - gaussianCdf(lo);
   }
 };
@@ -5178,7 +5178,7 @@ public:
                             : sigmaOriginal;
       double sd = weights_ != nullptr ? residualSd / std::sqrt(weights_[i])
                                       : residualSd;
-      out[i] = Rf_dnorm4(y_[i], mu, sd, 1);
+      out[i] = ext_dnorm(y_[i], mu, sd, 1);
     }
   }
 
@@ -5578,7 +5578,7 @@ public:
         continue;
       }
       double eta = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
-      out[i] = Rf_pnorm5(eta, 0.0, 1.0, y_[i] != 0.0 ? 1 : 0, 1);
+      out[i] = ext_pnorm(eta, 0.0, 1.0, y_[i] != 0.0 ? 1 : 0, 1);
     }
   }
 
@@ -5758,7 +5758,7 @@ private:
     return activeRows_.empty() || activeRows_[i] != 0.0;
   }
 
-  static double Phi(double x) { return Rf_pnorm5(x, 0.0, 1.0, 1, 0); }
+  static double Phi(double x) { return ext_pnorm(x, 0.0, 1.0, 1, 0); }
 
   /// gamma_s with the sentinels gamma_0 = -inf and gamma_K = +inf; the finite
   /// cutpoints live at gamma_[s - 1].
@@ -6555,7 +6555,7 @@ public:
         scale * totalFits[i] + shift + (offset != nullptr ? offset[i] : 0.0);
       double sd = variance_ != nullptr ? std::sqrt(variance_[i]) * scale
                                        : sigmaLog;
-      out[i] = Rf_dnorm4(logT_[i], mu, sd, 1);
+      out[i] = ext_dnorm(logT_[i], mu, sd, 1);
     }
     for (std::size_t k = 0; k < censoredIndices_.size(); ++k) {
       std::size_t i = censoredIndices_[k];
@@ -6565,7 +6565,7 @@ public:
       double sd = variance_ != nullptr ? std::sqrt(variance_[i]) * scale
                                        : sigmaLog;
       // log P(log T > log C) = log upper normal tail
-      out[i] = Rf_pnorm5(censorBound_[k], mu, sd, 0, 1);
+      out[i] = ext_pnorm(censorBound_[k], mu, sd, 0, 1);
     }
   }
 
@@ -6903,7 +6903,7 @@ public:
       double sd = userWeights_ != nullptr
                     ? sigmaOriginal / std::sqrt(userWeights_[i])
                     : sigmaOriginal;
-      out[i] = Rf_dt((y_[i] - mu) / sd, nu_, 1) - std::log(sd);
+      out[i] = ext_dt((y_[i] - mu) / sd, nu_, 1) - std::log(sd);
     }
   }
 

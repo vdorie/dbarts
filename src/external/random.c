@@ -24,6 +24,7 @@
  */
 
 #include <external/random.h>
+#include <external/nmath.h> // ext_pnorm, ext_qnorm, without the rest of Rmath
 
 #include <float.h> // DBL_MIN
 #include <math.h> // exp, log, expm1, fabs, nan
@@ -453,10 +454,6 @@ double ext_rng_simulateUpperTruncatedNormal(
                      );
 }
 
-// declared in external/stats.h, but including that pulls all of Rmath in
-extern double Rf_pnorm5(double, double, double, int, int);
-extern double Rf_qnorm5(double, double, double, int, int);
-
 // X ~ N(mean, 1) | lower < X <= upper. In the bulk the inverse-CDF transform
 // X = mean + qnorm(Phi(lower - mean) + U (Phi(upper - mean) - Phi(lower - mean)))
 // draws exactly; an interval above the mean is drawn reflected below it,
@@ -480,12 +477,12 @@ double ext_rng_simulateTruncatedNormalScale1(
 ) {
   double a = lower - mean, b = upper - mean;
   bool above = a > 0.0;
-  double pLower = Rf_pnorm5(above ? -b : a, 0.0, 1.0, 1, 0);
-  double pUpper = Rf_pnorm5(above ? -a : b, 0.0, 1.0, 1, 0);
+  double pLower = ext_pnorm(above ? -b : a, 0.0, 1.0, 1, 0);
+  double pUpper = ext_pnorm(above ? -a : b, 0.0, 1.0, 1, 0);
   double gap = pUpper - pLower;
   if (gap > 0.0 && pUpper >= DBL_MIN) {
     double u = ext_rng_simulateContinuousUniform(generator);
-    double z = Rf_qnorm5(pLower + u * gap, 0.0, 1.0, 1, 0);
+    double z = ext_qnorm(pLower + u * gap, 0.0, 1.0, 1, 0);
     double x = above ? mean - z : mean + z;
     return x < lower ? lower : (x > upper ? upper : x);
   }
@@ -534,8 +531,8 @@ static double pgTailProbability(double z) {
   double b = sqrt(1.0 / t) * (t * z - 1.0);
   double a = -sqrt(1.0 / t) * (t * z + 1.0);
   double logMass = log(rate) + rate * t;
-  double logTailB = logMass - z + Rf_pnorm5(b, 0.0, 1.0, 1, 1);
-  double logTailA = logMass + z + Rf_pnorm5(a, 0.0, 1.0, 1, 1);
+  double logTailB = logMass - z + ext_pnorm(b, 0.0, 1.0, 1, 1);
+  double logTailA = logMass + z + ext_pnorm(a, 0.0, 1.0, 1, 1);
   double headToTailRatio = (4.0 / M_PI) * (exp(logTailB) + exp(logTailA));
   return 1.0 / (1.0 + headToTailRatio);
 }
