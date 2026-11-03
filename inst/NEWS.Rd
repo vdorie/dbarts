@@ -617,9 +617,10 @@
             others takes that leaf prior whole, held at 1, as \code{bart}'s
             one forest does; and one with no basis stating its
             \code{sd} has its own size, drawn only under
-            \code{amplitude = normal()} or \code{student()}. A basis is one numeric column, with
-            one coefficient, or a factor, a character vector or a logical
-            vector of two levels, with a coefficient for each level; its
+            \code{amplitude = normal()} or \code{student()}. A basis is
+            one numeric column, with one coefficient, or a factor, a
+            character vector or a logical vector of two levels, with a
+            coefficient for each level; its
             class decides which, whatever its values, so a 0/1 number is
             one column and \code{factor(z)} is two levels. A larger basis,
             three or more levels or several numeric columns, is refused
@@ -646,11 +647,12 @@
             states none takes its size per standard deviation of its
             column, read when the sampler is created, which
             \code{$setForestBasis(updateBasisScale = TRUE)} reads again
-            from the replacement column, for burn-in. A forest's \code{sd} is
-            the scale of its trees; a drawn coefficient is a multiplier with
+            from the replacement column, for burn-in. That \code{sd} is
+            the scale of the forest's trees, so its size where the
+            coefficient is held; a drawn coefficient is a multiplier with
             prior median size 1 (on a factor, the difference between two
-            levels' coefficients), under a normal prior, or a heavy-tailed one
-            as \code{amplitude = student(df)}.
+            levels' coefficients), under a normal prior, or a heavy-tailed
+            one as \code{amplitude = student(df)}.
       \item Heteroscedastic BART (Pratola et al. 2020): \code{variance = ~ x1
             + x2}, \code{variance = TRUE} or a
             \code{\link{varianceForest}} in \code{bart} and \code{dbarts}
