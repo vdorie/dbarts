@@ -3,6 +3,7 @@
 \title{Class "dbartsSampler" of Discrete Bayesian Additive Regression Trees Sampler}
 \alias{dbartsSampler}
 \alias{dbartsSampler-class}
+\alias{$,dbartsSampler-method}
 \alias{\S4method{run}{dbartsSampler}}
 \alias{\S4method{sampleTreesFromPrior}{dbartsSampler}}
 \alias{\S4method{sampleLeafParametersFromPrior}{dbartsSampler}}
