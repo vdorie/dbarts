@@ -31,8 +31,9 @@ re-run a full census before release.
 A "door" below means a recorded, undecided question, not a task.
 
 items
-  approximate-distributions: research arc, post-release (VD 2026-09-29,
-    docs/decisions.md dec-B143): whether to admit approximate draws
+  approximate-distributions: research arc, opened 2026-11-03 by the
+    binomial family's large trial counts (dec-B567; was post-release,
+    VD 2026-09-29, docs/decisions.md dec-B143): whether to admit approximate draws
     under stated criteria for when to use them, against dec-B14's
     every-draw-exact rule. Covers the negative-binomial latent at large
     shape (cost linear in y + r today; the exact construction, 1,000 to
