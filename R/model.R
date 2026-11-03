@@ -2345,6 +2345,39 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
   resolved
 }
 
+## Whether the fitting function's leaf prior, by its hyperprior, gives a forest
+## no size: a flat prior on k or an infinite k, or a chi prior whose median the
+## engine's quantile rounds to zero (it tests the size for positive and finite,
+## the quotient of the prior's scale by that median).
+leafPriorGivesNoSize <- function(hyperprior) {
+  if (is(hyperprior, "dbartsChiHyperprior")) {
+    median <- sqrt(stats::qchisq(0.5, hyperprior@degreesOfFreedom))
+    return(
+      is.infinite(hyperprior@scale) || !(is.finite(median) && median > 0)
+    )
+  }
+  is(hyperprior, "dbartsFixedHyperprior") && is.infinite(hyperprior@k)
+}
+
+## The refusal of a drawn coefficient stating no 'sd' on forest `label` under a
+## leaf prior that gives no size (leafPriorGivesNoSize). Creation and
+## $setForest refuse it alike.
+refuseSizelessCoefficient <- function(label, amplitude, hyperprior) {
+  stop(
+    label,
+    ": amplitude = ",
+    writtenCoefficientPrior(amplitude),
+    " with no 'sd' takes its size from the fitting function's leaf ",
+    "prior, which here gives no size; state the forest's 'sd'",
+    if (
+      is(hyperprior, "dbartsChiHyperprior") && !is.infinite(hyperprior@scale)
+    ) {
+      " or give the prior on k or the sd more degrees of freedom"
+    },
+    call. = FALSE
+  )
+}
+
 ## An 'amplitude' that states a prior where a forest has no coefficient of its own
 ## to give one: a model of one forest, and where two or more forests with no
 ## basis share one total; one stating its 'sd' leaves the share and has its own.

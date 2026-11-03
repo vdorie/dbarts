@@ -1265,15 +1265,7 @@ resolveSamplerSpec <- function(
     # the size for positive and finite, the quotient of the prior's scale by
     # that median)
     hyperprior <- priors$leaf.hyperprior
-    flat <- FALSE
-    sizeless <- if (is(hyperprior, "dbartsChiHyperprior")) {
-      median <- sqrt(stats::qchisq(0.5, hyperprior@degreesOfFreedom))
-      flat <- is.infinite(hyperprior@scale)
-      flat || !(is.finite(median) && median > 0)
-    } else {
-      is(hyperprior, "dbartsFixedHyperprior") && is.infinite(hyperprior@k)
-    }
-    if (sizeless) {
+    if (leafPriorGivesNoSize(hyperprior)) {
       for (index in seq_along(forestSpec)) {
         spec <- forestSpec[[index]]
         if (
@@ -1281,16 +1273,10 @@ resolveSamplerSpec <- function(
             is.null(spec$sd) &&
             index %in% plain
         ) {
-          stop(
+          refuseSizelessCoefficient(
             forestKnobLabel(forests, index),
-            ": amplitude = ",
-            writtenCoefficientPrior(spec$amplitude),
-            " with no 'sd' takes its size from the fitting function's leaf ",
-            "prior, which here gives no size; state the forest's 'sd'",
-            if (is(hyperprior, "dbartsChiHyperprior") && !flat) {
-              " or give the prior on k or the sd more degrees of freedom"
-            },
-            call. = FALSE
+            spec$amplitude,
+            hyperprior
           )
         }
       }

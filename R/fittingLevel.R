@@ -320,11 +320,21 @@ levelLeafPrior <- function(sampler, given, stored, givenSds, door) {
   }
   if (length(samplerSharers(sampler)) == 0L) {
     named <- if (length(candidates) > 0L) candidates[[1L]] else 1L
+    statesDf <- any(
+      !is.na(vapply(
+        model@forests[candidates],
+        methods::slot,
+        0,
+        "amplitude.df"
+      ))
+    )
     stop(
       door,
       ": no forest of this sampler takes the fitting function's leaf prior, ",
       if (length(candidates) == 0L) {
         "every forest having a basis"
+      } else if (statesDf) {
+        "every forest with no basis stating its own sd or a coefficient's prior"
       } else {
         "every forest with no basis stating its own sd"
       },
@@ -367,6 +377,40 @@ refuseShareDifference <- function(sampler, given) {
         call. = FALSE
       )
     }
+  }
+  invisible(NULL)
+}
+
+## The refusal of a forest's coefficient that differs in `given` from the
+## sampler's, held or drawn or under another prior: it is the forest's own,
+## which $setForest changes, named in the value the given model states.
+refuseCoefficientDifference <- function(sampler, given) {
+  model <- sampler$model
+  if (
+    length(given@forests) != length(model@forests) ||
+      samplerCarriesCounts(sampler)
+  ) {
+    return(invisible(NULL))
+  }
+  for (index in seq_along(model@forests)) {
+    own <- model@forests[[index]]
+    stated <- given@forests[[index]]
+    if (
+      identical(stated@held.amplitude, own@held.amplitude) &&
+        identical(stated@amplitude.df, own@amplitude.df)
+    ) {
+      next
+    }
+    prior <- statedCoefficientPrior(stated@amplitude.df, stated@held.amplitude)
+    if (is.null(prior)) {
+      prior <- if (is.null(sampler$data@bases[[index]])) fixed() else normal()
+    }
+    refuseOwnDifference(
+      model,
+      index,
+      "amplitude",
+      coefficientInWords(validateForestAmplitude(prior))
+    )
   }
   invisible(NULL)
 }
@@ -421,6 +465,7 @@ setModelOnForests <- function(sampler, newModel, given) {
     vapply(model@forests, methods::slot, 0, "sd")
   }
   leaf <- levelLeafPrior(sampler, given, depths$model, givenSds, "$setModel")
+  refuseCoefficientDifference(sampler, given)
   refuseShareDifference(sampler, given)
   stored <- leaf$model
   stored@tree.prior@splitProbabilities <- numeric()

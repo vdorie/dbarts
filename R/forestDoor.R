@@ -186,23 +186,30 @@ varianceForestInForce <- function(sampler) {
 ## as creation validates it, and with those equal to the value in force dropped
 ## too; a name with no value in force is not equal to one. treeShift's validated
 ## value is the slot's tri-state, which forest() takes in words.
-changedForestSettings <- function(given, inForce, label) {
+changedForestSettings <- function(given, inForce, label, sdUnder = NULL) {
   given <- given[!vapply(given, is.null, NA)]
   if (length(given) == 0L) {
     return(given)
   }
   given <- resolveForestMoves(validateForestKnobs(given), label)
+  amplitudeChanges <- !is.null(given$amplitude) &&
+    !sameCoefficientPrior(
+      given$amplitude,
+      validateForestAmplitude(inForce$amplitude)
+    )
   changed <- vapply(
     names(given),
     function(name) {
       value <- given[[name]]
       current <- inForce[[name]]
+      # an sd is compared with the one the forest has once its new
+      # coefficient applies
+      if (identical(name, "sd") && amplitudeChanges && !is.null(sdUnder)) {
+        current <- sdUnder(given$amplitude)
+      }
       switch(
         name,
-        amplitude = !sameCoefficientPrior(
-          value,
-          validateForestAmplitude(current)
-        ),
+        amplitude = amplitudeChanges,
         treeShift = !identical(value, resolveTreeShift(current)),
         !identical(value, current)
       )
@@ -210,6 +217,24 @@ changedForestSettings <- function(given, inForce, label) {
     NA
   )
   given[changed]
+}
+
+## The sd forest `index` has in force under the coefficient `amplitude`, as
+## validateForestAmplitude returns it, where that differs from `inForce`'s: a
+## forest with no basis stating a coefficient's df and no sd, held, goes back to
+## the fitting function's leaf prior, which gives no one sd where it draws k.
+## Every other forest keeps the size it has.
+sdUnderCoefficient <- function(sampler, index, inForce, amplitude) {
+  record <- sampler$model@forests[[index]]
+  rejoins <- identical(amplitude, "fixed") &&
+    is.null(sampler$data@bases[[index]]) &&
+    is.na(record@sd) &&
+    !is.na(record@amplitude.df)
+  if (rejoins && is(sampler$model@leaf.hyperprior, "dbartsChiHyperprior")) {
+    NULL
+  } else {
+    inForce$sd
+  }
 }
 
 ## Whether two coefficient priors, each as validateForestAmplitude returns it,
@@ -244,24 +269,21 @@ doorForestLabel <- function(model, index) {
   forestKnobLabel(stats::setNames(as.list(labels), labels), index)
 }
 
-## The forests with no basis that state no sd, by position, a model's records
-## read as resolveForests reads a call's statements.
-unsizedForests <- function(sampler) {
-  records <- sampler$model@forests
-  bases <- sampler$data@bases
-  which(vapply(
-    seq_along(records),
-    function(index) {
-      is.null(bases[[index]]) && is.na(records[[index]]@sd)
-    },
-    NA
-  ))
+## Whether forest `index` takes its size from the fitting function's leaf
+## prior: one with no basis that states no sd, its record read as
+## resolveForests reads a call's statement.
+takesLeafPriorSize <- function(sampler, index) {
+  is.null(sampler$data@bases[[index]]) &&
+    is.na(sampler$model@forests[[index]]@sd)
 }
 
 ## The checks creation applies to a forest's statement that read more than the
-## one name, with `changed` merged into what forest `index` states: a coefficient
-## where creation refuses one and, here where a live sampler keeps its coefficient
-## prior, any other; the mixture a monotone sampler takes. Writes nothing.
+## one name, with `changed` merged into what forest `index` states: a drawn
+## coefficient where creation refuses one, on a model of one forest, on a
+## forest sharing the prior total with others and stating no 'sd', and on a
+## forest sized by the fitting function's leaf prior where that gives no size;
+## the mixture a monotone sampler takes. Each forest's place is read from the
+## engine's row and the records, never from a count of forests. Writes nothing.
 checkForestStatement <- function(sampler, index, changed, label, ptr) {
   model <- sampler$model
   numForests <- bartcoreNumForests(ptr)
@@ -272,36 +294,28 @@ checkForestStatement <- function(sampler, index, changed, label, ptr) {
   }
   amplitude <- changed$amplitude
   if (!is.null(amplitude)) {
-    unsized <- if (numForests > 1L && is.null(changed$sd)) {
-      unsizedForests(sampler)
+    sharers <- if (numForests > 1L && is.null(changed$sd)) {
+      samplerSharers(sampler, ptr)
     }
     refuseCoefficientPriorWithNoForest(
       amplitude,
       label,
       lone = numForests == 1L,
-      sharing = length(unsized) > 1L && index %in% unsized
+      sharing = length(sharers) > 1L && index %in% sharers
     )
-    stop(
-      "a forest's coefficient prior cannot be changed live yet: ",
-      label,
-      " keeps ",
-      coefficientInWords(validatedCoefficient(sampler, index, ptr)),
-      "; make a new sampler",
-      call. = FALSE
-    )
+    if (
+      statesCoefficientPrior(amplitude) &&
+        is.null(changed$sd) &&
+        takesLeafPriorSize(sampler, index) &&
+        leafPriorGivesNoSize(model@leaf.hyperprior)
+    ) {
+      refuseSizelessCoefficient(label, amplitude, model@leaf.hyperprior)
+    }
   }
   if (!is.null(attr(model, "monotone"))) {
     refuseMonotoneForestMixture(changed$proposal.probs, label)
   }
   invisible(NULL)
-}
-
-## The coefficient's prior in force on a forest, as validateForestAmplitude
-## returns one.
-validatedCoefficient <- function(sampler, index, ptr) {
-  validateForestAmplitude(forestCoefficientInForce(
-    .Call(C_dbarts_bartcore_getLeafPrior, ptr, index - 1L)
-  ))
 }
 
 ## A coefficient's prior as validateForestAmplitude returns it, as a call writes
@@ -424,6 +438,61 @@ modelWithForestSd <- function(sampler, model, index, sd) {
   model
 }
 
+## A model with forest `index`'s coefficient `amplitude`, as
+## validateForestAmplitude returns it, written as creation writes it
+## (forestStatements), with `sd`, NULL where none, written first as
+## modelWithForestSd writes it. A forest the fitting function's leaf prior
+## sizes stops sharing the total when drawn, and shares it alone when held;
+## the last left of a group, drawn, states an sd the engine gives it, which
+## modelWithStatedSd records once the engine holds it.
+modelWithCoefficient <- function(sampler, model, index, amplitude, sd) {
+  if (!is.null(sd)) {
+    model <- modelWithForestSd(sampler, model, index, sd)
+  }
+  hasBasis <- !is.null(sampler$data@bases[[index]])
+  record <- model@forests[[index]]
+  record@held.amplitude <- identical(amplitude, "fixed")
+  record@amplitude.df <- if (is(amplitude, "dbartsStudentPrior")) {
+    as.double(amplitude@df)
+  } else if (is(amplitude, "dbartsNormalPrior") && !hasBasis) {
+    Inf
+  } else {
+    NA_real_
+  }
+  if (!hasBasis && is.na(record@sd)) {
+    record@share <- if (record@held.amplitude) 1 else NA_real_
+  }
+  model@forests[[index]] <- record
+  model
+}
+
+## A model with the sd the engine states on forest `index` recorded where its
+## record states none, as the last left of a group released states its part:
+## read back from the engine's row, so no number of R's is compared with one
+## of the engine's. Where no forest then takes the fitting function's leaf
+## prior, that prior is left with no forest, as modelWithForestSd leaves it.
+modelWithStatedSd <- function(sampler, model, index, ptr) {
+  if (
+    !takesLeafPriorSize(sampler, index) ||
+      model@forests[[index]]@held.amplitude
+  ) {
+    return(model)
+  }
+  raw <- .Call(C_dbarts_bartcore_getLeafPrior, ptr, index - 1L)
+  stated <- raw[[1L, "named.sd"]]
+  if (is.na(stated) || !is.na(model@forests[[index]]@sd)) {
+    return(model)
+  }
+  model@forests[[index]]@sd <- stated
+  model@forests[[index]]@share <- NA_real_
+  hasBasis <- !vapply(sampler$data@bases, is.null, NA)
+  recordedSd <- vapply(model@forests, methods::slot, 0, "sd")
+  if (!any(!hasBasis & is.na(recordedSd))) {
+    model <- modelWithLeafPriorUnclaimed(model)
+  }
+  model
+}
+
 ## Installs a forest's depth on the forests given, 0-based, -1L the variance
 ## forest, from `holder`'s slots.
 installForestDepth <- function(ptr, forests, holder) {
@@ -440,9 +509,9 @@ installForestDepth <- function(ptr, forests, holder) {
 }
 
 ## $setForest. The checks, then the engine in the order that leaves only the sd
-## able to refuse after a write, each undone if a later one refuses; the sd,
-## being last, has nothing to undo. The records are written once the engine
-## holds the values.
+## or the coefficient able to refuse after a write, each undone if a later one
+## refuses; the last, the coefficient with any sd beside it or else the sd, has
+## nothing to undo. The records are written once the engine holds the values.
 writeForestDoor <- function(sampler, forest, given, supplied, updateState) {
   updateState <- checkUpdateState(updateState)
   multinomial <- samplerCarriesCounts(sampler)
@@ -474,7 +543,12 @@ writeForestDoor <- function(sampler, forest, given, supplied, updateState) {
     given$amplitude <- NULL
   }
   inForce <- forestInForce(sampler, index, ptr)
-  changed <- changedForestSettings(given, inForce, label)
+  changed <- changedForestSettings(
+    given,
+    inForce,
+    label,
+    function(amplitude) sdUnderCoefficient(sampler, index, inForce, amplitude)
+  )
   if (length(changed) == 0L) {
     if (resolveUpdateState(updateState, sampler$control)) {
       sampler$storeState(ptr)
@@ -488,7 +562,16 @@ writeForestDoor <- function(sampler, forest, given, supplied, updateState) {
   if (movesChanged) {
     written <- modelWithMoves(written, index, changed)
   }
-  if (!is.null(changed$sd)) {
+  coefficientChanged <- !is.null(changed$amplitude)
+  if (coefficientChanged) {
+    written <- modelWithCoefficient(
+      sampler,
+      written,
+      index,
+      changed$amplitude,
+      changed$sd
+    )
+  } else if (!is.null(changed$sd)) {
     written <- modelWithForestSd(sampler, written, index, changed$sd)
   }
 
@@ -518,7 +601,19 @@ writeForestDoor <- function(sampler, forest, given, supplied, updateState) {
           forestDepthHolder(written, if (multinomial) 1L else index)
         )
       }
-      if (!is.null(changed$sd)) {
+      if (coefficientChanged) {
+        # one engine call for the coefficient and an sd beside it, so every
+        # chain is checked for both before either is written
+        record <- written@forests[[index]]
+        .Call(
+          C_dbarts_bartcore_setForestCoefficient,
+          ptr,
+          index - 1L,
+          record@held.amplitude,
+          record@amplitude.df,
+          if (is.null(changed$sd)) NA_real_ else as.double(changed$sd)
+        )
+      } else if (!is.null(changed$sd)) {
         if (length(model@forests) == 1L) {
           writeLeafPrior(sampler, ptr, written)
         } else {
@@ -531,6 +626,9 @@ writeForestDoor <- function(sampler, forest, given, supplied, updateState) {
       stop(e)
     }
   )
+  if (coefficientChanged) {
+    written <- modelWithStatedSd(sampler, written, index, ptr)
+  }
   sampler$model <- written
   if (resolveUpdateState(updateState, sampler$control)) {
     sampler$storeState(ptr)
