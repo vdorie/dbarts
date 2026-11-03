@@ -347,7 +347,7 @@ pins and test-forest-tree-prior-install.R. It merges with slice 2. Neutral: noth
 6. `forest(amplitude = normal())`: built already by forest-amplitude-normal; the door only reads it.
 7. The variance forest's help sentences and pin.
 8. A sharer's `sd`, where `samplerSharers` names two or more, refused, a value equal to the one in force excepted:
-   "this forest shares one prior total with forests ...; a forest's own size cannot be changed live yet: make a new
+   "<forest> shares one prior total with forests ...; a forest's own size cannot be changed live yet: make a new
    sampler". On main only; slice 3 replaces it. It moves here from forests-shared-total's `resolveForestSpreads`. A
    lone forest with no basis beside forests with a basis is named by `samplerSharers` too, at a share of 1; its `sd` is
    taken, as forests-shared-total's own route took it, dec-B525's end state with no group to leave, and its twin is a
