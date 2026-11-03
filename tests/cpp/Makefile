@@ -70,7 +70,7 @@ NMATH_LIB := $(SA_BUILD)/nmath/libnmath.a
 NMATH_CPPFLAGS := -DMATHLIB_STANDALONE -include errno.h -include $(NMATH_DIR)/prefix.h \
                   -I$(NMATH_DIR)/include
 
-all: header-compiles test_bartcore r-math-symbols standalone-math
+all: header-compiles test_bartcore r-math-symbols standalone-config standalone-math
 
 # -Wno-unused-function: the header's one static inline helper
 # (dbarts_dense_predictor_source) has no caller when the header is compiled
@@ -119,9 +119,10 @@ endif
 SA_MISC_LIB := $(SA_BUILD)/misc/libmisc.a
 
 $(SA_MISC_LIB): FORCE | $(SA_BUILD)/misc
-	$(MAKE) -C $(SA_BUILD)/misc -f $(CURDIR)/standalone-misc.mk \
-	  -f $(abspath ../../src/misc/Makefile) library \
+	$(MAKE) -C $(SA_BUILD)/misc -f $(abspath ../../src/misc/Makefile) \
+	  -f $(CURDIR)/standalone-misc.mk library \
 	  MISC_SRC=$(abspath ../../src/misc) INCLUDE_DIR=$(abspath ../../src/include) \
+	  SA_CONFIG=$(abspath $(STANDALONE)/config) \
 	  MISC_LIB=libmisc.a CC="$(RCC)" ALL_CFLAGS="$(RCFLAGS)" AR="$(AR)" ARFLAGS=-crs \
 	  ALL_CPPFLAGS="-DNDEBUG -I$(abspath $(STANDALONE)/config/misc) \
 	    -I$(abspath $(STANDALONE)/config) -I$(abspath ../../src/include)" \
@@ -182,6 +183,32 @@ r-math-symbols:
 	fi; \
 	echo "r-math-symbols: $$so calls R's $(R_MATH_NAMES)"
 
+# The checked-in configuration headers define what configure's define, value
+# for value. In a tree configure has run in, a misc or external source reads
+# configure's config.h, not the checked-in one, so no build here would notice
+# one drifting; this compares what each pair defines, with this compiler and
+# architecture, and names every macro that differs. DBARTS_REFERENCE_BUILD
+# is configure's alone (--enable-reference-build) and is left out.
+SA_CONFIG_PAIRS := misc/config.h:../../src/misc/config.h \
+                   external/config.h:../../src/external/config.h \
+                   misc/types.h:../../src/include/misc/types.h
+standalone-config:
+	@status=0; \
+	for pair in $(SA_CONFIG_PAIRS); do \
+	  ours=$(STANDALONE)/config/$${pair%%:*}; generated=$${pair#*:}; \
+	  if [ ! -f $$generated ]; then \
+	    echo "error: $$generated not found; run 'R CMD INSTALL .' first" >&2; exit 1; \
+	  fi; \
+	  a=$$($(RCC) $(RCFLAGS) -dM -E -x c $$ours | awk '$$2 != "DBARTS_REFERENCE_BUILD"'); \
+	  b=$$($(RCC) $(RCFLAGS) -dM -E -x c $$generated | awk '$$2 != "DBARTS_REFERENCE_BUILD"'); \
+	  differ=$$(printf '%s\n%s\n' "$$a" "$$b" | sort | uniq -u | awk '{ print $$2 }' | sort -u); \
+	  if [ -n "$$differ" ]; then \
+	    echo "error: $$ours and $$generated differ in:" $$differ >&2; status=1; \
+	  fi; \
+	done; \
+	if [ $$status -ne 0 ]; then exit 1; fi; \
+	echo "standalone-config: standalone/config defines configure's values"
+
 FORCE:
 
 run: test_bartcore
@@ -226,7 +253,10 @@ clean:
 	rm -f build-standalone/external/libexternal.a
 	rm -f build-standalone/standalone_math build-standalone/standalone_math.o
 	rm -f build-standalone/standalone_math.d
-	-rmdir build-standalone/nmath build-standalone/misc build-standalone/external
-	-rmdir build-standalone
+	@# a directory still holding a file this list does not name fails here
+	if [ -d build-standalone/nmath ]; then rmdir build-standalone/nmath; fi
+	if [ -d build-standalone/misc ]; then rmdir build-standalone/misc; fi
+	if [ -d build-standalone/external ]; then rmdir build-standalone/external; fi
+	if [ -d build-standalone ]; then rmdir build-standalone; fi
 
-.PHONY: all header-compiles run clean standalone-math r-math-symbols FORCE
+.PHONY: all header-compiles run clean standalone-math r-math-symbols standalone-config FORCE
