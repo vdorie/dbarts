@@ -44,9 +44,10 @@ recipe is in tests/cpp/Makefile. Compiled that way on the reference host
 (arm64 macOS, R 4.6.x) the copy returns exactly R's values: the tests/cpp
 nmath suite compares the two on a grid over the six routines and their flag
 combinations, bitwise there and within a relative 1e-13 elsewhere. Other
-flags change the last digits (with contraction of a * b + c turned off, qnorm
-moves by up to 6 units in the last place, qt 10 and qchisq 32), so a build
-that must match R's draws compiles the copy as R compiles nmath.
+flags change the last digits (with contraction of a * b + c turned off, a
+quarter of the grid moves: qnorm by up to 432 units in the last place in its
+far tails, dt 50, qchisq 35, qt 11, dnorm 8), so a build that must match R's
+draws compiles the copy as R compiles nmath.
 
 Re-taking the copy
 ------------------
