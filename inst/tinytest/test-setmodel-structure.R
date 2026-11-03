@@ -21,12 +21,11 @@ makeControl <- function() {
     n.threads = 1L,
     n.samples = 12L,
     n.burn = 6L,
-    seed = 5L,
-    n.trees = 12L
+    seed = 5L
   )
 }
 build <- function(response = y, ...) {
-  dbarts(x, response, control = makeControl(), ...)
+  dbarts(x, response, control = makeControl(), n.trees = 12L, ...)
 }
 
 # the refusal names its subject, and leaves the stored model and the next
@@ -214,9 +213,9 @@ refused(
 )
 
 # DART against the ordinary prior, in each direction
-refused(build, build(tree.prior = dart())$model, "tree prior's kind")
+refused(build, build(split.probs = dart())$model, "tree prior's kind")
 refused(
-  function() build(tree.prior = dart()),
+  function() build(split.probs = dart()),
   build()$model,
   "tree prior's kind"
 )
@@ -350,7 +349,6 @@ for (leaf in list(normal(), normal(sd = 0.4), normal(k = chi(2, 3)))) {
     n.samples = 12L,
     n.burn = 6L,
     seed = 5L,
-    n.trees = 12L,
     proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4)
   )
   expect_silent(sampler$setControl(moves))
@@ -360,9 +358,11 @@ for (leaf in list(normal(), normal(sd = 0.4), normal(k = chi(2, 3)))) {
 # and the residual prior changed, drawing before any run what creating with it
 # draws
 local({
-  sampler <- build(tree.prior = dart())
+  sampler <- build(split.probs = dart())
   created <- build(
-    tree.prior = dart(power = 3, base = 0.8),
+    power = 3,
+    base = 0.8,
+    split.probs = dart(),
     leaf.prior = normal(k = 4),
     family = gaussian(sigma = chisq(5, 0.8))
   )

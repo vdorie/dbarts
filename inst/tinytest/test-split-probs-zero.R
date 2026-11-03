@@ -15,7 +15,6 @@ makeControl <- function(n.chains = 1L) {
   dbartsControl(
     n.chains = n.chains,
     n.threads = 1L,
-    n.trees = 20L,
     n.samples = 1L,
     updateState = FALSE,
     verbose = FALSE,
@@ -25,9 +24,16 @@ makeControl <- function(n.chains = 1L) {
 # sigest is fixed: the residual scale estimate does not differ by prior here,
 # but the comparisons below are stated at one estimate
 build <- function(..., design = x, n.chains = 1L) {
-  dbarts(design, y, ..., control = makeControl(n.chains), sigest = 1)
+  dbarts(
+    design,
+    y,
+    ...,
+    control = makeControl(n.chains),
+    n.trees = 20L,
+    sigest = 1
+  )
 }
-zeroLast <- cgm(split.probs = c(0.5, 0.5, 0))
+zeroLast <- c(0.5, 0.5, 0)
 splits <- function(draws) rowSums(draws$varcount)
 splitsOnLast <- function(sampler, current = FALSE) {
   sum(sampler$getTrees(current = current)$var == 3L)
@@ -35,8 +41,8 @@ splitsOnLast <- function(sampler, current = FALSE) {
 
 # the zero draws what the column list draws, and the stated probabilities are
 # reported as written
-zeroed <- build(tree.prior = zeroLast)
-listed <- build(tree.prior = zeroLast, forests = list(forest(vars = 1:2)))
+zeroed <- build(split.probs = zeroLast)
+listed <- build(split.probs = zeroLast, forests = list(forest(vars = 1:2)))
 zeroDraws <- zeroed$run(0L, 200L)
 listDraws <- listed$run(0L, 200L)
 expect_identical(zeroDraws$train, listDraws$train)
@@ -48,10 +54,10 @@ expect_identical(zeroed$model@tree.prior@splitProbabilities, c(0.5, 0.5, 0))
 
 # before any run $setModel takes a zero and draws what creating with it draws
 installed <- build()
-installed$setModel(build(tree.prior = zeroLast)$model)
+installed$setModel(build(split.probs = zeroLast)$model)
 expect_identical(
   installed$run(0L, 50L)$train,
-  build(tree.prior = zeroLast)$run(0L, 50L)$train
+  build(split.probs = zeroLast)$run(0L, 50L)$train
 )
 
 # a zero on a column some chain's live trees split on is refused, naming it,
@@ -65,7 +71,7 @@ refusedZero <- function(design, pattern) {
   expect_true(splitsOnLast(sampler, current = TRUE) > 0)
   before <- sampler$model
   expect_error(
-    sampler$setModel(build(design = design, tree.prior = zeroLast)$model),
+    sampler$setModel(build(design = design, split.probs = zeroLast)$model),
     pattern
   )
   expect_identical(sampler$model, before)
@@ -76,7 +82,7 @@ refusedZero(unname(x), "split probability zero to the predictor in column 3")
 
 # a state or donor that splits on the column is declined, and the sampler is
 # left as it was; forced, every such split is cut back
-live <- build(tree.prior = zeroLast)
+live <- build(split.probs = zeroLast)
 invisible(live$run(0L, 50L))
 donor <- build()
 invisible(donor$run(0L, 50L))

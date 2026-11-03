@@ -21,14 +21,13 @@ makeControl <- function(keepTrees) {
     n.chains = 2L,
     n.threads = 1L,
     n.samples = 10L,
-    n.trees = 10L,
     seed = 9L,
     updateState = FALSE,
     keepTrees = keepTrees
   )
 }
 build <- function(..., response = y, keepTrees = FALSE) {
-  dbarts(x, response, ..., control = makeControl(keepTrees))
+  dbarts(x, response, ..., control = makeControl(keepTrees), n.trees = 10L)
 }
 maker <- function(...) function() build(...)
 stateOf <- function(sampler, name) {
@@ -153,30 +152,33 @@ expect_null(sampler$model@leaf.prior@lengthscale)
 # update.delay = 0 throughout: at the default (half of n.burn) a run this short
 # never updates DART, and the pins would compare the initial state with itself
 dart0 <- function(...) dart(..., update.delay = 0)
-drawnAlpha <- maker(tree.prior = dart0())
+drawnAlpha <- maker(split.probs = dart0())
 for (made in list(
-  maker(tree.prior = dart0(a = 0.7, b = 2)),
-  maker(tree.prior = dart0(rho = 2)),
-  maker(tree.prior = dart0(alpha = 3)),
-  maker(tree.prior = dart(update.delay = 1)),
-  maker(tree.prior = dart0(alpha = 2, update.alpha = FALSE))
+  maker(split.probs = dart0(a = 0.7, b = 2)),
+  maker(split.probs = dart0(rho = 2)),
+  maker(split.probs = dart0(alpha = 3)),
+  maker(split.probs = dart(update.delay = 1)),
+  maker(split.probs = dart0(alpha = 2, update.alpha = FALSE))
 )) {
   asCreated(drawnAlpha, made)
 }
-heldAlpha <- maker(tree.prior = dart0(alpha = 2, update.alpha = FALSE))
-asCreated(heldAlpha, maker(tree.prior = dart0(alpha = 5, update.alpha = FALSE)))
+heldAlpha <- maker(split.probs = dart0(alpha = 2, update.alpha = FALSE))
+asCreated(
+  heldAlpha,
+  maker(split.probs = dart0(alpha = 5, update.alpha = FALSE))
+)
 # held to drawn starts at the value in force; a drawn alpha restarts at a new
 # stated start and keeps its value under the same one
 handed <- heldAlpha()
-handed$setModel(build(tree.prior = dart0(alpha = 5))$model)
+handed$setModel(build(split.probs = dart0(alpha = 5))$model)
 expect_identical(stateOf(handed, "dart.alpha"), c(2, 2))
 sampler <- drawnAlpha()
 invisible(sampler$run(0L, 30L))
 expect_true(all(stateOf(sampler, "dart.alpha") != 1))
 alpha <- stateOf(sampler, "dart.alpha")
-sampler$setModel(build(tree.prior = dart0(a = 0.7))$model)
+sampler$setModel(build(split.probs = dart0(a = 0.7))$model)
 expect_identical(stateOf(sampler, "dart.alpha"), alpha)
-sampler$setModel(build(tree.prior = dart0(a = 0.7, alpha = 3))$model)
+sampler$setModel(build(split.probs = dart0(a = 0.7, alpha = 3))$model)
 expect_identical(stateOf(sampler, "dart.alpha"), c(3, 3))
 # the split weights and the count of skipped updates are kept mid-run
 sampler <- drawnAlpha()
@@ -185,11 +187,11 @@ sampler$storeState()
 weights <- lapply(sampler$state, `[[`, "dart.probabilities")
 expect_true(all(vapply(weights, function(w) any(abs(w - 1 / 3) > 1e-6), TRUE)))
 skipped <- lapply(sampler$state, `[[`, "dart.updates.skipped")
-sampler$setModel(build(tree.prior = dart(b = 3, update.delay = 50))$model)
+sampler$setModel(build(split.probs = dart(b = 3, update.delay = 50))$model)
 sampler$storeState()
 expect_identical(lapply(sampler$state, `[[`, "dart.probabilities"), weights)
 expect_identical(lapply(sampler$state, `[[`, "dart.updates.skipped"), skipped)
-agreeAfter(drawnAlpha, build(tree.prior = dart0(a = 0.7, rho = 2))$model)
+agreeAfter(drawnAlpha, build(split.probs = dart0(a = 0.7, rho = 2))$model)
 agreeAfter(drawnAlpha, heldAlpha()$model)
 agreeAfter(heldAlpha, drawnAlpha()$model)
 
