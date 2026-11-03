@@ -1,7 +1,7 @@
 # hurdle-completion: a test set, weights, subset, offsets and the formula interface on hurdle.lognormal fits
 
 Status: PLANNED 2026-11-03 on main (170635476); amended the same day after its blind critique (see
-[The critique and what was amended](#the-critique-and-what-was-amended)). Not built. Two open calls.
+[The critique and what was amended](#the-critique-and-what-was-amended)). Not built. Both calls are ruled (dec-B587, dec-B588).
 Rulings, quoted where they settle a call: dec-A15 (fitted takes ci.level after sample; of the hurdle's missing test channel,
 "make sure that its missing test channel is treated as part of feature-completion work and we don't forget it"), dec-A114
 (hurdle predict's offset is a reserved slot; "Hurdle offsets are coming."), dec-B07 (one predict argument order), dec-B236
@@ -52,7 +52,7 @@ and a fit kept without its trees still answers for them. Both parts always see t
 removes a row from both, as one model frame does in lm and pscl's hurdle. predict takes an offset in the place held for it
 and, as a gaussian or probit fit's predict does, a weight of 1 to draw a held-out row as a new observation.
 
-Two choices are yours.
+Two choices were the maintainer's, and both are ruled as recommended (see [Ruled](#ruled)).
 
 First, which part an offset enters. The zero part is a probit and the positive part models log y, so one number cannot
 mean the same thing in both, the reason a single leaf-prior spread is refused on this family. pscl and countreg put their
@@ -70,7 +70,7 @@ scheduled after 1.0-0 in August and left unscheduled when you ruled frequency we
 ruled for every family on 2026-11-03 (0 holds a row out, and predict with a weight of 1 draws it as a new observation), and
 counts when probit gains them; a user with counts expands the rows meanwhile. That slice, subset with it, is about 6
 agent-hours. Building probit counts now is the alternative, an engine change of roughly 25 to 30 agent-hours more with its
-review. No ruling settles either call.
+review. Ruled: option (a) of each.
 
 One call made for you to know of: a missing weight or offset on a hurdle fit's matrix interface is dropped under na.omit
 and na.exclude, as your 2026-09-27 rule says fitting does; gaussian and probit fits there still refuse it whatever
@@ -199,7 +199,7 @@ then each part's data is derived from it by rows, so both parts carry the same c
 positive part's design must code the n rows and the test rows against the same columns as the zero part's, which the
 current matrix path gets for free and a formula path must keep: a level seen only on zero rows (dec-A113 keeps it) codes on
 the positive part's test rows. Each part's data object carries the formula's terms and its own offset record, so predict
-and the partial dependence functions re-evaluate a part's offset on new rows as they do for any fit. Under open call 1's
+and the partial dependence functions re-evaluate a part's offset on new rows as they do for any fit. Under the ruling on which part a plain offset enters,
 (a) the zero part's terms drop the formula's offset() term, which is the positive part's, so neither predict(fit$zero,
 newdata) through [`predictTermOffset`](../../R/generics.R) nor [`pdbart.storedOffset`](../../R/partialDependence.R) and
 [`pdbart.gridOffset`](../../R/partialDependence.R), which read the zero part's sampler, add it to the probit; the zero part's
@@ -259,7 +259,7 @@ hurdle's record does not.
 - subset: an index, a logical or an expression over the data, evaluated once and applied before the split; both parts
   receive the same rows. Taken on the matrix route as bart takes it on other families (p4b-components.R ran
   bart(x, y, subset = 1:100) on a gaussian fit).
-- weights: per open call 2, recommended 0 and 1 on both parts, which mean the same under the precision and frequency
+- weights: per the weights ruling (dec-B588), 0 and 1 on both parts, which mean the same under the precision and frequency
   readings (dec-B564); any other value is refused by name, saying that a hurdle fit's weights mark rows in (1) and out (0)
   and that whole-number counts are fit by repeating each row its weight's number of times, which the probit part reads
   exactly. p12-probit-weights.R: a probit fit refuses 2 and 0.5 ("probit models do not support weights other than 0 and
@@ -282,7 +282,7 @@ hurdle's record does not.
 
 ### Offsets (S4)
 
-Per open call 1, recommended:
+Per the offset ruling (dec-B587):
 
 - A plain offset, the argument or an offset() term, enters the positive part; the two are summed as on every family
   (dec-B154).
@@ -368,9 +368,9 @@ Per open call 1, recommended:
    ordinary gaussian fit the help says it is (its fitted, residuals, loglik and plot refusing) and hurdle-reduction.R could
    not compare its training draws with the standalone fit's.
 
-## Open calls
+## Ruled
 
-### 1. Which part a plain offset enters
+### 1. Which part a plain offset enters (ruled: (a), dec-B587)
 
 Background. The zero part's predictor is a probit latent and the positive part's is log y: an offset of log exposure on the
 positive part makes a positive amount proportional to exposure, while on the probit latent the same number has no such
@@ -391,7 +391,9 @@ is recommended over it: either part can be left out, where a matrix needs a colu
 as its own expression for predict (dec-B185), where cbind(zero = 0, positive = log(t)) is one expression whose parts
 predict must split. The matrix's cost is the reverse: one shape for every per-component offset in the package.
 
-No ruling settles this: dec-A114 says only that hurdle offsets are coming, and dec-A105 is about a leaf-prior spread.
+Ruled (maintainer, 2026-11-03, dec-B587), option (a): "Ok, use your recommendation for this item." A plain offset, argument
+or offset() term, enters the positive part; offset = list(zero = , positive = ) states each part's. Before the ruling no
+ruling settled it: dec-A114 says only that hurdle offsets are coming, and dec-A105 is about a leaf-prior spread.
 
 - (a) A plain offset, argument or term, enters the positive part; offset = list(zero = , positive = ) states each part's.
   Recommended. About 9.5 agent-hours (S4).
@@ -404,7 +406,7 @@ No ruling settles this: dec-A114 says only that hurdle offsets are coming, and d
 Evidence that would change it: a user population whose offsets belong in the zero part, such as a known baseline
 probability, for which (a) still works through the list.
 
-### 2. What weights a hurdle fit takes
+### 2. What weights a hurdle fit takes (ruled: (a), dec-B588)
 
 Background. A weight in a two-part model is read by pscl and brms as a count of identical rows in both parts, which
 frequency weights are (dec-B563). Under that reading the zero part needs probit counts: a probit row of weight w is w latent
@@ -414,7 +416,10 @@ without scheduling it. A precision reading, noise variance over w on log y, has 
 refuses it there), so a weight read as a precision on one part and ignored on the other is not offered. Survey or
 inverse-probability weights are neither (dec-B568's caution).
 
-No ruling settles this: dec-B563 left the hurdle's weights to this feature, dec-B569 keeps probit at 0 and 1, and the
+Ruled (maintainer, 2026-11-03, dec-B588), option (a): "Let's start with your recommendation and think about extensions
+in the future." 0 and 1 on both parts now; other values refused, naming the remedy of repeating each row its count's number
+of times. Before the ruling nothing settled it: dec-B563 left the hurdle's weights to this feature, dec-B569 keeps
+probit at 0 and 1, and the
 2026-08-28 schedule is integer-weight probit's, not the hurdle's.
 
 - (a) 0 and 1 on both parts now, the membership a probit fit takes, read the same under both readings and at predict as
@@ -438,7 +443,7 @@ expanding the rows.
   output allowed to move is a positional ci.level in fitted's third place, which becomes sample (dec-A15).
 - Each part stays the standalone probit or gaussian fit at its derived seed, draw for draw, under every new input.
 - Each argument evaluated once (dec-B351); both parts see the same rows.
-- Out of scope: whole-number or real weights (open call 2, (a)); a variance forest on the positive part; keepFits = FALSE and
+- Out of scope: whole-number or real weights (the weights ruling, dec-B588); a variance forest on the positive part; keepFits = FALSE and
   callbacks; dbarts(), dbartsSpec, xbart and the sampler doors (dec-B14); a sparse design; a two-part formula giving each part
   its own predictors; an engine hurdle (dec-B82).
 - Base R calls within DESCRIPTION's R floor; no new dependency.
@@ -600,7 +605,7 @@ have no weights formal on main or in the frequency-weights plan, which is that p
   S1's first pin shows it or names what differs.
 - The exact cost of the n + m wide positive test channel at large n; it is n wide today, and m more columns are what any
   bart fit's test set costs.
-- The cost of integer-weight probit in open call 2 (b) is scaled from frequency-weights' Polya-Gamma slice and the
+- The cost of integer-weight probit in the weights ruling's alternative (b) is scaled from frequency-weights' Polya-Gamma slice and the
   weighted-binary memo, not planned.
 - hurdle-exact.R's configuration was read for its header only; S5 confirms a 0 row and an offset fit within its two cells.
 - The memory of the stacked channel at large n is the critique's arithmetic, not measured: per draw 2n + |P| + 2m values,
