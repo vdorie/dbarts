@@ -391,7 +391,7 @@ live <- dbarts(
 )
 expect_error(
   live$setForest(1, sd = 1),
-  "this forest shares one prior total with forests 1, 2",
+  "forest 1 shares one prior total with forests 1, 2",
   fixed = TRUE
 )
 expect_error(
