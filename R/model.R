@@ -2901,7 +2901,10 @@ validateLeafSd <- function(sd) {
 refuseLeafScaleOverflow <- function(sd) {
   scale <- if (is.numeric(sd)) sd else sd@scale
   if (is.finite(scale) && !is.finite(2.0 * scale)) {
-    stop("the leaf prior's sd overflows the leaf scale; use a smaller sd")
+    stop(
+      "the leaf prior's sd overflows the leaf scale; use a smaller sd",
+      call. = FALSE
+    )
   }
   invisible(NULL)
 }
