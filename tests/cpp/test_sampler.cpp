@@ -15128,13 +15128,14 @@ static void testSharerLeave() {
     SamplerOptions options = optionsFor(ResponseFamily::gaussian, false);
     options.k = k;
     for (int numLeaving : {1, 2}) {
+      // the parts creation gave, read before any leave
       auto live = build(ResponseFamily::gaussian, options, {}, {}, 7201);
-      live->setForestMapSd(0, 0.4);
-      if (numLeaving == 2) live->setForestMapSd(2, 0.3);
       std::vector<double> sds = {0.4, live->forestCalibration(0, 1).mapSd,
                                  numLeaving == 2
                                    ? 0.3
                                    : live->forestCalibration(0, 2).mapSd};
+      live->setForestMapSd(0, 0.4);
+      if (numLeaving == 2) live->setForestMapSd(2, 0.3);
       auto stated = build(ResponseFamily::gaussian, options, sds, {}, 7201);
       bool scales = true;
       for (size_t c = 0; c < numChains; ++c)
