@@ -2222,6 +2222,24 @@ public:
     return true;
   }
 
+  /// Installs \p model's residual prior on every chain and nothing else.
+  /// Chain::setResidualPrior states the semantics.
+  void setResidualPrior(const ModelParameters& model) {
+    for (auto& chain : chains_) chain->setResidualPrior(model);
+  }
+
+  /// Installs the fitting function's leaf prior on every chain; false,
+  /// writing nothing, where a chain has no forest it reaches (a sampler of one
+  /// forest, a multinomial one, one whose forests all have a basis, or one
+  /// whose several forests with no basis all state their own sd).
+  /// Chain::installFittingLeafPrior states the semantics.
+  bool setFittingLeafPrior(const FittingLeafPrior& prior) {
+    for (const auto& chain : chains_)
+      if (!chain->takesFittingLeafPrior(prior)) return false;
+    for (auto& chain : chains_) chain->installFittingLeafPrior(prior);
+    return true;
+  }
+
   /// The lowest column \p splitProbabilities gives probability zero that a
   /// live tree of the first forest splits on, on any chain, or -1 where there
   /// is none. Writes nothing; kept draws are not read.

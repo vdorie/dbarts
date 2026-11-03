@@ -47,7 +47,8 @@ enum class FacadeVirtual {
   sampleNodeParametersFromPrior, sampleVarianceForestFromPrior, growFromRoot,
   setNumThreads, setNumThin,
   setVerbose, fitScale, gpFallbackTally, slowCountTally, setTreeStorage,
-  setModel, setForestTreePrior, liveSplitOnZeroProbability, setResidualDf,
+  setModel, setForestTreePrior, liveSplitOnZeroProbability,
+  setResidualPrior, setFittingLeafPrior, setResidualDf,
   setNegativeBinomialShape, setLeafLengthscales, setDart, setMoveSettings,
   sumOfSquaredResiduals,
   printTrees, rng, data, latents, sigma, shapeParameter, setForestBasis,
@@ -214,6 +215,8 @@ public:
           (f, b, p))
   SPY_RET(std::int32_t, liveSplitOnZeroProbability, (const double* p) const,
           (p))
+  SPY_VOID(setResidualPrior, (const ModelParameters& m), (m))
+  SPY_RET(bool, setFittingLeafPrior, (const FittingLeafPrior& p), (p))
   SPY_RET(bool, setResidualDf, (double d), (d))
   SPY_RET(bool, setNegativeBinomialShape, (double s), (s))
   SPY_RET(bool, setLeafLengthscales,
@@ -1280,6 +1283,45 @@ const Row rows[] = {
             base.liveSplitOnZeroProbability(zeroSecond) == 1,
           "facade liveSplitOnZeroProbability: a column the trees split on is "
           "named");
+  }},
+  {FacadeVirtual::setResidualPrior, "setResidualPrior", [](Fixtures& f) {
+    ModelParameters held;
+    held.sigmaIsFixed = true;
+    held.sigmaEstimate = 1.7;
+    f.d.base().setResidualPrior(held);
+    checkNear(f.d.impl().sigma(0), 1.7, 1.0e-12,
+              "facade setResidualPrior: the impl holds the stated sigma");
+    check(TestPeer::forestTreePrior(f.d.impl().chain(0), 0).power == 2.0,
+          "facade setResidualPrior: the tree prior is not written");
+  }},
+  {FacadeVirtual::setFittingLeafPrior, "setFittingLeafPrior", [](Fixtures& f) {
+    FittingLeafPrior prior;
+    prior.k = 3.0;
+    check(!f.g.base().setFittingLeafPrior(prior) &&
+            !f.m.base().setFittingLeafPrior(prior) &&
+            !f.b.base().setFittingLeafPrior(prior),
+          "facade setFittingLeafPrior: one forest, the category forests and "
+          "forests that all have a basis refuse");
+    // a forest with no basis beside a numeric one, at the held default
+    SamplerOptions options;
+    options.numChains = 2;
+    AmplitudeSpec spec;
+    spec.forests.resize(2);
+    spec.forests[1].kind = ForestKind::numeric;
+    spec.forests[1].basis = f.newColumn.data();
+    ext_rng* pair[2] = {f.newRng(51201u), f.newRng(51202u)};
+    Fixture lone;
+    lone.build(f.x.data(), f.y.data(), Fixtures::n, Fixtures::p, nullptr,
+               nullptr, 1.0, 3.0, 0.37804942330213542, options, spec, pair);
+    double basisScale = lone.impl().forestCalibration(1, 1).priorScale;
+    check(lone.base().setFittingLeafPrior(prior),
+          "facade setFittingLeafPrior: the lone forest with no basis takes it");
+    check(lone.impl().forestCalibration(0, 0).k == 3.0 &&
+            lone.impl().forestCalibration(1, 0).k == 3.0 &&
+            lone.impl().forestCalibration(1, 0).share == 1.0 &&
+            lone.impl().forestCalibration(1, 1).priorScale == basisScale,
+          "facade setFittingLeafPrior: the impl's chains hold the k, the "
+          "basis forest unmoved");
   }},
   {FacadeVirtual::setResidualDf, "setResidualDf", [](Fixtures& f) {
     check(!f.d.base().setResidualDf(7.0),

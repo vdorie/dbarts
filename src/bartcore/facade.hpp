@@ -424,6 +424,10 @@ public:
   /// Sampler::liveSplitOnZeroProbability.
   virtual std::int32_t liveSplitOnZeroProbability(
     const double* splitProbabilities) const = 0;
+  /// Sampler::setResidualPrior.
+  virtual void setResidualPrior(const ModelParameters& model) = 0;
+  /// Sampler::setFittingLeafPrior.
+  virtual bool setFittingLeafPrior(const FittingLeafPrior& prior) = 0;
   /// Sampler::setResidualDf.
   virtual bool setResidualDf(double residualDf) = 0;
   /// Sampler::setNegativeBinomialShape.
@@ -811,6 +815,12 @@ public:
   std::int32_t liveSplitOnZeroProbability(
     const double* splitProbabilities) const override {
     return impl_.liveSplitOnZeroProbability(splitProbabilities);
+  }
+  void setResidualPrior(const ModelParameters& model) override {
+    impl_.setResidualPrior(model);
+  }
+  bool setFittingLeafPrior(const FittingLeafPrior& prior) override {
+    return impl_.setFittingLeafPrior(prior);
   }
   bool setResidualDf(double residualDf) override {
     return impl_.setResidualDf(residualDf);

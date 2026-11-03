@@ -372,6 +372,17 @@ struct ModelParameters {
   const double* splitProbabilities = nullptr;  // borrowed; copied on install
 };
 
+/// The fitting function's leaf prior on a chain of several forests, the one
+/// the forests with no basis that state no sd share: k held at .k or drawn
+/// under the chi prior, and a named sd, finite, stated as k against the
+/// single-forest chain's prior scale, over .k or the chi prior's scale.
+struct FittingLeafPrior {
+  double k = 2.0;
+  bool updateK = false;
+  ChiKHyperprior kHyperprior;
+  double namedSd = std::numeric_limits<double>::quiet_NaN();
+};
+
 /// One forest's leaf-prior calibration on ONE chain, in RESPONSE units (the
 /// family's latent units where the response is not rescaled). priorScale is
 /// the value k is relative to - the forest total's prior sd at k = 1 - and
@@ -1556,11 +1567,20 @@ public:
   /// single-forest chain's (singleForestDefaultSize). Read at creation, and at
   /// a restatement only as the number a statement equal to it resolves to.
   double leafPriorSize() const {
-    if (std::isfinite(options_.namedSd))
-      return options_.namedSd / forestSdUnit_ /
-             (options_.updateK ? options_.kHyperprior.medianOfChi() : 1.0);
-    const double k =
-      options_.updateK ? options_.kHyperprior.median() : options_.k;
+    FittingLeafPrior prior;
+    prior.k = options_.k;
+    prior.updateK = options_.updateK;
+    prior.kHyperprior = options_.kHyperprior;
+    prior.namedSd = options_.namedSd;
+    return leafPriorSize(prior);
+  }
+  /// The size \p prior would give one forest, against the node scale
+  /// creation set; nothing is read from the data.
+  double leafPriorSize(const FittingLeafPrior& prior) const {
+    if (std::isfinite(prior.namedSd))
+      return prior.namedSd / forestSdUnit_ /
+             (prior.updateK ? prior.kHyperprior.medianOfChi() : 1.0);
+    const double k = prior.updateK ? prior.kHyperprior.median() : prior.k;
     return options_.nodeScale / k / nodeScaleAnchor_;
   }
   /// Forest f's leaf scale as the map derives it from the retained entry and
@@ -1842,6 +1862,85 @@ public:
     }
     forests_[f].leaf.scale = mapLeafScale(f);
     return true;
+  }
+
+  /// Whether installFittingLeafPrior can write \p prior on this chain: a
+  /// combining chain with one forest with no basis, or several of which one or
+  /// more share the total. The one stating a coefficient's df takes its size
+  /// from the prior, which must then give one that is positive and finite.
+  bool takesFittingLeafPrior(const FittingLeafPrior& prior) const {
+    std::size_t numCandidates = 0, candidate = 0;
+    bool anyShares = false;
+    for (std::size_t f = 0; f < forestMap_.size(); ++f) {
+      if (forestMap_[f].kind != ForestKind::none) continue;
+      ++numCandidates;
+      candidate = f;
+      anyShares = anyShares || isSharer(f) || forestMap_[f].heldAtDefaultK;
+    }
+    if (numCandidates == 1 &&
+        !std::isnan(forestMap_[candidate].statement.amplitudeDf)) {
+      double size = leafPriorSize(prior);
+      return size > 0.0 && std::isfinite(size);
+    }
+    return numCandidates == 1 || (numCandidates > 1 && anyShares);
+  }
+
+  /// Installs the fitting function's leaf prior, which the chain's options
+  /// then hold, on the forests it reaches, as creation under it would give
+  /// them, from the next sweep. Where one forest has no basis it is the one
+  /// reached, whatever it states: its sd statement is cleared and it is
+  /// resolved again, so it shares the total alone, or keeps the map's held
+  /// entry at a held k of the default, or, where it states a coefficient's
+  /// df, takes its trees' scale from the prior's size (leafPriorSize), no k
+  /// being drawn on it; no leaf, coefficient or auxiliary moves. Where several
+  /// have none, the forests sharing the total take it and the rest keep their
+  /// own; a lone one moves between the map's held entry and the group's k
+  /// both ways. On a sharer a held k is written, a drawn k is not: from a held
+  /// one it starts at the k in force (the spread in force, on a forest that
+  /// stated its sd), and a named sd is stated against the prior scale. Each
+  /// sharer keeps its own leaf scale. Requires takesFittingLeafPrior.
+  void installFittingLeafPrior(const FittingLeafPrior& prior) {
+    const double kWas = options_.k;
+    options_.k = prior.k;
+    options_.updateK = prior.updateK;
+    options_.kHyperprior = prior.kHyperprior;
+    options_.namedSd = prior.namedSd;
+    std::vector<std::size_t> candidates;
+    for (std::size_t f = 0; f < forestMap_.size(); ++f)
+      if (forestMap_[f].kind == ForestKind::none) candidates.push_back(f);
+    if (candidates.size() == 1) {
+      std::size_t f = candidates.front();
+      MapForest& mapped = forestMap_[f];
+      const bool shared = isSharer(f);
+      double kInForce = shared ? forests_[f].k : kWas;
+      double sdWas = std::numeric_limits<double>::quiet_NaN();
+      if (!shared && !mapped.heldAtDefaultK) sdWas = forestCalibration(f).mapSd;
+      mapped.statement.sd = std::numeric_limits<double>::quiet_NaN();
+      mapped.statement.sdMultiple = std::numeric_limits<double>::quiet_NaN();
+      if (!std::isnan(mapped.statement.amplitudeDf)) {
+        // its own coefficient, which the prior does not reach: the trees'
+        // scale alone is resolved again, as creation resolves a df forest
+        // stating no sd
+        mapped.entry = forestMapEntry(mapped.statement, mapped.kind,
+                                      forestSdUnit_, leafPriorSize(),
+                                      mapped.basisScale);
+        forests_[f].leaf.scale = mapLeafScale(f);
+        return;
+      }
+      resolveLoneSharer(f, kInForce, sdWas);
+      return;
+    }
+    std::vector<std::size_t> group = sharers_;
+    if (group.empty())
+      for (std::size_t f : candidates)
+        if (forestMap_[f].heldAtDefaultK) group.push_back(f);
+    if (group.size() == 1) {
+      std::size_t f = group.front();
+      resolveLoneSharer(f, isSharer(f) ? forests_[f].k : kWas,
+                        std::numeric_limits<double>::quiet_NaN());
+      return;
+    }
+    for (std::size_t f : group) writeSharedLeafPrior(forests_[f], forests_[f].k);
   }
 
   /// Whether map forest f takes its default scale from its column: a numeric
@@ -2751,20 +2850,7 @@ public:
     forest.namedSd = model.namedSd;
     translateNamedSd(forest);
 
-    // both arms move a variance forest's pin - the fixed one by installing an
-    // estimate over the working-scale 1, the other by re-prioring and
-    // unpinning - so the whole clause is skipped there; the incoming residual
-    // prior addresses the scale leaf instead (below)
-    if (!varianceForest_ &&
-        (family_ == ResponseFamily::gaussian ||
-         family_ == ResponseFamily::aft)) {
-      sigmaIsFixed_ = model.sigmaIsFixed;
-      if (model.sigmaIsFixed)
-        setSigma(model.sigmaEstimate);
-      else
-        response_->setSigmaPrior(model.sigmaEstimate, model.sigmaDf,
-                                 model.sigmaRawScale);
-    }
+    setResidualPrior(model);
 
     // Under a variance forest the residual prior calibrates the scale leaf
     // rather than sigma - the same numbers buildVarianceForest consumed,
@@ -2809,6 +2895,25 @@ public:
       buildColumnMask(forest, data_.numPredictors,
                       forest.treePrior.splitProbabilities);
       pointTreesAtColumnMask(forest, data_.numPredictors);
+    }
+  }
+
+  /// Installs the residual prior half of \p model: a held sigma or sigma's
+  /// prior, on a family that draws sigma with no variance forest. Both arms
+  /// move a variance forest's pin - the fixed one by installing an estimate
+  /// over the working-scale 1, the other by re-prioring and unpinning - so
+  /// there the incoming residual prior addresses the scale leaf instead
+  /// (setModel). Nothing else moves.
+  void setResidualPrior(const ModelParameters& model) {
+    if (!varianceForest_ &&
+        (family_ == ResponseFamily::gaussian ||
+         family_ == ResponseFamily::aft)) {
+      sigmaIsFixed_ = model.sigmaIsFixed;
+      if (model.sigmaIsFixed)
+        setSigma(model.sigmaEstimate);
+      else
+        response_->setSigmaPrior(model.sigmaEstimate, model.sigmaDf,
+                                 model.sigmaRawScale);
     }
   }
 
@@ -6140,6 +6245,47 @@ private:
     translateNamedSd(forest);
     if (forest.updateK && std::isfinite(forest.namedSd))
       forest.k = forest.kHyperprior.scale;
+  }
+
+  /// Writes the options' leaf prior on sharer \p forest after creation: a
+  /// held k as stated, a drawn k left at \p kInForce, and a named sd stated
+  /// against the prior scale.
+  void writeSharedLeafPrior(Forest<L, ResidT>& forest, double kInForce) {
+    forest.updateK = options_.updateK;
+    forest.kHyperprior = options_.kHyperprior;
+    forest.k = options_.updateK ? kInForce : options_.k;
+    forest.namedSd = options_.namedSd;
+    translateNamedSd(forest);
+  }
+
+  /// Resolves forest \p f, the one forest of the chain that can share the
+  /// total and stating no sd, as creation under the options' leaf prior does:
+  /// the map's held entry at a held k of the default, or the total alone. A
+  /// drawn k starts at \p kInForce, or, where \p sdWas is the sd the forest
+  /// stated, at the k that is that spread.
+  void resolveLoneSharer(std::size_t f, double kInForce, double sdWas) {
+    MapForest& mapped = forestMap_[f];
+    Forest<L, ResidT>& forest = forests_[f];
+    const bool heldAtDefaultK = !options_.updateK &&
+                                options_.k == SamplerOptions{}.k &&
+                                !std::isfinite(options_.namedSd);
+    const double share =
+      heldAtDefaultK ? std::numeric_limits<double>::quiet_NaN() : 1.0;
+    mapped.entry = forestMapEntry(mapped.statement, mapped.kind, forestSdUnit_,
+                                  leafPriorSize(), mapped.basisScale, share);
+    mapped.heldAtDefaultK = heldAtDefaultK;
+    sharers_.clear();
+    forest.leaf.scale = mapLeafScale(f);
+    if (heldAtDefaultK) {
+      forest.updateK = false;
+      forest.k = 1.0;
+      forest.namedSd = std::numeric_limits<double>::quiet_NaN();
+      return;
+    }
+    sharers_.push_back(f);
+    if (std::isfinite(sdWas))
+      kInForce = forest.leaf.scale * priorScaleFactor(forest) / sdWas;
+    writeSharedLeafPrior(forest, kInForce);
   }
 
   /// The group's k draw: one k from every sharer's leaves, each sharer's sum

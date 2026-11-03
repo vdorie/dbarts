@@ -13901,6 +13901,237 @@ static void testLevelGibbsPerForest() {
 }
 
 // ---------------------------------------------------------------------------
+// The fitting function's leaf prior written after creation
+// (Sampler::setFittingLeafPrior): on two chains, every sharer takes the k, its
+// drawn flag and chi prior, each keeping its own leaf scale, and nothing else
+// moves; a named sd is stated against the group's node scale; held to drawn
+// starts at the k in force; a chain with no sharer refuses with nothing
+// written; before any run the install draws what creation with it draws; the
+// lone sharer moves between the map's held entry and the k path both ways, the
+// one candidate stating an sd joins the k path, and one stating a df takes the
+// size creation gives it. RNG-neutral (restores rngState; local seeded
+// generators).
+// ---------------------------------------------------------------------------
+static void testFittingLeafPriorInstall() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 616161u;
+  const size_t n = 120, p = 3;
+  std::vector<double> x(n * p), y(n), block(2 * n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    y[i] = std::sin(3.0 * x[i]) + x[i + n] + 0.3 * (runif01() - 0.5);
+    double level = x[i + 2 * n] > 0.5 ? 1.0 : 0.0;
+    block[2 * i] = 1.0 - level;
+    block[2 * i + 1] = level;
+  }
+  const double rawScale = 0.37804942330213542;
+  std::vector<ext_rng*> allRngs;
+  // forests with no basis of the counts given, each stating `sd` (NaN for
+  // none) and `df`, beside a factor forest
+  auto build = [&](const std::vector<size_t>& counts, double sd, double df,
+                   const SamplerOptions& options, unsigned seed) {
+    AmplitudeSpec spec;
+    spec.family = ResponseFamily::gaussian;
+    spec.forests.resize(counts.size() + 1);
+    for (size_t f = 0; f < counts.size(); ++f) {
+      spec.forests[f].forest.numTrees = counts[f];
+      spec.forests[f].sd = sd;
+      spec.forests[f].amplitudeDf = df;
+    }
+    ForestSpec& factor = spec.forests.back();
+    factor.forest.numTrees = 6;
+    factor.kind = ForestKind::levels;
+    factor.basis = block.data();
+    factor.numBasisColumns = 2;
+    std::vector<ext_rng*> rngs = makeDrawRngs(2, seed);
+    allRngs.insert(allRngs.end(), rngs.begin(), rngs.end());
+    return std::make_unique<ConstantLeafSampler>(
+      x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0, rawScale, options,
+      spec, rngs.data());
+  };
+  auto optionsWith = [](double k) {
+    SamplerOptions options;
+    options.numChains = 2;
+    options.nodeScale = 0.5;
+    options.k = k;
+    return options;
+  };
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  auto record = [](ConstantLeafSampler& sampler) {
+    Results results;
+    sampler.run(5, 0, results);
+    std::vector<double> out;
+    for (std::size_t c = 0; c < 2; ++c) {
+      Chain<ConstantGaussianLeaf>& chain = sampler.chain(c);
+      for (std::size_t f = 0; f < chain.numForests(); ++f) {
+        const std::vector<double>& total =
+          TestPeer::totalFitsInForest(chain, f);
+        out.insert(out.end(), total.begin(), total.end());
+      }
+    }
+    return out;
+  };
+  const std::vector<size_t> pair = {38, 37};
+
+  // ---- the group: k, drawn flag and chi prior on every sharer, each its own
+  // leaf scale, the factor forest unmoved ----
+  {
+    auto sampler = build(pair, nan, nan, optionsWith(2.0), 61001u);
+    ForestCalibration factor = sampler->forestCalibration(1, 2);
+    double scale0 = sampler->forestCalibration(1, 0).priorScale;
+    double scale1 = sampler->forestCalibration(1, 1).priorScale;
+    FittingLeafPrior held;
+    held.k = 3.0;
+    check(sampler->setFittingLeafPrior(held), "fitting leaf prior: taken");
+    bool written = true;
+    for (std::size_t c = 0; c < 2; ++c)
+      for (std::size_t f = 0; f < 2; ++f) {
+        ForestCalibration calibration = sampler->forestCalibration(c, f);
+        written = written && calibration.k == 3.0 &&
+                  !calibration.kHasHyperprior;
+      }
+    check(written, "fitting leaf prior: every sharer on both chains holds k");
+    check(sampler->forestCalibration(1, 0).priorScale == scale0 &&
+            sampler->forestCalibration(1, 1).priorScale == scale1 &&
+            scale0 != scale1,
+          "fitting leaf prior: sharers of 38 and 37 trees keep their own "
+          "leaf scales");
+    ForestCalibration after = sampler->forestCalibration(1, 2);
+    check(after.k == factor.k && after.priorScale == factor.priorScale,
+          "fitting leaf prior: the factor forest is not written");
+    FittingLeafPrior drawn;
+    drawn.updateK = true;
+    drawn.kHyperprior.degreesOfFreedom = 3.0;
+    drawn.kHyperprior.scale = 2.5;
+    check(sampler->setFittingLeafPrior(drawn), "fitting leaf prior: drawn");
+    bool fromInForce = true;
+    for (std::size_t c = 0; c < 2; ++c)
+      for (std::size_t f = 0; f < 2; ++f) {
+        ForestCalibration calibration = sampler->forestCalibration(c, f);
+        fromInForce = fromInForce && calibration.k == 3.0 &&
+                      calibration.kHasHyperprior &&
+                      calibration.kPriorScale == 2.5;
+      }
+    check(fromInForce, "fitting leaf prior: held to drawn starts at the k in "
+                       "force, under the chi prior given");
+    FittingLeafPrior named;
+    named.namedSd = 0.8;
+    check(sampler->setFittingLeafPrior(named), "fitting leaf prior: an sd");
+    ForestCalibration first = sampler->forestCalibration(0, 0);
+    double expected = 0.5 * first.responseScale / 0.8;
+    check(first.k == expected &&
+            sampler->forestCalibration(0, 1).k == expected,
+          "fitting leaf prior: a named sd is stated against the group's node "
+          "scale, not a sharer's leaf scale");
+  }
+
+  // ---- before any run, the install draws what creation draws ----
+  {
+    auto installed = build(pair, nan, nan, optionsWith(2.0), 61002u);
+    FittingLeafPrior held;
+    held.k = 3.0;
+    installed->setFittingLeafPrior(held);
+    auto created = build(pair, nan, nan, optionsWith(3.0), 61002u);
+    check(record(*installed) == record(*created),
+          "fitting leaf prior: an install before any run draws as creation");
+  }
+
+  // ---- no sharer: refused, nothing written ----
+  {
+    auto sampler = build(pair, 0.6, nan, optionsWith(2.0), 61003u);
+    ForestCalibration before = sampler->forestCalibration(1, 0);
+    FittingLeafPrior held;
+    held.k = 3.0;
+    check(!sampler->setFittingLeafPrior(held) &&
+            sampler->forestCalibration(1, 0).k == before.k &&
+            sampler->forestCalibration(1, 0).priorScale == before.priorScale,
+          "fitting leaf prior: forests all stating sd refuse, writing "
+          "nothing");
+  }
+
+  // ---- the lone sharer, both ways ----
+  {
+    const std::vector<size_t> one = {20};
+    auto sampler = build(one, nan, nan, optionsWith(2.0), 61004u);
+    double heldScale = sampler->forestCalibration(1, 0).priorScale;
+    // the held entry reads as the sharer it is, at the default k
+    check(TestPeer::sharers(sampler->chain(1)).empty() &&
+            sampler->forestCalibration(1, 0).k == 2.0,
+          "fitting leaf prior: the lone forest starts on the held entry");
+    FittingLeafPrior three;
+    three.k = 3.0;
+    sampler->setFittingLeafPrior(three);
+    check(TestPeer::sharers(sampler->chain(1)).size() == 1 &&
+            sampler->forestCalibration(1, 0).k == 3.0 &&
+            sampler->forestCalibration(1, 0).share == 1.0,
+          "fitting leaf prior: a held 3 moves the lone forest to the k path");
+    FittingLeafPrior two;
+    sampler->setFittingLeafPrior(two);
+    check(TestPeer::sharers(sampler->chain(1)).empty() &&
+            sampler->forestCalibration(1, 0).k == 2.0 &&
+            sampler->forestCalibration(1, 0).priorScale == heldScale,
+          "fitting leaf prior: a held 2 moves it back, bitwise");
+    auto installed = build(one, nan, nan, optionsWith(2.0), 61005u);
+    installed->setFittingLeafPrior(three);
+    auto created = build(one, nan, nan, optionsWith(3.0), 61005u);
+    check(record(*installed) == record(*created),
+          "fitting leaf prior: the lone forest at a held 3 draws as creation");
+  }
+
+  // ---- the one candidate stating an sd joins the k path ----
+  {
+    const std::vector<size_t> one = {20};
+    auto sampler = build(one, 0.6, nan, optionsWith(2.0), 61006u);
+    FittingLeafPrior three;
+    three.k = 3.0;
+    check(sampler->setFittingLeafPrior(three) &&
+            sampler->forestCalibration(1, 0).share == 1.0 &&
+            sampler->forestCalibration(1, 0).k == 3.0 &&
+            std::isnan(sampler->forestCalibration(1, 0).namedSd),
+          "fitting leaf prior: the one candidate's sd goes and it takes k");
+    auto created = build(one, nan, nan, optionsWith(3.0), 61006u);
+    check(sampler->forestCalibration(1, 0).priorScale ==
+            created->forestCalibration(1, 0).priorScale,
+          "fitting leaf prior: at creation's leaf scale");
+  }
+
+  // ---- the one candidate stating a df takes creation's size, no k ----
+  {
+    const std::vector<size_t> one = {20};
+    auto sampler = build(one, nan, 3.0, optionsWith(2.0), 61007u);
+    Results results;
+    sampler->run(3, 0, results);
+    std::vector<double> amplitudes(sampler->chain(0).totalAmplitudes());
+    sampler->chain(0).amplitudes(amplitudes.data());
+    FittingLeafPrior three;
+    three.k = 3.0;
+    check(sampler->setFittingLeafPrior(three),
+          "fitting leaf prior: the df candidate takes it");
+    auto created = build(one, nan, 3.0, optionsWith(3.0), 61007u);
+    std::vector<double> after(amplitudes.size());
+    sampler->chain(0).amplitudes(after.data());
+    check(sampler->forestCalibration(0, 0).mapSd ==
+              created->forestCalibration(0, 0).mapSd &&
+            sampler->forestCalibration(0, 0).k == 1.0 &&
+            std::isnan(sampler->forestCalibration(0, 0).namedSd) &&
+            after == amplitudes,
+          "fitting leaf prior: the df candidate's size is creation's, its "
+          "coefficient and k unmoved");
+    FittingLeafPrior none;
+    none.k = std::numeric_limits<double>::infinity();
+    check(!sampler->setFittingLeafPrior(none) &&
+            sampler->forestCalibration(1, 0).mapSd ==
+              created->forestCalibration(1, 0).mapSd,
+          "fitting leaf prior: a prior giving no size is refused, writing "
+          "nothing");
+  }
+
+  for (ext_rng* rng : allRngs) ext_rng_destroy(rng);
+  rngState = savedRngState;
+  printf("ok: fitting leaf prior install\n");
+}
+
+// ---------------------------------------------------------------------------
 // Forests that share one prior total (forestSharers): one or more forests with
 // no basis that state no sd take the single-forest chain's leaf prior, each an
 // equal part of its variance, so a sharer's node scale is the lone forest's
@@ -14957,6 +15188,7 @@ void runSamplerTests(ext_rng* rng) {
   testMoveSettingsMatchCreation();
   testLevelGibbsPerForest();
   testForestsSharedTotal();
+  testFittingLeafPriorInstall();
   testForestTreePriorInstall();
   testForestTreePriorMatchesCreation();
 }
