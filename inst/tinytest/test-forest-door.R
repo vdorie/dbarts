@@ -1451,17 +1451,22 @@ for (row in atomicRows) {
 # it. A lone forest's sd of 1e308 above is refused before any write, as its
 # leaf scale overflows; here is the engine's refusal after the writes, on a
 # forest whose sd has no such refusal to reach.
-refusingWrite <- function(sampler, forest, ...) {
+refusingWrite <- function(sampler, forest, ..., lone = FALSE) {
   writer <- dbarts:::writeForestDoor
-  environment(writer) <- list2env(
-    list(
-      .Call = function(symbol, ...) {
-        if (identical(symbol, dbarts:::C_dbarts_bartcore_setForestSd)) {
-          stop("the engine refused")
-        }
-        base::.Call(symbol, ...)
+  stubs <- list(
+    .Call = function(symbol, ...) {
+      if (identical(symbol, dbarts:::C_dbarts_bartcore_setForestSd)) {
+        stop("the engine refused")
       }
-    ),
+      base::.Call(symbol, ...)
+    }
+  )
+  # a lone forest's sd goes through the leaf-prior install
+  if (lone) {
+    stubs$writeLeafPrior <- function(...) stop("the engine refused")
+  }
+  environment(writer) <- list2env(
+    stubs,
     parent = environment(dbarts:::writeForestDoor)
   )
   writer(sampler, forest, list(...), character(), NULL)
@@ -1479,6 +1484,22 @@ case("a write refused after writes", {
   ))
   expectFound(message, "the engine refused", "it refused")
   expectAsUntouched(live, build("factor"), 2L, "the write undone")
+})
+
+# a lone forest's sd goes through the leaf-prior install, the last of its writes
+case("a lone write refused after writes", {
+  live <- build("lone")
+  message <- refusal(refusingWrite(
+    live,
+    1L,
+    sd = 0.7,
+    power = 0.5,
+    n.perturb.cuts = 5,
+    proposal.probs = moved,
+    lone = TRUE
+  ))
+  expectFound(message, "the engine refused", "it refused")
+  expectAsUntouched(live, build("lone"), 1L, "the lone write undone")
 })
 
 ## --- the variance forest ---------------------------------------------------------
@@ -1627,6 +1648,29 @@ varianceRefusals <- list(
     "gives 'rule_gibbs' a positive share"
   )
 )
+# a variance call refused on one name writes none of the others
+for (stated in list(
+  list(power = 0.5, base = 2),
+  list(power = 0.5, n.perturb.cuts = 0L),
+  list(n.perturb.cuts = 5, proposal.probs = c(1, 2)),
+  list(base = 0.6, power = -1)
+)) {
+  info <- paste("variance refused whole,", paste(names(stated), collapse = " "))
+  case(info, {
+    live <- buildVariance()
+    expect_false(
+      identical(refusal(do.call(live$setVarianceForest, stated)), "taken"),
+      info = paste(info, "refused")
+    )
+    same(
+      live$getVarianceForest(),
+      buildVariance()$getVarianceForest(),
+      "reader"
+    )
+    same(modelOf(live), modelOf(buildVariance()), "records")
+    same(draws(live), draws(buildVariance()), "draws")
+  })
+}
 for (row in varianceRefusals) {
   info <- paste("variance refuses,", row[[1L]])
   case(info, {

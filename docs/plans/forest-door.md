@@ -264,8 +264,10 @@ label for a mean forest, so the variance forest has its own methods.
 ### How a call is carried out
 
 The signature is `setForest = function(forest = NULL, sd = NULL, power = NULL, base = NULL, amplitude = NULL,
-proposal.probs = NULL, n.perturb.cuts = NULL, treeShift = NULL, updateState = NULL, ...)`, every setting's default
-NULL, so a written NULL is the same as leaving the name out (dec-B519).
+proposal.probs = NULL, n.perturb.cuts = NULL, treeShift = NULL, updateState = NULL, n.trees = NULL, vars = NULL,
+interactions = NULL, blocks = NULL, basis = NULL, ...)`, every setting's default NULL, so a written NULL is the same as
+leaving the name out (dec-B519). The last five are the names creation takes that the door refuses, formals so that a
+short name matches as it does at `forest()`; `$setVarianceForest` has `n.trees` and `vars`.
 
 1. Resolve the forest, the multinomial refusal among it. Refuse structure by name.
 2. Drop the names NULL. Drop each name whose validated value equals the one in force, which the reader's function
@@ -626,26 +628,47 @@ setmodel-parameters' slice 4; this item's slice 3; coefficient-prior-live. Engin
 
 ## Calls made at slice 2
 
-Each the builder's, none in a ruling; the alternative after it.
+Each the builder's or the review's fix round, none in a ruling; the alternative after it.
 
-1. The reader's `sd` on a numeric forest carries no column name: the value `forest(sd = )` takes, whose named form is
-   refused. Alternative: the column's name, as `getLeafPrior` reads it.
+1. The reader's `sd` on a numeric forest carries no column name: the value `forest(sd = )` takes, as the door takes the
+   named form too. Alternative: the column's name, as `getLeafPrior` reads it.
 2. The reader's `sd` is NULL wherever no one positive finite number is in force, beyond the drawn k the plan names:
-   `normal(k = Inf)`, a unit that is not positive. Alternative: the 0 or Inf, which the door refuses handed back.
+   `normal(k = Inf)`, a unit that is not positive. This extends the NULL exception the maintainer was told about to
+   `k = Inf`. Alternative: the 0 or Inf, which the door refuses handed back.
 3. `$getVarianceForest()` reads NULL on a sampler with none. Alternative: refused, as its setter is.
-4. An inert call with `updateState = TRUE` stores nothing, writing nothing being the rule. Alternative: store, as
-   `$setLeafPrior`'s inert path does.
+4. An inert call with `updateState = TRUE` stores state, at `$setForest` and `$setVarianceForest`, as `$setLeafPrior`'s
+   inert path does, so the two doors read alike. Alternative: store nothing, writing nothing being the rule (the
+   builder's first call, reversed by the review).
 5. A multinomial `s$setForest(1, power = )` is refused as position 2 is. Alternative: position 1 taken, which reads as
    one category.
 6. `$getForest` on a lone forest and a sharer reads `amplitude = fixed()`, the plan's table. A lone forest refuses every
    other `amplitude` in creation's words.
 7. What a forest has no name for in its door is "unused argument 'x': $setForest takes forest, sd, ...", not R's bare
    form, because `...` catches it. Alternative: R's own message, which cannot be had past `...`.
-8. A multinomial `amplitude` at the door is refused "a multinomial model's forests have no coefficient: its forests take
-   no 'amplitude'", and at creation `forest(amplitude = fixed())` on that entry is still taken and ignored, as on main,
-   while `student()` and `normal()` are refused for having one forest. The two doors differ on `fixed()` only. Recommended
-   for a later sweep: refuse it at creation by the door's words. Alternative: take the value in force at the door, of a
-   name the kind does not have.
+8. A multinomial model's door takes `amplitude = fixed()` as an inert write, as creation and a lone forest's door do, and
+   refuses `student()` and `normal()` in creation's words (the lone forest's: one forest has no coefficient to give a
+   prior). Alternative: refuse every `amplitude` at the door (the builder's call), which leaves the two doors differing on
+   `fixed()` unless creation refuses it too.
+9. A lone sharer's `sd` is taken. Alternative: refuse it as a group's is.
+10. The engine order is moves, depth, sd, with an undo on an error. Alternative: sd first, needing an undo of the sd.
+    A lone forest's sd past the leaf scale is now refused before any write, so the engine's refusal after writes is
+    reached only by a mock in the tests.
+11. A refusal names a forest by its label where it was given a name, by position where it was not (a basis written as
+    code is not a name), and a multinomial model's one statement as `forest 1`, as creation names them. Alternative: the
+    label whatever it came from (the builder's call, narrowed by the review). A list name that is also the text of
+    the forest's basis reads as unnamed.
+12. `$setLeafPrior`'s `forest` name check is removed, so `forest=` gets R's unused argument. Alternative: keep a pointer
+    to `$setForest`.
+13. A lone `sd` whose leaf scale (twice it) overflows, as `1e308`, is refused in one message at both doors, creation's
+    and `$setLeafPrior`'s alike: "the leaf prior's sd overflows the leaf scale; use a smaller sd". Alternative: each
+    door's own words, "must be positive and finite" at the door, which `1e308` is, and creation's internal
+    `prior.scale`.
+14. `$setForest` and `$setVarianceForest` take `n.trees`, `vars`, `interactions`, `blocks` and `basis` as formals that
+    refuse by name, `...` last, so a short name matches as at creation: `n = 50` is ambiguous as at `forest(n = 50)`, and
+    `n.t = 200` gets the `n.trees` refusal. Alternative: `...` right after `forest`, which turns short names off and
+    breaks positional calls. An unnamed value past the eighth lands on `n.trees`.
+15. The refusal of a sharer's own size names the refused forest first, as the other refusals do: `forest "mu2" shares one
+    prior total with forests 1, 2; ...`.
 
 ## Open calls
 

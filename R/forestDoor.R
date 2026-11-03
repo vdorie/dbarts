@@ -197,9 +197,6 @@ changedForestSettings <- function(given, inForce, label) {
     function(name) {
       value <- given[[name]]
       current <- inForce[[name]]
-      if (is.null(current)) {
-        return(TRUE)
-      }
       switch(
         name,
         amplitude = !sameCoefficientPrior(
