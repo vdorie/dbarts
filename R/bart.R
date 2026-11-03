@@ -1790,25 +1790,11 @@ bart <- function(
     )
     control@keepTrainingFits <- !trainingFitsDropped
     warnFamilyGatedArgs(argNames, "hurdle.lognormal")
-    # a data object is the whole data: what is written beside it is ignored,
-    # with the warning dbartsData gives, so none of these arguments reaches the
-    # refusals below
-    besideDataObject <- inherits(formula, "dbartsData")
     # its zero part is a probit fit, whose precision is its latent's own, so
     # the refusal a component would raise would name a family the caller
     # never asked for
     if (!is.null(variance) && !isFALSE(variance)) {
       stop("family = \"hurdle.lognormal\" does not take a variance forest")
-    }
-    if (
-      !besideDataObject &&
-        (!missing(offset) ||
-          !missing(offset.test) ||
-          formulaHasOffsetTerm(formula))
-    ) {
-      stop(
-        "family = \"hurdle.lognormal\" does not support 'offset'/'offset.test'"
-      )
     }
     return(withFamilySpec(
       familySpec,
@@ -3279,26 +3265,335 @@ ingestHurdleData <- function(
   if (dataGiven && "data" %in% names(dataCall)) {
     handed["data"] <- list(data)
   }
+  dataObject <- inherits(formula, "dbartsData")
+  matrixRoute <- !is.formula(formula) && !dataObject
+
+  # an offset written as list(zero = , positive = ) states each part's: the
+  # positive element rides the data object, the zero element is read beside it
+  # (a data object has one offset slot and ignores what is written beside it)
+  offsets <- if (dataObject) {
+    NULL
+  } else {
+    readHurdleOffsets(matchedCall, callingEnv)
+  }
+  zeroSpec <- NULL
+  foldedZero <- NULL
+  for (argument in c("offset", "offset.test")) {
+    reading <- offsets[[argument]]
+    if (is.null(reading) || !reading$list) {
+      next
+    }
+    zeroSpec[[argument]] <- reading$elements["zero"]
+    positive <- reading$elements["positive"]
+    # an element handed over as values is the argument as a vector is, and is
+    # recorded as one
+    dataCall[argument] <- list(positive[[1L]])
+  }
+  hasZeroOffset <- !is.null(zeroSpec[["offset"]]) &&
+    !is.null(zeroSpec[["offset"]][[1L]])
+  hasZeroTest <- !is.null(zeroSpec[["offset.test"]]) &&
+    !is.null(zeroSpec[["offset.test"]][[1L]])
+
   # with the matrix interface the subset is an index and the weights a vector,
   # each read here once; a formula's are expressions over its data, which the
   # data object reads once
-  if (!is.formula(formula) && !inherits(formula, "dbartsData")) {
+  if (matrixRoute) {
     if (!is.null(subset)) {
       handed["subset"] <- subset
     }
     if (!is.null(weights)) {
       handed["weights"] <- weights
     }
-    # a missing weight marks its row incomplete, and na.omit and na.exclude
-    # drop it from both parts (the matrix interface of the other families
-    # refuses it under every na.action)
-    if (dataGiven && !is.null(weights) && dropsIncompleteRows(na.action)) {
-      folded <- foldIncompleteRows(data, list(weights = weights[[1L]]))
+    # a missing weight or offset marks its row incomplete, and na.omit and
+    # na.exclude drop it from both parts (the matrix interface of the other
+    # families refuses it under every na.action)
+    if (dataGiven && dropsIncompleteRows(na.action)) {
+      channels <- list()
+      if (!is.null(weights)) {
+        channels$weights <- weights[[1L]]
+      }
+      for (argument in c("offset", "offset.test")) {
+        reading <- offsets[[argument]]
+        if (is.null(reading) || argument == "offset.test") {
+          next
+        }
+        if (reading$list) {
+          positive <- reading$elements["positive"][[1L]]
+          if (!is.null(positive)) {
+            channels$offset <- evaluateHurdleOffset(
+              positive,
+              reading$values,
+              callingEnv
+            )
+          }
+        } else {
+          channels$offset <- evaluateHurdleOffset(
+            reading$expr,
+            FALSE,
+            callingEnv
+          )
+        }
+      }
+      if (hasZeroOffset) {
+        channels$zero <- evaluateHurdleOffset(
+          zeroSpec$offset[[1L]],
+          offsets$offset$values,
+          callingEnv
+        )
+      }
+      folded <- foldIncompleteRows(data, channels)
       handed["data"] <- list(folded$y)
-      handed["weights"] <- list(folded$channels$weights)
+      if (!is.null(weights)) {
+        handed["weights"] <- list(folded$channels$weights)
+      }
+      if (!is.null(channels$offset) && anyNA(channels$offset)) {
+        handed["offset"] <- list(folded$channels$offset)
+      }
+      if (!is.null(channels$zero) && anyNA(channels$zero)) {
+        foldedZero <- folded$channels$zero
+      }
     }
   }
-  eval(handOn(dataCall, handed), callingEnv)
+  if (hasZeroOffset || hasZeroTest) {
+    # read once here, and handed to the data object and to the reading of the
+    # zero element beside it
+    if (!is.null(dataCall[["test"]])) {
+      handed["test"] <- list(eval(dataCall[["test"]], callingEnv))
+    }
+    if (
+      is.formula(formula) &&
+        !is.null(dataCall[["subset"]]) &&
+        is.null(handed[["subset"]])
+    ) {
+      value <- tryCatch(
+        eval(dataCall[["subset"]], data, environment(formula)),
+        error = function(e) NULL
+      )
+      if (!is.null(value)) {
+        handed["subset"] <- list(value)
+      }
+    }
+  }
+  ingested <- eval(handOn(dataCall, handed), callingEnv)
+  if (!hasZeroOffset && !hasZeroTest) {
+    return(ingested)
+  }
+
+  zero <- list(offset = NULL, offset.test = NULL, record = NULL)
+  if (hasZeroOffset) {
+    zeroCall <- dataCall[names(dataCall) %in% c("", "subset", "na.action")]
+    zeroCall$formula <- NULL
+    zeroHanded <- list(
+      formula = if (matrixRoute) {
+        formula
+      } else {
+        stats::reformulate(
+          "1",
+          response = formula[[2L]],
+          env = environment(formula)
+        )
+      }
+    )
+    if ("data" %in% names(handed)) {
+      zeroHanded["data"] <- handed["data"]
+    } else if ("data" %in% names(dataCall)) {
+      zeroCall$data <- dataCall$data
+    }
+    if ("subset" %in% names(handed)) {
+      zeroHanded["subset"] <- handed["subset"]
+    }
+    zeroElement <- zeroSpec$offset[[1L]]
+    if (!is.null(foldedZero)) {
+      zeroHanded["offset"] <- list(foldedZero)
+    } else {
+      zeroCall$offset <- zeroElement
+    }
+    zeroData <- eval(handOn(zeroCall, zeroHanded), callingEnv)
+    merged <- mergeZeroOffsetRows(ingested, zeroData)
+    ingested <- merged$ingested
+    zero$offset <- merged$offset
+    zero$record <- attr(zeroData, "offset.argument")
+  }
+  zero$offset.test <- zeroTestOffset(
+    zero,
+    zeroSpec,
+    offsets,
+    handed[["test"]],
+    ingested,
+    callingEnv
+  )
+  attr(ingested, "hurdleZeroOffset") <- zero
+  ingested
+}
+
+# How an offset (or offset.test) argument is written: a plain expression or
+# vector, or list(zero = , positive = ) naming each part's, either left out. A
+# list written in the call has its elements as expressions, each recorded as its
+# own; one handed over in a variable has them as values.
+readHurdleOffsets <- function(matchedCall, callingEnv) {
+  read <- function(argument) {
+    expr <- matchedCall[[argument]]
+    if (is.null(expr)) {
+      return(NULL)
+    }
+    values <- FALSE
+    elements <- NULL
+    if (is.call(expr) && identical(expr[[1L]], as.name("list"))) {
+      elements <- as.list(expr)[-1L]
+    } else if (is.list(expr) && !is.data.frame(expr)) {
+      elements <- expr
+      values <- TRUE
+    } else if (is.symbol(expr)) {
+      value <- tryCatch(eval(expr, callingEnv), error = function(e) NULL)
+      if (is.list(value) && !is.data.frame(value)) {
+        elements <- value
+        values <- TRUE
+      }
+    }
+    if (is.null(elements)) {
+      return(list(list = FALSE, expr = expr, values = FALSE))
+    }
+    labels <- names(elements)
+    if (
+      length(elements) > 0L &&
+        (is.null(labels) ||
+          anyNA(labels) ||
+          any(!labels %in% c("zero", "positive")) ||
+          anyDuplicated(labels))
+    ) {
+      stop(
+        "family = \"hurdle.lognormal\": '",
+        argument,
+        "' written as a list is named 'zero' and 'positive' (either may be ",
+        "left out)",
+        call. = FALSE
+      )
+    }
+    result <- list(zero = NULL, positive = NULL)
+    result[labels] <- elements
+    list(list = TRUE, elements = result, values = values)
+  }
+  list(offset = read("offset"), offset.test = read("offset.test"))
+}
+
+# The numbers an offset element states at the training rows, for the
+# incomplete-row check; NULL where it cannot be read there.
+evaluateHurdleOffset <- function(element, values, callingEnv) {
+  value <- if (values) {
+    element
+  } else {
+    tryCatch(eval(element, callingEnv), error = function(e) NULL)
+  }
+  if (is.numeric(value)) as.double(value) else NULL
+}
+
+# The rows the zero element's reading and the main reading both keep, and the
+# zero element's offset there. The two read one set of rows under one subset, so
+# each records what its na.action dropped by position in that set; a row either
+# dropped is gone from both parts.
+mergeZeroOffsetRows <- function(ingested, zeroData) {
+  omitMain <- ingested@na.action
+  omitZero <- zeroData@na.action
+  total <- length(ingested@y) + length(omitMain)
+  keptMain <- setdiff(seq_len(total), as.integer(unclass(omitMain)))
+  keptZero <- setdiff(seq_len(total), as.integer(unclass(omitZero)))
+  keep <- intersect(keptMain, keptZero)
+  offset <- zeroData@offset[match(keep, keptZero)]
+  if (length(keep) < length(keptMain)) {
+    index <- match(keep, keptMain)
+    extra <- setdiff(keptMain, keep)
+    extraNames <- dataRowNames(ingested, "train")[match(extra, keptMain)]
+    ingested@y <- ingested@y[index]
+    ingested@x <- selectDesignRows(ingested@x, index)
+    if (!is.null(ingested@weights)) {
+      ingested@weights <- ingested@weights[index]
+    }
+    if (!is.null(ingested@offset)) {
+      ingested@offset <- ingested@offset[index]
+    }
+    rowNames <- dataRowNames(ingested, "train")
+    if (!is.null(rowNames)) {
+      ingested <- setDataRowNames(ingested, "train", rowNames[index])
+    }
+    positions <- c(as.integer(unclass(omitMain)), extra)
+    labels <- c(names(omitMain), extraNames)
+    order <- order(positions)
+    ingested@na.action <- structure(
+      positions[order],
+      names = if (length(labels) == length(positions)) labels[order],
+      class = class(if (is.null(omitMain)) omitZero else omitMain)
+    )
+  }
+  list(ingested = ingested, offset = offset)
+}
+
+# The zero part's offset at the test rows: the zero element of 'offset.test' if
+# one is written, else the zero element of 'offset' read at the test rows, as an
+# offset is for the part it enters (re-evaluated on the test frame, or reused
+# where the rows match, or refused asking for offset.test).
+zeroTestOffset <- function(
+  zero,
+  zeroSpec,
+  offsets,
+  test,
+  ingested,
+  callingEnv
+) {
+  testRows <- NROW(ingested@x.test)
+  if (testRows == 0L) {
+    return(NULL)
+  }
+  stated <- zeroSpec[["offset.test"]]
+  if (!is.null(stated) && !is.null(stated[[1L]])) {
+    value <- if (offsets$offset.test$values) {
+      stated[[1L]]
+    } else {
+      data <- if (is.data.frame(test) || is.list(test)) test else NULL
+      evaluated <- evaluateOffsetExpression(stated[[1L]], data, callingEnv)
+      if (inherits(evaluated, "error")) {
+        stop(
+          "'offset.test' cannot be evaluated: ",
+          conditionMessage(evaluated),
+          call. = FALSE
+        )
+      }
+      evaluated
+    }
+  } else if (is.null(zero$offset)) {
+    return(NULL)
+  } else {
+    value <- evaluateOffsetArgument(zero$record, test)
+    if (isFALSE(value)) {
+      value <- NULL
+    }
+    if (is.null(value)) {
+      if (length(zero$offset) == 1L) {
+        value <- zero$offset
+      } else if (length(zero$offset) == testRows) {
+        value <- zero$offset
+      } else {
+        stop(
+          "the zero part's 'offset' was given as ",
+          describeOffsetArgument(zero$record),
+          ", which cannot be evaluated on the rows of 'test'; give ",
+          "'offset.test' for them",
+          call. = FALSE
+        )
+      }
+    }
+  }
+  if (!is.numeric(value) || !(length(value) %in% c(1L, testRows))) {
+    stop(
+      "the zero part's 'offset.test' must be one number or one per test row (",
+      testRows,
+      ")",
+      call. = FALSE
+    )
+  }
+  if (anyNA(value)) {
+    stop("'offset.test' contains missing values", call. = FALSE)
+  }
+  rep_len(as.double(value), testRows)
 }
 
 # The rows of a coded design, with the attributes its container carries (the
@@ -3361,6 +3656,8 @@ stackedTestNames <- function(trainNames, testNames, n, m, trainingFits) {
 # which it never trained on.
 hurdlePartData <- function(ingested, split, trainingFits = TRUE) {
   rowNames <- dataRowNames(ingested, "train")
+  zeroOffset <- attr(ingested, "hurdleZeroOffset")
+  attr(ingested, "hurdleZeroOffset") <- NULL
   zero <- ingested
   zero@y <- split$z
   zero@na.action <- NULL
@@ -3370,9 +3667,9 @@ hurdlePartData <- function(ingested, split, trainingFits = TRUE) {
   if (!is.null(zeroTerms)) {
     attr(zero@x, "terms") <- dropOffsetTerms(zeroTerms)
   }
-  zero@offset <- NULL
-  zero@offset.test <- NULL
-  attr(zero, "offset.argument") <- NULL
+  zero@offset <- zeroOffset$offset
+  zero@offset.test <- zeroOffset$offset.test
+  attr(zero, "offset.argument") <- zeroOffset$record
   positive <- ingested
   positive@y <- split$logPositive
   positive@x <- selectDesignRows(ingested@x, split$positive)
@@ -3387,9 +3684,19 @@ hurdlePartData <- function(ingested, split, trainingFits = TRUE) {
       ingested@weights.test
     )
   }
-  if (!is.null(ingested@offset)) {
-    positive@offset <- ingested@offset[split$positive]
-    positive@offset.test <- ingested@offset
+  if (!is.null(ingested@offset) || !is.null(ingested@offset.test)) {
+    training <- if (is.null(ingested@offset)) {
+      rep(0, NROW(ingested@x))
+    } else {
+      ingested@offset
+    }
+    test <- if (is.null(ingested@offset.test)) {
+      rep(0, NROW(ingested@x.test))
+    } else {
+      ingested@offset.test
+    }
+    positive@offset <- training[split$positive]
+    positive@offset.test <- if (trainingFits) c(training, test) else test
   }
   positive@na.action <- NULL
   positive <- setDataRowNames(

@@ -283,7 +283,7 @@ expect_error(
 # fourth argument is an offset here too rather than 'combineChains'
 expect_error(
   predict(fit, x.new, "ev", FALSE),
-  "'offset' is not used by predict on a bartHurdle fit: this fit has no out-of-sample offset channel",
+  "'offset' must be numeric",
   fixed = TRUE
 )
 expect_error(

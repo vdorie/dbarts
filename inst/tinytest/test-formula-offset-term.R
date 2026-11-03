@@ -89,10 +89,14 @@ expect_error(
   pattern = "requires an n x K matrix \"offset\""
 )
 d$pos <- ifelse(d$a < 0.3, 0, exp(d$a))
-expect_error(
-  fitWith(formula = pos ~ a + offset(o), data = d, family = "hurdle.lognormal"),
-  pattern = "does not support 'offset'/'offset.test'"
+# a hurdle fit carries the term in its positive part alone
+hurdleWith <- fitWith(
+  formula = pos ~ a + offset(o),
+  data = d,
+  family = "hurdle.lognormal"
 )
+expect_null(hurdleWith$zero$offset)
+expect_equal(hurdleWith$positive$offset, d$o[d$pos > 0])
 d$ex <- runif(n, 1, 5)
 d$cnt <- rpois(n, d$ex * exp(d$a))
 expect_identical(

@@ -204,10 +204,6 @@ expect_identical(
 
 # --- refusals that stand -----------------------------------------------------
 expect_error(
-  fitHurdle(y ~ a + b + f + offset(a), data = d),
-  "does not support 'offset'/'offset.test'"
-)
-expect_error(
   fitHurdle(y ~ a + b + forest(f), data = d),
   "forest\\(\\)"
 )

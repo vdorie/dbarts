@@ -943,6 +943,95 @@ pdbart.gridOffset <- function(sampler, rows) {
   sampler$data@offset[1L] - if (is.null(termOffset)) 0 else termOffset
 }
 
+# A hurdle fit's parts as (name, sampler, offset at the fit's n rows): each
+# part's offset is its own, and the positive part's n-row values are the first n
+# of the test channel's, its training channel holding the positive rows alone.
+pdbart.hurdleParts <- function(fit) {
+  n <- length(fit$y)
+  stored <- fit$positive[["offset.test"]]
+  list(
+    zero = list(
+      sampler = fit$zero$fit,
+      offset = fit$zero[["offset"]]
+    ),
+    positive = list(
+      sampler = fit$positive$fit,
+      offset = if (!is.null(stored)) stored[seq_len(n)]
+    )
+  )
+}
+
+# What predict is to add to each part on a subset of the fit's rows, as the list
+# predict takes: a part whose offset argument cannot be evaluated on the rows
+# (a plain vector given for the training rows) has each row's own stored share;
+# any other part's is evaluated by predict. NULL when neither part needs one.
+pdbart.hurdleStoredOffset <- function(fit, all, rows, index) {
+  shares <- lapply(pdbart.hurdleParts(fit), function(part) {
+    argument <- attr(part$sampler$data, "offset.argument")
+    if (is.null(argument) || !isFALSE(evaluateOffsetArgument(argument, rows))) {
+      return(NULL)
+    }
+    share <- evaluateOffsetArgument(argument, all)
+    if (isFALSE(share)) {
+      termOffset <- if (pdbart.isFormulaFit(part$sampler)) {
+        formulaTermOffset(part$sampler$data@x, all, "rows")
+      }
+      share <- part$offset - if (is.null(termOffset)) 0 else termOffset
+    }
+    if (length(share) == 1L) share else share[index]
+  })
+  if (all(vapply(shares, is.null, NA))) NULL else shares
+}
+
+# The same for pd2bart's grid rows when every row has one offset.
+pdbart.hurdleGridOffset <- function(fit, rows) {
+  shares <- lapply(pdbart.hurdleParts(fit), function(part) {
+    argument <- attr(part$sampler$data, "offset.argument")
+    if (is.null(argument) || !isFALSE(evaluateOffsetArgument(argument, rows))) {
+      return(NULL)
+    }
+    termOffset <- if (pdbart.isFormulaFit(part$sampler)) {
+      formulaTermOffset(
+        part$sampler$data@x,
+        rows[1L, , drop = FALSE],
+        "rows"
+      )
+    }
+    part$offset[1L] - if (is.null(termOffset)) 0 else termOffset
+  })
+  if (all(vapply(shares, is.null, NA))) NULL else shares
+}
+
+# Whether both parts of a hurdle fit have one offset for every row.
+pdbart.hurdleConstantOffset <- function(fit) {
+  all(vapply(
+    pdbart.hurdleParts(fit),
+    function(part) {
+      length(part$offset) == 0L || all(part$offset == part$offset[1L])
+    },
+    NA
+  ))
+}
+
+# A part's offset that cannot be evaluated on 'newdata' is refused naming the
+# part.
+pdbart.hurdleRefuseNewdataOffset <- function(fit, newdata) {
+  for (name in names(pdbart.hurdleParts(fit))) {
+    argument <- attr(fit[[name]]$fit$data, "offset.argument")
+    if (isFALSE(evaluateOffsetArgument(argument, newdata))) {
+      stop(
+        "the ",
+        name,
+        " part's 'offset' was given as ",
+        describeOffsetArgument(argument),
+        ", which cannot be evaluated on the rows of 'newdata'; write the ",
+        "offset as a column of the data",
+        call. = FALSE
+      )
+    }
+  }
+}
+
 # A fit offset that cannot be evaluated on 'newdata', a plain vector given
 # for the training rows, is refused naming how to write it instead.
 pdbart.refuseNewdataOffset <- function(sampler, newdata) {
@@ -970,13 +1059,19 @@ pdbart.frame <- function(
   newdata,
   n.average.rows,
   average.weights,
-  caller
+  caller,
+  fit = NULL
 ) {
+  hurdle <- inherits(fit, "bartHurdle")
   if (!is.null(newdata)) {
     if (formulaFit && !is.data.frame(newdata)) {
       stop("'newdata' for a formula fit must be a data frame", call. = FALSE)
     }
-    pdbart.refuseNewdataOffset(sampler, newdata)
+    if (hurdle) {
+      pdbart.hurdleRefuseNewdataOffset(fit, newdata)
+    } else {
+      pdbart.refuseNewdataOffset(sampler, newdata)
+    }
     weights <- pdbart.averageWeights(
       average.weights,
       NROW(newdata),
@@ -1014,7 +1109,11 @@ pdbart.frame <- function(
   list(
     rows = rows,
     weights = weights,
-    offset = pdbart.storedOffset(sampler, all, rows, index),
+    offset = if (hurdle) {
+      pdbart.hurdleStoredOffset(fit, all, rows, index)
+    } else {
+      pdbart.storedOffset(sampler, all, rows, index)
+    },
     source = all,
     index = index
   )
@@ -1429,7 +1528,8 @@ pdbart.setup <- function(
         newdata,
         n.average.rows,
         average.weights,
-        caller
+        caller,
+        prologue$fit
       )
     }
   )
@@ -1957,9 +2057,14 @@ pd2bart <- function(
   }
   survivalFit <- !prologue$isSampler &&
     (identical(prologue$fit$family, "aft") || fitIsHazard(prologue$fit))
+  hurdleFit <- !prologue$isSampler && inherits(prologue$fit, "bartHurdle")
   shortcut <- !survivalFit &&
     numPredictors == 2L &&
-    (length(offset) == 0L || all(offset == offset[1L])) &&
+    (if (hurdleFit) {
+      pdbart.hurdleConstantOffset(prologue$fit)
+    } else {
+      length(offset) == 0L || all(offset == offset[1L])
+    }) &&
     foldTypeAliases(type) != "ppd"
   if (shortcut) {
     unused <- c(
@@ -2031,7 +2136,11 @@ pd2bart <- function(
         setup$fit,
         gridRows,
         setup$type,
-        pdbart.gridOffset(sampler, gridRows)
+        if (hurdleFit) {
+          pdbart.hurdleGridOffset(setup$fit, gridRows)
+        } else {
+          pdbart.gridOffset(sampler, gridRows)
+        }
       )
     }
   } else {

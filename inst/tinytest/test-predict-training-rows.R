@@ -151,11 +151,19 @@ expect_equal(
   tolerance = 1e-8
 )
 
-# a hurdle fit has no offset channel
+# a hurdle fit takes an offset, which enters its positive part unless a list
+# names the parts (hurdle fits are covered in test-hurdle-offset.R)
 df$h <- ifelse(df$z == 1L, exp(df$y), 0)
 fit.h <- quick(x, df$h, family = "hurdle.lognormal")
 expect_equal(predict(fit.h), extract(fit.h, "ev"))
-expect_error(predict(fit.h, offset = 1), "no out-of-sample offset channel")
+expect_identical(
+  predict(fit.h, type = "prob", offset = 1),
+  predict(fit.h, type = "prob")
+)
+expect_error(
+  predict(fit.h, offset = list(other = 1)),
+  "named 'zero' and 'positive'"
+)
 
 # survivalProbabilities with an offset and no newdata applies it at the
 # training rows off the stored draws (dec-B340), trees or none

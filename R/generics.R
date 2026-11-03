@@ -4121,7 +4121,8 @@ hurdleParts <- function(
   object,
   rows = NULL,
   n.threads = 1L,
-  sample = "train"
+  sample = "train",
+  offsets = NULL
 ) {
   if (is.null(rows)) {
     if (sample == "test") {
@@ -4142,7 +4143,8 @@ hurdleParts <- function(
       rows$x,
       "ev",
       n.threads,
-      rows$keptNames
+      rows$keptNames,
+      offsets$zero
     )
     # the positive part codes the same rows against its own training design;
     # the caller has already been warned about anything the coding says
@@ -4161,7 +4163,8 @@ hurdleParts <- function(
       positiveX,
       "bart",
       n.threads,
-      rows$keptNames
+      rows$keptNames,
+      offsets$positive
     )
   }
   sigmaVec <- heldOrDrawnVec(
@@ -4424,11 +4427,12 @@ predict.bartHurdle <- function(
     )
   )
   warnUnusedDots(list(...), "predict", "bartHurdle")
-  refusePredictOffsetChannel(offset, "bartHurdle")
+  given <- splitHurdleOffset(offset)
   if (predictsTrainingRows(newdata)) {
     return(hurdleTrainingDraws(
       object,
       type,
+      given,
       weights,
       combineChains,
       ci.level,
@@ -4452,17 +4456,40 @@ predict.bartHurdle <- function(
   n.chains <- hurdleNChains(object)
   # both parts share one routable set (refuseHurdlePositiveMissingness), so
   # the rows are resolved once, against the zero part's design
+  # each part's recorded offset is evaluated on newdata, and one given adds to
+  # its part's (dec-B184); a missing value in either marks its row incomplete
+  offsets <- list(
+    zero = hurdlePartOffset(object$zero, newdata, given$zero, "zero"),
+    positive = hurdlePartOffset(
+      object$positive,
+      newdata,
+      given$positive,
+      "positive"
+    )
+  )
   rows <- preparePredictRows(
     newdata,
     object$zero$fit$data@x,
     na.action,
-    list(weights = weights),
+    list(
+      offset = if (!all(vapply(offsets, is.null, NA))) {
+        (if (is.null(offsets$zero)) 0 else offsets$zero) +
+          (if (is.null(offsets$positive)) 0 else offsets$positive)
+      },
+      weights = weights
+    ),
     dataMissingSeen(object$zero$fit$data)
   )
   if (isTRUE(rows$placeholder)) {
     restoreSeed <- protectRandomSeed()
     on.exit(restoreSeed(), add = TRUE)
   }
+  offsets <- lapply(
+    offsets,
+    subsetPredictInput,
+    rows = rows,
+    argument = "offset"
+  )
   weights <- subsetPredictInput(weights, rows, "weights")
   # only a posterior predictive draw reads a weight: 1 draws a held-out row as
   # a new observation, 0 holds it out
@@ -4471,7 +4498,7 @@ predict.bartHurdle <- function(
   } else {
     weights <- NULL
   }
-  parts <- hurdleParts(object, rows, n.threads)
+  parts <- hurdleParts(object, rows, n.threads, offsets = offsets)
   padPredictedRows(
     finishHurdle(
       parts,
@@ -4488,6 +4515,76 @@ predict.bartHurdle <- function(
   )
 }
 
+# The positive part with the first n columns of its test channel, the training
+# rows, moved onto the offset given there. A fit stores the offset of those rows
+# as the first n of its offset.test, and the part's own training channel holds
+# the positive rows alone.
+withPositiveTrainingOffset <- function(object, offset, nObs) {
+  yhat <- object$yhat.test
+  width <- dim(yhat)[length(dim(yhat))]
+  old <- object[["offset.test"]]
+  shift <- trainingOffsetShift(
+    object,
+    offset,
+    nObs,
+    old = if (!is.null(old)) old[seq_len(nObs)],
+    complete = FALSE
+  )
+  object$yhat.test <- shiftObservations(
+    yhat,
+    c(shift, rep(0, width - nObs))
+  )
+  object
+}
+
+# An offset given to predict as one number or vector, which enters the positive
+# part, or as list(zero = , positive = ), either left out.
+splitHurdleOffset <- function(offset) {
+  result <- list(zero = NULL, positive = NULL)
+  if (is.null(offset)) {
+    return(result)
+  }
+  if (is.list(offset) && !is.data.frame(offset)) {
+    labels <- names(offset)
+    if (
+      is.null(labels) ||
+        anyNA(labels) ||
+        any(!labels %in% c("zero", "positive")) ||
+        anyDuplicated(labels)
+    ) {
+      stop(
+        "'offset' written as a list is named 'zero' and 'positive' (either ",
+        "may be left out)",
+        call. = FALSE
+      )
+    }
+    result[labels] <- offset
+  } else {
+    result["positive"] <- list(offset)
+  }
+  for (element in result) {
+    refuseNonNumericOffset(element)
+  }
+  result
+}
+
+# A part's offset at newdata: its recorded argument and offset() terms
+# evaluated there, and what the caller gave added.
+hurdlePartOffset <- function(part, newdata, offset, name) {
+  tryCatch(
+    predictTermOffset(part$fit$data, newdata, offset),
+    error = function(e) {
+      stop(
+        "the ",
+        name,
+        " part's offset: ",
+        conditionMessage(e),
+        call. = FALSE
+      )
+    }
+  )
+}
+
 # The combined draws at the training rows with no newdata: read off the stored
 # draws (dec-B341), under the weights given, which replace the fit's own for the
 # predictive draw alone (dec-B470). A weight that is missing marks its row
@@ -4497,21 +4594,58 @@ predict.bartHurdle <- function(
 hurdleTrainingDraws <- function(
   object,
   type,
+  given,
   weights,
   combineChains,
   ci.level,
   na.action
 ) {
-  if (!is.null(weights)) {
+  givenOffset <- !all(vapply(given, is.null, NA))
+  if (!is.null(weights) || givenOffset) {
     refuseWithoutTrainingDraws(object$zero)
   }
   nObs <- length(object$y)
   if (!is.null(weights)) {
     refuseTrainingRowWeightsForm(nObs, weights)
   }
-  rows <- trainingRowsAnswered(nObs, na.action, NULL, weights)
+  for (element in given) {
+    if (
+      !is.null(element) &&
+        (!is.numeric(element) || !(length(element) %in% c(1L, nObs)))
+    ) {
+      stop(
+        "'offset' must be one number or one per training row (",
+        nObs,
+        ")",
+        call. = FALSE
+      )
+    }
+  }
+  rows <- trainingRowsAnswered(
+    nObs,
+    na.action,
+    if (givenOffset) {
+      (if (is.null(given$zero)) 0 else given$zero) +
+        (if (is.null(given$positive)) 0 else given$positive)
+    },
+    weights
+  )
   if (!is.null(rows)) {
     weights <- fillMissingChannel(weights, 1)
+    given <- lapply(given, fillMissingChannel, 0)
+  }
+  # an offset given replaces its part's at the training rows, read off the stored
+  # draws: the zero part's training channel is shifted, and the positive part's
+  # are the first n columns of its test channel
+  if (!is.null(given$zero)) {
+    object$zero <- withTrainingOffset(object$zero, given$zero, complete = FALSE)
+  }
+  if (!is.null(given$positive)) {
+    object$positive <- withPositiveTrainingOffset(
+      object$positive,
+      given$positive,
+      nObs
+    )
   }
   used <- if (!is.null(weights) && type == "ppd") {
     refuseUnfitPredictiveWeights(object, weights)

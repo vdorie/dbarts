@@ -317,9 +317,10 @@ expect_error(
   "this fit has no out-of-sample offset channel",
   fixed = TRUE
 )
+# offset is a formal on a hurdle fit, so it reaches the tree check
 expect_error(
   predict(hurdleFitKT, xSmall, offset = rep(0, n)),
-  "this fit has no out-of-sample offset channel",
+  "requires the fit's saved trees; refit with keepTrees = TRUE",
   fixed = TRUE
 )
 # weights is a formal on a hurdle fit (0 and 1), so it reaches the tree check
