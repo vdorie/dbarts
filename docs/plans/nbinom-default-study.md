@@ -1,6 +1,7 @@
 # nbinom-default-study: is there a better default prior for negative binomial fits?
 
-Status: PLANNED 2026-10-29 under dec-B432, revised the same day from its blind critique, and amended
+Status: LANDED 2026-11-03 (08210d888), the default kept for now with the question open (dec-B558, dec-A255). Planned
+2026-10-29 under dec-B432, revised the same day from its blind critique, and amended
 after the critique's re-check (verdict: build stages 0 and 1;
 [Amendments before results](#amendments-before-results)). Stages 0 and 1 ran the same day
 ([Stages 0 and 1](#stages-0-and-1)): the move build passed its checks, and as written no candidate passed

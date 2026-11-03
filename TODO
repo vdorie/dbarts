@@ -345,8 +345,12 @@ items
     the move's pricing is k-move-pricing. Plan
     docs/plans/collapsed-scale-move.md on wt/collapsed-move-plan, its
     probit half, a switch and negative binomial still open calls.
-    Negative binomial's k (docs/design/k-mixing-pg-families.md) is
-    measured after dec-B412's prior study.
+    For negative binomial (its open call 4), the default study measured
+    k's mixing under the move's scratch build on four real outcomes:
+    sweeps per effective draw of k fall 2.7 to 26 times
+    (docs/design/nbinom-default-study.md), and a posterior mean moves
+    more between a default-length and a long run than between the
+    priors it compared; k's mixing note: docs/design/k-mixing-pg-families.md.
   multiforest-scale-rederive: after 1.0-0 (dec-B362, VD 2026-10-08).
     updateScale = TRUE on a sampler of several forests, refused today:
     restate each forest's default size on the new scale, a stated
@@ -367,7 +371,8 @@ items
     dataset, with RMSE, bias and heterogeneous effects scored. Some
     failures are not a prior's: on the study's confounded design, error
     in individual effects is 0.218 against a true effect sd of 0.183, and
-    group means cover 0.456, under either prior. The first study's note:
+    group means cover 0.456, under either prior. The finding:
+    docs/design/nbinom-default-study.md; the first study's note:
     docs/design/nbinom-prior-predictive.md.
   per-chain-responses: for VD to schedule (dec-B419, VD 2026-10-09;
     note docs/design/per-chain-responses.md). Responses and offsets
