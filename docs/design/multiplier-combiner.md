@@ -336,13 +336,13 @@ parameterization the implementer will code is the one validated. PASSES.
 
 The b-move, the q = 2 instance of the removed move on bcf's treatment forest,
 never ran in a shipped build and went with the move (dec-B127). On every
-creation route a forest's amplitude is a scale mixture if and only if it is
-basis-FREE: R hands the engine each forest's statement and whether it was
+creation route a forest's amplitude is a scale mixture if and only if it
+states a t: R hands the engine each forest's statement and whether it was
 created with a basis ([`forestStatements`](../../R/model.R)), and the engine's
-one map ([`forestMapEntry`](../../src/bartcore/combiner.hpp)) gives a forest
-with a basis a zero `mixtureScale` unless it states a t, and a forest with none
-the half-Cauchy of scale 1 under `student(1)`. So a basis-carrying forest stating
-no t has a fixed prior variance.
+one map ([`forestMapEntry`](../../src/bartcore/combiner.hpp)) gives a positive
+`mixtureScale` only under `student(df)`, the half-Cauchy of scale 1 at df 1 on
+a forest with no basis. So a forest with a basis stating no t, and a forest
+with none under `normal()`, have a fixed prior variance.
 
 ## The basis is read, not classified
 
@@ -468,7 +468,7 @@ recurred later,
 ## The calibration map, general in K
 
 Stated on `ForestSpec` (as a [`ForestStatement`](../../src/bartcore/combiner.hpp):
-an sd in the response's units or none, a hold, a coefficient variance or none)
+an sd in the response's units or none, a hold, a coefficient's df or none)
 and resolved in one function, [`forestMapEntry`](../../src/bartcore/combiner.hpp),
 which [`Chain`](../../src/bartcore/chain.hpp) calls once for each forest at each
 construction. The node scale is `nodeScaleFactor * s`, s
@@ -534,8 +534,8 @@ one forest with no basis ([`plainForest`](../../R/model.R)), and where several
 do, those stating no sd are held at 1 and share the single-forest chain's prior
 as one total, each at sqrt(1 / K) of its node scale, one k for the group
 ([forests-shared-total.md](forests-shared-total.md)); and the map gives a forest with a basis a zero mixture scale
-([`forestMapEntry`](../../src/bartcore/combiner.hpp)) - forests 2..K are
-ALWAYS fixed-variance unless held. There is NO per-K renormalization anywhere
+([`forestMapEntry`](../../src/bartcore/combiner.hpp)) unless it states a t -
+forests 2..K are fixed-variance unless held or under `student(df)`. There is NO per-K renormalization anywhere
 in the MAP: it disperses as `sqrt(K)` by construction (exponent exactly 1/2),
 `1.04912 sqrt(K) s` over K factors. `binary-kforest-prior-default` S2 once
 gave the DEFAULT `nodeScaleFactor` ([`defaultForestSd`](../../src/bartcore/combiner.hpp))
@@ -554,10 +554,11 @@ coefficient is a constant and its own sd is its `sd`, exactly
 numeric forest's `sd` is stated PER UNIT OF ITS COLUMN, as given, and a factor's
 is the size of the difference between its levels. (2) The induced prior sd on
 the index at row i is `sqrt( sum_f prior.sd_f^2 v_f ||B_f(i,.)||^2 )` over the
-fixed-variance forests, `prior.sd_f` read from `$getLeafPrior(f)$k.scale` (k is
-pinned at 1) and `v_f` the variance of the forest's drawn coefficients, 1/2 a
-level and 1 a numeric column; a basis-free forest's own contribution is Cauchy
-with no sd. (3) Under probit and logistic
+fixed-variance forests, `prior.sd_f` read from `$getLeafPrior(f)$k.scale`, the
+forest's `sd` (k is pinned at 1), and `v_f` the variance of the forest's drawn
+coefficients, 1 / (2 0.674^2) a level, 1 / 0.674^2 a numeric column and
+1 / z_.75^2 a forest with no basis under `normal()`; a forest under the
+half-Cauchy has no sd. (3) Under probit and logistic
 that index is in LATENT sd units and sigma is PINNED, so nothing absorbs a
 mis-scaled basis; under gaussian it is in `sd(y)` units and a drawn sigma
 partly does. (4) The MAP disperses the index as `sqrt(K)`, per the two facts
@@ -575,9 +576,10 @@ thin adapter between bcf's two-forest spelling and the K-length vector every
 other layer works in, and it is LOAD-BEARING rather than courtesy: 25
 `tests/cpp` fixtures and benchmarks/R/bcf-equivalence.R drive through the
 `AmplitudeSpec` spelling.
-Forest 0 takes the half-Cauchy amplitude over the implicit intercept and
-leaves its node scale at s; forest 1 takes the fixed-variance pair over the
-treatment indicator basis and carries `sdModerate` in its node scale.
+Forest 0 takes the half-Cauchy amplitude of scale 1 over the implicit
+intercept and carries `aPriorScale` in its node scale; forest 1 takes the
+fixed-variance pair over the treatment indicator basis and carries `sdModerate`
+in its node scale.
 
 The tests' named READING of that channel, bcfGlue(a, b0, b1), returns false
 on any other layout, which is how a test learns it is not looking at bcf

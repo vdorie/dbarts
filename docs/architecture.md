@@ -71,8 +71,8 @@ later creation (docs/design/forest-multiplier.md); a fit's
 `bases` holds the factor for a forest of levels. Each forest's record rides the model, in `model@forests` (one
 `dbartsForestRecord` a forest), and the bridge reads every forest's settings
 from it: the tree count and what the caller stated of it, base and power, the
-hold, the stated `sd` (NA where none is stated), a student() coefficient's
-degrees of freedom, the predictors, interactions, blocks, label and move
+hold, the stated `sd` (NA where none is stated), a drawn coefficient's
+prior (a student() df, or Inf for normal() on a forest with no basis), the predictors, interactions, blocks, label and move
 settings, and the record that rebuilds a basis at new rows, R's own `terms`
 (docs/design/written-surface.md). The variance forest's record rides
 `model@variance`, and the category count, the shape setting and the hazard

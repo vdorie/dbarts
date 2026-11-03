@@ -370,10 +370,12 @@ s the sd(y) magnitude in internal units.
 - Both forests fix k = 1; the map overrides the node prior and k of the model
   around it for mu, since the adaptive magnitude lives entirely in the glue.
 
-dec-B18's parity holds for the prior and not for any coefficient's units: a, b0, b1 and the raw forests do not
-read on the bcf package's scale, where a is scaled by sd.control and tau over 0.674. Only the products do. bcf 2.0.2 itself puts
-`sd_control` on the trees, with a coefficient starting at 1. A coefficient starts where it starts on the other
-units' chain, 1 / sd.control and 1 / 0.674, once, at creation.
+dec-B18's parity holds for the prior on the products, a mu and (b1 - b0) tau, and not for every
+coefficient's units. bcf 2.0.2 puts `sd_control` on mu's trees, with a normal multiplier starting at 1 over a
+parameter-expanded leaf variance, together a half-Cauchy of scale 1, so a and mu read on that package's scale.
+It puts the 0.674 on tau's trees, at `sd_moderate / 0.674`, with b0, b1 ~ N(0, 1/2) starting at (-0.5, 0.5),
+so b0 and b1 here read 1 / 0.674 times bcf's and tau 0.674 times. Each block starts once, at creation, where
+the older units' chain had it: a at 1 / m, m being mu's sd over the unit, and b at (0, 1 / 0.674).
 
 sd.control and sd.moderate name the two magnitudes as multiples of s; the
 public `forest()` spelling of both is `sd`, which states a number of the

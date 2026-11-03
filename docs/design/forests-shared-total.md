@@ -46,7 +46,7 @@ over 300 standard errors.
 
 ## Forests: each an equal part of the fitting function's prior
 
-The sharers are the forests with no basis that state no `sd` and no `amplitude = student()`
+The sharers are the forests with no basis that state no `sd` and no `amplitude = normal()` or `student()`
 ([`leafPriorForests`](../../R/model.R) in R, [`forestSharers`](../../src/bartcore/combiner.hpp) in the engine,
 each reading what the forests state; no flag passes between them). The total is the fitting function's leaf
 prior, as `bart()`'s one forest has it (dec-B509): k 2 under gaussian and k drawn under chi(1.5, 2) under probit
@@ -60,11 +60,11 @@ coefficient held and its reader as one forest's: `prior.sd.of` is "forest", no g
 gaussian fit keeps its draws.
 
 A forest with no basis is held unless it states a df ([`forestMapEntry`](../../src/bartcore/combiner.hpp) reads
-the statement, isnan and not a test of finiteness). With `student()` and no `sd`, its median is the prior median of
+the statement, isnan and not a test of finiteness). With `normal()` or `student()` and no `sd`, its trees take
 the size the leaf prior gives ([`Chain::leafPriorSize`](../../src/bartcore/chain.hpp)): a fixed named sd as given, or
 under `invchi(df, s)` s over the chi's median; the node scale over a held k, or over the chi prior's median k, 1.574
 under probit and 2.855 under logistic at chi(1.5, 2). `normal(k = chi(df, c))` and `normal(sd = invchi(df, k.scale /
-c))`, one prior, so give one median. A flat prior on k gives no size and is refused by name. bcf's mu states df 1 ([`expandForestSpecs`](../../src/bartcore/combiner.hpp)) so
+c))`, one prior, so give one size. A flat prior on k gives no size and is refused by name. bcf's mu states df 1 ([`expandForestSpecs`](../../src/bartcore/combiner.hpp)) so
 the K = 2 fixtures keep their half-Cauchy. A leaf prior given to the fitting function where every forest with no
 basis states its size has no forest and is refused by name, the default restated taken. The check behind the
 flip (dec-B509) found a held prognostic forest not clearly worse for the effects, and f's coverage about half a
@@ -74,7 +74,7 @@ point lower than under the drawn coefficient.
   every sharer's leaves each standardized by its own leaf scale, and reported on each sharer: `getK` and a
   fit's `k` give the group's.
 - A forest that states `sd` has that size and is outside the share; the others share
-  among themselves. `amplitude = student()` draws one forest's coefficient, so it is refused on a sharer and
+  among themselves. `amplitude = normal()` or `student()` draws one forest's coefficient, so it is refused on a sharer and
   taken with `sd` stated or on a forest with no basis that shares with none.
 - The tree count (dec-B503). The sharers that state no `n.trees` split the fitting function's as `blocks()`
   splits a forest, the first n mod K taking one more (75 over two is 38 and 37); a stated count is outside the
@@ -90,7 +90,7 @@ point lower than under the drawn coefficient.
   force as `sd` (NA where k is drawn), `sd.stated` FALSE, amplitude `fixed()` and `prior.sd.of` "forest,
   shared". Print shows each forest's tree count, the total, and which forests share at what k; a lone forest's full
   line says "(default)" only where its family holds k at 2 by default, and "(leaf prior)" otherwise and on a forest
-  stating `student()` and no sd. A fit records the group's k wherever the sharers stand, each sharer's held
+  stating `normal()` or `student()` and no sd. A fit records the group's k wherever the sharers stand, each sharer's held
   coefficient in `fixed$amplitude` whether or not `fixed()` is written; where k is drawn `summary` tabulates it, a
   named drawn total as `leaf.prior.sd`, and `extract` reads per forest: `type = "k"` a sharer's draws and another
   forest's number, `type = "leaf.prior.sd"` each sharer's `k.scale` over each draw, `forest = NULL` the named list.

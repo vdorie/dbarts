@@ -1,15 +1,17 @@
 # What a forest's coefficient is, held or drawn, and what a numeric multiplier's sd is the size of
 
 Status: LANDED: pushes 1 and 2 2026-10-17 (5a62933e, 5a1e9dca), push 3 2026-10-23 (4c65a3c0); `amplitude =
-student(nu)` 2026-10-30 (dec-A245). The plan is
+student(nu)` 2026-10-30 (dec-A245); the trees carrying `sd` on every forest and `amplitude = normal()` on a
+forest with no basis 2026-11-03 ([forest-amplitude-normal.md](../plans/forest-amplitude-normal.md)). The plan is
 [forest-multiplier.md](../plans/forest-multiplier.md), which carries the steps, the gates and the calls.
-This note states the rule the first two pushes build: what a forest's coefficient is, held or drawn,
+This note states the rule as built: what a forest's coefficient is, held or drawn,
 the default of each kind of forest, a numeric column's scale and its record, the bound under which a row
 leaves a forest's update, and the unit on a response with no spread. Rulings: dec-B290, dec-B291 and
 dec-B293 for the defaults, dec-B303 with dec-B302 and dec-B309 for the rows a column's scale reads,
 dec-B307 for a constant column, dec-B353 and dec-B354 for a held coefficient, dec-B376 for what a fit
-records of a hold, dec-B346 and dec-B452 for a swap and a kind that no swap changes, in
-docs/decisions.md.
+records of a hold, dec-B346 and dec-B452 for a swap and a kind that no swap changes, dec-B550 for the
+trees carrying `sd` and a drawn coefficient as a multiplier, dec-B539 for `normal()` on a forest with no
+basis, in docs/decisions.md.
 
 ## 1. The rule
 
@@ -23,7 +25,7 @@ and no coefficient's prior reads s. z is z_.75, the normal's upper quartile; c i
 
 | the forest multiplies | drawn, `normal()` or left out | drawn, `amplitude = student(nu)` | held, `amplitude = fixed()` |
 |---|---|---|---|
-| nothing | only as `normal()`: a forest with no basis is held unless it states a prior (dec-B509, dec-B539). The coefficient N(0, 1 / z^2), median size 1, starting at U / s | the coefficient t with nu df, scale 1 / t_nu,.75, median size 1, starting at U / s; `student(1)`, the half-Cauchy, on trees at s is bcf's prior | the default; the coefficient is 1 |
+| nothing | only as `normal()`: a forest with no basis is held unless it states a prior (dec-B509, dec-B539). The coefficient N(0, 1 / z^2), median size 1, starting at U / s, or at 0 where a basis forest stands first and it is the only forest with no basis | the coefficient t with nu df, scale 1 / t_nu,.75, median size 1, starting as under `normal()`, a mixture's variance at (U / s)^2; `student(1)`, the half-Cauchy, on trees at s is bcf's prior | the default; the coefficient is 1 |
 | two levels | each level's coefficient N(0, 1 / (2 c^2)), so the difference has median size z / c = 1.0007, starting at (0, 1 / c) standing second and (1 / c, 1 / c) otherwise | the pair bivariate t with nu df, one variance, scale sqrt(1/2) z / (t_nu,.75 c), so the difference keeps that median | (0, 1), the second level against the first |
 | a numeric column w | the coefficient N(0, 1 / c^2), median size 1.0007, starting at 1 / c; per unit of w | the coefficient t with nu df, scale z / (t_nu,.75 c), starting at 1 / c; per unit of w | the coefficient is 1; per unit of w |
 
@@ -123,7 +125,8 @@ defaults; the held default of a forest with no basis is
 a response with no spread. One function sets a forest's leaf scale from the entry in force,
 [`mapLeafScale`](../../src/bartcore/chain.hpp), at construction and at a write. The combiner sets a held
 block to its kind's value, and a drawn numeric coefficient to 1, when it is built
-([`AmplitudeForestCombiner::holdAtKindValue`](../../src/bartcore/combiner.hpp)), and throws for a numeric
+([`AmplitudeForestCombiner::holdAtKindValue`](../../src/bartcore/combiner.hpp)), then multiplies each drawn
+block by its entry's `startScale`, which the chain hands its constructor and nothing keeps, and throws for a numeric
 basis of several columns, for a held block of levels of other than two columns, and for a kind that does
 not fit its basis. retired: [`basisRowNorm`](../../src/bartcore/chain.hpp), the median row norm the
 leaf scale was divided by, is gone.
@@ -166,6 +169,12 @@ keeps the record.
 - Accepted where refused (push 2): a held numeric column, at 1. Refused where accepted: a numeric column
   constant, or constant to rounding, over the rows its scale reads, on a forest that states no sd.
 - Bit for bit (push 2's first commit): the relative bound, on every recorded scenario, snapshot and pin.
+- Every model with a drawn coefficient (forest-amplitude-normal, dec-B550): units only. The trees carry s
+  where a basis forest's had s / c and a forest with no basis's had U, and the coefficient's prior no longer
+  reads s; the prior on the product is the same, and the start rescaled so the chain is the same until a
+  rounding flips a decision. A write of s on a drawn forest with no basis moves by design: it sets the trees'
+  scale and leaves the coefficient. Oracle: forest-prior-exact.R written from the rule, the arms that follow a
+  write among them, and bcf-equivalence's tier 1 on all 19 scenarios.
 - The BCF baseline: push 1 re-recorded `glue_toggle`; push 2 adds four scenarios, a numeric column at
   its default, through a swap, a write and a copy, held, and a held forest with no basis under gaussian,
   so that a later slice that moves the record is gated against recorded draws.
@@ -188,7 +197,8 @@ Each later addition is an addition and not a change of a 1.0 model:
   column, named by the column, and `data@basis.scale` holds a vector for each forest.
 - `samplePriorPredictive` on several forests, which needs the coefficients drawn from their prior.
 - A drawn coefficient's start by kind for every kind, which would move the draws of every model of three
-  forests; today a forest with no basis or a factor starts by position and a number at 1.
+  forests; today a forest with no basis or a factor starts by position and a number at 1, each times its
+  start scale, 1 / c with a basis and U / s with none ([1. The rule](#1-the-rule)).
 - `setData` on a sampler of several forests, refused: when it opens, a new object's record is used and
   what it lacks is taken.
 

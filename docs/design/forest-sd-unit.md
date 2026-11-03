@@ -65,14 +65,15 @@ absolute size of the forest's contribution over sd times the unit.
 So `sd` is the size of the forest's contribution where the forest has no basis or a factor and its
 coefficient is drawn. Where the coefficient is held, or the basis is a numeric column, it is not: a held
 forest with no basis has the size of the unit whatever its sd is, a held factor 1.48 times it, and a numeric
-column 0.71 times it at a row whose basis has the median nonzero norm. The help says so until the multiplier
-changes it.
+column 0.71 times it at a row whose basis has the median nonzero norm. That was the map of this note's landing.
+Under dec-B550 `sd` is the trees' scale on every forest: the forest's size exactly where its coefficient is held,
+and at a coefficient of 1 where it is drawn ([1. The rule](forest-multiplier.md#1-the-rule)).
 
 ## 3. Constraints
 
 - A fit that states no forest sd draws what it drew before the unit moved, to the bit, in every family.
-- This note did not touch the calibration map. Since dec-B550 a forest's number reaches one place on every
-  kind, the node scale, and the coefficient's prior does not read it
+- The unit converts a forest's number and does nothing else to the calibration map. Divided by it, the number
+  reaches one place on every kind, the node scale of the forest's trees, and no coefficient's prior reads it
   ([1. The rule](forest-multiplier.md#1-the-rule)).
 - The conversion is made once for each construction and once for each restatement, in
   [`forestMapEntry`](../../src/bartcore/combiner.hpp), against the recorded unit. A stated sd equal to the
@@ -109,4 +110,5 @@ recorded scenario and no snapshot file states a forest sd. The four BCF exact ga
 The reader's `amplitude.prior.variance`, `amplitude.prior.scale`, `leaf.scale.factor`, `leaf.scale.divisor`,
 `basis.row.norm` and `prior.sd.of` stay the engine's channels, in multiples of the unit, and are said to be so
 in the help. A numeric forest's `sd` is not named by its column, and the printed block of a fit is unchanged.
-The multiplier removes or renames these.
+The multiplier took the channels out of `$getLeafPrior`, kept `prior.sd.of` for what `sd` is the size of,
+and names a numeric forest's `sd` by its column ([4. Where it lives](forest-multiplier.md#4-where-it-lives)).
