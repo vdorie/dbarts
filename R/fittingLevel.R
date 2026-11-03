@@ -337,7 +337,7 @@ levelLeafPrior <- function(sampler, given, stored, givenSds, door) {
 }
 
 ## The refusal of a forest's share of the prior total that differs in `given`
-## from the sampler's: a share is set once, at creation. The one candidate is
+## from the sampler's: the parts are set once, at creation. The one candidate is
 ## not read, the leaf prior reaching it whatever it states.
 refuseShareDifference <- function(sampler, given) {
   model <- sampler$model
@@ -356,10 +356,14 @@ refuseShareDifference <- function(sampler, given) {
       !identical(given@forests[[index]]@share, model@forests[[index]]@share)
     ) {
       stop(
-        "$setModel cannot change ",
+        "$setModel cannot give ",
         doorForestLabel(model, index),
-        "'s share of the prior total: a share is set once, when the sampler ",
-        "is created; make a new sampler instead",
+        " another part of the prior total (",
+        partFraction(model@forests[[index]]@share),
+        " here, ",
+        partFraction(given@forests[[index]]@share),
+        " in the model given): the parts are set when a sampler is created, ",
+        "from which forests share it; make a new sampler instead",
         call. = FALSE
       )
     }

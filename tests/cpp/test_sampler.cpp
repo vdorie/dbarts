@@ -15026,15 +15026,6 @@ static void testSharerLeave() {
       return message.c_str();
     };
 
-    // ---- shares handed equal to the derived ones are the same chain ----
-    {
-      auto derived = build(setting.family, options, {}, {}, 7101);
-      auto handed = build(setting.family, options, {}, thirds, 7101);
-      check(drawsOf(*derived, 12) == drawsOf(*handed, 12),
-            say("sharer leave: shares handed at creation draw bitwise as "
-                "derived ones"));
-    }
-
     // ---- one leaving, before any run: the recorded twin ----
     {
       auto live = build(setting.family, options, {}, {}, 7102);

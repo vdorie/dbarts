@@ -190,7 +190,8 @@ forestPriorLines <- function(
   unit,
   full = FALSE,
   pointer = NULL,
-  treeCounts = NULL
+  treeCounts = NULL,
+  shares = NULL
 ) {
   if (
     !is.list(priors) ||
@@ -244,7 +245,7 @@ forestPriorLines <- function(
     },
     ""
   )
-  lines <- c(lines, forestTotalLines(priors, treeCounts))
+  lines <- c(lines, forestTotalLines(priors, treeCounts, shares))
   footer <- if (!full && !is.null(pointer)) {
     paste0("(each forest's prior in full: ", pointer, ")")
   }
@@ -255,7 +256,7 @@ forestPriorLines <- function(
 ## where the counts are known, and, where forests share one prior total,
 ## which do and the group's k, a number where it is held and its prior where
 ## it is drawn, or the total's named sd.
-forestTotalLines <- function(priors, treeCounts) {
+forestTotalLines <- function(priors, treeCounts, shares = NULL) {
   sharers <- which(vapply(
     priors,
     function(entry) identical(entry$prior.sd.of, "forest, shared"),
@@ -270,8 +271,8 @@ forestTotalLines <- function(priors, treeCounts) {
       " in all"
     )
   }
-  # one left of a group, the others having stated their own sd, holds its
-  # part still
+  # one left of a group, the others having stated their own sd, keeps its
+  # part still, printed as 1/n of the total, as a verbose creation prints it
   share <- if (length(sharers) > 0L) {
     spec <- priors[[sharers[1L]]]$leaf.prior
     paste0(
@@ -280,12 +281,35 @@ forestTotalLines <- function(priors, treeCounts) {
       if (length(sharers) > 1L) {
         " share one prior total, "
       } else {
-        " holds its part of one prior total, "
+        paste0(
+          " keeps its part",
+          partText(shares[sharers]),
+          " of the prior total, "
+        )
       },
       leafPriorText(spec)
     )
   }
   c(counts, share)
+}
+
+## A forest's part of the prior total as the block and a verbose creation
+## print it, 1/n; "none" where it has no part (NA), "unknown" for anything else.
+partFraction <- function(share) {
+  if (length(share) != 1L || is.nan(share) || is.na(share)) {
+    return("none")
+  }
+  if (!is.finite(share) || share <= 0) {
+    return("unknown")
+  }
+  if (share == 1) "1" else paste0("1/", round(1 / share))
+}
+
+## The part a lone sharer keeps, set off by commas for the line it is in; empty
+## where the shares are not known.
+partText <- function(share) {
+  fraction <- partFraction(share)
+  if (fraction %in% c("none", "unknown")) "" else paste0(", ", fraction, ",")
 }
 
 ## A leaf prior as the block prints it: its k or its named sd.
@@ -334,7 +358,8 @@ fitForestLines <- function(fit, full = FALSE) {
     attr(fit, "forest.unit", exact = TRUE),
     full,
     "summary()",
-    attr(fit, "forest.trees", exact = TRUE)
+    attr(fit, "forest.trees", exact = TRUE),
+    attr(fit, "forest.shares", exact = TRUE)
   )
 }
 
@@ -361,6 +386,7 @@ samplerForestLines <- function(sampler, full = FALSE) {
     dataForestCalibration(sampler$data)[["unit"]],
     full,
     "$getLeafPrior()",
-    vapply(records, function(record) as.integer(record@n.trees), 0L)
+    vapply(records, function(record) as.integer(record@n.trees), 0L),
+    vapply(records, methods::slot, 0, "share")
   )
 }

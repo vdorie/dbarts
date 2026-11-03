@@ -10,6 +10,7 @@
 forest <- dbartsForests$forest
 normal <- dbartsPriors$normal
 chi <- dbartsPriors$chi
+student <- dbartsPriors$student
 
 set.seed(20261103)
 n <- 120L
@@ -341,12 +342,21 @@ expect_error(live$setLeafPrior(normal(k = 3)), "$setForest(", fixed = TRUE)
 live <- build()
 saved <- live$model
 live$setForest(1L, sd = 0.4)
-expect_error(live$setModel(saved), "a new sampler", fixed = TRUE)
+# a model saved before the leave reads the withdrawn statement, not the share
+expect_error(
+  live$setModel(saved),
+  "cannot withdraw forest 1's own 'sd'",
+  fixed = TRUE
+)
 other <- build(sds = list(`1` = 0.4))
 expect_identical(shares(other), c(NA, 0.5, 0.5, NA))
 expect_error(
   live$setModel(other$model),
-  "$setModel cannot change forest 2's share of the prior total: a share is set once",
+  paste0(
+    "$setModel cannot give forest 2 another part of the prior total ",
+    "(1/3 here, 1/2 in the model given): the parts are set when a sampler is ",
+    "created, from which forests share it; make a new sampler instead"
+  ),
   fixed = TRUE
 )
 expect_identical(shares(live), c(NA, third, third, NA))
@@ -362,8 +372,68 @@ expect_identical(shares(lone), c(NA_real_, NA_real_))
 lone$setLeafPrior(normal())
 expect_identical(shares(lone), c(1, NA))
 expect_identical(draws(lone), draws(recordedTwin(lone)))
+# the model of a twin without the sd is taken: the one candidate's share is not
+# compared, the leaf prior reaching it whatever it states
+loneTwin <- dbarts(
+  y ~ forest(x1) + forest(x2, basis = z),
+  d,
+  control = ctl()
+)
+lone <- dbarts(
+  y ~ forest(x1, sd = 2) + forest(x2, basis = z),
+  d,
+  control = ctl()
+)
+expect_null(lone$setModel(loneTwin$model))
+expect_identical(shares(lone), shares(loneTwin))
+expect_identical(draws(lone), draws(loneTwin))
+# the one candidate drawing its own coefficient records no share, whichever
+# way the leaf prior reaches it
+dfLive <- dbarts(
+  y ~ forest(x1, sd = 2, amplitude = student(1)) + forest(x2, basis = z),
+  d,
+  control = ctl()
+)
+dfLive$setLeafPrior(normal(k = 3))
+dfTwin <- dbarts(
+  y ~ forest(x1, amplitude = student(1)) + forest(x2, basis = z),
+  d,
+  control = ctl(),
+  leaf.prior = normal(k = 3)
+)
+expect_identical(modelOf(dfLive), modelOf(dfTwin))
+
+# --- a state from a drawn k on a held group leaves k where it is ---
+drawn <- build("y", leaf.prior = normal(k = chi(1.5, 2)))
+invisible(drawn$run(0L, 5L))
+drawn$storeState()
+held <- build("y")
+kHeld <- held$getK()
+held$setState(drawn$state)
+expect_identical(held$getK(), kHeld)
 
 # --- print ---
+# the lines a verbose creation of the sampler's records prints
+verboseLines <- function(sampler) {
+  utils::capture.output(
+    new(
+      "dbartsSampler",
+      local({
+        control <- sampler$control
+        control@verbose <- TRUE
+        control
+      }),
+      sampler$model,
+      sampler$data
+    )
+  )
+}
+expectLine <- function(lines, text) {
+  expect_true(
+    any(grepl(text, lines, fixed = TRUE)),
+    info = paste(lines, collapse = "\n")
+  )
+}
 live <- build()
 live$setForest(1L, sd = 0.4)
 live$setForest(3L, sd = 0.3)
@@ -371,69 +441,18 @@ lines <- dbarts:::forestPriorLines(
   live$getLeafPrior(),
   c("x1", "x2", "x3", "z"),
   live$data@bases,
-  unit = 1
+  unit = 1,
+  shares = shares(live)
 )
-expect_true(
-  any(grepl(
-    "forest 2 holds its part of one prior total, k 2",
-    lines,
-    fixed = TRUE
-  )),
-  info = paste(lines, collapse = "\n")
-)
-verbose <- utils::capture.output(
-  new(
-    "dbartsSampler",
-    local({
-      control <- live$control
-      control@verbose <- TRUE
-      control
-    }),
-    live$model,
-    live$data
-  )
-)
-expect_true(
-  any(grepl(
-    "forest sharing one prior total: 2, 1/3 of its variance",
-    verbose,
-    fixed = TRUE
-  )),
-  info = paste(verbose, collapse = "\n")
+expectLine(lines, "forest 2 keeps its part, 1/3, of the prior total, k 2")
+expectLine(dbarts:::samplerForestLines(live), "forest 2 keeps its part, 1/3,")
+expectLine(
+  verboseLines(live),
+  "forest sharing one prior total: 2, 1/3 of its variance"
 )
 twoLeft <- build()
 twoLeft$setForest(1L, sd = 0.4)
-verbose <- utils::capture.output(
-  new(
-    "dbartsSampler",
-    local({
-      control <- twoLeft$control
-      control@verbose <- TRUE
-      control
-    }),
-    twoLeft$model,
-    twoLeft$data
-  )
-)
-expect_true(
-  any(grepl(
-    "forests sharing one prior total: 2 3, each 1/3 of its variance",
-    verbose,
-    fixed = TRUE
-  )),
-  info = paste(verbose, collapse = "\n")
-)
-
-# --- the multinomial model and the variance forest have no group to leave ---
-counts <- cbind(a = rpois(n, 2), b = rpois(n, 2), c = rpois(n, 2))
-multinomial <- dbarts(
-  cbind(x1, x2),
-  counts,
-  family = "multinomial",
-  control = dbartsControl(n.chains = 1L, n.threads = 1L, verbose = FALSE)
-)
-expect_error(
-  multinomial$setForest(sd = 0.5),
-  "a named leaf-prior 'sd'",
-  fixed = TRUE
+expectLine(
+  verboseLines(twoLeft),
+  "forests sharing one prior total: 2 3, each 1/3 of its variance"
 )

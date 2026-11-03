@@ -633,6 +633,8 @@ packageBartResults <- function(
       function(record) as.integer(record@n.trees),
       0L
     )
+    # each forest's part of the prior total, NA where it has none
+    attr(result, "forest.shares") <- vapply(records, methods::slot, 0, "share")
     # the number the forests' sds are stated in, which the printed block names,
     # as the data object records it
     attr(result, "forest.unit") <- dataForestCalibration(fit$data)[["unit"]]

@@ -696,14 +696,15 @@ Each the builder's, none in a ruling; the alternative after it.
     reports it; the one candidate `levelLeafPrior` makes a sharer records 1 too. Alternative: shares only on a group
     of two or more.
 18. `$setModel` refuses a differing share, after the `sd` refusals, so a model saved before a leave reads the
-    withdrawn-statement refusal, and a model with other shares reads "$setModel cannot change forest 2's share of the
-    prior total: a share is set once, when the sampler is created; make a new sampler instead". The one candidate is
+    withdrawn-statement refusal, and a model with other shares reads "$setModel cannot give forest 2 another part of
+    the prior total (1/3 here, 1/2 in the model given): the parts are set when a sampler is created, from which forests
+    share it; make a new sampler instead", the parts as 1/n as the forests block and the verbose summary print them. The one candidate is
     not read, the leaf prior reaching it whatever it states. Alternative: compare every forest, which refuses
     `$setModel` returning a lone forest to the leaf prior with a twin's model.
 19. Records whose shares do not name one group, which a creation never writes, are refused by the bridge in its own
     words; a share outside (0, 1] or beside a stated `sd` is refused by the record's validity and by the engine.
     Alternative: no check, the engine taking the forests with a share as the group.
-20. One left of a group prints "forest 2 holds its part of one prior total, k 2" in the forests block and "forest
+20. One left of a group prints "forest 2 keeps its part, 1/3, of the prior total, k 2" in the forests block and "forest
     sharing one prior total: 2, 1/3 of its variance" in the verbose summary, which names the part from the share.
     Alternative: the group's wording for one forest.
 
