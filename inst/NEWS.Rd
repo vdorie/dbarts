@@ -683,7 +683,9 @@
             are, and \code{$getForest(forest)} gives every value in force as
             a list that goes back with no change. A forest sharing one prior
             total that states its \code{sd} there leaves the group, and the
-            others keep their parts, set at creation.
+            others keep their parts, set at creation. \code{amplitude} there
+            holds a forest's coefficient or releases it, and switches it
+            between \code{normal()} and \code{student(df)}.
             \code{$setVarianceForest} and \code{$getVarianceForest} do the
             same for the variance forest.
             \code{$setTreePrior(power = , base = , split.probs = )} changes

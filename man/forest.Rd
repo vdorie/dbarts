@@ -661,7 +661,10 @@ forest(
     and \code{student()} are refused, its size being drawn through the fitting function's leaf prior,
     as \code{leaf.prior = normal(k = chi(1.5, 2))} or
     \code{normal(sd = invchi(1.5, s))}.
-    \code{$getLeafPrior(f)$amplitude} reads it back.
+    \code{$getLeafPrior(f)$amplitude} reads it back, and a live sampler
+    changes it through \code{$setForest(f, amplitude = )}, between held and
+    drawn and between \code{normal()} and \code{student(df)} (see
+    \code{\linkS4class{dbartsSampler}}).
   }
   \item{proposal.probs, n.perturb.cuts, treeShift}{
     This forest's tree moves - its proposal mixture, perturb window and
