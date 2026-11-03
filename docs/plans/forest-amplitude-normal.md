@@ -2,7 +2,8 @@
 
 Status: LANDED 2026-11-03 (dec-B562), one slice: built, reviewed LAND with its fix round. sbc's bcf arms under the rule dec-B557
 set tripped on one functional of 70, bcf-probit's `abs.a`, which a diagnosis read as shared with the base; the maintainer landed it
-on that reading, a longer-burn rerun of bcf-probit to follow (TODO sbc-bcf-probit-burn; [Landing note](#landing-note)). Planned
+on that reading; a longer-burn rerun after landing read the U as the Cauchy tail's mixing, shared by both libraries
+([Landing note](#landing-note)). Planned
 2026-10-30 (dec-B539), rewritten for dec-B550 on 555906d37: the trees carry a forest's `sd` on every forest, held or
 drawn; a drawn coefficient is a multiplier with median 1, `fixed()` exactly 1; a write of `sd` sets the trees' scale and moves no
 leaf, coefficient or auxiliary, before the first sweep too. Earlier blind critiques read other forms; a fresh one
@@ -872,5 +873,7 @@ The reading: the harness starts each chain at the truth in the glue with fresh t
 trees to take up the signal at large |a|, so the drawn |a| runs small (z positive) and `bcf`'s sigma large. Two stale
 starts turned up on the way, a's mixing variance and, under gaussian, sigma, each carried over from the last chain; each
 BCF replication now installs them with the truth, a's variance drawn given the installed a. The runs above predate those
-fixes, but both are redrawn every sweep from their exact conditionals, so neither can move ranks at these burns. dec-B562 landed the item on that reading. Whether a longer burn, or a start fully at the truth, removes the U is not
-run: TODO sbc-bcf-probit-burn.
+fixes, but both are redrawn every sweep from their exact conditionals, so neither can move ranks at these burns. dec-B562 landed the item on that reading. The rerun it called for, after landing, read the U otherwise: three times the
+burn (36000, 4 seeds on each library) left the end-decile share at .275 and .259, and a start at the full truth, trees
+included, gave .243 with no inverted U. The U is the Cauchy tail's mixing, which both libraries share: past |a0| of 3,
+about a fifth of the prior, |a| has an effective sample of 5 to 23 in 150 draws. TODO bcf-latent-mixing carries it.

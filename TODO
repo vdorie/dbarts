@@ -54,7 +54,14 @@ items
     Revisit both when a mixing change lands. The removed rescaling move
     is one candidate to re-measure there (docs/decisions.md dec-B127;
     restoring it requires the cache rule in docs/design/
-    multiplier-combiner.md). research-open.
+    multiplier-combiner.md). sbc's bcf-probit arm shows the same cost
+    in abs.a's ranks, a U (end-decile share about .27 against .205) on
+    the sampler before and after forest-amplitude-normal alike (dec-B562):
+    in the Cauchy tail, |a0| > 3, about a fifth of the prior, |a| has an
+    effective sample of 5 to 23 in 150 draws, its autocorrelation time
+    about 800 sweeps at |a| 5 and growing without bound past it; three
+    times the burn and a start at the full truth (sbc.R's
+    SBC_TRUTH_START) leave it (measured 2026-11-03). research-open.
   bcf-sigma-tail-mixing: research door, no plan doc of its own. In the
     EXTREME tail (|a0| >= ~40, ~3% of the prior) the chain is
     frozen-structure mixing that no amount of burn fixes; a principled
@@ -652,17 +659,6 @@ items
   sbc-family-tiers: one open arm (docs/plans/sbc-family-tiers.md,
     docs/plans/archive/runsbcbcf-repair.md): the full-R ladder re-runs,
     whose commands the plan records.
-  sbc-bcf-probit-burn: a longer-burn rerun of sbc's bcf-probit arm on
-    both libraries, forest-amplitude-normal's and the code under it,
-    about 4 core-hours (dec-B562). Under dec-B557's rule its abs.a
-    tripped and read as shared: U-shaped ranks on both libraries, both
-    past the band over 22 seeds (docs/plans/forest-amplitude-normal.md,
-    Landing note). Open: the BCF start. The harness starts each chain at
-    the truth in the glue and sigma with fresh trees; start fully at the
-    truth, trees included, or with fresh glue and a long burn.
-    sbcReplication's non-BCF arms also start sigma from the last chain's,
-    deliberately by its comment; changing that is a separate call, since
-    those arms gate CI.
   sbc-ordered-factor-arm: benchmarks/R/sbc.R carries no ordered-factor
     PREDICTOR arm - its ordered factors are ordinal RESPONSES - so the
     midpoint cut grid's posterior shift is adjudicated only at the four-
