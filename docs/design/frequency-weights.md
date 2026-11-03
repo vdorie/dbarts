@@ -3,8 +3,8 @@
 Status: DECIDED 2026-11-03, design note before the plan. Rulings, in docs/decisions.md: dec-B125 (frequency
 weights join precision weights by explicit choice; precision stays the default), dec-A11 (under precision weights
 sigma's degrees of freedom count only positive-weight rows), dec-B120 (the comparison against 0.9-34 is a release
-gate), and the note's own rulings dec-B563 to dec-B570, each cited where it applies. Two choices about the
-binomial response remain open (Open calls).
+gate), and the note's own rulings dec-B563 to dec-B570, dec-B573 and dec-B574, each cited where it applies. The
+plan is docs/plans/frequency-weights.md.
 
 ## Summary
 
@@ -31,13 +31,10 @@ successes in n trials, written as R writes it, cbind(successes, failures). Its d
 makes, so the work is mostly in the R surface. Wanting it with many trials is what opened the research into
 approximate draws, which the package had deferred.
 
-Two choices about the binomial response remain:
-
-1. Whether glm's second spelling, a proportion with the trial count as weights, is taken. Recommended: no; it
-   is refused with a message pointing to cbind, because on a 0/1 response it would collide with a frequency
-   weight.
-2. Which scale a binomial row's fitted values and residuals are on. Recommended: glm's, the probability of a
-   success and the observed proportion minus it, while predictive draws stay counts.
+Two choices about the binomial response were then ruled. glm's second spelling, a proportion with the trial
+count as weights, is refused with a message pointing to cbind, because on a 0/1 response it would collide with a
+frequency weight. A binomial row's fitted values and residuals are on glm's scale, the probability of a success
+and the observed proportion minus it, while its predictive draws stay counts.
 
 ## What a weight meant at the merge
 
@@ -187,6 +184,28 @@ A 0 is out of the likelihood and in the design on every family and under both re
 log-likelihood and NA in the predictive draws; logistic accepts it as the mask, and its contradictory warning
 goes.
 
+### A proportion with the trials as weights (dec-B573)
+
+glm takes a binomial response as cbind(k, n - k) or as the proportion k / n with weights = n, one fit either way
+(critique probe p9: one log-likelihood, -42.118), and glm reads binomial weights as trials throughout, its simulate
+drawing proportions of 5 trials from a 0/1 response at weights 5. rstanarm 2.32.2 switches on the data: trials
+when a proportion is fractional, Bernoulli draws at a 0/1 response with weights. In dbarts a logistic weight is a
+frequency weight whose predictive draw is one observation (dec-B566), so the two readings share the posterior and
+differ in the draws. Under family = binomial a response strictly between 0 and 1 that is not 0/1 is refused, the
+message naming cbind(k, n - k) and how to form it from a proportion and its trials, round(p * n). Shown (a) that,
+recommended; (b) rstanarm's reading, one call two models by the data, which a sampler swapping its response
+between draws could change mid-chain; (c) glm's, weights on binomial always trials, which revises dec-B566. The
+maintainer, 2026-11-03: "Use (a)."
+
+### The scale of a binomial row's fitted values and residuals (dec-B574)
+
+fitted(type = "ev") is the probability p and its residual k / n - p, glm's fitted values and type = "response"
+residuals (glm's own default residual is the deviance type; dbarts's residuals are response residuals on every
+family); the predictive draws are counts, Binomial(n, p), so fitted(type = "ppd") is their mean, n p, with residual
+k - n p. The help states the two scales, as glm's does; rstanarm's fitted values are the probability, brms's
+expected value the count. Shown (a) that, recommended, against (b) counts throughout. The maintainer, 2026-11-03:
+"Use (a)."
+
 ## The binomial response (dec-B567)
 
 A row recording k successes in n trials has the binomial likelihood, whose Polya-Gamma augmentation is the one
@@ -209,61 +228,14 @@ The ruled surface:
 
 What the rulings leave:
 
+- dec-B573 and dec-B574 settle glm's proportion spelling and the reporting scale (Settled by the rulings).
 - Calls made 9 to 13 settle the representation, predict's default trial count, the log-likelihood, xbart's
   losses and the refusals.
-- Open calls 1 and 2 put glm's proportion spelling and the reporting scale.
 
 The engine change is small: [`LogisticResponse`](../../src/bartcore/model.hpp) already draws the shape from its
 count and centers the working response at w (y - 1/2), so a row handed y = k / n and the count n (times its
 frequency weight) is the binomial row; what changes is that y may lie between 0 and 1 where a count is given,
 and the predictive and log-likelihood code reads n.
-
-## Open calls
-
-### 1. A proportion with the trials as weights
-
-Background: glm takes a binomial response two ways, cbind(k, n - k), or the proportion k / n with weights = n, and
-the two give one fit (critique probe p9: one log-likelihood, -42.118). glm reads binomial weights as trials
-throughout: on a 0/1 response with weights 5, simulate draws proportions of 5 trials, 0, 0.2, ..., 1. rstanarm
-2.32.2 fits both spellings but switches on the data: a proportion with weights = n draws counts up to n, while a
-0/1 response with weights 5 draws 0 or 1, its weights multiplying the log-likelihood. In dbarts a logistic weight
-is already a frequency weight: a row y = 1 at weight 5 is five identical successes, whose predictive draw is one
-observation, Bernoulli(p) (dec-B566). Under glm's second spelling the same row is one binomial row of 5 trials,
-whose draw is Binomial(5, p). The posterior is the same; the draw, and so extract, fitted(type = "ppd") and predict
-at training rows, depend on whether any other row's proportion happens to be fractional.
-
-- (a) Refuse a response between 0 and 1 that is not 0/1, with a message naming cbind(k, n - k) and saying how to
-  form it from a proportion and its trials, round(p * n). Cost: a glm user writing the proportion spelling edits
-  one line.
-- (b) Take it, reading y w as successes of w trials when any y is fractional and frequency copies otherwise,
-  rstanarm's choice. Cost: two models' draws behind one call, switching on the data.
-- (c) Take it always as trials, glm's reading. Cost: a logistic fit's weights become trial counts and not
-  frequency weights, which revises dec-B566 and dec-B564's reading of logistic weights.
-
-Recommendation: (a). rstanarm's (b) gives one call two models: adding one row with a proportion of 0.4 to a 0/1
-data set turns every row's draw from Bernoulli(p) into Binomial(w, p), and a fit summarized by its draws changes
-for a reason the user did not state. dbarts adds a case rstanarm does not have: the sampler swaps its response
-between draws, so under (b) a swapped response that happened to be all 0/1 would change the model mid-chain. (c)
-follows glm but undoes a ruling two families old. Under (a) the user states the model once, in the response,
-and pays one edited line.
-
-### 2. The scale of a binomial row's fitted values and residuals
-
-Background: glm reports a binomial fit's fitted values as the probability of a success and its response residuals
-as the observed proportion minus it, whichever spelling was used; its residuals default to the deviance type, and
-simulate on a cbind fit returns counts. rstanarm's fitted and posterior_epred are the probability (critique probe
-p9); brms's posterior_epred on a binomial is the probability times the trials, a count. dbarts's residuals are
-response residuals on every family, so (a) is glm's type = "response". dbarts computes residuals as the response
-less the fitted value of the type asked for ([`residuals.bart`](../../R/generics.R)), and the ruled predictive draw
-is a count.
-
-- (a) glm's: fitted(type = "ev") the probability; residuals k / n - p; the predictive draws counts, and
-  fitted(type = "ppd") their mean, n p, with its residual k - n p on that scale. Cost: the two types report on
-  two scales, which the help states, as glm's does.
-- (b) Counts throughout: fitted n p, residuals k - n p. Cost: unlike glm, and the probability, the quantity most
-  users summarize, is reached only by dividing by n.
-
-Recommendation: (a).
 
 ## Calls made
 
