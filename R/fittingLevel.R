@@ -71,8 +71,8 @@ refuseLevelReachesNone <- function(model, candidates, name, value, door) {
       name,
       "' given to ",
       door,
-      " is the tree prior of the forest with no basis, and every forest of ",
-      "this sampler has a basis; change a forest's with ",
+      " reaches no forest: every forest of this sampler has a basis; change ",
+      "one with ",
       setForestCall(model, 1L, name, value),
       call. = FALSE
     )
@@ -98,16 +98,36 @@ refuseLevelReachesNone <- function(model, candidates, name, value, door) {
   )
 }
 
-## The refusal of a difference that is forest `index`'s own, which its door
-## changes.
-refuseOwnDifference <- function(model, index, what, call) {
+## The refusal of a difference in forest `index`'s `name`, which its door
+## changes; a statement `withdrawn` has no door short of a new sampler.
+refuseOwnDifference <- function(model, index, name, value, withdrawn = FALSE) {
+  label <- doorForestLabel(model, index)
+  if (withdrawn) {
+    stop(
+      "$setModel cannot withdraw ",
+      label,
+      "'s own '",
+      name,
+      "': a forest's statement cannot be withdrawn on a live sampler; make ",
+      "a new sampler instead",
+      call. = FALSE
+    )
+  }
+  record <- model@forests[[index]]
+  states <- if (name == "sd") {
+    !is.na(record@sd)
+  } else {
+    name %in% record@stated
+  }
   stop(
     "$setModel cannot change ",
-    doorForestLabel(model, index),
-    "'s ",
-    what,
-    ", which the forest states as its own: change it with ",
-    call,
+    label,
+    "'s '",
+    name,
+    "'",
+    if (states) ", which the forest states as its own",
+    ": change it with ",
+    setForestCall(model, index, name, value),
     call. = FALSE
   )
 }
@@ -162,12 +182,7 @@ levelDepths <- function(sampler, given, stored) {
       }
       if (index %in% reach) {
         if (givenStates) {
-          refuseOwnDifference(
-            model,
-            index,
-            paste0("'", name, "'"),
-            setForestCall(model, index, name, stated[[index]])
-          )
+          refuseOwnDifference(model, index, name, stated[[index]])
         }
         next
       }
@@ -175,8 +190,9 @@ levelDepths <- function(sampler, given, stored) {
         refuseOwnDifference(
           model,
           index,
-          paste0("'", name, "'"),
-          setForestCall(model, index, name, stated[[index]])
+          name,
+          stated[[index]],
+          withdrawn = ownStates && !givenStates
         )
       }
     }
@@ -189,12 +205,7 @@ levelDepths <- function(sampler, given, stored) {
         !identical(stated[[index]], own[[index]]) &&
           !identical(stated[[index]], level)
       ) {
-        refuseOwnDifference(
-          model,
-          index,
-          paste0("'", name, "'"),
-          setForestCall(model, index, name, stated[[index]])
-        )
+        refuseOwnDifference(model, index, name, stated[[index]])
       }
     }
     if (identical(level, own[[reach[[1L]]]])) {
@@ -277,20 +288,12 @@ levelLeafPrior <- function(sampler, given, stored, givenSds, door) {
   }
   candidates <- levelCandidates(sampler)
   ownSds <- vapply(model@forests, methods::slot, 0, "sd")
-  refuseSd <- function(index) {
-    refuseOwnDifference(
-      model,
-      index,
-      "'sd'",
-      setForestCall(model, index, "sd", givenSds[[index]])
-    )
-  }
   for (index in seq_along(ownSds)) {
     if (
       !is.na(givenSds[[index]]) &&
         !identical(givenSds[[index]], ownSds[[index]])
     ) {
-      refuseSd(index)
+      refuseOwnDifference(model, index, "sd", givenSds[[index]])
     }
   }
   changes <- !sameLeafPrior(given, model)
@@ -305,7 +308,7 @@ levelLeafPrior <- function(sampler, given, stored, givenSds, door) {
   }
   for (index in candidates) {
     if (is.na(givenSds[[index]]) && !is.na(ownSds[[index]])) {
-      refuseSd(index)
+      refuseOwnDifference(model, index, "sd", NA, withdrawn = TRUE)
     }
   }
   if (!changes) {
@@ -337,6 +340,23 @@ withLeafPrior <- function(model, given) {
   model
 }
 
+## The refusal of split probabilities other than equal ones given to `door`,
+## in creation's words.
+refuseLevelSplitProbabilities <- function(sampler, door) {
+  stop(
+    door,
+    ": a ",
+    if (samplerCarriesCounts(sampler)) {
+      "multinomial (softmax) model"
+    } else {
+      "model of several forests"
+    },
+    " does not support 'split.probs' (a vector that is not uniform, or ",
+    "dart())",
+    call. = FALSE
+  )
+}
+
 ## $setModel on a sampler of several forests or a multinomial one: the level's
 ## depth and leaf prior, the residual prior and the move settings, through one
 ## bridge entry that never takes the single forest's install. `newModel` has
@@ -346,11 +366,7 @@ withLeafPrior <- function(model, given) {
 setModelOnForests <- function(sampler, newModel, given) {
   model <- sampler$model
   if (varySplitProbabilities(given@tree.prior)) {
-    stop(
-      "$setModel: a model of several forests does not support 'split.probs' ",
-      "(a vector that is not uniform, or dart())",
-      call. = FALSE
-    )
+    refuseLevelSplitProbabilities(sampler, "$setModel")
   }
   if (!identical(given@leaf.scale, model@leaf.scale)) {
     stop(
@@ -459,7 +475,9 @@ setLeafPriorOnForests <- function(sampler, spec, expr) {
 
 ## $setTreePrior: the stored model with the level changed, through $setModel's
 ## route. `given` holds power and base, NULL where left out; `splitExpr` the
-## split.probs expression, NULL where left out, evaluated in `env`.
+## split.probs expression, NULL where left out, evaluated in `env`, a NULL
+## value left out too. A DART setting left out takes creation's default, the
+## update delay half the burn-in.
 writeTreePriorLevel <- function(sampler, given, splitExpr, env) {
   given <- given[!vapply(given, is.null, NA)]
   for (name in names(given)) {
@@ -484,19 +502,19 @@ writeTreePriorLevel <- function(sampler, given, splitExpr, env) {
   ptr <- sampler$getPointer()
   numForests <- bartcoreNumForests(ptr)
   written <- model
-  if (!is.null(splitExpr)) {
-    record <- splitProbsRecord(splitExpr, ncol(sampler$data@x), env)
+  record <- if (!is.null(splitExpr)) {
+    splitProbsRecord(splitExpr, ncol(sampler$data@x), env, ifNull = NULL)
+  }
+  if (!is.null(record)) {
     record@power <- model@tree.prior@power
     record@base <- model@tree.prior@base
     if (!is(record, "dbartsDartPrior")) {
       record <- resolveSplitProbabilities(record, sampler$data)
+    } else if (is.na(record@update.delay)) {
+      record@update.delay <- as.numeric(sampler$control@n.burn %/% 2L)
     }
     if (numForests > 1L && varySplitProbabilities(record)) {
-      stop(
-        "$setTreePrior: a model of several forests does not support ",
-        "'split.probs' (a vector that is not uniform, or dart())",
-        call. = FALSE
-      )
+      refuseLevelSplitProbabilities(sampler, "$setTreePrior")
     }
     ownDart <- is(model@tree.prior, "dbartsDartPrior")
     if (is(record, "dbartsDartPrior") != ownDart) {
@@ -533,7 +551,14 @@ writeTreePriorLevel <- function(sampler, given, splitExpr, env) {
     written <- withLevelDepth(written, reach, name, value)
   }
   if (!identical(written, model)) {
-    sampler$setModel(written)
+    # a refusal on $setModel's route names the door called
+    tryCatch(sampler$setModel(written), error = function(e) {
+      message <- conditionMessage(e)
+      if (!startsWith(message, "$setModel")) {
+        stop(e)
+      }
+      stop("$setTreePrior", substring(message, 10L), call. = FALSE)
+    })
   }
   invisible(NULL)
 }

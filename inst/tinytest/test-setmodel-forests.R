@@ -603,3 +603,173 @@ case("the df candidate: no size, refused by name", {
   expectFound(message, "$setForest(\"mu\", sd = v)")
   expectUntouched(live, untouched)
 })
+
+## --- $setTreePrior's split probabilities on one forest --------------------------
+dartControl <- dbartsControl(
+  n.chains = 2L,
+  n.threads = 1L,
+  n.samples = 4L,
+  n.burn = 6L,
+  seed = 5L,
+  updateState = FALSE,
+  verbose = FALSE
+)
+buildDart <- function(...) {
+  dbarts(x, y, n.trees = 8L, control = dartControl, ...)
+}
+case("DART: dart(a = 0.7) fills the update delay as creation does", {
+  live <- buildDart(split.probs = dart())
+  live$setTreePrior(split.probs = dart(a = 0.7))
+  twin <- buildDart(split.probs = dart(a = 0.7))
+  same(live$model@tree.prior@update.delay, 3, "half the burn-in")
+  expectTwin(live, twin)
+})
+case("DART: a bare dart fills the update delay as creation does", {
+  live <- buildDart(split.probs = dart(a = 0.7))
+  live$setTreePrior(split.probs = dart)
+  expectTwin(live, buildDart(split.probs = dart()))
+})
+case("$setTreePrior: a NULL through a wrapper or a variable", {
+  live <- dbarts(x, y, n.trees = 8L, control = ctl(), split.probs = c(0.2, 0.8))
+  untouched <- dbarts(
+    x,
+    y,
+    n.trees = 8L,
+    control = ctl(),
+    split.probs = c(0.2, 0.8)
+  )
+  wrapper <- function(sp = NULL) live$setTreePrior(split.probs = sp)
+  wrapper()
+  sp <- NULL
+  live$setTreePrior(split.probs = sp)
+  expectUntouched(live, untouched)
+})
+case("$setTreePrior: a zero split probability names the door", {
+  live <- dbarts(x, y, n.trees = 8L, control = ctl())
+  invisible(live$run(0L, 30L))
+  message <- refusal(live$setTreePrior(split.probs = c(0, 1)))
+  same(
+    startsWith(message, "$setTreePrior cannot give split probability zero"),
+    TRUE,
+    message
+  )
+})
+
+## --- what the review found unpinned -----------------------------------------------
+case("$setModel: a leaf scale other than the sampler's", {
+  live <- build(threeSharers)
+  untouched <- build(threeSharers)
+  model <- build(threeSharers, leaf.prior = normal(k = 3), power = 2.5)$model
+  model@leaf.scale <- 2
+  expectFound(
+    refusal(live$setModel(model)),
+    "cannot change the leaf scale of a sampler of several forests"
+  )
+  expectUntouched(live, untouched)
+})
+case("the group created at k = 3: a bare normal() gives the default", {
+  live <- build(threeSharers, leaf.prior = normal(k = 3))
+  live$setLeafPrior(normal())
+  expectTwin(live, build(threeSharers))
+})
+case("the probit group after a run: drawn to drawn keeps the k in force", {
+  live <- build(threeSharers, response = yBinary)
+  invisible(draws(live))
+  k <- live$getK()
+  live$setLeafPrior(normal(k = chi(3, 2)))
+  same(live$getK(), k, "the k in force")
+  expectContinues(live)
+})
+case("$setModel(twin$model): a forest's own move settings", {
+  moves <- c(
+    birth_death = 0.5,
+    swap = 0,
+    change = 0.5,
+    perturb = 0,
+    rule_gibbs = 0,
+    birth = 0.5
+  )
+  withMoves <- list(
+    mu1 = list(proposal.probs = moves),
+    mu2 = list(power = 3),
+    mu3 = list()
+  )
+  live <- build(threeSharers)
+  live$setModel(build(withMoves)$model)
+  twin <- build(withMoves)
+  same(
+    live$getForest(1L)$proposal.probs,
+    twin$getForest(1L)$proposal.probs,
+    "the reader"
+  )
+  expectTwin(live, twin)
+})
+for (entries in list(
+  list(mu1 = list(), mu2 = list(sd = 0.5), tau = factorBasis),
+  list(mu1 = list(), mu2 = list(sd = 0.5))
+)) {
+  case(paste("a lone sharer of", length(entries), "forests: normal(sd = )"), {
+    live <- build(entries)
+    live$setLeafPrior(normal(sd = 0.8))
+    expectTwin(live, build(entries, leaf.prior = normal(sd = 0.8)))
+  })
+}
+
+## --- the refusals' words -----------------------------------------------------------
+case("a forest stating nothing: no statement is claimed", {
+  live <- build(threeSharers)
+  model <- live$model
+  model@forests[[3L]]@power <- 2.5
+  message <- refusal(live$setModel(model))
+  expectFound(
+    message,
+    "forest \"mu3\"'s 'power': change it with $setForest(\"mu3\", power = 2.5)"
+  )
+  entries <- list(tau = factorBasis, gamma = list(basis = ~dose, n.trees = 6L))
+  live <- dbarts(
+    x,
+    y,
+    forests = lapply(entries, function(a) do.call(forest, a)),
+    control = ctl()
+  )
+  model <- live$model
+  model@tree.prior@power <- 2.5
+  message <- refusal(live$setModel(model))
+  expectFound(
+    message,
+    "forest \"tau\"'s 'power': change it with $setForest(\"tau\", power = 2.5)"
+  )
+  expectFound(
+    refusal(live$setTreePrior(power = 3)),
+    paste0(
+      "'power' given to $setTreePrior reaches no forest: every forest of ",
+      "this sampler has a basis; change one with ",
+      "$setForest(\"tau\", power = 3)"
+    )
+  )
+})
+case("a withdrawn statement: a new sampler", {
+  entries <- list(mu1 = list(), mu2 = list(power = 3), mu3 = list(sd = 0.5))
+  live <- build(entries)
+  untouched <- build(entries)
+  model <- live$model
+  model@forests[[3L]]@sd <- NA_real_
+  message <- refusal(live$setModel(model))
+  expectFound(message, "cannot withdraw forest \"mu3\"'s own 'sd'")
+  expectFound(message, "make a new sampler instead")
+  same(grepl("$setForest", message, fixed = TRUE), FALSE, message)
+  model <- live$model
+  model@forests[[2L]]@stated <- setdiff(model@forests[[2L]]@stated, "power")
+  message <- refusal(live$setModel(model))
+  expectFound(message, "cannot withdraw forest \"mu2\"'s own 'power'")
+  same(grepl("$setForest", message, fixed = TRUE), FALSE, message)
+  expectUntouched(live, untouched)
+})
+case("multinomial: split probabilities in creation's words", {
+  live <- buildMultinomial()
+  words <- "a multinomial (softmax) model does not support 'split.probs'"
+  expectFound(refusal(live$setTreePrior(split.probs = c(0.2, 0.8))), words)
+  model <- live$model
+  model@tree.prior@splitProbabilities <- c(0.2, 0.8)
+  expectFound(refusal(live$setModel(model)), words)
+})

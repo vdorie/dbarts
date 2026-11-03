@@ -387,16 +387,19 @@ plainTreePriorValue <- function(matchedCall, name, parentEnv, default) {
 ## The record a split.probs expression builds, resolved in its vocabulary over
 ## `parentEnv`: dart() or a bare dart a dbartsDartPrior, a vector of
 ## probabilities or NULL a dbartsCGMPrior carrying it as its specification,
-## each at the default depth.
-splitProbsRecord <- function(expr, numVars, parentEnv) {
+## each at the default depth; a NULL value gives `ifNull`.
+splitProbsRecord <- function(expr, numVars, parentEnv, ifNull = cgm()) {
   if (is.null(expr)) {
-    return(cgm())
+    return(ifNull)
   }
   written <- recoverForwardedArgument(expr, parentEnv)$expr
   if (identical(treePriorConstructorHead(written), "cgm")) {
     refuseCgmAsSplitProbs()
   }
   value <- evalInVocabulary(expr, splitProbsVocabulary(numVars), parentEnv)
+  if (is.null(value)) {
+    return(ifNull)
+  }
   if (identical(value, dart)) {
     value <- dart()
   }
