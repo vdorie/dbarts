@@ -520,8 +520,11 @@ for (i in seq_len(n.burn + n.keep)) {
   \item{newState}{
     For \code{setState}, a state object previously produced by this sampler or another over the same data: its \code{state} field, calling \code{storeState()} first to refresh it if a later mutation may have gone unstored (\code{storeState} itself returns \code{NULL} invisibly, so its return value cannot be passed here). A sampler's own \code{state} field is never refused for the cut points it records: where a reload is made on other cut points than its stored state records, as after a \code{setCutPoints} with no \code{storeState()} since (see \sQuote{Saving}), the field holds the state of its engine in place of the stored one. A reload's field is brought to its engine's at first use, and a state read from it before that is the stored one. Must inherit from \code{bartcoreState}.
   }
+  \item{n.trees, vars, interactions, blocks}{
+    For \code{setForest} (and \code{n.trees} and \code{vars} for \code{setVarianceForest}), the names \code{\link{forest}} takes that say what the model is. They are refused by name whatever their value, being part of the model, and are arguments so that a short name matches as it does at creation.
+  }
   \item{...}{
-    For \code{setForest} and \code{setVarianceForest}, nothing is taken: the names that say what the model is are read here to be refused by name, and anything else is refused as an unused argument. For \code{plotTree}, extra arguments to \code{\link{plot}}. For
+    For \code{setForest} and \code{setVarianceForest}, nothing is taken: any name not listed is refused as an unused argument. For \code{plotTree}, extra arguments to \code{\link{plot}}. For
     \code{run}, only 0.9-x's per-call thread count, as \code{n.threads},
     \code{numThreads} or the one unnamed argument after \code{updateState},
     which is ignored with a once-per-session warning until dbarts 1.1-0
