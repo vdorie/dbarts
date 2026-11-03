@@ -48,7 +48,9 @@ over 300 standard errors.
 
 The sharers are the forests with no basis that state no `sd` and no `amplitude = normal()` or `student()`
 ([`leafPriorForests`](../../R/model.R) in R, [`forestSharers`](../../src/bartcore/combiner.hpp) in the engine,
-each reading what the forests state; no flag passes between them). The total is the fitting function's leaf
+each reading what the forests state at creation; after that the engine's group and each forest record's `share`
+carry it, since a sharer that leaves the group on a live sampler changes what the forests state and not the parts
+of those left). The total is the fitting function's leaf
 prior, as `bart()`'s one forest has it (dec-B509): k 2 under gaussian and k drawn under chi(1.5, 2) under probit
 and logistic by default, a stated `k`, `leaf.prior = normal(k = )` or a `chi()` on k, and `normal(sd = )` naming
 the total's size. Each sharer is held at 1, and with T the total's sd, sharer j of K over m_j trees has sd
@@ -94,11 +96,14 @@ point lower than under the drawn coefficient.
   coefficient in `fixed$amplitude` whether or not `fixed()` is written; where k is drawn `summary` tabulates it, a
   named drawn total as `leaf.prior.sd`, and `extract` reads per forest: `type = "k"` a sharer's draws and another
   forest's number, `type = "leaf.prior.sd"` each sharer's `k.scale` over each draw, `forest = NULL` the named list.
-- On a live sampler, with two or more sharers, a sharer's `sd` through `$setForest` and the
-  sampler's `leaf.prior` are refused by name; a size or total is stated at creation, and changing either live
-  waits on the forest door, the sd on its slice 3, a sharer leaves the group (dec-B525). A lone sharer takes the `sd`
-  and leaves the leaf prior, k pinned at 1, as creation stating it does (dec-B525's end state); the sd in force given back moves nothing
-  (dec-B538), and `$setLeafPrior(leaf.prior)` takes only a restatement of the one in force.
+- On a live sampler a sharer's `sd` through `$setForest` takes it out of the group at that size, k pinned at 1
+  (dec-B525): the others keep their shares, leaf scales and k, the engine erasing it from the group and keeping a
+  group of one. A share is set once, at creation, and recorded on every sharer's record, so a re-creation from the
+  records rebuilds the group as left ([`forestSharers`](../../src/bartcore/combiner.hpp) reading a handed share). A
+  lone sharer leaves the same way, as creation stating its `sd` does; the sd in force given back moves nothing
+  (dec-B538). `$setLeafPrior(leaf.prior)` and `$setModel` reach the forests still sharing, each at its creation
+  share, so after a leave the sizes no longer add up to the total stated; with none left only the default restated
+  is taken. There is no way back into the group but a new sampler.
 
 Without a forest with a basis, `y ~ forest(x1) + forest(x2) + forest(x3)` is then the one-forest model
 `y ~ forest(x1 + x2 + x3, blocks = blocks(list("x1", "x2", "x3")))` with the same trees per group, at every

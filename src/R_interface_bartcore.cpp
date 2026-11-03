@@ -2316,17 +2316,23 @@ void printInitialSummary(const ParsedControl& control,
 
   ext_printf("\tpower and base for tree prior: %f %f\n", model.power,
              model.base);
-  // the forests sharing one total, the k above being theirs
+  // the forests sharing one total, the k above being theirs, each at the part
+  // its creation set, which forests leaving the group do not change
   std::size_t numForests = sampler.shape().numForests, numSharers = 0;
-  for (std::size_t f = 0; f < numForests; ++f)
-    if (std::isfinite(sampler.forestCalibration(0, f).share)) ++numSharers;
-  if (numSharers > 1) {
-    ext_printf("\tforests sharing one prior total:");
+  double share = 1.0;
+  for (std::size_t f = 0; f < numForests; ++f) {
+    double forestShare = sampler.forestCalibration(0, f).share;
+    if (!std::isfinite(forestShare)) continue;
+    ++numSharers;
+    share = forestShare;
+  }
+  if (numSharers > 1 || share < 1.0) {
+    ext_printf("\tforest%s sharing one prior total:", numSharers > 1 ? "s" : "");
     for (std::size_t f = 0; f < numForests; ++f)
       if (std::isfinite(sampler.forestCalibration(0, f).share))
         ext_printf(" %lu", static_cast<unsigned long>(f + 1));
-    ext_printf(", each 1/%lu of its variance\n",
-               static_cast<unsigned long>(numSharers));
+    ext_printf(", %s1/%ld of its variance\n", numSharers > 1 ? "each " : "",
+               std::lround(1.0 / share));
   }
   if (model.splitProbabilities != NULL) {
     ext_printf("\ttree split probabilities: %f",
@@ -3171,6 +3177,8 @@ double forestRecordNumber(SEXP recordExpr, const char* name) {
 // What each forest states of its size and its coefficient's prior, handed to
 // the engine as written: `sd` in the response's units and `amplitude.df` the
 // df of a Student-t coefficient, +Inf for a normal one, NA where none is stated.
+// Beside them `share`, a sharer's part of the total as its first creation set
+// it, NA where none is recorded; a record without the slot records none.
 // Nothing is derived here: the engine holds the map and its defaults, and a forest's kind comes
 // from the data object (applyForestBases).
 void applyForestStatements(SEXP recordsExpr, bartcore::AmplitudeSpec& spec) {
@@ -3181,7 +3189,30 @@ void applyForestStatements(SEXP recordsExpr, bartcore::AmplitudeSpec& spec) {
     double df = forestRecordNumber(recordExpr, "amplitude.df");
     if (!ISNAN(sd)) forest.sd = sd;
     if (!ISNAN(df)) forest.amplitudeDf = df;
+    if (Rf_isNull(slotOrNull(recordExpr, "share"))) continue;
+    double share = forestRecordNumber(recordExpr, "share");
+    if (ISNAN(share)) continue;
+    if (!(share > 0.0 && share <= 1.0))
+      Rf_error("a forest record's 'share' must be in (0, 1], or NA");
+    forest.share = share;
   }
+}
+
+// Refuses records whose shares do not name one group: a forest with no basis
+// stating no sd and no df recorded with no share beside one recorded with a
+// share, which a creation never writes. Reads the kinds applyForestBases set.
+void refuseUnsharedSharer(const bartcore::AmplitudeSpec& spec) {
+  bool anyShare = false, anyUnshared = false;
+  for (const bartcore::ForestSpec& forest : spec.forests) {
+    if (forest.kind != bartcore::ForestKind::none || !std::isnan(forest.sd) ||
+        !std::isnan(forest.amplitudeDf))
+      continue;
+    if (std::isfinite(forest.share)) anyShare = true;
+    else anyUnshared = true;
+  }
+  if (anyShare && anyUnshared)
+    Rf_error("the model's forest records give a share of the prior total to "
+             "some forests that take it and not to others");
 }
 
 // The model's forest records, each a dbartsForestRecord; an empty list where
@@ -4313,6 +4344,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
       // the chains COPY every basis at construction, so this row-major
       // transposition need only outlive the build
       applyForestBases(data, amplitudeSpec, amplitudeStorage);
+      refuseUnsharedSharer(amplitudeSpec);
       amplitudeSpec.activeRows = active;
     } else {
       options.activeRows = active;

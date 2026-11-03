@@ -752,12 +752,17 @@ forest(
   function's leaf prior as \code{leaf.prior}, its part in force as
   \code{sd} (\code{NA} where \code{k} is drawn) and \code{prior.sd.of}
   \code{"forest, shared"}, and \code{$getK(f)} the group's \code{k}.
-  The part of a group is fixed at creation: \code{$setForest} refuses an
-  \code{sd} other than the one in force for such a forest, and
-  \code{$setLeafPrior(leaf.prior)} is refused on its sampler. One forest alone
-  leaves the leaf prior by \code{$setForest(forest, sd = )} as by stating
-  \code{sd} at creation, its \code{k} then pinned at 1. Printed, a line after the forests' own gives
-  each forest's tree count and their total, and another which forests share.
+  The part of a group is set once, at creation. A forest of a group leaves
+  it by \code{$setForest(forest, sd = )}, at that size with its \code{k}
+  pinned at 1, and the forests still sharing keep their parts and sizes;
+  nothing puts it back but a new sampler. A total stated later, by
+  \code{$setLeafPrior(leaf.prior)} or \code{$setModel}, reaches the forests
+  still sharing, each at its creation part, so their sizes no longer add up
+  to it. One forest alone leaves the leaf prior by
+  \code{$setForest(forest, sd = )} as by stating \code{sd} at creation, its
+  \code{k} then pinned at 1. Printed, a line after the forests' own gives
+  each forest's tree count and their total, and another which forests share,
+  or which one is left of a group.
 
   The leaf scales of a forest with a basis and of one stating \code{sd} come
   from the model's own calibration map rather than from the leaf prior, so a

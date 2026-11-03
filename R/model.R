@@ -2477,6 +2477,18 @@ forestStatements <- function(specs, hasBasis) {
   statements
 }
 
+## Each forest's part of the prior total that the forests with no basis stating
+## no sd and no coefficient's df share, an equal one, and NA on every other
+## forest; `statements` as forestStatements gives them.
+sharerShares <- function(hasBasis, statements) {
+  df <- statements$amplitude.df
+  if (is.null(df)) {
+    df <- rep(NA_real_, length(hasBasis))
+  }
+  sharers <- !hasBasis & is.na(statements$sd) & is.na(df)
+  ifelse(sharers, 1 / sum(sharers), NA_real_)
+}
+
 ## Resolve an interactions() specification against the fitted model matrix into
 ## the engine's per-forest constraint: a max-order cap (0 = uncapped) and a
 ## de-duplicated 2 x k integer matrix of

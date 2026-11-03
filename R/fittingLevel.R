@@ -304,6 +304,10 @@ levelLeafPrior <- function(sampler, given, stored, givenSds, door) {
     }
     stored <- withLeafPrior(stored, given)
     stored@forests[[candidates]]@sd <- NA_real_
+    # it then shares the total alone, unless it draws its own coefficient
+    if (is.na(stored@forests[[candidates]]@amplitude.df)) {
+      stored@forests[[candidates]]@share <- 1
+    }
     return(list(model = stored, install = TRUE))
   }
   for (index in candidates) {
@@ -330,6 +334,37 @@ levelLeafPrior <- function(sampler, given, stored, givenSds, door) {
     )
   }
   list(model = withLeafPrior(stored, given), install = TRUE)
+}
+
+## The refusal of a forest's share of the prior total that differs in `given`
+## from the sampler's: a share is set once, at creation. The one candidate is
+## not read, the leaf prior reaching it whatever it states.
+refuseShareDifference <- function(sampler, given) {
+  model <- sampler$model
+  candidates <- levelCandidates(sampler)
+  if (
+    length(given@forests) != length(model@forests) ||
+      samplerCarriesCounts(sampler)
+  ) {
+    return(invisible(NULL))
+  }
+  for (index in seq_along(model@forests)) {
+    if (length(candidates) == 1L && index %in% candidates) {
+      next
+    }
+    if (
+      !identical(given@forests[[index]]@share, model@forests[[index]]@share)
+    ) {
+      stop(
+        "$setModel cannot change ",
+        doorForestLabel(model, index),
+        "'s share of the prior total: a share is set once, when the sampler ",
+        "is created; make a new sampler instead",
+        call. = FALSE
+      )
+    }
+  }
+  invisible(NULL)
 }
 
 ## `model` with the fitting function's leaf prior `given` states.
@@ -382,6 +417,7 @@ setModelOnForests <- function(sampler, newModel, given) {
     vapply(model@forests, methods::slot, 0, "sd")
   }
   leaf <- levelLeafPrior(sampler, given, depths$model, givenSds, "$setModel")
+  refuseShareDifference(sampler, given)
   stored <- leaf$model
   stored@tree.prior@splitProbabilities <- numeric()
   withSizeRefusal(

@@ -270,12 +270,18 @@ forestTotalLines <- function(priors, treeCounts) {
       " in all"
     )
   }
+  # one left of a group, the others having stated their own sd, holds its
+  # part still
   share <- if (length(sharers) > 0L) {
     spec <- priors[[sharers[1L]]]$leaf.prior
     paste0(
-      "  forests ",
+      if (length(sharers) > 1L) "  forests " else "  forest ",
       paste(sharers, collapse = ", "),
-      " share one prior total, ",
+      if (length(sharers) > 1L) {
+        " share one prior total, "
+      } else {
+        " holds its part of one prior total, "
+      },
       leafPriorText(spec)
     )
   }

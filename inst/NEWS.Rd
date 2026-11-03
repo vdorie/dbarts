@@ -681,7 +681,9 @@
             proposal.probs = , n.perturb.cuts = , treeShift = )}, by label or
             position, in \code{forest()}'s names, leaving the trees as they
             are, and \code{$getForest(forest)} gives every value in force as
-            a list that goes back with no change.
+            a list that goes back with no change. A forest sharing one prior
+            total that states its \code{sd} there leaves the group, and the
+            others keep their parts, set at creation.
             \code{$setVarianceForest} and \code{$getVarianceForest} do the
             same for the variance forest.
             \code{$setTreePrior(power = , base = , split.probs = )} changes

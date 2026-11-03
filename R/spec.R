@@ -1385,6 +1385,9 @@ resolveSamplerSpec <- function(
     # which a fit records in fit$fixed), its constraints, and what builds a
     # basis written as code again at new rows (NULL where a forest's basis is
     # a value, which has no code to build from; inert to the run)
+    # each sharer's part of the total, equal, as the engine derives it, NA on
+    # every other forest
+    shares <- sharerShares(hasBasis, statements)
     records <- lapply(seq_len(numForests), function(index) {
       record <- new("dbartsForestRecord")
       record@n.trees <- treeCounts[index]
@@ -1399,6 +1402,7 @@ resolveSamplerSpec <- function(
       if (!is.null(statements$amplitude.df)) {
         record@amplitude.df <- statements$amplitude.df[index]
       }
+      record@share <- shares[index]
       record@vars <- forestColumns[[index]]
       record@interactions <- forestInteractions[[index]]
       record@blocks <- forestBlocks[[index]]

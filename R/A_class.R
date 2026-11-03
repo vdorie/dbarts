@@ -606,7 +606,11 @@ methods::setClassUnion("integerOrNULL", c("integer", "NULL"))
 ## and constraints are the model's own (its tree prior and the attributes the
 ## bridge reads), and `base`, `power` and the rest stay at the prototype; on a
 ## model of several, the record holds each forest's. `moves` is the forest's
-## move settings, NULL where no forest of the model states any.
+## move settings, NULL where no forest of the model states any. `share` is a
+## forest's part of the prior total it shares with the other forests with no
+## basis that state no sd, as its creation set it, NA on every other forest:
+## one that states its sd on a live sampler leaves the group, and the parts of
+## those left stay as they were.
 methods::setClass(
   "dbartsForestRecord",
   slots = list(
@@ -622,7 +626,8 @@ methods::setClass(
     blocks = "listOrNULL",
     label = "character",
     basis.term = "ANY",
-    moves = "listOrNULL"
+    moves = "listOrNULL",
+    share = "numeric"
   ),
   prototype = list(
     n.trees = NULL,
@@ -637,7 +642,8 @@ methods::setClass(
     blocks = NULL,
     label = "",
     basis.term = NULL,
-    moves = NULL
+    moves = NULL,
+    share = NA_real_
   )
 )
 methods::setValidity("dbartsForestRecord", function(object) {
@@ -648,7 +654,7 @@ methods::setValidity("dbartsForestRecord", function(object) {
   if (anyNA(object@stated)) {
     return("a forest record's 'stated' must name what was stated")
   }
-  for (name in c("base", "power", "sd", "amplitude.df")) {
+  for (name in c("base", "power", "sd", "amplitude.df", "share")) {
     if (length(methods::slot(object, name)) != 1L) {
       return(paste0("a forest record's '", name, "' must be one number or NA"))
     }
@@ -658,6 +664,12 @@ methods::setValidity("dbartsForestRecord", function(object) {
   }
   if (length(object@label) != 1L || is.na(object@label)) {
     return("a forest record's 'label' must be one string")
+  }
+  share <- object@share
+  if (!is.na(share) && !(share > 0 && share <= 1 && is.na(object@sd))) {
+    return(
+      "a forest record's 'share' must be NA, or in (0, 1] where no 'sd' is stated"
+    )
   }
   TRUE
 })

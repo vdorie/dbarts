@@ -261,8 +261,7 @@ unsizedForests <- function(sampler) {
 ## The checks creation applies to a forest's statement that read more than the
 ## one name, with `changed` merged into what forest `index` states: a coefficient
 ## where creation refuses one and, here where a live sampler keeps its coefficient
-## prior, any other; a size where the forest's is another forest's; the mixture
-## a monotone sampler takes. Writes nothing.
+## prior, any other; the mixture a monotone sampler takes. Writes nothing.
 checkForestStatement <- function(sampler, index, changed, label, ptr) {
   model <- sampler$model
   numForests <- bartcoreNumForests(ptr)
@@ -290,18 +289,6 @@ checkForestStatement <- function(sampler, index, changed, label, ptr) {
       "; make a new sampler",
       call. = FALSE
     )
-  }
-  if (!is.null(changed$sd) && numForests > 1L) {
-    sharers <- samplerSharers(sampler, ptr)
-    if (length(sharers) > 1L && index %in% sharers) {
-      stop(
-        label,
-        " shares one prior total with forests ",
-        paste(sharers, collapse = ", "),
-        "; a forest's own size cannot be changed live yet: make a new sampler",
-        call. = FALSE
-      )
-    }
   }
   if (!is.null(attr(model, "monotone"))) {
     refuseMonotoneForestMixture(changed$proposal.probs, label)
@@ -410,8 +397,10 @@ withDepthStated <- function(stated, name) {
 }
 
 ## A model with forest `index`'s sd written as creation writes it: on a model of
-## several its record, and where the last forest taking the fitting function's
-## leaf prior states its own, that prior is left with no forest. On a model of
+## several its record, its share of the prior total gone, so that a sharer
+## leaves the group and the others keep their parts, and where the last forest
+## taking the fitting function's leaf prior states its own, that prior is left
+## with no forest. On a model of
 ## one, the leaf prior itself, in whichever leaf model the sampler has, as
 ## $setLeafPrior writes it.
 modelWithForestSd <- function(sampler, model, index, sd) {
@@ -426,6 +415,7 @@ modelWithForestSd <- function(sampler, model, index, sd) {
     return(model)
   }
   model@forests[[index]]@sd <- sd
+  model@forests[[index]]@share <- NA_real_
   hasBasis <- !vapply(sampler$data@bases, is.null, NA)
   recordedSd <- vapply(model@forests, methods::slot, 0, "sd")
   if (!any(!hasBasis & is.na(recordedSd))) {

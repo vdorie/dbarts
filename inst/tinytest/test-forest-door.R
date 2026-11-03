@@ -56,8 +56,8 @@ factorBasis <- list(basis = ~ factor(z), n.trees = 6L)
 numericBasis <- list(basis = ~dose, n.trees = 6L)
 
 # Each kind of forest the door's table separates: the forests of a sampler and
-# the one the door is aimed at. `sharer` marks a forest whose sd is refused until
-# a sharer can leave its group; `exempt` the names whose draws keep creation's
+# the one the door is aimed at. `sharer` marks a forest whose sd takes it out of
+# its group, which no creation reaches (test-forest-leave.R); `exempt` the names whose draws keep creation's
 # start, which reads what creation was given; `drawn` a forest whose k is drawn.
 kinds <- list(
   lone = list(forests = list(list()), target = 1L),
@@ -1129,7 +1129,7 @@ case("unlabeled forests are named by position at both doors", {
   }
 })
 # refused at one door only, each for its stated reason: a live sampler keeps its
-# coefficient prior and a sharer its part, until later plans
+# coefficient prior, until a later plan
 doorOnly <- list(
   list(
     "a changed coefficient on a basis forest",
@@ -1172,18 +1172,6 @@ doorOnly <- list(
     "normal.stated",
     list(amplitude = fixed()),
     "keeps normal()"
-  ),
-  list(
-    "a sharer's size",
-    "sharer",
-    list(sd = 0.7),
-    "forest \"mu2\" shares one prior total with forests 1, 2; a forest's own size cannot be changed live yet"
-  ),
-  list(
-    "a sharer's size where k is drawn",
-    "sharer.probit",
-    list(sd = 0.7),
-    "shares one prior total"
   )
 )
 for (row in doorOnly) {
@@ -1427,8 +1415,8 @@ atomicRows <- list(
   list("factor", list(power = 0.5, amplitude = student(2))),
   list("factor", list(sd = 0.7, amplitude = fixed())),
   list("factor", list(n.perturb.cuts = 5, amplitude = student(2))),
-  list("sharer", list(power = 0.5, sd = 0.7)),
-  list("sharer", list(n.perturb.cuts = 5, sd = 0.7)),
+  list("sharer", list(power = 0.5, sd = -1)),
+  list("sharer", list(n.perturb.cuts = 5, sd = -1)),
   list("lone", list(power = 0.5, sd = -1)),
   list("lone", list(power = 0.5, n.perturb.cuts = 5, amplitude = normal())),
   list("lone", list(power = 0.5, sd = 1e308)),
