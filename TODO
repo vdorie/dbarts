@@ -652,6 +652,17 @@ items
   sbc-family-tiers: one open arm (docs/plans/sbc-family-tiers.md,
     docs/plans/archive/runsbcbcf-repair.md): the full-R ladder re-runs,
     whose commands the plan records.
+  sbc-bcf-probit-burn: a longer-burn rerun of sbc's bcf-probit arm on
+    both libraries, forest-amplitude-normal's and the code under it,
+    about 4 core-hours (dec-B562). Under dec-B557's rule its abs.a
+    tripped and read as shared: U-shaped ranks on both libraries, both
+    past the band over 22 seeds (docs/plans/forest-amplitude-normal.md,
+    Landing note). Open: the BCF start. The harness starts each chain at
+    the truth in the glue and sigma with fresh trees; start fully at the
+    truth, trees included, or with fresh glue and a long burn.
+    sbcReplication's non-BCF arms also start sigma from the last chain's,
+    deliberately by its comment; changing that is a separate call, since
+    those arms gate CI.
   sbc-ordered-factor-arm: benchmarks/R/sbc.R carries no ordered-factor
     PREDICTOR arm - its ordered factors are ordinal RESPONSES - so the
     midpoint cut grid's posterior shift is adjudicated only at the four-
@@ -773,25 +784,6 @@ items
     gaussian) and setActiveRows handing the redraw a zero fit (killer
     mask-redraw-exact.R quick probit). Both were run by hand at landing
     (docs/plans/empty-leaf-membership.md).
-  forest-amplitude-normal: ruled, not built (dec-B539). A forest with no
-    basis takes forest(amplitude = normal()), a drawn normal coefficient,
-    where it takes student(df), refused where student() is (a lone forest,
-    a sharer). Its median is 1, and with no sd the trees take the size
-    student(df)'s take there. The engine's forestMapEntry draws a
-    coefficient of kind none only where a df is stated after the default
-    flip, so it needs a way to say normal. Plan with a blind critique, opus
-    implementer, opus review with mutants, exact arms: ~160 lines of
-    package code in ~1,150, ~23 agent-hours. After forests-shared-total's
-    slice F;
-    for 1.0-0, with forest-door, whose $getForest and amplitude table take
-    it. Forest-door's own normal() on a basis forest stays in its slice 2.
-    By dec-B550 the trees carry sd on every forest, held or drawn, and a
-    drawn coefficient is a multiplier with median 1, the chain at creation
-    staying to rounding; a write of sd sets the trees' scale and moves no
-    leaf or coefficient. Prototype and its runs in the ruling; plan on
-    branch forest-amplitude-normal, rewritten for dec-B550.
-    $setLeafPrior's help says a write changes the model, in those words at
-    most (dec-B550).
   written-sd-fresh-gap: after a column swap and a live sd write, a
     sampler's fit differs from one created fresh at that prior by rms 0.025
     in its mean over 2,000 draws after 2,000 more sweeps, largest |z| 5.34
@@ -897,7 +889,10 @@ items
     forests = lists of setmodel slice 4's door and dec-B515's second
     level. Open, for VD: the name, multinomial category labels, the
     spelling that returns a forest to the fitting function's level. For
-    1.0-0, with setmodel slice 4.
+    1.0-0, with setmodel slice 4. forest(amplitude = normal()) at
+    creation on every kind landed with forest-amplitude-normal, and with
+    it statedCoefficientPrior, the decoder $getForest and its "value in
+    force" comparison take; slice 2 keeps the door half.
   leaf-prior-writer-by-level: the reader is built (getLeafPrior carries sd and
     sd.stated on one forest, one record, the size called the forest's; a drawn
     k reads sd NA, as a sharer's does). Owed (dec-B515, dec-B518):
@@ -923,13 +918,22 @@ items
     derives the value. With the next help pass.
   coefficient-prior-live: ruled, not built (dec-B511). On a live sampler,
     $setForest(amplitude = ) (dec-B518) changes a forest's coefficient between held
-    and drawn (dec-B254) and between the normal and student(df), and a
-    t's df, at the next sweep; a t's mixing variance starts at the
-    normal's, a return to the normal resets it. Today 'amplitude' is
-    refused there. After forest-door and setmodel-parameters' slice 4;
-    student(df) at creation landed (dec-A245); about 400 lines. To design: the spelling
-    that returns a coefficient to the normal or releases a hold, an
-    unstated amplitude changing nothing. For 1.0-0.
+    and drawn (dec-B254) and between normal() and student(df), and a
+    t's df, at the next sweep. Today 'amplitude' is refused there. In
+    dec-B550's units no leaf scale moves: a hold sets the block to its
+    kind's value and leaves the leaves and the trees' scale; a release
+    draws from that value, 1 or (0, 1) on levels, the entry re-resolved
+    with its node factor the same both ways. One combiner write, of the
+    coefficient's prior whole; a t's mixing variance starts at the
+    normal's, 1 / z_.75^2 with no basis and kappa / 0.674^2 with one,
+    never creation's 1 / m^2 (whether that start shows is for its plan to
+    measure). Costs as ruled: a hold at a large sd jumps, a release with
+    no basis at a large sd is slower, and holding a factor changes the
+    model (docs/plans/forest-amplitude-normal.md, Every live path). After
+    forest-door and setmodel-parameters' slice 4; about 400 lines as
+    estimated before dec-B550, which should fall. To design: the spelling that returns a
+    coefficient to the normal or releases a hold, an unstated amplitude
+    changing nothing. For 1.0-0.
   factor-basis-per-level: forest(x, basis = ~ arm) on a factor of three
     or more levels becomes shorthand for one forest for each level but
     the first, each on that level's indicator, so every level has its
@@ -941,7 +945,10 @@ items
     no basis or a factor starts by its forest's position (1, and 0 for
     the second forest's first level); a start by kind, the cleaner rule,
     moves the draws of every model of three forests. A numeric one
-    starts at 1 (forest-multiplier, push 2). Not planned.
+    starts at 1 (forest-multiplier, push 2). Each is then multiplied once
+    by its start scale, 1 / 0.674 with a basis and the unit over sd with
+    none, which keeps the older units' chain (forest-amplitude-normal).
+    Not planned.
   prior-predictive-several-forests: samplePriorPredictive refuses a
     sampler of several forests by name; drawing there needs the
     coefficients drawn from their prior, which dec-B361's rule would

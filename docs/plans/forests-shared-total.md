@@ -293,11 +293,10 @@ model (dec-B509), reports the group's k, one value reported on each, and `k.scal
 normal(k = )` and a `chi()` beside a forest with a basis are the group's, no longer refused. MY CALL. Alternative:
 k 1 everywhere, which would hide the drawn k.
 
-The item after this one, forest-amplitude-normal (dec-B542), changes the first sentence's scope. "A forest with a
-basis or one stating sd reports k 1 and `k.scale` that sd" is true for slice F; after that item it holds only where
-the coefficient is held: a drawn forest of any kind reports k 1 and `k.scale` the response's unit, and `$sd` keeps
-the sd. So slice F's new pins read `$sd`, and pin a drawn `k.scale` only on a forest with no basis stating
-`student(df)`.
+The item after this one, forest-amplitude-normal (dec-B550), put the trees at the forest's sd on every forest, so
+"reports k 1 and `k.scale` that sd" holds on every forest stating an sd, drawn or held, and `$sd` reads the same
+number. Slice F's pins read `$sd`, but for its pin of a drawn `k.scale` on a forest with no basis, which that item
+re-pinned.
 
 D9. The constant basis column (dec-B307's revisit). RULED, dec-B528, [Open calls](#open-calls) 2: refused at creation,
 sd stated or not, naming the plain spelling, in slice 3. Constant is what
@@ -851,10 +850,10 @@ snapshots and the exact gates ran on the code before it, and only a comment, hel
 equivalence-e346b018 and bcf-equivalence-e346b018, multinomial-equivalence-80b1c8d4 unmoved. bartCause's branch
 bcf-tests-state-prior, its two tests' hand-written drivers and a comment, merges with this item.
 
-For the next item: slice F's re-recorded bcf-equivalence baseline holds until forest-amplitude-normal (dec-B542), which re-records
-again, judged by the same tier 1 of `--cross-host`. That item also re-pins what test-bcf-family.R,
-test-forest-sd-unit.R and test-forest-leaf-prior-reader.R already pin of a drawn basis forest's units; slice F added
-none. forest-door's slice 3 takes the refusal of a sharer's sd (dec-B525).
+For the next item: slice F's re-recorded bcf-equivalence baseline held until forest-amplitude-normal (dec-B550), which
+re-recorded it and equivalence's bart2twoforest as the 6487324e files, judged by the same tier 1 of `--cross-host`. That
+item also re-pinned what test-bcf-family.R, test-forest-sd-unit.R and test-forest-leaf-prior-reader.R pin of a drawn
+basis forest's units; slice F added none. forest-door's slice 3 takes the refusal of a sharer's sd (dec-B525).
 
 ## Calls made
 
