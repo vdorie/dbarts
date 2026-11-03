@@ -168,8 +168,8 @@ lengthscale; DART's own settings. Handing a parameter between drawn and held is 
 The rule every slice is held to: after `$setModel(B)` (or slice 4's `$setTreePrior`) the live sampler runs the model a
 copy re-created from the stored records runs, and before any run it draws bit for bit what creating with B
 draws. So every setter writes the record creation reads, on the model or, until dec-B239's migration, on the
-control. One exemption, by name: a k, Student-t df, negative-binomial shape or DART concentration handed from
-fixed to drawn starts at the value in force (call 8), where creation starts at the grid median or the prior's
+control. One exemption, by name: a k, Student-t df, negative-binomial shape, DART concentration or residual sd
+handed from fixed to drawn starts at the value in force (call 8, call 34), where creation starts at the grid median or the prior's
 start, so before a run it draws what creation draws from that start, not creation's own; `$setLeafPrior`
 already documents the same for k ("on a sampler not yet run it is not the start creation under the new prior
 would make"). A copy, and a reload after `storeState`, still draw what the live sampler draws.
@@ -604,7 +604,7 @@ this plan does not touch it.
    dec-B283 has a set call reject what is plainly broken. Alternative: cut the splits back, a silent repair.
 7. A zero is read through the forest's column mask, which every site already consults. Alternative: the prior's
    own functions, which `growFromRoot` and the rule moves would not see.
-8. Fixed to drawn starts the k, df, shape or concentration at the value in force; drawn to fixed sets the stated
+8. Fixed to drawn starts the k, df, shape, concentration or residual sd at the value in force; drawn to fixed sets the stated
    one. These handoffs are exempt by name from the twin oracle's before-run clause, as `$setLeafPrior` already
    documents for k. Alternative: restart at the grid median, as creation does, which passes the oracle as
    written but is a jump the ruling does not ask for.
@@ -679,7 +679,22 @@ this plan does not touch it.
     (dec-B524). No flag records what a variance forest states, and a spec's record takes the fitting function's
     depth: `dbartsSpec(data, power = 2.5)$model` carries a variance power of 2.5, so a refusal of any difference
     would refuse that call, which the variance forest leaves on main. Alternative: refuse a difference naming
-    `$setVarianceForest`, as call 19 first had it.
+    `$setVarianceForest`, as call 19 first had it. Kept after the review: creation from a model reads its
+    variance-forest record and `$setModel` keeps the sampler's, which dec-B524 rules out of live depth changes;
+    TODO's setmodel-variance-forest-record names the difference.
+32. A hand edit of a sharer's depth on the model's record is ignored where the forest follows the level and its
+    slot is the tree prior's, forest 1, and refused where the record is the forest's own, forest 3: a record slot
+    is not a door (dec-B554), and the tree prior is where the level is read. Alternative: read forest 1's record
+    beside the tree prior, two slots for one value.
+33. The shape line `keepModelRecords` carries is reachable only by a hand-written `@shape` on a model stating no
+    family, and is left (dec-B554). Alternative: refuse a `@shape` that differs from the family's.
+34. A residual sd handed from held to drawn starts at the held value on one forest and on several, as main does;
+    it joins call 8's exemption. Alternative: start where creation would, which main does not.
+35. Calls 25 and 30 stand as reviewed. `$setTreePrior`'s DART settings fill a left-out update delay as creation
+    does, half the burn-in of the sampler's control; a NULL value reaching `split.probs` through a variable or a
+    wrapper is a name left out (dec-B519). A refusal on `$setModel`'s route reached through `$setTreePrior` names
+    `$setTreePrior`. A statement withdrawn on a model's record is refused naming a new sampler, never `$setForest`,
+    which refuses an NA (dec-B522). Alternative: name `$setModel` throughout, the door the user did not call.
 
 ## Open calls
 

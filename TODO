@@ -209,6 +209,16 @@ items
     mixture that does not reach the variance forest, raw leaf-prior
     slots edited alone, and a residual prior stored on a family with no
     residual scale.
+  setmodel-variance-forest-record: a model's variance-forest record is
+    read at creation from a model, new("dbartsSampler", control, model,
+    data) with model@variance@power = 4 running variance power 4, while
+    $setModel(model) keeps the sampler's (dec-B524: the variance forest
+    follows no live depth change), so one model runs two ways. No flag
+    records what a variance forest states, and a spec's record takes the
+    fitting function's depth, so refusing a difference would refuse
+    $setModel(dbartsSpec(data, power = 2.5)$model). Decide whether
+    creation from a model should read the record as the setter does, or
+    the record carry its statements (setmodel-parameters' call 31).
   starting-sigma-fallback-zero-weights: where no regression is defined
     the starting sigma is sd(y - offset) over the rows of positive
     weight, unweighted (response-scale-rows). Decide whether it should
