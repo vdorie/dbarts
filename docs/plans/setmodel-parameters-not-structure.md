@@ -682,9 +682,9 @@ this plan does not touch it.
     `$setVarianceForest`, as call 19 first had it. Kept after the review: creation from a model reads its
     variance-forest record and `$setModel` keeps the sampler's, which dec-B524 rules out of live depth changes;
     TODO's setmodel-variance-forest-record names the difference.
-32. A hand edit of a sharer's depth on the model's record is ignored where the forest follows the level and its
-    slot is the tree prior's, forest 1, and refused where the record is the forest's own, forest 3: a record slot
-    is not a door (dec-B554), and the tree prior is where the level is read. Alternative: read forest 1's record
+32. A hand edit of a sharer's depth on the model's record is ignored on forest 1, whose slot is the tree prior's,
+    and refused on any forest but the first, whose record then differs from the level: a record slot is not a door
+    (dec-B554), and the tree prior is where the level is read. Alternative: read forest 1's record
     beside the tree prior, two slots for one value.
 33. The shape line `keepModelRecords` carries is reachable only by a hand-written `@shape` on a model stating no
     family, and is left (dec-B554). Alternative: refuse a `@shape` that differs from the family's.
