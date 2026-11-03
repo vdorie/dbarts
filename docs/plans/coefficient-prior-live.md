@@ -1,0 +1,436 @@
+# coefficient-prior-live: a live sampler changes a forest's coefficient between held and drawn, and between normal() and student(df)
+
+Status: PLANNED 2026-11-03 on forest-door-s3 (64c8b0816), for dec-B511. Not built; a blind critique follows. Rulings, quoted
+where they settle a call: dec-B511 (the coefficient's prior live), dec-B518 (the door, `$setForest(amplitude = )`), dec-B550
+(the trees carry `sd`; a drawn coefficient is a multiplier with prior median 1, `fixed()` exactly 1; a write of `sd` moves no
+leaf, coefficient or auxiliary), dec-B539 (`normal()` on a forest with no basis), dec-B510 (`student()`), dec-B513 (`fixed()`
+on a lone forest), dec-B522 (no return spelling), dec-B524 (the variance forest), dec-B525 (a sharer leaving), dec-B538 (the
+value in force handed back), dec-B540 (`$setLeafPrior` on the one forest that draws), dec-B254 (parameters, never structure),
+with dec-B354 (a held coefficient is 1, or 0 and 1 on a factor), dec-B509 (a forest with no basis held by default), dec-B519 (a
+written NULL), dec-B523 (later write wins), dec-B515 (a setter means what creation means), dec-B418 (a state installs as
+stored). The runs behind it: scratch/cpl-plan/runs, p1.R to p10.R, on a library of 64c8b0816 and on a prototype of the engine
+write (scratch/cpl-plan/prototype.diff, about 80 lines, not committed).
+
+agent: slice 1 one opus implementer (effort high); slice 2 the same or a fresh one; one opus review over both slices that runs
+the mutants below, the same reviewer checking the fix round unless the fixes change engine behavior. Tier "Changes draws"
+([Process by risk](README.md#process-by-risk)): an engine write between sweeps.
+rng: neutral, bit for bit, for every call taken today: the equivalence trio and the four snapshot files do not move, and a
+`$setForest(amplitude = )` naming the prior in force writes nothing, as now. Every new call changes the model it is asked to,
+from the next sweep, and draws no random number. Each is held to a creation twin, bitwise before any run where the start is
+creation's, and otherwise to the state twin of [RNG class](#rng-class).
+window: for 1.0-0 (dec-B511). After forest-door's slice 3 lands; one branch, two slices, merged once.
+budget: ~1,250 lines in the tree, ~230 of them package code: engine ~95 (chain ~60, combiner ~20, sampler and facade ~15),
+bridge ~25, R ~110, help ~35, NEWS ~5, design notes ~20, tests/cpp ~280, tinytest ~520 (a new file ~470, 5 refusal pins
+respelled), exact arms ~90, records ~40. Agent time, estimated and not measured: slice 1 ~6, slice 2 ~9, review with mutants and
+a fix round ~5, gates ~3, rebase onto main after forest-door ~1: ~24. Plans here run 1.5 to 2 times low, so 35 to 50.
+
+## Summary for the maintainer
+
+You ruled that on a live sampler a forest's coefficient can be switched between held and drawn, between the normal prior and the
+Student-t, and a t's degrees of freedom changed, each from the next sweep. You also ruled the spelling: the forest door's
+`amplitude`. This plan builds it.
+
+What a call does. `fixed()` holds the coefficient at its held value, 1, or 0 and 1 on a factor's two levels, at once.
+`normal()` or `student(df)` on a held forest releases it, and the chain draws it from the held value. Between `normal()` and
+`student(df)`, and between two degrees of freedom, the coefficient keeps the value it has. No call moves a leaf, and no call
+moves the trees' scale: the forest's `sd` stays what it was. The t's hidden variance starts at the normal's, as you ruled; going
+back to the normal resets it; a new df keeps it.
+
+The spelling that returns a coefficient to the normal or releases a hold needs no design: your ruling that the door has no
+return spelling already says "a hold is released by writing a shape". A coefficient has no level above it, since no fitting
+function states one, so every default is a value a forest can be given: `normal()` on a forest with a basis, `fixed()` on one
+with none. Leaving `amplitude` out, or writing NULL, changes nothing.
+
+Where it is refused. Wherever creation refuses the same statement, with creation's reason: a model of one forest and a
+multinomial model take only `fixed()`, which changes nothing; forests sharing one prior total refuse a drawn coefficient unless
+the same call states the forest's `sd`, which takes it out of the group; the variance forest has no coefficient. One case
+creation cannot reach is refused the same way: the last forest left of a group, which still holds only its part of the total.
+
+What a user may notice. The one forest with no basis beside forests with a basis, holding its size
+from the fitting function's leaf prior, takes the size creation would give it when released; where k was drawn that is the size
+at the prior's median k, so its size can jump, and the run then reports no k. Held again, it goes back to following the leaf
+prior. As you already accepted: holding a factor changes the model, rows at the first level losing the forest; a hold at a
+large `sd` jumps; a release from a held chain at a large `sd` takes a while to settle (about 200 sweeps at an `sd` of 7 in our
+runs, none visible at 0.7).
+
+One defect found and fixed here: `$setModel` handed a model whose forest records a different coefficient takes it today and
+changes nothing, silently. It will be refused, naming `$setForest`, as every other difference of a forest's own is.
+
+There are no open calls. Nothing changes for bartCause, stan4bart, treatSens or bairrtt.
+
+## Goal
+
+`$setForest(f, amplitude = )` takes `fixed()`, `normal()` and `student(df)` wherever creation takes them on that forest, changes
+the coefficient's hold and prior from the next sweep as [Every transition](#every-transition) says, records the change where a
+copy and a reload read it, and leaves every leaf and the trees' scale. `$getForest(f)$amplitude` reads it back, and handing the
+list back changes nothing. `$setModel` refuses a differing coefficient by name.
+
+## Context
+
+- The door as built: [`writeForestDoor`](../../R/forestDoor.R), whose [`checkForestStatement`](../../R/forestDoor.R) ends in
+  today's refusal, "a forest's coefficient prior cannot be changed live yet"; the reader
+  [`forestCoefficientInForce`](../../R/forestDoor.R). forest-door's
+  [Slice 3: a sharer leaves the group](forest-door.md#slice-3-a-sharer-leaves-the-group) and its calls 8 and 14.
+- The engine as forest-amplitude-normal left it: [`forestMapEntry`](../../src/bartcore/combiner.hpp) resolves a statement
+  into the node factor and the coefficient's `ForestAmplitudePrior`; the node factor is the multiple m on every row but a
+  sharer's, held or drawn, so a hold and a release cross nothing between the two
+  ([Every live path](forest-amplitude-normal.md#every-live-path), [The start](forest-amplitude-normal.md#the-start)).
+  [`holdAtKindValue`](../../src/bartcore/combiner.hpp) sets a block to its kind's value;
+  [`drawAmplitudes`](../../src/bartcore/combiner.hpp) refreshes a mixture's variance v right after its block;
+  [`restoreGlue`](../../src/bartcore/combiner.hpp) installs a block where it is drawn and v where it mixes.
+- The one forest with no basis: [`Chain::installFittingLeafPrior`](../../src/bartcore/chain.hpp) already moves it both ways
+  between the leaf prior's k path ([`Chain::resolveLoneSharer`](../../src/bartcore/chain.hpp)) and a coefficient's df
+  (its size from [`Chain::leafPriorSize`](../../src/bartcore/chain.hpp)).
+- docs/design/forest-multiplier.md, docs/design/multiplier-combiner.md, docs/plans/coefficient-prior-opt-in.md (open call 3).
+
+## Constraints
+
+- No change to inst/include/dbarts/dbarts.h, the state format or `stateFormatVersion`. One facade virtual: `--preclean`.
+- The engine sees numbers: a held flag, a df (NaN none, +inf the normal's internal code, finite a t) and an sd. The bridge
+  converts; R decides what is refused.
+- Out of scope: a start by kind (TODO drawn-coefficient-start-by-kind); a held coefficient in a state (TODO
+  held-coefficients-in-state); a value other than 1 in `fixed()` (dec-B354); several columns or three levels (dec-B281,
+  dec-B282); a forest rejoining a group (dec-B525).
+
+## What exists today
+
+Run on a 64c8b0816 build (p1.R, p2.R, p7.R, p8.R):
+
+- Creation takes `fixed()`, `normal()`, `student(1)` and `student(3)` on a factor, a numeric column, a forest with no basis
+  stating `sd`, and the one forest with no basis beside forests with a basis, stating `sd` or not. It refuses `normal()` and
+  `student()` on a model of one forest ("this model has one forest, which has no coefficient to give a prior") and where two or
+  more forests with no basis state no `sd` ("these forests share one total: state each forest's 'sd' to give it its own"), and
+  `student()` with no `sd` where the leaf prior gives no size (`k = chi(1.25, Inf)`: "which here gives no size").
+- The one forest with no basis under gaussian's default (k 2, held) has `sd` 1.415 held and 1.415 under `student(1)`; under
+  probit's default (a drawn k) `sd` NA held and 1.574 under `student(1)`, the size at the chi prior's median k.
+- The door takes the prior in force and refuses any other: "a forest's coefficient prior cannot be changed live yet: forest 2
+  keeps normal(); make a new sampler".
+- `$setModel` with forest 2's `held.amplitude` flipped, or forest 1's `amplitude.df` set to 3, returns NULL; the record and the
+  engine are unchanged and the next run draws the old prior (p8.R). A defect: refused below.
+- The model reorders forests with no basis first: `y ~ forest(x2, basis = ~ z) + forest(x1)` has the factor at position 2.
+
+## Every transition
+
+Kinds: a factor; a numeric column; a forest with no basis stating `sd`, a forest that left its group among them; the one forest
+with no basis, stating no `sd` (the only forest with no basis in a model with a basis forest: a share of 1, or the held entry at
+the default k 2); a sharer, in a group of two or more or the last left of a group (a share below 1); a model of one forest; a
+multinomial model; the variance forest.
+
+| kind | hold, `fixed()` | release, `normal()` or `student(df)` | `normal()` and `student(df)`, a df changed |
+|---|---|---|---|
+| factor | taken | taken | taken |
+| numeric | taken | taken | taken |
+| no basis, stating `sd` | taken | taken | taken |
+| the one forest with no basis, no `sd` | taken: back on the leaf prior | taken: its size the leaf prior's, as creation gives it; refused where that gives none | taken |
+| a sharer, any share below 1 | the value in force | refused naming `sd`; with `sd` in the call, taken: it leaves the group and is drawn | not reachable |
+| a model of one forest | the value in force | refused, as at creation | not reachable |
+| multinomial | the value in force | refused, as at creation | not reachable |
+| variance forest | not a name | not a name | not a name |
+
+What each moves, at the call, on every chain:
+
+| transition | coefficient block | t's mixing variance v | leaves | trees' scale |
+|---|---|---|---|---|
+| hold | set to its kind's value: 1, or (0, 1) on a factor | none: the held prior's | unmoved | unmoved |
+| release to `normal()` | stays at the held value, drawn from there next sweep | none: the normal's fixed variance | unmoved | unmoved |
+| release to `student(df)` | the same | starts at the normal's variance: kappa / 0.674^2 with a basis, 1 / z^2 with none | unmoved | unmoved |
+| `normal()` to `student(df)` | unmoved | starts at the normal's variance, which is the variance in force | unmoved | unmoved |
+| `student(df)` to `normal()` | unmoved | reset: the normal's fixed variance | unmoved | unmoved |
+| df to another df | unmoved | kept | unmoved | unmoved |
+
+z is the normal's upper quartile and kappa 1/2 on a level, 1 on a numeric column ([`forestMapEntry`](../../src/bartcore/combiner.hpp)'s
+table in forest-amplitude-normal). "Unmoved" for the trees' scale holds bitwise: the node factor is m on held and drawn rows alike
+(`k.scale` identical to a creation twin's on seven cases, p5.R). Two exceptions, both the one forest with no basis stating no
+`sd`, both creation's meaning of the statement (dec-B515):
+
+- Released, it leaves the k path: its k is pinned at 1, and its trees' scale is the size the fitting function's leaf prior
+  gives at the scale creation set, as creation and `$setLeafPrior` read it (dec-B540): the same number at a held k, the
+  size at the chi prior's median k where k is drawn. A leaf prior giving no size is refused with creation's words, naming
+  `sd`. Where k was drawn the run's k column goes off, as after a group's last leave (forest-door slice 3).
+- Held again, after it was released, it follows the leaf prior again: back on the k path at a share of 1, or the held entry at
+  k 2, as `forest(x, amplitude = fixed())` creates it; a drawn k starts at the k that gives the spread in force, as every
+  handoff into a drawn k does ([`Chain::resolveLoneSharer`](../../src/bartcore/chain.hpp)'s `sdWas`).
+
+A release takes effect on the coefficient's next draw; a hold takes effect at the call, so `getForestAmplitudes()` reads the held
+value at once. A hold on a factor changes the model: rows at the first level lose the forest's part (dec-B550's cost). A hold at a
+large `sd` jumps and a release at a large `sd` from a held chain settles slowly (dec-B550's costs; measured below).
+
+### Measured: where v starts, and the release transient
+
+The TODO asked whether v's start shows. It does not: v is refreshed straight after its block's first draw, so its start reaches
+one draw. A release to `student(3)` on a forest with no basis, after 100 held sweeps, 16 seeds, the fit's RMSE against a long
+drawn chain's posterior mean over that chain's late RMSE, sweeps 1-5, 6-20, 21-80 (p6.R, p6b.R):
+
+| | v at 1 / z^2 (ruled) | v at 1 / m^2 (creation's) | a chain created drawn |
+|---|---|---|---|
+| gaussian, `sd` 0.7 | 0.96 0.99 1.03 | 0.96 0.99 1.03 | 1.07 1.05 1.03 |
+| gaussian, `sd` 7 | 1.35 1.30 1.20 | 1.34 1.30 1.22 | 1.02 1.00 0.99 |
+| probit, `sd` 0.7 | 1.03 1.00 1.07 | 1.03 1.00 1.06 | 1.01 1.13 1.08 |
+| probit, `sd` 7 | 2.16 2.13 1.92 | 2.05 2.05 1.80 | 0.99 0.98 0.99 |
+
+At `sd` 7, sweeps 81-200 and 201-400 read 1.04 and 0.97 gaussian, 1.18 and 1.01 probit. The transient is the held chain sitting
+in another posterior, not the start of v. The help says a write changes the model and no more (dec-B550).
+
+## The spelling
+
+dec-B522: "forest(amplitude = normal()) is taken, at creation and at the door ... so the normal coefficient prior has a value to
+write; a hold is released by writing a shape." So `normal()` returns a coefficient to the normal and releases a hold, `student(df)`
+releases one, `fixed()` holds. A coefficient has no level above it: no fitting function takes an `amplitude`, so no door of the
+fitting function reaches it and no statedness is recorded for it. Every default is a value of the forest's kind, `normal()` with a
+basis and `fixed()` with none, so a forest is returned to its default by writing it. An `amplitude` left out or NULL changes nothing
+(dec-B519); the value in force changes nothing, statedness included (dec-B538), so `$getForest`'s list goes back inert.
+
+## Refusals
+
+Every check before any write, on the merged statement, by the validators creation uses.
+
+1. A model of one forest: `normal()` and `student()` in creation's words; `fixed()` taken, changing nothing (dec-B513).
+2. Multinomial: as today, `fixed()` alone.
+3. A sharer in a group of two or more, with no `sd` in the call: creation's words, "forest 1: amplitude = student() draws one
+   forest's coefficient; these forests share one total: state each forest's 'sd' to give it its own".
+4. The last forest left of a group, its share below 1, with no `sd`: "forest 1 holds its part of one prior total, set at
+   creation; a coefficient's prior needs the forest's own 'sd': write s$setForest(1, sd = , amplitude = student(1))". Creation
+   cannot reach this state, so the words are new.
+5. The one forest with no basis released with no `sd` where the leaf prior gives no size: creation's words.
+6. A df below 1 or not finite, `student(Inf)` (naming `normal()`), `fixed(v)` with v not 1, a bare `student`: the validator's
+   words, as today.
+7. `$setModel` with a model whose forest's `held.amplitude` or `amplitude.df` differs from the sampler's: refused through
+   [`refuseOwnDifference`](../../R/fittingLevel.R), naming `$setForest(f, amplitude = ...)` in the value the model states. A
+   model saved before a call and handed back after it is refused the same way.
+
+## RNG class
+
+- Inert: a call whose `amplitude` is the prior in force writes nothing and moves no draw, as now; so does the round trip.
+- Twin, bitwise before any run, two chains: the next draws are a creation's with the merged statement. Holds by the prototype on
+  every kind, a hold under probit, a factor standing second, `normal()` and `student(df)` both ways and a df changed on a basis
+  forest, and `student(df)` to `normal()` and df to df on a forest with no basis stating `sd` (p4.R, p9.R, p10.R).
+- Exempt by name, where the start cannot be creation's: a release, whose block starts at the held value where creation starts
+  at its start scale, 1 / 0.674 on a basis forest and 1 / m with none, a factor first by position; and `normal()` to
+  `student(df)` on a forest with no basis, whose v starts at 1 / z^2 where creation's starts at 1 / m^2. Both are ruled (dec-B550:
+  "a release draws from 1"; dec-B511). A release before the first sweep therefore is not creation's chain either; it is the same
+  model, and a start at creation's value would be a second rule keyed on whether the sampler has run.
+- The state twin, for every call, exempt or not: after the call, store the live sampler's state and install it into the live
+  sampler and into a creation with the merged statement; their next draws are bitwise equal. It ties the model the call leaves to
+  creation's and says nothing of the block and v the call set, which value pins read from the stored state's `glue`. Bitwise on
+  seven cases after five sweeps, holds, releases, the one forest with no basis released, a df changed and `student(df)` to
+  `normal()` (p5.R).
+- With `sd` in the same call on a sharer: no creation reaches it; the recorded twin (`new("dbartsSampler", control, model, data)`
+  from the live sampler's records) and the stated-sizes twin of forest-door slice 3.
+- After a run: `copy()` and a `saveRDS` and `readRDS` after `storeState` continue `identical()` to the live sampler.
+- No call draws: every write sets a prior, a block or a variance.
+
+## Copy, reload and state
+
+A call writes the forest's record as creation with the merged statement writes it (`held.amplitude`, `amplitude.df` by
+[`forestStatements`](../../R/model.R)'s rule, NA for `normal()` on a basis forest and Inf with none, and `share`: cleared where
+the one forest with no basis is released, 1 where it is held again), so `identical()` holds between the live records and a
+creation twin's. Re-creation reads the records and installs the stored state; a held block is the destination's, a drawn one and a
+mixing v the state's ([`restoreGlue`](../../src/bartcore/combiner.hpp)), which is what the state twin runs.
+
+A state carries no prior (dec-B195) and goes in as stored (dec-B418): one stored while held and installed after a release gives
+the block its held value and v the held prior's variance, a valid start that the next sweep redraws. One stored while drawn and
+installed after a hold leaves the block held (TODO held-coefficients-in-state). No migration: only shipped versions are owed.
+
+## Design
+
+### Engine (slice 1)
+
+1. [`ForestCombiner`](../../src/bartcore/combiner.hpp) gains `setForestAmplitudePrior(f, prior, kind, normalVariance)`, false
+   by default; `AmplitudeForestCombiner` overrides it. It replaces the block's prior whole (dec-B550's "one combiner write").
+   Held: [`holdAtKindValue`](../../src/bartcore/combiner.hpp). Drawn and mixing: v is the variance in force where the old prior
+   was drawn and mixing, and `normalVariance` otherwise. Drawn and not mixing: the new prior's variance. The block is not touched
+   on a release.
+2. `Chain::setForestCoefficientPrior(f, held, df, sd)` and its predicate `takesForestCoefficientPrior`, beside
+   [`Chain::setForestMapSd`](../../src/bartcore/chain.hpp). A finite `sd` is stated first through `setForestMapSd`, which takes a
+   sharer out of its group. Then the statement's `updateAmplitude` and `amplitudeDf` are written (df NaN where held) and one of
+   three routes runs:
+   - a forest that is no sharer and not the held entry at k 2, or that states an `sd`: the entry resolved again by
+     [`forestMapEntry`](../../src/bartcore/combiner.hpp), its node factor and multiple unchanged bit for bit (a pin, not a copy:
+     the prototype copied them and the pin is what checks the map agrees);
+   - the one forest with no basis, released: [`Chain::installFittingLeafPrior`](../../src/bartcore/chain.hpp)'s df branch
+     factored out and called: the entry resolved with the df, `sharers_` cleared, k 1 and held, `namedSd` NaN, the held-entry flag
+     cleared, the leaf scale from `mapLeafScale`;
+   - the one forest with no basis stating a df and no `sd`, held: [`Chain::resolveLoneSharer`](../../src/bartcore/chain.hpp) at
+     the spread in force.
+   Then the combiner write, `normalVariance` being the variance a +inf df's entry carries. The predicate is false where f is no map
+   forest, where a df is neither NaN, +inf nor at least 1, where a release names a sharer of share below 1 with no `sd`, and where
+   the one forest with no basis is released with no `sd` and `leafPriorSize()` is not positive and finite.
+3. `Sampler::setForestCoefficientPrior`: every chain's predicate first, as [`Sampler::setForestMapSd`](../../src/bartcore/sampler.hpp)
+   does, then every chain. A facade virtual and its forwarding.
+4. Comments: the combiner constructor's "A held block is set here to its kind's value", which a hold now does live too, and
+   the block above `forestMapEntry`, whose "a live write resolves the entry again and neither reaches the combiner" holds for the
+   start scale only.
+
+### Bridge (slice 1)
+
+`bartcore_setForestCoefficient(ptr, forest, held, df, sd)`, registered beside
+[`bartcore_setForestSd`](../../src/R_interface_bartcore.cpp): sd NA where none; the unit check `bartcore_setForestSd` makes where
+an sd is given; the engine's false as a backstop message. Nothing in R reaches it until slice 2, so slice 1 is neutral.
+
+### R (slice 2)
+
+1. [`checkForestStatement`](../../R/forestDoor.R): today's live refusal goes; refusals 3 to 5 come in, reading the engine's
+   `share` and the kinds as [`samplerSharers`](../../R/dbarts.R) does, creation's words where creation has them.
+2. [`writeForestDoor`](../../R/forestDoor.R): a changed `amplitude` goes to `bartcore_setForestCoefficient`, with a changed `sd`
+   folded into the same entry so that one engine call checks both on every chain before writing either; an `sd` alone goes
+   where it goes now. The engine order is moves, depth, then this, the undo of the two before it as now.
+3. `modelWithCoefficient`, beside [`modelWithForestSd`](../../R/forestDoor.R): the record as creation writes it, by
+   [`forestStatements`](../../R/model.R)'s rule and creation's share; where the one forest with no basis is released, the leaf
+   prior stays the model's, as creation with a df there leaves it (step 0 checks that against `identical()`).
+4. `$setModel`'s coefficient refusal, beside the `sd` and depth comparisons of [`levelDepths`](../../R/fittingLevel.R) and
+   [`levelLeafPrior`](../../R/fittingLevel.R),
+   through [`setForestCall`](../../R/fittingLevel.R), which learns to write an `amplitude`.
+5. No reader changes: [`forestCoefficientInForce`](../../R/forestDoor.R) reads the engine's row, and `$getLeafPrior`'s `amplitude`
+   and `prior.sd.of` follow. `print` reads the records.
+
+## Slices
+
+### Slice 1: the engine write (engine, bridge, tests/cpp)
+
+Step 0: re-read forest-door slice 3 as landed: `setForestMapSd` on a sharer, the held-entry flag, `installFittingLeafPrior`'s df
+branch; amend the routes above to it. Then items 1 to 4, the bridge entry, and tests/cpp. Neutral: no R path reaches it.
+
+### Slice 2: the door (R, help, NEWS, tinytest, exact arms)
+
+Step 0: run creation's records for the one forest with no basis stating a df, under gaussian and probit defaults, against what
+item 3 writes. Then items 1 to 4, help, NEWS, design notes, test-coefficient-prior-live.R, the five pins respelled, the exact arms.
+
+## Tests and gates
+
+tests/cpp, on two chains at unequal tree counts, against a chain built from the merged statement where one exists:
+
+- each transition of the table on each kind: the block, v, the entry's node factor and multiple bitwise, the leaf scale bitwise,
+  the leaves untouched; a hold's twin; a release's block at the held value and v at the normal's variance, 2.1981 with no basis,
+  1.1007 on a factor and 2.2013 on a numeric column; `student(df)` to `normal()` resetting v; df to df keeping it after a sweep;
+- the one forest with no basis released from the held entry at k 2 and from a drawn-k share of 1: out of `sharers_`, k 1, the leaf
+  scale at `leafPriorSize()`; held again: back in at share 1 or the held entry, a drawn k starting at the spread in force;
+- the predicate's refusals, every chain checked before any write (one chain refusing leaves both as they were);
+- `sd` and a release in one call on a sharer of three: the leave and the release, the others' shares and leaf scales unchanged;
+- a store, a call, a restore: the block and v the state's, the prior the call's.
+
+tinytest, test-coefficient-prior-live.R (~470 lines), every R twin on two chains:
+
+- the twin before any run for every non-exempt transition, draws and records `identical()` to creation's;
+- the state twin for every transition, the exempt ones included, with the block and v read off the stored `glue`;
+- after a run: the change in force through `$getForest`, `$getLeafPrior`, `getForestAmplitudes()`, `getK`; `copy()` and a reload
+  `identical()` to the live sampler; the recorded twin;
+- inert: the round trip on every kind, `amplitude = NULL`, and the value in force, bitwise equal to no call;
+- the one forest with no basis under gaussian's and probit's defaults, released and held again: its `sd`, its k, the run's k
+  column, and a later `$setLeafPrior` reaching it as dec-B540 says;
+- each refusal by its words, the sampler, records and draws unchanged after it, and the same statement at creation refused or
+  taken alike;
+- `$setModel`: a model with a differing coefficient refused naming `$setForest`; the sampler's own model taken;
+- the five pins of today's refusal respelled: ["a forest's coefficient prior cannot be changed live yet"](../../inst/tinytest/test-forest-door.R)
+  and its siblings in test-forest-arguments.R, test-forest-amplitude-student.R and test-forest-amplitude-normal.R.
+
+Exact arms in benchmarks/R/forest-prior-exact.R, the pattern of its write arms (`writeFrom`, `writeMid`) with an `amplitudeFrom`
+(~90 lines): a numeric forest created `fixed()` and released to `normal()` before the first sweep; a factor created drawn and held
+after 50 sweeps; a numeric forest created `normal()` and moved to `student(3)` after 50 sweeps; a forest with no basis stating `sd`
+created `student(3)` and moved to `normal()` after 50 sweeps; a factor created `fixed()` and released to `student(3)` after 50
+sweeps. Each reads the oracle of the statement written. The state twin ties each call's model to a creation the existing arms
+cover; these arms check that the chain after a live write targets it, v's handling included.
+
+Gates. Slice 1: tests/cpp plain and sanitized, `--preclean`, `Rscript benchmarks/R/mutation-battery.R verify-anchors`. Slice 2,
+over both: the R-loaded sanitizer run over the new file; the equivalence trio bitwise against benchmarks/baselines/MANIFEST's
+baselines; the four snapshot files unchanged on the reference build; the full suite once in one process; lint against the slice's
+library, air, check-rc-codoc, check-win-drift, check-doc-freshness; `R CMD check --as-cran` from a clean tarball; the exact gates of
+.github/workflows/exact-gates.yaml in `quick` (the records change what a sampler carries) and forest-prior-exact.R in full for the
+new arms; the x86 leak-sanitizer leg before landing.
+
+## Mutants
+
+Each to fail a named pin.
+
+1. A hold leaving the block where it was: the hold twin and the block pin.
+2. A release setting the block to creation's start: the block pin (the state twin does not see it).
+3. A release to `student(df)` starting v at the held variance, or at 1 / m^2: the v pin.
+4. `student(df)` to `normal()` keeping v: the twin before a run and the exact arm.
+5. A df changed resetting v, or ignored (the scale written, `mixtureDf` not): the v-kept pin; the factor's df twin.
+6. The entry's node factor re-resolved off the in-force one: the bitwise leaf-scale and `k.scale` pins.
+7. One chain written: the two-chain twins.
+8. The record written and the engine not: the twin. The engine and not the record: copy and reload.
+9. `amplitude.df` Inf for `normal()` on a basis forest: the records against the creation twin.
+10. The one forest with no basis released and left in `sharers_`: `getK`, the k column, the twin.
+11. Its hold not returning it to the leaf prior: a later `$setLeafPrior`'s pin, the records.
+12. `sd` and `amplitude` on a sharer written in two engine calls with the check between: the atomic refusal pin.
+13. Refusal 4 removed, the last left released at the whole total: its pin.
+14. `$setModel` ignoring a coefficient difference: its refusal pin.
+15. A check on the names given rather than the merged statement: `sd` and `student(1)` on a sharer taken, `student(1)` alone
+    refused.
+
+## Help and NEWS
+
+- man/dbartsSampler-class.Rd, `setForest`: "any other change is refused for now" becomes what [Every transition](#every-transition)
+  says in a few sentences: a hold sets the coefficient to its held value, a release draws it from there, the t's variance starts at
+  the normal's, no leaf or trees' scale moves, a write changes the model; the refusals. `getForest` unchanged. `setModel`: a
+  forest's own coefficient is refused naming `setForest`.
+- man/forest.Rd, `amplitude`: that a live sampler changes it through `$setForest(forest, amplitude = )`.
+- inst/NEWS.Rd: the `$setForest` item's names already list `amplitude`; one clause that it switches a coefficient between held and
+  drawn and between `normal()` and `student(df)`.
+- docs/design/forest-multiplier.md section 1's "The prior is fixed at creation; a live change is its own item" becomes the rule;
+  docs/design/multiplier-combiner.md gains the combiner write beside the basis swap.
+
+## Consumers
+
+Grepped read-only on each repository's checked-out branch: no consumer calls `$setForest` or `$setModel` with a coefficient.
+bartCause's `bcf()` states `amplitude = student(1)` or `fixed()` at creation; stan4bart reaches one forest through the flat C API,
+which has no coefficient door; treatSens and bairrtt touch neither. No consumer changes.
+
+## Interaction with the other pending plans, and order
+
+1. forest-door slice 3 (branch forest-door-s3, in review): this branch builds on its tip and rebases onto main after it lands.
+   Both edit [`writeForestDoor`](../../R/forestDoor.R), [`checkForestStatement`](../../R/forestDoor.R) and
+   [`Chain::setForestMapSd`](../../src/bartcore/chain.hpp)'s neighborhood. Serial. Its interaction row 6 and its call 8
+   ("until coefficient-prior-live") are records to update at this landing.
+2. collapsed-move-main (engine, chain.hpp's k move): textual meeting at most; engine features merge serially.
+3. drawn-coefficient-start-by-kind, not planned: would move creation's start, not a release's, which is the held value.
+4. held-coefficients-in-state, not planned: a hold makes the case it names more common; nothing here changes it.
+5. leaf-prior-writer-by-level and sbc-bcf-probit-burn: independent.
+
+## Cost
+
+- A release is never creation's chain, even before the first sweep: the same model from another start.
+- The one forest with no basis released under a drawn k takes the size at the prior's median k, a jump, and the run's k column
+  goes; held again it draws k from the spread in force.
+- The last forest left of a group cannot be released without stating its `sd`.
+- Costs dec-B550 ruled: a hold at a large `sd` jumps, a release at a large `sd` from a held chain is slow (about 200 sweeps at 7),
+  holding a factor changes the model.
+- A facade virtual and a combiner virtual.
+
+## Calls made
+
+1. A release keeps the block at the held value at every point in a chain, before the first sweep included. Alternative: creation's
+   start before any sweep, so the twin holds there, at the price of two rules keyed on whether the sampler has run.
+2. A df changed keeps v: v is chain state valid under any df, as a parameter change leaves the state (dec-B254). Alternative:
+   reset to the normal's variance, as a release starts it.
+3. A hold takes effect at the call, the block set at once. Alternative: at the next sweep, which no reader could tell apart but
+   `getForestAmplitudes()` read between the call and the sweep.
+4. The one forest with no basis, released, takes creation's size: the leaf prior's at the chi median where k is drawn
+   (dec-B515, dec-B540). Alternative: refuse under a drawn k, naming `sd`, which refuses what creation takes.
+5. The same forest, held again, follows the leaf prior again, as `forest(x, amplitude = fixed())` creates it (dec-B513), its
+   drawn k from the spread in force. Alternative: keep it at its size, stating it as its `sd`, which a creation twin does not do.
+6. The last forest left of a group is refused a release with no `sd`, as a sharer (dec-B539, dec-B525). Alternative: take it at its
+   part in force, written as its `sd`, where k is held, ~25 lines; refused where k is drawn.
+7. `sd` and `amplitude` in one call go to one engine entry, every chain checked for both before either is written. Alternative:
+   two entries, `sd` first, with R's checks the only guard between them.
+8. `$setModel`'s silent acceptance of a differing coefficient becomes a refusal naming `$setForest`, as every forest's own
+   difference is. Alternative: take it through the same engine write, a second door to one setting.
+9. Exact arms are added though the state twin ties every call to a creation the gates cover, to check a chain moved mid-run.
+   Alternative: none, as forest-door argued for its door.
+10. Two slices, one review over both. Alternative: one slice, as forest-amplitude-normal was; the engine slice is neutral alone and
+    reviews more easily against tests/cpp.
+
+## Open calls
+
+None. The TODO's one item to design, the spelling that returns a coefficient to the normal or releases a hold, is ruled by dec-B522
+([The spelling](#the-spelling)). Every refusal is creation's, or a sharer's under dec-B539 and dec-B525.
+
+## Not verified
+
+- The prototype covered forests that are no sharer and the held entry at k 2; the one forest with no basis on a drawn-k share of 1,
+  its hold back onto the k path, and `sd` with `amplitude` on a sharer are from reading `installFittingLeafPrior`,
+  `resolveLoneSharer` and `setForestMapSd`, not run.
+- The state twin is bitwise after five sweeps on seven cases at one seed; a `storeState` and `setState` on one sampler alone moves a
+  draw by 5.6e-14 after a run, so the twin must put both samplers through the install, as p5.R does.
+- Records `identical()` to a creation twin's after a call were not run: the prototype wrote no record.
+- The transient table is one design, 16 seeds; the exact arms' runtime in `quick` mode is estimated, about a minute an arm.
