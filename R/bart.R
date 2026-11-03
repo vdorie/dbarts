@@ -1794,12 +1794,6 @@ bart <- function(
     # with the warning dbartsData gives, so none of these arguments reaches the
     # refusals below
     besideDataObject <- inherits(formula, "dbartsData")
-    if (!besideDataObject && !missing(weights)) {
-      stop("family = \"hurdle.lognormal\" does not support 'weights'")
-    }
-    if (!besideDataObject && !missing(subset)) {
-      stop("family = \"hurdle.lognormal\" does not support 'subset'")
-    }
     # its zero part is a probit fit, whose precision is its latent's own, so
     # the refusal a component would raise would name a family the caller
     # never asked for
@@ -1828,7 +1822,9 @@ bart <- function(
         seed,
         consolidated,
         residPrior,
-        na.action
+        na.action,
+        subset,
+        weights
       )
     ))
   }
@@ -3201,6 +3197,45 @@ refuseHurdlePositiveMissingness <- function(x, positive) {
   )
 }
 
+# A hurdle fit's weights mark rows in (1) and out (0) of both parts: its zero
+# part is a probit fit, which takes no other value, and 0 and 1 read the same as
+# counts of identical rows or as precisions.
+refuseHurdleWeights <- function(weights) {
+  if (is.null(weights) || all(weights %in% c(0, 1))) {
+    return(invisible(NULL))
+  }
+  stop(
+    "family = \"hurdle.lognormal\" takes weights of 0 and 1 only: a 0 holds a ",
+    "row out of both parts and a 1 keeps it. For whole-number counts, repeat ",
+    "each row its weight's number of times",
+    call. = FALSE
+  )
+}
+
+# Whether an na.action drops a row it finds incomplete (na.omit and
+# na.exclude), as against refusing it or passing it on.
+dropsIncompleteRows <- function(na.action) {
+  action <- tryCatch(match.fun(na.action), error = function(e) NULL)
+  identical(action, stats::na.omit) || identical(action, stats::na.exclude)
+}
+
+# The matrix interface's response and per-row channels with a row whose channel
+# is missing marked missing in the response and given a stand-in value in the
+# channel: the na.action step that follows drops it as it drops a missing
+# response, and records it.
+foldIncompleteRows <- function(y, channels) {
+  y <- as.double(y)
+  for (name in names(channels)) {
+    channel <- channels[[name]]
+    if (is.numeric(channel) && length(channel) == length(y) && anyNA(channel)) {
+      y[is.na(channel)] <- NA_real_
+      channel[is.na(channel)] <- 1
+      channels[[name]] <- channel
+    }
+  }
+  list(y = y, channels = channels)
+}
+
 # The arguments that hold rows or settle them, which the hurdle's one data
 # object has read: a part's call carries the data object in their place.
 hurdleIngestedArguments <- c(
@@ -3222,7 +3257,10 @@ ingestHurdleData <- function(
   callingEnv,
   formula,
   data,
-  dataGiven
+  dataGiven,
+  na.action,
+  subset = NULL,
+  weights = NULL
 ) {
   dataCall <- redirectCall(
     matchedCall,
@@ -3240,6 +3278,25 @@ ingestHurdleData <- function(
   }
   if (dataGiven && "data" %in% names(dataCall)) {
     handed["data"] <- list(data)
+  }
+  # with the matrix interface the subset is an index and the weights a vector,
+  # each read here once; a formula's are expressions over its data, which the
+  # data object reads once
+  if (!is.formula(formula) && !inherits(formula, "dbartsData")) {
+    if (!is.null(subset)) {
+      handed["subset"] <- subset
+    }
+    if (!is.null(weights)) {
+      handed["weights"] <- weights
+    }
+    # a missing weight marks its row incomplete, and na.omit and na.exclude
+    # drop it from both parts (the matrix interface of the other families
+    # refuses it under every na.action)
+    if (dataGiven && !is.null(weights) && dropsIncompleteRows(na.action)) {
+      folded <- foldIncompleteRows(data, list(weights = weights[[1L]]))
+      handed["data"] <- list(folded$y)
+      handed["weights"] <- list(folded$channels$weights)
+    }
   }
   eval(handOn(dataCall, handed), callingEnv)
 }
@@ -3324,6 +3381,12 @@ hurdlePartData <- function(ingested, split, trainingFits = TRUE) {
   if (!is.null(ingested@weights)) {
     positive@weights <- ingested@weights[split$positive]
   }
+  if (!is.null(ingested@weights.test)) {
+    positive@weights.test <- c(
+      if (trainingFits) ingested@weights,
+      ingested@weights.test
+    )
+  }
   if (!is.null(ingested@offset)) {
     positive@offset <- ingested@offset[split$positive]
     positive@offset.test <- ingested@offset
@@ -3368,7 +3431,9 @@ bart2Hurdle <- function(
   seed,
   consolidated = list(),
   residPrior = NULL,
-  na.action = dbarts::na.keepPredictors
+  na.action = dbarts::na.keepPredictors,
+  subset,
+  weights
 ) {
   if (inherits(formula, "dgCMatrix")) {
     stop(
@@ -3416,7 +3481,10 @@ bart2Hurdle <- function(
     callingEnv,
     formula,
     data,
-    !missing(data)
+    !missing(data),
+    na.action,
+    if (!missing(subset)) list(subset),
+    if (!missing(weights)) list(weights)
   )
   omitted <- ingested@na.action
 
@@ -3430,6 +3498,8 @@ bart2Hurdle <- function(
     )
   }
 
+  refuseHurdleWeights(ingested@weights)
+  refuseHurdleWeights(ingested@weights.test)
   split <- splitHurdleResponse(ingested@y)
   refuseHurdlePositiveMissingness(ingested@x, split$positive)
   parts <- hurdlePartData(ingested, split, control@keepTrainingFits)
@@ -3522,6 +3592,10 @@ bart2Hurdle <- function(
     zero = zero,
     positive = positive
   )
+  # the weights a predictive draw and the log-likelihood read: a 0 row is out of
+  # both parts
+  result$weights <- ingested@weights
+  result$weights.test <- ingested@weights.test
   result$row.names.train <- zero[["row.names.train"]]
   result$row.names.test <- zero[["row.names.test"]]
   # the rows this hurdle fit as a whole dropped were dropped above, before

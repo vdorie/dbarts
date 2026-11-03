@@ -204,14 +204,6 @@ expect_identical(
 
 # --- refusals that stand -----------------------------------------------------
 expect_error(
-  fitHurdle(y ~ a + b + f, data = d, weights = d$a),
-  "does not support 'weights'"
-)
-expect_error(
-  fitHurdle(y ~ a + b + f, data = d, subset = d$a > 0.2),
-  "does not support 'subset'"
-)
-expect_error(
   fitHurdle(y ~ a + b + f + offset(a), data = d),
   "does not support 'offset'/'offset.test'"
 )

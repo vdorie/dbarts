@@ -1000,6 +1000,16 @@ trainingRowClass <- function(
 ## NaN; a weight of 0 gives the row NA draws. A missing one is the row's
 ## na.action's to answer.
 refuseUnfitPredictiveWeights <- function(object, weights) {
+  if (inherits(object, "bartHurdle")) {
+    if (!all(weights[!is.na(weights)] %in% c(0, 1))) {
+      stop(
+        "the posterior predictive 'weights' of a hurdle.lognormal fit are 0 ",
+        "and 1: a 1 draws a row as a new observation and a 0 holds it out",
+        call. = FALSE
+      )
+    }
+    return(invisible(NULL))
+  }
   if (fitIsBinary(object)) {
     refuseNonCountWeights(
       weights,
@@ -4170,7 +4180,38 @@ hurdleParts <- function(
   )
 }
 
-finishHurdle <- function(parts, type, n.chains, combineChains, ci.level) {
+# The observations (the last margin) at 'index' set to NA.
+setObservationsMissing <- function(x, index) {
+  if (length(index) == 0L) {
+    return(x)
+  }
+  indices <- rep(list(TRUE), length(dim(x)))
+  indices[[length(indices)]] <- index
+  do.call(`[<-`, c(list(x), indices, list(value = NA_real_)))
+}
+
+# The observations (the last margin) at 'index' kept.
+keepObservations <- function(x, index) {
+  indices <- rep(list(quote(expr = )), length(dim(x)))
+  indices[[length(indices)]] <- index
+  do.call(`[`, c(list(x), indices, list(drop = FALSE)))
+}
+
+# The weights of the rows a read at 'sample' covers, one per row, or NULL where
+# the fit was given none: a row of weight 0 is out of both parts.
+hurdleRowWeights <- function(object, sample) {
+  weights <- object[[if (sample == "train") "weights" else "weights.test"]]
+  if (is.null(weights)) NULL else as.double(weights)
+}
+
+finishHurdle <- function(
+  parts,
+  type,
+  n.chains,
+  combineChains,
+  ci.level,
+  weights = NULL
+) {
   channel <- combineHurdleChannel(
     type,
     parts$pi,
@@ -4179,6 +4220,12 @@ finishHurdle <- function(parts, type, n.chains, combineChains, ci.level) {
     parts$shape,
     parts$names
   )
+  # a row of weight 0 is out of both parts, so its predictive draws are NA. The
+  # draw is made first, which leaves the random stream and every other row's
+  # draw as they are.
+  if (type == "ppd" && !is.null(weights)) {
+    channel <- setObservationsMissing(channel, which(weights == 0))
+  }
   result <- combineOrUncombineChains(channel, n.chains, combineChains)
   if (!is.null(ci.level)) {
     return(posteriorInterval(result, ci.level))
@@ -4256,7 +4303,8 @@ extract.bartHurdle <- function(
     type,
     n.chains,
     combineChains,
-    NULL
+    NULL,
+    hurdleRowWeights(object, sample)
   )
 }
 
@@ -4287,6 +4335,11 @@ hurdleLogLik <- function(object) {
       log = TRUE
     ) -
     log(yRep[positive])
+  # a row of weight 0 is out of the fit, and its likelihood is NaN
+  weights <- hurdleRowWeights(object, "train")
+  if (!is.null(weights)) {
+    result[rep(weights, each = n.draws) == 0] <- NaN
+  }
   array(result, parts$shape, parts$names)
 }
 
@@ -4352,6 +4405,7 @@ predict.bartHurdle <- function(
   newdata,
   type = c("ev", "ppd", "prob", "bart"),
   offset = NULL,
+  weights = NULL,
   combineChains = TRUE,
   ci.level = NULL,
   na.action = dbarts::na.keepPredictors,
@@ -4372,14 +4426,22 @@ predict.bartHurdle <- function(
   warnUnusedDots(list(...), "predict", "bartHurdle")
   refusePredictOffsetChannel(offset, "bartHurdle")
   if (predictsTrainingRows(newdata)) {
-    return(trainingRowDraws(
+    return(hurdleTrainingDraws(
       object,
-      extract.bartHurdle,
       type,
-      NULL,
+      weights,
       combineChains,
-      ci.level
+      ci.level,
+      na.action
     ))
+  }
+  if (
+    !is.null(weights) && (!is.atomic(weights) || weightsNotOneColumn(weights))
+  ) {
+    stop(
+      "'weights' must be one number or one per row of 'newdata'",
+      call. = FALSE
+    )
   }
   if (is.null(object$zero[["fit"]])) {
     refuseWithoutTrees("predict")
@@ -4394,23 +4456,95 @@ predict.bartHurdle <- function(
     newdata,
     object$zero$fit$data@x,
     na.action,
-    missing.seen = dataMissingSeen(object$zero$fit$data)
+    list(weights = weights),
+    dataMissingSeen(object$zero$fit$data)
   )
   if (isTRUE(rows$placeholder)) {
     restoreSeed <- protectRandomSeed()
     on.exit(restoreSeed(), add = TRUE)
   }
+  weights <- subsetPredictInput(weights, rows, "weights")
+  # only a posterior predictive draw reads a weight: 1 draws a held-out row as
+  # a new observation, 0 holds it out
+  if (type == "ppd" && !is.null(weights)) {
+    refuseUnfitPredictiveWeights(object, weights)
+  } else {
+    weights <- NULL
+  }
+  parts <- hurdleParts(object, rows, n.threads)
   padPredictedRows(
     finishHurdle(
-      hurdleParts(object, rows, n.threads),
+      parts,
       type,
       n.chains,
       combineChains,
-      ci.level
+      ci.level,
+      if (!is.null(weights)) {
+        rep_len(as.double(weights), parts$shape[length(parts$shape)])
+      }
     ),
     rows,
     first = !is.null(ci.level)
   )
+}
+
+# The combined draws at the training rows with no newdata: read off the stored
+# draws (dec-B341), under the weights given, which replace the fit's own for the
+# predictive draw alone (dec-B470). A weight that is missing marks its row
+# incomplete, and na.action answers it as it does at newdata (dec-B482): the row
+# is drawn at a stand-in, which leaves the stream and every other row's draw as
+# they are, and then set aside.
+hurdleTrainingDraws <- function(
+  object,
+  type,
+  weights,
+  combineChains,
+  ci.level,
+  na.action
+) {
+  if (!is.null(weights)) {
+    refuseWithoutTrainingDraws(object$zero)
+  }
+  nObs <- length(object$y)
+  if (!is.null(weights)) {
+    refuseTrainingRowWeightsForm(nObs, weights)
+  }
+  rows <- trainingRowsAnswered(nObs, na.action, NULL, weights)
+  if (!is.null(rows)) {
+    weights <- fillMissingChannel(weights, 1)
+  }
+  used <- if (!is.null(weights) && type == "ppd") {
+    refuseUnfitPredictiveWeights(object, weights)
+    rep_len(as.double(weights), nObs)
+  } else {
+    hurdleRowWeights(object, "train")
+  }
+  if (!is.null(rows) && rows$placeholder) {
+    restoreSeed <- protectRandomSeed()
+    on.exit(restoreSeed(), add = TRUE)
+  }
+  result <- finishHurdle(
+    hurdleParts(object),
+    type,
+    hurdleNChains(object),
+    combineChains,
+    NULL,
+    used
+  )
+  if (!is.null(rows)) {
+    rows$names <- dimnames(result)[[length(dim(result))]]
+    result <- keepObservations(
+      result,
+      if (rows$placeholder) 1L else which(rows$keep)
+    )
+  }
+  if (!is.null(ci.level)) {
+    result <- posteriorInterval(result, ci.level)
+  }
+  if (is.null(rows)) {
+    return(result)
+  }
+  padPredictedRows(result, rows, first = !is.null(ci.level))
 }
 
 print.bartHurdle <- function(x, ...) {
