@@ -293,8 +293,8 @@ the stored state; a held block is the destination's, a drawn one and a mixing v 
 A state carries no prior (dec-B195) and goes in as stored (dec-B418): one stored while held and installed after a release gives
 the block its held value and v the held prior's variance, a valid start that the next sweep redraws. One stored while drawn and
 installed after a hold leaves the block held (TODO held-coefficients-in-state). One stored while a whole-total forest was
-released, its k pinned and so not in the state, installed after it is held again under a drawn k, starts that k at 1, the pinned
-value, since a state installs a k only where it was drawn. No migration: only shipped versions are owed.
+released stores no k for it, its k being pinned, so installed after it is held again under a drawn k it leaves that k where route 3
+started it, a state installing a k only where it holds one (the critique's re-check, d1.R: 2.622 before and after). No migration: only shipped versions are owed.
 
 ## Design
 
@@ -322,7 +322,8 @@ value, since a state installs a k only where it was drawn. No migration: only sh
      ([`Chain::resolveLoneSharer`](../../src/bartcore/chain.hpp) decides the entry from the options alone, so the decision is
      factored out of the constructor and both call it), a drawn k from the spread in force;
    - route 4, the last left of a group released: its part in force, sqrt(share) times `leafPriorSize()` in the response's units,
-     stated through `setForestMapSd`, then route 1. R hands the number, the engine checks it is the one its own entry gives.
+     computed by the engine from its own entry and stated through `setForestMapSd`, then route 1. R hands no number: it reads
+     the `sd` back from the engine's row for the record, so no R double is compared with a C++ one.
    Then the combiner write, `normalVariance` being the variance a +inf df's entry carries. The predicate is false where f is no map
    forest, where a df is neither NaN, +inf nor at least 1, where a release names a sharer of a group of two or more with no `sd`,
    and where routes 2 and 4 find `leafPriorSize()` not positive and finite.
@@ -346,11 +347,11 @@ an sd is given; the engine's false as a backstop message. Nothing in R reaches i
 2. [`changedForestSettings`](../../R/forestDoor.R): where `amplitude` is among the changed names, `sd` is compared with the `sd`
    in force under the new coefficient ([Names in one call](#names-in-one-call)); otherwise as now.
 3. [`writeForestDoor`](../../R/forestDoor.R): a changed `amplitude` goes to `bartcore_setForestCoefficient`, with a changed `sd`
-   folded into the same entry so that one engine call checks both on every chain before writing either, and with the last left's
-   part as its `sd` (route 4); an `sd` alone goes where it goes now. The engine order is moves, depth, then this, the undo of the
+   folded into the same entry so that one engine call checks both on every chain before writing either, and on the last left of a group with no
+   `sd` of R's (route 4, the engine computing the part); an `sd` alone goes where it goes now. The engine order is moves, depth, then this, the undo of the
    two before it as now.
 4. `modelWithCoefficient`, beside [`modelWithForestSd`](../../R/forestDoor.R): the record as creation writes it, by
-   [`forestStatements`](../../R/model.R)'s rule and creation's share, and the last left's `sd`; where a whole-total forest is
+   [`forestStatements`](../../R/model.R)'s rule and creation's share, and the last left's `sd` as the engine's row reads it after the call; where a whole-total forest is
    released, the leaf prior stays the model's, as creation with a df there leaves it (step 0 checks that against `identical()`).
 5. `$setModel`'s refusals of [Refusals](#refusals) item 6, beside the `sd` and depth comparisons of
    [`levelDepths`](../../R/fittingLevel.R) and [`levelLeafPrior`](../../R/fittingLevel.R), through
@@ -393,7 +394,7 @@ tests/cpp, on two chains at unequal tree counts, against a chain built from the 
 - the predicate's refusals, every chain checked before any write (one chain refusing leaves both as they were);
 - `sd` and a release in one call on a sharer of three: the leave and the release, the others' shares and leaf scales unchanged;
 - a store, a call, a restore: the block and v the state's, the prior the call's; a state stored while released installed after a
-  hold-again, k at 1.
+  hold-again, the drawn k left at route 3's start.
 
 tinytest, test-coefficient-prior-live.R (~590 lines), every R twin on two chains:
 
@@ -452,7 +453,10 @@ Each to fail a named pin.
 10. A whole-total forest released and left in `sharers_`: `getK`, the k column, the twin.
 11. Routes 2 and 3 keyed on the number of forests with no basis: the probit hold-again beside a forest stating `sd` (c4.R) and the
     later `$setLeafPrior` (c4b.R).
-12. Route 3 placing the held entry at k 2 where creation gives a group of one: the gaussian twin beside a forest stating `sd`.
+12. Route 3 placing the held entry where creation gives a group of one at share 1: a hold-again under a held k other than 2
+    (`leaf.prior = normal(k = 3)`) and under a named sd, beside a forest stating `sd`, each bitwise against its creation twin. The
+    two placements agree to rounding there, so only a bitwise twin catches it. (First aimed at gaussian's default beside a forest
+    stating `sd`, where creation gives the held entry too: the constructor's test counts no forests with no basis, d4.R.)
 13. The combiner written and `MapForest::statement` not: the later-writes pins, and tests/cpp's `setForestMapSd` after a route.
 14. `sd` and `amplitude` on a sharer written in two engine calls with the check between: the atomic refusal pin.
 15. Route 4 resolving the last left at the whole total, or its `sd` not recorded: the reader-to-creation twin.
@@ -498,7 +502,7 @@ flat C API, which has no coefficient door; treatSens and bairrtt touch neither. 
 
 - A release is never creation's chain, even before the first sweep: the same model from another start.
 - A whole-total forest released under a drawn k takes the size at the prior's median k, a jump, and the run's k column can go; held
-  again it draws k from the spread in force, or from 1 after a state stored while released.
+  again it draws k from the spread in force.
 - The last left of a group, released, states its part as its `sd`, so it is reached by no fitting-function door afterwards that
   would not reach a forest stating `sd`.
 - Costs dec-B550 ruled: a hold at a large `sd` jumps, a release at a large `sd` from a held chain is slow (about 200 sweeps at 7),
@@ -553,7 +557,9 @@ The blind critique (scratch/cpl-crit/report.md) found the design sound and asked
 4. Names are compared after the call's other names apply, with the probit pin and a slice-2 call pinned unchanged.
 5. The statement is written on `MapForest` before a route resolves; a mutant and the later-writes pins.
 6. The fifth forest-prior-exact arm moves to probit-k-scale-exact.R; tests/cpp checks the rescaling step after the routes.
-7. A state stored while released installs k at 1 after a hold-again: said in [Copy, reload and state](#copy-reload-and-state).
+7. A state stored while released, installed after a hold-again: said in [Copy, reload and state](#copy-reload-and-state). The
+   critique's "starts k at 1" was corrected by its re-check (d1.R): the state holds no k for a pinned forest, so k stays where it
+   was.
 8. The help names `normal()` as what writes a basis forest back to its default. And `$setLeafPrior`'s refusal words (c3.R),
    carried in slice 2.
 
