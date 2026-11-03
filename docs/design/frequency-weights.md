@@ -39,14 +39,16 @@ Seven choices need the maintainer:
 1. Which families take frequency weights. Recommended: every family, as whole numbers wherever each copy needs
    its own hidden value, so probit, ordinal, negative binomial, multinomial and survival fits all take counts.
 2. How the choice is written. Recommended: one argument beside the weights on the fitting functions, as rlm has
-   one, read the same on every family, with the words "precision" and "frequency".
+   one, with the words "precision" and "frequency": left unset it means the family's own reading, "frequency"
+   is accepted on every family, and "precision" is refused where the family has no noise level.
 3. What a frequency-weighted row's predictive draw is. Recommended: one new observation like the row, as
-   rstanarm and brms draw.
+   rstanarm and brms draw; predict still takes a weight of 1 for a new observation and 0 to hold a row out.
 4. Whether logistic's predictive draw at a row of count w stays the number of successes among w trials.
    Recommended: it becomes one new observation too, so that every count reads alike; asking predict for w trials
    still gives the count.
-5. Whether frequency weights must be whole numbers. Recommended: yes; real-valued weights keep the precision
-   reading.
+5. Whether frequency weights must be whole numbers. Recommended: no, wherever the draw is exact (the gaussian,
+   Student-t and heteroscedastic families), since a fractional weight serves power priors, tempered posteriors
+   and fractional counts from a larger sampler; the help warns about weights rescaled to sum to 1.
 6. Whether probit and ordinal keep 0/1 weights or take membership under its own name. Recommended: keep the
    weights, and let the sampler's data object carry them as it does on a gaussian fit.
 7. Zero weights. Recommended: as now everywhere, and the logistic family accepts a weight of 0 as every other
@@ -180,17 +182,26 @@ survreg, coxph). Today the answer depends on the family: logistic takes counts, 
 and takes them at predict, ordinal and nbinom refuse them, aft takes no weights. The TODO stamp on
 weighted-binary, "decision-gated, scheduled after 1.0-0 (VD 2026-08-28)", records the ruling of 2026-08-28,
 "scheduled after 1.0-0, shares the decision above", where the decision above was the real-shape Polya-Gamma
-draw for real-valued dispersion; that door's undecided part was real weights on the binary families. It
-predates dec-B125, and it did not rule on whole-number counts.
+draw for real-valued dispersion (commit 9cb7d4e46, "real dispersion and real weights after 1.0-0"). The row it
+replaced read "integer-weight probit via replicated latents is built; real weights need a real-shape PG sampler
+and share the decision above"; at the tip nothing of the kind is built, probit holding the mask as its only
+precision ([`ProbitResponse`](../../src/bartcore/model.hpp)). So the undecided part was real weights on the
+binary families; the ruling predates dec-B125 and did not rule on whole-number counts. hurdle.lognormal takes no
+weights today; it is in, through the weights its feature completion owes (dec-A15): its zero part takes counts
+as the binary families do and its positive part follows the reading, built with that work and not in the slices
+below.
 
-- (a) Frequency weights on every family: real or whole (open call 5) on the gaussian, Student-t and
+- (a) Frequency weights on every family: real values (open call 5) on the gaussian, Student-t and
   heteroscedastic families and everything built on them, whole numbers on probit, hazard, ordinal, nbinom,
-  multinomial and aft. Since the two readings coincide where there is no scale, a probit, ordinal, nbinom or
-  multinomial fit takes counts under either value of the setting; aft takes both readings, precision drawing
-  its censored latent at sd sigma / sqrt(w). One rule: a weight counts a row w times in the likelihood, and on a
+  multinomial and aft. A probit, ordinal, nbinom or multinomial fit takes counts as its own reading; aft takes
+  both readings, precision drawing its censored latent at sd sigma / sqrt(w). One rule: a weight counts a row w times in the likelihood, and on a
   family with a residual scale it is a precision instead unless frequency is chosen. Cost: one latent draw per
   copy per sweep on those families, as logistic pays; about 200 to 300 lines per family with its tests and an
   exact-posterior arm, aft also handing sigma a within-row sum of squares; the count cap of dec-B202 on each.
+  At the cap a sweep is long: a Polya-Gamma family draws about 160 ns per trial, so 0.16 s a sweep for one row
+  of a million (dec-B202: 16 s a sweep for 100 such rows), and a multinomial fit 5.2 s a sweep for 100 rows of
+  100,000 trials over three categories (dec-B202). The truncated-normal draw per copy on probit, ordinal and
+  aft is unmeasured.
 - (b) The choice on the gaussian, Student-t and heteroscedastic families only; the others keep what they take
   today. The families then read one user statement four ways, and probit's fit and predict disagree on what a
   weight of 5 is. Cost: slices 1 to 4 below.
@@ -211,13 +222,16 @@ coxph's help), "prior weights" in glm and lme4, "frequency weights" in dec-B125,
 Stata (fweight), SAS (FREQ) and statsmodels (freq_weights), against "inverse-variance", "analytic" or
 "precision" for the other.
 
-- (a) An argument of the fitting functions, weights.type = c("precision", "frequency"), on bart (formerly
-  bart2), dbarts, dbartsSpec and xbart; the value is held on the model record and fixed at creation. The
+- (a) An argument of the fitting functions, weights.type, on bart (formerly bart2), dbarts, dbartsSpec and
+  xbart: NULL by default, the family's own reading (precision where there is a residual scale, frequency where
+  there is none); "frequency" valid on every family; "precision" refused by name on a family with no residual
+  scale, where it would name a reading the family does not have. The value is held on the model record and
+  fixed at creation. The
   sampler's setWeights, setData and predict read the vector under it; dbartsData keeps one vector; the shipped
   header's specification gains one enumeration field on its family part in dec-B85's change, so consumers
   rebuild once. bartBT, the 0.9-x door, and the deprecated rbart_vi keep precision with no argument. Cost: a
-  formal on four entry points and in a consumer that forwards it; on a family without a scale both values give
-  one model, which the help says.
+  formal on four entry points and in a consumer that forwards it; the default's reading differs by family,
+  which the help states in its first sentence.
 - (b) The same argument with rlm's words, wt.method = c("inv.var", "case"). Cost: the package's own help, the
   ruling and the other languages say precision and frequency; "case weights" also names sampling weights in
   survey practice.
@@ -240,7 +254,8 @@ gives it the precision row's draw. rstanarm and brms draw one observation per ro
 
 - (a) One new observation like the row: sd sigma. predict at a training row then agrees with predict at newdata
   holding the same x, and the draw is on the scale of y, so a check of y against its draws compares like with
-  like. A weight given to predict on a frequency fit has no use for this draw and is refused by name. The
+  like. On a frequency fit predict keeps dec-B472's doors: weights = 1 draws a new observation, the draw
+  already given, and weights = 0 holds a row out as NA; any other value is refused by name. The
   log-likelihood stays w times the one-observation value (dec-A116), which is the row's whole contribution to
   the likelihood, not the density of what is drawn. Cost: a predictive draw that ignores the training weight,
   documented.
@@ -261,7 +276,10 @@ observation while the logistic count row draws the total of its copies. Logistic
 - (a) The training-row draw becomes one observation, Bernoulli(p), as on every frequency row and as rstanarm
   draws; predict(weights = w) keeps dec-B470's trial counts, an explicit request for the successes among w new
   trials, and with open call 1 (a) the same holds on probit and the other count families. Cost: extract and
-  fitted(type = "ppd") on a weighted logistic fit move, and the help states the two cases.
+  fitted(type = "ppd") on a weighted logistic fit move, and the help states the two cases. It revises
+  dec-B470's clause that predict's weights with no newdata "replace the fit's own for the training rows'
+  posterior predictive draws" for the count families: their training draws no longer read the fit's weights,
+  so given weights there ask for that many trials rather than replace anything.
 - (b) Keep Binomial(w, p) at training rows. The count families draw a row's total and the scale families one
   observation, two conventions for one reading.
 
@@ -269,23 +287,29 @@ Recommendation: (a).
 
 ### 5. Whether frequency weights must be whole numbers
 
-Background: dec-B125 left "the treatment of non-integer values" to this note. A frequency weight says how many
-identical observations a row stands for; a weight of 2.5 has no such meaning and makes the likelihood a power,
-which is what Stata calls an importance weight and refuses as an fweight. dec-B103 ("weights may be fractional
-wherever the family supports real weights") separated counts from weights in general; it did not rule on this
-reading. The gaussian-type draws are exact for real w; the latent families' are not. The use that brings real
-weights is survey or inverse-probability weighting, where a likelihood weight gives the right point estimate and
-uncertainty sized to sum(w) rather than to the design ([weighted-logistic.md](weighted-logistic.md)); coxph,
-which takes case weights as replication, switches to a sampling-weight variance as soon as one is not whole.
+Background: dec-B125 left "the treatment of non-integer values" to this note. A whole frequency weight says how
+many identical observations a row stands for; a real one raises the row's likelihood to that power, which is a
+model of its own with established uses: a power prior, which enters historical data at a weight a0 between 0
+and 1; a tempered or fractional posterior; and fractional counts handed over by the code that runs the BART
+sampler inside a larger sampler, such as expected memberships. None of these is a precision: each needs the
+scale's count to move with w, which only the frequency reading gives. dec-B103 ("weights may be fractional
+wherever the family supports real weights") separated counts from weights; brms, rlm's "case", survreg and gam
+take real values. Stata refuses non-integer fweights and calls the power likelihood an importance weight; coxph
+switches to a sampling-weight variance when one is not whole. The gaussian-type draws are exact for real w; the
+latent families' are not. The misuse is survey or inverse-probability weights, which give the right point
+estimate and uncertainty sized to sum(w) rather than to the design
+([weighted-logistic.md](weighted-logistic.md)).
 
-- (a) Whole numbers only under frequency, on every family; real values keep the precision reading. One value
-  domain for the reading across families, and the refusal says the weights are counts. Cost: a user with
-  fractional counts (from a model, or rescaled) rounds them or uses precision.
-- (b) Real values taken where the draw is exact (gaussian, Student-t, heteroscedastic), whole numbers elsewhere,
-  as brms, rstanarm and survreg take them. Cost: the domain differs by family, and normalized weights give a
-  sigma posterior from sum(w) observations, one observation's worth if they sum to 1.
+- (a) Whole numbers only under frequency, on every family; real values keep the precision reading. The refusal
+  says the weights are counts. Cost: power priors, tempered posteriors and fractional counts from a larger
+  sampler have no reading in the package; a user rounds, which changes the model, or takes precision, which
+  counts the scale differently.
+- (b) Real values taken where the draw is exact (gaussian, Student-t, heteroscedastic), whole numbers on the
+  families that need a latent per copy, as logistic now. The help cautions that normalized weights leave sigma's
+  posterior sum(w) observations, one observation's worth if they sum to 1, and that survey or
+  inverse-probability weights are not counts. Cost: the domain differs by family, as the draws do.
 
-Recommendation: (a).
+Recommendation: (b).
 
 ### 6. Membership on probit and ordinal: weights, or its own name
 
@@ -366,7 +390,7 @@ Recommendation: (a).
    Alternative: splitting a row's copies across folds, which leaks identical observations into training.
 8. The help for frequency weights states: copies of a continuous response are exact ties, read by the model as
    nearly noiseless data where the trees can separate the distinct rows; weights describing a population or a
-   design are not counts; under Student-t, the latents the sampler reports
+   design are not counts; weights rescaled to sum to 1 leave sigma about one observation's worth of data; under Student-t, the latents the sampler reports
    ([`dbarts_sampler_getLatents`](../../inst/include/dbarts/dbarts.h) and the R method) are the row's composite
    scale, the sum over its copies; and a binomial row of k successes in n trials is two rows. Alternative:
    documenting only the arithmetic.
@@ -384,7 +408,7 @@ calls 1 (a), 4, 6 and 7 change the count families.
 | mean forest: leaf updates, tree moves, k | precision w | unchanged |
 | variance forest | leaf count: positive rows | leaf count: sum(w), in its leaf draw and its tree moves; its leaf prior follows sigest |
 | Student-t | composite w lambda, nu from lambda statistics | composite Lambda, shape w (nu + 1) / 2, nu step generalized |
-| predictive draw | sd sigma / sqrt(w); 0 gives NA | sd sigma, one observation; 0 gives NA; predict's weights refused |
+| predictive draw | sd sigma / sqrt(w); 0 gives NA | sd sigma, one observation; 0 gives NA; predict takes weights 0 and 1 only |
 | pointwise log-likelihood | log N(y; f, sigma^2 / w); 0 gives NaN | w log N(y; f, sigma^2); 0 gives NaN |
 | fitted, residuals | unweighted | unchanged |
 | xbart | loss weighted by w; fold sigest precision | loss unchanged; fold sigest frequency |
@@ -397,7 +421,7 @@ calls 1 (a), 4, 6 and 7 change the count families.
 Under the alternatives: 1(b) leaves the count families as they are and 1(c) also Student-t and the variance
 forest. 2(b) and 2(c) change the words only; 2(d) and 2(e) move the same rows through a family or the data.
 3(b) draws sd sigma / sqrt(w) and takes predict's weights as a count of observations whose mean is drawn. 4(b)
-keeps logistic's Binomial(w, p). 5(b) admits real weights on the three gaussian-type families. 6(b) and 7(b)
+keeps logistic's Binomial(w, p). 5(a) refuses real weights under frequency on every family. 6(b) and 7(b)
 move nothing; 6(c) moves every probit and ordinal call that passes 0/1 weights, stan4bart's included.
 
 Consumers, read without editing: stan4bart passes its weights to the BART part and reads them as precisions in
