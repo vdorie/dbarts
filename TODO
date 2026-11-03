@@ -780,14 +780,6 @@ items
     gaussian) and setActiveRows handing the redraw a zero fit (killer
     mask-redraw-exact.R quick probit). Both were run by hand at landing
     (docs/plans/empty-leaf-membership.md).
-  written-sd-fresh-gap: after a column swap and a live sd write, a
-    sampler's fit differs from one created fresh at that prior by rms 0.025
-    in its mean over 2,000 draws after 2,000 more sweeps, largest |z| 5.34
-    over 16 seeds, on main (0.031, |z| 8.29 under dec-B542's patched copy).
-    A rerun on one data set, the fresh sampler created at twice the sd in
-    force, found no gap at 2,000, 6,000 or 10,000 sweeps on main (rms z
-    1.0, largest |z| 3.4), so the first probe may have compared another
-    prior. Compare the two and close it before 1.0-0.
   forest-size-reader: nothing reports a drawn forest's posterior size, the
     median of its coefficient's size times the trees' scale; summary()
     prints only the prior. An adviser on the shape of sd asked for a reader
@@ -944,6 +936,13 @@ items
     starts at 1 (forest-multiplier, push 2). Each is then multiplied once
     by its start scale, 1 / 0.674 with a basis and the unit over sd with
     none, which keeps the older units' chain (forest-amplitude-normal).
+    A start far from where the data put the coefficient burns in slowly:
+    on one gaussian data set a numeric forest stated at about 40 times
+    the size the data support starts |a| at 1.48 and settles near 0.027
+    only after 6,000 to 20,000 sweeps, a fresh sampler and one written
+    live alike, where at a tenth of that sd it settles within 2,000
+    (measured 2026-11-03; a live write leaves no prior state creation
+    would not, and this burn-in was the gap a first probe read as one).
     Not planned.
   prior-predictive-several-forests: samplePriorPredictive refuses a
     sampler of several forests by name; drawing there needs the
