@@ -58,8 +58,18 @@
 # statistics are P(k < q_j) and E of each leaf's fit. The step has no switch, so
 # it is on in all three.
 #
+# Two arms follow of a sharer leaving by $setForest(f, sd = 0.7) before the run.
+# In the first the stump's forest leaves, so the first tree keeps c / sqrt(2)
+# under the drawn k and the stump is N(0, 0.49) whatever k is, read by the step
+# as offset; the outer quadrature takes it at that sd. In the second three
+# forests share, the first tree, a forest of two stumps and a stump, and the
+# last leaves: the two left keep their thirds, the first tree at c / sqrt(3)
+# and the two stumps' sum at the same sd, both under k, beside the leaver's
+# N(0, 0.49).
+#
 # Usage: Rscript probit-k-scale-exact.R [quick] [pure] [mixed] [offset] [mask]
-#   [shared] [shared-factor] [shared-offset] [lone-factor]
+#   [shared] [shared-factor] [shared-offset] [lone-factor] [shared-leave]
+#   [shared-leave-counts]
 
 suppressPackageStartupMessages(library(dbarts))
 
@@ -73,7 +83,9 @@ allArms <- c(
   "shared",
   "shared-factor",
   "shared-offset",
-  "lone-factor"
+  "lone-factor",
+  "shared-leave",
+  "shared-leave-counts"
 )
 armNames <- intersect(allArms, args)
 if (length(armNames) == 0L) {
@@ -81,7 +93,14 @@ if (length(armNames) == 0L) {
 }
 sharedArmNames <- intersect(
   armNames,
-  c("shared", "shared-factor", "shared-offset", "lone-factor")
+  c(
+    "shared",
+    "shared-factor",
+    "shared-offset",
+    "lone-factor",
+    "shared-leave",
+    "shared-leave-counts"
+  )
 )
 armNames <- setdiff(armNames, sharedArmNames)
 
@@ -291,22 +310,27 @@ for (arm in armNames) {
 # ---- the shared arms ----
 
 sharedScale <- leafScale / sqrt(2)
-# lone = TRUE: one frozen forest with no basis takes the whole total, with no
-# second forest's stump to integrate over, beside the same held factor
+# The first tree's leaves have sd firstScale / k; the stumps beside it sum to
+# an sd of stumpScale / k from forests sharing the total and heldSd from
+# forests that left it. With neither, one frozen forest with no basis takes
+# the whole total, with no stump to integrate over, beside the same held
+# factor.
 sharedPosterior <- function(
   y,
   leaf,
   numLeaves,
   extra,
   shift = 0,
-  lone = FALSE
+  firstScale = sharedScale,
+  stumpScale = sharedScale,
+  heldSd = 0
 ) {
+  lone <- stumpScale == 0 && heldSd == 0
   fitStep <- 0.01
   fitGrid <- seq(-8, 8, by = fitStep)
   wStep <- 0.05
   w <- if (lone) 0 else seq(-8, 8, by = wStep)
   wWeight <- if (lone) 1 else dnorm(w) * wStep
-  total <- if (lone) leafScale else sharedScale
   logK <- seq(log(0.02), log(20), length.out = 801L)
   logMax <- numeric(numLeaves)
   likelihood <- matrix(0, numLeaves, length(fitGrid))
@@ -322,8 +346,8 @@ sharedPosterior <- function(
   logMarginal <- numeric(length(logK))
   means <- matrix(0, length(logK), numLeaves)
   for (j in seq_along(logK)) {
-    scale <- total / exp(logK[j])
-    stump <- scale * w
+    scale <- firstScale / exp(logK[j])
+    stump <- sqrt((stumpScale / exp(logK[j]))^2 + heldSd^2) * w
     product <- wWeight
     expected <- matrix(0, numLeaves, length(w))
     for (l in seq_len(numLeaves)) {
@@ -334,11 +358,21 @@ sharedPosterior <- function(
       ) *
         fitStep
       integral <- as.vector(likelihood[l, ] %*% kernel)
-      expected[l, ] <- as.vector(moment[l, ] %*% kernel) / integral
+      # a stump far out in the tails can leave a leaf no mass on the grid,
+      # where its weight is 0 too
+      expected[l, ] <- ifelse(
+        integral > 0,
+        as.vector(moment[l, ] %*% kernel) / integral,
+        0
+      )
       product <- product * integral
     }
     logMarginal[j] <- log(sum(product))
-    means[j, ] <- as.vector(expected %*% product) / sum(product)
+    means[j, ] <- if (sum(product) > 0) {
+      as.vector(expected %*% product) / sum(product)
+    } else {
+      0
+    }
   }
   logPosterior <- logKPrior(exp(logK)) + logMarginal
   density <- exp(logPosterior - max(logPosterior))
@@ -351,14 +385,23 @@ sharedPosterior <- function(
   )
 }
 
+heldSd <- 0.7
 for (arm in sharedArmNames) {
   lone <- arm == "lone-factor"
   withFactor <- arm %in% c("shared-factor", "lone-factor")
   shift <- if (arm == "shared-offset") 0.4 else 0
+  counts <- arm == "shared-leave-counts"
   forests <- list(dbartsForests$forest(n.trees = 1L))
   if (!lone) {
-    forests[[2L]] <- dbartsForests$forest(n.trees = 1L, base = 1e-9)
+    forests[[2L]] <- dbartsForests$forest(
+      n.trees = if (counts) 2L else 1L,
+      base = 1e-9
+    )
   }
+  if (counts) {
+    forests[[3L]] <- dbartsForests$forest(n.trees = 1L, base = 1e-9)
+  }
+  numSharers <- length(forests)
   factorForest <- length(forests) + 1L
   if (withFactor) {
     forests[[factorForest]] <- dbartsForests$forest(
@@ -377,12 +420,13 @@ for (arm in sharedArmNames) {
     control = control,
     family = "probit"
   )
-  stopifnot(
-    abs(
-      shared$getLeafPrior(1L)$k.scale - (if (lone) leafScale else sharedScale)
-    ) <
-      1e-12
-  )
+  firstScale <- leafScale / sqrt(numSharers)
+  stopifnot(abs(shared$getLeafPrior(1L)$k.scale - firstScale) < 1e-12)
+  leaver <- switch(arm, `shared-leave` = 2L, `shared-leave-counts` = 3L, NULL)
+  if (!is.null(leaver)) {
+    shared$setForest(leaver, sd = heldSd)
+    stopifnot(abs(shared$getLeafPrior(1L)$k.scale - firstScale) < 1e-12)
+  }
   repeat {
     shared$sampleTreesFromPrior()
     shared$sampleLeafParametersFromPrior()
@@ -409,7 +453,16 @@ for (arm in sharedArmNames) {
     1L,
     pnorm(shift + c(0.8, -0.5, 0.3, -1.2)[sharedLeaf])
   ))
-  exact <- sharedPosterior(y, sharedLeaf, numShared, extra, shift, lone)
+  exact <- sharedPosterior(
+    y,
+    sharedLeaf,
+    numShared,
+    extra,
+    shift,
+    firstScale = firstScale,
+    stumpScale = if (lone || arm == "shared-leave") 0 else firstScale,
+    heldSd = if (is.null(leaver)) 0 else heldSd
+  )
   if (shift != 0) {
     shared$setOffset(rep(shift, n))
   }

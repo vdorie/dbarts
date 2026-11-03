@@ -307,7 +307,9 @@ tree under probit with k ~ chi(1.5, 2), whose posterior of k and leaf means are
 exact by one quadrature a leaf, on four arms (every leaf separated, none, an
 offset, a mask), and three arms of two frozen single-tree forests with no basis
 sharing one drawn k, the second a stump integrated in an outer quadrature: alone,
-beside a held factor stump the step reads as offset, and with a user offset. It bounds
+beside a held factor stump the step reads as offset, and with a user offset;
+and two where a sharer leaves by `$setForest(f, sd = )` before the run, its stump
+then read as offset beside those left at their creation parts. It bounds
 P(k < q) at the exact deciles and the unseparated leaves' means at |z| 4.5, and the separated arm's batch-means error of P(k < q) at
 0.01 in full mode (0.014 quick), which a sampler without the step does not
 meet, so a step that silently declines fails. It cannot see k left unscaled

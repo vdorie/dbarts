@@ -51,7 +51,9 @@
 # The shared-total arms follow: two or three held forests with no basis that
 # share one total, each at T / sqrt(K) over its own trees, beside a held
 # factor, beside a forest with no basis stating sd, alone at k 2 and 3, and at
-# unequal counts; the functional is their sum in each cell.
+# unequal counts; the functional is their sum in each cell. One of three
+# sharers then leaves by $setForest(1, sd = ) before the run, the two left
+# keeping T / sqrt(3), the part their creation gave them.
 #
 # Not seen here: probit and logistic, subset, a numeric multiplier under
 # logistic, and n for n - 1 in a column's scale on a held arm, which the
@@ -1114,6 +1116,9 @@ sharedFit <- function(seed, arm, kept) {
     keepTrainingFits = TRUE
   )
   sampler <- sharedSampler(arm, control)
+  for (leave in arm$leave) {
+    sampler$setForest(leave$forest, sd = leave$sd)
+  }
   result <- sampler$run(numBurn, kept)
   shift <- sampler$getLeafPrior(1L)$response.shift
   terms <- termDraws(result$train, shift, arm)
@@ -1140,6 +1145,9 @@ sharedOracle <- function(arm, share = sqrt) {
   numSharers <- sum(vapply(arm$forests[plain], function(s) is.null(s$sd), NA))
   total <- diff(range(y)) / (2 * arm$k)
   trees <- forestTrees(arm)
+  for (leave in arm$leave) {
+    arm$forests[[leave$forest]]$sd <- leave$sd
+  }
   forests <- lapply(seq_along(arm$forests), function(f) {
     spec <- arm$forests[[f]]
     sd <- if (!is.null(spec$sd)) {
@@ -1186,6 +1194,12 @@ sharedArms <- list(
   ),
   "two sharers of 2 and 3 trees" = list(
     forests = list(list(trees = 2L), list(trees = 3L)),
+    trees = 2L,
+    k = 2
+  ),
+  "three sharers, the first leaving by $setForest" = list(
+    forests = list(list(), list(), list()),
+    leave = list(list(forest = 1L, sd = 0.4 * unit)),
     trees = 2L,
     k = 2
   )
