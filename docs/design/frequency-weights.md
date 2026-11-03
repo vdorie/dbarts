@@ -3,7 +3,7 @@
 Status: DECIDED 2026-11-03, design note before the plan. Rulings, in docs/decisions.md: dec-B125 (frequency
 weights join precision weights by explicit choice; precision stays the default), dec-A11 (under precision weights
 sigma's degrees of freedom count only positive-weight rows), dec-B120 (the comparison against 0.9-34 is a release
-gate), and the note's own rulings dec-B563 to dec-B570, dec-B573 and dec-B574, each cited where it applies. The
+gate), and the note's own rulings dec-B563 to dec-B570, dec-B573, dec-B574 and dec-B580, each cited where it applies. The
 plan is docs/plans/frequency-weights.md.
 
 ## Summary
@@ -178,11 +178,15 @@ NULL there and `s$setData(s$data)` keeps the rows out; `setActiveRows` stays the
 BART sampler inside a larger sampler. That resolves TODO mask-on-own-data-object. xbart's refusal of 0/1 weights
 on those families goes (Calls made, 14).
 
-### Zero weights (dec-B570)
+### Zero weights (dec-B570, dec-B580)
 
 A 0 is out of the likelihood and in the design on every family and under both readings, NaN in the pointwise
 log-likelihood and NA in the predictive draws; logistic accepts it as the mask, and its contradictory warning
-goes.
+goes. The premise that zero weights already stood so everywhere held on gaussian, Student-t and aft only: a probit,
+ordinal, hazard or nbinom fit drew predictive values at a 0 row. dec-B580 corrects it: those rows' draws are NA on every
+family, drawn then overwritten so the random stream is unchanged, the fitted value still reported. The maintainer,
+2026-11-03: "(a) is correct, right? 0 weight means out of sample, and we're doing what is standard for other R
+functions?"
 
 ### A proportion with the trials as weights (dec-B573)
 
@@ -250,8 +254,9 @@ and the predictive and log-likelihood code reads n.
 3. Under frequency every quantity the package reads off the rows is read off the expanded rows: the starting
    sigma's regression with residual df sum(w) - p ([`residualStandardError`](../../R/utility.R) reads lm.wfit's
    positive-row df today), its stand-in a weighted sd, a linear or gp leaf covariate's center and scale, a
-   forest's default sd, the quantile cut rule's quantiles and nbinom's center. Where sum(w) - p is not positive
-   the stand-in is used. The data object's sigma is derived under the model's reading; a stated one is taken as
+   forest's default sd and nbinom's center. The quantile cut rule is not among them: its grid is built over unique
+   values, which copies leave as they are (plan critique p5). Where sum(w) - p is not positive the stand-in is
+   used. The data object's sigma is derived under the model's reading; a stated one is taken as
    stated. Alternative: read them as precision does, which breaks the draw-for-draw gate.
 4. The reading is model: held on the model record, fixed at creation, and a setModel that changes it is
    refused. A fit object saved before it reads the family's own reading. Alternative: on the data object, where
@@ -327,7 +332,8 @@ On a fit that chooses frequency, or a count family whose own reading is counts; 
 | fitted, residuals | unweighted | unchanged |
 | xbart | loss weighted by w | loss unchanged; fold sigest frequency |
 | response range; the default cut rule's grid | positive rows; every row | unchanged |
-| leaf covariate standardization, forest default sd, quantile cut rule | unweighted | weighted by w |
+| leaf covariate standardization, forest default sd | unweighted | weighted by w |
+| the quantile cut rule's grid | unique values | unchanged |
 | state, copy, reload | digest of weights | digest of weights and reading |
 | logistic, hazard.logistic | | counts as before; 0 taken (dec-B570); training draw Bernoulli(p) (dec-B566) |
 | nbinom, multinomial | 0/1 mask; all ones | whole counts, shape times w; training draw one observation |
