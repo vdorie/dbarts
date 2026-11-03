@@ -417,7 +417,7 @@ tinytest, test-coefficient-prior-live.R (~590 lines), every R twin on two chains
 - `$setModel`: a model with a differing coefficient refused naming `$setForest`; a differing `n.trees` refused as structure on a
   model of several, a model of one and the variance forest; the sampler's own model taken; `moves` still taken;
 - `$setLeafPrior`'s corrected words on c3.R's sampler;
-- the five pins of today's refusal respelled: ["a forest's coefficient prior cannot be changed live yet"](../../inst/tinytest/test-forest-door.R)
+- the five pins of today's refusal respelled: "a forest's coefficient prior cannot be changed live yet" in test-forest-door.R
   and its siblings in test-forest-arguments.R, test-forest-amplitude-student.R and test-forest-amplitude-normal.R.
 
 Exact arms (~110 lines). In benchmarks/R/forest-prior-exact.R, the pattern of its write arms (`writeFrom`, `writeMid`) with an

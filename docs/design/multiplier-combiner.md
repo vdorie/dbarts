@@ -379,6 +379,16 @@ finiteness ([`installForestBasis`](../../src/bartcore/combiner.hpp)). It wins by
 being the only operation there is, which is why no ordering between two
 mutators has to be specified ([`setForestBasis`](../../src/bartcore/combiner.hpp)).
 
+A forest's coefficient prior has its own write beside the basis swap,
+[`setForestAmplitudePrior`](../../src/bartcore/combiner.hpp), which never moves
+the layout: it takes the prior whole. A hold sets the block to its kind's held
+value; a release leaves the block where it is, drawn from there next sweep; a
+Student-t's mixing variance starts at the normal's variance where the forest was
+not mixing and is kept where it was, so a df changed moves no state. The chain
+([`Chain::setForestCoefficientPrior`](../../src/bartcore/chain.hpp)) writes the
+map statement first and places a forest the leaf prior sizes as creation places
+it.
+
 Ordering is LAST INSTALL WINS, per forest, and both orderings of a widen and a
 swap collapse to it because `rebuildAmplitudeLayout` derives the offsets as a
 pure prefix sum of the width vector and carries every block by position

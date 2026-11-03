@@ -56,7 +56,11 @@ scale and moves no leaf, coefficient or auxiliary, before the first sweep too.
 - `student(nu)` takes nu finite and at least 1, `student()` being nu = 1 (dec-B510); the t's median
   is the normal's, so only the tails move. The draw is a
   two-block Gibbs scan, the coefficient given its variance and the variance given the coefficient,
-  exact. The prior is fixed at creation; a live change is its own item (dec-B511).
+  exact. A live sampler changes the prior through `$setForest(f, amplitude = )`: a hold sets the
+  coefficient to its held value, a release draws it from there, a t's variance starts at the normal's,
+  and no leaf or trees' scale moves except on a forest the fitting function's leaf prior sizes, which
+  takes the size creation gives the statement; the last left of a group, released, states its part as
+  its `sd` ([coefficient-prior-live.md](../plans/coefficient-prior-live.md)).
 - The variance of a coefficient is not an argument: `amplitude.prior.variance` is gone.
 - A gaussian response with no spread over the rows its scale is read from is scaled by a window of
   width one; the anchor is then a quarter of that window, which is what the one forest of a
