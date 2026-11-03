@@ -977,6 +977,19 @@ items
     replicated latents, and probit refuses weights outright - no
     tractable weighted latent form. docs/plans/weighted-binary.md.
     decision-gated, scheduled after 1.0-0 (VD 2026-08-28).
+  hurdle-weight-extensions: door, after hurdle-completion and
+    frequency-weights (VD 2026-11-03, dec-B588: 0 and 1 now, "think
+    about extensions in the future"). A logistic zero part,
+    "hurdle.logistic" (docs/design/hurdle.md, Doors), would take
+    whole-number weights as counts on both parts with no engine work
+    once frequency weights land, logistic's Polya-Gamma shape being the
+    count and the gaussian positive part taking frequency weights, and
+    non-integer counts once an accept-or-keep Polya-Gamma latent exists
+    (dec-B583). Its latent costs about four times probit's per row at
+    weight 1 and grows with the count, and it has no rescaling step.
+    The probit hurdle gains whole numbers with integer-weight probit
+    (weighted-binary). Whether logistic becomes the hurdle's default
+    is a separate call; pscl defaults to a logit and offers probit.
 
 absolute residual prior scale (decided, VD 2026-09-14)
   post-release, R only: chisq gains an absolute spelling,
