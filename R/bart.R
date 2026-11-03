@@ -1785,10 +1785,14 @@ bart <- function(
       "the combined mean is built from the two training fits"
     )
     warnFamilyGatedArgs(argNames, "hurdle.lognormal")
-    if (!missing(weights)) {
+    # a data object is the whole data: what is written beside it is ignored,
+    # with the warning dbartsData gives, so none of these arguments reaches the
+    # refusals below
+    besideDataObject <- inherits(formula, "dbartsData")
+    if (!besideDataObject && !missing(weights)) {
       stop("family = \"hurdle.lognormal\" does not support 'weights'")
     }
-    if (!missing(subset)) {
+    if (!besideDataObject && !missing(subset)) {
       stop("family = \"hurdle.lognormal\" does not support 'subset'")
     }
     # its zero part is a probit fit, whose precision is its latent's own, so
@@ -1798,13 +1802,16 @@ bart <- function(
       stop("family = \"hurdle.lognormal\" does not take a variance forest")
     }
     if (
-      !missing(offset) || !missing(offset.test) || formulaHasOffsetTerm(formula)
+      !besideDataObject &&
+        (!missing(offset) ||
+          !missing(offset.test) ||
+          formulaHasOffsetTerm(formula))
     ) {
       stop(
         "family = \"hurdle.lognormal\" does not support 'offset'/'offset.test'"
       )
     }
-    if (!missing(test)) {
+    if (!besideDataObject && !missing(test)) {
       stop(
         "family = \"hurdle.lognormal\" does not take a 'test' set; the ",
         "positive-part fit is given the full training x as its own x.test"
@@ -3155,6 +3162,9 @@ splitHurdleResponse <- function(y) {
 # sets stays constructible: the positive part saw the missing value in
 # training and has a route for it.
 refuseHurdlePositiveMissingness <- function(x, positive) {
+  if (inherits(x, "dbartsMixedMatrix")) {
+    x <- as.matrix(x)
+  }
   numColumns <- NCOL(x)
   offending <- integer(0L)
   for (j in seq_len(numColumns)) {
@@ -3192,6 +3202,102 @@ refuseHurdlePositiveMissingness <- function(x, positive) {
   )
 }
 
+# The arguments that hold rows or settle them, which the hurdle's one data
+# object has read: a part's call carries the data object in their place.
+hurdleIngestedArguments <- c(
+  "data",
+  "test",
+  "subset",
+  "weights",
+  "offset",
+  "offset.test",
+  "na.action",
+  "factors"
+)
+
+# The one data object a hurdle fit's parts are cut from, made as dbarts() makes
+# its own: the predictors and response, or a formula, or a data object taken
+# whole, with the arguments that hold rows read once and handed on as values.
+ingestHurdleData <- function(
+  matchedCall,
+  callingEnv,
+  formula,
+  data,
+  dataGiven
+) {
+  dataCall <- redirectCall(
+    matchedCall,
+    quoteInNamespace(dbartsData),
+    callFormals = formals(dbarts::bart)
+  )
+  # the cut settings ride the control, and reach the parts through it
+  dataCall[c("n.cuts", "useQuantiles")] <- NULL
+  handed <- list(formula = formula)
+  if (dataGiven && is.numeric(data) && any(is.infinite(data))) {
+    stop(
+      "family = \"hurdle.lognormal\" requires a non-negative, finite ",
+      "numeric response"
+    )
+  }
+  if (dataGiven && "data" %in% names(dataCall)) {
+    handed["data"] <- list(data)
+  }
+  eval(handOn(dataCall, handed), callingEnv)
+}
+
+# The rows of a coded design, with the attributes its container carries (the
+# terms, factor levels and variable types a formula fit's predict reads).
+selectDesignRows <- function(x, rows) {
+  if (inherits(x, "dbartsMixedMatrix")) {
+    return(x[rows, , drop = FALSE])
+  }
+  selected <- x[rows, , drop = FALSE]
+  for (name in setdiff(names(attributes(x)), c("dim", "dimnames"))) {
+    attr(selected, name) <- attr(x, name)
+  }
+  selected
+}
+
+# The two parts' data objects, cut from the hurdle's. The zero part keeps every
+# row and fits 1{y > 0}. The positive part keeps the positive rows and fits log
+# y, and its test rows are the n rows of the design, the zero rows among them,
+# which it never trained on.
+hurdlePartData <- function(ingested, split) {
+  rowNames <- dataRowNames(ingested, "train")
+  zero <- ingested
+  zero@y <- split$z
+  zero@na.action <- NULL
+  # a plain offset enters the positive part: the zero part's terms, record and
+  # offset leave it out, so nothing re-evaluates it on the probit latent
+  zeroTerms <- attr(zero@x, "terms")
+  if (!is.null(zeroTerms)) {
+    attr(zero@x, "terms") <- dropOffsetTerms(zeroTerms)
+  }
+  zero@offset <- NULL
+  zero@offset.test <- NULL
+  attr(zero, "offset.argument") <- NULL
+  positive <- ingested
+  positive@y <- split$logPositive
+  positive@x <- selectDesignRows(ingested@x, split$positive)
+  positive@x.test <- ingested@x
+  # the per-row inputs follow the rows, and the test rows are the n rows
+  if (!is.null(ingested@weights)) {
+    positive@weights <- ingested@weights[split$positive]
+  }
+  if (!is.null(ingested@offset)) {
+    positive@offset <- ingested@offset[split$positive]
+    positive@offset.test <- ingested@offset
+  }
+  positive@na.action <- NULL
+  positive <- setDataRowNames(
+    positive,
+    "train",
+    if (!is.null(rowNames)) rowNames[split$positive]
+  )
+  positive <- setDataRowNames(positive, "test", rowNames)
+  list(zero = zero, positive = positive)
+}
+
 # The hurdle.lognormal fit path, reached from the front door's family =
 # "hurdle.lognormal" branch. Composed R-side from two ordinary single-forest
 # fits - never a coupled engine model - so this simply calls the front door
@@ -3199,10 +3305,9 @@ refuseHurdlePositiveMissingness <- function(x, positive) {
 # would correlate the two chains and bias the combined credible interval).
 # The positive fit's 'test' is forced to the FULL training x so its
 # in-sample fitted()/extract() carries E[y | y > 0, x] at the zero rows it
-# never trained on. family is always explicit and the matrix interface
-# only: the response is split before any dbartsData ingestion runs (the
-# discrete-time hazard precedent, R/dbarts.R's extractSurvivalTimes), which
-# a formula LHS cannot supply.
+# never trained on. family is always explicit. The predictors and response, a
+# formula or a data object are read once into one data object (ingestHurdleData),
+# from which the two parts' data are cut by rows.
 bart2Hurdle <- function(
   matchedCall,
   callingEnv,
@@ -3214,15 +3319,18 @@ bart2Hurdle <- function(
   residPrior = NULL,
   na.action = dbarts::na.keepPredictors
 ) {
+  if (inherits(formula, "dgCMatrix")) {
+    stop(
+      "family = \"hurdle.lognormal\" does not take a sparse design matrix; ",
+      "give a dense matrix or a data frame"
+    )
+  }
   if (
-    is.formula(formula) ||
-      inherits(formula, "dbartsData") ||
-      inherits(formula, "dgCMatrix") ||
-      missing(data)
+    !is.formula(formula) && !inherits(formula, "dbartsData") && missing(data)
   ) {
     stop(
-      "family = \"hurdle.lognormal\" fits currently use the matrix interface ",
-      "- bart(x, y, family = \"hurdle.lognormal\")"
+      "family = \"hurdle.lognormal\" needs a response - ",
+      "bart(x, y, family = \"hurdle.lognormal\")"
     )
   }
 
@@ -3247,20 +3355,23 @@ bart2Hurdle <- function(
     }
   }
 
-  # the na.action settles the rows before the response is split, as it would
-  # on any other fit: the two parts then see the same complete rows, and a
-  # row dropped for a missing predictor is gone from both
-  omitted <- NULL
-  naRows <- applyNaActionToXY(na.action, as.double(data), formula)
-  if (!is.null(naRows)) {
-    omitted <- nameOmittedRows(naRows$na.action, observationRowNames(formula))
-    formula <- formula[naRows$keep, , drop = FALSE]
-    data <- data[naRows$keep]
-  }
+  # the arguments that hold rows are evaluated once, into one data object
+  # that the na.action has settled, as a gaussian fit's are; the two parts
+  # are then cut from it by rows, so both see the same rows, columns and
+  # coding. A data object is taken whole, and an argument beside it is
+  # ignored with the warning dbartsData gives
+  ingested <- ingestHurdleData(
+    matchedCall,
+    callingEnv,
+    formula,
+    data,
+    !missing(data)
+  )
+  omitted <- ingested@na.action
 
-  split <- splitHurdleResponse(data)
-  refuseHurdlePositiveMissingness(formula, split$positive)
-  xPositive <- formula[split$positive, , drop = FALSE]
+  split <- splitHurdleResponse(ingested@y)
+  refuseHurdlePositiveMissingness(ingested@x, split$positive)
+  parts <- hurdlePartData(ingested, split)
 
   # independent per-component seeds derived deterministically from the
   # user's seed (the per-chain seed derivation); politely
@@ -3299,8 +3410,8 @@ bart2Hurdle <- function(
     callFormals = formals(dbarts::bart)
   ))
   zeroCall[gatedOnZeroOnly] <- NULL
-  zeroCall$formula <- formula
-  zeroCall$data <- split$z
+  zeroCall[hurdleIngestedArguments] <- NULL
+  zeroCall$formula <- parts$zero
   zeroCall$family <- "probit"
   zeroCall["seed"] <- list(seeds[[1L]])
   zeroCall$keepTrees <- control@keepTrees
@@ -3311,9 +3422,8 @@ bart2Hurdle <- function(
     dbarts::bart,
     callFormals = formals(dbarts::bart)
   ))
-  positiveCall$formula <- xPositive
-  positiveCall$data <- split$logPositive
-  positiveCall$test <- formula
+  positiveCall[hurdleIngestedArguments] <- NULL
+  positiveCall$formula <- parts$positive
   # the residual prior is live on this half alone, and it has one home, so it
   # reaches the component on the family object rather than through a retired
   # spelling restored beside it - which the component would refuse as a
@@ -3347,7 +3457,7 @@ bart2Hurdle <- function(
     # the original non-negative response over all n, so residuals() can take
     # y - E[y | x] on the natural scale (neither component stores it: the
     # zero fit keeps the 1{y > 0} indicator, the positive fit log(y[S]))
-    y = as.double(data),
+    y = as.double(ingested@y),
     zero = zero,
     positive = positive
   )

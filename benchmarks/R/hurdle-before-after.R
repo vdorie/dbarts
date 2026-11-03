@@ -314,7 +314,7 @@ recordFit <- function(fit, x, y, name) {
   )
 
   put("print", guarded(utils::capture.output(print(fit))))
-  put("summary", guarded(summary(fit)))
+  put("summary", guarded(dropSummaryCalls(summary(fit))))
   put("summary.print", guarded(utils::capture.output(print(summary(fit)))))
 
   numericColumns <- if (isFrame) {
@@ -354,6 +354,14 @@ recordFit <- function(fit, x, y, name) {
   out
 }
 
+# a part's own call holds the data the part was handed
+dropSummaryCalls <- function(summary) {
+  for (part in c("zero", "positive")) {
+    summary[[part]][["call"]] <- NULL
+  }
+  summary
+}
+
 dropPd <- function(pd) {
   if (inherits(pd, "recordedError")) {
     return(pd)
@@ -382,7 +390,7 @@ fitOne <- function(spec) {
   if (unseeded) {
     set.seed(4242L)
   }
-  made <- guarded(do.call(dbarts::bart, c(list(x, y), callArgs)))
+  made <- guarded(do.call("bart", c(list(x, y), callArgs)))
   list(x = x, y = y, made = made)
 }
 
