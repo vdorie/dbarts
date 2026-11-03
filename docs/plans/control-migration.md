@@ -1,9 +1,10 @@
 # control-migration: a control holds run settings only
 
-Status: PLANNED 2026-10-30 on c55a1477, against main as it stood once coefficient-prior-opt-in (dec-A245) and
-tree-prior-flat (dec-A246) landed; amended the same day after its blind critique (scratch/cm-crit/report.md, build
-after amendments) and the coordinator's calls on it. Slices 1a, 1b and 2 built on the branch and reviewed, the review's fix batch in; slices 3 and 4 and the consumer branches built, not reviewed. Both calls
-held for the maintainer are ruled: dec-B526, dec-B527 ([Open calls](#open-calls)). Rulings: dec-B239, dec-B240,
+Status: LANDED 2026-11-03 (b4a5c513d): slices 1a, 1b, 2, 3 and 4 and the consumer branches, each reviewed and its
+findings fixed; no call held (dec-A254 lists the calls a user meets). Planned 2026-10-30 on c55a1477, against main as
+it stood once coefficient-prior-opt-in (dec-A245) and tree-prior-flat (dec-A246) landed; amended the same day after
+its blind critique (build after amendments) and the coordinator's calls on it. Both calls held for the maintainer
+were ruled: dec-B526, dec-B527 ([Open calls](#open-calls)). Rulings: dec-B239, dec-B240,
 dec-B241 (the move), dec-B250 (when the mirrored slots go), dec-B334, dec-B335, dec-B385 (a control copied from a
 fit), dec-B247 (a live sampler's count), dec-B249 (the forest column), dec-B503 and dec-B505 (counts among
 forests with no basis), dec-B518 (the live forest door), with dec-A02 (relocated arguments), dec-B116 (a flat
@@ -749,3 +750,26 @@ Both are ruled; the text is what the maintainer was shown.
   TODO legacy-object-message may want to name it.
 - Verified since the first draft: `rbart_vi()` fits through `dbarts()` (the critique read its two calls), so it
   follows `dbarts()`'s rule.
+
+## Landing note
+
+Gates on fe4c0dfd6, the code as merged less a comment commit and these records. On the x86 box: tests/cpp plain and
+under ASan and UBSan with the leak sanitizer, 419 passing and no report; the suite under at_home, 36,600 results, none
+failed; equivalence 55 of 55 in statistical mode; bcf-equivalence and the multinomial by the cross-host tier 1. On the
+laptop, at the review's second round on the same code: the suite once in one process at the default ncpu, 36,499
+expectations, none failed; the four snapshot files on a reference build; lintr, air, codoc, win-drift, doc-freshness
+and the mutation battery's anchors. Every mutant of both review rounds was killed; the one that only halted the suite,
+`any` in place of `all` in [`refuseStatedOnPlainForest`](../../R/model.R), fails a named expectation since the fix
+round. No baseline moved:
+equivalence-e346b018, bcf-equivalence-e346b018 and multinomial-equivalence-80b1c8d4 stand. The comment commit
+rewords the comments that named the control attributes this work removed, the survival status and the forests', and
+changes no code.
+
+Consumers merge with it, each one commit on its default branch: stan4bart sends the cut count and the quantile rule
+to the data and the tree count to `dbartsSpec()`, bartCause passes bcf's cut count and quantile rule to dbarts, and
+treatSens states its cut count through `dbartsData(n.cuts = )`; bairrtt needs none. bartCause's suite on the code
+under review: 1,831 expectations, none failed.
+
+Left for later: man/dbartsData.Rd's two sentences that describe a derived slot as written by hand (TODO
+data-slot-help-claims), and the one carried-count edge the work did not close (TODO control-carried-count-edges).
+The mirrored slots and the three `dbartsControl()` arguments go at 1.1-0 with the other tombstones.

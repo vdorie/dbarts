@@ -838,34 +838,10 @@ items
     forest() is called. A forest built by a wrapper whose formal holds the basis,
     function(b) forest(basis = b), is given the formal's value, so
     such a wrapper cannot pass on a column of the data by its name.
-  control-migration: ruled, not built (dec-B239, dec-B240, dec-B241). The
-    tree count moves to the model, per forest, with a plain n.trees on
-    dbarts() and dbartsSpec() for the forest with no basis, refused
-    beside a stated one; n.cuts and useQuantiles become dbarts() and
-    dbartsData() arguments; the binary flag is the family's; the control's
-    binary, n.trees and useQuantiles stay as mirrored copies until 1.1-0
-    (dec-B240), its n.cuts goes. forests = forest() without list() is
-    taken (dec-B241). On main today dbarts(n.trees = ) is an unused
-    argument and dbartsControl(n.trees = ) is the count (audit run
-    2026-10-29). For 1.0-0. Planned: docs/plans/control-migration.md,
-    with control-carried-count-edges, two open calls (a count or rule
-    written on a control at the direct door; a control count beside a
-    forest's own).
-  control-carried-count-edges: with the control migration (dec-A179).
-    setControl given a control whose carried count differs takes it,
-    keeps the sampler's count and warns (dec-B385).
-    Ruled: a control copied from a fit sets no count, and a warning
-    says when its copy differs and is not used (dec-B334); a sampler
-    assembled by new() takes the model's count with the same warning
-    (dec-B335). A control taken from a bart() or bartBT() fit and given to
-    dbarts() for a model whose every forest has a basis is refused as
-    naming 'n.trees', though nobody named one (those functions build
-    their control by a call that names it), and setControl given an
-    all-basis sampler's control on another sampler is refused as
-    changing the count; both were taken before defaults went by kind.
-    A count written into a carried control that equals the count it
-    shows cannot be told from no edit and is replaced by the carried
-    one. Planned with control-migration.
+  control-carried-count-edges: a count written into a fit's control
+    that equals the count it shows cannot be told from no edit: given
+    to dbarts(), it is not used, and the not-used warning says so and
+    names dbarts(n.trees = ) (run 2026-11-03, dec-A254). Not planned.
   copy-after-response-swap-ulp: a copy made after setResponse to a
     rescaled response runs within 1e-14 of the original and not bit
     for bit: the next 5 sweeps differ in the last bits (7.1e-15 at
@@ -920,12 +896,16 @@ items
     message, a length-one specification losing its name, where n.cuts = c(x2 = 10) is refused
     (dec-B547). Run 2026-10-30. To put to the maintainer, with the rest of split.probs's doors,
     among them a hazard fit's refusal of a vector leaving out period, where n.cuts takes it (dec-B553).
-  consumer-slot-writes: stan4bart (R/generics.R, R/stan4bart_fit.R, R/stan4bart.R), bartCause
-    (R/responseFit.R) and treatSens (R/cibart.R) write a data object's slots before handing it on
-    (x, x.test, sigma, n.cuts, useQuantiles). A data object's slots are read-only copies (dec-B554):
-    move each to an accessor where one exists, and name what is missing. treatSens's n.cuts goes
-    with control-migration's consumers. stan4bart's n.cuts and useQuantiles writes stay until its
-    dbartsData call, built before bart_args is read, can take bart_args.
+  consumer-slot-writes: stan4bart (R/generics.R, R/stan4bart_fit.R, R/stan4bart.R) and bartCause
+    (R/responseFit.R) write a data object's slots before handing it on (x, x.test, sigma, n.cuts,
+    useQuantiles). A data object's slots are read-only copies (dec-B554): move each to an accessor
+    where one exists, and name what is missing. stan4bart's n.cuts and useQuantiles writes stay until
+    its dbartsData call, built before bart_args is read, can take bart_args.
+  data-slot-help-claims: man/dbartsData.Rd still describes two slots as written by hand, against
+    dec-B554: a derived record that fits no data "is refused, naming the slot; setting it to NULL
+    derives the value instead", and of basis.scale, "clearing an entry by hand has the next creation
+    take the scale of the column in force". Reword each to name the accessor or say that the sampler
+    derives the value. With the next help pass.
   coefficient-prior-live: ruled, not built (dec-B511). On a live sampler,
     $setForest(amplitude = ) (dec-B518) changes a forest's coefficient between held
     and drawn (dec-B254) and between the normal and student(df), and a
