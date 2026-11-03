@@ -225,10 +225,25 @@ sameCoefficientPrior <- function(a, b) {
 }
 
 ## How a door's refusal names forest `index`: by its label, as a creation names
-## one by its list's name, and by position where the label is its position's.
+## one by its list's name, and by position where it has none: a label that is
+## its position's or the text of its basis, which a forest with no name takes.
 doorForestLabel <- function(model, index) {
   labels <- vapply(model@forests, methods::slot, "", "label")
   labels[labels == paste0("forest", seq_along(labels))] <- ""
+  for (position in seq_along(labels)) {
+    text <- model@forests[[position]]@basis.term$label
+    if (
+      length(text) == 1L &&
+        (identical(labels[[position]], text) ||
+          (startsWith(labels[[position]], paste0(text, ".")) &&
+            grepl(
+              "^[0-9]+$",
+              substring(labels[[position]], nchar(text) + 2L)
+            )))
+    ) {
+      labels[[position]] <- ""
+    }
+  }
   forestKnobLabel(stats::setNames(as.list(labels), labels), index)
 }
 
@@ -258,13 +273,6 @@ checkForestStatement <- function(sampler, index, changed, label, ptr) {
     if (!is.null(changed$sd)) {
       refuseMultinomialStatement("a named leaf-prior 'sd'")
     }
-    if (!is.null(changed$amplitude)) {
-      stop(
-        "a multinomial model's forests have no coefficient: its forests take ",
-        "no 'amplitude'",
-        call. = FALSE
-      )
-    }
   }
   amplitude <- changed$amplitude
   if (!is.null(amplitude)) {
@@ -290,7 +298,8 @@ checkForestStatement <- function(sampler, index, changed, label, ptr) {
     sharers <- samplerSharers(sampler, ptr)
     if (length(sharers) > 1L && index %in% sharers) {
       stop(
-        "this forest shares one prior total with forests ",
+        label,
+        " shares one prior total with forests ",
         paste(sharers, collapse = ", "),
         "; a forest's own size cannot be changed live yet: make a new sampler",
         call. = FALSE
@@ -467,9 +476,22 @@ writeForestDoor <- function(sampler, forest, given, supplied, updateState) {
   index <- doorForestIndex(sampler, forest, ptr)
   model <- sampler$model
   label <- if (multinomial) "forest 1" else doorForestLabel(model, index)
+  if (multinomial && !is.null(given$amplitude)) {
+    # no category has a coefficient to draw: fixed() states what is so
+    refuseCoefficientPriorWithNoForest(
+      validateForestAmplitude(given$amplitude),
+      label,
+      lone = TRUE,
+      sharing = FALSE
+    )
+    given$amplitude <- NULL
+  }
   inForce <- forestInForce(sampler, index, ptr)
   changed <- changedForestSettings(given, inForce, label)
   if (length(changed) == 0L) {
+    if (resolveUpdateState(updateState, sampler$control)) {
+      sampler$storeState(ptr)
+    }
     return(invisible(NULL))
   }
   checkForestStatement(sampler, index, changed, label, ptr)
@@ -548,12 +570,15 @@ writeVarianceForestDoor <- function(sampler, given, supplied, updateState) {
     )
   }
   changed <- changedForestSettings(given, inForce, "varianceForest()")
+  ptr <- sampler$getPointer()
   if (length(changed) == 0L) {
+    if (resolveUpdateState(updateState, sampler$control)) {
+      sampler$storeState(ptr)
+    }
     return(invisible(NULL))
   }
   refuseVarianceRuleGibbs(changed$proposal.probs)
   model <- sampler$model
-  ptr <- sampler$getPointer()
   written <- model
   for (name in intersect(c("power", "base"), names(changed))) {
     methods::slot(written@variance, name) <- changed[[name]]

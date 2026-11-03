@@ -2896,6 +2896,16 @@ validateLeafSd <- function(sd) {
   validateNamedScale(sd, "sd")
 }
 
+## Refuses an sd whose leaf scale, twice it, is not a finite number: at creation
+## and on $setForest alike, as the engine could not carry it.
+refuseLeafScaleOverflow <- function(sd) {
+  scale <- if (is.numeric(sd)) sd else sd@scale
+  if (is.finite(scale) && !is.finite(2.0 * scale)) {
+    stop("the leaf prior's sd overflows the leaf scale; use a smaller sd")
+  }
+  invisible(NULL)
+}
+
 ## The model's encoding of a leaf prior, its prior.scale and its leaf
 ## hyperprior, from whichever of 'k' and 'sd' it names. A named sd rides a
 ## reference k of 2: a fixed sd x is prior.scale 2x beside k fixed at 2, and
@@ -2935,6 +2945,7 @@ resolveLeafPrior <- function(
       "'leaf.prior'"
     )
   }
+  refuseLeafScaleOverflow(sd)
   if (is.numeric(sd)) {
     return(list(
       prior.scale = 2.0 * sd,

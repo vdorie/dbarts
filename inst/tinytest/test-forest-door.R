@@ -699,9 +699,20 @@ case("inert on a run sampler with updateState", {
   sampler$setForest(
     2L,
     power = sampler$getForest(2L)$power,
+    updateState = FALSE
+  )
+  same(sampler$state, stored, "no change, told not to store, stores nothing")
+  sampler$setForest(
+    2L,
+    power = sampler$getForest(2L)$power,
     updateState = TRUE
   )
-  same(sampler$state, stored, "no change stores nothing")
+  expect_false(
+    identical(sampler$state, stored),
+    info = "inert on a run sampler with updateState: no change stores when told"
+  )
+  stored <- sampler$state
+  invisible(sampler$run(0L, 2L))
   sampler$setForest(2L, power = 0.5, updateState = TRUE)
   expect_false(
     identical(sampler$state, stored),
@@ -713,6 +724,64 @@ case("inert on a run sampler with updateState", {
     "updateState checked"
   )
 })
+# an inert call stores state when told to at every door that takes the argument:
+# $setLeafPrior's, $setForest's and $setVarianceForest's alike
+case("inert call stores state at each door", {
+  stores <- function(live, call) {
+    invisible(live$run(0L, 2L))
+    stored <- live$state
+    call(live)
+    !identical(live$state, stored)
+  }
+  expect_true(
+    stores(build("lone"), function(live) {
+      live$setLeafPrior(live$getLeafPrior()$leaf.prior, updateState = TRUE)
+    }),
+    info = "setLeafPrior"
+  )
+  expect_true(
+    stores(build("lone"), function(live) {
+      live$setForest(1L, power = live$getForest(1L)$power, updateState = TRUE)
+    }),
+    info = "setForest, lone"
+  )
+  expect_true(
+    stores(build("lone"), function(live) live$setForest(updateState = TRUE)),
+    info = "setForest, naming nothing"
+  )
+  expect_true(
+    stores(buildVariance(), function(live) {
+      live$setVarianceForest(
+        power = live$getVarianceForest()$power,
+        updateState = TRUE
+      )
+    }),
+    info = "setVarianceForest"
+  )
+  expect_false(
+    stores(build("lone"), function(live) {
+      live$setForest(1L, power = live$getForest(1L)$power, updateState = FALSE)
+    }),
+    info = "setForest, told not to"
+  )
+})
+
+# a value only near the one in force is another value, and is written
+for (name in c("sd", "power", "base")) {
+  info <- paste("a value near the one in force is a change,", name)
+  case(info, {
+    live <- build("stated")
+    inForce <- live$getForest(1L)[[name]]
+    near <- inForce * (1 + 1e-10)
+    stated <- list(near)
+    names(stated) <- name
+    door(live, 1L, stated)
+    same(live$getForest(1L)[[name]], near, "reader")
+    twin <- build("stated", stated)
+    same(modelOf(live), modelOf(twin), "records")
+    same(draws(live), draws(twin), "draws")
+  })
+}
 
 # A value taken from above goes on following what it follows after a round trip.
 setPerturbCuts <- function(sampler, value) {
@@ -933,6 +1002,12 @@ refusals <- list(
   list("sd NA", "stated", list(sd = NA_real_), "sd"),
   list("sd long", "factor", list(sd = c(1, 2)), "sd"),
   list("sd text", "lone", list(sd = "a"), "sd"),
+  list(
+    "sd past the leaf scale",
+    "lone",
+    list(sd = 1e308),
+    "the leaf prior's sd overflows the leaf scale"
+  ),
   list("sd invchi", "factor", list(sd = invchi(1, 1)), "sd"),
   list("sd student", "factor", list(sd = student(1)), "sd"),
   list("cuts zero", "factor", list(n.perturb.cuts = 0L), "n.perturb.cuts"),
@@ -999,6 +1074,60 @@ for (row in refusals) {
     same(atDoor, atCreation, "the same words")
   })
 }
+# A forest with no name of its own is named by its position at both doors, as
+# creation names it, whatever its basis: a basis written as code is the label it
+# is found by and not what a refusal calls it.
+case("unlabeled forests are named by position at both doors", {
+  unlabeled <- list(
+    list(list(), factorBasis),
+    list(list(), list()),
+    list(numericBasis, factorBasis),
+    list(list(), numericBasis, numericBasis),
+    list(numericBasis, numericBasis, factorBasis, list())
+  )
+  make <- function(statements, position = 0L, extra = list()) {
+    if (position > 0L) {
+      statements[[position]][names(extra)] <- extra
+    }
+    dbarts(
+      x,
+      y,
+      forests = lapply(statements, function(a) do.call(forest, a)),
+      n.trees = if (
+        all(vapply(statements, function(a) !is.null(a$basis), NA))
+      ) {
+        NULL
+      } else {
+        8L
+      },
+      control = ctl(proposal.probs = shipped)
+    )
+  }
+  for (index in seq_along(unlabeled)) {
+    statements <- unlabeled[[index]]
+    live <- make(statements)
+    for (position in unique(c(2L, length(statements)))) {
+      for (bad in list(
+        list(proposal.probs = c(1, 2)),
+        list(n.perturb.cuts = 0L),
+        list(treeShift = "sometimes")
+      )) {
+        info <- paste("unlabeled", index, position, names(bad))
+        atCreation <- refusal(make(statements, position, bad))
+        atDoor <- refusal(door(live, position, bad))
+        expectFound(atCreation, paste0("forest ", position, "'s "), info)
+        same(atDoor, atCreation, info, "the same words")
+      }
+      if (!is.null(statements[[position]]$basis)) {
+        expectFound(
+          refusal(door(live, position, list(amplitude = fixed()))),
+          paste0("forest ", position, " keeps"),
+          paste("unlabeled", index, position, "a coefficient")
+        )
+      }
+    }
+  }
+})
 # refused at one door only, each for its stated reason: a live sampler keeps its
 # coefficient prior and a sharer its part, until later plans
 doorOnly <- list(
@@ -1048,7 +1177,7 @@ doorOnly <- list(
     "a sharer's size",
     "sharer",
     list(sd = 0.7),
-    "this forest shares one prior total with forests 1, 2; a forest's own size cannot be changed live yet"
+    "forest \"mu2\" shares one prior total with forests 1, 2; a forest's own size cannot be changed live yet"
   ),
   list(
     "a sharer's size where k is drawn",
@@ -1161,12 +1290,128 @@ case("basis and an unknown name", {
     "unused argument 'nonsense': $setForest takes forest, sd, power",
     "an unknown name"
   )
+  # the ninth value after the forest lands on n.trees, the first of the names
+  # fixed at creation, and a fourteenth, unused, comes after those names
   expectFound(
     refusal(live$setForest(2L, 1, 2, 3, 4, 5, 6, 7, NULL, 9)),
-    "unused argument",
+    "'n.trees' is fixed at creation",
+    "a tenth, unnamed"
+  )
+  expectFound(
+    refusal(live$setForest(
+      2L,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      NULL,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14
+    )),
+    "'n.trees' is fixed at creation",
     "one too many, unnamed"
   )
   expectAsUntouched(live, build("factor"), 2L, "basis and an unknown name")
+})
+
+# A short name matches as it does at creation: the door's names include the ones
+# it refuses, so a name that matches several there matches several here, and a
+# short name of a refused one is refused as the full name is.
+case("short names at the door and at creation", {
+  whichArgument <- function(text) sub("argument [0-9]+ ", "argument N ", text)
+  live <- build("lone")
+  for (short in list(
+    list(n = 50),
+    list(b = 0.5),
+    list(ba = 0.5),
+    list(p = 0.5),
+    list(i = 2L),
+    list(s = 0.7)
+  )) {
+    info <- paste("short name", names(short))
+    atCreation <- refusal(do.call(forest, short))
+    atDoor <- refusal(door(build("lone"), 1L, short))
+    if (identical(atCreation, "taken")) {
+      # a name that is one name at creation is that name at the door
+      expect_true(
+        atDoor == "taken" || grepl("fixed at creation", atDoor),
+        info = info
+      )
+    } else {
+      same(whichArgument(atDoor), whichArgument(atCreation), info)
+    }
+  }
+  expectFound(
+    refusal(live$setForest(1L, n = 50)),
+    "matches multiple formal arguments",
+    "n is ambiguous"
+  )
+  expectFound(
+    refusal(live$setForest(1L, b = 0.5)),
+    "matches multiple formal arguments",
+    "b is ambiguous"
+  )
+  same(
+    refusal(live$setForest(1L, n.t = 200)),
+    refusal(live$setForest(1L, n.trees = 200)),
+    "n.t is n.trees"
+  )
+  same(
+    refusal(live$setForest(1L, v = "x1")),
+    refusal(live$setForest(1L, vars = "x1")),
+    "v is vars"
+  )
+  same(
+    refusal(live$setForest(1L, int = 2L)),
+    refusal(live$setForest(1L, interactions = 2L)),
+    "int is interactions"
+  )
+  # a short name that is one name stays that name
+  live$setForest(1L, pow = 0.5)
+  same(live$getForest(1L)$power, 0.5, "pow is power")
+  expectAsUntouched(live, build("lone", list(power = 0.5)), 1L, "short names")
+  untouched <- build("lone")
+  invisible(refusal(untouched$setForest(1L, n = 50)))
+  invisible(refusal(untouched$setForest(1L, b = 0.5)))
+  expectAsUntouched(untouched, build("lone"), 1L, "ambiguous short names")
+  # the variance door, against the variance forest's creation names
+  variance <- buildVariance()
+  for (short in list(
+    list(n = 50),
+    list(n.t = 5L),
+    list(v = "x1"),
+    list(b = 0.6)
+  )) {
+    info <- paste("variance short name", names(short))
+    atCreation <- refusal(do.call(varianceForest, short))
+    atDoor <- refusal(do.call(variance$setVarianceForest, short))
+    if (identical(atCreation, "taken")) {
+      expect_true(
+        atDoor == "taken" || grepl("fixed at creation", atDoor),
+        info = info
+      )
+    } else {
+      same(whichArgument(atDoor), whichArgument(atCreation), info)
+    }
+  }
+  same(
+    refusal(variance$setVarianceForest(n.t = 5L)),
+    refusal(variance$setVarianceForest(n.trees = 5L)),
+    "variance, n.t is n.trees"
+  )
+  expectFound(
+    refusal(variance$setVarianceForest(n = 50)),
+    "matches multiple formal arguments",
+    "variance, n is ambiguous"
+  )
+  same(variance$getVarianceForest()$base, 0.6, "variance, b is base")
 })
 
 # A refused call leaves everything as it was: the bad name comes after and before
@@ -1186,7 +1431,8 @@ atomicRows <- list(
   list("sharer", list(n.perturb.cuts = 5, sd = 0.7)),
   list("lone", list(power = 0.5, sd = -1)),
   list("lone", list(power = 0.5, n.perturb.cuts = 5, amplitude = normal())),
-  list("lone", list(power = 0.5, sd = 1e308))
+  list("lone", list(power = 0.5, sd = 1e308)),
+  list("lone", list(n.perturb.cuts = 5, sd = 1e308))
 )
 for (row in atomicRows) {
   kind <- row[[1L]]
@@ -1202,8 +1448,9 @@ for (row in atomicRows) {
   })
 }
 # The checks come first, and what a write then refuses undoes what went before
-# it. A lone forest's sd of 1e308 above is one the leaf-prior install refuses;
-# here is the same on a forest whose sd has no refusal left to reach.
+# it. A lone forest's sd of 1e308 above is refused before any write, as its
+# leaf scale overflows; here is the engine's refusal after the writes, on a
+# forest whose sd has no such refusal to reach.
 refusingWrite <- function(sampler, forest, ...) {
   writer <- dbarts:::writeForestDoor
   environment(writer) <- list2env(
@@ -1304,7 +1551,12 @@ case("the variance door stores when told", {
     power = sampler$getVarianceForest()$power,
     updateState = TRUE
   )
-  same(sampler$state, stored, "variance, no change")
+  expect_false(
+    identical(sampler$state, stored),
+    info = "the variance door stores when told: variance, no change stores too"
+  )
+  stored <- sampler$state
+  invisible(sampler$run(0L, 2L))
   sampler$setVarianceForest(power = 0.5, updateState = TRUE)
   expect_false(
     identical(sampler$state, stored),
@@ -1483,20 +1735,82 @@ case("the multinomial door takes the forest left out", {
   }
 })
 case("the multinomial statement refuses what it has none of", {
-  for (stated in list(list(sd = 1), list(amplitude = fixed()))) {
-    name <- names(stated)
-    live <- buildMultinomial()
-    message <- refusal(do.call(live$setForest, stated))
-    expect_false(identical(message, "taken"), info = paste("door", name))
-    expectFound(message, "multinomial", paste("door reason", name))
-    expectAsUntouched(live, buildMultinomial(), NULL, paste("refused", name))
-  }
   live <- buildMultinomial()
+  message <- refusal(live$setForest(sd = 1))
+  expect_false(identical(message, "taken"), info = "door sd")
+  expectFound(message, "multinomial", "door reason sd")
+  expectAsUntouched(live, buildMultinomial(), NULL, "refused sd")
   same(
     refusal(live$setForest(sd = 1)),
     refusal(buildMultinomial(list(sd = 1))),
     "an sd in the words of creation"
   )
+})
+# no category has a coefficient: fixed() states what is so, at creation and at
+# the door as an inert write, and student() and normal() are refused by
+# creation's words at both
+case("the multinomial door and amplitude", {
+  live <- buildMultinomial()
+  before <- live$model
+  live$setForest(amplitude = fixed())
+  same(live$model, before, "fixed() writes nothing")
+  expect_false(
+    "amplitude" %in% names(live$getForest()),
+    info = "the multinomial reader has no amplitude"
+  )
+  roundTripped <- buildMultinomial()
+  do.call(
+    roundTripped$setForest,
+    c(roundTripped$getForest(), amplitude = fixed())
+  )
+  same(
+    modelOf(roundTripped),
+    modelOf(buildMultinomial()),
+    "fixed() with a read"
+  )
+  same(
+    draws(live),
+    draws(buildMultinomial(list(amplitude = fixed()))),
+    "draws as creation with fixed()"
+  )
+  expectAsUntouched(
+    buildMultinomial(),
+    buildMultinomial(list(amplitude = fixed())),
+    NULL,
+    "as created with fixed()"
+  )
+  for (prior in list(student(2), normal())) {
+    word <- if (is(prior, "dbartsNormalPrior")) "normal()" else "student(2)"
+    live <- buildMultinomial()
+    atDoor <- refusal(live$setForest(amplitude = prior))
+    atCreation <- refusal(buildMultinomial(list(amplitude = prior)))
+    expect_false(identical(atDoor, "taken"), info = paste("door", word))
+    same(atDoor, atCreation, "the words of creation,", word)
+    expectAsUntouched(live, buildMultinomial(), NULL, paste("refused", word))
+    # with a good name beside it, nothing is written
+    atomic <- buildMultinomial()
+    invisible(refusal(atomic$setForest(power = 0.5, amplitude = prior)))
+    expectAsUntouched(atomic, buildMultinomial(), NULL, paste("atomic", word))
+  }
+})
+# the reader gives a category's moves from the statement, not the control, and
+# the door writes them to every category
+case("the multinomial door and the moves a statement gave", {
+  stated <- list(n.perturb.cuts = 5, proposal.probs = moved)
+  live <- buildMultinomial(stated)
+  read <- live$getForest()
+  same(read$n.perturb.cuts, 5, "the cuts stated")
+  same(read$proposal.probs[["perturb"]], 0.4, "the mixture stated")
+  for (which in list(1L, 2L, 3L, "b", "c")) {
+    same(live$getForest(which), read, "one list stating,", which)
+  }
+  live$setForest(n.perturb.cuts = 7)
+  twin <- buildMultinomial(list(n.perturb.cuts = 7, proposal.probs = moved))
+  same(modelOf(live), modelOf(twin), "records after a write")
+  same(draws(live), draws(twin), "draws after a write")
+  for (which in list(1L, 3L, "c")) {
+    same(live$getForest(which)$n.perturb.cuts, 7, "written,", which)
+  }
 })
 case("a name on the multinomial entry", {
   expectFound(

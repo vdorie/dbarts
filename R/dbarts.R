@@ -4169,9 +4169,14 @@ dbartsSampler <- setRefClass(
       n.perturb.cuts = NULL,
       treeShift = NULL,
       updateState = NULL,
+      n.trees = NULL,
+      vars = NULL,
+      interactions = NULL,
+      blocks = NULL,
+      basis = NULL,
       ...
     ) {
-      "Changes one forest, named by its position or label, in forest()'s names: sd, power, base, amplitude, proposal.probs, n.perturb.cuts and treeShift, each meaning what it means in forest() on that forest at creation. It changes only the names given, from the next sweep; no tree, leaf value or coefficient already drawn moves. A write changes the model. A name left out or NULL changes nothing, and so does a value equal to the one in force, which leaves the forest following what it followed, so the list getForest returns goes back as is. A forest that states a value is changed by stating another: nothing returns it to following the fitting function. On a model of one forest, sd is the size setLeafPrior(normal(sd = )) writes, and the later write wins between this door and setLeafPrior and setModel. Elsewhere sd is the forest's trees' scale: its size where the coefficient is held and its size at a coefficient of 1 where it is drawn, on a factor the difference between two levels' and on a numeric column per unit. A forest with no basis alone under the leaf prior leaves it at an sd stated for it, its k then pinned at 1; where forests share one prior total an sd other than the one in force is refused. amplitude takes the prior in force, and any other is refused for now. vars, n.trees, interactions and blocks are refused by name whatever their value, being part of the model, and a basis goes through setForestBasis. What creation refuses of a statement is refused here for the same reason, and every check comes before any write. A multinomial model's forests take one statement: forest is left out, sd and amplitude are refused and a depth reaches every category. Every change is recorded on the model, so a copy and a reload run what the sampler runs. A variance forest stays as it is. updateState follows control@updateState; see setData."
+      "Changes one forest, named by its position or label, in forest()'s names: sd, power, base, amplitude, proposal.probs, n.perturb.cuts and treeShift, each meaning what it means in forest() on that forest at creation. It changes only the names given, from the next sweep; no tree, leaf value or coefficient already drawn moves. A write changes the model. A name left out or NULL changes nothing, and so does a value equal to the one in force, which leaves the forest following what it followed, so the list getForest returns goes back as is. A forest that states a value is changed by stating another: nothing returns it to following the fitting function. On a model of one forest, sd is the size setLeafPrior(normal(sd = )) writes, and the later write wins between this door and setLeafPrior and setModel. Elsewhere sd is the forest's trees' scale: its size where the coefficient is held and its size at a coefficient of 1 where it is drawn, on a factor the difference between two levels' and on a numeric column per unit. A forest with no basis alone under the leaf prior leaves it at an sd stated for it, its k then pinned at 1; where forests share one prior total an sd other than the one in force is refused. amplitude takes the prior in force, and any other is refused for now. vars, n.trees, interactions and blocks are refused by name whatever their value, being part of the model, and a basis goes through setForestBasis. What creation refuses of a statement is refused here for the same reason, and every check comes before any write. A multinomial model's forests take one statement: forest is left out, sd is refused, amplitude takes fixed() and nothing else, and a depth reaches every category. Every change is recorded on the model, so a copy and a reload run what the sampler runs. A variance forest stays as it is. updateState follows control@updateState; see setData."
       vocabulary <- forestConstructors[FOREST_ARGUMENT_VOCABULARIES$forests]
       if (!missing(sd)) {
         sd <- evalInForestVocabulary(
@@ -4199,7 +4204,16 @@ dbartsSampler <- setRefClass(
           n.perturb.cuts = n.perturb.cuts,
           treeShift = treeShift
         ),
-        dotNames(...),
+        c(
+          c("n.trees", "vars", "interactions", "blocks", "basis")[c(
+            !missing(n.trees),
+            !missing(vars),
+            !missing(interactions),
+            !missing(blocks),
+            !missing(basis)
+          )],
+          dotNames(...)
+        ),
         updateState
       )
     },
@@ -4213,6 +4227,8 @@ dbartsSampler <- setRefClass(
       proposal.probs = NULL,
       n.perturb.cuts = NULL,
       updateState = NULL,
+      n.trees = NULL,
+      vars = NULL,
       ...
     ) {
       "Changes the variance forest of a heteroscedastic sampler: power, base, proposal.probs and n.perturb.cuts, as varianceForest() takes them, by setForest's rules. vars and n.trees are refused by name, and a sampler with no variance forest refuses the call. The variance forest takes the mean forest's depth at creation and is on its own after that. updateState follows control@updateState; see setData."
@@ -4224,7 +4240,10 @@ dbartsSampler <- setRefClass(
           proposal.probs = proposal.probs,
           n.perturb.cuts = n.perturb.cuts
         ),
-        dotNames(...),
+        c(
+          c("n.trees", "vars")[c(!missing(n.trees), !missing(vars))],
+          dotNames(...)
+        ),
         updateState
       )
     },
