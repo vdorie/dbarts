@@ -1189,7 +1189,9 @@ items
     that a sampler's own data handed back keeps its rows; it would move
     setData for every masked sampler. Until then the help says to hand
     back the 0/1 weights on the data object or to call setActiveRows
-    after.
+    after. Ruled by dec-B569 (the mask rides the data object as the 0/1
+    weights); planned as slice S4 of docs/plans/frequency-weights.md
+    (branch frequency-weights).
   rederive-same-range-ulp: a re-derivation that finds the range in
     force again is not a no-op in bits. GaussianResponse::setOffset
     and setResponse at updateScale = TRUE take sigma and its prior
@@ -1378,8 +1380,9 @@ frequency weights (decided, VD 2026-09-24; docs/decisions.md dec-B125)
   costs as much per sweep as an active row (half the rows masked 1.14
   of the full unmasked time, the active half alone 0.55). Design note:
   docs/design/frequency-weights.md (DECIDED 2026-11-03: dec-B563 to
-  dec-B570, with the binomial response of dec-B567); two binomial open
-  calls before a plan.
+  dec-B570, with the binomial response of dec-B567 and its dec-B573 and
+  dec-B574). Plan: docs/plans/frequency-weights.md (PLANNED 2026-11-03,
+  branch frequency-weights), eight slices with the binomial.
   With hurdle-completion landed (docs/plans/hurdle-completion.md,
   "Interaction with frequency-weights"), the resolution table's row for
   hurdle.lognormal and its refusal 4, both still reading "weights
