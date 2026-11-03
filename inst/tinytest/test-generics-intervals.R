@@ -192,8 +192,8 @@ expect_identical(
 )
 rm(fitN)
 
-# hurdle DOES discriminate: fitted.bartHurdle lost its 'sample' formal
-# outright (section 8), so slot 3 is ci.level with no other candidate
+# hurdle takes the same order as every class with a test channel: slot 3 is
+# 'sample', ci.level the fourth
 fitH <- bart(
   xSmall,
   ifelse(runif(n) < 0.5, 0, rlnorm(n)),
@@ -206,7 +206,11 @@ fitH <- bart(
   verbose = FALSE
 )
 expect_identical(
-  fitted(fitH, "ev", 0.9),
+  fitted(fitH, "ev", "train"),
+  fitted(fitH, type = "ev", sample = "train")
+)
+expect_identical(
+  fitted(fitH, "ev", "train", 0.9),
   fitted(fitH, type = "ev", ci.level = 0.9)
 )
 rm(fitH, n, xSmall)

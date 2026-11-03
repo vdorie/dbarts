@@ -1776,6 +1776,10 @@ bart <- function(
         "term"
       )
     }
+    # the training fits are not needed where a test set is given, which only
+    # the ingested data can say; bart2Hurdle refuses the rest
+    trainingFitsDropped <- !control@keepTrainingFits
+    control@keepTrainingFits <- TRUE
     checkFamilyUnsupportedArgs(
       "hurdle.lognormal",
       samplerOnly,
@@ -1784,6 +1788,7 @@ bart <- function(
       control,
       "the combined mean is built from the two training fits"
     )
+    control@keepTrainingFits <- !trainingFitsDropped
     warnFamilyGatedArgs(argNames, "hurdle.lognormal")
     # a data object is the whole data: what is written beside it is ignored,
     # with the warning dbartsData gives, so none of these arguments reaches the
@@ -1809,12 +1814,6 @@ bart <- function(
     ) {
       stop(
         "family = \"hurdle.lognormal\" does not support 'offset'/'offset.test'"
-      )
-    }
-    if (!besideDataObject && !missing(test)) {
-      stop(
-        "family = \"hurdle.lognormal\" does not take a 'test' set; the ",
-        "positive-part fit is given the full training x as its own x.test"
       )
     }
     return(withFamilySpec(
@@ -3258,11 +3257,52 @@ selectDesignRows <- function(x, rows) {
   selected
 }
 
+# A design as the matrix of codes the sampler's test channel reads.
+designCodes <- function(x) {
+  if (inherits(x, "dbartsMixedMatrix")) {
+    return(as.matrix(x))
+  }
+  attributes(x) <- attributes(x)[intersect(
+    names(attributes(x)),
+    c("dim", "dimnames")
+  )]
+  x
+}
+
+# The positive part's test rows: the n training rows, which hold the zero rows
+# it never trained on, then the test rows. Where the training fits are dropped
+# only the test rows are kept.
+stackedTestDesign <- function(ingested, trainingFits) {
+  test <- ingested@x.test
+  if (!trainingFits) {
+    return(test)
+  }
+  training <- designCodes(ingested@x)
+  if (is.null(test)) training else rbind(training, test)
+}
+
+# The names of those rows, aligned with them.
+stackedTestNames <- function(trainNames, testNames, n, m, trainingFits) {
+  if (!trainingFits) {
+    return(testNames)
+  }
+  if (m == 0L || (is.null(trainNames) && is.null(testNames))) {
+    return(trainNames)
+  }
+  if (is.null(trainNames)) {
+    trainNames <- as.character(seq_len(n))
+  }
+  if (is.null(testNames)) {
+    testNames <- as.character(n + seq_len(m))
+  }
+  c(trainNames, testNames)
+}
+
 # The two parts' data objects, cut from the hurdle's. The zero part keeps every
 # row and fits 1{y > 0}. The positive part keeps the positive rows and fits log
 # y, and its test rows are the n rows of the design, the zero rows among them,
 # which it never trained on.
-hurdlePartData <- function(ingested, split) {
+hurdlePartData <- function(ingested, split, trainingFits = TRUE) {
   rowNames <- dataRowNames(ingested, "train")
   zero <- ingested
   zero@y <- split$z
@@ -3279,7 +3319,7 @@ hurdlePartData <- function(ingested, split) {
   positive <- ingested
   positive@y <- split$logPositive
   positive@x <- selectDesignRows(ingested@x, split$positive)
-  positive@x.test <- ingested@x
+  positive@x.test <- stackedTestDesign(ingested, trainingFits)
   # the per-row inputs follow the rows, and the test rows are the n rows
   if (!is.null(ingested@weights)) {
     positive@weights <- ingested@weights[split$positive]
@@ -3294,7 +3334,18 @@ hurdlePartData <- function(ingested, split) {
     "train",
     if (!is.null(rowNames)) rowNames[split$positive]
   )
-  positive <- setDataRowNames(positive, "test", rowNames)
+  testNames <- dataRowNames(ingested, "test")
+  positive <- setDataRowNames(
+    positive,
+    "test",
+    stackedTestNames(
+      rowNames,
+      testNames,
+      NROW(ingested@x),
+      NROW(ingested@x.test),
+      trainingFits
+    )
+  )
   list(zero = zero, positive = positive)
 }
 
@@ -3369,9 +3420,19 @@ bart2Hurdle <- function(
   )
   omitted <- ingested@na.action
 
+  # the combined mean is read from the training fits unless a test set gives
+  # rows to read it at
+  if (!control@keepTrainingFits && is.null(ingested@x.test)) {
+    stop(
+      "family = \"hurdle.lognormal\" requires keepTrainingFits = TRUE (the ",
+      "default) unless a test set is given: the combined mean is built from ",
+      "the two training fits"
+    )
+  }
+
   split <- splitHurdleResponse(ingested@y)
   refuseHurdlePositiveMissingness(ingested@x, split$positive)
-  parts <- hurdlePartData(ingested, split)
+  parts <- hurdlePartData(ingested, split, control@keepTrainingFits)
 
   # independent per-component seeds derived deterministically from the
   # user's seed (the per-chain seed derivation); politely
@@ -3462,6 +3523,7 @@ bart2Hurdle <- function(
     positive = positive
   )
   result$row.names.train <- zero[["row.names.train"]]
+  result$row.names.test <- zero[["row.names.test"]]
   # the rows this hurdle fit as a whole dropped were dropped above, before
   # either component saw them; the positive component's own na.action is
   # over its y > 0 subset alone, a different domain that residuals()/fitted()

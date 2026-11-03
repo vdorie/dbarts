@@ -370,6 +370,13 @@ plot.bartHurdle <- function(
   cols = c("blue", "black"),
   ...
 ) {
+  if (is.null(x$zero[["yhat.train"]])) {
+    stop(
+      "plot requires bart to be called with 'keepTrainingFits' == TRUE ",
+      "and 'keepFits' == TRUE (the latter set FALSE automatically when ",
+      "'callback' is supplied, unless overridden)"
+    )
+  }
   oldpar <- par(no.readonly = TRUE)
   on.exit(par(oldpar), add = TRUE)
   if (is.null(x$positive[["fixed"]][["sigma"]])) {
@@ -397,6 +404,8 @@ plot.bartHurdle <- function(
 
   positiveRows <- x$y > 0
   fMat <- lastMarginMatrix(extract(x$positive, type = "bart", sample = "test"))
+  # the test channel holds the training rows first, then the test rows
+  fMat <- fMat[, seq_along(positiveRows), drop = FALSE]
   fBand <- drawInterval(fMat[, positiveRows, drop = FALSE], plquants)
   logY <- log(x$y[positiveRows])
   plot(

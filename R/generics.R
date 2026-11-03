@@ -1593,6 +1593,20 @@ refuseWithoutTrainingDraws <- function(object) {
   )
 }
 
+# a fit with no test channel has none to read, whether no test set rode the
+# call or keepFits dropped it
+refuseWithoutTestDraws <- function(object) {
+  if (!is.null(object[["yhat.test"]])) {
+    return(invisible(NULL))
+  }
+  stop(
+    "cannot extract test sample predictions: either no test data exists ",
+    "(use 'predict' instead), or the fit was run with 'keepFits' == ",
+    "FALSE (set automatically when 'callback' is supplied, unless ",
+    "overridden), which drops the channel even when test data exists"
+  )
+}
+
 extract.bart <- function(
   object,
   type = c(
@@ -1714,13 +1728,8 @@ extract.bart <- function(
     stop("cannot extract a test sample log-likelihood; no test response exists")
   }
 
-  if (sample == "test" && is.null(object[["yhat.test"]])) {
-    stop(
-      "cannot extract test sample predictions: either no test data exists ",
-      "(use 'predict' instead), or the fit was run with 'keepFits' == ",
-      "FALSE (set automatically when 'callback' is supplied, unless ",
-      "overridden), which drops the channel even when test data exists"
-    )
+  if (sample == "test") {
+    refuseWithoutTestDraws(object)
   }
   if (sample == "train") {
     refuseWithoutTrainingDraws(object)
@@ -4062,6 +4071,35 @@ codedRowDraws <- function(
   nameObservationMargin(result, rowNames)
 }
 
+# The positive part's log-scale draws at the training rows or the test rows,
+# both read from its one test channel: the n training rows, which hold the zero
+# rows it never trained on, then the m test rows. A fit kept without its
+# training fits holds the test rows alone.
+hurdleLogMean <- function(object, sample) {
+  f <- extract(
+    object$positive,
+    type = "bart",
+    sample = "test",
+    combineChains = FALSE
+  )
+  n <- length(object$y)
+  width <- dim(f)[length(dim(f))]
+  trainingKept <- !is.null(object$zero[["yhat.train"]])
+  columns <- if (!trainingKept) {
+    seq_len(width)
+  } else if (sample == "train") {
+    seq_len(n)
+  } else {
+    n + seq_len(width - n)
+  }
+  if (length(columns) == width) {
+    return(f)
+  }
+  index <- rep(list(TRUE), length(dim(f)))
+  index[[length(index)]] <- columns
+  do.call(`[`, c(list(f), index, list(drop = FALSE)))
+}
+
 # The zero part's pi(x), positive log-mean f(x), and positive per-observation
 # sigma draws for the combine, each a flat vector in the fit's uncombined
 # as.vector order, plus the uncombined 'shape' to fold back to. In-sample reads
@@ -4069,20 +4107,25 @@ codedRowDraws <- function(
 # fit's log-scale (bart) fits at the FULL-n rows through its x.test channel (the
 # zero rows it never trained on included); out-of-sample replays both saved
 # forests at the rows preparePredictRows kept, coded once for each component.
-hurdleParts <- function(object, rows = NULL, n.threads = 1L) {
+hurdleParts <- function(
+  object,
+  rows = NULL,
+  n.threads = 1L,
+  sample = "train"
+) {
   if (is.null(rows)) {
+    if (sample == "test") {
+      refuseWithoutTestDraws(object$zero)
+    } else {
+      refuseWithoutTrainingDraws(object$zero)
+    }
     pi <- extract(
       object$zero,
       type = "ev",
-      sample = "train",
+      sample = sample,
       combineChains = FALSE
     )
-    f <- extract(
-      object$positive,
-      type = "bart",
-      sample = "test",
-      combineChains = FALSE
-    )
+    f <- hurdleLogMean(object, sample)
   } else {
     pi <- codedRowDraws(
       object$zero,
@@ -4197,11 +4240,8 @@ extract.bartHurdle <- function(
   }
 
   sample <- validateSample(sample, eval(formals(extract.bartHurdle)$sample))
-  if (sample == "test") {
-    stop(
-      "this hurdle fit carries no separate test channel; call predict on ",
-      "newdata for out-of-sample combined draws"
-    )
+  if (type == "loglik" && sample == "test") {
+    stop("cannot extract a test sample log-likelihood; no test response exists")
   }
   n.chains <- hurdleNChains(object)
   if (type == "loglik") {
@@ -4212,7 +4252,7 @@ extract.bartHurdle <- function(
     ))
   }
   finishHurdle(
-    hurdleParts(object),
+    hurdleParts(object, sample = sample),
     type,
     n.chains,
     combineChains,
@@ -4253,10 +4293,12 @@ hurdleLogLik <- function(object) {
 fitted.bartHurdle <- function(
   object,
   type = c("ev", "ppd", "prob", "bart"),
+  sample = c("train", "test"),
   ci.level = NULL,
   ...
 ) {
   type <- resolveHurdleType(type, eval(formals(fitted.bartHurdle)$type))
+  sample <- validateSample(sample, eval(formals(fitted.bartHurdle)$sample))
   refuseUnusedGenericArgs(
     list(...),
     "fitted",
@@ -4266,18 +4308,18 @@ fitted.bartHurdle <- function(
       foreignArgsFor(fittedForeignReasons, names(formals(fitted.bartHurdle)))
     )
   )
-  # a hurdle fit has no separate test channel (extract.bartHurdle refuses
-  # sample = "test" unconditionally), so the read is always the training
-  # rows, which pad back to the caller's own row count through whatever
-  # the fit's na.action recorded
-  draws <- extract(object, type = type, sample = "train", combineChains = TRUE)
-  if (!is.null(ci.level)) {
-    return(padOmittedRows(
-      object[["na.action"]],
-      posteriorInterval(draws, ci.level)
-    ))
+  draws <- extract(object, type = type, sample = sample, combineChains = TRUE)
+  # the training rows pad back to the caller's own row count through whatever
+  # the fit's na.action recorded; the test rows are all the caller's
+  pad <- if (sample == "train") {
+    function(value) padOmittedRows(object[["na.action"]], value)
+  } else {
+    identity
   }
-  padOmittedRows(object[["na.action"]], channelMeans(draws))
+  if (!is.null(ci.level)) {
+    return(pad(posteriorInterval(draws, ci.level)))
+  }
+  pad(channelMeans(draws))
 }
 
 residuals.bartHurdle <- function(object, type = "ev", ...) {

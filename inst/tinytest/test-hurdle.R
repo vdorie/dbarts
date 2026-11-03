@@ -96,9 +96,13 @@ expect_equal(ppd, array(zeroDraw * amount, c(S, m)))
 expect_true(all(ppd >= 0))
 expect_true(any(ppd == 0)) # some draws land exactly on the zero spike
 
-# type validation and the absent test channel
+# type validation and the absent test channel (refused in the words every
+# family uses)
 expect_error(extract(h, type = "bogus"), pattern = "type must be")
-expect_error(extract(h, sample = "test"), pattern = "test channel")
+expect_error(
+  extract(h, sample = "test"),
+  pattern = "cannot extract test sample predictions"
+)
 
 # extract(type = "loglik"): the composed natural-scale density from the same
 # closed-form pi/f/sigma used above (NOT the sum of the two components' own
