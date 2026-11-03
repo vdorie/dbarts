@@ -4809,6 +4809,7 @@ fitSynopsis <- function(x) {
 }
 
 print.bart <- function(x, ...) {
+  refuseSavedBy09x(x[["fit"]])
   printCall(x)
   fitSynopsis(x)
   invisible(x)

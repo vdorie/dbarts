@@ -1695,10 +1695,8 @@ isSavedBy09x <- function(...) {
 
 ## What a fit or sampler saved by 0.9-x is refused with, at the doors that
 ## read its data, model or control: predict on new rows, extract of trees,
-## plotTree. A saved sampler's own methods are 0.9-x's copies, which the
-## saving session had installed on the object and which fail on their own
-## symbol lookups, so no code here can reach them; a method that was not
-## installed is this version's and reads the old slots.
+## plotTree, print, and every method of a saved sampler (the `$` method on
+## dbartsSampler).
 refuseSavedBy09x <- function(sampler, what = "fit") {
   if (
     is.environment(sampler) &&

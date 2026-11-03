@@ -156,16 +156,6 @@ items
     samplePriorPredictive already draws f from the prior at x.test; the
     helper would summarize it, or compute it in closed form where one
     exists (constant, linear).
-  legacy-object-message: a sampler saved by dbarts 0.9-34 errors at
-    first use with "object 'C_dbarts_isValidPointer' not found", its
-    own 0.9-34 methods running, and not with refuseLegacyState's
-    message as docs/design/state-frame-prior.md says; its copy() and
-    predict() fail on a missing slot (bases, counts). Of a 0.9-34 bart
-    or bart2 fit, fitted, extract and residuals work and predict fails
-    on the missing counts slot. Compatibility is owed to shipped
-    versions and 1.0-0 may break it with 0.9-34 (dec-B461); a message
-    naming the version and saying to refit is the item. Found by the state-frame-prior slice 1 review,
-    the same before the slice.
   multinomial-door-gaps: bart(family = "multinomial") refuses a data frame
     of counts that dbarts() takes, and takes a character matrix that
     dbarts() refuses; $setCounts refuses a vector as the wrong category

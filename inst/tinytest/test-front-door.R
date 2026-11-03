@@ -940,7 +940,32 @@ rm(slotFit, slotObject, sampleSlot)
 expect_identical(dim(predict(savedFit)), dim(stateFit$yhat.train))
 # and the live fit is never taken for one
 expect_identical(dim(predict(stateFit, xFD[1:3, ])), c(40L, 3L))
-rm(savedFit, savedData, savedMsg)
+# the sampler's own methods, reached through `$`: a saved sampler carries
+# 0.9-x's closures or falls through to this version's, and both failed on a
+# missing symbol or slot before; every method name is refused by name, and
+# the fields 0.9-x had read as they did
+savedSamplerMsg <- "sampler was saved by dbarts 0.9-x; dbarts 1.0-0 cannot read"
+savedSampler <- savedFit$fit
+expect_error(savedSampler$run(1L, 2L), pattern = savedSamplerMsg)
+expect_error(savedSampler$copy(), pattern = savedSamplerMsg)
+expect_error(savedSampler$getTrees(), pattern = savedSamplerMsg)
+expect_error(
+  savedSampler$predict(xFD[1:3, ]),
+  pattern = savedSamplerMsg
+)
+expect_error(savedSampler$setResponse(yFD), pattern = savedSamplerMsg)
+expect_error(print(savedSampler), pattern = savedSamplerMsg)
+expect_error(print(savedFit), pattern = savedMsg)
+expect_true(inherits(savedSampler$data, "dbartsData"))
+expect_true(inherits(savedSampler$control, "dbartsControl"))
+expect_true(inherits(savedSampler$model, "dbartsModel"))
+# a sampler of this version is not touched by the check
+expect_identical(dim(stateFit$fit$copy()$data@x), dim(stateFit$fit$data@x))
+expect_identical(
+  capture.output(print(stateFit))[1L],
+  capture.output(print(unserialize(serialize(stateFit, NULL))))[1L]
+)
+rm(savedFit, savedData, savedMsg, savedSampler, savedSamplerMsg)
 
 # --- a 0.9-x call with no BayesTree name runs here, and the first one in a
 # session says so with a classed message, not a warning ---

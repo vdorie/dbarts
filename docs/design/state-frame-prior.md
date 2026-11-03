@@ -125,8 +125,8 @@ and if values are supplied, use them. If explicit arguments are given, we could 
   where today they are converted from the standardization the donor's state records
   (retired: [`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp), gone in slice 2). The seeded fit then
   starts away from the donor's function where the two standardizations differ, and the next draws move it.
-- Saved objects. A 0.9-34 sampler is refused at its first use ([`refuseLegacyState`](../../R/tombstones.R)), as
-  today; a 0.9-34 data object has no slots and derives, as 0.9-34 did. An object saved by an earlier bartcore
+- Saved objects. A 0.9-34 sampler is refused at its first method call, through `$` on the object ([`refuseSavedBy09x`](../../R/tombstones.R)),
+  naming the version and saying to refit; its data, control and model fields read as before; a 0.9-34 data object has no slots and derives, as 0.9-34 did. An object saved by an earlier bartcore
   build has no record and derives afresh, as any record-less data object does; no migration (dec-B461:
   compatibility is owed to shipped versions only).
 - The flat C API has no record. A host that re-anchors through it changes the engine and leaves the R record
