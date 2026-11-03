@@ -714,8 +714,12 @@ Gates at slice 4: full suite in one process 40828 passed, 0 failed; tests/cpp 42
 ASan+UBSan on the touched files 0 diagnostics; reference build equivalence 55/55, bcf 19/19, multinomial 11/11 bitwise;
 exact arms (forest-prior-exact shared, probit-k-scale-exact, created-held-then-chi, bcf-exact, multinomial-exact), quick,
 pass; lintr, air, codoc, win-drift, doc-freshness, verify-anchors clean. On the rebased tip: the suite in one process,
-40641 passed, 0 failed, then none of the warnings a retired spelling gave. The x86 leg and CI follow the rebase onto
-main.
+40641 passed, 0 failed, then none of the warnings a retired spelling gave.
+The x86 leg (Linux, x86-64), on the rebased tip: install clean; the full suite 40769 passed, 0 failed; equivalence in
+statistical mode exit 0, bcf and multinomial --cross-host exit 0; tests/cpp 426 ok, plain and with ASan, UBSan and
+LeakSanitizer, after one fix there: g++ refused a local variable as a lambda's default argument in
+tests/cpp/test_state.cpp, which clang had taken, and a sentinel 0 now stands for the tree count. CI, all nine workflows,
+green on that tip.
 
 The calls made at slice 4 are in dec-A258. The follow-up TODO item setmodel-variance-forest-record names the one
 difference left between creation and `$setModel`: creation from a model reads its variance-forest record and

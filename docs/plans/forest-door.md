@@ -738,8 +738,12 @@ Gates, as run at each slice:
 
 On the rebased tip: the full suite in one process, 40641 passed and 0 failed with two warnings from one fixture in
 test-single-forest-vars.R (the retired control and tree-prior spellings), which now gives n.cuts and split.probs to
-`dbarts()`: the suite then prints none. lintr, air, codoc, win-drift and doc-freshness are clean. The x86 leg and CI
-follow the rebase onto main.
+`dbarts()`: the suite then prints none. lintr, air, codoc, win-drift and doc-freshness are clean.
+The x86 leg (Linux, x86-64), on the rebased tip: install clean; the full suite 40769 passed, 0 failed; equivalence in
+statistical mode exit 0, bcf and multinomial --cross-host exit 0; tests/cpp 426 ok, plain and with ASan, UBSan and
+LeakSanitizer, after one fix there: g++ refused a local variable as a lambda's default argument in
+tests/cpp/test_state.cpp, which clang had taken, and a sentinel 0 now stands for the tree count. CI, all nine workflows,
+green on that tip.
 
 The calls the plan and its builders made are in dec-A257 (slice 2) and dec-A259 (slice 3), beside setmodel-parameters'
 dec-A258. A changed `amplitude` is still refused by name at the door, `$setForest(1, sd = v, amplitude = student(df))`
