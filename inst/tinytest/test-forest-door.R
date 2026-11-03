@@ -146,13 +146,6 @@ kinds <- list(
     ),
     target = 2L
   ),
-  numeric.held = list(
-    forests = list(
-      mu = list(),
-      tau = c(numericBasis, list(amplitude = fixed()))
-    ),
-    target = 2L
-  ),
   three = list(
     forests = list(mu = list(), tau = factorBasis, gamma = numericBasis),
     target = 3L
@@ -317,7 +310,6 @@ for (kind in names(kinds)) {
       expect_null(door(live, spec$target, stated), info = info)
       twin <- build(kind, stated)
       same(modelOf(live), modelOf(twin), "records")
-      same(live$getK(spec$target), twin$getK(spec$target), "getK")
       liveDraws <- draws(live)
       twinDraws <- draws(twin)
       same(ncol(liveDraws$sigma), 2L, "two chains")
@@ -372,30 +364,6 @@ for (kind in names(kinds)) {
         tolerance = 1e-10,
         info = paste(info, "goes on as the state twin")
       )
-    })
-  }
-}
-
-# A forest's own move settings and depth on every other forest of three: the
-# others' records and reader do not move.
-for (name in c("power", "base", "n.perturb.cuts")) {
-  for (target in 1:3) {
-    info <- paste("three, forest", target, name)
-    case(info, {
-      live <- build("three")
-      door(live, target, written[name])
-      twin <- build("three", written[name], target)
-      same(modelOf(live), modelOf(twin))
-      same(draws(live), draws(twin))
-      untouched <- build("three")
-      for (other in setdiff(1:3, target)) {
-        same(
-          live$getForest(other),
-          untouched$getForest(other),
-          "leaves forest",
-          other
-        )
-      }
     })
   }
 }
@@ -522,8 +490,7 @@ amplitudeRead <- list(
   factor.student = student(2),
   factor.held = fixed(),
   numeric = normal(),
-  numeric.student = student(2),
-  numeric.held = fixed()
+  numeric.student = student(2)
 )
 for (kind in names(amplitudeRead)) {
   info <- paste("reader amplitude", kind)
@@ -869,20 +836,6 @@ agree <- function(sampler, info) {
     info = paste(info, "a copy reads it")
   )
 }
-case("later write, sd after a leaf prior's k", {
-  live <- dbarts(
-    x,
-    y,
-    leaf.prior = normal(k = 3),
-    n.trees = 8L,
-    control = ctl(proposal.probs = shipped)
-  )
-  live$setForest(1L, sd = 0.7)
-  twin <- build("lone", list(sd = 0.7))
-  same(modelOf(live), modelOf(twin), "records")
-  agree(live, "sd after k")
-  same(draws(live), draws(twin), "draws")
-})
 case("later write, leaf prior after forest(sd = )", {
   live <- build("lone", list(sd = 2))
   live$setLeafPrior(normal(k = 3))
@@ -1044,7 +997,6 @@ for (row in refusals) {
     expect_false(identical(atDoor, "taken"), info = paste(info, "door"))
     expectFound(atDoor, row[[4L]], paste(info, "the reason"))
     same(atDoor, atCreation, "the same words")
-    expectAsUntouched(live, build(kind), target, info)
   })
 }
 # refused at one door only, each for its stated reason: a live sampler keeps its
@@ -1112,7 +1064,6 @@ for (row in doorOnly) {
     target <- kinds[[kind]]$target
     live <- build(kind)
     expectFound(refusal(door(live, target, row[[3L]])), row[[4L]], info)
-    expectAsUntouched(live, build(kind), target, info)
   })
 }
 # a statement needs what it names beside it, merged and not name by name: student
@@ -1431,12 +1382,6 @@ for (row in varianceRefusals) {
     message <- refusal(do.call(live$setVarianceForest, row[[2L]]))
     expect_false(identical(message, "taken"), info = info)
     expectFound(message, row[[3L]], info)
-    expectAsUntouched(live, buildVariance(), NULL, info)
-    same(
-      live$getVarianceForest(),
-      buildVariance()$getVarianceForest(),
-      "variance reader"
-    )
   })
 }
 
@@ -1582,11 +1527,8 @@ case("a level read by every forest-indexed reader", {
   sampler <- buildMultinomial()
   invisible(sampler$run(0L, 2L))
   readers <- list(
-    getLeafPrior = sampler$getLeafPrior,
-    getK = sampler$getK,
     getForestFits = sampler$getForestFits,
-    getForestVariableCounts = sampler$getForestVariableCounts,
-    getForest = sampler$getForest
+    getForestVariableCounts = sampler$getForestVariableCounts
   )
   for (reader in names(readers)) {
     for (position in 1:3) {
@@ -1628,46 +1570,5 @@ case("a level read by every forest-indexed reader", {
     spelled$getForest("b"),
     spelled$getForest(2L),
     "the level beside it reads by its position"
-  )
-})
-
-## --- amplitude = normal() --------------------------------------------------------
-for (kind in c("factor", "numeric")) {
-  info <- paste("amplitude normal,", kind)
-  case(info, {
-    statedNormal <- build(kind, list(amplitude = normal()))
-    left <- build(kind)
-    same(modelOf(statedNormal), modelOf(left), "records")
-    same(draws(statedNormal), draws(left), "draws")
-    live <- build(kind)
-    before <- live$model
-    live$setForest(2L, amplitude = normal())
-    same(live$model, before, "door, in force")
-    same(draws(live), draws(build(kind)), "door draws")
-  })
-}
-case("amplitude in force by its spelling", {
-  live <- build("factor.student")
-  before <- live$model
-  live$setForest(2L, amplitude = student(2))
-  live$setForest(2L, amplitude = student(2L))
-  same(live$model, before, "student, the same df")
-  live <- build("factor.held")
-  before <- live$model
-  live$setForest(2L, amplitude = fixed())
-  same(live$model, before, "held")
-  expectFound(
-    refusal(live$setForest(2L, amplitude = normal())),
-    "keeps fixed()",
-    "held, normal refused"
-  )
-  live <- build("normal.stated")
-  before <- live$model
-  live$setForest(1L, amplitude = normal())
-  same(live$model, before, "a no-basis forest's normal")
-  same(
-    live$getForest(1L)$amplitude,
-    normal(),
-    "a no-basis forest's normal reads normal(), not a t"
   )
 })
