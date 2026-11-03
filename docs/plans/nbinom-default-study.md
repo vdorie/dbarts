@@ -12,6 +12,12 @@ and C5's scratch build passed its drift tests, Part B is in the harness, revised
 findings, and the smoke ran clean on its own seeds ([Box readiness](#box-readiness)): about 48 core-hours
 expected before confirmation, the stop at 110. Pre-registered the same day, before any study fit was
 scored ([Pre-registration](#pre-registration)). Runs after the merge to main and before 1.0-0.
+The first look kept the default (finding of 2026-10-31); two chi priors with a raised scale were read after it, and a
+fresh block under dec-B556 tested chi(2.75, 2) and kept the default again
+([Amendment before the fresh block](#amendment-before-the-fresh-block)). Under dec-B558 the default stays and the
+question stays open: the defect in R's designed truths was fixed, every R reading was rescored from stored draws with no
+verdict moving ([The defect in R's truth, and its rescoring](#the-defect-in-rs-truth-and-its-rescoring)), and the
+finding, docs/design/nbinom-default-study.md, was corrected.
 
 agent: the blind critique (opus) ran; this revision answers it. One opus implementer writes the harness,
 runs it and writes the finding; an opus review of the harness, the scratch build and the smoke at stage 4,
@@ -1197,7 +1203,7 @@ the maintainer rules.
 
 ## The defect in R's truth, and its rescoring
 
-Found by both referees after the fresh block (dec-B558). In [`designedBase`](../../benchmarks/R/nbinom-default-study.R)
+Found after the fresh block and fixed under dec-B558. In [`designedBase`](../../benchmarks/R/nbinom-default-study.R)
 the designed cells' log mean before scaling was `g(b)`, evaluated inside `with(x, ...)`; `x` has a column `b`, which
 masked the argument, so `truthAt(1)` and `truthAt(2)` both returned the truth at each row's observed `b`. The truth
 of R's per-row log rate ratio, and of its sample-average rate ratio, was therefore exactly 0 on D1, D2, D3, D4-2,
@@ -1209,6 +1215,55 @@ The fix keeps `b` outside `with(x, ...)`. A check sourcing the old and the fixed
 `truth` and the covariates identical on all nine designed cells; `truthAt(1)` equal to `truthAt(2)` before the fix
 on the seven, and different after it, the per-row effect's sd 0.37 (D1), 0.42 (D2), 0.40 (D3), 0.92 (D4-2), 1.39
 (D4-3), 0.61 (D6) and 0.12 (D8); the row's observed `b` picking out `truth` again; and D5 and D7 unchanged.
+
+**The rescoring.** No fit. Every stored reading of R on the seven cells was rescored against the corrected truth by
+[`scoreReading`](../../benchmarks/R/nbinom-default-study.R): the first look's five candidates and C6, its long and
+default-length runs; the two added chi priors as composed; the search's eight settings on stored draws; the
+sensitivity priors; and the fresh block, long and default length, reweighted and own runs. Rescoring with the old
+truth reproduces every stored table exactly. The statistics are recomputed by
+[`lookStatistics`](../../benchmarks/R/nbinom-default-study.R) and the outcomes by
+[`enumerateDecisions`](../../benchmarks/R/nbinom-default-study.R).
+
+**No registered verdict moves.** The first look's five fail as before and its outcome is the default; the added reading
+of the two chi priors keeps its statuses and order; the search's pick is unchanged; the fresh block's reading 1 passes,
+reading 2 does not, step 5 passes, and the rule keeps the default. The information fraction and boundary computed from
+the corrected scores move from 0.3788 and 3.4595 to 0.3805 and 3.4507 at the first look, and from 0.6863 and 2.471 to
+0.6806 and 2.482 on all replications; no status differs at either, and the finding's tables keep the registered
+boundaries.
+
+What moves, old then corrected (standard error):
+
+| reading | R's gap less the default's | R's interval score ratio | rank |
+|---|---|---|---|
+| first look, chi(4, 1.03) | -0.0030 (0.0032) to -0.0071 (0.0027) | 0.777 to 0.774 | -0.0026 to -0.0047 |
+| first look, chi(5, 0.9) | -0.0087 (0.0029) to -0.0102 (0.0031) | 0.742 to 0.739 | -0.0058 to -0.0065 |
+| first look, C4 at 0.6 | -0.0084 (0.0023) to -0.0108 (0.0023) | 0.674 to 0.678 | -0.0049 to -0.0061 |
+| first look, C4 at 0.75 | +0.0019 (0.0036) to -0.0051 (0.0037) | 0.649 to 0.654 | -0.0001 to -0.0035 |
+| first look, C5 at 1.3 | -0.0015 (0.0147) to -0.0055 (0.0147), pending | 0.700 to 0.702 | +0.0002 to -0.0018 |
+| first look, chi(3, 1.75) composed | +0.0019 (0.0026) to -0.0021 (0.0022) | 0.813 to 0.810 | +0.0004 to -0.0017 |
+| first look, chi(2.75, 2) composed | -0.0042 (0.0025) to -0.0063 (0.0027) | 0.832 to 0.830 | -0.0020 to -0.0030 |
+| block, all replications | -0.0039 (0.0022) to -0.0058 (0.0046) | 0.851 to 0.850 | - |
+| block, new alone | -0.0002 (0.0026), pass, to +0.0072 (0.0074), z 1.73, not passed | 0.893 to 0.893 | +0.0005 to +0.0042 |
+| C6, stored draws | +0.0019 (0.0011) to +0.0055 (0.0025) | 0.999 to 1.000 | - |
+
+- **First look.** C4 at 0.75's flag on R in D4-3 (+0.203, the default covering 1.000 and it 0.593) goes: it reads
+  -0.059, at 0.855. C4 at 0.75 still fails on four cells, D4-3's G among them. C5's R stays pending, z 1.47 to 1.73. On
+  the default, R's 90 percent coverage on the middle band rises from 0.859 to 0.892 long and 0.837 to 0.868 at default
+  length; narrow and small move by 0.001.
+- **The added chi priors.** chi(2.75, 2)'s lead over chi(3, 1.75) falls from 0.0023 (0.0013) to 0.0013 (0.0009); both
+  are still tied and the order is unchanged. Step 5's R on the first look reads +0.0001 (0.0046), upper 0.0091, against
+  +0.0083 (0.0046), upper 0.0173.
+- **The search.** Corrected ranks, in the order of the table above: -0.0028, -0.0019, -0.0014, -0.0033, -0.0033,
+  -0.0039, -0.0020, -0.0030, against -0.0019, -0.0010, -0.0006, -0.0014, -0.0014, -0.0020, -0.0003, -0.0012 there. Their
+  spread is 0.0025, so all eight stay tied by 0.005; chi(3.5, 1.25)'s R goes from pending to pass, and it still fails.
+  The table above stays as it was registered.
+- **The fresh block.** Reading 2 now has two statistics not passed, R's gap beside G's interval score. That R comes
+  from one replication of D8, where chi(2.75, 2)'s own run misses the sample-average rate ratio and the default covers it;
+  reweighted, that replication covers. Step 5's R, all replications: +0.0041 (0.0038), upper 0.0116, to +0.0013
+  (0.0039), upper 0.0091; new alone -0.0017 (0.0039), upper 0.0060, to -0.0010 (0.0034), upper 0.0057.
+- **Sensitivity.** chi(7, 0.75) goes from pending on R to failing on R's interval score, 0.966 to 1.099; chi(10, 0.62)
+  still fails, 1.071 to 1.076. With G's near-zero groups set apart, C4 at 0.75 fails at the 0.001 and 0.003 lines on G
+  and is pending from 0.01 up, where it had failed on R in D4-3; every outcome is unchanged.
 
 ## How the result goes to the maintainer
 
