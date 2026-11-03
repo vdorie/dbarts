@@ -1237,10 +1237,26 @@ sbcCheckVarianceChannel <- function(config, seed = 99L) {
 # state, whose glue block is [K, q_1..q_K, amplitudes, K prior variances] - here
 # K = 2 with widths (1, 2) - and which is re-installed exactly as stored in
 # every other respect, the rng included.
+#
+# a's prior is a scale mixture, a | v ~ N(0, v) with v ~ IG(1/2, s^2 / 2), and
+# the engine carries v as live state beside a. A glue drawn at a scale s
+# (glue$aScale) installs v from its conditional given the installed a,
+# IG(1, (s^2 + a^2) / 2), so the state is a draw from the joint prior and not
+# a with whatever v the last chain left. b0 and b1 carry a fixed variance,
+# which no draw moves. A held glue states no scale and installs no v.
 sbcInstallBCFGlue <- function(bcf, glue) {
   bcf$storeState()
   state <- bcf$state
-  state[[1L]][["glue"]][4:6] <- c(glue$a, glue$b0, glue$b1)
+  block <- state[[1L]][["glue"]]
+  K <- as.integer(block[1L])
+  first <- 2L + K
+  numAmplitudes <- sum(block[2L:(1L + K)])
+  block[first:(first + 2L)] <- c(glue$a, glue$b0, glue$b1)
+  if (!is.null(glue$aScale)) {
+    rate <- 0.5 * (glue$aScale^2 + glue$a^2)
+    block[first + numAmplitudes] <- 1 / rgamma(1L, shape = 1, rate = rate)
+  }
+  state[[1L]][["glue"]] <- block
   if (!isTRUE(bcf$setState(state))) {
     stop("the state with the drawn glue was not installed")
   }
@@ -1252,7 +1268,8 @@ sbcBCFGlueDraw <- function(aPriorScale, bPriorVariance) {
     list(
       a = rcauchy(1L, 0, aPriorScale),
       b0 = rnorm(1L, 0, sqrt(bPriorVariance)),
-      b1 = rnorm(1L, 0, sqrt(bPriorVariance))
+      b1 = rnorm(1L, 0, sqrt(bPriorVariance)),
+      aScale = aPriorScale
     )
   }
 }
