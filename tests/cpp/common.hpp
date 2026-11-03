@@ -488,6 +488,7 @@ double chiSquareUpperTail(double statistic, double df);
 
 // One entry point per translation unit, called from main() in original
 // test order; each runs its area's tests, filtered by suite name there.
+void runNmathTests();
 void runDataTests();
 void runTreeTests(ext_rng* rng);
 void runScanTests();

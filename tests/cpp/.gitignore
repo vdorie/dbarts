@@ -2,3 +2,4 @@ test_bartcore
 *.o
 *.d
 *.dSYM/
+build-standalone/
