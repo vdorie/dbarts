@@ -1,9 +1,13 @@
 # forest-amplitude-normal: the trees carry a forest's `sd`, a drawn coefficient is a multiplier with median 1, and a drawn normal on a forest with no basis
 
-Status: PLANNED 2026-10-30 (dec-B539), rewritten for dec-B550 on 555906d37: the trees carry a forest's `sd` on every forest, held or
+Status: LANDED 2026-11-03 (dec-B562), one slice: built, reviewed LAND with its fix round. sbc's bcf arms under the rule dec-B557
+set tripped on one functional of 70, bcf-probit's `abs.a`, which a diagnosis read as shared with the base; the maintainer landed it
+on that reading, a longer-burn rerun of bcf-probit to follow (TODO sbc-bcf-probit-burn; [Landing note](#landing-note)). Planned
+2026-10-30 (dec-B539), rewritten for dec-B550 on 555906d37: the trees carry a forest's `sd` on every forest, held or
 drawn; a drawn coefficient is a multiplier with median 1, `fixed()` exactly 1; a write of `sd` sets the trees' scale and moves no
-leaf, coefficient or auxiliary, before the first sweep too. No call is open. Earlier blind critiques read other forms; a fresh one
-read this form and this text takes its findings, each reread against the code at 7f53d1c78. Rulings: dec-B550, dec-B539 (the coefficient), with dec-B510 (`student()`, its words revised by dec-B550),
+leaf, coefficient or auxiliary, before the first sweep too. Earlier blind critiques read other forms; a fresh one
+read this form and this text takes its findings, each reread against the code at 7f53d1c78. Rulings: dec-B562 (landing), dec-B557
+(the sbc rule), dec-B550, dec-B539 (the coefficient), with dec-B510 (`student()`, its words revised by dec-B550),
 dec-B511 (the coefficient's prior live, its own item), dec-B513 (`fixed()` on a lone forest), dec-B522 (`normal()` has a value to
 write, no return spelling), dec-B528 (a constant basis column refused), dec-B540 (`$setLeafPrior` on the one forest that draws).
 The runs behind this form: a port of the ruled form onto slice F in scratch/fan-plan3 (patch-f.py, patch-f-r.py, fpe-f.R, runs/),
@@ -843,3 +847,30 @@ No functional the tree flagged on the first seed flags again, and no identified 
 The discrimination check, the old generator against the new engine on `bcf-weak` at the same size: `abs.diff` 0.1740 flags against 0.0671, its chi-square p 0.000. `abs.a` does not separate them at this size, 0.0576 against 0.0697, and the small run's gap of 0.31 against 0.18 does not repeat. The generator's self-check reads the rule's IQR of 2 and b's sd of 1.049.
 
 The burn ladders as a cost check, not gating, 40,000 sweeps over 28 data sets: `burn-bcf-probit` 181 us a sweep, `burn-bcf-logistic` 206. Read as cost only: no burn was adjudicated.
+
+### The rule run and its trip
+
+dec-B557 replaced the pass rule above: a replay of all six arms, four fresh seeds pooled, and a flag count. The replay first
+read as failing on every arm because its length counted thinned blocks, so it ran 20 times longer than stated, past where
+the two chains part; it counts sweeps now.
+
+- The replay, one block of 20 sweeps over 40 replications: all six arms agree, worst 5.5e-10.
+- Seeds 20261113 to 20261116 on both libraries, 48 runs, 8.9 core-hours, pooled to R 800: one functional of 70 fails,
+  `bcf-probit`'s `abs.a`, the branch's gap 0.0773 against the band of 0.0693 at .05/70 (z +2.94), the base's 0.0464 (z
+  +0.06). `bcf`'s `sigma` is past the z bar on both (-3.75 and -4.11), so it does not fail. The five functionals flagged on
+  the driver's seed are all under their .01 band of 0.0561. The flag count at 0.0924: 25 on the branch, 23 on the base, of
+  280, sign-flip p 0.931.
+
+The diagnosis found no difference between the generator and the engine on either library and no inexact move. `abs.a`'s
+ranks are U-shaped on both libraries, equally, on every bcf arm, most on `bcf-probit` and `bcf`. On eight further seeds
+named before any fit, 20261123 to 20261130 (R 1600, band 0.0477), the split reversed: the base past the band at 0.0538,
+the branch not at 0.0441. Over all 22 seeds (R 4400, band 0.0295) both are past it, the branch at 0.0469 (z +2.59) and the
+base at 0.0493 (z +1.61). The rule's "past the band and the base is not" turns a deficit both share into a coin flip over
+which library crosses first.
+
+The reading: the harness starts each chain at the truth in the glue with fresh trees, and the burn is too short for the
+trees to take up the signal at large |a|, so the drawn |a| runs small (z positive) and `bcf`'s sigma large. Two stale
+starts turned up on the way, a's mixing variance and, under gaussian, sigma, each carried over from the last chain; each
+BCF replication now installs them with the truth, a's variance drawn given the installed a. The runs above predate those
+fixes, but both are redrawn every sweep from their exact conditionals, so neither can move ranks at these burns. dec-B562 landed the item on that reading. Whether a longer burn, or a start fully at the truth, removes the U is not
+run: TODO sbc-bcf-probit-burn.
