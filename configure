@@ -5451,7 +5451,7 @@ printf '%s\n' "#define COMPILER_SUPPORTS_SSE2 1" >>confdefs.h
 
     fi
 
-    if test x"$ax_compiler_supports_sse41_ext" = x"yes"; then
+    if test x"$ax_compiler_supports_sse4_1_ext" = x"yes"; then
 
 printf '%s\n' "#define COMPILER_SUPPORTS_SSE4_1 1" >>confdefs.h
 

@@ -109,7 +109,7 @@ AC_DEFUN([AX_COMPILER_EXT],
       AC_DEFINE(COMPILER_SUPPORTS_SSE2,1,[Support SSE2 (Streaming SIMD Extensions 2) instructions])
     fi
     
-    if test x"$ax_compiler_supports_sse41_ext" = x"yes"; then
+    if test x"$ax_compiler_supports_sse4_1_ext" = x"yes"; then
       AC_DEFINE(COMPILER_SUPPORTS_SSE4_1,1,[Support SSSE4.1 (Streaming SIMD Extensions 4.1) instructions])
     fi
     
