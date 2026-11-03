@@ -88,6 +88,9 @@ scenarioList <- function() {
   framed <- fac
   rownames(framed$x) <- paste0("s", seq_len(n))
   zl <- zeroRowsLevel(n, 3L)
+  mixed <- fac
+  mixed$x$h <- sample(c(TRUE, FALSE), n, TRUE)
+  mixed$x$s <- sample(c("m", "n", "o"), n, TRUE)
   naZero <- missingAt(num, zeroOnly(num), 1L)
   naPositive <- missingAt(num, positiveOnly(num), 2L)
   naBoth <- missingAt(
@@ -145,7 +148,23 @@ scenarioList <- function() {
     ),
     keep_trees_false = with(num, keepTrees = FALSE),
     leaf_prior_k = with(num, k = 1.5),
-    power_base = with(num, power = 1.5, base = 0.9)
+    power_base = with(num, power = 1.5, base = 0.9),
+    n_cuts = with(num, n.cuts = 12L, useQuantiles = TRUE),
+    factors_indicators = with(fac, factors = "indicators"),
+    keep_call_false = with(num, keepCall = FALSE),
+    storage_single = with(num, storage = "single"),
+    thinned = with(num, n.thin = 2L),
+    mixed_columns = with(mixed),
+    one_column = with(list(x = num$x[, 1L, drop = FALSE], y = num$y)),
+    negative_y = with(list(x = num$x, y = replace(num$y, 3L, -1))),
+    infinite_y = with(list(x = num$x, y = replace(num$y, 3L, Inf))),
+    all_positive = with(list(x = num$x, y = abs(num$y) + 1)),
+    all_zero = with(list(x = num$x, y = num$y * 0)),
+    short_y = with(list(x = num$x, y = num$y[-1L])),
+    variance_refused = with(num, variance = "hetero"),
+    keep_fits_refused = with(num, keepFits = FALSE),
+    sampler_only_refused = with(num, samplerOnly = TRUE),
+    leaf_prior_sd_refused = with(num, leaf.prior = quote(normal(sd = 0.5)))
   )
 }
 
