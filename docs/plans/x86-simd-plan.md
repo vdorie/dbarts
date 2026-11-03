@@ -4,8 +4,10 @@ Status: this memo's top two recommendations landed. R0 (the build break in
 src/include/external/stats.h, missing `Rf_dnorm4`/`Rf_qnorm5` externs) is
 fixed; both are now declared in stats.h. R1 (AVX2 misdetection from a stale
 cpuid leaf-7 subleaf) is fixed in src/misc/simd.c, which now calls
-`__get_cpuid_count` with an explicit subleaf. Open: R1b (the
-COMPILER_SUPPORTS_SSE4_1 configure.ac inconsistency, low priority); R2
+`__get_cpuid_count` with an explicit subleaf. R1b (FINDING 1b, the
+undefined COMPILER_SUPPORTS_SSE4_1) is fixed in tools/m4/ax_compiler_ext.m4,
+whose define tested a misspelled variable (dec-A260); no number below was
+measured on an SSE4.1 kernel, the box dispatching to AVX2. Open: R2
 (SIMD indexed suffstat under a fast/reference toggle) and R3 (the
 do-not-bother list) were measured, not implemented, and remain open only if
 toggle infrastructure is built for other reasons. R2's 32 percent share
