@@ -1377,8 +1377,9 @@ frequency weights (decided, VD 2026-09-24; docs/decisions.md dec-B125)
   the unweighted one, an all-ones mask nothing, and a row masked out
   costs as much per sweep as an active row (half the rows masked 1.14
   of the full unmasked time, the active half alone 0.55). Design note:
-  docs/design/frequency-weights.md (PROPOSED 2026-11-03), seven open
-  calls for the maintainer before a plan.
+  docs/design/frequency-weights.md (DECIDED 2026-11-03: dec-B563 to
+  dec-B570, with the binomial response of dec-B567); two binomial open
+  calls before a plan.
   With hurdle-completion landed (docs/plans/hurdle-completion.md,
   "Interaction with frequency-weights"), the resolution table's row for
   hurdle.lognormal and its refusal 4, both still reading "weights
