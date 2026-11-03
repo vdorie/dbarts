@@ -506,6 +506,12 @@ public:
   /// off a map forest. Chain::setForestMapSd states
   /// the semantics.
   virtual bool setForestMapSd(std::size_t forestIndex, double sd) = 0;
+  /// States a calibration-map forest's coefficient on every chain: held, or
+  /// drawn from df (NaN none, +inf the normal), with a finite sd stated first;
+  /// false, writing nothing, where any chain refuses it.
+  /// Chain::setForestCoefficientPrior states the semantics.
+  virtual bool setForestCoefficientPrior(std::size_t forestIndex, bool held,
+                                         double df, double sd) = 0;
   /// Installs (or clears, at a null pointer) a per-observation 0/1 active-row
   /// mask in every chain; false, installing nothing, when the family
   /// implements none or an element is not exactly 0 or 1. The values are
@@ -889,6 +895,10 @@ public:
   }
   bool setForestMapSd(std::size_t forestIndex, double sd) override {
     return impl_.setForestMapSd(forestIndex, sd);
+  }
+  bool setForestCoefficientPrior(std::size_t forestIndex, bool held, double df,
+                                 double sd) override {
+    return impl_.setForestCoefficientPrior(forestIndex, held, df, sd);
   }
   bool setActiveRows(const double* active) override {
     return impl_.setActiveRows(active);

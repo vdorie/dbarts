@@ -1283,10 +1283,9 @@ public:
     // the map's held entry, one spelling of that size, so that a held fit
     // keeps its draws; it reads as the sharer it is (forestCalibration). One
     // left of a group keeps its part on the k path.
-    const bool heldAtDefaultK =
-      sharers_.size() == 1 && shareOf(sharers_.front()) == 1.0 &&
-      !options_.updateK && options_.k == SamplerOptions{}.k &&
-      !std::isfinite(options_.namedSd);
+    const bool heldAtDefaultK = sharers_.size() == 1 &&
+                                shareOf(sharers_.front()) == 1.0 &&
+                                leafPriorKeepsHeldEntry();
     if (heldAtDefaultK) {
       forestMap_[sharers_.front()].heldAtDefaultK = true;
       sharers_.clear();
@@ -1882,6 +1881,81 @@ public:
            forestSdUnit_ > 0.0 && std::isfinite(forestSdUnit_);
   }
 
+  /// States map forest f's coefficient as a creation stating it does, from
+  /// the next sweep: \p held holds it at its kind's value, otherwise \p df is
+  /// what it is drawn from (ForestStatement::amplitudeDf; NaN on a forest
+  /// with no basis holds it), and a finite \p sd is stated first as
+  /// setForestMapSd states it, a sharer leaving its group. The statement is
+  /// written before any entry is resolved, so every later write reads it.
+  ///
+  /// No leaf moves, and the trees' scale moves only where the fitting
+  /// function's leaf prior gave it: a forest holding the whole of that prior,
+  /// released, takes the size the prior gives (leafPriorSize), its k pinned
+  /// at 1, off the k path; one stating a df and no sd, held again, is placed
+  /// as creation places a lone sharer (resolveLoneSharer), a drawn k starting
+  /// at the spread in force; the last forest left of a group, released,
+  /// states its part in force as its sd, sqrt(share) times the prior's size,
+  /// which a share set once keeps. Every other forest keeps its node factor.
+  ///
+  /// The combiner takes the new prior whole (ForestCombiner's
+  /// setForestAmplitudePrior): a hold sets the block at once, a release
+  /// leaves it to be drawn from where it stands, and a t's variance starts at
+  /// the normal's where it did not mix before. Nothing is drawn. False,
+  /// writing nothing, where takesForestCoefficientPrior does not hold.
+  bool setForestCoefficientPrior(std::size_t f, bool held, double df,
+                                 double sd) {
+    if (!takesForestCoefficientPrior(f, held, df, sd)) return false;
+    MapForest& mapped = forestMap_[f];
+    const CoefficientRoute route =
+      coefficientRoute(f, held, df, !std::isnan(sd));
+    const double sdWas = forestCalibration(f).mapSd;
+    if (route == CoefficientRoute::statePart)
+      sd = std::sqrt(mapped.entry.share) * leafPriorSize() * forestSdUnit_;
+    mapped.statement.updateAmplitude = !held;
+    mapped.statement.amplitudeDf =
+      held ? std::numeric_limits<double>::quiet_NaN() : df;
+    if (!std::isnan(sd)) setForestMapSd(f, sd);
+    switch (route) {
+    case CoefficientRoute::joinLeafPrior:
+      resolveLoneSharer(f, options_.k, sdWas);
+      break;
+    case CoefficientRoute::ownEntry:
+    case CoefficientRoute::leaveLeafPrior:
+    case CoefficientRoute::statePart:
+      takeOwnEntry(f);
+      break;
+    default:
+      break;
+    }
+    const ForestAmplitudePrior& prior = mapped.entry.amplitudePrior;
+    double normalVariance = std::numeric_limits<double>::quiet_NaN();
+    if (prior.update && prior.mixtureScale > 0.0) {
+      ForestStatement normal = mapped.statement;
+      normal.amplitudeDf = std::numeric_limits<double>::infinity();
+      normalVariance = forestMapEntry(normal, mapped.kind, forestSdUnit_,
+                                      leafPriorSize(), mapped.basisScale)
+                         .amplitudePrior.variance;
+    }
+    combiner_->setForestAmplitudePrior(f, prior, mapped.kind, normalVariance);
+    return true;
+  }
+
+  /// Whether setForestCoefficientPrior can write (\p held, \p df, \p sd) on
+  /// forest f: a map forest; a df that is NaN, +inf or at least 1; an sd
+  /// that is NaN or one setForestMapSd takes; a held block with a value for
+  /// its kind; and, on a forest with no basis stating no sd and given none, a
+  /// release only of a forest that is not one of two or more sharing a total,
+  /// under a leaf prior with a positive finite size, and a hold of one
+  /// stating a df only where no other forest takes the leaf prior.
+  bool takesForestCoefficientPrior(std::size_t f, bool held, double df,
+                                   double sd) const {
+    if (!combiner_ || f >= forestMap_.size()) return false;
+    if (!(std::isnan(df) || df >= 1.0)) return false;
+    if (!std::isnan(sd) && !takesForestMapSd(f, sd)) return false;
+    return coefficientRoute(f, held, df, !std::isnan(sd)) !=
+           CoefficientRoute::refused;
+  }
+
   /// Whether installFittingLeafPrior can write \p prior on this chain: a
   /// combining chain with one forest with no basis, or several of which one or
   /// more share the total. The one stating a coefficient's df takes its size
@@ -1941,10 +2015,7 @@ public:
         // its own coefficient, which the prior does not reach: the trees'
         // scale alone is resolved again, as creation resolves a df forest
         // stating no sd
-        mapped.entry = forestMapEntry(mapped.statement, mapped.kind,
-                                      forestSdUnit_, leafPriorSize(),
-                                      mapped.basisScale);
-        forests_[f].leaf.scale = mapLeafScale(f);
+        takeOwnEntry(f);
         return;
       }
       resolveLoneSharer(f, kInForce, sdWas);
@@ -6290,6 +6361,82 @@ private:
     translateNamedSd(forest);
   }
 
+  /// Whether a forest holding the whole of the options' leaf prior alone
+  /// keeps the map's held entry rather than sharing the total by itself: a
+  /// held k of the default and no named sd. The one test creation and every
+  /// later placement read, so each places such a forest alike.
+  bool leafPriorKeepsHeldEntry() const {
+    return !options_.updateK && options_.k == SamplerOptions{}.k &&
+           !std::isfinite(options_.namedSd);
+  }
+
+  /// What setForestCoefficientPrior does on forest f. refused: nothing it
+  /// can do; inert: the statement alone, the entry being the one creation
+  /// gives the statement already (a hold of a forest on the leaf prior);
+  /// ownEntry: the entry resolved again with no share; leaveLeafPrior: the
+  /// same for a forest holding the whole of the leaf prior, released;
+  /// joinLeafPrior: a forest stating a df and no sd, held, placed on the
+  /// leaf prior; statePart: the last left of a group, released, stating its
+  /// part first.
+  enum class CoefficientRoute {
+    refused, inert, ownEntry, leaveLeafPrior, joinLeafPrior, statePart
+  };
+  CoefficientRoute coefficientRoute(std::size_t f, bool held, double df,
+                                    bool statesSd) const {
+    const MapForest& mapped = forestMap_[f];
+    const bool plain = mapped.kind == ForestKind::none;
+    const bool drawn = !held && !(plain && std::isnan(df));
+    if (!drawn) {
+      std::size_t width = combiner_->numForestAmplitudes(f);
+      if ((mapped.kind == ForestKind::levels && width != 2) ||
+          (mapped.kind == ForestKind::numeric && width != 1))
+        return CoefficientRoute::refused;
+    }
+    if (statesSd || !plain || !std::isnan(mapped.statement.sd) ||
+        !std::isnan(mapped.statement.sdMultiple))
+      return CoefficientRoute::ownEntry;
+    if (!std::isnan(mapped.statement.amplitudeDf)) {
+      if (drawn) return CoefficientRoute::ownEntry;
+      if (!sharers_.empty()) return CoefficientRoute::refused;
+      for (std::size_t g = 0; g < forestMap_.size(); ++g)
+        if (forestMap_[g].heldAtDefaultK) return CoefficientRoute::refused;
+      return CoefficientRoute::joinLeafPrior;
+    }
+    if (!drawn) return CoefficientRoute::inert;
+    const bool sharer = isSharer(f);
+    const double size = leafPriorSize();
+    if ((sharer && sharers_.size() > 1) || !(size > 0.0) ||
+        !std::isfinite(size))
+      return CoefficientRoute::refused;
+    if (!sharer || mapped.entry.share == 1.0)
+      return CoefficientRoute::leaveLeafPrior;
+    return takesForestMapSd(f, std::sqrt(mapped.entry.share) * size *
+                                 forestSdUnit_)
+             ? CoefficientRoute::statePart
+             : CoefficientRoute::refused;
+  }
+
+  /// Gives map forest f an entry of its own, resolved from its statement
+  /// with no share, as creation resolves a forest outside every group: out of
+  /// the group if it shared one, k pinned at 1, no named sd, off the held
+  /// entry, its leaf scale from the map. A forest already outside keeps its
+  /// k, which the map pins at 1 already.
+  void takeOwnEntry(std::size_t f) {
+    MapForest& mapped = forestMap_[f];
+    Forest<L, ResidT>& forest = forests_[f];
+    mapped.entry = forestMapEntry(mapped.statement, mapped.kind, forestSdUnit_,
+                                  leafPriorSize(), mapped.basisScale);
+    mapped.heldAtDefaultK = false;
+    auto sharer = std::find(sharers_.begin(), sharers_.end(), f);
+    if (sharer != sharers_.end()) {
+      sharers_.erase(sharer);
+      forest.updateK = false;
+      forest.k = 1.0;
+      forest.namedSd = std::numeric_limits<double>::quiet_NaN();
+    }
+    forest.leaf.scale = mapLeafScale(f);
+  }
+
   /// Resolves forest \p f, the one forest of the chain that can share the
   /// total and stating no sd, as creation under the options' leaf prior does:
   /// the map's held entry at a held k of the default, or the total alone. A
@@ -6298,9 +6445,7 @@ private:
   void resolveLoneSharer(std::size_t f, double kInForce, double sdWas) {
     MapForest& mapped = forestMap_[f];
     Forest<L, ResidT>& forest = forests_[f];
-    const bool heldAtDefaultK = !options_.updateK &&
-                                options_.k == SamplerOptions{}.k &&
-                                !std::isfinite(options_.namedSd);
+    const bool heldAtDefaultK = leafPriorKeepsHeldEntry();
     const double share =
       heldAtDefaultK ? std::numeric_limits<double>::quiet_NaN() : 1.0;
     mapped.entry = forestMapEntry(mapped.statement, mapped.kind, forestSdUnit_,

@@ -66,6 +66,33 @@ struct TestPeer {
                                         std::size_t f) {
     return chain.forestMap_[f].entry;
   }
+  /// Map forest f's statement, and whether it keeps the map's held entry.
+  template <IntegrableLeafModel L, typename R>
+  static const ForestStatement& mapStatement(const Chain<L, R>& chain,
+                                             std::size_t f) {
+    return chain.forestMap_[f].statement;
+  }
+  template <IntegrableLeafModel L, typename R>
+  static bool heldAtDefaultK(const Chain<L, R>& chain, std::size_t f) {
+    return chain.forestMap_[f].heldAtDefaultK;
+  }
+  /// Forest f's coefficient prior as the combiner holds it, its variance the
+  /// live mixing variance where it mixes, and its block.
+  template <IntegrableLeafModel L, typename R>
+  static const ForestAmplitudePrior& amplitudePrior(const Chain<L, R>& chain,
+                                                    std::size_t f) {
+    const auto* combiner =
+      dynamic_cast<const AmplitudeForestCombiner<L, R>*>(chain.combiner_.get());
+    return combiner->glue_.prior[f];
+  }
+  template <IntegrableLeafModel L, typename R>
+  static std::vector<double> amplitudeBlock(const Chain<L, R>& chain,
+                                            std::size_t f) {
+    const auto* combiner =
+      dynamic_cast<const AmplitudeForestCombiner<L, R>*>(chain.combiner_.get());
+    const double* block = combiner->glue_.amplitudesOf(f);
+    return std::vector<double>(block, block + combiner->glue_.numAmplitudes(f));
+  }
   /// Tree t of forest f, and the location the chain hands a latent redraw.
   template <IntegrableLeafModel L, typename R>
   static const Tree& forestTree(const Chain<L, R>& chain, std::size_t f,

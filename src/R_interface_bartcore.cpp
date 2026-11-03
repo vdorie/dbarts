@@ -5812,6 +5812,44 @@ SEXP bartcore_setForestSd(SEXP ptrExpr, SEXP forestExpr, SEXP sdExpr) {
   return R_NilValue;
 }
 
+// States one calibration-map forest's coefficient, as forest(amplitude = )
+// does at creation: held TRUE holds it, otherwise df is what it is drawn from,
+// the record's amplitude.df (NA none, Inf the normal on a forest with no
+// basis); sd, in the response's units, is stated with it where not NA, in the
+// same engine call, so every chain is checked for both before either is
+// written. What is refused is R's to decide; the engine's false backstops it.
+SEXP bartcore_setForestCoefficient(SEXP ptrExpr, SEXP forestExpr,
+                                   SEXP heldExpr, SEXP dfExpr, SEXP sdExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
+  size_t forestIndex = forestIndexFrom(forestExpr, shape);
+  if (!Rf_isLogical(heldExpr) || Rf_xlength(heldExpr) != 1 ||
+      LOGICAL(heldExpr)[0] == NA_LOGICAL)
+    Rf_error("whether a coefficient is held must be TRUE or FALSE");
+  if (!Rf_isReal(dfExpr) || Rf_xlength(dfExpr) != 1 || !Rf_isReal(sdExpr) ||
+      Rf_xlength(sdExpr) != 1)
+    Rf_error("a coefficient's df and a forest's sd must each be one number, "
+             "or NA");
+  bool held = LOGICAL(heldExpr)[0] == TRUE;
+  double df = REAL(dfExpr)[0], sd = REAL(sdExpr)[0];
+  if (ISNAN(df)) df = std::numeric_limits<double>::quiet_NaN();
+  if (ISNAN(sd)) {
+    sd = std::numeric_limits<double>::quiet_NaN();
+  } else {
+    if (!std::isfinite(sd) || sd <= 0.0)
+      Rf_error("a forest's sd must be a positive finite number");
+    bartcore::ForestCalibration calibration =
+      holder.sampler->forestCalibration(0, forestIndex);
+    if (!std::isnan(calibration.mapAnchor) &&
+        (!(calibration.mapUnit > 0.0) || !std::isfinite(calibration.mapUnit)))
+      Rf_error("%s", bartcore_bridge::forestSdUnitMessage);
+  }
+  if (!holder.sampler->setForestCoefficientPrior(forestIndex, held, df, sd))
+    Rf_error("this forest's coefficient cannot be given that prior on this "
+             "sampler");
+  return R_NilValue;
+}
+
 // Installs one forest's tree prior on every chain: forest a 0-based mean
 // forest index, or -1 the variance forest. It reads explicit numbers, not
 // records, and checks them as creation does before any chain is written, so

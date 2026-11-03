@@ -53,7 +53,7 @@ enum class FacadeVirtual {
   sumOfSquaredResiduals,
   printTrees, rng, data, latents, sigma, shapeParameter, setForestBasis,
   setForestBasisRescaled, setForestWeights, forestCalibration, setForestNamedSd, setForestFixedK,
-  setForestMapSd, setActiveRows, rederiveScale,
+  setForestMapSd, setForestCoefficientPrior, setActiveRows, rederiveScale,
   setCounts, setCategoryOffset, setCategoryTestOffset, totalAmplitudes,
   numForestAmplitudes, amplitudes, forestTotalFits, fitsWithoutOffset,
   currentVarianceFits, forestVariableCounts, numTreesInForest,
@@ -245,6 +245,8 @@ public:
   SPY_RET(bool, setForestNamedSd, (std::size_t f, double s), (f, s))
   SPY_RET(bool, setForestFixedK, (std::size_t f, double k), (f, k))
   SPY_RET(bool, setForestMapSd, (std::size_t f, double s), (f, s))
+  SPY_RET(bool, setForestCoefficientPrior,
+          (std::size_t f, bool h, double d, double s), (f, h, d, s))
   SPY_RET(bool, setActiveRows, (const double* a), (a))
   SPY_RET(ResponseUpdateResult, rederiveScale, (), ())
   SPY_RET(bool, setCounts, (const int* c, const int* t), (c, t))
@@ -1534,6 +1536,24 @@ const Row rows[] = {
     check(f.b.impl().forestCalibration(0, 1).namedSd == 0.7 &&
             f.b.impl().forestCalibration(0, 1).mapSd == 0.7,
           "facade setForestMapSd: the impl reports the stated sd");
+  }},
+  {FacadeVirtual::setForestCoefficientPrior, "setForestCoefficientPrior",
+   [](Fixtures& f) {
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    check(!f.g.base().setForestCoefficientPrior(0, true, nan, nan) &&
+            !f.m.base().setForestCoefficientPrior(0, true, nan, nan) &&
+            !f.b.base().setForestCoefficientPrior(1, false, 0.5, nan) &&
+            !f.b.base().setForestCoefficientPrior(2, true, nan, nan),
+          "facade setForestCoefficientPrior: a forest off any map, a df "
+          "below 1 and an absent forest refuse");
+    double variance =
+      f.b.impl().forestCalibration(0, 1).amplitudePriorVariance;
+    check(f.b.base().setForestCoefficientPrior(1, false, nan, nan) &&
+            !f.b.impl().forestCalibration(0, 1).amplitudeHeld &&
+            f.b.impl().forestCalibration(0, 1).amplitudePriorVariance ==
+              variance,
+          "facade setForestCoefficientPrior: a map forest takes the prior in "
+          "force, which the impl reports unchanged");
   }},
   {FacadeVirtual::setActiveRows, "setActiveRows", [](Fixtures& f) {
     std::vector<double> mask(Fixtures::n, 1.0);

@@ -2938,6 +2938,18 @@ public:
     for (auto& chain : chains_) chain->setForestMapSd(forestIndex, sd);
     return true;
   }
+  /// States map forest forestIndex's coefficient on EVERY chain; false,
+  /// writing nothing, where a chain refuses it, every chain checked first.
+  /// Chain::setForestCoefficientPrior states the semantics.
+  bool setForestCoefficientPrior(size_t forestIndex, bool held, double df,
+                                 double sd) {
+    for (const auto& chain : chains_)
+      if (!chain->takesForestCoefficientPrior(forestIndex, held, df, sd))
+        return false;
+    for (auto& chain : chains_)
+      chain->setForestCoefficientPrior(forestIndex, held, df, sd);
+    return true;
+  }
   /// Whether the response family implements the active-row channel; chain 0
   /// answers for all, as every chain carries the same family.
   bool supportsActiveRows() const { return chains_[0]->supportsActiveRows(); }

@@ -15364,6 +15364,782 @@ static void testSharerLeave() {
   printf("ok: sharer leave\n");
 }
 
+// A map forest's coefficient written live (Chain::setForestCoefficientPrior):
+// each transition on each kind against a creation twin, the forests the
+// fitting function's leaf prior sizes released and held again, the last left
+// of a group released, the rescaling step and later writes after each route,
+// the refusals, an sd with a release in one call, and a state across a call.
+static void testCoefficientPriorLive() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 511511u;
+  const size_t n = 160, p = 3, numChains = 2;
+  auto normal = [] {
+    double u1 = runif01(), u2 = runif01();
+    return std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
+  };
+  std::vector<double> x(n * p), y(n), yBinary(n), block(2 * n), column(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    double eta = std::sin(3.0 * x[i]) + x[i + n] - 0.5 * x[i + 2 * n];
+    y[i] = eta + 0.3 * normal();
+    yBinary[i] = eta - 0.2 + normal() > 0.0 ? 1.0 : 0.0;
+    double level = x[i + 2 * n] > 0.5 ? 1.0 : 0.0;
+    block[2 * i] = 1.0 - level;
+    block[2 * i + 1] = level;
+    column[i] = 0.5 + x[i + n];
+  }
+  const double rawScale = 0.37804942330213542;
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  const double inf = std::numeric_limits<double>::infinity();
+  const double third = 1.0 / 3.0;
+  const double z = 0.6744897501960817;
+  std::vector<std::vector<ext_rng*>> allRngs;
+  struct Stated {
+    ForestKind kind = ForestKind::none;
+    size_t numTrees = 20;
+    double sd = std::numeric_limits<double>::quiet_NaN();
+    double df = std::numeric_limits<double>::quiet_NaN();
+    bool held = false;
+    double share = std::numeric_limits<double>::quiet_NaN();
+  };
+  using Model = std::vector<Stated>;
+  auto optionsFor = [&](ResponseFamily family, bool drawn, double k) {
+    SamplerOptions options;
+    options.numChains = numChains;
+    options.nodeScale = family == ResponseFamily::gaussian ? 0.5 : 3.0;
+    options.updateK = drawn;
+    options.k = k;
+    options.kHyperprior.degreesOfFreedom = 1.5;
+    options.kHyperprior.scale = 2.0;
+    return options;
+  };
+  auto build = [&](ResponseFamily family, const SamplerOptions& options,
+                   const Model& model, unsigned seed) {
+    AmplitudeSpec spec;
+    spec.family = family;
+    spec.forests.resize(model.size());
+    for (size_t f = 0; f < model.size(); ++f) {
+      ForestSpec& forest = spec.forests[f];
+      forest.forest.numTrees = model[f].numTrees;
+      forest.kind = model[f].kind;
+      forest.sd = model[f].sd;
+      forest.amplitudeDf = model[f].df;
+      forest.updateAmplitude = !model[f].held;
+      forest.share = model[f].share;
+      if (forest.kind == ForestKind::levels) {
+        forest.basis = block.data();
+        forest.numBasisColumns = 2;
+      } else if (forest.kind == ForestKind::numeric) {
+        forest.basis = column.data();
+      }
+    }
+    allRngs.push_back(makeDrawRngs(numChains, seed));
+    return std::make_unique<ConstantLeafSampler>(
+      x.data(),
+      family == ResponseFamily::gaussian ? y.data() : yBinary.data(), n, p,
+      nullptr, nullptr, 1.0, 3.0, rawScale, options, spec,
+      allRngs.back().data());
+  };
+  auto drawsOf = [&](ConstantLeafSampler& sampler, size_t sweeps) {
+    std::vector<double> sigma(numChains * sweeps), k(numChains * sweeps),
+      fits(numChains * n * sweeps);
+    Results results;
+    results.sigma = sigma.data();
+    results.k = k.data();
+    results.trainingFits = fits.data();
+    sampler.run(0, sweeps, results);
+    fits.insert(fits.end(), sigma.begin(), sigma.end());
+    fits.insert(fits.end(), k.begin(), k.end());
+    return fits;
+  };
+  auto sameBits = [](const std::vector<double>& a,
+                     const std::vector<double>& b) {
+    if (a.size() != b.size()) return false;
+    for (size_t i = 0; i < a.size(); ++i)
+      if (!(a[i] == b[i] || (std::isnan(a[i]) && std::isnan(b[i]))))
+        return false;
+    return true;
+  };
+  // the fields structure() gives each forest, after the group and its -1;
+  // the leaf scale first, the node factor third
+  const size_t fields = 17;
+  // what the model holds of each forest on every chain: the group, the leaf
+  // scale, whether k is drawn, the entry, the statement and the coefficient's
+  // prior but a mixing variance
+  auto structure = [&](ConstantLeafSampler& sampler, size_t numForests) {
+    std::vector<double> out;
+    for (size_t c = 0; c < numChains; ++c) {
+      Chain<ConstantGaussianLeaf>& chain = sampler.chain(c);
+      for (size_t f : TestPeer::sharers(chain))
+        out.push_back(static_cast<double>(f));
+      out.push_back(-1.0);
+      for (size_t f = 0; f < numForests; ++f) {
+        const ForestMapEntry& entry = TestPeer::mapEntry(chain, f);
+        const ForestStatement& statement = TestPeer::mapStatement(chain, f);
+        const ForestAmplitudePrior& prior = TestPeer::amplitudePrior(chain, f);
+        bool mixing = prior.update && prior.mixtureScale > 0.0;
+        out.insert(out.end(),
+                   {TestPeer::leafScale(chain, f),
+                    static_cast<double>(TestPeer::forestUpdateKAt(chain, f)),
+                    entry.nodeScaleFactor, entry.sdMultiple, entry.share,
+                    statement.sd, statement.amplitudeDf,
+                    static_cast<double>(statement.updateAmplitude),
+                    static_cast<double>(TestPeer::heldAtDefaultK(chain, f)),
+                    mixing ? -1.0 : prior.variance, prior.mixtureScale,
+                    static_cast<double>(prior.update), prior.mixtureDf,
+                    entry.amplitudePrior.variance,
+                    entry.amplitudePrior.mixtureScale,
+                    static_cast<double>(entry.amplitudePrior.update),
+                    entry.amplitudePrior.mixtureDf});
+      }
+    }
+    return out;
+  };
+  // where the chain stands: k, the blocks, a mixing variance and the leaves
+  auto standing = [&](ConstantLeafSampler& sampler, const Model& model) {
+    std::vector<double> out;
+    for (size_t c = 0; c < numChains; ++c) {
+      Chain<ConstantGaussianLeaf>& chain = sampler.chain(c);
+      for (size_t f = 0; f < model.size(); ++f) {
+        out.push_back(TestPeer::forestKAt(chain, f));
+        out.push_back(TestPeer::amplitudePrior(chain, f).variance);
+        std::vector<double> values = TestPeer::amplitudeBlock(chain, f);
+        out.insert(out.end(), values.begin(), values.end());
+        for (size_t t = 0; t < model[f].numTrees; ++t) {
+          const std::vector<double>& mu =
+            TestPeer::forestMuByTree(chain, f, t);
+          out.insert(out.end(), mu.begin(), mu.end());
+        }
+      }
+    }
+    return out;
+  };
+  auto leavesOf = [&](ConstantLeafSampler& sampler, const Model& model) {
+    std::vector<double> out;
+    for (size_t c = 0; c < numChains; ++c)
+      for (size_t f = 0; f < model.size(); ++f)
+        for (size_t t = 0; t < model[f].numTrees; ++t) {
+          const std::vector<double>& mu =
+            TestPeer::forestMuByTree(sampler.chain(c), f, t);
+          out.insert(out.end(), mu.begin(), mu.end());
+        }
+    return out;
+  };
+  auto everyChain = [&](ConstantLeafSampler& sampler, auto predicate) {
+    bool all = true;
+    for (size_t c = 0; c < numChains; ++c)
+      all = all && predicate(sampler.chain(c), c);
+    return all;
+  };
+  auto blockIs = [&](ConstantLeafSampler& sampler, size_t f,
+                     const std::vector<double>& values) {
+    return everyChain(sampler, [&](Chain<ConstantGaussianLeaf>& chain, size_t) {
+      return TestPeer::amplitudeBlock(chain, f) == values;
+    });
+  };
+  auto varianceIs = [&](ConstantLeafSampler& sampler, size_t f, double v) {
+    return everyChain(sampler, [&](Chain<ConstantGaussianLeaf>& chain, size_t) {
+      return TestPeer::amplitudePrior(chain, f).variance == v;
+    });
+  };
+  const Stated plain{ForestKind::none, 30};
+  auto with = [](Stated forest, double sd, double df, bool held) {
+    forest.sd = sd;
+    forest.df = df;
+    forest.held = held;
+    return forest;
+  };
+  std::string message;
+  auto say = [&](const std::string& text) {
+    message = text;
+    return message.c_str();
+  };
+
+  // ---- each transition on each kind, against its creation twin ----
+  {
+    const Model base = {with(plain, 0.5, nan, false),
+                        {ForestKind::numeric, 20}, {ForestKind::levels, 12}};
+    // the normal's variance on each kind: 1 / z^2 with no basis, kappa /
+    // 0.674^2 with one
+    const double normalVariance[3] = {1.0 / (z * z), 1.0 / (0.674 * 0.674),
+                                      0.5 / (0.674 * 0.674)};
+    const std::vector<double> heldBlock[3] = {{1.0}, {1.0}, {0.0, 1.0}};
+    const char* kindName[3] = {"no basis", "numeric", "factor"};
+    check(std::fabs(normalVariance[0] - 2.1981) < 1e-4 &&
+            std::fabs(normalVariance[1] - 2.2013) < 1e-4 &&
+            std::fabs(normalVariance[2] - 1.1007) < 1e-4,
+          "coefficient live: the normal's variances");
+    struct Transition {
+      bool fromHeld;
+      double fromDf;  // NaN: the kind's normal
+      bool toHeld;
+      double toDf;
+      const char* label;
+    };
+    const Transition transitions[] = {
+      {false, nan, true, nan, "hold"},
+      {true, nan, false, nan, "release to normal()"},
+      {true, nan, false, 3.0, "release to student(3)"},
+      {false, nan, false, 3.0, "normal() to student(3)"},
+      {false, 3.0, false, nan, "student(3) to normal()"},
+      {false, 3.0, false, 5.0, "student(3) to student(5)"}};
+    for (ResponseFamily family :
+         {ResponseFamily::gaussian, ResponseFamily::probit}) {
+      SamplerOptions options = optionsFor(family, false, 2.0);
+      for (size_t f = 0; f < 3; ++f) {
+        double normalDf = f == 0 ? inf : nan;
+        for (const Transition& move : transitions) {
+          std::string label =
+            std::string(" (") + kindName[f] + ", " + move.label +
+            (family == ResponseFamily::probit ? ", probit)" : ")");
+          Model from = base, to = base;
+          from[f] = with(base[f], base[f].sd,
+                         std::isnan(move.fromDf) ? normalDf : move.fromDf,
+                         move.fromHeld);
+          if (move.fromHeld) from[f].df = nan;
+          to[f] = with(base[f], base[f].sd,
+                       move.toHeld ? nan
+                       : std::isnan(move.toDf) ? normalDf
+                                               : move.toDf,
+                       move.toHeld);
+          auto live = build(family, options, from, 9100 + f);
+          auto twin = build(family, options, to, 9100 + f);
+          std::vector<double> before = structure(*live, 3),
+                              leaves = leavesOf(*live, from);
+          std::vector<double> blockBefore =
+            TestPeer::amplitudeBlock(live->chain(1), f);
+          check(live->setForestCoefficientPrior(f, move.toHeld, to[f].df, nan),
+                say("coefficient live: taken" + label));
+          std::vector<double> after = structure(*live, 3);
+          check(sameBits(after, structure(*twin, 3)),
+                say("coefficient live: the model is the creation twin's" +
+                    label));
+          bool scales = everyChain(
+            *live, [&](Chain<ConstantGaussianLeaf>& chain, size_t c) {
+              const ForestMapEntry& entry = TestPeer::mapEntry(chain, f);
+              const ForestMapEntry& was = TestPeer::mapEntry(twin->chain(c), f);
+              return entry.nodeScaleFactor == was.nodeScaleFactor &&
+                     entry.sdMultiple == was.sdMultiple &&
+                     TestPeer::leafScale(chain, f) ==
+                       TestPeer::leafScale(twin->chain(c), f);
+            });
+          // the leaf scale and node factor ahead of the prior's own fields
+          check(scales && before[1 + fields * f] == after[1 + fields * f] &&
+                  before[3 + fields * f] == after[3 + fields * f] &&
+                  sameBits(leaves, leavesOf(*live, from)),
+                say("coefficient live: no leaf, node factor or leaf scale "
+                    "moves" + label));
+          bool releases = move.fromHeld && !move.toHeld;
+          bool exempt = releases || (f == 0 && !move.fromHeld &&
+                                     std::isnan(move.fromDf) &&
+                                     !std::isnan(move.toDf));
+          if (move.toHeld)
+            check(blockIs(*live, f, heldBlock[f]),
+                  say("coefficient live: a hold sets the block at once" +
+                      label));
+          if (releases)
+            check(blockIs(*live, f, heldBlock[f]) &&
+                    varianceIs(*live, f, normalVariance[f]),
+                  say("coefficient live: a release starts the block at the "
+                      "held value and the variance at the normal's" + label));
+          if (!move.fromHeld && !move.toHeld)
+            check(TestPeer::amplitudeBlock(live->chain(1), f) == blockBefore,
+                  say("coefficient live: a df changed leaves the block" +
+                      label));
+          if (!move.fromHeld && std::isnan(move.fromDf) &&
+              !std::isnan(move.toDf))
+            check(varianceIs(*live, f, normalVariance[f]),
+                  say("coefficient live: a t's variance starts at the "
+                      "normal's" + label));
+          if (!exempt)
+            check(drawsOf(*live, 8) == drawsOf(*twin, 8),
+                  say("coefficient live: draws bitwise as the creation "
+                      "twin, two chains" + label));
+        }
+
+        // after a run: student(df) to normal() resets the variance, a df
+        // changed keeps it, normal() to student(df) starts it at the
+        // normal's
+        Model studentModel = base;
+        studentModel[f].df = 3.0;
+        auto live = build(family, options, studentModel, 9200 + f);
+        drawsOf(*live, 4);
+        std::vector<double> drawn(numChains);
+        for (size_t c = 0; c < numChains; ++c)
+          drawn[c] = TestPeer::amplitudePrior(live->chain(c), f).variance;
+        bool kept = live->setForestCoefficientPrior(f, false, 5.0, nan) &&
+                    everyChain(*live, [&](Chain<ConstantGaussianLeaf>& chain,
+                                          size_t c) {
+                      const ForestAmplitudePrior& prior =
+                        TestPeer::amplitudePrior(chain, f);
+                      return prior.variance == drawn[c] &&
+                             prior.mixtureDf == 5.0 && drawn[c] != 1.0;
+                    });
+        check(kept, say(std::string("coefficient live: a df changed keeps "
+                                    "the drawn variance (") +
+                        kindName[f] + ")"));
+        check(live->setForestCoefficientPrior(f, false, normalDf, nan) &&
+                varianceIs(*live, f, normalVariance[f]),
+              say(std::string("coefficient live: student(df) to normal() "
+                              "resets the variance (") +
+                  kindName[f] + ")"));
+        drawsOf(*live, 2);
+        check(live->setForestCoefficientPrior(f, false, 3.0, nan) &&
+                varianceIs(*live, f, normalVariance[f]),
+              say(std::string("coefficient live: normal() to student(df) "
+                              "after a run starts at the normal's (") +
+                  kindName[f] + ")"));
+      }
+    }
+  }
+
+  // ---- a forest the leaf prior sizes whole, released and held again ----
+  {
+    struct Setting {
+      ResponseFamily family;
+      bool drawn;
+      double k;
+      double namedSd;
+      const char* label;
+    };
+    const Setting settings[] = {
+      {ResponseFamily::gaussian, false, 2.0, nan, "held k 2"},
+      {ResponseFamily::gaussian, false, 3.0, nan, "held k 3"},
+      {ResponseFamily::gaussian, false, 2.0, 0.7, "named sd"},
+      {ResponseFamily::gaussian, true, 2.0, nan, "drawn k"},
+      {ResponseFamily::probit, true, 2.0, nan, "probit"}};
+    const Model models[] = {
+      {plain, {ForestKind::numeric, 20}},
+      {plain, with({ForestKind::none, 20}, 0.5, nan, false)},
+      {plain, with({ForestKind::none, 20}, 0.5, nan, false),
+       {ForestKind::levels, 12}}};
+    const char* modelName[3] = {"beside a basis forest",
+                                "beside a forest stating sd",
+                                "beside both"};
+    for (const Setting& setting : settings) {
+      SamplerOptions options =
+        optionsFor(setting.family, setting.drawn, setting.k);
+      options.namedSd = setting.namedSd;
+      bool heldEntry = !setting.drawn && setting.k == 2.0 &&
+                       std::isnan(setting.namedSd);
+      for (size_t m = 0; m < 3; ++m) {
+        const Model& model = models[m];
+        std::string label = std::string(" (") + modelName[m] + ", " +
+                            setting.label + ")";
+        auto live = build(setting.family, options, model, 9300 + m);
+        check(everyChain(*live,
+                         [&](Chain<ConstantGaussianLeaf>& chain, size_t) {
+                           return TestPeer::heldAtDefaultK(chain, 0) ==
+                                    heldEntry &&
+                                  TestPeer::sharers(chain).size() ==
+                                    (heldEntry ? 0u : 1u);
+                         }),
+              say("coefficient live: the whole-total forest at creation" +
+                  label));
+        Model released = model;
+        released[0].df = 3.0;
+        auto releasedTwin = build(setting.family, options, released, 9300 + m);
+        check(live->setForestCoefficientPrior(0, false, 3.0, nan) &&
+                sameBits(structure(*live, model.size()),
+                         structure(*releasedTwin, model.size())),
+              say("coefficient live: released, it takes creation's size "
+                  "off the k path" + label));
+        check(everyChain(*live,
+                         [&](Chain<ConstantGaussianLeaf>& chain, size_t) {
+                           return TestPeer::sharers(chain).empty() &&
+                                  TestPeer::forestKAt(chain, 0) == 1.0 &&
+                                  !TestPeer::forestUpdateKAt(chain, 0) &&
+                                  !TestPeer::heldAtDefaultK(chain, 0) &&
+                                  TestPeer::amplitudeBlock(chain, 0) ==
+                                    std::vector<double>{1.0} &&
+                                  TestPeer::amplitudePrior(chain, 0).variance ==
+                                    1.0 / (z * z);
+                         }),
+              say("coefficient live: released, out of the group, k pinned at "
+                  "1, the block at 1 and the variance the normal's" + label));
+        std::vector<double> sdWas(numChains);
+        for (size_t c = 0; c < numChains; ++c)
+          sdWas[c] = live->forestCalibration(c, 0).mapSd;
+        Model heldAgain = model;
+        heldAgain[0].held = true;
+        auto heldTwin = build(setting.family, options, heldAgain, 9300 + m);
+        check(live->setForestCoefficientPrior(0, true, nan, nan) &&
+                sameBits(structure(*live, model.size()),
+                         structure(*heldTwin, model.size())),
+              say("coefficient live: held again, placed as creation places "
+                  "it" + label));
+        bool kStart = everyChain(
+          *live, [&](Chain<ConstantGaussianLeaf>& chain, size_t c) {
+            if (!setting.drawn)
+              return TestPeer::forestKAt(chain, 0) ==
+                     TestPeer::forestKAt(heldTwin->chain(c), 0);
+            ForestCalibration read = live->forestCalibration(c, 0);
+            double expected =
+              TestPeer::leafScale(chain, 0) *
+              (read.responseScale * std::sqrt(30.0)) / sdWas[c];
+            return TestPeer::forestKAt(chain, 0) == expected;
+          });
+        check(kStart, say("coefficient live: held again, k the creation "
+                          "twin's where held and the spread in force's "
+                          "where drawn" + label));
+        if (!setting.drawn)
+          check(drawsOf(*live, 8) == drawsOf(*heldTwin, 8),
+                say("coefficient live: released and held again before a "
+                    "run draws bitwise as the creation twin" + label));
+      }
+    }
+
+    // the run's k column goes off with the last forest on the k path
+    SamplerOptions options = optionsFor(ResponseFamily::gaussian, true, 2.0);
+    auto live = build(ResponseFamily::gaussian, options, models[1], 9310);
+    std::vector<double> on = drawsOf(*live, 3);
+    live->setForestCoefficientPrior(0, false, inf, nan);
+    std::vector<double> off = drawsOf(*live, 3);
+    check(on.back() != 1.0 && off.back() == 1.0 &&
+            off[off.size() - 3 * numChains] == 1.0,
+          "coefficient live: released, no forest draws k and the run "
+          "records forest 1's k of 1");
+  }
+
+  // ---- the last left of a group of three, released ----
+  {
+    const Model model = {plain, {ForestKind::none, 20}, {ForestKind::none, 16},
+                         {ForestKind::levels, 12}};
+    struct Setting {
+      ResponseFamily family;
+      bool drawn;
+      const char* label;
+    };
+    const Setting settings[] = {{ResponseFamily::gaussian, false, "held"},
+                                {ResponseFamily::gaussian, true, "drawn"},
+                                {ResponseFamily::probit, true, "probit"}};
+    for (const Setting& setting : settings) {
+      std::string label = std::string(" (") + setting.label + ")";
+      SamplerOptions options = optionsFor(setting.family, setting.drawn, 2.0);
+      auto live = build(setting.family, options, model, 9400);
+      check(live->setForestMapSd(0, 0.4) && live->setForestMapSd(1, 0.3),
+            say("coefficient live: two leave" + label));
+      std::vector<double> scaleWas(numChains), kWas(numChains);
+      for (size_t c = 0; c < numChains; ++c) {
+        scaleWas[c] = TestPeer::leafScale(live->chain(c), 2);
+        kWas[c] = setting.drawn
+                    ? TestPeer::kHyperpriorAt(live->chain(c), 2).median()
+                    : TestPeer::forestKAt(live->chain(c), 2);
+      }
+      std::vector<double> others = structure(*live, 4);
+      check(live->setForestCoefficientPrior(2, false, 3.0, nan),
+            say("coefficient live: the last left released" + label));
+      double part = live->forestCalibration(0, 2).mapSd;
+      bool stated = everyChain(
+        *live, [&](Chain<ConstantGaussianLeaf>& chain, size_t c) {
+          double spread = TestPeer::leafScale(chain, 2) /
+                          TestPeer::forestKAt(chain, 2);
+          return TestPeer::sharers(chain).empty() &&
+                 TestPeer::mapStatement(chain, 2).sd == part &&
+                 live->forestCalibration(c, 2).mapSd == part &&
+                 TestPeer::forestKAt(chain, 2) == 1.0 &&
+                 std::fabs(spread - scaleWas[c] / kWas[c]) <=
+                   1e-12 * spread;
+        });
+      check(stated, say("coefficient live: its part in force stated as its "
+                        "sd, at the median k where drawn" + label));
+      Model twinModel = model;
+      twinModel[0].sd = 0.4;
+      twinModel[1].sd = 0.3;
+      twinModel[2].sd = part;
+      twinModel[2].df = 3.0;
+      auto twin = build(setting.family, options, twinModel, 9400);
+      std::vector<double> after = structure(*live, 4);
+      check(sameBits(after, structure(*twin, 4)),
+            say("coefficient live: the last left released is the creation "
+                "of its statement as read" + label));
+      // forests 0, 1 and 3 hold what they held: everything but forest 2's
+      // fields and the group
+      bool untouched = true;
+      for (size_t c = 0; c < numChains; ++c) {
+        size_t was = c * (2 + fields * 4) + 2, is = c * (1 + fields * 4) + 1;
+        for (size_t f : {size_t(0), size_t(1), size_t(3)})
+          for (size_t j = 0; j < fields; ++j) {
+            double a = others[was + fields * f + j],
+                   b = after[is + fields * f + j];
+            untouched = untouched && (a == b || (std::isnan(a) && std::isnan(b)));
+          }
+      }
+      check(untouched, say("coefficient live: the forests that left and the "
+                           "factor untouched" + label));
+    }
+  }
+
+  // ---- the rescaling step after a forest leaves the k path and returns ----
+  {
+    SamplerOptions options = optionsFor(ResponseFamily::probit, true, 2.0);
+    const Model model = {plain, {ForestKind::numeric, 20}};
+    auto live = build(ResponseFamily::probit, options, model, 9500);
+    drawsOf(*live, 5);
+    live->setForestCoefficientPrior(0, false, 3.0, nan);
+    drawsOf(*live, 3);
+    auto declines = [&](ConstantLeafSampler& sampler) {
+      return everyChain(sampler, [&](Chain<ConstantGaussianLeaf>& chain,
+                                     size_t) {
+        ext_rng* before = cloneRng(TestPeer::rng(chain));
+        double alpha = 0.0;
+        bool declined = !TestPeer::forestRescaleApplies(chain) &&
+                        !TestPeer::drawForestRescale(chain, &alpha) &&
+                        alpha == 1.0;
+        double next = ext_rng_simulateContinuousUniform(TestPeer::rng(chain));
+        double untouched = ext_rng_simulateContinuousUniform(before);
+        ext_rng_destroy(before);
+        return declined && next == untouched;
+      });
+    };
+    check(declines(*live), "coefficient live: released, no forest is on the "
+                           "k path and the step declines, drawing nothing");
+
+    check(live->setForestCoefficientPrior(0, true, nan, nan),
+          "coefficient live: held again under probit");
+    drawsOf(*live, 5);
+    Chain<ConstantGaussianLeaf>& chain = live->chain(1);
+    bool admitted = TestPeer::sharers(chain) == std::vector<std::size_t>{0} &&
+                    TestPeer::forestRescaleApplies(chain);
+    double k = TestPeer::forestKAt(chain, 0);
+    std::vector<std::vector<double>> mu0, mu1;
+    for (size_t t = 0; t < 30; ++t)
+      mu0.push_back(TestPeer::forestMuByTree(chain, 0, t));
+    for (size_t t = 0; t < 20; ++t)
+      mu1.push_back(TestPeer::forestMuByTree(chain, 1, t));
+    double alpha = 1.0;
+    bool taken = TestPeer::drawForestRescale(chain, &alpha);
+    bool scaled = TestPeer::forestKAt(chain, 0) == k / alpha;
+    for (size_t t = 0; t < 30; ++t) {
+      const std::vector<double>& now = TestPeer::forestMuByTree(chain, 0, t);
+      for (size_t j = 0; j < now.size(); ++j)
+        scaled = scaled && std::fabs(now[j] - alpha * mu0[t][j]) <=
+                             1e-15 * std::fabs(alpha * mu0[t][j]);
+    }
+    for (size_t t = 0; t < 20; ++t)
+      scaled = scaled && TestPeer::forestMuByTree(chain, 1, t) == mu1[t];
+    check(admitted && taken && alpha != 1.0 && scaled,
+          "coefficient live: held again, the step scales the forest back on "
+          "the k path, its k and leaves, the basis forest read as offset");
+
+    const Model group = {plain, {ForestKind::none, 20},
+                         {ForestKind::levels, 12}};
+    auto lastLeft = build(ResponseFamily::probit, options, group, 9501);
+    drawsOf(*lastLeft, 3);
+    lastLeft->setForestMapSd(0, 0.5);
+    check(lastLeft->setForestCoefficientPrior(1, false, inf, nan),
+          "coefficient live: the last left released under probit");
+    drawsOf(*lastLeft, 3);
+    check(declines(*lastLeft), "coefficient live: the last left released, "
+                               "the step declines, drawing nothing");
+  }
+
+  // ---- later writes after each route read the statement written ----
+  {
+    SamplerOptions options = optionsFor(ResponseFamily::gaussian, false, 2.0);
+    FittingLeafPrior three;
+    three.k = 3.0;
+    auto later = [&](const Model& from, size_t f,
+                     const std::function<void(ConstantLeafSampler&)>& call,
+                     const std::function<Model(ConstantLeafSampler&)>& twinOf,
+                     const char* label) {
+      size_t numForests = from.size();
+      for (int write = 0; write < 2; ++write) {
+        auto live = build(ResponseFamily::gaussian, options, from, 9600);
+        call(*live);
+        auto twin =
+          build(ResponseFamily::gaussian, options, twinOf(*live), 9600);
+        bool liveTaken = write == 0 ? live->setFittingLeafPrior(three)
+                                    : live->setForestMapSd(f, 0.6);
+        bool twinTaken = write == 0 ? twin->setFittingLeafPrior(three)
+                                    : twin->setForestMapSd(f, 0.6);
+        check(liveTaken == twinTaken &&
+                sameBits(structure(*live, numForests),
+                         structure(*twin, numForests)),
+              say(std::string("coefficient live: ") +
+                  (write == 0 ? "the fitting function's leaf prior" : "an sd") +
+                  " written after " + label + " as on its creation twin"));
+      }
+    };
+    const Stated numeric{ForestKind::numeric, 20};
+    const Stated stating = with({ForestKind::none, 20}, 0.5, nan, false);
+    later({with(plain, 0.5, inf, false), numeric}, 0,
+          [&](ConstantLeafSampler& s) {
+            s.setForestCoefficientPrior(0, false, 3.0, nan);
+          },
+          [&](ConstantLeafSampler&) {
+            return Model{with(plain, 0.5, 3.0, false), numeric};
+          },
+          "a df changed on a forest stating sd");
+    later({plain, numeric}, 0,
+          [&](ConstantLeafSampler& s) {
+            s.setForestCoefficientPrior(0, false, 3.0, nan);
+          },
+          [&](ConstantLeafSampler&) {
+            return Model{with(plain, nan, 3.0, false), numeric};
+          },
+          "a whole-total forest released");
+    later({stating, with(plain, nan, 3.0, false), numeric}, 1,
+          [&](ConstantLeafSampler& s) {
+            s.setForestCoefficientPrior(1, true, nan, nan);
+          },
+          [&](ConstantLeafSampler&) {
+            return Model{stating, with(plain, nan, nan, true), numeric};
+          },
+          "a forest held again beside one stating sd");
+    later({plain, {ForestKind::none, 20}, {ForestKind::levels, 12}}, 1,
+          [&](ConstantLeafSampler& s) {
+            s.setForestMapSd(0, 0.4);
+            s.setForestCoefficientPrior(1, false, 3.0, nan);
+          },
+          [&](ConstantLeafSampler& s) {
+            return Model{with(plain, 0.4, nan, false),
+                         with({ForestKind::none, 20},
+                              s.forestCalibration(0, 1).mapSd, 3.0, false),
+                         {ForestKind::levels, 12}};
+          },
+          "the last left released");
+  }
+
+  // ---- refusals, every chain as it was ----
+  {
+    SamplerOptions options = optionsFor(ResponseFamily::gaussian, false, 2.0);
+    const Model group = {plain, {ForestKind::none, 20},
+                         {ForestKind::levels, 12}};
+    auto live = build(ResponseFamily::gaussian, options, group, 9700);
+    drawsOf(*live, 2);
+    std::vector<double> was = structure(*live, 3),
+                        at = standing(*live, group);
+    bool refused = !live->setForestCoefficientPrior(0, false, 3.0, nan) &&
+                   !live->setForestCoefficientPrior(1, false, inf, nan) &&
+                   !live->setForestCoefficientPrior(2, false, 0.5, nan) &&
+                   !live->setForestCoefficientPrior(2, false, -inf, nan) &&
+                   !live->setForestCoefficientPrior(0, false, 3.0, -1.0) &&
+                   !live->setForestCoefficientPrior(0, false, 3.0, inf) &&
+                   !live->setForestCoefficientPrior(0, false, 0.5, 0.4) &&
+                   !live->setForestCoefficientPrior(3, true, nan, nan);
+    check(refused && sameBits(was, structure(*live, 3)) &&
+            sameBits(at, standing(*live, group)),
+          "coefficient live: a sharer of two released with no sd, a df "
+          "below 1, an sd not positive and finite, a bad df beside a good sd "
+          "and an absent forest are refused, writing nothing");
+
+    SamplerOptions flat = optionsFor(ResponseFamily::gaussian, true, 2.0);
+    flat.kHyperprior.scale = inf;
+    auto noSize = build(ResponseFamily::gaussian, flat,
+                        {plain, {ForestKind::numeric, 20}}, 9701);
+    auto noPart = build(ResponseFamily::gaussian, flat, group, 9702);
+    noPart->setForestMapSd(0, 0.4);
+    check(!noSize->setForestCoefficientPrior(0, false, 3.0, nan) &&
+            !noPart->setForestCoefficientPrior(1, false, 3.0, nan) &&
+            noSize->setForestCoefficientPrior(0, false, 3.0, 0.4),
+          "coefficient live: a leaf prior giving no size refuses a release "
+          "that would take it, whole or in part, and not one stating sd");
+
+    auto beside = build(ResponseFamily::gaussian, options,
+                        {with(plain, nan, 3.0, false), {ForestKind::none, 20}},
+                        9703);
+    check(!beside->setForestCoefficientPrior(0, true, nan, nan),
+          "coefficient live: a hold onto the leaf prior where another forest "
+          "takes it is refused");
+  }
+
+  // ---- an sd and a release in one call on a sharer of three ----
+  {
+    SamplerOptions options = optionsFor(ResponseFamily::gaussian, false, 2.0);
+    const Model model = {plain, {ForestKind::none, 20}, {ForestKind::none, 16},
+                         {ForestKind::levels, 12}};
+    auto live = build(ResponseFamily::gaussian, options, model, 9800);
+    check(live->setForestCoefficientPrior(0, false, 3.0, 0.4),
+          "coefficient live: an sd and a release on a sharer taken");
+    Model recorded = model;
+    recorded[0] = with(plain, 0.4, 3.0, false);
+    recorded[1].share = third;
+    recorded[2].share = third;
+    auto twin = build(ResponseFamily::gaussian, options, recorded, 9800);
+    check(sameBits(structure(*live, 4), structure(*twin, 4)) &&
+            everyChain(*live,
+                       [&](Chain<ConstantGaussianLeaf>& chain, size_t) {
+                         return TestPeer::sharers(chain) ==
+                                  std::vector<std::size_t>{1, 2} &&
+                                TestPeer::amplitudeBlock(chain, 0) ==
+                                  std::vector<double>{1.0} &&
+                                TestPeer::amplitudePrior(chain, 0).variance ==
+                                  1.0 / (z * z);
+                       }),
+          "coefficient live: it leaves at its sd and is drawn, the others "
+          "keeping their shares, as the recorded twin");
+  }
+
+  // ---- a state stored on one side of a call, installed on the other ----
+  {
+    SamplerOptions options = optionsFor(ResponseFamily::gaussian, false, 2.0);
+    const Model drawnFactor = {with(plain, 0.5, nan, false),
+                               {ForestKind::numeric, 20},
+                               {ForestKind::levels, 12}};
+    Model heldFactor = drawnFactor;
+    heldFactor[2].held = true;
+    auto held = build(ResponseFamily::gaussian, options, heldFactor, 9900);
+    drawsOf(*held, 5);
+    SamplerStateData whileHeld;
+    held->getState(whileHeld);
+    check(held->setForestCoefficientPrior(2, false, 3.0, nan) &&
+            held->setState(whileHeld, nullptr) &&
+            everyChain(*held,
+                       [&](Chain<ConstantGaussianLeaf>& chain, size_t) {
+                         const ForestAmplitudePrior& prior =
+                           TestPeer::amplitudePrior(chain, 2);
+                         return TestPeer::amplitudeBlock(chain, 2) ==
+                                  std::vector<double>{0.0, 1.0} &&
+                                prior.update && prior.mixtureDf == 3.0 &&
+                                prior.variance == 0.5;
+                       }),
+          "coefficient live: a state stored while held, installed after a "
+          "release: the held block and variance, the call's prior");
+
+    auto drawn = build(ResponseFamily::gaussian, options, drawnFactor, 9901);
+    drawsOf(*drawn, 5);
+    SamplerStateData whileDrawn;
+    drawn->getState(whileDrawn);
+    check(drawn->setForestCoefficientPrior(2, true, nan, nan) &&
+            drawn->setState(whileDrawn, nullptr) &&
+            blockIs(*drawn, 2, {0.0, 1.0}) &&
+            everyChain(*drawn,
+                       [&](Chain<ConstantGaussianLeaf>& chain, size_t) {
+                         return !TestPeer::amplitudePrior(chain, 2).update;
+                       }),
+          "coefficient live: a state stored while drawn, installed after a "
+          "hold, leaves the block held");
+
+    SamplerOptions drawnK = optionsFor(ResponseFamily::gaussian, true, 2.0);
+    const Model whole = {plain, {ForestKind::numeric, 20}};
+    auto released = build(ResponseFamily::gaussian, drawnK, whole, 9902);
+    drawsOf(*released, 3);
+    released->setForestCoefficientPrior(0, false, 3.0, nan);
+    drawsOf(*released, 5);
+    SamplerStateData whileReleased;
+    released->getState(whileReleased);
+    released->setForestCoefficientPrior(0, true, nan, nan);
+    std::vector<double> kStart(numChains);
+    for (size_t c = 0; c < numChains; ++c)
+      kStart[c] = TestPeer::forestKAt(released->chain(c), 0);
+    check(released->setState(whileReleased, nullptr) &&
+            everyChain(*released,
+                       [&](Chain<ConstantGaussianLeaf>& chain, size_t c) {
+                         return std::isnan(
+                                  whileReleased.chains[c].forests[0].k) &&
+                                TestPeer::forestUpdateKAt(chain, 0) &&
+                                TestPeer::forestKAt(chain, 0) == kStart[c];
+                       }),
+          "coefficient live: a state stored while released holds no k, so "
+          "installed after a hold-again it leaves k at its start");
+  }
+
+  for (std::vector<ext_rng*>& rngs : allRngs) destroyDrawRngs(rngs);
+  rngState = savedRngState;
+  printf("ok: coefficient prior live\n");
+}
+
 // The tree prior install writes the named forest's base and power on every
 // chain and nothing else; every refusal - an index naming no forest, a base
 // outside (0, 1), a power not positive - writes no chain.
@@ -15655,6 +16431,7 @@ void runSamplerTests(ext_rng* rng) {
   testLevelGibbsPerForest();
   testForestsSharedTotal();
   testSharerLeave();
+  testCoefficientPriorLive();
   testFittingLeafPriorInstall();
   testForestTreePriorInstall();
   testForestTreePriorMatchesCreation();

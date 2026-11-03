@@ -569,9 +569,12 @@ struct ForestMapEntry {
 /// mixture's starting variance set where in it a chain starts, 1 / 0.674 with a
 /// basis and 1 / m with none, and every seeded chain with a drawn forest rests on
 /// them. They read m once, for creation; a live write resolves the entry again
-/// and neither reaches the combiner. Past 1e100 either way a start is held at
-/// 1e100, its square at 1e200: a sweep squares a coefficient and its trees' fits,
-/// and a start is not a model, so an extreme m runs where the arithmetic does.
+/// and the start scale never reaches the combiner, nor does the mixture's
+/// starting variance: a release starts the block where it is held and the
+/// variance at the normal's (Chain::setForestCoefficientPrior). Past 1e100
+/// either way a start is held at 1e100, its square at 1e200: a sweep squares a
+/// coefficient and its trees' fits, and a start is not a model, so an extreme m
+/// runs where the arithmetic does.
 ///
 /// A stated sd is in the response's units and is DIVIDED BY THE UNIT HERE, and
 /// nowhere else: once for each construction and once for each restatement. A
@@ -950,6 +953,15 @@ struct ForestCombiner {
     return false;
   }
 
+  /// Replaces forest f's coefficient prior whole, as a creation resolving it
+  /// gives it; false, writing nothing, off a coupling that carries no
+  /// amplitudes. AmplitudeForestCombiner states what the block and a mixing
+  /// variance become. Inert in the base.
+  virtual bool setForestAmplitudePrior(std::size_t, const ForestAmplitudePrior&,
+                                       ForestKind, double) {
+    return false;
+  }
+
   /// Whether this coupling OWNS its response as a count matrix that can be
   /// replaced on a live sampler at fixed n and K. True only for a combiner
   /// whose response is the borrowed counts it reads directly - the chain's y
@@ -1150,7 +1162,8 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   /// deliberately no mid-life synthesis route: setForestBasis is the only
   /// mutator, so the question of which of two operations wins does not arise.
   ///
-  /// A held block is set here to its kind's value, at any position, after the
+  /// A held block is set here to its kind's value, as a live hold sets it
+  /// (setForestAmplitudePrior), at any position, after the
   /// layout that keeps every drawn block's start: 1 for a forest with no
   /// basis, (0, 1) for the two levels of a factor, 1 for a numeric column
   /// (dec-B354). A drawn numeric coefficient starts at 1 wherever it stands.
@@ -1234,6 +1247,31 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   bool setForestBasis(std::size_t f, const double* values,
                       std::size_t numColumns) override {
     return installForestBasis(f, values, numColumns);
+  }
+
+  /// Forest f's coefficient prior replaced whole by \p prior, one write
+  /// between sweeps. Held, the block is set to its kind's value at once
+  /// (holdAtKindValue), so a reader sees it before the next sweep. Drawn, the
+  /// block is left where it stands, its next draw starting from there; a
+  /// mixing variance is the one in force where the old prior was drawn and
+  /// mixing too, a df changed being no reason to move it, and otherwise
+  /// \p normalVariance, the variance of the kind's normal; a fixed variance
+  /// is the new prior's. The caller checks a held block has a value for
+  /// \p kind; nothing is drawn.
+  bool setForestAmplitudePrior(std::size_t f, const ForestAmplitudePrior& prior,
+                               ForestKind kind,
+                               double normalVariance) override {
+    if (f >= glue_.prior.size()) return false;
+    ForestAmplitudePrior& current = glue_.prior[f];
+    const bool wasMixing = current.update && current.mixtureScale > 0.0;
+    const double variance = current.variance;
+    current = prior;
+    if (!prior.update) {
+      holdAtKindValue(f, kind);
+    } else if (prior.mixtureScale > 0.0) {
+      current.variance = wasMixing ? variance : normalVariance;
+    }
+    return true;
   }
 
   bool installForestBasis(std::size_t f, const double* values,
