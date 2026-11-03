@@ -208,6 +208,7 @@ Columns: `file | STATUS | one-liner`.
 
 | file | STATUS | purpose |
 |---|---|---|
+| factor-split-probability.md | PLANNED 2026-11-03, before its blind critique (dec-B78, dec-B559) | Plans the research study of whether a factor's prior split probability should grow with its level count, as the BayesTree indicator coding gave it implicitly: today's one-column weight against the level count, the level count less one and its square root, the indicator coding as reference, every arm a split.probs vector the shipped package takes; decided on real datasets with factors (Deshpande's sixteen, the house's binary ones) by a signed-rank test across datasets and on ACIC 2016's treatment effects, designed cells and split-count importance reported; a PDF report refereed twice. About 26 box core-hours expected, stop at 55. |
 | gp-followups.md | RESEARCH-OPEN | A placeholder for two deferred GP-leaf extensions (sampled lengthscales, low-rank kernels), blocked on a named consumer. |
 | gpu-bart.md | DONE (memo complete) | Records the GPU survey's one recommended prototype (grow-from-root's cut-scan kernel as a warm start); broader GPU work stays open. |
 | python-bindings.md | RESEARCH-OPEN (no spike run recorded) | A feasibility memo for a Python binding over bartcore; decision-gated, likely to live outside this repo. |

@@ -1056,7 +1056,8 @@ factor encoding (decided, VD 2026-09-08; docs/decisions.md dec-B78;
   difference from BayesTree and why. Research item, between the merge
   and the submission (VD 2026-09-28, was post-release): weighting a
   factor column's split probability by its level count, which the
-  indicator encoding gave implicitly.
+  indicator encoding gave implicitly. Study planned in
+  docs/plans/factor-split-probability.md.
 
 hurdle tokens (decided, VD 2026-09-08; docs/decisions.md dec-B82;
   LANDED; plan docs/plans/front-door.md)
