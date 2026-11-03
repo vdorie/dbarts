@@ -17,6 +17,7 @@
 ^docs$
 ^benchmarks$
 ^tests/cpp$
+^standalone$
 \.DS_Store$
 ^_pkgdown\.yml$
 ^pkgdown$
