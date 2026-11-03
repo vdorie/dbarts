@@ -2,15 +2,17 @@
 
 # Windows has no configure: src/*.win files are checked in by hand and
 # nothing regenerates them, so they drift silently from the autoconf
-# templates (*.in) and from DESCRIPTION. Checks (a) every PACKAGE_STRING /
-# PACKAGE_VERSION literal in the config *.win headers against DESCRIPTION's
-# Version, and (b) the macro nameset of each config *.win header against its
-# *.in template, allowing only macros on the RECORDED expected-absent table
-# below (macros the Windows build deliberately does not define). A macro
-# absent from a .win header, present in its .in template, and not on the
-# table is silent drift (a new configure check missing on Windows); a listed
-# macro that has since appeared in its .win header, or dropped from the .in
-# template, is a stale table entry.
+# templates (*.in) and from DESCRIPTION. The standalone build cannot run
+# configure either (it reads R CMD config), and its checked-in
+# standalone/config headers are held to the same two checks. Checks (a) every
+# PACKAGE_STRING / PACKAGE_VERSION literal in those config headers against
+# DESCRIPTION's Version, and (b) the macro nameset of each checked-in config
+# header against its *.in template, allowing only macros on the RECORDED
+# expected-absent table below (macros that build deliberately does not
+# define). A macro absent from a checked-in header, present in its .in
+# template, and not on the table is silent drift (a new configure check
+# missing there); a listed macro that has since appeared in its checked-in
+# header, or dropped from the .in template, is a stale table entry.
 #
 # Usage: Rscript tools/check-win-drift.R [pkg-root]
 
@@ -44,7 +46,11 @@ absentRaw <- c(
   "src/misc/config.h.win|HAVE_ALLOCA_H|no alloca.h on Windows; src/include/misc/alloca.h falls back to _alloca/malloc.h or __builtin_alloca",
   "src/misc/config.h.win|HAVE_FFS|no BSD ffs() on Windows; src/include/misc/intrinsic.h's #elif chain resolves via _MSC_VER/__GNUC__ first",
   "src/config.hpp.win|DBARTS_REFERENCE_BUILD|opt-in build mode, never on by default; src/Makevars.win defines it from the environment variable of the same name, so no checked-in header carries it",
-  "src/misc/config.h.win|DBARTS_REFERENCE_BUILD|opt-in build mode, never on by default; src/Makevars.win defines it from the environment variable of the same name, so no checked-in header carries it"
+  "src/misc/config.h.win|DBARTS_REFERENCE_BUILD|opt-in build mode, never on by default; src/Makevars.win defines it from the environment variable of the same name, so no checked-in header carries it",
+  "standalone/config/config.hpp|C_ALLOCA,STACK_DIRECTION|configure leaves both undefined on every POSIX system with a working alloca",
+  "standalone/config/config.hpp|PTHREAD_CREATE_JOINABLE,size_t|configure defines these only where the system lacks them, which no 64-bit POSIX system does",
+  "standalone/config/config.hpp|DBARTS_REFERENCE_BUILD|opt-in build mode, never on by default; a standalone build defines it on its compile line",
+  "standalone/config/misc/config.h|DBARTS_REFERENCE_BUILD|opt-in build mode, never on by default; a standalone build defines it on its compile line"
 )
 parts <- strsplit(absentRaw, "|", fixed = TRUE)
 field <- function(i) vapply(parts, `[[`, character(1L), i)
@@ -75,7 +81,10 @@ checkVersionMacro <- function(file, macro, lines, wantSuffix) {
 versionFiles <- c(
   "src/config.hpp.win",
   "src/external/config.h.win",
-  "src/misc/config.h.win"
+  "src/misc/config.h.win",
+  "standalone/config/config.hpp",
+  "standalone/config/external/config.h",
+  "standalone/config/misc/config.h"
 )
 for (f in versionFiles) {
   lines <- readLines(p(f))
@@ -88,7 +97,11 @@ headerPairs <- list(
   c("src/config.hpp.win", "src/config.hpp.in"),
   c("src/external/config.h.win", "src/external/config.h.in"),
   c("src/misc/config.h.win", "src/misc/config.h.in"),
-  c("src/include/misc/types.h.win", "src/include/misc/types.h.in")
+  c("src/include/misc/types.h.win", "src/include/misc/types.h.in"),
+  c("standalone/config/config.hpp", "src/config.hpp.in"),
+  c("standalone/config/external/config.h", "src/external/config.h.in"),
+  c("standalone/config/misc/config.h", "src/misc/config.h.in"),
+  c("standalone/config/misc/types.h", "src/include/misc/types.h.in")
 )
 for (pair in headerPairs) {
   win <- pair[1L]
