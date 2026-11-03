@@ -997,6 +997,16 @@ items
     The probit hurdle gains whole numbers with integer-weight probit
     (weighted-binary). Whether logistic becomes the hurdle's default
     is a separate call; pscl defaults to a logit and offers probit.
+  latents-first: ruled, planned, not built (VD 2026-11-03, dec-B586).
+    Every sampler draws its augmentation variables at the start of each
+    sweep, after the per-sweep hook and before the probit rescaling step
+    and the trees, and no setter draws them; the contract is documented
+    where users and package authors meet it. Fixes a logistic setOffset
+    that fits the old offset for a sweep and a mask set from the hook
+    that its sweep ignores. One open call (setData keeping the drawn
+    ordinal cutpoints and Student-t df). docs/plans/latents-first.md,
+    four slices, about 34 agent-hours; after coefficient-prior-live,
+    before frequency-weights' setter slices. For 1.0-0.
 
 absolute residual prior scale (decided, VD 2026-09-14)
   post-release, R only: chisq gains an absolute spelling,
