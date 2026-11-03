@@ -1937,7 +1937,7 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
 
   // column restriction: a model attribute the R surface resolves to the
   // 1-based columns the single forest may split on, as the variance forest's
-  // ride its control attribute. Absent leaves every column available,
+  // ride its model record. Absent leaves every column available,
   // byte-for-byte unchanged.
   REPROTECT_SLOT(slotExpr, modelExpr, "forest.columns", slotIndex);
   if (!Rf_isNull(slotExpr)) {
@@ -2398,8 +2398,8 @@ void printInitialSummary(const ParsedControl& control,
 // Polya-Gamma sampler. For a K-level ordinal response (control's category
 // count): "" or "ordinal" give the cumulative probit. For a continuous
 // response: "" or "gaussian" fits ordinary BART, "aft" the log-normal survival
-// model (censored latents via a control attribute). Each shape refuses the
-// others' family names by name.
+// model (censored latents via the data object's status). Each shape refuses
+// the others' family names by name.
 bartcore::ResponseFamily resolveFamily(const ParsedModel& model,
                                        const char* familyName) {
   if (model.responseIsBinary) {
@@ -2853,12 +2853,12 @@ const double* validateSurvivalStatus(SEXP statusExpr, size_t numObservations) {
   return raw;
 }
 
-// AFT survival status arrives on an internal control attribute alongside the
+// AFT survival status arrives on the data object's status slot alongside the
 // log-time response (the y creation argument): a per-observation numeric
 // vector, 1 for an uncensored event, 0 for a right-censored observation. Only
 // full creation reads it, and only for family aft. status outlives the options
 // borrow: the response copies it during construction. The public surface sets
-// the attribute from a Surv or (time, status) ingest.
+// the slot from a Surv or (time, status) ingest.
 void applySurvivalStatus(SEXP dataExpr, size_t numObservations,
                          bartcore::ResponseFamily family,
                          bartcore::SamplerOptions& options,

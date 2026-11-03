@@ -641,10 +641,11 @@ resolveSamplerSpec <- function(
   # here from the bases the model ends with. The forest with no basis, the
   # plain one, takes the fitting function's tree count, tree prior,
   # 'interactions' and 'blocks' wherever it stands, and a forest with a basis
-  # the multiplied forest's defaults and its own constraints. The bridge reads
-  # the FIRST forest's tree count from control@n.trees and its structure prior
-  # from the model, so that forest's are written there, here, before anything
-  # reads them. The rest ride the forests control attribute below.
+  # the multiplied forest's defaults and its own constraints. The FIRST
+  # forest's tree count is written on the control and its constraints on the
+  # model here, before the priors read them; every forest's statement, the
+  # first's among them, goes into the model's forest records below, which the
+  # bridge reads.
   # PER FOREST, not one flag for the model: forest f is excused from declaring
   # a basis only when one reaches it some other way, the dbartsData(bases = )
   # route being the supported one. On the fitting path the declarations have
@@ -968,8 +969,8 @@ resolveSamplerSpec <- function(
   # a single forest's column restriction is a model fact and rides a model
   # attribute the C bridge reads, beside the two constraints above, so a copy
   # or a reload rebuilds it. Naming every column restricts nothing and stores
-  # nothing; a multi-forest fit carries every forest's columns on the forests
-  # control attribute instead. After the multinomial refusals above, so a
+  # nothing; a multi-forest fit carries every forest's columns in the model's
+  # forest records instead. After the multinomial refusals above, so a
   # prior a category forest cannot take is named before its entries are read.
   if (
     singleForest &&

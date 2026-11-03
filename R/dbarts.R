@@ -1018,7 +1018,8 @@ dbarts <- function(
   # response fits the AFT log-normal model. The matrix (x.train, y.train)
   # interface is handled directly here, the response being the second
   # positional argument; the log event/censoring time replaces it and the
-  # status rides the control attribute the bartcore survival family reads.
+  # status rides the data object, whose status slot the bartcore survival
+  # family reads.
   # 'subset' is honored (applied to the status vector alongside the
   # matchedCall$subset dbartsData() still applies to x/y itself, below). A
   # Surv left-hand side on 'formula' is ingested by dbartsData()'s own
