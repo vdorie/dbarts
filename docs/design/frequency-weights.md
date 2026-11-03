@@ -44,18 +44,20 @@ Two choices about the binomial response remain:
 | family | values taken | read as | a 0 |
 |---|---|---|---|
 | gaussian, Student-t, heteroscedastic | finite, non-negative | precision: noise variance sigma^2 / w | out of the likelihood, in the design |
-| logistic | positive integers up to 1e6 | copies: Polya-Gamma shape w | refused, after a warning that it stays in the fit |
-| probit, ordinal, nbinom, hazard | 0 and 1 | the active-row mask | out of the likelihood, in the design |
+| logistic, hazard.logistic | positive integers up to 1e6 | copies: Polya-Gamma shape w | refused, after a warning that it stays in the fit |
+| probit, ordinal, nbinom, hazard and hazard.probit | 0 and 1 | the active-row mask | out of the likelihood, in the design |
 | multinomial | all ones | refused otherwise | refused |
 | aft, hurdle.lognormal | none | refused | refused |
 
 The routing is [`enforceWeightPolicy`](../../R/spec.R), with [`isMaskedWeightFamily`](../../R/spec.R) naming the
-mask families and [`refuseNonCountWeights`](../../R/spec.R) the logistic rule. Run on c3d268c8f: a logistic
-training predictive draw at weight 5 ranged over 0 to 5, Binomial(w, p); its pointwise log-likelihood was w
-times the Bernoulli log density (dec-A116); a probit fit refused weights of 5 while its predict(type = "ppd",
-weights = 5) drew 0 to 5 (dec-B470); and cbind(k, n - k) was refused under family = binomial, "logistic" and
-"auto", each message pointing to the multinomial family, while a proportion with weights = n was refused as not
-0/1. rbart_vi, deprecated and removed at 1.1-0, keeps precision weights and takes none of what follows.
+mask families and [`refuseNonCountWeights`](../../R/spec.R) the logistic rule; hazard.logistic is remapped to
+logistic before the policy, so it takes counts. Run on c3d268c8f: a logistic training predictive draw at weight 5
+ranged over 0 to 5, Binomial(w, p); its pointwise log-likelihood was w times the Bernoulli log density (dec-A116);
+a probit fit refused weights of 5 while its predict(type = "ppd", weights = 5) drew 0 to 5 (dec-B470); hazard and
+hazard.probit refused weights of 5 and hazard.logistic took them (critique probe p10); and cbind(k, n - k) was
+refused under family = binomial, "logistic" and "auto", each message pointing to the multinomial family, while a
+proportion with weights = n was refused as not 0/1. rbart_vi, deprecated and removed at 1.1-0, keeps precision
+weights and takes none of what follows.
 
 0.9-34's probit weights were neither reading: its latent was a truncated normal of sd 1/sqrt(w) about the fit,
 so it fitted P(y = 1) = Phi(sqrt(w) f(x)), a rescaled link per row (classic engine, bartFit.cpp at the 0.9-34
@@ -109,8 +111,8 @@ is whether the likelihood to the power w keeps a one-draw form (dec-B563).
 | group | families | w copies | draw | frequency weights |
 |---|---|---|---|---|
 | gaussian-type | gaussian, Student-t, heteroscedastic | N^w, t_nu^w | sigma's count sum(w); the copies' Student-t scales sum to one gamma draw; a variance leaf counts w | real w, exact, no cost per sweep |
-| Polya-Gamma | logistic, nbinom, multinomial | the power multiplies the Polya-Gamma shape by w | one draw per row: shape w for a logistic row, w (y + r) for nbinom, w times each category's trials for multinomial; the shape is drawn as that many unit draws | whole numbers; a sweep grows with w |
-| truncated-normal | probit, ordinal, hazard, censored aft rows | Phi^w and its kin, with no one-draw form | one latent per copy | not taken (dec-B563): they keep what they take |
+| Polya-Gamma | logistic and hazard.logistic, nbinom, multinomial | the power multiplies the Polya-Gamma shape by w | one draw per row: shape w for a logistic row, w (y + r) for nbinom, w times each category's trials for multinomial; the shape is drawn as that many unit draws | whole numbers; a sweep grows with w |
+| truncated-normal | probit, ordinal, the probit hazard, censored aft rows | Phi^w and its kin, with no one-draw form | one latent per copy | not taken (dec-B563): they keep what they take |
 
 On the Polya-Gamma families nothing about the latent changes but its shape, exactly as logistic's counts
 already work ([weighted-logistic.md](weighted-logistic.md)); nbinom's shape grid and multinomial's softmax
@@ -135,10 +137,11 @@ about 0.006); without the lgamma term a grid probability is off by up to 0.963.
 
 ### The families (dec-B563)
 
-Frequency weights reach the gaussian-type and the Polya-Gamma families. The maintainer, 2026-11-03, on the
-question whether every family is as simple as multiplying the log-likelihood: "Let's do (b) plus the
-Polya-Gamma families." Probit, ordinal, the hazard family and aft keep what they take today, and the ruling
-does not schedule them.
+Frequency weights reach the gaussian-type and the Polya-Gamma families. The maintainer, 2026-11-03, on the question
+whether every family is as simple as multiplying the log-likelihood: "Let's do (b) plus the Polya-Gamma families."
+Probit, ordinal, the probit hazard (hazard and hazard.probit) and aft keep what they take today, and the ruling
+does not schedule them. hazard.logistic, a logistic fit underneath, is a Polya-Gamma family and takes frequency
+weights with logistic.
 
 ### The argument, weights.type (dec-B564)
 
@@ -176,7 +179,7 @@ Probit and ordinal are the families left whose weights are membership only. Thei
 and ride the data object as weights, the engine installing them as the mask, so `s$data@weights` is no longer
 NULL there and `s$setData(s$data)` keeps the rows out; `setActiveRows` stays the door of the code that runs the
 BART sampler inside a larger sampler. That resolves TODO mask-on-own-data-object. xbart's refusal of 0/1 weights
-on those families stays while its folds have no mask channel.
+on those families goes (Calls made, 14).
 
 ### Zero weights (dec-B570)
 
@@ -219,29 +222,40 @@ and the predictive and log-likelihood code reads n.
 
 ### 1. A proportion with the trials as weights
 
-Background: glm takes a binomial response two ways, cbind(k, n - k), or the proportion k / n with weights = n,
-and the two give one fit. In dbarts a logistic weight is already a frequency weight: a row y = 1 at weight 5 is
-five identical successes, whose predictive draw is one observation, Bernoulli(p) (dec-B566). Under glm's second
-spelling the same row is one binomial row of 5 trials, whose draw is Binomial(5, p). The posterior is the same;
-the draw, and so extract, fitted(type = "ppd") and predict at training rows, depend on whether any other row's
-proportion happens to be fractional.
+Background: glm takes a binomial response two ways, cbind(k, n - k), or the proportion k / n with weights = n, and
+the two give one fit (critique probe p9: one log-likelihood, -42.118). glm reads binomial weights as trials
+throughout: on a 0/1 response with weights 5, simulate draws proportions of 5 trials, 0, 0.2, ..., 1. rstanarm
+2.32.2 fits both spellings but switches on the data: a proportion with weights = n draws counts up to n, while a
+0/1 response with weights 5 draws 0 or 1, its weights multiplying the log-likelihood. In dbarts a logistic weight
+is already a frequency weight: a row y = 1 at weight 5 is five identical successes, whose predictive draw is one
+observation, Bernoulli(p) (dec-B566). Under glm's second spelling the same row is one binomial row of 5 trials,
+whose draw is Binomial(5, p). The posterior is the same; the draw, and so extract, fitted(type = "ppd") and predict
+at training rows, depend on whether any other row's proportion happens to be fractional.
 
 - (a) Refuse a response between 0 and 1 that is not 0/1, with a message naming cbind(k, n - k) and saying how to
   form it from a proportion and its trials, round(p * n). Cost: a glm user writing the proportion spelling edits
   one line.
-- (b) Take it, reading y w as successes of w trials when any y is fractional and frequency copies otherwise.
-  Cost: two models' draws behind one call, switching on the data.
-- (c) Take it always as trials, so a logistic fit's weights are trial counts and not frequency weights. Cost:
-  revises dec-B566 and dec-B564's reading of logistic weights.
+- (b) Take it, reading y w as successes of w trials when any y is fractional and frequency copies otherwise,
+  rstanarm's choice. Cost: two models' draws behind one call, switching on the data.
+- (c) Take it always as trials, glm's reading. Cost: a logistic fit's weights become trial counts and not
+  frequency weights, which revises dec-B566 and dec-B564's reading of logistic weights.
 
-Recommendation: (a).
+Recommendation: (a). rstanarm's (b) gives one call two models: adding one row with a proportion of 0.4 to a 0/1
+data set turns every row's draw from Bernoulli(p) into Binomial(w, p), and a fit summarized by its draws changes
+for a reason the user did not state. dbarts adds a case rstanarm does not have: the sampler swaps its response
+between draws, so under (b) a swapped response that happened to be all 0/1 would change the model mid-chain. (c)
+follows glm but undoes a ruling two families old. Under (a) the user states the model once, in the response,
+and pays one edited line.
 
 ### 2. The scale of a binomial row's fitted values and residuals
 
-Background: glm reports a binomial fit's fitted values as the probability of a success and its response
-residuals as the observed proportion minus it, whichever spelling was used; simulate on a cbind fit returns
-counts. dbarts computes residuals as the response less the fitted value of the type asked for
-([`residuals.bart`](../../R/generics.R)), and the ruled predictive draw is a count.
+Background: glm reports a binomial fit's fitted values as the probability of a success and its response residuals
+as the observed proportion minus it, whichever spelling was used; its residuals default to the deviance type, and
+simulate on a cbind fit returns counts. rstanarm's fitted and posterior_epred are the probability (critique probe
+p9); brms's posterior_epred on a binomial is the probability times the trials, a count. dbarts's residuals are
+response residuals on every family, so (a) is glm's type = "response". dbarts computes residuals as the response
+less the fitted value of the type asked for ([`residuals.bart`](../../R/generics.R)), and the ruled predictive draw
+is a count.
 
 - (a) glm's: fitted(type = "ev") the probability; residuals k / n - p; the predictive draws counts, and
   fitted(type = "ppd") their mean, n p, with its residual k - n p on that scale. Cost: the two types report on
@@ -289,20 +303,40 @@ Recommendation: (a).
    sampler by name; the fit keeps the two-column response as given. Alternative: a trials slot beside y, a
    second representation of the same counts.
 10. At newdata with no weights a binomial fit draws one trial, as multinomial count fits draw one-trial
-    categories at new rows (dec-B177), and a test sample's weights give its trials. Alternative: refuse ppd at
-    newdata without weights, which no other count family does.
+    categories at new rows (dec-B177), and a test sample's weights give its trials. rstanarm and brms require the
+    trials at newdata (critique probe p9: rstanarm stops on the missing columns); dbarts's newdata is a predictor
+    matrix with the response's columns absent, so its trials come through weights as on the other count families.
+    Alternative: refuse ppd at newdata without weights, as rstanarm and brms in effect do, which no other dbarts
+    count family does.
 11. The pointwise log-likelihood of a binomial row is log dbinom(k; n, p), its binomial coefficient included as in
     glm's logLik, times the row's frequency weight. Alternative: the kernel alone, the two-frequency-row value,
     which differs by log choose(n, k) and is not the row's density.
-12. xbart's losses read a binomial row as its n trials: the log loss averages -[k log p + (n - k) log(1 - p)] over
-    the trials, the misclassification rate counts the trials on the wrong side of 0.5, and rmse compares k / n
-    with p weighted by n. Alternative: one loss per row, which weights a row of one trial like a row of a
-    thousand.
+12. xbart's losses on a logistic or probit fit, binomial rows included, are one rule on the probability scale: a
+    row's observed proportion y (0 or 1 on a binary row, k / n on a binomial one) against its posterior mean
+    probability p, the link applied per draw and averaged last, with the row weighted by its trials times its
+    weight. The log loss is then -[y log p + (1 - y) log(1 - p)], the misclassification rate the share of trials
+    on the wrong side of 0.5 and rmse the root of the weighted mean of (y - p)^2. The log loss and the
+    misclassification rate equal the expansion into single trials; rmse on the expansion would add
+    (k / n)(1 - k / n) per trial, a constant of the data that does not change which setting xbart picks, and the
+    row rule is kept. A user loss on a binomial fit receives y.test as k / n, the latent draws as on a binary fit,
+    and weights as the trials times the row's weight. Today's binary rmse is not this rule: it averages the
+    latent draws, unlinked, against the 0/1 response ([`xbartLossFunction`](../../R/xbart.R)); run on
+    c3d268c8f, the draws ranged over -2.9 to 3.8 and the rmse was 0.965 against a response sd of 0.501. That is
+    a defect on main, filed apart from this note; the binomial slice reads the corrected rule. Alternative: one
+    loss per row, which weights a row of one trial like a row of a thousand.
 13. Refused by name: successes or failures negative, not whole, or missing outside na.action's handling;
     failures written so that k exceeds n is a negative failure count; trials above dec-B202's cap of one
-    million, frequency weight included. A row of 0 trials is taken as out of the likelihood, with the warning
-    dec-B133 gives multinomial zero-trial rows. Alternative for the zero row: refusing it, as nnet's multinom
-    does and dec-B133 declined.
+    million, frequency weight included. A row of 0 trials is taken as dec-B133 takes a multinomial zero-trial
+    row: out of the likelihood under the row mask, with its warning; its pointwise log-likelihood 0 in every
+    draw, not a zero weight's NaN; its predictive draw 0, Binomial(0, p), as a zero-trial multinomial row draws
+    zeros (dec-B177); its residual -p, its observed proportion read as 0, glm's response residual at a
+    zero-weight row; and weight 0 in xbart's losses. Alternative for the zero row: refusing it, as nnet's
+    multinom does and dec-B133 declined.
+14. xbart takes a probit fit's 0/1 weights. Its refusal's reason was that each fold's fit is built inside the
+    C loop with no channel to install a mask; under dec-B569 the weights ride the fold's data object and
+    creation installs them as the mask, so a 0 row is out of each fold's fit and, at weight 0, out of its
+    held-out loss. The refusal in [`xbart`](../../R/xbart.R) goes. Alternative: keep refusing, which leaves a
+    membership vector that works everywhere else stopping at cross-validation.
 
 ## What moves, place by place
 
@@ -323,10 +357,10 @@ On a fit that chooses frequency, or a count family whose own reading is counts; 
 | response range; the default cut rule's grid | positive rows; every row | unchanged |
 | leaf covariate standardization, forest default sd, quantile cut rule | unweighted | weighted by w |
 | state, copy, reload | digest of weights | digest of weights and reading |
-| logistic | | counts as before; 0 taken (dec-B570); training draw Bernoulli(p) (dec-B566) |
+| logistic, hazard.logistic | | counts as before; 0 taken (dec-B570); training draw Bernoulli(p) (dec-B566) |
 | nbinom, multinomial | 0/1 mask; all ones | whole counts, shape times w; training draw one observation |
 | probit, ordinal | 0/1 mask, cleared from the data object | 0/1 kept on the data object (dec-B569) |
-| hazard, aft, hurdle.lognormal | as before | as before |
+| hazard and hazard.probit, aft, hurdle.lognormal | as before | as before |
 
 Consumers, read without editing: stan4bart passes its weights to the BART part and reads them as precisions in
 its own Stan target, so it is unaffected at the default; its predict(newdata, type = "ppd") ignores weights
@@ -356,13 +390,16 @@ today except the count families' training predictive draws (dec-B566).
    log-likelihood, the predictive draws of dec-B565 and dec-B566, help and NEWS. About 500 lines, 400 of tests.
 4. Binomial: the cbind and two-column parse, family routing and the "auto" message, the counts slot and
    `$setCounts`, the logistic response taking a proportion with its count, the predictive draw, predict's
-   trials, fitted and residuals, the log-likelihood, xbart's losses, the refusals; an exact-posterior arm
-   against the two-frequency-row expansion. About 400 lines, 300 of tests.
+   trials, fitted and residuals, the log-likelihood, xbart's losses, the refusals. Gate: a binomial row of
+   0 < k < n against its expansion into two adjacent rows of frequency weights k and n - k, draw for draw, since
+   the two consume the same n unit draws at the same linear predictor (at k = 0 or n the expansion's weight-0
+   row still draws one variate, so those rows are checked in distribution). About 400 lines, 300 of tests.
 5. Gates: the gaussian frequency fit against the expanded rows draw for draw (probe p2's emulation as the
    seed); Student-t, heteroscedastic, nbinom and multinomial against the expanded rows in distribution; an
    exact-posterior arm for sigma on a single tree; an SBC arm. About 300 lines.
 6. Header: the field in dec-B85's change and the getLatents comment. About 40 lines and the ABI hash.
-7. dec-B569 and dec-B570: 0/1 weights on the data object, logistic's 0. About 230 lines with tests.
+7. dec-B569 and dec-B570: 0/1 weights on the data object, xbart taking them, logistic's 0. About 230 lines with
+   tests.
 
 In all about 3,000 lines, code and tests about evenly split, the binomial about 700 of them. The approximate-
 draw research that dec-B567 opens is the TODO approximate-distributions arc, not a slice here.
