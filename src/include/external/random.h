@@ -35,10 +35,13 @@ void ext_rng_destroy(ext_rng* generator);
 
 void ext_rng_setState(ext_rng* generator, const void* state);
 
+#ifndef DBARTS_HOST_STANDALONE
 // createDefault seeds the result so it is ready to use
 // useNative attempts to use the rng in the embedded environment; generally not
-// thread safe
+// thread safe. R only, as are the two default-type readers and
+// ext_rng_usesNativeRNG below: each reads R's own generator state.
 ext_rng* ext_rng_createDefault(bool useNative);
+#endif
 
 int ext_rng_createAndSeed(
   ext_rng** result,
@@ -46,9 +49,11 @@ int ext_rng_createAndSeed(
   ext_rng_standardNormal_t standardNormalAlgorithm
 );
 
+#ifndef DBARTS_HOST_STANDALONE
 // returns what will be used in createDefault, unless useNative is specified;
 ext_rng_algorithm_t ext_rng_getDefaultAlgorithmType(void);
 ext_rng_standardNormal_t ext_rng_getDefaultStandardNormalType(void);
+#endif
 const char* ext_rng_getAlgorithmName(ext_rng_algorithm_t algorithm);
 
 bool ext_rng_seedsAreEqual(const ext_rng* rng1, const ext_rng* rng2);
@@ -72,7 +77,9 @@ misc_size_t ext_rng_getSerializedStateLength(const ext_rng* generator);
 void ext_rng_writeSerializedState(const ext_rng* generator, void* state);
 void ext_rng_readSerializedState(ext_rng* generator, const void* state);
 
+#ifndef DBARTS_HOST_STANDALONE
 bool ext_rng_usesNativeRNG(const ext_rng* generator);
+#endif
 
 double ext_rng_simulateContinuousUniform(ext_rng* generator); // randomBase.c
 double ext_rng_simulateStandardNormal(ext_rng* generator);    // randomNorm.c

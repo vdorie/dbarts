@@ -51,7 +51,9 @@
 #endif
 
 #include <external/io.h>
-#include <rc/util.h>
+#ifndef DBARTS_HOST_STANDALONE
+#  include <rc/util.h>
+#endif
 
 #define STANDARD_NORMAL_DEFAULT EXT_RNG_STANDARD_NORMAL_INVERSION
 
@@ -60,8 +62,13 @@
 #  define SUPPRESS_DIAGNOSTIC 1
 #endif
 
-#include <external/R.h> // R version
-#include <external/Rinternals.h> // SEXP
+// R's own generators (unif_rand, norm_rand), .Random.seed and set.seed exist
+// only in the R package; a standalone build has the Mersenne Twister and any
+// user-supplied uniform.
+#ifndef DBARTS_HOST_STANDALONE
+#  include <external/R.h> // R version
+#  include <external/Rinternals.h> // SEXP
+#endif
 
 // should match enum order
 static const char* const rngNames[] = {
@@ -127,6 +134,7 @@ void ext_rng_setState(ext_rng* generator, const void* v_state)
 }
 
 
+#ifndef DBARTS_HOST_STANDALONE
 bool ext_rng_usesNativeRNG(const ext_rng* generator) {
   return
     generator->algorithm == EXT_RNG_ALGORITHM_USER_UNIFORM
@@ -318,6 +326,7 @@ ext_rng* ext_rng_createDefault(bool useNative)
   
   return result;
 }
+#endif // DBARTS_HOST_STANDALONE
 
 
 void ext_rng_destroy(ext_rng* generator)
@@ -355,6 +364,7 @@ bool ext_rng_seedsAreEqual(const ext_rng* rng1, const ext_rng* rng2){
   return memcmp(rng1->state, rng2->state, stateLength) == 0;
 }
 
+#ifndef DBARTS_HOST_STANDALONE
 ext_rng_algorithm_t ext_rng_getDefaultAlgorithmType(void)
 {
   uint_least32_t seed0;
@@ -370,6 +380,7 @@ ext_rng_standardNormal_t ext_rng_getDefaultStandardNormalType(void)
 
   return stdNormalTypeFromSeed0(seed0);
 }
+#endif // DBARTS_HOST_STANDALONE
 
 const char* ext_rng_getAlgorithmName(ext_rng_algorithm_t algorithm)
 {
@@ -446,6 +457,7 @@ int ext_rng_setSeed(ext_rng* generator, uint_least32_t seed)
     break;
     case EXT_RNG_ALGORITHM_USER_UNIFORM:
     {
+#ifndef DBARTS_HOST_STANDALONE
       UserFunction* function = (UserFunction*) generator->state;
       // if the user uniform is wrapping the built in sampler, call set.seed there
       if (function->f.stateless == &unif_rand) {
@@ -460,6 +472,11 @@ int ext_rng_setSeed(ext_rng* generator, uint_least32_t seed)
         // no way to know how to set seed on this object
         return EINVAL;
       }
+#else
+      // no way to know how to set seed on this object
+      (void) orig_seed;
+      return EINVAL;
+#endif
     }
     break;
     case EXT_RNG_ALGORITHM_INVALID:
