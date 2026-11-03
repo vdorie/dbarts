@@ -97,14 +97,14 @@ $(SA_BUILD)/nmath/%.o: $(NMATH_DIR)/%.c $(NMATH_DIR)/prefix.h $(NMATH_DIR)/nmath
 	$(RCC) $(RCFLAGS) $(NMATH_CPPFLAGS) -c -o $@ $<
 
 # Every symbol the copy defines must carry the prefix, or a program that also
-# links R or libRmath would see two definitions.
+# links R or libRmath would see two definitions; a sanitizer's bookkeeping
+# symbols are the compiler's, not the copy's.
 $(NMATH_LIB): $(NMATH_OBJECTS)
 	@unprefixed=$$(nm -g $(NMATH_OBJECTS) | awk 'NF == 3 && $$2 != "U" { print $$3 }' | \
-	  grep -v -E '^_?dbarts_nmath_'); \
+	  grep -v -E '^_?dbarts_nmath_' | grep -v -E '^_*(asan|ubsan|sanitizer)_'); \
 	if [ -n "$$unprefixed" ]; then \
 	  echo "error: the copy of R's math defines unprefixed symbols:" $$unprefixed >&2; exit 1; \
 	fi
-	rm -f $@
 	$(AR) -crs $@ $(NMATH_OBJECTS)
 
 # misc through its own Makefile, read from here with vpath at src/misc, and
@@ -141,7 +141,6 @@ $(SA_BUILD)/external/%.o: $(STANDALONE)/%.c | $(SA_BUILD)/external
 	$(RCC) $(RCFLAGS) $(SA_EXTERNAL_CPPFLAGS) -MMD -MP -c -o $@ $<
 
 $(SA_EXTERNAL_LIB): $(SA_EXTERNAL_OBJECTS)
-	rm -f $@
 	$(AR) -crs $@ $(SA_EXTERNAL_OBJECTS)
 
 -include $(SA_EXTERNAL_OBJECTS:.o=.d) $(SA_BUILD)/standalone_math.d
@@ -188,12 +187,42 @@ FORCE:
 run: test_bartcore
 	./test_bartcore
 
+# Every path is spelled out: no deletion here reads a variable or a glob.
 clean:
-	rm -f test_bartcore $(OBJECTS) $(DEPS)
+	rm -f test_bartcore
+	rm -f main.o assert.o common.o test_data.o test_tree.o test_scan.o test_grow.o
+	rm -f test_moves.o test_interaction.o test_model.o test_sampler.o test_shape.o
+	rm -f test_facade.o test_state.o test_capi.o test_ensemble.o test_monotone.o
+	rm -f test_fuzz.o test_nmath.o
+	rm -f main.d assert.d common.d test_data.d test_tree.d test_scan.d test_grow.d
+	rm -f test_moves.d test_interaction.d test_model.d test_sampler.d test_shape.d
+	rm -f test_facade.d test_state.d test_capi.d test_ensemble.d test_monotone.d
+	rm -f test_fuzz.d test_nmath.d
 	rm -rf test_bartcore.dSYM
-	rm -f build-standalone/nmath/*.o build-standalone/nmath/libnmath.a
-	rm -f build-standalone/misc/*.o build-standalone/misc/libmisc.a
-	rm -f build-standalone/external/*.o build-standalone/external/*.d
+	rm -f build-standalone/nmath/bd0.o build-standalone/nmath/chebyshev.o
+	rm -f build-standalone/nmath/cospi.o build-standalone/nmath/d1mach.o
+	rm -f build-standalone/nmath/dgamma.o build-standalone/nmath/dnorm.o
+	rm -f build-standalone/nmath/dpois.o build-standalone/nmath/dt.o
+	rm -f build-standalone/nmath/fmax2.o build-standalone/nmath/fmin2.o
+	rm -f build-standalone/nmath/gamma.o build-standalone/nmath/i1mach.o
+	rm -f build-standalone/nmath/lbeta.o build-standalone/nmath/lgamma.o
+	rm -f build-standalone/nmath/lgammacor.o build-standalone/nmath/pbeta.o
+	rm -f build-standalone/nmath/pgamma.o build-standalone/nmath/pnorm.o
+	rm -f build-standalone/nmath/pt.o build-standalone/nmath/qchisq.o
+	rm -f build-standalone/nmath/qgamma.o build-standalone/nmath/qnorm.o
+	rm -f build-standalone/nmath/qt.o build-standalone/nmath/stirlerr.o
+	rm -f build-standalone/nmath/toms708.o build-standalone/nmath/libnmath.a
+	rm -f build-standalone/misc/linearAlgebra.o build-standalone/misc/moments.o
+	rm -f build-standalone/misc/partition.o build-standalone/misc/simd.o
+	rm -f build-standalone/misc/thread.o build-standalone/misc/linearAlgebra_neon.o
+	rm -f build-standalone/misc/partition_neon.o build-standalone/misc/linearAlgebra_sse2.o
+	rm -f build-standalone/misc/moments_sse2.o build-standalone/misc/partition_sse2.o
+	rm -f build-standalone/misc/partition_sse4_1.o build-standalone/misc/linearAlgebra_avx.o
+	rm -f build-standalone/misc/partition_avx2.o build-standalone/misc/libmisc.a
+	rm -f build-standalone/external/randomBase.o build-standalone/external/randomBase.d
+	rm -f build-standalone/external/randomNorm.o build-standalone/external/randomNorm.d
+	rm -f build-standalone/external/random.o build-standalone/external/random.d
+	rm -f build-standalone/external/io_standalone.o build-standalone/external/io_standalone.d
 	rm -f build-standalone/external/libexternal.a
 	rm -f build-standalone/standalone_math build-standalone/standalone_math.o
 	rm -f build-standalone/standalone_math.d
