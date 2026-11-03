@@ -56,6 +56,14 @@
 # verdict; an unknown name refuses the run. SBC_FIXED_GLUE (env var, opt-in) holds a BCF
 # arm's glue at the engine's initial (1, 0, 1) - the control that isolates the
 # two-forest backfit from the glue draw, and the one "glue-sd" carries.
+# SBC_RANKS_OUT (env var, opt-in) names an .rds file the run's ranks are saved
+# to, with its arm, seed, sizes and library, for the pooled read. SBC_UNSCALED_TREES
+# (env var, opt-in) draws a BCF arm's glue for a library whose trees draw at unit
+# scale (sbcBCFUnscaledGlue), so such a library runs against this one on one
+# stream. Comparing two libraries on the BCF arms (sbcPooledRead, sbcDoorReplay):
+#   Rscript benchmarks/R/sbc.R pool <tree-dir> <base-dir> [arm:functional,...]
+#   Rscript benchmarks/R/sbc.R door bcf-weak 40 20 <seed> <out.rds>
+#   Rscript benchmarks/R/sbc.R door-compare <tree.rds> <base.rds>
 #
 # SELF-CONSISTENCY is the whole game: theta0 must come from the same prior the
 # sampler assumes in its posterior. The forest/leaf draw uses the sampler's own
@@ -3016,11 +3024,499 @@ sbcReport <- function(
   invisible(verdicts)
 }
 
+# --- comparing two libraries on the BCF arms ---------------------------------
+
+# One sampler serves all of an arm's replications, so two libraries that agree
+# to rounding run one chain only until a rounding flips a decision; after that
+# every later replication is another stream, and one seed's two runs are two
+# draws of a noisy verdict. Two libraries are therefore compared on ranks
+# pooled over several seeds, and their agreement before the chains part is read
+# by a replay too short for them to part.
+
+# The six BCF arms' configurations, one place for the driver and the replay.
+sbcBCFArms <- c(
+  "bcf",
+  "bcf-weak",
+  "bcf-probit",
+  "bcf-logistic",
+  "bcf-probit-weak",
+  "bcf-logistic-weak"
+)
+
+sbcBCFArmConfig <- function(arm) {
+  # prior-weak = small n so the a-glue prior term dominates the likelihood
+  switch(
+    arm,
+    bcf = sbcAddBCF(sbcConfig(family = "gaussian", n = 200L)),
+    "bcf-weak" = sbcAddBCF(sbcConfig(family = "gaussian", n = 40L)),
+    sbcFamilyConfig(arm)
+  )
+}
+
+# The glue prior of a library whose trees draw at unit scale, a forest's sd
+# riding its coefficient: a ~ Cauchy(0, sd.control), b0, b1 ~ N(0, 1/2). The
+# draws consume the generator's stream exactly as the default's do, so such a
+# library runs the same replications as one whose trees carry the sd.
+sbcBCFUnscaledGlue <- function(config) {
+  config$aPriorScale <- config$sdControl
+  config$bPriorVariance <- 0.5
+  config
+}
+
+# The functionals whose SBC is ill-posed by construction: a mu and b_z tau are
+# invariant under a joint sign flip, so the raw a and b1 - b0 posteriors are
+# sign-symmetric. A pooled read reports them apart and does not count them.
+sbcBCFIllPosed <- c("a", "b1.minus.b0")
+
+# A run's saved ranks, as SBC_RANKS_OUT writes them: the run's settings beside
+# the R x functionals rank matrix.
+sbcRankRecord <- function(fit, arm, seed, unscaledTrees) {
+  list(
+    arm = arm,
+    seed = seed,
+    R = fit$R,
+    L = fit$L,
+    thin = fit$thin,
+    burn = fit$burn,
+    unscaledTrees = unscaledTrees,
+    version = as.character(packageVersion("dbarts")),
+    library = dirname(find.package("dbarts")),
+    ranks = fit$ranks
+  )
+}
+
+sbcReadRankRecords <- function(dir) {
+  files <- list.files(dir, pattern = "[.]rds$", full.names = TRUE)
+  if (length(files) == 0L) {
+    stop("no saved ranks in \"", dir, "\"")
+  }
+  records <- lapply(files, readRDS)
+  keys <- vapply(
+    records,
+    function(x) paste(x$arm, x$seed, sep = "|"),
+    ""
+  )
+  if (anyDuplicated(keys)) {
+    stop("two saved runs of one arm and seed in \"", dir, "\"")
+  }
+  names(records) <- keys
+  records
+}
+
+# The ecdf gap of integer ranks on {0, ..., L}, as rankUniformity reads it.
+sbcEcdfGap <- function(ranks, L) {
+  ranks <- ranks[!is.na(ranks)]
+  target <- seq_len(L + 1L) / (L + 1)
+  max(abs(cumsum(tabulate(ranks + 1L, L + 1L)) / length(ranks) - target))
+}
+
+# The mean rank's z against the discrete uniform on {0, ..., L}.
+sbcRankMeanZ <- function(ranks, L) {
+  ranks <- ranks[!is.na(ranks)]
+  (mean(ranks) - L / 2) / sqrt(((L + 1)^2 - 1) / 12 / length(ranks))
+}
+
+# The ecdf band at R ranks, rankUniformity's own null draw, which depends on R,
+# L and alpha and not on the ranks. Cached, since a pooled read places one band
+# per functional at a handful of distinct R.
+sbcBandCache <- new.env()
+sbcEcdfBandAt <- function(R, L, alpha) {
+  key <- sprintf("%d|%d|%.10g", R, L, alpha)
+  if (is.null(sbcBandCache[[key]])) {
+    sbcBandCache[[key]] <- rankUniformity(integer(R), L, alpha = alpha)$ecdfBand
+  }
+  sbcBandCache[[key]]
+}
+
+# Two-sided sign-flip p of the sum of paired integer differences, exact: under
+# the null each difference's sign is a fair coin.
+sbcSignFlipP <- function(d) {
+  d <- as.integer(d[d != 0])
+  if (length(d) == 0L) {
+    return(1)
+  }
+  observed <- abs(sum(d))
+  d <- abs(d)
+  total <- sum(d)
+  # mass[s + total + 1] = P(sum = s)
+  mass <- numeric(2L * total + 1L)
+  mass[total + 1L] <- 1
+  for (di in d) {
+    shifted <- numeric(length(mass))
+    up <- seq.int(di + 1L, length(mass))
+    down <- seq_len(length(mass) - di)
+    shifted[up] <- shifted[up] + mass[up - di] / 2
+    shifted[down] <- shifted[down] + mass[down + di] / 2
+    mass <- shifted
+  }
+  sums <- seq.int(-total, total)
+  sum(mass[abs(sums) >= observed])
+}
+
+# The pooled read of two libraries' saved runs, `tree` the library under test
+# and `base` the one it is read against, each a directory of SBC_RANKS_OUT
+# files on the same arms, seeds and L.
+#
+# Per functional, ranks pooled over an arm's seeds: the ecdf band at .05 / M,
+# M the identified functionals read over every arm, and the mean rank's z. A
+# functional fails when the tree is past that band or its |z| is above 3.33 and
+# the base is neither. The ill-posed pair is read beside them and never fails.
+# `named` ("arm:functional" strings) are read at the .01 band, the level at
+# which a named functional is owed fresh seeds of its own. Per run, the
+# identified functionals past the run's own .05 band are counted on each
+# library and the paired differences read by an exact sign-flip at `flipAlpha`.
+sbcPooledRead <- function(
+  treeDir,
+  baseDir,
+  named = character(0),
+  zBar = 3.33,
+  flipAlpha = 0.05
+) {
+  tree <- sbcReadRankRecords(treeDir)
+  base <- sbcReadRankRecords(baseDir)
+  if (!setequal(names(tree), names(base))) {
+    unmatched <- setdiff(
+      union(names(tree), names(base)),
+      intersect(names(tree), names(base))
+    )
+    stop(
+      "the two directories hold different runs: ",
+      paste(sort(unmatched), collapse = ", ")
+    )
+  }
+  keys <- sort(names(tree))
+  Ls <- unique(c(
+    vapply(tree, `[[`, 0L, "L"),
+    vapply(base, `[[`, 0L, "L")
+  ))
+  if (length(Ls) != 1L) {
+    stop("the runs differ in L: ", paste(Ls, collapse = ", "))
+  }
+  L <- Ls
+  arms <- unique(vapply(tree[keys], `[[`, "", "arm"))
+  pooled <- function(records, arm, fn) {
+    armKeys <- keys[vapply(records[keys], `[[`, "", "arm") == arm]
+    unlist(lapply(records[armKeys], function(x) x$ranks[, fn]))
+  }
+  rows <- NULL
+  for (arm in arms) {
+    armKey <- keys[vapply(tree[keys], `[[`, "", "arm") == arm][1L]
+    for (fn in colnames(tree[[armKey]]$ranks)) {
+      rt <- pooled(tree, arm, fn)
+      rb <- pooled(base, arm, fn)
+      rows <- rbind(
+        rows,
+        data.frame(
+          arm = arm,
+          functional = fn,
+          seeds = sum(vapply(tree[keys], `[[`, "", "arm") == arm),
+          R = sum(!is.na(rt)),
+          Rbase = sum(!is.na(rb)),
+          gapTree = sbcEcdfGap(rt, L),
+          gapBase = sbcEcdfGap(rb, L),
+          zTree = sbcRankMeanZ(rt, L),
+          zBase = sbcRankMeanZ(rb, L),
+          stringsAsFactors = FALSE
+        )
+      )
+    }
+  }
+  identified <- !rows$functional %in% sbcBCFIllPosed
+  M <- sum(identified)
+  alphaM <- 0.05 / M
+  rows$band <- mapply(sbcEcdfBandAt, rows$R, L, alphaM)
+  rows$bandBase <- mapply(sbcEcdfBandAt, rows$Rbase, L, alphaM)
+  rows$tripTree <- rows$gapTree > rows$band | abs(rows$zTree) > zBar
+  rows$tripBase <- rows$gapBase > rows$bandBase | abs(rows$zBase) > zBar
+  rows$fail <- identified & rows$tripTree & !rows$tripBase
+
+  cat(sprintf(
+    "== pooled read: %d arms, %d run pairs, L = %d; M = %d identified functionals, band alpha = .05/%d = %.6f ==\n",
+    length(arms),
+    length(keys),
+    L,
+    M,
+    M,
+    alphaM
+  ))
+  printRows <- function(sel) {
+    cat(sprintf(
+      "%-18s %-11s %5s %8s %8s %8s %7s %7s %s\n",
+      "arm",
+      "functional",
+      "R",
+      "gapTree",
+      "gapBase",
+      "band",
+      "zTree",
+      "zBase",
+      "verdict"
+    ))
+    for (i in which(sel)) {
+      cat(sprintf(
+        "%-18s %-11s %5d %8.4f %8.4f %8.4f %+7.2f %+7.2f %s\n",
+        rows$arm[i],
+        rows$functional[i],
+        rows$R[i],
+        rows$gapTree[i],
+        rows$gapBase[i],
+        rows$band[i],
+        rows$zTree[i],
+        rows$zBase[i],
+        if (rows$fail[i]) {
+          "FAIL"
+        } else if (rows$tripTree[i]) {
+          "trip, base too"
+        } else if (rows$tripBase[i]) {
+          "base trips"
+        } else {
+          "pass"
+        }
+      ))
+    }
+  }
+  printRows(identified)
+  cat("\nill-posed pair, read apart and not counted in M:\n")
+  printRows(!identified)
+  worst <- which(identified)[order(
+    -rows$gapTree[identified] / rows$band[identified]
+  )][1L]
+  worstZ <- which(identified)[order(-abs(rows$zTree[identified]))][1L]
+  cat(sprintf(
+    "\nfails: %d of %d; tree trips %d, base trips %d; worst gap/band %s %s %.3f; worst |z| %s %s %+.2f\n",
+    sum(rows$fail),
+    M,
+    sum(rows$tripTree & identified),
+    sum(rows$tripBase & identified),
+    rows$arm[worst],
+    rows$functional[worst],
+    rows$gapTree[worst] / rows$band[worst],
+    rows$arm[worstZ],
+    rows$functional[worstZ],
+    rows$zTree[worstZ]
+  ))
+
+  namedRows <- NULL
+  if (length(named) > 0L) {
+    cat("\nnamed functionals at the .01 band:\n")
+    for (nm in named) {
+      parts <- strsplit(nm, ":", fixed = TRUE)[[1L]]
+      i <- which(rows$arm == parts[1L] & rows$functional == parts[2L])
+      if (length(i) != 1L) {
+        stop("no pooled functional \"", nm, "\"")
+      }
+      band01 <- sbcEcdfBandAt(rows$R[i], L, 0.01)
+      past <- rows$gapTree[i] > band01
+      cat(sprintf(
+        "  %-18s %-6s R %d: gap tree %.4f base %.4f band(.01) %.4f; z tree %+.2f base %+.2f -> %s\n",
+        parts[1L],
+        parts[2L],
+        rows$R[i],
+        rows$gapTree[i],
+        rows$gapBase[i],
+        band01,
+        rows$zTree[i],
+        rows$zBase[i],
+        if (past) "PAST, owed its own seeds" else "under"
+      ))
+      namedRows <- rbind(
+        namedRows,
+        data.frame(
+          arm = parts[1L],
+          functional = parts[2L],
+          gapTree = rows$gapTree[i],
+          gapBase = rows$gapBase[i],
+          band01 = band01,
+          past = past
+        )
+      )
+    }
+  }
+
+  # per run: identified functionals past that run's own .05 band
+  flagCount <- function(x) {
+    fns <- setdiff(colnames(x$ranks), sbcBCFIllPosed)
+    sum(vapply(
+      fns,
+      function(fn) {
+        r <- x$ranks[, fn]
+        sbcEcdfGap(r, L) > sbcEcdfBandAt(sum(!is.na(r)), L, 0.05)
+      },
+      NA
+    ))
+  }
+  flags <- data.frame(
+    key = keys,
+    readings = vapply(
+      tree[keys],
+      function(x) length(setdiff(colnames(x$ranks), sbcBCFIllPosed)),
+      0L
+    ),
+    tree = vapply(tree[keys], flagCount, 0L),
+    base = vapply(base[keys], flagCount, 0L),
+    stringsAsFactors = FALSE
+  )
+  runBands <- unique(vapply(
+    tree[keys],
+    function(x) sbcEcdfBandAt(x$R, L, 0.05),
+    0
+  ))
+  flipP <- sbcSignFlipP(flags$tree - flags$base)
+  cat(sprintf(
+    "\nflag count at the per-run .05 band (%s): tree %d, base %d of %d readings over %d run pairs; sign-flip p %.4f -> %s\n",
+    paste(sprintf("%.4f", runBands), collapse = ", "),
+    sum(flags$tree),
+    sum(flags$base),
+    sum(flags$readings),
+    nrow(flags),
+    flipP,
+    if (flipP < flipAlpha) "TRIP" else "pass"
+  ))
+  for (i in seq_len(nrow(flags))) {
+    cat(sprintf(
+      "  %-28s tree %d base %d\n",
+      flags$key[i],
+      flags$tree[i],
+      flags$base[i]
+    ))
+  }
+  invisible(list(
+    rows = rows,
+    M = M,
+    named = namedRows,
+    flags = flags,
+    flipP = flipP
+  ))
+}
+
+# The replay: sbc's BCF replication on one sampler, with chains too short to
+# part, recording continuous values at every replication's start and end so
+# two libraries can be compared where a rank cannot tell them apart. Per
+# replication: the simulated response's sum, and the combined index a mu +
+# b_z tau summed at the fit's start and after `sweeps` of burn, and at the first
+# row after it. Each library writes its own file; sbcDoorCompare reads two.
+sbcDoorReplay <- function(config, R = 40L, sweeps = 20L, seed = 20260709L) {
+  thin <- 20L
+  latent <- sbcBCFLatent(config)
+  set.seed(seed)
+  built <- sbcMakeBCF(config, 1L, thin)
+  bcf <- built$bcf
+  drawSigma <- sbcSigmaDraw(config$sigest, config$sigDf, config$sigQuant)
+  drawGlue <- sbcBCFGlueDraw(config$aPriorScale, config$bPriorVariance)
+  link <- if (latent) sbcBCFLink(config$family)
+  index <- function() {
+    glue <- bcf$getForestAmplitudes()
+    bz <- ifelse(config$z != 0, glue[3L], glue[2L])
+    glue[1L] * bcf$getForestFits(1L)[, 1] + bz * bcf$getForestFits(2L)[, 1]
+  }
+  out <- matrix(
+    NA_real_,
+    R,
+    4L,
+    dimnames = list(NULL, c("y.sum", "start", "end", "end.row1"))
+  )
+  for (r in seq_len(R)) {
+    g0 <- drawGlue()
+    sbcInstallBCFGlue(bcf, g0)
+    bcf$sampleTreesFromPrior()
+    bcf$sampleLeafParametersFromPrior()
+    index0 <- index()
+    y0 <- if (latent) {
+      as.double(rbinom(config$n, 1L, link(index0)))
+    } else {
+      sig0 <- drawSigma(1L)
+      built$fitScale * index0 + built$fitShift + sig0 * rnorm(config$n)
+    }
+    bcf$sampleTreesFromPrior()
+    bcf$sampleLeafParametersFromPrior()
+    bcf$setResponse(y0, updateScale = FALSE)
+    start <- index()
+    invisible(bcf$run(sweeps, 0L))
+    end <- index()
+    out[r, ] <- c(sum(y0), sum(start), sum(end), end[1L])
+  }
+  out
+}
+
+sbcDoorCompare <- function(a, b) {
+  if (!identical(dim(a), dim(b))) {
+    stop("the two replays differ in size")
+  }
+  d <- abs(a - b)
+  list(
+    worst = max(d),
+    worstStart = max(d[, c("y.sum", "start")]),
+    byColumn = apply(d, 2L, max),
+    firstPast = which(apply(d, 1L, max) > 1e-6)[1L]
+  )
+}
+
 # --- main ------------------------------------------------------------------
 
 if (sys.nframe() == 0L) {
   args <- commandArgs(trailingOnly = TRUE)
   which <- if (length(args) >= 1L) args[1] else "gaussian"
+
+  # Two-library modes on the BCF arms, ahead of the positional parse since
+  # their arguments are paths and names:
+  #   pool <tree-dir> <base-dir> [arm:functional,...]  the pooled read
+  #   door <arm> <reps> <sweeps> <seed> <out.rds>      one library's replay
+  #   door-compare <a.rds> <b.rds>                     two replays' agreement
+  if (which == "pool") {
+    if (length(args) < 3L) {
+      stop("usage: sbc.R pool <tree-dir> <base-dir> [arm:functional,...]")
+    }
+    named <- if (length(args) >= 4L) {
+      strsplit(args[4], ",", fixed = TRUE)[[1L]]
+    } else {
+      character(0)
+    }
+    read <- sbcPooledRead(args[2], args[3], named = named)
+    trips <- sum(read$rows$fail) + (read$flipP < 0.05)
+    if (nzchar(Sys.getenv("SBC_FAIL_ON_FLAG", "")) && trips > 0L) {
+      quit(status = 1L, save = "no")
+    }
+    quit(status = 0L, save = "no")
+  }
+  if (which == "door") {
+    if (length(args) < 6L || !args[2] %in% sbcBCFArms) {
+      stop(
+        "usage: sbc.R door <arm> <reps> <sweeps> <seed> <out.rds>, arm one of ",
+        paste(sbcBCFArms, collapse = ", ")
+      )
+    }
+    config <- sbcBCFArmConfig(args[2])
+    if (nzchar(Sys.getenv("SBC_UNSCALED_TREES", ""))) {
+      config <- sbcBCFUnscaledGlue(config)
+    }
+    replay <- sbcDoorReplay(
+      config,
+      R = as.integer(args[3]),
+      sweeps = as.integer(args[4]),
+      seed = as.integer(args[5])
+    )
+    saveRDS(replay, args[6])
+    quit(status = 0L, save = "no")
+  }
+  if (which == "door-compare") {
+    if (length(args) < 3L) {
+      stop("usage: sbc.R door-compare <a.rds> <b.rds>")
+    }
+    cmp <- sbcDoorCompare(readRDS(args[2]), readRDS(args[3]))
+    cat(sprintf(
+      "replay: worst |difference| %.3g, at a replication's start %.3g; first replication past 1e-6: %s -> %s\n",
+      cmp$worst,
+      cmp$worstStart,
+      if (is.na(cmp$firstPast)) "none" else cmp$firstPast,
+      if (cmp$worst < 1e-6) "PASS" else "FAIL"
+    ))
+    print(signif(cmp$byColumn, 3L))
+    if (nzchar(Sys.getenv("SBC_FAIL_ON_FLAG", "")) && cmp$worst >= 1e-6) {
+      quit(status = 1L, save = "no")
+    }
+    quit(status = 0L, save = "no")
+  }
+
   R <- if (length(args) >= 2L) as.integer(args[2]) else 200L
   L <- if (length(args) >= 3L) as.integer(args[3]) else 200L
   thin <- if (length(args) >= 4L) as.integer(args[4]) else 30L
@@ -3143,9 +3639,7 @@ if (sys.nframe() == 0L) {
     cfg$weights <- rgamma(cfg$n, 2, 2) # known, positive, mean 1
     cfg
   } else if (isBCF) {
-    # prior-weak = small n so the a-glue prior term dominates the likelihood
-    nBcf <- if (which == "bcf-weak") 40L else 200L
-    sbcAddBCF(sbcConfig(family = "gaussian", n = nBcf))
+    sbcBCFArmConfig(which)
   } else if (isLinear) {
     # columns 1:2 fit linearly inside leaves; column 3 is split-only
     cfg <- sbcConfig(
@@ -3220,6 +3714,10 @@ if (sys.nframe() == 0L) {
   if (isBCF) {
     config$poison <- poison
     config$fixedGlue <- nzchar(Sys.getenv("SBC_FIXED_GLUE", ""))
+  }
+  unscaledTrees <- isBCF && nzchar(Sys.getenv("SBC_UNSCALED_TREES", ""))
+  if (unscaledTrees) {
+    config <- sbcBCFUnscaledGlue(config)
   }
 
   cat("== prior moment check ==\n")
@@ -3427,6 +3925,18 @@ if (sys.nframe() == 0L) {
       "\nfloor incidence: %.3f of s0 components pinned at 1e-300\n",
       fit$floorFrac
     ))
+  }
+  ranksOut <- Sys.getenv("SBC_RANKS_OUT", "")
+  if (nzchar(ranksOut)) {
+    saveRDS(
+      sbcRankRecord(
+        fit,
+        which,
+        if (is.null(runSeed)) NA_integer_ else runSeed,
+        unscaledTrees
+      ),
+      ranksOut
+    )
   }
   # matrix arms are admitted at the Bonferroni'd level; every other config keeps
   # the per-functional 5% band its recorded result was read at
