@@ -217,12 +217,26 @@ case("every candidate stating its own: refused by name", {
   expectUntouched(live, untouched)
 })
 case("$setTreePrior: NULL and a left-out name change nothing", {
-  live <- build(threeSharers)
-  untouched <- build(threeSharers)
+  live <- build(threeSharers, power = 1.5, base = 0.8)
+  untouched <- build(threeSharers, power = 1.5, base = 0.8)
   expect_null(live$setTreePrior(power = NULL))
+  live$setTreePrior(base = NULL)
   live$setTreePrior()
-  live$setTreePrior(power = 2)
+  live$setTreePrior(power = 1.5)
   expectUntouched(live, untouched)
+})
+case("three sharers: the residual prior", {
+  live <- build(threeSharers)
+  model <- live$model
+  model@resid.prior <- dbartsPriors$chisq(10, 0.5)
+  live$setModel(model)
+  twin <- build(
+    threeSharers,
+    family = gaussian(sigma = dbartsPriors$chisq(10, 0.5))
+  )
+  # the twin states its family, where the live model states the prior alone
+  same(live$model@resid.prior, twin$model@resid.prior, "the prior")
+  same(draws(live), draws(twin), "draws")
 })
 case("$setTreePrior: a value that is not one is refused", {
   live <- build(threeSharers)
