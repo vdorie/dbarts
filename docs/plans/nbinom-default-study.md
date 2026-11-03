@@ -1195,6 +1195,21 @@ if both readings and step 5 pass. If either fails, the rule keeps the default, a
 reading's numbers are reported either way, and the result goes to the maintainer (dec-B432); nothing is built until
 the maintainer rules.
 
+## The defect in R's truth, and its rescoring
+
+Found by both referees after the fresh block (dec-B558). In [`designedBase`](../../benchmarks/R/nbinom-default-study.R)
+the designed cells' log mean before scaling was `g(b)`, evaluated inside `with(x, ...)`; `x` has a column `b`, which
+masked the argument, so `truthAt(1)` and `truthAt(2)` both returned the truth at each row's observed `b`. The truth
+of R's per-row log rate ratio, and of its sample-average rate ratio, was therefore exactly 0 on D1, D2, D3, D4-2,
+D4-3, D6 and D8. The generated counts were always right: they are drawn from `truth`, which evaluates `g` at the
+observed `b` and so was never affected, and the same holds for F, G and P. Only the stored truth that R is scored
+against was wrong. D5, the null cell, has no effect to carry, and D7 builds its truth by its own code; both were right.
+
+The fix keeps `b` outside `with(x, ...)`. A check sourcing the old and the fixed definitions alone, no fit, finds
+`truth` and the covariates identical on all nine designed cells; `truthAt(1)` equal to `truthAt(2)` before the fix
+on the seven, and different after it, the per-row effect's sd 0.37 (D1), 0.42 (D2), 0.40 (D3), 0.92 (D4-2), 1.39
+(D4-3), 0.61 (D6) and 0.12 (D8); the row's observed `b` picking out `truth` again; and D5 and D7 unchanged.
+
 ## How the result goes to the maintainer
 
 The finding is written to docs/design/nbinom-default-study.md (Status FINDING): Part A's table and verdicts

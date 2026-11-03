@@ -2919,8 +2919,10 @@ designedBase <- function(name, spread = NULL) {
     )$root
     at <- function(b) a * prognosis + b * effect
   } else {
+    # b stays outside with(x, ...): x has a column b, which would mask the
+    # argument and give the same truth at either value.
     g <- function(b) {
-      with(x, sin(x1) + 0.5 * x2 * x3 + 0.5 * x4^2 + 0.5 * b * x5)
+      with(x, sin(x1) + 0.5 * x2 * x3 + 0.5 * x4^2) + 0.5 * b * x$x5
     }
     observed <- g(x$b)
     at <- function(b) {
