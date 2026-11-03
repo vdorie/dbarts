@@ -581,12 +581,13 @@ forest(
   `leaf.prior = normal(sd = )`, in the same units, and stating the size
   at both places is refused.
 
-  It is the one argument a live sampler restates:
-  `$setLeafPrior(forests = list(forest(sd = ), ...))` states it from
-  then on, also where it is the number in force, and leaves the recorded
-  \\\mathrm{sd}(w)\\. `$getLeafPrior(f)$leaf.prior` returns the
-  statement, `forest(sd = )` where one was stated and `forest()` where
-  none was, and `forest()` written back leaves its forest as it is (see
+  A live sampler restates it through `$setForest(forest, sd = )`, as it
+  does `power`, `base` and the move settings; it states it from then on,
+  unless it is the number in force, which changes nothing, and leaves
+  the recorded \\\mathrm{sd}(w)\\. `$getLeafPrior(f)$leaf.prior` returns
+  the statement, `forest(sd = )` where one was stated and `forest()`
+  where none was, and `forest()` written back leaves its forest as it is
+  (see
   [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)).
   A forest's kind is fixed at creation: `$setForestBasis` refuses to
   give a basis to a forest created without one, and moves no forest's
@@ -800,13 +801,17 @@ refused there, since such a forest has no coefficient of its own.
 `$getLeafPrior(f)` on it gives the fitting function's leaf prior as
 `leaf.prior`, its part in force as `sd` (`NA` where `k` is drawn) and
 `prior.sd.of` `"forest, shared"`, and `$getK(f)` the group's `k`. The
-part of a group is fixed at creation: `$setLeafPrior(forests = )`
-refuses an `sd` stated for such a forest, and
-`$setLeafPrior(leaf.prior)` is refused on its sampler. One forest alone
-leaves the leaf prior by `$setLeafPrior(forests = )` as by stating `sd`
-at creation, its `k` then pinned at 1. Printed, a line after the
-forests' own gives each forest's tree count and their total, and another
-which forests share.
+part of a group is set once, at creation. A forest of a group leaves it
+by `$setForest(forest, sd = )`, at that size with its `k` pinned at 1,
+and the forests still sharing keep their parts and sizes; nothing puts
+it back but a new sampler. A total stated later, by
+`$setLeafPrior(leaf.prior)` or `$setModel`, reaches the forests still
+sharing, each at its creation part, so their sizes no longer add up to
+it. One forest alone leaves the leaf prior by
+`$setForest(forest, sd = )` as by stating `sd` at creation, its `k` then
+pinned at 1. Printed, a line after the forests' own gives each forest's
+tree count and their total, and another which forests share, or which
+one is left of a group.
 
 The leaf scales of a forest with a basis and of one stating `sd` come
 from the model's own calibration map rather than from the leaf prior, so
@@ -933,7 +938,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)
 #>   trees: 10, 10; 20 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.000621
+#> total seconds in loop: 0.000611
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 2 5 2 3 2 

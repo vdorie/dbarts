@@ -559,9 +559,10 @@ The constructor is not exported: it resolves by bare name inside the
     forest of a model of one forest takes it as the fitting function's
     <code>leaf.prior = normal(sd = )</code>, in the same units, and stating the size
     at both places is refused.</p>
-<p>It is the one argument a live sampler restates:
-    <code>$setLeafPrior(forests = list(forest(sd = ), ...))</code> states it from
-    then on, also where it is the number in force, and leaves the recorded
+<p>A live sampler restates it through <code>$setForest(forest, sd = )</code>, as
+    it does <code>power</code>, <code>base</code> and the move settings; it states it
+    from then on, unless it is the number in force, which changes nothing,
+    and leaves the recorded
     \(\mathrm{sd}(w)\). <code>$getLeafPrior(f)$leaf.prior</code> returns
     the statement, <code>forest(sd = )</code> where one was stated and
     <code>forest()</code> where none was, and <code>forest()</code> written back leaves
@@ -769,12 +770,17 @@ The constructor is not exported: it resolves by bare name inside the
   function's leaf prior as <code>leaf.prior</code>, its part in force as
   <code>sd</code> (<code>NA</code> where <code>k</code> is drawn) and <code>prior.sd.of</code>
   <code>"forest, shared"</code>, and <code>$getK(f)</code> the group's <code>k</code>.
-  The part of a group is fixed at creation: <code>$setLeafPrior(forests = )</code>
-  refuses an <code>sd</code> stated for such a forest, and
-  <code>$setLeafPrior(leaf.prior)</code> is refused on its sampler. One forest alone
-  leaves the leaf prior by <code>$setLeafPrior(forests = )</code> as by stating
-  <code>sd</code> at creation, its <code>k</code> then pinned at 1. Printed, a line after the forests' own gives
-  each forest's tree count and their total, and another which forests share.</p>
+  The part of a group is set once, at creation. A forest of a group leaves
+  it by <code>$setForest(forest, sd = )</code>, at that size with its <code>k</code>
+  pinned at 1, and the forests still sharing keep their parts and sizes;
+  nothing puts it back but a new sampler. A total stated later, by
+  <code>$setLeafPrior(leaf.prior)</code> or <code>$setModel</code>, reaches the forests
+  still sharing, each at its creation part, so their sizes no longer add up
+  to it. One forest alone leaves the leaf prior by
+  <code>$setForest(forest, sd = )</code> as by stating <code>sd</code> at creation, its
+  <code>k</code> then pinned at 1. Printed, a line after the forests' own gives
+  each forest's tree count and their total, and another which forests share,
+  or which one is left of a group.</p>
 <p>The leaf scales of a forest with a basis and of one stating <code>sd</code> come
   from the model's own calibration map rather than from the leaf prior, so a
   <code>k</code> hyperprior, a non-default <code>k</code> and a named leaf-prior
@@ -896,7 +902,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   trees: 10, 10; 20 in all</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000621</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000611</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 2 2 5 2 3 2 </span>

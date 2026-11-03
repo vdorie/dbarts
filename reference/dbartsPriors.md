@@ -29,7 +29,11 @@ A list of functions:
   element), an unnamed vector assigns by position. Entries must be
   non-negative and finite, with at least one positive. Named or
   positional probabilities are matched to the data when a sampler is
-  built.
+  built. A column of probability zero is never split on, just as one a
+  forest's `vars` leaves out is never split on, on every path: where the
+  columns of positive probability are used up along a path, the node
+  cannot split. A sampler's `$setModel` refuses a zero on a column its
+  trees split on.
 
 - `dart(a = 0.5, b = 1, rho = NULL, alpha = 1, update.alpha = TRUE, update.delay = NULL)`:
 

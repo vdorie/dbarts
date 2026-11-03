@@ -222,10 +222,11 @@ dbarts(
   named or one per model-matrix column, `num.vars`, which stands for the
   number of predictors (`1 / num.vars`), or `dart()` from
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md),
-  which runs DART (Linero 2018). A model of several forests, and
-  `family = "multinomial"`, take a uniform vector and refuse any other,
-  or `dart()`, by name. The mean forest's alone: a variance forest takes
-  none.
+  which runs DART (Linero 2018). A column of split probability zero is
+  never split on, just as one a forest's `vars` leaves out is never
+  split on. A model of several forests, and `family = "multinomial"`,
+  take a uniform vector and refuse any other, or `dart()`, by name. The
+  mean forest's alone: a variance forest takes none.
 
 - leaf.prior:
 
@@ -450,28 +451,28 @@ dbarts(
   repeats an earlier label takes a suffix, `dose`, `dose.1`. The labels
   are `attr(fit, "forest.labels")` on a
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) fit, and
-  `$setLeafPrior(forests = )` checks a list's names against them; a
-  forest is still selected by its position. Gaussian, `"probit"` and
-  `"logistic"` responses: under a latent family the forests combine into
-  the index rather than into the mean, on the link's own fixed scale, so
-  every forest's `sd` is stated in units of the latent index, `sigma` is
-  pinned and there is no response transform to re-anchor. `"aft"`,
-  `"ordinal"` and `"nbinom"` are refused at creation, each naming what
-  it is missing. The `control`'s `proposal.probs` mixture reaches every
-  forest of the declaration that states none of its own, the frozen
-  mixture included: an all-zero mixture holds those forests' tree
-  structures, and their leaf values move with the per-forest amplitudes,
-  `sigma` and the family's latents. The result is an ordinary
-  `dbartsSampler`; per-forest fits and the per-forest amplitudes are
-  read off the sampler rather than from the run's combined `train`
-  channel. The columns of each basis are stored on the data object, as
-  `data@bases`, named as `lm` would name them, on the rows `subset` and
-  the `na.action` keep, and survive a sampler's re-creation. A basis
-  declared here has nowhere to ride when `formula` is already a
-  `dbartsData` object: `dbarts()` refuses that combination by name
-  rather than silently discarding the declaration and fitting a
-  single-forest model - build the data object with the bases already on
-  it, `dbartsData(bases = )`, or declare them through
+  `$setForest` and the sampler's readers select a forest by them or by
+  its position. Gaussian, `"probit"` and `"logistic"` responses: under a
+  latent family the forests combine into the index rather than into the
+  mean, on the link's own fixed scale, so every forest's `sd` is stated
+  in units of the latent index, `sigma` is pinned and there is no
+  response transform to re-anchor. `"aft"`, `"ordinal"` and `"nbinom"`
+  are refused at creation, each naming what it is missing. The
+  `control`'s `proposal.probs` mixture reaches every forest of the
+  declaration that states none of its own, the frozen mixture included:
+  an all-zero mixture holds those forests' tree structures, and their
+  leaf values move with the per-forest amplitudes, `sigma` and the
+  family's latents. The result is an ordinary `dbartsSampler`;
+  per-forest fits and the per-forest amplitudes are read off the sampler
+  rather than from the run's combined `train` channel. The columns of
+  each basis are stored on the data object, as `data@bases`, named as
+  `lm` would name them, on the rows `subset` and the `na.action` keep,
+  and survive a sampler's re-creation. A basis declared here has nowhere
+  to ride when `formula` is already a `dbartsData` object: `dbarts()`
+  refuses that combination by name rather than silently discarding the
+  declaration and fitting a single-forest model - build the data object
+  with the bases already on it, `dbartsData(bases = )`, or declare them
+  through
   [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),
   which always takes a pre-built data object and installs the
   declaration, replacing whatever bases it carried. Options a two-forest

@@ -117,7 +117,22 @@ getLeafPrior(forest = NULL)
 # S4 method for class 'dbartsSampler'
 getK(forest = NULL)
 # S4 method for class 'dbartsSampler'
-setLeafPrior(leaf.prior, forests = NULL, updateState = NULL)
+setLeafPrior(leaf.prior, updateState = NULL)
+# S4 method for class 'dbartsSampler'
+getForest(forest = NULL)
+# S4 method for class 'dbartsSampler'
+setForest(forest = NULL, sd = NULL, power = NULL, base = NULL,
+    amplitude = NULL, proposal.probs = NULL, n.perturb.cuts = NULL, treeShift = NULL,
+    updateState = NULL, n.trees = NULL, vars = NULL, interactions = NULL,
+    blocks = NULL, basis = NULL, ...)
+# S4 method for class 'dbartsSampler'
+setTreePrior(power = NULL, base = NULL, split.probs = NULL)
+# S4 method for class 'dbartsSampler'
+getVarianceForest()
+# S4 method for class 'dbartsSampler'
+setVarianceForest(power = NULL, base = NULL,
+    proposal.probs = NULL, n.perturb.cuts = NULL, updateState = NULL, n.trees = NULL,
+    vars = NULL, ...)
 # S4 method for class 'dbartsSampler'
 installTrees(donor, samples = NULL, forceUpdate = FALSE)
 # S4 method for class 'dbartsSampler'
@@ -266,14 +281,43 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 - newModel:
 
   An object inheriting from `dbartsModel`. When passed to `setModel`, it
-  cannot switch DART (`split.probs = dart()`) on or off relative to the
-  sampler's creation-time model, nor change the columns a single forest
-  may split on (its
+  changes the numbers inside the sampler's model and is refused, by name
+  and before anything is stored, where it differs in structure: the
+  response family (a Student-t error against a Gaussian one included),
+  the kind of leaf and its covariate columns, a Gaussian-process leaf's
+  `max.leaf.size`, the interaction limits and blocks, DART against the
+  ordinary tree prior, the columns a forest may split on (its
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)
-  `vars`), nor state another tree count for a forest or the variance
-  forest; recreate the sampler instead. A count the model does not
-  state, as in `dbartsSpec(data, power = 3)$model`, leaves the
-  sampler's.
+  `vars`), the tree count of a forest or the variance forest, and the
+  monotone directions; make a new sampler instead. A count the model
+  does not state, as in `dbartsSpec(data, power = 3)$model`, leaves the
+  sampler's. It takes `power` and `base`, the split probabilities, the
+  leaf scale as `k` or `sd`, the residual prior, the Student-t degrees
+  of freedom, a negative-binomial shape, a Gaussian-process lengthscale
+  and DART's own settings. A degrees of freedom, shape or DART `alpha`
+  handed from held to drawn starts at the value in force, not where a
+  new sampler would start it; a new lengthscale is refused on a sampler
+  holding kept draws, which replay only under the kernel they were drawn
+  with. A model that states no family, degrees of freedom or lengthscale
+  keeps the sampler's. A split probability of zero on a column some
+  chain's trees split on is refused, naming the column. A residual prior
+  other than the sampler's own is refused on a family with no residual
+  scale (probit, logistic, ordinal, negative binomial, hazard), and so
+  is a model whose leaf prior's `k` or `sd` does not resolve to the leaf
+  hyperprior and prior scale it carries: `setLeafPrior` restates a leaf
+  prior. The sampler's own model, as after `setResponse` or `setOffset`,
+  is always accepted. On a sampler of several forests or a multinomial
+  one it takes the fitting function's level, as `setTreePrior` and
+  `setLeafPrior` write it: a changed `power` or `base` reaches the
+  forests with no basis that state none of their own, and, where one
+  forest has no basis, or on a multinomial sampler's category forests,
+  those forests whatever they state; the leaf prior goes where
+  `setLeafPrior` sends it; and the residual prior is installed as on one
+  forest. A forest's own value that differs, or a change in which values
+  it states, is refused, naming `setForest`, which changes one forest;
+  so is a leaf scale other than the sampler's, and split probabilities
+  other than equal ones. A variance forest stays as it is, whatever the
+  model's record of it says; `setVarianceForest` changes it.
 
 - newData:
 
@@ -991,35 +1035,39 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   A single positive integer indexing the forests from `1`, or a string,
   the forest's label (see
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md);
-  `forest<i>` names position *i*, and a sampler of one forest, or a
-  multinomial one, has no labels), or - for `getForestFits`,
-  `getForestAmplitudes`, `getForestVariableCounts`, `getLeafPrior`, and
-  `getK` - `NULL` (the default on all five) for every forest, stacked
-  (see ‘Value’ for each reader's stacked shape). A single-forest
-  sampler's `NULL` read is bitwise its `forest = 1` read, so the default
-  costs nothing on an ordinary sampler. `setForestWeights` and
-  `setForestBasis` have no default: a writer names one target rather
-  than reading every one. `setLeafPrior` takes no `forest`: a
-  multinomial sampler's `normal(k = )` states every category forest, and
-  a sampler whose forests carry amplitudes names its forests by position
-  in `forests`. Declared in that order, a Bayesian causal forest's
-  prognostic forest is `1` and its basis forest `2`; `setForestWeights`
-  and `setForestBasis` are both refused on a sampler whose forests carry
-  no amplitudes, but not with the same message - `setForestWeights`
-  names the missing capability, while `setForestBasis` raises
-  `"forest index out of range"` - and `setForestBasis` accepts any
-  forest of one that does. `getForestFits` and `getForestVariableCounts`
-  accept `forest = 1` on any sampler - it selects the only forest - and
-  refuse only an out-of-range index. `getLeafPrior` and `getK` are
-  likewise served on every forest of a multi-forest sampler, and the
-  calibration-map entries are that forest's own. `getTrees` takes the
-  same `forest = NULL` default, stacking every forest forest-major with
-  a leading `forest` column on a sampler with several forests or one
-  declared with `forests =`, and no such column on any other (see
-  ‘Value’); it additionally accepts a vector of forest indices or of
-  labels, each validated as a lone `forest` argument is here and stacked
-  in the order given. `plotTree` takes a single `forest`, defaulting to
-  the sampler's only one and required when there is more than one.
+  `forest<i>` names position *i*, a sampler of one forest has no labels,
+  and a multinomial one's are the response's levels), or - for
+  `getForestFits`, `getForestAmplitudes`, `getForestVariableCounts`,
+  `getLeafPrior`, and `getK` - `NULL` (the default on all five) for
+  every forest, stacked (see ‘Value’ for each reader's stacked shape). A
+  single-forest sampler's `NULL` read is bitwise its `forest = 1` read,
+  so the default costs nothing on an ordinary sampler.
+  `setForestWeights` and `setForestBasis` have no default: a writer
+  names one target rather than reading every one. `setLeafPrior` takes
+  no `forest`: a multinomial sampler's `normal(k = )` states every
+  category forest, and a sampler whose forests carry amplitudes states
+  one forest's size through `setForest`. `setForest` and `getForest`
+  read their `forest` as the others do, left out on a sampler of one
+  forest and on a multinomial one, whose `setForest` refuses a position
+  or a level: its forests take one statement. Declared in that order, a
+  Bayesian causal forest's prognostic forest is `1` and its basis forest
+  `2`; `setForestWeights` and `setForestBasis` are both refused on a
+  sampler whose forests carry no amplitudes, but not with the same
+  message - `setForestWeights` names the missing capability, while
+  `setForestBasis` raises `"forest index out of range"` - and
+  `setForestBasis` accepts any forest of one that does. `getForestFits`
+  and `getForestVariableCounts` accept `forest = 1` on any sampler - it
+  selects the only forest - and refuse only an out-of-range index.
+  `getLeafPrior` and `getK` are likewise served on every forest of a
+  multi-forest sampler, and the calibration-map entries are that
+  forest's own. `getTrees` takes the same `forest = NULL` default,
+  stacking every forest forest-major with a leading `forest` column on a
+  sampler with several forests or one declared with `forests =`, and no
+  such column on any other (see ‘Value’); it additionally accepts a
+  vector of forest indices or of labels, each validated as a lone
+  `forest` argument is here and stacked in the order given. `plotTree`
+  takes a single `forest`, defaulting to the sampler's only one and
+  required when there is more than one.
 
 - leaf.prior:
 
@@ -1034,34 +1082,25 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   leaf's `columns`; any it states must match. Changing the leaf model,
   or anything else about the model, is `setModel`'s. A multinomial
   sampler takes `normal(k = )` with a fixed `k`, `Inf` included, as its
-  creation does. A sampler whose forests carry amplitudes takes
-  `forests` instead; its creation also accepts `normal()`, which changes
-  nothing here, and `normal(k = 2)`, which changes nothing where no
-  forest takes the leaf prior.
+  creation does. On a sampler whose forests carry amplitudes it is the
+  fitting function's leaf prior; see ‘Value’.
 
-- forests:
+- sd, power, base, amplitude, proposal.probs, n.perturb.cuts, treeShift:
 
-  For `setLeafPrior` on a sampler whose forests carry amplitudes, the
-  spreads its creation took: `list(forest(sd = ), ...)` in the same
-  positions, resolved inside the call as at creation (see
-  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)).
-  Names, where given, must be the creation's: the forest's label, or
-  `forest<i>` for position *i*. A short list reaches only the first
-  forests, and a forest whose `sd` is not stated is left as it is; an
-  `sd` is a number of the response's units (see
-  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)),
-  positive and finite, a name on it dropped, and one that is not is
-  refused, as at creation; every other
-  [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
-  argument, `amplitude` included, is fixed at creation (a basis changes
-  through `setForestBasis`). Each `sd` sets the forest's leaf scale,
-  divided by the sampler's unit as creation divides it, leaves the scale
-  a numeric forest's default was taken from, states the forest from then
-  on, also where it is the number `getLeafPrior` reports in force, which
-  keeps the prior, to rounding on a lone forest with no basis, bitwise
-  at a held `k` of 2, and is recorded on the `control` attribute
-  creation reads, so every re-creation builds with it. Give exactly one
-  of `leaf.prior` and `forests`.
+  For `setForest`, and of them `power`, `base`, `proposal.probs` and
+  `n.perturb.cuts` for `setVarianceForest`, a value in the terms
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md) takes
+  it, a coefficient's prior resolved inside the call as it is there. For
+  `setTreePrior`, `power` and `base` in the terms a fitting function
+  ([`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md))
+  takes them. `NULL`, the default, is the same as leaving the name out.
+  See ‘Value’.
+
+- split.probs:
+
+  For `setTreePrior`, the split probabilities in the terms a fitting
+  function takes them: a vector, `1` for equal probabilities, or on a
+  DART sampler `dart(...)`. `NULL`, the default, leaves them.
 
 - cuts:
 
@@ -1393,13 +1432,23 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   its engine's at first use, and a state read from it before that is the
   stored one. Must inherit from `bartcoreState`.
 
+- n.trees, vars, interactions, blocks:
+
+  For `setForest` (and `n.trees` and `vars` for `setVarianceForest`),
+  the names
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md) takes
+  that say what the model is. They are refused by name whatever their
+  value, being part of the model, and are arguments so that a short name
+  matches as it does at creation.
+
 - ...:
 
-  For `plotTree`, extra arguments to
-  [`plot`](https://rdrr.io/r/graphics/plot.default.html). For `run`,
-  only 0.9-x's per-call thread count, as `n.threads`, `numThreads` or
-  the one unnamed argument after `updateState`, which is ignored with a
-  once-per-session warning until dbarts 1.1-0
+  For `setForest` and `setVarianceForest`, nothing is taken: any name
+  not listed is refused as an unused argument. For `plotTree`, extra
+  arguments to [`plot`](https://rdrr.io/r/graphics/plot.default.html).
+  For `run`, only 0.9-x's per-call thread count, as `n.threads`,
+  `numThreads` or the one unnamed argument after `updateState`, which is
+  ignored with a once-per-session warning until dbarts 1.1-0
   ([`dbarts-deprecated`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md));
   anything else is refused. A `callback` to `run` must therefore be
   named.
@@ -2527,31 +2576,30 @@ chain runs under the sampler's one prior and one response transform,
 which no state install moves, so every value is shared by the chains. A
 drawn `k` is chain state, read by `getK`. At the default `forest = NULL`
 a multi-forest sampler returns a list of one prior per forest, named by
-the forests' labels where the forests have them, which a multinomial
-sampler's category forests do not; a single-forest sampler's `NULL` read
-is bitwise its `forest = 1` read. An `NA` spread is refused by
-`setLeafPrior`, `setModel` and the fitting functions. On a forest whose
-scale a multi-forest calibration map sets, `k` is pinned at 1 and
-`leaf.prior` is the statement of the forest's size:
+the forests' labels, a multinomial sampler's by the response's levels; a
+single-forest sampler's `NULL` read is bitwise its `forest = 1` read. An
+`NA` spread is refused by `setLeafPrior`, `setModel` and the fitting
+functions. On a forest whose scale a multi-forest calibration map sets,
+`k` is pinned at 1 and `leaf.prior` is the statement of the forest's
+size:
 [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)`(sd = v)`,
 `v` the number as it was written, where an `sd` was stated, and
 [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) where
-none was. It goes back into `setLeafPrior(forests = )` as it is, and
-[`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
-written back leaves its forest as it is. The list then begins with
-`leaf.prior`, `sd`, the forest's `sd` in force in the response's units -
-`v` itself, bit for bit, or the default's multiple of the response's
-scale times the unit the sampler derived at creation - `sd.stated`,
-`TRUE` or `FALSE`, `multiplier`, what the forest multiplies, `"none"`,
-`"factor"` or `"numeric"`, and `amplitude`, `fixed()` where the forest's
-coefficient is held, `student(df)` where it is drawn under the Student-t
-prior its creation stated, `normal()` where a forest with no basis is
-drawn under the normal prior its creation stated, and absent where it is
-drawn under its default prior. `prior.sd.of` says what `sd` is the size
-of: `"forest"` for a forest with no basis, `"level difference"` for a
-factor and `"forest, per unit of basis"` for a numeric column, the size
-exactly where the coefficient is held, with `" (at a coefficient of 1)"`
-where it is drawn. A numeric forest's `sd` is per unit of its column and
+none was. Its `sd` is the one `setForest` states. The list then begins
+with `leaf.prior`, `sd`, the forest's `sd` in force in the response's
+units - `v` itself, bit for bit, or the default's multiple of the
+response's scale times the unit the sampler derived at creation -
+`sd.stated`, `TRUE` or `FALSE`, `multiplier`, what the forest
+multiplies, `"none"`, `"factor"` or `"numeric"`, and `amplitude`,
+`fixed()` where the forest's coefficient is held, `student(df)` where it
+is drawn under the Student-t prior its creation stated, `normal()` where
+a forest with no basis is drawn under the normal prior its creation
+stated, and absent where it is drawn under its default prior.
+`prior.sd.of` says what `sd` is the size of: `"forest"` for a forest
+with no basis, `"level difference"` for a factor and
+`"forest, per unit of basis"` for a numeric column, the size exactly
+where the coefficient is held, with `" (at a coefficient of 1)"` where
+it is drawn. A numeric forest's `sd` is per unit of its column and
 carries the column's name where the basis has one, and the list adds
 `basis.scale`, where the data object records one, the standard deviation
 of the column the default was taken from at creation, named as `sd` is.
@@ -2566,7 +2614,8 @@ in force, `NA` where `k` is drawn, `sd.stated` `FALSE`, the sd being the
 fitting function's and not its own (a one-forest sampler reads `TRUE`
 when its leaf prior is named by an sd), `multiplier` `"none"`,
 `amplitude` `fixed()`, `prior.sd.of` `"forest"` alone and
-`"forest, shared"` in a group, and `k.scale` over the `k` its part.
+`"forest, shared"` in a group, one left of a group included, and
+`k.scale` over the `k` its part.
 
 On a forest whose scale the multi-forest CALIBRATION MAP sets, on a
 sampler built with `forests =` or `dbartsData(bases = )` (see
@@ -2626,34 +2675,129 @@ the write keeps the chains' spread, on a sampler that has not yet run it
 is not the start that creation under the new prior would make. The write
 takes effect on the next sweep, reinterpreting no leaf value already
 drawn; a write that reproduces what is already in force is skipped
-bitwise, so a read followed by a write cannot perturb a draw, the
-rounding named at `forests` aside. It is total over the four leaf
-models, and a DART sampler, which `setModel` refuses, is served. A
+bitwise, so a read followed by a write cannot perturb a draw. It is
+total over the four leaf models, and a DART sampler is served. A
 multinomial sampler takes `normal(k = )` and applies the `k` to every
 category forest, leaving the softmax map's leaf scale; a named sd or a
-`k` hyperprior is refused there, as at creation. A sampler whose forests
-carry amplitudes takes `forests = list(forest(sd = ), ...)`, restating
-each named forest's spread, in the response's units, and any
-`leaf.prior` other than `normal()` and, where no forest takes the leaf
-prior, `normal(k = 2)`, which change nothing, is refused there. A write
-changes the model. A forest with no basis stating neither `sd` nor a
-coefficient's prior alone leaves the leaf prior at an `sd` stated for
-it, its `k` then pinned at 1, and takes a `leaf.prior` only restating
-the one in force, so `normal(k = 2)` is refused unless it is the one in
-force. A forest with no basis stating a coefficient's prior and no `sd`
-takes its size from the leaf prior at creation only: `normal()` and
-`normal(k = 2)` are taken and change nothing, whatever `k` it was
-created at, and every other `leaf.prior` is refused. Where forests with
-no basis share one prior total, their part is fixed at creation: an `sd`
-stated in `forests` for one of them is refused, as is every
-`leaf.prior`, the total being the leaf prior they were created under;
-make a new sampler to change it. Both writes are recorded where
-re-creation reads them. The map's k.scale is recorded at creation too,
-so a re-creation after `setResponse` or `setOffset` at
+`k` hyperprior is refused there, as at creation. On a sampler whose
+forests carry amplitudes the `leaf.prior` is the fitting function's,
+written on the forests it reaches as creation under it gives them. Where
+one forest has no basis it is written there whatever that forest states,
+a stated `sd` going: a `k` or a named `sd` as at creation, and on a
+forest stating a coefficient's prior, which has no `k`, the size the
+prior gives at the scale creation set - `normal(sd = v)` the size `v`,
+`normal(k = v)` that scale over `v`, a `chi()` prior on `k` that scale
+over its median, once, with no `k` drawn there - leaving the
+coefficient's prior and every leaf and coefficient drawn. Where several
+forests have no basis, those sharing one prior total take it, each
+keeping the part of it its creation gave it, so after a forest has left
+the group (see `setForest`) the sizes no longer add up to it, and those
+stating their own `sd` keep it. Where none shares, as where every forest
+has a basis or every forest with no basis states its `sd`, the default
+restated changes nothing and any other `leaf.prior` is refused, naming
+`setForest(forest, sd = )`. Into a drawn `k` a forest starts at the
+spread in force. A write changes the model. The write is recorded where
+re-creation reads it. The map's k.scale is recorded at creation too, so
+a re-creation after `setResponse` or `setOffset` at
 `updateScale = FALSE` states every forest against the same k.scale as
 the live sampler. A value that is not a single positive finite number is
 an error. A heteroscedastic sampler's variance forest is a separate leaf
-model and is not addressable. `setModel` changes everything else.
+model, which `setLeafPrior` does not reach; `setVarianceForest` changes
+its settings. `setModel` changes everything else.
+
+For `getForest`, every value in force on one forest as a plain named
+list, no class and no attribute, in `setForest`'s order and with the
+names its kind takes: `sd`, the size `getLeafPrior` reports with no
+column's name on it, `NULL` where `k` is drawn or no one positive number
+is in force; `power` and `base`; `amplitude`, the coefficient's prior as
+`fixed()`, `normal()` or `student(df)`, a forest with a basis stating
+none reading `normal()`, and a forest with no coefficient `fixed()`; and
+`proposal.probs`, `n.perturb.cuts` and `treeShift`, a forest stating
+none reading the control's. A value the forest takes from above reads
+like any other. `do.call(s$setForest, c(list(f), s$getForest(f)))`
+changes nothing, whether the forest states a value included. On a
+multinomial sampler the list has no `sd` or `amplitude` and covers every
+category forest, whichever is named. Tree counts and columns are not in
+it: `print` and `getTrees` show them.
+
+For `setForest`, `NULL` invisibly. It changes the forest named, and on
+it only the names given, each meaning what it means in
+[`forest`](https://vdorie.github.io/dbarts/reference/forest.md) on that
+forest at creation. It acts from the next sweep and leaves the trees,
+leaf values and coefficients already drawn as they are; a write changes
+the model. A name left out or `NULL` changes nothing, and so does a
+value equal to the one in force, which leaves the forest following what
+it followed: a forest taking its depth from the fitting function goes on
+taking it, a forest sharing one prior total stays in the group, and a
+numeric forest's default goes on being read from its column. A forest
+that states a value is changed by stating another; nothing returns it to
+following the fitting function, short of a new sampler.
+
+`sd` on a model of one forest is its size, written as
+`setLeafPrior(normal(sd = ))` writes it, in the terms of its leaf model.
+On a model of several it sets the forest's trees' scale: its size where
+the coefficient is held and its size at a coefficient of 1 where it is
+drawn, on a factor the size of the difference between two levels and on
+a numeric column the size per unit. A forest with no basis alone under
+the fitting function's leaf prior leaves that prior at an `sd` stated
+for it, its `k` then pinned at 1. A forest sharing one prior total with
+others leaves the group the same way, and those still sharing keep their
+parts of the total, set once at creation, and their sizes; nothing puts
+a forest back in the group but a new sampler. A multinomial sampler
+refuses `sd` as its creation does. `power` and `base` are the forest's
+depth, every category's on a multinomial sampler. `amplitude` takes the
+prior in force, which changes nothing; `fixed()` on a forest with no
+coefficient, as a model of one forest or a sharer has none;
+`student(df)` or `normal()` there is refused as at creation, and any
+other change is refused for now. A multinomial sampler takes `fixed()`,
+which changes nothing, as its creation does, and refuses `student(df)`
+and `normal()` as its creation does. `proposal.probs`, `n.perturb.cuts`
+and `treeShift` are the forest's own, and a later `setControl` leaves
+them.
+
+`vars`, `n.trees`, `interactions` and `blocks` are refused by name
+whatever their value, being part of the model, and `basis` is refused
+naming `setForestBasis`, a basis being data. What creation refuses of a
+forest's statement is refused here for the same reason. Every check
+comes before any write, so a refused call changes nothing, its good
+names included. A multinomial model's forests take one statement:
+`s$setForest(power = 4)` reaches every category, with `forest` left out,
+and a position or a level is refused. Every change is recorded on the
+model, as creation with the statement records it, so a copy and a reload
+run what the sampler runs.
+
+Where `setForest` and `setTreePrior`, `setLeafPrior` or `setModel` reach
+one setting of one forest, as on a model of one forest, the later write
+wins, whatever the forest stated. A heteroscedastic sampler's variance
+forest takes the mean forest's depth at creation and is on its own after
+that: `setForest`, `setTreePrior` and `setModel` leave it, and
+`setVarianceForest` changes it.
+
+For `setTreePrior`, `NULL` invisibly. It changes the fitting function's
+tree prior, as `power`, `base` and `split.probs` mean at creation,
+through `setModel`'s route, so the two cannot differ. A name left out or
+`NULL` changes nothing, and so does a value equal to the one in force.
+`power` and `base` reach the forests with no basis that state none of
+their own and, where one forest has no basis, or on a multinomial
+sampler's category forests, those forests whatever they state, the later
+write winning; they make no forest state them, and nothing returns a
+forest that states its own to following, short of a new sampler. A name
+that reaches no forest is refused, naming the forests that state it and
+`setForest`. A `split.probs` vector changes the values and `1` restores
+equal ones; on a DART sampler `dart(...)` changes DART's settings, a
+setting left out taking creation's default; `dart()` on an ordinary
+sampler and a vector on a DART one change the model's structure and are
+refused, and a sampler of several forests takes equal probabilities
+only. A variance forest stays as it is.
+
+For `getVarianceForest`, every value in force on the variance forest as
+a plain named list, `power`, `base`, `proposal.probs` and
+`n.perturb.cuts`, or `NULL` on a sampler with none. For
+`setVarianceForest`, `NULL` invisibly. It changes those settings by
+`setForest`'s rules, each meaning what it means in
+[`varianceForest`](https://vdorie.github.io/dbarts/reference/varianceForest.md).
+`vars` and `n.trees` are refused by name, and a sampler with no variance
+forest refuses the call: whether there is one is part of the model.
 
 For `storeState`, `NULL` invisibly; it is called for its side effect of
 capturing the sampler's current engine state into the serializable
