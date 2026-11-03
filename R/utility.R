@@ -1301,7 +1301,9 @@ denseSigmaDesign <- function(x) {
   if (length(factors) > 0L) {
     frame <- as.data.frame(x)
     for (j in factors) {
-      codes <- as.integer(x[, j]) + 1L
+      # a code beyond the integer range is NA here, as the cast makes it, and
+      # the engine's refusal of it is the only report
+      codes <- suppressWarnings(as.integer(x[, j])) + 1L
       levels <- if (j <= length(levelTable)) levelTable[[j]]
       if (length(levels) < max(codes, 0L, na.rm = TRUE)) {
         levels <- seq_len(max(codes, na.rm = TRUE))
