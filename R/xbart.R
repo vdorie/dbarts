@@ -986,7 +986,13 @@ xbartLossFunction <- function(loss, control, family) {
   switch(
     loss,
     rmse = function(y.test, testSamples, weights) {
-      y.test.hat <- rowMeans(testSamples)
+      # a binary response is compared on the probability scale: the link per
+      # draw, averaged last
+      y.test.hat <- if (control@binary) {
+        rowMeans(probFromLatent(testSamples))
+      } else {
+        rowMeans(testSamples)
+      }
       if (is.null(weights)) {
         sqrt(mean((y.test - y.test.hat)^2))
       } else {

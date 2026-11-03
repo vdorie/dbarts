@@ -31,13 +31,6 @@ re-run a full census before release.
 A "door" below means a recorded, undecided question, not a task.
 
 items
-  xbart-binary-rmse: on a binary fit xbart's rmse loss averages the raw
-    latent draws, before the logistic or probit transform, against the 0/1
-    response (on c3d268c8f draws ran -2.9 to 3.8, rmse 0.965 against a
-    response sd of 0.501). Compare the observed proportion with the
-    posterior mean probability, weighted by trials times weight, the rule
-    docs/design/frequency-weights.md (branch frequency-weights) gives
-    binomial fits; found by its critique 2026-11-03.
   approximate-distributions: research arc, opened 2026-11-03 by the
     binomial family's large trial counts (dec-B567; was post-release,
     VD 2026-09-29, docs/decisions.md dec-B143): whether to admit approximate draws

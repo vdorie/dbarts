@@ -200,4 +200,74 @@ listLoss <- do.call(
 expect_equal(listLoss, 10 * plainLoss)
 rm(makeScaledLoss, xbartArgs, plainLoss, scaledLoss, shadowedCall, listLoss)
 
+# On a binary response the built-in rmse compares the response with the
+# posterior mean probability, the link applied per draw and averaged last: the
+# hand computation from the same fold's test draws (read through a supplied loss
+# that records them, at the same seed) must match, for both links, with and
+# without weights. The raw-latent value is a different number.
+set.seed(31L)
+nBin <- 40L
+xBin <- matrix(runif(nBin * 2L), nBin, 2L)
+yBin <- as.numeric(2 * xBin[, 1L] - 1 + rnorm(nBin, 0, 0.5) > 0)
+wBin <- rep(c(1, 5), length.out = nBin)
+binaryCaptured <- new.env(parent = emptyenv())
+binaryCapture <- function(y.test, testSamples, weights) {
+  binaryCaptured$calls <- c(
+    binaryCaptured$calls,
+    list(list(y = y.test, samples = testSamples, weights = weights))
+  )
+  0
+}
+binaryRun <- function(...) {
+  dbarts::xbart(
+    xBin,
+    yBin,
+    n.samples = 6L,
+    n.burn = c(4L, 2L),
+    method = "k-fold",
+    n.test = 4,
+    n.reps = 1L,
+    n.trees = 5L,
+    k = 2,
+    seed = 5L,
+    verbose = FALSE,
+    n.threads = 1L,
+    ...
+  )
+}
+for (family in c("probit", "logistic")) {
+  link <- if (family == "probit") pnorm else plogis
+  # xbart takes weights on a binary fit only under the logistic family
+  for (weighted in if (family == "probit") FALSE else c(FALSE, TRUE)) {
+    args <- list(family = family)
+    if (weighted) {
+      args$weights <- wBin
+    }
+    binaryCaptured$calls <- list()
+    do.call(binaryRun, c(args, loss = binaryCapture))
+    folds <- binaryCaptured$calls
+    expect_equal(length(folds), 4L)
+    byFold <- function(transform) {
+      vapply(
+        folds,
+        function(f) {
+          resid2 <- (f$y - rowMeans(transform(f$samples)))^2
+          if (is.null(f$weights)) {
+            sqrt(mean(resid2))
+          } else {
+            sqrt(sum(f$weights * resid2) / sum(f$weights))
+          }
+        },
+        0
+      )
+    }
+    reported <- as.vector(do.call(binaryRun, c(args, loss = "rmse")))
+    expect_equal(reported, mean(byFold(link)))
+    # the mutant: rmse on the raw latent draws
+    expect_false(isTRUE(all.equal(reported, mean(byFold(identity)))))
+  }
+}
+rm(family, link, weighted, args, folds, byFold, reported)
+rm(binaryRun, binaryCapture, binaryCaptured, wBin, yBin, xBin, nBin)
+
 rm(testData)

@@ -924,6 +924,10 @@
             then the global environment ahead of the caller's own objects, so
             \code{offset.test = d$o} inside a function could read a global
             \code{d}.
+      \item \code{xbart}'s RMSE loss on a binary response compares the
+            response with the predicted probability (the link applied to
+            each posterior draw, then averaged); 0.9-34 compared it with the
+            latent scale.
       \item \code{xbart}'s weighted RMSE loss is on the scale of the
             response, and \code{loss = "log"} on a continuous response is an
             error rather than silently computing RMSE.
