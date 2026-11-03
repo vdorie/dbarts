@@ -11,8 +11,9 @@ lookup), dec-B60, dec-A139 and dec-B424 (the version pair stays 1/0 before the r
 hash-to-minor CI assertion), dec-B160 and dec-B163 (multinomial run and predict through the flat API, its creation a post-release
 door), dec-B186 (the C consumer test compiles and runs on CRAN), dec-A36 (consumers check the boundary under sanitizers
 themselves), dec-A32 (a returned integer is a value or a capability status), dec-C01 (full symbol names), dec-C04 (the support
-library's print pointers), and the frequency-weights rulings dec-B563 to dec-B567 (the reading of a weight is fixed at creation
-and the header gains its field in this change; a binomial response for logistic). The runs behind it: reads of the tree at
+library's print pointers), and the frequency-weights rulings dec-B563 to dec-B570 (the reading of a weight is fixed at creation
+and the header gains its field in this change; real weights where the draw is exact; probit and ordinal membership as 0/1
+weights; a zero weight alike on every family; a binomial response for logistic). The runs behind it: reads of the tree at
 c3d268c8f, of stan4bart main (27ef163) and treatSens master (268b2db), and of frequency-weights (da210ce2d); the critic's probe of
 R 4.6.2's nmath against Rmath (17,304 points, below). No prototype was built here.
 
@@ -32,7 +33,8 @@ the consumer ports (S4) merging right after it.
 budget: ~5,450 lines written in this tree plus ~6,000 copied unedited from R's math library and ~400 of reduced R headers: S1
 ~350, S2a ~900, S2b ~1,800, S3 ~2,400; S4 ~80 in stan4bart and ~50 in treatSens. Agent time, estimated and not measured: S1 ~8,
 S2a ~20, S2b ~35, S3 ~22, S4 ~6, S5 ~1, rebases onto main after the pending plans ~3: ~95. Plans here run 1.5 to 2 times low,
-so 140 to 190. Open call 3's middle option takes about 400 lines and 10 hours off S2b and S3.
+so 140 to 190. These counts are open call 3 (a)'s; its recommended (b) takes about 400 lines and 10 hours off S2b and S3,
+so ~85 raw, 125 to 170.
 
 ## Summary for the maintainer
 
@@ -65,7 +67,7 @@ that cannot fail keep returning their value; where a failure's message is read; 
 1.0; whether the description is one struct or built up by calls; whether creating from C requires a seed; how an R package that
 calls dbarts' C code turns a status back into R's error or interrupt; and how a run a callback stopped on purpose is reported.
 
-What it costs: about 5,450 lines here plus the copied math code, and roughly 140 to 190 agent-hours, most of it in rewriting how
+What it costs: about 5,450 lines here plus the copied math code, and roughly 125 to 170 agent-hours with the recommendations (140 to 190 if C can create every one-forest model), most of it in rewriting how
 samplers are created. The main piece has to wait for the forest door and the live coefficient prior, which rework the same
 creation code; frequency weights' field joins the new description whichever lands first.
 
@@ -198,24 +200,26 @@ The R parse keeps every step that needs R or that R alone resolves, and hands th
 Two plain-C structs, one shipped and one internal:
 
 - `dbarts_sampler_spec`, in dbarts.h: a caller-filled, `structSize`-led struct (the `dbarts_predictor_source` contract in the
-  caller-to-library direction) holding what a one-forest sampler needs, every value resolved; about 75 fields under open call
-  3's recommendation. Its fields, grouped (the order below is the struct's):
+  caller-to-library direction) holding what a one-forest sampler needs, every value resolved: about 75 fields under open call
+  3 (a), about 45 under its recommended (b), which leaves out the groups marked [b-later] for an append when a binding asks.
+  Its fields, grouped (the order below is the struct's):
   - data: `x` (a `dbarts_predictor_source`, its typing channel READ at creation, which gives `columnTypes` and `categoryCounts`
-    the reader dec-B124 owes them), `y`, `weights`, `weightsType` (a `dbarts_weights_type`, below), `offset`, `survivalStatus`
+    the reader dec-B124 owes them), `y`, `weights`, `weightsType` (a `dbarts_weights_type`, below, read only when `weights` is non-NULL), `offset`, `survivalStatus`
     (aft, double 0/1 per row as R holds it), `xTest` (a second source, 0 rows for none), `testOffset`, `numCuts` and
     `maxNumCuts` (one or per column), `useQuantiles`;
   - family: `family` (a `dbarts_family`, 1 to 7), `sigmaEstimate`, `sigmaIsFixed`, `sigmaPriorDf`, `sigmaPriorScale` (R's
     `qchisq(1 - q, df) / df`), `residualDf` (read under STUDENT: positive fixes it, 0 estimates it), `numCategories` (ordinal
     K), `shape` (nbinom: positive fixes r, non-positive estimates it);
-  - leaf prior: `leafModel` (a `dbarts_leaf_model`, giving the enumeration its first reader), `k`, `nodeScale`, `namedSd` (NaN
-    none), `kIsDrawn`, `kPriorDf`, `kPriorScale`, `leafCovariates` and their count, `gpLengthscales`, `gpMaxLeafSize`,
-    `monotoneDirections`, `monotonePrior`;
+  - leaf prior: `k`, `nodeScale`, `namedSd` (NaN
+    none), `kIsDrawn`, `kPriorDf`, `kPriorScale`; [b-later] `leafModel` (a `dbarts_leaf_model`, giving the
+    enumeration its first reader), `leafCovariates` and their count, `gpLengthscales`, `gpMaxLeafSize`, `monotoneDirections`,
+    `monotonePrior`;
   - tree prior: `numTrees`, `base`, `power`, `splitProbabilities`, `useDart` and DART's six (`dartA`, `dartB`, `dartRho`,
     `dartAlpha`, `dartUpdateAlpha`, `dartUpdateDelay`);
-  - constraints: `forestColumns`, `interactionMaxOrder`, `interactionForbiddenPairs`, `numBlocks`, `blockOfColumn`,
+  - [b-later] constraints: `forestColumns`, `interactionMaxOrder`, `interactionForbiddenPairs`, `numBlocks`, `blockOfColumn`,
     `blockTreeCounts`;
-  - moves: the six probabilities, `perturbWidth`, `levelGibbs` (-1 automatic, 0 off, 1 on);
-  - variance forest: `numVarianceTrees` (0 none), `varianceBase`, `variancePower`, `varianceForestColumns`;
+  - [b-later] moves: the six probabilities, `perturbWidth`, `levelGibbs` (-1 automatic, 0 off, 1 on);
+  - [b-later] variance forest: `numVarianceTrees` (0 none), `varianceBase`, `variancePower`, `varianceForestColumns`;
   - run: `numChains`, `numThreads`, `numThin`, `keepTrees`, `numSamplesToStore`, `verbose`, `printEvery`,
     `singlePrecisionResidual`, `hasSeed`, `seed`, `chainSeeds`;
   - engine limits: `categoricalExhaustiveCap`, `testFitParallelCutoff`, `predictParallelCutoff`, `sparseDensityThreshold`.
@@ -226,9 +230,11 @@ Two plain-C structs, one shipped and one internal:
   marker: one resolution home, as dbartsSpec()'s design argued.
 - The weights' reading: `DBARTS_WEIGHTS_TYPE_LIST`, PRECISION 1 and FREQUENCY 2, a field of the family part as dec-B564 has it
   ("the shipped header gains one field in dec-B85's change"). The spec holds the resolved reading, never "the family's own": R
-  resolves `weights.type = NULL` before filling it. The build checks the pair against dec-B563 and dec-B564 (FREQUENCY on the
-  gaussian-type and Polya-Gamma families, PRECISION only where there is a residual scale, either for 0/1 weights) with the
-  words frequency weights gives R, prefixed. Until frequency weights' engine work lands, FREQUENCY is taken only where it reads
+  resolves `weights.type = NULL` before filling it. With `weights` NULL the field is not read, so the initializer's PRECISION
+  refuses no spec without weights (a logistic one, for instance). With weights, the build checks the pair against dec-B563,
+  dec-B564 and dec-B568 to dec-B570 (FREQUENCY on the gaussian-type families at real weights and the Polya-Gamma families at
+  whole numbers; PRECISION only where there is a residual scale; 0/1 weights under either, membership on probit and ordinal;
+  a 0 a row out of the likelihood on every family, logistic included) with the words frequency weights gives R, prefixed. Until frequency weights' engine work lands, FREQUENCY is taken only where it reads
   as the family's own (the Polya-Gamma families' counts, 0/1 weights).
 - `bartcore_bridge::SpecExtension`, internal (src/spec_internal.h, plain C structs and arrays): the re-creation records, the
   multi-forest records (each forest's tree count and settings, sd, multiple, held flag, df, share as forest-door leaves it,
@@ -316,8 +322,8 @@ a line on standard output).
 
 ### Threads
 
-A handle is used by one thread at a time; distinct handles may be used at once from distinct threads; under the R build, `run`
-and `sampleTreesFromPrior` stay main-R-thread-only (the poll and R's warning), and every other entry may be called from any
+A handle is used by one thread at a time; distinct handles may be used at once from distinct threads; under the R build, `run`,
+`sampleTreesFromPrior` and `printTrees` stay main-R-thread-only (the poll, R's warning, and printing through `Rprintf`), and every other entry may be called from any
 thread once `predict` no longer allocates through `R_alloc`. That is the contract C libraries with handles state (libcurl: a
 handle in one thread at a time, different handles in different threads; SQLite's multi-thread mode: any thread, no connection in
 two at once), and what a Python binding that releases the GIL around predict on a thread pool would assume. `predictPartition`
@@ -356,7 +362,10 @@ the R build compiles as it does today.
   unit in its own build, as dec-A74 has it for printing.
 - Configuration: the standalone recipe cannot run configure, which reads `R CMD config`. standalone/config/ holds checked-in
   config.hpp, misc/config.h, external/config.h and misc/types.h for a C++20 compiler on a 64-bit POSIX system, written from the
-  `.in` files as the `.win` variants are and kept in step by tools/check-win-drift.R, extended to that set.
+  `.in` files as the `.win` variants are and kept in step by tools/check-win-drift.R, extended to that set. Their SIMD settings
+  are configure's choice on the reference host, and the recipe builds misc through misc's own Makefile with the flag variables
+  configure would pass (its per-file ISA flags: partition_avx2.c at the AVX2 flag, partition_sse4_1.c at SSE4.1, and the
+  rest), so the standalone kernels are the R build's and the bitwise standalone-versus-R gate holds on the kernels too.
 - The recipe: a tests/cpp target (tests/cpp is already build-ignored) that compiles the engine, src/C_interface.cpp,
   src/sampler_build.cpp, the misc and external sources, and standalone/ with `-DDBARTS_HOST_STANDALONE`, standalone/config ahead
   of src/ on the include path and no R include path, into objects under tests/cpp/build-standalone/, never into src/, where a
@@ -612,9 +621,10 @@ Each is something stan4bart, treatSens and any future binding code against, and 
    every family, constant leaves, the standard tree prior and DART, weights and their reading, offset, test predictors and the
    run settings, about 45 fields; leaf models, monotone, constraints, moves and the variance forest appended in a later release
    when a binding asks; cost: a Python user of those reaches them through R until then, and about 10 fewer agent-hours now.
-   (c) also the multi-forest and multinomial models; cost: about 40 more fields frozen. Recommendation: (a), since every field
-   is already resolved by R and needs only to be named once, and appending later means a hash move per group; (b) is the
-   choice if freezing fields without a consumer weighs more.
+   (c) also the multi-forest and multinomial models; cost: about 40 more fields frozen. Recommendation: (b). Under dec-B86 an
+   append after 1.0 is the designed minor bump, so (a)'s saving - naming each field once now - is small, while every field
+   frozen without a consumer is a shape no binding's code has tried; (a) is the choice if a Python binding is expected to need
+   the leaf models or constraints in its first release.
 4. **Is the description one struct or built up by calls?** Options: (a) one struct the caller fills, with a size field, an
    `INIT` macro holding dbarts()'s defaults for C, and `dbarts_sampler_spec_init(spec, sizeof *spec)` doing the same for
    bindings such as Python's ctypes and cffi, which cannot expand a macro; cost: its field order is fixed at 1.0, appends only
@@ -666,8 +676,10 @@ Budget: ~350 lines written, ~6,000 copied, ~400 reduced headers. Agent ~5, revie
 
 ### S2a: refusals as values, one translate stage (bridge)
 
-Steps: `Refusal` and `raiseRefusal`; the sixteen shared validators returning refusals and their about 60 R sites and the flat
-file's wrapped; R_interface_bartcore_common.hpp split into the R-free core and the SEXP-facing half; `translateSource` moved
+Steps: `Refusal` and `raiseRefusal`; the sixteen shared validators, and the flat file's `translateSource`, `validateTestSource`
+and `refuseTestMissingness`, returning refusals, their about 60 R sites and the flat file's wrapped (createDataHandle and the R
+test-predictor setters call the last three inside `unwindProtect` bodies, outside any route's catch); the translated source,
+which owns storage, held as an init-capture wherever it lives in an R frame, by `unwindProtect`'s own rule; R_interface_bartcore_common.hpp split into the R-free core and the SEXP-facing half; `translateSource` moved
 into the core, used by the R parse's views and the data handle, carrying the engine's per-column channels (the shipped field
 waits for S3); the engine routes' catch turned into a refusal value.
 
@@ -770,7 +782,10 @@ The reviewer of each slice runs these; each must fail the named gate, and is rev
 4. S1: `ext_qnorm` mapped to the copy in the R build - record which scenarios move; with the copy exact at R's flags, none
    should, so this proves the gate reads the R build's symbol by `nm` rather than by draws.
 5. S2a: one validator's refusal dropped unconsumed at an R site - the `[[nodiscard]]` build error, and that refusal's tinytest pin.
-6. S2a: a refusal thrown, not returned, from a validator called inside an `unwindProtect` body - the R-loaded ASan run.
+6. S2a: a refusal thrown, not returned, from a validator called inside an `unwindProtect` body - on arm64 macOS the exception
+   crosses R's frame silently (the critic's probe: no crash, the cleanup never runs, the heap closure leaks), so the gate is
+   LeakSanitizer on the x86 leg, and a test-build counter of `unwindProtect` cleanups against bodies entered, read by a
+   tinytest hook, catches it on every host.
 7. S2a: a dense column read in the block its kind selects instead of through the channels - consumer.c's packed-blocks arm.
 8. S2b: one spec field (perturbProbability) not copied into the options - the field coverage suite, and the perturb scenario.
 9. S2b: `chainSeeds` ignored in favor of `seed` - every unseeded tinytest snapshot and the C-versus-R identity arm.
@@ -805,7 +820,7 @@ The reviewer of each slice runs these; each must fail the named gate, and is rev
 ## Cost
 
 About 5,450 lines written here, 6,000 copied and 400 reduced headers, none of them in the tarball; ~130 in the two consumers;
-~95 agent-hours estimated, 140 to 190 by the record of plans here, S2a and S2b most of it.
+~95 agent-hours estimated under open call 3 (a), ~85 under (b), 125 to 190 by the record of plans here, S2a and S2b most of it.
 
 ## Not verified
 
