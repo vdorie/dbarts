@@ -823,7 +823,7 @@ release draws from 1.
 - No exact arm of this gate reaches probit or logistic (`normal: the same chain as a column of ones` and bcf-latent-exact stand nearest), a drawn sigma (every arm holds it), weights other than 0 and 1, or a
   forest beside sharers. No arm sees a median to better than about 0.5 percent, the literal pin's job. No new arm is planned for these.
 - Test predictors with `normal()` were not run: the refusal is of every model of several forests.
-- x86 was not run by the build; the leak-sanitizer leg is owed before landing. New tests/cpp and tinytest line counts are estimates, raised for the record of plans here running low.
+- x86 was not run by the build. The leg at landing ran on ed24323eb, whose code is the landed code: tests/cpp 420 of 420 plain and under ASan, UBSan and leak checks with no report, the full suite 37043 of 37043, equivalence 55 of 55 within the statistical bound, bcf and multinomial within the cross-host tier 1 bound. New tests/cpp and tinytest line counts are estimates, raised for the record of plans here running low.
 
 ## Landing note
 
