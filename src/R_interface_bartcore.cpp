@@ -3266,11 +3266,15 @@ void refuseUnsupportedAmplitudeComposition(
     const ParsedData& data, const bartcore::SamplerOptions& options,
     const bartcore::AmplitudeSpec& spec) {
   // the forests' kinds ride the data object and are copied onto the spec
-  // later (applyForestBases); read here so the refusal can see who takes it
-  std::vector<bartcore::ForestSpec> statements = spec.forests;
-  for (size_t f = 0; f < statements.size() && f < data.basisKinds.size(); ++f)
-    statements[f].kind = data.basisKinds[f];
-  bool shared = bartcore::forestsTakeLeafPrior(statements);
+  // later (applyForestBases); read here so the refusal can see who takes it.
+  // The copy leaves scope before any Rf_error below, which would leak it.
+  bool shared;
+  {
+    std::vector<bartcore::ForestSpec> statements = spec.forests;
+    for (size_t f = 0; f < statements.size() && f < data.basisKinds.size(); ++f)
+      statements[f].kind = data.basisKinds[f];
+    shared = bartcore::forestsTakeLeafPrior(statements);
+  }
   if (const char* refused = refusedAmplitudeFamilyReason(family))
     Rf_error("a model of several forests does not support %s", refused);
   if (!data.predictors.isDenseColumnar())
