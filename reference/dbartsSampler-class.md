@@ -1587,7 +1587,10 @@ version and the package version that wrote it. A state loads only within
 the format version of the `dbarts` that wrote it; loading it with an
 incompatible version refuses cleanly, naming both versions, rather than
 risk a silent misread. There is no cross-version migration: re-fit the
-model, or restore the state with the `dbarts` release that wrote it.
+model, or restore the state with the `dbarts` release that wrote it. A
+sampler saved by `dbarts` 0.9-x refuses every method, naming that
+version and saying to refit it with this one; its `data`, `control` and
+`model` fields still read.
 
 To restore a saved state into a sampler, call `setState(newState)` and
 check what it returns, as in
