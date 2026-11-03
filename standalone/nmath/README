@@ -49,6 +49,11 @@ quarter of the grid moves: qnorm by up to 432 units in the last place in its
 far tails, dt 50, qchisq 35, qt 11, dnorm 8), so a build that must match R's
 draws compiles the copy as R compiles nmath.
 
+The copy's own warnings (MATHLIB_WARNING in nmath.h, for one qgamma's
+"shape extremely small", reachable through qchisq at a tiny df) print with
+printf to standard output, not through the ext_ output functions the rest of
+a standalone build prints with.
+
 Re-taking the copy
 ------------------
 
@@ -69,6 +74,8 @@ Statistical Society (AS 241, qnorm.c) and the ACM (TOMS 708, toms708.c).
 The .c files, nmath.h and dpq.h are distributed under the GNU General Public
 License, version 2 or (at your option) any later version. Rmath.h and the
 R_ext headers are distributed under the GNU Lesser General Public License,
-version 2.1 or (at your option) any later version. Each file keeps R's
-notice. dbarts itself is licensed GPL (>= 2). Copies of both licenses are at
+version 2.1 or (at your option) any later version. Rconfig.h, which R's
+configure writes with no notice of its own, is part of R and distributed
+under the GNU General Public License, version 2 or any later version, as its
+reduced header states. Each other file keeps R's notice. dbarts itself is licensed GPL (>= 2). Copies of both licenses are at
 https://www.R-project.org/Licenses/.
