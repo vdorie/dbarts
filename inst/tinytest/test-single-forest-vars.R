@@ -192,10 +192,10 @@ runOutInBlocks <- function(...) {
     y.runout,
     forests = list(forest(blocks = blocks(groups = list("a", c("b", "c"))))),
     ...,
-    settings = makeControl(n.cuts = c(1L, 1L, 100L))
+    n.cuts = c(1L, 1L, 100L)
   )
 }
-zeroAtCreation <- runOutInBlocks(tree.prior = cgm(split.probs = c(0.5, 0.5, 0)))
+zeroAtCreation <- runOutInBlocks(split.probs = c(0.5, 0.5, 0))
 zeroInstalled <- runOutInBlocks()
 zeroInstalled$setModel(zeroAtCreation$model)
 createdDraws <- zeroAtCreation$run(0L, 500L)
