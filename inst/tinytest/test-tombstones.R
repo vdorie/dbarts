@@ -127,10 +127,10 @@ threadSampler <- dbarts::dbarts(
   control = dbarts::dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 3L,
     n.samples = 2L,
     updateState = FALSE
-  )
+  ),
+  n.trees = 3L
 )
 warnEnv <- dbarts:::onceWarnState
 warnEnv[["tombstone.startThreads"]] <- NULL
@@ -184,7 +184,6 @@ yCons <- xCons[, 1L] + rnorm(nCons)
 consControl <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 5L,
   n.samples = 5L,
   updateState = FALSE
 )
@@ -510,7 +509,6 @@ expect_error(
 consControl <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 5L,
   n.samples = 5L,
   seed = 313L,
   updateState = FALSE
@@ -521,7 +519,8 @@ expect_warning(
     xCons,
     yCons,
     resid.prior = dbarts::dbartsPriors$fixed(2),
-    control = consControl
+    control = consControl,
+    n.trees = 5L
   ),
   pattern = "family = gaussian\\(sigma"
 )
@@ -531,7 +530,8 @@ expect_silent(
     xCons,
     yCons,
     resid.prior = dbarts::dbartsPriors$fixed(2),
-    control = consControl
+    control = consControl,
+    n.trees = 5L
   )
 )
 expect_equal(samplerRetiredAgain$model@resid.prior@value, 2)
@@ -541,13 +541,20 @@ expect_error(
     yCons,
     family = gaussian(sigma = fixed(3)),
     resid.prior = dbarts::dbartsPriors$fixed(2),
-    control = consControl
+    control = consControl,
+    n.trees = 5L
   ),
   pattern = "'resid.prior' and the family's own 'sigma' set different residual"
 )
 # a value that is not a residual prior is refused under the old spelling too
 expect_error(
-  dbarts::dbarts(xCons, yCons, resid.prior = NULL, control = consControl),
+  dbarts::dbarts(
+    xCons,
+    yCons,
+    resid.prior = NULL,
+    control = consControl,
+    n.trees = 5L
+  ),
   pattern = "must be a residual prior specification"
 )
 
@@ -644,7 +651,6 @@ yLV <- xLV[, 1L] + rnorm(60L)
 lvControl <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 5L,
   n.samples = 5L,
   seed = 919L,
   updateState = FALSE
@@ -657,6 +663,7 @@ fitNodePrior <- withCallingHandlers(
     xLV,
     yLV,
     control = lvControl,
+    n.trees = 5L,
     node.prior = dbarts::dbartsPriors$normal(3)
   ),
   warning = function(w) {
@@ -669,6 +676,7 @@ fitLeafPrior <- dbarts::dbarts(
   xLV,
   yLV,
   control = lvControl,
+  n.trees = 5L,
   leaf.prior = dbarts::dbartsPriors$normal(3)
 )
 expect_identical(fitNodePrior$run(5L, 5L)$train, fitLeafPrior$run(5L, 5L)$train)
@@ -676,9 +684,21 @@ expect_identical(fitNodePrior$run(5L, 5L)$train, fitLeafPrior$run(5L, 5L)$train)
 warnEnv[["tombstone.node.prior.dbarts"]] <- NULL
 # node.prior defaults to NULL in the signature, so a written NULL is the name
 # left out: no warning, and the default leaf prior
-expect_silent(dbarts::dbarts(xLV, yLV, control = lvControl, node.prior = NULL))
+expect_silent(dbarts::dbarts(
+  xLV,
+  yLV,
+  control = lvControl,
+  n.trees = 5L,
+  node.prior = NULL
+))
 expect_error(
-  dbarts::dbarts(xLV, yLV, control = lvControl, leaf.prior = NULL),
+  dbarts::dbarts(
+    xLV,
+    yLV,
+    control = lvControl,
+    n.trees = 5L,
+    leaf.prior = NULL
+  ),
   pattern = "'leaf.prior' cannot be NULL; leave it out"
 )
 
@@ -688,6 +708,7 @@ expect_error(
     xLV,
     yLV,
     control = lvControl,
+    n.trees = 5L,
     node.prior = dbarts::dbartsPriors$normal(3),
     leaf.prior = dbarts::dbartsPriors$normal(3)
   ),
@@ -700,6 +721,7 @@ expect_error(
   dbarts::dbartsSpec(
     specDataLV,
     control = lvControl,
+    n.trees = 5L,
     node.prior = dbarts::dbartsPriors$normal(3)
   ),
   pattern = "unused argument 'node.prior' passed to 'dbartsSpec'; the leaf prior is 'leaf.prior'"
@@ -709,6 +731,7 @@ expect_error(
   dbarts::dbartsSpec(
     specDataLV,
     control = lvControl,
+    n.trees = 5L,
     leaf.prior = dbarts::dbartsPriors$normal(3),
     node.prior = dbarts::dbartsPriors$normal(3)
   ),
@@ -756,8 +779,8 @@ expect_error(
 
 # --- $sampleNodeParametersFromPrior -> $sampleLeafParametersFromPrior ---
 warnEnv[["tombstone.sampleNodeParametersFromPrior"]] <- NULL
-freshOld <- dbarts::dbarts(xLV, yLV, control = lvControl)
-freshNew <- dbarts::dbarts(xLV, yLV, control = lvControl)
+freshOld <- dbarts::dbarts(xLV, yLV, control = lvControl, n.trees = 5L)
+freshNew <- dbarts::dbarts(xLV, yLV, control = lvControl, n.trees = 5L)
 sampleWarnings <- character(0L)
 withCallingHandlers(
   freshOld$sampleNodeParametersFromPrior(updateState = TRUE),
@@ -826,9 +849,16 @@ expect_equal(
   )),
   0L
 )
-expect_equal(countWarnings(dbarts::dbarts(xLV, yLV, control = lvControl)), 0L)
 expect_equal(
-  countWarnings(dbarts::dbartsSpec(specDataLV, control = lvControl)),
+  countWarnings(dbarts::dbarts(xLV, yLV, control = lvControl, n.trees = 5L)),
+  0L
+)
+expect_equal(
+  countWarnings(dbarts::dbartsSpec(
+    specDataLV,
+    control = lvControl,
+    n.trees = 5L
+  )),
   0L
 )
 yMultiLV <- factor(sample(c("a", "b", "c"), 60L, replace = TRUE))

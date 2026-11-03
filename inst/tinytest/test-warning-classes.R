@@ -46,7 +46,6 @@ quick <- list(
 control <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
-  n.trees = 3L,
   n.samples = 2L,
   updateState = FALSE
 )
@@ -77,7 +76,7 @@ expectClassed(
   "dbartsDeprecatedWarning"
 )
 expectClassed(
-  dbarts::dbarts(y ~ ., d, sigma = 1, control = control),
+  dbarts::dbarts(y ~ ., d, sigma = 1, control = control, n.trees = 3L),
   "dbartsDeprecatedWarning"
 )
 expectClassed(
@@ -89,7 +88,8 @@ expectClassed(
     y ~ .,
     d,
     node.prior = dbarts::dbartsPriors$normal(3),
-    control = control
+    control = control,
+    n.trees = 3L
   ),
   "dbartsDeprecatedWarning"
 )
@@ -98,7 +98,7 @@ expectClassed(
   "dbartsDeprecatedWarning"
 )
 
-sampler <- dbarts::dbarts(y ~ ., d, control = control)
+sampler <- dbarts::dbarts(y ~ ., d, control = control, n.trees = 3L)
 expectClassed(sampler$startThreads(), "dbartsDeprecatedWarning")
 expectClassed(sampler$run(1L, 1L, n.threads = 1L), "dbartsDeprecatedWarning")
 expectClassed(
@@ -163,7 +163,8 @@ expectClassed(
     y ~ .,
     d,
     tree.prior = dbarts::dbartsPriors$cgm(power = 1),
-    control = control
+    control = control,
+    n.trees = 3L
   ),
   "dbartsDeprecatedWarning"
 )

@@ -31,7 +31,12 @@ yBinary <- as.double(y > stats::median(y))
 
 defaultsControl <- function(...) {
   settings <- list(n.chains = 1L, n.threads = 1L, n.samples = 5L, seed = 71L)
-  do.call(dbartsControl, c(settings, list(updateState = FALSE, ...)))
+  # a count on a control is the door under test here, and its retirement
+  # notice is not what is pinned
+  suppressWarnings(
+    do.call(dbartsControl, c(settings, list(updateState = FALSE, ...))),
+    classes = "dbartsDeprecatedWarning"
+  )
 }
 # the fitting function's own and the multiplied forest's: count, base, power
 fitDefault <- c(75, 0.95, 2)
@@ -764,10 +769,13 @@ expect_identical(
 ## --- Block G: a control carried to another fit ------------------------------
 # the control's slot holds the first forest's count, and a multiplied forest's
 # count is never the next fit's
+# a count on a carried control that the next fit does not take is noticed with
+# a warning, which is not what these pins are about
+notUsed <- "dbartsControlNotUsedWarning"
 carriedTo <- function(sampler, text = "dbarts(y ~ x1 + x2, frame)") {
   call <- str2lang(text)
   call$control <- quote(sampler$control)
-  forestTable(eval(call))[, 1L]
+  forestTable(suppressWarnings(eval(call), classes = notUsed))[, 1L]
 }
 allBasisSampler <- build(allBasis[1L])
 expect_identical(allBasisSampler$control@n.trees, 50L)
@@ -788,7 +796,7 @@ editedCarry <- function(sampler, count, text = "dbarts(y ~ x1 + x2, frame)") {
   control@n.trees <- count
   call <- str2lang(text)
   call$control <- control
-  built <- eval(call)
+  built <- suppressWarnings(eval(call), classes = notUsed)
   if (is.list(built)) {
     built <- specSampler(built)
   }
@@ -812,7 +820,10 @@ for (carrier in list(allBasisSampler, namedSecond)) {
 carriedOther <- allBasisSampler$control
 carriedOther@n.samples <- 6L
 expect_identical(
-  forestTable(dbarts(y ~ x1 + x2, frame, control = carriedOther))[, 1L],
+  forestTable(suppressWarnings(
+    dbarts(y ~ x1 + x2, frame, control = carriedOther),
+    classes = notUsed
+  ))[, 1L],
   75
 )
 # the limit of what can be told: a slot edited to the first forest's own

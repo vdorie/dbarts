@@ -10,20 +10,27 @@ run <- function() {
 }
 form <- y ~ x1 + x2
 xb <- function(object, ..., data = NULL, loss = "rmse") {
-  xbart(
-    object,
-    data,
-    n.trees = 25L,
-    ...,
-    loss = loss,
-    n.reps = 1L,
-    n.samples = 15L,
-    n.burn = c(15L, 5L),
-    method = "k-fold",
-    n.test = 3L,
-    n.threads = 1L,
-    seed = 1L,
-    verbose = FALSE
+  # a data argument beside a dbartsData is ignored with a warning, so it goes
+  # only where there is no dbartsData to carry the data
+  source <- if (is.null(data)) list(object) else list(object, data)
+  do.call(
+    xbart,
+    c(
+      source,
+      list(
+        n.trees = 25L,
+        ...,
+        loss = loss,
+        n.reps = 1L,
+        n.samples = 15L,
+        n.burn = c(15L, 5L),
+        method = "k-fold",
+        n.test = 3L,
+        n.threads = 1L,
+        seed = 1L,
+        verbose = FALSE
+      )
+    )
   )
 }
 fitOf <- function(...) {

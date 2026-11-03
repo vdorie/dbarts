@@ -121,13 +121,21 @@ controlWith <- function(...) {
 }
 # a sampler, run `sweeps` sweeps; built twice the same way, two are one
 make <- function(..., data = x, response = y, sweeps = 0L, control = list()) {
-  sampler <- dbarts::dbarts(
-    data,
-    response,
-    control = do.call(controlWith, control[names(control) != "n.trees"]),
-    n.trees = if (is.null(control$n.trees)) 4L else control$n.trees,
-    ...
-  )
+  # a dbartsData carries its response, and a response beside it is ignored
+  # with a warning
+  controlArg <- do.call(controlWith, control[names(control) != "n.trees"])
+  treesArg <- if (is.null(control$n.trees)) 4L else control$n.trees
+  sampler <- if (inherits(data, "dbartsData")) {
+    dbarts::dbarts(data, control = controlArg, n.trees = treesArg, ...)
+  } else {
+    dbarts::dbarts(
+      data,
+      response,
+      control = controlArg,
+      n.trees = treesArg,
+      ...
+    )
+  }
   if (sweeps > 0L) {
     invisible(sampler$run(sweeps, 3L))
   }

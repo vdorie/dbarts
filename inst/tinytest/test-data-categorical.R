@@ -258,14 +258,28 @@ control.codes <- dbartsControl(
   n.threads = 1L,
   updateState = FALSE
 )
+# the cast of the out-of-range value to an integer warns on its way to the
+# refusal; only that warning is let by
+castWarning <- function(expr) {
+  withCallingHandlers(
+    expr,
+    warning = function(w) {
+      if (
+        grepl("NAs introduced by coercion", conditionMessage(w), fixed = TRUE)
+      ) {
+        invokeRestart("muffleWarning")
+      }
+    }
+  )
+}
 attr(x.codes, "varTypes") <- 2L # ordered factor
 expect_error(
-  dbarts(x.codes, y.codes, control = control.codes, n.trees = 1L),
+  castWarning(dbarts(x.codes, y.codes, control = control.codes, n.trees = 1L)),
   pattern = "ordered factor predictors must hold integer level codes"
 )
 attr(x.codes, "varTypes") <- 1L # categorical
 expect_error(
-  dbarts(x.codes, y.codes, control = control.codes, n.trees = 1L),
+  castWarning(dbarts(x.codes, y.codes, control = control.codes, n.trees = 1L)),
   pattern = "categorical predictors must hold integer category codes"
 )
 # and a column whose codes ARE in range is accepted under either kind

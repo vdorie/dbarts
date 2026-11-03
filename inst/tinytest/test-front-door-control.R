@@ -198,8 +198,15 @@ rm(xval, xbartControl, captured)
 
 # ---- flat wins over the slot; an unnamed one takes the slot ----------------
 
-flatControl <- dbarts::dbartsControl(n.cuts = 40L, n.thin = 2L)
-flatFit <- fitFC(control = flatControl, n.cuts = 25L, keepSampler = TRUE)
+flatControl <- suppressWarnings(
+  dbarts::dbartsControl(n.cuts = 40L, n.thin = 2L),
+  classes = "dbartsDeprecatedWarning"
+)
+expect_warning(
+  flatFit <- fitFC(control = flatControl, n.cuts = 25L, keepSampler = TRUE),
+  "the control's n.cuts (40) is not used",
+  fixed = TRUE
+)
 expect_true(all(flatFit$fit$data@n.cuts == 25L))
 expect_equal(flatFit$fit$control@n.thin, 2L)
 
@@ -209,12 +216,15 @@ varianceSampler <- dbarts::dbarts(
   xFC,
   yFC,
   variance = ~a,
-  control = dbarts::dbartsControl(
-    n.chains = 1L,
-    n.threads = 1L,
-    n.trees = 6L,
-    n.samples = 5L,
-    updateState = FALSE
+  control = suppressWarnings(
+    dbarts::dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = 6L,
+      n.samples = 5L,
+      updateState = FALSE
+    ),
+    classes = "dbartsDeprecatedWarning"
   )
 )
 handedOn <- NULL

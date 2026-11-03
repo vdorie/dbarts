@@ -679,15 +679,6 @@ items
     widths: gate STANDS - perf/memory only with no measured win;
     reopen with numbers. setData on a CSC/mixed store and
     per-observation CSC mutation are recorded typed-ingestion doors.
-  suite-warnings: the full suite run once in one process ends with
-    "There were 37 warnings", none asked for. 35 are "if data supplied
-    as dbartsData, remaining arguments are ignored: 'data'", from
-    test-warm-start-forms.R (12) and test-xbart-carried-grid.R (23),
-    which hand a dbartsData and a data argument together; the other two
-    are old dbartsControl(n.trees = ) spellings run outside an
-    expect_warning. Drop the ignored argument or expect the warning in
-    each, so that a new stray warning stands out. Found reading the
-    valgrind shards' logs.
   survival-followups: doors out of the survival family pair (records
     in docs/design/survival.md sec 6 and
     docs/plans/archive/survival-models.md): competing risks (value

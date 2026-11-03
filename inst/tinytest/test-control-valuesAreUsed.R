@@ -9,14 +9,17 @@ n.trees <- 50L
 n.cuts <- 50L
 n.chains <- 2L
 n.threads <- 2L
-control <- dbarts::dbartsControl(
-  n.samples = n.samples,
-  verbose = FALSE,
-  n.trees = n.trees,
-  n.cuts = n.cuts,
-  n.chains = n.chains,
-  n.threads = n.threads,
-  treeShift = "always"
+control <- suppressWarnings(
+  dbarts::dbartsControl(
+    n.samples = n.samples,
+    verbose = FALSE,
+    n.trees = n.trees,
+    n.cuts = n.cuts,
+    n.chains = n.chains,
+    n.threads = n.threads,
+    treeShift = "always"
+  ),
+  classes = "dbartsDeprecatedWarning"
 )
 sampler <- dbarts::dbarts(y ~ x, testData, control = control)
 

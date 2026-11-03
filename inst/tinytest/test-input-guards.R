@@ -172,16 +172,16 @@ data <- dbartsData(x, y)
 data@n.cuts <- c(0L, 100L)
 expect_error(validObject(data), "'n.cuts' must contain only positive integers")
 for (useQuantiles in c(FALSE, TRUE)) {
-  specControl <- control
-  specControl@useQuantiles <- useQuantiles
-  spec <- dbartsSpec(data, specControl)
+  data <- dbartsData(x, y, useQuantiles = useQuantiles)
+  data@n.cuts <- c(0L, 100L)
+  spec <- dbartsSpec(data, control)
   expect_identical(spec$data@n.cuts, c(0L, 100L))
   expect_error(
     new("dbartsSampler", spec$control, spec$model, spec$data),
     "'n.cuts' of 0 for predictor 1 is below one"
   )
 }
-rm(data, specControl, spec)
+rm(data, spec)
 
 ## pdbart and pd2bart return the burn-in sigma draws a bart fit of the same
 ## call and seed returns
