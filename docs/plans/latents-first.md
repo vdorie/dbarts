@@ -47,9 +47,9 @@ What changes for a user:
 - Documentation states the rule in each place a user or package author meets it: getLatents and every setter,
   the help page and vignette on running the sampler inside a larger one, the C header.
 
-One open call: whether swapping in a data object keeps the drawn ordinal cutpoints and Student-t degrees of
-freedom when nothing about the categories changes. Today it restarts them, which biases a loop that swaps data
-every sweep; the recommendation is to keep them.
+Swapping in a data object keeps the drawn ordinal cutpoints, Student-t degrees of freedom and negative
+binomial shape, the cutpoints restarting only when the number of categories changes (dec-B589). Today it
+restarts them, which biases a loop that swaps data every sweep.
 
 0.9-34 drew probit's latent after the trees and kept it across setOffset, setPredictor and setWeights, so for
 probit this is the same behavior made correct, not a regression; the other families are new in 1.0-0.
@@ -377,9 +377,11 @@ Recorded at landing in an A entry of the ledger:
 7. aft setResponse leaves a censored row at its new bound until the next sweep (rather than keeping an old
    imputed time that may lie below the new bound).
 
-## Open calls
+## Ruled
 
 ### 1. Does setData keep the drawn ordinal cutpoints and Student-t degrees of freedom?
+
+Ruled (a), dec-B589. The maintainer, 2026-11-03: "Yes, keep them."
 
 Background: `$setData` replaces the whole data object. Today an ordinal sampler restarts its cutpoints at the
 prior's default spacing and a Student-t sampler restarts nu at its grid's middle (and lambda at 1); the
@@ -405,7 +407,7 @@ state under any data, and a user who swaps data reads the same as one who swaps 
 | slice | tier | content | lines | agent-hours |
 |---|---|---|---|---|
 | 1 | gate-only (sonnet build, sonnet review) | outer-step-exact.R; benchmarks README section; shown failing on main, passing on the prototype | ~380 | 3 build, 1.5 review |
-| 2 | draws (opus build, opus review with mutants) | sweep order, growForestFromRoot, pointers, setter redraws out, logistic setOffset, Student-t setResponse, the zero-weight record retired, open call 1 if (a); tests/cpp and tinytest; exact-gates list; snapshot and equivalence trio re-recorded | ~1450 | 13 build, 5 review, 2 fix |
+| 2 | draws (opus build, opus review with mutants) | sweep order, growForestFromRoot, pointers, setter redraws out, logistic setOffset, Student-t setResponse, the zero-weight record retired, setData keeping the family parameters (dec-B589); tests/cpp and tinytest; exact-gates list; snapshot and equivalence trio re-recorded | ~1450 | 13 build, 5 review, 2 fix |
 | 3 | shipped help (sonnet build, sonnet review against the engine) | every place under [Documentation](#documentation); codoc, doc-freshness | ~520 | 5 build, 1.5 review |
 | 4 | orchestrator | consumer runs and re-records (bartCause, treatSens), revdep-smoke, records, landing | ~40 here, consumer repos apart | 3 |
 
@@ -463,7 +465,7 @@ private library; main built as another. Scripts and outputs in scratch/ltf-plan/
    after the rescaling step and last both off by about 0.03 in P(gamma = 4). Logistic integrating omega out with
    the draw first agrees with conditioning on it drawn first; conditioning on omega with today's order is off
    (P(gamma = 0.5) 0.0153 against 0.0172), which is probe 2's defect, not the order.
-4. setdata-resets.R: as in open call 1.
+4. setdata-resets.R: as in ruled call 1.
 5. Exact gates on the prototype, draw first, quick: ordinal, negbin, t, logistic-reference, aft, aft-hetero-pit,
    hazard, hurdle, probit-k-scale and bcf-latent all OK. Full tinytest suite: 40,650 tests, 0 failures (the
    snapshot files exit off the reference flag; no other test pins a latent family's draws).
