@@ -1,76 +1,80 @@
 # host-neutral-engine: a plain-C specification the engine is built from, build-time math and printing, a status from every entry point, and a creation entry in dbarts.h
 
-Status: PLANNED 2026-11-03 on main (c3d268c8f), for dec-B85. Not built. Rulings, quoted where they settle a call: dec-B85 (the
-staged route), dec-B84 (the header is pure C), dec-B119 (a status from every entry point, the unwind to the entry point
-staying), dec-A74 (printing chosen at build time, the run-time print pointers removed), dec-A73 (a plain-C sigma getter rides
-this header change), dec-B124 (the specification's predictor part is `dbarts_predictor_source`, its dense channel stated per
-column), dec-A50 (the engine's R touchpoints), dec-A20 (creation's refusal channel), the errors-unwind ruling of 2026-09-27
-(dec-B119's record, "Errors unwind instead of jumping"), with dec-B86 (the header ships what a consumer calls), dec-B87 and
-dec-A33 (copy-on-set), dec-B112 (destroy stays; "A C consumer should have a path to invalidate a C object"), dec-B56 and dec-B57
-(the list, the hash, per-symbol lookup), dec-B60, dec-A139 and dec-B424 (the version pair stays 1/0 before the release, the hash
-moves), dec-B111 (the hash-to-minor CI assertion), dec-B160 and dec-B163 (multinomial run and predict through the flat API, its
-creation a post-release door), dec-B186 (the C consumer test compiles and runs on CRAN), dec-A36 (consumers check the boundary
-under sanitizers themselves), dec-A32 (a returned integer is a value or a capability status), dec-C01 (full symbol names) and
-dec-C04 (the support library's print pointers). The runs behind it: reads of the tree at c3d268c8f, of stan4bart main (27ef163)
-and treatSens master (268b2db), and of frequency-weights (da210ce2d); no prototype was built.
+Status: PLANNED 2026-11-03 on main (c3d268c8f), for dec-B85; amended the same day after a blind critique (BUILD AFTER
+AMENDMENTS). Not built. Rulings, quoted where they settle a call: dec-B85 (the staged route), dec-B84 (the header is pure C),
+dec-B119 (a status from every entry point, the unwind to the entry point staying), dec-A74 (printing chosen at build time, the
+run-time print pointers removed), dec-A73 (a plain-C sigma getter rides this header change), dec-B124 (the specification's
+predictor part is `dbarts_predictor_source`, its dense channel stated per column), dec-A50 (the engine's R touchpoints), dec-A20
+(creation's refusal channel), with dec-B86 (the header ships what a consumer calls), dec-B87 and dec-A33 (copy-on-set), dec-B112
+(destroy stays; "A C consumer should have a path to invalidate a C object"), dec-B56 and dec-B57 (the list, the hash, per-symbol
+lookup), dec-B60, dec-A139 and dec-B424 (the version pair stays 1/0 before the release, the hash moves), dec-B111 (the
+hash-to-minor CI assertion), dec-B160 and dec-B163 (multinomial run and predict through the flat API, its creation a post-release
+door), dec-B186 (the C consumer test compiles and runs on CRAN), dec-A36 (consumers check the boundary under sanitizers
+themselves), dec-A32 (a returned integer is a value or a capability status), dec-C01 (full symbol names), dec-C04 (the support
+library's print pointers), and the frequency-weights rulings dec-B563 to dec-B567 (the reading of a weight is fixed at creation
+and the header gains its field in this change; a binomial response for logistic). The runs behind it: reads of the tree at
+c3d268c8f, of stan4bart main (27ef163) and treatSens master (268b2db), and of frequency-weights (da210ce2d); the critic's probe of
+R 4.6.2's nmath against Rmath (17,304 points, below). No prototype was built here.
 
-agent: S1 one opus implementer (effort high); S2 one opus implementer (effort high), the riskiest slice; S3 the same or a fresh
-opus implementer; S4 one sonnet implementer per consumer, in that consumer's own checkout; S5 sonnet. One opus review per engine
-slice (S1, S2, S3) that runs the mutants below, the same reviewer checking the fix round unless the fixes change engine behavior.
-Tier "Changes draws" for S1 to S3 ([Process by risk](README.md#process-by-risk)): nothing is meant to move a draw, but every
-creation route and every flat entry is rewritten, and the gates are the draw-changing tier's.
+agent: S1 is its own feature, one opus implementer (effort high). The main feature: S2a, S2b and S3 one opus implementer each
+(effort high), S2b the riskiest; S4 one sonnet implementer per consumer, in that consumer's own checkout; S5 sonnet. One opus
+review per engine slice (S1, S2a, S2b, S3) that runs the mutants below, the same reviewer checking the fix round unless the fixes
+change engine behavior. Tier "Changes draws" for every engine slice ([Process by risk](README.md#process-by-risk)): nothing is
+meant to move a draw, but every creation route and every flat entry is rewritten, and the gates are the draw-changing tier's.
 rng: neutral, bit for bit, on the R build: the equivalence trio, the four snapshot files, tests/cpp and the full tinytest suite
-do not move, and no R message changes. The standalone build is new and owes no bitwise match to R; see [RNG class](#rng-class).
+do not move, and no R message changes. The standalone build is new; its math is bitwise equal to Rmath on the reference host and
+within a relative floor elsewhere; see [RNG class](#rng-class).
 window: before the 1.0-0 submission (dec-B85: "post merging into main, but before 1.0 since it might change a number of packages
-and is an interface change"). After forest-door and coefficient-prior-live land on main; one branch, host-neutral-engine, five
-slices, merged once (dec-B494), the consumer ports merging right after it.
-budget: ~5,000 lines written in this tree plus ~6,000 copied unedited from R's math library: S1 ~350 (+6,000 copied), S2
-~1,900, S3 ~2,300, S5 ~150; S4 ~80 in stan4bart and ~50 in treatSens. Agent time, estimated and not measured: S1 ~7.5, S2 ~17,
-S3 ~17, S4 ~6, S5 ~1, rebases onto main after the pending plans ~2: ~50. Plans here run 1.5 to 2 times low, so 75 to 100.
+and is an interface change"). Two features. S1 (build-time math and printing, branch host-neutral-math) touches no header and no
+creation code and lands on its own whenever it is green, serial with other engine merges. The main feature (branch
+host-neutral-engine: S2a, S2b, S3, then S5) starts after forest-door and coefficient-prior-live land and merges once (dec-B494),
+the consumer ports (S4) merging right after it.
+budget: ~5,450 lines written in this tree plus ~6,000 copied unedited from R's math library and ~400 of reduced R headers: S1
+~350, S2a ~900, S2b ~1,800, S3 ~2,400; S4 ~80 in stan4bart and ~50 in treatSens. Agent time, estimated and not measured: S1 ~8,
+S2a ~20, S2b ~35, S3 ~22, S4 ~6, S5 ~1, rebases onto main after the pending plans ~3: ~95. Plans here run 1.5 to 2 times low,
+so 140 to 190. Open call 3's middle option takes about 400 lines and 10 hours off S2b and S3.
 
 ## Summary for the maintainer
 
 You ruled in September that before 1.0-0 the engine stops depending on R below the layer that talks to R, so that a program
 other than R, a Python package for instance, can build and run a sampler through the one C header dbarts ships. This plan builds
-that in five steps.
+that as two pieces of work.
 
-First, the math and the printing. The engine and its support code call six of R's numerical routines (the normal distribution's
-density, probability and quantile; the t distribution's density and quantile; the chi-squared quantile) and R's console. Under R
-they keep calling exactly those, so every draw an R user makes stays bit for bit the same. Every other build uses a copy of R's
-own routines kept in the package and writes to standard output. Your ruling named four routines; the engine has since come to
-use two more, the t quantile and a chi-squared median, both read only when a sampler is built or its prior is changed, and this
-plan copies them too rather than asking every caller to compute them. The two unused printing hooks go.
+The first is the math and the printing, and it can land on its own as soon as it is ready. The engine and its support code call
+six of R's numerical routines (the normal distribution's density, probability and quantile; the t distribution's density and
+quantile; the chi-squared quantile) and R's console. Under R they keep calling exactly those, so every draw an R user makes stays
+bit for bit the same. Any other build uses a copy of R's own routines, kept in the repository but left out of the package R users
+install, and writes to standard output. Your ruling named four routines; the engine has since come to use two more, the t
+quantile and a chi-squared median, both read only when a sampler is built or its prior is changed, and this plan copies them too.
+A check of the copy found it gives exactly R's answers when compiled the way R compiles, and differs in the last few digits
+otherwise. The two unused printing hooks go.
 
-Second, the specification. Today the code that turns R's control, model and data objects into an engine reads those objects
-directly. It will instead fill one plain C description of the sampler - its data, family, priors, constraints and run settings,
-each already resolved - and the engine is built from that description alone. R still does everything R does now: reading the
-formula, choosing the family from the response, estimating the starting sigma, turning the residual prior's quantile into a
-scale, parsing the prior vocabulary, and naming columns and forests in its messages. Nothing an R user sees changes.
+The second is the rest. Today the code that turns R's control, model and data objects into an engine reads those objects
+directly. It will instead fill one plain C description of the sampler - its data, family, priors, constraints, how its weights
+are read, and run settings, each already resolved - and the engine is built from that description alone. R still does everything
+R does now: reading the formula, choosing the family from the response, estimating the starting sigma, turning the residual
+prior's quantile into a scale, parsing the prior vocabulary, and naming columns and forests in its messages. Nothing an R user
+sees changes. Then the header changes once, so the two compiled packages rebuild once: a program can create a sampler from that
+description, every entry that can fail returns a status in place of raising an R error, the failure's message can be read back,
+each chain's current sigma can be read, and the predictor description says column by column which block a column's values sit
+in, as you ruled. stan4bart and treatSens are then changed to check those statuses; with the helper recommended below, an R user
+of either sees the same errors, interrupts and time limits as today.
 
-Third, the header change, made once so the two compiled packages rebuild once. A program can create a sampler from that
-description, every entry that can fail returns a status in place of raising an R error, the failure's message can be read
-back, each chain's current sigma can be read, and the predictor description says column by column which block a column's values
-sit in, as you ruled. A sampler created this way has no R object behind it and is freed by the destroy entry.
+Seven choices are yours, each a shape the two compiled packages and any future binding would code against: whether the entries
+that cannot fail keep returning their value; where a failure's message is read; how much of the model a C program can create in
+1.0; whether the description is one struct or built up by calls; whether creating from C requires a seed; how an R package that
+calls dbarts' C code turns a status back into R's error or interrupt; and how a run a callback stopped on purpose is reported.
 
-Fourth, stan4bart and treatSens are changed to check those statuses; with the helper recommended below, an R user of either
-sees the same errors and the same interrupt behavior as today. Fifth, the records.
-
-Six choices only you can make, each a shape the two compiled packages and any future binding would code against: whether the
-accessors that cannot fail keep returning their value; where a failure's message is read; whether the C description covers
-one-forest models only for now; whether the description is one struct or built up by calls; whether creating from C requires a
-seed; and how an R package that calls dbarts' C code turns a status back into R's error or interrupt. The recommendations keep the
-header small and keep every behavior an R user sees.
-
-What it costs: about 5,000 lines here and a copied 6,000 of R's math code, and roughly 75 to 100 agent-hours. It has to wait for
-the forest door and the live coefficient prior, which rework the same creation code, and it should go before frequency weights,
-which adds one field to the new description.
+What it costs: about 5,450 lines here plus the copied math code, and roughly 140 to 190 agent-hours, most of it in rewriting how
+samplers are created. The main piece has to wait for the forest door and the live coefficient prior, which rework the same
+creation code; frequency weights' field joins the new description whichever lands first.
 
 ## Goal
 
 The engine, the support libraries and the flat C entry file compile and run with no R header and no R library: a tests/cpp
-target builds them into a plain C consumer that creates, runs, predicts, reads sigma and refuses through statuses alone, and no R
-symbol is in its binary. Under R every draw, every message and every printed line is what main produces at the base of this
-branch. Every creation route, R's five and the new flat one, fills one plain-C specification and passes one translate-and-validate
+recipe builds them into a plain C consumer that creates, runs, predicts, reads sigma and refuses through statuses alone, and no R
+symbol is in its binary. Under R every draw, every message and every printed line is what main produces at the base of each
+branch. Every creation route, R's and the new flat one, fills one plain-C specification and passes one translate-and-validate
 stage. Every flat entry that can fail returns a `dbarts_status`, its message readable on the calling thread. stan4bart and
 treatSens build against the new header and pass their suites.
 
@@ -88,17 +92,32 @@ treatSens build against the new header and pass their suites.
   objects, [`optionsFromParsed`](../../src/R_interface_bartcore.cpp) turns them into options (reading the DART prior off the model
   object directly), and [`createHolder`](../../src/R_interface_bartcore.cpp) adds the survival status, the variance record, the
   forest records and bases, the move record, the chain generators ([`createChainRngs`](../../src/R_interface_bartcore.cpp)), the
-  factory call, the test predictors and the verbose summary ([`printInitialSummary`](../../src/R_interface_bartcore.cpp)). Four
-  more routes build engines: [`createMultinomialCountsHolder`](../../src/R_interface_bartcore.cpp),
-  [`createMultinomialDataHolder`](../../src/R_interface_bartcore.cpp), [`bartcore_createDataHandle`](../../src/R_interface_bartcore.cpp)
-  and [`bartcore_createFromHandle`](../../src/R_interface_bartcore.cpp) (xbart's folds).
+  factory call through [`createSamplerOrRaise`](../../src/R_interface_bartcore.cpp), the test predictors and the verbose summary
+  ([`printInitialSummary`](../../src/R_interface_bartcore.cpp)). Two more routes build engines,
+  [`createMultinomialCountsHolder`](../../src/R_interface_bartcore.cpp) and
+  [`createMultinomialDataHolder`](../../src/R_interface_bartcore.cpp); [`bartcore_createDataHandle`](../../src/R_interface_bartcore.cpp)
+  builds a `ColumnStore`, not an engine, and [`bartcore_createFromHandle`](../../src/R_interface_bartcore.cpp) builds xbart's
+  fold engines over it.
 - The flat entries: [`translateSource`](../../src/C_interface.cpp) validates a caller's predictor source (on R's transient
   stack); every refusal is an `Rf_error`; engine exceptions become R errors through
   [`callConvertingExceptions`](../../src/R_interface_bartcore_common.hpp); a run's callback raise travels as an
-  [`UnwindJump`](../../src/R_interface_bartcore_common.hpp) the entry resumes; an interrupt is caught by
-  [`userInterrupted`](../../src/R_interface_bartcore.cpp) and re-raised by [`raiseInterrupt`](../../src/R_interface_bartcore.cpp);
-  a slow monotone count warns through [`raiseSlowCountWarning`](../../src/C_interface.cpp). The handle is the bridge's holder,
-  [`dbarts_sampler_t`](../../src/R_interface_bartcore_common.hpp), which carries no R type.
+  [`UnwindJump`](../../src/R_interface_bartcore_common.hpp) the entry resumes; the poll
+  [`userInterrupted`](../../src/R_interface_bartcore.cpp) consumes either an interrupt or an R error raised while polling (a
+  `setTimeLimit` expiry, pinned in test-monotone.R), and [`raiseInterrupt`](../../src/R_interface_bartcore.cpp) re-raises the
+  one it consumed; a slow monotone count warns through [`raiseSlowCountWarning`](../../src/C_interface.cpp). The handle is the
+  bridge's holder, [`dbarts_sampler_t`](../../src/R_interface_bartcore_common.hpp), which carries no R type.
+- R frames and C++ exceptions: [`unwindProtect`](../../src/R_interface_bartcore.cpp) protects a body against R's jump and catches
+  no C++ exception, so an exception must never leave a body it wraps or cross any R frame. The shared validators in
+  R_interface_bartcore_common.hpp (`validateResponseSupport`, `enforceBinaryWeightPolicy`, `refuseNonFinite` and thirteen more)
+  raise `Rf_error` today and are called at about 60 sites in the R bridge (counted by name at c3d268c8f, definitions included),
+  besides the flat file's; the bridge's other 379 `Rf_error` sites are R's own and stay.
+- Process-wide state on the predict path: [`predictPartition`](../../src/bartcore/sampler.hpp), a plain struct holding a
+  `std::vector`, is written by every predict and read by a test hook; it is safe today only because predict is main-thread-only.
+  [`testFitPartition`](../../src/bartcore/chain.hpp) is relaxed atomics, last writer wins, a diagnostic no answer reads.
+- Engine exception types: `std::invalid_argument` (ten sites), `std::length_error` (two, saved-tree storage past the addressable
+  size), `std::bad_alloc` (one), and `std::runtime_error` at three: the two prior-draw exhaustions in chain.hpp
+  (sampleTreesFromPrior) and predict's join, which rethrows any worker failure, an allocation failure included, as
+  `runtime_error("predict worker w failed: ...")`.
 - The R touchpoints below the bridge, as found at c3d268c8f (TODO lists the first group only):
   - in the engine: `Rf_pnorm5` (eleven calls), `Rf_dnorm4` (two) and `Rf_dt` (one) called by name in
     src/bartcore/model.hpp; `ext_quantileOfStudentT` in [`forestMapEntry`](../../src/bartcore/combiner.hpp) (a coefficient's
@@ -110,12 +129,16 @@ treatSens build against the new header and pass their suites.
     [`ext_rng_simulateStandardNormal`](../../src/external/randomNorm.c), which every normal draw goes through (inversion is the
     default algorithm), so qnorm is on the hot path; R's own generators, `.Random.seed` and `set.seed` in
     src/external/randomBase.c; `Rf_error`, `Rf_warning` and `Rprintf` in src/external/io.c; the unused
-    [`misc_printf`](../../src/include/misc/io.h) and `misc_flushOutput` pointers in misc.
+    [`misc_printf`](../../src/include/misc/io.h) and `misc_flushOutput` pointers in misc and their five installers.
   - in the bridge's own core: `R_alloc`, `R_finite`, `R_UnwindProtect` (the callback leaf, [`ShippedDrawHook`](../../src/R_interface_bartcore_common.hpp)),
     `R_CheckUserInterrupt` (the poll).
   - The residual prior's chi-squared quantile is already the bridge's (`sigmaRawScale`), as dec-B85 has it.
-- tests/cpp links libR ("external.a's rng object references the R API even for non-native algorithms") and has no standalone
-  target. The rshim the TODO's predecessors name was deleted in c0ddd93e8; nothing in the tree builds the engine without R.
+- Build: src/Makevars.in sets no `OBJECTS`, so every .c and .cpp at the top of src/ is compiled into dbarts.so. configure (which
+  reads `R CMD config`) generates src/config.hpp, src/misc/config.h, src/external/config.h and src/include/misc/types.h from
+  their `.in` files; Windows uses checked-in `.win` variants. R's compiler on the reference host is `clang -arch arm64` with
+  `-falign-functions=64 -Wall -g -O2`, so contraction of a * b + c is clang's default, on.
+- tests/cpp links libR and has no standalone target. The rshim the TODO's predecessors name was deleted in c0ddd93e8; nothing in
+  the tree builds the engine without R.
 - The shipped header: [`DBARTS_C_API_LIST`](../../inst/include/dbarts/dbarts.h), [`DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h)
   checked against [`dbarts_apiToken`](../../src/C_interface.cpp), [`dbarts_predictor_source`](../../inst/include/dbarts/dbarts.h)
   (today a dense column's index is read in the block its STORE kind selects, the rule dec-B124 replaces),
@@ -126,34 +149,39 @@ treatSens build against the new header and pass their suites.
   src/init.cpp, plus `dbarts_results` in src/bart_util.hpp and `dbarts_dense_predictor_source`. treatSens master calls run (3),
   setResponse (4), setOffset, setSigma, setVerbose (2), setNumThreads (2), destroy (2) and the version pair, in
   src/R_interface.cpp, src/bartTreatmentModel.cpp and src/sensitivityAnalysis.cpp. Both define `DBARTS_USE_STUBS`; neither
-  defines `DBARTS_REQUIRE_EXACT_ABI`; neither creates through C. bartCause and bairrtt link nothing of dbarts.
+  defines `DBARTS_REQUIRE_EXACT_ABI`; neither creates through C or registers a draw callback. bartCause and bairrtt link nothing
+  of dbarts.
 - docs/plans/pure-c-header.md (the last header change, its slices and gates), docs/design/consumer-spec-surface.md (why one
   resolution home), docs/design/r-c-division.md, error-style.md (R7, a flat entry names itself; R8, the R message is canonical
-  and a C backstop is worded apart), [Callbacks and errors](../architecture.md#callbacks-and-errors),
+  and a C backstop is worded apart), docs/design/frequency-weights.md on its branch, [Callbacks and errors](../architecture.md#callbacks-and-errors),
   [Reproducibility contract](../architecture.md#reproducibility-contract), docs/plans/python-bindings.md.
 
 ## Constraints
 
 - Neutral on the R build: no draw, message, warning or printed line changes; the gates in [Tests and gates](#tests-and-gates).
+- No C++ exception crosses an R frame or leaves an `unwindProtect` body; no R jump crosses a C++ frame that owns anything.
 - The header stays pure C (dec-B84): `gcc -std=c99 -pedantic` and `g++ -std=c++11` on its prototype view with no R include
   path (the tests/cpp header-compiles target). The version pair stays 1/0 and the hash is re-baked (dec-B60, dec-B424).
 - No run-time hook for math, printing or interrupts (dec-B85, dec-A74): each is chosen when the code is compiled.
+- Nothing only a standalone build compiles sits where the R package build compiles it or ships in the source tarball.
 - The R surface is untouched: no R function, argument, return shape or help text changes, except the help's C section
   (dbarts-embedding.Rd).
 - Out of scope: a C creation path for multi-forest or multinomial models (open call 3; dec-B160 keeps multinomial's a
   post-release door); an opaque C state buffer (dec-B84, conditional on a consumer); a shipped standalone library or build
   system beyond the tests/cpp recipe; any R wrapper for a C-created handle; the SamplerShape fields that size the bridge's arrays
-  (dec-A50 names them; no ruling asks this arc to move them); frequency weights' own work (below).
+  (dec-A50 names them; no ruling asks this arc to move them); frequency weights' and the binomial response's own work (below);
+  compatibility for development consumer binaries built against today's header (below).
 
 ## What stays with R
 
 The R parse keeps every step that needs R or that R alone resolves, and hands the specification values, never R objects:
 
 - ingestion: the formula and matrix interfaces, `dbartsData`, factors and their levels, sparse and mixed containers, `Surv`,
-  the hazard expansion, `na.action`;
+  the hazard expansion, `cbind(successes, failures)` once dec-B567 lands, `na.action`;
 - resolution ([`resolveSamplerSpec`](../../R/spec.R)): the family from the response shape (the spec takes a stated family,
-  never `DBARTS_FAMILY_AUTO`), ordinal recoding, the weight policy, the starting sigma estimate, offset normalization, the prior
-  vocabulary and its evaluation, the per-family defaults;
+  never `DBARTS_FAMILY_AUTO`), ordinal recoding, the weight policy and `weights.type = NULL`'s reading (dec-B564: the spec takes
+  the resolved reading), the starting sigma estimate, offset normalization, the prior vocabulary and its evaluation, the
+  per-family defaults;
 - the residual prior's chi-squared quantile (dec-B85): the spec carries the resulting scale;
 - seeds drawn from R's stream when the control states none: R hands the chain seeds (see [Seeding](#seeding));
 - every refusal that names an R thing - a column or forest by its R name, a slot, `$setData`, `dbartsSpec()` - stays raised in
@@ -170,14 +198,15 @@ The R parse keeps every step that needs R or that R alone resolves, and hands th
 Two plain-C structs, one shipped and one internal:
 
 - `dbarts_sampler_spec`, in dbarts.h: a caller-filled, `structSize`-led struct (the `dbarts_predictor_source` contract in the
-  caller-to-library direction) holding what a one-forest sampler needs, every value resolved. Its fields, grouped (the order
-  below is the struct's):
+  caller-to-library direction) holding what a one-forest sampler needs, every value resolved; about 75 fields under open call
+  3's recommendation. Its fields, grouped (the order below is the struct's):
   - data: `x` (a `dbarts_predictor_source`, its typing channel READ at creation, which gives `columnTypes` and `categoryCounts`
-    the reader dec-B124 owes them), `y`, `weights`, `offset`, `survivalStatus` (aft, double 0/1 per row as R holds it),
-    `xTest` (a second source, 0 rows for none), `testOffset`, `numCuts` and `maxNumCuts` (one or per column), `useQuantiles`;
-  - family: `family` (a `dbarts_family`, 1 to 7), `sigmaEstimate`, `sigmaIsFixed`, `sigmaPriorDf`, `sigmaPriorScale` (the
-    host's `qchisq(1 - q, df) / df`), `residualDf` (read under STUDENT: positive fixes it, 0 estimates it), `numCategories`
-    (ordinal K), `shape` (nbinom: positive fixes r, non-positive estimates it);
+    the reader dec-B124 owes them), `y`, `weights`, `weightsType` (a `dbarts_weights_type`, below), `offset`, `survivalStatus`
+    (aft, double 0/1 per row as R holds it), `xTest` (a second source, 0 rows for none), `testOffset`, `numCuts` and
+    `maxNumCuts` (one or per column), `useQuantiles`;
+  - family: `family` (a `dbarts_family`, 1 to 7), `sigmaEstimate`, `sigmaIsFixed`, `sigmaPriorDf`, `sigmaPriorScale` (R's
+    `qchisq(1 - q, df) / df`), `residualDf` (read under STUDENT: positive fixes it, 0 estimates it), `numCategories` (ordinal
+    K), `shape` (nbinom: positive fixes r, non-positive estimates it);
   - leaf prior: `leafModel` (a `dbarts_leaf_model`, giving the enumeration its first reader), `k`, `nodeScale`, `namedSd` (NaN
     none), `kIsDrawn`, `kPriorDf`, `kPriorScale`, `leafCovariates` and their count, `gpLengthscales`, `gpMaxLeafSize`,
     `monotoneDirections`, `monotonePrior`;
@@ -188,86 +217,118 @@ Two plain-C structs, one shipped and one internal:
   - moves: the six probabilities, `perturbWidth`, `levelGibbs` (-1 automatic, 0 off, 1 on);
   - variance forest: `numVarianceTrees` (0 none), `varianceBase`, `variancePower`, `varianceForestColumns`;
   - run: `numChains`, `numThreads`, `numThin`, `keepTrees`, `numSamplesToStore`, `verbose`, `printEvery`,
-    `singlePrecisionResidual`, `seed`, `chainSeeds`;
+    `singlePrecisionResidual`, `hasSeed`, `seed`, `chainSeeds`;
   - engine limits: `categoricalExhaustiveCap`, `testFitParallelCutoff`, `predictParallelCutoff`, `sparseDensityThreshold`.
 
-  `DBARTS_SAMPLER_SPEC_INIT` sets `structSize` and `dbarts()`'s defaults for a gaussian response wherever they are numbers,
-  NULL for every vector, and no seed. The header lists the values R resolves per family (probit's node scale, for one), since
-  the spec carries no "the family's default" marker: one resolution home, as dbartsSpec()'s design argued.
+  `DBARTS_SAMPLER_SPEC_INIT` and `dbarts_sampler_spec_init()` (open call 4) set `structSize` and `dbarts()`'s defaults for a
+  gaussian response wherever they are numbers, NULL for every vector, `weightsType` PRECISION, and no seed (`hasSeed` 0). The
+  header lists the values R resolves per family (probit's node scale, for one), since the spec carries no "the family's default"
+  marker: one resolution home, as dbartsSpec()'s design argued.
+- The weights' reading: `DBARTS_WEIGHTS_TYPE_LIST`, PRECISION 1 and FREQUENCY 2, a field of the family part as dec-B564 has it
+  ("the shipped header gains one field in dec-B85's change"). The spec holds the resolved reading, never "the family's own": R
+  resolves `weights.type = NULL` before filling it. The build checks the pair against dec-B563 and dec-B564 (FREQUENCY on the
+  gaussian-type and Polya-Gamma families, PRECISION only where there is a residual scale, either for 0/1 weights) with the
+  words frequency weights gives R, prefixed. Until frequency weights' engine work lands, FREQUENCY is taken only where it reads
+  as the family's own (the Polya-Gamma families' counts, 0/1 weights).
 - `bartcore_bridge::SpecExtension`, internal (src/spec_internal.h, plain C structs and arrays): the re-creation records, the
   multi-forest records (each forest's tree count and settings, sd, multiple, held flag, df, share as forest-door leaves it,
   kind, basis, basis scale), the amplitude glue settings, the multinomial counts, trials and K, the data handle's prebuilt store,
-  the creation mask and the host's unit count (`tooFewUnitsIn`). Empty, it is the flat entry's.
+  the creation mask and the unit count (`tooFewUnitsIn`). Empty, it is the flat entry's.
 
 One stage, `buildSampler(const dbarts_sampler_spec&, const SpecExtension&)`, in a new R-free src/sampler_build.cpp: validates
-the spec with host-neutral words, translates both sources through the one `translateSource` (dec-B124: the flat predict entry,
+the spec with neutral words, translates both sources through the one `translateSource` (dec-B124: the flat predict entry,
 creation from C, and the R parse's views all pass it), fills the engine structs, makes the chain generators from the seeds,
-selects and calls the factory, installs the move record, the test predictors and the test offset, and returns a holder or throws
-a `Refusal`. Every one of R's five routes and `dbarts_sampler_create` call it. What createHolder does today in that order moves
-there whole; only the SEXP reads stay behind.
+selects and calls the factory, installs the move record, the test predictors and the test offset, and returns a holder or a
+refusal. The engine creation routes (createHolder, the two multinomial holders, createFromHandle over the handle's store) and
+`dbarts_sampler_create` call it; createDataHandle fills the spec's predictor part, passes `translateSource` and builds its store
+from the result. What createHolder does today in that order moves there whole; only the SEXP reads stay behind.
 
 ### Seeding
 
-The spec takes either `seed` with `chainSeeds` NULL - one generator seeded from it hands each chain its seed, which is the
-`control@seed` path today and gives the same draws - or `chainSeeds`, one per chain, used as they stand, which is how the R
-parse passes the seeds it draws from R's stream when the control states none. R's draws are therefore unchanged on both paths.
-A spec with neither is refused (open call 5).
+The spec takes either `hasSeed` 1 with `seed` (every 32-bit value valid, 0 included) and `chainSeeds` NULL - one generator
+seeded from it hands each chain its seed, which is the `control@seed` path today and gives the same draws - or `chainSeeds`, one
+per chain, used as they stand, which is how the R parse passes the seeds it draws from R's stream when the control states none.
+R's draws are therefore unchanged on both paths. A spec with neither is refused (open call 5).
+
+### Refusals inside the shared code
+
+A refusal is a value, not an exception, wherever it can meet an R frame: `bartcore_bridge::Refusal`, a status and a fixed
+1,024-byte message, trivially destructible (a static_assert, so an R jump past one strands nothing), empty on success. The
+shared validators return one, marked `[[nodiscard]]`; an R site raises it with `raiseRefusal(r)`, which calls
+`Rf_error("%s", ...)` with exactly today's text, and a flat site returns it. Below the validators, `buildSampler` and the engine
+throw, and one catch per creation route (the shape [`createSamplerOrRaise`](../../src/R_interface_bartcore.cpp) has) turns any
+exception into a refusal value before any R call, so no exception crosses an R frame. The about 60 validator sites in the R
+bridge change from a call to a wrapped call; the 379 R-only `Rf_error` sites do not change. The review checklist: every
+validator call is consumed, every `buildSampler` call sits under its route's catch, and no `unwindProtect` body lets an
+exception out.
 
 ### Statuses
 
-`dbarts_status`, an ABI enum generated like the others (`DBARTS_STATUS_LIST`), replacing `DBARTS_SWAP_STATUS_LIST`. Zero is
-success, a positive value a success with a note, a negative value a failure that touched nothing the caller can rely on:
+`dbarts_status`, an ABI enum generated like the others (`DBARTS_STATUS_LIST`), replacing `DBARTS_SWAP_STATUS_LIST`. The header's
+rule: zero is success, any positive value is a success with a note, any negative value a failure; codes may be added in a later
+minor, so a caller tests the sign and treats an unknown negative as a failure.
 
 | value | name | meaning |
 |---|---|---|
 | 0 | `DBARTS_OK` | done |
 | 1 | `DBARTS_SCALE_KEPT` | setResponse or setOffset swapped and kept the transform in force (today's SCALE_KEPT) |
-| 2 | `DBARTS_STOPPED` | a run a callback's nonzero return stopped; results and saved trees of the call are discarded |
-| -1 | `DBARTS_UNSUPPORTED` | the sampler cannot do this at all, nothing touched (today's capability 0) |
+| 2 | `DBARTS_STOPPED` | a callback's nonzero return stopped a run (open call 7) |
+| -1 | `DBARTS_UNSUPPORTED` | the sampler cannot do this at all (today's capability 0) |
 | -2 | `DBARTS_INVALID_ARGUMENT` | this call is wrong (today's `Rf_error` "this call is wrong") |
-| -3 | `DBARTS_OUT_OF_MEMORY` | an allocation failed (a tree store, a build) |
-| -4 | `DBARTS_INTERRUPTED` | the host's interrupt stopped a run; the sampler as after a callback's stop |
+| -3 | `DBARTS_OUT_OF_MEMORY` | an allocation failed or a size exceeds what can be addressed |
+| -4 | `DBARTS_INTERRUPTED` | the build's poll stopped a run: an interrupt, or under R an error raised while polling (a time limit) |
 | -5 | `DBARTS_CALLBACK_ERROR` | a draw callback threw a C++ exception; its `what()` is the message |
-| -6 | `DBARTS_INTERNAL_ERROR` | anything else the engine threw |
+| -6 | `DBARTS_FAILED` | the engine could not complete the call; the message says why |
 
-Inside the shared core every refusal is a C++ exception (`bartcore_bridge::Refusal`, a status and a message) thrown where it is
-found, so the unwind to the entry point stays (dec-B119) and only the last step changes: the flat entry catches, records the
-message on the thread and returns the status; an R `.Call` entry catches and raises `Rf_error` with the message it raises today.
 Engine exceptions map by type: `std::invalid_argument`, `std::domain_error` and `std::out_of_range` to INVALID_ARGUMENT,
-`std::bad_alloc` and `std::length_error` to OUT_OF_MEMORY, the rest to INTERNAL_ERROR.
+`std::bad_alloc` and `std::length_error` to OUT_OF_MEMORY, the rest (the two prior-draw exhaustions among them) to FAILED.
+Predict's join (S3) rethrows a failed worker's exception in its own category, an allocation failure as an allocation failure,
+with the message text it has today, so R's words hold and a C caller sees OUT_OF_MEMORY.
 
-Per entry (the infallible ones keep returning their value under open call 1's recommendation):
+Per entry (the infallible ones keep returning their value under open call 1's recommendation), with what a failure leaves:
 
-| entry | returns | can fail with |
-|---|---|---|
-| `dbarts_sampler_create` | status, handle through an out pointer | INVALID_ARGUMENT, UNSUPPORTED (multinomial, AUTO), OUT_OF_MEMORY |
-| `dbarts_sampler_run` | status | INVALID_ARGUMENT (structSize 0), INTERRUPTED, CALLBACK_ERROR, OUT_OF_MEMORY, INTERNAL_ERROR; STOPPED |
-| `dbarts_sampler_sampleTreesFromPrior` | status | INVALID_ARGUMENT (a tree whose every draw left an empty leaf), OUT_OF_MEMORY |
-| `dbarts_sampler_setResponse`, `setOffset` | status | UNSUPPORTED, INVALID_ARGUMENT (support, finiteness, updateScale refusals); SCALE_KEPT |
-| `dbarts_sampler_setSigma` | status | UNSUPPORTED (pinned), INVALID_ARGUMENT (not finite and positive) |
-| `dbarts_sampler_getSigmas` (new) | status | UNSUPPORTED (heteroscedastic, as R's getSigmas() returns NULL) |
-| `dbarts_sampler_getLatents` | status | UNSUPPORTED (augments nothing) |
-| `dbarts_sampler_predict` | status | UNSUPPORTED (blend undefined), INVALID_ARGUMENT (source, offset, empty store) |
-| `dbarts_sampler_setTreeStorage` | status | OUT_OF_MEMORY |
-| `dbarts_sampler_printTrees` | status | INVALID_ARGUMENT (an index out of range) |
-| `dbarts_sampler_setVerbose` | status | INVALID_ARGUMENT (printEvery 0) |
-| `dbarts_sampler_numTrees` | status, count through an out pointer | INVALID_ARGUMENT (forest out of range) |
-| `destroy`, `setDrawCallback`, `setNumThreads`, the other accessors, the version triple, `dbarts_lastErrorMessage` | value or void | nothing |
+| entry | returns | can fail with | after a failure |
+|---|---|---|---|
+| `dbarts_sampler_create` | status, handle through an out pointer | INVALID_ARGUMENT, UNSUPPORTED (multinomial), OUT_OF_MEMORY, FAILED | `*sampler` NULL, nothing allocated |
+| `dbarts_sampler_run` | status | INVALID_ARGUMENT (structSize 0), INTERRUPTED, CALLBACK_ERROR, OUT_OF_MEMORY, FAILED; STOPPED | the chains stand where they stopped, a valid state to run on from; this call's results and saved trees discarded; after OUT_OF_MEMORY or FAILED, valid to read and destroy |
+| `dbarts_sampler_sampleTreesFromPrior` | status | FAILED (every draw of a tree left an empty leaf), OUT_OF_MEMORY | trees already drawn stand; drawing again is valid |
+| `dbarts_sampler_setResponse`, `setOffset` | status | UNSUPPORTED, INVALID_ARGUMENT (support, finiteness, updateScale refusals); SCALE_KEPT | unchanged |
+| `dbarts_sampler_setSigma` | status | UNSUPPORTED (pinned), INVALID_ARGUMENT (not finite and positive) | unchanged |
+| `dbarts_sampler_getSigmas` (new) | status | UNSUPPORTED (heteroscedastic, as R's getSigmas() returns NULL) | out untouched |
+| `dbarts_sampler_getLatents` | status | UNSUPPORTED (augments nothing) | out untouched |
+| `dbarts_sampler_predict` | status | UNSUPPORTED (blend undefined), INVALID_ARGUMENT (source, offset, empty store), OUT_OF_MEMORY | sampler unchanged, out unspecified |
+| `dbarts_sampler_setTreeStorage` | status | OUT_OF_MEMORY | the store empty, as any change of storage leaves it |
+| `dbarts_sampler_printTrees` | status | INVALID_ARGUMENT (an index out of range) | nothing printed |
+| `dbarts_sampler_setVerbose` | status | INVALID_ARGUMENT (printEvery 0) | unchanged |
+| `dbarts_sampler_numTrees` | status, count through an out pointer | INVALID_ARGUMENT (forest out of range) | out untouched |
+| `destroy`, `setDrawCallback`, `setNumThreads`, the other accessors, the version triple, `dbarts_lastErrorMessage`, `dbarts_sampler_spec_init` | value, void, or OK | nothing (spec_init: INVALID_ARGUMENT on a structSize below the first release's) | - |
 
 The message: `const char* dbarts_lastErrorMessage(void)`, the message of the most recent call on this thread that returned a
-negative status, self-prefixed with the entry's name as today (`"dbarts_sampler_run: results.structSize is 0 - ..."`), valid
-until the next failing call on the thread; a success leaves it (open call 2).
+negative status, a capability probe included, self-prefixed with the entry's name as today (`"dbarts_sampler_run:
+results.structSize is 0 - ..."`), valid until the next failing call on the thread; a success leaves it (open call 2). The
+thread's record also notes, for INTERRUPTED under R, whether the poll consumed an interrupt or an error, which the R raise reads.
 
 Three things stay as they are, because a status cannot carry them: a draw callback that RAISES an R error on an inline run is
 R's own jump, which the entry resumes after the unwind exactly as now (abandoning it would drop the target of an enclosing
 `tryCatch`); the stub view's handshake, consumer code in an R-only view, still raises; and the slow-count warning goes out through
 the build's warning routing, last, as now (under R an R warning, which `options(warn = 2)` can still turn into a jump; standalone,
-a line on standard error).
+a line on standard output).
 
-### Build-time math, printing and interrupts
+### Threads
 
-One preprocessor switch, `DBARTS_HOST_STANDALONE`, defined by a standalone build and never by the R package's Makevars, so the R
-build compiles as it does today.
+A handle is used by one thread at a time; distinct handles may be used at once from distinct threads; under the R build, `run`
+and `sampleTreesFromPrior` stay main-R-thread-only (the poll and R's warning), and every other entry may be called from any
+thread once `predict` no longer allocates through `R_alloc`. That is the contract C libraries with handles state (libcurl: a
+handle in one thread at a time, different handles in different threads; SQLite's multi-thread mode: any thread, no connection in
+two at once), and what a Python binding that releases the GIL around predict on a thread pool would assume. `predictPartition`
+becomes `thread_local`: predict writes it and the test hook reads it on one thread, so the hook still works under R and two
+handles predicting on two threads no longer race (see Calls made for keeping the main-thread rule instead).
+`testFitPartition` stays as it is: relaxed atomics, no race, read by nothing that answers.
+
+### Build-time math, printing and interrupts (S1, and S3 for the poll)
+
+One preprocessor switch, `DBARTS_HOST_STANDALONE`, defined by the standalone recipe and never by the R package's Makevars, so
+the R build compiles as it does today.
 
 - Math: src/include/external/stats.h gains the six names with every flag spelled: `ext_pnorm(x, mu, sd, lowerTail, logP)`,
   `ext_qnorm`, `ext_dnorm(x, mu, sd, logP)`, `ext_dt(x, df, logP)`, `ext_qt(p, df, lowerTail, logP)`, `ext_qchisq`. Under R each
@@ -275,32 +336,39 @@ build compiles as it does today.
   macro for a renamed copy, `dbarts_nmath_pnorm5` and so on. The existing convenience names (`ext_quantileOfNormal`, ...) are
   defined over them. A slim src/include/external/nmath.h declares the six without pulling Rmath.h, for random.c, which today
   declares two by hand. model.hpp's fourteen direct calls become the ext_ names.
-- The copy: src/external/nmath/, the closure of the six in R's nmath at a pinned R release (4.5.x, the version named in a
-  README there): about 25 files, toms708.c (pbeta, for qt) and qgamma.c and pgamma.c (for qchisq) the large ones. Unedited
-  except a prefix header force-included to rename every external symbol, so a host that also links libRmath sees no clash;
-  compiled with `MATHLIB_STANDALONE` by the standalone recipe only. inst/COPYRIGHTS names R Core's copyright and the GPL (>= 2),
-  the package's own license.
+- The copy: standalone/nmath/, a new top-level directory listed in .Rbuildignore, so neither the package build nor the tarball
+  sees it. It holds the closure of the six in R 4.6.x's nmath (4.6.2 probed: 25 files, 5,963 lines, bd0.c to toms708.c, with
+  nmath.h and dpq.h), unedited except a force-included prefix header that renames every external symbol so a program that also
+  links libRmath sees no clash; reduced copies of Rmath.h, Rconfig.h and the eight R_ext headers it includes (about 400 lines);
+  and a README naming the R version, the file list, R Core's copyright and the GPL (>= 2), the package's own license. It is
+  compiled with `MATHLIB_STANDALONE` and `-include errno.h`. Since it is not in the tarball, DESCRIPTION gains no author or
+  Copyright field. The pin moves when the reference build's R moves minor, and the probe below is rerun then.
 - Printing: src/include/external/io.h maps `ext_printf` and `ext_fflush_stdout` to `Rprintf` and `R_FlushConsole` under R as
-  now; standalone, to stdout. src/external/io_standalone.c gives `ext_printMessage` (stdout), `ext_issueWarning` (stderr,
-  "Warning: " first) and `ext_throwError` (stderr, then `abort()`; its two callers are unreachable invariants, an unknown
-  generator kind). The misc pointers and their four installers go (dec-A74, dec-C04).
+  now; standalone, to `printf` and `fflush(stdout)`. standalone/io_standalone.c gives `ext_printMessage` and
+  `ext_issueWarning` ("Warning: " first) on standard output, as dec-A74 has it ("standard output for a standalone build"), and
+  `ext_throwError`, which prints there, flushes and calls `abort()` (its two callers are unreachable invariants, an unknown
+  generator kind). The misc pointers and their five installers go (dec-A74, dec-C04).
 - R's generators: the parts of randomBase.c that use `unif_rand`, `norm_rand`, `.Random.seed` and `set.seed` compile under R
   only; the Mersenne Twister and the rest compile everywhere.
-- Interrupts and the callback leaf: a host unit per build, src/host_r.cpp (the R_ToplevelExec poll, the R_UnwindProtect leaf,
-  the slow-count warning, all moved from the bridge) and src/host_standalone.cpp (no poll, a plain call to the callback with
-  C++ exceptions caught). A binding supplies its own unit in its own build, as dec-A74 has it for printing.
-- The standalone recipe: a tests/cpp target that compiles the engine, src/C_interface.cpp, src/sampler_build.cpp,
-  src/host_standalone.cpp, external (Mersenne Twister, io_standalone, nmath) and misc with `-DDBARTS_HOST_STANDALONE` and no R
-  include path, and links no libR. It is the recipe a binding copies; nothing else is shipped.
+- Interrupts and the callback leaf (S3): a unit per build, src/host_r.cpp (the R_ToplevelExec poll and its record, the
+  R_UnwindProtect leaf, the slow-count warning, `dbarts_R_raiseStatus`, all moved from the bridge; compiled into dbarts.so) and
+  standalone/host_standalone.cpp (no poll, a plain call to the callback with C++ exceptions caught). A binding supplies its own
+  unit in its own build, as dec-A74 has it for printing.
+- Configuration: the standalone recipe cannot run configure, which reads `R CMD config`. standalone/config/ holds checked-in
+  config.hpp, misc/config.h, external/config.h and misc/types.h for a C++20 compiler on a 64-bit POSIX system, written from the
+  `.in` files as the `.win` variants are and kept in step by tools/check-win-drift.R, extended to that set.
+- The recipe: a tests/cpp target (tests/cpp is already build-ignored) that compiles the engine, src/C_interface.cpp,
+  src/sampler_build.cpp, the misc and external sources, and standalone/ with `-DDBARTS_HOST_STANDALONE`, standalone/config ahead
+  of src/ on the include path and no R include path, into objects under tests/cpp/build-standalone/, never into src/, where a
+  later `R CMD INSTALL` would link a stray object into dbarts.so; it links no libR. It is the recipe a binding copies; nothing
+  else is shipped.
 
 ### The flat entry file without R
 
 src/C_interface.cpp and the shared helpers it calls move off R: `R_alloc` scratch becomes owned vectors, `R_finite` becomes
-`std::isfinite`, the shared validators (`validateResponseSupport`, `enforceBinaryWeightPolicy`, `refuseNonFinite`,
-`refuseMultiForestResponseMutation` and the rest of the common header's raisers) throw `Refusal` instead of calling `Rf_error`,
-and the R entries that share them catch and raise the same text. R_interface_bartcore_common.hpp splits into an R-free core
-header (holder, `Refusal`, validators, `buildSampler`) and the SEXP-facing declarations that stay R-only. `predict` stops being
-main-thread-only for R's sake (no `R_alloc`); the main-thread rule stays for `run`, whose poll is the host's.
+`std::isfinite`, the shared validators return refusals ([Refusals inside the shared code](#refusals-inside-the-shared-code)), and
+R_interface_bartcore_common.hpp splits into an R-free core header (holder, `Refusal`, validators, `buildSampler`) and the
+SEXP-facing declarations that stay R-only.
 
 ### Handles
 
@@ -325,6 +393,8 @@ is a `dbarts_status`):
   X(int, dbarts_apiMinorVersion, (void), ())                                   /* V */ \
   X(uint64_t, dbarts_apiHash, (void), ())                                      /* V */ \
   X(const char*, dbarts_lastErrorMessage, (void), ())                          /* new */ \
+  X(dbarts_status, dbarts_sampler_spec_init, \
+    (dbarts_sampler_spec* spec, size_t structSize), (spec, structSize))        /* new */ \
   X(dbarts_status, dbarts_sampler_create, \
     (const dbarts_sampler_spec* spec, dbarts_sampler** sampler), (spec, sampler)) /* new */ \
   X(void, dbarts_sampler_destroy, (dbarts_sampler* sampler), (sampler)) \
@@ -364,50 +434,64 @@ is a `dbarts_status`):
   X(int, dbarts_sampler_family, (const dbarts_sampler* sampler), (sampler))     /* V */ \
   X(size_t, dbarts_sampler_numFittedValuesPerObservation, (const dbarts_sampler* sampler), (sampler)) \
   X(size_t, dbarts_sampler_numVariableCountForests, (const dbarts_sampler* sampler), (sampler))
+
+/* R-hosted view only (DBARTS_USE_STUBS), open call 6 (a) */
+#define DBARTS_C_API_R_LIST(X) \
+  X(void, dbarts_R_raiseStatus, (dbarts_status status), (status))
+#define DBARTS_R_CHECK(call) \
+  do { dbarts_status dbarts_s_ = (call); if (dbarts_s_ < 0) dbarts_R_raiseStatus(dbarts_s_); } while (0)
 ```
 
 Types: `DBARTS_STATUS_LIST` and `dbarts_status` added, `DBARTS_SWAP_STATUS_LIST` and `dbarts_swap_status` removed;
-`dbarts_sampler_spec` and `DBARTS_SAMPLER_SPEC_INIT` added; in `dbarts_predictor_source` the field `denseChannels` (per column,
-k >= 0 double column k of `denseValues`, k < 0 code column ~k of `denseCodes`, NULL every dense column in `denseValues` at
-`columnSources[j]`) is added above the boundary beside `denseCodes` and `numDenseCodeColumns`, which move above it too, and
-the kind-selected reading of `columnSources` for a dense column goes (dec-B124): the struct then is the engine's
-[`PredictorSource`](../../src/bartcore/data.hpp) field for field, `columnTypes` and `categoryCounts` read at creation and checked
-and ignored by predict. `DBARTS_PREDICTOR_SOURCE_INIT` and `dbarts_dense_predictor_source` follow. `dbarts_results`,
-`dbarts_draw`, `dbarts_column_type`, `dbarts_leaf_model` and `dbarts_family` keep their layout and values (the family and leaf
-enums gain a reader in the spec).
+`DBARTS_WEIGHTS_TYPE_LIST` and `dbarts_weights_type` added; `dbarts_sampler_spec` and `DBARTS_SAMPLER_SPEC_INIT` added; in
+`dbarts_predictor_source` the field `denseChannels` (per column, k >= 0 double column k of `denseValues`, k < 0 code column ~k
+of `denseCodes`, NULL every dense column in `denseValues` at `columnSources[j]`) is added above the boundary beside `denseCodes`
+and `numDenseCodeColumns`, which move above it too, and the kind-selected reading of `columnSources` for a dense column goes
+(dec-B124): the struct then is the engine's [`PredictorSource`](../../src/bartcore/data.hpp) field for field, `columnTypes` and
+`categoryCounts` read at creation and checked and ignored by predict. `DBARTS_PREDICTOR_SOURCE_INIT` and
+`dbarts_dense_predictor_source` follow. `dbarts_results`, `dbarts_draw`, `dbarts_column_type`, `dbarts_leaf_model` and
+`dbarts_family` keep their layout and values (the family and leaf enums gain a reader in the spec).
 
-Stub view: `DBARTS_R_CHECK(call)`, a macro that evaluates the call and, on a negative status, hands it to
-`dbarts_R_raiseStatus`, an R-only callable the R build registers (under open call 6's recommendation): it raises R's interrupt
-condition for INTERRUPTED, as the flat run does today, and otherwise `Rf_error("%s", dbarts_lastErrorMessage())`. It sits in a
-second list, `DBARTS_C_API_R_LIST`, folded into the hash and stubbed only under `DBARTS_USE_STUBS`.
+`dbarts_R_raiseStatus` raises, never returns: for INTERRUPTED it re-raises the condition the poll consumed, R's interrupt
+condition as the flat run raises it today or the R error raised while polling (a time limit's "reached elapsed time limit"); for
+any other negative status, `Rf_error("%s", dbarts_lastErrorMessage())`. Its list is folded into the hash and stubbed only under
+`DBARTS_USE_STUBS`.
 
 Prose: the contract block's error paragraph is rewritten from "An Rf_error means THIS call is wrong ... longjmps" to the status
 rule and the table above; dec-A32's two meanings become "a value entry cannot fail; every other entry returns a status"; THE
-HANDLE gains the C-created origin and its lifetime; the RAISING paragraph of `dbarts_draw_callback` says a thrown exception
-becomes CALLBACK_ERROR and an R raise is still R's jump; `dbarts_sampler_run`'s interrupt, callback-stop and slow-count
-paragraphs follow the statuses; `dbarts_sampler_predict` drops "main-R-thread-only ... R_alloc"; every per-entry "raises" becomes
-the status it returns. About +500/-150 lines in the header.
+HANDLE gains the C-created origin and its lifetime; the thread paragraph states [Threads](#threads); the RAISING paragraph of
+`dbarts_draw_callback` says a thrown exception becomes CALLBACK_ERROR and an R raise is still R's jump; `dbarts_sampler_run`'s
+interrupt, callback-stop and slow-count paragraphs follow the statuses; `dbarts_sampler_predict` drops "main-R-thread-only ...
+R_alloc"; `dbarts_sampler_getLatents` gains frequency weights' sentence on a frequency row's latent (dec-B564's note); every
+per-entry "raises" becomes the status it returns. About +550/-150 lines in the header.
 
 The hash: [`dbarts_foldLayout`](../../src/C_interface.cpp) gains the spec's size and every field's name and offset in pointer
-units, as `dbarts_results`, and `DBARTS_STATUS_LIST` joins the enum fold; both tokens are re-baked
+units, as `dbarts_results`, and `DBARTS_STATUS_LIST` and `DBARTS_WEIGHTS_TYPE_LIST` join the enum fold; both tokens are re-baked
 ([`dbarts_apiSignatureToken`](../../src/C_interface.cpp) and the literal). Several by-value doubles in the spec make its offsets
 differ by platform in pointer units, as `dbarts_draw`'s do, so the spec folds as `dbarts_draw` does: field count, and doubles by
 name, position and width. tools/check-api-hash.sh is unchanged and still skips (no release tag).
 
+Development binaries: a stan4bart or treatSens binary built against today's header still loads against the new dbarts, since
+the version pair stays 1/0 and neither defines `DBARTS_REQUIRE_EXACT_ABI`; it ignores every status, and its two-argument
+`numTrees` call leaves the new entry writing through whatever the third argument register holds. Only shipped versions are owed
+compatibility, so nothing guards this; S4's ports merge with the main feature, and any development install of either is rebuilt.
+
 ## Refusals
 
 R's words do not change: every refusal an R user can reach is raised by the R parse before the spec is filled, or by the shared
-stage with the text it has today, and the tinytest pins hold them. New words reach a C caller of `dbarts_sampler_create` only,
-read back through `dbarts_lastErrorMessage`, each prefixed `dbarts_sampler_create: ` (R7):
+stage with the text it has today, and the tinytest pins hold them. New words reach a C caller of `dbarts_sampler_create` or
+`dbarts_sampler_spec_init` only, read back through `dbarts_lastErrorMessage`, each prefixed with the entry's name (R7):
 
 - `spec is NULL`; `spec.structSize is 0 - set it to sizeof(dbarts_sampler_spec) (e.g. dbarts_sampler_spec s =
-  DBARTS_SAMPLER_SPEC_INIT)`;
+  DBARTS_SAMPLER_SPEC_INIT, or dbarts_sampler_spec_init(&s, sizeof s))`; `structSize %zu is smaller than any dbarts_sampler_spec`;
 - `the response is NULL`; `the response must be finite`; then the support rule's existing words, family by family;
 - `family %d is not one this entry builds; state a dbarts_family from GAUSSIAN to STUDENT` (AUTO and out-of-range values);
   `a multinomial sampler is built through the R interface` (UNSUPPORTED);
-- `a gaussian, Student-t or aft sampler needs a finite positive sigmaEstimate` (the backstop createHolder words in R's terms);
-  `sigmaPriorDf and sigmaPriorScale must be finite and positive`;
-- `numChains must be at least 1`; `printEvery must be at least 1`; `no seed: set spec.seed or spec.chainSeeds`;
+- `weightsType %d is not a dbarts_weights_type`; the frequency and precision refusals in frequency weights' words;
+- `a gaussian, Student-t or aft sampler needs a finite positive sigmaEstimate`; `sigmaPriorDf and sigmaPriorScale must be
+  finite and positive`;
+- `numChains must be at least 1`; `printEvery must be at least 1`; `no seed: set spec.hasSeed and spec.seed, or
+  spec.chainSeeds`;
 - the source refusals of `translateSource` with this entry's name, the test source's under `xTest`;
 - `block tree counts must sum to numTrees`; and the engine's own creation refusals (leaf covariates, variance forest, monotone
   with a proposal mix, storage single), worded as the engine words them, with the entry's prefix.
@@ -417,9 +501,9 @@ read back through `dbarts_lastErrorMessage`, each prefixed `dbarts_sampler_creat
 Neutral on the R build, by construction and by gate:
 
 - S1 changes which macro spells each math call, not which function runs: under R every `ext_` name is the Rmath symbol the code
-  calls today. S2 and S3 move code without changing what is computed or in which order the generators are touched; the one place
-  order could move, the chain seeds, keeps both of today's paths (one seed through a seed generator, or seeds drawn from R's
-  stream) and passes them through the spec unchanged.
+  calls today. S2a, S2b and S3 move code without changing what is computed or in which order the generators are touched; the
+  one place order could move, the chain seeds, keeps both of today's paths (one seed through a seed generator, or seeds drawn
+  from R's stream) and passes them through the spec unchanged.
 - Proven by: the equivalence trio bitwise with `--strict-coverage` against the baselines the MANIFEST names as current at the
   branch's base, counting the "identical draws (same RNG stream)" lines ([Gate hygiene](README.md#gate-hygiene)), on the
   reference build and again on the shipped build; the four seeded-drift snapshot files on the reference build; the full tinytest
@@ -427,148 +511,208 @@ Neutral on the R build, by construction and by gate:
   --bitwise there (the arm64 baselines are cross-host only on x86). A new arm proves the two creation routes agree: under R, a
   sampler created by `dbarts_sampler_create` from the spec the R parse would fill, and the R-created one, give the same draws bit
   for bit (consumer.c).
-- The standalone build is new. Its math is R's code compiled by another compiler with other flags (clang contracts a * b + c by
-  default on arm64, R's binary may not), so it owes no bitwise match to R. Its gates: tests/cpp compares each copied routine with
-  Rmath on a grid of a few thousand points, at most 2 ulp apart, and reports how many agree exactly; the standalone consumer's
-  draws are compared with the R-hosted consumer's at the same spec and seed, bitwise where every grid point agreed exactly and
-  otherwise by the equivalence harness's statistical z.
+- The standalone build. The critic's probe compiled R 4.6.2's nmath closure with clang at R's flags (-O2, contraction on) and
+  compared it with this R's Rmath on 17,304 points over the six routines and their flag combinations: every value bitwise equal.
+  With contraction off, qnorm differed by up to 6 ulp, qt 10 and qchisq 32. So the copy is compiled with R's own C flags on the
+  reference host, and gated there bitwise against Rmath on that grid (a tests/cpp suite in the libR-linked target), and the
+  standalone consumer's draws equal the R-created sampler's bit for bit at the same spec and seed. Off the reference host the
+  grid is gated at a relative difference of 1e-13 and the consumer's draws by the equivalence harness's statistical z.
 
 ## Calls made
 
 1. The vendored set is the closure of all six routines the engine and the support library call, not the four TODO names: qt
    ([`forestMapEntry`](../../src/bartcore/combiner.hpp)) and qchisq at 0.5
    ([`ChiKHyperprior::medianOfChi`](../../src/bartcore/model.hpp)) arrived after the ruling and are read at creation and at live
-   restatements (setLeafPrior, and coefficient-prior-live's `$setForest(amplitude = )`). Alternative: move them host-side as the
-   residual prior's quantile is, which cuts the copy by about 4,000 lines but adds a host-resolved number to every live
-   restatement entry and makes a pure function of the prior the host's. dec-B85's words, "a copy of R's routines kept in the
+   restatements (setLeafPrior, and coefficient-prior-live's `$setForest(amplitude = )`). Alternative: compute them on R's side as
+   the residual prior's quantile is, which cuts the copy by about 4,000 lines but adds an R-resolved number to every live
+   restatement entry and makes a pure function of the prior the caller's. dec-B85's words, "a copy of R's routines kept in the
    support library", fit the copy.
 2. The switch is one preprocessor macro, `DBARTS_HOST_STANDALONE`, that only a standalone build defines. Alternative: a configure
    option, which the R build does not need and Windows' checked-in Makevars would have to mirror.
 3. The copy keeps R's file layout unedited and renames symbols by a force-included prefix header. Alternative: edit the names in
    place, which makes the next refresh from R a diff to hand-merge.
-4. The shipped spec is one struct and the R-only parts an internal extension beside it, both read by one build stage. Alternative:
+4. Everything only a standalone build compiles (the copy, io_standalone.c, host_standalone.cpp, the config headers) lives in a
+   build-ignored top-level standalone/ directory. Alternative: keep it in src/ and set `OBJECTS` in Makevars.in and
+   Makevars.win, then name R Core in DESCRIPTION (`Authors@R` or a `Copyright:` field) for the copy the tarball would carry;
+   more to maintain for code no R user runs. Nothing in the R build needs the copy.
+5. The standalone build's math gate is bitwise at R's own flags on the reference host and a 1e-13 relative floor elsewhere, the
+   copy pinned to R 4.6.x. Alternative: a fixed ulp bound everywhere, which the probe shows is either too loose to catch a wrong
+   flag (2 ulp passes nothing at contraction off, so it fails; 32 passes a miscompile) or too tight for another compiler.
+6. The shipped spec is one struct and the R-only parts an internal extension beside it, both read by one build stage. Alternative:
    one internal spec of which the shipped struct is a projection; two homes for the same fields, the drift dbartsSpec() was made
    to end.
-5. Every creation route, the data handle's included, fills the spec. Alternative: leave the handle and multinomial routes on their
-   own parse, keeping two translate stages against dec-B124's one.
-6. Inside the core every refusal is a thrown `Refusal`, caught at the entry. Alternative: thread a status return through every
-   helper, which rewrites every call path and replaces the unwind dec-B119 keeps.
-7. Exception types map to statuses as in [Statuses](#statuses). Alternative: one generic failure code, which leaves a host unable
-   to tell an allocation failure from a wrong argument.
-8. A callback's R raise on an inline run is still R's jump, resumed at the entry. Alternative: swallow it into CALLBACK_ERROR,
-   which drops the target of an enclosing tryCatch and leaves R's condition stack inconsistent.
-9. The slow-count warning goes through the build's warning routing, raised last as today. Alternative: a status note, which no
-   ruling asks for and dec-B167 left open.
-10. The return type is the enum `dbarts_status`, so a status entry's type says it is one. Alternative: `int`, as the swap status
+7. Every route passes the one translate stage: the engine routes through `buildSampler`, the data handle through the spec's
+   predictor part. Alternative: leave the handle and multinomial routes on their own parse, keeping two translate stages against
+   dec-B124's one.
+8. Refusals are values wherever they can meet an R frame, exceptions only below `buildSampler` and the engine, each caught once
+   per route before any R call. Alternative (the first draft): a thrown `Refusal` everywhere, which needs a catch inside about 60
+   R bridge call sites' frames and fails silently (an exception through `unwindProtect`) wherever one is missed.
+9. Exception types map to statuses as in [Statuses](#statuses), with FAILED for what is neither an argument nor an allocation.
+   Alternative: name -6 INTERNAL_ERROR, which mislabels the prior-draw exhaustion, a data and prior condition, as a bug.
+10. Predict's join rethrows in the failing worker's own category with today's text. Alternative: leave it a `runtime_error`, so
+    a C caller sees FAILED for an allocation failure.
+11. Two handles may be used at once from two threads, and `predictPartition` becomes `thread_local`. Alternative: keep predict
+    main-thread-only under every build; free, but "the main thread" means nothing to a C program, and a binding predicting with
+    several samplers on a thread pool would race on one global without a word in the header.
+12. A callback's R raise on an inline run is still R's jump, resumed at the entry. Alternative: swallow it into CALLBACK_ERROR,
+    which drops the target of an enclosing tryCatch and leaves R's condition stack inconsistent.
+13. The poll's consumed error is INTERRUPTED with the error's message and a note on the thread's record, so the R raise restores
+    it as an error. Alternative: a separate status for "an error raised while polling", a code that only the R build can return.
+14. The slow-count warning goes through the build's warning routing, raised last as today. Alternative: a status note, which no
+    ruling asks for and dec-B167 left open.
+15. Standalone messages, warnings and the abort path print to standard output, as dec-A74 says. Alternative: warnings on standard
+    error, conventional for C tools but against the ruling's words.
+16. The return type is the enum `dbarts_status`, so a status entry's type says it is one. Alternative: `int`, as the swap status
     is today; the enum costs nothing on R's platforms, none of which builds with short enums.
-11. `dbarts_sampler_getSigmas` is named after `$getSigmas()` and refuses where R returns NULL. Alternative: write NaN on a
+17. `dbarts_sampler_getSigmas` is named after `$getSigmas()` and refuses where R returns NULL. Alternative: write NaN on a
     heteroscedastic sampler; a status is how this header says "no such channel" (getLatents).
-12. A C-created handle is freed whole by `dbarts_sampler_destroy` (dec-B112). Alternative: a second entry, `dbarts_sampler_free`,
+18. A C-created handle is freed whole by `dbarts_sampler_destroy` (dec-B112). Alternative: a second entry, `dbarts_sampler_free`,
     which keeps "a second destroy is a no-op" for both origins at the cost of an entry whose only use is to differ.
-13. The verbose creation summary stays in the R bridge (it prints the residual prior's quantile, which the spec does not carry); a
-    C-created sampler prints only run progress. Alternative: move it into the build stage reading the spec, which changes R's
-    printed summary unless the quantile rides the spec as well.
-14. The specification states a family; AUTO is refused at C creation. Alternative: dispatch on the response shape as R's empty
+19. The verbose creation summary stays in the R bridge (it prints the residual prior's quantile, which the spec does not carry); a
+    C-created sampler prints only run progress. Alternative: move it into the build stage, which changes R's printed summary
+    unless the quantile rides the spec as well.
+20. The specification states a family; AUTO is refused at C creation. Alternative: dispatch on the response shape as R's empty
     family string does, which consumer-spec-surface.md records as silently wrong for aft and logistic.
-15. Student-t is `family = DBARTS_FAMILY_STUDENT` with `residualDf`, mirroring the enumeration's existing meaning; `residualDf`
-    is read under STUDENT only. Alternative: GAUSSIAN with a finite `residualDf`, as the engine's options hold it, which gives the
-    STUDENT enumerator no use at creation.
-16. The standalone build is a tests/cpp recipe, not a shipped library or a CMake project. Alternative: a top-level build for a
-    libdbarts, a maintained surface with no consumer yet.
-17. The two static_asserts that no shape or source field owns storage stay: the R parse still raises around both structs.
-18. The arc is one branch merged once, the header change landing whole in S3 so stan4bart and treatSens rebuild once; S2 places
-    the spec struct in dbarts.h on the branch already, with no entry, since nothing outside the branch sees it.
+21. Student-t is `family = DBARTS_FAMILY_STUDENT` with `residualDf`, mirroring the enumeration's existing meaning. Alternative:
+    GAUSSIAN with a finite `residualDf`, as the engine's options hold it, which gives the STUDENT enumerator no use at creation.
+22. The spec holds the resolved weights reading, two values. Alternative: a third value, "the family's own", which would put a
+    second resolution of dec-B564's NULL in the engine beside R's.
+23. A seed is stated by `hasSeed`, every 32-bit seed valid. Alternative: 0 as "no seed", which takes a valid seed from R users'
+    `control@seed` path.
+24. The standalone build is a tests/cpp recipe with checked-in config headers, not a shipped library or a CMake project.
+    Alternative: a top-level build for a libdbarts, a maintained surface with no consumer yet; or a configure run, which needs R.
+25. The two static_asserts that no shape or source field owns storage stay, and `Refusal` gains one: the R parse still raises
+    around them.
+26. S1 is its own feature; the rest is one branch merged once, the header change landing whole in S3 so stan4bart and treatSens
+    rebuild once. Alternative: S1 on the main branch, which holds a byte-neutral change with no dependency behind forest-door.
 
 ## Open calls
 
 Each is something stan4bart, treatSens and any future binding code against, and none is settled by a ruling.
 
-1. **Do the entries that cannot fail keep returning their value?** Background: dec-B119 has every entry point return a status
-   instead of raising. Most accessors - the counts, kIsSampled, usesDart, family - cannot fail at all (a bad handle crashes, by
-   the header's rule, rather than being reported). Options: (a) every entry that can fail returns a status and every entry that
-   cannot returns its value, numTrees moving to a status since its forest index can be out of range; cost: a reader learns which
-   is which from the return type, and stan4bart's twelve accessor calls do not change. (b) every entry returns a status and
-   values come back through pointers; cost: one rule with no exceptions, every accessor call in both consumers rewritten, and
-   `dbarts_sampler_numChains(s)` becomes two lines. Recommendation: (a).
+1. **Do the entries that cannot fail keep returning their value?** Background: dec-B119 has "Returning a status from every entry
+   point instead of raising ... covers every entry point, not the creation entry alone". Several entries - the counts,
+   kIsSampled, usesDart, family - cannot fail at all (a bad handle crashes, by the header's rule, rather than being reported).
+   Options: (a) every entry that can fail returns a status and every entry that cannot returns its value, numTrees moving to a
+   status since its forest index can be out of range; reads "every entry point" as every entry that has something to report;
+   cost: a reader learns which is which from the return type, and stan4bart's twelve accessor calls do not change. (b) every
+   entry returns a status and values come back through pointers, the ruling's words read literally; cost: one rule with no
+   exceptions, every accessor call in both consumers rewritten, and `dbarts_sampler_numChains(s)` becomes two lines.
+   Recommendation: (a).
 2. **Where is a failure's message read?** Options: (a) one call, `dbarts_lastErrorMessage()`, giving the message of the last
    failing call on this thread, as `dlerror` and `errno` work; cost: a caller reads it before the next failing call on that
-   thread. (b) an error struct passed to every entry; cost: every signature grows a parameter. (c) a message kept on each handle;
-   cost: creation, which has no handle yet, needs a second channel. Recommendation: (a).
-3. **What can a C program create in 1.0?** Background: R creates every model; dec-B86 holds the header to what a consumer or a
-   named design calls, and dec-B160 left multinomial creation from C for after the release. Options: (a) every model of one
-   forest: all six families and Student-t, every leaf model, monotone, DART, the constraints and the variance forest; multi-forest
-   and multinomial models stay R's, and a later release can append them; cost: a Python user fits BCF through R or waits. (b) also
-   the multi-forest and multinomial models; cost: about 40 more fields frozen at 1.0, with no consumer asking. (c) gaussian and
-   the binary families only; cost: a smaller struct that grows field by field as families are asked for. Recommendation: (a).
-4. **Is the description one struct or built up by calls?** Options: (a) one struct the caller fills, with a size field and an
-   initializer holding dbarts()'s defaults, as the results and predictor structs already work; cost: its field order is fixed at
-   1.0, appends only after. (b) an opaque description object with a creation call and one setter per setting; cost: about 40
-   entries frozen at 1.0 and checked one call at a time, against dec-B86's small header. Recommendation: (a).
+   thread, and a capability probe that fails (getLatents on a sampler with no latents, for one) overwrites an earlier message.
+   (b) an error struct passed to every entry; cost: every signature grows a parameter. (c) a message kept on each handle; cost:
+   creation, which has no handle yet, needs a second channel. Recommendation: (a).
+3. **How much of the model can a C program create in 1.0?** Background: R creates every model; dec-B86 holds the header to what
+   a consumer or a named design calls, no consumer creates from C today, and every field shipped at 1.0 is frozen there (later
+   releases can only append). dec-B160 left multinomial creation from C for after the release. Options: (a) every one-forest
+   model: all six families and Student-t, every leaf model, monotone, DART, the constraints and the variance forest; cost: about
+   75 fields frozen with no consumer, the shape argued by a binding's needs rather than a binding's code. (b) a middle course:
+   every family, constant leaves, the standard tree prior and DART, weights and their reading, offset, test predictors and the
+   run settings, about 45 fields; leaf models, monotone, constraints, moves and the variance forest appended in a later release
+   when a binding asks; cost: a Python user of those reaches them through R until then, and about 10 fewer agent-hours now.
+   (c) also the multi-forest and multinomial models; cost: about 40 more fields frozen. Recommendation: (a), since every field
+   is already resolved by R and needs only to be named once, and appending later means a hash move per group; (b) is the
+   choice if freezing fields without a consumer weighs more.
+4. **Is the description one struct or built up by calls?** Options: (a) one struct the caller fills, with a size field, an
+   `INIT` macro holding dbarts()'s defaults for C, and `dbarts_sampler_spec_init(spec, sizeof *spec)` doing the same for
+   bindings such as Python's ctypes and cffi, which cannot expand a macro; cost: its field order is fixed at 1.0, appends only
+   after, and one more entry. (b) the struct and macro alone; cost: a binding writes every default itself and drifts when one
+   changes. (c) an opaque description object with a creation call and one setter per setting; cost: about 75 entries frozen at
+   1.0 and checked one call at a time, against dec-B86's small header. Recommendation: (a).
 5. **Does creating from C require a seed?** Background: R draws chain seeds from its own stream when none is given; a C program
-   has no such stream. Options: (a) required: a spec with no seed is refused; cost: one more field a caller sets. (b) a seed from
-   the clock and process id when none is given; cost: a run that cannot be repeated unless the caller thought to seed it, and a
-   host-specific source in a host-neutral entry. Recommendation: (a).
-6. **How does an R package turn a status back into R's error or interrupt?** Background: today a failing flat call raises the R
-   error itself, and an interrupted run raises R's interrupt condition. Under statuses stan4bart and treatSens must do it, and R's
-   interrupt has already been consumed by the poll, so only dbarts can raise it again. Options: (a) the R-only part of the header
-   gives `DBARTS_R_CHECK(call)`, backed by one R-only entry dbarts registers, raising the message as an R error and an
-   interrupt as an interrupt; cost: one more symbol in the R-hosted view, and the two consumers wrap each fallible call. (b)
-   each consumer writes `if (status < 0) Rf_error("%s", dbarts_lastErrorMessage())`; cost: Ctrl-C during a stan4bart fit then
-   reaches the user as an error, which `tryCatch(interrupt = )` and the quiet interrupt behavior miss. Recommendation: (a).
+   has no such stream. Options: (a) required: a spec with no seed is refused; cost: one more field a caller sets. (b) a fixed
+   default seed in the initializer, as XGBoost and LightGBM default to seed 0; cost: two runs a caller meant as independent
+   silently give the same draws. (c) a seed from the clock and process id when none is given; cost: a run that cannot be
+   repeated unless the caller thought to seed it, and a platform-specific source in an entry meant to have none.
+   Recommendation: (a).
+6. **How does an R package turn a status back into R's error, interrupt or time limit?** Background: today a failing flat call
+   raises the R error itself, an interrupted run raises R's interrupt condition, and a time limit set with `setTimeLimit`
+   expiring mid-run raises its error. Under statuses stan4bart and treatSens must do it, and the poll has already consumed the
+   condition, so only dbarts can raise it again. Options: (a) the R-only part of the header gives `DBARTS_R_CHECK(call)`, backed
+   by one R-only entry dbarts registers, raising the message as an R error, an interrupt as an interrupt and a time limit as
+   its error; cost: one more symbol in the R-hosted view, and the two consumers wrap each fallible call. (b) each consumer
+   writes `if (status < 0) Rf_error("%s", dbarts_lastErrorMessage())`; cost: Ctrl-C during a stan4bart fit reaches the user as
+   an error, which `tryCatch(interrupt = )` and the quiet interrupt behavior miss. (c) under the R build a flat run keeps
+   raising the interrupt or time limit itself, as R's own jump after the unwind, and returns statuses for everything else;
+   cost: the run entry has two failure channels that differ by build, a departure from "every entry point" for one case,
+   though consumers need nothing for interrupts. Recommendation: (a).
+7. **How is a run a callback stopped on purpose reported?** Background: a draw callback that returns nonzero stops the run; this
+   call's results and saved trees are then discarded. Today the run returns normally with no sign of it, so a caller must
+   remember its callback stopped. Options: (a) a positive status, STOPPED, a success with a note; cost: a caller that tests
+   only for failure (`< 0`) reads discarded buffers unless it also checks for OK. (b) a negative status; cost: the R helper of
+   open call 6 raises an error for a stop the caller asked for, and a binding treats a deliberate stop as a failure. (c) OK, as
+   today; cost: the one entry whose buffers can be invalid on OK. Recommendation: (a); neither consumer registers a callback.
 
 ## Slices
 
-### S1: build-time math and printing (engine, support libraries, tests/cpp)
+### S1 (its own feature, branch host-neutral-math): build-time math and printing
 
 Steps: the six ext_ names in stats.h and the slim nmath.h; model.hpp's fourteen calls and random.c's two declarations onto them;
-the copied nmath closure with its prefix header, README (R version, file list) and COPYRIGHTS entry; io.h's two mappings and
-io_standalone.c; randomBase.c's R-only parts guarded; misc/io.c, misc/io.h, their installer in R_interface.cpp, tests/cpp's
-main.cpp and the three benchmark kernels' installers removed; a tests/cpp `nmath` component suite comparing each copy with Rmath
-on its grid (run by the default libR-linked target) and a `standalone-math` target that compiles external and misc with the
-switch and links no libR.
+standalone/nmath with the copy, its prefix header, the reduced R headers and README; .Rbuildignore's `^standalone$`; io.h's two
+mappings and standalone/io_standalone.c; randomBase.c's R-only parts guarded; misc/io.c, misc/io.h and their five installers
+(R_interface.cpp, tests/cpp's main.cpp, three benchmark kernels) removed; standalone/config and the drift check's extension; a
+tests/cpp `nmath` suite comparing each copy with Rmath on the probe's grid (run by the default libR-linked target, bitwise on
+the reference host); a `standalone-math` target that compiles external, misc and the copy with the switch into its own
+directory and links no libR.
 
 Gates: tests/cpp (both targets); full tinytest; the trio bitwise; the four snapshots on the reference build; R CMD check
---as-cran from a clean tarball (the copied files must not be compiled by the package build and must not draw a NOTE); sanitizers
-on tests/cpp; mutation-battery verify-anchors; the x86 leg. Diagnostic, not a gate: `objdump -d` of the installed dbarts.so
-before and after, expecting only R_init_dbarts and the removed misc symbols to differ.
+--as-cran from a clean tarball, which must contain no standalone/ file; sanitizers on tests/cpp; mutation-battery
+verify-anchors; the x86 leg. Diagnostic, not a gate: `objdump -d` of the installed dbarts.so before and after, expecting only
+R_init_dbarts and the removed misc symbols to differ.
 
-Budget: ~350 lines written, ~6,000 copied. Agent ~4.5, review ~1.5, gates ~1.5.
+Budget: ~350 lines written, ~6,000 copied, ~400 reduced headers. Agent ~5, review ~1.5, gates ~1.5.
 
-### S2: the plain-C specification (bridge)
+### S2a: refusals as values, one translate stage (bridge)
 
-Steps: `dbarts_sampler_spec` and its INIT in dbarts.h (no entry yet); src/spec_internal.h with `SpecExtension`;
-src/sampler_build.cpp with `buildSampler`, taking over the engine-building half of createHolder, optionsFromParsed and the two
-multinomial and two handle routes; `translateSource` moved into the core and used by the R parse's views, with `denseChannels`
-added to the shipped source and the R parse's code channel passed through it (dec-B124); the R parse filling spec and extension
-(the parse functions keep reading SEXPs; their outputs become spec fields); `Refusal` and the R entries catching it and raising
-the same text; seeds through `seed` or `chainSeeds`. A tests/cpp suite fills every spec field with a distinct value and checks
-the engine options built from it field by field, so a field the build forgets fails by name.
+Steps: `Refusal` and `raiseRefusal`; the sixteen shared validators returning refusals and their about 60 R sites and the flat
+file's wrapped; R_interface_bartcore_common.hpp split into the R-free core and the SEXP-facing half; `translateSource` moved
+into the core, used by the R parse's views and the data handle, carrying the engine's per-column channels (the shipped field
+waits for S3); the engine routes' catch turned into a refusal value.
 
-Gates: as S1, plus the R-loaded ASan run over the creation suites; every message pin in tinytest unchanged (run the whole suite
-in one process).
+Gates: as S1, plus the R-loaded ASan run over the creation and mutation suites; every message pin in tinytest unchanged (the
+whole suite in one process).
 
-Budget: ~1,900 lines (header ~250, extension ~150, build stage ~650 moved, parse rework ~450, tests/cpp ~300, the rest
-`translateSource`). Agent ~10, review ~4, gates ~3.
+Budget: ~900 lines. Agent ~12, review ~5, gates ~3.
+
+### S2b: the plain-C specification (bridge)
+
+Steps: `dbarts_sampler_spec`, its INIT and `DBARTS_WEIGHTS_TYPE_LIST` in dbarts.h (no entry yet); src/spec_internal.h with
+`SpecExtension`; src/sampler_build.cpp with `buildSampler`, taking over the engine-building half of createHolder,
+optionsFromParsed, the two multinomial routes and createFromHandle; the R parse filling spec and extension (the parse functions
+keep reading SEXPs; their outputs become spec fields); seeds through `hasSeed`/`seed` or `chainSeeds`; the weights reading; a
+tests/cpp suite that fills every spec field with a distinct value and checks the engine options built from it field by field,
+so a field the build forgets fails by name.
+
+Gates: as S2a.
+
+Budget: ~1,800 lines (header ~280, extension ~150, build stage ~650 moved, parse rework ~450, tests/cpp ~300). Agent ~22,
+review ~8, gates ~5.
 
 ### S3: statuses, the creation entry, the sigma getter, the header (bridge, flat entry file, tests)
 
-Steps: `DBARTS_STATUS_LIST`; the list as in [The header diff](#the-header-diff); `dbarts_sampler_create`, `getSigmas`,
-`lastErrorMessage`; C_interface.cpp off R (owned scratch, statuses, the thread's message); host_r.cpp and host_standalone.cpp;
-the holder's origin and destroy; `dbarts_R_raiseStatus` and `DBARTS_R_CHECK` (open call 6); the hash folder and both tokens; the
-header's prose; R_interface.cpp's registration (the list does it) and the R-only callable. Tests: consumer.c and test-capi.R
-rewritten for statuses (each entry's failure reached and its status and message read; INIT plus data and seed against
-`dbarts()`'s draws bitwise; a C-created sampler against the R-created one bitwise; `denseChannels` with packed blocks against
-the dense source; getSigmas on two chains and its UNSUPPORTED on a heteroscedastic sampler; `DBARTS_R_CHECK` raising an error
-and, through the interrupt test hook, an interrupt; a C-created handle destroyed), the five handshake arms kept; tests/cpp's
-`standalone-consumer` target: a C99 file including the prototype view, creating gaussian, probit and Student-t samplers, running,
-predicting, reading sigma, refusing, destroying, built and linked with no R, and `nm` showing no undefined R symbol; the
-cpp-tests workflow runs it. Docs: dbarts-embedding.Rd's C section, the architecture's layering and callbacks sections, NEWS.
+Steps: `DBARTS_STATUS_LIST`; the list as in [The header diff](#the-header-diff); `dbarts_sampler_create`, `spec_init`,
+`getSigmas`, `lastErrorMessage`; C_interface.cpp off R (owned scratch, statuses, the thread's record); `predictPartition`
+thread_local; predict's join keeping its category; src/host_r.cpp and standalone/host_standalone.cpp; the holder's origin and
+destroy; `dbarts_R_raiseStatus` and `DBARTS_R_CHECK` (open call 6); `denseChannels` in the shipped source; the hash folder and
+both tokens; the header's prose. Tests: consumer.c and test-capi.R rewritten for statuses (each entry's failure reached and its
+status and message read; INIT plus data and seed against `dbarts()`'s draws bitwise; a C-created sampler against the R-created
+one bitwise; `denseChannels` with packed blocks against the dense source; getSigmas on two chains and its UNSUPPORTED on a
+heteroscedastic sampler; `DBARTS_R_CHECK` raising an error, through the interrupt test hook an interrupt, and under
+`setTimeLimit` the time limit's error, as test-monotone.R pins for R's run; two samplers predicting on two threads; a C-created
+handle destroyed), the five handshake arms kept; tests/cpp's `standalone-consumer` target: a C99 file including the prototype
+view, creating gaussian, probit and Student-t samplers, running, predicting, reading sigma, refusing, destroying, built and
+linked with no R, `nm` showing no undefined R symbol, and its draws compared with the R-created sampler's at the same spec and
+seed; the cpp-tests workflow runs it. Docs: dbarts-embedding.Rd's C section, the architecture's layering and callbacks sections,
+NEWS.
 
-Gates: as S2, plus test-capi.R under ASan on the R-loaded path, tests/cpp's standalone consumer under ASan and, on the x86 leg,
-LeakSanitizer (C-created handles are new owners); the header-compiles target; `sh tools/check-api-hash.sh`.
+Gates: as S2a, plus test-capi.R under ASan on the R-loaded path, tests/cpp's standalone consumer under ASan and ThreadSanitizer
+for the two-thread arm, on the x86 leg LeakSanitizer (C-created handles are new owners); the header-compiles target;
+`sh tools/check-api-hash.sh`.
 
-Budget: ~2,300 lines (header +500/-150, C_interface.cpp ~500, host units ~250, bridge ~100, consumer.c ~450, test-capi.R ~300,
-tests/cpp ~350, workflow ~15, docs ~120). Agent ~10, review ~4, gates ~3.
+Budget: ~2,400 lines (header +550/-150, C_interface.cpp ~500, build units ~250, bridge ~120, consumer.c ~480, test-capi.R ~320,
+tests/cpp ~350, workflow ~15, docs ~120). Agent ~13, review ~5, gates ~4.
 
 ### S4: the consumer ports (stan4bart, treatSens)
 
@@ -585,19 +729,19 @@ Budget: stan4bart ~80 lines, treatSens ~50. Agent ~3 each, review folded into S3
 ### S5: records
 
 TODO's host-neutral entry and python-bindings entry (the engine is R-free below the bridge; what a binding still owns:
-ingestion, resolution, its own host unit); docs/plans/python-bindings.md's Context; the feature matrix's reach column for the
-flat header; INDEX rows; NEWS's 1.0-0 entry for compiled consumers. Doc-freshness only.
+ingestion, resolution, its own build unit and the standalone recipe); docs/plans/python-bindings.md's Context; the feature
+matrix's reach column for the flat header; INDEX rows; NEWS's 1.0-0 entry for compiled consumers. Doc-freshness only.
 
 ## Tests and gates
 
-Per slice above; across the arc, run independently of the implementer on each slice's own library, `--preclean` on every
+Per slice above; across both features, run independently of the implementer on each slice's own library, `--preclean` on every
 install (the facade's virtuals do not change, but every creation route does):
 
 ```
 R CMD INSTALL --preclean -l <lib> .                       # and --configure-args=--enable-reference-build for the snapshots
-cd tests/cpp && make && ./test_bartcore                   # header-compiles, the libR suite
-make standalone-math standalone-consumer && ./standalone_consumer
-nm standalone_consumer | grep -E ' U _?(Rf_|R_|Rprintf|unif_rand)'   # expect nothing
+cd tests/cpp && make && ./test_bartcore                   # header-compiles, the libR suite, the nmath grid
+make standalone-math standalone-consumer && ./build-standalone/standalone_consumer
+nm build-standalone/standalone_consumer | grep -E ' U _?(Rf_|R_|Rprintf|unif_rand)'   # expect nothing
 R_LIBS=<lib> Rscript -e 'tinytest::test_package("dbarts", lib.loc = "<lib>")'
 R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare --bitwise --strict-coverage benchmarks/baselines/<current>.rds
 R_LIBS=<lib> Rscript benchmarks/R/bcf-equivalence.R compare --bitwise benchmarks/baselines/<current>.rds
@@ -607,63 +751,73 @@ R_LIBS=<lib> Rscript benchmarks/R/multinomial-equivalence.R compare --bitwise be
 Rscript -e 'lintr::lint_package()' && air format --check . && Rscript tools/check-rc-codoc.R . \
   && Rscript tools/check-win-drift.R . && Rscript tools/check-doc-freshness.R . \
   && Rscript benchmarks/R/mutation-battery.R verify-anchors
+R CMD build . && tar tzf dbarts_*.tar.gz | grep standalone   # expect nothing
 R CMD check --as-cran <tarball from a clean copy>
 sh tools/check-api-hash.sh                                 # "no release tag, skipped"
 ```
 
 plus sanitizers on tests/cpp and on the R-loaded path ([Gate hygiene](README.md#gate-hygiene)), and the x86 leg before landing
 each slice (tests/cpp plain and with ASan, UBSan and LeakSanitizer, tinytest, the trio recorded on the base tip there and
-compared --bitwise).
+compared --bitwise, the nmath grid at the relative floor).
 
 ## Mutants
 
 The reviewer of each slice runs these; each must fail the named gate, and is reverted with a `touch`:
 
 1. S1: one model.hpp pnorm site's lower-tail flag flipped - the probit and aft equivalence scenarios.
-2. S1: a constant in the copied qnorm changed - the nmath suite.
-3. S1: `ext_qnorm` mapped to the copy in the R build - nothing should fail bitwise only if the copy is exact; record which
-   scenarios move (it measures how near the copy is, and proves the R build reads Rmath).
-4. S2: one spec field (perturbProbability) not copied into the options - the field coverage suite, and the perturb equivalence
-   scenario.
-5. S2: `chainSeeds` ignored in favor of `seed` - every unseeded tinytest snapshot and the C-versus-R identity arm.
-6. S2: a dense column read in the block its kind selects instead of through `denseChannels` - consumer.c's packed-blocks arm.
-7. S2: one R-worded refusal moved behind the spec fill, reworded by the shared stage - its tinytest pin.
-8. S3: setSigma's refusal returning OK - consumer.c's status arm.
-9. S3: the thread's message not written on one entry - consumer.c's message arm.
-10. S3: `dbarts_R_raiseStatus` raising an error for INTERRUPTED - test-capi.R's interrupt arm.
-11. S3: getSigmas writing chain 0 to every slot - its two-chain arm.
-12. S3: two spec fields swapped in the header - the build's static_assert against the re-baked hash.
-13. S3: destroy on a C-created handle releasing the engine only - LeakSanitizer on the x86 leg.
+2. S1: a constant in the copied qnorm changed - the nmath grid.
+3. S1: the copy compiled with `-ffp-contract=off` - the nmath grid's bitwise gate on the reference host.
+4. S1: `ext_qnorm` mapped to the copy in the R build - record which scenarios move; with the copy exact at R's flags, none
+   should, so this proves the gate reads the R build's symbol by `nm` rather than by draws.
+5. S2a: one validator's refusal dropped unconsumed at an R site - the `[[nodiscard]]` build error, and that refusal's tinytest pin.
+6. S2a: a refusal thrown, not returned, from a validator called inside an `unwindProtect` body - the R-loaded ASan run.
+7. S2a: a dense column read in the block its kind selects instead of through the channels - consumer.c's packed-blocks arm.
+8. S2b: one spec field (perturbProbability) not copied into the options - the field coverage suite, and the perturb scenario.
+9. S2b: `chainSeeds` ignored in favor of `seed` - every unseeded tinytest snapshot and the C-versus-R identity arm.
+10. S2b: one R-worded refusal moved behind the spec fill, reworded by the shared stage - its tinytest pin.
+11. S3: setSigma's refusal returning OK - consumer.c's status arm.
+12. S3: the thread's message not written on one entry - consumer.c's message arm.
+13. S3: `dbarts_R_raiseStatus` raising an error for an interrupt, or an interrupt for a time limit - test-capi.R's two arms.
+14. S3: `predictPartition` left process-wide - the two-thread arm under ThreadSanitizer.
+15. S3: predict's join rethrowing an allocation failure as FAILED - a tests/cpp unit whose worker throws `std::bad_alloc`.
+16. S3: getSigmas writing chain 0 to every slot - its two-chain arm.
+17. S3: two spec fields swapped in the header - the build's static_assert against the re-baked hash.
+18. S3: destroy on a C-created handle releasing the engine only - LeakSanitizer on the x86 leg.
 
 ## Interaction with the other pending plans, and order
 
-- forest-door (slices 1 to 3) and coefficient-prior-live land first, as their plans say. They rework the forest records, the
-  calibration map and the live forest writes in the same bridge and engine files; S2's extension carries the forest records as
-  they leave them (the share among them), and S1's qt and chi-median copies serve their live restatements. S1 could be built
-  beside them and rebased, being nearly file-disjoint (two qt sites in combiner.hpp); S2 starts after both land, from a main
-  whose engine CI is green.
-- frequency-weights (docs/design/frequency-weights.md, PROPOSED with open calls) adds "one enumeration field on its family part
-  in dec-B85's change" and a getLatents comment. Neither consumer creates through C, so the field moves the hash and rebuilds no
-  one: if frequency weights' engine and R slices land first, S2's spec carries the field; otherwise its slice 4 appends it,
-  before 1.0-0, with a re-bake. Recommended order: this arc first, since it waits on nothing but the two plans above and the
-  note still has calls open; the getLatents comment rides whichever header edit comes second.
-- multinomial-doors' C creation path stays post-release (dec-B160), consistent with open call 3 (a).
+- S1 depends on nothing; it lands when green, serial with forest-door's and coefficient-prior-live's merges (engine features
+  merge serially), rebasing onto whichever lands first (two qt lines in combiner.hpp are its only overlap).
+- forest-door (slices 1 to 3) and coefficient-prior-live land before S2a starts. They rework the forest records, the calibration
+  map and the live forest writes in the same bridge and engine files; S2b's extension carries the forest records as they leave
+  them (the share among them), and S1's qt and chi-median copies serve their live restatements.
+- Frequency weights (dec-B563 to dec-B566) and the binomial response (dec-B567) are ruled; their design note and plan are not
+  built. The spec carries the resolved weights reading from S2b whichever lands first (dec-B564: "the shipped header gains one
+  field in dec-B85's change"); if frequency weights' engine work lands later, its plan widens what the build takes for
+  FREQUENCY and adds the getLatents sentence if S3 has merged. The binomial response enters the spec in the form its design
+  gives the engine (likely a per-row trial count beside y under logistic): in S2b if it lands first, else appended by its own
+  work before 1.0-0, a hash move that rebuilds no one, since neither consumer creates through C.
+- multinomial-doors' C creation path stays post-release (dec-B160), consistent with open call 3.
 - The sister re-verification at the freeze follows this arc (TODO), with stan4bart's sanitizer job dispatched against the final
   header (dec-A36).
-- Engine features merge serially: nothing else touching src/ merges while S2 or S3 is in review.
+- Nothing else touching src/ merges while S2a, S2b or S3 is in review.
 
 ## Cost
 
-About 5,000 lines written here and 6,000 copied, ~130 in the two consumers; ~50 agent-hours estimated, 75 to 100 by the record
-of plans here. The copy adds about 250 KB to the source tarball, compiled by nothing in the R build.
+About 5,450 lines written here, 6,000 copied and 400 reduced headers, none of them in the tarball; ~130 in the two consumers;
+~95 agent-hours estimated, 140 to 190 by the record of plans here, S2a and S2b most of it.
 
 ## Not verified
 
-- That the copied routines agree with the Rmath a given R binary carries bit for bit; the flags R's own build used are not known
-  here, so the standalone gate is stated within 2 ulp and the bitwise count only reported.
-- The exact file closure of qt and qchisq in R's nmath; about 25 files is a reading of the call graph, not a build.
+- The probe's bitwise match held for one compiler, one R (4.6.2) and one host; the x86 leg's agreement is gated at the floor, not
+  measured.
 - That `objdump` of dbarts.so before and after S1 differs only where named; relative call offsets may make the diff noisy.
-- How forest-door slice 3 and coefficient-prior-live leave the forest records, which S2's extension must mirror; their
+- What a failed run (OUT_OF_MEMORY, FAILED) and a failed sampleTreesFromPrior leave in the chains beyond "valid to read and
+  destroy"; S3's tests pin what the table states, and the header promises no more than they show.
+- That no other process-wide mutable state is on the predict path beyond the two channels named; a ThreadSanitizer arm in S3 is
+  the check.
+- How forest-door slice 3 and coefficient-prior-live leave the forest records, which S2b's extension must mirror; their
   branches were read for the files they touch, not field by field.
+- The binomial response's engine form, not yet designed.
 - stan4bart's and treatSens' call sites were read on their main and master; their 1.0 compat branches may differ.
 - That no R-hosted consumer other than the two links dbarts.h; the reverse LinkingTo list on CRAN was not queried.
