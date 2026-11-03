@@ -11,7 +11,8 @@ lookup), dec-B60, dec-A139 and dec-B424 (the version pair stays 1/0 before the r
 hash-to-minor CI assertion), dec-B160 and dec-B163 (multinomial run and predict through the flat API, its creation a post-release
 door), dec-B186 (the C consumer test compiles and runs on CRAN), dec-A36 (consumers check the boundary under sanitizers
 themselves), dec-A32 (a returned integer is a value or a capability status), dec-C01 (full symbol names), dec-C04 (the support
-library's print pointers), and the frequency-weights rulings dec-B563 to dec-B570 (the reading of a weight is fixed at creation
+library's print pointers), dec-B571, dec-B572 and dec-B575 (this plan's open calls 1 to 3, ruled; see
+[Ruled](#ruled)), and the frequency-weights rulings dec-B563 to dec-B570 (the reading of a weight is fixed at creation
 and the header gains its field in this change; real weights where the draw is exact; probit and ordinal membership as 0/1
 weights; a zero weight alike on every family; a binomial response for logistic). The runs behind it: reads of the tree at
 c3d268c8f, of stan4bart main (27ef163) and treatSens master (268b2db), and of frequency-weights (da210ce2d); the critic's probe of
@@ -30,11 +31,12 @@ and is an interface change"). Two features. S1 (build-time math and printing, br
 creation code and lands on its own whenever it is green, serial with other engine merges. The main feature (branch
 host-neutral-engine: S2a, S2b, S3, then S5) starts after forest-door and coefficient-prior-live land and merges once (dec-B494),
 the consumer ports (S4) merging right after it.
-budget: ~5,450 lines written in this tree plus ~6,000 copied unedited from R's math library and ~400 of reduced R headers: S1
-~350, S2a ~900, S2b ~1,800, S3 ~2,400; S4 ~80 in stan4bart and ~50 in treatSens. Agent time, estimated and not measured: S1 ~8,
-S2a ~20, S2b ~35, S3 ~22, S4 ~6, S5 ~1, rebases onto main after the pending plans ~3: ~95. Plans here run 1.5 to 2 times low,
-so 140 to 190. These counts are open call 3 (a)'s; its recommended (b) takes about 400 lines and 10 hours off S2b and S3,
-so ~85 raw, 125 to 170.
+budget: ~5,350 lines written in this tree plus ~6,000 copied unedited from R's math library and ~400 of reduced R headers: S1
+~350, S2a ~900, S2b ~1,600, S3 ~2,500; S4 ~80 in stan4bart and ~50 in treatSens. Agent time, estimated and not measured: S1 ~8,
+S2a ~20, S2b ~29, S3 ~23, S4 ~6, S5 ~1, rebases onto main after the pending plans ~3: ~90. Plans here run 1.5 to 2 times low,
+so 135 to 180. Counted under dec-B575's middle course (51 fields), with the forward-compatibility work it asks for
+([Forward compatibility with several forests and multinomial](#forward-compatibility-with-several-forests-and-multinomial)):
+about 300 lines and 4 hours over the bare middle course, which itself took 400 lines and 10 hours off every one-forest model.
 
 ## Summary for the maintainer
 
@@ -62,12 +64,18 @@ each chain's current sigma can be read, and the predictor description says colum
 in, as you ruled. stan4bart and treatSens are then changed to check those statuses; with the helper recommended below, an R user
 of either sees the same errors, interrupts and time limits as today.
 
-Seven choices are yours, each a shape the two compiled packages and any future binding would code against: whether the entries
-that cannot fail keep returning their value; where a failure's message is read; how much of the model a C program can create in
-1.0; whether the description is one struct or built up by calls; whether creating from C requires a seed; how an R package that
-calls dbarts' C code turns a status back into R's error or interrupt; and how a run a callback stopped on purpose is reported.
+You ruled three choices on 2026-11-03: entries that cannot fail keep returning their value; a failure's message is read from
+one call, per thread; and a C program creates the middle of the model in 1.0 - every family, constant leaves, the standard tree
+prior and DART, weights, offset, test predictors and run settings - with the 1.0 description shaped so that models of several
+forests and the multinomial model can be added later without changing what any 1.0 field means. The plan now says what that
+later addition looks like, what a 1.0 description keeps meaning under it, what 1.0 must refuse so nothing changes meaning, and
+a test that compiles a 1.0 description against a build carrying the addition and checks it reads the same.
 
-What it costs: about 5,450 lines here plus the copied math code, and roughly 125 to 170 agent-hours with the recommendations (140 to 190 if C can create every one-forest model), most of it in rewriting how
+Four choices remain yours: whether the description is one struct or built up by calls; whether creating from C requires a seed;
+how an R package that calls dbarts' C code turns a status back into R's error or interrupt; and how a run a callback stopped on
+purpose is reported.
+
+What it costs: about 5,350 lines here plus the copied math code, and roughly 135 to 180 agent-hours, most of it in rewriting how
 samplers are created. The main piece has to wait for the forest door and the live coefficient prior, which rework the same
 creation code; frequency weights' field joins the new description whichever lands first.
 
@@ -168,8 +176,8 @@ treatSens build against the new header and pass their suites.
 - Nothing only a standalone build compiles sits where the R package build compiles it or ships in the source tarball.
 - The R surface is untouched: no R function, argument, return shape or help text changes, except the help's C section
   (dbarts-embedding.Rd).
-- Out of scope: a C creation path for multi-forest or multinomial models (open call 3; dec-B160 keeps multinomial's a
-  post-release door); an opaque C state buffer (dec-B84, conditional on a consumer); a shipped standalone library or build
+- Out of scope: a C creation path for multi-forest or multinomial models (dec-B575 and dec-B160: a later append, whose
+  shape this plan fixes); an opaque C state buffer (dec-B84, conditional on a consumer); a shipped standalone library or build
   system beyond the tests/cpp recipe; any R wrapper for a C-created handle; the SamplerShape fields that size the bridge's arrays
   (dec-A50 names them; no ruling asks this arc to move them); frequency weights' and the binomial response's own work (below);
   compatibility for development consumer binaries built against today's header (below).
@@ -200,9 +208,8 @@ The R parse keeps every step that needs R or that R alone resolves, and hands th
 Two plain-C structs, one shipped and one internal:
 
 - `dbarts_sampler_spec`, in dbarts.h: a caller-filled, `structSize`-led struct (the `dbarts_predictor_source` contract in the
-  caller-to-library direction) holding what a one-forest sampler needs, every value resolved: about 75 fields under open call
-  3 (a), about 45 under its recommended (b), which leaves out the groups marked [b-later] for an append when a binding asks.
-  Its fields, grouped (the order below is the struct's):
+  caller-to-library direction) holding the middle of the model dec-B575 names, every value resolved: 51 fields after
+  `structSize` (the ruling's "about 45" was an estimate). Its fields, grouped (the order below is the struct's):
   - data: `x` (a `dbarts_predictor_source`, its typing channel READ at creation, which gives `columnTypes` and `categoryCounts`
     the reader dec-B124 owes them), `y`, `weights`, `weightsType` (a `dbarts_weights_type`, below, read only when `weights` is non-NULL), `offset`, `survivalStatus`
     (aft, double 0/1 per row as R holds it), `xTest` (a second source, 0 rows for none), `testOffset`, `numCuts` and
@@ -210,19 +217,18 @@ Two plain-C structs, one shipped and one internal:
   - family: `family` (a `dbarts_family`, 1 to 7), `sigmaEstimate`, `sigmaIsFixed`, `sigmaPriorDf`, `sigmaPriorScale` (R's
     `qchisq(1 - q, df) / df`), `residualDf` (read under STUDENT: positive fixes it, 0 estimates it), `numCategories` (ordinal
     K), `shape` (nbinom: positive fixes r, non-positive estimates it);
-  - leaf prior: `k`, `nodeScale`, `namedSd` (NaN
-    none), `kIsDrawn`, `kPriorDf`, `kPriorScale`; [b-later] `leafModel` (a `dbarts_leaf_model`, giving the
-    enumeration its first reader), `leafCovariates` and their count, `gpLengthscales`, `gpMaxLeafSize`, `monotoneDirections`,
-    `monotonePrior`;
+  - leaf prior: `k`, `nodeScale`, `namedSd` (NaN none), `kIsDrawn`, `kPriorDf`, `kPriorScale`;
   - tree prior: `numTrees`, `base`, `power`, `splitProbabilities`, `useDart` and DART's six (`dartA`, `dartB`, `dartRho`,
     `dartAlpha`, `dartUpdateAlpha`, `dartUpdateDelay`);
-  - [b-later] constraints: `forestColumns`, `interactionMaxOrder`, `interactionForbiddenPairs`, `numBlocks`, `blockOfColumn`,
-    `blockTreeCounts`;
-  - [b-later] moves: the six probabilities, `perturbWidth`, `levelGibbs` (-1 automatic, 0 off, 1 on);
-  - [b-later] variance forest: `numVarianceTrees` (0 none), `varianceBase`, `variancePower`, `varianceForestColumns`;
   - run: `numChains`, `numThreads`, `numThin`, `keepTrees`, `numSamplesToStore`, `verbose`, `printEvery`,
     `singlePrecisionResidual`, `hasSeed`, `seed`, `chainSeeds`;
   - engine limits: `categoricalExhaustiveCap`, `testFitParallelCutoff`, `predictParallelCutoff`, `sparseDensityThreshold`.
+
+  Appended in a later minor when a binding asks (dec-B575), each group taking effect only when its fields are non-zero: the leaf
+  models (`leafModel`, giving `dbarts_leaf_model` its first reader, leaf covariates, the GP settings), monotone fits, the
+  constraints (columns, interactions, blocks), the move settings and the variance forest; then several forests and multinomial
+  ([Forward compatibility with several forests and multinomial](#forward-compatibility-with-several-forests-and-multinomial)). Until then the R parse hands these to the build stage
+  through the internal extension, in the layout the append will ship.
 
   `DBARTS_SAMPLER_SPEC_INIT` and `dbarts_sampler_spec_init()` (open call 4) set `structSize` and `dbarts()`'s defaults for a
   gaussian response wherever they are numbers, NULL for every vector, `weightsType` PRECISION, and no seed (`hasSeed` 0). The
@@ -236,18 +242,101 @@ Two plain-C structs, one shipped and one internal:
   whole numbers; PRECISION only where there is a residual scale; 0/1 weights under either, membership on probit and ordinal;
   a 0 a row out of the likelihood on every family, logistic included) with the words frequency weights gives R, prefixed. Until frequency weights' engine work lands, FREQUENCY is taken only where it reads
   as the family's own (the Polya-Gamma families' counts, 0/1 weights).
-- `bartcore_bridge::SpecExtension`, internal (src/spec_internal.h, plain C structs and arrays): the re-creation records, the
-  multi-forest records (each forest's tree count and settings, sd, multiple, held flag, df, share as forest-door leaves it,
-  kind, basis, basis scale), the amplitude glue settings, the multinomial counts, trials and K, the data handle's prebuilt store,
-  the creation mask and the unit count (`tooFewUnitsIn`). Empty, it is the flat entry's.
+- `bartcore_bridge::SpecExtension`, internal (src/spec_internal.h, plain C structs and arrays), in two parts. The PUBLIC-SHAPED
+  part holds what later appends will ship, already in their sketched layout: the one-forest groups 1.0 leaves out (leaf models,
+  monotone, constraints, moves, variance forest), the several-forest records (`ForestRecord`, field for field the sketched
+  `dbarts_forest_spec`) and the multinomial record (`MultinomialRecord`, the sketched multinomial fields). The R-ONLY part holds
+  what no C caller will state: the re-creation records (cut grids and mass, columns seen missing, a leaf standardization, the
+  calibration map's anchor and unit, a numeric basis column's scale as first computed, a sharer's share as first set), the data
+  handle's prebuilt store, the creation mask and the unit count (`tooFewUnitsIn`). Empty, it is the flat entry's.
 
 One stage, `buildSampler(const dbarts_sampler_spec&, const SpecExtension&)`, in a new R-free src/sampler_build.cpp: validates
-the spec with neutral words, translates both sources through the one `translateSource` (dec-B124: the flat predict entry,
+the spec with neutral words (the 1.0 reading rules of
+[Forward compatibility with several forests and multinomial](#forward-compatibility-with-several-forests-and-multinomial)
+included), translates both sources through the one `translateSource` (dec-B124: the flat predict entry,
 creation from C, and the R parse's views all pass it), fills the engine structs, makes the chain generators from the seeds,
 selects and calls the factory, installs the move record, the test predictors and the test offset, and returns a holder or a
 refusal. The engine creation routes (createHolder, the two multinomial holders, createFromHandle over the handle's store) and
 `dbarts_sampler_create` call it; createDataHandle fills the spec's predictor part, passes `translateSource` and builds its store
 from the result. What createHolder does today in that order moves there whole; only the SEXP reads stay behind.
+
+### Forward compatibility with several forests and multinomial
+
+dec-B575 asks the 1.0 shape to be ready for creating several-forest and multinomial models from C, so that adding them later is
+an append under dec-B86's minor bump and no 1.0 field changes meaning. The later append, sketched (not shipped at 1.0):
+
+```c
+/* appended to dbarts_sampler_spec, after every 1.0 field and every one-forest group appended before it */
+size_t numForests;                    /* 0: the one forest the 1.0 tree and leaf fields describe */
+size_t forestStride;                  /* sizeof(dbarts_forest_spec) as the caller compiled it */
+const dbarts_forest_spec* forests;    /* numForests elements, forestStride bytes apart */
+const int* counts;                    /* MULTINOMIAL: n x K counts, category-major; y unread */
+const int* trials;                    /* MULTINOMIAL: per-row trial count n_i */
+const double* categoryOffset;         /* MULTINOMIAL: n x K offset, category-major; offset unread */
+
+typedef struct {                      /* one forest of a several-forest sampler */
+  size_t numTrees; double base, power;                    /* tree prior */
+  double sd, sdMultiple; int updateAmplitude; double amplitudeDf; double share;  /* size: the forest statement */
+  const size_t* columns; size_t numColumns;               /* columns it may split on, NULL all */
+  int kind;                           /* dbarts_forest_kind: NONE 0, LEVELS 1, NUMERIC 2 */
+  const double* basis; size_t numBasisColumns;            /* the forest's coefficient basis */
+  /* then, as the one-forest groups append them: interactions, blocks, moves, per forest */
+} dbarts_forest_spec;
+```
+
+The element is the engine's [`ForestSpec`](../../src/bartcore/combiner.hpp) (a `ForestStatement`, a `ForestStructureSpec`, a
+kind and a basis) in C, with the share forest-door adds. The multinomial part is the engine's
+[`MultinomialSpec`](../../src/bartcore/combiner.hpp): K is the 1.0 field `numCategories`, the shared category forest is the 1.0
+tree and leaf fields (`numTrees`, `base`, `power`, `k`, `nodeScale`), and counts, trials and the category offset are the three
+appended pointers. The result side is already there: the flat run sizes `dbarts_results` by F
+(`dbarts_sampler_numFittedValuesPerObservation`, K or the forest count) and V (`dbarts_sampler_numVariableCountForests`), and
+multinomial runs and predicts through the flat API today (dec-B163), so the append adds nothing to `dbarts_results`.
+
+Invariants every 1.0 description keeps, under the append and any later one:
+
+1. Zero means absent. Every appended field's all-zero bytes (0, NULL) mean "not used": the build behaves as the build before the
+   append did. `DBARTS_SAMPLER_SPEC_INIT` and `dbarts_sampler_spec_init` zero everything they do not set.
+2. A 1.0-sized description to a later build: the build reads `structSize` bytes and treats every field past them as zero, so a
+   1.0 description is one forest (`numForests` 0) of a 1.0 family, read exactly as at 1.0. This is the existing `structSize`
+   contract of `dbarts_results` and `dbarts_predictor_source`, in the caller-to-library direction.
+3. A later-sized description to an earlier build: the build accepts it only if every byte past the `structSize` it knows is
+   zero, and otherwise returns UNSUPPORTED naming the first unknown nonzero byte's offset, the rule Linux's extensible structs
+   (`openat2`, `clone3`) follow. A newer caller using only 1.0 features runs on a 1.0 library; one asking for several forests
+   is refused, never silently given one.
+4. The 1.0 tree and leaf fields describe THE forest when there is one: the single forest, or under MULTINOMIAL the forest every
+   category forest copies, as `MultinomialSpec` shares one `MultinomialForestSpec`. With `numForests` > 0 they are not read; every
+   forest is stated in its element, and nothing is inherited from them. A sampler-wide field (data, family part, sigma, DART,
+   run settings, engine limits) keeps its meaning under every structure.
+5. `family` keeps naming the likelihood. Several forests is a structure over GAUSSIAN, PROBIT or LOGISTIC, not a family value;
+   MULTINOMIAL (8) is a family. Values are never renumbered: AUTO 0 is refused at C creation; 1 to 7 are created at 1.0;
+   MULTINOMIAL and every value past 8, reserved for families appended later, return UNSUPPORTED at 1.0 ("this build creates no
+   multinomial sampler from C" or "family %d is not one this build creates").
+6. A field is read only under the families or structures that name it, and that set never shrinks: `numCategories` under ORDINAL
+   at 1.0 and MULTINOMIAL later; `residualDf` under STUDENT; `shape` under NBINOM; `y` and `offset` under every 1.0 family, not
+   under MULTINOMIAL, which states the appended counts and category offset instead.
+7. Nested arrays version by a stride, not a size per element: the parent states `forestStride`, the caller's
+   `sizeof(dbarts_forest_spec)`, once; the build indexes by it and reads each element under invariants 1 to 3 at that size. The
+   elements of one array share a type, so a size in each would repeat the stride; Win32's `SendInput(nInputs, pInputs, cbSize)`
+   versions an array of structs the same way. A stride of 0 with `numForests` > 0 is INVALID_ARGUMENT.
+
+What 1.0's validation refuses now, so the append is never a change of meaning: a nonzero byte past the known `structSize`
+(invariant 3); MULTINOMIAL and any family value past 8 (5); and nothing else, since every other 1.0 field already has its final
+reading. Placeholder fields are not shipped (see Calls made).
+
+The later work is mostly exposure. From S2b the R path already builds several-forest and multinomial samplers through
+`buildSampler` from the extension's `ForestRecord` array and `MultinomialRecord`, laid out as the sketch, and the equivalence
+trio's BCF and multinomial baselines hold those routes bitwise. The append moves the two records' public prefixes into dbarts.h
+as `dbarts_forest_spec` and the multinomial fields, adds `dbarts_forest_spec_init(element, size)` for bindings, and has
+`dbarts_sampler_create` copy the caller's array into the extension at its stride before the same `buildSampler` call; the
+R-only part (a sharer's share and a basis scale as first set, the anchor and unit) stays R's.
+
+The gate (S3): a tests/cpp target builds the library with `-DDBARTS_TEST_SPEC_APPEND`, under which dbarts.h appends the sketch
+above to the spec, and the build stage honors it. A C99 translation unit compiled WITHOUT the define fills a 1.0-sized
+description (structSize the 1.0 size) of a gaussian and a probit sampler; a second, compiled WITH it, fills the same values with
+the append zeroed; both create through the appended build, and their draws equal the shipped build's at the same spec and seed,
+bit for bit. The same target creates a two-forest sampler through the test append and compares it bitwise with the R-created
+BCF fit of the bcf-equivalence scenario it copies, and hands the shipped build a description carrying a nonzero appended
+field, which returns UNSUPPORTED. The two struct definitions never meet in one translation unit, and both consumers are C.
 
 ### Seeding
 
@@ -472,7 +561,8 @@ HANDLE gains the C-created origin and its lifetime; the thread paragraph states 
 `dbarts_draw_callback` says a thrown exception becomes CALLBACK_ERROR and an R raise is still R's jump; `dbarts_sampler_run`'s
 interrupt, callback-stop and slow-count paragraphs follow the statuses; `dbarts_sampler_predict` drops "main-R-thread-only ...
 R_alloc"; `dbarts_sampler_getLatents` gains frequency weights' sentence on a frequency row's latent (dec-B564's note); every
-per-entry "raises" becomes the status it returns. About +550/-150 lines in the header.
+per-entry "raises" becomes the status it returns; the spec's block states invariants 1 to 7 of the forward-compatibility
+section, the reserved family values and the zero-tail rule. About +550/-150 lines in the header.
 
 The hash: [`dbarts_foldLayout`](../../src/C_interface.cpp) gains the spec's size and every field's name and offset in pointer
 units, as `dbarts_results`, and `DBARTS_STATUS_LIST` and `DBARTS_WEIGHTS_TYPE_LIST` join the enum fold; both tokens are re-baked
@@ -494,8 +584,9 @@ stage with the text it has today, and the tinytest pins hold them. New words rea
 - `spec is NULL`; `spec.structSize is 0 - set it to sizeof(dbarts_sampler_spec) (e.g. dbarts_sampler_spec s =
   DBARTS_SAMPLER_SPEC_INIT, or dbarts_sampler_spec_init(&s, sizeof s))`; `structSize %zu is smaller than any dbarts_sampler_spec`;
 - `the response is NULL`; `the response must be finite`; then the support rule's existing words, family by family;
-- `family %d is not one this entry builds; state a dbarts_family from GAUSSIAN to STUDENT` (AUTO and out-of-range values);
-  `a multinomial sampler is built through the R interface` (UNSUPPORTED);
+- `family 0 (AUTO) is not a family; state a dbarts_family from GAUSSIAN to STUDENT` (INVALID_ARGUMENT); `this build creates no
+  multinomial sampler from C` and `family %d is not one this build creates` (UNSUPPORTED, for 8 and every value past it);
+- `the description is larger than this build knows and byte %zu past its end is not zero` (UNSUPPORTED);
 - `weightsType %d is not a dbarts_weights_type`; the frequency and precision refusals in frequency weights' words;
 - `a gaussian, Student-t or aft sampler needs a finite positive sigmaEstimate`; `sigmaPriorDf and sigmaPriorScale must be
   finite and positive`;
@@ -526,6 +617,22 @@ Neutral on the R build, by construction and by gate:
   reference host, and gated there bitwise against Rmath on that grid (a tests/cpp suite in the libR-linked target), and the
   standalone consumer's draws equal the R-created sampler's bit for bit at the same spec and seed. Off the reference host the
   grid is gated at a relative difference of 1e-13 and the consumer's draws by the equivalence harness's statistical z.
+
+## Ruled
+
+The maintainer ruled this plan's first three open calls on 2026-11-03:
+
+1. dec-B571: in the shipped header only an entry that can fail returns a status; the counts and the other accessors return their
+   value, and numTrees moves to a status since its forest index can be out of range. The maintainer: "For the host-neutral
+   decision, use (a)."
+2. dec-B572: a C caller reads a failure's message from `dbarts_lastErrorMessage()`, the last failing call's on the calling
+   thread; a capability probe that fails overwrites an earlier message, which the header states. The maintainer: "For
+   host-neutral decision 2, use (a)."
+3. dec-B575: C creates the middle of the model in 1.0 - every family, constant leaves, the standard tree prior and DART, weights
+   and their reading, offset, test predictors and run settings - and the 1.0 shape must already admit several forests and
+   multinomial as an append. The maintainer: "You can do (b), but it would be a good time to make sure that whatever is
+   necessary for (c) will be forwards compatible. Basically, make sure we're ready to do (c) when the time comes." The plan
+   answers it in [Forward compatibility with several forests and multinomial](#forward-compatibility-with-several-forests-and-multinomial).
 
 ## Calls made
 
@@ -594,48 +701,49 @@ Neutral on the R build, by construction and by gate:
     around them.
 26. S1 is its own feature; the rest is one branch merged once, the header change landing whole in S3 so stan4bart and treatSens
     rebuild once. Alternative: S1 on the main branch, which holds a byte-neutral change with no dependency behind forest-door.
+27. Under several forests the 1.0 tree and leaf fields are not read; every forest is stated in its element. Alternatives: (i)
+    they are forest 1's, the array holding forests 2 onward, which makes the array's first element differ from the rest and
+    puts one forest's settings in two places; (ii) they are defaults each element inherits where it leaves a field unset, which
+    needs an "unset" value for every element field and makes a forest's value depend on two places, the drift dbartsSpec()
+    ended.
+28. A nested array versions by one stride on the parent. Alternative: a `structSize` in each element, which repeats one number
+    per element and lets elements of one array disagree, a state with no meaning.
+29. Forward compatibility rests on "zero means absent" and on refusing a nonzero byte past the known size, with no placeholder
+    fields at 1.0. Alternative: ship `numForests`, `forestStride` and `forests` now, refused unless zero; it fixes their names,
+    types and order before the element is designed, for a guarantee the zero-tail rule already gives.
+30. K is the 1.0 field `numCategories`, read under ORDINAL at 1.0 and MULTINOMIAL later. Alternative: a separate appended K for
+    multinomial, two fields for "the number of response categories".
+31. The R path builds several-forest and multinomial samplers from extension records laid out as the sketched append from S2b,
+    so the append exposes a tested route. Alternative: keep the R path's own records and translate at the append, a second
+    layout and a second test of it later.
 
 ## Open calls
 
-Each is something stan4bart, treatSens and any future binding code against, and none is settled by a ruling.
+Each is something stan4bart, treatSens and any future binding code against, and none is settled by a ruling. Calls 1 to 3 are
+ruled ([Ruled](#ruled)); the numbers are kept so the ledger's references hold.
 
-1. **Do the entries that cannot fail keep returning their value?** Background: dec-B119 has "Returning a status from every entry
-   point instead of raising ... covers every entry point, not the creation entry alone". Several entries - the counts,
-   kIsSampled, usesDart, family - cannot fail at all (a bad handle crashes, by the header's rule, rather than being reported).
-   Options: (a) every entry that can fail returns a status and every entry that cannot returns its value, numTrees moving to a
-   status since its forest index can be out of range; reads "every entry point" as every entry that has something to report;
-   cost: a reader learns which is which from the return type, and stan4bart's twelve accessor calls do not change. (b) every
-   entry returns a status and values come back through pointers, the ruling's words read literally; cost: one rule with no
-   exceptions, every accessor call in both consumers rewritten, and `dbarts_sampler_numChains(s)` becomes two lines.
-   Recommendation: (a).
-2. **Where is a failure's message read?** Options: (a) one call, `dbarts_lastErrorMessage()`, giving the message of the last
-   failing call on this thread, as `dlerror` and `errno` work; cost: a caller reads it before the next failing call on that
-   thread, and a capability probe that fails (getLatents on a sampler with no latents, for one) overwrites an earlier message.
-   (b) an error struct passed to every entry; cost: every signature grows a parameter. (c) a message kept on each handle; cost:
-   creation, which has no handle yet, needs a second channel. Recommendation: (a).
-3. **How much of the model can a C program create in 1.0?** Background: R creates every model; dec-B86 holds the header to what
-   a consumer or a named design calls, no consumer creates from C today, and every field shipped at 1.0 is frozen there (later
-   releases can only append). dec-B160 left multinomial creation from C for after the release. Options: (a) every one-forest
-   model: all six families and Student-t, every leaf model, monotone, DART, the constraints and the variance forest; cost: about
-   75 fields frozen with no consumer, the shape argued by a binding's needs rather than a binding's code. (b) a middle course:
-   every family, constant leaves, the standard tree prior and DART, weights and their reading, offset, test predictors and the
-   run settings, about 45 fields; leaf models, monotone, constraints, moves and the variance forest appended in a later release
-   when a binding asks; cost: a Python user of those reaches them through R until then, and about 10 fewer agent-hours now.
-   (c) also the multi-forest and multinomial models; cost: about 40 more fields frozen. Recommendation: (b). Under dec-B86 an
-   append after 1.0 is the designed minor bump, so (a)'s saving - naming each field once now - is small, while every field
-   frozen without a consumer is a shape no binding's code has tried; (a) is the choice if a Python binding is expected to need
-   the leaf models or constraints in its first release.
-4. **Is the description one struct or built up by calls?** Options: (a) one struct the caller fills, with a size field, an
-   `INIT` macro holding dbarts()'s defaults for C, and `dbarts_sampler_spec_init(spec, sizeof *spec)` doing the same for
-   bindings such as Python's ctypes and cffi, which cannot expand a macro; cost: its field order is fixed at 1.0, appends only
-   after, and one more entry. (b) the struct and macro alone; cost: a binding writes every default itself and drifts when one
-   changes. (c) an opaque description object with a creation call and one setter per setting; cost: about 75 entries frozen at
-   1.0 and checked one call at a time, against dec-B86's small header. Recommendation: (a).
+4. **Is the description one struct or built up by calls?** Background: dec-B575 makes the description grow later, by one-forest
+   groups and then by an array of forests, so the shape has to take a nested array as well as flat fields. Options: (a) one
+   struct the caller fills, with a size field, an `INIT` macro holding dbarts()'s defaults for C, and
+   `dbarts_sampler_spec_init(spec, sizeof *spec)` doing the same for bindings such as Python's ctypes and cffi, which cannot
+   expand a macro; the forests come later as an array of element structs at a stated stride, with an element initializer;
+   cost: its field order is fixed at 1.0, appends only after; a binding builds an array of structs (ctypes and cffi both do)
+   and states two sizes; one more entry now and one at the append. (b) the struct and macro alone; cost: a binding writes every
+   default itself, the forest elements' too, and drifts when one changes. (c) an opaque description object with a creation call
+   and one setter per setting; nesting is where it is strongest, `addForest` returning an index the forest setters take, with
+   no stride and no "unset" problem; cost: about 51 entries at 1.0 and, at the append, one per forest field again with an index,
+   about 20 more, each frozen under dec-B86 and checked one call at a time. (d) the 1.0 struct plus typed extension structs
+   chained by a pointer, as Vulkan's `pNext`, each later part (the forests, multinomial) its own size-led struct with a type
+   tag; cost: the chain's walk and duplicate-tag rules in every build, for a growth the zero-tail append already gives.
+   Recommendation: (a), unchanged. The nested array narrows (c)'s advantage less than it seems: the stride rule and "zero means
+   absent" give the element the same versioning the parent has, and a builder's own strength, knowing what was never set, is
+   what the zero rule already says.
 5. **Does creating from C require a seed?** Background: R draws chain seeds from its own stream when none is given; a C program
    has no such stream. Options: (a) required: a spec with no seed is refused; cost: one more field a caller sets. (b) a fixed
    default seed in the initializer, as XGBoost and LightGBM default to seed 0; cost: two runs a caller meant as independent
    silently give the same draws. (c) a seed from the clock and process id when none is given; cost: a run that cannot be
-   repeated unless the caller thought to seed it, and a platform-specific source in an entry meant to have none.
+   repeated unless the caller thought to seed it, and a platform-specific source in an entry meant to have none. The append
+   changes nothing here: every forest of a chain, and every category forest, draws from the chain's one generator.
    Recommendation: (a).
 6. **How does an R package turn a status back into R's error, interrupt or time limit?** Background: today a failing flat call
    raises the R error itself, an interrupted run raises R's interrupt condition, and a time limit set with `setTimeLimit`
@@ -647,13 +755,16 @@ Each is something stan4bart, treatSens and any future binding code against, and 
    an error, which `tryCatch(interrupt = )` and the quiet interrupt behavior miss. (c) under the R build a flat run keeps
    raising the interrupt or time limit itself, as R's own jump after the unwind, and returns statuses for everything else;
    cost: the run entry has two failure channels that differ by build, a departure from "every entry point" for one case,
-   though consumers need nothing for interrupts. Recommendation: (a).
+   though consumers need nothing for interrupts. The append adds no entry and no status, so nothing here moves.
+   Recommendation: (a).
 7. **How is a run a callback stopped on purpose reported?** Background: a draw callback that returns nonzero stops the run; this
    call's results and saved trees are then discarded. Today the run returns normally with no sign of it, so a caller must
    remember its callback stopped. Options: (a) a positive status, STOPPED, a success with a note; cost: a caller that tests
    only for failure (`< 0`) reads discarded buffers unless it also checks for OK. (b) a negative status; cost: the R helper of
    open call 6 raises an error for a stop the caller asked for, and a binding treats a deliberate stop as a failure. (c) OK, as
-   today; cost: the one entry whose buffers can be invalid on OK. Recommendation: (a); neither consumer registers a callback.
+   today; cost: the one entry whose buffers can be invalid on OK. Several forests and multinomial already run through the
+   flat run with the same callback and buffers, so the append changes nothing. Recommendation: (a); neither consumer registers
+   a callback.
 
 ## Slices
 
@@ -695,12 +806,14 @@ Steps: `dbarts_sampler_spec`, its INIT and `DBARTS_WEIGHTS_TYPE_LIST` in dbarts.
 optionsFromParsed, the two multinomial routes and createFromHandle; the R parse filling spec and extension (the parse functions
 keep reading SEXPs; their outputs become spec fields); seeds through `hasSeed`/`seed` or `chainSeeds`; the weights reading; a
 tests/cpp suite that fills every spec field with a distinct value and checks the engine options built from it field by field,
-so a field the build forgets fails by name.
+so a field the build forgets fails by name; the extension's public-shaped part (`ForestRecord`, `MultinomialRecord` and the
+one-forest groups 1.0 leaves out) laid out as the sketched append, the several-forest and multinomial R routes reading it; the
+1.0 reading rules (zero tail, reserved families, fields read only under the families that name them).
 
 Gates: as S2a.
 
-Budget: ~1,800 lines (header ~280, extension ~150, build stage ~650 moved, parse rework ~450, tests/cpp ~300). Agent ~22,
-review ~8, gates ~5.
+Budget: ~1,600 lines (header ~200, extension ~250, build stage ~650 moved, parse rework ~400, tests/cpp ~250). Agent ~18,
+review ~7, gates ~4.
 
 ### S3: statuses, the creation entry, the sigma getter, the header (bridge, flat entry file, tests)
 
@@ -716,15 +829,17 @@ heteroscedastic sampler; `DBARTS_R_CHECK` raising an error, through the interrup
 handle destroyed), the five handshake arms kept; tests/cpp's `standalone-consumer` target: a C99 file including the prototype
 view, creating gaussian, probit and Student-t samplers, running, predicting, reading sigma, refusing, destroying, built and
 linked with no R, `nm` showing no undefined R symbol, and its draws compared with the R-created sampler's at the same spec and
-seed; the cpp-tests workflow runs it. Docs: dbarts-embedding.Rd's C section, the architecture's layering and callbacks sections,
+seed; the `spec-append` target of [Forward compatibility with several forests and multinomial](#forward-compatibility-with-several-forests-and-multinomial)
+(the test-only append, the 1.0-sized and the appended consumer, the two-forest arm and the nonzero-tail refusal); the
+cpp-tests workflow runs both. Docs: dbarts-embedding.Rd's C section, the architecture's layering and callbacks sections,
 NEWS.
 
 Gates: as S2a, plus test-capi.R under ASan on the R-loaded path, tests/cpp's standalone consumer under ASan and ThreadSanitizer
 for the two-thread arm, on the x86 leg LeakSanitizer (C-created handles are new owners); the header-compiles target;
 `sh tools/check-api-hash.sh`.
 
-Budget: ~2,400 lines (header +550/-150, C_interface.cpp ~500, build units ~250, bridge ~120, consumer.c ~480, test-capi.R ~320,
-tests/cpp ~350, workflow ~15, docs ~120). Agent ~13, review ~5, gates ~4.
+Budget: ~2,500 lines (header +500/-150 with the test-only append ~80, C_interface.cpp ~500, build units ~250, bridge ~120,
+consumer.c ~480, test-capi.R ~320, tests/cpp ~550, workflow ~20, docs ~120). Agent ~14, review ~5, gates ~4.
 
 ### S4: the consumer ports (stan4bart, treatSens)
 
@@ -798,6 +913,11 @@ The reviewer of each slice runs these; each must fail the named gate, and is rev
 16. S3: getSigmas writing chain 0 to every slot - its two-chain arm.
 17. S3: two spec fields swapped in the header - the build's static_assert against the re-baked hash.
 18. S3: destroy on a C-created handle releasing the engine only - LeakSanitizer on the x86 leg.
+19. S2b: the build reading a field past a 1.0-sized `structSize` instead of treating it as zero - the `spec-append` target's
+    1.0-sized consumer (its draws move or it is refused).
+20. S2b: the zero-tail check dropped, a nonzero appended byte accepted - the `spec-append` target's refusal arm.
+21. S2b: the 1.0 tree fields read under `numForests` > 0 - the two-forest arm against the BCF scenario.
+22. S2b: MULTINOMIAL accepted at C creation - consumer.c's reserved-family arm.
 
 ## Interaction with the other pending plans, and order
 
@@ -812,15 +932,18 @@ The reviewer of each slice runs these; each must fail the named gate, and is rev
   FREQUENCY and adds the getLatents sentence if S3 has merged. The binomial response enters the spec in the form its design
   gives the engine (likely a per-row trial count beside y under logistic): in S2b if it lands first, else appended by its own
   work before 1.0-0, a hash move that rebuilds no one, since neither consumer creates through C.
-- multinomial-doors' C creation path stays post-release (dec-B160), consistent with open call 3.
+- multinomial-doors' C creation path stays post-release (dec-B160, dec-B575); this plan ships the shape it will append to and
+  the R route it will expose. forest-door's share and kind are in the sketched element; if its slice 3 changes them, the
+  extension's `ForestRecord` follows and the sketch with it, before the header freezes.
 - The sister re-verification at the freeze follows this arc (TODO), with stan4bart's sanitizer job dispatched against the final
   header (dec-A36).
 - Nothing else touching src/ merges while S2a, S2b or S3 is in review.
 
 ## Cost
 
-About 5,450 lines written here, 6,000 copied and 400 reduced headers, none of them in the tarball; ~130 in the two consumers;
-~95 agent-hours estimated under open call 3 (a), ~85 under (b), 125 to 190 by the record of plans here, S2a and S2b most of it.
+About 5,350 lines written here, 6,000 copied and 400 reduced headers, none of them in the tarball; ~130 in the two consumers;
+~90 agent-hours estimated, 135 to 180 by the record of plans here, S2a and S2b most of it. The forward-compatibility work is
+about 300 of those lines and 4 of those hours.
 
 ## Not verified
 
@@ -834,5 +957,9 @@ About 5,450 lines written here, 6,000 copied and 400 reduced headers, none of th
 - How forest-door slice 3 and coefficient-prior-live leave the forest records, which S2b's extension must mirror; their
   branches were read for the files they touch, not field by field.
 - The binomial response's engine form, not yet designed.
+- Whether the engine's several-forest chain takes DART, split probabilities and the k prior per forest; the sketch leaves them
+  sampler-wide and the append refuses what the factory refuses.
+- That forest-door's final share is a per-forest number a C caller can state, rather than a grouping the build derives; the
+  sketch carries it per forest.
 - stan4bart's and treatSens' call sites were read on their main and master; their 1.0 compat branches may differ.
 - That no R-hosted consumer other than the two links dbarts.h; the reverse LinkingTo list on CRAN was not queried.
