@@ -358,8 +358,7 @@ fitForestLines <- function(fit, full = FALSE) {
     attr(fit, "forest.unit", exact = TRUE),
     full,
     "summary()",
-    attr(fit, "forest.trees", exact = TRUE),
-    attr(fit, "forest.shares", exact = TRUE)
+    attr(fit, "forest.trees", exact = TRUE)
   )
 }
 
