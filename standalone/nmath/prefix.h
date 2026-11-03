@@ -12,9 +12,15 @@
 #define HAVE_LONG_DOUBLE 1
 #define HAVE_NEARBYINT 1
 #define HAVE_WORKING_ISFINITE 1
-/* Apple's libm has __cospi and friends and no C23 cospi; elsewhere R's
-   configure finds neither on the C libraries R supports today, and the copy
-   uses its own. */
+/* Apple's libm has __cospi and friends and no C23 cospi, so there the copy
+   calls what R calls. Elsewhere the copy always uses its own cospi, sinpi and
+   tanpi, while R's configure checks for the C23 functions and, where the C
+   library has them (glibc 2.41 and later), R calls the library's. Of the six
+   routines only qt can tell: at df within 1e-12 of 1 it returns
+   1 / tanpi(P / 2), exact in both at p = 1/4 and 3/4 and possibly a last digit
+   apart at any other p (the engine calls qt only at 0.75). sinpi reaches
+   gammafn and lgammafn only at negative arguments, which none of the six
+   passes. */
 #if defined(__APPLE__)
 #  define HAVE___COSPI 1
 #  define HAVE___SINPI 1
