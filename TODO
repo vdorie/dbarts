@@ -1028,17 +1028,13 @@ host-neutral engine (decided, VD 2026-09-08; docs/decisions.md dec-B85)
   after the merge to main, before the 1.0-0 CRAN submission (VD
   2026-09-23: an interface change consumers build against, so it lands
   before the header becomes the 1.0 contract): internal plain-C spec
-  stage in the bridge; the engine's Rmath touchpoints through
-  src/external's ext_* names only (model.hpp calls Rf_pnorm5, Rf_dnorm4
-  and Rf_dt directly today), the implementation chosen at build time -
-  Rmath under R (bit-identical), a vendored copy of R's nmath pnorm,
-  qnorm, dnorm and dt otherwise (VD 2026-09-24: no run-time reason for
-  hooks, no SIMD variant and no BLAS use); qchisq stays host-side, the
-  spec carrying the resolved residual-prior scale; printing likewise
-  build-time (dec-A74): ext_printf, ext_fflush_stdout and the message
-  and warning entries map per host (R console, stdio for a standalone
-  build), and the unused misc_printf/misc_flushOutput pointers and
-  their installers go; a plain-spec creation entry and a host-neutral
+  stage in the bridge; the build-time math and printing LANDED (slice
+  S1, dec-A260): the engine and the support library call six ext_ math
+  names, R's own routines in the R package and a renamed copy of R
+  4.6.2's nmath (standalone/nmath) under DBARTS_HOST_STANDALONE, and
+  printing is chosen when the code is compiled, misc's print pointers
+  gone; still owed, from slice S2a: the spec carrying the resolved
+  residual-prior scale; a plain-spec creation entry and a host-neutral
   error contract in dbarts.h covering EVERY entry point, not creation
   alone (VD 2026-09-27, dec-B119): a refusal returns a status the host
   reads instead of raising an R error, the unwind to the entry point
