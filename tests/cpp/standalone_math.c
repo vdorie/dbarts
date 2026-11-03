@@ -2,8 +2,9 @@
  * and the copy of R's math compiled with DBARTS_HOST_STANDALONE, linked with no
  * libR. It calls each of the six math names through the support library's own
  * header, draws from the generators that reach them (the inversion normal, the
- * truncated normals), prints through the standalone output functions, and
- * checks values that hold exactly in any correct build. Exit code 0 on
+ * truncated normals), prints through the standalone output functions, checks
+ * values that hold exactly in any correct build, and checks that each name
+ * hands every argument and flag to its renamed routine. Exit code 0 on
  * success. The copy's agreement with R's own is the libR suite's nmath grid. */
 
 #include <external/io.h>
@@ -36,6 +37,44 @@ int main(void) {
   check(ext_qt(0.5, 3.0, 1, 0) == 0.0, "qt(1/2) is 0");
   check(fabs(ext_qchisq(0.5, 2.0, 1, 0) - 2.0 * log(2.0)) < 1e-14, "qchisq(1/2, 2) is 2 log 2");
   check(fabs(ext_quantileOfStudentT(0.75, 1.0) - 1.0) < 1e-15, "the t prior's quartile at 1 df");
+
+  /* Each name passes every argument and flag through to its routine: at a
+     point where no tail or scale is symmetric, a dropped or fixed flag, or two
+     swapped arguments, gives a different value. */
+  for (int lowerTail = 0; lowerTail <= 1; ++lowerTail) {
+    for (int logP = 0; logP <= 1; ++logP) {
+      double p = logP ? log(0.3) : 0.3;
+      char what[64];
+      snprintf(what, sizeof(what), "ext_pnorm at lower.tail %d, log.p %d", lowerTail, logP);
+      check(ext_pnorm(0.7, 0.2, 1.3, lowerTail, logP) ==
+              dbarts_nmath_pnorm5(0.7, 0.2, 1.3, lowerTail, logP), what);
+      snprintf(what, sizeof(what), "ext_qnorm at lower.tail %d, log.p %d", lowerTail, logP);
+      check(ext_qnorm(p, 0.2, 1.3, lowerTail, logP) ==
+              dbarts_nmath_qnorm5(p, 0.2, 1.3, lowerTail, logP), what);
+      snprintf(what, sizeof(what), "ext_qt at lower.tail %d, log.p %d", lowerTail, logP);
+      check(ext_qt(p, 3.5, lowerTail, logP) == dbarts_nmath_qt(p, 3.5, lowerTail, logP), what);
+      snprintf(what, sizeof(what), "ext_qchisq at lower.tail %d, log.p %d", lowerTail, logP);
+      check(ext_qchisq(p, 3.5, lowerTail, logP) == dbarts_nmath_qchisq(p, 3.5, lowerTail, logP),
+            what);
+    }
+  }
+  for (int logP = 0; logP <= 1; ++logP) {
+    char what[64];
+    snprintf(what, sizeof(what), "ext_dnorm at log %d", logP);
+    check(ext_dnorm(0.7, 0.2, 1.3, logP) == dbarts_nmath_dnorm4(0.7, 0.2, 1.3, logP), what);
+    snprintf(what, sizeof(what), "ext_dt at log %d", logP);
+    check(ext_dt(0.7, 3.5, logP) == dbarts_nmath_dt(0.7, 3.5, logP), what);
+  }
+  check(ext_quantileOfChiSquared(0.3, 3.5) == dbarts_nmath_qchisq(0.3, 3.5, 1, 0),
+        "ext_quantileOfChiSquared");
+  check(ext_densityOfNormal(0.7, 0.2, 1.3) == dbarts_nmath_dnorm4(0.7, 0.2, 1.3, 0),
+        "ext_densityOfNormal");
+  check(ext_cumulativeProbabilityOfNormal(0.7, 0.2, 1.3) ==
+          dbarts_nmath_pnorm5(0.7, 0.2, 1.3, 1, 0), "ext_cumulativeProbabilityOfNormal");
+  check(ext_quantileOfNormal(0.3, 0.2, 1.3) == dbarts_nmath_qnorm5(0.3, 0.2, 1.3, 1, 0),
+        "ext_quantileOfNormal");
+  check(ext_quantileOfStudentT(0.3, 3.5) == dbarts_nmath_qt(0.3, 3.5, 1, 0),
+        "ext_quantileOfStudentT");
 
   ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   check(rng != NULL && ext_rng_setSeed(rng, 42) == 0, "a seeded Mersenne Twister");
