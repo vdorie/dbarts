@@ -231,9 +231,15 @@ refused(
   )
 )
 live <- dbarts(y ~ forest(x1 + x2) + forest(x1, basis = zf), d, control = ctl())
-refused(
-  live$setForest(2, amplitude = student(3)),
-  "a forest's coefficient prior cannot be changed live yet"
+# taken live, as creation takes it
+live$setForest(2, amplitude = student(3))
+expect_identical(
+  live$getForest(2),
+  dbarts(
+    y ~ forest(x1 + x2) + forest(x1, basis = zf, amplitude = student(3)),
+    d,
+    control = ctl()
+  )$getForest(2)
 )
 refused(
   bart(x, y, leaf.prior = student(3), verbose = FALSE),

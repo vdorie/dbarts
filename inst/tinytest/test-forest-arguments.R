@@ -521,16 +521,17 @@ for (name in c("interactions", "blocks", "monotone")) {
     info = name
   )
 }
-# the door resolves it too, and refuses it as another prior than the one in force
-writerHeld <- twoForests()
-expect_error(
-  writerHeld$setForest(2, amplitude = fixed()),
-  "a forest's coefficient prior cannot be changed live yet"
-)
-expect_error(
-  writerHeld$setForest(2, amplitude = fixed),
-  "a forest's coefficient prior cannot be changed live yet"
-)
+# the door resolves it too, called or bare, and takes it
+for (amplitude in list(quote(fixed()), quote(fixed))) {
+  writerHeld <- twoForests()
+  eval(bquote(writerHeld$setForest(2, amplitude = .(amplitude))))
+  expect_identical(heldParams(writerHeld, 2L), 0, info = deparse(amplitude))
+  expect_identical(
+    writerHeld$getForest(2)$amplitude,
+    dbartsPriors$fixed(),
+    info = deparse(amplitude)
+  )
+}
 
 # --- a held forest keeps the kind and the width it was created with ---
 heldSwap <- function() {

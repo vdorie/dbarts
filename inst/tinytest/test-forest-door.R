@@ -1119,68 +1119,50 @@ case("unlabeled forests are named by position at both doors", {
         same(atDoor, atCreation, info, "the same words")
       }
       if (!is.null(statements[[position]]$basis)) {
-        expectFound(
-          refusal(door(live, position, list(amplitude = fixed()))),
-          paste0("forest ", position, " keeps"),
+        held <- make(statements)
+        same(
+          refusal(door(held, position, list(amplitude = fixed()))),
+          "taken",
           paste("unlabeled", index, position, "a coefficient")
+        )
+        same(
+          held$getForest(position)$amplitude,
+          fixed(),
+          paste("unlabeled", index, position, "a coefficient in force")
         )
       }
     }
   }
 })
-# refused at one door only, each for its stated reason: a live sampler keeps its
-# coefficient prior, until a later plan
-doorOnly <- list(
-  list(
-    "a changed coefficient on a basis forest",
-    "factor",
-    list(amplitude = student(2)),
-    "a forest's coefficient prior cannot be changed live yet: forest \"tau\" keeps normal()"
-  ),
-  list(
-    "normal() on a student forest",
-    "factor.student",
-    list(amplitude = normal()),
-    "keeps student(2)"
-  ),
-  list(
-    "another df",
-    "numeric.student",
-    list(amplitude = student(3)),
-    "keeps student(2)"
-  ),
-  list(
-    "drawn on a held forest",
-    "factor.held",
-    list(amplitude = normal()),
-    "keeps fixed()"
-  ),
-  list(
-    "held on a drawn forest",
-    "factor",
-    list(amplitude = fixed()),
-    "keeps normal()"
-  ),
-  list(
-    "drawn on a stated forest",
-    "stated",
-    list(amplitude = normal()),
-    "keeps fixed()"
-  ),
-  list(
-    "held on a drawn forest with no basis",
-    "normal.stated",
-    list(amplitude = fixed()),
-    "keeps normal()"
-  )
+# a coefficient's prior, taken before a run as creation takes the statement; a
+# release starts the coefficient at its held value and creation at its start
+# scale, so its draws are the state twin's (test-coefficient-prior-live.R)
+coefficientRows <- list(
+  list("a changed coefficient on a basis forest", "factor", student(2), FALSE),
+  list("normal() on a student forest", "factor.student", normal(), FALSE),
+  list("another df", "numeric.student", student(3), FALSE),
+  list("drawn on a held forest", "factor.held", normal(), TRUE),
+  list("held on a drawn forest", "factor", fixed(), FALSE),
+  list("drawn on a stated forest", "stated", normal(), TRUE),
+  list("held on a drawn forest with no basis", "normal.stated", fixed(), FALSE)
 )
-for (row in doorOnly) {
-  info <- paste("door only,", row[[1L]])
+for (row in coefficientRows) {
+  info <- paste("a coefficient,", row[[1L]])
   case(info, {
     kind <- row[[2L]]
     target <- kinds[[kind]]$target
     live <- build(kind)
-    expectFound(refusal(door(live, target, row[[3L]])), row[[4L]], info)
+    same(
+      refusal(door(live, target, list(amplitude = row[[3L]]))),
+      "taken",
+      info
+    )
+    twin <- build(kind, list(amplitude = row[[3L]]))
+    same(live$getForest(target), twin$getForest(target), info, "reader")
+    same(modelOf(live), modelOf(twin), info, "records")
+    if (!row[[4L]]) {
+      same(draws(live), draws(twin), info, "draws")
+    }
   })
 }
 # a statement needs what it names beside it, merged and not name by name: student
@@ -1188,17 +1170,28 @@ for (row in doorOnly) {
 case("merged statement", {
   stating <- build("stated")
   same(stating$getForest(1L)$sd, 1.2, "the sd in force")
-  expectFound(
+  same(
     refusal(stating$setForest(1L, amplitude = student(1))),
-    "cannot be changed live yet",
-    "student beside a stated sd reads the coefficient refusal"
+    "taken",
+    "student beside a stated sd is taken"
+  )
+  same(
+    modelOf(stating),
+    modelOf(build("stated", list(amplitude = student(1)))),
+    "student beside a stated sd, the records"
   )
   sharing <- build("sharer")
-  expectFound(
+  same(
     refusal(sharing$setForest(1L, sd = 1, amplitude = student(1))),
-    "cannot be changed live yet",
-    "student stated with its sd reads the coefficient refusal"
+    "taken",
+    "student stated with its sd is taken"
   )
+  same(
+    sharing$getForest(1L)[c("sd", "amplitude")],
+    list(sd = 1, amplitude = student(1)),
+    "student stated with its sd, in force"
+  )
+  sharing <- build("sharer")
   expectFound(
     refusal(sharing$setForest(1L, amplitude = student(1))),
     "share one total",
@@ -1412,9 +1405,10 @@ atomicRows <- list(
   list("factor", list(n.perturb.cuts = 5, sd = -1)),
   list("factor", list(proposal.probs = moved, treeShift = "sometimes")),
   list("factor", list(treeShift = "always", proposal.probs = c(1, 2))),
-  list("factor", list(power = 0.5, amplitude = student(2))),
-  list("factor", list(sd = 0.7, amplitude = fixed())),
-  list("factor", list(n.perturb.cuts = 5, amplitude = student(2))),
+  list("factor", list(amplitude = student(2), power = -1)),
+  list("factor", list(sd = -1, amplitude = fixed())),
+  list("factor", list(amplitude = student(2), n.perturb.cuts = 0L)),
+  list("stated", list(amplitude = normal(), base = -1)),
   list("sharer", list(power = 0.5, sd = -1)),
   list("sharer", list(n.perturb.cuts = 5, sd = -1)),
   list("lone", list(power = 0.5, sd = -1)),

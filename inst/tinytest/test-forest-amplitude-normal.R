@@ -748,13 +748,18 @@ expect_error(
   "this model has one forest",
   fixed = TRUE
 )
-expect_error(
+# live, normal() to student(3) is taken as creation takes it
+live <- make(
+  list(forest(sd = 1, amplitude = normalPrior()), forest(basis = zf)),
+  response = y
+)
+live$setForest(1, amplitude = studentPrior(3))
+expect_identical(
+  live$getForest(1),
   make(
-    list(forest(sd = 1, amplitude = normalPrior()), forest(basis = zf)),
+    list(forest(sd = 1, amplitude = studentPrior(3)), forest(basis = zf)),
     response = y
-  )$setForest(1, amplitude = studentPrior(3)),
-  "a forest's coefficient prior cannot be changed live yet: forest 1 keeps normal()",
-  fixed = TRUE
+  )$getForest(1)
 )
 
 # the multinomial entry, whose category forests are lone ones
