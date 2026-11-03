@@ -1263,6 +1263,20 @@ sbcInstallBCFGlue <- function(bcf, glue) {
   invisible(NULL)
 }
 
+# Install a replication's true sigma as the chain's live residual sd before its
+# first sweep, so the fit starts from theta0's sigma and not from the last
+# chain's final draw, which a response swap keeps. The state holds sigma on the
+# internal scale, the reported one over the build's fitScale.
+sbcInstallBCFSigma <- function(bcf, sigma, fitScale) {
+  bcf$storeState()
+  state <- bcf$state
+  state[[1L]][["sigma"]] <- sigma / fitScale
+  if (!isTRUE(bcf$setState(state))) {
+    stop("the state with the drawn sigma was not installed")
+  }
+  invisible(NULL)
+}
+
 sbcBCFGlueDraw <- function(aPriorScale, bPriorVariance) {
   function() {
     list(
@@ -1575,10 +1589,12 @@ runSbcBCF <- function(
     prog0 <- g0$a * mu0[idx]
     eff0 <- (g0$b1 - g0$b0) * tau0[idx]
 
-    # overdispersed init (fresh prior forests), then fit and collect
+    # overdispersed init (fresh prior forests), the glue and sigma at theta0's,
+    # then fit and collect
     bcf$sampleTreesFromPrior()
     bcf$sampleLeafParametersFromPrior()
     bcf$setResponse(y0, updateScale = FALSE)
+    sbcInstallBCFSigma(bcf, sig0, built$fitScale)
     invisible(bcf$run(burn, 0L))
 
     aDraws <- numeric(L)
@@ -3443,6 +3459,7 @@ sbcDoorReplay <- function(config, R = 40L, sweeps = 20L, seed = 20260709L) {
     bcf$sampleTreesFromPrior()
     bcf$sampleLeafParametersFromPrior()
     index0 <- index()
+    sig0 <- NULL
     y0 <- if (latent) {
       as.double(rbinom(config$n, 1L, link(index0)))
     } else {
@@ -3452,6 +3469,9 @@ sbcDoorReplay <- function(config, R = 40L, sweeps = 20L, seed = 20260709L) {
     bcf$sampleTreesFromPrior()
     bcf$sampleLeafParametersFromPrior()
     bcf$setResponse(y0, updateScale = FALSE)
+    if (!is.null(sig0)) {
+      sbcInstallBCFSigma(bcf, sig0, built$fitScale)
+    }
     start <- index()
     invisible(bcf$run(sweeps %/% thin, 0L))
     end <- index()
