@@ -58,12 +58,12 @@ rather than invented:
   every chain holds one transform. Since 2026-10-07 that holds of
   [`AFTResponse::setOffset`](../../src/bartcore/model.hpp) at `updateScale = TRUE` too, which until then read the times
   in force and left each chain in a transform of its own.
-- **Latents.** The redraw stays, matching [`AFTResponse::setResponse`](../../src/bartcore/model.hpp) and the probit pattern:
-  event to censored takes the row's own observed time as its new bound and redraws above it; censored to event restores that
-  time, which is data, not a draw. A caller driving one sweep per call needs the imputed value, the next sweep's mean forest
-  reading the working response before [`AFTResponse::refreshLatents`](../../src/bartcore/model.hpp).
-- **Caveat, masked samplers.** The memcpy is mask-blind, the redraw is not, so the status-only idiom resets EVERY inactive
-  censored row's latent to its bound and leaves it there until the mask clears. Pre-existing `setResponse` behavior, newly
+- **Latents.** Amended 2026-11-05 ([latents-first](latents-first.md)): the setter draws nothing. Event to censored takes the row's own observed time as its new bound
+  and holds the latent there; censored to event restores that time, which is data, not a draw; the next sweep draws every censored
+  row above its bound, before the mean forest reads the working response ([`AFTResponse::refreshLatents`](../../src/bartcore/model.hpp)).
+  A caller driving one sweep per call therefore reads, between the setter and the run, the bound, not an imputed value.
+- **Caveat, masked samplers.** The memcpy is mask-blind and so is the bound reset, while the sweep's draw is not, so the status-only
+  idiom leaves EVERY inactive censored row's latent at its bound until the mask clears. Pre-existing `setResponse` behavior, newly
   advertised; documented on the method.
 
 ## 3. Engine
@@ -118,7 +118,7 @@ control with the new status and a state from before it. So restore the censored 
 has no business overwriting. The RESTORE CONTRACT holds (a write plus a working rebuild reading neither sigma nor the
 surface), and section 3's reconstruction becomes valid everywhere.
 
-**A status handshake, the weights.digest shape.** `bartcore_storeState` writes a `survival.digest` attribute beside
+**A status handshake (retired 2026-11-05 by [latents-first](latents-first.md): the digest, its comparison and the reapply are gone, the next sweep drawing the censored rows against the status in force; a state carrying the attribute loads and it is ignored). The shape it had, the weights.digest shape.** `bartcore_storeState` writes a `survival.digest` attribute beside
 ["weights.digest"](../../src/R_interface_bartcore.cpp): top level, the status fanning to every chain; eight raw bytes;
 ABSENT is not a mismatch. `bartcore_setState` compares it against the destination's live digest, which `AFTResponse` derives
 from `censoredIndices_` with no status vector stored, and on a difference reapplies the structure: bounds rebuilt from the

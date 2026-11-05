@@ -6,7 +6,8 @@ answers: [probit-k-calibration.md](probit-k-calibration.md).
 
 ## What it does
 
-Once a sweep, ahead of the trees, a single-forest probit fit with a drawn k
+Once a sweep, ahead of the trees and after the sweep's latent draw (which it reads: see
+[latents-first](latents-first.md)), a single-forest probit fit with a drawn k
 multiplies every active latent and every occupied leaf by one factor alpha and
 divides k by it, alpha drawn from its exact conditional
 ([`Chain::drawForestRescale`](../../src/bartcore/chain.hpp)). The posterior is

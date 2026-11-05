@@ -65,8 +65,8 @@ it.
 - Logistic weights were fixed at sampler creation in v1. SUPERSEDED: the
   between-samples surface (`setWeights`, `setData` with new weights) is
   open for logistic, whose counts are the Polya-Gamma shape, so a swap
-  redraws the latents against them (docs/design/r-c-division.md, "The
-  latent-family weight channel"). Probit and the other latent families
+  stores them and the next sweep draws the latents against them
+  (docs/design/r-c-division.md, "The latent-family weight channel"). Probit and the other latent families
   stay refused.
 
 ## Why integer only, for now
@@ -146,71 +146,20 @@ in-model IPW.
 
 ## The saved state (follow-on)
 
-The counts do not ride the state; a digest of them does (`weights.digest`, 8
-raw bytes beside `cutPoints`), and `setState` re-derives the latents against
-the DESTINATION's counts when the two disagree. A byte hash, not a moment
-summary - `rep(c(1,4,4), n)` and `rep(c(2,2,5), n)` share mean and sum of
-squares - and a null vector digests as n unit weights, since to this family
-they are one sampler (`lround(1) == 1`). The repair runs
-`ResponseModel::reapplyWeights` against the weights already in force, which
-is `setWeights` unless a family says otherwise, so it self-selects: logistic
-redraws omega, gaussian recomposes a composite that is already right, a
-weight-refusing family takes the base no-op. Student-t (amended 2026-10-06)
-redraws the scale of the rows that enter the likelihood and no other; the
-rule is below. GATED rather than unconditional: a redraw on a MATCHED restore would
-break "the same moves in the same order" dbarts.h promises, and would move
-the `wtlogistic` equivalence scenario - which nothing here does.
+Amended 2026-11-05 by [latents-first](latents-first.md): the counts do not ride the state, and
+nothing of them does. The digest (`weights.digest`) and the `setState` re-derivation against the
+destination's counts are retired, with `ResponseModel::reapplyWeights`. A stored latent is the
+value the stored trees were drawn from, `setState` installs it and draws nothing, and the next
+sweep draws every latent against the weights then in force, so there is nothing to reconcile.
+A state that still carries the attribute loads and it is ignored. A weight change is undone by
+`setWeights` with the old counts and `setState` with the stored state, in either order, bit for
+bit.
 
 ### A Student-t state names its zero-weight rows (amended 2026-10-06)
 
-A Student-t scale is drawn every sweep at every row, and at a row of weight
-zero it is drawn without that row's residual. So every Student-t state
-carries, beside the digest, `weights.zero`: a raw vector with a byte per
-row, 1 where the weight in force was zero and 0 elsewhere, all 0 for a
-sampler with no weights
-([`storeState`](../../src/R_interface_bartcore.cpp),
-[`SamplerBase::zeroWeightRows`](../../src/bartcore/facade.hpp)). No other
-family writes it, and the mask is not in it. With Z the recorded rows, and w
-and a the destination's weights and mask in force at the install
-([`setState`](../../src/R_interface_bartcore.cpp)):
-
-1. Digests equal: nothing is drawn.
-2. Digests differ and the state has the record: once the whole state is in,
-   each chain in turn draws, from its own restored generator and in row
-   order, a new scale for each row in Z with w positive and a active, from
-   Gamma((nu + 1) / 2, rate (nu + w r^2 / sigma^2) / 2) at the installed
-   fit, sigma and degrees of freedom
-   ([`TResponse::reapplyWeights`](../../src/bartcore/model.hpp)). Every
-   other row keeps its stored scale, and with no such row no random number
-   is used. It is what `setWeights` does to a sampler holding the state
-   under the stored weights. A row positive then and zero now, and an
-   entering row that is masked, wait for the setter that brings them in. A
-   copy, a reload and a `setState` that makes the engine again put the mask
-   back after the state, so an entering masked row is drawn at the install
-   there.
-3. Digests differ and the state has no record, as one stored before the
-   record has none: every row in the likelihood is redrawn.
-4. No digest: nothing is drawn.
-5. A record that is not a raw vector of 0s and 1s, or not one byte per row
-   of the sampler, is refused before anything is touched, on any family;
-   another family's state does not otherwise use one.
-
-Scales redrawn per chain, 81 rows, 20 at weight zero when the state was
-stored; the same in one and two chains, with the degrees of freedom fixed
-and estimated:
-
-| destination weights | rows in the likelihood | rows entering | redrawn without the record | redrawn with it, and by the same `setWeights` call |
-|---|---|---|---|---|
-| the stored ones | 61 | 0 | 0 | 0 |
-| other positive values, same zero rows | 61 | 0 | 61 | 0 |
-| 20 rows enter, 20 other rows leave | 61 | 20 | 61 | 20 |
-| all positive | 81 | 20 | 81 | 20 |
-| 10 more rows at zero | 51 | 0 | 51 | 0 |
-
-A weight change is then undone by the old weights and the stored state in
-either order. Weights first, the sampler is the stored chain bit for bit.
-State first, it is too when the change moved no row to or from zero;
-otherwise the rows the change had taken to zero are redrawn from their
-conditional at the stored fit as the old weights bring them back, and every
-row positive under both holds its stored scale. `setState` returns `TRUE`
-throughout: it promises the trees, not the scales.
+Amended 2026-11-05 by [latents-first](latents-first.md): retired. A Student-t scale is drawn every
+sweep at every row, and at a row of weight zero it is drawn without that row's residual, so a
+setter that drew scales had to know which rows were out. With every scale drawn at the start of
+the next sweep, against the weights then in force, no setter draws and the state no longer
+carries the record of zero-weight rows (`weights.zero`); a state that still carries it loads
+and the attribute is ignored. `setState` returns `TRUE` and promises the trees.

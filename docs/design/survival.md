@@ -58,7 +58,7 @@ accessors to map the internal-scale fit back to the log scale, then
 rebuilds the Gaussian working response via setResponse(updateScale =
 false). drawSigma, workingResponse, and the scale accessors all delegate
 to the contained Gaussian, so the freshly drawn latent times are data
-for the conjugate sigma draw (loop order: refreshLatents then drawSigma,
+for the conjugate sigma draw (loop order: refreshLatents, first in the sweep, then the trees, then drawSigma,
 chain.hpp).
 
 REDUCTION PROPERTY (the free gate): with zero censored observations
@@ -141,9 +141,10 @@ them be decided one at a time.
 4. setResponse under censoring. SHIPPED: setResponse(newLogTimes)
    replaces the observed log-times, keeps the status fixed at creation
    (which observations are censored is structural, like the group
-   assignment), and redraws the censored latents against the current fit
-   (the probit pattern; delegated through the contained Gaussian's
-   setResponse). Changing the censoring pattern needs a new sampler.
+   assignment), and leaves the censored latents at their new bounds, the
+   next sweep drawing them against the current fit (amended 2026-11-05,
+   [latents-first](latents-first.md); delegated through the contained
+   Gaussian's setResponse). Changing the censoring pattern needs a new sampler.
 
 5. Weights. SHIPPED unsupported in AFT v1 (refused at creation, as
    probit does): a weighted truncated-latent draw is not a coherent

@@ -60,7 +60,7 @@ coupling return false, the latter because its response is an n x K count matrix
 that no flat conduit can carry, so its refusal names the counts channel
 instead. There is no `family_ == gaussian` conjunct: `setResponse` passes
 `combinedFits()` rather than forest 0's bare totals, so a latent family
-refreshes its latents against the combined location. The one further clause is
+is handed the combined location and not one forest's. The one further clause is
 the scale clause: a response or offset swap is admitted only at
 `updateScale == FALSE`, which pins the response transform the per-forest leaf
 calibrations are stated against. The test is `updateScale != FALSE`, so NA
@@ -108,6 +108,14 @@ any tree would empty, and the per-observation session's cell guard caches
 every forest pruned to the trees the column can move. So `setPredictor`,
 whole-matrix and column-granular and per-observation, is open at every sampler
 shape.
+
+**What a mutation does to the latents.** A sweep draws its augmentation variables first, after
+whatever the driver wrote between sweeps ([latents-first](latents-first.md)), and the mutations draw none: each stores what it
+is given and the next sweep draws the latents against it. The driver's outer step is exact whether it
+reads the latents through `getLatents` or integrates them out, and `getLatents` between a mutation and
+the next run returns the values from before it (a new data object starts them as creation does, and an
+aft response leaves a censored row at its new bound). A stored state's latents serve `getLatents` only;
+a restore draws none.
 
 ## The mutation-legality table
 

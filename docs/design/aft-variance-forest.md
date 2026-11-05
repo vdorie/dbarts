@@ -40,15 +40,15 @@ per-observation sd is the exact conditional. Given the latents the augmented log
 gaussian data and the variance forest backfits against e_i = y_i - f(x_i) as under gaussian
 ([`Chain::sweepVarianceForest`](../../src/bartcore/chain.hpp)), its conjugacy assuming nothing about the provenance of y. The
 mean forest sees w_i / s^2(x_i) ([`Chain::formMeanWeights`](../../src/bartcore/chain.hpp)), aft's free channel supplying 1 or
-the mask, and [`Chain::run`](../../src/bartcore/chain.hpp) already orders the blocks so: mean weights, mean forest,
-`refreshLatents`, no sigma draw, variance forest.
+the mask, and [`Chain::run`](../../src/bartcore/chain.hpp) orders the blocks so: `refreshLatents`
+(against the variance surface the previous sweep drew, [latents-first](latents-first.md)), mean weights, mean forest, no sigma draw, variance forest.
 
 ## 3. Engine interface for the per-observation variance
 
 [`Chain::buildVarianceForest`](../../src/bartcore/chain.hpp) pins the scalar sigma at 1 on the working scale, leaving
 [`VarianceForest::combinedVariance`](../../src/bartcore/chain.hpp) the residual variance there. `AFTResponse` reads a scalar
 sigma in three places - [`AFTResponse::refreshLatents`](../../src/bartcore/model.hpp),
-[`AFTResponse::computeLogLikelihood`](../../src/bartcore/model.hpp) and [`AFTResponse::setResponse`](../../src/bartcore/model.hpp), which redraws the
+[`AFTResponse::computeLogLikelihood`](../../src/bartcore/model.hpp) and [`AFTResponse::setResponse`](../../src/bartcore/model.hpp), which (until 2026-11-05) redrew the
 latents itself - all needing the vector.
 
 **A, a parameter:** `const double* variance`, null when homoscedastic, on those three virtuals -

@@ -125,14 +125,15 @@ cutpoint at a time, plain random-walk proposal with out-of-bounds rejection,
 fixed count-derived proposal scale.
 
 **Draw order (decided): cutpoints, then latents.** The response family's
-refreshLatents fires once per sweep after every tree updates, with the current
-totalFits ([`run`](../../src/bartcore/chain.hpp)). Ordinal splits it into (1) a marginal Metropolis
+refreshLatents fires once per sweep, first, before the trees, against the
+combined fits the previous sweep left ([`run`](../../src/bartcore/chain.hpp); the order is
+[latents-first](latents-first.md)). Ordinal splits it into (1) a marginal Metropolis
 update of the free cutpoints against eta = totalFits + offset, with the latents
 integrated out (the Phi-difference likelihood of section 1), then (2) a fresh
 draw of z_i from the doubly-truncated N(eta_i, 1) on (gamma_{y_i-1}, gamma_{y_i}]
 under the new cutpoints, then rebuildWorking. The order matters: the cutpoint
 move must NOT condition on the current z (that is precisely the Albert-Chib
-pathology below); drawing z afterward hands the tree stage a working response
+pathology below); drawing z afterward hands the tree stage, which follows, a working response
 consistent with the accepted cutpoints. At K = 2 step (1) is empty and step (2)
 is probit's one-sided draw, so the convention degenerates to probit exactly.
 
@@ -415,15 +416,14 @@ restoreLatents rebuilds working from z. Choosing the count-derived FIXED
 proposal scale (section 3) means nothing else serializes; an adaptive scale
 would add a second scalar-vector block.
 
-**setResponse / setData cold-init.** setResponse (same n, new y - the embedded-
-Gibbs swap): KEEP the current cutpoints (a slow-moving global parameter the outer
-sampler wants persisted across a small y perturbation) and re-draw z from the
-current fits under the new y's intervals - probit's minimal-disruption re-draw
-([`setData`](../../src/bartcore/model.hpp)), plus leaving gamma alone. setData (n
-changes, everything stale): cold-init the cutpoints to the default prior
-spacing AND re-draw z from scratch, matching probit/TResponse cold-init on a
-data swap ([`setData`](../../src/bartcore/model.hpp), [`TResponse`](../../src/bartcore/model.hpp)). State this rule in
-the class doc as the probit convention plus a kept-cutpoint clause.
+**setResponse / setData.** Neither draws z; the next sweep does (amended 2026-11-05, [latents-first](latents-first.md)).
+setResponse (same n, new y - the embedded-Gibbs swap): KEEP the current cutpoints (a slow-moving
+global parameter the outer sampler wants persisted across a small y perturbation), recompute the
+per-cutpoint scales, and leave z as it was; the next sweep draws it from the current fits under the
+new y's intervals. setData (n may change): start z as a new sampler does, and KEEP the drawn
+cutpoints as setResponse does - a sampler refuses data whose categories differ from those it was
+created with, so there is no count to restart them for - so a caller swapping data every sweep does not hold the cutpoints at their
+default spacing. State this rule in the class doc as the probit convention plus a kept-cutpoint clause.
 
 **setSigma / weights.** sigma is fixed at 1 (scheme A), so sigmaIsFixed_ is true
 and the sigma prior/setSigmaPrior is a no-op, as for probit. Weights are

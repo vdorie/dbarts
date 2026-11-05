@@ -208,11 +208,10 @@ the floor's input; a state at or past the floor loads, only a genuinely older
 encoding is refused. Pre-1.0 states are not a compat target and cannot even
 structurally reach the by-name reader (they lack the forests block).
 The rule governs the TOP-LEVEL ATTRIBUTES on the same terms - they are read
-by name too, and an unknown one is ignored - so `weights.digest` (2026-08-24,
-weighted-logistic.md) and `weights.zero` (2026-10-06, the same document; on
-Student-t states only) are additive additions that move neither the
-version nor the floor: a state lacking either restores exactly as it did
-before that attribute existed.
+by name too, and an unknown one is ignored - so a state may carry an attribute this version does not read: `weights.digest` (2026-08-24,
+weighted-logistic.md), `weights.zero` (2026-10-06, the same document) and `survival.digest`
+(aft-status-setter.md) were additive attributes that moved neither the version nor the floor, and
+are no longer written; a state that carries any of them loads and the attribute is ignored.
 
 Landed (2026-07-04): reporting format for categorical rules in
 `getTrees`/`plotTree`. The flat format stores the direction mask as a

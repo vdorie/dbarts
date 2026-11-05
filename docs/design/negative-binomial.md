@@ -531,7 +531,8 @@ true (per-sweep omega), dropping the sufficient-statistic caches each sweep
 ([`Chain::run`](../../src/bartcore/chain.hpp)), the logistic behavior.
 
 **refreshLatents order - r FIRST, then omega (the invariance requirement).**
-Per sweep: (1) update r from its full conditional given the log means
+The pair is drawn at the start of each sweep, ahead of the trees ([latents-first](latents-first.md)); the cycle of blocks is the
+same, begun at block 2. Per sweep: (1) update r from its full conditional given the log means
 (section 2A), COLLAPSED over omega: it conditions on (y, f) only and never reads
 the omega draws; (2) draw omega_i ~ PG(y_i + r_new, psi_i) at the NEW r, with
 psi_i = f_i + a_i at the new log r; (3) rebuild the working response with r_new.
@@ -550,15 +551,16 @@ exact-posterior gate (section 6), which runs the full composed sweep against an
 augmentation-free reference, is the gate that would. sigma is ignored (fixed
 at 1) in all three steps.
 
-**setResponse / setData cold-init.** setResponse (same n, new y - the embedded-
+**setResponse / setData.** Neither draws omega; the next sweep does (amended 2026-11-05, [latents-first](latents-first.md)).
+setResponse (same n, new y - the embedded-
 Gibbs count swap): KEEP the current r (a slow-moving global the outer sampler
 wants persisted across a small y perturbation - the ordinal kept-cutpoints
 clause), RECOMPUTE the grid kernel L_k (it derives from the count histogram,
 which the new y changes - the ordinal computeScales-on-setResponse precedent,
-[`OrdinalResponse::setResponse`](../../src/bartcore/model.hpp)), and re-draw omega under the new y, rebuild working. setData
-(n changes, everything stale): cold-init r to the grid median (the
-ResidualDfPrior medianIndex convention, [`ResidualDfPrior`](../../src/bartcore/model.hpp); or the user's fixed
-value), rebuild the kernel, and cold-start omega at its PG(y+r, 0) mean
+[`OrdinalResponse::setResponse`](../../src/bartcore/model.hpp)), and rebuild working from the omega in force. setData
+(n may change): start omega as a new sampler does and KEEP r, rebuilding the kernel
+(the shape is drawn with omega integrated out, so a kept r is a valid state under any data);
+a new fixed shape through setModel keeps omega too and rebuilds working under it. A new sampler starts omega at its PG(y+r, 0) mean
 (y_i + r)/4 - the LogisticResponse coldStart generalization
 ([`LogisticResponse::coldStart`](../../src/bartcore/model.hpp), which uses w/4) - so the working response starts deterministic and
 the first sweep's draw replaces it; setData recomputes c, setResponse and

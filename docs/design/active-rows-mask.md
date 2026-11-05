@@ -123,37 +123,21 @@ on the shape `(nu + 1) / 2` and not on the mask, so lambda is drawn at every
 row and the mask annihilates it through the composite instead, at no cost to
 the generator ([`TResponse::refreshLatents`](../../src/bartcore/model.hpp)).
 
-A stale latent must not come back into the likelihood. A sweep moves its trees
-first and refreshes latents after, so a row switched back in would otherwise
-enter the next tree update with the latent it left on, drawn against an older
-fit. `setActiveRows` therefore redraws the latent of every row it switches
-from inactive to active, from the row's conditional given the current fit,
-off the chain's own generator and before it returns
-([`ResponseModel::setActiveRows`](../../src/bartcore/model.hpp),
-[`Chain::setActiveRows`](../../src/bartcore/chain.hpp)): probit and ordinal
-redraw z on its interval, logistic and negative binomial omega at the current
-count and shape, AFT a censored log-time above its bound. Student-t redraws
-lambda: its per-sweep draw runs at every row, so an inactive row's lambda is
-never old, but it was drawn before the sigma and nu updates that followed it
-and, at a zero weight, without the row's residual. For Student-t "back in"
-therefore means back into the likelihood by either channel - the mask
-switching the row on or `setWeights` taking its weight off zero - and the row
-is redrawn when its composed weight `w_i a_i` turns positive, not before; the
-response keeps its own record of which rows are in, the weights being
-borrowed ([`TResponse::setWeights`](../../src/bartcore/model.hpp)). A state
-names the rows that were at weight zero when it was stored, and not the rows
-its mask had out. Installed under other weights, it has that record set from
-the named rows, so the reconciliation after the install redraws lambda at
-exactly the rows that enter the likelihood, as the same `setWeights` call
-would; a state stored before it named them redraws lambda at every row in
-the likelihood ([`TResponse::reapplyWeights`](../../src/bartcore/model.hpp),
-[A Student-t state names its zero-weight rows (amended 2026-10-06)](weighted-logistic.md#a-student-t-state-names-its-zero-weight-rows-amended-2026-10-06)).
-A state installed under its own weights draws nothing. A host that draws the mask from the fit with the latents integrated
-out thereby draws mask and latents jointly. A row that stays active keeps its
-latent, which is a valid step and not an economy: redrawing it would also be
-valid and would consume variates a fixed mask never asks for. A mask that
-reactivates no row - the first install, the mask already in force, one that
-only switches rows off - draws nothing. Multinomial needs no redraw: its
+A stale latent must not come back into the likelihood. A sweep draws its latents
+first and moves its trees after ([latents-first](latents-first.md)), so a row switched back in enters the next tree update with a latent
+drawn against the fit as that sweep finds it, not the one it left on. (Amended 2026-11-05: until then
+a sweep moved its trees first, and `setActiveRows` itself redrew the row's latent, off the chain's own
+generator, before it returned.) `setActiveRows` stores the mask and draws nothing; the next sweep
+draws every active row's latent from its conditional given the current fit: probit and ordinal z on its interval, logistic and negative
+binomial omega at the current count and shape, AFT a censored log-time above its bound. Student-t draws
+lambda at every row every sweep, an inactive row's lambda included, the mask annihilating it through the composite
+instead; for Student-t "back in" means back into the likelihood by either channel, the mask
+switching the row on or `setWeights` taking its weight off zero, and the response keeps its own record of which rows are in, the weights being
+borrowed ([`TResponse::setWeights`](../../src/bartcore/model.hpp)). A state records neither the mask nor
+the weights. A host that draws the mask from the fit with the latents integrated
+out thereby draws mask and latents jointly, the latents under the new mask at the next sweep. A row that stays active is drawn again
+with the rest. A mask that reactivates no row - the first install, the mask already in force, one that
+only switches rows off - changes nothing the next sweep draws from. Multinomial needs no redraw: its
 Polya-Gamma variates are per-sweep scratch, each category's column drawn
 against the current margins immediately before that forest reads it
 ([`MultinomialForestCombiner::setActiveRows`](../../src/bartcore/combiner.hpp)).
@@ -193,7 +177,7 @@ pass over the rows ([`NBResponse::setActiveRows`](../../src/bartcore/model.hpp),
 [`NBShapePrior::computeKernel`](../../src/bartcore/model.hpp)).
 
 AFT composes into its contained gaussian, inheriting that recount, and skips an
-inactive censored row's log-time redraw; the response transform stays
+inactive censored row's log-time draw; the response transform stays
 creation's, which was taken over the rows in the likelihood then, every row when
 none was out ([`AFTResponse::setActiveRows`](../../src/bartcore/model.hpp)).
 
@@ -297,18 +281,11 @@ weights, the degrees-of-freedom recount included
 ([`testActiveRowsGaussianDf`](../../tests/cpp/test_model.cpp),
 [`testActiveRowsStudentComposite`](../../tests/cpp/test_model.cpp)).
 
-The reactivation redraw, per family, against the conditional drawn from a
-generator cloned ahead of the call - bitwise in value and in variates
-consumed, every other row's latent untouched, and nothing drawn by a first
-install or by the mask in force
-([`testReactivatedLatents`](../../tests/cpp/test_model.cpp), which runs
-Student-t through the mask and through its weights;
-["redraws the latent of every row it switches from inactive to"](../../inst/tinytest/test-active-rows-reactivation.R),
-which also tests the redrawn Student-t scale against its conditional); the
-location the chain hands the redraw, on a two-forest probit with an offset
-([`testMembershipAcrossForests`](../../tests/cpp/test_sampler.cpp)); and the
-combined sampler against the exact joint, whose probit arm fails without the
-redraw (`benchmarks/R/mask-redraw-exact.R`).
+The reactivation draw, per family: the next sweep draws each switched-in row's latent from its
+conditional given the fit, the draw every row's latent gets, so the order tests of
+[latents-first](latents-first.md) cover it; the combined sampler against the exact joint, whose probit arm fails if
+a switched-in row keeps a stale latent (`benchmarks/R/mask-redraw-exact.R`); and the location the chain hands the draw, on a two-forest probit
+with an offset ([`testMembershipAcrossForests`](../../tests/cpp/test_sampler.cpp)).
 
 At sampler level: the normalizer, the value refusal, the all-zeros run and a
 gaussian arm against `setWeights(w * a)`

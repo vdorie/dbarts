@@ -255,8 +255,9 @@ and in posterior standard deviations:
 - Zero case weights redrawn every sweep in place of the mask behave as the
   mask does under either rule, and a fixed mask or weight vector is sampled
   exactly under either rule's own target.
-- A probit response needs one thing more, the redraw of a reactivated row's
-  latent ([The mechanism](active-rows-mask.md#the-mechanism)): counting
+- A probit response needs one thing more, a latent drawn for a reactivated row
+  against the current fit, which each sweep's first draw gives it
+  ([The mechanism](active-rows-mask.md#the-mechanism)): counting
   members but keeping stale latents is off by 0.004 in membership and 0.055
   in the fit, with it by 0.0001 and 0.0005.
 - At 300 rows, three predictors and 50 trees, the mask redrawn with
@@ -426,7 +427,7 @@ moved only `maskprobit` and `maskordinal` (0.48 and 0.65).
   its three arms miss the exact joint by 83 to 163 standard errors in quick
   mode (membership by 0.065, 0.208 and 0.058; the fit by 0.19, 0.67 and 0.45);
   after it every one of 44 statistics is within 2.3. With the change but
-  without the latent redraw the gaussian and factor arms pass and the probit
+  without the latent draw the gaussian and factor arms pass and the probit
   arm fails, membership off by 0.004 at 12 standard errors and the fit by
   0.057 at 28.
 - Oracle for a fixed vector: `benchmarks/R/bd-balance.R zeroweight` - the

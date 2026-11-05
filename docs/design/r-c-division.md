@@ -428,13 +428,12 @@ does.
 `enforceBinaryWeightPolicy` states the admissible values once, at
 creation and on both mutation conduits, so the R bridge and the flat C
 entry cannot disagree, and `setData` hands the replacement counts through
-the SAME conduit, so its latents are drawn rather than cold-started;
-replacement data given without weights is single-trial, as at creation.
-CLOSED since: weights still do not ride the saved state, but a digest of
-them does, so `setState` sees a count vector other than the one the stored
-omega was shaped by and re-derives the latents through this same conduit.
-The state seam now agrees with the live seam on the operation both serve;
-a matched round trip re-derives nothing and stays the identity.
+the SAME conduit, so the next sweep draws its latents against the counts the data carry (the latents
+start as a new sampler's, the data's number of rows possibly differing); replacement data given
+without weights is single-trial, as at creation. Weights do not ride the saved state and a state
+records nothing of them: it installs the latents its trees were drawn from and the next sweep draws
+them against the counts in force, so the state seam agrees with the live seam with nothing to
+reconcile (latents-first.md).
 
 ## Honest limits
 
