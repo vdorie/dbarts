@@ -1,6 +1,7 @@
 # Frequency weights and the binomial response
 
-Status: DECIDED 2026-11-03, design note before the plan. Rulings, in docs/decisions.md: dec-B125 (frequency
+Status: DECIDED 2026-11-03, design note before the plan; Calls made 5 and the state and hurdle rows of What moves
+amended 2026-11-05 for dec-B586 and dec-B588. Rulings, in docs/decisions.md: dec-B125 (frequency
 weights join precision weights by explicit choice; precision stays the default), dec-A11 (under precision weights
 sigma's degrees of freedom count only positive-weight rows), dec-B120 (the comparison against 0.9-34 is a release
 gate), and the note's own rulings dec-B563 to dec-B570, dec-B573, dec-B574 and dec-B580, each cited where it applies. The
@@ -117,7 +118,7 @@ margins read the likelihood and take the power. At the cap of dec-B202 a sweep i
 draw, 0.16 s a sweep for one row of a million and 16 s for 100 such rows, and 5.2 s a sweep for 100
 multinomial rows of 100,000 trials over three categories. Real w there waits on a real-shape draw, dated after
 1.0-0 on 2026-08-28 and now inside the approximate-draw research (dec-B567). hurdle.lognormal's weights stay
-with its feature completion (dec-A15).
+with its feature completion (dec-A15), which takes 0 and 1 on both parts (dec-B588).
 
 Student-t's derivation. For w copies the copies' mixing scales are iid Gamma((nu + 1) / 2, (nu + r^2 / sigma^2)
 / 2) given the residual, and the gaussian part reads only their sum Lambda_i, Gamma(w (nu + 1) / 2, same rate),
@@ -261,9 +262,11 @@ and the predictive and log-likelihood code reads n.
 4. The reading is model: held on the model record, fixed at creation, and a setModel that changes it is
    refused. A fit object saved before it reads the family's own reading. Alternative: on the data object, where
    setWeights or setData could change the model.
-5. A saved state's weights digest covers the reading, so a state installed into a sampler of the other reading
-   redraws the latents a weight change redraws ([`TResponse::reapplyWeights`](../../src/bartcore/model.hpp));
-   gaussian and heteroscedastic states carry none. Alternative: refuse such an install.
+5. A saved state carries no reading. As first written, a state's weights digest covered the reading so that a state
+   installed into a sampler of the other reading redrew the latents a weight change redraws
+   ([`TResponse::reapplyWeights`](../../src/bartcore/model.hpp)); under dec-B586 every sweep draws its augmentation
+   variables first, the digest and those redraws retire (docs/plans/latents-first.md), and a state continues under
+   the reading of the sampler it is installed into. Alternative: refuse such an install.
 6. A row of frequency weight 0 reports NaN in the pointwise log-likelihood
    ([`pointwiseLogLikelihood`](../../R/generics.R)), as dec-B570 states. Alternative: 0, which loo would count as
    an observation.
@@ -334,11 +337,12 @@ On a fit that chooses frequency, or a count family whose own reading is counts; 
 | response range; the default cut rule's grid | positive rows; every row | unchanged |
 | leaf covariate standardization, forest default sd | unweighted | weighted by w |
 | the quantile cut rule's grid | unique values | unchanged |
-| state, copy, reload | digest of weights | digest of weights and reading |
+| state, copy, reload | no digest (dec-B586) | no digest; the destination's reading |
 | logistic, hazard.logistic | | counts as before; 0 taken (dec-B570); training draw Bernoulli(p) (dec-B566) |
 | nbinom, multinomial | 0/1 mask; all ones | whole counts, shape times w; training draw one observation |
 | probit, ordinal | 0/1 mask, cleared from the data object | 0/1 kept on the data object (dec-B569) |
-| hazard and hazard.probit, aft, hurdle.lognormal | as before | as before |
+| hazard and hazard.probit, aft | as before | as before |
+| hurdle.lognormal | 0 and 1 on both parts (dec-B588) | the same; "precision" refused |
 
 Consumers, read without editing: stan4bart passes its weights to the BART part and reads them as precisions in
 its own Stan target, so it is unaffected at the default; its predict(newdata, type = "ppd") ignores weights
@@ -360,8 +364,7 @@ today except the count families' training predictive draws (dec-B566).
 
 ## Slices a plan would take
 
-1. Engine, gaussian-type: the reading flag and per-row count, sigma's df, the variance leaf, Student-t, the
-   state digest; C++ tests against the expanded data and the w = 1 identity. About 250 lines, 250 of tests.
+1. Engine, gaussian-type: the reading flag and per-row count, sigma's df, the variance leaf, Student-t; C++ tests against the expanded data and the w = 1 identity. About 250 lines, 250 of tests.
 2. Engine, Polya-Gamma: nbinom's and multinomial's shapes times w, the shape grid and softmax margins under the
    power, the cap on the product. About 150 lines, 200 of tests.
 3. R and bridge: weights.type, the model record, the refusals, sigest and the read-off quantities, the
