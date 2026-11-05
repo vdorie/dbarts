@@ -118,12 +118,11 @@ control with the new status and a state from before it. So restore the censored 
 has no business overwriting. The RESTORE CONTRACT holds (a write plus a working rebuild reading neither sigma nor the
 surface), and section 3's reconstruction becomes valid everywhere.
 
-**A status handshake (retired 2026-11-05 by [latents-first](latents-first.md): the digest, its comparison and the reapply are gone, the next sweep drawing the censored rows against the status in force; a state carrying the attribute loads and it is ignored). The shape it had, the weights.digest shape.** `bartcore_storeState` writes a `survival.digest` attribute beside
-["weights.digest"](../../src/R_interface_bartcore.cpp): top level, the status fanning to every chain; eight raw bytes;
-ABSENT is not a mismatch. `bartcore_setState` compares it against the destination's live digest, which `AFTResponse` derives
-from `censoredIndices_` with no status vector stored, and on a difference reapplies the structure: bounds rebuilt from the
-reconstruction, the censored set redrawn off each chain's own restored generator. That is `reapplyWeights`'s
-reconciliation: silent, deterministic, a measured no-op for a family carrying no status.
+**No status handshake (amended 2026-11-05, [latents-first](latents-first.md)).** A `survival.digest` attribute once
+let `setState` find a status other than the one the state was stored under and redraw the censored set off each chain's
+restored generator. It is retired: a state carries no status and no digest of it, `setState` installs the latents the stored
+trees were drawn from and draws none, and the next sweep draws every censored row above its bound under the status in force.
+A state that still carries the attribute loads and it is ignored.
 
 The mirror onto `attr(control, "bartcore.survival")` stays, being what re-creation reads: `getPointer` rebuilds from the
 stored triple, so the re-created sampler takes the CURRENT status, as `data@y` and `data@counts` do. The handle has no
