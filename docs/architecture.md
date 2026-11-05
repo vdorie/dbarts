@@ -364,7 +364,9 @@ calls `run` on the `SamplerBase` it holds; the facade forwards to
    fits, propose one move with `metropolisJumpForTree` and accept or reject
    it, then draw the tree's leaf values and write its fits
    (`sampleParametersAndSetFits`). A multi-forest chain asks the combiner for
-   this forest's own response and precisions first. Rebuild the forest's
+   this forest's own response and precisions first. A multinomial sampler's
+   per-forest omega and a coupled forest's per-forest glue draw sit inside
+   this loop, not at step 2. Rebuild the forest's
    `totalFits` once the tree loop ends (`finalizeTotalFits`).
 7. Where sigma is a free parameter, draw it (`drawSigma`), against the
    combined fits formed again after the trees.
@@ -372,8 +374,7 @@ calls `run` on the `SamplerBase` it holds; the facade forwards to
    forest against the mean residual (`sweepVarianceForest`); draw each
    forest's `k` and, under DART, its split weights.
 9. Record the sample if this iteration is a kept one, and call the per-draw
-   callback; the latents it sees are the ones this sweep's trees were drawn
-   from.
+   callback.
 
 Every draw there reads the chain's own generator. Two optional host hooks
 run inside the loop, a per-sweep hook before each iteration (step 1) and a per-draw
@@ -591,8 +592,9 @@ move work into per-sweep callbacks, for example to keep memory down.
 `dbarts_sampler_setDrawCallback` in the C API or passed from R as the
 `callback` argument of `bart` and the sampler's `run`. It fires once per kept
 draw, on the thread running that chain - a worker thread when chains run in
-parallel - and sees everything recorded for that draw, the latents among them as this
-sweep's trees were drawn from them. A nonzero return
+parallel - and sees everything recorded for that draw; `dbarts_draw` carries no latents,
+and a callback that reads them with `dbarts_sampler_getLatents` is safe only
+on an inline run, where it sees this sweep's. A nonzero return
 stops the run (docs/design/per-draw-callbacks.md).
 
 **Errors.** The engine reports every error as a C++ exception. Each bridge
