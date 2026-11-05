@@ -277,7 +277,8 @@ to ~1-2 per block.
 
 The sigma draw's SSR ([`ChiSquaredScalePrior::drawSigmaSqFromPosterior`](../../src/bartcore/model.hpp), misc_computeSumOfSquaredResiduals over the
 full residual) and the latent refresh (refreshLatents) are OUTSIDE the block
-machinery: they run once per sweep after all blocks, over the correct
+machinery: the sigma draw runs once per sweep after all blocks and the latent refresh once per sweep before them
+([The order](latents-first.md#the-order)), over the correct
 per-observation residual materialized at block exits. They are unchanged and
 remain O(n) once/sweep (already ~1/m the suffstat frequency; not a target).
 
@@ -446,7 +447,7 @@ forest. Generalization order, template = the U'WU cache:
   weights vary per sweep (workingWeightsVaryPerSweep, [`Chain::run`](../../src/bartcore/chain.hpp)) force a
   g/A rebuild each sweep, which the block already does at entry.
 - PROBIT / LOGISTIC latents: the latent refresh (refreshLatents) rewrites y (and
-  weights) once per sweep, OUTSIDE the blocks. The block just rebuilds g at entry
+  weights) once per sweep, ahead of the blocks and OUTSIDE them. The block just rebuilds g at entry
   from the current working response -- no special handling; v1 covers binary BART.
 - BCF: each forest sub-sweeps its own residual
   (formForestResponse, [`Chain::run`](../../src/bartcore/chain.hpp)); blocks are per-forest, g uses the

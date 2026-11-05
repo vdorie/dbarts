@@ -411,9 +411,10 @@ LANDED d0701a6a (2026-08-24), logistic build. A swap replaces omega (the
 count is the PG SHAPE, so a stale one is a WRONG draw, not an old one), the
 working response, the masked composite, and the borrowed weight pointer -
 the last making the family override mandatory, since the bridge frees the
-previous vector as it retains the new one. The refresh is IMMEDIATE: a sweep
-draws its TREES first and refreshes after, so an outer sampler at run(0, 1)
-per iteration would otherwise move every tree under the previous counts.
+previous vector as it retains the new one. The refresh was IMMEDIATE (amended 2026-11-05, [The order](latents-first.md#the-order)): a sweep then drew its TREES first and refreshed
+after, so an outer sampler at run(0, 1) per iteration would otherwise have moved every tree under the previous counts.
+Now a swap stores the counts and the next sweep draws the latents first, against them, so the immediate refresh
+and the cold start of inactive rows below are gone.
 It draws from the CHAIN generators in a serial per-chain
 fan-out, so consumption is independent of n.threads and R's stream never
 moves. Under a mask only ACTIVE rows are drawn for - variates for an

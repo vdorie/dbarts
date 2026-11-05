@@ -72,10 +72,10 @@ is a memcpy plus a working rebuild reading neither sigma nor surface. Keep `rest
 surface-free, or move the rebuild ahead of it.
 
 Call sites: `Chain::run`'s `refreshLatents`, [`Chain::growForestFromRoot`](../../src/bartcore/chain.hpp)'s,
-[`Chain::setResponse`](../../src/bartcore/chain.hpp) through `AFTResponse::setResponse`'s redraw, and
+[`Chain::setResponse`](../../src/bartcore/chain.hpp) through `AFTResponse::setResponse`'s redraw (gone 2026-11-05, [The order](latents-first.md#the-order): the setters draw nothing), and
 [`Chain::storeSample`](../../src/bartcore/chain.hpp)'s `computeLogLikelihood`; A must also edit
 [`LogisticResponse::setWeights`](../../src/bartcore/model.hpp), a fifth `refreshLatents` caller outside any `setResponse`
-body. LANDING NOTE: a new `ResponseModel` virtual is a full-recompile hazard - `--preclean`, or
+body (since 2026-11-05 it is not a caller: no setter draws). LANDING NOTE: a new `ResponseModel` virtual is a full-recompile hazard - `--preclean`, or
 stale objects bus-error.
 
 FINDING, independent of this proposal and load-bearing for it.

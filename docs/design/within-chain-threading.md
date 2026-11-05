@@ -76,7 +76,7 @@ lives INSIDE each pass, not across trees. Per tree t, in order:
   the SCATTER PARALLELIZES (writes only, no reduction ordering to preserve --
   partition leaves/blocks across threads).
 
-Once per sweep, after the tree loop:
+Once per sweep, after the tree loop (the latent refresh now opens the sweep instead, [The order](latents-first.md#the-order)):
 
 - TOTALFITS REBUILD ([`finalizeTotalFits`](../../src/bartcore/chain.hpp)). O(n) streaming. PARALLELIZE.
 - SIGMA DRAW (drawSigma, [`drawSigma`](../../src/bartcore/chain.hpp)). An O(n) SSR reduction (fixed-block scheme) plus
@@ -232,7 +232,7 @@ numWorkers = min(numThreads, numChains) raw std::thread workers. Two cases:
 ## 5. Latent refresh: deferred
 
 refreshLatents ([`refreshLatents`](../../src/bartcore/chain.hpp)) rewrites the working response (and, for logistic,
-the Polya-Gamma weights) once per sweep. It is embarrassingly parallel over
+the Polya-Gamma weights) once per sweep, at the start of the sweep before the tree loop ([The order](latents-first.md#the-order)). It is embarrassingly parallel over
 observations but RNG-CONSUMING: each observation draws from the chain's single
 RNG stream in obs order. Parallelizing it without breaking thread-count
 invariance requires per-block RNG SUBSTREAMS -- each fixed block seeded
