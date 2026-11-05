@@ -273,6 +273,14 @@ the row's own value. A value is therefore the (weighted) row mean of
 [`predict`](https://vdorie.github.io/dbarts/reference/bartBT.md)`(fit, rows, type = type)`
 with the variable set.
 
+On a hurdle fit the rows averaged over leave out the rows the fit gave a
+weight of 0, and each part adds its own offset: the zero part's to
+`"prob"`, the positive part's to `"bart"`, and both to `"ev"` and
+`"ppd"`. A part's offset, a plain one entering the positive part, is
+evaluated on the rows as `predict` evaluates it; one given as a plain
+vector cannot be evaluated on `newdata` of another length, and the
+refusal names the part.
+
 In `pd2bart`, when the fit has two predictors and one offset for every
 row, each grid point is a single row and is predicted once; `newdata`
 then gives only the default grid, and `n.average.rows` and
