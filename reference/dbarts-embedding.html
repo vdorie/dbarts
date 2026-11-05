@@ -82,6 +82,28 @@
 </div>
 
 <p></p><div class="section">
+<h3 id="when-the-augmentation-variables-are-drawn">When the augmentation variables are drawn<a class="anchor" aria-label="anchor" href="#when-the-augmentation-variables-are-drawn"></a></h3>
+<p>A sampler whose family augments its likelihood (the <code>probit</code> and <code>ordinal</code>
+    latents, the Polya-Gamma precisions of <code>logistic</code>, <code>binomial</code> and <code>nbinom</code>,
+    the Student-t scales, an <code>aft</code> sampler's imputed times) draws those values at the start of
+    each sweep, against the fit the previous sweep left and the inputs in force, and then draws
+    its trees against them. A sweep therefore runs in this order: the augmentation variables, then
+    the trees, then sigma and the other parameters. No setter draws them: <code>$setResponse</code>,
+    <code>$setOffset</code>, <code>$setPredictor</code>, <code>$setSigma</code>, <code>$setWeights</code>,
+    <code>$setActiveRows</code>, <code>$setForestBasis</code>, <code>$setData</code>, <code>$setModel</code> and
+    <code>$setState</code> store what they are given, and the next sweep draws the latents against the
+    change.</p>
+<p>Two kinds of outer step are both exact under this order. One conditions on the latent: it
+    runs the sampler, reads <code>$getLatents()</code>, and draws its own quantity given those values.
+    The other integrates the latent out, scoring a proposal with the probit likelihood
+    <code>pnorm(f)</code> of the response, say, and then installing what it accepted; the next sweep
+    draws the latents under the accepted values, so the trees never fit a latent drawn before the
+    change. The order is also what makes a setter call and a restore undo each other exactly:
+    <code>$setWeights</code> with the old weights and <code>$setState</code> with the stored state, in either
+    order, leave the sampler continuing bit for bit as one that installed the stored state under the old weights would.</p>
+</div>
+
+<p></p><div class="section">
 <h3 id="which-fit-to-read-back">Which fit to read back<a class="anchor" aria-label="anchor" href="#which-fit-to-read-back"></a></h3>
 <p>Six methods report a fitted quantity and no two report the same one; the table in
     ‘Reading the fit’, <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>, is authoritative.
@@ -92,6 +114,12 @@
     for <code>"logistic"</code>, <code>"nbinom"</code> and a Student-t residual distribution is a precision
     rather than a location at all. Differencing the two is short by exactly the installed offset,
     which reaches the outer block as a coefficient shrunk toward zero rather than as an error.</p>
+<p><code>$getLatents()</code> returns the values the last sweep's trees were drawn from, so after a run
+    it and <code>$getFitsWithoutOffset()</code> are a joint draw, the latent being the value the fit was
+    drawn from. Between a setter and the next run it returns the values from before the setter
+    (<code>$setData</code> starts them as creation does, an ordinal or negative-binomial sampler from the kept cutpoints or shape, and an <code>aft</code> <code>$setResponse</code>
+    leaves a censored row at its new bound), not values drawn against the change; the next sweep
+    draws them afresh.</p>
 </div>
 
 <p></p><div class="section">

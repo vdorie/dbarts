@@ -61,6 +61,32 @@ rather than a limitation - `setSigma` on a family that fixes the
 residual scale by definition, a response swap that would re-anchor a
 calibration stated at creation - and each names its reason.
 
+### When the augmentation variables are drawn
+
+A sampler whose family augments its likelihood (the `probit` and
+`ordinal` latents, the Polya-Gamma precisions of `logistic`, `binomial`
+and `nbinom`, the Student-t scales, an `aft` sampler's imputed times)
+draws those values at the start of each sweep, against the fit the
+previous sweep left and the inputs in force, and then draws its trees
+against them. A sweep therefore runs in this order: the augmentation
+variables, then the trees, then sigma and the other parameters. No
+setter draws them: `$setResponse`, `$setOffset`, `$setPredictor`,
+`$setSigma`, `$setWeights`, `$setActiveRows`, `$setForestBasis`,
+`$setData`, `$setModel` and `$setState` store what they are given, and
+the next sweep draws the latents against the change.
+
+Two kinds of outer step are both exact under this order. One conditions
+on the latent: it runs the sampler, reads `$getLatents()`, and draws its
+own quantity given those values. The other integrates the latent out,
+scoring a proposal with the probit likelihood `pnorm(f)` of the
+response, say, and then installing what it accepted; the next sweep
+draws the latents under the accepted values, so the trees never fit a
+latent drawn before the change. The order is also what makes a setter
+call and a restore undo each other exactly: `$setWeights` with the old
+weights and `$setState` with the stored state, in either order, leave
+the sampler continuing bit for bit as one that installed the stored
+state under the old weights would.
+
 ### Which fit to read back
 
 Six methods report a fitted quantity and no two report the same one; the
@@ -75,6 +101,15 @@ Student-t residual distribution is a precision rather than a location at
 all. Differencing the two is short by exactly the installed offset,
 which reaches the outer block as a coefficient shrunk toward zero rather
 than as an error.
+
+`$getLatents()` returns the values the last sweep's trees were drawn
+from, so after a run it and `$getFitsWithoutOffset()` are a joint draw,
+the latent being the value the fit was drawn from. Between a setter and
+the next run it returns the values from before the setter (`$setData`
+starts them as creation does, an ordinal or negative-binomial sampler
+from the kept cutpoints or shape, and an `aft` `$setResponse` leaves a
+censored row at its new bound), not values drawn against the change; the
+next sweep draws them afresh.
 
 ### Whose prior is in force
 

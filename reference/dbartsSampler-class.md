@@ -318,7 +318,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   `setForest`, which changes one forest; so is a leaf scale other than
   the sampler's, and split probabilities other than equal ones. A
   variance forest stays as it is, whatever the model's record of it
-  says; `setVarianceForest` changes it.
+  says; `setVarianceForest` changes it. A new fixed negative-binomial
+  shape keeps the latents in force. This draws nothing; the next sweep
+  draws the augmentation variables against the change.
 
 - newData:
 
@@ -426,7 +428,14 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   points it is given, a saved draw holding its thresholds by value. Pass
   those two, or make a new sampler. A family with no response range
   (`probit`, `ordinal`, `logistic`) has none to change. One that holds
-  no saved draw takes any call as any other sampler does.
+  no saved draw takes any call as any other sampler does. The ordinal
+  cutpoints, the Student-t degrees of freedom and the negative-binomial
+  shape the sampler has drawn are kept, as are its trees, and the
+  latents start as creation starts them, the number of rows possibly
+  differing (an ordinal or negative-binomial sampler from the kept
+  cutpoints or shape); the next sweep draws them from the kept values.
+  This draws nothing; the next sweep draws the augmentation variables
+  against the change.
 
 - y:
 
@@ -442,7 +451,8 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   mid-chain, mark it inactive with `setActiveRows` and give it any value
   in the support, which enters no draw while the row stays inactive
   unless the call re-anchors the scale (`updateScale = TRUE`), which
-  reads the rows in the likelihood.
+  reads the rows in the likelihood. This draws nothing; the next sweep
+  draws the augmentation variables against the change.
 
 - status:
 
@@ -454,24 +464,24 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   force and is the call every other family makes; a non-null `status` on
   any other family is refused by name. The response and the status
   change in ONE call, and the status is installed first, so a row newly
-  censored is bounded at its own NEW observed log time and redrawn above
-  it against the current fit (the redraw `setResponse` performs for a
-  censored row in any case), while a row that becomes an event is
-  restored to that time - data, rather than a draw. A status-only change
-  is `setResponse(sampler$data@y, status = s)`. The number of
-  observations is fixed, the status being stated over it; `setData`,
-  whose replacement may change it, refuses an `aft` sampler and names
-  this channel instead. The vector is validated - real, of length \\n\\,
+  censored is bounded at its own NEW observed log time and held there
+  until the next sweep draws it above that bound against the fit then in
+  force, as `setResponse` leaves every censored row at its new bound,
+  while a row that becomes an event is restored to that time - data,
+  rather than a draw. A status-only change is
+  `setResponse(sampler$data@y, status = s)`. The number of observations
+  is fixed, the status being stated over it; `setData`, whose
+  replacement may change it, refuses an `aft` sampler and names this
+  channel instead. The vector is validated - real, of length \\n\\,
   every element exactly 0 or 1, `NA` refused - before anything installs,
   so a refused call leaves the sampler, `data@y` and the recorded status
   exactly as they were; it is written to the sampler's `control` only
   after the engine accepts it, so `getPointer`'s re-creation after save
   and load carries the current censoring rather than the one the sampler
   was created with. Under an installed mask (`active`) the response
-  install is mask-blind but the redraw is not, so this resets every
-  INACTIVE censored row's latent to its bound and leaves it there until
-  the mask clears; that is what `setResponse` does to such a row with or
-  without a status.
+  install is mask-blind but the sweep's draw is not, so an INACTIVE
+  censored row's latent stays at its bound until the mask clears; that
+  is what `setResponse` leaves such a row at with or without a status.
 
 - x:
 
@@ -503,7 +513,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   takes the period column, whole, as a column or row by row
   (`"partial"`), only unchanged, refusing any other values before
   anything moves: the column is the expansion of each subject's time at
-  risk, set with the response, and `setData` replaces it.
+  risk, set with the response, and `setData` replaces it. `setPredictor`
+  draws nothing: the next sweep draws the augmentation variables against
+  the accepted predictors.
 
 - x.test:
 
@@ -544,7 +556,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   `"1"`, ..., `"K"` when it has none): a permutation is reordered by
   name and other names are refused, except that a sampler without count
   column names reorders a permutation of its indices and ignores other
-  names. Unnamed columns stay positional.
+  names. Unnamed columns stay positional. `setOffset` draws nothing: the
+  next sweep draws the augmentation variables against the new offset, on
+  a logistic sampler as on every other family.
 
 - updateScale:
 
@@ -677,7 +691,8 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   model's fixed value, recorded on the `model` field, so a `copy` or a
   save and load keeps it; a write through the C API reaches the engine
   alone, and a sampler re-created after one holds the model's value
-  until the next write.
+  until the next write. This draws nothing; the next sweep draws the
+  augmentation variables against the change.
 
 - counts:
 
@@ -744,61 +759,38 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   redraws 0/1 weights or `active` every sweep from its own conditional
   samples the joint model it assumes, which it would not if the
   admissible trees moved with the weights. A Student-t sampler holds a
-  scale \\\lambda_i\\ per row, and `setWeights` redraws it for each row
-  whose weight leaves zero, from its conditional given the current fit
-  and from the sampler's own generators, as `setActiveRows` does for a
-  row it switches back in, unless the row is inactive under `active`,
-  when `setActiveRows` redraws it as the mask switches it back in; a
-  call that brings no row back draws nothing. A row whose weight moves
-  between two positive values keeps its scale, which is exact for an
-  outer sampler that draws the weight given that scale and not for one
-  that draws it with the scale integrated out. `setWeights` applies to
-  gaussian- and `logistic`-family samplers. A logistic swap is a model
-  change with a defined meaning rather than a reweighting: the counts
-  are the shape of the Polya-Gamma latents, which are redrawn against
-  the new counts before the call returns - from the sampler's own
-  generators, not R's stream - so an outer sampler can vary exposure
-  between runs. `probit`, `ordinal`, `aft` and `nbinom` refuse a
-  weighted likelihood by identification: a weighted probit has no
-  tractable latent-variable form, `ordinal` inherits that, `aft` fixes
-  its censoring structure at creation, and `nbinom`'s Polya-Gamma shape
-  is \\y_i + r\\ with no weight slot. On a `probit`, `ordinal` or
-  `nbinom` sampler a vector of 0s and 1s is accepted all the same: it
-  names the rows in the data set rather than a precision, so
-  `setWeights` routes it to `active` below - installing the mask,
-  all-ones clearing it - and leaves the data object's `weights` slot
-  empty; any other value keeps the refusal. `setData` carries the same
-  rule on the whole-data conduit, and redraws the latents against the
-  counts the replacement data carries; replacement data given without
-  weights is single-trial, as at creation, so a logistic sampler built
-  with counts and handed weightless data becomes an unweighted one.
-  Under an installed mask a swap redraws only the ACTIVE rows - an
-  inactive row consumes no random numbers and returns to its
-  deterministic cold start against the new count. The weights themselves
-  are not part of the saved `state`, but a digest of the ones in force
-  when it was stored is: `setState` compares it against the
-  destination's own weights and, where the two disagree, re-derives the
-  weight-dependent latents against the DESTINATION's - so a restore
-  lands where the same `setWeights` call would rather than pairing one
-  vector's latents with another's counts, silently and off the restored
-  generators. A matched round trip re-derives nothing and installs the
-  stored state unchanged. Two families move under it. `logistic` redraws
-  its Polya-Gamma latents. A Student-t state also records which rows
-  were at weight zero when it was stored, and a restore under other
-  weights redraws the scale of exactly the rows that enter the
-  likelihood, at weight zero then and positive now, as `setWeights` with
-  those weights would on a sampler holding the state under the weights
-  it was stored with: each chain from its own restored generator, in row
-  order. Every other row keeps its stored scale, and a restore between
-  weight vectors with the same zero rows draws nothing. An entering row
-  that is inactive under `active` waits for `setActiveRows`; on a copy
-  or a reload, where the mask is put back after the state, it is redrawn
-  at the install. A state that carries the digest and no such record, as
-  one stored before the record existed does, has the scale of every row
-  at positive weight and active redrawn instead (on a copy or a reload,
-  every row at positive weight, the mask being put back afterwards); a
-  state that carries no digest has none redrawn. For gaussian and every
-  weight-refusing family it is a no-op. See
+  scale \\\lambda_i\\ per row, which `setWeights` leaves as it is: the
+  next sweep draws every scale from its conditional given the fit and
+  the weights then in force, so an outer sampler that draws the weight
+  given the scales and one that draws it with the scales integrated out
+  are both exact. `setWeights` applies to gaussian- and
+  `logistic`-family samplers. A logistic swap is a model change with a
+  defined meaning rather than a reweighting: the counts are the shape of
+  the Polya-Gamma latents, which the next sweep draws against the new
+  counts, so an outer sampler can vary exposure between runs. `probit`,
+  `ordinal`, `aft` and `nbinom` refuse a weighted likelihood by
+  identification: a weighted probit has no tractable latent-variable
+  form, `ordinal` inherits that, `aft` fixes its censoring structure at
+  creation, and `nbinom`'s Polya-Gamma shape is \\y_i + r\\ with no
+  weight slot. On a `probit`, `ordinal` or `nbinom` sampler a vector of
+  0s and 1s is accepted all the same: it names the rows in the data set
+  rather than a precision, so `setWeights` routes it to `active` below -
+  installing the mask, all-ones clearing it - and leaves the data
+  object's `weights` slot empty; any other value keeps the refusal.
+  `setData` carries the same rule on the whole-data conduit, the next
+  sweep drawing the latents against the counts the replacement data
+  carries; replacement data given without weights is single-trial, as at
+  creation, so a logistic sampler built with counts and handed
+  weightless data becomes an unweighted one. The weights themselves are
+  not part of the saved `state`, and the state records nothing of them:
+  the latents it carries are the values its trees were drawn from, which
+  `setState` installs without drawing, and the next sweep draws them
+  against the weights then in force. A weight change is undone by
+  `setWeights` with the old weights and `setState` with the stored
+  state, in either order, the sampler then continuing bit for bit as one
+  that installed the stored state under the old weights would. This
+  draws nothing; the next sweep draws the augmentation variables against
+  the change. See
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for
   the family-specific weight rules that apply at creation time.
 
@@ -887,24 +879,18 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   composed weight (\\w_i \lambda_i a_i\\). For a skipping family,
   `getLatents` at an inactive row returns its LAST DRAWN value, which is
   stale; the correct read at an inactive row is its fit, not its latent.
-  A stale latent does not come back into the likelihood: `setActiveRows`
-  REDRAWS the latent of every row it switches from inactive to active -
-  for Student-t its \\\lambda_i\\, unless the row's case weight is zero,
-  when `setWeights` redraws it as that weight turns positive - from the
-  row's conditional given the current fit, before the call returns and
-  from the sampler's own generators, not R's stream. A caller that draws
-  the mask from the fit with the latents integrated out (a probit row's
-  membership from its Bernoulli likelihood, say) thereby draws mask and
-  latents jointly and need not call `setResponse` to refresh them. Rows
-  that stay active keep their latents, and a call that switches no row
-  back in - the first install, the mask already in force, one that only
-  switches rows off - consumes no random numbers, so a fixed mask leaves
-  the stream where a sampler never asked to reinstall it has it. A
-  `multinomial` sampler holds no latent between sweeps and redraws
-  nothing. The redraw follows the mask this sampler holds, not the one a
-  stored `state` was saved under: a state installed over a different
+  A stale latent does not come back into the likelihood: each sweep
+  draws the latent of every row the mask holds in, for Student-t its
+  \\\lambda_i\\ of every row, from the row's conditional given the fit
+  and before its trees, so a row switched back in is drawn afresh
+  against the current fit with the rest. `setActiveRows` itself draws
+  nothing and consumes no random numbers, whatever it switches, so a
+  caller that draws the mask from the fit with the latents integrated
+  out (a probit row's membership from its Bernoulli likelihood, say)
+  need not call `setResponse` to refresh them. A `multinomial` sampler
+  holds no latent between sweeps. A state installed over a different
   mask keeps, at rows that were out when it was stored, the latents they
-  left with, so reinstall the state's own mask before changing it.
+  left with until the next sweep draws the rows the mask now holds in.
 
   An inactive row's pointwise log-likelihood - the value the flat C
   API's `logLikelihood` results field reports (see ‘Mutation cost’ above
@@ -937,15 +923,13 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   whatever the donor's was - a destination that never had one stays
   unmasked and computes different draws while `statesAgree` still
   reports agreement - since the state holds no mask for the restore to
-  re-derive against. That is where the mask parts from the case weights,
-  which the state carries a digest of. Conversely, the latents DO ride
-  the state, and under an installed mask they are stale at every
-  inactive row for a skipping family, so two samplers at the same
-  posterior state but different mask histories carry different stored
-  latents and `statesAgree` correctly reports DISAGREEMENT; a Student-t
-  sampler is affected the same way, since an inactive row's stored
-  \\\lambda_i\\ is drawn from a conditional its own data no longer
-  informs.
+  re-derive against. Conversely, the latents DO ride the state, and
+  under an installed mask they are stale at every inactive row for a
+  skipping family, so two samplers at the same posterior state but
+  different mask histories carry different stored latents and
+  `statesAgree` correctly reports DISAGREEMENT; a Student-t sampler is
+  affected the same way, since an inactive row's stored \\\lambda_i\\ is
+  drawn from a conditional its own data no longer informs.
 
 - basis:
 
@@ -1001,7 +985,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   applied after a state restore preserves the *restored* amplitudes. A
   state carries no levels, so one installed from a sampler whose factor
   has the same levels in another order goes in by position, coefficient
-  \\j\\ to this sampler's level \\j\\, with no message.
+  \\j\\ to this sampler's level \\j\\, with no message. This draws
+  nothing; the next sweep draws the augmentation variables against the
+  change.
 
 - updateBasisScale:
 
@@ -1431,7 +1417,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   no `storeState()` since (see ‘Saving’), the field holds the state of
   its engine in place of the stored one. A reload's field is brought to
   its engine's at first use, and a state read from it before that is the
-  stored one. Must inherit from `bartcoreState`.
+  stored one. Must inherit from `bartcoreState`. `setState` installs the
+  latents the state carries, the values its trees were drawn from, and
+  draws none.
 
 - n.trees, vars, interactions, blocks:
 
@@ -1662,10 +1650,11 @@ mean bit for bit. It means the trees and leaf values are the stored
 ones, and the quantities the sampler draws are the stored ones where the
 state holds them. Of the kept draws (`keepTrees`) the newest that fit
 the sampler's own store are taken, whatever number the state holds. The
-latent variables may be redrawn (see the case weights, below), and the
-chain continues the state's own generator streams from where they left
-off, typically to the last few digits, not bitwise (see the
-Reproducibility section of
+latent variables it carries go in as stored and none is drawn, the next
+sweep drawing them against the weights and censoring status then in
+force, and the chain continues the state's own generator streams from
+where they left off, typically to the last few digits, not bitwise (see
+the Reproducibility section of
 [bart](https://vdorie.github.io/dbarts/reference/bart.md)).
 
 A tree does not fit, and `setState` returns `FALSE`, when it would have
@@ -1867,44 +1856,20 @@ value with them.
 Then `setState(st)` of a state `st` stored before the change installs it
 and returns `TRUE`, and the chain is the one stored.
 
-The case weights are not in the state, so a restore is reconciled
-against the DESTINATION's own rather than governed by the source's:
-where they differ from the weights the state was stored under, the
-weight-dependent latents are re-derived against the destination's before
-`setState` returns (see `weights` above). An `aft` sampler's censoring
-status is reconciled the same way and for the same reason - it too rides
-the sampler rather than the state - so where the status in force differs
-from the one the state was stored under, the censored latents are
-redrawn off the restored generators before `setState` returns; an event
-row's observed log time is data and is never overwritten by a state at
-all. A weight change is undone by `setWeights` with the old weights and
-`setState` with the stored state, in either order, and `setState`
-returns `TRUE` in both: latents redrawn under other weights, or another
-censoring status, change no tree. With the weights put back first the
-sampler is the stored chain bit for bit. With `setState` first it is a
-valid continuation of the stored chain, and the stored chain bit for bit
-only when neither call redraws a latent. A gaussian sampler holds none,
-so it is. A Student-t sampler is when the change left the same rows at
-weight zero. When the change brought a row into the likelihood or took
-one out of it, that row's scale is redrawn - by `setState` for a row the
-change had brought in, by `setWeights` for a row it had taken out, from
-its conditional at the stored fit - while every row at positive weight
-throughout keeps its stored scale; the redraws use the chain's
-generator, so the draws that follow come from another random stream than
-the stored chain's. A `logistic` sampler has its latents redrawn by both
-calls, so in that order it is never the stored chain bit for bit. Where
-`setWeights` installs the mask instead (see `weights`), the rows the old
-vector switches back in have their latents redrawn in that order, as
-`setActiveRows` redraws them. A sampler saved after its weights changed
-without a store is re-created from the last stored state, installed
-under the weights it then holds by the rule for a restore under other
-weights (see `weights`). It is a continuation of the stored chain and
-not of the live sampler: it carries no sweep made since the store, and
-after an undo with `setState` first, when the weights are the stored
-ones again, it is the stored chain exactly, without the scales that undo
-redrew. Call `storeState()` after the change to have it reload as it
-stands; a `copy` of a sampler whose engine exists takes its current
-chain.
+The case weights and an `aft` sampler's censoring status are not in the
+state, and the state records nothing of either: the latents it carries
+are the values its trees were drawn from, `setState` installs them and
+draws none, and the next sweep draws them against the weights and
+censoring status then in force. A weight change is undone by
+`setWeights` with the old weights and `setState` with the stored state,
+in either order, the sampler then continuing bit for bit as one that
+installed the stored state under the old weights would, and `setState`
+returns `TRUE` in both. A sampler saved after its weights changed
+without a store is re-created from the last stored state under the
+weights it then holds; it is a continuation of the stored chain and not
+of the live sampler, carrying no sweep made since the store. Call
+`storeState()` after the change to have it reload as it stands; a `copy`
+of a sampler whose engine exists takes its current chain.
 
 ### Missing values in predictors
 
@@ -2303,17 +2268,16 @@ interaction limit do not allow, or monotone leaf values out of order
 values are the stored ones. It does not promise the cut points or their
 weights, which stay the sampler's whatever the state records, so that a
 chain restored onto other weights or a finer grid is not the stored
-chain continued; the latents, which are re-derived when the case weights
-or an `aft` censoring status differ from those the state was stored
-under; the generator, which is left as the sampler's own when the
-state's is of another kind; or every kept draw, of which the newest that
-fit the sampler's store are taken. Nor does it cover a value the sampler
-holds fixed, which a state never changes. A state stored under another
-response mapping is installed as stored and reports `TRUE`. With
-`forceUpdate = TRUE` the state is installed, repaired where it has to
-be, and the value is `NULL`, invisibly, whether or not anything was
-repaired: a caller who needs to know calls without it first. `copy` and
-a reload install a state that way and report nothing.
+chain continued; the case weights and an `aft` censoring status, which
+stay the sampler's; the generator, which is left as the sampler's own
+when the state's is of another kind; or every kept draw, of which the
+newest that fit the sampler's store are taken. Nor does it cover a value
+the sampler holds fixed, which a state never changes. A state stored
+under another response mapping is installed as stored and reports
+`TRUE`. With `forceUpdate = TRUE` the state is installed, repaired where
+it has to be, and the value is `NULL`, invisibly, whether or not
+anything was repaired: a caller who needs to know calls without it
+first. `copy` and a reload install a state that way and report nothing.
 
 Under `keepTrees` the draws `predict`, `predictForests`, `getTrees` and
 `printTrees` report come out OLDEST FIRST: the store keeps the most
@@ -2445,24 +2409,30 @@ gaussian response - and, deliberately, on a multinomial one, which
 augments but reports nothing: its \\K \times n\\ Polya-Gamma \\\omega\\
 matrix is drawn every sweep, but each \\\omega\_{ik}\\ is an interleaved
 ONE-VS-REST augmentation variable refreshed against a margin that the
-other \\K-1\\ forests move within the same sweep, so a host reading it
-between sweeps reads a quantity whose conditioning it cannot reproduce,
-and the composition recipes reach the same posterior through the fits
-and the category offset without touching it. That decline is scoped to
-the augmentation families whose latent is a PRECISION refreshed against
-a moving margin; the location-valued latents below - probit's and
-ordinal's \\z_i\\, and aft's imputed log survival time - are reported as
-documented. Otherwise the sampler's current draw of the augmentation
-variable, a plain vector of length equal to the number of observations
+other \\K-1\\ forests move within the same sweep, so the code driving
+the sampler, reading it between sweeps, reads a quantity whose
+conditioning it cannot reproduce, and the composition recipes reach the
+same posterior through the fits and the category offset without touching
+it. That decline is scoped to the augmentation families whose latent is
+a PRECISION refreshed against a moving margin; the location-valued
+latents below - probit's and ordinal's \\z_i\\, and aft's imputed log
+survival time - are reported as documented. Otherwise the values the
+last sweep's trees were drawn from. Each sweep draws them first, after
+any change made between sweeps and before its trees, so between a setter
+and the next run they are the values from before the setter (`setData`
+starts them as creation does, an ordinal or negative-binomial sampler
+from the kept cutpoints or shape; an `aft` `setResponse` leaves a
+censored row at its new bound) and the next sweep draws them afresh.
+They are a plain vector of length equal to the number of observations
 when there is a single chain, or an observations-by-chains matrix
 otherwise, written into `result` when one was supplied. **What that
 variable IS depends on the family and is not uniform.** It is a
 LOCATION, on the sampler's own latent scale, for `"probit"` (the
 truncated normal \\z_i\\), `"ordinal"` (the same \\z_i\\ under the
 ordinal thresholds) and `"aft"` (the imputed log survival time), all of
-which a host regresses on directly. It is a PRECISION, one per
-observation, for `"logistic"` and `"nbinom"` (the Polya-Gamma
-\\\omega_i\\) and for a Student-t residual distribution (the
+which the code driving the sampler regresses on directly. It is a
+PRECISION, one per observation, for `"logistic"` and `"nbinom"` (the
+Polya-Gamma \\\omega_i\\) and for a Student-t residual distribution (the
 scale-mixing \\\lambda_i\\); these WEIGHT a working response and are not
 on the response scale at all, so differencing them against a fit is
 meaningless. Note the last case: a sampler whose `family` is

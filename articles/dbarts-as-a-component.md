@@ -95,7 +95,7 @@ c(agreement = cor(rowMeans(composed), nativeFit),
 ```
 
     ## agreement    signal 
-    ## 0.9928701 0.9222418
+    ## 0.9908798 0.9222418
 
 Agreement, not identity: these are two chains of one posterior, so they
 differ by Monte Carlo error. The package’s tests state the tolerance.
@@ -329,9 +329,13 @@ Metropolis accept decision, not a diagnostic**: a row is declined when
 it is the only row in a leaf of some tree, so moving it would empty that
 leaf. An empty leaf has zero prior, so the decline is the correct
 outcome and counts as a rejection. The random-walk proposal is
-symmetric, so the ratio needs no proposal correction. Keeping the host’s
-copy equal to what the samplers hold means taking the mask, not the
-proposal. Nothing is reverted.
+symmetric, so the ratio needs no proposal correction. Keeping the outer
+sampler’s copy equal to what the samplers hold means taking the mask,
+not the proposal. Nothing is reverted. Scoring `sB` with its latent
+integrated out, as `pnorm(fB)` does below, is exact: the accepted
+`theta` reaches `sB`’s next sweep, which draws its probit latents under
+it before its trees, so no tree ever fits a latent drawn before the
+change.
 
 ``` r
 
@@ -375,7 +379,7 @@ c(wanted = sum(wanted), accepted = sum(installed), n = nJ)
 ```
 
     ##   wanted accepted        n 
-    ##       69       67       80
+    ##       69       65       80
 
 ## 5. An outer sampler that owns sigma
 
@@ -427,8 +431,8 @@ probit$setSigma(1)
 
 ## 6. Reading the fit an incremental scheme needs
 
-The last recipe is about a read, not a write. A host driving the sampler
-one sweep at a time conditions on $`f(x_i)`$, and
+The last recipe is about a read, not a write. The code driving the
+sampler one sweep at a time conditions on $`f(x_i)`$, and
 `$getFitsWithoutOffset()` is the method that reports it. `run()$train`
 reports the same location with the installed offset folded in, and
 `$getLatents()` reports the augmentation variable, which carries no
@@ -470,13 +474,15 @@ c(mean = mean(keepGamma), truth = gammaTrue,
 ```
 
     ##         mean        truth    shortfall 
-    ## 1.371569e+00 1.500000e+00 4.440892e-16
+    ## 1.483963e+00 1.500000e+00 4.440892e-16
 
-The last column is zero by construction, which is the point: `z - train`
-and `z - f` differ by the installed offset exactly. Substituting `train`
-for `f` above pulls the posterior mean of $`\gamma`$ from 1.37 to about
-0.29, roughly seventeen oracle standard errors below the truth, on a run
-that reports no error at all.
+After the run, `z` and `f` are a joint draw: `z` is the value the trees
+that produced `f` were drawn from. The last column is zero by
+construction, which is the point: `z - train` and `z - f` differ by the
+installed offset exactly. Substituting `train` for `f` above pulls the
+posterior mean of $`\gamma`$ from 1.48 to about 0.28, roughly seventeen
+oracle standard errors below the truth, on a run that reports no error
+at all.
 
 ## 7. A per-draw callback that never returns the array
 

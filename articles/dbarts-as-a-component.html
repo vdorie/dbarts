@@ -62,7 +62,7 @@ Dorie</h4>
             
             <h4 data-toc-skip class="date">2026-08-15</h4>
       
-      <small class="dont-index">Source: <a href="https://github.com/vdorie/dbarts/blob/main/vignettes/dbarts-as-a-component.Rmd" class="external-link"><code>vignettes/dbarts-as-a-component.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/vdorie/dbarts/blob/latents-first/vignettes/dbarts-as-a-component.Rmd" class="external-link"><code>vignettes/dbarts-as-a-component.Rmd</code></a></small>
       <div class="d-none name"><code>dbarts-as-a-component.Rmd</code></div>
     </div>
 
@@ -162,7 +162,7 @@ choice.</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>agreement <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowMeans</a></span><span class="op">(</span><span class="va">composed</span><span class="op">)</span>, <span class="va">nativeFit</span><span class="op">)</span>,</span>
 <span>  signal <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowMeans</a></span><span class="op">(</span><span class="va">composed</span><span class="op">)</span>, <span class="va">fTrue</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">## agreement    signal </span></span>
-<span><span class="co">## 0.9928701 0.9222418</span></span></code></pre>
+<span><span class="co">## 0.9908798 0.9222418</span></span></code></pre>
 <p>Agreement, not identity: these are two chains of one posterior, so
 they differ by Monte Carlo error. The package’s tests state the
 tolerance.</p>
@@ -403,8 +403,13 @@ diagnostic</strong>: a row is declined when it is the only row in a leaf
 of some tree, so moving it would empty that leaf. An empty leaf has zero
 prior, so the decline is the correct outcome and counts as a rejection.
 The random-walk proposal is symmetric, so the ratio needs no proposal
-correction. Keeping the host’s copy equal to what the samplers hold
-means taking the mask, not the proposal. Nothing is reverted.</p>
+correction. Keeping the outer sampler’s copy equal to what the samplers
+hold means taking the mask, not the proposal. Nothing is reverted.
+Scoring <code>sB</code> with its latent integrated out, as
+<code>pnorm(fB)</code> does below, is exact: the accepted
+<code>theta</code> reaches <code>sB</code>’s next sweep, which draws its
+probit latents under it before its trees, so no tree ever fits a latent
+drawn before the change.</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">404L</span><span class="op">)</span></span>
 <span><span class="va">nJ</span> <span class="op">&lt;-</span> <span class="fl">80L</span></span>
@@ -444,7 +449,7 @@ means taking the mask, not the proposal. Nothing is reverted.</p>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>wanted <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">wanted</span><span class="op">)</span>, accepted <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">installed</span><span class="op">)</span>, n <span class="op">=</span> <span class="va">nJ</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">##   wanted accepted        n </span></span>
-<span><span class="co">##       69       67       80</span></span></code></pre>
+<span><span class="co">##       69       65       80</span></span></code></pre>
 </div>
 <div class="section level2">
 <h2 id="an-outer-sampler-that-owns-sigma">5. An outer sampler that owns sigma<a class="anchor" aria-label="anchor" href="#an-outer-sampler-that-owns-sigma"></a>
@@ -490,7 +495,7 @@ accepting it and quietly rescaling every leaf posterior:</p>
 <div class="section level2">
 <h2 id="reading-the-fit-an-incremental-scheme-needs">6. Reading the fit an incremental scheme needs<a class="anchor" aria-label="anchor" href="#reading-the-fit-an-incremental-scheme-needs"></a>
 </h2>
-<p>The last recipe is about a read, not a write. A host driving the
+<p>The last recipe is about a read, not a write. The code driving the
 sampler one sweep at a time conditions on
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>f</mi><mo stretchy="false" form="prefix">(</mo><msub><mi>x</mi><mi>i</mi></msub><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">f(x_i)</annotation></semantics></math>,
 and <code>$getFitsWithoutOffset()</code> is the method that reports it.
@@ -530,13 +535,15 @@ offset’s own covariate recovers a coefficient shrunk toward zero.</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>mean <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">keepGamma</span><span class="op">)</span>, truth <span class="op">=</span> <span class="va">gammaTrue</span>,</span>
 <span>  shortfall <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="op">(</span><span class="va">z</span> <span class="op">-</span> <span class="va">train</span><span class="op">)</span> <span class="op">-</span> <span class="op">(</span><span class="op">(</span><span class="va">z</span> <span class="op">-</span> <span class="va">f</span><span class="op">)</span> <span class="op">-</span> <span class="va">offset</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">##         mean        truth    shortfall </span></span>
-<span><span class="co">## 1.371569e+00 1.500000e+00 4.440892e-16</span></span></code></pre>
-<p>The last column is zero by construction, which is the point:
+<span><span class="co">## 1.483963e+00 1.500000e+00 4.440892e-16</span></span></code></pre>
+<p>After the run, <code>z</code> and <code>f</code> are a joint draw:
+<code>z</code> is the value the trees that produced <code>f</code> were
+drawn from. The last column is zero by construction, which is the point:
 <code>z - train</code> and <code>z - f</code> differ by the installed
 offset exactly. Substituting <code>train</code> for <code>f</code> above
 pulls the posterior mean of
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>γ</mi><annotation encoding="application/x-tex">\gamma</annotation></semantics></math>
-from 1.37 to about 0.29, roughly seventeen oracle standard errors below
+from 1.48 to about 0.28, roughly seventeen oracle standard errors below
 the truth, on a run that reports no error at all.</p>
 </div>
 <div class="section level2">
