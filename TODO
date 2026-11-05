@@ -32,14 +32,19 @@ A "door" below means a recorded, undecided question, not a task.
 
 items
   approximate-distributions: research arc, opened 2026-11-03 by the
-    binomial family's large trial counts (dec-B567; was post-release,
-    VD 2026-09-29, docs/decisions.md dec-B143): whether to admit approximate draws
-    under stated criteria for when to use them, against dec-B14's
-    every-draw-exact rule. Covers the negative-binomial latent at large
-    shape (cost linear in y + r today; the exact construction, 1,000 to
-    2,000 lines, is designed in docs/plans/nbinom-large-shape-pg.md and
-    not scheduled), real shape (negbin-real-dispersion) and
-    non-integer logistic weights (weighted-binary).
+    binomial family's large trial counts (dec-B567); plan
+    docs/plans/approximate-draws.md on its branch. Ruled 2026-11-05: the
+    default until the defaults study (dec-B590); the accept-or-keep route
+    proven exact by independent agents before it is built, with a short
+    vignette carrying the proof and a plain-R comparison of the samplers
+    as the count grows (dec-B591); everything built ships in 1.0-0, the
+    approximate settings opt-in, and the defaults study runs before 1.0-0,
+    right after the build, and sets the default (dec-B592); the setting is
+    a method name plus a tolerance (dec-B593). Covers the negative-binomial
+    latent at large shape (docs/plans/nbinom-large-shape-pg.md, the
+    September construction, background), real shape
+    (negbin-real-dispersion) and non-integer logistic weights
+    (weighted-binary).
   bcf-latent-mixing: research door, no plan doc of its own; for the
     post-merge mixing research. The probit and logistic BCF chains mix
     slowly at large prognostic amplitude, and two gates carry that as a
