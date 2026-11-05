@@ -33,9 +33,7 @@ namespace {
 
 /// One enumerator per SamplerBase pure virtual, in declaration order.
 enum class FacadeVirtual {
-  shape, run, setOffset, setResponse, setWeights, weightsDigest,
-  reapplyWeights, zeroWeightRows, setSurvivalStatus, survivalDigest,
-  reapplySurvivalStatus,
+  shape, run, setOffset, setResponse, setWeights, setSurvivalStatus,
   setSigma, setTestData, setTestOffset, setData, rederiveStandardization,
   setPredictor,
   updatePredictor, setCutPoints, updatePredictorPerObservation,
@@ -110,12 +108,7 @@ public:
   SPY_RET(ResponseUpdateResult, setResponse, (const double* y, bool u),
           (y, u))
   SPY_VOID(setWeights, (const double* w), (w))
-  SPY_RET(std::uint64_t, weightsDigest, () const, ())
-  SPY_VOID(reapplyWeights, (const unsigned char* z), (z))
-  SPY_RET(bool, zeroWeightRows, (unsigned char* o) const, (o))
   SPY_VOID(setSurvivalStatus, (const double* s), (s))
-  SPY_RET(std::uint64_t, survivalDigest, () const, ())
-  SPY_VOID(reapplySurvivalStatus, (), ())
   SPY_VOID(setSigma, (double s), (s))
   SPY_RET(bool, setTestData, (const PredictorSource& s), (s))
   SPY_VOID(setTestOffset, (const double* o), (o))
@@ -672,93 +665,31 @@ const Row rows[] = {
     f.g.base().setResponse(f.y.data(), true);
   }},
   {FacadeVirtual::setWeights, "setWeights", [](Fixtures& f) {
-    std::uint64_t digest = f.g.impl().weightsDigest();
     f.g.base().setWeights(f.weights.data());
-    check(f.g.impl().weightsDigest() != digest,
-          "facade setWeights: the impl carries the installed weights");
+    const double* served = TestPeer::workingWeights(f.g.impl().chain(0));
+    bool carried = served != nullptr;
+    for (std::size_t i = 0; carried && i < Fixtures::n; ++i)
+      carried = served[i] == f.weights[i];
+    check(carried, "facade setWeights: the impl carries the installed weights");
     f.g.base().setWeights(nullptr);
-    check(f.g.impl().weightsDigest() == digest,
-          "facade setWeights: clearing restores the unweighted digest");
-  }},
-  {FacadeVirtual::weightsDigest, "weightsDigest", [](Fixtures& f) {
-    check(f.g.base().weightsDigest() == f.g.impl().weightsDigest() &&
-            f.g.base().weightsDigest() != 0,
-          "facade weightsDigest: the boundary reports the impl's digest");
-  }},
-  {FacadeVirtual::reapplyWeights, "reapplyWeights", [](Fixtures& f) {
-    // a latent family re-derives its augmentation from the weights in force,
-    // so the omega draws move
-    std::vector<double> before(f.l.impl().latents(0),
-                               f.l.impl().latents(0) + Fixtures::n);
-    f.l.base().reapplyWeights(nullptr);
-    bool moved = false;
-    for (std::size_t i = 0; i < Fixtures::n; ++i)
-      moved |= f.l.impl().latents(0)[i] != before[i];
-    check(moved, "facade reapplyWeights: the family redraws its latents");
-    // the record reaches the family: a student-t sampler handed its own zero
-    // rows keeps every scale, and handed none redraws
-    std::vector<unsigned char> record(Fixtures::n);
-    f.t.impl().zeroWeightRows(record.data());
-    before.assign(f.t.impl().latents(0), f.t.impl().latents(0) + Fixtures::n);
-    f.t.base().reapplyWeights(record.data());
-    bool kept = true;
-    for (std::size_t i = 0; i < Fixtures::n; ++i)
-      kept &= f.t.impl().latents(0)[i] == before[i];
-    f.t.base().reapplyWeights(nullptr);
-    moved = false;
-    for (std::size_t i = 0; i < Fixtures::n; ++i)
-      moved |= f.t.impl().latents(0)[i] != before[i];
-    check(kept && moved,
-          "facade reapplyWeights: the record of zero-weight rows is passed on");
-  }},
-  {FacadeVirtual::zeroWeightRows, "zeroWeightRows", [](Fixtures& f) {
-    std::vector<unsigned char> viaBase(Fixtures::n, 7), viaImpl(Fixtures::n, 7);
-    bool kept = f.t.base().zeroWeightRows(viaBase.data());
-    std::size_t numZero = 0;
-    for (std::size_t i = 0; i < Fixtures::n; ++i) {
-      numZero += viaBase[i];
-      kept &= viaBase[i] == (f.zeroedWeights[i] == 0.0 ? 1 : 0);
-    }
-    check(kept && f.t.impl().zeroWeightRows(viaImpl.data()) &&
-            viaBase == viaImpl && numZero > 0 && numZero < Fixtures::n,
-          "facade zeroWeightRows: the boundary reports the impl's flags");
-    std::vector<unsigned char> untouched(Fixtures::n, 7);
-    check(!f.g.base().zeroWeightRows(untouched.data()) &&
-            untouched == std::vector<unsigned char>(Fixtures::n, 7),
-          "facade zeroWeightRows: a family keeping no such scale reports none");
+    check(TestPeer::workingWeights(f.g.impl().chain(0)) == nullptr,
+          "facade setWeights: clearing restores the unweighted sampler");
   }},
   {FacadeVirtual::setSurvivalStatus, "setSurvivalStatus", [](Fixtures& f) {
-    std::uint64_t digest = f.af.impl().survivalDigest();
+    // a row's log-likelihood is a density as an event and a tail censored
+    auto logLikelihood = [&]() {
+      std::vector<double> fits(Fixtures::n, 0.0), out(Fixtures::n, 0.0);
+      TestPeer::response(f.af.impl().chain(0))
+        .computeLogLikelihood(fits.data(), 1.0, Fixtures::n, out.data());
+      return out;
+    };
+    std::vector<double> before = logLikelihood();
     f.af.base().setSurvivalStatus(f.survivalStatus2.data());
-    check(f.af.impl().survivalDigest() != digest,
+    check(logLikelihood() != before,
           "facade setSurvivalStatus: the impl carries the installed status");
     f.af.base().setSurvivalStatus(f.survivalStatus.data());
-    check(f.af.impl().survivalDigest() == digest,
-          "facade setSurvivalStatus: restoring it restores the digest");
-  }},
-  {FacadeVirtual::survivalDigest, "survivalDigest", [](Fixtures& f) {
-    check(f.af.base().survivalDigest() == f.af.impl().survivalDigest() &&
-            f.af.base().survivalDigest() != 0,
-          "facade survivalDigest: the boundary reports the impl's digest");
-    check(f.g.base().survivalDigest() == 0,
-          "facade survivalDigest: a family carrying no status digests as 0");
-  }},
-  {FacadeVirtual::reapplySurvivalStatus, "reapplySurvivalStatus",
-   [](Fixtures& f) {
-    // the censored rows redraw against the structure in force; the events are
-    // observed times and do not move
-    std::vector<double> before(f.af.impl().latents(0),
-                               f.af.impl().latents(0) + Fixtures::n);
-    f.af.base().reapplySurvivalStatus();
-    bool moved = false, eventsHeld = true;
-    for (std::size_t i = 0; i < Fixtures::n; ++i) {
-      if (f.survivalStatus[i] == 0.0)
-        moved |= f.af.impl().latents(0)[i] != before[i];
-      else if (f.af.impl().latents(0)[i] != before[i])
-        eventsHeld = false;
-    }
-    check(moved, "facade reapplySurvivalStatus: the censored latents redraw");
-    check(eventsHeld, "facade reapplySurvivalStatus: the event rows do not");
+    check(logLikelihood() == before,
+          "facade setSurvivalStatus: restoring it restores the structure");
   }},
   {FacadeVirtual::setSigma, "setSigma", [](Fixtures& f) {
     f.g.base().setSigma(2.5);

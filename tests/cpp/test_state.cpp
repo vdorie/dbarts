@@ -2353,7 +2353,8 @@ static std::vector<std::vector<std::uint8_t>> liveSplitColumns(S& sampler,
 // The parameters $setModel installs beyond the prior - a Student-t df, a
 // negative-binomial shape, a gp leaf's lengthscales and DART's settings - go
 // on every chain, a refusal writes nothing, and an install before any run
-// leaves the chains as creating with the parameter does. One handed from held
+// leaves the chains drawing as creating with the parameter does. One handed
+// from held
 // to drawn starts at the value in force; DART keeps its split weights and its
 // count of skipped updates.
 static void testModelParameterInstalls() {
@@ -2413,7 +2414,8 @@ static void testModelParameterInstalls() {
           "setResidualDf: drawn to held sets the stated df, every chain");
   }
 
-  // the shape: a new r restarts omega cold under it, as creation leaves it
+  // the shape: a new r keeps omega and rebuilds the working response under
+  // it, so the run that follows draws as creation with the shape does
   SamplerOptions held4, held9;
   held4.shape = 4.0;
   held9.shape = 9.0;
@@ -2426,13 +2428,31 @@ static void testModelParameterInstalls() {
         "refused, writing nothing");
   check(installed->setNegativeBinomialShape(9.0),
         "setNegativeBinomialShape: a whole shape is taken");
-  for (size_t c = 0; c < 2; ++c)
-    check(installed->shape(c) == 9.0 &&
-            std::equal(TestPeer::workingResponse(installed->chain(c)),
-                       TestPeer::workingResponse(installed->chain(c)) + n,
-                       TestPeer::workingResponse(created->chain(c))),
-          "setNegativeBinomialShape: before a run every chain stands as "
-          "creating with the shape leaves it");
+  for (size_t c = 0; c < 2; ++c) {
+    const double* omega = installed->latents(c);
+    const double* working = TestPeer::workingResponse(installed->chain(c));
+    bool kept = true;
+    for (size_t i = 0; i < n; ++i) {
+      double anchor =
+        TestPeer::response(installed->chain(c)).fitShift() - std::log(9.0);
+      kept = kept && omega[i] == 0.25 * (counts[i] + 4.0) &&
+             working[i] == 0.5 * (counts[i] - 9.0) / omega[i] - anchor;
+    }
+    check(installed->shape(c) == 9.0 && kept,
+          "setNegativeBinomialShape: every chain keeps omega and rebuilds its "
+          "working response under the new shape");
+  }
+  {
+    std::vector<double> fitsInstalled(2 * n * 3), fitsCreated(2 * n * 3);
+    Results installedResults, createdResults;
+    installedResults.trainingFits = fitsInstalled.data();
+    createdResults.trainingFits = fitsCreated.data();
+    installed->run(0, 3, installedResults);
+    created->run(0, 3, createdResults);
+    check(fitsInstalled == fitsCreated,
+          "setNegativeBinomialShape: before a run every chain draws as "
+          "creating with the shape does");
+  }
   installed->run(5, 0, empty);
   check(installed->setNegativeBinomialShape(-1.0),
         "setNegativeBinomialShape: an estimated shape is taken");
@@ -4455,110 +4475,112 @@ static void testVarianceWarmStartSlot() {
   printf("ok: variance-forest slot-sourced warm start\n");
 }
 
-static void testWeightsDigest() {
-  // The two primitives the saved-state seam pairs to keep restored latents and
-  // the weights in force from disagreeing: a digest that separates weight
-  // vectors, and a repair that re-derives whatever is stated against them.
-  // Engine level, so no digest is written or read here - a round trip at this
-  // level carries none, which is why the byte-for-byte pins above are
-  // untouched by the seam that does. RNG-insulated per testLeafOfConsistency.
+// A weight change undone by setWeights and setState, in either order,
+// continues the stored chain bit for bit, on the two families that state their
+// latents against the weights: logistic, whose counts are the Polya-Gamma
+// shape, and Student-t, whose scales a zero weight detaches from the residual.
+// Each sweep draws the latents before anything reads them, so the install
+// needs to know nothing about the weights the state was stored under. The
+// reference installs the same state under the weights it was stored with: an
+// install rebuilds the fits from the leaves, last ulps apart from the chain
+// that stored them. RNG-insulated per testLeafOfConsistency.
+static void testRestoreUnderOtherWeights() {
   std::uint64_t savedRngState = rngState;
   rngState = 818181u;
 
-  const size_t n = 90;
-  std::vector<double> x(n * 2), y(n);
+  const size_t n = 90, numDraws = 6;
+  std::vector<double> x(n * 2), binary(n), continuous(n);
   for (double& v : x) v = runif01();
-  for (size_t i = 0; i < n; ++i)
-    y[i] = (x[i] + 0.25 * (runif01() - 0.5) > 0.5) ? 1.0 : 0.0;
-
-  // 1,4,4 against 2,2,5: equal in sum and in sum of squares, different in
-  // bytes. A digest built from moments would call these the same weights.
-  std::vector<double> wA(n), wB(n), ones(n, 1.0);
-  double sumA = 0.0, sumB = 0.0, sumSqA = 0.0, sumSqB = 0.0;
   for (size_t i = 0; i < n; ++i) {
-    wA[i] = i % 3 == 0 ? 1.0 : 4.0;
-    wB[i] = i % 3 == 2 ? 5.0 : 2.0;
-    sumA += wA[i];
-    sumB += wB[i];
-    sumSqA += wA[i] * wA[i];
-    sumSqB += wB[i] * wB[i];
+    binary[i] = (x[i] + 0.25 * (runif01() - 0.5) > 0.5) ? 1.0 : 0.0;
+    continuous[i] = 2.0 * x[i] + 0.3 * (runif01() - 0.5);
   }
-  check(sumA == sumB && sumSqA == sumSqB,
-        "the probe weight vectors share their moments");
-
-  SamplerOptions options;
-  options.numTrees = 10;
-  options.nodeScale = 3.0;
-
-  ext_rng* rngs[6];
-  for (size_t i = 0; i < 6; ++i) {
-    rngs[i] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-    ext_rng_setSeed(rngs[i], 8181);
+  // the counts, and precision weights with rows at zero, against another
+  // vector of each
+  std::vector<double> countsA(n), countsB(n), precisionA(n), precisionB(n);
+  for (size_t i = 0; i < n; ++i) {
+    countsA[i] = i % 3 == 0 ? 1.0 : 4.0;
+    countsB[i] = i % 3 == 2 ? 5.0 : 2.0;
+    precisionA[i] = i % 7 == 0 ? 0.0 : 0.5 + 0.25 * static_cast<double>(i % 4);
+    precisionB[i] = i % 5 == 1 ? 0.0 : 1.5;
   }
 
-  ConstantLeafSampler weightedA(x.data(), y.data(), n, 2, wA.data(), nullptr,
-                                ResponseFamily::logistic, 1.0, 3.0, 1.0,
-                                options, &rngs[0]);
-  ConstantLeafSampler weightedB(x.data(), y.data(), n, 2, wB.data(), nullptr,
-                                ResponseFamily::logistic, 1.0, 3.0, 1.0,
-                                options, &rngs[1]);
-  check(weightedA.weightsDigest() != weightedB.weightsDigest(),
-        "weight vectors sharing every moment still digest apart");
+  struct Arm {
+    const char* name;
+    ResponseFamily family;
+    const std::vector<double>* y;
+    const std::vector<double>* stored;
+    const std::vector<double>* other;
+    double residualDf;
+  };
+  const Arm arms[] = {
+    {"logistic", ResponseFamily::logistic, &binary, &countsA, &countsB, 0.0},
+    {"student-t", ResponseFamily::gaussian, &continuous, &precisionA,
+     &precisionB, -1.0},
+  };
+  for (const Arm& arm : arms) {
+    SamplerOptions options;
+    options.numTrees = 10;
+    options.nodeScale = 3.0;
+    if (arm.residualDf != 0.0) options.residualDf = arm.residualDf;
+    double rawScale = arm.family == ResponseFamily::gaussian
+                        ? 0.37804942330213542 : 1.0;
+    auto make = [&](ext_rng*& rng) {
+      rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      ext_rng_setSeed(rng, 8181);
+      return std::make_unique<ConstantLeafSampler>(
+        x.data(), arm.y->data(), n, 2, arm.stored->data(), nullptr, arm.family,
+        1.0, 3.0, rawScale, options, &rng);
+    };
+    auto draws = [&](ConstantLeafSampler& sampler) {
+      std::vector<double> out(numDraws * (n + 1));
+      Results results;
+      results.trainingFits = out.data();
+      results.sigma = out.data() + numDraws * n;
+      sampler.run(0, numDraws, results);
+      return out;
+    };
+    Results none;
+    ext_rng *rngReference, *rngWeightsFirst, *rngStateFirst;
+    auto reference = make(rngReference);
+    auto weightsFirst = make(rngWeightsFirst);
+    auto stateFirst = make(rngStateFirst);
+    for (auto* sampler : {&reference, &weightsFirst, &stateFirst})
+      (*sampler)->run(20, 0, none);
+    SamplerStateData stored;
+    reference->getState(stored);
 
-  ConstantLeafSampler unweighted(x.data(), y.data(), n, 2, nullptr, nullptr,
-                                 ResponseFamily::logistic, 1.0, 3.0, 1.0,
-                                 options, &rngs[2]);
-  ConstantLeafSampler unitWeighted(x.data(), y.data(), n, 2, ones.data(),
-                                   nullptr, ResponseFamily::logistic, 1.0,
-                                   3.0, 1.0, options, &rngs[3]);
-  check(unweighted.weightsDigest() == unitWeighted.weightsDigest(),
-        "no weights and all ones are one sampler and so one digest");
+    // each moves away under the other weights, then is put back
+    for (auto* sampler : {&weightsFirst, &stateFirst}) {
+      (*sampler)->setWeights(arm.other->data());
+      (*sampler)->run(4, 0, none);
+    }
+    weightsFirst->setWeights(arm.stored->data());
+    bool installed = weightsFirst->setState(stored, nullptr);
+    installed = stateFirst->setState(stored, nullptr) && installed;
+    installed = reference->setState(stored, nullptr) && installed;
+    stateFirst->setWeights(arm.stored->data());
 
-  Results empty;
-  weightedA.run(20, 0, empty);
-  std::vector<double> beforeRepair(weightedA.latents(0),
-                                   weightedA.latents(0) + n);
-  weightedA.reapplyWeights();
-  std::vector<double> afterRepair(weightedA.latents(0),
-                                  weightedA.latents(0) + n);
-  check(beforeRepair != afterRepair,
-        "reapplyWeights redraws a logistic chain's Polya-Gamma latents");
+    std::vector<double> expected = draws(*reference);
+    char what[128];
+    std::snprintf(what, sizeof what,
+                  "%s: setWeights then setState continues the stored chain "
+                  "bit for bit", arm.name);
+    check(installed && draws(*weightsFirst) == expected, what);
+    std::snprintf(what, sizeof what,
+                  "%s: setState then setWeights continues it too", arm.name);
+    check(draws(*stateFirst) == expected, what);
 
-  // a gaussian chain states nothing against its weights, so the repair draws
-  // nothing and moves nothing: the chain that took it draws what the chain
-  // that did not draws
-  std::vector<double> yContinuous(n);
-  for (size_t i = 0; i < n; ++i)
-    yContinuous[i] = 2.0 * x[i] + 0.3 * (runif01() - 0.5);
-  ConstantLeafSampler repaired(x.data(), yContinuous.data(), n, 2, wA.data(),
-                               nullptr, ResponseFamily::gaussian, 1.0, 3.0,
-                               1.0, options, &rngs[4]);
-  ConstantLeafSampler untouched(x.data(), yContinuous.data(), n, 2, wA.data(),
-                                nullptr, ResponseFamily::gaussian, 1.0, 3.0,
-                                1.0, options, &rngs[5]);
-  repaired.run(10, 0, empty);
-  untouched.run(10, 0, empty);
-  repaired.reapplyWeights();
-  const size_t draws = 5;
-  std::vector<double> sigmaRepaired(draws), sigmaUntouched(draws);
-  Results resultsRepaired, resultsUntouched;
-  resultsRepaired.sigma = sigmaRepaired.data();
-  resultsUntouched.sigma = sigmaUntouched.data();
-  repaired.run(0, draws, resultsRepaired);
-  untouched.run(0, draws, resultsUntouched);
-  check(sigmaRepaired == sigmaUntouched,
-        "reapplyWeights is inert on a gaussian chain");
+    reference.reset();
+    weightsFirst.reset();
+    stateFirst.reset();
+    ext_rng_destroy(rngReference);
+    ext_rng_destroy(rngWeightsFirst);
+    ext_rng_destroy(rngStateFirst);
+  }
 
-  // the engine installs a state stored under other weights as it stands; the
-  // repair above is the host's, and moves latents, not the chain
-  SamplerStateData weightedState;
-  weightedA.getState(weightedState);
-  check(restoresExactly(weightedB, weightedState),
-        "a state stored under other weights installs as stored");
-
-  for (ext_rng* r : rngs) ext_rng_destroy(r);
   rngState = savedRngState;
-  printf("ok: weights digest and repair\n");
+  printf("ok: a restore under other weights continues bit for bit\n");
 }
 
 // The saved-store readers' DESTINATION stride, on the one shape every other
@@ -8580,6 +8602,6 @@ void runStateTests(ext_rng* rng) {
   testCurrentVarianceRead();
   testVarianceSavedTreeState();
   testStateLeafScale(rng);
-  testWeightsDigest();
+  testRestoreUnderOtherWeights();
   testMultiChainPartialFillPredict();
 }

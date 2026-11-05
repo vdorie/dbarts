@@ -1410,10 +1410,10 @@ static void testWeightedLogistic(ext_rng* rng) {
     omegaValid = omega[i] > 0.0 && std::isfinite(omega[i]);
   check(omegaValid, "weighted logistic omega positive and finite");
 
-  // (3) the counts ARE the PG shape, so replacing them redraws omega on the
-  // spot rather than at the next sweep, which would move its trees first. The
-  // swap runs the refresh setResponse already runs, from the same stream
-  // position, so a swapped sampler is BITWISE one created with the new counts.
+  // (3) the counts ARE the PG shape, yet a swap draws nothing: omega stands
+  // until the next sweep, which draws it against the new counts before the
+  // trees read it, so a swapped sampler runs BITWISE as one created with the
+  // new counts.
   std::vector<double> w2(n);
   for (size_t i = 0; i < n; ++i) w2[i] = 1.0 + (double) (i % 3);
   ext_rng* rngC = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -1427,15 +1427,21 @@ static void testWeightedLogistic(ext_rng* rng) {
                    ResponseFamily::logistic, 1.0, 3.0, 1.0, options, &rngC);
   ConstantLeafSampler swapped(x.data(), y.data(), n, p, w.data(), nullptr,
                    ResponseFamily::logistic, 1.0, 3.0, 1.0, options, &rngD);
-  built.setResponse(y.data(), false);
   swapped.setWeights(w2.data());
-  bool swapMatches = true, swapMoved = false;
-  for (size_t i = 0; i < n; ++i) {
+  bool swapKept = true;
+  for (size_t i = 0; i < n; ++i)
+    swapKept &= swapped.latents(0)[i] == 0.25 * w[i];
+  check(swapKept, "a logistic weight swap keeps omega");
+  std::vector<double> builtFits(n * 4), swappedFits(n * 4);
+  Results builtResults, swappedResults;
+  builtResults.trainingFits = builtFits.data();
+  swappedResults.trainingFits = swappedFits.data();
+  built.run(2, 4, builtResults);
+  swapped.run(2, 4, swappedResults);
+  bool swapMatches = builtFits == swappedFits;
+  for (size_t i = 0; i < n; ++i)
     swapMatches &= swapped.latents(0)[i] == built.latents(0)[i];
-    if (swapped.latents(0)[i] != 0.25 * w2[i]) swapMoved = true;
-  }
-  check(swapMatches, "a logistic weight swap equals creation with the counts");
-  check(swapMoved, "a logistic weight swap redraws omega off its cold start");
+  check(swapMatches, "a logistic weight swap runs as creation with the counts");
   ext_rng_destroy(rngD);
   ext_rng_destroy(rngC);
 
@@ -3309,10 +3315,11 @@ static void testActiveRowsOnGrownForest() {
          maskedLeaves, maskedPartial, heldPartial);
 }
 
-// The membership rule and the reactivation redraw on the paths one forest of a
-// gaussian response does not reach: the variance forest's prior draw, a
-// coupled sweep whose composed precisions zero some rows in one forest, and
-// the location a chain hands the redraw under a coupling and an offset.
+// The membership rule on the paths one forest of a gaussian response does not
+// reach: the variance forest's prior draw and a coupled sweep whose composed
+// precisions zero some rows in one forest; and the setters that bring a row
+// back into the likelihood drawing nothing, under a coupling and an offset
+// and on Student-t's scales.
 static void testMembershipAcrossForests() {
   const size_t n = 120, p = 2;
   std::uint64_t state = 20261006u;
@@ -3402,10 +3409,10 @@ static void testMembershipAcrossForests() {
     ext_rng_destroy(rng);
   }
 
-  // ---- the redraw is taken at the chain's COMBINED fit, offset included ----
-  // A two-forest probit with an offset: the latents of the rows a cleared mask
-  // brings back are, bitwise, the response's own draw at the combined location
-  // from a generator cloned ahead of the call.
+  // ---- a cleared mask draws nothing under a coupling and an offset ----
+  // A two-forest probit with an offset: the rows a cleared mask brings back
+  // keep their latents, and the chain's generator does not move; the next
+  // sweep draws them at the combined location before the trees read them.
   {
     SamplerOptions options;
     options.nodeScale = 3.0;
@@ -3422,44 +3429,21 @@ static void testMembershipAcrossForests() {
     sampler.run(30, 0, results);
     sampler.setActiveRows(half.data());
     sampler.run(10, 0, results);
-
-    const double* combined = TestPeer::combinedFits(sampler.chain(0));
-    std::vector<double> ySub, offsetSub, fitsSub;
-    double forestZeroGap = 0.0;
-    for (size_t i = 0; i < n; ++i) {
-      forestZeroGap = std::max(forestZeroGap, std::fabs(
-        combined[i] - TestPeer::totalFitsInForest(sampler.chain(0), 0)[i]));
-      if (half[i] != 0.0) continue;
-      ySub.push_back(binary[i]);
-      offsetSub.push_back(offset[i]);
-      fitsSub.push_back(combined[i]);
-    }
-    check(forestZeroGap > 1e-3,
-          "non-vacuity: the combined fit is not the first forest's");
+    std::vector<double> held(sampler.latents(), sampler.latents() + n);
     ext_rng* reference = cloneRng(sampler.rng());
-    ProbitResponse compact(ySub.data(), offsetSub.data(), ySub.size());
-    compact.refreshLatents(reference, fitsSub.data(), 1.0);
-
     sampler.setActiveRows(nullptr);
-    bool atCombinedFit = true;
-    for (size_t i = 0, j = 0; i < n; ++i)
-      if (half[i] == 0.0)
-        atCombinedFit = atCombinedFit &&
-                        sampler.latents()[i] == compact.latents()[j++];
-    check(atCombinedFit,
-          "a reactivated latent is the draw at the combined fit and offset");
-    check(rngStreamsAgree(reference, sampler.rng()),
-          "taken from the chain's own generator");
+    check(std::equal(held.begin(), held.end(), sampler.latents()) &&
+            rngStreamsAgree(reference, sampler.rng()),
+          "a cleared mask keeps every latent and draws nothing");
     ext_rng_destroy(reference);
     ext_rng_destroy(rng);
   }
 
-  // ---- a Student-t scale is redrawn at the chain's fit and sigma ----
-  // Precision weights and an offset in force. The scales a weight setter or a
-  // state re-derivation redraws are, bitwise, the conditional's own draws at
-  // the chain's combined fit and working sigma, in row order, from a generator
-  // cloned ahead of the call; every other row keeps the scale it held, and
-  // the precisions the trees read are composed from the scales now in force.
+  // ---- a Student-t weight change and restore draw nothing ----
+  // Precision weights and an offset in force. setWeights, setActiveRows and a
+  // state installed under other weights keep every scale and leave the
+  // chain's generator where it was; the precisions the trees read are
+  // composed from the scales in force.
   {
     const double nu = 5.0;
     SamplerOptions options;
@@ -3482,23 +3466,6 @@ static void testMembershipAcrossForests() {
     auto scales = [&]() {
       return std::vector<double>(sampler.latents(), sampler.latents() + n);
     };
-    // the scales in force with those of the rows `redrawn` names replaced by
-    // the conditional's draws at `weights`
-    auto conditional = [&](ext_rng* from, const std::vector<double>& weights,
-                           auto&& redrawn) {
-      const double* fits = TestPeer::combinedFits(sampler.chain(0));
-      const double* working = TestPeer::workingResponse(sampler.chain(0));
-      double sigma = TestPeer::workingSigma(sampler.chain(0));
-      std::vector<double> out = scales();
-      for (size_t i = 0; i < n; ++i) {
-        if (!redrawn(i)) continue;
-        double r = working[i] - fits[i];
-        out[i] = ext_rng_simulateGamma(
-          from, 0.5 * (nu + 1.0),
-          2.0 / (nu + weights[i] * r * r / (sigma * sigma)));
-      }
-      return out;
-    };
     // whether the working precisions are weights x scales (x mask) at every row
     auto composed = [&](const std::vector<double>& weights,
                         const double* active) {
@@ -3510,35 +3477,20 @@ static void testMembershipAcrossForests() {
           return false;
       return true;
     };
+    // the call keeps every scale and consumes no variate
+    auto drawsNothing = [&](auto&& call) {
+      std::vector<double> held = scales();
+      ext_rng* reference = cloneRng(sampler.rng());
+      call();
+      bool same = scales() == held && rngStreamsAgree(reference, sampler.rng());
+      ext_rng_destroy(reference);
+      return same;
+    };
 
-    double largestFit = 0.0;
-    for (size_t i = 0; i < n; ++i)
-      largestFit = std::max(
-        largestFit, std::fabs(TestPeer::combinedFits(sampler.chain(0))[i]));
-    check(largestFit > 1e-3 &&
-            std::fabs(TestPeer::workingSigma(sampler.chain(0)) - 1.0) > 1e-3,
-          "non-vacuity: the fit is not zero and the working sigma is not one");
+    check(drawsNothing([&]() { sampler.setWeights(precision.data()); }) &&
+            composed(precision, nullptr),
+          "a student-t weight leaving zero keeps the scales and draws nothing");
 
-    std::vector<double> held = scales();
-    ext_rng* reference = cloneRng(sampler.rng());
-    std::vector<double> expected = conditional(
-      reference, precision, [&](size_t i) { return half[i] == 0.0; });
-    sampler.setWeights(precision.data());
-    check(scales() == expected && scales() != held,
-          "a student-t scale whose weight leaves zero is the draw at the "
-          "chain's fit and sigma");
-    check(rngStreamsAgree(reference, sampler.rng()),
-          "taken from the chain's own generator");
-    check(composed(precision, nullptr),
-          "and the precisions the trees read carry the redrawn scales");
-    ext_rng_destroy(reference);
-
-    // a state stored under the zeroed weights, re-derived where other rows
-    // are out by weight or by mask. Without the state's record of its
-    // zero-weight rows every row in the likelihood here is redrawn at the
-    // installed fit; with it, only the rows at zero then and in the
-    // likelihood here. A row out of it here is redrawn by the setter that
-    // next brings it in
     ext_rng* sourceRng = seeded(45u);
     ConstantLeafSampler source(x.data(), y.data(), n, p, zeroed.data(),
                                offset.data(), ResponseFamily::gaussian, 1.0,
@@ -3547,160 +3499,221 @@ static void testMembershipAcrossForests() {
     SamplerStateData stored;
     source.getState(stored);
 
-    // what a sampler reports for a state to carry: its zero weights, all 0
-    // with no weights, and nothing for a family holding no such scale
-    std::vector<unsigned char> record(n, 7), unweightedRecord(n, 7),
-      gaussianRecord(n, 7), destinationRecord(n, 7);
-    bool reportsZeros = source.zeroWeightRows(record.data());
-    for (size_t i = 0; i < n; ++i)
-      reportsZeros = reportsZeros && record[i] == (zeroed[i] == 0.0 ? 1 : 0);
-    check(reportsZeros,
-          "a student-t sampler reports its rows at weight zero, a byte each");
-    {
-      ext_rng* plainRng = seeded(46u);
-      ext_rng* gaussianRng = seeded(47u);
-      ConstantLeafSampler unweighted(x.data(), y.data(), n, p, nullptr,
-                                     offset.data(), ResponseFamily::gaussian,
-                                     1.0, 3.0, rawScale, options, &plainRng);
-      SamplerOptions gaussianOptions;
-      gaussianOptions.numTrees = 10;
-      ConstantLeafSampler gaussian(x.data(), y.data(), n, p, zeroed.data(),
-                                   offset.data(), ResponseFamily::gaussian,
-                                   1.0, 3.0, rawScale, gaussianOptions,
-                                   &gaussianRng);
-      check(unweighted.zeroWeightRows(unweightedRecord.data()) &&
-              unweightedRecord == std::vector<unsigned char>(n, 0),
-            "an unweighted student-t sampler reports no row at weight zero");
-      check(!gaussian.zeroWeightRows(gaussianRecord.data()) &&
-              gaussianRecord == std::vector<unsigned char>(n, 7),
-            "and a gaussian sampler reports none, its buffer left alone");
-      ext_rng_destroy(gaussianRng);
-      ext_rng_destroy(plainRng);
-    }
-
     sampler.setWeights(other.data());
     sampler.setActiveRows(mask.data());
     sampler.run(5, 0, results);
-    bool reportsWeightsOnly = sampler.zeroWeightRows(destinationRecord.data());
-    for (size_t i = 0; i < n; ++i)
-      reportsWeightsOnly = reportsWeightsOnly &&
-                           destinationRecord[i] == (other[i] == 0.0 ? 1 : 0);
-    check(reportsWeightsOnly,
-          "under a mask it still reports the rows at weight zero and no other");
-    size_t numEntering = 0, numEnteringMasked = 0, numStaying = 0;
-    for (size_t i = 0; i < n; ++i) {
-      if (other[i] == 0.0) continue;
-      if (record[i] != 0 && mask[i] != 0.0) ++numEntering;
-      if (record[i] != 0 && mask[i] == 0.0) ++numEnteringMasked;
-      if (record[i] == 0 && mask[i] != 0.0) ++numStaying;
-    }
-    check(numEntering > 0 && numEnteringMasked > 0 && numStaying > 0,
-          "non-vacuity: rows enter the likelihood, rows enter under the mask "
-          "and rows stay in it");
-
+    // the install takes the stored generator, the source's as it stood
+    ext_rng* reference = cloneRng(source.rng());
     check(sampler.setState(stored, nullptr) &&
-            scales() == stored.chains[0].latents,
+            scales() == stored.chains[0].latents &&
+            composed(other, mask.data()) &&
+            rngStreamsAgree(reference, sampler.rng()),
           "a student-t state stored under other weights installs its scales "
-          "as stored");
-    reference = cloneRng(sampler.rng());
-    expected = conditional(reference, other, [&](size_t i) {
-      return other[i] != 0.0 && mask[i] != 0.0;
-    });
-    sampler.reapplyWeights();
-    check(scales() == expected,
-          "re-deriving it with no record redraws every scale in the "
-          "likelihood at the installed fit and sigma");
-    check(rngStreamsAgree(reference, sampler.rng()),
-          "taken from the chain's own generator");
-    check(composed(other, mask.data()),
-          "and the precisions the trees read carry the redrawn scales");
+          "as stored, composed under the weights and mask in force, and "
+          "draws nothing");
     ext_rng_destroy(reference);
-
-    // a record under which no row enters: the destination's own zero rows
-    check(sampler.setState(stored, nullptr), "the state installs again");
-    reference = cloneRng(sampler.rng());
-    sampler.reapplyWeights(destinationRecord.data());
-    check(scales() == stored.chains[0].latents &&
-            rngStreamsAgree(reference, sampler.rng()),
-          "re-deriving it with a record under which no row enters keeps "
-          "every stored scale and draws nothing");
-    check(composed(other, mask.data()),
-          "and the precisions the trees read carry the stored scales");
-    ext_rng_destroy(reference);
-
-    // the state's own record: the rows at zero then, positive and active now.
-    // The chain is swept away from the state first, so the fit and sigma the
-    // redraw reads must be the installed ones and not the ones it held
-    sampler.run(5, 0, results);
-    double sigmaHeld = TestPeer::workingSigma(sampler.chain(0));
-    std::vector<double> fitsHeld(TestPeer::combinedFits(sampler.chain(0)),
-                                 TestPeer::combinedFits(sampler.chain(0)) + n);
-    check(sampler.setState(stored, nullptr), "and a third time");
-    double largestFitMove = 0.0;
-    for (size_t i = 0; i < n; ++i)
-      largestFitMove = std::max(largestFitMove, std::fabs(
-        TestPeer::combinedFits(sampler.chain(0))[i] - fitsHeld[i]));
-    check(largestFitMove > 1e-3 &&
-            std::fabs(TestPeer::workingSigma(sampler.chain(0)) - sigmaHeld) >
-              1e-3,
-          "non-vacuity: the installed fit and sigma are not the ones the "
-          "chain held");
-    reference = cloneRng(sampler.rng());
-    expected = conditional(reference, other, [&](size_t i) {
-      return record[i] != 0 && other[i] != 0.0 && mask[i] != 0.0;
-    });
-    sampler.reapplyWeights(record.data());
-    size_t numRedrawn = 0;
-    for (size_t i = 0; i < n; ++i)
-      if (scales()[i] != stored.chains[0].latents[i]) ++numRedrawn;
-    check(scales() == expected && numRedrawn == numEntering,
-          "re-deriving it with the record redraws the scale of exactly the "
-          "rows that enter the likelihood, at the installed fit and sigma");
-    check(rngStreamsAgree(reference, sampler.rng()),
-          "taken from the chain's own generator, in row order");
-    check(composed(other, mask.data()),
-          "and the precisions the trees read carry those scales");
-    ext_rng_destroy(reference);
-    reference = cloneRng(sampler.rng());
-    expected = conditional(reference, other, [&](size_t i) {
-      return other[i] != 0.0 && mask[i] == 0.0;
-    });
-    sampler.setActiveRows(nullptr);
-    check(scales() == expected && rngStreamsAgree(reference, sampler.rng()),
-          "a row the mask held out there is redrawn when the mask lifts");
-    ext_rng_destroy(reference);
-    reference = cloneRng(sampler.rng());
-    expected = conditional(reference, precision,
-                           [&](size_t i) { return other[i] == 0.0; });
-    sampler.setWeights(precision.data());
-    check(scales() == expected && rngStreamsAgree(reference, sampler.rng()),
-          "and a row out of it there when its weight leaves zero");
-    ext_rng_destroy(reference);
-
-    // a row that leaves the likelihood at the install - positive when the
-    // state was stored, at weight zero here - is marked out by it: the
-    // weights that bring it back redraw it, with no mask change in between
-    // to mark the rows afresh
-    sampler.setWeights(other.data());
-    check(sampler.setState(stored, nullptr), "and a fourth time, unmasked");
-    sampler.reapplyWeights(record.data());
-    size_t numLeaving = 0;
-    for (size_t i = 0; i < n; ++i)
-      if (record[i] == 0 && other[i] == 0.0) ++numLeaving;
-    reference = cloneRng(sampler.rng());
-    expected = conditional(reference, precision,
-                           [&](size_t i) { return other[i] == 0.0; });
-    sampler.setWeights(precision.data());
-    check(numLeaving > 0 && scales() == expected &&
-            rngStreamsAgree(reference, sampler.rng()),
-          "a row that left the likelihood at the install is redrawn when its "
-          "weight comes back");
-    ext_rng_destroy(reference);
+    check(drawsNothing([&]() { sampler.setActiveRows(nullptr); }) &&
+            composed(other, nullptr),
+          "a lifted mask keeps the scales and draws nothing");
+    check(drawsNothing([&]() { sampler.setWeights(precision.data()); }) &&
+            composed(precision, nullptr),
+          "and so does a weight leaving zero after the install");
     ext_rng_destroy(sourceRng);
     ext_rng_destroy(rng);
   }
 
-  printf("ok: membership rule and redraw across forests\n");
+  printf("ok: membership rule across forests; setters draw nothing\n");
+}
+
+// No setter draws: every between-run mutation a host can make - the
+// response, offset, weights, mask, predictors, sigma, a whole-data swap, a new
+// df or shape, and a state installed under other weights or another censoring
+// status - leaves each chain's generator where it was, on every family that
+// augments its likelihood and on gaussian. The next sweep draws the latents
+// first. A state install takes the stored generator, so there the check is
+// against the source's as it stood.
+static void testSettersConsumeNoVariate() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 20261105u;
+  const size_t n = 60, p = 2, numChains = 2;
+  const double rawScale = 0.37804942330213542;
+  std::vector<double> x(n * p), x2(n * p), continuous(n), continuous2(n);
+  std::vector<double> binary(n), binary2(n), category(n), category2(n);
+  std::vector<double> count(n), count2(n), status(n), status2(n);
+  std::vector<double> offset(n), weights(n), weights2(n), counts(n);
+  std::vector<double> counts2(n), mask(n);
+  for (double& v : x) v = runif01();
+  for (double& v : x2) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    continuous[i] = 2.0 * x[i] - x[i + n] + 0.3 * (runif01() - 0.5);
+    continuous2[i] = continuous[n - 1 - i];
+    binary[i] = continuous[i] > 0.5 ? 1.0 : 0.0;
+    binary2[i] = 1.0 - binary[i];
+    category[i] = 1.0 + static_cast<double>(i % 3);
+    category2[i] = 1.0 + static_cast<double>((i / 2) % 3);
+    count[i] = static_cast<double>(i % 5);
+    count2[i] = static_cast<double>((i + 2) % 6);
+    status[i] = i % 3 == 0 ? 0.0 : 1.0;
+    status2[i] = i % 4 == 1 ? 0.0 : 1.0;
+    offset[i] = 0.2 * (runif01() - 0.5);
+    weights[i] = i % 6 == 0 ? 0.0 : 0.5 + runif01();
+    weights2[i] = i % 5 == 2 ? 0.0 : 0.5 + runif01();
+    counts[i] = 1.0 + static_cast<double>(i % 3);
+    counts2[i] = 2.0 + static_cast<double>(i % 2);
+    mask[i] = i % 4 == 3 ? 0.0 : 1.0;
+  }
+
+  struct Arm {
+    const char* name;
+    ResponseFamily family;
+    const std::vector<double>* y;
+    const std::vector<double>* y2;
+    const std::vector<double>* w;   // null: the family takes no weights
+    const std::vector<double>* w2;
+    bool studentT;
+    bool hasSigma;
+  };
+  const Arm arms[] = {
+    {"gaussian", ResponseFamily::gaussian, &continuous, &continuous2, &weights,
+     &weights2, false, true},
+    {"student-t", ResponseFamily::gaussian, &continuous, &continuous2,
+     &weights, &weights2, true, true},
+    {"probit", ResponseFamily::probit, &binary, &binary2, nullptr, nullptr,
+     false, false},
+    {"ordinal", ResponseFamily::ordinal, &category, &category2, nullptr,
+     nullptr, false, false},
+    {"logistic", ResponseFamily::logistic, &binary, &binary2, &counts,
+     &counts2, false, false},
+    {"nbinom", ResponseFamily::nbinom, &count, &count2, nullptr, nullptr,
+     false, false},
+    {"aft", ResponseFamily::aft, &continuous, &continuous2, nullptr, nullptr,
+     false, true},
+  };
+  char what[160];
+  for (const Arm& arm : arms) {
+    SamplerOptions options;
+    options.numTrees = 10;
+    options.numChains = numChains;
+    if (arm.studentT) options.residualDf = -1.0;  // nu drawn
+    if (arm.family == ResponseFamily::ordinal) options.numCategories = 3;
+    if (arm.family == ResponseFamily::aft)
+      options.survivalStatus = status.data();
+    double scale = arm.family == ResponseFamily::gaussian ||
+                       arm.family == ResponseFamily::aft
+                     ? rawScale : 1.0;
+    std::vector<ext_rng*> rngs;
+    auto make = [&](std::uint32_t seed) {
+      ext_rng* pair[numChains];
+      for (size_t c = 0; c < numChains; ++c) {
+        pair[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+        ext_rng_setSeed(pair[c], seed + static_cast<std::uint32_t>(c));
+        rngs.push_back(pair[c]);
+      }
+      return std::make_unique<ConstantLeafSampler>(
+        x.data(), arm.y->data(), n, p,
+        arm.w != nullptr ? arm.w->data() : nullptr, offset.data(), arm.family,
+        1.0, 3.0, scale, options, pair);
+    };
+    auto sampler = make(31u);
+    Results none;
+    sampler->run(10, 0, none);
+
+    // every chain's generator still where the clones were taken
+    auto drawsNothing = [&](const char* setter, auto&& call) {
+      std::vector<ext_rng*> clones;
+      for (size_t c = 0; c < numChains; ++c)
+        clones.push_back(cloneRng(sampler->chain(c).rng()));
+      call();
+      bool same = true;
+      for (size_t c = 0; c < numChains; ++c) {
+        same = rngStreamsAgree(clones[c], sampler->chain(c).rng()) && same;
+        ext_rng_destroy(clones[c]);
+      }
+      std::snprintf(what, sizeof what, "%s: %s consumes no variate", arm.name,
+                    setter);
+      check(same, what);
+    };
+    drawsNothing("setResponse", [&]() {
+      sampler->setResponse(arm.y2->data(), false);
+      sampler->setResponse(arm.y->data(), true);
+    });
+    drawsNothing("setOffset", [&]() {
+      sampler->setOffset(nullptr, false);
+      sampler->setOffset(offset.data(), true);
+    });
+    if (arm.w != nullptr)
+      drawsNothing("setWeights", [&]() {
+        sampler->setWeights(arm.w2->data());
+        sampler->setWeights(arm.w->data());
+      });
+    drawsNothing("setActiveRows", [&]() {
+      sampler->setActiveRows(mask.data());
+    });
+    sampler->run(2, 0, none);
+    drawsNothing("setActiveRows reactivating rows", [&]() {
+      sampler->setActiveRows(nullptr);
+    });
+    drawsNothing("setPredictor", [&]() {
+      sampler->setPredictor(x2.data(), true, false);
+      sampler->setPredictor(x.data(), true, false);
+    });
+    if (arm.hasSigma)
+      drawsNothing("setSigma", [&]() { sampler->setSigma(0.7); });
+    if (arm.studentT)
+      drawsNothing("setResidualDf", [&]() {
+        sampler->setResidualDf(7.0);
+        sampler->setResidualDf(0.0);
+      });
+    if (arm.family == ResponseFamily::nbinom)
+      drawsNothing("setNegativeBinomialShape", [&]() {
+        sampler->setNegativeBinomialShape(6.0);
+        sampler->setNegativeBinomialShape(-1.0);
+      });
+    if (arm.family == ResponseFamily::aft)
+      drawsNothing("setSurvivalStatus", [&]() {
+        sampler->setSurvivalStatus(status2.data());
+        sampler->setResponse(arm.y->data(), false);
+      });
+    sampler->run(3, 0, none);
+    if (arm.family != ResponseFamily::aft)
+      drawsNothing("setData", [&]() {
+        check(sampler->setData(x2.data(), arm.y2->data(), n,
+                               arm.w != nullptr ? arm.w2->data() : nullptr,
+                               offset.data(), nullptr, 0),
+              "the data swap is taken");
+      });
+
+    // a state stored under other weights or censoring, installed: the
+    // generator is the stored one and nothing is drawn on top of it
+    if (arm.w != nullptr || arm.family == ResponseFamily::aft) {
+      auto source = make(77u);
+      source->run(10, 0, none);
+      SamplerStateData stored;
+      source->getState(stored);
+      // the aft sampler holds status2 from above
+      if (arm.w != nullptr) sampler->setWeights(arm.w2->data());
+      std::vector<ext_rng*> clones;
+      for (size_t c = 0; c < numChains; ++c)
+        clones.push_back(cloneRng(source->chain(c).rng()));
+      // the swap above moved the grid, which the install re-quantizes under
+      const double* current =
+        arm.family != ResponseFamily::aft ? x2.data() : x.data();
+      bool installed = sampler->setState(stored, current);
+      bool same = installed;
+      for (size_t c = 0; c < numChains; ++c) {
+        same = rngStreamsAgree(clones[c], sampler->chain(c).rng()) && same;
+        ext_rng_destroy(clones[c]);
+      }
+      std::snprintf(what, sizeof what,
+                    "%s: setState under other %s draws nothing", arm.name,
+                    arm.w != nullptr ? "weights" : "censoring");
+      check(same, what);
+    }
+    sampler.reset();
+    for (ext_rng* rng : rngs) ext_rng_destroy(rng);
+  }
+  rngState = savedRngState;
+  printf("ok: setters consume no variate\n");
 }
 
 static void testSetWeightsAndTestOffset() {
@@ -9716,18 +9729,6 @@ static void testRederiveScale() {
       out.insert(out.end(), sampler.latents(c), sampler.latents(c) + n);
     return out;
   };
-  // every entering row's latent moved at the install, in each chain, and no
-  // latent moved at the re-derivation
-  auto latentsFollowInstall = [&](const std::vector<double>& before,
-                                  const std::vector<double>& installed,
-                                  ConstantLeafSampler& sampler,
-                                  std::initializer_list<size_t> entering) {
-    if (installed != latentsOf(sampler)) return false;
-    for (size_t c = 0; c < numChains; ++c)
-      for (size_t i : entering)
-        if (installed[c * n + i] == before[c * n + i]) return false;
-    return true;
-  };
   const ResponseUpdateResult accepted = ResponseUpdateResult::accepted,
                              scaleKept = ResponseUpdateResult::scaleKept;
   char what[160];
@@ -9764,14 +9765,11 @@ static void testRederiveScale() {
                   : literal(y, offset.data(), prev.data(), maskNext.data());
       check(anchorOf(*a.sampler) == rowsIn && rowsIn != before,
             label(variant.name, "onto the range of the rows now in"));
-      if (studentT && byWeights)
-        check(latentsFollowInstall(latentsBefore, latentsInstalled, *a.sampler,
-                                   {30, 37, 44}),
-              label(variant.name, "latents move at the install alone"));
-      else if (studentT)
+      if (studentT)
         check(latentsInstalled == latentsBefore &&
                 latentsInstalled == latentsOf(*a.sampler),
-              label(variant.name, "no row enters and no latent moves"));
+              label(variant.name, "no latent moves at the install or the "
+                                  "re-derivation"));
       check(sameNow(*a.sampler, *b.sampler) &&
               sweeps(*a.sampler) == sweeps(*b.sampler),
             label(variant.name, "the offset entry's twin, to the bit"));
@@ -9838,7 +9836,7 @@ static void testRederiveScale() {
   // A latent family under masks: maskA leaves rows 0 to 29 out and is
   // re-derived under, so the range in force is its rows'; maskB brings rows
   // 6 to 29 in; the keep mask holds two rows at one value. derive is the
-  // literal under a mask; entering are rows whose latent the install redraws.
+  // literal under a mask. No latent moves at an install.
   std::vector<double> maskA = vectorOut({{0, 30}}, false),
                       maskB = vectorOut({{0, 6}}, false);
   auto maskedFamily = [&](const char* name, ResponseFamily family,
@@ -9846,7 +9844,6 @@ static void testRederiveScale() {
                           const std::vector<double>& offs,
                           const double* status,
                           const std::vector<double>& keepMask,
-                          std::initializer_list<size_t> entering,
                           std::pair<double, double> (*derive)(
                             const std::vector<double>&,
                             const std::vector<double>&, const double*)) {
@@ -9872,9 +9869,9 @@ static void testRederiveScale() {
             anchorOf(*a.sampler) == derive(response, offs, maskB.data()) &&
             anchorOf(*a.sampler) != before,
           label(name, "rows back in re-derive over the rows in"));
-    check(latentsFollowInstall(latentsBefore, latentsInstalled, *a.sampler,
-                               entering),
-          label(name, "latents move at the install alone"));
+    check(latentsInstalled == latentsBefore &&
+            latentsInstalled == latentsOf(*a.sampler),
+          label(name, "no latent moves at the install or the re-derivation"));
     check(sameNow(*a.sampler, *b.sampler) &&
             sweeps(*a.sampler) == sweeps(*b.sampler),
           label(name, "the offset entry's twin, to the bit"));
@@ -9899,7 +9896,7 @@ static void testRederiveScale() {
     counts[41] = counts[40];
     maskedFamily(
       "count", ResponseFamily::nbinom, counts, exposure, nullptr,
-      vectorIn({40, 41}, 1.0), {6, 17, 29},
+      vectorIn({40, 41}, 1.0),
       [](const std::vector<double>& response, const std::vector<double>& offs,
          const double* mask) {
         double c = NBResponse::computeShift(response.data(), offs.data(),
@@ -9913,7 +9910,7 @@ static void testRederiveScale() {
     status[12] = status[13] = status[14] = status[60] = 0.0;
     maskedFamily(
       "survival", ResponseFamily::aft, y, offset, status.data(),
-      vectorIn({60, 61}, 1.0), {12, 13, 14},
+      vectorIn({60, 61}, 1.0),
       [](const std::vector<double>& response, const std::vector<double>& offs,
          const double* mask) {
         double lo = std::numeric_limits<double>::infinity(), hi = -lo;
@@ -16668,6 +16665,7 @@ void runSamplerTests(ext_rng* rng) {
   testActiveRows();
   testActiveRowsOnGrownForest();
   testMembershipAcrossForests();
+  testSettersConsumeNoVariate();
   testSetWeightsAndTestOffset();
   testSetControlAndModel();
   testFrozenForest();

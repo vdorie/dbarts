@@ -6403,7 +6403,7 @@ static void testAFTCensoredMoments(ext_rng* rng) {
 
   // and the pair the host issues: the response at the same observed times,
   // which is what rebuilds the working response
-  resp3.setResponse(logTime3.data(), rng, fits3.data(), false, &sigmaInOut3);
+  resp3.setResponse(logTime3.data(), false, &sigmaInOut3);
   check(resp3.latents()[flipFrom] == logTime3[flipFrom],
         "a row leaving the censored set is back at its observed log-time");
 
@@ -6518,7 +6518,7 @@ static void testAFTStateRoundTrip() {
 // response memcpy, so a joint call lands where creation at the new pair does.
 // Both arms are stated against models sharing one response transform, which
 // is what makes the log-likelihood comparison well posed.
-static void testAFTStatusSetter(ext_rng* rng) {
+static void testAFTStatusSetter() {
   const std::size_t n = 24;
   const double sigmaDf = 3.0, rawScale = 0.37804942330213542, sigma = 0.45;
   std::vector<double> y1(n), y2(n), s1(n), s2(n), fits(n);
@@ -6549,29 +6549,30 @@ static void testAFTStatusSetter(ext_rng* rng) {
   double dfBefore = TestPeer::sigmaDegreesOfFreedom(set);
   double sigmaInOut = sigma;
   set.setSurvivalStatus(s2.data());
-  set.setResponse(y1.data(), rng, fits.data(), false, &sigmaInOut);
+  set.setResponse(y1.data(), false, &sigmaInOut);
   check(transformsAgree(created, set),
         "a status change leaves the response transform alone");
 
   std::vector<double> createdLogLik, setLogLik;
   logLikelihood(created, createdLogLik);
   logLikelihood(set, setLogLik);
-  bool eventsExact = true, censoredExact = true, redrawn = false;
+  bool eventsExact = true, censoredExact = true, atBound = true;
   for (std::size_t i = 0; i < n; ++i) {
     if (s2[i] != 0.0) {
       if (set.latents()[i] != y1[i]) eventsExact = false;
     } else {
       if (setLogLik[i] != createdLogLik[i]) censoredExact = false;
-      // a row s1 did not censor is redrawn here for the first time, which is
-      // the ordering the bound arithmetic alone cannot see
-      if (s1[i] != 0.0 && set.latents()[i] > y1[i]) redrawn = true;
+      // nothing is drawn: a censored row holds its bound under the NEW
+      // structure until the next sweep draws it
+      if (set.latents()[i] != y1[i]) atBound = false;
     }
   }
   check(eventsExact, "a set status leaves every event row at its observed "
                      "log-time");
   check(censoredExact,
         "and every censored row's log-likelihood is the created model's");
-  check(redrawn, "a newly censored row is redrawn against the NEW structure");
+  check(atBound, "every censored row holds its new bound until the next "
+                 "sweep draws it");
   check(TestPeer::sigmaDegreesOfFreedom(set) == dfBefore &&
           TestPeer::sigmaDegreesOfFreedom(set) ==
             TestPeer::sigmaDegreesOfFreedom(created),
@@ -6584,7 +6585,7 @@ static void testAFTStatusSetter(ext_rng* rng) {
   AFTResponse joint(y1.data(), s1.data(), nullptr, n, 1.0, sigmaDf, rawScale);
   sigmaInOut = sigma;
   joint.setSurvivalStatus(s2.data());
-  joint.setResponse(y2.data(), rng, fits.data(), false, &sigmaInOut);
+  joint.setResponse(y2.data(), false, &sigmaInOut);
   check(transformsAgree(jointCreated, joint),
         "the reversed response spans the same range, so the pair share a "
         "transform");
@@ -6627,9 +6628,8 @@ static void testAFTStatusSetter(ext_rng* rng) {
 //
 // NEUTRAL. Before any sweep the censored rows sit at their bounds, and the
 // call lands bit for bit where the two paths that always read observed times
-// land: creation at the offset, on every row, and a response swap that
-// re-derives the range under it, whose redraw moves the censored rows' working
-// response and nothing else.
+// land: creation at the offset and a response swap that re-derives the range
+// under it, on every row.
 //
 // AFTER SWEEPS. The row whose observed time less the offset is the largest is
 // censored, so each chain holds a drawn time above the observed range. One
@@ -6722,13 +6722,13 @@ static void testAFTOffsetReanchorObservedTimes() {
       const double* atSwap = TestPeer::workingResponse(swapped->chain(c));
       for (size_t i = 0; i < n; ++i) {
         asCreated = asCreated && working[i] == atCreation[i];
-        if (status[i] != 0.0) asSwapped = asSwapped && working[i] == atSwap[i];
+        asSwapped = asSwapped && working[i] == atSwap[i];
       }
     }
     check(asCreated, "aft offset re-anchor: before any sweep the working "
                      "response is creation's at the offset, bit for bit");
-    check(asSwapped, "aft offset re-anchor: and the response swap's on every "
-                     "row that swap does not redraw");
+    check(asSwapped, "aft offset re-anchor: and the response swap's, which "
+                     "draws nothing, on every row");
   }
 
   // after 20 sweeps
@@ -7418,8 +7418,8 @@ static void testActiveRowsProbitKernel(ext_rng*) {
   ProbitResponse perturbed(yPerturbed.data(), nullptr, n);
   ProbitResponse compact(yCompact.data(), nullptr, yCompact.size());
   check(masked.supportsActiveRows() &&
-          masked.setActiveRows(active.data(), nullptr, nullptr, 1.0) &&
-          perturbed.setActiveRows(active.data(), nullptr, nullptr, 1.0),
+          masked.setActiveRows(active.data()) &&
+          perturbed.setActiveRows(active.data()),
         "probit accepts an active-row mask");
   check(masked.workingWeights() != nullptr &&
           masked.workingWeights()[0] == 0.0 &&
@@ -7489,7 +7489,7 @@ static void testActiveRowsOrdinalKernels(ext_rng*) {
   OrdinalResponse masked(y.data(), nullptr, n, K);
   OrdinalResponse compact(yCompact.data(), nullptr, yCompact.size(), K);
   check(masked.supportsActiveRows() &&
-          masked.setActiveRows(active.data(), nullptr, nullptr, 1.0),
+          masked.setActiveRows(active.data()),
         "ordinal accepts an active-row mask");
   check(masked.numOrdinalThresholds() == K - 1,
         "an emptied boundary category leaves K and its cutpoints standing");
@@ -7571,7 +7571,7 @@ static void testActiveRowsGaussianDf(ext_rng*) {
           static_cast<double>(numPositive),
         "the unmasked df differs from the masked one, so the pin can fail");
   check(resp.supportsActiveRows() &&
-          resp.setActiveRows(active.data(), nullptr, nullptr, 1.0),
+          resp.setActiveRows(active.data()),
         "gaussian accepts an active-row mask");
   check(TestPeer::sigmaDegreesOfFreedom(resp) ==
           sigmaDf + static_cast<double>(numPositive),
@@ -7582,7 +7582,7 @@ static void testActiveRowsGaussianDf(ext_rng*) {
   // would take its range from fewer rows
   GaussianResponse ref(y.data(), nullptr, weights.data(), n, 1.0, sigmaDf,
                        rawScale);
-  ref.setWeights(composed.data(), nullptr, nullptr, 1.0);
+  ref.setWeights(composed.data());
   ext_rng* rngResp = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng* rngRef = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(rngResp, 20260814u);
@@ -7593,11 +7593,11 @@ static void testActiveRowsGaussianDf(ext_rng*) {
 
   // both degenerate clears restore the borrowed pointer itself, which is what
   // keeps the fused node-average path reachable afterwards
-  check(resp.setActiveRows(nullptr, nullptr, nullptr, 1.0) && resp.workingWeights() == premask,
+  check(resp.setActiveRows(nullptr) && resp.workingWeights() == premask,
         "clearing the mask restores the pre-mask weight pointer by identity");
-  check(resp.setActiveRows(active.data(), nullptr, nullptr, 1.0),
+  check(resp.setActiveRows(active.data()),
         "the mask reinstalls");
-  resp.setWeights(ones.data(), nullptr, nullptr, 1.0);
+  resp.setWeights(ones.data());
   check(resp.workingWeights()[0] == 0.0 && resp.workingWeights()[1] == 1.0 &&
           TestPeer::sigmaDegreesOfFreedom(resp) ==
             sigmaDf + static_cast<double>(n - 5),
@@ -7608,7 +7608,7 @@ static void testActiveRowsGaussianDf(ext_rng*) {
   // the model: NaN, where a zero weight used to give -Inf through an infinite
   // residual sd and a masked probit would have given a finite number
   std::vector<double> loglik(n);
-  resp.setWeights(weights.data(), nullptr, nullptr, 1.0);
+  resp.setWeights(weights.data());
   resp.computeLogLikelihood(fits.data(), sigma, n, loglik.data());
   bool flagged = std::isnan(loglik[0]) && std::isfinite(loglik[1]);
   for (std::size_t i = 0; i < n; ++i)
@@ -7835,7 +7835,7 @@ static void testScaleRowsRange() {
     double sigma = 0.4;
     GaussianResponse weighted(y.data(), offset.data(), weights.data(), n, 1.0,
                               sigmaDf, rawScale);
-    weighted.setResponse(y2.data(), nullptr, nullptr, true, &sigma);
+    weighted.setResponse(y2.data(), true, &sigma);
     check(transformIs(weighted, y2, offset.data(),
                       rangeOver(y2, offset.data(), &in)),
           "setResponse re-derives over the rows of positive weight");
@@ -7849,14 +7849,14 @@ static void testScaleRowsRange() {
 
     GaussianResponse masked(y.data(), offset.data(), nullptr, n, 1.0, sigmaDf,
                             rawScale);
-    check(masked.setActiveRows(mask.data(), nullptr, nullptr, 1.0) &&
+    check(masked.setActiveRows(mask.data()) &&
             transformIs(masked, y, offset.data(), everyRow),
           "a mask installed after creation moves no transform");
-    masked.setResponse(y2.data(), nullptr, nullptr, true, &sigma);
+    masked.setResponse(y2.data(), true, &sigma);
     check(transformIs(masked, y2, offset.data(),
                       rangeOver(y2, offset.data(), &in)),
           "setResponse re-derives over the rows the mask keeps");
-    masked.setWeights(weights2.data(), nullptr, nullptr, 1.0);
+    masked.setWeights(weights2.data());
     masked.setOffset(offset2.data(), true, &sigma);
     check(transformIs(masked, y2, offset2.data(),
                       rangeOver(y2, offset2.data(), &both)),
@@ -7869,8 +7869,8 @@ static void testScaleRowsRange() {
                       rangeOver(y2, offset2.data(), &in2)),
           "setData reads the rows in under the weights it is handed");
 
-    // Student-t: weights and mask, through each setter. A response swap
-    // resets the mixing scales, so the marks and not the composite decide
+    // Student-t: weights and mask, through each setter; the marks and not the
+    // composite decide
     TResponse student(y.data(), offset.data(), weights2.data(), n, 1.0,
                       sigmaDf, rawScale, 5.0);
     check(transformIs(student, y, offset.data(),
@@ -7879,7 +7879,7 @@ static void testScaleRowsRange() {
     std::vector<double> fits(n, 0.0);
     ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
     ext_rng_setSeed(rng, 20261012u);
-    check(student.setActiveRows(mask.data(), rng, fits.data(), 0.4) &&
+    check(student.setActiveRows(mask.data()) &&
             transformIs(student, y, offset.data(),
                         rangeOver(y, offset.data(), &in2)),
           "a Student-t mask moves no transform");
@@ -7888,7 +7888,7 @@ static void testScaleRowsRange() {
     check(transformIs(student, y, offset2.data(),
                       rangeOver(y, offset2.data(), &both)),
           "a Student-t setOffset re-derives over the rows in");
-    student.setResponse(y2.data(), rng, fits.data(), true, &sigma);
+    student.setResponse(y2.data(), true, &sigma);
     check(transformIs(student, y2, offset2.data(),
                       rangeOver(y2, offset2.data(), &both)),
           "a Student-t setResponse re-derives over the rows in");
@@ -7908,7 +7908,7 @@ static void testScaleRowsRange() {
                     rawScale);
     check(transformIs(aft, y, nullptr, rangeOver(y, nullptr, nullptr)),
           "aft at creation reads every row");
-    check(aft.setActiveRows(mask.data(), nullptr, nullptr, 1.0),
+    check(aft.setActiveRows(mask.data()),
           "aft accepts the mask");
     // censored rows 1 and 9 are kept; move their latents far above every time
     drawn[1] = 500.0;
@@ -7925,21 +7925,17 @@ static void testScaleRowsRange() {
             aft.fitScale() == rowsIn.max - rowsIn.min,
           "aft setOffset re-derives over the observed times the mask keeps");
     // a mask keeping one event row, and one keeping a censored row alone:
-    // too little, read from the observed time and not the drawn one. The
-    // second mask brings a censored row back in, which redraws its latent
-    std::vector<double> oneEvent(n, 0.0), oneCensored(n, 0.0), fits(n, 0.0);
+    // too little, read from the observed time and not the drawn one
+    std::vector<double> oneEvent(n, 0.0), oneCensored(n, 0.0);
     oneEvent[2] = 1.0;
     oneCensored[1] = 1.0;
-    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-    ext_rng_setSeed(rng, 20261013u);
-    aft.setActiveRows(oneEvent.data(), rng, fits.data(), 0.4);
+    aft.setActiveRows(oneEvent.data());
     check(aft.lacksDistinctRowsIn(IncomingVector::offset, offset.data()) &&
             aft.lacksDistinctRowsIn(IncomingVector::response, y.data()),
           "aft with one row kept has too little to read");
-    aft.setActiveRows(oneCensored.data(), rng, fits.data(), 0.4);
+    aft.setActiveRows(oneCensored.data());
     check(aft.lacksDistinctRowsIn(IncomingVector::offset, nullptr),
           "and with one censored row kept");
-    ext_rng_destroy(rng);
   }
   printf("ok: response range over the rows in the likelihood\n");
 }
@@ -8054,7 +8050,7 @@ static void testActiveRowsStudentComposite(ext_rng*) {
   TResponse ref(y.data(), nullptr, composed.data(), n, 1.0, sigmaDf, rawScale,
                 -1.0);
   check(masked.supportsActiveRows() &&
-          masked.setActiveRows(active.data(), nullptr, nullptr, 1.0),
+          masked.setActiveRows(active.data()),
         "student-t accepts an active-row mask");
 
   ext_rng* rngMasked = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -8126,8 +8122,8 @@ static void testActiveRowsLogisticKernel(ext_rng*) {
   LogisticResponse compact(yCompact.data(), nullptr, countsCompact.data(),
                            yCompact.size());
   check(masked.supportsActiveRows() &&
-          masked.setActiveRows(active.data(), nullptr, nullptr, 1.0) &&
-          perturbed.setActiveRows(active.data(), nullptr, nullptr, 1.0),
+          masked.setActiveRows(active.data()) &&
+          perturbed.setActiveRows(active.data()),
         "logistic accepts an active-row mask");
 
   ext_rng* rngMasked = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -8212,7 +8208,7 @@ static void testActiveRowsNBKernels(ext_rng*) {
   NBResponse full(y.data(), nullptr, n, -1.0);
   NBResponse compact(yCompact.data(), nullptr, yCompact.size(), -1.0);
   check(masked.supportsActiveRows() &&
-          masked.setActiveRows(active.data(), nullptr, nullptr, 1.0),
+          masked.setActiveRows(active.data()),
         "nbinom accepts an active-row mask");
 
   bool kernelExact = true, kernelMoved = false;
@@ -8318,7 +8314,7 @@ static void testActiveRowsAFTCensored(ext_rng*) {
         "both aft arms carry the same response transform, so the redraw "
         "comparison is well posed");
   check(masked.supportsActiveRows() &&
-          masked.setActiveRows(active.data(), nullptr, nullptr, 1.0),
+          masked.setActiveRows(active.data()),
         "aft accepts an active-row mask");
   check(TestPeer::sigmaDegreesOfFreedom(masked) ==
           sigmaDf + static_cast<double>(numActive),
@@ -8704,42 +8700,34 @@ static void testNBSweepOrderAndRestore(ext_rng*) {
   check(omegaMatch, "nb omega drawn at r_new in the mandated order bit for bit");
   check(workingMatch, "nb working is kappa / omega - a_i at r_new bit for bit");
 
-  // setResponse keeps r (the kept-cutpoints/nu clause): a y swap in grid mode
-  // draws NO r variate, only omega at the CURRENT r - proved bitwise, since an
-  // r draw would consume a uniform first and shift every omega draw after it.
-  // updateScale = false keeps c too.
+  // setResponse keeps r and omega and draws nothing: the generator is never
+  // handed over, and the working response is kappa / omega - a_i rebuilt
+  // under the new counts, bit for bit. updateScale = false keeps c too.
   {
     std::vector<double> ySwap(y);
     ySwap[3] += 1.0;
     double rKept = resp.shape();
-    ext_rng* rSet = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-    ext_rng* rSetRef = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-    ext_rng_setSeed(rSet, 55555u);
-    ext_rng_setSeed(rSetRef, 55555u);
-    resp.setResponse(ySwap.data(), rSet, totalFits.data(), false, nullptr);
+    std::vector<double> omegaKept(omega, omega + n);
+    resp.setResponse(ySwap.data(), false, nullptr);
     check(resp.shape() == rKept && resp.fitShift() == c,
           "nb setResponse keeps the current r, and c without updateScale");
     bool swapExact = true;
     for (std::size_t i = 0; i < n; ++i) {
       double a = anchor(i, rKept);
-      double refOmega =
-        simulatePolyaGammaShape(rSetRef, ySwap[i] + rKept, totalFits[i] + a);
-      if (resp.latents()[i] != refOmega ||
-          resp.workingResponse()[i] != 0.5 * (ySwap[i] - rKept) / refOmega - a)
+      if (resp.latents()[i] != omegaKept[i] ||
+          resp.workingResponse()[i] !=
+            0.5 * (ySwap[i] - rKept) / omegaKept[i] - a)
         swapExact = false;
     }
-    check(swapExact, "nb setResponse redraws omega at the kept r bit for bit");
-    ext_rng_setSeed(rSet, 55555u);
-    resp.setResponse(ySwap.data(), rSet, totalFits.data(), true, nullptr);
+    check(swapExact, "nb setResponse keeps omega and rebuilds the working "
+                     "response from it bit for bit");
+    resp.setResponse(ySwap.data(), true, nullptr);
     check(resp.fitShift() ==
             NBResponse::computeShift(ySwap.data(), offset.data(), n) &&
             resp.fitShift() != c,
           "nb setResponse with updateScale re-anchors c to the new counts");
-    ext_rng_destroy(rSetRef);
-    ext_rng_destroy(rSet);
     // put the fixture back for the restore-contract block below
-    ext_rng_setSeed(rResp, 424242u);
-    resp.setResponse(y.data(), rResp, totalFits.data(), true, nullptr);
+    resp.setResponse(y.data(), true, nullptr);
     check(resp.fitShift() == c, "nb c is a function of the counts alone");
   }
 
@@ -8892,7 +8880,7 @@ static void testNBShiftRowsIn() {
   std::vector<double> offset = {0.5, -0.4, 0.0, 0.7,  0.2, -0.1,
                                 0.3, -0.6, 0.1, -0.3, 0.4, 0.0};
   const std::size_t n = y.size();
-  std::vector<double> mask(n), fits(n, 0.0);
+  std::vector<double> mask(n);
   double total = 0.0, exposure = 0.0, kept = 0.0, totalIn = 0.0,
          exposureIn = 0.0;
   for (std::size_t i = 0; i < n; ++i) {
@@ -8904,8 +8892,6 @@ static void testNBShiftRowsIn() {
     totalIn += y[i];
     exposureIn += std::exp(offset[i]);
   }
-  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-  ext_rng_setSeed(rng, 20261015u);
 
   // unmasked: the every-row sums in row order, to the bit, through creation
   // and through each re-deriving setter
@@ -8920,8 +8906,7 @@ static void testNBShiftRowsIn() {
   plain.setOffset(nullptr, true, nullptr);
 
   // held across the mask, then re-derived over the rows it keeps
-  check(plain.setActiveRows(mask.data(), rng, fits.data(), 1.0) &&
-          exposed.setActiveRows(mask.data(), rng, fits.data(), 1.0) &&
+  check(plain.setActiveRows(mask.data()) && exposed.setActiveRows(mask.data()) &&
           plain.fitShift() == std::log(total / static_cast<double>(n)) &&
           exposed.fitShift() == std::log(total / exposure),
         "nb c is held across setActiveRows");
@@ -8940,7 +8925,7 @@ static void testNBShiftRowsIn() {
         "which the every-row center is not, with or without the offset");
   std::vector<double> y2(y);
   for (std::size_t i = 0; i < n; ++i) y2[i] = mask[i] == 0.0 ? 40.0 : y[i] + 1.0;
-  exposed.setResponse(y2.data(), rng, fits.data(), true, nullptr);
+  exposed.setResponse(y2.data(), true, nullptr);
   checkNear(exposed.fitShift(), std::log((totalIn + kept) / exposureIn), 1e-14,
             "nb setResponse re-derives c over the rows the mask keeps");
 
@@ -8954,7 +8939,7 @@ static void testNBShiftRowsIn() {
   check(!lone.lacksDistinctRowsIn(IncomingVector::offset, offset.data()),
         "with no mask nothing is too little");
   for (const std::vector<double>* few : {&oneRow, &oneCount}) {
-    lone.setActiveRows(few->data(), rng, fits.data(), 1.0);
+    lone.setActiveRows(few->data());
     check(lone.lacksDistinctRowsIn(IncomingVector::offset, offset.data()) &&
             lone.lacksDistinctRowsIn(IncomingVector::offset, nullptr) &&
             lone.lacksDistinctRowsIn(IncomingVector::response, y.data()),
@@ -8971,7 +8956,6 @@ static void testNBShiftRowsIn() {
   check(!lone.lacksDistinctRowsIn(IncomingVector::response, y3.data()),
         "an incoming response with two counts on the kept rows is enough");
 
-  ext_rng_destroy(rng);
   printf("ok: nb center over the rows the mask keeps\n");
 }
 
@@ -10382,89 +10366,19 @@ static void testFlatFamilyCreatePaths() {
   printf("ok: flat-C family create paths (logistic, ordinal, aft)\n");
 }
 
-// setActiveRows redraws the latent of every row it switches from inactive to
-// active, from the row's conditional given the fit it is handed, and touches
-// nothing else: a row that stays active, stays inactive or is switched off
-// keeps its latent bitwise, and a mask that reactivates no row - the first
-// install, or the mask already in force - consumes no variate. `reference`
-// draws what the reactivated rows owe from a generator cloned ahead of the
-// call, in row order, so the comparison is bitwise in value and in variates
-// consumed. `install` hands the response a 0/1 row pattern: as its mask, or,
-// for a family whose weights annihilate a latent, as zeros in its weights.
-template <typename Response, typename Reference, typename Install>
-static void checkReactivatedLatents(const char* family, Response& response,
-                                    const std::vector<double>& fitsOld,
-                                    const std::vector<double>& fitsNew,
-                                    double sigma, Reference reference,
-                                    Install install) {
-  const std::size_t n = fitsOld.size();
-  // i % 4 == 0 starts inactive; of those i % 8 == 4 is switched back in and
-  // i % 8 == 0 stays out, while i % 4 == 1 is switched off by the second mask
-  std::vector<double> first(n, 1.0), second(n, 1.0);
-  std::vector<std::size_t> reactivated;
-  for (std::size_t i = 0; i < n; ++i) {
-    if (i % 4 == 0) first[i] = 0.0;
-    if (i % 8 == 0 || i % 4 == 1) second[i] = 0.0;
-    if (i % 8 == 4) reactivated.push_back(i);
-  }
-  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-  ext_rng_setSeed(rng, 20261005u);
-  auto latents = [&]() {
-    return std::vector<double>(response.latents(), response.latents() + n);
-  };
-  // whether `rng` still sits where `before` was cloned; both are advanced, so
-  // the caller carries on from a clone taken ahead of the call
-  auto untouched = [&](ext_rng* before) {
-    bool same = rngStreamsAgree(before, rng);
-    ext_rng_destroy(before);
-    return same;
-  };
-
-  response.refreshLatents(rng, fitsOld.data(), sigma);
-  std::vector<double> held = latents();
-  ext_rng* position = cloneRng(rng);
-  install(response, first, rng, fitsOld.data(), sigma);
-  ext_rng* replay = cloneRng(rng);
-  check(untouched(position) && latents() == held, family);
-  ext_rng_destroy(rng);
-  rng = replay;
-
-  // the fit moves while the rows are out, which is what makes a kept latent
-  // stale
-  response.refreshLatents(rng, fitsNew.data(), sigma);
-  held = latents();
-  position = cloneRng(rng);
-  install(response, first, rng, fitsNew.data(), sigma);
-  replay = cloneRng(rng);
-  check(untouched(position) && latents() == held, family);
-  ext_rng_destroy(rng);
-  rng = replay;
-
-  ext_rng* referenceRng = cloneRng(rng);
-  install(response, second, rng, fitsNew.data(), sigma);
-  std::vector<double> expected = reference(referenceRng, reactivated, held);
-  std::vector<double> now = latents();
-  bool redrawn = true, kept = true, moved = false;
-  for (std::size_t i = 0, j = 0; i < n; ++i) {
-    if (i % 8 == 4) {
-      redrawn &= now[i] == expected[j++];
-      moved |= now[i] != held[i];
-    } else {
-      kept &= now[i] == held[i];
-    }
-  }
-  check(redrawn && moved, family);
-  check(kept, family);
-  check(rngStreamsAgree(referenceRng, rng), family);
-  ext_rng_destroy(referenceRng);
-  ext_rng_destroy(rng);
-}
-
-static void testReactivatedLatents() {
+// No setter draws: each keeps every latent, a row a mask or a weight brings
+// back into the likelihood included, and the family parameters drawn beside
+// them (the ordinal cutpoints, the Student-t df, the negative-binomial shape);
+// the next sweep draws them all before anything reads them. A setter takes no
+// generator, so consuming none is structural here; the chain-level test pins
+// it there. The exceptions are data: aft setResponse puts each row at its new
+// time, a censored one at its new bound.
+static void testSettersKeepLatents() {
   const std::size_t n = 24;
-  const double sigma = 0.6;
+  const double sigma = 0.6, rawScale = 0.37804942330213542;
   std::vector<double> binary(n), category(n), count(n), trials(n), time(n);
-  std::vector<double> status(n), weights(n), fitsOld(n), fitsNew(n);
+  std::vector<double> status(n), weights(n), fits(n), first(n), offset(n);
+  std::vector<double> binary2(n), category2(n), count2(n), time2(n);
   for (std::size_t i = 0; i < n; ++i) {
     binary[i] = (i / 2) % 2 == 0 ? 1.0 : 0.0;
     category[i] = 1.0 + static_cast<double>((i / 2) % 3);
@@ -10473,153 +10387,135 @@ static void testReactivatedLatents() {
     time[i] = 0.2 + 0.07 * static_cast<double>(i);
     status[i] = i % 3 == 1 ? 1.0 : 0.0;  // two in three censored
     weights[i] = 0.5 + 0.25 * static_cast<double>(i % 4);
-    fitsOld[i] = 0.02 * static_cast<double>(i) - 0.2;
-    fitsNew[i] = 1.5 - 0.11 * static_cast<double>(i);
+    fits[i] = 0.02 * static_cast<double>(i) - 0.2;
+    first[i] = i % 4 == 0 ? 0.0 : 1.0;  // the rows a mask leaves out
+    offset[i] = 0.1 * static_cast<double>(i % 5) - 0.2;
+    binary2[i] = 1.0 - binary[i];
+    category2[i] = 1.0 + static_cast<double>((i / 3) % 3);
+    count2[i] = count[i] + 1.0;
+    time2[i] = time[n - 1 - i];
   }
-  auto gather = [](const std::vector<double>& from,
-                   const std::vector<std::size_t>& rows) {
-    std::vector<double> out;
-    for (std::size_t i : rows) out.push_back(from[i]);
-    return out;
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 20261105u);
+  auto copy = [&](const ResponseModel& model) {
+    return std::vector<double>(model.latents(), model.latents() + n);
   };
-  using Rows = std::vector<std::size_t>;
-  using Held = std::vector<double>;
-  auto copyLatents = [](const ResponseModel& model, std::size_t m) {
-    return std::vector<double>(model.latents(), model.latents() + m);
-  };
-  auto byMask = [](ResponseModel& response, const std::vector<double>& rows,
-                   ext_rng* rng, const double* fits, double scale) {
-    response.setActiveRows(rows.data(), rng, fits, scale);
+  // a mask first, a draw under it, then the setters; each keeps the latents
+  auto keeps = [&](ResponseModel& model, const char* family,
+                   const std::vector<double>* y2,
+                   const std::vector<double>* w2) {
+    char what[160];
+    model.refreshLatents(rng, fits.data(), sigma);
+    check(model.setActiveRows(first.data()), family);
+    model.refreshLatents(rng, fits.data(), sigma);
+    std::vector<double> held = copy(model);
+    model.setActiveRows(nullptr);
+    std::snprintf(what, sizeof what,
+                  "%s: a lifted mask keeps every latent, the rows it brings "
+                  "back in included", family);
+    check(copy(model) == held, what);
+    double sigmaInOut = sigma;
+    model.setOffset(offset.data(), false, &sigmaInOut);
+    std::snprintf(what, sizeof what, "%s: setOffset keeps them", family);
+    check(copy(model) == held, what);
+    if (w2 != nullptr) {
+      model.setWeights(w2->data());
+      std::snprintf(what, sizeof what, "%s: setWeights keeps them", family);
+      check(copy(model) == held, what);
+    }
+    if (y2 != nullptr) {
+      model.setResponse(y2->data(), false, &sigmaInOut);
+      std::snprintf(what, sizeof what, "%s: setResponse keeps them", family);
+      check(copy(model) == held, what);
+    }
   };
 
   ProbitResponse probit(binary.data(), nullptr, n);
-  checkReactivatedLatents(
-    "probit redraws the latents of reactivated rows alone", probit, fitsOld,
-    fitsNew, 1.0, [&](ext_rng* rng, const Rows& rows, const Held&) {
-      std::vector<double> y = gather(binary, rows), fits = gather(fitsNew, rows);
-      ProbitResponse compact(y.data(), nullptr, y.size());
-      compact.refreshLatents(rng, fits.data(), 1.0);
-      return copyLatents(compact, y.size());
-    }, byMask);
+  keeps(probit, "probit", &binary2, nullptr);
 
   OrdinalResponse ordinal(category.data(), nullptr, n, 3);
-  checkReactivatedLatents(
-    "ordinal redraws the latents of reactivated rows alone", ordinal, fitsOld,
-    fitsNew, 1.0, [&](ext_rng* rng, const Rows& rows, const Held&) {
-      std::vector<double> y = gather(category, rows),
-                          fits = gather(fitsNew, rows);
-      OrdinalResponse compact(y.data(), nullptr, y.size(), 3);
-      compact.restoreOrdinalThresholds(ordinal.ordinalThresholds());
-      // the latent draw alone, at the masked arm's cutpoints
-      compact.setResponse(y.data(), rng, fits.data(), false, nullptr);
-      return copyLatents(compact, y.size());
-    }, byMask);
+  keeps(ordinal, "ordinal", &category2, nullptr);
+  {
+    std::vector<double> drawn(ordinal.ordinalThresholds(),
+                              ordinal.ordinalThresholds() + 2);
+    double unused = 1.0;
+    ordinal.setResponse(category.data(), false, &unused);
+    ordinal.setActiveRows(first.data());
+    ordinal.setData(category2.data(), nullptr, nullptr, n, &unused);
+    check(std::equal(drawn.begin(), drawn.end(), ordinal.ordinalThresholds()),
+          "ordinal: setResponse, setActiveRows and setData keep the drawn "
+          "cutpoints");
+  }
 
   LogisticResponse logistic(binary.data(), nullptr, trials.data(), n);
-  checkReactivatedLatents(
-    "logistic redraws the latents of reactivated rows alone", logistic,
-    fitsOld, fitsNew, 1.0, [&](ext_rng* rng, const Rows& rows, const Held&) {
-      std::vector<double> y = gather(binary, rows), w = gather(trials, rows),
-                          fits = gather(fitsNew, rows);
-      LogisticResponse compact(y.data(), nullptr, w.data(), y.size());
-      compact.refreshLatents(rng, fits.data(), 1.0);
-      return copyLatents(compact, y.size());
-    }, byMask);
+  std::vector<double> trials2(n);
+  for (std::size_t i = 0; i < n; ++i) trials2[i] = 2.0 + trials[n - 1 - i];
+  keeps(logistic, "logistic", &binary2, &trials2);
 
-  NBResponse nbinom(count.data(), nullptr, n, 3.0);  // r held fixed
-  checkReactivatedLatents(
-    "nbinom redraws the latents of reactivated rows alone", nbinom, fitsOld,
-    fitsNew, 1.0, [&](ext_rng* rng, const Rows& rows, const Held&) {
-      std::vector<double> y = gather(count, rows), fits = gather(fitsNew, rows);
-      NBResponse compact(y.data(), nullptr, y.size(), 3.0);
-      compact.restoreScale(nbinom.fitShift(), nbinom.fitShift() + 1.0);
-      compact.refreshLatents(rng, fits.data(), 1.0);
-      return copyLatents(compact, y.size());
-    }, byMask);
-
-  // the two below rescale the response over all n rows, so a compacted arm
-  // carries another transform and the reference is the conditional itself
-  AFTResponse aft(time.data(), status.data(), nullptr, n, 1.0, 3.0,
-                  0.37804942330213542);
-  checkReactivatedLatents(
-    "aft redraws the censored log-times of reactivated rows alone", aft,
-    fitsOld, fitsNew, sigma, [&](ext_rng* rng, const Rows& rows,
-                                 const Held& held) {
-      std::vector<double> out;
-      for (std::size_t i : rows) {
-        if (status[i] != 0.0) {  // an event row holds data: no draw
-          out.push_back(held[i]);
-          continue;
-        }
-        out.push_back(ext_rng_simulateLowerTruncatedNormal(
-          rng, aft.fitScale() * fitsNew[i] + aft.fitShift(),
-          sigma * aft.fitScale(), time[i]));
-      }
-      return out;
-    }, byMask);
-
-  // Student-t twice: rows brought back by the mask, and rows brought back by
-  // a weight that leaves zero, which the mask never sees. Either way the row
-  // re-enters the likelihood and owes the same draw at its own weight.
-  const double nu = 5.0;
-  std::vector<double> installedWeights(n);
-  auto byWeights = [&](ResponseModel& response, const std::vector<double>& rows,
-                       ext_rng* rng, const double* fits, double scale) {
-    for (std::size_t i = 0; i < n; ++i)
-      installedWeights[i] = rows[i] * weights[i];
-    response.setWeights(installedWeights.data(), rng, fits, scale);
-  };
-  for (bool throughWeights : {false, true}) {
-    TResponse student(time.data(), nullptr, weights.data(), n, 1.0, 3.0,
-                      0.37804942330213542, nu);
-    auto conditional = [&](ext_rng* rng, const Rows& rows, const Held&) {
-      std::vector<double> out;
-      for (std::size_t i : rows) {
-        double r = student.workingResponse()[i] - fitsNew[i];
-        out.push_back(ext_rng_simulateGamma(
-          rng, 0.5 * (nu + 1.0),
-          2.0 / (nu + weights[i] * r * r / (sigma * sigma))));
-      }
-      return out;
-    };
-    if (throughWeights)
-      checkReactivatedLatents(
-        "student-t redraws the scales of rows whose weight leaves zero alone",
-        student, fitsOld, fitsNew, sigma, conditional, byWeights);
-    else
-      checkReactivatedLatents(
-        "student-t redraws the scales of reactivated rows alone", student,
-        fitsOld, fitsNew, sigma, conditional, byMask);
-  }
-
-  // a row out through BOTH channels comes back only when both let it: the
-  // mask alone, over a zero weight, brings nothing in and draws nothing
+  NBResponse nbinom(count.data(), nullptr, n, -1.0);  // r drawn
+  keeps(nbinom, "nbinom", &count2, nullptr);
   {
-    std::vector<double> zeroed(weights), mask(n, 1.0);
-    zeroed[3] = 0.0;
-    mask[3] = 0.0;
-    TResponse student(time.data(), nullptr, zeroed.data(), n, 1.0, 3.0,
-                      0.37804942330213542, nu);
-    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-    ext_rng_setSeed(rng, 20261006u);
-    student.refreshLatents(rng, fitsOld.data(), sigma);
-    student.setActiveRows(mask.data(), rng, fitsOld.data(), sigma);
-    std::vector<double> held = copyLatents(student, n);
-    ext_rng* position = cloneRng(rng);
-    student.setActiveRows(nullptr, rng, fitsNew.data(), sigma);
-    check(copyLatents(student, n) == held && rngStreamsAgree(position, rng),
-          "a mask lifted over a zero weight redraws no student-t scale");
-    ext_rng_destroy(position);
-    position = cloneRng(rng);
-    student.setWeights(weights.data(), rng, fitsNew.data(), sigma);
-    check(copyLatents(student, n)[3] != held[3] &&
-            !rngStreamsAgree(position, rng),
-          "the weight leaving zero then does");
-    ext_rng_destroy(position);
-    ext_rng_destroy(rng);
+    for (int sweep = 0; sweep < 10; ++sweep)
+      nbinom.refreshLatents(rng, fits.data(), 1.0);
+    double r = nbinom.shape();
+    double unused = 1.0;
+    nbinom.setResponse(count.data(), true, &unused);
+    nbinom.setActiveRows(first.data());
+    nbinom.setData(count2.data(), nullptr, nullptr, n, &unused);
+    check(nbinom.shape() == r,
+          "nbinom: setResponse, setActiveRows and setData keep the drawn "
+          "shape");
+    // a new fixed shape keeps omega and rebuilds the working response under
+    // it, the draw's own expression
+    nbinom.refreshLatents(rng, fits.data(), 1.0);
+    std::vector<double> held = copy(nbinom);
+    double fixed = r + 2.0;
+    nbinom.installShape(fixed);
+    bool rebuilt = true;
+    for (std::size_t i = 0; i < n; ++i) {
+      double a = nbinom.fitShift() - std::log(fixed);
+      rebuilt &= nbinom.workingResponse()[i] ==
+                 0.5 * (count2[i] - fixed) / held[i] - a;
+    }
+    check(copy(nbinom) == held && nbinom.shape() == fixed && rebuilt,
+          "nbinom: a new fixed shape keeps omega and rebuilds the working "
+          "response under it");
   }
 
-  printf("ok: reactivated rows' latents are redrawn\n");
+  AFTResponse aft(time.data(), status.data(), nullptr, n, 1.0, 3.0, rawScale);
+  keeps(aft, "aft", nullptr, nullptr);
+  {
+    double sigmaInOut = sigma;
+    aft.setResponse(time2.data(), false, &sigmaInOut);
+    check(std::equal(time2.begin(), time2.end(), aft.latents()),
+          "aft: setResponse puts every row at its new time, a censored row "
+          "at its new bound");
+  }
+
+  for (double df : {5.0, -1.0}) {
+    TResponse student(time.data(), nullptr, weights.data(), n, 1.0, 3.0,
+                      rawScale, df);
+    std::vector<double> zeroed(weights);
+    zeroed[5] = zeroed[6] = 0.0;
+    keeps(student, df > 0.0 ? "student-t" : "student-t, df drawn", &time2,
+          &zeroed);
+    student.setWeights(weights.data());
+    for (int sweep = 0; sweep < 10; ++sweep)
+      student.refreshLatents(rng, fits.data(), sigma);
+    double nu = student.residualDf();
+    std::vector<double> held = copy(student);
+    double sigmaInOut = sigma;
+    student.setResponse(time.data(), true, &sigmaInOut);
+    check(student.residualDf() == nu && copy(student) == held,
+          "student-t: setResponse keeps nu and every scale");
+    student.setData(time2.data(), nullptr, weights.data(), n, &sigmaInOut);
+    check(student.residualDf() == nu &&
+            copy(student) == std::vector<double>(n, 1.0),
+          "student-t: setData keeps nu and starts the scales at 1, as "
+          "creation does");
+  }
+  ext_rng_destroy(rng);
+  printf("ok: setters keep the latents and the family parameters\n");
 }
 
 // The ordinal per-observation log-likelihood, pinned against an independently
@@ -10668,7 +10564,7 @@ static void testOrdinalLogLikelihoodPin() {
   // model, so it reports NaN rather than the value its fit would still give
   std::vector<double> active(n, 1.0);
   active[2] = 0.0;
-  response.setActiveRows(active.data(), nullptr, nullptr, 1.0);
+  response.setActiveRows(active.data());
   response.computeLogLikelihood(eta.data(), 1.0, n, reported.data());
   check(std::isnan(reported[2]) && !std::isnan(reported[3]),
         "an inactive row's ordinal log-likelihood is NaN");
@@ -10676,61 +10572,60 @@ static void testOrdinalLogLikelihoodPin() {
   printf("ok: ordinal log-likelihood pin\n");
 }
 
-// LogisticResponse::setWeights' cold start of the INACTIVE rows. The case
-// weights ARE the Polya-Gamma shape, so a swap restates the model; an active
-// row takes a fresh PG(w, psi) draw, but an inactive one draws nothing (a
-// discard would desynchronize the stream against a sampler built on the
-// retained rows) and must instead be returned to the deterministic cold start
-// against its NEW count - otherwise a row that reactivates carries an omega
-// shaped by counts the sampler no longer holds.
-static void testLogisticWeightSwapColdStart() {
+// A logistic working response is w (y - 1/2) / omega - offset at every row,
+// an inactive one included, after every setter, bitwise the expression the
+// draw writes. The offset arrives in the buffer the old one was read from, as
+// the host copies it, so a setter that shifted the working response by the
+// difference of the two would leave it at the old offset.
+static void testLogisticSettersRebuildWorking() {
   const std::size_t n = 12;
-  std::vector<double> y(n), first(n), second(n), fits(n, 0.25);
+  std::vector<double> y(n), counts(n), counts2(n), fits(n), y2(n);
+  std::vector<double> offset(n), active(n, 1.0);
   for (std::size_t i = 0; i < n; ++i) {
     y[i] = i % 2 == 0 ? 1.0 : 0.0;
-    first[i] = 1.0 + static_cast<double>(i % 3);   // the counts in force
-    second[i] = 5.0 + static_cast<double>(i % 4);  // and the replacement
+    y2[i] = i % 3 == 0 ? 1.0 : 0.0;
+    counts[i] = 1.0 + static_cast<double>(i % 3);
+    counts2[i] = 5.0 + static_cast<double>(i % 4);
+    fits[i] = 0.3 * static_cast<double>(i % 4) - 0.4;
+    offset[i] = 0.25 * static_cast<double>(i % 5) - 0.5;
   }
+  active[0] = active[1] = 0.0;
 
   ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
   ext_rng_setSeed(rng, 20260824u);
-  LogisticResponse response(y.data(), nullptr, first.data(), n);
-  response.refreshLatents(rng, fits.data(), 1.0);  // real draws, not the cold start
-
-  std::vector<double> active(n, 1.0);
-  active[0] = active[1] = 0.0;
-  check(response.setActiveRows(active.data(), nullptr, nullptr, 1.0),
+  LogisticResponse response(y.data(), offset.data(), counts.data(), n);
+  check(response.setActiveRows(active.data()),
         "the logistic family takes an active-row mask");
-  response.setWeights(second.data(), rng, fits.data(), 1.0);
+  response.refreshLatents(rng, fits.data(), 1.0);
 
   const double* omega = response.latents();
-  const double* working = response.workingResponse();
-  bool coldStarted = true, redrawn = true;
-  for (std::size_t i = 0; i < n; ++i) {
-    double cold = 0.25 * second[i];
-    if (active[i] == 0.0) {
-      coldStarted &= omega[i] == cold &&
-                     working[i] == 4.0 * (y[i] - 0.5);
-    } else {
-      redrawn &= omega[i] != cold;
+  auto rebuilt = [&](const std::vector<double>& response_,
+                     const std::vector<double>& weights) {
+    bool every = true;
+    for (std::size_t i = 0; i < n; ++i) {
+      double o = offset[i];
+      every &= response.workingResponse()[i] ==
+               weights[i] * (response_[i] - 0.5) / omega[i] - o;
     }
-  }
-  check(coldStarted,
-        "an inactive row's latent is the cold start against the NEW counts");
-  check(redrawn, "an active row's latent is a fresh draw");
-
-  // a row that reactivates carries no omega shaped by counts the sampler no
-  // longer holds: it is redrawn against the new count, the cold start being
-  // what it held while it was out
-  check(response.setActiveRows(nullptr, rng, fits.data(), 1.0),
-        "the mask clears");
-  check(response.workingWeights()[0] != 0.25 * second[0] &&
-          response.workingWeights()[0] > 0.0 &&
-          working[0] == second[0] * (y[0] - 0.5) / omega[0],
-        "the reactivated row takes a fresh draw against its new count");
+    return every;
+  };
+  std::vector<double> omegaHeld(omega, omega + n);
+  // the new offset written over the old one in place
+  for (std::size_t i = 0; i < n; ++i) offset[i] = 1.5 - 0.3 * offset[i];
+  response.setOffset(offset.data(), false, nullptr);
+  check(rebuilt(y, counts),
+        "logistic setOffset rebuilds the working response from omega and the "
+        "new offset, every row");
+  response.setWeights(counts2.data());
+  check(rebuilt(y, counts2),
+        "logistic setWeights rebuilds it under the new counts");
+  response.setResponse(y2.data(), false, nullptr);
+  check(rebuilt(y2, counts2), "and setResponse under the new response");
+  check(std::equal(omegaHeld.begin(), omegaHeld.end(), omega),
+        "omega is kept throughout");
 
   ext_rng_destroy(rng);
-  printf("ok: logistic weight swap cold start\n");
+  printf("ok: logistic setters rebuild the working response\n");
 }
 
 // The variance forest against a STRONG mean function. testVarianceForestRecovery
@@ -10921,7 +10816,7 @@ void runModelTests(ext_rng* rng) {
   testVarianceSurfaceInstall(rng);
   testAFTCensoredMoments(rng);
   testAFTStateRoundTrip();
-  testAFTStatusSetter(rng);
+  testAFTStatusSetter();
   testAFTOffsetReanchorObservedTimes();
   testTLambdaMoments(rng);
   testTLogLikelihoodWeighted();
@@ -10998,8 +10893,8 @@ void runModelTests(ext_rng* rng) {
   testVarianceDataSwapReanchorIdentity();
   testFlatFamilyCreatePaths();
   testOrdinalLogLikelihoodPin();
-  testLogisticWeightSwapColdStart();
-  testReactivatedLatents();
+  testLogisticSettersRebuildWorking();
+  testSettersKeepLatents();
   testVarianceForestNonConstantMean();
   testVectorLeafLatentRefreshCache();
 }
