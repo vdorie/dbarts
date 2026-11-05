@@ -151,13 +151,13 @@ extract(
 # S3 method for class 'bartHurdle'
 fitted(
     object, type = c("ev", "ppd", "prob", "bart"),
-    sample = c("train", "test"), ci.level = NULL, ...)
+    ci.level = NULL, ...)
 
 # S3 method for class 'bartHurdle'
 predict(
     object, newdata,
     type = c("ev", "ppd", "prob", "bart"),
-    offset = NULL, weights = NULL,
+    offset = NULL,
     combineChains = TRUE, ci.level = NULL,
     na.action = dbarts::na.keepPredictors, n.threads, ...)
 
@@ -314,9 +314,7 @@ print(x, ...)
   weight-0 row of an `lm` fit; no warning is raised, and every other
   row's draw is as it would be without the row. To draw such a row as a
   new observation, state its weight:
-  `predict(fit, type = "ppd", weights = 1)`. A
-  `family = "hurdle.lognormal"` fit takes weights of 0 and 1 on both its
-  parts, with the same rows and the same result (see the `family` item).
+  `predict(fit, type = "ppd", weights = 1)`.
 
 - offset:
 
@@ -371,27 +369,10 @@ print(x, ...)
   missing value there is governed by `na.action` (see ‘At Prediction’ in
   [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md)).
 
-  On a `family = "hurdle.lognormal"` fit a plain offset, the argument or
-  an [`offset()`](https://rdrr.io/r/stats/offset.html) term, enters the
-  POSITIVE part, where a log exposure makes a positive amount
-  proportional to exposure, and the zero part's probit takes none;
-  `offset = list(zero = , positive = )` states each part's, either left
-  out, each element a vector or an expression over the data (recorded as
-  written, so `predict` can evaluate it on `newdata`). `offset.test`
-  takes the same forms and defaults to `offset`, each element evaluated
-  on the test frame, or reused where the rows match, or refused asking
-  for `offset.test`. This differs from pscl's `hurdle`, where
-  `y ~ x + offset(log(t))` reaches both parts: here it reaches the
-  positive part only, and a zero-part offset is written
-  `offset = list(zero = )`. `type = "prob"` carries the zero part's
-  offset, `"bart"` (the link) the positive part's, and `"ev"` and
-  `"ppd"` both. A missing offset follows `na.action` as a missing weight
-  does. For `predict` on a `bartHurdle` fit, each part's recorded offset
-  is evaluated on `newdata` and an offset given (one value or one per
-  row, entering the positive part, or a list naming the parts) is added
-  to its part's; with no `newdata` an offset given replaces its part's
-  at the training rows, read off the stored draws, a part the list
-  leaves out keeping its own.
+  For `predict` on a `bartHurdle` fit the name is a formal only so that
+  the fourth position means the same thing on all six `predict` methods:
+  that family has no out-of-sample offset channel, so any value but
+  `NULL` is refused by name.
 
 - offset.test:
 
@@ -774,46 +755,14 @@ print(x, ...)
   `type = "link"`/`"log"` the positive part's log-scale linear predictor
   \\f(x)\\; `type = "ppd"` draws the proper BIMODAL predictive - a
   Bernoulli(\\\pi\\) spike at zero, else a lognormal draw - which the
-  plain gaussian ppd path cannot produce. Fits take the matrix interface
-  (`bart(x.train, y.train, family = "hurdle.lognormal")`), a formula
-  (`bart(y ~ x1 + x2, data, family = "hurdle.lognormal")`) or a
-  [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
-  object, as any other fit does. The predictors, the response and the
-  formula are read once, into one data object that `na.action` has
-  settled, and the two parts are cut from it by rows, so both parts see
-  the same rows, the same columns and the same factor coding: a level
-  that occurs only on zero rows is coded on the positive part's rows as
-  it is on the zero part's. A data object is taken whole, and an
-  argument written beside it is ignored with the warning every family
-  gives. A sparse design is refused. `test` is taken as on any other
-  family: both parts are evaluated at its rows, and `extract` and
-  `fitted` read them with `sample = "test"`, every `type` but
-  `"loglik"`, which needs a response. `subset` removes rows from both
-  parts, as one model frame does in
-  [`lm`](https://rdrr.io/r/stats/lm.html) (it is applied before
-  `na.action`). `weights` are 0 and 1: a 0 holds a row out of both
-  parts' likelihoods and keeps it in both designs, a 1 keeps it, and any
-  other value is refused with the remedy of repeating each row its
-  weight's number of times, which is exact for a probit zero part; a row
-  of weight 0 has `NA` predictive draws (`type = "ppd"`) and `NaN`
-  log-likelihood, and its fitted values and residuals are reported. A
-  missing weight is dropped by `na.omit` and `na.exclude` on the matrix
-  interface as on the formula one. `offset`, `offset.test` and
-  [`offset()`](https://rdrr.io/r/stats/offset.html) terms are taken (see
-  the `offset` item). The positive-part fit is given the training `x`
-  followed by the test rows as its own `x.test`, so its in-sample fitted
-  values cover the zero rows it never trained on.
-  `keepTrainingFits = FALSE` is taken where a `test` set is given: the
-  training fits are dropped, the test draws are those of the default
-  fit, and `fitted`, `residuals`, `predict` with no `newdata`,
-  `extract(type = "loglik")` and `plot` then refuse as a gaussian fit
-  kept so does; without a test set it is refused. `predict` takes
-  `weights` after `offset`: with `newdata`, a 1 draws a row as a new
-  observation and a 0 holds it out (NA); with no `newdata`, the weights
-  given replace the fit's own at the training rows for the predictive
-  draws, one value or one per training row. Types that draw nothing read
-  no weight. `predict` requires `keepTrees = TRUE` and replays both
-  saved forests at `newdata`.
+  plain gaussian ppd path cannot produce. Fits currently use the matrix
+  interface only
+  (`bart(x.train, y.train, family = "hurdle.lognormal")`); `weights`,
+  `subset`, `offset`/`offset.test`, and `test` are all refused with an
+  error naming the limitation - the positive-part fit is instead given
+  the full training `x` as its own `x.test`, so its in-sample fitted
+  values cover the zero rows it never trained on. `predict` requires
+  `keepTrees = TRUE` and replays both saved forests at `newdata`.
   [`dbarts()`](https://vdorie.github.io/dbarts/reference/dbarts.md) does
   not fit this family - it composes two samplers, which only `bart()`
   builds, so requesting it there is an error directing here. `xbart`
@@ -1396,13 +1345,13 @@ print(x, ...)
   training rows from the draws the fit stored, as `extract` with
   `sample = "train"` does, on every family's fit and without saved
   trees; an `offset` given then replaces the fit's own at the training
-  rows (a category offset matrix on a multinomial fit). An unnamed
-  matrix given to a fit whose predictors are named is matched by
-  position, with a warning. A data-frame column for a predictor that was
-  a factor in training must be a factor or character, matched to the
-  training levels by label; a numeric or logical one is refused, naming
-  it, as [`predict.lm`](https://rdrr.io/r/stats/predict.lm.html) refuses
-  it.
+  rows (a category offset matrix on a multinomial fit), and a hurdle
+  fit, which has no offset channel, refuses one. An unnamed matrix given
+  to a fit whose predictors are named is matched by position, with a
+  warning. A data-frame column for a predictor that was a factor in
+  training must be a factor or character, matched to the training levels
+  by label; a numeric or logical one is refused, naming it, as
+  [`predict.lm`](https://rdrr.io/r/stats/predict.lm.html) refuses it.
 
 - type:
 
@@ -1417,15 +1366,15 @@ print(x, ...)
 - sample:
 
   Either `"train"` or `"test"`. It is `extract`'s own argument, and
-  `fitted`'s too on every family with a test channel - on `bartHurdle`
-  the test channel is the rows of a `test` set, and a fit given none
-  refuses `sample = "test"`; refused by name on `predict`, whose stored
-  train and test channels are `extract`'s `sample` instead. Also refused
-  by name on every model- or predictor-level type these families offer -
-  `"varcount"`, `"sigma"`, `"k"` and `"leaf.prior.sd"` on all four,
-  `"thresholds"` on `bartOrdinal`, `"shape"` on `bartNegbin` - none of
-  them per-observation. On a fit that sampled a parameter these types
-  return its draws; on one that held it fixed, one number (see
+  `fitted`'s too on every family with a test channel - every one here
+  except `bartHurdle`, which has none and so takes no `sample`; refused
+  by name on `predict`, whose stored train and test channels are
+  `extract`'s `sample` instead. Also refused by name on every model- or
+  predictor-level type these families offer - `"varcount"`, `"sigma"`,
+  `"k"` and `"leaf.prior.sd"` on all four, `"thresholds"` on
+  `bartOrdinal`, `"shape"` on `bartNegbin` - none of them
+  per-observation. On a fit that sampled a parameter these types return
+  its draws; on one that held it fixed, one number (see
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
   ‘Leaf prior parameter `k`’). `"sigma"` is 1 on every one of these
   families but `bartHurdle`, whose `"sigma"` is its positive part's, and
@@ -2152,11 +2101,11 @@ part's log-scale linear predictor, and `type = "ppd"` the bimodal
 predictive draw. `ci.level` on `fitted`/`predict` works as for
 [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md),
 including its refusal on `residuals`; `combineChains` is likewise
-refused by name on `fitted`/`residuals`, and `fitted` takes `sample` as
-the third argument, after `type` and before `ci.level`, as on every
-class with a test channel; `sample = "test"` reads the rows of the
-`test` set. `residuals(object)` returns the observed response minus
-`fitted(object)` on the natural scale.
+refused by name on `fitted`/`residuals`, and `fitted`'s own `sample`
+formal is gone outright - a hurdle fit has no separate test channel, so
+`fitted` is always the training rows and a supplied `sample` is refused
+by name, as it already was on `extract`. `residuals(object)` returns the
+observed response minus `fitted(object)` on the natural scale.
 `extract(object, type = "loglik")` is the density of \\y_i\\ at its own
 natural scale (a \\-\log y_i\\ Jacobian against the components'
 log-scale channels, so it is comparable to any other model OF y, and
@@ -2269,7 +2218,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001578
+#> total seconds in loop: 0.001731
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 2 3 2 3 2 2 1 1 2 3 3 3 2 2 
@@ -2306,7 +2255,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000882
+#> total seconds in loop: 0.000980
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 1 2 1 2 2 2 2 2 1 1 1 1 1 2 1 2 1 
@@ -2341,7 +2290,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001284
+#> total seconds in loop: 0.001370
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 4 3 1 3 2 2 3 3 2 2 5 3 5 2 2 2 2 
@@ -2395,7 +2344,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.001814
+#> total seconds in loop: 0.001907
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 3 2 3 2 3 3 2 

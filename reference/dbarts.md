@@ -857,11 +857,10 @@ dbarts(
   x)\\e^{f(x) + \sigma^2 / 2}\\, using the positive part's single
   \\\sigma\\ per draw (the positive part is always homoscedastic); see
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) for the
-  full `type` options (`"prob"`, `"link"`/`"log"`, the bimodal `"ppd"`).
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) takes a
-  formula, `test`, `subset`, `offset` and `weights` of 0 and 1 on this
-  family; see there. `dbarts()` does not fit this family: it composes
-  two samplers, which only
+  full `type` options (`"prob"`, `"link"`/`"log"`, the bimodal `"ppd"`)
+  and the refusal list (`weights`, `subset`, `offset`, and `test` are
+  all unsupported this arc). `dbarts()` does not fit this family: it
+  composes two samplers, which only
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) builds, so
   requesting it here is an error directing to
   [`bart()`](https://vdorie.github.io/dbarts/reference/bart.md).
