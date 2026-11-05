@@ -344,8 +344,7 @@ c(mean = mean(keepGamma), truth = gammaTrue,
   shortfall = max(abs((z - train) - ((z - f) - offset))))
 ```
 
-<!-- LTF-REMEASURE: the numbers in the paragraph below (0.29, seventeen oracle standard errors) are re-measured on the built engine -->
-After the run, `z` and `f` are a joint draw: `z` is the value the trees that produced `f` were drawn from. The last column is zero by construction, which is the point: `z - train` and `z - f` differ by the installed offset exactly. Substituting `train` for `f` above pulls the posterior mean of $\gamma$ from `r round(mean(keepGamma), 2)` to about 0.29, roughly seventeen oracle standard errors below the truth, on a run that reports no error at all.
+After the run, `z` and `f` are a joint draw: `z` is the value the trees that produced `f` were drawn from. The last column is zero by construction, which is the point: `z - train` and `z - f` differ by the installed offset exactly. Substituting `train` for `f` above pulls the posterior mean of $\gamma$ from `r round(mean(keepGamma), 2)` to about 0.28, roughly seventeen oracle standard errors below the truth, on a run that reports no error at all.
 
 ## 7. A per-draw callback that never returns the array
 
