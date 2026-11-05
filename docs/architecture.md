@@ -332,39 +332,52 @@ calls `run` on the `SamplerBase` it holds; the facade forwards to
 `Sampler::run` (sampler.hpp), which hands each chain to `Chain::run`
 (chain.hpp). One iteration of `Chain::run` is:
 
-1. Under a variance forest, form the mean weights `w_i / s^2(x_i)`
+1. The per-sweep hook, if one is set: where a caller changes conditioning
+   state between sweeps ([Callbacks and errors](#callbacks-and-errors)).
+2. Draw the response family's augmentation variables
+   (`ResponseModel::refreshLatents`) against the combined fits as the previous
+   sweep left them: the ordinal cutpoints then z, the negative-binomial shape
+   then omega, the Student-t lambda then nu, probit z, the Polya-Gamma
+   precisions, an aft sampler's imputed times. A family that augments nothing
+   draws nothing here, and the combined fits are formed only for one that
+   draws. Drawing before the trees is what lets a change made at step 1 reach
+   this sweep's trees whether the caller's own step reads the latents or
+   integrates them out.
+3. Read the family's working response and weights pointers again, and
+   invalidate the vector-leaf statistics where the weights vary per sweep.
+4. Under a variance forest, form the mean weights `w_i / s^2(x_i)`
    (`formMeanWeights`); the global sigma stays fixed at 1.
-2. When a forest's `treeShift`, its own or else the control's, is `"always"`, or `"auto"` (the default) and that forest's
+5. When a forest's `treeShift`, its own or else the control's, is `"always"`, or `"auto"` (the default) and that forest's
    structural mixture is frozen, draw the constant-leaf forest's level shift
    (`drawLevelShift`): a constant added to every occupied leaf of a tree, the
    constants summing to zero across the forest's trees, leaving the fitted
    function unchanged. It runs ahead of every channel the rest of the sweep
-   writes; the mixture is read once per forest here and reused by step 3's
+   writes; the mixture is read once per forest here and reused by step 6's
    frozen skip, and a forest that skips consumes no generator draw. Then,
    on a single constant-leaf probit forest with a drawn `k`, the probit
-   rescaling step (`drawForestRescale`): the active latents and occupied leaves
-   multiplied, and `k` divided, by one factor from its exact conditional,
-   `totalFits` scaled with them under the cache rule above; elsewhere it
-   draws nothing.
-3. For each forest in turn, and for each of its trees: roll the running
+   rescaling step (`drawForestRescale`): the active latents, drawn at step 2,
+   and occupied leaves multiplied, and `k` divided, by one factor from its
+   exact conditional, `totalFits` scaled with them under the cache rule
+   above; elsewhere it draws nothing.
+6. For each forest in turn, and for each of its trees: roll the running
    residual so `treeY` holds the response net of every other tree's current
    fits, propose one move with `metropolisJumpForTree` and accept or reject
    it, then draw the tree's leaf values and write its fits
    (`sampleParametersAndSetFits`). A multi-forest chain asks the combiner for
-   this forest's own response and precisions first.
-4. Rebuild the forest's `totalFits` once the tree loop ends
-   (`finalizeTotalFits`).
-5. Refresh the response family's latents against the combined location
-   (`ResponseModel::refreshLatents`) and, where sigma is a free parameter,
-   draw it (`drawSigma`).
-6. Draw the combiner's glue and its post-combine move; sweep the variance
+   this forest's own response and precisions first. Rebuild the forest's
+   `totalFits` once the tree loop ends (`finalizeTotalFits`).
+7. Where sigma is a free parameter, draw it (`drawSigma`), against the
+   combined fits formed again after the trees.
+8. Draw the combiner's glue and its post-combine move; sweep the variance
    forest against the mean residual (`sweepVarianceForest`); draw each
    forest's `k` and, under DART, its split weights.
-7. Record the sample if this iteration is a kept one.
+9. Record the sample if this iteration is a kept one, and call the per-draw
+   callback; the latents it sees are the ones this sweep's trees were drawn
+   from.
 
 Every draw there reads the chain's own generator. Two optional host hooks
-run inside the loop, a per-sweep hook before each iteration and a per-draw
-callback at each kept draw; [Callbacks and errors](#callbacks-and-errors)
+run inside the loop, a per-sweep hook before each iteration (step 1) and a per-draw
+callback at each kept draw (step 9); [Callbacks and errors](#callbacks-and-errors)
 covers both.
 
 ## ColumnStore
@@ -514,7 +527,7 @@ the chain seeds are drawn once from R's stream (`unif_rand()` inside a
 them.
 
 After that, nothing a sampler does advances R's stream. Sweeps, prior draws,
-grow-from-root, the probit latent redraw on `setResponse` and the
+grow-from-root and the
 per-observation update's scan order all draw from the chains' generators (the
 scan order from chain 0's). Several bridge entries still bracket those calls
 with `GetRNGstate()`/`PutRNGstate()`; the brackets draw nothing. The one
@@ -562,7 +575,9 @@ below-cutoff path. `numThreads = 0` means the sampler's own thread count
 
 **Per-sweep hook.** `SweepCallback`, passed to `Sampler::run` as `onSweep`,
 fires on the calling thread before every sweep and lets the host change
-conditioning state between sweeps without a round trip; which changes are
+conditioning state between sweeps without a round trip; the sweep's first draw
+is the augmentation variables, so every change made there reaches them, and
+`getLatents` called there returns the previous sweep's values; which changes are
 legal there is docs/design/bart-as-a-component.md's subject. It runs only
 when chains run inline, and `Sampler::run` requires the caller not to set it
 alongside worker-thread chains. The flat C API has no entry for it. The one
@@ -576,7 +591,8 @@ move work into per-sweep callbacks, for example to keep memory down.
 `dbarts_sampler_setDrawCallback` in the C API or passed from R as the
 `callback` argument of `bart` and the sampler's `run`. It fires once per kept
 draw, on the thread running that chain - a worker thread when chains run in
-parallel - and sees everything recorded for that draw. A nonzero return
+parallel - and sees everything recorded for that draw, the latents among them as this
+sweep's trees were drawn from them. A nonzero return
 stops the run (docs/design/per-draw-callbacks.md).
 
 **Errors.** The engine reports every error as a C++ exception. Each bridge
