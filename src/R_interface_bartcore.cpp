@@ -3842,7 +3842,7 @@ void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
 
 // The post-creation half of that policy: gaussian and logistic accept a weight
 // change - the logistic one is a model change with a defined meaning, since
-// the counts are its Polya-Gamma shape and the engine redraws the latents
+// the counts are its Polya-Gamma shape and the next sweep draws the latents
 // against them - while probit, ordinal, aft and nbinom carry no weights to
 // change under any surface. Naming the actual family matters: the one message
 // this used to carry told an aft, ordinal or nbinom caller about "a binary
