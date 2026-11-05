@@ -65,7 +65,7 @@
     draws the latents under the accepted values, so the trees never fit a latent drawn before the
     change. The order is also what makes a setter call and a restore undo each other exactly:
     \code{$setWeights} with the old weights and \code{$setState} with the stored state, in either
-    order, return the stored chain bit for bit.
+    order, leave the sampler continuing bit for bit as one that installed the stored state under the old weights would.
   }
 
   \subsection{Which fit to read back}{
@@ -82,7 +82,7 @@
     \code{$getLatents()} returns the values the last sweep's trees were drawn from, so after a run
     it and \code{$getFitsWithoutOffset()} are a joint draw, the latent being the value the fit was
     drawn from. Between a setter and the next run it returns the values from before the setter
-    (\code{$setData} starts them as a new sampler does, and an \code{aft} \code{$setResponse}
+    (\code{$setData} starts them as creation does, an ordinal or negative-binomial sampler from the kept cutpoints or shape, and an \code{aft} \code{$setResponse}
     leaves a censored row at its new bound), not values drawn against the change; the next sweep
     draws them afresh.
   }
