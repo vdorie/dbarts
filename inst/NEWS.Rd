@@ -588,6 +588,17 @@
             \code{residuals}, \code{summary} and \code{plot} methods, and
             \code{family()} returns the family of any fit. See
             \code{\link{bart}}.
+      \item A \code{"hurdle.lognormal"} fit takes a formula and
+            \code{data}, or a data object; a \code{test} set, read by
+            \code{extract} and \code{fitted} with
+            \code{sample = "test"}; \code{subset}; \code{weights} of 0
+            and 1, a 0 row being out of both parts' likelihoods with
+            \code{NA} predictive draws; and \code{offset}. A plain
+            \code{offset} or \code{offset()} term enters the positive
+            part, which models \eqn{\log y}, and
+            \code{offset = list(zero = , positive = )} gives each part its
+            own. \code{predict} takes \code{offset} and \code{weights}, and
+            \code{pdbart} and \code{pd2bart} carry each part's offset.
       \item Leaf models. \code{leaf.prior = linear(columns)} fits a linear
             function of chosen predictors in each leaf, and
             \code{leaf.prior = gp(columns)} a Gaussian-process function. The
