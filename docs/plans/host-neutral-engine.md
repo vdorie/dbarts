@@ -2,8 +2,11 @@
 
 Status: PLANNED 2026-11-03 on main (c3d268c8f), for dec-B85; amended the same day after a blind critique (BUILD AFTER
 AMENDMENTS, then BUILD), for the maintainer's rulings on every open call, and rebased onto main at 8fce28568 after forest-door
-landed. Not built. Rulings, quoted where they settle a call: dec-B85 (the staged route), dec-B84 (the header is pure C),
-dec-B119 (a status from every entry point, the unwind to the entry point staying), dec-A74 (printing chosen at build time, the
+landed. S1 LANDED on main 2026-11-03 as its own feature (dec-A260). Rebased onto main at 7937d252f and amended 2026-11-05 for
+the work landed or planned since ([Amendments of 2026-11-05](#amendments-of-2026-11-05)): S1 as built, coefficient-prior-live
+(dec-A261), hurdle-completion (dec-A262), latents-first (dec-B586, dec-B589), frequency-weights as amended and
+approximate-draws (dec-B583 to dec-B585). The main feature is not built. Rulings, quoted where they settle a call: dec-B85
+(the staged route), dec-B84 (the header is pure C), dec-B119 (a status from every entry point, the unwind to the entry point staying), dec-A74 (printing chosen at build time, the
 run-time print pointers removed), dec-A73 (a plain-C sigma getter rides this header change), dec-B124 (the specification's
 predictor part is `dbarts_predictor_source`, its dense channel stated per column), dec-A50 (the engine's R touchpoints), dec-A20
 (creation's refusal channel), with dec-B86 (the header ships what a consumer calls), dec-B87 and dec-A33 (copy-on-set), dec-B112
@@ -18,25 +21,31 @@ dec-B580 (the reading of a weight is fixed at creation and the header gains its 
 draw is exact; probit and ordinal membership as 0/1 weights; a zero weight alike on every family, its predictive draws NA; a
 binomial response for logistic). The runs behind it: reads of the tree at
 c3d268c8f, of stan4bart main (27ef163) and treatSens master (268b2db), and of frequency-weights (da210ce2d); the critic's probe of
-R 4.6.2's nmath against Rmath (17,304 points, below). No prototype was built here.
+R 4.6.2's nmath against Rmath (17,304 points, below). No prototype was built here. The 2026-11-05 amendment read main 7937d252f,
+coefficient-prior-live at 0c485ed44, hurdle-completion at d27be2cc7, and the plans latents-first (f3a818b2b), frequency-weights
+(72914ff71) and approximate-draws (e0c62e566) on their branches, with S1's builder and review reports; it built nothing.
 
-agent: S1 is its own feature, one opus implementer (effort high). The main feature: S2a, S2b and S3 one opus implementer each
-(effort high), S2b the riskiest; S4 one sonnet implementer per consumer, in that consumer's own checkout; S5 sonnet. One opus
-review per engine slice (S1, S2a, S2b, S3) that runs the mutants below, the same reviewer checking the fix round unless the fixes
-change engine behavior. Tier "Changes draws" for every engine slice ([Process by risk](README.md#process-by-risk)): nothing is
+agent: S1 landed (one opus implementer, one opus review with its mutants and a fix round). The main feature: S2a, S2b and S3
+one opus implementer each (effort high), S2b the riskiest; S4 one sonnet implementer per consumer, in that consumer's own
+checkout; S5 sonnet. One opus review per engine slice (S2a, S2b, S3) that runs the mutants below, the same reviewer checking
+the fix round unless the fixes change engine behavior. Tier "Changes draws" for every engine slice ([Process by risk](README.md#process-by-risk)): nothing is
 meant to move a draw, but every creation route and every flat entry is rewritten, and the gates are the draw-changing tier's.
 rng: neutral, bit for bit, on the R build: the equivalence trio, the four snapshot files, tests/cpp and the full tinytest suite
-do not move, and no R message changes. The standalone build is new; its math is bitwise equal to Rmath on the reference host and
-within a relative floor elsewhere; see [RNG class](#rng-class).
+do not move against the baselines main names at the branch's base (by then those latents-first records), and no R message
+changes. The standalone build is new; its math is bitwise equal to Rmath on the reference host and within a relative
+floor elsewhere; see [RNG class](#rng-class).
 window: before the 1.0-0 submission (dec-B85: "post merging into main, but before 1.0 since it might change a number of packages
-and is an interface change"). Two features. S1 (build-time math and printing, branch host-neutral-math) touches no header and no
-creation code and lands on its own whenever it is green, serial with other engine merges. The main feature (branch
-host-neutral-engine: S2a, S2b, S3, then S5) starts after forest-door and coefficient-prior-live land and merges once (dec-B494),
-the consumer ports (S4) merging right after it.
-budget: ~5,650 lines written in this tree plus ~6,000 copied unedited from R's math library and ~400 of reduced R headers: S1
-~350, S2a ~900, S2b ~1,600, S3 ~2,800; S4 ~80 in stan4bart and ~50 in treatSens. Agent time, estimated and not measured: S1 ~8,
-S2a ~20, S2b ~29, S3 ~26, S4 ~6, S5 ~1, rebases onto main after the pending plans ~3: ~93. Plans here run 1.5 to 2 times low,
-so 140 to 185. The callback statuses and the status words (dec-B579, dec-B581) are about 300 of S3's lines and 3 of its hours. Counted under dec-B575's middle course (51 fields), with the forward-compatibility work it asks for
+and is an interface change"). Two features. S1 (build-time math and printing) LANDED on main 2026-11-03. The main feature
+(branch host-neutral-engine: S2a, S2b, S3, then S5) starts after latents-first merges and, in the order recommended here, after
+frequency-weights merges too ([Interaction with the other pending plans, and order](#interaction-with-the-other-pending-plans-and-order));
+it merges once (dec-B494), the consumer ports (S4) merging right after it.
+budget: S1 as built ~910 lines written, 6,329 copied unedited from R's math library and 395 of reduced R headers. The rest
+~5,550 lines written: S2a ~950, S2b ~1,700, S3 ~2,900; S4 ~80 in stan4bart and ~50 in treatSens. Agent time for what is left,
+estimated and not measured: S2a ~21, S2b ~30.5, S3 ~28.5, S4 ~6, S5 ~1, rebases onto main ~4: ~91. Plans here run 1.5 to 2 times
+low, so 135 to 180 (S1's builder reported about 3 hours against the ~5 planned, the simplest slice). Counted with frequency
+weights landed first (52 fields, `trials` among them); the other order is costed under the interaction section. The callback
+statuses and the status words (dec-B579, dec-B581) are about 300 of S3's lines and 3 of its hours. Counted under dec-B575's
+middle course, with the forward-compatibility work it asks for
 ([Forward compatibility with several forests and multinomial](#forward-compatibility-with-several-forests-and-multinomial)):
 about 300 lines and 4 hours over the bare middle course, which itself took 400 lines and 10 hours off every one-forest model.
 
@@ -46,19 +55,18 @@ You ruled in September that before 1.0-0 the engine stops depending on R below t
 other than R, a Python package for instance, can build and run a sampler through the one C header dbarts ships. This plan builds
 that as two pieces of work.
 
-The first is the math and the printing, and it can land on its own as soon as it is ready. The engine and its support code call
-six of R's numerical routines (the normal distribution's density, probability and quantile; the t distribution's density and
-quantile; the chi-squared quantile) and R's console. Under R they keep calling exactly those, so every draw an R user makes stays
-bit for bit the same. Any other build uses a copy of R's own routines, kept in the repository but left out of the package R users
-install, and writes to standard output. Your ruling named four routines; the engine has since come to use two more, the t
-quantile and a chi-squared median, both read only when a sampler is built or its prior is changed, and this plan copies them too.
-A check of the copy found it gives exactly R's answers when compiled the way R compiles, and differs in the last few digits
-otherwise. The two unused printing hooks go.
+The first, the math and the printing, has landed. The engine and its support code call six of R's numerical routines (the
+normal distribution's density, probability and quantile; the t distribution's density and quantile; the chi-squared quantile)
+and R's console. Under R they still call exactly those, and every draw an R user makes was checked to be bit for bit the same.
+Any other build uses a copy of R's own routines, kept in the repository but left out of the package R users install, and
+writes to standard output. The copy gives exactly R's answers on the two machines it was checked on. The two unused printing
+hooks are gone. Frequency weights will add a seventh routine the same way, R's log of a binomial coefficient, one more file
+of R's copied.
 
 The second is the rest. Today the code that turns R's control, model and data objects into an engine reads those objects
 directly. It will instead fill one plain C description of the sampler - its data, family, priors, constraints, how its weights
-are read, and run settings, each already resolved - and the engine is built from that description alone. R still does everything
-R does now: reading the formula, choosing the family from the response, estimating the starting sigma, turning the residual
+are read, a binomial response's trial counts, and run settings, each already resolved - and the engine is built from that
+description alone. R still does everything R does now: reading the formula, choosing the family from the response, estimating the starting sigma, turning the residual
 prior's quantile into a scale, parsing the prior vocabulary, and naming columns and forests in its messages. Nothing an R user
 sees changes. Then the header changes once, so the two compiled packages rebuild once: a program can create a sampler from that
 description, every entry that can fail returns a status in place of raising an R error, the failure's message can be read back,
@@ -75,9 +83,17 @@ description is one struct with a size field and an initializer. Creating from C 
 says what happened: zero continues, a positive value stops the run on purpose, a negative value reports the callback's own
 failure, and a C++ exception thrown from a callback is caught on whatever thread ran it and reported the same way.
 
-What it costs: about 5,650 lines here plus the copied math code, and roughly 140 to 185 agent-hours, most of it in rewriting how
-samplers are created. The forest door has landed; the main piece still waits for the live coefficient prior, which reworks the
-same creation code. Frequency weights' field joins the new description whichever lands first.
+What is left costs about 5,550 lines and roughly 135 to 180 agent-hours, most of it in rewriting how samplers are created.
+The live coefficient prior, landing now, changes nothing about how a sampler is created, and the hurdle work is R code this
+plan does not touch. Two pieces of work change the same code and come first. Drawing the hidden values at the start of each
+sweep goes next; the header then takes its new wording on what a program reading the hidden values gets and what an
+interrupted run leaves. Frequency weights is recommended to land before the main piece too: the description and the header
+then carry the final weights reading and the binomial trial counts from the start, so the header changes once and nothing is
+written twice. The other order costs about 6 to 10 more hours and a second, smaller header change, which neither package
+would need to rebuild for. The coming choice of how the logistic and negative binomial hidden values are drawn gets no field
+in the 1.0 description: a C program gets the default, which is exact, and the field can be added later without changing the
+meaning of anything already there. Other work can still land between this plan's pieces; the plan rebases and rechecks
+after each.
 
 ## Goal
 
@@ -117,38 +133,46 @@ treatSens build against the new header and pass their suites.
   one it consumed; a slow monotone count warns through [`raiseSlowCountWarning`](../../src/C_interface.cpp). The handle is the
   bridge's holder, [`dbarts_sampler_t`](../../src/R_interface_bartcore_common.hpp), which carries no R type.
 - R frames and C++ exceptions: [`unwindProtect`](../../src/R_interface_bartcore.cpp) protects a body against R's jump and catches
-  no C++ exception, so an exception must never leave a body it wraps or cross any R frame. The shared validators in
-  R_interface_bartcore_common.hpp (`validateResponseSupport`, `enforceBinaryWeightPolicy`, `refuseNonFinite` and thirteen more)
-  raise `Rf_error` today and are called at about 60 sites in the R bridge (counted by name at c3d268c8f, definitions included),
-  besides the flat file's; the bridge's other 379 `Rf_error` sites are R's own and stay.
+  no C++ exception, so an exception must never leave a body it wraps or cross any R frame. The shared refusals declared in
+  R_interface_bartcore_common.hpp, seventeen (`validateResponseSupport`, `enforceBinaryWeightPolicy`, `refuseNonFinite`, thirteen
+  more validators, and the `[[noreturn]]` `refuseCountOverCap` the first two call), raise `Rf_error` today; their names stand on
+  74 lines of R_interface_bartcore.cpp, definitions included, and 12 of the flat file, at main 7937d252f and at
+  coefficient-prior-live's tip alike (the first count, "about 60" at c3d268c8f, missed some). The bridge's other `Rf_error` sites
+  are R's own and stay: 416 lines of the file at coefficient-prior-live's tip, 379 at c3d268c8f, forest-door adding 32 and
+  coefficient-prior-live 5.
 - Process-wide state on the predict path: [`predictPartition`](../../src/bartcore/sampler.hpp), a plain struct holding a
   `std::vector`, is written by every predict and read by a test hook; it is safe today only because predict is main-thread-only.
   [`testFitPartition`](../../src/bartcore/chain.hpp) is relaxed atomics, last writer wins, a diagnostic no answer reads.
-- Engine exception types: `std::invalid_argument` (ten sites), `std::length_error` (two, saved-tree storage past the addressable
-  size), `std::bad_alloc` (one), and `std::runtime_error` at three: the two prior-draw exhaustions in chain.hpp
+- Engine exception types: `std::invalid_argument` (eleven sites at main, forest-door's one included), `std::length_error`
+  (two, saved-tree storage past the addressable size), `std::bad_alloc` (one), and `std::runtime_error` at three: the two prior-draw exhaustions in chain.hpp
   (sampleTreesFromPrior) and predict's join, which rethrows any worker failure, an allocation failure included, as
   `runtime_error("predict worker w failed: ...")`.
-- The R touchpoints below the bridge, as found at c3d268c8f (TODO lists the first group only):
-  - in the engine: `Rf_pnorm5` (eleven calls), `Rf_dnorm4` (two) and `Rf_dt` (one) called by name in
-    src/bartcore/model.hpp; `ext_quantileOfStudentT` in [`forestMapEntry`](../../src/bartcore/combiner.hpp) (a coefficient's
-    t prior, at creation and at a live restatement); `ext_quantileOfChiSquared` in
-    [`ChiKHyperprior::medianOfChi`](../../src/bartcore/model.hpp) (the chi prior's median, read by the calibration map's leaf
-    prior size); `ext_printf` throughout sampler.hpp and tree.hpp.
-  - in the support library: `Rf_pnorm5` and `Rf_qnorm5` declared by hand in src/external/random.c for the truncated normal
-    draws ([`ext_rng_simulateTruncatedNormalScale1`](../../src/external/random.c)), and `ext_quantileOfNormal` in
-    [`ext_rng_simulateStandardNormal`](../../src/external/randomNorm.c), which every normal draw goes through (inversion is the
-    default algorithm), so qnorm is on the hot path; R's own generators, `.Random.seed` and `set.seed` in
-    src/external/randomBase.c; `Rf_error`, `Rf_warning` and `Rprintf` in src/external/io.c; the unused
-    [`misc_printf`](../../src/include/misc/io.h) and `misc_flushOutput` pointers in misc and their five installers.
-  - in the bridge's own core: `R_alloc`, `R_finite`, `R_UnwindProtect` (the callback leaf, [`ShippedDrawHook`](../../src/R_interface_bartcore_common.hpp)),
-    `R_CheckUserInterrupt` (the poll).
+- The R touchpoints below the bridge, as S1 left them on main (dec-A260):
+  - math: the engine and the support library call six names spelled with every flag, `ext_pnorm`, `ext_qnorm`, `ext_dnorm`,
+    `ext_dt`, `ext_qt` and `ext_qchisq` ([nmath.h](../../src/include/external/nmath.h)), R's own routines in the R package and a
+    renamed copy of R 4.6.2's nmath under `DBARTS_HOST_STANDALONE` (standalone/nmath, build-ignored). The qt serves
+    [`forestMapEntry`](../../src/bartcore/combiner.hpp) (a coefficient's t prior, at creation and at a live restatement,
+    coefficient-prior-live's `Chain::setForestCoefficientPrior` among them, on its branch) and the qchisq
+    [`ChiKHyperprior::medianOfChi`](../../src/bartcore/model.hpp); qnorm is on the hot path through
+    [`ext_rng_simulateStandardNormal`](../../src/external/randomNorm.c), pnorm and qnorm in the truncated normal draws
+    ([`ext_rng_simulateTruncatedNormalScale1`](../../src/external/random.c)).
+  - printing: [`ext_printf`](../../src/include/external/io.h) and `ext_fflush_stdout` are R's console in the R package and
+    standard output standalone, where standalone/io_standalone.c gives the message, warning and error routines; misc's print
+    pointers and their five installers are gone.
+  - R's own generators, `.Random.seed` and `set.seed` in src/external/randomBase.c compile in the R package only.
+  - in the bridge's own core, still: `R_alloc`, `R_finite`, `R_UnwindProtect` (the callback leaf,
+    [`ShippedDrawHook`](../../src/R_interface_bartcore_common.hpp)), `R_CheckUserInterrupt` (the poll).
   - The residual prior's chi-squared quantile is already the bridge's (`sigmaRawScale`), as dec-B85 has it.
 - Build: src/Makevars.in sets no `OBJECTS`, so every .c and .cpp at the top of src/ is compiled into dbarts.so. configure (which
   reads `R CMD config`) generates src/config.hpp, src/misc/config.h, src/external/config.h and src/include/misc/types.h from
-  their `.in` files; Windows uses checked-in `.win` variants. R's compiler on the reference host is `clang -arch arm64` with
-  `-falign-functions=64 -Wall -g -O2`, so contraction of a * b + c is clang's default, on.
-- tests/cpp links libR and has no standalone target. The rshim the TODO's predecessors name was deleted in c0ddd93e8; nothing in
-  the tree builds the engine without R.
+  their `.in` files; Windows uses checked-in `.win` variants, and a standalone build the checked-in standalone/config (S1).
+  R's compiler on the reference host is `clang -arch arm64` with `-falign-functions=64 -Wall -g -O2`, so contraction of
+  a * b + c is clang's default, on.
+- tests/cpp (S1): the default target links libR and holds the nmath suite (the copy against libR on a 36,093-point grid);
+  `standalone-math` builds misc (through misc's own Makefile), external and the copy with the switch into build-standalone and
+  checks the binary references nothing of R; `r-math-symbols` checks dbarts.so calls R's six routines and carries no copy;
+  `standalone-config` compares the checked-in configuration headers' macro values with configure's. No target yet compiles the
+  engine, the bridge's core or the flat entry file without R: that is S3's `standalone-consumer`.
 - The shipped header: [`DBARTS_C_API_LIST`](../../inst/include/dbarts/dbarts.h), [`DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h)
   checked against [`dbarts_apiToken`](../../src/C_interface.cpp), [`dbarts_predictor_source`](../../inst/include/dbarts/dbarts.h)
   (today a dense column's index is read in the block its STORE kind selects, the rule dec-B124 replaces),
@@ -165,6 +189,10 @@ treatSens build against the new header and pass their suites.
   resolution home), docs/design/r-c-division.md, error-style.md (R7, a flat entry names itself; R8, the R message is canonical
   and a C backstop is worded apart), docs/design/frequency-weights.md on its branch, [Callbacks and errors](../architecture.md#callbacks-and-errors),
   [Reproducibility contract](../architecture.md#reproducibility-contract), docs/plans/python-bindings.md.
+- The work that lands around this plan, each on its branch until merged: docs/plans/coefficient-prior-live.md and
+  docs/plans/hurdle-completion.md (built, merging), docs/plans/latents-first.md (Order and overlaps),
+  docs/plans/frequency-weights.md (Interaction with the other pending plans, and order) and docs/plans/approximate-draws.md
+  (the setting's shape, its Open call 3); S1's builder and review reports in scratch/hnm-s1 and scratch/hnm-rev.
 
 ## Constraints
 
@@ -208,11 +236,14 @@ The R parse keeps every step that needs R or that R alone resolves, and hands th
 Two plain-C structs, one shipped and one internal:
 
 - `dbarts_sampler_spec`, in dbarts.h: a caller-filled, `structSize`-led struct (the `dbarts_predictor_source` contract in the
-  caller-to-library direction) holding the middle of the model dec-B575 names, every value resolved: 51 fields after
-  `structSize` (the ruling's "about 45" was an estimate). Its fields, grouped (the order below is the struct's):
+  caller-to-library direction) holding the middle of the model dec-B575 names, every value resolved: 52 fields after
+  `structSize` with frequency weights' `trials`, 51 without it (the ruling's "about 45" was an estimate). Its fields, grouped
+  (the order below is the struct's):
   - data: `x` (a `dbarts_predictor_source`, its typing channel READ at creation, which gives `columnTypes` and `categoryCounts`
-    the reader dec-B124 owes them), `y`, `weights`, `weightsType` (a `dbarts_weights_type`, below, read only when `weights` is non-NULL), `offset`, `survivalStatus`
-    (aft, double 0/1 per row as R holds it), `xTest` (a second source, 0 rows for none), `testOffset`, `numCuts` and
+    the reader dec-B124 owes them), `y`, `trials` (frequency weights' binomial response, read under LOGISTIC only: a per-row
+    trial count with `y` the successes, NULL a 0/1 response; a non-NULL `trials` under any other family is refused),
+    `weights`, `weightsType` (a `dbarts_weights_type`, below, read only when `weights` is non-NULL), `offset`,
+    `survivalStatus` (aft, double 0/1 per row as R holds it), `xTest` (a second source, 0 rows for none), `testOffset`, `numCuts` and
     `maxNumCuts` (one or per column), `useQuantiles`;
   - family: `family` (a `dbarts_family`, 1 to 7), `sigmaEstimate`, `sigmaIsFixed`, `sigmaPriorDf`, `sigmaPriorScale` (R's
     `qchisq(1 - q, df) / df`), `residualDf` (read under STUDENT: positive fixes it, 0 estimates it), `numCategories` (ordinal
@@ -226,7 +257,8 @@ Two plain-C structs, one shipped and one internal:
 
   Appended in a later minor when a binding asks (dec-B575), each group taking effect only when its fields are non-zero: the leaf
   models (`leafModel`, giving `dbarts_leaf_model` its first reader, leaf covariates, the GP settings), monotone fits, the
-  constraints (columns, interactions, blocks), the move settings and the variance forest; then several forests and multinomial
+  constraints (columns, interactions, blocks), the move settings, approximate-draws' latent sampler setting (zero the default
+  rule, as R's NULL; see Calls made, 35) and the variance forest; then several forests and multinomial
   ([Forward compatibility with several forests and multinomial](#forward-compatibility-with-several-forests-and-multinomial)). Until then the R parse hands these to the build stage
   through the internal extension, in the layout the append will ship.
 
@@ -240,13 +272,17 @@ Two plain-C structs, one shipped and one internal:
   refuses no spec without weights (a logistic one, for instance). With weights, the build checks the pair against dec-B563,
   dec-B564 and dec-B568 to dec-B570 (FREQUENCY on the gaussian-type families at real weights and the Polya-Gamma families at
   whole numbers; PRECISION only where there is a residual scale; 0/1 weights under either, membership on probit and ordinal;
-  a 0 a row out of the likelihood on every family, logistic included) with the words frequency weights gives R, prefixed.
-  Until frequency weights' engine work lands, FREQUENCY is taken only where it reads as the family's own (the Polya-Gamma
-  families' counts, 0/1 weights). The spec says nothing of predictive draws: a 0 row is still drawn, so the stream is what it
+  a 0 a row out of the likelihood on every family, logistic included) with the words frequency weights gives R, prefixed:
+  the rows of that plan's resolution table, as built, which a later engine change widens by the build taking what the engine
+  then takes (approximate-draws' S3, real weights on logistic and the binomial under its route, among them), never by a new
+  field. With frequency weights landed first, as recommended, S2b translates that table as it stands; were this plan first,
+  FREQUENCY would be taken only where it reads as the family's own (the Polya-Gamma families' counts, 0/1 weights) until
+  frequency weights widens it. The spec says nothing of predictive draws: a 0 row is still drawn, so the stream is what it
   was, and its draws are set to NA where dec-B580 puts it, on every family, its fitted value still reported.
 - `bartcore_bridge::SpecExtension`, internal (src/spec_internal.h, plain C structs and arrays), in two parts. The PUBLIC-SHAPED
   part holds what later appends will ship, already in their sketched layout: the one-forest groups 1.0 leaves out (leaf models,
-  monotone, constraints, moves, variance forest), the several-forest records (`ForestRecord`, field for field the sketched
+  monotone, constraints, moves, approximate-draws' latent sampler setting once that is built, variance forest), the
+  several-forest records (`ForestRecord`, field for field the sketched
   `dbarts_forest_spec`) and the multinomial record (`MultinomialRecord`, the sketched multinomial fields). The R-ONLY part holds
   what no C caller will state: the re-creation records (cut grids and mass, columns seen missing, a leaf standardization, the
   calibration map's anchor and unit, a numeric basis column's scale as first computed, a sharer's share as first set), the data
@@ -321,16 +357,17 @@ Invariants every 1.0 description keeps, under the append and any later one:
    MULTINOMIAL and every value past 8, reserved for families appended later, return UNSUPPORTED at 1.0 ("this build creates no
    multinomial sampler from C" or "family %d is not one this build creates").
 6. A field is read only under the families or structures that name it, and that set never shrinks: `numCategories` under ORDINAL
-   at 1.0 and MULTINOMIAL later; `residualDf` under STUDENT; `shape` under NBINOM; `y` and `offset` under every 1.0 family, not
-   under MULTINOMIAL, which states the appended counts and category offset instead.
+   at 1.0 and MULTINOMIAL later; `residualDf` under STUDENT; `shape` under NBINOM; `trials` under LOGISTIC; `y` and `offset`
+   under every 1.0 family, not under MULTINOMIAL, which states the appended counts and category offset instead.
 7. Nested arrays version by a stride, not a size per element: the parent states `forestStride`, the caller's
    `sizeof(dbarts_forest_spec)`, once; the build indexes by it and reads each element under invariants 1 to 3 at that size. The
    elements of one array share a type, so a size in each would repeat the stride; Win32's `SendInput(nInputs, pInputs, cbSize)`
    versions an array of structs the same way. A stride of 0 with `numForests` > 0 is INVALID_ARGUMENT.
 
 What 1.0's validation refuses now, so the append is never a change of meaning: a nonzero byte past the known `structSize`
-(invariant 3); MULTINOMIAL and any family value past 8 (5); and nothing else, since every other 1.0 field already has its final
-reading. Placeholder fields are not shipped (see Calls made).
+(invariant 3); MULTINOMIAL and any family value past 8 (5); a non-NULL `trials` off LOGISTIC (6), so the probit binomial that
+dec-B567 leaves for later can be read under PROBIT without a field meaning something new; and nothing else, since every other
+1.0 field already has its final reading. Placeholder fields are not shipped (see Calls made).
 
 The later work is mostly exposure. From S2b the R path already builds several-forest and multinomial samplers through
 `buildSampler` from the extension's `ForestRecord` array and `MultinomialRecord`, laid out as the sketch, and the equivalence
@@ -481,10 +518,28 @@ becomes `thread_local`: predict writes it and the test hook reads it on one thre
 handles predicting on two threads no longer race (see Calls made for keeping the main-thread rule instead).
 `testFitPartition` stays as it is: relaxed atomics, no race, read by nothing that answers.
 
-### Build-time math, printing and interrupts (S1, and S3 for the poll)
+### Build-time math, printing and interrupts (S1, landed; S3 for the poll)
 
 One preprocessor switch, `DBARTS_HOST_STANDALONE`, defined by the standalone recipe and never by the R package's Makevars, so
 the R build compiles as it does today.
+
+As built (dec-A260; the bullets below are the design it followed): the six names live in
+[nmath.h](../../src/include/external/nmath.h), which stats.h's convenience names sit over; four of R's headers are needed
+under `MATHLIB_STANDALONE` and reduced (Rmath.h, Rconfig.h, R_ext/RS.h, R_ext/Print.h, 395 lines), not eight; a prefix header
+stands in for R's config.h and renames every symbol the copy defines, the build failing if one escapes; the copy is 6,329
+lines, byte-identical to CRAN's R-4.6.2 source; misc builds through its own Makefile from another directory (vpath); R's
+unused chi-squared probability went. The review added the `standalone-config` check, which on the first x86 leg found
+configure's SSE4.1 macro never defined (fixed on main, no draw moving), and flag checks of every ext_ name in the standalone
+driver. Under R the shared library differs from main's before S1 only in two print-pointer stores in its initializer and one
+data offset in five run instantiations.
+
+A seventh name, as frequency weights' S3 adds `ext_lchoose` (S1's review gave the recipe): R 4.6.2's choose.c, 158 lines, whose
+callees the copy already holds; three renames in prefix.h (`choose`, `lchoose`, `Rf_lfastchoose`); the reduced Rmath.h's
+`choose` and `lchoose` declarations restored; `ext_lchoose` in both branches of nmath.h; `Rf_lchoose` in the `r-math-symbols`
+list once the engine calls it; the clean recipe and the README. Its grid, about 3,000 points: integer n from 0 to about 1e7
+with k at 0, 1, n/2, n - 1 and n; k > n and k < 0 giving -Inf; every k for small n; non-integer and negative n; NaN. No
+non-integer k: R's rounding warning goes through `Rf_warning`, which ends the test binary. The nbinom research plan's pchisq
+is the same size (pchisq.c, its pgamma already copied).
 
 - Math: src/include/external/stats.h gains the six names with every flag spelled: `ext_pnorm(x, mu, sd, lowerTail, logP)`,
   `ext_qnorm`, `ext_dnorm(x, mu, sd, logP)`, `ext_dt(x, df, logP)`, `ext_qt(p, df, lowerTail, logP)`, `ext_qchisq`. Under R each
@@ -495,7 +550,7 @@ the R build compiles as it does today.
 - The copy: standalone/nmath/, a new top-level directory listed in .Rbuildignore, so neither the package build nor the tarball
   sees it. It holds the closure of the six in R 4.6.x's nmath (4.6.2 probed: 25 files, 5,963 lines, bd0.c to toms708.c, with
   nmath.h and dpq.h), unedited except a force-included prefix header that renames every external symbol so a program that also
-  links libRmath sees no clash; reduced copies of Rmath.h, Rconfig.h and the eight R_ext headers it includes (about 400 lines);
+  links libRmath sees no clash; reduced copies of the R headers it needs (four as built, 395 lines);
   and a README naming the R version, the file list, R Core's copyright and the GPL (>= 2), the package's own license. It is
   compiled with `MATHLIB_STANDALONE` and `-include errno.h`. Since it is not in the tarball, DESCRIPTION gains no author or
   Copyright field. The pin moves when the reference build's R moves minor, and the probe below is rerun then.
@@ -642,7 +697,8 @@ paragraphs of `dbarts_draw_callback` are replaced by the four of [The draw callb
 R ERRORS, A BINDING), and the WORKER-thread paragraph says to return negative; `dbarts_sampler_run`'s interrupt, callback-stop
 and slow-count paragraphs follow the statuses, the stop paragraph naming STOPPED and CALLBACK_FAILED; `dbarts_statusString` and
 `dbarts_lastErrorMessage` document the fallback; `dbarts_sampler_predict` drops "main-R-thread-only ...
-R_alloc"; `dbarts_sampler_getLatents` gains frequency weights' sentence on a frequency row's latent (dec-B564's note); every
+R_alloc"; `dbarts_sampler_getLatents` keeps latents-first's sentence (dec-B586: the values the last sweep's trees were drawn
+from) and gains frequency weights' sentence on a frequency row's latent (dec-B564's note); every
 per-entry "raises" becomes the status it returns; the spec's block states invariants 1 to 7 of the forward-compatibility
 section, the reserved family values and the zero-tail rule. About +600/-180 lines in the header.
 
@@ -671,6 +727,8 @@ stage with the text it has today, and the tinytest pins hold them. New words rea
   multinomial sampler from C` and `family %d is not one this build creates` (UNSUPPORTED, for 8 and every value past it);
 - `the description is larger than this build knows and byte %zu past its end is not zero` (UNSUPPORTED);
 - `weightsType %d is not a dbarts_weights_type`; the frequency and precision refusals in frequency weights' words;
+- `trials is read under DBARTS_FAMILY_LOGISTIC only; family %d takes no trial counts`; the binomial count refusals (successes
+  above the trials, a negative or fractional count) in frequency weights' words;
 - `a gaussian, Student-t or aft sampler needs a finite positive sigmaEstimate`; `sigmaPriorDf and sigmaPriorScale must be
   finite and positive`;
 - `numChains must be at least 1`; `printEvery must be at least 1`; `no seed: set spec.hasSeed and spec.seed, or
@@ -688,9 +746,9 @@ std::exception`. A deliberate stop (STOPPED) is not a failure and writes no mess
 
 Neutral on the R build, by construction and by gate:
 
-- S1 changes which macro spells each math call, not which function runs: under R every `ext_` name is the Rmath symbol the code
-  calls today. S2a, S2b and S3 move code without changing what is computed or in which order the generators are touched; the
-  one place order could move, the chain seeds, keeps both of today's paths (one seed through a seed generator, or seeds drawn
+- S1, landed, changed which macro spells each math call, not which function runs: under R every `ext_` name is the Rmath
+  symbol the code called before, which the trio bitwise and the `r-math-symbols` check confirmed. S2a, S2b and S3 move code
+  without changing what is computed or in which order the generators are touched; the one place order could move, the chain seeds, keeps both of today's paths (one seed through a seed generator, or seeds drawn
   from R's stream) and passes them through the spec unchanged.
 - Proven by: the equivalence trio bitwise with `--strict-coverage` against the baselines the MANIFEST names as current at the
   branch's base, counting the "identical draws (same RNG stream)" lines ([Gate hygiene](README.md#gate-hygiene)), on the
@@ -704,7 +762,10 @@ Neutral on the R build, by construction and by gate:
   With contraction off, qnorm differed by up to 6 ulp, qt 10 and qchisq 32. So the copy is compiled with R's own C flags on the
   reference host, and gated there bitwise against Rmath on that grid (a tests/cpp suite in the libR-linked target), and the
   standalone consumer's draws equal the R-created sampler's bit for bit at the same spec and seed. Off the reference host the
-  grid is gated at a relative difference of 1e-13 and the consumer's draws by the equivalence harness's statistical z.
+  grid is gated at a relative difference of 1e-13 and the consumer's draws by the equivalence harness's statistical z. As
+  built, S1's grid (36,093 points from its own generator, every flag pair) held bitwise per routine on the reference build and
+  on the x86 leg alike; the floor, about 450 ulp, catches only gross errors there, so small ones are caught by the bitwise gate
+  on arm64 macOS, which CI's cpp-tests runs on every push.
 
 ## Ruled
 
@@ -747,8 +808,9 @@ clause of dec-B578); the numbers are the plan's open-call numbers, which the led
 1. The vendored set is the closure of all six routines the engine and the support library call, not the four TODO names: qt
    ([`forestMapEntry`](../../src/bartcore/combiner.hpp)) and qchisq at 0.5
    ([`ChiKHyperprior::medianOfChi`](../../src/bartcore/model.hpp)) arrived after the ruling and are read at creation and at live
-   restatements (setLeafPrior, and coefficient-prior-live's `$setForest(amplitude = )`). Alternative: compute them on R's side as
-   the residual prior's quantile is, which cuts the copy by about 4,000 lines but adds an R-resolved number to every live
+   restatements (setLeafPrior, and coefficient-prior-live's `$setForest(amplitude = )`, built). Built so in S1. Alternative:
+   compute them on R's side as the residual prior's quantile is, which cuts the copy by about 4,000 lines but adds an
+   R-resolved number to every live
    restatement entry and makes a pure function of the prior the caller's. dec-B85's words, "a copy of R's routines kept in the
    support library", fit the copy.
 2. The switch is one preprocessor macro, `DBARTS_HOST_STANDALONE`, that only a standalone build defines. Alternative: a configure
@@ -808,8 +870,9 @@ clause of dec-B578); the numbers are the plan's open-call numbers, which the led
     Alternative: a top-level build for a libdbarts, a maintained surface with no consumer yet; or a configure run, which needs R.
 25. The two static_asserts that no shape or source field owns storage stay, and `Refusal` gains one: the R parse still raises
     around them.
-26. S1 is its own feature; the rest is one branch merged once, the header change landing whole in S3 so stan4bart and treatSens
-    rebuild once. Alternative: S1 on the main branch, which holds a byte-neutral change with no dependency behind forest-door.
+26. S1 is its own feature (landed so); the rest is one branch merged once, the header change landing whole in S3 so stan4bart
+    and treatSens rebuild once. Alternative: S1 on the main branch, which holds a byte-neutral change with no dependency behind
+    forest-door.
 27. Under several forests the 1.0 tree prior fields are not read; every forest states its trees in its element, while the 1.0
     leaf prior fields keep their one meaning, the model's leaf prior the sharing forests divide, as forest-door built it.
     Alternatives: (i) the 1.0 tree fields are forest 1's, the array holding forests 2 onward, which makes the array's first
@@ -833,6 +896,18 @@ clause of dec-B578); the numbers are the plan's open-call numbers, which the led
 31. The R path builds several-forest and multinomial samplers from extension records laid out as the sketched append from S2b,
     so the append exposes a tested route. Alternative: keep the R path's own records and translate at the append, a second
     layout and a second test of it later.
+35. approximate-draws' latent sampler setting (a method name or an accuracy, its shape that plan's open call 3, its default
+    open call 1) gets no 1.0 field. It is a setting of how the sampler draws, beside the move settings dec-B575 leaves for an
+    append, and its zero reads as R's NULL, the default rule, so the append is a plain one under invariants 1 to 3; a C caller at
+    1.0 gets the default rule, exact under every default that plan offers. Until the append, the R parse hands it to the build
+    through the extension's public-shaped part, laid out as the append will ship, whichever of S2b and that plan's S2 lands
+    second adding it. Alternative: a 1.0 field now, freezing a shape the maintainer has not ruled.
+36. `refuseCountOverCap`, the `[[noreturn]]` helper beneath `enforceBinaryWeightPolicy` and `validateResponseSupport`, returns
+    a refusal value in S2a like the sixteen validators, its six R sites wrapped. Alternative: leave it raising, which keeps an
+    `Rf_error` inside two validators the R-free core holds, so the flat entries and the standalone build could not compile them.
+37. `trials` is a 1.0 field read under LOGISTIC only and refused elsewhere, in frequency weights' form (`y` the successes, NULL a
+    0/1 response). Alternative: ignore it off LOGISTIC, as `weightsType` is ignored without weights; but a `trials` given to a
+    probit sampler states a model the build does not fit, and refusing it is what lets a later probit binomial read it.
 
 ## Open calls
 
@@ -840,52 +915,67 @@ None. Every call this plan raised is ruled ([Ruled](#ruled)).
 
 ## Slices
 
-### S1 (its own feature, branch host-neutral-math): build-time math and printing
+### S1 (its own feature): build-time math and printing - LANDED
 
-Steps: the six ext_ names in stats.h and the slim nmath.h; model.hpp's fourteen calls and random.c's two declarations onto them;
-standalone/nmath with the copy, its prefix header, the reduced R headers and README; .Rbuildignore's `^standalone$`; io.h's two
-mappings and standalone/io_standalone.c; randomBase.c's R-only parts guarded; misc/io.c, misc/io.h and their five installers
-(R_interface.cpp, tests/cpp's main.cpp, three benchmark kernels) removed; standalone/config and the drift check's extension; a
-tests/cpp `nmath` suite comparing each copy with Rmath on the probe's grid (run by the default libR-linked target, bitwise on
-the reference host); a `standalone-math` target that compiles external, misc and the copy with the switch into its own
-directory and links no libR.
+Landed on main 2026-11-03, cbed014fb to 789ad3ff1, recorded in d6ef1cc13 (dec-A260); built as
+[Build-time math, printing and interrupts (S1, landed; S3 for the poll)](#build-time-math-printing-and-interrupts-s1-landed-s3-for-the-poll)
+says, with the review's fix round (the `standalone-config` check, the standalone driver's flag checks, prefix.h's note on
+cospi, the README's warnings and license lines) and the orchestrator's configure fix. Gates as dec-A260 records them: tests/cpp
+426 ok, plain and under ASan and UBSan, on the reference build and on x86; the grid bitwise per routine on both; the
+standalone target from a clean archive referencing nothing of R; tinytest; the trio bitwise on the reference build; the four
+snapshot files; R CMD check --as-cran, no standalone/ file in the tarball; CI. Lines: about 910 written, 6,329 copied, 395 of
+reduced headers, against ~350, ~6,000 and ~400 planned. The review ran mutants 1 to 4 ([Mutants](#mutants)).
 
-Gates: tests/cpp (both targets); full tinytest; the trio bitwise; the four snapshots on the reference build; R CMD check
---as-cran from a clean tarball, which must contain no standalone/ file; sanitizers on tests/cpp; mutation-battery
-verify-anchors; the x86 leg. Diagnostic, not a gate: `objdump -d` of the installed dbarts.so before and after, expecting only
-R_init_dbarts and the removed misc symbols to differ.
-
-Budget: ~350 lines written, ~6,000 copied, ~400 reduced headers. Agent ~5, review ~1.5, gates ~1.5.
+What S2a starts from: the engine and the support library call R only through the six ext_ names and io.h's two print macros,
+and randomBase.c's R generators compile under R only; standalone/ holds the copy, io_standalone.c and the checked-in
+configuration headers; tests/cpp builds misc, external and the copy standalone but nothing above them. Still on R, for S2a to
+S3: the shared refusals' `Rf_error`, the flat file's `R_alloc` and `R_finite`, the poll, the callback leaf and the slow-count
+warning in the bridge's core, and `predictPartition`'s main-thread rule. No host_r.cpp or host_standalone.cpp exists yet (S3).
 
 ### S2a: refusals as values, one translate stage (bridge)
 
-Steps: `Refusal` and `raiseRefusal`; the sixteen shared validators, and the flat file's `translateSource`, `validateTestSource`
-and `refuseTestMissingness`, returning refusals, their about 60 R sites and the flat file's wrapped (createDataHandle and the R
-test-predictor setters call the last three inside `unwindProtect` bodies, outside any route's catch); the translated source,
-which owns storage, held as an init-capture wherever it lives in an R frame, by `unwindProtect`'s own rule; R_interface_bartcore_common.hpp split into the R-free core and the SEXP-facing half; `translateSource` moved
-into the core, used by the R parse's views and the data handle, carrying the engine's per-column channels (the shipped field
-waits for S3); the engine routes' catch turned into a refusal value.
+Steps: `Refusal` and `raiseRefusal`; the sixteen shared validators and `refuseCountOverCap` beneath two of them (Calls made,
+36), and the flat file's `translateSource`, `validateTestSource` and `refuseTestMissingness`, returning refusals, their 74
+named lines in the bridge and the flat file's 12 wrapped (createDataHandle and the R test-predictor setters call the last
+three inside `unwindProtect` bodies, outside any route's catch); the translated source, which owns storage, held as an
+init-capture wherever it lives in an R frame, by `unwindProtect`'s own rule; R_interface_bartcore_common.hpp split into the
+R-free core and the SEXP-facing half; `translateSource` moved into the core, used by the R parse's views and the data handle,
+carrying the engine's per-column channels (the shipped field waits for S3); the engine routes' catch turned into a refusal
+value. What it takes as it stands: forest-door's and coefficient-prior-live's live forest entries
+(`bartcore_setForestSd`, `bartcore_setForestCoefficient`, `bartcore_setForestTreePrior`), which call no shared refusal and keep
+their R-only `Rf_error`s; frequency weights' lifted and widened refusals (`enforceBinaryWeightPolicy` taking 0/1 on probit and
+ordinal and a logistic 0, `refuseCountOverCap`'s product cap, `validateResponseSupport` taking successes up to the trials),
+converted as that feature leaves them; latents-first's setState without its digest and zero-weight reconciliation, which
+holds no shared refusal.
 
-Gates: as S1, plus the R-loaded ASan run over the creation and mutation suites; every message pin in tinytest unchanged (the
-whole suite in one process).
+Gates: tests/cpp, every target; the full tinytest suite in one process, every message pin unchanged (frequency weights' and
+hurdle-completion's new pins among them); the trio bitwise; the four snapshots on the reference build; R CMD check --as-cran
+from a clean tarball, no standalone/ file in it; sanitizers on tests/cpp and the R-loaded ASan run over the creation and
+mutation suites; mutation-battery verify-anchors; the x86 leg.
 
-Budget: ~900 lines. Agent ~12, review ~5, gates ~3.
+Budget: ~950 lines. Agent ~12.5, review ~5, gates ~3.5.
 
 ### S2b: the plain-C specification (bridge)
 
 Steps: `dbarts_sampler_spec`, its INIT and `DBARTS_WEIGHTS_TYPE_LIST` in dbarts.h (no entry yet); src/spec_internal.h with
 `SpecExtension`; src/sampler_build.cpp with `buildSampler`, taking over the engine-building half of createHolder,
 optionsFromParsed, the two multinomial routes and createFromHandle; the R parse filling spec and extension (the parse functions
-keep reading SEXPs; their outputs become spec fields); seeds through `hasSeed`/`seed` or `chainSeeds`; the weights reading; a
-tests/cpp suite that fills every spec field with a distinct value and checks the engine options built from it field by field,
-so a field the build forgets fails by name; the extension's public-shaped part (`ForestRecord`, `MultinomialRecord` and the
-one-forest groups 1.0 leaves out) laid out as the sketched append, the several-forest and multinomial R routes reading it; the
-1.0 reading rules (zero tail, reserved families, fields read only under the families that name them).
+keep reading SEXPs; their outputs become spec fields); seeds through `hasSeed`/`seed` or `chainSeeds`; the weights reading,
+frequency weights' resolved model slot becoming `weightsType` and its resolution table the build's check; frequency weights'
+binomial counts slot under logistic becoming `y` (the successes) and `trials`; a tests/cpp suite that fills every spec field
+with a distinct value and checks the engine options built from it field by field, so a field the build forgets fails by name
+(`weightsType` and `trials` among them); the extension's public-shaped part (`ForestRecord`, `MultinomialRecord` and the
+one-forest groups 1.0 leaves out, approximate-draws' latent sampler setting with them if that plan's S2 has landed) laid out
+as the sketched append, the several-forest and multinomial R routes reading it; the 1.0 reading rules (zero tail, reserved
+families, fields read only under the families that name them, `trials` off LOGISTIC refused). The forest records are as on
+main: coefficient-prior-live writes `held.amplitude`, `amplitude.df`, `sd` and `share` at its live door and adds no slot, so
+`ForestRecord` mirrors forest-door's records.
 
-Gates: as S2a.
+Gates: as S2a, plus a binomial and a frequency-weighted sampler created through the spec against the same fits created on the
+base, bitwise.
 
-Budget: ~1,600 lines (header ~200, extension ~250, build stage ~650 moved, parse rework ~400, tests/cpp ~250). Agent ~18,
-review ~7, gates ~4.
+Budget: ~1,700 lines (header ~220, extension ~260, build stage ~690 moved, parse rework ~420, tests/cpp ~280). Agent ~19,
+review ~7, gates ~4.5.
 
 ### S3: statuses, the creation entry, the sigma getter, the header (bridge, flat entry file, tests)
 
@@ -896,9 +986,14 @@ src/host_r.cpp and standalone/host_standalone.cpp, with the callback catch for t
 engine's three-way stop record (continue, stop, failure with chain and value or text) in place of the one stop flag, and the
 lowest-failing-chain rule; the holder's origin and destroy; `dbarts_R_raiseStatus` and `DBARTS_R_CHECK` (dec-B578), forwarding
 only neutral text; `denseChannels` in the shipped source; the hash folder and both tokens; the header's prose, the callback
-contract rewritten. Tests: consumer.c and test-capi.R rewritten for statuses (each entry's failure reached and its
-status and message read; INIT plus data and seed against `dbarts()`'s draws bitwise; a C-created sampler against the R-created
-one bitwise; `denseChannels` with packed blocks against the dense source; getSigmas on two chains and its UNSUPPORTED on a
+contract rewritten, carrying latents-first's sentences for `dbarts_sampler_getLatents` (what it returns after a run and
+between a setter and the next run) and for a stop inside the latent draws, which then open a sweep, into the status form,
+and frequency weights' sentence on a frequency row's latent; the spec's block stating `weightsType` and `trials`. The stop
+record sits where latents-first leaves the sweep: the callback still fires at the record, the sweep's last step, and the
+interrupt's cancel point inside the latent draws keeps its arm. Tests: consumer.c and test-capi.R rewritten for statuses
+(each entry's failure reached and its status and message read; INIT plus data and seed against `dbarts()`'s draws bitwise; a
+C-created sampler against the R-created one bitwise, a binomial one with `trials` and a gaussian one under FREQUENCY among
+them; `denseChannels` with packed blocks against the dense source; getSigmas on two chains and its UNSUPPORTED on a
 heteroscedastic sampler; `DBARTS_R_CHECK` raising an error, through the interrupt test hook an interrupt, and under
 `setTimeLimit` the time limit's error, as test-monotone.R pins for R's run; `DBARTS_R_CHECK` on a failure whose message is
 empty raising `dbarts_statusString`'s words; two samplers predicting on two threads; a C-created handle destroyed; and the four
@@ -919,9 +1014,9 @@ Gates: as S2a, plus test-capi.R under ASan on the R-loaded path, tests/cpp's sta
 for the two-thread and worker-exception arms, on the x86 leg LeakSanitizer (C-created handles are new owners); the header-compiles target;
 `sh tools/check-api-hash.sh`.
 
-Budget: ~2,800 lines (header +600/-180 with the test-only append ~80, C_interface.cpp ~530, build units ~290 with the callback
-catch, engine stop record ~40, bridge ~120, consumer.c ~600, test-capi.R ~340, tests/cpp ~580, workflow ~20, docs ~130). Agent
-~16, review ~6, gates ~4.
+Budget: ~2,900 lines (header +640/-190 with the test-only append ~80 and the weights and trials prose, C_interface.cpp ~530,
+build units ~290 with the callback catch, engine stop record ~40, bridge ~120, consumer.c ~650, test-capi.R ~360, tests/cpp
+~580, workflow ~20, docs ~130). Agent ~17, review ~6.5, gates ~5.
 
 ### S4: the consumer ports (stan4bart, treatSens)
 
@@ -939,7 +1034,8 @@ Budget: stan4bart ~80 lines, treatSens ~50. Agent ~3 each, review folded into S3
 
 TODO's host-neutral entry and python-bindings entry (the engine is R-free below the bridge; what a binding still owns:
 ingestion, resolution, its own build unit and the standalone recipe); docs/plans/python-bindings.md's Context; the feature
-matrix's reach column for the flat header; INDEX rows; NEWS's 1.0-0 entry for compiled consumers. Doc-freshness only.
+matrix's reach column for the flat header; INDEX rows; NEWS's 1.0-0 entry for compiled consumers; the Landing note and
+dec-A entry for the main feature's calls. Doc-freshness only.
 
 ## Tests and gates
 
@@ -948,8 +1044,9 @@ install (the facade's virtuals do not change, but every creation route does):
 
 ```
 R CMD INSTALL --preclean -l <lib> .                       # and --configure-args=--enable-reference-build for the snapshots
-cd tests/cpp && make && ./test_bartcore                   # header-compiles, the libR suite, the nmath grid
-make standalone-math standalone-consumer && ./build-standalone/standalone_consumer
+cd tests/cpp && make && ./test_bartcore                   # S1's all: header-compiles, the libR suite and nmath grid,
+                                                          # r-math-symbols, standalone-config, standalone-math
+make standalone-consumer && ./build-standalone/standalone_consumer   # S3
 nm build-standalone/standalone_consumer | grep -E ' U _?(Rf_|R_|Rprintf|unif_rand)'   # expect nothing
 R_LIBS=<lib> Rscript -e 'tinytest::test_package("dbarts", lib.loc = "<lib>")'
 R_LIBS=<lib> Rscript benchmarks/R/equivalence.R compare --bitwise --strict-coverage benchmarks/baselines/<current>.rds
@@ -971,13 +1068,21 @@ compared --bitwise, the nmath grid at the relative floor).
 
 ## Mutants
 
-The reviewer of each slice runs these; each must fail the named gate, and is reverted with a `touch`:
+The reviewer of each slice runs these; each must fail the named gate, and is reverted with a `touch`. S1's four were run by
+its review and are recorded as run:
 
-1. S1: one model.hpp pnorm site's lower-tail flag flipped - the probit and aft equivalence scenarios.
-2. S1: a constant in the copied qnorm changed - the nmath grid.
-3. S1: the copy compiled with `-ffp-contract=off` - the nmath grid's bitwise gate on the reference host.
-4. S1: `ext_qnorm` mapped to the copy in the R build - record which scenarios move; with the copy exact at R's flags, none
-   should, so this proves the gate reads the R build's symbol by `nm` rather than by draws.
+1. S1: one model.hpp pnorm site's lower-tail flag flipped. The plan named the probit and aft equivalence scenarios, a wrong
+   premise: in probit and aft the engine's pnorm feeds only the log-likelihood channel, which the equivalence harnesses do not
+   record, and their draws come from random.c's truncated normal samplers. As run: (a) the probit log-likelihood's flag
+   swapped left the equivalence scenarios identical and was killed by tests/cpp and test-capi.R's log-likelihood arms; (b) the
+   near-tail flag in `logStandardNormalMass`, which the monotone leaves read, moved monotoneleaf and monotonejoint (|z| 3.28
+   and 1.83) and failed six tests/cpp checks. A later slice that moves a pnorm site gates it by those, not by the probit or
+   aft scenarios.
+2. S1: a constant in the copied qnorm changed - the nmath grid (as run: qnorm 9 points at 1 ulp, qt 4 at 3 ulp).
+3. S1: the copy compiled with `-ffp-contract=off` - the nmath grid's bitwise gate on the reference host (as run: 8,673 of
+   36,093 points off; the 1e-13 floor passes it).
+4. S1: `ext_qnorm` mapped to the copy in the R build - no scenario moves (as run: 55 of 55 identical), so the gate is
+   `r-math-symbols` reading the R build's symbols by `nm`, which fails.
 5. S2a: one validator's refusal dropped unconsumed at an R site - the `[[nodiscard]]` build error, and that refusal's tinytest pin.
 6. S2a: a refusal thrown, not returned, from a validator called inside an `unwindProtect` body - on arm64 macOS the exception
    crosses R's frame silently (the critic's probe: no crash, the cleanup never runs, the heap closure leaks), so the gate is
@@ -1010,54 +1115,182 @@ The reviewer of each slice runs these; each must fail the named gate, and is rev
 29. S3: `dbarts_statusString` missing one status's words - its tests/cpp unit (and the X-macro makes the omission a build error).
 30. S3: `dbarts_R_raiseStatus` writing its own text for UNSUPPORTED - test-capi.R's arm comparing the R message with the neutral
     one.
+31. S2b: `trials` not handed to the engine, a binomial read as 0/1 - the field coverage suite, and S2b's binomial creation twin.
+32. S2b: a non-NULL `trials` accepted off LOGISTIC - a tests/cpp unit of the build stage (S2b) and consumer.c's trials refusal
+    arm (S3).
+33. S2a: `refuseCountOverCap`'s value dropped at the logistic weights site - the `[[nodiscard]]` build error, and the cap's
+    tinytest pin.
 
 ## Interaction with the other pending plans, and order
 
-- S1 depends on nothing; it lands when green, serial with coefficient-prior-live's merge (engine features merge serially),
-  rebasing onto whichever lands first (two qt lines in combiner.hpp are its only overlap).
+- S1 LANDED on main 2026-11-03 (dec-A260), before coefficient-prior-live, which rebased onto it with no conflict.
 - forest-door (slices 1 to 3, with setmodel-parameters' slice 4) LANDED on main; this plan was rebased onto 8fce28568. What it
   moved: `ForestSpec` gained `share`, documented "No caller states it", the group derived by `forestSharers`, so the share left
   the sketched public element for the extension's R-only part; the leaf prior of a several-forest chain is the total the sharers
   divide, so the 1.0 leaf prior fields keep one meaning under several forests (invariant 4 and call 27 rewritten); the bridge
   gained the leaf-prior install on several forests and `setForestTreePrior`, which S2a's validator count and S2b's parse rework
   take as they stand. The math touchpoints, the three `runtime_error` sites and the two process-wide channels are unchanged.
-- coefficient-prior-live lands before S2a starts. It reworks the live forest writes in the same bridge and engine files, and
-  S1's qt and chi-median copies serve its live restatements.
-- Frequency weights (dec-B563 to dec-B566) and the binomial response (dec-B567) are ruled; their design note and plan are not
-  built. The spec carries the resolved weights reading from S2b whichever lands first (dec-B564: "the shipped header gains one
-  field in dec-B85's change"); if frequency weights' engine work lands later, its plan widens what the build takes for
-  FREQUENCY and adds the getLatents sentence if S3 has merged. The binomial response enters the spec in the form its design
-  gives the engine (likely a per-row trial count beside y under logistic): in S2b if it lands first, else appended by its own
-  work before 1.0-0, a hash move that rebuilds no one, since neither consumer creates through C.
+- coefficient-prior-live (dec-A261; built and reviewed, merging on main, read at 0c485ed44; its names below are on its
+  branch, not yet on this one's base): the bridge entry `bartcore_setForestCoefficient`, registered in R_interface.cpp, with
+  five R-only `Rf_error` lines, one of them `forestSdUnitMessage`, which creation raises too; `Chain::setForestCoefficientPrior`
+  and its check `takesForestCoefficientPrior`; the facade and sampler virtual `setForestCoefficientPrior` and the combiner's
+  `setForestAmplitudePrior`; in R, setForest's amplitude (R/forestDoor.R), `$setModel`'s coefficient refusal
+  (R/fittingLevel.R), and R/model.R's `leafPriorGivesNoSize` and `refuseSizelessCoefficient`, which
+  [`resolveSamplerSpec`](../../R/spec.R) now calls at creation with unchanged words. S2a: it adds no shared refusal call (74 and 12 lines, as on main); its entry is neither a creation route nor
+  a flat entry and keeps raising, its lines joining the R-only set. S2b: no record slot and no creation read change ("No draw
+  moves for any call taken before"), so `ForestRecord` mirrors forest-door's records, and the sizeless refusal stays R's,
+  raised before the spec fill. S3: nothing, no flat entry writing a live forest. S1's qt serves its live restatement through
+  `forestMapEntry`.
+- hurdle-completion (dec-A262; R only, stacked on coefficient-prior-live, merging after it, read at d27be2cc7): it changes no
+  file under src/, inst/include, tests/cpp or standalone/ and nothing any slice here rewrites. Its new tinytest files and pins
+  join the full suite S2a to S3 must hold unchanged; inst/NEWS.Rd and TODO are textual neighbors only. Its 0/1 weights reach the
+  probit part as R's mask, through no bridge refusal S2a converts.
+- latents-first (dec-B586, dec-B589; lands next on the engine, its slice 2a building, read at f3a818b2b). Its overlaps, slice
+  by slice:
+  - S2a: R_interface_bartcore.cpp's state region. Its 2b retires [`storeState`](../../src/R_interface_bartcore.cpp)'s
+    `weights.digest`, `weights.zero` and `survival.digest` writes, the digest encoders, and
+    [`setState`](../../src/R_interface_bartcore.cpp)'s reads and reconciliation, about 140 lines. None calls a shared refusal and
+    setState is no creation route, so S2a inherits the shorter setState and moves its declaration to the SEXP-facing half as is.
+  - S2b: none in code. Creation keeps its deterministic latent starts and draws nothing, and the retired state attributes are
+    no creation record the extension holds. It inherits the baselines latents-first records again (one snapshot file, the
+    trio's three).
+  - S3: facade.hpp and sampler.hpp, from which its 2b removes `weightsDigest`, `survivalDigest`, `reapplyWeights`,
+    `zeroWeightRows` and `reapplySurvivalStatus` with their virtuals; S3 adds no virtual, and its predict join,
+    `predictPartition` and the stop record sit beside them. [`Chain::runSweeps`](../../src/bartcore/chain.hpp), which its 2a
+    reorders, the latent draws first with their cancel point kept: the draw callback still fires at the record, the sweep's
+    last step, where S3's stop record and catch go. dbarts.h: its slice 3 writes the getLatents sentence and the run's
+    interrupt paragraph (a stop inside the latent draws, which now open a sweep, leaves no tree of that sweep drawn), which S3
+    carries into the status form. tests/cpp's test_facade.cpp, test_sampler.cpp and test_state.cpp, where it retires spies and
+    twins and S3 adds its units in files of their own. It lands first, so S3 rewrites settled text.
+- frequency-weights (dec-B563 to dec-B570, dec-B580; planned, amended at 72914ff71, building after latents-first). Its overlaps:
+  - S2a: the shared refusals it lifts or widens, about 200 bridge lines in all: `enforceBinaryWeightPolicy` (its S4: 0/1 on
+    probit and ordinal, a logistic 0), `refuseCountOverCap` (its S2: the product cap at w > 1, its Refusal 8),
+    `validateResponseSupport` (its S3: successes up to the trials), `refuseBinaryWeightChange` as its S4 leaves it, and the
+    R-worded creation refusals of nbinom, ordinal and multinomial weights, which its S2 and S4 remove.
+  - S2b: its S1's reading of the resolved `weights.type` model slot becomes the spec's `weightsType`; its S3's counts slot read
+    under logistic becomes `y` and `trials`; the build's weights check is its resolution table; the field coverage suite takes
+    both.
+  - S3: the header's `weightsType` and `trials` and the getLatents frequency sentence; consumer.c's binomial and frequency arms.
+    Whatever its S3 leaves the flat setResponse doing on a binomial sampler (both reach `validateResponseSupport`), S3 gives the
+    support row's status: INVALID_ARGUMENT for a value out of support, UNSUPPORTED if the swap is refused as R's `$setResponse`
+    refuses it (its Refusal 15).
+  - S1's copy: its S3 adds `ext_lchoose` and choose.c by the recipe in S1's section; S3's standalone consumer then links seven
+    names.
+  - No overlap: its engine work in model.hpp and the multinomial loop in combiner.hpp; predict's weights and predict's doors
+    (R only, and the flat predict takes no weights); its reworded two-column refusals (R's data and xbart code); its R slices S5
+    to S8.
+- approximate-draws (dec-B583 to dec-B585; planned, its three open calls with the maintainer, read at e0c62e566): its S2 adds
+  the latent sampler setting's engine side, read from the control in the parse S2b moves; whichever lands second carries it
+  into the other's form, the extension's public-shaped part when S2b is first, with no 1.0 field (Calls made, 35). Its S3's real
+  weights on logistic and the binomial widen what the build takes under FREQUENCY, with no field. Its S1 (the density) and S4
+  (the series) touch nothing here.
 - multinomial-doors' C creation path stays post-release (dec-B160, dec-B575); this plan ships the shape it will append to and
   the R route it will expose.
 - Frequency weights' dec-B580 (a 0 row's predictive draws NA on every family) asks nothing of the spec: the row is drawn and its
   draws set to NA after, so the stream holds, and the spec states only the weights and their reading.
 - The sister re-verification at the freeze follows this arc (TODO), with stan4bart's sanitizer job dispatched against the final
   header (dec-A36).
-- Nothing else touching src/ merges while S2a, S2b or S3 is in review.
+
+Order, the orchestrator's call. latents-first lands next on the engine. Between frequency weights and S2a to S3:
+
+- (a) Frequency weights first, then S2a, S2b and S3, the order latents-first's and frequency weights' plans state. Here: no
+  rebase over it, this branch taking its S2a base after frequency weights merges; S2a and S2b convert and move the weights code
+  as it stands, about an hour more each (counted above); the header carries `weightsType` and `trials` once. Re-gating: none
+  beyond each slice's own. The cost is the wait: S2a starts after frequency weights' ~99 estimated hours (150 to 200 at the
+  record), of which its S5 to S8 are R only.
+- (b) S2a to S3 first, then frequency weights. Here: S2b writes the interim FREQUENCY rule, about an hour, which frequency
+  weights then replaces; the header has 51 fields. There: frequency weights moves its ~200 bridge lines onto S2a's refusal
+  values and S2b's spec fill and build stage, files this branch moved, so by hand (its plan: "about the same lines in the
+  other direction"); adds `trials` and its refusal to dbarts.h, re-bakes the hash and re-runs header-compiles, test-capi.R
+  and consumer.c; widens the build's weights check; and takes a fresh engine-tier review of the re-targeted reads, which route
+  weights and counts to the engine: about 6 to 10 agent-hours, and a second header change, an append neither consumer
+  rebuilds for. The gain: this header, and the consumer ports, land sooner.
+- (c) As (a), with S2a branched off frequency weights' tip once its S4, its last slice under src/, is reviewed, building beside
+  its S5 to S8. The rebase at its merge is then R, help and gate files only, re-gated by the trio bitwise and the suite (about
+  an hour), and the overlap gains up to its R slices' ~30 estimated hours. It sets aside the Landing rule that "The next
+  engine feature branches off a main whose engine CI is green" for one stacked branch, and a fix round of frequency weights'
+  later reviews touching the bridge would be rebased over by hand.
+
+Recommendation: (a), or (c) if the schedule wants the overlap. S2a and S2b translate the creation code; translating finished
+code once costs less than re-targeting another feature's code onto a moved structure, and keeps that re-targeting, which
+decides what weights and counts reach the engine, out of a second draw-relevant review. The header and its hash change once,
+with the final weights reading, and every clause this plan holds conditional on the order goes. (b)'s gain buys nothing before
+1.0-0, which needs both.
+
+The plan said "Nothing else touching src/ merges while S2a, S2b or S3 is in review". Restated so other features can land
+between slices:
+
+- Other features merge to main whenever they are ready, engine features serially as before; this branch, merged once,
+  absorbs them.
+- The branch rebases onto main only between slices: never while a slice is in review (from the implementer's report through
+  the reviewer's verdict on the fix round), and always before the next slice's implementer starts.
+- After each rebase the slices already built are re-gated on the rebased tree, against the baselines the MANIFEST then names:
+  the trio bitwise, the four snapshot files, tests/cpp and the full suite in one process; the R-loaded ASan run when the rebase
+  touched the bridge; and, once S3 is built, the hash re-bake, header-compiles and test-capi.R when it touched dbarts.h, with
+  S4's consumer runs repeated before the merge.
+- A feature that rewrites what a slice in build rewrites (the creation parse, the shared refusals, the flat entry file,
+  dbarts.h) merges before that slice starts or after its review ends; if it merges during the build, the slice rebases before
+  its report.
+
+This works because every gate here is neutral: a rebase is checked against the base it lands on, not a fixed one.
 
 ## Cost
 
-About 5,650 lines written here, 6,000 copied and 400 reduced headers, none of them in the tarball; ~130 in the two consumers;
-~93 agent-hours estimated, 140 to 185 by the record of plans here, S2a and S2b most of it. The forward-compatibility work is
-about 300 of those lines and 4 of those hours; the callback statuses and the status words about 300 and 3.
+S1, landed: about 910 lines written, 6,329 copied and 395 of reduced headers, none of them in the tarball. What is left: about
+5,550 lines written here and ~130 in the two consumers; ~91 agent-hours estimated (S2a ~21, S2b ~30.5, S3 ~28.5, S4 ~6, S5 ~1,
+rebases ~4), 135 to 180 by the record of plans here, S2b and S3 most of it, with frequency weights landed first. The other order
+moves 6 to 10 hours into frequency weights' rebase and one into S2b's interim rule. The forward-compatibility work is about 300
+of those lines and 4 of those hours; the callback statuses and the status words about 300 and 3.
+
+| slice | state | lines written | agent-hours (was) |
+|---|---|---|---|
+| S1 | LANDED 2026-11-03 (dec-A260) | ~910 (+6,329 copied, 395 reduced) | builder ~3 (8 planned in all) |
+| S2a | planned, after latents-first and frequency weights | ~950 | ~21 (20) |
+| S2b | planned | ~1,700 | ~30.5 (29) |
+| S3 | planned | ~2,900 | ~28.5 (26) |
+| S4 | planned, in stan4bart and treatSens | ~130 | ~6 (6) |
+| S5 | planned, records | - | ~1 (1) |
+| rebases | onto latents-first and frequency weights, and between slices | - | ~4 (3) |
 
 ## Not verified
 
-- The probe's bitwise match held for one compiler, one R (4.6.2) and one host; the x86 leg's agreement is gated at the floor, not
-  measured.
-- That `objdump` of dbarts.so before and after S1 differs only where named; relative call offsets may make the diff noisy.
+- The copy's bitwise match is measured on two hosts (arm64 macOS with R 4.6.2 and the x86 Linux box with R 4.6.1, dec-A260);
+  other compilers and C libraries are gated only at the floor, and on a C library with C23's cospi R's qt can differ from the
+  copy's at df within 1e-12 of 1 for p other than a quartile (prefix.h's note), which the engine's qt at 0.75 does not reach.
 - What a failed run (OUT_OF_MEMORY, FAILED) and a failed sampleTreesFromPrior leave in the chains beyond "valid to read and
   destroy"; S3's tests pin what the table states, and the header promises no more than they show.
 - That no other process-wide mutable state is on the predict path beyond the two channels named; a ThreadSanitizer arm in S3 is
   the check.
-- How coefficient-prior-live leaves the forest records, which S2b's extension must mirror; forest-door's, landed, were read on
-  main at 8fce28568 for `ForestSpec` and `forestSharers` only, not every bridge record.
+- Every bridge record S2b's extension must mirror: coefficient-prior-live adds no slot (its diff against main read), and
+  forest-door's were read for `ForestSpec` and `forestSharers` only.
 - Where the engine's sweep loop can carry a chain index and a callback value to the stop record without a cost per sweep; the
-  ruling's "about 40 lines" is its estimate, not measured.
-- The binomial response's engine form, not yet designed.
+  ruling's "about 40 lines" is its estimate, not measured, and the loop it is read in is latents-first's, not yet built.
+- The binomial response's engine form is frequency weights' plan (`trials` beside `y` under logistic); not built, and its flat
+  setResponse on a binomial sampler is that plan's to settle.
+- latents-first's bridge removal (about 140 lines) and frequency weights' bridge changes (about 200) are their plans'
+  estimates; S2a's implementer recounts the shared refusals' lines on the base it starts from.
+- approximate-draws' setting shape and default are unruled; Calls made 35 holds for any shape whose zero can mean the default
+  rule.
 - Whether the engine's several-forest chain takes DART, split probabilities and the k prior per forest; the sketch leaves them
   sampler-wide and the append refuses what the factory refuses.
 - stan4bart's and treatSens' call sites were read on their main and master; their 1.0 compat branches may differ.
 - That no R-hosted consumer other than the two links dbarts.h; the reverse LinkingTo list on CRAN was not queried.
+
+## Amendments of 2026-11-05
+
+Brought up to date for S2a onward, on main 7937d252f; nothing was built or run beyond reads, recounts and the doc check.
+
+| # | change | where it went |
+|---|---|---|
+| 1 | S1 landed on main (dec-A260): its as-built differences (four reduced headers, the 36,093-point grid, misc's relocatable Makefile, `r-math-symbols` and `standalone-config`, the configure fix), its gates, and what S2a starts from | Status; front block; Summary; Context (touchpoints, build, tests/cpp); Build-time math, As built; RNG class; Slices, S1; Cost; Not verified |
+| 2 | Mutant 1's premise corrected: the engine's pnorm feeds only probit's and aft's log-likelihood channel, not their draws; S1's four mutants recorded as run with their killers | Mutants, 1 to 4 |
+| 3 | The seventh math name for frequency weights' `lchoose`: one file, choose.c, with S1's review's recipe and grid | Build-time math, A seventh name; Interaction, frequency-weights |
+| 4 | coefficient-prior-live (dec-A261): its bridge entry, chain and facade methods and R door placed; no shared refusal call and no record slot added; the forest-records gap closed | Context; Interaction; S2a; S2b; Calls made, 1; Not verified |
+| 5 | `refuseCountOverCap` counted as a seventeenth shared refusal, returning a value in S2a; the shared refusals recounted at 74 bridge lines and 12 flat (the old "about 60" low), R-only `Rf_error` lines at 416, `invalid_argument` sites at eleven | Context; S2a; Calls made, 36; Mutants, 33 |
+| 6 | hurdle-completion (dec-A262): R only, touches nothing here; its pins join the suite | Interaction; S2a gates |
+| 7 | latents-first: the state region S2a inherits trimmed, nothing for S2b but the re-recorded baselines, and for S3 the sweep loop, facade and sampler removals, tests/cpp files, and the header's getLatents and interrupt sentences carried into the status form | Interaction; S2a; S2b; S3; The header diff, prose; front block, rng; Not verified |
+| 8 | frequency-weights: `trials` joins the spec (52 fields) read under LOGISTIC only and refused elsewhere; the weights check is its resolution table, the interim FREQUENCY clause only for the other order; its lifted refusals converted as it leaves them; consumer.c's binomial and frequency arms; the flat setResponse on a binomial sampler mapped to the support row | The specification; Forward compatibility, invariant 6 and the 1.0 refusals; Refusals; S2a; S2b; S3; Calls made, 37; Mutants, 31 and 32; Interaction |
+| 9 | approximate-draws: its latent sampler setting gets no 1.0 field, its zero the default rule, carried in the extension until a binding asks; its real weights widen the build's check, not the spec | The specification; Calls made, 35; S2b; Interaction; Not verified |
+| 10 | Order: frequency weights before S2a to S3 recommended, with the costs of each order and a stacked variant; "nothing else touching src/ merges while a slice is in review" restated as rebases between slices with re-gates | Interaction, Order and the restated constraint; front block, window; Summary |
+| 11 | Re-estimated: ~5,550 lines and ~91 agent-hours left (135 to 180), was ~93 in all with S1 | front block, budget; Slices; Cost; Summary |
+| 12 | The retired `misc_printf` cite (S1 deleted its header) dropped | Context |
