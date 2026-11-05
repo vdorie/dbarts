@@ -4713,10 +4713,12 @@ public:
   /// each refresh when true; false families weight by fixed user values.
   virtual bool workingWeightsVaryPerSweep() const { return false; }
 
-  /// Called once per iteration after all trees update; sigma is the chain's
-  /// current residual sd on the internal scale (1 for the binary families).
-  /// No shipped family reads it; it is here for a latent block whose
-  /// conditional depends on the residual scale.
+  /// Called once per sweep, ahead of the trees and after the per-sweep hook,
+  /// against the fits, sigma and family parameters the previous sweep or a
+  /// setter left; called only for a family whose latents() is non-null. sigma
+  /// is the chain's current residual sd on the internal scale (1 for the
+  /// binary families), which the Student-t scales and the aft imputed times
+  /// are drawn at.
   virtual void refreshLatents(ext_rng* rng, const double* totalFits,
                               double sigma) = 0;
 
@@ -6165,10 +6167,10 @@ public:
   const double* workingWeights() const override { return nullptr; }
   const double* offset() const override { return nullptr; }
 
-  // Layout guard - combinedFits is K per observation, not one channel: the
-  // sweep hands combinedFits' K x n softmax buffer here as a single-location
-  // pointer. This no-op ignores it; a future non-no-op refreshLatents must NOT
-  // read it as one channel (it is K per observation).
+  // Layout guard - the sweep calls no refresh for a family with no latents(),
+  // so this is never reached there; a future non-no-op refreshLatents would be
+  // handed combinedFits' K x n softmax buffer and must NOT read it as one
+  // channel (it is K per observation).
   void refreshLatents(ext_rng*, const double* combinedFits, double) override {
     (void) combinedFits;
   }

@@ -2166,10 +2166,12 @@ public:
   /// after the same rebuild.
   ///
   /// A Polya-Gamma latent refresh polls it too, inside its draws, and stops
-  /// the sweep there: the fits were finalized ahead of the refresh, and each
-  /// latent is this sweep's draw or the previous one, a valid state of the
-  /// chain (the response model says why), so the sweep's later blocks are
-  /// skipped as a cancel between sweeps skips the whole of the next one. A
+  /// the sweep there: the refresh opens the sweep, so no tree of it is drawn,
+  /// the fits are the previous sweep's, and each latent is this sweep's draw
+  /// or the previous one (a sampled negative-binomial shape's refresh put
+  /// back whole), a valid state of the chain (the response model says why);
+  /// the rest of the sweep is skipped as a cancel between sweeps skips the
+  /// whole of the next one. A
   /// multinomial glue draw stops the same way ahead of its forest's tree
   /// update, its latents being per-sweep scratch (the combiner says why).
   bool run(size_t numBurnIn, size_t numSamples, Results& results,
@@ -2189,7 +2191,7 @@ public:
                        shouldCancel, onSweep, onDraw);
     } catch (const RefreshCanceled&) {
       // rows already redrawn carry new precisions, which the vector leaf's
-      // cross-sweep U'WU cache is stated against; the sweep's own invalidation
+      // cross-sweep U'WU cache is stated against; the draw's own invalidation
       // after the refresh was skipped
       if constexpr (L::hasVectorParams)
         if (response_->workingWeightsVaryPerSweep())
@@ -2225,6 +2227,26 @@ public:
     const std::function<bool()>* cancel = armed ? refreshCancel_ : nullptr;
     response_->setRefreshCancel(cancel);
     if (combiner_) combiner_->setRefreshCancel(cancel);
+  }
+
+  /// The family's augmentation draw (the ordinal cutpoints then z, the
+  /// negative-binomial shape then omega, the Student-t lambda then nu, ...)
+  /// against the combined fits, sigma and glue as they stand, and the vector
+  /// leaf's U'WU cache dropped where the draw moves the weights it is stated
+  /// against. The fits are formed only for a family that holds latents; one
+  /// that holds none draws nothing here (the multinomial draws its own inside
+  /// the tree loop). The poll is armed for the sweep's own draw only.
+  void drawAugmentation() {
+    if (response_->latents() != nullptr) {
+      const double* fits = combinedFits();
+      armRefreshCancel(true);
+      response_->refreshLatents(rng_, fits, sigma_);
+      armRefreshCancel(false);
+    }
+    if constexpr (L::hasVectorParams)
+      if (response_->workingWeightsVaryPerSweep())
+        for (Forest<L, ResidT>& forest : forests_)
+          forest.leaf.invalidateStatistics();
   }
 
   /// This chain's slow-count tally since its last run began, summed over
@@ -2292,10 +2314,6 @@ public:
                  const SweepCallback* onSweep, const DrawHook* onDraw) {
     size_t n = data_.numObservations;
     size_t numThin = options_.numThin;
-    double* y = response_->workingResponse();
-    // per-iteration precisions: user weights for gaussian, the current
-    // Polya-Gamma draws for logistic (refreshed with the latents)
-    const double* weights = response_->workingWeights();
 
     size_t totalIterations = (numBurnIn + numSamples) * numThin;
     for (size_t iteration = 0; iteration < totalIterations; ++iteration) {
@@ -2330,13 +2348,28 @@ public:
         progress->report(line);
       }
 
+      // the augmentation draw opens the sweep, after the hook and before
+      // anything reads a latent, so a change made between sweeps or inside the
+      // hook reaches the trees this sweep fits: drawn after the trees, they
+      // would fit values drawn before it, exact only for an outer step that
+      // conditions on them
+      drawAugmentation();
+      // the working pointers are read after it every sweep, since a setter in
+      // the hook can change which buffer the family serves (a mask installed)
+      double* y = response_->workingResponse();
+      // per-sweep precisions: user weights for gaussian, the Polya-Gamma
+      // draws just made for logistic
+      const double* weights = response_->workingWeights();
+
       // heteroscedastic: the mean forest backfits against precisions divided by
       // the current variance surface, w_i^mean = user_w_i / s^2(x_i), with the
       // global sigma fixed at 1 (the variance forest IS the residual variance).
       // Homoscedastic skips this and the mean sweep sees the shared weights.
+      // The glue draw after the trees still reads the working weights.
+      const double* treeWeights = weights;
       if (varianceForest_) {
         formMeanWeights();
-        weights = meanWeights_.data();
+        treeWeights = meanWeights_.data();
       }
 
       // each forest's structural mixture, read ONCE per forest per sweep: it
@@ -2381,7 +2414,7 @@ public:
         // and weights unchanged; a BCF forest sees its residual net of the
         // other forest's scaled contribution, divided by its own multiplier
         const double* forestY = y;
-        const double* forestWeights = weights;
+        const double* forestWeights = treeWeights;
         if (combiner_) {
           // the interleaved coupling draws forest f's latents against the
           // current margins here, immediately before formForestResponse reads
@@ -2390,7 +2423,7 @@ public:
           combiner_->drawForestGlue(f, rng_, forests_);
           armRefreshCancel(false);
           ForestResponse fr = combiner_->formForestResponse(f, forests_, y,
-                                                            weights);
+                                                            treeWeights);
           forestY = fr.response;
           forestWeights = composeForestWeights(f, fr.weights);
         }
@@ -2514,18 +2547,10 @@ public:
         finalizeTotalFits(forest, forestY);
       }
 
-      // a single forest reports its own fits; BCF the a mu + b_z tau blend
+      // a single forest reports its own fits; BCF the a mu + b_z tau blend,
+      // formed again against the trees just drawn: the draw's pointer above
+      // aliases the same combiner scratch and held the pre-tree blend
       const double* combined = combinedFits();
-      armRefreshCancel(true);
-      response_->refreshLatents(rng_, combined, sigma_);
-      armRefreshCancel(false);
-      y = response_->workingResponse();
-      weights = response_->workingWeights();
-      // a latent family's refresh changes the weights U'WU is cached against
-      if constexpr (L::hasVectorParams)
-        if (response_->workingWeightsVaryPerSweep())
-          for (Forest<L, ResidT>& forest : forests_)
-            forest.leaf.invalidateStatistics();
 
       if (!sigmaIsFixed_)
         sigma_ = response_->drawSigma(rng_, combined, sigma_);
@@ -3240,13 +3265,18 @@ public:
       return;
     } else {
       size_t n = data_.numObservations;
-      double* y = response_->workingResponse();
-      const double* weights = response_->workingWeights();
       GrowScratch growScratch;
       growScratch.categoryScan.exhaustiveCap =
         options_.categoricalExhaustiveCap;
 
       for (size_t sweep = 0; sweep < numSweeps; ++sweep) {
+        // the sweep's own order: the latents first, against the fits the
+        // grown trees start from, then the working pointers. Not polled: no
+        // cancel is installed outside a run
+        drawAugmentation();
+        double* y = response_->workingResponse();
+        const double* weights = response_->workingWeights();
+
         // heteroscedastic: the scan reads precisions, and under a variance
         // forest the global sigma is pinned at 1 on the working scale, so it
         // must see w_i / s^2(x_i) - run()'s own pre-step. Scanning against unit
@@ -3254,19 +3284,20 @@ public:
         // variance of 1 where the data's is s^2(x_i). The variance forest is
         // NOT swept here: grow-from-root initializes the mean forest, and the
         // following run's first sweep fits the variance surface against it.
+        const double* treeWeights = weights;
         if (varianceForest_) {
           formMeanWeights();
-          weights = meanWeights_.data();
+          treeWeights = meanWeights_.data();
         }
 
         for (size_t f = 0; f < forests_.size(); ++f) {
           Forest<L, ResidT>& forest = forests_[f];
           const double* forestY = y;
-          const double* forestWeights = weights;
+          const double* forestWeights = treeWeights;
           if (combiner_) {
             combiner_->drawForestGlue(f, rng_, forests_);
             ForestResponse fr = combiner_->formForestResponse(f, forests_, y,
-                                                              weights);
+                                                              treeWeights);
             forestY = fr.response;
             forestWeights = composeForestWeights(f, fr.weights);
           }
@@ -3307,9 +3338,6 @@ public:
         }
 
         const double* combined = combinedFits();
-        response_->refreshLatents(rng_, combined, sigma_);
-        y = response_->workingResponse();
-        weights = response_->workingWeights();
 
         if (!sigmaIsFixed_)
           sigma_ = response_->drawSigma(rng_, combined, sigma_);
@@ -8569,7 +8597,7 @@ private:
                                       n * numLocations);
       const double* offset = response_->offset();
       // the combiner owns the blend; recompute it against the post-glue scalars
-      // this sweep settled on (combinedFits at the sweep top ran before the
+      // this sweep settled on (the blend formed after the trees ran before the
       // glue draw). Off any combiner the reported forest's own fits are it.
       // The single-location write IS fitsWithoutOffset, which the accessor
       // shares, and the offset add stays a SEPARATE pass over the whole vector
