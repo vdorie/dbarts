@@ -152,8 +152,8 @@ destination's counts are retired, with `ResponseModel::reapplyWeights`. A stored
 value the stored trees were drawn from, `setState` installs it and draws nothing, and the next
 sweep draws every latent against the weights then in force, so there is nothing to reconcile.
 A state that still carries the attribute loads and it is ignored. A weight change is undone by
-`setWeights` with the old counts and `setState` with the stored state, in either order, bit for
-bit.
+`setWeights` with the old counts and `setState` with the stored state, in either order, the sampler then
+continuing bit for bit as one that installed the stored state would.
 
 ### A Student-t state names its zero-weight rows (amended 2026-10-06)
 
