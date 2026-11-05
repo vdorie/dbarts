@@ -406,60 +406,62 @@ expect_error(
 )
 
 # --- plain-vector offsets under keepTrainingFits = FALSE ---------------------------------------------
-# such a fit keeps the positive part's offsets at its test rows alone: a vector
-# that matches the fit's rows still serves partial dependence, one the fit cut
-# rows from has no values there and is refused saying so
+# the fit keeps the positive part's offset at every training row beside y, so
+# partial dependence reads it with or without the training channels, and with
+# rows cut by a subset
 xTest <- xm[11:40, ]
 offsetTest <- list(zero = d$u[11:40], positive = log(d$t)[11:40])
 keepRows <- rep(c(1, 0), length.out = n)
-index <- which(keepRows > 0)
-rows <- xm[index, , drop = FALSE]
-rows[, 1L] <- 0.3
-for (trainingFits in c(TRUE, FALSE)) {
-  testFit <- fitHurdle(
-    xm,
-    d$y,
-    test = xTest,
-    offset = list(zero = d$u, positive = log(d$t)),
-    offset.test = offsetTest,
-    keepTrainingFits = trainingFits
-  )
+averaged <- function(fit) {
+  unname(pdbart(
+    fit,
+    xind = 1L,
+    levs = list(0.3),
+    type = "ev",
+    average.weights = rep(c(1, 0), length.out = length(fit$y)),
+    pl = FALSE
+  )$fd[[1L]][, 1L])
+}
+for (cut in list(NULL, quote(seq_len(n) > 3L))) {
+  byTraining <- lapply(c(TRUE, FALSE), function(trainingFits) {
+    fitHurdle(
+      xm,
+      d$y,
+      subset = eval(cut),
+      test = xTest,
+      offset = list(zero = d$u, positive = log(d$t)),
+      offset.test = offsetTest,
+      keepTrainingFits = trainingFits
+    )
+  })
+  expect_identical(byTraining[[2L]]$offset, byTraining[[1L]]$offset)
   expect_equal(
-    unname(pdbart(
-      testFit,
-      xind = 1L,
-      levs = list(0.3),
-      type = "ev",
-      average.weights = keepRows,
-      pl = FALSE
-    )$fd[[1L]][, 1L]),
+    averaged(byTraining[[2L]]),
+    averaged(byTraining[[1L]]),
+    tolerance = 1e-8
+  )
+  rows <- xm[if (is.null(cut)) seq_len(n) else which(eval(cut)), , drop = FALSE]
+  index <- which(rep(c(1, 0), length.out = nrow(rows)) > 0)
+  rows <- rows[index, , drop = FALSE]
+  rows[, 1L] <- 0.3
+  use <- if (is.null(cut)) seq_len(n) else which(eval(cut))
+  expect_equal(
+    averaged(byTraining[[2L]]),
     unname(rowMeans(predict(
-      testFit,
+      byTraining[[2L]],
       rows,
       type = "ev",
-      offset = list(zero = d$u[index], positive = log(d$t)[index])
+      offset = list(zero = d$u[use][index], positive = log(d$t)[use][index])
     ))),
-    tolerance = 1e-8,
-    info = trainingFits
+    tolerance = 1e-8
   )
 }
-cutFit <- fitHurdle(
-  xm,
-  d$y,
-  subset = seq_len(n) > 3L,
-  test = xTest,
-  offset = list(zero = d$u, positive = log(d$t)),
-  offset.test = offsetTest,
-  keepTrainingFits = FALSE
-)
-expect_error(
-  pdbart(cutFit, xind = 1L, levs = list(0.3), type = "ev", pl = FALSE),
-  "keepTrainingFits = FALSE"
-)
-expect_error(
-  pd2bart(cutFit, xind = 1:2, levs = list(0.3, 0.4), pl = FALSE),
-  "keepTrainingFits = FALSE"
-)
+expect_true(is.list(pd2bart(
+  byTraining[[2L]],
+  xind = 1:2,
+  levs = list(0.3, 0.4),
+  pl = FALSE
+)))
 
 # --- a zero-part offset on a data frame whose row names repeat ---------------------------------
 # the second reading of the offset must not match rows by name

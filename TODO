@@ -1095,7 +1095,7 @@ frequency weights (decided, VD 2026-09-24; docs/decisions.md dec-B125)
   the unweighted one, an all-ones mask nothing, and a row masked out
   costs as much per sweep as an active row (half the rows masked 1.14
   of the full unmasked time, the active half alone 0.55).
-  Once hurdle-completion lands (docs/plans/hurdle-completion.md,
+  With hurdle-completion landed (docs/plans/hurdle-completion.md,
   "Interaction with frequency-weights"), the resolution table's row for
   hurdle.lognormal and its refusal 4, both still reading "weights
   refused", are edited to the hurdle's weights of 0 and 1, and the
@@ -1177,8 +1177,8 @@ variable-selection-permutation (VD 2026-09-27; docs/decisions.md dec-A73)
   into the package."
 
 hurdle feature completion (VD 2026-09-26: part of feature completion,
-  not to be forgotten; docs/decisions.md dec-A15; LANDED on the
-  hurdle-completion branch, plan docs/plans/hurdle-completion.md)
+  not to be forgotten; docs/decisions.md dec-A15; LANDED 2026-11-05;
+  plan docs/plans/hurdle-completion.md)
   a hurdle.lognormal fit takes a formula and a data object, a test set
   (a real test channel read by extract and fitted with sample), subset,
   weights of 0 and 1, and offsets: a plain offset enters the positive

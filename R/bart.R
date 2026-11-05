@@ -3902,6 +3902,9 @@ bart2Hurdle <- function(
   # the weights a predictive draw and the log-likelihood read: a 0 row is out of
   # both parts
   result$weights <- ingested@weights
+  # the positive part's offset at every training row, which its own sampler,
+  # holding the positive rows alone, does not keep
+  result$offset <- ingested@offset
   result$weights.test <- ingested@weights.test
   result$row.names.train <- zero[["row.names.train"]]
   result$row.names.test <- zero[["row.names.test"]]

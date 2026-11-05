@@ -944,14 +944,9 @@ pdbart.gridOffset <- function(sampler, rows) {
 }
 
 # A hurdle fit's parts as (name, sampler, offset at the fit's n rows): each
-# part's offset is its own, and the positive part's n-row values are the first n
-# of the test channel's, its training channel holding the positive rows alone.
-# A fit made with keepTrainingFits = FALSE keeps the test rows' alone, so a
-# positive offset it was given has no values at the fit's rows: 'lost'.
+# part's offset is its own. The positive part's sampler holds the positive rows
+# alone, so the fit keeps that part's n-row offset itself.
 pdbart.hurdleParts <- function(fit) {
-  n <- length(fit$y)
-  trainingKept <- !is.null(fit$zero[["yhat.train"]])
-  stored <- fit$positive[["offset.test"]]
   list(
     zero = list(
       sampler = fit$zero$fit,
@@ -959,8 +954,7 @@ pdbart.hurdleParts <- function(fit) {
     ),
     positive = list(
       sampler = fit$positive$fit,
-      offset = if (!is.null(stored) && trainingKept) stored[seq_len(n)],
-      lost = !trainingKept && !is.null(fit$positive[["offset"]])
+      offset = fit[["offset"]]
     )
   )
 }
@@ -977,15 +971,6 @@ pdbart.hurdleStoredOffset <- function(fit, all, rows, index) {
     }
     share <- evaluateOffsetArgument(argument, all)
     if (isFALSE(share)) {
-      if (isTRUE(part$lost)) {
-        stop(
-          "the positive part's 'offset' was given as a numeric vector, whose ",
-          "values at the fit's rows a fit made with keepTrainingFits = FALSE ",
-          "does not keep; refit with keepTrainingFits = TRUE, or write the ",
-          "offset as a column of the data",
-          call. = FALSE
-        )
-      }
       termOffset <- if (pdbart.isFormulaFit(part$sampler)) {
         formulaTermOffset(part$sampler$data@x, all, "rows")
       }
@@ -1020,8 +1005,7 @@ pdbart.hurdleConstantOffset <- function(fit) {
   all(vapply(
     pdbart.hurdleParts(fit),
     function(part) {
-      !isTRUE(part$lost) &&
-        (length(part$offset) == 0L || all(part$offset == part$offset[1L]))
+      length(part$offset) == 0L || all(part$offset == part$offset[1L])
     },
     NA
   ))
