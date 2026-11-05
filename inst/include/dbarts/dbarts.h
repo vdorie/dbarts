@@ -841,11 +841,14 @@ void dbarts_sampler_destroy(dbarts_sampler* sampler);
 /// jump that does not return here; calling handlers and on.exit run. The
 /// sampler is left in the state a callback's nonzero return leaves: results
 /// and any saved trees of this call are discarded, and the handle stays
-/// valid. The latent draws open a sweep, so a stop inside them leaves no tree
-/// of that sweep drawn and each latent this sweep's draw or the previous one
-/// (a sampled negative-binomial shape's whole refresh put back), which is a
-/// valid state to run on from. A caller makes its changes between runs: this
-/// API has no hook inside a sweep.
+/// valid. The draws that open the sweep are the augmentation variables of a
+/// probit, ordinal, logistic, nbinom, Student-t or aft sampler: a stop inside
+/// them leaves no tree of that sweep drawn and each latent this sweep's draw
+/// or the previous one (a sampled negative-binomial shape's whole refresh put
+/// back), which is a valid state to run on from. A stop elsewhere - a
+/// multinomial sampler's omega or a coupled forest's glue, both drawn inside
+/// the tree loop - can leave the sweep partly done. A caller makes its changes
+/// between runs: this API has no hook inside a sweep.
 ///
 /// A run whose monotone leaf-order counts were slow raises R's
 /// dbartsSlowCountWarning at most once per sampler, after the run returns
@@ -952,14 +955,15 @@ int dbarts_sampler_setSigma(dbarts_sampler* sampler, double sigma);
 /// each sweep draws them first, after any change made since the previous
 /// sweep and before its trees. Between a setter and the next run they are the
 /// values from before the setter, except that a new data object starts them
-/// as a new sampler does and an aft response leaves a censored row at its new
-/// bound; the next sweep draws them afresh. The draw callback sees this
-/// sweep's.
+/// as creation does (an ordinal or nbinom sampler from the kept cutpoints or
+/// shape) and an aft response leaves a censored row at its new bound; the next
+/// sweep draws them afresh. A callback that reads them on an inline run sees
+/// this sweep's.
 ///
 /// WHAT the variable is depends on the family and is not uniform. A LOCATION,
 /// on the sampler's own latent scale, for probit (the truncated normal z),
 /// ordinal (the same z under the ordinal thresholds) and aft (the imputed log
-/// survival time): a host regresses on these directly. A PRECISION, one per
+/// survival time): the code driving the sampler regresses on these directly. A PRECISION, one per
 /// observation, for logistic and nbinom (the Polya-Gamma omega) and for a
 /// Student-t residual distribution (the scale-mixing lambda): these WEIGHT a
 /// working response and are not on the response scale at all. Note the last
