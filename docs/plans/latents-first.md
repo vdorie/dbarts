@@ -357,7 +357,8 @@ prior. Arms:
 - logistic, outer step integrating omega out (plogis);
 - logistic, outer step conditioning on omega.
 
-Pass rule |z| <= 4.5 on every P(gamma) cell and cell fit; quick mode 4 chains of 250,000 sweeps after 2,000 of
+Pass rule |z| <= 4.5 on every cell fit and every P(gamma) grid point whose exact mass is at least 1e-4 (8 of the 11;
+the three left out hold under 3e-4 of the mass together, and a point visited that rarely has no normal batch error); quick mode 4 chains of 250,000 sweeps after 2,000 of
 burn-in (the probe runs 20,000 sweeps a second). Which arms fail today is measured in slice 1, not assumed: the
 slice runs every arm on a main build, on the prototype with the draw first, and on the prototype with the draw
 after the rescaling step (mutant M2), and records each arm's largest |z| in the benchmarks README section. The

@@ -237,7 +237,7 @@ logConditional <- function(arm, f, latent) {
 }
 
 # batch means of the conditional P(gamma = g) and of the fit at each cell, one
-# row per batch; a chain's burn-in is dropped and its first batch with it
+# row per batch; a chain's burn-in sweeps are dropped
 runChain <- function(arm, seed) {
   family <- sub("-.*", "", arm)
   needsLatent <- grepl("conditional", arm)
