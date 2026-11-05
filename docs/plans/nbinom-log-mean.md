@@ -126,7 +126,7 @@ a_i = o_i + c - log r used by every working-response build:
 - Re-anchoring. Whenever c, r or o changes without an omega draw, the working response is REBUILT from omega as
   kappa_i/omega_i - a_i, never shifted by a delta: a shift is not bitwise the expression creation evaluates, and the
   setOffset parity test needs bitwise. Sites: [`NBResponse::setOffset`](../../src/bartcore/model.hpp) (replacing
-  its [`reshiftWorkingForOffset`](../../src/bartcore/model.hpp) call), restoreScale. Inside refreshLatents r moves
+  its retired: [`reshiftWorkingForOffset`](../../src/bartcore/model.hpp) call, gone since latents-first), restoreScale. Inside refreshLatents r moves
   only before the omega draw, which rebuilds anyway.
 - updateScale. The ResponseModel contract ("updateScale re-anchors the transform to the new response, as setOffset
   does; false locks it") now has a transform to act on: setResponse and setOffset with updateScale = TRUE

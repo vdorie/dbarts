@@ -160,7 +160,7 @@ rest are only built; (6) refused or declined: the grid put back, nothing else wr
 resize; (8) `Chain::setState`: latents, trees staged again and repaired, kept draws copied at equal capacity or
 the newest that fit repacked to slots 0 on, the generator's bytes last; (9) the ring's position. The bridge
 passes null for the engine's `altered` report and returns FALSE for a decline before
-[`reapplyWeights`](../../src/bartcore/facade.hpp) and its censoring twin. R's `setState` asks a logical
+retired: [`reapplyWeights`](../../src/bartcore/facade.hpp) and its censoring twin (both gone since latents-first). R's `setState` asks a logical
 `forceUpdate` and, on an install, assigns the field `state` the object given, after a forced repair too
 (dec-A199). Of the critique's rechecks: the copy's readers are steps 5 and 8; `altered` has no R reader, and
 tests/cpp's [`verdictMatchesInstall`](../../tests/cpp/common.hpp) holds, its two calls completing with the same

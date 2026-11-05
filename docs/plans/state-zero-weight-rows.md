@@ -1,6 +1,8 @@
 # state-zero-weight-rows: a Student-t state names its zero-weight rows
 
-Status: LANDED 2026-10-07 (88331668 to bee7788e; dec-B277).
+Status: LANDED 2026-10-07 (88331668 to bee7788e; dec-B277). Superseded by latents-first (dec-B586): the record,
+the weights digest, the reconciliation and the tests that held them are gone, and the cites to them below are
+marked retired.
 
 agent: opus implementer, one (engine, facade, bridge); opus reviewer.
 rng: by call sequence.
@@ -44,7 +46,7 @@ and estimated. The counts are per chain and were the same in all four arms.
 
 - The scales and their record. [`TResponse`](../../src/bartcore/model.hpp) holds a scale per row and a mark
   per row saying whether the row was in the likelihood (weight times mask positive) when last marked.
-  [`TResponse::redrawEntering`](../../src/bartcore/model.hpp) redraws, in row order from the chain's own
+  retired: [`TResponse::redrawEntering`](../../src/bartcore/model.hpp) redraws, in row order from the chain's own
   generator, each row that is in now and was marked out, and marks every row afresh;
   [`TResponse::setWeights`](../../src/bartcore/model.hpp) and
   [`TResponse::setActiveRows`](../../src/bartcore/model.hpp) call it. A row at weight zero still gets a
@@ -52,15 +54,15 @@ and estimated. The counts are per chain and were the same in all four arms.
   residual. [`TResponse::restoreLatents`](../../src/bartcore/model.hpp) copies stored scales in and leaves
   the marks alone.
 - What a state says about weights. The bridge's [`storeState`](../../src/R_interface_bartcore.cpp) writes
-  ["weights.digest"](../../src/R_interface_bartcore.cpp), 8 raw bytes at the top level, from
-  [`Chain::weightsDigest`](../../src/bartcore/chain.hpp); the weights are not stored. The top-level
+  retired: ["weights.digest"](../../src/R_interface_bartcore.cpp), 8 raw bytes at the top level, from
+  retired: [`Chain::weightsDigest`](../../src/bartcore/chain.hpp); the weights are not stored. The top-level
   attributes today are `cutPoints`, `currentSampleNum`, `recordedDraws`, `formatVersion`, `weights.digest`,
   `survival.digest`, `packageVersion` and the class; the state of the fixture is 11672 bytes.
 - The install today. The bridge's [`setState`](../../src/R_interface_bartcore.cpp) installs the state and
   then, when the stored digest differs from the destination's, calls
-  [`Sampler::reapplyWeights`](../../src/bartcore/sampler.hpp), each chain in turn
-  ([`Chain::reapplyWeights`](../../src/bartcore/chain.hpp)).
-  [`TResponse::reapplyWeights`](../../src/bartcore/model.hpp) forgets every mark and so redraws every row
+  retired: [`Sampler::reapplyWeights`](../../src/bartcore/sampler.hpp), each chain in turn
+  (retired: [`Chain::reapplyWeights`](../../src/bartcore/chain.hpp)).
+  retired: [`TResponse::reapplyWeights`](../../src/bartcore/model.hpp) forgets every mark and so redraws every row
   in the likelihood. Measured against a twin that takes the same state under the stored weights (nothing
   drawn) and then the same `setWeights` call:
 
@@ -169,7 +171,7 @@ The install, Z the recorded rows, w and a the destination's weights and mask in 
   without the record (measured: the attribute is ignored); nothing is promised about that before the first
   release, and nothing breaks.
 - The flat C header is not touched and [`DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h) does not
-  move. facade.hpp changes ([`SamplerBase::reapplyWeights`](../../src/bartcore/facade.hpp) gains an
+  move. facade.hpp changes (retired: [`SamplerBase::reapplyWeights`](../../src/bartcore/facade.hpp) gains an
   argument, one reader is added): `--preclean` on every install, and the table of virtuals in
   [`FacadeVirtual`](../../tests/cpp/test_facade.cpp) gains its row.
 - A warm start reads no scale and no digest and is not changed.
@@ -179,15 +181,15 @@ The install, Z the recorded rows, w and a the destination's weights and mask in 
 
 ## Steps
 
-1. Engine. [`ResponseModel::reapplyWeights`](../../src/bartcore/model.hpp) takes the record, a byte per
-   row or null. [`TResponse::reapplyWeights`](../../src/bartcore/model.hpp): with null, as today; with a
+1. Engine. retired: [`ResponseModel::reapplyWeights`](../../src/bartcore/model.hpp) takes the record, a byte per
+   row or null. retired: [`TResponse::reapplyWeights`](../../src/bartcore/model.hpp): with null, as today; with a
    record, mark each row in exactly when the record has it at positive weight, then proceed as `setWeights`
    does, which draws a row only when it is in the likelihood now, mask included, and was marked out. A
    reader on the response, the chain, the sampler and [`SamplerBase`](../../src/bartcore/facade.hpp) fills
    a caller's buffer with the flags and returns whether the family keeps such scales (Student-t: yes,
    flags all 0 with no weights; every other: no).
-   [`Chain::reapplyWeights`](../../src/bartcore/chain.hpp) and
-   [`Sampler::reapplyWeights`](../../src/bartcore/sampler.hpp) pass the record through, defaulting to null
+   retired: [`Chain::reapplyWeights`](../../src/bartcore/chain.hpp) and
+   retired: [`Sampler::reapplyWeights`](../../src/bartcore/sampler.hpp) pass the record through, defaulting to null
    so the engine's own callers compile unchanged. tests/cpp, in the Student-t block of
    [`testMembershipAcrossForests`](../../tests/cpp/test_sampler.cpp), which already holds a state stored
    under one zero pattern and a destination under another with a mask:
@@ -243,13 +245,13 @@ The install, Z the recorded rows, w and a the destination's weights and mask in 
      second sampler at all-positive weights that restores the state; the entering rows' scales,
      transformed by the conditional at the stored fit and sigma, have mean within 0.05 of 0.5 and a KS p
      above 1e-6, the
-     bounds of ["The redrawn Student-t scale is a draw from its conditional"](../../inst/tinytest/test-active-rows-reactivation.R).
+     bounds of retired: ["The redrawn Student-t scale is a draw from its conditional"](../../inst/tinytest/test-active-rows-reactivation.R).
      It passes today, when those rows are redrawn with all the others; it is there for the mutation that
      leaves a stored scale at an entering row (that test's comment gives a mean of 0.65 for a kept scale).
    In the pairing file the block
-   ["Student-t: the scales are re-derived too"](../../inst/tinytest/test-state-weight-pairing.R) keeps its
+   retired: ["Student-t: the scales are re-derived too"](../../inst/tinytest/test-state-weight-pairing.R) keeps its
    matched half and loses the two "every scale differs" pins; Student-t joins gaussian and the variance
-   forest in ["neutrality: the repair is a measured no-op elsewhere"](../../inst/tinytest/test-state-weight-pairing.R),
+   forest in retired: ["neutrality: the repair is a measured no-op elsewhere"](../../inst/tinytest/test-state-weight-pairing.R),
    whose two weight vectors are positive (holds after, fails today); the header comment drops "Student-t
    redraws more".
 4. Mutations (Verification): apply, install with `--preclean`, run, report the failing counts, revert,
@@ -289,9 +291,9 @@ The install, Z the recorded rows, w and a the destination's weights and mask in 
    amended and dated, with the table above and the rule; the sentence in
    [active-rows-mask.md](../design/active-rows-mask.md) that says a state does not name its rows out; the
    list of added attributes in [public-surface.md](../design/public-surface.md). The comments on
-   [`TResponse::reapplyWeights`](../../src/bartcore/model.hpp),
-   [`Chain::reapplyWeights`](../../src/bartcore/chain.hpp),
-   [`SamplerBase::reapplyWeights`](../../src/bartcore/facade.hpp) and after the install in the bridge.
+   retired: [`TResponse::reapplyWeights`](../../src/bartcore/model.hpp),
+   retired: [`Chain::reapplyWeights`](../../src/bartcore/chain.hpp),
+   retired: [`SamplerBase::reapplyWeights`](../../src/bartcore/facade.hpp) and after the install in the bridge.
    TODO: the entry `state-zero-weight-rows` names this plan.
 
 ## Verification
