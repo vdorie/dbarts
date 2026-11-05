@@ -7143,7 +7143,7 @@ public:
   /// left at its previous omega would pair a draw at the old r with the new
   /// one. The refresh is put back whole instead - r and every omega as they
   /// were, the working response rebuilt from them - which is the state ahead
-  /// of the refresh, the sweep's trees keeping their draws.
+  /// of the refresh, the sweep stopping before any tree of it is drawn.
   void refreshLatents(ext_rng* rng, const double* totalFits, double) override {
     if (!estimateR_) {
       drawOmega(rng, totalFits);
