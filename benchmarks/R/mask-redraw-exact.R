@@ -10,8 +10,9 @@
 # mask - a leaf is empty only when no row at all reaches it, so a leaf of only
 # switched-off rows is legal and keeps its prior - and, on a latent family,
 # only if a row switched back in has its latent redrawn against the current
-# fit before the trees next move (docs/design/empty-leaf-veto.md,
-# docs/design/active-rows-mask.md).
+# fit before the trees next move. $setActiveRows draws nothing; the next sweep
+# meets that condition by drawing every latent first, before its trees
+# (docs/design/empty-leaf-veto.md, docs/design/active-rows-mask.md).
 #
 # Ten rows, one predictor, one tree, so the joint posterior over (tree, mask)
 # is enumerable: every tree x all 1024 masks, leaf values integrated out in
