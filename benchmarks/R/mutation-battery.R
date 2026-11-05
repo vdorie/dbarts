@@ -773,8 +773,8 @@ mutations <- c(
     r3(
       "m56",
       mh,
-      "variance_ != nullptr ? std::sqrt(variance_[i]) * varianceScale : sd;",
-      "variance_ != nullptr ? variance_[i] * varianceScale : sd;",
+      "variance_ != nullptr ? std::sqrt(variance_[i]) * scale : sd;",
+      "variance_ != nullptr ? variance_[i] * scale : sd;",
       c(kTests("test-aft-heteroscedastic.R"), kGate("aft-exact.R")),
       "heteroscedastic aft: censored redraw uses the variance as the sd"
     ),
