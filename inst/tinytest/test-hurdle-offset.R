@@ -404,3 +404,86 @@ expect_error(
   ),
   "zero part's 'offset'"
 )
+
+# --- plain-vector offsets under keepTrainingFits = FALSE ---------------------------------------------
+# such a fit keeps the positive part's offsets at its test rows alone: a vector
+# that matches the fit's rows still serves partial dependence, one the fit cut
+# rows from has no values there and is refused saying so
+xTest <- xm[11:40, ]
+offsetTest <- list(zero = d$u[11:40], positive = log(d$t)[11:40])
+keepRows <- rep(c(1, 0), length.out = n)
+index <- which(keepRows > 0)
+rows <- xm[index, , drop = FALSE]
+rows[, 1L] <- 0.3
+for (trainingFits in c(TRUE, FALSE)) {
+  testFit <- fitHurdle(
+    xm,
+    d$y,
+    test = xTest,
+    offset = list(zero = d$u, positive = log(d$t)),
+    offset.test = offsetTest,
+    keepTrainingFits = trainingFits
+  )
+  expect_equal(
+    unname(pdbart(
+      testFit,
+      xind = 1L,
+      levs = list(0.3),
+      type = "ev",
+      average.weights = keepRows,
+      pl = FALSE
+    )$fd[[1L]][, 1L]),
+    unname(rowMeans(predict(
+      testFit,
+      rows,
+      type = "ev",
+      offset = list(zero = d$u[index], positive = log(d$t)[index])
+    ))),
+    tolerance = 1e-8,
+    info = trainingFits
+  )
+}
+cutFit <- fitHurdle(
+  xm,
+  d$y,
+  subset = seq_len(n) > 3L,
+  test = xTest,
+  offset = list(zero = d$u, positive = log(d$t)),
+  offset.test = offsetTest,
+  keepTrainingFits = FALSE
+)
+expect_error(
+  pdbart(cutFit, xind = 1L, levs = list(0.3), type = "ev", pl = FALSE),
+  "keepTrainingFits = FALSE"
+)
+expect_error(
+  pd2bart(cutFit, xind = 1:2, levs = list(0.3, 0.4), pl = FALSE),
+  "keepTrainingFits = FALSE"
+)
+
+# --- a zero-part offset on a data frame whose row names repeat ---------------------------------
+# the second reading of the offset must not match rows by name
+dDup <- d
+dDup$u[20L] <- NA
+dDup$a[c(4L, 10L)] <- NA
+dUnique <- dDup
+attr(dDup, "row.names") <- rep(c("r1", "r2", "r3"), length.out = n)
+for (action in list(na.omit, na.exclude)) {
+  viaUnique <- fitHurdle(
+    y ~ a + b,
+    data = dUnique,
+    offset = list(zero = u),
+    na.action = action
+  )
+  viaDup <- fitHurdle(
+    y ~ a + b,
+    data = dDup,
+    offset = list(zero = u),
+    na.action = action
+  )
+  expect_identical(unname(viaDup$na.action), unname(viaUnique$na.action))
+  expect_identical(
+    lapply(channels(viaDup), unname),
+    lapply(channels(viaUnique), unname)
+  )
+}
