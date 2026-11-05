@@ -241,7 +241,7 @@ The exact-posterior gates (aft-exact, aft-hetero-pit, backfit-exact,
 bcf-exact[-weak, -restricted], bcf-latent-exact, blocks-exact, categorical-exact,
 hazard-exact, heteroscedastic-exact, hurdle-exact, linear-exact,
 mask-redraw-exact, multinomial-exact, negbin-exact, ordinal-exact,
-probit-k-scale-exact, split-probs-exact, t-exact, logistic-reference, monotone-reference) and the detailed-balance gates (bd-balance = birth/death,
+outer-step-exact, probit-k-scale-exact, split-probs-exact, t-exact, logistic-reference, monotone-reference) and the detailed-balance gates (bd-balance = birth/death,
 change-balance = change, swap-balance = swap, perturb-balance = perturb,
 rule-gibbs-balance = rule_gibbs) each drive a long fixed-seed MCMC run and
 compare the engine's draws to an analytic or brute-force-enumerated target with
@@ -276,6 +276,45 @@ false failure once in 1400 fresh seeds for a correct sampler; an arm can be
 run alone by naming it.
 
     Rscript benchmarks/R/mask-redraw-exact.R quick probit
+
+outer-step-exact is the gate for where a sweep draws its augmentation variables
+against an outer step that reads the fit: 32 rows in four cells of one ordinal
+predictor and one tree, the tree space enumerated, an offset gamma * v with
+gamma on the grid -1, -0.5, ..., 4 under a uniform prior, redrawn after every
+sweep and installed with `$setOffset`, and k drawn under its chi(1.5, 2) prior
+(the probit rescaling step runs), the leaves and k integrated by quadrature.
+Four arms: probit with the outer step integrating z out (pnorm of the fit) and
+conditioning on z, and logistic integrating omega out (plogis) and conditioning
+on omega. It compares P(gamma = g) at each grid point holding at least 1e-4 of
+the exact mass (eight of eleven) and the fit at each cell, at |z| 4.5 on 12
+statistics an arm. An outer step that conditions on the latent is exact
+whatever the placement of the draw, as long as the latent it reads is a draw
+given the fit; one that integrates the latent out is exact only if the latent
+is drawn before the next sweep's trees read it. The gate checks where the draw
+sits and nothing else: a stale working pointer, a missed cache invalidation and
+a latent split from the parameter drawn with it leave its arms exact or out of
+its reach. Quick mode is 4 chains of 250,000 sweeps and about 2 minutes (35,
+23, 35 and 28 seconds an arm); full mode 4 chains of 2,000,000. An arm can be
+run alone by naming it.
+
+Largest |z| in quick mode, P(gamma) over the fit, on the shipped build of main
+(the draw after the trees), a build with the draw first, and a build with the
+draw after the rescaling step:
+
+| arm | draw last (main) | draw first | draw after rescaling |
+|---|---|---|---|
+| probit-integrated | 119.9 / 22.2 | 2.2 / 2.0 | 109.8 / 16.1 |
+| probit-conditional | 1.4 / 1.5 | 1.6 / 1.9 | 1.7 / 0.8 |
+| logistic-integrated | 17.8 / 8.7 | 1.4 / 1.6 | 1.4 / 1.6 |
+| logistic-conditional | 18.2 / 3.8 | 1.0 / 0.9 | 1.0 / 0.9 |
+
+Main fails three arms, the two that integrate the latent out and the logistic
+one that conditions on omega (where setOffset leaves the logistic working
+response at the old offset). The draw-first build passes all four; the draw
+after the rescaling step fails the probit integrated arm alone, the one arm
+that sees the rescaling step (logistic has none).
+
+    Rscript benchmarks/R/outer-step-exact.R quick probit-integrated
 
 blocks-exact is the gate for the `blocks()` prior, each group an equal part of
 its forest's prior variance whatever its tree count: one forest of three trees
