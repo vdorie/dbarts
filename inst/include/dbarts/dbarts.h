@@ -841,9 +841,11 @@ void dbarts_sampler_destroy(dbarts_sampler* sampler);
 /// jump that does not return here; calling handlers and on.exit run. The
 /// sampler is left in the state a callback's nonzero return leaves: results
 /// and any saved trees of this call are discarded, and the handle stays
-/// valid. A stop inside the latent draws leaves a sweep partly done, each
-/// latent this sweep's draw or the previous one (a sampled negative-binomial
-/// shape's whole refresh put back), which is a valid state to run on from.
+/// valid. The latent draws open a sweep, so a stop inside them leaves no tree
+/// of that sweep drawn and each latent this sweep's draw or the previous one
+/// (a sampled negative-binomial shape's whole refresh put back), which is a
+/// valid state to run on from. A caller makes its changes between runs: this
+/// API has no hook inside a sweep.
 ///
 /// A run whose monotone leaf-order counts were slow raises R's
 /// dbartsSlowCountWarning at most once per sampler, after the run returns
@@ -942,9 +944,17 @@ int dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
 /// case. A sigma that is not finite and positive is the other channel and
 /// raises.
 int dbarts_sampler_setSigma(dbarts_sampler* sampler, double sigma);
-/// Copies the current draw of the augmentation variable (numObservations x
-/// numChains) into out. Returns 1, or 0 without touching out when the family
-/// augments nothing - a plain gaussian response, and a multinomial one.
+/// Copies the augmentation variable (numObservations x numChains) into out.
+/// Returns 1, or 0 without touching out when the family augments nothing - a
+/// plain gaussian response, and a multinomial one.
+///
+/// After a run these are the values the last sweep's trees were drawn from:
+/// each sweep draws them first, after any change made since the previous
+/// sweep and before its trees. Between a setter and the next run they are the
+/// values from before the setter, except that a new data object starts them
+/// as a new sampler does and an aft response leaves a censored row at its new
+/// bound; the next sweep draws them afresh. The draw callback sees this
+/// sweep's.
 ///
 /// WHAT the variable is depends on the family and is not uniform. A LOCATION,
 /// on the sampler's own latent scale, for probit (the truncated normal z),
