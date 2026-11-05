@@ -513,6 +513,17 @@
             mapped from the window half a unit either side of its value,
             where 0.9-34 mapped it from the value to one unit above, so the
             leaf prior sat half a unit above the data.
+      \item A sampler draws its augmentation variables (the probit and
+            ordinal latents, the Polya-Gamma precisions, the Student-t
+            scales and aft's imputed times) at the start of each sweep,
+            before its trees, and no setter draws them. A larger sampler
+            that changes the offset, predictors or sigma between sweeps is
+            exact whether its own step reads \code{$getLatents()} or
+            integrates the latents out; in 0.9-34 the second was not, the
+            next sweep's trees fitting latents drawn before the change.
+            \code{$setResponse} on a probit sampler no longer redraws the
+            latents, as it did in 0.9-34; \code{$getLatents()} returns the
+            earlier values until the next sweep draws them.
     }
   }
   \subsection{NEW FEATURES}{
