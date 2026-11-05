@@ -1232,7 +1232,8 @@ host-neutral engine (decided, VD 2026-09-08; docs/decisions.md dec-B85)
   riding the same header change so consumers rebuild once (VD
   2026-09-27, dec-A73). The sister re-verification at the freeze
   follows it. Rewords the Python-binding entry. Plan:
-  docs/plans/host-neutral-engine.md (PLANNED 2026-11-03).
+  docs/plans/host-neutral-engine.md (S1 LANDED; the rest PLANNED,
+  amended 2026-11-05).
   Predictor source consolidation (decided, VD 2026-09-24; dec-B124),
   same arc: the spec's predictor part is dbarts_predictor_source, so the
   R parse and the flat entries fill one struct and pass one
