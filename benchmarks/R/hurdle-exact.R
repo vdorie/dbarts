@@ -92,8 +92,8 @@
 #
 # Each factor is the same derivation with its rows chosen by the weights and
 # its linear predictor shifted by the offsets; the engine's internal rescaling
-# of the working response is read over every positive row, the weight-0 rows
-# included, as the engine does.
+# of the working response is read over the weight-1 positive rows, the rows in
+# the likelihood, as the engine does.
 #
 # Usage: Rscript hurdle-exact.R [quick]
 
@@ -250,18 +250,18 @@ gaussianLeaf <- function(values, sigmaInternal) {
 
 # Posterior-mean log-scale fit E[f] and natural-scale factor E[exp(f)] per
 # cell. The working response is log y less the offset; the engine rescales it
-# to [-0.5, 0.5] over every positive row, so the reported fit is
+# to [-0.5, 0.5] over the weight-1 positive rows, so the reported fit is
 # range * mu + shift (plus the offset, added by the caller) and sigma enters
 # divided by the range. Only the weight-1 rows reach the likelihood.
 exactPositive <- function(positive, logPositive, weights, offset) {
   cells <- cellOf[positive]
   working <- logPositive - offset[positive]
-  low <- min(working)
-  range <- max(working) - low
+  included <- weights[positive] == 1
+  low <- min(working[included])
+  range <- max(working[included]) - low
   shift <- range * 0.5 + low
   internal <- (working - low) / range - 0.5
   sigmaInternal <- sigmaFixed / range
-  included <- weights[positive] == 1
 
   root <- gaussianLeaf(internal[included], sigmaInternal)
   perCell <- lapply(seq_len(nCells), function(a) {
