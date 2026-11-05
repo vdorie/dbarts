@@ -1005,8 +1005,8 @@ items
     that fits the old offset for a sweep and a mask set from the hook
     that its sweep ignores. setData keeps the drawn family parameters
     (dec-B589). docs/plans/latents-first.md,
-    four slices, about 34 agent-hours; after coefficient-prior-live,
-    before frequency-weights' setter slices. For 1.0-0.
+    five slices, about 56 agent-hours; after coefficient-prior-live,
+    before frequency-weights and host-neutral-engine S2a. For 1.0-0.
 
 absolute residual prior scale (decided, VD 2026-09-14)
   post-release, R only: chisq gains an absolute spelling,
