@@ -165,6 +165,44 @@ expect_true(all(
 heavy$setResponse(rev(yHeavy))
 expect_identical(stateOf(heavy, "resid.df"), nu)
 
+# --- what the setters rebuild ------------------------------------------------
+# setResponse recomputes what creation derives from the response - the ordinal
+# proposal scale from the category counts, the negative-binomial count kernel
+# from the histogram and, under updateScale, its shift - so a sampler created
+# with one response, given a stored state and then a new response, runs as one
+# created with the new response and given the same state. Each new response
+# moves the category counts or the histogram; a permutation would not.
+recomputed <- list(
+  ordinal = list(
+    make = function(y) build(y, family = "ordinal"),
+    y = yOrdinal,
+    yNew = pmin(yOrdinal + (seq_len(n) %% 3L == 0L), 3),
+    updateScale = FALSE
+  ),
+  nbinom = list(
+    make = function(y) build(y, family = nbinom()),
+    y = yCount,
+    yNew = pmax(yCount - 1, 0) + 2 * (seq_len(n) %% 3L == 0L),
+    updateScale = TRUE
+  )
+)
+for (name in names(recomputed)) {
+  arm <- recomputed[[name]]
+  donor <- arm$make(arm$y)
+  invisible(donor$run(5L, 2L))
+  donor$storeState()
+  handed <- arm$make(arm$y)
+  handed$setState(donor$state)
+  handed$setResponse(arm$yNew, updateScale = arm$updateScale)
+  created <- arm$make(arm$yNew)
+  created$setState(donor$state)
+  expect_identical(
+    handed$run(0L, 4L)$train,
+    created$run(0L, 4L)$train,
+    info = paste(name, "setResponse")
+  )
+}
+
 # --- setData keeps the drawn family parameters ------------------------------
 # and starts the latents as creation does, drawing nothing
 keptBySetData <- list(
@@ -236,6 +274,10 @@ rm(
   heavy,
   nu,
   keptBySetData,
+  recomputed,
+  donor,
+  handed,
+  created,
   sampler,
   kept,
   stream,
