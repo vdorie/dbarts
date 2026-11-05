@@ -520,14 +520,14 @@ shape 0.3 with log-odds 50. Limits: accuracy is per draw; nothing yet says what 
   10,000 times apart in different rows and fits, so a finding at one shape, the study's included, does not carry
   to another.
 - (c) One setting taking a method's name or a number: "sum", "metropolis", "series" (the series at a default
-  accuracy, 1e-6 total variation per draw, about the 10-term series at shape 16), or a number, the series at
+  accuracy, 1e-6 total variation per draw, between the 5- and 10-term series at shape 16), or a number, the series at
   that total variation per draw, its terms chosen per row; 0 terms, the gamma alone, is its loose end. As sigest
   takes a name or a number. Keeps the range with one meaning in every row; costs about 100 lines and an
   agent-hour in S4 for the table of terms and its pins, and rows at small shapes with large log-odds take more
   terms (20 terms reach 4e-4 at shape 0.3, log-odds 50), so their draws cost more there.
 
 Recommendation: (c). One setting, as in (a), named for what it chooses as polyagamma's method is, with values
-naming the method; and the accuracy a number means the same in every row, which is what lets the defaults study's
+naming the method; and a number for the accuracy means the same in every row, which is what lets the defaults study's
 finding become a default.
 
 ## Constraints
