@@ -399,18 +399,21 @@ case("whole total released and held again before a run, held k", {
       formula
     )
   }
-  # placed as creation places it under a held k other than 2, which gives a
-  # group of one where k 2 gives the held entry
-  for (formula in paste("y", wholeModels[c("beside", "both")])) {
-    live <- make(formula, leaf.prior = normal(k = 3))
-    live$setForest(1L, amplitude = student(3))
-    live$setForest(1L, amplitude = fixed())
-    twin <- make(
-      withFirst(formula, ", amplitude = fixed()"),
-      leaf.prior = normal(k = 3)
-    )
-    same(recordsOf(live), recordsOf(twin), "records, k 3", formula)
-    same(draws(live), draws(twin), "draws, k 3", formula)
+  # placed as creation places it under a held k other than 2 or a named sd,
+  # each of which gives a group of one where k 2 gives the held entry
+  leafPriors <- list("k 3" = normal(k = 3), "named sd" = normal(sd = 0.6))
+  for (label in names(leafPriors)) {
+    for (formula in paste("y", wholeModels[c("beside", "both")])) {
+      live <- make(formula, leaf.prior = leafPriors[[label]])
+      live$setForest(1L, amplitude = student(3))
+      live$setForest(1L, amplitude = fixed())
+      twin <- make(
+        withFirst(formula, ", amplitude = fixed()"),
+        leaf.prior = leafPriors[[label]]
+      )
+      same(recordsOf(live), recordsOf(twin), "records,", label, formula)
+      same(draws(live), draws(twin), "draws,", label, formula)
+    }
   }
 })
 
@@ -429,6 +432,7 @@ for (response in c("y", "yb")) {
     live$setForest(1L, sd = 0.4)
     live$setForest(2L, sd = 0.3)
     before <- live$getLeafPrior(3L)
+    hyperprior <- live$model@leaf.hyperprior
     invisible(live$run(0L, 3L))
     live$setForest(3L, amplitude = student(3))
     read <- live$getForest(3L)
@@ -437,6 +441,16 @@ for (response in c("y", "yb")) {
     same(is.na(live$model@forests[[3L]]@share), TRUE, "no share")
     if (response == "y") {
       expect_equal(part, unname(before$sd), tolerance = 1e-12, info = "held k")
+    } else {
+      # a drawn k gives no one sd: the part is taken at the prior's median k
+      medianK <- hyperprior@scale *
+        sqrt(stats::qchisq(0.5, hyperprior@degreesOfFreedom))
+      expect_equal(
+        part,
+        unname(before$k.scale) / medianK,
+        tolerance = 1e-12,
+        info = "drawn k"
+      )
     }
     twin <- dbarts(
       stats::as.formula(paste0(
@@ -612,6 +626,37 @@ case("an sd beside a hold under probit is the forest's own", {
   same(recordsOf(live), recordsOf(twin), "records")
   same(draws(live), draws(twin), "draws")
 })
+# under a held k the released forest's sd is the one it has once held again,
+# so the sd is dropped and the forest goes back to the leaf prior
+heldLeafPriors <- list(
+  default = list(),
+  "k 3" = list(leaf.prior = normal(k = 3)),
+  "named sd" = list(leaf.prior = normal(sd = 0.6))
+)
+for (label in names(heldLeafPriors)) {
+  arguments <- heldLeafPriors[[label]]
+  case(paste("an sd beside a hold under gaussian, held k,", label), {
+    formula <- "y ~ forest(x1) + forest(x2, basis = ~ z)"
+    live <- do.call(make, c(list(formula), arguments))
+    live$setForest(1L, amplitude = student(3))
+    sd <- live$getForest(1L)$sd
+    same(is.null(sd), FALSE, "the released forest's sd in force")
+    live$setForest(1L, sd = sd, amplitude = fixed())
+    same(live$model@forests[[1L]]@sd, NA_real_, "dropped")
+    twin <- do.call(
+      make,
+      c(list(withFirst(formula, ", amplitude = fixed()")), arguments)
+    )
+    same(recordsOf(live), recordsOf(twin), "records")
+    expect_equal(
+      live$getForest(1L)$sd,
+      sd,
+      tolerance = 1e-12,
+      info = paste(caseName, "the size kept")
+    )
+    same(draws(live), draws(twin), "draws")
+  })
+}
 case("an sd in force beside another name is dropped", {
   formula <- "y ~ forest(x1) + forest(x2, sd = 0.5) + forest(x3, basis = ~ z)"
   live <- make(formula)
