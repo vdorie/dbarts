@@ -182,8 +182,7 @@ no next sweep reads the previous latent (each family's conditional draws from th
 parameters, and the two collapsed draws integrate the latent out), so a restored or copied sampler continues the
 original bit for bit as before, and the stored latents serve getLatents after a restore. The state format does
 not change, except that the Student-t record of zero-weight rows and the weights and survival digests are
-retired (below); a development-build state carrying them loads and the attributes are ignored (only shipped
-versions are owed compatibility; no migration).
+retired (below); only shipped versions are owed compatibility, so there is no migration.
 
 ### getLatents
 
@@ -226,8 +225,7 @@ Retired with the redraws: `redrawEntering`, `reapplyWeights`, `zeroWeightRows`, 
 their tests and the tests/cpp facade spies), the bridge's `weights.zero`, `weights.digest` and `survival.digest`
 state attributes, the digest encoders, and the setState reconciliation that reads them. The digests' only readers
 are that reconciliation's two mismatch flags. The Student-t record existed because a setter that drew needed to
-know which rows were out (dec-B277); with every latent drawn at the next sweep there is nothing to reconcile. A
-development-build state carrying any of the three attributes loads and the attribute is ignored.
+know which rows were out (dec-B277); with every latent drawn at the next sweep there is nothing to reconcile.
 `findReactivatedRows` stays only if another caller needs it.
 
 ### Draw callback and the C header
