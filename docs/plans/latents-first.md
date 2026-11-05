@@ -597,7 +597,7 @@ reviewer runs](#mutants-the-reviewer-runs) each fail their named test.
 
 A blind opus critique on main 7937d252f (scratch/ltf-crit/report.md, probes in scratch/ltf-crit/probes/) found
 the design sound and every premise holding, and asked for ten amendments: BUILD AFTER AMENDMENTS. Each finding
-was checked against the code at 0f6f344f5 before it was written in; all ten are applied.
+was checked against the code at main 7937d252f before it was written in; all ten are applied.
 
 ### Amendments after the critique
 
