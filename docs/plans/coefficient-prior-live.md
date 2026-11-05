@@ -1,8 +1,9 @@
 # coefficient-prior-live: a live sampler changes a forest's coefficient between held and drawn, and between normal() and student(df)
 
-Status: PLANNED 2026-11-03 on forest-door-s3 (64c8b0816), for dec-B511; amended the same day after its blind critique
+Status: LANDED 2026-11-05, slices 1 and 2 on one branch, reviewed LAND with a fix round (dec-A261, [Landing
+note](#landing-note)). PLANNED 2026-11-03 on forest-door-s3 (64c8b0816), for dec-B511; amended the same day after its blind critique
 (scratch/cpl-crit/report.md, probes c1.R to c5.R there), verdict BUILD AFTER AMENDMENTS, with the coordinator's calls on its
-amendments 2, 3, 4 and 6 ([Amendments after the critique](#amendments-after-the-critique)). Not built. Rulings, quoted where
+amendments 2, 3, 4 and 6 ([Amendments after the critique](#amendments-after-the-critique)). Rulings, quoted where
 they settle a call: dec-B511 (the coefficient's prior live), dec-B518 (the door, `$setForest(amplitude = )`, refusing only where
 creation refuses the same), dec-B550 (the trees carry `sd`; a drawn coefficient is a multiplier with prior median 1, `fixed()`
 exactly 1; a write of `sd` moves no leaf, coefficient or auxiliary), dec-B539 (`normal()` on a forest with no basis), dec-B510
@@ -577,3 +578,29 @@ The blind critique (scratch/cpl-crit/report.md) found the design sound and asked
 - Records `identical()` to a creation twin's after a call were not run: the prototype wrote no record.
 - The transient table is one design, 16 seeds; the exact arms' runtime in `quick` mode is estimated, about a minute an arm, and
   whether probit-k-scale-exact.R's `lone-factor` arm takes a `$setForest` coefficient write without an oracle change is a reading.
+
+## Landing note
+
+Landed 2026-11-05: slice 1 (the engine write, its bridge entry and tests/cpp) and slice 2 (the door, help, NEWS, tinytest and
+the exact arms) on one branch, rebased onto main after the host-neutral engine's slice S1 with no conflict, merged once.
+
+Review: one Opus reviewer over both slices ran the plan's mutants and two of its own: LAND, with three test gaps and one help
+sentence. Every named mutant was killed but 14, which is equivalent (once the sd write is taken the coefficient write cannot
+refuse). The fix round pinned the three gaps (an sd beside a hold under gaussian, a hold-again under a named sd, the probit part
+at the median k), named mutant 15a's real killers, and narrowed setForest's sentence on what nothing returns to following the
+fitting function to a stated sd or depth. A second Opus reviewer checked the fix round in place of the first: LAND, the three
+mutants the gaps let through (R1, 12b, 15a) each killed by the new pins.
+
+The builder dropped one planned refusal: `$setModel` refusing any differing tree count refused a count the model does not
+state, which the sampler keeps (Calls made 9); a stated count is refused at both levels, as dec-B551 rules.
+
+Gates on the final tip: tests/cpp 427 ok, plain and under ASan and UBSan with no reports; the full suite in one process, 40,995
+passed, 0 failed; equivalence 55 of 55, bcf 19 of 19 and multinomial 11 of 11 bitwise on the reference build, none skipped; the
+four snapshot files; the exact gates in quick, 45 of 45, and in full the new arms of forest-prior-exact.R (largest |z| 2.48) and
+probit-k-scale-exact.R's lone-factor-released (largest |z| 1.9, 4e6 sweeps); R-loaded ASan and UBSan over the seven door files
+before the fix round, no reports; R CMD check --as-cran with one NOTE, the date; lint, air, codoc, Windows drift, doc freshness and
+the mutation anchors. The x86 leg (Linux, x86-64): install clean; tests/cpp 427 ok, plain and with ASan, UBSan and
+LeakSanitizer; the full suite 41,123 passed, 0 failed; equivalence in statistical mode, bcf and multinomial --cross-host, all
+within bounds. CI, all nine workflows, on the branch tip.
+
+The calls are in dec-A261.
