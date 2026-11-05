@@ -2630,87 +2630,21 @@ public:
   /// A vector zeroing rows a GROWN forest already split on can leave leaves
   /// that hold only zero-weight rows. That is a legal state under every vector:
   /// emptiness is membership, so such a leaf enters no likelihood term, scores
-  /// 0 and draws its value from the prior. No check here refuses it.
-  /// The location handed to the response is the COMBINED one, for the reason
-  /// setResponse states: a family whose latents are stated against the weights
-  /// redraws them here, and must draw against the whole fit. So must Student-t
-  /// for a row whose weight leaves zero, as setActiveRows does for a row its
-  /// mask switches back in.
+  /// 0 and draws its value from the prior. No check here refuses it. Nothing
+  /// is drawn: a family that states its latents against the weights rebuilds
+  /// what it derives from them, and the next sweep draws the latents first.
   void setWeights(const double* weights) {
     weights_ = weights;
-    response_->setWeights(weights, rng_, combinedFits(), sigma_);
+    response_->setWeights(weights);
     if constexpr (L::hasVectorParams)
       forests_[0].leaf.invalidateStatistics();
-  }
-  /// FNV-1a over numObservations followed by the weight doubles in index
-  /// order: a BYTE digest, so two vectors sharing every moment (1,4,4 and
-  /// 2,2,5) still differ, and so no floating-point reduction - whose order a
-  /// SIMD dispatch may change - enters it. A null weight pointer digests as n
-  /// unit weights rather than through a token of its own: to every family that
-  /// reads the weights, no weights and all ones ARE the same sampler (a
-  /// logistic count of lround(1) either way), so a token would report a
-  /// difference where there is none. The bytes are host-endian; a saved state
-  /// is not a cross-endian compatibility target.
-  std::uint64_t weightsDigest() const {
-    std::uint64_t hash = 0xcbf29ce484222325ULL;
-    auto append = [&hash](const void* bytes, std::size_t length) {
-      const unsigned char* p = static_cast<const unsigned char*>(bytes);
-      for (std::size_t i = 0; i < length; ++i) {
-        hash ^= p[i];
-        hash *= 0x100000001b3ULL;
-      }
-    };
-    std::size_t n = data_.numObservations;
-    std::uint64_t count = n;
-    append(&count, sizeof count);
-    double unit = 1.0;
-    for (std::size_t i = 0; i < n; ++i)
-      append(weights_ != nullptr ? weights_ + i : &unit, sizeof(double));
-    return hash;
-  }
-  /// Re-derives the weight-dependent latents against the weights already in
-  /// force, each family in its own way: logistic redraws its Polya-Gamma
-  /// variates against these counts; Student-t redraws the scale of each row
-  /// that enters the likelihood - at weight zero when the state was stored by
-  /// storedZeroWeightRows, the state's zeroWeightRows record, and in the
-  /// likelihood here - or, at a null record, of every row in the likelihood
-  /// (a scale stored for a row the other weights had left out was drawn
-  /// without that row's residual); gaussian holds nothing to redraw; and a
-  /// family that reads no weights takes the base class's no-op. Nothing is
-  /// refused, because no weight changes; the caller has installed a state
-  /// whose latents another weight vector shaped. Not for a state stored under
-  /// these weights: that one is the chain as stored, and this call could
-  /// draw. The location is the COMBINED fit, for the reason setResponse
-  /// states.
-  void reapplyWeights(const unsigned char* storedZeroWeightRows = nullptr) {
-    response_->reapplyWeights(weights_, storedZeroWeightRows, rng_,
-                              combinedFits(), sigma_);
-    if constexpr (L::hasVectorParams)
-      forests_[0].leaf.invalidateStatistics();
-  }
-  /// Writes a byte per row to flags, 1 where the weight in force is not
-  /// positive, and returns true, for a family whose state must name those
-  /// rows (Student-t, whose scale at such a row is drawn without its
-  /// residual); false, flags untouched, for every other.
-  bool zeroWeightRows(unsigned char* flags) const {
-    return response_->zeroWeightRows(flags);
   }
   /// Installs a new per-observation censoring status. Nothing is drawn and
   /// the working response does not move: the setResponse the host issues next
-  /// serves both changes with one redraw, which is why the status goes first.
+  /// rebuilds it once for both changes, which is why the status goes first.
   /// Families that carry no censoring take the base class's no-op.
   void setSurvivalStatus(const double* status) {
     response_->setSurvivalStatus(status);
-  }
-  /// A digest of the censoring structure in force; zero off a censored
-  /// family. The status fans to every chain, so chain 0 answers for all.
-  std::uint64_t survivalDigest() const { return response_->survivalDigest(); }
-  /// Re-derives the censored latents against the structure already in force,
-  /// off THIS chain's generator - reapplyWeights's reconciliation, for a state
-  /// whose latents another status shaped. The location is the COMBINED fit,
-  /// for the reason setResponse states.
-  void reapplySurvivalStatus() {
-    response_->reapplySurvivalStatus(rng_, combinedFits(), sigma_);
   }
   /// Whether this chain's response family implements the active-row channel.
   /// setActiveRows refuses on this same predicate, so the advertised
@@ -2734,12 +2668,10 @@ public:
   /// moves under the CGM prior x the transition at constant likelihood, over
   /// the same set of trees it moves over under any other mask.
   ///
-  /// A row the mask switches from inactive to active has its latent redrawn
-  /// here, from its conditional given the current fit and off this chain's
-  /// generator, on every family that holds one between sweeps: a host that
-  /// redraws the mask from the fit with the latents integrated out thereby
-  /// draws (mask, latent) jointly. A row that stays active keeps its latent,
-  /// and a mask that reactivates no row consumes no variate.
+  /// Nothing is drawn, for a row the mask switches back in either: the next
+  /// sweep draws every active row's latent from its conditional before the
+  /// trees read it, so a host that redraws the mask from the fit with the
+  /// latents integrated out draws (mask, latent) jointly.
   ///
   /// The scan lives here rather than in a host because the engine is the only
   /// site under every surface; a flat caller inherits it.
@@ -2754,11 +2686,7 @@ public:
       }
       if (numInactive == 0) active = nullptr;  // all ones is no mask
     }
-    // the location is read only by a family that holds a latent to redraw,
-    // and is the COMBINED one for the reason setResponse states
-    const double* fits =
-      response_->latents() != nullptr ? combinedFits() : nullptr;
-    if (!response_->setActiveRows(active, rng_, fits, sigma_)) return false;
+    if (!response_->setActiveRows(active)) return false;
     // a coupling that owns its own per-observation precisions takes the mask
     // here, since the response has none to compose it into (the multinomial
     // softmax); inert for an additive coupling, whose per-forest precisions are
@@ -2771,27 +2699,20 @@ public:
       forests_[0].leaf.invalidateStatistics();
     return true;
   }
-  /// The location handed to the response is the COMBINED one, which is what a
-  /// latent family's refreshed latents must be drawn against: forest 0's bare
-  /// totals are the whole fit only off a coupling, where combinedFits returns
-  /// exactly that pointer. kept names the saved draws a re-anchor restates
-  /// (restateSavedDraws).
+  /// Nothing is drawn: a latent family keeps its latents and rebuilds its
+  /// working response from them, and the next sweep draws them first. kept
+  /// names the saved draws a re-anchor restates (restateSavedDraws).
   void setResponse(const double* y, bool updateScale,
                    SavedDrawSlots kept = SavedDrawSlots()) {
     double previousSigmaScale = varianceScaleAnchor();
     double previousScale = response_->fitScale();
     double previousShift = response_->fitShift();
-    response_->setResponse(y, rng_, combinedFits(), updateScale, &sigma_);
+    response_->setResponse(y, updateScale, &sigma_);
     // see setOffset: the same re-anchoring under the other pointer
     if constexpr (leafSupportsVarianceForest)
       if (varianceForest_) reanchorVarianceForest(previousSigmaScale);
     if (updateScale) translateNamedSds();
     restateSavedDraws(previousScale, previousShift, kept);
-    // a latent family's setResponse refreshes the Polya-Gamma weights U'WU
-    // depends on; a gaussian one moves only the residual
-    if constexpr (L::hasVectorParams)
-      if (response_->workingWeightsVaryPerSweep())
-        forests_[0].leaf.invalidateStatistics();
   }
   /// Unguarded for the structurally pinned binary families: the user-facing
   /// change is refused at the bridge (refusePinnedSigmaChange), and no
@@ -3140,8 +3061,8 @@ public:
   /// The reset is FOREST-ONLY. sigma, k, the DART probabilities, the BCF /
   /// multinomial glue, the variance forest, the saved-tree buffers and the
   /// response's latent block (z, omega, cutpoints, shape) are untouched,
-  /// exactly as sampleNodeParametersFromPrior leaves them; a caller wanting a
-  /// true restart on a latent family follows with setResponse.
+  /// exactly as sampleNodeParametersFromPrior leaves them; the next sweep
+  /// draws the latents from the new trees before anything reads them.
   ///
   /// Two deviations from a freshly constructed chain are deliberate, and both
   /// are load-bearing: leafOfStale[t] is left at 1 where a fresh chain has 0,

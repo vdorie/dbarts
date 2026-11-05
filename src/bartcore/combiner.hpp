@@ -1467,8 +1467,8 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   /// the response re-maps y and touches no forest, so every leaf calibration
   /// and the sigma prior stay put: under gaussian that is the re-map through
   /// the pinned (min_, range_), and under a latent family the transform is the
-  /// identity and sigma pinned outright, the swap redrawing the latents
-  /// against the COMBINED location the chain hands it. SECOND, this combiner
+  /// identity and sigma pinned outright, the next sweep drawing the latents
+  /// against the COMBINED location. SECOND, this combiner
   /// caches nothing per-forest across sweeps - formForestResponse re-derives
   /// every per-forest residual and precision from the chain's y and w each
   /// sweep, and the glue lives here rather than in the response, so it carries

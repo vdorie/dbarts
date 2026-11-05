@@ -699,7 +699,6 @@ int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
                   "response");
   validateResponseSupport(shape.family, shape.numOrdinalThresholds + 1, y,
                           shape.numObservations, "dbarts_sampler_setResponse");
-  // the probit latent redraw draws from the chain RNG, not R's stream
   return swapStatus(samplerOf(sampler).setResponse(
     adoptVector(sampler->ownedResponse, y, shape.numObservations),
     updateScale != 0));

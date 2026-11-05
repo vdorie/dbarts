@@ -6619,8 +6619,8 @@ SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
 
 // A null status is the response-only call, bit for bit. A non-null one is the
 // aft censoring structure, installed FIRST so the response change that follows
-// rebuilds the bounds against the new structure and redraws once for both; the
-// engine copies what it needs, so nothing is retained. Every check runs before
+// rebuilds the bounds and the working response once for both; nothing is
+// drawn, and the engine copies what it needs, so nothing is retained. Every check runs before
 // either install, so the pair is one transaction.
 SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr,
                           SEXP statusExpr) {
@@ -6634,7 +6634,7 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr,
       static_cast<size_t>(Rf_xlength(yExpr)) != shape.numObservations)
     Rf_error("y must be of length equal to %lu",
              static_cast<unsigned long>(shape.numObservations));
-  // support before install: the engine's latent refresh consumes y immediately
+  // support before install: the engine's next latent draw consumes y
   refuseNonFinite(REAL(yExpr), shape.numObservations, "$setResponse",
                   "response");
   validateResponseSupport(shape.family, shape.numOrdinalThresholds + 1,
@@ -6646,12 +6646,10 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr,
       Rf_error("survival status supplied for a non-aft response family");
     status = validateSurvivalStatus(statusExpr, shape.numObservations);
   }
-  GetRNGstate(); // probit latent redraw
   if (status != NULL) holder.sampler->setSurvivalStatus(status);
   bartcore::ResponseUpdateResult result = holder.sampler->setResponse(
     adoptVector(holder.ownedResponse, REAL(yExpr), shape.numObservations),
     updateScale == TRUE);
-  PutRNGstate();
   return firstScaleKept(holder, result);
 }
 
@@ -7122,12 +7120,9 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
   return R_NilValue;
 }
 
-// Case weights: a copy into the holder's own buffer with nothing rescaled for
-// gaussian, and for
-// logistic a model change - the counts are the Polya-Gamma shape, so the
-// engine redraws the latents against them off the chain generator, never R's
-// stream, which is why no GetRNGstate bracket appears here. Student-t draws
-// from the same generator, the scale of each row whose weight leaves zero.
+// Case weights: a copy into the holder's own buffer with nothing rescaled and
+// nothing drawn; for logistic a model change, the counts being the
+// Polya-Gamma shape the next sweep draws the latents under.
 // refuseBinaryWeightChange refuses the families whose likelihood has no weight
 // slot at all. updateScale re-derives the response transform, and
 // updateStandardization the leaf covariate standardization, over the rows the
@@ -9330,10 +9325,9 @@ void computeWorkingResponse(AugmentationDistribution distribution,
 //
 // The rule is stated over block names but governs the TOP-LEVEL ATTRIBUTES the
 // same way and for the same reason: they are read by name too, and a reader
-// ignores one it does not know. "weights.digest", "weights.zero",
-// "survival.digest" and "missing.columns" are such additions - a state
-// written before any of them carries none, and setState then behaves as it
-// did before the attribute existed. Making one REQUIRED behind a floor bump
+// ignores one it does not know. "missing.columns" is such an addition - a
+// state written before it carries none, and setState then behaves as it did
+// before the attribute existed. Making one REQUIRED behind a floor bump
 // would buy no compatibility and orphan in-flight states for nothing.
 static const int stateFormatVersion = 1;
 
@@ -9342,31 +9336,6 @@ static const int stateFormatVersion = 1;
 // alongside stateFormatVersion until the first release. A state with no
 // version attribute reads as 0 and is refused at the floor.
 static const int minReadableStateFormatVersion = 1;
-
-// The conditions a state was stored under that do not themselves ride it - the
-// case weights, and the aft censoring status - as the 64-bit digests the
-// engine computes over their bytes, little-endian into 8 raw bytes each. They
-// travel at TOP level rather than per chain because both are chain-invariant.
-// Their one consumer is setState, which compares each against the
-// DESTINATION's own live digest: equal means the stored latents were shaped by
-// what is now in force and install unchanged, different means they were not.
-static const std::size_t stateDigestBytes = 8;
-
-SEXP encodeStateDigest(std::uint64_t digest) {
-  SEXP result = Rf_allocVector(RAWSXP, static_cast<R_xlen_t>(
-                                         stateDigestBytes));
-  Rbyte* bytes = RAW(result);
-  for (std::size_t i = 0; i < stateDigestBytes; ++i)
-    bytes[i] = static_cast<Rbyte>((digest >> (8 * i)) & 0xffULL);
-  return result;
-}
-
-std::uint64_t decodeStateDigest(const Rbyte* bytes) {
-  std::uint64_t digest = 0;
-  for (std::size_t i = 0; i < stateDigestBytes; ++i)
-    digest |= static_cast<std::uint64_t>(bytes[i]) << (8 * i);
-  return digest;
-}
 
 SEXP storeState(bartcore::SamplerBase& sampler) {
   bartcore::SamplerStateData state;
@@ -9633,26 +9602,6 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
                   Rf_ScalarInteger(static_cast<int>(state.recordedDraws)));
   setAttribByName(resultExpr, "formatVersion",
                   Rf_ScalarInteger(stateFormatVersion));
-  // the weights themselves do not ride the state; their digest does, so a
-  // restore can tell whether the latents it carries belong to the weights the
-  // destination holds
-  setAttribByName(resultExpr, "weights.digest",
-                  encodeStateDigest(sampler.weightsDigest()));
-  // and, for a family whose per-row scale a zero weight detaches from the
-  // row's residual (Student-t), which rows were at weight zero: a byte per
-  // row, 1 there and 0 elsewhere, so a restore under other weights can tell
-  // the rows that enter the likelihood from the ones already in it. No other
-  // family writes it, and the active-row mask is not in it
-  SEXP zeroWeightRowsExpr = PROTECT(
-    Rf_allocVector(RAWSXP, static_cast<R_xlen_t>(numObservations)));
-  if (sampler.zeroWeightRows(RAW(zeroWeightRowsExpr)))
-    Rf_setAttrib(resultExpr, Rf_install("weights.zero"), zeroWeightRowsExpr);
-  UNPROTECT(1);
-  // and the aft censoring status, on the same terms and for the same reason:
-  // it rides the sampler's own creation triple, not the state, so the two can
-  // disagree by the time a state is installed
-  setAttribByName(resultExpr, "survival.digest",
-                  encodeStateDigest(sampler.survivalDigest()));
   // which columns could hold a missing value, always written: the store's
   // flags and not its content, FALSE throughout on a sampler that has seen
   // none, so that an absent record alone means not known. An install draws
@@ -9831,62 +9780,6 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 
   bartcore::SamplerStateData state;
   state.chains.resize(shape.numChains);
-
-  // Whether the stored latents were shaped by other weights than the ones in
-  // force here. ABSENT (a state written before the attribute existed) is not a
-  // mismatch: it reconciles nothing and behaves exactly as this reader did
-  // before the attribute.
-  bool weightsDiffer = false;
-  SEXP weightsDigestExpr =
-    Rf_getAttrib(stateExpr, Rf_install("weights.digest"));
-  if (!Rf_isNull(weightsDigestExpr)) {
-    if (TYPEOF(weightsDigestExpr) != RAWSXP ||
-        static_cast<size_t>(Rf_xlength(weightsDigestExpr)) != stateDigestBytes)
-      errorMessage = "malformed weights digest in bartcore state";
-    else
-      weightsDiffer = decodeStateDigest(RAW(weightsDigestExpr)) !=
-        sampler.weightsDigest();
-  }
-
-  // Which rows were at weight zero when the state was stored, for the
-  // reconciliation after the install. ABSENT means not known, never no rows.
-  // Whatever the family, a record present is one byte per row of this
-  // sampler, each 0 or 1; another length is a state of another row count.
-  // The bytes are read in place, stateExpr keeping them alive, so nothing is
-  // held across a raised error.
-  const unsigned char* storedZeroWeightRows = NULL;
-  SEXP zeroWeightRowsExpr =
-    Rf_getAttrib(stateExpr, Rf_install("weights.zero"));
-  if (errorMessage == NULL && !Rf_isNull(zeroWeightRowsExpr)) {
-    if (TYPEOF(zeroWeightRowsExpr) != RAWSXP) {
-      errorMessage = "malformed zero-weight rows in bartcore state";
-    } else if (static_cast<size_t>(Rf_xlength(zeroWeightRowsExpr)) !=
-                 shape.numObservations) {
-      errorMessage = "state is not consistent with this sampler";
-    } else {
-      const Rbyte* flags = RAW(zeroWeightRowsExpr);
-      Rbyte seen = 0;
-      for (size_t i = 0; i < shape.numObservations; ++i) seen |= flags[i];
-      if (seen > 1)
-        errorMessage = "malformed zero-weight rows in bartcore state";
-      else
-        storedZeroWeightRows = flags;
-    }
-  }
-
-  // and the same question of the aft censoring status, absent again meaning
-  // no mismatch
-  bool survivalDiffers = false;
-  SEXP survivalDigestExpr =
-    Rf_getAttrib(stateExpr, Rf_install("survival.digest"));
-  if (errorMessage == NULL && !Rf_isNull(survivalDigestExpr)) {
-    if (TYPEOF(survivalDigestExpr) != RAWSXP ||
-        static_cast<size_t>(Rf_xlength(survivalDigestExpr)) != stateDigestBytes)
-      errorMessage = "malformed survival digest in bartcore state";
-    else
-      survivalDiffers = decodeStateDigest(RAW(survivalDigestExpr)) !=
-        sampler.survivalDigest();
-  }
 
   // which columns could hold a missing value where the state was stored,
   // absent meaning not known: the state then installs as it is
@@ -10268,31 +10161,13 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
              "a saved draw replays only under the standardization and kernel "
              "it was drawn with");
   // declined, not refused: the state fits and a tree of it would have to be
-  // changed, which only a forced call does. Nothing was touched, so nothing
-  // below has anything to reconcile.
+  // changed, which only a forced call does. Nothing was touched. An installed
+  // state draws nothing: the next sweep draws the latents under the weights
+  // and censoring in force here, whatever the state was stored under.
   if (notClean) return false;
   if (!restored)
     Rf_error("state is not consistent with this sampler");
 
-  // The latents just installed were drawn against the SOURCE's weights; these
-  // are not them. Re-derive against the weights in force rather than pairing
-  // one vector's latents with another's: logistic redraws its Polya-Gamma
-  // variates, and Student-t the scale of each row the state's record has at
-  // weight zero and the weights and mask in force here have in the
-  // likelihood, as the same setWeights call would - or, for a state carrying
-  // no record, of every row in the likelihood, a digest not saying which rows
-  // the source's weights had left out. Silent and deterministic - it consumes
-  // each chain's own restored generator, and nothing where no row is redrawn -
-  // and self-selecting, since for a family that states nothing against its
-  // weights it is a measured no-op. Equal digests skip it, so a state
-  // installed under its own weights draws nothing.
-  if (weightsDiffer) sampler.reapplyWeights(storedZeroWeightRows);
-  // the censoring structure reconciles the same way: a row the donor scored an
-  // event and this sampler censors comes back sitting exactly at its bound, so
-  // redraw the censored set off each chain's own restored generator. An event
-  // row is not reached at all - restoreLatents installs the censored rows
-  // only, an observed log-time being data no state overwrites.
-  if (survivalDiffers) sampler.reapplySurvivalStatus();
   return true;
 }
 

@@ -4670,18 +4670,6 @@ inline bool simulatePolyaGammaShape(ext_rng* rng, double b, double z,
   return true;
 }
 
-/// Reshift a Polya-Gamma latent family's working response when only the offset
-/// changes: the omega draws and the kappa / omega term stand, so each entry
-/// trades the old offset for the new. A null pointer is a zero offset. Used by
-/// LogisticResponse::setOffset.
-inline void reshiftWorkingForOffset(double* working, const double* oldOffset,
-                                    const double* newOffset, std::size_t n) {
-  for (std::size_t i = 0; i < n; ++i) {
-    double unshifted = working[i] + (oldOffset != nullptr ? oldOffset[i] : 0.0);
-    working[i] = unshifted - (newOffset != nullptr ? newOffset[i] : 0.0);
-  }
-}
-
 /// Which vector a re-derivation of the response transform is about to take.
 enum class IncomingVector { response, offset };
 
@@ -4726,19 +4714,23 @@ public:
   virtual double drawSigma(ext_rng* rng, const double* totalFits,
                            double sigma) = 0;
 
-  // Between-sample mutation (the embedded-Gibbs API). sigmaInOut is the
-  // chain's current sigma on the internal scale; models that rescale keep it
-  // fixed on the original scale across the change. updateScale re-anchors the
-  // transform to the new response, as setOffset does; false locks it.
-  virtual void setResponse(const double* y, ext_rng* rng,
-                           const double* totalFits, bool updateScale,
+  // Between-sample mutation (the embedded-Gibbs API). No setter draws: each
+  // stores what it is given and rebuilds what is deterministic in it from the
+  // latents in force, which the next sweep's refreshLatents draws before
+  // anything reads them. sigmaInOut is the chain's current sigma on the
+  // internal scale; models that rescale keep it fixed on the original scale
+  // across the change. updateScale re-anchors the transform to the new
+  // response, as setOffset does; false locks it.
+  virtual void setResponse(const double* y, bool updateScale,
                            double* sigmaInOut) = 0;
   virtual void setOffset(const double* offset, bool updateScale,
                          double* sigmaInOut) = 0;
 
   /// Whole-data replacement, possibly changing the number of observations;
-  /// latent states are cold-initialized since the fits they condition on are
-  /// stale. Models that rescale keep sigmaInOut fixed on the original scale.
+  /// the latents start as creation starts them, since rows may differ in
+  /// number, and a drawn family parameter (the ordinal cutpoints, the
+  /// Student-t df, the negative-binomial shape) is kept. Models that rescale
+  /// keep sigmaInOut fixed on the original scale.
   virtual void setData(const double* y, const double* offset,
                        const double* weights, std::size_t numObservations,
                        double* sigmaInOut) = 0;
@@ -4756,41 +4748,11 @@ public:
   /// Replace the case weights (borrowed). For a family whose weights are a
   /// precision this is a bare pointer swap: nothing rescales, and the weighted
   /// residuals enter the next iteration's node statistics and sigma draw. A
-  /// family whose augmentation is STATED against the weights - logistic, whose
-  /// counts are the Polya-Gamma shape - redraws its latents here instead of
-  /// leaving them for the next sweep, which moves its trees first; that is why
-  /// the chain generator and the location to draw against arrive too, on the
-  /// shape every other mutation setter already has. A family holding a per-row
-  /// latent that the weights annihilate - Student-t's scales - redraws it for
-  /// each row whose weight leaves zero, at sigma, as setActiveRows does for a
-  /// row its mask switches back in. Families that need none of the three take
-  /// them and drop them. Default: a no-op (the host rejects earlier).
-  virtual void setWeights(const double*, ext_rng*, const double*, double) {}
-
-  /// Re-derive whatever the family states against its weights, for latents a
-  /// state install has just put in place that another weight vector shaped.
-  /// weights is the vector ALREADY in force. storedZeroWeightRows is the
-  /// state's own record of the rows at weight zero when it was stored, a byte
-  /// per row as zeroWeightRows writes it, or null for a state carrying none;
-  /// only a family that keeps such a record reads it. Default: setWeights
-  /// itself, which redraws for the one family that redraws wholesale there and
-  /// is a pointer swap onto the same pointer for the rest.
-  virtual void reapplyWeights(const double* weights,
-                              const unsigned char* /* storedZeroWeightRows */,
-                              ext_rng* rng, const double* totalFits,
-                              double sigma) {
-    setWeights(weights, rng, totalFits, sigma);
-  }
-
-  /// Whether this family holds a per-row latent that a zero weight detaches
-  /// from the row's residual, so that a state must say which rows those were.
-  /// Such a family writes one byte per row to flags, 1 where the weight in
-  /// force is not positive and 0 elsewhere, and returns true; every other
-  /// family returns false and leaves flags alone. The mask is not read: it
-  /// stays out of a state.
-  virtual bool zeroWeightRows(unsigned char* /* flags */) const {
-    return false;
-  }
+  /// family that states its working response or precisions against the
+  /// weights - logistic, whose counts are the Polya-Gamma shape, and
+  /// Student-t, whose composite carries them - rebuilds those from the latents
+  /// in force. Default: a no-op (the host rejects earlier).
+  virtual void setWeights(const double*) {}
 
   /// Whether this family implements the active-row channel. setActiveRows's
   /// own refusal reads it, so the advertised capability and the refusal
@@ -4805,17 +4767,9 @@ public:
   /// COPIED, so the caller's array is free the moment this returns. The host
   /// has already validated the values and normalized an all-ones mask to a
   /// null pointer; false is the refusal of a family that implements none.
-  ///
-  /// A family holding a per-row latent between sweeps redraws it here for
-  /// every row the mask REACTIVATES - inactive under the mask in force, active
-  /// under the new one - from the row's conditional given totalFits (the
-  /// combined location) and sigma, off rng and in row order. Such a row's
-  /// latent was last drawn against the fit of the sweep it left on, and the
-  /// next sweep moves its trees before it refreshes any latent. Rows that stay
-  /// active keep theirs, and a mask reactivating none consumes no variate.
-  virtual bool setActiveRows(const double*, ext_rng*, const double*, double) {
-    return false;
-  }
+  /// Every latent keeps its value, a row the mask switches back in included:
+  /// the next sweep draws it before anything reads it.
+  virtual bool setActiveRows(const double*) { return false; }
 
   /// Replace the residual-variance prior: re-anchors to the supplied
   /// original-scale sigma estimate exactly as construction does, so a swap
@@ -4841,22 +4795,10 @@ public:
   /// force - an observation leaving the censored set is restored to its own
   /// observed time, which is data rather than a draw - and the values are read
   /// here, not retained. Neither the latents nor the working response move:
-  /// the host calls this BEFORE setResponse, whose redraw and rebuild then
-  /// serve both changes at once. Default: ignore it, for a family that carries
-  /// no censoring.
+  /// the host calls this BEFORE setResponse, whose rebuild then serves both
+  /// changes at once. Default: ignore it, for a family that carries no
+  /// censoring.
   virtual void setSurvivalStatus(const double* /*status*/) {}
-
-  /// A digest of the censoring structure in force, on weightsDigest's terms: a
-  /// byte digest over the per-observation status, so no floating-point
-  /// reduction enters it. Zero for a family carrying no status, which makes
-  /// the host's comparison a measured no-op there.
-  virtual std::uint64_t survivalDigest() const { return 0; }
-
-  /// Re-derive the latents the censoring structure shapes against the
-  /// structure ALREADY in force: the counterpart to setSurvivalStatus for a
-  /// state whose latents were shaped by another status than this one. Consumes
-  /// the generator it is handed. Default: a no-op.
-  virtual void reapplySurvivalStatus(ext_rng*, const double*, double) {}
 
   virtual const double* latents() const { return nullptr; }
 
@@ -4979,28 +4921,7 @@ public:
   }
 
 protected:
-  /// Fills reactivatedRows_ with 1 at each row inactive under `previous` (empty
-  /// when no mask is in force) and active under `next` (null when the new mask
-  /// is none) and 0 elsewhere, and returns whether any row is. Installed as a
-  /// family's mask for the length of one latent refresh, it restricts that
-  /// refresh to exactly the reactivated rows.
-  bool findReactivatedRows(const std::vector<double>& previous,
-                           const double* next) {
-    if (previous.empty()) return false;
-    std::size_t n = previous.size();
-    reactivatedRows_.resize(n);
-    bool any = false;
-    for (std::size_t i = 0; i < n; ++i) {
-      bool reactivated =
-        previous[i] == 0.0 && (next == nullptr || next[i] != 0.0);
-      reactivatedRows_[i] = reactivated ? 1.0 : 0.0;
-      any |= reactivated;
-    }
-    return any;
-  }
-
   RefreshPoll refreshPoll_;
-  std::vector<double> reactivatedRows_;  // findReactivatedRows's scratch
 };
 
 class GaussianResponse final : public ResponseModel {
@@ -5035,7 +4956,7 @@ public:
       numPositiveWeights_));
   }
 
-  void setResponse(const double* y, ext_rng*, const double*, bool updateScale,
+  void setResponse(const double* y, bool updateScale,
                    double* sigmaInOut) override {
     if (updateScale) {
       // sigma and the variance prior stay fixed on the original scale
@@ -5074,8 +4995,7 @@ public:
   /// The two setters are absolute and independent: this replaces the borrowed
   /// user weights and recomposes against whatever mask is installed, so the
   /// served precisions are w * a in either call order.
-  void setWeights(const double* weights, ext_rng*, const double*,
-                  double) override {
+  void setWeights(const double* weights) override {
     userWeights_ = weights;
     recomposeActiveRows();
   }
@@ -5085,9 +5005,8 @@ public:
   /// a_i multiplies the case weight, so a masked gaussian is exactly
   /// setWeights(w * a) - including the sigma posterior's degrees of freedom,
   /// which installWeights RECOUNTS off the composite rather than leaving at
-  /// the unmasked total. No latent, so nothing is drawn for a reactivated row.
-  bool setActiveRows(const double* active, ext_rng*, const double*,
-                     double) override {
+  /// the unmasked total.
+  bool setActiveRows(const double* active) override {
     if (active == nullptr) {
       if (activeRows_.empty()) return true;
       activeRows_.clear();
@@ -5501,15 +5420,7 @@ public:
 
   bool supportsActiveRows() const override { return true; }
 
-  /// A reactivated row's z is redrawn from its truncated normal at the
-  /// current fit: the refresh below runs under the reactivated rows as its
-  /// mask, so it draws for those rows alone.
-  bool setActiveRows(const double* active, ext_rng* rng,
-                     const double* totalFits, double) override {
-    if (findReactivatedRows(activeRows_, active)) {
-      activeRows_.swap(reactivatedRows_);
-      refreshLatents(rng, totalFits, 1.0);
-    }
+  bool setActiveRows(const double* active) override {
     if (active == nullptr) activeRows_.clear();
     else activeRows_.assign(active, active + numObservations_);
     return true;
@@ -5519,11 +5430,9 @@ public:
     return sigma;
   }
 
-  void setResponse(const double* y, ext_rng* rng, const double* totalFits,
-                   bool, double*) override {
-    y_ = y;
-    refreshLatents(rng, totalFits, 1.0);
-  }
+  /// z keeps its value, and with it the working response, which reads no y:
+  /// the next sweep draws z on the new response's side of zero.
+  void setResponse(const double* y, bool, double*) override { y_ = y; }
 
   void setOffset(const double* offset, bool, double*) override {
     offset_ = offset;
@@ -5653,16 +5562,8 @@ public:
 
   /// Both cutpoint sums restrict to the active rows, so the proposal scale -
   /// a function of the category counts - is recomputed here; the target
-  /// (ordinalThresholdLogAcceptance) reads the mask directly. A reactivated
-  /// row's z is redrawn on its category interval at the current fit and
-  /// cutpoints, as probit's is; the cutpoints themselves do not move here.
-  bool setActiveRows(const double* active, ext_rng* rng,
-                     const double* totalFits, double) override {
-    if (findReactivatedRows(activeRows_, active)) {
-      activeRows_.swap(reactivatedRows_);
-      drawLatents(rng, totalFits);
-      rebuildWorking();
-    }
+  /// (ordinalThresholdLogAcceptance) reads the mask directly.
+  bool setActiveRows(const double* active) override {
     if (active == nullptr) activeRows_.clear();
     else activeRows_.assign(active, active + numObservations_);
     computeScales();
@@ -5673,16 +5574,12 @@ public:
     return sigma;
   }
 
-  /// Embedded-Gibbs y swap: keep the slow-moving cutpoints (a global parameter
-  /// the outer sampler wants persisted across a small y perturbation), refresh
-  /// the counts the proposal scale derives from, and redraw z under the new
-  /// intervals - probit's minimal-disruption re-draw plus a kept-cutpoint clause.
-  void setResponse(const double* y, ext_rng* rng, const double* totalFits,
-                   bool, double*) override {
+  /// Embedded-Gibbs y swap: keep the cutpoints and z, and refresh the counts
+  /// the proposal scale derives from; the next sweep draws the cutpoints and
+  /// then z under the new intervals.
+  void setResponse(const double* y, bool, double*) override {
     y_ = y;
     computeScales();
-    drawLatents(rng, totalFits);
-    rebuildWorking();
   }
 
   void setOffset(const double* offset, bool, double*) override {
@@ -5690,9 +5587,9 @@ public:
     rebuildWorking();
   }
 
-  /// Data swap: everything stale, so cold-init the cutpoints to the default
-  /// prior spacing and z to a deterministic point in each category interval,
-  /// matching probit/TResponse cold-init on a data swap.
+  /// Data swap: keep the cutpoints, whose number is the sampler's whatever
+  /// categories the new data hold, and start z at a deterministic point in
+  /// each category interval under them, as creation does.
   void setData(const double* y, const double* offset, const double*,
                std::size_t numObservations, double*) override {
     y_ = y;
@@ -5701,7 +5598,6 @@ public:
     activeRows_.clear();  // length-n and n may have changed
     latents_.resize(numObservations);
     working_.resize(numObservations);
-    coldOrdinalThresholds();
     computeScales();
     coldLatents();
     rebuildWorking();
@@ -5995,16 +5891,9 @@ public:
   bool supportsActiveRows() const override { return true; }
 
   /// The mask is NOT redundant with the count weights: a zero count is refused
-  /// at creation, no count change is accepted afterwards, and a zero-count row
-  /// would still consume one PG variate here. A reactivated row's omega is
-  /// redrawn as PG(w, psi) at the current fit, as a count swap redraws an
-  /// active row's.
-  bool setActiveRows(const double* active, ext_rng* rng,
-                     const double* totalFits, double) override {
-    if (findReactivatedRows(activeRows_, active)) {
-      activeRows_.swap(reactivatedRows_);
-      refreshLatents(rng, totalFits, 1.0);
-    }
+  /// at creation and at a count change, and a zero-count row would still
+  /// consume one PG variate here.
+  bool setActiveRows(const double* active) override {
     if (active == nullptr) {
       activeRows_.clear();
       return true;
@@ -6019,34 +5908,28 @@ public:
     return sigma;
   }
 
-  void setResponse(const double* y, ext_rng* rng, const double* totalFits,
-                   bool, double*) override {
+  /// The setters keep omega and rebuild the working response from it, so it
+  /// stays w (y - 1/2) / omega - offset at every row, an inactive one
+  /// included, under the response, counts and offset in force. The next
+  /// sweep draws omega against them before the trees read either.
+  void setResponse(const double* y, bool, double*) override {
     y_ = y;
-    refreshLatents(rng, totalFits, 1.0);
+    rebuildWorking();
   }
 
-  /// The counts ARE the Polya-Gamma shape, so a swap restates the model, and
-  /// every quantity stated against the old counts is replaced here rather than
-  /// at the next sweep, which draws its trees before refreshing. An ACTIVE row
-  /// takes the same PG(w, psi) draw refreshLatents makes. An INACTIVE row
-  /// draws NOTHING - consuming variates for it would desynchronize the stream
-  /// against a sampler built on the retained rows, the property the skip in
-  /// refreshLatents protects - and is returned to the deterministic cold start
-  /// against its NEW count, so a row that reactivates cannot carry an omega
-  /// shaped by counts the sampler no longer holds.
-  void setWeights(const double* weights, ext_rng* rng,
-                  const double* totalFits, double) override {
+  /// The counts are the Polya-Gamma shape; an omega drawn under the old ones
+  /// stands until the next sweep draws it as PG(w, psi) under these.
+  void setWeights(const double* weights) override {
     weights_ = weights;
-    for (std::size_t i = 0; i < numObservations_; ++i)
-      if (!isActive(i)) coldStartRow(i);
-    refreshLatents(rng, totalFits, 1.0);
+    rebuildWorking();
   }
 
+  /// The offset may arrive in the buffer the old one was read from, so the
+  /// working response is rebuilt from omega rather than shifted by a
+  /// difference of the two.
   void setOffset(const double* offset, bool, double*) override {
-    // omega and kappa / omega stand; only the shift into the working
-    // response moves
-    reshiftWorkingForOffset(working_.data(), offset_, offset, numObservations_);
     offset_ = offset;
+    rebuildWorking();
   }
 
   void setData(const double* y, const double* offset, const double* weights,
@@ -6070,11 +5953,7 @@ public:
 
   void restoreLatents(const double* latents) override {
     std::memcpy(omega_.data(), latents, numObservations_ * sizeof(double));
-    for (std::size_t i = 0; i < numObservations_; ++i) {
-      double weight = weights_ != nullptr ? weights_[i] : 1.0;
-      working_[i] = weight * (y_[i] - 0.5) / omega_[i] -
-                    (offset_ != nullptr ? offset_[i] : 0.0);
-    }
+    rebuildWorking();
     recompose();
   }
 
@@ -6121,15 +6000,21 @@ private:
   /// 4 (y - 1/2) - offset independent of the weight; real draws replace it
   /// after the first tree sweep.
   void coldStart() {
-    for (std::size_t i = 0; i < numObservations_; ++i) coldStartRow(i);
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      omega_[i] = 0.25 * (weights_ != nullptr ? weights_[i] : 1.0);
+      working_[i] =
+        4.0 * (y_[i] - 0.5) - (offset_ != nullptr ? offset_[i] : 0.0);
+    }
   }
 
-  /// One row of it, also the state a weight swap leaves on a row it does not
-  /// draw for.
-  void coldStartRow(std::size_t i) {
-    omega_[i] = 0.25 * (weights_ != nullptr ? weights_[i] : 1.0);
-    working_[i] =
-      4.0 * (y_[i] - 0.5) - (offset_ != nullptr ? offset_[i] : 0.0);
+  /// w (y - 1/2) / omega - offset from the omega in place, every row, in the
+  /// expression refreshLatents writes, so a rebuild is bitwise the draw's.
+  void rebuildWorking() {
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      double offset = offset_ != nullptr ? offset_[i] : 0.0;
+      double weight = weights_ != nullptr ? weights_[i] : 1.0;
+      working_[i] = weight * (y_[i] - 0.5) / omega_[i] - offset;
+    }
   }
 
   const double* y_;
@@ -6190,10 +6075,7 @@ public:
   /// widening the probe keeps SamplerShape::supportsActiveRows derived from the
   /// single predicate the setter refuses on.
   bool supportsActiveRows() const override { return true; }
-  bool setActiveRows(const double*, ext_rng*, const double*,
-                     double) override {
-    return true;
-  }
+  bool setActiveRows(const double*) override { return true; }
 
   // The multinomial response is the borrowed n x K count matrix on the spec,
   // which a flat double* cannot express; the softmax is invariant to a common
@@ -6203,8 +6085,7 @@ public:
   // interface. The bridge refuses BOTH mutations on a multi-forest sampler
   // whose coupling does not opt in, and this one does not, so neither no-op is
   // reachable rather than surprising.
-  void setResponse(const double*, ext_rng*, const double*, bool,
-                   double*) override {}
+  void setResponse(const double*, bool, double*) override {}
   void setOffset(const double*, bool, double*) override {}
   void setData(const double*, const double*, const double*,
                std::size_t numObservations, double*) override {
@@ -6283,18 +6164,6 @@ public:
   /// stream is untouched.
   void refreshLatents(ext_rng* rng, const double* totalFits,
                       double sigma) override {
-    redrawCensored(rng, totalFits, sigma, gaussian_->fitScale());
-  }
-
-  /// refreshLatents with the transform the VARIANCE SURFACE is stated against
-  /// supplied separately from the one in force. The two differ for exactly one
-  /// caller - setResponse at updateScale = true under a variance forest, whose
-  /// host re-anchors the surface only after the call returns - and the surface
-  /// must be read in the units it still holds or every censored row is drawn
-  /// at a residual scale off by the ratio of the two transforms. Everywhere
-  /// else the caller passes fitScale() and this is refreshLatents.
-  void redrawCensored(ext_rng* rng, const double* totalFits, double sigma,
-                      double varianceScale) {
     if (censoredIndices_.empty()) return;
     double scale = gaussian_->fitScale();
     double shift = gaussian_->fitShift();
@@ -6306,7 +6175,7 @@ public:
       double mean = scale * totalFits[i] + shift +
                     (offset != nullptr ? offset[i] : 0.0);
       double rowSd =
-        variance_ != nullptr ? std::sqrt(variance_[i]) * varianceScale : sd;
+        variance_ != nullptr ? std::sqrt(variance_[i]) * scale : sd;
       double draw =
         ext_rng_simulateLowerTruncatedNormal(rng, mean, rowSd, censorBound_[k]);
       logT_[i] = !std::isnan(draw) ? draw : censorBound_[k];
@@ -6315,8 +6184,7 @@ public:
   }
 
   /// The surface AFT's three residual-scale readers take in place of the
-  /// pinned sigma: the censored redraw here and in setResponse, and the
-  /// log-likelihood. NOT forwarded to the contained Gaussian, whose density is
+  /// pinned sigma: the censored draw and the log-likelihood. NOT forwarded to the contained Gaussian, whose density is
   /// unreachable through this model - only its transform and working response
   /// are used.
   void setVarianceSurface(const double* variance) override {
@@ -6330,17 +6198,10 @@ public:
   /// the same recount a masked gaussian gets; the response transform is held
   /// where it was, as it is under a change of weights, and a later
   /// re-derivation reads the rows the mask keeps.
-  /// A reactivated censored row's log-time is redrawn above its bound at the
-  /// current fit and residual scale; an event row holds data and draws none.
-  bool setActiveRows(const double* active, ext_rng* rng,
-                     const double* totalFits, double sigma) override {
-    if (findReactivatedRows(activeRows_, active)) {
-      activeRows_.swap(reactivatedRows_);
-      redrawCensored(rng, totalFits, sigma, gaussian_->fitScale());
-    }
+  bool setActiveRows(const double* active) override {
     if (active == nullptr) activeRows_.clear();
     else activeRows_.assign(active, active + numObservations_);
-    return gaussian_->setActiveRows(active, rng, totalFits, sigma);
+    return gaussian_->setActiveRows(active);
   }
 
   double drawSigma(ext_rng* rng, const double* totalFits,
@@ -6356,9 +6217,9 @@ public:
   /// as its bound. Both index vectors are built into temporaries and swapped
   /// in, so a caller sees the old structure or the new one and never a mix.
   ///
-  /// No redraw and no working-response rebuild: the setResponse that follows
-  /// does both once for the pair, and its memcpy supersedes these bounds when
-  /// the log-times move too. A null status is the base class's "ignore it" and
+  /// No working-response rebuild: the setResponse that follows does it once
+  /// for the pair, and its memcpy supersedes these bounds when the log-times
+  /// move too. A null status is the base class's "ignore it" and
   /// leaves the structure exactly as it stands; the all-censored reading of a
   /// null pointer is the CONSTRUCTOR's, where there is no structure to keep.
   void setSurvivalStatus(const double* status) override {
@@ -6385,56 +6246,15 @@ public:
     censorBound_.swap(bounds);
   }
 
-  /// FNV-1a over numObservations followed by the per-observation status
-  /// doubles, reconstructed from the censored set: the weights digest's
-  /// encoding, for the same reason (a byte digest moves where any two
-  /// structures differ, and no floating-point reduction enters it).
-  std::uint64_t survivalDigest() const override {
-    std::uint64_t hash = 0xcbf29ce484222325ULL;
-    auto append = [&hash](const void* bytes, std::size_t length) {
-      const unsigned char* p = static_cast<const unsigned char*>(bytes);
-      for (std::size_t i = 0; i < length; ++i) {
-        hash ^= p[i];
-        hash *= 0x100000001b3ULL;
-      }
-    };
-    std::uint64_t count = numObservations_;
-    append(&count, sizeof count);
-    double event = 1.0, censored = 0.0;
-    std::size_t k = 0;
-    for (std::size_t i = 0; i < numObservations_; ++i) {
-      bool isCensored = k < censoredIndices_.size() && censoredIndices_[k] == i;
-      if (isCensored) ++k;
-      append(isCensored ? &censored : &event, sizeof(double));
-    }
-    return hash;
-  }
-
-  /// A restored state's censored latents were shaped by the donor's status:
-  /// redraw them against this one, which is where the live conduit would have
-  /// left them. Reaches every censored row, including one the restore left
-  /// sitting exactly at its bound because the donor scored it an event.
-  void reapplySurvivalStatus(ext_rng* rng, const double* totalFits,
-                             double sigma) override {
-    refreshLatents(rng, totalFits, sigma);
-  }
-
   /// Replaces the observed log-times; the censoring structure is whatever
-  /// setSurvivalStatus last left, so bounds refresh from the new times and the
-  /// censored latents redraw against the current fit (the probit pattern).
-  void setResponse(const double* logTime, ext_rng* rng, const double* totalFits,
-                   bool updateScale, double* sigmaInOut) override {
-    // the variance surface is the host's, restated only once this returns, so
-    // the redraw below reads it against the transform in force on ENTRY rather
-    // than the one an updateScale re-anchor is about to install (redrawCensored)
-    double varianceScale = gaussian_->fitScale();
+  /// setSurvivalStatus last left, so bounds refresh from the new times and a
+  /// censored row holds its new bound, data, until the next sweep draws it.
+  void setResponse(const double* logTime, bool updateScale,
+                   double* sigmaInOut) override {
     std::memcpy(logT_.data(), logTime, numObservations_ * sizeof(double));
     for (std::size_t k = 0; k < censoredIndices_.size(); ++k)
       censorBound_[k] = logT_[censoredIndices_[k]];
-    gaussian_->setResponse(logT_.data(), rng, totalFits, updateScale,
-                           sigmaInOut);
-    if (!censoredIndices_.empty())
-      redrawCensored(rng, totalFits, *sigmaInOut, varianceScale);
+    gaussian_->setResponse(logT_.data(), updateScale, sigmaInOut);
   }
 
   /// Offset shifts the fit location, not the (offset-independent) log-times, so
@@ -6585,7 +6405,7 @@ private:
   /// latents need.
   void rebuildWorking() {
     double unused = 0.0;
-    gaussian_->setResponse(logT_.data(), nullptr, nullptr, false, &unused);
+    gaussian_->setResponse(logT_.data(), false, &unused);
   }
 
   std::unique_ptr<GaussianResponse> gaussian_;
@@ -6711,8 +6531,8 @@ public:
       // lambda is drawn for EVERY row: the mask annihilates its value through
       // the composite rather than suppressing the draw, so the variates a
       // sweep consumes do not depend on the mask. A row out of the likelihood
-      // draws at a conditional one sigma and nu update behind, which the
-      // setter that brings it back in replaces (redrawEntering)
+      // holds a lambda nothing reads, and is drawn here again at the first
+      // sweep after a setter brings it back in, before anything reads it
       double lambda =
         ext_rng_simulateGamma(rng, shape, 2.0 / (nu_ + w * r * r / sigmaSq));
       lambda_[i] = lambda;
@@ -6728,7 +6548,7 @@ public:
     if (estimateNu_)
       nu_ = ResidualDfPrior::grid[nuPrior_.drawIndex(rng, numInformative,
                                                      sumLogLambda, sumLambda)];
-    gaussian_->setWeights(composite_.data(), nullptr, nullptr, 0.0);
+    gaussian_->setWeights(composite_.data());
   }
 
   double drawSigma(ext_rng* rng, const double* totalFits,
@@ -6736,11 +6556,12 @@ public:
     return gaussian_->drawSigma(rng, totalFits, sigma);
   }
 
-  void setResponse(const double* y, ext_rng* rng, const double* totalFits,
-                   bool updateScale, double* sigmaInOut) override {
+  /// lambda and nu are kept, the composite with them; the next sweep draws
+  /// both from the new residuals.
+  void setResponse(const double* y, bool updateScale,
+                   double* sigmaInOut) override {
     y_ = y;
-    gaussian_->setResponse(y, rng, totalFits, updateScale, sigmaInOut);
-    coldInit();
+    gaussian_->setResponse(y, updateScale, sigmaInOut);
   }
 
   void setOffset(const double* offset, bool updateScale,
@@ -6759,6 +6580,8 @@ public:
     replaceData(y, offset, weights, numObservations, sigmaInOut, held);
   }
   /// setData's body, the transform held at \p held where it is not null.
+  /// lambda starts at 1 as at creation, rows possibly differing in number;
+  /// nu is kept.
   void replaceData(const double* y, const double* offset,
                    const double* weights, std::size_t numObservations,
                    double* sigmaInOut, const double* held) {
@@ -6775,47 +6598,15 @@ public:
     else
       gaussian_->setDataInScale(y, offset, weights, numObservations,
                                 sigmaInOut, held[0], held[1]);
-    coldInit();
-  }
-
-  /// A row whose weight leaves zero re-enters the likelihood, and its lambda
-  /// is redrawn as setActiveRows redraws a reactivated row's.
-  void setWeights(const double* weights, ext_rng* rng, const double* totalFits,
-                  double sigma) override {
-    userWeights_ = weights;
-    redrawEntering(rng, totalFits, sigma);
     recompose();
   }
 
-  /// A row the stored weights left out of the likelihood carries a lambda
-  /// drawn without its residual. With the state's record of those rows, each
-  /// row is marked in exactly where the record has it at positive weight and
-  /// the call proceeds as setWeights does: a row at zero then and in the
-  /// likelihood here is redrawn from its conditional at the installed fit,
-  /// sigma and nu, every other row keeps the installed lambda, and a call
-  /// that brings no row in consumes no variate. The stored mask is not in the
-  /// record, so a row positive then and masked here is left marked out, for
-  /// setActiveRows to redraw. Without a record nothing says which rows were
-  /// out, so every mark is forgotten and EVERY row in the likelihood here is
-  /// redrawn. Either way a row out of the likelihood here waits for the
-  /// setter that brings it in.
-  void reapplyWeights(const double* weights,
-                      const unsigned char* storedZeroWeightRows, ext_rng* rng,
-                      const double* totalFits, double sigma) override {
-    if (storedZeroWeightRows == nullptr)
-      informative_.assign(numObservations_, 0);
-    else
-      for (std::size_t i = 0; i < numObservations_; ++i)
-        informative_[i] = storedZeroWeightRows[i] == 0 ? 1 : 0;
-    setWeights(weights, rng, totalFits, sigma);
-  }
-
-  /// lambda_i is drawn every sweep at every row, a row at weight zero
-  /// included, so the scales alone do not say which rows those were.
-  bool zeroWeightRows(unsigned char* flags) const override {
-    for (std::size_t i = 0; i < numObservations_; ++i)
-      flags[i] = userWeights_ != nullptr && !(userWeights_[i] > 0.0) ? 1 : 0;
-    return true;
+  /// The membership marks and the composite are rebuilt under the new
+  /// weights; every lambda is kept, the next sweep drawing them all.
+  void setWeights(const double* weights) override {
+    userWeights_ = weights;
+    markInformative();
+    recompose();
   }
 
   bool supportsActiveRows() const override { return true; }
@@ -6823,13 +6614,11 @@ public:
   /// The mask joins the mixture composite, c_i = w_i lambda_i a_i, so the
   /// contained Gaussian inherits it through the pointer it is already handed -
   /// node statistics, sigma df and all. The lambda draw itself continues at
-  /// every row; refreshLatents states why. A row the mask brings back into
-  /// the likelihood has its lambda redrawn (redrawEntering).
-  bool setActiveRows(const double* active, ext_rng* rng,
-                     const double* totalFits, double sigma) override {
+  /// every row; refreshLatents states why.
+  bool setActiveRows(const double* active) override {
     if (active == nullptr) activeRows_.clear();
     else activeRows_.assign(active, active + numObservations_);
-    redrawEntering(rng, totalFits, sigma);
+    markInformative();
     recompose();
     return true;
   }
@@ -6922,28 +6711,6 @@ private:
       informative_[i] = isInformative(i) ? 1 : 0;
   }
 
-  /// Redraws lambda_i for each row the weights or mask just installed bring
-  /// INTO the likelihood - out of it when last marked, in it now - from
-  /// refreshLatents' own conditional at the current fit, sigma and nu, in row
-  /// order, and marks every row afresh. A row that was already in keeps its
-  /// lambda and a row that stays out or goes out draws nothing, so a call
-  /// bringing no row in consumes no variate. The record is the response's own
-  /// because the weights are borrowed: by the time a new vector arrives the
-  /// old one may be gone or overwritten in place.
-  void redrawEntering(ext_rng* rng, const double* totalFits, double sigma) {
-    const double* z = gaussian_->workingResponse();
-    for (std::size_t i = 0; i < numObservations_; ++i) {
-      bool informative = isInformative(i);
-      if (informative && informative_[i] == 0) {
-        double w = userWeights_ != nullptr ? userWeights_[i] : 1.0;
-        double r = z[i] - totalFits[i];
-        lambda_[i] = ext_rng_simulateGamma(
-          rng, 0.5 * (nu_ + 1.0), 2.0 / (nu_ + w * r * r / (sigma * sigma)));
-      }
-      informative_[i] = informative ? 1 : 0;
-    }
-  }
-
   /// c_i = w_i lambda_i a_i, then hand the composite to the contained Gaussian
   /// so its weights, node statistics, and sigma draw all see the mixture.
   void recompose() {
@@ -6951,15 +6718,7 @@ private:
       composite_[i] =
         (userWeights_ != nullptr ? userWeights_[i] : 1.0) * lambda_[i] *
         (activeRows_.empty() ? 1.0 : activeRows_[i]);
-    gaussian_->setWeights(composite_.data(), nullptr, nullptr, 0.0);
-  }
-
-  /// Cold state after a data swap: lambda = 1 (c_i = w_i) and, in grid mode,
-  /// nu at the grid median; the next sweep draws both.
-  void coldInit() {
-    std::fill(lambda_.begin(), lambda_.end(), 1.0);
-    if (estimateNu_) nu_ = ResidualDfPrior::grid[ResidualDfPrior::medianIndex];
-    recompose();
+    gaussian_->setWeights(composite_.data());
   }
 
   const double* y_;
@@ -6971,7 +6730,7 @@ private:
   std::vector<double> lambda_;      // per-observation mixing precisions
   std::vector<double> activeRows_;  // the 0/1 mask; empty when none
   std::vector<double> composite_;   // c_i = w_i lambda_i a_i, the Gaussian's weights
-  std::vector<unsigned char> informative_;  // w_i a_i > 0 when last marked
+  std::vector<unsigned char> informative_;  // w_i a_i > 0, the Gaussian's marks
   ResidualDfPrior nuPrior_;         // grid machinery, used only when estimating
 };
 
@@ -7169,15 +6928,8 @@ public:
 
   /// Beyond the logistic composition, the shape block is the subsample's:
   /// the count kernel is REBUILT over the active rows here, which is the
-  /// channel's one per-install cost. The shift c is held where it was. A
-  /// reactivated row's omega is redrawn as PG(y + r, psi) at the current fit
-  /// and r, which is not redrawn here.
-  bool setActiveRows(const double* active, ext_rng* rng,
-                     const double* totalFits, double) override {
-    if (findReactivatedRows(activeRows_, active)) {
-      activeRows_.swap(reactivatedRows_);
-      drawOmega(rng, totalFits);
-    }
+  /// channel's one per-install cost. The shift c is held where it was.
+  bool setActiveRows(const double* active) override {
     if (active == nullptr) {
       activeRows_.clear();
     } else {
@@ -7193,16 +6945,14 @@ public:
     return sigma;
   }
 
-  /// Embedded-Gibbs y swap: keep the slow-moving r (a global the outer sampler
-  /// persists across a small y perturbation - the kept-cutpoints/nu clause),
-  /// re-anchor c to the new counts when updateScale, recompute the count
-  /// kernel, and redraw omega and working against the current fit.
-  void setResponse(const double* y, ext_rng* rng, const double* totalFits,
-                   bool updateScale, double*) override {
+  /// Embedded-Gibbs y swap: keep r and omega, re-anchor c to the new counts
+  /// when updateScale, recompute the count kernel, and rebuild the working
+  /// response; the next sweep draws r and then omega under the new counts.
+  void setResponse(const double* y, bool updateScale, double*) override {
     y_ = y;
     if (updateScale) shift_ = deriveShift();
     rPrior_.computeKernel(y, numObservations_, activePointer());
-    drawOmega(rng, totalFits);
+    rebuildWorking();
   }
 
   /// omega stands; c is re-anchored to the new offset when updateScale, and
@@ -7213,10 +6963,9 @@ public:
     rebuildWorking();
   }
 
-  /// Data swap: everything stale, so re-anchor c, cold-init r to the grid
-  /// median (or the held fixed value), rebuild the kernel, and cold-start
-  /// omega at its PG(y+r, 0) mean (y_i + r)/4; the first sweep's draw replaces
-  /// it.
+  /// Data swap: re-anchor c, keep r, rebuild the kernel, and start omega as
+  /// creation does, at its PG(y + r, 0) mean (y_i + r)/4; the next sweep's
+  /// draw replaces it.
   void setData(const double* y, const double* offset, const double*,
                std::size_t numObservations, double*) override {
     replaceData(y, offset, numObservations, nullptr);
@@ -7236,8 +6985,6 @@ public:
     composite_.clear();
     omega_.resize(numObservations);
     working_.resize(numObservations);
-    if (estimateR_)
-      setShape(NBShapePrior::grid[NBShapePrior::medianIndex]);
     shift_ = held != nullptr ? *held : computeShift(y, offset, numObservations);
     rPrior_.computeKernel(y, numObservations);
     coldStart();
@@ -7284,14 +7031,13 @@ public:
   void restoreShape(double shape) override {
     setShape(shape);
   }
-  /// A new r in force restarts omega at its cold start under that r, as
-  /// creation leaves it, the working response rebuilt.
+  /// A new r in force keeps omega and rebuilds the working response under
+  /// it; the next sweep draws omega as PG(y + r, psi) at the new r.
   void installShape(double shape) override {
     estimateR_ = !(shape > 0.0);
     if (estimateR_ || shape == r_) return;
     setShape(shape);
-    coldStart();
-    recompose();
+    rebuildWorking();
   }
 
   /// log dnbinom(y_i; r, mu_i) with log mu_i = f(x_i) + c + offset_i, in
@@ -7403,9 +7149,8 @@ private:
   }
 
   /// Steps (2)-(3) of the sweep at the CURRENT r: draw omega_i ~ PG(y_i + r,
-  /// psi_i) and rebuild the working response. Shared by refreshLatents (after
-  /// its r step) and setResponse (which keeps r, the ordinal drawLatents
-  /// analog). An inactive row's draw is skipped for logistic's reason.
+  /// psi_i) and rebuild the working response. An inactive row's draw is
+  /// skipped for logistic's reason.
   void drawOmega(ext_rng* rng, const double* totalFits) {
     for (std::size_t i = 0; i < numObservations_; ++i) {
       if (!isActive(i)) continue;
@@ -7424,7 +7169,7 @@ private:
 
   /// Deterministic cold start: omega at PG(y+r, 0)'s mean (y_i + r)/4, so the
   /// working response starts at 2 (y_i - r)/(y_i + r) - a_i independent of the
-  /// fit; real draws replace it after the first sweep.
+  /// fit; the next sweep's draw replaces it.
   void coldStart() {
     for (std::size_t i = 0; i < numObservations_; ++i)
       omega_[i] = 0.25 * (y_[i] + r_);

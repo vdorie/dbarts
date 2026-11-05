@@ -157,51 +157,14 @@ public:
   virtual ResponseUpdateResult setResponse(const double* y,
                                            bool updateScale) = 0;
   virtual void setWeights(const double* weights) = 0;
-  /// A digest of the case weights in force, over their bytes rather than any
-  /// summary of them: two vectors agreeing in every moment still differ here.
-  /// Weights fan to every chain, so the value is chain-invariant. A sampler
-  /// carrying no weights digests as n unit weights, which is what it is - the
-  /// two are the same sampler bitwise, so no null token distinguishes them.
-  /// A host stores it beside a saved state to tell, on restore, whether the
-  /// destination's weights are the ones the stored latents were shaped by.
-  virtual std::uint64_t weightsDigest() const = 0;
-  /// Re-install the weights ALREADY in force, so a family whose augmentation
-  /// is stated against them re-derives it: the counterpart to setWeights for a
-  /// state whose latents were shaped by other weights than these. Nothing is
-  /// refused, because no weight changes - the guards a weight CHANGE carries
-  /// do not apply. storedZeroWeightRows is the record zeroWeightRows wrote
-  /// beside that state, numObservations bytes of 0 and 1 borrowed for the
-  /// call, or null for a state carrying none. With it a Student-t sampler
-  /// redraws the scale of only the rows at weight zero then and in the
-  /// likelihood now, as the same setWeights call would; without it, of every
-  /// row in the likelihood. Consumes each chain's own generator, and nothing
-  /// at all when no row is redrawn.
-  virtual void reapplyWeights(const unsigned char* storedZeroWeightRows) = 0;
-  /// The record a host stores beside a saved state and hands back to
-  /// reapplyWeights: one byte per row into flags (numObservations of them), 1
-  /// where the weight in force is not positive and 0 elsewhere, all 0 for a
-  /// sampler carrying no weights. Returns whether the family keeps a per-row
-  /// latent such a record serves (Student-t's scales); false leaves flags
-  /// untouched and the host stores none. The active-row mask is not in it.
-  virtual bool zeroWeightRows(unsigned char* flags) const = 0;
   /// Install a new per-observation right-censoring status (1 an event, 0 a
   /// right-censored observation), length numObservations, on a family that
   /// carries one; every other family drops it, the host having refused it by
   /// family first. Nothing is drawn and no fit moves: call it BEFORE
-  /// setResponse, whose redraw then serves the pair once, and whose memcpy
+  /// setResponse, whose rebuild then serves the pair once, and whose memcpy
   /// supersedes the rebuilt bounds when the response moves too. The values are
   /// read, not retained.
   virtual void setSurvivalStatus(const double* status) = 0;
-  /// A digest of the censoring structure in force, on weightsDigest's terms
-  /// and stored beside a state for the same purpose: to tell, on restore,
-  /// whether the stored latents were shaped by the status now in force. Zero
-  /// for a family carrying none.
-  virtual std::uint64_t survivalDigest() const = 0;
-  /// Re-derive the censored latents against the status ALREADY in force, off
-  /// each chain's own generator: reapplyWeights's counterpart for a state
-  /// whose latents another status shaped. Nothing is refused, no status
-  /// changing.
-  virtual void reapplySurvivalStatus() = 0;
   virtual void setSigma(double sigmaOriginalScale) = 0;
   /// Build the typed test store from a borrowed predictor view against the
   /// training cut grid, owning its raw. Returns false without touching the
@@ -638,20 +601,9 @@ public:
   void setWeights(const double* weights) override {
     impl_.setWeights(weights);
   }
-  std::uint64_t weightsDigest() const override { return impl_.weightsDigest(); }
-  void reapplyWeights(const unsigned char* storedZeroWeightRows) override {
-    impl_.reapplyWeights(storedZeroWeightRows);
-  }
-  bool zeroWeightRows(unsigned char* flags) const override {
-    return impl_.zeroWeightRows(flags);
-  }
   void setSurvivalStatus(const double* status) override {
     impl_.setSurvivalStatus(status);
   }
-  std::uint64_t survivalDigest() const override {
-    return impl_.survivalDigest();
-  }
-  void reapplySurvivalStatus() override { impl_.reapplySurvivalStatus(); }
   void setSigma(double sigmaOriginalScale) override {
     impl_.setSigma(sigmaOriginalScale);
   }

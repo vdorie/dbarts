@@ -2096,45 +2096,16 @@ public:
     }
   }
   /// Case weights: a pointer swap entering the next iteration's node
-  /// statistics and sigma draw with nothing rescaled, plus, for logistic -
-  /// whose weights are the Polya-Gamma counts - an immediate latent refresh
-  /// off each chain's OWN generator, so the draws stay independent of the
-  /// thread count. The host rejects the families that carry no weights.
+  /// statistics and sigma draw with nothing rescaled and nothing drawn. The
+  /// host rejects the families that carry no weights.
   void setWeights(const double* weights) {
     for (auto& chain : chains_) chain->setWeights(weights);
   }
-  /// A digest of the weights in force. Weights are chain-invariant - setWeights
-  /// fans the same pointer to every chain - so chain 0 answers for all.
-  std::uint64_t weightsDigest() const { return chains_[0]->weightsDigest(); }
-  /// Re-derive every chain's weight-dependent latents against the weights
-  /// already in force, each off its OWN generator, so the draws stay
-  /// independent of the thread count exactly as setWeights's do.
-  /// storedZeroWeightRows is the installed state's zeroWeightRows record, or
-  /// null when it carries none; every chain reads the same one.
-  void reapplyWeights(const unsigned char* storedZeroWeightRows = nullptr) {
-    for (auto& chain : chains_) chain->reapplyWeights(storedZeroWeightRows);
-  }
-  /// The rows at a weight that is not positive, a byte each, for a family
-  /// whose state names them; false for every other. Weights are
-  /// chain-invariant, so chain 0 answers for all.
-  bool zeroWeightRows(unsigned char* flags) const {
-    return chains_[0]->zeroWeightRows(flags);
-  }
   /// A new per-observation censoring status, fanned to every chain: each
   /// rebuilds its own censoring structure against its own observed times.
-  /// Nothing is drawn here; the setResponse that follows redraws each chain's
-  /// censored latents off its OWN generator, the setWeights rule.
+  /// Nothing is drawn here or at the setResponse that follows.
   void setSurvivalStatus(const double* status) {
     for (auto& chain : chains_) chain->setSurvivalStatus(status);
-  }
-  /// A digest of the censoring structure in force. The status is
-  /// chain-invariant - setSurvivalStatus fans the same vector to every chain -
-  /// so chain 0 answers for all, as the weights digest does.
-  std::uint64_t survivalDigest() const { return chains_[0]->survivalDigest(); }
-  /// Re-derive every chain's censored latents against the structure already in
-  /// force, each off its OWN generator, exactly as reapplyWeights does.
-  void reapplySurvivalStatus() {
-    for (auto& chain : chains_) chain->reapplySurvivalStatus();
   }
   void setSigma(double sigmaOriginalScale) {
     for (auto& chain : chains_) chain->setSigma(sigmaOriginalScale);
