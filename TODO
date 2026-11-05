@@ -867,27 +867,6 @@ items
     derives the value instead", and of basis.scale, "clearing an entry by hand has the next creation
     take the scale of the column in force". Reword each to name the accessor or say that the sampler
     derives the value. With the next help pass.
-  coefficient-prior-live: ruled, not built (dec-B511). On a live sampler,
-    $setForest(amplitude = ) (dec-B518) changes a forest's coefficient between held
-    and drawn (dec-B254) and between normal() and student(df), and a
-    t's df, at the next sweep. Today 'amplitude' is refused there. In
-    dec-B550's units no leaf scale moves: a hold sets the block to its
-    kind's value and leaves the leaves and the trees' scale; a release
-    draws from that value, 1 or (0, 1) on levels, the entry re-resolved
-    with its node factor the same both ways. One combiner write, of the
-    coefficient's prior whole; a t's mixing variance starts at the
-    normal's, 1 / z_.75^2 with no basis and kappa / 0.674^2 with one,
-    never creation's 1 / m^2 (whether that start shows is for its plan to
-    measure). Costs as ruled: a hold at a large sd jumps, a release with
-    no basis at a large sd is slower, and holding a factor changes the
-    model (docs/plans/forest-amplitude-normal.md, Every live path). After
-    forest-door and setmodel-parameters' slice 4, both landed; about 400 lines as
-    estimated before dec-B550, which should fall. To design: the spelling that returns a
-    coefficient to the normal or releases a hold, an unstated amplitude
-    changing nothing; ruled by dec-B522 (writing normal() or student(df)
-    releases, fixed() holds). For 1.0-0. Planned:
-    docs/plans/coefficient-prior-live.md, two slices after forest-door's
-    slice 3, no open calls.
   factor-basis-per-level: forest(x, basis = ~ arm) on a factor of three
     or more levels becomes shorthand for one forest for each level but
     the first, each on that level's indicator, so every level has its

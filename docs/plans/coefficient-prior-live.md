@@ -459,8 +459,11 @@ Each to fail a named pin.
     stating `sd`, where creation gives the held entry too: the constructor's test counts no forests with no basis, d4.R.)
 13. The combiner written and `MapForest::statement` not: the later-writes pins, and tests/cpp's `setForestMapSd` after a route.
 14. `sd` and `amplitude` on a sharer written in two engine calls with the check between: the atomic refusal pin.
-15. Route 4 resolving the last left at the whole total, or its `sd` not recorded: the reader-to-creation twin.
-16. `sd` compared before `amplitude` applies: the probit `sd = 1.574, amplitude = fixed()` pin.
+15. Route 4 resolving the last left at the whole total: the part's value pins, the sd the forest had under a held k and the
+    prior's median k under a drawn one (the reader-to-creation twin states whatever part the reader gives, so it cannot see this).
+    Its `sd` not recorded: the reader-to-creation twin.
+16. `sd` compared before `amplitude` applies: the probit `sd = 1.574, amplitude = fixed()` pin. The sd under the coefficient
+    taken as no sd under a held k too: the gaussian pin, the sd dropped under each held leaf prior.
 17. `$setModel` ignoring a coefficient or a tree-count difference: its refusal pins.
 18. A check on the names given rather than the merged statement: `sd` and `student(1)` on a sharer taken, `student(1)` alone
     refused.

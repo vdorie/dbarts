@@ -78,7 +78,7 @@ runs. `$setLeafPrior(forests = )` is gone.
 
 ## Constraints
 
-- Out of scope: a changed coefficient hold or prior (coefficient-prior-live adds it to this door);
+- Out of scope: a changed coefficient hold or prior (coefficient-prior-live added it to this door);
   `$setTreePrior`, and `$setModel` and `$setLeafPrior` on samplers of several forests (setmodel-parameters' slice
   4); per-category multinomial statements, not offered (dec-B521); per-forest handles.
 - The fitting function's level is not recorded apart from the forests' (dec-B522). No field holds it. A forest's
@@ -160,12 +160,12 @@ is one).
 | `proposal.probs`, `n.perturb.cuts` | its own | its own | its own | its own | its own | its own | its own |
 | `treeShift` | its own | its own | its own | its own | its own | its own | not a name (dec-B500) |
 
-`amplitude` takes the prior in force, as no change; a different one is refused until coefficient-prior-live.
+`amplitude` takes the prior in force, as no change; a different one was refused here and coefficient-prior-live takes it.
 `forest(amplitude = normal())` becomes taken at creation and at the door on a forest with a basis, drawing and
 recording exactly as leaving it out does (~10 lines in [`validateForestAmplitude`](../../R/model.R)); only a bare
 `normal()`. On a forest with no basis it is a drawn normal coefficient, taken where `student(df)` is (dec-B539; built by
-TODO forest-amplitude-normal after slice F, not here), and at this door the value in force only until
-coefficient-prior-live. A coefficient has no way back to following a default: a hold is released by writing a shape
+TODO forest-amplitude-normal after slice F, not here), and at this door the value in force only, until
+coefficient-prior-live took a changed one. A coefficient has no way back to following a default: a hold is released by writing a shape
 (dec-B522).
 
 Held against drawn follows the coefficient's hold, as at creation: a forest's size is its coefficient times `sd`, the coefficient
@@ -364,7 +364,7 @@ size v, its k pinned as any forest stating sd's is. The others keep their leaf s
 set once, at creation. A later statement of the total on the fitting function's door scales the forests still sharing
 by their creation shares and does not re-divide. The group's k draw and the rescale step read the forests still in
 it. The share is recorded on the forest, so a copy and a reload continue. There is no way back in but a new sampler.
-`sd = v, amplitude = student(df)` in one call is refused with every changed `amplitude`, until coefficient-prior-live.
+`sd = v, amplitude = student(df)` in one call was refused with every changed `amplitude` here; coefficient-prior-live takes it.
 
 A statement of the total needs no new engine: `translateNamedSd`'s sharer branch and setmodel slice 4's group install
 write k, and a sharer's spread is `options_.nodeScale * sqrt(share) / sqrt(m) / k`, so each stays at its creation
@@ -514,7 +514,7 @@ tinytest, a new test-forest-door.R (~880 lines), every R-side twin on two chains
   values as its position; `forest2` still position 2; a level spelled `forest2` at position 1 refused by the conflict
   message.
 - `amplitude = normal()`: at creation on a factor and a numeric forest, draws and records identical to left out; at
-  the door the value in force; on a held forest refused until coefficient-prior-live.
+  the door the value in force; on a held forest refused here, taken since coefficient-prior-live.
 - The old spelling: on a c55a1477 build `$setLeafPrior(forests = )` and on the branch `$setForest(label, sd = )`,
   bitwise equal draws over the bcf, numeric and three-forest fixtures (scratch A/B, ~150 lines).
 
@@ -593,14 +593,15 @@ setmodel-parameters' slice 4; this item's slice 3; coefficient-prior-live. Engin
    `sharingForests`, so slice 3 needs no change there.
 5. surface-sweep (dec-B519): creation's reading of a written NULL lands there; `stated`'s new names read a NULL as not
    written whichever lands first.
-6. coefficient-prior-live (dec-B511) follows, adding a changed `amplitude` to `$setForest`, and with it
+6. coefficient-prior-live (dec-B511) followed, adding a changed `amplitude` to `$setForest`, and with it
    `sd = v, amplitude = student(df)` on a sharer.
 7. leaf-prior-writer-by-level and forest-list-by-label: independent; textual meetings in R/dbarts.R only.
 
 ## Cost
 
 - Four methods. `$setLeafPrior` loses an argument main has.
-- A forest that states a value can never follow the fitting function again; only a new sampler does that (dec-B522).
+- A forest that states its `sd` or its depth can never follow the fitting function again; only a new sampler does that
+  (dec-B522).
 - A value equal to the one in force cannot pin a forest: a forest following the fitting function goes on following it
   until it states something different.
 - Two doors can overwrite each other in silence (dec-B523).
@@ -608,7 +609,7 @@ setmodel-parameters' slice 4; this item's slice 3; coefficient-prior-live. Engin
 - After a leave a sampler's forests run sizes that no longer add up to the total it reads, and it is a state no fitting
   function can write (dec-B525).
 - Forest-door's three slices and setmodel-parameters' slice 4 landed together, so main never refused a sharer's `sd` between them.
-- Until coefficient-prior-live lands, a changed `amplitude` is refused by name.
+- Until coefficient-prior-live landed, a changed `amplitude` was refused by name.
 
 ## Calls made
 
@@ -624,8 +625,8 @@ setmodel-parameters' slice 4; this item's slice 3; coefficient-prior-live. Engin
    (dec-B500). In the summary as a note the maintainer may veto. Alternative: leave it to `$setControl` alone.
 7. `updateState = NULL` after the settings, `...` last; the setters return NULL invisibly. Alternative: the previous
    list, as `options()`, which `$getForest` already gives.
-8. coefficient-prior-live stays its own item; until then a changed `amplitude` is refused and one equal to the value in
-   force taken. Alternative: fold its ~400 lines in as a slice, delaying this item behind it.
+8. coefficient-prior-live stayed its own item; until it landed a changed `amplitude` was refused and one equal to the
+   value in force taken. Alternative: fold its ~400 lines in as a slice, delaying this item behind it.
 9. `stated`'s new names are slots of slice 1a's records built by slice 2; forest 1's depth stays read from the model's
    tree prior, which every write to it updates. Alternative: the bridge reading forest 1 from the record, a creation
    read moved.
@@ -746,8 +747,8 @@ tests/cpp/test_state.cpp, which clang had taken, and a sentinel 0 now stands for
 green on that tip.
 
 The calls the plan and its builders made are in dec-A257 (slice 2) and dec-A259 (slice 3), beside setmodel-parameters'
-dec-A258. A changed `amplitude` is still refused by name at the door, `$setForest(1, sd = v, amplitude = student(df))`
-included, until coefficient-prior-live, which is its own item on its own branch.
+dec-A258. A changed `amplitude` was refused by name at the door, `$setForest(1, sd = v, amplitude = student(df))`
+included, until coefficient-prior-live took it on its own branch.
 
 ## Open calls
 
