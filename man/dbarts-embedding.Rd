@@ -46,6 +46,28 @@
     reason.
   }
 
+  \subsection{When the augmentation variables are drawn}{
+    A sampler whose family augments its likelihood (the \code{probit} and \code{ordinal}
+    latents, the Polya-Gamma precisions of \code{logistic}, \code{binomial} and \code{nbinom},
+    the Student-t scales, an \code{aft} sampler's imputed times) draws those values at the start of
+    each sweep, against the fit the previous sweep left and the inputs in force, and then draws
+    its trees against them. A sweep therefore runs in this order: the augmentation variables, then
+    the trees, then sigma and the other parameters. No setter draws them: \code{$setResponse},
+    \code{$setOffset}, \code{$setPredictor}, \code{$setSigma}, \code{$setWeights},
+    \code{$setActiveRows}, \code{$setForestBasis}, \code{$setData}, \code{$setModel} and
+    \code{$setState} store what they are given, and the next sweep draws the latents against the
+    change.
+
+    Two kinds of outer step are both exact under this order. One conditions on the latent: it
+    runs the sampler, reads \code{$getLatents()}, and draws its own quantity given those values.
+    The other integrates the latent out, scoring a proposal with the probit likelihood
+    \code{pnorm(f)} of the response, say, and then installing what it accepted; the next sweep
+    draws the latents under the accepted values, so the trees never fit a latent drawn before the
+    change. The order is also what makes a setter call and a restore undo each other exactly:
+    \code{$setWeights} with the old weights and \code{$setState} with the stored state, in either
+    order, return the stored chain bit for bit.
+  }
+
   \subsection{Which fit to read back}{
     Six methods report a fitted quantity and no two report the same one; the table in
     \sQuote{Reading the fit}, \code{\link[=dbartsSampler-class]{dbartsSampler}}, is authoritative.
@@ -56,6 +78,13 @@
     for \code{"logistic"}, \code{"nbinom"} and a Student-t residual distribution is a precision
     rather than a location at all. Differencing the two is short by exactly the installed offset,
     which reaches the outer block as a coefficient shrunk toward zero rather than as an error.
+
+    \code{$getLatents()} returns the values the last sweep's trees were drawn from, so after a run
+    it and \code{$getFitsWithoutOffset()} are a joint draw, the latent being the value the fit was
+    drawn from. Between a setter and the next run it returns the values from before the setter
+    (\code{$setData} starts them as a new sampler does, and an \code{aft} \code{$setResponse}
+    leaves a censored row at its new bound), not values drawn against the change; the next sweep
+    draws them afresh.
   }
 
   \subsection{Whose prior is in force}{
