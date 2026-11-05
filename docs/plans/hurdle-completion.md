@@ -1,7 +1,8 @@
 # hurdle-completion: a test set, weights, subset, offsets and the formula interface on hurdle.lognormal fits
 
-Status: PLANNED 2026-11-03 on main (170635476); amended the same day after its blind critique (see
-[The critique and what was amended](#the-critique-and-what-was-amended)). Not built. Both calls are ruled (dec-B587, dec-B588).
+Status: LANDED 2026-11-05, slices S1 to S6, reviewed LAND with a fix round (dec-A262, [Landing note](#landing-note)).
+PLANNED 2026-11-03 on main (170635476); amended the same day after its blind critique (see
+[The critique and what was amended](#the-critique-and-what-was-amended)). Both calls are ruled (dec-B587, dec-B588).
 Rulings, quoted where they settle a call: dec-A15 (fitted takes ci.level after sample; of the hurdle's missing test channel,
 "make sure that its missing test channel is treated as part of feature-completion work and we don't forget it"), dec-A114
 (hurdle predict's offset is a reserved slot; "Hurdle offsets are coming."), dec-B07 (one predict argument order), dec-B236
@@ -644,3 +645,25 @@ plot's length-n logical could pick wrong columns silently for some m. Recycling 
 selections right and only adds columns from the first m rows' pattern, so the panel either reads the right columns (no
 positive row among the first m) or fails on the length check; the defect is loud, and the fix and its pin stand. On open
 call 2 the critique would bring (a) as a confirmation; the call stays open, no ruling settling it.
+
+## Landing note
+
+Landed 2026-11-05: S1 to S6 on one branch, built by two Sonnet implementers (S1 to S4, then S5 and S6), rebased onto main
+twice, merged once after coefficient-prior-live.
+
+Review: one Sonnet reviewer over the whole feature, its own before/after records and mutants 1, 3, 8, 12, 14 and 17 with one of
+its own: LAND, with one call it would build otherwise. Partial dependence on a fit made with `keepTrainingFits = FALSE` refused a
+plain-vector positive-part offset whose training-row values the fit did not keep; a gaussian or probit fit takes the same call,
+its sampler keeping the offset. The fix round stores the positive part's offset at every training row on the fit and reads it
+there (call 11 in dec-A262), and rewrites the hurdle item of the sampler's help. The reviewer checked the fix round: LAND, the
+three families agreeing with their `keepTrainingFits = TRUE` fits.
+
+Gates on the final tip: the before/after gate against a shipped build of 170635476, 50 scenarios and 2,023 of 2,023 elements
+identical, by the builders after each slice and by the reviewer from its own records; hurdle-reduction.R, every arm bitwise;
+hurdle-exact.R in quick and full; the full suite in one process, 40,890 passed and 0 failed; the exact gates in quick; the
+equivalence compare, 55 of 55 identical with the hurdle scenario among them; R CMD check --as-cran with one NOTE, the date; lint,
+air, codoc, Windows drift and doc freshness. Mutants 1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 and 17 killed; 1 and 14 by
+an error before their named pin, 2 and 4 not run. No compiled code moves, so no tests/cpp, sanitizer or x86 leg is owed. CI, all
+nine workflows, on the branch tip.
+
+The calls are in dec-A262. Call made 7 (dec-A89 on the matrix route) is told to the maintainer at this landing.
