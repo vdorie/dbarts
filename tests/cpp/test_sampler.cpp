@@ -14073,8 +14073,10 @@ static void testMoveSettingsMatchCreation() {
 // sampler draws with every forest on - on two gaussian forests, where a step
 // taken in the forest loop would follow the first forest's sweep. A drawn-k
 // probit forest's step follows the augmentation draw that opens the sweep,
-// which no entry outside the sweep reaches, so there the hand-taken step,
-// ahead of the draw, draws differently.
+// so there the hand-taken step, ahead of the draw, draws differently. That
+// arm does not pin the level step ahead of the rescaling step: both follow
+// the draw, between it and the trees, where no hand-taken step reaches, so
+// the two steps swapped, a valid kernel either way, pass it.
 static void testLevelGibbsPerForest() {
   std::uint64_t savedRngState = rngState;
   MoveFixtureData d;
