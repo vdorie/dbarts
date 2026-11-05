@@ -2235,13 +2235,13 @@ public:
   /// leaf's U'WU cache dropped where the draw moves the weights it is stated
   /// against. The fits are formed only for a family that holds latents; one
   /// that holds none draws nothing here (the multinomial draws its own inside
-  /// the tree loop). The poll is armed for the sweep's own draw only.
-  void drawAugmentation() {
+  /// the tree loop). polled arms the run's cancel for the draw alone.
+  void drawAugmentation(bool polled) {
     if (response_->latents() != nullptr) {
       const double* fits = combinedFits();
-      armRefreshCancel(true);
+      if (polled) armRefreshCancel(true);
       response_->refreshLatents(rng_, fits, sigma_);
-      armRefreshCancel(false);
+      if (polled) armRefreshCancel(false);
     }
     if constexpr (L::hasVectorParams)
       if (response_->workingWeightsVaryPerSweep())
@@ -2353,7 +2353,7 @@ public:
       // hook reaches the trees this sweep fits: drawn after the trees, they
       // would fit values drawn before it, exact only for an outer step that
       // conditions on them
-      drawAugmentation();
+      drawAugmentation(true);
       // the working pointers are read after it every sweep, since a setter in
       // the hook can change which buffer the family serves (a mask installed)
       double* y = response_->workingResponse();
@@ -3271,9 +3271,9 @@ public:
 
       for (size_t sweep = 0; sweep < numSweeps; ++sweep) {
         // the sweep's own order: the latents first, against the fits the
-        // grown trees start from, then the working pointers. Not polled: no
-        // cancel is installed outside a run
-        drawAugmentation();
+        // grown trees start from, then the working pointers. The draw arms no
+        // cancel: a grow sweep is no run's sweep, even inside a run's hook
+        drawAugmentation(false);
         double* y = response_->workingResponse();
         const double* weights = response_->workingWeights();
 
