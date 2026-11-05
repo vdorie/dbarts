@@ -592,9 +592,7 @@ move work into per-sweep callbacks, for example to keep memory down.
 `dbarts_sampler_setDrawCallback` in the C API or passed from R as the
 `callback` argument of `bart` and the sampler's `run`. It fires once per kept
 draw, on the thread running that chain - a worker thread when chains run in
-parallel - and sees everything recorded for that draw; `dbarts_draw` carries no latents,
-and a callback that reads them with `dbarts_sampler_getLatents` is safe only
-on an inline run, where it sees this sweep's. A nonzero return
+parallel - and sees everything recorded for that draw; `dbarts_draw` carries no latents. A nonzero return
 stops the run (docs/design/per-draw-callbacks.md).
 
 **Errors.** The engine reports every error as a C++ exception. Each bridge

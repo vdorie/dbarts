@@ -957,8 +957,7 @@ int dbarts_sampler_setSigma(dbarts_sampler* sampler, double sigma);
 /// values from before the setter, except that a new data object starts them
 /// as creation does (an ordinal or nbinom sampler from the kept cutpoints or
 /// shape) and an aft response leaves a censored row at its new bound; the next
-/// sweep draws them afresh. A callback that reads them on an inline run sees
-/// this sweep's.
+/// sweep draws them afresh. The draw struct carries none.
 ///
 /// WHAT the variable is depends on the family and is not uniform. A LOCATION,
 /// on the sampler's own latent scale, for probit (the truncated normal z),
