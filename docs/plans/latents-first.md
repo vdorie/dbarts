@@ -1,7 +1,9 @@
 # latents-first: a sweep draws its augmentation variables before the trees
 
-Status: PLANNED 2026-11-03 on main 730dd0adf (dec-B586); blind critique 2026-11-05 on main 7937d252f, BUILD AFTER
-AMENDMENTS; amended 2026-11-05 ([Critique and amendments](#critique-and-amendments)). Not built.
+Status: LANDED 2026-11-05, slices 1 to 4 on three stacked branches merged once, each engine slice and the docs slice
+reviewed LAND with a fix round (dec-A263, [Landing note](#landing-note)). PLANNED 2026-11-03 on main 730dd0adf
+(dec-B586); blind critique 2026-11-05 on main 7937d252f, BUILD AFTER AMENDMENTS; amended 2026-11-05 ([Critique and
+amendments](#critique-and-amendments)).
 
 agent: one opus implementer each for slices 2a and 2b (engine) and one sonnet implementer for slices 1 and 3 (a
 gate, then the documentation). Review by tier ([Process by risk](README.md#process-by-risk)): slice 1 one sonnet
@@ -671,3 +673,32 @@ private library; main built as another. Scripts and outputs in scratch/ltf-plan/
   built against an older dbarts and were not rebuilt; bairrtt's pinned values were read, not run.
 - Student-t nu under setData swaps: the probe's difference is inside its noise.
 - BCF gaussian bit for bit, and the equivalence trio's partition, predicted from probe 6 and the code.
+
+## Landing note
+
+Landed 2026-11-05: the plan and slice 1's gate, slice 2a (the order), slice 2b (the setters and the state) and slice 3
+(help, header, vignette, design notes) on three stacked branches, restacked after each fix round, rebased onto main and
+merged once; slice 4 (the consumer runs and records) by the orchestrator.
+
+Review: an Opus reviewer per engine slice ran the plan's mutants and its own; a Sonnet reviewer read slice 3 against the
+engine as built. 2a: LAND, every named mutant killed; the three BCF latent scenarios' moves traced to the harness's
+single-chain fallback, which fails seed-only changes on the base build, while 60 seeds a side at 10,000 kept sweeps and
+bcf-latent-exact found their posterior unchanged. Its fix round pinned growForestFromRoot's order (mutant O1), left that
+sweep's draw unpolled, and said in the level-step test that the level step's place ahead of the rescaling step is no
+longer pinned. 2b: FIX FIRST on two kept rebuilds at setResponse no test pinned (mutants OWN1, OWN2); its fix round
+pinned them with a created-against-handed comparison, dropped the multinomial re-record (bitwise 80b1c8d4) and the test
+that a development build's state loads. Slice 3: FIX FIRST on recipe 6's numbers, re-measured on the new order (about
+0.28, roughly seventeen oracle standard errors), and on two sentences this plan prescribed: dbarts_draw carries no
+latents, so the draw callback does not see them, and a stop inside the tree loop, at a multinomial omega or a coupled
+glue draw, can leave a sweep partly done. Each fix round was checked by its reviewer: LAND.
+
+Consumers: stan4bart, bairrtt and treatSens pass unchanged; bartCause's three regression pins on the propensity score
+move and are restated on its branch latents-first, merged with this landing.
+
+Gates on the final tip: the suite in one process, 41,176 expectations, 0 failed; tests/cpp 431, 0 failed; on the
+reference build the trio bitwise (equivalence and bcf-equivalence against a6e83f38, multinomial against 80b1c8d4) and
+the four snapshot files, 0 failed; lintr, air, codoc and the Windows drift check clean. The x86 leg (Linux, x86-64):
+tests/cpp 431 plain and under the address and leak sanitizers, 0 failed, 0 sanitizer reports; the suite 41,304, 0
+failed; the trio within the cross-host bounds. CI, all nine workflows, on the branch tip.
+
+The calls are in dec-A263.
