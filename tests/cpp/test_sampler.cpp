@@ -1756,6 +1756,69 @@ static void testLatentsDrawnFirst() {
   printf("ok: latents drawn first\n");
 }
 
+// A grow-from-root sweep takes the sweep's order too: on probit, ordinal and
+// logistic, the latents after one grow sweep, with the ordinal cutpoints, equal
+// a twin's drawn by hand at the state the sweep opens on, its generator the
+// sampler's at the sweep's start; the grown trees, drawn after, leave them be.
+static void testGrowFromRootDrawsFirst() {
+  std::uint64_t savedRngState = rngState;
+  const size_t n = 60, p = 2;
+  std::vector<double> x(n * p), binary(n), ordinal(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    double s = x[i] + 0.4 * (runif01() - 0.5);
+    binary[i] = s > 0.5 ? 1.0 : 0.0;
+    ordinal[i] = s < 0.35 ? 1.0 : s < 0.65 ? 2.0 : 3.0;
+  }
+  struct Family {
+    const char* name;
+    ResponseFamily family;
+    const double* y;
+    std::size_t numCategories;
+  };
+  const Family families[] = {
+    {"probit", ResponseFamily::probit, binary.data(), 0},
+    {"ordinal", ResponseFamily::ordinal, ordinal.data(), 3},
+    {"logistic", ResponseFamily::logistic, binary.data(), 0}};
+  for (const Family& family : families) {
+    SamplerOptions options;
+    options.numTrees = 5;
+    options.numCategories = family.numCategories;
+    auto make = [&](ext_rng*& rng) {
+      rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      ext_rng_setSeed(rng, 20261105u);
+      return std::make_unique<ConstantLeafSampler>(
+        x.data(), family.y, n, p, nullptr, nullptr, family.family, 1.0, 3.0,
+        0.37804942330213542, options, &rng);
+    };
+    ext_rng *rngA, *rngB;
+    auto a = make(rngA);
+    auto b = make(rngB);
+    Results results;
+    a->run(5, 0, results);
+    b->run(5, 0, results);
+    a->chain(0).growForestFromRoot(1);
+    TestPeer::refreshLatents(b->chain(0));
+    const ResponseModel& ra = TestPeer::response(a->chain(0));
+    const ResponseModel& rb = TestPeer::response(b->chain(0));
+    bool same = std::equal(ra.latents(), ra.latents() + n, rb.latents());
+    if (ra.carriesOrdinalThresholds())
+      same = same && std::equal(ra.ordinalThresholds(),
+                                ra.ordinalThresholds() +
+                                  ra.numOrdinalThresholds(),
+                                rb.ordinalThresholds());
+    check(same, (std::string(family.name) +
+                 ": a grow sweep's latents are the twin's draw at its start")
+                  .c_str());
+    a.reset();
+    b.reset();
+    ext_rng_destroy(rngA);
+    ext_rng_destroy(rngB);
+  }
+  rngState = savedRngState;
+  printf("ok: grow from root draws first\n");
+}
+
 // The draw that opens a sweep drops the linear leaf's U'WU cache, which the
 // Polya-Gamma precisions it redraws are stated against. On logistic, with
 // leaves above the cache's minimum size, a sampler's sweeps draw bit for bit
@@ -16594,6 +16657,7 @@ void runSamplerTests(ext_rng* rng) {
   testMultinomialRefreshInterrupt();
   testRefreshInterruptScope();
   testLatentsDrawnFirst();
+  testGrowFromRootDrawsFirst();
   testLinearLeafCacheAcrossDraws();
   testEndToEndCategorical(rng);
   testWideCategorical(rng);
