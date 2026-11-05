@@ -41,7 +41,7 @@ gaussian data and the variance forest backfits against e_i = y_i - f(x_i) as und
 ([`Chain::sweepVarianceForest`](../../src/bartcore/chain.hpp)), its conjugacy assuming nothing about the provenance of y. The
 mean forest sees w_i / s^2(x_i) ([`Chain::formMeanWeights`](../../src/bartcore/chain.hpp)), aft's free channel supplying 1 or
 the mask, and [`Chain::run`](../../src/bartcore/chain.hpp) orders the blocks so: `refreshLatents`
-(against the variance surface the previous sweep drew, [latents-first](latents-first.md)), mean weights, mean forest, no sigma draw, variance forest.
+(against the variance surface the previous sweep drew, [The order](latents-first.md#the-order)), mean weights, mean forest, no sigma draw, variance forest.
 
 ## 3. Engine interface for the per-observation variance
 

@@ -124,7 +124,7 @@ row and the mask annihilates it through the composite instead, at no cost to
 the generator ([`TResponse::refreshLatents`](../../src/bartcore/model.hpp)).
 
 A stale latent must not come back into the likelihood. A sweep draws its latents
-first and moves its trees after ([latents-first](latents-first.md)), so a row switched back in enters the next tree update with a latent
+first and moves its trees after ([The order](latents-first.md#the-order)), so a row switched back in enters the next tree update with a latent
 drawn against the fit as that sweep finds it, not the one it left on. (Amended 2026-11-05: until then
 a sweep moved its trees first, and `setActiveRows` itself redrew the row's latent, off the chain's own
 generator, before it returned.) `setActiveRows` stores the mask and draws nothing; the next sweep
@@ -283,7 +283,7 @@ weights, the degrees-of-freedom recount included
 
 The reactivation draw, per family: the next sweep draws each switched-in row's latent from its
 conditional given the fit, the draw every row's latent gets, so the order tests of
-[latents-first](latents-first.md) cover it; the combined sampler against the exact joint, whose probit arm fails if
+[The order](latents-first.md#the-order) cover it; the combined sampler against the exact joint, whose probit arm fails if
 a switched-in row keeps a stale latent (`benchmarks/R/mask-redraw-exact.R`); and the location the chain hands the draw, on a two-forest probit
 with an offset ([`testMembershipAcrossForests`](../../tests/cpp/test_sampler.cpp)).
 

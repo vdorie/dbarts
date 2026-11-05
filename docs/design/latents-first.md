@@ -1,6 +1,6 @@
 # Latents first: a sweep draws its augmentation variables before the trees
 
-Status: PLANNED 2026-11-05, on the latents-first branch, not landed ([latents-first](../plans/latents-first.md#latents-first-a-sweep-draws-its-augmentation-variables-before-the-trees)); the user-facing text is the embedding page's "When the augmentation variables are drawn".
+Status: PLANNED 2026-11-05, on the latents-first branch, not landed ([latents-first: a sweep draws its augmentation variables before the trees](../plans/latents-first.md#latents-first-a-sweep-draws-its-augmentation-variables-before-the-trees)); the user-facing text is the embedding page's "When the augmentation variables are drawn".
 
 The class: POSTERIOR-CHANGING for an embedded sampler whose outer step integrates the latents out, and for a logistic sampler handed a new offset; draw-changing and posterior-preserving for a plain fit of a family with augmentation variables; bit for bit for gaussian, heteroscedastic gaussian, multinomial and an aft fit with no censored row.
 

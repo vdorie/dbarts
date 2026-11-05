@@ -531,7 +531,7 @@ true (per-sweep omega), dropping the sufficient-statistic caches each sweep
 ([`Chain::run`](../../src/bartcore/chain.hpp)), the logistic behavior.
 
 **refreshLatents order - r FIRST, then omega (the invariance requirement).**
-The pair is drawn at the start of each sweep, ahead of the trees ([latents-first](latents-first.md)); the cycle of blocks is the
+The pair is drawn at the start of each sweep, ahead of the trees ([The order](latents-first.md#the-order)); the cycle of blocks is the
 same, begun at block 2. Per sweep: (1) update r from its full conditional given the log means
 (section 2A), COLLAPSED over omega: it conditions on (y, f) only and never reads
 the omega draws; (2) draw omega_i ~ PG(y_i + r_new, psi_i) at the NEW r, with
@@ -551,7 +551,7 @@ exact-posterior gate (section 6), which runs the full composed sweep against an
 augmentation-free reference, is the gate that would. sigma is ignored (fixed
 at 1) in all three steps.
 
-**setResponse / setData.** Neither draws omega; the next sweep does (amended 2026-11-05, [latents-first](latents-first.md)).
+**setResponse / setData.** Neither draws omega; the next sweep does (amended 2026-11-05, [The order](latents-first.md#the-order)).
 setResponse (same n, new y - the embedded-
 Gibbs count swap): KEEP the current r (a slow-moving global the outer sampler
 wants persisted across a small y perturbation - the ordinal kept-cutpoints

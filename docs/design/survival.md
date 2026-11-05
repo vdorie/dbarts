@@ -143,7 +143,7 @@ them be decided one at a time.
    (which observations are censored is structural, like the group
    assignment), and leaves the censored latents at their new bounds, the
    next sweep drawing them against the current fit (amended 2026-11-05,
-   [latents-first](latents-first.md); delegated through the contained
+   [The order](latents-first.md#the-order); delegated through the contained
    Gaussian's setResponse). Changing the censoring pattern needs a new sampler.
 
 5. Weights. SHIPPED unsupported in AFT v1 (refused at creation, as

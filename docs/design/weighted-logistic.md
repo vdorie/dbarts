@@ -146,7 +146,7 @@ in-model IPW.
 
 ## The saved state (follow-on)
 
-Amended 2026-11-05 by [latents-first](latents-first.md): the counts do not ride the state, and
+Amended 2026-11-05 by [The order](latents-first.md#the-order): the counts do not ride the state, and
 nothing of them does. The digest (`weights.digest`) and the `setState` re-derivation against the
 destination's counts are retired, with `ResponseModel::reapplyWeights`. A stored latent is the
 value the stored trees were drawn from, `setState` installs it and draws nothing, and the next
@@ -157,7 +157,7 @@ bit.
 
 ### A Student-t state names its zero-weight rows (amended 2026-10-06)
 
-Amended 2026-11-05 by [latents-first](latents-first.md): retired. A Student-t scale is drawn every
+Amended 2026-11-05 by [The order](latents-first.md#the-order): retired. A Student-t scale is drawn every
 sweep at every row, and at a row of weight zero it is drawn without that row's residual, so a
 setter that drew scales had to know which rows were out. With every scale drawn at the start of
 the next sweep, against the weights then in force, no setter draws and the state no longer

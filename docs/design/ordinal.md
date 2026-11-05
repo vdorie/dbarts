@@ -127,7 +127,7 @@ fixed count-derived proposal scale.
 **Draw order (decided): cutpoints, then latents.** The response family's
 refreshLatents fires once per sweep, first, before the trees, against the
 combined fits the previous sweep left ([`run`](../../src/bartcore/chain.hpp); the order is
-[latents-first](latents-first.md)). Ordinal splits it into (1) a marginal Metropolis
+[The order](latents-first.md#the-order)). Ordinal splits it into (1) a marginal Metropolis
 update of the free cutpoints against eta = totalFits + offset, with the latents
 integrated out (the Phi-difference likelihood of section 1), then (2) a fresh
 draw of z_i from the doubly-truncated N(eta_i, 1) on (gamma_{y_i-1}, gamma_{y_i}]
@@ -416,7 +416,7 @@ restoreLatents rebuilds working from z. Choosing the count-derived FIXED
 proposal scale (section 3) means nothing else serializes; an adaptive scale
 would add a second scalar-vector block.
 
-**setResponse / setData.** Neither draws z; the next sweep does (amended 2026-11-05, [latents-first](latents-first.md)).
+**setResponse / setData.** Neither draws z; the next sweep does (amended 2026-11-05, [The order](latents-first.md#the-order)).
 setResponse (same n, new y - the embedded-Gibbs swap): KEEP the current cutpoints (a slow-moving
 global parameter the outer sampler wants persisted across a small y perturbation), recompute the
 per-cutpoint scales, and leave z as it was; the next sweep draws it from the current fits under the

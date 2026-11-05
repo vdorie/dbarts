@@ -62,7 +62,7 @@ redrawn each sweep, sigma delegated;
 than the plan's "grouped decorator." Only computeLogLikelihood needs a real
 override (report dt, not the conditional dnorm); latents() exposes lambda_ for
 the state block as probit exposes omega; a new sampler starts lambda_ at 1 and the next sweep draws it. setResponse keeps lambda_ and nu, and setData starts lambda_ as a
-new sampler does and keeps nu, neither drawing (amended 2026-11-05, [latents-first](latents-first.md)); a weight that leaves zero redraws nothing.
+new sampler does and keeps nu, neither drawing (amended 2026-11-05, [The order](latents-first.md#the-order)); a weight that leaves zero redraws nothing.
 
 Scope answer: **gaussian-only for v1;** probit/logistic have a fixed unit scale
 and are untouched. A t-latent probit (robit; Liu 2004) is a legitimate

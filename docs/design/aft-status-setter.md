@@ -58,7 +58,7 @@ rather than invented:
   every chain holds one transform. Since 2026-10-07 that holds of
   [`AFTResponse::setOffset`](../../src/bartcore/model.hpp) at `updateScale = TRUE` too, which until then read the times
   in force and left each chain in a transform of its own.
-- **Latents.** Amended 2026-11-05 ([latents-first](latents-first.md)): the setter draws nothing. Event to censored takes the row's own observed time as its new bound
+- **Latents.** Amended 2026-11-05 ([The order](latents-first.md#the-order)): the setter draws nothing. Event to censored takes the row's own observed time as its new bound
   and holds the latent there; censored to event restores that time, which is data, not a draw; the next sweep draws every censored
   row above its bound, before the mean forest reads the working response ([`AFTResponse::refreshLatents`](../../src/bartcore/model.hpp)).
   A caller driving one sweep per call therefore reads, between the setter and the run, the bound, not an imputed value.
@@ -118,7 +118,7 @@ control with the new status and a state from before it. So restore the censored 
 has no business overwriting. The RESTORE CONTRACT holds (a write plus a working rebuild reading neither sigma nor the
 surface), and section 3's reconstruction becomes valid everywhere.
 
-**No status handshake (amended 2026-11-05, [latents-first](latents-first.md)).** A `survival.digest` attribute once
+**No status handshake (amended 2026-11-05, [The order](latents-first.md#the-order)).** A `survival.digest` attribute once
 let `setState` find a status other than the one the state was stored under and redraw the censored set off each chain's
 restored generator. It is retired: a state carries no status and no digest of it, `setState` installs the latents the stored
 trees were drawn from and draws none, and the next sweep draws every censored row above its bound under the status in force.

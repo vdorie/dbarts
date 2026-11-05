@@ -110,7 +110,7 @@ whole-matrix and column-granular and per-observation, is open at every sampler
 shape.
 
 **What a mutation does to the latents.** A sweep draws its augmentation variables first, after
-whatever the driver wrote between sweeps ([latents-first](latents-first.md)), and the mutations draw none: each stores what it
+whatever the driver wrote between sweeps ([The order](latents-first.md#the-order)), and the mutations draw none: each stores what it
 is given and the next sweep draws the latents against it. The driver's outer step is exact whether it
 reads the latents through `getLatents` or integrates them out, and `getLatents` between a mutation and
 the next run returns the values from before it (a new data object starts them as creation does, and an
