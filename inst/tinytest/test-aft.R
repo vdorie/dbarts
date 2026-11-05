@@ -95,7 +95,7 @@ for (rate in c(0.2, 0.5)) {
   expect_equal(r$lat[!cens], r$obs[!cens])
 }
 
-# ---- setResponse under censoring redraws the latents, keeps status ----
+# ---- setResponse under censoring keeps status; the sweeps draw the latents ----
 
 set.seed(3L)
 cens.time <- f + 0.3 + sigma.true * rnorm(n)
@@ -562,11 +562,12 @@ y.hs <- s.hs$data@y
 # a row censored when the state was stored and an event after it keeps its
 # observed log event time: the state has no business overwriting data
 expect_equal(lat.hs[status.hs2 == 1], y.hs[status.hs2 == 1])
-# and a row that is an event in the state and censored here comes back
-# REDRAWN above its bound rather than sitting on it
-expect_true(all(lat.hs[newly] > y.hs[newly]))
+# and a row that is an event in the state and censored here comes back at
+# its bound, the install drawing nothing; the next sweep draws it above
+expect_equal(lat.hs[newly], y.hs[newly])
 expect_true(all(lat.hs[status.hs2 == 0] >= y.hs[status.hs2 == 0]))
 expect_silent(invisible(s.reloaded$run(0L, 1L)))
+expect_true(all(s.reloaded$getLatents()[newly] > y.hs[newly]))
 
 # a survival formula writes its response with Surv(); cbind() on the left is
 # refused under an explicit survival family, naming Surv()

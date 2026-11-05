@@ -522,8 +522,7 @@ struct Fixtures {
   }
 
   /// The one fixture carrying a censoring structure, which is what gives the
-  /// survival digest a non-zero value to report and the status setter
-  /// something to move.
+  /// status setter something to move.
   void buildSurvival() {
     SamplerOptions options;
     options.numTrees = 6;

@@ -197,18 +197,18 @@ for (label in names(gaussianCases)) {
   )
   expectIdentity(gaussianCases[[label]], maskCall(w01), paste(label, "mask"))
 }
-# rows entering at the call: the install draws their latents at the transform
-# in force, and the re-derivation redraws nothing
+# rows entering at the call: neither the install nor the re-derivation moves a
+# latent, the next sweep drawing them
 expectEntering <- function(build, call, label) {
   a <- build()
   latents <- a$getLatents()
   expectIdentity(build, call, label)
   b <- build()
   call(b, FALSE)
-  expect_false(identical(latents, b$getLatents()), info = label)
+  expect_identical(b$getLatents(), latents, info = label)
   c2 <- build()
   call(c2, TRUE)
-  expect_identical(c2$getLatents(), b$getLatents(), info = label)
+  expect_identical(c2$getLatents(), latents, info = label)
 }
 expectEntering(
   function() mkG(weights = w01, family = studentFamily),

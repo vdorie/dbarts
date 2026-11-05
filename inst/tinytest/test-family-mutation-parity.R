@@ -211,12 +211,10 @@ yHazardB <- expandStatus(statusB)
 expect_identical(hazardSampler(statusB)$data@y, yHazardB)
 
 # --- hazard: setResponse ---
-# Equalized arms, both reaching the compared state through the setter. A
-# probit constructor cold-starts its latents at z = 2 y - 1 and draws nothing,
-# where setResponse redraws z from the truncated normal against the current
-# fits; a created sampler and a mutated one are therefore different states by
-# construction, and the parity the setter owes is that its post-state depends
-# only on the response installed, never on the one it replaced.
+# setResponse draws nothing and the next sweep draws z first, against the
+# response installed, so the setter's post-state depends only on that
+# response, never on the one it replaced, and a mutated sampler runs as a
+# created one.
 
 hazardSwapped <- hazardSampler(statusA)
 hazardSwapped$setResponse(yHazardB)
@@ -236,10 +234,9 @@ hazardOther$setResponse(hazardLayout$data@y)
 hazard.otherResponse <- recordHazard(hazardOther)
 expect_false(isTRUE(all.equal(hazard.otherResponse$train, hazard.self$train)))
 
-# and the cold start really is a different state, which is why the arms above
-# are equalized rather than compared against a plain creation
+# and a plain creation is the same sampler
 hazard.createdB <- recordHazard(hazardSampler(statusB))
-expect_false(isTRUE(all.equal(hazard.createdB$train, hazard.self$train)))
+expect_identical(hazard.createdB$train, hazard.swapped$train)
 
 # --- hazard: setOffset ---
 # Creation replicates a subject-level offset down the person-period rows; the

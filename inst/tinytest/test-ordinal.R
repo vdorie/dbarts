@@ -365,7 +365,7 @@ expect_error(
   "'state' length must equal number of chains"
 )
 
-# --- mutation semantics: setResponse keeps thresholds, redraws z ---
+# --- mutation semantics: setResponse keeps thresholds and z ---
 
 before <- sampler$state
 threshBefore <- before[[1L]]$thresholds
@@ -381,11 +381,14 @@ sampler$setResponse(as.double(codesNew), updateState = TRUE)
 
 after <- sampler$state
 expect_identical(after[[1L]]$thresholds, threshBefore)
-expect_false(identical(after[[1L]]$latents, latentsBefore))
-# the redrawn z respect the kept thresholds' intervals for the NEW response:
-# y = k implies gamma_{k-1} < z <= gamma_k (gamma_0 = -Inf, gamma_K = +Inf)
-bounds <- c(-Inf, threshBefore, Inf)
-zNew <- after[[1L]]$latents
+expect_identical(after[[1L]]$latents, latentsBefore)
+# the next sweep draws z first, in the intervals of the NEW response under the
+# thresholds it draws with them: y = k implies gamma_{k-1} < z <= gamma_k
+# (gamma_0 = -Inf, gamma_K = +Inf)
+invisible(sampler$run(0L, 1L))
+sampler$storeState()
+bounds <- c(-Inf, sampler$state[[1L]]$thresholds, Inf)
+zNew <- sampler$state[[1L]]$latents
 expect_true(all(zNew > bounds[codesNew] & zNew <= bounds[codesNew + 1L]))
 
 # the category coding is fixed at creation, so mutation accepts exactly what

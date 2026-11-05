@@ -1,11 +1,10 @@
-# $setActiveRows redraws the latent of every row it switches from inactive to
-# active, against the current fit and before it returns, so a larger sampler
-# that redraws the mask from the fit - the latents integrated out - draws the
-# mask and those latents jointly. Nothing else moves: a row that stays active,
-# stays inactive or is switched off keeps its latent, and a mask that
-# reactivates no row draws nothing, so reinstalling the mask in force leaves
-# the stream where it was. A Student-t sampler does the same for a row whose
-# case weight leaves zero through $setWeights.
+# $setActiveRows stores the mask and draws nothing: a row switched back in
+# keeps its latent until the next sweep, which draws every latent first,
+# against the mask, the weights and the fit in force. So a larger sampler that
+# redraws the mask from the fit, the latents integrated out, is exact, and
+# reinstalling the mask in force leaves the stream where it was. A Student-t
+# sampler does the same for a row whose case weight leaves zero through
+# $setWeights.
 
 set.seed(20261005L)
 n <- 120L
@@ -120,25 +119,28 @@ for (arm in names(arms)) {
     info = arm
   )
 
-  # a pattern that brings rows back: exactly those rows' latents are redrawn
-  held <- sampler$getLatents()
-  install(sampler, second)
-  moved <- sampler$getLatents() != held
-  expect_true(all(moved[reactivated]), info = arm)
-  expect_false(any(moved[!reactivated]), info = arm)
-  expect_true(all(is.finite(sampler$getLatents())), info = arm)
-
-  # lifting it brings back every row still out
-  held <- sampler$getLatents()
-  install(sampler, NULL)
-  moved <- sampler$getLatents() != held
-  expect_true(all(moved[second == 0]), info = arm)
-  expect_false(any(moved[second == 1]), info = arm)
-  expect_true(all(is.finite(sampler$run(0L, 3L)$train)), info = arm)
+  # a pattern that brings rows back, and lifting it: no latent moves, no
+  # variate is drawn, and the next sweeps run as on a twin handed the same
+  # patterns
+  for (rows in list(second, NULL)) {
+    held <- sampler$getLatents()
+    sampler$storeState()
+    stream <- sampler$state[[1L]][["rng.state"]]
+    install(sampler, rows)
+    install(twin, rows)
+    expect_identical(sampler$getLatents(), held, info = arm)
+    sampler$storeState()
+    expect_identical(sampler$state[[1L]][["rng.state"]], stream, info = arm)
+    expect_identical(
+      sampler$run(0L, 3L)$train,
+      twin$run(0L, 3L)$train,
+      info = arm
+    )
+  }
 }
 
-# 0/1 case weights on probit are the mask, so $setWeights redraws the same
-# latents $setActiveRows does
+# 0/1 case weights on probit are the mask, so $setWeights and $setActiveRows
+# leave the same latents and the same next sweeps
 weighted <- arms$probit$make()
 masked <- arms$probit$make()
 for (rows in list(first, second, rep(1, n))) {
@@ -150,14 +152,15 @@ for (rows in list(first, second, rep(1, n))) {
 }
 expect_identical(weighted$run(0L, 3L)$train, masked$run(0L, 3L)$train)
 
-# The redrawn Student-t scale is a draw from its conditional at the fit and
-# residual scale in force when the weight comes back: lambda_i is gamma with
-# shape (nu + 1) / 2 and rate (nu + w_i (y_i - f_i)^2 / sigma^2) / 2. Forty
-# rounds of thirty rows. The bounds are wide because the draws are not the
-# same on every platform, so each is a fresh sample there: six standard errors
-# on the mean, and a p-value a sample from the conditional falls under once in
-# a million. A scale kept from while the row was out has a mean transform of
-# 0.65 and a p-value of 1e-60.
+# The scale of a row whose weight comes back is drawn by the next sweep, first,
+# from its conditional at the fit and residual scale the previous sweep left:
+# lambda_i is gamma with shape (nu + 1) / 2 and rate
+# (nu + w_i (y_i - f_i)^2 / sigma^2) / 2. Forty rounds of thirty rows. The
+# bounds are wide because the draws are not the same on every platform, so
+# each is a fresh sample there: six standard errors on the mean, and a p-value
+# a sample from the conditional falls under once in a million. A scale kept
+# from while the row was out has a mean transform of 0.65 and a p-value of
+# 1e-60.
 sampler <- student()
 out <- which(first == 0)
 transformed <- numeric(0)
@@ -165,6 +168,7 @@ for (round in seq_len(40L)) {
   sampler$setWeights(first * w.positive)
   draw <- sampler$run(3L, 1L)
   sampler$setWeights(w.positive)
+  invisible(sampler$run(0L, 1L))
   rate <- 0.5 *
     (nu +
       w.positive[out] *
@@ -201,7 +205,7 @@ rm(
   sampler,
   twin,
   held,
-  moved,
+  stream,
   weighted,
   masked,
   rows,

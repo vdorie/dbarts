@@ -348,7 +348,7 @@ expect_error(
   "'state' length must equal number of chains"
 )
 
-# --- mutation semantics: setResponse keeps r, redraws omega ---
+# --- mutation semantics: setResponse keeps r and omega ---
 
 before <- sampler$state
 rBefore <- before[[1L]]$shape
@@ -363,10 +363,10 @@ yNew[swap] <- rnbinom(40L, size = 5L, mu = 3)
 sampler$setResponse(as.double(yNew), updateState = TRUE)
 
 after <- sampler$state
-# r is a slow-moving global the count swap keeps; the omega latents are redrawn
+# the count swap draws nothing: r and the omega latents are kept for the next
+# sweep to draw against the new counts
 expect_identical(after[[1L]]$shape, rBefore)
-expect_false(identical(after[[1L]]$latents, latentsBefore))
-expect_true(all(after[[1L]]$latents > 0)) # omega are Polya-Gamma (positive)
+expect_identical(after[[1L]]$latents, latentsBefore)
 
 # the support rule creation applies is applied at mutation too. A negative
 # element is memory safety, not taste: it used to size the shape kernel's

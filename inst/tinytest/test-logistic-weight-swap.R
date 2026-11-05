@@ -1,9 +1,10 @@
 # The logistic weight channel. A logistic sampler's case weights are the
 # observation counts its Polya-Gamma latents are built from, so replacing them
-# is a model change with a defined meaning: the engine redraws omega against
-# the new counts on the spot, and an outer sampler can vary exposure between
-# sweeps. Probit, ordinal, aft and nbinom decline by identification and keep
-# their refusals.
+# is a model change with a defined meaning: setWeights stores the counts and
+# rebuilds the working response from the omega in force, the next sweep drawing
+# omega first against the new counts, and an outer sampler can vary exposure
+# between sweeps. Probit, ordinal, aft and nbinom decline by identification and
+# keep their refusals.
 
 source(
   system.file("common", "captureWarnings.R", package = "dbarts"),
@@ -26,11 +27,12 @@ logisticControl <- function(n.chains = 1L) {
     seed = 902L
   )
 }
-logisticSamplerWeightSwap <- function(weights, n.chains = 1L) {
+logisticSamplerWeightSwap <- function(weights, n.chains = 1L, offset = NULL) {
   dbarts(
     x,
     y,
     weights = weights,
+    offset = offset,
     family = "logistic",
     control = logisticControl(n.chains),
     n.trees = 20L
@@ -38,50 +40,51 @@ logisticSamplerWeightSwap <- function(weights, n.chains = 1L) {
 }
 
 # --- the build-vs-swap oracle -------------------------------------------
-# Creation consumes no weight-dependent randomness (the cold start is
-# deterministic) and leaves every chain generator at the same position, and
-# setResponse is the already-shipped conduit that runs the SAME refresh against
-# the same location, so a swapped sampler and one built with the new counts
-# agree BITWISE rather than merely closely.
-swapped <- logisticSamplerWeightSwap(w1)
-built <- logisticSamplerWeightSwap(w2)
-swapped$setWeights(w2)
-built$setResponse(y)
-expect_identical(swapped$getLatents(), built$getLatents())
-expect_identical(swapped$run(0L, 2L)$train, built$run(0L, 2L)$train)
+# Creation consumes no weight-dependent randomness and leaves every chain
+# generator at the same position, and the swap draws nothing, so a swapped
+# sampler keeps its latents and its sweeps are BITWISE those of one built with
+# the new counts, per chain.
+for (chains in 1:2) {
+  swapped <- logisticSamplerWeightSwap(w1, chains)
+  built <- logisticSamplerWeightSwap(w2, chains)
+  held <- swapped$getLatents()
+  swapped$setWeights(w2)
+  expect_identical(swapped$getLatents(), held)
+  expect_identical(swapped$run(0L, 2L)$train, built$run(0L, 2L)$train)
+}
 
 # not vacuous: a sampler left at the old counts is a different sampler
 untouched <- logisticSamplerWeightSwap(w1)
-expect_false(identical(swapped$getLatents(), untouched$getLatents()))
+expect_false(identical(
+  untouched$run(0L, 2L)$train,
+  logisticSamplerWeightSwap(w2)$run(0L, 2L)$train
+))
 
-# the fan-out is per chain, each drawing from its own generator, which is what
-# a broken one gets wrong on the second chain alone
-swappedPair <- logisticSamplerWeightSwap(w1, 2L)
-builtPair <- logisticSamplerWeightSwap(w2, 2L)
-swappedPair$setWeights(w2)
-builtPair$setResponse(y)
-expect_identical(dim(swappedPair$getLatents()), c(n, 2L))
-expect_identical(swappedPair$getLatents(), builtPair$getLatents())
+# the offset is the same conduit: one created with o1 and handed o2 is one
+# created with o2
+o1 <- 0.3 * x[, 2L]
+o2 <- -0.5 + x[, 2L]
+handed <- logisticSamplerWeightSwap(w2, offset = o1)
+created <- logisticSamplerWeightSwap(w2, offset = o2)
+handed$setOffset(o2)
+expect_identical(handed$run(0L, 3L)$train, created$run(0L, 3L)$train)
 
-# and off a grown forest, where the location the latents are drawn against is
-# no longer the all-zero one creation leaves
-ranA <- logisticSamplerWeightSwap(w1)
-ranB <- logisticSamplerWeightSwap(w1)
-invisible(ranA$run(5L, 1L))
-invisible(ranB$run(5L, 1L))
-grownBefore <- ranA$getLatents()
-ranA$setWeights(w2)
-ranB$setWeights(w2)
-expect_identical(ranA$getLatents(), ranB$getLatents())
-expect_false(identical(ranA$getLatents(), grownBefore))
+# and off a grown forest, the swap leaves the latents where the sweep put them
+grown <- logisticSamplerWeightSwap(w1)
+invisible(grown$run(5L, 1L))
+grownBefore <- grown$getLatents()
+grown$setWeights(w2)
+expect_identical(grown$getLatents(), grownBefore)
 
-# the shape, deterministically and with no run: at psi = 0 a count-w row's
-# omega is PG(w, 0) with mean w/4, so the mean latent tracks the counts the
-# swap installs. Maskless on purpose - see the mask cell below
+# the shape: at psi = 0 a count-w row's omega is PG(w, 0) with mean w/4, so the
+# mean latent the first sweep draws tracks the counts the swap installed.
+# Maskless on purpose - see the mask cell below
 unitCounts <- logisticSamplerWeightSwap(w1)
 eightCounts <- logisticSamplerWeightSwap(w1)
 unitCounts$setWeights(rep(1, n))
 eightCounts$setWeights(rep(8, n))
+invisible(unitCounts$run(0L, 1L))
+invisible(eightCounts$run(0L, 1L))
 expect_true(abs(mean(unitCounts$getLatents()) - 0.25) < 0.05)
 expect_true(abs(mean(eightCounts$getLatents()) - 2) < 0.4)
 
@@ -141,19 +144,20 @@ expect_true(mean(abs(tiedFit - flatFit)) > 0.12)
 expect_true(mean(abs(altFit - flatFit)) > 0.12)
 
 # --- the mask -------------------------------------------------------------
-# A swap draws for ACTIVE rows only: consuming variates for an inactive row
-# would desynchronize the stream against a sampler built on the retained rows.
-# The inactive rows are not left carrying the OLD counts' omega either - they
-# return to the deterministic cold start against the new count, 0.25 w.
+# A swap moves no latent, active or not; the next sweep draws for ACTIVE rows
+# only, since consuming variates for an inactive row would desynchronize the
+# stream against a sampler built on the retained rows.
 masked <- logisticSamplerWeightSwap(w1)
 mask <- rep(1, n)
 mask[1:5] <- 0
 masked$setActiveRows(mask)
 invisible(masked$run(3L, 1L))
+held <- masked$getLatents()
 masked$setWeights(rep(4, n))
-expect_equal(masked$getLatents()[1:5], rep(1, 5L))
-expect_true(all(masked$getLatents()[-(1:5)] > 0))
-expect_false(any(masked$getLatents()[-(1:5)] == 1))
+expect_identical(masked$getLatents(), held)
+invisible(masked$run(0L, 1L))
+expect_identical(masked$getLatents()[1:5], held[1:5])
+expect_true(all(masked$getLatents()[-(1:5)] != held[-(1:5)]))
 
 # --- what a count may not be, on both conduits -----------------------------
 countRefusal <- "must be positive integers"
@@ -177,14 +181,13 @@ expect_error(pinned$setWeights(replace(w2, 1L, -1)), "must all be non-negative")
 expect_identical(pinned$data@weights, w2)
 
 # replacement data given WITHOUT weights is unweighted, as at creation and as
-# it is for gaussian - single-trial rows, unit counts. The latents are DRAWN
-# against them rather than left at the cold start a data swap installs, so the
-# same build-vs-swap oracle holds on this conduit too: a sampler created with
-# counts and handed weightless data is bitwise one built unweighted.
+# it is for gaussian - single-trial rows, unit counts. setData starts the
+# latents as creation does, so the build-vs-swap oracle holds on this conduit
+# too: a sampler created with counts and handed weightless data is bitwise one
+# built unweighted.
 reset <- logisticSamplerWeightSwap(w2)
 unweighted <- logisticSamplerWeightSwap(w1)
 reset$setData(dbartsData(x, y))
-unweighted$setResponse(y)
 expect_true(is.null(reset$data@weights))
 expect_identical(reset$getLatents(), unweighted$getLatents())
 expect_identical(reset$run(0L, 2L)$train, unweighted$run(0L, 2L)$train)
@@ -193,10 +196,12 @@ expect_false(identical(
   reset$getLatents(),
   logisticSamplerWeightSwap(w2)$getLatents()
 ))
-# and stated counts on the same conduit are drawn against, not cold-started
+# and stated counts on the same conduit start where creation starts them
 pinned$setData(dbartsData(x, y, weights = w2))
-expect_false(isTRUE(all.equal(pinned$getLatents(), 0.25 * w2)))
-expect_true(all(pinned$getLatents() > 0))
+expect_identical(
+  pinned$getLatents(),
+  logisticSamplerWeightSwap(w2)$getLatents()
+)
 
 # --- the families that decline by identification ---------------------------
 # probit, ordinal and nbinom carry no precision but do carry the mask, so a
@@ -258,13 +263,16 @@ rm(
   w2,
   logisticControl,
   logisticSamplerWeightSwap,
+  chains,
   swapped,
   built,
+  held,
   untouched,
-  swappedPair,
-  builtPair,
-  ranA,
-  ranB,
+  o1,
+  o2,
+  handed,
+  created,
+  grown,
   grownBefore,
   unitCounts,
   eightCounts,
@@ -289,6 +297,8 @@ rm(
   mask,
   countRefusal,
   pinned,
+  reset,
+  unweighted,
   zeroWarnings,
   zeroData,
   name,

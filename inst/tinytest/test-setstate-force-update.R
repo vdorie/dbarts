@@ -146,7 +146,7 @@ expectClean(
   "after a predictor change that empties no leaf"
 )
 
-# latents redrawn under other weights (Student-t) and other censoring (aft)
+# a state stored under other weights (Student-t) and other censoring (aft)
 weights <- rep_len(c(1, 4, 4), n)
 studentWith <- function(w) {
   function() {
@@ -638,12 +638,10 @@ fourWide <- warmedWide(4L, 2L)
 expect_identical(attr(fourWide$state, "currentSampleNum"), 2L)
 expectWordsMoved(warmedWide(10L), fourWide, c(2:3, 0:1), 1:4, "four into ten")
 
-# ---- a decline reconciles nothing -----------------------------------------
+# ---- declined under other weights or censoring ----------------------------
 
-# A state stored under other weights or another censoring has its latent
-# values redrawn once it is installed. A declined state is not installed: a
-# redraw would move the latent values and the generators of a sampler the
-# call says it left alone.
+# a declined state stored under other weights or another censoring leaves the
+# latent values and the generators where they were
 binary <- as.double(y > median(y))
 logisticUnder <- function(w, collapse) {
   function() {
@@ -671,24 +669,15 @@ cases <- list(
   list(
     info = "declined under other weights",
     make = logisticUnder(weights, TRUE),
-    state = logisticUnder(weights, FALSE)()$state,
-    digest = "weights.digest"
+    state = logisticUnder(weights, FALSE)()$state
   ),
   list(
     info = "declined under other censoring",
-    # the sampler that holds censored rows: the redraw is of their times
     make = aftCollapsed(as.double(time <= bound)),
-    state = aftWith(rep(1, n))()$state,
-    digest = "survival.digest"
+    state = aftWith(rep(1, n))()$state
   )
 )
 for (case in cases) {
-  held <- case$make()
-  held$storeState()
-  expect_false(
-    identical(attr(held$state, case$digest), attr(case$state, case$digest)),
-    info = case$info
-  )
   expectDeclined(case$make, case$state, case$info)
 }
 

@@ -1,9 +1,10 @@
-# The saved state and the case weights. The weights themselves do not ride a
-# state; a digest of the ones in force when it was stored does, and setState
-# re-derives the weight-dependent latents against the DESTINATION's weights
-# when the two disagree - so a state install lands where the same setWeights
-# call would, rather than pairing one vector's latents with another's counts.
-# When the two agree, the restore is the identity it has always been.
+# The saved state and the case weights. A state carries the latents and never
+# the weights or the censoring status, and setState installs the stored
+# latents whatever weights the destination holds. Like setWeights, it draws
+# nothing: the next sweep draws the latents first, against the weights in
+# force. So a restore under other weights is the restore under the stored ones
+# followed by setWeights, and a weight change is undone by setWeights and
+# setState in either order, bit for bit.
 
 source(
   system.file("common", "captureWarnings.R", package = "dbarts"),
@@ -11,19 +12,15 @@ source(
 )
 
 set.seed(9021L, sample.kind = "Rejection")
-n <- 81L # divisible by 3, so the colliding pair below repeats whole
+n <- 81L
 x <- matrix(runif(n * 2L), n)
 f <- 2.5 * x[, 1L] - 1.2
 yBinary <- as.double(rbinom(n, 1L, plogis(f)))
 yContinuous <- as.double(f + rnorm(n))
-yCategory <- factor(letters[1L + (seq_len(n) %% 3L)])
 
-# 1,4,4 against 2,2,5: equal in mean and in sum of squares, different in
-# bytes. Every pin that separates them below also fails a moment digest.
+# equal in mean and in sum of squares, different in bytes
 wA <- rep(c(1, 4, 4), length.out = n)
 wB <- rep(c(2, 2, 5), length.out = n)
-expect_identical(c(sum(wA), sum(wA^2)), c(sum(wB), sum(wB^2)))
-expect_false(identical(wA, wB))
 
 stateControl <- dbarts::dbartsControl(
   n.chains = 1L,
@@ -31,7 +28,7 @@ stateControl <- dbarts::dbartsControl(
   updateState = FALSE,
   seed = 902L
 )
-logisticSamplerStateWeightPairing <- function(weights) {
+logisticAt <- function(weights) {
   dbarts::dbarts(
     x,
     yBinary,
@@ -41,7 +38,7 @@ logisticSamplerStateWeightPairing <- function(weights) {
     n.trees = 20L
   )
 }
-gaussianSampler <- function(weights) {
+gaussianAt <- function(weights) {
   dbarts::dbarts(
     x,
     yContinuous,
@@ -50,183 +47,138 @@ gaussianSampler <- function(weights) {
     n.trees = 20L
   )
 }
-studentSampler <- function(weights) {
-  dbarts::dbarts(
+# zeros go in through $setWeights, creation warning about them
+studentAt <- function(weights) {
+  sampler <- dbarts::dbarts(
     x,
     yContinuous,
-    weights = weights,
+    weights = wA,
     control = stateControl,
     n.trees = 20L,
     family = dbarts:::student(5)
   )
-}
-varianceSampler <- function(weights) {
-  dbarts::dbarts(
-    x,
-    yContinuous,
-    weights = weights,
-    control = stateControl,
-    n.trees = 20L,
-    variance = varianceForest(n.trees = 10L)
-  )
-}
-multinomialSampler <- function() {
-  dbarts::dbarts(
-    x,
-    yCategory,
-    family = "multinomial",
-    control = stateControl,
-    n.trees = 20L
-  )
+  sampler$setWeights(weights)
+  sampler
 }
 storedFrom <- function(sampler) {
   invisible(sampler$run(10L, 5L))
   sampler$storeState()
   sampler$state
 }
+storedLatents <- function(state) state[[1L]][["latents"]]
 
 # --- what a stored state carries -------------------------------------------
-# an ADDITIVE top-level attribute: 8 raw bytes beside cutPoints, and the
-# encoding version does not move for it
-source.wA <- logisticSamplerStateWeightPairing(wA)
-state.wA <- storedFrom(source.wA)
-digest <- attr(state.wA, "weights.digest")
-expect_true(is.raw(digest))
-expect_identical(length(digest), 8L)
+# nothing about the weights or the censoring status
+state.wA <- storedFrom(logisticAt(wA))
+expect_null(attr(state.wA, "weights.digest"))
+expect_null(attr(state.wA, "weights.zero"))
+expect_null(attr(state.wA, "survival.digest"))
 expect_identical(attr(state.wA, "formatVersion"), 1L)
 
-# --- matched round trip: the identity --------------------------------------
-# the destination's weights ARE the ones the stored latents were shaped by, so
-# nothing is re-derived and the stored latents install unchanged
-matched <- logisticSamplerStateWeightPairing(wA)
-matched$setState(state.wA)
-expect_identical(matched$getLatents(), state.wA[[1L]][["latents"]])
+# --- a restore installs the stored latents, silently -----------------------
+for (weights in list(wA, wB)) {
+  restored <- logisticAt(weights)
+  expect_identical(length(captureWarnings(restored$setState(state.wA))), 0L)
+  expect_identical(restored$getLatents(), storedLatents(state.wA))
+}
 
-# and the restore is silent: no warning fires on either the matched or the
-# mismatched path
-quietMatched <- captureWarnings(logisticSamplerStateWeightPairing(wA)$setState(
-  state.wA
-))
-quietMismatched <- captureWarnings(logisticSamplerStateWeightPairing(
-  wB
-)$setState(state.wA))
-expect_identical(length(quietMatched), 0L)
-expect_identical(length(quietMismatched), 0L)
+# the continuation contract: a restored chain agrees with the uninterrupted
+# one to within the documented reconstructions, and two restores of one state
+# are bitwise each other
+for (make in list(logisticAt, gaussianAt)) {
+  source.wA <- make(wA)
+  donor <- storedFrom(source.wA)
+  restored <- make(wA)
+  restored$setState(donor)
+  continued <- source.wA$run(0L, 5L)$train
+  ahead <- restored$run(0L, 5L)$train
+  expect_true(max(abs(continued - ahead)) <= 1e-13)
+  again <- make(wA)
+  again$setState(donor)
+  expect_identical(again$run(0L, 5L)$train, ahead)
+}
 
-# the continuation contract is untouched: a restored chain agrees with the
-# uninterrupted one to within the two documented reconstructions, and two
-# restores of one state are bitwise each other
-continued <- source.wA$run(0L, 5L)$train
-restored <- matched$run(0L, 5L)$train
-expect_true(max(abs(continued - restored)) <= 1e-13)
-restoredAgain <- logisticSamplerStateWeightPairing(wA)
-restoredAgain$setState(state.wA)
-expect_identical(restoredAgain$run(0L, 5L)$train, restored)
+# --- a restore under other weights is the restore then setWeights ----------
+# on the families whose latents read the weights, with rows at weight zero on
+# Student-t entering and leaving the likelihood
+for (arm in list(
+  list(make = logisticAt, stored = wA, other = wB),
+  list(make = studentAt, stored = replace(wA, 1:20, 0), other = wB),
+  list(make = studentAt, stored = wA, other = replace(wB, 62:81, 0))
+)) {
+  donor <- storedFrom(arm$make(arm$stored))
+  liveArm <- arm$make(arm$stored)
+  liveArm$setState(donor)
+  liveArm$setWeights(arm$other)
+  stateArm <- arm$make(arm$other)
+  # other weights leave the chains the stored ones
+  expect_true(stateArm$setState(donor))
+  expect_identical(stateArm$getLatents(), storedLatents(donor))
+  expect_identical(stateArm$getLatents(), liveArm$getLatents())
+  expect_identical(stateArm$run(0L, 3L)$train, liveArm$run(0L, 3L)$train)
+}
 
-# gaussian, the same three
-gsource.wA <- gaussianSampler(wA)
-gstate.wA <- storedFrom(gsource.wA)
-gmatched <- gaussianSampler(wA)
-gmatched$setState(gstate.wA)
-gcontinued <- gsource.wA$run(0L, 5L)$train
-grestored <- gmatched$run(0L, 5L)$train
-expect_true(max(abs(gcontinued - grestored)) <= 1e-13)
-gagain <- gaussianSampler(wA)
-gagain$setState(gstate.wA)
-expect_identical(gagain$run(0L, 5L)$train, grestored)
-
-# --- the repair: a mismatched restore lands where setWeights lands ----------
-# arm 1 restores into the weights the state was stored under and then swaps
-# through the LIVE conduit; arm 2 restores into the swapped weights and lets
-# the seam reconcile. The two are the same sampler, bitwise.
-liveArm <- logisticSamplerStateWeightPairing(wA)
-liveArm$setState(state.wA)
-liveArm$setWeights(wB)
-stateArm <- logisticSamplerStateWeightPairing(wB)
-# the chains are the stored ones: re-derived latents do not make it inexact
-expect_true(stateArm$setState(state.wA))
-expect_identical(stateArm$getLatents(), liveArm$getLatents())
-expect_identical(stateArm$run(0L, 3L)$train, liveArm$run(0L, 3L)$train)
-
-# not vacuous: what the repair installs is NOT what the state carries, and the
-# stored latents are what a destination at the matching weights gets
-expect_false(identical(stateArm$getLatents(), state.wA[[1L]][["latents"]]))
-
-# --- the headline: run, swap, save, load ------------------------------------
-# $setWeights does not refresh $state, so an ordinary save/load revives
-# through a state stored under the PREVIOUS weights. The revived latents are
-# the post-swap ones, not the pre-swap ones rewound.
-headline <- logisticSamplerStateWeightPairing(wA)
+# --- run, swap, save, load --------------------------------------------------
+# $setWeights does not refresh $state, so a save and load revives through the
+# state stored under the previous weights; as the swap drew nothing, that is
+# the live sampler
+headline <- logisticAt(wA)
 invisible(headline$run(10L, 5L))
 headline$storeState()
 preSwap <- headline$getLatents()
 headline$setWeights(wB)
-liveSwap <- headline$getLatents()
+expect_identical(headline$getLatents(), preSwap)
 headlineFile <- tempfile()
 saveRDS(headline, file = headlineFile)
-rm(headline)
 revived <- readRDS(headlineFile)
 unlink(headlineFile)
-revivedLatents <- revived$getLatents()
-expect_false(identical(revivedLatents, preSwap))
-expect_true(max(abs(revivedLatents - liveSwap)) <= 1e-13)
-expect_true(max(abs(revivedLatents - preSwap)) > 1e-3)
+expect_identical(revived$getLatents(), preSwap)
+ahead <- headline$run(0L, 3L)$train
+expect_true(max(abs(revived$run(0L, 3L)$train - ahead)) <= 1e-13)
 
-# --- Student-t: the scales are re-derived too -------------------------------
-# A scale is drawn given its row's weight, and one stored for a row at weight
-# zero was drawn without that row's residual; a mismatched restore redraws
-# the rows that enter the likelihood, which test-state-zero-weight-rows.R
-# holds. A matched restore draws nothing: it runs byte-identically with the
-# digest stripped, when no repair can fire.
-withoutDigest <- function(state) {
-  attr(state, "weights.digest") <- NULL
-  state
-}
-# zeros go in through $setWeights, creation warning about them
-studentAt <- function(weights, control = stateControl, n.trees = 20L) {
-  sampler <- dbarts::dbarts(
-    x,
-    yContinuous,
-    weights = wA,
-    control = control,
-    n.trees = n.trees,
-    family = dbarts:::student(5)
-  )
-  sampler$setWeights(weights)
-  sampler
-}
-wFirstOut <- replace(wA, 1:20, 0)
-tstate <- storedFrom(studentAt(wFirstOut))
-tstored <- tstate[[1L]][["latents"]]
-tmatched <- studentAt(wFirstOut)
-expect_true(tmatched$setState(tstate))
-expect_identical(tmatched$getLatents(), tstored)
-tinert <- studentAt(wFirstOut)
-tinert$setState(withoutDigest(tstate))
-expect_identical(tmatched$run(0L, 3L)$train, tinert$run(0L, 3L)$train)
-
-# --- neutrality: the repair is a measured no-op elsewhere -------------------
-# Every family below takes a MISMATCHED transplant twice - once with the
-# digest present (the repair fires) and once with it stripped (it cannot) -
-# and runs byte-identically either way. Student-t is among them because both
-# weight vectors are positive: no row enters the likelihood.
-for (make in list(gaussianSampler, varianceSampler, studentSampler)) {
-  donor <- storedFrom(make(wA))
-  repaired <- make(wB)
-  # other weights leave the chains the stored ones
-  expect_true(repaired$setState(donor))
-  inert <- make(wB)
-  inert$setState(withoutDigest(donor))
-  expect_identical(repaired$getLatents(), inert$getLatents())
-  expect_identical(repaired$run(0L, 3L)$train, inert$run(0L, 3L)$train)
+# --- undoing a weight change ------------------------------------------------
+# Store, propose other weights, sweep, go back by the old weights and the
+# stored state in either order. A sampler that installed the state and never
+# proposed is the reference.
+for (arm in list(
+  list(make = logisticAt, stored = wA, proposed = wB),
+  list(make = studentAt, stored = replace(wA, 1:20, 0), proposed = wB),
+  list(make = studentAt, stored = wA, proposed = replace(wB, 62:81, 0))
+)) {
+  reference <- arm$make(arm$stored)
+  reference$setState(storedFrom(reference))
+  reference <- reference$run(0L, 5L)
+  for (weightsFirst in c(TRUE, FALSE)) {
+    sampler <- arm$make(arm$stored)
+    kept <- storedFrom(sampler)
+    sampler$setWeights(arm$proposed)
+    invisible(sampler$run(0L, 3L))
+    if (weightsFirst) {
+      sampler$setWeights(arm$stored)
+      expect_true(sampler$setState(kept))
+    } else {
+      expect_true(sampler$setState(kept))
+      sampler$setWeights(arm$stored)
+    }
+    expect_identical(sampler$getLatents(), storedLatents(kept))
+    expect_identical(sampler$run(0L, 5L), reference)
+  }
 }
 
-# an aft sampler's censoring status is reconciled the same way, its censored
-# latents redrawn: a state stored with censored rows goes into a sampler that
-# scores every row an event, and the chains are still the stored ones
+# --- another censoring status -----------------------------------------------
+# A state stored with censored rows goes into a sampler that scores some of
+# them events and some events censored. The install draws nothing: an event
+# row holds its observed log-time, a censored row the stored latent (a row
+# that was an event sits at its bound), and the chain runs as one that
+# installed the state under its own status and was then handed the new one.
 time <- exp(yContinuous / 3)
 bound <- as.double(quantile(time, 0.7))
-aftSampler <- function(status) {
+logTime <- log(pmin(time, bound))
+statusStored <- as.double(time <= bound)
+statusOther <- statusStored
+statusOther[which(statusStored == 0)[1:5]] <- 1
+statusOther[which(statusStored == 1)[1:5]] <- 0
+aftAt <- function(status) {
   dbarts::dbarts(
     x,
     cbind(pmin(time, bound), status),
@@ -235,135 +187,61 @@ aftSampler <- function(status) {
     n.trees = 20L
   )
 }
-aftState <- storedFrom(aftSampler(as.double(time <= bound)))
-allEvents <- aftSampler(rep(1, n))
-expect_true(allEvents$setState(aftState))
-allEvents$storeState()
-expect_false(identical(
-  attr(allEvents$state, "survival.digest"),
-  attr(aftState, "survival.digest")
-))
-
-# a multinomial sampler refuses weights at creation, so its digest can only be
-# made to differ by hand; the repair still fires and is still inert, because
-# the family reads no weights to re-derive anything from
-mstate <- storedFrom(multinomialSampler())
-mforced <- mstate
-attr(mforced, "weights.digest") <- as.raw(rep(255L, 8L))
-mrepaired <- multinomialSampler()
-mrepaired$setState(mforced)
-minert <- multinomialSampler()
-minert$setState(mstate)
-expect_identical(mrepaired$run(0L, 3L)$train, minert$run(0L, 3L)$train)
-
-# no weights and rep(1, n) are the same sampler - to a logistic count,
-# lround(1) either way - so they must digest the same and NOT repair each
-# other. A null token of its own would fire here.
-nullSource <- dbarts::dbarts(
-  x,
-  yBinary,
-  family = "logistic",
-  control = stateControl,
-  n.trees = 20L
+aftState <- storedFrom(aftAt(statusStored))
+installed <- aftAt(statusOther)
+expect_true(installed$setState(aftState))
+latents <- installed$getLatents()
+expect_equal(latents[statusOther == 1], logTime[statusOther == 1])
+expect_identical(
+  latents[statusOther == 0],
+  storedLatents(aftState)[statusOther == 0]
 )
-nullState <- storedFrom(nullSource)
-onesDest <- logisticSamplerStateWeightPairing(rep(1, n))
-onesDest$setState(nullState)
-expect_identical(onesDest$getLatents(), nullState[[1L]][["latents"]])
-nullDest <- dbarts::dbarts(
-  x,
-  yBinary,
-  family = "logistic",
-  control = stateControl,
-  n.trees = 20L
-)
-nullDest$setState(withoutDigest(nullState))
-expect_identical(onesDest$run(0L, 3L)$train, nullDest$run(0L, 3L)$train)
+handed <- aftAt(statusStored)
+handed$setState(aftState)
+handed$setResponse(handed$data@y, status = statusOther)
+expect_identical(installed$run(0L, 3L)$train, handed$run(0L, 3L)$train)
 
-# --- additivity and refusal -------------------------------------------------
-# a state with NO digest - one written before the attribute existed - loads on
-# every family and restores exactly what it did before it existed
-for (make in list(
-  logisticSamplerStateWeightPairing,
-  gaussianSampler,
-  studentSampler
-)) {
-  donor <- storedFrom(make(wA))
-  stripped <- make(wA)
-  stripped$setState(withoutDigest(donor))
-  expect_identical(stripped$getLatents(), donor[[1L]][["latents"]])
-  expect_identical(attr(donor, "formatVersion"), 1L)
-}
-
-# present but not 8 raw bytes is named, in the malformed-block voice
-malformed <- state.wA
-attr(malformed, "weights.digest") <- as.raw(1:4)
-expect_error(
-  logisticSamplerStateWeightPairing(wA)$setState(malformed),
-  pattern = "malformed weights digest in bartcore state"
-)
-attr(malformed, "weights.digest") <- 1:8
-expect_error(
-  logisticSamplerStateWeightPairing(wA)$setState(malformed),
-  pattern = "malformed weights digest in bartcore state"
-)
-
-# --- the warm start is exempt ----------------------------------------------
-# installTrees reads version and forests, never latents: a warm start
-# transplants across data by design, so a weight difference is not a mismatch
-# to reconcile and the destination's own latents are left where they were
-warmDonor <- logisticSamplerStateWeightPairing(wA)
+# --- the warm start ---------------------------------------------------------
+# installTrees reads the forests alone and leaves the destination's latents
+warmDonor <- logisticAt(wA)
 invisible(warmDonor$run(10L, 5L))
 warmDonor$storeState()
-warmDest <- logisticSamplerStateWeightPairing(wB)
+warmDest <- logisticAt(wB)
 invisible(warmDest$run(5L, 2L))
 beforeWarm <- warmDest$getLatents()
 warmDest$installTrees(warmDonor)
 expect_identical(warmDest$getLatents(), beforeWarm)
 
 rm(
-  source.wA,
   state.wA,
-  digest,
-  matched,
-  quietMatched,
-  quietMismatched,
-  continued,
+  weights,
   restored,
-  restoredAgain,
-  gsource.wA,
-  gstate.wA,
-  gmatched,
-  gcontinued,
-  grestored,
-  gagain,
+  make,
+  source.wA,
+  donor,
+  continued,
+  ahead,
+  again,
+  arm,
   liveArm,
   stateArm,
+  headline,
   preSwap,
-  liveSwap,
   headlineFile,
   revived,
-  revivedLatents,
-  make,
-  donor,
-  repaired,
-  inert,
-  mstate,
-  mforced,
-  mrepaired,
-  minert,
-  nullSource,
-  nullState,
-  onesDest,
-  nullDest,
-  studentAt,
-  wFirstOut,
-  tstate,
-  tstored,
-  tmatched,
-  tinert,
-  stripped,
-  malformed,
+  reference,
+  weightsFirst,
+  sampler,
+  kept,
+  time,
+  bound,
+  logTime,
+  statusStored,
+  statusOther,
+  aftState,
+  installed,
+  latents,
+  handed,
   warmDonor,
   warmDest,
   beforeWarm

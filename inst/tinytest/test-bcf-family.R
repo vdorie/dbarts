@@ -467,7 +467,8 @@ for (name in names(binaryFits)) {
   expect_error(fit$setSigma(2), "fixes the residual standard deviation")
   # the weight conduit is family-keyed, not coupling-keyed: probit carries no
   # weights under any forest count, while a logistic sampler's are its
-  # observation counts and a swap redraws the Polya-Gamma latents against them
+  # observation counts, a swap keeping the Polya-Gamma latents for the next
+  # sweep to draw against them
   if (name == "probit") {
     expect_error(
       fit$setWeights(rep(2, n)),
@@ -476,7 +477,7 @@ for (name in names(binaryFits)) {
   } else {
     latentsBefore <- fit$getLatents()
     fit$setWeights(rep(2, n))
-    expect_false(identical(fit$getLatents(), latentsBefore))
+    expect_identical(fit$getLatents(), latentsBefore)
     expect_error(fit$setWeights(rep(2.5, n)), "must be positive integers")
     rm(latentsBefore)
   }
