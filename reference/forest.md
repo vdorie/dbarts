@@ -710,7 +710,10 @@ forest(
   and `student()` are refused, its size being drawn through the fitting
   function's leaf prior, as `leaf.prior = normal(k = chi(1.5, 2))` or
   `normal(sd = invchi(1.5, s))`. `$getLeafPrior(f)$amplitude` reads it
-  back.
+  back, and a live sampler changes it through
+  `$setForest(f, amplitude = )`, between held and drawn and between
+  `normal()` and `student(df)` (see
+  [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)).
 
 - proposal.probs, n.perturb.cuts, treeShift:
 
@@ -938,7 +941,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)
 #>   trees: 10, 10; 20 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.000590
+#> total seconds in loop: 0.000459
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 2 5 2 3 2 

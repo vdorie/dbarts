@@ -313,11 +313,12 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   forest has no basis, or on a multinomial sampler's category forests,
   those forests whatever they state; the leaf prior goes where
   `setLeafPrior` sends it; and the residual prior is installed as on one
-  forest. A forest's own value that differs, or a change in which values
-  it states, is refused, naming `setForest`, which changes one forest;
-  so is a leaf scale other than the sampler's, and split probabilities
-  other than equal ones. A variance forest stays as it is, whatever the
-  model's record of it says; `setVarianceForest` changes it.
+  forest. A forest's own value that differs, its coefficient's prior
+  included, or a change in which values it states, is refused, naming
+  `setForest`, which changes one forest; so is a leaf scale other than
+  the sampler's, and split probabilities other than equal ones. A
+  variance forest stays as it is, whatever the model's record of it
+  says; `setVarianceForest` changes it.
 
 - newData:
 
@@ -2730,8 +2731,8 @@ value equal to the one in force, which leaves the forest following what
 it followed: a forest taking its depth from the fitting function goes on
 taking it, a forest sharing one prior total stays in the group, and a
 numeric forest's default goes on being read from its column. A forest
-that states a value is changed by stating another; nothing returns it to
-following the fitting function, short of a new sampler.
+that states its `sd` or its depth is changed by stating another; nothing
+returns it to following the fitting function, short of a new sampler.
 
 `sd` on a model of one forest is its size, written as
 `setLeafPrior(normal(sd = ))` writes it, in the terms of its leaf model.
@@ -2745,15 +2746,31 @@ others leaves the group the same way, and those still sharing keep their
 parts of the total, set once at creation, and their sizes; nothing puts
 a forest back in the group but a new sampler. A multinomial sampler
 refuses `sd` as its creation does. `power` and `base` are the forest's
-depth, every category's on a multinomial sampler. `amplitude` takes the
-prior in force, which changes nothing; `fixed()` on a forest with no
-coefficient, as a model of one forest or a sharer has none;
-`student(df)` or `normal()` there is refused as at creation, and any
-other change is refused for now. A multinomial sampler takes `fixed()`,
-which changes nothing, as its creation does, and refuses `student(df)`
-and `normal()` as its creation does. `proposal.probs`, `n.perturb.cuts`
-and `treeShift` are the forest's own, and a later `setControl` leaves
-them.
+depth, every category's on a multinomial sampler. `amplitude` changes
+the coefficient's prior between held, `fixed()`, and drawn, `normal()`
+or `student(df)`, and between those two, on every chain. A hold sets the
+coefficient to its held value at the call - 1, or 0 at a factor's first
+level and 1 at its second - so `getForestAmplitudes` reads it at once; a
+release draws it from that value from the next sweep; a Student-t
+prior's mixing variance starts at the normal prior's and is kept where
+only the degrees of freedom change. No leaf and no trees' scale moves,
+except on a forest whose size the fitting function's leaf prior gives: a
+forest with no basis holding the whole of that prior, released, takes
+the size creation gives the statement, its `k` pinned at 1, and held
+again follows the leaf prior again, a drawn `k` starting at the spread
+in force; the last forest left of a group, released, states its part of
+the total in force as its `sd`, which `getForest` then reads. `normal()`
+writes a forest with a basis back to its default and `fixed()` one with
+no basis. The prior in force changes nothing, and `fixed()` on a forest
+with no coefficient, as a model of one forest or a sharer has none.
+`student(df)` or `normal()` is refused as at creation there, a sharer
+taking it with an `sd` in the same call, which takes the forest out of
+the group, and where the leaf prior would give the size and gives none,
+as a `chi()` prior on `k` with an infinite scale. A multinomial sampler
+takes `fixed()`, which changes nothing, as its creation does, and
+refuses `student(df)` and `normal()` as its creation does.
+`proposal.probs`, `n.perturb.cuts` and `treeShift` are the forest's own,
+and a later `setControl` leaves them.
 
 `vars`, `n.trees`, `interactions` and `blocks` are refused by name
 whatever their value, being part of the model, and `basis` is refused

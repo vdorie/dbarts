@@ -681,7 +681,10 @@ The constructor is not exported: it resolves by bare name inside the
     and <code>student()</code> are refused, its size being drawn through the fitting function's leaf prior,
     as <code>leaf.prior = normal(k = chi(1.5, 2))</code> or
     <code>normal(sd = invchi(1.5, s))</code>.
-    <code>$getLeafPrior(f)$amplitude</code> reads it back.</p></dd>
+    <code>$getLeafPrior(f)$amplitude</code> reads it back, and a live sampler
+    changes it through <code>$setForest(f, amplitude = )</code>, between held and
+    drawn and between <code>normal()</code> and <code>student(df)</code> (see
+    <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>).</p></dd>
 
   <dt id="arg-proposal-probs-n-perturb-cuts-treeshift">proposal.probs, n.perturb.cuts, treeShift<a class="anchor" aria-label="anchor" href="#arg-proposal-probs-n-perturb-cuts-treeshift"></a></dt>
 <dd><p>This forest's tree moves - its proposal mixture, perturb window and
@@ -902,7 +905,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   trees: 10, 10; 20 in all</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000590</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000459</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 2 2 5 2 3 2 </span>
