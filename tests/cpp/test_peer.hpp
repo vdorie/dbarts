@@ -298,6 +298,22 @@ struct TestPeer {
   static void restoreLatents(Chain<L, R>& chain, const double* latents) {
     chain.response_->restoreLatents(latents);
   }
+  /// The family's augmentation draw made by hand on the chain's generator,
+  /// against its combined fits and working sigma as they stand.
+  template <IntegrableLeafModel L, typename R>
+  static void refreshLatents(Chain<L, R>& chain) {
+    chain.response_->refreshLatents(chain.rng_, chain.combinedFits(),
+                                    chain.sigma_);
+  }
+  /// Every forest's linear-leaf crossproduct cache given no budget, so each
+  /// node statistic is a fresh scan.
+  template <typename R>
+  static void disableStatisticsCache(Chain<LinearGaussianLeaf, R>& chain) {
+    for (Forest<LinearGaussianLeaf, R>& forest : chain.forests_) {
+      forest.leaf.clearStatisticsCache();
+      forest.leaf.statisticsCacheBudget_ = 0;
+    }
+  }
   /// totalFits re-derived from the leaf tables in tree order, for a test that
   /// writes the tables directly.
   template <IntegrableLeafModel L, typename R>

@@ -1608,6 +1608,203 @@ static void testRefreshInterruptScope() {
   printf("ok: refresh interrupt scope\n");
 }
 
+// A sweep draws its augmentation variables after the per-sweep hook and ahead
+// of the trees. Per augmenting family and setter, a sampler runs one sweep
+// whose hook applies the setter; a twin built and run alike applies it between
+// sweeps, its generator checked equal to the sampler's at the hook's return,
+// and draws the latents by hand. The sweep's latents, with the ordinal
+// cutpoints, the drawn negative-binomial shape and the drawn Student-t nu,
+// equal the twin's bit for bit. Probit holds k fixed, so the rescaling step,
+// which scales z after the draw, declines.
+static void testLatentsDrawnFirst() {
+  std::uint64_t savedRngState = rngState;
+  const size_t n = 60, p = 2;
+  std::vector<double> x(n * p), x2, offset(n), mask(n, 1.0);
+  for (double& v : x) v = runif01();
+  x2 = x;
+  for (size_t i = 0; i < n; i += 3) x2[i] = runif01();
+  for (size_t i = 0; i < n; ++i) offset[i] = 0.4 * (runif01() - 0.5);
+  for (size_t i = 0; i < n; i += 4) mask[i] = 0.0;
+  auto column = [&](auto value) {
+    std::vector<double> v(n);
+    for (size_t i = 0; i < n; ++i) v[i] = value(x[i] + 0.4 * (runif01() - 0.5));
+    return v;
+  };
+  auto binary = [](double s) { return s > 0.5 ? 1.0 : 0.0; };
+  auto ordinal = [](double s) { return s < 0.35 ? 1.0 : s < 0.65 ? 2.0 : 3.0; };
+  auto count = [](double s) { return std::floor(6.0 * std::max(s, 0.0)); };
+  auto continuous = [](double s) { return 1.5 * s; };
+  std::vector<double> binary1 = column(binary), binary2 = column(binary);
+  std::vector<double> ordinal1 = column(ordinal), ordinal2 = column(ordinal);
+  std::vector<double> count1 = column(count), count2 = column(count);
+  std::vector<double> real1 = column(continuous), real2 = column(continuous);
+  std::vector<double> status(n, 1.0), counts1(n), counts2(n), w1(n), w2(n);
+  for (size_t i = 0; i < n; i += 5) status[i] = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    counts1[i] = 1.0 + std::floor(3.0 * runif01());
+    counts2[i] = 1.0 + std::floor(3.0 * runif01());
+    w1[i] = 0.5 + runif01();
+    w2[i] = 0.5 + runif01();
+  }
+
+  enum class Setter { offset, predictor, response, activeRows, weights };
+  struct Family {
+    const char* name;
+    ResponseFamily family;
+    const double* y;
+    const double* y2;
+    const double* w;
+    const double* w2;
+    std::size_t numCategories;
+    double shape, residualDf;
+  };
+  const double none = std::numeric_limits<double>::quiet_NaN();
+  const Family families[] = {
+    {"probit", ResponseFamily::probit, binary1.data(), binary2.data(), nullptr,
+     nullptr, 0, none, none},
+    {"ordinal", ResponseFamily::ordinal, ordinal1.data(), ordinal2.data(),
+     nullptr, nullptr, 3, none, none},
+    {"logistic", ResponseFamily::logistic, binary1.data(), binary2.data(),
+     counts1.data(), counts2.data(), 0, none, none},
+    {"nbinom", ResponseFamily::nbinom, count1.data(), count2.data(), nullptr,
+     nullptr, 0, -1.0, none},
+    {"Student-t", ResponseFamily::gaussian, real1.data(), real2.data(),
+     w1.data(), w2.data(), 0, none, -1.0},
+    {"aft", ResponseFamily::aft, real1.data(), real2.data(), nullptr, nullptr,
+     0, none, none}};
+  const std::pair<Setter, const char*> setters[] = {
+    {Setter::offset, "setOffset"},
+    {Setter::predictor, "setPredictor"},
+    {Setter::response, "setResponse"},
+    {Setter::activeRows, "setActiveRows"},
+    {Setter::weights, "setWeights"}};
+
+  auto serialized = [](ext_rng* rng) {
+    std::vector<unsigned char> out(ext_rng_getSerializedStateLength(rng));
+    ext_rng_writeSerializedState(rng, out.data());
+    return out;
+  };
+  for (const Family& family : families) {
+    for (const auto& [setter, setterName] : setters) {
+      if (setter == Setter::weights && family.w == nullptr) continue;
+      std::string name = std::string(family.name) + ", " + setterName;
+      SamplerOptions options;
+      options.numTrees = 5;
+      options.numCategories = family.numCategories;
+      options.shape = family.shape;
+      options.residualDf = family.residualDf;
+      if (family.family == ResponseFamily::aft)
+        options.survivalStatus = status.data();
+      auto make = [&](ext_rng*& rng) {
+        rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+        ext_rng_setSeed(rng, 20261105u);
+        return std::make_unique<ConstantLeafSampler>(
+          x.data(), family.y, n, p, family.w, nullptr, family.family, 1.0, 3.0,
+          0.37804942330213542, options, &rng);
+      };
+      auto apply = [&](ConstantLeafSampler& sampler) {
+        switch (setter) {
+        case Setter::offset: sampler.setOffset(offset.data(), false); break;
+        case Setter::predictor:
+          sampler.setPredictor(x2.data(), false, false);
+          break;
+        case Setter::response: sampler.setResponse(family.y2, false); break;
+        case Setter::activeRows: sampler.setActiveRows(mask.data()); break;
+        case Setter::weights: sampler.setWeights(family.w2); break;
+        }
+      };
+      ext_rng *rngA, *rngB;
+      auto a = make(rngA);
+      auto b = make(rngB);
+      Results results;
+      a->run(5, 0, results);
+      b->run(5, 0, results);
+
+      std::vector<unsigned char> atHook;
+      SweepCallback hook = [&](size_t, size_t, bool) {
+        apply(*a);
+        atHook = serialized(rngA);
+        return false;
+      };
+      a->chain(0).run(1, 0, results, nullptr, 0, nullptr, &hook);
+      apply(*b);
+      check(serialized(rngB) == atHook,
+            (name + ": the twin's generator is the sweep's at the hook")
+              .c_str());
+      TestPeer::refreshLatents(b->chain(0));
+
+      const ResponseModel& ra = TestPeer::response(a->chain(0));
+      const ResponseModel& rb = TestPeer::response(b->chain(0));
+      bool same = std::equal(ra.latents(), ra.latents() + n, rb.latents());
+      if (ra.carriesOrdinalThresholds())
+        same = same && std::equal(ra.ordinalThresholds(),
+                                  ra.ordinalThresholds() +
+                                    ra.numOrdinalThresholds(),
+                                  rb.ordinalThresholds());
+      if (ra.carriesShape()) same = same && ra.shape() == rb.shape();
+      if (ra.drawsResidualDf())
+        same = same && ra.residualDf() == rb.residualDf();
+      check(same, (name + ": the sweep's latents are the twin's draw at the "
+                          "hook's state").c_str());
+      a.reset();
+      b.reset();
+      ext_rng_destroy(rngA);
+      ext_rng_destroy(rngB);
+    }
+  }
+  rngState = savedRngState;
+  printf("ok: latents drawn first\n");
+}
+
+// The draw that opens a sweep drops the linear leaf's U'WU cache, which the
+// Polya-Gamma precisions it redraws are stated against. On logistic, with
+// leaves above the cache's minimum size, a sampler's sweeps draw bit for bit
+// as a twin's whose cache holds nothing, every node statistic a fresh scan.
+static void testLinearLeafCacheAcrossDraws() {
+  std::uint64_t savedRngState = rngState;
+  const size_t n = 400, p = 2, numSamples = 12;
+  std::vector<double> x(n * p), y(n), w(n, 2.0);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i)
+    y[i] = runif01() < 0.3 + 0.4 * x[i] ? 1.0 : 0.0;
+  const size_t columns[] = {1};
+  SamplerOptions options;
+  options.numTrees = 3;
+  options.leafCovariateColumns = columns;
+  options.numLeafCovariates = 1;
+  // shallow trees keep the leaves above the cache's minimum size
+  options.base = 0.5;
+  options.power = 3.0;
+  auto make = [&](ext_rng*& rng) {
+    rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 20261105u);
+    return std::make_unique<Sampler<LinearGaussianLeaf>>(
+      x.data(), y.data(), n, p, w.data(), nullptr, ResponseFamily::logistic,
+      1.0, 3.0, 1.0, options, &rng);
+  };
+  ext_rng *rngA, *rngB;
+  auto a = make(rngA);
+  auto b = make(rngB);
+  TestPeer::disableStatisticsCache(b->chain(0));
+  std::vector<double> fitsA(n * numSamples), fitsB(n * numSamples);
+  Results ra, rb;
+  ra.trainingFits = fitsA.data();
+  rb.trainingFits = fitsB.data();
+  a->run(3, numSamples, ra);
+  b->run(3, numSamples, rb);
+  check(TestPeer::statisticsCacheUsedBytes(a->chain(0).leaf()) > 0 &&
+          TestPeer::statisticsCacheUsedBytes(b->chain(0).leaf()) == 0,
+        "the sampler caches U'WU and the twin caches nothing");
+  check(fitsA == fitsB,
+        "a linear leaf's sweeps draw as a twin's with no U'WU cache");
+  a.reset();
+  b.reset();
+  ext_rng_destroy(rngA);
+  ext_rng_destroy(rngB);
+  rngState = savedRngState;
+  printf("ok: linear leaf cache across draws\n");
+}
+
 // A cancel polled inside a multinomial glue draw stops the sweep ahead of
 // that category's tree update. Each row carries 30000 trials, so with the
 // first call the sweep's own, the second falls in category 0's draws and the
@@ -13810,9 +14007,11 @@ static void testMoveSettingsMatchCreation() {
 // (off, off) each differ. The step's place in the sweep is pinned against a
 // hand-taken one: a sampler whose forests are all off, given each forest's
 // step through TestPeer ahead of every one-sweep run, draws what the same
-// sampler draws with every forest on - on two forests, where a step taken in
-// the forest loop would follow the first forest's sweep, and on a drawn-k
-// probit forest, where one taken after the rescaling step would follow it.
+// sampler draws with every forest on - on two gaussian forests, where a step
+// taken in the forest loop would follow the first forest's sweep. A drawn-k
+// probit forest's step follows the augmentation draw that opens the sweep,
+// which no entry outside the sweep reaches, so there the hand-taken step,
+// ahead of the draw, draws differently.
 static void testLevelGibbsPerForest() {
   std::uint64_t savedRngState = rngState;
   MoveFixtureData d;
@@ -13891,10 +14090,12 @@ static void testLevelGibbsPerForest() {
       destroyRngs(rngs);
       return record;
     };
-    check(pinned(true) == pinned(false),
-          probit ? "the level step is taken ahead of the rescaling step"
-                 : "every forest's level step is taken ahead of the forest "
-                   "loop");
+    if (probit)
+      check(pinned(true) != pinned(false),
+            "the probit level step follows the augmentation draw");
+    else
+      check(pinned(true) == pinned(false),
+            "every forest's level step is taken ahead of the forest loop");
   }
   rngState = savedRngState;
   printf("ok: level gibbs per forest\n");
@@ -16392,6 +16593,8 @@ void runSamplerTests(ext_rng* rng) {
   testRefreshInterrupt();
   testMultinomialRefreshInterrupt();
   testRefreshInterruptScope();
+  testLatentsDrawnFirst();
+  testLinearLeafCacheAcrossDraws();
   testEndToEndCategorical(rng);
   testWideCategorical(rng);
   testPooledMaskSampler(rng);
