@@ -37,7 +37,8 @@ implementer each (effort high), S1 and S3 the riskiest; S5 and S6 one sonnet imp
 sonnet. One opus review per engine slice (S1 to S4) that runs the mutants below, the same reviewer checking the fix round
 unless the fixes change engine behavior; one sonnet review for S5, S6 and the gate slice S7
 ([Process by risk](README.md#process-by-risk)). Tier "Changes draws" for S1 to S4: new draws on new calls, engine read-offs
-under frequency, and the creation and mask paths of every family rewritten, though no call taken today is meant to move;
+under frequency, and the creation and mask paths of every family rewritten, though no call taken today is meant to move
+but a weighted logistic fit with a linear leaf or a numeric basis once S5 resolves logistic to counts (Calls made, 21);
 tier "R surface" for S5 and S6, both pure R.
 rng: neutral, bit for bit, for every engine draw of a call taken on the build it starts from, main 6f84b5a66, after
 coefficient-prior-live and latents-first (whose draws latents-first moved and re-recorded once): the equivalence trio
@@ -112,7 +113,8 @@ Polya-Gamma families take whole-number counts with shape times w, each drawn as 
 one logistic row of shape n w drawn as the two-row expansion is; probit and ordinal membership rides the data object; a 0
 means the same on every family; the R surface of predict, fitted, residuals, extract, the log-likelihood and xbart reads both
 readings and the binomial as the rulings state, predict's weights reaching the ordinal, negative binomial and multinomial fits
-as dec-B580's door asks, as trials on ordinal and multinomial fits (dec-B594); and no call taken on the build it starts from moves an engine draw.
+as dec-B580's door asks, as trials on ordinal and multinomial fits (dec-B594); and no call taken on the build it starts from moves an engine draw
+but a weighted logistic fit with a linear leaf or a numeric basis, whose read-offs then read the counts (Calls made, 21).
 
 ## Context
 
@@ -182,7 +184,10 @@ as dec-B580's door asks, as trials on ordinal and multinomial fits (dec-B594); a
 ## Constraints
 
 - No draw of a call taken today moves: every engine path a precision fit, an unweighted fit or a binary logistic fit runs
-  keeps its expression and its order of random numbers. Where a new term is zero under precision, it is not added, rather
+  keeps its expression and its order of random numbers. The one exception is a weighted logistic or hazard.logistic fit
+  with a linear or gp leaf or a numeric forest basis: its weights are counts (dec-B470), so once S5 resolves its NULL to
+  frequency, its read-offs are the expanded rows' and its draws move (Calls made, 21; [RNG class](#rng-class)). Both
+  features are new in 1.0-0; 0.9-34 had neither. Where a new term is zero under precision, it is not added, rather
   than added as 0.0.
 - Every draw stays exact; real weights on the Polya-Gamma families are refused until a real-shape draw exists (dec-B568),
   which approximate-draws' S3 brings for logistic, binomial and hazard.logistic (below).
@@ -210,7 +215,10 @@ as dec-B580's door asks, as trials on ordinal and multinomial fits (dec-B594); a
   creation reads it. A model made by hand with NA resolves at creation the same way.
 - Bridge: reads the resolved slot into a sampler-level flag, `bartcore::WeightsReading { precision, frequency }`, passed to the
   response family's constructor beside the weights.
-- Engine: the flag is held by the families that read it. A state carries no reading: after latents-first a state carries no
+- Engine: the flag is a sampler option, `SamplerOptions::weightsReading`, fixed at creation. The gaussian and Student-t
+  responses take it at construction and hold it; the read-offs (a leaf covariate's center and scale, a gp leaf's default
+  lengthscale, a forest's default sd, the multi-forest anchor) read it from the sampler and chain options, since the sampler
+  and chain compute them, for every family alike (Calls made, 22). A state carries no reading: after latents-first a state carries no
   weights digest and no zero-weight record, and the next sweep draws every augmentation variable first under the reading,
   weights and mask in force, so a state stored under one reading and installed into a sampler of the other continues under
   the destination's (design Calls made, 5, as amended). What the reading derives (the gaussian count, the nu constant) is a
@@ -254,8 +262,12 @@ sampler created at NULL passes and one stating "frequency" is refused (10).
   calibration; any other site that counts a variance leaf's rows (the fused scan path, the combiner's variance glue) reads the
   same member, which the implementer lists in the slice's report.
 - The engine's read-offs under frequency, at creation and at their setter doors: a linear or gp leaf covariate's center and
-  scale (`standardizationMomentsForColumn`, weighted moments over the rows in) and its `updateStandardization` door; a forest's
-  default sd (`basisColumnScale`, weighted) and its `updateBasisScale` door. The response range stays over the rows in, which
+  scale (`standardizationMomentsForColumn`, weighted moments over the rows in) and its `updateStandardization` door; a gp
+  leaf's default lengthscale, the median pairwise distance over the expanded rows' pairs (Calls made, 20); a forest's
+  default sd (`basisColumnScale`, weighted, with or without a mask) and its `updateBasisScale` door; the multi-forest
+  anchor, the response's sd over the rows read. Where too few rows are in and a read-off falls back to every row, it reads
+  every row at its count, as the expansion's every row (Calls made, 23). `gpMaxLeafSize` counts rows, the one stated
+  exception (Calls made, 20). The response range stays over the rows in, which
   copies do not move. The quantile cut rule is not weighted: its grid is built over unique values, which copies leave as they
   are (plan critique p5: identical grids, original against expanded, with and without useQuantiles).
 - The log-likelihood channel: `GaussianResponse::computeLogLikelihood` and `TResponse::computeLogLikelihood` report
@@ -265,7 +277,9 @@ sampler created at NULL passes and one stating "frequency" is refused (10).
 ### Engine: the Polya-Gamma families (S2)
 
 - logistic, hazard.logistic: their weights already are counts; the slice only checks the reading flag (precision refused
-  above). The engine change is zero, the zero weight being S4's.
+  above). The engine change in the family is zero, the zero weight being S4's. The read-offs S1 weights under frequency
+  reach logistic once S5 resolves its NULL to frequency, so a weighted logistic fit with a linear or gp leaf or a numeric
+  basis moves ([RNG class](#rng-class); Calls made, 21).
 - nbinom: under counts a row draws `PG(w (y + r), psi)` and its working response uses `kappa = w (y - r) / 2`; the r grid step
   multiplies each row's log mass by w (`NBShapePrior::computeKernel`'s histogram adds w); the center (`computeShift`,
   `deriveShift`) is the weighted one. The shape `w (y + r)` is a whole number (r's grid and a fixed r hold whole numbers),
@@ -542,6 +556,10 @@ Reported values that move, each re-pinned in the test that holds it:
 - `$activeRows` and fit$active after creation from 0/1 weights on probit, ordinal and nbinom: NULL where they show the mask
   (plan critique p2); the weights carry it.
 - A logistic zero weight, refused today, is taken: NaN in the log-likelihood, NA in the draws.
+- A weighted logistic or hazard.logistic fit with a linear or gp leaf or a numeric forest basis (S1's read-offs, reached
+  when S5 resolves logistic's NULL to frequency): its leaf covariates' center and scale, a gp leaf's default lengthscale
+  and a numeric basis's default sd are read off the expanded rows, so its draws move (Calls made, 21). Both features are
+  new in 1.0-0, 0.9-34 having neither, so not in NEWS; S5 re-pins any test that holds such a fit's draws.
 - A multinomial count fit's predictive draws at new rows, predict at newdata and its test sample (extract(sample = "test")):
   a one-trial count vector, S x n x K, where they drew one category, S x n (dec-B594 revising dec-B177). The vector is drawn
   by the sequential binomials (Calls made, 18), K - 1 `rbinom` draws per draw and row where `sample.int` took one, so R's
@@ -619,6 +637,32 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
     follows its predict clause.
     Alternative: test rows keeping one category, which breaks that identity. A test row is a new row in dec-B594's sense,
     having no trial count; if the maintainer reads the ruling as naming predict alone, this is the call to put.
+20. A gp leaf's default lengthscale under frequency is the median pairwise distance over the expanded rows' pairs: two
+    distinct rows a pair of weight w_a w_b, a row's own copies w_a (w_a - 1) / 2 pairs at distance 0 where that is
+    positive, and the 512-point subsample the expansion's own, its stride counted over the total count and each row
+    weighted by its overlap with the sampled unit cells of the expanded line. At whole weights the value is the
+    expansion's exactly; at unit weights and under precision it is the shipped heuristic, bitwise. A real count extends it
+    as a length of that line: a row of count w covers w units and at stride 1 carries w itself, so a row of 2.5 reads as two
+    adjacent rows of 1.25 (their pairs at distance 0 sum to the same), as the gaussian read-offs do; where counts below 1
+    put more than 512 rows into the subsample, a further stride thins them, which whole counts never reach. `gpMaxLeafSize`
+    keeps counting rows, the one stated exception to the design's Calls made 3: it bounds the leaf's kernel matrix, which
+    has one row per data row whatever its count. Alternative: the heuristic unweighted and recorded as an exception, which
+    left sigma 0.057 off the expansion's in the review's probe.
+21. Logistic's weights are counts (dec-B470), so under its reading every read-off is the expanded rows', the basis scale
+    and a linear or gp leaf's standardization included; the basis scale reads the counts with or without a mask, where it
+    read them only under one. A weighted logistic fit with a linear leaf or a numeric basis therefore moves once S5
+    resolves logistic's NULL to frequency ([RNG class](#rng-class)); both features are new in 1.0-0. Alternative: the
+    read-offs keyed on the family, logistic's left unweighted, a fit equal to its expansion in the likelihood and not in
+    its scales.
+22. The reading lives on the sampler, `SamplerOptions::weightsReading`, the gaussian-type responses holding it from
+    construction, rather than in each family: the read-offs are computed by the sampler and the chain, beside the families
+    (the leaf standardization, the gp heuristic, the basis scale, the anchor), and one flag read there serves every family.
+    The review's logistic finding came from the basis scale reading the counts only under a mask, fixed, not from where the
+    flag lives. Alternative: each family holding it and the read-offs asking the family, an interface on every response
+    model for a value only the gaussian-type families and logistic read.
+23. Where too few rows are in (fewer than two, or one response value over the rows in) and a read-off falls back to every
+    row, under frequency it reads every row at its count, as the expansion's every row; a row of weight 0 still counts 0.
+    Alternative: the fallback unweighted, as under precision, which no expansion matches.
 
 ## Open calls
 
@@ -727,7 +771,12 @@ equals precision bitwise, and at 0/1 weights on a gaussian fit with constant lea
 the nu constant recomputed at a mask change); a state, copy and reload round trip of a frequency sampler, and a Student-t
 frequency state installed into a precision sampler of the same data consuming no variate at the install; the log-likelihood
 channel against
-`dnorm` and `dt` times w; the bitwise trio; the full tinytest suite; sanitizers on tests/cpp and on the R-loaded path;
+`dnorm` and `dt` times w; the doors against the expansion's same door, draw for draw (`updateStandardization` after a mask
+change, the heteroscedastic re-anchor by a rescaled response, `updateBasisScale`); a Student-t `setWeights` to a new pointer
+against the sampler created with those weights; a row out, at weight 0 or masked, inert on gaussian and Student-t; the gp
+lengthscale against the expansion's on both sides of the subsample; logistic's basis scale against the expansion's with and
+without a mask; the fallback against the expansion's every row; a tinytest Student-t fit at whole weights against its
+expansion's df; the bitwise trio; the full tinytest suite; sanitizers on tests/cpp and on the R-loaded path;
 `mutation-battery.R verify-anchors`.
 
 ### S2: engine, the Polya-Gamma families (~110 code, ~250 tests/cpp, ~40 bridge)
@@ -1052,3 +1101,15 @@ For dec-B590 to dec-B594 and the rebase onto main 6f84b5a66; read, not run.
 | 4 | dec-B590 to dec-B593: before approximate-draws lands every Polya-Gamma row here draws by the exact sum; after its S2, rows above 64 take the route under dec-B590 until the defaults study's default (dec-B592), the gates here setting the method to the sum by name (dec-B593); after its S3 a fractional shape takes the route; nothing here waits on the proof (dec-B591) | Interaction, approximate-draws; RNG class; Constraints; Summary; Not verified |
 | 5 | Re-read against main 6f84b5a66: the retired `weightsDigest` link replaced by `Chain::drawAugmentation`; man/predict.bart.Rd, which does not exist, replaced by man/bartBT.Rd and man/bart.Rd's paragraphs; the baselines named from the MANIFEST (equivalence and bcf-equivalence a6e83f38, multinomial 80b1c8d4, not re-recorded); test-state-zero-weight-rows.R deleted; latents-first, hurdle-completion and coefficient-prior-live as landed; bartCause at 11e3030; the design note's link to the retired `TResponse::reapplyWeights` dropped | Context; front block; RNG class; Slices; Interaction; Consumers; Not verified; the design note's Calls made 5 |
 | 6 | Slices re-estimated: S5 ~15.5 (14), R reviews ~8 (7.5); ~101 agent-hours (150 to 200), ~4,450 lines | front block; Slices; Cost; Summary |
+
+## Amendments of 2026-11-06, the S1 review
+
+For the S1 review's FIX FIRST and the calls on its two open items.
+
+| # | change | where it went |
+|---|---|---|
+| 1 | A gp leaf's default lengthscale read off the expanded rows' pairs; `gpMaxLeafSize` counting rows, the one stated exception | Calls made, 20; Engine (S1) |
+| 2 | Logistic's read-offs read its counts, the basis scale with or without a mask; a weighted logistic fit with a linear leaf or a numeric basis moves once S5 resolves it | Calls made, 21; front block; Goal; Constraints; Engine (S2); RNG class |
+| 3 | The reading described where it is built, on the sampler | The reading and where it lives; Calls made, 22 |
+| 4 | A read-off's fallback to every row reads each row at its count | Calls made, 23; Engine (S1) |
+| 5 | Tests for the review's surviving mutants and for rows 1, 2 and 4 | S1 gates |
