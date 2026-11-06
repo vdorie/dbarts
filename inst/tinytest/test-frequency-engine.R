@@ -76,6 +76,43 @@ for (family in c("gaussian", "student")) {
   expect_identical(a$train, b$train, info = family)
 }
 
+# Student-t at whole weights of 2 and 3 draws the df its expansion draws, in
+# distribution: a row's latent is the sum of its copies', and the df step's
+# per-row constant for a count above 1 is what keeps the two together
+set.seed(20261107L)
+nT <- 150L
+xT <- matrix(runif(2L * nT), nT, 2L, dimnames = list(NULL, c("x1", "x2")))
+yT <- sin(6 * xT[, 1L]) + 2 * xT[, 2L] + 0.4 * rt(nT, 8)
+wT <- as.double(sample(2:3, nT, replace = TRUE))
+rowsT <- rep(seq_len(nT), wT)
+studentDf <- function(data, weights.type) {
+  spec <- dbarts::dbartsSpec(
+    data,
+    control = dbarts::dbartsControl(
+      n.chains = 2L,
+      n.threads = 1L,
+      n.samples = 300L,
+      n.burn = 100L,
+      updateState = FALSE,
+      seed = 3L
+    ),
+    n.trees = 10L,
+    sigest = 0.5,
+    family = "student"
+  )
+  spec$model@weights.type <- weights.type
+  mean(new("dbartsSampler", spec$control, spec$model, spec$data)$run()$resid.df)
+}
+dfWeighted <- studentDf(dbarts::dbartsData(xT, yT, weights = wT), "frequency")
+dfExpanded <- studentDf(
+  dbarts::dbartsData(xT[rowsT, , drop = FALSE], yT[rowsT]),
+  NA_character_
+)
+expect_true(
+  abs(dfWeighted - dfExpanded) < 1.5,
+  info = "a frequency Student-t fit at whole weights draws its expansion's df"
+)
+
 expect_error(
   {
     model <- weighted$model
