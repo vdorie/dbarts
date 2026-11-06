@@ -758,3 +758,59 @@ rm(
   atTraining,
   noNewdata
 )
+
+# --- nbinom() written as a call draws the shape as the token does: the
+# --- model's resolved shape, not the family object's setting, says held ---
+
+drawnShapeFit <- function(family) {
+  bart(
+    x,
+    y,
+    test = x.test,
+    family = family,
+    n.samples = 20L,
+    n.burn = 10L,
+    n.trees = n.trees,
+    n.chains = 2L,
+    n.threads = 1L,
+    seed = 11L,
+    verbose = FALSE,
+    keepTrees = TRUE
+  )
+}
+fitToken <- drawnShapeFit("nbinom")
+expect_true(length(unique(as.vector(fitToken$shape))) > 1L)
+expect_null(fitToken$fixed$shape)
+for (family in list(nbinom(), nbinom(shape = NULL), dbartsFamilies$nbinom())) {
+  fitCall <- drawnShapeFit(family)
+  expect_identical(fitCall$yhat.train, fitToken$yhat.train)
+  expect_identical(fitCall$shape, fitToken$shape)
+  expect_identical(fitCall$shape.raw, fitToken$shape.raw)
+  expect_identical(fitCall$fixed, fitToken$fixed)
+  set.seed(4L)
+  ppdCall <- extract(fitCall, type = "ppd")
+  set.seed(4L)
+  expect_identical(ppdCall, extract(fitToken, type = "ppd"))
+  set.seed(5L)
+  ppdCall <- predict(fitCall, x.test[1:3, , drop = FALSE], type = "ppd")
+  set.seed(5L)
+  expect_identical(
+    ppdCall,
+    predict(fitToken, x.test[1:3, , drop = FALSE], type = "ppd")
+  )
+  expect_identical(
+    extract(fitCall, type = "loglik"),
+    extract(fitToken, type = "loglik")
+  )
+  expect_identical(
+    capture.output(summary(fitCall)),
+    capture.output(summary(fitToken))
+  )
+}
+expect_false(any(grepl("Fixed", capture.output(summary(fitToken)))))
+# a held shape is reported where it lives, fit$fixed, and only there
+fitHeld <- drawnShapeFit(nbinom(4))
+expect_identical(fitHeld$fixed$shape, 4)
+expect_null(fitHeld$shape)
+expect_null(fitHeld$shape.raw)
+rm(drawnShapeFit, fitToken, family, fitCall, ppdCall, fitHeld)

@@ -238,12 +238,9 @@ fitDescriptors <- function(sampler, samples = NULL) {
       fixed$sigma <- sharedValue(sigmas)
     }
   }
-  familySpec <- attr(model, "family.spec")
-  if (
-    identical(model@family, "nbinom") &&
-      !is.null(familySpec) &&
-      is.numeric(familySpec@settings[["shape"]])
-  ) {
+  # the model's resolved shape is what the engine reads: positive where it is
+  # held, non-positive where it is drawn, whatever the family object wrote
+  if (identical(model@family, "nbinom") && isTRUE(model@shape > 0)) {
     fixed$shape <- sharedValue(sampler$getShape())
   }
   if (
