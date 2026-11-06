@@ -363,3 +363,42 @@ invisible(swapSampler$run(0L, 1L))
 expect_true(
   abs(sd(swapSampler$getLatents()[censoredSwap]) / 1.3 - 1) < 0.15
 )
+
+# a residual prior df of 2 or below beside two or more variance trees is
+# refused under aft as under gaussian: each tree's prior is calibrated to the
+# prior mean of sigma^2, infinite there; one variance tree takes any df
+set.seed(92)
+xDf <- matrix(runif(100L), 50L, 2L)
+timeDf <- exp(xDf[, 1L] + rnorm(50L))
+statusDf <- rbinom(50L, 1L, 0.7)
+for (df in c(1.5, 2)) {
+  expect_error(
+    dbarts(
+      xDf,
+      cbind(timeDf, statusDf),
+      family = aft(sigma = chisq(df, 0.9)),
+      variance = TRUE,
+      control = control,
+      n.trees = 5L
+    ),
+    paste0(
+      "a variance forest of 40 trees does not support a residual prior df ",
+      "of ",
+      df,
+      ": its leaves are calibrated to the prior mean of sigma^2, which is ",
+      "infinite at df 2 or below; give chisq() a df above 2, or use ",
+      "varianceForest(n.trees = 1)"
+    ),
+    fixed = TRUE
+  )
+}
+oneTree <- dbarts(
+  xDf,
+  cbind(timeDf, statusDf),
+  family = aft(sigma = chisq(1.5, 0.9)),
+  variance = varianceForest(n.trees = 1L),
+  control = control,
+  n.trees = 5L
+)
+expect_true(all(is.finite(oneTree$run(5L, 5L)$variance)))
+rm(xDf, timeDf, statusDf, df, oneTree)

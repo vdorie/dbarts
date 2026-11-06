@@ -1100,6 +1100,7 @@ resolveSamplerSpec <- function(
     n.trees <- if (is.null(varianceNTrees)) 40L else varianceNTrees
     varianceRecord <- new("dbartsVarianceRecord")
     varianceRecord@n.trees <- coerceOrError(n.trees, "integer")
+    refuseVarianceCalibration(model@resid.prior, varianceRecord@n.trees)
     if (!is.null(varianceNTrees)) {
       varianceRecord@stated <- "n.trees"
     }

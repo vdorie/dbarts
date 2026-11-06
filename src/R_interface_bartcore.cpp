@@ -3509,6 +3509,28 @@ bartcore::ColumnStore& dataHandleFromExpression(SEXP ptrExpr) {
   return *store;
 }
 
+/// Refuses a chi-squared residual prior of df 2 or below beside a variance
+/// forest of two or more trees, which \p modelExpr's variance record states.
+/// Such a forest gives each tree a prior chosen so that the product has the
+/// residual prior's mean of sigma^2, finite only above df 2, and the
+/// calibration is NaN below it; one tree takes the residual prior itself.
+/// Called after parseModel and before anything is written.
+void refuseVarianceCalibration(const ParsedModel& model, SEXP modelExpr) {
+  if (model.sigmaIsFixed || model.sigmaDf > 2.0) return;
+  SEXP varianceExpr = slotOrNull(modelExpr, "variance");
+  if (Rf_isNull(varianceExpr)) return;
+  SEXP nTreesExpr = slotOrNull(varianceExpr, "n.trees");
+  // a malformed record is applyVarianceRecord's to refuse
+  if (!Rf_isInteger(nTreesExpr) || Rf_xlength(nTreesExpr) != 1) return;
+  int numTrees = INTEGER(nTreesExpr)[0];
+  if (numTrees < 2) return;
+  Rf_error("a variance forest of %d trees does not support a residual prior "
+           "df of %g: its leaves are calibrated to the prior mean of "
+           "sigma^2, which is infinite at df 2 or below; give chisq() a df "
+           "above 2, or use varianceForest(n.trees = 1)",
+           numTrees, model.sigmaDf);
+}
+
 // Shared parse/validate prologue of the two sampler-creation paths: fills
 // the parsed views from the specification objects, resolves the response
 // family, applies the fixed-sigma variance semantics, and enforces the
@@ -3520,6 +3542,7 @@ bartcore::ResponseFamily parseSamplerSpecification(
   parseControl(control, controlExpr);
   parseData(data, dataExpr);
   parseModel(model, modelExpr, data.numPredictors);
+  refuseVarianceCalibration(model, modelExpr);
   parseProposalProbs(model, controlExpr);
   // the binary latent families are named by the family the creation is
   // handed, which the R surface resolves
@@ -7294,6 +7317,9 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
                         refusal = std::string{},
                         dart = bartcore::DartPrior{}]() mutable -> SEXP {
     parseModel(model, modelExpr, shape.numPredictors);
+    // the variance forest recalibrates to the new residual prior; its tree
+    // count is read off the record the R surface keeps on the model
+    if (shape.hasVarianceForest) refuseVarianceCalibration(model, modelExpr);
     // the tree count is fixed at creation; the R surface keeps the sampler's
     // records on the model it installs, so this is the backstop for a caller
     // that installs a model of its own

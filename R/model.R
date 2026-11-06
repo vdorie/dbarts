@@ -1954,6 +1954,28 @@ refuseVarianceRuleGibbs <- function(probs) {
   invisible(NULL)
 }
 
+## A variance forest of two or more trees gives each tree a prior chosen so
+## that the product has the prior mean of sigma^2 under the residual prior,
+## a mean that is finite only above df 2; one tree takes the residual prior
+## itself, at any df.
+refuseVarianceCalibration <- function(residPrior, numTrees) {
+  if (
+    is(residPrior, "dbartsChiSqPrior") && numTrees >= 2L && residPrior@df <= 2
+  ) {
+    stop(
+      "a variance forest of ",
+      numTrees,
+      " trees does not support a residual prior df of ",
+      format(residPrior@df),
+      ": its leaves are calibrated to the prior mean of sigma^2, which is ",
+      "infinite at df 2 or below; give chisq() a df above 2, or use ",
+      "varianceForest(n.trees = 1)",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
 ## The tree count and tree prior of a forest with a basis that states none.
 multipliedForestDefaults <- list(n.trees = 50L, base = 0.25, power = 3)
 

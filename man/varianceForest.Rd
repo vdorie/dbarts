@@ -37,7 +37,11 @@ varianceForest(
   \item{n.trees}{
     The number of variance trees. \code{NULL} (the default) takes the
     variance forest's own default of \code{40}, the same value \code{variance
-    = TRUE} and the other plain-selector forms use.
+    = TRUE} and the other plain-selector forms use. Two or more trees need a
+    \code{chisq()} residual prior with \code{df} above 2: each tree's prior
+    is calibrated to the residual prior's mean of \eqn{\sigma^2}{sigma^2},
+    which is infinite at \code{df} 2 or below. One tree takes the residual
+    prior itself, at any \code{df}.
   }
   \item{base, power}{
     The variance forest's tree-structure prior. \code{NULL} (the default)

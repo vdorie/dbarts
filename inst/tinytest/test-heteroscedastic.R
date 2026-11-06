@@ -641,3 +641,113 @@ expect_identical(
   keepSampler$getVariance()[stateRows, 1L],
   as.vector(keepSampler$getVariance(test = TRUE))
 )
+
+# ---- a residual prior df of 2 or below beside two or more variance trees ----
+# each tree's prior is calibrated to the residual prior's mean of sigma^2,
+# which is infinite there, so creation by every door and setModel refuse it by
+# name; one variance tree takes the residual prior itself, at any df
+set.seed(31)
+xDf <- matrix(runif(100L), 50L, 2L)
+yDf <- xDf[, 1L] + rnorm(50L)
+dfControl <- dbartsControl(
+  n.samples = 5L,
+  n.burn = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  updateState = FALSE,
+  seed = 5L
+)
+dfRefusal <- function(df, numTrees = 40L) {
+  paste0(
+    "a variance forest of ",
+    numTrees,
+    " trees does not support a residual prior df of ",
+    df,
+    ": its leaves are calibrated to the prior mean of sigma^2, which is ",
+    "infinite at df 2 or below; give chisq() a df above 2, or use ",
+    "varianceForest(n.trees = 1)"
+  )
+}
+for (df in c(1.5, 2)) {
+  expect_error(
+    dbarts(
+      xDf,
+      yDf,
+      family = gaussian(sigma = chisq(df, 0.9)),
+      variance = TRUE,
+      control = dfControl,
+      n.trees = 5L
+    ),
+    dfRefusal(df),
+    fixed = TRUE
+  )
+  expect_error(
+    bart(
+      xDf,
+      yDf,
+      family = gaussian(sigma = chisq(df, 0.9)),
+      variance = varianceForest(n.trees = 2L),
+      n.trees = 5L,
+      n.samples = 5L,
+      n.burn = 5L,
+      n.chains = 1L,
+      verbose = FALSE
+    ),
+    dfRefusal(df, 2L),
+    fixed = TRUE
+  )
+  expect_error(
+    dbarts:::holdingBartNotices(bart(
+      xDf,
+      yDf,
+      sigdf = df,
+      variance = TRUE,
+      n.trees = 5L,
+      n.samples = 5L,
+      n.burn = 5L,
+      n.chains = 1L,
+      verbose = FALSE
+    )),
+    dfRefusal(df),
+    fixed = TRUE
+  )
+}
+oneTree <- dbarts(
+  xDf,
+  yDf,
+  family = gaussian(sigma = chisq(1.5, 0.9)),
+  variance = varianceForest(n.trees = 1L),
+  control = dfControl,
+  n.trees = 5L
+)
+expect_true(all(is.finite(oneTree$run()$variance)))
+# setModel refuses before anything is written: the sampler runs on as a twin
+# never handed the model does
+twin <- function() {
+  dbarts(xDf, yDf, variance = TRUE, control = dfControl, n.trees = 5L)
+}
+refused <- twin()
+untouched <- twin()
+newModel <- refused$model
+newModel@resid.prior <- dbartsPriors$chisq(1.5, 0.9)
+expect_error(refused$setModel(newModel), dfRefusal(1.5), fixed = TRUE)
+expect_identical(refused$model, untouched$model)
+expect_identical(refused$run(), untouched$run())
+# above df 2 the same install is taken
+newModel@resid.prior <- dbartsPriors$chisq(2.5, 0.9)
+refused$setModel(newModel)
+expect_true(all(is.finite(refused$run()$variance)))
+# the bridge refuses a model of its own that the R surface never checked
+expect_error(
+  new(
+    "dbartsSampler",
+    dfControl,
+    `slot<-`(untouched$model, "resid.prior", value = dbartsPriors$chisq(2, 0.9)),
+    untouched$data
+  ),
+  dfRefusal(2),
+  fixed = TRUE
+)
+rm(xDf, yDf, dfControl, dfRefusal, df, oneTree, twin, refused, untouched,
+  newModel)
