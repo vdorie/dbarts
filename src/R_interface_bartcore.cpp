@@ -6473,7 +6473,11 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
 // per-sweep buffers the engine fills (sigma, train, test, k, varprobs reals; an
 // integer varcount whose storage aliases the engine's uint32 slots, valid
 // because variable-use counts never approach 2^31); a null slot skips that
-// channel. Single chain only, so the closure runs inline.
+// channel, and a given one must be of its channel's type and length. Single
+// chain only, so the closure runs inline. The buffers' strides are fixed at
+// the run's start, so a closure that changes the number of observations or
+// test observations stops the run with an error; one that keeps both may
+// change the data.
 //
 // No GetRNGstate/PutRNGstate: the chain's generator never touches R's stream,
 // while the closure may draw from it, so R must own .Random.seed throughout.
@@ -6495,6 +6499,20 @@ static void evalSweepCallback(void* data) {
   UNPROTECT(2);
 }
 
+// A caller-owned result buffer, null or of type and length perDraw x
+// numDraws: the engine writes through it unchecked.
+static void checkSweepBuffer(SEXP expr, const char* name, SEXPTYPE type,
+                             size_t perDraw, size_t numDraws) {
+  if (Rf_isNull(expr)) return;
+  if (TYPEOF(expr) != type ||
+      static_cast<size_t>(Rf_xlength(expr)) != perDraw * numDraws)
+    Rf_error("results$%s must be a %s vector of length %lu (%lu per draw x "
+             "%lu draws)", name, type == INTSXP ? "integer" : "double",
+             static_cast<unsigned long>(perDraw * numDraws),
+             static_cast<unsigned long>(perDraw),
+             static_cast<unsigned long>(numDraws));
+}
+
 SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
                               SEXP numSamplesExpr, SEXP resultsExpr,
                               SEXP callbackExpr, SEXP rhoExpr) {
@@ -6514,6 +6532,18 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
   SEXP varcountExpr = rc_getListElement(resultsExpr, "varcount");
   SEXP kExpr = rc_getListElement(resultsExpr, "k");
   SEXP varprobsExpr = rc_getListElement(resultsExpr, "varprobs");
+  // the strides are fixed for the run from these counts (Sampler::run)
+  size_t numLocations = shape.numReportedLocations;
+  checkSweepBuffer(sigmaExpr, "sigma", REALSXP, 1, numSamples);
+  checkSweepBuffer(kExpr, "k", REALSXP, 1, numSamples);
+  checkSweepBuffer(trainExpr, "train", REALSXP,
+                   shape.numObservations * numLocations, numSamples);
+  checkSweepBuffer(testExpr, "test", REALSXP,
+                   shape.numTestObservations * numLocations, numSamples);
+  checkSweepBuffer(varcountExpr, "varcount", INTSXP, shape.numPredictors,
+                   numSamples);
+  checkSweepBuffer(varprobsExpr, "varprobs", REALSXP, shape.numPredictors,
+                   numSamples);
 
   bartcore::Results results;
   results.sigma = Rf_isNull(sigmaExpr) ? NULL : REAL(sigmaExpr);
@@ -6525,7 +6555,7 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
   results.splitProbabilities = Rf_isNull(varprobsExpr) ? NULL : REAL(varprobsExpr);
   // single chain here, so the location stride only shapes the fits buffers the
   // caller allocated; 1 for every model today (n x numSamples)
-  results.numReportedLocations = shape.numReportedLocations;
+  results.numReportedLocations = numLocations;
   // the caller-owned varcount buffer is single-slab, so the count is PINNED
   // to 1 here rather than read off the shape: the layout is then true at this
   // site whatever a future slice widens upstream, and no upstream guard is
@@ -6535,6 +6565,7 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
 
   bool callbackErrored = false;  // a jump left the closure (R_ToplevelExec)
   bool closureStopped = false;   // the closure returned TRUE (self-caught stop)
+  bool shapeChanged = false;     // the closure changed n or nTest
   bool canceled = false;
   bartcore_bridge::CapturedError error;
   {
@@ -6548,6 +6579,14 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
           callbackErrored = true;
           return true;
         }
+        // the hook runs before the sweep, so a stop here stores nothing at
+        // the strides the new counts no longer fit
+        bartcore::SamplerShape now = sampler.shape();
+        if (now.numObservations != shape.numObservations ||
+            now.numTestObservations != shape.numTestObservations) {
+          shapeChanged = true;
+          return true;
+        }
         closureStopped = frame.stop;
         return frame.stop;
       };
@@ -6559,6 +6598,10 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
   if (error.failed) Rf_error("%s", error.message);
   if (callbackErrored)
     Rf_error("error evaluating the sweep callback");
+  if (shapeChanged)
+    Rf_error("the sweep callback changed the number of observations or test "
+             "observations, which a run's result buffers are sized by; change "
+             "them between runs");
   if (canceled && !closureStopped) bartcore_bridge::raiseInterrupt();
   return R_NilValue;
 }
@@ -10642,6 +10685,13 @@ bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
       Rf_error("warm-start donor's trees cannot be rebuilt on this sampler's "
                "data (a donor tree no longer routes onto the current "
                "predictors); nothing was installed");
+    case bartcore::WarmStartResult::valueMismatch:
+      Rf_error("warm-start donor holds a value this sampler cannot run from: "
+               "sigma must be positive and finite, k positive and finite "
+               "unless its prior's scale is infinite, the DART split weights "
+               "finite, not negative and not all zero, the DART "
+               "concentration positive and finite, and the response "
+               "transform finite; nothing was installed");
   }
   return true;
 }
