@@ -6649,12 +6649,14 @@ private:
   /// lands on exactly the calibration creation on the new response would have
   /// produced. A state install does not run it: the transform moves only
   /// through moveScale, which does. Requires
-  /// the forest, with its tree count set.
+  /// the forest, with its tree count set, and, with two or more trees, a
+  /// residual df of 2 or above: below it the split is NaN.
   void calibrateVarianceLeaf() {
     double workingSigma = varianceSigmaEstimate_ / response_->sigmaScale();
     varianceForest_->leaf = ConstantVarianceLeaf::calibrated(
       varianceSigmaDf_, workingSigma * workingSigma * varianceSigmaRawScale_,
       varianceForest_->numTrees);
+    assert(std::isfinite(varianceForest_->leaf.degreesOfFreedom));
   }
 
   /// Re-anchor the variance forest after the response model moved the working
