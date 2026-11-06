@@ -88,8 +88,8 @@ outright, so the closure runs inline on the main thread and blocks the run.
 Its RNG contract is load-bearing: no `GetRNGstate`/`PutRNGstate` bracket,
 because the chain's generator never touches R's stream while the closure may
 draw from it, so R owns `.Random.seed` throughout. Its error contract is
-`R_tryEval` - an error cannot longjmp across `Chain::run`'s C++ frames, so it
-becomes a cooperative stop the bridge re-raises. It is a CONDITIONING hook,
+`R_ToplevelExec` - an error cannot longjmp across `Chain::run`'s C++ frames,
+so it becomes a cooperative stop the bridge re-raises. It is a CONDITIONING hook,
 firing at the top of each iteration, unthinned and including burn-in. No
 caller in the tree since rbart_vi was retired, but not unwanted: it is the
 named "smallest dbarts-side enabler" of
@@ -223,10 +223,13 @@ one cancel flag shared by both arms, the worker lambda storing into it when
 interrupt as `bartcore_runWithCallback` tells `closureStopped` from
 `canceled` - about 30 lines. Two properties are stated rather than fixed:
 another chain sees the flag only at its next sweep boundary, and a stop is an
-ABORT, since `Sampler::run` returns before advancing `currentSampleNum_` and
-`recordedDraws_` while `storeSavedTreeRecord` has already written saved trees
-into the slots those cursors count - so results and saved trees are
-discarded, the property the interrupt path already has. A C callback cannot
+ABORT: `Sampler::run` returns without advancing `currentSampleNum_`, the
+results are discarded, and its stopped-run guard lowers `recordedDraws_` to
+the earlier draws in the slots no chain of the stopped run began writing
+(`Chain::keptDrawsThisRun` counts a slot once its sweep begins, since
+`storeSavedTreeRecord` writes inside the tree loop), so the saved trees the
+stopped run wrote are dropped and the earlier runs' survivors still serve -
+the property the interrupt path shares. A C callback cannot
 signal an error at all: it records a status in its own context, read from R
 after the run, and returns nonzero only to abort. Fork 5.
 

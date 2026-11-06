@@ -213,13 +213,25 @@ chain c finish before chain c+1 starts.
 `bartcore_runWithCallback` ([`bartcore_runWithCallback`](../../src/R_interface_bartcore.cpp)) was the
 internal single-chain R hook that an earlier rbart_vi engine path used; the
 port of rbart_vi that runs in 1.0-0 drives the plain sampler from R and does
-not use it, so the hook is otherwise unused. It refuses more than one chain
-outright, hands the closure one argument - the 0-based sweep
-index - and carries no `GetRNGstate`/`PutRNGstate` bracket by design: the
-chain's generator never touches R's stream while the closure draws from it, so
-R owns `.Random.seed` throughout. The closure is evaluated under `R_tryEval`,
-so an error becomes a cooperative stop re-raised in R rather than a longjmp
-through C++ frames.
+not use it, and no function in dbarts calls it: it is kept as the entry host
+packages build on when they move work into per-sweep callbacks. It refuses
+more than one chain outright, hands the closure one argument - the 0-based
+sweep index - and carries no `GetRNGstate`/`PutRNGstate` bracket by design:
+the chain's generator never touches R's stream while the closure draws from
+it, so R owns `.Random.seed` throughout. Every R call a sweep makes runs
+under `R_ToplevelExec`, so an error becomes a cooperative stop re-raised in R
+rather than a longjmp through C++ frames.
+
+The caller's result buffers are written at strides fixed when the run
+starts, so the entry refuses one not of its channel's type and length, and a
+`setData` or test-predictor call inside the closure that changes the number
+of observations or test observations stops the run with an error; one that
+keeps both is legal, as between sweeps. A mutator called in the closure
+under `updateState = TRUE` stores the state mid-run, with the run's starting
+cursor over a saved-tree store that already holds some of its draws, so a
+reload of that state serves them as earlier draws; a sampler driven through
+this entry is built with `updateState = FALSE` and stores its state after
+the run.
 
 ## 6. Graduation debt on the flat surface
 

@@ -368,10 +368,11 @@ typedef struct dbarts_draw_t {
 /// through, and no sampler state may be mutated from inside it.
 ///
 /// RETURN. 0 continues. NONZERO ABORTS the run: every chain stops at its next
-/// sweep boundary, and the sampler is then INCONSISTENT with the results - the
-/// sample cursors have not advanced past draws already written into the slots
-/// they count - so the caller discards both the results and any saved trees,
-/// exactly as on the interrupt path. dbarts_sampler_run reports no status, so
+/// sweep boundary, the caller discards the results, and the run drops the
+/// saved trees it wrote, exactly as on the interrupt path: the store serves
+/// the earlier runs' draws the stopped one did not overwrite, oldest first,
+/// and dbarts_sampler_numSavedSamples counts them. dbarts_sampler_run reports
+/// no status, so
 /// a callback that wants to say WHY records it in its own context and the
 /// caller reads that after the run; a callback that merely disagrees with a
 /// draw records and returns 0.
@@ -409,10 +410,9 @@ typedef struct dbarts_draw_t {
 /// the run stops there and every frame between the callback and this entry,
 /// the library's own included, is destroyed before the error is handed back to
 /// R, so the entry does NOT return. The sampler is left exactly as a nonzero
-/// return leaves it - the sample cursors have not advanced past draws already
-/// written into the slots they count - so the caller discards these results
-/// and any saved trees; the handle itself stays valid, and a later run or a
-/// destroy is safe.
+/// return leaves it - the caller discards these results, and the saved trees
+/// the run wrote are dropped; the handle itself stays valid, and a later run
+/// or a destroy is safe.
 ///
 /// What no jump can undo is the CALLER's own frames above dbarts_sampler_run:
 /// they are skipped just as they would be under any other R error, so a caller
@@ -827,8 +827,9 @@ void dbarts_sampler_destroy(dbarts_sampler* sampler);
 /// recorded draw of each chain, whether or not results is null - which is how
 /// a host reduces draws as they are produced instead of materializing them.
 /// One that returns nonzero stops the run early and this entry STILL RETURNS
-/// NORMALLY, so a caller that registered one discards these buffers and any
-/// saved trees on the status its own context carries. One that RAISES an R
+/// NORMALLY, so a caller that registered one discards these buffers on the
+/// status its own context carries; the saved trees the run wrote are dropped.
+/// One that RAISES an R
 /// error instead stops the run and does not return here at all; the conditions
 /// under which that is allowed, and what the sampler looks like afterwards,
 /// are dbarts_draw_callback's.
@@ -839,9 +840,10 @@ void dbarts_sampler_destroy(dbarts_sampler* sampler);
 /// has joined, RAISES R's interrupt condition (class c("interrupt",
 /// "condition"), not an error: try() and error handlers let it through), by a
 /// jump that does not return here; calling handlers and on.exit run. The
-/// sampler is left in the state a callback's nonzero return leaves: results
-/// and any saved trees of this call are discarded, and the handle stays
-/// valid. The draws that open the sweep are the augmentation variables of a
+/// sampler is left in the state a callback's nonzero return leaves: the
+/// results of this call are discarded, the saved trees it wrote dropped, and
+/// the handle stays valid. The draws that open the sweep are the augmentation
+/// variables of a
 /// probit, ordinal, logistic, nbinom, Student-t or aft sampler: a stop inside
 /// them leaves no tree of that sweep drawn and each latent this sweep's draw
 /// or the previous one (a sampled negative-binomial shape's whole refresh put
@@ -864,7 +866,9 @@ void dbarts_sampler_destroy(dbarts_sampler* sampler);
 /// callback's jump is caught at the callback, an engine failure travels out as
 /// a C++ exception and becomes an R error only at this boundary, once its
 /// unwind has run, and this entry's own refusals are raised where it holds
-/// nothing.
+/// nothing. An allocation that fails inside a sweep raises an error and leaves
+/// each chain's fits re-summed from its trees, so the sampler runs on from
+/// there, with the saved trees the run wrote dropped as a stop drops them.
 void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
                         size_t numSamples, dbarts_results* results);
 void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler);
@@ -1052,7 +1056,9 @@ size_t dbarts_sampler_numTrees(const dbarts_sampler* sampler, size_t forest);
 /// and 0 until a run records into it. The sample count predict produces and
 /// the bound on printTrees' sample indices. It stops at the
 /// buffer size: the store is circular, so a longer run keeps the most recent
-/// draws.
+/// draws. A run that stops early - a callback's stop or raise, an interrupt,
+/// an error - drops the draws it wrote, and this counts the earlier runs'
+/// draws it did not overwrite.
 size_t dbarts_sampler_numSavedSamples(const dbarts_sampler* sampler);
 int dbarts_sampler_kIsSampled(const dbarts_sampler* sampler);
 int dbarts_sampler_usesDart(const dbarts_sampler* sampler);

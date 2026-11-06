@@ -583,8 +583,12 @@ legal there is docs/design/bart-as-a-component.md's subject. It runs only
 when chains run inline, and `Sampler::run` requires the caller not to set it
 alongside worker-thread chains. The flat C API has no entry for it. The one
 bridge entry that installs it, `bartcore_runWithCallback`, evaluates an R
-closure through `R_tryEval` and refuses more than one chain. No function in
-dbarts calls it; it is kept as the entry host packages build on when they
+closure under `R_ToplevelExec`, refuses more than one chain, and refuses a
+result buffer not of its channel's type and length. Its buffers' strides are
+fixed when the run starts, so a closure whose `setData` or test-predictor
+call changes the number of observations or test observations stops the run
+with an error; one that keeps both is legal, as between sweeps. No function
+in dbarts calls it; it is kept as the entry host packages build on when they
 move work into per-sweep callbacks, for example to keep memory down.
 
 **Per-draw callback.** A compiled function of the shipped
@@ -604,9 +608,12 @@ through the engine's frames, and the entry resumes the jump once they are
 gone. A C++ exception the callback throws is held until `R_UnwindProtect`'s
 own frame has returned and then rethrown along the same path. On a worker
 thread the callback must not raise; it returns nonzero instead. A run that
-stops early - an error, an interrupt, a nonzero return - does not advance
-the sample cursors, so the draws and saved trees it wrote are dropped, and
-the sampler stays usable for a later run.
+stops early - an error, an interrupt, a nonzero return, a sweep closure's
+stop - does not advance the sample cursor and drops the saved trees it
+wrote: the store keeps the earlier runs' draws in the slots no chain of the
+stopped run began writing, and the sampler stays usable for a later run. An
+allocation that fails mid-sweep re-sums each forest's fits from its trees
+before the error leaves the engine, so the chains run on from there.
 
 ## Reproducibility contract
 
