@@ -1218,6 +1218,347 @@ static void testStateLatentFloor() {
   printf("ok: state latent floor\n");
 }
 
+/// The drawn values and the generator a state carries are held to floors no
+/// state the sampler writes fails: each edit below is refused, with and
+/// without force, leaving the sampler as it was, and the sampler's own value
+/// at each boundary installs. A warm start holds a donor to the same floors,
+/// and starts its own DART weights where a donor's weigh nothing on a column
+/// it may split on. Own generators; draws nothing from the shared one.
+static void testStateValueFloors() {
+  const size_t n = 60, p = 3;
+  std::vector<double> x(n * p), y(n), category(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>((i * 37) % n) / static_cast<double>(n);
+    x[n + i] = static_cast<double>((i * 11) % n) / static_cast<double>(n);
+    x[2 * n + i] = static_cast<double>((i * 23) % n) / static_cast<double>(n);
+    y[i] = x[i] + 2.0 * x[n + i] + 0.2 * std::sin(static_cast<double>(i));
+    category[i] = std::floor(4.0 * (x[i] + x[n + i]) / 2.0001);
+  }
+  const double inf = std::numeric_limits<double>::infinity();
+  const double absent = std::numeric_limits<double>::quiet_NaN();
+  std::vector<ext_rng*> rngs;
+  auto make = [&](SamplerOptions options, ResponseFamily family,
+                  const double* response, std::uint32_t seed) {
+    options.numTrees = 5;
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, seed);
+    rngs.push_back(rng);
+    return std::make_unique<ConstantLeafSampler>(
+      x.data(), response, n, p, nullptr, nullptr, family, 1.0, 3.0,
+      0.37804942330213542, options, &rngs.back());
+  };
+  // refused in both forms, the sampler left holding its own state
+  auto refused = [](ConstantLeafSampler& sampler, const SamplerStateData& own,
+                    const SamplerStateData& edited) {
+    bool unforced = sampler.setState(edited, nullptr, nullptr, nullptr,
+                                     keepStoreCapacity, false);
+    bool forced = sampler.setState(edited, nullptr);
+    SamplerStateData after;
+    sampler.getState(after);
+    return !unforced && !forced && samplerStatesAgree(own, after);
+  };
+  auto installs = [](ConstantLeafSampler& sampler,
+                     const SamplerStateData& edited) {
+    return sampler.setState(edited, nullptr);
+  };
+  Results empty;
+
+  // sigma, k under a finite-scale prior, and the response transform
+  SamplerOptions finiteK;
+  finiteK.updateK = true;
+  finiteK.kHyperprior.degreesOfFreedom = 1.5;
+  finiteK.kHyperprior.scale = 2.0;
+  auto gaussian = make(finiteK, ResponseFamily::gaussian, y.data(), 20261106u);
+  gaussian->run(20, 0, empty);
+  SamplerStateData own;
+  gaussian->getState(own);
+  check(installs(*gaussian, own), "value floors: the sampler's own state "
+                                  "installs");
+  bool sigmaFloor = true, kFloor = true, transformFloor = true;
+  for (double value : {0.0, -1.0, inf, -inf}) {
+    SamplerStateData edited(own);
+    edited.chains[0].sigma = value;
+    sigmaFloor = sigmaFloor && refused(*gaussian, own, edited);
+  }
+  for (double value : {0.0, -1.0, inf, -inf}) {
+    SamplerStateData edited(own);
+    edited.chains[0].forests[0].k = value;
+    kFloor = kFloor && refused(*gaussian, own, edited);
+  }
+  for (int end = 0; end < 2; ++end) {
+    for (double value : {absent, inf, -inf}) {
+      SamplerStateData edited(own);
+      (end == 0 ? edited.chains[0].fitMin : edited.chains[0].fitMax) = value;
+      transformFloor = transformFloor && refused(*gaussian, own, edited);
+    }
+  }
+  check(sigmaFloor, "value floors: a sigma that is not positive and finite "
+                    "is refused");
+  check(kFloor, "value floors: under a finite-scale prior a k that is not "
+                "positive and finite is refused");
+  check(transformFloor, "value floors: a response transform that is not "
+                        "finite is refused");
+  {
+    SamplerStateData edited(own);
+    edited.chains[0].sigma = absent;
+    edited.chains[0].forests[0].k = absent;
+    check(installs(*gaussian, edited),
+          "value floors: an absent sigma and k install, the sampler keeping "
+          "its own");
+    SamplerStateData tiny(own);
+    tiny.chains[0].sigma = 1e-300;
+    tiny.chains[0].forests[0].k = 1e-300;
+    check(installs(*gaussian, tiny) && installs(*gaussian, own),
+          "value floors: the smallest positive sigma and k install");
+  }
+
+  // k = +Inf is what a draw under an infinite scale reaches, and a scale
+  // whose square is past 2^970 can overflow a draw to it too
+  for (double scale : {inf, 1e150, 1e140}) {
+    SamplerOptions options = finiteK;
+    options.kHyperprior.scale = scale;
+    auto sampler = make(options, ResponseFamily::gaussian, y.data(), 20261107u);
+    sampler->run(5, 0, empty);
+    SamplerStateData state;
+    sampler->getState(state);
+    SamplerStateData infinite(state);
+    infinite.chains[0].forests[0].k = inf;
+    bool reachable = scale * scale > 0x1p970;
+    if (reachable) {
+      check(installs(*sampler, infinite),
+            "value floors: k = +Inf installs where the prior's scale lets a "
+            "draw reach it");
+      SamplerStateData held;
+      sampler->getState(held);
+      check(std::isinf(held.chains[0].forests[0].k) && sampler->setState(
+              state, nullptr),
+            "value floors: and is the k the sampler holds");
+    } else {
+      check(refused(*sampler, state, infinite),
+            "value floors: k = +Inf is refused under a scale no draw "
+            "overflows");
+    }
+    bool belowRefused = true;
+    for (double value : {0.0, -1.0, -inf}) {
+      SamplerStateData edited(state);
+      edited.chains[0].forests[0].k = value;
+      belowRefused = belowRefused && refused(*sampler, state, edited);
+    }
+    check(belowRefused, "value floors: a k that is not positive is refused "
+                        "under every scale");
+  }
+
+  // the generator: the twister's index in [0, N] and its essential bits not
+  // all zero
+  {
+    const std::int_least32_t N = EXT_RNG_MERSENNE_TWISTER_NUM_RANDOM;
+    auto withIndex = [&](std::int_least32_t index) {
+      SamplerStateData edited(own);
+      std::memcpy(edited.chains[0].rngState.data(), &index, sizeof(index));
+      return edited;
+    };
+    auto withWords = [&](std::uint_least32_t first, std::uint_least32_t last) {
+      SamplerStateData edited(own);
+      std::vector<std::uint_least32_t> words(N, 0u);
+      words[0] = first;
+      words[N - 1] = last;
+      std::memcpy(edited.chains[0].rngState.data() + sizeof(std::int_least32_t),
+                  words.data(), N * sizeof(std::uint_least32_t));
+      return edited;
+    };
+    bool indexFloor = true;
+    for (std::int_least32_t index : {-1, -100000, N + 1, N + 2})
+      indexFloor = indexFloor && refused(*gaussian, own, withIndex(index));
+    check(indexFloor, "value floors: a generator index outside [0, N] is "
+                      "refused");
+    check(installs(*gaussian, withIndex(N)) &&
+            installs(*gaussian, withIndex(0)) && installs(*gaussian, own),
+          "value floors: generator indices 0 and N install");
+    check(refused(*gaussian, own, withWords(0u, 0u)) &&
+            refused(*gaussian, own, withWords(0x7fffffffu, 0u)),
+          "value floors: a generator whose essential bits are all zero is "
+          "refused");
+    check(installs(*gaussian, withWords(0x80000000u, 0u)) &&
+            installs(*gaussian, withWords(0u, 1u)) &&
+            installs(*gaussian, own),
+          "value floors: a generator with one essential bit set installs");
+
+    // the gamma memo after the twister is a cache of the shapes it records:
+    // a constant edited under its shape is recomputed on the way in, so the
+    // chain runs as an unedited one does
+    const size_t memo = sizeof(ext_rng_mersenneTwisterState);
+    double memoKey, memoS2;
+    std::memcpy(&memoKey, own.chains[0].rngState.data() + memo, sizeof(double));
+    std::memcpy(&memoS2,
+                own.chains[0].rngState.data() + memo + 3 * sizeof(double),
+                sizeof(double));
+    check(memoKey >= 1.0 && memoS2 == memoKey - 0.5,
+          "value floors: the stored memo holds a gamma shape and its "
+          "constants");
+    SamplerStateData edited(own);
+    std::memcpy(edited.chains[0].rngState.data() + memo + 3 * sizeof(double),
+                &absent, sizeof(double));
+    auto plain = make(finiteK, ResponseFamily::gaussian, y.data(), 1u);
+    auto memoEdited = make(finiteK, ResponseFamily::gaussian, y.data(), 1u);
+    bool both = plain->setState(own, nullptr) &&
+                memoEdited->setState(edited, nullptr);
+    SamplerStateData held;
+    memoEdited->getState(held);
+    check(both && held.chains[0].rngState == own.chains[0].rngState,
+          "value floors: an edited memo constant installs recomputed to the "
+          "bit");
+    std::vector<double> sigmaA(10), sigmaB(10), fitsA(10 * n), fitsB(10 * n);
+    Results a, b;
+    a.sigma = sigmaA.data();
+    a.trainingFits = fitsA.data();
+    b.sigma = sigmaB.data();
+    b.trainingFits = fitsB.data();
+    plain->run(0, 10, a);
+    memoEdited->run(0, 10, b);
+    bool finite = true;
+    for (double value : sigmaB) finite = finite && std::isfinite(value);
+    check(finite && sigmaA == sigmaB && fitsA == fitsB,
+          "value floors: and the chain runs bitwise as the unedited one");
+  }
+
+  // DART on two of three columns: weights finite, not negative and not all
+  // zero, positive where the forest may split; the concentration positive
+  // and finite
+  const std::vector<size_t> twoColumns = {0, 1};
+  SamplerOptions dartRestricted;
+  dartRestricted.useDart = true;
+  dartRestricted.forestColumns = twoColumns.data();
+  dartRestricted.numForestColumns = twoColumns.size();
+  auto dart = make(dartRestricted, ResponseFamily::gaussian, y.data(),
+                   20261108u);
+  dart->run(20, 0, empty);
+  SamplerStateData dartOwn;
+  dart->getState(dartOwn);
+  {
+    std::vector<std::vector<double>> broken = {
+      {-5.0, 1.0, 0.0}, {absent, 1.0, 0.0}, {inf, 1.0, 0.0},
+      {0.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}};
+    bool weightFloor = true;
+    for (const std::vector<double>& weights : broken) {
+      SamplerStateData edited(dartOwn);
+      edited.chains[0].dartProbabilities = weights;
+      weightFloor = weightFloor && refused(*dart, dartOwn, edited);
+    }
+    check(weightFloor, "value floors: DART weights that are not finite, are "
+                       "negative, are all zero or weigh nothing on a column "
+                       "the forest may split on are refused");
+    bool alphaFloor = true;
+    for (double value : {0.0, -1.0, inf}) {
+      SamplerStateData edited(dartOwn);
+      edited.chains[0].dartAlpha = value;
+      alphaFloor = alphaFloor && refused(*dart, dartOwn, edited);
+    }
+    check(alphaFloor, "value floors: a DART concentration that is not "
+                      "positive and finite is refused");
+    SamplerStateData masked(dartOwn), tiny(dartOwn), noAlpha(dartOwn);
+    masked.chains[0].dartProbabilities = {0.25, 0.25, 0.5};
+    tiny.chains[0].dartProbabilities = {1e-300, 1.0, 0.0};
+    noAlpha.chains[0].dartAlpha = absent;
+    check(installs(*dart, masked) && installs(*dart, tiny) &&
+            installs(*dart, noAlpha) && installs(*dart, dartOwn),
+          "value floors: DART weights positive on every column the forest "
+          "may split on install, whatever a forbidden column holds, as does "
+          "an absent concentration");
+  }
+
+  // ordinal cutpoints: finite, the first exactly 0, strictly increasing
+  {
+    SamplerOptions ordinalOptions;
+    ordinalOptions.numCategories = 4;
+    auto ordinal = make(ordinalOptions, ResponseFamily::ordinal,
+                        category.data(), 20261109u);
+    ordinal->run(20, 0, empty);
+    SamplerStateData state;
+    ordinal->getState(state);
+    const std::vector<double>& gamma = state.chains[0].ordinalThresholds;
+    check(gamma.size() == 3 && gamma[0] == 0.0 && gamma[1] > 0.0 &&
+            gamma[2] > gamma[1] && installs(*ordinal, state),
+          "value floors: the sampler's own cutpoints are 0 and increasing, "
+          "and install");
+    std::vector<std::vector<double>> broken = {
+      {0.1, gamma[1], gamma[2]}, {absent, gamma[1], gamma[2]},
+      {0.0, absent, gamma[2]},   {0.0, gamma[1], inf},
+      {0.0, 0.0, gamma[2]},      {0.0, gamma[1], gamma[1]},
+      {0.0, gamma[2], gamma[1]}, {0.0, -gamma[1], gamma[2]}};
+    bool thresholdFloor = true;
+    for (const std::vector<double>& thresholds : broken) {
+      SamplerStateData edited(state);
+      edited.chains[0].ordinalThresholds = thresholds;
+      thresholdFloor = thresholdFloor && refused(*ordinal, state, edited);
+    }
+    check(thresholdFloor, "value floors: cutpoints that are not finite, do "
+                          "not start at 0 or do not increase are refused");
+    SamplerStateData close(state);
+    close.chains[0].ordinalThresholds[2] =
+      std::nextafter(gamma[1], inf);
+    check(installs(*ordinal, close),
+          "value floors: cutpoints one ulp apart install");
+  }
+
+  // a warm start holds the donor's drawn scalars to the same floors, in
+  // both forms; a donor's DART weights that weigh nothing on a column this
+  // sampler's forest may split on start fresh instead
+  {
+    const std::vector<std::pair<size_t, int>> live = {{0, -1}};
+    WarmStartResult result;
+    bool altered;
+    bool valueRefused = true;
+    for (int field = 0; field < 3; ++field) {
+      SamplerStateData donor(own);
+      if (field == 0) donor.chains[0].sigma = 0.0;
+      if (field == 1) donor.chains[0].forests[0].k = inf;
+      if (field == 2) donor.chains[0].fitMax = inf;
+      valueRefused = valueRefused &&
+        warmVerdictMatchesInstall(*gaussian, donor, live, x.data(), result,
+                                  altered) &&
+        result == WarmStartResult::valueMismatch;
+    }
+    check(valueRefused, "value floors: a warm-start donor below a floor is "
+                        "refused in both forms");
+
+    SamplerOptions dartEvery;
+    dartEvery.useDart = true;
+    auto recipient = make(dartEvery, ResponseFamily::gaussian, y.data(),
+                          20261110u);
+    recipient->run(5, 0, empty);
+    SamplerStateData negative(dartOwn);
+    negative.chains[0].dartProbabilities = {-5.0, 1.0, 0.0};
+    check(warmVerdictMatchesInstall(*recipient, negative, live, x.data(),
+                                    result, altered) &&
+            result == WarmStartResult::valueMismatch,
+          "value floors: a warm-start donor with broken DART weights is "
+          "refused in both forms");
+    WarmStartReport report;
+    check(dartOwn.chains[0].dartProbabilities[2] == 0.0 &&
+            warmVerdictMatchesInstall(*recipient, dartOwn, live, x.data(),
+                                      result, altered, nullptr, &report) &&
+            result == WarmStartResult::ok && report.dartStartedFresh,
+          "value floors: a donor whose DART weights weigh nothing on a "
+          "column this forest may split on installs, its weights started "
+          "fresh");
+    SamplerStateData installed;
+    recipient->getState(installed);
+    const std::vector<double>& weights = installed.chains[0].dartProbabilities;
+    check(weights.size() == p && weights[0] == 1.0 / 3.0 &&
+            weights[1] == 1.0 / 3.0 && weights[2] == 1.0 / 3.0,
+          "value floors: the fresh weights are equal over every column");
+    recipient->run(5, 0, empty);
+    SamplerStateData after;
+    recipient->getState(after);
+    bool finite = std::isfinite(after.chains[0].sigma);
+    for (double weight : after.chains[0].dartProbabilities)
+      finite = finite && std::isfinite(weight) && weight > 0.0;
+    check(finite, "value floors: and the recipient runs from them");
+  }
+  for (ext_rng* rng : rngs) ext_rng_destroy(rng);
+  printf("ok: state value floors\n");
+}
+
 // A column whose range is one value (constant, or narrower than its uniform
 // spacing) gets a grid of equal cuts, and an infinite value must not stretch
 // the uniform grid: the store's own grids restore, while NaN or an over-long
@@ -8567,6 +8908,7 @@ void runStateTests(ext_rng* rng) {
   testStateRoundTripStudentT(rng);
   testStateValidation(rng);
   testStateLatentFloor();
+  testStateValueFloors();
   testDegenerateGridRestores(rng);
   testInteractionContainment();
   testBlockAdditiveConfinement();

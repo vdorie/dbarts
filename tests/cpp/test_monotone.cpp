@@ -2285,6 +2285,77 @@ bool stoppedPartWay(const std::vector<std::vector<FlatNode>>& before,
 }
 }  // namespace
 
+/// An allocation failure in a count drops the kept slot its sweep began and
+/// keeps the earlier draws, oldest first, as every stopped run does.
+static void testMonotoneCountFailureKeptDraws() {
+  MonotoneCountHooks& hooks = monotoneCountHooks();
+  const std::int8_t dir[2] = {1, 0};
+  const size_t n = 300, capacity = 6;
+  std::vector<double> x(2 * n), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[n + i] = runif01();
+    y[i] = 2.0 * x[i] + std::sin(6.0 * x[n + i]) + 0.1 * (runif01() - 0.5);
+  }
+  SamplerOptions options;
+  options.numTrees = 4;
+  options.birthOrDeathProbability = 1.0;
+  options.swapProbability = 0.0;
+  options.changeProbability = 0.0;
+  options.monotoneDirections = dir;
+  options.keepTrees = true;
+  options.numSamplesToStore = capacity;
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 20261106u);
+  MonotoneSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, options, &rng);
+  Results none;
+  sampler.run(100, capacity, none);
+  auto served = [&]() {
+    std::vector<std::vector<std::vector<FlatNode>>> draws;
+    for (size_t d = 0; d < sampler.filledSavedDraws(); ++d) {
+      size_t slot = sampler.savedSlotForDraw(d);
+      std::vector<std::vector<FlatNode>> trees;
+      for (size_t t = 0; t < sampler.chain(0).numTrees(); ++t)
+        trees.push_back(sampler.savedTree(0, slot, t));
+      draws.push_back(trees);
+    }
+    return draws;
+  };
+  auto sameLeaves = [](const std::vector<FlatNode>& a,
+                       const std::vector<FlatNode>& b) {
+    if (a.size() != b.size()) return false;
+    for (size_t i = 0; i < a.size(); ++i)
+      if (a[i].variable != b[i].variable || a[i].mask != b[i].mask ||
+          a[i].flags != b[i].flags)
+        return false;
+    return true;
+  };
+  bool threw = false, kept = false;
+  for (int attempt = 0; attempt < 200 && !threw; ++attempt) {
+    auto before = served();
+    hooks.failNextCount.store(true);
+    try {
+      sampler.run(0, 1, none);
+    } catch (const std::bad_alloc&) {
+      threw = true;
+    }
+    hooks.failNextCount.store(false);
+    if (!threw) continue;
+    auto after = served();
+    kept = before.size() == capacity && after.size() == capacity - 1;
+    for (size_t d = 0; d < after.size() && kept; ++d)
+      for (size_t t = 0; t < after[d].size() && kept; ++t)
+        kept = sameLeaves(after[d][t], before[d + 1][t]);
+  }
+  check(threw && kept, "monotone count allocation failure: the kept slot "
+                       "its sweep began is dropped, the earlier draws kept "
+                       "in order");
+  ext_rng_destroy(rng);
+  printf("ok: monotone count allocation failure with kept draws\n");
+}
+
 /// Step 15: a cancel inside a count, inline and on another thread; an
 /// allocation failure inside one, inline and rethrown from a worker after
 /// the join; and the slow-count tally.
@@ -2765,6 +2836,7 @@ void runMonotoneTests() {
   testMonotoneJointTreePrior();
   testMonotoneJointAcceptIsConeTest();
   testMonotoneCountInterrupt();
+  testMonotoneCountFailureKeptDraws();
   {  // factor splits and missing values, in free and constrained predictors
     ColumnStore store;
     makeMixedStore(store, 700);

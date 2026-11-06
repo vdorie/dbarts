@@ -511,6 +511,9 @@ void runStateTests(ext_rng* rng);
 void runEnsembleTests();
 // The monotone leaf-order counter; own rng, restores the runif01 stream.
 void runMonotoneTests();
+// Allocation failures in a sweep, through the binary's replaced allocation
+// functions; own rngs, draws nothing from the runif01 stream.
+void runAllocTests();
 void runFuzzTests(int numSeeds);
 
 #endif  // TESTS_CPP_COMMON_HPP

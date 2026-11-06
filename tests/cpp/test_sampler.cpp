@@ -804,6 +804,179 @@ static void testDrawCallbackStop() {
   printf("ok: per-draw callback stop path\n");
 }
 
+namespace {
+/// Chain 0's observer stops the run at its draw stopAt; every other chain's
+/// runs on.
+struct RingStop {
+  size_t stopAt = 0;
+};
+int ringStopCallback(void* context, const DrawInfo* draw) {
+  const RingStop& stop = *static_cast<const RingStop*>(context);
+  return draw->chainIndex == 0 && draw->drawIndex == stop.stopAt ? 1 : 0;
+}
+
+using ServedDraw = std::vector<std::vector<FlatNode>>;
+/// The kept draws the store serves chain c, oldest first.
+std::vector<ServedDraw> servedDraws(const ConstantLeafSampler& sampler,
+                                    size_t c) {
+  std::vector<ServedDraw> draws;
+  for (size_t d = 0; d < sampler.filledSavedDraws(); ++d) {
+    size_t slot = sampler.savedSlotForDraw(d);
+    ServedDraw trees;
+    for (size_t t = 0; t < sampler.chain(c).numTrees(); ++t)
+      trees.push_back(sampler.savedTree(c, slot, t));
+    draws.push_back(trees);
+  }
+  return draws;
+}
+bool sameServedDraw(const ServedDraw& a, const ServedDraw& b) {
+  if (a.size() != b.size()) return false;
+  for (size_t t = 0; t < a.size(); ++t) {
+    if (a[t].size() != b[t].size()) return false;
+    for (size_t i = 0; i < a[t].size(); ++i)
+      if (a[t][i].variable != b[t][i].variable ||
+          a[t][i].numMaskWords != b[t][i].numMaskWords ||
+          a[t][i].mask != b[t][i].mask || a[t][i].flags != b[t][i].flags)
+        return false;
+  }
+  return true;
+}
+/// Whether every chain is served exactly the newest of \p before's draws
+/// that it still holds, oldest first.
+bool servesNewestOf(const ConstantLeafSampler& sampler,
+                    const std::vector<std::vector<ServedDraw>>& before) {
+  for (size_t c = 0; c < before.size(); ++c) {
+    std::vector<ServedDraw> after = servedDraws(sampler, c);
+    if (after.size() > before[c].size()) return false;
+    size_t skipped = before[c].size() - after.size();
+    for (size_t d = 0; d < after.size(); ++d)
+      if (!sameServedDraw(after[d], before[c][skipped + d])) return false;
+  }
+  return true;
+}
+}  // namespace
+
+/// A run that stops early drops the saved trees it wrote, the slot of a
+/// kept sweep it began included, and keeps the earlier runs' draws it did
+/// not overwrite, in order: the newest min(R, C - K) behind an unmoved
+/// cursor, K the most slots any chain began. A run cannot start inside a
+/// run's sweep hook.
+static void testStoppedRunKeepsEarlierDraws() {
+  const size_t n = 120, capacity = 8;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  Results none;
+  auto make = [&](size_t numChains, std::vector<ext_rng*>& rngs) {
+    rngs = makeDrawRngs(numChains, 5100);
+    SamplerOptions options;
+    options.numTrees = 6;
+    options.numChains = numChains;
+    options.numThreads = numChains;
+    options.keepTrees = true;
+    options.numSamplesToStore = capacity;
+    return std::make_unique<ConstantLeafSampler>(
+      x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::gaussian, 1.0,
+      3.0, 0.37804942330213542, options, rngs.data());
+  };
+  auto served = [](const ConstantLeafSampler& sampler) {
+    std::vector<std::vector<ServedDraw>> draws;
+    for (size_t c = 0; c < sampler.numChains(); ++c)
+      draws.push_back(servedDraws(sampler, c));
+    return draws;
+  };
+
+  // two chains on two threads, one stopping itself at its draw 3: the other
+  // stops when it sees the stop, so only the bound is fixed
+  {
+    std::vector<ext_rng*> rngs;
+    auto sampler = make(2, rngs);
+    sampler->run(10, capacity, none);
+    std::vector<std::vector<ServedDraw>> before = served(*sampler);
+    RingStop stop{3};
+    DrawHook hook{&ringStopCallback, &stop};
+    bool canceled = sampler->run(0, capacity, none, {}, {}, hook);
+    check(canceled && before[0].size() == capacity &&
+            sampler->filledSavedDraws() <= capacity - (stop.stopAt + 1),
+          "stopped run: the slots the stopping chain began are dropped");
+    check(servesNewestOf(*sampler, before),
+          "stopped run on workers: every chain serves run 1's newest "
+          "surviving draws, oldest first");
+    destroyDrawRngs(rngs);
+  }
+
+  // inline: a stop in burn-in loses nothing, a stop at a kept sweep's top
+  // drops the slots the sweeps before it wrote, and a ring not full keeps
+  // every draw a stop leaves unwritten
+  {
+    std::vector<ext_rng*> rngs;
+    auto sampler = make(1, rngs);
+    sampler->run(10, capacity, none);
+    std::vector<std::vector<ServedDraw>> before = served(*sampler);
+    SweepCallback inBurnIn = [](size_t, size_t sweep, bool) {
+      return sweep == 3;
+    };
+    check(sampler->run(10, capacity, none, {}, inBurnIn) &&
+            sampler->filledSavedDraws() == capacity &&
+            servesNewestOf(*sampler, before),
+          "stopped run: a stop in burn-in leaves every saved draw");
+    SweepCallback atKept = [](size_t, size_t sweep, bool) {
+      return sweep == 5;
+    };
+    check(sampler->run(0, capacity, none, {}, atKept) &&
+            sampler->filledSavedDraws() == capacity - 5 &&
+            servesNewestOf(*sampler, before),
+          "stopped run: a stop before kept sweep 5 keeps run 1's newest "
+          "three draws");
+    destroyDrawRngs(rngs);
+
+    auto half = make(1, rngs);
+    half->run(10, capacity / 2, none);
+    std::vector<std::vector<ServedDraw>> halfBefore = served(*half);
+    RingStop stop{2};
+    DrawHook hook{&ringStopCallback, &stop};
+    check(half->run(0, capacity, none, {}, {}, hook) &&
+            half->filledSavedDraws() == capacity / 2 &&
+            servesNewestOf(*half, halfBefore),
+          "stopped run: a ring not full keeps the draws a stop of three "
+          "draws leaves unwritten");
+    // the cursor did not move: a full run now fills the ring from where
+    // run 1 left it, the newest of its draws the ones it wrote
+    half->run(0, capacity, none);
+    check(half->filledSavedDraws() == capacity &&
+            half->savedSlotForDraw(0) == capacity / 2,
+          "stopped run: the write cursor stays where the stopped run found "
+          "it");
+    destroyDrawRngs(rngs);
+  }
+
+  // a run started inside a run's sweep hook is refused and changes nothing
+  {
+    std::vector<ext_rng*> rngs;
+    auto sampler = make(1, rngs);
+    sampler->run(10, capacity / 2, none);
+    bool refused = false;
+    ConstantLeafSampler& outer = *sampler;
+    SweepCallback reenter = [&](size_t, size_t sweep, bool) {
+      if (sweep == 1) {
+        try {
+          Results inner;
+          outer.run(0, 1, inner);
+        } catch (const std::logic_error&) {
+          refused = true;
+        }
+      }
+      return false;
+    };
+    bool canceled = sampler->run(0, 2, none, {}, reenter);
+    check(!canceled && refused &&
+            sampler->filledSavedDraws() == capacity / 2 + 2,
+          "stopped run: a run inside a sweep hook is refused, and the outer "
+          "run completes");
+    destroyDrawRngs(rngs);
+  }
+  printf("ok: a stopped run keeps the earlier runs' draws\n");
+}
+
 // The neutrality pin: the observer consumes no generator draw and moves no
 // state, so the recorded draws are what they are with no observer at all -
 // and dropping the fits channel to a one-draw scratch does not move them
@@ -16634,6 +16807,7 @@ void runSamplerTests(ext_rng* rng) {
   testDrawCallbackFiring();
   testDrawCallbackStride();
   testDrawCallbackStop();
+  testStoppedRunKeepsEarlierDraws();
   testDrawHookThrowUnwindsRun();
   testDrawCallbackNeutrality();
   testDrawCallbackVarcountForests();
