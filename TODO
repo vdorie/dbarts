@@ -405,6 +405,17 @@ items
     and slow fits, the fallback when the range cannot be estimated
     (dec-B437, VD 2026-10-10). About 1260 lines planned for the
     per-chain data, after response-scale-rows.
+  variance-forest-prior-calibration: a study (dec-B597, VD 2026-11-06;
+    the dec-B559 standard for changing a default prior). A variance
+    forest's per-tree priors match the written chisq(df, quantile)'s
+    prior mean, which exists only above df 2, so two or more variance
+    trees refuse df of 2 or below. Matching the spread of log sigma
+    squared instead is defined for every df above 0 and nearly agrees
+    at the default (40 trees: per-tree df 87 against 74 at df 3, within
+    2 percent above df 5); at df 2.01 the mean rule's log spread is 2.30
+    against the written prior's 1.28. Compare the two rules' fits and
+    intervals; adopting log matching lifts the refusal and moves every
+    variance-forest fit.
   variance-forest-tree-shift: after 1.0-0 (dec-B500, VD 2026-10-29).
     The tree-shift step acts on the mean forests only; varianceForest()
     takes no treeShift. Measure how a frozen variance forest's leaf
