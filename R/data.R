@@ -3037,6 +3037,14 @@ dbartsData <- function(
   # frame, whose locals ('x', 'data', 'offset') would shadow the caller's names
   # nolint next: object_usage_linter. getTestOffset reads it, through eval.
   callerEnv <- parent.frame()
+  # an offset.test forwarded through a wrapper's dots arrives as ..N: the
+  # expression it was written as stands in its place, and the names in it are
+  # read where it was written, as the training offset's are
+  if (isDotsReference(matchedCall$offset.test)) {
+    written <- recoverForwardedArgument(matchedCall$offset.test, callerEnv)
+    matchedCall["offset.test"] <- list(written$expr)
+    callerEnv <- written$env
+  }
   # a matrix-shaped 'offset'/'offset.test' declares a multinomial category
   # shift (one column per category), never a flat per-row one; the matrix
   # interface branches below set these aside as they resolve the ordinary

@@ -300,3 +300,116 @@ fit <- dbarts::bart(
 expect_null(fit$offset.test)
 expect_identical(dim(fit$yhat.test), c(5L, 5L))
 rm(data, fit, wrapper, o, nullCounts, noOffset, nullTest, nullData)
+
+# an offset.test forwarded through a wrapper's dots is read as written there:
+# a name, an expression in 'offset', a column of 'test', through one wrapper
+# or two and through dbarts(), each as the direct call reads it
+set.seed(2)
+dotsX <- matrix(runif(100), 50L, 2L)
+dotsTestX <- dotsX[1:5, ]
+dotsY <- rbinom(50L, 1L, 0.4)
+dotsOffset <- rnorm(50L, sd = 0.1)
+dotsTestOffset <- dotsOffset[1:5]
+dotsFrame <- data.frame(
+  y = dotsY,
+  a = dotsX[, 1L],
+  b = dotsX[, 2L],
+  o = dotsOffset
+)
+dotsTest <- dotsFrame[1:5, ]
+dotsFit <- function(...) {
+  dbarts::bart(
+    ...,
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 3L,
+    verbose = FALSE
+  )
+}
+dotsOuter <- function(...) dotsFit(...)
+direct <- dotsFit(
+  dotsX,
+  dotsY,
+  test = dotsTestX,
+  offset = dotsOffset,
+  offset.test = dotsTestOffset
+)
+expect_equal(direct$offset.test, dotsTestOffset)
+viaDots <- function(fitter, ...) {
+  fitter(dotsX, dotsY, test = dotsTestX, offset = dotsOffset, ...)
+}
+expect_identical(
+  viaDots(dotsFit, offset.test = dotsTestOffset)$yhat.test,
+  direct$yhat.test
+)
+expect_identical(
+  viaDots(dotsOuter, offset.test = dotsTestOffset)$yhat.test,
+  direct$yhat.test
+)
+shifted <- dotsFit(
+  dotsX,
+  dotsY,
+  test = dotsTestX,
+  offset = dotsOffset,
+  offset.test = offset + 1
+)
+expect_equal(shifted$offset.test, dotsTestOffset + 1)
+expect_identical(
+  viaDots(dotsOuter, offset.test = offset + 1)$yhat.test,
+  shifted$yhat.test
+)
+formulaDirect <- dotsFit(
+  y ~ a + b,
+  data = dotsFrame,
+  test = dotsTest,
+  offset = o,
+  offset.test = o
+)
+expect_equal(formulaDirect$offset.test, dotsTestOffset)
+expect_identical(
+  dotsOuter(y ~ a + b, data = dotsFrame, test = dotsTest, offset = o,
+    offset.test = o)$yhat.test,
+  formulaDirect$yhat.test
+)
+samplerFit <- function(...) {
+  dbarts::dbarts(
+    ...,
+    n.trees = 5L,
+    control = dbarts::dbartsControl(
+      n.samples = 5L,
+      n.burn = 5L,
+      n.chains = 1L,
+      n.threads = 1L,
+      verbose = FALSE
+    )
+  )
+}
+expect_equal(
+  samplerFit(dotsX, dotsY, test = dotsTestX, offset = dotsOffset,
+    offset.test = dotsTestOffset)$data@offset.test,
+  dotsTestOffset
+)
+expect_equal(
+  samplerFit(y ~ a + b, dotsFrame, test = dotsTest, offset = o,
+    offset.test = o)$data@offset.test,
+  dotsTestOffset
+)
+rm(
+  dotsX,
+  dotsTestX,
+  dotsY,
+  dotsOffset,
+  dotsTestOffset,
+  dotsFrame,
+  dotsTest,
+  dotsFit,
+  dotsOuter,
+  direct,
+  viaDots,
+  shifted,
+  formulaDirect,
+  samplerFit
+)
