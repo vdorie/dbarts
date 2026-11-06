@@ -640,8 +640,9 @@ items
     fractional weights. The engine seams are in place. A Poisson family
     is the companion door. Records:
     docs/plans/archive/negative-binomial.md,
-    docs/design/negative-binomial.md sec 2 and sec 7. decision-gated,
-    scheduled after 1.0-0 (VD 2026-08-28).
+    docs/design/negative-binomial.md sec 2 and sec 7. Scheduled for
+    1.0-0 under approximate-distributions (dec-B592, which revises the
+    2026-08-28 schedule).
   python-bindings: a pybind11 facade wrapper is prototype-scale.
     Horizon, likely out-of-repo. The engine is not R-free below the
     bridge: model.hpp calls three Rmath density functions
@@ -1005,7 +1006,8 @@ items
     negbin-real-dispersion. Integer-weight logistic ships via
     replicated latents, and probit refuses weights outright - no
     tractable weighted latent form. docs/plans/weighted-binary.md.
-    decision-gated, scheduled after 1.0-0 (VD 2026-08-28).
+    Scheduled for 1.0-0 under approximate-distributions (dec-B592, which
+    revises the 2026-08-28 schedule).
   hurdle-weight-extensions: door, after hurdle-completion and
     frequency-weights (VD 2026-11-03, dec-B588: 0 and 1 now, "think
     about extensions in the future"). A logistic zero part,
@@ -1162,7 +1164,8 @@ rule draw default weight (decided, VD 2026-09-08; docs/decisions.md
 
 binary-hyperprior-revisit (raised by the study, 2026-09-14;
   docs/plans/binary-hyperprior.md, "What to revisit after the mixing
-  work"; post-release, gated on the mixing line of inquiry)
+  work"; before 1.0-0, once k's scale move lands, dec-B390; whether it
+  lands is k-move-pricing's, dec-B530)
   the sampled k does not converge at any length that study could pay
   for: 64,000 draws per fit reach an effective sample size of 29 and a
   split-Rhat that never falls below 1.2. Three of its results rest on
