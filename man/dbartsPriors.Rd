@@ -216,14 +216,18 @@
       creation: \code{quant} is the prior probability that the residual
       standard deviation is below that estimate, so \code{sigest = 1} gives
       the prior under which \eqn{\sigma}{sigma} is below 1 with probability
-      \code{quant}.
+      \code{quant}. \code{df} is a single positive finite number and
+      \code{quant} a single number between 0 and 1: an infinite \code{df},
+      the limit that holds \eqn{\sigma}{sigma} at a point, is refused, and
+      \code{fixed()} states a held value.
     }
     \item{\code{fixed(value = 1)}}{
       Fixed residual variance, in squared response units. It is the residual
       scale rather than a distribution over one, so it ignores \code{sigest} - which
       is refused beside it unless it equals the square root of \code{value},
       when it is accepted with a message and is an error from dbarts 1.1-0 - and
-      suppresses the sampler's own \eqn{\sigma}{sigma} draw.
+      suppresses the sampler's own \eqn{\sigma}{sigma} draw. \code{value}
+      is a single positive finite number.
     }
     \item{\code{student(df = 1)}}{
       A Student-t prior with \code{df} degrees of freedom, finite and at least

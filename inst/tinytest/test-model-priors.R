@@ -248,3 +248,171 @@ fit.spec <- bart(
 )
 expect_equal(fit.spec$fit$model@tree.prior@a, 0.75)
 expect_equal(fit.spec$fit$model@tree.prior@update.delay, 5)
+
+# each scalar of a prior constructor is one number in its range, refused by
+# the argument's own name: NA of either type, two values, a string and the
+# range's ends, each in one line, never R's slot-class or condition error
+dfKind <- "positive finite number; to hold sigma at a value, use fixed()"
+refusedScalars <- list(
+  list(function(v) dbartsPriors$chisq(df = v), "df", dfKind, c(0, -1, Inf)),
+  list(
+    function(v) dbartsPriors$chisq(3, quant = v),
+    "quant",
+    "number between 0 and 1",
+    c(0, 1, -0.5)
+  ),
+  list(
+    dbartsPriors$fixed,
+    "value",
+    "positive finite number",
+    c(0, -1, Inf)
+  ),
+  list(dbartsPriors$chi, "df", "positive number", c(0, -1)),
+  list(
+    function(v) dbartsPriors$chi(1.5, scale = v),
+    "scale",
+    "positive number",
+    c(0, -1)
+  ),
+  list(dbartsPriors$cgm, "power", "positive number", c(0, -1)),
+  list(
+    function(v) dbartsPriors$cgm(base = v),
+    "base",
+    "number in (0, 1)",
+    c(0, 1, 1.5)
+  ),
+  list(
+    function(v) dbartsPriors$dart(a = v),
+    "a",
+    "positive finite number",
+    c(0, Inf)
+  ),
+  list(
+    function(v) dbartsPriors$dart(b = v),
+    "b",
+    "positive finite number",
+    c(0, Inf)
+  ),
+  list(
+    function(v) dbartsPriors$dart(alpha = v),
+    "alpha",
+    "positive finite number",
+    c(0, Inf)
+  )
+)
+for (entry in refusedScalars) {
+  message <- paste0("'", entry[[2L]], "' must be a single ", entry[[3L]])
+  for (value in c(list(NA, NA_real_, NaN, c(1, 2), "a"), as.list(entry[[4L]]))) {
+    refusal <- tryCatch(entry[[1L]](value), error = conditionMessage)
+    expect_identical(refusal, message, info = deparse(value))
+  }
+}
+expect_identical(
+  tryCatch(dbartsPriors$dart(rho = c(1, 2)), error = conditionMessage),
+  "'rho' must be a single positive finite number"
+)
+expect_identical(
+  tryCatch(dbartsPriors$dart(update.delay = -1), error = conditionMessage),
+  "'update.delay' must be a single non-negative number"
+)
+expect_identical(
+  tryCatch(dbartsPriors$dart(update.alpha = NA), error = conditionMessage),
+  "'update.alpha' must be TRUE/FALSE"
+)
+# an NA rho keeps its own words, which name NULL as the default's spelling
+expect_error(dbartsPriors$dart(rho = NA), "'rho' must not be NA")
+# the range's own values are taken: a huge df stands in for a held sigma, an
+# infinite chi() scale is the improper limit
+expect_identical(dbartsPriors$chisq(1e6, 0.9)@df, 1e6)
+expect_identical(dbartsPriors$chi(1.5, Inf)@scale, Inf)
+expect_identical(dbartsPriors$cgm(power = 3L)@power, 3)
+# a class built directly is held to the same checks, length first
+expect_error(
+  new("dbartsChiSqPrior", df = c(3, 4), quantile = 0.9),
+  "'df' must be a single positive finite number",
+  fixed = TRUE
+)
+expect_error(
+  new("dbartsCGMPrior", power = c(2, 3), base = 0.95),
+  "'power' must be a single positive number",
+  fixed = TRUE
+)
+expect_error(
+  new("dbartsChiHyperprior", degreesOfFreedom = c(1, 2), scale = 2),
+  "'df' must be a single positive number",
+  fixed = TRUE
+)
+expect_error(new("dbartsFixedHyperprior", k = c(1, 2)), "'k' must be positive")
+# a matrix of split probabilities is refused in one line naming the argument
+expect_identical(
+  tryCatch(dbartsPriors$cgm(split.probs = matrix(1:2, 1L)), error = conditionMessage),
+  "'split.probs' must be a vector, not a matrix or an array"
+)
+expect_error(
+  bart(
+    df[c("a", "b")],
+    df$y,
+    split.probs = matrix(1:2, 1L),
+    n.samples = 5L,
+    n.burn = 5L,
+    n.trees = 5L,
+    n.chains = 1L,
+    verbose = FALSE
+  ),
+  "'split.probs' must be a vector, not a matrix or an array",
+  fixed = TRUE
+)
+# the residual prior as every door reads it: an infinite df is refused at
+# once, naming fixed(), on gaussian and aft alike, and so is the 0.9-34
+# shorthand; a NA reaches the same words
+infiniteDf <- paste0("'df' must be a single ", dfKind)
+for (family in list(
+  quote(gaussian(sigma = chisq(Inf, 0.9))),
+  quote(aft(sigma = chisq(Inf, 0.9)))
+)) {
+  expect_error(eval(family, dbartsFamilies), infiniteDf, fixed = TRUE)
+}
+for (sigdf in list(Inf, NA)) {
+  expect_error(
+    dbarts:::holdingBartNotices(bart(
+      df[c("a", "b")],
+      df$y,
+      sigdf = sigdf,
+      n.samples = 5L,
+      n.burn = 5L,
+      n.trees = 5L,
+      n.chains = 1L,
+      verbose = FALSE
+    )),
+    infiniteDf,
+    fixed = TRUE
+  )
+}
+# and the bridge refuses a record the constructor never saw
+heldSampler <- dbarts(
+  df[c("a", "b")],
+  df$y,
+  control = dbartsControl(n.chains = 1L, n.threads = 1L, verbose = FALSE),
+  n.trees = 5L
+)
+infiniteModel <- heldSampler$model
+infiniteModel@resid.prior@df <- Inf
+expect_error(
+  new("dbartsSampler", heldSampler$control, infiniteModel, heldSampler$data),
+  infiniteDf,
+  fixed = TRUE
+)
+expect_error(heldSampler$setModel(infiniteModel), infiniteDf, fixed = TRUE)
+rm(
+  dfKind,
+  refusedScalars,
+  entry,
+  message,
+  value,
+  refusal,
+  infiniteDf,
+  family,
+  sigdf,
+  heldSampler,
+  infiniteModel
+)

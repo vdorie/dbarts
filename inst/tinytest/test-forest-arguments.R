@@ -253,7 +253,7 @@ expect_error(
 for (bad in list(c(1, 1), NA_real_, NaN)) {
   expect_error(
     twoForests(amplitude = dbartsPriors$fixed(bad)),
-    "'value' must be a single positive number"
+    "'value' must be a single positive finite number"
   )
 }
 expect_error(twoForests(amplitude = dbartsPriors$fixed(TRUE)), ".")

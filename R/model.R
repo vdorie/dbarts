@@ -2820,15 +2820,22 @@ cgm <- function(power = 2, base = 0.95, split.probs = NULL) {
   if (is.null(base)) {
     base <- 0.95
   }
+  refusePriorScalar(power, "power", isPositiveNumber, "positive number")
+  refusePriorScalar(base, "base", isOpenUnitInterval, "number in (0, 1)")
   result <- newValidated(
     "dbartsCGMPrior",
-    power = power,
-    base = base,
+    power = integerToDouble(power),
+    base = integerToDouble(base),
     splitProbabilities = numeric(),
     splitProbabilitiesSpec = NULL
   )
   if (length(split.probs) > 0L && !is.numeric(split.probs)) {
     stop("'split.probs' must be numeric")
+  }
+  # one probability per column, or a named set of them: a matrix states
+  # neither, and its slot would refuse it with R's own message
+  if (!is.null(dim(split.probs))) {
+    stop("'split.probs' must be a vector, not a matrix or an array")
   }
   result@splitProbabilitiesSpec <- split.probs
   result
@@ -3086,11 +3093,51 @@ normal <- function(k = NULL, sd = NULL) {
   new("dbartsNormalPrior", k = integerToDouble(k), prior.sd = sd)
 }
 
+## Why 'value', the argument 'name' of a prior constructor, is not one number
+## of the kind 'kind' names, NULL where it is: a number and no object, of
+## length 1, not NA, and accepted by 'inRange'. The constructors and the
+## class validities, which a direct new() reaches, share it; a logical NA
+## reaches only the constructor, the slot's class check refusing it first.
+priorScalarRefusal <- function(value, name, inRange, kind) {
+  if (
+    !is.numeric(value) ||
+      is.object(value) ||
+      length(value) != 1L ||
+      is.na(value) ||
+      !inRange(value)
+  ) {
+    paste0("'", name, "' must be a single ", kind)
+  }
+}
+
+refusePriorScalar <- function(value, name, inRange, kind) {
+  refusal <- priorScalarRefusal(value, name, inRange, kind)
+  if (!is.null(refusal)) {
+    stop(refusal, call. = FALSE)
+  }
+  invisible(NULL)
+}
+
+isPositiveNumber <- function(x) x > 0
+isPositiveFinite <- function(x) x > 0 && is.finite(x)
+isOpenUnitInterval <- function(x) x > 0 && x < 1
+
+## The words a refused chisq() df is given: an infinite df is the limit that
+## holds sigma at a point, which fixed() writes.
+chisqDfKind <- "positive finite number; to hold sigma at a value, use fixed()"
+
 chisq <- function(df = 3, quant = 0.9) {
-  newValidated("dbartsChiSqPrior", df = integerToDouble(df), quantile = quant)
+  refusePriorScalar(df, "df", isPositiveFinite, chisqDfKind)
+  refusePriorScalar(quant, "quant", isOpenUnitInterval, "number between 0 and 1")
+  newValidated(
+    "dbartsChiSqPrior",
+    df = integerToDouble(df),
+    quantile = integerToDouble(quant)
+  )
 }
 
 fixed <- function(value = 1.0) {
+  refusePriorScalar(value, "value", isPositiveFinite, "positive finite number")
   newValidated("dbartsFixedPrior", value = integerToDouble(value))
 }
 
@@ -3166,6 +3213,9 @@ chi <- function(df = 1.5, scale = 2.0, degreesOfFreedom) {
     )
     df <- degreesOfFreedom
   }
+  # an infinite scale is the improper limit, which sd = invchi(df, 0) maps to
+  refusePriorScalar(df, "df", isPositiveNumber, "positive number")
+  refusePriorScalar(scale, "scale", isPositiveNumber, "positive number")
   newValidated(
     "dbartsChiHyperprior",
     degreesOfFreedom = integerToDouble(df),
@@ -3210,6 +3260,31 @@ dart <- function(
   }
   if (isSingleNA(update.delay)) {
     refuseNAForNull("update.delay", "dart", "the default, half the burn-in")
+  }
+  # rho NULL is the default, the number of predictors
+  positive <- c(list(a = a, b = b, alpha = alpha), if (!is.null(rho)) list(rho = rho))
+  for (name in names(positive)) {
+    refusePriorScalar(
+      positive[[name]],
+      name,
+      isPositiveFinite,
+      "positive finite number"
+    )
+  }
+  if (!is.null(update.delay)) {
+    refusePriorScalar(
+      update.delay,
+      "update.delay",
+      function(x) x >= 0,
+      "non-negative number"
+    )
+  }
+  if (
+    !is.logical(update.alpha) ||
+      length(update.alpha) != 1L ||
+      is.na(update.alpha)
+  ) {
+    stop("'update.alpha' must be TRUE/FALSE", call. = FALSE)
   }
   newValidated(
     "dbartsDartPrior",

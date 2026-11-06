@@ -18,11 +18,22 @@ methods::setClass(
   prototype = list(splitProbabilitiesSpec = NULL)
 )
 methods::setValidity("dbartsCGMPrior", function(object) {
-  if (object@power <= 0.0) {
-    return("'power' must be positive")
-  }
-  if (object@base <= 0.0 || object@base >= 1.0) {
-    return("'base' must be in (0, 1)")
+  refusal <- c(
+    priorScalarRefusal(
+      object@power,
+      "power",
+      isPositiveNumber,
+      "positive number"
+    ),
+    priorScalarRefusal(
+      object@base,
+      "base",
+      isOpenUnitInterval,
+      "number in (0, 1)"
+    )
+  )
+  if (length(refusal) > 0L) {
+    return(refusal[1L])
   }
   if (
     length(object@splitProbabilities) > 0L &&
@@ -59,21 +70,41 @@ methods::setClass(
   )
 )
 methods::setValidity("dbartsDartPrior", function(object) {
-  positiveFinite <- function(x) x > 0.0 && is.finite(x)
-  if (!positiveFinite(object@a)) {
-    return("'a' must be positive and finite")
+  # an NA rho or update.delay is the default, which the slot spells NA
+  stated <- function(x) length(x) != 1L || !is.na(x) || is.nan(x)
+  refusal <- c(
+    priorScalarRefusal(object@a, "a", isPositiveFinite, "positive finite number"),
+    priorScalarRefusal(object@b, "b", isPositiveFinite, "positive finite number"),
+    if (stated(object@rho)) {
+      priorScalarRefusal(
+        object@rho,
+        "rho",
+        isPositiveFinite,
+        "positive finite number"
+      )
+    },
+    priorScalarRefusal(
+      object@alpha,
+      "alpha",
+      isPositiveFinite,
+      "positive finite number"
+    ),
+    if (stated(object@update.delay)) {
+      priorScalarRefusal(
+        object@update.delay,
+        "update.delay",
+        function(x) x >= 0,
+        "non-negative number"
+      )
+    }
+  )
+  if (length(refusal) > 0L) {
+    return(refusal[1L])
   }
-  if (!positiveFinite(object@b)) {
-    return("'b' must be positive and finite")
-  }
-  if (!is.na(object@rho) && !positiveFinite(object@rho)) {
-    return("'rho' must be positive and finite")
-  }
-  if (!positiveFinite(object@alpha)) {
-    return("'alpha' must be positive and finite")
-  }
-  if (!is.na(object@update.delay) && object@update.delay < 0.0) {
-    return("'update.delay' must be non-negative")
+  if (
+    length(object@update.alpha) != 1L || is.na(object@update.alpha)
+  ) {
+    return("'update.alpha' must be TRUE/FALSE")
   }
   if (
     length(object@splitProbabilities) > 0L ||
@@ -92,13 +123,16 @@ methods::setClass(
   slots = list(degreesOfFreedom = "numeric", scale = "numeric")
 )
 methods::setValidity("dbartsChiHyperprior", function(object) {
-  if (object@degreesOfFreedom <= 0.0) {
-    return("'df' must be positive")
-  }
-  if (object@scale <= 0.0) {
-    return("'scale' must be positive")
-  }
-  TRUE
+  refusal <- c(
+    priorScalarRefusal(
+      object@degreesOfFreedom,
+      "df",
+      isPositiveNumber,
+      "positive number"
+    ),
+    priorScalarRefusal(object@scale, "scale", isPositiveNumber, "positive number")
+  )
+  if (length(refusal) > 0L) refusal[1L] else TRUE
 })
 methods::setClass(
   "dbartsFixedHyperprior",
@@ -107,7 +141,7 @@ methods::setClass(
   prototype = list(k = 2)
 )
 methods::setValidity("dbartsFixedHyperprior", function(object) {
-  if (object@k <= 0.0) {
+  if (length(object@k) != 1L || is.na(object@k) || object@k <= 0.0) {
     return("'k' must be positive")
   }
   TRUE
@@ -210,13 +244,17 @@ methods::setClass(
   slots = list(df = "numeric", quantile = "numeric")
 )
 methods::setValidity("dbartsChiSqPrior", function(object) {
-  if (object@df <= 0.0) {
-    return("'df' must be positive")
-  }
-  if (object@quantile <= 0.0) {
-    return("'quantile' must be positive")
-  }
-  TRUE
+  # the argument chisq() names it by, 'quant', for the quantile
+  refusal <- c(
+    priorScalarRefusal(object@df, "df", isPositiveFinite, chisqDfKind),
+    priorScalarRefusal(
+      object@quantile,
+      "quant",
+      isOpenUnitInterval,
+      "number between 0 and 1"
+    )
+  )
+  if (length(refusal) > 0L) refusal[1L] else TRUE
 })
 methods::setClass(
   "dbartsFixedPrior",
@@ -224,13 +262,13 @@ methods::setClass(
   slots = list(value = "numeric")
 )
 methods::setValidity("dbartsFixedPrior", function(object) {
-  if (length(object@value) != 1L || is.na(object@value)) {
-    return("'value' must be a single positive number")
-  }
-  if (object@value <= 0.0) {
-    return("'value' must be positive")
-  }
-  TRUE
+  refusal <- priorScalarRefusal(
+    object@value,
+    "value",
+    isPositiveFinite,
+    "positive finite number"
+  )
+  if (is.null(refusal)) TRUE else refusal
 })
 
 ## A drawn coefficient's Student-t prior, amplitude = student(df) on a forest:

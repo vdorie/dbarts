@@ -2133,6 +2133,10 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
       Rf_getAttrib(priorExpr, Rf_install("df")),
       "sigma prior degrees of freedom", RC_LENGTH | RC_EQ, rc_asRLength(1),
       RC_VALUE | RC_GT, 0.0, RC_END);
+    // the scale below is Inf / Inf at an infinite df, and every draw NaN
+    if (!std::isfinite(model.sigmaDf))
+      Rf_error("'df' must be a single positive finite number; to hold sigma "
+               "at a value, use fixed()");
     model.sigmaQuantile = rc_getDouble(
       Rf_getAttrib(priorExpr, Rf_install("quantile")), "sigma prior quantile",
       RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0,

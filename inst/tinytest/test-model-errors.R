@@ -88,7 +88,7 @@ expect_error(
 )
 expect_error(
   dbarts::dbarts(y ~ x, testData, leaf.prior = normal(chi(scale = -1))),
-  "'scale' must be positive"
+  "'scale' must be a single positive number"
 )
 expect_error(
   dbarts::dbarts(y ~ x, testData, leaf.prior = normal(chi(not_n_arg = 2.0))),
