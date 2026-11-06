@@ -465,7 +465,8 @@ resolveSamplerSpec <- function(
     "dbarts()/bartBT()/xbart",
     c("gaussian", "aft", "nbinom"),
     splitMultinomialMessage = TRUE,
-    allowOrdinal = TRUE
+    allowOrdinal = TRUE,
+    shownFamily = requestedFamily
   )
   # multinomial (K-forest softmax): the response is
   # the n x K count matrix on the data object, so the family is DECLARED by the

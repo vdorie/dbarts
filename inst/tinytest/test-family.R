@@ -466,3 +466,21 @@ expect_equal(
 
 # fits saved before the family element existed fall back to probit
 expect_equal(dbarts:::probabilityFromLatents(0.5, list()), pnorm(0.5))
+
+# a factor response refused under a Student-t family names the family as the
+# caller wrote it, not the gaussian it fits as
+y.factor4 <- factor(sample(letters[1:4], n, TRUE))
+y.factor2 <- factor(y.binary)
+for (family in list("student", dbartsFamilies$student(df = 3))) {
+  expect_error(
+    dbarts(x, y.factor4, family = family, control = control, n.trees = 5L),
+    "family \"student\" cannot fit a 4-level factor response",
+    fixed = TRUE
+  )
+  expect_error(
+    dbarts(x, y.factor2, family = family, control = control, n.trees = 5L),
+    "family \"student\" cannot fit a factor response",
+    fixed = TRUE
+  )
+}
+rm(y.factor4, y.factor2, family)

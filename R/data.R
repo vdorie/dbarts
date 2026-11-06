@@ -2488,14 +2488,17 @@ codeResponse <- function(y) {
 # explicit family): its auto-branch message cannot name a single caller and
 # instead lists every single-forest entry point (passed via `caller`), while
 # its explicit-family branch echoes the conflicting family like the 2-level
-# message does.
+# message does. `shownFamily` is the family those two messages name: the
+# caller's own token where the entry point has remapped it ("student" fits
+# as "gaussian").
 resolveClassificationFamily <- function(
   data,
   family,
   caller,
   incompatibleFamilies,
   splitMultinomialMessage = FALSE,
-  allowOrdinal = FALSE
+  allowOrdinal = FALSE,
+  shownFamily = family
 ) {
   responseType <- data@response.type
   K <- data@response.n.levels
@@ -2565,7 +2568,7 @@ resolveClassificationFamily <- function(
     }
     stop(
       "family \"",
-      family,
+      shownFamily,
       "\" cannot fit a ",
       K,
       "-level ",
@@ -2584,7 +2587,7 @@ resolveClassificationFamily <- function(
   } else if (family %in% incompatibleFamilies) {
     stop(
       "family \"",
-      family,
+      shownFamily,
       "\" cannot fit a ",
       responseType,
       " response; a 2-level factor is a binary classification ",
