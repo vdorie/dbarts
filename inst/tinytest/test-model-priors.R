@@ -354,6 +354,29 @@ expect_error(
   fixed = TRUE
 )
 expect_error(new("dbartsFixedHyperprior", k = c(1, 2)), "'k' must be positive")
+# and to its range: an infinite df, a quantile at 1, an infinite held value
+expect_error(
+  new("dbartsChiSqPrior", df = Inf, quantile = 0.9),
+  "'df' must be a single positive finite number; to hold sigma at a value",
+  fixed = TRUE
+)
+expect_error(
+  new("dbartsChiSqPrior", df = 3, quantile = 1),
+  "'quant' must be a single number between 0 and 1",
+  fixed = TRUE
+)
+expect_error(
+  new("dbartsFixedPrior", value = Inf),
+  "'value' must be a single positive finite number",
+  fixed = TRUE
+)
+dartInfinite <- dbartsPriors$dart()
+dartInfinite@alpha <- Inf
+expect_error(
+  validObject(dartInfinite),
+  "'alpha' must be a single positive finite number",
+  fixed = TRUE
+)
 # a matrix of split probabilities is refused in one line naming the argument
 expect_identical(
   tryCatch(
@@ -431,5 +454,6 @@ rm(
   infiniteDf,
   sigdf,
   heldSampler,
-  infiniteModel
+  infiniteModel,
+  dartInfinite
 )
