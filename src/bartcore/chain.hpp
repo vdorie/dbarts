@@ -8868,7 +8868,7 @@ private:
     // the O(n) scan must not run on a family that does not use it, where a
     // later reader would mistake it for the anchor
     const unsigned char* rows = response_->scaleRows();
-    const double* counts = countsForRowsRead(rows != nullptr);
+    const double* counts = frequencyCounts();
     double sd = counts != nullptr ? countedScaledResponseSd(rows, counts)
               : rows != nullptr  ? scaledResponseSdOver(rows)
                                  : scaledResponseSd();
@@ -8907,8 +8907,8 @@ private:
     std::vector<unsigned char> rows;
     bool fellBack = false;  // every row read because too few were in
     bool read = false;
-    // under frequency weights the rows' counts, borrowed; null otherwise and
-    // where every row is read in place of the rows in
+    // under frequency weights the rows' counts, borrowed, read where every
+    // row is read in place of the rows in as well; null under precision
     const double* counts = nullptr;
   };
   /// Under gaussian the rows the response's range was read from, every row
@@ -8917,7 +8917,9 @@ private:
   /// probit and logistic, which read no rows of their own, the rows the
   /// active-row mask \p spec hands keeps in, every row where it keeps fewer
   /// than two of more than one, as a leaf covariate reads them
-  /// (Sampler::leafRowsFrom). Nothing reads the weights' sizes.
+  /// (Sampler::leafRowsFrom). Under precision nothing reads the weights'
+  /// sizes; under frequency every row read is read at its count, with or
+  /// without a mask.
   ScaleRows rowsForBasisScale(const AmplitudeSpec& spec, const double* y) const {
     ScaleRows result;
     result.read = true;
@@ -8925,6 +8927,7 @@ private:
     switch (spec.family) {
     case ResponseFamily::probit:
     case ResponseFamily::logistic: {
+      result.counts = frequencyCounts();
       if (spec.activeRows == nullptr) return result;
       result.rows.resize(n);
       std::size_t numIn = 0;
@@ -8936,7 +8939,6 @@ private:
         result.rows.clear();
         result.fellBack = true;
       }
-      if (!result.fellBack) result.counts = frequencyCounts();
       return result;
     }
     // as latentScaleAnchor: every enumerator listed and no default arm
@@ -8953,27 +8955,16 @@ private:
       result.fellBack =
         response_->lacksDistinctRowsIn(IncomingVector::response, y);
     }
-    result.counts = result.fellBack ? nullptr
-                                    : countsForRowsRead(rows != nullptr);
+    result.counts = frequencyCounts();
     return result;
   }
 
-  /// The user weights where the chain reads them as frequencies, else null.
+  /// The user weights where the chain reads them as frequencies, else null:
+  /// every scale a creation reads off the rows, the rows in or every row in
+  /// their place, then reads each row at its count.
   const double* frequencyCounts() const {
     return options_.weightsReading == WeightsReading::frequency ? weights_
                                                                 : nullptr;
-  }
-
-  /// frequencyCounts where the rows a creation read its scales from are the
-  /// rows in: where \p rowsMarked says the response marked them, or where no
-  /// weight is 0, every row then in; null where a row is out and every row
-  /// was read in their place. No mask is installed at creation.
-  const double* countsForRowsRead(bool rowsMarked) const {
-    const double* counts = frequencyCounts();
-    if (counts == nullptr || rowsMarked) return counts;
-    for (std::size_t i = 0; i < data_.numObservations; ++i)
-      if (!(counts[i] > 0.0)) return nullptr;
-    return counts;
   }
 
   /// Variant A block-additive install: confine each whole tree to one

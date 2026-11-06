@@ -2464,8 +2464,8 @@ inline bool suppliedMoments(const SuppliedStandardization& supplied,
 /// (Sampler::withResponseFallback), and every row is read in their place.
 /// Membership only under precision weights: a row's weight never enters the
 /// numbers. Under frequency weights \p counts names them, borrowed, and the
-/// numbers are those of the rows written out that many times; null under
-/// precision and wherever every row is read in place of the rows in.
+/// numbers are those of the rows written out that many times, where every
+/// row is read in place of the rows in as well; null under precision.
 struct LeafRows {
   const std::uint8_t* rows = nullptr;
   bool tooFewIn = false;
@@ -3193,8 +3193,12 @@ struct GPGaussianLeaf {
         : supplied.lengthscales != nullptr &&
             !std::isnan(supplied.lengthscales[j])
           ? supplied.lengthscales[j]
-          : medianPairwiseDistance(u_.data() + j * numObservations_,
-                                   numObservations_, rows.rows);
+          : rows.counts != nullptr
+            ? countedMedianPairwiseDistance(u_.data() + j * numObservations_,
+                                            numObservations_, rows.rows,
+                                            rows.counts)
+            : medianPairwiseDistance(u_.data() + j * numObservations_,
+                                     numObservations_, rows.rows);
     // sortsByBitmap grows with the member count, so a bitmap it refuses at
     // the largest gp leaf serves no span and stays unallocated
     std::size_t maxMembers = std::min(maxLeafSize_, numObservations_);
@@ -3577,6 +3581,97 @@ private:
     double median = count % 2 == 1
       ? distances[count / 2]
       : 0.5 * (distances[count / 2 - 1] + distances[count / 2]);
+    return median > 0.0 ? median : 1.0;
+  }
+
+  /// medianPairwiseDistance under frequency weights \p counts: the median
+  /// over the pairs of the rows written out that many times, adjacently in
+  /// row order, over the rows \p rows marks (null for every row) of positive
+  /// count. The subsample is the expansion's: the stride counted over the
+  /// total count M, the sampled points every stride-th position of [0, M).
+  /// A row covering [C, C + w) of that line carries the length of its
+  /// overlap with the unit cells starting at the sampled points, v (w itself
+  /// at stride 1); two rows are a pair of weight v_a v_b, and a row's own
+  /// copies v (v - 1) / 2 pairs at distance 0 where that is positive. At
+  /// whole counts every v is whole and the median is the expansion's,
+  /// bitwise; at all-ones counts it is medianPairwiseDistance's. Where more
+  /// than 512 rows carry a v, which only counts below 1 allow, those rows
+  /// are thinned by a further stride over them. Fewer than two written out
+  /// (the v summing below 2) and a median of 0 fall back to 1.
+  static double countedMedianPairwiseDistance(const double* u, std::size_t n,
+                                              const std::uint8_t* rows,
+                                              const double* counts) {
+    auto read = [&](std::size_t i) {
+      return (rows == nullptr || rows[i] != 0) && counts[i] > 0.0;
+    };
+    double total = 0.0;
+    for (std::size_t i = 0; i < n; ++i)
+      if (read(i)) total += counts[i];
+    // the expansion's stride over its ceil(total) rows
+    double numWritten = std::ceil(total);
+    double stride = numWritten < 1.0
+      ? 1.0
+      : 1.0 + std::floor((numWritten - 1.0) / 512.0);
+    std::vector<double> values, weights;
+    double start = 0.0;
+    for (std::size_t i = 0; i < n; ++i) {
+      if (!read(i)) continue;
+      double end = start + counts[i];
+      double v = 0.0;
+      if (stride == 1.0) {
+        v = counts[i];
+      } else {
+        for (double cell = std::floor(start / stride) * stride; cell < end;
+             cell += stride) {
+          double overlap = std::min(end, cell + 1.0) - std::max(start, cell);
+          if (overlap > 0.0) v += overlap;
+        }
+      }
+      if (v > 0.0) {
+        values.push_back(u[i]);
+        weights.push_back(v);
+      }
+      start = end;
+    }
+    if (values.size() > 512) {
+      std::size_t thin = 1 + (values.size() - 1) / 512;
+      std::size_t kept = 0;
+      for (std::size_t k = 0; k < values.size(); k += thin, ++kept) {
+        values[kept] = values[k];
+        weights[kept] = weights[k];
+      }
+      values.resize(kept);
+      weights.resize(kept);
+    }
+    double sumWeights = 0.0;
+    for (double v : weights) sumWeights += v;
+    if (sumWeights < 2.0) return 1.0;
+    std::vector<std::pair<double, double>> distances;
+    distances.reserve(values.size() * (values.size() + 1) / 2);
+    for (std::size_t a = 0; a < values.size(); ++a) {
+      double self = 0.5 * weights[a] * (weights[a] - 1.0);
+      if (self > 0.0) distances.emplace_back(0.0, self);
+      for (std::size_t b = a + 1; b < values.size(); ++b)
+        distances.emplace_back(std::fabs(values[a] - values[b]),
+                               weights[a] * weights[b]);
+    }
+    std::sort(distances.begin(), distances.end());
+    double numPairs = 0.0;
+    for (const auto& d : distances) numPairs += d.second;
+    // the ranks (from 0) medianPairwiseDistance takes over numPairs pairs:
+    // the middle one where it is odd, the middle two where it is even
+    double lowRank = std::floor(0.5 * (numPairs - 1.0));
+    double highRank = std::floor(0.5 * numPairs);
+    auto atRank = [&](double rank) {
+      double cumulative = 0.0;
+      for (const auto& d : distances) {
+        cumulative += d.second;
+        if (cumulative > rank) return d.first;
+      }
+      return distances.back().first;
+    };
+    double low = atRank(lowRank), high = atRank(highRank);
+    double median = lowRank == highRank ? low : 0.5 * (low + high);
     return median > 0.0 ? median : 1.0;
   }
 

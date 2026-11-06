@@ -2754,13 +2754,13 @@ public:
       const L& leaf = chains_[0]->leaf();
       size_t n = data_.numObservations;
       std::vector<std::uint8_t> storage;
-      LeafRows rows = tooFewUnitsIn
-        ? LeafRows{nullptr, true}
-        : withCounts(
-            leafRowsFrom(chains_[0]->weights(),
+      LeafRows rows = withCounts(
+        tooFewUnitsIn
+          ? LeafRows{nullptr, true}
+          : leafRowsFrom(chains_[0]->weights(),
                          activeRows_.empty() ? nullptr : activeRows_.data(), n,
                          storage),
-            chains_[0]->weights());
+        chains_[0]->weights());
       keptCovariates.assign(leaf.numCovariates(), 0);
       bool anyKept = false;
       for (size_t j = 0; j < leaf.numCovariates(); ++j) {
@@ -3490,10 +3490,10 @@ private:
   }
 
   /// \p rows with \p weights as its counts where the sampler reads its
-  /// weights as frequencies and the rows in are read, not every row in their
-  /// place.
+  /// weights as frequencies, the rows in and every row read in their place
+  /// alike, each at its count.
   LeafRows withCounts(LeafRows rows, const double* weights) const {
-    if (options_.weightsReading == WeightsReading::frequency && !rows.tooFewIn)
+    if (options_.weightsReading == WeightsReading::frequency)
       rows.counts = weights;
     return rows;
   }
@@ -3570,14 +3570,14 @@ private:
     std::vector<std::uint8_t> leafRowStorage;
     LeafRows leafRows;
     if constexpr (L::hasVectorParams || L::hasFunctionParams)
-      leafRows = options_.tooFewUnitsIn
-        ? LeafRows{nullptr, true}
-        : withCounts(
-            withResponseFallback(
+      leafRows = withCounts(
+        options_.tooFewUnitsIn
+          ? LeafRows{nullptr, true}
+          : withResponseFallback(
               leafRowsFrom(weights, options_.activeRows, data_.numObservations,
                            leafRowStorage),
               y, offset, data_.numObservations),
-            weights);
+        weights);
     chains_.reserve(options_.numChains);
     for (size_t c = 0; c < options_.numChains; ++c)
       chains_.push_back(std::make_unique<Chain<L, ResidT>>(
