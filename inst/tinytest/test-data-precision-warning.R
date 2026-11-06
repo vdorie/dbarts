@@ -95,3 +95,98 @@ rm(
   x.smallN,
   y.categorical.smallN
 )
+
+# A count or a category has nothing to rescale, so no fit of one passes the
+# warning on: an ordinal or multinomial fit to one observed category gets its
+# own one warning at every level, a constant count is silent, and a fit its
+# family then refuses (a hurdle response with no zero, a probit response not
+# coded 0/1) gets the refusal alone. A gaussian fit to a constant still warns.
+source(
+  system.file("common", "captureWarnings.R", package = "dbarts"),
+  local = TRUE
+)
+set.seed(9)
+n <- 40L
+x <- matrix(runif(n * 2), n)
+singleCategory <- paste0(
+  "is fitted to a response with a single observed category; the prior alone ",
+  "drives the fitted probabilities"
+)
+fitQuietly <- function(...) {
+  bart(
+    x,
+    ...,
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  )
+}
+for (level in c("a", "b", "c")) {
+  y.ordinal <- factor(rep(level, n), levels = c("a", "b", "c"), ordered = TRUE)
+  for (family in c("ordinal", "auto")) {
+    warned <- captureWarnings(fitQuietly(y.ordinal, family = family))
+    expect_equal(length(warned), 1L, info = paste(family, level))
+    expect_identical(
+      conditionMessage(warned[[1L]]),
+      paste0("family \"ordinal\" ", singleCategory),
+      info = paste(family, level)
+    )
+  }
+  warned <- captureWarnings(dbarts::dbarts(
+    x,
+    y.ordinal,
+    family = "ordinal",
+    n.trees = 5L
+  ))
+  expect_equal(length(warned), 1L, info = level)
+  y.multinomial <- factor(rep(level, n), levels = c("a", "b", "c"))
+  warned <- captureWarnings(fitQuietly(y.multinomial, family = "multinomial"))
+  expect_equal(length(warned), 1L, info = level)
+  expect_identical(
+    conditionMessage(warned[[1L]]),
+    paste0("family \"multinomial\" ", singleCategory),
+    info = level
+  )
+}
+# a count matrix with one category ever counted is the same response
+counts <- cbind(a = 0L, b = rpois(n, 2) + 1L, c = 0L)
+warned <- captureWarnings(fitQuietly(counts, family = "multinomial"))
+expect_equal(length(warned), 1L)
+expect_match(conditionMessage(warned[[1L]]), singleCategory, fixed = TRUE)
+# two observed categories of three are an ordinary fit
+expect_silent(fitQuietly(
+  factor(rep(c("a", "b"), length.out = n), levels = c("a", "b", "c")),
+  family = "multinomial"
+))
+expect_equal(
+  length(captureWarnings(fitQuietly(rep(3L, n), family = "nbinom"))),
+  0L
+)
+warned <- captureWarnings(expect_error(
+  fitQuietly(rep(2.5, n), family = "hurdle.lognormal"),
+  "at least one exact zero"
+))
+expect_equal(length(warned), 0L)
+warned <- captureWarnings(expect_error(
+  fitQuietly(rep(2, n), family = "probit"),
+  "requires a response coded 0/1"
+))
+expect_equal(length(warned), 0L)
+warned <- captureWarnings(fitQuietly(rep(5, n), family = "gaussian"))
+expect_equal(length(warned), 1L)
+expect_match(conditionMessage(warned[[1L]]), "indistinguishable")
+rm(
+  n,
+  x,
+  singleCategory,
+  fitQuietly,
+  level,
+  y.ordinal,
+  family,
+  warned,
+  y.multinomial,
+  counts
+)

@@ -3779,8 +3779,10 @@ bart2Hurdle <- function(
   # that the na.action has settled, as a gaussian fit's are; the two parts
   # are then cut from it by rows, so both see the same rows, columns and
   # coding. A data object is taken whole, and an argument beside it is
-  # ignored with the warning dbartsData gives
-  ingested <- ingestHurdleData(
+  # ignored with the warning dbartsData gives. Its precision warning is held
+  # until the response has passed the hurdle's own checks, which name the
+  # problem with a constant response themselves
+  ingestion <- holdingResponsePrecision(ingestHurdleData(
     matchedCall,
     callingEnv,
     formula,
@@ -3789,7 +3791,8 @@ bart2Hurdle <- function(
     na.action,
     if (!missing(subset)) list(subset),
     if (!missing(weights)) list(weights)
-  )
+  ))
+  ingested <- ingestion$value
   omitted <- ingested@na.action
 
   # the combined mean is read from the training fits unless a test set gives
@@ -3805,6 +3808,9 @@ bart2Hurdle <- function(
   refuseHurdleWeights(ingested@weights)
   refuseHurdleWeights(ingested@weights.test)
   split <- splitHurdleResponse(ingested@y)
+  if (!is.null(ingestion$held)) {
+    warning(ingestion$held)
+  }
   refuseHurdlePositiveMissingness(ingested@x, split$positive)
   parts <- hurdlePartData(ingested, split, control@keepTrainingFits)
 

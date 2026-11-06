@@ -77,28 +77,37 @@ responseHasSingleClass <- function(y) {
   length(values) == 1L && values %in% c(0, 1)
 }
 
-## A single-class response that a binary family fits with its one warning: an
-## explicit binary family, or "auto" on a categorical encoding, which resolves
-## to one. A hazard family is not asked: withBinaryResponsePrecision answers
-## it first, its response here being the log time.
-fitsSingleClass <- function(data, family) {
-  responseHasSingleClass(data@y) &&
-    (family %in%
-      c("probit", "logistic") ||
-      (identical(family, "auto") && data@response.type != "numeric"))
+## The one warning an ordinal or multinomial fit gives when its response shows
+## one category: the model is defined, its priors proper, and the prior alone
+## places the probabilities, as with a binary fit to one class.
+warnSingleCategory <- function(family) {
+  warning(
+    "family \"",
+    family,
+    "\" is fitted to a response with a single observed category; the prior ",
+    "alone drives the fitted probabilities",
+    call. = FALSE
+  )
 }
 
-## dbartsData warns of a response whose values are indistinguishable at
-## double precision before any family is known, and a constant response is
-## one. Where that response is a single class a binary family takes, its own
-## warning names the actual problem, so the warning, whose remedy is to
-## rescale, is held back there and raised everywhere else. A formula hazard
-## fit's response at this point is the log time standing in for the binary
-## rows it expands to, which the warning does not describe, so it is held back
-## there too.
-withBinaryResponsePrecision <- function(family, expr) {
+## The families whose response is a count or a category, where dbartsData's
+## precision warning, whose remedy is to rescale, does not apply. A formula
+## hazard fit's response at that point is the log time standing in for the
+## binary rows it expands to, which the warning does not describe either.
+discreteResponseFamilies <- c(
+  "probit",
+  "logistic",
+  "ordinal",
+  "nbinom",
+  "multinomial",
+  hazardFamilyTokens
+)
+
+## Evaluates 'expr' with dbartsData's precision warning held back: the value,
+## and the held warning or NULL.
+holdingResponsePrecision <- function(expr) {
   held <- NULL
-  data <- withCallingHandlers(
+  value <- withCallingHandlers(
     expr,
     warning = function(w) {
       if (startsWith(conditionMessage(w), responsePrecisionWarningStem)) {
@@ -107,12 +116,26 @@ withBinaryResponsePrecision <- function(family, expr) {
       }
     }
   )
+  list(value = value, held = held)
+}
+
+## dbartsData warns of a response whose values are indistinguishable at
+## double precision before any family is known, and a constant response is
+## one. A count or a category has nothing to rescale: a family that fits one,
+## or a response with a categorical encoding, which "auto" resolves to a
+## binary, ordinal or multinomial fit, gets its own family's words where the
+## response is degenerate (a binary fit's single class, an ordinal or
+## multinomial fit's single category) or its refusal, so the warning is held
+## back there and raised everywhere else.
+withBinaryResponsePrecision <- function(family, expr) {
+  result <- holdingResponsePrecision(expr)
+  data <- result$value
   if (
-    !is.null(held) &&
-      family %not_in% hazardFamilyTokens &&
-      !(is(data, "dbartsData") && fitsSingleClass(data, family))
+    !is.null(result$held) &&
+      family %not_in% discreteResponseFamilies &&
+      !(is(data, "dbartsData") && data@response.type != "numeric")
   ) {
-    warning(held)
+    warning(result$held)
   }
   data
 }
@@ -501,7 +524,9 @@ resolveSamplerSpec <- function(
     # the counts ARE the response and the bridge reads K off their column
     # count, so nothing is recoded and the model records no category count;
     # data@y is already the trials
-    NULL
+    if (sum(colSums(counts, na.rm = TRUE) > 0) == 1L) {
+      warnSingleCategory(family)
+    }
   } else if (identical(family, "ordinal")) {
     # ordinal (cumulative probit): a single-forest
     # fixed-unit-scale model like probit, but K-level. Recode the response to
@@ -512,6 +537,9 @@ resolveSamplerSpec <- function(
     data@y <- ordinal$y
     data@response.levels <- ordinal$levels
     numCategories <- as.integer(ordinal$K)
+    if (length(unique(ordinal$y[!is.na(ordinal$y)])) == 1L) {
+      warnSingleCategory(family)
+    }
   } else if (identical(family, "nbinom")) {
     # negative-binomial counts: the
     # count response has no unambiguous class, so "nbinom" is never auto - only
