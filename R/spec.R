@@ -93,10 +93,10 @@ warnSingleCategory <- function(family) {
 ## The families whose response is a count or a category, where dbartsData's
 ## precision warning, whose remedy is to rescale, does not apply. A formula
 ## hazard fit's response at that point is the log time standing in for the
-## binary rows it expands to, which the warning does not describe either.
+## binary rows it expands to, which the warning does not describe either. A
+## binary family is not listed: a near-constant response that is not one
+## class keeps the warning beside the family's refusal.
 discreteResponseFamilies <- c(
-  "probit",
-  "logistic",
   "ordinal",
   "nbinom",
   "multinomial",
@@ -122,18 +122,22 @@ holdingResponsePrecision <- function(expr) {
 ## dbartsData warns of a response whose values are indistinguishable at
 ## double precision before any family is known, and a constant response is
 ## one. A count or a category has nothing to rescale: a family that fits one,
-## or a response with a categorical encoding, which "auto" resolves to a
-## binary, ordinal or multinomial fit, gets its own family's words where the
-## response is degenerate (a binary fit's single class, an ordinal or
-## multinomial fit's single category) or its refusal, so the warning is held
-## back there and raised everywhere else.
+## a binary family fit to a single class, or a response with a categorical
+## encoding, which "auto" resolves to a binary, ordinal or multinomial fit,
+## gets its own family's words where the response is degenerate (a binary
+## fit's single class, an ordinal or multinomial fit's single category) or its
+## refusal, so the warning is held back there and raised everywhere else.
 withBinaryResponsePrecision <- function(family, expr) {
   result <- holdingResponsePrecision(expr)
   data <- result$value
   if (
     !is.null(result$held) &&
       family %not_in% discreteResponseFamilies &&
-      !(is(data, "dbartsData") && data@response.type != "numeric")
+      !(is(data, "dbartsData") &&
+        (data@response.type != "numeric" ||
+          (family %in%
+            c("probit", "logistic") &&
+            responseHasSingleClass(data@y))))
   ) {
     warning(result$held)
   }

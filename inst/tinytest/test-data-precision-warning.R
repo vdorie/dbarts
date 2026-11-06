@@ -98,9 +98,10 @@ rm(
 
 # A count or a category has nothing to rescale, so no fit of one passes the
 # warning on: an ordinal or multinomial fit to one observed category gets its
-# own one warning at every level, a constant count is silent, and a fit its
-# family then refuses (a hurdle response with no zero, a probit response not
-# coded 0/1) gets the refusal alone. A gaussian fit to a constant still warns.
+# own one warning at every level, a constant count is silent, and a hurdle
+# response with no zero gets its refusal alone. A gaussian fit to a constant
+# still warns, as does a binary fit to a constant that is not one class, beside
+# its refusal.
 source(
   system.file("common", "captureWarnings.R", package = "dbarts"),
   local = TRUE
@@ -174,7 +175,8 @@ warned <- captureWarnings(expect_error(
   fitQuietly(rep(2, n), family = "probit"),
   "requires a response coded 0/1"
 ))
-expect_equal(length(warned), 0L)
+expect_equal(length(warned), 1L)
+expect_match(conditionMessage(warned[[1L]]), "indistinguishable")
 warned <- captureWarnings(fitQuietly(rep(5, n), family = "gaussian"))
 expect_equal(length(warned), 1L)
 expect_match(conditionMessage(warned[[1L]]), "indistinguishable")
