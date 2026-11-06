@@ -795,7 +795,11 @@ methods::setClass(
     # shape and a non-positive one drawing it; NA on every other family
     shape = "numeric",
     # a hazard model's period grid, NULL on every other
-    hazard.periods = "ANY"
+    hazard.periods = "ANY",
+    # how the weights are read: NA for the family's own reading, else
+    # "precision" or "frequency"; the bridge reads "frequency" as counts of
+    # identical rows and anything else as precisions. Fixed at creation.
+    weights.type = "character"
   ),
   prototype = list(
     leaf.scale = 0.5,
@@ -809,7 +813,8 @@ methods::setClass(
     variance = NULL,
     n.categories = NA_integer_,
     shape = NA_real_,
-    hazard.periods = NULL
+    hazard.periods = NULL,
+    weights.type = NA_character_
   )
 )
 methods::setValidity("dbartsModel", function(object) {
@@ -863,6 +868,13 @@ methods::setValidity("dbartsModel", function(object) {
   }
   if (length(object@shape) != 1L) {
     return("'shape' must be a single number or NA")
+  }
+  if (
+    length(object@weights.type) != 1L ||
+      !(is.na(object@weights.type) ||
+        object@weights.type %in% c("precision", "frequency"))
+  ) {
+    return("'weights.type' must be NA, \"precision\" or \"frequency\"")
   }
 
   TRUE

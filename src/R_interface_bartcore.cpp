@@ -430,6 +430,10 @@ struct ParsedModel {
   // grid. NA on the model leaves a non-count response.
   bool countResponse = false;
   double shape = NA_REAL;
+  // how the weights are read, from the model's resolved weights.type:
+  // "frequency" reads them as counts of identical rows, anything else as
+  // precisions
+  bartcore::WeightsReading weightsReading = bartcore::WeightsReading::precision;
 };
 
 /// A slot of an S4 object, with the marker R stores for a slot holding NULL
@@ -2198,6 +2202,14 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
     model.shape = REAL(shapeExpr)[0];
   }
 
+  // the weights' reading, resolved R-side; NA (the family's own) and a model
+  // without the slot read as precision here
+  SEXP weightsTypeExpr = slotOrNull(modelExpr, "weights.type");
+  if (Rf_isString(weightsTypeExpr) && Rf_xlength(weightsTypeExpr) == 1 &&
+      STRING_ELT(weightsTypeExpr, 0) != NA_STRING &&
+      std::strcmp(CHAR(STRING_ELT(weightsTypeExpr, 0)), "frequency") == 0)
+    model.weightsReading = bartcore::WeightsReading::frequency;
+
   UNPROTECT(3);
 }
 
@@ -2697,6 +2709,7 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   // a non-positive value estimates it on the grid; NaN (a non-count
   // response) is ignored
   options.shape = model.shape;
+  options.weightsReading = model.weightsReading;
   options.k = model.k;
   options.nodeScale = model.nodeScale;
   // NA_REAL is a NaN, so the engine's isfinite test reads "unnamed" from it
