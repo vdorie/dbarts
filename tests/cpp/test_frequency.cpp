@@ -290,7 +290,8 @@ void testUnitWeightIdentity() {
 
 /// A row of frequency weight 0 is out of the likelihood and keeps the run
 /// finite on each family, its log-likelihood entry NaN and every other one
-/// finite.
+/// finite. A drawn df spreads over the grid here, so a df step whose every
+/// grid weight is -inf (a 0 count's term) shows as a df that never moves.
 void testZeroWeights() {
   const std::size_t n = 40, numSamples = 40;
   Fixture f(n);
@@ -326,6 +327,10 @@ void testZeroWeights() {
                  (nu == 5.0 || std::find(std::begin(ResidualDfPrior::grid),
                                          std::end(ResidualDfPrior::grid),
                                          nu) != std::end(ResidualDfPrior::grid));
+    if (student && arm.residualDf == 0.0)
+      finite = finite && std::any_of(d.df.begin(), d.df.end(), [&](double nu) {
+                 return nu != d.df.front();
+               });
     bool logLikelihood = true;
     for (std::size_t s = 0; s < numSamples; ++s)
       for (std::size_t i = 0; i < n; ++i) {
