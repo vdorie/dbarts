@@ -478,13 +478,17 @@ family(object, ...)
   `offset.test` is at fit time. It shifts the PREDICTED rows, not the
   training ones - a different channel from `offset.test`, which is why
   it carries its own name rather than that one's. `NULL` (the default,
-  when missing) applies none. Refused, by name, with `type = "forest"`:
-  an offset shifts the recombination of the forests, never any one
-  forest's own total, so it belongs to the arithmetic under ‘Value’
-  rather than to what comes back. On an amplitude-coupled fit's combined
-  arms (`type = "ev"`, `"ppd"`, `"bart"`) it is that recombination, and
-  enters the sum of trees before the family's link, exactly as it does
-  for a single forest.
+  when missing) takes the fit's own offset: its `binaryOffset`, and the
+  [`offset()`](https://rdrr.io/r/stats/offset.html) terms and `offset`
+  argument of a formula fit evaluated on `newdata`, a plain vector for
+  the training rows applying only to a `newdata` of as many rows. A
+  given `offset` is added to a `binaryOffset`. Refused, by name, with
+  `type = "forest"`: an offset shifts the recombination of the forests,
+  never any one forest's own total, so it belongs to the arithmetic
+  under ‘Value’ rather than to what comes back. On an amplitude-coupled
+  fit's combined arms (`type = "ev"`, `"ppd"`, `"bart"`) it is that
+  recombination, and enters the sum of trees before the family's link,
+  exactly as it does for a single forest.
 
 - sampleronly:
 
@@ -561,14 +565,16 @@ family(object, ...)
   logistic fit by the observation-count weight \\w_i\\, and an aft fit
   contributes the log density for an event and the log survival tail
   \\\log P(T \> C)\\ for a right-censored observation, both on the
-  log-time scale. When chains are combined the result is a
-  samples-by-observations matrix directly consumable by WAIC/PSIS-LOO
-  implementations such as those in the loo package; the chains-first
-  convention is kept, so a per-chain array (`combineChains = FALSE`,
-  dimension chains-by-samples-by-observations) is reordered to the
-  draws-by-chains-by-observations that `loo::relative_eff` expects with
-  `aperm(x, c(2, 1, 3))`. To synergize with
-  [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
+  log-time scale: an event's term is the density of \\\log T\\, which
+  exceeds the density of \\T\\ by \\\log t\\, so to compare with a model
+  of \\T\\, subtract \\\log t\\ at each event. When chains are combined
+  the result is a samples-by-observations matrix directly consumable by
+  WAIC/PSIS-LOO implementations such as those in the loo package; the
+  chains-first convention is kept, so a per-chain array
+  (`combineChains = FALSE`, dimension chains-by-samples-by-observations)
+  is reordered to the draws-by-chains-by-observations that
+  `loo::relative_eff` expects with `aperm(x, c(2, 1, 3))`. To synergize
+  with [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
   `"response"` can be used as a synonym for `"ev"` and `"link"` can be
   used as a synonym for `"bart"`; the
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
@@ -952,10 +958,10 @@ The result of `extract` will be a data frame with columns:
   `trees$forest == "z"` selects a forest and `as.integer(trees$forest)`
   gives its position, and the levels are all of the fit's forests
   whichever the frame holds; present only on a fit with several forests
-  (a `"bartMultinomial"` fit, or one declared with `forests =`, whatever
-  the count); a single-forest fit has no such column, and still accepts
-  `forest = 1`. The sampler's own `getTrees` numbers the forests from 1
-  instead
+  (a `"bartMultinomial"` fit, or one declared with `forests =` naming
+  more than one); a single-forest fit has no such column, and still
+  accepts `forest = 1`. The sampler's own `getTrees` numbers the forests
+  from 1 instead
 
 - `chain`, `sample`, `tree` - index variables; `chain` is always
   present, 1 on a single-chain fit, since tree draws cannot be combined
@@ -1022,7 +1028,9 @@ returned. In the numeric \\y\\ case, the list has components:
 - `yhat.train.mean`:
 
   Vector of means of `yhat.train` across columns and chains, with length
-  equal to the number of training observations.
+  equal to the number of training observations passed in: on `bart`,
+  `NA` at a row dropped for a missing response, which `yhat.train`
+  leaves out.
 
 - `yhat.test.mean`:
 
@@ -1218,7 +1226,8 @@ returned. In the numeric \\y\\ case, the list has components:
 
 - `binaryOffset`:
 
-  Present only for a binary fit: the offset value used.
+  Present only for a binary fit: the offset used, one value per training
+  row.
 
 - `offset`:
 
@@ -1409,7 +1418,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.214891
+#> total seconds in loop: 0.219618
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

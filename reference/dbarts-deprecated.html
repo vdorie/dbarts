@@ -76,6 +76,12 @@ rbart_vi and its methods are deprecated, and documented on rbart_vi."></head><bo
     <dt><code>n.trees</code>, <code>n.cuts</code>, <code>useQuantiles</code> on <code><a href="dbartsControl.html">dbartsControl</a></code></dt>
 <dd><p>What a model and its data hold: <code>n.trees</code> is now an argument of <code><a href="dbarts.html">dbarts</a></code>, <code><a href="dbartsSpec.html">dbartsSpec</a></code> and <code><a href="forest.html">forest</a></code>, and <code>n.cuts</code> and <code>useQuantiles</code> of <code>dbarts</code> and <code><a href="dbartsData.html">dbartsData</a></code>. A value written on a control is read after a once-per-session warning; a control's value that differs from what a call takes draws a warning on every call, and a value a fit left on its control states nothing.</p></dd>
 
+    <dt><code>sigest</code> beside a fixed residual scale</dt>
+<dd><p>A fit that states <code>sigest</code> and a residual scale held fixed (<code>family = gaussian(sigma = fixed(value))</code>) runs, <code>sigest</code> having no effect, after a once-per-session warning; it is an error from dbarts 1.1-0, so drop <code>sigest</code>.</p></dd>
+
+    <dt>The <code>n.trees</code>, <code>useQuantiles</code> and <code>binary</code> slots of a <code><a href="dbartsControl.html">dbartsControl</a></code> object</dt>
+<dd><p>Still readable, as <code>control@n.trees</code>, <code>control@useQuantiles</code> and <code>control@binary</code>, for code that reads them from the control; the values now live on the model and the data: the forests' tree counts in the model's <code>forests</code>, <code>useQuantiles</code> in the data object's <code>useQuantiles</code> slot, and the response family in the model's <code>family</code> slot. A later release removes them.</p></dd>
+
     <dt>A three-element <code>n.burn</code> on <code><a href="xbart.html">xbart</a></code></dt>
 <dd><p>Refused outright, naming <code>n.burn = c(fresh, warm)</code>: 0.9-x's third element was a per-replication burn-in, and a chain is never carried between replications now.</p></dd>
 

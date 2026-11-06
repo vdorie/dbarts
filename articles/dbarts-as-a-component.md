@@ -48,10 +48,10 @@ recipeControl <- function(seed) {
 
 A binary response is fit by drawing a per-observation latent and
 regressing on it. `dbarts` will do this internally with
-`family = "probit"`, but a host that needs the latent for its own blocks
-– a selection equation, a shared factor – can run the Albert-Chib step
-itself with `dbartsDrawLatents` and `dbartsWorkingResponse` over an
-ordinary gaussian sampler.
+`family = "probit"`, but an outer sampler that needs the latent for its
+own blocks – a selection equation, a shared factor – can run the
+Albert-Chib step itself with `dbartsDrawLatents` and
+`dbartsWorkingResponse` over an ordinary gaussian sampler.
 
 Two details make it correct rather than merely runnable. The sampler’s
 residual standard deviation is pinned at 1 with
@@ -70,19 +70,22 @@ o <- rep(0.25, n)
 y <- rbinom(n, 1L, pnorm(fTrue + o))
 control <- recipeControl(31L)
 
-# the host: a gaussian sampler on the working response, sigma pinned at 1
-host <- dbarts(x, 2 * y - 1 - o, control = control, n.trees = nTrees,
-               family = gaussian(sigma = fixed(1)))
-host$setLeafPrior(normal(sd = 1))
+# the outer sampler: a gaussian sampler on the working response, sigma pinned
+# at 1. The leaf prior's center is the midrange of the response it is built on
+# (read it back with getLeafPrior()$prior.mean), so it is built on 2 * y - 1,
+# midrange 0, the center a native probit sampler uses
+outer <- dbarts(x, 2 * y - 1, control = control, n.trees = nTrees,
+                family = gaussian(sigma = fixed(1)))
+outer$setLeafPrior(normal(sd = 1))
 
 composed <- matrix(0, n, nDraws)
 for (i in seq_len(nBurn + nDraws)) {
   # the fit WITHOUT the offset is what the augmentation conditions on; both
   # helpers form the linear predictor themselves as fit + offset
-  z <- dbartsDrawLatents("probit", host$getFitsWithoutOffset(), y, offset = o)
-  host$setResponse(dbartsWorkingResponse("probit", z, y, offset = o))
-  host$run(0L, 1L)
-  if (i > nBurn) composed[, i - nBurn] <- host$getFitsWithoutOffset()
+  z <- dbartsDrawLatents("probit", outer$getFitsWithoutOffset(), y, offset = o)
+  outer$setResponse(dbartsWorkingResponse("probit", z, y, offset = o))
+  outer$run(0L, 1L)
+  if (i > nBurn) composed[, i - nBurn] <- outer$getFitsWithoutOffset()
 }
 
 # a native probit sampler, given the SAME leaf prior, targets the same posterior
@@ -95,7 +98,7 @@ c(agreement = cor(rowMeans(composed), nativeFit),
 ```
 
     ## agreement    signal 
-    ## 0.9908798 0.9222418
+    ## 0.9927714 0.9277347
 
 Agreement, not identity: these are two chains of one posterior, so they
 differ by Monte Carlo error. The package’s tests state the tolerance.
@@ -242,7 +245,14 @@ $`\sqrt{K}`$ times the prior standard deviation a single sampler would
 have, and nothing warns about it.
 
 `setLeafPrior(normal(sd = base / sqrt(K)))` restates each forest’s share
-of one budget. The check below draws from the composed prior directly –
+of one budget. The prior’s center is inherited the same way: each
+sampler’s leaf prior is centered at the midrange of the response it was
+built on (`getLeafPrior()$prior.mean`), so the composed prior is
+centered at $`K`$ times that midrange, not at the response’s. Build each
+sampler on `y - (K - 1) / K * mean(range(y))`, which leaves the range
+alone and puts each center at $`1/K`$ of the response’s, to center the
+sum where a single sampler’s would be; `setResponse` does not move it.
+The check below draws from the composed prior directly –
 `sampleTreesFromPrior` acts on the engine, so it sees what
 `setLeafPrior` wrote – and compares it with a single sampler’s.
 
@@ -384,10 +394,10 @@ c(wanted = sum(wanted), accepted = sum(installed), n = nJ)
 ## 5. An outer sampler that owns sigma
 
 `family = gaussian(sigma = fixed(value))` holds the residual variance at
-`value` and suppresses the sampler’s own draw, which is exactly what a
-host wants when sigma is drawn elsewhere – from a hierarchical prior,
-jointly with another outcome, or from a scale shared across several
-samplers. `setSigma` then writes it, and it stays written.
+`value` and suppresses the sampler’s own draw, which is exactly what an
+outer sampler wants when sigma is drawn elsewhere – from a hierarchical
+prior, jointly with another outcome, or from a scale shared across
+several samplers. `setSigma` then writes it, and it stays written.
 
 ``` r
 
@@ -434,12 +444,17 @@ probit$setSigma(1)
 The last recipe is about a read, not a write. The code driving the
 sampler one sweep at a time conditions on $`f(x_i)`$, and
 `$getFitsWithoutOffset()` is the method that reports it. `run()$train`
-reports the same location with the installed offset folded in, and
-`$getLatents()` reports the augmentation variable, which carries no
-offset at all. Differencing the last two is the trap:
-`getLatents() - run()$train` is short by exactly the offset, so an outer
-block that regresses it on the offset’s own covariate recovers a
-coefficient shrunk toward zero.
+reports the same location with the installed offset folded in. For
+probit, ordinal and aft, `$getLatents()` reports a location on that same
+offset-inclusive scale, $`z = f(x) + o + e`$. Differencing the last two
+is the trap: `getLatents() - run()$train` is the residual $`e`$, which
+carries none of the offset’s signal, so an outer block that owns the
+offset and regresses it on the offset’s own covariate recovers a
+coefficient shrunk toward zero; it regresses
+`z - getFitsWithoutOffset()` instead. The precision latents (logistic,
+nbinom, Student-t) carry no location and no offset, and
+`dbartsWorkingResponse` turns any latent into the offset-free working
+response.
 
 ``` r
 

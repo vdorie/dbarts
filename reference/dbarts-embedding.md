@@ -53,8 +53,8 @@ constraint the joint form also declines a value that would leave a
 tree's leaf values out of order. **That mask is part of a Metropolis
 accept decision, not a diagnostic**: a declined observation holds its
 old value, so the likelihood read after the call is its old likelihood,
-and treating the resulting ratio as an acceptance leaves the host's copy
-of the latent disagreeing with what the samplers hold.
+and treating the resulting ratio as an acceptance leaves the outer
+sampler's copy of the latent disagreeing with what the samplers hold.
 
 Not every channel is open on every model. A refusal is part of the model
 rather than a limitation - `setSigma` on a family that fixes the
@@ -95,12 +95,17 @@ table in ‘Reading the fit’,
 is authoritative. The rule an outer block needs: it conditions on
 \\f(x_i)\\, so it reads `$getFitsWithoutOffset()` and adds back whatever
 offset it installed. `run()$train` reports the same location with the
-offset folded in, and `$getLatents()` reports the family's augmentation
-variable, which carries no offset and for `"logistic"`, `"nbinom"` and a
-Student-t residual distribution is a precision rather than a location at
-all. Differencing the two is short by exactly the installed offset,
-which reaches the outer block as a coefficient shrunk toward zero rather
-than as an error.
+offset folded in. The location latent of `"probit"`, `"ordinal"` and
+`"aft"` that `$getLatents()` reports is on that same offset-inclusive
+scale, \\z = f(x) + o + e\\, so the difference `z - train` is the
+residual \\e\\, which carries none of the offset's signal. A block that
+owns the offset regresses `z - $getFitsWithoutOffset()`; used the other
+way, the offset reaches it as a coefficient shrunk toward zero rather
+than as an error. The latent of `"logistic"`, `"nbinom"` and a Student-t
+residual distribution is a precision, a location at no scale, with no
+offset in it;
+[`dbartsWorkingResponse`](https://vdorie.github.io/dbarts/reference/dbartsAugmentation.md)
+gives the offset-free working response for any of them.
 
 `$getLatents()` returns the values the last sweep's trees were drawn
 from, so after a run it and `$getFitsWithoutOffset()` are a joint draw,
@@ -117,9 +122,11 @@ The leaf prior is calibrated once, at creation, from the response the
 sampler was built on. A per-sweep `setResponse` deliberately does *not*
 re-anchor it (`updateScale = FALSE`, the default), so that the sweeps
 are comparable - which also means a sampler built on a cold-start vector
-keeps that vector's range as its prior scale for the whole run. State
-the prior instead of inheriting it: `leaf.prior = normal(sd = )` at
-creation (see
+keeps that vector's range as its prior scale for the whole run, and its
+midrange as the prior's center (read back as
+`$getLeafPrior()$prior.mean`, which no setter writes except through the
+offset). State the prior instead of inheriting it:
+`leaf.prior = normal(sd = )` at creation (see
 [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)),
 or `$setLeafPrior(normal(sd = ))` afterward, with `$getLeafPrior()`
 reporting what is actually in force. A caller whose rows enter and leave
@@ -144,9 +151,11 @@ The value in force during a sweep is the one installed before it. Create
 the sampler with the outer block's initial value already in place, and
 write the channel before `run`, never after: a sweep run against a stale
 offset, weight or response has drawn from the wrong conditional and
-nothing later reports it. The mutators store no state unless
-`updateState = TRUE` is passed explicitly, so a per-sweep write costs
-nothing beyond the write itself.
+nothing later reports it. The mutators store the state after each write
+when `control@updateState` is `TRUE`, the default, so a sampler driven a
+sweep at a time is built with `dbartsControl(updateState = FALSE)`, as
+the vignette's recipes are; a per-sweep write then costs nothing beyond
+the write itself.
 
 ### Augmentation written in R
 
@@ -155,11 +164,11 @@ is callable directly:
 [`dbartsDrawLatents`](https://vdorie.github.io/dbarts/reference/dbartsAugmentation.md)
 draws the latent at a supplied fit and
 [`dbartsWorkingResponse`](https://vdorie.github.io/dbarts/reference/dbartsAugmentation.md)
-turns it into the quantity a host regresses on. A host that needs the
-latent for its own blocks runs the step itself over a gaussian sampler
-with `family = gaussian(sigma = fixed(1))`, rather than reimplementing
-the family. Their `fit` argument is offset-free, as
-`$getFitsWithoutOffset()` reports it.
+turns it into the quantity the outer sampler regresses on. An outer
+sampler that needs the latent for its own blocks runs the step itself
+over a gaussian sampler with `family = gaussian(sigma = fixed(1))`,
+rather than reimplementing the family. Their `fit` argument is
+offset-free, as `$getFitsWithoutOffset()` reports it.
 
 ### Driving it from compiled code
 
@@ -186,8 +195,8 @@ the R object reachable for as long as the C side holds one.
 What the header reaches is the per-sweep loop: `dbarts_sampler_run` into
 caller-owned buffers, the conditioning channels `setResponse`,
 `setOffset` and `setSigma`, `getLatents`, `predict`, tree storage and
-printing, and the queries a host sizes its results struct from, among
-them `dbarts_sampler_numFittedValuesPerObservation` and
+printing, and the queries the outer sampler sizes its results struct
+from, among them `dbarts_sampler_numFittedValuesPerObservation` and
 `dbarts_sampler_numVariableCountForests`, the widths of a multinomial or
 multi-forest sampler's fits and split counts; a flat run polls for R's
 interrupt as `$run` does and, once the workers have joined, raises it as

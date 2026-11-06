@@ -369,9 +369,7 @@ dbarts(
   [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
   then divides by that surface rather than a scalar.
   `family = student()` residuals are also refused together with
-  `variance` - unadjudicated (whether the variance forest's
-  weight-channel routing composes with them) rather than unsupported by
-  design. The per-tree leaf prior is calibrated from the residual
+  `variance`. The per-tree leaf prior is calibrated from the residual
   prior's (`family = gaussian(sigma = )`) hyperparameters so that a
   constant variance surface reproduces the homoscedastic `sigma`
   posterior. The fit gains posterior draws `s.train`/`s.test` of
@@ -849,13 +847,13 @@ dbarts(
   over the subset \\\\i : y_i \> 0\\\\; the two parts share no
   parameters and are composed from two ordinary fits at independently
   derived seeds, so no engine code is added and a shared
-  variable-selection prior across the parts is not available (a recorded
-  limitation). `y.train` must be non-negative and finite and must carry
-  at least one exact zero and one positive value. By default,
-  predictions report the natural (response) scale via
-  posterior-predictive Monte Carlo, \\E\[y \mid x\] = P(y \> 0 \mid
-  x)\\e^{f(x) + \sigma^2 / 2}\\, using the positive part's single
-  \\\sigma\\ per draw (the positive part is always homoscedastic); see
+  variable-selection prior across the parts is not available. `y.train`
+  must be non-negative and finite and must carry at least one exact zero
+  and one positive value. By default, predictions report the natural
+  (response) scale via posterior-predictive Monte Carlo, \\E\[y \mid x\]
+  = P(y \> 0 \mid x)\\e^{f(x) + \sigma^2 / 2}\\, using the positive
+  part's single \\\sigma\\ per draw (the positive part is always
+  homoscedastic); see
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) for the
   full `type` options (`"prob"`, `"link"`/`"log"`, the bimodal `"ppd"`).
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) takes a

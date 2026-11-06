@@ -62,7 +62,7 @@ Dorie</h4>
             
             <h4 data-toc-skip class="date">2026-08-15</h4>
       
-      <small class="dont-index">Source: <a href="https://github.com/vdorie/dbarts/blob/main/vignettes/dbarts-as-a-component.Rmd" class="external-link"><code>vignettes/dbarts-as-a-component.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/vdorie/dbarts/blob/review4-docs/vignettes/dbarts-as-a-component.Rmd" class="external-link"><code>vignettes/dbarts-as-a-component.Rmd</code></a></small>
       <div class="d-none name"><code>dbarts-as-a-component.Rmd</code></div>
     </div>
 
@@ -118,9 +118,9 @@ sweep, and every recipe builds its sampler the same way:</p>
 </h2>
 <p>A binary response is fit by drawing a per-observation latent and
 regressing on it. <code>dbarts</code> will do this internally with
-<code>family = "probit"</code>, but a host that needs the latent for its
-own blocks – a selection equation, a shared factor – can run the
-Albert-Chib step itself with <code>dbartsDrawLatents</code> and
+<code>family = "probit"</code>, but an outer sampler that needs the
+latent for its own blocks – a selection equation, a shared factor – can
+run the Albert-Chib step itself with <code>dbartsDrawLatents</code> and
 <code>dbartsWorkingResponse</code> over an ordinary gaussian
 sampler.</p>
 <p>Two details make it correct rather than merely runnable. The
@@ -139,19 +139,22 @@ choice.</p>
 <span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Binomial.html" class="external-link">rbinom</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">1L</span>, <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">pnorm</a></span><span class="op">(</span><span class="va">fTrue</span> <span class="op">+</span> <span class="va">o</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">control</span> <span class="op">&lt;-</span> <span class="fu">recipeControl</span><span class="op">(</span><span class="fl">31L</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># the host: a gaussian sampler on the working response, sigma pinned at 1</span></span>
-<span><span class="va">host</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">x</span>, <span class="fl">2</span> <span class="op">*</span> <span class="va">y</span> <span class="op">-</span> <span class="fl">1</span> <span class="op">-</span> <span class="va">o</span>, control <span class="op">=</span> <span class="va">control</span>, n.trees <span class="op">=</span> <span class="va">nTrees</span>,</span>
-<span>               family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">gaussian</a></span><span class="op">(</span>sigma <span class="op">=</span> <span class="fu">fixed</span><span class="op">(</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">host</span><span class="op">$</span><span class="fu">setLeafPrior</span><span class="op">(</span><span class="fu">normal</span><span class="op">(</span>sd <span class="op">=</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co"># the outer sampler: a gaussian sampler on the working response, sigma pinned</span></span>
+<span><span class="co"># at 1. The leaf prior's center is the midrange of the response it is built on</span></span>
+<span><span class="co"># (read it back with getLeafPrior()$prior.mean), so it is built on 2 * y - 1,</span></span>
+<span><span class="co"># midrange 0, the center a native probit sampler uses</span></span>
+<span><span class="va">outer</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">x</span>, <span class="fl">2</span> <span class="op">*</span> <span class="va">y</span> <span class="op">-</span> <span class="fl">1</span>, control <span class="op">=</span> <span class="va">control</span>, n.trees <span class="op">=</span> <span class="va">nTrees</span>,</span>
+<span>                family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">gaussian</a></span><span class="op">(</span>sigma <span class="op">=</span> <span class="fu">fixed</span><span class="op">(</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">outer</span><span class="op">$</span><span class="fu">setLeafPrior</span><span class="op">(</span><span class="fu">normal</span><span class="op">(</span>sd <span class="op">=</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">composed</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fl">0</span>, <span class="va">n</span>, <span class="va">nDraws</span><span class="op">)</span></span>
 <span><span class="kw">for</span> <span class="op">(</span><span class="va">i</span> <span class="kw">in</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">nBurn</span> <span class="op">+</span> <span class="va">nDraws</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="co"># the fit WITHOUT the offset is what the augmentation conditions on; both</span></span>
 <span>  <span class="co"># helpers form the linear predictor themselves as fit + offset</span></span>
-<span>  <span class="va">z</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dbartsAugmentation.html">dbartsDrawLatents</a></span><span class="op">(</span><span class="st">"probit"</span>, <span class="va">host</span><span class="op">$</span><span class="fu">getFitsWithoutOffset</span><span class="op">(</span><span class="op">)</span>, <span class="va">y</span>, offset <span class="op">=</span> <span class="va">o</span><span class="op">)</span></span>
-<span>  <span class="va">host</span><span class="op">$</span><span class="fu">setResponse</span><span class="op">(</span><span class="fu"><a href="../reference/dbartsAugmentation.html">dbartsWorkingResponse</a></span><span class="op">(</span><span class="st">"probit"</span>, <span class="va">z</span>, <span class="va">y</span>, offset <span class="op">=</span> <span class="va">o</span><span class="op">)</span><span class="op">)</span></span>
-<span>  <span class="va">host</span><span class="op">$</span><span class="fu">run</span><span class="op">(</span><span class="fl">0L</span>, <span class="fl">1L</span><span class="op">)</span></span>
-<span>  <span class="kw">if</span> <span class="op">(</span><span class="va">i</span> <span class="op">&gt;</span> <span class="va">nBurn</span><span class="op">)</span> <span class="va">composed</span><span class="op">[</span>, <span class="va">i</span> <span class="op">-</span> <span class="va">nBurn</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="va">host</span><span class="op">$</span><span class="fu">getFitsWithoutOffset</span><span class="op">(</span><span class="op">)</span></span>
+<span>  <span class="va">z</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dbartsAugmentation.html">dbartsDrawLatents</a></span><span class="op">(</span><span class="st">"probit"</span>, <span class="va">outer</span><span class="op">$</span><span class="fu">getFitsWithoutOffset</span><span class="op">(</span><span class="op">)</span>, <span class="va">y</span>, offset <span class="op">=</span> <span class="va">o</span><span class="op">)</span></span>
+<span>  <span class="va">outer</span><span class="op">$</span><span class="fu">setResponse</span><span class="op">(</span><span class="fu"><a href="../reference/dbartsAugmentation.html">dbartsWorkingResponse</a></span><span class="op">(</span><span class="st">"probit"</span>, <span class="va">z</span>, <span class="va">y</span>, offset <span class="op">=</span> <span class="va">o</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="va">outer</span><span class="op">$</span><span class="fu">run</span><span class="op">(</span><span class="fl">0L</span>, <span class="fl">1L</span><span class="op">)</span></span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="va">i</span> <span class="op">&gt;</span> <span class="va">nBurn</span><span class="op">)</span> <span class="va">composed</span><span class="op">[</span>, <span class="va">i</span> <span class="op">-</span> <span class="va">nBurn</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="va">outer</span><span class="op">$</span><span class="fu">getFitsWithoutOffset</span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">}</span></span>
 <span></span>
 <span><span class="co"># a native probit sampler, given the SAME leaf prior, targets the same posterior</span></span>
@@ -162,7 +165,7 @@ choice.</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>agreement <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowMeans</a></span><span class="op">(</span><span class="va">composed</span><span class="op">)</span>, <span class="va">nativeFit</span><span class="op">)</span>,</span>
 <span>  signal <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowMeans</a></span><span class="op">(</span><span class="va">composed</span><span class="op">)</span>, <span class="va">fTrue</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">## agreement    signal </span></span>
-<span><span class="co">## 0.9908798 0.9222418</span></span></code></pre>
+<span><span class="co">## 0.9927714 0.9277347</span></span></code></pre>
 <p>Agreement, not identity: these are two chains of one posterior, so
 they differ by Monte Carlo error. The package’s tests state the
 tolerance.</p>
@@ -316,10 +319,20 @@ their sum then has
 times the prior standard deviation a single sampler would have, and
 nothing warns about it.</p>
 <p><code>setLeafPrior(normal(sd = base / sqrt(K)))</code> restates each
-forest’s share of one budget. The check below draws from the composed
-prior directly – <code>sampleTreesFromPrior</code> acts on the engine,
-so it sees what <code>setLeafPrior</code> wrote – and compares it with a
-single sampler’s.</p>
+forest’s share of one budget. The prior’s center is inherited the same
+way: each sampler’s leaf prior is centered at the midrange of the
+response it was built on (<code>getLeafPrior()$prior.mean</code>), so
+the composed prior is centered at
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>K</mi><annotation encoding="application/x-tex">K</annotation></semantics></math>
+times that midrange, not at the response’s. Build each sampler on
+<code>y - (K - 1) / K * mean(range(y))</code>, which leaves the range
+alone and puts each center at
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1</mn><mi>/</mi><mi>K</mi></mrow><annotation encoding="application/x-tex">1/K</annotation></semantics></math>
+of the response’s, to center the sum where a single sampler’s would be;
+<code>setResponse</code> does not move it. The check below draws from
+the composed prior directly – <code>sampleTreesFromPrior</code> acts on
+the engine, so it sees what <code>setLeafPrior</code> wrote – and
+compares it with a single sampler’s.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">K</span> <span class="op">&lt;-</span> <span class="fl">2L</span></span>
 <span></span>
@@ -456,10 +469,10 @@ drawn before the change.</p>
 </h2>
 <p><code>family = gaussian(sigma = fixed(value))</code> holds the
 residual variance at <code>value</code> and suppresses the sampler’s own
-draw, which is exactly what a host wants when sigma is drawn elsewhere –
-from a hierarchical prior, jointly with another outcome, or from a scale
-shared across several samplers. <code>setSigma</code> then writes it,
-and it stays written.</p>
+draw, which is exactly what an outer sampler wants when sigma is drawn
+elsewhere – from a hierarchical prior, jointly with another outcome, or
+from a scale shared across several samplers. <code>setSigma</code> then
+writes it, and it stays written.</p>
 <div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">505L</span><span class="op">)</span></span>
 <span><span class="va">x</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n</span> <span class="op">*</span> <span class="fl">3L</span><span class="op">)</span>, <span class="va">n</span>, <span class="fl">3L</span><span class="op">)</span></span>
@@ -500,11 +513,20 @@ sampler one sweep at a time conditions on
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>f</mi><mo stretchy="false" form="prefix">(</mo><msub><mi>x</mi><mi>i</mi></msub><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">f(x_i)</annotation></semantics></math>,
 and <code>$getFitsWithoutOffset()</code> is the method that reports it.
 <code>run()$train</code> reports the same location with the installed
-offset folded in, and <code>$getLatents()</code> reports the
-augmentation variable, which carries no offset at all. Differencing the
-last two is the trap: <code>getLatents() - run()$train</code> is short
-by exactly the offset, so an outer block that regresses it on the
-offset’s own covariate recovers a coefficient shrunk toward zero.</p>
+offset folded in. For probit, ordinal and aft,
+<code>$getLatents()</code> reports a location on that same
+offset-inclusive scale,
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>z</mi><mo>=</mo><mi>f</mi><mo stretchy="false" form="prefix">(</mo><mi>x</mi><mo stretchy="false" form="postfix">)</mo><mo>+</mo><mi>o</mi><mo>+</mo><mi>e</mi></mrow><annotation encoding="application/x-tex">z = f(x) + o + e</annotation></semantics></math>.
+Differencing the last two is the trap:
+<code>getLatents() - run()$train</code> is the residual
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>e</mi><annotation encoding="application/x-tex">e</annotation></semantics></math>,
+which carries none of the offset’s signal, so an outer block that owns
+the offset and regresses it on the offset’s own covariate recovers a
+coefficient shrunk toward zero; it regresses
+<code>z - getFitsWithoutOffset()</code> instead. The precision latents
+(logistic, nbinom, Student-t) carry no location and no offset, and
+<code>dbartsWorkingResponse</code> turns any latent into the offset-free
+working response.</p>
 <div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">gammaTrue</span> <span class="op">&lt;-</span> <span class="fl">1.5</span></span>
 <span></span>

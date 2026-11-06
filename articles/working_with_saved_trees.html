@@ -62,7 +62,7 @@ Dorie</h4>
             
             <h4 data-toc-skip class="date">2026-07-25</h4>
       
-      <small class="dont-index">Source: <a href="https://github.com/vdorie/dbarts/blob/main/vignettes/working_with_saved_trees.Rmd" class="external-link"><code>vignettes/working_with_saved_trees.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/vdorie/dbarts/blob/review4-docs/vignettes/working_with_saved_trees.Rmd" class="external-link"><code>vignettes/working_with_saved_trees.Rmd</code></a></small>
       <div class="d-none name"><code>working_with_saved_trees.Rmd</code></div>
     </div>
 
@@ -123,7 +123,7 @@ illustrative purposes, a model can be fit thusly:</p>
 <span>    n.chains <span class="op">=</span> <span class="fl">2</span>,    <span class="co"># number of independent, parallel chains</span></span>
 <span>    n.threads <span class="op">=</span> <span class="fl">1</span>,   <span class="co"># units of parallel execution</span></span>
 <span>    n.trees <span class="op">=</span> <span class="fl">3</span>,     <span class="co"># number of trees per chain</span></span>
-<span>    seed <span class="op">=</span> <span class="fl">56</span>,       <span class="co"># chosen to generate a deep tree</span></span>
+<span>    seed <span class="op">=</span> <span class="fl">56</span>,       <span class="co"># the first tree printed below has 7 nodes</span></span>
 <span>    keepTrees <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>    verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -167,9 +167,8 @@ left-hand-side tree traversal.</p>
 <li>
 <code>forest</code>, <code>chain</code>, <code>sample</code>,
 <code>tree</code> - index variables; <code>forest</code> is present only
-on a fit with several forests (or one declared with
-<code>forests =</code>), so not on the single-forest fit above;
-<code>chain</code> is always present in
+on a fit with more than one forest, so not on the single-forest fit
+above; <code>chain</code> is always present in
 <code>extract(type = "trees")</code>, 1 on a one-chain fit</li>
 <li>
 <code>n</code> - number of observations in node (from the training

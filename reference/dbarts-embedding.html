@@ -73,7 +73,7 @@
     and was rolled back; under a <code><a href="monotone.html">monotone</a></code> constraint the joint form also declines a
     value that would leave a tree's leaf values out of order. <strong>That mask is part of a Metropolis accept decision, not a
     diagnostic</strong>: a declined observation holds its old value, so the likelihood read after the call
-    is its old likelihood, and treating the resulting ratio as an acceptance leaves the host's copy
+    is its old likelihood, and treating the resulting ratio as an acceptance leaves the outer sampler's copy
     of the latent disagreeing with what the samplers hold.</p>
 <p>Not every channel is open on every model. A refusal is part of the model rather than a
     limitation - <code>setSigma</code> on a family that fixes the residual scale by definition, a
@@ -109,11 +109,15 @@
     ‘Reading the fit’, <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>, is authoritative.
     The rule an outer block needs: it conditions on \(f(x_i)\), so it reads
     <code>$getFitsWithoutOffset()</code> and adds back whatever offset it installed.
-    <code>run()$train</code> reports the same location with the offset folded in, and
-    <code>$getLatents()</code> reports the family's augmentation variable, which carries no offset and
-    for <code>"logistic"</code>, <code>"nbinom"</code> and a Student-t residual distribution is a precision
-    rather than a location at all. Differencing the two is short by exactly the installed offset,
-    which reaches the outer block as a coefficient shrunk toward zero rather than as an error.</p>
+    <code>run()$train</code> reports the same location with the offset folded in. The location latent
+    of <code>"probit"</code>, <code>"ordinal"</code> and <code>"aft"</code> that <code>$getLatents()</code> reports is on
+    that same offset-inclusive scale, \(z = f(x) + o + e\), so
+    the difference <code>z - train</code> is the residual \(e\), which carries none of the offset's
+    signal. A block that owns the offset regresses <code>z - $getFitsWithoutOffset()</code>; used the
+    other way, the offset reaches it as a coefficient shrunk toward zero rather than as an error.
+    The latent of <code>"logistic"</code>, <code>"nbinom"</code> and a Student-t residual distribution is a
+    precision, a location at no scale, with no offset in it; <code><a href="dbartsAugmentation.html">dbartsWorkingResponse</a></code>
+    gives the offset-free working response for any of them.</p>
 <p><code>$getLatents()</code> returns the values the last sweep's trees were drawn from, so after a run
     it and <code>$getFitsWithoutOffset()</code> are a joint draw, the latent being the value the fit was
     drawn from. Between a setter and the next run it returns the values from before the setter
@@ -127,7 +131,9 @@
 <p>The leaf prior is calibrated once, at creation, from the response the sampler was built on. A
     per-sweep <code>setResponse</code> deliberately does <em>not</em> re-anchor it (<code>updateScale =
     FALSE</code>, the default), so that the sweeps are comparable - which also means a sampler built on a
-    cold-start vector keeps that vector's range as its prior scale for the whole run. State the
+    cold-start vector keeps that vector's range as its prior scale for the whole run, and its midrange
+    as the prior's center (read back as <code>$getLeafPrior()$prior.mean</code>, which no setter writes
+    except through the offset). State the
     prior instead of inheriting it: <code>leaf.prior = normal(sd = )</code> at creation (see
     <code><a href="dbartsPriors.html">dbartsPriors</a></code>), or <code>$setLeafPrior(normal(sd = ))</code> afterward, with
     <code>$getLeafPrior()</code> reporting what is actually in force. A caller whose rows enter and leave the
@@ -148,17 +154,18 @@
 <p>The value in force during a sweep is the one installed before it. Create the sampler with the
     outer block's initial value already in place, and write the channel before <code>run</code>, never
     after: a sweep run against a stale offset, weight or response has drawn from the wrong
-    conditional and nothing later reports it. The mutators store no state unless
-    <code>updateState = TRUE</code> is passed explicitly, so a per-sweep write costs nothing beyond the
-    write itself.</p>
+    conditional and nothing later reports it. The mutators store the state after
+    each write when <code>control@updateState</code> is <code>TRUE</code>, the default, so a sampler driven a
+    sweep at a time is built with <code>dbartsControl(updateState = FALSE)</code>, as the vignette's
+    recipes are; a per-sweep write then costs nothing beyond the write itself.</p>
 </div>
 
 <p></p><div class="section">
 <h3 id="augmentation-written-in-r">Augmentation written in R<a class="anchor" aria-label="anchor" href="#augmentation-written-in-r"></a></h3>
 <p>The per-observation augmentation a non-gaussian sampler runs internally is callable directly:
     <code><a href="dbartsAugmentation.html">dbartsDrawLatents</a></code> draws the latent at a supplied fit and
-    <code><a href="dbartsAugmentation.html">dbartsWorkingResponse</a></code> turns it into the quantity a host
-    regresses on. A host that needs the latent for its own blocks runs the step itself over a
+    <code><a href="dbartsAugmentation.html">dbartsWorkingResponse</a></code> turns it into the quantity the outer sampler
+    regresses on. An outer sampler that needs the latent for its own blocks runs the step itself over a
     gaussian sampler with <code>family = gaussian(sigma = fixed(1))</code>, rather than reimplementing the family.
     Their <code>fit</code> argument is offset-free, as <code>$getFitsWithoutOffset()</code> reports it.</p>
 </div>
@@ -182,7 +189,7 @@
 <p>What the header reaches is the per-sweep loop: <code>dbarts_sampler_run</code> into caller-owned
     buffers, the conditioning channels <code>setResponse</code>, <code>setOffset</code> and
     <code>setSigma</code>, <code>getLatents</code>, <code>predict</code>, tree storage and printing, and the
-    queries a host sizes its results struct from, among them
+    queries the outer sampler sizes its results struct from, among them
     <code>dbarts_sampler_numFittedValuesPerObservation</code> and
     <code>dbarts_sampler_numVariableCountForests</code>, the widths of a multinomial or multi-forest
     sampler's fits and split counts; a flat run polls for R's interrupt as <code>$run</code> does and, once the workers have joined, raises it

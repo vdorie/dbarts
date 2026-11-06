@@ -185,9 +185,9 @@ dbartsControl(
   divided by thinning; see `bart`'s `n.samples` item for the full
   boundary. `0` is accepted here (and by
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)) - a
-  sampler meant to be driven by a host loop's own `run()` calls rather
-  than this one's; `bart` and `xbart` both return posterior draws and
-  refuse a thinned-to-zero budget instead.
+  sampler meant to be driven by an outer sampler's own `run()` calls
+  rather than this one's; `bart` and `xbart` both return posterior draws
+  and refuse a thinned-to-zero budget instead.
 
 - n.cuts:
 
@@ -438,9 +438,11 @@ dbartsControl(
   Logical setting the default behavior for many
   [sampler](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   methods with regards to the immediate updating of the cached state of
-  the object. A current, cached state is only useful when
+  the object. A current, cached state is what
   [saving](https://rdrr.io/r/base/save.html)/[loading](https://rdrr.io/r/base/load.html)
-  the sampler.
+  the sampler needs, and it is also the state a `setState` restores to
+  undo a `setWeights` or other mutation (see
+  [dbarts-embedding](https://vdorie.github.io/dbarts/reference/dbarts-embedding.md)).
 
 ## Engine limits
 

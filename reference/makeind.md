@@ -40,6 +40,10 @@ makeTestModelMatrix(data, newdata)
   - factor - table of factor levels to be referenced; levels with counts
     of 0 are to be dropped
 
+  A test frame must give each factor the training frame's levels, in
+  their order: the helper codes a factor by position, where the fit's
+  own `predict` codes by label.
+
 - all:
 
   Not currently implemented; retained for signature compatibility with

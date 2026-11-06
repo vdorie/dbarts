@@ -232,12 +232,13 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   once per sweep inside a larger Gibbs/MH loop (as `dbartsSampler` is
   designed for); a control with `updateState = FALSE` keeps such a loop
   free of the store's cost on every call, while the default `TRUE` keeps
-  `state` current after each one. An unforced `state` promise
-  materializes the sampler's *current* state on first access regardless,
-  so a mutate-then-first-read sequence needs no explicit store either
-  way. Pass `TRUE` explicitly to force a store under a
-  `control@updateState = FALSE` sampler, or `FALSE` to skip one under
-  `control@updateState = TRUE`.
+  `state` current after each one. Under `control@updateState = TRUE` the
+  first read of a `state` no store has yet filled stores the sampler's
+  *current* state, so a mutate-then-first-read sequence needs no
+  explicit store; under `FALSE` that first read is `NULL`, and
+  `$storeState()` makes the store. Pass `TRUE` explicitly to force a
+  store under a `control@updateState = FALSE` sampler, or `FALSE` to
+  skip one under `control@updateState = TRUE`.
 
 - shallow:
 
@@ -475,7 +476,7 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   channel instead. The vector is validated - real, of length \\n\\,
   every element exactly 0 or 1, `NA` refused - before anything installs,
   so a refused call leaves the sampler, `data@y` and the recorded status
-  exactly as they were; it is written to the sampler's `control` only
+  exactly as they were; it is written to the sampler's data object only
   after the engine accepts it, so `getPointer`'s re-creation after save
   and load carries the current censoring rather than the one the sampler
   was created with. Under an installed mask (`active`) the response
@@ -1524,12 +1525,14 @@ list
 [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
 returns. `active` is the 0/1 mask that list's `active` element holds,
 installed once the sampler is built, as `setActiveRows(active)` installs
-it. Under `"probit"` and `"logistic"` creation also reads it: a forest
-on a numeric column that states no `sd` takes the column's scale over
-the rows the mask keeps, every row where it keeps none. Under every
-other family creation reads nothing from it, the scale being taken over
-the rows the data object's weights keep, and the mask is installed
-afterwards.
+it. A sampler created with it is the sampler `dbarts` builds, reading
+over the rows the mask keeps the center of an `"nbinom"` count, a
+`linear` or `gp` leaf's covariate center and scale under every family
+the mask applies to, and under `"probit"` and `"logistic"` the default
+`sd` of a forest on a numeric column that states none; created without
+it, the sampler reads them over every row
+([`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),
+`active`, gives the by-hand route).
 
 A sampler made this way takes its tree count from the model and its
 quantile rule and cut count from the data object, where they state them.
@@ -1586,8 +1589,13 @@ of.
 The composition rule follows from the table: an outer block conditions
 on \\f(x_i)\\, so it reads `$getFitsWithoutOffset()` and adds back
 whatever offset it installed, rather than differencing `$getLatents()`
-against `run()$train`, which mixes an offset-bearing quantity with one
-that does not carry the offset.
+against `run()$train`: a probit, ordinal or aft latent is on the
+offset-inclusive scale, \\z = f(x) + o + e\\, as `run()$train` is, so
+the difference is the residual \\e\\ with none of the offset's signal. A
+block that owns the offset regresses `z - $getFitsWithoutOffset()`; a
+precision latent carries no location and no offset, and
+[`dbartsWorkingResponse`](https://vdorie.github.io/dbarts/reference/dbartsAugmentation.md)
+gives the offset-free working response.
 
 Where the boundary runs. These are the methods of the mutable sampler,
 and their audience is a model writer composing BART into a larger
@@ -2328,31 +2336,31 @@ non-heteroscedastic sampler's would.
 
 For `getTrees`, a `data.frame` with one row per tree node in
 depth-first, left-hand-side pre-order, with columns `forest` (indexed
-from 1, present only on a sampler with several forests - a multinomial
-one, or one declared with `forests =`, whatever the count - and then
-leading every other column, forest-major, at the default `forest = NULL`
-or a vector; any other sampler returns no `forest` column and accepts
-`forest = 1`), `chain` (present only when `n.chains > 1`), `sample`
-(present only for saved samples, and reporting the draw number asked
-for), `tree`, `n` (the number of observations in the node), `var` (the
-splitting variable, or -1 at a leaf), and `value` (the split value, or
-the leaf prediction). An ordinal rule's value is its cut point and
-observations with values less than or equal to it go left; on an
-ordered-factor column that cut point is an exact half-integer at a level
-boundary, so `levels(x)[floor(value) + 1]` is the last level going left
-(the split value is a 0-based code, R's `levels` is 1-based); a
-categorical rule carries no data value (its `value` is `NA`) and its
-split is reported in the `directions` column instead. When the sampler
-has any categorical predictors the result gains a `directions` column
-decoding each categorical rule into one `"L"`/`"R"` character per level,
-in level order (level `k` goes right when its character is `"R"`);
-ordinal rules and leaves are `NA`. When any predictor contains missing
-values the result gains a `missing` column giving the branch
-(`"L"`/`"R"`) each rule sends missing values down; rules on complete
-columns and leaves are `NA`. Under a `linear` leaf prior each leaf's
-`value` is its intercept and the result gains one `beta.<column>` column
-per designated covariate holding that leaf's slope on the internal
-standardized scale; internal nodes are `NA`.
+from 1, present only on a sampler with more than one forest - a
+multinomial one, or one declared with `forests =` naming several - and
+then leading every other column, forest-major, at the default
+`forest = NULL` or a vector; any other sampler returns no `forest`
+column and accepts `forest = 1`), `chain` (present only when
+`n.chains > 1`), `sample` (present only for saved samples, and reporting
+the draw number asked for), `tree`, `n` (the number of observations in
+the node), `var` (the splitting variable, or -1 at a leaf), and `value`
+(the split value, or the leaf prediction). An ordinal rule's value is
+its cut point and observations with values less than or equal to it go
+left; on an ordered-factor column that cut point is an exact
+half-integer at a level boundary, so `levels(x)[floor(value) + 1]` is
+the last level going left (the split value is a 0-based code, R's
+`levels` is 1-based); a categorical rule carries no data value (its
+`value` is `NA`) and its split is reported in the `directions` column
+instead. When the sampler has any categorical predictors the result
+gains a `directions` column decoding each categorical rule into one
+`"L"`/`"R"` character per level, in level order (level `k` goes right
+when its character is `"R"`); ordinal rules and leaves are `NA`. When
+any predictor contains missing values the result gains a `missing`
+column giving the branch (`"L"`/`"R"`) each rule sends missing values
+down; rules on complete columns and leaves are `NA`. Under a `linear`
+leaf prior each leaf's `value` is its intercept and the result gains one
+`beta.<column>` column per designated covariate holding that leaf's
+slope on the internal standardized scale; internal nodes are `NA`.
 
 For `getSigmas`, a numeric vector of length equal to the number of
 chains, giving each chain's current residual standard deviation on the
@@ -2381,11 +2389,12 @@ negative-binomial family has one today, its \\r\\: the variance is
 \\\mu + \mu^2 / r\\, a larger shape is closer to Poisson, and \\r\\ is
 `size` in `rnbinom` and `theta` in MASS and mgcv. It is the same scalar
 `run()$shape` records once per kept draw, read mid-sweep and without
-serializing state, so a host driving the sampler one sweep at a time
-reads it here; `state[[chain]]$shape` holds it only where it is drawn.
-Because the refusal for a family carrying no shape is a `NULL` and not
-an error, a caller distinguishing “no shape” from a value must test
-`!is.null(...)`; comparing to an expected number would pass vacuously.
+serializing state, so an outer sampler driving this one a sweep at a
+time reads it here; `state[[chain]]$shape` holds it only where it is
+drawn. Because the refusal for a family carrying no shape is a `NULL`
+and not an error, a caller distinguishing “no shape” from a value must
+test `!is.null(...)`; comparing to an expected number would pass
+vacuously.
 
 For `getSumsOfSquaredResiduals`, a numeric vector of length equal to the
 number of chains, giving each chain's residual sum of squares \\\sum
@@ -2445,18 +2454,21 @@ location on the response scale and *without* the installed offset, an
 n.observations x n.chains matrix. `run()$train` reports the same
 quantity with the offset folded in, so this value plus the installed
 offset is that one; there is deliberately no with-offset twin, since the
-offset is the caller's own. It is the read a host driving the sampler
-one sweep at a time needs: an incremental scheme updates its outer block
-against \\f(x_i)\\, and taking `getLatents()` minus `run()$train`
-instead is BIASED, because the training channel carries the offset the
-latent scale does not. On a multi-forest (`forests`) sampler this is the
-only route, short of running the sampler, from R to the combined fit -
-`getForestFits` gives one forest's internal-scale totals and `predict`
-is refused. It is refused, naming the reason, on a multinomial sampler,
-whose reported channels are per-category softmax probabilities rather
-than one additive location; `predict(x)` serves that read, but reports
-the SAVED samples rather than the current state when the sampler was
-built with `keepTrees`.
+offset is the caller's own. It is the read an outer sampler driving this
+one a sweep at a time needs: an incremental scheme updates its outer
+block against \\f(x_i)\\, and taking `getLatents()` minus `run()$train`
+instead is BIASED: a location latent is on the offset-inclusive scale,
+as the training channel is, so that difference is the residual alone and
+carries none of the offset's signal. A block that owns the offset
+regresses `getLatents() - getFitsWithoutOffset()` on its covariate. On a
+multi-forest (`forests`) sampler this is the only route, short of
+running the sampler, from R to the combined fit - `getForestFits` gives
+one forest's internal-scale totals and `predict` is refused. It is
+refused, naming the reason, on a multinomial sampler, whose reported
+channels are per-category softmax probabilities rather than one additive
+location; `predict(x)` serves that read, but reports the SAVED samples
+rather than the current state when the sampler was built with
+`keepTrees`.
 
 For `getVariance`, a heteroscedastic (`variance` forest) sampler's
 current variance surface \\s^2(x_i)\\ on the original response scale, an

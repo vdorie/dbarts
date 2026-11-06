@@ -111,19 +111,17 @@ matrix, and `as.data.frame` a data frame.
 ## Examples
 
 ``` r
-df <- data.frame(a = 1:5)
-df$b <- Matrix::sparseVector(c(1, 2), c(1, 3), length = 5)
-mm <- makeModelMatrixFromDataFrame(df)
+if (requireNamespace("Matrix", quietly = TRUE)) {
+  df <- data.frame(a = 1:5)
+  df$b <- Matrix::sparseVector(c(1, 2), c(1, 3), length = 5)
+  mm <- makeModelMatrixFromDataFrame(df)
 
-class(mm)
-#> [1] "dbartsMixedMatrix"
-dim(mm)
-#> [1] 5 2
-colnames(mm)
-#> [1] "a" "b"
-mm[, "a"]
-#> [1] 1 2 3 4 5
-as.matrix(mm)
+  class(mm)
+  dim(mm)
+  colnames(mm)
+  mm[, "a"]
+  as.matrix(mm)
+}
 #>      a b
 #> [1,] 1 1
 #> [2,] 2 0

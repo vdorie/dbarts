@@ -3,14 +3,14 @@
   inside each sweep, callable from R against R's own random number stream.
   dbartsDrawLatents draws the augmentation variable at a supplied fit - the quantity
   getLatents reports for that family - and
-  dbartsWorkingResponse turns a drawn latent into the response a host regresses on. Neither
-  touches a sampler: a host writing its own Gibbs step around BART, or around anything else, need
+  dbartsWorkingResponse turns a drawn latent into the response the outer sampler regresses on. Neither
+  touches a sampler: an outer sampler writing its own Gibbs step around BART, or around anything else, need
   not reimplement the family's augmentation."><meta property="og:description" content="The per-observation data augmentation a non-gaussian dbartsSampler runs
   inside each sweep, callable from R against R's own random number stream.
   dbartsDrawLatents draws the augmentation variable at a supplied fit - the quantity
   getLatents reports for that family - and
-  dbartsWorkingResponse turns a drawn latent into the response a host regresses on. Neither
-  touches a sampler: a host writing its own Gibbs step around BART, or around anything else, need
+  dbartsWorkingResponse turns a drawn latent into the response the outer sampler regresses on. Neither
+  touches a sampler: an outer sampler writing its own Gibbs step around BART, or around anything else, need
   not reimplement the family's augmentation."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
@@ -55,8 +55,8 @@
   inside each sweep, callable from R against R's own random number stream.
   <code>dbartsDrawLatents</code> draws the augmentation variable at a supplied fit - the quantity
   <code><a href="dbartsSampler-class.html">getLatents</a></code> reports for that family - and
-  <code>dbartsWorkingResponse</code> turns a drawn latent into the response a host regresses on. Neither
-  touches a sampler: a host writing its own Gibbs step around BART, or around anything else, need
+  <code>dbartsWorkingResponse</code> turns a drawn latent into the response the outer sampler regresses on. Neither
+  touches a sampler: an outer sampler writing its own Gibbs step around BART, or around anything else, need
   not reimplement the family's augmentation.</p>
     </div>
 
@@ -81,7 +81,7 @@
   <dt id="arg-fit">fit<a class="anchor" aria-label="anchor" href="#arg-fit"></a></dt>
 <dd><p>A numeric vector of each observation's location <em>without</em> the offset -
     \(f(x_i)\), what <code><a href="dbartsSampler-class.html">getFitsWithoutOffset</a></code> reports, or
-    however the host computes it. Its length sets \(n\).</p></dd>
+    however the outer sampler computes it. Its length sets \(n\).</p></dd>
 
   <dt id="arg-latent">latent<a class="anchor" aria-label="anchor" href="#arg-latent"></a></dt>
 <dd><p>A numeric vector of length \(n\) of drawn latents, as <code>dbartsDrawLatents</code> returns;
@@ -130,12 +130,12 @@
   units the offset has been taken out of. Pass the offset as <code>offset</code> to both.</p>
 <p><strong>Why two functions.</strong> For <code>"probit"</code>, <code>"ordinal"</code> and <code>"aft"</code> the latent is a
   LOCATION and the working response is that location less the offset. For <code>"logistic"</code> and
-  <code>"nbinom"</code> it is a PRECISION - the Polya-Gamma \(\omega_i\) - and what a host
+  <code>"nbinom"</code> it is a PRECISION - the Polya-Gamma \(\omega_i\) - and what the outer sampler
   regresses on is \(w_i (y_i - 1/2) / \omega_i - o_i\) and
   \((y_i - r) / (2 \omega_i) + \log r - o_i\) respectively, under per-row
   precision weights \(\omega_i\). For <code>"student"</code> the latent is the scale-mixing
   \(\lambda_i\), which weights the row rather than entering the response, so the working
-  response is the gaussian one. A host that regresses on the latent itself is fitting a different
+  response is the gaussian one. An outer sampler that regresses on the latent itself is fitting a different
   model, which is the composition defect these functions exist to prevent.</p>
 <p><strong>Random numbers.</strong> The draws come from R's own stream, through a generator created and
   destroyed within the call: <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></code> reproduces them, they advance the stream, and
@@ -166,7 +166,7 @@
 <span class="r-in"><span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Binomial.html" class="external-link">rbinom</a></span><span class="op">(</span><span class="fl">50L</span>, <span class="fl">1L</span>, <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">pnorm</a></span><span class="op">(</span><span class="va">f</span> <span class="op">+</span> <span class="va">o</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># one Albert-Chib step: the truncated-normal latent at the current fit, then</span></span></span>
-<span class="r-in"><span><span class="co"># the response a host regresses on</span></span></span>
+<span class="r-in"><span><span class="co"># the response the outer sampler regresses on</span></span></span>
 <span class="r-in"><span><span class="va">z</span> <span class="op">&lt;-</span> <span class="fu">dbartsDrawLatents</span><span class="op">(</span><span class="st">"probit"</span>, fit <span class="op">=</span> <span class="va">f</span>, y <span class="op">=</span> <span class="va">y</span>, offset <span class="op">=</span> <span class="va">o</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">z</span>, <span class="st">"quantity"</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] "location"</span>

@@ -40,9 +40,10 @@ The dropped rows are recorded exactly as
 [`na.exclude`](https://rdrr.io/r/stats/na.fail.html) records them - a
 named integer vector of class `"exclude"` - so the training fits pad
 back to the caller's own row count through
-[`naresid`](https://rdrr.io/r/stats/nafns.html): `fitted` and
-`residuals` on the fit are as long as the data, `NA` where a row was
-dropped.
+[`naresid`](https://rdrr.io/r/stats/nafns.html): `fitted`, `residuals`
+and `yhat.train.mean` on the fit are as long as the data, `NA` where a
+row was dropped, while `yhat.train` and `extract` hold the kept rows
+only.
 
 The base functions keep their usual meaning on these entry points:
 [`na.omit`](https://rdrr.io/r/stats/na.fail.html) drops any row with a

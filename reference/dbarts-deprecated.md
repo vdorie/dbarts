@@ -100,6 +100,24 @@ in dbarts 1.1-0.
   a control's value that differs from what a call takes draws a warning
   on every call, and a value a fit left on its control states nothing.
 
+- `sigest` beside a fixed residual scale:
+
+  A fit that states `sigest` and a residual scale held fixed
+  (`family = gaussian(sigma = fixed(value))`) runs, `sigest` having no
+  effect, after a once-per-session warning; it is an error from dbarts
+  1.1-0, so drop `sigest`.
+
+- The `n.trees`, `useQuantiles` and `binary` slots of a
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
+  object:
+
+  Still readable, as `control@n.trees`, `control@useQuantiles` and
+  `control@binary`, for code that reads them from the control; the
+  values now live on the model and the data: the forests' tree counts in
+  the model's `forests`, `useQuantiles` in the data object's
+  `useQuantiles` slot, and the response family in the model's `family`
+  slot. A later release removes them.
+
 - A three-element `n.burn` on
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md):
 

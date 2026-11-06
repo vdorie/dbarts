@@ -56,7 +56,7 @@ bartFit <- bart(
     n.chains = 2,    # number of independent, parallel chains
     n.threads = 1,   # units of parallel execution
     n.trees = 3,     # number of trees per chain
-    seed = 56,       # chosen to generate a deep tree
+    seed = 56,       # the first tree printed below has 7 nodes
     keepTrees = TRUE,
     verbose = FALSE)
 ```
@@ -104,9 +104,9 @@ print(head(trees, n = 10))
 The columns refer to:
 
 - `forest`, `chain`, `sample`, `tree` - index variables; `forest` is
-  present only on a fit with several forests (or one declared with
-  `forests =`), so not on the single-forest fit above; `chain` is always
-  present in `extract(type = "trees")`, 1 on a one-chain fit
+  present only on a fit with more than one forest, so not on the
+  single-forest fit above; `chain` is always present in
+  `extract(type = "trees")`, 1 on a one-chain fit
 - `n` - number of observations in node (from the training data, or from
   `newdata` when it is supplied; see “Counts for New Data” below)
 - `var` - either the index of the variable used for splitting or -1 if

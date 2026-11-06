@@ -241,7 +241,7 @@ print(x, ...)
   against named predictors is matched by position with a warning.
   Refused, by name, when `formula` writes a model of several forests
   (‘Formula Terms’): an amplitude-coupled fit has no per-observation
-  test replay in this version. A formula whose one
+  test replay. A formula whose one
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) has
   no `basis` is a single-forest fit and takes `test`.
 
@@ -365,10 +365,14 @@ print(x, ...)
 
   For `predict` on a `bartNegbin` fit, the same name is the log-exposure
   shift at the PREDICTED rows, entering the replayed log mean \\\eta\\
-  additively before \\e^{\eta}\\. `NULL` (the default) applies none. A
-  single value is recycled over the predicted rows and a missing one is
-  always refused; otherwise it has one value per row of `newdata`, and a
-  missing value there is governed by `na.action` (see ‘At Prediction’ in
+  additively before \\e^{\eta}\\. `NULL` (the default) takes the rule
+  the `bart` paragraph above states: the fit's
+  [`offset()`](https://rdrr.io/r/stats/offset.html) terms and `offset`
+  argument evaluated on `newdata`, and a plain vector for the training
+  rows applying only to a `newdata` of as many rows. A single value is
+  recycled over the predicted rows and a missing one is always refused;
+  otherwise it has one value per row of `newdata`, and a missing value
+  there is governed by `na.action` (see ‘At Prediction’ in
   [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md)).
 
   On a `family = "hurdle.lognormal"` fit a plain offset, the argument or
@@ -562,7 +566,7 @@ print(x, ...)
   already expressible as row-wise count replication in the response, a
   non-integer one has no exact augmentation sampler, and the K-forest
   engine copies only power/base/proposal-probability fields from the
-  host sampler it briefly builds, so DART, fixed split probabilities,
+  temporary sampler it builds, so DART, fixed split probabilities,
   monotone direction constraints, and a variance forest never reach it).
   `offset` is accepted only as an n x K numeric matrix, entering the K
   forests' raw fits before the softmax, one column per category, in the
@@ -632,9 +636,8 @@ print(x, ...)
   the same object `fit` is under `keepSampler`. `test` and `keepTrees`
   are supported as for multinomial, and `predict` replays the saved
   trees at new predictors, differencing the cumulative probit at the
-  stored per-draw thresholds. `xbart` does not fit ordinal responses
-  (ordinal-scale cross-validation losses are a recorded follow-up). The
-  fit's class is `"bartOrdinal"`, not `"bart"`: see ‘Value’ below.
+  stored per-draw thresholds. `xbart` does not fit ordinal responses.
+  The fit's class is `"bartOrdinal"`, not `"bart"`: see ‘Value’ below.
 
   `family = "nbinom"` fits a non-negative integer (count) response by a
   negative-binomial model on a log link with the Polya-Gamma
@@ -664,24 +667,22 @@ print(x, ...)
   given the means; at ordinary counts a shape above about 20 is hard to
   tell from a larger one, so the posterior there leans on the grid's cap
   and prior. Passing `shape` as a positive integer fixes \\r\\ instead
-  (v1 ships the exact integer envelope, so a real fixed shape is
-  refused - continuous shape is a recorded follow-up). Like probit,
-  there is no residual scale, and `weights` are accepted only as 0 and
-  1, marking rows in and out of the likelihood (exposure belongs in the
-  offset, not in observation replication); `warm.start` and
-  `n.grow.sweeps` are refused with an error naming the limitation.
-  `samplerOnly` is supported, unlike multinomial: it returns the fitted
-  sampler unrun, the same object `fit` is under `keepSampler`. `test`
-  and `keepTrees` are supported as for ordinal, and `predict` replays
-  the saved trees at new predictors, reporting mean counts \\e^{\eta}\\,
-  with `type = "ppd"` drawing at the stored per-draw shape (a
-  log-exposure offset enters \\\eta\\ additively). `xbart` does not fit
-  count responses (real shape and a Poisson family are recorded
-  follow-ups). `y.train` is additionally capped at \\10^6\\: the shape
-  grid's count histogram is sized from the largest count, so a larger
-  one allocates without bound, and a count above it is refused at
-  creation and at every response swap alike. The fit's class is
-  `"bartNegbin"`, not `"bart"`: see ‘Value’ below.
+  (a real fixed shape is refused). Like probit, there is no residual
+  scale, and `weights` are accepted only as 0 and 1, marking rows in and
+  out of the likelihood (exposure belongs in the offset, not in
+  observation replication); `warm.start` and `n.grow.sweeps` are refused
+  with an error naming the limitation. `samplerOnly` is supported,
+  unlike multinomial: it returns the fitted sampler unrun, the same
+  object `fit` is under `keepSampler`. `test` and `keepTrees` are
+  supported as for ordinal, and `predict` replays the saved trees at new
+  predictors, reporting mean counts \\e^{\eta}\\, with `type = "ppd"`
+  drawing at the stored per-draw shape (a log-exposure offset enters
+  \\\eta\\ additively). `xbart` does not fit count responses. `y.train`
+  is additionally capped at \\10^6\\: the shape grid's count histogram
+  is sized from the largest count, so a larger one allocates without
+  bound, and a count above it is refused at creation and at every
+  response swap alike. The fit's class is `"bartNegbin"`, not `"bart"`:
+  see ‘Value’ below.
 
   `family = "hazard"` and `family = "hazard.logistic"` fit a
   discrete-time survival hazard model as *ingestion sugar* over the
@@ -743,8 +744,7 @@ print(x, ...)
   included; a predictor named `period`, or a term that reads it, is
   refused. `predict` takes person-period rows including a `period`
   column, while `survivalProbabilities(newdata = )` takes one row per
-  subject. `xbart` does not fit hazard responses (a `cloglog` link is a
-  recorded follow-up).
+  subject. `xbart` does not fit hazard responses.
 
   `family = "hurdle.lognormal"` fits a semicontinuous two-part (hurdle)
   model for a non-negative response with exact zeros: a ZERO-PART probit
@@ -754,27 +754,26 @@ print(x, ...)
   are composed entirely R-side from two ordinary `bart` fits at
   independently derived seeds - no engine code, and no coupling between
   the parts - so a shared variable-selection prior across the zero and
-  positive parts is foreclosed by this composition (a recorded
-  limitation, alongside a Duan-smearing retransformation and a
-  heteroscedastic positive part, both follow-ups). `y.train` must be
-  non-negative and finite and must carry at least one exact zero and one
-  positive value (a response with no zeros, or none positive, is refused
-  by name). `na.action` settles the rows before the response is split,
-  so a row it drops is dropped from both parts; a predictor it keeps
-  missing only on zero rows is refused, since the positive part would
-  learn no route for it. A variance forest is refused by name. By
-  default `predict`/`fitted`/`extract` report the NATURAL (response)
-  scale via posterior-predictive Monte Carlo: \\E\[y \mid x\] = P(y \> 0
-  \mid x)\\e^{f(x) + \sigma^2 / 2}\\ computed per posterior draw from
-  the positive part's single \\\sigma\\ per draw, recycled across
-  observations (the positive part is always homoscedastic; a
-  heteroscedastic positive part is not reachable, see the recorded
-  limitation above). `type = "prob"` returns the zero part's own
-  probability \\\pi(x) = P(y \> 0 \mid x)\\ through the probit link;
-  `type = "link"`/`"log"` the positive part's log-scale linear predictor
-  \\f(x)\\; `type = "ppd"` draws the proper BIMODAL predictive - a
-  Bernoulli(\\\pi\\) spike at zero, else a lognormal draw - which the
-  plain gaussian ppd path cannot produce. Fits take the matrix interface
+  positive parts is foreclosed by this composition, as are a
+  Duan-smearing retransformation and a heteroscedastic positive part.
+  `y.train` must be non-negative and finite and must carry at least one
+  exact zero and one positive value (a response with no zeros, or none
+  positive, is refused by name). `na.action` settles the rows before the
+  response is split, so a row it drops is dropped from both parts; a
+  predictor it keeps missing only on zero rows is refused, since the
+  positive part would learn no route for it. A variance forest is
+  refused by name. By default `predict`/`fitted`/`extract` report the
+  NATURAL (response) scale via posterior-predictive Monte Carlo: \\E\[y
+  \mid x\] = P(y \> 0 \mid x)\\e^{f(x) + \sigma^2 / 2}\\ computed per
+  posterior draw from the positive part's single \\\sigma\\ per draw,
+  recycled across observations (the positive part is always
+  homoscedastic; a heteroscedastic positive part is not reachable).
+  `type = "prob"` returns the zero part's own probability \\\pi(x) = P(y
+  \> 0 \mid x)\\ through the probit link; `type = "link"`/`"log"` the
+  positive part's log-scale linear predictor \\f(x)\\; `type = "ppd"`
+  draws the proper BIMODAL predictive - a Bernoulli(\\\pi\\) spike at
+  zero, else a lognormal draw - which the plain gaussian ppd path cannot
+  produce. Fits take the matrix interface
   (`bart(x.train, y.train, family = "hurdle.lognormal")`), a formula
   (`bart(y ~ x1 + x2, data, family = "hurdle.lognormal")`) or a
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
@@ -1018,8 +1017,7 @@ print(x, ...)
   forest's `power` and `base`, exactly as the plain selector does).
   Gaussian and `"aft"` (survival) responses only - the latent families
   route their own precisions through the channel it divides into;
-  `family = student()` residuals are refused with it too, unadjudicated
-  rather than unsupported by design (see
+  `family = student()` residuals are refused with it too (see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)). The
   fit gains `s.train`/`s.test` (posterior draws of \\s(x)\\), and
   `predict` attaches an `"s"` attribute carrying \\s(x)\\ for new data.
@@ -1634,9 +1632,9 @@ multiplied or divided by a number,
 terms, each with what to write in its place; a forest with a `basis` and
 no forest beside it; a formula that names no predictors; `test` given
 together with a model of several forests (an amplitude-coupled fit has
-no per-observation test replay in this version); and a model of several
-forests in a family the multiplier model does not support (`"aft"`,
-`"ordinal"`, `"nbinom"`, the hazard families, `"multinomial"`, and
+no per-observation test replay); and a model of several forests in a
+family the multiplier model does not support (`"aft"`, `"ordinal"`,
+`"nbinom"`, the hazard families, `"multinomial"`, and
 `"hurdle.lognormal"` - gaussian, probit, and logistic are the only
 families a forest with a `basis` can join).
 [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md),
@@ -1902,9 +1900,9 @@ category forest's per-draw variable counts, dimensioned like
 number of observations, and `colnames(x.train)` (when present) named on
 that margin. `fit` is present whenever `keepTrees` is `TRUE` *or*
 `keepSampler` is set, independent of `keepTrees`: it is the
-`dbartsSampler` whose K-forest engine actually ran (one
-`bartcore_create`, not a discarded host), fully mutable and readable on
-the channels the softmax gives meaning to - `$setCounts`,
+`dbartsSampler` whose K-forest engine actually ran (not the temporary
+sampler it builds along the way), fully mutable and readable on the
+channels the softmax gives meaning to - `$setCounts`,
 `$setCategoryOffset`, `$setPredictor`, `$setLeafPrior(normal(k = ))`,
 and the rest - and refused by name on the ones it does not
 (`$setResponse`, `$setOffset`, `$setSigma`, `$setForestWeights`);
@@ -2269,7 +2267,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001682
+#> total seconds in loop: 0.001657
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 3 3 2 2 2 2 2 3 2 2 2 3 3 2 
@@ -2306,7 +2304,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000907
+#> total seconds in loop: 0.000902
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 2 1 2 1 1 2 2 1 1 1 2 2 2 2 
@@ -2341,7 +2339,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001360
+#> total seconds in loop: 0.001335
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 3 2 4 2 2 3 2 2 2 2 3 3 2 
@@ -2395,7 +2393,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.001932
+#> total seconds in loop: 0.001790
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 3 2 3 2 3 3 2 

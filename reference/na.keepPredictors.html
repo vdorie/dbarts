@@ -76,8 +76,10 @@
 <p>The dropped rows are recorded exactly as <code><a href="https://rdrr.io/r/stats/na.fail.html" class="external-link">na.exclude</a></code> records
   them - a named integer vector of class <code>"exclude"</code> - so the training
   fits pad back to the caller's own row count through
-  <code><a href="https://rdrr.io/r/stats/nafns.html" class="external-link">naresid</a></code>: <code>fitted</code> and <code>residuals</code> on the fit are
-  as long as the data, <code>NA</code> where a row was dropped.</p>
+  <code><a href="https://rdrr.io/r/stats/nafns.html" class="external-link">naresid</a></code>: <code>fitted</code>, <code>residuals</code> and
+  <code>yhat.train.mean</code> on the fit are as long as the data, <code>NA</code> where
+  a row was dropped, while <code>yhat.train</code> and <code>extract</code> hold the kept
+  rows only.</p>
 <p>The base functions keep their usual meaning on these entry points:
   <code><a href="https://rdrr.io/r/stats/na.fail.html" class="external-link">na.omit</a></code> drops any row with a missing value anywhere and
   pads nothing, <code><a href="https://rdrr.io/r/stats/na.fail.html" class="external-link">na.exclude</a></code> drops the same rows and pads,

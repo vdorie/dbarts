@@ -835,20 +835,20 @@ each `forest()` term is one forest of the model, without a separate
 term stands at the top of the formula's right-hand side, joined to the
 others by `+`; a `forest()` crossed with another term, as
 `z:forest(x1 + x2)` or `z * forest(x1 + x2)`, is refused with the
-`forest()` to write in its place. The forest with no `basis` is the
-forest with no multiplier and the model's first, wherever it is written;
-a forest's default tree count and tree prior go by whether it has a
-`basis` and not by where it is written. It may be left as plain terms,
+`forest()` to write in its place. The first forest with no `basis` is
+the model's first, wherever it is written; a forest's default tree count
+and tree prior go by whether it has a `basis` and not by where it is
+written. A forest with no `basis` may be left as plain terms,
 `y ~ x1 + x2 + forest(x1 + x2, basis = z)`, which is the same model, but
-a formula has one such forest: plain predictor terms beside a `forest()`
-with no `basis`, and two such terms, are refused. Alone,
-`y ~ forest(x1 + x2)` is the single-forest fit `y ~ x1 + x2`, in every
-family that takes a formula. The other forests keep the order they are
-written in. `forest()` may also be written there as
-`dbartsForests$forest()`. A term's predictors and its basis are read as
-code; every other argument is evaluated where the formula was written.
-The same basis written in a formula's term and in a `forests` list is
-the same columns on the same rows, and so the same model.
+a formula's plain predictor terms beside a `forest()` with no `basis`
+are refused, as two readings of one model. Alone, `y ~ forest(x1 + x2)`
+is the single-forest fit `y ~ x1 + x2`, in every family that takes a
+formula. The other forests keep the order they are written in.
+`forest()` may also be written there as `dbartsForests$forest()`. A
+term's predictors and its basis are read as code; every other argument
+is evaluated where the formula was written. The same basis written in a
+formula's term and in a `forests` list is the same columns on the same
+rows, and so the same model.
 
 ## Value
 
@@ -941,7 +941,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)
 #>   trees: 10, 10; 20 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.000612
+#> total seconds in loop: 0.000633
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 2 5 2 3 2 

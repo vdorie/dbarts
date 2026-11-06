@@ -111,11 +111,11 @@ ties it is the plain count, exactly.
 
 **The blind spot.** The validator compares the composition against the
 model `drawPrior` and `simulate` state *between them*. It cannot detect
-a host whose prior draw and simulation disagree with each other: a step
-that correctly targets the posterior of the wrong model passes, because
-that model is the one being validated against. Nor does it localize a
-failure to a block of the sweep; it reports which functionals are
-miscalibrated, not why.
+an outer sampler whose prior draw and simulation disagree with each
+other: a step that correctly targets the posterior of the wrong model
+passes, because that model is the one being validated against. Nor does
+it localize a failure to a block of the sweep; it reports which
+functionals are miscalibrated, not why.
 
 ## Value
 

@@ -37,8 +37,10 @@ Data frame input is stored columnar in the sampler's data object, so its
 coding regardless of the storage form: numeric and logical columns as
 doubles, and factor columns - ordered or not - as their integer codes,
 `0` to one less than the number of levels, in level order. This is the
-same coding a hand-built predictor matrix supplies, so the result can be
-fed back to `predict` or used to construct an equivalent sampler.
+same coding a hand-built predictor matrix supplies. The matrix is for
+tree replay and inspection: on a fit with a factor column, `predict` and
+the sampler's new-predictor entrances take a data frame, and a sampler
+built from the matrix reads every column as numeric.
 
 After predictor mutation (`setPredictor` and relatives) the result
 reflects the sampler's current predictor values, not the originally
