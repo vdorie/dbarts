@@ -400,11 +400,14 @@ items
     of where chains settle and the split between the forest and the
     random effects is worse. Direction ruled: one mapping fixed at
     creation from a richer initial fit (the initial lme4 fit given
-    BART's covariates as linear fixed effects), nothing built until
-    its design comes back to the maintainer: factor covariates, failed
-    and slow fits, the fallback when the range cannot be estimated
-    (dec-B437, VD 2026-10-10). About 1260 lines planned for the
-    per-chain data, after response-scale-rows.
+    BART's covariates as linear fixed effects) (dec-B437, VD
+    2026-10-10); that mapping's design (docs/design/stan4bart-response-
+    range.md: factor covariates, failed and slow fits, the fallback) was
+    ruled the same day (dec-B441, dec-B444 to dec-B447) and is built in
+    stan4bart. What remains is the per-chain data itself, whose stan4bart
+    motivation is now one sampler for every chain (threads, not
+    processes) and a smaller saved fit. About 1260 lines planned, after
+    response-scale-rows.
   variance-forest-prior-calibration: a study (dec-B597, VD 2026-11-06;
     the dec-B559 standard for changing a default prior). A variance
     forest's per-tree priors match the written chisq(df, quantile)'s
