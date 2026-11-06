@@ -137,8 +137,16 @@ prior.dart <- dbartsPriors$dart(a = 0.75, alpha = 2, update.delay = 10)
 expect_inherits(prior.dart, "dbartsDartPrior")
 expect_inherits(prior.dart, "dbartsCGMPrior")
 expect_equal(prior.dart@a, 0.75)
-expect_error(dbartsPriors$dart(a = -1), pattern = "'a' must be positive")
-expect_error(dbartsPriors$dart(alpha = 0), pattern = "'alpha' must be positive")
+expect_error(
+  dbartsPriors$dart(a = -1),
+  "'a' must be a single positive finite number",
+  fixed = TRUE
+)
+expect_error(
+  dbartsPriors$dart(alpha = 0),
+  "'alpha' must be a single positive finite number",
+  fixed = TRUE
+)
 
 # a left-unset update delay resolves to half the control burn-in
 control.bc <- dbartsControl(
@@ -302,7 +310,10 @@ refusedScalars <- list(
 )
 for (entry in refusedScalars) {
   message <- paste0("'", entry[[2L]], "' must be a single ", entry[[3L]])
-  for (value in c(list(NA, NA_real_, NaN, c(1, 2), "a"), as.list(entry[[4L]]))) {
+  for (value in c(
+    list(NA, NA_real_, NaN, c(1, 2), "a"),
+    as.list(entry[[4L]])
+  )) {
     refusal <- tryCatch(entry[[1L]](value), error = conditionMessage)
     expect_identical(refusal, message, info = deparse(value))
   }
@@ -345,7 +356,10 @@ expect_error(
 expect_error(new("dbartsFixedHyperprior", k = c(1, 2)), "'k' must be positive")
 # a matrix of split probabilities is refused in one line naming the argument
 expect_identical(
-  tryCatch(dbartsPriors$cgm(split.probs = matrix(1:2, 1L)), error = conditionMessage),
+  tryCatch(
+    dbartsPriors$cgm(split.probs = matrix(1:2, 1L)),
+    error = conditionMessage
+  ),
   "'split.probs' must be a vector, not a matrix or an array"
 )
 expect_error(
@@ -366,12 +380,16 @@ expect_error(
 # once, naming fixed(), on gaussian and aft alike, and so is the 0.9-34
 # shorthand; a NA reaches the same words
 infiniteDf <- paste0("'df' must be a single ", dfKind)
-for (family in list(
-  quote(gaussian(sigma = chisq(Inf, 0.9))),
-  quote(aft(sigma = chisq(Inf, 0.9)))
-)) {
-  expect_error(eval(family, dbartsFamilies), infiniteDf, fixed = TRUE)
-}
+expect_error(
+  dbarts(y ~ a + b, df, family = gaussian(sigma = chisq(Inf, 0.9))),
+  infiniteDf,
+  fixed = TRUE
+)
+expect_error(
+  dbartsFamilies$aft(sigma = dbartsPriors$chisq(Inf, 0.9)),
+  infiniteDf,
+  fixed = TRUE
+)
 for (sigdf in list(Inf, NA)) {
   expect_error(
     dbarts:::holdingBartNotices(bart(
@@ -411,7 +429,6 @@ rm(
   value,
   refusal,
   infiniteDf,
-  family,
   sigdf,
   heldSampler,
   infiniteModel

@@ -101,11 +101,13 @@ expect_error(
 )
 expect_error(
   dbarts::dbarts(y ~ x, testData, family = gaussian(sigma = chisq(0, 0))),
-  "'df' must be positive"
+  "'df' must be a single positive finite number",
+  fixed = TRUE
 )
 expect_error(
   dbarts::dbarts(y ~ x, testData, family = gaussian(sigma = chisq(1, 0))),
-  "'quantile' must be positive"
+  "'quant' must be a single number between 0 and 1",
+  fixed = TRUE
 )
 
 rm(testData)
