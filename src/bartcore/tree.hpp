@@ -313,6 +313,10 @@ public:
   void compactMaskPoolIfNeeded(const ColumnStore& data) {
     if (maskPool.size() <= maskPoolHighWater_) return;
     compactScratch_.clear();
+    // sized before any rule is pointed into it: a reallocation part way
+    // would throw with some rules already pointing into a pool never swapped
+    // in
+    compactScratch_.reserve(liveMaskWordsBelow(0, data));
     compactMaskPoolBelow(0, data, compactScratch_);
     maskPool.swap(compactScratch_);
     maskPoolHighWater_ = 4 * maskPool.size() > minMaskPoolCompactionSize
@@ -1933,6 +1937,18 @@ private:
            buildFromFlatBelow(pair + 1, data, flatNodes, numNodes, pos,
                               paramByNode, paramStride, slopes, leafPos,
                               masks, numMaskWords, maskPos);
+  }
+
+  /// The pool words the pooled rules of nodeIndex's subtree hold, the size
+  /// compactMaskPoolBelow gives them.
+  size_t liveMaskWordsBelow(int32_t nodeIndex, const ColumnStore& data) const {
+    const Node& node(at(nodeIndex));
+    if (node.isBottom()) return 0;
+    size_t j = static_cast<size_t>(node.rule.variableIndex);
+    size_t words = data.columnIsPooled(j)
+      ? maskWordsForCount(data.categoryCounts[j]) : 0;
+    return words + liveMaskWordsBelow(node.leftChild, data) +
+           liveMaskWordsBelow(node.leftChild + 1, data);
   }
 
   void compactMaskPoolBelow(int32_t nodeIndex, const ColumnStore& data,

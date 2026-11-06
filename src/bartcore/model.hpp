@@ -798,6 +798,16 @@ struct MonotoneLeafGeometry {
     numWords.clear();
     if (axisOf.size() != data.numPredictors)
       axisOf.assign(data.numPredictors, -1);
+    // axisOf is all -1 between builds, whichever way one leaves: an
+    // allocation failure part way otherwise strands an axis index the next
+    // build reads past its axes
+    struct AxisReset {
+      MonotoneLeafGeometry& geometry;
+      ~AxisReset() {
+        for (std::int32_t v : geometry.axes)
+          geometry.axisOf[static_cast<std::size_t>(v)] = -1;
+      }
+    } axisReset{*this};
     levelWords = 0;
     collectAxes(tree, 0, data);
     std::size_t numAxes = axes.size(), numLeaves = leaves.size();
@@ -845,7 +855,6 @@ struct MonotoneLeafGeometry {
         if (tree.ruleMissingGoesRight(data, rule) != isRight) leafMissing[a] = 0;
       }
     }
-    for (std::int32_t v : axes) axisOf[static_cast<std::size_t>(v)] = -1;
   }
 
   /// Whether some value of axis a reaches both leaves (row indices).
@@ -891,8 +900,9 @@ private:
     std::int32_t v = tree.at(node).rule.variableIndex;
     std::size_t j = static_cast<std::size_t>(v);
     if (axisOf[j] < 0) {
-      axisOf[j] = static_cast<std::int32_t>(axes.size());
+      // the axis first, so the reset finds every index set
       axes.push_back(v);
+      axisOf[j] = static_cast<std::int32_t>(axes.size() - 1);
       bool subset = data.splitsBySubset(j);
       bySubset.push_back(subset ? 1 : 0);
       std::size_t words = subset ? maskWordsForCount(data.categoryCounts[j]) : 0;
@@ -3777,11 +3787,14 @@ private:
       }
       return nullptr;
     }
-    kernelCacheUsedBytes_ += newBytes - oldBytes;
     entry = CachedLeafKernel();  // release any stale capacity
-    entry.members.assign(members, members + numObs);
+    kernelCacheUsedBytes_ -= oldBytes;
     gatherLeafCovariates(members, numObs);
     buildKernel(numObs, entry.kernel);
+    // the members are the entry's key, so they go in last: an allocation
+    // failure part way leaves an entry no leaf matches
+    entry.members.assign(members, members + numObs);
+    kernelCacheUsedBytes_ += newBytes;
     return &entry;
   }
 
