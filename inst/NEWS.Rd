@@ -266,6 +266,10 @@
       \item A probit or logistic fit whose response holds one class is
             fitted, with one warning saying so; 0.9-34 stopped on it with
             an unrelated message.
+      \item A residual prior with infinite degrees of freedom, as in
+            \code{bart(sigdf = Inf)}, is refused, naming \code{fixed()},
+            which holds \eqn{\sigma}{sigma} at a value; 0.9-34 returned
+            \code{NaN}.
       \item Results differ from 0.9-34, including seeded ones. The new
             engine draws a different random stream, and the corrections
             under BUG FIXES change the posterior itself. Every chain now
@@ -951,6 +955,11 @@
             then the global environment ahead of the caller's own objects, so
             \code{offset.test = d$o} inside a function could read a global
             \code{d}.
+      \item An \code{offset.test} passed through a wrapper's \code{...} is
+            read as the wrapper's caller wrote it, as \code{offset} is: a
+            name, an expression in \code{offset} or a column of
+            \code{test}. 0.9-34 stopped with \dQuote{cannot find test
+            offset '..1'}.
       \item \code{xbart}'s RMSE loss on a binary response compares the
             response with the predicted probability (the link applied to
             each posterior draw, then averaged); 0.9-34 compared it with the
