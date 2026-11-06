@@ -33,7 +33,7 @@ y1 <- rbinom(n, 1L, pnorm(f1 + o1))
 
 host <- dbarts(
   x1,
-  2 * y1 - 1 - o1,
+  2 * y1 - 1,
   control = recipeControl(31L),
   family = gaussian(sigma = fixed(1)),
   n.trees = 25L
@@ -67,6 +67,8 @@ expect_true(
 # the two pins the recipe rests on: no free residual scale, a stated leaf prior
 expect_equal(as.numeric(host$getSigmas()), 1)
 expect_equal(host$getLeafPrior()$k.scale / host$getK()[[1L]], 1)
+# and the leaf prior's center is the build response's midrange, 0 as a native probit's
+expect_equal(host$getLeafPrior()$prior.mean, 0)
 
 ## 2. OFFSET BLOCK: BOTH blocks' truth. A partially linear model whose linear
 ## coefficient rides the offset channel must recover the coefficient AND the

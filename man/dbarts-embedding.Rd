@@ -73,11 +73,15 @@
     \sQuote{Reading the fit}, \code{\link[=dbartsSampler-class]{dbartsSampler}}, is authoritative.
     The rule an outer block needs: it conditions on \eqn{f(x_i)}{f(x_i)}, so it reads
     \code{$getFitsWithoutOffset()} and adds back whatever offset it installed.
-    \code{run()$train} reports the same location with the offset folded in, and
-    \code{$getLatents()} reports the family's augmentation variable, which carries no offset and
-    for \code{"logistic"}, \code{"nbinom"} and a Student-t residual distribution is a precision
-    rather than a location at all. Differencing the two is short by exactly the installed offset,
-    which reaches the outer block as a coefficient shrunk toward zero rather than as an error.
+    \code{run()$train} reports the same location with the offset folded in. The location latent
+    of \code{"probit"}, \code{"ordinal"} and \code{"aft"} that \code{$getLatents()} reports is on
+    that same offset-inclusive scale, \eqn{z = f(x) + o + e}{z = f(x) + o + e}, so
+    the difference \code{z - train} is the residual \eqn{e}{e}, which carries none of the offset's
+    signal. A block that owns the offset regresses \code{z - $getFitsWithoutOffset()}; used the
+    other way, the offset reaches it as a coefficient shrunk toward zero rather than as an error.
+    The latent of \code{"logistic"}, \code{"nbinom"} and a Student-t residual distribution is a
+    precision, a location at no scale, with no offset in it; \code{\link{dbartsWorkingResponse}}
+    gives the offset-free working response for any of them.
 
     \code{$getLatents()} returns the values the last sweep's trees were drawn from, so after a run
     it and \code{$getFitsWithoutOffset()} are a joint draw, the latent being the value the fit was
@@ -91,7 +95,9 @@
     The leaf prior is calibrated once, at creation, from the response the sampler was built on. A
     per-sweep \code{setResponse} deliberately does \emph{not} re-anchor it (\code{updateScale =
     FALSE}, the default), so that the sweeps are comparable - which also means a sampler built on a
-    cold-start vector keeps that vector's range as its prior scale for the whole run. State the
+    cold-start vector keeps that vector's range as its prior scale for the whole run, and its midrange
+    as the prior's center (read back as \code{$getLeafPrior()$prior.mean}, which no setter writes
+    except through the offset). State the
     prior instead of inheriting it: \code{leaf.prior = normal(sd = )} at creation (see
     \code{\link{dbartsPriors}}), or \code{$setLeafPrior(normal(sd = ))} afterward, with
     \code{$getLeafPrior()} reporting what is actually in force. A caller whose rows enter and leave the
@@ -112,9 +118,10 @@
     The value in force during a sweep is the one installed before it. Create the sampler with the
     outer block's initial value already in place, and write the channel before \code{run}, never
     after: a sweep run against a stale offset, weight or response has drawn from the wrong
-    conditional and nothing later reports it. The mutators store no state unless
-    \code{updateState = TRUE} is passed explicitly, so a per-sweep write costs nothing beyond the
-    write itself.
+    conditional and nothing later reports it. The mutators store the state after
+    each write when \code{control@updateState} is \code{TRUE}, the default, so a sampler driven a
+    sweep at a time is built with \code{dbartsControl(updateState = FALSE)}, as the vignette's
+    recipes are; a per-sweep write then costs nothing beyond the write itself.
   }
 
   \subsection{Augmentation written in R}{

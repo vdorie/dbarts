@@ -98,7 +98,7 @@ dbartsControl(
      Random number generator seed. \code{NULL} (the default) means not given here and resolves to the slot's unseeded value, which leaves the object unseeded. An explicit \code{NA} is a missing value and is refused. Every chain then runs its own generator; a seed given instead drives a dedicated generator that in turn hands each chain its own seed, leaving R's stream untouched. Seeded results do not depend on the thread count, and a single-chain run with a given seed reproduces the first chain of a multi-chain run with the same seed. Unseeded, chain generators are seeded from R's stream at creation, so \code{\link[=Random]{set.seed}} beforehand suffices for reproducibility; sampling itself never advances R's stream, though \code{copy()} of an unseeded sampler, and the first use of an unseeded sampler reloaded from a saved state, each draw fresh chain seeds from R's stream again. See the Reproducibility section of \link{bart} for the full picture.
    }
    \item{updateState}{
-     Logical setting the default behavior for many \link[=dbartsSampler-class]{sampler} methods with regards to the immediate updating of the cached state of the object. A current, cached state is only useful when \link[=save]{saving}/\link[=load]{loading} the sampler.
+     Logical setting the default behavior for many \link[=dbartsSampler-class]{sampler} methods with regards to the immediate updating of the cached state of the object. A current, cached state is what \link[=save]{saving}/\link[=load]{loading} the sampler needs, and it is also the state a \code{setState} restores to undo a \code{setWeights} or other mutation (see \link{dbarts-embedding}).
    }
 }
 \section{Engine limits}{
