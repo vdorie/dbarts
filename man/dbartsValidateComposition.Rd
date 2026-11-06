@@ -83,7 +83,7 @@ dbartsValidateComposition(drawPrior, simulate, init, step, functionals,
   than piling every replication onto one rank. With no ties it is the plain count, exactly.
 
   \strong{The blind spot.} The validator compares the composition against the model \code{drawPrior}
-  and \code{simulate} state \emph{between them}. It cannot detect a host whose prior draw and
+  and \code{simulate} state \emph{between them}. It cannot detect an outer sampler whose prior draw and
   simulation disagree with each other: a step that correctly targets the posterior of the wrong
   model passes, because that model is the one being validated against. Nor does it localize a
   failure to a block of the sweep; it reports which functionals are miscalibrated, not why.

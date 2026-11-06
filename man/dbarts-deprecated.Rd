@@ -37,6 +37,12 @@
     \item{\code{n.trees}, \code{n.cuts}, \code{useQuantiles} on \code{\link{dbartsControl}}}{
       What a model and its data hold: \code{n.trees} is now an argument of \code{\link{dbarts}}, \code{\link{dbartsSpec}} and \code{\link{forest}}, and \code{n.cuts} and \code{useQuantiles} of \code{dbarts} and \code{\link{dbartsData}}. A value written on a control is read after a once-per-session warning; a control's value that differs from what a call takes draws a warning on every call, and a value a fit left on its control states nothing.
     }
+    \item{\code{sigest} beside a fixed residual scale}{
+      A fit that states \code{sigest} and a residual scale held fixed (\code{family = gaussian(sigma = fixed(value))}) runs, \code{sigest} having no effect, after a once-per-session warning; it is an error from dbarts 1.1-0, so drop \code{sigest}.
+    }
+    \item{The \code{n.trees}, \code{useQuantiles} and \code{binary} slots of a \code{\link{dbartsControl}} object}{
+      Still readable, as \code{control@n.trees}, \code{control@useQuantiles} and \code{control@binary}, for code that reads them from the control; the values now live on the model and the data: the forests' tree counts in the model's \code{forests}, \code{useQuantiles} in the data object's \code{useQuantiles} slot, and the response family in the model's \code{family} slot. They go once no CRAN package reads them.
+    }
     \item{A three-element \code{n.burn} on \code{\link{xbart}}}{
       Refused outright, naming \code{n.burn = c(fresh, warm)}: 0.9-x's third element was a per-replication burn-in, and a chain is never carried between replications now.
     }

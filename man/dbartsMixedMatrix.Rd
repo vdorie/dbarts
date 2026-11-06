@@ -95,14 +95,16 @@
   \code{\link{sparseFactor}}
 }
 \examples{
-df <- data.frame(a = 1:5)
-df$b <- Matrix::sparseVector(c(1, 2), c(1, 3), length = 5)
-mm <- makeModelMatrixFromDataFrame(df)
+if (requireNamespace("Matrix", quietly = TRUE)) {
+  df <- data.frame(a = 1:5)
+  df$b <- Matrix::sparseVector(c(1, 2), c(1, 3), length = 5)
+  mm <- makeModelMatrixFromDataFrame(df)
 
-class(mm)
-dim(mm)
-colnames(mm)
-mm[, "a"]
-as.matrix(mm)
+  class(mm)
+  dim(mm)
+  colnames(mm)
+  mm[, "a"]
+  as.matrix(mm)
+}
 }
 \keyword{classes}

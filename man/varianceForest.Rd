@@ -60,7 +60,7 @@ varianceForest(
 \details{
   A second ensemble models the residual variance surface \eqn{s^2(x)} as a
   product of scaled-inverse-chi-squared (multiplicative) leaves, so
-  \eqn{y_i = f(x_i) + s(x_i)\epsilon_i}, coupled to the mean forest through
+  \eqn{y_i = f(x_i) + s(x_i)\epsilon_i}{y_i = f(x_i) + s(x_i) epsilon_i}, coupled to the mean forest through
   the per-observation precision. Gaussian and \code{"aft"} (survival)
   responses and constant leaves only - the latent families route their own
   precisions through the same channel; monotone constraints are not supported.

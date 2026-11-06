@@ -74,7 +74,7 @@
       \code{chisq(3, 0.9)}, \code{chisq(df, quant)} names another
       scaled-inverse-chi-squared, and \code{fixed(value)} pins the
       residual variance and suppresses the sampler's own draw, which is
-      what an outer sampler owning \eqn{\sigma} wants. The former
+      what an outer sampler owning \eqn{\sigma}{sigma} wants. The former
       \code{resid.prior}, \code{sigdf} and \code{sigquant} arguments.
       \code{sigest}, the estimate the \code{chisq} quantile is calibrated
       against, is not a family setting and stays a fitting-function

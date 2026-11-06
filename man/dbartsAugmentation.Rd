@@ -8,8 +8,8 @@
   inside each sweep, callable from R against R's own random number stream.
   \code{dbartsDrawLatents} draws the augmentation variable at a supplied fit - the quantity
   \code{\link[=dbartsSampler-class]{getLatents}} reports for that family - and
-  \code{dbartsWorkingResponse} turns a drawn latent into the response a host regresses on. Neither
-  touches a sampler: a host writing its own Gibbs step around BART, or around anything else, need
+  \code{dbartsWorkingResponse} turns a drawn latent into the response the outer sampler regresses on. Neither
+  touches a sampler: an outer sampler writing its own Gibbs step around BART, or around anything else, need
   not reimplement the family's augmentation.
 }
 \usage{
@@ -29,7 +29,7 @@ dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
   \item{fit}{
     A numeric vector of each observation's location \emph{without} the offset -
     \eqn{f(x_i)}{f(x_i)}, what \code{\link[=dbartsSampler-class]{getFitsWithoutOffset}} reports, or
-    however the host computes it. Its length sets \eqn{n}{n}.
+    however the outer sampler computes it. Its length sets \eqn{n}{n}.
   }
   \item{latent}{
     A numeric vector of length \eqn{n}{n} of drawn latents, as \code{dbartsDrawLatents} returns;
@@ -78,12 +78,12 @@ dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
 
   \strong{Why two functions.} For \code{"probit"}, \code{"ordinal"} and \code{"aft"} the latent is a
   LOCATION and the working response is that location less the offset. For \code{"logistic"} and
-  \code{"nbinom"} it is a PRECISION - the Polya-Gamma \eqn{\omega_i}{omega_i} - and what a host
+  \code{"nbinom"} it is a PRECISION - the Polya-Gamma \eqn{\omega_i}{omega_i} - and what the outer sampler
   regresses on is \eqn{w_i (y_i - 1/2) / \omega_i - o_i}{w_i (y_i - 1/2) / omega_i - o_i} and
   \eqn{(y_i - r) / (2 \omega_i) + \log r - o_i}{(y_i - r) / (2 omega_i) + log r - o_i} respectively, under per-row
   precision weights \eqn{\omega_i}{omega_i}. For \code{"student"} the latent is the scale-mixing
   \eqn{\lambda_i}{lambda_i}, which weights the row rather than entering the response, so the working
-  response is the gaussian one. A host that regresses on the latent itself is fitting a different
+  response is the gaussian one. An outer sampler that regresses on the latent itself is fitting a different
   model, which is the composition defect these functions exist to prevent.
 
   \strong{Random numbers.} The draws come from R's own stream, through a generator created and
@@ -111,7 +111,7 @@ o <- rep(0.25, 50L)
 y <- rbinom(50L, 1L, pnorm(f + o))
 
 # one Albert-Chib step: the truncated-normal latent at the current fit, then
-# the response a host regresses on
+# the response the outer sampler regresses on
 z <- dbartsDrawLatents("probit", fit = f, y = y, offset = o)
 attr(z, "quantity")
 head(dbartsWorkingResponse("probit", latent = z, y = y, offset = o))

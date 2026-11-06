@@ -7,7 +7,7 @@
 \alias{survivalProbabilities.bartNegbin}
 \alias{survivalProbabilities.bartHurdle}
 \description{
-  Posterior draws of the survival probability \eqn{S(t \mid x)} from a survival
+  Posterior draws of the survival probability \eqn{S(t \mid x)}{S(t | x)} from a survival
   fit: an accelerated failure time (AFT) log-normal fit produced by
   \code{\link{bart}} with \code{family = "aft"},
   or a discrete-time hazard fit produced by
@@ -117,26 +117,26 @@ survivalProbabilities(object, ...)
     (\code{type}, \code{ci.level},
     \code{weights}, \code{n.threads}, \code{forest}, \code{contribution},
     \code{bases}) is refused by name rather than silently ignored, since this
-    method returns the draws of \eqn{S(t \mid x)} at \code{times} alone.
+    method returns the draws of \eqn{S(t \mid x)}{S(t | x)} at \code{times} alone.
   }
 }
 \details{
-  Under the log-normal AFT model \eqn{\log T = f(x) + \sigma \epsilon} with
-  \eqn{\epsilon \sim N(0, 1)}, the survival function is
+  Under the log-normal AFT model \eqn{\log T = f(x) + \sigma \epsilon}{log T = f(x) + sigma epsilon} with
+  \eqn{\epsilon \sim N(0, 1)}{epsilon ~ N(0, 1)}, the survival function is
   \deqn{S(t \mid x) = 1 - \Phi\left(\frac{\log t - f(x)}{\sigma}\right),}
-  where \eqn{f(x)} is the linear predictor \eqn{E[\log T \mid x]} - the
+  where \eqn{f(x)} is the linear predictor \eqn{E[\log T \mid x]}{E[log T | x]} - the
   log-time-scale quantity that \code{\link[=predict.bart]{predict}} and
   \code{\link[=extract.bart]{extract}} return for an \code{"aft"} fit, the
   offset included - and
-  \eqn{\sigma} the residual standard deviation. The probability is evaluated
-  at every posterior draw of \eqn{f(x)} and \eqn{\sigma}, following the
+  \eqn{\sigma}{sigma} the residual standard deviation. The probability is evaluated
+  at every posterior draw of \eqn{f(x)} and \eqn{\sigma}{sigma}, following the
   package's convention that draw-level functions return draws: take means or
   quantiles over the draw margin for point estimates and credible bands.
 
   For a discrete-time hazard fit, the survival function is the cumulative
   product
   \deqn{S(t \mid x) = \prod_{k \,:\, \mathrm{periods}[k] \le t} (1 - h(k \mid x)),}
-  where \eqn{h(k \mid x) = g(f(x, k) + o)} is the per-period hazard through the
+  where \eqn{h(k \mid x) = g(f(x, k) + o)}{h(k | x) = g(f(x, k) + o)} is the per-period hazard through the
   fit's binary link \eqn{g} and \eqn{o} the subject's offset: the fit's own on
   the training subjects, and on \code{newdata} the one formed from
   \code{offset} as above. Because the training design is ragged (each
@@ -154,9 +154,9 @@ survivalProbabilities(object, ...)
 }
 \value{
   An array of survival probabilities. With \code{combineChains = TRUE} the
-  dimensions are draws \eqn{\times} times \eqn{\times} observations; with
+  dimensions are draws \eqn{\times}{x} times \eqn{\times}{x} observations; with
   \code{combineChains = FALSE} a chain dimension precedes them (chains
-  \eqn{\times} draws \eqn{\times} times \eqn{\times} observations), length
+  \eqn{\times}{x} draws \eqn{\times}{x} times \eqn{\times}{x} observations), length
   1 on a one-chain fit rather than dropped, as \code{extract} and
   \code{predict} keep theirs. Observations are those of \code{newdata}, or
   the training data when \code{newdata} is \code{NULL}, or with

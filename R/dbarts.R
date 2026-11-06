@@ -3925,7 +3925,7 @@ dbartsSampler <- setRefClass(
       .Call(C_dbarts_bartcore_getSigmas, ptr)
     },
     getShape = function() {
-      "Returns the shape parameter of the sampler's family currently in force, one per chain, or NULL on a family with none (only nbinom has one today) - the count analog of getSigmas(). It is the same scalar run()$shape records once per kept draw, read mid-sweep and without serializing state, so a host driving the sampler one sweep at a time reads it here; the stored state holds it only where it is drawn. Under a fixed shape it repeats the value the sampler was created with; otherwise it is that sweep's grid draw."
+      "Returns the shape parameter of the sampler's family currently in force, one per chain, or NULL on a family with none (only nbinom has one today) - the count analog of getSigmas(). It is the same scalar run()$shape records once per kept draw, read mid-sweep and without serializing state, so an outer sampler driving this one a sweep at a time reads it here; the stored state holds it only where it is drawn. Under a fixed shape it repeats the value the sampler was created with; otherwise it is that sweep's grid draw."
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_getShape, ptr)
     },
@@ -4458,7 +4458,7 @@ dbartsSampler <- setRefClass(
       newdata = NULL,
       forest = NULL
     ) {
-      "Returns a data.frame containing the internal state of the trees, one row per node. A sampler with several forests (a multinomial one, or one declared with forests =, whatever the count) puts a leading 'forest' column (indexed from 1) on it, and stacks every forest forest-major at the default forest = NULL, as the sampler's other per-forest readers stack at their own default; any other sampler returns no forest column, and accepts forest = 1. forest also takes a single position or label, or a vector of them (positions, or labels as a string is read elsewhere; forest<i> names position i), each validated as getLeafPrior/getForestFits/getForestAmplitudes/getForestVariableCounts validate one. treeNums defaults to, and is validated against, EACH selected forest's own tree count, which need not match forest 1's."
+      "Returns a data.frame containing the internal state of the trees, one row per node. A sampler with more than one forest (a multinomial one, or one declared with forests = naming several) puts a leading 'forest' column (indexed from 1) on it, and stacks every forest forest-major at the default forest = NULL, as the sampler's other per-forest readers stack at their own default; any other sampler returns no forest column, and accepts forest = 1. forest also takes a single position or label, or a vector of them (positions, or labels as a string is read elsewhere; forest<i> names position i), each validated as getLeafPrior/getForestFits/getForestAmplitudes/getForestVariableCounts validate one. treeNums defaults to, and is validated against, EACH selected forest's own tree count, which need not match forest 1's."
       matchedCall <- match.call()
       current <- isTRUE(current)
       # live working trees have no sample dimension, so treat a current request
@@ -4529,13 +4529,13 @@ dbartsSampler <- setRefClass(
 
       ptr <- getPointer()
       # NULL is every forest, forest-major, as getForestAmplitudes stacks.
-      # The forest column appears only where the sampler has several forests
-      # or was declared with forests =, so a single-forest sampler's table is
-      # the one 0.9-x returned. The bound is
-      # checked here, ahead of the .Call, so an out-of-range forest reads the
-      # same "forest index out of range" the sibling readers raise rather
-      # than getTrees' own bridge-side wording; an empty forest vector is
-      # refused the same way a scalar one's length check would refuse it.
+      # The forest column appears only where the sampler has more than one
+      # forest, so a single-forest sampler's table is the one 0.9-x returned.
+      # The bound is checked here, ahead of the .Call, so an out-of-range
+      # forest reads the same "forest index out of range" the sibling readers
+      # raise rather than getTrees' own bridge-side wording; an empty forest
+      # vector is refused the same way a scalar one's length check would
+      # refuse it.
       forestIndices <- if (is.null(forest)) {
         seq_len(bartcoreNumForests(ptr)) - 1L
       } else if (length(forest) == 0L) {

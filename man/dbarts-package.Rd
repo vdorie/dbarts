@@ -68,7 +68,7 @@ Chipman, H., George, E., and McCulloch, R. (2010)
   Vincent Dorie \email{vdorie@gmail.com}, with Hugh Chipman and Robert McCulloch. See \code{citation("dbarts")} for how to cite the package.
 }
 \seealso{
-  \code{\link{bart}} to fit a model, \code{\link{dbarts}} to build a sampler, and the package vignettes: \code{vignette("gibbs_sampler_mixture_model", package = "dbarts")} and \code{vignette("working_with_saved_trees", package = "dbarts")}.
+  \code{\link{bart}} to fit a model, \code{\link{dbarts}} to build a sampler, and the package vignettes: \code{vignette("gibbs_sampler_mixture_model", package = "dbarts")}, \code{vignette("working_with_saved_trees", package = "dbarts")} and \code{vignette("dbarts-as-a-component", package = "dbarts")}.
 }
 \keyword{package}
 \keyword{nonparametric}

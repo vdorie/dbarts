@@ -787,13 +787,13 @@ forest(
   the top of the formula's right-hand side, joined to the others by \code{+};
   a \code{forest()} crossed with another term, as \code{z:forest(x1 + x2)} or
   \code{z * forest(x1 + x2)}, is refused with the \code{forest()} to write in
-  its place. The forest with no \code{basis} is the forest with no multiplier
-  and the model's first, wherever it is written; a forest's default tree
+  its place. The first forest with no \code{basis} is the model's first, wherever it
+  is written; a forest's default tree
   count and tree prior go by whether it has a \code{basis} and not by where
-  it is written. It may be left as plain
+  it is written. A forest with no \code{basis} may be left as plain
   terms, \code{y ~ x1 + x2 + forest(x1 + x2, basis = z)}, which is the same
-  model, but a formula has one such forest: plain predictor terms beside a
-  \code{forest()} with no \code{basis}, and two such terms, are refused.
+  model, but a formula's plain predictor terms beside a \code{forest()} with
+  no \code{basis} are refused, as two readings of one model.
   Alone, \code{y ~ forest(x1 + x2)} is the single-forest fit
   \code{y ~ x1 + x2}, in every family that takes a formula. The other forests
   keep the order they are written in. \code{forest()} may also be written

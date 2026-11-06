@@ -215,7 +215,7 @@
       \code{sigest}, the residual-scale estimate supplied (or derived) at
       creation: \code{quant} is the prior probability that the residual
       standard deviation is below that estimate, so \code{sigest = 1} gives
-      the prior under which \eqn{\sigma} is below 1 with probability
+      the prior under which \eqn{\sigma}{sigma} is below 1 with probability
       \code{quant}.
     }
     \item{\code{fixed(value = 1)}}{
@@ -223,7 +223,7 @@
       scale rather than a distribution over one, so it ignores \code{sigest} - which
       is refused beside it unless it equals the square root of \code{value},
       when it is accepted with a message and is an error from dbarts 1.1-0 - and
-      suppresses the sampler's own \eqn{\sigma} draw.
+      suppresses the sampler's own \eqn{\sigma}{sigma} draw.
     }
     \item{\code{student(df = 1)}}{
       A Student-t prior with \code{df} degrees of freedom, finite and at least

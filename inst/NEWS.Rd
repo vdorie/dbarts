@@ -79,7 +79,6 @@
             read as \code{NULL} with a warning.
       \item An \code{n.cuts} with more values than there are predictor
             columns is an error; 0.9-34 dropped the extra values silently.
-            A shorter one is recycled, as before.
       \item A package that forwards arguments to dbarts by filtering them
             against \code{formals(dbartsControl)} will now silently drop
             \code{rngSeed} and fit unseeded; accept \code{seed} instead.
@@ -185,11 +184,11 @@
             \code{dbartsControl}'s \code{proposal.probs} must name every
             entry from its moves; an unnamed vector or an unknown name is
             an error listing them, where 0.9-34 dropped such entries and ran
-            the default mixture. New arguments make three shortened names
-            ambiguous, so they are errors: \code{t =} and \code{u =} on
-            \code{bart} (0.9-34's \code{bart2} read them as \code{test} and
-            \code{useQuantiles}) and \code{n.th =} on \code{xbart} (read as
-            \code{n.threads}); write the name in full.
+            the default mixture. New arguments make two shortened names
+            ambiguous, so they are errors: \code{u =} on \code{bart}
+            (0.9-34's \code{bart2} read it as \code{useQuantiles}) and
+            \code{n.th =} on \code{xbart} (read as \code{n.threads});
+            write the name in full.
       \item The sampler's \code{$setResponse} gains \code{updateScale} as its
             second argument, pushing \code{updateState} to third, so pass
             \code{updateState} by name. It defaults to \code{FALSE}: the
@@ -317,10 +316,14 @@
             \code{\link{na.keepPredictors}}, which drops only rows missing
             the response; \code{na.action = na.omit} restores the old rule.
             \code{xbart} always keeps such rows, and \code{bartBT} drops
-            them as before. Hence \code{fitted}, \code{yhat.train} and
-            \code{predict} give one value per row passed in, rows with
-            missing predictors included, where 0.9-34 gave fewer; code that
-            fills only the complete rows by position must index every row.
+            them as before. Hence \code{fitted}, \code{residuals},
+            \code{yhat.train.mean} and \code{predict} give one value per
+            row passed in, rows with missing predictors included, where
+            0.9-34 gave fewer; a row dropped for a missing response is
+            \code{NA} in \code{fitted}, \code{residuals} and
+            \code{yhat.train.mean}, and \code{yhat.train} and
+            \code{extract} hold the kept rows only. Code that fills only the
+            complete rows by position must index every row.
       \item A predictor column that is first given a missing value after
             the sampler was created (\code{$setPredictor},
             \code{$setData}, \code{updatePredictorPerObservationJointly})

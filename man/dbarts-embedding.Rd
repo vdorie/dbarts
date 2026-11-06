@@ -37,7 +37,7 @@
     and was rolled back; under a \code{\link{monotone}} constraint the joint form also declines a
     value that would leave a tree's leaf values out of order. \strong{That mask is part of a Metropolis accept decision, not a
     diagnostic}: a declined observation holds its old value, so the likelihood read after the call
-    is its old likelihood, and treating the resulting ratio as an acceptance leaves the host's copy
+    is its old likelihood, and treating the resulting ratio as an acceptance leaves the outer sampler's copy
     of the latent disagreeing with what the samplers hold.
 
     Not every channel is open on every model. A refusal is part of the model rather than a
@@ -127,8 +127,8 @@
   \subsection{Augmentation written in R}{
     The per-observation augmentation a non-gaussian sampler runs internally is callable directly:
     \code{\link{dbartsDrawLatents}} draws the latent at a supplied fit and
-    \code{\link[=dbartsDrawLatents]{dbartsWorkingResponse}} turns it into the quantity a host
-    regresses on. A host that needs the latent for its own blocks runs the step itself over a
+    \code{\link[=dbartsDrawLatents]{dbartsWorkingResponse}} turns it into the quantity the outer sampler
+    regresses on. An outer sampler that needs the latent for its own blocks runs the step itself over a
     gaussian sampler with \code{family = gaussian(sigma = fixed(1))}, rather than reimplementing the family.
     Their \code{fit} argument is offset-free, as \code{$getFitsWithoutOffset()} reports it.
   }
@@ -153,7 +153,7 @@
     What the header reaches is the per-sweep loop: \code{dbarts_sampler_run} into caller-owned
     buffers, the conditioning channels \code{setResponse}, \code{setOffset} and
     \code{setSigma}, \code{getLatents}, \code{predict}, tree storage and printing, and the
-    queries a host sizes its results struct from, among them
+    queries the outer sampler sizes its results struct from, among them
     \code{dbarts_sampler_numFittedValuesPerObservation} and
     \code{dbarts_sampler_numVariableCountForests}, the widths of a multinomial or multi-forest
     sampler's fits and split counts; a flat run polls for R's interrupt as \code{$run} does and, once the workers have joined, raises it

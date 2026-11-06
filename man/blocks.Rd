@@ -4,7 +4,7 @@
 \description{
   Build a block-additive constraint confining each whole tree in a BART fit to
   one declared group of predictors, so the ensemble is exactly a sum of
-  per-group functions \eqn{f = \sum_G f_G} (a functional-ANOVA / grouped-GAMI
+  per-group functions \eqn{f = \sum_G f_G}{f = sum_G f_G} (a functional-ANOVA / grouped-GAMI
   decomposition). Pass the result as the \code{blocks} argument of
   \code{\link{dbarts}} or \code{\link{bart}}. The constraint is applied per
   forest, so in a multi-forest model each forest can carry its own partition.

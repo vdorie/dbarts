@@ -2274,10 +2274,10 @@ refuseGivenTwice <- function(name, where, numPlain = 1L, onControl = FALSE) {
 ## specification carries, or NULL for the single-forest path. Returns a LIST of
 ## K validated knob lists, one per forest, so nothing downstream is keyed on
 ## two. Everything the engine cannot honor refuses here, by name, rather than
-## being dropped: one forest with no basis at most, and the amplitude knobs
-## only where an amplitude exists at all. `interactions` and `blocks` are the fit's own top-level arguments,
-## which address the forest with NO BASIS under the same spelling a forest()
-## uses, so supplying both is ambiguous rather than layered.
+## being dropped: the amplitude knobs only where an amplitude exists at all.
+## `interactions` and `blocks` are the fit's own top-level arguments, which
+## address the forest with NO BASIS under the same spelling a forest() uses, so
+## supplying both is ambiguous rather than layered.
 ## `hasBasis` is a per-forest logical recording whether a basis reached that
 ## forest some other way, the dbartsData(bases = ) route being a supported one.
 resolveForests <- function(forests, interactions, blocks, hasBasis) {

@@ -30,8 +30,10 @@ na.keepPredictors(object, \dots)
   The dropped rows are recorded exactly as \code{\link{na.exclude}} records
   them - a named integer vector of class \code{"exclude"} - so the training
   fits pad back to the caller's own row count through
-  \code{\link{naresid}}: \code{fitted} and \code{residuals} on the fit are
-  as long as the data, \code{NA} where a row was dropped.
+  \code{\link{naresid}}: \code{fitted}, \code{residuals} and
+  \code{yhat.train.mean} on the fit are as long as the data, \code{NA} where
+  a row was dropped, while \code{yhat.train} and \code{extract} hold the kept
+  rows only.
 
   The base functions keep their usual meaning on these entry points:
   \code{\link{na.omit}} drops any row with a missing value anywhere and
