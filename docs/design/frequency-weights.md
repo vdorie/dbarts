@@ -1,7 +1,7 @@
 # Frequency weights and the binomial response
 
 Status: DECIDED 2026-11-03, design note before the plan; Calls made 5 and the state and hurdle rows of What moves
-amended 2026-11-05 for dec-B586 and dec-B588. Rulings, in docs/decisions.md: dec-B125 (frequency
+amended 2026-11-05 for dec-B586 and dec-B588, and Calls made 10 on 2026-11-06 for dec-B594. Rulings, in docs/decisions.md: dec-B125 (frequency
 weights join precision weights by explicit choice; precision stays the default), dec-A11 (under precision weights
 sigma's degrees of freedom count only positive-weight rows), dec-B120 (the comparison against 0.9-34 is a release
 gate), and the note's own rulings dec-B563 to dec-B570, dec-B573, dec-B574 and dec-B580, each cited where it applies. The
@@ -263,9 +263,9 @@ and the predictive and log-likelihood code reads n.
    refused. A fit object saved before it reads the family's own reading. Alternative: on the data object, where
    setWeights or setData could change the model.
 5. A saved state carries no reading. As first written, a state's weights digest covered the reading so that a state
-   installed into a sampler of the other reading redrew the latents a weight change redraws
-   ([`TResponse::reapplyWeights`](../../src/bartcore/model.hpp)); under dec-B586 every sweep draws its augmentation
-   variables first, the digest and those redraws retire (docs/plans/latents-first.md), and a state continues under
+   installed into a sampler of the other reading redrew the latents a weight change redrew (Student-t's
+   reapplyWeights, since retired); under dec-B586 every sweep draws its augmentation variables first, the digest and
+   those redraws retired with latents-first (dec-A263), and a state continues under
    the reading of the sampler it is installed into. Alternative: refuse such an install.
 6. A row of frequency weight 0 reports NaN in the pointwise log-likelihood
    ([`pointwiseLogLikelihood`](../../R/generics.R)), as dec-B570 states. Alternative: 0, which loo would count as
@@ -282,8 +282,8 @@ and the predictive and log-likelihood code reads n.
    count rows use, and the sampler swaps it through `$setCounts`, `$setResponse` refusing a vector on a binomial
    sampler by name; the fit keeps the two-column response as given. Alternative: a trials slot beside y, a
    second representation of the same counts.
-10. At newdata with no weights a binomial fit draws one trial, as multinomial count fits draw one-trial
-    categories at new rows (dec-B177), and a test sample's weights give its trials. rstanarm and brms require the
+10. At newdata with no weights a binomial fit draws one trial, as multinomial count fits draw one trial at new
+    rows (dec-B177; a one-trial count vector under dec-B594), and a test sample's weights give its trials. rstanarm and brms require the
     trials at newdata (critique probe p9: rstanarm stops on the missing columns); dbarts's newdata is a predictor
     matrix with the response's columns absent, so its trials come through weights as on the other count families.
     Alternative: refuse ppd at newdata without weights, as rstanarm and brms in effect do, which no other dbarts

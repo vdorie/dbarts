@@ -4,8 +4,16 @@ Status: PLANNED 2026-11-03 on main (3e4c002d8); amended the same day after a bli
 p1 to p7 there), verdict BUILD AFTER AMENDMENTS, rebased onto main at 5a99172e6 (forest-door landed at a6a16c31a), and onto
 main at 7937d252f on 2026-11-05; amended 2026-11-05 for the work planned or built since
 ([Amendments of 2026-11-05](#amendments-of-2026-11-05)): latents-first, hurdle-completion, approximate-draws,
-coefficient-prior-live and host-neutral-engine's landed S1. S0 landed on main (1a23f9a60). The feature is not built.
-Rulings since, read whole for that pass: dec-B586 (a sweep draws its augmentation variables first; no setter draws them),
+coefficient-prior-live and host-neutral-engine's landed S1; rebased onto main at 6f84b5a66 (latents-first, hurdle-completion
+and coefficient-prior-live landed) and amended 2026-11-06 for dec-B590 to dec-B594
+([Amendments of 2026-11-06](#amendments-of-2026-11-06)): its open call ruled, two left by that ruling put as Open calls 2
+and 3. S0 landed on main (1a23f9a60). The feature is not built.
+Rulings read for the 2026-11-06 pass: dec-B594 (predict's weights on ordinal and multinomial fits are trials, a draw with
+them the count per category; dec-B177's predict clause revised; "Use your revised recommendation."), dec-B590 (a
+Polya-Gamma row above a shape of 64 or at a fractional shape takes the accept-or-keep route once proven, the sum otherwise),
+dec-B591 (that route proven by independent agents before it is built), dec-B592 (every sampler of that arc in 1.0-0, the
+approximate ones opt-in, the default from a study before 1.0-0), dec-B593 (the sampler chosen by a method name, an
+approximate one's accuracy by a separate tolerance). Rulings since the first plan, read whole for the 2026-11-05 pass: dec-B586 (a sweep draws its augmentation variables first; no setter draws them),
 dec-B588 (a hurdle fit takes weights of 0 and 1 on both parts), dec-B589 (setData keeps the drawn family parameters), dec-B583
 (an accept-or-keep latent is exact). Rulings, quoted where they settle a call: dec-B125 (frequency weights join precision weights by explicit choice; precision
 stays the default), dec-A11 (sigma's count under precision), dec-B563 (the gaussian-type and Polya-Gamma families take
@@ -16,13 +24,13 @@ interfaces."), dec-B568 (real weights where the draw is exact), dec-B569 (member
 dec-B570 (a zero weight alike on every family), dec-B580 (a 0 row's predictive draws NA on every family, correcting
 dec-B570's premise; "0 weight means out of sample"), dec-B573 (a
 proportion with the trials as weights refused; "Use (a)."), dec-B574 (probabilities for expected values, counts for draws;
-"Use (a)."), with dec-B133 and dec-B177 (zero-trial rows), dec-B202 (the one-million cap), dec-B470 and dec-B472 (predict's
+"Use (a)."), with dec-B133 and dec-B177 (zero-trial rows; its predict clause revised by dec-B594), dec-B202 (the one-million cap), dec-B470 and dec-B472 (predict's
 weights), dec-B494 (a feature merges once), dec-B85 (the header change frequency weights' field rides). The runs behind it:
 the note's probes (scratch/fw-note, the first critique's p1 to p11 under scratch/fw-crit/probes), p12cost.R in scratch/fw-note
 (a unit Polya-Gamma draw at 164 ns, psi 0, and 159 ns, psi 3, on the shipped build of c3d268c8f on the shared laptop), and the
 plan critique's p1 to p7, rerun here on its library of main (scratch/libs/fwp-crit) and 0.9-34's (scratch/libs/cran), and the
-amendment's probes in scratch/fw-amend/probes on a shipped build of main 7937d252f (scratch/libs/fw-amend). No prototype was
-built here.
+amendment's probes in scratch/fw-amend/probes on a shipped build of main 7937d252f (scratch/libs/fw-amend); the 2026-11-06 pass read the code on main 6f84b5a66 and ran
+nothing. No prototype was built here.
 
 agent: S0 landed (one sonnet implementer and review, on main at 1a23f9a60). The feature: S1, S2, S3 and S4 one opus
 implementer each (effort high), S1 and S3 the riskiest; S5 and S6 one sonnet implementer each (effort medium); S7 and S8
@@ -31,22 +39,24 @@ unless the fixes change engine behavior; one sonnet review for S5, S6 and the ga
 ([Process by risk](README.md#process-by-risk)). Tier "Changes draws" for S1 to S4: new draws on new calls, engine read-offs
 under frequency, and the creation and mask paths of every family rewritten, though no call taken today is meant to move;
 tier "R surface" for S5 and S6, both pure R.
-rng: neutral, bit for bit, for every engine draw of a call taken on the build it starts from, main after coefficient-prior-live
-and latents-first (whose draws latents-first moved and re-recorded once): the equivalence trio, the four snapshot files,
-tests/cpp and the exact gates do not move against that build's baselines. Reported values that move are listed under
-[RNG class](#rng-class): a weighted logistic fit's training predictive draws (dec-B566), a 0 row's predictive draws on
-probit, ordinal, hazard, hazard.probit and nbinom (NA, dec-B580), `$activeRows` after 0/1 weights (NULL), a logistic zero
-weight (taken). New calls take new draws, each held to the expanded-data fit or, at predict, to its stated distribution.
+rng: neutral, bit for bit, for every engine draw of a call taken on the build it starts from, main 6f84b5a66, after
+coefficient-prior-live and latents-first (whose draws latents-first moved and re-recorded once): the equivalence trio
+(equivalence-a6e83f38.rds, bcf-equivalence-a6e83f38.rds, multinomial-equivalence-80b1c8d4.rds), the four snapshot files,
+tests/cpp and the exact gates do not move. Reported values that move are listed under [RNG class](#rng-class): a weighted
+logistic fit's training predictive draws (dec-B566), a 0 row's predictive draws on probit, ordinal, hazard, hazard.probit
+and nbinom (NA, dec-B580), `$activeRows` after 0/1 weights (NULL), a logistic zero weight (taken), and a multinomial count
+fit's predictive draws at new rows, a one-trial count vector where they drew a category (dec-B594). New calls take new
+draws, each held to the expanded-data fit or, at predict, to its stated distribution.
 window: the feature for 1.0-0 (dec-B567: "before 1.0-0"), one branch, frequency-weights, merged once (dec-B494). Build order,
-the orchestrator's call as latents-first's plan states it: coefficient-prior-live, latents-first, this feature, then
-host-neutral-engine S2a onward; hurdle-completion, R only, lands before this whenever green; see
+the orchestrator's call as latents-first's plan states it: coefficient-prior-live and latents-first (both landed), this
+feature, then host-neutral-engine S2a onward; hurdle-completion landed before it; see
 [Interaction with the other pending plans, and order](#interaction-with-the-other-pending-plans-and-order).
-budget: the feature ~4,300 lines, ~1,560 of them package code: engine ~570 (S1 ~285, S2 ~110, S3 ~125, S4 ~50), bridge ~200,
-R ~765 (S4 ~80, S5 ~435, S6 ~250), standalone math ~25 written (S3; R's choose.c copied unedited, not counted); help ~190,
-NEWS ~30; tests/cpp ~820, tinytest ~1,200, gate scripts ~450, records ~60. Agent time, estimated and not measured: S1 ~12.5, S2 ~7, S3 ~9.5, S4 ~6.5, S5 ~14, S6 ~9, S7
-~6, S8 ~1, four engine reviews with mutants and fix rounds ~18, three R and gate reviews ~7.5, gates and sanitizers ~5,
-rebases ~3: ~99. Plans here run 1.5 to 2 times low, so 150 to 200. The open call's recommendation is counted; the other
-options change S5 by under an hour.
+budget: the feature ~4,450 lines, ~1,610 of them package code: engine ~570 (S1 ~285, S2 ~110, S3 ~125, S4 ~50), bridge ~200,
+R ~815 (S4 ~80, S5 ~485, S6 ~250), standalone math ~25 written (S3; R's choose.c copied unedited, not counted); help ~200,
+NEWS ~30; tests/cpp ~820, tinytest ~1,280, gate scripts ~450, records ~60. Agent time, estimated and not measured: S1 ~12.5,
+S2 ~7, S3 ~9.5, S4 ~6.5, S5 ~15.5, S6 ~9, S7 ~6, S8 ~1, four engine reviews with mutants and fix rounds ~18, three R and
+gate reviews ~8, gates and sanitizers ~5, rebases ~3: ~101. Plans here run 1.5 to 2 times low, so 150 to 200. The
+recommendations of Open calls 2 and 3 are counted; their other options change S5 by under half an hour.
 
 ## Summary for the maintainer
 
@@ -70,15 +80,19 @@ As you ruled after the critique corrected the zero-weight premise, a row of weig
 family; probit, ordinal, the probit hazard and negative binomial fits drew values there, and its fitted value is still
 reported. You named predict(weights = 1) as the way to draw such a row as a new observation, but the ordinal, negative
 binomial and multinomial fits' predict takes no weights today and refuses them by name. This plan adds the argument to all
-three. 1 draws a new observation on each; on ordinal, whose weights mark rows in and out, 0 gives a missing draw; the
-negative binomial reads a whole number as that many new observations summed and refuses 0, as logistic reads its weights as
-trials and refuses 0. One choice is yours, below: what predict's weights mean where one draw is a category, on ordinal and
-multinomial fits.
+three. The negative binomial reads a whole number as that many new observations summed and refuses 0, as logistic reads its
+weights as trials and refuses 0. On ordinal and multinomial fits, as you ruled on 2026-11-05, predict without weights draws
+in the shape of the fit's response (a category, or a count vector on a fit to count rows, one trial at a new row), and with
+weights the count in each category over that many new trials; so weights = 1 on a fit to categories returns a one-trial
+count vector where predict() returns the category. Two choices that ruling leaves are yours, below: what weights = 0 gives
+there, and what a test sample's weights draw on those two families.
 
 The xbart fix that was to land first has landed on main. Since this plan was written you also ruled that every sweep draws
 its hidden values first, so no setter draws them; this plan is built after that change and is simpler for it: nothing here
-redraws when weights, counts or rows change, the next sweep does. The approximate-draw work you opened is where the cost
-below changes, and where fractional counts on logistic and binomial fits arrive; this plan keeps every draw exact and whole.
+redraws when weights, counts or rows change, the next sweep does. The approximate-draw work you ruled on 2026-11-05 is where
+the cost below changes and where fractional counts on logistic and binomial fits arrive: once its exact route is proven and
+built, a row whose count here is above 64 takes it. Until then, and in every gate here, this plan draws as today, exactly and
+in whole numbers; nothing in it waits on that proof.
 
 What it costs. Nothing per sweep on the gaussian-type families. On the count families a sweep grows with the total count, as
 logistic's does now: each trial of each row is about 160 nanoseconds a sweep, so 1,000 rows of 1,000 trials take about 0.16
@@ -88,8 +102,8 @@ What does not move. No posterior draw of any fit that runs on the build this sta
 numbers, the four recorded snapshot files and the equivalence baselines stay bit for bit, and each slice proves it. stan4bart,
 bartCause and treatSens need no change; stan4bart can drop about 30 lines that become dead.
 
-One open call, below. The feature is about 4,300 lines over eight slices, about 99 agent-hours as estimated, 150 to 200 by
-the record of plans here.
+Two open calls, below. The feature is about 4,450 lines over eight slices, about 101 agent-hours as estimated, 150 to 200
+by the record of plans here.
 
 ## Goal
 
@@ -98,7 +112,7 @@ Polya-Gamma families take whole-number counts with shape times w, each drawn as 
 one logistic row of shape n w drawn as the two-row expansion is; probit and ordinal membership rides the data object; a 0
 means the same on every family; the R surface of predict, fitted, residuals, extract, the log-likelihood and xbart reads both
 readings and the binomial as the rulings state, predict's weights reaching the ordinal, negative binomial and multinomial fits
-as dec-B580's door asks; and no call taken on the build it starts from moves an engine draw.
+as dec-B580's door asks, as trials on ordinal and multinomial fits (dec-B594); and no call taken on the build it starts from moves an engine draw.
 
 ## Context
 
@@ -116,8 +130,10 @@ as dec-B580's door asks; and no call taken on the build it starts from moves an 
   [`OrdinalResponse`](../../src/bartcore/model.hpp) (the active-row mask only), the leaf covariates' moments
   ([`standardizationMomentsForColumn`](../../src/bartcore/data.hpp)) and a forest's default sd
   ([`basisColumnScale`](../../src/bartcore/combiner.hpp)), with the setter doors that re-derive them (`updateStandardization`,
-  `updateBasisScale`). The weights digest ([`SamplerBase::weightsDigest`](../../src/bartcore/facade.hpp)), the Student-t
-  zero-weight record and setState's reconciliation retire under latents-first before this builds; so does every setter draw.
+  `updateBasisScale`). The weights and survival digests, the Student-t zero-weight record, setState's reconciliation and
+  every setter draw retired with latents-first (dec-A263); none of `weightsDigest`, `reapplyWeights` or `redrawEntering`
+  remains in src or R on main 6f84b5a66, and a sweep draws its augmentation variables first in `Chain::drawAugmentation`
+  ([chain.hpp](../../src/bartcore/chain.hpp)).
 - The Polya-Gamma draw seam: [`simulatePolyaGammaShape`](../../src/bartcore/model.hpp), the unit-draw loops in
   `LogisticResponse::refreshLatents`, `NBResponse::drawOmega` and the combiner, which approximate-draws' route replaces where
   selected.
@@ -138,20 +154,27 @@ as dec-B580's door asks; and no call taken on the build it starts from moves an 
   [`extract.bart`](../../R/generics.R), [`xbartLossFunction`](../../R/xbart.R), [`xbartSigestFunction`](../../R/xbart.R) and the
   0/1 refusal in [`xbart`](../../R/xbart.R), [`refuseCountsMutation`](../../R/bartcore.R), the dbartsModel class in
   [R/A_class.R](../../R/A_class.R), `$setModel`'s refusals in [R/fittingLevel.R](../../R/fittingLevel.R) (forest-door's, with
-  coefficient-prior-live's coefficient refusal beside them), the hurdle arm of bart and its weights refusal (hurdle-completion's,
-  on its branch), the
+  coefficient-prior-live's coefficient refusal beside them), the hurdle arm of bart and its weights refusal
+  ([`refuseHurdleWeights`](../../R/bart.R), hurdle-completion's) and [`predict.bartHurdle`](../../R/generics.R)'s 0/1
+  weights, [`multinomialPpdFromProbs`](../../R/generics.R) and [`multinomialCountPpdFromProbs`](../../R/generics.R) (the
+  category draw and the count vector draw, shared by extract and predict), the
   sampler's `$setWeights`, `$setData`, `$setCounts`, `$setResponse` and `$setActiveRows` ([R/dbarts.R](../../R/dbarts.R)).
 - Help: man/bart.Rd, man/dbarts.Rd, man/dbartsSpec.Rd, man/xbart.Rd, man/dbartsSampler-class.Rd (`setData`'s and
   `setWeights`' mask sentences), man/dbarts-embedding.Rd (its "survey weights" row), man/samplePriorPredictive.Rd (its
-  weighted logistic sentence), man/predict.bart.Rd and the ordinal, negative binomial and multinomial predict pages. latents-first
-  rewrites the sampler's setter sentences before this plan edits them.
+  weighted logistic sentence), man/bartBT.Rd (predict.bart's page) and man/bart.Rd's ordinal, negative binomial and
+  multinomial generics paragraphs (their predict is documented there; the multinomial paragraph carries dec-B177's
+  one-trial category sentence that dec-B594 revises). latents-first rewrote the sampler's setter sentences.
 - Tests that pin today's weight behavior: test-binary-weight-mask.R, test-weighted-logistic.R, test-weighted-binary-ppd.R,
   test-logistic-weight-swap.R, test-zero-weights.R, test-xbart-weight.R, test-pointwise-loglik.R, test-nbinom.R,
-  test-xbart-loss.R; test-state-weight-pairing.R and test-state-zero-weight-rows.R as latents-first leaves them (the second
-  retired, the first's digest arms gone).
-- Plans it follows or meets: docs/plans/latents-first.md (Order and overlaps), docs/plans/hurdle-completion.md (Interaction with
-  frequency-weights, and order), docs/plans/approximate-draws.md (Real shapes, Setters and marked rows),
-  docs/plans/host-neutral-engine.md, each on its branch.
+  test-xbart-loss.R; test-state-weight-pairing.R as latents-first left it (its digest arms now check that no digest
+  attribute is stored; test-state-zero-weight-rows.R deleted, its undo and copy arms moved there). Tests that pin what
+  dec-B594 moves: test-predict-training-rows.R (predict's refusal of `weights` by name on nbinom and ordinal fits) and
+  test-multinomial-surface.R's count-matrix arm (`extract(sample = "test")` equal to predict at newdata under one seed,
+  which holds at the new shape while the draws themselves move).
+- Plans it follows or meets: docs/plans/latents-first.md (Order and overlaps; landed), docs/plans/hurdle-completion.md
+  (Interaction with frequency-weights, and order; landed), docs/plans/approximate-draws.md (Real shapes, Setters and marked
+  rows; on its branch at e0c62e566, its open calls ruled as dec-B590, dec-B592 and dec-B593),
+  docs/plans/host-neutral-engine.md (on its branch).
 - TODO items: frequency weights (dec-B125), mask-on-own-data-object (closed by S4), hurdle-weight-extensions (its logistic zero
   part takes counts once this lands), approximate-distributions (the binomial's cost case, not this plan's); xbart-binary-rmse
   closed by S0.
@@ -164,8 +187,8 @@ as dec-B580's door asks; and no call taken on the build it starts from moves an 
 - Every draw stays exact; real weights on the Polya-Gamma families are refused until a real-shape draw exists (dec-B568),
   which approximate-draws' S3 brings for logistic, binomial and hazard.logistic (below).
 - Each new Polya-Gamma shape (nbinom's `w (y + r)`, the binomial's `w n`, multinomial's `w n_i`) is formed and handed to the
-  unit-draw loop the family already has; no slice adds a loop of its own, so approximate-draws' route replaces one loop per
-  family whichever lands first.
+  unit-draw loop the family already has; no slice adds a loop of its own, so approximate-draws' route, chosen per row
+  (dec-B590), meets one loop per family whichever lands first.
 - No setter draws: under latents-first a weight, count or mask change stores what it is given and rebuilds what is
   deterministic, and the next sweep draws the augmentation variables first.
 - No row out of the likelihood carries a zero precision or a non-finite working response: the node kernels read
@@ -200,9 +223,9 @@ Resolution and what each value takes, per family (the refusal numbers are [Refus
 | gaussian, Student-t, heteroscedastic | precision | taken, real w | taken, real w | precision: as today; frequency: 0 and 1 only (9) |
 | logistic, hazard.logistic | frequency (counts) | refused (3) | taken, whole w (5) | trial counts (dec-B470), as today |
 | nbinom | frequency (counts) | refused (3) | taken, whole w (6) | positive whole w, w new observations summed (dec-B566); new at predict |
-| multinomial | frequency (counts) | refused (3) | taken, whole w (7) | 1 a new observation; the rest is [Open calls](#open-calls), 1; new at predict |
+| multinomial | frequency (counts) | refused (3) | taken, whole w (7) | trials: whole w > 0 a count per category over w new trials (dec-B594), 0 [Open calls](#open-calls), 2; new at predict; weights.test [Open calls](#open-calls), 3 |
 | probit, hazard, hazard.probit | frequency (membership) | refused (3) | 0 and 1 only (2) | as today: trial counts at predict (dec-B470); weights.test 0 and 1 |
-| ordinal | frequency (membership) | refused (3) | 0 and 1 only (2) | 0 and 1 (dec-B580); above 1 [Open calls](#open-calls), 1; new at predict |
+| ordinal | frequency (membership) | refused (3) | 0 and 1 only (2) | trials: whole w > 0 a count per category over w new trials (dec-B594), 0 [Open calls](#open-calls), 2; new at predict; weights.test [Open calls](#open-calls), 3 |
 | hurdle.lognormal | frequency (membership) | refused (4) | 0 and 1 only (hurdle-completion's refusal) | 0 and 1, hurdle-completion's (dec-B588) |
 | aft | precision (weights refused) | weights refused (4) | refused (4) | as today |
 
@@ -332,18 +355,35 @@ sampler created at NULL passes and one stating "frequency" is refused (10).
   after `offset`, predict.bart's place (dec-B07) and the hurdle's, with dec-B470's rule as on every family: with no newdata
   given weights replace the fit's own for the training rows' draws, one value or one per training row, worked from the
   stored draws; the types that draw nothing read no weight; a missing value follows na.action (dec-B482). What each takes:
-  - ordinal, whose weights are membership (dec-B569): 1 draws one new observation, a category, and 0 gives NA, dec-B580's
-    and dec-B565's doors, as the hurdle's predict takes them (dec-B588, built on hurdle-completion); above 1 is
-    [Open calls](#open-calls), 1.
   - nbinom, a count family (dec-B566): a positive whole w draws the sum of w new counts at the row's mean mu and shape r,
     one draw from NB(size w r, mean w mu) per posterior draw, as a logistic fit's w draws Binomial(w, p); 0 and a fraction
     refused in `refuseNonCountWeights`' words, as logistic's predict refuses them (dec-B470: "positive integer trial counts";
     run on main: "the posterior predictive 'weights' of a probit fit are trial counts and must be positive integers").
-  - multinomial: 1 draws one new observation in the shape that call returns without weights (a category, or at a count
-    fit's training rows a count vector at the row's trials); the rest is [Open calls](#open-calls), 1.
+  - ordinal and multinomial, ruled by dec-B594: without weights predict(type = "ppd") "draws in the shape of the fit's
+    response", and "with weights, a draw is the count per category over that many new trials on every one of these fits",
+    each draw Multinomial(w, p(x)) at a posterior draw of the category probabilities, "so nothing well-defined is refused".
+    The maintainer, 2026-11-05: "What's a correct draw from the posterior predictive distribution here? I always thought it
+    was well-defined.", then "Use your revised recommendation." It revises dec-B177's predict clause. What predict returns
+    (S draws, n rows, K categories; under combineChains = FALSE a chain margin leads, as today):
+
+    | fit and rows | without weights | with weights w, a whole number above 0 |
+    |---|---|---|
+    | ordinal, training rows or newdata | one category per draw and row, S x n codes, as today | a count per category over w trials, S x n x K |
+    | multinomial to one category per row, training rows or newdata | one category, S x n, as today | the same S x n x K counts |
+    | multinomial to count rows, training rows (no newdata) | a count vector at the row's trials n_i, S x n x K (dec-B177), as today | counts over w trials, w in place of n_i (dec-B470's replace rule as dec-B566 reads it on a count family) |
+    | multinomial to count rows, newdata | a count vector at one trial, S x n x K, where today it is one category (dec-B594) | counts over w trials |
+
+    predict(weights = 1) on a fit to categories returns a one-trial count vector, each a unit vector of K, where predict()
+    returns the category, "the same draw written two ways" (dec-B594); it is dec-B580's door to a 0 training row, whose
+    draws without weights are NA. weights = 0 is [Open calls](#open-calls), 2 (recommended: NA draws); a fraction, a
+    negative value or Inf is refused (Refusals, 20). The count vectors are drawn by `multinomialCountPpdFromProbs`, the
+    categories by `multinomialPpdFromProbs` as today (Calls made, 18); ordinal's probabilities are its type = "ev" category
+    probabilities, from the latent and the thresholds. A count fit's test sample draws as predict at those rows, a one-trial
+    count vector without weights.test (Calls made, 19); what weights.test draws on either family is
+    [Open calls](#open-calls), 3. 0.9-34 had neither family, so nothing here reaches NEWS.
   - `foreignArgsFor` already drops a method's own formals from `predictForeignReasons`, so the three stop refusing the name
-    once they take it; the list's `weights` entry, with no method left to refuse it once hurdle-completion has landed,
-    goes.
+    once they take it; the list's `weights` entry, with no method left to refuse it (predict.bartHurdle took `weights`
+    with hurdle-completion), goes.
 - The hurdle (S5): hurdle-completion takes 0/1 weights on both parts (dec-B588). Its weights.type row is probit's: NULL
   resolves to frequency, "frequency" takes 0 and 1 with hurdle-completion's refusal of other values unchanged, "precision" is
   refused in the hurdle's words (Refusals, 4) before the zero part could refuse it in probit's; the hurdle arm hands the
@@ -452,11 +492,10 @@ is the family token as the caller wrote it.
     "auto" reads as survival) or family = "aft" / "hazard"`.
 19. predict on an nbinom fit with weights 0, fractional or negative, through `refuseNonCountWeights`' form: `the posterior
     predictive 'weights' of a nbinom fit count new observations, whose draws are summed, and must be positive integers`.
-20. Under the open call's recommendation, predict on an ordinal fit, or on a multinomial fit whose rows are categories, with
-    weights other than 0 and 1: `on a fit whose response is one category per row predict takes weights of 1, a new
-    observation, and 0, a row held out: a draw over several trials would be a count per category, which only a fit to count
-    rows predicts`; on a multinomial count fit, 0, fractional or negative weights: `the posterior predictive 'weights' of a
-    multinomial count fit are trial counts and must be positive integers`.
+20. predict on an ordinal or multinomial fit with a weight fractional, negative or infinite (dec-B594; 0 is taken under
+    Open call 2's recommendation): `the posterior predictive 'weights' of <a/an> <family> fit are trial counts, each draw
+    the count per category over that many new trials, and must be non-negative whole numbers`. Under Open call 2's option
+    (c), "non-negative" reads "positive" and 0 joins the refusal.
 
 Gone: xbart's `xbart does not accept weights of 0 and 1 under family ...`; logistic's refusal of a 0; the logistic refusal of
 a two-column response under family = binomial and "logistic"; the multinomial refusal of weights other than all ones; the
@@ -465,17 +504,20 @@ multinomial fits ("this family's posterior-predictive draw takes no per-observat
 
 ## RNG class
 
-Neutral on the engine for every call taken on the build this branch starts from, main after latents-first: latents-first moves
-every augmenting family's draws once and re-records the equivalence trio and test-reproducibility-binaryResponse.R at the end
-of its slice 2b, so "today" below means that build and those baselines, never main before it. Shown three ways:
+Neutral on the engine for every call taken on the build this branch starts from, main 6f84b5a66, after latents-first, which
+moved every augmenting family's draws once and re-recorded equivalence-a6e83f38.rds, bcf-equivalence-a6e83f38.rds and
+test-reproducibility-binaryResponse.R (5eb90d2a6), multinomial-equivalence-80b1c8d4.rds staying bitwise (benchmarks/baselines
+MANIFEST, their current rows); "today" below means that build and those baselines, never main before it. Shown three ways:
 
 - Bitwise harnesses, run against each engine slice's own `--preclean` library: `benchmarks/R/equivalence.R compare`,
   `bcf-equivalence.R compare` and `multinomial-equivalence.R compare`, every scenario "identical draws (same RNG stream)",
   counted per [Gate hygiene](README.md#gate-hygiene); the four `test-reproducibility-*.R` on the reference build, unchanged
-  (two of them carry precision weights, which pins the precision path); tests/cpp unchanged in every existing test. If
-  approximate-draws' S2 has landed first with a default that routes large shapes, the harness runs as built; every
-  draw-for-draw gate here against adjacent copies runs at the exact sum's setting, since under the accept-or-keep route one
-  row of shape `w n` and its w copies are different chains.
+  (two of them carry precision weights, which pins the precision path); tests/cpp unchanged in every existing test. Before
+  approximate-draws' S2 lands every Polya-Gamma row here draws by the exact sum, today's sampler. If S2 lands first, its
+  default (dec-B590) routes a row above a shape of 64 to the accept-or-keep route, and the harnesses run as that build
+  records them; every draw-for-draw gate here against adjacent copies sets the method to the exact sum by name (dec-B593),
+  since under the route one row of shape `w n` and its w copies are different chains. No gate here reads the route, so none
+  waits on its proof (dec-B591).
 - Construction: under precision every changed expression is today's, operand for operand (the count is
   `static_cast<double>(numPositiveWeights_)`, the variance leaf adds 1.0, the nu constant is not built, the moments and the
   basis scale read unit weights, a null `trials_` reads as today's working response); each slice's reviewer reads the diff for
@@ -500,11 +542,16 @@ Reported values that move, each re-pinned in the test that holds it:
 - `$activeRows` and fit$active after creation from 0/1 weights on probit, ordinal and nbinom: NULL where they show the mask
   (plan critique p2); the weights carry it.
 - A logistic zero weight, refused today, is taken: NaN in the log-likelihood, NA in the draws.
+- A multinomial count fit's predictive draws at new rows, predict at newdata and its test sample (extract(sample = "test")):
+  a one-trial count vector, S x n x K, where they drew one category, S x n (dec-B594 revising dec-B177). The vector is drawn
+  by the sequential binomials (Calls made, 18), K - 1 `rbinom` draws per draw and row where `sample.int` took one, so R's
+  stream after it moves too; test-multinomial-surface.R's count-matrix arm re-pins. Not in NEWS: multinomial is not in
+  0.9-34.
 
 New calls take new draws, each held to an oracle: the expanded rows draw for draw (gaussian, heteroscedastic, nbinom at a
 fixed and at a drawn r, multinomial, binomial), the expanded rows in distribution (Student-t only), the exact-posterior arms
-of S7; predict's weights on nbinom and ordinal (and multinomial as the open call rules) against the same R draw written by
-hand from the stored draws under one seed. A hurdle fit with 0/1 weights does not move (S5's before/after arm). The
+of S7; predict's weights on nbinom, ordinal and multinomial against the same R draw written by hand from the stored draws
+under one seed (`rnbinom`, and the sequential binomials over the category probabilities). A hurdle fit with 0/1 weights does not move (S5's before/after arm). The
 exact-gates list grows by one script (S7); no existing gate's arm changes.
 
 ## Calls made
@@ -558,66 +605,109 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
 17. Each new Polya-Gamma shape goes through the family's existing unit-draw loop ([Constraints](#constraints)), so
     approximate-draws' route reaches it with no edit here. Alternative: a loop per new shape, which that plan would replace
     three more times.
+18. Every count vector an ordinal or multinomial predictive draw returns (dec-B594) is drawn by the one routine extract's
+    count rows use today, `multinomialCountPpdFromProbs` (sequential binomials, one category at a time across every draw
+    and row), ordinal's category probabilities included; every category by `multinomialPpdFromProbs`, as today. So on a
+    count fit predict(newdata) and predict(newdata, weights = 1) agree draw for draw under one seed, and at the training
+    rows of a fit with no zero-trial row predict(weights = rowSums(y)) equals predict() there. Cost: on a fit to categories, predict(weights = 1) and the
+    category predict() returns agree in distribution, not draw for draw, and a count fit's draws at new rows move R's
+    stream. Alternative: a one-trial row written as the unit vector of its category draw, which keeps that stream and draws
+    one vector two ways.
+19. A count fit's test sample, extract(sample = "test"), draws as predict at the same rows, a one-trial count vector, so
+    main's identity extract(sample = "test") equal to predict(newdata = the test rows) under one seed holds at the new
+    shape; man/bart.Rd's sentence that such a fit's test rows, "whose trial counts are unknown, draw one category" (dec-B177),
+    follows its predict clause.
+    Alternative: test rows keeping one category, which breaks that identity. A test row is a new row in dec-B594's sense,
+    having no trial count; if the maintainer reads the ruling as naming predict alone, this is the call to put.
 
 ## Open calls
 
-One, put to the maintainer as written. Every other user- or consumer-visible choice the plan makes is settled by dec-B563 to
-dec-B570, dec-B573, dec-B574, dec-B580, dec-B588 or the design note's calls made.
+Two, put to the maintainer as written, both left by the ruling of Open call 1. Every other user- or consumer-visible choice
+the plan makes is settled by dec-B563 to dec-B570, dec-B573, dec-B574, dec-B580, dec-B588, dec-B594 or the design note's
+calls made. S5 builds the recommendations; the other options change it by under half an hour.
 
-### 1. What predict's weights mean on a fit whose one draw is a category
+### 1. What predict's weights mean on a fit whose one draw is a category (RULED, dec-B594)
 
-On an ordinal or multinomial fit, what should predict(fit, type = "ppd", weights = 3) draw?
+Put on 2026-11-05 as options (a) counts only on count fits, (b) 0 and 1 only, (c) counts whenever weights are given,
+recommending (a). The maintainer: "What's a correct draw from the posterior predictive distribution here? I always thought
+it was well-defined." Shown that it is, Multinomial(w, p(x)) at each posterior draw of the category probabilities, and the
+recommendation revised to the rule below: "Use your revised recommendation." Recorded as dec-B594: without weights a draw
+has the shape of the fit's response, a category on an ordinal fit and on a multinomial fit to categories, a count vector on
+a fit to count rows, one trial at a new row; with weights, the count in each category over that many new trials on all
+three; predict(weights = 1) on a fit to categories returns a one-trial count vector. It revises dec-B177's clause that a
+count fit's predict at new rows draws one category. Built in S5 as [The R surface (S5, S6)](#the-r-surface-s5-s6) states
+it.
 
-Background. predict's weights say what kind of new observation a row's draw is. On a logistic or probit fit a weight of 3
-asks for three new trials and the draw is the number of successes, 0 to 3, a count on the scale of the 0/1 response (run
-today on a shipped build of main: every draw between 0 and 3). This plan reads 3 on a negative binomial fit as three new
-counts summed. An ordinal or multinomial draw is a category, so three trials make a count for each category, a different
-shape from what predict returns now. Run the same day: on a multinomial fit whose rows are categories, extract and predict
-return one category per row and draw (50 draws by 60 rows); on a fit whose rows are count vectors, extract at the training
-rows returns a count per category at each row's trials (50 by 60 by 3) while predict at new rows returns one category per row
-(50 by 5), as you ruled on 2026-10-01, a new row's number of trials being unknown. Today all three predicts refuse weights by
-name. Settled already: the argument itself, weights = 1 drawing one new observation, and on ordinal weights = 0 giving a
-missing draw (your zero-weight rulings). 0.9-34 had neither family. Base R gives no lead: predict.lm's weights scale its
-prediction intervals, and glm's, MASS's polr and nnet's multinom predict take none.
+### 2. What weights = 0 gives in predict on an ordinal or multinomial fit
 
-- (a) Counts only where the fit's rows are counts. A multinomial fit to count rows takes any positive whole number as the
-  row's trials and returns a count per category, at the training rows as now and at new rows, which gives a count fit the
-  trials at new rows it lacked; 0 is refused there, as on logistic. An ordinal fit and a multinomial fit to categories take
-  0 and 1 and refuse larger values by name. About 60 lines of R and 80 of tests. Cost: a multinomial fit reads predict's
-  weights two ways by its response, and a count fit's predict at new rows returns categories without weights and counts with
-  them.
-- (b) 0 and 1 only, on both families, every draw a category. About 20 lines. Cost: a count fit still cannot draw counts at
-  new rows, the one thing such weights would be for, and logistic and the negative binomial take 3 where these refuse it.
-- (c) Counts on both families whenever predict is given weights, a single trial written as a count of 1 in its category.
-  About 90 lines. Cost: predict(weights = 1), the call you named for drawing a held-out row, returns another shape than the
-  same call without weights, and an ordinal fit's draws become counts.
+On an ordinal or multinomial fit, what should predict(fit, type = "ppd", weights = 0) draw at a row?
 
-Recommendation: (a). A draw keeps the shape of the response the fit models, your reason on 2026-10-01 for count vectors at a
-count fit's training rows; the weights supply the trials that ruling lacked at new rows, as a binomial fit's weights do here;
-a fit to one category per row keeps one category per draw, as the hurdle's predict keeps 0 and 1.
+Background. Under your ruling of 2026-11-05 predict's weights on these fits count new trials, and a draw with them is the
+count in each category; the ruling does not say what 0 trials give. Elsewhere 0 reads three ways. On gaussian-type fits
+predict(weights = 0) gives missing draws, a row held out (your ruling of 2026-10-23), and a training row of weight 0 has
+missing draws on every family (2026-11-03: "0 weight means out of sample"). Logistic's and probit's predict refuse 0 as not a
+positive trial count, and this plan refuses it on the negative binomial the same way. A multinomial count row with no trials
+draws all zeros (2026-10-01). 0.9-34 had neither family.
+
+- (a) Missing draws, K missing counts at the row, as a held-out row is on gaussian fits and a 0 training row is everywhere.
+  About 5 lines. Cost: these two families read 0 unlike logistic, probit and the negative binomial, which refuse it.
+- (b) All-zero counts, the draw of no trials, as a count row of no trials draws. About 3 lines. Cost: a draw that is zero at
+  every posterior draw says nothing about the row, and differs from a 0 training row's missing draws.
+- (c) Refused, as logistic, probit and the negative binomial refuse it. About 3 lines. Cost: the ruling's reason, that a
+  well-defined draw is not refused, and a weight vector copied from an ordinal fit's own 0/1 weights fails on its 0s.
+
+Recommendation: (a). A 0 means out of sample, your words of 2026-11-03, and under (a) predict at the training rows with the
+fit's own weights gives missing draws at its 0 rows, as predict without weights does.
+
+### 3. What a test sample's weights draw on an ordinal or multinomial fit
+
+When an ordinal or multinomial fit is given test rows whose data carry the weights column, what do those weights draw?
+
+Background. A fit given test rows through the formula reads the test rows' weights from the same column as the training
+weights: 0 and 1 marking rows in and out on an ordinal fit, counts on a multinomial one. On logistic and the binomial the
+test rows' weights are their trials, as predict's are, and probit's test weights are 0 and 1, where one trial and a 0/1
+draw are the same thing. Under your ruling predict's weights on these two families are trials and give a count per
+category, so read the same way an ordinal fit's 0/1 membership column would turn its test draws into one-trial count
+vectors whenever the test data carry it. 0.9-34 had neither family.
+
+- (a) Each family as its sibling: a multinomial fit's test weights are trials, as logistic's are, a count per category over
+  that many trials; an ordinal fit's are 0 and 1, as probit's are, 1 drawing a category and 0 missing. About 15 lines.
+  Cost: on an ordinal fit, a test row of weight 1 draws a category where predict(weights = 1) at the same row draws a
+  one-trial count vector.
+- (b) As predict's weights on both families: a count per category wherever test weights are given. About 10 lines. Cost:
+  an ordinal fit's test draws change shape with whether its test data happen to carry the membership column.
+- (c) The test sample reads only a 0, as missing draws, and otherwise draws as predict does without weights. About 10
+  lines. Cost: a multinomial fit's test rows cannot draw counts at their trials, which logistic's can.
+
+Recommendation: (a). An ordinal fit's weights mark rows in and out wherever they come from, so its draws stay categories,
+and a multinomial fit's test rows take their trials as logistic's do.
 
 ## Slices
 
 Each slice is a commit series on frequency-weights, its own review and gates; the feature merges once after S8. S0 landed
-apart (above). The branch is rebased onto main once latents-first has merged, before S1 starts, and every gate below runs
-against that build.
+apart (above). The branch is rebased onto main 6f84b5a66, after latents-first merged, and every gate below runs against that
+build or a later main it rebases onto before S1 starts.
 
-| slice | tier | content | agent-hours (was) |
+| slice | tier | content | agent-hours (2026-11-05) |
 |---|---|---|---|
-| S1 | changes draws | gaussian-type families, read-offs, log-likelihood channel; no digest | ~12.5 (13) |
+| S1 | changes draws | gaussian-type families, read-offs, log-likelihood channel; no digest | ~12.5 (12.5) |
 | S2 | changes draws | nbinom and multinomial shapes times w, caps, setters storing only | ~7 (7) |
-| S3 | changes draws | the binomial row, `ext_lchoose` with choose.c in the standalone copy, `$setCounts` storing only | ~9.5 (9) |
-| S4 | changes draws | membership on the data object, logistic's 0; no reactivation redraw | ~6.5 (7) |
-| S5 | R surface | weights.type, read-offs in R, predictive draws, predict's weights on ordinal, nbinom, multinomial, the hurdle row | ~14 (10) |
+| S3 | changes draws | the binomial row, `ext_lchoose` with choose.c in the standalone copy, `$setCounts` storing only | ~9.5 (9.5) |
+| S4 | changes draws | membership on the data object, logistic's 0; no reactivation redraw | ~6.5 (6.5) |
+| S5 | R surface | weights.type, read-offs in R, predictive draws, predict's weights on ordinal, nbinom, multinomial (dec-B594's count vectors), the hurdle row | ~15.5 (14) |
 | S6 | R surface | the binomial surface and xbart | ~9 (9) |
 | S7 | gate-only | frequency-exact.R, the SBC arm | ~6 (6) |
 | S8 | records | records | ~1 (1) |
-| reviews, gates, rebases | | four engine reviews ~18, three R and gate reviews ~7.5, gates ~5, rebases ~3 | ~33.5 (32) |
+| reviews, gates, rebases | | four engine reviews ~18, three R and gate reviews ~8, gates ~5, rebases ~3 | ~34 (33.5) |
 
-About 99 agent-hours (was 94; S0's 3 spent on main). The moves: S1 and S4 lose the digest and the reactivation redraw that
-latents-first retires (about half an hour each); S3 gains the seventh math name (about an hour, less half an hour for a
-`$setCounts` that only stores); S5 gains predict's weights on three methods and the hurdle's row (about 4 hours, with
-review half an hour more); rebases gain an hour for latents-first's re-recorded baselines.
+About 101 agent-hours (99 on 2026-11-05, 94 when first planned; S0's 3 spent on main). The 2026-11-05 moves: S1 and S4 lost
+the digest and the reactivation redraw that latents-first retired (about half an hour each); S3 gained the seventh math name
+(about an hour, less half an hour for a `$setCounts` that only stores); S5 gained predict's weights on three methods and the
+hurdle's row (about 4 hours, with review half an hour more); rebases gained an hour for latents-first's re-recorded
+baselines. The 2026-11-06 move: dec-B594's rule against the old recommendation, count vectors with weights on all three
+category fits, the count fit's one-trial vector at new rows and in its test sample, Open calls 2's and 3's recommendations,
+and the re-pins in test-multinomial-surface.R and test-predict-training-rows.R (about 50 lines of R, 10 of help and 80 of
+tests: S5 about 1.5 hours, its review half an hour).
 
 ### S1: engine, the gaussian-type families and their read-offs (~285 code, ~350 tests/cpp, ~80 bridge and R plumbing)
 
@@ -684,22 +774,40 @@ zero weight equal draw for draw to the fit with that row masked by `setActiveRow
 fold for fold under a fixed fold assignment, to a by-hand loop fitting each fold with those weights and scoring its held-out
 rows of weight 1 (the test-xbart-fold-oracle.R pattern); the suite; the trio.
 
-### S5: R surface, the reading (~435 R, ~135 help, ~600 tinytest)
+### S5: R surface, the reading (~485 R, ~145 help, ~680 tinytest)
 
-Tier "R surface", pure R. Moves the weighted logistic training draw and, by dec-B580, a 0 row's draws on probit, ordinal,
-hazard, hazard.probit and nbinom; re-pinned.
+Tier "R surface", pure R. Moves the weighted logistic training draw, by dec-B580 a 0 row's draws on probit, ordinal, hazard,
+hazard.probit and nbinom, and by dec-B594 a multinomial count fit's draws at new rows and in its test sample; re-pinned.
 Steps: weights.type on bart, dbarts, dbartsSpec and xbart, its validation and the resolution table, the hurdle's row and its
 routing to both parts; Refusals 1 to 10, 19 and 20; the starting sigma on both routes and xbart's per fold, the chi anchor;
 `sampleFromPPD` (one observation, NA at a 0 on every family, dec-B580, the fitted value kept), predict's and weights.test's
-doors, predict's `weights` on predict.bartOrdinal, predict.bartNegbin and predict.bartMultinomial and their help pages,
-`pointwiseLogLikelihood`; help and NEWS.
+doors, predict's `weights` on predict.bartOrdinal, predict.bartNegbin and predict.bartMultinomial and their paragraphs in
+man/bart.Rd; dec-B594's count vectors through `multinomialCountPpdFromProbs` (Calls made, 18), the count fit's one-trial
+vector at new rows and in its test sample (Calls made, 19), weights = 0 and the test sample's weights as Open calls 2 and 3
+rule; the weights entry of `predictForeignReasons` removed; `pointwiseLogLikelihood`; help and NEWS.
 Gates: the touched test files and the new test-frequency-weights.R (each refusal by its words, counted warnings; the
 resolution table row by row, hurdle.lognormal's included; sigma's starting value and the chi anchor against the expanded data
 on the dense and the sparse routes and in xbart's folds; predict's and weights.test's doors; NA draws at a 0 on every family
-with the stream unmoved; predict(weights = 1) at a 0 training row of an ordinal, an nbinom and a multinomial fit drawing a
-value, equal under one seed to the draw written by hand from the stored draws; nbinom predict(weights = 3) equal under one seed
-to `rnbinom(size = 3 r, mu = 3 mu)` from the stored draws; the open call's arms as ruled; `pointwiseLogLikelihood` against
-the engine's channel); test-hurdle.R's before/after arm (a hurdle fit with 0/1 weights at weights.type NULL and "frequency"
+with the stream unmoved; nbinom predict(weights = 3) equal under one seed to `rnbinom(size = 3 r, mu = 3 mu)` from the stored
+draws; `pointwiseLogLikelihood` against the engine's channel). dec-B594's cases, each on an ordinal fit, a multinomial fit to
+categories and one to count rows, at training rows and at newdata, with combineChains TRUE and FALSE:
+  - without weights: a category where the fit models categories, as today (the existing draws unchanged under one seed),
+    a count vector at each row's trials at a count fit's training rows, as today, and at its new rows a one-trial count
+    vector, S x n x K, each draw a unit vector;
+  - with weights w (a vector with 1, 2 and 7 among its values): the S x n x K counts equal under one seed to the sequential
+    binomials written by hand from the stored or replayed category probabilities at those trials, each row's counts
+    summing to its w; on a count fit at the training rows, w in place of the row's trials;
+  - weights = 1 on a fit to categories: a one-trial count vector, the unit vector of a category, whose category frequencies
+    over 4,000 draws match predict()'s within Monte Carlo error; at a 0 training row it draws where predict() gives NA;
+  - on a count fit, predict(newdata) and predict(newdata, weights = 1) identical under one seed, and extract(sample = "test")
+    identical to predict at the test rows (test-multinomial-surface.R's identity, re-pinned at the new shape);
+  - weights = 0 as Open call 2 rules (recommended: NA counts at the row, the stream unmoved), the test sample's weights as
+    Open call 3 rules (recommended: an ordinal test row of weight 1 a category and of 0 NA; a multinomial test row's counts
+    over its weight in trials);
+  - type = "ev" and "class" unchanged by weights, reading none; Refusal 20 at 0.5, -1 and Inf; an NA weight under
+    na.keepPredictors, na.pass and na.omit as at newdata (dec-B482); test-predict-training-rows.R's two refusals of
+    `weights` by name on nbinom and ordinal replaced by these arms.
+Also test-hurdle.R's before/after arm (a hurdle fit with 0/1 weights at weights.type NULL and "frequency"
 equal draw for draw to the build before S5); lint_package, air, codoc, win drift, doc-freshness; the snapshots on the
 reference build.
 
@@ -738,7 +846,9 @@ Per engine slice, against its own library (`R CMD INSTALL --preclean -l <lib> .`
 `OPT="-O2 -g -fsanitize=address,undefined"`; the full tinytest suite in one process at its default ncpu; the three
 equivalence compares counted per scenario; the four snapshot files on a reference build; the R-loaded ASan run of
 [Gate hygiene](README.md#gate-hygiene); `mutation-battery.R verify-anchors`; lint_package, air, codoc, win drift,
-doc-freshness. Per R slice: the touched test files, the snapshots, the static checks; CI on the branch tip runs the rest. At
+doc-freshness. Per R slice: the touched test files, the snapshots, the static checks; CI on the branch tip runs the rest.
+S5's predict arms (dec-B594's cases, listed under S5) are by-hand oracles under one seed, not snapshots, so they hold on
+every build; no snapshot file holds an ordinal or multinomial predictive draw. At
 the feature's end: the full battery once on the merged tree, `R CMD check --as-cran` from a clean tarball, the exact gates
 with `quick`, the x86 leak-sanitizer leg, and bench-sampler.R compare on a quiet machine for the hot paths S1 to S3 touch (the
 sigma draw, the variance leaf, the Polya-Gamma loops), unweighted and precision-weighted within noise.
@@ -778,6 +888,14 @@ A reviewer applies each to a copy, rebuilds with `--preclean`, and runs the name
 24. S5: nbinom predict(weights = w) draws one count at mean mu - the `rnbinom(size = 3 r, mu = 3 mu)` test.
 25. S5: the hurdle hands NULL to its zero part and "frequency" to its positive part with no check of "precision" - the
     resolution table's hurdle row ("precision" refused in the hurdle's words).
+26. S5: predict(weights = 1) on a fit to categories returns the category, the weights read as 0/1 membership - the
+    one-trial count vector arm (shape S x n x K, unit vectors).
+27. S5: a count fit's predict at newdata without weights keeps dec-B177's one category - the predict(newdata) against
+    predict(newdata, weights = 1) identity.
+28. S5: at a count fit's training rows predict(weights = w) draws at the row's own trials - the by-hand sequential binomials
+    at w, each row's counts summing to w.
+29. S5: ordinal's count vectors drawn from the cumulative probabilities rather than the category probabilities - the
+    ordinal by-hand arm.
 
 ## Consumers
 
@@ -787,14 +905,15 @@ A reviewer applies each to a copy, rebuilds with `--preclean`, and runs the name
   rebuilds from the data, which carries the weights (`data.bart.light` drops only x); the critique confirmed its draws do not
   move. No call changes; an optional cleanup of about 30 lines drops the dead `active` plumbing, in the consumer sweep, not
   this feature. Its `install_bart_range` reads `sampler$data@weights` on continuous fits only, unchanged.
-- bartCause (1e4b882): passes population weights to bart's gaussian response fits at weights.type NULL, unchanged; drops
+- bartCause (main 11e3030, read at 1e4b882; only its regression test changed between): passes population weights to bart's gaussian response fits at weights.type NULL, unchanged; drops
   weights from its propensity fits; its xbart call (bayesOpt) uses the default loss, which on a binary treatment is log and does
   not move under S0. No call changes.
 - treatSens (268b2db): passes no weights to dbarts; no change.
 - bairrtt: reads none.
-- latents-first re-records stan4bart's, bartCause's and treatSens's moved draws before this lands (its slice 4); nothing here
-  moves them again. None of the four calls predict on an ordinal, nbinom or multinomial fit or fits a hurdle (grep of their R
-  trees for those family tokens and hurdle, hurdle-completion's Consumers).
+- latents-first's slice 4 found stan4bart, bairrtt and treatSens unchanged and restated bartCause's three propensity-score
+  pins (11e3030); nothing here moves them again. None of the four calls predict on an ordinal, nbinom or multinomial fit or
+  fits a hurdle (grep of their R trees on 2026-11-06 for those family tokens and hurdle: only stan4bart's Stan prior help
+  and a comment on the probit and ordinal mask), so dec-B594 reaches none of them.
 
 ## Interaction with the other pending plans, and order
 
@@ -802,28 +921,27 @@ A reviewer applies each to a copy, rebuilds with `--preclean`, and runs the name
   R/fittingLevel.R beside which Refusal 10 sits, and chain.hpp, combiner.hpp, model.hpp and R_interface_bartcore.cpp moved; this
   plan's symbols were re-read on 5a99172e6 and none it names changed role.
 - Build order, the orchestrator's call as latents-first's plan states it: coefficient-prior-live, latents-first, this
-  feature, host-neutral-engine S2a onward. Engine features merge serially; this branch rebases onto main after each of the
-  first two merges and re-gates what the rebase touches.
-- coefficient-prior-live (built, landing on main 2026-11-05; read at 05a12bb79 against main): touches no file's weight code and
+  feature, host-neutral-engine S2a onward. Engine features merge serially; the first two have merged and this branch is
+  rebased onto main 6f84b5a66 after both.
+- coefficient-prior-live (landed on main 2026-11-05; read at 05a12bb79 against main): touches no file's weight code and
   none of this plan's engine symbols. It does not touch model.hpp; its combiner.hpp and chain.hpp hunks are the live coefficient
   prior (`setForestAmplitudePrior`, `setForestCoefficientPrior`), not `basisColumnScale`, `updateBasisScale` or the
   Polya-Gamma loop. Two textual neighbors: R/fittingLevel.R's `setModelOnForests` gains `refuseCoefficientDifference`, beside
   which Refusal 10 sits; R/spec.R's `resolveSamplerSpec` gains `leafPriorGivesNoSize`, near where the spec resolves
   weights.type. A forest released to a drawn coefficient takes creation's sd, which under frequency is the weighted
   `basisColumnScale` S1 builds, so the two agree with no edit.
-- latents-first (planned, builds before this; docs/plans/latents-first.md, Order and overlaps): every sweep draws its
-  augmentation variables first; no setter draws them; the weights and survival digests, the Student-t zero-weight record and
-  setState's reconciliation retire. What that does here, each rewritten above: design call 5 and the engine bullet of
+- latents-first (landed on main 2026-11-05, its calls in dec-A263; docs/plans/latents-first.md, Order and overlaps): every
+  sweep draws its augmentation variables first; no setter draws them; the weights and survival digests, the Student-t
+  zero-weight record and setState's reconciliation retired. What that does here, each rewritten above: design call 5 and the engine bullet of
   [The reading and where it lives](#the-reading-and-where-it-lives) (a state carries no reading; Calls made, 13); mutant 5 and
   the test-state-weight-pairing.R arm (replaced by the mask-change count test); `$setCounts` on a binomial sampler stores
   (S3); a reactivated row draws nothing at the setter (S4); the Student-t install list drops the state install (S1); the
   baselines this plan's neutrality is measured against are latents-first's (RNG class). It also shares `ProbitResponse`,
-  `OrdinalResponse`, `LogisticResponse` and `NBResponse`'s setters and the setter help, which latents-first rewrites first.
-- hurdle-completion (built, R only, landing before this whenever green; its Interaction with frequency-weights, and order):
-  the hurdle takes 0/1 weights on both parts (dec-B588). Here: its resolution-table row is probit's, Refusal 4 refuses
-  "precision" in its words, the arm hands the resolved reading to both parts (S5, Calls made, 15); textual overlaps in
-  R/bart.R, R/generics.R, man/bart.Rd, inst/NEWS.Rd and test-zero-weights.R. If this feature were to land first instead,
-  hurdle-completion's S3 would write its weights in weights.type's terms, as its plan says.
+  `OrdinalResponse`, `LogisticResponse` and `NBResponse`'s setters and the setter help, which latents-first rewrote.
+- hurdle-completion (landed on main 2026-11-05, R only, its calls in dec-A262; its Interaction with frequency-weights, and
+  order): the hurdle takes 0/1 weights on both parts (dec-B588). Here: its resolution-table row is probit's, Refusal 4
+  refuses "precision" in its words, the arm hands the resolved reading to both parts (S5, Calls made, 15); textual overlaps
+  in R/bart.R, R/generics.R, man/bart.Rd, inst/NEWS.Rd and test-zero-weights.R.
 - host-neutral-engine: its S1 (build-time math and printing) landed on main (dec-A260). Its copy of R's math holds six
   routines and no `lchoose`, so S3 here adds the seventh name and copies choose.c (Calls made, 16). Its main feature rewrites
   every creation route's SEXP reads into a plain-C spec (S2b) that carries `weightsType` per dec-B564 and, under this plan,
@@ -833,33 +951,44 @@ A reviewer applies each to a copy, rebuilds with `--preclean`, and runs the name
   (~200 lines in the creation and mutation conduits it rewrites; latents-first removed about 140 bridge lines there first),
   and S2a waits for this feature to merge. Were the order reversed, this feature would rebase its bridge reads onto S2b's
   spec form and add `trials` to the header itself, about the same lines in the other direction.
-- approximate-draws (planned, its three open calls with the maintainer; docs/plans/approximate-draws.md at e0c62e566): the
-  binomial at large n is its cost case. How this plan's shapes times w behave:
+- approximate-draws (planned, docs/plans/approximate-draws.md on its branch at e0c62e566; its three open calls ruled
+  2026-11-05): until the defaults study a logistic, binomial, logistic-hazard or negative binomial row draws by the
+  accept-or-keep route where its shape is above 64 or not a whole number and by the exact sum otherwise, the route taking
+  that place "only once its exactness is proven (dec-B591) and its gates pass" (dec-B590; the maintainer: "And yes, you can
+  use your recommendation."); the route is proven by independent agents before it is built (dec-B591); every sampler of
+  that arc ships in 1.0-0, the approximate ones opt-in, and the default comes from the defaults study, run before 1.0-0
+  right after the build, so dec-B590's rule holds only for the development builds between (dec-B592); the method is chosen
+  by name, NULL for the automatic rule, an approximate one's accuracy by a separate tolerance (dec-B593). The binomial at
+  large n is its cost case. How this plan's shapes times w behave, the rulings changing only which sampler draws a row:
   - Before it, as this plan builds them: a row's shape (`w` on logistic, `w n` on a binomial row, `w (y + r)` on nbinom,
     `w n_i` per multinomial category) is a whole number drawn as that many unit Polya-Gamma draws, about 160 ns each (164 ns
     at psi 0, 159 ns at psi 3, p12cost.R on the shipped build), so 1,000 rows of 1,000 trials cost about 0.16 s a sweep and a
     1,000-sweep chain about 160 s, linear in the total; fractional weights refused on every Polya-Gamma family (Refusals 5 to
     7).
-  - After its S2 (the exact accept-or-keep route at the sweep's start for logistic, binomial, hazard.logistic and nbinom):
-    each row's shape is unchanged and the same rows are taken; which way a row is drawn is that plan's setting, and under its
-    recommended default a row whose shape is above 64 takes the route, exact, at about 3 to 9 us a row whatever the shape, and
-    the rest the sum as here. A row a setter moved (a weight, count or mask change here among them) is drawn by the sum at the
-    next sweep. Multinomial's `w n_i` keeps the sum under every exact setting. Draws shift only where the route is selected.
-  - After its S3: real weights on logistic, binomial and hazard.logistic are taken under the route at creation, lifting the
-    fractional clause of Refusal 5 there and drawing the real shape where this plan rounds `w n` (its Real shapes); under an
-    exact setting a between-sweep change that would mark a fractional-shape row is refused by that plan's name. nbinom's and
-    multinomial's weights stay whole (Refusals 6 and 7).
+  - After its S2 (the exact accept-or-keep route at the sweep's start for logistic, binomial, hazard.logistic and nbinom),
+    once the route is proven and gated: each row's shape is unchanged and the same rows are taken; under dec-B590's rule a
+    row whose shape here is above 64 (`w` on logistic, `w n` on a binomial row, `w (y + r)` on nbinom) takes the route,
+    exact, at about 3 to 9 us a row whatever the shape, and the rest the sum as here, until the defaults study's default
+    replaces that rule before 1.0-0 (dec-B592); the method setting forces either (dec-B593). A row a setter moved (a weight,
+    count or mask change here among them) is drawn by the sum at the next sweep. Multinomial's `w n_i` keeps the sum under
+    every exact method; its approximate series is opt-in (dec-B592). Draws shift only where the route is selected.
+  - After its S3: real weights on logistic, binomial and hazard.logistic are taken, lifting the fractional clause of
+    Refusal 5 there; a fractional shape `w` or `w n` is drawn by the route under dec-B590's rule (its Real shapes), while
+    before S3 this plan refuses such weights, so no fractional shape reaches the sum; under an exact method a between-sweep change that would mark a
+    fractional-shape row is refused by that plan's name. nbinom's and multinomial's weights stay whole (Refusals 6 and 7).
+  - Nothing in this plan depends on the route or its proof, which is still under independent check (dec-B591): every
+    slice here draws by the exact sum, today's sampler, and is gated there.
   - Order: its S3 must land after this feature, since it reads weights.type, the binomial row and this plan's Refusal 5. Its
     S1 and S2 may land on either side: every new shape here goes through the family's existing loop (Constraints), which S2
-    replaces once per family, and if S2 lands first every draw-for-draw gate here runs at the exact sum's setting (RNG class).
-    Whichever lands second rebases over the other's `LogisticResponse` and `NBResponse` hunks.
+    meets once per family, and if S2 lands first every draw-for-draw gate here runs with the method set to the exact sum
+    (RNG class). Whichever lands second rebases over the other's `LogisticResponse` and `NBResponse` hunks.
 - weighted-binary (parked, after 1.0-0): its integer-weight probit is dec-B563's truncated-normal case, not scheduled; its
   real-weight logistic is the real-shape draw above.
 - Nothing else touching src/bartcore/model.hpp's response families merges while S1 to S4 are in review.
 
 ## Cost
 
-S0, landed: about 60 lines and 3 agent-hours. The feature about 4,300 lines, 1,560 of them package code; about 99 agent-hours
+S0, landed: about 60 lines and 3 agent-hours. The feature about 4,450 lines, 1,610 of them package code; about 101 agent-hours
 estimated, 150 to 200 by the record of plans here ([Slices](#slices)). No per-sweep cost on the gaussian-type families at either reading (the
 count is fixed between weight installs, the variance leaf adds w in the pass that counts rows now, the nu constant is per grid
 point, the read-offs run at creation and their doors); the count families' cost is today's per unit draw, multiplied by the
@@ -874,17 +1003,19 @@ counts the user asks for.
   re-derived by the plan critic, not derived anew here.
 - The cost figures were measured once on a shared, loaded laptop; bench-sampler.R on a quiet machine is the gate for the hot
   paths, not these.
-- stan4bart's, bartCause's and treatSens's call sites were read on main 27ef163, 1e4b882 and master 268b2db; their 1.0 compat
-  branches may differ.
-- latents-first is planned, not built: what it retires (the digests, the record, the setter draws) and the baselines it
-  re-records are read from its plan at 83b23342c. Each rewritten clause here assumes that plan as written; S1's implementer
-  confirms on the rebased tree that no `weightsDigest`, `reapplyWeights` or `redrawEntering` remains before building.
-- hurdle-completion was read at 8cd1626d1 on its branch (its refusal of other weights and its predict door), not merged; the
-  hurdle positive part's draws at 0/1 under "frequency" equalling precision's is argued from the count and constant leaves,
-  and S5's before/after arm shows it.
-- approximate-draws' route, its default and its real-weight surface wait on its open calls; the before and after above follow
-  its plan's recommendations.
-- The open call's line counts are estimates; no option was prototyped.
+- stan4bart's, bartCause's and treatSens's call sites were read on main 27ef163, 1e4b882 and master 268b2db; bartCause's main
+  has moved only its regression test since (11e3030); their 1.0 compat branches may differ.
+- latents-first landed; checked on main 6f84b5a66 (2026-11-06) that no `weightsDigest`, `reapplyWeights` or `redrawEntering`
+  remains in src or R, and the re-recorded baselines read from the MANIFEST's current rows. Its calls as built (dec-A263) were
+  read for this plan's clauses; none changes one.
+- hurdle-completion landed (dec-A262); its refusal of other weights (`refuseHurdleWeights`) and predict.bartHurdle's
+  `weights` were read on main. The hurdle positive part's draws at 0/1 under "frequency" equalling precision's is argued
+  from the count and constant leaves, and S5's before/after arm shows it.
+- approximate-draws' open calls are ruled (dec-B590, dec-B592, dec-B593); its plan on its branch (e0c62e566) predates the
+  rulings, and its route's proof is under independent check (dec-B591). The before and after above follow the rulings.
+- dec-B594's cases were read from the code (`multinomialPpdFromProbs`, `multinomialCountPpdFromProbs`, predict.bartOrdinal
+  drawing its categories through the first) and not run; the line counts of the rule and of Open calls 2 and 3 are
+  estimates, no option prototyped.
 - That choose.c needs nothing beyond the copy's lbeta.c and lgamma.c (`lgammafn_sign`) and its prefix header; S3 confirms.
   Checked: libR on the laptop exports `Rf_lchoose` (nm), and Rmath.h declares it, so the R build's seventh name links as the
   six do.
@@ -908,3 +1039,16 @@ shipped build of that main.
 | 10 | host-neutral S1 landed without `lchoose`: a seventh nmath.h name and choose.c in the standalone copy, in S3 | Engine: the binomial row (S3); Context; Calls made, 16; mutant 22; Not verified |
 | 11 | S0 landed on main (1a23f9a60); the order is coefficient-prior-live, latents-first, this feature, host-neutral S2a | Status; front block; S0; Interaction |
 | 12 | Summary rewritten for the above; slices re-estimated, ~99 agent-hours (150 to 200) | Summary; front block; Slices; Cost |
+
+## Amendments of 2026-11-06
+
+For dec-B590 to dec-B594 and the rebase onto main 6f84b5a66; read, not run.
+
+| # | change | where it went |
+|---|---|---|
+| 1 | dec-B594 rules Open call 1: predict's weights on ordinal and multinomial fits are trials, a draw with them the count per category; without them the response's shape, a count fit's new rows a one-trial count vector; dec-B177's predict clause revised | Open calls, 1 (ruled, quoting the maintainer); front block; Summary; Goal; The R surface (S5), with a table of what predict returns; Resolution table; Refusals, 20 rewritten; RNG class (a count fit's new-row draws move); S5 steps and gates; mutants 26 to 29; Consumers; the design note's Calls made 10; TODO; INDEX |
+| 2 | Calls made 18 (one count-vector routine, `multinomialCountPpdFromProbs`, for every count draw) and 19 (a count fit's test sample draws as predict at those rows) | Calls made; The R surface (S5); RNG class |
+| 3 | Two calls the ruling leaves, put as Open calls 2 (weights = 0: recommended NA) and 3 (a test sample's weights: recommended ordinal 0/1, multinomial trials) | Open calls, 2 and 3; Resolution table; Summary |
+| 4 | dec-B590 to dec-B593: before approximate-draws lands every Polya-Gamma row here draws by the exact sum; after its S2, rows above 64 take the route under dec-B590 until the defaults study's default (dec-B592), the gates here setting the method to the sum by name (dec-B593); after its S3 a fractional shape takes the route; nothing here waits on the proof (dec-B591) | Interaction, approximate-draws; RNG class; Constraints; Summary; Not verified |
+| 5 | Re-read against main 6f84b5a66: the retired `weightsDigest` link replaced by `Chain::drawAugmentation`; man/predict.bart.Rd, which does not exist, replaced by man/bartBT.Rd and man/bart.Rd's paragraphs; the baselines named from the MANIFEST (equivalence and bcf-equivalence a6e83f38, multinomial 80b1c8d4, not re-recorded); test-state-zero-weight-rows.R deleted; latents-first, hurdle-completion and coefficient-prior-live as landed; bartCause at 11e3030; the design note's link to the retired `TResponse::reapplyWeights` dropped | Context; front block; RNG class; Slices; Interaction; Consumers; Not verified; the design note's Calls made 5 |
+| 6 | Slices re-estimated: S5 ~15.5 (14), R reviews ~8 (7.5); ~101 agent-hours (150 to 200), ~4,450 lines | front block; Slices; Cost; Summary |

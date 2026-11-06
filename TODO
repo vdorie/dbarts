@@ -1382,12 +1382,9 @@ frequency weights (decided, VD 2026-09-24; docs/decisions.md dec-B125)
   docs/design/frequency-weights.md (DECIDED 2026-11-03: dec-B563 to
   dec-B570, with the binomial response of dec-B567 and its dec-B573 and
   dec-B574). Plan: docs/plans/frequency-weights.md (PLANNED 2026-11-03,
-  branch frequency-weights), eight slices with the binomial.
-  With hurdle-completion landed (docs/plans/hurdle-completion.md,
-  "Interaction with frequency-weights"), the resolution table's row for
-  hurdle.lognormal and its refusal 4, both still reading "weights
-  refused", are edited to the hurdle's weights of 0 and 1, and the
-  hurdle arm routes weights.type to both parts.
+  amended 2026-11-05 and 2026-11-06, branch frequency-weights), eight
+  slices with the binomial and the hurdle's 0/1 weights; its first open
+  call ruled (dec-B594), two left by that ruling open there.
 
 engine constants audit (decided, VD 2026-09-08; docs/decisions.md
   dec-B91; LANDED; plan docs/plans/engine-performance.md)
