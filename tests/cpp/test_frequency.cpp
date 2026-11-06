@@ -641,6 +641,360 @@ void testStateRoundTrip() {
   }
 }
 
+/// \p values over the source rows written out as \p e writes the rows.
+std::vector<double> expanded(const Expansion& e,
+                             const std::vector<double>& values) {
+  std::vector<double> result(e.n);
+  for (std::size_t r = 0; r < e.n; ++r) result[r] = values[e.rowOf[r]];
+  return result;
+}
+
+/// The doors that re-read a scale off the rows, under frequency against the
+/// same door on the expansion, draw for draw: a leaf covariate's
+/// standardization re-derived after a mask change, the variance forest
+/// re-anchored by a response replaced with its scale, and a numeric basis
+/// replaced with its default sd re-read.
+void testDoorsAgainstExpansion() {
+  const std::size_t n = 40, numSamples = 150;
+  Fixture f(n);
+  Expansion e(f, f.w);
+  std::vector<double> mask(n, 1.0);
+  for (std::size_t i = 4; i < n; i += 7) mask[i] = 0.0;
+  std::vector<double> maskE = expanded(e, mask);
+  auto compare = [&](auto& weighted, auto& expansion, ext_rng* rngW,
+                     ext_rng* rngE, bool variance, const char* what) {
+    Draws dw(n, numSamples), de(e.n, numSamples);
+    Results rw = dw.results(variance), re = de.results(variance);
+    rw.logLikelihood = re.logLikelihood = nullptr;
+    bool ran = !weighted.run(0, numSamples, rw) &&
+               !expansion.run(0, numSamples, re);
+    double gap = drawGap(dw, de, e, n, numSamples, variance);
+    printf("  %s: largest gap %.3g over %zu sweeps\n", what, gap, numSamples);
+    check(ran && gap < 1e-12, what);
+    ext_rng_destroy(rngW);
+    ext_rng_destroy(rngE);
+  };
+
+  {
+    const std::size_t columns[] = {0};
+    SamplerOptions options;
+    options.numTrees = 10;
+    options.leafCovariateColumns = columns;
+    options.numLeafCovariates = 1;
+    ext_rng* rngW = seededRng(4401u);
+    ext_rng* rngE = seededRng(4401u);
+    auto weighted = makeSampler<Sampler<LinearGaussianLeaf>>(
+      f.x.data(), f.y.data(), n, f.p, f.w.data(), frequencyOptions(options),
+      &rngW);
+    auto expansion = makeSampler<Sampler<LinearGaussianLeaf>>(
+      e.x.data(), e.y.data(), e.n, f.p, nullptr, options, &rngE);
+    weighted->setActiveRows(mask.data());
+    expansion->setActiveRows(maskE.data());
+    weighted->rederiveStandardization();
+    expansion->rederiveStandardization();
+    compare(*weighted, *expansion, rngW, rngE, false,
+            "frequency linear leaf re-derived after a mask change equals "
+            "its expansion's");
+  }
+  {
+    SamplerOptions options;
+    options.numTrees = 15;
+    options.numVarianceTrees = 4;
+    ext_rng* rngW = seededRng(4402u);
+    ext_rng* rngE = seededRng(4402u);
+    auto weighted = makeSampler<ConstantLeafSampler>(
+      f.x.data(), f.y.data(), n, f.p, f.w.data(), frequencyOptions(options),
+      &rngW);
+    auto expansion = makeSampler<ConstantLeafSampler>(
+      e.x.data(), e.y.data(), e.n, f.p, nullptr, options, &rngE);
+    std::vector<double> y2(f.y);
+    for (std::size_t i = 0; i < n; ++i) y2[i] = 3.0 * y2[i] + f.x[n + i];
+    std::vector<double> y2E = expanded(e, y2);
+    weighted->setResponse(y2.data(), true);
+    expansion->setResponse(y2E.data(), true);
+    compare(*weighted, *expansion, rngW, rngE, true,
+            "frequency heteroscedastic re-anchored by a rescaled response "
+            "equals its expansion's");
+  }
+  {
+    std::vector<double> dose(n), dose2(n);
+    for (std::size_t i = 0; i < n; ++i) {
+      dose[i] = 0.5 + runif01();
+      dose2[i] = 2.0 * runif01() - 0.3;
+    }
+    std::vector<double> doseE = expanded(e, dose), dose2E = expanded(e, dose2);
+    auto spec = [](const double* basis) {
+      AmplitudeSpec s;
+      s.forests.resize(2);
+      s.forests[0].forest.numTrees = 15;
+      s.forests[1].forest.numTrees = 10;
+      s.forests[1].kind = ForestKind::numeric;
+      s.forests[1].basis = basis;
+      return s;
+    };
+    SamplerOptions options;
+    ext_rng* rngW = seededRng(4403u);
+    ext_rng* rngE = seededRng(4403u);
+    ConstantLeafSampler weighted(f.x.data(), f.y.data(), n, f.p, f.w.data(),
+                                 nullptr, 1.0, sigmaDf, sigmaRawScale,
+                                 frequencyOptions(options), spec(dose.data()),
+                                 &rngW);
+    ConstantLeafSampler expansion(e.x.data(), e.y.data(), e.n, f.p, nullptr,
+                                  nullptr, 1.0, sigmaDf, sigmaRawScale,
+                                  options, spec(doseE.data()), &rngE);
+    bool rescaled =
+      weighted.setForestBasisRescaled(1, dose2.data(), 1) ==
+        BasisRescaleResult::rescaled &&
+      expansion.setForestBasisRescaled(1, dose2E.data(), 1) ==
+        BasisRescaleResult::rescaled;
+    double scaleGap = relativeGap(weighted.forestCalibration(0, 1).basisScale,
+                                  expansion.forestCalibration(0, 1).basisScale);
+    check(rescaled && scaleGap < 1e-14,
+          "frequency basis rescaled through the door: the expansion's scale");
+    compare(weighted, expansion, rngW, rngE, false,
+            "frequency two-forest after a basis rescale equals its "
+            "expansion's");
+  }
+}
+
+/// A logistic numeric basis's default sd under frequency is the expansion's,
+/// with and without a mask, and where the mask keeps one row in it reads
+/// every row at its count, as the expansion's every row.
+void testLogisticBasisScale() {
+  const std::size_t n = 40;
+  Fixture f(n);
+  std::vector<double> yBinary(n), dose(n), mask(n, 1.0), oneIn(n, 0.0);
+  for (std::size_t i = 0; i < n; ++i) {
+    yBinary[i] = runif01() < 0.4 ? 1.0 : 0.0;
+    dose[i] = 0.5 + runif01() * (i % 3 == 0 ? 3.0 : 1.0);
+  }
+  for (std::size_t i = 2; i < n; i += 5) mask[i] = 0.0;
+  oneIn[7] = 1.0;
+  Expansion e(f, f.w, &dose);
+  std::vector<double> yE = expanded(e, yBinary), maskE = expanded(e, mask);
+  auto scaleOf = [&](const double* x, const double* y, std::size_t rows,
+                     const double* w, const double* active,
+                     const double* basis, bool frequency) {
+    AmplitudeSpec spec;
+    spec.family = ResponseFamily::logistic;
+    spec.activeRows = active;
+    spec.forests.resize(2);
+    spec.forests[1].kind = ForestKind::numeric;
+    spec.forests[1].basis = basis;
+    SamplerOptions options;
+    if (frequency) options = frequencyOptions(options);
+    ext_rng* rng = seededRng(7701u);
+    ConstantLeafSampler sampler(x, y, rows, f.p, w, nullptr, 1.0, sigmaDf,
+                                sigmaRawScale, options, spec, &rng);
+    double scale = sampler.forestCalibration(0, 1).basisScale;
+    ext_rng_destroy(rng);
+    return scale;
+  };
+  double plain = scaleOf(f.x.data(), yBinary.data(), n, f.w.data(), nullptr,
+                         dose.data(), true);
+  double masked = scaleOf(f.x.data(), yBinary.data(), n, f.w.data(),
+                          mask.data(), dose.data(), true);
+  double fallback = scaleOf(f.x.data(), yBinary.data(), n, f.w.data(),
+                            oneIn.data(), dose.data(), true);
+  double plainE = scaleOf(e.x.data(), yE.data(), e.n, nullptr, nullptr,
+                          e.extra.data(), false);
+  double maskedE = scaleOf(e.x.data(), yE.data(), e.n, nullptr, maskE.data(),
+                           e.extra.data(), false);
+  check(relativeGap(plain, plainE) < 1e-14 &&
+          relativeGap(masked, maskedE) < 1e-14 &&
+          relativeGap(fallback, plainE) < 1e-14,
+        "frequency logistic basis scale is the expansion's, with and without "
+        "a mask and where a mask keeps one row");
+}
+
+/// Where a creation mask keeps one row in, a linear leaf's covariate center
+/// and scale are read off every row at its count: the expansion's every row.
+void testLeafFallbackWeighted() {
+  const std::size_t n = 40;
+  Fixture f(n);
+  Expansion e(f, f.w);
+  std::vector<double> oneIn(n, 0.0);
+  oneIn[11] = 1.0;
+  const std::size_t columns[] = {0};
+  SamplerOptions options;
+  options.numTrees = 5;
+  options.leafCovariateColumns = columns;
+  options.numLeafCovariates = 1;
+  SamplerOptions masked = frequencyOptions(options);
+  masked.activeRows = oneIn.data();
+  ext_rng* rngW = seededRng(8801u);
+  ext_rng* rngE = seededRng(8801u);
+  auto weighted = makeSampler<Sampler<LinearGaussianLeaf>>(
+    f.x.data(), f.y.data(), n, f.p, f.w.data(), masked, &rngW);
+  auto expansion = makeSampler<Sampler<LinearGaussianLeaf>>(
+    e.x.data(), e.y.data(), e.n, f.p, nullptr, options, &rngE);
+  const auto& lw = weighted->chain(0).leaf();
+  const auto& le = expansion->chain(0).leaf();
+  check(relativeGap(lw.covariateMeans()[0], le.covariateMeans()[0]) < 1e-14 &&
+          relativeGap(lw.covariateSds()[0], le.covariateSds()[0]) < 1e-14,
+        "frequency linear leaf read off every row at its count where one row "
+        "is in");
+  ext_rng_destroy(rngW);
+  ext_rng_destroy(rngE);
+}
+
+/// A Student-t frequency sampler handed new weights through setWeights, a
+/// new pointer, is the one created with them: every count the response
+/// holds follows the pointer.
+void testStudentSetWeights() {
+  const std::size_t n = 40, numSamples = 80;
+  Fixture f(n);
+  std::vector<double> w2(n);
+  for (std::size_t i = 0; i < n; ++i) w2[i] = 1.0 + std::floor(5.0 * runif01());
+  w2[6] = 2.5;
+  SamplerOptions options = frequencyOptions(SamplerOptions());
+  options.numTrees = 15;
+  options.residualDf = 0.0;
+  ext_rng* rngA = seededRng(5501u);
+  ext_rng* rngB = seededRng(5501u);
+  auto moved = makeSampler<ConstantLeafSampler>(
+    f.x.data(), f.y.data(), n, f.p, f.w.data(), options, &rngA);
+  auto created = makeSampler<ConstantLeafSampler>(
+    f.x.data(), f.y.data(), n, f.p, w2.data(), options, &rngB);
+  moved->setWeights(w2.data());
+  Draws da(n, numSamples), db(n, numSamples);
+  Results ra = da.results(false, true), rb = db.results(false, true);
+  bool ran = !moved->run(5, numSamples, ra) && !created->run(5, numSamples, rb);
+  check(ran && da.sigma == db.sigma && da.fits == db.fits && da.df == db.df &&
+          da.logLikelihood == db.logLikelihood,
+        "frequency Student-t given new weights by setWeights is the one "
+        "created with them, draw for draw");
+  ext_rng_destroy(rngA);
+  ext_rng_destroy(rngB);
+}
+
+/// A row out of the likelihood under frequency, at weight 0 or masked, is
+/// inert: moving its response inside the range leaves every draw and every
+/// row in's fit bitwise, on gaussian and on Student-t with a drawn and a
+/// fixed df.
+void testRowOutIsInert() {
+  const std::size_t n = 40, numSamples = 60;
+  Fixture f(n);
+  std::size_t lowest = 0, highest = 0;
+  for (std::size_t i = 1; i < n; ++i) {
+    if (f.y[i] < f.y[lowest]) lowest = i;
+    if (f.y[i] > f.y[highest]) highest = i;
+  }
+  double middle = 0.5 * (f.y[lowest] + f.y[highest]);
+  std::vector<double> mask(n, 1.0), wZero(f.w), yMoved(f.y);
+  for (std::size_t i = 3; i < n; i += 6) {
+    if (i == lowest || i == highest) continue;
+    mask[i] = 0.0;
+    wZero[i] = 0.0;
+    yMoved[i] = middle + 0.1 * (f.y[i] - middle);
+  }
+  for (double residualDf : {std::nan(""), 0.0, 5.0}) {
+    for (bool byMask : {false, true}) {
+      SamplerOptions options = frequencyOptions(SamplerOptions());
+      options.numTrees = 15;
+      options.residualDf = residualDf;
+      const double* weights = byMask ? f.w.data() : wZero.data();
+      ext_rng* rngA = seededRng(811u);
+      ext_rng* rngB = seededRng(811u);
+      auto a = makeSampler<ConstantLeafSampler>(
+        f.x.data(), f.y.data(), n, f.p, weights, options, &rngA);
+      auto b = makeSampler<ConstantLeafSampler>(
+        f.x.data(), yMoved.data(), n, f.p, weights, options, &rngB);
+      if (byMask) {
+        a->setActiveRows(mask.data());
+        b->setActiveRows(mask.data());
+      }
+      bool student = std::isfinite(residualDf);
+      Draws da(n, numSamples), db(n, numSamples);
+      Results ra = da.results(false, student), rb = db.results(false, student);
+      ra.logLikelihood = rb.logLikelihood = nullptr;
+      bool ran = !a->run(10, numSamples, ra) && !b->run(10, numSamples, rb);
+      bool inRowsSame = true;
+      for (std::size_t s = 0; s < numSamples; ++s)
+        for (std::size_t i = 0; i < n; ++i)
+          if (wZero[i] != 0.0)
+            inRowsSame = inRowsSame && da.fits[s * n + i] == db.fits[s * n + i];
+      std::string label =
+        std::string("frequency row out is inert: ") +
+        (!student ? "gaussian" : residualDf == 0.0 ? "Student-t, drawn df"
+                                                   : "Student-t, fixed df") +
+        (byMask ? ", masked" : ", weight 0");
+      check(ran && da.sigma == db.sigma && da.df == db.df && inRowsSame,
+            label.c_str());
+      ext_rng_destroy(rngA);
+      ext_rng_destroy(rngB);
+    }
+  }
+}
+
+/// A gp leaf's default lengthscale under frequency is the median pairwise
+/// distance over the rows written out: the expansion's at whole counts, on
+/// both sides of the 512-row subsample; precision's bitwise at all-ones
+/// counts; and a row of count 2.5 reads as two rows of 1.25 at one point.
+void testGPLengthscale() {
+  const std::size_t columns[] = {0};
+  SamplerOptions options;
+  options.numTrees = 5;
+  options.leafCovariateColumns = columns;
+  options.numLeafCovariates = 1;
+  auto lengthscale = [&](const Fixture& f, std::size_t n, const double* x,
+                         const double* y, const double* w,
+                         const SamplerOptions& o) {
+    ext_rng* rng = seededRng(6601u);
+    auto sampler = makeSampler<Sampler<GPGaussianLeaf>>(x, y, n, f.p, w, o,
+                                                        &rng);
+    double value = sampler->chain(0).leaf().lengthscales()[0];
+    ext_rng_destroy(rng);
+    return value;
+  };
+  for (std::size_t n : {std::size_t(40), std::size_t(300)}) {
+    Fixture f(n);
+    Expansion e(f, f.w);
+    double weighted = lengthscale(f, n, f.x.data(), f.y.data(), f.w.data(),
+                                  frequencyOptions(options));
+    double expansion =
+      lengthscale(f, e.n, e.x.data(), e.y.data(), nullptr, options);
+    std::vector<double> ones(n, 1.0);
+    double unitFrequency = lengthscale(f, n, f.x.data(), f.y.data(),
+                                       ones.data(), frequencyOptions(options));
+    double unitPrecision =
+      lengthscale(f, n, f.x.data(), f.y.data(), ones.data(), options);
+    double precision =
+      lengthscale(f, n, f.x.data(), f.y.data(), f.w.data(), options);
+    printf("  gp lengthscale, %zu rows (%zu written out): %.6f against %.6f, "
+           "precision %.6f\n",
+           n, e.n, weighted, expansion, precision);
+    std::string label = "frequency gp lengthscale is the expansion's, " +
+                        std::to_string(n) + " rows";
+    check(relativeGap(weighted, expansion) < 1e-12 &&
+            unitFrequency == unitPrecision,
+          label.c_str());
+  }
+  {
+    const std::size_t n = 30;
+    Fixture f(n);
+    std::vector<double> w(n, 1.0);
+    w[5] = 2.5;
+    // row 5 split into two adjacent rows of 1.25
+    Fixture s(n + 1);
+    s.x.assign((n + 1) * f.p, 0.0);
+    s.y.assign(n + 1, 0.0);
+    s.w.assign(n + 1, 1.0);
+    for (std::size_t r = 0, i = 0; r <= n; ++r) {
+      for (std::size_t j = 0; j < f.p; ++j) s.x[j * (n + 1) + r] = f.x[j * n + i];
+      s.y[r] = f.y[i];
+      if (i == 5) s.w[r] = 1.25;
+      if (!(i == 5 && r == 5)) ++i;
+    }
+    double whole = lengthscale(f, n, f.x.data(), f.y.data(), w.data(),
+                               frequencyOptions(options));
+    double split = lengthscale(s, n + 1, s.x.data(), s.y.data(), s.w.data(),
+                               frequencyOptions(options));
+    check(relativeGap(whole, split) < 1e-12,
+          "frequency gp lengthscale: a count of 2.5 reads as two of 1.25");
+  }
+}
+
 }  // namespace
 
 void runFrequencyTests() {
@@ -658,5 +1012,11 @@ void runFrequencyTests() {
   testStudentAgainstExpansion();
   testLogLikelihood();
   testStateRoundTrip();
+  testDoorsAgainstExpansion();
+  testLogisticBasisScale();
+  testLeafFallbackWeighted();
+  testStudentSetWeights();
+  testRowOutIsInert();
+  testGPLengthscale();
   rngState = savedState;
 }
