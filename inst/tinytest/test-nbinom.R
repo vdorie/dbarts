@@ -762,12 +762,14 @@ rm(
 # --- nbinom() written as a call draws the shape as the token does: the
 # --- model's resolved shape, not the family object's setting, says held ---
 
-drawnShapeFit <- function(family) {
+# the family reaches bart() through the dots, where a call resolves in the
+# family vocabulary as if written in bart()'s own call
+drawnShapeFit <- function(...) {
   bart(
     x,
     y,
     test = x.test,
-    family = family,
+    ...,
     n.samples = 20L,
     n.burn = 10L,
     n.trees = n.trees,
@@ -778,11 +780,14 @@ drawnShapeFit <- function(family) {
     keepTrees = TRUE
   )
 }
-fitToken <- drawnShapeFit("nbinom")
+fitToken <- drawnShapeFit(family = "nbinom")
 expect_true(length(unique(as.vector(fitToken$shape))) > 1L)
 expect_null(fitToken$fixed$shape)
-for (family in list(nbinom(), nbinom(shape = NULL), dbartsFamilies$nbinom())) {
-  fitCall <- drawnShapeFit(family)
+for (fitCall in list(
+  drawnShapeFit(family = nbinom()),
+  drawnShapeFit(family = nbinom(shape = NULL)),
+  drawnShapeFit(family = dbartsFamilies$nbinom())
+)) {
   expect_identical(fitCall$yhat.train, fitToken$yhat.train)
   expect_identical(fitCall$shape, fitToken$shape)
   expect_identical(fitCall$shape.raw, fitToken$shape.raw)
@@ -802,6 +807,8 @@ for (family in list(nbinom(), nbinom(shape = NULL), dbartsFamilies$nbinom())) {
     extract(fitCall, type = "loglik"),
     extract(fitToken, type = "loglik")
   )
+  # the summary prints the call, which spells the family as written
+  fitCall$call <- fitToken$call
   expect_identical(
     capture.output(summary(fitCall)),
     capture.output(summary(fitToken))
@@ -809,8 +816,8 @@ for (family in list(nbinom(), nbinom(shape = NULL), dbartsFamilies$nbinom())) {
 }
 expect_false(any(grepl("Fixed", capture.output(summary(fitToken)))))
 # a held shape is reported where it lives, fit$fixed, and only there
-fitHeld <- drawnShapeFit(nbinom(4))
+fitHeld <- drawnShapeFit(family = nbinom(4))
 expect_identical(fitHeld$fixed$shape, 4)
 expect_null(fitHeld$shape)
 expect_null(fitHeld$shape.raw)
-rm(drawnShapeFit, fitToken, family, fitCall, ppdCall, fitHeld)
+rm(drawnShapeFit, fitToken, fitCall, ppdCall, fitHeld)
