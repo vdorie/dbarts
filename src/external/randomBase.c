@@ -574,6 +574,29 @@ void ext_rng_readSerializedState(ext_rng* generator, const void* state)
   }
 
   memcpy(&generator->gammaState, state, sizeof(((ext_rng*) 0)->gammaState));
+  ext_rng_rederiveGammaMemo(generator->gammaState);
+}
+
+bool ext_rng_serializedStateIsValid(const ext_rng* generator, const void* state)
+{
+  switch (generator->algorithm) {
+    case EXT_RNG_ALGORITHM_MERSENNE_TWISTER:
+    {
+      // the block need not be aligned for the struct
+      MersenneTwisterState mt;
+      memcpy(&mt, state, sizeof(MersenneTwisterState));
+      if (mt.info < 0 || mt.info > EXT_RNG_MERSENNE_TWISTER_NUM_RANDOM)
+        return false;
+      if ((mt.state[0] & 0x80000000) != 0) return true;
+      for (size_t j = 1; j < EXT_RNG_MERSENNE_TWISTER_NUM_RANDOM; ++j)
+        if (mt.state[j] != 0) return true;
+      return false;
+    }
+    case EXT_RNG_ALGORITHM_USER_UNIFORM:
+    case EXT_RNG_ALGORITHM_INVALID:
+    break;
+  }
+  return true;
 }
 
 static void validateSeed(ext_rng* generator, bool isFirstRun)

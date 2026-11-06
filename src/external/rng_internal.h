@@ -16,4 +16,11 @@ struct ext_rng {
   double gammaState[9];
 };
 
+/// Recomputes the constants of \p memo, a gammaState, from the shapes it
+/// records them for, leaving a shape the gamma sampler never matches and its
+/// constants as they are. The memo is a cache of those shapes, so a memo the
+/// sampler wrote comes back bit for bit and one read from elsewhere is made
+/// whole (random.c).
+void ext_rng_rederiveGammaMemo(double* memo);
+
 #endif // EXTERNAL_RNG_INTERNAL_H

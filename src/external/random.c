@@ -49,22 +49,85 @@ double ext_rng_simulateExponential(ext_rng* generator, double scale) {
   return simulateStandardExponential(generator) * scale;
 }
 
+#if defined(__GNUC__) || defined(__clang__)
+#  define GAMMA_NOINLINE __attribute__((noinline))
+#else
+#  define GAMMA_NOINLINE
+#endif
+
+/* GD algorithm constants the shape alone fixes.
+ * Coefficients q[k] - for q0 = sum(q[k]*a^(-k))
+ */
+static const double sqrt32 = 5.656854;
+static const double q1 = 0.04166669;
+static const double q2 = 0.02083148;
+static const double q3 = 0.00801191;
+static const double q4 = 0.00144121;
+static const double q5 = -7.388e-5;
+static const double q6 = 2.4511e-4;
+static const double q7 = 2.424e-4;
+
+/// GD step 1's constants for \p shape, at least 1: s2 = shape - 0.5,
+/// s = sqrt(s2) and d = sqrt(32) - 12 s, into slots 3, 2 and 4 of \p memo,
+/// laid out as ext_rng's gammaState. Out of line, so that the sampler and
+/// ext_rng_rederiveGammaMemo run the same instructions and agree to the bit.
+static GAMMA_NOINLINE void computeGammaStepOneConstants(double* memo,
+                                                        double shape)
+{
+  memo[3] = shape - 0.5;
+  memo[2] = sqrt(memo[3]);
+  memo[4] = sqrt32 - memo[2] * 12.0;
+}
+
+/// GD step 4's constants for \p shape, at least 1, from step 1's \p s and
+/// \p s2 for the same shape: q0, b, si and c, into slots 5 to 8 of \p memo.
+/// Out of line for the reason computeGammaStepOneConstants is.
+static GAMMA_NOINLINE void computeGammaStepFourConstants(double* memo,
+                                                         double shape,
+                                                         double s, double s2)
+{
+  double r = 1.0 / shape;
+  memo[5] =
+    ((((((q7 * r + q6) * r + q5) * r + q4) * r + q3) * r + q2) * r + q1) * r;
+
+  /* Approximation depending on size of parameter a */
+  /* The constants in the expressions for b, si and c */
+  /* were established by numerical experiments */
+
+  if (shape <= 3.686) {
+    memo[6] = 0.463 + s + 0.178 * s2;
+    memo[7] = 1.235;
+    memo[8] = 0.195 / s - 0.079 + 0.16 * s;
+  } else if (shape <= 13.022) {
+    memo[6] = 1.654 + 0.0076 * s2;
+    memo[7] = 1.68 / s + 0.275;
+    memo[8] = 0.062 / s + 0.024;
+  } else {
+    memo[6] = 1.77;
+    memo[7] = 0.75;
+    memo[8] = 0.1515 / s;
+  }
+}
+
+void ext_rng_rederiveGammaMemo(double* memo)
+{
+  // a key that is not finite or is below 1 is never matched, since no shape
+  // that reaches the GD steps is either, so its constants are never read
+  if (memo[0] >= 1.0 && memo[0] <= DBL_MAX)
+    computeGammaStepOneConstants(memo, memo[0]);
+  if (memo[1] >= 1.0 && memo[1] <= DBL_MAX) {
+    double stepOne[9];
+    computeGammaStepOneConstants(stepOne, memo[1]);
+    computeGammaStepFourConstants(memo, memo[1], stepOne[2], stepOne[3]);
+  }
+}
+
 double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale) {
-  static const double sqrt32 = 5.656854;
   static const double exp_m1 = 0.36787944117144232159; /* exp(-1) = 1/e */
 
-  /* Coefficients q[k] - for q0 = sum(q[k]*a^(-k))
-   * Coefficients a[k] - for q = q0+(t*t/2)*sum(a[k]*v^k)
+  /* Coefficients a[k] - for q = q0+(t*t/2)*sum(a[k]*v^k)
    * Coefficients e[k] - for exp(q)-1 = sum(e[k]*q^k)
    */
-  static const double q1 = 0.04166669;
-  static const double q2 = 0.02083148;
-  static const double q3 = 0.00801191;
-  static const double q4 = 0.00144121;
-  static const double q5 = -7.388e-5;
-  static const double q6 = 2.4511e-4;
-  static const double q7 = 2.424e-4;
-
   static const double a1 = 0.3333333;
   static const double a2 = -0.250003;
   static const double a3 = 0.2000062;
@@ -84,7 +147,7 @@ double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale) {
 #define si (generator->gammaState[7])        // step 4: squeeze constant si
 #define c (generator->gammaState[8])         // step 4: squeeze constant c
 
-  double e, p, q, r, t, u, v, w, x, ret_val;
+  double e, p, q, t, u, v, w, x, ret_val;
 
   if (!isfinite(shape) || !isfinite(scale) || shape < 0.0 || scale <= 0.0)
     return (scale == 0.0) ? 0.0 : NAN;
@@ -130,9 +193,7 @@ double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale) {
 #  endif
 #endif
     oldShape = shape;
-    s2 = shape - 0.5;
-    s = sqrt(s2);
-    d = sqrt32 - s * 12.0;
+    computeGammaStepOneConstants(generator->gammaState, shape);
   }
   /* Step 2: t = standard normal deviate,
              x = (s,1/2) -normal deviate. */
@@ -159,27 +220,7 @@ double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale) {
 #  pragma GCC diagnostic pop
 #endif
     oldShape2 = shape;
-    r = 1.0 / shape;
-    q0 =
-      ((((((q7 * r + q6) * r + q5) * r + q4) * r + q3) * r + q2) * r + q1) * r;
-
-    /* Approximation depending on size of parameter a */
-    /* The constants in the expressions for b, si and c */
-    /* were established by numerical experiments */
-
-    if (shape <= 3.686) {
-      b = 0.463 + s + 0.178 * s2;
-      si = 1.235;
-      c = 0.195 / s - 0.079 + 0.16 * s;
-    } else if (shape <= 13.022) {
-      b = 1.654 + 0.0076 * s2;
-      si = 1.68 / s + 0.275;
-      c = 0.062 / s + 0.024;
-    } else {
-      b = 1.77;
-      si = 0.75;
-      c = 0.1515 / s;
-    }
+    computeGammaStepFourConstants(generator->gammaState, shape, s, s2);
   }
 
   /* Step 5: no quotient test if x not positive */

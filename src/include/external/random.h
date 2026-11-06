@@ -76,6 +76,12 @@ int ext_rng_setSeedFromClock(ext_rng* generator);
 misc_size_t ext_rng_getSerializedStateLength(const ext_rng* generator);
 void ext_rng_writeSerializedState(const ext_rng* generator, void* state);
 void ext_rng_readSerializedState(ext_rng* generator, const void* state);
+// whether state, a block of ext_rng_getSerializedStateLength(generator)
+// bytes, is one generator can run from: for the Mersenne Twister, an index
+// in [0, N] and not every essential bit of the state zero (the generator's
+// only stuck state). The gamma memo is not judged; a read recomputes it.
+bool ext_rng_serializedStateIsValid(const ext_rng* generator,
+                                    const void* state);
 
 #ifndef DBARTS_HOST_STANDALONE
 bool ext_rng_usesNativeRNG(const ext_rng* generator);
