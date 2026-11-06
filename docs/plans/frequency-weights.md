@@ -642,12 +642,17 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
     positive, and the 512-point subsample the expansion's own, its stride counted over the total count and each row
     weighted by its overlap with the sampled unit cells of the expanded line. At whole weights the value is the
     expansion's exactly; at unit weights and under precision it is the shipped heuristic, bitwise. A real count extends it
-    as a length of that line: a row of count w covers w units and at stride 1 carries w itself, so a row of 2.5 reads as two
-    adjacent rows of 1.25 (their pairs at distance 0 sum to the same), as the gaussian read-offs do; where counts below 1
-    put more than 512 rows into the subsample, a further stride thins them, which whole counts never reach. `gpMaxLeafSize`
+    as a length of that line: a row of count w covers w units and at stride 1 carries w itself. A row split into adjacent
+    parts reads the same where every part carries at least 1 (their pairs at distance 0 sum to the same); the self-pair
+    term v (v - 1) / 2 is held at 0 below 1, so a split leaving a part below 1 shifts the value, by 0.32 percent for 1 into
+    0.5 + 0.5, 0.23 percent for 1.5 into 0.75 + 0.75 and 0.011 percent for 2.5 into 1.25 + 1.25 at stride 2 in the review's
+    probe. Where counts below 1 put more than 512 rows into the subsample, a further stride thins them, which whole counts
+    never reach. `gpMaxLeafSize`
     keeps counting rows, the one stated exception to the design's Calls made 3: it bounds the leaf's kernel matrix, which
-    has one row per data row whatever its count. Alternative: the heuristic unweighted and recorded as an exception, which
-    left sigma 0.057 off the expansion's in the review's probe.
+    has one row per data row whatever its count. Alternatives: the heuristic unweighted and recorded as an exception, which
+    left sigma 0.057 off the expansion's in the review's probe; and signed self-pair weights, v (v - 1) / 2 negative below
+    1, which make every split exact and stay bitwise at whole counts, but drift the median upward where the total count is
+    near 2.
 21. Logistic's weights are counts (dec-B470), so under its reading every read-off is the expanded rows', the basis scale
     and a linear or gp leaf's standardization included; the basis scale reads the counts with or without a mask, where it
     read them only under one. A weighted logistic fit with a linear leaf or a numeric basis therefore moves once S5
@@ -1113,3 +1118,4 @@ For the S1 review's FIX FIRST and the calls on its two open items.
 | 3 | The reading described where it is built, on the sampler | The reading and where it lives; Calls made, 22 |
 | 4 | A read-off's fallback to every row reads each row at its count | Calls made, 23; Engine (S1) |
 | 5 | Tests for the review's surviving mutants and for rows 1, 2 and 4 | S1 gates |
+| 6 | Calls made 20's split sentence narrowed to parts of at least 1, the shift below it stated, signed self-pair weights recorded as the alternative; under frequency the anchor's sd over rows read holding one value is 0 exactly, as the expansion's | Calls made, 20 |
