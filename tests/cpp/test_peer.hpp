@@ -704,10 +704,10 @@ struct TestPeer {
     return false;
   }
   /// The residual-variance posterior's degrees of freedom, nu_0 + #{w_i > 0}
-  /// over the model's own precisions; AFT's is its contained Gaussian's.
+  /// over the model's own precisions, nu_0 + sum of the counts over the rows
+  /// in under frequency; AFT's is its contained Gaussian's.
   static double sigmaDegreesOfFreedom(const GaussianResponse& response) {
-    return response.sigmaSqPrior_.degreesOfFreedom +
-           static_cast<double>(response.numPositiveWeights_);
+    return response.sigmaSqPrior_.degreesOfFreedom + response.rowCount_;
   }
   static double sigmaDegreesOfFreedom(const AFTResponse& response) {
     return sigmaDegreesOfFreedom(*response.gaussian_);

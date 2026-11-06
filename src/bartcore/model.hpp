@@ -338,6 +338,10 @@ struct ConstantVarianceLeaf {
 
   double degreesOfFreedom = 3.0;  // nu'
   double scale = 1.0;             // lambda'^2, variance scale
+  // whether the weights the leaf reads are frequencies, each row standing for
+  // w observations in its count, or precisions, each positive row one; the
+  // owner sets it at every calibration, which builds the leaf afresh
+  bool weightsCount = false;
 
   /// Per-tree calibration from the homoscedastic sigma prior
   /// (nu, scale) over m' variance trees, mean-matching the leaf product's
@@ -348,7 +352,7 @@ struct ConstantVarianceLeaf {
     double m = static_cast<double>(numTrees);
     double leafScale = std::pow(scale, 1.0 / m);
     double leafDf = 2.0 / (1.0 - std::pow(1.0 - 2.0 / df, 1.0 / m));
-    return ConstantVarianceLeaf{leafDf, leafScale};
+    return ConstantVarianceLeaf{leafDf, leafScale, false};
   }
 
   /// log integral of prod N(r_i; 0, s^2 / w_i) against the chi^-2(nu, scale)
@@ -373,7 +377,7 @@ struct ConstantVarianceLeaf {
                                         const double* weights, double, double,
                                         int32_t nodeIndex) const {
     double n, ssr;
-    accumulate(tree, y, weights, nodeIndex, n, ssr);
+    accumulate(tree, y, weights, weightsCount, nodeIndex, n, ssr);
     return logIntegratedLikelihood(n, ssr);
   }
 
@@ -384,7 +388,7 @@ struct ConstantVarianceLeaf {
                                   const double* y, const double* weights,
                                   double, double, int32_t nodeIndex) const {
     double n, ssr;
-    accumulate(tree, y, weights, nodeIndex, n, ssr);
+    accumulate(tree, y, weights, weightsCount, nodeIndex, n, ssr);
     double posteriorScale = degreesOfFreedom * scale + ssr;
     return posteriorScale /
            ext_rng_simulateChiSquared(rng, degreesOfFreedom + n);
@@ -396,12 +400,14 @@ struct ConstantVarianceLeaf {
   }
 
 private:
-  /// One pass over the node's index segment: the positive-weight count and the
-  /// weighted sum of squared (already scaled) residuals. Zero-weight rows drop
-  /// from both, as they drop from ChiSquaredScalePrior's posterior df and SSR.
+  /// One pass over the node's index segment: the count of observations the
+  /// positive-weight rows stand for - one each, or w each where
+  /// \p weightsCount - and the weighted sum of squared (already scaled)
+  /// residuals. Zero-weight rows drop from both, as they drop from
+  /// ChiSquaredScalePrior's posterior df and SSR.
   static void accumulate(const Tree& tree, const double* y,
-                         const double* weights, int32_t nodeIndex, double& n,
-                         double& ssr) {
+                         const double* weights, bool weightsCount,
+                         int32_t nodeIndex, double& n, double& ssr) {
     const Node& node(tree.at(nodeIndex));
     n = 0.0;
     ssr = 0.0;
@@ -409,7 +415,7 @@ private:
       std::size_t i = tree.indices[m];
       double w = weights == nullptr ? 1.0 : weights[i];
       if (w <= 0.0) continue;
-      n += 1.0;
+      n += weightsCount ? w : 1.0;
       ssr += w * y[i] * y[i];
     }
   }
@@ -2456,11 +2462,14 @@ inline bool suppliedMoments(const SuppliedStandardization& supplied,
 /// row in the likelihood, null for every row; \p tooFewIn true where fewer
 /// than two rows are in, or fewer than two distinct response values are in
 /// (Sampler::withResponseFallback), and every row is read in their place.
-/// Membership only: a row's weight
-/// never enters the numbers.
+/// Membership only under precision weights: a row's weight never enters the
+/// numbers. Under frequency weights \p counts names them, borrowed, and the
+/// numbers are those of the rows written out that many times; null under
+/// precision and wherever every row is read in place of the rows in.
 struct LeafRows {
   const std::uint8_t* rows = nullptr;
   bool tooFewIn = false;
+  const double* counts = nullptr;
 };
 
 /// The rows \p rows names in the likelihood out of \p n: 0 where too few are
@@ -2511,7 +2520,8 @@ inline bool deriveLeafMoments(const double* column, std::size_t n,
                               std::size_t j, std::size_t columnIndex,
                               const LeafRows& rows, bool placeholder,
                               double* mean, double* sd) {
-  if (!standardizationMomentsForColumn(column, n, mean, sd, rows.rows))
+  if (!standardizationMomentsForColumn(column, n, mean, sd, rows.rows,
+                                       rows.counts))
     return true;
   if (placeholder) return false;
   bool observed = false;
@@ -4587,19 +4597,21 @@ struct ChiSquaredScalePrior {
   double degreesOfFreedom = 3.0;
   double scale = 1.0;
 
-  /// numPositiveWeights is the count of rows with weight > 0 (== numObservations
-  /// when unweighted): zero-weight rows drop from the weighted SSR and every
-  /// leaf conditional, so they must not inflate the posterior df either.
+  /// rowCount is the number of observations the rows in the likelihood stand
+  /// for: under precision weights the count of rows with weight > 0
+  /// (== numObservations when unweighted), since zero-weight rows drop from
+  /// the weighted SSR and every leaf conditional and must not inflate the
+  /// posterior df either; under frequency weights the sum of the weights over
+  /// those rows, real-valued.
   double drawSigmaSqFromPosterior(ext_rng* rng, const double* y,
                                   const double* totalFits, const double* weights,
                                   std::size_t numObservations,
-                                  std::size_t numPositiveWeights) const {
+                                  double rowCount) const {
     double sumOfSquaredResiduals = weights == nullptr
       ? misc_computeSumOfSquaredResiduals(y, numObservations, totalFits)
       : misc_computeWeightedSumOfSquaredResiduals(y, numObservations, weights,
                                                   totalFits);
-    double posteriorDegreesOfFreedom =
-      degreesOfFreedom + static_cast<double>(numPositiveWeights);
+    double posteriorDegreesOfFreedom = degreesOfFreedom + rowCount;
     double posteriorScale = degreesOfFreedom * scale + sumOfSquaredResiduals;
     return posteriorScale /
            ext_rng_simulateChiSquared(rng, posteriorDegreesOfFreedom);
@@ -4640,6 +4652,12 @@ inline bool allPositiveAndFinite(const double* values, std::size_t n) {
 /// nbinom fits non-negative counts via the Polya-Gamma augmentation
 /// (NBResponse).
 enum class ResponseFamily { gaussian, probit, logistic, aft, ordinal, nbinom };
+
+/// How a family with a residual scale reads a row's weight w: a precision, the
+/// row one observation of noise variance sigma^2 / w, or a frequency, the row
+/// w identical observations. The two differ only in how many observations the
+/// residual scale is read from; fixed at creation.
+enum class WeightsReading { precision, frequency };
 
 /// The largest count any surface accepts, one bound for a negative-binomial
 /// response, a logistic count weight, a fixed negative-binomial shape and a
@@ -4976,12 +4994,16 @@ protected:
 class GaussianResponse final : public ResponseModel {
 public:
   /// sigmaRawScale is qchisq(1 - quantile, df) / df; offset may be null.
+  /// Under \p reading frequency the weights are also the rows' counts, until
+  /// an owner names others (setCounts).
   GaussianResponse(const double* y, const double* offset, const double* weights,
                    std::size_t numObservations, double sigmaEstimate,
-                   double sigmaDf, double sigmaRawScale)
+                   double sigmaDf, double sigmaRawScale,
+                   WeightsReading reading = WeightsReading::precision)
     : y_(y), offset_(offset), weights_(weights), userWeights_(weights),
-      numObservations_(numObservations),
-      numPositiveWeights_(countPositiveWeights(weights, numObservations)) {
+      counts_(reading == WeightsReading::frequency ? weights : nullptr),
+      numObservations_(numObservations), reading_(reading) {
+    rowCount_ = countRowsIn(weights);
     yRescaled_.resize(numObservations);
     rescale();
 
@@ -5002,7 +5024,7 @@ public:
   double drawSigma(ext_rng* rng, const double* totalFits, double) override {
     return std::sqrt(sigmaSqPrior_.drawSigmaSqFromPosterior(
       rng, yRescaled_.data(), totalFits, weights_, numObservations_,
-      numPositiveWeights_));
+      rowCount_));
   }
 
   void setResponse(const double* y, bool updateScale,
@@ -5043,18 +5065,35 @@ public:
 
   /// The two setters are absolute and independent: this replaces the borrowed
   /// user weights and recomposes against whatever mask is installed, so the
-  /// served precisions are w * a in either call order.
+  /// served precisions are w * a in either call order. Under frequency the
+  /// weights are the counts too, unless an owner names the counts.
   void setWeights(const double* weights) override {
     userWeights_ = weights;
+    if (reading_ == WeightsReading::frequency && !countsOwned_)
+      counts_ = weights;
     recomposeActiveRows();
   }
+
+  /// Names the rows' counts under frequency, borrowed, for an owner that
+  /// serves this model precisions which are not the counts (Student-t's
+  /// mixture composite); null counts every row in once. Read from the next
+  /// install of the precisions (setWeights, setData), which the owner makes
+  /// after naming them, as it does after a change of its membership. Ignored
+  /// under precision.
+  void setCounts(const double* counts) {
+    if (reading_ != WeightsReading::frequency) return;
+    countsOwned_ = true;
+    counts_ = counts;
+  }
+
+  WeightsReading weightsReading() const { return reading_; }
 
   bool supportsActiveRows() const override { return true; }
 
   /// a_i multiplies the case weight, so a masked gaussian is exactly
   /// setWeights(w * a) - including the sigma posterior's degrees of freedom,
   /// which installWeights RECOUNTS off the composite rather than leaving at
-  /// the unmasked total.
+  /// the unmasked total, under either reading.
   bool setActiveRows(const double* active) override {
     if (active == nullptr) {
       if (activeRows_.empty()) return true;
@@ -5123,8 +5162,10 @@ public:
 
   /// dnorm(y_i, mu_i, sigma_i) with mu the original-scale fit (fits carry any
   /// offset) and sigma_i the residual sd scaled by the precision weight:
-  /// y | x ~ N(f(x) + offset, sigma^2 / w_i). A row whose composed weight is
-  /// zero is not in the model at all, so its entry is NaN - the channel's own
+  /// y | x ~ N(f(x) + offset, sigma^2 / w_i). Under frequency the row is w_i
+  /// observations at the residual sd, so its entry is w_i times the one
+  /// observation's log density. A row whose composed weight is zero is not
+  /// in the model at all, so its entry is NaN - the channel's own
   /// "unavailable" flag - rather than the -Inf an infinite sd would give.
   ///
   /// Under a variance surface the scalar sigma is the pinned 1 and carries no
@@ -5146,6 +5187,11 @@ public:
       double residualSd = variance_ != nullptr
                             ? std::sqrt(variance_[i]) * range_
                             : sigmaOriginal;
+      if (reading_ == WeightsReading::frequency) {
+        double logDensity = ext_dnorm(y_[i], mu, residualSd, 1);
+        out[i] = counts_ != nullptr ? counts_[i] * logDensity : logDensity;
+        continue;
+      }
       double sd = weights_ != nullptr ? residualSd / std::sqrt(weights_[i])
                                       : residualSd;
       out[i] = ext_dnorm(y_[i], mu, sd, 1);
@@ -5210,10 +5256,30 @@ private:
   friend struct TestPeer;
 
   /// The one write path to the served precisions: every install recounts the
-  /// positive ones, so the sigma posterior's df can never lag the weights.
+  /// rows in, so the sigma posterior's df can never lag the weights or the
+  /// mask.
   void installWeights(const double* weights) {
     weights_ = weights;
-    numPositiveWeights_ = countPositiveWeights(weights, numObservations_);
+    rowCount_ = countRowsIn(weights);
+  }
+
+  /// The observations the rows in the likelihood stand for, served the
+  /// precisions \p weights: under precision the positive ones, exactly as a
+  /// count; under frequency the sum of the counts over the rows in, which the
+  /// owner's membership names where it serves precisions that are not the
+  /// counts.
+  double countRowsIn(const double* weights) const {
+    if (reading_ == WeightsReading::precision)
+      return static_cast<double>(
+        countPositiveWeights(weights, numObservations_));
+    double total = 0.0;
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      bool in = membership_ != nullptr
+                  ? membership_[i] != 0
+                  : weights == nullptr || weights[i] > 0.0;
+      if (in) total += counts_ != nullptr ? counts_[i] : 1.0;
+    }
+    return total;
   }
 
   /// c_i = w_i a_i, or the borrowed user pointer BY IDENTITY when no mask is
@@ -5332,6 +5398,8 @@ private:
     activeRows_.clear();
     composite_.clear();
     userWeights_ = weights;
+    if (reading_ == WeightsReading::frequency && !countsOwned_)
+      counts_ = weights;
     installWeights(weights);
     yRescaled_.resize(numObservations);
     if (held == nullptr) {
@@ -5401,8 +5469,15 @@ private:
   const double* offset_;
   const double* weights_;      // served: userWeights_ by identity, or composite_
   const double* userWeights_;  // borrowed, the pre-mask pointer
+  // under frequency the rows' counts, borrowed: userWeights_, or the owner's
+  // (setCounts); null under precision and where every row counts once
+  const double* counts_;
+  bool countsOwned_ = false;
   std::size_t numObservations_;
-  std::size_t numPositiveWeights_;
+  WeightsReading reading_;
+  // the observations the rows in stand for, which the sigma posterior's df
+  // reads (countRowsIn)
+  double rowCount_ = 0.0;
   std::vector<double> activeRows_;  // the raw 0/1 mask; empty when none
   std::vector<double> composite_;   // c_i = w_i a_i, served while masked
   std::vector<double> yRescaled_;
@@ -6517,6 +6592,42 @@ struct ResidualDfPrior {
     return logPrior_;
   }
 
+  /// drawIndex over rows of counts m_i, each row's precision Lambda_i the sum
+  /// of its m_i copies' mixing precisions: the count is sum m_i, the first
+  /// statistic sum m_i log Lambda_i, the second sum Lambda_i, and the
+  /// per-point term the collapse of the copies onto their sum leaves,
+  /// sum_i [m_i lgamma((nu + 1)/2) - lgamma(m_i (nu + 1)/2)] over the rows
+  /// with m_i > 0 (countConstants). At every m_i = 1 the term is 0 and the
+  /// draw is drawIndex's.
+  std::size_t drawIndexForCounts(ext_rng* rng, double sumCounts,
+                                 double sumCountLogLambda, double sumLambda,
+                                 const double* countConstants) {
+    for (std::size_t k = 0; k < gridSize; ++k)
+      weight_[k] = sumCounts * kernel_[k] +
+                   0.5 * grid[k] * (sumCountLogLambda - sumLambda) +
+                   logPrior_[k] + countConstants[k];
+    return drawFromLogWeights(rng, weight_.data(), gridSize);
+  }
+
+  /// The per-point term drawIndexForCounts adds, into \p out (gridSize
+  /// values), over the \p n counts \p counts at the rows \p in marks
+  /// (nonzero), each of which must hold a positive count: a zero count's term
+  /// is -lgamma(0), infinite.
+  static void countConstants(const double* counts, const unsigned char* in,
+                             std::size_t n, double* out) {
+    for (std::size_t k = 0; k < gridSize; ++k) {
+      double halfShape = 0.5 * (grid[k] + 1.0);
+      double lgammaHalfShape = std::lgamma(halfShape);
+      double total = 0.0;
+      for (std::size_t i = 0; i < n; ++i) {
+        if (in[i] == 0) continue;
+        double m = counts != nullptr ? counts[i] : 1.0;
+        total += m * lgammaHalfShape - std::lgamma(m * halfShape);
+      }
+      out[k] = total;
+    }
+  }
+
 private:
   std::array<double, gridSize> kernel_;
   std::array<double, gridSize> logPrior_;
@@ -6536,6 +6647,13 @@ private:
 /// lambda for the state block. A zero user weight gives c_i = 0, dropping the
 /// row from the sigma df and the nu statistics. sigma is the CONDITIONAL scale
 /// (marginal variance sigma^2 nu/(nu - 2)).
+///
+/// Under frequency weights a row of weight w_i is w_i copies whose mixing
+/// precisions the Gaussian part reads only through their sum, so the latent
+/// is that sum Lambda_i ~ Gamma(w_i (nu + 1)/2, rate (nu + r_i^2 / sigma^2)/2),
+/// the composite c_i = Lambda_i a_i, the contained Gaussian counting w_i
+/// observations at the row, and nu drawn from the copies' statistics
+/// (ResidualDfPrior::drawIndexForCounts).
 class TResponse final : public ResponseModel {
 public:
   /// residualDf > 0 fixes nu there; a non-positive or non-finite residualDf
@@ -6543,22 +6661,26 @@ public:
   /// may be null.
   TResponse(const double* y, const double* offset, const double* weights,
             std::size_t numObservations, double sigmaEstimate, double sigmaDf,
-            double sigmaRawScale, double residualDf)
+            double sigmaRawScale, double residualDf,
+            WeightsReading reading = WeightsReading::precision)
     : y_(y), userWeights_(weights), numObservations_(numObservations),
-      estimateNu_(!(residualDf > 0.0)),
+      reading_(reading), estimateNu_(!(residualDf > 0.0)),
       nu_(estimateNu_ ? ResidualDfPrior::grid[ResidualDfPrior::medianIndex]
                       : residualDf) {
-    lambda_.assign(numObservations, 1.0);
+    markInformative();
+    startLatents();
     composite_.resize(numObservations);
     for (std::size_t i = 0; i < numObservations; ++i)
-      composite_[i] = userWeights_ != nullptr ? userWeights_[i] : 1.0;
-    markInformative();
+      composite_[i] = frequency() ? (informative_[i] != 0 ? lambda_[i] : 0.0)
+                    : userWeights_ != nullptr ? userWeights_[i] : 1.0;
     // the cold composite is the user weights, so the range read here is by
     // membership; once it carries lambda the Gaussian reads the marks instead
     gaussian_ = std::make_unique<GaussianResponse>(
       y, offset, composite_.data(), numObservations, sigmaEstimate, sigmaDf,
-      sigmaRawScale);
+      sigmaRawScale, reading);
     gaussian_->setMembership(informative_.data());
+    gaussian_->setCounts(userWeights_);
+    if (frequency()) recompose();
   }
 
   double* workingResponse() override { return gaussian_->workingResponse(); }
@@ -6579,6 +6701,10 @@ public:
   /// the Gaussian so its weights and sigma draw see the mixture.
   void refreshLatents(ext_rng* rng, const double* totalFits,
                       double sigma) override {
+    if (frequency()) {
+      refreshCountedLatents(rng, totalFits, sigma);
+      return;
+    }
     const double* z = gaussian_->workingResponse();
     double sigmaSq = sigma * sigma;
     double shape = 0.5 * (nu_ + 1.0);
@@ -6648,10 +6774,11 @@ public:
     userWeights_ = weights;
     numObservations_ = numObservations;
     activeRows_.clear();  // length-n and n may have changed
-    lambda_.assign(numObservations, 1.0);
-    composite_.assign(numObservations, 0.0);
     markInformative();
+    startLatents();
+    composite_.assign(numObservations, 0.0);
     gaussian_->setMembership(informative_.data());  // the marks may have moved
+    gaussian_->setCounts(weights);
     if (held == nullptr)
       gaussian_->setData(y, offset, weights, numObservations, sigmaInOut);
     else
@@ -6665,6 +6792,7 @@ public:
   void setWeights(const double* weights) override {
     userWeights_ = weights;
     markInformative();
+    gaussian_->setCounts(weights);
     recompose();
   }
 
@@ -6733,6 +6861,8 @@ public:
   /// Marginal density of the observed response: a location-scale t_nu with
   /// original-scale location mu = fit (offset carried) and scale
   /// s_i = sigma range_ / sqrt(w_i), so log p = log dt((y - mu)/s_i, nu) - log s_i.
+  /// Under frequency the row is w_i observations at scale sigma range_, its
+  /// entry w_i times one observation's log density.
   void computeLogLikelihood(const double* totalFits, double sigma,
                             std::size_t numObservations,
                             double* out) const override {
@@ -6750,6 +6880,13 @@ public:
       }
       double mu = scale * totalFits[i] + shift +
                   (offset != nullptr ? offset[i] : 0.0);
+      if (frequency()) {
+        double logDensity = ext_dt((y_[i] - mu) / sigmaOriginal, nu_, 1) -
+                            std::log(sigmaOriginal);
+        out[i] = userWeights_ != nullptr ? userWeights_[i] * logDensity
+                                         : logDensity;
+        continue;
+      }
       double sd = userWeights_ != nullptr
                     ? sigmaOriginal / std::sqrt(userWeights_[i])
                     : sigmaOriginal;
@@ -6764,25 +6901,80 @@ private:
     return (userWeights_ != nullptr ? userWeights_[i] : 1.0) *
              (activeRows_.empty() ? 1.0 : activeRows_[i]) > 0.0;
   }
+  /// Also rebuilds, under frequency, the nu step's per-point constant over
+  /// the rows the marks name, which depends on the weights and the mask alone.
   void markInformative() {
     informative_.resize(numObservations_);
     for (std::size_t i = 0; i < numObservations_; ++i)
       informative_[i] = isInformative(i) ? 1 : 0;
+    if (frequency())
+      ResidualDfPrior::countConstants(userWeights_, informative_.data(),
+                                      numObservations_, countConstants_.data());
+  }
+
+  bool frequency() const { return reading_ == WeightsReading::frequency; }
+
+  /// The creation start of every latent, which must be positive: lambda_i = 1,
+  /// and under frequency the sum of w_i unit precisions, w_i, at a row in.
+  void startLatents() {
+    lambda_.assign(numObservations_, 1.0);
+    if (!frequency() || userWeights_ == nullptr) return;
+    for (std::size_t i = 0; i < numObservations_; ++i)
+      if (informative_[i] != 0) lambda_[i] = userWeights_[i];
   }
 
   /// c_i = w_i lambda_i a_i, then hand the composite to the contained Gaussian
   /// so its weights, node statistics, and sigma draw all see the mixture.
+  /// Under frequency lambda_i is the row's whole precision, so c_i =
+  /// Lambda_i at a row in and 0 at a row out.
   void recompose() {
-    for (std::size_t i = 0; i < numObservations_; ++i)
-      composite_[i] =
-        (userWeights_ != nullptr ? userWeights_[i] : 1.0) * lambda_[i] *
-        (activeRows_.empty() ? 1.0 : activeRows_[i]);
+    if (frequency()) {
+      for (std::size_t i = 0; i < numObservations_; ++i)
+        composite_[i] = informative_[i] != 0 ? lambda_[i] : 0.0;
+    } else {
+      for (std::size_t i = 0; i < numObservations_; ++i)
+        composite_[i] =
+          (userWeights_ != nullptr ? userWeights_[i] : 1.0) * lambda_[i] *
+          (activeRows_.empty() ? 1.0 : activeRows_[i]);
+    }
+    gaussian_->setWeights(composite_.data());
+  }
+
+  /// refreshLatents under frequency. A row in of count w_i draws the sum of
+  /// its copies' precisions, Gamma(w_i (nu + 1)/2, 2 / (nu + r_i^2 / sigma^2));
+  /// a row out, by weight or mask, draws one observation's, so the variates
+  /// it consumes are those of a row of weight 0 whatever its weight. Only the
+  /// rows in enter the composite and the nu statistics.
+  void refreshCountedLatents(ext_rng* rng, const double* totalFits,
+                             double sigma) {
+    const double* z = gaussian_->workingResponse();
+    double sigmaSq = sigma * sigma;
+    double shape = 0.5 * (nu_ + 1.0);
+    double sumCountLogLambda = 0.0, sumLambda = 0.0, sumCounts = 0.0;
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      bool in = informative_[i] != 0;
+      double m = in && userWeights_ != nullptr ? userWeights_[i] : 1.0;
+      double r = z[i] - totalFits[i];
+      double lambda =
+        ext_rng_simulateGamma(rng, m * shape, 2.0 / (nu_ + r * r / sigmaSq));
+      lambda_[i] = lambda;
+      composite_[i] = in ? lambda : 0.0;
+      if (in) {
+        sumCountLogLambda += m * std::log(lambda);
+        sumLambda += lambda;
+        sumCounts += m;
+      }
+    }
+    if (estimateNu_)
+      nu_ = ResidualDfPrior::grid[nuPrior_.drawIndexForCounts(
+        rng, sumCounts, sumCountLogLambda, sumLambda, countConstants_.data())];
     gaussian_->setWeights(composite_.data());
   }
 
   const double* y_;
   const double* userWeights_;
   std::size_t numObservations_;
+  WeightsReading reading_;
   bool estimateNu_;
   double nu_;
   std::unique_ptr<GaussianResponse> gaussian_;
@@ -6791,6 +6983,9 @@ private:
   std::vector<double> composite_;   // c_i = w_i lambda_i a_i, the Gaussian's weights
   std::vector<unsigned char> informative_;  // w_i a_i > 0, the Gaussian's marks
   ResidualDfPrior nuPrior_;         // grid machinery, used only when estimating
+  // under frequency the nu step's per-point constant over the rows in
+  // (ResidualDfPrior::countConstants); unread under precision
+  std::array<double, ResidualDfPrior::gridSize> countConstants_{};
 };
 
 /// Sampled negative-binomial shape r on a capped positive-integer grid

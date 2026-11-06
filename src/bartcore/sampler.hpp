@@ -2631,6 +2631,7 @@ public:
                        leafRowStorage);
       if (replacement.range == DerivedValueChoice::derive)
         leafRows = withResponseFallback(leafRows, y, offset, numObservations);
+      leafRows = withCounts(leafRows, weights);
       if (replacement.standardization != DerivedValueChoice::keep)
         refuseLeafDerivation(
           x, numObservations,
@@ -2755,9 +2756,11 @@ public:
       std::vector<std::uint8_t> storage;
       LeafRows rows = tooFewUnitsIn
         ? LeafRows{nullptr, true}
-        : leafRowsFrom(chains_[0]->weights(),
-                       activeRows_.empty() ? nullptr : activeRows_.data(), n,
-                       storage);
+        : withCounts(
+            leafRowsFrom(chains_[0]->weights(),
+                         activeRows_.empty() ? nullptr : activeRows_.data(), n,
+                         storage),
+            chains_[0]->weights());
       keptCovariates.assign(leaf.numCovariates(), 0);
       bool anyKept = false;
       for (size_t j = 0; j < leaf.numCovariates(); ++j) {
@@ -2766,7 +2769,7 @@ public:
         double mean, sd;
         if (rows.tooFewIn || standardizationMomentsForColumn(
                              data_.rawColumn(column), n, &mean, &sd,
-                             rows.rows)) {
+                             rows.rows, rows.counts)) {
           keptCovariates[j] = 1;
           anyKept = true;
         }
@@ -3069,17 +3072,18 @@ public:
       return BasisRescaleResult::refused;
     size_t n = data_.numObservations;
     std::vector<std::uint8_t> storage;
-    LeafRows rows =
+    LeafRows rows = withCounts(
       leafRowsFrom(chains_[0]->weights(),
                    activeRows_.empty() ? nullptr : activeRows_.data(), n,
-                   storage);
+                   storage),
+      chains_[0]->weights());
     BasisRescaleResult outcome = BasisRescaleResult::rescaled;
     double scale = std::numeric_limits<double>::quiet_NaN();
     if (rows.tooFewIn) {
       outcome = BasisRescaleResult::keptTooFewRows;
     } else {
       try {
-        scale = basisColumnScale(values, n, rows.rows);
+        scale = basisColumnScale(values, n, rows.rows, rows.counts);
       } catch (const BasisScaleError&) {
         outcome = BasisRescaleResult::keptConstant;
       }
@@ -3485,6 +3489,15 @@ private:
     return result;
   }
 
+  /// \p rows with \p weights as its counts where the sampler reads its
+  /// weights as frequencies and the rows in are read, not every row in their
+  /// place.
+  LeafRows withCounts(LeafRows rows, const double* weights) const {
+    if (options_.weightsReading == WeightsReading::frequency && !rows.tooFewIn)
+      rows.counts = weights;
+    return rows;
+  }
+
   /// \p rows, or every row where the response's read falls back to every row
   /// (a family that reads it, \p y less \p offset one value over the rows
   /// in); fewer than two rows in arrive as every row (leafRowsFrom).
@@ -3559,10 +3572,12 @@ private:
     if constexpr (L::hasVectorParams || L::hasFunctionParams)
       leafRows = options_.tooFewUnitsIn
         ? LeafRows{nullptr, true}
-        : withResponseFallback(
-            leafRowsFrom(weights, options_.activeRows, data_.numObservations,
-                         leafRowStorage),
-            y, offset, data_.numObservations);
+        : withCounts(
+            withResponseFallback(
+              leafRowsFrom(weights, options_.activeRows, data_.numObservations,
+                           leafRowStorage),
+              y, offset, data_.numObservations),
+            weights);
     chains_.reserve(options_.numChains);
     for (size_t c = 0; c < options_.numChains; ++c)
       chains_.push_back(std::make_unique<Chain<L, ResidT>>(

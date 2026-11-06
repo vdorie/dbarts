@@ -444,16 +444,68 @@ struct BasisScaleError : std::domain_error {
   bool fromAllRows = false;
 };
 
+/// basisColumnScale under frequency weights: row i read as \p counts[i]
+/// identical rows, the sd that of the rows written out that many times; a row
+/// of count 0 or less is not read.
+///
+/// \throws BasisScaleError for a column with no scale over those rows.
+inline double countedBasisColumnScale(const double* column, std::size_t n,
+                                      const unsigned char* rows,
+                                      const double* counts) {
+  auto read = [&](std::size_t i) {
+    return (rows == nullptr || rows[i] != 0) && counts[i] > 0.0;
+  };
+  bool observed = false, varies = false;
+  double first = std::numeric_limits<double>::quiet_NaN(), largest = 0.0,
+         sum = 0.0, numRows = 0.0;
+  for (std::size_t i = 0; i < n; ++i) {
+    if (!read(i)) continue;
+    double value = column[i];
+    if (!observed) first = value;
+    else if (value != first) varies = true;
+    observed = true;
+    largest = std::max(largest, std::fabs(value));
+    sum += counts[i] * value;
+    numRows += counts[i];
+  }
+  if (!varies || !(numRows > 1.0))
+    throw BasisScaleError("a basis column is constant, so no default sd can "
+                          "be taken from its standard deviation",
+                          first, std::numeric_limits<double>::quiet_NaN());
+  double mean = sum / numRows, correction = 0.0;
+  for (std::size_t i = 0; i < n; ++i)
+    if (read(i)) correction += counts[i] * (column[i] - mean);
+  mean += correction / numRows;
+  double sumSquares = 0.0;
+  for (std::size_t i = 0; i < n; ++i) {
+    if (!read(i)) continue;
+    double deviation = column[i] - mean;
+    sumSquares += counts[i] * (deviation * deviation);
+  }
+  double sd = std::sqrt(sumSquares / (numRows - 1.0));
+  if (!(sd > 0x1p-26 * largest))
+    throw BasisScaleError("a basis column is constant to rounding, so no "
+                          "default sd can be taken from its standard "
+                          "deviation",
+                          std::numeric_limits<double>::quiet_NaN(),
+                          sd / largest);
+  return sd;
+}
+
 /// A numeric column's scale: its sample standard deviation over the rows
 /// \p rows marks (a nonzero byte each; null for every row), one less than
 /// their count in the divisor, with the mean taken first and corrected by the
 /// mean of the deviations from it, and the squared deviations from that mean
 /// summed, as R's sd() does. "Constant" is decided by comparing the values,
-/// never by the computed standard deviation being zero.
+/// never by the computed standard deviation being zero. \p counts, where not
+/// null, are frequency weights (countedBasisColumnScale).
 ///
 /// \throws BasisScaleError for a column with no scale over those rows.
 inline double basisColumnScale(const double* column, std::size_t n,
-                               const unsigned char* rows) {
+                               const unsigned char* rows,
+                               const double* counts = nullptr) {
+  if (counts != nullptr)
+    return countedBasisColumnScale(column, n, rows, counts);
   std::size_t count = 0;
   double first = std::numeric_limits<double>::quiet_NaN(), largest = 0.0,
          sum = 0.0;

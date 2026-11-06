@@ -279,6 +279,13 @@ struct SamplerOptions {
   // are always sigma-fixed
   bool sigmaIsFixed = false;
 
+  // how the gaussian family and its Student-t and heteroscedastic variants
+  // read the weights (WeightsReading): precision, the default, or frequency,
+  // which also reads the leaf covariates' standardization, a numeric forest
+  // basis's default scale and the multi-forest anchor off the rows written out
+  // w times. Fixed at creation.
+  WeightsReading weightsReading = WeightsReading::precision;
+
   // continuous (gaussian family) responses only: a finite residualDf selects
   // Student-t errors via the scale-mixture augmentation (TResponse) - a
   // positive value fixes nu, <= 0 estimates it on the grid; NaN (default)
@@ -1097,11 +1104,11 @@ public:
       if (std::isfinite(options.residualDf))
         response_ = std::make_unique<TResponse>(
           y, offset, weights, numObservations, sigmaEstimate, sigmaDf,
-          sigmaRawScale, options.residualDf);
+          sigmaRawScale, options.residualDf, options.weightsReading);
       else
         response_ = std::make_unique<GaussianResponse>(
           y, offset, weights, numObservations, sigmaEstimate, sigmaDf,
-          sigmaRawScale);
+          sigmaRawScale, options.weightsReading);
       break;
     case ResponseFamily::aft:
       // y holds the log survival/censoring times; status marks the censored
@@ -1274,7 +1281,7 @@ public:
     case ResponseFamily::nbinom:
       response_ = std::make_unique<GaussianResponse>(
         y, offset, weights, data.numObservations, sigmaEstimate, sigmaDf,
-        sigmaRawScale);
+        sigmaRawScale, options.weightsReading);
       break;
     }
     family_ = spec.family;
@@ -1356,7 +1363,8 @@ public:
           try {
             mapped.basisScale = basisColumnScale(
               forestSpec.basis, data.numObservations,
-              scaleRows.rows.empty() ? nullptr : scaleRows.rows.data());
+              scaleRows.rows.empty() ? nullptr : scaleRows.rows.data(),
+              scaleRows.counts);
           } catch (BasisScaleError& error) {
             error.forest = f;
             error.fromAllRows = scaleRows.fellBack;
@@ -7414,6 +7422,8 @@ private:
       varianceSigmaDf_, workingSigma * workingSigma * varianceSigmaRawScale_,
       varianceForest_->numTrees);
     assert(std::isfinite(varianceForest_->leaf.degreesOfFreedom));
+    varianceForest_->leaf.weightsCount =
+      options_.weightsReading == WeightsReading::frequency;
   }
 
   /// Re-anchor the variance forest after the response model moved the working
@@ -8767,6 +8777,32 @@ private:
     return std::sqrt(sumSquares / static_cast<double>(n - 1));
   }
 
+  /// scaledResponseSd under frequency weights \p counts over the rows \p rows
+  /// marks (null for every row), a row of count 0 or less not read: the sd of
+  /// the rows written out that many times, the total count less one its
+  /// divisor.
+  double countedScaledResponseSd(const unsigned char* rows,
+                                 const double* counts) const {
+    std::size_t n = data_.numObservations;
+    const double* yScaled = response_->workingResponse();
+    auto read = [&](std::size_t i) {
+      return (rows == nullptr || rows[i] != 0) && counts[i] > 0.0;
+    };
+    double mean = 0.0, total = 0.0, sumSquares = 0.0;
+    for (std::size_t i = 0; i < n; ++i) {
+      if (!read(i)) continue;
+      mean += counts[i] * yScaled[i];
+      total += counts[i];
+    }
+    mean /= total;
+    for (std::size_t i = 0; i < n; ++i) {
+      if (!read(i)) continue;
+      double d = yScaled[i] - mean;
+      sumSquares += counts[i] * (d * d);
+    }
+    return std::sqrt(sumSquares / (total - 1.0));
+  }
+
   /// scaledResponseSd over the rows \p rows marks (a nonzero byte each), one
   /// less than their count in the divisor: the anchor where the response
   /// model read its range from the rows in the likelihood alone.
@@ -8832,7 +8868,10 @@ private:
     // the O(n) scan must not run on a family that does not use it, where a
     // later reader would mistake it for the anchor
     const unsigned char* rows = response_->scaleRows();
-    double sd = rows != nullptr ? scaledResponseSdOver(rows) : scaledResponseSd();
+    const double* counts = countsForRowsRead(rows != nullptr);
+    double sd = counts != nullptr ? countedScaledResponseSd(rows, counts)
+              : rows != nullptr  ? scaledResponseSdOver(rows)
+                                 : scaledResponseSd();
     // a response with one value over the rows read has no spread, and the
     // response model scales it by a window of width one: the anchor is then
     // what the one forest of a single-forest chain gets on that window, a
@@ -8868,6 +8907,9 @@ private:
     std::vector<unsigned char> rows;
     bool fellBack = false;  // every row read because too few were in
     bool read = false;
+    // under frequency weights the rows' counts, borrowed; null otherwise and
+    // where every row is read in place of the rows in
+    const double* counts = nullptr;
   };
   /// Under gaussian the rows the response's range was read from, every row
   /// where it read them all; that is a fallback where a row is out and the
@@ -8894,6 +8936,7 @@ private:
         result.rows.clear();
         result.fellBack = true;
       }
+      if (!result.fellBack) result.counts = frequencyCounts();
       return result;
     }
     // as latentScaleAnchor: every enumerator listed and no default arm
@@ -8910,7 +8953,27 @@ private:
       result.fellBack =
         response_->lacksDistinctRowsIn(IncomingVector::response, y);
     }
+    result.counts = result.fellBack ? nullptr
+                                    : countsForRowsRead(rows != nullptr);
     return result;
+  }
+
+  /// The user weights where the chain reads them as frequencies, else null.
+  const double* frequencyCounts() const {
+    return options_.weightsReading == WeightsReading::frequency ? weights_
+                                                                : nullptr;
+  }
+
+  /// frequencyCounts where the rows a creation read its scales from are the
+  /// rows in: where \p rowsMarked says the response marked them, or where no
+  /// weight is 0, every row then in; null where a row is out and every row
+  /// was read in their place. No mask is installed at creation.
+  const double* countsForRowsRead(bool rowsMarked) const {
+    const double* counts = frequencyCounts();
+    if (counts == nullptr || rowsMarked) return counts;
+    for (std::size_t i = 0; i < data_.numObservations; ++i)
+      if (!(counts[i] > 0.0)) return nullptr;
+    return counts;
   }
 
   /// Variant A block-additive install: confine each whole tree to one

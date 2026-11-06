@@ -218,7 +218,7 @@ mutations <- list(
   mk(
     "m06",
     "src/bartcore/model.hpp",
-    "    double posteriorDegreesOfFreedom =\n      degreesOfFreedom + static_cast<double>(numPositiveWeights);",
+    "    double posteriorDegreesOfFreedom = degreesOfFreedom + rowCount;",
     "    double posteriorDegreesOfFreedom =\n      degreesOfFreedom + static_cast<double>(numObservations);",
     "KILL_EXPECTED",
     kEquiv("zeroweights"),
