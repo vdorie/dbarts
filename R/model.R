@@ -3128,7 +3128,12 @@ chisqDfKind <- "positive finite number; to hold sigma at a value, use fixed()"
 
 chisq <- function(df = 3, quant = 0.9) {
   refusePriorScalar(df, "df", isPositiveFinite, chisqDfKind)
-  refusePriorScalar(quant, "quant", isOpenUnitInterval, "number between 0 and 1")
+  refusePriorScalar(
+    quant,
+    "quant",
+    isOpenUnitInterval,
+    "number between 0 and 1"
+  )
   newValidated(
     "dbartsChiSqPrior",
     df = integerToDouble(df),
@@ -3262,7 +3267,10 @@ dart <- function(
     refuseNAForNull("update.delay", "dart", "the default, half the burn-in")
   }
   # rho NULL is the default, the number of predictors
-  positive <- c(list(a = a, b = b, alpha = alpha), if (!is.null(rho)) list(rho = rho))
+  positive <- c(
+    list(a = a, b = b, alpha = alpha),
+    if (!is.null(rho)) list(rho = rho)
+  )
   for (name in names(positive)) {
     refusePriorScalar(
       positive[[name]],

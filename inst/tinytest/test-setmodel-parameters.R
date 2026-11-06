@@ -197,7 +197,10 @@ agreeAfter(heldAlpha, drawnAlpha()$model)
 
 # a non-finite alpha or rho is refused by the constructor, and by $setModel
 # before anything is written (a record built by slot passes the constructor)
-expect_error(dart(alpha = Inf), "'alpha' must be a single positive finite number")
+expect_error(
+  dart(alpha = Inf),
+  "'alpha' must be a single positive finite number"
+)
 expect_error(dart(rho = Inf), "'rho' must be a single positive finite number")
 expect_error(dart(a = Inf), "'a' must be a single positive finite number")
 expect_error(dart(b = Inf), "'b' must be a single positive finite number")

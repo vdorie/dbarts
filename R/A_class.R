@@ -73,8 +73,18 @@ methods::setValidity("dbartsDartPrior", function(object) {
   # an NA rho or update.delay is the default, which the slot spells NA
   stated <- function(x) length(x) != 1L || !is.na(x) || is.nan(x)
   refusal <- c(
-    priorScalarRefusal(object@a, "a", isPositiveFinite, "positive finite number"),
-    priorScalarRefusal(object@b, "b", isPositiveFinite, "positive finite number"),
+    priorScalarRefusal(
+      object@a,
+      "a",
+      isPositiveFinite,
+      "positive finite number"
+    ),
+    priorScalarRefusal(
+      object@b,
+      "b",
+      isPositiveFinite,
+      "positive finite number"
+    ),
     if (stated(object@rho)) {
       priorScalarRefusal(
         object@rho,
@@ -101,9 +111,7 @@ methods::setValidity("dbartsDartPrior", function(object) {
   if (length(refusal) > 0L) {
     return(refusal[1L])
   }
-  if (
-    length(object@update.alpha) != 1L || is.na(object@update.alpha)
-  ) {
+  if (length(object@update.alpha) != 1L || is.na(object@update.alpha)) {
     return("'update.alpha' must be TRUE/FALSE")
   }
   if (
@@ -130,7 +138,12 @@ methods::setValidity("dbartsChiHyperprior", function(object) {
       isPositiveNumber,
       "positive number"
     ),
-    priorScalarRefusal(object@scale, "scale", isPositiveNumber, "positive number")
+    priorScalarRefusal(
+      object@scale,
+      "scale",
+      isPositiveNumber,
+      "positive number"
+    )
   )
   if (length(refusal) > 0L) refusal[1L] else TRUE
 })
