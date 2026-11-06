@@ -995,6 +995,197 @@ void testGPLengthscale() {
   }
 }
 
+/// The counted median pairwise distance computed independently of the
+/// leaf: the rows read (mask kept, count positive) laid out in row order on
+/// a line of length sum(counts), the stride over its ceiling, each row
+/// weighted by its overlap with the unit cells starting at every stride-th
+/// point, thinned where more than 512 carry a weight, pairs v_a v_b and self
+/// pairs v (v - 1) / 2 where positive, the median at the unweighted median's
+/// ranks.
+double referenceCountedMedian(const std::vector<double>& u,
+                              const std::vector<double>& counts,
+                              const std::vector<double>& mask) {
+  std::vector<double> uu, ww;
+  for (std::size_t i = 0; i < u.size(); ++i)
+    if (mask[i] != 0.0 && counts[i] > 0.0) {
+      uu.push_back(u[i]);
+      ww.push_back(counts[i]);
+    }
+  double total = 0.0;
+  for (double w : ww) total += w;
+  double numWritten = std::ceil(total);
+  double s =
+    numWritten < 1.0 ? 1.0 : 1.0 + std::floor((numWritten - 1.0) / 512.0);
+  std::vector<double> vu, vv;
+  double start = 0.0;
+  for (std::size_t i = 0; i < ww.size(); ++i) {
+    double end = start + ww[i], v = 0.0;
+    if (s == 1.0) {
+      v = ww[i];
+    } else {
+      for (double k = 0.0; k * s < end; k += 1.0) {
+        double lo = std::max(start, k * s), hi = std::min(end, k * s + 1.0);
+        if (hi > lo) v += hi - lo;
+      }
+    }
+    if (v > 0.0) {
+      vu.push_back(uu[i]);
+      vv.push_back(v);
+    }
+    start = end;
+  }
+  if (vu.size() > 512) {
+    std::size_t thin = 1 + (vu.size() - 1) / 512;
+    std::vector<double> a, b;
+    for (std::size_t k = 0; k < vu.size(); k += thin) {
+      a.push_back(vu[k]);
+      b.push_back(vv[k]);
+    }
+    vu.swap(a);
+    vv.swap(b);
+  }
+  double sum = 0.0;
+  for (double v : vv) sum += v;
+  if (sum < 2.0) return 1.0;
+  std::vector<std::pair<double, double>> d;
+  for (std::size_t a = 0; a < vu.size(); ++a) {
+    if (vv[a] * (vv[a] - 1.0) > 0.0)
+      d.emplace_back(0.0, 0.5 * vv[a] * (vv[a] - 1.0));
+    for (std::size_t b = a + 1; b < vu.size(); ++b)
+      d.emplace_back(std::fabs(vu[a] - vu[b]), vv[a] * vv[b]);
+  }
+  std::sort(d.begin(), d.end());
+  double numPairs = 0.0;
+  for (const auto& e : d) numPairs += e.second;
+  auto at = [&](double r) {
+    double c = 0.0;
+    for (const auto& e : d) {
+      c += e.second;
+      if (c > r) return e.first;
+    }
+    return d.back().first;
+  };
+  double lo = std::floor(0.5 * (numPairs - 1.0)), hi = std::floor(0.5 * numPairs);
+  double m = lo == hi ? at(lo) : 0.5 * (at(lo) + at(hi));
+  return m > 0.0 ? m : 1.0;
+}
+
+/// A gp leaf's default lengthscale at a creation mask \p mask (null for
+/// none), and in \p u (when non-null) the standardized covariate it read.
+double gpLengthscale(const double* x, const double* y, std::size_t n,
+                     std::size_t p, const double* w, const double* mask,
+                     bool frequency, std::vector<double>* u) {
+  const std::size_t columns[] = {0};
+  SamplerOptions options;
+  options.numTrees = 5;
+  options.leafCovariateColumns = columns;
+  options.numLeafCovariates = 1;
+  options.activeRows = mask;
+  if (frequency) options = frequencyOptions(options);
+  ext_rng* rng = seededRng(6601u);
+  auto sampler =
+    makeSampler<Sampler<GPGaussianLeaf>>(x, y, n, p, w, options, &rng);
+  const auto& leaf = sampler->chain(0).leaf();
+  if (u != nullptr) {
+    u->resize(n);
+    for (std::size_t i = 0; i < n; ++i)
+      (*u)[i] = (x[i] - leaf.covariateMeans()[0]) / leaf.covariateSds()[0];
+  }
+  double value = leaf.lengthscales()[0];
+  ext_rng_destroy(rng);
+  return value;
+}
+
+/// The gp lengthscale under frequency with zero weights and a creation mask
+/// against the expansion's masked copies (whole counts, past the subsample),
+/// and at real counts on both sides of the subsample against the counted
+/// median computed independently over the fit's own standardized covariate.
+void testGPLengthscaleMaskedAndReal() {
+  {
+    const std::size_t n = 200;
+    Fixture f(n);
+    std::vector<double> mask(n, 1.0);
+    for (std::size_t i = 0; i < n; ++i) {
+      f.w[i] = 1.0 + std::floor(5.0 * runif01());
+      if (i % 9 == 4) f.w[i] = 0.0;
+      if (i % 4 == 1) mask[i] = 0.0;
+    }
+    Expansion e(f, f.w);
+    std::vector<double> maskE = expanded(e, mask);
+    double weighted = gpLengthscale(f.x.data(), f.y.data(), n, f.p, f.w.data(),
+                                    mask.data(), true, nullptr);
+    double expansion = gpLengthscale(e.x.data(), e.y.data(), e.n, f.p, nullptr,
+                                     maskE.data(), false, nullptr);
+    printf("  gp lengthscale, zero weights and a mask (%zu written out): %.6f "
+           "against %.6f\n",
+           e.n, weighted, expansion);
+    check(relativeGap(weighted, expansion) < 1e-12,
+          "frequency gp lengthscale with zero weights and a mask is the "
+          "expansion's masked copies'");
+  }
+  for (std::size_t n : {std::size_t(80), std::size_t(300)}) {
+    Fixture f(n);
+    std::vector<double> mask(n, 1.0);
+    for (std::size_t i = 0; i < n; ++i) {
+      f.w[i] = 0.3 + 6.7 * runif01();
+      if (i % 5 == 2) mask[i] = 0.0;
+    }
+    std::vector<double> u;
+    double value = gpLengthscale(f.x.data(), f.y.data(), n, f.p, f.w.data(),
+                                 mask.data(), true, &u);
+    double reference = referenceCountedMedian(u, f.w, mask);
+    std::string label = std::string("frequency gp lengthscale at real counts "
+                                    "is the counted median, ") +
+                        (n == 80 ? "stride 1" : "stride above 1");
+    check(relativeGap(value, reference) < 1e-12, label.c_str());
+  }
+}
+
+/// A gaussian two-forest fit whose rows in hold one response value while
+/// the rows of weight 0 vary: the response's range falls back to every row,
+/// and under frequency the basis scale and the anchor read every row at its
+/// count, the expansion's every row.
+void testGaussianFallbackWeighted() {
+  const std::size_t n = 40;
+  Fixture f(n);
+  std::vector<double> dose(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    f.w[i] = i % 4 == 1 ? 0.0 : 1.0 + std::floor(4.0 * runif01());
+    f.y[i] = f.w[i] == 0.0 ? 3.0 * runif01() : 0.7;
+    dose[i] = 0.5 + runif01() * (i % 3 == 0 ? 3.0 : 1.0);
+  }
+  Expansion e(f, f.w, &dose);
+  auto spec = [](const double* basis) {
+    AmplitudeSpec s;
+    s.forests.resize(2);
+    s.forests[0].forest.numTrees = 15;
+    s.forests[1].forest.numTrees = 10;
+    s.forests[1].kind = ForestKind::numeric;
+    s.forests[1].basis = basis;
+    return s;
+  };
+  SamplerOptions options;
+  ext_rng* rngW = seededRng(9901u);
+  ext_rng* rngE = seededRng(9901u);
+  ConstantLeafSampler weighted(f.x.data(), f.y.data(), n, f.p, f.w.data(),
+                               nullptr, 1.0, sigmaDf, sigmaRawScale,
+                               frequencyOptions(options), spec(dose.data()),
+                               &rngW);
+  ConstantLeafSampler expansion(e.x.data(), e.y.data(), e.n, f.p, nullptr,
+                                nullptr, 1.0, sigmaDf, sigmaRawScale, options,
+                                spec(e.extra.data()), &rngE);
+  ForestCalibration cw = weighted.forestCalibration(0, 1),
+                    ce = expansion.forestCalibration(0, 1);
+  check(relativeGap(cw.basisScale, ce.basisScale) < 1e-14,
+        "frequency gaussian basis scale where the rows in hold one value is "
+        "the expansion's");
+  check(relativeGap(cw.mapAnchor, ce.mapAnchor) < 1e-14,
+        "frequency gaussian anchor where the rows in hold one value is the "
+        "expansion's");
+  ext_rng_destroy(rngW);
+  ext_rng_destroy(rngE);
+}
+
 }  // namespace
 
 void runFrequencyTests() {
@@ -1018,5 +1209,7 @@ void runFrequencyTests() {
   testStudentSetWeights();
   testRowOutIsInert();
   testGPLengthscale();
+  testGPLengthscaleMaskedAndReal();
+  testGaussianFallbackWeighted();
   rngState = savedState;
 }
