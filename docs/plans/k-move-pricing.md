@@ -16,8 +16,8 @@ window: after the k study, before 1.0-0 (dec-B530). Engine slices stay serial.
 budget: step 0, the move's own diff (about 300 engine lines, 950 of tests/cpp, 290 of tinytest, 255 of its
 exact gate) replayed onto main less the probit half, plus the conflict work below and about 250 lines of
 tests/cpp rewritten for the move's new placement; the pricing harness about 1,000 lines of R, most of it reused
-from the k study's. Compute about 33 core-hours expected through step 2, about 39 with step 3, 52 at most with
-every contingent arm, stop at 55 ([Sizing and stops](#sizing-and-stops)).
+from the k study's. Compute about 37 core-hours expected through step 2, about 43 with step 3, 56 at most with
+every contingent arm, stop at 60 ([Sizing and stops](#sizing-and-stops)).
 
 ## Goal
 
@@ -335,13 +335,14 @@ the point call 4 turns on.
    ([Bars and where they come from](binary-k-mixing-need.md#bars-and-where-they-come-from)).
 2. **No harm.** For every regime of A and B and every class, under each weighting, the worsening d(move) minus
    d(shipped at equal time) is *harmless* when its upper bound at one-sided 0.025 a look is below 0.02 for the
-   row classes, individual effects and subgroups (the house's noticeable difference, the k study's one bar), and
-   below 0.035 for bands. *Harm* is shown when the worsening is at least that bar with its lower bound above 0 at
-   z 2.81. One-value estimands (average effects, ratios) are read for shown harm only, as dec-B533 reads them on
-   calibration. The ratios of root-mean-square error and interval score, move over shipped, are harmless when
-   their upper bound is below 1.02. R2's held-out log score (20 splits a dataset, 80 to 20) is harmless when the
-   upper bound of its worsening is below 0.01 nats a row, September's noticeable log score
-   ([The default for now](binary-hyperprior.md#the-default-for-now)). The move is on only when every class is
+   row classes, individual effects and subgroups (the house's noticeable difference, the k study's one bar).
+   *Harm* is shown when the worsening is at least that bar with its lower bound above 0 at z 2.81. One-value
+   estimands (average effects, ratios) are read for shown harm only, as dec-B533 reads them on calibration.
+   Bands are one value a replication and are read for shown harm only, their bounds reported, as the one-value
+   estimands are; their bar is 0.035 (call 10). The ratios of root-mean-square error and interval score, move
+   over shipped, are harmless when their upper bound is below 1.02. R2's held-out log score (20 splits a dataset,
+   80 to 20) is harmless when the upper bound of its worsening is below 0.01 nats a row, September's noticeable
+   log score ([The default for now](binary-hyperprior.md#the-default-for-now)). The move is on only when every class is
    harmless or improves. Any class unresolved at full counts goes to the maintainer with the counts. This is the
    burden the binary interval study put on its guards: a class passes on a bound shown, never on a harm not seen
    ([Decision rule](binary-interval-study.md#decision-rule)).
@@ -359,8 +360,16 @@ the point call 4 turns on.
   trigger can only fire where the move gains, and step 4 goes to the maintainer with the recommendation to park
   the move.
 - Gain, no harm shown, but a class unresolved at full counts: the maintainer decides, with the counts each
-  unresolved class would need ([Sizing and stops](#sizing-and-stops)). Bands in B are expected here. Step 3 is
-  fitted meanwhile if the cost bar fails.
+  unresolved class would need ([Sizing and stops](#sizing-and-stops)). Step 3 is fitted meanwhile if the cost
+  bar fails.
+
+**Expected reading, written before any fit.** At the planned counts some classes resolve with probability 0.9 or
+less even at a true difference of 0 (the audit in [Sizing and stops](#sizing-and-stops)). If the move improves
+A's problem cells as the k study's stored fits predict, about 2 classes are expected unresolved, all in S3 and B,
+and about 5 if B's near-0-or-1 spreads sit at 0.2 rather than the 0.09 assumed; the chance that every class
+resolves is about 0.08 at best. If the move changes nothing anywhere, about 5 to 8 are expected unresolved. So
+step 2 will most likely reach the maintainer with counts, whatever the move does, and the reading says which
+classes and what each would need.
 
 **Read beside the rule, deciding nothing**: the burn-in-only arm on every class (its gain against the move's
 says how much of the harm is the start, which the k study left open); effective draws per second of the row
@@ -394,7 +403,8 @@ and the union of one of each. A replication's gain is d(shipped at equal time) m
 For each candidate the gain is pooled over the replications it fires on and, apart, over those it spares, so
 noise in single replications cancels rather than being truncated into gain. The trigger is the candidate that
 fires on the fewest of B's fits while the upper bound on pooled gain over its spared set is below 0.02 in every A
-cell; the single-feature form takes a tie. The k study's 0.8 was chosen after its data and is not carried over.
+cell, an empty spared set meeting the condition; the single-feature form takes a tie. The k study's 0.8 was
+chosen after its data and is not carried over.
 
 **Test on R3.** For each of the 12 datasets: a long run of 8 chains of each library, 5,000 sweeps of burn-in and
 20,000 recorded at thin 20, as the k study's references ran; then 20 default-length fits of each library.
@@ -429,8 +439,13 @@ Per-fit seconds are the k study's for a shipped logistic default fit on the box 
 replication). A step 2 replication costs about 3.3 shipped fits (equal time, the move, burn-in-only at r near
 1.1), plus 20 percent for scoring and start-up and 15 percent for shared memory bandwidth. Spreads are the k
 study's per replication, of the paired difference in distance from 0.90; where a regime was not in the k study
-the spread is assumed and marked. "Resolves" means harmless at a true difference of 0 with probability 0.9: the
-upper bound at one-sided 0.025 below the bar, which needs a standard error of at most the bar over 3.24.
+the spread is assumed and marked. Harmless must hold under each weighting, so each row is sized on the worse of
+the two. In the k study's problem cells the per-fit standard error of the interior ran 1.4 to 2 times the pooled
+one (near separation 0.024 against 0.012, small samples 0.007 against 0.005, the sampler loop 0.008 against
+0.005), and near 0 or 1 at most equal to it. So the interior, individual effects and subgroups are sized per fit,
+at twice the pooled spread where the ratio was not measured, and near 0 or 1 pooled. "Resolves" means harmless
+at a true difference of 0 with probability 0.9: the upper bound at one-sided 0.025 below the bar, which needs a
+standard error of at most the bar over 3.24.
 
 | component | question it serves | size (looks) | cost, core-hours | precision at full size | smallest difference that changes the call | minimum size that resolves it | sequential stop |
 |---|---|---|---|---|---|---|---|
@@ -439,15 +454,15 @@ upper bound at one-sided 0.025 below the bar, which needs a standard error of at
 | step 1 power check | can the tilted arm see the move's errors | 150, two mutant libraries | about 1 | flags or not | either mutant unflagged | 150 | none |
 | step 1 SBC | is the small-k tail right | 600 a prior, 99 draws, thin T (150, 600) | about 5 at T 200; 10 at most | the README's detection floor, checked by the mutants | half the shape of k's conditional | 600 | fail at 150 on p below alpha / 10, confirmed by a rerun |
 | step 1, third arm (contingent) | the tail away from near-determinism | 600, as above | 2.5 at T 200; 5 at most | as above | as above | 600 | as above |
-| step 2, S1 | gain, no harm | 200 (100, 200) | 0.65 | interior se 0.007 at a spread of 0.10; near 0 or 1 0.014 at 0.20 | 0.02 gain; 0.02 harm | 263 interior, 1,050 near 0 or 1, at true 0; 100 for the expected gain | first look, once resolved |
-| step 2, S2 | gain, no harm | 480 (240, 480) | 1.75 | interior se 0.006 at a spread of 0.135 | as S1 | 480 interior | as S1 |
-| step 2, S4 | gain, no harm | 200 (100, 200) | 0.3 | interior se 0.004 at a spread of 0.054 | as S1 | 77 interior | as S1 |
-| step 2, S3 | no harm at large n | 100 (50, 100) | 4.8 | interior se 0.006 at an assumed spread of 0.06 | 0.02 harm | 95 interior; 213 to 3,600 near 0 or 1 | as S1 |
-| step 2, S5 | no harm | 220 (110, 220) | 1.25 | interior se 0.003 at an assumed 0.05; near 0 or 1 0.006 at 0.09 | 0.02 harm; 0.035 on bands | 213 near 0 or 1; 770 to 1,050 bands | as S1 |
-| step 2, S6 | no harm | 220 (110, 220) | 0.6 | interior se 0.003 at 0.043; near 0 or 1 0.006 at 0.09 | as S5 | as S5 | as S1 |
-| step 2, S7 | no harm on effects | 200 (100, 200) | 3.5 | individual effects se 0.004 at an assumed 0.05; near 0 or 1 0.006 at 0.09 | as S5 | 66 effects; 213 near 0 or 1; bands as S5 | as S1 |
-| step 2, S8 | no harm on effects | 200 (100, 200) | 4.0 | individual effects se 0.004 at 0.053 | as S5 | 77 effects; otherwise as S7 | as S1 |
-| step 2, E3 | no harm in a loop | 220 (110, 220) | 1.7 | as S5, assumed | as S5 | as S5 | as S1 |
+| step 2, S1 | gain, no harm | 200 (100, 200) | 0.65 | per fit, interior se 0.014 at a spread of 0.20; near 0 or 1, pooled, 0.014 at 0.20 | 0.02 gain; 0.02 harm | 1,050 for each at true 0; 100 for the expected gain | first look, once resolved |
+| step 2, S2 | gain, no harm | 480 (240, 480) | 1.75 | per fit, interior se 0.010 at 0.22 (measured; pooled 0.135) | as S1 | 1,280 interior at true 0; 480 at the expected improvement | as S1 |
+| step 2, S4 | gain, no harm | 200 (100, 200) | 0.3 | per fit, interior se 0.005 at 0.076 (1.4 times pooled) | as S1 | 152 interior | as S1 |
+| step 2, S3 | no harm at large n | 100 (50, 100) | 4.8 | per fit, interior se 0.012 at an assumed 0.12 | 0.02 harm | 380 interior; 213 to 3,600 near 0 or 1 | as S1 |
+| step 2, S5 | no harm | 270 (135, 270) | 1.55 | per fit, interior se 0.006 at an assumed 0.10; near 0 or 1, pooled, 0.005 at 0.09 | 0.02 harm; bands 0.035, shown harm only | 263 interior; 213 near 0 or 1 | as S1 |
+| step 2, S6 | no harm | 220 (110, 220) | 0.6 | per fit, interior se 0.006 at 0.086; near 0 or 1 0.006 at 0.09 | as S5 | 195 interior; 213 near 0 or 1 | as S1 |
+| step 2, S7 | no harm on effects | 300 (150, 300) | 5.3 | per fit, individual effects, subgroups and interior se 0.006 at an assumed 0.10; near 0 or 1 0.005 at 0.09 | as S5 | 263; 213 near 0 or 1 | as S1 |
+| step 2, S8 | no harm on effects | 300 (150, 300) | 6.1 | per fit, individual effects se 0.006 at 0.106 | as S5 | 296; otherwise as S7 | as S1 |
+| step 2, E3 | no harm in a loop | 220 (110, 220) | 1.7 | per fit, interior se 0.005 at 0.08 (1.6 times pooled); near 0 or 1 as S5 | as S5 | 169 interior; 213 near 0 or 1 | as S1 |
 | step 2, R2 held-out score | no harm on real outcomes | 6 datasets, 20 splits | about 1 | log score se about 0.002 a dataset | 0.01 nats | 20 splits | none |
 | step 2, timing | r, and the cost bar | 9 regimes, 8 large cells, hazard and counts cells | about 1 as 100-sweep segments (3.5 as full fits), box idle | ratio to about 0.01 | 1.25 on a cell | 9 pairs; 10 segments | none |
 | step 2, effective draws a second | reported | 10 a regime, S1, S2, S4, S6, both libraries | 0.3 | | decides nothing | | none |
@@ -455,41 +470,46 @@ upper bound at one-sided 0.025 below the bar, which needs a standard error of at
 | step 3, R3 default fits | the default-length harm on each | 20 shipped at equal time and 20 move fits a dataset | about 1 | t bound a dataset | 0.02 | 20 | none |
 | step 4 | | | 0 | | | | |
 
-**Audit, regime by regime, at a true difference of 0.** The bars are now 0.02 for every class but bands and
-0.035 for bands, and a class passes only on a bound shown, so each count is set to resolve where it can.
-- S1: the interior resolves 81 percent of the time at 200, near 0 or 1 29 percent. Both are cells where the
-  shipped sampler's harm is known (3 to 19 points), and an improvement resolves them at the first look; at a true
-  0 they would need 263 and about 1,050. Kept at 200.
-- S2: raised from 200 to 480 (looks 240 and 480), which resolves the interior 90 percent of the time at its spread
-  of 0.135; near 0 or 1 is a gain cell, read as S1's.
-- S4: resolves at 200 (interior over 99 percent); near 0 or 1 is a gain cell.
-- S3: the interior resolves 92 percent of the time at 100. Near 0 or 1, at spreads from 0.09 to 0.37, it would
-  need 213 to 3,600, which is 5 to 170 more core-hours; at 100 it resolves only through improvement, the
-  expected outcome for rare outcomes, and otherwise goes to the maintainer with its count.
-- S5, S6, E3: raised from 100 (S6 from 200) to 220 (looks 110 and 220), which resolves the interior over 99
-  percent of the time and near 0 or 1 91 percent at a spread of 0.09.
-- S7, S8: raised from 100 to 200 (looks 100 and 200); individual effects and subgroups resolve over 99 percent of
-  the time, near 0 or 1 88 percent at 0.09.
-- Bands in B, at spreads of 0.3 to 0.35, resolve at 220 only 32 to 41 percent of the time; resolving them at
-  90 percent needs 770 to 1,050 a regime, about 30 to 45 core-hours more over B. They are not sized to resolve:
-  an unresolved band goes to the maintainer with its count, as step 2's reading says.
+**Audit, regime by regime, at a true difference of 0, on the worse weighting.** The bar is 0.02 for every class
+read for harmlessness, and a class passes only on a bound shown, so each count is set to resolve where it can.
+- S1: the interior and near 0 or 1 each resolve 29 percent of the time at 200. Both are cells where the shipped
+  sampler's harm is known (3 to 19 points), and an improvement resolves them at the first look; at a true 0 each
+  would need about 1,050. Kept at 200.
+- S2: at 480 the interior resolves 90 percent of the time pooled but 51 percent per fit, at a measured per-fit
+  spread of 0.22. Per fit the k study's stored fits have the shipped sampler 4.6 points under and the move 3.0
+  over, an improvement of about 0.016 in distance, at which 480 resolves 95 percent of the time; at a true 0 it
+  would need about 1,280, 3 core-hours more. Kept at 480; near 0 or 1 is a gain cell, read as S1's.
+- S4: resolves at 200 (interior 96 percent per fit); near 0 or 1 is a gain cell.
+- S3: the interior resolves 38 percent of the time per fit at 100 (92 percent pooled); it would need about 380,
+  13 core-hours more. Near 0 or 1, at spreads from 0.09 to 0.37, it would need 213 to 3,600, which is 5 to 170 more
+  core-hours. Kept at 100: S3 resolves only through improvement, and otherwise goes to the maintainer with its
+  counts.
+- S5: raised from 220 to 270 (looks 135 and 270), which resolves the interior 91 percent of the time per fit and
+  near 0 or 1 95 percent at 0.09.
+- S6 and E3: 220 resolves the interior 93 and 96 percent per fit, near 0 or 1 91 percent at 0.09. Unchanged.
+- S7, S8: raised from 200 to 300 (looks 150 and 300); individual effects, subgroups and the interior resolve 93
+  and 90 percent per fit, near 0 or 1 97 percent at 0.09.
+- B's near-0-or-1 spreads are taken at 0.09, the low end of the k study's 0.09 to 0.37. At 0.2 they would resolve
+  about a third of the time at these counts.
+- Bands are read for shown harm only (rule 2). Resolving them instead, at spreads of 0.3 to 0.35, would need 770
+  to 1,050 a regime, about 30 to 45 core-hours more over B (call 10).
 - Showing a true harm of exactly 0.02 at 90 percent power needs about 420 at a spread of 0.10 and 1,700 at 0.20;
   under this rule a true harm that is not shown still leaves the class unresolved, so the move does not turn on
   by it.
-- The spreads for S3, S5, S7 and E3 are assumed. If a first look's standard error exceeds 1.5 times the planned
-  value, power is restated before going on (step 2's stop).
+- The spreads for S3, S5, S7 and E3, and every per-fit factor of 2, are assumed. If a first look's standard error
+  exceeds 1.5 times the planned value, power is restated before going on (step 2's stop).
 
-**Totals.** About 33 core-hours expected through step 2: step 0 about 5, step 1 about 7, step 2 about 21, about 12
-of it if the regimes stop at their first look. About 39 with step 3. 52 at most, with step 1 at its longest thin,
+**Totals.** About 37 core-hours expected through step 2: step 0 about 5, step 1 about 7, step 2 about 25, about 14
+of it if the regimes stop at their first look. About 43 with step 3. 56 at most, with step 1 at its longest thin,
 its third arm, and the timing run as full fits. That is within dec-B530's rough guess of tens of core-hours, mostly
 step 2. Against the plan before its critique (25 expected, 30 with step 3, 38 at most), step 2's regimes grew from
-12 to 19 core-hours under the shown-bound rule (S2 to 480, B's regimes to 200 or 220), and step 1 gained the
-power check (1) and the contingent arm (up to 5), step 3 its default-length fits (1). The stop is 55, about 1.4
-times the expected total with step 3. Under it, cuts go in this order: the contingent arm's thin to its pilot's
-T, S3 to its first look, the other step 2 regimes to their first looks, R3 to its first 8 datasets in score
-order. A smaller design, B at 100 a regime and S2 at 200 (about 7 core-hours less), would resolve B's near-0-or-1
-classes at a true 0 only about 60 percent of the time and S2's interior 55 percent, so more classes would reach
-the maintainer unresolved instead of deciding.
+12 to 23 core-hours under the shown-bound rule sized on the worse weighting (S2 to 480, S5 to 270, S7 and S8 to
+300, S6 and E3 to 220), and step 1 gained the power check (1) and the contingent arm (up to 5), step 3 its
+default-length fits (1). The stop is 60, about 1.4 times the expected total with step 3. Under it, cuts go in this
+order: the contingent arm's thin to its pilot's T, S3 to its first look, the other step 2 regimes to their first
+looks, R3 to its first 8 datasets in score order. A smaller design, B at 100 a regime and S2 at 200 (about 11
+core-hours less), would resolve B's classes at a true 0 only about 50 to 60 percent of the time and S2's interior
+per fit 25 percent, so more classes would reach the maintainer unresolved instead of deciding.
 
 Where it runs: every timing and every fit of steps 1 to 3 on the bench box, at most four jobs at once, the box
 idle for timing ([The x86 leg](../../benchmarks/README.md#the-x86-leg)); step 0's gates on the laptop, with its
@@ -600,6 +620,11 @@ Each proposal recorded under TODO k-move-pricing, with what this plan does with 
 9. **Negative binomial's item.** The move's plan leaves negative binomial to its own item, and there is none.
    Options: (a) name TODO k-mixing-pg-families as that item, which already holds the Polya-Gamma families' k
    mixing (recommended); (b) open a new item. 0.9-34 had no negative binomial family.
+10. **Bands in step 2.** A band is one yes-or-no a replication, its spread of 0.30 to 0.35 about that of a
+    0.9 coverage indicator, so it cannot be bounded at the row classes' counts. Options: (a) bands are read for
+    shown harm only, their bounds reported, as the one-value estimands are (recommended); (b) bands resolved
+    as harmless like the row classes, at 770 to 1,050 replications a regime in B, about 30 to 45 core-hours more,
+    since bands are the multiple-comparisons reading you asked about. 0.9-34 had no logistic family.
 
 ## Left out
 
@@ -650,11 +675,13 @@ The blind critique of the first draft made 22 points; each is listed by its numb
 
 1. Taken. The shipped arm at equal time takes ceil(1000 r) - 500 draws after the 500 burn-in, so the move's whole
    cost is charged; the burn-in-only comparator likewise at r_b.
-2. Taken. No harm is now a bound shown: harmless when the upper bound of the worsening is below 0.02 (0.035 on
-   bands), harm when the worsening reaches the bar with its lower bound above 0, one-value estimands read for
-   shown harm only, unresolved classes to the maintainer. The sizes were re-audited at a true difference of 0
-   (S2 to 480, S5, S6 and E3 to 220, S7 and S8 to 200); bands in B and S3's near-0-or-1 class are not sized to
-   resolve and say what would.
+2. Taken. No harm is now a bound shown: harmless when the upper bound of the worsening is below 0.02, harm
+   when the worsening reaches the bar with its lower bound above 0, one-value estimands read for
+   shown harm only, unresolved classes to the maintainer. The sizes were re-audited at a true difference of 0 on
+   the worse of the two weightings (S2 to 480, S5 to 270, S6 and E3 to 220, S7 and S8 to 300); S3 is not sized to
+   resolve and says what would. On the critique's confirmation, bands became one-value readings for shown harm
+   only (call 10), the expected count of unresolved classes is stated, and an empty spared set meets step 3's
+   trigger condition.
 3. Taken. outer-step-exact and mask-redraw-exact run in full on both libraries; two placement mutants replace the
    move plan's 9 and 15.
 4. Taken. forests-blocks-equivalence on fixed seeds and the tests/cpp sharer cases, bitwise with the move off.
