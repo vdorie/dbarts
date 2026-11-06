@@ -523,6 +523,8 @@ void runMonotoneTests();
 // Allocation failures in a sweep, through the binary's replaced allocation
 // functions; own rngs, draws nothing from the runif01 stream.
 void runAllocTests();
+// its own generators; restores rngState
+void runFrequencyTests();
 void runFuzzTests(int numSeeds);
 
 #endif  // TESTS_CPP_COMMON_HPP

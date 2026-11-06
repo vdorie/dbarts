@@ -32,7 +32,7 @@ SOURCES := main.cpp assert.cpp common.cpp test_data.cpp test_tree.cpp \
            test_model.cpp test_sampler.cpp test_shape.cpp test_facade.cpp \
            test_state.cpp test_capi.cpp \
            test_ensemble.cpp test_monotone.cpp test_alloc.cpp test_fuzz.cpp \
-           test_nmath.cpp
+           test_nmath.cpp test_frequency.cpp
 OBJECTS := $(SOURCES:.cpp=.o)
 DEPS := $(SOURCES:.cpp=.d)
 

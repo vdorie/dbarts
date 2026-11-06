@@ -5,8 +5,8 @@
 //   seed-count  an integer: the mutation fuzzer's seed count (default 3)
 //   suite       a name prefix (nmath, data, tree, scan, grow, moves,
 //               interaction, model, sampler, shape, facade, state, ensemble,
-//               monotone, alloc, fuzz) selecting only that suite; both
-//               arguments may appear in either order
+//               monotone, alloc, frequency, fuzz) selecting only that suite;
+//               both arguments may appear in either order
 
 #include "common.hpp"
 
@@ -77,6 +77,8 @@ int main(int argc, char** argv) {
   if (suiteSelected(filter, "monotone")) runMonotoneTests();
   // own rngs, and draws nothing from rngState
   if (suiteSelected(filter, "alloc")) runAllocTests();
+  // its own rngs, and it restores rngState
+  if (suiteSelected(filter, "frequency")) runFrequencyTests();
 
   ext_rng_destroy(rng);
 
