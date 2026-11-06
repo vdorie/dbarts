@@ -682,6 +682,17 @@ for (df in c(1.5, 2)) {
     dfRefusal(df),
     fixed = TRUE
   )
+  # a specification builds no sampler, so the R surface refuses it alone
+  expect_error(
+    dbartsSpec(
+      dbartsData(xDf, yDf),
+      family = gaussian(sigma = chisq(df, 0.9)),
+      variance = TRUE,
+      n.trees = 5L
+    ),
+    dfRefusal(df),
+    fixed = TRUE
+  )
   expect_error(
     bart(
       xDf,
@@ -743,11 +754,25 @@ expect_error(
   new(
     "dbartsSampler",
     dfControl,
-    `slot<-`(untouched$model, "resid.prior", value = dbartsPriors$chisq(2, 0.9)),
+    `slot<-`(
+      untouched$model,
+      "resid.prior",
+      value = dbartsPriors$chisq(2, 0.9)
+    ),
     untouched$data
   ),
   dfRefusal(2),
   fixed = TRUE
 )
-rm(xDf, yDf, dfControl, dfRefusal, df, oneTree, twin, refused, untouched,
-  newModel)
+rm(
+  xDf,
+  yDf,
+  dfControl,
+  dfRefusal,
+  df,
+  oneTree,
+  twin,
+  refused,
+  untouched,
+  newModel
+)
