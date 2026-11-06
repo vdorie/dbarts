@@ -1,10 +1,12 @@
 // Allocation failures inside a sweep. The global allocation functions are
 // replaced for the whole binary: unarmed they count, armed they fail the N-th
 // allocation once. bartcore is header-only, so every engine vector allocates
-// through them. Each arm restores one chain state, fails the N-th allocation
-// of the next sweep for every N that sweep makes, and checks that the chain
-// is left whole: the totals those of the trees, a state that reads and
-// installs, and a next sweep that is finite and consistent.
+// through them. Each arm builds a fresh sampler for every N - scratch
+// capacity survives setState, so a reused one would no longer make the
+// allocations it was counted making - installs one chain state, fails the
+// N-th allocation of the step for every N that step makes, and checks that
+// the chain is left whole: the totals those of the trees, a state that reads
+// and installs, and a next sweep that is finite and consistent.
 
 #include "common.hpp"
 
