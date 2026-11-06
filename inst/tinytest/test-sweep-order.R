@@ -4,7 +4,9 @@
 # give the same draws, bit for bit: the sweep draws its latents against the
 # change and reads the family's working response and weights after that draw
 # every sweep, which a mask installed in the hook moves. And the ordinal
-# latents a run returns are drawn under the cutpoints that run records.
+# latents a run returns are drawn under the cutpoints that run records. The
+# entry refuses a result buffer of the wrong type or length, and stops a run
+# whose hook changes the number of observations or test rows.
 
 set.seed(20261105L)
 n <- 60L
@@ -99,3 +101,93 @@ for (i in seq_along(inInterval)) {
   )
 }
 expect_true(all(inInterval))
+
+# the entry writes into the caller's buffers at strides fixed when the run
+# starts: a given buffer not of its channel's type and length is refused by
+# name before anything is drawn, a test buffer included when there are no
+# test rows
+runInto <- function(sampler, results, callback = function(i) FALSE) {
+  .Call(
+    dbarts:::C_dbarts_bartcore_runWithCallback,
+    sampler$getPointer(),
+    0L,
+    4L,
+    results,
+    callback,
+    environment()
+  )
+}
+gaussian <- make(families$gaussian)
+wrong <- list(
+  sigma = numeric(3L),
+  k = integer(4L),
+  train = numeric(n * 4L - 1L),
+  test = numeric(1L),
+  varcount = numeric(2L * 4L),
+  varprobs = numeric(2L * 4L + 1L)
+)
+for (channel in names(wrong)) {
+  expect_error(
+    runInto(gaussian, wrong[channel]),
+    paste0("results$", channel, " must be a"),
+    fixed = TRUE,
+    info = channel
+  )
+}
+expect_identical(
+  gaussian$run(0L, 2L),
+  make(families$gaussian)$run(0L, 2L)
+)
+results <- list(
+  sigma = numeric(4L),
+  train = numeric(n * 4L),
+  varcount = integer(2L * 4L),
+  varprobs = numeric(2L * 4L)
+)
+expect_null(runInto(gaussian, results))
+expect_true(all(results$train != 0) && all(results$sigma > 0))
+
+# a closure that changes the number of observations, or of test rows, stops
+# the run with an error; the sampler keeps the change and runs again. One
+# that keeps both changes the data as between runs
+shapeChanged <- "the sweep callback changed the number of observations"
+x.more <- rbind(x, x[1L:5L, ])
+y.more <- c(y.continuous, y.continuous[1L:5L])
+stopAtFirst <- function(change) {
+  function(i) {
+    if (i == 1L) change()
+    FALSE
+  }
+}
+gaussian <- make(families$gaussian)
+expect_error(
+  runInto(
+    gaussian,
+    list(train = numeric(n * 4L)),
+    stopAtFirst(function() gaussian$setData(dbartsData(x.more, y.more)))
+  ),
+  shapeChanged
+)
+expect_identical(length(gaussian$run(0L, 1L)$train), n + 5L)
+gaussian <- make(families$gaussian)
+expect_error(
+  runInto(
+    gaussian,
+    list(train = numeric(n * 4L)),
+    stopAtFirst(function() gaussian$setTestPredictor(x[1L:3L, ]))
+  ),
+  shapeChanged
+)
+expect_identical(dim(gaussian$run(0L, 1L)$test), c(3L, 1L))
+gaussian <- make(families$gaussian)
+train <- numeric(n * 4L)
+expect_null(
+  runInto(
+    gaussian,
+    list(train = train),
+    stopAtFirst(function() {
+      gaussian$setData(dbartsData(x, rev(y.continuous)))
+    })
+  )
+)
+expect_true(all(is.finite(train)) && all(train != 0))

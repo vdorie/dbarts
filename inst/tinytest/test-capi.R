@@ -227,8 +227,7 @@ expect_equal(sum(CALL("capi_draw_report")$calls), 4L)
 
 # a nonzero return ABORTS the run at that draw, and the entry still returns
 # normally: no condition is raised, so the caller learns of the stop from its
-# own context and discards the results. This sampler is inconsistent with them
-# afterwards and is not reused.
+# own context and discards the results.
 CALL("capi_draw_reset", 2L)
 stopRun <- tryCatch(
   {
@@ -239,7 +238,24 @@ stopRun <- tryCatch(
 )
 expect_equal(stopRun, "returned")
 expect_equal(sum(CALL("capi_draw_report")$calls), 3L)
-rm(ptrDraw, specDraw)
+
+# the run drops the saved trees it wrote: of a full store of ten draws, a
+# run stopped at its draw 5 overwrote six, and the sampler predicts from the
+# four it left, oldest first
+CALL("capi_set_tree_storage", ptrDraw, TRUE, 10L)
+CALL("capi_draw_reset", -1L)
+invisible(CALL("capi_run", ptrDraw, 0L, 10L, FALSE, FALSE))
+predFull <- CALL("capi_predict", ptrDraw, x.test, NULL)
+expect_equal(length(predFull), 20L * 10L)
+CALL("capi_draw_reset", 5L)
+invisible(CALL("capi_run", ptrDraw, 0L, 10L, FALSE, FALSE))
+expect_equal(sum(CALL("capi_draw_report")$calls), 6L)
+expect_identical(
+  CALL("capi_predict", ptrDraw, x.test, NULL),
+  predFull[(6L * 20L + 1L):(10L * 20L)]
+)
+CALL("capi_set_draw_callback", ptrDraw, FALSE)
+rm(predFull, ptrDraw, specDraw)
 invisible(gc(FALSE))
 
 # A RAISING callback, on a fresh sampler because a run that stops mid-stream
