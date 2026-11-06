@@ -338,27 +338,42 @@ direct <- dotsFit(
   offset.test = dotsTestOffset
 )
 expect_equal(direct$offset.test, dotsTestOffset)
-viaDots <- function(fitter, ...) {
-  fitter(dotsX, dotsY, test = dotsTestX, offset = dotsOffset, ...)
-}
+viaDots <- function(fitter, ...) fitter(dotsX, dotsY, ...)
 expect_identical(
-  viaDots(dotsFit, offset.test = dotsTestOffset)$yhat.test,
+  viaDots(
+    dotsFit,
+    test = dotsTestX,
+    offset = dotsOffset,
+    offset.test = dotsTestOffset
+  )$yhat.test,
   direct$yhat.test
 )
 expect_identical(
-  viaDots(dotsOuter, offset.test = dotsTestOffset)$yhat.test,
+  viaDots(
+    dotsOuter,
+    test = dotsTestX,
+    offset = dotsOffset,
+    offset.test = dotsTestOffset
+  )$yhat.test,
   direct$yhat.test
 )
+# 'offset' in offset.test is the training offset, so the test set has as many
+# rows
 shifted <- dotsFit(
   dotsX,
   dotsY,
-  test = dotsTestX,
+  test = dotsX,
   offset = dotsOffset,
   offset.test = offset + 1
 )
-expect_equal(shifted$offset.test, dotsTestOffset + 1)
+expect_equal(shifted$offset.test, dotsOffset + 1)
 expect_identical(
-  viaDots(dotsOuter, offset.test = offset + 1)$yhat.test,
+  viaDots(
+    dotsOuter,
+    test = dotsX,
+    offset = dotsOffset,
+    offset.test = offset + 1
+  )$yhat.test,
   shifted$yhat.test
 )
 formulaDirect <- dotsFit(
@@ -370,8 +385,13 @@ formulaDirect <- dotsFit(
 )
 expect_equal(formulaDirect$offset.test, dotsTestOffset)
 expect_identical(
-  dotsOuter(y ~ a + b, data = dotsFrame, test = dotsTest, offset = o,
-    offset.test = o)$yhat.test,
+  dotsOuter(
+    y ~ a + b,
+    data = dotsFrame,
+    test = dotsTest,
+    offset = o,
+    offset.test = o
+  )$yhat.test,
   formulaDirect$yhat.test
 )
 samplerFit <- function(...) {
@@ -388,13 +408,23 @@ samplerFit <- function(...) {
   )
 }
 expect_equal(
-  samplerFit(dotsX, dotsY, test = dotsTestX, offset = dotsOffset,
-    offset.test = dotsTestOffset)$data@offset.test,
+  samplerFit(
+    dotsX,
+    dotsY,
+    test = dotsTestX,
+    offset = dotsOffset,
+    offset.test = dotsTestOffset
+  )$data@offset.test,
   dotsTestOffset
 )
 expect_equal(
-  samplerFit(y ~ a + b, dotsFrame, test = dotsTest, offset = o,
-    offset.test = o)$data@offset.test,
+  samplerFit(
+    y ~ a + b,
+    dotsFrame,
+    test = dotsTest,
+    offset = o,
+    offset.test = o
+  )$data@offset.test,
   dotsTestOffset
 )
 rm(
