@@ -76,6 +76,30 @@ for (family in c("gaussian", "student")) {
   expect_identical(a$train, b$train, info = family)
 }
 
+# a gp leaf's default lengthscale under frequency, rows at weight 0 included,
+# is the median pairwise distance over the rows written out
+wZero <- w
+wZero[c(3L, 11L, 20L)] <- 0
+rowsZero <- rep(seq_len(n), wZero)
+expect_warning(
+  dataZero <- dbarts::dbartsData(x, y, weights = wZero),
+  "left out of the likelihood"
+)
+lengthscaleOf <- function(s) {
+  s$storeState()
+  s$state[[1L]]$forests[[1L]]$leaf.lengthscales
+}
+gpPrior <- dbarts::dbartsPriors$gp(1L)
+expect_equal(
+  lengthscaleOf(sampler(dataZero, "frequency", leaf.prior = gpPrior)),
+  lengthscaleOf(sampler(
+    dbarts::dbartsData(x[rowsZero, , drop = FALSE], y[rowsZero]),
+    leaf.prior = gpPrior
+  )),
+  tolerance = 1e-12,
+  info = "a frequency gp lengthscale is the expansion's"
+)
+
 # Student-t at whole weights of 2 and 3 draws the df its expansion draws, in
 # distribution: a row's latent is the sum of its copies', and the df step's
 # per-row constant for a count above 1 is what keeps the two together
