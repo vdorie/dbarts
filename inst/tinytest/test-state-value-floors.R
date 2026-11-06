@@ -188,7 +188,11 @@ expect_identical(everywhere$state[[1L]]$dart.probabilities, rep(1 / 3, 3L))
 expect_true(all(is.finite(everywhere$run(0L, 2L)$sigma)))
 
 # ordinal cutpoints: the first 0, each above the one before, all finite
-y.ordinal <- as.double(cut(y, quantile(y, c(0, 0.3, 0.6, 1)), include.lowest = TRUE))
+y.ordinal <- as.double(cut(
+  y,
+  quantile(y, c(0, 0.3, 0.6, 1)),
+  include.lowest = TRUE
+))
 ordinal <- dbarts(
   x,
   y.ordinal,
@@ -202,8 +206,14 @@ ordinal.own <- ordinal$state
 gamma <- ordinal.own[[1L]]$thresholds
 expect_identical(length(gamma), 2L)
 expect_identical(gamma[1L], 0)
-for (thresholds in list(c(0.1, gamma[2L]), c(0, 0), c(0, -gamma[2L]),
-                        c(0, NA), c(0, Inf))) {
+broken <- list(
+  c(0.1, gamma[2L]),
+  c(0, 0),
+  c(0, -gamma[2L]),
+  c(0, NA),
+  c(0, Inf)
+)
+for (thresholds in broken) {
   edited <- ordinal.own
   edited[[1L]]$thresholds <- thresholds
   expect_error(

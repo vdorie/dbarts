@@ -155,7 +155,9 @@ x.more <- rbind(x, x[1L:5L, ])
 y.more <- c(y.continuous, y.continuous[1L:5L])
 stopAtFirst <- function(change) {
   function(i) {
-    if (i == 1L) change()
+    if (i == 1L) {
+      change()
+    }
     FALSE
   }
 }
