@@ -149,11 +149,13 @@ struct SamplerStateData {
 /// undone where an install fails all the same. leafKindMismatch: gp leaves
 /// on one side only; leafRowsMismatch: gp leaves fit to another number of
 /// rows; leafBlockMismatch: a tree's leaf block not of the size the donor's
-/// own leaves give.
+/// own leaves give; valueMismatch: a sigma, k, DART weight or concentration,
+/// or response transform no chain could run from
+/// (Chain::drawnScalarsAreValid), refused with and without force.
 enum class WarmStartResult {
   ok, declined, shapeMismatch, gridMismatch, varianceMismatch,
   varianceSlotMismatch, rebuildFailed, leafKindMismatch, leafRowsMismatch,
-  leafBlockMismatch
+  leafBlockMismatch, valueMismatch
 };
 
 /// A warm-start donor's leaves as its own blocks give them: constant with
@@ -514,19 +516,24 @@ public:
   /// thread - so it must be callable from a worker thread. A nonzero return
   /// aborts the run exactly as an interrupt does, and sets *stoppedByCallback
   /// (when non-null) so the caller can tell the two apart on a true return.
-  /// An abort leaves the sampler INCONSISTENT with the results: this call
-  /// returns before advancing the sample cursors, while storeSavedTreeRecord
-  /// has already written saved trees into the slots those cursors count, so
-  /// the caller must discard both the results and any saved trees.
   ///
-  /// An exception a chain throws (an allocation failure in a monotone order
-  /// count) stops every chain as a cancel does and leaves this call after
+  /// A run that stops early - a cancel, a hook's or observer's stop, or an
+  /// exception a chain throws - drops the saved trees it wrote: the store
+  /// keeps the earlier runs' draws it did not overwrite, in order, and the
+  /// write cursor stays where the run found it. The results filled so far
+  /// are the caller's to discard. An exception a chain throws (an allocation
+  /// failure) stops every chain as a cancel does and leaves this call after
   /// the join, on the caller's thread.
+  ///
+  /// Throws std::logic_error, changing nothing, when called while a run of
+  /// this sampler is in progress, as from inside its onSweep.
   bool run(size_t numBurnIn, size_t numSamples, Results& results,
            const std::function<bool()>& pollInterrupt = {},
            const SweepCallback& onSweep = {},
            const DrawHook& onDraw = DrawHook(),
            bool* stoppedByCallback = nullptr) {
+    if (running_)
+      throw std::logic_error("a run cannot start inside a run's sweep hook");
     size_t numChains = chains_.size();
     if (stoppedByCallback != nullptr) *stoppedByCallback = false;
     // the census covers THIS run, so a caller reading it after run() sees the
@@ -534,6 +541,27 @@ public:
     for (auto& chain : chains_) chain->resetGPFallbackTally();
     for (auto& chain : chains_) chain->resetSlowCountTally();
     for (auto& chain : chains_) chain->setSavedSlotBase(currentSampleNum_);
+    // On every exit but the completed one, the slots the run began writing,
+    // [cursor, cursor + K) mod capacity with K the most any chain began, no
+    // longer hold the draws the store counted there, and the draws that keep
+    // theirs are the newest min(R, capacity - K) behind the unmoved cursor.
+    // Read after every worker has joined: a spawn failure and a rethrown
+    // chain error both leave through here only after the join.
+    struct StoppedRunGuard {
+      Sampler& sampler;
+      bool completed = false;
+      ~StoppedRunGuard() {
+        sampler.running_ = false;
+        if (completed) return;
+        size_t capacity = sampler.savedTreeCapacity();
+        size_t begun = 0;
+        for (const auto& chain : sampler.chains_)
+          begun = std::max(begun, chain->keptDrawsThisRun());
+        size_t intact = begun >= capacity ? 0 : capacity - begun;
+        sampler.recordedDraws_ = std::min(sampler.recordedDraws_, intact);
+      }
+    } stoppedRunGuard{*this};
+    running_ = true;
     // the per-observation fits carry numReportedLocations channels per sample
     // (one everywhere but a multi-location combiner), so the per-chain slab
     // stride folds it in; L = 1 leaves the exact current chain-major stride
@@ -756,8 +784,8 @@ public:
     if (stoppedByCallback != nullptr)
       *stoppedByCallback = drawRelay.stopped.load(std::memory_order_relaxed);
 
-    // a canceled run is aborted by the caller, so skip the completion cursor
-    // advance and terminal summary that assume every requested sample landed
+    // a canceled run skips the completion cursor advance and terminal summary
+    // that assume every requested sample landed; the guard drops what it wrote
     if (canceled) return true;
 
     runningTime_ += std::chrono::duration<double>(
@@ -769,6 +797,7 @@ public:
       recordedDraws_ = recordedDraws_ + numSamples < capacity
         ? recordedDraws_ + numSamples : capacity;
     }
+    stoppedRunGuard.completed = true;
 
     if (options_.verbose) printTerminalSummary();
     return false;
@@ -1232,8 +1261,11 @@ public:
   /// A refusal - false with notClean down - is the same with and without
   /// force and leaves the sampler exactly as it was: a state of another
   /// shape, a malformed block or tree, a grid that repeats a point, latents
-  /// the family cannot hold, saved-tree blocks that name different draw
-  /// counts, a record of missable columns of another length, a live
+  /// the family cannot hold, a drawn value no chain could run from
+  /// (Chain::drawnScalarsAreValid), a generator no chain could run from
+  /// (Chain::generatorStateIsValid), ordinal cutpoints out of order,
+  /// saved-tree blocks that name different draw counts, a record of
+  /// missable columns of another length, a live
   /// threshold that is no point of the grid the state itself records, and,
   /// on a column the store holds as an ordered factor, whose grid its level
   /// count fixes, a recorded grid other than the store's. lengthscaleRefused
@@ -1375,6 +1407,10 @@ public:
         return false;
       }
     }
+    // the generators the coins below are drawn from, judged before they are
+    // read; stateIsValid judges them again
+    for (size_t c = 0; c < chains_.size(); ++c)
+      if (!chains_[c]->generatorStateIsValid(state.chains[c])) return false;
     // the directions the state was stored without, drawn on a copy of its
     // chains that stands in for them from here on. Nothing of the sampler
     // has been written and each chain's generator is back where it was, so
@@ -1503,7 +1539,12 @@ public:
   /// variance forest only where both have one: a part the donor alone has
   /// is not read, and one this sampler alone has starts as a new fit's once
   /// the donor is in (Chain::startDartFresh, Chain::startVarianceForestFresh),
-  /// neither judged. \p donorLeaves is the donor's leaf kind as its own blocks
+  /// neither judged. So do DART weights that hold 0 on a column this
+  /// sampler's forest may split on, as a forest under a column restriction
+  /// this one lacks writes them. The sigma, k, DART weights, concentration
+  /// and response transform a chain takes are held to the floors a state's
+  /// are (Chain::drawnScalarsAreValid): a donor below one is refused,
+  /// valueMismatch. \p donorLeaves is the donor's leaf kind as its own blocks
   /// give it, null for this sampler's own, and each tree's block is held to
   /// it. gp leaves go only to gp leaves on as many rows. A constant donor
   /// into linear leaves takes slopes of 0, which is clean; a linear one into
@@ -1734,9 +1775,17 @@ public:
         // one weight a predictor: installDrawnScalars copies the block whole
         if (donorDart && src.dartProbabilities.size() != data_.numPredictors)
           return WarmStartResult::shapeMismatch;
-        dst.dartProbabilities = src.dartProbabilities;
-        dst.dartAlpha = src.dartAlpha;
-        dst.dartNumUpdatesSkipped = src.dartNumUpdatesSkipped;
+        // weights a forest wrote under a column restriction this one lacks
+        // hold 0 where it may split: it starts its own, as without a donor's
+        if (donorDart &&
+            Chain<L, ResidT>::dartWeightsAreWellFormed(src.dartProbabilities) &&
+            !chains_[c]->dartWeightsCoverSplits(src.dartProbabilities)) {
+          fresh[c] |= 1;
+        } else {
+          dst.dartProbabilities = src.dartProbabilities;
+          dst.dartAlpha = src.dartAlpha;
+          dst.dartNumUpdatesSkipped = src.dartNumUpdatesSkipped;
+        }
       }
       dst.hasAmplitudes = src.hasAmplitudes;
       dst.amplitudeWidths = src.amplitudeWidths;
@@ -1778,6 +1827,9 @@ public:
         if (!scaleLeavesArePositive(dst.varianceTrees))
           return WarmStartResult::varianceMismatch;
       }
+      // the drawn scalars a state install holds to the same floors
+      if (!chains_[c]->drawnScalarsAreValid(dst))
+        return WarmStartResult::valueMismatch;
     }
 
     // the directions the donor's trees were grown without, each chain's from
@@ -3899,6 +3951,7 @@ private:
   std::vector<double> activeRows_;
   size_t recordedDraws_ = 0;     // slots written since the last reset, capped
                                  // at capacity; the extent of every read
+  bool running_ = false;         // set for the length of run()
   double runningTime_ = 0.0;     // seconds accumulated across runs
   // set when the creation build refused a predictor cell; the sampler is then
   // an empty shell its factory discards, so no chain is built over the store

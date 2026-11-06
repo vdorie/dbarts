@@ -651,8 +651,9 @@ struct DrawInfo {
 /// A host's per-draw observer, invoked once per SAVED draw on the thread that
 /// owns the chain, immediately after storeSample settles that draw; a sweep
 /// discarded as burn-in never reaches it. Returning nonzero ABORTS the run:
-/// every chain stops at its next sweep boundary and the caller discards the
-/// results and any saved trees, exactly as on the cancellation path.
+/// every chain stops at its next sweep boundary, the caller discards the
+/// results, and the run drops the saved trees it wrote, exactly as on the
+/// cancellation path (Sampler::run).
 ///
 /// It observes and must not mutate sampler state, and it must not re-enter a
 /// host whose evaluator, allocator or error mechanism is single-threaded: it
@@ -2162,8 +2163,9 @@ public:
   /// down-sets, and can stop the run in the middle of a sweep: the move puts
   /// its tree back at T0, and the fits are rebuilt from the trees, so the
   /// state is valid though the sweep's earlier trees keep their new draws. A
-  /// cancel returns true; an allocation failure in the count is rethrown
-  /// after the same rebuild.
+  /// cancel returns true. An allocation failure anywhere in a sweep is
+  /// rethrown after settleAfterAllocationFailure has made the totals those
+  /// of the trees.
   ///
   /// A Polya-Gamma latent refresh polls it too, inside its draws, and stops
   /// the sweep there: the refresh opens the sweep, so no tree of it is drawn,
@@ -2186,6 +2188,7 @@ public:
       ~CancelScope() { chain.setCancel(nullptr); }
     } scope{*this};
     setCancel(shouldCancel);
+    treeInFlight_ = noTreeInFlight;
     try {
       return runSweeps(numBurnIn, numSamples, results, progress, chainIndex,
                        shouldCancel, onSweep, onDraw);
@@ -2202,9 +2205,59 @@ public:
       rebuildTotalFitsFromTrees();
       return true;
     } catch (const std::bad_alloc&) {
-      if constexpr (NormalizedLeafModel<L>) rebuildTotalFitsFromTrees();
+      settleAfterAllocationFailure();
       throw;
     }
+  }
+
+  /// What an allocation failure out of a sweep leaves, made consistent
+  /// without allocating: the tree in flight, whose structure a move may have
+  /// changed without its obs-to-leaf map or leaf table following, has its
+  /// leaf table cover its nodes, inside the room reserveForMove made, a new
+  /// leaf at 0, and a constant leaf other than the monotone one, whose count
+  /// puts its tree back as it was, rebuilds its map at its next draw. Every
+  /// forest's totalFits is then re-summed from its trees. The tree keeps the
+  /// fits its map and table give until its next draw.
+  void settleAfterAllocationFailure() noexcept {
+    if (treeInFlight_ != noTreeInFlight) {
+      Forest<L, ResidT>& forest = forests_[forestInFlight_];
+      if constexpr (leafIsConstant && !TreeDrawLeafModel<L>) {
+        forest.leafOfStale[treeInFlight_] = 1;
+        std::vector<double>& mu = forest.muByTree[treeInFlight_];
+        size_t size = forest.trees[treeInFlight_].nodes.size();
+        if (mu.size() < size && mu.capacity() >= size) mu.resize(size, 0.0);
+      } else if constexpr (L::hasVectorParams) {
+        std::vector<double>& params = forest.paramsByTree[treeInFlight_];
+        size_t size =
+          forest.trees[treeInFlight_].nodes.size() * forest.leaf.numParams();
+        if (params.size() < size && params.capacity() >= size)
+          params.resize(size, 0.0);
+      }
+      treeInFlight_ = noTreeInFlight;
+    }
+    rebuildTotalFitsFromTrees();
+  }
+
+  /// Room, ahead of tree t's move, for the one child pair a birth adds, in
+  /// the tree's nodes, its leaf table and the scratch its leaves are listed
+  /// in, so that nothing from an accepted move to the end of the tree's draw
+  /// reallocates any of them. A vector grows at least geometrically, so the
+  /// check costs a compare where the room is there.
+  void reserveForMove(Forest<L, ResidT>& forest, size_t t) {
+    Tree& tree(forest.trees[t]);
+    size_t numNodes = tree.nodes.size() + 2;
+    reserveAtLeast(tree.nodes, numNodes);
+    reserveAtLeast(tree.bottomScratch, numNodes);
+    if constexpr (leafIsConstant)
+      reserveAtLeast(forest.muByTree[t], numNodes);
+    else if constexpr (L::hasVectorParams)
+      reserveAtLeast(forest.paramsByTree[t],
+                     numNodes * forest.leaf.numParams());
+  }
+  template <typename T>
+  static void reserveAtLeast(std::vector<T>& vector, size_t size) {
+    if (vector.capacity() < size)
+      vector.reserve(std::max(size, 2 * vector.capacity()));
   }
 
   /// Installs the run's cancel function where a sweep polls it inside a
@@ -2265,13 +2318,26 @@ public:
   }
 
   /// totalFits of every forest re-summed from its trees' cached fits, in
-  /// tree order: the state a sweep stopped part way leaves consistent. The
-  /// running residual needs nothing, since each sweep's first roll rewrites
-  /// it whole from totalFits, and the test totals are rebuilt by every
-  /// recorded sweep before they are read.
-  void rebuildTotalFitsFromTrees() {
-    if constexpr (leafIsConstant)
-      for (Forest<L, ResidT>& forest : forests_) rebuildForestTotalFits(forest);
+  /// tree order - a constant leaf's through its obs-to-leaf map, a vector or
+  /// function leaf's from its dense slab - which leaves the state a sweep
+  /// stopped part way consistent. The running residual needs nothing, since
+  /// each sweep's first roll rewrites it whole from totalFits, and the test
+  /// totals are rebuilt by every recorded sweep before they are read.
+  void rebuildTotalFitsFromTrees() noexcept {
+    for (Forest<L, ResidT>& forest : forests_) {
+      if constexpr (leafIsConstant) {
+        rebuildForestTotalFits(forest);
+      } else {
+        forest.totalFitsScale = 1.0;
+        const size_t n = data_.numObservations;
+        double* __restrict total = forest.totalFits.data();
+        std::fill(total, total + n, 0.0);
+        for (size_t t = 0; t < forest.numTrees; ++t) {
+          const double* __restrict fits = forest.treeFits.data() + t * n;
+          for (size_t i = 0; i < n; ++i) total[i] += fits[i];
+        }
+      }
+    }
   }
 
   /// One constant-leaf forest's totalFits re-summed in tree order,
@@ -2329,6 +2395,9 @@ public:
       bool record = (iteration + 1) % numThin == 0 &&
                     iteration / numThin >= numBurnIn;
       size_t sampleNum = record ? iteration / numThin - numBurnIn : 0;
+      // counted before the sweep's first draw, so a sweep that stops part way
+      // counts the ring slot it may have begun to overwrite
+      if (record && savedTreeCapacity() > 0) keptDrawsThisRun_ = sampleNum + 1;
 
       if (options_.verbose && progress != nullptr &&
           (iteration + 1) % numThin == 0 &&
@@ -2483,7 +2552,12 @@ public:
           bool stepTaken = false;
           StepType stepType = StepType::change;
           int32_t changedNode = invalidNode;
+          // an allocation failure from here to the end of the tree's draw
+          // is settled for this tree (settleAfterAllocationFailure)
+          forestInFlight_ = f;
+          treeInFlight_ = t;
           if (!structureFrozen) {
+            reserveForMove(forest, t);
             // move-census scaffolding: the record's location, nothing else
             BARTCORE_CENSUS_LOCATION(static_cast<long>(iteration),
                                      static_cast<int>(f), static_cast<int>(t));
@@ -2528,6 +2602,7 @@ public:
           // the draw writes this tree's new leaf values: the constant leaf's mu
           // table, or the dense slab
           sampleParametersAndSetFits(forest, t, treeFits, record);
+          treeInFlight_ = noTreeInFlight;
 
           // flatten while the freshly drawn parameters are live
           if (record && forest.savedTreeCapacity > 0)
@@ -3361,20 +3436,17 @@ public:
   }
 
   /// Replace every leaf parameter with a draw from the node prior and
-  /// rebuild the tree, total, and test fits to match. A constrained leaf's
-  /// draw counts its tree's order before writing any leaf, so an allocation
-  /// failure there leaves that tree and the ones after it as they were; the
-  /// totals are rebuilt from the trees before the exception goes on.
+  /// rebuild the tree, total, and test fits to match. An allocation failure
+  /// part way leaves each tree's fits as its leaf table or slab then holds
+  /// them - a constrained leaf's draw counts its tree's order before writing
+  /// any leaf - and the totals are re-summed from those before the exception
+  /// goes on.
   void sampleNodeParametersFromPrior() {
-    if constexpr (TreeDrawLeafModel<L>) {
-      try {
-        drawNodeParametersFromPrior();
-      } catch (const std::bad_alloc&) {
-        rebuildTotalFitsFromTrees();
-        throw;
-      }
-    } else {
+    try {
       drawNodeParametersFromPrior();
+    } catch (const std::bad_alloc&) {
+      rebuildTotalFitsFromTrees();
+      throw;
     }
   }
 
@@ -4448,10 +4520,17 @@ public:
     SavedTreeStore store = prepareSavedTrees(capacity);
     installSavedTrees(store);
   }
+  /// Points this run's saved-tree writes at the ring slot \p base and zeroes
+  /// keptDrawsThisRun; called once at the start of every run.
   void setSavedSlotBase(size_t base) {
     for (Forest<L, ResidT>& forest : forests_) forest.savedSlotBase = base;
     if (varianceForest_) varianceForest_->savedSlotBase = base;
+    keptDrawsThisRun_ = 0;
   }
+  /// The ring slots the current or last run has begun to write, counted from
+  /// its slot base: a kept sweep counts its slot before its first draw, so a
+  /// run that stops part way through a kept sweep counts that slot too.
+  size_t keptDrawsThisRun() const { return keptDrawsThisRun_; }
   size_t savedTreeCapacity() const { return forests_[0].savedTreeCapacity; }
   const std::vector<FlatNode>& savedTree(size_t slot, size_t t,
                                          size_t forestIndex = 0) const {
@@ -5149,6 +5228,86 @@ public:
     }
   }
 
+  /// Whether a k drawn under \p prior can be +Inf. Under an infinite scale
+  /// that is the draw's limit (ChiKHyperprior::draw), and the chain keeps it.
+  /// Under a finite one the prior's rate term bounds k^2 by 2 scale^2 times
+  /// a unit-scale gamma draw, which overflows only where scale^2 is within
+  /// 2^53 of the largest double - 2^53 standing above any gamma draw a forest
+  /// of fewer than 2^52 leaves can make.
+  static bool kDrawCanBeInfinite(const ChiKHyperprior& prior) {
+    return !(prior.scale * prior.scale <= 0x1p970);
+  }
+
+  /// The k prior forest f's draw is made under: the first sharer's for the
+  /// forests that share one total (drawSharedK), else its own.
+  const ChiKHyperprior& kPriorOf(size_t f) const {
+    return !sharers_.empty() && isSharer(f)
+      ? forests_[sharers_.front()].kHyperprior : forests_[f].kHyperprior;
+  }
+
+  /// Whether \p weights, one per predictor, could be a DART forest's split
+  /// weights: every one finite and not negative, and not all zero.
+  static bool dartWeightsAreWellFormed(const std::vector<double>& weights) {
+    bool anyPositive = false;
+    for (double weight : weights) {
+      if (!(weight >= 0.0 && std::isfinite(weight))) return false;
+      anyPositive = anyPositive || weight > 0.0;
+    }
+    return anyPositive;
+  }
+
+  /// Whether \p weights, one per predictor, are positive on every column
+  /// this chain's DART forest may split on: a zero there leaves a node whose
+  /// only splittable columns weigh nothing without a split variable to draw.
+  /// The columns its mask forbids may hold anything.
+  bool dartWeightsCoverSplits(const std::vector<double>& weights) const {
+    const std::vector<std::uint8_t>& mask = forests_[0].columnMask;
+    if (weights.size() != data_.numPredictors) return false;
+    for (size_t j = 0; j < weights.size(); ++j)
+      if ((mask.empty() || mask[j] != 0) && !(weights[j] > 0.0)) return false;
+    return true;
+  }
+
+  /// Whether the scalars of \p state that an install writes into this chain
+  /// are values it can run from, judged only where it draws them and the
+  /// state holds one (NaN is absent): sigma positive and finite; each
+  /// forest's k positive, and finite unless its prior lets a draw reach +Inf
+  /// (kDrawCanBeInfinite), as an infinite scale does; the DART split weights
+  /// well formed and positive on every column the forest may split on, and
+  /// the concentration positive and finite. The response transform it
+  /// records is finite. No state this package writes fails any of these.
+  bool drawnScalarsAreValid(const ChainStateData& state) const {
+    if (drawsSigma() && !std::isnan(state.sigma) &&
+        !(state.sigma > 0.0 && std::isfinite(state.sigma)))
+      return false;
+    for (size_t f = 0; f < forests_.size() && f < state.forests.size(); ++f) {
+      double k = state.forests[f].k;
+      if (!forests_[f].updateK || std::isnan(k)) continue;
+      if (!(k > 0.0)) return false;
+      if (!std::isfinite(k) && !kDrawCanBeInfinite(kPriorOf(f))) return false;
+    }
+    const Forest<L, ResidT>& forest = forests_[0];
+    if (forest.useDart && !state.dartProbabilities.empty()) {
+      if (!dartWeightsAreWellFormed(state.dartProbabilities) ||
+          !dartWeightsCoverSplits(state.dartProbabilities))
+        return false;
+      if (forest.dart.updateAlpha && !std::isnan(state.dartAlpha) &&
+          !(state.dartAlpha > 0.0 && std::isfinite(state.dartAlpha)))
+        return false;
+    }
+    return std::isfinite(state.fitMin) && std::isfinite(state.fitMax);
+  }
+
+  /// Whether \p state's serialized generator is one this chain's generator
+  /// can run from (ext_rng_serializedStateIsValid), judged where it is of
+  /// this chain's kind; a block of another size is not installed and is not
+  /// judged.
+  bool generatorStateIsValid(const ChainStateData& state) const {
+    return state.rngState.empty() ||
+      state.rngState.size() != ext_rng_getSerializedStateLength(rng_) ||
+      ext_rng_serializedStateIsValid(rng_, state.rngState.data());
+  }
+
   /// Whether \p state can be installed in this chain, touching nothing: its
   /// shape, its values and every tree's form, live trees built on a scratch
   /// tree against the store's current cuts.
@@ -5254,10 +5413,19 @@ public:
         !(state.residualDf > 0.0))
       return false;
     // an ordinal sampler needs its full length-(K-1) cutpoint vector; an old
-    // state, or one from another family, carries none and cannot continue
-    if (response_->carriesOrdinalThresholds() &&
-        state.ordinalThresholds.size() != response_->numOrdinalThresholds())
-      return false;
+    // state, or one from another family, carries none and cannot continue.
+    // Its values are the only kind the sampler holds: finite, the first
+    // pinned at exactly 0 and each above the one before, since the cutpoint
+    // update never proposes the first and rejects a proposal that meets a
+    // neighbor
+    if (response_->carriesOrdinalThresholds()) {
+      const std::vector<double>& gamma = state.ordinalThresholds;
+      if (gamma.size() != response_->numOrdinalThresholds()) return false;
+      if (!gamma.empty() && gamma[0] != 0.0) return false;
+      for (size_t s = 0; s < gamma.size(); ++s)
+        if (!std::isfinite(gamma[s]) || (s > 0 && !(gamma[s] > gamma[s - 1])))
+          return false;
+    }
     // an NB sampler needs its omega latents (in latents); a state from
     // another family carries none and cannot continue. The shape is judged
     // only where this sampler draws it and the state holds one - finite,
@@ -5272,6 +5440,8 @@ public:
       return false;
     if (forests_[0].useDart && !state.dartProbabilities.empty() &&
         state.dartProbabilities.size() != data_.numPredictors)
+      return false;
+    if (!drawnScalarsAreValid(state) || !generatorStateIsValid(state))
       return false;
     if (state.fitMax < state.fitMin) return false;
     // an nbinom state always carries its log-mean shift as an increasing pair;
@@ -8689,6 +8859,13 @@ private:
   // the run's cancel function, null outside a run; armRefreshCancel hands it
   // to the response and the combiner for the sweep's own draws alone
   const std::function<bool()>* refreshCancel_ = nullptr;
+  // keptDrawsThisRun's count, which Sampler::run reads to drop the slots a
+  // stopped run overwrote
+  size_t keptDrawsThisRun_ = 0;
+  // the tree a sweep is moving and drawing, noTreeInFlight outside that
+  // stretch; settleAfterAllocationFailure reads it
+  static constexpr size_t noTreeInFlight = static_cast<size_t>(-1);
+  size_t forestInFlight_ = 0, treeInFlight_ = noTreeInFlight;
 
   // One map forest: what it states, what it multiplies, a numeric column's
   // scale (NaN where none is held) with whether it was read from every row,
