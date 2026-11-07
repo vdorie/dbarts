@@ -37,8 +37,8 @@ dense factor's NA in the same rows (maintainer ruling on dec-A100, 2026-09-29).
   through [`unroutableTestColumns`](../../R/data.R) and [`testRowsMissingIn`](../../R/data.R);
   [`subsetSparseColumn`](../../R/mixedMatrix.R) under `subset`; and the sampler's `setPredictor`
   and `setTestPredictor`, which take numeric codes (NaN already means missing there) and check the
-  missing policy through [`sourceAnyNA`](../../R/utility.R), which reaches the new `anyNA` method
-  for a frame argument.
+  missing policy through `sourceAnyNA` (removed later with the data object's "error" mode), which
+  reaches the new `anyNA` method for a frame argument.
 - Consumers that do not, found by probing the installed tip:
   - [`remapSparseFactorToTrainingLevels`](../../R/utility.R) reads an NA stored code as a level
     unseen in training and refuses the test column. It also refuses a reference level unseen in
@@ -114,8 +114,8 @@ dense factor's NA in the same rows (maintainer ruling on dec-A100, 2026-09-29).
 3. Reading methods (R/sparseFactor.R, NAMESPACE).
    - `is.na`: TRUE at the stored rows whose value is NA, from the stored entries.
    - New `anyNA` S4 method, `function(x, recursive = FALSE) anyNA(x@values)`, exported in
-     `exportMethods` next to `is.na`. This is what `anyNA` on a frame, and so
-     [`sourceAnyNA`](../../R/utility.R), reaches.
+     `exportMethods` next to `is.na`. This is what `anyNA` on a frame, and so `sourceAnyNA`
+     (removed later with the data object's "error" mode), reaches.
    - `show`: the stored-entry line adds "(k missing)" when k > 0.
    - `as.character`, `as.integer`, `as.vector`, `xtfrm`, `format`, `summary`, `str`, `unique`,
      `duplicated`, `Ops`, `as.data.frame` and `c` already carry an NA code through
