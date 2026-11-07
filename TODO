@@ -122,7 +122,10 @@ items
     and fact the one-fact entries report today, with the variance
     forest (dec-B601) and the Student-t residual as fields of their
     own; the one-fact entries are removed and stan4bart's calls move to
-    it in the same landing. Built in the host-neutral engine's header
+    it in the same landing. Each forest is reported through the
+    caller's array of per-forest fact structs at a stated element
+    size, a tree count at 1.0, mirroring the sketched forest
+    description (dec-B639). Built in the host-neutral engine's header
     stage, before the freeze; its plan carries it at its next
     amendment.
   capi-unwind-protect: closed but for one arm. A host draw callback's R
