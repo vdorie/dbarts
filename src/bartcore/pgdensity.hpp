@@ -1317,10 +1317,12 @@ inline CBall GammaSumDensity::nodeExponent(double y) const {
     double aim = a * lim;
     ere -= are;
     eim -= aim;
-    r += a * lr + kU * (l1(are, aim) + l1(ere, eim));
+    // lr sums a run's terms (up to K of them): 1 + (n + 4) u for its rounding
+    r += a * lr * (1.0 + (static_cast<double>(to - from) + 4.0) * kU) + kU * (l1(are, aim) + l1(ere, eim));
     from = to;
   }
-  return CBall{ere, eim, up(r)};
+  // r sums one term per run: 1 + (n + 4) u for its rounding
+  return CBall{ere, eim, up(r * (1.0 + (static_cast<double>(n) + 4.0) * kU))};
 }
 
 inline void GammaSumDensity::lineSetup(double u, LineAgg& agg) const {
@@ -1644,7 +1646,10 @@ Enclosure logDensity(const F& fam, int level, EvalCounts* counts = nullptr) {
   if (counts) counts->nodes += N;
   dd::DD sh = dd::mul(sum, h);
   const double sHat = sh.hi + sh.lo;
-  double rRound = up(h * rad * (1.0 + 4.0 * kU) + h * ddErr * dd::kU2 + 4.0 * dd::kU2 * h * std::fabs(sum.hi) +
+  // rad and ddErr are sums of N nonnegative terms: their roundings are
+  // charged as 1 + (N + 4) u, past what up() covers
+  const double gN = 1.0 + (static_cast<double>(N) + 4.0) * kU;
+  double rRound = up(h * rad * gN + h * ddErr * dd::kU2 * gN + 4.0 * dd::kU2 * h * std::fabs(sum.hi) +
                      kU * std::fabs(sHat));
   if (!(sHat > 0.0)) return Enclosure{};
   const double epsT = std::ldexp(sHat, -s.targetBits);
@@ -1696,7 +1701,9 @@ Enclosure logDensity(const F& fam, int level, EvalCounts* counts = nullptr) {
       counts->truncationNodes += static_cast<std::size_t>(kk - N);
       counts->tailPath = 2;
     }
-    double e2 = 2.0 * h * (tot + T) * (1.0 + 4.0 * kU);
+    // tot sums up to 4e5 nonnegative terms: 1 + (n + 4) u for its rounding
+    const double gTot = 1.0 + (static_cast<double>(kk - N) + 4.0) * kU;
+    double e2 = 2.0 * h * (tot * gTot + T) * (1.0 + 4.0 * kU);
     Et = std::min(Et, e2);
   }
   if (!std::isfinite(Et)) return Enclosure{};
