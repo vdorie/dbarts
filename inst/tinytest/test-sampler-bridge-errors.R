@@ -78,6 +78,16 @@ expect_error(
   ))),
   pattern = "keepTrees requires 'n.samples'"
 )
+# while a fresh control that keeps no trees takes the sampler's draw count
+samplesBefore <- sampler$control@n.samples
+expect_false(is.na(samplesBefore))
+expect_null(sampler$setControl(dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  updateState = FALSE
+)))
+expect_identical(sampler$control@n.samples, samplesBefore)
+rm(samplesBefore)
 
 # an active-row mask is 0/1 membership: the R method refuses a fractional
 # value, and the bridge behind it refuses one below 1 as it does one above

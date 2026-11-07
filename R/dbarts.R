@@ -3105,6 +3105,11 @@ dbartsSampler <- setRefClass(
       if (newControl@keepTrees && is.na(newControl@n.samples)) {
         stop("keepTrees requires 'n.samples' to be specified")
       }
+      # a fresh control states no draw count, and the sampler keeps its own,
+      # as it keeps the copies above
+      if (is.na(newControl@n.samples)) {
+        newControl@n.samples <- control@n.samples
+      }
       newControl <- mirrorControl(newControl, model, data)
 
       # a monotone sampler is birth/death-only, as creation forces: a defaulted
