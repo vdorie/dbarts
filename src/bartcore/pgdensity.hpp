@@ -98,14 +98,26 @@ struct RBall {
 };
 
 inline double l1(double re, double im) { return std::fabs(re) + std::fabs(im); }
+namespace detail {
+/// |re + i im| times f, the components scaled by 2^600 or 2^-600 (exactly)
+/// when |re| + |im| is below 2^-500 or above 2^500, so the squares neither
+/// underflow nor overflow.
+inline double modScaled(double re, double im, double f) {
+  const double a = std::fabs(re) + std::fabs(im);
+  int e = 0;
+  if (a < 0x1p-500) e = 600;
+  else if (a > 0x1p500) e = -600;
+  if (e == 0) return std::sqrt(re * re + im * im) * f;
+  re = std::ldexp(re, e);
+  im = std::ldexp(im, e);
+  return std::ldexp(std::sqrt(re * re + im * im) * f, -e);
+}
+}  // namespace detail
+
 /// An upper bound on |re + i im| (the rounding of the sum of squares and the
 /// root is at most 2.5 u relative).
-inline double modUp(double re, double im) {
-  return std::sqrt(re * re + im * im) * (1.0 + 4.0 * kU);
-}
-inline double modDown(double re, double im) {
-  return std::sqrt(re * re + im * im) * (1.0 - 4.0 * kU);
-}
+inline double modUp(double re, double im) { return detail::modScaled(re, im, 1.0 + 4.0 * kU); }
+inline double modDown(double re, double im) { return detail::modScaled(re, im, 1.0 - 4.0 * kU); }
 
 inline CBall cadd(CBall a, CBall b) {
   double re = a.re + b.re;
@@ -141,8 +153,30 @@ inline CBall cmulReal(CBall a, RBall s) {
   return CBall{re, im, up(r)};
 }
 
-/// Quotient a / b for r_b < |m_b|; undecided otherwise.
+namespace detail {
+/// The ball times 2^e: the midpoint exactly while it stays normal, the radius
+/// rounded up.
+inline CBall scaleBall(CBall a, int e) {
+  return CBall{std::ldexp(a.re, e), std::ldexp(a.im, e), std::ldexp(a.r, e) + 0x1p-1074};
+}
+}  // namespace detail
+
+/// Quotient a / b for r_b < |m_b|; undecided otherwise. Operands whose
+/// products could underflow (an absolute loss the quotient would magnify) or
+/// overflow are first scaled by powers of two to near 1.
 inline CBall cdiv(CBall a, CBall b) {
+  const double la = l1(a.re, a.im), lb = l1(b.re, b.im);
+  const bool aOut = la > 0.0 && !(la >= 0x1p-400 && la <= 0x1p400);
+  const bool bOut = !(lb >= 0x1p-400 && lb <= 0x1p400);
+  if ((aOut || bOut) && lb > 0.0 && la < kInf && lb < kInf) {
+    int ea = 0, eb = 0;
+    if (la > 0.0) std::frexp(la, &ea);
+    std::frexp(lb, &eb);
+    CBall o = cdiv(detail::scaleBall(a, -ea), detail::scaleBall(b, -eb));
+    CBall r = detail::scaleBall(o, ea - eb);
+    r.r = up(r.r);
+    return r;
+  }
   double n = b.re * b.re + b.im * b.im;
   double re = (a.re * b.re + a.im * b.im) / n;
   double im = (a.im * b.re - a.re * b.im) / n;
