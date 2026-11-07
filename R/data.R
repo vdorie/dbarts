@@ -1073,23 +1073,31 @@ predictChannelIncomplete <- function(value, n, argument) {
 ## despite it (dec-A89): unlike a predictor, an offset or weight is never
 ## routable, so a survivor is refused outright, with the same hint
 ## refuseTestMissingness gives a predictor's.
-refuseExtraMissingness <- function(extra, naActionHint) {
+refuseExtraMissingness <- function(extra, naActionHint, labels = NULL) {
   for (name in names(extra)) {
     if (any(extra[[name]])) {
       stop(
-        "'",
-        name,
-        "' has missing values",
+        extraMissingSubject(name, labels),
+        " missing values",
         if (naActionHint) {
           paste0(
             "; use na.action = na.pass to return NA for them, or na.omit ",
             "to drop them"
           )
-        }
+        },
+        labels[[name]]$remedy
       )
     }
   }
   invisible(NULL)
+}
+
+## How a refusal names a missing 'extra' channel: "'name' has", or the
+## subject and verb 'labels' gives it, with the remedy that closes it (a
+## binomial's response columns, dec-B641).
+extraMissingSubject <- function(name, labels = NULL) {
+  subject <- labels[[name]]$subject
+  if (is.null(subject)) paste0("'", name, "' has") else subject
 }
 
 ## Joins quoted names in prose: one alone, or every name but the last
@@ -1135,7 +1143,7 @@ quotedLevelList <- function(names, max = 5L, width = 40L, comma = FALSE) {
 
 ## na.fail's refusal, naming whichever of the predictor columns and the
 ## 'extra' channels (dec-A89) carried a missing value.
-refuseNaFail <- function(x.test, x.train, extra) {
+refuseNaFail <- function(x.test, x.train, extra, labels = NULL) {
   columns <- Filter(
     function(j) any(testRowsMissingIn(x.test, j)),
     seq_len(NCOL(x.test))
@@ -1151,6 +1159,8 @@ refuseNaFail <- function(x.test, x.train, extra) {
       )
     )
   }
+  labeled <- channels[channels %in% names(labels)]
+  channels <- setdiff(channels, labeled)
   if (length(channels) > 0L) {
     parts <- c(
       parts,
@@ -1164,6 +1174,12 @@ refuseNaFail <- function(x.test, x.train, extra) {
       )
     )
   }
+  for (name in labeled) {
+    parts <- c(
+      parts,
+      paste0(extraMissingSubject(name, labels), " missing values")
+    )
+  }
   stop(paste(parts, collapse = "; "), ", which na.action = na.fail refuses")
 }
 
@@ -1174,14 +1190,16 @@ refuseNaFail <- function(x.test, x.train, extra) {
 ## na.fail refuses any of them, by name; every other function is applied to a
 ## one-column frame that is NA on the incomplete rows, as applyNaActionToXY
 ## does for the matrix interface, and whatever it keeps then meets the
-## default's refusal. Returns the logical 'keep' and whether the dropped rows
-## 'pad' back as NA, or NULL when every row is answered as it stands.
+## default's refusal; 'labels' gives a channel its own words there
+## (extraMissingSubject). Returns the logical 'keep' and whether the dropped
+## rows 'pad' back as NA, or NULL when every row is answered as it stands.
 resolvePredictRows <- function(
   na.action,
   x.test,
   x.train,
   extra = list(),
-  missing.seen = NULL
+  missing.seen = NULL,
+  labels = NULL
 ) {
   numTest <- NROW(x.test)
   extraDropped <- Reduce(`|`, extra, rep_len(FALSE, numTest))
@@ -1195,7 +1213,7 @@ resolvePredictRows <- function(
   hasNA <- sourceHasNA(x.test) || any(extraDropped)
   if (identical(na.action, stats::na.fail)) {
     if (hasNA) {
-      refuseNaFail(x.test, x.train, extra)
+      refuseNaFail(x.test, x.train, extra, labels)
     }
     return(if (numTest == 0L) list(keep = logical(0L), pad = FALSE))
   }
@@ -1213,7 +1231,7 @@ resolvePredictRows <- function(
   # the default's refusal, on the rows kept
   if (all(keep)) {
     refuseTestMissingness(x.test, x.train, naActionHint = TRUE, missing.seen)
-    refuseExtraMissingness(extra, naActionHint = TRUE)
+    refuseExtraMissingness(extra, naActionHint = TRUE, labels)
     return(NULL)
   }
   refuseTestMissingness(
@@ -1224,7 +1242,8 @@ resolvePredictRows <- function(
   )
   refuseExtraMissingness(
     lapply(extra, `[`, keep),
-    naActionHint = TRUE
+    naActionHint = TRUE,
+    labels
   )
   list(keep = keep, pad = inherits(omit, "exclude"))
 }
@@ -1254,7 +1273,8 @@ preparePredictRows <- function(
   x.train,
   na.action,
   channels = NULL,
-  missing.seen = NULL
+  missing.seen = NULL,
+  labels = NULL
 ) {
   if (missing(newdata) || is.null(newdata)) {
     stop("newdata cannot be NULL")
@@ -1274,7 +1294,8 @@ preparePredictRows <- function(
     x,
     x.train,
     extra,
-    missing.seen
+    missing.seen,
+    labels
   )
   if (is.null(resolved)) {
     return(list(x = x, newdata = newdata, n = NROW(x), keptNames = rowNames))
@@ -2394,6 +2415,21 @@ classifyResponse <- function(y) {
 ## The attribute dbarts() sets on a formula it hands the data object under a
 ## logistic family.
 binomialResponseAttr <- "dbartsBinomialResponse"
+
+## A data frame as the matrix interface's response, which no family reads:
+## the counts a binomial or multinomial response gives are a matrix, as glm
+## takes them.
+refuseDataFrameResponse <- function(y) {
+  if (is.data.frame(y)) {
+    stop(
+      "'y' is a data frame; give the response as a vector, or counts such ",
+      "as a binomial's successes and failures as a matrix, ",
+      "cbind(successes, failures) or as.matrix(y)",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
 
 refuseMultiColumnResponse <- function(y) {
   if (inherits(y, "Surv")) {
@@ -3887,6 +3923,7 @@ dbartsData <- function(
       )
     }
 
+    refuseDataFrameResponse(data)
     refuseMultiColumnResponse(data)
     coded <- codeResponse(data)
     y <- coded$y

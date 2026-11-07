@@ -68,12 +68,15 @@ binomialObserved <- function(y, type) {
   ifelse(trials > 0, y[, 1L] / pmax(trials, 1), 0)
 }
 
-# The trials new rows of a binomial fit carry (dec-B638): the fit's response
-# expression, cbind(successes, failures) as its formula wrote it, evaluated on
-# 'newdata' where newdata holds every column it names and gives two columns,
-# complete, of non-negative whole numbers; NULL otherwise, the rows then
-# drawing one trial. 'response' is the one-sided formula a fit records;
-# 'argument' names the new data in a refusal.
+# The trials new rows of a binomial fit carry (dec-B638, dec-B641): the fit's
+# response expression, cbind(successes, failures) as its formula wrote it,
+# evaluated on 'newdata' where newdata holds every column it names and gives
+# two columns of non-negative whole numbers. A row missing either count is NA,
+# its na.action's to answer as a missing weight's is; NULL where every row
+# misses one, as where newdata lacks a column, the rows then drawing one trial.
+# The columns the expression names ride along as the attribute "columns", for
+# a refusal. 'response' is the one-sided formula a fit records; 'argument'
+# names the new data in a refusal.
 binomialNewDataTrials <- function(response, newdata, argument = "newdata") {
   if (is.null(response) || is.null(newdata)) {
     return(NULL)
@@ -88,7 +91,8 @@ binomialNewDataTrials <- function(response, newdata, argument = "newdata") {
     return(NULL)
   }
   expression <- response[[2L]]
-  if (!all(all.vars(expression) %in% names(newdata))) {
+  columns <- all.vars(expression)
+  if (!all(columns %in% names(newdata))) {
     return(NULL)
   }
   value <- tryCatch(
@@ -99,15 +103,33 @@ binomialNewDataTrials <- function(response, newdata, argument = "newdata") {
     !is.matrix(value) ||
       ncol(value) != 2L ||
       nrow(value) != NROW(newdata) ||
-      !(is.numeric(value) || is.logical(value)) ||
-      anyNA(value)
+      !(is.numeric(value) || is.logical(value))
   ) {
     return(NULL)
   }
-  as.double(rowSums(validateBinomialCounts(
+  if (all(rowSums(is.na(value)) > 0L)) {
+    return(NULL)
+  }
+  trials <- as.double(rowSums(validateBinomialCounts(
     value,
     paste0("'", argument, "': ")
   )))
+  structure(trials, columns = columns)
+}
+
+# The subject and verb a refusal of a binomial's new rows missing a count
+# opens with (dec-B641): the columns its response expression reads.
+binomialTrialsMissingSubject <- function(trials) {
+  columns <- attr(trials, "columns")
+  paste0(
+    if (length(columns) > 1L) {
+      "the response columns "
+    } else {
+      "the response column "
+    },
+    quotedNameList(columns),
+    if (length(columns) > 1L) " have" else " has"
+  )
 }
 
 # a family with a residual distribution, and so the resid.scale descriptor
@@ -1391,9 +1413,11 @@ predict.bart <- function(
 
   refusePredictWeightsForm(weights)
   # a binomial's new rows carrying its successes and failures, and no weights
-  # stated, draw at those trials (dec-B638)
+  # stated, draw at those trials (dec-B638); a row missing one is answered by
+  # na.action as a missing weight is (dec-B641)
+  trials <- NULL
   if (type == "ppd" && is.null(weights) && fitIsBinomial(object)) {
-    weights <- binomialNewDataTrials(object[["trials.response"]], newdata)
+    trials <- binomialNewDataTrials(object[["trials.response"]], newdata)
   }
 
   # the fit's offset argument and offset() terms are evaluated on newdata, as
@@ -1404,20 +1428,33 @@ predict.bart <- function(
   }
   # validated once, here; the rows na.action keeps are what every arm below
   # predicts, and padPredictedRows puts them back on newdata's rows. A
-  # missing offset or weight marks its row incomplete the same way (dec-A89).
+  # missing offset or weight marks its row incomplete the same way (dec-A89),
+  # as does a binomial's missing count (dec-B641).
   rows <- preparePredictRows(
     newdata,
     object$fit$data@x,
     na.action,
-    list(offset = offset, weights = weights),
-    dataMissingSeen(object$fit$data)
+    list(offset = offset, weights = weights, trials = trials),
+    dataMissingSeen(object$fit$data),
+    labels = if (!is.null(trials)) {
+      list(
+        trials = list(
+          subject = binomialTrialsMissingSubject(trials),
+          remedy = ", or state the trials in 'weights'"
+        )
+      )
+    }
   )
   if (isTRUE(rows$placeholder)) {
     restoreSeed <- protectRandomSeed()
     on.exit(restoreSeed(), add = TRUE)
   }
   offset <- subsetPredictInput(offset, rows, "offset")
-  weights <- subsetPredictInput(weights, rows, "weights")
+  weights <- subsetPredictInput(
+    if (is.null(trials)) weights else as.double(trials),
+    rows,
+    "weights"
+  )
   if (type == "ppd" && !is.null(weights)) {
     refuseUnfitPredictiveWeights(object, weights)
   }

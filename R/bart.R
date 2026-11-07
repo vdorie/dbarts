@@ -2160,8 +2160,8 @@ withMultinomialTestWeights <- function(result, weights) {
 # What a binomial fit's new rows read their trials from (dec-B638), for the
 # packaged fit: the response expression as the formula wrote it, a one-sided
 # formula in the formula's environment, and the trials a test frame carrying
-# its columns gives, where no test weights were stated. An empty list on any
-# other fit.
+# its columns gives, where no test weights were stated; a test row missing one
+# of its counts is refused (dec-B641). An empty list on any other fit.
 binomialFitTrials <- function(sampler, formula, matchedCall, env) {
   if (
     !is.formula(formula) ||
@@ -2182,7 +2182,17 @@ binomialFitTrials <- function(sampler, formula, matchedCall, env) {
     test <- eval(matchedCall$test, env)
     trials <- binomialNewDataTrials(response, test, "test")
     if (!is.null(trials) && length(trials) == NROW(sampler$data@x.test)) {
-      result$trials.test <- trials
+      # a test row missing a count is refused before the run (dec-B641)
+      if (anyNA(trials)) {
+        stop(
+          "'test': ",
+          binomialTrialsMissingSubject(trials),
+          " missing values; state the test rows' trials as weights, or drop ",
+          "those rows from 'test'",
+          call. = FALSE
+        )
+      }
+      result$trials.test <- as.double(trials)
     }
   }
   result
