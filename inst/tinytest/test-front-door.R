@@ -752,12 +752,28 @@ expect_inherits(
 # forward it
 xtFD <- xFD[1:5, ]
 wrap3FD <- function(...) {
-  dbarts::bart(xFD, yFD, xtFD, samplerOnly = TRUE, ...)
+  dbarts::bart(
+    xFD,
+    yFD,
+    xtFD,
+    samplerOnly = TRUE,
+    n.threads = 1L,
+    verbose = FALSE,
+    ...
+  )
 }
 expect_inherits(wrap3FD(), "dbartsSampler")
-expect_inherits(do.call(wrap3FD, modernFD), "dbartsSampler")
+expect_inherits(wrap3FD(n.trees = 12L, n.chains = 1L), "dbartsSampler")
 wrapFormalsFD <- function(f, d, t, ...) {
-  dbarts::bart(f, d, t, samplerOnly = TRUE, ...)
+  dbarts::bart(
+    f,
+    d,
+    t,
+    samplerOnly = TRUE,
+    n.threads = 1L,
+    verbose = FALSE,
+    ...
+  )
 }
 expect_inherits(wrapFormalsFD(xFD, yFD, xtFD, n.trees = 12L), "dbartsSampler")
 expect_error(
