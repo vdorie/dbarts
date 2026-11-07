@@ -315,6 +315,17 @@ ordinary leaf that no likelihood term reaches: it scores 0 and its value is a
 draw from the prior, so the set of trees a chain may hold does not depend on
 the weights or the mask (docs/design/empty-leaf-veto.md).
 
+The prior draws condition on the same event. `Chain::drawTreeFromPriorOnce`
+(chain.hpp) draws one tree from the tree prior and says whether the sampler
+would hold it; `sampleTreesFromPrior` redraws a tree until it is held, and
+`Chain::sampleHyperparametersFromPrior` - the bridge's
+`bartcore_sampleHyperparametersFromPrior`, which only `samplePriorPredictive`
+calls - draws k, the family's hyperparameters and, under DART, the split
+weights with every tree, the whole redrawn, weights included, while any tree
+is refused. The weights' prior the sampler runs is the stated Dirichlet times
+the probability that every tree is held, which a redraw of one tree at fixed
+weights would leave out.
+
 Rules themselves are typed by column: ordinal rules compare a code against a
 threshold, categorical rules test a bit of a direction mask. Masks up to 63
 categories live inline in the rule's 64-bit word; wider ones store an offset
