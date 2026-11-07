@@ -1468,6 +1468,46 @@ finiteRun <- specFinite$run(0L, 2L)
 expect_true(all(is.finite(finiteRun$sigma)))
 rm(specFinite, ptrFinite, finiteRun)
 
+# a binomial sampler (the counts slot under logistic) refuses a flat response
+# on the flat conduit in $setResponse's words
+binomialControl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.samples = 2L,
+  n.burn = 0L,
+  updateState = FALSE,
+  seed = 5L
+)
+binaryFit <- dbarts(
+  x,
+  as.double(y > median(y)),
+  family = "logistic",
+  control = binomialControl,
+  n.trees = 5L
+)
+binomialData <- binaryFit$data
+binomialData@counts <- cbind(rep(1L, n), rep(2L, n))
+binomialData@y <- rep(3, n)
+ptrBinomial <- .Call(
+  dbarts:::C_dbarts_bartcore_create,
+  binomialControl,
+  binaryFit$model,
+  binomialData,
+  "logistic",
+  NULL,
+  NULL
+)
+expect_error(
+  CALL("capi_set_response", ptrBinomial, rep(1, n), FALSE),
+  paste0(
+    "dbarts_sampler_setResponse: its response is the n x 2 count pair of ",
+    "successes and failures, which a flat vector cannot express; replace it ",
+    "with $setCounts"
+  ),
+  fixed = TRUE
+)
+rm(binaryFit, binomialData, ptrBinomial)
+
 # a sampler with gp leaves that holds saved draws refuses a re-derived range
 # on both flat conduits, by an R error naming the entry and before anything is
 # read; holding the range answers 1 and leaves the saved draws as they were
