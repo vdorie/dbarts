@@ -659,6 +659,15 @@ expect_error(
   "Write it with none, as forest()",
   fixed = TRUE
 )
+# a forest naming no predictors spells its drawn form with none
+expect_error(
+  constantDoors$data(rep(3, n), sd = 2),
+  paste0(
+    "as forest(sd = 6); for a drawn coefficient, forest(sd = 6, ",
+    "amplitude = normal())"
+  ),
+  fixed = TRUE
+)
 # a stated sd is per unit of the column, so with no column it is the column's
 # size times it, whatever the column's sign, and the amplitude is written as it
 # was given
@@ -863,7 +872,10 @@ expect_error(
     weights = as.double(kept),
     control = recordControl()
   ),
-  "'s basis is constant (0 on every row in the likelihood)",
+  paste0(
+    "'s basis is 0 on every row in the likelihood, so it contributes ",
+    "nothing to a forest; drop the forest"
+  ),
   fixed = TRUE
 )
 # constant only over the rows a subset or a weight of zero leaves, sd stated

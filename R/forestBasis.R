@@ -984,6 +984,17 @@ refuseConstantBasis <- function(data, active, allRows, specs, labels) {
       next
     }
     values <- as.vector(basis)[rowsIn]
+    # a column 0 on those rows leaves the forest out of the likelihood, which
+    # no basis-free spelling restates
+    if (length(values) > 0L && all(values == 0)) {
+      stop(
+        forestName(index, labels),
+        "'s basis is 0 on every row",
+        if (!fellBack) " in the likelihood",
+        ", so it contributes nothing to a forest; drop the forest",
+        call. = FALSE
+      )
+    }
     spread <- max(abs(values))
     detail <- if (length(values) < 2L || all(values == values[1L])) {
       paste0(
@@ -1047,10 +1058,15 @@ refuseConstantBasis <- function(data, active, allRows, specs, labels) {
       if (!is.null(stated) && is.null(amplitude)) {
         paste0(
           "; for a drawn coefficient, forest(",
-          written,
-          ", sd = ",
-          format(abs(values[1L]) * stated, digits = 15L),
-          ", amplitude = normal())"
+          paste(
+            c(
+              written,
+              paste0("sd = ", format(abs(values[1L]) * stated, digits = 15L)),
+              "amplitude = normal()"
+            ),
+            collapse = ", "
+          ),
+          ")"
         )
       },
       call. = FALSE
