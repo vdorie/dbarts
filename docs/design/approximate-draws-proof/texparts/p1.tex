@@ -79,9 +79,12 @@ set from S1's timings by $|\psi|$ as well as by shape (Section~\ref{sec:changes}
 
 \textbf{Where it is not exact.} (1) Replacing an undecided decision by a fresh exact draw. (2) The step at a row
 a setter changed, when the larger sampler integrates the latents out; at a fractional shape the design reaches
-this through setData and setState, which it does not refuse (Section~\ref{sec:setters}). (3) Multinomial fits.
+this through every between-sweep setter and setState, all of which it takes as ruled (Section~\ref{sec:maint},
+Question~2), its help telling such a sampler to keep whole-number weights on the rows it changes
+(Section~\ref{sec:setters}). (3) Multinomial fits.
 (4) Choosing between the step and the sum by looking at the latent's own value. (5) A larger sampler whose step
-fits neither of the two ways defined in Section~\ref{sec:setters}.
+fits neither of the two ways defined in Section~\ref{sec:setters}. (6) An activity change at a fractional
+shape, except on the pseudo-prior extension of Section~\ref{sec:setters}.
 
 \textbf{What is not proven.} A sharp bound on how far the proposal can fall below the target, so the speed of
 convergence has no usable number. The math library's accuracy, for the engine's double-precision version (the
@@ -92,7 +95,8 @@ of the whole BART sampler from a fixed start, assumed as today.
 \textbf{Two questions for you} (Section~\ref{sec:maint}): what ``exact'' should mean once arithmetic is floating
 point (recommended: the package's existing standard, with the new density form and its lead term in
 double-double); and what setData and setState should do at fractional shapes (recommended: refuse once a chain has
-run, as the other setters are refused). \textbf{What the design must change} is in Section~\ref{sec:changes}: the
+run, as the other setters were to be refused; ruled otherwise on 2026-11-06: every setter and setState is taken at
+fractional shapes, and the help says when that is exact). \textbf{What the design must change} is in Section~\ref{sec:changes}: the
 density form and its lead term, the cache, the cost figures, the $K$ table at $|\psi|=150$ (140 to 560 terms, not
 110 to 120), the negative binomial $\psi$, the floor figure and its measurement, and the setters.
 
@@ -210,7 +214,7 @@ fits and offset with $\omega$ integrated out; $\mathit{moved}\gets(r'\neq r)$; $
   \State $b_i\gets$ the row's shape (nbinom: $y_i+r$); $\psi_i\gets$ its log-odds (nbinom: $\eta_i-\log r$)
   \If{($i\in\mathcal M$ \textbf{or} $\mathit{moved}$) \textbf{and} $b_i\in\mathbb Z$}
      \State $\omega_i\gets\mathrm{Sum}(b_i,\psi_i)$; clear $i$'s mark
-  \ElsIf{$i\in\mathcal M$} \Comment{fractional $b_i$: reached only through setData or setState}
+  \ElsIf{$i\in\mathcal M$} \Comment{fractional $b_i$: marked by a setter or setState}
      \State $\omega_i\gets\textsc{RowStep}(\omega_i,b_i,\psi_i)$; clear $i$'s mark
      \Comment{not exact under contract I if the call changed the row (Thm.~\ref{thm:setters}(c))}
   \ElsIf{$b_i>64$ \textbf{or} $b_i\notin\mathbb Z$} \Comment{dec-B590}
@@ -222,9 +226,9 @@ fits and offset with $\omega$ integrated out; $\mathit{moved}\gets(r'\neq r)$; $
 \EndFor
 \end{algorithmic}
 \end{algorithm}
-The other setters that would mark a fractional-shape row are refused, as designed. The design serves a marked
-fractional row after setData or setState by the step ``as a cold start is''; line 6 records that, and whether
-those two calls should instead be refused once a chain has run is the second question of Section~\ref{sec:maint}.
+No setter is refused at a fractional shape (the ruling on Section~\ref{sec:maint}'s second question): a marked
+fractional row, after any between-sweep setter or setState, is served by the step from its installed value; line 6
+records that, exact for a contract-C caller and not for a contract-I caller whose call changed the row.
 A cancel polled inside a row's refinement would leave that row unchanged after a time that depends on
 $\omega_i$, a choice read from $\omega_i$ (Theorem~\ref{thm:rule}); it is harmless only because a cancel ends the
 run and a later run starts from that state as from any start (Theorem~\ref{thm:starts}), but polling between rows
@@ -318,9 +322,11 @@ own $\omega_i$ keeps the row's conditional; a choice read from $\omega_i$ can br
 \item \emph{Setters.} Under contract C (the larger sampler's step conditions on $\omega$) the composite chain is
 exact with fresh draws or the step at marked rows. Under contract I (it integrates $\omega$ out and does not read
 it) it is exact with fresh draws at marked rows and not with the step at a row whose conditional changed; so the
-design's step at fractional rows after a setData or setState that changes their $(b_i,\psi_i)$ or activity is not
+design's step at fractional rows after any setter or setState that changes their $(b_i,\psi_i)$ or activity is not
 exact under contract I (a call that changes no row's conditional leaves it exact). A remedy exact for every contract-I step either is a
-fresh draw or uses the row's previous conditional. Outer steps of neither kind are not covered.
+fresh draw or uses the row's previous conditional. Outer steps of neither kind are not covered. Contract C's
+result holds for a fixed set of rows; an activity change at a fractional shape is covered only on the pseudo-prior
+extension.
 \item \emph{Starts.} Exactness needs invariance and convergence from the start used; an exact draw at the start
 is neither needed nor, with the trees at a fixed start, sufficient. The step inherits irreducibility and
 aperiodicity from today's sampler.

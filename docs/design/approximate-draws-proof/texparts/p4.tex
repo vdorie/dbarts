@@ -187,12 +187,14 @@ terms at each node and cell (item 8), adds more.
 \item \textbf{Negative binomial.} $\psi_i=\eta_i-\log r$, as the engine forms it, so a moved $r$ changes both the
 shape and the tilt; the rule (fresh where $r$ moved, the step where it stayed) stands for the whole-number grid
 (Theorem~\ref{thm:nb}). A real dispersion needs an $r$ step that reads $\omega$.
-\item \textbf{Setters.} The refusal at fractional marked rows is needed for callers that integrate the latents out
-(contract I); a caller that conditions on them (contract C) is exact with the step at marked rows
-(Theorem~\ref{thm:setters}). setData and setState mark every row and are not refused at fractional shapes; the
-design's ``served by the route as a cold start is'' is not exact for a contract-I caller that calls setData between
-sweeps with data that change a fractional row's $(b_i,\psi_i)$ or activity. Section~\ref{sec:maint}'s second question gives the options. The help of getLatents and the setters should
-say that the guarantee covers the two kinds of outer step only.
+\item \textbf{Setters.} A caller that conditions on the latents (contract C) is exact with the step at marked
+rows, for a fixed set of rows (Theorem~\ref{thm:setters}); for one that integrates them out (contract I) the step
+at a changed fractional row is not exact, and only a fresh draw, which does not exist there, would be. As ruled
+(Section~\ref{sec:maint}, Question~2), nothing is refused: every between-sweep setter and setState is taken at
+fractional shapes, its marked rows served by the step from their installed values. The help of getLatents and the
+setters should say that changing data mid-chain is exact for a contract-C caller, that a contract-I caller keeps
+whole-number weights on the rows it changes, and that the guarantee covers the two kinds of outer step only; an
+activity change at a fractional shape is covered only on the pseudo-prior extension (Section~\ref{sec:setters}).
 \item \textbf{The cancel} is polled between rows, never inside a row's refinement.
 \item \textbf{Starts.} Any starting value is valid (Theorem~\ref{thm:starts}); the design's ``a start needs no
 exact draw, only a chain that converges from it'' is right, with convergence from a fixed start assumed as today.
@@ -267,8 +269,8 @@ recommended.
 
 \textbf{Background.} When the code that runs the BART sampler inside a larger sampler changes the data between
 sweeps, the rows whose latent distribution changed are marked and redrawn from scratch at the next sweep. At a
-fractional shape (real frequency weights, dec-B568) no from-scratch draw exists, so the other setters refuse such
-a change. setData and setState are not refused; the design moves their marked fractional rows by the step from
+fractional shape (real frequency weights, dec-B568) no from-scratch draw exists, so the design refused the other
+setters at such a change. setData and setState are not refused; the design moves their marked fractional rows by the step from
 the value the row had. That is exact if the larger sampler reads the latents and conditions on them. It is not
 exact if the larger sampler integrates the latents out and calls setData between sweeps with data that change
 such a row: the step then starts from
@@ -303,6 +305,20 @@ sweep) and its tests, about twice (i).
 \textbf{Recommendation: (i) now, (iv) if a caller needs it.} (i) keeps every caller exact at no run-time cost and
 matches the other setters; (iv) is (i) refined so that only an impossible request is refused. (ii) and (iii) leave
 a silent bias.
+
+\textbf{Ruling (dec-B607, 2026-11-06).} Option (iii), extended to every setter. The maintainer: ``I like option
+(iii) because it empowers a user. [...] What's the harm in trusting the model writing and maybe including a short
+example in the docs?''; shown that (iii) by the same reasoning lifts the design's refusals at the other setters:
+``Yes, as long as there is a way of doing it correctly with the tools we have (or are cheap to build) and we can
+document it, that seems enough for me.'' The rule: at fractional shapes every between-sweep setter, and setState,
+is taken as at whole-number shapes, the rows it marks served by the step from their installed values; the help of
+the setters and of getLatents says that changing data mid-chain is exact when the larger sampler updates its own
+unknowns from their conditional given the latents, that when its update ignores them a changed row with a
+fractional weight is left with a small bias, so such a sampler keeps whole-number weights on the rows it changes,
+and that an update reading the latents while targeting the conditional without them is exact in neither case; the
+documentation carries a short example, a logistic random-intercept sampler that reads getLatents, draws the
+intercepts from their Gaussian conditional given the latents and the trees' fit, and installs them with
+setOffset.
 
 \section{Not proven}\label{sec:notproven}
 

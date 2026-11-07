@@ -302,11 +302,11 @@ does not read $\omega$ (the latents are integrated out).
 (a) Under contract C the composite chain leaves $\Pi$ invariant, with fresh draws or the step at marked rows.
 (b) Under contract I it leaves $\Pi$ invariant when every marked row is drawn fresh at the next sweep's start and
 the marks cover every row whose conditional changed. (c) Under contract I the step at a marked row whose conditional changed does not keep
-$\Pi$ in general. This includes the rows setData and setState mark when their shape is fractional: the design
+$\Pi$ in general. This includes every row a setter or setState marks when its shape is fractional: the design
 serves them by the step from the installed value, and under contract I that is the case of (c) whenever the call,
 made between sweeps of a chain, changes such a row's $(b_i,\psi_i)$ or its activity. A call that changes no row's
 conditional (the same data handed again, or a state saved under the data now installed) leaves the step exact
-(Section~\ref{sec:maint} gives the options).
+(Section~\ref{sec:maint}, Question~2, gives the options and the ruling).
 \end{theorem}
 \begin{proof}
 (a) The $\phi$ step is invariant for $\Pi$ (a move for a full conditional); the sweep is invariant for
@@ -319,6 +319,18 @@ then the rest of the sweep. (c) Toy 4 in exact arithmetic: under contract I the 
 stationary distribution $0.0154$ from $\Pi$ in $\TV$ ($\max|\Pi\widetilde P-\Pi|=0.00323$); the fresh draw and
 both variants under contract C are exact.
 \end{proof}
+
+\paragraph{Scope: a fixed set of rows.} Part (a) holds for a fixed set of rows; an activity change at a
+fractional shape is covered only on the pseudo-prior extension. When the active set is among the larger sampler's
+unknowns, $\Pi$ defines $\omega$ only at the active rows, so a move that brings row $j$ in cannot condition on
+$\omega_j$; an inactive row keeps its last $\omega_j$, stale while the trees move. On the pseudo-prior extension
+(B.~P. Carlin and S.~Chib, 1995) each inactive row carries $\omega_j\sim\PG(b_j,0)$, $b_j$ its shape when
+active, which does not depend on the trees: the tree step and the frozen $\omega_j$ leave the extension invariant,
+its marginal is $\Pi$, and an activity update from its conditional given every row's $\omega$, the stale ones
+included, is a contract-C step on it. Two independent referees proved this; their reports are beside this note. A
+row that setData adds, or a weight moved from 0 to a value the larger sampler draws, starts from a value the step
+forgets only over sweeps, and is exact under neither contract until then. At whole-number shapes a returning row
+is drawn fresh and is exact either way.
 
 \paragraph{Outer steps under neither contract.} The two contracts do not cover every step a larger sampler can
 take. A step that reads $\omega$ (in its proposal, say) but is invariant only for $\Pi(\phi\mid\theta)$, or that
@@ -349,8 +361,9 @@ $K_{\psi_1}(x,\cdot)=\PG(b,\psi_1)$ for almost every $x$: it is an exact fresh d
 \cite[Sec.~4]{wps} for non-integer shapes rests on their Conjecture 8, of which they write ``We numerically verify this is the case for $h\in[1,4]$''.
 Kernels that use $\psi_0$ exist in principle, such as the transport $x\mapsto F_{\psi_1}^{-1}(F_{\psi_0}(x))$ of
 the distribution functions, or rejection from $q$ given a certified $M^*$; neither is built. So, at fractional
-shapes, only refusing a mid-chain change keeps every contract-I caller exact; contract-C callers are exact with
-the step.
+shapes, no kernel built here keeps every contract-I caller exact after a mid-chain change; contract-C callers are
+exact with the step. The design takes every setter at fractional shapes (Section~\ref{sec:maint}, Question~2),
+and its help tells a contract-I caller to keep whole-number weights on the rows it changes.
 \end{corollary}
 \begin{proof}
 Under contract I, $\omega_i\mid(\phi,\phi',\theta)\sim\PG(b,\psi_0)$ with $\psi_0=\psi_i(\phi,\theta)$, so
@@ -449,7 +462,7 @@ first); rows independent given the trees\\
 Thm.~\ref{thm:nb} & estimated-$r$ nbinom: fresh where $r$ moved, the step where it stayed\\
 Thm.~\ref{thm:rule} & dec-B590's per-row rule\\
 Thm.~\ref{thm:setters}, Lemma~\ref{lem:complete}, Cor.~\ref{cor:frac} & marked rows, setters (setData and
-setState included), the refusal at fractional shapes, outer steps of neither kind\\
+setState included), every setter taken at fractional shapes, a fixed set of rows, outer steps of neither kind\\
 Thm.~\ref{thm:rule}, the cancel paragraph & the cancel polled between rows\\
 Thm.~\ref{thm:starts} & starting points served by the step from the installed value\\
 Thm.~\ref{thm:multi} & multinomial keeps the sum\\\bottomrule
