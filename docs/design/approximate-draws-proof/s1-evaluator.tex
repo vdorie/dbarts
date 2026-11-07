@@ -67,7 +67,9 @@ $|m_r|+|m_i|$ is below $2^{-500}$ or above $2^{500}$, so their squares neither u
 quotient scales an operand outside $[2^{-400},2^{400}]$ (in $|m_r|+|m_i|$) to near 1 by a power of two, its radius
 rounded up, before dividing; the radii's final $\mathrm{up}(r)
 =r(1+2^{-46})+2^{-1020}$ covers that for up to $2^{50}$ operations, and covers the relative rounding of the
-up to about 120 operations that form any one radius. Overflow: an infinite or NaN midpoint or radius makes the
+up to about 120 operations that form any one radius. The longer sums are charged $1+(N+4)u$ for the rounding of
+$N$ nonnegative terms: the main sum's radius (up to about 1,200 nodes), $q$'s sums over a run of terms (up to $K$)
+and over runs, and the node-by-node tail (up to $4\times10^5$ nodes). Overflow: an infinite or NaN midpoint or radius makes the
 evaluation undecided, never a wrong enclosure.
 
 \paragraph{Complex balls.} A ball is $(m,r)$, $m\in\mathbb C$, the value within $|v-m|\le r$. With $\|m\|^+$ an
@@ -266,14 +268,17 @@ The uniform is an interval $[k2^{-53},(k+1)2^{-53})$, $k=(w_12^{21})\vee\lfloor 
 Mersenne-Twister words, which is the interval containing the uniform $U$ whose binary expansion begins with those 53
 bits; the rest of $U$'s bits are never drawn, as the decision does not depend on them. With $\ell^\pm$ the
 enclosure of $\log r=\log f(y)+\log q(x)-\log f(x)-\log q(y)$: accept if $\ell^-\ge\min(0,\log^+((k+1)2^{-53}))$,
-keep if $\ell^+\le\log^-(k2^{-53})$ ($-\infty$ at $k=0$), where $\log^\pm$ are the library's $\log$ widened by $u_L$
-relative and $2^{-1000}$; otherwise refine. The enclosure's half-width is the four radii plus $4u$ times the sum of
+keep if $\ell^+\le\log^-(k2^{-53})$ ($-\infty$ at $k=0$), where $\log^\pm$ are the library's $\log$ $l$ widened by
+$c=\fl((u_L+u+2^{-98})|l|)$ and $2^{-1000}$; otherwise refine. The widening rounds outward: $|\log v|\le|l|/(1-u_L)$
+under (A2$_{\mathrm s}$), so $c$ exceeds $l$'s error by at least $(u+2^{-98}-21u^2)|l|$, and the rounding of
+$l\pm c$ is at most $u(|l|+c)\le(u+5u^2)|l|$, less than that as $2^{-98}=256u^2$. A proposal for which the K rule finds no $K$ up to $2^{20}$, or whose $b$ or $\psi$
+is not finite, is a close call before any draw. The enclosure's half-width is the four radii plus $4u$ times the sum of
 the four midpoints' magnitudes (the sum's rounding). A decision taken is the one the exact $U$ and $r$ give:
 accept means
 $r\ge U^+>U$ or $r\ge1$; keep means $r\le U^-\le U$ (a tie has probability 0). The probability that the last level
 leaves it undecided is at most the measure of $U$ whose interval meets the enclosure of $\log r$ widened by each
-threshold's slack: at most twice the half-width (the density of $\log U$ is $U\le1$), plus $2u_L|\log U|+2^{-1000}$
-on each side ($U|\log U|\le1/e$, so under $2u_L$ for both), plus the grain. That is the note's floor
+threshold's slack: at most twice the half-width (the density of $\log U$ is $U\le1$), plus $(2u_L+2u)|\log U|$ to
+first order and $2^{-1000}$ on each side ($U|\log U|\le1/e$, so at most $1.84u_L$ for both), plus the grain. That is the note's floor
 $2(2r_f+2r_q)+2^{1-53}$, $r_f,r_q$ the largest radii, with $16u(m_f+m_q)+2u_L+2^{-999}$ added, $m_f,m_q$ the
 largest $|\log f|$ and $|\log q|$; a close call keeps $x$ (the note's ``Close calls'').
 

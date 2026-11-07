@@ -60,14 +60,17 @@ step still undecided is a close call: the row keeps its value, and the call is c
 warns). The chance of a close call at a step is at most the floor, twice the enclosure's half-width (the four
 densities' radii and the sum's rounding) plus the thresholds' slack and the uniform's grain
 ([`stepFloor`](../../src/bartcore/pgdensity.hpp)); S1 measures it at the pins at most 9.6e-12, against the gate's
-2.3e-11. [`stepRow`](../../src/bartcore/pgdensity.hpp) is the one-row step.
+2.3e-11. [`stepRow`](../../src/bartcore/pgdensity.hpp) is the one-row step and
+[`decideStep`](../../src/bartcore/pgdensity.hpp) its decision. A row whose proposal the K rule cannot build (no K
+up to 2^20, as at |psi| 1e6, or a psi that is not finite) is a close call too.
 
 ## Where the step costs less than the sum
 
 The step's cost does not grow with b, the sum's does. A whole-number row takes the step only above a threshold
 b*(|psi|) at which the step measures twice the sum's speed, never below 64, and the sum otherwise; a row with a
 fractional shape always takes the step. S1 times both on one core; the threshold's dependence on |psi| goes to the
-maintainer with those timings before S2 uses it. Above |psi| 150 the sum is always used.
+maintainer with those timings before S2 uses it. Above |psi| 150 a whole-number row always takes the sum; a
+fractional row has no sum and takes the step at any |psi|.
 
 ## What each slice builds
 
