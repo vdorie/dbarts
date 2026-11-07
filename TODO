@@ -244,6 +244,13 @@ items
     avoids it. A column constant within two factors' joint categories,
     or a combination of columns, stays label-dependent; the help or
     range.info names that limit.
+  stan4bart-empty-bart-guard: in stan4bart, with the build above.
+    stan4bart(y ~ x + (1|g)), a formula with no bart() term, checks
+    ncol(bartData@x) == 0 after dbartsData to say "no bart component
+    detected"; dbartsData now refuses an empty design first, so the
+    user sees "predictors must be specified for regression tree
+    analysis". Check for an empty BART design before the call (dec-A265,
+    the fourth review's second R-surface slice, call 41).
   starting-sigma-fallback-zero-weights: where no regression is defined
     the starting sigma is sd(y - offset) over the rows of positive
     weight, unweighted (response-scale-rows). Decide whether it should

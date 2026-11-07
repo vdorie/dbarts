@@ -1,6 +1,6 @@
 # Review 4, slice S-F: the R surface, second wave
 
-Status: built and reviewed (LAND after cheap fixes); fix round 1 built (branch review4-r-surface-2).
+Status: LANDED on main 2026-11-07 (branch review4-r-surface-2).
 
 Each item is a finding of the fourth whole-repo review. RNG class: neutral. No fix changes a sampler
 draw and no C++ file is edited; ingest-02's door is S-B's. Most fixes refuse a call that failed late,
@@ -322,7 +322,10 @@ Run on arm64 macOS, at most two cores. The fix round's library was reinstalled w
   `checkDocFiles`, `checkS3methods`, `undoc`, `checkRd` on rbart.Rd), clean.
 - R floor: the added code calls nothing newer than R 4.2.0 (`startsWith`, `lengths`, `anyNA` and
   `match.call`'s `envir` are the newest, all before 3.4).
-- Consumers (bartCause, stan4bart, treatSens): no call any fix refuses or newly warns of. treatSens's
+- Consumers (bartCause, stan4bart, treatSens): no call any fix refuses or newly warns of, but one
+  message changes: stan4bart's "no bart component detected" check, made after `dbartsData` on a
+  formula with no BART term, is now reached after `dbartsData`'s own refusal of an empty design, an
+  error before and after; stan4bart's check moves ahead of the call (call 41). treatSens's
   integer setTestPredictor columns and `pdbart(X, Z, levs = , pl = FALSE)` run as before;
   stan4bart renames rngSeed before dbarts sees it; bartCause passes `combineChains` as a logical,
   filters its arguments by bart's and xbart's formals, and forwards only its caller's dots to predict.
@@ -332,3 +335,14 @@ Run on arm64 macOS, at most two cores. The fix round's library was reinstalled w
 - The engine mutants of F4 were not rebuilt; their twins are the verifier's tests, run here on the
   pristine build only.
 - Windows and threaded paths beyond the suite's own were not exercised.
+
+## Landing note
+
+Landed by fast-forward at 307d93c39 after two reviews, the second over fix round 1, and one test change of the
+orchestrator's (the weighted rbart fit keeps every draw, so a median in place of sigma's mean is caught). On the
+reviewed tip, rebased onto main, 468dc9002: the nine per-push workflows green by dispatch (R CMD check, cpp-tests,
+sanitizers, equivalence, exact-gates, lint, doc-freshness, pkgdown, revdep-smoke). The landed commit differs from it
+only by the ledger's own entries made on main meanwhile. No C++ file changed, so no x86 leg. The review's own gates on
+a shipped build: the full tinytest suite 41865 tests, 0 failed; no lints, air clean. Two mutants survive the review's
+last pass: the rbart sigma median, killed by the test change above, and bart's combineChains assignment dropped,
+which changes nothing since bart reads that flag only in `if`. The calls not put to the maintainer are dec-A265.
