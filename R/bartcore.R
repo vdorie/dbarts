@@ -599,9 +599,8 @@ codeCategoricalColumnUpdate <- function(x.train, x, column, test = FALSE) {
         "of its labels, not numbers"
       )
     }
-    labels <- as.character(value)
-    codes <- match(labels, factorLevels[[j]]) - 1L
-    unknown <- unique(labels[!is.na(labels) & is.na(codes)])
+    codes <- codeLabelsOnTable(value, factorLevels[[j]]) - 1L
+    unknown <- unique(as.character(value)[!is.na(value) & is.na(codes)])
     if (length(unknown) > 0L) {
       if (test) {
         stop(unseenLevelsMessage(

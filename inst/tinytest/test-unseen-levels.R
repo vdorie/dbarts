@@ -565,3 +565,109 @@ expect_error(
   pattern = "has a basis of 8 levels ('b1', 'b2', 'b3', 'b4', 'b5' and 3 more)",
   fixed = TRUE
 )
+
+# ---- a factor's NA level at the test doors and at setPredictor ----
+# a level is matched to a level, so a fit on an addNA() factor reads its own
+# NA level at predict, as a test set and through setTestPredictor, as
+# setData does; at setPredictor a missing label is a missing value and never
+# that level, and the string "NA" is a label like any other
+set.seed(97L)
+naLevel <- data.frame(
+  x = runif(40L),
+  f = addNA(factor(sample(c("a", "b", NA), 40L, TRUE)))
+)
+naLevel$y <- naLevel$x + as.integer(naLevel$f) + rnorm(40L, 0, 0.3)
+expect_true(anyNA(levels(naLevel$f)))
+fitNALevel <- function(test = NULL) {
+  bart(
+    y ~ x + f,
+    naLevel,
+    test = test,
+    n.trees = 10L,
+    n.burn = 10L,
+    n.samples = 10L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 6L,
+    keepTrees = TRUE,
+    verbose = FALSE
+  )
+}
+fit.na <- fitNALevel()
+expect_equal(
+  unname(colMeans(predict(fit.na, naLevel))),
+  unname(fitted(fit.na)),
+  tolerance = 1e-12
+)
+viaTest <- fitNALevel(test = naLevel)$yhat.test
+expect_equal(unname(viaTest), unname(fit.na$yhat.train), tolerance = 1e-12)
+sampler.na <- fit.na$fit$copy(TRUE)
+sampler.na$setTestPredictor(naLevel)
+expect_identical(
+  sampler.na$data@x.test[, "f"],
+  sampler.na$data@x[, "f"]
+)
+# the indicators route matches its level table the same way
+fit.naInd <- bart(
+  y ~ x + f,
+  naLevel,
+  factors = "indicators",
+  n.trees = 10L,
+  n.burn = 10L,
+  n.samples = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 6L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+expect_equal(
+  unname(colMeans(predict(fit.naInd, naLevel))),
+  unname(fitted(fit.naInd)),
+  tolerance = 1e-12
+)
+
+# at setPredictor a missing label is the missing value, not the NA level
+labels.na <- as.character(naLevel$f)
+labels.na[is.na(labels.na)] <- "a"
+labels.na[2L] <- NA
+sampler.na <- dbarts(
+  y ~ x + f,
+  naLevel,
+  control = dbartsControl(n.chains = 1L, n.threads = 1L, updateState = FALSE)
+)
+expect_true(sampler.na$setPredictor(labels.na, column = "f"))
+codes.na <- extract(sampler.na, "predictors")[, "f"]
+naLevelCode <- match(NA, levels(naLevel$f)) - 1L
+expect_true(is.na(codes.na[2L]))
+expect_false(any(codes.na == naLevelCode, na.rm = TRUE))
+# a factor's own NA level is that level
+expect_true(sampler.na$setPredictor(naLevel$f, column = "f"))
+expect_identical(
+  extract(sampler.na, "predictors")[, "f"],
+  as.double(as.integer(naLevel$f) - 1L)
+)
+# the string "NA" is a label, and this column never saw it
+withString <- naLevel
+withString$f <- as.character(withString$f)
+withString$f[is.na(withString$f)] <- "NA"
+expect_error(
+  predict(fit.na, withString),
+  pattern = "level not present in the training data: 'NA'",
+  fixed = TRUE
+)
+labels.na[2L] <- "NA"
+expect_error(sampler.na$setPredictor(labels.na, column = "f"), pattern = "'NA'")
+
+rm(
+  naLevel,
+  fitNALevel,
+  fit.na,
+  viaTest,
+  sampler.na,
+  fit.naInd,
+  labels.na,
+  codes.na,
+  naLevelCode,
+  withString
+)

@@ -317,12 +317,6 @@ items
     before the copy was made and the reload ran; a carried level grid
     setting the level count at creation would close it for ordered
     columns.
-  na-level-predictor-doors: predict and setPredictor match a factor
-    through as.character, so a predictor's NA level is refused at
-    predict as a level training never saw, and at setPredictor a
-    missing value would read as that level. setData matches it by
-    level (dec-B454); bring the other doors to it, beside dec-A210's
-    refusal of an NA level for a basis.
   k-move-pricing: after the k study lands, before 1.0-0 (dec-B530, VD
     2026-10-30: "Sure, let's try it."). Prices the collapsed move under
     logistic as a sequence, each step's rule fixed before any fit: (1)

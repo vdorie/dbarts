@@ -2054,6 +2054,20 @@ refuseNumericForFactorColumn <- function(column, name) {
   invisible(NULL)
 }
 
+## The 1-based code of each element of a factor, a character vector or a
+## sparseFactor on the level table 'table', matched by label. A factor's
+## levels are matched, so its NA level meets the table's and a missing value
+## stays missing; a character vector's missing value is a missing value,
+## never the NA level, and a sparseFactor, which has no NA level, is read as
+## its labels. A label the table lacks codes NA, which is.na(value) tells
+## from a missing value.
+codeLabelsOnTable <- function(value, table) {
+  if (is.factor(value)) {
+    return(match(levels(value), table)[as.integer(value)])
+  }
+  match(as.character(value), table, incomparables = NA)
+}
+
 ## Recode a test data.frame's factor, character, and sparseFactor columns
 ## against the training data's level tables (aligned with the training
 ## columns by name), so codes agree across the two; a sparseFactor stays
@@ -2098,14 +2112,19 @@ mapFactorColumnsToTrainingLevels <- function(
     # numbers here would read as 0-based level codes, one level off the
     # 1-based codes as.integer() gives
     refuseNumericForFactorColumn(column, name)
-    refactored <- factor(as.character(column), levels = factorLevels[[j]])
+    codes <- codeLabelsOnTable(column, factorLevels[[j]])
     # an unseen level codes to NA; a value already missing is not one, and a
     # missing value elsewhere in the column must not let one through
-    unseen <- is.na(refactored) & !is.na(column)
+    unseen <- is.na(codes) & !is.na(column)
     if (any(unseen)) {
       stop(unseenLevelsMessage(name, as.character(column)[unseen], TRUE))
     }
-    x.test[[name]] <- refactored
+    # built as it is, since factor() would drop a level that is NA
+    x.test[[name]] <- structure(
+      codes,
+      levels = factorLevels[[j]],
+      class = "factor"
+    )
   }
   x.test
 }
@@ -2134,20 +2153,22 @@ mapFactorColumnsToIndicatorLevels <- function(x.test, levelTable, drop) {
     } else {
       trainingLevels
     }
-    values <- as.character(column)
-    unseen <- unique(values[!is.na(values) & values %not_in% observed])
-    if (length(unseen) > 0L) {
+    codes <- codeLabelsOnTable(column, trainingLevels)
+    unseen <- (is.na(codes) & !is.na(column)) |
+      (!is.na(codes) & trainingLevels[codes] %not_in% observed)
+    if (any(unseen)) {
       stop(unseenLevelsMessage(
         name,
-        unseen,
+        unique(as.character(column)[unseen]),
         FALSE,
-        unused = any(unseen %in% trainingLevels)
+        unused = any(!is.na(codes[unseen]))
       ))
     }
-    x.test[[name]] <- factor(
-      values,
+    # built as it is, since factor() would drop a level that is NA
+    x.test[[name]] <- structure(
+      codes,
       levels = trainingLevels,
-      ordered = is.ordered(column)
+      class = c(if (is.ordered(column)) "ordered", "factor")
     )
   }
   x.test
@@ -2243,13 +2264,17 @@ alignContainerFactorLevels <- function(x.test, predictorNames, factorLevels) {
       if (!is.factor(column)) {
         next
       }
-      refactored <- factor(as.character(column), levels = trainingLevels)
+      codes <- codeLabelsOnTable(column, trainingLevels)
       # as in mapFactorColumnsToTrainingLevels
-      unseen <- is.na(refactored) & !is.na(column)
+      unseen <- is.na(codes) & !is.na(column)
       if (any(unseen)) {
         stop(unseenLevelsMessage(name, as.character(column)[unseen], TRUE))
       }
-      x.test$dense[[source]] <- refactored
+      x.test$dense[[source]] <- structure(
+        codes,
+        levels = trainingLevels,
+        class = "factor"
+      )
     } else {
       rank <- -source
       pointers <- x.test$sparse@p
