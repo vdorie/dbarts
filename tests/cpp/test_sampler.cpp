@@ -1175,6 +1175,10 @@ enum ObservedChannel : unsigned {
 struct ChannelCopy {
   unsigned mask = 0;
   bool maskSteady = true;
+  // each non-null channel's block, [begin, end) in bytes, at the first call,
+  // and whether every later call handed the same one
+  std::vector<std::pair<std::uintptr_t, std::uintptr_t>> blocks;
+  bool blocksSteady = true;
   size_t calls = 0;
   std::vector<double> train, test, variance, varianceTest, forestFits, glue,
     split, logLikelihood, thresholds;
@@ -1199,12 +1203,34 @@ static int channelRecorderCallback(void* context, const DrawInfo* draw) {
     (draw->logLikelihood ? seenLogLikelihood : 0u) |
     (draw->ordinalThresholds ? seenThresholds : 0u) |
     (draw->varcount ? seenVarcount : 0u);
-  if (copy.calls == 0) copy.mask = mask;
-  else if (mask != copy.mask) copy.maskSteady = false;
-  ++copy.calls;
-  if (draw->drawIndex != recorder.target) return 0;
   size_t n = draw->numObservations, nTest = draw->numTestObservations;
   size_t locations = draw->numReportedLocations;
+  std::vector<std::pair<std::uintptr_t, std::uintptr_t>> blocks;
+  auto block = [&blocks](const void* from, size_t bytes) {
+    if (from == nullptr || bytes == 0) return;
+    std::uintptr_t begin = reinterpret_cast<std::uintptr_t>(from);
+    blocks.emplace_back(begin, begin + bytes);
+  };
+  block(draw->train, n * locations * sizeof(double));
+  block(draw->test, nTest * locations * sizeof(double));
+  block(draw->varianceFits, n * sizeof(double));
+  block(draw->varianceTestFits, nTest * sizeof(double));
+  block(draw->forestFits, n * draw->numForests * sizeof(double));
+  block(draw->glue, draw->numAmplitudes * sizeof(double));
+  block(draw->splitProbabilities, draw->numPredictors * sizeof(double));
+  block(draw->logLikelihood, n * sizeof(double));
+  block(draw->ordinalThresholds, draw->numOrdinalThresholds * sizeof(double));
+  block(draw->varcount, draw->numPredictors * draw->numVariableCountForests *
+                          sizeof(std::uint32_t));
+  if (copy.calls == 0) {
+    copy.mask = mask;
+    copy.blocks = blocks;
+  } else {
+    if (mask != copy.mask) copy.maskSteady = false;
+    if (blocks != copy.blocks) copy.blocksSteady = false;
+  }
+  ++copy.calls;
+  if (draw->drawIndex != recorder.target) return 0;
   auto take = [](std::vector<double>& to, const double* from, size_t extent) {
     if (from != nullptr) to.assign(from, from + extent);
   };
@@ -1385,6 +1411,21 @@ static void testDrawCallbackCarriesEveryChannel() {
     check(masks, label("every carried channel is non-null on every call and "
                        "no other is"));
     check(values, label("each equals the stored twin's draw"));
+
+    // each chain's scratch is one block per channel, the same on every call,
+    // and no two blocks of any chain overlap
+    std::vector<std::pair<std::uintptr_t, std::uintptr_t>> every;
+    bool steady = true;
+    for (const ChannelCopy& copy : recorder.chains) {
+      steady &= copy.blocksSteady;
+      every.insert(every.end(), copy.blocks.begin(), copy.blocks.end());
+    }
+    std::sort(every.begin(), every.end());
+    bool disjoint = !every.empty();
+    for (size_t k = 1; k < every.size(); ++k)
+      disjoint &= every[k].first >= every[k - 1].second;
+    check(steady && disjoint,
+          label("each chain's scratch is its own, one block per channel"));
   }
   printf("ok: an observer receives every channel the fit carries\n");
 }
