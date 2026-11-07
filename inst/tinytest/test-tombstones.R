@@ -1090,7 +1090,8 @@ seedQuick <- list(
   n.threads = 1L,
   verbose = FALSE
 )
-for (rngSeed in list(3L, NA)) {
+# whatever the values, the two agreeing included
+for (rngSeed in list(3L, NA, 4L)) {
   expect_error(
     do.call(
       dbarts::bart,
@@ -1108,12 +1109,22 @@ expect_error(
   "'rngSeed' and 'seed' name the same seed on 'bart2'; supply 'seed' alone",
   fixed = TRUE
 )
+for (rngSeed in list(2L, 3L)) {
+  expect_error(
+    dbarts::dbartsControl(rngSeed = rngSeed, seed = 3L),
+    paste0(
+      "'rngSeed' and 'seed' name the same seed on 'dbartsControl'; supply ",
+      "'seed' alone"
+    ),
+    fixed = TRUE
+  )
+}
 expect_error(
-  dbarts::dbartsControl(rngSeed = 2L, seed = 3L),
-  paste0(
-    "'rngSeed' and 'seed' name the same seed on 'dbartsControl'; supply ",
-    "'seed' alone"
-  ),
+  suppressWarnings(do.call(
+    dbarts::bart2,
+    c(list(y ~ x, seedData, rngSeed = 3L, seed = 3L), seedQuick)
+  )),
+  "'rngSeed' and 'seed' name the same seed on 'bart2'; supply 'seed' alone",
   fixed = TRUE
 )
 expect_identical(

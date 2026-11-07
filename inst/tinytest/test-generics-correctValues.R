@@ -155,6 +155,24 @@ gaussianFit <- accessorFit(
 )
 expect_identical(sigma(gaussianFit), mean(gaussianFit$sigma))
 expect_identical(nobs(gaussianFit), 37L)
+expect_warning(
+  sigma(gaussianFit, foo = 1),
+  "extra argument 'foo' passed to sigma",
+  fixed = TRUE
+)
+expect_warning(
+  nobs(gaussianFit, foo = 1),
+  "extra argument 'foo' passed to nobs",
+  fixed = TRUE
+)
+# a Student-t fit's sigma is the scale of its t errors
+studentFit <- accessorFit(
+  y ~ a + b,
+  accessorData,
+  family = "student",
+  na.action = na.omit
+)
+expect_identical(sigma(studentFit), mean(extract(studentFit, type = "sigma")))
 probitFit <- accessorFit(z ~ a + b, accessorData, subset = 4:40, weights = w)
 expect_identical(sigma(probitFit), 1)
 expect_identical(nobs(probitFit), 37L)
@@ -193,7 +211,8 @@ rm(
   probitFit,
   matrixFit,
   hurdleFit,
-  ordinalFit
+  ordinalFit,
+  studentFit
 )
 
 rm(testData)
