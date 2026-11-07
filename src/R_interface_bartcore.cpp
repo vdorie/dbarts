@@ -10688,7 +10688,8 @@ bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
     case bartcore::WarmStartResult::valueMismatch:
       Rf_error("warm-start donor holds a value this sampler cannot run from: "
                "sigma must be positive and finite, k positive and finite "
-               "unless its prior's scale is infinite, the DART split weights "
+               "(0 allowed where its prior's squared scale is below 2^-960, "
+               "infinite where it is above 2^970), the DART split weights "
                "finite, not negative and not all zero, the DART "
                "concentration positive and finite, and the response "
                "transform finite; nothing was installed");
