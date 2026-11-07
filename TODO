@@ -191,6 +191,13 @@ items
     (its model frame carries both). 0.9-34 refused too. Found by the
     hurdle-completion critique (2026-11-03); that plan's hurdle arm
     follows dec-A89 on its own matrix route, the other families do not.
+  flags-take-numbers: dec-B643. Every TRUE/FALSE argument of the
+    package's functions and sampler methods takes a single logical or
+    number, read as as.logical reads it, and refuses NA, a string or
+    another length by name: updateState (keeping NULL for the control
+    and dec-B138's NA warning), setState's forceUpdate, installTrees
+    and any other check that refuses a number today, read through
+    checkFlag. About 15 lines and tests; a fix after landing, light.
   gp-followups: sampled lengthscales and low-rank kernels; gp() takes a
     fixed positive numeric lengthscale today. Sampling one needs a
     theta prior, per-sample theta channels in the state and flatten
