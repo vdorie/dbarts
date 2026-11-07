@@ -152,20 +152,24 @@ bool totalsAreTheTrees(S& sampler, double tolerance) {
 
 struct HarnessTally {
   long allocations = 0, failed = 0, absorbed = 0, consistent = 0,
-       readable = 0, continued = 0, routed = 0;
+       described = 0, readable = 0, continued = 0, routed = 0;
   bool otherException = false;
 };
 
-/// Every forest's per-tree fits against those of a new sampler \p make
-/// builds and hands \p sampler's state: that one routes the rows through
-/// each tree's structure, so a leaf map left behind its tree shows here,
-/// where the totals, re-summed from the map, agree with it.
+/// Every forest's per-tree fits, and the variance surface, against those of
+/// a new sampler \p make builds and hands \p sampler's state: that one
+/// routes the rows through each tree's structure and its leaf values as the
+/// state holds them, so a leaf map, table or fit left behind its tree shows
+/// here, where the totals, re-summed from the map, agree with it.
 template <typename S, typename Make>
 bool fitsAreTheTreesRouted(S& sampler, Make&& make) {
   SamplerStateData state;
   sampler.getState(state);
   auto fresh = make();
   if (!fresh->setState(state, nullptr)) return false;
+  auto near = [](double a, double b) {
+    return std::fabs(a - b) <= 1e-9 * (1.0 + std::fabs(b));
+  };
   std::size_t n = sampler.data().numObservations;
   for (std::size_t f = 0; f < sampler.numForests(); ++f) {
     std::size_t numTrees = sampler.chain(0).numTreesInForest(f);
@@ -173,8 +177,13 @@ bool fitsAreTheTreesRouted(S& sampler, Make&& make) {
     TestPeer::forestTreeFits(sampler.chain(0), f, live.data());
     TestPeer::forestTreeFits(fresh->chain(0), f, routed.data());
     for (std::size_t i = 0; i < live.size(); ++i)
-      if (!(std::fabs(live[i] - routed[i]) <=
-            1e-9 * (1.0 + std::fabs(routed[i]))))
+      if (!near(live[i], routed[i])) return false;
+  }
+  if (sampler.chain(0).hasVarianceForest()) {
+    const auto& live = TestPeer::varianceForest(sampler.chain(0));
+    const auto& routed = TestPeer::varianceForest(fresh->chain(0));
+    for (std::size_t i = 0; i < n; ++i)
+      if (!near(live.combinedVariance[i], routed.combinedVariance[i]))
         return false;
   }
   return true;
@@ -206,6 +215,13 @@ HarnessTally failEachAllocation(Make&& make, const SamplerStateData& start,
     }
     ++tally.failed;
     if (totalsAreTheTrees(*sampler, 1e-12)) ++tally.consistent;
+    // the state read before any further sweep is the chain: its tables cover
+    // its trees, its monotone leaves are in order, and a new sampler given it
+    // has the failed one's fits
+    if (TestPeer::leafTablesCoverTrees(sampler->chain(0)) &&
+        TestPeer::monotoneLeavesInOrder(sampler->chain(0)) &&
+        fitsAreTheTreesRouted(*sampler, make))
+      ++tally.described;
     // the state installs on a new sampler, so the failed one runs on from
     // what the failure left, not from maps an install rebuilds
     SamplerStateData after;
@@ -227,6 +243,10 @@ void report(const HarnessTally& tally, const std::string& name) {
         (name + ": every failure leaves as an allocation failure").c_str());
   check(tally.consistent == tally.failed,
         (name + ": after each failure the totals are the trees'").c_str());
+  check(tally.described == tally.failed,
+        (name + ": after each failure the state it reads describes it, its "
+                "leaf tables covering its trees, its monotone leaves in order "
+                "and a new sampler given it having its fits").c_str());
   check(tally.readable == tally.failed,
         (name + ": after each failure the state reads and installs").c_str());
   check(tally.continued == tally.failed,
@@ -300,7 +320,104 @@ void runLeafArms(const HarnessData& data, SamplerOptions options,
                               s.sampleNodeParametersFromPrior();
                             }),
          "allocation failure in a prior leaf draw, " + leaf + " leaf");
+  report(failEachAllocation(make, grown,
+                            [](Sampler<L>& s) { s.sampleTreesFromPrior(); }),
+         "allocation failure in a prior tree draw, " + leaf + " leaf");
+  report(failEachAllocation(make, stumps,
+                            [&](Sampler<L>& s) { s.setState(grown, nullptr); }),
+         "allocation failure in a state install, " + leaf + " leaf");
+  if constexpr (!L::hasVectorParams && !L::hasFunctionParams)
+    report(failEachAllocation(make, grown,
+                              [](Sampler<L>& s) { s.growFromRoot(1); }),
+           "allocation failure in a grow from the root, " + leaf + " leaf");
   for (ext_rng* rng : rngs) ext_rng_destroy(rng);
+}
+
+/// A constant leaf with a variance forest: a sweep of births and deaths from
+/// stumps, the variance forest's prior draw, a state's install and a grow
+/// from the root, the variance surface checked with the fits.
+void runVarianceArms(const HarnessData& data) {
+  SamplerOptions options;
+  options.numVarianceTrees = 3;
+  options.birthOrDeathProbability = 1.0;
+  options.birthProbability = 0.5;
+  options.changeProbability = 0.0;
+  options.swapProbability = 0.0;
+  using S = Sampler<ConstantGaussianLeaf>;
+  std::vector<ext_rng*> rngs;
+  auto make = [&]() {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 20261121u);
+    rngs.push_back(rng);
+    return makeHarnessSampler<ConstantGaussianLeaf>(data, options,
+                                                    &rngs.back());
+  };
+  auto sampler = make();
+  check(sampler->chain(0).hasVarianceForest(),
+        "allocation failure, variance forest: the sampler has one");
+  SamplerStateData stumps, grown;
+  sampler->getState(stumps);
+  Results none;
+  sampler->run(5, 0, none);
+  sampler->getState(grown);
+  report(failEachAllocation(make, stumps,
+                            [](S& s) {
+                              Results none;
+                              s.run(0, 2, none);
+                            }),
+         "allocation failure in a sweep, variance forest");
+  report(failEachAllocation(make, grown,
+                            [](S& s) { s.sampleVarianceForestFromPrior(); }),
+         "allocation failure in a variance prior draw");
+  report(failEachAllocation(make, stumps,
+                            [&](S& s) { s.setState(grown, nullptr); }),
+         "allocation failure in a state install, variance forest");
+  report(failEachAllocation(make, grown, [](S& s) { s.growFromRoot(1); }),
+         "allocation failure in a grow from the root, variance forest");
+  for (ext_rng* rng : rngs) ext_rng_destroy(rng);
+}
+
+/// The monotone leaf's settle: a grown tree's leaf values put out of the
+/// order, as a move a failure stops part way can leave a new leaf's slot,
+/// then settled with that tree in flight. Its leaves are back in order, the
+/// totals are the trees' and the next sweep keeps both.
+void runMonotoneSettleArm(const HarnessData& data) {
+  const std::int8_t directions[] = {1, 0};
+  SamplerOptions options;
+  options.monotoneDirections = directions;
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 20261122u);
+  auto sampler =
+    makeHarnessSampler<MonotoneConstantGaussianLeaf>(data, options, &rng);
+  Results none;
+  sampler->run(5, 0, none);
+  auto& chain = sampler->chain(0);
+  std::size_t numTrees = chain.numTreesInForest(0), found = numTrees;
+  for (std::size_t t = 0; t < numTrees && found == numTrees; ++t)
+    for (double sign : {1.0, -1.0}) {
+      std::vector<double>& mu = TestPeer::muByTree(chain, t);
+      std::vector<double> kept = mu;
+      for (std::size_t i = 0; i < mu.size(); ++i)
+        mu[i] = (i % 2 == 0 ? -sign : sign) * static_cast<double>(i + 1);
+      if (!TestPeer::monotoneLeavesInOrder(chain)) {
+        found = t;
+        break;
+      }
+      mu = kept;
+    }
+  check(found < numTrees,
+        "allocation failure, monotone settle: a tree's leaves leave the order");
+  TestPeer::settleTreeInFlight(chain, 0, found);
+  check(TestPeer::monotoneLeavesInOrder(chain) &&
+          totalsAreTheTrees(*sampler, 1e-12),
+        "allocation failure, monotone settle: the tree in flight is back in "
+        "order and the totals are the trees'");
+  sampler->run(0, 1, none);
+  check(TestPeer::monotoneLeavesInOrder(chain) &&
+          totalsAreTheTrees(*sampler, 1e-9),
+        "allocation failure, monotone settle: the next sweep keeps both");
+  printf("ok: allocation failure, monotone settle\n");
+  ext_rng_destroy(rng);
 }
 
 /// A tree's mask-pool compaction under each allocation failure it meets: two
@@ -551,6 +668,8 @@ void runAllocTests() {
   monotone.monotoneDirections = directions;
   runLeafArms<MonotoneConstantGaussianLeaf>(data, monotone, "monotone",
                                             20261109u);
+  runVarianceArms(data);
+  runMonotoneSettleArm(data);
   runMaskPoolCompactionArm();
   runPooledFactorArm();
   runSavedRingArm(data);

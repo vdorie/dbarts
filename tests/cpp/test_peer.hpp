@@ -42,6 +42,38 @@ struct TestPeer {
                              double* out) {
     chain.forestTreeFits(f, out);
   }
+  /// Whether every mean tree's leaf table, the constant leaf's or the vector
+  /// leaf's blocks, covers every node the tree holds, which a state read
+  /// from the chain flattens.
+  template <IntegrableLeafModel L, typename R>
+  static bool leafTablesCoverTrees(const Chain<L, R>& chain) {
+    for (const auto& forest : chain.forests_)
+      for (std::size_t t = 0; t < forest.numTrees; ++t) {
+        std::size_t nodes = forest.trees[t].nodes.size();
+        if constexpr (Chain<L, R>::leafIsConstant) {
+          if (forest.muByTree[t].size() < nodes) return false;
+        } else if constexpr (L::hasVectorParams) {
+          if (forest.paramsByTree[t].size() < nodes * forest.leaf.numParams())
+            return false;
+        }
+      }
+    return true;
+  }
+  /// Whether every monotone tree's leaf values lie in its order; true off the
+  /// monotone leaf.
+  template <IntegrableLeafModel L, typename R>
+  static bool monotoneLeavesInOrder(const Chain<L, R>& chain) {
+    return chain.monotoneLeavesInOrder();
+  }
+  /// Settles the chain with forest f's tree t in flight, as an exception out
+  /// of a move on that tree leaves it.
+  template <IntegrableLeafModel L, typename R>
+  static void settleTreeInFlight(Chain<L, R>& chain, std::size_t f,
+                                 std::size_t t) {
+    chain.forestInFlight_ = f;
+    chain.treeInFlight_ = t;
+    chain.settleAfterAllocationFailure();
+  }
   /// Forest f's cached total fits, over a bare chain; a site holding a sampler
   /// reads SamplerBase::forestTotalFits.
   template <IntegrableLeafModel L, typename R>
