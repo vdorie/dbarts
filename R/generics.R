@@ -99,21 +99,20 @@ binomialNewDataTrials <- function(response, newdata, argument = "newdata") {
     eval(expression, newdata, environment(response)),
     error = function(e) NULL
   )
-  if (
-    !is.matrix(value) ||
-      ncol(value) != 2L ||
-      nrow(value) != NROW(newdata) ||
-      !(is.numeric(value) || is.logical(value))
-  ) {
+  if (!is.matrix(value) || ncol(value) != 2L || nrow(value) != NROW(newdata)) {
     return(NULL)
+  }
+  # columns present but not counts are refused (call 81): a character or
+  # factor column among them, which cbind would turn to text or to codes,
+  # meets Refusal 13's words for a response that is not numeric
+  prefix <- paste0("'", argument, "': ")
+  if (any(vapply(newdata[columns], is.factor, NA)) || is.character(value)) {
+    validateBinomialCounts(as.character(value), prefix)
   }
   if (all(rowSums(is.na(value)) > 0L)) {
     return(NULL)
   }
-  trials <- as.double(rowSums(validateBinomialCounts(
-    value,
-    paste0("'", argument, "': ")
-  )))
+  trials <- as.double(rowSums(validateBinomialCounts(value, prefix)))
   structure(trials, columns = columns)
 }
 

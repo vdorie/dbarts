@@ -854,6 +854,38 @@ expect_identical(
     "non-negative whole numbers; row(s) 1, 2, 3"
   )
 )
+# a character or factor column among them is refused as not numeric, at
+# predict and at a test frame, not read as absent (call 81)
+notNumeric <- paste0(
+  "a binomial response's successes and failures must be numeric"
+)
+expect_identical(
+  refusal(predict(
+    rowsFit,
+    transform(newRows, k = as.character(k)),
+    type = "ppd"
+  )),
+  paste0("'newdata': ", notNumeric)
+)
+expect_identical(
+  refusal(predict(rowsFit, transform(newRows, f = factor(f)), type = "ppd")),
+  paste0("'newdata': ", notNumeric)
+)
+expect_identical(
+  refusal(dbarts::bart(
+    cbind(k, f) ~ x1,
+    rowsData,
+    family = binomial,
+    test = transform(newRows, k = as.character(k)),
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  )),
+  paste0("'test': ", notNumeric)
+)
+rm(notNumeric)
 # a binary fit's newdata is untouched, whatever columns it carries
 binaryRows <- transform(rowsData, y = as.double(k > 7L))
 binaryFit <- quietly(dbarts::bart(
