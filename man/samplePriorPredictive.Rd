@@ -48,8 +48,9 @@ samplePriorPredictive(
     a prior draw of that observation's own \eqn{s(x)}{s(x)} rather than at a scalar sigma.
     Unlike \code{\link{extract}}'s posterior \code{"ppd"}, prior predictive draws are weight-blind:
     they use unit weights rather than a weighted precision (\eqn{\sigma / \sqrt{w}}{sigma / sqrt(w)}
-    for gaussian) or a \eqn{\mathrm{Binomial}(w, p)}{Binomial(w, p)} success count (weighted
-    logistic); supply any weighted precision downstream.
+    for gaussian), and a row of weight 0 is drawn as every other row is, where the posterior
+    draw at it is \code{NA}; each draw is one observation, as a training row's posterior draw is
+    under every reading. Supply any weighted precision downstream.
   }
   \item{offset.test}{
     A numeric offset added to the forest sum, as in \code{\link[=dbartsSampler-class]{predict}};

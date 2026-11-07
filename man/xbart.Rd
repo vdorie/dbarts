@@ -16,6 +16,7 @@ xbart(
     seed = NULL,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic"),
+    weights.type = NULL,
     leaf.prior = NULL, n.cuts = 100L, useQuantiles = FALSE, n.thin = 1L,
     storage = c("double", "single"),
     parallel = getOption("dbarts.parallel", "auto"), cl = NULL,
@@ -108,6 +109,9 @@ xbart(
    }
    \item{family}{
      The response model, resolved as in \code{\link{dbarts}}: \code{"auto"} fits gaussian models to continuous responses and probit models to those coded 0/1, \code{"gaussian"} forces a continuous fit, and \code{"probit"} and \code{"logistic"} require a 0/1 response. A two-level factor, logical, or two-level character response is detected and fit as probit; a factor with three or more levels is an error, as \code{xbart} does not cross-validate the multinomial model, and neither is a matrix response (per-category counts or a (time, status) pair), which is refused naming \code{bart}. A survival response - a \code{Surv} object or two-column \code{(time, status)} pair, on \code{formula} or as \code{data} directly - is likewise an error naming \code{bart}/\code{dbarts} with \code{family = "aft"}/\code{"hazard"}: \code{xbart} does not cross-validate a survival model. The built-in binary losses transform test predictions through the family's link. This vocabulary is narrower than \code{\link{bart}}'s by design - \code{xbart} cross-validates a single scalar loss per fold, which the own-class families' K-forest or two-part fits have no single counterpart of; the wider family set lives on \code{bart}. Base R family objects map as \code{\link{glm}} takes them (\code{binomial} is the logit link, so \code{family = binomial} is \code{"logistic"}, not probit) and the rest are refused; see \code{\link{dbartsFamilies}}.
+   }
+   \item{weights.type}{
+     How \code{weights} are read, as in \code{\link{dbarts}}: \code{NULL} (the default) is precision on a gaussian fit and frequency on a probit or logistic one, \code{"precision"} is refused on those two, and \code{"frequency"} on a gaussian fit reads a row of weight \eqn{w} as \eqn{w} identical observations, each fold's starting sigma being the residual sd of the regression on its training rows written out that many times.
    }
    \item{leaf.prior}{
      An optional expression of the form \code{normal(k)}, \code{linear(columns, k)}, or \code{gp(columns, k, ...)} selecting the leaf model, as in \code{\link{dbarts}}. The default fits constant leaves. A \code{k} given inside the prior stands in for a missing \code{k} argument; the \code{k} argument otherwise drives the crossvalidation grid as usual. Each fold centers and scales a \code{linear} or \code{gp} leaf's covariates over its own training rows of positive weight, as a fit on those rows would. Where those rows hold fewer than two distinct values of a gaussian response, the fold reads its response's scale and the covariates over every training row; otherwise a fold whose such rows hold one value of a covariate refuses the call, unless its \code{gp} leaf states \code{lengthscale}. A written \code{NULL} is the argument left out.

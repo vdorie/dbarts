@@ -129,7 +129,11 @@
             a training row at sigma): a weight of 0 holds a row out of the
             fit and gives it no noise scale. To draw such a row as a new
             observation, state its weight, as in
-            \code{predict(fit, type = "ppd", weights = 1)}.
+            \code{predict(fit, type = "ppd", weights = 1)}. On a probit fit a
+            row of weight 0, training or test, likewise has \code{NA} draws
+            and every other row draws one 0/1 observation, where 0.9-34 gave
+            \code{NA} at every row of a fit with any weight of 0 and drew a
+            test row as its weight times a 0/1 draw.
       \item New predictors for a fit with a factor column come as a data
             frame, coded by label: \code{setPredictor(x)} with no
             \code{column} takes one (0.9-34 stopped on it), as do
@@ -642,6 +646,20 @@
             \code{residuals}, \code{summary} and \code{plot} methods, and
             \code{family()} returns the family of any fit. See
             \code{\link{bart}}.
+      \item Frequency weights. \code{bart}, \code{dbarts},
+            \code{dbartsSpec} and \code{xbart} take \code{weights.type}:
+            \code{"frequency"} reads a gaussian or Student-t fit's weight
+            as a count of identical observations, real values taken, so
+            the starting sigma, the residual scale's posterior and the
+            log-likelihood count them, where \code{NULL}, the default,
+            keeps 0.9-34's precision. Every other family reads its weights
+            as counts or, at 0 and 1, as the rows in: \code{"nbinom"} and
+            \code{"multinomial"} take whole-number counts, a 0/1 vector
+            on \code{"probit"} and \code{"ordinal"} is kept on the data
+            object as the rows in, and a weight of 0 takes a row out of
+            the likelihood on every family. A test sample's weights mean
+            what the fit's do, and \code{predict}'s weights on a count
+            family are new trials, a 0 drawing none.
       \item A \code{"hurdle.lognormal"} fit takes a formula and
             \code{data}, or a data object; a \code{test} set, read by
             \code{extract} and \code{fitted} with
