@@ -152,7 +152,10 @@ expect_error(
   info = "binomial: 600,000 trials at a weight of 2 are refused"
 )
 expect_error(
-  create(withCounts(cbind(successes, trials - successes), replace(twice, 2L, 0))),
+  create(withCounts(
+    cbind(successes, trials - successes),
+    replace(twice, 2L, 0)
+  )),
   "logistic weights are observation counts",
   fixed = TRUE,
   info = "binomial: a weight of 0 is refused, as on a binary response"
