@@ -1428,10 +1428,12 @@ Gates on the fixed tip (arm64 macOS):
   margins are for a library worse than this one, which no test here can supply; S2's math-library test checks the
   assumption, not the margin); fartail-4/7->1/7 (the far tail stays above the node sum with the smaller slope, by
   1.4 at the review's cases: the slope term is not the one that binds there); lean-sigma0-rad0 and lean-c1-rad0
-  (radii near u of their values, far inside what the pins' references resolve); thresh-uL+u (short by O(u^2) of
-  |log v|, below the suite's reference error); step-invalid-draws (equivalent: the invalid proposal's NaN draw is a
-  close call in decideStep either way); sum-gN-1, tot-gTot-1 and lr-run-charge-1 (charges of at most about 1e-13
-  relative of a radius, which no reference resolves).
+  (radii near u of their values, far inside what the pins' references resolve); thresh-uL+u and step-invalid-draws
+  (both reasons given here were wrong, and both are killed in the second fix round: thresh-uL+u's widening falls
+  short of u_L |l| / (1 - u_L) at 134 of 280,400 l near powers of two, which an exact check in doubles sees without
+  a reference; step-invalid-draws takes two words of the uniform, against call 24's "before any draw");
+  sum-gN-1, tot-gTot-1 and lr-run-charge-1 (charges of at most about 1e-13 relative of a radius, which no reference
+  resolves).
 
 Calls made in the fix round, each with its alternative:
 
