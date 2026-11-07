@@ -552,6 +552,10 @@ expect_error(
   "'vars' must name the fields to summarize",
   fixed = TRUE
 )
+# NULL is vars not given: the default fields
+for (fit in list(bart2FitKT, ordinalFitKT, negbinFitKT, hurdleFitKT)) {
+  expect_identical(summary(fit, vars = NULL), summary(fit))
+}
 rm(newRows, fit, flag, type, vars)
 
 rm(bart2FitKT)

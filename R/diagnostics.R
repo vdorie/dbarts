@@ -497,8 +497,9 @@ summary.bart <- function(
   vars = c("sigma", "k", "leaf.prior.sd", "resid.df"),
   ...
 ) {
-  if (missing(vars)) {
-    vars <- defaultLeafScaleVars(object, vars)
+  # NULL is vars not given, as base R reads an absent argument
+  if (missing(vars) || is.null(vars)) {
+    vars <- defaultLeafScaleVars(object, eval(formals(summary.bart)$vars))
   } else if (!is.character(vars) || anyNA(vars)) {
     stop("'vars' must name the fields to summarize", call. = FALSE)
   }
@@ -537,8 +538,11 @@ summary.bartOrdinal <- function(
   vars = c("thresholds", "sigma", "k", "leaf.prior.sd"),
   ...
 ) {
-  if (missing(vars)) {
-    vars <- defaultLeafScaleVars(object, vars)
+  if (missing(vars) || is.null(vars)) {
+    vars <- defaultLeafScaleVars(
+      object,
+      eval(formals(summary.bartOrdinal)$vars)
+    )
   }
   summary.bart(object, vars = vars, ...)
 }
@@ -551,8 +555,8 @@ summary.bartNegbin <- function(
   vars = c("shape", "sigma", "k", "leaf.prior.sd"),
   ...
 ) {
-  if (missing(vars)) {
-    vars <- defaultLeafScaleVars(object, vars)
+  if (missing(vars) || is.null(vars)) {
+    vars <- defaultLeafScaleVars(object, eval(formals(summary.bartNegbin)$vars))
   }
   summary.bart(object, vars = vars, ...)
 }
@@ -566,7 +570,7 @@ summary.bartHurdle <- function(
   vars = c("sigma", "k", "leaf.prior.sd", "resid.df"),
   ...
 ) {
-  defaulted <- missing(vars)
+  defaulted <- missing(vars) || is.null(vars)
   partSummary <- function(part) {
     if (defaulted) {
       summary.bart(part, ...)
