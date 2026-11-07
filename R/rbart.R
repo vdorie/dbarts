@@ -928,6 +928,14 @@ packageRbartResults <- function(
   if (!responseIsBinary) {
     result$sigest <- chainResults[[1L]]$sampler$data@sigma
   }
+  # the rows in the likelihood, kept under a bart fit's names and conditions
+  sampler <- chainResults[[1L]]$sampler
+  if (!is.null(sampler$data@weights) && length(sampler$data@weights) > 0L) {
+    result$weights <- sampler$data@weights
+  }
+  if (!is.null(sampler$activeRows)) {
+    result$active <- sampler$activeRows
+  }
   if (!is.null(group.by.test)) {
     result[["group.by.test"]] <- group.by.test
   }
@@ -1456,6 +1464,8 @@ extract.rbart <- function(
     treesCall$object <- NULL
     treesCall$type <- NULL
     treesCall$chainNums <- NULL
+    refuseTreesArguments(treesCall, c("sample", "combineChains"))
+    treesCall <- dropUnusedTreesArguments(treesCall, object$fit[[1L]], "rbart")
     evalEnv <- parent.frame()
     dotsList <- list(...)
     chainNums <- if ("chainNums" %in% names(dotsList)) {
@@ -1479,6 +1489,7 @@ extract.rbart <- function(
     row.names(allTrees) <- as.character(seq_len(nrow(allTrees)))
     return(allTrees)
   }
+  warnUnusedDots(list(...), "extract", "rbart")
 
   if (
     !is.character(sample) ||
@@ -1575,6 +1586,7 @@ fitted.rbart <- function(
   sample = c("train", "test"),
   ...
 ) {
+  warnUnusedDots(list(...), "fitted", "rbart")
   type <- foldTypeAliases(type)
   if (
     !is.character(type) ||
@@ -1622,7 +1634,7 @@ fitted.rbart <- function(
       )
     }
   } else {
-    result <- extract(object, type, sample, ...)
+    result <- extract(object, type, sample)
 
     result <- if (!is.null(dim(result))) {
       apply(result, length(dim(result)), mean)
@@ -1635,7 +1647,20 @@ fitted.rbart <- function(
 }
 
 residuals.rbart <- function(object, ...) {
+  warnUnusedDots(list(...), "residuals", "rbart")
   object$y - fitted.rbart(object)
+}
+
+# the posterior mean of the residual sd, and 1 on a binary response, which
+# has none, as sigma.bart reads one
+sigma.rbart <- function(object, ...) {
+  warnUnusedDots(list(...), "sigma", "rbart")
+  if (is.null(object[["sigma"]])) 1 else mean(object[["sigma"]])
+}
+
+nobs.rbart <- function(object, ...) {
+  warnUnusedDots(list(...), "nobs", "rbart")
+  sum(fitRowsInLikelihood(object))
 }
 print.rbart <- function(x, ...) {
   printCall(x)

@@ -119,18 +119,17 @@ sigma.bartOrdinal <- sigma.bart
 sigma.bartNegbin <- sigma.bart
 sigma.bartHurdle <- sigma.bart
 
+# a fit's rows in the likelihood, read from the weights and the active-row
+# mask it stores, each where it has one value per response row
+fitRowsInLikelihood <- function(object) {
+  n <- NROW(object[["y"]])
+  perRow <- function(value) if (length(value) == n) value
+  rowsInLikelihood(perRow(object[["weights"]]), perRow(object[["active"]]), n)
+}
+
 nobs.bart <- function(object, ...) {
   warnUnusedDots(list(...), "nobs", class(object)[1L])
-  kept <- rep_len(TRUE, NROW(object[["y"]]))
-  weights <- object[["weights"]]
-  if (length(weights) == length(kept)) {
-    kept <- kept & weights > 0
-  }
-  active <- object[["active"]]
-  if (length(active) == length(kept)) {
-    kept <- kept & active != 0
-  }
-  sum(kept)
+  sum(fitRowsInLikelihood(object))
 }
 nobs.bartMultinomial <- nobs.bart
 nobs.bartOrdinal <- nobs.bart

@@ -6,6 +6,8 @@
 \alias{predict.rbart}
 \alias{residuals.rbart}
 \alias{print.rbart}
+\alias{sigma.rbart}
+\alias{nobs.rbart}
 \title{Bayesian Additive Regression Trees with Random Effects}
 \description{
   \strong{Deprecated.} \code{rbart_vi} and its methods run the implementation from dbarts 0.9-x, kept for one release, and are removed in dbarts 1.1-0. A warning (class \code{dbartsDeprecatedWarning}) says so the first time \code{rbart_vi} is called in a session. Grouped random effects live in the \pkg{stan4bart} package (\code{stan4bart::stan4bart}), whose prior on the group spread differs from the one used here, so a refit there moves the results rather than reproducing them.
@@ -59,6 +61,10 @@ rbart_vi(
 \S3method{residuals}{rbart}(object, \dots)
 
 \S3method{print}{rbart}(x, \dots)
+
+\S3method{sigma}{rbart}(object, \dots)
+
+\S3method{nobs}{rbart}(object, \dots)
 }
 \arguments{
   \item{group.by}{
@@ -117,7 +123,7 @@ For binary outcomes the response model is changed to \eqn{P(Y_i = 1) = \Phi(f(x_
 }
 
 \subsection{Generics}{
-  See the generics section of \code{\link{bartBT}}.
+  See the generics section of \code{\link{bartBT}}. \code{sigma(fit)} is the posterior mean of the residual standard deviation, \code{mean(fit$sigma)}, and 1 on a binary response, which has none; \code{nobs(fit)} counts the rows in the likelihood, those of positive weight. \code{fitted}, \code{residuals}, \code{extract}, \code{sigma} and \code{nobs} warn of an argument name they do not take, and then disregard it.
 }
 }
 \value{

@@ -208,5 +208,79 @@ expect_equal(
 
 rm(rbartFit.1, rbartFit.0, g, y, x)
 
+# sigma and nobs as on a bart fit: the posterior mean of the residual sd, 1 on
+# a binary response, and the rows in the likelihood, those of positive weight
+x <- testData$x
+y <- testData$y
+g <- factor(testData$g)
+w <- rep(c(0, 1), c(3L, length(y) - 3L))
+z <- as.numeric(y > median(y))
+set.seed(0L)
+weighted <- dbarts::rbart_vi(
+  y ~ x,
+  group.by = g,
+  weights = w,
+  n.samples = 7L,
+  n.burn = 0L,
+  n.chains = 2L,
+  n.trees = 10L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+expect_identical(sigma(weighted), mean(weighted$sigma))
+expect_identical(nobs(weighted), length(y) - 3L)
+set.seed(0L)
+binary <- dbarts::rbart_vi(
+  z ~ x,
+  group.by = g,
+  weights = w,
+  n.samples = 7L,
+  n.burn = 0L,
+  n.chains = 1L,
+  n.trees = 10L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_identical(sigma(binary), 1)
+expect_identical(nobs(binary), length(y) - 3L)
+set.seed(0L)
+unweighted <- dbarts::rbart_vi(
+  y ~ x,
+  group.by = g,
+  n.samples = 7L,
+  n.burn = 0L,
+  n.chains = 1L,
+  n.trees = 10L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_identical(nobs(unweighted), length(y))
+# an argument name the method does not take is warned of, in predict's words
+for (generic in c("fitted", "residuals", "extract", "sigma", "nobs")) {
+  expect_warning(
+    match.fun(generic)(weighted, bogus = 1),
+    paste0(
+      "extra argument 'bogus' passed to ",
+      generic,
+      " on a rbart fit will be disregarded"
+    ),
+    fixed = TRUE,
+    info = generic
+  )
+}
+expect_warning(
+  dbarts::extract(weighted, type = "trees", bogus = 1),
+  "extra argument 'bogus' passed to extract on a rbart fit",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::extract(weighted, type = "trees", sample = "train"),
+  "'sample' is not used when type = \"trees\"",
+  fixed = TRUE
+)
+expect_silent(dbarts::extract(weighted, type = "trees", chainNums = 1L))
+rm(generic, weighted, binary, unweighted, w, z, g, y, x)
+
 
 rm(testData)
