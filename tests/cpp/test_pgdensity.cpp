@@ -12,7 +12,11 @@
 // - the double-double gate: each of the five functions within its stated
 //   relative error bound (all at most 2^-100) over its range;
 // - the reach: log f and log q decided far into both tails past the pins;
-// - the one-row step: decided steps and a mean that matches PG(b, psi)'s.
+// - the one-row step: decided steps and a mean that matches PG(b, psi)'s;
+// - the decision on made-up bounds, the uniform's thresholds under the worst
+//   library, the non-finite rules, the K rule's guard, and the pieces'
+//   bounds where the pins cannot reach (small operands, point balls, the
+//   boundary images, the far tail, the words, sumsT near its guard).
 //
 // Draws come from the suite's own generator, so it neither shifts nor is
 // shifted by any other suite's.
@@ -24,6 +28,8 @@
 #include <cstdint>
 #include <cstdio>
 #include <limits>
+#include <random>
+#include <utility>
 #include <vector>
 
 #include <external/random.h>
@@ -377,6 +383,475 @@ void testStep() {
   pg::UniformInterval u = pg::drawUniformInterval(src);
   check(u.k == (std::uint64_t{1} << 53) - 1 && u.upper() == 1.0,
         "pgdensity: the uniform interval takes 53 bits from two words");
+  // distinct words, so taking the first twice shows
+  std::uint32_t seq2[2] = {0x80000000u, 0x00000800u};
+  at = 0;
+  auto src2 = [&]() { return seq2[at++]; };
+  u = pg::drawUniformInterval(src2);
+  check(u.k == ((std::uint64_t{1} << 52) | 1u) && at == 2,
+        "pgdensity: the uniform interval takes both words, the first word high");
+}
+
+pg::Enclosure enc(double mid, double rad) {
+  pg::Enclosure e;
+  e.mid = mid;
+  e.rad = rad;
+  return e;
+}
+
+/// The accept-or-keep decision on made-up bounds: one level's verdict, the
+/// step's thresholds from the uniform, the close calls, and an invalid draw.
+void testDecision() {
+  const pg::Enclosure z = enc(0.0, 0.0), none;
+  using V = pg::Verdict;
+  // log r = mid of efy here; accept needs its lower end at accTh
+  check(pg::decideLevel(enc(-1.0, 1e-3), z, z, z, -1.5, -3.0) == V::accept &&
+            pg::decideLevel(enc(-1.0, 0.1), z, z, z, -1.0, -3.0) == V::undecided &&
+            pg::decideLevel(enc(-1.0, 0.1), z, z, z, -0.95, -3.0) == V::undecided,
+        "pgdensity: a level accepts only when log r's lower end reaches the threshold");
+  check(pg::decideLevel(enc(-2.0, 1e-3), z, z, z, -1.0, -1.5) == V::keep &&
+            pg::decideLevel(enc(-2.0, 0.1), z, z, z, -1.0, -2.0) == V::undecided &&
+            pg::decideLevel(enc(-2.0, 0.1), z, z, z, -1.0, -2.05) == V::undecided,
+        "pgdensity: a level keeps only when log r's upper end is at most the threshold");
+  // log r = efy + eqx - efx - eqy: each enclosure enters with its sign
+  check(pg::decideLevel(z, enc(-2.0, 1e-3), z, z, -1.0, -1.5) == V::keep &&
+            pg::decideLevel(z, z, enc(2.0, 1e-3), z, -1.0, -1.5) == V::keep &&
+            pg::decideLevel(z, z, z, enc(-2.0, 1e-3), 1.5, -3.0) == V::accept,
+        "pgdensity: log r takes f(y) and q(x) with a plus sign, f(x) and q(y) with a minus");
+  // the radius charges 4 u of the midpoints: 1e10 - 1e10 is not certified 0
+  check(pg::decideLevel(enc(1e10, 0.0), z, enc(1e10, 0.0), z, 0.0, 0.0) == V::undecided,
+        "pgdensity: a level's radius charges the midpoints' rounding");
+  bool allUndecided = true;
+  for (int i = 0; i < 4; ++i) {
+    pg::Enclosure e[4] = {z, z, z, z};
+    e[i] = none;
+    allUndecided &= pg::decideLevel(e[0], e[1], e[2], e[3], -1.0, 1.0) == V::undecided;
+    e[i] = enc(kInf, 0.0);
+    allUndecided &= pg::decideLevel(e[0], e[1], e[2], e[3], -1.0, 1.0) == V::undecided;
+  }
+  check(allUndecided, "pgdensity: a level with a non-finite enclosure is undecided");
+
+  // the step: scripted levels, made-up thresholds from k
+  struct Script {
+    pg::Enclosure lr[pg::kNumLevels];  // log f(y) at each level; the rest 0
+    int prepared = 0, calls = 0;
+  };
+  auto run = [](Script& sc, double x, double y, std::uint64_t k) {
+    pg::UniformInterval U{k};
+    return pg::decideStep(
+        x, y, U, [&]() { ++sc.prepared; },
+        [&](int l, pg::Enclosure* e) {
+          ++sc.calls;
+          e[0] = sc.lr[l];
+          e[1] = e[2] = e[3] = enc(0.0, 0.0);
+        });
+  };
+  const double x = 0.25, y = 0.75;
+  // k = 1: U in [2^-53, 2^-52); log r inside (log U-, log U+) never decides
+  Script s1;
+  for (auto& e : s1.lr) e = enc(std::log(1.5 * 0x1p-53), 1e-6);
+  pg::StepResult r = run(s1, x, y, 1);
+  check(r.closeCall && !r.accepted && r.omega == x && r.level == pg::kNumLevels - 1 &&
+            s1.prepared == 1 && s1.calls == pg::kNumLevels,
+        "pgdensity: log r between log U- and log U+ at every level is a close call that keeps x");
+  Script s2;
+  for (auto& e : s2.lr) e = enc(std::log(2.0 * 0x1p-52), 1e-6);
+  r = run(s2, x, y, 1);
+  check(r.accepted && !r.closeCall && r.omega == y && r.level == 0,
+        "pgdensity: log r above log U+ accepts y at level 0");
+  Script s3;
+  for (auto& e : s3.lr) e = enc(std::log(0.5 * 0x1p-53), 1e-6);
+  r = run(s3, x, y, 1);
+  check(!r.accepted && !r.closeCall && r.omega == x && r.level == 0,
+        "pgdensity: log r below log U- keeps x at level 0");
+  // undecided levels go on: non-finite, then a straddle, then accept
+  Script s4;
+  s4.lr[0] = enc(-40.0, kInf);
+  for (int l = 1; l < pg::kNumLevels; ++l) s4.lr[l] = enc(std::log(2.0 * 0x1p-52), 1e-6);
+  r = run(s4, x, y, 1);
+  check(r.accepted && r.omega == y && r.level == 1,
+        "pgdensity: a non-finite level is undecided and the step goes on to the next");
+  Script s5;
+  for (auto& e : s5.lr) e = enc(std::log(0.5 * 0x1p-53), 1e-6);
+  r = run(s5, x, y, 0);
+  check(r.closeCall && r.omega == x,
+        "pgdensity: at k = 0 nothing keeps (log U- is -inf): a close call");
+  // an invalid draw: a close call, no level evaluated
+  bool bad = true;
+  for (double yb : {std::nan(""), kInf, -kInf, 0.0, -1.0}) {
+    Script s6;
+    for (auto& e : s6.lr) e = enc(0.0, 0.0);  // would accept
+    r = run(s6, x, yb, 12345);
+    bad &= r.closeCall && !r.accepted && r.omega == x && s6.prepared == 0 && s6.calls == 0;
+  }
+  check(bad, "pgdensity: a draw that is not positive and finite is a close call that keeps x");
+
+  // an invalid proposal: the rule finds no K (psi 1e5 at b 1e5, psi 1e6) or
+  // psi is not finite; the step is a close call and draws nothing
+  int noK = 0, invalid = 0, stepped = 0;
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 7u);
+  pg::ExtRngWordSource words{rng};
+  pg::StepWorkspace ws;
+  const double cases[][2] = {{1e5, 1e5}, {0.2, 1e6}, {1.0, 1e6}, {1e5, 1e6}, {1.0, kInf},
+                             {1.0, std::nan("")}, {kInf, 1.0}, {0.0, 1.0}, {-1.0, 1.0}};
+  for (const auto& c : cases) {
+    noK += pg::ruleK(c[0], c[1]) == -1;
+    pg::Proposal prop(c[0], c[1]);
+    invalid += !prop.valid() && std::isnan(prop.draw(rng));
+    pg::StepResult sr = pg::stepRow(prop, 0.5, rng, words, ws);
+    stepped += sr.closeCall && sr.omega == 0.5 && !sr.accepted;
+  }
+  const int n = static_cast<int>(countOf(cases));
+  printf("pgdensity: no K at %d of %d inputs, invalid proposals %d, close-call steps %d\n", noK, n,
+         invalid, stepped);
+  check(noK == n && invalid == n && stepped == n,
+        "pgdensity: where the K rule finds no K the proposal is invalid and the step a close call");
+  check(pg::Proposal(2.5, 1.0).valid(), "pgdensity: a proposal the rule builds is valid");
+  ext_rng_destroy(rng);
+}
+
+/// The uniform's thresholds under the worst library (A2s): for l anywhere
+/// within u_L |log v| of log v the widened bounds are on their side of
+/// log v, and their slack is at most (2 u_L + 2 u) |log v| + 2^-999.
+void testThresholds() {
+  std::mt19937_64 g(5);
+  const double uL = pg::kLibRelErr;
+  int outside = 0, wide = 0, n = 0, ownOutside = 0;
+  double worstSlack = 0.0;
+  for (int i = 0; i < 200000; ++i) {
+    std::uint64_t k = (g() >> 11) >> (g() % 53);
+    if (k == 0) continue;
+    pg::UniformInterval U{k};
+    for (int side = 0; side < 2; ++side) {
+      const double v = side == 0 ? U.upper() : U.lower();
+      if (v == 1.0) continue;
+      const dd::DD L = dd::log(dd::DD{v, 0.0});
+      const double tolRef = 2.0 * dd::kLogRelErr * std::fabs(L.hi);
+      const double lim = uL * std::fabs(L.hi) * (1.0 - 0x1p-50);
+      auto dist = [&](double d) { return (d - L.hi) - L.lo; };
+      // the doubles farthest below and above log v within u_L |log v|
+      double lo = L.hi - lim, hi = L.hi + lim;
+      while (std::fabs(dist(lo)) > lim) lo = std::nextafter(lo, L.hi);
+      while (std::fabs(dist(hi)) > lim) hi = std::nextafter(hi, L.hi);
+      while (std::fabs(dist(std::nextafter(lo, -kInf))) <= lim) lo = std::nextafter(lo, -kInf);
+      while (std::fabs(dist(std::nextafter(hi, kInf))) <= lim) hi = std::nextafter(hi, kInf);
+      ++n;
+      if (side == 0) {
+        outside += dist(pg::logWidenUp(lo)) < -tolRef;
+        double s = dist(pg::logWidenUp(hi));
+        worstSlack = std::max(worstSlack, s / std::fabs(L.hi));
+        wide += s > (2.0 * uL + 2.0 * pg::kU) * (1.0 + 0x1p-40) * std::fabs(L.hi) + 0x1p-999;
+        ownOutside += dist(U.logUpperUp()) < -tolRef;
+      } else {
+        outside += dist(pg::logWidenDown(hi)) > tolRef;
+        double s = -dist(pg::logWidenDown(lo));
+        worstSlack = std::max(worstSlack, s / std::fabs(L.hi));
+        wide += s > (2.0 * uL + 2.0 * pg::kU) * (1.0 + 0x1p-40) * std::fabs(L.hi) + 0x1p-999;
+        ownOutside += dist(U.logLowerDown()) > tolRef;
+      }
+    }
+  }
+  printf("pgdensity thresholds: %d bounds under the worst library, %d on the wrong side, %d too wide, "
+         "worst slack %.4f (2 u_L + 2 u) |log v|; with this library %d on the wrong side\n",
+         n, outside, wide, worstSlack / (2.0 * uL + 2.0 * pg::kU), ownOutside);
+  check(outside == 0 && ownOutside == 0,
+        "pgdensity: the uniform's log bounds hold under any library within u_L");
+  check(wide == 0, "pgdensity: the uniform's log bounds are within the floor's slack");
+  check(pg::UniformInterval{0}.logLowerDown() == -kInf &&
+            pg::UniformInterval{(std::uint64_t{1} << 53) - 1}.logUpperUp() > 0.0,
+        "pgdensity: log U- is -inf at k = 0 and log U+ above 0 at U+ = 1");
+}
+
+/// logDensity's non-finite rule, with a family whose truncation has no
+/// finite bound: the far tail is infinite and the nodes past the main sum
+/// are not finite, so the enclosure must be undecided.
+struct TailBlindTarget : pg::TargetDensity {
+  using pg::TargetDensity::TargetDensity;
+  mutable bool pastSum = false;
+  double farTail(double, double) const {
+    pastSum = true;
+    return kInf;
+  }
+  pg::CBall nodeExponent(double y) const {
+    if (pastSum) return pg::CBall{0.0, 0.0, kInf};
+    return pg::TargetDensity::nodeExponent(y);
+  }
+};
+
+void testNonFinite() {
+  int finiteReal = 0, finiteBlind = 0;
+  for (double b : {0.5, 2.5, 30.0}) {
+    for (double xm : {0.3, 1.0, 3.0}) {
+      const double x = b / 4.0 * xm;
+      pg::TargetDensity f(b, 1.0);
+      f.prepare(x);
+      TailBlindTarget t(b, 1.0);
+      t.prepare(x);
+      for (int l = 0; l < pg::kNumLevels; ++l) {
+        finiteReal += pg::logDensity(f, l).finite();
+        t.pastSum = false;
+        finiteBlind += pg::logDensity(t, l).finite();
+      }
+    }
+  }
+  printf("pgdensity non-finite truncation: %d of %d real evaluations finite, %d of the blind ones\n",
+         finiteReal, 9 * pg::kNumLevels, finiteBlind);
+  check(finiteReal == 9 * pg::kNumLevels && finiteBlind == 0,
+        "pgdensity: a truncation without a finite bound leaves the level undecided");
+
+  pg::LogSumExpUpper a, b, c, d, e;
+  a.add(1.0);
+  a.add(std::nan(""));
+  a.add(2.0);
+  b.add(1.0);
+  b.add(2.0);
+  c.add(1.0);
+  c.add(-kInf);
+  c.add(2.0);
+  d.add(1.0);
+  d.add(kInf);
+  check(a.value() == kInf && c.value() == b.value() && d.value() == kInf && e.value() == -kInf &&
+            b.value() >= 2.0 + std::log1p(std::exp(-1.0)),
+        "pgdensity: the log-sum bound is infinite with a NaN or +inf term and skips -inf");
+}
+
+/// cmul with an operand below 2^-500 (down to subnormal): the error term
+/// 2.25 u |a| |b| must not underflow before the product.
+void testSmallOperands() {
+  std::mt19937_64 g(31);
+  std::uniform_real_distribution<double> U(0.0, 1.0);
+  int outside = 0, n = 0;
+  for (int i = 0; i < 4000; ++i) {
+    const int ea = -975 - static_cast<int>(95.0 * U(g));  // |a| near 2^-975 to 2^-1070
+    const int ep = -600 - static_cast<int>(300.0 * U(g));  // |a b| normal
+    const double s = U(g) < 0.5 ? -1.0 : 1.0;
+    pg::CBall a{std::ldexp(0.5 + U(g), ea), s * std::ldexp(0.5 + U(g), ea - static_cast<int>(4.0 * U(g))),
+                0.0};
+    pg::CBall b{std::ldexp(0.5 + U(g), ep - ea), -s * std::ldexp(0.5 + U(g), ep - ea), 0.0};
+    if (i % 2) std::swap(a, b);
+    pg::CBall p = pg::cmul(a, b);
+    // the exact product's parts as double-doubles (the products' low parts are normal)
+    dd::DD re = dd::sub(dd::twoProd(a.re, b.re), dd::twoProd(a.im, b.im));
+    dd::DD im = dd::add(dd::twoProd(a.re, b.im), dd::twoProd(a.im, b.re));
+    double dre = (re.hi - p.re) + re.lo, dim = (im.hi - p.im) + im.lo;
+    ++n;
+    if (!(std::hypot(dre, dim) <= p.r)) ++outside;
+  }
+  printf("pgdensity small operands: cmul %d products, %d outside\n", n, outside);
+  check(outside == 0, "pgdensity: cmul's bound holds with an operand below 2^-500");
+
+  // cdiv with a divisor below 2^-400 or above 2^400, the quotient normal:
+  // the reference from operands scaled exactly to near 1
+  int qOutside = 0, qn = 0;
+  for (int i = 0; i < 4000; ++i) {
+    const int eb = (i % 2 ? 1 : -1) * (420 + static_cast<int>(480.0 * U(g)));
+    pg::CBall a{0.5 + U(g), U(g) - 0.5, 0.0};
+    pg::CBall b{std::ldexp(0.5 + U(g), eb), std::ldexp(U(g) - 0.5, eb), 0.0};
+    pg::CBall q = pg::cdiv(a, b);
+    if (!std::isfinite(q.r)) continue;
+    const double br = std::ldexp(b.re, -eb), bi = std::ldexp(b.im, -eb);
+    dd::DD n2 = dd::add(dd::twoProd(br, br), dd::twoProd(bi, bi));
+    dd::DD re = dd::div(dd::add(dd::twoProd(a.re, br), dd::twoProd(a.im, bi)), n2);
+    dd::DD im = dd::div(dd::sub(dd::twoProd(a.im, br), dd::twoProd(a.re, bi)), n2);
+    const double dre = (re.hi - std::ldexp(q.re, eb)) + re.lo, dim = (im.hi - std::ldexp(q.im, eb)) + im.lo;
+    ++qn;
+    if (!(std::hypot(dre, dim) <= std::ldexp(q.r, eb))) ++qOutside;
+  }
+  printf("pgdensity small operands: cdiv %d quotients, %d outside\n", qn, qOutside);
+  check(qn > 0 && qOutside == 0, "pgdensity: cdiv's bound holds with a divisor outside [2^-400, 2^400]");
+}
+
+/// Point balls (radius 0) against double-double references: each result
+/// ball holds the exact value, so the midpoint's rounding charge suffices.
+void testPointBalls() {
+  std::mt19937_64 g(41);
+  std::uniform_real_distribution<double> U(-1.0, 1.0);
+  int divOut = 0, sqrtOut = 0, n = 0;
+  for (int i = 0; i < 20000; ++i) {
+    const double s = std::ldexp(1.0, static_cast<int>(20.0 * U(g)));
+    pg::CBall a{s * U(g), s * U(g), 0.0}, b{U(g), U(g), 0.0};
+    if (!(std::fabs(b.re) + std::fabs(b.im) > 1e-3)) continue;
+    ++n;
+    pg::CBall q = pg::cdiv(a, b);
+    dd::DD n2 = dd::add(dd::twoProd(b.re, b.re), dd::twoProd(b.im, b.im));
+    dd::DD re = dd::div(dd::add(dd::twoProd(a.re, b.re), dd::twoProd(a.im, b.im)), n2);
+    dd::DD im = dd::div(dd::sub(dd::twoProd(a.im, b.re), dd::twoProd(a.re, b.im)), n2);
+    divOut += !(std::hypot((re.hi - q.re) + re.lo, (im.hi - q.im) + im.lo) <= q.r);
+    // the square root in the closed upper half plane
+    pg::CBall w{a.re, std::fabs(a.im), 0.0};
+    pg::CBall r = pg::csqrtUpper(w);
+    dd::DD mod = dd::sqrt(dd::add(dd::twoProd(w.re, w.re), dd::twoProd(w.im, w.im)));
+    dd::DD p, t;
+    if (w.re >= 0.0) {
+      p = dd::sqrt(dd::mul(dd::add(mod, w.re), 0.5));
+      t = dd::div(dd::DD{w.im, 0.0}, dd::mul(p, 2.0));
+    } else {
+      t = dd::sqrt(dd::mul(dd::sub(mod, w.re), 0.5));
+      p = dd::div(dd::DD{w.im, 0.0}, dd::mul(t, 2.0));
+    }
+    sqrtOut += !(std::hypot((p.hi - r.re) + p.lo, (t.hi - r.im) + t.lo) <= r.r);
+  }
+  printf("pgdensity point balls: %d cases, cdiv %d outside, csqrt %d outside\n", n, divOut, sqrtOut);
+  check(divOut == 0 && sqrtOut == 0, "pgdensity: cdiv's and csqrt's midpoint charges hold at point balls");
+}
+
+/// Past the saddle cap: log f decided far to the right, x 400 b and 1000 b,
+/// where the saddle's v is capped below the closed forms' guard (at b 16,
+/// 2000 b is undecided, log f near -1.6e5: no draw gets there).
+void testFarRight() {
+  int undecided = 0, n = 0;
+  for (double b : {0.2, 1.0, 16.0}) {
+    for (double psi : {0.0, 8.0}) {
+      pg::TargetDensity f(b, psi);
+      for (double m : {400.0, 1000.0}) {
+        f.prepare(m * b);
+        ++n;
+        undecided += !pg::logDensityThrough(f, pg::kNumLevels - 1).finite();
+      }
+    }
+  }
+  printf("pgdensity far right: %d evaluations, %d undecided\n", n, undecided);
+  check(undecided == 0, "pgdensity: log f decided past the saddle cap");
+}
+
+/// The input's radius carried through: images of points on the input disk's
+/// boundary lie in the output ball.
+void testBoundary() {
+  std::mt19937_64 g(23);
+  std::uniform_real_distribution<double> U(0.0, 1.0);
+  auto probe = [&](const char* name, auto f, double lo, double hi) {
+    int miss = 0;
+    for (int i = 0; i < 2000; ++i) {
+      double a = lo + (hi - lo) * U(g), b = lo + (hi - lo) * U(g);
+      double r = 1e-6 * (std::fabs(a) + std::fabs(b));
+      pg::CBall o = f(pg::CBall{a, b, r});
+      if (!std::isfinite(o.r)) continue;
+      for (int k = 0; k < 16; ++k) {
+        double t = 2.0 * pg::kPi * k / 16.0;
+        pg::CBall q = f(pg::CBall{a + r * std::cos(t), b + r * std::sin(t), 0.0});
+        if (std::hypot(q.re - o.re, q.im - o.im) > o.r + 1e-13 * std::hypot(o.re, o.im)) {
+          ++miss;
+          break;
+        }
+      }
+    }
+    printf("pgdensity boundary: %-6s %d of 2000 balls miss a boundary image\n", name, miss);
+    char what[96];
+    snprintf(what, sizeof what, "pgdensity: %s carries its input's radius", name);
+    check(miss == 0, what);
+  };
+  probe("l1pm", [](pg::CBall z) { return pg::clog1pMinus(z); }, -0.17, 0.17);
+  probe("l1pm+", [](pg::CBall z) { return pg::clog1pMinus(z); }, -0.6, 0.6);
+  probe("expm1", [](pg::CBall z) { return pg::cexpm1(z); }, -0.3, 0.3);
+  probe("exp", [](pg::CBall z) { return pg::cexp(z); }, -5.0, 5.0);
+  probe("log1p", [](pg::CBall z) { return pg::clog1p(z); }, -0.5, 2.0);
+  probe("sqrt", [](pg::CBall z) { return pg::csqrtUpper(pg::CBall{z.re, z.im + 10.0, z.r}); }, -3.0, 3.0);
+  probe("mul", [](pg::CBall z) { return pg::cmul(z, pg::CBall{0.7, -1.3, 1e-7}); }, -3.0, 3.0);
+  probe("div", [](pg::CBall z) { return pg::cdiv(pg::CBall{1.1, 0.4, 1e-7}, z); }, 0.5, 3.0);
+}
+
+/// q's dyadic far tail at least the explicit node sum sum_{k h >= y0} |G(k h)|.
+void testFarTail() {
+  double worst = kInf;
+  int n = 0, below = 0;
+  for (double b : {0.2, 2.5, 1e3}) {
+    for (double psi : {8.0, 50.0, 150.0}) {
+      for (double zs : {-3.0, 0.5, 12.0}) {
+        pg::Proposal prop(b, psi);
+        pg::GammaSumDensity q;
+        prop.density(q);
+        const double A = 0.5 * psi, mean = b / (2.0 * psi) * std::tanh(A);
+        const double sd = std::sqrt(b / (4.0 * psi * psi * psi) * (std::sinh(psi) - psi) /
+                                    (std::cosh(A) * std::cosh(A)));
+        double x = mean + zs * sd;
+        if (!(x > 0.0)) x = mean / 20.0;
+        q.prepare(x);
+        pg::EvalCounts c;
+        pg::logDensity(q, 0, &c);
+        const double h = c.h, rho = q.rho();
+        if (!(h > 0.0)) continue;
+        const double yW = 0.5 * (-rho + std::sqrt(rho * rho + 1.0 / x));
+        for (double m : {1.0, 2.0, 8.0}) {
+          const double y0 = std::max(yW * m, h);
+          const long k0 = static_cast<long>(std::ceil(y0 / h));
+          double s = 0.0;
+          for (long k = k0; k < k0 + 4000000; ++k) {
+            const double y = k * h;
+            pg::CBall E = q.nodeExponent(y);
+            double t = std::exp(E.re) * std::hypot(rho, y);
+            s += t;
+            if (t < 1e-30 * s && k > k0 + 100) break;
+            if (!(s > 0.0) && E.re < -800.0) break;
+          }
+          if (!(s > 0.0)) continue;
+          const double ft = q.farTail(k0 * h, h);
+          ++n;
+          worst = std::min(worst, ft / s);
+          below += !(ft >= s);
+        }
+      }
+    }
+  }
+  printf("pgdensity far tail: %d cases, %d below the node sum, smallest far tail / node sum %.4g\n", n,
+         below, worst);
+  check(n > 0 && below == 0, "pgdensity: q's far tail is at least the explicit node sum");
+}
+
+/// The word source against the Mersenne Twister's uniforms: each word w is
+/// the uniform's 32 bits, u = w 2^-32 exactly.
+void testWordSource() {
+  ext_rng* r1 = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng* r2 = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(r1, 99u);
+  ext_rng_setSeed(r2, 99u);
+  pg::ExtRngWordSource words{r1};
+  int differ = 0;
+  for (int i = 0; i < 100000; ++i) {
+    std::uint32_t w = words();
+    double u = ext_rng_simulateContinuousUniform(r2);
+    differ += !(w == 0 ? u < 0x1p-32 : std::ldexp(static_cast<double>(w), -32) == u);
+  }
+  ext_rng_destroy(r1);
+  ext_rng_destroy(r2);
+  check(differ == 0, "pgdensity: the word source's words are the Mersenne Twister's uniforms' bits");
+}
+
+/// sumsT near its guard against a double-double reference: accepted where
+/// pi/2 - sqrt(-W) > 2^-11 and not below, within kTRelErr where accepted.
+void testSumsT() {
+  std::mt19937_64 g(11);
+  std::uniform_real_distribution<double> U(0.0, 1.0);
+  int n = 0, accepted = 0, wrongGuard = 0, outside = 0;
+  double worst = 0.0;
+  for (int i = 0; i < 20000; ++i) {
+    const double gap = std::ldexp(1.0, -21) * std::pow(2.0, 20.0 * U(g));  // 2^-21 to 2^-1
+    const double v0 = 0.5 * pg::kPi - gap;
+    const double W = -(v0 * v0);
+    double t1, t2;
+    const bool ok = pg::sumsT(W, t1, t2);
+    const dd::DD v = dd::sqrt(dd::DD{-W, 0.0});
+    const dd::DD gp = dd::sub(dd::kPiOver2, v);
+    if (!(gp.hi > 0.0)) continue;
+    ++n;
+    if (gp.hi > 0x1p-11 * (1.0 + 0x1p-30) && !ok) ++wrongGuard;
+    if (gp.hi < 0x1p-11 * (1.0 - 0x1p-30) && ok) ++wrongGuard;
+    if (!ok) continue;
+    ++accepted;
+    const dd::DD sn = dd::sin(v), cs = dd::sin(gp);
+    const dd::DD tn = dd::div(sn, cs);
+    const dd::DD T1 = dd::div(tn, dd::mul(v, 2.0));
+    const dd::DD T2 = dd::div(dd::sub(dd::div(v, dd::mul(cs, cs)), tn), dd::mul(dd::mul(v, 4.0), -W));
+    const double e = std::max(std::fabs(dd::toDouble(dd::sub(dd::DD{t1, 0.0}, T1)) / T1.hi),
+                              std::fabs(dd::toDouble(dd::sub(dd::DD{t2, 0.0}, T2)) / T2.hi));
+    worst = std::max(worst, e);
+    outside += !(e <= pg::kTRelErr);
+  }
+  printf("pgdensity sumsT near the guard: %d W, %d accepted, %d on the wrong side of the guard, "
+         "%d outside, worst %.3g of kTRelErr\n",
+         n, accepted, wrongGuard, outside, worst / pg::kTRelErr);
+  check(wrongGuard == 0 && outside == 0 && accepted > 0,
+        "pgdensity: sumsT is within kTRelErr where its guard accepts W");
 }
 
 }  // namespace
@@ -392,4 +867,14 @@ void runPgdensityTests() {
   testFloor(radF, midF);
   testReach();
   testStep();
+  testDecision();
+  testThresholds();
+  testNonFinite();
+  testSmallOperands();
+  testPointBalls();
+  testFarRight();
+  testBoundary();
+  testFarTail();
+  testWordSource();
+  testSumsT();
 }
