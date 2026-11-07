@@ -23,6 +23,26 @@ inline constexpr double kU = 0x1p-53;
 /// Relative error bound shared by every arithmetic operation (16 u^2).
 inline constexpr double kU2 = 0x1p-102;
 
+namespace detail {
+
+/// v, hidden from the optimizer: a product passed through it cannot be fused
+/// into a later sum. The error-free transformations need each sum and product
+/// rounded as written; GCC's default in GNU modes contracts a * b + c into a
+/// fused multiply-add even across statements once inlined, which would break
+/// them. Costs no instruction.
+inline double opaque(double v) {
+#if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__)) && defined(__SSE2__)
+  __asm__("" : "+x"(v));
+#elif defined(__GNUC__) && defined(__aarch64__)
+  __asm__("" : "+w"(v));
+#elif defined(__GNUC__)
+  __asm__("" : "+m"(v));
+#endif
+  return v;
+}
+
+}  // namespace detail
+
 /// A double-double value hi + lo.
 struct DD {
   double hi;
@@ -34,6 +54,8 @@ inline double toDouble(DD a) { return a.hi + a.lo; }
 
 /// Exact sum: s + e == a + b (Knuth's 2Sum).
 inline DD twoSum(double a, double b) {
+  a = detail::opaque(a);
+  b = detail::opaque(b);
   double s = a + b;
   double bb = s - a;
   double e = (a - (s - bb)) + (b - bb);
@@ -42,6 +64,8 @@ inline DD twoSum(double a, double b) {
 
 /// Exact sum when a == 0 or |a| >= |b| (Dekker's Fast2Sum).
 inline DD fastTwoSum(double a, double b) {
+  a = detail::opaque(a);
+  b = detail::opaque(b);
   double s = a + b;
   double e = b - (s - a);
   return DD{s, e};
@@ -49,7 +73,7 @@ inline DD fastTwoSum(double a, double b) {
 
 /// Exact product: p + e == a * b, by a fused multiply-add.
 inline DD twoProd(double a, double b) {
-  double p = a * b;
+  double p = detail::opaque(a * b);
   double e = std::fma(a, b, -p);
   return DD{p, e};
 }
