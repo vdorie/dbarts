@@ -484,3 +484,42 @@ for (family in list("student", dbartsFamilies$student(df = 3))) {
   )
 }
 rm(y.factor4, y.factor2, family)
+
+# a family vector names one family only when it is a door's own default,
+# which a wrapper forwarding its formal hands over; any other is refused
+familyPair <- "'family' must name one response family; got \"gaussian\", \"probit\""
+expect_error(
+  dbarts(x, y.binary, family = c("gaussian", "probit"), control = control),
+  familyPair,
+  fixed = TRUE
+)
+expect_error(
+  dbarts::bart(
+    x,
+    y.binary,
+    family = c("gaussian", "probit"),
+    n.samples = 2L,
+    n.burn = 2L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  ),
+  familyPair,
+  fixed = TRUE
+)
+expect_error(
+  dbarts::xbart(x, y.binary, family = c("gaussian", "probit")),
+  familyPair,
+  fixed = TRUE
+)
+expect_inherits(
+  dbarts(
+    x,
+    y.binary,
+    family = eval(formals(dbarts)$family),
+    control = control,
+    n.trees = 5L
+  ),
+  "dbartsSampler"
+)
+rm(familyPair)

@@ -63,7 +63,8 @@ expect_error(
 expect_error(dbarts::xbart(y ~ x, n.test = NULL), "'n.test' cannot be NULL")
 expect_error(
   dbarts::xbart(y ~ x, n.test = NA_real_),
-  "missing value where TRUE/FALSE needed"
+  "for k-fold crossvalidation, 'n.test' must be an integer in [2, ",
+  fixed = TRUE
 )
 
 expect_error(
@@ -309,6 +310,69 @@ expect_error(
   "codes in \\[0, 65534\\)"
 )
 rm(x.coded, data.ok, data.over)
+
+# method and loss are matched as match.arg matches one string, partially, as
+# 'parallel' is on the same function
+xbartSmall <- function(...) {
+  dbarts::xbart(
+    y ~ x,
+    n.reps = 1L,
+    n.samples = 4L,
+    n.burn = 2L,
+    n.trees = 3L,
+    n.threads = 1L,
+    seed = 0L,
+    ...
+  )
+}
+expect_identical(
+  xbartSmall(method = "k", n.test = 5),
+  xbartSmall(method = "k-fold", n.test = 5)
+)
+expect_identical(
+  xbartSmall(method = "random", n.test = 0.2),
+  xbartSmall(method = "random subsample", n.test = 0.2)
+)
+expect_identical(
+  xbartSmall(loss = "r", n.test = 5),
+  xbartSmall(loss = "rmse", n.test = 5)
+)
+expect_error(
+  xbartSmall(method = c("random subsample", "k-fold")),
+  "method must be in 'k-fold', 'random subsample'",
+  fixed = TRUE
+)
+expect_error(
+  xbartSmall(loss = c("rmse", "log")),
+  "loss must be in 'rmse', 'log', 'mcr', or a function",
+  fixed = TRUE
+)
+# a random subsample's n.test is a fraction or a whole count of rows
+expect_error(
+  xbartSmall(method = "random subsample", n.test = 1.5),
+  paste0(
+    "for random subsample crossvalidation, 'n.test' is a fraction in (0, 1) ",
+    "or a whole number of test rows"
+  ),
+  fixed = TRUE
+)
+expect_error(
+  xbartSmall(method = "random subsample", n.test = NA),
+  "'n.test' is a fraction in (0, 1) or a whole number of test rows",
+  fixed = TRUE
+)
+expect_true(is.numeric(xbartSmall(method = "random subsample", n.test = 2)))
+expect_error(
+  xbartSmall(method = "k-fold", n.test = NA),
+  "for k-fold crossvalidation, 'n.test' must be an integer in [2, ",
+  fixed = TRUE
+)
+expect_error(
+  xbartSmall(drop = NA, n.test = 5),
+  "'drop' must be TRUE/FALSE",
+  fixed = TRUE
+)
+rm(xbartSmall)
 
 
 rm(testData)

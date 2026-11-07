@@ -312,16 +312,21 @@ xbart <- function(
   # from; the folds fall back in silence
   allRows <- scaleRowsFallBack(data, family)
 
-  if (
-    !is.character(method) || method[1L] %not_in% eval(formals(xbart)$method)
-  ) {
+  # match.arg's reading, as 'parallel' has: the default vector is its first
+  # entry, and one string is matched partially
+  methods <- eval(formals(xbart)$method)
+  method <- if (identical(method, methods)) {
+    methods[1L]
+  } else {
+    methods[matchOneToken(method, methods)]
+  }
+  if (anyNA(method)) {
     stop(
       "method must be in '",
-      paste0(eval(formals(xbart)$method), collapse = "', '"),
+      paste0(methods, collapse = "', '"),
       "'"
     )
   }
-  method <- method[1L]
   if (!is.null(matchedCall$method) && is.null(matchedCall$n.test)) {
     n.test <- eval(formals(xbart)$n.test)[match(
       method,
@@ -461,6 +466,9 @@ xbart <- function(
   power <- coerceOrError(power, "numeric")
   base <- coerceOrError(base, "numeric")
   drop <- coerceOrError(drop, "logical")
+  if (length(drop) != 1L || is.na(drop)) {
+    stop("'drop' must be TRUE/FALSE", call. = FALSE)
+  }
   if (anyNA(power) || any(power <= 0)) {
     stop("'power' must contain only positive values")
   }
@@ -583,7 +591,7 @@ xbart <- function(
   numObservations <- length(data@y)
   if (method == "k-fold") {
     n.test <- coerceOrError(n.test, "integer")
-    if (n.test < 2L || n.test > numObservations) {
+    if (is.na(n.test) || n.test < 2L || n.test > numObservations) {
       stop(
         "for k-fold crossvalidation, 'n.test' must be an integer in [2, ",
         numObservations,
@@ -598,6 +606,13 @@ xbart <- function(
     numTest <- 0L
   } else {
     n.test <- coerceOrError(n.test, "numeric")
+    # a count of test rows is whole; 1.5 is neither a fraction nor a count
+    if (is.na(n.test) || (n.test > 1 && n.test != round(n.test))) {
+      stop(
+        "for random subsample crossvalidation, 'n.test' is a fraction in ",
+        "(0, 1) or a whole number of test rows"
+      )
+    }
     if (n.test > 1) {
       n.test <- n.test / numObservations
     }
@@ -955,6 +970,15 @@ xbart <- function(
   result
 }
 
+## The position in 'choices' of a single string, matched partially as
+## match.arg matches one; NA for anything else.
+matchOneToken <- function(value, choices) {
+  if (!is.character(value) || length(value) != 1L || is.na(value)) {
+    return(NA_integer_)
+  }
+  pmatch(value, choices)
+}
+
 ## Resolve the loss argument into function(y.test, testSamples, weights):
 ## testSamples is numTestObservations x numSamples, on the latent scale for
 ## binary responses. The built-in binary losses transform by the family's
@@ -973,10 +997,15 @@ xbartLossFunction <- function(loss, control, family) {
     })
   }
 
-  if (!is.character(loss) || loss[1L] %not_in% c("rmse", "log", "mcr")) {
+  losses <- c("rmse", "log", "mcr")
+  loss <- if (identical(loss, losses)) {
+    losses[1L]
+  } else {
+    losses[matchOneToken(loss, losses)]
+  }
+  if (anyNA(loss)) {
     stop("loss must be in 'rmse', 'log', 'mcr', or a function")
   }
-  loss <- loss[1L]
   if (loss %in% c("log", "mcr") && !control@binary) {
     stop("loss '", loss, "' requires a binary response")
   }

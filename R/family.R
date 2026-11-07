@@ -728,8 +728,16 @@ resolveFamily <- function(
     }
     ## a wrapper forwarding its own unevaluated formal hands over the whole
     ## default vector, whose first element is the default match.arg reads;
-    ## anything else is one token, matched partially as match.arg does
+    ## any other vector names more than one family, and anything else is one
+    ## token, matched partially as match.arg does
     token <- if (length(value) > 1L) {
+      if (!identical(value, tokens)) {
+        stop(
+          "'family' must name one response family; got ",
+          paste0("\"", value, "\"", collapse = ", "),
+          call. = FALSE
+        )
+      }
       value[1L]
     } else if (value %in% statsFamilyNames) {
       resolvedFamily(get(value, envir = asNamespace("stats")))@token
