@@ -1,6 +1,6 @@
 # Review 4, slice S-G: the starting sigma reads the forests' bases
 
-Status: built, in review (branch review4-sigest-bases).
+Status: LANDED on main 2026-11-07 (branch review4-sigest-bases).
 
 agent: implementer (opus), one opus review with mutants. rng: posterior-changing for gaussian fits with a basis
 outside the span of the intercept and the predictors and no stated sigest; bitwise for every other fit but a basis
@@ -182,3 +182,19 @@ of both builds:
   sum of the weights less the rank the routine returns), are not built.
 - No posterior study beyond the review's 20 seeds, and no multi-forest package other than bcf.
 - The sparse route's cost of a dense basis column at large n (n doubles a forest) was not measured.
+
+## Landing note
+
+Landed by fast-forward at c170d0f9e after one review and its fix round. The review (LAND) found the bitwise claim
+for a basis inside the predictors' span too strong on the sparse route, and the fallback line's wording pinned only
+in part; the fix round corrected the note and the RNG class, pinned the whole line and the estimator's default
+design (its mutants M5b and M7 now fail), recorded M4b, the sparse route without centering the basis columns, as
+equivalent at rounding, and rebased past the engine-robustness slice, renaming the two re-recorded baselines from
+618d70a2 to 38da480c, the draw-changing commit as rebased, byte for byte. On the rebased tip: the nine per-push
+workflows by dispatch, all green. The x86 leg (Linux, x86-64): tests/cpp 548 checks plain and under ASan/UBSan
+with the leak sanitizer, no report; the full tinytest suite, 42121 results, 0 failed; the equivalence trio in
+statistical mode, 55 scenarios compared and indistinguishable, BCF and multinomial within the cross-host bound.
+The review's own gates on its builds: every door against lm, dense to the bit and sparse to 1e-12; 36 of 36
+estimates identical to summary(lm())$sigma; the partition 19 of 19 BCF and bart2twoforest bitwise at main's
+estimate; bartCause's suite 225 tests, 0 failed. One mutant survives, M4b, equivalent at rounding. The calls not
+put to the maintainer are dec-A267.

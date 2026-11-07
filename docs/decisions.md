@@ -1104,6 +1104,15 @@ Under dec-B283 (a restore refuses a plainly broken state) and dec-B581 (a stoppe
 The rest are internal, in the records. A data replacement with another row count, and saved draws a failed rewrite had not reached, stay unsettled (22; TODO allocation-failure-residuals).
 Gates: see the records' Gates and Landing note. Record: docs/plans/review-2026-11-06/engine-robustness.md, Calls made and Landing note; src/bartcore/chain.hpp, Chain::kDrawCanBeInfinite; src/external/rng_internal.h, ext_rng_rederiveGammaMemo. Marked: blank. See also: [dec-B283], [dec-B581], [dec-A174], [dec-A220], [dec-A223]. [dec-A266]
 
+**The fourth review's sigest-bases slice as built: the calls its plan left open**
+Under dec-B603 (with no sigest, the regression that centers the noise prior takes each forest's basis beside the predictors). The builder's calls and the fix round's, not put to the maintainer, each with its alternative in the records' Calls made, numbered there. Gaussian fits with a basis outside the predictors' span and no stated sigest move; every other fit draws as before, but a basis inside that span on the sparse route that repeats no predictor's column, whose estimate moves by rounding. Those a user meets.
+- A forest of levels adds the indicators of every level but its first, lm's treatment coding (dec-B422), where the plan names the block's second column; for the two levels a basis can hold the two are one column (1).
+- The fallback line, where no regression is defined, names the bases only when a forest has one (5).
+- The re-recorded equivalence baselines are named after the draw-changing commit as rebased onto main, not the newest commit changing package code, a comment's.
+
+The rest are internal or test fixtures, in the records: three fixtures whose pins the new estimate moved state a starting sigma (9), and the estimator keeps its default design, now pinned by a test (10).
+Gates: see the records' Gates and Landing note. Record: docs/plans/review-2026-11-06/sigest-bases.md, Calls made and Landing note; R/utility.R, sigmaBasisColumns and startingSigmaDesign; R/spec.R, estimateStartingSigma. Marked: blank. See also: [dec-B603], [dec-B422]. [dec-A267]
+
 ## B. Decisions with maintainer evidence
 
 **Missing predictors are modeled, not refused**
