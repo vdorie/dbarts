@@ -660,6 +660,17 @@
             the likelihood on every family. A test sample's weights mean
             what the fit's do, and \code{predict}'s weights on a count
             family are new trials, a 0 drawing none.
+      \item A binomial response. Under \code{family = binomial} or
+            \code{"logistic"}, \code{bart}, \code{dbarts} and \code{xbart}
+            take \code{cbind(successes, failures)} on a formula, or an
+            n x 2 matrix on the matrix interface, as \code{glm} does, where
+            0.9-34 stopped on it. Fits report probabilities, and
+            predictive draws and the log-likelihood are binomial at a
+            training row's trials; at new rows the trials are
+            \code{predict}'s weights, one where none are given. A row of
+            no trials is fitted and enters no likelihood. \code{xbart}'s
+            \code{"log"} and \code{"mcr"} losses score the rows as their
+            trials written out one each.
       \item A \code{"hurdle.lognormal"} fit takes a formula and
             \code{data}, or a data object; a \code{test} set, read by
             \code{extract} and \code{fitted} with

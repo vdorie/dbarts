@@ -38,7 +38,8 @@ samplePriorPredictive(
     ordinal or multinomial one. \code{"ppd"} adds the observation model on top: gaussian noise
     with sigma freshly drawn from its own prior for each sample; for Student-t, sigma times
     \eqn{t_\nu}{t_nu} noise at the family's df, or at the sample's df drawn from its prior when the
-    df is estimated; a bernoulli draw from the \code{"ev"} probabilities for a binary sampler; a
+    df is estimated; a bernoulli draw from the \code{"ev"} probabilities for a binary sampler, a binomial one
+    included, one trial per row as \code{predict} draws at a new row given no weights; a
     negative-binomial count at the sample's shape, fixed or drawn; an integer category code
     \eqn{1, \ldots, K}{1, ..., K} for an ordinal sampler, and for a multinomial one whose response was
     written as a factor; a count vector of one trial for a multinomial sampler whose response was
