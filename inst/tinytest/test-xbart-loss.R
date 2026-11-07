@@ -270,4 +270,82 @@ for (family in c("probit", "logistic")) {
 rm(family, link, weighted, args, folds, byFold, reported)
 rm(binaryRun, binaryCapture, binaryCaptured, wBin, yBin, xBin, nBin)
 
+# A binomial response is scored as its rows written out one trial each: the
+# built-in log and mcr losses on the binomial rows equal the same losses on the
+# 0/1 expansion of each fold's held-out rows, each trial carrying its row's
+# draws and weight, to rounding. A supplied loss is handed each row's observed
+# proportion and its trials times its weight. The draws are the fold's own,
+# recorded through a supplied loss at the seed the built-in runs take.
+set.seed(37L)
+nBnm <- 30L
+bnmData <- data.frame(x1 = runif(nBnm), x2 = runif(nBnm))
+bnmTrials <- rep_len(c(0L, 1L, 3L, 4L, 2L), nBnm)
+bnmData$k <- rbinom(nBnm, bnmTrials, plogis(2 * bnmData$x1 - 1))
+bnmData$f <- bnmTrials - bnmData$k
+bnmWeights <- rep_len(c(1, 2, 1), nBnm)
+bnmCaptured <- new.env(parent = emptyenv())
+bnmCapture <- function(y.test, testSamples, weights) {
+  bnmCaptured$calls <- c(
+    bnmCaptured$calls,
+    list(list(y = y.test, samples = testSamples, weights = weights))
+  )
+  0
+}
+bnmRun <- function(...) {
+  suppressWarnings(dbarts::xbart(
+    cbind(k, f) ~ x1 + x2,
+    bnmData,
+    family = binomial,
+    weights = bnmWeights,
+    n.samples = 6L,
+    n.burn = c(4L, 2L),
+    method = "k-fold",
+    n.test = 3,
+    n.reps = 1L,
+    n.trees = 5L,
+    k = 2,
+    seed = 7L,
+    verbose = FALSE,
+    n.threads = 1L,
+    ...
+  ))
+}
+bnmCaptured$calls <- list()
+bnmRun(loss = bnmCapture)
+bnmFolds <- bnmCaptured$calls
+expect_equal(length(bnmFolds), 3L)
+for (fold in bnmFolds) {
+  rows <- as.integer(names(fold$y))
+  expect_equal(
+    unname(fold$y),
+    ifelse(bnmTrials[rows] > 0L, bnmData$k[rows] / bnmTrials[rows], 0)
+  )
+  expect_equal(fold$weights, bnmTrials[rows] * bnmWeights[rows])
+}
+bnmBinaryControl <- dbarts::dbartsControl()
+bnmBinaryControl@binary <- TRUE
+# the fold's rows written out: row i as k_i trials of 1 and n_i - k_i of 0,
+# each with row i's draws and weight
+bnmExpanded <- function(lossName, fold) {
+  rows <- as.integer(names(fold$y))
+  trials <- bnmTrials[rows]
+  each <- rep(seq_along(rows), trials)
+  y <- unlist(lapply(seq_along(rows), function(i) {
+    rep(c(1, 0), c(bnmData$k[rows[i]], bnmData$f[rows[i]]))
+  }))
+  dbarts:::xbartLossFunction(lossName, bnmBinaryControl, "logistic")(
+    y,
+    fold$samples[each, , drop = FALSE],
+    bnmWeights[rows][each]
+  )
+}
+for (lossName in c("log", "mcr")) {
+  reported <- as.vector(bnmRun(loss = lossName))
+  expanded <- mean(vapply(bnmFolds, bnmExpanded, 0, lossName = lossName))
+  expect_equal(reported, expanded, info = lossName)
+}
+rm(fold, rows, lossName, reported, expanded, bnmExpanded, bnmBinaryControl)
+rm(bnmFolds, bnmRun, bnmCapture, bnmCaptured, bnmWeights, bnmTrials, bnmData)
+rm(nBnm)
+
 rm(testData)
