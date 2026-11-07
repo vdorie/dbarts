@@ -64,7 +64,9 @@
       prior standard deviations of \eqn{f(x)} span the whole response
       range regardless of \code{m}; see \code{\link{dbarts}}'s Details for
       the response-scaling caveat this relies on. A string such as
-      \code{"chi(1.5)"} is kept for 0.9-x.
+      \code{"chi(1.5)"} is kept for 0.9-x. \code{k = Inf} is accepted and
+      holds every tree at zero, so the fit is the offset, plus on a
+      continuous response the center of the range \code{y - offset} spans.
 
       \code{sd} is the standard deviation of the normal prior on the leaf
       model's own parameter, for the forest total, on the scale the
