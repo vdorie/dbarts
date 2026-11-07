@@ -1559,17 +1559,19 @@ for (new in list(reversed, regrouped)) {
     fixed = TRUE
   )
 }
-# the column twice, the second changed, dense and sparse
+# the column named twice is refused as a repeated column before the period
+# is read, the second changed, dense and sparse
+repeatRefusal <- "'column' names column 'period' more than once"
 twice <- cbind(period, reversed)
 expect_error(
   s$setPredictor(twice, c("period", "period")),
-  periodRefusal,
+  repeatRefusal,
   fixed = TRUE
 )
 if (requireNamespace("Matrix", quietly = TRUE)) {
   expect_error(
     s$setPredictor(Matrix::Matrix(twice, sparse = TRUE), c("period", "period")),
-    periodRefusal,
+    repeatRefusal,
     fixed = TRUE
   )
 }
@@ -1583,7 +1585,7 @@ expect_true(s$setPredictor(cbind(design[, "x1"], period), c("x1", "period")))
 # the column twice, the first changed and the last as it is
 expect_error(
   s$setPredictor(cbind(reversed, period), c("period", "period")),
-  periodRefusal,
+  repeatRefusal,
   fixed = TRUE
 )
 if (requireNamespace("Matrix", quietly = TRUE)) {
@@ -1592,7 +1594,7 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
       Matrix::Matrix(cbind(reversed, period), sparse = TRUE),
       c("period", "period")
     ),
-    periodRefusal,
+    repeatRefusal,
     fixed = TRUE
   )
 }
@@ -1600,7 +1602,7 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
 # width of the columns named
 expect_error(
   s$setPredictor(c(period, reversed), c("period", "period")),
-  periodRefusal,
+  repeatRefusal,
   fixed = TRUE
 )
 expect_error(
