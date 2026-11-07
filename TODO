@@ -340,8 +340,9 @@ items
     guess of tens of core-hours, mostly step 2. Logistic fits only;
     probit keeps its own rescaling step (dec-B617); the move reaches
     the forests sharing one prior total (dec-B618) and hazard.logistic
-    and count-weighted logistic fits, timed, not scored (dec-B619).
-    Record
+    and count-weighted logistic fits, timed, not scored (dec-B619);
+    cost too high is harm at equal time only without strong signal, or
+    a timed cell past 1.25 times shipped (dec-B620). Record
     docs/plans/binary-k-mixing-need.md, What the result leads to;
     move on wt/collapsed-move-plan, plan
     docs/plans/collapsed-scale-move.md.
