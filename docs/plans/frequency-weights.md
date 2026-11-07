@@ -42,7 +42,8 @@ but a weighted logistic fit with a linear leaf or a numeric basis once S5 resolv
 tier "R surface" for S5 and S6, both pure R.
 rng: neutral, bit for bit, for every engine draw of a call taken on the build it starts from, main 6f84b5a66, after
 coefficient-prior-live and latents-first (whose draws latents-first moved and re-recorded once): the equivalence trio
-(equivalence-a6e83f38.rds, bcf-equivalence-a6e83f38.rds, multinomial-equivalence-80b1c8d4.rds), the four snapshot files,
+(equivalence-a6e83f38.rds, bcf-equivalence-a6e83f38.rds, multinomial-equivalence-80b1c8d4.rds; from S5 on, after S-G's
+re-record, equivalence-38da480c.rds and bcf-equivalence-38da480c.rds), the four snapshot files,
 tests/cpp and the exact gates do not move. Reported values that move are listed under [RNG class](#rng-class): a weighted
 logistic fit's training predictive draws (dec-B566), a 0 row's predictive draws on probit, ordinal, hazard, hazard.probit
 and nbinom (NA, dec-B580), `$activeRows` after 0/1 weights (NULL), a logistic zero weight (taken), and a multinomial count
@@ -738,12 +739,15 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
 43. On probit, ordinal and nbinom a fit records its rows in as `fit$active`, the weights times the mask, and stores no
     `fit$weights`, so a fit's shape and every reader of it (the posterior predictive among them) stay as they were.
     Alternative: storing `fit$weights` and teaching each reader the 0/1 reading.
-44. Logistic and nbinom kappa read a count of 0 as 1, so a row of weight 0 holds the working response a masked row holds
-    and a fit created with 0/1 weights equals the masked fit bitwise at every row. Alternative: kappa 0 there, bitwise at
-    the rows in only, a row out's own fitted value apart at rounding through the residual bookkeeping.
-45. The logistic `$setWeights` arm that sets a row to 0 is pinned bitwise at the rows in and within 1e-12 at every row: the
-    row keeps the omega it had, which differs from a masked row's at count 1. Alternative: resetting the row's omega to its
-    cold start at the setter.
+44. Logistic and nbinom kappa read a count of 0 as 1, so a row of weight 0 holds the working response a masked row holds.
+    On nbinom a fit created with 0/1 weights then equals the masked fit bitwise at every row (the S4 review's mutant M,
+    kappa 0 there, is killed). On logistic it has no observable effect: the review's mutant D, kappa 0 at a count-0 row,
+    draws bitwise at every row over 3000 sweeps, with and without an offset; it is kept for one rule on both families.
+    Alternative: kappa 0 at a count-0 row, which on nbinom moves a row out's own fitted value off the masked fit's.
+45. The logistic `$setWeights` arm that sets a row to 0 is pinned bitwise at the rows in and to rounding at every row (the S4
+    review: 1.5e-12 absolute after 6000 sweeps, relative about 1e-14), the tests/cpp nbinom arm likewise: the row keeps
+    the omega it had, which differs from a masked row's at count 1. Alternative: resetting the row's omega to its cold
+    start at the setter.
 46. The basis scales of a several-forest probit or logistic sampler are read over the rows of positive weight, as over the
     rows the mask kept. Alternative: every row, which moves the scales and loses their fallback warnings.
 47. The leaf covariate refusal's remedy names "the weights, the active-row mask, or subset", the 0/1 weights' mask being
@@ -1221,6 +1225,10 @@ counts the user asks for.
 - dec-B594's cases were read from the code (`multinomialPpdFromProbs`, `multinomialCountPpdFromProbs`, predict.bartOrdinal
   drawing its categories through the first) and not run; the line counts of the rule and of Open calls 2 and 3 are
   estimates, no option prototyped.
+- The S4 review's mutant N, nbinom's rows in ignoring a count of 0, hangs rather than fails: a sweep that draws a count-0
+  row's Polya-Gamma latent spins (over 8 minutes in the review) instead of failing. What guards it is `NBResponse`'s rows-in
+  composition, which takes a row of count 0 out, so no sweep draws its latent; nothing below refuses shape 0, and a test
+  that reached it would end only at CI's timeout.
 - That choose.c needs nothing beyond the copy's lbeta.c and lgamma.c (`lgammafn_sign`) and its prefix header; S3 confirms.
   Checked: libR on the laptop exports `Rf_lchoose` (nm), and Rmath.h declares it, so the R build's seventh name links as the
   six do.
