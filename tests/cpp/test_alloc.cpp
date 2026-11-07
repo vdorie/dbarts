@@ -12,6 +12,7 @@
 #include "common.hpp"
 
 #include <cstdlib>
+#include <initializer_list>
 #include <new>
 
 namespace {
@@ -127,34 +128,110 @@ bool failsAt(long n, F&& body, bool& otherException, bool& reached) {
   return threw;
 }
 
-/// Every forest's totalFits against its trees' fits summed in tree order,
-/// and every value finite.
+/// Every chain's every forest's totalFits against its trees' fits summed in
+/// tree order, and every value finite.
 template <typename S>
 bool totalsAreTheTrees(S& sampler, double tolerance) {
-  auto& chain = sampler.chain(0);
   std::size_t n = sampler.data().numObservations;
   std::size_t numForests = sampler.numForests();
-  for (std::size_t f = 0; f < numForests; ++f) {
-    std::size_t numTrees = chain.numTreesInForest(f);
-    std::vector<double> fits(n * numTrees);
-    TestPeer::forestTreeFits(chain, f, fits.data());
-    const std::vector<double>& total = TestPeer::totalFitsInForest(chain, f);
-    for (std::size_t i = 0; i < n; ++i) {
-      double sum = 0.0;
-      for (std::size_t t = 0; t < numTrees; ++t) sum += fits[t * n + i];
-      if (!std::isfinite(total[i]) || !std::isfinite(sum) ||
-          std::fabs(total[i] - sum) > tolerance * (1.0 + std::fabs(sum)))
-        return false;
+  for (std::size_t c = 0; c < sampler.numChains(); ++c) {
+    auto& chain = sampler.chain(c);
+    for (std::size_t f = 0; f < numForests; ++f) {
+      std::size_t numTrees = chain.numTreesInForest(f);
+      std::vector<double> fits(n * numTrees);
+      TestPeer::forestTreeFits(chain, f, fits.data());
+      const std::vector<double>& total = TestPeer::totalFitsInForest(chain, f);
+      for (std::size_t i = 0; i < n; ++i) {
+        double sum = 0.0;
+        for (std::size_t t = 0; t < numTrees; ++t) sum += fits[t * n + i];
+        if (!std::isfinite(total[i]) || !std::isfinite(sum) ||
+            std::fabs(total[i] - sum) > tolerance * (1.0 + std::fabs(sum)))
+          return false;
+      }
     }
+  }
+  return true;
+}
+
+/// Whether every column that splits by threshold holds as many points as its
+/// count says, increasing, with no weights or one per interval.
+bool gridIsWhole(const ColumnStore& data) {
+  for (std::size_t j = 0; j < data.numPredictors; ++j) {
+    if (!data.splitsByThreshold(j)) continue;
+    const std::vector<double>& points = data.cutPoints[j];
+    if (points.size() != data.numCuts[j]) return false;
+    for (std::size_t k = 1; k < points.size(); ++k)
+      if (!(points[k - 1] < points[k])) return false;
+    if (!data.cutMass[j].empty() && data.cutMass[j].size() != points.size() + 1)
+      return false;
+  }
+  return true;
+}
+
+/// Whether every column that splits by threshold holds the codes of one of
+/// \p sources' columns (column-major, the store's row count each, null
+/// entries skipped) quantized on the grid the store holds: a step that moves
+/// the store leaves each column moved or not, never part way.
+bool codesAreTheGrids(const ColumnStore& data,
+                      std::initializer_list<const double*> sources) {
+  std::size_t n = data.numObservations;
+  for (std::size_t j = 0; j < data.numPredictors; ++j) {
+    if (!data.splitsByThreshold(j)) continue;
+    bool any = false;
+    for (const double* source : sources) {
+      if (source == nullptr || any) continue;
+      bool all = true;
+      for (std::size_t i = 0; i < n && all; ++i)
+        all = data.codeAt(j, i) == data.codeFor(j, source[j * n + i]);
+      any = all;
+    }
+    if (!any) return false;
   }
   return true;
 }
 
 struct HarnessTally {
   long allocations = 0, failed = 0, absorbed = 0, consistent = 0,
-       described = 0, readable = 0, continued = 0, routed = 0;
+       described = 0, readable = 0, continued = 0, routed = 0, kept = 0;
   bool otherException = false;
+  bool checksKept = false;
 };
+
+/// Whether two flattened trees split alike: the same nodes, variables,
+/// directions and cut points or level masks, whatever their leaf values.
+bool sameStructure(const std::vector<FlatNode>& a,
+                   const std::vector<FlatNode>& b) {
+  if (a.size() != b.size()) return false;
+  for (std::size_t i = 0; i < a.size(); ++i) {
+    if (a[i].variable != b[i].variable ||
+        a[i].numMaskWords != b[i].numMaskWords || a[i].flags != b[i].flags)
+      return false;
+    if (a[i].variable != invalidVariable && a[i].mask != b[i].mask)
+      return false;
+  }
+  return true;
+}
+
+/// Whether every tree of \p state splits as the same tree does in one of
+/// \p sweeps, the states an unfailed step passes through at each sweep's
+/// end: a move that throws puts its tree back as it was before the
+/// proposal, so a failed sweep leaves each tree as the sweep before it or
+/// the sweep it was in left it.
+bool everyTreeIsOneSwept(const SamplerStateData& state,
+                         const std::vector<SamplerStateData>& sweeps) {
+  for (std::size_t c = 0; c < state.chains.size(); ++c)
+    for (std::size_t f = 0; f < state.chains[c].forests.size(); ++f) {
+      const auto& trees = state.chains[c].forests[f].trees;
+      for (std::size_t t = 0; t < trees.size(); ++t) {
+        bool found = false;
+        for (const SamplerStateData& sweep : sweeps)
+          found = found ||
+            sameStructure(trees[t], sweep.chains[c].forests[f].trees[t]);
+        if (!found) return false;
+      }
+    }
+  return true;
+}
 
 /// Every forest's per-tree fits, and the variance surface, against those of
 /// a new sampler \p make builds and hands \p sampler's state: that one
@@ -193,10 +270,50 @@ bool fitsAreTheTreesRouted(S& sampler, Make&& make) {
 /// builds, a run of it with that allocation failed. Each run is on a new
 /// sampler, since a sampler keeps the room a step grew: a second step from
 /// the same state allocates less than the first.
+/// Where a step leaves the rows its checks route: in the store a new
+/// sampler holds, or, for a step that moves the store, in the failed
+/// chain's own store alone, a state read from it then installed on a new
+/// sampler over \p predictors, the predictors it was built on, since its
+/// grid may be another.
+enum class RowsIn { newSampler, ownStore };
+
+///
+/// \p sweeps, where given, holds the states an unfailed step passes
+/// through at each sweep's end, and each failure must leave every tree as
+/// one of them has it (everyTreeIsOneSwept). Where \p predictors is given,
+/// each column's codes must be those of it or of \p moved, the predictors
+/// the step installs, on the store's grid (codesAreTheGrids).
 template <typename Make, typename Step>
 HarnessTally failEachAllocation(Make&& make, const SamplerStateData& start,
-                                Step&& step) {
+                                Step&& step,
+                                RowsIn rowsIn = RowsIn::newSampler,
+                                const double* predictors = nullptr,
+                                const std::vector<SamplerStateData>* sweeps =
+                                  nullptr,
+                                const double* moved = nullptr) {
+  // the fits the trees route the rows to, through each chain's own store
+  // and, where it has not moved, through a new sampler given its state
+  auto routed = [&](auto& sampler) {
+    for (std::size_t c = 0; c < sampler.numChains(); ++c)
+      if (!TestPeer::treesRouteTheirRows(sampler.chain(c))) return false;
+    return rowsIn == RowsIn::ownStore || fitsAreTheTreesRouted(sampler, make);
+  };
+  auto described = [&](auto& sampler) {
+    if (!gridIsWhole(sampler.data())) return false;
+    if (predictors != nullptr &&
+        !codesAreTheGrids(sampler.data(), {predictors, moved}))
+      return false;
+    for (std::size_t c = 0; c < sampler.numChains(); ++c)
+      if (!TestPeer::leafTablesCoverTrees(sampler.chain(c)) ||
+          !TestPeer::monotoneLeavesInOrder(sampler.chain(c)) ||
+          !TestPeer::everyLeafHoldsARow(sampler.chain(c)) ||
+          !TestPeer::leafCovariatesAreStandardized(sampler.chain(c)) ||
+          !TestPeer::testStorageCoversTheStore(sampler.chain(c)))
+        return false;
+    return routed(sampler);
+  };
   HarnessTally tally;
+  tally.checksKept = sweeps != nullptr;
   Results none;
   {
     auto sampler = make();
@@ -215,21 +332,19 @@ HarnessTally failEachAllocation(Make&& make, const SamplerStateData& start,
     }
     ++tally.failed;
     if (totalsAreTheTrees(*sampler, 1e-12)) ++tally.consistent;
-    // the state read before any further sweep is the chain: its tables cover
-    // its trees, its monotone leaves are in order, and a new sampler given it
-    // has the failed one's fits
-    if (TestPeer::leafTablesCoverTrees(sampler->chain(0)) &&
-        TestPeer::monotoneLeavesInOrder(sampler->chain(0)) &&
-        fitsAreTheTreesRouted(*sampler, make))
-      ++tally.described;
+    // the state read before any further sweep is each chain: its tables
+    // cover its trees, its monotone leaves are in order, every leaf holds a
+    // row, and its fits are those its trees route the rows to
+    if (described(*sampler)) ++tally.described;
     // the state installs on a new sampler, so the failed one runs on from
     // what the failure left, not from maps an install rebuilds
     SamplerStateData after;
     sampler->getState(after);
-    if (make()->setState(after, nullptr)) ++tally.readable;
+    if (sweeps != nullptr && everyTreeIsOneSwept(after, *sweeps)) ++tally.kept;
+    if (make()->setState(after, predictors)) ++tally.readable;
     sampler->run(0, 1, none);
     if (totalsAreTheTrees(*sampler, 1e-9)) ++tally.continued;
-    if (fitsAreTheTreesRouted(*sampler, make)) ++tally.routed;
+    if (routed(*sampler)) ++tally.routed;
   }
   return tally;
 }
@@ -244,9 +359,16 @@ void report(const HarnessTally& tally, const std::string& name) {
   check(tally.consistent == tally.failed,
         (name + ": after each failure the totals are the trees'").c_str());
   check(tally.described == tally.failed,
-        (name + ": after each failure the state it reads describes it, its "
-                "leaf tables covering its trees, its monotone leaves in order "
-                "and a new sampler given it having its fits").c_str());
+        (name + ": after each failure the state it reads describes it, the "
+                "store's grid whole and its codes its values', its leaf tables "
+                "covering its trees, its leaf covariates standardized, its "
+                "test storage covering the store's test rows, its "
+                "monotone leaves in order, "
+                "every leaf holding a row and its fits those its trees route "
+                "the rows to").c_str());
+  check(!tally.checksKept || tally.kept == tally.failed,
+        (name + ": after each failure every tree is as a sweep's end left "
+                "it, the proposal in flight taken back").c_str());
   check(tally.readable == tally.failed,
         (name + ": after each failure the state reads and installs").c_str());
   check(tally.continued == tally.failed,
@@ -273,6 +395,72 @@ struct HarnessData {
   }
 };
 
+/// The steps that move the store under the trees: grids of 7 and 5 cuts on
+/// columns 0 and 1 (setCutPoints); column 0 shifted, so rows cross a cut,
+/// for setPredictor and the per-row update; column 0 reversed, with a new
+/// response, for the data replacement; and every column squeezed, for an
+/// install that repairs.
+struct MovedData {
+  std::vector<double> cuts0, cuts1, y, x, column, replaced, squeezed;
+  const double* cutColumns[2];
+  std::uint32_t numCuts[2];
+  std::size_t columns[2] = {0, 1};
+  explicit MovedData(const HarnessData& data)
+    : y(data.y), x(data.x), column(HarnessData::n), replaced(data.x),
+      squeezed(data.x) {
+    for (int k = 1; k < 8; ++k) cuts0.push_back(k / 8.0 + 0.003);
+    for (int k = 1; k < 6; ++k) cuts1.push_back(k / 6.0 + 0.002);
+    cutColumns[0] = cuts0.data();
+    cutColumns[1] = cuts1.data();
+    numCuts[0] = static_cast<std::uint32_t>(cuts0.size());
+    numCuts[1] = static_cast<std::uint32_t>(cuts1.size());
+    // the column's values are 1/80 apart, its cuts between them, so a shift
+    // of 0.009 takes a row past one
+    for (std::size_t i = 0; i < HarnessData::n; ++i) {
+      y[i] += 0.3 * std::cos(static_cast<double>(3 * i));
+      x[i] += 0.009 * (static_cast<double>(i % 3) - 1.0);
+      column[i] = x[i];
+      // a replacement reverses the column, which a grid derived again
+      // cannot absorb
+      replaced[i] = 1.0 - data.x[i];
+    }
+    // and columns squeezed into their middle tenth empty the leaves past it
+    for (std::size_t k = 0; k < HarnessData::n * HarnessData::p; ++k)
+      squeezed[k] = 0.45 + 0.1 * data.x[k];
+  }
+  /// A sampler of \p make's with its columns squeezed under their grids,
+  /// which a state grown on their own values cannot stand in unrepaired.
+  template <typename Make>
+  auto makeSqueezed(Make& make) const {
+    auto sampler = make();
+    (void) sampler->setPredictor(squeezed.data(), true, false);
+    return sampler;
+  }
+  /// Whether \p state goes into a squeezed sampler only repaired.
+  template <typename Make>
+  bool installRepairs(Make& make, const SamplerStateData& state) const {
+    auto sampler = makeSqueezed(make);
+    bool altered = false;
+    return sampler->setState(state, squeezed.data(), nullptr, &altered) &&
+           altered;
+  }
+  template <typename S>
+  void setCutPoints(S& s, const HarnessData& data) const {
+    s.setCutPoints(cutColumns, numCuts, columns, 2, data.x.data());
+  }
+  template <typename S>
+  void setData(S& s) const {
+    (void) s.setData(replaced.data(), y.data(), HarnessData::n, nullptr,
+                     nullptr, nullptr, 0);
+  }
+  /// The data replacement with its rows as test rows too.
+  template <typename S>
+  void setDataWithTest(S& s) const {
+    (void) s.setData(replaced.data(), y.data(), HarnessData::n, nullptr,
+                     nullptr, replaced.data(), HarnessData::n);
+  }
+};
+
 template <typename L>
 std::unique_ptr<Sampler<L>> makeHarnessSampler(const HarnessData& data,
                                                SamplerOptions options,
@@ -290,6 +478,7 @@ std::unique_ptr<Sampler<L>> makeHarnessSampler(const HarnessData& data,
 template <typename L>
 void runLeafArms(const HarnessData& data, SamplerOptions options,
                  const std::string& leaf, std::uint32_t seed) {
+  SamplerOptions everyMove = options;
   options.birthOrDeathProbability = 1.0;
   options.birthProbability = 0.5;
   options.changeProbability = 0.0;
@@ -326,10 +515,236 @@ void runLeafArms(const HarnessData& data, SamplerOptions options,
   report(failEachAllocation(make, stumps,
                             [&](Sampler<L>& s) { s.setState(grown, nullptr); }),
          "allocation failure in a state install, " + leaf + " leaf");
+  const std::vector<std::pair<std::size_t, int>> live = {{0, -1}};
+  report(failEachAllocation(make, stumps,
+                            [&](Sampler<L>& s) {
+                              (void) s.installForests(grown, live,
+                                                      data.x.data());
+                            }),
+         "allocation failure in a warm start, " + leaf + " leaf");
   if constexpr (!L::hasVectorParams && !L::hasFunctionParams)
     report(failEachAllocation(make, grown,
                               [](Sampler<L>& s) { s.growFromRoot(1); }),
            "allocation failure in a grow from the root, " + leaf + " leaf");
+
+  // every move the sampler makes by default, from the grown trees, so the
+  // failures land in change and swap proposals too
+  auto makeEveryMove = [&]() {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, seed);
+    rngs.push_back(rng);
+    return makeHarnessSampler<L>(data, everyMove, &rngs.back());
+  };
+  report(failEachAllocation(makeEveryMove, grown,
+                            [](Sampler<L>& s) {
+                              Results none;
+                              s.run(0, 2, none);
+                            }),
+         "allocation failure in a sweep, " + leaf + " leaf, every move");
+
+  // one move kind at a time, three sweeps from deeper trees, so swaps find
+  // a split below a split, each tree checked against the trees the unfailed
+  // sweeps start and end with
+  SamplerStateData deep;
+  {
+    auto deeper = makeEveryMove();
+    deeper->setState(grown, nullptr);
+    deeper->run(20, 0, none);
+    deeper->getState(deep);
+  }
+  struct MoveKind {
+    const char* name;
+    double birthOrDeath, swap, perturb, ruleGibbs, change;
+  };
+  const MoveKind kinds[] = {{"births and deaths", 1, 0, 0, 0, 0},
+                            {"changes", 0, 0, 0, 0, 1},
+                            {"swaps", 0, 1, 0, 0, 0},
+                            {"perturbs", 0, 0, 1, 0, 0},
+                            {"rule Gibbs steps", 0, 0, 0, 1, 0}};
+  for (const MoveKind& kind : kinds) {
+    SamplerOptions only = everyMove;
+    only.birthOrDeathProbability = kind.birthOrDeath;
+    only.swapProbability = kind.swap;
+    only.perturbProbability = kind.perturb;
+    only.ruleGibbsProbability = kind.ruleGibbs;
+    only.changeProbability = kind.change;
+    auto makeOnly = [&]() {
+      ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      ext_rng_setSeed(rng, seed);
+      rngs.push_back(rng);
+      return makeHarnessSampler<L>(data, only, &rngs.back());
+    };
+    std::vector<SamplerStateData> sweeps(4);
+    {
+      auto unfailed = makeOnly();
+      unfailed->setState(deep, nullptr);
+      unfailed->getState(sweeps[0]);
+      for (std::size_t k = 1; k < sweeps.size(); ++k) {
+        Results none;
+        unfailed->run(0, 1, none);
+        unfailed->getState(sweeps[k]);
+      }
+    }
+    report(failEachAllocation(makeOnly, deep,
+                              [](Sampler<L>& s) {
+                                Results none;
+                                for (int k = 0; k < 3; ++k) s.run(0, 1, none);
+                              },
+                              RowsIn::newSampler, nullptr, &sweeps),
+           "allocation failure in a move, " + leaf + " leaf, " + kind.name);
+  }
+
+  MovedData moved(data);
+  report(failEachAllocation(
+           make, grown, [&](Sampler<L>& s) { moved.setCutPoints(s, data); },
+           RowsIn::ownStore, data.x.data(), nullptr, moved.x.data()),
+         "allocation failure in a forced tree refresh, " + leaf + " leaf");
+  report(failEachAllocation(
+           make, grown, [&](Sampler<L>& s) { moved.setData(s); },
+           RowsIn::ownStore, data.x.data(), nullptr, moved.replaced.data()),
+         "allocation failure in a data replacement, " + leaf + " leaf");
+  report(failEachAllocation(
+           make, grown, [&](Sampler<L>& s) { moved.setDataWithTest(s); },
+           RowsIn::ownStore, data.x.data(), nullptr, moved.replaced.data()),
+         "allocation failure in a data replacement with test rows, " + leaf +
+           " leaf");
+  report(failEachAllocation(make, grown,
+                            [&](Sampler<L>& s) {
+                              s.setTestPredictors(moved.replaced.data(),
+                                                  HarnessData::n);
+                            }),
+         "allocation failure in a test data replacement, " + leaf + " leaf");
+  report(failEachAllocation(
+           make, grown,
+           [&](Sampler<L>& s) { s.setPredictor(moved.x.data(), false, false); },
+           RowsIn::ownStore, data.x.data(), nullptr, moved.x.data()),
+         "allocation failure in a setPredictor, " + leaf + " leaf");
+  report(failEachAllocation(
+           make, grown,
+           [&](Sampler<L>& s) { s.setPredictor(moved.x.data(), true, true); },
+           RowsIn::ownStore, data.x.data(), nullptr, moved.x.data()),
+         "allocation failure in a forced setPredictor with new grids, " + leaf +
+           " leaf");
+  auto squeezedMake = [&]() { return moved.makeSqueezed(make); };
+  check(moved.installRepairs(make, grown),
+        ("allocation failure in a repairing state install, " + leaf +
+         " leaf: the install repairs a tree").c_str());
+  report(failEachAllocation(
+           squeezedMake, stumps,
+           [&](Sampler<L>& s) { s.setState(grown, moved.squeezed.data()); },
+           RowsIn::ownStore, moved.squeezed.data()),
+         "allocation failure in a repairing state install, " + leaf + " leaf");
+  if constexpr (L::hasVectorParams || L::hasFunctionParams)
+    // over the squeezed values, so the constants move from the ones the
+    // leaf keeps
+    report(failEachAllocation(
+             squeezedMake, grown,
+             [](Sampler<L>& s) { (void) s.rederiveStandardization(); },
+             RowsIn::ownStore, moved.squeezed.data()),
+           "allocation failure in a standardization rederive, " + leaf +
+             " leaf");
+  for (ext_rng* rng : rngs) ext_rng_destroy(rng);
+}
+
+/// The predictor paths over a constant leaf, and over a variance forest
+/// when \p options asks for one: setPredictor forced and not, the per-row
+/// update, and a state recorded on another grid installed with its splits
+/// moved onto this one; with more than one chain, the forced tree refresh
+/// and the data replacement too, so a throw in one chain finds another the
+/// store has moved under.
+void runPredictorArms(const HarnessData& data, SamplerOptions options,
+                      const std::string& name, std::uint32_t seed) {
+  using S = Sampler<ConstantGaussianLeaf>;
+  std::vector<ext_rng*> rngs;
+  auto make = [&]() {
+    std::vector<ext_rng*> own;
+    for (std::size_t c = 0; c < options.numChains; ++c) {
+      ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      ext_rng_setSeed(rng, seed + static_cast<std::uint32_t>(c));
+      rngs.push_back(rng);
+      own.push_back(rng);
+    }
+    return makeHarnessSampler<ConstantGaussianLeaf>(data, options, own.data());
+  };
+  MovedData moved(data);
+  SamplerStateData grown, otherGrid;
+  {
+    auto sampler = make();
+    Results none;
+    sampler->run(5, 0, none);
+    sampler->getState(grown);
+    moved.setCutPoints(*sampler, data);
+    sampler->run(2, 0, none);
+    sampler->getState(otherGrid);
+  }
+  report(failEachAllocation(
+           make, grown,
+           [&](S& s) { s.setPredictor(moved.x.data(), true, false); },
+           RowsIn::ownStore, data.x.data(), nullptr, moved.x.data()),
+         "allocation failure in a forced setPredictor, " + name);
+  report(failEachAllocation(
+           make, grown,
+           [&](S& s) { s.setPredictor(moved.x.data(), false, false); },
+           RowsIn::ownStore, data.x.data(), nullptr, moved.x.data()),
+         "allocation failure in a setPredictor, " + name);
+  report(failEachAllocation(
+           make, grown,
+           [&](S& s) { s.setPredictor(moved.x.data(), true, true); },
+           RowsIn::ownStore, data.x.data(), nullptr, moved.x.data()),
+         "allocation failure in a forced setPredictor with new grids, " + name);
+  // from the 7 and 5 cuts setCutPoints gave, so the grids derived again are
+  // longer than the ones they replace
+  auto makeFewCuts = [&]() {
+    auto sampler = make();
+    moved.setCutPoints(*sampler, data);
+    return sampler;
+  };
+  report(failEachAllocation(
+           makeFewCuts, otherGrid,
+           [&](S& s) { s.setPredictor(moved.x.data(), true, true); },
+           RowsIn::ownStore, data.x.data(), nullptr, moved.x.data()),
+         "allocation failure in a forced setPredictor growing the grids, " +
+           name);
+  report(failEachAllocation(
+           make, grown,
+           [&](S& s) { s.setPredictor(moved.x.data(), false, true); },
+           RowsIn::ownStore, data.x.data(), nullptr, moved.x.data()),
+         "allocation failure in a setPredictor with new grids, " + name);
+  report(failEachAllocation(
+           make, grown,
+           [&](S& s) {
+             bool installed[HarnessData::n] = {};
+             (void) s.updatePredictorPerObservation(moved.column.data(), 0,
+                                                    installed);
+           },
+           RowsIn::ownStore, data.x.data(), nullptr, moved.x.data()),
+         "allocation failure in a per-row predictor update, " + name);
+  report(failEachAllocation(
+           make, grown,
+           [&](S& s) { (void) s.setState(otherGrid, data.x.data()); },
+           RowsIn::ownStore, data.x.data(), nullptr, moved.x.data()),
+         "allocation failure in a state install across grids, " + name);
+  std::vector<std::pair<std::size_t, int>> live;
+  for (std::size_t c = 0; c < options.numChains; ++c)
+    live.push_back({c, -1});
+  report(failEachAllocation(
+           make, grown,
+           [&](S& s) {
+             (void) s.installForests(otherGrid, live, data.x.data());
+           },
+           RowsIn::ownStore, data.x.data(), nullptr, moved.x.data()),
+         "allocation failure in a warm start across grids, " + name);
+  if (options.numChains > 1) {
+    report(failEachAllocation(
+             make, grown, [&](S& s) { moved.setCutPoints(s, data); },
+             RowsIn::ownStore, data.x.data(), nullptr, moved.x.data()),
+           "allocation failure in a forced tree refresh, " + name);
+    report(failEachAllocation(
+             make, grown, [&](S& s) { moved.setData(s); },
+             RowsIn::ownStore, data.x.data(), nullptr,
+             moved.replaced.data()),
+           "allocation failure in a data replacement, " + name);
+  }
   for (ext_rng* rng : rngs) ext_rng_destroy(rng);
 }
 
@@ -374,6 +789,30 @@ void runVarianceArms(const HarnessData& data) {
          "allocation failure in a state install, variance forest");
   report(failEachAllocation(make, grown, [](S& s) { s.growFromRoot(1); }),
          "allocation failure in a grow from the root, variance forest");
+  MovedData moved(data);
+  report(failEachAllocation(
+           make, grown, [&](S& s) { moved.setCutPoints(s, data); },
+           RowsIn::ownStore, data.x.data(), nullptr, moved.x.data()),
+         "allocation failure in a forced tree refresh, variance forest");
+  report(failEachAllocation(
+           make, grown, [&](S& s) { moved.setData(s); },
+           RowsIn::ownStore, data.x.data(), nullptr, moved.replaced.data()),
+         "allocation failure in a data replacement, variance forest");
+  report(failEachAllocation(make, grown,
+                            [&](S& s) {
+                              s.setTestPredictors(moved.replaced.data(),
+                                                  HarnessData::n);
+                            }),
+         "allocation failure in a test data replacement, variance forest");
+  auto squeezedMake = [&]() { return moved.makeSqueezed(make); };
+  check(moved.installRepairs(make, grown),
+        "allocation failure in a repairing state install, variance forest: "
+        "the install repairs a tree");
+  report(failEachAllocation(
+           squeezedMake, stumps,
+           [&](S& s) { s.setState(grown, moved.squeezed.data()); },
+           RowsIn::ownStore, moved.squeezed.data()),
+         "allocation failure in a repairing state install, variance forest");
   for (ext_rng* rng : rngs) ext_rng_destroy(rng);
 }
 
@@ -669,6 +1108,15 @@ void runAllocTests() {
   runLeafArms<MonotoneConstantGaussianLeaf>(data, monotone, "monotone",
                                             20261109u);
   runVarianceArms(data);
+  runPredictorArms(data, SamplerOptions(), "constant leaf", 20261124u);
+  SamplerOptions variance;
+  variance.numVarianceTrees = 3;
+  runPredictorArms(data, variance, "variance forest", 20261125u);
+  // a throw in one chain's rebuild, and in the store before any chain's,
+  // with another chain the store has moved under
+  SamplerOptions twoChains = variance;
+  twoChains.numChains = 2;
+  runPredictorArms(data, twoChains, "two chains", 20261126u);
   runMonotoneSettleArm(data);
   runMaskPoolCompactionArm();
   runPooledFactorArm();

@@ -6,6 +6,7 @@
 // include it, so production code cannot name these hooks.
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <utility>
@@ -57,6 +58,135 @@ struct TestPeer {
             return false;
         }
       }
+    return true;
+  }
+  /// Whether every tree, mean and variance, holds a row in every leaf, and
+  /// holds in each leaf the rows the store's codes send there; whether each
+  /// mean tree's map (where it is not marked stale) and a vector leaf's fits
+  /// are those its leaves give; and whether each variance tree's factor is
+  /// one value over each leaf and the variance surface their product. The
+  /// chain against its own store, for a step that moved the store.
+  template <IntegrableLeafModel L, typename R>
+  static bool treesRouteTheirRows(const Chain<L, R>& chain) {
+    const ColumnStore& data = chain.data_;
+    std::size_t n = data.numObservations;
+    auto near = [](double a, double b) {
+      return std::fabs(a - b) <= 1e-9 * (1.0 + std::fabs(b));
+    };
+    auto routes = [&](const Tree& tree, auto&& rowHolds) {
+      std::vector<std::int32_t> bottoms;
+      tree.fillBottom(0, bottoms);
+      std::size_t count = 0;
+      for (std::int32_t b : bottoms) {
+        const Node& node = tree.at(b);
+        if (node.numObservations() == 0) return false;
+        for (std::size_t m = node.begin; m < node.end; ++m) {
+          std::size_t obs = tree.indices[m];
+          if (tree.findBottomNodeForObservation(data, obs) != b ||
+              !rowHolds(b, obs, node))
+            return false;
+          ++count;
+        }
+      }
+      return count == n;
+    };
+    for (const auto& forest : chain.forests_)
+      for (std::size_t t = 0; t < forest.numTrees; ++t) {
+        bool holds = routes(forest.trees[t], [&](std::int32_t b,
+                                                 std::size_t obs,
+                                                 const Node&) {
+          if constexpr (Chain<L, R>::leafIsConstant) {
+            return forest.leafOfStale[t] != 0 ||
+                   forest.leafOf[t * n + obs] == static_cast<std::uint32_t>(b);
+          } else if constexpr (L::hasVectorParams) {
+            const double* params = forest.paramsByTree[t].data() +
+                                   static_cast<std::size_t>(b) *
+                                     forest.leaf.numParams();
+            return near(forest.treeFits[t * n + obs],
+                        forest.leaf.fitForObservation(params, obs));
+          } else {
+            (void) b;
+            (void) obs;
+            return true;
+          }
+        });
+        if (!holds) return false;
+      }
+    if (chain.varianceForest_) {
+      const auto& vf = *chain.varianceForest_;
+      for (std::size_t j = 0; j < vf.numTrees; ++j) {
+        const double* factor = vf.factorByTree.data() + j * n;
+        const Tree& tree = vf.trees[j];
+        bool holds = routes(tree, [&](std::int32_t, std::size_t obs,
+                                      const Node& node) {
+          return factor[obs] == factor[tree.indices[node.begin]];
+        });
+        if (!holds) return false;
+      }
+      for (std::size_t i = 0; i < n; ++i) {
+        double product = 1.0;
+        for (std::size_t j = 0; j < vf.numTrees; ++j)
+          product *= vf.factorByTree[j * n + i];
+        if (!near(vf.combinedVariance[i], product)) return false;
+      }
+    }
+    return true;
+  }
+  /// Whether each forest's leaf covariates are the store's raw values under
+  /// the centers and scales the leaf holds; true for a leaf that takes none.
+  template <IntegrableLeafModel L, typename R>
+  static bool leafCovariatesAreStandardized(const Chain<L, R>& chain) {
+    if constexpr (L::hasVectorParams || L::hasFunctionParams) {
+      const ColumnStore& data = chain.data_;
+      std::size_t n = data.numObservations;
+      for (const auto& forest : chain.forests_) {
+        const auto& leaf = forest.leaf;
+        std::size_t p = leaf.numCovariates_;
+        if (leaf.numObservations_ != n) return false;
+        for (std::size_t j = 0; j < p; ++j) {
+          const double* raw = data.rawColumn(leaf.columns_[j]);
+          if (raw == nullptr) return false;
+          for (std::size_t i = 0; i < n; ++i) {
+            double expected = std::isnan(raw[i])
+              ? 0.0
+              : (raw[i] - leaf.means_[j]) / leaf.sds_[j];
+            double held = L::hasVectorParams ? leaf.u_[i * p + j]
+                                             : leaf.u_[j * n + i];
+            if (!(std::fabs(held - expected) <=
+                  1e-12 * (1.0 + std::fabs(expected))))
+              return false;
+          }
+        }
+      }
+    }
+    return true;
+  }
+  /// Whether the chain's test fits, its variance surface and its leaf's
+  /// test covariates are sized for the store's test rows.
+  template <IntegrableLeafModel L, typename R>
+  static bool testStorageCoversTheStore(const Chain<L, R>& chain) {
+    std::size_t m = chain.data_.numTestObservations;
+    for (const auto& forest : chain.forests_) {
+      if (forest.totalTestFits.size() < m || forest.currTestFits.size() < m)
+        return false;
+      if constexpr (L::hasVectorParams || L::hasFunctionParams)
+        if (m > 0 && (forest.leaf.numTestObservations_ != m ||
+                      forest.leaf.uTest_.size() !=
+                        m * forest.leaf.numCovariates_))
+          return false;
+    }
+    return !chain.varianceForest_ ||
+           chain.varianceForest_->combinedVarianceTest.size() >= m;
+  }
+  /// Whether every tree, mean and variance, holds a row in every leaf.
+  template <IntegrableLeafModel L, typename R>
+  static bool everyLeafHoldsARow(const Chain<L, R>& chain) {
+    for (const auto& forest : chain.forests_)
+      for (std::size_t t = 0; t < forest.numTrees; ++t)
+        if (!forest.trees[t].bottomNodesAreOccupied()) return false;
+    if (chain.varianceForest_)
+      for (const Tree& tree : chain.varianceForest_->trees)
+        if (!tree.bottomNodesAreOccupied()) return false;
     return true;
   }
   /// Whether every monotone tree's leaf values lie in its order; true off the
