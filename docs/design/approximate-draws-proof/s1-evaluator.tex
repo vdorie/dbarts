@@ -280,10 +280,11 @@ majorants'' remains, and costs $O(1)$ per cell). For $q$, $|J_0|$ is the number 
 $\frac12(\mu_j+t_0)\le\rho^2+u^2$, which near the bulk is the few smallest rates and in the left tail ($t_0$ large)
 all $K+1$ terms, the bound then costing $O(K)$ per cell as the per-term one does.
 
-\paragraph{What was measured.} At the 500 pins of $f$ and 30 of $q$, every level's enclosure contained its
-reference and level 0 decided at every pin; the step's timing harness counts the levels used. These are
-measurements, not proofs: that level 0 reaches its target at every reachable $(b,\psi,x)$ is not proven, and need
-not be.
+\paragraph{What was measured.} At the 500 pins of $f$ and 30 of $q$, every finite enclosure at every level
+contained its reference and none was undecided after the last level; 200 points in both tails past the pins (down
+to $10^{-6}$ of the mean, up to 40 standard deviations above it) were decided; and in the test's 20{,}000 steps over
+five $(b,\psi)$ none went past level 0. These are measurements, not proofs: that level 0 reaches its target at
+every reachable $(b,\psi,x)$ is not proven, and need not be.
 
 \begin{thebibliography}{9}
 \bibitem{bpz} R.~P. Brent, C.~Percival and P.~Zimmermann (2007). Error bounds on complex floating-point
