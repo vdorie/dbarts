@@ -1501,8 +1501,8 @@ expect_error(
   CALL("capi_set_response", ptrBinomial, rep(1, n), FALSE),
   paste0(
     "dbarts_sampler_setResponse: its response is the n x 2 count pair of ",
-    "successes and failures, which a flat vector cannot express; replace it ",
-    "with $setCounts"
+    "successes and failures, which a flat vector cannot express; pass the ",
+    "pair to the R sampler's $setResponse, or make a new sampler"
   ),
   fixed = TRUE
 )

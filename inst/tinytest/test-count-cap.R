@@ -126,7 +126,7 @@ expect_error(
 expect_true(dbartsDrawLatents("logistic", 0, 1, weights = 1e6) > 0)
 expect_true(dbartsDrawLatents("nbinom", 0, 2, shape = 1e6) > 0)
 
-# --- multinomial: a count row's trial total, at creation and $setCounts ---
+# --- multinomial: a count row's trial total, at creation and $setResponse ---
 trialRefusal <- function(caller) {
   refusal(caller, "multinomial", "'counts' row totals")
 }
@@ -171,9 +171,9 @@ multinomial <- dbarts(
   n.trees = 5L
 )
 expect_error(
-  multinomial$setCounts(overTrialCap),
-  trialRefusal("$setCounts"),
+  multinomial$setResponse(overTrialCap),
+  trialRefusal("$setResponse"),
   fixed = TRUE
 )
 expect_identical(multinomial$data@counts, atTrialCap)
-multinomial$setCounts(atTrialCap)
+multinomial$setResponse(atTrialCap)

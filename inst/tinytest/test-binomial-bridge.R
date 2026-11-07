@@ -212,7 +212,8 @@ expect_error(
   info = "binomial: a fractional weight is refused, as on a binary response"
 )
 
-# $setCounts stores and draws nothing; the next sweep draws under the counts
+# the counts entry, $setResponse's for a count matrix, stores and draws
+# nothing; the next sweep draws under the counts
 setCounts <- function(pointer, counts) {
   storage.mode(counts) <- "integer"
   .Call(dbarts:::C_dbarts_bartcore_setCounts, pointer, counts)
@@ -222,7 +223,7 @@ setCounts(binomial, cbind(trials, 0L))
 expect_identical(
   latents(binomial),
   before,
-  info = "binomial: $setCounts draws nothing"
+  info = "binomial: the counts entry draws nothing"
 )
 expect_true(
   mean(run(binomial, 20L)$train) > mean(draws),
@@ -230,21 +231,21 @@ expect_true(
 )
 expect_error(
   setCounts(binomial, cbind(trials, 0L, 0L)),
-  "$setCounts: requires an integer matrix of 20 observations x 2",
+  "$setResponse: requires an integer matrix of 20 observations x 2",
   fixed = TRUE,
-  info = "binomial: $setCounts to three columns is refused"
+  info = "binomial: the counts entry to three columns is refused"
 )
 expect_error(
   setCounts(binomial, replace(cbind(trials, 0L), 4L, -2L)),
-  "$setCounts: a binomial response's successes and failures must be",
+  "$setResponse: a binomial response's successes and failures must be",
   fixed = TRUE,
-  info = "binomial: $setCounts to a negative count is refused"
+  info = "binomial: the counts entry to a negative count is refused"
 )
 expect_error(
   setCounts(binomial, large),
-  "$setCounts: family \"logistic\" requires the trials no larger than 1000000",
+  "$setResponse: family \"logistic\" requires the trials no larger than 1000000",
   fixed = TRUE,
-  info = "binomial: $setCounts to trials over one million is refused"
+  info = "binomial: the counts entry to trials over one million is refused"
 )
 zeroTrials <- cbind(successes, trials - successes)
 zeroTrials[c(6L, 9L), ] <- 0L
@@ -278,10 +279,10 @@ expect_error(
   setCounts(weighted, halfTwice),
   capText,
   fixed = TRUE,
-  info = "binomial: $setCounts to 600,000 trials at a weight of 2 is refused"
+  info = "binomial: the counts entry to 600,000 trials at a weight of 2 is refused"
 )
 
-# a flat response or a whole data replacement cannot state the counts
+# a flat response cannot state the counts; a whole data replacement does
 expect_error(
   .Call(
     dbarts:::C_dbarts_bartcore_setResponse,
@@ -292,23 +293,23 @@ expect_error(
   ),
   paste0(
     "$setResponse: its response is the n x 2 count pair of successes and ",
-    "failures, which a flat vector cannot express; replace it with $setCounts"
+    "failures, which a flat vector cannot express; pass the pair to the R ",
+    "sampler's $setResponse, or make a new sampler"
   ),
   fixed = TRUE,
   info = "binomial: $setResponse is refused"
 )
-expect_error(
-  .Call(
-    dbarts:::C_dbarts_bartcore_setData,
-    binomial,
-    binomialData,
-    "none",
-    "keep",
-    "keep",
-    NULL,
-    NULL
-  ),
-  "$setData: a binomial sampler's rows and their trials are fixed at creation",
-  fixed = TRUE,
-  info = "binomial: $setData is refused"
+.Call(
+  dbarts:::C_dbarts_bartcore_setData,
+  binomial,
+  binomialData,
+  "none",
+  "keep",
+  "keep",
+  NULL,
+  NULL
+)
+expect_true(
+  all(is.finite(run(binomial, 5L)$train)),
+  info = "binomial: $setData takes data stating the counts"
 )

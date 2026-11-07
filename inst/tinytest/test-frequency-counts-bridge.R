@@ -241,7 +241,7 @@ expect_error(
   .Call(dbarts:::C_dbarts_bartcore_setCounts, categories$getPointer(), big),
   multinomialText,
   fixed = TRUE,
-  info = "multinomial: $setCounts to a row total of 600,000 at a count of 2 is refused"
+  info = "multinomial: $setResponse to a row total of 600,000 at a count of 2 is refused"
 )
 # the other order: the row total first at a count of 1, then the weights
 totals <- dbarts::dbarts(

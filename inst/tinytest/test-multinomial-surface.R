@@ -298,7 +298,7 @@ expect_true(max(abs(pred3train - fit3p$yhat.train)) < 1e-6)
 # host-shell reason); run() and setPredictor(), which are meaningful, now
 # succeed. Exercised on a copy, so fit3p$fit stays untouched for the
 # self-consistency check below. ---
-expect_error(fit3p$fit$setResponse(rnorm(n)), "\\$setCounts")
+expect_error(fit3p$fit$setResponse(rnorm(n)), "n x K count matrix")
 expect_error(fit3p$fit$setOffset(rep(0.5, n)), "\\$setCategoryOffset")
 expect_error(fit3p$fit$setSigma(2), "no residual scale")
 mutableCopy <- fit3p$fit$copy()

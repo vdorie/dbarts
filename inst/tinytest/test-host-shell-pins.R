@@ -38,9 +38,9 @@ inherited <- c(
 own <- setdiff(names(ownMethods), inherited)
 substantiveMethods <- sort(setdiff(own, infrastructure))
 
-expect_equal(length(own), 57L)
+expect_equal(length(own), 56L)
 expect_equal(length(infrastructure), 5L)
-expect_equal(length(substantiveMethods), 52L)
+expect_equal(length(substantiveMethods), 51L)
 
 expect_identical(
   substantiveMethods,
@@ -57,7 +57,6 @@ expect_identical(
     "setResponse",
     "setOffset",
     "setWeights",
-    "setCounts",
     "setCategoryOffset",
     "setCategoryTestOffset",
     "setActiveRows",
@@ -123,7 +122,7 @@ fitSpot <- bart(
   verbose = FALSE,
   keepTrees = TRUE
 )
-expect_error(fitSpot$fit$setResponse(rnorm(nSpot)), "\\$setCounts")
+expect_error(fitSpot$fit$setResponse(rnorm(nSpot)), "n x K count matrix")
 expect_null(fitSpot$fit$getShape())
 predSpot <- fitSpot$fit$predict(xSpot)
 expect_equal(dim(predSpot), c(nSpot, 3L, 2L))
@@ -225,7 +224,7 @@ fitNb <- bart(
 dupe3 <- fit3$fit$copy(shallow = TRUE)
 originalCounts3 <- fit3$fit$data@counts
 swappedCounts3 <- originalCounts3[c(2:n3, 1L), , drop = FALSE]
-dupe3$setCounts(swappedCounts3)
+dupe3$setResponse(swappedCounts3)
 expect_identical(dupe3$data@counts, swappedCounts3)
 expect_identical(fit3$fit$data@counts, originalCounts3)
 expect_silent(invisible(fit3$fit$run(0L, 1L)))

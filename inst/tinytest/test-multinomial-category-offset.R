@@ -428,7 +428,7 @@ expect_error(
 counts.huge <- matrix(as.double(counts), n, K)
 counts.huge[1L, 1L] <- 2^31
 expect_error(
-  sampler.mn$setCounts(counts.huge),
+  sampler.mn$setResponse(counts.huge),
   "representable as integers"
 )
 expect_error(

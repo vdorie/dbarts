@@ -1,5 +1,5 @@
 # A multinomial count row with zero trials: accepted at creation and through
-# $setCounts, inert in the likelihood (the coupling composes it into its
+# $setResponse, inert in the likelihood (the coupling composes it into its
 # global active-row mask), still fitted, and warned about once per session.
 #
 # The leading oracle is a sampler whose empty rows instead carry other counts
@@ -159,13 +159,13 @@ fitWarnings <- countZeroTrialsWarnings(
 )
 expect_identical(fitWarnings$numWarnings, 1L)
 fit <- fitWarnings$value
-# $setCounts after a creation warning is silent, and warns after a reset
+# $setResponse after a creation warning is silent, and warns after a reset
 sampler <- build(x, counts, 11L)
-swapped <- countZeroTrialsWarnings(sampler$setCounts(countsEmpty[dataRows, ]))
+swapped <- countZeroTrialsWarnings(sampler$setResponse(countsEmpty[dataRows, ]))
 expect_identical(swapped$numWarnings, 0L)
 sampler <- build(xAll, countsFilled, 11L)
 resetZeroTrialsKey()
-swapped <- countZeroTrialsWarnings(sampler$setCounts(countsEmpty))
+swapped <- countZeroTrialsWarnings(sampler$setResponse(countsEmpty))
 expect_identical(swapped$numWarnings, 1L)
 expect_identical(sampler$data@counts, countsEmpty)
 expect_identical(sampler$data@y, as.double(rowSums(countsEmpty)))
@@ -267,12 +267,12 @@ expect_true(
     0.2
 )
 
-# --- mid-run: $setCounts emptying rows is $setActiveRows on them -------------
+# --- mid-run: $setResponse emptying rows is $setActiveRows on them -------------
 emptied <- build(xAll, countsFilled, 15L)
 masked <- build(xAll, countsFilled, 15L)
 invisible(emptied$run(20L, 5L))
 invisible(masked$run(20L, 5L))
-countZeroTrialsWarnings(emptied$setCounts(countsEmpty))
+countZeroTrialsWarnings(emptied$setResponse(countsEmpty))
 masked$setActiveRows(maskEmpty)
 emptiedRun <- emptied$run(0L, 10L)
 maskedRun <- masked$run(0L, 10L)
@@ -283,7 +283,7 @@ expect_equal(
   tolerance = 1e-12
 )
 # restoring the counts is clearing the mask
-emptied$setCounts(countsFilled)
+emptied$setResponse(countsFilled)
 masked$setActiveRows(NULL)
 expect_equal(
   emptied$run(0L, 10L)$train,
@@ -348,7 +348,7 @@ expect_true(isSimplex(allZeroRun$train))
 sampler <- build(x, counts, 17L)
 invisible(sampler$run(10L, 5L))
 resetZeroTrialsKey()
-swapped <- countZeroTrialsWarnings(sampler$setCounts(allZero))
+swapped <- countZeroTrialsWarnings(sampler$setResponse(allZero))
 expect_identical(swapped$numWarnings, 1L)
 expect_true(isSimplex(sampler$run(0L, 10L)$train))
 # plot has no observed panel to draw and says so, without warning

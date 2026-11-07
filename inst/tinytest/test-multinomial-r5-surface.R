@@ -266,7 +266,7 @@ expect_error(
 # --- the refusal matrix ------------------------------------------------------
 # every refusal names the CAPABILITY and, where one exists, the channel that
 # serves the caller instead - never a C entry point, which R cannot call
-expect_error(sampler$setResponse(rep(1.0, n)), "\\$setCounts")
+expect_error(sampler$setResponse(rep(1.0, n)), "n x K count matrix")
 expect_error(sampler$setResponse(rep(1.0, n)), "n x K count matrix")
 expect_error(sampler$setOffset(rep(0.1, n)), "\\$setCategoryOffset")
 expect_error(sampler$setOffset(rep(0.1, n)), "null direction")
@@ -325,18 +325,18 @@ expect_error(sampler$setTestOffset(rep(0.1, nTest)), "category test offset")
 set.seed(41)
 swapped <- matrix(0L, n, K, dimnames = list(NULL, levels(labels)))
 swapped[cbind(seq_len(n), sample.int(K, n, replace = TRUE))] <- 1L
-sampler$setCounts(swapped)
+sampler$setResponse(swapped)
 expect_identical(sampler$data@counts, swapped)
 expect_identical(sampler$data@y, as.double(rowSums(swapped)))
 expect_identical(dim(sampler$run(0L, 4L)$train), c(n, K, 4L))
 # n and K are fixed at creation
-expect_error(sampler$setCounts(swapped[, seq_len(2L)]), "3 categories")
+expect_error(sampler$setResponse(swapped[, seq_len(2L)]), "3 categories")
 expect_error(
-  sampler$setCounts(swapped[-1L, , drop = FALSE]),
+  sampler$setResponse(swapped[-1L, , drop = FALSE]),
   "same number of rows"
 )
 # a rejected matrix leaves the sampler untouched
-expect_error(sampler$setCounts(swapped - 1L), "non-negative")
+expect_error(sampler$setResponse(swapped - 1L), "non-negative")
 expect_identical(sampler$data@counts, swapped)
 
 categoryOffset <- matrix(rnorm(n * K, 0, 0.3), n, K)
@@ -352,9 +352,10 @@ expect_null(sampler$data@offset.category)
 sampler$setCategoryTestOffset(NULL)
 expect_null(sampler$data@offset.category.test)
 
-# the three channels are the softmax's own, and are refused by name elsewhere
+# the category offsets are the softmax's own, refused by name elsewhere, and a
+# count matrix is a response of the wrong length there
 plain <- dbarts(x, rnorm(n), control = control, n.trees = 25L)
-expect_error(plain$setCounts(oneHot), "carries no count response")
+expect_error(plain$setResponse(oneHot), "y must be of length equal to")
 expect_error(
   plain$setCategoryOffset(matrix(0.0, n, K)),
   "carries no count response"

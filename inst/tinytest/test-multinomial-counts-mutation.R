@@ -86,7 +86,7 @@ parityArmCountsMutation <- function(build, swap, n.chains = 1L) {
   set.seed(707)
   sampler <- buildSamplerCountsMutation(build, n.chains)
   if (!is.null(swap)) {
-    sampler$setCounts(swap, updateState = FALSE)
+    sampler$setResponse(swap, updateState = FALSE)
   }
   recordChannelsCountsMutation(sampler, sampler$run(20L, 8L))
 }
@@ -118,7 +118,7 @@ sampler.labels <- dbarts(
   control = control,
   n.trees = 25L
 )
-sampler.labels$setCounts(countsB, updateState = FALSE)
+sampler.labels$setResponse(countsB, updateState = FALSE)
 arm.labels <- recordChannelsCountsMutation(
   sampler.labels,
   sampler.labels$run(20L, 8L)
@@ -144,7 +144,7 @@ splitArm <- function(swap) {
   sampler <- buildSamplerCountsMutation(countsB)
   sampler$run(25L, 6L)
   if (!is.null(swap)) {
-    sampler$setCounts(swap, updateState = FALSE)
+    sampler$setResponse(swap, updateState = FALSE)
   }
   recordChannelsCountsMutation(sampler, sampler$run(0L, 6L))
 }
@@ -186,7 +186,7 @@ expect_equal(
   tolerance = 1e-12
 )
 
-# --- setState after a setCounts: a restore reinstalls trees against WHATEVER
+# --- setState after a count $setResponse: a restore reinstalls trees against WHATEVER
 # counts the sampler holds then, exactly as a single-forest restore does
 # against the current y. The counts are data and ride no wire block, so the
 # state carries none. ---
@@ -195,7 +195,7 @@ sampler.state <- buildSamplerCountsMutation(countsA)
 sampler.state$run(20L, 4L)
 sampler.state$storeState()
 state.A <- sampler.state$state
-sampler.state$setCounts(countsB, updateState = FALSE)
+sampler.state$setResponse(countsB, updateState = FALSE)
 expect_silent(status <- sampler.state$setState(state.A))
 expect_true(status)
 res.restored <- sampler.state$run(0L, 4L)
@@ -216,13 +216,13 @@ expect_false(isTRUE(all.equal(
 # conduits now say. ---
 sampler.mn <- buildSamplerCountsMutation(countsA)
 
-# the capability probe is not a forest count: a gaussian sampler and a BCF
-# sampler (two forests) both own no counts, and both must name the family
-# situation rather than the forest count
+# the count door is not a forest count: a gaussian sampler and a BCF sampler
+# (two forests) both own no counts, so an n x K matrix is a response of the
+# wrong length to either, never a count swap
 sampler.gaussian <- dbarts(x, rnorm(n), control = control, n.trees = 25L)
 expect_error(
-  sampler.gaussian$setCounts(countsA),
-  "no count response"
+  sampler.gaussian$setResponse(countsA),
+  "y must be of length equal to 120"
 )
 set.seed(17)
 z <- rbinom(n, 1L, 0.5)
@@ -234,8 +234,8 @@ sampler.bcf <- dbarts(
   n.trees = 25L
 )
 expect_error(
-  sampler.bcf$setCounts(countsA),
-  "no count response"
+  sampler.bcf$setResponse(countsA),
+  "y must be of length equal to 120"
 )
 
 # the bridge's own memory-safety backstop on a multi-forest sampler's
@@ -271,22 +271,22 @@ expect_error(
 # n and K are out of scope, and the refusal names both. A transposed matrix is
 # the case a length test alone would install into the wrong cells.
 expect_error(
-  sampler.mn$setCounts(countsA[seq_len(n - 1L), ]),
+  sampler.mn$setResponse(countsA[seq_len(n - 1L), ]),
   "same number of rows"
 )
 expect_error(
-  sampler.mn$setCounts(t(countsA)),
+  sampler.mn$setResponse(t(countsA)),
   "3 categories"
 )
 
 # the count invariants, restated at the entrance rather than inherited from
-# creation. $setCounts refuses R-side first, so the bridge's nonnegativity
+# creation. $setResponse refuses R-side first, so the bridge's nonnegativity
 # check, a memory-safety backstop against a negative trial count, is pinned on
 # the raw pointer as well.
 counts.negative <- countsA
 counts.negative[1L, 1L] <- -1L
 expect_error(
-  sampler.mn$setCounts(counts.negative),
+  sampler.mn$setResponse(counts.negative),
   "non-negative"
 )
 expect_error(
@@ -301,7 +301,7 @@ expect_error(
 # names it directly
 counts.na <- countsA
 counts.na[2L, 1L] <- NA_integer_
-expect_error(sampler.mn$setCounts(counts.na), "NA")
+expect_error(sampler.mn$setResponse(counts.na), "NA")
 expect_error(
   .Call(
     dbarts:::C_dbarts_bartcore_setCounts,
@@ -316,18 +316,18 @@ counts.empty[3L, ] <- 0L
 emptyKeyEnv <- dbarts:::onceWarnState
 emptyKeyEnv[["multinomialZeroTrials"]] <- NULL
 expect_warning(
-  sampler.mn$setCounts(counts.empty),
+  sampler.mn$setResponse(counts.empty),
   "zero trials"
 )
 expect_identical(sampler.mn$data@counts, counts.empty)
-expect_silent(sampler.mn$setCounts(countsA))
+expect_silent(sampler.mn$setResponse(countsA))
 # a row sum past the trial cap, here far enough past it to overflow the int
 # the trials are counted in: the accumulation is checked, not wrapped
 counts.overflow <- countsA
 counts.overflow[4L, 1L] <- 2000000000L
 counts.overflow[4L, 2L] <- 2000000000L
 expect_error(
-  sampler.mn$setCounts(counts.overflow),
+  sampler.mn$setResponse(counts.overflow),
   "requires 'counts' row totals no larger than 1000000"
 )
 
@@ -344,7 +344,7 @@ refusalArmCountsMutation <- function(attempt) {
   } else {
     tryCatch(
       {
-        sampler$setCounts(attempt, updateState = FALSE)
+        sampler$setResponse(attempt, updateState = FALSE)
         NA_character_
       },
       error = conditionMessage
