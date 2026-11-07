@@ -4929,6 +4929,11 @@ public:
     return false;
   }
 
+  /// Names a binomial response's new trials (borrowed) for the setData that
+  /// follows, which reads them over its rows; nothing is read here. A no-op
+  /// where the response holds no trials.
+  virtual void setTrials(const double*) {}
+
   /// Whether this family implements the active-row channel. setActiveRows's
   /// own refusal reads it, so the advertised capability and the refusal
   /// cannot disagree.
@@ -6273,8 +6278,13 @@ public:
     rebuildWorking();
   }
 
-  /// A binomial response's trials are sized to the rows it was built on, so
-  /// the host refuses this on one; the binary response cold-starts.
+  /// The trials setData reads, named first by setTrials.
+  void setTrials(const double* trials) override {
+    if (trials_ != nullptr) trials_ = trials;
+  }
+
+  /// The response cold-starts on the new rows; a binomial one reads the
+  /// trials setTrials named, one per new row, the successes in y.
   void setData(const double* y, const double* offset, const double* weights,
                std::size_t numObservations, double*) override {
     y_ = y;
@@ -6286,6 +6296,7 @@ public:
     composite_.clear();
     omega_.resize(numObservations);
     working_.resize(numObservations);
+    if (trials_ != nullptr) computeLogChoose();
     coldStart();
     composeRowsIn();
   }

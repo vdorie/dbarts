@@ -4509,6 +4509,12 @@ public:
     double previousSigmaScale = varianceScaleAnchor();
     double previousScale = response_->fitScale();
     double previousShift = response_->fitShift();
+    // a binomial response reads its new trials over the new rows, and the
+    // read-offs its new trials times the weights
+    if (replacement.trials != nullptr) {
+      response_->setTrials(replacement.trials);
+      composeTrialCounts(replacement.trials, weights, n, trialCounts_);
+    }
     if (replacement.range == DerivedValueChoice::derive) {
       response_->setData(y, offset, weights, n, &sigma_);
     } else {

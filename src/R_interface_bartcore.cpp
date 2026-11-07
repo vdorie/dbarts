@@ -3615,7 +3615,8 @@ void readBinomialCounts(const int* counts, size_t n,
 // not read, the successes taking its place, as a multinomial fit's counts
 // take its place. A slot of any other width is refused, K >= 3 pointing at
 // multinomial.
-void parseBinomialCounts(ParsedData& data, SEXP dataExpr) {
+void parseBinomialCounts(ParsedData& data, SEXP dataExpr,
+                         const char* caller = "sampler creation") {
   SEXP countsExpr = bartcore_bridge::readNullableSlot(dataExpr, "counts");
   if (Rf_isNull(countsExpr)) return;
   // dims is an attribute of the slot, rooted by the data object; the PROTECT
@@ -3635,8 +3636,7 @@ void parseBinomialCounts(ParsedData& data, SEXP dataExpr) {
     Rf_error("a binomial response's counts must be an n x 2 integer matrix "
              "of successes and failures, one row per observation");
   readBinomialCounts(INTEGER(countsExpr), data.numObservations,
-                     data.binomialSuccesses, data.binomialTrials,
-                     "sampler creation");
+                     data.binomialSuccesses, data.binomialTrials, caller);
   data.y = data.binomialSuccesses.data();
 }
 
@@ -3975,8 +3975,8 @@ void refuseBinomialResponseSwap(const bartcore::SamplerShape& shape,
                                 const char* caller) {
   if (!shape.holdsTrials) return;
   Rf_error("%s: its response is the n x 2 count pair of successes and "
-           "failures, which a flat vector cannot express; replace it with "
-           "$setCounts", caller);
+           "failures, which a flat vector cannot express; pass the pair to "
+           "the R sampler's $setResponse, or make a new sampler", caller);
 }
 
 void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
@@ -4871,7 +4871,7 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
 }
 
 // The per-row trial totals n_i = sum_k Y_ik of a category-major n x K count
-// matrix, the rule creation and $setCounts share: every count non-negative
+// matrix, the rule creation and $setResponse share: every count non-negative
 // (NA_INTEGER is INT_MIN, so this catches NA too), and every total no larger
 // than bartcore::maximumCount, since a row costs n_i Polya-Gamma draws per
 // category per sweep. The bound also keeps the int totals the combiner's draw
@@ -5395,14 +5395,14 @@ static SEXP setBinomialCounts(BartcoreHolder& holder,
     if (!Rf_isInteger(countsExpr) || Rf_xlength(dimsExpr) != 2 ||
         static_cast<size_t>(INTEGER(dimsExpr)[0]) != n ||
         INTEGER(dimsExpr)[1] != 2)
-      Rf_error("$setCounts: requires an integer matrix of %lu observations x "
+      Rf_error("$setResponse: requires an integer matrix of %lu observations x "
                "2, the successes and failures",
                static_cast<unsigned long>(n));
     UNPROTECT(1);
     readBinomialCounts(INTEGER(countsExpr), n, successes, trials,
-                       "$setCounts");
+                       "$setResponse");
     bartcore_bridge::refuseWeightedTrialsOverCap(
-      "$setCounts", holder.sampler->weights(), trials.data(), n);
+      "$setResponse", holder.sampler->weights(), trials.data(), n);
     const double* y = adoptVector(holder.ownedResponse, successes.data(), n);
     const double* t = adoptVector(holder.ownedBinomialTrials, trials.data(), n);
     holder.sampler->setBinomialCounts(y, t);
@@ -5413,9 +5413,10 @@ static SEXP setBinomialCounts(BartcoreHolder& holder,
 // Replaces a multinomial (softmax) sampler's response: the n x K
 // category-major count matrix and the trials n_i = sum_k y_ik it implies, a
 // zero row sum accepted as at creation. The trees carry over, fitted to the
-// previous counts, so the swap is the response mutation every other family
-// reaches through setResponse - which cannot serve here, since the combiner
-// names the chain's y out and reads these counts directly.
+// previous counts. R's $setResponse reaches it with a count matrix, a binomial
+// sampler's successes and failures included; the flat response conduit
+// cannot serve, since the combiner names the chain's y out and reads these
+// counts directly.
 //
 // n and K are fixed: every combiner buffer and every forest allocation is
 // sized by them, and K is the forest count, which no live sampler can change.
@@ -5438,7 +5439,7 @@ SEXP bartcore_setCounts(SEXP ptrExpr, SEXP countsExpr) {
   // The capability probe comes FIRST, and it is not a forest count: BCF also
   // carries several forests and owns no counts, while a future coupling that
   // did would have to opt in here.
-  requireCountsMutationCapability(shape, "$setCounts");
+  requireCountsMutationCapability(shape, "$setResponse");
   size_t n = shape.numObservations;
   // K for a counts-owning coupling; the reported-location count IS the category
   // count, so there is no second field to keep in step with it
@@ -5458,15 +5459,15 @@ SEXP bartcore_setCounts(SEXP ptrExpr, SEXP countsExpr) {
     if (!Rf_isInteger(countsExpr) || Rf_xlength(dimsExpr) != 2 ||
         static_cast<size_t>(INTEGER(dimsExpr)[0]) != n ||
         static_cast<size_t>(INTEGER(dimsExpr)[1]) != K)
-      Rf_error("$setCounts: requires an integer matrix of %lu "
+      Rf_error("$setResponse: requires an integer matrix of %lu "
                "observations x %lu categories",
                static_cast<unsigned long>(n), static_cast<unsigned long>(K));
     UNPROTECT(1);
     const int* src = INTEGER(countsExpr);
     counts.assign(src, src + n * K);
-    bartcore_bridge::sumMultinomialTrials(counts, n, K, trials, "$setCounts");
+    bartcore_bridge::sumMultinomialTrials(counts, n, K, trials, "$setResponse");
     bartcore_bridge::refuseMultinomialWeightsOverCap(
-      holder.sampler->weights(), n, trials.data(), "$setCounts");
+      holder.sampler->weights(), n, trials.data(), "$setResponse");
 
     holder.ownedCounts.swap(counts);
     holder.ownedTrials.swap(trials);
@@ -7136,11 +7137,6 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
   bartcore::SamplerShape shape = sampler.shape();
   refusePredictorMutation(sampler, "$setData");
   refuseMultiForestMutation(sampler, "$setData");
-  // the trials are sized to the rows the sampler was built on
-  if (shape.holdsTrials)
-    Rf_error("$setData: a binomial sampler's rows and their trials are fixed "
-             "at creation; replace its successes and failures with "
-             "$setCounts, or make a new sampler");
   // the whole-data conduit may change the number of observations, which the
   // status is stated over, so it stays refused; the response conduit takes a
   // status of its own at a fixed n
@@ -7159,9 +7155,27 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
                        ownedWeights = std::vector<double>{},
                        ownedOffset = std::vector<double>{},
                        ownedTestOffset = std::vector<double>{},
+                       ownedTrials = std::vector<double>{},
                        refusal = std::string{},
                        failure = std::string{}]() mutable -> SEXP {
     parseData(data, dataExpr);
+    // a binomial sampler's new data state its successes and failures, the
+    // number of rows free; a binary one's state none
+    if (shape.holdsTrials) {
+      parseBinomialCounts(data, dataExpr, "$setData");
+      if (data.binomialTrials.empty())
+        Rf_error("$setData: a binomial sampler's data carry its response as "
+                 "the n x 2 counts of successes and failures, which 'newData' "
+                 "does not");
+    } else if (shape.family == bartcore::ResponseFamily::logistic &&
+               !Rf_isNull(
+                 bartcore_bridge::readNullableSlot(dataExpr, "counts"))) {
+      Rf_error("$setData: 'newData' carries counts of successes and "
+               "failures, which a sampler created on a binary response does "
+               "not take; make a new sampler");
+    }
+    const double* newTrials =
+      data.binomialTrials.empty() ? NULL : data.binomialTrials.data();
     if (data.xIsSparse || data.xIsMixed)
       Rf_error("$setData: requires a dense predictor matrix; sparse "
                "predictors fix the design at creation");
@@ -7197,7 +7211,9 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
     // the whole-data conduit swaps y too, so it carries the same support rule
     validateResponseSupport(shape.family, shape.numOrdinalThresholds + 1,
                             data.y, data.numObservations,
-                            "$setData");
+                            "$setData", newTrials);
+    bartcore_bridge::refuseWeightedTrialsOverCap(
+      "$setData", data.weights, newTrials, data.numObservations);
     // and the counts' cap, r kept across the swap
     if (shape.family == bartcore::ResponseFamily::nbinom)
       bartcore_bridge::refuseWeightedCountsOverCap(
@@ -7340,6 +7356,11 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
       adoptVector(ownedOffset, data.offset, data.numObservations);
     const double* testOffset =
       adoptVector(ownedTestOffset, data.testOffset, data.numTestObservations);
+    if (newTrials != NULL) {
+      ownedTrials.resize(data.numObservations);
+      replacement.trials =
+        adoptVector(ownedTrials, newTrials, data.numObservations);
+    }
     // the loop above bounds every factor cell on both sides against the same
     // fixed level table the engine re-tests, so this refusal is the backstop
     // a header-only host meets rather than a live arm here
@@ -7376,6 +7397,7 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
     holder.ownedWeights = std::move(ownedWeights);
     holder.ownedOffset = std::move(ownedOffset);
     holder.ownedTestOffset = std::move(ownedTestOffset);
+    if (newTrials != NULL) holder.ownedBinomialTrials = std::move(ownedTrials);
     // a family whose augmentation is STATED against the counts takes them
     // through the weight conduit as well, so the latents are drawn against the
     // counts now in force rather than left at the deterministic cold start a

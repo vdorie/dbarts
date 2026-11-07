@@ -2621,23 +2621,31 @@ public:
                              const double* testOffset = nullptr,
                              const DataReplacement& replacement = {}) {
     bool hasTest = x_test != nullptr && numTestObservations > 0;
-    // a binomial response's trials are replaced with its successes alone
-    // (setBinomialCounts), never under a flat response
-    if (holdsTrials()) return false;
+    // a binomial response's trials come with its successes, and only to one
+    if (holdsTrials() != (replacement.trials != nullptr)) return false;
     if (!data_.replacementLevelCodesAreValid(x, numObservations)) return false;
     if (hasTest &&
         !data_.testSourceIsIngestible(x_test, numTestObservations))
       return false;
     std::vector<std::uint8_t> leafRowStorage;
+    // a binomial row is read at its trials times its weight, a row of no
+    // trials out, as at creation; leafRows borrows them for the call
+    std::vector<double> trialCounts;
     LeafRows leafRows;
     if constexpr (L::hasVectorParams || L::hasFunctionParams) {
+      if (replacement.trials != nullptr)
+        composeTrialCounts(replacement.trials, weights, numObservations,
+                           trialCounts);
+      const double* counts =
+        trialCounts.empty() ? nullptr : trialCounts.data();
       leafRows = replacement.tooFewUnitsIn
         ? LeafRows{nullptr, true}
-        : leafRowsFrom(weights, replacement.activeRows, numObservations,
+        : leafRowsFrom(counts != nullptr ? counts : weights,
+                       replacement.activeRows, numObservations,
                        leafRowStorage);
       if (replacement.range == DerivedValueChoice::derive)
         leafRows = withResponseFallback(leafRows, y, offset, numObservations);
-      leafRows = withCounts(leafRows, weights);
+      leafRows = withCounts(leafRows, weights, counts);
       if (replacement.standardization != DerivedValueChoice::keep)
         refuseLeafDerivation(
           x, numObservations,

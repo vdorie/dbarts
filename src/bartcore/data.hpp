@@ -180,7 +180,10 @@ enum class DerivedValueChoice { derive, keep, supply };
 /// is read from, the replacement dropping every mask in force. Borrowed for
 /// the call; the host checks the values. maxNumCuts, one per column, and
 /// useQuantiles are what a grid is derived at by this call and by any refresh
-/// after it; a null maxNumCuts keeps both of those in force.
+/// after it; a null maxNumCuts keeps both of those in force. trials are a
+/// binomial response's new per-row trials, the successes in the new y,
+/// borrowed for the sampler's life as y is: non-null exactly where the
+/// response holds trials.
 struct DataReplacement {
   DerivedValueChoice grid = DerivedValueChoice::derive;
   SplitPlacement placement = SplitPlacement::byValue;
@@ -193,6 +196,7 @@ struct DataReplacement {
   bool tooFewUnitsIn = false;  // as SamplerOptions::tooFewUnitsIn
   const std::uint32_t* maxNumCuts = nullptr;
   bool useQuantiles = false;
+  const double* trials = nullptr;
 };
 
 /// One dense column's raw as ingestion reads it: the host's doubles, or its
