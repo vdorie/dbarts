@@ -38,9 +38,16 @@ items
     per-row storage, its response and its leaf covariates in turn, so a
     throw between them leaves them sized for different counts and the
     sampler unusable; staging every allocation before the store moves
-    would settle it. A standardization rederive, or a linear leaf's data
-    replacement, leaves a saved draw the rewrite had not reached in the
-    old basis.
+    would settle it. The review's arm (80 rows to 60, every allocation
+    failed in turn, then a sweep) ran cleanly with the right totals
+    under ASan for constant leaves and a variance forest; linear and gp
+    leaves were not probed. A standardization rederive, or a linear
+    leaf's data replacement, leaves a saved draw the rewrite had not
+    reached in the old basis; so does setOffset or setResponse with
+    updateScale = TRUE, or rederiveScale, on a gp leaf, whose rewrite of
+    the saved draws allocates a block-offset table per saved tree.
+    Either way only predictions from kept draws mix units, after an
+    allocation failure R reports as an error.
   approximate-distributions: research arc, opened 2026-11-03 by the
     binomial family's large trial counts (dec-B567); plan
     docs/plans/approximate-draws.md on its branch. Ruled 2026-11-05: the
