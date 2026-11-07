@@ -1491,11 +1491,15 @@ Enclosure logDensity(const F& fam, int level, EvalCounts* counts = nullptr) {
 
   // The edge lines and the step from their bounds: on a line at distance a
   // the discretization error is at most M / (e^{2 pi a / h} - 1), so
-  // h = 2 pi a / log(1 + 2 M / eps) on each side's best line.
+  // h = 2 pi a / log(1 + 2 M / eps) on each side's best line. A line's
+  // distance is capped at 4 / sqrt(x): log M grows about as 2 x a^2, so
+  // farther lines only shrink h (a choice; any distance inside the strip is
+  // valid).
+  const double aCap = 4.0 / std::sqrt(x);
   double logMp[4], aP[4], logMm[6], aM[6];
   double hPlus = 0.0, hMinus = 0.0;
   for (int i = 0; i < s.numPlus; ++i) {
-    double u = rho * (1.0 - s.fracPlus[i]);
+    double u = rho * s.fracPlus[i] <= aCap ? rho * (1.0 - s.fracPlus[i]) : rho - aCap;
     aP[i] = rho - u;  // exact: u >= rho / 2
     logMp[i] = detail::lineLogMajor(fam, s, u, yInit, counts);
     if (std::isfinite(logMp[i])) {
@@ -1505,7 +1509,7 @@ Enclosure logDensity(const F& fam, int level, EvalCounts* counts = nullptr) {
     }
   }
   for (int i = 0; i < s.numMinus; ++i) {
-    double a0 = s.aMinus[i] < 0.0 ? -s.aMinus[i] * rho : s.aMinus[i];
+    double a0 = std::min(s.aMinus[i] < 0.0 ? -s.aMinus[i] * rho : s.aMinus[i], aCap);
     double u = rho + a0;
     aM[i] = (u - rho) - 2.0 * kU * u;
     logMm[i] = detail::lineLogMajor(fam, s, u, yInit, counts);
