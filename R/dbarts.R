@@ -1787,12 +1787,15 @@ installDonorTrees <- function(sampler, donor, samples, force) {
   report
 }
 
-# Draws from the BART prior (issue #31): repeatedly redraws trees and node
-# parameters on a private sampler and evaluates the resulting forest at
-# x.test, for calibrating priors before fitting - e.g. the prior
-# distribution of a treatment effect via f(x1) - f(x0). Never touches the
-# caller's sampler: a fresh construction gets its own external pointer, and
-# while it borrows the caller's data object, nothing here mutates it.
+# Draws from the BART prior (issue #31): repeatedly redraws the hyperparameters,
+# trees and leaf values on a private sampler and evaluates the resulting forest
+# at x.test, for calibrating priors before fitting - e.g. the prior
+# distribution of a treatment effect via f(x1) - f(x0). Draws under the prior
+# the sampler runs under: k, a Student-t df, a negative-binomial shape, the
+# ordinal cutpoints and DART's split weights are drawn from their priors for
+# each sample, and each family's observation layer is its own. Never touches
+# the caller's sampler: a fresh construction gets its own external pointer,
+# and while it borrows the caller's data object, nothing here mutates it.
 samplePriorPredictive <- function(
   sampler,
   x.test = NULL,
@@ -1811,10 +1814,32 @@ samplePriorPredictive <- function(
       call. = FALSE
     )
   }
+  if (leafPriorIsImproper(sampler$model)) {
+    stop(
+      "samplePriorPredictive does not support an improper leaf prior ",
+      "(invchi() with scale 0, or chi() with an infinite scale): it has no ",
+      "prior draws",
+      call. = FALSE
+    )
+  }
   type <- match.arg(type)
   n.samples <- coerceOrError(n.samples, "integer")[1L]
   if (is.na(n.samples) || n.samples <= 0L) {
     stop("'n.samples' must be a positive integer")
+  }
+  isMultinomial <- samplerCarriesCounts(sampler)
+  if (
+    isMultinomial &&
+      is.null(offset.test) &&
+      (!is.null(sampler$data@offset.category) ||
+        !is.null(sampler$data@offset.category.test))
+  ) {
+    stop(
+      "'offset.test' must be given on a sampler that carries a category ",
+      "offset: one row per row of 'x.test' and one column per category (an ",
+      "all-zero matrix for the offset-free surface)",
+      call. = FALSE
+    )
   }
 
   # a fresh sampler, not sampler$copy(): copy() installs the caller's saved
@@ -1824,15 +1849,18 @@ samplePriorPredictive <- function(
   # draws across calls by default with set.seed governing reproducibility.
   # The prior draws overwrite all tree state, so no donor state is needed.
   # keepTrees is forced off: it makes predict() serve saved posterior
-  # samples instead of the live trees this function just drew.
+  # samples instead of the live trees this function just drew. verbose is
+  # forced off for the run a DART draw may fall back on.
   newControl <- sampler$control
   newControl@keepTrees <- FALSE
+  newControl@verbose <- FALSE
   # under the caller's prior, on the grid, range and leaf standardization its
   # data object records
   draw <- dbartsSampler$new(newControl, sampler$model, sampler$data)
 
   xt <- if (is.null(x.test)) extract(draw, "predictors") else x.test
   responseIsBinary <- draw$control@binary
+  family <- draw$model@family
 
   # the noise a heteroscedastic prior predictive adds is s(x) eps, with s^2(x)
   # drawn from the variance forest's own prior once per sample and read at the
@@ -1848,8 +1876,13 @@ samplePriorPredictive <- function(
     withCodedPredictors(draw$setTestPredictorAndOffset(xt, NULL))
   }
 
+  # sigma is a draw of its own prior, drawn here, ahead of the forests, as it
+  # always has been, so a gaussian sampler's "ppd" is what it was
+  scaleFamily <- !responseIsBinary &&
+    !isMultinomial &&
+    !family %in% c("nbinom", "ordinal")
   sigmaDraws <- NULL
-  if (type == "ppd" && !responseIsBinary && !drawsVariance) {
+  if (type == "ppd" && scaleFamily && !drawsVariance) {
     residPrior <- draw$model@resid.prior
     if (inherits(residPrior, "dbartsChiSqPrior")) {
       # reported-scale scaled-inverse-chi-squared, matching the engine's own
@@ -1872,27 +1905,36 @@ samplePriorPredictive <- function(
     }
   }
 
-  results <- vector("list", n.samples)
-  varianceResults <- if (drawsVariance) vector("list", n.samples) else NULL
-  for (i in seq_len(n.samples)) {
-    draw$sampleTreesFromPrior(updateState = FALSE)
-    draw$sampleLeafParametersFromPrior(updateState = FALSE)
-    fit <- withCodedPredictors(draw$predict(xt, offset.test, n.threads))
-    # multi-chain samplers draw an independent prior stream per chain; prior
-    # draws are chain-free, so only the first chain's stream is kept
-    if (length(dim(fit)) > 1L) {
-      fit <- fit[, 1L]
-    }
-    results[[i]] <- fit
-    if (drawsVariance) {
-      draw$sampleVarianceForestFromPrior(updateState = FALSE)
-      varianceResults[[i]] <- draw$getVariance(test = TRUE)[, 1L]
-    }
+  forests <- drawPriorForests(
+    draw,
+    xt,
+    offset.test,
+    n.samples,
+    n.threads,
+    drawsVariance
+  )
+  hyper <- forests$hyperparameters
+  residualDf <- hyper[[1L]]$residual.df
+  if (isMultinomial) {
+    # n.samples x rows x K: each sample's softmax probabilities
+    result <- aperm(simplify2array(forests$fits), c(3L, 1L, 2L))
+  } else {
+    result <- do.call(rbind, forests$fits)
   }
-  result <- do.call(rbind, results)
 
   if (responseIsBinary) {
-    result <- probabilityFromLatents(result, list(family = draw$model@family))
+    result <- probabilityFromLatents(result, list(family = family))
+  } else if (identical(family, "nbinom")) {
+    # predict serves the log mean, the center and the offset in it
+    result <- exp(result)
+  } else if (identical(family, "ordinal")) {
+    # one cutpoint set per sample, shared by every row
+    result <- aperm(
+      simplify2array(lapply(seq_len(n.samples), function(i) {
+        ordinalCategoryProbabilities(result[i, ], hyper[[i]]$thresholds)
+      })),
+      c(3L, 1L, 2L)
+    )
   }
 
   if (type == "ppd") {
@@ -1902,16 +1944,43 @@ samplePriorPredictive <- function(
         nrow(result),
         ncol(result)
       )
+    } else if (isMultinomial) {
+      # a draw in the shape of the sampler's response, as predict draws at a
+      # new row: a category where every row holds one trial, otherwise a
+      # count vector of one trial
+      counts <- dataCounts(draw$data)
+      result <- if (all(rowSums(counts) == 1)) {
+        multinomialPpdFromProbs(result)
+      } else {
+        multinomialCountPpdFromProbs(result, rep_len(1L, dim(result)[2L]))
+      }
+    } else if (identical(family, "ordinal")) {
+      result <- multinomialPpdFromProbs(result)
+    } else if (identical(family, "nbinom")) {
+      result <- negbinPpd(
+        result,
+        vapply(hyper, function(h) h$shape, numeric(1L))
+      )
     } else if (drawsVariance) {
       # s^2(x) is a variance on the response scale, one row per prior draw and
       # one column per predicted row, so the noise scale is its square root
       result <- result +
-        sqrt(do.call(rbind, varianceResults)) *
+        sqrt(do.call(rbind, forests$variances)) *
           matrix(
             rnorm(length(result)),
             nrow(result),
             ncol(result)
           )
+    } else if (!is.null(residualDf)) {
+      # Student-t noise at each sample's df, sigma its conditional scale
+      dfs <- vapply(hyper, function(h) h$residual.df, numeric(1L))
+      result <- result +
+        matrix(
+          rep(sigmaDraws, ncol(result)) *
+            rt(length(result), rep(dfs, ncol(result))),
+          nrow(result),
+          ncol(result)
+        )
     } else {
       result <- result +
         matrix(
@@ -1923,6 +1992,113 @@ samplePriorPredictive <- function(
   }
 
   result
+}
+
+# Whether a model's leaf prior is improper, a chi() k prior with an infinite
+# scale (which invchi() with scale 0 becomes): it has no prior draws.
+leafPriorIsImproper <- function(model) {
+  hyperprior <- model@leaf.hyperprior
+  inherits(hyperprior, "dbartsChiHyperprior") &&
+    !is.finite(hyperprior@scale)
+}
+
+# Whole-forest draws a DART prior draw may make per requested sample, pooled
+# over the call: below an acceptance of about one in this many the draws come
+# from the sampler's own run instead.
+priorForestAttemptsPerSample <- 50L
+
+# samplePriorPredictive's forests: n.samples independent draws of the prior
+# the private sampler 'draw' runs under, each evaluated at xt. Each sample
+# draws the hyperparameters first, then the trees, then the leaves. Under
+# dart() the split weights and the trees are one draw, rejected whole while
+# any tree is one the sampler refuses; when too few are accepted (the pooled
+# budget above runs out), every sample comes instead from the sampler run with
+# every row inactive, whose stationary distribution is that prior: the
+# control's burn-in, then n.thin sweeps between samples, k, the response's
+# hyperparameters and the leaves still drawn fresh for each. Returns
+# list(fits, variances, hyperparameters, run), one entry a sample.
+drawPriorForests <- function(
+  draw,
+  xt,
+  offset.test,
+  n.samples,
+  n.threads,
+  drawsVariance
+) {
+  ptr <- draw$getPointer()
+  isMultinomial <- samplerCarriesCounts(draw)
+  attemptsLeft <- as.integer(min(
+    priorForestAttemptsPerSample * as.double(n.samples),
+    .Machine$integer.max
+  ))
+  sampleOnce <- function(fromRun) {
+    if (fromRun) {
+      draw$run(0L, 1L, updateState = FALSE)
+    }
+    drawn <- .Call(
+      C_dbarts_bartcore_sampleHyperparametersFromPrior,
+      ptr,
+      if (fromRun) 0L else attemptsLeft
+    )
+    if (!fromRun && !is.null(drawn$split.probabilities)) {
+      attemptsLeft <<- attemptsLeft - drawn$attempts
+      if (!drawn$forests.drawn) {
+        return(NULL)
+      }
+    }
+    if (!fromRun && !drawn$forests.drawn) {
+      draw$sampleTreesFromPrior(updateState = FALSE)
+    }
+    draw$sampleLeafParametersFromPrior(updateState = FALSE)
+    fit <- withCodedPredictors(draw$predict(xt, offset.test, n.threads))
+    # multi-chain samplers draw an independent prior stream per chain; prior
+    # draws are chain-free, so only the first chain's stream is kept. A
+    # multinomial sampler's rows carry K probabilities, kept as rows x K.
+    d <- dim(fit)
+    if (length(d) == 3L) {
+      fit <- array(fit[,, 1L], d[1:2])
+    } else if (length(d) == 2L && !isMultinomial) {
+      fit <- fit[, 1L]
+    }
+    variance <- NULL
+    if (drawsVariance) {
+      draw$sampleVarianceForestFromPrior(updateState = FALSE)
+      variance <- draw$getVariance(test = TRUE)[, 1L]
+    }
+    list(fit = fit, variance = variance, hyperparameters = drawn)
+  }
+
+  fromRun <- FALSE
+  samples <- vector("list", n.samples)
+  for (i in seq_len(n.samples)) {
+    samples[[i]] <- sampleOnce(FALSE)
+    if (is.null(samples[[i]])) {
+      fromRun <- TRUE
+      break
+    }
+  }
+  if (fromRun) {
+    draw$setActiveRows(rep_len(0, length(draw$data@y)), updateState = FALSE)
+    draw$run(draw$control@n.burn, 0L, updateState = FALSE)
+    for (i in seq_len(n.samples)) {
+      samples[[i]] <- sampleOnce(TRUE)
+    }
+    warning(
+      "samplePriorPredictive: under dart() fewer than one in ",
+      priorForestAttemptsPerSample,
+      " independent draws of the split weights and trees was one the ",
+      "sampler holds, so the draws come from the sampler run with every row ",
+      "inactive and successive draws are dependent; see ",
+      "?samplePriorPredictive",
+      call. = FALSE
+    )
+  }
+  list(
+    fits = lapply(samples, `[[`, "fit"),
+    variances = lapply(samples, `[[`, "variance"),
+    hyperparameters = lapply(samples, `[[`, "hyperparameters"),
+    run = fromRun
+  )
 }
 
 ## Whether a method that just changed the sampler should refresh its cached
