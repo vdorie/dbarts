@@ -33,6 +33,16 @@
 \alias{summary.bartHurdle}
 \alias{plot.bartHurdle}
 \alias{print.summary.bartHurdle}
+\alias{sigma.bart}
+\alias{sigma.bartMultinomial}
+\alias{sigma.bartOrdinal}
+\alias{sigma.bartNegbin}
+\alias{sigma.bartHurdle}
+\alias{nobs.bart}
+\alias{nobs.bartMultinomial}
+\alias{nobs.bartOrdinal}
+\alias{nobs.bartNegbin}
+\alias{nobs.bartHurdle}
 \title{Bayesian Additive Regression Trees with Extended Response Families}
 \description{
 BART is a Bayesian \dQuote{sum-of-trees} model in which each tree is constrained by a prior to be a weak learner; see \code{\link{bartBT}} for the base gaussian/probit model definition. \code{bart} is dbarts' own formula-first fitting interface: besides the default gaussian/probit response it reaches further families through \code{family} - logistic, accelerated failure time (\code{family = "aft"}), discrete-time survival hazard (\code{family = "hazard"}, \code{"hazard.logistic"}), K-category multinomial (\code{family = "multinomial"}), ordered categorical (\code{family = "ordinal"}, a cumulative probit), negative-binomial counts (\code{family = "nbinom"}), and semicontinuous two-part responses (\code{family = "hurdle.lognormal"}) - and, on its formula interface, an additional per-observation-modulated forest declared inline with a \code{forest()} term (see \sQuote{Formula Terms} below). None of these families is reachable from \code{\link{bartBT}}, which takes no \code{family} argument and always fits the gaussian or probit model.
@@ -182,6 +192,18 @@ bart(
                                "resid.df"), \dots)
 
 \method{print}{summary.bartHurdle}(x, \dots)
+
+\method{sigma}{bart}(object, \dots)
+\method{sigma}{bartMultinomial}(object, \dots)
+\method{sigma}{bartOrdinal}(object, \dots)
+\method{sigma}{bartNegbin}(object, \dots)
+\method{sigma}{bartHurdle}(object, \dots)
+
+\method{nobs}{bart}(object, \dots)
+\method{nobs}{bartMultinomial}(object, \dots)
+\method{nobs}{bartOrdinal}(object, \dots)
+\method{nobs}{bartNegbin}(object, \dots)
+\method{nobs}{bartHurdle}(object, \dots)
 }
 \arguments{
    \strong{Data and formula.}
@@ -359,7 +381,7 @@ bart(
      Present on the \code{bartMultinomial}/\code{bartOrdinal}/\code{bartNegbin}/\code{bartHurdle} methods below for S3 generic compatibility, but not silently discarded: a name foreign to the method called is refused by name, and any other unrecognized name warns. On \code{bart} itself \code{\dots} is instead the transition release's retired-spelling channel, as on \code{\link{dbarts}}: a retired name (\code{resid.prior}, \code{sigdf}, and \code{sigquant}, which ride \code{family}, built with \code{gaussian(sigma = chisq(df, quant))} or \code{gaussian(sigma = fixed(value))}; \code{proposal.probs}, which rides \code{control}, built with \code{dbartsControl(proposal.probs = )}) reaches a message naming its successor instead of R's own \dQuote{unused argument} error, and any other name is refused. Removed in dbarts 1.1-0.
    }
    \item{object}{
-     An object of class \code{bartMultinomial}, \code{bartOrdinal}, \code{bartNegbin}, or \code{bartHurdle}, returned by \code{bart} under the corresponding \code{family}.
+     An object of class \code{bartMultinomial}, \code{bartOrdinal}, \code{bartNegbin}, or \code{bartHurdle}, returned by \code{bart} under the corresponding \code{family}; for \code{sigma} and \code{nobs}, any fit \code{bart} returns, of class \code{bart} too.
    }
    \item{newdata}{
      Test data for prediction. Obeys the same rules as \code{data}/\code{test}; a numeric matrix is taken only where every predictor column is numeric, and is refused by name on a fit with a factor column, which takes a data frame. Left out (or \code{NULL}), \code{predict} returns each \code{type} at the training rows from the draws the fit stored, as \code{extract} with \code{sample = "train"} does, on every family's fit and without saved trees; an \code{offset} given then replaces the fit's own at the training rows (a category offset matrix on a multinomial fit). An unnamed matrix given to a fit whose predictors are named is matched by position, with a warning. A data-frame column for a predictor that was a factor in training must be a factor or character, matched to the training levels by label; a numeric or logical one is refused, naming it, as \code{\link{predict.lm}} refuses it.
@@ -525,6 +547,8 @@ A handful of shapes are refused outright rather than silently misinterpreted, ea
 }
 \value{
 Every fit, of every class below, carries \code{family}, the family as specified once \code{"auto"} has resolved, and \code{family.spec}, the same family with its settings, which \code{family(fit)} returns (see \code{\link{bartBT}}'s \sQuote{Value} section). Ask a fit what it is through these, not through which components are present: a run's options decide which draw channels it keeps.
+
+Every fit answers \code{sigma(fit)} and \code{nobs(fit)}, as an \code{\link{lm}} or \code{\link{glm}} fit does. \code{sigma} is the posterior mean of the residual sd, \code{mean(extract(fit, type = "sigma"))}: on a hurdle fit the positive part's sd of \eqn{\log y}{log y}, on an \code{"aft"} fit that of the log time, on a \code{"student"} fit the scale of its t errors, and 1 on a family with no residual scale (binary, hazard, multinomial, ordinal and \code{"nbinom"} fits), as \code{\link{sigma}} reads a binomial \code{glm}. A fit with a variance forest has a residual sd per row, not one, and \code{sigma} refuses it; \code{extract(fit, type = "sigma")} gives its draws. \code{nobs} counts the rows in the likelihood: those \code{subset} and \code{na.action} kept, less any of weight 0; a hazard fit's are its person-period rows.
 
 Row names: every output indexed by observation carries the rows' names on its observation margin, on every class below. That covers the stored draws (\code{yhat.train}, \code{yhat.test}, their means, \code{s.train}, \code{s.test}, \code{forestFits} and the latent channels) and what \code{fitted}, \code{residuals}, \code{extract}, \code{predict} and \code{\link{survivalProbabilities}} return. Training rows are named after \code{subset} and \code{na.action}: a formula fit names them as its model frame does, \code{"1"} to \code{"n"} when the data has none, as \code{\link{lm}} does; the \code{x} interface takes \code{rownames(x)}, a data frame's automatic names counting as \code{"1"} to \code{"n"}, and leaves a matrix without row names unnamed. Test rows and \code{newdata} take their own row names the same way. A discrete-time hazard fit names its person-period rows by \code{\link{make.unique}} over the subject names, so a subject \code{s1} at risk in three periods gives \code{s1}, \code{s1.1} and \code{s1.2}, and \code{survivalProbabilities} names subjects. A fit also keeps the names as \code{row.names.train} and \code{row.names.test}, absent when the rows are unnamed.
 

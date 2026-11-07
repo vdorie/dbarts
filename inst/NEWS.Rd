@@ -550,6 +550,10 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item Every fit answers \code{sigma()}, the posterior mean of its
+            residual sd (1 on a family with none), and \code{nobs()}, the
+            rows in its likelihood, as an \code{lm} or \code{glm} fit does;
+            0.9-34 returned an empty vector with a warning and an error.
       \item \code{dbarts} and \code{dbartsSpec} take \code{n.trees}, the
             tree count of the forest with no \code{basis}, and \code{dbarts}
             and \code{dbartsData} take \code{n.cuts} and

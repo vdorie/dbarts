@@ -125,4 +125,75 @@ expect_false(isTRUE(all.equal(resid.ev, resid.link)))
 
 rm(predictions, bartFit, resid.ev, resid.link)
 
+# sigma and nobs answer as for an lm or glm fit: the posterior mean of the
+# residual sd, 1 with no residual scale, and the rows in the likelihood
+set.seed(31L)
+accessorData <- data.frame(a = rnorm(40L), b = rnorm(40L))
+accessorData$y <- accessorData$a + rnorm(40L)
+accessorData$z <- as.integer(accessorData$y > 0)
+accessorData$w <- c(0, 0, rep(1, 38L))
+accessorData$a[3L] <- NA
+# the call is rebuilt so that weights = w is read in the data
+accessorFit <- function(...) {
+  fitCall <- match.call()
+  fitCall[[1L]] <- quote(dbarts::bart)
+  fitCall[c(
+    "n.trees",
+    "n.samples",
+    "n.burn",
+    "n.chains",
+    "n.threads",
+    "verbose"
+  )] <- list(5L, 5L, 5L, 2L, 1L, FALSE)
+  eval(fitCall, parent.frame())
+}
+gaussianFit <- accessorFit(
+  y ~ a + b,
+  accessorData,
+  weights = w,
+  na.action = na.omit
+)
+expect_identical(sigma(gaussianFit), mean(gaussianFit$sigma))
+expect_identical(nobs(gaussianFit), 37L)
+probitFit <- accessorFit(z ~ a + b, accessorData, subset = 4:40, weights = w)
+expect_identical(sigma(probitFit), 1)
+expect_identical(nobs(probitFit), 37L)
+matrixFit <- accessorFit(
+  as.matrix(accessorData[4:40, 1:2]),
+  accessorData$y[4:40]
+)
+expect_identical(nobs(matrixFit), 37L)
+expect_identical(sigma(matrixFit), mean(matrixFit$sigma))
+hurdleFit <- accessorFit(
+  ifelse(y > 0, y, 0) ~ a + b,
+  accessorData,
+  family = "hurdle.lognormal",
+  weights = w,
+  na.action = na.omit
+)
+expect_identical(sigma(hurdleFit), mean(extract(hurdleFit, type = "sigma")))
+expect_identical(nobs(hurdleFit), 37L)
+ordinalFit <- accessorFit(
+  ordered(cut(y, 3L)) ~ a + b,
+  accessorData,
+  weights = w,
+  na.action = na.omit
+)
+expect_identical(sigma(ordinalFit), 1)
+expect_identical(nobs(ordinalFit), 37L)
+expect_error(
+  sigma(accessorFit(y ~ b, accessorData, variance = TRUE)),
+  "a fit with a variance forest has no single residual sd; see extract(fit, type = \"sigma\")",
+  fixed = TRUE
+)
+rm(
+  accessorData,
+  accessorFit,
+  gaussianFit,
+  probitFit,
+  matrixFit,
+  hurdleFit,
+  ordinalFit
+)
+
 rm(testData)

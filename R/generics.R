@@ -98,6 +98,45 @@ family.bartOrdinal <- family.bart
 family.bartNegbin <- family.bart
 family.bartHurdle <- family.bart
 
+# stats' accessors, as an lm or glm fit answers them. sigma is the posterior
+# mean of the residual sd, 1 on a family with none (extract(type = "sigma")'s
+# reading), a student fit's t scale; a variance forest's scale is per row, so
+# no one number stands for it. nobs counts the rows in the likelihood: those kept, less any a 0
+# weight or a 0/1 weight's mask takes out.
+sigma.bart <- function(object, ...) {
+  warnUnusedDots(list(...), "sigma", class(object)[1L])
+  if (fitIsHeteroscedastic(object) || !is.null(object[["s.train"]])) {
+    stop(
+      "a fit with a variance forest has no single residual sd; see ",
+      "extract(fit, type = \"sigma\")",
+      call. = FALSE
+    )
+  }
+  mean(extract(object, type = "sigma"))
+}
+sigma.bartMultinomial <- sigma.bart
+sigma.bartOrdinal <- sigma.bart
+sigma.bartNegbin <- sigma.bart
+sigma.bartHurdle <- sigma.bart
+
+nobs.bart <- function(object, ...) {
+  warnUnusedDots(list(...), "nobs", class(object)[1L])
+  kept <- rep_len(TRUE, NROW(object[["y"]]))
+  weights <- object[["weights"]]
+  if (length(weights) == length(kept)) {
+    kept <- kept & weights > 0
+  }
+  active <- object[["active"]]
+  if (length(active) == length(kept)) {
+    kept <- kept & active != 0
+  }
+  sum(kept)
+}
+nobs.bartMultinomial <- nobs.bart
+nobs.bartOrdinal <- nobs.bart
+nobs.bartNegbin <- nobs.bart
+nobs.bartHurdle <- nobs.bart
+
 # latent-scale draws to probabilities for a binary fit, by its link
 probabilityFromLatents <- function(latents, object) {
   switch(
