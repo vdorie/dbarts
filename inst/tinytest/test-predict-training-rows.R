@@ -1433,3 +1433,83 @@ expect_identical(colnames(fit.bt$fit$data@x), c("a", "b", "c"))
 expect_identical(dim(predict(fit.bt, dfc[1:2, ])), c(10L, 2L))
 
 rm(x.mf, y.mf, dfx, fitMatrix, fit.mf, pinned, sampler.mf, dfc, fit.bt)
+
+# ---- the column-name rule at one predictor ----
+source(
+  system.file("common", "countWarnings.R", package = "dbarts"),
+  local = TRUE
+)
+source(
+  system.file("common", "captureWarnings.R", package = "dbarts"),
+  local = TRUE
+)
+# a named test is matched by name whatever the predictor count, so a renamed
+# single column is refused as a renamed pair is; an unnamed one is taken, as
+# no permutation is possible
+set.seed(23)
+x.one <- cbind(age = runif(30L))
+y.one <- x.one[, 1L] + rnorm(30L, 0, 0.3)
+fitOne <- function(test = NULL) {
+  bart(
+    x.one,
+    y.one,
+    test = test,
+    n.trees = 10L,
+    n.burn = 10L,
+    n.samples = 10L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 2L,
+    keepTrees = TRUE,
+    verbose = FALSE
+  )
+}
+fit.one <- fitOne()
+renamed <- "column names of 'test' do not match those of 'x': 'age' present in 'x' but not in 'test' (whose columns are 'inc')"
+for (other in list(cbind(inc = x.one[1:5, 1L]), data.frame(inc = x.one[1:5, 1L]))) {
+  expect_error(predict(fit.one, other), pattern = renamed, fixed = TRUE)
+  expect_error(fitOne(test = other), pattern = renamed, fixed = TRUE)
+  expect_error(
+    fit.one$fit$setTestPredictor(other),
+    pattern = renamed,
+    fixed = TRUE
+  )
+}
+expect_identical(
+  countWarnings(predict(fit.one, cbind(age = x.one[1:5, 1L])), "warning"),
+  0L
+)
+expect_identical(
+  countWarnings(
+    expect_identical(
+      predict(fit.one, matrix(x.one[1:5, 1L])),
+      predict(fit.one, cbind(age = x.one[1:5, 1L]))
+    ),
+    "warning"
+  ),
+  0L
+)
+
+# repeated names in the fit say so when 'test' is matched by position
+x.rep <- cbind(a = runif(30L), a = runif(30L))
+fit.rep <- bart(
+  x.rep,
+  y.one,
+  n.trees = 10L,
+  n.burn = 10L,
+  n.samples = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 2L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+warnings.rep <- captureWarnings(predict(fit.rep, x.rep[1:5, ]))
+expect_identical(length(warnings.rep), 1L)
+expect_identical(
+  conditionMessage(warnings.rep[[1L]]),
+  "'x' has repeated column names, so 'test' is matched by position"
+)
+
+rm(x.one, y.one, fitOne, fit.one, renamed, other, x.rep, fit.rep, warnings.rep)
+rm(countWarnings, captureWarnings)

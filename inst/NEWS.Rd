@@ -254,6 +254,10 @@
             that splits on such a column is declined by \code{$setState}
             unless forced, and \code{$setModel} refuses a zero on a column
             the sampler's trees split on.
+      \item On a fit of one named predictor, a named \code{newdata},
+            \code{test} or \code{$setTestPredictor} value whose column has
+            another name is an error, as it is with several predictors;
+            0.9-34 read it by position. An unnamed column is still taken.
     }
   }
   \subsection{USER-VISIBLE CHANGES}{

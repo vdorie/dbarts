@@ -2073,10 +2073,29 @@ validateXTest <- function(
     }
     stop("number of columns in 'test' must be equal to that of 'x'")
   }
+  xIsNamed <- !is.null(predictorNames)
+  testIsNamed <- !is.null(colnames(x.test))
+  repeatedNames <- anyDuplicated(predictorNames) > 0L
+  # both named, the fit's names distinct: 'test' is matched by name at any
+  # predictor count, and a column that is not the fit's is refused, as at
+  # setData and setPredictor
+  if (xIsNamed && testIsNamed && !repeatedNames) {
+    matchIndices <- match(predictorNames, colnames(x.test))
+    if (any(is.na(matchIndices))) {
+      stop(
+        "column names of 'test' do not match those of 'x': '",
+        toString(predictorNames[is.na(matchIndices)]),
+        "' present in 'x' but not in 'test' (whose columns are '",
+        toString(colnames(x.test)),
+        "')",
+        formulaPrefixHint(
+          predictorNames[is.na(matchIndices)],
+          colnames(x.test)
+        )
+      )
+    }
+  }
   if (numPredictors > 1) {
-    xIsNamed <- !is.null(predictorNames)
-    testIsNamed <- !is.null(colnames(x.test))
-
     columnIndices <- seq.int(numPredictors)
     if (xIsNamed && !testIsNamed) {
       # named fit, positional (unnamed) test: swapped columns would match
@@ -2103,31 +2122,18 @@ validateXTest <- function(
         ),
         call. = FALSE
       )
-    } else if (
-      (!xIsNamed && testIsNamed) ||
-        length(unique(predictorNames)) != length(predictorNames)
-    ) {
+    } else if (repeatedNames) {
+      warning(
+        "'x' has repeated column names, so 'test' is matched by position",
+        call. = FALSE
+      )
+    } else if (!xIsNamed && testIsNamed) {
       warning(
         "'x' and 'test' are not both named; columns of 'test' will be matched by position",
         call. = FALSE
       )
     } else if (xIsNamed && testIsNamed) {
-      matchIndices <- match(predictorNames, colnames(x.test))
-      if (any(is.na(matchIndices))) {
-        stop(
-          "column names of 'test' do not match those of 'x': '",
-          toString(predictorNames[is.na(matchIndices)]),
-          "' present in 'x' but not in 'test' (whose columns are '",
-          toString(colnames(x.test)),
-          "')",
-          formulaPrefixHint(
-            predictorNames[is.na(matchIndices)],
-            colnames(x.test)
-          )
-        )
-      } else {
-        columnIndices <- matchIndices
-      }
+      columnIndices <- matchIndices
     }
 
     if (xTestIsSparseContainer) {
