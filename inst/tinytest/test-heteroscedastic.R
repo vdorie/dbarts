@@ -745,6 +745,23 @@ newModel@resid.prior <- dbartsPriors$chisq(1.5, 0.9)
 expect_error(refused$setModel(newModel), dfRefusal(1.5), fixed = TRUE)
 expect_identical(refused$model, untouched$model)
 expect_identical(refused$run(), untouched$run())
+# the bridge's own install refuses it as well, before anything is written,
+# where the R surface's check is passed by
+bridgeRefused <- twin()
+bridgeUntouched <- twin()
+expect_error(
+  .Call(
+    dbarts:::C_dbarts_bartcore_setModel,
+    bridgeRefused$getPointer(),
+    newModel,
+    bridgeRefused$data,
+    bridgeRefused$control
+  ),
+  dfRefusal(1.5),
+  fixed = TRUE
+)
+expect_identical(bridgeRefused$run(), bridgeUntouched$run())
+rm(bridgeRefused, bridgeUntouched)
 # above df 2 the same install is taken
 newModel@resid.prior <- dbartsPriors$chisq(2.5, 0.9)
 refused$setModel(newModel)
