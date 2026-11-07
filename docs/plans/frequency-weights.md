@@ -7,7 +7,9 @@ main at 7937d252f on 2026-11-05; amended 2026-11-05 for the work planned or buil
 coefficient-prior-live and host-neutral-engine's landed S1; rebased onto main at 6f84b5a66 (latents-first, hurdle-completion
 and coefficient-prior-live landed) and amended 2026-11-06 for dec-B590 to dec-B594
 ([Amendments of 2026-11-06](#amendments-of-2026-11-06)): its open call ruled, two left by that ruling put as Open calls 2
-and 3. S0 landed on main (1a23f9a60). The feature is not built.
+and 3. S0 landed on main (1a23f9a60). The feature is not built. Open calls 2 and 3 ruled on 2026-11-06 (dec-B595, dec-B596)
+and amended in before S5 ([Amendments of 2026-11-07](#amendments-of-2026-11-07)): a predict weight of 0 is zero new trials on
+the count families, and a test frame's weights mean what the fit's own weights mean.
 Rulings read for the 2026-11-06 pass: dec-B594 (predict's weights on ordinal and multinomial fits are trials, a draw with
 them the count per category; dec-B177's predict clause revised; "Use your revised recommendation."), dec-B590 (a
 Polya-Gamma row above a shape of 64 or at a fractional shape takes the accept-or-keep route once proven, the sum otherwise),
@@ -57,8 +59,8 @@ budget: the feature ~4,450 lines, ~1,610 of them package code: engine ~570 (S1 ~
 R ~815 (S4 ~80, S5 ~485, S6 ~250), standalone math ~25 written (S3; R's choose.c copied unedited, not counted); help ~200,
 NEWS ~30; tests/cpp ~820, tinytest ~1,280, gate scripts ~450, records ~60. Agent time, estimated and not measured: S1 ~12.5,
 S2 ~7, S3 ~9.5, S4 ~6.5, S5 ~15.5, S6 ~9, S7 ~6, S8 ~1, four engine reviews with mutants and fix rounds ~18, three R and
-gate reviews ~8, gates and sanitizers ~5, rebases ~3: ~101. Plans here run 1.5 to 2 times low, so 150 to 200. The
-recommendations of Open calls 2 and 3 are counted; their other options change S5 by under half an hour.
+gate reviews ~8, gates and sanitizers ~5, rebases ~3: ~101. Plans here run 1.5 to 2 times low, so 150 to 200. Open calls 2
+and 3 as ruled change S5 by under half an hour.
 
 ## Summary for the maintainer
 
@@ -82,12 +84,13 @@ As you ruled after the critique corrected the zero-weight premise, a row of weig
 family; probit, ordinal, the probit hazard and negative binomial fits drew values there, and its fitted value is still
 reported. You named predict(weights = 1) as the way to draw such a row as a new observation, but the ordinal, negative
 binomial and multinomial fits' predict takes no weights today and refuses them by name. This plan adds the argument to all
-three. The negative binomial reads a whole number as that many new observations summed and refuses 0, as logistic reads its
-weights as trials and refuses 0. On ordinal and multinomial fits, as you ruled on 2026-11-05, predict without weights draws
-in the shape of the fit's response (a category, or a count vector on a fit to count rows, one trial at a new row), and with
-weights the count in each category over that many new trials; so weights = 1 on a fit to categories returns a one-trial
-count vector where predict() returns the category. Two choices that ruling leaves are yours, below: what weights = 0 gives
-there, and what a test sample's weights draw on those two families.
+three. The negative binomial reads a whole number as that many new observations summed, as logistic reads its weights as
+trials. On ordinal and multinomial fits, as you ruled on 2026-11-05, predict without weights draws in the shape of the fit's
+response (a category, or a count vector on a fit to count rows, one trial at a new row), and with weights the count in each
+category over that many new trials; so weights = 1 on a fit to categories returns a one-trial count vector where predict()
+returns the category. As you ruled on 2026-11-06, a predict weight of 0 on every family whose predict weights are trials is
+zero new trials and draws zero counts, logistic's and probit's refusal of it lifted, and a test sample's weights mean what
+the fit's own weights mean: each test row is one observation, a 0 giving missing draws.
 
 The xbart fix that was to land first has landed on main. Since this plan was written you also ruled that every sweep draws
 its hidden values first, so no setter draws them; this plan is built after that change and is simpler for it: nothing here
@@ -104,7 +107,7 @@ What does not move. No posterior draw of any fit that runs on the build this sta
 numbers, the four recorded snapshot files and the equivalence baselines stay bit for bit, and each slice proves it. stan4bart,
 bartCause and treatSens need no change; stan4bart can drop about 30 lines that become dead.
 
-Three open calls, below, the third raised in S3. The feature is about 4,450 lines over eight slices, about 101 agent-hours as estimated, 150 to 200
+One open call, below, raised in S3; the other two are ruled. The feature is about 4,450 lines over eight slices, about 101 agent-hours as estimated, 150 to 200
 by the record of plans here.
 
 ## Goal
@@ -227,16 +230,16 @@ but a weighted logistic fit with a linear leaf or a numeric basis, whose read-of
 
 Resolution and what each value takes, per family (the refusal numbers are [Refusals](#refusals)'):
 
-| family | NULL resolves to | "precision" | "frequency" | predict's weights and weights.test under the resolved reading |
-|---|---|---|---|---|
-| gaussian, Student-t, heteroscedastic | precision | taken, real w | taken, real w | precision: as today; frequency: 0 and 1 only (9) |
-| logistic, hazard.logistic | frequency (counts) | refused (3) | taken, whole w (5) | trial counts (dec-B470), as today |
-| nbinom | frequency (counts) | refused (3) | taken, whole w (6) | positive whole w, w new observations summed (dec-B566); new at predict |
-| multinomial | frequency (counts) | refused (3) | taken, whole w (7) | trials: whole w > 0 a count per category over w new trials (dec-B594), 0 [Open calls](#open-calls), 2; new at predict; weights.test [Open calls](#open-calls), 3 |
-| probit, hazard, hazard.probit | frequency (membership) | refused (3) | 0 and 1 only (2) | as today: trial counts at predict (dec-B470); weights.test 0 and 1 |
-| ordinal | frequency (membership) | refused (3) | 0 and 1 only (2) | trials: whole w > 0 a count per category over w new trials (dec-B594), 0 [Open calls](#open-calls), 2; new at predict; weights.test [Open calls](#open-calls), 3 |
-| hurdle.lognormal | frequency (membership) | refused (4) | 0 and 1 only (hurdle-completion's refusal) | 0 and 1, hurdle-completion's (dec-B588) |
-| aft | precision (weights refused) | weights refused (4) | refused (4) | as today |
+| family | NULL resolves to | "precision" | "frequency" | predict's weights under the resolved reading (dec-B595) | weights.test (dec-B596) |
+|---|---|---|---|---|---|
+| gaussian, Student-t, heteroscedastic | precision | taken, real w | taken, real w | precision: as today, 0 NA; frequency: 0 and 1 only (9) | precision: as today; frequency: real w >= 0, one observation at sd sigma, 0 NA |
+| logistic, hazard.logistic | frequency (counts) | refused (3) | taken, whole w (5) | trial counts (dec-B470), 0 zero successes, its refusal lifted | whole w >= 0 (5), one 0/1 draw, 0 NA |
+| nbinom | frequency (counts) | refused (3) | taken, whole w (6) | whole w >= 0, w new observations summed (dec-B566), 0 a count of 0 (19); new at predict | whole w >= 0 (6), one count, 0 NA |
+| multinomial | frequency (counts) | refused (3) | taken, whole w (7) | trials: whole w >= 0, a count per category over w new trials (dec-B594), 0 zero counts (20); new at predict | whole w >= 0 (7), one observation (a category, or on a count fit a one-trial count vector), 0 NA |
+| probit, hazard, hazard.probit | frequency (membership) | refused (3) | 0 and 1 only (2) | trial counts (dec-B470), 0 zero successes, its refusal lifted | 0 and 1 (2), one 0/1 draw, 0 NA |
+| ordinal | frequency (membership) | refused (3) | 0 and 1 only (2) | trials: whole w >= 0, a count per category over w new trials (dec-B594), 0 zero counts (20); new at predict | 0 and 1 (2), one category, 0 NA |
+| hurdle.lognormal | frequency (membership) | refused (4) | 0 and 1 only (hurdle-completion's refusal) | 0 and 1, hurdle-completion's (dec-B588) | 0 and 1, as today |
+| aft | precision (weights refused) | weights refused (4) | refused (4) | as today | as today |
 
 `$setModel` resolves the model it is given against the sampler's family before comparing, so an NA model on a gaussian
 sampler created at NULL passes and one stating "frequency" is refused (10).
@@ -365,8 +368,15 @@ sampler created at NULL passes and one stating "frequency" is refused (10).
   overwritten so the random stream is the one it is today; on probit, ordinal, hazard, hazard.probit and nbinom, which draw such
   rows today (plan critique p1: 0/1 and count draws, fitted(type = "ppd") of 0.25 and 1.05 at those rows), this moves a value by
   dec-B580; the row's fitted value is still reported, and predict(weights = 1) draws it as a new observation. predict(weights =
-  ) and weights.test on a frequency gaussian-type fit take 1 and 0 only (dec-B565); on a count family they ask for that many
-  trials, at training rows and at newdata (dec-B566 revising dec-B470).
+  ) on a frequency gaussian-type fit takes 1 and 0 only (dec-B565); on a count family predict's weights ask for that many
+  trials, at training rows and at newdata (dec-B566 revising dec-B470), and a 0 is zero new trials, drawing zero counts, by
+  every route (dec-B595, which lifts logistic's and probit's refusal of it); a training row whose fit weight is 0 keeps its
+  NA draws when predict is given no weights. A test sample's weights mean the fit's (dec-B596): each test row is drawn as a
+  training row of that weight is, one observation, NA at a 0, the values checked by the fit's rule (a count, a precision,
+  0 and 1); a count-family test row with no weights draws one trial. So on a count family extract(sample = "test") agrees
+  with predict(newdata = test) given no weights, the 0 rows aside, and on the precision families with predict given the
+  test weights; man/bart.Rd says so at both, and that predict's weights are new trials, a row not to be drawn being left
+  out of newdata.
 - predict's weights on the ordinal, negative binomial and multinomial fits (S5). dec-B580 names predict(weights = 1) as the door
   to a 0 row's draw "on every family", but predict.bartOrdinal, predict.bartNegbin and predict.bartMultinomial have no weights
   formal and refuse the name with "this family's posterior-predictive draw takes no per-observation weight" (run on main
@@ -375,9 +385,10 @@ sampler created at NULL passes and one stating "frequency" is refused (10).
   given weights replace the fit's own for the training rows' draws, one value or one per training row, worked from the
   stored draws; the types that draw nothing read no weight; a missing value follows na.action (dec-B482). What each takes:
   - nbinom, a count family (dec-B566): a positive whole w draws the sum of w new counts at the row's mean mu and shape r,
-    one draw from NB(size w r, mean w mu) per posterior draw, as a logistic fit's w draws Binomial(w, p); 0 and a fraction
-    refused in `refuseNonCountWeights`' words, as logistic's predict refuses them (dec-B470: "positive integer trial counts";
-    run on main: "the posterior predictive 'weights' of a probit fit are trial counts and must be positive integers").
+    one draw from NB(size w r, mean w mu) per posterior draw, as a logistic fit's w draws Binomial(w, p); a 0 draws a count
+    of 0, the sum of no observations (dec-B595); a fraction or a negative value refused in `refuseNonCountWeights`' words
+    (Refusals, 19), whose "positive integers" reads "non-negative integers" on every count family once dec-B595 lifts the
+    refusal of 0.
   - ordinal and multinomial, ruled by dec-B594: without weights predict(type = "ppd") "draws in the shape of the fit's
     response", and "with weights, a draw is the count per category over that many new trials on every one of these fits",
     each draw Multinomial(w, p(x)) at a posterior draw of the category probabilities, "so nothing well-defined is refused".
@@ -394,12 +405,14 @@ sampler created at NULL passes and one stating "frequency" is refused (10).
 
     predict(weights = 1) on a fit to categories returns a one-trial count vector, each a unit vector of K, where predict()
     returns the category, "the same draw written two ways" (dec-B594); it is dec-B580's door to a 0 training row, whose
-    draws without weights are NA. weights = 0 is [Open calls](#open-calls), 2 (recommended: NA draws); a fraction, a
+    draws without weights are NA. weights = 0 draws K zero counts, the draw of no trials (dec-B595); a fraction, a
     negative value or Inf is refused (Refusals, 20). The count vectors are drawn by `multinomialCountPpdFromProbs`, the
     categories by `multinomialPpdFromProbs` as today (Calls made, 18); ordinal's probabilities are its type = "ev" category
     probabilities, from the latent and the thresholds. A count fit's test sample draws as predict at those rows, a one-trial
-    count vector without weights.test (Calls made, 19); what weights.test draws on either family is
-    [Open calls](#open-calls), 3. 0.9-34 had neither family, so nothing here reaches NEWS.
+    count vector without weights.test (Calls made, 19). A test row's weights are the fit's (dec-B596): on an ordinal fit
+    0 and 1, a 1 drawing a category and a 0 NA; on a multinomial fit whole counts, a positive one drawing one observation,
+    a category on a fit to categories and a one-trial count vector on a count fit (the row's trials being unknown), a 0
+    NA. 0.9-34 had neither family, so nothing here reaches NEWS.
   - `foreignArgsFor` already drops a method's own formals from `predictForeignReasons`, so the three stop refusing the name
     once they take it; the list's `weights` entry, with no method left to refuse it (predict.bartHurdle took `weights`
     with hurdle-completion), goes.
@@ -429,7 +442,8 @@ sampler created at NULL passes and one stating "frequency" is refused (10).
   precision; samplePriorPredictive.Rd's Binomial(w, p) sentence, which becomes one observation.
 - NEWS (S5, S6), against 0.9-34 only: the features (weights.type and frequency weights, the binomial response, counts on nbinom
   and multinomial, zero weights on every family, probit and ordinal membership kept on the data object), and NA predictive draws
-  at a 0 row on every family (dec-B580), where 0.9-34 gave a probit fit with any 0 weight NA at every row. Nothing about
+  at a 0 row on every family (dec-B580), where 0.9-34 gave a probit fit with any 0 weight NA at every row, and a test row
+  of weight 0 the same (dec-B596), where 0.9-34 drew a probit test row as its weight times a 0/1 draw. Nothing about
   logistic's training draw or its zero weight, nor about predict's weights on ordinal, nbinom and multinomial fits: none of
   those families is in 0.9-34. S0's NEWS line is its own, on main.
 
@@ -481,9 +495,10 @@ is the family token as the caller wrote it.
 8. The cap for w > 1, through `refuseCountOverCap`'s form: `<caller>: family "logistic" requires 'weights' times the trials no
    larger than 1000000; each unit of a count is a Polya-Gamma draw per sweep`, and the same with `"nbinom"` and `'weights'
    times (y + r)`, `"multinomial"` and `'weights' times the 'counts' row totals`. At w = 1 today's cap messages stand.
-9. predict or weights.test on a frequency gaussian-type fit with weights other than 0 and 1: `on a fit with weights.type =
-   "frequency" <what> takes weights of 1, a new observation, and 0, a row held out: a row of weight w stands for w observations,
-   and its draw is one of them`, `<what>` being `predict` or `'weights.test'`.
+9. predict on a frequency gaussian-type fit with weights other than 0 and 1: `on a fit with weights.type = "frequency"
+   predict takes weights of 1, a new observation, and 0, a row held out: a row of weight w stands for w observations, and
+   its draw is one of them`. A test sample's weights are checked by the fit's rule instead (dec-B596), in the words the
+   training weights take, with `'weights.test'` named for `'weights'` where the words name the argument.
 10. `$setModel` with another resolved reading: `$setModel cannot change weights.type, which is fixed when the sampler is
     created; create a new sampler`.
 11. The proportion spelling (dec-B573), under family = binomial, stats::binomial() and "logistic", a response strictly between
@@ -509,14 +524,15 @@ is the family token as the caller wrote it.
     failures); 'y' is an n x <K> matrix, and it cross-validates neither multinomial counts nor a survival response; use bart()
     instead - per-category counts need family = "multinomial"; a (time, status) pair needs a survival::Surv response (which
     "auto" reads as survival) or family = "aft" / "hazard"`.
-19. predict on an nbinom fit with weights 0, fractional or negative, through `refuseNonCountWeights`' form: `the posterior
-    predictive 'weights' of a nbinom fit count new observations, whose draws are summed, and must be positive integers`.
-20. predict on an ordinal or multinomial fit with a weight fractional, negative or infinite (dec-B594; 0 is taken under
-    Open call 2's recommendation): `the posterior predictive 'weights' of <a/an> <family> fit are trial counts, each draw
-    the count per category over that many new trials, and must be non-negative whole numbers`. Under Open call 2's option
-    (c), "non-negative" reads "positive" and 0 joins the refusal.
+19. predict on an nbinom fit with weights fractional, negative or infinite, through `refuseNonCountWeights`' form (0 taken,
+    dec-B595): `the posterior predictive 'weights' of a nbinom fit count new observations, whose draws are summed, and must
+    be non-negative integers`; logistic's and probit's `... are trial counts and must be non-negative integers` likewise.
+20. predict on an ordinal or multinomial fit with a weight fractional, negative or infinite (dec-B594; 0 taken, dec-B595):
+    `the posterior predictive 'weights' of <a/an> <family> fit are trial counts, each draw the count per category over that
+    many new trials, and must be non-negative whole numbers`.
 
-Gone: xbart's `xbart does not accept weights of 0 and 1 under family ...`; logistic's refusal of a 0; the logistic refusal of
+Gone: xbart's `xbart does not accept weights of 0 and 1 under family ...`; logistic's refusal of a 0; logistic's and probit's
+predict refusal of a 0 (dec-B595); the logistic refusal of
 a two-column response under family = binomial and "logistic"; the multinomial refusal of weights other than all ones; the
 bridge's creation refusal of 0/1 weights on probit and ordinal; predict's refusal of `weights` by name on ordinal, nbinom and
 multinomial fits ("this family's posterior-predictive draw takes no per-observation weight").
@@ -570,6 +586,12 @@ Reported values that move, each re-pinned in the test that holds it:
   by the sequential binomials (Calls made, 18), K - 1 `rbinom` draws per draw and row where `sample.int` took one, so R's
   stream after it moves too; test-multinomial-surface.R's count-matrix arm re-pins. Not in NEWS: multinomial is not in
   0.9-34.
+- A weighted logistic or hazard.logistic fit's test sample draws (extract(sample = "test"), the test rows' weights from the
+  formula's weights column): one 0/1 draw, Bernoulli(p), where they drew Binomial(w, p), and NA at a 0 where they drew 0
+  (dec-B596). R's stream after it moves, as at the training rows; re-pinned where a test holds it. Not in NEWS.
+- A probit, hazard, hazard.probit, ordinal or nbinom fit's test rows of weight 0: NA where they drew values, the weights
+  having been dropped (dec-B596). Drawn then overwritten, so R's stream does not move. In NEWS for probit against 0.9-34,
+  which drew such a row as its weight times a 0/1 draw.
 
 New calls take new draws, each held to an oracle: the expanded rows draw for draw (gaussian, heteroscedastic, nbinom at a
 fixed and at a drawn r, multinomial, binomial), the expanded rows in distribution (Student-t only), the exact-posterior arms
@@ -755,10 +777,10 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
 
 ## Open calls
 
-Three, put to the maintainer as written: two left by the ruling of Open call 1, and one raised in S3. Every other user- or
-consumer-visible choice the plan makes is settled by dec-B563 to dec-B570, dec-B573, dec-B574, dec-B580, dec-B588,
-dec-B594 or the design note's calls made. S5 builds the recommendations; the other options change it by under half an
-hour.
+One open, raised in S3, and three ruled: Open call 1 (dec-B594) and the two it left, Open calls 2 (dec-B595) and 3
+(dec-B596). Every other user- or consumer-visible choice the plan makes is settled by dec-B563 to dec-B570, dec-B573,
+dec-B574, dec-B580, dec-B588, dec-B594 to dec-B596 or the design note's calls made. Open call 4 is built as its
+recommendation, refused.
 
 ### 1. What predict's weights mean on a fit whose one draw is a category (RULED, dec-B594)
 
@@ -772,49 +794,34 @@ three; predict(weights = 1) on a fit to categories returns a one-trial count vec
 count fit's predict at new rows draws one category. Built in S5 as [The R surface (S5, S6)](#the-r-surface-s5-s6) states
 it.
 
-### 2. What weights = 0 gives in predict on an ordinal or multinomial fit
+### 2. What weights = 0 gives in predict on an ordinal or multinomial fit (RULED, dec-B595)
 
-On an ordinal or multinomial fit, what should predict(fit, type = "ppd", weights = 0) draw at a row?
+Put on 2026-11-06 as options (a) NA on every family, the count families' refusal lifted, (b) NA on ordinal and multinomial
+only, the plan's first recommendation, (c) zero counts, the draw of no trials, (d) refused on all of them. The maintainer
+asked "The statement predict(fit, newdata, type = "ppd", weights = 0) doesn't make sense right? What could a user
+possibly be expressing with that?", then "The result doesn't need to be consistent across model families, it just needs to
+be consistently interpretable, if that makes sense.", and, shown that this points to one meaning of a predict weight per
+family by every route: "Yes, go ahead." Recorded as dec-B595: on the families whose predict weights are trials (logistic,
+probit, nbinom, ordinal, multinomial) a weight is the number of new trials and a 0 draws zero counts, by newdata and at the
+training rows; on gaussian, Student-t and aft a precision, 0 NA; on the hurdle a 0/1 flag, 0 a row held out. A training
+row whose fit weight is 0 keeps its NA draws (dec-B580). Logistic's and probit's refusal of a predict weight of 0 is
+lifted, revising dec-B470's "positive integer trial counts"; the help says predict's weights are new trials and a row not
+to be drawn is left out of newdata. Built in S5 as [The R surface (S5, S6)](#the-r-surface-s5-s6) and Refusals 19 and 20
+state it.
 
-Background. Under your ruling of 2026-11-05 predict's weights on these fits count new trials, and a draw with them is the
-count in each category; the ruling does not say what 0 trials give. Elsewhere 0 reads three ways. On gaussian-type fits
-predict(weights = 0) gives missing draws, a row held out (your ruling of 2026-10-23), and a training row of weight 0 has
-missing draws on every family (2026-11-03: "0 weight means out of sample"). Logistic's and probit's predict refuse 0 as not a
-positive trial count, and this plan refuses it on the negative binomial the same way. A multinomial count row with no trials
-draws all zeros (2026-10-01). 0.9-34 had neither family.
+### 3. What a test sample's weights draw on an ordinal or multinomial fit (RULED, dec-B596)
 
-- (a) Missing draws, K missing counts at the row, as a held-out row is on gaussian fits and a 0 training row is everywhere.
-  About 5 lines. Cost: these two families read 0 unlike logistic, probit and the negative binomial, which refuse it.
-- (b) All-zero counts, the draw of no trials, as a count row of no trials draws. About 3 lines. Cost: a draw that is zero at
-  every posterior draw says nothing about the row, and differs from a 0 training row's missing draws.
-- (c) Refused, as logistic, probit and the negative binomial refuse it. About 3 lines. Cost: the ruling's reason, that a
-  well-defined draw is not refused, and a weight vector copied from an ordinal fit's own 0/1 weights fails on its 0s.
-
-Recommendation: (a). A 0 means out of sample, your words of 2026-11-03, and under (a) predict at the training rows with the
-fit's own weights gives missing draws at its 0 rows, as predict without weights does.
-
-### 3. What a test sample's weights draw on an ordinal or multinomial fit
-
-When an ordinal or multinomial fit is given test rows whose data carry the weights column, what do those weights draw?
-
-Background. A fit given test rows through the formula reads the test rows' weights from the same column as the training
-weights: 0 and 1 marking rows in and out on an ordinal fit, counts on a multinomial one. On logistic and the binomial the
-test rows' weights are their trials, as predict's are, and probit's test weights are 0 and 1, where one trial and a 0/1
-draw are the same thing. Under your ruling predict's weights on these two families are trials and give a count per
-category, so read the same way an ordinal fit's 0/1 membership column would turn its test draws into one-trial count
-vectors whenever the test data carry it. 0.9-34 had neither family.
-
-- (a) Each family as its sibling: a multinomial fit's test weights are trials, as logistic's are, a count per category over
-  that many trials; an ordinal fit's are 0 and 1, as probit's are, 1 drawing a category and 0 missing. About 15 lines.
-  Cost: on an ordinal fit, a test row of weight 1 draws a category where predict(weights = 1) at the same row draws a
-  one-trial count vector.
-- (b) As predict's weights on both families: a count per category wherever test weights are given. About 10 lines. Cost:
-  an ordinal fit's test draws change shape with whether its test data happen to carry the membership column.
-- (c) The test sample reads only a 0, as missing draws, and otherwise draws as predict does without weights. About 10
-  lines. Cost: a multinomial fit's test rows cannot draw counts at their trials, which logistic's can.
-
-Recommendation: (a). An ordinal fit's weights mark rows in and out wherever they come from, so its draws stay categories,
-and a multinomial fit's test rows take their trials as logistic's do.
+Put on 2026-11-06 as options (a) the fit's meaning, on every family, recommended; (b) predict's, the
+test sample being predict at those rows; (c) split by family, multinomial as trials and ordinal as 0/1, the plan's first
+recommendation. The maintainer asked whether lm's practice applies, then "Is (a) going to be confusing to users? What are
+they likely to want.", and, shown that most users never meet it and that those checking a fit against held-out rows want
+(a): "OK. Go ahead with your recommendation then." Recorded as dec-B596: on bart()'s formula route a test frame's weights
+are read with the fit's meaning on every family, each test row drawn as a training row of that weight is, one
+observation, a 0 giving NA draws, the values checked by the fit's rule; gaussian, Student-t and the hurdle unchanged; a
+logistic test weight of 3 one 0/1 draw; probit, ordinal and nbinom test weights reaching the draws; a count-family test
+row with no weights one trial. Left open by it: whether a binomial fit's new rows take their trials from the response
+columns when the new data carry them (S6's to state, not built here). Built in S5 as
+[The R surface (S5, S6)](#the-r-surface-s5-s6) states it.
 
 ### 4. What `$setData` does on a binomial sampler (raised in S3)
 
@@ -985,8 +992,9 @@ routing to both parts; Refusals 1 to 10, 19 and 20; the starting sigma on both r
 `sampleFromPPD` (one observation, NA at a 0 on every family, dec-B580, the fitted value kept), predict's and weights.test's
 doors, predict's `weights` on predict.bartOrdinal, predict.bartNegbin and predict.bartMultinomial and their paragraphs in
 man/bart.Rd; dec-B594's count vectors through `multinomialCountPpdFromProbs` (Calls made, 18), the count fit's one-trial
-vector at new rows and in its test sample (Calls made, 19), weights = 0 and the test sample's weights as Open calls 2 and 3
-rule; the weights entry of `predictForeignReasons` removed; `pointwiseLogLikelihood`; help and NEWS.
+vector at new rows and in its test sample (Calls made, 19); a predict weight of 0 as zero new trials on every count family
+(dec-B595: Refusals 19 and 20 take 0, logistic's and probit's refusal of it lifted); the test sample's weights read with the
+fit's meaning and checked by its rule (dec-B596); the weights entry of `predictForeignReasons` removed; `pointwiseLogLikelihood`; help and NEWS.
 Gates: the touched test files and the new test-frequency-weights.R (each refusal by its words, counted warnings; the
 resolution table row by row, hurdle.lognormal's included; sigma's starting value and the chi anchor against the expanded data
 on the dense and the sparse routes and in xbart's folds; predict's and weights.test's doors; NA draws at a 0 on every family
@@ -1003,9 +1011,14 @@ categories and one to count rows, at training rows and at newdata, with combineC
     over 4,000 draws match predict()'s within Monte Carlo error; at a 0 training row it draws where predict() gives NA;
   - on a count fit, predict(newdata) and predict(newdata, weights = 1) identical under one seed, and extract(sample = "test")
     identical to predict at the test rows (test-multinomial-surface.R's identity, re-pinned at the new shape);
-  - weights = 0 as Open call 2 rules (recommended: NA counts at the row, the stream unmoved), the test sample's weights as
-    Open call 3 rules (recommended: an ordinal test row of weight 1 a category and of 0 NA; a multinomial test row's counts
-    over its weight in trials);
+  - weights = 0 (dec-B595): K zero counts at the row on all three, a count of 0 on nbinom and 0 successes on logistic and
+    probit, at newdata and at a training row; a training row of fit weight 0 NA without weights;
+  - the test sample's weights (dec-B596): an ordinal test row of weight 1 a category and of 0 NA; a multinomial test row of
+    weight w > 0 one observation (a category, or a one-trial count vector on a count fit) and of 0 NA; a logistic test
+    weight of 3 one 0/1 draw; probit and nbinom test rows of weight 0 NA; a frequency gaussian test row of weight 2.5 one
+    observation at sd sigma; each family's rule refusing a value the training weights refuse; extract(sample = "test")
+    against predict(newdata = test) without weights on a count family, the 0 rows aside, and with the test weights on a
+    gaussian fit;
   - type = "ev" and "class" unchanged by weights, reading none; Refusal 20 at 0.5, -1 and Inf; an NA weight under
     na.keepPredictors, na.pass and na.omit as at newdata (dec-B482); test-predict-training-rows.R's two refusals of
     `weights` by name on nbinom and ordinal replaced by these arms.
@@ -1223,8 +1236,8 @@ counts the user asks for.
 - approximate-draws' open calls are ruled (dec-B590, dec-B592, dec-B593); its plan on its branch (e0c62e566) predates the
   rulings, and its route's proof is under independent check (dec-B591). The before and after above follow the rulings.
 - dec-B594's cases were read from the code (`multinomialPpdFromProbs`, `multinomialCountPpdFromProbs`, predict.bartOrdinal
-  drawing its categories through the first) and not run; the line counts of the rule and of Open calls 2 and 3 are
-  estimates, no option prototyped.
+  drawing its categories through the first) and not run; the line counts of the rule and of Open calls 2 and 3 (ruled,
+  dec-B595 and dec-B596) are estimates, no option prototyped.
 - The S4 review's mutant N, nbinom's rows in ignoring a count of 0, hangs rather than fails: a sweep that draws a count-0
   row's Polya-Gamma latent spins (over 8 minutes in the review) instead of failing. What guards it is `NBResponse`'s rows-in
   composition, which takes a row of count 0 out, so no sweep draws its latent; nothing below refuses shape 0, and a test
@@ -1279,3 +1292,12 @@ For the S1 review's FIX FIRST and the calls on its two open items.
 | 5 | Tests for the review's surviving mutants and for rows 1, 2 and 4 | S1 gates |
 | 6 | Calls made 20's split sentence narrowed to parts of at least 1, the shift below it stated, signed self-pair weights recorded as the alternative; under frequency the anchor's sd over rows read holding one value is 0 exactly, as the expansion's | Calls made, 20; the anchor rule in Engine (S1) |
 | 7 | The anchor's sd, the basis scale and the leaf moments take no scale where the counts over the rows read total no more than 1 to their sum's rounding, so weights rescaled to sum to 1 take the no-spread values | Engine (S1); S1 gates |
+
+## Amendments of 2026-11-07
+
+For dec-B595 and dec-B596, before S5; read, not run.
+
+| # | change | where it went |
+|---|---|---|
+| 1 | dec-B595 rules Open call 2: a predict weight of 0 on the count families is zero new trials, drawing zero counts, by every route; logistic's and probit's refusal of it lifted; a training row of fit weight 0 keeps its NA draws | Open calls, 2 (ruled); front block; Summary; Resolution table; The R surface (S5); Refusals, 19 and 20, Gone; S5 steps and gates |
+| 2 | dec-B596 rules Open call 3: a test frame's weights mean the fit's, one observation per test row, NA at 0, checked by the fit's rule; refusal 9 narrowed to predict; a logistic test weight's draw and probit, ordinal and nbinom test rows of weight 0 move | Open calls, 3 (ruled); front block; Summary; Resolution table, a weights.test column; The R surface (S5), NEWS; Refusals, 9; RNG class; S5 steps and gates |
