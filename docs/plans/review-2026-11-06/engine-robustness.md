@@ -1,6 +1,6 @@
 # Review 4, slice S-A: engine robustness
 
-Status: built, in review (branch review4-engine-robustness).
+Status: LANDED on main 2026-11-07 (branch review4-engine-robustness).
 
 rng: neutral, with one exception. Every complete run, and every state the package writes, draws bit for
 bit as before; the equivalence baselines and the four snapshot files are unchanged ([Gates](#gates)).
@@ -426,6 +426,20 @@ Run on arm64 macOS against the branch's own libraries (shipped and reference bui
 23. A throw while test rows are built or sized drops them, the store's test count back to 0, rather
     than keeping the rows held before: keeping them means building the new test store aside, a copy of
     every test column on every call. Alternative: that copy.
+
+## Landing note
+
+Landed by fast-forward at c202a6cf5 after four reviews, one over the build and one over each fix round, the third
+round an audit of every path that rebuilds trees or moves the store. On the reviewed tip rebased onto main,
+4f11d8d70: the nine per-push workflows by dispatch, eight green and lint failing on four mutation-battery anchors
+(m02, m05, m26 and m27) that the moves' undo blocks had moved; re-anchored in c202a6cf5, each mutant killed again
+at its gate, lint and doc-freshness green there. The x86 leg on 4f11d8d70 (Linux, x86-64): tests/cpp 548 checks
+plain and under ASan/UBSan with the leak sanitizer, no report; the full tinytest suite, 42098 results, 0 failed;
+the equivalence trio in statistical mode, 55 scenarios compared and indistinguishable, BCF and multinomial within
+the cross-host bound. The last review's own gates on its reference build: the trio bitwise strict, 55, 19 and 11
+identical; the snapshot files 14, 3, 7 and 3, 0 failed; tests/cpp under ASan/UBSan 548 ok. Two mutants survive,
+both argued harmless (the variance refresh's per-tree mark, the rebuild phase's settle, a guard). Residuals in
+TODO allocation-failure-residuals. The calls not put to the maintainer are dec-A266.
 
 ## Design-doc register
 

@@ -1091,6 +1091,19 @@ Under dec-B609 to dec-B614. The builder's calls, the review's fix round and the 
 The rest of the calls are internal, in the records. stan4bart's "no bart component detected" check now follows dbartsData's own refusal of an empty design, an error before and after; it moves ahead of the call in stan4bart's build (41).
 Gates: see the records' Gates and Landing note. Record: docs/plans/review-2026-11-06/r-surface-2.md, Calls made and Landing note; R/utility.R, checkFlag; R/generics.R, sigma.bart and nobs.bart; R/rbart.R. Marked: blank. See also: [dec-B609], [dec-B610], [dec-B611], [dec-B612], [dec-B613], [dec-B614]. [dec-A265]
 
+**The fourth review's engine-robustness slice as built: the calls its plan left open**
+Under dec-B283 (a restore refuses a plainly broken state) and dec-B581 (a stopped run's results and saved trees are discarded). The builder's calls, the four reviews' and the orchestrator's, not put to the maintainer, each with its alternative in the records' Calls made, numbered there. Every complete run and every state the package writes draws bit for bit as before, but for one warm-start route. Those a user meets.
+- k = +Inf is accepted at a state's install wherever a draw can overflow, and k = 0 wherever a draw can reach it, a squared scale below 2^-960; under a prior whose draw cannot reach either it is refused, even in the own state of a sampler under another prior (2). The k = 0 half is the orchestrator's call, from the review's fix round, mirroring the Inf half; refusing such scales when the prior is built was the alternative.
+- A warm-start donor whose DART weights hold 0 on a column the recipient's forest may split on starts the recipient's DART weights fresh, so the draws after it differ from main's (3); refusing it was the alternative.
+- setState refuses a state whose DART weights hold 0 on a column this sampler's forest may split on, a restricted-DART sampler's own state given to an unrestricted one among them, where main installed it (15). Accepting it, the next sweep's DART draw moving the weight off 0, was the alternative.
+- An edited gamma memo in a generator state is re-derived on read rather than refused or zeroed (1).
+- The warm-start refusal's words say sigma "positive and finite" and the DART weights "finite, not negative and not all zero" (10).
+- A run re-entered from the sweep hook throws (6).
+- After an allocation failure, which R reports as an error, the chain is left as its state describes: a move takes back its proposal, and a rebuild resets the tree in flight and every tree after it (4, 16, 17). A chain the store moved under is reset (18). Test rows being built are dropped (23).
+
+The rest are internal, in the records. A data replacement with another row count, and saved draws a failed rewrite had not reached, stay unsettled (22; TODO allocation-failure-residuals).
+Gates: see the records' Gates and Landing note. Record: docs/plans/review-2026-11-06/engine-robustness.md, Calls made and Landing note; src/bartcore/chain.hpp, Chain::kDrawCanBeInfinite; src/external/rng_internal.h, ext_rng_rederiveGammaMemo. Marked: blank. See also: [dec-B283], [dec-B581], [dec-A174], [dec-A220], [dec-A223]. [dec-A266]
+
 ## B. Decisions with maintainer evidence
 
 **Missing predictors are modeled, not refused**
