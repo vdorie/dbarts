@@ -121,9 +121,11 @@ applyNaActionToXY <- function(na.action, y, x) {
   if (!any(predictorNA) && !any(responseNA)) {
     return(NULL)
   }
+  # unnamed: the caller's row names can hold a missing one, which
+  # data.frame refuses; nameOmittedRows relabels the record from them
   frame <- data.frame(
-    response = ifelse(responseNA, NA_real_, 0.0),
-    predictors = ifelse(predictorNA, NA_real_, 0.0)
+    response = unname(ifelse(responseNA, NA_real_, 0.0)),
+    predictors = unname(ifelse(predictorNA, NA_real_, 0.0))
   )
   kept <- stats::model.frame(
     response ~ predictors,

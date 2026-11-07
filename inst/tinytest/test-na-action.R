@@ -328,3 +328,33 @@ invisible(gc(reset = TRUE))
 dataCCPeak <- dbarts::dbartsData(xCC, yCC)
 peakMiB <- maxUsedMiB()
 expect_true(peakMiB - baseMiB < 2 * arrayMiB)
+
+# ---- row names on the matrix route ----
+# the na.action reads the rows by position, so a missing row name, which a
+# logical subset holding NA writes, is no obstacle: 29 of 30 rows fit, as on
+# the formula route
+set.seed(312L)
+xNamed <- matrix(runif(30L), dimnames = list(paste0("r", 1:30), "x"))
+yNamed <- xNamed[, 1L] + rnorm(30L, 0, 0.25)
+subsetNA <- c(TRUE, NA, rep(TRUE, 28L))
+expect_identical(length(dbarts::dbartsData(xNamed, yNamed, subset = subsetNA)@y), 29L)
+expect_identical(
+  length(dbarts::dbartsData(y ~ x, data.frame(xNamed, y = yNamed), subset = subsetNA)@y),
+  29L
+)
+fitNamed <- do.call(
+  dbarts::bart,
+  c(list(xNamed, yNamed, subset = subsetNA), quick)
+)
+expect_identical(ncol(fitNamed$yhat.train), 29L)
+
+# a row name that is itself missing, beside a missing response
+xOneNA <- xNamed
+rownames(xOneNA)[3L] <- NA
+yOneNA <- yNamed
+yOneNA[5L] <- NA
+expect_identical(length(dbarts::dbartsData(xOneNA, yOneNA)@y), 29L)
+fitOneNA <- do.call(dbarts::bart, c(list(xOneNA, yOneNA), quick))
+expect_identical(ncol(fitOneNA$yhat.train), 29L)
+
+rm(xNamed, yNamed, subsetNA, fitNamed, xOneNA, yOneNA, fitOneNA)
