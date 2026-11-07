@@ -910,7 +910,7 @@ fit <- bart(y ~ forest(x1 + x3) +
               forest(x1 + x3, basis = scale(w), n.trees = 10L),
             d, n.trees = 10L, n.samples = 10L, n.burn = 10L,
             n.chains = 1L, n.threads = 1L, keepTrees = TRUE)
-#> estimating the starting sigma by a dense linear regression on 100 rows and 2 columns; see 'sigest'
+#> estimating the starting sigma by a dense linear regression on 100 rows and 3 columns; see 'sigest'
 #> family = "auto": continuous response detected, fitting family = "gaussian"; set 'family' to override
 #> 
 #> Running BART with numeric y
@@ -922,7 +922,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>  k prior fixed to 2.000000
 #>  degrees of freedom in sigma prior: 3.000000
 #>  quantile in sigma prior: 0.900000
-#>  scale in sigma prior: 0.008161
+#>  scale in sigma prior: 0.008222
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
 #>  level fiber gibbs step: auto
@@ -931,7 +931,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>  number of training observations: 100
 #>  number of test observations: 0
 #>  number of explanatory variables: 2
-#>  init sigma: 0.948004, curr sigma: 0.948004
+#>  init sigma: 0.951555, curr sigma: 0.951555
 #> 
 #> Cutoff rules c in x<=c vs x>c
 #> Number of cutoffs: (var: number of possible c):
@@ -941,7 +941,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)
 #>   trees: 10, 10; 20 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.000369
+#> total seconds in loop: 0.000371
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 2 5 2 3 2 
@@ -951,17 +951,17 @@ fit <- bart(y ~ forest(x1 + x3) +
 #> DONE BART
 #> 
 predict(fit, d[1:3, ])
-#>              1        2        3
-#>  [1,] 2.384013 1.197912 1.852477
-#>  [2,] 2.119890 1.203438 2.397793
-#>  [3,] 2.294377 1.564140 1.446600
-#>  [4,] 2.468451 1.547995 1.518930
-#>  [5,] 2.297835 1.596188 1.154106
-#>  [6,] 2.801335 1.648659 1.365729
-#>  [7,] 2.505006 1.549683 1.755043
-#>  [8,] 2.433335 1.844809 0.901826
-#>  [9,] 2.550444 1.821665 1.756497
-#> [10,] 2.323120 2.240915 1.690499
+#>              1        2         3
+#>  [1,] 2.383965 1.197879 1.8524920
+#>  [2,] 2.119845 1.203424 2.3978240
+#>  [3,] 2.294449 1.564122 1.4466121
+#>  [4,] 2.468549 1.547928 1.5190212
+#>  [5,] 2.297864 1.596273 1.1539704
+#>  [6,] 2.801400 1.648708 1.3656214
+#>  [7,] 2.505019 1.549685 1.7550429
+#>  [8,] 2.433355 1.844821 0.9018371
+#>  [9,] 2.550464 1.821681 1.7565315
+#> [10,] 2.323143 2.240946 1.6905198
 
 # forests built in a loop: each keeps the number its own call was given
 forest <- dbartsForests$forest

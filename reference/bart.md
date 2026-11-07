@@ -857,9 +857,10 @@ nobs(object, ...)
   inverse-chi-squared prior on the error variance. A positive number, or
   one of `"auto"`, `"dense"` and `"sparse"`, naming how one is made:
   each gives the residual standard deviation of the linear regression of
-  the response on the predictors, factors entering as indicator columns
-  whatever the trees are given, and the standard deviation of the
-  response over the observations of positive weight where that
+  the response on the predictors and on each forest's basis (a factor's
+  as the indicator of its second level), factors entering as indicator
+  columns whatever the trees are given, and the standard deviation of
+  the response over the observations of positive weight where that
   regression leaves no residual degrees of freedom, which a line under
   `verbose` and one in the fit's `summary` say, with no warning. (Where
   rows are out and the observations of positive weight hold fewer than
@@ -2319,7 +2320,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001046
+#> total seconds in loop: 0.001081
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 3 3 2 2 2 2 2 3 2 2 2 3 3 2 
@@ -2356,7 +2357,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000565
+#> total seconds in loop: 0.000581
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 2 1 2 1 1 2 2 1 1 1 2 2 2 2 
@@ -2391,7 +2392,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000843
+#> total seconds in loop: 0.000855
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 3 2 4 2 2 3 2 2 2 2 3 3 2 
@@ -2414,7 +2415,7 @@ y  <- x1 + z * (1 + x2) + rnorm(n, 0, 0.2)
 fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
                  n.samples = 20L, n.burn = 20L, n.chains = 1L,
                  n.trees = 10L, n.threads = 1L)
-#> estimating the starting sigma by a dense linear regression on 60 rows and 2 columns; see 'sigest'
+#> estimating the starting sigma by a dense linear regression on 60 rows and 3 columns; see 'sigest'
 #> family = "auto": continuous response detected, fitting family = "gaussian"; set 'family' to override
 #> 
 #> Running BART with numeric y
@@ -2426,7 +2427,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>  k prior fixed to 2.000000
 #>  degrees of freedom in sigma prior: 3.000000
 #>  quantile in sigma prior: 0.900000
-#>  scale in sigma prior: 0.011208
+#>  scale in sigma prior: 0.000970
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
 #>  level fiber gibbs step: auto
@@ -2435,7 +2436,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>  number of training observations: 60
 #>  number of test observations: 0
 #>  number of explanatory variables: 2
-#>  init sigma: 0.774053, curr sigma: 0.774053
+#>  init sigma: 0.227728, curr sigma: 0.227728
 #> 
 #> Cutoff rules c in x<=c vs x>c
 #> Number of cutoffs: (var: number of possible c):
@@ -2445,13 +2446,13 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.001105
+#> total seconds in loop: 0.001116
 #> 
 #> Tree sizes, last iteration:
-#> [1] 2 2 3 3 2 3 2 3 3 2 
+#> [1] 1 2 2 2 2 2 2 3 3 2 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 6) (2: 9) 
+#> (1: 6) (2: 5) 
 #> DONE BART
 #> 
 fit.bcf$n.forests

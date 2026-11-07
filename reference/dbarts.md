@@ -528,11 +528,13 @@ dbarts(
   A positive numeric estimate of the residual standard deviation
   supplied at creation, or one of `"auto"`, `"dense"` and `"sparse"`,
   naming how one is made: each gives the residual standard deviation of
-  the linear regression of the response on the predictors, factors
-  entering as indicator columns whatever the trees are given, and the
-  standard deviation of the response over the observations of positive
-  weight where that regression leaves no residual degrees of freedom,
-  which a line under `verbose` says, with no warning (the `summary` of a
+  the linear regression of the response on the predictors and on each
+  forest's basis (a factor's as the indicator of its second level),
+  factors entering as indicator columns whatever the trees are given,
+  and the standard deviation of the response over the observations of
+  positive weight where that regression leaves no residual degrees of
+  freedom, which a line under `verbose` says, with no warning (the
+  `summary` of a
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) fit says
   it too). `"auto"` is `lm`'s own routine (`"dense"`) for a matrix or a
   data frame and an exact sparse one (`"sparse"`) where the caller
