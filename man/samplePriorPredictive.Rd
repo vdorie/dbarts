@@ -65,8 +65,7 @@ samplePriorPredictive(
   Each of the \code{n.samples} draws independently redraws the hyperparameters, every tree's
   structure (\code{sampleTreesFromPrior}) and leaf values (\code{sampleLeafParametersFromPrior})
   from scratch, then evaluates the resulting forest at \code{x.test} - there is no MCMC dependence
-  between rows of the result, unlike a posterior sample from \code{run}, except under the
-  \code{dart()} fallback below.
+  between rows of the result, unlike a posterior sample from \code{run}.
 
   The hyperparameters drawn are those the sampler draws: \eqn{k}{k} from its \code{chi()}
   hyperprior (which \code{normal(sd = invchi())} is), a Student-t df from its prior on the
@@ -81,13 +80,15 @@ samplePriorPredictive(
   split probabilities and the trees together is the stated one restricted to forests in which no
   tree has an empty leaf. Each sample draws the concentration and the split probabilities from the
   stated prior and every tree from the tree prior given them, and redraws the whole, split
-  probabilities included, while any tree has an empty leaf. How often a whole draw is kept falls
-  with the number of trees and rises with the number of rows: about one in a hundred at 60 rows,
-  8 columns and 200 trees. When fewer than one in 50 is kept over the call, every sample comes
-  instead from the sampler run with every row inactive, whose stationary distribution is that
-  prior: after the control's \code{n.burn} sweeps, one sample every \code{n.thin} sweeps, with
-  \eqn{k}{k}, the family's hyperparameters and the leaf values still drawn afresh for each.
-  Successive samples are then dependent, and a warning says the run was used.
+  probabilities included, while any tree has an empty leaf, with no limit on the attempts, so
+  every sample is an exact draw of that prior. How often a whole draw is kept falls with the number
+  of trees and rises with the number of rows: about one in a hundred at 60 rows, 8 columns and 200
+  trees, where 1,000 samples take a few seconds. With few rows and many trees the draw can take
+  long: at 8 columns, 1,000 samples take about a minute at 60 rows and 500 trees, and one and a
+  half to two and a half hours at 60 rows and 1,000 trees or at 30 rows and 500 trees. Once the
+  attempts made project a call longer than about a minute, a warning gives the share of draws kept
+  so far and the projected time. The draw can be interrupted as a run is; the sampler passed in is
+  left as it was.
 
   For \code{type = "ppd"} on a gaussian sampler, sigma is drawn once per sample from the model's
   residual-variance prior: a scaled-inverse-chi-squared calibrated so that
