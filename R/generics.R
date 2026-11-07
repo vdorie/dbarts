@@ -5105,7 +5105,9 @@ fitTreeCounts <- function(fit) {
 # so a fit created with keepCall = FALSE still prints something useful. n.trees and
 # n.burn are only recoverable when the sampler itself was kept (keepTrees/
 # keepSampler = TRUE); they are omitted otherwise, since the fit object
-# does not retain them on its own.
+# does not retain them on its own. The kept draws are counted from the draws
+# the fit stores, which a kept sampler run further or given another control
+# does not change.
 fitSynopsis <- function(x) {
   fit <- x[["fit"]]
 
@@ -5119,10 +5121,8 @@ fitSynopsis <- function(x) {
   # count as the draw count. n.forests, not the rank, is what separates the two
   # - a single-forest uncombined varcount is rank 3 as well.
   n.forests <- fitNumForests(x)
-  n.kept <- if (!is.null(control)) {
-    control@n.samples
-  } else if (is.null(varcountDims)) {
-    NA_integer_
+  n.kept <- if (is.null(varcountDims)) {
+    if (!is.null(control)) control@n.samples else NA_integer_
   } else if (n.forests > 1L) {
     if (length(varcountDims) == 4L) {
       varcountDims[2L]

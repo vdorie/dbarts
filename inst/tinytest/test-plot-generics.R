@@ -145,6 +145,30 @@ expect_equal(
     "kept draws (per chain): 20"
   )
 )
+# the kept draws are the fit's own, counted from what it stores: a control
+# handed to the kept sampler afterward moves the settings print reads from
+# the sampler, not the count
+fit.reset <- bart(
+  x,
+  y.cont,
+  n.trees = 10L,
+  n.burn = 5L,
+  n.samples = 8L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  keepTrees = TRUE
+)
+reset.control <- fit.reset$fit$control
+reset.control@n.samples <- 3L
+reset.control@n.burn <- 1L
+fit.reset$fit$setControl(reset.control)
+expect_identical(fit.reset$fit$control@n.samples, 3L)
+expect_equal(
+  tail(capture.output(print(fit.reset)), 2L),
+  c("n.burn: 1", "kept draws (per chain): 8")
+)
+rm(fit.reset, reset.control)
 # a fit with no kept trees keeps no control, so the two control-borne lines
 # drop out - and the family line is still the fit's own, not gaussian
 expect_equal(
