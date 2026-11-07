@@ -319,6 +319,63 @@ expect_true(
     pAbove
 )
 
+# the entry's drawn df, over 3,000 calls, against the grid's weights
+hyperDraws <- function(sampler, what, m = 3000L) {
+  ptr <- sampler$getPointer()
+  vapply(
+    seq_len(m),
+    function(i) {
+      .Call(
+        dbarts:::C_dbarts_bartcore_sampleHyperparametersFromPrior,
+        ptr,
+        0L
+      )[[what]]
+    },
+    numeric(1L)
+  )
+}
+dfDraws <- hyperDraws(heavyDrawn, "residual.df")
+expect_true(all(dfDraws %in% dfGrid))
+expect_true(
+  chiSquaredP(
+    tabulate(match(dfDraws, dfGrid), length(dfGrid)),
+    length(dfDraws) * dfWeights
+  ) >
+    pAbove
+)
+
+# with sigma drawn from its prior, the scaled inverse chi-squared that puts
+# the prior's quantile at the data's sigma estimate, (ppd - ev) at one row is
+# sigma t_3: its CDF the average of pt(v / sigma, 3) over sigma's quantiles
+set.seed(seedBase + 15L)
+heavySigma <- dbarts(
+  xPrior,
+  rnorm(nPrior),
+  family = student(df = 3),
+  n.trees = 10L,
+  control = control.seeded
+)
+set.seed(seedBase + 15L)
+ev <- samplePriorPredictive(heavySigma, n.samples = 2000L, type = "ev")
+set.seed(seedBase + 15L)
+ppd <- samplePriorPredictive(heavySigma, n.samples = 2000L, type = "ppd")
+residPrior <- heavySigma$model@resid.prior
+sigmaScale <- heavySigma$data@sigma^2 *
+  qchisq(1 - residPrior@quantile, residPrior@df) /
+  residPrior@df
+sigmaGrid <- sqrt(
+  residPrior@df *
+    sigmaScale /
+    qchisq((seq_len(2000L) - 0.5) / 2000L, residPrior@df)
+)
+expect_true(
+  ksP(
+    (ppd - ev)[, 1L],
+    function(v) vapply(v, function(u) mean(pt(u / sigmaGrid, 3)), numeric(1L))
+  ) >
+    pAbove
+)
+
 # nbinom: "ev" is exp(predict), the center c in it, at the drawn k; "ppd" a
 # randomized PIT against pnbinom at the fixed shape and, with the shape drawn,
 # against the mixture over the engine's 13-point grid
@@ -391,6 +448,17 @@ mixture <- function(f, y) {
 }
 pit <- randomizedPit(ppd, mixture(pnbinom, ppd - 1), mixture(dnbinom, ppd))
 expect_true(ksP(pit, "punif") > pAbove)
+
+# the entry's drawn shape, over 3,000 calls, against the grid's weights
+shapeDraws <- hyperDraws(countDrawn, "shape")
+expect_true(all(shapeDraws %in% shapeGrid))
+expect_true(
+  chiSquaredP(
+    tabulate(match(shapeDraws, shapeGrid), length(shapeGrid)),
+    length(shapeDraws) * shapeWeights
+  ) >
+    pAbove
+)
 
 # ordinal (K = 4, fixed k = 2): one x row at a grid of offsets, so that each
 # cutpoint reads back at a row where its cumulative probability resolves. The
@@ -698,7 +766,9 @@ expect_false(identical(dartEv, uniformEv))
 
 # where too few joint draws are held (60 rows, 8 columns, 200 trees: about
 # one in a hundred), the draws come from the sampler run with every row
-# inactive, and a warning says so
+# inactive, and a warning says so. An internal option sets the call's budget
+# so the fallback comes at every seed: at 0 the first sample runs it out, the
+# last at n.samples = 1
 set.seed(seedBase + 14L)
 xWide <- matrix(runif(nPrior * 8L), nPrior, 8L)
 wide <- dbarts(
@@ -708,12 +778,34 @@ wide <- dbarts(
   control = control.plain,
   split.probs = dart()
 )
+oldOptions <- options(dbarts.priorForestAttempts = 0L)
+for (count in c(1L, 2L, 5L)) {
+  expect_warning(
+    fallback <- samplePriorPredictive(wide, n.samples = count, type = "ev"),
+    "fewer than one in 50 independent draws",
+    info = paste("fallback at budget 0, n.samples", count)
+  )
+  expect_identical(dim(fallback), c(count, nPrior))
+  expect_true(all(is.finite(fallback)))
+}
+# one column of two values holds every tree, each split leaving a row on
+# either side, so a budget of 1 accepts the first sample and runs out on the
+# second, the last
+options(dbarts.priorForestAttempts = 1L)
+held <- dbarts(
+  matrix(rep(0:1, length.out = nPrior)),
+  rnorm(nPrior),
+  n.trees = 20L,
+  control = control.plain,
+  split.probs = dart()
+)
 expect_warning(
-  fallback <- samplePriorPredictive(wide, n.samples = 5L, type = "ev"),
+  fallback <- samplePriorPredictive(held, n.samples = 2L, type = "ev"),
   "fewer than one in 50 independent draws"
 )
-expect_identical(dim(fallback), c(5L, nPrior))
-expect_true(all(is.finite(fallback)))
+expect_identical(dim(fallback), c(2L, nPrior))
+expect_silent(samplePriorPredictive(held, n.samples = 1L, type = "ev"))
+options(oldOptions)
 
 rm(
   normal,
@@ -799,7 +891,17 @@ rm(
   uniformEv,
   xWide,
   wide,
-  fallback
+  fallback,
+  hyperDraws,
+  dfDraws,
+  heavySigma,
+  residPrior,
+  sigmaScale,
+  sigmaGrid,
+  shapeDraws,
+  oldOptions,
+  count,
+  held
 )
 
 rm(
