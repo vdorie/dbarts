@@ -3023,6 +3023,10 @@ public:
   /// Whether the response family carries a shape r; chain 0 answers for
   /// all, as every chain carries the same family.
   bool carriesShape() const { return chains_[0]->carriesShape(); }
+  /// Whether that shape is drawn on its grid rather than fixed.
+  bool drawsShape() const { return chains_[0]->drawsShape(); }
+  /// The case weights in force, null for none; every chain holds the same.
+  const double* weights() const { return chains_[0]->weights(); }
   /// Chain chainNum's shape r in force, 0 off a family carrying one.
   double shape(size_t chainNum) const {
     return chains_[chainNum]->shape();

@@ -61,6 +61,9 @@ struct SamplerShape {
   /// mid-sweep read to decide whether it answers at all; internal, invisible to
   /// dbarts.h.
   bool carriesShape;
+  /// Whether that shape is drawn on its grid rather than fixed, so that the
+  /// grid's largest point bounds it; internal, invisible to dbarts.h.
+  bool drawsShape;
   /// Whether the response family carries a residual df nu (a Student-t error
   /// distribution). The run bridge reads it to decide whether the per-draw df
   /// channel exists; internal, invisible to dbarts.h.
@@ -157,6 +160,8 @@ public:
   virtual ResponseUpdateResult setResponse(const double* y,
                                            bool updateScale) = 0;
   virtual void setWeights(const double* weights) = 0;
+  /// The case weights in force, borrowed, null for none.
+  virtual const double* weights() const = 0;
   /// Install a new per-observation right-censoring status (1 an event, 0 a
   /// right-censored observation), length numObservations, on a family that
   /// carries one; every other family drops it, the host having refused it by
@@ -567,6 +572,7 @@ public:
     s.numAmplitudes = impl_.totalAmplitudes();
     s.numOrdinalThresholds = impl_.numOrdinalThresholds();
     s.carriesShape = impl_.carriesShape();
+    s.drawsShape = impl_.drawsShape();
     s.carriesResidualDf = impl_.carriesResidualDf();
     s.savedTreeCapacity = impl_.savedTreeCapacity();
     s.numSavedDraws = impl_.filledSavedDraws();
@@ -606,6 +612,7 @@ public:
   void setWeights(const double* weights) override {
     impl_.setWeights(weights);
   }
+  const double* weights() const override { return impl_.weights(); }
   void setSurvivalStatus(const double* status) override {
     impl_.setSurvivalStatus(status);
   }

@@ -877,6 +877,10 @@ struct MultinomialSpec {
   // none: the latent is f_ik + o_ik, so the offset enters the margins, the
   // working response and the reported softmax, never the leaf values
   const double* offset = nullptr;
+  // borrowed per-observation whole counts, null for one row each: a row of
+  // count w is w identical rows, PG(w n_i, .) with kappa w (y_ik - n_i/2), and
+  // a count of 0 leaves the row out as a zero-trial row is
+  const double* weights = nullptr;
   MultinomialForestSpec forest;       // shared across the K category forests
   // per-forest leaf scale anchor and k: the pairwise log-odds f_ik - f_ij is a
   // difference of two forests, so the per-forest node scale is the logistic
@@ -1167,6 +1171,13 @@ struct ForestCombiner {
   /// exactly 0 or 1, the length is the constructed n, and a null pointer means
   /// every row is active. The values are COPIED.
   virtual void setActiveRows(const double*) {}
+
+  /// Installs the case weights, borrowed, or clears them at a null pointer, on
+  /// a coupling that owns its own per-observation precisions; inert unless a
+  /// subclass carries them, an additive coupling reading the weights the
+  /// response model has composed into the chain's working weights. Nothing is
+  /// drawn.
+  virtual void setWeights(const double*) {}
 
   /// Glue (de)serialization into the ragged amplitude state fields; inert
   /// unless the combiner carries glue. glueIsValid is the LAYOUT check
@@ -1900,7 +1911,7 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
 
   MultinomialForestCombiner(const ColumnStore& data, const MultinomialSpec& spec)
       : data_(data), numCategories_(spec.numCategories), counts_(spec.counts),
-        trials_(spec.trials), offset_(spec.offset) {
+        trials_(spec.trials), offset_(spec.offset), weights_(spec.weights) {
     std::size_t n = data_.numObservations;
     // the raw slab exists only under an offset; off it every read resolves to
     // the forests' own totalFits and this stays empty
@@ -2023,8 +2034,19 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
     composeEffectiveRows();
   }
 
+  /// Installs the whole counts, borrowed and sized to the constructed n, or
+  /// clears them at a null pointer: the next sweep draws PG(w_i n_i, .) and
+  /// forms kappa w_i (y_if - n_i/2), and a count of 0 is composed into the
+  /// effective mask beside the zero-trial rows. omega is per-sweep scratch, so
+  /// nothing else is rebuilt.
+  void setWeights(const double* weights) override {
+    weights_ = weights;
+    composeEffectiveRows();
+  }
+
   /// Interleaved PG draw for category f: form the current margin C_if and draw
-  /// omega_if ~ PG(n_i, f_if - C_if) against it, storing both so
+  /// omega_if ~ PG(n_i, f_if - C_if) against it (PG(w_i n_i, .) under counts
+  /// w_i, the copies' unit draws in row order), storing both so
   /// formForestResponse(f), called immediately after, reads the SAME margin and
   /// precision. margins_ and omega_'s f-th column are the f-specific handoff.
   /// PG(n_i, psi) is the sum of n_i iid PG(1, psi) draws (the only shipped
@@ -2105,9 +2127,13 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
       // precision and never in here.
       if (active != nullptr && active[i] == 0.0) continue;
       double psi = fFits[i] - margin;
+      // a count times the trials stays an int: the host caps the product
+      int units = weights_ != nullptr
+        ? static_cast<int>(weights_[i]) * trials_[i]
+        : trials_[i];
       double draw = ext_rng_simulatePolyaGamma(rng, psi);
       bool stop = this->refreshPoll_.stop();
-      for (int c = 1; c < trials_[i] && !stop; ++c) {
+      for (int c = 1; c < units && !stop; ++c) {
         draw += ext_rng_simulatePolyaGamma(rng, psi);
         stop = this->refreshPoll_.stop();
       }
@@ -2120,7 +2146,8 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   /// omega_if, formed from the count matrix the combiner owns (the passed chain y
   /// is ignored). Reads the margin and omega drawForestGlue(f) just stored. At
   /// n_i = 1 the one-hot y_if is in {0, 1} and trials * 0.5 is exactly 0.5, so
-  /// this is the byte-identical single-trial reduction.
+  /// this is the byte-identical single-trial reduction. Under counts w_i the
+  /// numerator is w_i (y_if - n_i/2), in loops of their own.
   ///
   /// INVARIANT: drawForestGlue(f) immediately precedes this call, for the same
   /// f, on the same fits. margins_ and omega_'s f-th column are that call's
@@ -2145,7 +2172,23 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
     (void) forests;
     std::size_t n = data_.numObservations;
     const double* omega = omega_.data() + f * n;
-    if (offset_ == nullptr) {
+    const double* w = weights_;
+    if (w != nullptr && offset_ == nullptr) {
+      for (std::size_t i = 0; i < n; ++i) {
+        double yif = static_cast<double>(counts_[f * n + i]);
+        forestResponse_[i] =
+          w[i] * (yif - trials_[i] * 0.5) / omega[i] + margins_[i];
+        forestWeights_[i] = omega[i];
+      }
+    } else if (w != nullptr) {
+      const double* o = offset_ + f * n;
+      for (std::size_t i = 0; i < n; ++i) {
+        double yif = static_cast<double>(counts_[f * n + i]);
+        forestResponse_[i] =
+          w[i] * (yif - trials_[i] * 0.5) / omega[i] + margins_[i] - o[i];
+        forestWeights_[i] = omega[i];
+      }
+    } else if (offset_ == nullptr) {
       for (std::size_t i = 0; i < n; ++i) {
         double yif = static_cast<double>(counts_[f * n + i]);
         forestResponse_[i] = (yif - trials_[i] * 0.5) / omega[i] + margins_[i];
@@ -2319,20 +2362,24 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   }
 
 private:
-  /// Rebuilds effectiveRows_ from the caller's mask and the current trials: a
-  /// copy of activeRows_, with 0 written at every zero-trial row (the mask
-  /// materialized as ones first when none is installed). Without a zero-trial
-  /// row it is exactly the caller's mask, empty when that is, so the sweep
-  /// loops take the same path they did before the composition existed.
+  /// Rebuilds effectiveRows_ from the caller's mask, the current trials and
+  /// the counts: a copy of activeRows_, with 0 written at every zero-trial row
+  /// and every row of count 0 (the mask materialized as ones first when none
+  /// is installed). Without such a row it is exactly the caller's mask, empty
+  /// when that is, so the sweep loops take the same path they did before the
+  /// composition existed.
   void composeEffectiveRows() {
     std::size_t n = data_.numObservations;
     effectiveRows_ = activeRows_;
+    auto out = [&](std::size_t i) {
+      return trials_[i] == 0 || (weights_ != nullptr && weights_[i] == 0.0);
+    };
     std::size_t i = 0;
-    while (i < n && trials_[i] != 0) ++i;
+    while (i < n && !out(i)) ++i;
     if (i == n) return;
     if (effectiveRows_.empty()) effectiveRows_.assign(n, 1.0);
     for (; i < n; ++i)
-      if (trials_[i] == 0) effectiveRows_[i] = 0.0;
+      if (out(i)) effectiveRows_[i] = 0.0;
   }
 
   /// The single definition of "the per-observation fit the softmax sees" for
@@ -2434,6 +2481,7 @@ private:
   const int* counts_;    // borrowed n x K count matrix, category-major (k*n + i)
   const int* trials_;    // borrowed per-observation trial count n_i (>= 0)
   const double* offset_; // borrowed n x K category offset, same layout; or null
+  const double* weights_;  // borrowed whole counts w_i, or null for one each
   const double* testOffset_ = nullptr;  // borrowed nTest x K test one, or null
   std::vector<double> raw_;  // n x K fits + offset; empty and unread off one
   std::vector<double> rawTest_;  // nTest x K test fits + test offset; likewise

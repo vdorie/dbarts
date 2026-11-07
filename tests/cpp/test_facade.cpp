@@ -33,7 +33,7 @@ namespace {
 
 /// One enumerator per SamplerBase pure virtual, in declaration order.
 enum class FacadeVirtual {
-  shape, run, setOffset, setResponse, setWeights, setSurvivalStatus,
+  shape, run, setOffset, setResponse, setWeights, weights, setSurvivalStatus,
   setSigma, setTestData, setTestOffset, setData, rederiveStandardization,
   setPredictor,
   updatePredictor, setCutPoints, updatePredictorPerObservation,
@@ -108,6 +108,7 @@ public:
   SPY_RET(ResponseUpdateResult, setResponse, (const double* y, bool u),
           (y, u))
   SPY_VOID(setWeights, (const double* w), (w))
+  SPY_RET(const double*, weights, () const, ())
   SPY_VOID(setSurvivalStatus, (const double* s), (s))
   SPY_VOID(setSigma, (double s), (s))
   SPY_RET(bool, setTestData, (const PredictorSource& s), (s))
@@ -675,6 +676,13 @@ const Row rows[] = {
     f.g.base().setWeights(nullptr);
     check(TestPeer::workingWeights(f.g.impl().chain(0)) == nullptr,
           "facade setWeights: clearing restores the unweighted sampler");
+  }},
+  {FacadeVirtual::weights, "weights", [](Fixtures& f) {
+    f.g.base().setWeights(f.weights.data());
+    bool served = f.g.base().weights() == f.weights.data();
+    f.g.base().setWeights(nullptr);
+    check(served && f.g.base().weights() == nullptr,
+          "facade weights: the weights in force, null once cleared");
   }},
   {FacadeVirtual::setSurvivalStatus, "setSurvivalStatus", [](Fixtures& f) {
     // a row's log-likelihood is a density as an event and a tail censored

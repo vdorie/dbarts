@@ -1125,9 +1125,9 @@ public:
     case ResponseFamily::nbinom:
       // y holds non-negative counts; the forest fits the log-odds latent under
       // the Polya-Gamma augmentation, sigma fixed at 1, with shape r fixed
-      // (options.shape > 0) or grid-estimated
+      // (options.shape > 0) or grid-estimated; the weights are counts
       response_ = std::make_unique<NBResponse>(y, offset, numObservations,
-                                               options.shape);
+                                               options.shape, weights);
       break;
     }
     options_.survivalStatus = nullptr;  // consumed above
@@ -1402,7 +1402,7 @@ public:
   /// n_i = 1) rides the spec; there is no sigma (fixed, like the binary families).
   Chain(const ColumnStore& data, const SamplerOptions& options,
         const MultinomialSpec& spec, ext_rng* rng)
-    : options_(options), data_(data), weights_(nullptr), rng_(rng) {
+    : options_(options), data_(data), weights_(spec.weights), rng_(rng) {
     static_assert(!L::hasVectorParams && !L::hasFunctionParams,
                   "multinomial is a constant-leaf model");
     options_.maxNumCutsPerVariable = nullptr;
@@ -1553,6 +1553,7 @@ public:
   /// Whether the response family carries a shape r (nbinom alone) - the
   /// gate the recorded shape channel and the mid-sweep read share.
   bool carriesShape() const { return response_->carriesShape(); }
+  bool drawsShape() const { return response_->drawsShape(); }
   /// The shape r in force, 0 off a family carrying one. Fixed at creation
   /// (options.shape > 0) or redrawn on the grid every sweep.
   double shape() const { return response_->shape(); }
@@ -2945,6 +2946,10 @@ public:
   void setWeights(const double* weights) {
     weights_ = weights;
     response_->setWeights(weights);
+    // a coupling that owns its per-observation precisions takes the counts
+    // here, as it takes the mask (the multinomial softmax); inert for the
+    // additive couplings, which read the response's
+    if (combiner_) combiner_->setWeights(weights);
     if constexpr (L::hasVectorParams)
       forests_[0].leaf.invalidateStatistics();
   }

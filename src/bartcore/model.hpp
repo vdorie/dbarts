@@ -7120,21 +7120,25 @@ struct NBShapePrior {
   /// lgamma(r_k)] - Y log r_k. Called at construction and whenever y changes
   /// (setResponse/setData). A non-null active restricts BOTH passes to the rows
   /// in the data set, so the kernel is the retained subsample's; that makes an
-  /// active-row mask change a rebuild, at O(n + maxCount * gridSize).
+  /// active-row mask change a rebuild, at O(n + maxCount * gridSize). A
+  /// non-null \p counts reads row i as counts[i] identical rows: the histogram
+  /// adds the count and Y the count times y.
   void computeKernel(const double* y, std::size_t numObservations,
-                     const double* active = nullptr) {
+                     const double* active = nullptr,
+                     const double* counts = nullptr) {
     std::size_t maxCount = 0;
     double total = 0.0;
     for (std::size_t i = 0; i < numObservations; ++i) {
       if (active != nullptr && active[i] == 0.0) continue;
       std::size_t c = static_cast<std::size_t>(std::lround(y[i]));
       if (c > maxCount) maxCount = c;
-      total += y[i];
+      total += counts != nullptr ? counts[i] * y[i] : y[i];
     }
     std::vector<double> histogram(maxCount + 1, 0.0);
     for (std::size_t i = 0; i < numObservations; ++i) {
       if (active != nullptr && active[i] == 0.0) continue;
-      histogram[static_cast<std::size_t>(std::lround(y[i]))] += 1.0;
+      histogram[static_cast<std::size_t>(std::lround(y[i]))] +=
+        counts != nullptr ? counts[i] : 1.0;
     }
     for (std::size_t k = 0; k < gridSize; ++k) {
       double lgammaR = std::lgamma(grid[k]);
@@ -7149,20 +7153,28 @@ struct NBShapePrior {
 
   /// Draw a grid index from the discrete full conditional given the log means
   /// eta_i = fits_i + shift + offset_i (offset may be null) over the rows
-  /// active marks (null: all). Rows outer, grid inner, in a fixed order, so the
-  /// draw is deterministic given its inputs.
+  /// active marks (null: all), a row's term times its count where \p counts
+  /// is not null. Rows outer, grid inner, in a fixed order, so the draw is
+  /// deterministic given its inputs.
   std::size_t drawIndex(ext_rng* rng, const double* y, const double* fits,
                         const double* offset, double shift,
                         std::size_t numObservations,
-                        const double* active = nullptr) {
+                        const double* active = nullptr,
+                        const double* counts = nullptr) {
     for (std::size_t k = 0; k < gridSize; ++k)
       weight_[k] = kernel_[k] + logPrior_[k];
     for (std::size_t i = 0; i < numObservations; ++i) {
       if (active != nullptr && active[i] == 0.0) continue;
       double mean =
         std::exp(fits[i] + shift + (offset != nullptr ? offset[i] : 0.0));
+      if (counts == nullptr) {
+        for (std::size_t k = 0; k < gridSize; ++k)
+          weight_[k] -= (y[i] + grid[k]) * std::log1p(mean * inverseGrid_[k]);
+        continue;
+      }
       for (std::size_t k = 0; k < gridSize; ++k)
-        weight_[k] -= (y[i] + grid[k]) * std::log1p(mean * inverseGrid_[k]);
+        weight_[k] -=
+          counts[i] * ((y[i] + grid[k]) * std::log1p(mean * inverseGrid_[k]));
     }
     return drawFromLogWeights(rng, weight_.data(), gridSize);
   }
@@ -7202,9 +7214,15 @@ private:
 ///
 /// r is a positive integer, fixed (user-supplied) or estimated on the capped
 /// grid given the means (NBShapePrior), which is orthogonal to them in the
-/// Fisher information, so a move of r costs nothing through the mean. Weights
-/// are unsupported (exposure belongs in the offset). latents() exposes the
-/// omega draws.
+/// Fisher information, so a move of r costs nothing through the mean.
+/// latents() exposes the omega draws.
+///
+/// Weights are observation counts (an exposure belongs in the offset): a row
+/// of count w is w identical rows, so omega_i ~ PG(w_i (y_i + r), psi_i), the
+/// sum of the copies' draws, kappa_i = w_i (y_i - r)/2, the r step's per-row
+/// term and count histogram take w_i, and c is the weighted center. A row of
+/// count 0 is out of the likelihood, composed with the mask: its draw is
+/// skipped and its precision served as 0, its omega positive and finite.
 ///
 /// Whenever c, r or the offset change without an omega draw the working
 /// response is REBUILT from omega through the one expression the draw uses,
@@ -7214,29 +7232,34 @@ class NBResponse final : public ResponseModel {
 public:
   /// shape > 0 fixes r there (an integer; the host validates integrality);
   /// a non-positive shape estimates r on the grid, cold-started at its
-  /// median. offset may be null; weights are unsupported.
+  /// median. offset may be null, and weights, whole counts the host
+  /// validates, null for one row each.
   NBResponse(const double* y, const double* offset,
-             std::size_t numObservations, double shape)
-    : y_(y), offset_(offset), numObservations_(numObservations),
-      estimateR_(!(shape > 0.0)),
+             std::size_t numObservations, double shape,
+             const double* weights = nullptr)
+    : y_(y), offset_(offset), weights_(weights),
+      numObservations_(numObservations), estimateR_(!(shape > 0.0)),
       r_(estimateR_ ? NBShapePrior::grid[NBShapePrior::medianIndex]
                     : shape),
       logR_(std::log(r_)),
-      shift_(computeShift(y, offset, numObservations)) {
+      shift_(computeShift(y, offset, numObservations, nullptr, weights)) {
     omega_.resize(numObservations);
     working_.resize(numObservations);
-    rPrior_.computeKernel(y, numObservations);
+    composeRowsIn();
+    rPrior_.computeKernel(y, numObservations, rowsInPointer(), weights_);
     coldStart();
   }
 
   double* workingResponse() override { return working_.data(); }
   /// The Polya-Gamma draws, or a_i omega_i from a separate composite while a
-  /// mask is installed; as for logistic, the zero never enters omega_ itself.
+  /// mask or a count of 0 leaves a row out; as for logistic, the zero never
+  /// enters omega_ itself.
   const double* workingWeights() const override {
-    return activeRows_.empty() ? omega_.data() : composite_.data();
+    return rowsIn_.empty() ? omega_.data() : composite_.data();
   }
   double caseWeight(std::size_t i) const override {
-    return isActive(i) ? 1.0 : 0.0;
+    if (!isActive(i)) return 0.0;
+    return weights_ != nullptr ? weights_[i] : 1.0;
   }
   bool workingWeightsVaryPerSweep() const override { return true; }
   const double* offset() const override { return offset_; }
@@ -7266,7 +7289,7 @@ public:
     double previousR = r_;
     setShape(NBShapePrior::grid[rPrior_.drawIndex(
       rng, y_, totalFits, offset_, shift_, numObservations_,
-      activePointer())]);
+      rowsInPointer(), weights_)]);
     previousOmega_.assign(omega_.begin(), omega_.end());
     try {
       drawOmega(rng, totalFits);
@@ -7285,15 +7308,22 @@ public:
   /// the count kernel is REBUILT over the active rows here, which is the
   /// channel's one per-install cost. The shift c is held where it was.
   bool setActiveRows(const double* active) override {
-    if (active == nullptr) {
-      activeRows_.clear();
-    } else {
-      activeRows_.assign(active, active + numObservations_);
-      composite_.resize(numObservations_);
-      recompose();
-    }
-    rPrior_.computeKernel(y_, numObservations_, activePointer());
+    if (active == nullptr) activeRows_.clear();
+    else activeRows_.assign(active, active + numObservations_);
+    composeRowsIn();
+    rPrior_.computeKernel(y_, numObservations_, rowsInPointer(), weights_);
     return true;
+  }
+
+  /// New counts: the rows they leave out recomposed, the count kernel rebuilt
+  /// and the working response rebuilt from omega under them; c is held, as at
+  /// a mask change, and r and omega stand. The next sweep draws omega as
+  /// PG(w (y + r), psi) under these before the trees read it.
+  void setWeights(const double* weights) override {
+    weights_ = weights;
+    composeRowsIn();
+    rPrior_.computeKernel(y_, numObservations_, rowsInPointer(), weights_);
+    rebuildWorking();
   }
 
   double drawSigma(ext_rng*, const double*, double sigma) override {
@@ -7306,7 +7336,7 @@ public:
   void setResponse(const double* y, bool updateScale, double*) override {
     y_ = y;
     if (updateScale) shift_ = deriveShift();
-    rPrior_.computeKernel(y, numObservations_, activePointer());
+    rPrior_.computeKernel(y, numObservations_, rowsInPointer(), weights_);
     rebuildWorking();
   }
 
@@ -7319,29 +7349,34 @@ public:
   }
 
   /// Data swap: re-anchor c, keep r, rebuild the kernel, and start omega as
-  /// creation does, at its PG(y + r, 0) mean (y_i + r)/4; the next sweep's
-  /// draw replaces it.
-  void setData(const double* y, const double* offset, const double*,
+  /// creation does, at its PG(w (y + r), 0) mean; the next sweep's draw
+  /// replaces it.
+  void setData(const double* y, const double* offset, const double* weights,
                std::size_t numObservations, double*) override {
-    replaceData(y, offset, numObservations, nullptr);
+    replaceData(y, offset, weights, numObservations, nullptr);
   }
-  void setDataInScale(const double* y, const double* offset, const double*,
-                      std::size_t numObservations, double*, double min,
-                      double) override {
-    replaceData(y, offset, numObservations, &min);
+  void setDataInScale(const double* y, const double* offset,
+                      const double* weights, std::size_t numObservations,
+                      double*, double min, double) override {
+    replaceData(y, offset, weights, numObservations, &min);
   }
   /// setData's body, the center held at *\p held where it is not null.
   void replaceData(const double* y, const double* offset,
-                   std::size_t numObservations, const double* held) {
+                   const double* weights, std::size_t numObservations,
+                   const double* held) {
     y_ = y;
     offset_ = offset;
+    weights_ = weights;
     numObservations_ = numObservations;
     activeRows_.clear();  // length-n and n may have changed
     composite_.clear();
     omega_.resize(numObservations);
     working_.resize(numObservations);
-    shift_ = held != nullptr ? *held : computeShift(y, offset, numObservations);
-    rPrior_.computeKernel(y, numObservations);
+    composeRowsIn();
+    shift_ = held != nullptr
+      ? *held
+      : computeShift(y, offset, numObservations, nullptr, weights);
+    rPrior_.computeKernel(y, numObservations, rowsInPointer(), weights_);
     coldStart();
   }
 
@@ -7398,7 +7433,9 @@ public:
   /// log dnbinom(y_i; r, mu_i) with log mu_i = f(x_i) + c + offset_i, in
   /// log-odds form with psi = log mu - log r:
   ///   lgamma(y+r) - lgamma(r) - lgamma(y+1) + y log p + r log(1 - p),
-  /// using the stable log p = -log(1 + e^{-psi}), log(1 - p) = -log(1 + e^psi).
+  /// using the stable log p = -log(1 + e^{-psi}), log(1 - p) = -log(1 + e^psi),
+  /// times the row's count: its copies' sum. A row out, masked or of count 0,
+  /// is NaN.
   void computeLogLikelihood(const double* totalFits, double,
                             std::size_t numObservations,
                             double* out) const override {
@@ -7412,6 +7449,7 @@ public:
       double y = y_[i];
       out[i] = std::lgamma(y + r_) - lgammaR - std::lgamma(y + 1.0) -
                y * logOnePlusExp(-psi) - r_ * logOnePlusExp(psi);
+      if (weights_ != nullptr) out[i] *= weights_[i];
     }
   }
 
@@ -7425,11 +7463,21 @@ public:
   /// The response transform c = log(max(sum y, 1/2) / sum exp(offset)) over
   /// all n rows; a null offset sums to n. The floor keeps an all-zero response
   /// finite. A non-null \p active restricts both sums to the rows it keeps,
-  /// in a loop of its own.
+  /// in a loop of its own, and non-null \p counts weight each row's terms by
+  /// its count, in another.
   static double computeShift(const double* y, const double* offset,
                              std::size_t numObservations,
-                             const double* active = nullptr) {
+                             const double* active = nullptr,
+                             const double* counts = nullptr) {
     double total = 0.0, exposure = 0.0;
+    if (counts != nullptr) {
+      for (std::size_t i = 0; i < numObservations; ++i) {
+        if (active != nullptr && active[i] == 0.0) continue;
+        total += counts[i] * y[i];
+        exposure += counts[i] * (offset != nullptr ? std::exp(offset[i]) : 1.0);
+      }
+      return std::log(std::max(total, 0.5) / exposure);
+    }
     if (active != nullptr) {
       for (std::size_t i = 0; i < numObservations; ++i) {
         if (active[i] == 0.0) continue;
@@ -7449,19 +7497,39 @@ private:
   friend struct TestPeer;
 
   bool isActive(std::size_t i) const {
-    return activeRows_.empty() || activeRows_[i] != 0.0;
+    return rowsIn_.empty() || rowsIn_[i] != 0.0;
   }
-  const double* activePointer() const {
-    return activeRows_.empty() ? nullptr : activeRows_.data();
+  const double* rowsInPointer() const {
+    return rowsIn_.empty() ? nullptr : rowsIn_.data();
   }
 
-  /// Whether the mask leaves a row out and the rows it keeps hold fewer than
-  /// two distinct values of \p y.
+  /// rowsIn_ from the mask and the counts: the mask, with 0 at every row of
+  /// count 0 (the mask written as ones first where none is installed), and
+  /// empty where neither leaves a row out, so the served precisions are omega
+  /// by identity exactly when no row is out. Recomposes the composite.
+  void composeRowsIn() {
+    rowsIn_ = activeRows_;
+    if (weights_ != nullptr) {
+      std::size_t i = 0;
+      while (i < numObservations_ && weights_[i] != 0.0) ++i;
+      if (i < numObservations_) {
+        if (rowsIn_.empty()) rowsIn_.assign(numObservations_, 1.0);
+        for (; i < numObservations_; ++i)
+          if (weights_[i] == 0.0) rowsIn_[i] = 0.0;
+      }
+    }
+    if (rowsIn_.empty()) return;
+    composite_.resize(numObservations_);
+    recompose();
+  }
+
+  /// Whether the mask or a count of 0 leaves a row out and the rows kept hold
+  /// fewer than two distinct values of \p y.
   bool lacksDistinctCounts(const double* y) const {
     bool anyOut = false;
     double min = std::numeric_limits<double>::infinity(), max = -min;
-    for (std::size_t i = 0; i < activeRows_.size(); ++i) {
-      if (activeRows_[i] == 0.0) {
+    for (std::size_t i = 0; i < rowsIn_.size(); ++i) {
+      if (rowsIn_[i] == 0.0) {
         anyOut = true;
         continue;
       }
@@ -7471,12 +7539,13 @@ private:
     return anyOut && !(max > min);
   }
 
-  /// c re-derived from the response and offset in force: over the rows the
-  /// mask keeps, or over every row where none is installed or the rows it
-  /// keeps hold fewer than two distinct counts.
+  /// c re-derived from the response, offset and counts in force: over the
+  /// rows kept, or over every row at its count where none is left out or the
+  /// rows kept hold fewer than two distinct counts.
   double deriveShift() const {
     return computeShift(y_, offset_, numObservations_,
-                        lacksDistinctCounts(y_) ? nullptr : activePointer());
+                        lacksDistinctCounts(y_) ? nullptr : rowsInPointer(),
+                        weights_);
   }
 
   /// a_i = offset_i + c - log r, what the trees' working response is shifted
@@ -7490,56 +7559,71 @@ private:
     logR_ = std::log(r);
   }
 
-  /// c_i = a_i omega_i, the served precisions while a mask is installed.
+  /// c_i = a_i omega_i, the served precisions while a row is out.
   void recompose() {
-    if (activeRows_.empty()) return;
+    if (rowsIn_.empty()) return;
     for (std::size_t i = 0; i < numObservations_; ++i)
-      composite_[i] = activeRows_[i] * omega_[i];
+      composite_[i] = rowsIn_[i] * omega_[i];
+  }
+
+  /// kappa_i = w_i (y_i - r)/2, the copies' sum.
+  double kappa(std::size_t i) const {
+    double half = 0.5 * (y_[i] - r_);
+    return weights_ != nullptr ? weights_[i] * half : half;
   }
 
   /// z_i = kappa_i / omega_i - a_i from the omega in place, every row.
   void rebuildWorking() {
     for (std::size_t i = 0; i < numObservations_; ++i)
-      working_[i] = 0.5 * (y_[i] - r_) / omega_[i] - anchor(i);
+      working_[i] = kappa(i) / omega_[i] - anchor(i);
   }
 
-  /// Steps (2)-(3) of the sweep at the CURRENT r: draw omega_i ~ PG(y_i + r,
-  /// psi_i) and rebuild the working response. An inactive row's draw is
-  /// skipped for logistic's reason.
+  /// Steps (2)-(3) of the sweep at the CURRENT r: draw omega_i ~ PG(w_i (y_i +
+  /// r), psi_i), the copies' unit draws in row order, and rebuild the working
+  /// response. A row out's draw is skipped for logistic's reason.
   void drawOmega(ext_rng* rng, const double* totalFits) {
     for (std::size_t i = 0; i < numObservations_; ++i) {
       if (!isActive(i)) continue;
       double a = anchor(i);
+      double shape = y_[i] + r_;
+      if (weights_ != nullptr) shape *= weights_[i];
       double omega;
-      if (!simulatePolyaGammaShape(rng, y_[i] + r_, totalFits[i] + a,
-                                   refreshPoll_, omega)) {
+      if (!simulatePolyaGammaShape(rng, shape, totalFits[i] + a, refreshPoll_,
+                                   omega)) {
         recompose();
         throw RefreshCanceled();
       }
       omega_[i] = omega;
-      working_[i] = 0.5 * (y_[i] - r_) / omega - a;
+      working_[i] = kappa(i) / omega - a;
     }
     recompose();
   }
 
-  /// Deterministic cold start: omega at PG(y+r, 0)'s mean (y_i + r)/4, so the
-  /// working response starts at 2 (y_i - r)/(y_i + r) - a_i independent of the
-  /// fit; the next sweep's draw replaces it.
+  /// Deterministic cold start: omega at PG(w (y+r), 0)'s mean w_i (y_i + r)/4,
+  /// so the working response starts at 2 (y_i - r)/(y_i + r) - a_i independent
+  /// of the fit and the count; the next sweep's draw replaces it. A row of
+  /// count 0 takes a count of 1 here, a positive omega it never draws.
   void coldStart() {
-    for (std::size_t i = 0; i < numObservations_; ++i)
-      omega_[i] = 0.25 * (y_[i] + r_);
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      double shape = y_[i] + r_;
+      if (weights_ != nullptr && weights_[i] > 0.0) shape *= weights_[i];
+      omega_[i] = 0.25 * shape;
+    }
     rebuildWorking();
   }
 
   const double* y_;
   const double* offset_;
+  const double* weights_;  // whole counts, null for one row each
   std::size_t numObservations_;
   bool estimateR_;
   double r_;
   double logR_;   // log r_, kept in step by setShape
   double shift_;  // c, the log-mean transform (fitShift)
   std::vector<double> activeRows_;  // the 0/1 mask; empty when none
-  std::vector<double> composite_;   // c_i = a_i omega_i, served while masked
+  // the mask with 0 at every row of count 0; empty when no row is out
+  std::vector<double> rowsIn_;
+  std::vector<double> composite_;   // c_i = a_i omega_i, served while one is
   std::vector<double> omega_;
   std::vector<double> previousOmega_;  // omega ahead of a refresh drawing r
   std::vector<double> working_;

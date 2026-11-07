@@ -1245,6 +1245,413 @@ void testAnchorTotalAtMostOne() {
         "to 1 take no scale");
 }
 
+// --- the Polya-Gamma families: nbinom and multinomial weights are counts. A
+// row of count w draws the sum of its copies' unit draws, consumed in row
+// order, so a fit equals the expansion's draw for draw, to rounding. ---
+
+/// nbinom counts, row-major in nothing: y whole, x as Fixture's.
+struct CountFixture {
+  std::size_t n = 0, p = 2;
+  std::vector<double> x, y, w;
+
+  explicit CountFixture(std::size_t n_) : n(n_) {
+    Fixture f(n_);
+    x = f.x;
+    w = f.w;
+    y.resize(n);
+    for (std::size_t i = 0; i < n; ++i)
+      y[i] = std::floor(6.0 * std::exp(std::sin(6.0 * x[i])) * runif01());
+  }
+};
+
+std::unique_ptr<ConstantLeafSampler> makeCountSampler(
+    const double* x, const double* y, std::size_t n, std::size_t p,
+    const double* w, double shape, ext_rng** rng) {
+  SamplerOptions options;
+  options.numTrees = 20;
+  options.shape = shape;
+  return std::make_unique<ConstantLeafSampler>(x, y, n, p, w, nullptr,
+                                               ResponseFamily::nbinom, 1.0,
+                                               sigmaDf, 1.0, options, rng);
+}
+
+/// A count run's reported draws.
+struct CountDraws {
+  std::vector<double> fits, logLikelihood, shape;
+
+  CountDraws(std::size_t n, std::size_t numSamples)
+    : fits(n * numSamples), logLikelihood(n * numSamples), shape(numSamples) {}
+
+  Results results() {
+    Results r;
+    r.trainingFits = fits.data();
+    r.logLikelihood = logLikelihood.data();
+    r.shape = shape.data();
+    return r;
+  }
+};
+
+/// The expansion's rows of \p c, written out \p weights[i] times.
+Expansion countExpansion(const CountFixture& c,
+                         const std::vector<double>& weights) {
+  Fixture f(1);
+  f.n = c.n;
+  f.p = c.p;
+  f.x = c.x;
+  f.y = c.y;
+  return Expansion(f, weights);
+}
+
+/// An nbinom row of count w against w adjacent copies, at a fixed and at a
+/// drawn r: the fits, r, and a row's log-likelihood against its copies' sum.
+void testNBinomAgainstExpansion() {
+  const std::size_t n = 40, numSamples = 200;
+  CountFixture c(n);
+  Expansion e = countExpansion(c, c.w);
+  for (double shape : {3.0, -1.0}) {
+    ext_rng* rngW = seededRng(7301u);
+    ext_rng* rngE = seededRng(7301u);
+    auto weighted = makeCountSampler(c.x.data(), c.y.data(), n, c.p,
+                                     c.w.data(), shape, &rngW);
+    auto expansion = makeCountSampler(e.x.data(), e.y.data(), e.n, c.p,
+                                      nullptr, shape, &rngE);
+    CountDraws dw(n, numSamples), de(e.n, numSamples);
+    Results rw = dw.results(), re = de.results();
+    bool ran = !weighted->run(0, numSamples, rw) &&
+               !expansion->run(0, numSamples, re);
+    double gap = 0.0;
+    bool shapeSame = true;
+    for (std::size_t s = 0; s < numSamples; ++s) {
+      shapeSame = shapeSame && dw.shape[s] == de.shape[s];
+      std::vector<double> summed(n, 0.0);
+      for (std::size_t r = 0; r < e.n; ++r) {
+        std::size_t i = e.rowOf[r];
+        gap = std::max(gap, relativeGap(dw.fits[s * n + i],
+                                        de.fits[s * e.n + r]));
+        summed[i] += de.logLikelihood[s * e.n + r];
+      }
+      for (std::size_t i = 0; i < n; ++i)
+        gap = std::max(gap,
+                       relativeGap(dw.logLikelihood[s * n + i], summed[i]));
+    }
+    const char* what = shape > 0.0 ? "nbinom at a fixed r" : "nbinom at a drawn r";
+    printf("  %s: largest gap %.3g over %zu sweeps\n", what, gap, numSamples);
+    check(ran && shapeSame && gap < 1e-10,
+          shape > 0.0 ? "frequency nbinom at a fixed r equals its expansion "
+                        "draw for draw"
+                      : "frequency nbinom at a drawn r equals its expansion "
+                        "draw for draw");
+    ext_rng_destroy(rngW);
+    ext_rng_destroy(rngE);
+  }
+}
+
+/// Whether two runs' fits over \p n rows and \p locations per row agree:
+/// bitwise at the rows \p out leaves in, and to rounding at the rows out,
+/// whose fit the trees carry through a working response nothing weights.
+bool agreeOnRowsIn(const std::vector<double>& a, const std::vector<double>& b,
+                   const std::vector<double>& out, std::size_t n) {
+  if (a.size() != b.size()) return false;
+  for (std::size_t j = 0; j < a.size(); ++j) {
+    bool rowOut = out[j % n] == 0.0;
+    if (rowOut ? !(relativeGap(a[j], b[j]) < 1e-12) : a[j] != b[j])
+      return false;
+  }
+  return true;
+}
+
+/// The largest gap between two runs' draws.
+double largestGap(const std::vector<double>& a, const std::vector<double>& b) {
+  double gap = a.size() == b.size() ? 0.0 : HUGE_VAL;
+  for (std::size_t j = 0; j < a.size() && j < b.size(); ++j)
+    gap = std::max(gap, relativeGap(a[j], b[j]));
+  return gap;
+}
+
+/// An nbinom row of count 0 is out of the likelihood: the fit equals one
+/// whose row is masked, its count 1, with the center re-derived over the
+/// rows kept, bitwise at the rows in; every fit, latent and kept row's
+/// log-likelihood is finite and the row's log-likelihood NaN.
+void testNBinomZeroWeights() {
+  const std::size_t n = 40, numSamples = 60;
+  CountFixture c(n);
+  std::vector<double> wZero(c.w), wOne(c.w), mask(n, 1.0);
+  for (std::size_t i = 2; i < n; i += 7) {
+    wZero[i] = 0.0;
+    wOne[i] = 1.0;
+    mask[i] = 0.0;
+  }
+  for (double shape : {3.0, -1.0}) {
+    ext_rng* rngA = seededRng(7401u);
+    ext_rng* rngB = seededRng(7401u);
+    auto zero = makeCountSampler(c.x.data(), c.y.data(), n, c.p, wZero.data(),
+                                 shape, &rngA);
+    auto masked = makeCountSampler(c.x.data(), c.y.data(), n, c.p, wOne.data(),
+                                   shape, &rngB);
+    masked->setActiveRows(mask.data());
+    masked->rederiveScale();
+    CountDraws da(n, numSamples), db(n, numSamples);
+    Results ra = da.results(), rb = db.results();
+    bool ran = !zero->run(5, numSamples, ra) && !masked->run(5, numSamples, rb);
+    bool finite = allFinite(da.fits);
+    for (std::size_t i = 0; i < n; ++i)
+      finite = finite && std::isfinite(zero->latents(0)[i]) &&
+               zero->latents(0)[i] > 0.0;
+    bool logLikelihood = true;
+    for (std::size_t s = 0; s < numSamples; ++s)
+      for (std::size_t i = 0; i < n; ++i)
+        logLikelihood = logLikelihood &&
+          (wZero[i] == 0.0 ? std::isnan(da.logLikelihood[s * n + i])
+                           : std::isfinite(da.logLikelihood[s * n + i]));
+    check(ran && finite && logLikelihood,
+          shape > 0.0 ? "frequency nbinom at weight 0, a fixed r: finite "
+                        "throughout, the row's log-likelihood NaN"
+                      : "frequency nbinom at weight 0, a drawn r: finite "
+                        "throughout, the row's log-likelihood NaN");
+    check(agreeOnRowsIn(da.fits, db.fits, mask, n) && da.shape == db.shape,
+          shape > 0.0 ? "frequency nbinom at weight 0 equals the masked row, "
+                        "a fixed r"
+                      : "frequency nbinom at weight 0 equals the masked row, "
+                        "a drawn r");
+    ext_rng_destroy(rngA);
+    ext_rng_destroy(rngB);
+  }
+}
+
+/// nbinom setWeights draws nothing; with the center re-derived it equals the
+/// sampler created with those counts, draw for draw; and a state round trip
+/// continues to rounding.
+void testNBinomSetWeightsAndState() {
+  const std::size_t n = 40, numSamples = 40;
+  CountFixture c(n);
+  std::vector<double> w2(n);
+  for (std::size_t i = 0; i < n; ++i) w2[i] = i % 5 == 0 ? 0.0 : 5.0 - c.w[i];
+  ext_rng* rngA = seededRng(7501u);
+  ext_rng* rngB = seededRng(7501u);
+  ext_rng* rngC = seededRng(7501u);
+  auto changed = makeCountSampler(c.x.data(), c.y.data(), n, c.p, c.w.data(),
+                                  -1.0, &rngA);
+  auto twin = makeCountSampler(c.x.data(), c.y.data(), n, c.p, c.w.data(),
+                               -1.0, &rngB);
+  auto created = makeCountSampler(c.x.data(), c.y.data(), n, c.p, w2.data(),
+                                  -1.0, &rngC);
+  changed->setWeights(w2.data());
+  check(ext_rng_simulateContinuousUniform(rngA) ==
+          ext_rng_simulateContinuousUniform(rngB),
+        "frequency nbinom setWeights consumes no variate");
+  ext_rng_setSeed(rngA, 7501u);
+  changed->rederiveScale();
+  CountDraws da(n, numSamples), dc(n, numSamples);
+  Results ra = da.results(), rc = dc.results();
+  bool ran = !changed->run(0, numSamples, ra) &&
+             !created->run(0, numSamples, rc);
+  check(ran && da.fits == dc.fits && da.shape == dc.shape,
+        "frequency nbinom after setWeights and a re-derived center equals the "
+        "sampler created with those counts");
+
+  ext_rng* rngD = seededRng(7502u);
+  auto copy = makeCountSampler(c.x.data(), c.y.data(), n, c.p, w2.data(),
+                               -1.0, &rngD);
+  SamplerStateData state;
+  changed->getState(state);
+  bool installed = restoresExactly(*copy, state, c.x.data());
+  checkStructuralRoundTrip(state, *copy, "frequency nbinom state round trip");
+  CountDraws d1(n, numSamples), d2(n, numSamples);
+  Results r1 = d1.results(), r2 = d2.results();
+  ran = !changed->run(0, numSamples, r1) && !copy->run(0, numSamples, r2);
+  check(ran && installed && largestGap(d1.fits, d2.fits) < 1e-9 &&
+          d1.shape == d2.shape,
+        "frequency nbinom continues from its state");
+  ext_rng_destroy(rngA);
+  ext_rng_destroy(rngB);
+  ext_rng_destroy(rngC);
+  ext_rng_destroy(rngD);
+}
+
+/// Multinomial rows: n x K category-major counts of 0 to 2 per category, and
+/// whole weights 1 to 4.
+struct MultinomialFixture {
+  static constexpr std::size_t K = 3;
+  std::size_t n = 0, p = 2;
+  std::vector<double> x, w;
+  std::vector<int> counts, trials;
+
+  explicit MultinomialFixture(std::size_t n_) : n(n_) {
+    Fixture f(n_);
+    x = f.x;
+    w = f.w;
+    counts.assign(n * K, 0);
+    trials.assign(n, 0);
+    for (std::size_t i = 0; i < n; ++i) {
+      double xi = x[i];
+      std::size_t favored = xi < 0.34 ? 0 : (xi < 0.67 ? 1 : 2);
+      for (std::size_t k = 0; k < K; ++k) {
+        int count = static_cast<int>(std::floor(3.0 * runif01()));
+        if (k == favored) ++count;
+        counts[k * n + i] = count;
+        trials[i] += count;
+      }
+    }
+  }
+
+  /// The rows written out weights[i] times, at unit weight.
+  MultinomialFixture expanded(const std::vector<double>& weights,
+                              std::vector<std::size_t>& rowOf) const {
+    MultinomialFixture e(0);
+    rowOf.clear();
+    for (std::size_t i = 0; i < n; ++i)
+      for (int c = 0; c < static_cast<int>(weights[i]); ++c) rowOf.push_back(i);
+    e.n = rowOf.size();
+    e.x.resize(e.n * p);
+    e.counts.resize(e.n * K);
+    e.trials.resize(e.n);
+    for (std::size_t r = 0; r < e.n; ++r) {
+      for (std::size_t j = 0; j < p; ++j) e.x[j * e.n + r] = x[j * n + rowOf[r]];
+      for (std::size_t k = 0; k < K; ++k)
+        e.counts[k * e.n + r] = counts[k * n + rowOf[r]];
+      e.trials[r] = trials[rowOf[r]];
+    }
+    return e;
+  }
+};
+
+std::unique_ptr<Sampler<ConstantGaussianLeaf>> makeMultinomialSampler(
+    const MultinomialFixture& m, const int* counts, const int* trials,
+    const double* weights, ext_rng** rng) {
+  SamplerOptions options;
+  options.numTrees = 15;
+  MultinomialSpec spec;
+  spec.numCategories = MultinomialFixture::K;
+  spec.counts = counts;
+  spec.trials = trials;
+  spec.weights = weights;
+  spec.forest.numTrees = 15;
+  return std::make_unique<Sampler<ConstantGaussianLeaf>>(m.x.data(), m.n, m.p,
+                                                         options, spec, rng);
+}
+
+/// \p numSamples recorded draws of the K softmax probabilities per row.
+std::vector<double> multinomialDraws(Sampler<ConstantGaussianLeaf>& sampler,
+                                     std::size_t n, std::size_t numSamples,
+                                     bool* ran) {
+  std::vector<double> fits(n * MultinomialFixture::K * numSamples);
+  Results r;
+  r.trainingFits = fits.data();
+  r.numReportedLocations = MultinomialFixture::K;
+  *ran = !sampler.run(0, numSamples, r) && *ran;
+  return fits;
+}
+
+/// A multinomial row of count w against w adjacent copies, draw for draw,
+/// and against the counts and trials times w, bitwise.
+void testMultinomialAgainstExpansion() {
+  const std::size_t n = 40, numSamples = 150, K = MultinomialFixture::K;
+  MultinomialFixture m(n);
+  std::vector<std::size_t> rowOf;
+  MultinomialFixture e = m.expanded(m.w, rowOf);
+  std::vector<int> countsW(m.counts), trialsW(m.trials);
+  for (std::size_t i = 0; i < n; ++i) {
+    int w = static_cast<int>(m.w[i]);
+    trialsW[i] *= w;
+    for (std::size_t k = 0; k < K; ++k) countsW[k * n + i] *= w;
+  }
+  ext_rng* rngW = seededRng(7601u);
+  ext_rng* rngE = seededRng(7601u);
+  ext_rng* rngT = seededRng(7601u);
+  auto weighted = makeMultinomialSampler(m, m.counts.data(), m.trials.data(),
+                                         m.w.data(), &rngW);
+  auto expansion = makeMultinomialSampler(e, e.counts.data(), e.trials.data(),
+                                          nullptr, &rngE);
+  auto times = makeMultinomialSampler(m, countsW.data(), trialsW.data(),
+                                      nullptr, &rngT);
+  bool ran = true;
+  std::vector<double> fw = multinomialDraws(*weighted, n, numSamples, &ran);
+  std::vector<double> fe = multinomialDraws(*expansion, e.n, numSamples, &ran);
+  std::vector<double> ft = multinomialDraws(*times, n, numSamples, &ran);
+  double gap = 0.0;
+  for (std::size_t s = 0; s < numSamples; ++s)
+    for (std::size_t k = 0; k < K; ++k)
+      for (std::size_t r = 0; r < e.n; ++r)
+        gap = std::max(gap,
+                       relativeGap(fw[(s * K + k) * n + rowOf[r]],
+                                   fe[(s * K + k) * e.n + r]));
+  printf("  multinomial: largest gap %.3g over %zu sweeps\n", gap, numSamples);
+  check(ran && gap < 1e-10,
+        "frequency multinomial equals its expansion draw for draw");
+  check(fw == ft, "frequency multinomial equals the counts and trials times w, "
+                  "bitwise");
+  ext_rng_destroy(rngW);
+  ext_rng_destroy(rngE);
+  ext_rng_destroy(rngT);
+}
+
+/// A multinomial row of count 0 is out as a masked row is, bitwise at the
+/// rows in, and finite; setWeights draws nothing and equals the sampler
+/// created with the counts; a state round trip continues to rounding.
+void testMultinomialZeroWeightsAndState() {
+  const std::size_t n = 40, numSamples = 40, K = MultinomialFixture::K;
+  MultinomialFixture m(n);
+  std::vector<double> wZero(m.w), wOne(m.w), mask(n, 1.0);
+  for (std::size_t i = 1; i < n; i += 6) {
+    wZero[i] = 0.0;
+    wOne[i] = 1.0;
+    mask[i] = 0.0;
+  }
+  ext_rng* rngA = seededRng(7701u);
+  ext_rng* rngB = seededRng(7701u);
+  auto zero = makeMultinomialSampler(m, m.counts.data(), m.trials.data(),
+                                     wZero.data(), &rngA);
+  auto masked = makeMultinomialSampler(m, m.counts.data(), m.trials.data(),
+                                       wOne.data(), &rngB);
+  masked->setActiveRows(mask.data());
+  bool ran = true;
+  std::vector<double> fz = multinomialDraws(*zero, n, numSamples, &ran);
+  std::vector<double> fm = multinomialDraws(*masked, n, numSamples, &ran);
+  check(ran && allFinite(fz) && agreeOnRowsIn(fz, fm, mask, n),
+        "frequency multinomial at weight 0 is finite and equals the masked "
+        "row, bitwise at the rows in");
+
+  ext_rng* rngC = seededRng(7702u);
+  ext_rng* rngD = seededRng(7702u);
+  ext_rng* rngE = seededRng(7702u);
+  auto changed = makeMultinomialSampler(m, m.counts.data(), m.trials.data(),
+                                        m.w.data(), &rngC);
+  auto twin = makeMultinomialSampler(m, m.counts.data(), m.trials.data(),
+                                     m.w.data(), &rngD);
+  auto created = makeMultinomialSampler(m, m.counts.data(), m.trials.data(),
+                                        wZero.data(), &rngE);
+  changed->setWeights(wZero.data());
+  check(ext_rng_simulateContinuousUniform(rngC) ==
+          ext_rng_simulateContinuousUniform(rngD),
+        "frequency multinomial setWeights consumes no variate");
+  ext_rng_setSeed(rngC, 7702u);
+  ran = true;
+  std::vector<double> fc = multinomialDraws(*changed, n, numSamples, &ran);
+  std::vector<double> fr = multinomialDraws(*created, n, numSamples, &ran);
+  check(ran && fc == fr,
+        "frequency multinomial after setWeights equals the sampler created "
+        "with those counts");
+
+  ext_rng* rngF = seededRng(7703u);
+  auto copy = makeMultinomialSampler(m, m.counts.data(), m.trials.data(),
+                                     wZero.data(), &rngF);
+  SamplerStateData state;
+  changed->getState(state);
+  bool installed = restoresExactly(*copy, state, m.x.data());
+  ran = true;
+  std::vector<double> f1 = multinomialDraws(*changed, n, numSamples, &ran);
+  std::vector<double> f2 = multinomialDraws(*copy, n, numSamples, &ran);
+  check(ran && installed && largestGap(f1, f2) < 1e-9 &&
+          f1.size() == n * K * numSamples,
+        "frequency multinomial continues from its state");
+  ext_rng_destroy(rngA);
+  ext_rng_destroy(rngB);
+  ext_rng_destroy(rngC);
+  ext_rng_destroy(rngD);
+  ext_rng_destroy(rngE);
+  ext_rng_destroy(rngF);
+}
+
 }  // namespace
 
 void runFrequencyTests() {
@@ -1271,5 +1678,10 @@ void runFrequencyTests() {
   testGPLengthscaleMaskedAndReal();
   testGaussianFallbackWeighted();
   testAnchorTotalAtMostOne();
+  testNBinomAgainstExpansion();
+  testNBinomZeroWeights();
+  testNBinomSetWeightsAndState();
+  testMultinomialAgainstExpansion();
+  testMultinomialZeroWeightsAndState();
   rngState = savedState;
 }
