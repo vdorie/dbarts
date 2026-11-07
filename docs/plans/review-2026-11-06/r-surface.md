@@ -23,7 +23,8 @@ and `nbinom(4)`.
 `offset.test` by the expression it was written as (`recoverForwardedArgument`) and reads its names
 where it was written, as the training offset already does. Tests: test-data-testOffset.R, a name,
 `offset + 1`, a column of `test`, one and two wrapper layers and `dbarts()`, each identical to the
-direct call.
+direct call, and a wrapper whose caller holds the test offset as a local of its own, on the matrix
+and formula interfaces.
 
 **families-05.1: a refused factor response names "student".** `resolveClassificationFamily` takes
 `shownFamily`, the caller's token, for its two "cannot fit a" messages; `resolveSamplerSpec` passes
@@ -57,7 +58,8 @@ dbartsSampler-class.Rd's `setModel`. Tests: test-heteroscedastic.R, df 1.5 and 2
 `dbarts(gaussian(sigma = chisq()))`, `dbartsSpec()` (no sampler built, the R check alone),
 `bart(variance = varianceForest(n.trees = 2))` and `bart(sigdf = )`; one variance tree at df 1.5
 fitted; `$setModel` to df 1.5 refused, the sampler then identical to an untouched twin, df 2.5 taken;
-a model handed straight to `new("dbartsSampler", ...)` refused by the bridge.
+a model handed straight to `new("dbartsSampler", ...)` refused by the bridge, and one handed
+straight to the bridge's `setModel` entry, the sampler then running as its twin.
 test-aft-heteroscedastic.R, `aft(sigma = chisq())` refused and one tree accepted.
 
 **models-V-01, models-V-02, group B and dec-B598: the prior constructors check their scalars.**
@@ -77,13 +79,19 @@ first, for a direct `new()`:
 | `dart` | a stated `update.delay` | non-negative |
 | `dart` | `update.alpha` | TRUE or FALSE |
 
-`dart(rho = NA)` and `dart(update.delay = NA)` keep their own message. `cgm` refuses a matrix or
-array of split probabilities in one line. `normal` already refused each such value by name and is
-unchanged. The bridge's residual prior parse refuses a non-finite df in dec-B598's words. Help:
+`dart(rho = NA)` and `dart(update.delay = NA)` keep their own message. A matrix or array of split
+probabilities with at most one dimension longer than 1 is the vector it holds, named by that
+dimension's names, as a named vector is; `cgm` refuses any other in one line. A forest's stated
+`power` and `base`, in `forest()` at creation, through `$setForest`, in `varianceForest()` at creation
+and through `$setVarianceForest`, are held to `cgm`'s checks (`validateForestTreePrior`), so a
+string, a logical or a factor is refused there as `bart()` refuses it, where they had been coerced.
+`normal` already refused each such value by name and is unchanged. The bridge's residual prior parse refuses a non-finite df in dec-B598's words. Help:
 dbartsPriors.Rd's `chisq` and `fixed` items. NEWS: `bart(sigdf = Inf)` refused, where 0.9-34
 returned NaN. Tests: test-model-priors.R, each constructor at NA, NA_real_, NaN, c(1, 2), "a" and its
 range ends, the accepted ends (`chisq(1e6)`, `chi(1.5, Inf)`, `cgm(power = 3L)`), the validities
-through `new()`, the split-probability matrix through `cgm` and `bart`, an infinite df through the
+through `new()`, split probabilities as a one-column, one-row, named and three-dimensional array
+taken and a 2 x 2 matrix refused through `cgm` and `bart`, the forest doors' power and base refusals
+at each of the four, an infinite df through the
 `dbarts()` door, the aft constructor, `bart(sigdf = Inf)` and `bart(sigdf = NA)`, and the bridge
 backstop through `new("dbartsSampler", ...)` and `$setModel`. test-model-errors.R,
 test-setmodel-parameters.R and test-forest-arguments.R take the new words.
@@ -92,16 +100,17 @@ test-setmodel-parameters.R and test-forest-arguments.R take the new words.
 stopped with "cannot find test offset '..1'"). USER-VISIBLE CHANGES: a residual prior of infinite df
 is refused, naming `fixed()`.
 
-## Held
+## rfit-10: k = Inf stays accepted
 
-**rfit-10 (k = Inf) is not built.** `normal(k = Inf)` is accepted, documented and tested as a value:
-the class help's multinomial `setLeafPrior` takes a fixed k "Inf included", the
-multiforest-leaf-prior-writer plan states it, the forest-door plan extends the reader's NULL exception
-to it, and test-multiforest-leaf-prior-writer.R, test-setmodel-forests.R, test-forest-lone-no-basis.R,
-test-forest-door.R and test-binaryResponse-hyperprior.R's k.infinite kind fit with it. Refusing it is
-a user-visible reversal the plan did not see. Recommendation: keep it accepted and document it as the
-null model, every tree held at zero and the fit the offset; the alternative is the planned refusal,
-which rewrites those contracts and tests.
+`normal(k = Inf)` was already accepted, documented and tested as a value: the class help's
+multinomial `setLeafPrior` takes a fixed k "Inf included", the multiforest-leaf-prior-writer plan
+states it, the forest-door plan extends the reader's NULL exception to it, and
+test-multiforest-leaf-prior-writer.R, test-setmodel-forests.R, test-forest-lone-no-basis.R,
+test-forest-door.R and test-binaryResponse-hyperprior.R's k.infinite kind fit with it. It stays
+accepted, and the planned refusal is not built. bart.Rd's `k`, dbartsPriors.Rd's `normal` and
+dbartsSampler-class.Rd's `setLeafPrior` say what it fits: every tree held at zero, so the fit is the
+offset, plus on a continuous response the center of the range `y - offset` spans, about which the
+response is scaled.
 
 ## Calls made
 
@@ -128,12 +137,19 @@ which rewrites those contracts and tests.
    one observed level is fitted per dec-B602.
 8. The debug assert is on the computed leaf df (finite), which df 2 itself passes; the refusal at df 2
    is the R surface's and the bridge's, per dec-B597.
+9. A split-probability matrix or array with at most one dimension longer than 1 is taken as its
+   vector, named by that dimension's names; any other is refused. Alternative: refuse every matrix,
+   as the first build did, which refused an equal-probability one-column matrix that main fit.
+10. The forest doors' power and base refusals keep their "forest 'power'" and "forest 'base'" words,
+    the variance forest's at creation included, which had reached the bridge's "variance power must
+    be positive". Alternative: the bridge's words at creation and the forest words live.
 
 ## Gates
 
 Run on arm64 macOS, at most two cores.
 
-- Full tinytest suite, one process, shipped build: 41366 tests, 0 failed (4.6 minutes).
+- Full tinytest suite, one process, shipped build: 41395 tests, 0 failed, after the review's fix
+  round (41366 before it).
 - Equivalence trio, reference build, `--bitwise --strict-coverage`, against the current baselines:
   gaussian 55 of 55 scenarios identical draws, BCF 19 of 19, multinomial 11 of 11; none skipped.
 - The four seeded-drift snapshot files, reference build: 27 tests, 0 failed, unchanged.
@@ -144,6 +160,8 @@ Run on arm64 macOS, at most two cores.
   (the Date field, and an expired certificate on an external URL in bartBT.Rd and pdbart.Rd, pages
   this slice does not touch); the tests pass.
 - tests/cpp, which compiles the debug assert in: 431 checks, all passed.
+- The exact gates, `R CMD check` and tests/cpp ran before the fix round, which touches R, tests and
+  help only; the suite, the trio, the snapshot files and the checks below ran after it.
 - `lintr::lint_package()` against the slice's build: no lints. `air format --check .`: clean.
   check-rc-codoc: 53 methods. check-win-drift: OK. check-doc-freshness: OK.
   `mutation-battery.R verify-anchors`: every anchor resolves.
@@ -170,3 +188,9 @@ Each mutant was installed on its own and run against the test file named.
 | the bridge takes an infinite df | models-V-01 | killed: the bridge cases at creation and `$setModel` |
 | `cgm()` checks nothing of power; `fixed()` of value; `chi()` of scale; `dart()` of a, b, alpha, rho | group B | killed: test-model-priors.R, each |
 | `cgm()` passes a split-probability matrix on | group B | killed: the `cgm` and `bart` cases |
+| the forwarded `offset.test`'s names read where the wrapper is | families-02 | killed: the caller's local, "cannot find test offset 'localOffset'" |
+| no bridge check in `$setModel`, the R check kept | models-01 | killed: the direct bridge `setModel` case and its twin |
+| every split-probability matrix refused | group B | killed: the one-column matrix |
+| every split-probability matrix taken | group B | killed: the 2 x 2 through `cgm` and `bart` |
+| a forest's power and base coerced again | group B | killed: 16 failures over the four doors |
+| the variance forest's stated power unchecked at creation | group B | killed: the `varianceForest()` creation case |
