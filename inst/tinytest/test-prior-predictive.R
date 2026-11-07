@@ -764,11 +764,9 @@ uniformEv <- samplePriorPredictive(
 )
 expect_false(identical(dartEv, uniformEv))
 
-# where too few joint draws are held (60 rows, 8 columns, 200 trees: about
-# one in a hundred), the draws come from the sampler run with every row
-# inactive, and a warning says so. An internal option sets the call's budget
-# so the fallback comes at every seed: at 0 the first sample runs it out, the
-# last at n.samples = 1
+# where few joint draws are held (60 rows, 8 columns, 200 trees: about one in
+# a hundred), every sample is still the accepted joint draw, with no cap on
+# the attempts: 50 samples take about 5,000
 set.seed(seedBase + 14L)
 xWide <- matrix(runif(nPrior * 8L), nPrior, 8L)
 wide <- dbarts(
@@ -778,34 +776,75 @@ wide <- dbarts(
   control = control.plain,
   split.probs = dart()
 )
-oldOptions <- options(dbarts.priorForestAttempts = 0L)
-for (count in c(1L, 2L, 5L)) {
-  expect_warning(
-    fallback <- samplePriorPredictive(wide, n.samples = count, type = "ev"),
-    "fewer than one in 50 independent draws",
-    info = paste("fallback at budget 0, n.samples", count)
+wideDraws <- dbarts:::drawPriorForests(
+  wide,
+  xWide[1:2, ],
+  NULL,
+  50L,
+  1L,
+  FALSE
+)$hyperparameters
+expect_true(all(vapply(wideDraws, `[[`, logical(1L), "forests.drawn")))
+expect_true(sum(vapply(wideDraws, `[[`, numeric(1L), "attempts")) > 500)
+
+# a call projected to run long warns once, naming the acceptance so far and
+# the projected time; an internal option sets the threshold, here 0 seconds so
+# the warning comes at every seed, and the default stays silent on a short call
+warnings <- character()
+oldOptions <- options(dbarts.priorPredictiveWarnSeconds = 0)
+fit <- withCallingHandlers(
+  samplePriorPredictive(wide, n.samples = 5L, type = "ev"),
+  warning = function(w) {
+    warnings <<- c(warnings, conditionMessage(w))
+    invokeRestart("muffleWarning")
+  }
+)
+options(oldOptions)
+expect_identical(length(warnings), 1L)
+expect_true(grepl(
+  paste0(
+    "under dart\\(\\) .*acceptance .*(projected to take|at least) about ",
+    "[0-9.]+ (seconds|minutes|hours); it can be interrupted"
+  ),
+  warnings[1L]
+))
+expect_identical(dim(fit), c(5L, nPrior))
+expect_silent(samplePriorPredictive(dartSmall, n.samples = 5L, type = "ev"))
+
+# an interrupt is honored after a call of attempts and leaves the caller's
+# sampler as it was: a seeded draw afterward is the draw before
+countHooks <- function(interruptAfterPolls) {
+  .Call(
+    dbarts:::C_dbarts_bartcore_setMonotoneCountHooks,
+    NA_real_,
+    FALSE,
+    as.integer(interruptAfterPolls)
   )
-  expect_identical(dim(fallback), c(count, nPrior))
-  expect_true(all(is.finite(fallback)))
 }
-# one column of two values holds every tree, each split leaving a row on
-# either side, so a budget of 1 accepts the first sample and runs out on the
-# second, the last
-options(dbarts.priorForestAttempts = 1L)
-held <- dbarts(
-  matrix(rep(0:1, length.out = nPrior)),
+seeded <- dbarts(
+  xWide,
   rnorm(nPrior),
-  n.trees = 20L,
-  control = control.plain,
+  n.trees = 200L,
+  control = control.seeded,
   split.probs = dart()
 )
-expect_warning(
-  fallback <- samplePriorPredictive(held, n.samples = 2L, type = "ev"),
-  "fewer than one in 50 independent draws"
+set.seed(seedBase + 16L)
+before <- samplePriorPredictive(seeded, n.samples = 3L, type = "ev")
+countHooks(1L)
+interrupted <- tryCatch(
+  {
+    samplePriorPredictive(seeded, n.samples = 3L, type = "ev")
+    "not interrupted"
+  },
+  interrupt = function(cond) "interrupted"
 )
-expect_identical(dim(fallback), c(2L, nPrior))
-expect_silent(samplePriorPredictive(held, n.samples = 1L, type = "ev"))
-options(oldOptions)
+countHooks(0L)
+expect_identical(interrupted, "interrupted")
+set.seed(seedBase + 16L)
+expect_identical(
+  samplePriorPredictive(seeded, n.samples = 3L, type = "ev"),
+  before
+)
 
 rm(
   normal,
@@ -891,7 +930,6 @@ rm(
   uniformEv,
   xWide,
   wide,
-  fallback,
   hyperDraws,
   dfDraws,
   heavySigma,
@@ -900,8 +938,12 @@ rm(
   sigmaGrid,
   shapeDraws,
   oldOptions,
-  count,
-  held
+  wideDraws,
+  warnings,
+  countHooks,
+  seeded,
+  before,
+  interrupted
 )
 
 rm(
