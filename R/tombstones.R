@@ -524,7 +524,7 @@ refuseMixedArgumentStyles <- function(suppliedCall, legacy, caller) {
     )
   ]
   if (length(strangers) > 0L) {
-    refuseForeignFrontDoorArgs(strangers, "bart", names(formals(bart)))
+    refuseForeignFrontDoorArgs(strangers, "bart", names(formals(bart)), caller)
   }
   stop(
     "this call to '",
@@ -1325,8 +1325,9 @@ foreignArgHintsByDoor <- list(
 
 ## Anything else in '...' is a caller mistake: refused by name, naming the
 ## entry point, rather than dropped without a word. 'supplied' is the dots
-## names, "" for an unnamed one.
-refuseForeignFrontDoorArgs <- function(supplied, caller, own) {
+## names, "" for an unnamed one; 'door' is the name the call was made by,
+## which an alias of 'caller' differs from.
+refuseForeignFrontDoorArgs <- function(supplied, caller, own, door = caller) {
   accepted <- names(foreignArgsFor(tombstoneDotsReasons[[caller]], own))
   if (identical(caller, "bart")) {
     accepted <- c(accepted, bartBTOnlyFormals)
@@ -1344,7 +1345,7 @@ refuseForeignFrontDoorArgs <- function(supplied, caller, own) {
       " ",
       paste0("'", foreign, "'", collapse = ", "),
       " passed to '",
-      caller,
+      door,
       "'",
       if (length(hints) > 0L) {
         paste0("; ", paste(hints, collapse = "; "))
@@ -1358,7 +1359,7 @@ refuseForeignFrontDoorArgs <- function(supplied, caller, own) {
   if (length(unnamed) > 0L) {
     stop(
       "'",
-      caller,
+      door,
       "' does not take unnamed extra arguments: ",
       length(unnamed),
       " supplied",

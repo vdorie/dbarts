@@ -526,6 +526,28 @@ expect_identical(
   ),
   "unused argument 'bogus' passed to 'bart'"
 )
+# bart2's refusals name bart2, the function called, beside a legacy name or
+# not
+for (bart2Args in list(list(bogus = 1), list(bogus = 1, ntree = 10L))) {
+  expect_identical(
+    tryCatch(
+      suppressWarnings(do.call(
+        dbarts::bart2,
+        c(list(xFD, yFD), bart2Args)
+      )),
+      error = conditionMessage
+    ),
+    "unused argument 'bogus' passed to 'bart2'",
+    info = paste(names(bart2Args), collapse = ", ")
+  )
+}
+expect_identical(
+  tryCatch(
+    suppressWarnings(dbarts::bart2(xFD, yFD, tree.prior = NULL)),
+    error = conditionMessage
+  ),
+  "'tree.prior' is not an argument of 'bart2': leave it out"
+)
 expect_identical(
   tryCatch(
     dbarts::bart(xFD, yFD, test = xFD[1:5, ], ntree = 10L),

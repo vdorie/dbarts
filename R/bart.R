@@ -1046,6 +1046,8 @@ bart <- function(
   callingEnv <- parent.frame()
   # taken first, so no path below leaves it for another call
   aliasForward <- takeAliasForward()
+  # the name the call was made by, for the refusals
+  calledAs <- if (is.null(aliasForward)) "bart" else "bart2"
 
   # Two doors, one name for one release. A call carrying a BayesTree
   # spelling is a 0.9-x call and is fit by the legacy door with 0.9-x's
@@ -1057,7 +1059,7 @@ bart <- function(
     suppliedCall,
     names(matchedCall)[-1L],
     callingEnv,
-    if (is.null(aliasForward)) "bart" else "bart2"
+    calledAs
   )
   if (!is.null(forwarded)) {
     return(forwarded$value)
@@ -1069,9 +1071,14 @@ bart <- function(
   # frame
   supplied <- dotNames(...)
   if ("tree.prior" %in% supplied) {
-    refuseRetiredTreePrior(matchedCall[["tree.prior"]], callingEnv, "bart")
+    refuseRetiredTreePrior(matchedCall[["tree.prior"]], callingEnv, calledAs)
   }
-  refuseForeignFrontDoorArgs(supplied, "bart", names(formals(dbarts::bart)))
+  refuseForeignFrontDoorArgs(
+    supplied,
+    "bart",
+    names(formals(dbarts::bart)),
+    calledAs
+  )
   # a NULL where the default is not NULL is refused by name, ahead of the
   # statements read from what is written
   refuseNullArguments(n.trees, n.cuts, useQuantiles, power, base)
@@ -1135,7 +1142,7 @@ bart <- function(
       eval(matchedCall$rngSeed, callingEnv),
       "bart",
       seed,
-      if (is.null(aliasForward)) "bart" else "bart2"
+      calledAs
     )
     # stamped onto the matched call as well: the control is built by
     # redirecting that call by name, which the old spelling never reaches
