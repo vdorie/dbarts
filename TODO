@@ -251,23 +251,6 @@ items
     $setModel(dbartsSpec(data, power = 2.5)$model). Decide whether
     creation from a model should read the record as the setter does, or
     the record carry its statements (setmodel-parameters' call 31).
-  stan4bart-range-factor-share: dec-B616, in stan4bart. Where a model
-    column is constant within a BART factor's categories, the quick fit
-    that sets BART's range gives it the slope of the line through the
-    category means, each category counted once, not the share the
-    dropped columns' labels pick; a second reviewer checks the share's
-    argument before it lands; the help says a many-category BART factor
-    makes the quick fit slow and memory-hungry and that bart_range
-    avoids it. A column constant within two factors' joint categories,
-    or a combination of columns, stays label-dependent; the help or
-    range.info names that limit.
-  stan4bart-empty-bart-guard: in stan4bart, with the build above.
-    stan4bart(y ~ x + (1|g)), a formula with no bart() term, checks
-    ncol(bartData@x) == 0 after dbartsData to say "no bart component
-    detected"; dbartsData now refuses an empty design first, so the
-    user sees "predictors must be specified for regression tree
-    analysis". Check for an empty BART design before the call (dec-A265,
-    the fourth review's second R-surface slice, call 41).
   starting-sigma-fallback-zero-weights: where no regression is defined
     the starting sigma is sd(y - offset) over the rows of positive
     weight, unweighted (response-scale-rows). Decide whether it should
