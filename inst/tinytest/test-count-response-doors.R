@@ -63,6 +63,7 @@ moreTrials <- cbind(successes + 2L, trials - successes + 1L)
 fresh <- binomialOf(withCounts(binary$data, moreTrials))
 swapped <- binomialOf(withCounts(binary$data, counts))
 swapped$setResponse(moreTrials)
+expect_identical(swapped$data@y, as.double(rowSums(moreTrials)))
 expect_identical(drawsOf(swapped), drawsOf(fresh))
 
 # a vector gives the successes, each row's trials held
@@ -71,6 +72,29 @@ swapped <- binomialOf(withCounts(binary$data, counts))
 swapped$setResponse(newSuccesses)
 expect_identical(unname(swapped$data@counts), unname(newCounts))
 expect_identical(drawsOf(swapped), drawsOf(fresh))
+
+# the counts keep the sampler's column names, whatever names the new
+# response carries, a vector carrying none
+named <- binomialOf(withCounts(
+  binary$data,
+  cbind(successes = successes, failures = trials - successes)
+))
+for (response in list(
+  unname(newCounts),
+  cbind(a = newSuccesses, b = trials - newSuccesses),
+  successes
+)) {
+  named$setResponse(response)
+  expect_identical(colnames(named$data@counts), c("successes", "failures"))
+}
+
+# updateState stores the state after the swap, as on every other door
+stored <- binomialOf(withCounts(binary$data, counts))
+invisible(stored$run(0L, 3L))
+stored$setResponse(newCounts, updateState = FALSE)
+expect_null(stored$state)
+stored$setResponse(counts, updateState = TRUE)
+expect_false(is.null(stored$state))
 
 # a swap after sweeps draws nothing and moves the fit
 swapped <- binomialOf(withCounts(binary$data, counts))
@@ -171,6 +195,75 @@ expect_error(
   fixed = TRUE
 )
 
+# a binomial setData reads a linear leaf's covariates at each row's trials,
+# a row of no trials out, as a sampler built on the new data reads them
+linearOf <- function(x) {
+  dbarts::dbarts(
+    x,
+    as.double(seq_len(nrow(x)) %% 2L),
+    family = "logistic",
+    control = control,
+    n.trees = 5L,
+    leaf.prior = dbarts::dbartsPriors$linear("x1")
+  )
+}
+unrecorded <- function(data) {
+  data@standardization <- NULL
+  data
+}
+linearTrials <- as.integer((seq_len(36L) %% 3L) * (seq_len(36L) <= 30L))
+xLinear <- matrix(
+  runif(72L),
+  36L,
+  2L,
+  dimnames = list(NULL, c("x1", "x2"))
+)
+xLinear[, 1L] <- xLinear[, 1L] * (1 + 4 * (seq_len(36L) > 30L))
+linearSuccesses <- as.integer(rbinom(36L, linearTrials, 0.5))
+linearData <- withCounts(
+  unrecorded(linearOf(xLinear)$data),
+  cbind(linearSuccesses, linearTrials - linearSuccesses)
+)
+linear <- linearOf(x)
+linearBinomial <- function(data) {
+  suppressWarnings(new("dbartsSampler", linear$control, linear$model, data))
+}
+linearFresh <- linearBinomial(linearData)
+linearSwapped <- linearBinomial(withCounts(unrecorded(linear$data), counts))
+invisible(linearSwapped$run(0L, 3L))
+suppressWarnings(
+  linearSwapped$setData(linearData, updateStandardization = TRUE)
+)
+trialCenter <- sum(linearTrials * xLinear[, 1L]) / sum(linearTrials)
+expect_equal(
+  unname(unlist(linearSwapped$data@standardization)),
+  c(
+    trialCenter,
+    sqrt(
+      sum(linearTrials * (xLinear[, 1L] - trialCenter)^2) /
+        (sum(linearTrials) - 1)
+    )
+  )
+)
+expect_identical(
+  linearSwapped$data@standardization,
+  linearFresh$data@standardization
+)
+
+# the cap holds at setData: a weight times a row's trials above one million
+overCap <- newData
+overCap@counts[1L, ] <- c(300000L, 300000L)
+overCap@y[1L] <- 600000
+overCap@weights <- c(2, rep(1, m - 1L))
+expect_error(
+  binomialOf(withCounts(binary$data, counts))$setData(overCap),
+  paste0(
+    "$setData: family \"logistic\" requires 'weights' times the trials no ",
+    "larger than 1000000"
+  ),
+  fixed = TRUE
+)
+
 # ---- $setResponse on a multinomial sampler ------------------------------------
 
 # the n x K counts, against a sampler built on them (the parity arms of
@@ -206,6 +299,20 @@ expect_error(
   multinomial$setCounts(otherCounts),
   "setCounts"
 )
+# updateScale is checked as on every other sampler, though a count response
+# has no scale to take
+for (updateScale in list("yes", NA)) {
+  expect_error(
+    multinomial$setResponse(otherCounts, updateScale = updateScale),
+    "'updateScale' must be TRUE or FALSE",
+    fixed = TRUE
+  )
+  expect_error(
+    plain$setResponse(rep(0, n), updateScale = updateScale),
+    "'updateScale' must be TRUE or FALSE",
+    fixed = TRUE
+  )
+}
 
 rm(
   n,
@@ -237,5 +344,21 @@ rm(
   categoryCounts,
   otherCounts,
   multinomialOf,
-  multinomial
+  multinomial,
+  named,
+  response,
+  stored,
+  linearOf,
+  unrecorded,
+  linearTrials,
+  xLinear,
+  linearSuccesses,
+  linearData,
+  linear,
+  linearBinomial,
+  linearFresh,
+  linearSwapped,
+  trialCenter,
+  overCap,
+  updateScale
 )

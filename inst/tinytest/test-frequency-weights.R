@@ -1109,6 +1109,57 @@ expect_equal(
   standardizationOf(pathSampler(oneCount)),
   countedMoments(pathX[, 1L], pmax(oneCount, 1))
 )
+# the fallback names what it reads: every number at the counts, an nbinom
+# center among them
+oneCountText <- character()
+withCallingHandlers(
+  dbarts::dbarts(
+    pathX,
+    pathY,
+    family = "nbinom",
+    weights = oneCount,
+    control = dbarts::dbartsControl(n.chains = 1L, n.threads = 1L, seed = 3L),
+    n.trees = 4L,
+    leaf.prior = dbarts::dbartsPriors$linear("x1")
+  ),
+  warning = function(condition) {
+    if (inherits(condition, "dbartsScaleFallbackWarning")) {
+      oneCountText <<- c(oneCountText, conditionMessage(condition))
+    }
+    invokeRestart("muffleWarning")
+  }
+)
+expect_identical(
+  oneCountText,
+  paste0(
+    "fewer than two distinct values of the response are in the likelihood ",
+    "(1 of 60 observations is in it), so the response's scale, the prior's ",
+    "center and the center and scale of \"x1\" are taken from all 60 at ",
+    "their weights' counts, a weight of 0 read as 1"
+  )
+)
+# and at a setData whose new data hold one counted row in
+newPathX <- matrix(
+  runif(80L),
+  40L,
+  2L,
+  dimnames = list(NULL, c("x1", "x2"))
+)
+newPathCounts <- replace(rep(0, 40L), 3L, 2)
+replaced <- pathSampler(pathCounts)
+invisible(replaced$run(1L, 0L))
+suppressWarnings(replaced$setData(
+  dbarts::dbartsData(
+    newPathX,
+    as.double(rpois(40L, 2)),
+    weights = newPathCounts
+  ),
+  updateStandardization = TRUE
+))
+expect_equal(
+  standardizationOf(replaced),
+  countedMoments(newPathX[, 1L], pmax(newPathCounts, 1))
+)
 basisData <- data.frame(
   y = replace(rep(0, 60L), 5L, 2.5),
   x1 = pathX[, 1L],
@@ -1157,6 +1208,10 @@ rm(
   start,
   given,
   oneCount,
+  oneCountText,
+  newPathX,
+  newPathCounts,
+  replaced,
   basisData,
   basisCounts,
   basisSampler,
