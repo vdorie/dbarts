@@ -344,7 +344,8 @@ items
     cost too high is harm at equal time only without strong signal, or
     a timed cell past 1.25 times shipped (dec-B620); step 2 is the move
     against shipped head to head at equal time, no burn-in-only arm
-    (dec-B621). Record
+    (dec-B621), and how long each takes to converge is measured as
+    published sampler comparisons measure it (dec-B622). Record
     docs/plans/binary-k-mixing-need.md, What the result leads to;
     move on wt/collapsed-move-plan, plan
     docs/plans/collapsed-scale-move.md.
