@@ -8,8 +8,8 @@ result (dec-B590's twice-speed threshold, S1's design for its builder). The thre
 build starts with S1, whose two gates (the close-call floor and the timing) decide whether S2 proceeds as planned;
 the per-row threshold's dependence on |psi| comes back to the maintainer with S1's timings. S1 is built on the
 branch, 2026-11-07, its referee's fixes taken and its timing gate read: b* 645 at |psi| 0 and 628 at 8, the
-cache material, the step never at half the sum's cost at |psi| 50 and 150 ([S1 as built](#s1-as-built)). The
-defaults come from a study run before 1.0-0, right after the build (dec-B592).
+cache material, the step never at half the sum's cost at |psi| 50 and 150 ([S1 as built](#s1-as-built)); its
+review's fixes are in ([The review's fix round](#the-reviews-fix-round)). The defaults come from a study run before 1.0-0, right after the build (dec-B592).
 
 agent: opus for each engine slice; one opus review that runs mutants per engine slice; sonnet for the R-surface
 slice and its review.
@@ -280,8 +280,9 @@ It is built only if S1's three- and four-evaluation timings move b* materially. 
 any timing runs: the move is material if, at |psi| 0 or 8, the b* the per-row rule's criterion gives from the
 three-evaluation cost is at least 10 percent below the b* it gives from the four-evaluation cost (the most the
 cache can move it is 25 percent). The threshold was committed in 438de939d (ac8de7b16 before the branch's
-rebases), which S1's timing record cites. The lead needs all five double-double functions (exp, log, log1p, sine, square root) whether or not the cache is
-built, so S1 builds all five either way; the cache adds only double-double arithmetic over them, and dec-B606's
+rebases), which S1's timing record cites. The lead needs four double-double functions (exp, log, log1p, sine)
+whether or not the cache is built; S1 also builds and gates the square root, which nothing calls ([S1 as
+built](#s1-as-built), call 13). The cache adds only double-double arithmetic over them, and dec-B606's
 "cached density in double-double" applies only if it is built. As specified, if built: per row: log f at a point, in double-double, with its enclosure, its refinement level, the point
 as an exact double and the (b, psi) it was computed at. It is used only when the point equals the row's omega_i
 bit for bit and b is unchanged, and is then moved to the current psi; otherwise it is ignored and the step makes
@@ -465,7 +466,8 @@ S1's timings alone, with no share of steps or of rows the rule moves to estimate
 as dec-B590 did. The timed b*(|psi|) is the smallest whole b where the route measures at least twice the sum's
 speed, c_R <= c_S / 2, log-interpolated between grid points and rounded up, and the rule's b* is the larger of that
 and 64; at each |psi_i| the rule takes the larger b* of the bracketing grid points; b* is infinite where the route
-never reaches twice the sum's speed and at every |psi_i| above 150, so the sum is used there (the proof's note gave
+never reaches twice the sum's speed and at every |psi_i| above 150, so a whole-number row takes the sum there (a
+fractional row has no sum and takes the step at any |psi_i|; the proof's note gave
 break-even, c_R <= c_S, its item 8; this plan keeps the ruling's criterion). The gate passes if the timed b* <= 1e3
 at |psi| <= 8, where the sizing's binomial and negative binomial cells lie. Under twice-speed the proof's counts
 give about 490 to 580 at psi 0 and 690 to 810 at |psi| 8 (break-even, 230 to 360): the gate passes on them by a
@@ -714,7 +716,7 @@ dec-B593's.
 
 | slice | content | tier | lines | agent-hours |
 |---|---|---|---|---|
-| S1 | the certified PG density, f and q, at every x > 0 for every reachable (b, psi): the parabolic contour through the saddle with its a priori bound; the tilted, cancellation-free form; the lead in double-double with five double-double functions with bounds (all five needed by the lead, cache or not); rounding carried rigorously; the proposal's pieces on one row (rates with r_1 rounded down, tail sums and (alpha, beta), K from D's closed form with its table test, the K + 1 gammas, the saddle solve) and a step on one row, enough for the pins and the timing; q from those rates; the cheaper certificate, its settings fixed before any evaluation and its open pieces proven before timing and checked by an independent referee before the timing gate is read; pins against reference tables generated in Arb and checked in (tests/cpp cannot call Arb); the double-double functions' gate; the floor gate; the timing harness, the timing gate on the x86 box and b*, the cache's materiality read against the threshold this plan fixes; the proof's source, scripts and referee reports moved into docs/design/approximate-draws-proof/ with a README and a requirements list, its setter passages brought up to the rulings, and the design note | engine, neutral | 2,130 | 29.5 |
+| S1 | the certified PG density, f and q, at every x > 0 for every reachable (b, psi): the parabolic contour through the saddle with its a priori bound; the tilted, cancellation-free form; the lead in double-double with five double-double functions with bounds (four needed by the lead, cache or not); rounding carried rigorously; the proposal's pieces on one row (rates with r_1 rounded down, tail sums and (alpha, beta), K from D's closed form with its table test, the K + 1 gammas, the saddle solve) and a step on one row, enough for the pins and the timing; q from those rates; the cheaper certificate, its settings fixed before any evaluation and its open pieces proven before timing and checked by an independent referee before the timing gate is read; pins against reference tables generated in Arb and checked in (tests/cpp cannot call Arb); the double-double functions' gate; the floor gate; the timing harness, the timing gate on the x86 box and b*, the cache's materiality read against the threshold this plan fixes; the proof's source, scripts and referee reports moved into docs/design/approximate-draws-proof/ with a README and a requirements list, its setter passages brought up to the rulings, and the design note | engine, neutral | 2,130 | 29.5 |
 | S2 | the per-row marks, with tests of each setter's mark set, marks copied with the sampler and a cancel leaving them set; S1's step wired in at the sweep's start through LogisticResponse (logistic and hazard.logistic, and binomial rows once frequency-weights brings them) and NBResponse (fixed- and estimated-r nbinom, psi_i = eta_i - log r); marked rows at whole shapes by the sum; the per-row rule by b*(\|psi_i\|) once ruled; the moved-r rule; the K rule applied per row; the decision on enclosures with an interval uniform of at least 53 bits from the Mersenne-Twister words; close calls kept, counted per chain beside the route steps, read by getLatentStepCounts(), warned once (by run(), or by bart, bart2 and rbart from the summed count under the internal flag) and carried on their fits, with the test-only setting that provokes them; the cancel between rows, with its test; the setting's engine side and an internal R switch forcing the method, ahead of S5's door; the joint-distribution harnesses for logistic at unit weights and fixed- and estimated-r nbinom; an equivalence scenario of logistic rows with whole count weights above b*; the cache keyed on the point only if S1's timings call for it (not in the figures: about 100 lines and 1.5 hours more) | engine, shifting where selected, with a small R piece for the count, the warning and the switch | 1,510 | 21.5 |
 | S3 | real weights under the route on logistic, binomial, hazard.logistic; every setter and setState taken at fractional shapes, marked rows served by the step; setData keeping each persisting row's omega at an unchanged row count, with its test; the help passage of the setters and getLatents, with the clause on rows that enter the fit, the pseudo-prior route with its two-line example and the example's tinytest (r fixed on nbinom), and the setActiveRows sentence on integrated-out masks rewritten; the example, its tinytest at fractional weights and the outer-step gate's fractional arms; the binomial arms of the joint-distribution check, the single-tree exact posterior and simulation-based calibration, which need frequency-weights' binomial rows; an equivalence scenario at fractional weights; the frequency-weights plan's interaction paragraph brought up to date | engine plus R surface | 630 | 13 |
 | S4 | the series as an approximate method for all PG families including multinomial, its terms chosen per row from the tolerance by a table computed once by inversion (0 terms, the gamma, at the loose end); the normal only if step 10's check passes it; the design note's section for it | engine, posterior-changing where selected | 300 | 6 |
@@ -879,9 +881,10 @@ after frequency-weights.
 - the uniform's words (S2): the route asserts that the chain's generator is the Mersenne Twister before it takes
   words from it, as only that algorithm's uniform is a 32-bit word times 2^-32 (a user-supplied uniform is not),
   with a test that another generator is refused;
-- the math library (S2): a cheap test of the S1 note's (A2s) in its weaker form (sin and cos within 2^-51
+- the math library (S2): a cheap test of the S1 note's (A2s) in its weaker form, every function it names: exp,
+  expm1, log, log1p, sinh, cosh, tanh and atan2 within 2^-51 relative at normal results, sin and cos within 2^-51
   absolutely at arguments up to the evaluator's, sin on |x| <= 1/2 and cos and tan on [0, pi/2 - 2^-15] within
-  2^-51 relative, against double-double references), run on every CI platform, Windows included: the check-standard
+  2^-51 relative, against references at 200 digits; run on every CI platform, Windows included: the check-standard
   matrix through a tinytest, since tests/cpp does not run on Windows;
 - S3: the outer-step gate's fractional arms and the mutant arms, the real step's largest |z| under the integrating
   outer step reported (these carry the example's exactness); the example's tinytest at fractional weights, the
@@ -1378,3 +1381,101 @@ every reachable point (it matters only for the timing; measured at the pins, the
 the last level is finite at every reachable point, the close-call bound's premise (measured at the pins); the
 math library's accuracy (A2s), assumed in its weaker form, Windows' library not sampled (S2's test); the timing
 gate's harness run on the x86 box only.
+
+### The review's fix round
+
+The review of S1 at f25386e77 returned FIX FIRST; the fixes, on the branch rebased onto 980bc50f9:
+
+- The accept-or-keep decision moved out of [`stepRow`](../../src/bartcore/pgdensity.hpp) into
+  [`decideLevel`](../../src/bartcore/pgdensity.hpp) (one level's verdict from the four enclosures) and
+  [`decideStep`](../../src/bartcore/pgdensity.hpp) (the draw's check, the thresholds, the levels, the close call),
+  tested on made-up bounds; logDensity's non-finite rule tested with a family whose truncation has no finite bound.
+- `LogSumExpUpper::add` tests NaN before -inf, so a NaN term makes the bound infinite.
+- [`ruleK`](../../src/bartcore/pgdensity.hpp) returns -1 at once for a b or psi that is not finite or a b that is not
+  positive; a proposal without a K (no K up to 2^20, as at psi 1e5 for b 1e5 and at psi 1e6) is invalid
+  (its `valid()` false) and its step a close call before any draw.
+- The uniform's log bounds widen by (u_L + u + 2^-98) |l|, which rounds outward under (A2s)
+  ([`logWidenUp`](../../src/bartcore/pgdensity.hpp)).
+- The long sums charged 1 + (N + 4) u: the main sum's radius and ddErr, q's run sums and the sum over runs, and the
+  node-by-node tail.
+- cmul's error term 2.25 u (|a| |b|), the product first, so it does not underflow with a subnormal operand.
+- New tests in the pgdensity suite: the decision, the thresholds under the worst library, the non-finite rule and
+  the log-sum's NaN, the K rule's guard, cmul and cdiv with operands outside [2^-400, 2^400], point balls for cdiv
+  and csqrt, log f past the saddle cap, the boundary images of seven ball functions, q's far tail against the node
+  sum, the word source against the Mersenne Twister's uniforms, distinct words, and sumsT near its guard.
+- The records: the INDEX row; "above |psi| 150" for whole-number rows only (here and in the design note); the cache
+  paragraph and the slice table against call 13; S2's math-library test over every function (A2s) names; and
+  clog1pMinus's comment at m = 1/4.
+
+What the fixes touch in the S1 note: the floating-point paragraph (the long sums) and the step section (the
+widening and the invalid proposal). No lemma's statement changes, and the floor's formula holds as written: the
+thresholds' slack, (2 u_L + 2 u) |log U| to first order, is at most 1.84 u_L of U's measure for both against the
+2 u_L the floor charges.
+
+Gates on the fixed tip (arm64 macOS):
+
+- The thresholds: the review's 200,000-uniform check on the fixed widening, every bound under the worst library
+  (A2s) allows, 392,540 bounds (upper and lower), none on the wrong side, the largest slack 0.9994 of (2 u_L + 2 u)
+  |log v|; the same check in the suite (392,446 bounds, none wrong, none wider than the floor allows).
+- Mutants (the review's harness, the pgdensity suite built with -ffp-contract=fast): the review's 25 survivors and
+  12 new mutants rerun, the baseline passing: 27 killed, 10 surviving. Killed: the seven decision mutants (accept-upper, accept-lowerU,
+  nonfinite-keep, nonfinite-Et, nonfinite-y-accept, closecall-uncounted, thresh-no-widen); cmul-mid-0.25
+  (small operands), cdiv-mid-1 and csqrt-mid-0.5 (point balls); clog1pm-prop-0 (boundary images); modUp-no-scale and
+  cdiv-no-scale (small operands); fartail-wrong-end, fartail-Yend/4 and fartail-cnt (the far tail); words-2^32-1
+  (the word source); words-one-word (distinct words); guard-2^-20 (sumsT); vcap-off (log f past the saddle cap);
+  and of the new, cmul-left-to-right, thresh-lower-no-widen, thresh-uL-only, thresh-uL+3u, lse-nan-dropped,
+  prop-valid-always and rulek-guard-off. Surviving, each with its reason: cexp-2uL and cell-cos-relative (their
+  margins are for a library worse than this one, which no test here can supply; S2's math-library test checks the
+  assumption, not the margin); fartail-4/7->1/7 (the far tail stays above the node sum with the smaller slope, by
+  1.4 at the review's cases: the slope term is not the one that binds there); lean-sigma0-rad0 and lean-c1-rad0
+  (radii near u of their values, far inside what the pins' references resolve); thresh-uL+u (short by O(u^2) of
+  |log v|, below the suite's reference error); step-invalid-draws (equivalent: the invalid proposal's NaN draw is a
+  close call in decideStep either way); sum-gN-1, tot-gTot-1 and lr-run-charge-1 (charges of at most about 1e-13
+  relative of a radius, which no reference resolves).
+
+Calls made in the fix round, each with its alternative:
+
+22. The thresholds widened by (u_L + u + 2^-98) |l|, rounded to nearest: it rounds outward (the u |l| covers the
+    sum's rounding, the 2^-98 |l| the second-order terms), and the thresholds' slack, (2 u_L + 2 u) |log U|, keeps
+    both under the floor's 2 u_L (1.84 u_L). Alternatives: (u_L + 2u) |l| or a step to the next double with
+    nextafter, as the review offered; both round outward, but their slack, (2 u_L + 3 u) |log U|, comes to 2.02
+    u_L for both, past the 2 u_L the floor charges, so the floor's statement would change and go to a referee.
+23. The decision in two functions, decideLevel (a level's verdict from four enclosures and two thresholds) and
+    decideStep (the draw's check, the thresholds from the uniform, the levels, the close call), the levels and
+    the preparation passed in as callables, so the tests script made-up enclosures through the whole decision;
+    stepRow only draws and wires. Alternative: one function over four enclosures, leaving the draw's check, the
+    thresholds and the close call in stepRow, untested.
+24. A proposal the K rule cannot build is invalid and its step a close call before any draw, its draw NaN; ruleK
+    refuses non-finite input at once rather than searching to 2^20. Alternatives: draw y and the uniform anyway, so
+    every step takes the same words (nothing can be drawn from it, and S2 counts the row's close calls either way);
+    or build at a capped K, a proposal the rule did not size.
+25. logDensity's non-finite rule tested through a family derived from f whose far tail is infinite and whose nodes
+    past the main sum are not finite (logDensity is a template, so the hiding members are used). Alternative: a
+    test-only family implementing the whole interface, about 200 lines.
+26. The long sums charged in place, 1 + (n + 4) u with n the sum's terms. Alternative: widen up() to cover 4e5
+    operations (2^-34 relative), which widens every radius.
+27. The new tests in the pgdensity suite, so they gate, at about 10 seconds of its 100. Alternative: the review's
+    probes outside the suite, which no gate runs.
+
+The rest of the gates, on the fixed tip:
+
+- tests/cpp plain: every suite passes (559 ok lines). Under -O2 -g -fsanitize=address,undefined with
+  container-overflow detection on: every suite passes (559), no report; the review's ASan probe (a proposal at
+  psi 1e5, b 1e5) builds an invalid proposal, no report.
+- The pins: 500 f and 30 q, none outside, none undecided, largest |ref - mid| / rad 0.570 (f) and 0.334 (q); c0
+  charged short at none of the 30 q pins. The floor: largest 9.52e-12 against 2.3e-11. The K table: 42 cells, none
+  differ. The reach: 200 evaluations, none undecided. The step: 5 cases of 4,000 steps, no close call, none past
+  level 0, the acceptances as before the fixes (3,998, 3,816, 4,000, 3,431, 3,949).
+- A --preclean shipped install and the full tinytest suite once, in one process: 42,055 results, none failed.
+- The trio --bitwise on a --preclean reference install: equivalence-38da480c 55 of 55 identical under
+  --strict-coverage (0 skipped), bcf-equivalence-38da480c 19 of 19, multinomial-equivalence-80b1c8d4 11 of 11. The
+  four snapshot files on the reference build: 27 results, none failed.
+- tools/check-doc-freshness.R, tools/check-rc-codoc.R (53 methods), tools/check-win-drift.R, verify-anchors and
+  air: OK.
+- The step's cost, the timing harness on arm64 with the pre-fix and fixed headers alternated: the two runs made
+  without other load agree within 1.3 percent (geometric mean over 32 cells, each within 5 percent), the two made
+  beside a compile both about 14 percent slower. The fixes add a multiply a run to q's node exponent and nothing to
+  f's, so the x86 timing was not rerun.
+
+Not verified in the fix round: log f is undecided far to the right, past about 700 b at b 1e3 and 2,000 b at b 16
+(log f below about -2e6 and -1.5e5), points no draw reaches; the survivors above.
