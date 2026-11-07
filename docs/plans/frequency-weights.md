@@ -835,6 +835,8 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
     renaming it, which touches every internal caller for no user-visible change.
 66. A binomial sampler's other R doors (`$setWeights`, `$setOffset` and the rest) keep `refuseCountsMutation`'s
     multinomial words until S6 words them. Alternative: wording them now, ahead of S6's constructor.
+67. A count sampler's `$setResponse` checks `updateScale` as every other sampler does before it ignores it (call 61),
+    so "yes" or NA is refused in probit's words. Alternative: not checking it, taking any value silently.
 
 ## Open calls
 
@@ -1087,6 +1089,16 @@ bcf-equivalence-38da480c and multinomial-equivalence-80b1c8d4 (55, 19 and 11 sce
 four snapshot files on the reference build, the exact gates in quick (44 arms) and R CMD check --as-cran (one NOTE, an
 expired certificate at a cited URL and the Date field). Mutants 17 to 20 and 24 to 29 killed; a zero part handed NULL in
 place of "frequency" (25b) is equivalent, NULL resolving to "frequency" on probit. Calls made 48 to 57.
+The fix round's re-check left seven of its mutants alive; the second fix round adds a test for each, each shown to fail
+under the mutant: C4, the 0-as-1 fallback at an nbinom `$setData` to one counted row in, refused under it, and RC2, nbinom's
+counted-center wording, by test-frequency-weights.R; EB3, a binomial linear-leaf `$setData` reading every row at its
+weight, EB5, the `$setData` trials cap, RB1, the kept names of call 60, RB5, updateState on a count `$setResponse`, and RB6,
+data@y when the trials change, by test-count-response-doors.R. EB3 is also killed by a tests/cpp arm, a binomial linear
+leaf's standardization after `setData` against one created on the new trials and weights. Left as built, harmless: the
+lifts of a count of 0 to 1 outside a fallback (the setWeights and setActiveRows doors) are dead, since those doors keep
+the numbers when too few rows are in, and a lift outside a fallback lands only on rows already out (the review's C1, C6
+and C7 equivalent); EB1 is masked from R by the bridge's follow-up setWeights, and EB2 touches only the log-likelihood
+channel, which R never fills. Call 67.
 
 ### S6: R surface, the binomial and xbart (~250 R, ~55 help, ~400 tinytest)
 
