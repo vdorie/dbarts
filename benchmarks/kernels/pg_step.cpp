@@ -3,15 +3,16 @@
 // draws (ext_rng_simulatePolyaGamma), in one process on one core.
 //
 // Per |psi| in {0, 8, 50, 150} and b in {0.2, 1, 2.5, 16, 64, 1e3, 1e4, 1e5}:
-// - c_R, the four-evaluation cost of a step from a fixed point x (the K + 1
-//   gammas, the uniform, the saddle solves and the four densities through the
-//   levels the decision needs), the maximum over x = E + z sd, z in
-//   {-3, 0, 3} (E / 20 where that is not positive);
+// - c_R, the four-evaluation cost of a step from a fixed point x (the
+//   proposal's build for the row's psi, the K + 1 gammas, the uniform, the
+//   saddle solves and the four densities through the levels the decision
+//   needs), the maximum over x = E + z sd, z in {-3, 0, 3} (E / 20 where that
+//   is not positive);
 // - the three-evaluation figure, c_R less the cost of log f at x, as a
 //   cache of log f at the current point would save it (the cache's own
 //   double-double update is not built and not charged);
-// - the proposal's build (K by the rule, the rates, the tail sums), reported
-//   beside c_R and not in it;
+// - the proposal's build (K by the rule, the rates, the tail sums) alone, a
+//   part of c_R: psi moves every sweep, so a row builds its proposal each step;
 // - c_S, the sum's cost at whole b.
 // Then b*(|psi|): the smallest whole b with c_R <= c_S / 2, log-interpolated
 // between whole-b grid points and rounded up (infinite if never reached), for
@@ -127,7 +128,8 @@ int main(int argc, char** argv) {
         if (!(x > 0.0)) x = pgMean(b, psi) / 20.0;
         double t4 = timeIt(
           [&] {
-            pg::StepResult r = pg::stepRow(prop, x, rng, words, ws);
+            pg::Proposal p(b, psi);
+            pg::StepResult r = pg::stepRow(p, x, rng, words, ws);
             closeCalls += r.closeCall;
             sink = sink + r.omega;
           },
