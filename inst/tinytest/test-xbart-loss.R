@@ -344,6 +344,33 @@ for (lossName in c("log", "mcr")) {
   expanded <- mean(vapply(bnmFolds, bnmExpanded, 0, lossName = lossName))
   expect_equal(reported, expanded, info = lossName)
 }
+# and each equal to its definition written by hand on the binomial rows, the
+# fold probabilities on both sides of 0.5 so that mcr's direction is read
+bnmProbabilities <- lapply(bnmFolds, function(fold) {
+  rowMeans(plogis(fold$samples))
+})
+expect_true(any(unlist(bnmProbabilities) > 0.5))
+expect_true(any(unlist(bnmProbabilities) < 0.5))
+bnmByHand <- function(perRow) {
+  mean(vapply(
+    seq_along(bnmFolds),
+    function(i) {
+      fold <- bnmFolds[[i]]
+      sum(fold$weights * perRow(fold$y, bnmProbabilities[[i]])) /
+        sum(fold$weights)
+    },
+    0
+  ))
+}
+expect_equal(
+  as.vector(bnmRun(loss = "log")),
+  bnmByHand(function(y, p) -(y * log(p) + (1 - y) * log(1 - p)))
+)
+expect_equal(
+  as.vector(bnmRun(loss = "mcr")),
+  bnmByHand(function(y, p) ifelse(p > 0.5, 1 - y, y))
+)
+rm(bnmProbabilities, bnmByHand)
 rm(fold, rows, lossName, reported, expanded, bnmExpanded, bnmBinaryControl)
 rm(bnmFolds, bnmRun, bnmCapture, bnmCaptured, bnmWeights, bnmTrials, bnmData)
 rm(nBnm)

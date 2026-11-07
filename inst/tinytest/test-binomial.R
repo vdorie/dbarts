@@ -158,9 +158,10 @@ ppdWeighted <- dbarts::extract(weighted, type = "ppd")
 expect_true(all(sweep(ppdWeighted, 2L, trials, "<=")))
 rm(logLikelihood, p, byDbinom, weights, weighted, pWeighted, ppdWeighted)
 
-# --- new rows: their trials from predict's weights, one where none given ---
+# --- new rows: their trials from predict's weights, one where none given and
+# the rows carry no successes and failures (those are dec-B638's, below) ---
 
-newData <- data.frame(x1 = c(0.1, 0.5, 0.9), x2 = 0.5, k = 20, f = 20)
+newData <- data.frame(x1 = c(0.1, 0.5, 0.9), x2 = 0.5)
 set.seed(9L)
 single <- predict(fit, newData, type = "ppd")
 expect_true(all(single %in% c(0, 1)))
@@ -244,6 +245,10 @@ sampler <- quietly(dbarts::dbarts(
 ))
 expect_true(dbarts:::samplerHoldsTrials(sampler))
 expect_false(dbarts:::samplerCarriesCounts(sampler))
+# the formula route's data object holds the trials as its y, the pair as its
+# counts
+expect_identical(sampler$data@y, as.double(trials))
+expect_identical(unname(sampler$data@counts), unname(counts))
 invisible(sampler$run())
 # a successes vector against the trials held, or the pair
 fewer <- pmin(bnm$k, 1L)
@@ -421,6 +426,33 @@ expect_identical(
     "whole numbers; row(s) 1"
   )
 )
+# an infinite count, or one past the integer range, is refused in the same
+# words, not read as missing
+for (bad in c(Inf, 3e9)) {
+  outOfRange <- bnm
+  outOfRange$k[4L] <- bad
+  expect_identical(
+    refusal(fitBinomial(cbind(k, f) ~ x1, outOfRange, family = binomial)),
+    paste0(
+      "a binomial response's successes and failures must be non-negative ",
+      "whole numbers; row(s) 4"
+    ),
+    info = format(bad)
+  )
+  expect_identical(
+    refusal(fitBinomial(
+      X,
+      cbind(outOfRange$k, outOfRange$f),
+      family = binomial
+    )),
+    paste0(
+      "a binomial response's successes and failures must be non-negative ",
+      "whole numbers; row(s) 4"
+    ),
+    info = format(bad)
+  )
+}
+rm(bad, outOfRange)
 # a missing count goes to na.action
 withMissing <- bnm
 withMissing$k[3L] <- NA
@@ -470,6 +502,37 @@ expect_identical(
     "categories"
   )
 )
+# 12 and 17 on a data object at bart and xbart, as at dbarts
+probitData <- dbarts::dbartsData(X, counts = counts)
+threeData <- dbarts::dbartsData(X, counts = threeColumns)
+threeText <- paste0(
+  "the data carry an n x 3 count matrix: family \"logistic\" takes two ",
+  "columns, successes and failures, and family \"multinomial\" fits 3 ",
+  "categories"
+)
+expect_identical(
+  refusal(fitBinomial(probitData, family = binomial("probit"))),
+  probitText
+)
+expect_identical(
+  refusal(fitBinomial(threeData, family = binomial)),
+  threeText
+)
+expect_identical(
+  refusal(do.call(
+    dbarts::xbart,
+    c(list(probitData, family = "probit"), xbartArgs)
+  )),
+  probitText
+)
+expect_identical(
+  refusal(do.call(
+    dbarts::xbart,
+    c(list(threeData, family = "logistic"), xbartArgs)
+  )),
+  threeText
+)
+rm(probitData, threeData, threeText)
 # 18: xbart with a matrix response other than a binomial pair, both routes
 xbartText <- paste0(
   "xbart() takes a single-column response or, under family = binomial, ",
@@ -522,7 +585,6 @@ xbartMatrix <- quietly(do.call(
 ))
 expect_identical(as.vector(xbartMatrix), as.vector(xbartFormula))
 rm(
-  refusal,
   family,
   probitText,
   negativeRows,
@@ -531,5 +593,165 @@ rm(
   threeColumns
 )
 rm(xbartText, xbartFormula, xbartMatrix)
+
+# --- call 73: one class, every success or every failure 0, warns ---
+
+singleText <- paste0(
+  "family \"logistic\" is fitted to a response with a single class; the ",
+  "prior alone drives the fitted probabilities toward 0 or 1"
+)
+noSuccesses <- transform(bnm, k = 0L, f = trials)
+noFailures <- transform(bnm, k = trials, f = 0L)
+singleWarnings <- function(expr) {
+  texts <- character()
+  withCallingHandlers(
+    suppressMessages(expr),
+    warning = function(condition) {
+      texts <<- c(texts, conditionMessage(condition))
+      invokeRestart("muffleWarning")
+    }
+  )
+  texts
+}
+for (single in list(noSuccesses, noFailures)) {
+  expect_true(
+    singleText %in%
+      singleWarnings(do.call(
+        dbarts::bart,
+        c(list(cbind(k, f) ~ x1, single, family = binomial), fitArgs)
+      ))
+  )
+  expect_true(
+    singleText %in%
+      singleWarnings(dbarts::dbarts(
+        cbind(k, f) ~ x1,
+        single,
+        family = binomial,
+        n.trees = 5L
+      ))
+  )
+}
+# and a fit holding both is not warned
+expect_false(
+  singleText %in%
+    singleWarnings(do.call(
+      dbarts::bart,
+      c(list(cbind(k, f) ~ x1, bnm, family = binomial), fitArgs)
+    ))
+)
+rm(singleText, noSuccesses, noFailures, singleWarnings, single)
+
+# --- dec-B638: new rows carrying both columns, and no weights, draw at them ---
+
+set.seed(13L)
+nRows <- 200L
+rowsData <- data.frame(x1 = runif(nRows))
+rowsData$k <- rbinom(nRows, 10L, 0.75)
+rowsData$f <- 10L - rowsData$k
+newRows <- data.frame(x1 = c(0.2, 0.5, 0.8), k = 30L, f = 70L)
+rowsFit <- quietly(dbarts::bart(
+  cbind(k, f) ~ x1,
+  rowsData,
+  family = binomial,
+  test = newRows,
+  keepTrees = TRUE,
+  n.samples = 200L,
+  n.burn = 100L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  seed = 14L
+))
+set.seed(15L)
+atTrials <- predict(rowsFit, newRows, type = "ppd")
+expect_true(all(atTrials == round(atTrials) & atTrials <= 100))
+expect_true(abs(mean(atTrials) - 75) < 3)
+# stated weights win over the columns
+set.seed(15L)
+stated <- predict(rowsFit, newRows, type = "ppd", weights = 5)
+expect_true(all(stated <= 5) && max(stated) > 1)
+# one column missing, or a missing value in either, gives one trial
+for (partial in list(
+  newRows[c("x1", "k")],
+  newRows[c("x1", "f")],
+  transform(newRows, k = c(30L, NA, 30L)),
+  transform(newRows, f = c(70L, 70L, NA))
+)) {
+  set.seed(15L)
+  oneTrial <- predict(rowsFit, partial, type = "ppd")
+  expect_true(all(oneTrial %in% c(0, 1)))
+}
+# the probabilities do not move
+expect_identical(
+  predict(rowsFit, newRows),
+  predict(rowsFit, newRows["x1"])
+)
+# the same at a fit-time test frame
+set.seed(16L)
+testDraws <- dbarts::extract(rowsFit, type = "ppd", sample = "test")
+expect_true(abs(mean(testDraws) - 75) < 3)
+partialFit <- quietly(dbarts::bart(
+  cbind(k, f) ~ x1,
+  rowsData,
+  family = binomial,
+  test = newRows[c("x1", "k")],
+  n.samples = 20L,
+  n.burn = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  seed = 14L
+))
+set.seed(16L)
+expect_true(all(
+  dbarts::extract(partialFit, type = "ppd", sample = "test") %in% c(0, 1)
+))
+# stated test weights keep dec-B596's meaning, one draw a row
+weightedFit <- quietly(dbarts::bart(
+  cbind(k, f) ~ x1,
+  transform(rowsData, w = 1),
+  family = binomial,
+  test = transform(newRows, w = 2),
+  weights = w,
+  n.samples = 20L,
+  n.burn = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  seed = 14L
+))
+expect_identical(weightedFit$weights.test, c(2, 2, 2))
+set.seed(16L)
+expect_true(all(
+  dbarts::extract(weightedFit, type = "ppd", sample = "test") %in% c(0, 1)
+))
+# columns that are not counts are refused in Refusal 13's words
+expect_identical(
+  refusal(predict(rowsFit, transform(newRows, k = -1L), type = "ppd")),
+  paste0(
+    "'newdata': a binomial response's successes and failures must be ",
+    "non-negative whole numbers; row(s) 1, 2, 3"
+  )
+)
+# a binary fit's newdata is untouched, whatever columns it carries
+binaryRows <- transform(rowsData, y = as.double(k > 7L))
+binaryFit <- quietly(dbarts::bart(
+  y ~ x1,
+  binaryRows,
+  family = binomial,
+  keepTrees = TRUE,
+  n.samples = 20L,
+  n.burn = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  seed = 14L
+))
+set.seed(17L)
+expect_true(all(
+  predict(binaryFit, transform(newRows, y = 5), type = "ppd") %in% c(0, 1)
+))
+rm(nRows, rowsData, newRows, rowsFit, atTrials, stated, partial, oneTrial)
+rm(testDraws, partialFit, weightedFit, binaryRows, binaryFit, refusal)
 
 rm(fit, zeroRows, fitBinomial, quietly, fitArgs, counts, X, trials, bnm, n)
