@@ -1425,8 +1425,10 @@ void testNBinomZeroWeights() {
 }
 
 /// nbinom setWeights draws nothing; with the center re-derived it equals the
-/// sampler created with those counts, draw for draw; and a state round trip
-/// continues to rounding.
+/// sampler created with those counts, draw for draw at the rows in and to
+/// rounding at a row set to 0, which keeps the omega it had and whose working
+/// response feeds only its own fit; and a state round trip continues to
+/// rounding.
 void testNBinomSetWeightsAndState() {
   const std::size_t n = 40, numSamples = 40;
   CountFixture c(n);
@@ -1451,7 +1453,7 @@ void testNBinomSetWeightsAndState() {
   Results ra = da.results(), rc = dc.results();
   bool ran = !changed->run(0, numSamples, ra) &&
              !created->run(0, numSamples, rc);
-  check(ran && da.fits == dc.fits && da.shape == dc.shape,
+  check(ran && agreeOnRowsIn(da.fits, dc.fits, w2, n) && da.shape == dc.shape,
         "frequency nbinom after setWeights and a re-derived center equals the "
         "sampler created with those counts");
 
@@ -1720,12 +1722,20 @@ std::unique_ptr<ConstantLeafSampler> makeBinomialSampler(
 }
 
 /// A binomial row of k successes in n trials against two adjacent binary
-/// rows of weights k (a success) and n - k (a failure), 0 < k < n: the same
-/// unit draws at the same psi, so the fits agree to the association of the
-/// omega sums over 300 sweeps and both runs consume the same variates.
-void testBinomialAgainstSplitRows() {
+/// rows of weights k (a success) and n - k (a failure): the same unit draws
+/// at the same psi, so the fits agree to the association of the omega sums
+/// over 300 sweeps and both runs consume the same variates. With 0 < k < n
+/// throughout (\p interior) every split row is in; otherwise rows of k = 0
+/// and k = n split into a row of weight 0, out of the likelihood and drawing
+/// nothing.
+void testBinomialAgainstSplitRows(bool interior) {
   const std::size_t n = 40, numSamples = 300;
-  BinomialFixture b(n, true);
+  BinomialFixture b(n, interior);
+  std::size_t numNone = 0, numAll = 0;
+  for (std::size_t i = 0; i < n; ++i) {
+    numNone += b.k[i] == 0.0 ? 1 : 0;
+    numAll += b.k[i] == b.trials[i] ? 1 : 0;
+  }
   std::size_t m = 2 * n;
   std::vector<double> xs(m * b.p), ys(m), ws(m);
   for (std::size_t i = 0; i < n; ++i) {
@@ -1753,11 +1763,19 @@ void testBinomialAgainstSplitRows() {
                                       ds.fits[s * m + r]));
   bool sameVariates = ext_rng_simulateContinuousUniform(rngB) ==
                       ext_rng_simulateContinuousUniform(rngS);
-  printf("  binomial row against its split rows: largest gap %.3g over %zu "
-         "sweeps\n", gap, numSamples);
-  check(ran && gap < 1e-10 && sameVariates,
-        "a binomial row equals two rows of weights k and n - k to 1e-10, "
-        "consuming the same variates");
+  printf("  binomial row against its split rows%s: largest gap %.3g over %zu "
+         "sweeps, %zu rows of k = 0, %zu of k = n\n",
+         interior ? "" : " at k = 0 and k = n", gap, numSamples, numNone,
+         numAll);
+  if (interior)
+    check(ran && gap < 1e-10 && sameVariates,
+          "a binomial row equals two rows of weights k and n - k to 1e-10, "
+          "consuming the same variates");
+  else
+    check(ran && gap < 1e-10 && sameVariates && numNone > 0 && numAll > 0,
+          "a binomial row at k = 0 and k = n equals two rows of weights k "
+          "and n - k, the one of weight 0 out, to 1e-10, consuming the same "
+          "variates");
   ext_rng_destroy(rngB);
   ext_rng_destroy(rngS);
 }
@@ -1888,8 +1906,10 @@ void testBinomialLogLikelihood() {
 }
 
 /// A row of no trials and a binomial row of weight 0: finite throughout,
-/// every fit, omega and working response, and the zero-trial row consumes
-/// nothing and reads as a masked row of one trial, bitwise at the rows in.
+/// every fit, omega and working response, the zero-trial row reporting a
+/// log-likelihood of 0 and the row of weight 0, out of the likelihood, NaN;
+/// and the zero-trial row consumes nothing and reads as a masked row of one
+/// trial, bitwise at the rows in.
 void testBinomialZeroRows() {
   const std::size_t n = 40, numSamples = 300;
   BinomialFixture b(n, false);
@@ -1913,7 +1933,7 @@ void testBinomialZeroRows() {
   Results ra = da.results(), rb = db.results();
   ra.shape = rb.shape = nullptr;
   bool ran = !zero->run(0, numSamples, ra) && !masked->run(0, numSamples, rb);
-  bool finite = allFinite(da.fits) && allFinite(da.logLikelihood);
+  bool finite = allFinite(da.fits);
   const double* omega = zero->latents(0);
   const double* working = TestPeer::workingResponse(zero->chain(0));
   for (std::size_t i = 0; i < n; ++i)
@@ -1921,12 +1941,19 @@ void testBinomialZeroRows() {
              std::isfinite(working[i]);
   bool zeroReportsZero = true;
   for (std::size_t s = 0; s < numSamples; ++s)
-    for (std::size_t i = 0; i < n; ++i)
-      if (nZero[i] == 0.0 || wZero[i] == 0.0)
-        zeroReportsZero = zeroReportsZero && da.logLikelihood[s * n + i] == 0.0;
+    for (std::size_t i = 0; i < n; ++i) {
+      double ll = da.logLikelihood[s * n + i];
+      if (wZero[i] == 0.0)
+        zeroReportsZero = zeroReportsZero && std::isnan(ll);
+      else if (nZero[i] == 0.0)
+        zeroReportsZero = zeroReportsZero && ll == 0.0;
+      else
+        zeroReportsZero = zeroReportsZero && std::isfinite(ll);
+    }
   check(ran && finite && zeroReportsZero,
         "a binomial row of no trials and one of weight 0 are finite "
-        "throughout, each reporting a log-likelihood of 0");
+        "throughout, the first reporting a log-likelihood of 0 and the "
+        "second NaN");
   check(agreeOnRowsIn(da.fits, db.fits, mask, n) &&
           ext_rng_simulateContinuousUniform(rngA) ==
             ext_rng_simulateContinuousUniform(rngB),
@@ -2313,7 +2340,8 @@ void runFrequencyTests() {
   testMultinomialAgainstExpansion(false);
   testMultinomialAgainstExpansion(true);
   testMultinomialZeroWeightsAndState();
-  testBinomialAgainstSplitRows();
+  testBinomialAgainstSplitRows(true);
+  testBinomialAgainstSplitRows(false);
   testBinomialScaledAndBinary();
   testBinomialLogLikelihood();
   testBinomialZeroRows();

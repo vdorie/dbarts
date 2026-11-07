@@ -4848,8 +4848,8 @@ public:
 
   /// Per-observation precisions the engine weights tree updates by: the
   /// fixed user weights for gaussian, the current Polya-Gamma draws for
-  /// logistic, null (unit weights) for probit. Refreshed alongside the
-  /// working response.
+  /// logistic, the 0/1 membership or null (unit weights) for probit.
+  /// Refreshed alongside the working response.
   virtual const double* workingWeights() const = 0;
 
   /// The weight row i carries in the likelihood as the caller gave it, and 0
@@ -5602,15 +5602,70 @@ private:
   ChiSquaredScalePrior sigmaSqPrior_;
 };
 
-/// Weights are deliberately unsupported: weighted probit has no exact
-/// latent-variable form, so latent draws are unweighted by design. The
-/// pre-1.0 engine instead scaled the latents by 1 / sqrt(w), which is not a
-/// coherent weighted-likelihood model; that scaling was dropped.
+/// A latent family's membership: the caller's 0/1 weights, borrowed, and the
+/// active-row mask, held, composed into the rows in, a row in when its weight
+/// is 1 and the mask keeps it. The composition is the precision vector those
+/// families serve, w_i a_i; empty, the unit-weight fused path, when every row
+/// is in, so that a composition of all ones is the same object as none. The
+/// host holds the weights to 0 and 1.
+class Membership {
+public:
+  void setWeights(const double* weights) {
+    weights_ = weights;
+    compose();
+  }
+  void setMask(const double* active) {
+    if (active == nullptr) mask_.clear();
+    else mask_.assign(active, active + numObservations_);
+    compose();
+  }
+  /// New rows: the weights in force and the mask cleared, the number of rows
+  /// possibly changing.
+  void reset(const double* weights, std::size_t numObservations) {
+    weights_ = weights;
+    numObservations_ = numObservations;
+    mask_.clear();
+    compose();
+  }
+  /// w_i a_i, or null when every row is in.
+  const double* served() const { return in_.empty() ? nullptr : in_.data(); }
+  double at(std::size_t i) const { return in_.empty() ? 1.0 : in_[i]; }
+  bool isIn(std::size_t i) const { return in_.empty() || in_[i] != 0.0; }
+
+private:
+  void compose() {
+    in_.clear();
+    std::size_t i = 0;
+    while (i < numObservations_ && weightAt(i) * maskAt(i) != 0.0) ++i;
+    if (i == numObservations_) return;
+    in_.resize(numObservations_);
+    for (i = 0; i < numObservations_; ++i) in_[i] = weightAt(i) * maskAt(i);
+  }
+  double weightAt(std::size_t i) const {
+    return weights_ != nullptr ? weights_[i] : 1.0;
+  }
+  double maskAt(std::size_t i) const {
+    return mask_.empty() ? 1.0 : mask_[i];
+  }
+
+  const double* weights_ = nullptr;  // borrowed, 0/1
+  std::size_t numObservations_ = 0;
+  std::vector<double> mask_;         // the 0/1 mask; empty when none
+  std::vector<double> in_;           // w_i a_i; empty when every row is in
+};
+
+/// Weights other than 0 and 1 are deliberately unsupported: weighted probit
+/// has no exact latent-variable form, so latent draws are unweighted by
+/// design; 0/1 weights are membership, composed with the mask. The pre-1.0
+/// engine instead scaled the latents by 1 / sqrt(w), which is not a coherent
+/// weighted-likelihood model; that scaling was dropped.
 class ProbitResponse final : public ResponseModel {
 public:
   ProbitResponse(const double* y, const double* offset,
-                 std::size_t numObservations)
+                 std::size_t numObservations,
+                 const double* weights = nullptr)
     : y_(y), offset_(offset), numObservations_(numObservations) {
+    membership_.reset(weights, numObservations);
     latents_.resize(numObservations);
     working_.resize(numObservations);
     // z = 2 y - 1: -1 for failures, 1 for successes.
@@ -5621,13 +5676,13 @@ public:
   }
 
   double* workingResponse() override { return working_.data(); }
-  /// The 0/1 mask IS the precision vector here (probit carries no user
-  /// weights), and null - the unit-weight fused path - when none is installed.
+  /// The composed 0/1 membership IS the precision vector here, and null - the
+  /// unit-weight fused path - when every row is in.
   const double* workingWeights() const override {
-    return activeRows_.empty() ? nullptr : activeRows_.data();
+    return membership_.served();
   }
   double caseWeight(std::size_t i) const override {
-    return activeRows_.empty() ? 1.0 : activeRows_[i];
+    return membership_.at(i);
   }
   const double* offset() const override { return offset_; }
 
@@ -5640,7 +5695,7 @@ public:
   void refreshLatents(ext_rng* rng, const double* totalFits,
                       double) override {
     for (std::size_t i = 0; i < numObservations_; ++i) {
-      if (!activeRows_.empty() && activeRows_[i] == 0.0) continue;
+      if (!membership_.isIn(i)) continue;
       double mean = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
       double sign = 2.0 * y_[i] - 1.0;
       double z =
@@ -5653,9 +5708,15 @@ public:
   bool supportsActiveRows() const override { return true; }
 
   bool setActiveRows(const double* active) override {
-    if (active == nullptr) activeRows_.clear();
-    else activeRows_.assign(active, active + numObservations_);
+    membership_.setMask(active);
     return true;
+  }
+
+  /// The 0/1 weights compose with the mask in force; z keeps its value, so a
+  /// row the composition brings back draws nothing here and the next sweep
+  /// draws its latent first.
+  void setWeights(const double* weights) override {
+    membership_.setWeights(weights);
   }
 
   double drawSigma(ext_rng*, const double*, double sigma) override {
@@ -5671,12 +5732,13 @@ public:
     rebuildWorking();
   }
 
-  void setData(const double* y, const double* offset, const double*,
+  void setData(const double* y, const double* offset, const double* weights,
                std::size_t numObservations, double*) override {
     y_ = y;
     offset_ = offset;
     numObservations_ = numObservations;
-    activeRows_.clear();  // length-n and n may have changed
+    // the new weights, and the mask cleared: length-n and n may have changed
+    membership_.reset(weights, numObservations);
     latents_.resize(numObservations);
     working_.resize(numObservations);
     // cold init, z = 2 y - 1
@@ -5698,7 +5760,7 @@ public:
   /// latent is not in the model and keeps its value.
   bool scaleLatents(double factor) override {
     for (std::size_t i = 0; i < numObservations_; ++i)
-      if (activeRows_.empty() || activeRows_[i] != 0.0) latents_[i] *= factor;
+      if (membership_.isIn(i)) latents_[i] *= factor;
     rebuildWorking();
     return true;
   }
@@ -5710,13 +5772,14 @@ public:
 
   /// log dbinom(y_i, 1, Phi(eta_i)) with eta the latent location f(x) + offset,
   /// via the stable log lower/upper normal tail: log Phi(eta) for a success,
-  /// log Phi(-eta) for a failure. An inactive row is not in the model, so its
-  /// entry is NaN rather than the finite value its fit would still give.
+  /// log Phi(-eta) for a failure. A row out, of weight 0 or masked, is not
+  /// in the model, so its entry is NaN rather than the finite value its fit
+  /// would still give.
   void computeLogLikelihood(const double* totalFits, double,
                             std::size_t numObservations,
                             double* out) const override {
     for (std::size_t i = 0; i < numObservations; ++i) {
-      if (!activeRows_.empty() && activeRows_[i] == 0.0) {
+      if (!membership_.isIn(i)) {
         out[i] = std::numeric_limits<double>::quiet_NaN();
         continue;
       }
@@ -5736,7 +5799,7 @@ private:
   const double* y_;
   const double* offset_;
   std::size_t numObservations_;
-  std::vector<double> activeRows_;  // the 0/1 mask, served as the weights
+  Membership membership_;  // the weights and mask, served as the weights
   std::vector<double> latents_;
   std::vector<double> working_;
 };
@@ -5754,14 +5817,17 @@ private:
 /// working = latents - offset, unit working weights, and fixed sigma; the
 /// boundary categories route through the same one-sided truncation primitives and
 /// NaN fallback probit uses, keeping the K = 2 rng stream bitwise identical.
-/// Weights are unsupported for probit's reason (no coherent weighted latent
-/// likelihood); the host refuses them.
+/// Weights other than 0 and 1 are unsupported for probit's reason (no
+/// coherent weighted latent likelihood), and 0/1 weights are membership, as
+/// for probit.
 class OrdinalResponse final : public ResponseModel {
 public:
   OrdinalResponse(const double* y, const double* offset,
-                  std::size_t numObservations, std::size_t numCategories)
+                  std::size_t numObservations, std::size_t numCategories,
+                  const double* weights = nullptr)
     : y_(y), offset_(offset), numObservations_(numObservations),
       numCategories_(numCategories) {
+    membership_.reset(weights, numObservations);
     latents_.resize(numObservations);
     working_.resize(numObservations);
     gamma_.resize(numCategories - 1);
@@ -5773,13 +5839,13 @@ public:
   }
 
   double* workingResponse() override { return working_.data(); }
-  /// As probit: the 0/1 mask is the precision vector, null when none is
-  /// installed.
+  /// As probit: the composed 0/1 membership is the precision vector, null
+  /// when every row is in.
   const double* workingWeights() const override {
-    return activeRows_.empty() ? nullptr : activeRows_.data();
+    return membership_.served();
   }
   double caseWeight(std::size_t i) const override {
-    return activeRows_.empty() ? 1.0 : activeRows_[i];
+    return membership_.at(i);
   }
   const double* offset() const override { return offset_; }
 
@@ -5796,10 +5862,16 @@ public:
   /// a function of the category counts - is recomputed here; the target
   /// (ordinalThresholdLogAcceptance) reads the mask directly.
   bool setActiveRows(const double* active) override {
-    if (active == nullptr) activeRows_.clear();
-    else activeRows_.assign(active, active + numObservations_);
+    membership_.setMask(active);
     computeScales();
     return true;
+  }
+
+  /// The 0/1 weights compose with the mask in force, and the proposal scale
+  /// follows the rows in, as at setActiveRows; no latent is drawn here.
+  void setWeights(const double* weights) override {
+    membership_.setWeights(weights);
+    computeScales();
   }
 
   double drawSigma(ext_rng*, const double*, double sigma) override {
@@ -5822,12 +5894,13 @@ public:
   /// Data swap: keep the cutpoints, whose number is the sampler's whatever
   /// categories the new data hold, and start z at a deterministic point in
   /// each category interval under them, as creation does.
-  void setData(const double* y, const double* offset, const double*,
+  void setData(const double* y, const double* offset, const double* weights,
                std::size_t numObservations, double*) override {
     y_ = y;
     offset_ = offset;
     numObservations_ = numObservations;
-    activeRows_.clear();  // length-n and n may have changed
+    // the new weights, and the mask cleared: length-n and n may have changed
+    membership_.reset(weights, numObservations);
     latents_.resize(numObservations);
     working_.resize(numObservations);
     computeScales();
@@ -5888,11 +5961,9 @@ private:
 
   int category(std::size_t i) const { return static_cast<int>(y_[i]); }
 
-  /// Whether row i is in the data set this sweep; true throughout when no
-  /// mask is installed.
-  bool isActive(std::size_t i) const {
-    return activeRows_.empty() || activeRows_[i] != 0.0;
-  }
+  /// Whether row i is in the data set this sweep, of weight 1 and kept by
+  /// the mask; true throughout when every row is in.
+  bool isActive(std::size_t i) const { return membership_.isIn(i); }
 
   static double Phi(double x) { return ext_pnorm(x, 0.0, 1.0, 1, 0); }
 
@@ -6046,7 +6117,7 @@ private:
   std::size_t numCategories_;
   std::vector<double> gamma_;          // finite cutpoints gamma_1..gamma_{K-1}
   std::vector<double> proposalScale_;  // per free cutpoint; index 0 unused
-  std::vector<double> activeRows_;     // the 0/1 mask, served as the weights
+  Membership membership_;  // the weights and mask, served as the weights
   std::vector<double> latents_;
   std::vector<double> working_;
 };
@@ -6069,8 +6140,9 @@ private:
 /// one, operand for operand.
 class LogisticResponse final : public ResponseModel {
 public:
-  /// weights are observation counts (positive integers) or null for unit
-  /// weights; the host validates integrality. A count-w observation's
+  /// weights are observation counts (whole, a 0 the row out of the
+  /// likelihood as the mask leaves it) or null for unit weights; the host
+  /// validates integrality. A count-w observation's
   /// Polya-Gamma latent is PG(w, psi), drawn exactly as the sum of w
   /// independent PG(1, psi) variates, so null weights reproduce the
   /// unweighted stream bit for bit. trials, where not null, are the binomial
@@ -6082,11 +6154,9 @@ public:
       numObservations_(numObservations) {
     omega_.resize(numObservations);
     working_.resize(numObservations);
-    if (trials_ != nullptr) {
-      computeLogChoose();
-      composeRowsIn();
-    }
+    if (trials_ != nullptr) computeLogChoose();
     coldStart();
+    composeRowsIn();
   }
 
   double* workingResponse() override { return working_.data(); }
@@ -6143,10 +6213,9 @@ public:
 
   bool supportsActiveRows() const override { return true; }
 
-  /// The mask is NOT redundant with the count weights: a zero count is refused
-  /// at creation and at a count change, and a zero-count row would still
-  /// consume one PG variate here. A binomial row of zero trials stays out
-  /// whatever the mask.
+  /// The mask composes with the counts: a row is in when the mask keeps it
+  /// and its count is positive, so a row of count 0, like a binomial row of
+  /// zero trials, stays out whatever the mask and consumes no variate.
   bool setActiveRows(const double* active) override {
     if (active == nullptr) activeRows_.clear();
     else activeRows_.assign(active, active + numObservations_);
@@ -6169,9 +6238,12 @@ public:
   }
 
   /// The counts are the Polya-Gamma shape; an omega drawn under the old ones
-  /// stands until the next sweep draws it as PG(w n, psi) under these.
+  /// stands until the next sweep draws it as PG(w n, psi) under these. The
+  /// rows of count 0 are recomposed out, and a row a positive count brings
+  /// back draws nothing here.
   void setWeights(const double* weights) override {
     weights_ = weights;
+    composeRowsIn();
     rebuildWorking();
   }
 
@@ -6215,6 +6287,7 @@ public:
     omega_.resize(numObservations);
     working_.resize(numObservations);
     coldStart();
+    composeRowsIn();
   }
 
   const double* latents() const override { return omega_.data(); }
@@ -6238,14 +6311,15 @@ public:
   /// and w_i the integer trial count (1 unweighted): -log(1 + exp(-eta)) for a
   /// success, -log(1 + exp(eta)) for a failure. A binomial row reports
   /// w_i log dbinom(k_i, n_i, plogis(eta_i)), its log choose constant
-  /// included, and a row of zero trials 0. A row the mask leaves out is not
-  /// in the model, so its entry is NaN rather than the value its fit would
-  /// give.
+  /// included, and a row of zero trials 0. A row the mask or a count of 0
+  /// leaves out is not in the model, so its entry is NaN rather than the
+  /// value its fit would give.
   void computeLogLikelihood(const double* totalFits, double,
                             std::size_t numObservations,
                             double* out) const override {
     for (std::size_t i = 0; i < numObservations; ++i) {
-      if (!activeRows_.empty() && activeRows_[i] == 0.0) {
+      if ((!activeRows_.empty() && activeRows_[i] == 0.0) ||
+          (weights_ != nullptr && weights_[i] == 0.0)) {
         out[i] = std::numeric_limits<double>::quiet_NaN();
         continue;
       }
@@ -6261,9 +6335,9 @@ public:
   }
 
 private:
-  /// Whether row i is in the data set this sweep: kept by the mask and, on a
-  /// binomial response, of at least one trial; true throughout when neither
-  /// leaves a row out.
+  /// Whether row i is in the data set this sweep: kept by the mask, of a
+  /// positive count and, on a binomial response, of at least one trial; true
+  /// throughout when none leaves a row out.
   bool isActive(std::size_t i) const {
     return rowsIn_.empty() || rowsIn_[i] != 0.0;
   }
@@ -6278,10 +6352,14 @@ private:
     return std::lround(shape);
   }
 
-  /// w (y - n / 2), n = 1 on a binary response.
+  /// w (y - n / 2), n = 1 on a binary response. A row of count 0, out of
+  /// the likelihood, is stated at a count of 1, so its working response is
+  /// the one a masked row of count 1 holds and its fitted value is bitwise
+  /// that row's.
   double kappa(std::size_t i) const {
     double half = trials_ != nullptr ? 0.5 * trials_[i] : 0.5;
-    double weight = weights_ != nullptr ? weights_[i] : 1.0;
+    double weight =
+      weights_ != nullptr && weights_[i] != 0.0 ? weights_[i] : 1.0;
     return weight * (y_[i] - half);
   }
 
@@ -6292,22 +6370,29 @@ private:
       logChoose_[i] = ext_lchoose(trials_[i], y_[i]);
   }
 
-  /// The rows in: the mask, less a binomial response's rows of zero trials;
-  /// empty where neither leaves a row out.
+  /// The rows in: the mask, less the rows of count 0 and a binomial
+  /// response's rows of zero trials; empty where none leaves a row out.
   void composeRowsIn() {
     rowsIn_ = activeRows_;
-    if (trials_ != nullptr) {
+    if (trials_ != nullptr || weights_ != nullptr) {
       std::size_t i = 0;
-      while (i < numObservations_ && trials_[i] != 0.0) ++i;
+      while (i < numObservations_ && !lacksUnits(i)) ++i;
       if (i < numObservations_) {
         if (rowsIn_.empty()) rowsIn_.assign(numObservations_, 1.0);
         for (; i < numObservations_; ++i)
-          if (trials_[i] == 0.0) rowsIn_[i] = 0.0;
+          if (lacksUnits(i)) rowsIn_[i] = 0.0;
       }
     }
     if (rowsIn_.empty()) return;
     composite_.resize(numObservations_);
     recompose();
+  }
+
+  /// Whether row i stands for no single-trial observation: a count of 0 or,
+  /// on a binomial response, zero trials.
+  bool lacksUnits(std::size_t i) const {
+    return (weights_ != nullptr && weights_[i] == 0.0) ||
+           (trials_ != nullptr && trials_[i] == 0.0);
   }
 
   /// c_i = a_i omega_i, the served precisions while a row is out; a no-op
@@ -6321,15 +6406,16 @@ private:
   /// Deterministic cold start, the analog of probit's z = 2 y - 1: omega
   /// at PG(w, 0)'s mean of w/4, so the working response starts at
   /// 4 (y - 1/2) - offset independent of the weight; real draws replace it
-  /// after the first tree sweep. A binomial row starts at PG(w n, 0)'s mean,
-  /// at least a quarter, and at 4 (k / n - 1/2) - offset, a row of zero
-  /// trials at -2 - offset: positive and finite though out of the
-  /// likelihood.
+  /// after the first tree sweep. A row of count 0 starts at a quarter,
+  /// positive and finite though out of the likelihood. A binomial row starts
+  /// at PG(w n, 0)'s mean, at least a quarter, and at 4 (k / n - 1/2) -
+  /// offset, a row of zero trials at -2 - offset.
   void coldStart() {
     for (std::size_t i = 0; i < numObservations_; ++i) {
       double offset = offset_ != nullptr ? offset_[i] : 0.0;
       if (trials_ == nullptr) {
-        omega_[i] = 0.25 * (weights_ != nullptr ? weights_[i] : 1.0);
+        omega_[i] =
+          0.25 * std::max(weights_ != nullptr ? weights_[i] : 1.0, 1.0);
         working_[i] = 4.0 * (y_[i] - 0.5) - offset;
         continue;
       }
@@ -6355,7 +6441,7 @@ private:
   const double* trials_;  // a binomial response's, null for a binary one
   std::size_t numObservations_;
   std::vector<double> activeRows_;  // the 0/1 mask; empty when none
-  std::vector<double> rowsIn_;      // the mask less zero-trial rows
+  std::vector<double> rowsIn_;      // the mask less rows of no units
   std::vector<double> composite_;   // c_i = a_i omega_i, served while out
   std::vector<double> logChoose_;   // log choose(n_i, k_i), binomial only
   std::vector<double> omega_;
@@ -7353,11 +7439,11 @@ public:
       numObservations_(numObservations), estimateR_(!(shape > 0.0)),
       r_(estimateR_ ? NBShapePrior::grid[NBShapePrior::medianIndex]
                     : shape),
-      logR_(std::log(r_)),
-      shift_(computeShift(y, offset, numObservations, nullptr, weights)) {
+      logR_(std::log(r_)), shift_(0.0) {
     omega_.resize(numObservations);
     working_.resize(numObservations);
     composeRowsIn();
+    shift_ = deriveShift();
     rPrior_.computeKernel(y, numObservations, rowsInPointer(), weights_);
     coldStart();
   }
@@ -7485,9 +7571,7 @@ public:
     omega_.resize(numObservations);
     working_.resize(numObservations);
     composeRowsIn();
-    shift_ = held != nullptr
-      ? *held
-      : computeShift(y, offset, numObservations, nullptr, weights);
+    shift_ = held != nullptr ? *held : deriveShift();
     rPrior_.computeKernel(y, numObservations, rowsInPointer(), weights_);
     coldStart();
   }
@@ -7576,17 +7660,19 @@ public:
   /// all n rows; a null offset sums to n. The floor keeps an all-zero response
   /// finite. A non-null \p active restricts both sums to the rows it keeps,
   /// in a loop of its own, and non-null \p counts weight each row's terms by
-  /// its count, in another.
+  /// its count, in another, a count of 0 read as 1 under \p zeroAsOne.
   static double computeShift(const double* y, const double* offset,
                              std::size_t numObservations,
                              const double* active = nullptr,
-                             const double* counts = nullptr) {
+                             const double* counts = nullptr,
+                             bool zeroAsOne = false) {
     double total = 0.0, exposure = 0.0;
     if (counts != nullptr) {
       for (std::size_t i = 0; i < numObservations; ++i) {
         if (active != nullptr && active[i] == 0.0) continue;
-        total += counts[i] * y[i];
-        exposure += counts[i] * (offset != nullptr ? std::exp(offset[i]) : 1.0);
+        double count = zeroAsOne && counts[i] == 0.0 ? 1.0 : counts[i];
+        total += count * y[i];
+        exposure += count * (offset != nullptr ? std::exp(offset[i]) : 1.0);
       }
       return std::log(std::max(total, 0.5) / exposure);
     }
@@ -7651,13 +7737,15 @@ private:
     return anyOut && !(max > min);
   }
 
-  /// c re-derived from the response, offset and counts in force: over the
-  /// rows kept, or over every row at its count where none is left out or the
-  /// rows kept hold fewer than two distinct counts.
+  /// c derived from the response, offset and counts in force over the rows
+  /// kept, at their counts. Where the rows kept hold fewer than two distinct
+  /// counts it is read from every row, a row of count 0 as one of count 1,
+  /// so that 0/1 counts give what a mask leaving the same rows out does.
   double deriveShift() const {
+    bool fallBack = lacksDistinctCounts(y_);
     return computeShift(y_, offset_, numObservations_,
-                        lacksDistinctCounts(y_) ? nullptr : rowsInPointer(),
-                        weights_);
+                        fallBack ? nullptr : rowsInPointer(), weights_,
+                        fallBack);
   }
 
   /// a_i = offset_i + c - log r, what the trees' working response is shifted
@@ -7678,10 +7766,14 @@ private:
       composite_[i] = rowsIn_[i] * omega_[i];
   }
 
-  /// kappa_i = w_i (y_i - r)/2, the copies' sum.
+  /// kappa_i = w_i (y_i - r)/2, the copies' sum. A row of count 0, out of
+  /// the likelihood, is stated at a count of 1, so its working response is
+  /// the one a masked row holds and its fitted value is bitwise the masked
+  /// row's.
   double kappa(std::size_t i) const {
     double half = 0.5 * (y_[i] - r_);
-    return weights_ != nullptr ? weights_[i] * half : half;
+    return weights_ != nullptr && weights_[i] != 0.0 ? weights_[i] * half
+                                                     : half;
   }
 
   /// z_i = kappa_i / omega_i - a_i from the omega in place, every row.

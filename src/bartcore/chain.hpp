@@ -1107,7 +1107,8 @@ public:
 
     switch (family) {
     case ResponseFamily::probit:
-      response_ = std::make_unique<ProbitResponse>(y, offset, numObservations);
+      response_ = std::make_unique<ProbitResponse>(y, offset, numObservations,
+                                                   weights);
       break;
     case ResponseFamily::logistic:
       response_ = std::make_unique<LogisticResponse>(
@@ -1136,7 +1137,8 @@ public:
       // y holds one-based category indices in {1..K}; a ConstantGaussianLeaf
       // single-forest model like probit, sigma fixed at 1
       response_ = std::make_unique<OrdinalResponse>(y, offset, numObservations,
-                                                    options.numCategories);
+                                                    options.numCategories,
+                                                    weights);
       break;
     case ResponseFamily::nbinom:
       // y holds non-negative counts; the forest fits the log-odds latent under
@@ -1286,7 +1288,8 @@ public:
     switch (spec.family) {
     case ResponseFamily::probit:
       response_ =
-        std::make_unique<ProbitResponse>(y, offset, data.numObservations);
+        std::make_unique<ProbitResponse>(y, offset, data.numObservations,
+                                         weights);
       break;
     case ResponseFamily::logistic:
       response_ = std::make_unique<LogisticResponse>(
@@ -8972,9 +8975,10 @@ private:
   /// Under gaussian the rows the response's range was read from, every row
   /// where it read them all; that is a fallback where a row is out and the
   /// rows in hold fewer than two distinct values (dec-B302, dec-B309). Under
-  /// probit and logistic, which read no rows of their own, the rows the
-  /// active-row mask \p spec hands keeps in, every row where it keeps fewer
-  /// than two of more than one, as a leaf covariate reads them
+  /// probit and logistic, which read no rows of their own, the rows of
+  /// positive weight the active-row mask \p spec hands keeps in, every row
+  /// where those are fewer than two of more than one, as a leaf covariate
+  /// reads them
   /// (Sampler::leafRowsFrom). Under precision nothing reads the weights'
   /// sizes; under frequency every row read is read at its count, with or
   /// without a mask.
@@ -8989,13 +8993,19 @@ private:
       // a binomial row of no trials is out of the likelihood, as a masked one
       const double* trialCounts =
         trialCounts_.empty() ? nullptr : trialCounts_.data();
-      if (spec.activeRows == nullptr && trialCounts == nullptr) return result;
+      bool weightLeavesOut = false;
+      for (std::size_t i = 0; weights_ != nullptr && i < n; ++i)
+        weightLeavesOut = weightLeavesOut || !(weights_[i] > 0.0);
+      if (spec.activeRows == nullptr && trialCounts == nullptr &&
+          !weightLeavesOut)
+        return result;
       result.rows.resize(n);
       std::size_t numIn = 0;
       for (std::size_t i = 0; i < n; ++i) {
         result.rows[i] =
           (spec.activeRows == nullptr || spec.activeRows[i] != 0.0) &&
-          (trialCounts == nullptr || trialCounts[i] > 0.0);
+          (trialCounts == nullptr || trialCounts[i] > 0.0) &&
+          (weights_ == nullptr || weights_[i] > 0.0);
         numIn += result.rows[i] != 0 ? 1 : 0;
       }
       if (numIn == 0 || (numIn == 1 && n > 1)) {
