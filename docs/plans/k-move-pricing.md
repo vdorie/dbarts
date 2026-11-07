@@ -710,8 +710,9 @@ amendment before dec-B621 (37 expected, 43 with step 3, 56 at most), step 2's fi
 about 17.5, with the burn-in-only arm dropped (dec-B621), and the convergence measure adds about 8 expected and 23
 at most (dec-B622); its rebuild from published readings (dec-B633) keeps its streams and changes only the
 twentieth chain, 5 percent of its compute (8.2 against 7.8 expected, 23.3 against 22.1 at most). The stop is 66,
-1.5 times the expected total with step 3. Under it, cuts go in this order: the convergence measure's second looks, the dispersed start's long streams, the contingent arm's thin to its pilot's
-T, S3 to its first look, the other step 2 regimes to their first looks, R3 to its first 8 datasets in score order.
+1.5 times the expected total with step 3. Under it, cuts go in this order: the convergence measure's second
+looks, the dispersed start's long streams, the contingent arm's thin to its pilot's T, S3 to its first look, the
+other step 2 regimes to their first looks, R3 to its first 8 datasets in score order.
 A smaller design, B at 100 a regime and S2 at 200 (about 7 core-hours less), would resolve B's classes at a true 0
 only about 50 to 60 percent of the time and S2's interior per fit 25 percent, so more classes would reach the
 maintainer unresolved.
