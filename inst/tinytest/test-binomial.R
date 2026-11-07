@@ -670,20 +670,84 @@ expect_true(abs(mean(atTrials) - 75) < 3)
 set.seed(15L)
 stated <- predict(rowsFit, newRows, type = "ppd", weights = 5)
 expect_true(all(stated <= 5) && max(stated) > 1)
-# one column missing, or a missing value in either, gives one trial, the
-# column not looked for outside newdata
+# one column missing gives one trial, the column not looked for outside
+# newdata, as does a pair missing in every row (dec-B641)
 f <- c(70L, 70L, 70L)
 for (partial in list(
   newRows[c("x1", "k")],
   newRows[c("x1", "f")],
-  transform(newRows, k = c(30L, NA, 30L)),
-  transform(newRows, f = c(70L, 70L, NA))
+  transform(newRows, k = NA_integer_),
+  transform(newRows, k = c(30L, NA, NA), f = c(NA, 70L, 70L))
 )) {
   set.seed(15L)
   oneTrial <- predict(rowsFit, partial, type = "ppd")
   expect_true(all(oneTrial %in% c(0, 1)))
 }
 rm(f)
+# a pair with some values missing is refused by default, naming the columns
+# and the remedies, as a missing weight is (dec-B641)
+gapRows <- transform(newRows, k = c(30L, NA, 30L))
+expect_identical(
+  refusal(predict(rowsFit, gapRows, type = "ppd")),
+  paste0(
+    "the response columns 'k' and 'f' have missing values; use na.action = ",
+    "na.pass to return NA for them, or na.omit to drop them, or state the ",
+    "trials in 'weights'"
+  )
+)
+expect_identical(
+  refusal(predict(
+    rowsFit,
+    transform(newRows, f = c(70L, 70L, NA)),
+    type = "ppd",
+    na.action = na.fail
+  )),
+  paste0(
+    "the response columns 'k' and 'f' have missing values, which ",
+    "na.action = na.fail refuses"
+  )
+)
+# na.pass gives the row NA draws and na.omit drops it, the other rows drawing
+# at their trials, as both treat a missing weight and a predictor without a
+# route: a row missing x1, which had no missing values when the trees were
+# grown, takes the same answer beside it
+set.seed(15L)
+passed <- predict(rowsFit, gapRows, type = "ppd", na.action = na.pass)
+expect_identical(dim(passed), c(200L, 3L))
+expect_true(all(is.na(passed[, 2L])))
+expect_true(abs(mean(passed[, -2L]) - 75) < 3)
+set.seed(15L)
+weightGap <- predict(
+  rowsFit,
+  newRows,
+  type = "ppd",
+  weights = c(100, NA, 100),
+  na.action = na.pass
+)
+expect_identical(is.na(passed), is.na(weightGap))
+set.seed(15L)
+omitted <- predict(rowsFit, gapRows, type = "ppd", na.action = na.omit)
+expect_identical(dim(omitted), c(200L, 2L))
+expect_true(abs(mean(omitted) - 75) < 3)
+bothGaps <- transform(gapRows, x1 = c(NA, 0.5, 0.8))
+expect_identical(
+  dim(predict(rowsFit, bothGaps, type = "ppd", na.action = na.omit)),
+  c(200L, 1L)
+)
+expect_identical(
+  colSums(is.na(predict(rowsFit, bothGaps, type = "ppd", na.action = na.pass))),
+  c(`1` = 200, `2` = 200, `3` = 0)
+)
+# stated weights stand in for a missing count, and a type that draws nothing
+# reads no counts
+set.seed(15L)
+expect_true(all(
+  predict(rowsFit, gapRows, type = "ppd", weights = 5) <= 5
+))
+expect_identical(
+  predict(rowsFit, gapRows),
+  predict(rowsFit, newRows["x1"])
+)
 # the probabilities do not move
 expect_identical(
   predict(rowsFit, newRows),
@@ -709,6 +773,42 @@ set.seed(16L)
 expect_true(all(
   dbarts::extract(partialFit, type = "ppd", sample = "test") %in% c(0, 1)
 ))
+# a test frame's pair missing in every row reads as absent, and one with some
+# values missing is refused before the run (dec-B641)
+absentFit <- quietly(dbarts::bart(
+  cbind(k, f) ~ x1,
+  rowsData,
+  family = binomial,
+  test = transform(newRows, k = NA_integer_),
+  n.samples = 20L,
+  n.burn = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  seed = 14L
+))
+expect_null(absentFit$trials.test)
+set.seed(16L)
+expect_true(all(
+  dbarts::extract(absentFit, type = "ppd", sample = "test") %in% c(0, 1)
+))
+expect_identical(
+  refusal(dbarts::bart(
+    cbind(k, f) ~ x1,
+    rowsData,
+    family = binomial,
+    test = gapRows,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  )),
+  paste0(
+    "'test': the response columns 'k' and 'f' have missing values; state ",
+    "the test rows' trials as weights, or drop those rows from 'test'"
+  )
+)
 # stated test weights keep dec-B596's meaning, one draw a row
 weightedFit <- quietly(dbarts::bart(
   cbind(k, f) ~ x1,
@@ -773,6 +873,22 @@ expect_true(all(
   predict(binaryFit, transform(newRows, y = 5), type = "ppd") %in% c(0, 1)
 ))
 rm(nRows, rowsData, newRows, rowsFit, atTrials, stated, partial, oneTrial)
-rm(testDraws, partialFit, weightedFit, binaryRows, binaryFit, refusal)
+rm(gapRows, passed, weightGap, omitted, bothGaps, absentFit)
+rm(testDraws, partialFit, weightedFit, binaryRows, binaryFit)
+
+# --- call 84: a data frame as the matrix interface's response is refused,
+# naming cbind() and a matrix ---
+
+for (entry in list(dbarts::bart, dbarts::xbart, dbarts::dbarts)) {
+  expect_identical(
+    refusal(entry(X, data.frame(k = bnm$k, f = bnm$f), family = binomial)),
+    paste0(
+      "'y' is a data frame; give the response as a vector, or counts such ",
+      "as a binomial's successes and failures as a matrix, ",
+      "cbind(successes, failures) or as.matrix(y)"
+    )
+  )
+}
+rm(entry, refusal)
 
 rm(fit, zeroRows, fitBinomial, quietly, fitArgs, counts, X, trials, bnm, n)
