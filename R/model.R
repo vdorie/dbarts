@@ -2832,10 +2832,19 @@ cgm <- function(power = 2, base = 0.95, split.probs = NULL) {
   if (length(split.probs) > 0L && !is.numeric(split.probs)) {
     stop("'split.probs' must be numeric")
   }
-  # one probability per column, or a named set of them: a matrix states
-  # neither, and its slot would refuse it with R's own message
-  if (!is.null(dim(split.probs))) {
-    stop("'split.probs' must be a vector, not a matrix or an array")
+  # one probability per column, or a named set of them: a matrix or array
+  # with at most one dimension longer than 1 is that vector in another shape,
+  # named by that dimension's names; any other states neither, and its slot
+  # would refuse it with R's own message
+  dims <- dim(split.probs)
+  if (!is.null(dims)) {
+    long <- which(dims > 1L)
+    if (length(long) > 1L) {
+      stop("'split.probs' must be a vector, not a matrix or an array")
+    }
+    labels <- if (length(long) == 1L) dimnames(split.probs)[[long]]
+    split.probs <- as.vector(split.probs)
+    names(split.probs) <- labels
   }
   result@splitProbabilitiesSpec <- split.probs
   result

@@ -377,10 +377,44 @@ expect_error(
   "'alpha' must be a single positive finite number",
   fixed = TRUE
 )
-# a matrix of split probabilities is refused in one line naming the argument
+# a matrix or array with at most one dimension longer than 1 is the vector it
+# holds, named by that dimension's names; any other is refused in one line
+# naming the argument
+splitProbsOf <- function(split.probs) {
+  dbarts(
+    y ~ a + b,
+    df,
+    split.probs = split.probs,
+    control = control,
+    n.trees = 5L
+  )$model@tree.prior@splitProbabilities
+}
+asVector <- splitProbsOf(c(1, 3))
+expect_identical(splitProbsOf(matrix(c(1, 3), 2L)), asVector)
+expect_identical(splitProbsOf(matrix(c(1, 3), 1L)), asVector)
+asNamed <- splitProbsOf(c(b = 3, a = 1))
+expect_equal(unname(asNamed), asVector)
+expect_identical(
+  splitProbsOf(matrix(c(3, 1), 2L, dimnames = list(c("b", "a"), NULL))),
+  asNamed
+)
+expect_identical(
+  splitProbsOf(matrix(c(3, 1), 1L, dimnames = list(NULL, c("b", "a")))),
+  asNamed
+)
+expect_identical(
+  splitProbsOf(matrix(rep(0.5, 2L), 2L)),
+  splitProbsOf(c(0.5, 0.5))
+)
+expect_identical(
+  dbartsPriors$cgm(
+    split.probs = array(c(1, 3), c(1L, 2L, 1L))
+  )@splitProbabilitiesSpec,
+  c(1, 3)
+)
 expect_identical(
   tryCatch(
-    dbartsPriors$cgm(split.probs = matrix(1:2, 1L)),
+    dbartsPriors$cgm(split.probs = matrix(1:4, 2L)),
     error = conditionMessage
   ),
   "'split.probs' must be a vector, not a matrix or an array"
@@ -389,7 +423,7 @@ expect_error(
   bart(
     df[c("a", "b")],
     df$y,
-    split.probs = matrix(1:2, 1L),
+    split.probs = matrix(1:4, 2L),
     n.samples = 5L,
     n.burn = 5L,
     n.trees = 5L,
@@ -455,5 +489,8 @@ rm(
   sigdf,
   heldSampler,
   infiniteModel,
-  dartInfinite
+  dartInfinite,
+  splitProbsOf,
+  asVector,
+  asNamed
 )
