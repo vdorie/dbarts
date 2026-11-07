@@ -2837,9 +2837,9 @@ for applying a shared per-observation predictor update across several
 samplers at once.
 
 [`samplePriorPredictive`](https://vdorie.github.io/dbarts/reference/samplePriorPredictive.md)
-for repeated
-`sampleTreesFromPrior`/`sampleLeafParametersFromPrior`/`predict` draws
-on a private sampler, for calibrating priors before fitting.
+for repeated prior draws of the hyperparameters, `sampleTreesFromPrior`,
+`sampleLeafParametersFromPrior` and `predict` on a private sampler, for
+calibrating priors before fitting.
 
 [`dbarts-embedding`](https://vdorie.github.io/dbarts/reference/dbarts-embedding.md)
 for which channel an outer block writes, which fit it reads back, and
