@@ -7,8 +7,9 @@ dec-B607; amended again 2026-11-06 from a blind critique of that amendment, and 
 result (dec-B590's twice-speed threshold, S1's design for its builder). The three open calls are ruled. The
 build starts with S1, whose two gates (the close-call floor and the timing) decide whether S2 proceeds as planned;
 the per-row threshold's dependence on |psi| comes back to the maintainer with S1's timings. S1 is built on the
-branch, 2026-11-07, all but its timing gate, which waits for the referee of its own proofs
-([S1 as built](#s1-as-built)). The defaults come from a study run before 1.0-0, right after the build (dec-B592).
+branch, 2026-11-07, its referee's fixes taken and its timing gate read: b* 645 at |psi| 0 and 628 at 8, the
+cache material, the step never at half the sum's cost at |psi| 50 and 150 ([S1 as built](#s1-as-built)). The
+defaults come from a study run before 1.0-0, right after the build (dec-B592).
 
 agent: opus for each engine slice; one opus review that runs mutants per engine slice; sonnet for the R-surface
 slice and its review.
@@ -278,8 +279,8 @@ and it costs the double-double update, about 56 bytes a row per chain, and a bro
 It is built only if S1's three- and four-evaluation timings move b* materially. The threshold, fixed here before
 any timing runs: the move is material if, at |psi| 0 or 8, the b* the per-row rule's criterion gives from the
 three-evaluation cost is at least 10 percent below the b* it gives from the four-evaluation cost (the most the
-cache can move it is 25 percent). The threshold was committed in ac8de7b16, which S1's timing record cites. The
-lead needs all five double-double functions (exp, log, log1p, sine, square root) whether or not the cache is
+cache can move it is 25 percent). The threshold was committed in 438de939d (ac8de7b16 before the branch's
+rebases), which S1's timing record cites. The lead needs all five double-double functions (exp, log, log1p, sine, square root) whether or not the cache is
 built, so S1 builds all five either way; the cache adds only double-double arithmetic over them, and dec-B606's
 "cached density in double-double" applies only if it is built. As specified, if built: per row: log f at a point, in double-double, with its enclosure, its refinement level, the point
 as an exact double and the (b, psi) it was computed at. It is used only when the point equals the row's omega_i
@@ -1217,9 +1218,12 @@ Each item of the proof's "Changes the design needs", and where it is built:
 
 ## S1 as built
 
-Built on the branch 2026-11-07, everything but the timing gate's reading, which waits for the independent referee
-of S1's own proofs (dec-B591). The RNG class is neutral: nothing is wired into a sampler, and no draw of any
-existing call moves (the trio bitwise, below).
+Built on the branch 2026-11-07. The independent referee of S1's own proofs (dec-B591) found them sound with
+fixes; the fixes are in (c0's charge, the double-double derivations, a weaker math-library assumption, the W < 0
+guard, underflow scaling, the floor's added terms, the note's wording), the gates below were rerun on the fixed
+tip, and the timing gate was read after them ([kernels/pg_step - the accept-or-keep Polya-Gamma step against the exact sum](../../benchmarks/README.md#kernelspg_step---the-accept-or-keep-polya-gamma-step-against-the-exact-sum)).
+The RNG class is neutral: nothing is wired into a sampler, and no draw of any existing call moves (the trio
+bitwise, below).
 
 What each piece does:
 
@@ -1258,41 +1262,58 @@ What each piece does:
   to the proof's specification and the cheaper certificate's settings; the design note,
   [Approximate draws: Polya-Gamma latents whose exact cost grows with their shape](../design/approximate-draws.md#approximate-draws-polya-gamma-latents-whose-exact-cost-grows-with-their-shape).
 
-Gates (arm64 macOS):
-
+Gates (arm64 macOS unless named), on the fixed tip:
 
 - The double-double gate, largest relative error over 512 cases a function against the stated bound (all stated at
   most 2^-100): exp 2^-105.49 (stated 2^-101.42), log1p 2^-103.74 (2^-100.42), log 2^-105.02 (2^-100.42), sin
   2^-104.96 (2^-102), sqrt 2^-105.03 (2^-103); the same built with contraction across statements, and near 2^-53
   for every function when built so without the barrier.
 - The pins: 500 f pins and 30 q pins, every level's enclosure containing its reference, none undecided; largest
-  |ref - mid| / rad 0.575 (f) and 0.338 (q); largest radius 2.28e-12 (f, b 1e5, psi 0, z -4) and 5.03e-14 (q); the
+  |ref - mid| / rad 0.570 (f) and 0.334 (q); largest radius 2.28e-12 (f, b 1e5, psi 0, z -4) and 5.03e-14 (q); the
   engine's radius at most 12.7 times Arb's (f) and 2.15 (q); K, r_1 and r_K bitwise the script's, alpha and beta
   within 6.7e-16.
-- The floor: largest 9.25e-12 (b 1e5, psi 0) against 2.3e-11; 3.0e-12 at b 1e4, psi 0, and at most 1.4e-12 at every
-  other (b, psi).
+- c0's charge, (17 + 3n) u^2 (sum + x), at every q pin (up to 354 terms); the double-double error measured at most
+  0.012 of it against 300-bit references on the referee's 48 cases.
+- The floor, now with stepRow's rounding of the sum and the thresholds' slack: largest 9.52e-12 (b 1e5, psi 0)
+  against 2.3e-11; 3.25e-12 at b 1e4, psi 0, 2.93e-12 at b 1, psi 8 (the |log f| term), 1.37e-12 at b 1e3, psi 0,
+  and at most 6.4e-13 at every other (b, psi).
 - The K table: 42 cells, none differ; b D in double within 3.2e-7 relative of 40 digits.
 - The reach: 200 evaluations, none undecided. The step: 5 cases of 4,000 steps, no close call, none past level 0.
-- tests/cpp, plain and under -O2 -g -fsanitize=address,undefined: every suite passes (548 checks); under the
-  sanitizers every suite passes with no report, with one finding not of this slice: the alloc suite's first arm
+- tests/cpp plain: every suite passes (548 ok lines). The pgdensity suite under -O1 -g
+  -fsanitize=address,undefined with container-overflow detection on: passes, no report. On the x86 box under GCC
+  13.3 with -march=native (FMA) and the suite's -ffp-contract=fast: the pgdensity suite passes, and with the
+  barrier removed (its x86 branch) the q pins fail, b 1e4, psi 8 outside at every level, though the
+  double-double gate's own cases still pass.
+- The referee's ball check rerun on the fixed header, plain and contracted, with operands below 2^-500 and above
+  2^500 added: 47,000 cases, every finite result inside its ball (worst 0.81 of the radius, the product).
+- Phase 1, before the fixes: tests/cpp under -O2 -g -fsanitize=address,undefined: every suite passes with no
+  report, with one finding not of this slice: the alloc suite's first arm
   reports a container-overflow in [`initializeChains`](../../src/bartcore/sampler.hpp) at the Makefile's link order on arm64 macOS (libc++),
   the same with every object built without the new headers (main's code), and not when test_alloc.o links last; the
   full run took ASAN_OPTIONS=detect_container_overflow=0 for it, and the pgdensity suite passes with the check on.
-- A --preclean shipped install and the full tinytest suite once, in one process: 41,970 results, none failed.
-- The trio --bitwise on a --preclean reference install: equivalence-a6e83f38 55 of 55 scenarios identical under
-  --strict-coverage, bcf-equivalence-a6e83f38 19 of 19 and multinomial-equivalence-80b1c8d4 11 of 11, every channel.
-- tools/check-doc-freshness.R: OK. mutation-battery.R verify-anchors: all 82 anchors resolve.
+- A --preclean shipped install and the full tinytest suite once, in one process: 41,993 results, none failed.
+- The trio --bitwise on a --preclean reference install: equivalence-38da480c 55 of 55 scenarios identical under
+  --strict-coverage (55 compared, 0 skipped), bcf-equivalence-38da480c 19 of 19 and multinomial-equivalence-80b1c8d4
+  11 of 11, every channel.
+- tools/check-doc-freshness.R: OK. mutation-battery.R verify-anchors: every anchor resolves.
+- The timing gate, on the x86 box at the fixed tip (benchmarks/README.md, pg_step): the timed b* 645 at |psi| 0
+  and 628 at |psi| 8, so at most 1e3 (passes); from the three-evaluation cost 497 and 465, 22.9 and 26.0 percent
+  below, so the cache is material by the threshold of 438de939d; the fractional-shape cells above 70 us are b 0.2
+  at every |psi| (122 to 293 us) and b 2.5 at |psi| 8, 50 and 150; at |psi| 50 and 150 the step never reaches half
+  the sum's cost (1.4 ms at b 1e4, |psi| 50; 0.79 s at b 1e5, |psi| 150); no close call in any cell.
 - Mutants, each failing a gate: the sum's radius not charged in the log density (f pins outside their enclosures, 3
   gates); exp's stated bound loosened to 2^-99 (the bound gate); K one less than the rule's (the K table, 22
   cells); the uniform's grain dropped from the floor (the floor's formula, 2 gates); r_1 rounded up (r_1 < d_1 at
-  every psi, and the q pins' bitwise r_1); and the barrier removed under contraction (the double-double gate, every
-  function).
+  every psi, and the q pins' bitwise r_1); the barrier removed under contraction (the double-double gate, every
+  function); and c0 charged 24 u^2 as before the referee (testResidual: q pins charged short, the gate failing).
 
 Calls made, each with its alternative:
 
-1. The math library's sin, cos and tan taken within 2 ulps relative (the S1 note's (A2s)), stronger than the
-   proof's (A2), which takes sin and cos absolute; the complex expm1 and the cell bounds need the relative form.
-   Alternative: absolute charges there, looser radii near the saddle.
+1. The math library (the S1 note's (A2s)) in the referee's weaker form: sin and cos within 2 ulps absolutely
+   everywhere, and relative only for sin on |x| <= 1/2 (the complex expm1) and for cos and tan on [0, pi/2 -
+   2^-15] (the closed forms for W < 0); the cell bound charges cos absolutely, as (|cos| - u_L)_+^2, and the
+   complex exponential (1 + sqrt 2) u_L. Alternative: the relative form everywhere, which the libraries document
+   for no argument range and which Windows' is not known to meet.
 2. The error-free transformations kept exact under contraction by an empty asm barrier on their inputs and rounded
    product. Alternatives: -ffp-contract=off in src/Makevars.in (a build-wide flag, and the header-only evaluator
    would still depend on every includer's flags), or volatile temporaries (stores and loads on the hot path).
@@ -1318,7 +1339,8 @@ Calls made, each with its alternative:
 11. The levels' settings fixed in the header before any evaluation: level 0 the proof's L10, level 1 two lines a
     side with 32 cells and two splittings, level 2 the full default; a line's cells min(max, max(min, 10 Y sqrt
     x)). Alternative: one level, the default, at several times the cost.
-12. The uniform's 53 bits from two 32-bit words of the chain's generator (its uniform is a word over 2^32 - 1).
+12. The uniform's 53 bits from two 32-bit words of the chain's generator (the Mersenne Twister's uniform is a word
+    times 2^-32 exactly; S2 asserts that algorithm).
     Alternative: ext_rng_simulateContinuousUniform, a double whose grain is not an interval the proof can use.
 13. The double-double square root built and gated as the plan lists, though the lead takes w_0 in double with its
     error charged and never calls it. Alternative: drop it until a caller needs it.
@@ -1331,11 +1353,28 @@ Calls made, each with its alternative:
     not built and not charged. Alternative: build the update now to time it, which S2 owns if the cache is built.
 17. The proposal's build counted in c_R, since psi moves every sweep and a row builds its proposal at every step;
     also reported alone. Alternative: the build outside c_R, which would understate the step's cost.
+18. The closed forms for W < 0 guarded at pi/2 - sqrt(-W) > 2^-11 and the saddle's v capped below it
+    (0x1.91ffp0), not the referee's 2^-12: at 2^-12 the rounding of v moves sec^2 v by 2 u v tan v, about 2^-39.4
+    relative, past the stated 2^-40 (the referee's figure was tan's, half that). The cap binds past x of about
+    320b, where the frame is off the saddle and the radii wider. Alternative: charge the rounding's effect, a
+    bound that varies with v through every caller of the sums.
+19. The modulus bounds and the quotient scale their operands by powers of two away from underflow and overflow,
+    exactly, rather than falling back to |re| + |im|: the quotient needed it too (the referee's ball check rerun
+    with operands below 2^-500 found quotients outside their balls, the products' underflow magnified by the
+    division), and one mechanism serves both. Alternative: l1 in the moduli and a guard in the quotient.
+20. c0's charge gated by formula at every q pin (testResidual), since its error measured at most 0.24 of the old,
+    short charge and no pin could fail on it. Alternative: a reference for c0 itself, which needs the saddle to
+    more than double-double precision.
+21. The floor takes the largest |log f| and |log q| beside the radii (stepFloor's two new arguments), so it carries
+    stepRow's 4u sum |mid| and the thresholds' slack. Alternative: call the floor approximate, as the referee
+    allowed.
 
-Size: about 3,470 written lines (the engine headers 2,308, the tests 361, the timing harness 177, the reference
-script 243, the S1 note 294, the design note 89) against the sizing's 2,130, and the generated table's 3,174.
+Size: about 3,620 written lines after the referee's fixes (the engine headers 2,386, the tests 395, the timing
+harness 177, the reference script 243, the S1 note 329, the design note 90) against the sizing's 2,130, and the
+generated table's 3,174.
 
-Not verified in S1: the barrier under GCC (no GCC on the build machine; clang with contraction forced across
-statements stands in, and fails without the barrier); the alloc suite's container-overflow, preexisting and not
-diagnosed; that level 0 decides at every reachable point (measured at the pins, the reach and the step's cases);
-the math library's accuracy (A2s), assumed; the timing gate, phase 2.
+Not verified in S1: the alloc suite's container-overflow, preexisting and not diagnosed; that level 0 decides at
+every reachable point (it matters only for the timing; measured at the pins, the reach and the step's cases); that
+the last level is finite at every reachable point, the close-call bound's premise (measured at the pins); the
+math library's accuracy (A2s), assumed in its weaker form, Windows' library not sampled (S2's test); the timing
+gate's harness run on the x86 box only.
