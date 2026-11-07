@@ -1415,6 +1415,22 @@ refuseTreesArguments <- function(treesCall, ownNames) {
   invisible(NULL)
 }
 
+# A name the tree arm would hand to getTrees that getTrees does not take, as
+# a whole name or an unambiguous abbreviation of one, is warned of in the
+# words the methods' other arms use and dropped from the call; getTrees's
+# own arguments pass through.
+dropUnusedTreesArguments <- function(treesCall, sampler, class) {
+  supplied <- setdiff(names(treesCall)[-1L], c("", "object", "type"))
+  unused <- supplied[is.na(charmatch(supplied, names(formals(sampler$getTrees))))]
+  if (length(unused) > 0L) {
+    warnUnusedDots(as.list(treesCall)[unused], "extract", class)
+    for (name in unused) {
+      treesCall[[name]] <- NULL
+    }
+  }
+  treesCall
+}
+
 # Tree draws cannot be combined across chains, so extract(type = "trees")
 # always reads in the combineChains = FALSE regime and always carries the chain
 # margin; the sampler's own getTrees leaves the column off at one chain.
@@ -1653,6 +1669,7 @@ extract.bart <- function(
       treesCall,
       c("sample", "combineChains", "contribution")
     )
+    treesCall <- dropUnusedTreesArguments(treesCall, object$fit, "bart")
     target <- quote(object$fit$getTrees)
     target[[2L]][[2L]] <- treesCall$object
     treesCall[[1L]] <- target
@@ -1673,6 +1690,7 @@ extract.bart <- function(
     "bart",
     foreignArgsFor(extractForeignReasons, names(formals(extract.bart)))
   )
+  warnUnusedDots(list(...), "extract", "bart")
 
   refuseForestSelectionOutsideForestArm(
     type,
@@ -2268,6 +2286,7 @@ fitted.bart <- function(
       foreignArgsFor(fittedForeignReasons, names(formals(fitted.bart)))
     )
   )
+  warnUnusedDots(list(...), "fitted", "bart")
 
   result <- extract(object, type, sample)
 
@@ -2336,6 +2355,7 @@ residuals.bart <- function(object, type = "ev", ...) {
       foreignArgsFor(residualsForeignReasons, names(formals(residuals.bart)))
     )
   )
+  warnUnusedDots(list(...), "residuals", "bart")
   # the response the fit kept, padded the same way the fitted values are, so
   # the two line up row for row at the caller's own shape
   padOmittedRows(object[["na.action"]], object$y) -
@@ -2470,6 +2490,11 @@ extract.bartMultinomial <- function(
       treesCall,
       c("sample", "combineChains", "contribution")
     )
+    treesCall <- dropUnusedTreesArguments(
+      treesCall,
+      object$fit,
+      "bartMultinomial"
+    )
     target <- quote(object$fit$getTrees)
     target[[2L]][[2L]] <- treesCall$object
     treesCall[[1L]] <- target
@@ -2493,6 +2518,7 @@ extract.bartMultinomial <- function(
       )
     )
   )
+  warnUnusedDots(list(...), "extract", "bartMultinomial")
 
   if (type %in% c("sigma", "k", "leaf.prior.sd")) {
     refuseSampleOnModelType(type, sampleSupplied)
@@ -2693,6 +2719,7 @@ fitted.bartMultinomial <- function(
       )
     )
   )
+  warnUnusedDots(list(...), "fitted", "bartMultinomial")
   refuseClassCiLevel(type, ci.level)
   # a training-side quantity pads back to the caller's own row count through
   # whatever the fit's na.action recorded; the test side never lost a row
@@ -2742,6 +2769,7 @@ residuals.bartMultinomial <- function(object, ...) {
       )
     )
   )
+  warnUnusedDots(list(...), "residuals", "bartMultinomial")
   # phat is already padded (fitted's own train-side na.action rule); build
   # 'observed' at the fit's own (unpadded) length and pad it the same way,
   # so the two align before differencing and before phat's own dimnames -
@@ -3007,6 +3035,7 @@ extract.bartOrdinal <- function(
       foreignArgsFor(extractForeignReasons, names(formals(extract.bartOrdinal)))
     )
   )
+  warnUnusedDots(list(...), "extract", "bartOrdinal")
   n.chains <- fitNChains(object)
 
   if (type %in% c("sigma", "k", "leaf.prior.sd")) {
@@ -3116,6 +3145,7 @@ fitted.bartOrdinal <- function(
       foreignArgsFor(fittedForeignReasons, names(formals(fitted.bartOrdinal)))
     )
   )
+  warnUnusedDots(list(...), "fitted", "bartOrdinal")
   refuseClassCiLevel(type, ci.level)
   # a training-side quantity pads back to the caller's own row count through
   # whatever the fit's na.action recorded; the test side never lost a row
@@ -3177,6 +3207,7 @@ residuals.bartOrdinal <- function(object, ...) {
       )
     )
   )
+  warnUnusedDots(list(...), "residuals", "bartOrdinal")
   phat <- fitted.bartOrdinal(object, type = "ev")
   y <- object$y
   indicator <- matrix(0, length(y), length(object$levels))
@@ -3387,6 +3418,7 @@ extract.bartNegbin <- function(
       foreignArgsFor(extractForeignReasons, names(formals(extract.bartNegbin)))
     )
   )
+  warnUnusedDots(list(...), "extract", "bartNegbin")
   n.chains <- fitNChains(object)
 
   if (type %in% c("shape", "sigma", "k", "leaf.prior.sd", "varcount")) {
@@ -3491,6 +3523,7 @@ fitted.bartNegbin <- function(
       foreignArgsFor(fittedForeignReasons, names(formals(fitted.bartNegbin)))
     )
   )
+  warnUnusedDots(list(...), "fitted", "bartNegbin")
   if (sample == "test" && is.null(object$yhat.test)) {
     stop(
       "this nbinom fit carries no test channel; refit with 'test' to report ",
@@ -3540,6 +3573,7 @@ residuals.bartNegbin <- function(object, ...) {
       )
     )
   )
+  warnUnusedDots(list(...), "residuals", "bartNegbin")
   padOmittedRows(object[["na.action"]], object$y) -
     fitted.bartNegbin(object, type = "ev")
 }
@@ -4271,6 +4305,7 @@ extract.bartHurdle <- function(
       foreignArgsFor(extractForeignReasons, names(formals(extract.bartHurdle)))
     )
   )
+  warnUnusedDots(list(...), "extract", "bartHurdle")
 
   # sigma is positive$sigma, the only one the composition carries; k,
   # leaf.prior.sd and varcount are lists keyed zero/positive, each part's own
@@ -4364,6 +4399,7 @@ fitted.bartHurdle <- function(
       foreignArgsFor(fittedForeignReasons, names(formals(fitted.bartHurdle)))
     )
   )
+  warnUnusedDots(list(...), "fitted", "bartHurdle")
   draws <- extract(object, type = type, sample = sample, combineChains = TRUE)
   # the training rows pad back to the caller's own row count through whatever
   # the fit's na.action recorded; the test rows are all the caller's
@@ -4395,6 +4431,7 @@ residuals.bartHurdle <- function(object, type = "ev", ...) {
       )
     )
   )
+  warnUnusedDots(list(...), "residuals", "bartHurdle")
   padOmittedRows(object[["na.action"]], object$y) -
     fitted.bartHurdle(object, type = type)
 }

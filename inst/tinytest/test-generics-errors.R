@@ -373,6 +373,84 @@ treesAtNewdata <- extract(
   newdata = testData$x[1:5, , drop = FALSE]
 )
 expect_equal(max(treesAtNewdata$n), 5L)
+# fitted, residuals and extract warn once on a name they do not take, in
+# predict's words, on every fit class, a foreign formal still refused; the
+# tree arm passes getTrees's own arguments on first
+for (case in list(
+  list(fit = bart2FitKT, class = "bart"),
+  list(fit = multinomialFitKT, class = "bartMultinomial"),
+  list(fit = ordinalFitKT, class = "bartOrdinal"),
+  list(fit = negbinFitKT, class = "bartNegbin"),
+  list(fit = hurdleFitKT, class = "bartHurdle")
+)) {
+  for (generic in c("fitted", "residuals", "extract")) {
+    warnings.dots <- captureWarnings(
+      do.call(generic, list(case$fit, bogus = 1))
+    )
+    expect_identical(length(warnings.dots), 1L, info = paste(generic, case$class))
+    expect_identical(
+      conditionMessage(warnings.dots[[1L]]),
+      paste0(
+        "extra argument 'bogus' passed to ",
+        generic,
+        " on a ",
+        case$class,
+        " fit will be disregarded"
+      ),
+      info = paste(generic, case$class)
+    )
+    expect_error(
+      do.call(generic, list(case$fit, newdata = testData$x)),
+      pattern = "'newdata' is not used by",
+      info = paste(generic, case$class)
+    )
+  }
+}
+multinomialTrees <- dbarts::bart(
+  xSmall,
+  factor(sample(letters[1:3], n, replace = TRUE)),
+  family = "multinomial",
+  n.samples = 5L,
+  n.burn = 5L,
+  n.trees = 3L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  keepTrees = TRUE
+)
+for (case in list(
+  list(fit = bart2FitKT, class = "bart"),
+  list(fit = multinomialTrees, class = "bartMultinomial")
+)) {
+  trees.chain <- extract(case$fit, type = "trees", chain = 1L, treeNums = 1L)
+  expect_identical(
+    trees.chain,
+    extract(case$fit, type = "trees", chainNums = 1L, treeNums = 1L)
+  )
+  warnings.trees <- captureWarnings(
+    trees.typo <- extract(case$fit, type = "trees", typo = 1, treeNums = 1L)
+  )
+  expect_identical(length(warnings.trees), 1L)
+  expect_identical(
+    conditionMessage(warnings.trees[[1L]]),
+    paste0(
+      "extra argument 'typo' passed to extract on a ",
+      case$class,
+      " fit will be disregarded"
+    )
+  )
+  expect_identical(trees.typo, extract(case$fit, type = "trees", treeNums = 1L))
+}
+rm(
+  case,
+  generic,
+  warnings.dots,
+  multinomialTrees,
+  trees.chain,
+  warnings.trees,
+  trees.typo
+)
+
 rm(bart2FitKT)
 
 expect_error(
