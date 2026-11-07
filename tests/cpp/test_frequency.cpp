@@ -2202,6 +2202,85 @@ void testBinomialReadOffs() {
         "of weight 0");
 }
 
+/// A warm start into fewer trees ranks the donor's trees by their variance
+/// over the rows, a binomial row read at its trials: the trees a binomial
+/// sampler keeps are those its split rows keep, and not those the same rows
+/// read once each keep. The trials are heavy on a slice of x so the two
+/// readings rank differently.
+void testBinomialWarmStartRanking() {
+  const std::size_t n = 40, numDonorTrees = 20, numTrees = 5;
+  BinomialFixture b(n, true);
+  for (std::size_t i = 0; i < n; ++i) {
+    b.trials[i] = b.x[i] < 0.3 ? 40.0 : 2.0;
+    double prob = 1.0 / (1.0 + std::exp(-3.0 * std::sin(6.0 * b.x[i])));
+    b.k[i] = std::min(std::max(std::round(prob * b.trials[i]), 1.0),
+                      b.trials[i] - 1.0);
+  }
+  std::size_t m = 2 * n;
+  std::vector<double> xs(m * b.p), ys(m), ws(m), yBinary(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    for (std::size_t j = 0; j < b.p; ++j)
+      xs[j * m + 2 * i] = xs[j * m + 2 * i + 1] = b.x[j * n + i];
+    ys[2 * i] = 1.0;
+    ys[2 * i + 1] = 0.0;
+    ws[2 * i] = b.k[i];
+    ws[2 * i + 1] = b.trials[i] - b.k[i];
+    yBinary[i] = 2.0 * b.k[i] > b.trials[i] ? 1.0 : 0.0;
+  }
+  auto make = [&](const double* x, const double* y, std::size_t rows,
+                  const double* w, const double* trials, std::size_t trees,
+                  ext_rng** rng) {
+    SamplerOptions options;
+    options.numTrees = trees;
+    options.trials = trials;
+    return std::make_unique<ConstantLeafSampler>(
+      x, y, rows, b.p, w, nullptr, ResponseFamily::logistic, 1.0, sigmaDf,
+      1.0, options, rng);
+  };
+  ext_rng* rngD = seededRng(7901u);
+  ext_rng* rngB = seededRng(7902u);
+  ext_rng* rngS = seededRng(7902u);
+  ext_rng* rngU = seededRng(7902u);
+  auto donor = make(b.x.data(), b.k.data(), n, nullptr, b.trials.data(),
+                    numDonorTrees, &rngD);
+  Results none;
+  donor->run(100, 0, none);
+  SamplerStateData state;
+  donor->getState(state);
+  auto binomial = make(b.x.data(), b.k.data(), n, nullptr, b.trials.data(),
+                       numTrees, &rngB);
+  auto split = make(xs.data(), ys.data(), m, ws.data(), nullptr, numTrees,
+                    &rngS);
+  auto unit = make(b.x.data(), yBinary.data(), n, nullptr, nullptr, numTrees,
+                   &rngU);
+  const std::vector<std::pair<std::size_t, int>> liveMap = {{0, -1}};
+  bool installed =
+    binomial->installForests(state, liveMap, b.x.data()) ==
+      WarmStartResult::ok &&
+    split->installForests(state, liveMap, xs.data()) == WarmStartResult::ok &&
+    unit->installForests(state, liveMap, b.x.data()) == WarmStartResult::ok;
+  std::vector<double> fb(n), fs(m), fu(n);
+  binomial->forestTotalFits(0, 0, fb.data());
+  split->forestTotalFits(0, 0, fs.data());
+  unit->forestTotalFits(0, 0, fu.data());
+  double gapSplit = 0.0, gapUnit = 0.0;
+  for (std::size_t i = 0; i < n; ++i) {
+    gapSplit = std::max(gapSplit, std::fabs(fb[i] - fs[2 * i]));
+    gapSplit = std::max(gapSplit, std::fabs(fb[i] - fs[2 * i + 1]));
+    gapUnit = std::max(gapUnit, std::fabs(fb[i] - fu[i]));
+  }
+  printf("  binomial warm start into %zu of %zu trees: %.3g from its split "
+         "rows, %.3g from the rows read once each\n", numTrees, numDonorTrees,
+         gapSplit, gapUnit);
+  check(installed && gapSplit < 1e-12 && gapUnit > 1e-6,
+        "a warm start ranks a binomial row's trees at its trials, as its "
+        "split rows, not as the rows read once each");
+  ext_rng_destroy(rngD);
+  ext_rng_destroy(rngB);
+  ext_rng_destroy(rngS);
+  ext_rng_destroy(rngU);
+}
+
 }  // namespace
 
 void runFrequencyTests() {
@@ -2240,5 +2319,6 @@ void runFrequencyTests() {
   testBinomialZeroRows();
   testBinomialSetCountsAndState();
   testBinomialReadOffs();
+  testBinomialWarmStartRanking();
   rngState = savedState;
 }
