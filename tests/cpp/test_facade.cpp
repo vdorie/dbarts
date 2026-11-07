@@ -42,8 +42,8 @@ enum class FacadeVirtual {
   predictVariance, getState, setState, setAnchor, getAnchor, derivedRecords,
   installForests,
   sampleTreesFromPrior,
-  sampleNodeParametersFromPrior, sampleVarianceForestFromPrior, growFromRoot,
-  setNumThreads, setNumThin,
+  sampleNodeParametersFromPrior, sampleVarianceForestFromPrior,
+  sampleHyperparametersFromPrior, growFromRoot, setNumThreads, setNumThin,
   setVerbose, fitScale, gpFallbackTally, slowCountTally, setTreeStorage,
   setModel, setForestTreePrior, liveSplitOnZeroProbability,
   setResidualPrior, setFittingLeafPrior, setResidualDf,
@@ -195,6 +195,8 @@ public:
   SPY_VOID(sampleTreesFromPrior, (), ())
   SPY_VOID(sampleNodeParametersFromPrior, (), ())
   SPY_VOID(sampleVarianceForestFromPrior, (), ())
+  SPY_RET(PriorHyperparameterDraw, sampleHyperparametersFromPrior,
+          (std::size_t m), (m))
   SPY_VOID(growFromRoot, (std::size_t s), (s))
   SPY_VOID(setNumThreads, (std::size_t t), (t))
   SPY_VOID(setNumThin, (std::size_t t), (t))
@@ -1081,6 +1083,14 @@ const Row rows[] = {
     check(after != before,
           "facade sampleVarianceForestFromPrior: the impl's scale surface is "
           "redrawn");
+  }},
+  {FacadeVirtual::sampleHyperparametersFromPrior, "hyperparametersFromPrior",
+   [](Fixtures& f) {
+    PriorHyperparameterDraw draw = f.d.base().sampleHyperparametersFromPrior(0);
+    check(draw.k.size() == 1 &&
+            draw.k[0] == TestPeer::forestK(f.d.impl().chain(0)) &&
+            !draw.forestsDrawn,
+          "facade sampleHyperparametersFromPrior: the impl reports its k");
   }},
   {FacadeVirtual::growFromRoot, "growFromRoot", [](Fixtures& f) {
     std::uint64_t before = forestSignature(f.d);

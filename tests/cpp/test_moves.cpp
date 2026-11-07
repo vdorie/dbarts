@@ -91,6 +91,354 @@ static void testDartUpdate(ext_rng* rng) {
   printf("ok: dart updates\n");
 }
 
+/// The regularized incomplete beta function I_x(a, b), by the Lentz
+/// continued fraction on the side of the mean where it converges fast.
+static double regularizedIncompleteBeta(double x, double a, double b) {
+  if (x <= 0.0) return 0.0;
+  if (x >= 1.0) return 1.0;
+  auto fraction = [](double x, double a, double b) {
+    const double tiny = 1e-300;
+    double c = 1.0, d = 1.0 - (a + b) * x / (a + 1.0);
+    if (std::fabs(d) < tiny) d = tiny;
+    d = 1.0 / d;
+    double h = d;
+    for (int m = 1; m < 10000; ++m) {
+      double m2 = 2.0 * m;
+      double an = m * (b - m) * x / ((a + m2 - 1.0) * (a + m2));
+      d = 1.0 + an * d;
+      if (std::fabs(d) < tiny) d = tiny;
+      c = 1.0 + an / c;
+      if (std::fabs(c) < tiny) c = tiny;
+      d = 1.0 / d;
+      h *= d * c;
+      an = -(a + m) * (a + b + m) * x / ((a + m2) * (a + m2 + 1.0));
+      d = 1.0 + an * d;
+      if (std::fabs(d) < tiny) d = tiny;
+      c = 1.0 + an / c;
+      if (std::fabs(c) < tiny) c = tiny;
+      d = 1.0 / d;
+      double delta = d * c;
+      h *= delta;
+      if (std::fabs(delta - 1.0) < 1e-15) break;
+    }
+    return h;
+  };
+  double front = std::exp(std::lgamma(a + b) - std::lgamma(a) - std::lgamma(b) +
+                          a * std::log(x) + b * std::log1p(-x));
+  if (x < (a + 1.0) / (a + b + 2.0)) return front * fraction(x, a, b) / a;
+  return 1.0 - front * fraction(1.0 - x, b, a) / b;
+}
+
+/// sqrt(N) times the KS distance of a sample from a continuous CDF.
+template <typename F>
+static double scaledKs(std::vector<double> sample, const F& cdf) {
+  std::sort(sample.begin(), sample.end());
+  double n = static_cast<double>(sample.size()), worst = 0.0;
+  for (size_t j = 0; j < sample.size(); ++j) {
+    double value = cdf(sample[j]);
+    worst = std::max(worst, std::max(static_cast<double>(j + 1) / n - value,
+                                     value - static_cast<double>(j) / n));
+  }
+  return worst * std::sqrt(n);
+}
+
+// the asymptotic KS bound on sqrt(N) D at p = 1e-3
+constexpr double ksBound1e3 = 1.95;
+
+// DartPrior::drawFromPrior draws from the stated prior: s_1 at a fixed alpha
+// is Beta(alpha / p, alpha (1 - 1 / p)); a drawn alpha lands on the grid by
+// the Beta(a, b) kernel on lambda and s at it; a mask zeroes its columns and
+// lays the Dirichlet over the rest; the delay count is left alone. The
+// skip-the-draw mutant leaves s at 1 / p, which every KS here refuses.
+static void testDartDrawFromPrior() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 60817u);
+  const size_t p = 5, numDraws = 20000;
+
+  DartPrior fixed;
+  fixed.alpha = 2.0;
+  fixed.updateAlpha = false;
+  fixed.initialize(p);
+  std::vector<double> first(numDraws);
+  bool simplex = true;
+  for (size_t i = 0; i < numDraws; ++i) {
+    fixed.drawFromPrior(rng);
+    double sum = 0.0;
+    for (double s : fixed.probabilities) sum += s;
+    simplex = simplex && std::fabs(sum - 1.0) < 1e-12;
+    first[i] = fixed.probabilities[0];
+  }
+  double fixedKs = scaledKs(first, [&](double v) {
+    return regularizedIncompleteBeta(v, 2.0 / p, 2.0 * (1.0 - 1.0 / p));
+  });
+  check(simplex && fixed.alpha == 2.0 && fixedKs < ksBound1e3,
+        "dart prior draw: s_1 is Beta(alpha / p, alpha (1 - 1 / p)) at a fixed "
+        "alpha");
+
+  DartPrior drawn;
+  drawn.updateAlpha = true;
+  drawn.initialize(p);
+  const size_t gridSize = DartPrior::gridSize, numBins = 10;
+  const double rho = static_cast<double>(p);
+  std::vector<double> binCounts(numBins, 0.0), binWeights(numBins, 0.0);
+  std::vector<double> gridWeights(gridSize);
+  double weightTotal = 0.0;
+  for (size_t k = 0; k < gridSize; ++k) {
+    double lambda = static_cast<double>(k + 1) / static_cast<double>(gridSize + 1);
+    gridWeights[k] = std::pow(lambda, drawn.betaA - 1.0) *
+                     std::pow(1.0 - lambda, drawn.betaB - 1.0);
+    weightTotal += gridWeights[k];
+  }
+  double expectedSquare = 0.0;
+  for (size_t k = 0; k < gridSize; ++k) {
+    gridWeights[k] /= weightTotal;
+    binWeights[k * numBins / gridSize] += gridWeights[k];
+    double lambda = static_cast<double>(k + 1) / static_cast<double>(gridSize + 1);
+    double alpha = lambda * rho / (1.0 - lambda);
+    expectedSquare += gridWeights[k] * (1.0 / rho) * (alpha / rho + 1.0) /
+                      (alpha + 1.0);
+  }
+  double sumSquare = 0.0, sumFourth = 0.0;
+  bool onGrid = true;
+  for (size_t i = 0; i < numDraws; ++i) {
+    drawn.drawFromPrior(rng);
+    double lambda = drawn.alpha / (drawn.alpha + rho);
+    double position = lambda * static_cast<double>(gridSize + 1) - 1.0;
+    long k = std::lround(position);
+    onGrid = onGrid && k >= 0 && k < static_cast<long>(gridSize) &&
+             std::fabs(position - static_cast<double>(k)) < 1e-6;
+    if (onGrid) binCounts[static_cast<size_t>(k) * numBins / gridSize] += 1.0;
+    double square = drawn.probabilities[0] * drawn.probabilities[0];
+    sumSquare += square;
+    sumFourth += square * square;
+  }
+  double alphaFit = chiSquareUpperTail(
+    chiSquareStatistic(binCounts, binWeights, static_cast<double>(numDraws)),
+    static_cast<double>(numBins - 1));
+  double meanSquare = sumSquare / numDraws;
+  double squareSe =
+    std::sqrt((sumFourth / numDraws - meanSquare * meanSquare) / numDraws);
+  check(onGrid && alphaFit > 1e-3,
+        "dart prior draw: alpha's grid frequencies follow the stated weights");
+  check(std::fabs(meanSquare - expectedSquare) < 4.5 * squareSe,
+        "dart prior draw: E[s_1^2] is its grid average, s drawn at the "
+        "drawn alpha");
+
+  const std::uint8_t mask[p] = {1, 0, 1, 1, 0};
+  DartPrior masked;
+  masked.alpha = 2.0;
+  masked.updateAlpha = false;
+  masked.updateDelay = 7;
+  masked.initialize(p, mask);
+  masked.setNumUpdatesSkipped(3);
+  bool excludedZero = true;
+  for (size_t i = 0; i < numDraws; ++i) {
+    masked.drawFromPrior(rng);
+    excludedZero = excludedZero && masked.probabilities[1] == 0.0 &&
+                   masked.probabilities[4] == 0.0;
+    first[i] = masked.probabilities[0];
+  }
+  double maskedKs = scaledKs(first, [&](double v) {
+    return regularizedIncompleteBeta(v, 2.0 / 3.0, 2.0 * (1.0 - 1.0 / 3.0));
+  });
+  check(excludedZero && maskedKs < ksBound1e3,
+        "dart prior draw: a mask's columns are 0 and the rest Dirichlet over "
+        "their count");
+  check(masked.numUpdatesSkipped() == 3,
+        "dart prior draw: the count of updates skipped is left alone");
+
+  ext_rng_destroy(rng);
+  printf("ok: dart prior draw (KS %.2f fixed, %.2f masked; alpha bins p %.3g; "
+         "E[s_1^2] %.4f against %.4f)\n",
+         fixedKs, maskedKs, alphaFit, meanSquare, expectedSquare);
+}
+
+// Chain::sampleHyperparametersFromPrior: k from its chi prior in closed form
+// (k = scale chi_df), nothing drawn where nothing carries a prior, the
+// improper and amplitude refusals before any draw, and under DART the joint
+// draw of the weights and trees, accepted or exhausted, leaving the chain a
+// state the sampler holds.
+static void testHyperparametersFromPrior() {
+  std::uint64_t savedRngState = rngState;
+  const size_t n = 60;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 24680u);
+  Results empty;
+
+  auto make = [&](SamplerOptions options, const std::vector<double>& xs,
+                  size_t p) {
+    return std::make_unique<ConstantLeafSampler>(
+      xs.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, options, &rng);
+  };
+
+  {
+    SamplerOptions options;
+    options.numTrees = 10;
+    options.updateK = true;
+    options.kHyperprior.degreesOfFreedom = 1.5;
+    options.kHyperprior.scale = 2.0;
+    std::unique_ptr<ConstantLeafSampler> sampler = make(options, x, 2);
+    const size_t numDraws = 20000;
+    std::vector<double> ks(numDraws);
+    bool installed = true, nothingElse = true;
+    for (size_t i = 0; i < numDraws; ++i) {
+      PriorHyperparameterDraw draw = sampler->sampleHyperparametersFromPrior(0);
+      ks[i] = draw.k[0];
+      installed = installed && TestPeer::forestK(sampler->chain(0)) == ks[i];
+      nothingElse = nothingElse && !draw.forestsDrawn &&
+                    draw.forestAttempts == 0 && std::isnan(draw.residualDf) &&
+                    std::isnan(draw.shape) && draw.thresholds.empty() &&
+                    draw.splitProbabilities.empty();
+    }
+    const double probabilities[5] = {0.05, 0.25, 0.5, 0.75, 0.95};
+    bool quantilesHold = true;
+    double worst = 0.0;
+    for (double prob : probabilities) {
+      double quantile = 2.0 * std::sqrt(ext_quantileOfChiSquared(prob, 1.5));
+      double below = 0.0;
+      for (double k : ks) below += k <= quantile ? 1.0 : 0.0;
+      double z = (below / numDraws - prob) /
+                 std::sqrt(prob * (1.0 - prob) / numDraws);
+      worst = std::max(worst, std::fabs(z));
+      quantilesHold = quantilesHold && std::fabs(z) < 4.5;
+    }
+    check(installed && nothingElse,
+          "prior hyperparameters: k is installed, and nothing else is drawn on "
+          "a gaussian forest");
+    check(quantilesHold,
+          "prior hyperparameters: k's quantiles are scale sqrt(qchisq(p, df))");
+    printf("ok: prior k draws (worst quantile z %.2f)\n", worst);
+  }
+
+  {
+    SamplerOptions options;
+    options.numTrees = 10;
+    std::unique_ptr<ConstantLeafSampler> sampler = make(options, x, 2);
+    sampler->run(5, 0, empty);
+    double k = TestPeer::forestK(sampler->chain(0));
+    ext_rng* reference = cloneRng(rng);
+    PriorHyperparameterDraw draw = sampler->sampleHyperparametersFromPrior(50);
+    check(rngStreamsAgree(reference, rng) && draw.k.size() == 1 &&
+            draw.k[0] == k && TestPeer::forestK(sampler->chain(0)) == k &&
+            !draw.forestsDrawn && draw.forestAttempts == 0,
+          "prior hyperparameters: a fixed k draws nothing and reports k");
+    ext_rng_destroy(reference);
+  }
+
+  {
+    SamplerOptions options;
+    options.numTrees = 10;
+    options.updateK = true;
+    options.kHyperprior.degreesOfFreedom = 3.0;
+    options.kHyperprior.scale = HUGE_VAL;
+    std::unique_ptr<ConstantLeafSampler> sampler = make(options, x, 2);
+    ext_rng* reference = cloneRng(rng);
+    bool refused = false;
+    try {
+      sampler->sampleHyperparametersFromPrior(0);
+    } catch (const std::invalid_argument& e) {
+      refused = std::string(e.what()) ==
+                "a k prior with an infinite scale has no prior draws";
+    }
+    check(refused && rngStreamsAgree(reference, rng),
+          "prior hyperparameters: an infinite-scale k prior is refused before "
+          "any draw");
+    ext_rng_destroy(reference);
+  }
+
+  {
+    std::vector<double> z(n), offset(n, 0.0), yBinary(n);
+    for (size_t i = 0; i < n; ++i) {
+      z[i] = i % 2 == 0 ? 1.0 : 0.0;
+      yBinary[i] = y[i] > 0.0 ? 1.0 : 0.0;
+    }
+    SamplerOptions options;
+    options.nodeScale = 3.0;
+    AmplitudeSpec spec;
+    spec.family = ResponseFamily::probit;
+    spec.mu.numTrees = 10;
+    spec.tau.numTrees = 4;
+    spec.z = z.data();
+    ConstantLeafSampler twoForests(x.data(), yBinary.data(), n, 2, nullptr,
+                                   offset.data(), 1.0, 3.0, 1.0, options, spec,
+                                   &rng);
+    ext_rng* reference = cloneRng(rng);
+    bool refused = false;
+    try {
+      twoForests.sampleHyperparametersFromPrior(10);
+    } catch (const std::invalid_argument& e) {
+      refused = std::string(e.what()) ==
+                "the prior draw of a model of several forests is not built";
+    }
+    check(refused && rngStreamsAgree(reference, rng),
+          "prior hyperparameters: an amplitude-combined chain is refused "
+          "before any draw");
+    ext_rng_destroy(reference);
+  }
+
+  // under DART: every tree a draw the sampler holds, zero totals and leaves,
+  // the weights reported the chain's own; then a sweep runs from it
+  auto heldAsPrior = [&](ConstantLeafSampler& sampler) {
+    const Chain<ConstantGaussianLeaf>& chain = sampler.chain(0);
+    bool held = true;
+    for (size_t t = 0; t < chain.numTrees(); ++t)
+      held = held && chain.tree(t).bottomNodesAreOccupied() &&
+             TestPeer::leafOfStale(sampler.chain(0), t) != 0;
+    for (double v : forestTotals(sampler, 0)) held = held && v == 0.0;
+    return held;
+  };
+  auto runsOn = [&](ConstantLeafSampler& sampler) {
+    sampler.sampleNodeParametersFromPrior();
+    sampler.run(2, 0, empty);
+    bool finite = true;
+    for (double v : forestTotals(sampler, 0)) finite = finite && std::isfinite(v);
+    return finite;
+  };
+  {
+    SamplerOptions options;
+    options.numTrees = 10;
+    options.useDart = true;
+    std::unique_ptr<ConstantLeafSampler> sampler = make(options, x, 2);
+    sampler->run(5, 0, empty);
+    PriorHyperparameterDraw draw = sampler->sampleHyperparametersFromPrior(1000);
+    const std::vector<double>& weights =
+      TestPeer::dart(sampler->chain(0)).probabilities;
+    check(draw.forestsDrawn && draw.forestAttempts >= 1 &&
+            draw.splitProbabilities == weights && heldAsPrior(*sampler) &&
+            runsOn(*sampler),
+          "prior hyperparameters: a DART joint draw accepted leaves the "
+          "chain at a prior draw of its trees");
+  }
+  {
+    // at 60 rows, 8 columns and 200 trees about one joint draw in a hundred
+    // is held, so a budget of one runs out within a few calls
+    std::vector<double> xWide(n * 8);
+    for (double& v : xWide) v = runif01();
+    SamplerOptions options;
+    options.numTrees = 200;
+    options.useDart = true;
+    std::unique_ptr<ConstantLeafSampler> sampler = make(options, xWide, 8);
+    bool exhausted = false;
+    std::size_t attempts = 0;
+    for (int call = 0; call < 20 && !exhausted; ++call) {
+      PriorHyperparameterDraw draw = sampler->sampleHyperparametersFromPrior(1);
+      exhausted = !draw.forestsDrawn;
+      attempts = draw.forestAttempts;
+    }
+    check(exhausted && attempts == 1 && heldAsPrior(*sampler) &&
+            runsOn(*sampler),
+          "prior hyperparameters: a DART joint draw exhausted leaves a state "
+          "the sampler holds");
+  }
+
+  ext_rng_destroy(rng);
+  rngState = savedRngState;
+  printf("ok: prior hyperparameter entry\n");
+}
+
 static void testDartSparsityRecovery(ext_rng* rng) {
   const size_t n = 250, p = 25;
   std::vector<double> x(n * p), y(n);
@@ -3373,6 +3721,8 @@ static void testRepartitionRootAgreesWithRewrite(ext_rng*) {
 
 void runMovesTests(ext_rng* rng) {
   testDartUpdate(rng);
+  testDartDrawFromPrior();
+  testHyperparametersFromPrior();
   testLeafOfConsistency(rng);
   testPriorResetContract(rng);
   testDartSparsityRecovery(rng);
