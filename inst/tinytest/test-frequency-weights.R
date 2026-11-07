@@ -1128,6 +1128,23 @@ expect_equal(
   unlist(basisSampler$data@basis.scale),
   countedMoments(basisData$b, pmax(basisCounts, 1))[2L]
 )
+# the forests' scales, the anchor's among them, are those of the fit with
+# every row in at those counts
+allIn <- suppressWarnings(dbarts::dbarts(
+  y ~ x1,
+  basisData,
+  weights = pmax(basisCounts, 1),
+  weights.type = "frequency",
+  n.trees = 4L,
+  forests = list(forest(), forest(basis = ~b)),
+  control = dbarts::dbartsControl(n.chains = 1L, n.threads = 1L)
+))
+for (f in 1:2) {
+  expect_equal(
+    basisSampler$getLeafPrior(f)$k.scale,
+    allIn$getLeafPrior(f)$k.scale
+  )
+}
 
 rm(
   countedMoments,
@@ -1143,6 +1160,8 @@ rm(
   basisData,
   basisCounts,
   basisSampler,
+  allIn,
+  f,
   n,
   x,
   y,

@@ -8935,7 +8935,12 @@ private:
     // the O(n) scan must not run on a family that does not use it, where a
     // later reader would mistake it for the anchor
     const unsigned char* rows = response_->scaleRows();
-    const double* counts = frequencyCounts();
+    // no rows named with a count of 0 among them is the read falling back to
+    // every row, where a 0 is read as 1 (fallbackCounts)
+    std::vector<double> liftedCounts;
+    const double* counts =
+      fallbackCounts(frequencyCounts(), rows == nullptr,
+                     data_.numObservations, liftedCounts);
     double sd = counts != nullptr ? countedScaledResponseSd(rows, counts)
               : rows != nullptr  ? scaledResponseSdOver(rows)
                                  : scaledResponseSd();
