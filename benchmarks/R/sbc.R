@@ -11,6 +11,7 @@
 #   Rscript benchmarks/R/sbc.R                 # baseline gaussian, R=200
 #   Rscript benchmarks/R/sbc.R gaussian 200 200 30
 #   Rscript benchmarks/R/sbc.R probit  200 200 30
+#   Rscript benchmarks/R/sbc.R frequency 200 200 30 # real frequency weights
 #   Rscript benchmarks/R/sbc.R probit-k 600 99 1000  # k drawn under chi(1.5, 2)
 #   Rscript benchmarks/R/sbc.R ordinal 200 150 30   # family tiers, plan
 #   Rscript benchmarks/R/sbc.R nbinom|t|multinom 200 150 30
@@ -90,6 +91,26 @@ sbcSigmaDraw <- function(sigest, df, quant) {
   rawScale <- qchisq(1 - quant, df) / df
   function(nDraws = 1L) {
     sqrt(df * sigest^2 * rawScale / rchisq(nDraws, df))
+  }
+}
+
+# The sigma draw of a frequency-weighted gaussian arm. Under frequency weights
+# the likelihood is prod_i N(y_i; f_i, sigma^2)^{w_i}, which is
+# prod_i N(y_i; f_i, sigma^2 / w_i) times (sigma^2)^{-(W - n) / 2} and a
+# constant, W the weights' total: the precision model's likelihood with sigma's
+# prior raised by W - n degrees of freedom and no sum of squares. Theta0's
+# sigma comes from that tilted prior, sigma^2 ~ df sigest^2 rawScale /
+# chisq(df + W - n), and y0 from the precision model's sd sigma / sqrt(w);
+# ranks are then uniform exactly when the sampler draws the frequency
+# posterior. W >= n - df keeps the tilt a distribution.
+sbcFrequencySigmaDraw <- function(sigest, df, quant, weights) {
+  extra <- sum(weights) - length(weights)
+  if (df + extra <= 0) {
+    stop("frequency weights totaling below n - df tilt no sigma prior")
+  }
+  rawScale <- qchisq(1 - quant, df) / df
+  function(nDraws = 1L) {
+    sqrt(df * sigest^2 * rawScale / rchisq(nDraws, df + extra))
   }
 }
 
@@ -463,6 +484,9 @@ sbcMakeSampler <- function(config, L, thin, seed, y = NULL) {
   if (!is.null(config$weights)) {
     args$weights <- config$weights
   }
+  if (!is.null(config$weightsType)) {
+    args$weights.type <- config$weightsType
+  }
   if (!is.null(config$monotonePrior)) {
     args$monotone <- dbartsForests$monotone(
       c(x1 = "increasing"),
@@ -673,7 +697,16 @@ runSbc <- function(
 ) {
   set.seed(seed)
   sampler <- sbcMakeSampler(config, L, thin, seed)
-  drawSigma <- sbcSigmaDraw(config$sigest, config$sigDf, config$sigQuant)
+  drawSigma <- if (identical(config$weightsType, "frequency")) {
+    sbcFrequencySigmaDraw(
+      config$sigest,
+      config$sigDf,
+      config$sigQuant,
+      config$weights
+    )
+  } else {
+    sbcSigmaDraw(config$sigest, config$sigDf, config$sigQuant)
+  }
   fitMap <- NULL
   if (isTRUE(config$f0FromForestFits)) {
     fitMap <- sbcRecoverFitMap(sampler, config)
@@ -3657,6 +3690,7 @@ if (sys.nframe() == 0L) {
 
   isDart <- which %in% c("dart", "dart-sparse")
   isWeighted <- which == "weighted"
+  isFrequency <- which == "frequency"
   isLatentBCF <- which %in%
     c("bcf-probit", "bcf-logistic", "bcf-probit-weak", "bcf-logistic-weak")
   isBCF <- isLatentBCF || which %in% c("bcf", "bcf-weak")
@@ -3690,6 +3724,16 @@ if (sys.nframe() == 0L) {
     cfg <- sbcConfig(family = "gaussian")
     set.seed(7L)
     cfg$weights <- rgamma(cfg$n, 2, 2) # known, positive, mean 1
+    cfg
+  } else if (isFrequency) {
+    # real frequency weights, mean 1.25 (sbcFrequencySigmaDraw): their total
+    # adds about 37 degrees of freedom to sigma's prior, which a sigest of 3
+    # keeps near the gaussian arm's sigma
+    cfg <- sbcConfig(family = "gaussian")
+    set.seed(7L)
+    cfg$weights <- runif(cfg$n, 0.5, 2)
+    cfg$weightsType <- "frequency"
+    cfg$sigest <- 3
     cfg
   } else if (isBCF) {
     sbcBCFArmConfig(which)
