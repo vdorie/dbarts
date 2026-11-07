@@ -8,8 +8,17 @@ The exception is one warm-start route: a donor whose DART weights hold 0 on a co
 forest may split on, as a forest under a column restriction writes them, now starts the recipient's DART
 weights fresh (1/3 each over three columns, where main keeps the donor's 0.5, 0.5, 0), so the
 draws after such a warm start differ ([Calls made](#calls-made), 3). What else changes is what an
-incomplete run leaves, what an allocation failure leaves, and which edited or damaged states and
-warm-start donors are refused.
+incomplete run leaves, what an allocation failure leaves, which edited or damaged states and warm-start
+donors are refused, and three cases main treats otherwise:
+
+- setState refuses a state whose DART weights hold 0 on a column this sampler's forest may split on, a
+  restricted-DART sampler's own state given to an unrestricted sampler among them; main installs it
+  ([Calls made](#calls-made), 15).
+- setState and a warm start refuse a k of 0 or +Inf under a prior whose draw cannot reach it, a
+  chi(1.25, 1e-160) or chi(1.25, Inf) sampler's own state given to a chi(1.25, 2) sampler among them;
+  main installs both, and its k = Inf chain stays at Inf on every later sweep (call 2).
+- An edited gamma memo in a generator state is corrected on read rather than refused; main draws from
+  it as edited (call 1).
 
 Findings fixed: engine-01, engine-02, engine-03, engine-V-01, bridge-01 and bridge-V-01 of the fourth
 whole-repo review, as amended by its blind critique (amendments 1 to 12 binding; 13 to 16 taken or left in
@@ -69,10 +78,19 @@ birth had outgrown (amendment 4).
 
 Now: `Chain::reserveForMove` reserves, before each tree's move, room for one more child pair in the
 tree's nodes, its leaf table and its bottom scratch, so nothing from an accepted move to the end of that
-tree's draw reallocates them. `Chain::settleAfterAllocationFailure` (noexcept) makes the tree in flight
-(`treeInFlight_`) consistent without allocating - a constant leaf's map, the monotone one's included,
-marked stale and its table resized within the reserve, a vector leaf's block likewise - and re-sums
-every forest through `rebuildTotalFitsFromTrees`, which gains the dense branch for linear and gp leaves.
+tree's draw reallocates them. `Chain::settleAfterAllocationFailure` (noexcept) makes the chain the one
+its state describes, without allocating. The mean tree in flight (`treeInFlight_`) keeps its structure,
+its leaf table covering its nodes inside the reserve (a new leaf at 0); a tree being regrown or installed
+(`treeInFlightRegrown_`), or one whose table cannot cover it, goes back to a single leaf at 0. Its map is
+then rewritten from its partition (`writeLeafOfBelow`) and a vector leaf's fits from its blocks
+(`writeParameterFitsBelow`), the monotone leaf's block restarting at the all-equal zero. A variance tree
+being drawn or installed (`varianceTreeInFlight_`) goes back to a single leaf, its factor 1, the variance
+surface the product of the factors again. Every forest is then re-summed through `rebuildTotalFitsFromTrees`, which
+gains the dense branch for linear and gp leaves. The settle runs from `Chain::run`'s catch and from every
+other path that resets and rebuilds a tree: `growForestFromRoot` (reached by `$growFromRoot` and
+`bart(n.grow.sweeps =)`), `sampleTreesFromPrior`, `sampleVarianceForestFromPrior`, and the installs
+behind setState and a warm start (`rebuildLiveForest`, `rebuildVarianceForest`), on a throw or a refusal
+part way. The data paths (`setData` and its kin) re-route trees inside their transactions and reset none.
 `sampleNodeParametersFromPrior` catches for every leaf (amendment 10). `Tree::compactMaskPoolIfNeeded`
 reserves its scratch (`liveMaskWordsBelow`) before pointing a rule into it.
 
@@ -80,29 +98,34 @@ The harness found two older defects of the same kind, fixed here: the gp kernel 
 members (its key) before building its kernel, so a failure left an entry a later leaf matched with no
 kernel (a segfault); `MonotoneLeafGeometry::build` left its axis map stale on a throw, which the next
 build read past its axes (a segfault). The cache now writes the key last, and the geometry resets the map
-on every exit. The fix round's harness found a third: the settle left the monotone leaf's map unmarked,
-on the view that its failures put the tree back, but a failure in its branch score (the leaf list it
-gathers) leaves the proposed tree in place, so the next sweep scattered sufficient statistics through a
-map naming a split as a leaf (wrong statistics under NDEBUG, a failed assertion in tests/cpp). The
-monotone tree's map is now marked stale too, and its next draw restarts its leaf values at the all-equal
-zero, as a stale monotone tree does.
+on every exit. The first fix round's harness found a third: the monotone leaf's map was left unmarked,
+but a failure in its branch score leaves the proposed tree in place. The second fix round found two
+more. `growForestFromRoot` reset and regrew each tree outside `treeInFlight_`, so after a failure there
+the next sweep failed the map assertion, or under `-DNDEBUG` corrupted the heap; the prior draws and the
+installs had the same gap. And the stale-map settle of the build, which kept a tree's old fits until its
+next draw, left the state read just after a failure describing a different chain (constant, linear,
+monotone and pooled-factor arms), and a mutant skipping the monotone table's resize went unseen. Hence the
+settle above.
 
 Tests: test_alloc.cpp (new suite `alloc`) replaces every global `operator new` and `delete` form, counts
-the allocations of a sweep, and for each N fails the N-th on a fresh sampler, then checks the totals
-equal the trees' sum, the state it leaves reads and installs on a new sampler, the failed sampler's next
-sweep is consistent, and after it each tree's fits equal those of a new sampler built from its state, so
-every leaf map the failure left behind its tree is rebuilt before it is read. The install goes to a new
-sampler because an install on the failed one rebuilds its maps and hides a stale one. Arms: constant,
-linear, gp and monotone leaves, each over a sweep of births and deaths from stumps and over
-`sampleNodeParametersFromPrior`; a pooled-factor arm, a column of 60000 categories whose masks live in
-the tree's pool, so a split on it crosses the pool's high-water mark and the failures land in the
-compaction's reserve and around the stale-map marking; a tree-level arm compacting a pool of two live
-masks stored past garbage, after each failure every rule reading its own words; and a kept-draws arm
-whose failures land inside the kept sweep with a full ring. The sweep arms' birth probability is 0.5: at
-1 a birth has no reverse death and is always rejected, so the trees never grew. All N fail cleanly:
-constant 47 of 47 and 2 of 2, linear 85 of 85 (the prior draw makes no allocation), gp 102 of 102 and 58
-of 58, monotone 189 of 189 and 105 of 105, pooled factor 75 of 75, compaction 1 of 1, kept draws 40 of
-40 (39 inside the kept sweep).
+the allocations of a step, and for each N fails the N-th on a fresh sampler. After each failure, before
+any further sweep, the totals equal the trees' sum, every leaf table covers its tree, every monotone tree
+is in order, and a new sampler given the state it reads has its fits and variance surface; that state
+installs, the failed sampler's next sweep is consistent, and after it each tree's fits equal those of a
+new sampler built from its state. The install goes to a new sampler because an install on the failed one
+rebuilds its maps and hides a stale one. Arms: constant, linear, gp and monotone leaves, each over a sweep
+of births and deaths from stumps, `sampleNodeParametersFromPrior`, `sampleTreesFromPrior` and a state's
+install, and, for the constant and monotone leaves, `growFromRoot`; a variance forest over a sweep, its
+prior draw, an install and a grow; a monotone settle arm, a tree's leaves put out of order and settled
+in flight; a pooled-factor arm, a column of 60000 categories whose masks live in the tree's pool, so a
+split on it crosses the pool's high-water mark and the failures land in the compaction's reserve; a
+tree-level arm compacting a pool of two live masks stored past garbage, after each failure every rule
+reading its own words; and a kept-draws arm whose failures land inside the kept sweep with a full ring.
+The sweep arms' birth probability is 0.5: at 1 a birth has no reverse death and is always rejected, so
+the trees never grew. All N fail cleanly (sweep, prior leaf, prior tree, install, grow): constant 47,
+2, 16, 32, 62; linear 85, 0 (the prior draw makes no allocation), 17, 32; gp 102, 58, 13, 23; monotone
+189, 105, 15, 82, 69; variance forest 72 in a sweep, 15 in its prior draw, 41 in an install, 60 in a
+grow; pooled factor 75, compaction 1, kept draws 40 (39 inside the kept sweep).
 
 ### bridge-01 and bridge-V-01: values no chain can run from are refused
 
@@ -142,17 +165,19 @@ recipient's weights at 1/3 each.
 Run on arm64 macOS against the branch's own libraries (shipped and reference builds, each installed with
 `--preclean`).
 
-- tests/cpp: every suite passes, plain and under `-fsanitize=address,undefined` (445 checks reported
-  ok in each after the fix round, 443 before it, no sanitizer report).
+- tests/cpp: every suite passes, plain and under `-fsanitize=address,undefined` (460 checks reported
+  ok in each after the second fix round, 445 after the first, 443 before it, no sanitizer report).
   The new suite `alloc` reports the counts under engine-03 above.
-- Fix round, shipped build: test-state-value-floors.R, test-interrupt-saved-trees.R, test-capi.R,
-  test-sweep-order.R and test-interrupt-signal.R, 78, 9, 324, 26 and 2 results, 0 failed. The full
-  tinytest, R-loaded ASan and R CMD check lines below are from the build, before the fix round.
-- Full tinytest, one process, shipped build: 41276 results in 303 files, 0 failed.
+- Both fix rounds, shipped build: test-state-value-floors.R, test-interrupt-saved-trees.R,
+  test-capi.R, test-sweep-order.R and test-interrupt-signal.R, 78, 9, 324, 26 and 2 results, 0 failed.
+  The R-loaded ASan and R CMD check lines below are from the build, before the fix rounds.
+- Full tinytest, one process, shipped build: 41281 results in 303 files, 0 failed, after the second fix
+  round (41276 at the build).
 - Equivalence trio on the reference build, `--bitwise` (and `--strict-coverage` on equivalence.R): 55,
-  19 and 11 scenarios compared, 0 skipped, every one identical draws; the same again after the fix round.
+  19 and 11 scenarios compared, 0 skipped, every one identical draws; the same again after each fix
+  round.
 - The four snapshot files on the reference build: 14, 3, 7 and 3 assertions, 0 failed (unchanged); the
-  same again after the fix round.
+  same again after each fix round.
 - R-loaded ASan (the bridge compiled with `-fsanitize=address`, run through `bin/exec/R` with the
   runtime inserted): the four new or touched files and nine neighbors (state, warm start, callbacks,
   ordinal, DART, gp, monotone, serialization), 1286 results, 0 failed, no report. test-interrupt-signal.R
@@ -162,7 +187,7 @@ Run on arm64 macOS against the branch's own libraries (shipped and reference bui
   external site's expired certificate, cited from two help pages this slice does not touch, and the Date
   field).
 - `lintr::lint_package()` 0 lints; `air format --check .`, check-rc-codoc.R (53 methods), check-win-drift.R,
-  check-doc-freshness.R and `mutation-battery.R verify-anchors` all OK; after the fix round lintr, air,
+  check-doc-freshness.R and `mutation-battery.R verify-anchors` all OK; after each fix round lintr, air,
   codoc, win-drift and doc-freshness again OK.
 - Mutants, each built into a copy of the tree and run against tests/cpp:
 
@@ -173,14 +198,24 @@ Run on arm64 macOS against the branch's own libraries (shipped and reference bui
   | `if constexpr (NormalizedLeafModel<L>)` restored in `Chain::run`'s catch | the alloc suite's constant, linear and gp sweep arms |
   | each floor of `drawnScalarsAreValid` removed: sigma; k negative; k infinite; transform; DART well formed; DART positive where the forest splits; DART concentration | its own check in `testStateValueFloors`, the two DART weight floors each by the weights check |
   | k = 0 accepted under every scale; k = 0 refused under every scale (`kDrawCanBeZero` false) | the refusal under 1e-140; the acceptance of a chi(1.5, 1e-160) sampler's own state |
-  | the settle's stale mark removed (the reviewer's M6) | the engine's map assertion in the alloc suite's constant sweep arm; with `-DNDEBUG`, the pooled-factor arm's routed-fits check |
-  | the monotone leaf excluded from the stale mark again | the engine's map assertion in the alloc suite's monotone sweep arm |
-  | the compaction's reserve removed | the alloc suite's mask-pool compaction arm |
+  | the in-flight marker removed from the grow from the root | the engine's map assertion in the constant grow arm; with `-DNDEBUG`, a segfault there |
+  | the marker removed from the prior tree draw; from the install | with `-DNDEBUG`, a trap in the constant prior tree draw arm; a segfault in the constant install arm |
+  | the variance marker removed from the prior draw; from the install | with `-DNDEBUG`, the variance prior draw arm's state check; the variance install arm's state and routed checks |
+  | the settle's map rewrite removed (the reviewer's M6 on this settle) | with `-DNDEBUG`, the constant sweep arm's state check, then a trap |
+  | the leaf table's resize removed (the reviewer's X2) | the constant sweep arm's state check, then a segfault, with and without `-DNDEBUG` |
+  | the monotone leaf excluded from the map rewrite (the reviewer's unmarked mutant on this settle) | the engine's map assertion in the monotone prior tree draw arm; with `-DNDEBUG`, a trap there |
+  | the monotone block's zero restart removed | the monotone settle arm, with and without `-DNDEBUG` |
+  | the vector leaf's fits rewrite removed | with `-DNDEBUG`, the linear sweep and prior tree draw arms' state checks |
+  | a regrown tree's reset removed | with `-DNDEBUG`, the monotone install arm's routed check |
+  | the variance tree's reset removed | with `-DNDEBUG`, the variance prior draw and install arms' state checks |
+  | the compaction's reserve removed | the alloc suite's mask-pool compaction arm, with `-DNDEBUG` |
   | each ordinal floor removed: first 0; finite; increasing | the cutpoints check |
   | the warm start's `valueMismatch` removed | the warm-start donor check |
   | each generator floor removed: the index range; the essential bits; the memo re-derivation | the index, essential-bits and memo checks |
 
-  The floor checks reuse one sampler for a run of edits, so once a mutant lets an edit in, the later
+  The engine mutants of the second fix round were run against the alloc suite alone, built from the
+  same sources; the state checks are the reads just after a failure, before any further sweep. The floor
+  checks reuse one sampler for a run of edits, so once a mutant lets an edit in, the later
   checks on that sampler fail with it; every mutant whose check follows another's on one sampler was
   built alone.
 
@@ -198,17 +233,23 @@ Run on arm64 macOS against the branch's own libraries (shipped and reference bui
    came in the review's fix round: under chi(1.5, 1e-160) the draw's rate overflows and the chain
    writes k = 0, so k = 0 is accepted wherever a draw can reach it, a squared scale below 2^-960
    (`Chain::kDrawCanBeZero`: below 2^-969 the smallest gamma draw the generator makes, 2^-106, times the
-   gamma scale rounds to 0), at every door the floor reaches. Alternative: refuse such scales when the
-   prior is built, a change to what a user may pass.
+   gamma scale rounds to 0), at every door the floor reaches. Under a prior whose draw cannot reach the
+   value it is refused, even in the own state of a sampler under another prior, since the floor is
+   judged against the receiving chain's prior. Alternative: refuse such scales when the prior is built, a change to
+   what a user may pass.
 3. A warm-start donor whose DART weights are well formed but hold 0 on a column this forest may split on
    starts the recipient's DART fresh; setState refuses the same weights. Such a donor is package-written
    (a `forest(x1 + x2)` fit on the same three predictors, which the tinytest builds), and a warm start
    crosses model differences by design. Alternative: refuse it as `valueMismatch`.
-4. After an allocation failure only the tree in flight is settled - its map marked stale, its leaf
-   table resized inside the reserved room - rather than every constant-leaf tree's map (amendment 4's
-   text). Every other tree finished its move and draw, so its map and table agree, and the in-flight
-   marker is needed anyway to find the table to resize. Alternatives: mark every map stale (a full
-   rebuild at each tree's next draw), or reset a tree with a short table to a stump.
+4. After an allocation failure only the tree in flight is settled, rather than every constant-leaf
+   tree's map (amendment 4's text): every other tree finished its move and draw, so its map and table
+   agree. The settle makes the tree its state describes at once, its map rewritten from its partition,
+   rather than marking the map stale for its next draw, so a state read just after a failure, or a
+   sampler given it, has the failed chain's fits. A tree a failure stops mid-rebuild goes back to a
+   single leaf, and the monotone tree in flight restarts its block at zero even when its values are in
+   order, since checking the order allocates. Alternatives: mark the map stale, which leaves the state
+   read before the next sweep describing another chain; mark every map stale; or keep a copy of a tree
+   being rebuilt to put back, an allocation on every rebuild.
 5. `Chain::reserveForMove` grows geometrically, so a move where the room is there costs one compare.
    Alternative: reserve exactly two more nodes each move, which reallocates at every birth.
 6. Amendment 13 taken: `Sampler::run` throws `std::logic_error` while a run is in progress. A run
@@ -221,9 +262,11 @@ Run on arm64 macOS against the branch's own libraries (shipped and reference bui
 8. Amendment 15 taken as a sentence in bart-as-a-component.md section 5; the entry is unexported.
    Alternative: refuse `storeState` while a run is in progress, an R-surface change for an internal
    entry.
-9. Amendment 16 left: at any throw point the variance forest's combined variance equals the product
-   of its factors within rounding, and the next sweep's closing recompute restores it exactly; a
-   recompute in the catch would buy exactness only until that sweep.
+9. Amendment 16 left for a sweep: at any throw point the variance forest's combined variance equals
+   the product of its factors within rounding, and the next sweep's closing recompute restores it
+   exactly; a recompute in the catch would buy exactness only until that sweep. A variance tree a
+   failure stops mid-draw or mid-install is different, its factors part written, and the settle
+   recomputes the product there.
 10. The warm-start message departs from amendment 12's text: sigma must be "positive and finite"
     (sigma = Inf is refused), and the DART weights "finite, not negative and not all zero", since a
     well-formed donor with a 0 where this forest may split starts fresh (call 3) rather than being
@@ -242,6 +285,13 @@ Run on arm64 macOS against the branch's own libraries (shipped and reference bui
 14. bart-as-a-component.md now agrees with architecture.md that `bartcore_runWithCallback` is kept as
     the entry host packages build on, closing the disagreement the plan left open. Alternative: retire
     the entry, which nobody proposed.
+15. setState refuses a state whose DART weights hold 0 on a column this sampler's forest may split on,
+    the same floor that refuses an edited 0, even when the state is another sampler's own, as a
+    restricted-DART sampler's is when given to an unrestricted one. setState restores a state this
+    sampler could have written, and none of its chains draws a weight of 0 on a column its forest may
+    split on, the Dirichlet draw being positive there; the warm start, which crosses model differences,
+    starts such weights fresh instead (call 3). Alternative: accept it, as main does, the next sweep's
+    DART draw moving the weight off 0.
 
 ## Design-doc register
 
