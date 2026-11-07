@@ -794,8 +794,8 @@ mutations <- c(
     r3(
       "m57",
       "src/bartcore/combiner.hpp",
-      "for (int c = 1; c < trials_[i] && !stop; ++c)",
-      "for (int c = 1; c <= trials_[i] && !stop; ++c)",
+      "for (int c = 1; c < units && !stop; ++c)",
+      "for (int c = 1; c <= units && !stop; ++c)",
       c(
         kTests(
           "test-multinomial-counts-mutation.R",
@@ -808,8 +808,8 @@ mutations <- c(
     r3(
       "m58",
       "src/bartcore/combiner.hpp",
-      "    while (i < n && trials_[i] != 0) ++i;\n    if (i == n) return;",
-      "    while (i < n && trials_[i] != 0) ++i;\n    if (i != n) return;",
+      "    while (i < n && !out(i)) ++i;\n    if (i == n) return;",
+      "    while (i < n && !out(i)) ++i;\n    if (i != n) return;",
       kTests(
         "test-multinomial-zero-trials.R",
         "test-multinomial-counts-mutation.R"
@@ -850,8 +850,14 @@ mutations <- c(
     r3(
       "m62",
       mh,
-      "rPrior_.computeKernel(y_, numObservations_, activePointer());",
-      "rPrior_.computeKernel(y_, numObservations_);",
+      paste0(
+        "    rPrior_.computeKernel(y_, numObservations_, rowsInPointer(), weights_);\n",
+        "    return true;"
+      ),
+      paste0(
+        "    rPrior_.computeKernel(y_, numObservations_, nullptr, weights_);\n",
+        "    return true;"
+      ),
       c(kTests("test-nbinom.R", "test-active-rows-pins.R"), kCpp()),
       "nbinom setActiveRows: kernel not rebuilt over the subsample"
     ),
