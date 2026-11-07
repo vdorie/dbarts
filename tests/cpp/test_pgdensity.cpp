@@ -162,6 +162,31 @@ void testQPins() {
 
 /// Per (b, psi) of the f pins: the largest radius of log f and of log q
 /// (at the rule's K, the engine's own proposal) over z, and the step floor.
+// c0's radius charges (17 + 3n) u^2 (sum + x): the quotients and products,
+// one double-double addition a term and the final subtraction.
+void testResidual() {
+  int failed = 0;
+  std::size_t largestN = 0;
+  for (const QPin& p : kQPins) {
+    pg::Proposal prop(p.b, p.psi);
+    pg::GammaSumDensity q;
+    prop.density(q);
+    q.prepare(p.x);
+    const std::size_t n = q.numTerms();
+    double sigma = 0.0;
+    for (std::size_t j = 0; j < n; ++j) sigma += prop.shapes()[j] / (prop.rates()[j] + q.saddle());
+    const double need = (17.0 + 3.0 * n) * 0x1p-106 * (sigma + p.x) * (1.0 - 0x1p-40);
+    if (!(q.residual().r >= need)) {
+      if (failed++ < 5)
+        printf("FAIL: pgdensity c0 at b=%g psi=%g z=%g: radius %.3g below %.3g\n", p.b, p.psi, p.z,
+               q.residual().r, need);
+    }
+    largestN = std::max(largestN, n);
+  }
+  printf("pgdensity c0: %zu q pins, up to %zu terms, %d charged short\n", countOf(kQPins), largestN, failed);
+  check(failed == 0, "pgdensity: c0's radius is at least (17 + 3n) u^2 (sum + x) at every q pin");
+}
+
 void testFloor(const std::vector<double>& radF) {
   double worst = 0.0;
   int undecided = 0;
@@ -355,6 +380,7 @@ void runPgdensityTests() {
   testFirstRate();
   testFPins(radF);
   testQPins();
+  testResidual();
   testFloor(radF);
   testReach();
   testStep();

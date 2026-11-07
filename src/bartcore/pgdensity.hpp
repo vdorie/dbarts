@@ -561,6 +561,8 @@ class GammaSumDensity {
   double point() const { return x_; }
   double rho() const { return rho_; }
   double saddle() const { return t0_; }
+  /// The residual c0 = x - sum_j a_j / (mu_j + t0) and its radius.
+  RBall residual() const { return c0_; }
   double tiltedVariance() const { return vt_; }
   Enclosure lead() const { return lead_; }
 
@@ -1176,7 +1178,11 @@ inline void GammaSumDensity::prepare(double x) {
   }
 
   // c0 = x - sum_j a_j / (mu_j + t0) in double-double: mu_j + t0 exact, each
-  // quotient and product 15 u^2 + 2 u^2, the sum 3 u^2 per term
+  // quotient and product 15 u^2 + 2 u^2 of its term, the first addition
+  // exact and each later one 3 u^2 of the partial sum (at most the whole, the
+  // terms being positive), the final subtraction 3 u^2 of sum + x:
+  // (17 + 3 n) u^2 (sum + x) in all, the factor (1 + n 2^-50) covering the
+  // rounding of mag, the sum in double
   {
     dd::DD acc{0.0, 0.0};
     double mag = 0.0;
@@ -1188,7 +1194,8 @@ inline void GammaSumDensity::prepare(double x) {
     }
     dd::DD c = dd::sub(dd::DD{x, 0.0}, acc);
     double c0 = c.hi + c.lo;
-    c0_ = RBall{c0, up(kU * std::fabs(c0) + 24.0 * 0x1p-106 * (mag + x) * (1.0 + n * 0x1p-50))};
+    const double ddErr = (17.0 + 3.0 * n) * 0x1p-106 * (mag + x) * (1.0 + n * 0x1p-50);
+    c0_ = RBall{c0, up(kU * std::fabs(c0) + ddErr)};
   }
 
   // The lead x t0 - sum_j a_j log(1 + t0 / mu_j), each run of equal shapes as
