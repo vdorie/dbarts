@@ -276,7 +276,7 @@ and it costs the double-double update, about 56 bytes a row per chain, and a bro
 It is built only if S1's three- and four-evaluation timings move b* materially. The threshold, fixed here before
 any timing runs: the move is material if, at |psi| 0 or 8, the b* the per-row rule's criterion gives from the
 three-evaluation cost is at least 10 percent below the b* it gives from the four-evaluation cost (the most the
-cache can move it is 25 percent). S1's timing record cites the commit of this plan that carries this sentence. The
+cache can move it is 25 percent). The threshold was committed in ac8de7b16, which S1's timing record cites. The
 lead needs all five double-double functions (exp, log, log1p, sine, square root) whether or not the cache is
 built, so S1 builds all five either way; the cache adds only double-double arithmetic over them, and dec-B606's
 "cached density in double-double" applies only if it is built. As specified, if built: per row: log f at a point, in double-double, with its enclosure, its refinement level, the point
