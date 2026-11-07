@@ -549,13 +549,16 @@ countFit <- bart(
 trialWeights <- rep(c(1, 2, 7, 0), length.out = n)
 # a (chains x) draws x rows x K probability array's counts over 'trials': each
 # category's count a binomial of the trials left at its share of the
-# probability left, every draw of a row at once
+# probability left, every draw of a row at once; a row of no trials is drawn
+# at one and reported as zeros
 sequentialBinomials <- function(probabilities, trials) {
   d <- dim(probabilities)
   K <- d[length(d)]
   numDraws <- prod(d) %/% (d[length(d) - 1L] * K)
   flat <- matrix(probabilities, prod(d) %/% K, K)
   remaining <- rep(as.integer(trials), each = numDraws)
+  none <- remaining == 0L
+  remaining[none] <- 1L
   left <- rowSums(flat)
   result <- matrix(0L, nrow(flat), K)
   for (k in seq_len(K - 1L)) {
@@ -565,6 +568,7 @@ sequentialBinomials <- function(probabilities, trials) {
     left <- pmax(0, left - flat[, k])
   }
   result[, K] <- remaining
+  result[none, ] <- 0L
   array(result, d)
 }
 newRows <- df[1:8, ]
@@ -864,6 +868,197 @@ omitted <- predict(
 )
 expect_identical(dim(omitted)[2L], n - 1L)
 
+# ---- a predict weight of 0 is drawn at one trial and reported as none -------
+
+# moving one row's weight from 1 to 0 leaves every other row's draws as they
+# are, at new rows and at the training rows, on every count family
+zeroStream <- list(
+  probit = quick(yb ~ x1 + x2, df, family = "probit"),
+  logistic = quick(yb ~ x1 + x2, df, family = "logistic"),
+  nbinom = quick(yc ~ x1 + x2, df, family = "nbinom"),
+  ordinal = quick(yo ~ x1 + x2, df, family = "ordinal"),
+  multinomial = quick(ym ~ x1 + x2, df, family = "multinomial")
+)
+firstRow <- function(draws) {
+  if (length(dim(draws)) == 2L) draws[, 1L] else draws[, 1L, ]
+}
+otherRows <- function(draws) {
+  if (length(dim(draws)) == 2L) draws[, -1L] else draws[, -1L, , drop = FALSE]
+}
+for (fitName in names(zeroStream)) {
+  for (sample in c("newdata", "train")) {
+    drawAt <- function(first) {
+      set.seed(9L)
+      if (sample == "newdata") {
+        predict(
+          zeroStream[[fitName]],
+          df[1:6, ],
+          type = "ppd",
+          weights = c(first, 2, 2, 2, 2, 2)
+        )
+      } else {
+        predict(
+          zeroStream[[fitName]],
+          type = "ppd",
+          weights = c(first, rep(2, n - 1L))
+        )
+      }
+    }
+    atZero <- drawAt(0)
+    atOne <- drawAt(1)
+    expect_identical(
+      otherRows(atZero),
+      otherRows(atOne),
+      info = paste(fitName, sample, "other rows")
+    )
+    expect_true(
+      all(firstRow(atZero) == 0),
+      info = paste(fitName, sample, "a 0 draws none")
+    )
+  }
+}
+
+# a fit records weights.type only where a reader needs it, a gaussian fit
+# under frequency
+expect_identical(
+  quick(y ~ x1 + x2, df, weights = w, weights.type = "frequency")$weights.type,
+  "frequency"
+)
+expect_null(quick(y ~ x1 + x2, df, weights = w)$weights.type)
+for (fitName in names(zeroStream)) {
+  expect_null(zeroStream[[fitName]]$weights.type, info = fitName)
+}
+expect_null(
+  quick(yc ~ x1 + x2, df, weights = w, family = "nbinom")$weights.type
+)
+
+# a count weight multiplies the row's log density on nbinom and multinomial
+countedNbinom <- quick(
+  yc ~ x1 + x2,
+  df,
+  weights = w,
+  family = "nbinom",
+  n.chains = 1L
+)
+mu <- extract(countedNbinom, "ev")
+r <- as.vector(extract(countedNbinom, "shape"))
+expect_equal(
+  unname(extract(countedNbinom, "loglik")),
+  matrix(
+    rep(w, each = nrow(mu)) *
+      dnbinom(
+        rep(df$yc, each = nrow(mu)),
+        size = rep(r, n),
+        mu = as.vector(mu),
+        log = TRUE
+      ),
+    nrow(mu)
+  )
+)
+countedCategories <- quick(
+  ym ~ x1 + x2,
+  df,
+  weights = w,
+  family = "multinomial",
+  n.chains = 1L
+)
+probs <- extract(countedCategories, "ev")
+code <- match(df$ym, countedCategories$levels)
+expect_equal(
+  unname(extract(countedCategories, "loglik")),
+  vapply(
+    seq_len(n),
+    function(i) w[i] * log(probs[, i, code[i]]),
+    0 * probs[, 1L, 1L]
+  )
+)
+
+# nbinom's counts are read as counts where they are not all 0 and 1: a linear
+# leaf's covariate center and scale are the rows written out's
+countLeaf <- dbarts(
+  x,
+  df$yc,
+  weights = w,
+  family = "nbinom",
+  leaf.prior = dbartsPriors$linear("x1"),
+  n.trees = 5L,
+  control = dbartsControl(n.samples = 5L, n.chains = 1L, n.threads = 1L)
+)
+expect_equal(
+  unname(unlist(countLeaf$data@standardization[[1L]])),
+  c(mean(expanded$x1), sd(expanded$x1))
+)
+
+# the starting sigma's fallback under frequency is the sd of the rows written
+# out, here at fractional counts, which leave the regression no degrees of
+# freedom
+few <- data.frame(y = c(0.3, 1.7, -0.4), x1 = c(0.1, 0.5, 0.9), x2 = c(1, 0, 2))
+fewCounts <- c(0.5, 0.7, 0.6)
+fewCenter <- sum(fewCounts * few$y) / sum(fewCounts)
+expect_equal(
+  dbarts(
+    y ~ x1 + x2,
+    few,
+    weights = fewCounts,
+    weights.type = "frequency",
+    n.trees = 5L,
+    control = dbartsControl(n.samples = 5L, n.chains = 1L, n.threads = 1L)
+  )$data@sigma,
+  sqrt(sum(fewCounts * (few$y - fewCenter)^2) / (sum(fewCounts) - 1))
+)
+
+# the fallback's text says what it reads: the response's scale and the
+# prior's center from every row, a leaf covariate's and a basis's numbers
+# from every row at its count
+oneValue <- df
+oneValue$y[w > 0] <- 0
+oneValue$y[1:3] <- 3
+fallbackIn <- c(2, 3, 1, rep(0, n - 3L))
+fallbackText <- function(...) {
+  texts <- character()
+  withCallingHandlers(
+    dbarts(
+      ...,
+      weights = fallbackIn,
+      weights.type = "frequency",
+      n.trees = 5L,
+      control = dbartsControl(n.samples = 5L, n.chains = 1L, n.threads = 1L)
+    ),
+    dbartsScaleFallbackWarning = function(condition) {
+      texts <<- c(texts, conditionMessage(condition))
+      invokeRestart("muffleWarning")
+    }
+  )
+  texts
+}
+expect_identical(
+  fallbackText(
+    y ~ x1 + x2,
+    oneValue,
+    leaf.prior = dbartsPriors$linear("x1")
+  ),
+  paste0(
+    "fewer than two distinct values of the response are in the likelihood ",
+    "(3 of 40 observations are in it), so the response's scale and the ",
+    "prior's center are taken from all 40, and the center and scale of ",
+    "\"x1\" from all 40 at their weights' counts, a weight of 0 counting none"
+  )
+)
+expect_identical(
+  fallbackText(
+    y ~ x1 + x2,
+    oneValue,
+    forests = list(forest(), forest(basis = ~x2))
+  ),
+  paste0(
+    "fewer than two distinct values of the response are in the likelihood ",
+    "(3 of 40 observations are in it), so the response's scale and the ",
+    "prior's center are taken from all 40, and the scale of forest 2 ",
+    "('x2')'s basis from all 40 at their weights' counts, a weight of 0 ",
+    "counting none"
+  )
+)
+
 rm(
   n,
   x,
@@ -900,8 +1095,6 @@ rm(
   info,
   margins,
   rowAxis,
-  i,
-  s,
   testRows,
   train,
   missingWeights,
@@ -909,5 +1102,25 @@ rm(
   omitted,
   family,
   response,
-  rule
+  rule,
+  zeroStream,
+  firstRow,
+  otherRows,
+  sample,
+  drawAt,
+  atZero,
+  atOne,
+  countedNbinom,
+  mu,
+  r,
+  countedCategories,
+  probs,
+  code,
+  countLeaf,
+  few,
+  fewCounts,
+  fewCenter,
+  oneValue,
+  fallbackIn,
+  fallbackText
 )

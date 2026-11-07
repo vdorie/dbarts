@@ -2511,10 +2511,24 @@ recordBasisScales <- function(sampler, ptr, active = NULL) {
         n,
         "observation"
       ),
-      "), so the response's scale, the prior's center and ",
-      what,
-      " are taken from ",
-      takenFromAll(n)
+      if (fallbackCountsRows(sampler$model, data@weights)) {
+        paste0(
+          "), so the response's scale and the prior's center are taken from ",
+          takenFromAll(n),
+          ", and ",
+          what,
+          " from ",
+          takenFromAll(n),
+          " at their weights' counts, a weight of 0 counting none"
+        )
+      } else {
+        paste0(
+          "), so the response's scale, the prior's center and ",
+          what,
+          " are taken from ",
+          takenFromAll(n)
+        )
+      }
     )
   }
   invisible(NULL)
@@ -3090,7 +3104,8 @@ dbartsSampler <- setRefClass(
           fromAllRows,
           periods,
           byMask = model@family %in% c("logistic", "aft"),
-          subjects = units$subjects
+          subjects = units$subjects,
+          counted = fallbackCountsRows(model, data@weights)
         )
       }
 
@@ -3581,7 +3596,8 @@ dbartsSampler <- setRefClass(
         units$numIn,
         fellBack$range,
         fellBack$leaf,
-        subjects = units$subjects
+        subjects = units$subjects,
+        counted = fallbackCountsRows(model, data@weights)
       )
       invisible(NULL)
     },

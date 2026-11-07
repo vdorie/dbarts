@@ -2813,7 +2813,8 @@ categoryPpd <- function(object, probs, n.chains, sample) {
     return(multinomialCountPpdFromProbs(
       probs,
       rep_len(ppd$weights, nObs),
-      n.chains
+      n.chains,
+      drawZero = TRUE
     ))
   }
   countFit <- inherits(object, "bartMultinomial") && !is.factor(object[["y"]])
@@ -2863,7 +2864,8 @@ newRowCategoryPpd <- function(object, probs, n.chains, weights) {
   multinomialCountPpdFromProbs(
     probs,
     if (is.null(weights)) rep_len(1L, nObs) else rep_len(weights, nObs),
-    n.chains
+    n.chains,
+    drawZero = TRUE
   )
 }
 
@@ -2880,8 +2882,15 @@ setCategoryRowsNA <- function(x, rows) {
 # row, laid out as probs is (K trailing), a row of zero trials all zeros. Drawn
 # as rmultinom draws it, by sequential binomials - category k takes
 # Binomial(the trials left, p_k / the probability left) - but one category at
-# a time across every (draw, row) at once rather than one call per row.
-multinomialCountPpdFromProbs <- function(probs, trials, n.chains = 1L) {
+# a time across every (draw, row) at once rather than one call per row. Under
+# 'drawZero', for predict's weights, a row of zero trials is drawn at one and
+# reported as zeros, so its weight moves no other row's draw.
+multinomialCountPpdFromProbs <- function(
+  probs,
+  trials,
+  n.chains = 1L,
+  drawZero = FALSE
+) {
   drawInSplitLayout(probs, n.chains, function(split) {
     d <- dim(split)
     K <- d[length(d)]
@@ -2890,6 +2899,8 @@ multinomialCountPpdFromProbs <- function(probs, trials, n.chains = 1L) {
     flat <- split
     dim(flat) <- c(n.draws * nObs, K)
     remaining <- rep(as.integer(trials), each = n.draws)
+    noTrials <- if (drawZero) which(!is.na(remaining) & remaining == 0L)
+    remaining[noTrials] <- 1L
     probabilityLeft <- rowSums(flat)
     counts <- matrix(0L, n.draws * nObs, K)
     for (k in seq_len(K - 1L)) {
@@ -2903,6 +2914,7 @@ multinomialCountPpdFromProbs <- function(probs, trials, n.chains = 1L) {
       probabilityLeft <- pmax(0, probabilityLeft - flat[, k])
     }
     counts[, K] <- remaining
+    counts[noTrials, ] <- 0L
     array(counts, d, dimnames(split))
   })
 }
@@ -5244,6 +5256,14 @@ sampleFromPPD <- function(
   # counts copies of a row draws one observation, at unit weight.
   heldOut <- if (is.null(out)) integer(0L) else which(out)
   countsTrials <- responseIsBinary && trials
+  # a row of 0 trials is drawn at one and reported as 0 successes, so its
+  # weight moves no other row's draw
+  noTrials <- integer(0L)
+  if (!is.null(weights) && countsTrials) {
+    weights <- rep_len(weights, dim(ev)[length(dim(ev))])
+    noTrials <- which(!is.na(weights) & weights == 0)
+    weights[noTrials] <- 1
+  }
   if (!is.null(weights) && !countsTrials) {
     weights <- rep_len(weights, dim(ev)[length(dim(ev))])
     heldOut <- union(heldOut, which(is.na(weights) | weights == 0))
@@ -5344,20 +5364,24 @@ sampleFromPPD <- function(
     .GlobalEnv$.Random.seed <- oldSeed
   }
 
+  if (length(noTrials) > 0L) {
+    result <- setObservationsNA(result, noTrials, 0L)
+  }
   if (length(heldOut) > 0L) {
     result <- setObservationsNA(result, heldOut)
   }
   result
 }
 
-# x with its observations 'rows' (the last margin) set to NA, in every draw
-setObservationsNA <- function(x, rows) {
+# x with its observations 'rows' (the last margin) set to NA, or to 'value',
+# in every draw
+setObservationsNA <- function(x, rows, value = NA) {
   d <- dim(x)
   perObservation <- prod(d[-length(d)])
   x[
     rep(seq_len(perObservation), length(rows)) +
       rep((rows - 1L) * perObservation, each = perObservation)
-  ] <- NA
+  ] <- value
   x
 }
 

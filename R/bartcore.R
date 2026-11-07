@@ -1945,6 +1945,17 @@ countInLikelihood <- function(rowsIn, n, unit) {
   )
 }
 
+## Whether a fallback reads a leaf covariate's or a basis's numbers from every
+## row at its weight's count, a weight of 0 counting none, rather than from
+## every row alike: a gaussian sampler's weights under frequency. The
+## response's scale and the prior's center are a range, read from every row
+## alike under either reading.
+fallbackCountsRows <- function(model, weights) {
+  identical(model@family, "gaussian") &&
+    identical(model@weights.type, "frequency") &&
+    !is.null(weights)
+}
+
 ## Where a fallback text says numbers are taken from: all n rows, or the
 ## fit's one.
 takenFromAll <- function(n, unit = "observation") {
@@ -2000,7 +2011,8 @@ fewRowsInLead <- function(n, rowsIn, byMask = FALSE, subjects = FALSE) {
 ## where 'byMask', or a hazard fit's subjects where 'subjects', 'n' and
 ## 'rowsIn' then counting subjects (fewRowsInLead). 'periods', a hazard fit's
 ## warning that its periods were taken from every subject, folds the leaf's
-## into its own.
+## into its own. 'counted' says the leaf's numbers were read from every row at
+## its weight's count (fallbackCountsRows), the range from every row alike.
 warnRowsFallBack <- function(
   n,
   rowsIn,
@@ -2008,7 +2020,8 @@ warnRowsFallBack <- function(
   leaf,
   periods = NULL,
   byMask = FALSE,
-  subjects = FALSE
+  subjects = FALSE,
+  counted = FALSE
 ) {
   if (!is.null(periods) && length(leaf) > 0L) {
     periods$message <- sub(
@@ -2026,6 +2039,37 @@ warnRowsFallBack <- function(
     return(invisible(NULL))
   }
   what <- if (length(leaf) > 0L) leafCentersAndScales(leaf)
+  from <- takenFromAll(n, if (subjects) "subject" else "observation")
+  if (counted && !is.null(what)) {
+    # the leaf's numbers are its rows' at their counts, the range every row's
+    counts <- paste0(
+      from,
+      " at their weights' counts, a weight of 0 counting none"
+    )
+    if (!range) {
+      warnClassed(
+        "dbartsScaleFallbackWarning",
+        fewRowsInLead(n, rowsIn, byMask, subjects),
+        ", so ",
+        what,
+        " are taken from ",
+        counts
+      )
+    } else {
+      warnClassed(
+        "dbartsScaleFallbackWarning",
+        "fewer than two distinct values of the response are in the likelihood (",
+        countInLikelihood(rowsIn, n, "observation"),
+        "), so the response's scale and the prior's center are taken from ",
+        from,
+        ", and ",
+        what,
+        " from ",
+        counts
+      )
+    }
+    return(invisible(NULL))
+  }
   lead <- if (!range) {
     paste0(fewRowsInLead(n, rowsIn, byMask, subjects), ", so ")
   } else {
