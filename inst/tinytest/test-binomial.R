@@ -670,7 +670,9 @@ expect_true(abs(mean(atTrials) - 75) < 3)
 set.seed(15L)
 stated <- predict(rowsFit, newRows, type = "ppd", weights = 5)
 expect_true(all(stated <= 5) && max(stated) > 1)
-# one column missing, or a missing value in either, gives one trial
+# one column missing, or a missing value in either, gives one trial, the
+# column not looked for outside newdata
+f <- c(70L, 70L, 70L)
 for (partial in list(
   newRows[c("x1", "k")],
   newRows[c("x1", "f")],
@@ -681,6 +683,7 @@ for (partial in list(
   oneTrial <- predict(rowsFit, partial, type = "ppd")
   expect_true(all(oneTrial %in% c(0, 1)))
 }
+rm(f)
 # the probabilities do not move
 expect_identical(
   predict(rowsFit, newRows),
@@ -725,11 +728,29 @@ set.seed(16L)
 expect_true(all(
   dbarts::extract(weightedFit, type = "ppd", sample = "test") %in% c(0, 1)
 ))
-# columns that are not counts are refused in Refusal 13's words
+# columns that are not counts are refused in Refusal 13's words, at predict
+# and at a test frame
 expect_identical(
   refusal(predict(rowsFit, transform(newRows, k = -1L), type = "ppd")),
   paste0(
     "'newdata': a binomial response's successes and failures must be ",
+    "non-negative whole numbers; row(s) 1, 2, 3"
+  )
+)
+expect_identical(
+  refusal(dbarts::bart(
+    cbind(k, f) ~ x1,
+    rowsData,
+    family = binomial,
+    test = transform(newRows, f = 0.5),
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  )),
+  paste0(
+    "'test': a binomial response's successes and failures must be ",
     "non-negative whole numbers; row(s) 1, 2, 3"
   )
 )
