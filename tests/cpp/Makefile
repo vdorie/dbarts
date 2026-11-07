@@ -85,6 +85,12 @@ header-compiles:
 test_bartcore: $(OBJECTS) $(LIBS) $(NMATH_LIB)
 	$(CXX) $(OPT) $(CXXFLAGS) $(CPPFLAGS) -o $@ $(OBJECTS) $(LIBS) $(NMATH_LIB) $(R_LDFLAGS) -lpthread -lm
 
+# The evaluator's suite is built with products contracted across statements
+# (GCC's default in GNU modes where the target has a fused multiply-add), so
+# its double-double gate fails if the error-free transformations lose their
+# barrier.
+test_pgdensity.o: CXXFLAGS += -ffp-contract=fast
+
 %.o: %.cpp
 	$(CXX) $(OPT) $(CXXFLAGS) $(CPPFLAGS) -c -o $@ $<
 
