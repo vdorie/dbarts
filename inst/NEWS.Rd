@@ -258,6 +258,10 @@
             \code{test} or \code{$setTestPredictor} value whose column has
             another name is an error, as it is with several predictors;
             0.9-34 read it by position. An unnamed column is still taken.
+      \item \code{$setPredictor}, \code{$setTestPredictor} and
+            \code{$setCutPoints} refuse a logical \code{column} and a column
+            given twice; 0.9-34 read \code{TRUE} as column 1 and installed
+            the last of a repeated column's values.
     }
   }
   \subsection{USER-VISIBLE CHANGES}{

@@ -311,5 +311,58 @@ expect_equal(as.numeric(x.train[, 2L]), z)
 
 rm(z, n, sampler, y.train, x.train)
 
+# a logical or repeated 'column' is refused by each setter, the sampler left
+# as it was; whole numbers, as treatSens passes, run
+set.seed(5L)
+colX <- cbind(p = runif(30L), q = runif(30L), r = runif(30L))
+colSampler <- dbarts::dbarts(
+  colX,
+  colX[, 1L] + rnorm(30L, 0, 0.3),
+  test = colX[1:4, ],
+  control = dbartsControl(n.chains = 1L, n.threads = 1L, updateState = FALSE)
+)
+colSampler$run(5L, 1L)
+before <- list(
+  x = colSampler$data@x,
+  x.test = colSampler$data@x.test,
+  cuts = colSampler$data@cutPoints
+)
+logicalWords <- "'column' takes column numbers or names, not TRUE/FALSE"
+for (column in list(TRUE, c(TRUE, FALSE))) {
+  expect_error(colSampler$setPredictor(rep(5, 30L), column), logicalWords, fixed = TRUE)
+  expect_error(colSampler$setTestPredictor(rep(5, 4L), column), logicalWords, fixed = TRUE)
+  expect_error(colSampler$setCutPoints(c(0.3, 0.6), column), logicalWords, fixed = TRUE)
+}
+for (column in list(c(2L, 2L), c("q", "q"))) {
+  repeatedWords <- if (is.character(column)) {
+    "'column' names column 'q' more than once"
+  } else {
+    "'column' names column 2 more than once"
+  }
+  expect_error(
+    colSampler$setPredictor(cbind(rep(1, 30L), rep(2, 30L)), column),
+    repeatedWords,
+    fixed = TRUE
+  )
+  expect_error(
+    colSampler$setTestPredictor(cbind(rep(1, 4L), rep(2, 4L)), column),
+    repeatedWords,
+    fixed = TRUE
+  )
+  expect_error(
+    colSampler$setCutPoints(list(c(0.3, 0.6), c(0.4, 0.7)), column),
+    repeatedWords,
+    fixed = TRUE
+  )
+}
+expect_identical(colSampler$data@x, before$x)
+expect_identical(colSampler$data@x.test, before$x.test)
+expect_identical(colSampler$data@cutPoints, before$cuts)
+colSampler$setTestPredictor(rep(0.5, 4L), 2L)
+expect_identical(unname(colSampler$data@x.test[, 2L]), rep(0.5, 4L))
+colSampler$setTestPredictor(before$x.test[, 2L], 2L)
+expect_identical(colSampler$data@x.test, before$x.test)
+
+rm(colX, colSampler, before, logicalWords, column, repeatedWords)
 
 rm(testData)

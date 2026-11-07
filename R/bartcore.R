@@ -366,23 +366,42 @@ mergeSlowCountTallies <- function(a, b) {
 # integer index (or indices); NULL or an already-numeric 'column' passes
 # through unchanged. 'what' names source for the not-found message. A missing
 # index is refused by name here, ahead of the range checks it would otherwise
-# reach as a bare missing condition.
+# reach as a bare missing condition. A logical 'column' would be read as the
+# codes 1 and 0, not as base R reads a logical index, and a column given
+# twice would take the last of its values, so both are refused.
 resolveColumnIndex <- function(source, column, what) {
   if (anyNA(column)) {
     stop("'column' contains missing values", call. = FALSE)
   }
-  if (is.null(column) || !is.character(column)) {
-    return(column)
-  }
-  if (is.null(colnames(source))) {
+  if (is.logical(column)) {
     stop(
-      "column names not specified at initialization, so cannot be ",
-      "replaced by name"
+      "'column' takes column numbers or names, not TRUE/FALSE",
+      call. = FALSE
     )
   }
-  column <- match(column, colnames(source))
-  if (anyNA(column)) {
-    stop("column name not found in names of ", what)
+  if (!is.null(column) && is.character(column)) {
+    if (is.null(colnames(source))) {
+      stop(
+        "column names not specified at initialization, so cannot be ",
+        "replaced by name"
+      )
+    }
+    named <- column
+    column <- match(column, colnames(source))
+    if (anyNA(column)) {
+      stop("column name not found in names of ", what)
+    }
+  } else {
+    named <- NULL
+  }
+  repeated <- anyDuplicated(column)
+  if (repeated > 0L) {
+    stop(
+      "'column' names column ",
+      if (is.null(named)) column[repeated] else paste0("'", named[repeated], "'"),
+      " more than once",
+      call. = FALSE
+    )
   }
   column
 }
