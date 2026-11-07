@@ -156,13 +156,12 @@ drawsLeafKByDefault <- function(family) {
   isBinaryFamily(family) || identical(family, "nbinom")
 }
 
-## The latent-variable families that carry no case weight at all but do
-## implement the active-row mask. A weight vector of 0s and 1s there is
-## membership rather than precision - the row leaves the likelihood, keeps its
-## leaf occupancy, its latent and its fitted value - which is exactly the mask,
-## so such a vector installs as one instead of being refused. Any other value
-## is a weighted latent likelihood, which these families have no coherent form
-## for, and stays refused.
+## The families whose weights the R layer takes only as 0 and 1. A weight
+## vector of 0s and 1s there is membership rather than precision - the row
+## leaves the likelihood, keeps its leaf occupancy, its latent and its fitted
+## value - which the engine composes with the active-row mask. Any other value
+## is a weighted latent likelihood, which probit and ordinal have no coherent
+## form for, and stays refused.
 isMaskedWeightFamily <- function(family) {
   family %in% c("probit", "ordinal", "nbinom")
 }
@@ -198,7 +197,7 @@ rowsInLackTwoValues <- function(value, rowsIn) {
 ## aft sampler takes no weights, and a mask reaches it only after creation,
 ## where the engine answers). The scale and the center are then taken over
 ## every row, and so is the starting sigma: the caller hands the estimate the
-## data without its weights. 'active' is the mask the weights resolved to,
+## data without its weights. 'active' is a mask composed with the weights,
 ## NULL for none. Raises the creation warning unless 'warn' is FALSE.
 scaleRowsFallBack <- function(data, family, active = NULL, warn = TRUE) {
   if (!(family %in% c("gaussian", "nbinom"))) {
@@ -340,39 +339,46 @@ nonFinitePredictorNames <- function(x) {
   if (is.null(names)) as.character(bad) else names[bad]
 }
 
-## The binary/ordinal/nbinom weight policy, shared by every entry point that
-## can reach these families: a probit has no tractable weighted latent-
-## variable form and is refused, except that weights identically 1 are the
-## unweighted likelihood and are treated as absent (SuperLearner-style
-## callers pass obsWeights = rep(1, n) unconditionally), and weights that are
-## all 0 or 1 name the rows in the data set and resolve to the active-row mask
-## (isMaskedWeightFamily above); a logistic model treats weights as
-## observation counts (its Polya-Gamma latent is a sum of per-copy draws), so
-## they must be positive integers; ordinal and nbinom follow probit, mask
-## included (an nbinom exposure belongs in the offset, not in a weight).
-## Gaussian weights are unrestricted and reach here as a no-op.
-##
-## Returns the data with the policy applied and the mask the weights resolved
-## to, NULL where they resolved to none: the weights slot is cleared in both
-## the all-ones and the mask case, since neither family carries a weight
-## channel, so the caller must install the mask on the sampler it builds.
-## A logistic fit's weights are observation counts, and the weights of a
-## binary fit's posterior predictive draw at new rows are its trial counts;
-## either way, positive integers. 'what' names whose weights they are.
-refuseNonCountWeights <- function(
-  w,
-  remedy = "",
-  what = "logistic weights are observation counts"
-) {
+## The weights of a binary fit's posterior predictive draw at new rows are
+## its trial counts, positive integers. 'what' names whose weights they are.
+refuseNonCountWeights <- function(w, remedy = "", what) {
   if (anyNA(w) || any(w <= 0) || !all(is.finite(w)) || any(w != round(w))) {
     stop(what, " and must be positive integers", remedy, call. = FALSE)
   }
   invisible(NULL)
 }
 
+## A logistic fit's weights: observation counts, a 0 a row out of the
+## likelihood.
+refuseLogisticWeights <- function(w) {
+  if (anyNA(w) || any(w < 0) || !all(is.finite(w)) || any(w != round(w))) {
+    stop(
+      "logistic weights are observation counts and must be non-negative ",
+      "whole numbers",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
+## The binary/ordinal/nbinom weight policy, shared by every entry point that
+## can reach these families: a probit has no tractable weighted latent-
+## variable form and is refused, except that weights identically 1 are the
+## unweighted likelihood and are treated as absent (SuperLearner-style
+## callers pass obsWeights = rep(1, n) unconditionally), and weights that are
+## all 0 or 1 name the rows in the data set (isMaskedWeightFamily above),
+## which the engine composes with the active-row mask; a logistic model
+## treats weights as observation counts (its Polya-Gamma latent is a sum of
+## per-copy draws), so they must be whole numbers, a 0 a row out; ordinal and
+## nbinom follow probit (an nbinom exposure belongs in the offset, not in a
+## weight). Gaussian weights are unrestricted and reach here as a no-op.
+##
+## Returns the data with the policy applied: the weights slot cleared where
+## the weights are all ones on a family whose weights are membership, and
+## kept otherwise.
 enforceWeightPolicy <- function(data, family) {
   if (is.null(data@weights)) {
-    return(list(data = data, active = NULL))
+    return(data)
   }
   # a data object's slot can be edited past its validity check, and a gaussian
   # fit would otherwise fail on the starting sigma without naming the weights;
@@ -384,14 +390,13 @@ enforceWeightPolicy <- function(data, family) {
   if (!all(is.finite(observed))) {
     stop("'weights' must all be finite")
   }
-  active <- NULL
   if (isMaskedWeightFamily(family)) {
     w <- data@weights
     if (!anyNA(w) && all(w == 1)) {
       data@weights <- NULL
     } else if (!anyNA(w) && all(w == 0 | w == 1)) {
-      active <- w
-      data@weights <- NULL
+      # membership: kept on the data object, the engine composing it with
+      # the active-row mask
     } else if (family == "probit") {
       stop(
         "probit models do not support weights other than 0 and 1, which mark ",
@@ -415,10 +420,7 @@ enforceWeightPolicy <- function(data, family) {
       )
     }
   } else if (family == "logistic") {
-    refuseNonCountWeights(
-      data@weights,
-      "; drop zero-count rows, and use a gaussian model for continuous weights"
-    )
+    refuseLogisticWeights(data@weights)
   } else if (family == "multinomial") {
     if (all(data@weights == 1)) {
       data@weights <- NULL
@@ -430,7 +432,7 @@ enforceWeightPolicy <- function(data, family) {
       )
     }
   }
-  list(data = data, active = active)
+  data
 }
 
 ## Whether a tree-prior record's split probabilities are other than equal:
@@ -638,16 +640,13 @@ resolveSamplerSpec <- function(
   # bridge keeps the same checks as a backstop) - see enforceWeightPolicy's
   # own doc comment for the rule each family follows. Gaussian weights,
   # including a gaussian fit of a 0/1 response, are unrestricted and pass
-  # through untouched. A latent family's 0/1 weights resolve to an active-row
-  # mask the caller installs on the sampler it builds from this spec; the
-  # weights slot is cleared either way, since the bridge takes none there.
-  weightPolicy <- enforceWeightPolicy(data, family)
-  data <- weightPolicy$data
-  active <- weightPolicy$active
+  # through untouched. A latent family's 0/1 weights stay on the data object,
+  # which the engine composes with any mask installed later.
+  data <- enforceWeightPolicy(data, family)
 
   # the rows in the likelihood leave nothing to read a scale from: every
   # number is taken over every row, the starting sigma's regression included
-  allRows <- scaleRowsFallBack(data, family, active)
+  allRows <- scaleRowsFallBack(data, family)
 
   if (is.na(data@sigma) && !fixedUnitScale) {
     data@sigma <- if (is(residPrior, "dbartsFixedPrior")) {
@@ -1371,7 +1370,7 @@ resolveSamplerSpec <- function(
       lapply(basisRecords, function(record) record$label),
       numForests
     )
-    refuseConstantBasis(data, active, allRows, specs, labels)
+    refuseConstantBasis(data, allRows, specs, labels)
     # the first forest's constraints are the model's, already resolved
     # above; the rest take their own, and the plain forest the fitting
     # function's where it states none, each resolved against the columns
@@ -1486,7 +1485,7 @@ resolveSamplerSpec <- function(
     announceAutoFamily(control@verbose, family, autoDescription)
   }
 
-  namedList(control, model, data, family, active)
+  namedList(control, model, data, family)
 }
 
 ## What a multinomial model's creation and $setForest refuse, by its name.

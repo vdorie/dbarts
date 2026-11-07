@@ -952,8 +952,8 @@ forestCallText <- function(predictors, basis) {
 ## them in the likelihood is refused in its own words. The rows, the fallback to every
 ## row and what counts as constant are basisColumnScale's. Not at a later swap,
 ## which is taken, nor at a re-creation, which reads the column a swap left.
-refuseConstantBasis <- function(data, active, allRows, specs, labels) {
-  rowsIn <- rowsInLikelihood(data@weights, active, length(data@y))
+refuseConstantBasis <- function(data, allRows, specs, labels) {
+  rowsIn <- rowsInLikelihood(data@weights, n = length(data@y))
   fellBack <- allRows || sum(rowsIn) < 2L
   if (fellBack) {
     rowsIn[] <- TRUE

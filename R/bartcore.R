@@ -1678,28 +1678,23 @@ bartcoreSamplerSetData <- function(
   # the censoring status the sampler was created with stays its own
   newData@status <- sampler$data@status
 
-  # a probit or ordinal sampler carries no weight channel for the whole-data
-  # conduit to fill, and 0/1 weights there name the rows in the data set: pull
-  # them off the object and install them as the active-row mask instead, sized
-  # by the replacement's own n. The mask goes in AFTER the swap, which clears
-  # whatever was in force (n may change with the data); all-ones resolves to
-  # no mask at all, as it does at creation.
-  active <- NULL
+  # a latent family's 0/1 weights name the rows in the data set: they ride
+  # the replacement, which the engine composes with any mask installed after
+  # the swap (the swap clears the one in force, n possibly changing), and
+  # all-ones is no weights at all, as at creation
   if (isMaskedWeightFamily(sampler$model@family) && !is.null(newData@weights)) {
     w <- newData@weights
     if (anyNA(w) || any(w != 0 & w != 1)) {
       stop(
         sampler$model@family,
         " models do not support case weights other than 0 and 1, which mark ",
-        "rows in and out of the likelihood: such a vector installs as the ",
-        "active-row mask, and a weighted truncated-normal latent likelihood ",
-        "is not a coherent model"
+        "rows in and out of the likelihood: a weighted truncated-normal ",
+        "latent likelihood is not a coherent model"
       )
     }
-    if (!all(w == 1)) {
-      active <- w
+    if (all(w == 1)) {
+      newData@weights <- NULL
     }
-    newData@weights <- NULL
   }
 
   ptr <- sampler$getPointer()
@@ -1708,14 +1703,12 @@ bartcoreSamplerSetData <- function(
   tooFew <- tooFewUnitsIn(likelihoodUnits(
     sampler$model,
     newData,
-    active,
+    NULL,
     "$setData: "
   ))
 
   oldData <- sampler$data
   sampler$data <- newData
-  # the mask goes to the engine too, for the rows a derived standardization
-  # is read over, and is installed after the swap below
   tryResult <- tryCatch(
     .Call(
       C_dbarts_bartcore_setData,
@@ -1724,7 +1717,7 @@ bartcoreSamplerSetData <- function(
       choices$grid,
       choices$range,
       choices$standardization,
-      if (!is.null(active)) as.double(active),
+      NULL,
       if (tooFew) TRUE
     ),
     error = function(e) {
@@ -1745,27 +1738,15 @@ bartcoreSamplerSetData <- function(
     sampler$data
   )
   # the swap cleared whatever mask was in force, so the mirror that would
-  # otherwise re-apply one at re-creation goes with it; setActiveRows records
-  # the replacement's own below
+  # otherwise re-apply one at re-creation goes with it
   sampler$activeRows <- NULL
-  # the caller's own updateState decides the store, once, after the swap; a
-  # count center kept or taken from the record is not read again over the
-  # rows the mask keeps
   rangeDerived <- choices$range == "derive"
-  if (!is.null(active)) {
-    installWeightsMask(sampler, active, rangeDerived)
-  }
   # a derived range and a derived standardization are read as creation reads
   # them. Whether either had too little to read is the caller's to say, last:
   # the record and the stored state are still the replaced data's here
   invisible(list(
     range = rangeDerived &&
-      scaleRowsFallBack(
-        newData,
-        sampler$model@family,
-        active,
-        warn = FALSE
-      ),
+      scaleRowsFallBack(newData, sampler$model@family, warn = FALSE),
     leaf = leafFromAllRows(sampler, records)
   ))
 }
@@ -2107,19 +2088,16 @@ bartcoreSamplerSetActiveRows <- function(
   invisible(kept)
 }
 
-## Creation's and setData's install of the mask a latent family's 0/1 weights
-## resolved to. A count sampler takes its center over the rows the mask keeps
-## in the same call; where those hold fewer than two distinct counts, or the
-## sampler carries amplitudes, the center derived over every row stands; with
-## rederive FALSE, a setData that kept the center or took it from the record,
-## the center in force stands. The rows have just been found to hold two
+## Creation's install of the mask handed to its door. A count sampler takes
+## its center over the rows the mask keeps in the same call; where those hold
+## fewer than two distinct counts, or the sampler carries amplitudes, the
+## center derived at creation stands. The rows have just been found to hold two
 ## counts, so the engine keeps nothing and its once-per-sampler warning is not
 ## spent; the bridge answers TRUE on a first keep, and that is an internal
 ## error here.
-installWeightsMask <- function(sampler, active, rederive = TRUE) {
+installCreationMask <- function(sampler, active) {
   active <- as.double(active)
-  updateScale <- rederive &&
-    identical(sampler$model@family, "nbinom") &&
+  updateScale <- identical(sampler$model@family, "nbinom") &&
     !samplerCarriesAmplitudes(sampler) &&
     !scaleRowsFallBack(sampler$data, "nbinom", active, warn = FALSE)
   if (isTRUE(bartcoreSamplerSetActiveRows(sampler, active, updateScale))) {

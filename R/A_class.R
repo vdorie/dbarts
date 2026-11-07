@@ -1110,7 +1110,7 @@ methods::setValidity("dbartsData", function(object) {
       # the trees may split around. A vector of nothing but 0s and 1s is
       # exempt, on every family: there the zeros ARE the statement being made
       # - which rows are in the data set - and a probit or ordinal fit reads
-      # such a vector as its active-row mask outright
+      # such a vector as membership, composed with its active-row mask
       warning(
         "rows with 'weights' of 0 are left out of the likelihood but stay in the fit; use 'subset' to drop them",
         call. = FALSE

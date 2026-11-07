@@ -935,12 +935,10 @@ packageRbartResults <- function(
   }
   # the rows in the likelihood, kept under a bart fit's names and conditions
   sampler <- chainResults[[1L]]$sampler
-  if (!is.null(sampler$data@weights) && length(sampler$data@weights) > 0L) {
+  if (length(fitWeights(sampler)) > 0L) {
     result$weights <- sampler$data@weights
   }
-  if (!is.null(sampler$activeRows)) {
-    result$active <- sampler$activeRows
-  }
+  result$active <- fitActiveRows(sampler)
   if (!is.null(group.by.test)) {
     result[["group.by.test"]] <- group.by.test
   }

@@ -1714,17 +1714,13 @@ dbarts <- function(
     }
   )
 
-  # a latent family's 0/1 case weights are membership, which the sampler
-  # carries as its active-row mask rather than as weights: the spec has
-  # already cleared the weights slot, so the creation is the only place the
-  # vector lands. All-ones never reaches here, having resolved to no mask at
-  # all.
+  # a latent family's 0/1 case weights are membership, which ride the data
+  # object and which the engine composes with any mask installed later
   sampler <- new(
     "dbartsSampler",
     spec$control,
     spec$model,
     spec$data,
-    active = spec$active,
     periods = heldPeriods
   )
   # the sampler raised one text naming the response with whatever else was
@@ -2448,8 +2444,8 @@ warnBasisScaleKept <- function(answer, name, n, rowsIn) {
 ## creation's, which every later creation from the object is handed. Raises
 ## the one warning where the engine read a scale from every row: under
 ## gaussian with the response's, whose scale was read from every row too;
-## under probit and logistic counting the rows the creation mask 'active'
-## keeps, fewer than two.
+## under probit and logistic counting the rows of positive weight the
+## creation mask 'active' keeps, fewer than two.
 recordBasisScales <- function(sampler, ptr, active = NULL) {
   data <- sampler$data
   numForests <- length(data@bases)
@@ -2494,7 +2490,8 @@ recordBasisScales <- function(sampler, ptr, active = NULL) {
       fewRowsInLead(
         n,
         sum(rowsInLikelihood(data@weights, active, n)),
-        byMask = sampler$model@family == "logistic"
+        byMask = !is.null(active) &&
+          (is.null(data@weights) || all(data@weights > 0))
       ),
       ", so ",
       what,
@@ -2539,11 +2536,11 @@ applyAnchor <- function(ptr, data) {
 ## Creates the engine for (control, model, data), on the values the data
 ## object records and deriving the ones it does not: the cut grids, the
 ## calibration map's anchor and unit and a numeric column's scale go in at
-## construction, the range by the move applyAnchor makes. active is the mask a
-## latent family's 0/1 weights resolve to, handed only to a first creation,
-## which reads a numeric column's scale over its rows; a re-creation is handed
-## the recorded scale and installs its mask afterward. Returns the pointer and
-## the engine's records.
+## construction, the range by the move applyAnchor makes. active is the mask
+## handed to the creation door, handed only to a first creation, which reads
+## a numeric column's scale over its rows; a re-creation is handed the
+## recorded scale and installs its mask afterward. Returns the pointer and the
+## engine's records.
 createEngine <- function(
   control,
   model,
@@ -3016,9 +3013,10 @@ dbartsSampler <- setRefClass(
       .self$activeRows <- NULL
 
       # "auto" (a hand-built model) keeps the bridge's own dispatch; the mask
-      # a latent family's 0/1 weights resolve to, installed below, gives the
-      # rows a numeric column's scale is read from, and a hazard fit's
-      # subjects in, which the engine cannot count, whether too few are in
+      # handed in, installed below and composed with the data's weights,
+      # gives the rows a numeric column's scale is read from, and a hazard
+      # fit's subjects in, which the engine cannot count, whether too few are
+      # in
       units <- likelihoodUnits(.self$model, .self$data, active)
       created <- createEngine(
         .self$control,
@@ -3058,12 +3056,12 @@ dbartsSampler <- setRefClass(
         eval.env = as.environment(.self),
         assign.env = as.environment(.self)
       )
-      # the mask a latent family's 0/1 weights resolve to, which the creation
-      # read the rows of a numeric column's scale from. No store: a fresh
+      # the mask handed in, which the creation read the rows of a numeric
+      # column's scale from, composed with the data's weights. No store: a fresh
       # sampler's state stays the promise that captures the state current at
       # first read.
       if (!is.null(active)) {
-        installWeightsMask(.self, active)
+        installCreationMask(.self, active)
       }
       # once, at a creation: a copy is not one; verbose asks for the detail
       if (.self$control@verbose && !isTRUE(forestPrintState[["held"]])) {
@@ -3530,7 +3528,7 @@ dbartsSampler <- setRefClass(
       updateScale = NULL,
       updateStandardization = NULL
     ) {
-      "Sets the data object for the sampler to a new one; a sampler created with one forest and none refuses data that carry bases. A cut count or quantile rule the object states wins, and the sampler derives by it from then on; one carrying cutPoints brings the count and rule that made them, an unstated rule reading as even; one stating neither keeps the sampler's, as updateCutPoints = \"none\" does whatever it states. Preserves the sigma slot and the level tables: columns are matched by name, the names being the sampler's in any order and any other refused, as predict refuses them, while a matrix with no column names is read by position with no message, as is any data handed to a sampler with none, whose record then takes the data's names, which predict needs; a factor is read by label against the levels the sampler was created with, so fewer levels, another order and declared levels no row holds are taken, while a row at a label the sampler never had, or a factor column of bare numbers, is refused. A factor whose labels were changed on purpose is relabeled to the sampler's labels with levels<- first, or given to a new sampler. The cut points, the response range and a linear or gp leaf's covariate standardization each follow updateCutPoints, updateScale and updateStandardization where given: \"position\", \"value\" or TRUE derive the value from the new data, and \"none\" or FALSE keep the sampler's. Left NULL, a value the data object records (its cutPoints, response.range and standardization slots, which the sampler writes into its own data) is used, and one it does not record is derived, so setData(sampler$data) keeps every derived value and a fresh dbartsData() derives them. A derived standardization is read over the new data's rows in the likelihood, over every row where fewer than two are in (subjects, for a hazard fit, whose rows must hold each subject's together at periods 1, 2, 3 and on, as dbarts() expands them) or the response's scale is read from every row, and refused where two or more rows in hold one value of a leaf covariate, unless a gp leaf states its lengthscale, which takes the placeholder; FALSE keeps the sampler's. Under a family whose 0/1 weights are a mask, sampler$data carries no weights, so setData(sampler$data) drops the mask in force. Saved draws are rewritten so that they predict what they did. updateState follows control@updateState: NULL, its default, resolves to the control's setting, and an explicit TRUE or FALSE overrides it - the same rule run() applies. It keeps the trees, the ordinal cutpoints, the Student-t degrees of freedom and the negative-binomial shape, and starts the latents as creation does (an ordinal or negative-binomial sampler from the kept cutpoints or shape). This draws nothing; the next sweep draws the augmentation variables against the change."
+      "Sets the data object for the sampler to a new one; a sampler created with one forest and none refuses data that carry bases. A cut count or quantile rule the object states wins, and the sampler derives by it from then on; one carrying cutPoints brings the count and rule that made them, an unstated rule reading as even; one stating neither keeps the sampler's, as updateCutPoints = \"none\" does whatever it states. Preserves the sigma slot and the level tables: columns are matched by name, the names being the sampler's in any order and any other refused, as predict refuses them, while a matrix with no column names is read by position with no message, as is any data handed to a sampler with none, whose record then takes the data's names, which predict needs; a factor is read by label against the levels the sampler was created with, so fewer levels, another order and declared levels no row holds are taken, while a row at a label the sampler never had, or a factor column of bare numbers, is refused. A factor whose labels were changed on purpose is relabeled to the sampler's labels with levels<- first, or given to a new sampler. The cut points, the response range and a linear or gp leaf's covariate standardization each follow updateCutPoints, updateScale and updateStandardization where given: \"position\", \"value\" or TRUE derive the value from the new data, and \"none\" or FALSE keep the sampler's. Left NULL, a value the data object records (its cutPoints, response.range and standardization slots, which the sampler writes into its own data) is used, and one it does not record is derived, so setData(sampler$data) keeps every derived value and a fresh dbartsData() derives them. A derived standardization is read over the new data's rows in the likelihood, over every row where fewer than two are in (subjects, for a hazard fit, whose rows must hold each subject's together at periods 1, 2, 3 and on, as dbarts() expands them) or the response's scale is read from every row, and refused where two or more rows in hold one value of a leaf covariate, unless a gp leaf states its lengthscale, which takes the placeholder; FALSE keeps the sampler's. A probit, ordinal or nbinom sampler's 0/1 weights ride the data object, so setData(sampler$data) keeps the rows of weight 0 out; the active-row mask set by setActiveRows is cleared, the rows possibly changing. Saved draws are rewritten so that they predict what they did. updateState follows control@updateState: NULL, its default, resolves to the control's setting, and an explicit TRUE or FALSE overrides it - the same rule run() applies. It keeps the trees, the ordinal cutpoints, the Student-t degrees of freedom and the negative-binomial shape, and starts the latents as creation does (an ordinal or negative-binomial sampler from the kept cutpoints or shape). This draws nothing; the next sweep draws the augmentation variables against the change."
       updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,
@@ -3638,7 +3636,7 @@ dbartsSampler <- setRefClass(
       updateScale = FALSE,
       updateStandardization = FALSE
     ) {
-      "Changes the weights with which the sampler is fitted. A row of weight 0 leaves the likelihood but stays in the fit, occupying a leaf. A probit, ordinal or nbinom sampler carries no weight channel, and takes only weights of 0 and 1: those name the rows in its data set, so they install as the active-row mask (see setActiveRows) and the data object's weights slot stays empty. A Student-t sampler keeps its scales, which the next sweep draws against the new weights. updateScale = TRUE then takes the response's scale (a count sampler's center) again from the rows the new weights leave in, as setOffset(updateScale = TRUE) does; it is refused on a sampler of several forests, and kept, with one warning per sampler, where those rows hold fewer than two distinct values. updateStandardization = TRUE then takes a linear or gp leaf's covariate center and scale, and a gp leaf's heuristic lengthscale, again from those rows, as setPredictor(updateStandardization = TRUE) does for every leaf covariate, keeping a covariate those rows hold at one value with the same warning, and every covariate where updateScale = TRUE keeps the response's scale in the same call or, on a hazard fit, fewer than two subjects are in, the period among them, under a warning counting subjects; a gp sampler holding saved draws refuses it. Both are for burn-in: pass them TRUE while burning in and FALSE after, so every kept draw comes from one prior. updateState follows control@updateState; see setData. This draws nothing; the next sweep draws the augmentation variables against the change. A weight change is undone by setWeights and setState in either order, the sampler then continuing bit for bit as one that installed the stored state under the old weights would."
+      "Changes the weights with which the sampler is fitted. A row of weight 0 leaves the likelihood but stays in the fit, occupying a leaf. A probit, ordinal or nbinom sampler takes only weights of 0 and 1: those name the rows in its data set, and are held in the data object's weights slot and composed with the active-row mask (see setActiveRows), a row being in when its weight is 1 and the mask keeps it. A Student-t sampler keeps its scales, which the next sweep draws against the new weights. updateScale = TRUE then takes the response's scale (a count sampler's center) again from the rows the new weights leave in, as setOffset(updateScale = TRUE) does; it is refused on a sampler of several forests, and kept, with one warning per sampler, where those rows hold fewer than two distinct values. updateStandardization = TRUE then takes a linear or gp leaf's covariate center and scale, and a gp leaf's heuristic lengthscale, again from those rows, as setPredictor(updateStandardization = TRUE) does for every leaf covariate, keeping a covariate those rows hold at one value with the same warning, and every covariate where updateScale = TRUE keeps the response's scale in the same call or, on a hazard fit, fewer than two subjects are in, the period among them, under a warning counting subjects; a gp sampler holding saved draws refuses it. Both are for burn-in: pass them TRUE while burning in and FALSE after, so every kept draw comes from one prior. updateState follows control@updateState; see setData. This draws nothing; the next sweep draws the augmentation variables against the change. A weight change is undone by setWeights and setState in either order, the sampler then continuing bit for bit as one that installed the stored state under the old weights would."
       updateState <- checkUpdateState(updateState)
       updateScale <- checkUpdateScale(updateScale)
       updateStandardization <- checkUpdateStandardization(
@@ -3671,18 +3669,14 @@ dbartsSampler <- setRefClass(
       if (!all(is.finite(weights))) {
         stop("'weights' must all be finite")
       }
-      # the latent families that carry no weight at all but do carry the mask:
-      # a 0/1 vector there is membership, not precision, so it goes to the
-      # channel that means it - all-ones included, which the mask normalizes
-      # to no mask and so also clears one already installed. The weights slot
-      # is left empty, as creation leaves it.
+      # a latent family's weights are membership, 0 or 1, which the engine
+      # composes with the active-row mask
       if (isMaskedWeightFamily(model@family)) {
         if (any(weights != 0 & weights != 1)) {
           stop(
             model@family,
             " models do not support case weights other than 0 and 1, which ",
-            "mark rows in and out of the likelihood: such a vector installs ",
-            "as the active-row mask, and ",
+            "mark rows in and out of the likelihood: ",
             if (model@family == "nbinom") {
               "an exposure belongs in the offset as a log-exposure term"
             } else {
@@ -3690,13 +3684,6 @@ dbartsSampler <- setRefClass(
             }
           )
         }
-        setActiveRows(
-          weights,
-          updateState = updateState,
-          updateScale = updateScale,
-          updateStandardization = updateStandardization
-        )
-        return(invisible(NULL))
       }
 
       ptr <- getPointer()
@@ -3710,12 +3697,20 @@ dbartsSampler <- setRefClass(
       )
 
       oldWeights <- data@weights
-      selfEnv$data@weights <- weights
+      # all ones on a membership family is every row in, which the data
+      # object records as no weights, as creation does
+      selfEnv$data@weights <- if (
+        isMaskedWeightFamily(model@family) && all(weights == 1)
+      ) {
+        NULL
+      } else {
+        weights
+      }
       tryResult <- tryCatch(
         .Call(
           C_dbarts_bartcore_setWeights,
           ptr,
-          data@weights,
+          weights,
           updateScale,
           updateStandardization,
           if (!is.null(units)) TRUE
@@ -3770,7 +3765,7 @@ dbartsSampler <- setRefClass(
       updateScale = FALSE,
       updateStandardization = FALSE
     ) {
-      "Sets the per-observation 0/1 mask of rows in the data set for this sampler. An inactive row leaves every sufficient statistic, every family-level parameter update and its own latent draw, but keeps its leaf occupancy and its fitted value. Each sweep draws the latent of every row the mask holds in, so a row switched back in is drawn against the current fit with the rest. updateScale = TRUE then takes the response's scale (a count sampler's center) again from the rows the mask leaves in, as setOffset(updateScale = TRUE) does; it is refused on a multinomial sampler and on a sampler of several forests, and kept, with one warning per sampler, where those rows hold fewer than two distinct values. updateStandardization = TRUE then takes a linear or gp leaf's covariate standardization again from those rows, as setWeights does. NULL clears, and an all-ones mask installs nothing. The mask does not ride the saved state; it is mirrored on an R5 field that getPointer, setState and copy reinstall on every re-creation. updateState follows control@updateState; see setData. This draws nothing; the next sweep draws the augmentation variables against the change."
+      "Sets the per-observation 0/1 mask of rows in the data set for this sampler. An inactive row leaves every sufficient statistic, every family-level parameter update and its own latent draw, but keeps its leaf occupancy and its fitted value. The mask composes with the weights in either order: a row is in when its weight is positive and the mask keeps it, so on a probit, ordinal or nbinom sampler, whose 0/1 weights ride the data object, activeRows is only what this installed. Each sweep draws the latent of every row the mask holds in, so a row switched back in is drawn against the current fit with the rest. updateScale = TRUE then takes the response's scale (a count sampler's center) again from the rows the mask leaves in, as setOffset(updateScale = TRUE) does; it is refused on a multinomial sampler and on a sampler of several forests, and kept, with one warning per sampler, where those rows hold fewer than two distinct values. updateStandardization = TRUE then takes a linear or gp leaf's covariate standardization again from those rows, as setWeights does. NULL clears, and an all-ones mask installs nothing. The mask does not ride the saved state; it is mirrored on an R5 field that getPointer, setState and copy reinstall on every re-creation. updateState follows control@updateState; see setData. This draws nothing; the next sweep draws the augmentation variables against the change."
       updateState <- checkUpdateState(updateState)
       updateScale <- checkUpdateScale(updateScale)
       updateStandardization <- checkUpdateStandardization(

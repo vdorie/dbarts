@@ -286,25 +286,14 @@ xbart <- function(
   }
   control@binary <- isBinaryFamily(family)
 
-  # the shared weight policy (R/spec.R's enforceWeightPolicy): a probit has
-  # no tractable weighted latent-variable form and is refused (an all-ones
-  # courtesy excepted), a logistic model requires positive integer count
-  # weights, and a gaussian fit is unrestricted. xbart's own family is always
+  # the shared weight policy (enforceWeightPolicy): a probit takes 0/1
+  # weights, membership, and refuses any other (an all-ones vector is no
+  # weights), a logistic model takes whole count weights, a 0 a row out, and
+  # a gaussian fit is unrestricted. xbart's own family is always
   # gaussian/probit/logistic, so the function's ordinal/nbinom branches never
-  # fire here - the same function every other entry point reaches them with.
-  weightPolicy <- enforceWeightPolicy(data, family)
-  # a probit 0/1 weight vector resolves to a row mask, which a sampler takes
-  # and this does not: the folds partition the rows themselves, and each fit
-  # is built and discarded inside the C loop with no channel to install one
-  if (!is.null(weightPolicy$active)) {
-    stop(
-      "xbart does not accept weights of 0 and 1 under family \"",
-      family,
-      "\": they mark rows out of the likelihood, which cross-validation ",
-      "already partitions; drop those rows before calling xbart"
-    )
-  }
-  data <- weightPolicy$data
+  # fire here. Each fold's view carries its rows' weights to the fold's
+  # sampler, and the held-out loss weights a row of weight 0 out.
+  data <- enforceWeightPolicy(data, family)
   # one warning for the rows in the likelihood leaving nothing to read a scale
   # from; the folds fall back in silence
   allRows <- scaleRowsFallBack(data, family)

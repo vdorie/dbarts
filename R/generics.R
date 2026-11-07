@@ -177,9 +177,9 @@ heteroscedasticScale <- function(s, n.chains) {
 # trial counts for logistic (probit never stores weights); aft the log density
 # for events and the log survival tail for right-censored rows, mirroring the
 # engine's AFTResponse::computeLogLikelihood. Any other family errors rather
-# than reporting a wrong number. A row an installed active-row mask takes out
-# of the data set reports NaN whatever the family, as the engine's own channel
-# does. A heteroscedastic gaussian or aft fit scores at its
+# than reporting a wrong number. A row out of the likelihood, of weight 0 or
+# taken out of the data set by an installed active-row mask, reports NaN
+# whatever the family, as the engine's own channel does. A heteroscedastic gaussian or aft fit scores at its
 # own per-observation s(x) instead of the scalar (heteroscedasticScale below).
 pointwiseLogLikelihood <- function(object, ev) {
   y <- object[["y"]]
@@ -282,15 +282,15 @@ pointwiseLogLikelihood <- function(object, ev) {
       "' does not support the log-likelihood"
     )
   }
-  # a row the active-row mask takes out of the data set - what a probit or
-  # ordinal fit's 0/1 case weights install - is not in the model and has no
-  # likelihood to report, so the channel gives NaN there rather than the
-  # finite value the row's fit would still yield. That is the engine's own
-  # convention on this channel, and the gaussian branch's zero-weight rule
-  # above is the same statement through the other channel.
-  active <- object[["active"]]
-  if (!is.null(active)) {
-    result[rep(active, each = n.draws) == 0] <- NaN
+  # a row out of the likelihood - of weight 0, or one the active-row mask
+  # takes out of the data set - is not in the model and has no likelihood to
+  # report, so the channel gives NaN there rather than the finite value the
+  # row's fit would still yield. That is the engine's own convention on this
+  # channel, and the gaussian branch's zero-weight rule above is the same
+  # statement through the other channel.
+  out <- !fitRowsInLikelihood(object)
+  if (any(out)) {
+    result[rep(out, each = n.draws)] <- NaN
   }
   array(result, dim(ev), dimnames(ev))
 }

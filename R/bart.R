@@ -290,6 +290,30 @@ fitDescriptors <- function(sampler, samples = NULL) {
   list(leaf.prior = priors, fixed = fixed)
 }
 
+## The rows a fit records as out of the data set, its 'active' vector: on a
+## family whose 0/1 weights are membership (isMaskedWeightFamily) those
+## weights composed with the active-row mask, the fit carrying them there in
+## place of weights, and on any other the mask alone; NULL with no row out.
+## The log-likelihood channel reports NaN at such a row, as the engine's own
+## does, and cannot find the rows otherwise.
+fitActiveRows <- function(sampler) {
+  active <- sampler$activeRows
+  weights <- sampler$data@weights
+  if (!isMaskedWeightFamily(sampler$model@family) || is.null(weights)) {
+    return(active)
+  }
+  if (is.null(active)) weights else weights * active
+}
+
+## The weights a fit carries for its predictive draws: the data's, except on
+## a family whose 0/1 weights are membership, which fitActiveRows records.
+fitWeights <- function(sampler) {
+  if (isMaskedWeightFamily(sampler$model@family)) {
+    return(NULL)
+  }
+  sampler$data@weights
+}
+
 packageBartResults <- function(
   fit,
   samples,
@@ -1925,7 +1949,7 @@ bart <- function(
     result$sigest.fallback <- TRUE
   }
   # needed to extract ppd
-  if (!is.null(sampler$data@weights) && length(sampler$data@weights) > 0L) {
+  if (length(fitWeights(sampler)) > 0L) {
     result$weights <- sampler$data@weights
     if (
       !is.null(sampler$data@weights.test) &&
@@ -1934,12 +1958,7 @@ bart <- function(
       result$weights.test <- sampler$data@weights.test
     }
   }
-  # the active-row mask a probit or ordinal fit's 0/1 case weights install,
-  # which no data slot carries: the log-likelihood channel reports NaN at a
-  # masked row, as the engine's own does, and cannot find the rows otherwise
-  if (!is.null(sampler$activeRows)) {
-    result$active <- sampler$activeRows
-  }
+  result$active <- fitActiveRows(sampler)
 
   result
 }
@@ -2838,11 +2857,9 @@ packageOrdinalResults <- function(
   if (!is.null(sampler$data@offset)) {
     result$offset <- sampler$data@offset
   }
-  # the active-row mask 0/1 case weights install, which the log-likelihood
-  # channel reads as bart's single-forest packager records it
-  if (!is.null(sampler$activeRows)) {
-    result$active <- sampler$activeRows
-  }
+  # the rows out, which the log-likelihood channel reads as bart's
+  # single-forest packager records them
+  result$active <- fitActiveRows(sampler)
   # a fit kept without its call carries none, as a bart fit does
   result <- dropAbsentCall(result)
   class(result) <- "bartOrdinal"
@@ -3103,11 +3120,9 @@ packageNegbinResults <- function(
   if (!is.null(sampler$data@offset)) {
     result$offset <- sampler$data@offset
   }
-  # the active-row mask 0/1 case weights install, which the log-likelihood
-  # channel reads as bart's single-forest packager records it
-  if (!is.null(sampler$activeRows)) {
-    result$active <- sampler$activeRows
-  }
+  # the rows out, which the log-likelihood channel reads as bart's
+  # single-forest packager records them
+  result$active <- fitActiveRows(sampler)
   # a fit kept without its call carries none, as a bart fit does
   result <- dropAbsentCall(result)
   class(result) <- "bartNegbin"
@@ -4916,7 +4931,7 @@ bartBT <- function(
     result$sigest.fallback <- TRUE
   }
   # needed to extract ppd; mirrors the modern door's packageBartResults
-  if (!is.null(sampler$data@weights) && length(sampler$data@weights) > 0L) {
+  if (length(fitWeights(sampler)) > 0L) {
     result$weights <- sampler$data@weights
     if (
       !is.null(sampler$data@weights.test) &&
@@ -4925,9 +4940,7 @@ bartBT <- function(
       result$weights.test <- sampler$data@weights.test
     }
   }
-  if (!is.null(sampler$activeRows)) {
-    result$active <- sampler$activeRows
-  }
+  result$active <- fitActiveRows(sampler)
 
   result
 }
