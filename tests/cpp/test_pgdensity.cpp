@@ -418,9 +418,18 @@ void testDecision() {
             pg::decideLevel(z, z, enc(2.0, 1e-3), z, -1.0, -1.5) == V::keep &&
             pg::decideLevel(z, z, z, enc(-2.0, 1e-3), 1.5, -3.0) == V::accept,
         "pgdensity: log r takes f(y) and q(x) with a plus sign, f(x) and q(y) with a minus");
-  // the radius charges 4 u of the midpoints: 1e10 - 1e10 is not certified 0
-  check(pg::decideLevel(enc(1e10, 0.0), z, enc(1e10, 0.0), z, 0.0, 0.0) == V::undecided,
-        "pgdensity: a level's radius charges the midpoints' rounding");
+  // the radius charges 4 u of every midpoint: with 2^31 in a plus slot and
+  // in a minus slot, mid is 0 and the charge 8 u 2^31 = 2^-19 keeps it from
+  // accepting at -1e-6; a charge that misses either slot is 2^-20 and accepts
+  const double M = 0x1p31;
+  const int pairs[4][2] = {{0, 2}, {0, 3}, {1, 2}, {1, 3}};
+  bool charged = true;
+  for (const auto& p : pairs) {
+    pg::Enclosure e[4] = {z, z, z, z};
+    e[p[0]] = e[p[1]] = enc(M, 0.0);
+    charged &= pg::decideLevel(e[0], e[1], e[2], e[3], -1e-6, -1.0) == V::undecided;
+  }
+  check(charged, "pgdensity: a level's radius charges each midpoint's rounding");
   bool allUndecided = true;
   for (int i = 0; i < 4; ++i) {
     pg::Enclosure e[4] = {z, z, z, z};
