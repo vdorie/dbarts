@@ -368,6 +368,11 @@ public:
   virtual void sampleTreesFromPrior() = 0;
   virtual void sampleNodeParametersFromPrior() = 0;
   virtual void sampleVarianceForestFromPrior() = 0;
+  /// Sampler::sampleHyperparametersFromPrior: k, the response's drawn
+  /// hyperparameters and, under DART with attempts to spend, the split
+  /// weights jointly with the trees, from their prior.
+  virtual PriorHyperparameterDraw sampleHyperparametersFromPrior(
+      std::size_t maxForestAttempts) = 0;
   virtual void growFromRoot(std::size_t numSweeps) = 0;
   virtual void setNumThreads(std::size_t numThreads) = 0;
   virtual void setNumThin(std::size_t numThin) = 0;
@@ -742,6 +747,10 @@ public:
   }
   void sampleVarianceForestFromPrior() override {
     impl_.sampleVarianceForestFromPrior();
+  }
+  PriorHyperparameterDraw sampleHyperparametersFromPrior(
+      std::size_t maxForestAttempts) override {
+    return impl_.sampleHyperparametersFromPrior(maxForestAttempts);
   }
   void growFromRoot(std::size_t numSweeps) override {
     impl_.growFromRoot(numSweeps);

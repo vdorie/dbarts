@@ -2380,6 +2380,20 @@ public:
   void sampleVarianceForestFromPrior() {
     for (auto& chain : chains_) chain->sampleVarianceForestFromPrior();
   }
+  /// Every chain's hyperparameters from their prior, each from its own
+  /// generator (Chain::sampleHyperparametersFromPrior); the report is the
+  /// first chain's. A refusal throws from the first chain, before any chain
+  /// draws.
+  PriorHyperparameterDraw sampleHyperparametersFromPrior(
+      std::size_t maxForestAttempts) {
+    PriorHyperparameterDraw first;
+    for (std::size_t c = 0; c < chains_.size(); ++c) {
+      PriorHyperparameterDraw drawn =
+        chains_[c]->sampleHyperparametersFromPrior(maxForestAttempts);
+      if (c == 0) first = std::move(drawn);
+    }
+    return first;
+  }
 
   /// Warm-start initializer: run numSweeps of grow-from-root in place on every
   /// chain, fanning across chains on up to min(numThreads, numChains) workers

@@ -2,8 +2,10 @@
 #define BARTCORE_CHAIN_HPP
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cassert>
+#include <cfloat>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -901,6 +903,22 @@ struct WarmStartTreeCounts {
 /// call that rewrites the kept draws is handed this; the default names none.
 struct SavedDrawSlots {
   std::size_t first = 0, count = 0;
+};
+
+/// What Chain::sampleHyperparametersFromPrior drew: whether it drew the
+/// trees too (the DART joint draw, accepted) and how many whole-forest draws
+/// that took, then the values in force after it - each forest's k, the first
+/// forest's DART split weights (empty off DART), the Student-t df and the
+/// negative-binomial shape (NaN off a family carrying one) and the ordinal
+/// cutpoints (empty off ordinal), drawn or fixed.
+struct PriorHyperparameterDraw {
+  bool forestsDrawn = false;
+  std::size_t forestAttempts = 0;
+  std::vector<double> k;
+  std::vector<double> splitProbabilities;
+  double residualDf = std::numeric_limits<double>::quiet_NaN();
+  double shape = std::numeric_limits<double>::quiet_NaN();
+  std::vector<double> thresholds;
 };
 
 /// What one chain's first-sight direction draw (Chain::drawMissingDirections)
@@ -3334,13 +3352,11 @@ public:
 
   /// sampleTreesFromPrior's draws.
   void drawTreesFromPrior() {
-    size_t n = data_.numObservations;
     const double* y = response_->workingResponse();
     const double* weights = response_->workingWeights();
     for (size_t f = 0; f < forests_.size(); ++f) {
       Forest<L, ResidT>& forest = forests_[f];
       for (size_t t = 0; t < forest.numTrees; ++t) {
-        Tree& tree(forest.trees[t]);
         // Rejection, not projection: the moves price the CGM prior restricted
         // and renormalized to the trees carrying no empty leaf
         // (logLikelihoodForBranch's veto), and collapsing the empty leaves
@@ -3367,18 +3383,9 @@ public:
         treeInFlight_ = t;
         treeInFlightRegrown_ = true;
         while (true) {
-          tree.initialize(forest.indexBuffer.data() + t * n, n);
-          growSubtreeFromPrior(forest, tree, 0, y, weights);
-          if constexpr (TreeDrawLeafModel<L>) {
-            if (tree.bottomNodesAreOccupied()) {
-              if (forest.leaf.prior != MonotonePrior::joint ||
-                  forest.leaf.jointPriorAccepts(rng_, tree, forest.k))
-                break;
-              ++outsideCone;
-            }
-          } else if (tree.bottomNodesAreOccupied()) {
-            break;
-          }
+          PriorTreeDraw drawn = drawTreeFromPriorOnce(forest, t, y, weights);
+          if (drawn == PriorTreeDraw::accepted) break;
+          if (drawn == PriorTreeDraw::outsideCone) ++outsideCone;
           // a C++ throw, never a raise into R: the engine is R-agnostic, and
           // a longjmp from here would abandon every frame between this
           // recursion and the entry point. The bridge converts it.
@@ -3391,44 +3398,227 @@ public:
               " left an empty leaf, " + std::to_string(outsideCone) +
               " drew leaves outside the monotone prior's cone)");
         }
-        // fresh structures carry zero parameter blocks until the next draw
-        if constexpr (L::hasVectorParams)
-          forest.paramsByTree[t].assign(
-            forest.trees[t].nodes.size() * forest.leaf.numParams(), 0.0);
-        if constexpr (leafIsConstant) {
-          // mu must be resized to the grown tree here: a ParamScoringLeafModel
-          // (monotone) reads muByTree for frozen neighbors DURING the first
-          // move, before the stale rebuild in maintainMonotoneLeafStore runs,
-          // so a block left at its size-1 root would be read out of bounds.
-          // The all-equal zero seed is monotone-feasible (every neighbor bound
-          // holds with equality) and is exactly what the first draw reassigns,
-          // so the conjugate constant leaf - which never reads mu in the move
-          // - is byte-unchanged.
-          forest.muByTree[t].assign(forest.trees[t].nodes.size(), 0.0);
-          // the map is the evaluator's other half and moves with the values:
-          // assign never shrinks capacity, so a draw that SHRINKS the arena
-          // would leave leafOf naming node ids past mu's .size() and the
-          // gather would read stale bytes rather than fault. All-root is in
-          // bounds for every tree (nodes.size() >= 1) and gathers mu[0] == 0.
-          std::memset(forest.leafOf.data() + t * n, 0,
-                      n * sizeof(std::uint32_t));
-          // still marked for rebuild at the tree's own draw, which is also
-          // what declines the fused suffstat pass for this sweep
-          forest.leafOfStale[t] = 1;
-        } else if constexpr (L::hasVectorParams || L::hasFunctionParams) {
-          // vector and function leaves carry the dense slab in place of the
-          // (mu, leafOf) pair; for the function leaf the row IS the parameters
-          misc_setVectorToConstant(forest.treeFits.data() + t * n, n, 0.0);
-        }
+        resetPriorTreeParameters(forest, t);
         treeInFlight_ = noTreeInFlight;
         treeInFlightRegrown_ = false;
       }
-      misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
-      forest.totalFitsScale = 1.0;
-      if (data_.numTestObservations > 0)
-        misc_setVectorToConstant(forest.totalTestFits.data(),
-                                 data_.numTestObservations, 0.0);
+      resetPriorForestTotals(forest);
     }
+  }
+
+  /// What one draw of a tree from the unconditioned prior came to: a tree
+  /// the sampler holds, or one it refuses for an empty leaf, or, under the
+  /// monotone "joint" prior, one whose iid leaves landed outside its cone.
+  enum class PriorTreeDraw { accepted, emptyLeaf, outsideCone };
+
+  /// Draws forest's tree t once from the CGM prior over the current cut grid
+  /// and the forest's split weights, and says whether the sampler would hold
+  /// it: every leaf reached by a row (the moves' veto, on membership) and,
+  /// under the monotone "joint" prior, iid leaves drawn for it inside its
+  /// cone. Every prior draw that conditions on that event rejects on this
+  /// one predicate. The tree is left as drawn either way, its leaf table
+  /// untouched; resetPriorTreeParameters makes an accepted one a chain state.
+  PriorTreeDraw drawTreeFromPriorOnce(Forest<L, ResidT>& forest, size_t t,
+                                      const double* y, const double* weights) {
+    size_t n = data_.numObservations;
+    Tree& tree(forest.trees[t]);
+    tree.initialize(forest.indexBuffer.data() + t * n, n);
+    growSubtreeFromPrior(forest, tree, 0, y, weights);
+    if (!tree.bottomNodesAreOccupied()) return PriorTreeDraw::emptyLeaf;
+    if constexpr (TreeDrawLeafModel<L>)
+      if (forest.leaf.prior == MonotonePrior::joint &&
+          !forest.leaf.jointPriorAccepts(rng_, tree, forest.k))
+        return PriorTreeDraw::outsideCone;
+    return PriorTreeDraw::accepted;
+  }
+
+  /// Gives a freshly drawn tree t the zero leaves, map and fits a freshly
+  /// constructed chain carries (sampleTreesFromPrior's contract).
+  void resetPriorTreeParameters(Forest<L, ResidT>& forest, size_t t) {
+    size_t n = data_.numObservations;
+    // fresh structures carry zero parameter blocks until the next draw
+    if constexpr (L::hasVectorParams)
+      forest.paramsByTree[t].assign(
+        forest.trees[t].nodes.size() * forest.leaf.numParams(), 0.0);
+    if constexpr (leafIsConstant) {
+      // mu must be resized to the grown tree here: a ParamScoringLeafModel
+      // (monotone) reads muByTree for frozen neighbors DURING the first
+      // move, before the stale rebuild in maintainMonotoneLeafStore runs,
+      // so a block left at its size-1 root would be read out of bounds.
+      // The all-equal zero seed is monotone-feasible (every neighbor bound
+      // holds with equality) and is exactly what the first draw reassigns,
+      // so the conjugate constant leaf - which never reads mu in the move
+      // - is byte-unchanged.
+      forest.muByTree[t].assign(forest.trees[t].nodes.size(), 0.0);
+      // the map is the evaluator's other half and moves with the values:
+      // assign never shrinks capacity, so a draw that SHRINKS the arena
+      // would leave leafOf naming node ids past mu's .size() and the
+      // gather would read stale bytes rather than fault. All-root is in
+      // bounds for every tree (nodes.size() >= 1) and gathers mu[0] == 0.
+      std::memset(forest.leafOf.data() + t * n, 0,
+                  n * sizeof(std::uint32_t));
+      // still marked for rebuild at the tree's own draw, which is also
+      // what declines the fused suffstat pass for this sweep
+      forest.leafOfStale[t] = 1;
+    } else if constexpr (L::hasVectorParams || L::hasFunctionParams) {
+      // vector and function leaves carry the dense slab in place of the
+      // (mu, leafOf) pair; for the function leaf the row IS the parameters
+      misc_setVectorToConstant(forest.treeFits.data() + t * n, n, 0.0);
+    }
+  }
+
+  /// Zeroes forest's training and test totals, which its freshly drawn
+  /// trees' zero leaves sum to.
+  void resetPriorForestTotals(Forest<L, ResidT>& forest) {
+    misc_setVectorToConstant(forest.totalFits.data(), data_.numObservations,
+                             0.0);
+    forest.totalFitsScale = 1.0;
+    if (data_.numTestObservations > 0)
+      misc_setVectorToConstant(forest.totalTestFits.data(),
+                               data_.numTestObservations, 0.0);
+  }
+
+  /// Draws every hyperparameter the chain draws from its prior and installs
+  /// it, so that with the forest and leaf prior draws after it the chain is
+  /// one independent draw of the prior the sampler runs:
+  ///
+  /// - each forest's k where it carries a chi hyperprior, from that prior
+  ///   (ChiKHyperprior::draw with no leaves);
+  /// - a Student-t df where it is drawn, from ResidualDfPrior's grid weights;
+  ///   a negative-binomial shape where it is drawn, from NBShapePrior's; an
+  ///   ordinal family's cutpoints, gamma_1 = 0 and each gap log-normal
+  ///   (OrdinalResponse's gap prior); each through the path a state's install
+  ///   takes, the latents left for the next sweep to draw against them;
+  /// - under DART, when \p maxForestAttempts is positive, the split weights
+  ///   jointly with every tree: alpha and the weights from their stated prior
+  ///   (DartPrior::drawFromPrior), then each tree once from the tree prior
+  ///   given them, the whole draw rejected and redrawn, weights included,
+  ///   while any tree is one the sampler refuses (drawTreeFromPriorOnce).
+  ///   The prior the sampler runs is the stated one times the probability
+  ///   that every tree passes, which a per-tree retry at fixed weights would
+  ///   leave out. An accepted forest is left as sampleTreesFromPrior leaves
+  ///   its trees. After \p maxForestAttempts refused draws the trees are drawn
+  ///   by sampleTreesFromPrior's per-tree rejection under the last weights,
+  ///   so the chain is a valid state but not that prior's draw, and
+  ///   forestsDrawn is false. Zero attempts leaves the weights and the trees
+  ///   as they are.
+  ///
+  /// A forest with none of these draws nothing and consumes no variate; the
+  /// sigma prior, the leaves, the variance forest and every other forest's
+  /// trees are the other entries'. Refuses, before drawing anything, an
+  /// amplitude-combined chain, whose glue no prior draw serves, and a k prior
+  /// with an infinite scale, which is improper. An allocation failure part
+  /// way leaves the trees as sampleTreesFromPrior's does.
+  PriorHyperparameterDraw sampleHyperparametersFromPrior(
+      std::size_t maxForestAttempts) {
+    if (combiner_ != nullptr && combiner_->numReportedLocations() == 1)
+      throw std::invalid_argument(
+        "the prior draw of a model of several forests is not built");
+    for (const Forest<L, ResidT>& forest : forests_)
+      if (forest.updateK && !(std::fabs(forest.kHyperprior.scale) <= DBL_MAX))
+        throw std::invalid_argument(
+          "a k prior with an infinite scale has no prior draws");
+
+    PriorHyperparameterDraw result;
+    for (Forest<L, ResidT>& forest : forests_)
+      if (forest.updateK)
+        forest.k = forest.kHyperprior.draw(rng_, 0.0, 0.0, forest.leaf.scale);
+
+    if (response_->drawsResidualDf()) {
+      std::array<double, ResidualDfPrior::gridSize> weights =
+        ResidualDfPrior().logPriorWeights();
+      response_->restoreResidualDf(ResidualDfPrior::grid[drawFromLogWeights(
+        rng_, weights.data(), ResidualDfPrior::gridSize)]);
+    }
+    if (response_->drawsShape()) {
+      std::array<double, NBShapePrior::gridSize> weights =
+        NBShapePrior().logPriorWeights();
+      response_->restoreShape(NBShapePrior::grid[drawFromLogWeights(
+        rng_, weights.data(), NBShapePrior::gridSize)]);
+    }
+    if (response_->carriesOrdinalThresholds()) {
+      std::vector<double> gamma(response_->numOrdinalThresholds());
+      gamma[0] = 0.0;
+      for (std::size_t s = 1; s < gamma.size(); ++s)
+        gamma[s] = gamma[s - 1] +
+                   std::exp(ext_rng_simulateNormal(
+                     rng_, OrdinalResponse::priorLogGapMean_,
+                     OrdinalResponse::priorLogGapSd_));
+      response_->restoreOrdinalThresholds(gamma.data());
+    }
+
+    bool drawsWeights = false;
+    for (const Forest<L, ResidT>& forest : forests_)
+      drawsWeights = drawsWeights || forest.useDart;
+    if (drawsWeights && maxForestAttempts > 0) {
+      try {
+        result.forestsDrawn =
+          drawForestsWithSplitWeights(maxForestAttempts, result.forestAttempts);
+      } catch (...) {
+        settleAfterAllocationFailure();
+        throw;
+      }
+    }
+
+    for (const Forest<L, ResidT>& forest : forests_)
+      result.k.push_back(forest.k);
+    if (forests_[0].useDart)
+      result.splitProbabilities = forests_[0].dart.probabilities;
+    if (response_->carriesResidualDf())
+      result.residualDf = response_->residualDf();
+    if (response_->carriesShape()) result.shape = response_->shape();
+    if (response_->carriesOrdinalThresholds())
+      result.thresholds.assign(response_->ordinalThresholds(),
+                               response_->ordinalThresholds() +
+                                 response_->numOrdinalThresholds());
+    return result;
+  }
+
+  /// sampleHyperparametersFromPrior's joint draw of the DART weights and the
+  /// trees, at most \p maxAttempts times; true once one is accepted, with
+  /// \p attempts the draws made. Each attempt stops at its first refused
+  /// tree. Every tree accepted inside an attempt is made a chain state at
+  /// once, so a throw finds the trees before the one in flight consistent.
+  bool drawForestsWithSplitWeights(std::size_t maxAttempts,
+                                   std::size_t& attempts) {
+    const double* y = response_->workingResponse();
+    const double* weights = response_->workingWeights();
+    for (attempts = 1; attempts <= maxAttempts; ++attempts) {
+      for (Forest<L, ResidT>& forest : forests_)
+        if (forest.useDart) forest.dart.drawFromPrior(rng_);
+      bool accepted = true;
+      for (size_t f = 0; f < forests_.size() && accepted; ++f) {
+        Forest<L, ResidT>& forest = forests_[f];
+        for (size_t t = 0; t < forest.numTrees; ++t) {
+          forestInFlight_ = f;
+          treeInFlight_ = t;
+          treeInFlightRegrown_ = true;
+          bool held = drawTreeFromPriorOnce(forest, t, y, weights) ==
+                      PriorTreeDraw::accepted;
+          // a refused tree goes back to the bare root, which every chain
+          // holds, so no tree outside the one in flight is ever refused
+          if (!held)
+            forest.trees[t].initialize(
+              forest.indexBuffer.data() + t * data_.numObservations,
+              data_.numObservations);
+          resetPriorTreeParameters(forest, t);
+          treeInFlight_ = noTreeInFlight;
+          treeInFlightRegrown_ = false;
+          if (!held) {
+            accepted = false;
+            break;
+          }
+        }
+      }
+      if (accepted) {
+        for (Forest<L, ResidT>& forest : forests_)
+          resetPriorForestTotals(forest);
+        return true;
+      }
+    }
+    attempts = maxAttempts;
+    drawTreesFromPrior();
+    return false;
   }
 
   /// Warm-start producer: run numSweeps of XBART-style grow-from-root in place
