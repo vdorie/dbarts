@@ -490,6 +490,16 @@ expect_identical(
   c("dose", "age", "scale(age)")
 )
 newRows <- frame[1:7, ]
+# a selection's contribution is the full contribution's slices: each forest
+# is scaled by its own glue and basis, in the order selected
+fullContribution <- extract(fitted, "forest", contribution = TRUE)
+for (selected in list(1L, 2L, 3L, c(3L, 1L), 2:3)) {
+  expect_identical(
+    extract(fitted, "forest", forest = selected, contribution = TRUE),
+    fullContribution[,, selected, drop = FALSE],
+    info = paste("forest =", toString(selected))
+  )
+}
 for (index in 1:3) {
   position <- extract(fitted, "forest", forest = index)
   expect_identical(
