@@ -765,6 +765,8 @@ for (amplitudeText in amplitudeTexts[1:3]) {
   }
 }
 heldTrees <- ", amplitude = fixed(), n.trees = 75, base = 0.95, power = 2"
+# the starting sigma stated in both, as the estimate reads the basis creation
+# was given, which the swap replaces
 swapped <- dbarts(
   stats::as.formula(paste0(
     "y ~ forest(x1 + x2) + forest(x1, basis = dose, sd = 2",
@@ -772,6 +774,7 @@ swapped <- dbarts(
     ")"
   )),
   d,
+  sigest = 1,
   control = recordControl()
 )
 swapped$setForestBasis(2L, rep(3, n))
@@ -782,6 +785,7 @@ offered <- dbarts(
     ")"
   )),
   d,
+  sigest = 1,
   control = recordControl()
 )
 expect_equal(swapped$run()$train, offered$run()$train, tolerance = 1e-10)

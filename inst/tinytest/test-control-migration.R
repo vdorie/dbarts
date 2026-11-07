@@ -155,6 +155,9 @@ threeForestsOf <- function(effectMoves) {
       ),
       dose = forest(x3, basis = ~zn, n.trees = 4L, amplitude = fixed())
     ),
+    # stated, as the estimate, which reads the bases, leaves the moves' six
+    # sweeps here drawing as no moves'
+    sigest = 0.5,
     control = migrationControl(keepTrees = TRUE)
   )
 }

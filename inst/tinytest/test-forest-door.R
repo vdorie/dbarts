@@ -58,7 +58,9 @@ numericBasis <- list(basis = ~dose, n.trees = 6L)
 # Each kind of forest the door's table separates: the forests of a sampler and
 # the one the door is aimed at. `sharer` marks a forest whose sd takes it out of
 # its group, which no creation reaches (test-forest-leave.R); `exempt` the names whose draws keep creation's
-# start, which reads what creation was given; `drawn` a forest whose k is drawn.
+# start, which reads what creation was given; `drawn` a forest whose k is drawn;
+# `sigest` a starting sigma stated where the estimate, which reads the bases,
+# leaves a setting's ten sweeps here drawing as the default's.
 kinds <- list(
   lone = list(forests = list(list()), target = 1L),
   lone.probit = list(
@@ -148,7 +150,8 @@ kinds <- list(
   ),
   three = list(
     forests = list(mu = list(), tau = factorBasis, gamma = numericBasis),
-    target = 3L
+    target = 3L,
+    sigest = 0.4
   ),
   bases.only = list(
     forests = list(tau = factorBasis, gamma = numericBasis),
@@ -174,6 +177,7 @@ build <- function(kind, stated = list(), target = NULL) {
     } else {
       8L
     },
+    sigest = spec$sigest,
     control = ctl(proposal.probs = shipped)
   )
 }
