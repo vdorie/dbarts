@@ -1,6 +1,6 @@
 # Review 4, slice S-C: the prior predictive under the sampler's prior
 
-Status: built, in review (branch review4-prior-predictive).
+Status: LANDED on main 2026-11-07 (branch review4-prior-predictive).
 
 rng: neutral for `run()` and every entry that existed before: every complete run, and every state the
 package writes, draws bit for bit as before; the equivalence baselines and the four snapshot files are
@@ -411,6 +411,21 @@ The exact draw's cost, up to 50 accepted draws or 150 s per case, on other data 
 
 Not in this slice: the dart() help's account of the prior the sampler runs (dec-B608's rule, first
 sentence) lands with TODO dart-split-rule and dec-B605's change.
+
+## Landing note
+
+Landed by fast-forward at 9a144199b after two reviews. The first, over the build, returned fix first: a NULL sample
+could delete a list element, and the fallback's draws missed the prior it targeted. Its fallback calls went to the
+maintainer, who ruled exact draws with no cap and no fallback (dec-B631). The second, over that rebuild, returned
+land after nits: the warning printed only after the call returned, no dart() test read the hyperparameters, and four
+sentences needed correcting. Fix round 3 made those changes, with no further review, as that verdict allowed. On the
+tip rebased onto main: the nine per-push workflows by dispatch, all green. The x86 leg (Linux, x86-64): tests/cpp
+559 checks plain and under ASan/UBSan with the leak sanitizer, no report; the full tinytest suite, 42183 results, 0
+failed; the equivalence trio in statistical mode, 55 scenarios compared and indistinguishable, BCF and multinomial
+within the cross-host bound. rchk, dispatched as well, reports 20 protection findings in the bridge's model parser,
+the same 20 as on main and none in this slice's code (TODO rchk-findings). R CMD check --as-cran on fix round 3's
+tarball: one NOTE, the incoming-feasibility one (an expired certificate at a cited URL and the Date field's age),
+not this slice's. The calls not put to the maintainer are dec-A269.
 
 ## Design-doc register
 

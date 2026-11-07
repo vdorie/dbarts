@@ -1123,6 +1123,18 @@ Under dec-B616 and dec-B627 (stan4bart 927ae9fb to da0013d, merged to stan4bart 
 The rest are internal: the share is computed after the fit from its coefficients, so the fit and its QR are main's (1). The empty-BART guard (dec-A265's call 41) checks for a BART design with no term before dbartsData is called, so a formula with no bart() term again says "no bart component detected".
 Gates: the stan4bart suite 1980 results, 0 failed, at home; R CMD check --as-cran 1 NOTE, incoming feasibility; the exactness gate 4 of 4 tiers within 1e-10; CI green on da0013d (check-standard, gates, sanitizers); two reviews of the share, LAND after one fix round, and a light review of dec-B627's change, LAND. Record: stan4bart R/initial_fit.R, range_factor_share and bart_range_route; man/stan4bart.Rd, bart_range. Marked: blank. See also: [dec-B616], [dec-B627], [dec-A203], [dec-A265]. [dec-A268]
 
+**The fourth review's prior-predictive slice as built: the calls its plan and rulings left open**
+Under dec-B361 (samplePriorPredictive draws under the prior the sampler runs under), dec-B599 (each family's own prior predictive) and dec-B608 with dec-B631 (under dart(), the weights and the trees are one draw, held or refused whole, drawn exactly with no cap and no fallback). The builder's calls, the two reviews' and the orchestrator's, not put to the maintainer, each with its alternative in the records' Calls made, numbered there. No fit's draws change; samplePriorPredictive is new in 1.0-0. Those a user meets.
+- A long draw warns once per call when its projected time passes 60 seconds, and the warning is printed when raised. The projection starts once a second has gone into the attempts and is the time so far times n.samples over the samples held; with none held it is a lower bound, with acceptance "none in" the attempts made (23). Projecting from the first call, or after a fixed count of attempts, were the alternatives.
+- The 60 seconds is an unexported option, dbarts.priorPredictiveWarnSeconds, read per call as dbarts.sparseIndicators is (25). A documented argument was the alternative.
+- An interrupt stops the draw within one engine call, sized to take 0.05 to 0.2 seconds and bounded by 2^20 attempts, about 9 seconds; 12 ms was measured (24). An engine loop polling through a callback, as a run does, was the alternative.
+- A multinomial sampler draws category codes when every row holds one trial, and one-trial count vectors otherwise (11). Recording the response's form at creation was the alternative.
+- A drawn k is not floored: at a df near 0.01, a gamma draw that underflows to 0 gives non-finite draws in that share (12). Flooring k at DBL_MIN was the alternative.
+- Refusals name the sampler before its arguments: its class, several forests, an improper leaf prior, then type, n.samples and the category offset (17).
+
+The rest are internal, in the records. Calls 1 to 4 were settled by dec-B631; 18 to 20 and 22 went with the cap. The per-tree draw R discards on a call that holds nothing is left in place, harmless (29).
+Gates: see the records' Gates and Landing note. Record: docs/plans/review-2026-11-06/prior-predictive.md, Calls made and Landing note; R/dbarts.R, samplePriorPredictive. Marked: blank. See also: [dec-B361], [dec-B599], [dec-B608], [dec-B631]. [dec-A269]
+
 ## B. Decisions with maintainer evidence
 
 **Missing predictors are modeled, not refused**
