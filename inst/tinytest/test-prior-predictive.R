@@ -275,8 +275,9 @@ handLoop <- do.call(
 )
 expect_identical(handEv, handLoop)
 
-# Student-t: at a fixed df, (ppd - ev) / sigma is t_3; with df drawn, the
-# mixture of t's over the engine's nine-point grid under its gamma(2, 0.1)
+# Student-t: at a fixed df, (ppd - ev) / sigma is t_3, over 30,000 values
+# (the grid mixture below is 0.027 from t_3 in KS distance); with df drawn,
+# the mixture of t's over the engine's nine-point grid under its gamma(2, 0.1)
 # weights
 student <- dbartsFamilies$student
 set.seed(seedBase + 3L)
@@ -288,9 +289,9 @@ heavy <- dbarts(
   control = control.seeded
 )
 set.seed(seedBase + 3L)
-ev <- samplePriorPredictive(heavy, n.samples = 40L, type = "ev")
+ev <- samplePriorPredictive(heavy, n.samples = 500L, type = "ev")
 set.seed(seedBase + 3L)
-ppd <- samplePriorPredictive(heavy, n.samples = 40L, type = "ppd")
+ppd <- samplePriorPredictive(heavy, n.samples = 500L, type = "ppd")
 expect_true(
   ksP(as.vector(ppd - ev) / heavy$getSigmas()[1L], "pt", df = 3) > pAbove
 )
