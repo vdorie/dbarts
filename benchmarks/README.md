@@ -376,6 +376,20 @@ also requires the fit to miss the reference whose center is over every row.
     Rscript benchmarks/R/change-balance.R        # full
     Rscript benchmarks/R/change-balance.R quick  # fast smoke
 
+frequency-exact is the gate for frequency weights (docs/plans/frequency-weights.md,
+S7). Seven arms hold a weighted fit to the fit on its rows written out, draw for
+draw over 300 sweeps within 1e-12: gaussian, a linear leaf, two forests,
+useQuantiles with fewer cuts than unique values, a variance forest, nbinom at a
+fixed and a drawn shape, and multinomial; an eighth holds cbind(k, f) at a row
+weight to its two adjacent logistic rows of counts within 1e-10. Three are in
+distribution, at |z| 4.5 by batch means: sigma on one leaf at real weights
+against its exact posterior, Student-t's nu on fixed residuals at whole, real
+and zero counts against the grid's exact probabilities, and Student-t against
+its expanded rows by Welch z on the fits, sigma and nu. Quick mode takes about
+4 seconds, full about 20; each arm takes its name.
+
+    Rscript benchmarks/R/frequency-exact.R quick sigma nu
+
 .github/workflows/exact-gates.yaml runs all of them in `quick` mode on push /
 pull_request (one install, looped, one ::error:: per failing gate); dispatch it
 with mode=full for the long grid. exact-gates-weekly.yaml runs the full mode of
@@ -425,6 +439,16 @@ under 0.05 and one under 0.01 (they are not independent, so read nine or more
 under 0.05, or any under 6e-4, as a finding to look at); discrete-selfcheck
 must be green. The probit-k job takes
 67 minutes on the laptop and up to twice that on the runner.
+
+The frequency arm is run by dispatch, outside the matrix and its M: a gaussian
+fit at real weights, Uniform(0.5, 2), whose theta0 draws sigma from the prior
+tilted by the frequency likelihood's factor (sigma^2)^(-(W - n) / 2), W the
+weights' total, and y0 at sd sigma / sqrt(w) (sbcFrequencySigmaDraw), so its
+ranks are uniform exactly when the sampler reads the weights as counts. Each
+functional is read at its own 5% band. At R = 200, L = 200, thin 30 it takes
+about 11 minutes on the laptop.
+
+    Rscript benchmarks/R/sbc.R frequency 200 200 30
 
 ## R/probit-k-mixing.R - k's mixing under probit (measurement, not a gate)
 
