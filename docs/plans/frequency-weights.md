@@ -265,7 +265,10 @@ sampler created at NULL passes and one stating "frequency" is refused (10).
   scale (`standardizationMomentsForColumn`, weighted moments over the rows in) and its `updateStandardization` door; a gp
   leaf's default lengthscale, the median pairwise distance over the expanded rows' pairs (Calls made, 20); a forest's
   default sd (`basisColumnScale`, weighted, with or without a mask) and its `updateBasisScale` door; the multi-forest
-  anchor, the response's sd over the rows read. Where too few rows are in and a read-off falls back to every row, it reads
+  anchor, the response's sd over the rows read. The anchor's sd is 0 exactly, which takes the no-spread anchor, where the
+  rows read hold one value, as the expansion's, or where their counts total no more than 1 to the rounding of their sum
+  (weights rescaled to sum to 1 sum to 1 plus a few units in the last place); the basis scale and the leaf moments take
+  no scale on the same total. Where too few rows are in and a read-off falls back to every row, it reads
   every row at its count, as the expansion's every row (Calls made, 23). `gpMaxLeafSize` counts rows, the one stated
   exception (Calls made, 20). The response range stays over the rows in, which
   copies do not move. The quantile cut rule is not weighted: its grid is built over unique values, which copies leave as they
@@ -780,7 +783,8 @@ channel against
 change, the heteroscedastic re-anchor by a rescaled response, `updateBasisScale`); a Student-t `setWeights` to a new pointer
 against the sampler created with those weights; a row out, at weight 0 or masked, inert on gaussian and Student-t; the gp
 lengthscale against the expansion's on both sides of the subsample; logistic's basis scale against the expansion's with and
-without a mask; the fallback against the expansion's every row; a tinytest Student-t fit at whole weights against its
+without a mask; the fallback against the expansion's every row; the anchor at a total count of exactly 1 and at whole
+weights rescaled to sum to 1 the no-spread anchor, the basis scale and the leaf moments there taking no scale; a tinytest Student-t fit at whole weights against its
 expansion's df; the bitwise trio; the full tinytest suite; sanitizers on tests/cpp and on the R-loaded path;
 `mutation-battery.R verify-anchors`.
 
@@ -1118,4 +1122,5 @@ For the S1 review's FIX FIRST and the calls on its two open items.
 | 3 | The reading described where it is built, on the sampler | The reading and where it lives; Calls made, 22 |
 | 4 | A read-off's fallback to every row reads each row at its count | Calls made, 23; Engine (S1) |
 | 5 | Tests for the review's surviving mutants and for rows 1, 2 and 4 | S1 gates |
-| 6 | Calls made 20's split sentence narrowed to parts of at least 1, the shift below it stated, signed self-pair weights recorded as the alternative; under frequency the anchor's sd over rows read holding one value is 0 exactly, as the expansion's | Calls made, 20 |
+| 6 | Calls made 20's split sentence narrowed to parts of at least 1, the shift below it stated, signed self-pair weights recorded as the alternative; under frequency the anchor's sd over rows read holding one value is 0 exactly, as the expansion's | Calls made, 20; the anchor rule in Engine (S1) |
+| 7 | The anchor's sd, the basis scale and the leaf moments take no scale where the counts over the rows read total no more than 1 to their sum's rounding, so weights rescaled to sum to 1 take the no-spread values | Engine (S1); S1 gates |
