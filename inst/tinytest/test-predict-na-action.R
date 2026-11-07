@@ -221,22 +221,14 @@ expect_error(
   predict(fit, newX[complete, ], offset = NA),
   "'offset' has missing values"
 )
-# the unnamed-vector newdata path warns that columns are matched by position
-expect_warning(
-  expect_error(
-    predict(fit, newX[1L, ], offset = NA_real_),
-    "'offset' has missing values"
-  ),
-  "is unnamed but the fit's predictors are named",
-  strict = TRUE
+# a named-vector newdata is one row matched by name, refused the same way
+expect_error(
+  predict(fit, newX[1L, ], offset = NA_real_),
+  "'offset' has missing values"
 )
-expect_warning(
-  expect_error(
-    predict(fit, newX[4L, ], offset = NA, na.action = na.omit),
-    "'offset' has missing values"
-  ),
-  "is unnamed but the fit's predictors are named",
-  strict = TRUE
+expect_error(
+  predict(fit, newX[4L, ], offset = NA, na.action = na.omit),
+  "'offset' has missing values"
 )
 expect_error(
   predict(fit, newX[complete, ], "ppd", weights = NA),
