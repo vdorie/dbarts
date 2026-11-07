@@ -187,11 +187,15 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   `context` an opaque pointer handed back to it unchanged, or `NULL`. It
   fires once per SAVED draw of this call, per chain, on the thread that
   owns that chain, over const pointers into this run's own result
-  buffers (or, under `control@keepFits == FALSE`, a per-chain one-draw
-  scratch buffer the chain's next draw overwrites); a nonzero return
-  aborts the run. Only that both list elements are external pointers is
-  checked - the address is dereferenced exactly as handed, so a
-  malformed pair or a stale pointer crashes the session with no
+  buffers or, for a channel this run does not keep, into a per-chain
+  one-draw scratch buffer the chain's next draw overwrites: the
+  per-observation channels under `control@keepFits == FALSE`, and always
+  the draw's log-likelihood, which this run never returns and computes
+  only for the callback. A nonzero return aborts the run. A draw's sigma
+  is `NaN` on a sampler with a variance forest, which reports the
+  variance channels instead. Only that both list elements are external
+  pointers is checked - the address is dereferenced exactly as handed,
+  so a malformed pair or a stale pointer crashes the session with no
   condition to catch. Registering one is a compiled task (Rcpp or plain
   C), not an R closure: see
   [`vignette("dbarts-as-a-component")`](https://vdorie.github.io/dbarts/articles/dbarts-as-a-component.md).
@@ -1102,13 +1106,14 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   For `setCutPoints`, a numeric vector of cut points for the column
   named, or a list of such vectors, one for each column named; a data
   frame is taken as the list of its columns. A vector holds no `NA` or
-  `NaN` and is sorted if it is out of order. A point may appear only
-  once, so a grid with a repeated point is refused; for more splits near
-  a value, give a denser grid around it. No grid a sampler holds repeats
-  a point, so the grids it reports can be handed back to it whole. A
-  grid given here is unweighted, its cut points equally likely, except
-  the grid the column holds handed back bit for bit, which keeps the
-  weights the default rule gives a column with fewer distinct values
+  `NaN` and is sorted if it is out of order. A cut point must be finite;
+  `-.Machine$double.xmax` separates values at `-Inf`. A point may appear
+  only once, so a grid with a repeated point is refused; for more splits
+  near a value, give a denser grid around it. No grid a sampler holds
+  repeats a point, so the grids it reports can be handed back to it
+  whole. A grid given here is unweighted, its cut points equally likely,
+  except the grid the column holds handed back bit for bit, which keeps
+  the weights the default rule gives a column with fewer distinct values
   than `n.cuts`. With `column` missing, `cuts` is a list with one entry
   for every column of the predictors, and the entries of factor columns
   are not read, whatever they are. Cut points apply to numeric
