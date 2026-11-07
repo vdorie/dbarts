@@ -1886,14 +1886,20 @@ class Proposal {
 // ---------------------------------------------------------------------------
 // The one-row step.
 
-/// The step floor: twice the half-width of log r (the sum of four radii,
-/// each density's largest radius taken twice) plus the uniform's grain.
-inline double stepFloor(double radF, double radQ, int beta = 53) {
-  return 2.0 * (2.0 * radF + 2.0 * radQ) + std::ldexp(1.0, 1 - beta);
+/// The step floor, a bound on the chance of a close call: twice the
+/// half-width of log r as stepRow forms it (the four radii, each density's
+/// largest taken twice, plus 4 u times the sum of the four |mid|, each
+/// density's largest |log| taken twice), each threshold's slack (the
+/// library's log error and the widening, 2 u_L |log U| + 2^-1000; U |log U|
+/// <= 1/e, so under 2 u_L of U's measure for both), and the uniform's grain.
+inline double stepFloor(double radF, double radQ, double midF, double midQ, int beta = 53) {
+  return 2.0 * up(2.0 * radF + 2.0 * radQ + 4.0 * kU * (2.0 * midF + 2.0 * midQ)) +
+         2.0 * kLibRelErr + 0x1p-999 + std::ldexp(1.0, 1 - beta);
 }
 
-/// 32-bit words from an ext_rng: its uniform is word / (2^32 - 1), so
-/// floor(u 2^32) recovers the word.
+/// 32-bit words from an ext_rng: the Mersenne Twister's uniform is w 2^-32
+/// exactly (the zero fixup floors back to 0), so u 2^32 recovers the word.
+/// Only that algorithm gives uniform words.
 struct ExtRngWordSource {
   ext_rng* rng;
   std::uint32_t operator()() {

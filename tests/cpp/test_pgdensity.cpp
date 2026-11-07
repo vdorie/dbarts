@@ -88,11 +88,12 @@ pg::Enclosure checkLevels(const F& fam, double refHi, double refLo, const char* 
   return e;
 }
 
-void testFPins(std::vector<double>& radF) {
+void testFPins(std::vector<double>& radF, std::vector<double>& midF) {
   int failed = 0, undecided = 0;
   double worstRatio = 0.0, worstVsArb = 0.0, maxRad = 0.0;
   const FPin* worstPin = nullptr;
   radF.assign(countOf(kFPins), kInf);
+  midF.assign(countOf(kFPins), kInf);
   for (std::size_t i = 0; i < countOf(kFPins); ++i) {
     const FPin& p = kFPins[i];
     pg::TargetDensity f(p.b, p.psi);
@@ -105,6 +106,7 @@ void testFPins(std::vector<double>& radF) {
       if (failed++ < 10) printf("FAIL: pgdensity %s: disjoint from Arb's enclosure\n", tag);
     }
     radF[i] = e.rad;
+    midF[i] = std::fabs(e.mid);
     maxRad = std::max(maxRad, e.rad);
     if (e.finite() && e.rad / p.arbRad > worstVsArb) {
       worstVsArb = e.rad / p.arbRad;
@@ -187,25 +189,27 @@ void testResidual() {
   check(failed == 0, "pgdensity: c0's radius is at least (17 + 3n) u^2 (sum + x) at every q pin");
 }
 
-void testFloor(const std::vector<double>& radF) {
+void testFloor(const std::vector<double>& radF, const std::vector<double>& midF) {
   double worst = 0.0;
   int undecided = 0;
   printf("pgdensity floor: b psi K | max rad f (Arb's) | max rad q | floor\n");
   for (std::size_t i = 0; i < countOf(kFPins);) {
     std::size_t j = i;
-    double rf = 0.0, arb = 0.0, rq = 0.0;
+    double rf = 0.0, arb = 0.0, rq = 0.0, mf = 0.0, mq = 0.0;
     pg::Proposal prop(kFPins[i].b, kFPins[i].psi);
     pg::GammaSumDensity q;
     prop.density(q);
     for (; j < countOf(kFPins) && kFPins[j].b == kFPins[i].b && kFPins[j].psi == kFPins[i].psi; ++j) {
       rf = std::max(rf, radF[j]);
+      mf = std::max(mf, midF[j]);
       arb = std::max(arb, kFPins[j].arbRad);
       q.prepare(kFPins[j].x);
       pg::Enclosure e = pg::logDensityThrough(q, pg::kNumLevels - 1);
       if (!e.finite()) ++undecided;
       rq = std::max(rq, e.rad);
+      mq = std::max(mq, std::fabs(e.mid));
     }
-    double fl = pg::stepFloor(rf, rq);
+    double fl = pg::stepFloor(rf, rq, mf, mq);
     worst = std::max(worst, fl);
     printf("  %g %g %d | %.3g (%.3g) | %.3g | %.3g\n", kFPins[i].b, kFPins[i].psi, prop.numTerms(), rf,
            arb, rq, fl);
@@ -214,10 +218,14 @@ void testFloor(const std::vector<double>& radF) {
   printf("pgdensity floor: max %.3g against 2.3e-11\n", worst);
   check(undecided == 0, "pgdensity: log q decided at every f pin's point");
   check(worst <= 2.3e-11, "pgdensity: the step floor is at most 2.3e-11 at every (b, psi)");
-  // the floor's formula: twice the sum of four radii plus the uniform's grain
-  check(pg::stepFloor(0.0, 0.0) == 0x1p-52, "pgdensity: the floor charges the uniform's grain");
-  check(pg::stepFloor(0x1p-40, 0x1p-41) == 2.0 * (2.0 * 0x1p-40 + 2.0 * 0x1p-41) + 0x1p-52,
-        "pgdensity: the floor is 2 (2 rad_f + 2 rad_q) + 2^(1 - beta)");
+  // the floor's formula: twice the half-width, the thresholds' widening and
+  // the uniform's grain
+  check(pg::stepFloor(0.0, 0.0, 0.0, 0.0) >= 0x1p-52 + 0x1p-50,
+        "pgdensity: the floor charges the uniform's grain and the thresholds' widening");
+  const double hw = 2.0 * 0x1p-40 + 2.0 * 0x1p-41 + 4.0 * 0x1p-53 * (2.0 * 30.0 + 2.0 * 20.0);
+  check(pg::stepFloor(0x1p-40, 0x1p-41, 30.0, 20.0) >= 2.0 * hw + 0x1p-52 + 0x1p-50 &&
+            pg::stepFloor(0x1p-40, 0x1p-41, 30.0, 20.0) <= (2.0 * hw + 0x1p-52 + 0x1p-50) * (1.0 + 0x1p-40),
+        "pgdensity: the floor is 2 (2 rad_f + 2 rad_q + 8 u (|mid_f| + |mid_q|)) + 2 u_L + 2^(1 - beta)");
 }
 
 void testKTable() {
@@ -374,14 +382,14 @@ void testStep() {
 }  // namespace
 
 void runPgdensityTests() {
-  std::vector<double> radF;
+  std::vector<double> radF, midF;
   testDoubleDouble();
   testKTable();
   testFirstRate();
-  testFPins(radF);
+  testFPins(radF, midF);
   testQPins();
   testResidual();
-  testFloor(radF);
+  testFloor(radF, midF);
   testReach();
   testStep();
 }
