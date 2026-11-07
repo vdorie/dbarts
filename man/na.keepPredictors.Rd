@@ -90,7 +90,11 @@ na.keepPredictors(object, \dots)
   unroutable predictor does, and every \code{na.action} above governs it the
   same way: the default and \code{na.fail} refuse it by name, \code{na.pass}
   returns \code{NA} for it, and \code{na.omit}/\code{na.exclude} drop it
-  (\code{na.exclude} padding it back). A missing value in a single
+  (\code{na.exclude} padding it back). On a binomial fit given no
+  \code{weights}, a predictive draw's missing success or failure count in
+  \code{newdata}'s response columns marks its row the same way, unless the
+  columns miss a count in every row and so are read as absent (see the
+  \code{family} item of \code{\link{bart}}). A missing value in a single
   (length-one) \code{offset} or \code{weights} is always an error, whatever
   \code{na.action} is, since there is then no row for it to mark. A missing
   value in \code{bases} never marks its row: on a row that is incomplete
