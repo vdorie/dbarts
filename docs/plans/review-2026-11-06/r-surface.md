@@ -1,6 +1,6 @@
 # Review 4, slice S-D: the R surface
 
-Status: built, in review (branch review4-r-surface).
+Status: LANDED on main 2026-11-06 (branch review4-r-surface).
 
 Each item is a finding of the fourth whole-repo review. RNG class: neutral. No fix changes a sampler
 draw. families-01 changes what an `nbinom()` fit reports, and so its predictive draws and
@@ -194,3 +194,13 @@ Each mutant was installed on its own and run against the test file named.
 | every split-probability matrix taken | group B | killed: the 2 x 2 through `cgm` and `bart` |
 | a forest's power and base coerced again | group B | killed: 16 failures over the four doors |
 | the variance forest's stated power unchecked at creation | group B | killed: the `varianceForest()` creation case |
+
+## Landing note
+
+Landed by fast-forward at 862424a55 after two reviews (the second over the fix round). On that commit: the nine
+per-push workflows green by dispatch (R CMD check, cpp-tests, sanitizers, equivalence, exact-gates, lint,
+doc-freshness, pkgdown, revdep-smoke); the x86 leg (Linux, x86-64): tests/cpp 431 checks plain and under
+ASan/UBSan with the leak sanitizer, no report; the full tinytest suite at home, 41523 tests, 0 failed; the
+equivalence trio in statistical mode, 55 scenarios compared and indistinguishable, BCF and multinomial within the
+cross-host bound. forest() and varianceForest() now refuse a string, logical or factor power or base that the
+development build took; both are new in 1.0-0, so no NEWS line.
