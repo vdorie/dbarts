@@ -80,25 +80,30 @@ chain state at once (`resetPriorTreeParameters`), and a refused one goes back to
 allocation failure part way finds every tree consistent and `settleAfterAllocationFailure` settles the
 one in flight. On exhaustion the trees are drawn by `sampleTreesFromPrior`'s per-tree rejection under
 the last weights, so the chain is a state the sampler holds, and the entry reports forests.drawn FALSE.
+Under dec-B631 every engine call that holds nothing ends this way, and R discards that forest, since
+the next call redraws the whole. That is wasted work but harmless: a bare root is held with
+probability at least 0.05, so the per-tree rejection's 10,000-attempt throw cannot occur in practice.
+It is left as it is.
 
 R (`drawPriorForests`) draws each sample by whole-forest rejection with no cap and no fallback
 (dec-B631): it calls the entry with a bounded count of attempts until one call accepts, the entry having
 then drawn the trees, so R skips `sampleTreesFromPrior`. The count starts at 1, doubles while a call
-takes under 0.05 s and halves while one takes over 0.2 s, up to 2^20, so a call lasts about a tenth of
-a second. A call that accepts nothing has also drawn k and the family's hyperparameters, which the next
+takes under 0.05 s and halves while one takes over 0.2 s, up to 2^20. A call is bounded by 2^20
+attempts, about 9 s at 9 microseconds an attempt, though in practice it lasts one sample's time: where
+a sample takes under 0.05 s the count climbs to the cap and each call ends at its first held draw. A
+call that accepts nothing has also drawn k and the family's hyperparameters, which the next
 call redraws; neither bears on acceptance, so the accepted sample's are still prior draws. After each call
 the bridge polls for an interrupt (`userInterrupted`, R_CheckUserInterrupt under R_ToplevelExec, as a
 run's poll is) once the engine's objects are gone and the sampler holds every tree it carries, and
 raises it there (`raiseInterrupt`); an interrupt leaves only the private sampler, which is dropped, and
 a time limit set by `setTimeLimit` is raised the same way. Once a second has gone into the attempts (the
 threshold over 60), each call projects the call's length: the time so far times n.samples over the
-samples accepted, or with none accepted yet, the time so far times n.samples, a lower bound while
-acceptance is below about one in the attempts made. The first projection over 60 seconds warns, once
-per call, as at 60 rows and 500 trees for 3,000 samples, after a second: "samplePriorPredictive: under
+samples accepted, or with none accepted yet, the time so far times n.samples, a lower bound. The first projection over 60 seconds warns, once per call, printed when
+raised (`immediate. = TRUE`) so that it arrives while the draw runs rather than after the call returns, as at 60 rows and 500 trees for 3,000 samples, after a second: "samplePriorPredictive: under
 dart() 19 of 69,426 joint draws of the split weights and trees so far were ones the sampler holds
 (acceptance 0.00027), so the call is projected to take about 3 minutes; it can be interrupted", or with
 none accepted, as at 30 rows and 500 trees for 200 samples, "none of 98,303 joint draws ... so far was one the sampler
-holds (acceptance below 1 in 98,303), so the call will take at least about 4 minutes; it can be
+holds (acceptance none in 98,303), so the call will take at least about 4 minutes; it can be
 interrupted". An unexported, undocumented option, `dbarts.priorPredictiveWarnSeconds`, sets the
 threshold, so a test can force the warning at any seed. Acceptance measured on this build: 0.01 at 60
 rows, 8 columns and 200 trees; 0.035 at 200 rows; 0.36 at 1000 rows.
@@ -110,11 +115,17 @@ growth 0.95 / (1 + depth)^2, so the exact density of s_1 under whole-draw reject
 P(held | s_1)^20 on a grid of 1,000 points. 2,000 entry draws, every one accepted, against its CDF by KS;
 the same draws against the stated uniform, p below 1e-6 (the per-tree retry's distribution). Under one
 seeded control, dart()'s "ev" differs from the same sampler's at uniform split.probs. At 60 rows, 8
-columns and 200 trees, about one in a hundred held, 50 samples are each an accepted joint draw, over
-more than 500 attempts. With the warning threshold forced to 0 seconds a call warns once, in the words
-above. On the small case the default threshold stays silent. With the interrupt poll armed to fire
-once, a call is interrupted (class "interrupt"), and a seeded call afterward returns what it did
-before. The fallback's tests went with the fallback; the last-sample case of fix round 1 went too,
+columns and 200 trees, about one in two hundred held, 400 samples of a negative-binomial sampler are
+each an accepted joint draw, over more than 8,000 attempts, and their k follows its chi(1.5, 2) prior
+(KS) and their shape the grid's weights (chi-squared), so the hyperparameters are redrawn on every
+engine call however large the batches grow. With the warning threshold forced to 0 seconds a call
+warns once, in the words above. On the small case the default threshold stays silent. With the
+interrupt poll armed to fire once, a call is interrupted (class "interrupt"), and a seeded call
+afterward returns what it did before. Where no forest is ever held (two points on the diagonal, 200
+trees, each tree held with probability about 0.6), a call armed to interrupt at its twelfth poll is
+interrupted, so a call holding nothing never ends a sample; and at a threshold of 3 seconds the first
+projection, the time so far times n.samples, warns in well under 1.5 s, "none of" and "at least
+about". The fallback's tests went with the fallback; the last-sample case of fix round 1 went too,
 since with no cap every sample is accepted and none can come back empty.
 tests/cpp: an accepted
 joint draw leaves every tree held, totals and leaves zero, the reported weights the chain's own, and a
@@ -184,21 +195,26 @@ derives it over every row and setResponse under updateScale over the rows in. Te
 Run on arm64 macOS, at most 2 cores. Fix round 2 reran, after the rebase onto 1aaba0199 and on
 `--preclean` installs of both libraries: tests/cpp plain and under ASan/UBSan, the full suite, the
 trio, the snapshot files, the extra seeds, the lint set and verify-anchors; the numbers below are that
-round's. The R-loaded ASan run and R CMD check are the build round's.
+round's. The R-loaded ASan run is the build round's. Fix round 3 changed only R, the tests, the help and
+these records, so it reran the full suite, the extra seeds, the lint set, verify-anchors and R CMD
+check, whose numbers are given as that round's; the engine and bridge are unchanged, so tests/cpp, the
+trio and the snapshot files stand at fix round 2's.
 
 - tests/cpp, shipped config: plain 559 ok, all passed; under `-O2 -g -fsanitize=address,undefined`
   (`detect_container_overflow=0`) 559 ok, 0 sanitizer reports. The new suites: the DART prior draw's s_1
   KS p 1.00 at a fixed alpha and 0.84 under a mask, alpha's grid chi-squared p 0.849, E[s_1^2] 0.1081
   against 0.1086; k's quantiles at worst z 1.82; the alloc harness's DART arms at budgets 1000 and 1 over
   every leaf type, 14 to 17 allocations each, all failing cleanly.
-- Full tinytest suite, shipped, one process: 42049 results in 303 files, 0 failed.
-  test-prior-predictive.R 77 results, test-setters-draw-nothing.R 121.
+- Full tinytest suite, shipped, one process: fix round 3, by `run_test_dir` (at home), 42150 results
+  in 304 files, 0 failed; fix round 2, 42049 in 303. test-prior-predictive.R 83 results,
+  test-setters-draw-nothing.R 121.
 - Equivalence trio on the reference build, `--bitwise` (`--strict-coverage` on equivalence.R): 55, 19
   and 11 scenarios identical against equivalence-38da480c.rds, bcf-equivalence-38da480c.rds and
   multinomial-equivalence-80b1c8d4.rds, 0 skipped.
 - The four snapshot files on the reference build: 7, 3, 14 and 3 results, 0 failed.
-- Each KS and chi-squared test of test-prior-predictive.R at seeds 2611, 7193, 40417 and 91 besides its
-  own: 16 tests at 4 seeds, every p > 1e-3, the smallest 0.0125 (the nbinom k test). The one test that
+- Each KS and chi-squared test of test-prior-predictive.R at its own seed, 2611, and at 7193, 40417
+  and 91 (fix round 3): 18 tests at 4 seeds, every p > 1e-3, the smallest 0.0125 (the nbinom k test);
+  the DART block's k KS p 0.41 to 0.83 and shape chi-squared p 0.52 to 0.92. The one test that
   must reject (the draws against the uniform, not the oracle, under dart()) rejects at every seed,
   p < 1e-133.
 - Fix round 1's draws: the private sampler's one chain leaves "ev" identical to the four-chain code at
@@ -212,9 +228,12 @@ round's. The R-loaded ASan run and R CMD check are the build round's.
   test-prior-predictive.R 67, test-setters-draw-nothing.R 121, test-calibration-prior-draws.R 29,
   test-dart-mixed-columns.R 13, test-generics-posteriorPredictiveDistribution.R 204,
   test-prior-init-empty-leaves.R 5; 0 failed, 0 sanitizer reports.
-- R CMD check --as-cran on the built tarball: 2 NOTEs. The incoming-feasibility NOTE is not this
-  slice's (an expired certificate at two existing URLs, the Date field). The other, `rt` used without
-  an import, is fixed since; codetools then reports nothing. Tests OK in 217 s.
+- R CMD check --as-cran on the built tarball, fix round 3: 1 NOTE, the incoming-feasibility one, not
+  this slice's (an expired certificate at https://www.rob-mcculloch.org in man/bartBT.Rd and
+  man/pdbart.Rd, and the Date field over a month old); tests OK in 245 s. The build round's second
+  NOTE, `rt` used without an import, was fixed then.
+- The warning, printed when raised (fix round 3): at a threshold of 3 seconds, a 2,000-sample call at
+  60 rows, 8 columns and 200 trees printed it at 0.07 s and returned at 8.2 s.
 - lintr 0 lints; air format --check clean; check-rc-codoc OK (53 methods); check-win-drift OK;
   check-doc-freshness OK.
 - mutation-battery.R verify-anchors clean, m44 re-anchored on the refactored monotone draw; `run m44`
@@ -245,6 +264,10 @@ Mutants, each planted alone in a copy of the tree, all killed:
 | fix round 2: never warns (R) | test-prior-predictive.R | 2 of 77 |
 | fix round 2: a cap of 50 attempts per sample, pooled (R) | test-prior-predictive.R | 1 of 77 |
 | fix round 2: the bridge's interrupt poll removed (C++) | test-prior-predictive.R | 1 of 77 |
+| H1: k, the df and the shape drawn only on calls of at most one attempt (C++) | test-prior-predictive.R | 2 of 83 |
+| A1: a refused tree after the first kept (C++) | test-prior-predictive.R | 5 of 83 |
+| B1: an empty call's per-tree forest kept once the batch is 64 or more (R) | test-prior-predictive.R | 1 of 83 |
+| W1: the no-acceptance projection without the n.samples factor (R) | test-prior-predictive.R | 1 of 83 |
 
 ## Measured for the open calls
 
@@ -355,15 +378,17 @@ The exact draw's cost, up to 50 accepted draws or 150 s per case, on other data 
     threshold over 60, so a forced threshold of 0 projects at once), then follow every engine call; the
     first over the threshold warns, once per call. The projection is the time so far times n.samples
     over the samples accepted, a rate over the whole call, or with none accepted, the time so far times
-    n.samples, stated as a lower bound with acceptance "below 1 in" the attempts made, never a
-    division by zero. Alternatives: project from the first call (noisier, a slow first sample warning
+    n.samples, stated as a lower bound with acceptance "none in" the attempts made, never a
+    division by zero. Fix round 3: the warning is printed when raised (`immediate. = TRUE`), since R
+    otherwise holds it until the top-level call ends. Alternatives: project from the first call (noisier, a slow first sample warning
     a call that is not long); a fixed number of attempts before the first projection, which scales
     with neither the attempt's cost nor the threshold; a Bayesian bound on acceptance with none
     accepted.
-24. Fix round 2: the attempt loop runs in R over engine calls of a bounded count sized to about a
-    tenth of a second, the bridge polling after each, rather than an uncapped loop in the engine with
+24. Fix round 2: the attempt loop runs in R over engine calls of a bounded count, sized to take 0.05
+    to 0.2 s and capped at 2^20 attempts (about 9 s, in practice one sample's time), the bridge polling
+    after each, rather than an uncapped loop in the engine with
     a poll inside: each call ends at a state the sampler holds, the engine stays R-agnostic and its
-    entry and tests are unchanged, and an interrupt waits at most one call. Alternatives: the engine
+    entry and tests are unchanged, and an interrupt waits at most one call (12 ms measured). Alternatives: the engine
     loop with a poll callback, as a run takes; R's own interrupt check between calls, which comes only
     every thousand or so evaluations.
 25. Fix round 2: the threshold is an unexported, undocumented option read per call, as
@@ -373,7 +398,16 @@ The exact draw's cost, up to 50 accepted draws or 150 s per case, on other data 
     removed. Alternative: keep it, which nothing now needs.
 27. Fix round 2: the cap test reads each sample's forests.drawn through `drawPriorForests`, which the
     public result does not report. Alternative: infer the cap from the split weights' concentration,
-    which needs thousands of samples.
+    which needs thousands of samples. Fix round 3: the same block reads k and the shape on a
+    negative-binomial sampler, the hyperparameters' only test under DART.
+28. Fix round 3: the batch and the no-acceptance projection are tested on a design where no forest is
+    ever held, two points on the diagonal at 200 trees, so both tests are deterministic. The
+    projection's test times the warning against a 3-second threshold. Alternatives: a low-acceptance
+    design (each test then holds with a probability below 1); read the projected seconds off the
+    message (its units change with the value).
+29. Fix round 3: call 6's per-tree draw, which R discards on every call that holds nothing, is left in
+    place. Alternative: leave the bare-root reset as the settled state and zero the totals, saving the
+    work.
 
 Not in this slice: the dart() help's account of the prior the sampler runs (dec-B608's rule, first
 sentence) lands with TODO dart-split-rule and dec-B605's change.
