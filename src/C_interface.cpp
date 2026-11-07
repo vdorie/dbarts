@@ -691,6 +691,8 @@ int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
                                     ResponseConduit::response, updateScale);
   refuseSavedGPDrawReanchor(samplerOf(sampler), "dbarts_sampler_setResponse",
                             updateScale);
+  bartcore_bridge::refuseBinomialResponseSwap(samplerOf(sampler).shape(),
+                                              "dbarts_sampler_setResponse");
   // the one place minimal validation is not enough: an out-of-support y is a
   // silently garbage latent draw for probit/ordinal and, for nbinom, an
   // uncatchable crash inside the count histogram (see validateResponseSupport)

@@ -306,6 +306,10 @@ struct dbarts_sampler_t {
   // lifetime (the single-trial label entry builds a one-hot counts matrix)
   std::vector<int> ownedCounts{}, ownedTrials{};
 
+  // a binomial (logistic) sampler's per-row trials, borrowed by the response
+  // beside its successes in ownedResponse; empty for every other sampler
+  std::vector<double> ownedBinomialTrials{};
+
   // and, when one is installed, an owned copy of the n x K category offset the
   // combiner borrows in the same layout. Empty means none: the bridge reads
   // emptiness as the sampler's "carries a category offset" answer, since the
@@ -523,6 +527,13 @@ void refuseWeightedCountsOverCap(const char* caller, const double* weights,
                                  const double* y, std::size_t numObservations,
                                  double shape, bool drawsShape);
 
+/// Errors where a binomial row of weight w > 1 would draw more than
+/// bartcore::maximumCount Polya-Gamma units per sweep, w times its trials;
+/// at w = 1 the trials' own cap stands. Null weights or trials are a no-op.
+void refuseWeightedTrialsOverCap(const char* caller, const double* weights,
+                                 const double* trials,
+                                 std::size_t numObservations);
+
 /// Errors on a post-creation case-weight change under a family that carries no
 /// weights at all: probit, ordinal and aft. A probit or ordinal 0/1
 /// vector states membership, not precision, and the R layer routes it to the
@@ -538,8 +549,9 @@ void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler);
 
 /// Errors on a response value outside the family's support, the post-creation
 /// half of the rule the R surface (R/spec.R) enforces when the sampler is
-/// built: 0/1 for probit and logistic, an integer category index in [1, K] for
-/// ordinal, a finite non-negative integer count no larger than 1e6 for nbinom.
+/// built: 0/1 for probit and logistic, a logistic response's successes whole
+/// and from 0 to its \p trials where it is binomial, an integer category
+/// index in [1, K] for ordinal, a finite non-negative integer count no larger than 1e6 for nbinom.
 /// gaussian and aft (log survival times) constrain nothing, so they pass
 /// through. Memory safety, not only modeling: NBShapePrior::computeKernel
 /// sizes its count histogram from lround(max y), which a negative element
@@ -550,7 +562,15 @@ void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler);
 /// that swaps y. caller labels the error.
 void validateResponseSupport(bartcore::ResponseFamily family,
                              std::size_t numCategories, const double* y,
-                             std::size_t numObservations, const char* caller);
+                             std::size_t numObservations, const char* caller,
+                             const double* trials = NULL);
+
+/// Errors on a binomial response's swap through a flat response vector,
+/// which cannot state its successes and failures: "<caller>: its response is
+/// the n x 2 count pair of successes and failures, which a flat vector cannot
+/// express; replace it with $setCounts". A no-op off a binomial sampler.
+void refuseBinomialResponseSwap(const bartcore::SamplerShape& shape,
+                                const char* caller);
 
 /// Errors with "<caller>: <what> contains non-finite values" when any of the
 /// count values is NaN or infinite; a null values is a no-op. The swap
