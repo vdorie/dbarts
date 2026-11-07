@@ -252,8 +252,8 @@ both supported (below).
   binomial(n_i, p) distributionally (not bitwise - two forests, a
   different draw stream). The counts (or labels) are the response, so
   the host sampler's own response is ignored. Real-shape (non-integer)
-  counts stay out of scope, and case weights are refused, both for the
-  same real-shape PG gap.
+  counts and case weights stay out of scope for the same real-shape PG
+  gap; whole case weights are counts of the rows (below).
 - The run's train channel is the n x K x n.samples softmax probabilities, the
   identified deliverable (combinedFits writes the K location-major channels,
   log-sum-exp-safe). Per-category function values and split counts read through
@@ -351,10 +351,11 @@ both supported (below).
   rebuild only forest 0, and multinomial never opts into
   supportsResponseMutation, so their refusal messages point at the
   channels above by name rather than reporting a response "fixed at
-  creation", which it no longer is. Case weights stay refused on model
-  grounds instead: a non-integer weight would need a real-shape PG(w_i
-  n_i, .) draw with no exact sampler, and an integer weight is already
-  the row-wise count replication the counts channel expresses.
+  creation", which it no longer is. Case weights are whole counts of the
+  rows (frequency-weights.md): a row of count w draws PG(w_i n_i, .) with
+  kappa w_i (y_ik - n_i/2), a count of 0 composed into the effective mask
+  beside the zero-trial rows; setWeights takes them at updateScale =
+  FALSE, and a non-integer weight stays refused, having no exact sampler.
   bartcoreForestFits (a forest's per-observation totalFits) stays
   OFFSET-FREE under either report; softmax_k(bartcoreForestFits(bc, k) +
   offset[, k]) reproduces the reported channel, not

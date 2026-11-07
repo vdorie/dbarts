@@ -73,8 +73,8 @@ combined out-of-sample fit defined at all
 | probit | R [`refuseBinaryWeightChange`](../../src/R_interface_bartcore.cpp) | R [`refusePinnedSigmaChange`](../../src/R_interface_bartcore.cpp) | S [`ProbitResponse::latents`](../../src/bartcore/model.hpp) | - [f7] | S [`bartcore_setTestPredictor`](../../src/R_interface_bartcore.cpp) |
 | logistic | S [`LogisticResponse::setWeights`](../../src/bartcore/model.hpp) [f8] | R [`refusePinnedSigmaChange`](../../src/R_interface_bartcore.cpp) | S [`LogisticResponse::latents`](../../src/bartcore/model.hpp) | - [f7] | S [`bartcore_setTestPredictor`](../../src/R_interface_bartcore.cpp) |
 | ordinal | R [`refuseBinaryWeightChange`](../../src/R_interface_bartcore.cpp) | R [`refusePinnedSigmaChange`](../../src/R_interface_bartcore.cpp) | S [`OrdinalResponse::latents`](../../src/bartcore/model.hpp) | - [f7] | S [`bartcore_setTestPredictor`](../../src/R_interface_bartcore.cpp) |
-| nbinom | R [`refuseBinaryWeightChange`](../../src/R_interface_bartcore.cpp) | R [`refusePinnedSigmaChange`](../../src/R_interface_bartcore.cpp) | S [`NBResponse::latents`](../../src/bartcore/model.hpp) | - [f7] | S [`bartcore_setTestPredictor`](../../src/R_interface_bartcore.cpp) |
-| multinom | R [`parseMultinomialData`](../../src/R_interface_bartcore.cpp) [f9] | R [`refuseCountsMutation`](../../R/bartcore.R) [f9] | R ["reports nothing, by a DECIDED decline"](multinomial.md) | R [`refuseCountsMutation`](../../R/bartcore.R) [f9] | S [`bartcore_setTestPredictor`](../../src/R_interface_bartcore.cpp) |
+| nbinom | R, but 0/1 [`isMaskedWeightFamily`](../../R/spec.R) / S, bridge [`NBResponse::setWeights`](../../src/bartcore/model.hpp) [f14] | R [`refusePinnedSigmaChange`](../../src/R_interface_bartcore.cpp) | S [`NBResponse::latents`](../../src/bartcore/model.hpp) | - [f7] | S [`bartcore_setTestPredictor`](../../src/R_interface_bartcore.cpp) |
+| multinom | R [`refuseCountsMutation`](../../R/bartcore.R) / S, bridge [`MultinomialForestCombiner::setWeights`](../../src/bartcore/combiner.hpp) [f9] [f14] | R [`refuseCountsMutation`](../../R/bartcore.R) [f9] | R ["reports nothing, by a DECIDED decline"](multinomial.md) | R [`refuseCountsMutation`](../../R/bartcore.R) [f9] | S [`bartcore_setTestPredictor`](../../src/R_interface_bartcore.cpp) |
 | aft | R [`refuseBinaryWeightChange`](../../src/R_interface_bartcore.cpp) | S, no variance forest [`bartcore_setSigma`](../../src/R_interface_bartcore.cpp) / R, variance forest [`refusePinnedSigmaChange`](../../src/R_interface_bartcore.cpp) | S [`AFTResponse::latents`](../../src/bartcore/model.hpp) | S [`AFTResponse::setOffset`](../../src/bartcore/model.hpp), a variance forest re-anchored with it [`Chain::reanchorVarianceForest`](../../src/bartcore/chain.hpp) | S [`bartcore_setTestPredictor`](../../src/R_interface_bartcore.cpp) |
 | hazard | as probit [f5] | as probit | as probit | as probit | as probit |
 | hurdle | - [f10] | - | - | - | - |
@@ -301,9 +301,8 @@ leaves in.
 model change: [`LogisticResponse::setWeights`](../../src/bartcore/model.hpp) redraws omega against the new counts, and
 the creation-time positive-integer policy holds on every conduit.
 
-[f9] Multinomial carries a counts response and no weight vector: creation refuses one
-([`parseMultinomialData`](../../src/R_interface_bartcore.cpp)) and the shared counts guard, keyed on `samplerCarriesCounts`,
-blocks every mutation conduit that would touch it ([`refuseCountsMutation`](../../R/bartcore.R); full
+[f9] Multinomial carries a counts response: the R surface refuses a weight vector, and the shared counts guard, keyed
+on `samplerCarriesCounts`, blocks every mutation conduit that would touch the response ([`refuseCountsMutation`](../../R/bartcore.R); full
 inventory [1. Problem statement and inventory](multinomial-mutation-arc.md#1-problem-statement-and-inventory)).
 
 [f10] Hurdle has no sampler of its own: [`bart2Hurdle`](../../R/bart.R) composes two ordinary `bart()`
@@ -333,4 +332,8 @@ which the variance forest pins or refuses for both regardless of family. `setDat
 refused under aft as always, since a whole-data replacement may change n
 (["fix the censoring structure at creation"](../../src/R_interface_bartcore.cpp) on that conduit); the status itself moves
 through `$setResponse(y, status = )`.
+
+[f14] The bridge and engine take nbinom and multinomial weights as counts, a row of count w drawn as its w copies and
+a count of 0 a row out ([frequency-weights.md](../plans/frequency-weights.md)); the R surface refuses them, but nbinom's
+0/1, until that plan's R slice.
 
