@@ -105,6 +105,8 @@ SEXP bartcore_derivedRecords(SEXP ptr, SEXP withGrids);
 SEXP bartcore_sampleTreesFromPrior(SEXP ptr);
 SEXP bartcore_sampleLeafParametersFromPrior(SEXP ptr);
 SEXP bartcore_sampleVarianceForestFromPrior(SEXP ptr);
+SEXP bartcore_sampleHyperparametersFromPrior(SEXP ptr,
+                                             SEXP maxForestAttempts);
 SEXP bartcore_growFromRoot(SEXP ptr, SEXP numSweeps);
 SEXP bartcore_printTrees(SEXP ptr, SEXP chainNums, SEXP sampleNums,
                          SEXP treeNums);

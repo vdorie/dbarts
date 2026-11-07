@@ -306,6 +306,8 @@ static R_CallMethodDef R_callMethods[] = {
            bartcore_sampleLeafParametersFromPrior, 1),
   DEF_FUNC("dbarts_bartcore_sampleVarianceForestFromPrior",
            bartcore_sampleVarianceForestFromPrior, 1),
+  DEF_FUNC("dbarts_bartcore_sampleHyperparametersFromPrior",
+           bartcore_sampleHyperparametersFromPrior, 2),
   DEF_FUNC("dbarts_bartcore_growFromRoot", bartcore_growFromRoot, 2),
   DEF_FUNC("dbarts_bartcore_printTrees", bartcore_printTrees, 4),
   DEF_FUNC("dbarts_bartcore_setControl", bartcore_setControl, 2),

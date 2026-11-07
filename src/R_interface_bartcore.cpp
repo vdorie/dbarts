@@ -6647,6 +6647,59 @@ SEXP bartcore_sampleVarianceForestFromPrior(SEXP ptrExpr) {
   return R_NilValue;
 }
 
+// The hyperparameters' prior draw samplePriorPredictive makes before each
+// sample's leaves (Chain::sampleHyperparametersFromPrior). maxForestAttemptsExpr
+// is the number of joint DART draws of the split weights and the trees the
+// call may make, 0 to leave both as they are. Returns the first chain's
+// list(forests.drawn, attempts, k, split.probabilities, residual.df, shape,
+// thresholds): whether the trees were drawn with the weights, the draws that
+// took, each forest's k, then the DART weights, the Student-t df, the
+// negative-binomial shape and the ordinal cutpoints in force, each NULL where
+// the sampler has none.
+SEXP bartcore_sampleHyperparametersFromPrior(SEXP ptrExpr,
+                                             SEXP maxForestAttemptsExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  int maxForestAttempts = Rf_asInteger(maxForestAttemptsExpr);
+  if (maxForestAttempts == NA_INTEGER || maxForestAttempts < 0)
+    Rf_error("the number of forest attempts must be a non-negative integer");
+  bartcore_bridge::CapturedError error;
+  bartcore::PriorHyperparameterDraw drawn;
+  GetRNGstate();
+  captureExceptions(error, [&]() {
+    drawn = holder.sampler->sampleHyperparametersFromPrior(
+      static_cast<std::size_t>(maxForestAttempts));
+  });
+  PutRNGstate();
+  if (error.failed) Rf_error("%s", error.message);
+
+  const char* names[] = {"forests.drawn", "attempts", "k",
+                         "split.probabilities", "residual.df", "shape",
+                         "thresholds", ""};
+  SEXP resultExpr = PROTECT(Rf_mkNamed(VECSXP, names));
+  SET_VECTOR_ELT(resultExpr, 0, Rf_ScalarLogical(drawn.forestsDrawn));
+  SET_VECTOR_ELT(resultExpr, 1,
+                 Rf_ScalarInteger(static_cast<int>(drawn.forestAttempts)));
+  auto realVector = [](const std::vector<double>& values) {
+    SEXP valuesExpr =
+      Rf_allocVector(REALSXP, static_cast<R_xlen_t>(values.size()));
+    if (!values.empty())
+      std::memcpy(REAL(valuesExpr), values.data(),
+                  values.size() * sizeof(double));
+    return valuesExpr;
+  };
+  SET_VECTOR_ELT(resultExpr, 2, realVector(drawn.k));
+  if (!drawn.splitProbabilities.empty())
+    SET_VECTOR_ELT(resultExpr, 3, realVector(drawn.splitProbabilities));
+  if (!std::isnan(drawn.residualDf))
+    SET_VECTOR_ELT(resultExpr, 4, Rf_ScalarReal(drawn.residualDf));
+  if (!std::isnan(drawn.shape))
+    SET_VECTOR_ELT(resultExpr, 5, Rf_ScalarReal(drawn.shape));
+  if (!drawn.thresholds.empty())
+    SET_VECTOR_ELT(resultExpr, 6, realVector(drawn.thresholds));
+  UNPROTECT(1);
+  return resultExpr;
+}
+
 SEXP bartcore_growFromRoot(SEXP ptrExpr, SEXP numSweepsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
