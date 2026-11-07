@@ -203,6 +203,54 @@ for (name in names(recomputed)) {
   )
 }
 
+# the same under a mask: the count kernel is the rows in's, so a response
+# handed to a masked sampler gives the draws of one handed it before the mask
+# came, whichever order, the shift held by updateScale = FALSE; rows out are
+# far from the rest, the shape would read them if the kernel did
+maskedCount <- yCount
+maskedCount[mask == 0] <- maskedCount[mask == 0] + 40
+maskedNew <- pmax(maskedCount - 1, 0) + 2 * (seq_len(n) %% 3L == 0L)
+maskedMake <- function(y, rows = NULL) {
+  sampler <- build(y, family = nbinom())
+  if (!is.null(rows)) {
+    sampler$setActiveRows(rows)
+  }
+  sampler
+}
+donor <- maskedMake(maskedCount, mask)
+invisible(donor$run(5L, 2L))
+donor$storeState()
+handed <- maskedMake(maskedCount, mask)
+handed$setState(donor$state)
+handed$setResponse(maskedNew, updateScale = FALSE)
+late <- maskedMake(maskedCount)
+late$setState(donor$state)
+late$setResponse(maskedNew, updateScale = FALSE)
+late$setActiveRows(mask)
+expect_identical(
+  handed$run(0L, 4L)$train,
+  late$run(0L, 4L)$train,
+  info = "nbinom setResponse under a mask"
+)
+# a mask cleared reads every row again
+cleared <- maskedMake(maskedCount, mask)
+cleared$setState(donor$state)
+cleared$setActiveRows(NULL)
+unmasked <- maskedMake(maskedCount)
+unmasked$setState(donor$state)
+expect_identical(
+  cleared$run(0L, 4L)$train,
+  unmasked$run(0L, 4L)$train,
+  info = "nbinom mask cleared"
+)
+expect_false(
+  identical(
+    maskedMake(maskedCount, mask)$run(0L, 4L)$train,
+    unmasked$run(0L, 4L)$train
+  ),
+  info = "the mask moves the draws"
+)
+
 # --- setData keeps the drawn family parameters ------------------------------
 # and starts the latents as creation does, drawing nothing
 keptBySetData <- list(
@@ -278,6 +326,12 @@ rm(
   donor,
   handed,
   created,
+  maskedCount,
+  maskedNew,
+  maskedMake,
+  late,
+  cleared,
+  unmasked,
   sampler,
   kept,
   stream,
