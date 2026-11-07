@@ -510,6 +510,22 @@ refuseMixedArgumentStyles <- function(suppliedCall, legacy, caller) {
   if (length(modern) == 0L) {
     return(invisible(NULL))
   }
+  # a name that begins no formal of either door is no style at all, and gets
+  # the ordinary refusal; bart's names carried on its dots are taken there
+  prefixOfAny <- function(name, formalNames) any(startsWith(formalNames, name))
+  strangers <- modern[
+    !vapply(
+      modern,
+      function(name) {
+        prefixOfAny(name, names(formals(bartBT))) ||
+          prefixOfAny(name, names(formals(bart)))
+      },
+      logical(1L)
+    )
+  ]
+  if (length(strangers) > 0L) {
+    refuseForeignFrontDoorArgs(strangers, "bart", names(formals(bart)))
+  }
   stop(
     "this call to '",
     caller,

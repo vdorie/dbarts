@@ -518,6 +518,25 @@ for (name in names(expectedSpelling)) {
     info = name
   )
 }
+# a name in neither vocabulary is no style, and gets the ordinary refusal
+expect_identical(
+  tryCatch(
+    dbarts::bart(xFD, yFD, bogus = 1, ntree = 10L),
+    error = conditionMessage
+  ),
+  "unused argument 'bogus' passed to 'bart'"
+)
+expect_identical(
+  tryCatch(
+    dbarts::bart(xFD, yFD, test = xFD[1:5, ], ntree = 10L),
+    error = conditionMessage
+  ),
+  paste0(
+    sprintf(mixedHead, "bart"),
+    "'ntree' (modern 'n.trees'). Modern only: 'test'",
+    mixedTail
+  )
+)
 rm(mixedCall, name)
 # several of each kind: every BayesTree name given, in the order written
 expect_identical(
