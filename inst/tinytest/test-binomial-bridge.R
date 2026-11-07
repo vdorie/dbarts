@@ -99,6 +99,47 @@ expect_identical(
   info = "binomial: a fold over every row draws what the sampler draws"
 )
 
+# a fold over a proper subset reads its own rows' trials: counts changed
+# outside the fold leave its draws alone, counts changed inside move them
+foldOf <- function(data, rows) {
+  handle <- .Call(
+    dbarts:::C_dbarts_bartcore_createDataHandle,
+    binary$control,
+    data,
+    NULL
+  )
+  .Call(
+    dbarts:::C_dbarts_bartcore_createFromHandle,
+    binary$control,
+    binary$model,
+    data,
+    handle,
+    rows,
+    NULL,
+    "logistic",
+    NULL
+  )
+}
+foldRows <- 11:20
+counts <- cbind(successes, trials - successes)
+outerChanged <- counts
+outerChanged[1:10, ] <- cbind(rep(7L, 10L), rep(5L, 10L))
+innerChanged <- counts
+innerChanged[foldRows, 2L] <- innerChanged[foldRows, 2L] + 3L
+foldDraws <- run(foldOf(withCounts(counts), foldRows), 20L)$train
+expect_identical(
+  run(foldOf(withCounts(outerChanged), foldRows), 20L)$train,
+  foldDraws,
+  info = "binomial: a fold's draws ignore the counts of rows outside it"
+)
+expect_false(
+  identical(
+    run(foldOf(withCounts(innerChanged), foldRows), 20L)$train,
+    foldDraws
+  ),
+  info = "binomial: a fold's draws follow the trials of its own rows"
+)
+
 # the counts' refusals
 negative <- cbind(successes, trials - successes)
 negative[c(2L, 5L), 2L] <- -1L
