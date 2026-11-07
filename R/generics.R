@@ -72,8 +72,9 @@ binomialObserved <- function(y, type) {
 # expression, cbind(successes, failures) as its formula wrote it, evaluated on
 # 'newdata' where newdata holds every column it names and gives two columns,
 # complete, of non-negative whole numbers; NULL otherwise, the rows then
-# drawing one trial. 'response' is the one-sided formula a fit records.
-binomialNewDataTrials <- function(response, newdata) {
+# drawing one trial. 'response' is the one-sided formula a fit records;
+# 'argument' names the new data in a refusal.
+binomialNewDataTrials <- function(response, newdata, argument = "newdata") {
   if (is.null(response) || is.null(newdata)) {
     return(NULL)
   }
@@ -103,7 +104,10 @@ binomialNewDataTrials <- function(response, newdata) {
   ) {
     return(NULL)
   }
-  as.double(rowSums(validateBinomialCounts(value, "'newdata': ")))
+  as.double(rowSums(validateBinomialCounts(
+    value,
+    paste0("'", argument, "': ")
+  )))
 }
 
 # a family with a residual distribution, and so the resid.scale descriptor

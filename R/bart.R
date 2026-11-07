@@ -1959,6 +1959,9 @@ bart <- function(
   if (isTRUE(samplerOnly)) {
     return(sampler)
   }
+  # read ahead of the run, so a test frame's columns that are not counts are
+  # refused before the fit
+  binomialTrials <- binomialFitTrials(sampler, formula, matchedCall, callingEnv)
 
   control <- sampler$control
 
@@ -2016,13 +2019,7 @@ bart <- function(
   # needed to extract ppd
   result <- withFitWeights(result, sampler)
   result$active <- fitActiveRows(sampler)
-  result <- withBinomialTrials(
-    result,
-    sampler,
-    formula,
-    matchedCall,
-    callingEnv
-  )
+  result[names(binomialTrials)] <- binomialTrials
 
   result
 }
@@ -2160,29 +2157,30 @@ withMultinomialTestWeights <- function(result, weights) {
   result
 }
 
-# A packaged binomial fit with what its new rows read their trials from
-# (dec-B638): the response expression as the formula wrote it, a one-sided
+# What a binomial fit's new rows read their trials from (dec-B638), for the
+# packaged fit: the response expression as the formula wrote it, a one-sided
 # formula in the formula's environment, and the trials a test frame carrying
-# its columns gives, where no test weights were stated.
-withBinomialTrials <- function(result, sampler, formula, matchedCall, env) {
+# its columns gives, where no test weights were stated. An empty list on any
+# other fit.
+binomialFitTrials <- function(sampler, formula, matchedCall, env) {
   if (
     !is.formula(formula) ||
       length(formula) != 3L ||
       !identical(sampler$model@family, "logistic") ||
       NCOL(dataCounts(sampler$data)) != 2L
   ) {
-    return(result)
+    return(list())
   }
   response <- formula[-2L]
   response[[2L]] <- formula[[2L]]
-  result$trials.response <- response
+  result <- list(trials.response = response)
   if (
     NROW(sampler$data@x.test) > 0L &&
-      is.null(result[["weights.test"]]) &&
+      length(sampler$data@weights.test) == 0L &&
       !is.null(matchedCall$test)
   ) {
     test <- eval(matchedCall$test, env)
-    trials <- binomialNewDataTrials(response, test)
+    trials <- binomialNewDataTrials(response, test, "test")
     if (!is.null(trials) && length(trials) == NROW(sampler$data@x.test)) {
       result$trials.test <- trials
     }
