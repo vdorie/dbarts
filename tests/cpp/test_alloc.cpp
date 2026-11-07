@@ -6,7 +6,8 @@
 // allocations it was counted making - installs one chain state, fails the
 // N-th allocation of the step for every N that step makes, and checks that
 // the chain is left whole: the totals those of the trees, a state that reads
-// and installs, and a next sweep that is finite and consistent.
+// and installs, a next sweep that is finite and consistent, and after it the
+// fits the trees route the rows to.
 
 #include "common.hpp"
 
@@ -151,9 +152,33 @@ bool totalsAreTheTrees(S& sampler, double tolerance) {
 
 struct HarnessTally {
   long allocations = 0, failed = 0, absorbed = 0, consistent = 0,
-       readable = 0, continued = 0;
+       readable = 0, continued = 0, routed = 0;
   bool otherException = false;
 };
+
+/// Every forest's per-tree fits against those of a new sampler \p make
+/// builds and hands \p sampler's state: that one routes the rows through
+/// each tree's structure, so a leaf map left behind its tree shows here,
+/// where the totals, re-summed from the map, agree with it.
+template <typename S, typename Make>
+bool fitsAreTheTreesRouted(S& sampler, Make&& make) {
+  SamplerStateData state;
+  sampler.getState(state);
+  auto fresh = make();
+  if (!fresh->setState(state, nullptr)) return false;
+  std::size_t n = sampler.data().numObservations;
+  for (std::size_t f = 0; f < sampler.numForests(); ++f) {
+    std::size_t numTrees = sampler.chain(0).numTreesInForest(f);
+    std::vector<double> live(n * numTrees), routed(n * numTrees);
+    TestPeer::forestTreeFits(sampler.chain(0), f, live.data());
+    TestPeer::forestTreeFits(fresh->chain(0), f, routed.data());
+    for (std::size_t i = 0; i < live.size(); ++i)
+      if (!(std::fabs(live[i] - routed[i]) <=
+            1e-9 * (1.0 + std::fabs(routed[i]))))
+        return false;
+  }
+  return true;
+}
 
 /// For every allocation \p step makes from \p start on a sampler \p make
 /// builds, a run of it with that allocation failed. Each run is on a new
@@ -181,11 +206,14 @@ HarnessTally failEachAllocation(Make&& make, const SamplerStateData& start,
     }
     ++tally.failed;
     if (totalsAreTheTrees(*sampler, 1e-12)) ++tally.consistent;
+    // the state installs on a new sampler, so the failed one runs on from
+    // what the failure left, not from maps an install rebuilds
     SamplerStateData after;
     sampler->getState(after);
-    if (sampler->setState(after, nullptr)) ++tally.readable;
+    if (make()->setState(after, nullptr)) ++tally.readable;
     sampler->run(0, 1, none);
     if (totalsAreTheTrees(*sampler, 1e-9)) ++tally.continued;
+    if (fitsAreTheTreesRouted(*sampler, make)) ++tally.routed;
   }
   return tally;
 }
@@ -204,6 +232,9 @@ void report(const HarnessTally& tally, const std::string& name) {
   check(tally.continued == tally.failed,
         (name + ": after each failure the next sweep is finite and "
                 "consistent").c_str());
+  check(tally.routed == tally.failed,
+        (name + ": after each failure and a sweep the fits are those the "
+                "trees route the rows to").c_str());
   printf("ok: %s (%ld allocations, %ld failures reached the caller, %ld "
          "absorbed)\n", name.c_str(), tally.allocations, tally.failed,
          tally.absorbed);
@@ -233,13 +264,14 @@ std::unique_ptr<Sampler<L>> makeHarnessSampler(const HarnessData& data,
     rng);
 }
 
-/// Births only, from stumps, so the failures land around a tree that grows;
-/// then the prior draw of every leaf.
+/// Births and deaths only, from stumps, so the failures land around trees
+/// that grow (a birth probability of 1 would leave a birth no reverse move
+/// and reject it); then the prior draw of every leaf.
 template <typename L>
 void runLeafArms(const HarnessData& data, SamplerOptions options,
                  const std::string& leaf, std::uint32_t seed) {
   options.birthOrDeathProbability = 1.0;
-  options.birthProbability = 1.0;
+  options.birthProbability = 0.5;
   options.changeProbability = 0.0;
   options.swapProbability = 0.0;
   std::vector<ext_rng*> rngs;
@@ -268,6 +300,147 @@ void runLeafArms(const HarnessData& data, SamplerOptions options,
                               s.sampleNodeParametersFromPrior();
                             }),
          "allocation failure in a prior leaf draw, " + leaf + " leaf");
+  for (ext_rng* rng : rngs) ext_rng_destroy(rng);
+}
+
+/// A tree's mask-pool compaction under each allocation failure it meets: two
+/// live pooled rules stored past garbage, so the copy moves both, and a
+/// failure part way through it would leave a rule pointing into a pool never
+/// swapped in. After each failure every rule reads the words it held.
+void runMaskPoolCompactionArm() {
+  const std::size_t n = 60, K = 70;  // past 63 categories: two pooled words
+  std::vector<double> x(n), y(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>((i * 37) % K);
+    y[i] = static_cast<double>(i % 5);
+  }
+  const ColumnKind types[] = {ColumnKind::categorical};
+  ColumnStore store;
+  check(store.build(x.data(), n, 1, 10, false, types) &&
+          store.columnIsPooled(0),
+        "allocation failure, mask pool: the factor's masks are pooled");
+  std::vector<index_t> indices(n);
+  // the root sends categories 1 and 40 right, its left child 2 and 3
+  auto grow = [&](Tree& tree) {
+    tree.initialize(indices.data(), n);
+    for (int g = 0; g < 200; ++g) tree.allocateMask(2);
+    std::int32_t node = 0;
+    for (std::uint32_t first : {1u, 2u}) {
+      std::size_t offset = tree.allocateMask(2);
+      std::uint64_t* words = tree.mutableMaskWordsFor(offset);
+      maskSetBit(words, first);
+      maskSetBit(words, first == 1u ? 40u : 3u);
+      Rule rule;
+      rule.variableIndex = 0;
+      rule.setMaskOffset(offset);
+      tree.birth(store, node, rule, y.data(), nullptr);
+      node = tree.at(node).leftChild;
+    }
+  };
+  auto ruleWords = [](const Tree& tree) {
+    std::vector<std::uint64_t> words;
+    for (std::int32_t i : {0, tree.at(0).leftChild}) {
+      const std::uint64_t* w = tree.maskWordsFor(tree.at(i).rule);
+      words.insert(words.end(), w, w + 2);
+    }
+    return words;
+  };
+  long allocations = 0;
+  {
+    Tree tree;
+    grow(tree);
+    std::vector<std::uint64_t> before = ruleWords(tree);
+    allocations =
+      countAllocations([&]() { tree.compactMaskPoolIfNeeded(store); });
+    check(tree.maskPool.size() == 4 && ruleWords(tree) == before,
+          "allocation failure, mask pool: the compaction keeps the two live "
+          "masks");
+  }
+  long failed = 0, intact = 0;
+  bool otherException = false;
+  for (long k = 1; k <= allocations; ++k) {
+    Tree tree;
+    grow(tree);
+    std::vector<std::uint64_t> before = ruleWords(tree);
+    bool reached = false;
+    if (!failsAt(k, [&]() { tree.compactMaskPoolIfNeeded(store); },
+                 otherException, reached))
+      continue;
+    ++failed;
+    if (ruleWords(tree) == before) ++intact;
+  }
+  check(allocations > 0 && failed == allocations && !otherException,
+        "allocation failure, mask pool: each failure reaches the caller");
+  check(intact == failed, "allocation failure, mask pool: after each failure "
+                          "every rule reads the words it held");
+  printf("ok: allocation failure in a mask-pool compaction (%ld allocations, "
+         "%ld failures reached the caller)\n", allocations, failed);
+}
+
+/// The harness's rows with column 1 a factor of 60000 declared categories,
+/// 40 of them observed, which the response follows. Past 63 categories a
+/// rule's mask lives in its tree's pool, 938 words a rule here, so a tree's
+/// first accepted split on the factor crosses the pool's first high-water
+/// mark and the sweep compacts the pool between that move and the tree's
+/// leaf map catching up with it.
+HarnessData pooledHarnessData() {
+  HarnessData data;
+  const std::size_t n = HarnessData::n;
+  for (std::size_t i = 0; i < n; ++i) {
+    double level = static_cast<double>((i * 7) % 40);
+    data.x[n + i] = level;
+    data.y[i] = data.x[i] + 2.0 * std::sin(level) +
+                0.1 * std::cos(static_cast<double>(i));
+  }
+  return data;
+}
+
+/// Births and deaths from stumps on the pooled factor's rows: a failure in the
+/// compaction leaves an accepted move's tree ahead of its leaf map, which the
+/// settle marks for a rebuild at the tree's next draw.
+void runPooledFactorArm() {
+  HarnessData data = pooledHarnessData();
+  const ColumnKind types[HarnessData::p] = {ColumnKind::numeric,
+                                            ColumnKind::categorical};
+  const std::uint32_t counts[HarnessData::p] = {0, 60000};
+  SamplerOptions options;
+  options.predictors.columnTypes = types;
+  options.predictors.categoryCounts = counts;
+  options.birthOrDeathProbability = 1.0;
+  options.birthProbability = 0.5;
+  options.changeProbability = 0.0;
+  options.swapProbability = 0.0;
+  using S = Sampler<ConstantGaussianLeaf>;
+  std::vector<ext_rng*> rngs;
+  auto make = [&]() {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 20261113u);
+    rngs.push_back(rng);
+    return makeHarnessSampler<ConstantGaussianLeaf>(data, options,
+                                                    &rngs.back());
+  };
+  SamplerStateData stumps;
+  long pooledSplits = 0;
+  {
+    auto sampler = make();
+    check(sampler->data().columnIsPooled(1),
+          "allocation failure, pooled factor: the factor's masks are pooled");
+    sampler->getState(stumps);
+    Results none;
+    sampler->run(0, 3, none);
+    for (std::size_t t = 0; t < sampler->chain(0).numTrees(); ++t)
+      for (const Node& node : sampler->chain(0).tree(t).nodes)
+        if (!node.isBottom() && node.rule.variableIndex == 1) ++pooledSplits;
+  }
+  check(pooledSplits > 0,
+        "allocation failure, pooled factor: the step splits on the factor");
+  report(failEachAllocation(make, stumps,
+                            [](S& s) {
+                              Results none;
+                              s.run(0, 3, none);
+                            }),
+         "allocation failure in a sweep, constant leaf, a pooled factor");
+
   for (ext_rng* rng : rngs) ext_rng_destroy(rng);
 }
 
@@ -378,5 +551,7 @@ void runAllocTests() {
   monotone.monotoneDirections = directions;
   runLeafArms<MonotoneConstantGaussianLeaf>(data, monotone, "monotone",
                                             20261109u);
+  runMaskPoolCompactionArm();
+  runPooledFactorArm();
   runSavedRingArm(data);
 }

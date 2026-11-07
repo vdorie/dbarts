@@ -1345,7 +1345,47 @@ static void testStateValueFloors() {
       belowRefused = belowRefused && refused(*sampler, state, edited);
     }
     check(belowRefused, "value floors: a k that is not positive is refused "
-                        "under every scale");
+                        "under each of these scales");
+  }
+
+  // k = 0 is what a draw reaches where the prior's rate term overflows, as
+  // under a scale of 1e-160: the sampler's own state installs at setState,
+  // on a new sampler as a copy or a reload builds one, and as a warm-start
+  // donor; under a scale whose square is above 2^-960 no draw reaches 0
+  for (double scale : {1e-160, 1e-140}) {
+    SamplerOptions options = finiteK;
+    options.kHyperprior.scale = scale;
+    auto sampler = make(options, ResponseFamily::gaussian, y.data(), 20261111u);
+    sampler->run(5, 0, empty);
+    SamplerStateData state;
+    sampler->getState(state);
+    if (scale * scale < 0x1p-960) {
+      check(state.chains[0].forests[0].k == 0.0,
+            "value floors: a draw under a scale past the rate's overflow "
+            "writes k = 0");
+      auto fresh = make(options, ResponseFamily::gaussian, y.data(), 20261112u);
+      const std::vector<std::pair<size_t, int>> live = {{0, -1}};
+      WarmStartResult result;
+      bool altered = false;
+      check(installs(*sampler, state) && installs(*fresh, state) &&
+              warmVerdictMatchesInstall(*fresh, state, live, x.data(), result,
+                                        altered) &&
+              result == WarmStartResult::ok,
+            "value floors: and that state installs at setState, on a new "
+            "sampler and as a warm-start donor");
+      fresh->run(2, 0, empty);
+      SamplerStateData after;
+      fresh->getState(after);
+      check(std::isfinite(after.chains[0].sigma),
+            "value floors: and the chain runs on from it");
+    } else {
+      SamplerStateData zero(state);
+      zero.chains[0].forests[0].k = 0.0;
+      check(state.chains[0].forests[0].k > 0.0 &&
+              refused(*sampler, state, zero),
+            "value floors: k = 0 is refused under a scale no draw "
+            "underflows");
+    }
   }
 
   // the generator: the twister's index in [0, N] and its essential bits not
