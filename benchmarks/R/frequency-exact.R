@@ -11,7 +11,9 @@
 #                sigma and every row's fit within 1e-12 (the default sigma
 #                estimate included, which reads the expanded rows)
 #   linear       the same with a linear leaf, its covariate moments counted
-#   forests      the same with two forests, their default sds counted
+#   forests      the same with two forests, one stating its sd: a stated sd
+#                is read in units of the response's sd, which is counted (a
+#                default sd is a multiple of that sd and does not read it)
 #   quantiles    the same with useQuantiles and fewer cuts than unique values:
 #                the quantile grid reads unique values, which copies leave
 #   hetero       a variance forest, each variance leaf counting w
@@ -177,7 +179,7 @@ if ("forests" %in% arms) {
     "forests",
     expansionPair(
       y,
-      forests = list(forest(n.trees = 10L), forest(n.trees = 10L))
+      forests = list(forest(n.trees = 10L, sd = 0.5), forest(n.trees = 10L))
     )
   )
 }
