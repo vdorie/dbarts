@@ -1486,5 +1486,72 @@ The rest of the gates, on the fixed tip:
   beside a compile both about 14 percent slower. The fixes add a multiply a run to q's node exponent and nothing to
   f's, so the x86 timing was not rerun.
 
-Not verified in the fix round: log f is undecided far to the right, past about 700 b at b 1e3 and 2,000 b at b 16
-(log f below about -2e6 and -1.5e5), points no draw reaches; the survivors above.
+Not verified in the fix round: log f is undecided far to the right, from about 1e4 in x at b <= 2 (11,500 b at b 1),
+1,422 b at b 16 and 403 b at b 1e3 (log f there about -5.7e4, -1.1e5 and -2.0e6 at psi 0; the edges are the same at
+psi 8), points no draw at a fixed b reaches; an inherited current point does (the second fix round, call 28); the
+survivors above.
+
+### The second fix round
+
+The re-check at 8cf3c2a70 returned FIX FIRST, small; call 22 and the lemmas stand. The fixes, all in the
+pgdensity suite and these records; no engine code changes, so the trio and the snapshots were not rerun:
+
+- decideLevel's midpoint charge pinned: 2^31 in a plus slot and in a minus slot, each of the four pairings, mid 0 at
+  thresholds -1e-6 and -1, undecided, since the charge 8 u 2^31 = 2^-19 passes -1e-6 and a charge missing either
+  slot (2^-20) does not (call 30).
+- The widening checked exactly in doubles, with no reference: d = logWidenUp(l) - l and l - logWidenDown(l) are
+  exact (Sterbenz), and d (1 - u_L) >= u_L |l| is decided by a twoSum, at 280,400 bounds: l at 300 doubles each
+  side of -2^k for k from -60 to 6, and 100,000 random l.
+- An invalid proposal's step counted with a word source that counts: no word is taken; and a proposal with a
+  stated K and b 0, b -1, psi inf or psi NaN is invalid.
+- The far-right edges corrected (above, and testFarRight's comment), from the review's probe; the stuck row it
+  leads to is S2's (calls 28 and 29) and S3's large shape drop test ([What is built](#what-is-built), the gates).
+
+Mutants (the harness as before, the baseline passing): decide-rad-nomid, decide-drop-eqy, thresh-uL+u,
+step-invalid-draws and prop-valid-no-b, all killed. acc-no-min0 survives, accepted by the review (it matters only
+at k = 2^53 - 1).
+
+Gates on the fixed tip (arm64 macOS): tests/cpp plain, 559 ok lines, and under -O2 -g -fsanitize=address,undefined
+with container-overflow detection on, 559, no report; the pins (500 f and 30 q, none outside or undecided, 0.570
+and 0.334; c0 charged short at none), the floor (9.52e-12 against 2.3e-11), the K table (42 cells, none differ),
+the reach (200, none undecided) and the step (5 cases of 4,000 steps, no close call, the acceptances as before), all
+unchanged; the full tinytest suite once, in one process, on the shipped install the source is unchanged from:
+42,055 results, none failed; tools/check-doc-freshness.R, tools/check-rc-codoc.R (53 methods),
+tools/check-win-drift.R, verify-anchors and air: OK.
+
+Calls made in the second fix round, each with its alternative:
+
+28. A current point log f cannot decide (S2, once ruled). A marked fractional row is served by the step from its
+    installed omega, so a shape drop of about 4e4 or more (setData, setWeights, setModel) leaves omega near b_old /
+    4, past the decided range, and setState can install such an omega; every step is then a close call and the row
+    never moves. Candidates:
+    (a) keep x, as built: no cost, every step a close call, counted and warned, the row stuck for the chain;
+    (b) certify the accept with a closed-form upper bound F(x) >= f(x) wherever log f(x)'s enclosure is undecided:
+    f(x) = cosh^b(psi/2) e^(-psi^2 x / 2) f_0(x), and for b >= 1, from PG(b, 0) = (2 / pi^2) G_1 + R with
+    E[e^(pi^2 R / 2)] = (4 / pi)^b, f_0(x) <= (4 / pi)^b g(x), g the Gamma(b, pi^2 / 2) density (in doubles it is
+    tight at b 1 and loose by 2e-5 to 580 in log at b 2 to 16; it falls short at b 0.2 and 0.5, by 0.32 in log at x
+    0.05 and 2e-6 at 5,000, so b < 1 needs its own bound, for instance R split at x / 2); the step stays the same
+    Metropolis-Hastings kernel, its accept certified by a looser bound and a keep never certified there (a close
+    call, at about the chance that r falls below U, with log f(x) below -4.7e4), so the target stays exact as the
+    route is, but for counted close calls; q is decided past the edge (b 0.2 to 1e3 at psi 0, x to 1e6); about 40 lines,
+    evaluated only at an undecided x;
+    (c) a fresh draw where x is undecided: the sum at a whole-number row, but none exists at a fractional row, where
+    the stuck rows are, and the choice reads omega (a broken build in S2's mutant list), moving the stationary
+    distribution by up to the target's mass past the edge, below e^(-4.7e4): not exact;
+    (d) accept y outright where x is undecided: no cost, inexact by the chance that the exact step keeps x, and our
+    own construction too.
+    Recommended: (b), exact and costing nothing off the stuck point. It is our own construction, not a fallback to
+    an exact sampler (a fractional row has none), so the bound needs a proof by an independent referee, both
+    ranges of b, before S2 builds it.
+29. A fractional row whose proposal the K rule cannot build (no K to 2^20; |psi| about 1e5 to 1e6): call 24 makes
+    each step a close call before any draw, so the row is stuck while psi stays there. Candidates: (a) as built;
+    (b) build at a capped K, 1,024, where b and psi are finite and b positive: every K >= 1 is exact and uniformly
+    ergodic (the K rule is a cost choice), so the step stays exact, at K + 1 gammas a step (about twice the K
+    table's largest, 560 at |psi| 150) and an acceptance below the rule's; whether the evaluator decides at |psi|
+    1e5 to 1e6, outside the pins, is S2's test, and the close-call count reads what it does not. (c) a fresh draw:
+    none at a fractional shape. Recommended: (b), exact and not a new construction (the proposal family and its
+    exactness are the proof's); it revises call 24 for finite input only. A whole-number row at |psi| above 150
+    takes the sum (b* is infinite there) and never reaches it.
+30. Finding A's test at 2^31 in two slots of opposite sign, mid 0. Alternative: one large mid in a slot alone, as
+    the review worded it; then log r is that mid, which cannot lie between thresholds -1e-6 and -1, so a level
+    decides with or without the charge and the test pins nothing.
