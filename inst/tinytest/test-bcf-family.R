@@ -478,7 +478,10 @@ for (name in names(binaryFits)) {
     latentsBefore <- fit$getLatents()
     fit$setWeights(rep(2, n))
     expect_identical(fit$getLatents(), latentsBefore)
-    expect_error(fit$setWeights(rep(2.5, n)), "must be positive integers")
+    expect_error(
+      fit$setWeights(rep(2.5, n)),
+      "must be non-negative whole numbers"
+    )
     rm(latentsBefore)
   }
   # the response-side conduit OPENS: the latents are refreshed against the

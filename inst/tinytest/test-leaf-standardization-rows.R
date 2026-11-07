@@ -139,7 +139,7 @@ for (kind in names(families)) {
     )
     if (kind == "hazard.probit") {
       # the person-period rows of the subjects in, as the expansion lays them
-      rows <- s$activeRows != 0
+      rows <- s$data@weights != 0
       expected <- literal(s$data@x[, "x1"], rows, gp)
     } else {
       expected <- literal(x1, if (rowsOut) inRows else seq_len(n), gp)
@@ -344,7 +344,7 @@ refusalOf <- function(holds, count, gp = FALSE) {
     } else {
       "drop it from linear(), "
     },
-    "or change the rows in (the weights, the 0/1 weights' mask, or subset)"
+    "or change the rows in (the weights, the active-row mask, or subset)"
   )
 }
 missingIn <- x
@@ -855,6 +855,17 @@ hazardFit <- function(
   )
 }
 subjectIn <- function(i) as.double(seq_len(numSubjects) %in% i)
+# the rows in the likelihood: weight 1 and kept by the mask
+rowsInOf <- function(s) {
+  rows <- rep(TRUE, length(s$data@y))
+  if (!is.null(s$data@weights)) {
+    rows <- rows & s$data@weights != 0
+  }
+  if (!is.null(s$activeRows)) {
+    rows <- rows & s$activeRows != 0
+  }
+  rows
+}
 # the period rows of subject i, a subject's rows starting at its period 1
 subjectRows <- function(s, i) {
   period <- s$data@x[, ncol(s$data@x)]
@@ -866,7 +877,7 @@ for (i in c(5L, 1L)) {
   made <- fallbacks(hazardFit(subjectIn(i)))
   expect_identical(made$warnings, oneSubjectOf(numSubjects), info = info)
   expect_identical(length(made$value$data@y), 180L, info = info)
-  expect_identical(sum(made$value$activeRows), if (i == 5L) 5 else 1)
+  expect_identical(sum(made$value$data@weights), if (i == 5L) 5 else 1)
   expectRecord(made$value, literal(made$value$data@x[, "x1"]), info)
   expect_identical(allRowsFlag(made$value), TRUE, info = info)
 }
@@ -879,7 +890,7 @@ made <- fallbacks(hazardFit(subjectIn(4:5)))
 expect_identical(made$warnings, character())
 expectRecord(
   made$value,
-  literal(made$value$data@x[, "x1"], made$value$activeRows != 0),
+  literal(made$value$data@x[, "x1"], rowsInOf(made$value)),
   "two subjects in"
 )
 sameValue <- subjects
@@ -1032,7 +1043,7 @@ for (gp in c(FALSE, TRUE)) {
     before <- recordOf(s)
     expect_equal(
       before$center[[2L]],
-      mean(s$data@x[s$activeRows != 0, "period"]),
+      mean(s$data@x[rowsInOf(s), "period"]),
       tolerance = 1e-12,
       info = info
     )
@@ -1053,7 +1064,14 @@ for (gp in c(FALSE, TRUE)) {
       expect_identical(made$warnings, character(), info = info)
     }
     expect_identical(recordOf(s), before, info = info)
+    # the weights and the mask compose, so the copy clears the other channel
+    # first, leaving subject 5 in
     copied <- s$copy()
+    if (setter == "setWeights") {
+      copied$setActiveRows(NULL)
+    } else {
+      copied$setWeights(rep(1, 180L))
+    }
     made <- fallbacks(setterOf(copied, setter)(
       subjectRows(copied, 5L),
       updateStandardization = TRUE
@@ -1102,7 +1120,7 @@ expect_identical(recordOf(s), before)
 # two subjects in re-derive each covariate over their nine period rows, x1
 # kept where they hold it at one value, the period read again
 twoRead <- function(s, x1 = s$data@x[, "x1"]) {
-  rows <- s$activeRows != 0
+  rows <- rowsInOf(s)
   period <- s$data@x[, "period"]
   list(
     center = c(mean(x1[rows]), mean(period[rows])),
@@ -1712,7 +1730,7 @@ expect_error(
     '" holds one value over the rows in the likelihood (200 ',
     "of 200 observations are in it), so its center and scale cannot be ",
     "taken from them; drop it from linear(), or change the rows in (the ",
-    "weights, the 0/1 weights' mask, or subset)"
+    "weights, the active-row mask, or subset)"
   ),
   fixed = TRUE
 )
@@ -1731,7 +1749,8 @@ expectRecord(
 
 # ---- by hand -------------------------------------------------------------------
 
-# new() handed the spec's mask is dbarts()'s; without it every row is read
+# new() handed the spec's data, whose 0/1 weights it carries, is dbarts()'s,
+# read over the rows in; the same weights as a mask read the same rows
 for (kind in c("probit", "nbinom")) {
   entry <- families[[kind]]
   viaDbarts <- make(kind, w)
@@ -1742,17 +1761,11 @@ for (kind in c("probit", "nbinom")) {
     family = entry$family,
     n.trees = 10L
   )
-  withActive <- new(
-    "dbartsSampler",
-    spec$control,
-    spec$model,
-    spec$data,
-    active = spec$active
-  )
-  expect_identical(recordOf(withActive), recordOf(viaDbarts), info = kind)
-  expect_identical(sweeps(withActive), sweeps(viaDbarts), info = kind)
-  without <- new("dbartsSampler", spec$control, spec$model, spec$data)
-  expectRecord(without, literal(x1), paste("by hand without active,", kind))
+  expect_null(spec$active, info = kind)
+  byHand <- new("dbartsSampler", spec$control, spec$model, spec$data)
+  expect_identical(recordOf(byHand), recordOf(viaDbarts), info = kind)
+  expect_identical(sweeps(byHand), sweeps(viaDbarts), info = kind)
+  expectRecord(byHand, literal(x1, inRows), paste("by hand,", kind))
 }
 
 # ---- held ------------------------------------------------------------------------
@@ -1818,13 +1831,13 @@ expect_identical(record$scale[[2L]], held$scale[[2L]])
 expect_identical(recordOf(s), readerOf(s))
 expect_true(gap(kept, s$predict(x.probe)) < 1e-12)
 expect_true(gap(liveFits(twin), liveFits(s)) < 1e-12)
-# after setActiveRows(a), gaussian and probit: the rows a keeps, under
-# probit in place of the mask its creation installed
+# after setActiveRows(a), gaussian and probit: the rows a keeps among those
+# w keeps, the mask composing with the weights on both
 for (kind in c("gaussian", "probit")) {
   s <- make(kind, w)
   s$setActiveRows(a)
   s$setPredictor(stretched, "x1", TRUE, updateStandardization = TRUE)
-  rows <- a == 1 & (kind == "probit" | w == 1)
+  rows <- a == 1 & w == 1
   expectRecord(s, literal(stretched, rows), paste("after setActiveRows,", kind))
 }
 # a mask then setData to another row count: the new data's rows in, the mask
@@ -1846,12 +1859,12 @@ expectRecord(
   literal(longer[, "x1"], seq_len(240L) %% 2L == 0L),
   "a mask after setData"
 )
-# a copy of a sampler holding a mask holds it again
+# a copy of a sampler holding a mask holds it again, with the weights
 s <- make("probit", w)
 s$setActiveRows(a)
 copied <- s$copy()
 copied$setPredictor(stretched, "x1", TRUE, updateStandardization = TRUE)
-expectRecord(copied, literal(stretched, a == 1), "a copy's mask")
+expectRecord(copied, literal(stretched, a == 1 & w == 1), "a copy's mask")
 # a mask that switches off only the first or only the last row is a mask: a
 # re-derivation does not read that row, far from the rest
 for (edge in c(1L, n)) {
@@ -2031,7 +2044,7 @@ setDataRefusal <- paste0(
   "$setData: the leaf covariate \"x1\" holds one value over the rows in the ",
   "likelihood (100 of 200 observations are in it), so its center and scale ",
   "cannot be taken from them; drop it from linear(), change the rows in (the ",
-  "weights, the 0/1 weights' mask, or subset), or keep the sampler's with ",
+  "weights, the active-row mask, or subset), or keep the sampler's with ",
   "updateStandardization = FALSE"
 )
 s <- make(keepTrees = TRUE)
@@ -2132,12 +2145,13 @@ expectRecord(
   ),
   "the mask after a refused setData"
 )
-# under probit the sampler's own data object carries no weights: setData of
-# it drops the mask, and a derivation reads every row
+# under probit the sampler's own data object carries its 0/1 weights: setData
+# of it keeps the rows of weight 0 out, and a derivation reads the rows in
 s <- make("probit", w)
 s$setData(s$data, updateStandardization = TRUE)
 expect_null(s$activeRows)
-expectRecord(s, literal(x1), "probit, its own data object")
+expect_identical(s$data@weights, w)
+expectRecord(s, literal(x1, inRows), "probit, its own data object")
 
 # ---- the record through copies and reloads ---------------------------------
 
@@ -2629,11 +2643,11 @@ expect_identical(
   fallbacks(s$setWeights(wLast, updateStandardization = TRUE))$warnings,
   character()
 )
-# by setActiveRows on a mask family, in the same words
+# by setActiveRows on a mask family, in the same words; created without
+# weights, since the mask composes with them
 s <- dbarts::dbarts(
   xLast,
   yBinary,
-  weights = w,
   family = "probit",
   leaf.prior = leafPriorOf(FALSE),
   control = controlWith(),
@@ -2688,7 +2702,7 @@ for (kind in c("gaussian", "probit")) {
     expect_error(
       setterOf(s, setter)(wCall, updateStandardization = TRUE),
       paste0(
-        if (setter == "setWeights" && kind == "gaussian") {
+        if (setter == "setWeights") {
           "$setWeights"
         } else {
           "$setActiveRows"
@@ -2774,10 +2788,11 @@ for (route in list(s$copy(), reloadOf(s))) {
 # by setActiveRows on a probit sampler with a gp leaf, the masks after
 # burn-in moving rows the record does not follow: a copy and a reload are
 # made on the record, and a saved gp draw replays only under the
-# standardization it was drawn with
+# standardization it was drawn with; created without weights, so each mask
+# alone gives the rows in
 s <- make(
   "probit",
-  w,
+  NULL,
   dbartsPriors$gp("x1"),
   keepTrees = TRUE,
   n.samples = numKeep

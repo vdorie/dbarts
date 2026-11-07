@@ -220,8 +220,15 @@ expectIdentity(
   weightsCall(w2),
   "student-t entering, identity"
 )
+# a count sampler's 0/1 weights compose with a mask, so rows enter by a mask
+# that replaces a mask, and by weights that replace the weights
 countBuild <- function() mkC(weights = w01)
-expectEntering(countBuild, maskCall(w2), "count entering by a mask")
+countMaskBuild <- function() {
+  s <- mkC()
+  s$setActiveRows(w01, updateScale = TRUE)
+  s
+}
+expectEntering(countMaskBuild, maskCall(w2), "count entering by a mask")
 expectEntering(countBuild, weightsCall(w2), "count entering by weights")
 expectIdentity(function() mkC(), maskCall(w01), "count leaving by a mask")
 expectIdentity(function() mkC(), weightsCall(w01), "count leaving by weights")
@@ -353,7 +360,15 @@ expect_equal(
   readers(mkC(offset = NULL, weights = w01)),
   tolerance = 1e-14
 )
+# weights of 1 compose with the mask, which still holds the rows out; the
+# mask cleared takes every row
 plain$setWeights(rep(1, n), updateScale = TRUE)
+expect_equal(
+  readers(plain)$response.shift,
+  log(mean(countsA[rows.in])),
+  tolerance = 1e-14
+)
+plain$setActiveRows(NULL, updateScale = TRUE)
 expect_equal(
   readers(plain)$response.shift,
   log(mean(countsA)),
@@ -452,7 +467,7 @@ expectKeep <- function(builder, via, case, label, count = FALSE) {
     )
   }
   expect_equal(length(second$warnings), 0L, info = info)
-  if (via == "setWeights" && !count) {
+  if (via == "setWeights") {
     expect_identical(s$data@weights, wk, info = info)
   } else {
     expect_identical(s$activeRows, wk, info = info)
@@ -711,9 +726,9 @@ logisticBuild <- function() {
 }
 expectRefused(
   logisticBuild,
-  function(s) s$setWeights(replace(rep(2, n), 1L, 0), updateScale = TRUE),
+  function(s) s$setWeights(replace(rep(2, n), 1L, 0.5), updateScale = TRUE),
   "logistic weights are observation counts",
-  "logistic count of 0"
+  "logistic count of 0.5"
 )
 expectRefused(
   function() mkS(),
@@ -815,7 +830,8 @@ for (label in names(nothingBuilders)) {
 }
 
 # --- by hand ----------------------------------------------------------------
-# A count list becomes dbarts()'s sampler by the documented call.
+# A count, probit or ordinal list carries its 0/1 weights on its data object,
+# so the sampler new() builds from it is dbarts()'s with no call.
 countFrame <- data.frame(y = countsA, x)
 countSampler <- function(weights = w01, ...) {
   dbarts(
@@ -842,10 +858,8 @@ countSpec <- function(weights = w01, response = countsA) {
     family = "nbinom"
   )
 }
-byHandOf <- function(spec, ...) {
-  s <- new("dbartsSampler", spec$control, spec$model, spec$data)
-  s$setActiveRows(spec$active, ...)
-  s
+byHandOf <- function(spec) {
+  new("dbartsSampler", spec$control, spec$model, spec$data)
 }
 expectByHand <- function(byHand, reference, info) {
   expect_identical(readers(byHand), readers(reference), info = info)
@@ -856,22 +870,9 @@ expectByHand <- function(byHand, reference, info) {
   expect_identical(byHand$run(0L, 20L), reference$run(0L, 20L), info = info)
 }
 spec <- countSpec()
-expect_false(is.null(spec$active))
-expect_equal(
-  readers(new(
-    "dbartsSampler",
-    spec$control,
-    spec$model,
-    spec$data
-  ))$response.shift,
-  readers(countSampler(weights = NULL))$response.shift
-)
-expectByHand(
-  byHandOf(spec, updateScale = TRUE),
-  countSampler(),
-  "count list"
-)
-# a probit and an ordinal list: the plain install, nothing to re-derive
+expect_null(spec$active)
+expectByHand(byHandOf(spec), countSampler(), "count list")
+# a probit and an ordinal list
 probitSpec <- dbartsSpec(
   dbartsData(y ~ x1 + x2, data.frame(y = binary, x), weights = w01),
   control = ctl,
@@ -911,9 +912,9 @@ expectByHand(
   ),
   "ordinal list"
 )
-# a probit list with bases = carries amplitudes: the mask handed at creation
-# makes it dbarts()'s, a numeric column's default scale read from the rows the
-# mask keeps, and the argument is refused with the mask not installed
+# a probit list with bases = carries amplitudes: its weights make it
+# dbarts()'s, a numeric column's default scale read from the rows they keep,
+# and a mask's updateScale is refused with the mask not installed
 basesData <- function() {
   dbartsData(
     x,
@@ -928,15 +929,9 @@ basesSpec <- dbartsSpec(
   n.trees = 10L,
   family = "probit"
 )
-expect_false(is.null(basesSpec$active))
+expect_null(basesSpec$active)
 expectByHand(
-  new(
-    "dbartsSampler",
-    basesSpec$control,
-    basesSpec$model,
-    basesSpec$data,
-    active = basesSpec$active
-  ),
+  byHandOf(basesSpec),
   dbarts(basesData(), family = "probit", control = ctl, n.trees = 10L),
   "probit bases list"
 )
@@ -947,7 +942,7 @@ refusedHand <- new(
   basesSpec$data
 )
 expect_error(
-  refusedHand$setActiveRows(basesSpec$active, updateScale = TRUE),
+  refusedHand$setActiveRows(w01, updateScale = TRUE),
   amplitudeText
 )
 expect_null(refusedHand$activeRows)
@@ -990,15 +985,16 @@ for (family in list(NULL, studentFamily)) {
     "gaussian list"
   )
 }
-# the mask keeps three rows of one count: the creation warning, then the keep's,
-# and a later keep silent by hand and audible on dbarts()'s sampler
+# the weights keep three rows of one count: the spec's creation warning, said
+# once, a sampler built from it by hand dbarts()'s, and a mask that keeps the
+# same rows then kept with its warning on each
 three <- c(rep(1, 3L), rep(0, n - 3L))
 threeCounts <- countsA
 threeCounts[1:3] <- 2
 specWarned <- caught(countSpec(weights = three, response = threeCounts))
 expect_equal(length(specWarned$scale), 1L)
-handWarned <- caught(byHandOf(specWarned$value, updateScale = TRUE))
-expect_equal(length(handWarned$scale), 1L)
+handWarned <- caught(byHandOf(specWarned$value))
+expect_equal(length(handWarned$scale), 0L)
 countFrame2 <- data.frame(y = threeCounts, x)
 viaDbarts <- caught(
   dbarts(
@@ -1015,9 +1011,9 @@ expect_equal(length(viaDbarts$scale), 1L)
 expectByHand(handWarned$value, viaDbarts$value, "three rows of one count")
 expect_equal(
   length(
-    caught(handWarned$value$setActiveRows(three, updateScale = TRUE))$warnings
+    caught(handWarned$value$setActiveRows(three, updateScale = TRUE))$scale
   ),
-  0L
+  1L
 )
 expect_equal(
   length(

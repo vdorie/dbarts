@@ -803,7 +803,8 @@ maskedMade <- built(dbarts(
   family = "probit",
   control = printControl(verbose = TRUE)
 ))
-expect_identical(sum(maskedMade$sampler$activeRows == 0), length(out))
+expect_identical(sum(maskedMade$sampler$data@weights == 0), length(out))
+expect_null(maskedMade$sampler$activeRows)
 expect_identical(maskedMade$full, maskedFull)
 expect_identical(
   shortOf(showLines(maskedMade$sampler)),

@@ -14,8 +14,8 @@ control <- dbarts::dbartsControl(
 )
 
 # Pin: $setWeights on a probit sampler carries no precision, so it takes only
-# the values that state membership - 0 and 1, which it routes to the mask
-# below, the all-ones vector installing nothing as it does at creation - and
+# the values that state membership - 0 and 1, which compose with the mask
+# below, the all-ones vector recorded as no weights as it is at creation - and
 # refuses every other value.
 sampler.probit <- dbarts::dbarts(
   x,

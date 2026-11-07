@@ -429,6 +429,132 @@ rm(
   foldState
 )
 
+## probit with 0/1 weights: each fold's view carries its rows' weights, so a
+## fold draws what a by-hand probit sampler fit to the fold's training rows
+## with those weights draws, and the held-out rows of weight 0 are scored out.
+## Seven rows sit at each of x's extremes, more than a fold holds, so every
+## fold's training rows span the full range, and the evenly spaced grid of
+## four cuts the training-only sampler builds is the full data's.
+n <- 24L
+numFolds <- 4L
+seed <- 5L
+n.trees <- 5L
+n.samples <- 6L
+n.burn <- c(4L, 2L)
+set.seed(3141L)
+x <- matrix(c(rep(0, 7L), rep(1, 7L), runif(10L, 0.05, 0.95)), n, 1L)
+x <- x[sample.int(n), , drop = FALSE]
+y <- as.double(x[, 1L] + rnorm(n, 0, 0.4) > 0.5)
+w <- as.double(seq_len(n) %% 3L != 0L)
+xbartProbit <- function(...) {
+  dbarts::xbart(
+    x,
+    y,
+    weights = w,
+    family = "probit",
+    method = "k-fold",
+    n.test = numFolds,
+    n.reps = 1L,
+    n.trees = n.trees,
+    n.threads = 1L,
+    seed = seed,
+    n.samples = n.samples,
+    n.burn = n.burn,
+    n.cuts = 4L,
+    verbose = FALSE,
+    ...
+  )
+}
+captured <- new.env(parent = emptyenv())
+captureFold <- function(y.test, testSamples, weights) {
+  captured$calls <- c(
+    captured$calls,
+    list(list(y = y.test, draws = testSamples, weights = weights))
+  )
+  0
+}
+invisible(xbartProbit(loss = captureFold))
+reported <- xbartProbit()
+
+set.seed(seed)
+seeds <- sample.int(.Machine$integer.max, 1L + numFolds)
+set.seed(seeds[1L])
+permutation <- sample.int(n)
+handLoss <- numeric(numFolds)
+for (fold in seq_len(numFolds)) {
+  foldSize <- n %/% numFolds
+  testRows <- sort(permutation[(fold - 1L) * foldSize + seq_len(foldSize)])
+  trainRows <- setdiff(seq_len(n), testRows)
+  # the test rows' weights do not reach a sampler built from a matrix; the
+  # held-out rows are scored by hand below
+  sampler <- withCallingHandlers(
+    dbarts::dbarts(
+      x[trainRows, , drop = FALSE],
+      y[trainRows],
+      weights = w[trainRows],
+      test = x[testRows, , drop = FALSE],
+      family = "probit",
+      control = dbarts::dbartsControl(
+        n.chains = 1L,
+        n.threads = 1L,
+        n.samples = n.samples,
+        keepTrees = FALSE,
+        keepTrainingFits = FALSE,
+        updateState = FALSE,
+        verbose = FALSE,
+        seed = seeds[1L + fold]
+      ),
+      n.trees = n.trees,
+      n.cuts = 4L,
+      useQuantiles = FALSE
+    ),
+    warning = function(cond) {
+      if (grepl("ignored for test data", conditionMessage(cond))) {
+        invokeRestart("muffleWarning")
+      }
+    }
+  )
+  draws <- sampler$run(n.burn[1L], n.samples)$test
+  call <- captured$calls[[fold]]
+  info <- paste("fold", fold)
+  expect_identical(call$y, y[testRows], info = info)
+  expect_identical(call$weights, w[testRows], info = info)
+  expect_identical(unname(call$draws), unname(draws), info = info)
+  p <- rowMeans(pnorm(draws))
+  rowsIn <- w[testRows] == 1
+  handLoss[fold] <- -mean(ifelse(y[testRows] > 0, log(p), log1p(-p))[rowsIn])
+}
+expect_equal(as.vector(reported), mean(handLoss), tolerance = 1e-12)
+
+rm(
+  n,
+  numFolds,
+  seed,
+  n.trees,
+  n.samples,
+  n.burn,
+  x,
+  y,
+  w,
+  xbartProbit,
+  captured,
+  captureFold,
+  reported,
+  seeds,
+  permutation,
+  handLoss,
+  fold,
+  foldSize,
+  testRows,
+  trainRows,
+  sampler,
+  draws,
+  call,
+  info,
+  p,
+  rowsIn
+)
+
 suppressWarnings(RNGkind(sample.kind = oldSampleKind))
 rm(oldSampleKind, testData)
 

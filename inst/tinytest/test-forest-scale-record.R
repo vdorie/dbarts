@@ -203,8 +203,8 @@ expect_error(
   fixed = TRUE
 )
 
-# under probit the rows in are the ones the 0/1 weights keep, which install as
-# the sampler's mask
+# under probit the rows in are the ones the 0/1 weights keep, which ride the
+# data object
 latent <- dbarts(
   yb ~ x1 + x2,
   d,
@@ -214,7 +214,8 @@ latent <- dbarts(
   control = recordControl()
 )
 expectRule(latent, sd(dose[w > 0]), info = "probit")
-expect_identical(latent$activeRows, w)
+expect_identical(latent$data@weights, w)
+expect_null(latent$activeRows)
 latentBefore <- readingOf(latent)
 latent$setActiveRows(rep(TRUE, n))
 expect_identical(readingOf(latent), latentBefore)

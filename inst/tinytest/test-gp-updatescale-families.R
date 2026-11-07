@@ -39,9 +39,9 @@ samplerOf <- function(...) {
   invisible(sampler$run())
   sampler
 }
-# the call each setter makes, on the replacement the family takes: a mask of
-# 0/1 for the families whose weights are one, counts for the logistic, precision
-# multipliers for the others
+# the call each setter makes, on the replacement the family takes: 0/1
+# membership weights for probit, ordinal and nbinom, counts for the logistic,
+# precision multipliers for the others
 mask <- rep_len(c(1, 1, 0), n)
 cases <- list(
   gaussian = list(
@@ -109,13 +109,7 @@ installed <- list(
     expect_equal(as.double(s$data@y), as.double(case$response))
   },
   setOffset = function(s, case) expect_equal(s$data@offset, rep(-5, n)),
-  setWeights = function(s, case) {
-    if (identical(case$weights, mask)) {
-      expect_null(s$data@weights)
-    } else {
-      expect_equal(s$data@weights, case$weights)
-    }
-  },
+  setWeights = function(s, case) expect_equal(s$data@weights, case$weights),
   setActiveRows = function(s, case) NULL,
   setData = function(s, case) NULL
 )
@@ -151,16 +145,7 @@ for (kind in c(refused, taken)) {
             "saved draws"
           )
         } else {
-          # a mask of 0/1 weights is installed as the active rows, which is the
-          # call that refuses
-          refusal(paste0(
-            "\\$",
-            if (name == "setWeights" && identical(case$weights, mask)) {
-              "setActiveRows"
-            } else {
-              name
-            }
-          ))
+          refusal(paste0("\\$", name))
         },
         fixed = name == "setData",
         info = info

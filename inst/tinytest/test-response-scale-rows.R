@@ -1124,9 +1124,31 @@ spec <- dbartsSpec(
   n.trees = 10L,
   family = "nbinom"
 )
+# the spec's data carries the 0/1 weights, so a sampler built from it by hand
+# takes the center over the rows in, as dbarts() does; a mask installed after
+# creation without updateScale leaves the every-row center
 byHand <- new("dbartsSampler", spec$control, spec$model, spec$data)
-byHand$setActiveRows(spec$active)
-expect_equal(readers(byHand)$response.shift, everyRowCenter, tolerance = 1e-14)
+expect_null(spec$active)
+expect_equal(readers(byHand)$response.shift, rowsInCenter, tolerance = 1e-14)
+plainSpec <- dbartsSpec(
+  dbartsData(y ~ x1 + x2, df(countsA)),
+  control = control,
+  n.trees = 10L,
+  family = "nbinom"
+)
+maskedByHand <- new(
+  "dbartsSampler",
+  plainSpec$control,
+  plainSpec$model,
+  plainSpec$data
+)
+maskedByHand$setActiveRows(w)
+expect_equal(
+  readers(maskedByHand)$response.shift,
+  everyRowCenter,
+  tolerance = 1e-14
+)
+rm(plainSpec, maskedByHand)
 # The re-derivation under the mask moves the center and the record and
 # nothing else: a test offset, here of another row count than the training
 # rows, is what creation or setData left, in the object and in the engine.
@@ -1273,7 +1295,8 @@ for (form in names(offsetForms)) {
   replacement@weights <- w
   replaced <- caught(target$setData(replacement))
   expect_equal(length(replaced$warnings), 0L, info = form)
-  expect_identical(target$activeRows, w, info = form)
+  expect_identical(target$data@weights, w, info = form)
+  expect_null(target$activeRows, info = form)
   engineState <- target$state
   target$storeState()
   expect_identical(target$state, engineState, info = form)
@@ -1496,8 +1519,13 @@ expect_identical(
   )
 )
 expect_identical(none$value$periods, sort(unique(timeH)))
-# the logistic link still refuses a weight of zero
-expect_error(
-  fitHazard(xh, timeH, statusH, weightH, family = "hazard.logistic"),
-  "positive integers"
+# the logistic link takes a weight of zero, a count, as the same subjects out
+logisticZero <- fitHazard(
+  xh,
+  timeH,
+  statusH,
+  weightH,
+  family = "hazard.logistic"
 )
+expect_identical(logisticZero$value$periods, with$value$periods)
+rm(logisticZero)

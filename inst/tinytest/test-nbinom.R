@@ -229,12 +229,12 @@ expect_error(
 # weights identically 1 are treated as absent, the probit courtesy
 samplerW1 <- dbarts(x, y, family = "nbinom", weights = rep(1, n))
 expect_null(samplerW1$data@weights)
-# weights of 0 and 1 name the rows in the data set and install as the
-# active-row mask, as on probit and ordinal; the log-likelihood is NaN there
+# weights of 0 and 1 name the rows in the data set and ride the data object,
+# as on probit and ordinal; the log-likelihood is NaN at a 0
 mask01 <- rep_len(c(1, 1, 0), n)
 samplerMask <- dbarts(x, y, family = "nbinom", weights = mask01)
-expect_null(samplerMask$data@weights)
-expect_identical(samplerMask$activeRows, mask01)
+expect_identical(samplerMask$data@weights, mask01)
+expect_null(samplerMask$activeRows)
 fitMask <- bart(
   x,
   y,

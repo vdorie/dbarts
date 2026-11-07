@@ -23,13 +23,12 @@ referenceSamples <- reference$run()
 data <- dbarts::dbartsData(x, y)
 spec <- dbarts::dbartsSpec(data, control = control, n.trees = 10L)
 
-expect_equal(names(spec), c("control", "model", "data", "family", "active"))
+expect_equal(names(spec), c("control", "model", "data", "family"))
 expect_true(inherits(spec$control, "dbartsControl"))
 expect_true(inherits(spec$model, "dbartsModel"))
 expect_true(inherits(spec$data, "dbartsData"))
 expect_equal(spec$family, "gaussian")
-# the mask a latent family's 0/1 case weights resolve to; null for every
-# gaussian fit, and for a latent one whose weights resolved to none
+# no mask: a latent family's 0/1 case weights ride the data object
 expect_null(spec$active)
 
 sampler <- new("dbartsSampler", spec$control, spec$model, spec$data)

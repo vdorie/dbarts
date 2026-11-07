@@ -65,12 +65,13 @@ expect_error(
     n.threads = 1L,
     verbose = FALSE
   ),
-  pattern = "must be positive integers"
+  pattern = "must be non-negative whole numbers"
 )
 
-# a zero count is a dropped row, also refused
-expect_error(
-  suppressWarnings(bart(
+# a zero count leaves the row out of the likelihood and is taken, the data
+# object warning of it as on every family
+expect_warning(
+  bart(
     y ~ x,
     weights = c(0, w[-1L]),
     family = "logistic",
@@ -80,8 +81,9 @@ expect_error(
     n.chains = 1L,
     n.threads = 1L,
     verbose = FALSE
-  )),
-  pattern = "must be positive integers"
+  ),
+  "rows with 'weights' of 0 are left out of the likelihood",
+  strict = TRUE
 )
 
 # probit (the default binary family) refuses weights entirely

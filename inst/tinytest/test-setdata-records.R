@@ -146,7 +146,8 @@ expect_identical(countSampler$data@response.range, center)
 edited@weights <- as.double(x[, 1L] > 0.5)
 countSampler$setData(edited)
 expect_identical(countSampler$data@response.range, center)
-expect_identical(countSampler$activeRows, edited@weights)
+expect_identical(countSampler$data@weights, edited@weights)
+expect_null(countSampler$activeRows)
 countSampler$setData(edited, updateScale = TRUE)
 expect_equal(
   countSampler$data@response.range[[1L]],

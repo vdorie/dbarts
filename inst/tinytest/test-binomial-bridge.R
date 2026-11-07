@@ -192,14 +192,24 @@ expect_error(
   fixed = TRUE,
   info = "binomial: 600,000 trials at a weight of 2 are refused"
 )
+expect_true(
+  inherits(
+    create(withCounts(
+      cbind(successes, trials - successes),
+      replace(twice, 2L, 0)
+    )),
+    "externalptr"
+  ),
+  info = "binomial: a weight of 0 is taken, the row out, as on a binary response"
+)
 expect_error(
   create(withCounts(
     cbind(successes, trials - successes),
-    replace(twice, 2L, 0)
+    replace(twice, 2L, 0.5)
   )),
   "logistic weights are observation counts",
   fixed = TRUE,
-  info = "binomial: a weight of 0 is refused, as on a binary response"
+  info = "binomial: a fractional weight is refused, as on a binary response"
 )
 
 # $setCounts stores and draws nothing; the next sweep draws under the counts

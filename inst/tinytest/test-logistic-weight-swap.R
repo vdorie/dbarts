@@ -160,25 +160,29 @@ expect_identical(masked$getLatents()[1:5], held[1:5])
 expect_true(all(masked$getLatents()[-(1:5)] != held[-(1:5)]))
 
 # --- what a count may not be, on both conduits -----------------------------
-countRefusal <- "must be positive integers"
+countRefusal <- "must be non-negative whole numbers"
 pinned <- logisticSamplerWeightSwap(w2)
-zeroWarnings <- captureWarnings(
-  zeroData <- dbartsData(x, y, weights = replace(w2, 1L, 0))
-)
-# the data object only WARNS about a zero weight; the logistic sampler refuses
-expect_equal(length(zeroWarnings), 1L)
-expect_true(grepl(
-  "of 0 are left out of the likelihood",
-  conditionMessage(zeroWarnings[[1L]])
-))
-expect_error(pinned$setWeights(replace(w2, 1L, 0)), countRefusal)
-expect_error(pinned$setData(zeroData), countRefusal)
 expect_error(pinned$setWeights(w2 + 0.5), countRefusal)
 expect_error(pinned$setData(dbartsData(x, y, weights = w2 + 0.5)), countRefusal)
 # a negative count is caught R-side first, on the rule every family shares
 expect_error(pinned$setWeights(replace(w2, 1L, -1)), "must all be non-negative")
 # every refusal leaves the mirrored vector where it was
 expect_identical(pinned$data@weights, w2)
+# a count of 0 is taken on both conduits, the row out of the likelihood; the
+# data object warns of it, as on every family
+zeroWarnings <- captureWarnings(
+  zeroData <- dbartsData(x, y, weights = replace(w2, 1L, 0))
+)
+expect_equal(length(zeroWarnings), 1L)
+expect_true(grepl(
+  "of 0 are left out of the likelihood",
+  conditionMessage(zeroWarnings[[1L]])
+))
+pinned$setWeights(replace(w2, 1L, 0))
+expect_identical(pinned$data@weights, replace(w2, 1L, 0))
+pinned$setData(zeroData)
+expect_identical(pinned$data@weights, replace(w2, 1L, 0))
+pinned$setWeights(w2)
 
 # replacement data given WITHOUT weights is unweighted, as at creation and as
 # it is for gaussian - single-trial rows, unit counts. setData starts the
@@ -204,9 +208,9 @@ expect_identical(
 )
 
 # --- the families that decline by identification ---------------------------
-# probit, ordinal and nbinom carry no precision but do carry the mask, so a
-# 0/1 vector is membership and lands there; w2 is a count vector and stays
-# refused on both conduits.
+# probit, ordinal and nbinom carry no precision, so a 0/1 vector is
+# membership, kept on the data object, all ones as no weights; w2 is a count
+# vector and stays refused on both conduits.
 masked <- list(
   probit = list(
     y = y,
