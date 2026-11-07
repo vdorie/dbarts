@@ -1671,7 +1671,8 @@ namespace detail {
 /// d_k in binary64 in a fixed order of operations.
 inline double targetRate(int k, double halfPsiSquared) {
   double h = k - 0.5;
-  return ((2.0 * kPi) * kPi) * (h * h) + halfPsiSquared;
+  // unfused, so the rates are the same doubles on every build
+  return dd::detail::opaque(((2.0 * kPi) * kPi) * (h * h)) + halfPsiSquared;
 }
 
 /// sum_{k > K} d_k^-n, n = 1 or 2: direct to K + 128, then the midpoint
