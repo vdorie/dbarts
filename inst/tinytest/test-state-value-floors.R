@@ -1,12 +1,13 @@
 # A state holds values no chain could run from only when edited or damaged:
-# setState refuses one with a sigma or k that is not positive, a response
-# transform that is not finite, a generator whose index is out of range or
-# whose bits are all zero, DART weights that weigh nothing where the forest
-# may split, or ordinal cutpoints out of order, with the message every
-# refusal gives and the sampler left as it was; a reload of one is refused
-# the same way, not a crash; and a warm-start donor holding one is refused by
-# its own message. The gamma memo the generator block carries is a cache and
-# is recomputed on the way in.
+# setState refuses one with a sigma that is not positive, a k that is
+# negative or is 0 or infinite where no draw of its prior reaches it, a
+# response transform that is not finite, a generator whose index is out of
+# range or whose bits are all zero, DART weights that weigh nothing where
+# the forest may split, or ordinal cutpoints out of order, with the message
+# every refusal gives and the sampler left as it was; a reload of one is
+# refused the same way, not a crash; and a warm-start donor holding one is
+# refused by its own message. The gamma memo the generator block carries is
+# a cache and is recomputed on the way in.
 
 set.seed(20261106L)
 n <- 80L
@@ -153,6 +154,23 @@ infinite <- flat$state
 infinite[[1L]]$forests[[1L]]$k <- Inf
 expect_true(flat$copy()$setState(infinite))
 expect_true(flat$copy()$installTrees(infinite))
+
+# k = 0 is what a draw reaches where the prior's rate term overflows: the
+# sampler's own state installs, a copy and a reload run from it, and it
+# warm-starts another such sampler
+tiny <- make(leaf.prior = normal(chi(1.5, 1e-160)))
+invisible(tiny$run(20L, 5L))
+tiny$storeState()
+zero <- tiny$state
+expect_identical(zero[[1L]]$forests[[1L]]$k, 0)
+expect_true(tiny$setState(zero))
+expect_true(all(is.finite(tiny$copy()$run(0L, 2L)$train)))
+stateFile <- tempfile(fileext = ".rds")
+saveRDS(tiny, stateFile)
+reloaded <- readRDS(stateFile)
+unlink(stateFile)
+expect_true(all(is.finite(reloaded$run(0L, 2L)$train)))
+expect_true(make(leaf.prior = normal(chi(1.5, 1e-160)))$installTrees(zero))
 
 # DART on two of three columns: a weight of 0 where the forest may split is
 # refused, a column it may not split on holds anything
