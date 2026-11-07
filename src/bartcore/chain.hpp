@@ -2189,6 +2189,8 @@ public:
     } scope{*this};
     setCancel(shouldCancel);
     treeInFlight_ = noTreeInFlight;
+    treeInFlightRegrown_ = false;
+    varianceTreeInFlight_ = noTreeInFlight;
     try {
       return runSweeps(numBurnIn, numSamples, results, progress, chainIndex,
                        shouldCancel, onSweep, onDraw);
@@ -2210,34 +2212,112 @@ public:
     }
   }
 
-  /// What an allocation failure out of a sweep leaves, made consistent
-  /// without allocating: the tree in flight, whose structure a move may have
-  /// changed without its obs-to-leaf map or leaf table following, has its
-  /// leaf table cover its nodes, inside the room reserveForMove made, a new
-  /// leaf at 0, and a constant leaf, the monotone one included (a failure in
-  /// its branch score leaves the proposed tree in place), rebuilds its map at
-  /// its next draw, where the monotone leaf restarts its block at the
-  /// all-equal zero. Every forest's totalFits is then re-summed from its
-  /// trees. The tree keeps the fits its map and table give until its next
-  /// draw.
+  /// What an exception out of a sweep, a grow from the root, a prior tree
+  /// draw or a state's install leaves, made consistent without allocating,
+  /// so the chain is the one its state describes. The mean tree in flight,
+  /// whose structure a move may have changed without its obs-to-leaf map,
+  /// leaf table or fits following, keeps its structure and has its table
+  /// cover its nodes, inside the room reserveForMove made, a new leaf at 0;
+  /// a tree being regrown or installed, or one whose table cannot cover it,
+  /// goes back to a single leaf at 0. The tree's map is then rewritten from
+  /// its partition and its fits from its table, the monotone leaf's block
+  /// restarting at the all-equal zero. A variance tree being drawn or
+  /// installed goes back to a single factor of 1, and the variance surface
+  /// is the product of the factors again. Every forest's totalFits is then
+  /// re-summed from its trees.
   void settleAfterAllocationFailure() noexcept {
+    size_t n = data_.numObservations;
     if (treeInFlight_ != noTreeInFlight) {
       Forest<L, ResidT>& forest = forests_[forestInFlight_];
+      size_t t = treeInFlight_;
+      Tree& tree = forest.trees[t];
+      size_t stride = 1;
+      std::vector<double>* table = nullptr;
       if constexpr (leafIsConstant) {
-        forest.leafOfStale[treeInFlight_] = 1;
-        std::vector<double>& mu = forest.muByTree[treeInFlight_];
-        size_t size = forest.trees[treeInFlight_].nodes.size();
-        if (mu.size() < size && mu.capacity() >= size) mu.resize(size, 0.0);
+        table = &forest.muByTree[t];
       } else if constexpr (L::hasVectorParams) {
-        std::vector<double>& params = forest.paramsByTree[treeInFlight_];
-        size_t size =
-          forest.trees[treeInFlight_].nodes.size() * forest.leaf.numParams();
-        if (params.size() < size && params.capacity() >= size)
-          params.resize(size, 0.0);
+        table = &forest.paramsByTree[t];
+        stride = forest.leaf.numParams();
+      }
+      bool reset = treeInFlightRegrown_ ||
+                   (table != nullptr &&
+                    table->capacity() < tree.nodes.size() * stride);
+      if (reset) tree.initialize(forest.indexBuffer.data() + t * n, n);
+      if (table != nullptr) {
+        if (table->size() < tree.nodes.size() * stride)
+          table->resize(tree.nodes.size() * stride, 0.0);
+        if (reset) std::fill(table->begin(), table->begin() + stride, 0.0);
+      }
+      if constexpr (leafIsConstant) {
+        if constexpr (TreeDrawLeafModel<L>)
+          std::fill(table->begin(), table->end(), 0.0);
+        writeLeafOfBelow(tree, 0, forest.leafOf.data() + t * n);
+        forest.leafOfStale[t] = 0;
+      } else if constexpr (L::hasVectorParams) {
+        writeParameterFitsBelow(forest, tree, 0, table->data(),
+                                forest.treeFits.data() + t * n);
+      } else {
+        if (reset) misc_setVectorToConstant(forest.treeFits.data() + t * n,
+                                            n, 0.0);
       }
       treeInFlight_ = noTreeInFlight;
     }
+    treeInFlightRegrown_ = false;
+    if (varianceForest_ && varianceTreeInFlight_ != noTreeInFlight) {
+      VarianceForest& vf = *varianceForest_;
+      size_t j = varianceTreeInFlight_;
+      vf.trees[j].initialize(vf.indexBuffer.data() + j * n, n);
+      misc_setVectorToConstant(vf.factorByTree.data() + j * n, n, 1.0);
+      for (size_t i = 0; i < n; ++i) {
+        double product = 1.0;
+        for (size_t k = 0; k < vf.numTrees; ++k)
+          product *= vf.factorByTree[k * n + i];
+        vf.combinedVariance[i] = product;
+      }
+    }
+    varianceTreeInFlight_ = noTreeInFlight;
     rebuildTotalFitsFromTrees();
+  }
+
+  /// Points every member row of node \p i's subtree at its bottom, read from
+  /// the partition alone, so it allocates nothing.
+  static void writeLeafOfBelow(const Tree& tree, int32_t i,
+                               std::uint32_t* leafOf) noexcept {
+    const Node& node(tree.at(i));
+    if (node.isBottom()) {
+      for (size_t m = node.begin; m < node.end; ++m)
+        leafOf[tree.indices[m]] = static_cast<std::uint32_t>(i);
+      return;
+    }
+    writeLeafOfBelow(tree, node.leftChild, leafOf);
+    writeLeafOfBelow(tree, node.leftChild + 1, leafOf);
+  }
+
+  /// setTreeFitsFromParameterBlocks for node \p i's subtree, read from the
+  /// partition alone, so it allocates nothing.
+  void writeParameterFitsBelow(const Forest<L, ResidT>& forest,
+                               const Tree& tree, int32_t i,
+                               const double* paramByNode,
+                               double* treeFits) const noexcept {
+    if constexpr (L::hasVectorParams) {
+      const Node& node(tree.at(i));
+      if (node.isBottom()) {
+        const double* params =
+          paramByNode + static_cast<size_t>(i) * forest.leaf.numParams();
+        for (size_t m = node.begin; m < node.end; ++m) {
+          size_t obs = tree.indices[m];
+          treeFits[obs] = forest.leaf.fitForObservation(params, obs);
+        }
+        return;
+      }
+      writeParameterFitsBelow(forest, tree, node.leftChild, paramByNode,
+                              treeFits);
+      writeParameterFitsBelow(forest, tree, node.leftChild + 1, paramByNode,
+                              treeFits);
+    } else {
+      (void) forest; (void) tree; (void) i; (void) paramByNode;
+      (void) treeFits;
+    }
   }
 
   /// Room, ahead of tree t's move, for the one child pair a birth adds, in
@@ -3155,7 +3235,21 @@ public:
   /// decline. The all-root memset keeps the decline and is in bounds for every
   /// tree while gathering mu[0] == 0, so the roll's cached term is exactly
   /// zero against the zeroed totalFits.
+  ///
+  /// An exception part way, an allocation failure or the attempt cap, leaves
+  /// the trees drawn before it drawn, the tree being drawn a single leaf at 0
+  /// and the rest as they were (settleAfterAllocationFailure).
   void sampleTreesFromPrior() {
+    try {
+      drawTreesFromPrior();
+    } catch (...) {
+      settleAfterAllocationFailure();
+      throw;
+    }
+  }
+
+  /// sampleTreesFromPrior's draws.
+  void drawTreesFromPrior() {
     size_t n = data_.numObservations;
     const double* y = response_->workingResponse();
     const double* weights = response_->workingWeights();
@@ -3185,6 +3279,9 @@ public:
         // root always lands), and the leaves are then discarded, as this
         // entry returns trees without leaf values.
         int rejected = 0, outsideCone = 0;
+        forestInFlight_ = f;
+        treeInFlight_ = t;
+        treeInFlightRegrown_ = true;
         while (true) {
           tree.initialize(forest.indexBuffer.data() + t * n, n);
           growSubtreeFromPrior(forest, tree, 0, y, weights);
@@ -3239,6 +3336,8 @@ public:
           // (mu, leafOf) pair; for the function leaf the row IS the parameters
           misc_setVectorToConstant(forest.treeFits.data() + t * n, n, 0.0);
         }
+        treeInFlight_ = noTreeInFlight;
+        treeInFlightRegrown_ = false;
       }
       misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
       forest.totalFitsScale = 1.0;
@@ -3257,11 +3356,26 @@ public:
   /// per-tree step, where growTreeFromRoot rebuilds the tree from a fresh root
   /// against the tree's residual. Constant leaf only (the scan's marginal);
   /// vector and function leaves are refused on the R surface and no-op here.
+  /// An exception part way leaves the tree being grown a single leaf
+  /// (settleAfterAllocationFailure).
   void growForestFromRoot(size_t numSweeps) {
     if constexpr (L::hasVectorParams || L::hasFunctionParams) {
       (void) numSweeps;  // non-constant leaves fall back to prior-grown init
       return;
     } else {
+      try {
+        growForestFromRootSweeps(numSweeps);
+      } catch (...) {
+        settleAfterAllocationFailure();
+        throw;
+      }
+    }
+  }
+
+  /// The sweeps growForestFromRoot runs, the constant leaf's.
+  void growForestFromRootSweeps(size_t numSweeps) {
+    (void) numSweeps;
+    if constexpr (!L::hasVectorParams && !L::hasFunctionParams) {
       size_t n = data_.numObservations;
       GrowScratch growScratch;
       growScratch.categoryScan.exhaustiveCap =
@@ -3314,6 +3428,9 @@ public:
             // place of metropolisJumpForTree; the reset returns it to a single
             // root over the full index buffer, then setNodeAverages primes the
             // root statistic the scan's no-split term reads
+            forestInFlight_ = f;
+            treeInFlight_ = t;
+            treeInFlightRegrown_ = true;
             forest.trees[t].initialize(forest.indexBuffer.data() + t * n, n);
             forest.trees[t].setNodeAverages(forest.treeY.data(), forestWeights);
             growTreeFromRoot(data_, forest.treePrior, forest.leaf, rng_,
@@ -3330,6 +3447,8 @@ public:
             if constexpr (TreeDrawLeafModel<L>)
               forest.muByTree[t].assign(forest.trees[t].nodes.size(), 0.0);
             sampleParametersAndSetFits(forest, t, nullptr, false);
+            treeInFlight_ = noTreeInFlight;
+            treeInFlightRegrown_ = false;
           }
 
           finalizeTotalFits(forest, forestY);
@@ -3396,14 +3515,28 @@ public:
   /// (pinned at 1 under a variance forest), k, the glue, the saved-tree buffers
   /// and the response's latent block. A caller wanting the whole chain at its
   /// prior calls all three.
+  ///
+  /// An exception part way leaves the tree being drawn a single factor of 1
+  /// (settleAfterAllocationFailure).
   void sampleVarianceForestFromPrior() {
     if (!varianceForest_) return;
+    try {
+      drawVarianceForestFromPrior();
+    } catch (...) {
+      settleAfterAllocationFailure();
+      throw;
+    }
+  }
+
+  /// sampleVarianceForestFromPrior's draws.
+  void drawVarianceForestFromPrior() {
     VarianceForest& vf = *varianceForest_;
     size_t n = data_.numObservations;
     const double* weights = response_->workingWeights();
     for (size_t j = 0; j < vf.numTrees; ++j) {
       Tree& tree = vf.trees[j];
       int rejected = 0;
+      varianceTreeInFlight_ = j;
       while (true) {
         tree.initialize(vf.indexBuffer.data() + j * n, n);
         // treeResidual is the sweep's own per-tree scratch and is refilled by
@@ -3427,6 +3560,7 @@ public:
         for (size_t m = node.begin; m < node.end; ++m)
           factor[tree.indices[m]] = h;
       }
+      varianceTreeInFlight_ = noTreeInFlight;
     }
     for (size_t i = 0; i < n; ++i) {
       double product = 1.0;
@@ -5615,10 +5749,30 @@ public:
   /// trees stateIsValid's verdict reports, both staging a tree by the one
   /// routine. \p repair is what a monotone tree out of order gets: the reset
   /// for a state, the collapse for a warm start (installForest).
+  ///
+  /// An exception or a false part way leaves the trees installed before it
+  /// installed, the tree being installed a single leaf at 0 and the rest as
+  /// they were (settleAfterAllocationFailure).
   bool rebuildLiveForest(size_t f, const ForestStateData& fs,
                          std::vector<double>& params,
                          bool* altered = nullptr,
                          MonotoneRepair repair = MonotoneRepair::reset) {
+    bool installed = false;
+    try {
+      installed = installLiveForestTrees(f, fs, params, altered, repair);
+    } catch (...) {
+      settleAfterAllocationFailure();
+      throw;
+    }
+    if (!installed && treeInFlight_ != noTreeInFlight)
+      settleAfterAllocationFailure();
+    return installed;
+  }
+
+  /// rebuildLiveForest's installs, tree by tree.
+  bool installLiveForestTrees(size_t f, const ForestStateData& fs,
+                              std::vector<double>& params, bool* altered,
+                              MonotoneRepair repair) {
     Forest<L, ResidT>& forest = forests_[f];
     size_t n = data_.numObservations;
     misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
@@ -5626,6 +5780,9 @@ public:
     size_t paramStride = 1;
     if constexpr (L::hasVectorParams) paramStride = forest.leaf.numParams();
     for (size_t t = 0; t < forest.numTrees; ++t) {
+      forestInFlight_ = f;
+      treeInFlight_ = t;
+      treeInFlightRegrown_ = true;
       forest.trees[t].initialize(forest.indexBuffer.data() + t * n, n);
       const std::uint64_t* masks =
         fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
@@ -5672,6 +5829,8 @@ public:
       }
       if constexpr (leafIsConstant) rebuildLeafOf(forest, t);
       addTreeFitsToTotal(forest, t);
+      treeInFlight_ = noTreeInFlight;
+      treeInFlightRegrown_ = false;
     }
     return true;
   }
@@ -7065,11 +7224,28 @@ private:
   /// the geometric mean, as refreshVarianceForest merges it, and so are a
   /// split outside its interval and the first split on each path that the
   /// forest's column mask forbids; any other tree is installed exactly.
-  /// altered is rebuildLiveForest's.
+  /// altered is rebuildLiveForest's, and so is what an exception or a false
+  /// part way leaves, the tree being installed a single factor of 1.
   bool rebuildVarianceForest(
       const std::vector<std::vector<FlatNode>>& trees,
       const std::vector<std::vector<std::uint64_t>>& masks,
       bool* altered = nullptr) {
+    bool installed = false;
+    try {
+      installed = installVarianceTrees(trees, masks, altered);
+    } catch (...) {
+      settleAfterAllocationFailure();
+      throw;
+    }
+    if (!installed && varianceTreeInFlight_ != noTreeInFlight)
+      settleAfterAllocationFailure();
+    return installed;
+  }
+
+  /// rebuildVarianceForest's installs, tree by tree.
+  bool installVarianceTrees(
+      const std::vector<std::vector<FlatNode>>& trees,
+      const std::vector<std::vector<std::uint64_t>>& masks, bool* altered) {
     VarianceForest& vf = *varianceForest_;
     std::size_t n = data_.numObservations;
     if (trees.size() != vf.numTrees) return false;
@@ -7077,6 +7253,7 @@ private:
     for (std::size_t i = 0; i < n; ++i) vf.combinedVariance[i] = 1.0;
     for (std::size_t j = 0; j < vf.numTrees; ++j) {
       Tree& tree = vf.trees[j];
+      varianceTreeInFlight_ = j;
       tree.initialize(vf.indexBuffer.data() + j * n, n);
       const std::uint64_t* maskWords =
         masks.empty() ? nullptr : masks[j].data();
@@ -7109,6 +7286,7 @@ private:
           vf.combinedVariance[i] *= h;
         }
       }
+      varianceTreeInFlight_ = noTreeInFlight;
     }
     return true;
   }
@@ -8881,10 +9059,16 @@ private:
   // keptDrawsThisRun's count, which Sampler::run reads to drop the slots a
   // stopped run overwrote
   size_t keptDrawsThisRun_ = 0;
-  // the tree a sweep is moving and drawing, noTreeInFlight outside that
-  // stretch; settleAfterAllocationFailure reads it
+  // the tree a sweep is moving and drawing, or a grow, a prior draw or an
+  // install is building, noTreeInFlight outside that stretch;
+  // settleAfterAllocationFailure reads it
   static constexpr size_t noTreeInFlight = static_cast<size_t>(-1);
   size_t forestInFlight_ = 0, treeInFlight_ = noTreeInFlight;
+  // whether the tree in flight was reset to be regrown or installed, which
+  // the settle then leaves a single leaf; and the variance tree a prior draw
+  // or an install is building
+  bool treeInFlightRegrown_ = false;
+  size_t varianceTreeInFlight_ = noTreeInFlight;
 
   // One map forest: what it states, what it multiplies, a numeric column's
   // scale (NaN where none is held) with whether it was read from every row,
