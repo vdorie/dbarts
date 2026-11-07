@@ -1365,3 +1365,71 @@ for (object in list(fit.ord, fit.mn)) {
     0L
   )
 }
+
+# ---- a data frame given to a fit made from a matrix ----
+# a matrix fit drops no column, so none of the frame's is dropped: a one-row
+# frame, whose every column is constant, and a frame with one column pinned
+# predict as the matrix with the same values does, at every test door
+set.seed(22)
+x.mf <- matrix(runif(90L), 30L, dimnames = list(NULL, c("a", "b", "c")))
+y.mf <- x.mf[, 1L] + rnorm(30L, 0, 0.3)
+dfx <- as.data.frame(x.mf)
+fitMatrix <- function(test = NULL) {
+  bart(
+    x.mf,
+    y.mf,
+    test = test,
+    n.trees = 10L,
+    n.burn = 10L,
+    n.samples = 10L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 2L,
+    keepTrees = TRUE,
+    verbose = FALSE
+  )
+}
+fit.mf <- fitMatrix()
+expect_identical(
+  unname(predict(fit.mf, dfx[1L, ])),
+  unname(predict(fit.mf, x.mf[1L, , drop = FALSE]))
+)
+pinned <- x.mf
+pinned[, "a"] <- 0.5
+expect_identical(
+  unname(predict(fit.mf, transform(dfx, a = 0.5))),
+  unname(predict(fit.mf, pinned))
+)
+expect_identical(
+  unname(fitMatrix(test = dfx[1L, ])$yhat.test),
+  unname(fitMatrix(test = x.mf[1L, , drop = FALSE])$yhat.test)
+)
+expect_identical(
+  unname(fitMatrix(test = transform(dfx, a = 0.5))$yhat.test),
+  unname(fitMatrix(test = pinned)$yhat.test)
+)
+sampler.mf <- fit.mf$fit$copy(TRUE)
+sampler.mf$setTestPredictor(transform(dfx, a = 0.5))
+expect_identical(unname(sampler.mf$data@x.test), unname(pinned))
+expect_identical(
+  fit.mf$fit$getTrees(1L, 1L, newdata = dfx[1L, ]),
+  fit.mf$fit$getTrees(1L, 1L, newdata = x.mf[1L, , drop = FALSE])
+)
+
+# a fit made from a data frame keeps its drop record: a column it dropped as
+# constant in training is dropped from the test frame
+dfc <- transform(dfx, k = 1)
+fit.bt <- bartBT(
+  dfc,
+  y.mf,
+  ntree = 10L,
+  nskip = 10L,
+  ndpost = 10L,
+  keeptrees = TRUE,
+  verbose = FALSE,
+  seed = 2L
+)
+expect_identical(colnames(fit.bt$fit$data@x), c("a", "b", "c"))
+expect_identical(dim(predict(fit.bt, dfc[1:2, ])), c(10L, 2L))
+
+rm(x.mf, y.mf, dfx, fitMatrix, fit.mf, pinned, sampler.mf, dfc, fit.bt)

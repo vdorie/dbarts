@@ -1062,6 +1062,13 @@
             \code{test} has the response column, and whether or not a
             vector \code{offset} was given. 0.9-34 dropped them, with a
             warning that they were not found.
+      \item A data frame given as \code{newdata} or \code{test}, or to
+            \code{$setTestPredictor}, on a fit made from a numeric matrix
+            keeps every column, so a one-row frame, or one with a column
+            held at a single value, predicts as the matrix of the same
+            values does. 0.9-34 dropped a column constant on those rows and
+            stopped with \dQuote{number of columns in 'test' must be equal
+            to that of 'x'}.
     }
   }
 }

@@ -1975,9 +1975,13 @@ validateXTest <- function(
         if (is.list(drop) && length(drop) == length(x.test)) {
           refuseWiderTestColumns(x.test, drop)
         }
+        # a fit with no drop record was made from a matrix, which drops no
+        # column, so no column of the test frame is dropped either: one
+        # constant on the test rows, as every column of a one-row frame is,
+        # is a value to predict at
         x.test <- makeIndicatorModelMatrix(
           x.test,
-          if (!is.null(drop)) drop else TRUE,
+          if (!is.null(drop)) drop else FALSE,
           storage = "dense"
         )
       }
