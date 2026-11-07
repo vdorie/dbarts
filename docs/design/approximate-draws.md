@@ -57,9 +57,10 @@ The uniform is held as an interval of width 2^-53 from two 32-bit words of the c
 when the enclosure of log r lies above the interval's upper end (or above 0), keeps when it lies below the lower
 end, and otherwise refines. A decision taken is the one the exact uniform and exact r give. After the last level a
 step still undecided is a close call: the row keeps its value, and the call is counted (S2 reports the count and
-warns). The chance of a close call at a step is at most the floor, twice the sum of the four densities' radii plus
-the uniform's grain ([`stepFloor`](../../src/bartcore/pgdensity.hpp)); S1 measures it at the pins at most
-9.3e-12, against the gate's 2.3e-11. [`stepRow`](../../src/bartcore/pgdensity.hpp) is the one-row step.
+warns). The chance of a close call at a step is at most the floor, twice the enclosure's half-width (the four
+densities' radii and the sum's rounding) plus the thresholds' slack and the uniform's grain
+([`stepFloor`](../../src/bartcore/pgdensity.hpp)); S1 measures it at the pins at most 9.6e-12, against the gate's
+2.3e-11. [`stepRow`](../../src/bartcore/pgdensity.hpp) is the one-row step.
 
 ## Where the step costs less than the sum
 

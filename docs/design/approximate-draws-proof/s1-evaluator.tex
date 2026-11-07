@@ -41,12 +41,16 @@ $b$ and the remainder's $(\alpha,\beta)$), and on the contour $z=\rho+iy$, $\Del
 \begin{itemize}
 \item[(A1)] As the note's: IEEE 754 binary64, round to nearest; $+,-,\times,/$, $\sqrt{\cdot}$ and the fused
 multiply-add correctly rounded.
-\item[(A2$_{\mathrm s}$)] The math library returns $\exp,\emo,\log,\lop,\sin,\cos,\tan,\sinh,\cosh,\tanh$ and
-$\mathrm{atan2}$ within relative error $u_L=2^{-51}$ (two ulps) at normal results. This \emph{strengthens} the
-note's (A2), which assumes $\sin$ and $\cos$ only to an absolute bound: the engine's $\emo$ of a complex ball and its
-cell bound use $\cos$ relative to its value. glibc and Apple's library meet it on the arguments the evaluator
-forms (at most $|y|\le2^{20}$ in a node's imaginary part), as their argument reduction is exact there; it is an
-assumption, not a theorem.
+\item[(A2$_{\mathrm s}$)] The math library returns $\exp,\emo,\log,\lop,\sinh,\cosh,\tanh$ and $\mathrm{atan2}$
+within relative error $u_L=2^{-51}$ (two ulps) at normal results; $\sin$ and $\cos$ within $u_L$ absolutely at every
+argument; and $\sin$ on $|x|\le\frac12$ and $\cos$ and $\tan$ on $[0,\frac\pi2-2^{-15}]$ within $u_L$ relative.
+This adds to the note's (A2), which assumes $\sin$ and $\cos$ only to an absolute bound, the relative accuracy on
+those two intervals: the engine's $\emo$ of a small complex ball needs it for $\sin$ and $\cos$, and the closed
+forms for $W<0$ (Section~\ref{sec:lines}) for $\cos$ and $\tan$, whose arguments stay below $\frac\pi2-2^{-11}$.
+The cell bound and the exponential use $\cos$ and $\sin$ only absolutely, at arguments that reach about $b|y|$
+(millions, deep in the left tail). glibc documents two ulps; Apple's library met it on every sample; an argument
+reduction with a 66-bit $\pi$ meets the relative part, as it is exact on those intervals. It is an assumption, not a
+theorem; Windows' library is not verified.
 \item[(A3)] Contraction. A compiler may fuse $a\times b+c$ into one rounding, within an expression or (GCC's
 default in GNU modes on targets with a fused multiply-add) across statements. Every ball rule below charges at
 least the error of the unfused sequence, and a fused operation's error, $u|ab+c|$, is at most that; so the ball
@@ -57,7 +61,11 @@ test suite builds the evaluator's tests with contraction forced across statement
 every function's error is near $2^{-53}$). The proposal's rates $r_k=\fl(\fl(2\pi^2(k-\frac12)^2)+\psi^2/2)$ are
 formed unfused for the same reason: so they are the same doubles on every build and in the reference script.
 \end{itemize}
-Underflow: each operation that can underflow loses at most $2^{-1074}$ absolutely; the radii's final $\mathrm{up}(r)
+Underflow: each operation that can underflow loses at most $2^{-1074}$ absolutely, and no later operation
+magnifies that loss: the modulus bounds $\|m\|^\pm$ scale their components by $2^{\pm600}$, exactly, when
+$|m_r|+|m_i|$ is below $2^{-500}$ or above $2^{500}$, so their squares neither underflow nor overflow, and the
+quotient scales an operand outside $[2^{-400},2^{400}]$ (in $|m_r|+|m_i|$) to near 1 by a power of two, its radius
+rounded up, before dividing; the radii's final $\mathrm{up}(r)
 =r(1+2^{-46})+2^{-1020}$ covers that for up to $2^{50}$ operations, and covers the relative rounding of the
 up to about 120 operations that form any one radius. Overflow: an infinite or NaN midpoint or radius makes the
 evaluation undecided, never a wrong enclosure.
@@ -71,11 +79,14 @@ propagation $\|m_a\|r_b+\|m_b\|r_a+r_ar_b$.
 \item \emph{Quotient} $m_a\bar m_b/|m_b|^2$: the numerator's product as above ($\sqrt5u$), the denominator's
 relative error at most $2u+u^2$, and the final divisions $u$ per component: at most $(\sqrt5+3)u+O(u^2)\le5.5u$
 times $|m_a|/|m_b|$; propagation $(\|m_a\|r_b+\|m_b\|r_a)/(\|m_b\|^-(\|m_b\|^--r_b))$ for $r_b<\|m_b\|^-$.
-\item \emph{Exponential} $e^{m}$, $m=\mu+i\nu$: computed as $e^\mu\cos\nu+ie^\mu\sin\nu$, each component within
-$(2u_L+u)(1+O(u))$ relative under (A2$_{\mathrm s}$), so the midpoint within $(2u_L+u)e^\mu$; propagation
-$|e^{m+d}-e^m|\le e^\mu\,\emo(|d|)$. Charged $e^\mu(1+u_L)\,[\emo(r)(1+u_L)+2u_L+u]$.
+\item \emph{Exponential} $e^{m}$, $m=\mu+i\nu$: computed as $e^\mu\cos\nu+ie^\mu\sin\nu$: $e^\mu$ within $u_L$
+relative moves the midpoint by $u_Le^\mu$, $\cos\nu$ and $\sin\nu$ each within $u_L$ absolutely by at most
+$\sqrt2u_Le^\mu$, and the two products by $ue^\mu(1+O(u))$; so the midpoint is within $((1+\sqrt2)u_L+u)e^\mu
+(1+O(u))$; propagation $|e^{m+d}-e^m|\le e^\mu\,\emo(|d|)$. Charged $e^\mu(1+u_L)\,[\emo(r)(1+u_L)+2.5u_L+u]$.
 \item \emph{$\emo$} for $|\mathrm{Re}|+|\mathrm{Im}|<\frac12$: $\emo(m)=\emo(\mu)\cos\nu-2\sin^2(\nu/2)+i\,e^\mu
-\sin\nu$, cancellation-free for small $|m|$; each of the three terms within $(2u_L+2u)$ of itself, so the midpoint
+\sin\nu$, cancellation-free for small $|m|$; $|\nu|<\frac12$, so $\sin\nu$, $\sin(\nu/2)$ and $\cos|\nu|$ are
+within $u_L$ relative under (A2$_{\mathrm s}$), and each of the three terms within $(2u_L+2u)$ of itself, so the
+midpoint
 within $(2u_L+2u)(|t_1|+t_2+|\mathrm{Im}|)$; propagation $|e^{m}||\emo(d)|\le e^\mu(1+u_L)\emo(r)$. Beyond
 $\frac12$, $e^m-1$ from the exponential rule.
 \item \emph{$\lop$} $\Log(1+m)$, principal: real part $\frac12\lop(m_r(2+m_r)+m_i^2)$, the argument of $\lop$ within
@@ -141,21 +152,28 @@ $2x\Delta=2\Delta c_0+\sum_ja_j\zeta_j$. $1+\zeta_j=(\mu_j+t_0+2\Delta)/(\mu_j+t
 $\mathrm{Im}(\mu_j+t_0+2\Delta)=4\rho y$ vanishes only at $y=0$, where the value is positive; so it never meets
 $(-\infty,0]$ and the principal $\Log$ is continuous along the contour.
 \end{proof}
-$c_0$ is computed in double-double (each $a_j/(\mu_j+t_0)$ and the sum), within $24\cdot2^{-106}(\sum_ja_j/(\mu_j+
-t_0)+x)(1+n2^{-50})$ plus $u|c_0|$ for its final rounding to a double: at the saddle $c_0$ is of the order of the
+$c_0$ is computed in double-double (each $a_j/(\mu_j+t_0)$ and the sum). With $\sigma=\sum_ja_j/(\mu_j+t_0)$ and
+$n$ terms: each quotient and product is within $17u^2$ of its term, the first addition (to zero) is exact, each of the
+other $n-1$ within $3u^2$ of its partial sum, at most $\sigma$ as the terms are positive, and the final subtraction
+within $3u^2(\sigma+x)$; so the error is at most $(17+3n)u^2(\sigma+x)$, charged as
+$(17+3n)2^{-106}(\sigma+x)(1+n2^{-50})$ with $\sigma$ summed in double, plus $u|c_0|$ for its final rounding to a
+double: at the saddle $c_0$ is of the order of the
 Newton step's residual, so the first-order term $2\Delta c_0$ carries no large rounding.
 
 \begin{lemma}[$\Log(1+z)-z$ by its series]\label{lem:l1pm}
 For $|z|\le m\le\frac14$, $\Log(1+z)-z=-z^2\sum_{k\ge0}(-z)^k/(k+2)$. Truncated after $n$ terms with $m^n\le2^{-54}$,
 the remainder is at most $|z|^2m^n/(2(1-m))\le2^{-54}|z|^2/1.5$; Horner's evaluation in complex arithmetic adds at
-most $16u|z|^2$; and a ball of radius $r$ about $z$ with $m=|z|+r\le\frac14$ moves the value by at most $r\,m/(1-m)$.
+most $16u|z|^2$ (the engine's loop starts one coefficient high, at $1/(n+1)$, which changes the
+$(-z)^n$ coefficient by $1/((n+1)(n+2))$ and leaves the remainder's bound in place); and a ball of radius $r$
+about $z$ with $m=|z|+r\le\frac14$ moves the value by at most $r\,m/(1-m)$.
 \end{lemma}
 \begin{proof}
 The series is the Taylor series of $\Log(1+z)-z$, convergent for $|z|<1$. Its tail after $n$ terms is at most
 $|z|^2\sum_{k\ge n}m^k/(k+2)\le|z|^2m^n/(2(1-m))$. Horner: each step $p\leftarrow1/(k+2)-zp$ with $|zp|\le m|p|$
-and $|p|\le\sum_km^k/(k+2)\le0.6$; the per-step errors (a complex product, $\sqrt5u$, and a subtraction, $u$) are
-damped by $m$ at each later step, so the total relative to $\frac12$ is at most $(\sqrt5+1)u/(1-m)\cdot1.2$; the
-final product by $z^2$ (two complex products) adds $2\sqrt5u$ relative. Together below $16u|z|^2$. The derivative
+and $|p|\le\sum_km^k/(k+2)\le0.603$ at $m=\frac14$; each step's errors (the rounding of $1/(k+2)$, at most $\frac u2$;
+the complex product, $\sqrt5um|p|$; the subtraction, $u|p|$) are at most $1.44u$ and are damped by $m$ at each later
+step, so $p$ is within $1.44u/(1-m)\le1.92u$; the final product by $z^2$ (two complex products) adds
+$2\sqrt5u|z|^2|p|\le2.7u|z|^2$. Together below $5u|z|^2$, charged as $16u|z|^2$. The derivative
 of $\Log(1+z)-z$ is $-z/(1+z)$, at most $m/(1-m)$ on the disk.
 \end{proof}
 
@@ -177,11 +195,20 @@ $g$ decreases), bounding $g$ on each term's enclosure $[A^-,A^+]$ by $2(A^+-2u^2
 the enclosure contains $4u^2$; for $f$ the infinite tail of $J_1$ lies past $4u^2$ and is covered by its first term.
 $S=\sum_{J_1}a_jk_j$: for $q$ the sum of the upper bounds; for $f$ the closed form $2b[T_1(W_u)-2u^2T_2(W_u)]$ minus
 the $J_0$ terms, with the closed forms' errors charged as stated in the header ($T_1,T_2$ within $2^{-40}$
-relative, from $\tanh$, $\cosh$, $\tan$ and $\cos$ under (A2$_{\mathrm s}$), and the series for $|W|\le0.1$).
+relative, from $\tanh$, $\cosh$, $\tan$ and $\cos$ under (A2$_{\mathrm s}$), and the series for $|W|\le0.1$). For
+$W<0$ the closed forms are used only where $v=\sqrt{-W}$ has $\frac\pi2-v>2^{-11}$, else the line is undecided:
+there $\tan v<2^{11}$, so the rounding of $v$ moves $\tan v$ by at most $uv/(\sin v\cos v)$ and $\sec^2v$ by at most
+$2uv\tan v\le6434u$ relative, inside $2^{-40}=8192u$ with the functions' and operations' roundings, and $\tan$ and
+$\cos$ stay where (A2$_{\mathrm s}$) makes them relative. The saddle's $v_0$ is capped at $\mathtt{0x1.91ffp0}$,
+below $\frac\pi2-2^{-11}$, which binds only for $x$ past about $320b$; a frame off the saddle is still valid, and
+there it widens the radii: measured at $b$ from $10^{-3}$ to 1 and $x$ up to $10^5b$, at most 1.7 times the saddle
+frame's where $\log f>-1000$, at most 4 times where $\log f>-5000$, and much wider or undecided only where $\log f<
+-49000$.
 \end{proof}
 On the contour line ($u=\rho$) every $J_0$ term has $A_j\le2\rho^2$, so $|z^2+\tau_j'^2|^2=A_j^2-2Y(A_j-2\rho^2)+Y^2\ge
-A_j^2$ and the term is at most 0; the note's corollary's $Y_0=\max_{J_0}(A_j-2\rho^2)_+$ is then 0 and imposes
-nothing.
+A_j^2$ and the term is at most 0. The rounding-widened test for $J_0$ admits $A_j$ up to about $10^{-15}$
+relative above $2\rho^2$, so the note's corollary's $Y_0=\max_{J_0}(A_j-2\rho^2)_+$ is tiny but positive; the
+corollary's condition on it is met, as $y_1^2\ge1/x$ by the stopping rule below.
 
 \paragraph{The monotone tail's constants.} The note's Corollary ``A monotone tail and an a priori step''(a) needs
 $S<4x$ and $Y_1<(1-\sqrt{S/(4x)})/\kappa$ with $\delta=2x-\frac S2(1-\kappa Y_1)^{-2}>0$. The engine takes
@@ -240,11 +267,15 @@ Mersenne-Twister words, which is the interval containing the uniform $U$ whose b
 bits; the rest of $U$'s bits are never drawn, as the decision does not depend on them. With $\ell^\pm$ the
 enclosure of $\log r=\log f(y)+\log q(x)-\log f(x)-\log q(y)$: accept if $\ell^-\ge\min(0,\log^+((k+1)2^{-53}))$,
 keep if $\ell^+\le\log^-(k2^{-53})$ ($-\infty$ at $k=0$), where $\log^\pm$ are the library's $\log$ widened by $u_L$
-relative and $2^{-1000}$; otherwise refine. A decision taken is the one the exact $U$ and $r$ give: accept means
+relative and $2^{-1000}$; otherwise refine. The enclosure's half-width is the four radii plus $4u$ times the sum of
+the four midpoints' magnitudes (the sum's rounding). A decision taken is the one the exact $U$ and $r$ give:
+accept means
 $r\ge U^+>U$ or $r\ge1$; keep means $r\le U^-\le U$ (a tie has probability 0). The probability that the last level
-leaves it undecided is at most the measure of $\log U$ within the enclosure's width of $\log r$, at most twice that
-width plus the grain, which is the note's floor $2(2r_f+2r_q)+2^{1-53}$, $r_f,r_q$ the largest radii; a close call
-keeps $x$ (the note's ``Close calls'').
+leaves it undecided is at most the measure of $U$ whose interval meets the enclosure of $\log r$ widened by each
+threshold's slack: at most twice the half-width (the density of $\log U$ is $U\le1$), plus $2u_L|\log U|+2^{-1000}$
+on each side ($U|\log U|\le1/e$, so under $2u_L$ for both), plus the grain. That is the note's floor
+$2(2r_f+2r_q)+2^{1-53}$, $r_f,r_q$ the largest radii, with $16u(m_f+m_q)+2u_L+2^{-999}$ added, $m_f,m_q$ the
+largest $|\log f|$ and $|\log q|$; a close call keeps $x$ (the note's ``Close calls'').
 
 \section{The cheaper certificate's settings and what they need}\label{sec:cheap}
 
@@ -283,8 +314,11 @@ all $K+1$ terms, the bound then costing $O(K)$ per cell as the per-term one does
 \paragraph{What was measured.} At the 500 pins of $f$ and 30 of $q$, every finite enclosure at every level
 contained its reference and none was undecided after the last level; 200 points in both tails past the pins (down
 to $10^{-6}$ of the mean, up to 40 standard deviations above it) were decided; and in the test's 20{,}000 steps over
-five $(b,\psi)$ none went past level 0. These are measurements, not proofs: that level 0 reaches its target at
-every reachable $(b,\psi,x)$ is not proven, and need not be.
+five $(b,\psi)$ none went past level 0. These are measurements, not proofs. Neither the proof nor soundness needs
+level 0 to decide (an undecided level costs the next, and the levels are intersected); that it decides matters only
+for the timing, and that it does at every reachable $(b,\psi,x)$ is not proven. The close-call bound needs a weaker
+premise, also unproven: that the last level is finite at every reachable point, with radii as measured at the
+pins.
 
 \begin{thebibliography}{9}
 \bibitem{bpz} R.~P. Brent, C.~Percival and P.~Zimmermann (2007). Error bounds on complex floating-point
