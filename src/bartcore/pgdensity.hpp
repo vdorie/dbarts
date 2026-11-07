@@ -54,6 +54,7 @@ inline constexpr double kLog2 = 0x1.62e42fefa39efp-1;
 /// log(2 / pi) rounded to a double (error below 2^-55).
 inline constexpr double kLogTwoOverPi = -0x1.ce6bb25aa1316p-2;
 inline constexpr double kInf = std::numeric_limits<double>::infinity();
+inline constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
 
 /// A computed radius r grown to cover the rounding of the up to about 120
 /// operations that formed it and any underflow.
@@ -1798,8 +1799,10 @@ inline double ruleD(double psi, int K) {
 }
 
 /// The smallest K with b D(psi, K) <= tol: a guess from D's leading order,
-/// then an exponential search and bisection (D decreasing in K).
+/// then an exponential search and bisection (D decreasing in K). -1 when no K
+/// up to 2^20 passes, or b or psi is not finite or b is not positive.
 inline int ruleK(double b, double psi, double tol = 0.01) {
+  if (!(b > 0.0) || !std::isfinite(b) || !std::isfinite(psi)) return -1;
   const double sigma = (0.5 * psi) * psi;
   const double d1 = detail::targetRate(1, sigma);
   const double pi6 = kPiSquared * kPiSquared * kPiSquared;
@@ -1841,11 +1844,21 @@ class Proposal {
   Proposal() = default;
   Proposal(double b, double psi, int K = 0) { build(b, psi, K); }
 
-  /// Builds the proposal at the rule's K, or at K when positive.
+  /// Builds the proposal at the rule's K, or at K when positive. Where the
+  /// rule finds no K (or b or psi is out of range) the proposal is invalid:
+  /// it draws NaN and the step returns a close call.
   void build(double b, double psi, int K = 0) {
     b_ = b;
     psi_ = std::fabs(psi);
     K_ = K > 0 ? K : ruleK(b, psi_);
+    valid_ = K_ >= 1 && b > 0.0 && std::isfinite(b) && std::isfinite(psi_);
+    if (!valid_) {
+      K_ = 0;
+      rates_.assign(1, kNaN);
+      shapes_.assign(1, b);
+      alpha_ = beta_ = kNaN;
+      return;
+    }
     const double sigma = (0.5 * psi_) * psi_;
     rates_.resize(K_ + 1);
     shapes_.assign(K_ + 1, b);
@@ -1861,6 +1874,8 @@ class Proposal {
     rates_[K_] = beta_;
   }
 
+  /// False where the rule found no K, or b or psi is out of range.
+  bool valid() const { return valid_; }
   double shape() const { return b_; }
   double psi() const { return psi_; }
   int numTerms() const { return K_; }
@@ -1872,6 +1887,7 @@ class Proposal {
 
   /// A draw: sum_k Ga(b, 1) / r_k + Ga(alpha, 1) / beta, K + 1 gammas in order.
   double draw(ext_rng* rng) const {
+    if (!valid_) return kNaN;
     double s = 0.0;
     for (int k = 0; k < K_; ++k) s += ext_rng_simulateGamma(rng, b_, 1.0) / rates_[k];
     return s + ext_rng_simulateGamma(rng, alpha_, 1.0) / beta_;
@@ -1883,7 +1899,8 @@ class Proposal {
  private:
   double b_ = 1.0;
   double psi_ = 0.0;
-  int K_ = 1;
+  int K_ = 0;
+  bool valid_ = false;
   double alpha_ = 0.0;
   double beta_ = 0.0;
   std::vector<double> rates_;
