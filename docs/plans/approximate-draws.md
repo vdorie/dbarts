@@ -19,8 +19,8 @@ before S1. S3 lands after frequency-weights.
 window: everything built here ships in 1.0-0, the approximate settings opt-in (dec-B592); the defaults study runs
 before 1.0-0, right after the build.
 budget: the sizing ran at 970 lines in a scratch build and 1.6 core-hours. The build, with every survivor, about
-4,950 written lines over five slices (the proof's source and scripts, moved into the tree, not counted) and about
-75 agent-hours, with about 13 core-hours of local gates and about 20 of scheduled CI ([What is built](#what-is-built));
+5,000 written lines over five slices (the proof's source and scripts, moved into the tree, not counted) and about
+76 agent-hours, with about 13 core-hours of local gates and about 20 of scheduled CI ([What is built](#what-is-built));
 before the proof, 2,350 lines and 40 agent-hours.
 
 ## Summary for the maintainer
@@ -115,8 +115,9 @@ Rulings, quoted, not reopened:
   comes back to the maintainer before taking B'. The maintainer, 2026-11-06: "I don't want error silently
   accumulating and biasing the sampler. So I think that argues for A, within reason."
 - dec-B607: at fractional shapes every between-sweep setter, and setState, is taken as at whole-number shapes,
-  the rows it marks served by the step from their installed values; the help of the setters and of getLatents
-  says when that is exact; the documentation carries a short example. The maintainer, 2026-11-06: "Yes, as long
+  the rows it marks served by the step from their installed values (for setData, which cold-starts every row on
+  main, S3 makes that true at persisting rows); the help of the setters and of getLatents says when that is exact;
+  the documentation carries a short example. The maintainer, 2026-11-06: "Yes, as long
   as there is a way of doing it correctly with the tools we have (or are cheap to build) and we can document it,
   that seems enough for me."
 - dec-B14: "Every draw in 1.0 stays exact: an approximate Polya-Gamma draw ... is declined", revised by dec-B592
@@ -141,7 +142,8 @@ the marks. [`dbartsDrawLatents`](../../R/augmentation.R) is a fresh draw and kee
 The proof (dec-B591): "The accept-or-keep Polya-Gamma step: where it keeps the posterior exact, and where it does
 not", 2026-11-06, checked by two independent referees, the second confirming every point of its last round. Its
 sections are cited below by name; its section "Changes the design needs" is taken in item by item ([The proof's
-changes](#the-proofs-changes)). Its TeX source and the scripts its appendix "Numerical verification" lists land in
+changes](#the-proofs-changes)). Its TeX source, the scripts its appendix "Numerical verification" lists, and the
+two referees' reports on rows that re-enter the fit (the source of the pseudo-prior route) land in
 docs/design/approximate-draws-proof/ with S1, with a short README saying how to build the PDF (no PDF is checked
 in; docs/ holds none). A design note, docs/design/approximate-draws.md, lands beside it, as
 [RNG classes and their gates](README.md#rng-classes-and-their-gates) asks of the posterior-changing class (S4);
@@ -464,25 +466,50 @@ Rows that enter the fit. The proof's result for the latent-reading sampler holds
 active set is among the larger sampler's unknowns, the target defines omega only on the active rows, so a move that
 brings row j in cannot condition on omega_j. An inactive row keeps its last omega, stale while the trees move (the
 engine skips it). At whole-number weights the returning row is marked and drawn fresh, exact either way. At a
-fractional weight, the proof's referee confirmed (reading the proof, the ruling and the engine; no runs):
+fractional weight, two independent referees found (dec-B591; their reports land with the proof in
+docs/design/approximate-draws-proof/, and the second checked by an exact finite-state example and against the
+engine on main):
 
 - A row setData adds, and a weight moving from 0 to a value the larger sampler draws, start from a value the step
-  forgets only over sweeps: exact under neither kind of larger sampler until then. The help says so, and such a
-  sampler keeps whole-number weights on those rows.
-- setActiveRows reactivating a row, and a weight toggled between 0 and a fixed w_j, are exact for a latent-reading
-  sampler on a pseudo-prior extension of the target (Carlin and Chib 1995): each inactive row carries
-  omega_j ~ PG(b_j, 0), b_j its shape when active, which does not depend on the trees, so the tree step is unchanged,
-  the frozen omega is invariant for it, and the target is the extension's marginal. Such a sampler updates each
-  row's activity from its conditional given every row's omega, the stale ones included, with the active factor over
-  the inactive one, 2^(-b_j) exp(kappa_j psi_j - omega_j psi_j^2 / 2), read from getLatents (which returns the
-  stale value at an inactive row) and getFitsWithoutOffset (fits are kept at inactive rows). No engine cost while
-  inactive omega are never touched, as today; setState carries them. It does not cover a weight drawn from 0 to a
-  new value (the ratio then needs a density evaluation) or a row setData adds.
+  forgets only over sweeps: exact under neither kind of larger sampler until then (in the second referee's exact
+  example, an activity update with the latents integrated out sits 0.0058 from the target in total variation). The
+  help says so, and such a sampler keeps whole-number weights on those rows. A drawn weight would need the ratio of
+  two PG(b, 0) densities, a density evaluation.
+- setActiveRows reactivating a row is exact for a latent-reading sampler on a pseudo-prior extension of the target
+  (Carlin and Chib 1995), proven by the two referees: each inactive row carries omega_j ~ g_j = PG(b_j, 0), b_j its
+  shape when active, which does not depend on the trees, so the tree step is unchanged (the empty-leaf rule counts
+  rows regardless of the mask), the frozen omega is invariant, and the target is the extension's marginal. Such a
+  sampler updates each row's activity from its conditional given every row's omega, the stale ones included, with
+  the active factor over the inactive one: for a logistic or hazard.logistic row, 2^(-b_j)
+  exp(kappa_j psi_j - omega_j psi_j^2 / 2) with b_j = w_j and kappa_j = w_j (y_j - 1/2), the engine's y_j in
+  [0, 1]; for a binomial row the same times the caller's C(n_j, k_j)^(w_j), which the engine never carries; for an
+  nbinom row b_j = y_j + r, kappa_j = (y_j - r) / 2, psi_j = eta_j - log r, times
+  Gamma(y_j + r) / (Gamma(r) y_j!). psi_j is getFitsWithoutOffset's value (fits are kept at inactive rows) plus the
+  caller's offset; omega_j is getLatents' (which returns the stale value at an inactive row). No engine cost while
+  inactive omega are never touched, as today; setState carries them. A row inactive from creation holds its cold
+  value, not a draw from g_j: a start effect, not a loss of invariance.
+- On nbinom the route needs r fixed: with r estimated, g_j depends on r, the r conditional gains a factor from each
+  inactive row that the engine's r step ignores, and the route is not exact. With whole-number counts and r every
+  shape is whole and fresh draws already make reactivation exact. The help says so.
+- A weight toggled between 0 and a fixed w_j takes the same route only if the frequency-weights plan's weight 0
+  skips the latent draw as the mask does; S3 checks that on that plan's build and says so in the help, or leaves the
+  toggle out of it.
 
-The pseudo-prior route is our construction, so a second independent referee checks it before S3 (dec-B591); the
-help carries it, with a two-line example of the membership step, only once that check confirms it. The proof, when
-it moves into the tree in S1, gains the scope note on its result for latent-reading samplers: "for a fixed set of
-rows; an activity change at a fractional shape is covered only on the pseudo-prior extension".
+The help carries the pseudo-prior route with a two-line example of the membership step. The proof, when it moves
+into the tree in S1, gains the scope note on its result for latent-reading samplers: "for a fixed set of rows; an
+activity change at a fractional shape is covered only on the pseudo-prior extension". The setActiveRows help's
+sentence that "a caller that draws the mask from the fit with the latents integrated out ... need not call
+setResponse" describes the inexact pattern at fractional shapes; S3 rewrites it.
+
+setData (S3). On main, setData calls the response's cold start, which resets every row's omega to w/4 (nbinom
+(y + r)/4) and clears the mask, so the step after setData starts from a cold value at every fractional row,
+persisting rows included, and dec-B607's "served by the step from their installed values" would not hold. S3
+realizes the ruling's words: setData keeps each persisting row's omega when the row count is unchanged (rows
+matched by position), and cold-starts only the rows it adds, or every row when the count changes. At whole-number
+shapes the marked rows are drawn fresh anyway, so no current draw moves. This revises dec-A263's internal call
+that setData starts the latents as creation does, for the latents alone (dec-B589's kept parameters stand). A test
+pins it: after setData with the same row count, a fractional row's omega equals the one before, and a whole-number
+fit's draws are unchanged.
 
 The example (S3), in the help page on running the sampler inside a larger one (man/dbarts-embedding.Rd), pointed
 to from getLatents and the setters: a logistic random-intercept sampler with groups g and intercepts u_g ~ N(0, tau^2), tau fixed. Each
@@ -629,11 +656,11 @@ dec-B593's.
 |---|---|---|---|---|
 | S1 | the certified PG density, f and q, at every x > 0 for every reachable (b, psi): the parabolic contour through the saddle with its a priori bound; the tilted, cancellation-free form; the lead and the cached value in double-double with five double-double functions with bounds; rounding carried rigorously; q from the sampler's own rates; the cheaper certificate, its settings fixed before any evaluation and its open pieces proven before timing and checked by an independent referee before the timing gate is read; pins against reference tables generated in Arb and checked in (tests/cpp cannot call Arb); the double-double functions' gate; the floor gate; the timing gate on the x86 box and b*; the proof's source and scripts moved into docs/design/approximate-draws-proof/ with a README, and the design note | engine, neutral | 1,950 | 27 |
 | S2 | the per-row marks; the route at the sweep's start for logistic, binomial, hazard.logistic, fixed- and estimated-r nbinom (psi_i = eta_i - log r); marked rows at whole shapes by the sum; the per-row rule by b*(\|psi_i\|) once ruled; the moved-r rule; the cache keyed on the point, if S1's timings call for it; the K rule from D's closed form with r_1 rounded down; the decision on enclosures with an interval uniform of at least 53 bits from the Mersenne-Twister words; close calls kept, counted per chain, read by a sampler accessor, warned by run() and carried on bart2, bart and rbart fits, with a test-only setting that provokes them; the cancel between rows; the setting's engine side and an internal R switch forcing the method, ahead of S5's door; the joint-distribution harnesses for the Polya-Gamma families; an equivalence scenario of binomial rows above b* | engine, shifting where selected, with a small R piece for the count and the switch | 1,750 | 24 |
-| S3 | real weights under the route on logistic, binomial, hazard.logistic; every setter and setState taken at fractional shapes, marked rows served by the step; the help passage of the setters and getLatents, with the clause on rows that enter the fit, and the pseudo-prior route with its two-line example once the second referee confirms it; the example, its tinytest and the outer-step gate's fractional arms; an equivalence scenario at fractional weights; the frequency-weights plan's interaction paragraph brought up to date | engine plus R surface | 450 | 10 |
+| S3 | real weights under the route on logistic, binomial, hazard.logistic; every setter and setState taken at fractional shapes, marked rows served by the step; setData keeping each persisting row's omega at an unchanged row count, with its test; the help passage of the setters and getLatents, with the clause on rows that enter the fit, the pseudo-prior route with its two-line example (r fixed on nbinom), and the setActiveRows sentence on integrated-out masks rewritten; the example, its tinytest and the outer-step gate's fractional arms; an equivalence scenario at fractional weights; the frequency-weights plan's interaction paragraph brought up to date | engine plus R surface | 500 | 11 |
 | S4 | the series as an approximate method for all PG families including multinomial, its terms chosen per row from the tolerance by a table computed once by inversion (0 terms, the gamma, at the loose end); the normal only if step 10's check passes it; the design note's section for it | engine, posterior-changing where selected | 300 | 6 |
 | S5 | the setting at the doors users reach: the method by name, NULL the automatic rule, and a separate tolerance read only by the approximate method (dec-B593), the names put to the maintainer with the four calls below; a forced route on multinomial and a forced sum at fractional weights refused by name; dec-B202's cap message corrected; help quoting the engine's measured floor, unmeasured above \|psi\| 150, and the close-call count; NEWS; dec-B591's teensy vignette if S1 leaves the route a case worth motivating | R surface | 500 | 8 |
 
-The sizing, re-audited after the critique: about 4,950 written lines and 75 agent-hours, against the critic's
+The sizing, re-audited after the critique: about 5,000 written lines and 76 agent-hours, against the critic's
 4,450 and 69 and the previous 3,700 and 56. Per slice:
 
 - S1, 1,950 lines and 27 hours (critic 1,800 and 26; previously 1,500 and 20). Added: the double-double functions'
@@ -647,10 +674,11 @@ The sizing, re-audited after the critique: about 4,950 written lines and 75 agen
   higher than the critic's); the test-only setting, the accessor and the fit fields beyond the earlier count (about
   100 lines, 1.5 hours); the internal switch and the new equivalence scenario under its oracle (about 60 lines, 1
   hour). Without the cache, about 100 lines and 1.5 hours less.
-- S3, 450 lines and 10 hours (previously 450 and 8; the critic gave no figure). The quadrature arms go (about 130
+- S3, 500 lines and 11 hours (previously 450 and 8; the critic gave no figure). The quadrature arms go (about 130
   lines less); the 20-line fractional arms, the tinytest, the mutant arms, the fractional equivalence scenario and
-  the frequency-weights edit come; the second referee's check of the pseudo-prior route (1 hour), its help passage
-  and example, and the gate's longer runs add 2 hours net.
+  the frequency-weights edit come; setData keeping omega at persisting rows with its test (about 50 lines, 1.5
+  hours), the pseudo-prior help passage and example and the setActiveRows rewrite (1 hour), and the gate's longer
+  runs add 3 hours net, to 500 lines and 11 hours. The two referees' checks are done and not counted here.
 - S4, 300 lines and 6 hours, unchanged; a tolerance separate from the name costs as the single overloaded setting
   did.
 - S5, 500 lines and 8 hours (previously 450 and 7): the two refusals by name, the cap message and the floor's
@@ -814,8 +842,8 @@ Left to the build, with the evidence named:
   pays, and written in S5 if it does.
 
 Checks by independent referees (dec-B591), before the step they gate: S1's own proofs, before its timing gate is
-read; the pseudo-prior route for rows that re-enter at fractional weights, before S3, the help carrying it only
-once confirmed.
+read. The pseudo-prior route for rows that re-enter at fractional weights is checked by two referees and cited as
+proven.
 
 The 53-bit uniform formed from the Mersenne-Twister words is a build detail, not a call.
 
@@ -852,7 +880,7 @@ The 53-bit uniform formed from the Mersenne-Twister words is a build detail, not
    referee; its double-double, floor and timing gates; then to the maintainer with the timings for the threshold's
    dependence on |psi|, and for S1 itself if either of its two decision gates fails.
 8. S2 through its tier, with the C-header call put at its start.
-9. The second referee's check of the pseudo-prior route; frequency-weights landed; then S3 through its tier.
+9. frequency-weights landed; then S3 through its tier.
 10. Before S4: time 2,000 rows at 25 and 50 trees on the scratch build (about 0.2 core-hours); the normal is
     built in S4 if it passes the rule there (about 30 lines).
 11. S4, then S5, with S5's calls put to the maintainer.
@@ -888,8 +916,10 @@ The 53-bit uniform formed from the Mersenne-Twister words is a build detail, not
   design's refusals at the other setters, both replaced by dec-B607's taking every setter; and its fallback to B'
   on a failed floor gate, which dec-B606 makes a return to the maintainer.
 - From the blind critique of the amended plan: all 18 amendments ([The second critique](#the-second-critique)).
-- From the proof's referee on rows that re-enter the fit: the critic's claim confirmed for rows setData adds and
-  weights drawn from 0, refuted for reactivation and fixed-weight toggles, which the pseudo-prior route covers.
+- From the two referees on rows that re-enter the fit: the critic's claim confirmed for rows setData adds and
+  weights drawn from 0, refuted for reactivation, which the pseudo-prior route covers (r fixed on nbinom; a
+  fixed-weight toggle only if weight 0 skips the draw); the second's corrections to the factor (kappa, the binomial
+  and nbinom constants); and its finding that setData cold-starts every row on main, which S3 changes.
 
 ## Review amendments
 
@@ -922,8 +952,9 @@ orchestrator amended them:
 7. c_R the four-evaluation cost, the maximum over z; b* from S1's timings alone: [The per-row rule](#the-per-row-rule).
 8. b* the timed value or 64, whichever is larger: the same, Constraints.
 9. Rows that enter the fit at fractional weights: the claim put to the proof's referee, who confirmed it for added
-   rows and drawn weights and found the pseudo-prior route for reactivation and fixed toggles, itself to be checked
-   by a second referee before S3: [Setters and marked rows](#setters-and-marked-rows).
+   rows and drawn weights and found the pseudo-prior route for reactivation; a second referee confirmed the route
+   (r fixed on nbinom, a fixed-weight toggle only if weight 0 skips the draw), corrected its factor, and found
+   setData cold-starting every row, which S3 changes: [Setters and marked rows](#setters-and-marked-rows).
 10. The close-call count testable through a test-only setting, read by an accessor, warned by run(), on the fits;
     the C header's reader an open call at S2: the route (the decision), [Calls left open](#calls-left-open).
 11. Order with frequency-weights; that plan's paragraph brought up to date in S3; dbartsDrawLatents keeps refusing:
@@ -991,8 +1022,8 @@ Each item of the proof's "Changes the design needs", and where it is built:
 - The cost of the table of terms behind the tolerance, estimated, not built.
 - How large the real step's bias under the integrating outer step is in the gate's design: S3 measures and
   reports it, and the help quotes it.
-- The pseudo-prior route for rows that re-enter at fractional weights: one referee's reading, a second referee's
-  check pending before S3.
+- The pseudo-prior route at a fixed-weight toggle: it holds only if the frequency-weights plan's weight 0 skips the
+  latent draw as the mask does, which S3 checks on that plan's build.
 - The compute figures per gate: arithmetic from the proof's per-step costs and the harnesses' sizes, not runs; the
   simulation-based calibration figure assumes the logistic arm's sizes.
 - The saddle-point sampler's cost (WPS Table 1) and BayesLogit's switching points (the critique's reading).
