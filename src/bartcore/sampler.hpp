@@ -602,6 +602,18 @@ public:
       Results::strideOr(results.varianceTestFitsStride, nTest);
     size_t forestStride =
       Results::strideOr(results.forestFitsStride, forestDraw);
+    size_t glueDraw = totalAmplitudes();
+    size_t countDraw = data_.numPredictors * numVarCountForests;
+    size_t splitDraw = data_.numPredictors;
+    size_t glueStride = Results::strideOr(results.glueStride, glueDraw);
+    size_t countStride =
+      Results::strideOr(results.variableCountsStride, countDraw);
+    size_t splitStride =
+      Results::strideOr(results.splitProbabilitiesStride, splitDraw);
+    size_t logLikelihoodStride =
+      Results::strideOr(results.logLikelihoodStride, n);
+    size_t thresholdStride =
+      Results::strideOr(results.ordinalThresholdsStride, numOrdinalThresholds);
     auto chainSlab = [numSamples](size_t stride, size_t drawExtent) {
       return stride == 0 ? drawExtent : numSamples * stride;
     };
@@ -616,6 +628,11 @@ public:
       r.varianceFitsStride = varianceStride;
       r.varianceTestFitsStride = varianceTestStride;
       r.forestFitsStride = forestStride;
+      r.glueStride = glueStride;
+      r.variableCountsStride = countStride;
+      r.splitProbabilitiesStride = splitStride;
+      r.logLikelihoodStride = logLikelihoodStride;
+      r.ordinalThresholdsStride = thresholdStride;
       if (results.sigma != nullptr) r.sigma = results.sigma + c * numSamples;
       if (results.k != nullptr) r.k = results.k + c * numSamples;
       if (results.trainingFits != nullptr)
@@ -624,17 +641,17 @@ public:
       if (results.testFits != nullptr)
         r.testFits = results.testFits + c * chainSlab(testStride, testDraw);
       if (results.variableCounts != nullptr)
-        r.variableCounts = results.variableCounts +
-          c * numSamples * data_.numPredictors * numVarCountForests;
+        r.variableCounts =
+          results.variableCounts + c * chainSlab(countStride, countDraw);
       if (results.splitProbabilities != nullptr)
         r.splitProbabilities =
-          results.splitProbabilities + c * numSamples * data_.numPredictors;
+          results.splitProbabilities + c * chainSlab(splitStride, splitDraw);
       if (results.logLikelihood != nullptr)
         r.logLikelihood =
-          results.logLikelihood + c * numSamples * data_.numObservations;
+          results.logLikelihood + c * chainSlab(logLikelihoodStride, n);
       if (results.ordinalThresholds != nullptr)
-        r.ordinalThresholds =
-          results.ordinalThresholds + c * numSamples * numOrdinalThresholds;
+        r.ordinalThresholds = results.ordinalThresholds +
+          c * chainSlab(thresholdStride, numOrdinalThresholds);
       if (results.shape != nullptr)
         r.shape = results.shape + c * numSamples;
       if (results.residualDf != nullptr)
@@ -653,8 +670,17 @@ public:
         r.forestFits =
           results.forestFits + c * chainSlab(forestStride, forestDraw);
       if (results.glue != nullptr)
-        r.glue = results.glue + c * numSamples * totalAmplitudes();
+        r.glue = results.glue + c * chainSlab(glueStride, glueDraw);
     }
+
+    // A registered observer receives every channel the fit carries: each one
+    // the caller leaves null gets one draw per chain of scratch, owned by this
+    // frame so every exit frees it, and a stride of zero, so each draw of a
+    // chain overwrites that chain's block. No observer, nothing allocated.
+    std::vector<double> observerScratch;
+    std::vector<std::uint32_t> observerCounts;
+    if (onDraw.fn != nullptr)
+      provideObserverScratch(chainResults, observerScratch, observerCounts);
 
     if (options_.verbose) ext_printf("Running mcmc loop:\n");
     std::chrono::steady_clock::time_point startTime =
@@ -809,6 +835,73 @@ public:
 
     if (options_.verbose) printTerminalSummary();
     return false;
+  }
+
+  /// Points each per-draw array channel the fit carries and \p chainResults
+  /// leaves null at one draw of scratch per chain, chain c's at the c-th block,
+  /// with that channel's stride set to zero. Every chain carries the same
+  /// channels, so chain 0 answers for all. The doubles share \p doubles and
+  /// the variable counts take \p counts; both are sized here and outlive the
+  /// run.
+  void provideObserverScratch(std::vector<Results>& chainResults,
+                              std::vector<double>& doubles,
+                              std::vector<std::uint32_t>& counts) const {
+    const Results& first = chainResults[0];
+    const CarriedChannels carried = chains_[0]->carriedChannels();
+    size_t numChains = chainResults.size();
+    size_t n = data_.numObservations, nTest = data_.numTestObservations;
+    size_t numLocations = first.numReportedLocations;
+
+    // the offsets are claimed first and the pointers set after the one
+    // allocation, which a later claim would otherwise move
+    struct Claim {
+      double* Results::*channel;
+      std::size_t Results::*stride;
+      size_t offset, extent;
+    };
+    Claim claims[10];
+    size_t numClaims = 0, total = 0;
+    auto claim = [&](double* Results::*channel, std::size_t Results::*stride,
+                     bool present, size_t extent) {
+      if (!present || first.*channel != nullptr || extent == 0) return;
+      claims[numClaims++] = Claim{channel, stride, total, extent};
+      total += extent * numChains;
+    };
+    claim(&Results::trainingFits, &Results::trainingFitsStride, true,
+          n * numLocations);
+    claim(&Results::testFits, &Results::testFitsStride, carried.test,
+          nTest * numLocations);
+    claim(&Results::varianceFits, &Results::varianceFitsStride,
+          carried.varianceFits, n);
+    claim(&Results::varianceTestFits, &Results::varianceTestFitsStride,
+          carried.varianceTestFits, nTest);
+    claim(&Results::forestFits, &Results::forestFitsStride,
+          carried.forestReporting, n * numForests());
+    claim(&Results::glue, &Results::glueStride, carried.forestReporting,
+          totalAmplitudes());
+    claim(&Results::splitProbabilities, &Results::splitProbabilitiesStride,
+          carried.splitProbabilities, data_.numPredictors);
+    claim(&Results::logLikelihood, &Results::logLikelihoodStride,
+          carried.logLikelihood, n);
+    claim(&Results::ordinalThresholds, &Results::ordinalThresholdsStride,
+          carried.ordinalThresholds, numOrdinalThresholds());
+
+    doubles.resize(total);
+    for (size_t k = 0; k < numClaims; ++k)
+      for (size_t c = 0; c < numChains; ++c) {
+        chainResults[c].*(claims[k].channel) =
+          doubles.data() + claims[k].offset + c * claims[k].extent;
+        chainResults[c].*(claims[k].stride) = 0;
+      }
+
+    if (first.variableCounts == nullptr) {
+      size_t extent = data_.numPredictors * first.numVariableCountForests;
+      counts.resize(extent * numChains);
+      for (size_t c = 0; c < numChains; ++c) {
+        chainResults[c].variableCounts = counts.data() + c * extent;
+        chainResults[c].variableCountsStride = 0;
+      }
+    }
   }
 
   /// End-of-run report: accumulated loop time, leaf counts per tree, and
@@ -2886,7 +2979,20 @@ public:
   ResponseFamily family() const { return family_; }
   double sigma(size_t chainNum = 0) const { return chains_[chainNum]->sigma(); }
   double k(size_t chainNum = 0) const { return chains_[chainNum]->k(); }
-  bool kIsSampled() const { return options_.updateK; }
+  /// Whether a run records k: the reported forest draws it, or a forest of a
+  /// group sharing one prior total does, under the model as it now stands, so
+  /// the answer follows setLeafPrior, setModel and setForest rather than the
+  /// creation option. Chain 0 answers for all, every chain carrying the model.
+  bool kIsSampled() const {
+    const Chain<L, ResidT>& chain = *chains_[0];
+    if (chain.forestCalibration(0).kHasHyperprior) return true;
+    for (size_t f = 1; f < numForests(); ++f) {
+      const ForestCalibration calibration = chain.forestCalibration(f);
+      if (std::isfinite(calibration.share) && calibration.kHasHyperprior)
+        return true;
+    }
+    return false;
+  }
   bool usesDart() const { return options_.useDart; }
   const ColumnStore& data() const { return data_; }
   const Chain<L, ResidT>& chain(size_t chainNum) const { return *chains_[chainNum]; }

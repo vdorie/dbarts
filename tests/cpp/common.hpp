@@ -94,6 +94,15 @@ inline bool rngStreamsAgree(ext_rng* a, ext_rng* b, int numDraws = 32) {
   return true;
 }
 
+// Two draw vectors equal to the bit, NaN in the same place included: a
+// heteroscedastic sampler records sigma as NaN, which == never equals.
+inline bool sameBits(const std::vector<double>& a,
+                     const std::vector<double>& b) {
+  return a.size() == b.size() &&
+         (a.empty() || std::memcmp(a.data(), b.data(),
+                                   a.size() * sizeof(double)) == 0);
+}
+
 // A canonical fingerprint of a tree's live structure alone (which nodes are
 // split and on what), so a chain that MOVES can be told from one that only
 // redraws its leaf parameters.

@@ -3418,7 +3418,93 @@ static void testEmptyTestStore() {
   printf("ok: rowless test store\n");
 }
 
+// The uniform rule over a span that overflows (ends of opposite signs near
+// DBL_MAX) gives finite points strictly increasing inside the range, where the
+// increment loop gave Inf at every point; over a finite span it is the
+// increment loop to the bit. A column over such a span builds that grid on the
+// dense and the sparse store, an implicit zero seeding the sparse range.
+static void testUniformGridOverflow() {
+  const double top = std::numeric_limits<double>::max();
+  ColumnStore store;
+  const double seed[] = {0.0, 1.0};
+  built(store.build(seed, 2, 1, 1));
+  auto fill = [&](double lo, double hi, std::uint32_t count) {
+    store.requestedNumCuts[0] = count;
+    store.fillCutsOverRange(0, lo, hi);
+    return store.cutPoints[0];
+  };
+  const std::pair<double, double> overflowing[] = {
+    {-1.7e308, 1.7e308}, {-top, top}, {-9e307, top}};
+  bool sound = true;
+  for (const auto& range : overflowing)
+    for (std::uint32_t count : {10u, 100u}) {
+      std::vector<double> cuts = fill(range.first, range.second, count);
+      sound &= cuts.size() == count;
+      for (size_t k = 0; k < cuts.size(); ++k) {
+        sound &= std::isfinite(cuts[k]) && cuts[k] > range.first &&
+                 cuts[k] < range.second;
+        if (k > 0) sound &= cuts[k] > cuts[k - 1];
+      }
+    }
+  check(sound, "uniform grid over an overflowing span: finite, strictly "
+               "increasing, inside the range");
+
+  bool bitwise = true;
+  const std::pair<double, double> finite[] = {{0.0, 1.0}, {-3.0, 7.0}};
+  for (const auto& range : finite)
+    for (std::uint32_t count : {10u, 100u}) {
+      std::vector<double> cuts = fill(range.first, range.second, count);
+      double increment =
+        (range.second - range.first) / static_cast<double>(count + 1);
+      std::vector<double> old(count);
+      for (std::uint32_t k = 0; k < count; ++k)
+        old[k] = range.first + static_cast<double>(k + 1) * increment;
+      bitwise &= cuts.size() == old.size() &&
+                 std::memcmp(cuts.data(), old.data(),
+                             old.size() * sizeof(double)) == 0;
+    }
+  check(bitwise, "uniform grid over a finite span: the increment loop, to "
+                 "the bit");
+
+  // 40 values from -1e308 to 1e308, five cuts; the sparse column holds zeros
+  const size_t n = 40;
+  std::vector<double> x(n);
+  const double step = 1e308 / 39.0 * 2.0;
+  for (size_t i = 0; i < n; ++i)
+    x[i] = -1e308 + static_cast<double>(i) * step;
+  ColumnStore dense;
+  built(dense.build(x.data(), n, 1, 5));
+  bool denseSound = dense.numCuts[0] == 5;
+  for (double cut : dense.cutPoints[0]) denseSound &= std::isfinite(cut);
+  check(denseSound, "uniform grid over a +-1e308 dense column: 5 finite cuts");
+
+  std::vector<double> values;
+  std::vector<int> rows;
+  for (size_t i = 0; i < n; ++i)
+    if (i % 4 != 0) {
+      values.push_back(x[i]);
+      rows.push_back(static_cast<int>(i));
+    }
+  const int pointers[2] = {0, static_cast<int>(values.size())};
+  const std::int32_t sources[1] = {~0};
+  PredictorSource sparse;
+  sparse.columnSources = sources;
+  sparse.numRows = n;
+  sparse.numColumns = 1;
+  sparse.cscColumnPointers = pointers;
+  sparse.cscRowIndices = rows.data();
+  sparse.cscValues = values.data();
+  ColumnStore csc;
+  built(csc.build(sparse, nullptr, 5u, false));
+  bool sparseSound = csc.numCuts[0] == 5;
+  for (double cut : csc.cutPoints[0]) sparseSound &= std::isfinite(cut);
+  check(sparseSound,
+        "uniform grid over a +-1e308 sparse column with zeros: 5 finite cuts");
+  printf("ok: uniform grid over an overflowing span\n");
+}
+
 void runDataTests() {
+  testUniformGridOverflow();
   testCodeThresholdBelow();
   testColumnStoreCodes();
   testColumnKindAxis();

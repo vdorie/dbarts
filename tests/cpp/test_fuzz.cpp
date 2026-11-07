@@ -683,15 +683,18 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
         ++sweeps;
         snprintf(line, sizeof line, "op%d %s", op, fuzzOpName[kind]);
         record(line);
+        // a variance forest has no single residual scale: its sigma is NaN
+        bool heteroscedastic = s.hasVarianceForest();
         bool finite = true;
         for (double v : tf) finite &= std::isfinite(v);
-        for (double v : sig) finite &= std::isfinite(v);
+        for (double v : sig)
+          finite &= heteroscedastic ? std::isnan(v) : std::isfinite(v);
         // I3, liveness: every reported draw is finite. It discriminates the
         // reporting slab that was never sized or never written - the coarsest
         // of the four, and the only one that fires before a value is
         // comparable to anything at all.
         if (!finite) fail("run produced non-finite draws");
-        if (spec.family == ResponseFamily::gaussian)
+        if (spec.family == ResponseFamily::gaussian && !heteroscedastic)
           for (double v : sig)
             if (!(v > 0.0)) fail("run produced non-positive sigma");
         // I1, multinomial parts identity: the reported channel IS softmax over

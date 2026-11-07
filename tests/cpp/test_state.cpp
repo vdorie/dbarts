@@ -1643,6 +1643,29 @@ static void testDegenerateGridRestores(ext_rng* rng) {
   check(cutGridIsValid(cuts1.data(), cuts1.size()) &&
           !cutGridIsValid(repeated, 4) && cutGridIsValid(repeated, 2),
         "a grid is valid only where it strictly increases");
+
+  // the finite floor: an infinite end, either end, or a NaN
+  const double inf = std::numeric_limits<double>::infinity();
+  const double topInfinite[] = {0.5, inf}, bottomInfinite[] = {-inf, 0.5},
+               notANumber[] = {std::numeric_limits<double>::quiet_NaN()},
+               lone[] = {inf};
+  check(!cutGridIsValid(topInfinite, 2) && !cutGridIsValid(bottomInfinite, 2) &&
+          !cutGridIsValid(notANumber, 1) && !cutGridIsValid(lone, 1),
+        "a grid is valid only where every point is finite");
+  SamplerStateData before;
+  sampler.getState(before);
+  bad = state;
+  bad.cutPoints[0].back() = inf;
+  check(!sampler.setState(bad, nullptr), "setState rejects a grid ending at Inf");
+  bad = state;
+  bad.cutPoints[0].front() = -inf;
+  check(!sampler.setState(bad, nullptr),
+        "setState rejects a grid starting at -Inf");
+  SamplerStateData after;
+  sampler.getState(after);
+  check(samplerStatesAgree(before, after) && sampler.data().cutPoints[0] ==
+                                                state.cutPoints[0],
+        "a refused infinite grid leaves the sampler as it was");
   printf("ok: degenerate grid restores\n");
 }
 
@@ -6776,10 +6799,13 @@ static void testLiveGridInstall() {
   ConstantLeafSampler& sampler = *live;
   SamplerStateData own, got, other;
   sampler.getState(own);
+  // the fits and the variance surface: a heteroscedastic sampler records no
+  // single sigma
   auto sigmaDraws = [](ConstantLeafSampler& from) {
-    std::vector<double> draws(5 * numChains);
+    std::vector<double> draws(2 * 5 * numChains * n);
     Results results;
-    results.sigma = draws.data();
+    results.trainingFits = draws.data();
+    results.varianceFits = draws.data() + 5 * numChains * n;
     from.run(0, 5, results);
     return draws;
   };

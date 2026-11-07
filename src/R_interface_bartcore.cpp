@@ -1182,8 +1182,7 @@ void readCutPointsRecord(ParsedData& data, SEXP recordExpr) {
       points.assign(REAL(entryExpr), REAL(entryExpr) + Rf_xlength(entryExpr));
     bool valid = data.columnTypes[j] != bartcore::ColumnKind::categorical &&
       Rf_isReal(entryExpr) &&
-      bartcore::cutGridIsValid(points.data(), points.size()) &&
-      std::isfinite(points.front()) && std::isfinite(points.back());
+      bartcore::cutGridIsValid(points.data(), points.size());
     if (!valid)
       Rf_error("the data's 'cutPoints' record for predictor %d must be NULL "
                "on an unordered factor and otherwise strictly increasing "
@@ -6077,12 +6076,11 @@ static void readRunCounts(SEXP numBurnInExpr, SEXP numSamplesExpr,
 // undefined behavior and in practice a crash, so a callback that cannot know
 // which run it is in records its own status and returns nonzero.
 //
-// Two facts about what the observer sees through this entry. The
-// log-likelihood channel is never allocated here, so draw.logLikelihood is
-// always null on the bridge path whatever the family reports. And with no test
-// rows the test channel's NATURAL per-draw stride is zero, which is also the
-// opt-out sentinel - harmless, because the same condition leaves the pointer
-// null and nothing addresses it.
+// The observer sees every channel the fit carries: the engine run gives it
+// scratch for each one this entry does not keep, the log-likelihood included.
+// With no test rows the test channel's NATURAL per-draw stride is zero, which
+// is also the opt-out sentinel - harmless, because the same condition leaves
+// the pointer null and nothing addresses it.
 static bartcore_bridge::ShippedDrawHook bartcore_drawHook(SEXP fnExpr,
                                                           SEXP contextExpr) {
   bartcore_bridge::ShippedDrawHook hook;
@@ -6267,16 +6265,10 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
               : allocWideChannel(REALSXP, numTestObservations, numLocations));
   SEXP varcountExpr = installChannel(
     "varcount", allocWideChannel(INTSXP, numPredictors, numVCForests));
-  // k is recorded when the reported forest draws it now, which a setLeafPrior
-  // can change after creation in either direction; the shape's flag is the
-  // creation option and does not follow it
-  // the forests sharing one total record the group's k, wherever they stand
-  bool kIsDrawn = sampler.forestCalibration(0, 0).kHasHyperprior;
-  for (std::size_t f = 1; !kIsDrawn && f < shape.numForests; ++f) {
-    const bartcore::ForestCalibration calibration =
-      sampler.forestCalibration(0, f);
-    kIsDrawn = std::isfinite(calibration.share) && calibration.kHasHyperprior;
-  }
+  // k is recorded when the reported forest, or a group sharing one total,
+  // draws it under the model as it now stands, which a setLeafPrior can
+  // change after creation in either direction
+  bool kIsDrawn = shape.kIsSampled;
   SEXP kExpr =
     installChannel("k", !kIsDrawn ? R_NilValue : allocScalarChannel());
   SEXP varprobsExpr = installChannel(
@@ -7991,6 +7983,12 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
       for (R_xlen_t i = 0; i < numCuts; ++i)
         if (bartcore::isNA(cuts[i]))
           Rf_error("$setCutPoints: 'cuts' must not contain NA or NaN");
+      // a cut at Inf is never a split, and one at -Inf separates exactly what
+      // -DBL_MAX does; neither is a grid the sampler's record can hold
+      for (R_xlen_t i = 0; i < numCuts; ++i)
+        if (!std::isfinite(cuts[i]))
+          Rf_error("$setCutPoints: 'cuts' must be finite; a cut at "
+                   "-.Machine$double.xmax separates values at -Inf");
       if (!bartcore::cutGridIsValid(cuts, static_cast<size_t>(numCuts)))
         Rf_error("$setCutPoints: a cut point may appear only once in "
                  "'cuts'; for more splits near a value, give a denser grid "

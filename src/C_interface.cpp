@@ -608,9 +608,9 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
         FILL(shape, shape);
         FILL(residualDf, residualDf);
 #undef FILL
-        // the header leaves k untouched without a k hyperprior; this follows
-        // the creation option, which the flat API has no setter to change.
-        // The engine writes k wherever the pointer is non-null
+        // the header leaves k untouched where no forest draws it under the
+        // model as it now stands; the engine writes k wherever the pointer is
+        // non-null
         if (!shape.kIsSampled) engineResults.k = NULL;
       }
 

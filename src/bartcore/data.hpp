@@ -103,12 +103,14 @@ inline bool isNA(double value) { return value != value; }
 enum class SplitPlacement { byPosition, byValue };
 
 /// Whether an ordinal column's grid of numCuts points is one the store can
-/// hold: 1 to maxNumCutsRepresentable cuts, none NaN, and strictly
+/// hold: 1 to maxNumCutsRepresentable cuts, all finite, and strictly
 /// increasing, so each point is held once and a split's value names one
-/// position. A NaN fails the negated comparison, so the loop catches it past
-/// the first cut.
+/// position. Finite ends and a strict increase make every point finite, and a
+/// NaN fails the negated comparison, so the loop catches it past the first
+/// cut.
 inline bool cutGridIsValid(const double* cuts, size_t numCuts) {
-  if (numCuts < 1 || numCuts > maxNumCutsRepresentable || isNA(cuts[0]))
+  if (numCuts < 1 || numCuts > maxNumCutsRepresentable ||
+      !std::isfinite(cuts[0]) || !std::isfinite(cuts[numCuts - 1]))
     return false;
   for (size_t k = 1; k < numCuts; ++k)
     if (!(cuts[k] > cuts[k - 1])) return false;
@@ -1313,13 +1315,26 @@ struct ColumnStore {
   /// The uniform rule's count and fill, the one place both are decided:
   /// requestedNumCuts[j] evenly spaced points inside [xMin, xMax], each kept
   /// once, so a range narrower than the points resolve holds fewer and a
-  /// range of no width one point at its value.
+  /// range of no width one point at its value. The ends are finite. A span
+  /// that overflows (ends of opposite signs near DBL_MAX) takes the convex
+  /// form xMin (1 - t) + xMax t, whose terms are each bounded by an end, so
+  /// every point is finite; every finite span keeps the increment loop, bit
+  /// for bit.
   void fillCutsOverRange(size_t j, double xMin, double xMax) {
     numCuts[j] = requestedNumCuts[j];
     cutPoints[j].resize(numCuts[j]);
-    double increment = (xMax - xMin) / static_cast<double>(numCuts[j] + 1);
-    for (std::uint32_t k = 0; k < numCuts[j]; ++k)
-      cutPoints[j][k] = xMin + static_cast<double>(k + 1) * increment;
+    double divisor = static_cast<double>(numCuts[j] + 1);
+    double span = xMax - xMin;
+    double increment = span / divisor;
+    if (std::isfinite(span)) {
+      for (std::uint32_t k = 0; k < numCuts[j]; ++k)
+        cutPoints[j][k] = xMin + static_cast<double>(k + 1) * increment;
+    } else {
+      for (std::uint32_t k = 0; k < numCuts[j]; ++k) {
+        double t = static_cast<double>(k + 1) / divisor;
+        cutPoints[j][k] = xMin * (1.0 - t) + xMax * t;
+      }
+    }
     dropRepeatedCuts(j);
   }
 

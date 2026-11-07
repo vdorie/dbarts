@@ -1163,6 +1163,232 @@ static void testDrawCallbackBCFNullChannels() {
   printf("ok: per-draw callback null channels under BCF\n");
 }
 
+// What an observer saw: per chain, which channels were non-null on every call
+// and a copy of each at one draw. Chains write only their own slot.
+namespace {
+enum ObservedChannel : unsigned {
+  seenTrain = 1u << 0, seenTest = 1u << 1, seenVariance = 1u << 2,
+  seenVarianceTest = 1u << 3, seenForestFits = 1u << 4, seenGlue = 1u << 5,
+  seenSplit = 1u << 6, seenLogLikelihood = 1u << 7, seenThresholds = 1u << 8,
+  seenVarcount = 1u << 9
+};
+struct ChannelCopy {
+  unsigned mask = 0;
+  bool maskSteady = true;
+  size_t calls = 0;
+  std::vector<double> train, test, variance, varianceTest, forestFits, glue,
+    split, logLikelihood, thresholds;
+  std::vector<std::uint32_t> varcount;
+  double sigma = 0.0;
+};
+struct ChannelRecorder {
+  size_t target = 1;
+  std::vector<ChannelCopy> chains;
+};
+}  // namespace
+
+static int channelRecorderCallback(void* context, const DrawInfo* draw) {
+  ChannelRecorder& recorder = *static_cast<ChannelRecorder*>(context);
+  if (draw->chainIndex >= recorder.chains.size()) return 1;
+  ChannelCopy& copy = recorder.chains[draw->chainIndex];
+  unsigned mask = (draw->train ? seenTrain : 0u) |
+    (draw->test ? seenTest : 0u) | (draw->varianceFits ? seenVariance : 0u) |
+    (draw->varianceTestFits ? seenVarianceTest : 0u) |
+    (draw->forestFits ? seenForestFits : 0u) | (draw->glue ? seenGlue : 0u) |
+    (draw->splitProbabilities ? seenSplit : 0u) |
+    (draw->logLikelihood ? seenLogLikelihood : 0u) |
+    (draw->ordinalThresholds ? seenThresholds : 0u) |
+    (draw->varcount ? seenVarcount : 0u);
+  if (copy.calls == 0) copy.mask = mask;
+  else if (mask != copy.mask) copy.maskSteady = false;
+  ++copy.calls;
+  if (draw->drawIndex != recorder.target) return 0;
+  size_t n = draw->numObservations, nTest = draw->numTestObservations;
+  size_t locations = draw->numReportedLocations;
+  auto take = [](std::vector<double>& to, const double* from, size_t extent) {
+    if (from != nullptr) to.assign(from, from + extent);
+  };
+  take(copy.train, draw->train, n * locations);
+  take(copy.test, draw->test, nTest * locations);
+  take(copy.variance, draw->varianceFits, n);
+  take(copy.varianceTest, draw->varianceTestFits, nTest);
+  take(copy.forestFits, draw->forestFits, n * draw->numForests);
+  take(copy.glue, draw->glue, draw->numAmplitudes);
+  take(copy.split, draw->splitProbabilities, draw->numPredictors);
+  take(copy.logLikelihood, draw->logLikelihood, n);
+  take(copy.thresholds, draw->ordinalThresholds, draw->numOrdinalThresholds);
+  if (draw->varcount != nullptr)
+    copy.varcount.assign(draw->varcount,
+                         draw->varcount +
+                           draw->numPredictors * draw->numVariableCountForests);
+  copy.sigma = draw->sigma;
+  return 0;
+}
+
+// A registered observer receives every channel the fit carries whether or not
+// the caller stores it: over an empty Results, on two chains running on two
+// threads, each carried channel is non-null on every call, every other one is
+// null, and each equals what a twin storing every channel recorded at the
+// same draw. So storing or not moves no draw either. A variance forest's
+// sigma is NaN in the draw and in the stored slab.
+static void testDrawCallbackCarriesEveryChannel() {
+  const size_t n = 120, p = 3, nTest = 15, numChains = 2, numBurnIn = 5,
+               numSamples = 3;
+  std::uint64_t savedRngState = rngState;
+  rngState = 20261107u;
+  std::vector<double> x(n * p), y(n), z(n), ordinal(n), xTest(nTest * p);
+  for (double& v : x) v = runif01();
+  for (double& v : xTest) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    z[i] = runif01() < 0.5 ? 1.0 : 0.0;
+    y[i] = x[i] + z[i] * (1.0 + x[i + 2 * n]) +
+      (0.2 + x[i + n]) * (runif01() - 0.5);
+    double s = x[i] + 0.4 * (runif01() - 0.5);
+    ordinal[i] = s < 0.35 ? 1.0 : s < 0.65 ? 2.0 : 3.0;
+  }
+  rngState = savedRngState;
+
+  enum Arm { dartArm, ordinalArm, varianceArm, bcfArm };
+  struct ArmSpec {
+    Arm arm;
+    const char* name;
+    unsigned expected;
+  };
+  const unsigned always = seenTrain | seenVarcount;
+  const ArmSpec arms[] = {
+    {dartArm, "gaussian under DART",
+     always | seenTest | seenSplit | seenLogLikelihood},
+    {ordinalArm, "ordinal",
+     always | seenTest | seenLogLikelihood | seenThresholds},
+    {varianceArm, "variance forest",
+     always | seenTest | seenVariance | seenVarianceTest | seenLogLikelihood},
+    {bcfArm, "BCF", always | seenForestFits | seenGlue}};
+
+  for (const ArmSpec& spec : arms) {
+    auto build = [&](std::vector<ext_rng*>& rngs)
+      -> std::unique_ptr<ConstantLeafSampler> {
+      rngs = makeDrawRngs(numChains, 9100);
+      SamplerOptions options;
+      options.numTrees = 10;
+      options.numChains = numChains;
+      options.numThreads = numChains;
+      std::unique_ptr<ConstantLeafSampler> sampler;
+      if (spec.arm == bcfArm) {
+        AmplitudeSpec amplitude;
+        amplitude.mu.numTrees = 10; amplitude.mu.base = 0.95;
+        amplitude.mu.power = 2.0;
+        amplitude.tau.numTrees = 5; amplitude.tau.base = 0.25;
+        amplitude.tau.power = 3.0;
+        amplitude.z = z.data();
+        sampler = std::make_unique<ConstantLeafSampler>(
+          x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
+          0.37804942330213542, options, amplitude, rngs.data());
+      } else {
+        if (spec.arm == dartArm) options.useDart = true;
+        if (spec.arm == ordinalArm) options.numCategories = 3;
+        if (spec.arm == varianceArm) options.numVarianceTrees = 3;
+        sampler = std::make_unique<ConstantLeafSampler>(
+          x.data(), spec.arm == ordinalArm ? ordinal.data() : y.data(), n, p,
+          nullptr, nullptr,
+          spec.arm == ordinalArm ? ResponseFamily::ordinal
+                                 : ResponseFamily::gaussian,
+          1.0, 3.0, 0.37804942330213542, options, rngs.data());
+      }
+      sampler->setTestPredictors(xTest.data(), nTest);
+      return sampler;
+    };
+
+    // the twin storing every channel
+    std::vector<ext_rng*> storedRngs;
+    std::unique_ptr<ConstantLeafSampler> stored = build(storedRngs);
+    size_t draws = numSamples * numChains;
+    size_t numForests = stored->numForests();
+    size_t numAmplitudes = stored->totalAmplitudes();
+    size_t numThresholds = stored->numOrdinalThresholds();
+    std::vector<double> sigma(draws), train(n * draws), test(nTest * draws),
+      variance(n * draws), varianceTest(nTest * draws),
+      forestFits(n * numForests * draws), glue(numAmplitudes * draws),
+      split(p * draws), logLikelihood(n * draws),
+      thresholds(numThresholds * draws);
+    std::vector<std::uint32_t> varcount(p * draws);
+    Results all;
+    all.sigma = sigma.data();
+    all.trainingFits = train.data();
+    all.testFits = test.data();
+    all.varianceFits = variance.data();
+    all.varianceTestFits = varianceTest.data();
+    all.forestFits = forestFits.data();
+    all.glue = numAmplitudes > 0 ? glue.data() : nullptr;
+    all.splitProbabilities = split.data();
+    all.logLikelihood = logLikelihood.data();
+    all.ordinalThresholds = numThresholds > 0 ? thresholds.data() : nullptr;
+    all.numOrdinalThresholds = numThresholds;
+    all.variableCounts = varcount.data();
+    stored->run(numBurnIn, numSamples, all);
+    stored.reset();
+    destroyDrawRngs(storedRngs);
+
+    // the observer over an empty Results
+    std::vector<ext_rng*> rngs;
+    std::unique_ptr<ConstantLeafSampler> observed = build(rngs);
+    ChannelRecorder recorder;
+    recorder.chains.resize(numChains);
+    DrawHook hook{&channelRecorderCallback, &recorder};
+    Results none;
+    bool stopped = true;
+    bool canceled =
+      observed->run(numBurnIn, numSamples, none, {}, {}, hook, &stopped);
+    observed.reset();
+    destroyDrawRngs(rngs);
+
+    std::string what;
+    auto label = [&](const char* text) {
+      what = std::string("observer channels, ") + spec.name + ": " + text;
+      return what.c_str();
+    };
+    check(!canceled && !stopped, label("the run completes"));
+    bool masks = true, values = true;
+    for (size_t c = 0; c < numChains; ++c) {
+      const ChannelCopy& copy = recorder.chains[c];
+      masks &= copy.calls == numSamples && copy.maskSteady &&
+               copy.mask == spec.expected;
+      size_t slot = c * numSamples + recorder.target;
+      auto slab = [slot](const std::vector<double>& from, size_t extent) {
+        return std::vector<double>(from.begin() + slot * extent,
+                                   from.begin() + (slot + 1) * extent);
+      };
+      auto agrees = [&](const std::vector<double>& seen, unsigned bit,
+                        const std::vector<double>& from, size_t extent) {
+        return !(spec.expected & bit) || sameBits(seen, slab(from, extent));
+      };
+      values &= agrees(copy.train, seenTrain, train, n);
+      values &= agrees(copy.test, seenTest, test, nTest);
+      values &= agrees(copy.variance, seenVariance, variance, n);
+      values &= agrees(copy.varianceTest, seenVarianceTest, varianceTest,
+                       nTest);
+      values &= agrees(copy.forestFits, seenForestFits, forestFits,
+                       n * numForests);
+      values &= agrees(copy.glue, seenGlue, glue, numAmplitudes);
+      values &= agrees(copy.split, seenSplit, split, p);
+      values &= agrees(copy.logLikelihood, seenLogLikelihood, logLikelihood,
+                       n);
+      values &= agrees(copy.thresholds, seenThresholds, thresholds,
+                       numThresholds);
+      values &= copy.varcount ==
+        std::vector<std::uint32_t>(varcount.begin() + slot * p,
+                                   varcount.begin() + (slot + 1) * p);
+      double storedSigma = sigma[slot];
+      values &= spec.arm == varianceArm
+        ? std::isnan(copy.sigma) && std::isnan(storedSigma)
+        : copy.sigma == storedSigma;
+    }
+    check(masks, label("every carried channel is non-null on every call and "
+                       "no other is"));
+    check(values, label("each equals the stored twin's draw"));
+  }
+  printf("ok: an observer receives every channel the fit carries\n");
+}
+
 static void testRunCancellation(ext_rng* rng) {
   const size_t n = 300, p = 3;
   std::vector<double> x(n * p), y(n);
@@ -9593,7 +9819,7 @@ static void testScaleKeptStatus() {
         a.sampler->getState(stateA);
         b.sampler->getState(stateB);
         if (!samplerStatesAgree(stateA, stateB)) same = false;
-        if (sweeps(*a.sampler) != sweeps(*b.sampler)) same = false;
+        if (!sameBits(sweeps(*a.sampler), sweeps(*b.sampler))) same = false;
         check(same, variant.name);
         ++numKept;
       }
@@ -9944,7 +10170,7 @@ static void testRederiveScale() {
               label(variant.name, "no latent moves at the install or the "
                                   "re-derivation"));
       check(sameNow(*a.sampler, *b.sampler) &&
-              sweeps(*a.sampler) == sweeps(*b.sampler),
+              sameBits(sweeps(*a.sampler), sweeps(*b.sampler)),
             label(variant.name, "the offset entry's twin, to the bit"));
       ++numTwins;
       if (!byWeights) continue;
@@ -9969,7 +10195,7 @@ static void testRederiveScale() {
         check(a.sampler->rederiveScale() == scaleKept &&
                 anchorOf(*a.sampler) == before &&
                 sameNow(*a.sampler, *b.sampler) &&
-                sweeps(*a.sampler) == sweeps(*b.sampler),
+                sameBits(sweeps(*a.sampler), sweeps(*b.sampler)),
               label(variant.name, "a keep is the install alone, to the bit"));
         ++numKept;
         // rows back in: read again
@@ -10046,7 +10272,7 @@ static void testRederiveScale() {
             latentsInstalled == latentsOf(*a.sampler),
           label(name, "no latent moves at the install or the re-derivation"));
     check(sameNow(*a.sampler, *b.sampler) &&
-            sweeps(*a.sampler) == sweeps(*b.sampler),
+            sameBits(sweeps(*a.sampler), sweeps(*b.sampler)),
           label(name, "the offset entry's twin, to the bit"));
     Built c = underMaskA(), d = underMaskA();
     before = anchorOf(*c.sampler);
@@ -16812,6 +17038,7 @@ void runSamplerTests(ext_rng* rng) {
   testDrawCallbackNeutrality();
   testDrawCallbackVarcountForests();
   testDrawCallbackBCFNullChannels();
+  testDrawCallbackCarriesEveryChannel();
   testEndToEndProbit(rng);
   testMultiChain();
   testTestFitThreadInvariance();

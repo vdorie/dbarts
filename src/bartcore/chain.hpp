@@ -571,22 +571,29 @@ struct Results {
   std::size_t numOrdinalThresholds = 0;
 
   /// Distance in elements between one draw's slot and the next WITHIN a chain,
-  /// per per-observation channel. naturalStride asks for the channel's own
+  /// per per-draw array channel. naturalStride asks for the channel's own
   /// per-draw extent (the packed numSamples-deep layout every caller that keeps
-  /// its fits wants); zero lands every draw of a chain in that chain's single
-  /// one-draw buffer, which is what a caller keeping no fits allocates - C of
-  /// them, contiguously, one per chain.
+  /// the channel wants); zero lands every draw of a chain in that chain's
+  /// single one-draw buffer, which is what a caller keeping no fits allocates -
+  /// C of them, contiguously, one per chain - and what Sampler::run hands a
+  /// registered observer for a channel the caller does not store.
   ///
-  /// These are FIELDS rather than a per-site computation because two readers
-  /// must agree on the answer: Sampler::run's per-chain slab base and
-  /// storeSample's per-draw offset. A stride recomputed at each site could be
-  /// changed at one and not the other, and the resulting overlap is silent.
+  /// These are FIELDS rather than a per-site computation because the readers
+  /// must agree on the answer: Sampler::run's per-chain slab base, its copy
+  /// into each chain's Results, storeSample's per-draw write and fillDraw's
+  /// read. A stride recomputed at each site could be changed at one and not
+  /// the others, and the resulting overlap is silent.
   static constexpr std::size_t naturalStride = static_cast<std::size_t>(-1);
   std::size_t trainingFitsStride = naturalStride;
   std::size_t testFitsStride = naturalStride;
   std::size_t varianceFitsStride = naturalStride;
   std::size_t varianceTestFitsStride = naturalStride;
   std::size_t forestFitsStride = naturalStride;
+  std::size_t glueStride = naturalStride;
+  std::size_t variableCountsStride = naturalStride;
+  std::size_t splitProbabilitiesStride = naturalStride;
+  std::size_t logLikelihoodStride = naturalStride;
+  std::size_t ordinalThresholdsStride = naturalStride;
 
   /// Resolves one stride field against the channel's natural per-draw extent.
   static std::size_t strideOr(std::size_t stride, std::size_t natural) {
@@ -603,15 +610,34 @@ using SweepCallback =
   std::function<bool(std::size_t chainIndex, std::size_t sweepIndex,
                      bool isBurnIn)>;
 
+/// The per-draw array channels a chain's fit carries and its coupling defines
+/// (Chain::carriedChannels): the predicates behind DrawInfo's null pointers,
+/// and the channels Sampler::run gives a registered observer scratch for when
+/// the caller does not store them. The training fits and the variable counts
+/// are carried by every fit and have no flag.
+struct CarriedChannels {
+  bool test = false;                // test rows and a defined test blend
+  bool varianceFits = false;        // a variance forest
+  bool varianceTestFits = false;    // a variance forest and test rows
+  bool forestReporting = false;     // forestFits and glue (BCF)
+  bool splitProbabilities = false;  // DART on the reported forest
+  bool logLikelihood = false;       // a location the response can score
+  bool ordinalThresholds = false;   // ordinal's K - 1 thresholds
+};
+
 /// One saved draw, as const views into the Results slabs the caller owns.
 /// Engine-internal and host-agnostic: it is a plain POD over plain arrays, and
 /// the entry point that has a host converts it to whatever that host declares.
 ///
-/// A channel pointer is null wherever the fit does not carry the channel AND
-/// wherever the coupling declares it undefined (testFitsAreDefined,
-/// logLikelihoodIsDefined), which the Results slab NaN-fills instead: the
-/// observer has no other channel in which to tell absent from present-but-NaN.
-/// A scalar is NaN where it is inapplicable to the family.
+/// Every channel the fit carries is non-null, whether or not the caller
+/// stores it: Sampler::run gives an observer one-draw scratch for each one the
+/// caller's Results leaves null. A channel pointer is null wherever the fit
+/// does not carry the channel AND wherever the coupling declares it undefined
+/// (testFitsAreDefined, logLikelihoodIsDefined), which the Results slab
+/// NaN-fills instead: the observer has no other channel in which to tell
+/// absent from present-but-NaN. A scalar is NaN where it is inapplicable to
+/// the fit: sigma on a sampler with a variance forest, which has no single
+/// residual scale.
 ///
 /// Pointer validity is the call and no longer. A kept channel points into the
 /// caller's numSamples-deep slab and outlives the call, but a channel whose
@@ -1541,6 +1567,22 @@ public:
     return combiner_ != nullptr && combiner_->forestReportingIsDefined();
   }
   bool usesDart() const { return forests_[0].useDart; }
+  /// The per-draw array channels this fit carries, the one statement of the
+  /// predicates fillDraw hands null pointers by and Sampler::run sizes an
+  /// observer's scratch by, so the two cannot disagree.
+  CarriedChannels carriedChannels() const {
+    CarriedChannels carried;
+    bool hasTest = data_.numTestObservations > 0;
+    std::size_t reportedIndex = combiner_ ? combiner_->reportedForest() : 0;
+    carried.test = hasTest && testFitsAreDefined();
+    carried.varianceFits = varianceForest_ != nullptr;
+    carried.varianceTestFits = carried.varianceFits && hasTest;
+    carried.forestReporting = forestReportingIsDefined();
+    carried.splitProbabilities = forests_[reportedIndex].useDart;
+    carried.logLikelihood = !combiner_ || combiner_->logLikelihoodIsDefined();
+    carried.ordinalThresholds = response_->carriesOrdinalThresholds();
+    return carried;
+  }
   /// ResponseModel::installResidualDf.
   void setResidualDf(double residualDf) {
     response_->installResidualDf(residualDf);
@@ -9145,61 +9187,50 @@ private:
     draw.numOrdinalThresholds = response_->carriesOrdinalThresholds()
       ? response_->numOrdinalThresholds() : 0;
 
-    draw.train = results.trainingFits == nullptr ? nullptr
-      : results.trainingFits +
-          sampleNum * Results::strideOr(results.trainingFitsStride,
-                                        n * numLocations);
     // a coupling with no test blend to report (BCF, which carries no test
-    // treatment vector) NaN-fills the slab; the observer gets null
-    draw.test = (results.testFits == nullptr || nTest == 0 ||
-                 (combiner_ && !combiner_->testFitsAreDefined()))
-      ? nullptr
-      : results.testFits +
-          sampleNum * Results::strideOr(results.testFitsStride,
-                                        nTest * numLocations);
-    draw.varianceFits = (results.varianceFits == nullptr || !varianceForest_)
-      ? nullptr
-      : results.varianceFits +
-          sampleNum * Results::strideOr(results.varianceFitsStride, n);
+    // treatment vector) or no location the response can score NaN-fills the
+    // slab; the observer gets null
+    const CarriedChannels carried = carriedChannels();
+    auto at = [sampleNum](auto* base, bool present, std::size_t stride,
+                          std::size_t natural) {
+      using Pointer = decltype(base);
+      return (base == nullptr || !present)
+        ? static_cast<Pointer>(nullptr)
+        : base + sampleNum * Results::strideOr(stride, natural);
+    };
+    draw.train = at(results.trainingFits, true, results.trainingFitsStride,
+                    n * numLocations);
+    draw.test = at(results.testFits, carried.test, results.testFitsStride,
+                   nTest * numLocations);
+    draw.varianceFits = at(results.varianceFits, carried.varianceFits,
+                           results.varianceFitsStride, n);
     draw.varianceTestFits =
-      (results.varianceTestFits == nullptr || !varianceForest_ || nTest == 0)
-      ? nullptr
-      : results.varianceTestFits +
-          sampleNum * Results::strideOr(results.varianceTestFitsStride, nTest);
-    bool forestReporting = combiner_ && combiner_->forestReportingIsDefined();
-    draw.forestFits = (results.forestFits == nullptr || !forestReporting)
-      ? nullptr
-      : results.forestFits +
-          sampleNum * Results::strideOr(results.forestFitsStride,
-                                        n * forests_.size());
-    draw.glue = (results.glue == nullptr || !forestReporting)
-      ? nullptr : results.glue + sampleNum * combiner_->totalAmplitudes();
+      at(results.varianceTestFits, carried.varianceTestFits,
+         results.varianceTestFitsStride, nTest);
+    draw.forestFits = at(results.forestFits, carried.forestReporting,
+                         results.forestFitsStride, n * forests_.size());
+    draw.glue = at(results.glue, carried.forestReporting, results.glueStride,
+                   combiner_ ? combiner_->totalAmplitudes() : 0);
     draw.splitProbabilities =
-      (results.splitProbabilities == nullptr || !forest.useDart)
-      ? nullptr
-      : results.splitProbabilities + sampleNum * data_.numPredictors;
-    // NaN-filled in the slab under a coupling whose blended location the
-    // response model cannot score; null here, as the test channel is
-    draw.logLikelihood =
-      (results.logLikelihood == nullptr ||
-       (combiner_ && !combiner_->logLikelihoodIsDefined()))
-      ? nullptr : results.logLikelihood + sampleNum * n;
+      at(results.splitProbabilities, carried.splitProbabilities,
+         results.splitProbabilitiesStride, data_.numPredictors);
+    draw.logLikelihood = at(results.logLikelihood, carried.logLikelihood,
+                            results.logLikelihoodStride, n);
     draw.ordinalThresholds =
-      (results.ordinalThresholds == nullptr ||
-       !response_->carriesOrdinalThresholds())
-      ? nullptr
-      : results.ordinalThresholds +
-          sampleNum * response_->numOrdinalThresholds();
+      at(results.ordinalThresholds, carried.ordinalThresholds,
+         results.ordinalThresholdsStride, response_->numOrdinalThresholds());
     // forest-major within the draw, at the count Sampler::run clamped: one
     // slab for a single-forest model, K for multinomial and for a multi-forest
     // amplitude model
-    draw.varcount = results.variableCounts == nullptr ? nullptr
-      : results.variableCounts +
-          sampleNum * numVCForests * data_.numPredictors;
+    draw.varcount = at(results.variableCounts, true,
+                       results.variableCountsStride,
+                       numVCForests * data_.numPredictors);
 
     // the scalars come from the state the sweep settled rather than from the
-    // slabs, so they are readable whether or not the caller kept the channel
-    draw.sigma = sigma_ * response_->sigmaScale();
+    // slabs, so they are readable whether or not the caller kept the channel;
+    // a variance forest leaves no single residual scale to report
+    draw.sigma = varianceForest_ ? std::numeric_limits<double>::quiet_NaN()
+                                 : sigma_ * response_->sigmaScale();
     draw.k = sharers_.empty() ? forest.k : forests_[sharers_.front()].k;
     draw.shape = response_->carriesShape()
       ? response_->shape() : std::numeric_limits<double>::quiet_NaN();
@@ -9217,8 +9248,12 @@ private:
     double scale = response_->fitScale();
     double shift = response_->fitShift();
 
+    // a variance forest owns the residual scale row by row, so there is no
+    // single sigma to record
     if (results.sigma != nullptr)
-      results.sigma[sampleNum] = sigma_ * response_->sigmaScale();
+      results.sigma[sampleNum] = varianceForest_
+        ? std::numeric_limits<double>::quiet_NaN()
+        : sigma_ * response_->sigmaScale();
 
     // a model whose forests share one total records the group's k
     if (results.k != nullptr)
@@ -9333,8 +9368,10 @@ private:
                       n * sizeof(double));
       }
       if (results.glue != nullptr)
-        combiner_->amplitudes(results.glue +
-                              sampleNum * combiner_->totalAmplitudes());
+        combiner_->amplitudes(
+          results.glue +
+          sampleNum * Results::strideOr(results.glueStride,
+                                        combiner_->totalAmplitudes()));
     }
 
     if (results.variableCounts != nullptr) {
@@ -9347,18 +9384,20 @@ private:
       // Sampler::run strides per chain by, and Sampler::run has already clamped
       // it to the combiner's count.
       std::size_t numVCForests = results.numVariableCountForests;
+      std::uint32_t* out = results.variableCounts +
+        sampleNum * Results::strideOr(results.variableCountsStride,
+                                      numVCForests * data_.numPredictors);
       for (std::size_t j = 0; j < numVCForests; ++j) {
         std::size_t f =
           combiner_ ? combiner_->variableCountForest(j) : reportedIndex;
-        forestVariableCounts(
-          f, results.variableCounts +
-               (sampleNum * numVCForests + j) * data_.numPredictors);
+        forestVariableCounts(f, out + j * data_.numPredictors);
       }
     }
 
     if (results.splitProbabilities != nullptr && forest.useDart) {
-      double* out =
-        results.splitProbabilities + sampleNum * data_.numPredictors;
+      double* out = results.splitProbabilities +
+        sampleNum * Results::strideOr(results.splitProbabilitiesStride,
+                                      data_.numPredictors);
       std::memcpy(out, forest.dart.probabilities.data(),
                   data_.numPredictors * sizeof(double));
     }
@@ -9369,7 +9408,10 @@ private:
     if (results.ordinalThresholds != nullptr &&
         response_->carriesOrdinalThresholds()) {
       std::size_t numOrdinalThresholds = response_->numOrdinalThresholds();
-      std::memcpy(results.ordinalThresholds + sampleNum * numOrdinalThresholds,
+      std::memcpy(results.ordinalThresholds +
+                    sampleNum * Results::strideOr(
+                                  results.ordinalThresholdsStride,
+                                  numOrdinalThresholds),
                   response_->ordinalThresholds(),
                   numOrdinalThresholds * sizeof(double));
     }
@@ -9387,7 +9429,8 @@ private:
       results.residualDf[sampleNum] = response_->residualDf();
 
     if (results.logLikelihood != nullptr) {
-      double* out = results.logLikelihood + sampleNum * n;
+      double* out = results.logLikelihood +
+        sampleNum * Results::strideOr(results.logLikelihoodStride, n);
       if (combiner_ && !combiner_->logLikelihoodIsDefined()) {
         // The BCF per-observation location blends two forests through the
         // glue coefficients, which the response model cannot see; scoring
