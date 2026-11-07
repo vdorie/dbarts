@@ -109,6 +109,19 @@ On the arm64 macOS development machine, at most two cores.
 - bartCause's test-14-bcf.R against the slice's shipped library (z among the predictors): 20 tests, 186
   expectations, 0 failed.
 
+After the review's fix round, rebased onto main past the engine-robustness slice (f79874ea8), with --preclean installs
+of both builds:
+
+- the trio on the reference build: equivalence.R `--bitwise --strict-coverage` against equivalence-38da480c, 55
+  identical draws, 55 compared, 0 skipped; bcf-equivalence.R `--bitwise` against bcf-equivalence-38da480c, 19 of 19
+  identical on every channel, 0 skipped; multinomial-equivalence.R `--bitwise` against 80b1c8d4, 11 of 11, 0 skipped.
+- The four seeded-drift snapshot files, reference build: 27 results, 0 failed.
+- The tinytest suite in one process, shipped build: 41993 results, 0 failed.
+- tests/cpp: built and run plain, 548 checks, all passed.
+- `lintr::lint_package()`: no lints; `air format --check .`, tools/check-rc-codoc.R (53 methods),
+  tools/check-win-drift.R and tools/check-doc-freshness.R: each exit 0; `mutation-battery.R verify-anchors`: every
+  anchor resolves (82).
+
 ## Calls made
 
 1. A forest of levels adds the indicators of every level but its first, `block[, -1L]`, in place of the literal
