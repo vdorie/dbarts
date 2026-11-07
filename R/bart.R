@@ -3385,10 +3385,13 @@ ingestHurdleData <- function(
       formula = if (matrixRoute) {
         formula
       } else {
-        stats::reformulate(
-          "1",
-          response = formula[[2L]],
-          env = environment(formula)
+        structure(
+          stats::reformulate(
+            "1",
+            response = formula[[2L]],
+            env = environment(formula)
+          ),
+          readsRowsOnly = TRUE
         )
       }
     )

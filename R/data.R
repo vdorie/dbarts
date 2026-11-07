@@ -3210,6 +3210,9 @@ dbartsData <- function(
   }
 
   if (is.formula(formula)) {
+    # a hurdle fit reads its zero part's offset rows through a formula that
+    # names no predictor, marked so; that data object never reaches a sampler
+    readsRowsOnly <- isTRUE(attr(formula, "readsRowsOnly", exact = TRUE))
     # the fitting functions hand over a formula whose forest() terms they have
     # already read; one arriving here was given to a door that reads none
     refuseForestTerm(formula, "dbartsData")
@@ -3678,7 +3681,8 @@ dbartsData <- function(
     # formula naming only sparse predictors rewrites to a dense-only RHS with
     # no terms of its own (above), empty here but not of predictors
     if (
-      length(attr(modelTerms, "term.labels")) == 0L &&
+      !readsRowsOnly &&
+        length(attr(modelTerms, "term.labels")) == 0L &&
         length(sparseColumns) == 0L
     ) {
       stop("predictors must be specified for regression tree analysis")
