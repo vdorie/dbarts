@@ -434,12 +434,17 @@ struct ForestSpec : ForestStatement {
 /// column's value where it is constant and ratio the standard deviation over
 /// that largest value where it is constant to rounding, the other NaN; forest
 /// is the forest's index where a chain names it, and fromAllRows whether the
-/// rows read were every row because too few were in the likelihood.
+/// rows read were every row because too few were in the likelihood. Under
+/// frequency weights a column that varies over rows whose counts total at most
+/// 1 has no scale either; there totalAtMostOne is set and both values are NaN.
 struct BasisScaleError : std::domain_error {
-  BasisScaleError(const char* what, double constantValue, double sdRatio)
-    : std::domain_error(what), value(constantValue), ratio(sdRatio) {}
+  BasisScaleError(const char* what, double constantValue, double sdRatio,
+                  bool totalCountAtMostOne = false)
+    : std::domain_error(what), value(constantValue), ratio(sdRatio),
+      totalAtMostOne(totalCountAtMostOne) {}
   double value;
   double ratio;
+  bool totalAtMostOne;
   std::size_t forest = static_cast<std::size_t>(-1);
   bool fromAllRows = false;
 };
@@ -470,10 +475,16 @@ inline double countedBasisColumnScale(const double* column, std::size_t n,
     numRows += counts[i];
     ++numRowsRead;
   }
-  if (!varies || !countTotalIsAboveOne(numRows, numRowsRead))
+  if (!varies)
     throw BasisScaleError("a basis column is constant, so no default sd can "
                           "be taken from its standard deviation",
                           first, std::numeric_limits<double>::quiet_NaN());
+  if (!countTotalIsAboveOne(numRows, numRowsRead))
+    throw BasisScaleError("the rows a basis column is read over carry a total "
+                          "count of at most 1, so no default sd can be taken "
+                          "from its standard deviation",
+                          std::numeric_limits<double>::quiet_NaN(),
+                          std::numeric_limits<double>::quiet_NaN(), true);
   double mean = sum / numRows, correction = 0.0;
   for (std::size_t i = 0; i < n; ++i)
     if (read(i)) correction += counts[i] * (column[i] - mean);

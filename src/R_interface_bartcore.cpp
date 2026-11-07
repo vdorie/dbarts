@@ -4230,6 +4230,14 @@ std::string forestMessageName(SEXP modelExpr, size_t f) {
 // over a model and a data object reaches this.
 std::string basisScaleMessage(SEXP modelExpr,
                               const bartcore::BasisScaleError& error) {
+  if (error.totalAtMostOne)
+    return forestMessageName(modelExpr, error.forest) +
+           " states no sd and the rows its basis is read over carry a total "
+           "count of at most 1" +
+           (error.fromAllRows
+              ? " (every row, read because too few are in the likelihood)"
+              : "") +
+           ", so there is no standard deviation to take a default from";
   char detail[160];
   if (!std::isnan(error.value))
     std::snprintf(detail, sizeof detail,
@@ -5402,7 +5410,8 @@ static bool firstKeep(BartcoreHolder& holder, bool kept) {
 // default scale again from the column, over the rows in the likelihood
 // (Sampler::setForestBasisRescaled), and the answer is an integer: 1 where the
 // scale in force was kept because fewer than two rows are in, 2 where it was
-// kept because the column has no scale over them, each on the holder's first
+// kept because the column has no scale over them, 3 where it was kept because
+// their frequency counts total at most 1, each on the holder's first
 // keep of any kind only (firstKeep), and 0 otherwise. R names the refusals it
 // can reach before the call; the engine's own refusal is the generic one.
 SEXP bartcore_setForestBasis(SEXP ptrExpr, SEXP forestExpr, SEXP basisExpr,
@@ -5456,6 +5465,9 @@ SEXP bartcore_setForestBasis(SEXP ptrExpr, SEXP forestExpr, SEXP basisExpr,
       break;
     case bartcore::BasisRescaleResult::keptConstant:
       answer = firstKeep(holder, true) ? 2 : 0;
+      break;
+    case bartcore::BasisRescaleResult::keptTotalAtMostOne:
+      answer = firstKeep(holder, true) ? 3 : 0;
       break;
     }
     return Rf_ScalarInteger(answer);

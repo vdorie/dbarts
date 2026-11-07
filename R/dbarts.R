@@ -2430,6 +2430,14 @@ warnBasisScaleKept <- function(answer, name, n, rowsIn) {
       "'s basis is constant over the rows in the likelihood, so its scale ",
       "is kept as it was (said once per sampler)"
     )
+  } else if (identical(answer, 3L)) {
+    warnClassed(
+      "dbartsScaleFallbackWarning",
+      "the rows in the likelihood carry a total count of at most 1, so the ",
+      "scale of ",
+      name,
+      "'s basis is kept as it was (said once per sampler)"
+    )
   }
   invisible(NULL)
 }

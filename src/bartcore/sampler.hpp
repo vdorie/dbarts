@@ -98,15 +98,18 @@ enum class ResponseUpdateResult { accepted, scaleKept };
 /// again from the column it installs (Sampler::setForestBasisRescaled).
 /// refused: nothing was installed and no prior moved. rescaled: the column
 /// was installed and the forest's default restated from its scale.
-/// keptTooFewRows and keptConstant: the column was installed and the scale in
-/// force kept, fewer than two rows being in the likelihood, or the column
-/// having no scale over the rows in (basisColumnScale). Nothing is raised: the
-/// caller decides what to say.
+/// keptTooFewRows, keptConstant and keptTotalAtMostOne: the column was
+/// installed and the scale in force kept, fewer than two rows being in the
+/// likelihood, the column having no scale over the rows in
+/// (basisColumnScale), or, under frequency weights, the counts over the rows
+/// in totaling at most 1 (BasisScaleError::totalAtMostOne). Nothing is raised:
+/// the caller decides what to say.
 enum class BasisRescaleResult : std::uint8_t {
   refused,
   rescaled,
   keptTooFewRows,
-  keptConstant
+  keptConstant,
+  keptTotalAtMostOne
 };
 
 /// A whole sampler's serializable state: per-chain states, the cut grid they
@@ -3088,8 +3091,9 @@ public:
     } else {
       try {
         scale = basisColumnScale(values, n, rows.rows, rows.counts);
-      } catch (const BasisScaleError&) {
-        outcome = BasisRescaleResult::keptConstant;
+      } catch (const BasisScaleError& error) {
+        outcome = error.totalAtMostOne ? BasisRescaleResult::keptTotalAtMostOne
+                                       : BasisRescaleResult::keptConstant;
       }
     }
     if (!setForestBasis(forestIndex, values, numColumns))

@@ -145,3 +145,39 @@ expect_error(
   },
   "'weights.type' must be NA, \"precision\" or \"frequency\""
 )
+
+# a numeric basis that varies over rows whose counts total at most 1 has no
+# scale to read a default from; the refusal and the kept-scale warning say so
+# rather than calling the column constant
+column <- runif(n)
+basisSampler <- function(weights) {
+  spec <- dbarts::dbartsSpec(
+    dbarts::dbartsData(x, y, weights = weights, bases = list(NULL, column)),
+    control = control,
+    forests = list(forest(), forest()),
+    sigest = 0.5
+  )
+  spec$model@weights.type <- "frequency"
+  new("dbartsSampler", spec$control, spec$model, spec$data)
+}
+expect_error(
+  basisSampler(rep(1 / n, n)),
+  paste0(
+    "forest 2 states no sd and the rows its basis is read over carry a ",
+    "total count of at most 1, so there is no standard deviation to take a ",
+    "default from"
+  ),
+  fixed = TRUE,
+  info = "a varying basis over counts totaling 1 is refused by its total"
+)
+fractional <- basisSampler(rep(1, n))
+fractional$setWeights(rep(1 / n, n))
+expect_warning(
+  fractional$setForestBasis(2L, runif(n), updateBasisScale = TRUE),
+  paste0(
+    "the rows in the likelihood carry a total count of at most 1, so the ",
+    "scale of forest 2's basis is kept as it was"
+  ),
+  fixed = TRUE,
+  info = "a rescale over counts totaling 1 keeps the scale, saying why"
+)
