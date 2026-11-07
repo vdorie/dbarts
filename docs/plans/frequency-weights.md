@@ -774,6 +774,35 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
     rows the mask kept. Alternative: every row, which moves the scales and loses their fallback warnings.
 47. The leaf covariate refusal's remedy names "the weights, the active-row mask, or subset", the 0/1 weights' mask being
     gone. Alternative: keeping the old words, which name a mask nothing installs.
+48. `weights.type` follows `family` in bart's, dbarts's, xbart's and dbartsSpec's formals, NULL by default, since its
+    default is the family's. Alternative: following `weights`, apart from the argument that settles it.
+49. A fit records `fit$weights.type` only where it changes a reader: a gaussian fit under "frequency", whose posterior
+    predictive and log-likelihood read counts. Every other fit keeps its shape. Alternative: recording it on every fit.
+50. Under "frequency" the starting sigma's fallback, where the regression leaves no residual degrees of freedom, is the
+    sd of the expanded rows (the weights' sum less one in its denominator), on both routes and in xbart's folds.
+    Alternative: the sd of the rows in, unweighted, which the expanded data's fit does not give.
+51. The bridge reads a probit or ordinal sampler's weights as the mask under either reading, and an nbinom sampler's so
+    where every creation weight is 0 or 1 (or there are none): a read-off falling back to every row reads a row of
+    weight 0 at 1, as the mask's fallback does, so 0/1 weights draw as the mask and as before S5 (S4's equalities hold).
+    An nbinom sampler created so and given counts later reads an update-requested read-off over the rows in unweighted;
+    one created with counts reads it counted (call 23). Alternative: call 23's counts everywhere, which reads a row of
+    weight 0 at 0 at those fallbacks and moves a 0/1-weighted fit off its masked twin.
+52. A predict weight of 0 on nbinom draws the row at one trial and reports 0, so a row's variate is consumed whatever
+    its weight and the other rows' draws do not move with it. Alternative: drawing nothing at the row, which shifts
+    every later row's draw.
+53. A multinomial fit's test weights are read where its formula is, in bart's branch, and the data object's "ignored for
+    test data" warning is not raised for a count response. Alternative: reading them in dbartsData, which the count
+    response reaches without a formula.
+54. An NA test weight, or an NA predict weight kept by the na.action, draws NA at its row. Alternative: refusing it,
+    which the training weights' NA rule (dropped by na.action) does not do.
+55. A hand-made model whose `weights.type` is NA resolves at the sampler's initialize, by the family's table row, and
+    the model slot holds the resolved value. Alternative: refusing an unresolved model, which breaks today's hand-made
+    calls.
+56. The posterior predictive of a probit, ordinal or nbinom fit is NA at a row `fit$active` leaves out, the mask times
+    the weights, as at a row of weight 0. Alternative: NA at weight 0 only, drawing a masked row.
+57. A weighted logistic fit with a linear or gp leaf, or a numeric basis, reads its leaf covariates' scale at counts
+    once "frequency" is its reading (call 21); test-leaf-standardization-rows.R re-pins the logistic arm against the
+    rows written out. Alternative: none, the reading settles it.
 
 ## Open calls
 
@@ -1027,6 +1056,18 @@ equal draw for draw to the build before S5); lint_package, air, codoc, win drift
 reference build.
 From the S-G review: S5 builds on S-G's `sigmaBasisColumns` and `startingSigmaDesign(bases =)`, its df is sum(w) - rank,
 it adds weighted basis cases, and any re-record starts from S-G's baselines.
+As built: not pure R. The bridge reads a probit or ordinal sampler's weights, and an nbinom sampler's where every
+creation weight is 0 or 1, as the mask under either reading (Calls made, 51), so the R layer's resolution to "frequency"
+leaves every 0/1-weighted and unweighted draw on those families as it was; a before/after run against a shipped build of
+the S5 base (hurdle, probit, ordinal, multinomial, nbinom, logistic and gaussian, unweighted and 0/1-weighted, ev and
+ppd) is identical. What moves is what the rulings move: the posterior predictive at a row of weight 0 (NA), a logistic
+draw (one 0/1 observation), predict's and the test sample's weights, a gaussian frequency fit's starting sigma and
+log-likelihood, and a weighted logistic fit's leaf covariate scales (Calls made, 57). test-frequency-weights.R holds 156
+expectations; the suite 42268/0. The trio bitwise on the reference build against equivalence-38da480c,
+bcf-equivalence-38da480c and multinomial-equivalence-80b1c8d4 (55, 19 and 11 scenarios, none skipped, none moved), the
+four snapshot files on the reference build, the exact gates in quick (44 arms) and R CMD check --as-cran (one NOTE, an
+expired certificate at a cited URL and the Date field). Mutants 17 to 20 and 24 to 29 killed; a zero part handed NULL in
+place of "frequency" (25b) is equivalent, NULL resolving to "frequency" on probit. Calls made 48 to 57.
 
 ### S6: R surface, the binomial and xbart (~250 R, ~55 help, ~400 tinytest)
 
@@ -1242,6 +1283,10 @@ counts the user asks for.
   row's Polya-Gamma latent spins (over 8 minutes in the review) instead of failing. What guards it is `NBResponse`'s rows-in
   composition, which takes a row of count 0 out, so no sweep draws its latent; nothing below refuses shape 0, and a test
   that reached it would end only at CI's timeout.
+- S5's `pointwiseLogLikelihood` is checked against the formula (w times the log density, NaN at a row out) and not
+  against the engine's log-likelihood channel, which R does not reach for these fits; xbart's fold-level starting sigma
+  under "frequency" is checked through the fold routines (`residualStandardError`, `sparseResidualStandardError`) and an
+  xbart run, not against an expanded-data xbart, whose folds would split the copies. S5 ran on arm64 macOS only.
 - That choose.c needs nothing beyond the copy's lbeta.c and lgamma.c (`lgammafn_sign`) and its prefix header; S3 confirms.
   Checked: libR on the laptop exports `Rf_lchoose` (nm), and Rmath.h declares it, so the R build's seventh name links as the
   six do.

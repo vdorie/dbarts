@@ -99,9 +99,9 @@ follow from no column:
   replacement may change n, for aft too
   (["fix the censoring structure at creation"](../../src/R_interface_bartcore.cpp) on that conduit; the status itself moves
   through `$setResponse(y, status = )`).
-- Hurdle's `-` cells are not "ask the two components": `bart()` refuses `weights`, `subset`
-  and `offset`/`offset.test` on that family at its own entrance
-  (["does not support 'weights'"](../../R/bart.R)).
+- Hurdle's `-` cells are not "ask the two components": `bart()` takes its weights at 0 and 1
+  only, a row in or out of both parts
+  (["takes weights of 0 and 1 only"](../../R/bart.R)).
 
 Two capabilities are universal, not columns: the mid-chain active-rows mask
 ([`Chain::setActiveRows`](../../src/bartcore/chain.hpp), every family except hurdle, multinomial's being GLOBAL,
