@@ -3,8 +3,9 @@
 Status: built, in review (branch review4-sigest-bases).
 
 agent: implementer (opus), one opus review with mutants. rng: posterior-changing for gaussian fits with a basis
-outside the span of the intercept and the predictors and no stated sigest; bitwise for every other fit. Tier: changes
-draws (a default; R code only).
+outside the span of the intercept and the predictors and no stated sigest; bitwise for every other fit but a basis
+inside that span on the sparse route that repeats no predictor's column, which moves the estimate by rounding. Tier:
+changes draws (a default; R code only).
 
 Finding multiforest-03 of the fourth whole-repo review, ruled by dec-B603 ("I think (a) sounds right"): with no
 `sigest`, the regression whose residual sd centers the noise prior takes every forest's basis beside the predictors.
@@ -19,8 +20,9 @@ predictor enters as ([`emittedLevels`](../../../R/utility.R)). [`startingSigmaDe
 them as `bases = NULL` and puts them after the predictors' columns: on the dense route by `cbind` after
 [`denseSigmaDesign`](../../../R/utility.R), on the sparse route as columns of `X` with `dense` TRUE and `term` NA, so
 the sparse front end centers and pairs them as any column a caller gave dense. Collinearity with the intercept, a
-predictor or another forest's basis is left to lm.fit's pivot and to the sparse routine's pivoted Cholesky, whose
-rank sets the residual degrees of freedom on both routes; no column is dropped by hand.
+predictor or another forest's basis is left to lm.fit's pivot and, on the sparse route, to the front end's
+duplicate-column step and the pivoted Cholesky, whose rank sets the residual degrees of freedom on both routes; no
+column is dropped by hand.
 [`estimateStartingSigma`](../../../R/spec.R) and the default `design` of
 [`estimateSigmaFromLinearModel`](../../../R/utility.R) pass them; the verbose line's column count reads the design
 and so counts them. xbart's positional `startingSigmaDesign(data@x, route)` calls are untouched (xbart refuses
@@ -46,16 +48,20 @@ refuses bases, so their pages keep the sentence. The comments over `estimateStar
 Posterior-changing for gaussian fits with a basis outside the span of the intercept and the predictors and no stated
 sigest or fixed sigma; gaussian is the only family that takes a basis and estimates a starting sigma. Bitwise for
 every other fit: no basis, a latent family, a stated or fixed sigma, a data object carrying its own sigma into
-`dbartsSpec()`, and a basis already among the predictors (bartCause's bcf puts z among x).
+`dbartsSpec()`, and a basis already among the predictors (bartCause's bcf puts z among x), on the dense route always
+and on the sparse route when the basis repeats a predictor's column. A basis otherwise inside the span, on the sparse
+route, which only `sigest = "sparse"` or a sparse x reaches, moves the estimate by rounding (`I(3 + x3)` beside x3,
+2e-16 relative), and with it the draws.
 
 ## Tests
 
-["the forests' bases enter the regression"](../../../inst/tinytest/test-starting-sigma.R), 30 results in the file
-(22 new):
+["the forests' bases enter the regression"](../../../inst/tinytest/test-starting-sigma.R), 31 results in the file
+(23 new):
 
 - dense route, `expect_identical` against `summary(lm(...))$sigma`: a factor basis (`y ~ x1 + x2 + factor(z)`) bare,
   with weights and with an offset; a numeric basis w likewise; three forests, one of each kind; the data object's
-  own bases (`dbartsData(bases = )`); a `bart()` fit's `sigest`.
+  own bases (`dbartsData(bases = )`), read by the fit and by the estimator's own default design; a `bart()` fit's
+  `sigest`.
 - a basis among the predictors, z with `factor(z)` and w with w: identical to the fit with no basis.
 - sparse route by `sigest = "sparse"` (a fit with a basis refuses a sparse x), `expect_equal` at 1e-12: the factor
   basis bare and with weights, the numeric basis with an offset, and z among the predictors with `factor(z)`; and
@@ -65,11 +71,17 @@ every other fit: no basis, a latent family, a stated or fixed sigma, a data obje
 - a stated `sigest` taken as given; the verbose line's count (100 rows, 3 columns); the fallback line's text on 5
   rows and 4 columns.
 
-Three fixtures elsewhere state a starting sigma, so that what they pin is not the default estimate's (Calls made, 9).
+[test-boundary-inputs.R](../../../inst/tinytest/test-boundary-inputs.R) pins the whole fallback line of a fit with no
+basis, which names no basis. Three fixtures elsewhere state a starting sigma, so that what they pin is not the default
+estimate's (Calls made, 9).
 
 Mutants, patched into the namespace, each run against the file: the bases dropped (18 of 30 fail); the install
 moved back after the estimate (2 fail, the two `dbartsSpec()` declarations); the residual degrees of freedom from
-the column count on the dense route (6 fail) and on the sparse route (1 fails, the aliased sparse case).
+the column count on the dense route (6 fail) and on the sparse route (1 fails, the aliased sparse case); the
+estimator's default design without the bases (1 of 31 fails); and, against test-boundary-inputs.R, the bases'
+wording on every fallback line (1 of 28 fails). The basis columns left uncentered on the sparse route survive, as an
+equivalent mutant at rounding: the centering conditions the crossproduct, and the review measured the estimates
+moving by about 1e-16, which the sparse cases' 1e-12 tolerance does not see, so no test pins it.
 
 ## Gates
 
@@ -126,12 +138,16 @@ On the arm64 macOS development machine, at most two cores.
    predecessor's. Alternative: re-record all 55, a quarter hour at two cores for 54 identical objects.
 9. Three fixtures whose pins the new estimate moved state a starting sigma: test-forest-door.R's kind `three`
    (`sigest = 0.4`), where at the estimate 0.321 a power written on the dose forest draws its ten sweeps as the
-   default's (at three of seeds 1 to 8, the file's 5 among them), and moves them at main's 0.414; test-control-migration.R's three
-   forests (`sigest = 0.5`), where at 0.354 the effect forest's moves draw six sweeps as no moves', and move them at
-   every value tried from 0.3 to 1 and at seeds 1 to 3; and test-forest-scale-record.R's held swap pair
-   (`sigest = 1`), whose swapped sampler was created with `dose` as its basis and so estimates on it, where the
-   sampler it is compared with has none. The estimate is creation's, as a predictor swapped in later keeps it.
-   Alternative: another seed, or longer runs, for the two moves-a-draw pins.
+   default's (at three of seeds 1 to 8, the file's 5 among them), and moves them at main's 0.414;
+   test-control-migration.R's three forests (`sigest = 0.5`), where at 0.354 the effect forest's moves draw six
+   sweeps as no moves', and move them at every value tried from 0.3 to 1 and at seeds 1 to 3; and
+   test-forest-scale-record.R's held swap pair (`sigest = 1`), whose swapped sampler was created with `dose` as its
+   basis and so estimates on it, where the sampler it is compared with has none. The estimate is creation's, as a
+   predictor swapped in later keeps it. Alternative: another seed, or longer runs, for the two moves-a-draw pins.
+10. `estimateSigmaFromLinearModel` keeps its default design, the one the fit builds with the bases, and a test calls
+    it directly on a data object with bases. No package caller takes the default (`estimateStartingSigma` passes the
+    design it counts for the verbose line); two test files call the estimator on data objects with no bases.
+    Alternative: drop the default, so every caller passes a design and those two files build one.
 
 ## Deviations from the plan
 
