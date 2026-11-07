@@ -730,6 +730,24 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
 40. Call 37's refusal at the flat C API is tested now, in test-capi.R through its consumer, a binomial sampler built from
     a hand-written counts slot (about 40 lines). Alternative: recording it for S6, whose R surface builds binomial
     samplers without the hand-written slot.
+41. nbinom's center fallback, where the rows in lack two distinct counts, reads every row with a count of 0 read as 1, as
+    the mask's fallback reads every row, so 0/1 weights draw as the mask there too. Alternative: S2's every row at its
+    count, which reads a row of weight 0 at 0 and parts from the mask's center.
+42. `pointwiseLogLikelihood` is NaN at every row out of the likelihood, weight 0 or masked, on every family, which takes
+    S5's NaN half forward. Alternative: leaving it to S5, a probit row of weight 0 reading the engine's 0 until then.
+43. On probit, ordinal and nbinom a fit records its rows in as `fit$active`, the weights times the mask, and stores no
+    `fit$weights`, so a fit's shape and every reader of it (the posterior predictive among them) stay as they were.
+    Alternative: storing `fit$weights` and teaching each reader the 0/1 reading.
+44. Logistic and nbinom kappa read a count of 0 as 1, so a row of weight 0 holds the working response a masked row holds
+    and a fit created with 0/1 weights equals the masked fit bitwise at every row. Alternative: kappa 0 there, bitwise at
+    the rows in only, a row out's own fitted value apart at rounding through the residual bookkeeping.
+45. The logistic `$setWeights` arm that sets a row to 0 is pinned bitwise at the rows in and within 1e-12 at every row: the
+    row keeps the omega it had, which differs from a masked row's at count 1. Alternative: resetting the row's omega to its
+    cold start at the setter.
+46. The basis scales of a several-forest probit or logistic sampler are read over the rows of positive weight, as over the
+    rows the mask kept. Alternative: every row, which moves the scales and loses their fallback warnings.
+47. The leaf covariate refusal's remedy names "the weights, the active-row mask, or subset", the 0/1 weights' mask being
+    gone. Alternative: keeping the old words, which name a mask nothing installs.
 
 ## Open calls
 
@@ -941,6 +959,18 @@ reactivates a row consuming no variate; a logistic fit with a
 zero weight equal draw for draw to the fit with that row masked by `setActiveRows`; xbart on probit with 0/1 weights equal,
 fold for fold under a fixed fold assignment, to a by-hand loop fitting each fold with those weights and scoring its held-out
 rows of weight 1 (the test-xbart-fold-oracle.R pattern); the suite; the trio.
+As built: a `Membership` helper in model.hpp holds probit's and ordinal's composition of the weights and the mask, empty
+where every row is in, so all ones is bitwise no weights; logistic and nbinom read a count of 0 out of the likelihood and as
+1 in kappa (Calls made, 44), a 0 row consuming no variate, its cold-start omega 1/4 and its log-likelihood NaN; nbinom's
+center is derived over the rows in at creation and `setData` (Calls made, 41). The binomial draw-for-draw test at k = 0 and
+k = n within 4.2e-14 of its split rows over 300 sweeps (13 rows at k = 0, 9 at k = n); test-binary-weight-mask.R's draws
+unchanged; nbinom 0/1 weights, a probit and an ordinal `setData(s$data)`, either-order composition, reactivation and a
+logistic zero weight each bitwise their masked twins (test-membership-weights.R), the logistic and nbinom `$setWeights(0)`
+arms bitwise at the rows in (Calls made, 45); xbart on probit with 0/1 weights fold for fold bitwise the by-hand loop, its
+log loss over the held-out rows of weight 1 within 1e-12. `$setWeights` of all ones on a probit, ordinal or nbinom sampler
+records no weights, as creation does. The trio bitwise against a6e83f38 (S-G not yet on main; 55, 19 and 11 scenarios, none
+skipped), the four snapshot files, tests/cpp plain and under ASan/UBSan (548 checks each), the suite 42085/0, mutants 15 and
+16 killed by test-membership-weights.R. Calls made 41 to 47.
 
 ### S5: R surface, the reading (~485 R, ~145 help, ~680 tinytest)
 
@@ -978,6 +1008,8 @@ categories and one to count rows, at training rows and at newdata, with combineC
 Also test-hurdle.R's before/after arm (a hurdle fit with 0/1 weights at weights.type NULL and "frequency"
 equal draw for draw to the build before S5); lint_package, air, codoc, win drift, doc-freshness; the snapshots on the
 reference build.
+From the S-G review: S5 builds on S-G's `sigmaBasisColumns` and `startingSigmaDesign(bases =)`, its df is sum(w) - rank,
+it adds weighted basis cases, and any re-record starts from S-G's baselines.
 
 ### S6: R surface, the binomial and xbart (~250 R, ~55 help, ~400 tinytest)
 
