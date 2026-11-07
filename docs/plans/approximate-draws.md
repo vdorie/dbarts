@@ -875,6 +875,13 @@ after frequency-weights.
   hook as well; a copied sampler carries its marks; a cancel before a marked row's draw leaves the mark set and the
   next sweep draws the row; a cancel at the poll before row j leaves rows j on bit for bit unchanged
   ([The exact accept-or-keep route](#the-exact-accept-or-keep-route), the cancel);
+- the uniform's words (S2): the route asserts that the chain's generator is the Mersenne Twister before it takes
+  words from it, as only that algorithm's uniform is a 32-bit word times 2^-32 (a user-supplied uniform is not),
+  with a test that another generator is refused;
+- the math library (S2): a cheap test of the S1 note's (A2s) in its weaker form (sin and cos within 2^-51
+  absolutely at arguments up to the evaluator's, sin on |x| <= 1/2 and cos and tan on [0, pi/2 - 2^-15] within
+  2^-51 relative, against double-double references), run on every CI platform, Windows included: the check-standard
+  matrix through a tinytest, since tests/cpp does not run on Windows;
 - S3: the outer-step gate's fractional arms and the mutant arms, the real step's largest |z| under the integrating
   outer step reported (these carry the example's exactness); the example's tinytest at fractional weights, the
   route-step count positive and the close-call count read; the pseudo-prior example's tinytest, its log factor
