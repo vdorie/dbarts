@@ -550,7 +550,17 @@ refuseMixedArgumentStyles <- function(suppliedCall, legacy, caller) {
 ## positional 0.9-x call that carried no BayesTree-spelled name would bind a
 ## number to a row selector and fit a different model in silence. Refused
 ## for the transition release; after it, the ordinary argument rules apply.
-refuseLegacyPositionalCall <- function(suppliedCall) {
+## A wrapper forwarding its dots, function(...) bart(x, y, x.test, ...), is
+## judged by what the dots hold: matching against a dots-only function in
+## the frame that called bart expands them and keeps every supplied name, so
+## the '...' symbol is not counted and an unnamed fourth value inside it is.
+refuseLegacyPositionalCall <- function(suppliedCall, callingEnv) {
+  suppliedCall <- match.call(
+    function(...) NULL,
+    suppliedCall,
+    expand.dots = TRUE,
+    envir = callingEnv
+  )
   argNames <- names(suppliedCall)
   positional <- if (is.null(argNames)) {
     length(suppliedCall) - 1L

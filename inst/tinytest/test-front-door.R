@@ -746,6 +746,33 @@ expect_inherits(
   do.call(dbarts::bart, c(list(xFD, yFD, xFD[1:5, ]), modernFD)),
   "bart"
 )
+# a wrapper forwarding its dots after three positional arguments is judged
+# by what the dots hold, not by the '...' symbol in its call: empty or named
+# dots pass, an unnamed fourth value is refused however many wrappers
+# forward it
+xtFD <- xFD[1:5, ]
+wrap3FD <- function(...) {
+  dbarts::bart(xFD, yFD, xtFD, samplerOnly = TRUE, ...)
+}
+expect_inherits(wrap3FD(), "dbartsSampler")
+expect_inherits(do.call(wrap3FD, modernFD), "dbartsSampler")
+wrapFormalsFD <- function(f, d, t, ...) {
+  dbarts::bart(f, d, t, samplerOnly = TRUE, ...)
+}
+expect_inherits(wrapFormalsFD(xFD, yFD, xtFD, n.trees = 12L), "dbartsSampler")
+expect_error(
+  dbarts::bart(xFD, yFD, xtFD, 1.0, samplerOnly = TRUE),
+  pattern = "at most three positional arguments \\(formula, data, test\\); 4 were"
+)
+expect_error(
+  wrap3FD(1.0),
+  pattern = "at most three positional arguments \\(formula, data, test\\); 4 were"
+)
+wrapTwiceFD <- function(...) wrap3FD(...)
+expect_error(
+  wrapTwiceFD(1.0),
+  pattern = "at most three positional arguments \\(formula, data, test\\); 4 were"
+)
 
 # --- '...' carries only registry names; anything else is a caller mistake ---
 expect_error(

@@ -1062,7 +1062,7 @@ bart <- function(
   if (!is.null(forwarded)) {
     return(forwarded$value)
   }
-  refuseLegacyPositionalCall(suppliedCall)
+  refuseLegacyPositionalCall(suppliedCall, callingEnv)
   # the dots are inspected by NAME, never forced as a list: a retired
   # argument may be written in a vocabulary only this package holds
   # (resid.prior = chisq(3, 0.9)), which would not resolve in the caller's
