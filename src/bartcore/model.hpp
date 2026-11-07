@@ -4476,6 +4476,35 @@ struct DartPrior {
     alpha = gridAlpha_[drawFromLogWeights(rng, gridWeight_.data(), gridSize)];
   }
 
+  /// Replaces alpha, where it is drawn, and the split weights with a draw
+  /// from their stated prior: alpha from the grid's prior weights alone, the
+  /// Beta(a, b) kernel on lambda, then the weights from Dirichlet(alpha / p)
+  /// over the allowed columns, every other column 0, as update draws them at
+  /// zero counts. The count of updates skipped is left alone. Requires
+  /// initialize.
+  void drawFromPrior(ext_rng* rng) {
+    if (updateAlpha) {
+      std::copy(gridLogPrior_.begin(), gridLogPrior_.end(),
+                gridWeight_.begin());
+      alpha = gridAlpha_[drawFromLogWeights(rng, gridWeight_.data(), gridSize)];
+    }
+
+    std::size_t numPredictors = probabilities.size();
+    double p = static_cast<double>(numAllowed_);
+    const bool masked = !columnMask_.empty();
+    double total = 0.0;
+    for (std::size_t j = 0; j < numPredictors; ++j) {
+      if (masked && columnMask_[j] == 0) {
+        probabilities[j] = 0.0;
+        continue;
+      }
+      double draw = ext_rng_simulateGamma(rng, alpha / p, 1.0);
+      probabilities[j] = draw > 1.0e-300 ? draw : 1.0e-300;
+      total += probabilities[j];
+    }
+    for (std::size_t j = 0; j < numPredictors; ++j) probabilities[j] /= total;
+  }
+
   static constexpr std::size_t gridSize = 1000;
 
   // State serialization: the delay counter is the only hidden mutable state
@@ -4485,13 +4514,18 @@ struct DartPrior {
 
 private:
   /// Resolves rho <= 0 to the allowed column count and, where alpha is
-  /// drawn, fills the grid's alphas and log-prior constants.
+  /// drawn, fills the grid's alphas, log-prior constants and prior weights.
+  /// gridConstant_ carries the Dirichlet normalizer with the Beta kernel and
+  /// is what update reads; gridLogPrior_ is the Beta kernel alone, which
+  /// drawFromPrior reads. Each is its own expression, so update's constants
+  /// do not depend on the second.
   void buildGrid() {
     double p = static_cast<double>(numAllowed_);
     if (rho <= 0.0) rho = p;
     if (!updateAlpha) return;
     gridAlpha_.resize(gridSize);
     gridConstant_.resize(gridSize);
+    gridLogPrior_.resize(gridSize);
     gridWeight_.resize(gridSize);
     for (std::size_t k = 0; k < gridSize; ++k) {
       double lambda = static_cast<double>(k + 1) / static_cast<double>(gridSize + 1);
@@ -4500,10 +4534,12 @@ private:
       gridConstant_[k] = std::lgamma(alphaK) - p * std::lgamma(alphaK / p) +
                          (betaA - 1.0) * std::log(lambda) +
                          (betaB - 1.0) * std::log(1.0 - lambda);
+      gridLogPrior_[k] = (betaA - 1.0) * std::log(lambda) +
+                         (betaB - 1.0) * std::log(1.0 - lambda);
     }
   }
 
-  std::vector<double> gridAlpha_, gridConstant_, gridWeight_;
+  std::vector<double> gridAlpha_, gridConstant_, gridLogPrior_, gridWeight_;
   // the columns the Dirichlet is laid over (empty = every column) and their
   // count
   std::vector<std::uint8_t> columnMask_;
@@ -5641,6 +5677,12 @@ public:
     std::memcpy(gamma_.data(), gamma, gamma_.size() * sizeof(double));
   }
 
+  /// The cutpoints' prior: gamma_1 = 0 and each of the K - 2 gaps
+  /// gamma_{s+1} - gamma_s independently log-normal, log gap ~
+  /// N(priorLogGapMean_, priorLogGapSd_^2). Public for a draw from it.
+  static constexpr double priorLogGapMean_ = 0.0;
+  static constexpr double priorLogGapSd_ = 1.5;
+
   /// log P(y_i = k | eta, gamma) = log(Phi(gamma_k - eta) - Phi(gamma_{k-1} -
   /// eta)), the cumulative-probit category likelihood generalizing probit's
   /// two-tail form; the +-inf boundary cutpoints give Phi = 1 / 0.
@@ -5813,8 +5855,6 @@ private:
       misc_subtractVectorsInPlace(offset_, numObservations_, working_.data());
   }
 
-  static constexpr double priorLogGapMean_ = 0.0;
-  static constexpr double priorLogGapSd_ = 1.5;
   static constexpr double proposalScaleConstant_ = 2.5;
 
   const double* y_;
@@ -6471,6 +6511,12 @@ struct ResidualDfPrior {
     return drawFromLogWeights(rng, weight_.data(), gridSize);
   }
 
+  /// The prior's normalized log weights over the grid, the gamma(2, 0.1)
+  /// kernel; a draw from the prior alone reads these.
+  const std::array<double, gridSize>& logPriorWeights() const {
+    return logPrior_;
+  }
+
 private:
   std::array<double, gridSize> kernel_;
   std::array<double, gridSize> logPrior_;
@@ -6829,6 +6875,12 @@ struct NBShapePrior {
         weight_[k] -= (y[i] + grid[k]) * std::log1p(mean * inverseGrid_[k]);
     }
     return drawFromLogWeights(rng, weight_.data(), gridSize);
+  }
+
+  /// The prior's normalized log weights over the grid, the gamma(2, 0.1)
+  /// kernel; a draw from the prior alone reads these.
+  const std::array<double, gridSize>& logPriorWeights() const {
+    return logPrior_;
   }
 
 private:
