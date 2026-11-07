@@ -48,7 +48,11 @@ expect_message(
     control = verboseControl,
     n.trees = 10L
   ))),
-  "starting sigma is the sd of the response (1.414): the linear model on 2",
+  paste(
+    "starting sigma is the sd of the response (1.414): the linear model on 2",
+    "columns (factors as indicators) leaves no residual degrees of freedom in 2",
+    "rows; supply 'sigest' to set it"
+  ),
   fixed = TRUE
 )
 samples.n2 <- sampler.n2$run(10L, 10L)
