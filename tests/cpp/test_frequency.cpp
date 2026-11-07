@@ -1867,6 +1867,24 @@ void testBinomialLogLikelihood() {
   small.computeLogLikelihood(eta2.data(), 1.0, 3, out2.data());
   check(out2[0] == 0.0 && std::isfinite(out2[1]) && std::isnan(out2[2]),
         "a binomial row of no trials reports 0, a masked one NaN");
+
+  // a successes swap recomputes the constants
+  std::vector<double> flipped(n);
+  for (std::size_t i = 0; i < n; ++i)
+    flipped[i] = std::floor(0.5 * (k[i] + trials[i]));
+  response.setResponse(flipped.data(), false, nullptr);
+  response.computeLogLikelihood(eta.data(), 1.0, n, out.data());
+  double worstFlipped = 0.0;
+  for (std::size_t i = 0; i < n; ++i) {
+    double p = 1.0 / (1.0 + std::exp(-eta[i]));
+    double q = 1.0 / (1.0 + std::exp(eta[i]));
+    double expected = w[i] * Rf_dbinom_raw(flipped[i], trials[i], p, q, 1);
+    worstFlipped = std::max(worstFlipped,
+                            std::fabs(out[i] - expected) /
+                              std::max(std::fabs(expected), 1e-300));
+  }
+  check(worstFlipped < 1e-10,
+        "the binomial log-likelihood follows a successes swap");
 }
 
 /// A row of no trials and a binomial row of weight 0: finite throughout,
@@ -1938,6 +1956,20 @@ void testBinomialSetCountsAndState() {
   auto sampler = makeBinomialSampler(b.x.data(), b.k.data(), n, b.p,
                                      b.w.data(), b.trials.data(), &rngA,
                                      offset.data());
+  // the cold start: omega PG(w n, 0)'s mean, at least a quarter, and the
+  // working response 4 (k / n - 1/2) - offset
+  {
+    const double* omega0 = sampler->latents(0);
+    const double* working0 = TestPeer::workingResponse(sampler->chain(0));
+    bool cold = true;
+    for (std::size_t i = 0; i < n; ++i)
+      cold = cold &&
+        omega0[i] == 0.25 * std::max(b.trials[i] * b.w[i], 1.0) &&
+        working0[i] ==
+          4.0 * (b.k[i] / std::max(b.trials[i], 1.0) - 0.5) - offset[i];
+    check(cold, "a binomial sampler cold-starts at PG(w n, 0)'s mean and "
+                "4 (k / n - 1/2) - offset");
+  }
   sampler->setActiveRows(mask.data());
   Results none;
   bool ran = !sampler->run(10, 0, none);
@@ -2060,6 +2092,60 @@ void testBinomialReadOffs() {
         "a binomial basis scale is its binary rows', at creation and at a "
         "rescaling basis change, under either reading");
 
+  // one row of trials is too few rows in, as one row the mask keeps: the
+  // scale is read off every row at its count, where the basis has no spread
+  std::vector<double> oneRow(n, 0.0), oneK(n, 0.0);
+  oneRow[2] = 3.0;
+  bool fellBack = false;
+  try {
+    scalesOf(b.x.data(), oneK.data(), n, nullptr, oneRow.data(), dose.data(),
+             dose2.data(), false);
+  } catch (const BasisScaleError& error) {
+    fellBack = error.fromAllRows;
+  }
+  check(fellBack, "a binomial row of no trials is out of the rows a basis "
+                  "scale is read over, as a masked row");
+
+  // the counts read follow a count change and a weight change
+  std::vector<double> k2(b.k), n2(b.trials), w2(b.w);
+  for (std::size_t i = 0; i < n; i += 3) {
+    n2[i] = i % 2 == 0 ? 0.0 : n2[i] + 2.0;
+    k2[i] = std::min(k2[i], n2[i]);
+    w2[(i + 1) % n] = 5.0 - w2[(i + 1) % n];
+  }
+  auto rescaledAfter = [&](const double* k, const double* trials,
+                           const double* w, bool changeCounts,
+                           bool changeWeights) {
+    AmplitudeSpec spec;
+    spec.family = ResponseFamily::logistic;
+    spec.forests.resize(2);
+    spec.forests[1].kind = ForestKind::numeric;
+    spec.forests[1].basis = dose.data();
+    SamplerOptions options;
+    options.trials = trials;
+    ext_rng* rng = seededRng(7713u);
+    ConstantLeafSampler sampler(b.x.data(), k, n, f.p, w, nullptr, 1.0,
+                                sigmaDf, sigmaRawScale, options, spec, &rng);
+    if (changeCounts) sampler.setBinomialCounts(k2.data(), n2.data());
+    if (changeWeights) sampler.setWeights(w2.data());
+    sampler.setForestBasisRescaled(1, dose2.data(), 1);
+    double scale = sampler.forestCalibration(0, 1).basisScale;
+    ext_rng_destroy(rng);
+    return scale;
+  };
+  double countsChanged = rescaledAfter(b.k.data(), b.trials.data(),
+                                       b.w.data(), true, false);
+  double countsCreated = rescaledAfter(k2.data(), n2.data(), b.w.data(),
+                                       false, false);
+  double weightsChanged = rescaledAfter(b.k.data(), b.trials.data(),
+                                        b.w.data(), false, true);
+  double weightsCreated = rescaledAfter(b.k.data(), b.trials.data(),
+                                        w2.data(), false, false);
+  check(countsChanged == countsCreated && weightsChanged == weightsCreated &&
+          countsChanged != weightsChanged,
+        "a binomial basis scale re-read after setBinomialCounts or setWeights "
+        "is the one created with those counts");
+
   const std::size_t columns[] = {0};
   SamplerOptions options;
   options.numTrees = 5;
@@ -2089,6 +2175,31 @@ void testBinomialReadOffs() {
         "a binomial linear leaf's standardization is its binary rows'");
   ext_rng_destroy(rngB);
   ext_rng_destroy(rngE);
+
+  // one row of trials is too few rows in, as one row of positive weight is
+  auto leafOutcome = [&](const double* trials, const double* w,
+                         bool frequency) {
+    SamplerOptions o = frequency ? frequencyOptions(options) : options;
+    o.trials = trials;
+    ext_rng* rng = seededRng(7714u);
+    std::array<double, 3> outcome = {0.0, 0.0, 0.0};
+    try {
+      Sampler<LinearGaussianLeaf> s(xFar.data(), oneK.data(), n, b.p, w,
+                                    nullptr, ResponseFamily::logistic, 1.0,
+                                    sigmaDf, 1.0, o, &rng);
+      outcome = {1.0, s.chain(0).leaf().covariateMeans()[0],
+                 s.chain(0).leaf().fromAllRows()[0] != 0 ? 1.0 : 0.0};
+    } catch (const LeafStandardizationError& error) {
+      outcome = {2.0, static_cast<double>(error.numRowsIn),
+                 error.observed ? 1.0 : 0.0};
+    }
+    ext_rng_destroy(rng);
+    return outcome;
+  };
+  check(leafOutcome(oneRow.data(), nullptr, false) ==
+          leafOutcome(nullptr, oneRow.data(), true),
+        "a binomial row of no trials is out of a linear leaf's rows, as a row "
+        "of weight 0");
 }
 
 }  // namespace
