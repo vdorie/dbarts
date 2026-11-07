@@ -18,6 +18,72 @@ Notes: `partitionIndices` rows include a per-rep index-array memcpy; subtract
 the `memcpyBaseline` rows. Instruction-set sweep covers scalar C through the
 host's maximum.
 
+## kernels/pg_step - the accept-or-keep Polya-Gamma step against the exact sum
+
+Times one row's certified accept-or-keep step (src/bartcore/pgdensity.hpp) against today's exact sum of b
+PG(1, psi) draws, in one process on one core, and reports b*(|psi|), the smallest whole b where the step costs at
+most half the sum (docs/plans/approximate-draws.md, "The per-row rule"). c_R is the step's cost from a fixed x, the
+worst of z in {-3, 0, 3}; the three-evaluation figure is c_R less one log f at x, what a cache of log f at the
+current point would save; "build" is the proposal's build alone, a part of c_R.
+
+    cd benchmarks/kernels && make pg_step && ./pg_step 1.0
+
+S1's timing gate, read on the x86 box (Intel Core i3-14100, GCC 13.3, -O2), idle, the harness pinned to one core
+with taskset, 1 second per cell, at commit a58b8c909 (the S1 tip after its referee's fixes, rebased onto
+3a00499f0); the cache's materiality threshold is the plan's commit 438de939d (ac8de7b16 before the branch's
+rebases). Times in microseconds per row step:
+
+    |psi|  b      K    c_R (z)        3-eval    build  c_S       c_R / c_S
+    0      0.2    1    149.01 (3)     94.12     0.61   -         -
+    0      1      1    83.35 (3)      56.49     0.61   0.13      654.9
+    0      2.5    1    66.03 (3)      45.58     0.61   -         -
+    0      16     1    46.14 (3)      30.77     0.61   1.99      23.1
+    0      64     2    42.01 (3)      32.61     0.99   7.93      5.30
+    0      1e3    3    39.59 (0)      30.14     1.02   123.97    0.319
+    0      1e4    4    39.15 (3)      29.29     0.98   1239.09   0.032
+    0      1e5    6    91.68 (3)      80.78     0.95   12387.09  0.007
+    8      0.2    1    122.40 (3)     70.22     1.05   -         -
+    8      1      2    75.28 (-3)     49.10     1.09   0.16      482.5
+    8      2.5    2    72.11 (-3)     38.99     1.47   -         -
+    8      16     3    46.16 (-3)     34.30     1.84   2.45      18.9
+    8      64     4    41.89 (-3)     29.90     1.85   9.76      4.29
+    8      1e3    8    49.14 (-3)     37.84     1.05   152.43    0.322
+    8      1e4    12   76.91 (3)      66.58     1.08   1523.91   0.050
+    8      1e5    19   691.52 (3)     680.08    1.15   15279.94  0.045
+    50     0.2    10   270.80 (-3)    89.24     1.88   -         -
+    50     1      14   100.49 (-3)    84.04     1.99   0.15      659.9
+    50     2.5    18   113.31 (-3)    92.81     2.04   -         -
+    50     16     26   111.15 (-3)    89.42     2.17   2.38      46.7
+    50     64     34   125.02 (-3)    104.67    2.31   9.52      13.1
+    50     1e3    60   213.32 (0)     193.45    1.59   148.25    1.44
+    50     1e4    95   1362.04 (0)    1342.52   1.89   1486.35   0.916
+    50     1e5    150  53387.14 (0)   53366.99  4.35   14849.17  3.60
+    150    0.2    37   292.92 (-3)    188.15    3.77   -         -
+    150    1      54   264.49 (-3)    220.00    3.08   0.16      1698.1
+    150    2.5    65   284.97 (-3)    241.05    4.47   -         -
+    150    16     96   303.37 (-3)    260.26    3.70   2.44      124.5
+    150    64     128  367.84 (-3)    323.75    4.23   9.72      37.8
+    150    1e3    223  1144.88 (-3)   1102.00   3.19   151.59    7.55
+    150    1e4    353  25632.82 (-3)  25590.42  8.06   1519.09   16.9
+    150    1e5    560  785648.83 (-3) 785606.55 6.19   15194.97  51.7
+
+No step in any cell was a close call. b* per |psi|, from the four- and the three-evaluation costs:
+
+| \|psi\| | b* (four) | b* (three) | three below four | the rule's b*, max(b*, 64) |
+|---|---|---|---|---|
+| 0 | 645 | 497 | 22.9% | 645 |
+| 8 | 628 | 465 | 26.0% | 628 |
+| 50 | never | never | - | never |
+| 150 | never | never | - | never |
+
+The verdicts. The gate, b* <= 1e3 at |psi| <= 8, passes. The cache is material by the plan's threshold (at |psi| 0
+or 8 the three-evaluation b* at least 10 percent below the four-evaluation one): 22.9 and 26.0 percent. The plan
+put the most a cache can move b* at 25 percent, taking the four evaluations as equal; log f costs more than log q
+at small K, so the saved evaluation is 23 to 33 percent of c_R in these cells. The fractional-shape cells above
+70 us: b 0.2 at every |psi| (122 to 293 us) and b 2.5 at |psi| 8, 50 and 150 (72, 113 and 285 us). At |psi| 50 and
+150 the step never reaches half the sum's cost: its cost grows with b there (1.4 ms at b 1e4, |psi| 50; 26 ms and
+0.79 s at b 1e4 and 1e5, |psi| 150), the proposal's K + 1 terms entering every cell bound.
+
 ## R/bench-sampler.R - end-to-end timing (the zero-regression gate)
 
 Times sampler throughput (continuous/binary, several sizes), the
