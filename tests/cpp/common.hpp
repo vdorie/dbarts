@@ -515,5 +515,7 @@ void runMonotoneTests();
 // functions; own rngs, draws nothing from the runif01 stream.
 void runAllocTests();
 void runFuzzTests(int numSeeds);
+// The certified Polya-Gamma evaluator against its reference tables; own rng.
+void runPgdensityTests();
 
 #endif  // TESTS_CPP_COMMON_HPP

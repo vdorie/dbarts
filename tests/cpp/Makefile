@@ -32,7 +32,7 @@ SOURCES := main.cpp assert.cpp common.cpp test_data.cpp test_tree.cpp \
            test_model.cpp test_sampler.cpp test_shape.cpp test_facade.cpp \
            test_state.cpp test_capi.cpp \
            test_ensemble.cpp test_monotone.cpp test_alloc.cpp test_fuzz.cpp \
-           test_nmath.cpp
+           test_nmath.cpp test_pgdensity.cpp
 OBJECTS := $(SOURCES:.cpp=.o)
 DEPS := $(SOURCES:.cpp=.d)
 
@@ -224,11 +224,11 @@ clean:
 	rm -f main.o assert.o common.o test_data.o test_tree.o test_scan.o test_grow.o
 	rm -f test_moves.o test_interaction.o test_model.o test_sampler.o test_shape.o
 	rm -f test_facade.o test_state.o test_capi.o test_ensemble.o test_monotone.o
-	rm -f test_fuzz.o test_nmath.o
+	rm -f test_fuzz.o test_nmath.o test_pgdensity.o
 	rm -f main.d assert.d common.d test_data.d test_tree.d test_scan.d test_grow.d
 	rm -f test_moves.d test_interaction.d test_model.d test_sampler.d test_shape.d
 	rm -f test_facade.d test_state.d test_capi.d test_ensemble.d test_monotone.d
-	rm -f test_fuzz.d test_nmath.d
+	rm -f test_fuzz.d test_nmath.d test_pgdensity.d
 	rm -rf test_bartcore.dSYM
 	rm -f build-standalone/nmath/bd0.o build-standalone/nmath/chebyshev.o
 	rm -f build-standalone/nmath/cospi.o build-standalone/nmath/d1mach.o
