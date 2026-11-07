@@ -1063,7 +1063,8 @@ basisData <- data.frame(
   z = sample(c("a", "b"), 60L, TRUE),
   w = runif(60L, 0.5, 2)
 )
-basisData$y <- basisData$x1 + (basisData$z == "b") * basisData$x2 +
+basisData$y <- basisData$x1 +
+  (basisData$z == "b") * basisData$x2 +
   rnorm(60L, 0, 0.3)
 basisData$yb <- as.integer(basisData$y > median(basisData$y))
 for (case in list(
@@ -1191,7 +1192,10 @@ expect_error(
   fixed = TRUE
 )
 # the spellings taken still are
-expect_identical(pdbart(xindFormula, xind = a + b, pl = FALSE)$xlbs, c("a", "b"))
+expect_identical(
+  pdbart(xindFormula, xind = a + b, pl = FALSE)$xlbs,
+  c("a", "b")
+)
 expect_identical(pdbart(xindMatrix, xind = "b", pl = FALSE)$xlbs, "b")
 expect_identical(pdbart(xindMatrix, xind = 2L, pl = FALSE)$xlbs, "b")
 

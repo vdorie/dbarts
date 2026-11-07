@@ -4353,6 +4353,7 @@ survivalProbabilities.bart <- function(
   sample = c("train", "test"),
   ...
 ) {
+  checkCombineChains(combineChains)
   refuseUnusedGenericArgs(
     list(...),
     "survivalProbabilities",

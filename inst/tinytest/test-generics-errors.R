@@ -387,7 +387,11 @@ for (case in list(
     warnings.dots <- captureWarnings(
       do.call(generic, list(case$fit, bogus = 1))
     )
-    expect_identical(length(warnings.dots), 1L, info = paste(generic, case$class))
+    expect_identical(
+      length(warnings.dots),
+      1L,
+      info = paste(generic, case$class)
+    )
     expect_identical(
       conditionMessage(warnings.dots[[1L]]),
       paste0(
@@ -450,6 +454,66 @@ rm(
   warnings.trees,
   trees.typo
 )
+
+# predict's and extract's combineChains is TRUE or FALSE, as bart's is; a
+# type that is no string, or a missing one, gets the list of types
+for (fit in list(bart2FitKT, multinomialFitKT, ordinalFitKT, negbinFitKT)) {
+  newRows <- if (identical(fit, bart2FitKT)) {
+    testData$x[1:2, ]
+  } else {
+    xSmall[1:2, ]
+  }
+  for (flag in list(NA, "yes", c(TRUE, FALSE), NULL)) {
+    expect_error(
+      predict(fit, newRows, combineChains = flag),
+      "'combineChains' must be TRUE/FALSE",
+      fixed = TRUE
+    )
+    expect_error(
+      extract(fit, combineChains = flag),
+      "'combineChains' must be TRUE/FALSE",
+      fixed = TRUE
+    )
+  }
+  for (type in list(NA_character_, NA, character(0), 1)) {
+    expect_error(extract(fit, type = type), "type must be in '", fixed = TRUE)
+    expect_error(fitted(fit, type = type), "type must be in '", fixed = TRUE)
+    expect_error(
+      predict(fit, newRows, type = type),
+      "type must be in '",
+      fixed = TRUE
+    )
+  }
+}
+expect_error(
+  predict(hurdleFitKT, xSmall[1:2, ], combineChains = NA),
+  "'combineChains' must be TRUE/FALSE",
+  fixed = TRUE
+)
+expect_error(
+  extract(hurdleFitKT, type = NA_character_),
+  "type must be in '",
+  fixed = TRUE
+)
+expect_error(
+  survivalProbabilities(bart2FitKT, combineChains = NA),
+  "'combineChains' must be TRUE/FALSE",
+  fixed = TRUE
+)
+# summary's vars name fields
+for (vars in list(NA, 1, c("sigma", NA))) {
+  expect_error(
+    summary(bart2FitKT, vars = vars),
+    "'vars' must name the fields to summarize",
+    fixed = TRUE
+  )
+}
+expect_error(
+  summary(hurdleFitKT, vars = 1),
+  "'vars' must name the fields to summarize",
+  fixed = TRUE
+)
+rm(newRows, fit, flag, type, vars)
 
 rm(bart2FitKT)
 

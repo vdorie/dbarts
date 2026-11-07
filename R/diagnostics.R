@@ -499,6 +499,8 @@ summary.bart <- function(
 ) {
   if (missing(vars)) {
     vars <- defaultLeafScaleVars(object, vars)
+  } else if (!is.character(vars) || anyNA(vars)) {
+    stop("'vars' must name the fields to summarize", call. = FALSE)
   }
   fixed <- fixedSummaryValues(object, vars)
   present <- presentDrawsVars(object, setdiff(vars, names(fixed)))

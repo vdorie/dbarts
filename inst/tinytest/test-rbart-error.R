@@ -69,6 +69,46 @@ rbartDefault <- function(...) {
 }
 expect_error(rbartDefault(power = NULL), "'power' cannot be NULL; leave it out")
 expect_error(rbartDefault(base = NULL), "'base' cannot be NULL; leave it out")
-rm(rbartDefault)
+# predict's and extract's combineChains is TRUE or FALSE; a missing type gets
+# the list of types
+rbartSmall <- rbartDefault()
+expect_error(
+  predict(
+    rbartSmall,
+    testData[1:2, ],
+    group.by = testData$g[1:2],
+    combineChains = NA
+  ),
+  "'combineChains' must be TRUE/FALSE",
+  fixed = TRUE
+)
+expect_error(
+  extract(rbartSmall, combineChains = "yes"),
+  "'combineChains' must be TRUE/FALSE",
+  fixed = TRUE
+)
+for (type in list(NA_character_, character(0))) {
+  expect_error(
+    extract(rbartSmall, type = type),
+    "type must be in '",
+    fixed = TRUE
+  )
+  expect_error(
+    fitted(rbartSmall, type = type),
+    "type must be in '",
+    fixed = TRUE
+  )
+  expect_error(
+    predict(
+      rbartSmall,
+      testData[1:2, ],
+      group.by = testData$g[1:2],
+      type = type
+    ),
+    "type must be in '",
+    fixed = TRUE
+  )
+}
+rm(rbartDefault, rbartSmall, type)
 
 rm(testData)

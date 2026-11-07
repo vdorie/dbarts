@@ -1189,6 +1189,7 @@ predict.rbart <- function(
   combineChains = TRUE,
   ...
 ) {
+  checkCombineChains(combineChains)
   if (is.null(object$fit)) {
     stop("predict requires rbart to be called with 'keepTrees' == TRUE")
   }
@@ -1207,14 +1208,8 @@ predict.rbart <- function(
     dotsList[["value"]] <- NULL
   }
 
-  if (is.character(type)) {
-    if (type[1L] == "response") {
-      type[1L] <- "ev"
-    } else if (type[1L] == "link") {
-      type[1L] <- "bart"
-    }
-  }
-  if (is.character(type) && length(type) > 0L && type[1L] == "post-mean") {
+  type <- foldTypeAliases(type)
+  if (isTRUE(is.character(type) && type[1L] == "post-mean")) {
     warnClassed(
       "dbartsDeprecatedWarning",
       "type of 'post-mean' for predict deprecated; use 'ev' instead"
@@ -1426,15 +1421,12 @@ extract.rbart <- function(
   combineChains = TRUE,
   ...
 ) {
-  if (is.character(type)) {
-    if (type[1L] == "response") {
-      type[1L] <- "ev"
-    } else if (type[1L] == "link") {
-      type[1L] <- "bart"
-    }
-  }
+  checkCombineChains(combineChains)
+  type <- foldTypeAliases(type)
   if (
-    !is.character(type) || type[1L] %not_in% eval(formals(extract.rbart)$type)
+    !is.character(type) ||
+      length(type) == 0L ||
+      type[1L] %not_in% eval(formals(extract.rbart)$type)
   ) {
     stop(
       "type must be in '",
@@ -1583,15 +1575,11 @@ fitted.rbart <- function(
   sample = c("train", "test"),
   ...
 ) {
-  if (is.character(type)) {
-    if (type[1L] == "response") {
-      type[1L] <- "ev"
-    } else if (type[1L] == "link") {
-      type[1L] <- "bart"
-    }
-  }
+  type <- foldTypeAliases(type)
   if (
-    !is.character(type) || type[1L] %not_in% eval(formals(fitted.rbart)$type)
+    !is.character(type) ||
+      length(type) == 0L ||
+      type[1L] %not_in% eval(formals(fitted.rbart)$type)
   ) {
     stop(
       "type must be in '",
