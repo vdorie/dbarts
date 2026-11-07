@@ -1385,7 +1385,7 @@ public:
             mapped.basisScale = basisColumnScale(
               forestSpec.basis, data.numObservations,
               scaleRows.rows.empty() ? nullptr : scaleRows.rows.data(),
-              scaleRows.counts);
+              scaleRows.countsRead());
           } catch (BasisScaleError& error) {
             error.forest = f;
             error.fromAllRows = scaleRows.fellBack;
@@ -8975,8 +8975,15 @@ private:
     bool fellBack = false;  // every row read because too few were in
     bool read = false;
     // under frequency weights the rows' counts, borrowed, read where every
-    // row is read in place of the rows in as well; null under precision
+    // row is read in place of the rows in as well, a count of 0 then read as
+    // 1 (fallbackCounts); null under precision
     const double* counts = nullptr;
+    // counts with each 0 read as 1, where every row is read and one is 0
+    std::vector<double> liftedCounts;
+    // the counts each row is read at
+    const double* countsRead() const {
+      return liftedCounts.empty() ? counts : liftedCounts.data();
+    }
   };
   /// Under gaussian the rows the response's range was read from, every row
   /// where it read them all; that is a fallback where a row is out and the
@@ -9017,6 +9024,7 @@ private:
       if (numIn == 0 || (numIn == 1 && n > 1)) {
         result.rows.clear();
         result.fellBack = true;
+        fallbackCounts(result.counts, true, n, result.liftedCounts);
       }
       return result;
     }
@@ -9035,6 +9043,7 @@ private:
         response_->lacksDistinctRowsIn(IncomingVector::response, y);
     }
     result.counts = frequencyCounts();
+    fallbackCounts(result.counts, result.fellBack, n, result.liftedCounts);
     return result;
   }
 

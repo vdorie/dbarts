@@ -2630,7 +2630,7 @@ public:
     std::vector<std::uint8_t> leafRowStorage;
     // a binomial row is read at its trials times its weight, a row of no
     // trials out, as at creation; leafRows borrows them for the call
-    std::vector<double> trialCounts;
+    std::vector<double> trialCounts, fallbackCountStorage;
     LeafRows leafRows;
     if constexpr (L::hasVectorParams || L::hasFunctionParams) {
       if (replacement.trials != nullptr)
@@ -2645,7 +2645,8 @@ public:
                        leafRowStorage);
       if (replacement.range == DerivedValueChoice::derive)
         leafRows = withResponseFallback(leafRows, y, offset, numObservations);
-      leafRows = withCounts(leafRows, weights, counts);
+      leafRows = withCounts(leafRows, weights, counts, numObservations,
+                            fallbackCountStorage);
       if (replacement.standardization != DerivedValueChoice::keep)
         refuseLeafDerivation(
           x, numObservations,
@@ -2768,6 +2769,7 @@ public:
       const L& leaf = chains_[0]->leaf();
       size_t n = data_.numObservations;
       std::vector<std::uint8_t> storage;
+      std::vector<double> countStorage;
       const double* trialCounts = chains_[0]->trialCounts();
       LeafRows rows = withCounts(
         tooFewUnitsIn
@@ -2776,7 +2778,7 @@ public:
                                                 : chains_[0]->weights(),
                          activeRows_.empty() ? nullptr : activeRows_.data(), n,
                          storage),
-        chains_[0]->weights(), trialCounts);
+        chains_[0]->weights(), trialCounts, n, countStorage);
       keptCovariates.assign(leaf.numCovariates(), 0);
       bool anyKept = false;
       for (size_t j = 0; j < leaf.numCovariates(); ++j) {
@@ -3092,12 +3094,13 @@ public:
       return BasisRescaleResult::refused;
     size_t n = data_.numObservations;
     std::vector<std::uint8_t> storage;
+    std::vector<double> countStorage;
     const double* trialCounts = chains_[0]->trialCounts();
     LeafRows rows = withCounts(
       leafRowsFrom(trialCounts != nullptr ? trialCounts : chains_[0]->weights(),
                    activeRows_.empty() ? nullptr : activeRows_.data(), n,
                    storage),
-      chains_[0]->weights(), trialCounts);
+      chains_[0]->weights(), trialCounts, n, countStorage);
     BasisRescaleResult outcome = BasisRescaleResult::rescaled;
     double scale = std::numeric_limits<double>::quiet_NaN();
     if (rows.tooFewIn) {
@@ -3525,14 +3528,17 @@ private:
 
   /// \p rows with \p weights as its counts where the sampler reads its
   /// weights as frequencies, the rows in and every row read in their place
-  /// alike, each at its count.
+  /// alike, each at its count, a count of 0 read as 1 where every row is read
+  /// (fallbackCounts, into \p storage, which must outlive the result).
   /// A binomial response's \p trialCounts, its trials times the weights, are
   /// its counts under either reading (Chain::frequencyCounts).
   LeafRows withCounts(LeafRows rows, const double* weights,
-                      const double* trialCounts = nullptr) const {
+                      const double* trialCounts, size_t n,
+                      std::vector<double>& storage) const {
     if (trialCounts != nullptr) rows.counts = trialCounts;
     else if (options_.weightsReading == WeightsReading::frequency)
       rows.counts = weights;
+    rows.counts = fallbackCounts(rows.counts, rows.tooFewIn, n, storage);
     return rows;
   }
 
@@ -3607,7 +3613,7 @@ private:
                         ext_rng* const* rngs) {
     std::vector<std::uint8_t> leafRowStorage;
     // a binomial response's rows are read at their trials times the weights
-    std::vector<double> trialCounts;
+    std::vector<double> trialCounts, fallbackCountStorage;
     LeafRows leafRows;
     if constexpr (L::hasVectorParams || L::hasFunctionParams) {
       if (options_.trials != nullptr)
@@ -3623,7 +3629,7 @@ private:
                            options_.activeRows, data_.numObservations,
                            leafRowStorage),
               y, offset, data_.numObservations),
-        weights, rowCounts);
+        weights, rowCounts, data_.numObservations, fallbackCountStorage);
     }
     chains_.reserve(options_.numChains);
     for (size_t c = 0; c < options_.numChains; ++c)

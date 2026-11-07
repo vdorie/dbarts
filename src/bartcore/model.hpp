@@ -2465,12 +2465,30 @@ inline bool suppliedMoments(const SuppliedStandardization& supplied,
 /// Membership only under precision weights: a row's weight never enters the
 /// numbers. Under frequency weights \p counts names them, borrowed, and the
 /// numbers are those of the rows written out that many times, where every
-/// row is read in place of the rows in as well; null under precision.
+/// row is read in place of the rows in as well, a count of 0 then read as 1
+/// (fallbackCounts); null under precision.
 struct LeafRows {
   const std::uint8_t* rows = nullptr;
   bool tooFewIn = false;
   const double* counts = nullptr;
 };
+
+/// The counts a read-off reads every row at where it falls back to every row
+/// (\p fellBack): \p counts with a count of 0 read as 1, as the mask's
+/// fallback reads a masked row, written into \p storage where a row holds 0;
+/// \p counts itself otherwise. So 0/1 counts read as the mask does there.
+inline const double* fallbackCounts(const double* counts, bool fellBack,
+                                    std::size_t n,
+                                    std::vector<double>& storage) {
+  if (!fellBack || counts == nullptr) return counts;
+  std::size_t i = 0;
+  while (i < n && counts[i] != 0.0) ++i;
+  if (i == n) return counts;
+  storage.assign(counts, counts + n);
+  for (; i < n; ++i)
+    if (storage[i] == 0.0) storage[i] = 1.0;
+  return storage.data();
+}
 
 /// The rows \p rows names in the likelihood out of \p n: 0 where too few are
 /// in (LeafRows::tooFewIn), every row then read.

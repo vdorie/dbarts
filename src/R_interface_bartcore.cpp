@@ -3662,19 +3662,11 @@ bartcore::ResponseFamily parseSamplerSpecification(
 
   bartcore::ResponseFamily family = resolveFamily(model, familyName);
   // probit and ordinal weights are 0 and 1 under either reading, the rows in,
-  // which the engine reads as the active-row mask: where too few rows are in,
-  // a read-off reads every row, a frequency count of 0 not leaving it out.
-  // nbinom's are the same where every one is 0 or 1 at creation, and counts
-  // otherwise
-  bool membership = family == bartcore::ResponseFamily::probit ||
-                    family == bartcore::ResponseFamily::ordinal;
-  if (family == bartcore::ResponseFamily::nbinom) {
-    membership = true;
-    for (size_t i = 0; data.weights != NULL && i < data.numObservations; ++i)
-      membership = membership &&
-                   (data.weights[i] == 0.0 || data.weights[i] == 1.0);
-  }
-  if (membership) model.weightsReading = bartcore::WeightsReading::precision;
+  // which the engine reads as the active-row mask. nbinom's are counts however
+  // the sampler was made, 0/1 counts reading as the mask does
+  if (family == bartcore::ResponseFamily::probit ||
+      family == bartcore::ResponseFamily::ordinal)
+    model.weightsReading = bartcore::WeightsReading::precision;
   sigmaIsFixed = !model.responseIsBinary && model.sigmaIsFixed;
   // documented semantics: fixed(value) holds the residual variance at
   // value, so sigma enters as sqrt(value) and is never drawn
