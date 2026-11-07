@@ -281,6 +281,22 @@ expect_error(
 )
 expect_silent(plot(fit.multinomial, c(0.1, 0.9)))
 dev.off()
-rm(y.multi, fit.multinomial)
+# a one-chain fit of a single kept draw plots its intervals as one of
+# several draws does
+fit.multiOne <- bart(
+  x,
+  y.multi,
+  family = "multinomial",
+  n.trees = 5L,
+  n.burn = 2L,
+  n.samples = 1L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+pdf(NULL)
+expect_silent(plot(fit.multiOne))
+dev.off()
+rm(y.multi, fit.multinomial, fit.multiOne)
 
 rm(x, y.cont, z.bin, g, n)

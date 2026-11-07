@@ -222,10 +222,14 @@ plot.bartMultinomial <- function(
     category <- if (is.factor(y)) match(y, x$levels) else max.col(y, "first")
     flat <- probs
     dim(flat) <- c(length(probs) %/% (n * K), n, K)
-    selected <- vapply(
-      withTrials,
-      function(i) flat[, i, category[i]],
-      numeric(dim(flat)[1L])
+    # a matrix at one draw too, where vapply would return a vector
+    selected <- matrix(
+      vapply(
+        withTrials,
+        function(i) flat[, i, category[i]],
+        numeric(dim(flat)[1L])
+      ),
+      nrow = dim(flat)[1L]
     )
     band <- drawInterval(selected, plquants)
     plot(
