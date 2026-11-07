@@ -692,6 +692,10 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
 29. nbinom's and multinomial's engine read their weights as counts under either reading, the likelihood having no other
     one; "precision" on them is refused in R (Refusals, 3, S5). Alternative: the engine refusing them under precision, a
     rule the bridge's resolved reading already states.
+30. A numeric basis that varies over rows whose counts total at most 1 is refused at creation, and its scale kept at a
+    rescaling `$setForestBasis`, in words naming that total ("the rows its basis is read over carry a total count of at
+    most 1"; the warning's "the rows in the likelihood carry a total count of at most 1"), a column constant there keeping
+    "constant". Alternative: S1's "constant" for both, which is false of a column that varies.
 
 ## Open calls
 
@@ -827,6 +831,10 @@ trees); `$setWeights` against the sampler created with those weights, consuming 
 1e-9; the caps in tinytest at the bridge's entries (test-frequency-counts-bridge.R: creation, `$setWeights`,
 `$setResponse` and `$setCounts`, a drawn r capped at its grid's largest point, a fixed r at itself); the anchor's guard at
 a total of exactly 1 and at rescaled weights (S1's follow-up, amendments row 7); `mutation-battery.R verify-anchors`.
+The review's fix round added the cap's refusal at `$setData`, at a `$setModel` shape install (a drawn r and a fixed r of
+600,000 refused, a fixed r of 10 taken) and at a multinomial `$setWeights` over a row total already installed; the
+multinomial expansion and counts-times-w test repeated under a category offset (within 3.8e-15, and bitwise); and the
+basis refusal and kept-scale warning at a total count of at most 1 by their words (Calls made, 30).
 
 ### S3: engine and bridge, the binomial row (~125 code, ~25 standalone math and choose.c copied, ~220 tests/cpp, ~50 bridge)
 
