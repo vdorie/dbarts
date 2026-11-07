@@ -1039,7 +1039,8 @@
       \item \code{$setCutPoints} refuses a \code{NaN} cut point.
       \item A predictor whose range is wider than the largest double, such
             as one running from \code{-1e308} to \code{1e308}, gets finite cut
-            points and is split on; 0.9-34 never split it.
+            points and is split on; 0.9-34 never split it under the default
+            (uniform) rule.
       \item \code{rbart_vi}'s \code{prior} may name the caller's own
             function, or be passed on by a wrapper, and an unknown name is
             refused by name; only the built-in names worked.

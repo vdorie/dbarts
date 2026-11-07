@@ -179,7 +179,8 @@ Run on arm64 macOS against the branch's own libraries (shipped and reference bui
 10. docs-10 changes each `host` in dbarts.h to "caller"; every hit is about the C caller of the API.
     Alternative: the long form where the sentence is about running the sampler inside a larger one.
 11. ingest-04 gets a BUG FIXES line: a predictor whose range is wider than the largest double is split on
-    now, where 0.9-34 never split it (fix round 1). Alternative: no line, as too niche for NEWS.
+    now, where 0.9-34 never split it under the default (uniform) rule (fix round 1; the qualifier from the
+    re-check, since 0.9-34 split it with useQuantiles = TRUE). Alternative: no line, as too niche for NEWS.
 
 ## Fix round 1
 
