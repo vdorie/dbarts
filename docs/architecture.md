@@ -607,8 +607,13 @@ move work into per-sweep callbacks, for example to keep memory down.
 `dbarts_sampler_setDrawCallback` in the C API or passed from R as the
 `callback` argument of `bart` and the sampler's `run`. It fires once per kept
 draw, on the thread running that chain - a worker thread when chains run in
-parallel - and sees everything recorded for that draw; `dbarts_draw` carries no latents. A nonzero return
-stops the run (docs/design/per-draw-callbacks.md).
+parallel - and sees every channel the fit carries for that draw, whether or
+not the run stores it: `Sampler::run` gives each channel the caller leaves
+unstored one draw of scratch per chain, and the log-likelihood is computed
+for the callback whether or not the run keeps it. `dbarts_draw` carries no
+latents, and its sigma is NaN on a sampler with a variance forest, which
+reports the variance channels instead. A nonzero return stops the run
+(docs/design/per-draw-callbacks.md).
 
 **Errors.** The engine reports every error as a C++ exception. Each bridge
 entry catches it, leaves the handler, and only then raises the R error, so

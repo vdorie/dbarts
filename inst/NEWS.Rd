@@ -268,6 +268,9 @@
             \code{$setCutPoints} refuse a logical \code{column} and a column
             given twice; 0.9-34 read \code{TRUE} as column 1 and installed
             the last of a repeated column's values.
+      \item \code{$setCutPoints} refuses an infinite cut point, which
+            0.9-34 took. To separate values at \code{-Inf}, use a cut at
+            \code{-.Machine$double.xmax}.
       \item \code{pdbart}, \code{pd2bart} and \code{plot} of a
             \code{pdbart} result refuse an \code{xind} that is not whole
             column numbers in range or known names, is empty, names a

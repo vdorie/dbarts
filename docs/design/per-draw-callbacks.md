@@ -161,7 +161,10 @@ not a selection. A pointer is null wherever the fit does not carry that
 channel (the variance pair off heteroscedastic, the forest pair off a
 multi-forest coupling, thresholds off ordinal, split probabilities off DART)
 and the scalars are NaN rather than absent, so a callback tests the channel,
-never the family. Two layout facts: `train` carries F =
+never the family. A channel the fit carries is non-null whether or not the
+caller stores it, the log-likelihood included, on the flat C run and the R
+run alike. `sigma` is NaN on a sampler with a variance forest, whose
+`varianceFits` is the residual scale row by row. Two layout facts: `train` carries F =
 `numFittedValuesPerObservation` values per observation - K category
 probabilities on multinomial, one fitted value with any offset folded in on
 every other model - and `varcount` is
@@ -318,7 +321,14 @@ C one-draw buffers CONTIGUOUSLY per opted-out channel, and `Sampler::run`
 takes a per-draw stride (default `n * numLocations`) that both its per-chain
 base arithmetic and `storeSample`'s offset read, so a stride of zero lands
 every draw of a chain in that chain's one buffer. `bartcore::Results` is
-engine-internal, so the field is additive, not an ABI event.
+engine-internal, so the field is additive, not an ABI event. As built, every
+draw-indexed channel has such a stride, and `Sampler::run` itself, when a
+draw callback is set, gives each channel the chain carries
+(`Chain::carriedChannels`, which `fillDraw` also reads) and the caller left
+null one draw of scratch per chain at stride 0. The R run's `keepFits =
+FALSE` scratch for the per-observation channels stays the bridge's; every
+other channel either bridge leaves unstored is the engine's, so no caller
+can leave a carried channel null.
 
 ## 5. The Rcpp example
 

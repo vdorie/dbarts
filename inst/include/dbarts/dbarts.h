@@ -55,10 +55,10 @@
 ///   which. A VALUE: the number IS the answer and carries no refusal, which is
 ///   what the counts, dbarts_sampler_kIsSampled, dbarts_sampler_usesDart,
 ///   dbarts_sampler_family and the version accessors report - an int here is
-///   not a status. Or a CAPABILITY STATUS, whose rule
-///   is that 0 means the SAMPLER cannot do this at all - no argument would
-///   have worked - and nothing was touched, so a host driving a sampler it did
-///   not build probes the channel instead of unwinding through its own frames.
+///   not a status. Or a CAPABILITY STATUS, whose rule is that 0 means the
+///   SAMPLER cannot do this at all - no argument would have worked - and
+///   nothing was touched, so a caller driving a sampler it did not build
+///   probes the channel instead of unwinding through its own frames.
 ///   An Rf_error means THIS call is wrong - a value outside a family's
 ///   support, a source whose declared shape disagrees, a malformed struct, a
 ///   scale update against a transform the sampler pins - and longjmps through
@@ -227,14 +227,17 @@ typedef struct dbarts_sampler_t dbarts_sampler;
 /// hyperprior (dbarts_sampler_kIsSampled), varprobs a DART tree prior
 /// (dbarts_sampler_usesDart), shape a count (nbinom) response, and
 /// residualDf a Student-t residual distribution; each is
-/// left untouched otherwise. logLikelihood
-/// carries the per-draw training-data log-likelihood for the gaussian,
-/// binary, and aft families; aft reports the log density for events and the
+/// left untouched otherwise. k follows the model as it now stands, so a
+/// caller that changes the leaf prior from R re-reads
+/// dbarts_sampler_kIsSampled before sizing it. logLikelihood
+/// carries the per-draw training-data log-likelihood on every family; aft
+/// reports the log density for events and the
 /// log survival tail for right-censored observations. It is
 /// NaN-filled wherever the combined per-observation location is not visible to
 /// the response model to score - any sampler whose forests combine through
 /// amplitudes, at any forest count, and the multinomial softmax - and skipping
-/// it (null or absent-by-size) elides all of its computation.
+/// it (null or absent-by-size) elides its computation, except on a run with a
+/// draw callback registered, which receives it for every saved draw.
 /// With F = dbarts_sampler_numFittedValuesPerObservation and V =
 /// dbarts_sampler_numVariableCountForests, observation (or predictor) varies
 /// fastest, then the F (or V) axis, then draw, then chain - R's own array
@@ -245,9 +248,11 @@ typedef struct dbarts_sampler_t dbarts_sampler;
 /// from R applies to test, never to predict). varcount carries one set of
 /// split counts per forest that keeps them, slab j forest j's: K on
 /// multinomial, the mean-forest count on an amplitude-coupled model (BCF's
-/// prognostic forest is slab 0). sigma is the pinned 1 on multinomial, and k,
-/// varprobs, shape and residualDf are untouched there, since no
-/// multinomial sampler carries them.
+/// prognostic forest is slab 0). sigma is the pinned 1 on probit, logistic,
+/// ordinal, nbinom and multinomial, and NaN on a sampler with a variance
+/// forest, which has no single residual scale; k, varprobs, shape and
+/// residualDf are untouched on multinomial, since no multinomial sampler
+/// carries them.
 /// Value-initialize with DBARTS_RESULTS_INIT (sets structSize, zeroes the rest):
 ///   dbarts_results results = DBARTS_RESULTS_INIT;
 typedef struct dbarts_results_t {
@@ -298,14 +303,19 @@ typedef struct dbarts_results_t {
 /// simply reads the prefix it knows. Fields append monotonically below the
 /// marked boundary and never reorder.
 ///
-/// ABSENCE. A channel pointer is NULL wherever the fit does not carry that
-/// channel (the variance pair off a heteroscedastic model, the forest pair and
-/// glue off a multi-forest coupling, ordinalThresholds off ordinal,
-/// splitProbabilities off DART) and wherever the model cannot define it for
-/// this draw - the test blend of a coupling with no test treatment vector, the
-/// log-likelihood of one whose blended location the response cannot score. A
-/// scalar that does not apply is NaN, since a double has no absent value. So a
-/// callback tests the channel, never the family.
+/// PRESENCE AND ABSENCE. Every channel the fit carries is non-NULL, whether or
+/// not the caller stores it: one the caller does not store, results NULL
+/// included, is computed into per-chain scratch for the callback, the
+/// log-likelihood among them. A channel pointer is NULL wherever the fit does
+/// not carry that channel (the variance pair off a heteroscedastic model, the
+/// forest pair and glue off a multi-forest coupling, ordinalThresholds off
+/// ordinal, splitProbabilities off DART) and wherever the model cannot define
+/// it for this draw - the test blend of a coupling with no test treatment
+/// vector, the log-likelihood of one whose blended location the response
+/// cannot score. A scalar that does not apply is NaN, since a double has no
+/// absent value: sigma on a sampler with a variance forest, whose varianceFits
+/// is the residual scale row by row. So a callback tests the channel, never
+/// the family.
 ///
 /// LAYOUT, observation fastest throughout: train is numObservations x
 /// numFittedValuesPerObservation (F, as
@@ -348,7 +358,7 @@ typedef struct dbarts_draw_t {
   const double* logLikelihood;
   const double* ordinalThresholds;
   const uint32_t* varcount;
-  double sigma;
+  double sigma;   ///< NaN on a sampler with a variance forest
   double k;
   double shape;   ///< NaN off a count (nbinom) response
   double residualDf;   ///< NaN off a Student-t residual distribution
@@ -403,7 +413,7 @@ typedef struct dbarts_draw_t {
 /// longjmp to a setjmp of the caller's own abandons the context R establishes
 /// around this call and leaves R reading a dead one. A C++ EXCEPTION thrown
 /// out of the callback is caught at the call instead and handed back to R as
-/// an error carrying its what(), so a C++ host may refuse in its own idiom
+/// an error carrying its what(), so a C++ caller may refuse in its own idiom
 /// (Rcpp::stop and the like) and the run ends exactly as a raise ends it.
 /// The call into the callback is made under
 /// R_UnwindProtect, so the jump becomes a C++ unwind AT THE CALLBACK:
@@ -804,7 +814,7 @@ int dbarts_apiMinorVersion(void);
 uint64_t dbarts_apiHash(void);
 
 /// Releases the engine behind the handle EARLY, before the R object that owns
-/// it is collected: for a host that wants a bounded lifetime rather than the
+/// it is collected: for a caller that wants a bounded lifetime rather than the
 /// collector's. The R object is left in its dead-pointer state, from which its
 /// own methods re-create the engine from a stored state or refuse for want of
 /// one, so this is a release and not a corruption - but the handle names no
@@ -818,14 +828,14 @@ void dbarts_sampler_destroy(dbarts_sampler* sampler);
 /// applies within recorded iterations at the rate the control set.
 ///
 /// A null results is legal at any numSamples and records NOTHING: the sweeps
-/// still run and the chains advance, which is how a host advances a sampler it
-/// is not reading this round. It is not an error, so a null passed by mistake
+/// still run and the chains advance, which is how a caller advances a sampler
+/// it is not reading this round. It is not an error, so a null passed by mistake
 /// under a positive numSamples returns cleanly with the caller's buffers
 /// untouched.
 ///
 /// A callback registered with dbarts_sampler_setDrawCallback fires once per
 /// recorded draw of each chain, whether or not results is null - which is how
-/// a host reduces draws as they are produced instead of materializing them.
+/// a caller reduces draws as they are produced instead of materializing them.
 /// One that returns nonzero stops the run early and this entry STILL RETURNS
 /// NORMALLY, so a caller that registered one discards these buffers on the
 /// status its own context carries; the saved trees the run wrote are dropped.
@@ -995,7 +1005,7 @@ int dbarts_sampler_getLatents(const dbarts_sampler* sampler, double* out);
 /// asks for the offset-free surface). A CSC-backed source routes its rows resident, without
 /// a dense materialization. Refused on any sampler whose blend is undefined -
 /// the predicate is the blend, not the forest count - which is a fixed
-/// property of how the sampler was built, so test it once at setup; a host
+/// property of how the sampler was built, so test it once at setup; a caller
 /// driving such a model reads its forests through the R methods on the object
 /// the handle came from.
 /// numThreads is a PER-CALL override that does not persist: 0 means the
@@ -1060,6 +1070,11 @@ size_t dbarts_sampler_numTrees(const dbarts_sampler* sampler, size_t forest);
 /// an error - drops the draws it wrote, and this counts the earlier runs'
 /// draws it did not overwrite.
 size_t dbarts_sampler_numSavedSamples(const dbarts_sampler* sampler);
+/// 1 when a run writes results.k: the reported forest, or a group of forests
+/// sharing a prior total, draws k under the model as it now stands. An R-side
+/// setLeafPrior, setModel or setForest can change it between runs; a caller
+/// that changes the leaf prior from R re-reads it before sizing results.k. A
+/// VALUE.
 int dbarts_sampler_kIsSampled(const dbarts_sampler* sampler);
 int dbarts_sampler_usesDart(const dbarts_sampler* sampler);
 /// The dbarts_family this sampler was built with, or the one creation
