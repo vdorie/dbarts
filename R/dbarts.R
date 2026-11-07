@@ -1287,6 +1287,28 @@ dbarts <- function(
     multinomialAsFactor <- !is.matrix(data) && !is.data.frame(data)
     matchedCall$data <- NULL
   }
+  # the binomial on the matrix interface: a two-column response under a
+  # logistic family is successes and failures, which ride the data object's
+  # counts as a multinomial count matrix does
+  binomialCounts <- NULL
+  # a hazard family has taken its (time, status) pair already, its family
+  # remapped to the binary link
+  if (
+    directResponse &&
+      !(requestedFamily %in% hazardTokens) &&
+      is.matrix(data) &&
+      ncol(data) > 1L
+  ) {
+    if (identical(family, "logistic")) {
+      if (ncol(data) != 2L) {
+        stop(binomialCountColumnsMessage(ncol(data), "the response is"))
+      }
+      binomialCounts <- validateBinomialCounts(data)
+      matchedCall$data <- NULL
+    } else if (identical(family, "probit") && ncol(data) == 2L) {
+      stop(probitBinomialMessage)
+    }
+  }
 
   validateCall <- redirectCall(
     matchedCall,
@@ -1463,6 +1485,19 @@ dbarts <- function(
   }
   if (!is.null(multinomialCounts)) {
     handed$counts <- multinomialCounts
+  }
+  if (!is.null(binomialCounts)) {
+    handed$counts <- binomialCounts
+  }
+  # a formula's two-column response under a logistic family is the binomial's
+  # successes and failures, which the data object reads off the model frame,
+  # after 'subset' and the na.action
+  if (
+    identical(family, "logistic") &&
+      !(requestedFamily %in% hazardTokens) &&
+      is.formula(handed$formula)
+  ) {
+    attr(handed$formula, binomialResponseAttr) <- TRUE
   }
   dataCall <- handOn(dataCall, handed)
   data <- withMatrixResponseRestated(
@@ -2259,7 +2294,7 @@ predictCodedTest <- function(sampler, x.test, offset.test, n.threads) {
   # the caller's, so a sampler holding either resident category offset
   # refuses a no-offset call rather than reporting the offset-free surface
   # (an all-zero matrix asks for that surface on purpose).
-  counts <- dataCounts(sampler$data)
+  counts <- if (samplerCarriesCounts(sampler)) dataCounts(sampler$data)
   if (!is.null(offset.test) && !is.null(counts)) {
     if (length(offset.test) == 1L) {
       offset.test <- matrix(
@@ -2475,6 +2510,7 @@ recordBasisScales <- function(sampler, ptr, active = NULL) {
     return(invisible(NULL))
   }
   n <- length(data@y)
+  counted <- fallbackCountsRows(sampler$model, data@weights, dataCounts(data))
   labels <- vapply(sampler$model@forests, methods::slot, "", "label")
   named <- vapply(fellBack, forestName, "", labels = labels)
   what <- if (length(named) == 1L) {
@@ -2499,8 +2535,8 @@ recordBasisScales <- function(sampler, ptr, active = NULL) {
       what,
       if (length(named) == 1L) " is" else " are",
       " taken from ",
-      if (fallbackCountsRows(sampler$model, data@weights)) {
-        atTheirCounts(takenFromAll(n))
+      if (!isFALSE(counted)) {
+        atTheirCounts(takenFromAll(n), counted)
       } else {
         takenFromAll(n)
       }
@@ -3063,7 +3099,7 @@ dbartsSampler <- setRefClass(
       # after the call, so a refused creation never spends the warning's key;
       # re-creation from state (getPointer, setState) does not come through
       # here, and copy holds it off
-      warnZeroTrials(dataCounts(data))
+      warnZeroTrials(dataCounts(data), identical(model@family, "logistic"))
       warnDirectDoorNotUsed(handedControl, model, data)
       # materialized lazily on first access (forcing it before saveRDS
       # captures the sampler), or eagerly by storeState / updateState runs.
@@ -3108,7 +3144,7 @@ dbartsSampler <- setRefClass(
           periods,
           byMask = model@family %in% c("logistic", "aft"),
           subjects = units$subjects,
-          counted = fallbackCountsRows(model, data@weights),
+          counted = fallbackCountsRows(model, data@weights, dataCounts(data)),
           countedRange = fallbackCountsRange(model, data@weights)
         )
       }
@@ -3605,7 +3641,7 @@ dbartsSampler <- setRefClass(
         fellBack$range,
         fellBack$leaf,
         subjects = units$subjects,
-        counted = fallbackCountsRows(model, data@weights),
+        counted = fallbackCountsRows(model, data@weights, dataCounts(data)),
         countedRange = fallbackCountsRange(model, data@weights)
       )
       invisible(NULL)
@@ -3647,7 +3683,7 @@ dbartsSampler <- setRefClass(
       # a count response as its formula writes it: a binomial sampler's
       # successes and failures, or its successes against the trials held, and
       # a multinomial sampler's n x K counts. Neither reads a response scale.
-      if (samplerCarriesCounts(.self)) {
+      if (samplerCarriesCounts(.self) || samplerHoldsTrials(.self)) {
         if (!is.null(status)) {
           stop(
             "$setResponse: 'status' is an aft (survival) sampler's censoring ",

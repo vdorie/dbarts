@@ -2391,6 +2391,10 @@ classifyResponse <- function(y) {
 # to length ncol(y) * nrow(y); called on a Surv object or an n x K matrix
 # without this guard first, it silently produces a length mismatch against
 # 'x' rather than naming the response shape dbartsData() cannot ingest.
+## The attribute dbarts() sets on a formula it hands the data object under a
+## logistic family.
+binomialResponseAttr <- "dbartsBinomialResponse"
+
 refuseMultiColumnResponse <- function(y) {
   if (inherits(y, "Surv")) {
     stop(
@@ -2405,9 +2409,9 @@ refuseMultiColumnResponse <- function(y) {
     text <- if (ncol(y) == 2L) {
       paste0(
         "'y' is an n x 2 matrix; dbartsData() takes a single-column ",
-        "response - a (time, status) pair goes to dbarts()/bart() with ",
-        "family = \"aft\"/\"hazard\", per-category counts to ",
-        "dbartsData(counts = )"
+        "response - successes and failures and per-category counts go to ",
+        "dbartsData(counts = ), a (time, status) pair to dbarts()/bart() ",
+        "with family = \"aft\"/\"hazard\""
       )
     } else {
       paste0(
@@ -2449,7 +2453,20 @@ restateMatrixResponseError <- function(e, entry, family) {
     "pair needs a survival::Surv response (which \"auto\" reads as ",
     "survival) or family = \"aft\" / \"hazard\""
   )
-  text <- if (entry %in% c("xbart()", "bartBT()", "rbart_vi()")) {
+  text <- if (
+    family == "probit" && K == 2L && entry %in% c("bart()/dbarts()", "xbart()")
+  ) {
+    probitBinomialMessage
+  } else if (identical(entry, "xbart()")) {
+    paste0(
+      "xbart() takes a single-column response or, under family = binomial, ",
+      "cbind(successes, failures); 'y' is an n x ",
+      K,
+      " matrix, and it cross-validates neither multinomial counts nor a ",
+      "survival response; use bart() instead - ",
+      readings
+    )
+  } else if (entry %in% c("bartBT()", "rbart_vi()")) {
     paste0(
       entry,
       " takes a single-column response but 'y' is an n x ",
@@ -2474,6 +2491,8 @@ restateMatrixResponseError <- function(e, entry, family) {
       " matrix, and cbind() on the left of a formula is not read as a ",
       "time and a status"
     )
+  } else if (family == "logistic") {
+    binomialCountColumnsMessage(K, "the response is")
   } else if (family != "auto") {
     paste0(
       "family = \"",
@@ -2486,6 +2505,7 @@ restateMatrixResponseError <- function(e, entry, family) {
   } else if (K == 2L) {
     paste0(
       "'y' is an n x 2 matrix, which family = \"auto\" leaves ambiguous - ",
+      "successes and failures need family = binomial; ",
       readings
     )
   } else if (isAutoCountMatrix(y)) {
@@ -2976,7 +2996,7 @@ withoutZeroTrialsWarning <- function(expr) {
 # rows with no trial. Called only after the creation or $setResponse .Call has
 # returned, so a refused call never spends the key; NULL (a sampler that
 # carries no counts) and a matrix without such a row are silent.
-warnZeroTrials <- function(counts) {
+warnZeroTrials <- function(counts, binomial = FALSE) {
   if (is.null(counts)) {
     return(invisible(NULL))
   }
@@ -2986,8 +3006,9 @@ warnZeroTrials <- function(counts) {
       "multinomialZeroTrials",
       sprintf(
         paste0(
-          "multinomial count rows with zero trials (%d of %d) contribute ",
-          "nothing to the likelihood and still receive fitted probabilities"
+          if (binomial) "binomial rows" else "multinomial count rows",
+          " with zero trials (%d of %d) contribute nothing to the ",
+          "likelihood and still receive fitted probabilities"
         ),
         numEmpty,
         nrow(counts)
@@ -3098,6 +3119,10 @@ dbartsData <- function(
   useQuantiles = NULL
 ) {
   stated <- checkFlatCopies(n.cuts = n.cuts, useQuantiles = useQuantiles)
+  # set by dbarts() on a formula under a logistic family, whose two-column
+  # response is then a binomial's successes and failures
+  binomialResponse <- isTRUE(attr(formula, binomialResponseAttr, exact = TRUE))
+  formulaCounts <- NULL
   dataIsMissing <- missing(data)
   testIsMissing <- missing(test)
   offsetIsMissing <- missing(offset)
@@ -3584,6 +3609,16 @@ dbartsData <- function(
         n.levels = NA_integer_,
         levels = NULL
       )
+    } else if (binomialResponse && is.matrix(y) && ncol(y) == 2L) {
+      # a binomial's successes and failures, the rows the model frame kept;
+      # its trials are the response the data object holds
+      formulaCounts <- validateBinomialCounts(y)
+      y <- as.double(rowSums(formulaCounts))
+      responseInfo <- list(
+        type = "numeric",
+        n.levels = NA_integer_,
+        levels = NULL
+      )
     } else {
       if (is.null(y)) {
         y <- rep(0, NROW(modelFrame))
@@ -3637,6 +3672,7 @@ dbartsData <- function(
         "counts = )"
       )
     }
+    counts <- formulaCounts
     countsRows <- numObservations
     countsSubset <- seq_len(numObservations)
 
@@ -4194,11 +4230,13 @@ dbartsData <- function(
     y <- as.double(rowSums(counts))
     # a flat offset was already refused at the point it was set aside if
     # 'counts' was absent there; this is the twin case, a flat offset
-    # alongside counts that WAS supplied
-    if (!is.null(offset)) {
+    # alongside counts that WAS supplied. Two columns may be a binomial's,
+    # whose offset is flat; the family, resolved later, refuses it on a
+    # multinomial
+    if (!is.null(offset) && ncol(counts) != 2L) {
       refuseFlatOffsetOnMultinomial(offset)
     }
-    if (!is.null(offset.test)) {
+    if (!is.null(offset.test) && ncol(counts) != 2L) {
       refuseFlatOffsetOnMultinomial(offset.test, "offset.test")
     }
   }

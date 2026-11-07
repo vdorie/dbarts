@@ -46,13 +46,15 @@ refuseAmplitudeMutation <- function(sampler, what, ...) {
 
 # The multinomial capability probe on a SAMPLER, the counts analog of
 # samplerCarriesAmplitudes: a K-forest softmax sampler is exactly the one whose
-# data object carries the n x K count response.
+# data object carries the n x K count response under a family other than
+# logistic, whose two columns are a binomial's (samplerHoldsTrials).
 # A CAPABILITY test, deliberately not a forest count, for the reason the
 # amplitude probe is one - the two multi-forest models are indistinguishable by
 # numForests. The read goes through the migration guard, so a sampler restored
 # from a fit saved before the slot existed answers FALSE rather than raising.
 samplerCarriesCounts <- function(sampler) {
-  !is.null(dataCounts(sampler$data))
+  !is.null(dataCounts(sampler$data)) &&
+    !identical(sampler$model@family, "logistic")
 }
 
 # A binomial sampler: a logistic one whose data object carries the n x 2
@@ -2043,8 +2045,21 @@ countInLikelihood <- function(rowsIn, n, unit) {
 ## row alike: weights read as counts, not all 0 and 1 (which read as the mask
 ## does there). A gaussian sampler's response scale and prior center are a
 ## range, read from every row alike; an nbinom sampler's center reads the
-## counts too (fallbackCountsRange).
-fallbackCountsRows <- function(model, weights) {
+## counts too (fallbackCountsRange). A binomial row's count is its trials
+## times its weight ('counts', the data object's successes and failures),
+## and the answer is then "trials", which the text names.
+fallbackCountsRows <- function(model, weights, counts = NULL) {
+  if (identical(model@family, "logistic") && !is.null(counts)) {
+    rowCounts <- as.double(rowSums(counts)) *
+      (if (is.null(weights)) 1 else weights)
+    return(
+      if (any(rowCounts != 0 & rowCounts != 1, na.rm = TRUE)) {
+        "trials"
+      } else {
+        FALSE
+      }
+    )
+  }
   identical(model@weights.type, "frequency") &&
     !(model@family %in% c("probit", "ordinal")) &&
     !is.null(weights) &&
@@ -2057,8 +2072,16 @@ fallbackCountsRange <- function(model, weights) {
   identical(model@family, "nbinom") && fallbackCountsRows(model, weights)
 }
 
-## Where a fallback text says numbers are taken from, at the rows' counts.
-atTheirCounts <- function(from) {
+## Where a fallback text says numbers are taken from, at the rows' counts:
+## their weights', or, where 'counted' is "trials", a binomial's trials
+## times its weights.
+atTheirCounts <- function(from, counted = TRUE) {
+  if (identical(counted, "trials")) {
+    return(paste0(
+      from,
+      " at their trials times their weights, a count of 0 read as 1"
+    ))
+  }
   paste0(from, " at their weights' counts, a weight of 0 read as 1")
 }
 
@@ -2148,9 +2171,11 @@ warnRowsFallBack <- function(
   }
   what <- if (length(leaf) > 0L) leafCentersAndScales(leaf)
   from <- takenFromAll(n, if (subjects) "subject" else "observation")
+  countedWord <- counted
+  counted <- !isFALSE(counted)
   if (counted && (countedRange || !range)) {
     # every number named is its rows' at their counts
-    from <- atTheirCounts(from)
+    from <- atTheirCounts(from, countedWord)
   } else if (counted && !is.null(what)) {
     # the leaf's numbers are its rows' at their counts, the range every row's
     warnClassed(
@@ -2162,7 +2187,7 @@ warnRowsFallBack <- function(
       ", and ",
       what,
       " from ",
-      atTheirCounts(from)
+      atTheirCounts(from, countedWord)
     )
     return(invisible(NULL))
   }
@@ -2673,7 +2698,8 @@ selectForest <- function(forest, labels, numForests, several = FALSE) {
 # the response's levels, and a model of several its records' own. NULL where
 # there are none: a model of one forest, and a count matrix with no column names.
 samplerForestLabels <- function(model, data) {
-  counts <- dataCounts(data)
+  # a binomial's two columns are its successes and failures, one forest
+  counts <- if (!identical(model@family, "logistic")) dataCounts(data)
   if (!is.null(counts)) {
     colnames(counts)
   } else if (length(model@forests) >= 2L) {

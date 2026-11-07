@@ -22,16 +22,90 @@ hazardFamilyTokens <- c("hazard", "hazard.probit", "hazard.logistic")
 ## Refuses a response a binary family cannot fit: one not coded 0/1. A
 ## response of one class is fitted instead, with one warning (dec-B333); see
 ## warnSingleClass.
-refuseNonBinaryResponse <- function(family) {
+refuseNonBinaryResponse <- function(family, y = NULL) {
+  # glm's other spelling of a binomial, a proportion with the trials as
+  # weights, which a logistic weight cannot carry: it counts copies of a row
+  observed <- y[!is.na(y)]
+  if (
+    identical(family, "logistic") &&
+      length(observed) > 0L &&
+      all(observed >= 0 & observed <= 1)
+  ) {
+    stop(
+      "under family = binomial the response is 0/1 or cbind(successes, ",
+      "failures): a proportion with the trials as weights is written ",
+      "cbind(k, n - k), with k = round(p * n) from a proportion p and its ",
+      "trials n",
+      call. = FALSE
+    )
+  }
   stop(
     "family \"",
     family,
     "\" requires a response coded 0/1",
     if (family == "logistic") {
-      " (family = binomial is the logit link, a logistic fit)"
+      paste0(
+        " or cbind(successes, failures) (family = binomial is the logit ",
+        "link, a logistic fit)"
+      )
     },
     call. = FALSE
   )
+}
+
+## The probit binomial, refused wherever a probit family meets successes and
+## failures.
+probitBinomialMessage <- paste0(
+  "family = binomial(\"probit\") does not take a cbind(successes, failures) ",
+  "response: the probit binomial is not fitted; use family = binomial, the ",
+  "logit link, or a 0/1 response"
+)
+
+## A logistic family on a count matrix that is not two columns. 'what' says
+## where the matrix is: "the data carry" or "the response is".
+binomialCountColumnsMessage <- function(K, what) {
+  paste0(
+    what,
+    " an n x ",
+    K,
+    " count matrix: family \"logistic\" takes two columns, successes and ",
+    "failures, and family \"multinomial\" fits ",
+    K,
+    " categories"
+  )
+}
+
+## A binomial response checked: an n x 2 matrix of non-negative whole numbers,
+## a row with a missing cell left to the caller's na.action. 'prefix' leads
+## the message where a door names itself. Returns the counts as integers.
+validateBinomialCounts <- function(counts, prefix = "") {
+  if (is.data.frame(counts)) {
+    counts <- as.matrix(counts)
+  }
+  if (!is.numeric(counts) && !is.logical(counts)) {
+    stop(
+      prefix,
+      "a binomial response's successes and failures must be numeric",
+      call. = FALSE
+    )
+  }
+  bad <- which(
+    rowSums(is.na(counts)) == 0L &
+      (rowSums(counts < 0) > 0L | rowSums(counts != round(counts)) > 0L)
+  )
+  if (length(bad) > 0L) {
+    stop(
+      prefix,
+      "a binomial response's successes and failures must be non-negative ",
+      "whole numbers; row(s) ",
+      paste(utils::head(bad, 5L), collapse = ", "),
+      if (length(bad) > 5L) ", ...",
+      call. = FALSE
+    )
+  }
+  storage <- counts
+  storage.mode(storage) <- "integer"
+  storage
 }
 
 ## The one warning a binary fit gives when its response holds one class: the
@@ -628,7 +702,16 @@ resolveSamplerSpec <- function(
       "matrix as the response to dbarts()"
     )
   }
-  if (!identical(family, "multinomial") && !is.null(counts)) {
+  # a logistic family on two count columns is the binomial: successes and
+  # failures, data@y their trials
+  binomial <- identical(family, "logistic") && !is.null(counts)
+  if (binomial && ncol(counts) != 2L) {
+    stop(binomialCountColumnsMessage(ncol(counts), "the data carry"))
+  }
+  if (identical(family, "probit") && NCOL(counts) == 2L) {
+    stop(probitBinomialMessage)
+  }
+  if (!identical(family, "multinomial") && !binomial && !is.null(counts)) {
     stop(
       "the data carry an n x K count matrix, which only family ",
       "\"multinomial\" fits; drop 'counts' to fit family \"",
@@ -643,7 +726,14 @@ resolveSamplerSpec <- function(
   if (identical(family, "multinomial")) {
     # the counts ARE the response and the bridge reads K off their column
     # count, so nothing is recoded and the model records no category count;
-    # data@y is already the trials
+    # data@y is already the trials. Two columns took a flat offset, which
+    # might have been a binomial's
+    if (!is.null(data@offset)) {
+      refuseFlatOffsetOnMultinomial(data@offset)
+    }
+    if (length(data@offset.test) > 0L) {
+      refuseFlatOffsetOnMultinomial(data@offset.test, "offset.test")
+    }
     if (sum(colSums(counts, na.rm = TRUE) > 0) == 1L) {
       warnSingleCategory(family)
     }
@@ -676,6 +766,19 @@ resolveSamplerSpec <- function(
     # where the bridge reads it: a positive value fixes r, a non-positive value
     # estimates it on the grid.
     shapeSpec <- resolveShape(shape)
+  } else if (binomial) {
+    # the counts are the response, checked where they were read; data@y is
+    # their trials, which no 0/1 rule reads. Its offset is flat, as every
+    # logistic fit's
+    if (!is.null(data@offset.category)) {
+      refuseMatrixOffset(data@offset.category, "offset")
+    }
+    if (
+      all(counts[, 1L] == 0L, na.rm = TRUE) ||
+        all(counts[, 2L] == 0L, na.rm = TRUE)
+    ) {
+      warnSingleClass(family)
+    }
   } else if (data@response.type == "numeric") {
     uniqueResponses <- unique(data@y)
     responseIsBinary <- length(uniqueResponses) == 2 &&
@@ -690,12 +793,12 @@ resolveSamplerSpec <- function(
     ) {
       # gaussian on a 0/1 response is a legitimate request; the binary
       # families need latent-variable coding. aft fits continuous log-times.
-      refuseNonBinaryResponse(family)
+      refuseNonBinaryResponse(family, data@y)
     }
   }
   # a factor, logical or character response of one class codes to a single
   # 0/1 value, which the numeric check above never sees
-  if (isBinaryFamily(family) && responseHasSingleClass(data@y)) {
+  if (isBinaryFamily(family) && !binomial && responseHasSingleClass(data@y)) {
     warnSingleClass(
       family,
       if (!is.null(hazardPeriods)) requestedFamily,

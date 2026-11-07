@@ -573,8 +573,13 @@ packageBartResults <- function(
       varcount = varcount,
       binaryOffset = fit$data@offset,
       # kept so residuals() works on binary fits (y - fitted); for gaussian
-      # fits y rides the other branch
-      y = fit$data@y
+      # fits y rides the other branch. A binomial's is the two columns as
+      # the caller wrote them, successes and failures
+      y = if (is.null(dataCounts(fit$data))) {
+        fit$data@y
+      } else {
+        dataCounts(fit$data)
+      }
     )
   } else {
     result <- list(
@@ -1291,7 +1296,7 @@ bart <- function(
   # as if it were n rows and reported without a word. Refuse the object here,
   # ahead of every family branch, since family = "auto" resolves it downstream
   # and no branch below would see the token.
-  refuseCountsCarryingData(formula, "bart()")
+  refuseCountsCarryingData(formula, "bart()", family)
   refuseResponseFreeFormula(formula, "bart()")
   noteFrontDoorDefaults(formula, callingEnv)
 
@@ -2169,8 +2174,14 @@ formulaHasOffsetTerm <- function(formula) {
 # points below cannot read a K-location fit. The refusal is at the ENTRY, not
 # at a family branch: family = "auto" resolves counts to multinomial during
 # spec resolution, so a branch keyed on the token never sees it.
-refuseCountsCarryingData <- function(formula, caller) {
-  if (inherits(formula, "dbartsData") && !is.null(dataCounts(formula))) {
+refuseCountsCarryingData <- function(formula, caller, family = NULL) {
+  counts <- if (inherits(formula, "dbartsData")) dataCounts(formula)
+  # two columns under a logistic family are a binomial's successes and
+  # failures, one location per row
+  if (identical(family, "logistic") && NCOL(counts) == 2L) {
+    return(invisible(NULL))
+  }
+  if (!is.null(counts)) {
     stop(
       caller,
       " does not support a data object carrying an n x K count matrix; fit ",
