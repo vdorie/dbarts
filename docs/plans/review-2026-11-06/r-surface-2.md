@@ -1,6 +1,6 @@
 # Review 4, slice S-F: the R surface, second wave
 
-Status: built, in review (branch review4-r-surface-2).
+Status: built and reviewed (LAND after cheap fixes); fix round 1 built (branch review4-r-surface-2).
 
 Each item is a finding of the fourth whole-repo review. RNG class: neutral. No fix changes a sampler
 draw and no C++ file is edited; ingest-02's door is S-B's. Most fixes refuse a call that failed late,
@@ -33,8 +33,8 @@ every predictor count, so a renamed one-column test is refused with "column name
 match"; a fit whose own names repeat warns "'x' has repeated column names, so 'test' is matched by
 position". NEWS, upgrading. Tests: test-predict-training-rows.R and test-data-compatibility.R.
 
-**rgen-01: a named vector as newdata** is one row matched by name. Test: test-predict-training-rows.R,
-on a matrix and a formula fit.
+**rgen-01: a named vector as newdata** is one row matched by name. NEWS, upgrading: 0.9-34 read it by
+position. Test: test-predict-training-rows.R, on a matrix and a formula fit.
 
 **group B (ingest-08), list newdata.** A plain list of equal-length columns is read with
 `as.data.frame(x.test, optional = TRUE)`; any other list is refused naming the forms taken. Test:
@@ -85,9 +85,10 @@ test-leaf-standardization-rows.R, where the repeat is now refused before the per
 ### F2: the fits' methods, pdbart and plots
 
 **docs-02 = rgen-02 (dec-B610).** fitted, residuals and extract on the bart, bartMultinomial,
-bartOrdinal, bartNegbin and bartHurdle classes call `warnUnusedDots`, as predict does; extract's trees
-arm passes `getTrees`'s own arguments (whole or abbreviated, `charmatch`) and warns of the rest
-(`dropUnusedTreesArguments`). Tests: test-generics-errors.R, each class and method.
+bartOrdinal, bartNegbin, bartHurdle and rbart classes call `warnUnusedDots`, as predict does; extract's
+trees arm passes `getTrees`'s own arguments (whole or abbreviated, `charmatch`) and warns of the rest
+(`dropUnusedTreesArguments`), rbart's refusing `sample` and `combineChains` there as bart's does. Tests:
+test-generics-errors.R, each class and method; test-rbart-generics.R.
 
 **rgen-03: ci.level and the "s" draws.** `predict.bart`'s ci.level arm summarizes s(x) by
 `posteriorInterval`, padded as the value is (`padPredictedRows(..., first = first)`). Test:
@@ -122,16 +123,22 @@ a formula fit, and `plot(pd, xind = "b")` equal to `xind = 2` by recorded plot.
 holds a missing value for 'a'; give the values to evaluate at"). Test: test-pdbart.R.
 
 **group B (rgen-09).** `checkCombineChains` on predict and extract of every fit class and on
-`survivalProbabilities.bart` ("'combineChains' must be TRUE/FALSE"); a type that is NA, empty or not a
-string gets the type list (`foldTypeAliases`, `resolveHurdleType`, rbart's folds); `summary.bart`'s
-vars must be field names ("'vars' must name the fields to summarize"). Tests: test-generics-errors.R,
-test-rbart-error.R, test-pdbart.R.
+`survivalProbabilities.bart` ("'combineChains' must be TRUE/FALSE"), reading the flag as `checkFlag`
+does and returning it; a type that is NA, empty or not a string gets the type list
+(`foldTypeAliases`, `resolveHurdleType`, rbart's folds); `summary.bart`'s vars must be field names
+("'vars' must name the fields to summarize"), and a NULL vars is vars not given, the default fields, on
+every summary method taking vars. Tests: test-generics-errors.R, test-rbart-error.R, test-pdbart.R,
+test-front-door.R.
 
 **rfit-08 (dec-B614): sigma() and nobs().** `sigma.bart` is `mean(extract(object, type = "sigma"))`
 (1 on a family with no residual scale), refused on a variance-forest fit ("a fit with a variance forest
 has no single residual sd; see extract(fit, type = "sigma")"); `nobs.bart` counts the rows of positive
-weight and not masked off. Both registered for the five classes. NEWS, new features. Help: bart.Rd.
-Test: test-generics-correctValues.R.
+weight and not masked off, through `rowsInLikelihood` (`fitRowsInLikelihood`), so a missing weight is
+a row out. Both registered for the five classes. On rbart, `sigma.rbart` is the mean of the fit's sigma
+draws (1 on a binary response) and `nobs.rbart` counts as `nobs.bart` does: the fit stores `weights`
+and `active` under a bart fit's names and conditions. NEWS, new features. Help: bart.Rd, rbart.Rd.
+Tests: test-generics-correctValues.R (a Student-t fit's sigma its extracted t scale, `foo = 1` warned
+of, an NA weight), test-rbart-generics.R.
 
 ### F3: argument checks and messages
 
@@ -141,11 +148,13 @@ before offering a basis-free spelling, and builds that spelling with `paste(c(wr
 "amplitude = normal()"), collapse = ", ")`. Tests: test-forest-scale-record.R.
 
 **rfit-01 (dec-B612).** `resolveRenamedSeed` refuses `rngSeed` and `seed` both given ("'rngSeed' and
-'seed' name the same seed on 'bart'; supply 'seed' alone"), naming bart, bart2 or dbartsControl. NEWS,
-upgrading. Test: test-tombstones.R.
+'seed' name the same seed on 'bart'; supply 'seed' alone"), naming bart, bart2 or dbartsControl, equal
+values too. NEWS, upgrading. Test: test-tombstones.R.
 
 **rfit-02.** `refuseMixedArgumentStyles` sends a name that is a prefix of no formal of bart or bartBT
-to `refuseForeignFrontDoorArgs`, the ordinary unused-argument refusal. Test: test-front-door.R.
+to `refuseForeignFrontDoorArgs`, the ordinary unused-argument refusal. bart's refusals before its fit
+(an unused or unnamed extra argument, tree.prior, rngSeed) name the function called, bart or bart2;
+`refuseForeignFrontDoorArgs` takes the name shown as `door`. Test: test-front-door.R.
 
 **rfit-06, rfit-07.** `resolveFamily` takes a vector only when it is the door's own default
 (`identical(value, tokens)`), else "'family' must name one response family; got "gaussian",
@@ -159,8 +168,10 @@ test-sampler-bridge-errors.R.
 **rfit-11.** bart drops `factors` from the stored call where the caller did not write it. Test:
 test-bart-formula.R, `update(fit)` draws the same under one seed.
 
-**group B, the rest (rfit-03, rfit-04).** `checkFlag(value, name)` in bart for keepCall, samplerOnly
-and keepSampler (the last only when supplied); `resolveSigestArg` refuses a non-finite number; bartBT
+**group B, the rest (rfit-03, rfit-04).** `checkFlag(value, name)` in bart for combineChains, keepCall,
+samplerOnly and keepSampler (the last only when supplied), taking one logical or number as
+`as.logical` reads it, as 0.9-34's bart2 read `samplerOnly = 1`, and refusing NA, a string and any
+other length; `resolveSigestArg` refuses a non-finite number; bartBT
 checks verbose, binaryOffset (numeric, one value or one per row on the matrix route), x.test's column
 count and ndpost against keepevery; `resolveSeedArg` refuses a seed of other than one value at every
 door; hazard refuses empty breaks; the n.cuts reader refuses half-named values; pdbart and pd2bart
@@ -224,18 +235,21 @@ data are drawn in a different order, which neither check depends on.
     NA or "" string is not parsed as a formula; a NEWS line; help.
 13. aux-03: the levs check sits in the grid builder, where each entry's label is known.
 14. rgen-09: summary's vars message says fields, not positions, since vars names fields; rbart's three
-    inline folds use `foldTypeAliases`; `survivalProbabilities` checks combineChains too.
+    inline folds use `foldTypeAliases`; `survivalProbabilities` checks combineChains too; every site
+    assigns the checked flag.
 15. rfit-08: on Student-t, sigma is the t scale; nobs reads weights and the active mask where their
-    lengths match the response; rbart fits get no method; `warnUnusedDots` on both.
+    lengths match the response; `warnUnusedDots` on both. "rbart fits get no method" is withdrawn: an
+    rbart fit is a bart fit under dec-B614 and dec-B610 (fix round 1, the coordinator's call).
 16. multiforest-01: the refusal says "in the likelihood" only where rows were left out.
-17. rfit-01: bart2's refusal names bart2.
+17. rfit-01: bart2's refusal names bart2, as every refusal bart makes before its fit now does (call 36).
 18. rfit-02: a stranger is a name that is a prefix of no formal of either door.
 19. rfit-06: a vector is the door's default only when identical to it, match.arg's rule.
 20. rfit-07: NA n.test refused in both arms; the (0, 1) wording kept for the fraction; `drop = NA`.
 21. group B: keepSampler checked only when supplied (its default reads keepTrees); bartBT's verbose
     may be numeric; binaryOffset's length checked on the matrix route only; the seed length check
     in `resolveSeedArg` serves every door; `pl` may be numeric; a proposal.probs list is unlisted
-    after its entry check.
+    after its entry check. checkFlag reads a number as `as.logical` does (fix round 1, the
+    coordinator's call), where the first build refused it.
 22. Pinned tests: test-xbart-error.R, test-forest-scale-record.R, test-cut-points-undo.R,
     test-cut-counts-by-name.R, test-mutate-sparse-valued.R, test-leaf-standardization-rows.R,
     test-bartcore.R (now an NA thread count for its bridge refusal) and test-predict-na-action.R
@@ -253,27 +267,59 @@ data are drawn in a different order, which neither check depends on.
 30. docs/plans/sparse-factor-na.md, a landed plan, keeps `sourceAnyNA` as a name, unlinked, said to
     be removed later. Alternative: leave the stale link (fails doc freshness).
 
+Fix round 1:
+
+31. rbart stores `active` beside `weights`: a binary rbart's 0/1 weights sit in the sampler's active
+    rows, not its data's weights. Alternative: weights alone (a binary fit's nobs counts every row).
+32. rbart's extract trees arm refuses `sample` and `combineChains` as bart's does; fitted.rbart no
+    longer forwards its dots to extract, so a stray name warns once, naming fitted.
+33. checkFlag returns the flag as `as.logical` reads it and every site assigns it, so a 1 is TRUE
+    downstream (`isTRUE(samplerOnly)`); bart's own combineChains check is replaced by it.
+    Alternative: check only (`isTRUE(1)` is FALSE).
+34. summary's NULL vars takes the method's own default, so each class keeps its fields.
+35. The rgen-01 NEWS line sits in upgrading, beside the named-matrix line.
+36. bart computes the called name once (`calledAs`) for its forwarding, unused-argument, tree.prior and
+    rngSeed refusals; `refuseForeignFrontDoorArgs` keys its tables by `caller` and shows `door`, as
+    `resolveRenamedSeed` does. Alternative: the stranger refusal alone.
+37. nobs.bart and nobs.rbart share `fitRowsInLikelihood`.
+38. anchor-02's dots-forwarding wrapper builds its sampler on one thread and quietly.
+39. The numeric-flag tests check predict only on fits that keep their trees, and survivalProbabilities
+    on a small aft fit.
+40. sparse-columns.md states the standing rule (missing predictors incorporated, na.action refuses)
+    and that missing = "error" is removed.
+41. Not built: stan4bart's "no bart component detected" guard (the review's consumer hit) goes to the
+    stan4bart build; dbartsData is left as built.
+
 ## Gates
 
-Run on arm64 macOS, at most two cores.
+Run on arm64 macOS, at most two cores. The fix round's library was reinstalled with `--preclean` and
+`buildInfo()$mode` read "shipped" before each gate.
 
 - Every new and touched test file passes on the slice's shipped build.
-- Full tinytest suite, one process, shipped build: 41840 tests, 0 failed. A first run, 41842 tests,
-  failed 3, all pins of behavior this slice changes (a bartcore setControl test of an NA n.samples,
-  rfit-09; two predict tests expecting a position warning for a named one-row vector, rgen-01); they
-  now pin the new behavior.
+- Full tinytest suite, one process, shipped build, after fix round 1: 41865 tests, 0 failed. The
+  first build's "shipped, 41840 tests" ran on a library left in reference mode (its 27 extra tests
+  are the snapshot files); the review's rerun on a shipped build gave 41813, 0 failed. A first run,
+  41842 tests, failed 3, all pins of behavior this slice changes (a bartcore setControl test of an NA
+  n.samples, rfit-09; two predict tests expecting a position warning for a named one-row vector,
+  rgen-01); they now pin the new behavior. The fix round's first run halted in test-rbart-error.R
+  on a new test's row index of a list, fixed before the run above.
 - Equivalence trio, reference build, `--bitwise --strict-coverage`, against the current baselines:
   gaussian 55 of 55 scenarios identical draws, BCF 19 of 19, multinomial 11 of 11; none skipped.
 - The four seeded-drift snapshot files, reference build: 27 tests, 0 failed, unchanged.
 - `R CMD check --as-cran` on a tarball built from a clean copy: 1 NOTE, the incoming-feasibility one
   (the Date field, and an expired certificate on an external URL in bartBT.Rd and pdbart.Rd); the
   tests pass.
-- Exact gates in `quick`, the main job's list, shipped build: 44 of 44 passed (33 gates and 11 arms),
-  run since a fit's stored call changes (rfit-11).
+- Exact gates in `quick`, the main job's list: 44 of 44 passed (33 gates and 11 arms), run since a
+  fit's stored call changes (rfit-11), on the first build's library (reference mode, as above); after
+  fix round 1, which changes what an rbart fit carries, on the shipped build: 44 of 44 passed.
 - `lintr::lint_package()` against the slice's build: no lints. `air format --check .`: clean.
   check-rc-codoc: 53 methods. check-win-drift: OK. check-doc-freshness: OK, after a landed plan's cite
   of the removed `sourceAnyNA` was unlinked. `mutation-battery.R verify-anchors`: every anchor
-  resolves. inst/NEWS.Rd parses (252 entries).
+  resolves. inst/NEWS.Rd parses (252 entries). After fix round 1: no lints, air clean, codoc 53,
+  win drift OK, doc freshness OK, NEWS 253 entries.
+- Not rerun after fix round 1, since no change reaches a draw or a C++ file: the equivalence trio,
+  the snapshot files and `R CMD check`; its documentation checks were (`tools::codoc`,
+  `checkDocFiles`, `checkS3methods`, `undoc`, `checkRd` on rbart.Rd), clean.
 - R floor: the added code calls nothing newer than R 4.2.0 (`startsWith`, `lengths`, `anyNA` and
   `match.call`'s `envir` are the newest, all before 3.4).
 - Consumers (bartCause, stan4bart, treatSens): no call any fix refuses or newly warns of. treatSens's
