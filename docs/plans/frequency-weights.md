@@ -872,9 +872,11 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
     `x.test` cannot carry.
 78. fit$y on a binomial fit is the two columns as written, integer, with their names; numTrainingRows and the
     log-likelihood's draw count read NROW. Alternative: the trials vector the data object holds as y.
-79. dec-B638's columns are complete when every value in them is present: a missing value in either gives every row of
-    that new data one trial, as one column absent does. Alternative: per row, the rows holding both drawing at their
-    trials and the others at one, two rules in one call.
+79. Revised by dec-B641: the trials are read row by row, a row missing either count being incomplete as a row missing
+    its weight is; the columns read as absent only where every row is incomplete. As first built, a missing value in
+    either column gave every row of that new data one trial, with no message; the ruling's alternatives were that, row
+    by row with one trial at an incomplete row under a warning, and any missing value refused, an all-missing pair
+    included.
 80. A binomial test frame's weights are read from the column the training weights name, as a binary fit's are, so
     dec-B596's stated test weights win over the columns; S6 had left them unread under the counts slot's multinomial
     exclusion. Alternative: unread, the columns then always giving the trials.
@@ -887,12 +889,32 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
 83. A binomial fit records `trials.response`, the response expression as a one-sided formula, and, where a test frame
     gives them, `trials.test`; the test draws read `trials.test` before `weights.test`. Alternative: re-deriving the
     expression from the stored call, which a call kept as a symbol cannot give.
-84. A data frame as the matrix interface's response on a binomial gives R's own coercion error ("'list' object cannot be
-    coerced to type 'double'"), left as built: glm takes a matrix or cbind there too. Alternative: a refusal naming
-    cbind() or a matrix.
+84. Revised (the orchestrator, 2026-11-07, taking the builder's recommendation): a data frame as the matrix interface's
+    response is refused, "'y' is a data frame; give the response as a vector, or counts such as a binomial's successes
+    and failures as a matrix, cbind(successes, failures) or as.matrix(y)", in place of R's coercion error ("'list'
+    object cannot be coerced to type 'double'"). Alternative: R's error, left as first built.
 85. bart and xbart give Refusal 12 for a data object with two count columns under probit, and Refusal 17's form for one
     of three or more under logistic, through the check they already make on a data object carrying counts; probit with
     three or more columns keeps the multinomial words. Alternative: the older words, call 72 amended to say so.
+86. dec-B641's "pair missing in every row" is every row missing at least one of its two counts: a column missing in
+    every row reads as that column absent, and rows each missing a different one carry no trials either. Alternative:
+    absent only where both counts are missing in every row, a column all missing with the other complete then refused.
+87. The refusal names the columns the response expression reads (cbind(k, n - k) names 'k' and 'n'), in predict's words
+    for a missing weight with the remedy appended: "the response columns 'k' and 'f' have missing values; use na.action
+    = na.pass to return NA for them, or na.omit to drop them, or state the trials in 'weights'"; na.fail names them as
+    it names a channel ("..., which na.action = na.fail refuses"). The words reach the shared resolver as a label on
+    the channel, so na.exclude pads the row back as it does a weight's. Alternative: the expression as written,
+    "cbind(k, f) has missing values".
+88. A fit-time test frame refuses before the run with "'test': the response columns 'k' and 'f' have missing values;
+    state the test rows' trials as weights, or drop those rows from 'test'": a test frame has no na.action of its own
+    to name. Alternative: the training na.action applied to the test rows, which bart() reads for no other test column.
+89. Only a predictive draw reads the columns, so predict's other types, and a ppd call with weights stated, ignore a
+    missing count and refuse nothing: the columns are not an argument the caller gave, and the probabilities never read
+    them (dec-B638). A missing weight, which the caller states, marks its row on every type. Alternative: a missing
+    count marking its row on every type, as a missing weight does.
+90. Call 84's refusal is made at the data object's matrix interface, so it holds on every family and at bart, dbarts,
+    xbart and dbartsData alike: no family read a data frame there, each giving the coercion error. Alternative: refused
+    under a binomial family alone, the others keeping R's error.
 
 ## Open calls
 
@@ -958,7 +980,12 @@ or other user expectations, and, shown that lm and glm never read the response a
 either, while the fitters that draw counts at new rows (rstanarm, brms) read the trials from the new data: "OK, do (b)
 then." Recorded as dec-B638: where the new data of a binomial fit carry both response columns, complete, and no weights
 are stated, each row draws Binomial(k + f, p); stated weights keep dec-B594's meaning at predict and dec-B596's at a test
-frame; otherwise one trial. Built in S6's fix round, calls 79 to 83.
+frame; otherwise one trial. Built in S6's fix round, calls 79 to 83. Revised by dec-B641 (2026-11-07), after the
+builder's call 79 sent every row to one trial at one missing value with no message: a pair missing in every row reads as
+absent, one trial a row; a pair with some values missing is refused by default in words naming the columns and the
+remedies; at predict na.action = na.pass gives that row NA draws and na.omit drops it, as a missing weight is treated; a
+fit-time test frame refuses the same way; a complete pair keeps dec-B638's rule. Built in S6's second fix round, calls 79
+and 84 revised, 86 to 90.
 
 ## Slices
 
@@ -1224,6 +1251,22 @@ off (Inf and 3e9), bart's and xbart's Refusals 12 and 17 off (test-binomial.R); 
 review's mutant 5, the formula route's y set to the successes, is equivalent: the data object re-derives y from the
 counts at the shared counts step, and test-binomial.R now pins data@y. The binary fit's branch has no single-point
 mutant: a binary fit records no response expression.
+The second fix round, from dec-B641 and call 84: the trials a binomial's new rows carry are read row by row, a row
+missing a count joining predict's incomplete rows as a missing weight does, under the column words of call 87; a pair
+missing in every row reads as absent (call 86); a test frame's incomplete row is refused before the run (call 88); only a
+predictive draw reads the columns (call 89); a data frame as the matrix interface's response is refused on every family
+(calls 84 and 90). Tests: test-binomial.R 113 expectations (a column absent, a column missing in every row and rows each
+missing a different column, one trial each; the default's and na.fail's words; na.pass giving the row NA draws as a
+missing weight's row, the others within 3 of 75; na.omit dropping it; a row with an unroutable predictor beside it
+answered the same way under both; stated weights standing in and the probabilities unmoved; at a test frame the
+all-missing pair absent and a gap refused in its words; the data frame refused at bart, xbart and dbarts). Gates, rebased
+onto main at 063e27c75 (records only): a --preclean install; test-binomial.R 113/0 and test-xbart-loss.R 41/0; the suite
+42538/0 in one process; lint_package 0, air, codoc (52), win drift and doc-freshness clean; verify-anchors (82) clean. No
+engine or bridge file changed, so the trio, snapshots and R CMD check were not rerun. Mutants, each killed
+(test-binomial.R): the all-missing pair not read as absent; one missing value sending every row to one trial, call 79 as
+first built; the trials left out of the incomplete rows; the column words dropped; the remedy dropped; the trials not
+drawn at; the test frame's refusal off; na.fail's column words dropped; the data frame refusal off; the columns read on
+every type.
 
 ### S7: gates (~450 in benchmarks/R, ~20 workflow)
 
