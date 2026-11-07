@@ -159,7 +159,54 @@ derives it over every row and setResponse under updateScale over the rows in. Te
 
 ## Gates
 
-GATES
+Run on arm64 macOS, at most 2 cores.
+
+- tests/cpp, shipped config: plain 559 ok, all passed; under `-O2 -g -fsanitize=address,undefined`
+  (`detect_container_overflow=0`) 559 ok, 0 sanitizer reports. The new suites: the DART prior draw's s_1
+  KS p 1.00 at a fixed alpha and 0.84 under a mask, alpha's grid chi-squared p 0.849, E[s_1^2] 0.1081
+  against 0.1086; k's quantiles at worst z 1.82; the alloc harness's DART arms at budgets 1000 and 1 over
+  every leaf type, 14 to 17 allocations each, all failing cleanly.
+- Full tinytest suite, shipped, one process: 42016 results in 303 files, 0 failed.
+  test-prior-predictive.R 67 results, test-setters-draw-nothing.R 121.
+- Equivalence trio on the reference build, `--bitwise --strict-coverage`: 55, 19 and 11 scenarios
+  identical against equivalence-a6e83f38.rds, bcf-equivalence-a6e83f38.rds and
+  multinomial-equivalence-80b1c8d4.rds, 0 skipped.
+- The four snapshot files on the reference build: 7, 3, 14 and 3 results, 0 failed.
+- Each KS and chi-squared test of test-prior-predictive.R at seeds 2611, 7193, 40417 and 91 besides its
+  own: 13 tests at 4 seeds, every p > 1e-3, the smallest 0.0125 (the nbinom k test). The one test that
+  must reject (the draws against the uniform, not the oracle, under dart()) rejects at every seed,
+  p < 1e-133.
+- dec-B608's small-case oracle: the accepted s_1 against the exact whole-draw rejection density, KS
+  p 0.19; against the uniform, p < 2e-16.
+- R-loaded ASan (`-fsanitize=address,undefined` in CFLAGS, CXXFLAGS and CXX20FLAGS, the bridge compile
+  line checked, run through bin/exec/R with the runtime preloaded, mode shipped):
+  test-prior-predictive.R 67, test-setters-draw-nothing.R 121, test-calibration-prior-draws.R 29,
+  test-dart-mixed-columns.R 13, test-generics-posteriorPredictiveDistribution.R 204,
+  test-prior-init-empty-leaves.R 5; 0 failed, 0 sanitizer reports.
+- R CMD check --as-cran on the built tarball: 2 NOTEs. The incoming-feasibility NOTE is not this
+  slice's (an expired certificate at two existing URLs, the Date field). The other, `rt` used without
+  an import, is fixed since; codetools then reports nothing. Tests OK in 217 s.
+- lintr 0 lints; air format --check clean; check-rc-codoc OK (53 methods); check-win-drift OK;
+  check-doc-freshness OK.
+- mutation-battery.R verify-anchors clean, m44 re-anchored on the refactored monotone draw; `run m44`
+  killed by its monotone killer.
+
+Mutants, each planted alone in a copy of the tree, all killed:
+
+| mutant | gate | failures |
+| --- | --- | --- |
+| k not drawn | tests/cpp; test-prior-predictive.R | 1; 3 of 67 |
+| k's rate 1 / scale^2, not 1 / (2 scale^2) | tests/cpp | 1 |
+| k's shape n / 2 + nu, not (n + nu) / 2 | tests/cpp | 1 |
+| DartPrior::drawFromPrior skipped | tests/cpp | 4 |
+| ordinal gaps at sd 1 | test-prior-predictive.R | 1 of 67 |
+| ordinal gamma_1 drawn, not 0 | test-prior-predictive.R | 1 of 67 |
+| DART weights drawn once, only the trees retried | test-prior-predictive.R | 3 of 67 |
+| nbinom draw at prob = ev (R) | test-prior-predictive.R | 3 |
+| Student-t at a grid df when df is fixed (R) | test-prior-predictive.R | 1 |
+| nbinom mean without exp (R) | test-prior-predictive.R | 3 |
+| mutation-02: nbinom kernel reads masked rows | test-setters-draw-nothing.R | 1 of 121 |
+| mutation-V-02: cleared mask left stale | test-setters-draw-nothing.R | 1 of 121 |
 
 ## Calls made
 
