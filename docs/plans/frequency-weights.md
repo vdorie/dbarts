@@ -784,8 +784,8 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
     sd of the expanded rows (the weights' sum less one in its denominator), on both routes and in xbart's folds.
     Alternative: the sd of the rows in, unweighted, which the expanded data's fit does not give.
 51. Ruled by the maintainer (dec-B632): an nbinom sampler reads its weights as counts however it was created, and
-    wherever a center or scale read-off falls back to every row (a linear or gp leaf's covariates, a basis's scale, at
-    creation and at a `$setData` that derives them) a row of count 0 is read at 1, as the mask's fallback reads it,
+    wherever a center or scale read-off falls back to every row (a linear or gp leaf's covariates, a basis's scale, a
+    multi-forest gaussian anchor, at creation and at a `$setData` that derives them) a row of count 0 is read at 1, as the mask's fallback reads it,
     on every family that reads counts. So 0/1 weights read as the mask does, the one-row-in leaf still fits, and the
     same counts read the same however the sampler was made: with a linear leaf on one column and counts {1, 0, 3}, a
     sampler created with the counts and one given them by `$setWeights(updateStandardization = TRUE)` both read the
