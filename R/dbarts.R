@@ -2499,7 +2499,11 @@ recordBasisScales <- function(sampler, ptr, active = NULL) {
       what,
       if (length(named) == 1L) " is" else " are",
       " taken from ",
-      takenFromAll(n)
+      if (fallbackCountsRows(sampler$model, data@weights)) {
+        atTheirCounts(takenFromAll(n))
+      } else {
+        takenFromAll(n)
+      }
     )
   } else {
     warnClassed(
@@ -2518,8 +2522,7 @@ recordBasisScales <- function(sampler, ptr, active = NULL) {
           ", and ",
           what,
           " from ",
-          takenFromAll(n),
-          " at their weights' counts, a weight of 0 counting none"
+          atTheirCounts(takenFromAll(n))
         )
       } else {
         paste0(
@@ -3105,7 +3108,8 @@ dbartsSampler <- setRefClass(
           periods,
           byMask = model@family %in% c("logistic", "aft"),
           subjects = units$subjects,
-          counted = fallbackCountsRows(model, data@weights)
+          counted = fallbackCountsRows(model, data@weights),
+          countedRange = fallbackCountsRange(model, data@weights)
         )
       }
 
@@ -3601,7 +3605,8 @@ dbartsSampler <- setRefClass(
         fellBack$range,
         fellBack$leaf,
         subjects = units$subjects,
-        counted = fallbackCountsRows(model, data@weights)
+        counted = fallbackCountsRows(model, data@weights),
+        countedRange = fallbackCountsRange(model, data@weights)
       )
       invisible(NULL)
     },

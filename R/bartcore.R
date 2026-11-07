@@ -2039,14 +2039,27 @@ countInLikelihood <- function(rowsIn, n, unit) {
 }
 
 ## Whether a fallback reads a leaf covariate's or a basis's numbers from every
-## row at its weight's count, a weight of 0 counting none, rather than from
-## every row alike: a gaussian sampler's weights under frequency. The
-## response's scale and the prior's center are a range, read from every row
-## alike under either reading.
+## row at its weight's count, a weight of 0 read as 1, rather than from every
+## row alike: weights read as counts, not all 0 and 1 (which read as the mask
+## does there). A gaussian sampler's response scale and prior center are a
+## range, read from every row alike; an nbinom sampler's center reads the
+## counts too (fallbackCountsRange).
 fallbackCountsRows <- function(model, weights) {
-  identical(model@family, "gaussian") &&
-    identical(model@weights.type, "frequency") &&
-    !is.null(weights)
+  identical(model@weights.type, "frequency") &&
+    !(model@family %in% c("probit", "ordinal")) &&
+    !is.null(weights) &&
+    any(weights != 0 & weights != 1, na.rm = TRUE)
+}
+
+## Whether a fallback reads the response's center from every row at its
+## weight's count, as fallbackCountsRows reads a leaf's numbers: nbinom's.
+fallbackCountsRange <- function(model, weights) {
+  identical(model@family, "nbinom") && fallbackCountsRows(model, weights)
+}
+
+## Where a fallback text says numbers are taken from, at the rows' counts.
+atTheirCounts <- function(from) {
+  paste0(from, " at their weights' counts, a weight of 0 read as 1")
 }
 
 ## Where a fallback text says numbers are taken from: all n rows, or the
@@ -2105,7 +2118,8 @@ fewRowsInLead <- function(n, rowsIn, byMask = FALSE, subjects = FALSE) {
 ## 'rowsIn' then counting subjects (fewRowsInLead). 'periods', a hazard fit's
 ## warning that its periods were taken from every subject, folds the leaf's
 ## into its own. 'counted' says the leaf's numbers were read from every row at
-## its weight's count (fallbackCountsRows), the range from every row alike.
+## its weight's count (fallbackCountsRows), the range from every row alike
+## unless 'countedRange' (fallbackCountsRange) says it was read so too.
 warnRowsFallBack <- function(
   n,
   rowsIn,
@@ -2114,7 +2128,8 @@ warnRowsFallBack <- function(
   periods = NULL,
   byMask = FALSE,
   subjects = FALSE,
-  counted = FALSE
+  counted = FALSE,
+  countedRange = FALSE
 ) {
   if (!is.null(periods) && length(leaf) > 0L) {
     periods$message <- sub(
@@ -2133,34 +2148,22 @@ warnRowsFallBack <- function(
   }
   what <- if (length(leaf) > 0L) leafCentersAndScales(leaf)
   from <- takenFromAll(n, if (subjects) "subject" else "observation")
-  if (counted && !is.null(what)) {
+  if (counted && (countedRange || !range)) {
+    # every number named is its rows' at their counts
+    from <- atTheirCounts(from)
+  } else if (counted && !is.null(what)) {
     # the leaf's numbers are its rows' at their counts, the range every row's
-    counts <- paste0(
+    warnClassed(
+      "dbartsScaleFallbackWarning",
+      "fewer than two distinct values of the response are in the likelihood (",
+      countInLikelihood(rowsIn, n, "observation"),
+      "), so the response's scale and the prior's center are taken from ",
       from,
-      " at their weights' counts, a weight of 0 counting none"
+      ", and ",
+      what,
+      " from ",
+      atTheirCounts(from)
     )
-    if (!range) {
-      warnClassed(
-        "dbartsScaleFallbackWarning",
-        fewRowsInLead(n, rowsIn, byMask, subjects),
-        ", so ",
-        what,
-        " are taken from ",
-        counts
-      )
-    } else {
-      warnClassed(
-        "dbartsScaleFallbackWarning",
-        "fewer than two distinct values of the response are in the likelihood (",
-        countInLikelihood(rowsIn, n, "observation"),
-        "), so the response's scale and the prior's center are taken from ",
-        from,
-        ", and ",
-        what,
-        " from ",
-        counts
-      )
-    }
     return(invisible(NULL))
   }
   lead <- if (!range) {
@@ -2182,7 +2185,7 @@ warnRowsFallBack <- function(
     lead,
     what,
     " are taken from ",
-    takenFromAll(n, if (subjects) "subject" else "observation")
+    from
   )
   invisible(NULL)
 }

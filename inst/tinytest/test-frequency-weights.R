@@ -1041,7 +1041,7 @@ expect_identical(
     "fewer than two distinct values of the response are in the likelihood ",
     "(3 of 40 observations are in it), so the response's scale and the ",
     "prior's center are taken from all 40, and the center and scale of ",
-    "\"x1\" from all 40 at their weights' counts, a weight of 0 counting none"
+    "\"x1\" from all 40 at their weights' counts, a weight of 0 read as 1"
   )
 )
 expect_identical(
@@ -1054,12 +1054,95 @@ expect_identical(
     "fewer than two distinct values of the response are in the likelihood ",
     "(3 of 40 observations are in it), so the response's scale and the ",
     "prior's center are taken from all 40, and the scale of forest 2 ",
-    "('x2')'s basis from all 40 at their weights' counts, a weight of 0 ",
-    "counting none"
+    "('x2')'s basis from all 40 at their weights' counts, a weight of 0 read ",
+    "as 1"
   )
 )
 
+# an nbinom sampler reads its weights as counts however it was created
+# (dec-B632): a linear leaf's covariate center and scale, over counts
+# {1, 0, 3}, are the expanded data's whether the sampler was created with
+# them, or unweighted or with 0/1 weights and given them by setWeights
+countedMoments <- function(v, counts) {
+  center <- sum(counts * v) / sum(counts)
+  c(center, sqrt(sum(counts * (v - center)^2) / (sum(counts) - 1)))
+}
+set.seed(77L)
+pathX <- matrix(runif(120L), 60L, 2L, dimnames = list(NULL, c("x1", "x2")))
+pathX[, 1L] <- pathX[, 1L] * (1 + 3 * (seq_len(60L) > 40L))
+pathY <- as.double(rpois(60L, exp(0.3 + pathX[, 2L])))
+pathCounts <- rep(c(1, 0, 3), each = 20L)
+pathSampler <- function(weights = NULL) {
+  suppressWarnings(dbarts::dbarts(
+    pathX,
+    pathY,
+    family = "nbinom",
+    weights = weights,
+    control = dbarts::dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      n.samples = 2L,
+      updateState = FALSE,
+      seed = 3L
+    ),
+    n.trees = 4L,
+    leaf.prior = dbarts::dbartsPriors$linear("x1")
+  ))
+}
+standardizationOf <- function(sampler) {
+  unname(unlist(sampler$data@standardization[[1L]]))
+}
+pathExpanded <- countedMoments(pathX[, 1L], pathCounts)
+expect_equal(standardizationOf(pathSampler(pathCounts)), pathExpanded)
+for (start in list(NULL, as.double(pathCounts > 0))) {
+  given <- pathSampler(start)
+  invisible(given$run(1L, 0L))
+  suppressWarnings(given$setWeights(pathCounts, updateStandardization = TRUE))
+  expect_equal(standardizationOf(given), pathExpanded)
+}
+
+# where a read-off falls back to every row, a count of 0 is read as 1, as the
+# mask's fallback reads a masked row: an nbinom linear leaf with one row in,
+# and a gaussian frequency basis whose rows in hold one response value
+oneCount <- replace(rep(0, 60L), 5L, 3)
+expect_equal(
+  standardizationOf(pathSampler(oneCount)),
+  countedMoments(pathX[, 1L], pmax(oneCount, 1))
+)
+basisData <- data.frame(
+  y = replace(rep(0, 60L), 5L, 2.5),
+  x1 = pathX[, 1L],
+  b = 0.5 + runif(60L)
+)
+basisCounts <- replace(rep(0, 60L), c(6L, 7L), c(3, 2))
+basisSampler <- suppressWarnings(dbarts::dbarts(
+  y ~ x1,
+  basisData,
+  weights = basisCounts,
+  weights.type = "frequency",
+  n.trees = 4L,
+  forests = list(forest(), forest(basis = ~b)),
+  control = dbarts::dbartsControl(n.chains = 1L, n.threads = 1L)
+))
+expect_equal(
+  unlist(basisSampler$data@basis.scale),
+  countedMoments(basisData$b, pmax(basisCounts, 1))[2L]
+)
+
 rm(
+  countedMoments,
+  pathX,
+  pathY,
+  pathCounts,
+  pathSampler,
+  standardizationOf,
+  pathExpanded,
+  start,
+  given,
+  oneCount,
+  basisData,
+  basisCounts,
+  basisSampler,
   n,
   x,
   y,
