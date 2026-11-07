@@ -248,8 +248,10 @@ Landed per the plan; deltas and specifics:
   surface refuses with "sparse predictors fix the design at creation".
 - R surface: dbartsData's x slot widened to ANY with validity checking
   matrix-or-dgCMatrix (a slot union cannot name a Suggests class at
-  load); the sigma estimate falls back to sd(y - offset); bart pins
-  missing = "error" so NA-bearing sparse fits go through bart2/dbarts.
+  load); the sigma estimate falls back to sd(y - offset). A sparse fit's
+  missing predictors are incorporated as a dense fit's are, and na.action
+  is the one way to refuse them; the missing = "error" that bart pinned
+  here at landing is removed.
   Matrix sits in Suggests; the bridge reads the i/p/x slots via
   Rf_getAttrib without touching the Matrix namespace.
 - xbart/data-handle: bartcore_createDataHandle builds the parent store

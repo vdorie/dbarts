@@ -165,6 +165,11 @@ expect_warning(
   "extra argument 'foo' passed to nobs",
   fixed = TRUE
 )
+# a weight read as missing is a row out, as rowsInLikelihood reads one
+missingWeight <- gaussianFit
+missingWeight$weights[5L] <- NA
+expect_identical(nobs(missingWeight), 36L)
+rm(missingWeight)
 # a Student-t fit's sigma is the scale of its t errors
 studentFit <- accessorFit(
   y ~ a + b,
