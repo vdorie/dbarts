@@ -211,7 +211,8 @@ effect of the start on what users estimate, at fixed run lengths, rather than a 
 
 Under data augmentation and Polya-Gamma samplers, convergence from a start has mostly been argued from theory and
 from R-hat and autocorrelation; the one published start-based distance for the Polya-Gamma logistic sampler is
-Biswas and coauthors' coupling bound, on a linear model. For BART, the published readings are R-hat across a few
+Biswas and coauthors' coupling bound, on a logistic regression with a linear predictor (49 coefficients, the German
+credit data), not on trees. For BART, the published readings are R-hat across a few
 chains, trace plots, hitting times and coverage at fixed run lengths from different starts.
 
 ## What carries over to a BART sampler under logistic
