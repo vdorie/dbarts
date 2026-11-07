@@ -177,6 +177,9 @@
             whose predictors are named warns on every call, saying which
             columns it was matched to by position; 0.9-34 matched silently.
             Give the matrix column names to match by name.
+      \item A named vector given as \code{newdata} is one row matched by
+            name, as a named one-row matrix is; 0.9-34 read it by position,
+            whatever its names.
       \item Argument checking is stricter. A fractional value for a count
             (\code{n.trees = 100.5}, say) is an error rather than truncated.
             \code{predict}, \code{extract}, \code{fitted} and
