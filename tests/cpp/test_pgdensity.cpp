@@ -497,10 +497,13 @@ void testDecision() {
 
   // an invalid proposal: the rule finds no K (psi 1e5 at b 1e5, psi 1e6) or
   // psi is not finite; the step is a close call and draws nothing
-  int noK = 0, invalid = 0, stepped = 0;
+  int noK = 0, invalid = 0, stepped = 0, taken = 0;
   ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
   ext_rng_setSeed(rng, 7u);
-  pg::ExtRngWordSource words{rng};
+  auto words = [&]() {
+    ++taken;
+    return 0x80000000u;
+  };
   pg::StepWorkspace ws;
   const double cases[][2] = {{1e5, 1e5}, {0.2, 1e6}, {1.0, 1e6}, {1e5, 1e6}, {1.0, kInf},
                              {1.0, std::nan("")}, {kInf, 1.0}, {0.0, 1.0}, {-1.0, 1.0}};
@@ -512,10 +515,16 @@ void testDecision() {
     stepped += sr.closeCall && sr.omega == 0.5 && !sr.accepted;
   }
   const int n = static_cast<int>(countOf(cases));
-  printf("pgdensity: no K at %d of %d inputs, invalid proposals %d, close-call steps %d\n", noK, n,
-         invalid, stepped);
+  printf("pgdensity: no K at %d of %d inputs, invalid proposals %d, close-call steps %d, "
+         "words taken %d\n",
+         noK, n, invalid, stepped, taken);
   check(noK == n && invalid == n && stepped == n,
         "pgdensity: where the K rule finds no K the proposal is invalid and the step a close call");
+  check(taken == 0, "pgdensity: a step on an invalid proposal takes no uniform words");
+  // a stated K does not make a bad shape or psi valid
+  check(!pg::Proposal(0.0, 1.0, 3).valid() && !pg::Proposal(1.0, kInf, 3).valid() &&
+            !pg::Proposal(-1.0, 1.0, 3).valid() && !pg::Proposal(1.0, std::nan(""), 3).valid(),
+        "pgdensity: a proposal with a stated K and a bad b or psi is invalid");
   check(pg::Proposal(2.5, 1.0).valid(), "pgdensity: a proposal the rule builds is valid");
   ext_rng_destroy(rng);
 }
