@@ -1787,6 +1787,52 @@ predictorDataNames <- function(x.train) {
   unique(c(labels, colnames(x.train)))
 }
 
+## A sparse column of a data-frame test set made dense where the fit cannot
+## take it resident: on a formula fit whose own column of that name is dense,
+## the model frame replay reads its values (a data-dependent term such as
+## poly() included), and on a fit with no level table the indicator expansion
+## does. A sparseFactor becomes the factor over its levels, a sparseVector or
+## a one-column sparse matrix a vector, a wider sparse matrix a matrix. A
+## column the training design itself holds sparse, and every sparse column of
+## a categorical fit made from a data frame, stays as given.
+densifyUnheldSparseColumns <- function(x.test, x.train) {
+  isSparseColumn <- vapply(x.test, isSparseDataFrameColumn, FALSE)
+  if (
+    !any(isSparseColumn) ||
+      (is.null(attr(x.train, "terms")) &&
+        !is.null(attr(x.train, "factor.levels")))
+  ) {
+    return(x.test)
+  }
+  heldSparse <- if (predictorSourceIsSparse(x.train)) {
+    if (inherits(x.train, "dgCMatrix")) {
+      colnames(x.train)
+    } else {
+      x.train$columnNames[x.train$map < 0L]
+    }
+  } else {
+    character()
+  }
+  for (name in names(x.test)[isSparseColumn]) {
+    if (
+      name %in% heldSparse || any(startsWith(heldSparse, paste0(name, ".")))
+    ) {
+      next
+    }
+    column <- x.test[[name]]
+    x.test[[name]] <- if (methods::is(column, "sparseFactor")) {
+      sparseFactorToFactor(column)
+    } else if (methods::is(column, "sparseVector")) {
+      as.vector(column)
+    } else if (ncol(column) == 1L) {
+      as.vector(as.matrix(column))
+    } else {
+      as.matrix(column)
+    }
+  }
+  x.test
+}
+
 validateXTest <- function(
   x.test,
   x.train,
@@ -1813,6 +1859,7 @@ validateXTest <- function(
   testFactorLevels <- NULL
   if (is.data.frame(x.test)) {
     refusePOSIXltColumns(x.test, predictorDataNames(x.train))
+    x.test <- densifyUnheldSparseColumns(x.test, x.train)
     # captured before any re-expansion below: on the indicators route
     # (factorLevels NULL, e.g. bart()'s x/y interface, which stores no
     # level table) a test factor with different levels re-expands to a
@@ -1878,8 +1925,9 @@ validateXTest <- function(
       # remainder replayed, and the columns the model uses re-attached.
       if (is.null(factorLevels)) {
         stop(
-          "sparse test predictor columns require a categorical training ",
-          "design; supply 'x' through the x/y interface"
+          "a data-frame 'test' with sparse columns is read against a fit ",
+          "made from a data frame or a formula; give 'test' as a dgCMatrix, ",
+          "or its columns dense"
         )
       }
       if (!is.null(termLabels)) {

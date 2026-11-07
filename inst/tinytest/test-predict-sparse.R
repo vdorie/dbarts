@@ -338,3 +338,147 @@ rm(
   offset.te,
   unseenLabels
 )
+
+# ---- a sparse test column against a fit whose own column is dense ----
+# a formula fit replays its terms over the test rows, so a sparse column the
+# training design held dense is read as the dense frame it stands for, at
+# every door: predict, bart(test = ), setTestPredictor and the sampler's
+# predict
+set.seed(74L)
+n.mix <- 80L
+dense.mix <- data.frame(
+  x1 = rnorm(n.mix),
+  x3 = ifelse(runif(n.mix) < 0.6, 0, rnorm(n.mix)),
+  g = factor(sample(c("a", "b", "c"), n.mix, replace = TRUE))
+)
+y.mix <- dense.mix$x1 + as.integer(dense.mix$g) + rnorm(n.mix)
+dense.mix$y <- y.mix
+sparse.mix <- dense.mix[1:12, ]
+sparse.mix$x3 <- as(sparse.mix$x3, "sparseVector")
+sparse.mix$g <- sparseFactor(sparse.mix$g)
+fitMix <- function(formula, test = NULL) {
+  bart(
+    formula,
+    dense.mix,
+    test = test,
+    n.samples = 10L,
+    n.burn = 10L,
+    n.trees = 15L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 3L,
+    keepTrees = TRUE,
+    verbose = FALSE
+  )
+}
+fit.mix <- fitMix(y ~ x1 + x3 + g)
+expect_identical(
+  predict(fit.mix, sparse.mix),
+  predict(fit.mix, dense.mix[1:12, ])
+)
+ng <- dense.mix[1:12, ]
+ng$g <- sparseFactor(ng$g)
+expect_identical(predict(fit.mix, ng), predict(fit.mix, dense.mix[1:12, ]))
+expect_identical(
+  fitMix(y ~ x1 + x3 + g, test = sparse.mix)$yhat.test,
+  fitMix(y ~ x1 + x3 + g, test = dense.mix[1:12, ])$yhat.test
+)
+expect_identical(
+  fit.mix$fit$predict(sparse.mix),
+  fit.mix$fit$predict(dense.mix[1:12, ])
+)
+sampler.mix <- fit.mix$fit$copy(TRUE)
+sampler.mix$setTestPredictor(sparse.mix)
+viaSparse <- sampler.mix$data@x.test
+sampler.mix$setTestPredictor(dense.mix[1:12, ])
+expect_identical(viaSparse, sampler.mix$data@x.test)
+
+# a data-dependent term rebuilds over the densified column with the training
+# predvars
+fit.poly <- fitMix(y ~ x1 + poly(x3, 2) + g)
+expect_identical(
+  predict(fit.poly, sparse.mix),
+  predict(fit.poly, dense.mix[1:12, ])
+)
+
+# a fit from a numeric matrix reads a sparse column of a data-frame test the
+# same way
+x.mix <- as.matrix(dense.mix[c("x1", "x3")])
+fit.xy <- bart(
+  x.mix,
+  y.mix,
+  n.samples = 10L,
+  n.burn = 10L,
+  n.trees = 15L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 3L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+frame.xy <- data.frame(x1 = dense.mix$x1[1:12])
+frame.xy$x3 <- as(dense.mix$x3[1:12], "sparseVector")
+expect_identical(
+  predict(fit.xy, frame.xy),
+  predict(fit.xy, as.data.frame(x.mix[1:12, ]))
+)
+
+# a fit made from a dgCMatrix holds its columns sparse, so a sparse frame is
+# refused by what it accepts
+fit.csc <- bart(
+  as(as(x.mix, "CsparseMatrix"), "generalMatrix"),
+  y.mix,
+  n.samples = 10L,
+  n.burn = 10L,
+  n.trees = 15L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 3L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+expect_error(
+  predict(fit.csc, frame.xy),
+  pattern = "a data-frame 'test' with sparse columns is read against a fit made from a data frame or a formula; give 'test' as a dgCMatrix, or its columns dense",
+  fixed = TRUE
+)
+
+# a sparse-trained formula fit keeps its sparse test columns resident, and
+# takes their dense twins
+fit.sparseTrained <- bart(
+  y ~ x1 + x3 + g,
+  within(dense.mix, {
+    x3 <- as(x3, "sparseVector")
+    g <- sparseFactor(g)
+  }),
+  n.samples = 10L,
+  n.burn = 10L,
+  n.trees = 15L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 3L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+expect_identical(
+  predict(fit.sparseTrained, sparse.mix),
+  predict(fit.sparseTrained, dense.mix[1:12, ])
+)
+
+rm(
+  n.mix,
+  dense.mix,
+  y.mix,
+  sparse.mix,
+  fitMix,
+  fit.mix,
+  ng,
+  sampler.mix,
+  viaSparse,
+  fit.poly,
+  x.mix,
+  fit.xy,
+  frame.xy,
+  fit.csc,
+  fit.sparseTrained
+)
