@@ -1,15 +1,17 @@
 # k-move-pricing: pricing the collapsed scale move under logistic
 
 Status: planned, in critique (2026-11-06); amended after its blind critique, and on 2026-11-07 for the
-maintainer's rulings dec-B617 to dec-B626 and the convergence measure ([Amendments](#amendments)).
+maintainer's rulings dec-B617 to dec-B626 and the convergence measure, then for dec-B633 to dec-B635
+([Amendments](#amendments)).
 Nothing has run. The sequence is dec-B530's; every rule below is written before any fit of the step it reads.
 The rules state what a reading shows and recommend; the maintainer decides from a research report (dec-B624).
 
 agent: one opus implementer for step 0 (the move rebuilt on main), one opus review of it that runs the move's
 mutants; one opus implementer for the harness, steps 1 to 3 and the convergence measure, run on the bench box;
 one review of the harness and its smoke (the gate-only tier of [Process by risk](README.md#process-by-risk)),
-which also checks the convergence measure's argument against the truth; one opus review of the step 2 reading
-before its report is written; two independent referees on each report ([The report](#the-report)).
+which also checks each of the convergence measure's readings against its published form; one opus review of the
+step 2 reading before its report is written; two independent referees on each report
+([The report](#the-report)).
 rng: the study changes no package code. Step 0 is NEUTRAL with the engine's toggle off and NEUTRAL with it on for
 every fit outside the move's reach; where the move reaches (a logistic fit drawing k under a finite prior scale)
 it is POSTERIOR-CHANGING by the README's rule once it lands on, the stationary distribution unchanged by
@@ -19,7 +21,7 @@ budget: step 0, the move's own diff (about 300 engine lines, 950 of tests/cpp, 2
 exact gate) replayed onto main less the probit half, plus the conflict work below and about 250 lines of
 tests/cpp rewritten for the move's new placement; the pricing harness about 1,300 lines of R, most of it reused
 from the k study's, the convergence measure's streams and scoring about 300 of them. Compute about 38
-core-hours expected through step 2 with the convergence measure, about 44 with step 3, about 70 at most with
+core-hours expected through step 2 with the convergence measure, about 44 with step 3, about 71 at most with
 every contingent arm and every second look, stop at 66 ([Sizing and stops](#sizing-and-stops)).
 
 ## Goal
@@ -52,12 +54,18 @@ start a user gets (dec-B622).
   long each takes to converge, taken from published comparisons (dec-B622); no switch if the move goes on by
   default, provisionally (dec-B623); bands reported with no bar, and every step's results reaching the maintainer
   as a research report, the maintainer deciding (dec-B624, dec-B625); the report's contents taken from published
-  reports of its kind (dec-B626).
+  reports of its kind (dec-B626); the convergence measure rebuilt from published comparisons' readings and read
+  beside step 2 (dec-B633); the September study's first condition read from step 2's move fits against published
+  thresholds (dec-B634); the held-out datasets put to independent agents (dec-B635); and every study brought, in
+  order of priority, to what published research of its kind would do (dec-B637).
 - How published comparisons measure the time to reach the stationary distribution:
   [sampler-convergence-measures.md](../design/sampler-convergence-measures.md).
 - What the move is: leaves times a factor r and k divided by it, r drawn by one slice step from its conditional
-  with the latents integrated out (Liu and Sabatti 2000), taken on a coin of one in four, then the latents drawn
-  at the scaled fit. Survey: [k-tail-samplers.md](../design/k-tail-samplers.md); logistic mixing:
+  with the latents integrated out, taken on a coin of one in four, then the latents drawn at the scaled fit. It is
+  a generalized Gibbs step on the scale group (Liu and Sabatti 2000), whose second theorem lets a step that leaves
+  the factor's conditional invariant stand in for an exact draw only when the step is itself invariant along the
+  group's orbits; the move's exact gate and step 1 test the result. Survey:
+  [k-tail-samplers.md](../design/k-tail-samplers.md); logistic mixing:
   [k-mixing-pg-families.md](../design/k-mixing-pg-families.md). It is built on the branch collapsed-move-main,
   with its plan there as docs/plans/collapsed-scale-move.md.
 - The probit step it sits beside: [`Chain::drawForestRescale`](../../src/bartcore/chain.hpp),
@@ -397,7 +405,10 @@ start, the question the k study left open ([The convergence measure](#the-conver
 per second of the row
 estimands under both kernels, on 10 replications each of S1, S2, S4 and S6, both libraries, 4 chains of 5,000
 draws after 1,000 burn-in; bias and width by class; the shipped default against the move, for comparison with the
-k study.
+k study; and k's rank-normalized split R-hat and bulk and tail effective draws from the move's fits at the default
+length in every regime, against R-hat below 1.01 and at least 400 effective draws (Vehtari et al. 2021). That is
+the September prior study's first condition read under logistic: if it holds and the move lands for logistic, a
+logistic rerun of that study goes to the maintainer as its own item after the landing (dec-B634, call 8).
 
 **Expectation, written before any fit.** The k study's stored fits, read after its results and on the old
 engine, have the shipped sampler at equal time covering per fit 0.779 against the move's 0.904 near separation,
@@ -417,18 +428,21 @@ replication is added past the full counts.
 its chains draw from the stationary distribution, the posterior? Step 2's arms keep bart()'s fixed 500 burn-in;
 this measure runs each sampler with no burn-in and reads the whole stream from its start (dec-B622). It reads
 how much of the harm is the start, which the k study left open, and whether 500 sweeps suit either sampler
-under logistic. dec-B622 keeps the fixed burn-in as the default, so the plan proposes no change to it.
+under logistic. dec-B622 keeps the fixed burn-in as the default, so the plan proposes no change to it. The answer
+is read as curves over a series of run lengths, in sweeps and in seconds, with no convergence bar.
 
-**What published comparisons do, and what is ours.** They read the distance between a chain's marginal at sweep t
-and the posterior: as an upper bound from coupled chains, from many independent chains against a long-run
-reference, or as agreement between chains from dispersed starts (R-hat read as a trajectory), each with a
-threshold on its own distance ([sampler-convergence-measures.md](../design/sampler-convergence-measures.md)). No
-coupling of a BART sampler exists, and building one would be new work with its own proof; references are missing
-where the shipped sampler is slowest; and R-hat misses a slow direction that chains from one start share, as k's
-drift from its starting value is shared. So the measure reads three ways. Reading 1, the truth's rank among
-independent chains at each sweep, is the study's own: its argument is SBC's (Talts et al. 2018), but no published
-comparison reads it sweep by sweep that the survey found. Reading 2 reads many chains against long-run
-references, the published method, with a statistic of the study's own. Reading 3 is published as it stands.
+**Its readings are published ones (dec-B633).** Each reading below is a form that published comparisons of samplers
+use, as the survey found them ([sampler-convergence-measures.md](../design/sampler-convergence-measures.md)):
+- the coverage and length of intervals and the error of what users estimate, at fixed run lengths from different
+  starts, with the running time (He and Hahn 2023);
+- R-hat as a trajectory, in its rank-normalized split form, with bulk and tail effective draws (Brooks and Gelman
+  1998; Vehtari, Gelman, Simpson, Carpenter and Burkner 2021), and effective draws per second (Polson, Scott and
+  Windle 2013; Pratola 2016);
+- the error of estimates against a trusted reference as the run lengthens (Margossian and coauthors 2024).
+
+None of these comparisons gates a conclusion on a convergence bar, and none is set here. No coupling of a BART
+sampler exists, so the survey's coupling bounds are not read. A choice below with no published model is named as
+the study's own.
 
 **Regimes.** Step 2's problem cells and its fits with no strong signal: S1, S2 and S4, where the five non-band
 problem cells are, and S5, S6, S7, S8 and E3 (set B). S3 is in neither and is left out: at 10,000 rows its streams
@@ -444,90 +458,102 @@ would cost about 6 core-hours at 2,000 sweeps and about 15 with the shipped samp
   1 and the k study draw truths by and independent of the replication's truth. Gelman and Rubin (1992), Brooks and
   Gelman (1998) and Vehtari et al. (2021) ask for starts overdispersed relative to the posterior, and Biswas,
   Jacob and Vanetti (2019) start their Polya-Gamma logistic comparison from the prior. It reads whether a sampler
-  that reaches small k from above, as from the default start, reaches it as fast from either side. On the first
-  25 replications of each regime.
+  that reaches small k from above, as from the default start, reaches it as fast from either side, and it is the
+  guard Reading 2 needs against chains that agree because they started together. On the first 25 replications of
+  each regime.
 
-**Streams.** On each replication, 19 independent chains of each library from the start, as one stream with no
-burn-in, every other setting bart()'s default (75 trees, chi(1.5, 2), `n.threads = 1`); the effect regimes run
-the same 19 chains, not their 10. The replications are step 2's own, the first 50 of each regime in its order,
-then up to 100: the same data, truths and row labels, so no selection runs again and every label comes from step
-2's fits, never from the truth. Each stream is read at a grid of sweeps, every sweep to 50 and then about 40
-points to each tenfold length, scored as it runs, so only the truth's ranks, the reference masses and 20 rows'
-values of each class are kept. A library's stream in a regime runs to 2,000 sweeps, and on to 8,000 only where its
-reading has not settled (below) by 2,000. Past 8,000 the reading is "not reached by 8,000 sweeps", read beside the
-k study's long runs, which at 5,000 sweeps of burn-in and 20,000 recorded did not reach agreement between the two
-samplers in most logistic fits with a small true k.
+**Streams and fits.** On each replication, 20 independent chains of each library from the start, as one stream
+with no burn-in, every other setting bart()'s default (75 trees, chi(1.5, 2), `n.threads = 1`). The chains are
+read as the fits a user runs: five fits of bart()'s 4 chains, or in the effect regimes two fits of 10, as
+bartCause runs them. A fit at length L holds every draw of its chains from sweep 1 to sweep L, nothing
+discarded, so every reading is of the whole stream from its start (dec-B622). The replications are step 2's own,
+the first 50 of each regime in its order, then up to 100: the same data, truths and row labels, so no selection
+runs again and every label comes from step 2's fits, never from the truth. Each chain's draws of the quantities
+read are held for the stream, each fit is summarized at each length, and only the summaries are kept. A library's
+streams in a regime run to 2,000 sweeps, and on to 8,000 where, at the first look, k's R-hat over a replication's
+20 chains at 2,000 sweeps is at or above 1.01 in more than half the replications (the rule, a choice of how long
+to run, is the study's own). Past 8,000 a curve is reported as it stands, beside the k study's long runs, which
+at 5,000 sweeps of burn-in and 20,000 recorded did not reach agreement between the two samplers in most logistic
+fits with a small true k.
 
-**Quantities.** Every class step 2 scores that is a function of one state of a chain: k; the latent fit at the
-scored rows, interior and near 0 or 1, as step 2 labels them; the log risk ratio in S2; individual effects,
-subgroup effects, the average effects overall and on the treated, the log risk ratio and the log odds ratio in
-S7 and S8. Bands are left out: a band is a statement about the joint spread of many draws, which one state of each
-of 19 chains does not give.
+**Run lengths.** Every reading is taken at L = 25, 50, 100, 200, 300, 500, 700, 1,000, 1,500 and 2,000 sweeps, and
+at 3,000, 4,000, 6,000 and 8,000 where a stream runs on. The steps grow by factors of 1.4 to 2, so the curves are
+sampled about evenly on a logarithmic axis, as the run lengths of Brooks and Gelman's batches and of Margossian and
+coauthors' figures are. The series holds 100, the length of He and Hahn's started chains; 500, bart()'s burn-in;
+and 1,000, bart()'s whole default run of 500 burn-in and 500 draws, so the fit at 1,000 with nothing discarded
+stands beside step 2's default fit, which discards 500. It starts at 25, where a fit of 4 chains holds 100 draws,
+the fewest from which the ends of a 90 percent equal-tailed interval are read. The points themselves are the
+study's own. Each length is also read in seconds: L times the library's seconds per sweep in that regime, from
+step 2's timing on the idle box, the move's whole cost charged, with each stream's own clock recorded beside it.
 
-**Reading 1, against the truth (every replication).** Under step 2's truths, drawn from the model's prior, the
-truth given the data is one exact draw from the posterior, independent of every chain run on those data. If at
-sweep t the chains draw from the posterior, the truth and the 19 chains' states at t are 20 independent draws from
-one distribution, so the truth's rank among them is uniform on 0 to 19, and it lies strictly between the smallest
-and the largest of the 19 with probability exactly 18/20 = 0.90. That holds on any data, under any selection that
-reads the data alone, and whatever the autocorrelation along each chain, since the 19 are separate chains. So at
-each grid sweep t and each class, c(t) is the share of truths inside the 19 chains' range, pooled over rows and per
-fit as step 2 weighs them, and d(t) its noise-corrected distance from 0.90 (dec-B455). A sampler still on its way
-shows d(t) away from 0, most often under nominal, its chains bunched away from the truth. The rank histogram over
-its 20 bins, with its ecdf band (Sailynoja et al. 2022), is reported beside it at 500, 1,000 and 2,000 sweeps and
-at the stream's end. Its limit is SBC's: it reads the average over a regime's datasets, so a sampler wrong in
-opposite directions on different datasets can read near nominal. Reading 2 reads datasets one at a time.
+**Quantities.** Every class step 2 scores, labeled as step 2 labels it: k; the latent fit at the scored rows,
+interior and near 0 or 1; the band on probabilities, from 250 sweeps on, where a fit of 4 chains holds 1,000
+draws (the cutoff is the study's own: shorter fits hold too few draws for a simultaneous interval); the log risk
+ratio in S2; individual effects, subgroup effects, the average effects overall and on the treated, the log risk
+ratio and the log odds ratio in S7 and S8.
 
-**Reading 2, against the k study's long runs, where they serve.** The k study stored its simulated datasets with
-their truths and, for each long run that passed acceptance (the two samplers' long runs agreeing, dec-B462), the
-pooled draws as 1,000 quantiles a row and k's draws in full. Among the regimes read here these are 2 of S1's 12
-long runs, 4 of S2's 12 and 9 of S4's 24, 15 in A, and 3 of 6 in S5, 6 of 6 in S6, 5 of 6 in S7, 4 of 6 in S8
-and 8 of 12 in E3, 26 in B. On each, 19 chains of each library from the default start, as in Reading 1, and at
-each grid sweep the reference's mass inside the 19 chains' range, per row and for k; at stationarity its
-expectation is 18/20 = 0.90 again, now on one dataset, the noise of the truth's single draw replaced by the
-reference's mass. d(t) as above, per dataset and averaged in each regime. It is low in noise but covers only
-datasets on which the long runs agreed, which in A are the easier ones: in the k study a logistic long run with a
-true k below 0.5 passed 1 time in 16. Long runs that failed are not used, since a reference from the move's half
-alone is the sampler under test (dec-B456). The references were made on the k study's engine; the posterior does
-not depend on the engine as long as main fits the stored data under the same model, which the harness checks on
-each dataset before use (the cut points and the prior main builds against those the k study's harness builds at
-its recorded commit), dropping a dataset that differs.
+**Reading 1, what users estimate at each run length (He and Hahn 2023).** For each library, start, class and
+length, each fit's 90 percent equal-tailed interval, formed as step 2 forms it: its empirical coverage of the
+simulated truth against nominal, pooled over rows and per fit as step 2 weighs them, with its interval and the
+replications behind it; its length; the root-mean-square error and bias of the fit's posterior mean against the
+truth; and the running time at that length. This is He and Hahn's table 4, read at every length of the series
+rather than at their two, and from the default start and from draws from the prior, where they compared the
+default start with chains started at draws of an approximation. Under step 2's truths, drawn from the model's
+prior, a fit that draws from the posterior covers at nominal on average over replications, whatever the data
+(step 1's argument), so coverage under nominal at a length reads a fit that has not arrived, or one too short for
+its intervals' ends: Reading 2's effective draws say which. The curves are drawn against sweeps and against
+seconds, both libraries on one axis, as Biswas, Jacob and Vanetti (2019, figure 4) set two samplers side by side.
 
-**Reading 3, agreement between chains.** Rank-normalized split-R-hat (Vehtari et al. 2021) over a replication's 19
-chains, on the second half of each prefix as Brooks and Gelman (1998) iterate it, for k and the 20 kept rows of
-each class, and over both starts' 38 chains where both ran. It shows what a user's diagnostic says at each length
-beside the readings that know the answer: R-hat near 1 while d(t) stands away from 0 is a shared slow direction
-that R-hat does not see. It is plotted, 1.01 marked, and has no threshold of its own here.
+**Reading 2, agreement and efficiency.** Rank-normalized split R-hat (Vehtari et al. 2021) at each length, for k
+and each scored quantity: over each fit's chains, the diagnostic its user would read at that length; over a
+start's 20 chains; and over both starts' 40 where both ran. It is plotted against sweeps and seconds with its
+pooled and within-chain variances, as Brooks and Gelman (1998) plot it. They compute each point on the second half
+of the run so far; here each point is computed over the whole fit at that length, so that it is the R-hat that fit
+would report with no burn-in (dec-B622), a departure that is the study's own. The first length from which R-hat
+stays below 1.01, Vehtari and coauthors' threshold, is reported in sweeps and in seconds. Beside it, each fit's
+bulk and tail effective draws at each length, against Vehtari and coauthors' 400, and its effective draws per
+second, the efficiency reading of Polson, Scott and Windle (2013) and Pratola (2016); step 2's reading of
+effective draws per second after burn-in gives the same once the chains have arrived. R-hat reads agreement, not
+arrival. Chains that share a start or a slow direction can agree before they arrive: in Brooks and Gelman's
+Weibull example R-hat fell under 1.1 while every chain had explored only one part of the space. bart()'s chains
+all share the default start, and k's slow drift from its starting value is shared; the draws from the prior are
+the dispersed starts that guard against this, and R-hat over both starts' chains reads whether chains from the
+default start agree with chains from elsewhere.
 
-**When a reading has settled, in sweeps and seconds.** For each library, regime, start, class and weighting,
-t_sweeps is the first grid sweep from which d(t), smoothed over the grid points within a factor of 1.25 of t,
-stays at or below 0.02 to the stream's end; a curve that never does reads "not reached" at the stream's length.
-0.02 is pricing's noticeable coverage difference, the difference step 2 is sized to resolve; published thresholds
-read other distances (0.25 of total variation for a mixing time, 0.01 for an honest burn-in, 1.01 for R-hat), so
-the bar on this scale is the study's own, and the curves are reported whole so that any other can be read.
-t_seconds is t_sweeps times the library's seconds per sweep in that regime from step 2's timing on the idle box,
-the move's whole cost charged, and each stream's own clock is recorded beside it. The curves are drawn against
-seconds as well as sweeps, both libraries on one axis, the form of Biswas, Jacob and Vanetti's (2019) figure 4.
-d(500) and d(1,000) are reported too: how far each sampler stands from its stationary distribution where a default
-fit starts and stops drawing.
+**Reading 3, error against the reference, where one exists (Margossian et al. 2024).** The k study stored its
+simulated datasets with their truths and, for each long run that passed acceptance (the two samplers' long runs
+agreeing, dec-B462), the pooled draws as 1,000 quantiles a row and k's draws in full. Among the regimes read here
+these are 2 of S1's 12 long runs, 4 of S2's 12 and 9 of S4's 24, 15 in A, and 3 of 6 in S5, 6 of 6 in S6, 5 of 6
+in S7, 4 of 6 in S8 and 8 of 12 in E3, 26 in B. On each, 20 chains of each library from the default start, read as
+fits as above, and at each length each fit's squared error against the reference in the posterior mean of k and
+of each scored row's latent fit, scaled by the reference's posterior variance, per dataset and averaged over each
+regime's datasets, with the error of 100 independent draws marked, as Margossian and coauthors mark it. The same
+for the ends of the 90 percent interval is the study's own addition, since the intervals are what step 2 reads.
+The reference is missing where the shipped sampler is slowest: the accepted datasets in A are the easier ones, a
+logistic long run with a true k below 0.5 having passed 1 time in 16 in the k study, and long runs that failed
+are not used, since a reference from the move's half alone is the sampler under test (dec-B456). So Reading 3
+checks Reading 1 only on the easier datasets. The references were made on the k study's engine; the
+posterior does not depend on the engine as long as main fits the stored data under the same model, which the
+harness checks on each dataset before use (the cut points and the prior main builds against those the k study's
+harness builds at its recorded commit), dropping a dataset that differs.
 
 **Replications and noise.** Intervals bootstrap the replications, 4,000 resamples, every reading of a replication
-resampled together; t_sweeps is recomputed in each resample, which gives its interval. Planning spreads are step
-2's per replication (Sizing and stops): a 19-chain range at one sweep is not a 4-chain interval of 500 draws, and
-its spread for the row classes is assumed equal and measured at the first look. At 50 replications the per-fit
-standard error of c(t) for the interior is then about 0.011 to 0.031 at spreads of 0.076 to 0.22, about half that
-pooled; at 100, 0.008 to 0.022. k is one value a replication, its range indicator spread like a 0.9 coverage
-indicator, 0.30, so its c(t) is known to about 0.04 at 50 and 0.03 at 100: k's reading leans on Reading 2 and the
-rank histogram, and it is a diagnostic beside the row classes, which are what users estimate. What would change a
-reading is the factor between the two libraries' t_sweeps and where each stands against 500 and 1,000 sweeps, so
-t_sweeps is needed within a factor of 2, not to the last sweep.
+resampled together. A fit at a length is a fit of step 2's kind, so planning spreads are step 2's per replication
+(Sizing and stops), measured at the first look; the shorter fits' spreads are assumed equal. At 50 replications
+the per-fit standard error of the interior's coverage at a length is then about 0.011 to 0.031 at spreads of
+0.076 to 0.22, about half that pooled; at 100, 0.008 to 0.022. The five fits of a replication share its data and
+truth, so they narrow only the Monte Carlo part. k is one value a replication, its coverage indicator spread 0.30,
+so its coverage is known to about 0.04 at 50 and 0.03 at 100; k's reading leans on Readings 2 and 3, and it is a
+diagnostic beside the row classes, which are what users estimate. R-hat and effective draws are read per
+replication and reported by their distribution over replications.
 
-**Stop.** A first look at 50 replications a regime, both libraries, default start. A library's reading in a
-regime stops there when every row class's t_sweeps interval spans at most a factor of 2, or reads "not reached"
-with its lower end at the stream's length; otherwise the regime runs to 100 at the lengths the first look needed.
-No replication is added past 100. The dispersed start stays at 25, its streams lengthened by the same rule.
+**Stop.** A first look at 50 replications a regime, both libraries, default start. A regime goes on to 100, He
+and Hahn's count of replications, where a row class's standard error of coverage at 500 or 1,000 sweeps exceeds
+1.5 times its planned value, as step 2 restates its power; otherwise it stops at 50. No replication is added past
+100. The dispersed start stays at 25, its streams lengthened by the same rule.
 
-**How it is read**: beside step 2's readings, framing nothing; the report gives each sampler's curves and its
-t_sweeps and t_seconds by regime, start and class (call 11).
+**How it is read.** Reported beside step 2's readings, framing no recommendation (dec-B633, call 11): the report
+gives each reading by regime, start and class.
 
 ## Step 3: a check on the data, if the maintainer sends pricing there
 
@@ -612,10 +638,10 @@ standard error of at most the bar over 3.24.
 | step 2, R2 held-out score | no harm on real outcomes | 6 datasets, 20 splits | about 1 | log score se about 0.002 a dataset | 0.01 nats | 20 splits | none |
 | step 2, timing | r, and the cost bar | 9 regimes, 8 large cells, hazard and counts cells | about 1 as 100-sweep segments (3.5 as full fits), box idle | ratio to about 0.01 | 1.25 on a cell | 9 pairs; 10 segments | none |
 | step 2, effective draws a second | reported | 10 a regime, S1, S2, S4, S6, both libraries | 0.3 | | decides nothing | | none |
-| convergence, default start | sweeps and seconds to the stationary distribution, both libraries, 8 regimes | 50 a regime (50, 100), 19 chains, 2,000 sweeps, 8,000 where unsettled | 3.6 at 2,000 sweeps; 4.9 with the shipped sampler to 8,000 in A; 17 with every second look and every shipped stream to 8,000 | per fit, interior se 0.011 to 0.031 at 50, 0.008 to 0.022 at 100; k 0.04 and 0.03 | t_sweeps within a factor of 2; d(500) and d(1,000) | 50 where the curves stand apart, 100 where they are close | first look, once each t_sweeps interval spans at most a factor of 2 |
-| convergence, dispersed start | does a sampler arrive as fast from a prior draw | 25 a regime, 19 chains, as above | 1.8; 2.5 with A's shipped streams to 8,000; 4.3 at most | about 1.4 times the default start's at 50 | read for its direction | | none |
-| convergence, Reading 2 | the curves dataset by dataset on accepted long runs | 41 stored datasets, 19 chains a library | 0.4; 0.8 at most | per dataset | | | none |
-| convergence, Reading 3 | what R-hat says at each length | the same streams | 0 | | frames nothing | | none |
+| convergence, default start, Reading 1 | coverage, length, error and time of a user's fit at each run length with no burn-in, both libraries, 8 regimes | 50 a regime (50, 100), 20 chains as five fits of 4 (two of 10 for effects), 2,000 sweeps, 8,000 where k's R-hat stays at or above 1.01 | 3.8 at 2,000 sweeps; 5.2 with the shipped sampler to 8,000 in A; 18 with every second look and every shipped stream to 8,000 | per fit, interior coverage se 0.011 to 0.031 at 50, 0.008 to 0.022 at 100; k 0.04 and 0.03 | decides nothing; reported beside step 2 (dec-B633) | 50; 100, He and Hahn's count, where a first look's se exceeds 1.5 times planned | first look, unless a standard error exceeds 1.5 times planned |
+| convergence, dispersed start | does a sampler arrive as fast from a prior draw | 25 a regime, 20 chains, as above | 1.9; 2.6 with A's shipped streams to 8,000; 4.5 at most | about 1.4 times the default start's at 50 | read for its direction | | none |
+| convergence, Reading 3 | error against the reference as the run lengthens, on accepted long runs | 41 stored datasets, 20 chains a library | 0.4; 0.8 at most | per dataset | | | none |
+| convergence, Reading 2 | what R-hat and effective draws say at each length | the same streams | 0 | | frames nothing | | none |
 | step 3, R3 long runs | which datasets need the move | 12 datasets, 8 chains a library | about 5 | per dataset | | 3 resolved on each side | none |
 | step 3, R3 default fits | the default-length harm on each | 20 shipped at equal time and 20 move fits a dataset | about 1 | t bound a dataset | 0.02 | 20 | none |
 | step 4 | | | 0 | | | | |
@@ -649,7 +675,7 @@ read for harmlessness, and a class passes only on a bound shown, so each count i
 - The spreads for S3, S5, S7 and E3, and every per-fit factor of 2, are assumed. If a first look's standard error
   exceeds 1.5 times the planned value, power is restated before going on (step 2's stop).
 
-**Audit of the convergence measure.** Its streams cost 19 chains times the stream's length at the k study's
+**Audit of the convergence measure.** Its streams cost 20 chains times the stream's length at the k study's
 per-sweep times on the box: 0.12 to 0.47 milliseconds a chain-sweep for the shipped sampler across the eight
 regimes, the move 1.10 to 1.14 times that on its old placement; early sweeps, on smaller trees, cost less, which
 the figures do not count.
@@ -660,27 +686,31 @@ the figures do not count.
   third, with a true k of 0.02 and a reference from the move's half, still at a median k of 0.32 against the
   reference's 0.12 at 3,000. The move's time from the start is not measured; at stationarity its k's
   autocorrelation time was about 115 sweeps at the 99th percentile of its survey's census, against about 23,000
-  for the shipped sampler, so its streams are expected to settle by 2,000 in most regimes. The cap is 8,000;
+  for the shipped sampler, so its streams are expected to stop at 2,000 in most regimes. The cap is 8,000;
   20,000, the k study's length, would add about 3 core-hours expected and up to 20, and on the hardest datasets the
   k study's long runs already read past it.
-- Replications. 50 place t_sweeps within a factor of 2 wherever the two samplers' curves stand well apart, as the
-  probe and the k study's equal-time readings (shipped 0.78 to 0.85 per fit in A against the move's 0.89 to 0.91)
-  lead one to expect in A; 100 where they are close, as they may be in B. The dispersed start at 25 is read for
-  its direction, its intervals about 1.4 times the default start's at 50.
-- Chains. 19 a replication make the range of the chains a 90 percent interval exactly at stationarity. Fewer
-  chains with more replications would buy more precision for the same compute, but 9 chains give an 80 percent
-  range, off the level every other reading of pricing uses.
+- Replications. 50 give each sampler's coverage at a length to the standard errors in the table, which shows a
+  difference the size of the k study's equal-time readings in A (shipped 0.78 to 0.85 per fit against the move's
+  0.89 to 0.91) at about 3 standard errors or more. He and Hahn read 100; the second look reaches it where the
+  assumed spreads prove too small. The dispersed start at 25 is read for its direction, its intervals about 1.4
+  times the default start's at 50.
+- Chains. 20 a replication, read as five fits of bart()'s 4 chains (two of bartCause's 10 in the effect
+  regimes), so that every reading is of a fit a user runs. The 19 of the earlier design served a reading dec-B633
+  dropped; the twentieth chain adds 5 percent to the measure's compute. Fewer fits a replication would cost less
+  and lose little, since the fits share their replication's data and truth, but R-hat over 20 chains is the more
+  sensitive of the two.
 - S3 is left out (about 6 core-hours at 2,000 sweeps, 15 with the shipped sampler's longer streams).
 
 **Totals.** About 38 core-hours expected through step 2 with the convergence measure: step 0 about 5, step 1 about
 7, step 2 about 17.5 (about 10 if its regimes stop at their first look), the convergence measure about 8. About
-44 with step 3. About 70 at most, with step 1 at its longest thin and its third arm, the timing run as full fits,
-and the convergence measure at every second look with every shipped stream at 8,000; about 14 more if the move
+44 with step 3. About 71 at most, with step 1 at its longest thin and its third arm, the timing run as full fits,
+and the convergence measure at every second look with every shipped stream at 8,000; about 15 more if the move
 also needs its long streams everywhere. That is within dec-B530's rough guess of tens of core-hours. Against the
-previous amendment (37 expected, 43 with step 3, 56 at most), step 2's fitting fell by a third, 25 to about 17.5,
-with the burn-in-only arm dropped (dec-B621), and the convergence measure adds about 8 expected and 22 at most
-(dec-B622). The stop is 66, 1.5 times the expected total with step 3. Under it, cuts go in this order: the
-convergence measure's second looks, the dispersed start's long streams, the contingent arm's thin to its pilot's
+amendment before dec-B621 (37 expected, 43 with step 3, 56 at most), step 2's fitting fell by a third, 25 to
+about 17.5, with the burn-in-only arm dropped (dec-B621), and the convergence measure adds about 8 expected and 23
+at most (dec-B622); its rebuild from published readings (dec-B633) keeps its streams and changes only the
+twentieth chain, 5 percent of its compute (8.2 against 7.8 expected, 23.3 against 22.1 at most). The stop is 66,
+1.5 times the expected total with step 3. Under it, cuts go in this order: the convergence measure's second looks, the dispersed start's long streams, the contingent arm's thin to its pilot's
 T, S3 to its first look, the other step 2 regimes to their first looks, R3 to its first 8 datasets in score order.
 A smaller design, B at 100 a regime and S2 at 200 (about 7 core-hours less), would resolve B's classes at a true 0
 only about 50 to 60 percent of the time and S2's interior per fit 25 percent, so more classes would reach the
@@ -695,20 +725,37 @@ box.
 
 Whatever a step shows, its results go to the maintainer as a research report, and the maintainer decides
 (dec-B624). Step 2's report also carries step 1's results and the convergence measure; a step 1 that fails
-reaches the maintainer on its own, and step 3, if it runs, has its own report. Each is to the standard for changing a default ([Studies](README.md#studies)) (dec-B559): the
-maintainer set that standard for default priors and said mixing might need it too, and a change of kernel for
-every logistic fit is a default users meet. Each report is a short PDF, at most 5 pages of text with graphs as
-needed, self contained. Every report gives each sampler's empirical coverage against nominal, with its interval
-and replications, widths, root-mean-square error and bias, for every class and band, and the difference between
-the samplers with its interval (dec-B625); step 2's adds the convergence curves, t_sweeps and t_seconds. Past
+reaches the maintainer on its own, and step 3, if it runs, has its own report. Each is to the standard for
+changing a default ([Studies](README.md#studies)) (dec-B559): the maintainer set that standard for default priors
+and said mixing might need it too, and a change of kernel for every logistic fit is a default users meet. Each
+report is a short PDF, at most 5 pages of text with graphs as needed, self contained. Every report gives each
+sampler's empirical coverage against nominal, with its interval and replications, widths, root-mean-square error
+and bias, for every class and band, and the difference between the samplers with its interval (dec-B625). Past
 that, its contents are taken from published comparisons of MCMC samplers, read when the report is written:
 their readings, tables, figures and diagnostics. The report follows them and cites them, and names as the
-study's own anything it shows with no published model, such as Reading 1 of the convergence measure
-(dec-B626). The survey notes which published comparisons can serve
-([Models for the report](../design/sampler-convergence-measures.md#models-for-the-report)). It says how the
-regimes and datasets were chosen, and what 0.9-34 did. Two independent referees read it on a neutral brief
-before it reaches the maintainer. Whatever the maintainer decides, the finding is then a design note in the usual
-form.
+study's own anything it shows with no published model (dec-B626). The survey notes which published comparisons
+can serve ([Models for the report](../design/sampler-convergence-measures.md#models-for-the-report)); for the
+convergence measure and step 2's readings of k they give these, each tied to its model:
+- a table by regime of each sampler's coverage, interval length, root-mean-square error and running time, from
+  each start, at 500 and 1,000 sweeps with no burn-in and at the stream's end, the form of He and Hahn's (2023)
+  table 4;
+- curves of coverage, length and error against sweeps and against seconds, both samplers on one axis, as Biswas,
+  Jacob and Vanetti (2019, figure 4) set two samplers' readings against iteration;
+- R-hat with its pooled and within-chain variances against the run length (Brooks and Gelman 1998, figure 1), from
+  both starts, beside autocorrelations, trace plots of k and histograms of k against the reference for the two
+  samplers (van Dyk and Meng 2001, figures 3 to 6), the first length from which R-hat stays below 1.01 marked;
+- bulk and tail effective draws and local efficiency plots (Vehtari et al. 2021), and a table of effective draws
+  and effective draws per second by regime and sampler (Polson, Scott and Windle 2013; Pratola 2016, table 2);
+- squared error against the reference as the run lengthens, the error of 100 independent draws marked
+  (Margossian et al. 2024, figure 1), on the stored datasets with accepted long runs, the datasets without one
+  named;
+- k's rank-normalized split R-hat and bulk and tail effective draws from step 2's move fits at the default length,
+  against R-hat below 1.01 and 400 effective draws (Vehtari et al. 2021), the September study's first condition
+  (dec-B634).
+
+It says how the regimes and datasets were chosen, and what 0.9-34 did. Two independent referees read it on a
+neutral brief before it reaches the maintainer. Whatever the maintainer decides, the finding is then a design note
+in the usual form.
 
 ## The proposals in TODO
 
@@ -761,46 +808,27 @@ Ruled, 2026-11-07. The numbers are kept so that the entries and this plan's text
 - **Call 10, bands in step 2.** No harm bar and no label: the report gives each sampler's empirical band coverage
   against nominal, with its interval and replications, and the difference with its interval (dec-B624, revised
   by dec-B625). Whatever a step shows, its results reach the maintainer as a research report (dec-B624).
+- **Call 6, where the move waits.** Settled by the standing rule that a feature merges complete (dec-B494): (a),
+  the move stays on its rebuilt branch until pricing decides and lands once in the form decided, the bitwise
+  check at landing applying.
+- **Call 8, the September prior study's revisit under logistic.** (a) (dec-B634): step 2 reads k's
+  rank-normalized split R-hat and bulk and tail effective draws from its move fits at the default length, against
+  R-hat below 1.01 and at least 400 effective draws (Vehtari et al. 2021), in place of the earlier 1.05 and "in the
+  hundreds"; if they hold and the move lands for logistic, a logistic rerun of the study goes to the maintainer as
+  its own item after the landing. The probit revisit's condition under dec-B390 is a separate question.
+- **Call 9, negative binomial's item.** The orchestrator's internal call, (a): TODO k-mixing-pg-families, which
+  already holds the Polya-Gamma families' k mixing, is negative binomial's item.
+- **Call 11, how the convergence measure is read.** (a) (dec-B633): reported beside step 2's readings, framing no
+  recommendation; the measure is rebuilt from published comparisons' readings, and the study's own reading of the
+  truth's rank among chains and its 0.02 bar are dropped.
 
 Open.
 
-**Call 6. Where the move waits.** Options: (a) on its rebuilt branch until pricing decides, landing once in the
-form decided (recommended, dec-B494's rule that a feature merges complete); (b) on main now with the engine
-toggle off and no R surface, so pricing reads main itself, at the cost of an engine change on main whose fate is
-undecided. Either way the bitwise check at landing applies. 0.9-34 shipped no engine toggle of this kind.
-
 **Call 7. The held-out datasets.** The candidate list and the rule that splits it into R2 and R3 are above; you
 may add, strike or reorder before step 2 runs, and nothing is fitted on them before then. No 0.9-34 study used
-held-out real datasets for a sampler change.
-
-**Call 8. The September prior study's revisit under logistic.** TODO binary-hyperprior-revisit waits for k's
-scale move to land (dec-B390), and its first condition is that k mixes. Options: (a) read that condition free
-from step 2's move fits at the default length, k's split-Rhat below 1.05 and its effective draws in the hundreds
-(recommended); if it holds and the move lands for logistic, a logistic rerun of the study goes to you as its own
-item after landing; (b) leave the revisit as it stands, a probit item, with nothing read here. The study was
-probit, and with the probit half out (dec-B617) its probit condition is not met by this plan either way. 0.9-34
-had no logistic family.
-
-**Call 9. Negative binomial's item.** The move's plan leaves negative binomial to its own item, and there is
-none. Options: (a) name TODO k-mixing-pg-families as that item, which already holds the Polya-Gamma families' k
-mixing (recommended); (b) open a new item. 0.9-34 had no negative binomial family.
-
-**Call 11. How the convergence measure is read.** The measure reads, for each sampler, how many sweeps and
-seconds its chains need from the start a user gets before they draw from the posterior (dec-B622). Step 2's arms
-both start there and keep the 500 burn-in, so whatever the start costs in calibration is already inside step 2's
-readings; the measure says how much of it is the start, and whether 500 sweeps suit either sampler. Options:
-(a) read beside step 2's readings: the report gives each sampler's curves, t_sweeps, t_seconds, d(500) and
-d(1,000) by regime, start and class, and the recommendation is framed by step 2's three readings alone
-(recommended). (b) a fourth reading in the frame: the move is recommended on for every logistic fit only if, in
-no regime, it is shown to settle later in seconds than the shipped sampler (its t_seconds interval wholly above
-the shipped one's); otherwise step 3 is recommended. The compute is the same either way, about 8 core-hours
-expected and 22 at most. For (a): the distance read against the truth, Reading 1, and its 0.02 threshold are
-the study's own, with no published model, and under dec-B624 the maintainer decides from the report with the
-curves in it either way, so a fourth reading adds a frame the survey cannot back. For (b): it holds the move to
-reaching the posterior no slower in time, a claim the equal-time readings make only at the default length. A
-recommendation on the default burn-in itself is not offered: dec-B622 keeps it, and the report's d(500) shows
-whether it should be reopened. 0.9-34 had no logistic family and no move; its bart() burned in 100 sweeps with
-200 trees, 1.0-0's 500 with 75.
+held-out real datasets for a sampler change. It stays open (dec-B635): independent agents survey how published
+comparisons choose real datasets, audit the candidates from their published descriptions without reading any
+outcome, and referee the rule and list, which then come back to the maintainer as a decision.
 
 ## Left out
 
@@ -820,12 +848,15 @@ whether it should be reopened. 0.9-34 had no logistic family and no move; its ba
 - **A coupling of the two samplers' chains**, the published route to an upper bound on the distance from
   stationarity: none exists for a BART sampler, and one would be new work with its own proof
   ([sampler-convergence-measures.md](../design/sampler-convergence-measures.md)).
-- **A change to the default burn-in**: dec-B622 keeps it; the convergence measure's d(500) is reported.
+- **A change to the default burn-in**: dec-B622 keeps it; the convergence measure reports each sampler's fits at
+  500 and 1,000 sweeps with nothing discarded.
+- **A convergence bar, and the truth's rank among chains at each sweep**: dropped (dec-B633). No published
+  comparison the survey found gates a conclusion on a convergence bar or reads the truth's rank sweep by sweep.
 - **Multi-forest fits with amplitudes, BCF and the latent BCF families**: out of the move's reach, as of the probit
   step's.
 - **The September prior study's rerun** (TODO binary-hyperprior-revisit, dec-B390): it was a probit study, and with
   the probit half out pricing does not supply the probit mixing fix its revisit condition asks for. It stays its own
-  item; whether step 2 reads its first condition under logistic is call 8.
+  item; step 2 reads its first condition under logistic (dec-B634).
 - **The trees.** The gaps both samplers share go to TODO tree-mixing-proposals whatever pricing finds.
 - **Rare outcomes past 10,000 rows**: timed at 50,000, not scored.
 
@@ -838,11 +869,13 @@ whether it should be reopened. 0.9-34 had no logistic family and no move; its ba
   written to another's path, no label reading the truth), a smoke of every regime at one replication and a tenth
   of every length reviewed before step 1, and each step's reading made by the harness's `read` action, the rule
   applied as written here.
-- The convergence measure: its review checks Reading 1's argument (the truth an exact posterior draw given the
-  data, independent of the 19 chains, so its rank uniform at stationarity) against the harness; a smoke that feeds
-  the scorer independent exact draws from a known conjugate posterior in place of the chains, with truths drawn
-  from its prior, reads the truth's rank uniform and the range's share at 0.90 within its noise; Reading 2's
-  model-equality check passes on each stored dataset before use, and the datasets it drops are listed.
+- The convergence measure: its review checks each reading against its published form (He and Hahn's table 4,
+  Vehtari and coauthors' R-hat and effective draws, Margossian and coauthors' error against a reference) and that
+  every fit at a length holds its chains' draws from sweep 1, nothing discarded; a smoke that feeds the scorer
+  independent exact draws from a known conjugate posterior in place of the chains, with truths drawn from its
+  prior, reads coverage at 0.90, R-hat near 1, effective draws near the draws held and the error near that of as
+  many independent draws, at every length within noise; Reading 3's model-equality check passes on each stored
+  dataset before use, and the datasets it drops are listed.
 - `Rscript tools/check-doc-freshness.R .` on this file and the indexes.
 
 ## Not verified
@@ -855,8 +888,8 @@ whether it should be reopened. 0.9-34 had no logistic family and no move; its ba
 - The candidate datasets' sizes, rates and files: from the UCI listings as known, checked at the data stage.
 - Per-replication spreads in step 2 between the move and the shipped arm at equal time; the sizes use the k study's
   spreads against its told fit.
-- The convergence measure's spreads: a 19-chain range at one sweep is assumed spread like step 2's intervals, to be
-  measured at the first look.
+- The convergence measure's spreads: a fit's coverage at the short lengths is assumed spread like step 2's
+  default-length fits, to be measured at the first look.
 - Its probe: shipped sampler only, on the laptop with a library built from main on 2026-11-03, three stored
   datasets; the move's time from the start is not measured, only its autocorrelation at stationarity.
 - That main fits the k study's stored datasets under the model their references were made under; the harness
@@ -865,6 +898,27 @@ whether it should be reopened. 0.9-34 had no logistic family and no move; its ba
   any documented default.
 
 ## Amendments
+
+**2026-11-07, dec-B633 to dec-B635 and the settled calls.**
+- The convergence measure is rebuilt from published comparisons' readings (dec-B633). Dropped: the truth's rank
+  among 19 chains at each sweep, its distance from 0.90, the 0.02 bar for when that distance had settled, and the
+  sweeps and seconds defined by it, with the rank histogram. In their place, on the same streams and starts:
+  Reading 1, He and Hahn's coverage, length, error and running time of a user's fit at each length of a series
+  from 25 to 8,000 sweeps with nothing discarded, against sweeps and seconds; Reading 2, rank-normalized split
+  R-hat trajectories with bulk and tail effective draws and effective draws per second, and the first length from
+  which R-hat stays below Vehtari and coauthors' 1.01; Reading 3, Margossian and coauthors' error against the
+  reference on the stored datasets with accepted long runs, the reference's absence where the shipped sampler is
+  slowest stated. The streams take a twentieth chain so that they read as five fits of bart()'s 4 chains (two of
+  10 for effects), 5 percent more compute (8.2 core-hours expected, was 7.8; 23.3 at most, was 22.1); the plan's
+  totals stay about 38 and 44 expected, about 71 at most (was 70), stop 66. Bands are read from 250 sweeps.
+  Streams run on to 8,000 on k's R-hat at 2,000, and the second look goes to 100, He and Hahn's count, where a
+  standard error exceeds 1.5 times planned. The report lists the figures and tables each reading gives, with
+  their published models; Verification, Left out, Not verified, the agent line and the sizing table follow.
+- Call 11 ruled (a), dec-B633. Call 8 ruled (a), dec-B634, its reading put in step 2 and The report against R-hat
+  below 1.01 and 400 effective draws. Call 6 settled (a) by dec-B494. Call 9 marked the orchestrator's internal
+  call, (a). Call 7 stays open, noted with dec-B635.
+- Liu and Wu (1999), Liu and Sabatti (2000) and Choi and Hobert (2013), read in full, replace the earlier account
+  of them from other papers, in the survey and in Context's description of the move.
 
 **2026-11-07, the maintainer's rulings dec-B617 to dec-B626.**
 - Calls 1, 2, 3, 5 and 10 are marked ruled with their entries (dec-B617 to dec-B620, dec-B623 to dec-B625);
