@@ -102,10 +102,9 @@ samplePriorPredictive(
   \code{\link[=dbartsSampler-class]{getVariance}}. The mean draws, and every \code{type = "ev"}
   draw, are unaffected.
 
-  If \code{sampler} has more than one chain, prior draws are chain-free: each of the \code{n.samples}
-  draws only keeps the first chain's stream (the other chains still advance their own independent
-  engine RNGs, but their draws are discarded), since there is no mixing or convergence concept for
-  draws that are already independent by construction.
+  Prior draws are chain-free: the private sampler runs one chain whatever \code{sampler}'s
+  \code{n.chains}, since there is no mixing or convergence concept for draws that are already
+  independent by construction.
 
   Seeding follows from the private sampler being constructed fresh on every call. When the
   \code{\link[=dbartsControl]{control}}'s \code{seed} is \code{NULL} (the default), the engine RNG
