@@ -436,8 +436,12 @@ inline bool sumsT(double W, double& t1, double& t2) {
     return std::isfinite(t1) && std::isfinite(t2);
   }
   double v = std::sqrt(-W);
-  // tan's relative sensitivity to v's rounding is v / (sin v cos v)
-  if (!(0.5 * kPi - v > 0x1p-20)) return false;
+  // v's rounding (u v) moves tan v by u v / (sin v cos v) and sec^2 v by
+  // 2 u v tan v, relative; with pi/2 - v > 2^-11, tan v < 2^11 and these are
+  // below 6434 u, which leaves kTRelErr room for the functions' and
+  // operations' roundings, and tan and cos stay where (A2s) makes them
+  // relative ([0, pi/2 - 2^-15])
+  if (!(0.5 * kPi - v > 0x1p-11)) return false;
   double tn = std::tan(v);
   double cs = std::cos(v);
   t1 = tn / (2.0 * v);
@@ -446,7 +450,8 @@ inline bool sumsT(double W, double& t1, double& t2) {
 }
 
 /// log cosh sqrt(W) for W >= 0 (lambda(sqrt W)) and log cos sqrt(-W) for
-/// -pi^2/4 < W < 0, with an absolute error bound returned in err.
+/// -pi^2/4 < W < 0, with an absolute error bound returned in err. For W < 0
+/// the callers pass only W that sumsT accepts (pi/2 - sqrt(-W) > 2^-11).
 inline double logCoshSqrt(double W, double& err) {
   if (W >= 0.0) {
     double w = std::sqrt(W);
@@ -663,7 +668,9 @@ inline void TargetDensity::prepare(double x) {
     int e;
     double f = std::frexp(v, &e);
     v_ = std::ldexp(std::floor(std::ldexp(f, 26)), e - 26);
-    if (!(v_ < 0x1.921fb5p+0)) v_ = 0x1.921fb5p+0;
+    // capped at 0x1.91ffp+0 < pi/2 - 2^-11 (x about 320 b and past), so W0
+    // passes sumsT's guard; a non-saddle W0 is still valid
+    if (!(v_ < 0x1.91ffp+0)) v_ = 0x1.91ffp+0;
     w0_ = 0.0;
     W0_ = -v_ * v_;
   } else {
@@ -677,7 +684,7 @@ inline void TargetDensity::prepare(double x) {
   rho2_ = rho_ * rho_;
 
   double t1, t2;
-  sumsT(W0_, t1, t2);
+  if (!sumsT(W0_, t1, t2)) t2 = 0.0;  // never at the capped v_; undecided if so
   vt_ = 0.25 * b_ * t2;
 
   // 1 / (1 + e^{-2 w0}) and log cosh w0
