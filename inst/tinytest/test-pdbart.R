@@ -1233,6 +1233,37 @@ expect_error(
   fixed = TRUE
 )
 dev.off()
+
+# no rows to average over, a quantile outside [0, 1] and a missing grid value
+# are refused by name
+expect_error(
+  pdbart(xindFormula, xind = "a", newdata = xindData[0L, ], pl = FALSE),
+  "'newdata' has no rows to average over",
+  fixed = TRUE
+)
+expect_error(
+  pd2bart(xindMatrix, xind = 1:2, newdata = xindMatrix$fit$data@x[0L, ]),
+  "'newdata' has no rows to average over",
+  fixed = TRUE
+)
+for (levquants in list(NULL, numeric(0), NA, "a", 2, c(0.5, -0.1))) {
+  expect_error(
+    pdbart(xindFormula, xind = "a", levquants = levquants, pl = FALSE),
+    "'levquants' must be numbers between 0 and 1",
+    fixed = TRUE
+  )
+}
+expect_error(
+  pdbart(xindFormula, xind = "a", levs = list(c(0, NA)), pl = FALSE),
+  "'levs' holds a missing value for 'a'; give the values to evaluate at",
+  fixed = TRUE
+)
+expect_error(
+  pd2bart(xindMatrix, xind = c(1, 2), levs = list(0, NA), pl = FALSE),
+  "'levs' holds a missing value for 'b'; give the values to evaluate at",
+  fixed = TRUE
+)
+rm(levquants)
 rm(
   xindData,
   xindFit,

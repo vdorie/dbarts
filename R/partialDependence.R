@@ -825,6 +825,14 @@ pdbart.column <- function(rows, key) {
 # pd2bart uses `<=` (a long-standing difference in the two entry points,
 # preserved here rather than reconciled).
 pdbart.defaultLevs <- function(columns, levquants, cmp, levels) {
+  if (
+    !is.numeric(levquants) ||
+      length(levquants) == 0L ||
+      anyNA(levquants) ||
+      any(levquants < 0 | levquants > 1)
+  ) {
+    stop("'levquants' must be numbers between 0 and 1", call. = FALSE)
+  }
   lapply(seq_along(columns), function(j) {
     if (!is.null(levels[[j]])) {
       return(levels[[j]])
@@ -1561,6 +1569,9 @@ pdbart.setup <- function(
       call. = FALSE
     )
   }
+  if (!is.null(newdata) && NROW(newdata) == 0L) {
+    stop("'newdata' has no rows to average over", call. = FALSE)
+  }
   hazard <- !isSampler && fitIsHazard(prologue$fit)
   formulaFit <- !isSampler && pdbart.isFormulaFit(sampler)
   xind <- pdbart.resolveXind(
@@ -1652,6 +1663,17 @@ pdbart.grid <- function(setup, levs, levquants, numVariables, cmp) {
     stop("'levs' must have the same length as 'xind'")
   } else {
     levs <- pdbart.checkLevs(levs, levels, labels)
+    # a grid point is a value to evaluate at; a missing one is no value
+    for (j in seq_along(levs)) {
+      if (anyNA(levs[[j]])) {
+        stop(
+          "'levs' holds a missing value for '",
+          labels[j],
+          "'; give the values to evaluate at",
+          call. = FALSE
+        )
+      }
+    }
   }
   namedList(levs, levels)
 }
