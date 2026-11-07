@@ -1979,53 +1979,89 @@ struct StepResult {
   int level = 0;  // the last level evaluated
 };
 
-/// One independence Metropolis-Hastings step for PG(b, psi) from the
-/// current point x: a proposal draw y, a uniform interval, then levels until
-/// log r = log f(y) + log q(x) - log f(x) - log q(y) is certified above the
-/// uniform's log (accept) or below it (keep); undecided at the last level
-/// keeps x as a close call.
-template <class WordSource>
-StepResult stepRow(const Proposal& prop, double x, ext_rng* rng, WordSource& words,
-                   StepWorkspace& ws) {
+enum class Verdict { accept, keep, undecided };
+
+/// One level's verdict from the enclosures of log f(y), log q(x), log f(x)
+/// and log q(y): accept when log r's lower end is at least accTh, keep when
+/// its upper end is at most keepTh, undecided otherwise or when any
+/// enclosure is not finite.
+inline Verdict decideLevel(const Enclosure& efy, const Enclosure& eqx, const Enclosure& efx,
+                           const Enclosure& eqy, double accTh, double keepTh) {
+  if (!(efy.finite() && eqx.finite() && efx.finite() && eqy.finite())) return Verdict::undecided;
+  double mid = (efy.mid + eqx.mid) - (efx.mid + eqy.mid);
+  double rad = up(efy.rad + eqx.rad + efx.rad + eqy.rad +
+                  4.0 * kU * (std::fabs(efy.mid) + std::fabs(eqx.mid) + std::fabs(efx.mid) +
+                              std::fabs(eqy.mid)));
+  if (mid - rad >= accTh) return Verdict::accept;
+  if (mid + rad <= keepTh) return Verdict::keep;
+  return Verdict::undecided;
+}
+
+/// The step's decision from the current point x, the draw y and the
+/// uniform: a close call when y is not a positive finite value; otherwise
+/// prepare(), then levels until one decides, each level(l, e) intersecting
+/// into e[0..3] the enclosures of log f(y), log q(x), log f(x) and log q(y);
+/// undecided at the last level keeps x as a close call.
+template <class Prepare, class Level>
+StepResult decideStep(double x, double y, const UniformInterval& U, Prepare&& prepare, Level&& level) {
   StepResult res;
   res.omega = x;
-  const double y = prop.draw(rng);
-  const UniformInterval U = drawUniformInterval(words);
   if (!(y > 0.0) || !std::isfinite(y)) {
     res.closeCall = true;
     return res;
   }
-  ws.fx.setParameters(prop.shape(), prop.psi());
-  ws.fy.setParameters(prop.shape(), prop.psi());
-  ws.fx.prepare(x);
-  ws.fy.prepare(y);
-  prop.density(ws.qx);
-  prop.density(ws.qy);
-  ws.qx.prepare(x);
-  ws.qy.prepare(y);
+  prepare();
   const double accTh = std::min(0.0, U.logUpperUp());
   const double keepTh = U.logLowerDown();
-  Enclosure efy, efx, eqx, eqy;
-  for (int level = 0; level < kNumLevels; ++level) {
-    res.level = level;
-    efy = intersect(efy, logDensity(ws.fy, level));
-    eqx = intersect(eqx, logDensity(ws.qx, level));
-    efx = intersect(efx, logDensity(ws.fx, level));
-    eqy = intersect(eqy, logDensity(ws.qy, level));
-    if (!(efy.finite() && eqx.finite() && efx.finite() && eqy.finite())) continue;
-    double mid = (efy.mid + eqx.mid) - (efx.mid + eqy.mid);
-    double rad = up(efy.rad + eqx.rad + efx.rad + eqy.rad +
-                    4.0 * kU * (std::fabs(efy.mid) + std::fabs(eqx.mid) + std::fabs(efx.mid) +
-                                std::fabs(eqy.mid)));
-    if (mid - rad >= accTh) {
+  Enclosure e[4];
+  for (int l = 0; l < kNumLevels; ++l) {
+    res.level = l;
+    level(l, e);
+    const Verdict v = decideLevel(e[0], e[1], e[2], e[3], accTh, keepTh);
+    if (v == Verdict::accept) {
       res.omega = y;
       res.accepted = true;
       return res;
     }
-    if (mid + rad <= keepTh) return res;
+    if (v == Verdict::keep) return res;
   }
   res.closeCall = true;
   return res;
+}
+
+/// One independence Metropolis-Hastings step for PG(b, psi) from the
+/// current point x: a proposal draw y, a uniform interval, then levels until
+/// log r = log f(y) + log q(x) - log f(x) - log q(y) is certified above the
+/// uniform's log (accept) or below it (keep); undecided at the last level,
+/// or an invalid proposal, keeps x as a close call.
+template <class WordSource>
+StepResult stepRow(const Proposal& prop, double x, ext_rng* rng, WordSource& words,
+                   StepWorkspace& ws) {
+  if (!prop.valid()) {
+    StepResult res;
+    res.omega = x;
+    res.closeCall = true;
+    return res;
+  }
+  const double y = prop.draw(rng);
+  const UniformInterval U = drawUniformInterval(words);
+  auto prepare = [&]() {
+    ws.fx.setParameters(prop.shape(), prop.psi());
+    ws.fy.setParameters(prop.shape(), prop.psi());
+    ws.fx.prepare(x);
+    ws.fy.prepare(y);
+    prop.density(ws.qx);
+    prop.density(ws.qy);
+    ws.qx.prepare(x);
+    ws.qy.prepare(y);
+  };
+  auto level = [&](int l, Enclosure* e) {
+    e[0] = intersect(e[0], logDensity(ws.fy, l));
+    e[1] = intersect(e[1], logDensity(ws.qx, l));
+    e[2] = intersect(e[2], logDensity(ws.fx, l));
+    e[3] = intersect(e[3], logDensity(ws.qy, l));
+  };
+  return decideStep(x, y, U, prepare, level);
 }
 
 }  // namespace pgdensity
