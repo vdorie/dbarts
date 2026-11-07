@@ -12,6 +12,7 @@
 
 #include <array>
 #include <numbers>
+#include <string>
 
 namespace {
 
@@ -1237,12 +1238,15 @@ void testAnchorTotalAtMostOne() {
   bool refused = false;
   try {
     countedBasisColumnScale(rescaled.y.data(), 40, nullptr, u.data());
-  } catch (const BasisScaleError&) {
-    refused = true;
+  } catch (const BasisScaleError& error) {
+    // the column varies: the refusal names the total, not a constant
+    refused = error.totalAtMostOne && std::isnan(error.value) &&
+              std::string(error.what()).find("total count of at most 1") !=
+                std::string::npos;
   }
   check(sd == 1.0 && refused,
         "frequency leaf moments and basis scale at weights rescaled to sum "
-        "to 1 take no scale");
+        "to 1 take no scale, the basis refused by its total");
 }
 
 // --- the Polya-Gamma families: nbinom and multinomial weights are counts. A
@@ -1517,7 +1521,7 @@ struct MultinomialFixture {
 
 std::unique_ptr<Sampler<ConstantGaussianLeaf>> makeMultinomialSampler(
     const MultinomialFixture& m, const int* counts, const int* trials,
-    const double* weights, ext_rng** rng) {
+    const double* weights, ext_rng** rng, const double* offset = nullptr) {
   SamplerOptions options;
   options.numTrees = 15;
   MultinomialSpec spec;
@@ -1525,6 +1529,7 @@ std::unique_ptr<Sampler<ConstantGaussianLeaf>> makeMultinomialSampler(
   spec.counts = counts;
   spec.trials = trials;
   spec.weights = weights;
+  spec.offset = offset;
   spec.forest.numTrees = 15;
   return std::make_unique<Sampler<ConstantGaussianLeaf>>(m.x.data(), m.n, m.p,
                                                          options, spec, rng);
@@ -1543,8 +1548,9 @@ std::vector<double> multinomialDraws(Sampler<ConstantGaussianLeaf>& sampler,
 }
 
 /// A multinomial row of count w against w adjacent copies, draw for draw,
-/// and against the counts and trials times w, bitwise.
-void testMultinomialAgainstExpansion() {
+/// and against the counts and trials times w, bitwise; with a category offset
+/// the working response takes its own branch, so both are run.
+void testMultinomialAgainstExpansion(bool withOffset) {
   const std::size_t n = 40, numSamples = 150, K = MultinomialFixture::K;
   MultinomialFixture m(n);
   std::vector<std::size_t> rowOf;
@@ -1555,15 +1561,24 @@ void testMultinomialAgainstExpansion() {
     trialsW[i] *= w;
     for (std::size_t k = 0; k < K; ++k) countsW[k * n + i] *= w;
   }
+  std::vector<double> offset(n * K), offsetE(e.n * K);
+  for (std::size_t k = 0; k < K; ++k) {
+    for (std::size_t i = 0; i < n; ++i)
+      offset[k * n + i] = 0.4 * (static_cast<double>(k) - 1.0) + 0.3 * m.x[i];
+    for (std::size_t r = 0; r < e.n; ++r)
+      offsetE[k * e.n + r] = offset[k * n + rowOf[r]];
+  }
+  const double* o = withOffset ? offset.data() : nullptr;
+  const double* oE = withOffset ? offsetE.data() : nullptr;
   ext_rng* rngW = seededRng(7601u);
   ext_rng* rngE = seededRng(7601u);
   ext_rng* rngT = seededRng(7601u);
   auto weighted = makeMultinomialSampler(m, m.counts.data(), m.trials.data(),
-                                         m.w.data(), &rngW);
+                                         m.w.data(), &rngW, o);
   auto expansion = makeMultinomialSampler(e, e.counts.data(), e.trials.data(),
-                                          nullptr, &rngE);
+                                          nullptr, &rngE, oE);
   auto times = makeMultinomialSampler(m, countsW.data(), trialsW.data(),
-                                      nullptr, &rngT);
+                                      nullptr, &rngT, o);
   bool ran = true;
   std::vector<double> fw = multinomialDraws(*weighted, n, numSamples, &ran);
   std::vector<double> fe = multinomialDraws(*expansion, e.n, numSamples, &ran);
@@ -1575,11 +1590,18 @@ void testMultinomialAgainstExpansion() {
         gap = std::max(gap,
                        relativeGap(fw[(s * K + k) * n + rowOf[r]],
                                    fe[(s * K + k) * e.n + r]));
-  printf("  multinomial: largest gap %.3g over %zu sweeps\n", gap, numSamples);
+  const char* label = withOffset ? " under a category offset" : "";
+  printf("  multinomial%s: largest gap %.3g over %zu sweeps\n", label, gap,
+         numSamples);
   check(ran && gap < 1e-10,
-        "frequency multinomial equals its expansion draw for draw");
-  check(fw == ft, "frequency multinomial equals the counts and trials times w, "
-                  "bitwise");
+        withOffset ? "frequency multinomial under a category offset equals its "
+                     "expansion draw for draw"
+                   : "frequency multinomial equals its expansion draw for draw");
+  check(fw == ft,
+        withOffset ? "frequency multinomial under a category offset equals the "
+                     "counts and trials times w, bitwise"
+                   : "frequency multinomial equals the counts and trials times "
+                     "w, bitwise");
   ext_rng_destroy(rngW);
   ext_rng_destroy(rngE);
   ext_rng_destroy(rngT);
@@ -1681,7 +1703,8 @@ void runFrequencyTests() {
   testNBinomAgainstExpansion();
   testNBinomZeroWeights();
   testNBinomSetWeightsAndState();
-  testMultinomialAgainstExpansion();
+  testMultinomialAgainstExpansion(false);
+  testMultinomialAgainstExpansion(true);
   testMultinomialZeroWeightsAndState();
   rngState = savedState;
 }
