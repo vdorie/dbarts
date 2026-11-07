@@ -2209,8 +2209,28 @@ void testBinomialReadOffs() {
   check(relativeGap(lb.covariateMeans()[0], le.covariateMeans()[0]) < 1e-14 &&
           relativeGap(lb.covariateSds()[0], le.covariateSds()[0]) < 1e-14,
         "a binomial linear leaf's standardization is its binary rows'");
+
+  // a setData reads the new rows at their trials times their weights, as a
+  // sampler created on them does
+  DataReplacement replacement;
+  replacement.trials = n2.data();
+  bool replaced = binomial.setData(xFar.data(), k2.data(), n, w2.data(),
+                                   nullptr, nullptr, 0, nullptr, replacement);
+  ext_rng* rngF = seededRng(7712u);
+  binomialOptions.trials = n2.data();
+  Sampler<LinearGaussianLeaf> fresh(xFar.data(), k2.data(), n, b.p, w2.data(),
+                                    nullptr, ResponseFamily::logistic, 1.0,
+                                    sigmaDf, 1.0, binomialOptions, &rngF);
+  const auto& lr = binomial.chain(0).leaf();
+  const auto& lf = fresh.chain(0).leaf();
+  check(replaced &&
+          relativeGap(lr.covariateMeans()[0], lf.covariateMeans()[0]) < 1e-14 &&
+          relativeGap(lr.covariateSds()[0], lf.covariateSds()[0]) < 1e-14,
+        "a binomial linear leaf's standardization after a setData is the one "
+        "created on the new trials and weights");
   ext_rng_destroy(rngB);
   ext_rng_destroy(rngE);
+  ext_rng_destroy(rngF);
 
   // one row of trials is too few rows in, as one row of positive weight is
   auto leafOutcome = [&](const double* trials, const double* w,
