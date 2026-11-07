@@ -1914,8 +1914,9 @@ class Proposal {
 /// half-width of log r as stepRow forms it (the four radii, each density's
 /// largest taken twice, plus 4 u times the sum of the four |mid|, each
 /// density's largest |log| taken twice), each threshold's slack (the
-/// library's log error and the widening, 2 u_L |log U| + 2^-1000; U |log U|
-/// <= 1/e, so under 2 u_L of U's measure for both), and the uniform's grain.
+/// library's log error, the widening and its rounding, (2 u_L + 2 u) |log U|
+/// + 2^-1000 to first order; U |log U| <= 1/e, so under 2 u_L of U's measure
+/// for both), and the uniform's grain.
 inline double stepFloor(double radF, double radQ, double midF, double midQ, int beta = 53) {
   return 2.0 * up(2.0 * radF + 2.0 * radQ + 4.0 * kU * (2.0 * midF + 2.0 * midQ)) +
          2.0 * kLibRelErr + 0x1p-999 + std::ldexp(1.0, 1 - beta);
@@ -1931,21 +1932,31 @@ struct ExtRngWordSource {
   }
 };
 
+/// The widening of the library's log for a bound on log v, l within
+/// u_L |log v| of it (A2s): c = (u_L + u + 2^-98) |l|. |log v| <= |l| /
+/// (1 - u_L), so c covers l's error with u |l| to spare, less second-order
+/// terms (at most 27 u^2 |l|, below 2^-98 |l|), and that covers the
+/// rounding of l +- c (at most u (|l| + c)): the bound rounds outward. The
+/// slack, (2 u_L + 2 u) |log v| to first order, keeps the step floor's
+/// 2 u_L for both thresholds (U |log U| <= 1/e).
+inline constexpr double kLogWiden = kLibRelErr + kU + 0x1p-98;  // exact
+
+/// An upper bound on log v from the library's l = log v.
+inline double logWidenUp(double l) { return l + kLogWiden * std::fabs(l) + 0x1p-1000; }
+/// A lower bound on log v from the library's l = log v.
+inline double logWidenDown(double l) { return l - kLogWiden * std::fabs(l) - 0x1p-1000; }
+
 /// A uniform known to lie in [lower, upper) = [k 2^-53, (k + 1) 2^-53).
 struct UniformInterval {
   std::uint64_t k = 0;
   double lower() const { return std::ldexp(static_cast<double>(k), -53); }
   double upper() const { return std::ldexp(static_cast<double>(k + 1), -53); }
   /// An upper bound on log(upper()).
-  double logUpperUp() const {
-    double l = std::log(upper());
-    return l + kLibRelErr * std::fabs(l) + 0x1p-1000;
-  }
+  double logUpperUp() const { return logWidenUp(std::log(upper())); }
   /// A lower bound on log(lower()); -inf at k = 0.
   double logLowerDown() const {
     if (k == 0) return -kInf;
-    double l = std::log(lower());
-    return l - kLibRelErr * std::fabs(l) - 0x1p-1000;
+    return logWidenDown(std::log(lower()));
   }
 };
 
