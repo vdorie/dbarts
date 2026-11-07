@@ -1381,8 +1381,9 @@ predict.bart <- function(
   # ci.level opts into a per-observation est + credible band (kind follows type)
   if (!is.null(ci.level)) {
     interval <- posteriorInterval(result, ci.level)
+    # s(x) is summarized as the value is, so it rides the rows it describes
     if (!is.null(s)) {
-      attr(interval, "s") <- s
+      attr(interval, "s") <- posteriorInterval(s, ci.level)
     }
     return(padPredictedRows(interval, rows, first = TRUE))
   }

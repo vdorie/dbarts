@@ -314,3 +314,25 @@ expect_identical(
     "fit whose sampler replays no variance surface"
   )
 )
+
+# ---- ci.level summarizes s(x) as it summarizes the value ----
+# the "s" attribute rides the rows it describes: an est, ci.lower, ci.upper
+# band per row, the band posteriorInterval gives of the draws, padded as the
+# value is
+nd <- x.test[1:5, , drop = FALSE]
+banded <- predict(fit, nd, ci.level = 0.9)
+drawn <- predict(fit, nd)
+expect_identical(dim(attr(banded, "s")), c(5L, 3L))
+expect_identical(
+  attr(banded, "s"),
+  dbarts:::posteriorInterval(attr(drawn, "s"), 0.9)
+)
+expect_identical(dimnames(attr(banded, "s")), dimnames(banded))
+ndFrame <- data.frame(nd)
+ndFrame[2L, 1L] <- NA
+padded <- predict(fit, ndFrame, ci.level = 0.9, na.action = na.exclude)
+expect_identical(dim(padded), c(5L, 3L))
+expect_identical(dim(attr(padded, "s")), c(5L, 3L))
+expect_true(all(is.na(attr(padded, "s")[2L, ])))
+expect_false(anyNA(attr(padded, "s")[-2L, ]))
+rm(nd, banded, drawn, ndFrame, padded)

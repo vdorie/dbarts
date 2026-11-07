@@ -1365,8 +1365,9 @@ padPredictedRows <- function(x, rows, trailing = 0L, first = FALSE) {
       dimnames(x) <- dn
     }
   }
+  # an "s" attribute shares the value's layout: draws, or a band per row
   if (!is.null(s)) {
-    attr(x, "s") <- padPredictedRows(s, rows)
+    attr(x, "s") <- padPredictedRows(s, rows, first = first)
   }
   x
 }
