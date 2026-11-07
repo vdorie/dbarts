@@ -309,13 +309,21 @@ quickChar <- function(...) {
   )
 }
 for (frame in list(charFrame, oneCharFrame)) {
-  expect_error(quickChar(y ~ x + z, frame), pattern = charMatrixWords, fixed = TRUE)
+  expect_error(
+    quickChar(y ~ x + z, frame),
+    pattern = charMatrixWords,
+    fixed = TRUE
+  )
   expect_error(
     quickChar(y ~ x + z, frame, factors = "indicators"),
     pattern = charMatrixWords,
     fixed = TRUE
   )
-  expect_error(dbartsData(y ~ x + z, frame), pattern = charMatrixWords, fixed = TRUE)
+  expect_error(
+    dbartsData(y ~ x + z, frame),
+    pattern = charMatrixWords,
+    fixed = TRUE
+  )
   expect_error(
     quickChar(frame[c("x", "z")], frame$y),
     pattern = charMatrixWords,
@@ -331,7 +339,11 @@ for (fitChar in list(
   quickChar(y ~ x + z, numericFrame),
   quickChar(numericFrame[c("x", "z")], numericFrame$y)
 )) {
-  expect_error(predict(fitChar, newChar), pattern = charMatrixWords, fixed = TRUE)
+  expect_error(
+    predict(fitChar, newChar),
+    pattern = charMatrixWords,
+    fixed = TRUE
+  )
 }
 logicalFrame <- data.frame(x = charFrame$x, y = charFrame$y)
 logicalFrame$lm <- matrix(runif(60L) > 0.5, 30L, 2L)

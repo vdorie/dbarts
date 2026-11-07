@@ -1466,7 +1466,10 @@ fitOne <- function(test = NULL) {
 }
 fit.one <- fitOne()
 renamed <- "column names of 'test' do not match those of 'x': 'age' present in 'x' but not in 'test' (whose columns are 'inc')"
-for (other in list(cbind(inc = x.one[1:5, 1L]), data.frame(inc = x.one[1:5, 1L]))) {
+for (other in list(
+  cbind(inc = x.one[1:5, 1L]),
+  data.frame(inc = x.one[1:5, 1L])
+)) {
   expect_error(predict(fit.one, other), pattern = renamed, fixed = TRUE)
   expect_error(fitOne(test = other), pattern = renamed, fixed = TRUE)
   expect_error(
@@ -1537,7 +1540,10 @@ row.v <- matrix(c(0.1, 0.5, 0.9), 1L, dimnames = list(NULL, c("a", "b", "c")))
 for (fit.v in list(quickVector(x.v, d.v$y), quickVector(y ~ a + b + c, d.v))) {
   expect_identical(
     countWarnings(
-      expect_identical(unname(predict(fit.v, v)), unname(predict(fit.v, row.v))),
+      expect_identical(
+        unname(predict(fit.v, v)),
+        unname(predict(fit.v, row.v))
+      ),
       "warning"
     ),
     0L

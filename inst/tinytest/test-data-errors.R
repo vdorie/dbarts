@@ -188,7 +188,11 @@ quickEmpty <- function(...) {
 for (formula in list(y ~ 1, y ~ offset(o), y ~ . - x - f - o)) {
   expect_error(quickEmpty(formula, emptyFrame), noPredictors, fixed = TRUE)
   expect_error(dbarts::dbarts(formula, emptyFrame), noPredictors, fixed = TRUE)
-  expect_error(dbarts::dbartsData(formula, emptyFrame), noPredictors, fixed = TRUE)
+  expect_error(
+    dbarts::dbartsData(formula, emptyFrame),
+    noPredictors,
+    fixed = TRUE
+  )
 }
 expect_error(
   quickEmpty(matrix(0, 20L, 0L), emptyFrame$y),

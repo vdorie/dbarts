@@ -337,9 +337,18 @@ set.seed(312L)
 xNamed <- matrix(runif(30L), dimnames = list(paste0("r", 1:30), "x"))
 yNamed <- xNamed[, 1L] + rnorm(30L, 0, 0.25)
 subsetNA <- c(TRUE, NA, rep(TRUE, 28L))
-expect_identical(length(dbarts::dbartsData(xNamed, yNamed, subset = subsetNA)@y), 29L)
 expect_identical(
-  length(dbarts::dbartsData(y ~ x, data.frame(xNamed, y = yNamed), subset = subsetNA)@y),
+  length(dbarts::dbartsData(xNamed, yNamed, subset = subsetNA)@y),
+  29L
+)
+expect_identical(
+  length(
+    dbarts::dbartsData(
+      y ~ x,
+      data.frame(xNamed, y = yNamed),
+      subset = subsetNA
+    )@y
+  ),
   29L
 )
 fitNamed <- do.call(
@@ -369,7 +378,10 @@ dSub$y <- dSub$p + rnorm(20L, 0, 0.25)
 xSub <- as.matrix(dSub[c("p", "q")])
 iNA <- c(1:6, NA, 9:14)
 expect_identical(nobs(lm(y ~ p + q, dSub, subset = iNA)), 12L)
-expect_identical(length(dbarts::dbartsData(y ~ p + q, dSub, subset = iNA)@y), 12L)
+expect_identical(
+  length(dbarts::dbartsData(y ~ p + q, dSub, subset = iNA)@y),
+  12L
+)
 expect_identical(length(dbarts::dbartsData(xSub, dSub$y, subset = iNA)@y), 12L)
 fitSub <- function(...) {
   do.call(dbarts::bart, c(list(...), quick, list(seed = 5L)))
@@ -378,7 +390,10 @@ for (route in list(list(y ~ p + q, dSub), list(xSub, dSub$y))) {
   withNA <- do.call(fitSub, c(route, list(subset = iNA)))
   without <- do.call(fitSub, c(route, list(subset = iNA[!is.na(iNA)])))
   expect_identical(withNA$yhat.train, without$yhat.train)
-  excluded <- do.call(fitSub, c(route, list(subset = iNA, na.action = na.exclude)))
+  excluded <- do.call(
+    fitSub,
+    c(route, list(subset = iNA, na.action = na.exclude))
+  )
   expect_identical(length(fitted(excluded)), 13L)
   expect_true(is.na(fitted(excluded)[7L]))
   expect_error(

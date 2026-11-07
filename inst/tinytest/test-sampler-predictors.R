@@ -329,9 +329,21 @@ before <- list(
 )
 logicalWords <- "'column' takes column numbers or names, not TRUE/FALSE"
 for (column in list(TRUE, c(TRUE, FALSE))) {
-  expect_error(colSampler$setPredictor(rep(5, 30L), column), logicalWords, fixed = TRUE)
-  expect_error(colSampler$setTestPredictor(rep(5, 4L), column), logicalWords, fixed = TRUE)
-  expect_error(colSampler$setCutPoints(c(0.3, 0.6), column), logicalWords, fixed = TRUE)
+  expect_error(
+    colSampler$setPredictor(rep(5, 30L), column),
+    logicalWords,
+    fixed = TRUE
+  )
+  expect_error(
+    colSampler$setTestPredictor(rep(5, 4L), column),
+    logicalWords,
+    fixed = TRUE
+  )
+  expect_error(
+    colSampler$setCutPoints(c(0.3, 0.6), column),
+    logicalWords,
+    fixed = TRUE
+  )
 }
 for (column in list(c(2L, 2L), c("q", "q"))) {
   repeatedWords <- if (is.character(column)) {

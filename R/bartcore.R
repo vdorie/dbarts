@@ -398,7 +398,11 @@ resolveColumnIndex <- function(source, column, what) {
   if (repeated > 0L) {
     stop(
       "'column' names column ",
-      if (is.null(named)) column[repeated] else paste0("'", named[repeated], "'"),
+      if (is.null(named)) {
+        column[repeated]
+      } else {
+        paste0("'", named[repeated], "'")
+      },
       " more than once",
       call. = FALSE
     )

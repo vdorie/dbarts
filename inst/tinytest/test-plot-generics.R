@@ -351,7 +351,10 @@ displayCalls <- function(recorded, routine) {
 titles <- lapply(displayCalls(recorded, "C_title"), function(entry) {
   as.list(entry[[2L]])[4:5]
 })
-expect_true(list(list("log observed time", "posterior interval for E(log T | x)")) %in% titles)
+expect_true(
+  list(list("log observed time", "posterior interval for E(log T | x)")) %in%
+    titles
+)
 pchs <- lapply(displayCalls(recorded, "C_plotXY"), function(entry) {
   as.list(entry[[2L]])[[4L]]
 })
