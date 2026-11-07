@@ -89,9 +89,13 @@ validateBinomialCounts <- function(counts, prefix = "") {
       call. = FALSE
     )
   }
+  # an infinite count is no whole number, and one past the integer range is
+  # past the trials cap, so neither reaches the integer coercion below as NA
   bad <- which(
     rowSums(is.na(counts)) == 0L &
-      (rowSums(counts < 0) > 0L | rowSums(counts != round(counts)) > 0L)
+      (rowSums(counts < 0) > 0L |
+        rowSums(counts != round(counts)) > 0L |
+        rowSums(!is.finite(counts) | counts > .Machine$integer.max) > 0L)
   )
   if (length(bad) > 0L) {
     stop(
