@@ -1,0 +1,294 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\setlist{nosep,leftmargin=1.5em}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{remark}[theorem]{Remark}
+\newcommand{\PG}{\mathrm{PG}}
+\newcommand{\Ga}{\mathrm{Ga}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Lt}{\widetilde L}
+\newcommand{\fl}{\mathrm{fl}}
+\newcommand{\Log}{\mathrm{Log}}
+\newcommand{\lop}{\mathrm{log1p}}
+\newcommand{\emo}{\mathrm{expm1}}
+\title{The engine's certified Polya-Gamma evaluator:\\ what it adds to the proof, with proofs}
+\author{dbarts}
+\date{2026-11-07}
+\begin{document}
+\maketitle
+
+\section{Scope}
+
+The proof note beside this one (``The accept-or-keep Polya-Gamma step'', cited here as \emph{the note}, its
+results by name) specifies the evaluator by example in ball arithmetic at 53 bits (Arb). The engine carries the
+same enclosures in binary64 with the rules of the note's appendix ``Rounding'', and departs from the example where
+the example would be slow or lose accuracy at large shape. This note states each departure and proves it, and
+states the cheaper certificate's settings and what they need (the note's ``A cheaper certificate'', whose cells and
+$J_0$ S1 was to bound). Every result here is a bound the engine evaluates; none is an approximation. Throughout,
+$u=2^{-53}$, $f=\PG(b,\psi)$, $A=|\psi|/2$, $q=\sum_j\Ga(a_j,\mu_j)$ the proposal (the $K$ rates $r_k$ with shape
+$b$ and the remainder's $(\alpha,\beta)$), and on the contour $z=\rho+iy$, $\Delta=z^2-\rho^2=-y^2+2i\rho y$.
+
+\section{Arithmetic}\label{sec:arith}
+
+\begin{itemize}
+\item[(A1)] As the note's: IEEE 754 binary64, round to nearest; $+,-,\times,/$, $\sqrt{\cdot}$ and the fused
+multiply-add correctly rounded.
+\item[(A2$_{\mathrm s}$)] The math library returns $\exp,\emo,\log,\lop,\sin,\cos,\tan,\sinh,\cosh,\tanh$ and
+$\mathrm{atan2}$ within relative error $u_L=2^{-51}$ (two ulps) at normal results. This \emph{strengthens} the
+note's (A2), which assumes $\sin$ and $\cos$ only to an absolute bound: the engine's $\emo$ of a complex ball and its
+cell bound use $\cos$ relative to its value. glibc and Apple's library meet it on the arguments the evaluator
+forms (at most $|y|\le2^{20}$ in a node's imaginary part), as their argument reduction is exact there; it is an
+assumption, not a theorem.
+\item[(A3)] Contraction. A compiler may fuse $a\times b+c$ into one rounding, within an expression or (GCC's
+default in GNU modes on targets with a fused multiply-add) across statements. Every ball rule below charges at
+least the error of the unfused sequence, and a fused operation's error, $u|ab+c|$, is at most that; so the ball
+rules hold either way. The double-double operations rely on error-free transformations, which a fusion across
+statements breaks (a product rounded for one use and fused into a sum for another); the header keeps each
+transformation's inputs and its rounded product opaque to the compiler, so they hold either way as well, and the
+test suite builds the evaluator's tests with contraction forced across statements (built so without the barrier,
+every function's error is near $2^{-53}$). The proposal's rates $r_k=\fl(\fl(2\pi^2(k-\frac12)^2)+\psi^2/2)$ are
+formed unfused for the same reason: so they are the same doubles on every build and in the reference script.
+\end{itemize}
+Underflow: each operation that can underflow loses at most $2^{-1074}$ absolutely; the radii's final $\mathrm{up}(r)
+=r(1+2^{-46})+2^{-1020}$ covers that for up to $2^{50}$ operations, and covers the relative rounding of the
+up to about 120 operations that form any one radius. Overflow: an infinite or NaN midpoint or radius makes the
+evaluation undecided, never a wrong enclosure.
+
+\paragraph{Complex balls.} A ball is $(m,r)$, $m\in\mathbb C$, the value within $|v-m|\le r$. With $\|m\|^+$ an
+upper bound on $|m|$ (the computed $\sqrt{a^2+b^2}$ times $1+2u$) and $\|m\|^-$ a lower one:
+\begin{itemize}
+\item \emph{Product}, the textbook formula: the midpoint's error is at most $\sqrt5\,u|m_am_b|$ unfused
+\cite{bpz} and $2u|m_am_b|$ with one product fused \cite{jklm}; charged $2.25u\|m_a\|^+\|m_b\|^+$, plus the
+propagation $\|m_a\|r_b+\|m_b\|r_a+r_ar_b$.
+\item \emph{Quotient} $m_a\bar m_b/|m_b|^2$: the numerator's product as above ($\sqrt5u$), the denominator's
+relative error at most $2u+u^2$, and the final divisions $u$ per component: at most $(\sqrt5+3)u+O(u^2)\le5.5u$
+times $|m_a|/|m_b|$; propagation $(\|m_a\|r_b+\|m_b\|r_a)/(\|m_b\|^-(\|m_b\|^--r_b))$ for $r_b<\|m_b\|^-$.
+\item \emph{Exponential} $e^{m}$, $m=\mu+i\nu$: computed as $e^\mu\cos\nu+ie^\mu\sin\nu$, each component within
+$(2u_L+u)(1+O(u))$ relative under (A2$_{\mathrm s}$), so the midpoint within $(2u_L+u)e^\mu$; propagation
+$|e^{m+d}-e^m|\le e^\mu\,\emo(|d|)$. Charged $e^\mu(1+u_L)\,[\emo(r)(1+u_L)+2u_L+u]$.
+\item \emph{$\emo$} for $|\mathrm{Re}|+|\mathrm{Im}|<\frac12$: $\emo(m)=\emo(\mu)\cos\nu-2\sin^2(\nu/2)+i\,e^\mu
+\sin\nu$, cancellation-free for small $|m|$; each of the three terms within $(2u_L+2u)$ of itself, so the midpoint
+within $(2u_L+2u)(|t_1|+t_2+|\mathrm{Im}|)$; propagation $|e^{m}||\emo(d)|\le e^\mu(1+u_L)\emo(r)$. Beyond
+$\frac12$, $e^m-1$ from the exponential rule.
+\item \emph{$\lop$} $\Log(1+m)$, principal: real part $\frac12\lop(m_r(2+m_r)+m_i^2)$, the argument of $\lop$ within
+$3u(|m_r||2+m_r|+m_i^2)$; imaginary part $\mathrm{atan2}(m_i,1+m_r)$ within $u_L$ relative plus the propagated
+error of $1+m_r$, at most $2u|m_i|/|1+m|$ (the derivative of $\arg$ along the real axis is $|m_i|/|1+m|^2$ and
+$1+m_r$ carries $u|1+m_r|$). Propagation: $|\Log(1+m+d)-\Log(1+m)|\le-\log(1-e)\le e/(1-e)$, $e=r/|1+m|^-$, for
+$e<1$, on a ball that misses the cut (the note's ``Branch cuts'').
+\item \emph{Square root}, principal, by $p=\sqrt{(|m|+m_r)/2}$, $q=m_i/(2p)$ ($m_r\ge0$; the mirror form for
+$m_r<0$): each part within $3.5u(|p|+|q|)$; propagation $r/(\sqrt2\sqrt{|m|^--r})$, the derivative $1/(2\sqrt w)$
+bounded on the ball with $|w|\ge|m|-r$ and the factor $\sqrt2$ the bound $|\sqrt a-\sqrt b|\le|a-b|/(\sqrt{|a|}+
+\sqrt{|b|})\cdot\sqrt2$ for $a,b$ in one closed half plane.
+\end{itemize}
+These are the note's rules made explicit at binary64; the constants are the ones in the header.
+
+\section{The target's node in the lean form}\label{sec:lean}
+
+The note's Proposition ``Cancellation-free node'' writes $\log(\Lt(z)/\Lt(\rho))=-b\mathcal D$ with $\mathcal D=
+\log\cosh w-\log\cosh w_0$ on the continuous branch, $W_0=A^2+t_0/2$, $W=W_0+\Delta$, $w=\sqrt W$, and its
+$\lop(\emo(\delta)(1-e^{-(w+w_0)})/(1+e^{-2w_0}))$, $\delta=\Delta/(w+w_0)$. The node exponent is
+$E=2x\Delta-b\mathcal D$. At large $b$ both $2x\Delta$ and $b\mathcal D$ are large and nearly cancel at small $y$ (the
+saddle equation), so their separate roundings set the floor. When $w_0\ge1$ the engine uses:
+
+\begin{proposition}[Lean form]\label{prop:lean}
+Let $W_0>0$, $w_0=\sqrt{W_0}$, and $y\ne0$. With $\delta=w-w_0=\Delta/(w+w_0)$, $\sigma_0=1/(1+e^{2w_0})$ and
+$c_1=4xw_0-b$,
+\[
+E=2x\delta^2+c_1\delta-b\,\lop\bigl(\sigma_0\,\emo(-2\delta)\bigr),
+\]
+with the principal $\lop$, which is the continuous branch along the contour.
+\end{proposition}
+\begin{proof}
+$\log\cosh w=w-\log2+\Log(1+e^{-2w})$ is a logarithm of $\cosh w$ for every $w$ with $1+e^{-2w}\notin(-\infty,0]$.
+Principal $w$ has $\mathrm{Re}\,w\ge0$, so $|e^{-2w}|\le1$ and $1+e^{-2w}$ lies in the closed disk of radius 1 about
+1, meeting $(-\infty,0]$ only at 0, i.e.\ at $e^{-2w}=-1$, $w\in i\pi(\mathbb Z+\frac12)$, $W\le0$ real. On the
+contour $\mathrm{Im}\,W=2\rho y\ne0$ for $y\ne0$, and at $y=0$, $W=W_0>0$; so $\Log(1+e^{-2w})$ is continuous along
+the contour and real at $y=0$, and $w-\log2+\Log(1+e^{-2w})$ is the branch of $\log\cosh w$ continuous from the real
+value at $y=0$ ($w$ itself is continuous: $W$ never meets the principal root's cut, which needs $W\le0$ real). Hence
+$\mathcal D=\delta+\Log(1+e^{-2w})-\log(1+e^{-2w_0})$, and since $1+e^{-2w_0}>0$,
+$\Log(1+e^{-2w})-\log(1+e^{-2w_0})=\Log\bigl((1+e^{-2w})/(1+e^{-2w_0})\bigr)$ with no change of branch. The quotient
+is $1+(e^{-2w}-e^{-2w_0})/(1+e^{-2w_0})=1+\sigma_0(e^{-2\delta}-1)$, as $e^{-2w_0}/(1+e^{-2w_0})=\sigma_0$. Finally
+$2x\Delta=2x\delta(w+w_0)=2x\delta(2w_0+\delta)$, so $E=2x\delta^2+4xw_0\delta-b\delta-b\,\lop(\sigma_0\emo(-2\delta))$.
+\end{proof}
+At the saddle $4xw_0=b\tanh w_0$ (the note's saddle equation), so $c_1=-2b\sigma_0$: the first-order term that
+cancelled is gone, and $c_1$ is formed by one fused multiply-add from exact doubles ($4x$ is exact), within
+$u|c_1|$. The lead uses $\delta$ from the quotient rule, $\sigma_0$ from $e^{-2w_0}$ ($u_L$, a sum and a quotient,
+$(u_L+3u)\sigma_0$ plus $2^{-1074}$ when $e^{-2w_0}$ underflows) and the rules of Section~\ref{sec:arith}.
+$\mathrm{Re}\,w\ge0$ gives $|\sigma_0\emo(-2\delta)|<1$ only where $|\emo(-2\delta)|<1+e^{2w_0}$; the $\lop$ rule
+needs only that the ball misses the cut, which it checks (an undecided node otherwise). For $w_0<1$ or $W_0\le0$ the
+engine uses the note's form unchanged.
+
+\section{The proposal's node in second-order form}\label{sec:qnode}
+
+For $q$, $\log(\Lt(z)/\Lt(\rho))=-\sum_ja_j\Log(1+\zeta_j)$, $\zeta_j=2\Delta/(\mu_j+t_0)$, and at the saddle
+$\sum_ja_j/(\mu_j+t_0)=x$.
+
+\begin{proposition}[Second-order form]\label{prop:qnode}
+With $c_0=x-\sum_ja_j/(\mu_j+t_0)$,
+$E=2x\Delta-\sum_ja_j\Log(1+\zeta_j)=2\Delta c_0-\sum_ja_j\bigl(\Log(1+\zeta_j)-\zeta_j\bigr)$, the principal
+$\Log$ being the continuous branch on the contour.
+\end{proposition}
+\begin{proof}
+$2x\Delta=2\Delta c_0+\sum_ja_j\zeta_j$. $1+\zeta_j=(\mu_j+t_0+2\Delta)/(\mu_j+t_0)$ with $\mu_j+t_0>0$, and
+$\mathrm{Im}(\mu_j+t_0+2\Delta)=4\rho y$ vanishes only at $y=0$, where the value is positive; so it never meets
+$(-\infty,0]$ and the principal $\Log$ is continuous along the contour.
+\end{proof}
+$c_0$ is computed in double-double (each $a_j/(\mu_j+t_0)$ and the sum), within $24\cdot2^{-106}(\sum_ja_j/(\mu_j+
+t_0)+x)(1+n2^{-50})$ plus $u|c_0|$ for its final rounding to a double: at the saddle $c_0$ is of the order of the
+Newton step's residual, so the first-order term $2\Delta c_0$ carries no large rounding.
+
+\begin{lemma}[$\Log(1+z)-z$ by its series]\label{lem:l1pm}
+For $|z|\le m\le\frac14$, $\Log(1+z)-z=-z^2\sum_{k\ge0}(-z)^k/(k+2)$. Truncated after $n$ terms with $m^n\le2^{-54}$,
+the remainder is at most $|z|^2m^n/(2(1-m))\le2^{-54}|z|^2/1.5$; Horner's evaluation in complex arithmetic adds at
+most $16u|z|^2$; and a ball of radius $r$ about $z$ with $m=|z|+r\le\frac14$ moves the value by at most $r\,m/(1-m)$.
+\end{lemma}
+\begin{proof}
+The series is the Taylor series of $\Log(1+z)-z$, convergent for $|z|<1$. Its tail after $n$ terms is at most
+$|z|^2\sum_{k\ge n}m^k/(k+2)\le|z|^2m^n/(2(1-m))$. Horner: each step $p\leftarrow1/(k+2)-zp$ with $|zp|\le m|p|$
+and $|p|\le\sum_km^k/(k+2)\le0.6$; the per-step errors (a complex product, $\sqrt5u$, and a subtraction, $u$) are
+damped by $m$ at each later step, so the total relative to $\frac12$ is at most $(\sqrt5+1)u/(1-m)\cdot1.2$; the
+final product by $z^2$ (two complex products) adds $2\sqrt5u$ relative. Together below $16u|z|^2$. The derivative
+of $\Log(1+z)-z$ is $-z/(1+z)$, at most $m/(1-m)$ on the disk.
+\end{proof}
+
+\section{The line bounds}\label{sec:lines}
+
+\paragraph{The aggregated majorant with a smaller $J_0$.} The note's Lemma ``Aggregated majorant on a line''
+assumes $J_0\supseteq\{j:A_j<4u^2\}$ (here $u$ is the line, not the roundoff). The engine takes $J_0=\{j:A_j\le
+2u^2\}$ (an initial run: the $A_j$ increase in $j$), widened by the rounding of $A_j$, and $\kappa$ the largest
+upper bound of $k_j=2(A_j-2u^2)/A_j^2$ over $J_1$:
+
+\begin{lemma}[Aggregated majorant, $J_0$ of the nonpositive terms]\label{lem:agg2}
+The note's lemma holds for any finite $J_0\supseteq\{j:k_j\le0\}$ with $\kappa=\sup_{J_1}k_j$; and $\kappa\le1/(4u^2)$.
+\end{lemma}
+\begin{proof}
+The note's proof uses of $J_1$ only that $0<k_j\le\kappa$ there: then $-\log(1-k_jY)\le k_jY/(1-k_jY)\le k_jY/(1-
+\kappa Y)$ for $\kappa Y<1$. Both hold by the definition of $\kappa$ and of $J_0$. $g(A)=2(A-2u^2)/A^2$ has its
+maximum $1/(4u^2)$ at $A=4u^2$. The engine scans $J_1$ from its first term to the first with $A_j>4u^2$ (past which
+$g$ decreases), bounding $g$ on each term's enclosure $[A^-,A^+]$ by $2(A^+-2u^2)/(A^-)^2$, and by $1/(4u^2)$ where
+the enclosure contains $4u^2$; for $f$ the infinite tail of $J_1$ lies past $4u^2$ and is covered by its first term.
+$S=\sum_{J_1}a_jk_j$: for $q$ the sum of the upper bounds; for $f$ the closed form $2b[T_1(W_u)-2u^2T_2(W_u)]$ minus
+the $J_0$ terms, with the closed forms' errors charged as stated in the header ($T_1,T_2$ within $2^{-40}$
+relative, from $\tanh$, $\cosh$, $\tan$ and $\cos$ under (A2$_{\mathrm s}$), and the series for $|W|\le0.1$).
+\end{proof}
+On the contour line ($u=\rho$) every $J_0$ term has $A_j\le2\rho^2$, so $|z^2+\tau_j'^2|^2=A_j^2-2Y(A_j-2\rho^2)+Y^2\ge
+A_j^2$ and the term is at most 0; the note's corollary's $Y_0=\max_{J_0}(A_j-2\rho^2)_+$ is then 0 and imposes
+nothing.
+
+\paragraph{The monotone tail's constants.} The note's Corollary ``A monotone tail and an a priori step''(a) needs
+$S<4x$ and $Y_1<(1-\sqrt{S/(4x)})/\kappa$ with $\delta=2x-\frac S2(1-\kappa Y_1)^{-2}>0$. The engine takes
+$Y_1=(1-\sqrt{S/(2x)})/\kappa$ when $S<2x$ (then $\delta=x$ exactly in real arithmetic) and
+$Y_1=\frac12(1-\sqrt{S/(4x)})/\kappa$ when $2x\le S<4x$, both times $1-2^{-30}$, recomputes $\delta$ from the rounded
+$Y_1$ with its rounding charged downward, and uses the corollary only if $\delta>0$. The main sum is continued until
+$y_1=(N+1)h$ is at least $\max(x^{-1/2},y_{\mathrm{req}})$, $y_{\mathrm{req}}=\frac12(-\rho+\sqrt{\rho^2+2/\delta})$
+(the corollary's condition), which also puts $y_1$ past $y_W=\frac12(-\rho+\sqrt{\rho^2+1/x})<\frac1{2\sqrt x}$, so
+the note's Theorem ``A priori bound'''s monotone tail applies at any $Y'\ge y_1$.
+
+\paragraph{$\log\sinh$ past the range of a double.} The note's Lemma ``Line majorants''(a) bounds $|\cosh w|\ge
+\sinh p$; for $p>710$, $\sinh p$ overflows. The engine bounds $\log\sinh p$ instead:
+
+\begin{lemma}\label{lem:logsinh}
+For $p>20$, $\log\sinh p=p-\log2+\lop(-e^{-2p})$, and the computed value less $4u(p+1)$ is a lower bound under
+(A1)--(A2$_{\mathrm s}$) before the final charge $u_L|\cdot|$ the callers add.
+\end{lemma}
+\begin{proof}
+$\sinh p=\frac12e^p(1-e^{-2p})$. $p-\log2$ (with $\log2$ rounded, error below $2^{-54}$) is rounded once, within
+$u(p+1)$; $\lop(-e^{-2p})$ is below $e^{-40}$ in magnitude, its error far below $u$; the sum rounds once more. In all
+at most $3u(p+1)$.
+\end{proof}
+At small $x$ (the far left tail, which the proposal reaches at small $b$) $\rho$ and the edge lines' $p$ exceed 710;
+without this, the cell bounds were NaN and the evaluation undecided, which the step counted as a close call.
+
+\paragraph{The far tail of $q$.} The note's monotone tail for the finite family uses each term's minimum over $y\ge
+Y$, which at large $K$ does not decay until $y^2$ passes the remainder's $\tau'^2$. The engine bounds the nodes past
+$y_0$ on dyadic blocks $[Y_a,2Y_a]$ of $Y=y^2$:
+
+\begin{lemma}[Dyadic far tail]\label{lem:fartail}
+On the contour line let $Y_{\mathrm{end}}=2\max_j(A_j-2\rho^2)_+$. (a) For $Y\ge Y_{\mathrm{end}}$,
+$|\Lt(z)/\Lt(\rho)|\le1$, so $\sum_{kh\ge y_a}|G(kh)|\le e^{-2xY_a}[(\rho+y_a)+(\rho/y_a+1)/(4xh)]$ for $y_a\ge
+y_W$. (b) On a block $[Y_a,Y_b]$, with $k_j=2(A_j-2\rho^2)/A_j^2$: a term with $k_j\le0$ contributes at most 0; a term
+with $k_jY_b\le\frac18$ at most $\frac47a_jk_jY$; any other at most its minimum over the block,
+$a_j(\log A_j-\frac12\log\min_{[Y_a,Y_b]}|z^2+\tau_j'^2|^2)$. The sum $B(Y)=C+sY$ of these bounds and $-2xY$ is linear,
+at most $C+s\,Y_{a\text{ or }b}$ by the sign of $s$; the block holds at most $(\sqrt{Y_b}-\sqrt{Y_a})/h+2$ nodes, each
+with $|z|\le\rho+\sqrt{Y_b}$.
+\end{lemma}
+\begin{proof}
+$|z^2+\tau_j'^2|^2=A_j^2-2Y(A_j-2\rho^2)+Y^2\ge A_j^2$ iff $Y\ge2(A_j-2\rho^2)$ (or $A_j\le2\rho^2$), which (a)'s $Y$
+satisfies for every $j$; the node sum is then the note's Lemma ``Line majorants''(c). (b) $-\frac12\log(1-c)\le
+\frac c{2(1-c)}\le\frac47c$ for $0\le c\le\frac18$, with $c=k_jY\le k_jY_b$ (the note's (b) bound
+$|z^2+\tau_j'^2|^2\ge A_j^2(1-k_jY)$); the per-term minimum is the note's (b). A linear function is largest at an
+end. $2100$ doublings reach any $Y_{\mathrm{end}}$ from any positive $y_0^2$ in binary64.
+\end{proof}
+The blocks' bounds are summed in the log domain (an upper bound on $\log\sum e^{v_i}$ from upper bounds $v_i$, with
+the rounding of the exponentials and of the sum charged). Where the monotone tail of the aggregated majorant does
+not apply ($S\ge4x$ or $\delta\le0$), the engine evaluates dropped nodes one by one, as the note's Theorem allows,
+and every 16 nodes tries the far tail at the current node; it stops when the far tail is below $\frac1{16}$ of the
+truncation's budget, or after $4\times10^5$ nodes (then undecided).
+
+\section{The step and the uniform}\label{sec:step}
+
+The uniform is an interval $[k2^{-53},(k+1)2^{-53})$, $k=(w_12^{21})\vee\lfloor w_2/2^{11}\rfloor$ from two 32-bit
+Mersenne-Twister words, which is the interval containing the uniform $U$ whose binary expansion begins with those 53
+bits; the rest of $U$'s bits are never drawn, as the decision does not depend on them. With $\ell^\pm$ the
+enclosure of $\log r=\log f(y)+\log q(x)-\log f(x)-\log q(y)$: accept if $\ell^-\ge\min(0,\log^+((k+1)2^{-53}))$,
+keep if $\ell^+\le\log^-(k2^{-53})$ ($-\infty$ at $k=0$), where $\log^\pm$ are the library's $\log$ widened by $u_L$
+relative and $2^{-1000}$; otherwise refine. A decision taken is the one the exact $U$ and $r$ give: accept means
+$r\ge U^+>U$ or $r\ge1$; keep means $r\le U^-\le U$ (a tie has probability 0). The probability that the last level
+leaves it undecided is at most the measure of $\log U$ within the enclosure's width of $\log r$, at most twice that
+width plus the grain, which is the note's floor $2(2r_f+2r_q)+2^{1-53}$, $r_f,r_q$ the largest radii; a close call
+keeps $x$ (the note's ``Close calls'').
+
+\section{The cheaper certificate's settings and what they need}\label{sec:cheap}
+
+The levels, fixed in the header before any evaluation: level 0 the note's ``L10'' (one edge line each side at
+$a_\pm=\rho/2$, 10 to 40 cells per line, no splitting, discretization target $2^{-56}$ of the estimated sum), level 1
+two lines each side ($a_+\in\{\rho/2,\rho/5\}$, $a_-\in\{\rho/2,1\}$), 32 cells, two levels of splitting, target
+$2^{-60}$; level 2 the full default (four and six lines, 200 to 3000 cells for $f$, 100 to 600 for $q$, three levels
+of splitting, target $2^{-64}$). Each level is a complete certificate; the step intersects them. Every edge
+line's distance is capped at $4/\sqrt x$: on a line at distance $a$ the majorant grows about as $e^{2xa^2}$ (the
+first-order term vanishes at the saddle), so $h\approx2\pi a/(2xa^2+L)$ for a target of $e^{-L}$, largest near
+$a=\sqrt{L/(2x)}$, about $4.7/\sqrt x$ at $L=45$. The cap binds only deep in the left tail, where $\rho\approx
+b/(4x)$ is large; there $a=\rho/2$ gave $h$ near $10^{-4}$ and more nodes than the node limit. The note's theorem
+holds for any lines inside the strip, so the cap changes cost, not validity.
+
+\paragraph{Cells.} A line's cell count is $\min(c_{\max},\max(c_{\min},10Y\sqrt x))$, with $Y$ the line's truncation
+point; so level 0 uses at most 40 cells per line and 80 per density, whatever $(b,\psi,x)$. What the count does not
+guarantee is that level 0 reaches its target; where it does not the step goes on to level 1 and 2, which costs time
+and never correctness.
+
+\paragraph{$|J_0|$.} For $f$ on the line $\mathrm{Re}\,z=u$, $A_j=\pi^2(j-\frac12)^2+W_u$ with $W_u=W_0+u^2-\rho^2$,
+so
+\[
+|J_0|=\#\{j\ge1:\pi^2(j-\tfrac12)^2\le u^2+\rho^2-W_0\}=\Bigl\lfloor\frac{\sqrt{(u^2+\rho^2-W_0)_+}}\pi+\frac12
+\Bigr\rfloor
+\]
+up to the rounding of $A_j$. With $\rho^2=\max(W_0,(W_0+\pi^2/4)/2)$ (rounded down to 24 bits): on the contour line
+$|J_0|=\lfloor\sqrt{2\rho^2-W_0}/\pi+\frac12\rfloor$, which is 1 for $W_0\le\pi^2/4$ and about $w_0/\pi$ above; on the
+edge lines $u=\rho/2$ and $u=3\rho/2$ about $w_0/(2\pi)$ and $3w_0/(2\pi)$. At the saddle $w_0$ solves $\tanh(w_0)/w_0=
+4x/b$ after the tilt, $W_0=A^2+t_0/2$: near the bulk of $\PG(b,\psi)$, $w_0\approx A$, so $|J_0|\le\frac3{4\pi}|\psi|+1$
+($\le37$ at $|\psi|=150$); in the left tail $w_0\approx b/(4x)$ grows without bound, and the engine caps the scan at
+$10^5$ terms, past which the line's aggregated bound is not used (the per-cell direct bound of the note's ``Line
+majorants'' remains, and costs $O(1)$ per cell). For $q$, $|J_0|$ is the number of rates with
+$\frac12(\mu_j+t_0)\le\rho^2+u^2$, which near the bulk is the few smallest rates and in the left tail ($t_0$ large)
+all $K+1$ terms, the bound then costing $O(K)$ per cell as the per-term one does.
+
+\paragraph{What was measured.} At the 500 pins of $f$ and 30 of $q$, every level's enclosure contained its
+reference and level 0 decided at every pin; the step's timing harness counts the levels used. These are
+measurements, not proofs: that level 0 reaches its target at every reachable $(b,\psi,x)$ is not proven, and need
+not be.
+
+\begin{thebibliography}{9}
+\bibitem{bpz} R.~P. Brent, C.~Percival and P.~Zimmermann (2007). Error bounds on complex floating-point
+multiplication. \emph{Mathematics of Computation} 76, 1469--1481.
+\bibitem{jklm} C.-P. Jeannerod, P.~Kornerup, N.~Louvet and J.-M. Muller (2017). Error bounds on complex
+floating-point multiplication with an FMA. \emph{Mathematics of Computation} 86, 881--898.
+\end{thebibliography}
+\end{document}

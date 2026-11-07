@@ -8,6 +8,15 @@ the numbers from `scripts/fill.txt` and the tables it names, and runs pdflatex t
 python3 build.py OUTDIR    # writes OUTDIR/proof.tex and OUTDIR/proof.pdf; needs pdflatex on PATH
 ```
 
+## The engine's evaluator
+
+`s1-evaluator.tex` is a standalone note: what the engine's certified evaluator (src/bartcore/pgdensity.hpp) adds
+to the proof's specification, each departure proven, and the cheaper certificate's settings.
+
+```sh
+cd OUTDIR && pdflatex s1-evaluator.tex && pdflatex s1-evaluator.tex
+```
+
 ## Scripts
 
 `scripts/` holds the checks the proof's appendix "Numerical verification" lists, each with the `.out` file it
@@ -19,6 +28,13 @@ cd scripts && ../VENV/bin/python exact_toys.py
 ```
 
 Each script's docstring gives its usage; the scripts import one another from `scripts/`, so run them from there.
+
+`scripts/gen_pgdensity_refs.py` writes the engine tests' reference tables, tests/cpp/pgdensity_refs.inc (about
+seven minutes on two processes):
+
+```sh
+cd scripts && ../VENV/bin/python -B gen_pgdensity_refs.py ../../../../tests/cpp/pgdensity_refs.inc 2
+```
 
 `scripts/bench/` times today's exact sum and the kernels' per-term costs. From the package root, with R's headers
 and library:
