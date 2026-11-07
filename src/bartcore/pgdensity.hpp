@@ -894,6 +894,15 @@ struct PQ {
   bool ok;
 };
 
+/// log sinh(p) for p > 0, from below up to the final log's own rounding,
+/// which the caller charges; past p = 20 as p - log 2 + log1p(-e^{-2p}), so
+/// it holds beyond sinh's range of a double.
+inline double logSinhLower(double p) {
+  if (p <= 20.0) return std::log(std::sinh(p) * (1.0 - 2.0 * kLibRelErr));
+  double v = (p - kLog2) + std::log1p(-std::exp(-2.0 * p));
+  return v - 4.0 * kU * (p + 1.0);
+}
+
 inline PQ pqAt(double W0, double rho2, double u, double y) {
   double u2 = u * u;
   double reW = W0 + (u2 - rho2) - y * y;
@@ -930,12 +939,19 @@ inline double TargetDensity::cellLogMajorDirect(double u, double ya, double yb) 
       if (c2 < 0.0) c2 = 0.0;
     }
   }
-  double sp = std::sinh(plo);
-  double m2 = sp * sp * (1.0 - 4.0 * kLibRelErr) + c2;
   double m2c = 1.0 + c.reW - c.reWErr;
-  m2 = std::max(m2, m2c * (1.0 - 2.0 * kU));
-  if (!(m2 > 0.0)) return kInf;
-  double lm = std::log(m2);
+  double lm;
+  if (plo > 20.0) {
+    // |cosh w|^2 >= sinh^2 p, in logs: sinh^2 p leaves a double's range
+    lm = 2.0 * detail::logSinhLower(plo);
+    if (m2c > 0.0) lm = std::max(lm, std::log(m2c * (1.0 - 2.0 * kU)));
+  } else {
+    double sp = std::sinh(plo);
+    double m2 = sp * sp * (1.0 - 4.0 * kLibRelErr) + c2;
+    m2 = std::max(m2, m2c * (1.0 - 2.0 * kU));
+    if (!(m2 > 0.0)) return kInf;
+    lm = std::log(m2);
+  }
   double v = b_ * (logCosh0_ - 0.5 * lm);
   return v + b_ * (logCosh0Err_ + kLibRelErr * std::fabs(lm)) +
          4.0 * kU * b_ * (std::fabs(logCosh0_) + 0.5 * std::fabs(lm)) + 0x1p-1000;
@@ -981,7 +997,7 @@ inline double TargetDensity::tailLogMajor(double u, double Y) const {
     plo = u * Y / std::sqrt(Y * Y + spUp) * (1.0 - 4.0 * kU);
   }
   if (!(plo > 0.0)) return kInf;
-  double ls = std::log(std::sinh(plo) * (1.0 - 2.0 * kLibRelErr));
+  double ls = detail::logSinhLower(plo);
   double v = b_ * (logCosh0_ - ls);
   return v + b_ * (logCosh0Err_ + 2.0 * kLibRelErr * std::fabs(ls)) +
          4.0 * kU * b_ * (std::fabs(logCosh0_) + std::fabs(ls)) + 0x1p-1000;
