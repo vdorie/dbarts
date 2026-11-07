@@ -148,6 +148,13 @@ warnFamilyGatedArgs <- function(suppliedNames, family) {
 # unaffected by how the dots were forwarded. Package-local, not base's
 # chkDots: it quotes with the locale's fancy quotes before R 4.6, and this
 # diagnosis must be matchable by message on every R the package supports.
+# A TRUE/FALSE argument, refused by name as anything else.
+checkFlag <- function(value, name) {
+  if (!is.logical(value) || length(value) != 1L || is.na(value)) {
+    stop("'", name, "' must be TRUE/FALSE", call. = FALSE)
+  }
+}
+
 warnUnusedDots <- function(dots, generic, class) {
   supplied <- names(dots)
   unused <- if (is.null(supplied)) {
@@ -299,6 +306,9 @@ coerceOrError <- function(x, type, name = NULL) {
 resolveSeedArg <- function(seed, caller, refuse = FALSE) {
   if (is.null(seed)) {
     return(NA_integer_)
+  }
+  if (length(seed) != 1L) {
+    stop("'seed' must be a single whole number", call. = FALSE)
   }
   refuseNaN(seed, "seed")
   if (length(seed) == 1L && is.na(seed)) {
@@ -506,6 +516,12 @@ valuesByColumnName <- function(values, x, what) {
 readCutCounts <- function(n.cuts, x, hazard = FALSE) {
   numColumns <- ncol(x) - hazard
   if (!is.null(names(n.cuts))) {
+    if (any(is.na(names(n.cuts)) | !nzchar(names(n.cuts)))) {
+      stop(
+        "'n.cuts' names some values and not others; name every value, or none",
+        call. = FALSE
+      )
+    }
     if (hazard && "period" %not_in% names(n.cuts)) {
       n.cuts <- c(n.cuts, period = 100L)
     }

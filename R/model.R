@@ -87,6 +87,21 @@ resolveProposalProbs <- function(proposal.probs) {
         quotedNameList(validNames)
       )
     }
+    # a list holds each move's share as an entry, which is one number
+    if (is.list(proposal.probs)) {
+      entryLengths <- lengths(proposal.probs)
+      if (any(entryLengths != 1L)) {
+        first <- which(entryLengths != 1L)[1L]
+        stop(
+          "'proposal.probs' entries must be single numbers; '",
+          entryNames[first],
+          "' has ",
+          entryLengths[first],
+          call. = FALSE
+        )
+      }
+      proposal.probs <- unlist(proposal.probs)
+    }
   }
   ## Perturb and rule_gibbs resolve AHEAD of the fill and never enter it.
   ## Their defaults are numbers rather than shares, so an unnamed one is

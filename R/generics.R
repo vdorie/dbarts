@@ -408,13 +408,7 @@ dropChainDimension <- function(x) {
 
 # A method's combineChains, checked as bart() checks its own.
 checkCombineChains <- function(combineChains) {
-  if (
-    !is.logical(combineChains) ||
-      length(combineChains) != 1L ||
-      is.na(combineChains)
-  ) {
-    stop("'combineChains' must be TRUE/FALSE", call. = FALSE)
-  }
+  checkFlag(combineChains, "combineChains")
 }
 
 combineOrUncombineChains <- function(x, n.chains, combine) {

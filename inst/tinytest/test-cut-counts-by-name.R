@@ -86,7 +86,8 @@ for (door in names(doors)) {
   )
   expect_error(
     read(c(x1 = 5L, 6L, 7L)),
-    "unrecognized variable name ''",
+    "'n.cuts' names some values and not others; name every value, or none",
+    fixed = TRUE,
     info = door
   )
 }

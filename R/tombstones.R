@@ -1507,6 +1507,16 @@ resolveSigestArg <- function(
     )
     return(NA_real_)
   }
+  # an infinite estimate leaves the residual prior no scale to calibrate on
+  if (is.numeric(sigest) && any(is.infinite(sigest))) {
+    stop(
+      "'",
+      name,
+      "' must be a positive finite number, or \"auto\", \"dense\" or ",
+      "\"sparse\"",
+      call. = FALSE
+    )
+  }
   sigest
 }
 

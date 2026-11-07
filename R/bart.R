@@ -1105,6 +1105,12 @@ bart <- function(
   ) {
     stop("'combineChains' must be TRUE/FALSE")
   }
+  checkFlag(keepCall, "keepCall")
+  checkFlag(samplerOnly, "samplerOnly")
+  # left out, keepSampler is keepTrees, which the control checks by its name
+  if (!missing(keepSampler)) {
+    checkFlag(keepSampler, "keepSampler")
+  }
   # the names dec-B98's consolidation moved onto the family and prior
   # objects: read once, then cleared from the matched call so no forwarding
   # can carry an old spelling on to dbarts()
@@ -4624,6 +4630,37 @@ bartBT <- function(
   numcut <- coerceOrError(numcut, "integer")
   ndpost <- coerceOrError(ndpost, "integer")
   seed <- resolveSeedArg(seed, "bartBT")
+  # named as this door's own, ahead of what dbarts() would say of them
+  if (
+    length(verbose) != 1L ||
+      !(is.logical(verbose) || is.numeric(verbose)) ||
+      is.na(verbose)
+  ) {
+    stop("'verbose' must be TRUE/FALSE", call. = FALSE)
+  }
+  if (!is.numeric(binaryOffset)) {
+    stop("'binaryOffset' must be numeric", call. = FALSE)
+  }
+  matrixRoute <- !is.formula(x.train) && !inherits(x.train, "dbartsData")
+  if (
+    matrixRoute &&
+      !missing(y.train) &&
+      length(binaryOffset) %not_in% c(1L, NROW(y.train))
+  ) {
+    stop(
+      "'binaryOffset' must be one value or one per row of 'y.train'",
+      call. = FALSE
+    )
+  }
+  if (
+    matrixRoute &&
+      !is.null(dim(x.train)) &&
+      !is.null(dim(x.test)) &&
+      NROW(x.test) > 0L &&
+      NCOL(x.test) != NCOL(x.train)
+  ) {
+    stop("'x.test' must have as many columns as 'x.train'", call. = FALSE)
+  }
 
   # named ahead of dbartsControl(), whose own validity would otherwise
   # blame n.thin/n.burn - its slot names, not the formals these came in as
@@ -4716,12 +4753,18 @@ bartBT <- function(
   if (control@n.burn > 0L) {
     control@keepTrees <- FALSE
   }
-  ndpost <- ndpost %/% control@n.thin
   # a zero (or thinned-to-zero) sample count would otherwise fault deeper, in
   # the empty-array reshape (dim(X) has no positive length); mirrors the
   # modern door's same-shaped guard on control@n.samples
   if (isTRUE(ndpost <= 0L)) {
     stop("'ndpost' must be a positive integer")
+  }
+  ndpost <- ndpost %/% control@n.thin
+  if (isTRUE(ndpost <= 0L)) {
+    stop(
+      "'ndpost' must leave at least one draw after thinning by 'keepevery'",
+      call. = FALSE
+    )
   }
 
   priors <- buildSamplerPriors(

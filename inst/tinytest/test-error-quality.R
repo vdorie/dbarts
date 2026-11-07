@@ -170,4 +170,122 @@ expect_error(
 )
 rm(quotedChi, quotedChiCall, quotedFits, door, quoted, quotedMsg, works)
 
+# (g) argument mistakes that reached base R's own errors, or named an argument
+# the caller did not write, are refused in the package's words
+quickArgs <- list(
+  n.trees = 3L,
+  n.samples = 2L,
+  n.burn = 2L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+quickBart <- function(...) {
+  do.call(dbarts::bart, c(list(testData$x, testData$y, ...), quickArgs))
+}
+for (flag in c("keepCall", "keepSampler", "samplerOnly")) {
+  values <- if (flag == "samplerOnly") list(NA, "yes") else list(NA, NULL)
+  for (value in values) {
+    expect_error(
+      do.call(quickBart, structure(list(value), names = flag)),
+      paste0("'", flag, "' must be TRUE/FALSE"),
+      fixed = TRUE,
+      info = flag
+    )
+  }
+}
+sigestWords <- paste0(
+  "'sigest' must be a positive finite number, or \"auto\", \"dense\" ",
+  "or \"sparse\""
+)
+expect_error(quickBart(sigest = Inf), sigestWords, fixed = TRUE)
+expect_error(
+  dbarts::dbarts(testData$x, testData$y, sigest = Inf),
+  sigestWords,
+  fixed = TRUE
+)
+quickBT <- function(...) {
+  dbarts::bartBT(
+    testData$x,
+    testData$y,
+    ...,
+    ntree = 3L,
+    nskip = 2L,
+    verbose = FALSE
+  )
+}
+expect_error(
+  quickBT(binaryOffset = "a", ndpost = 2L),
+  "'binaryOffset' must be numeric",
+  fixed = TRUE
+)
+expect_error(
+  quickBT(binaryOffset = c(1, 2), ndpost = 2L),
+  "'binaryOffset' must be one value or one per row of 'y.train'",
+  fixed = TRUE
+)
+expect_error(
+  quickBT(x.test = testData$x[1:5, 1:2], ndpost = 2L),
+  "'x.test' must have as many columns as 'x.train'",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::bartBT(testData$x, testData$y, verbose = NA),
+  "'verbose' must be TRUE/FALSE",
+  fixed = TRUE
+)
+expect_error(
+  quickBT(ndpost = 2L, keepevery = 5L),
+  "'ndpost' must leave at least one draw after thinning by 'keepevery'",
+  fixed = TRUE
+)
+expect_error(
+  quickBT(ndpost = 2L, seed = c(1, 2)),
+  "'seed' must be a single whole number",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::xbart(testData$x, testData$y, seed = c(1, 2)),
+  "'seed' must be a single whole number",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::dbartsFamilies$hazard(breaks = numeric(0)),
+  "hazard 'breaks' must be NULL or hold at least one time",
+  fixed = TRUE
+)
+cutsData <- data.frame(y = testData$y, testData$x)
+expect_error(
+  do.call(
+    dbarts::bart,
+    c(list(y ~ ., cutsData, n.cuts = c(X1 = 10L, 20L)), quickArgs)
+  ),
+  "'n.cuts' names some values and not others; name every value, or none",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::pdbart(testData$x, testData$y, pl = NA),
+  "'pl' must be TRUE/FALSE",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::pd2bart(testData$x, testData$y, pl = NA),
+  "'pl' must be TRUE/FALSE",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::dbartsControl(proposal.probs = list(swap = numeric(0))),
+  "'proposal.probs' entries must be single numbers; 'swap' has 0",
+  fixed = TRUE
+)
+expect_identical(
+  dbarts::dbartsControl(
+    proposal.probs = list(birth_death = 0.5, swap = 0.1, change = 0.4)
+  )@proposal.probs,
+  dbarts::dbartsControl(
+    proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4)
+  )@proposal.probs
+)
+rm(quickArgs, quickBart, flag, values, value, sigestWords, quickBT, cutsData)
+
 rm(testData)

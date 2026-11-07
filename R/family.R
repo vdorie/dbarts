@@ -518,6 +518,12 @@ hazard <- function(
   if (!is.null(breaks) && !is.numeric(breaks)) {
     stop("hazard 'breaks' must be NULL or numeric")
   }
+  if (!is.null(breaks) && length(breaks) == 0L) {
+    stop(
+      "hazard 'breaks' must be NULL or hold at least one time",
+      call. = FALSE
+    )
+  }
   if (
     length(max.rows) != 1L ||
       !is.numeric(max.rows) ||
