@@ -141,6 +141,13 @@ expect_identical(
   sigmaOf(dbartsData(y ~ x1 + x2, d.b, bases = list(NULL, factor(d.b$z)))),
   lm.levels()
 )
+# the estimator's own default design reads the bases as the fit's does
+expect_identical(
+  dbarts:::estimateSigmaFromLinearModel(
+    dbartsData(y ~ x1 + x2, d.b, bases = list(NULL, factor(d.b$z)))
+  ),
+  lm.levels()
+)
 fit.b <- bart(
   f.levels,
   d.b,
