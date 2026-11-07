@@ -3690,11 +3690,6 @@ bartcore::ResponseFamily parseSamplerSpecification(
   // rejects weights
   if (family == bartcore::ResponseFamily::aft && data.weights != NULL)
     Rf_error("aft (survival) models do not support case weights");
-  // ordinal refuses weights for probit's reason: a weighted truncated-normal
-  // latent likelihood is not a coherent model
-  if (family == bartcore::ResponseFamily::ordinal && data.weights != NULL)
-    Rf_error("ordinal models do not support weights: a weighted truncated-"
-             "normal latent likelihood is not a coherent model");
   // nbinom weights are counts, held to the policy above; a row of count w
   // draws w (y + r) units, r at the grid's largest point where it is drawn
   if (family == bartcore::ResponseFamily::nbinom)
@@ -3922,13 +3917,12 @@ void refuseSavedGPDrawReanchor(const bartcore::SamplerBase& sampler,
 }
 
 // The weight policy, stated once for creation and every mutation conduit: a
-// probit has no tractable weighted latent-variable form and is refused - the
-// R layer resolves a probit or ordinal vector of 0s and 1s to an active-row
-// mask before it reaches here, membership being the one thing those families
-// can read off a weight, so what arrives is always a weighted likelihood;
-// logistic treats weights as observation counts (its PG(w, psi) latent is the
-// sum of w PG(1, psi) draws), so they must be finite positive integers - an
-// infinite count never finishes its draw; gaussian takes any finite
+// probit or ordinal weight is membership, 0 or 1, the one thing those
+// families can read off a weight, since a weighted truncated-normal latent
+// likelihood has no tractable form; logistic treats weights as observation
+// counts (its PG(w, psi) latent is the sum of w PG(1, psi) draws), so they
+// must be finite non-negative whole numbers, a 0 a row out - an infinite
+// count never finishes its draw; gaussian takes any finite
 // non-negative weight. The R layer mirrors this, so these errors backstop
 // direct-API consumers, and the mutation entries reuse it rather than stating
 // a second text.
@@ -3975,19 +3969,30 @@ void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
                                const double* weights,
                                size_t numObservations, const char* caller) {
   if (weights == NULL) return;
+  // probit and ordinal weights are membership, a row in at 1 and out at 0,
+  // composed with the active-row mask: a weighted truncated-normal latent
+  // likelihood is not a coherent model
   if (family == bartcore::ResponseFamily::probit)
-    Rf_error("probit models do not support weights: a weighted probit has no "
-             "tractable latent-variable form; a vector of 0s and 1s states "
-             "membership rather than precision and installs as the sampler's "
-             "active-row mask, and weighted binary regression is family = "
-             "\"logistic\"");
+    for (size_t i = 0; i < numObservations; ++i)
+      if (weights[i] != 0.0 && weights[i] != 1.0)
+        Rf_error("probit models do not support weights other than 0 and 1, "
+                 "which mark rows in and out of the likelihood: a weighted "
+                 "probit has no tractable latent-variable form, and weighted "
+                 "binary regression is family = \"logistic\"");
+  if (family == bartcore::ResponseFamily::ordinal)
+    for (size_t i = 0; i < numObservations; ++i)
+      if (weights[i] != 0.0 && weights[i] != 1.0)
+        Rf_error("ordinal models do not support weights other than 0 and 1, "
+                 "which mark rows in and out of the likelihood: a weighted "
+                 "truncated-normal latent likelihood is not a coherent "
+                 "model");
+  // logistic weights are counts, a 0 a row out of the likelihood
   if (family == bartcore::ResponseFamily::logistic)
     for (size_t i = 0; i < numObservations; ++i) {
-      if (!(weights[i] > 0.0) || !std::isfinite(weights[i]) ||
+      if (!(weights[i] >= 0.0) || !std::isfinite(weights[i]) ||
           weights[i] != std::floor(weights[i]))
         Rf_error("logistic weights are observation counts and must be "
-                 "positive integers; drop zero-count rows, and use a gaussian "
-                 "model for continuous weights");
+                 "non-negative whole numbers");
       if (weights[i] > bartcore::maximumCount)
         refuseCountOverCap(caller, "logistic", "'weights'",
                            "each unit of a count is a Polya-Gamma draw per "
@@ -4017,30 +4022,19 @@ void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
 // The post-creation half of that policy: gaussian, logistic and nbinom accept a
 // weight change - a count one is a model change with a defined meaning, since
 // the counts are its Polya-Gamma shape and the next sweep draws the latents
-// against them - while probit, ordinal and aft carry no weights to change
-// under any surface. Naming the actual family matters: the one message this
-// used to carry told an aft or ordinal caller about "a binary response" they
-// had not asked for.
+// against them - probit and ordinal a change of their 0/1 membership, which
+// composes with the active-row mask, while aft carries no weights to change
+// under any surface.
 // The flat C API has no weight entry, so weights reach the engine only through
 // the R methods' conduits, which raise through refuseBinaryWeightChange.
 static bool familyCarriesNoWeights(const bartcore::SamplerBase& sampler) {
-  bartcore::ResponseFamily family = sampler.shape().family;
-  return family != bartcore::ResponseFamily::gaussian &&
-         family != bartcore::ResponseFamily::logistic &&
-         family != bartcore::ResponseFamily::nbinom;
+  return sampler.shape().family == bartcore::ResponseFamily::aft;
 }
 
 void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler) {
   if (!familyCarriesNoWeights(sampler)) return;
-  bartcore::ResponseFamily family = sampler.shape().family;
-  const char* name = "probit";
-  if (family == bartcore::ResponseFamily::aft) name = "aft (survival)";
-  else if (family == bartcore::ResponseFamily::ordinal) name = "ordinal";
-  Rf_error("%s models do not support case weights, so no weighted likelihood "
-           "can be set after creation; a probit or ordinal vector of 0s and 1s "
-           "states membership rather than precision and is installed as the "
-           "sampler's active-row mask before it reaches here, and a gaussian "
-           "model fits a weighted likelihood", name);
+  Rf_error("aft (survival) models do not support case weights, so no "
+           "weighted likelihood can be set after creation");
 }
 
 // The post-creation half of the response-support policy the R surface applies
@@ -4425,7 +4419,7 @@ std::string leafStandardizationMessage(
           std::to_string(error.numObservations) +
           (oneRow ? " observation" : " observations") +
           (error.numRowsIn == 1 || oneRow ? " is in it)" : " are in it)");
-  std::string rows = "the weights, the 0/1 weights' mask, or subset";
+  std::string rows = "the weights, the active-row mask, or subset";
   if (door == LeafRefusalDoor::setData)
     return "$setData: " + what + over +
            ", so its center and scale cannot be taken from them; " +

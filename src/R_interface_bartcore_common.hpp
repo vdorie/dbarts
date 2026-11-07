@@ -493,12 +493,12 @@ bool holdsSavedGPDraws(const bartcore::SamplerShape& shape);
 void refuseSavedGPDrawReanchor(const bartcore::SamplerBase& sampler,
                                const char* caller, int updateScale);
 
-/// Errors on a weight vector its family cannot carry: probit outright (a
-/// weighted probit has no tractable latent-variable form; the R layer resolves
-/// a probit or ordinal vector of 0s and 1s to an active-row mask before it
-/// reaches here, so what arrives is a weighted likelihood), logistic on any
-/// element that is not a finite positive integer no larger than
-/// bartcore::maximumCount, since its weights are observation counts and
+/// Errors on a weight vector its family cannot carry: probit and ordinal on
+/// any element other than 0 and 1, which are membership composed with the
+/// active-row mask (a weighted truncated-normal latent likelihood is not a
+/// coherent model), logistic on any element that is not a finite
+/// non-negative whole number no larger than bartcore::maximumCount, a 0 a
+/// row out, since its weights are observation counts and
 /// PG(w, psi) is the sum of w PG(1, psi) draws, nbinom on any element that
 /// is not a finite non-negative whole number, its weights also counts and a 0
 /// a row out, and
@@ -534,17 +534,13 @@ void refuseWeightedTrialsOverCap(const char* caller, const double* weights,
                                  const double* trials,
                                  std::size_t numObservations);
 
-/// Errors on a post-creation case-weight change under a family that carries no
-/// weights at all: probit, ordinal and aft. A probit or ordinal 0/1
-/// vector states membership, not precision, and the R layer routes it to the
-/// active-row mask ahead of this, so only a weighted likelihood arrives here.
-/// gaussian, logistic and nbinom are accepted - a count swap is a model change
-/// with a defined meaning, since the counts are the Polya-Gamma shape and the
-/// engine redraws the latents against them - and are held to the creation
-/// policy by enforceBinaryWeightPolicy above. The message names the actual
-/// family rather than "a binary response", which is the only thing an aft or
-/// ordinal caller can act on. The flat C API has no weight entry, so the R bridge's
-/// weight conduits are its only callers.
+/// Errors on a post-creation case-weight change under the family that carries
+/// no weights at all, aft. gaussian, logistic and nbinom are accepted - a
+/// count swap is a model change with a defined meaning, since the counts are
+/// the Polya-Gamma shape and the engine redraws the latents against them -
+/// and probit and ordinal a change of their 0/1 membership; each is held to
+/// the creation policy by enforceBinaryWeightPolicy above. The flat C API has
+/// no weight entry, so the R bridge's weight conduits are its only callers.
 void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler);
 
 /// Errors on a response value outside the family's support, the post-creation
