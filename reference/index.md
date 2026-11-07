@@ -43,6 +43,16 @@ Fit BART models to fixed data.
   [`summary(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
   [`summary(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
   [`print(`*`<summary.bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`sigma(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`sigma(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`sigma(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`sigma(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`sigma(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`nobs(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`nobs(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`nobs(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`nobs(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
+  [`nobs(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
   : Bayesian Additive Regression Trees with Extended Response Families
 - [`bartBT()`](https://vdorie.github.io/dbarts/reference/bartBT.md)
   [`plot(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bartBT.md)
@@ -188,6 +198,8 @@ Names kept reachable for one release past their removal or rename.
   [`predict(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
   [`residuals(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
   [`print(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
+  [`sigma(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
+  [`nobs(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
   : Bayesian Additive Regression Trees with Random Effects
 
 ## Utilities

@@ -198,6 +198,28 @@ summary(object, vars = c("sigma", "k", "leaf.prior.sd",
 
 # S3 method for class 'summary.bartHurdle'
 print(x, ...)
+
+# S3 method for class 'bart'
+sigma(object, ...)
+# S3 method for class 'bartMultinomial'
+sigma(object, ...)
+# S3 method for class 'bartOrdinal'
+sigma(object, ...)
+# S3 method for class 'bartNegbin'
+sigma(object, ...)
+# S3 method for class 'bartHurdle'
+sigma(object, ...)
+
+# S3 method for class 'bart'
+nobs(object, ...)
+# S3 method for class 'bartMultinomial'
+nobs(object, ...)
+# S3 method for class 'bartOrdinal'
+nobs(object, ...)
+# S3 method for class 'bartNegbin'
+nobs(object, ...)
+# S3 method for class 'bartHurdle'
+nobs(object, ...)
 ```
 
 ## Arguments
@@ -1022,9 +1044,11 @@ print(x, ...)
   `family = student()` residuals are refused with it too (see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)). The
   fit gains `s.train`/`s.test` (posterior draws of \\s(x)\\), and
-  `predict` attaches an `"s"` attribute carrying \\s(x)\\ for new data.
-  \\s(x)\\ is the residual scale the reporting channels use:
-  `extract(type = "loglik")`, the `type = "ppd"` draws, and
+  `predict` attaches an `"s"` attribute carrying \\s(x)\\ for new data:
+  its draws, or under `ci.level` its estimate and credible band per row,
+  as the value carries. \\s(x)\\ is the residual scale the reporting
+  channels use: `extract(type = "loglik")`, the `type = "ppd"` draws,
+  and
   [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)'s
   `mean.s` row all read it, and `extract` and `predict` return it as
   `type = "sigma"`; such a fit has no scalar `sigma`, and carries no
@@ -1257,7 +1281,14 @@ print(x, ...)
   ‘Saving’ section). Logical; must be `TRUE` in order to use `predict`
   with the result of a fit. Note that for models with a large number of
   observations or a large number of trees, keeping the trees can be very
-  memory intensive.
+  memory intensive. The kept sampler, `fit$fit`, is what `predict` at
+  new data replays and what `print` reads its settings from (the tree
+  count and `n.burn`); every other method, and `predict` with no
+  `newdata`, reads the draws stored in the fit, and `print` counts
+  those. Running the kept sampler further, or giving it another control,
+  is not a supported use of the fit: `predict` at new data then replays
+  the sampler's current trees, which mix the fit's draws with the new
+  ones, while the other methods keep reading the fit's own.
 
 - keepCall:
 
@@ -1270,7 +1301,10 @@ print(x, ...)
 
   Logical that can be used to save the underlying
   [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
-  object even if `keepTrees` is false.
+  object even if `keepTrees` is false. The methods read it as
+  `keepTrees` describes: `predict` at new data and `print`'s settings
+  from the sampler, the rest from the fit's stored draws; running it
+  further is not a supported use of the fit.
 
 **Engine.**
 
@@ -1385,7 +1419,8 @@ print(x, ...)
 - object:
 
   An object of class `bartMultinomial`, `bartOrdinal`, `bartNegbin`, or
-  `bartHurdle`, returned by `bart` under the corresponding `family`.
+  `bartHurdle`, returned by `bart` under the corresponding `family`; for
+  `sigma` and `nobs`, any fit `bart` returns, of class `bart` too.
 
 - newdata:
 
@@ -1437,11 +1472,12 @@ print(x, ...)
   Character vector of fields to gather, as
   [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)'s
   own `vars`; requested fields absent from `object` are silently
-  dropped. `summary.bartOrdinal`'s `"thresholds"` contributes one draws
-  variable per sampled threshold \\\gamma_2, \ldots, \gamma\_{K-1}\\,
-  the ordinal analog of `sigma` (the pinned \\\gamma_1 = 0\\ is named
-  under the table, not tabulated); `summary.bartNegbin`'s `"shape"`
-  contributes the per-draw shape \\r\\, the count analog of `sigma`.
+  dropped. `NULL` is `vars` left out, the default fields.
+  `summary.bartOrdinal`'s `"thresholds"` contributes one draws variable
+  per sampled threshold \\\gamma_2, \ldots, \gamma\_{K-1}\\, the ordinal
+  analog of `sigma` (the pinned \\\gamma_1 = 0\\ is named under the
+  table, not tabulated); `summary.bartNegbin`'s `"shape"` contributes
+  the per-draw shape \\r\\, the count analog of `sigma`.
   `summary.bartHurdle` applies `vars` separately to its `$zero` and
   `$positive` component fits. `summary.bartMultinomial` has no `vars`
   formal at all: it always pools the per-category mean-probability
@@ -1811,6 +1847,20 @@ with its settings, which `family(fit)` returns (see
 ‘Value’ section). Ask a fit what it is through these, not through which
 components are present: a run's options decide which draw channels it
 keeps.
+
+Every fit answers `sigma(fit)` and `nobs(fit)`, as an
+[`lm`](https://rdrr.io/r/stats/lm.html) or
+[`glm`](https://rdrr.io/r/stats/glm.html) fit does. `sigma` is the
+posterior mean of the residual sd, `mean(extract(fit, type = "sigma"))`:
+on a hurdle fit the positive part's sd of \\\log y\\, on an `"aft"` fit
+that of the log time, on a `"student"` fit the scale of its t errors,
+and 1 on a family with no residual scale (binary, hazard, multinomial,
+ordinal and `"nbinom"` fits), as
+[`sigma`](https://rdrr.io/r/stats/sigma.html) reads a binomial `glm`. A
+fit with a variance forest has a residual sd per row, not one, and
+`sigma` refuses it; `extract(fit, type = "sigma")` gives its draws.
+`nobs` counts the rows in the likelihood: those `subset` and `na.action`
+kept, less any of weight 0; a hazard fit's are its person-period rows.
 
 Row names: every output indexed by observation carries the rows' names
 on its observation margin, on every class below. That covers the stored
@@ -2269,7 +2319,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001645
+#> total seconds in loop: 0.001330
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 3 3 2 2 2 2 2 3 2 2 2 3 3 2 
@@ -2306,7 +2356,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000889
+#> total seconds in loop: 0.000711
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 2 1 2 1 1 2 2 1 1 1 2 2 2 2 
@@ -2341,7 +2391,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001333
+#> total seconds in loop: 0.001060
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 3 2 4 2 2 3 2 2 2 2 3 3 2 
@@ -2395,7 +2445,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.001808
+#> total seconds in loop: 0.001482
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 3 2 3 2 3 3 2 

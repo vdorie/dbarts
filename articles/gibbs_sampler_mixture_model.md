@@ -449,12 +449,12 @@ their integer levels and split at a threshold, with one candidate
 threshold per level boundary rather than a fixed count of cuts, so
 `n.cuts` does not reach them.
 
-Missing predictor values need not be removed beforehand. The default
-`missing = "incorporate"` gives every split rule a learned direction for
-`NA`: an observation whose split variable is missing follows that rule’s
-direction (“Missing Incorporated in Attributes”, Twala et al. 2008),
-estimated jointly with the rest of the tree. `missing = "error"` instead
-rejects any predictor containing `NA`.
+Missing predictor values need not be removed beforehand. By default
+every split rule learns a direction for `NA`: an observation whose split
+variable is missing follows that rule’s direction (“Missing Incorporated
+in Attributes”, Twala et al. 2008), estimated jointly with the rest of
+the tree. `na.action = na.fail` instead refuses any missing value, the
+response’s too.
 
 ``` r
 

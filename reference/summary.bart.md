@@ -120,7 +120,7 @@ summary(fit)
 #> Call:
 #> bart(formula = y ~ x, data = data.frame(y = rnorm(100), x = rnorm(100)), 
 #>     n.trees = 5L, n.samples = 20L, n.burn = 20L, n.chains = 2L, 
-#>     n.threads = 1L, verbose = FALSE, factors = "categorical")
+#>     n.threads = 1L, verbose = FALSE)
 #> 
 #>   variable      mean    median         sd        mad        q5      q95
 #> 1    sigma 0.9282111 0.9153438 0.08056062 0.09271487 0.8240338 1.051335

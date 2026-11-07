@@ -62,7 +62,7 @@ Dorie</h4>
             
             <h4 data-toc-skip class="date">2026-08-19</h4>
       
-      <small class="dont-index">Source: <a href="https://github.com/vdorie/dbarts/blob/main/vignettes/gibbs_sampler_mixture_model.Rmd" class="external-link"><code>vignettes/gibbs_sampler_mixture_model.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/vdorie/dbarts/blob/review4-r-surface-2/vignettes/gibbs_sampler_mixture_model.Rmd" class="external-link"><code>vignettes/gibbs_sampler_mixture_model.Rmd</code></a></small>
       <div class="d-none name"><code>gibbs_sampler_mixture_model.Rmd</code></div>
     </div>
 
@@ -591,13 +591,12 @@ predictor kind regardless of <code>factors</code>: coded on their
 integer levels and split at a threshold, with one candidate threshold
 per level boundary rather than a fixed count of cuts, so
 <code>n.cuts</code> does not reach them.</p>
-<p>Missing predictor values need not be removed beforehand. The default
-<code>missing = "incorporate"</code> gives every split rule a learned
-direction for <code>NA</code>: an observation whose split variable is
-missing follows that rule’s direction (“Missing Incorporated in
-Attributes”, Twala et al. 2008), estimated jointly with the rest of the
-tree. <code>missing = "error"</code> instead rejects any predictor
-containing <code>NA</code>.</p>
+<p>Missing predictor values need not be removed beforehand. By default
+every split rule learns a direction for <code>NA</code>: an observation
+whose split variable is missing follows that rule’s direction (“Missing
+Incorporated in Attributes”, Twala et al. 2008), estimated jointly with
+the rest of the tree. <code>na.action = na.fail</code> instead refuses
+any missing value, the response’s too.</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">13</span><span class="op">)</span></span>
 <span><span class="va">n.miss</span> <span class="op">&lt;-</span> <span class="fl">60</span></span>

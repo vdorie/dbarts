@@ -71,6 +71,12 @@ residuals(object, ...)
 
 # S3 method for class 'rbart'
 print(x, ...)
+
+# S3 method for class 'rbart'
+sigma(object, ...)
+
+# S3 method for class 'rbart'
+nobs(object, ...)
 ```
 
 ## Arguments
@@ -212,6 +218,11 @@ binary.
 
 See the generics section of
 [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md).
+`sigma(fit)` is the posterior mean of the residual standard deviation,
+`mean(fit$sigma)`, and 1 on a binary response, which has none;
+`nobs(fit)` counts the rows in the likelihood, those of positive weight.
+`fitted`, `residuals`, `extract`, `sigma` and `nobs` warn of an argument
+name they do not take, and then disregard it.
 
 ## Value
 

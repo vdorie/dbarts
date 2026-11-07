@@ -79,11 +79,11 @@ plot(
   `log(a)`, `poly(a, 2)` - moves with it; a column number is refused.
   Otherwise, in `pdbart`, corresponds to the variables (columns of the
   predictor matrix) for which a plot is to be constructed. In
-  `plot.pdbart`, corresponds to the indices in list returned by `pdbart`
-  for which plot is to be constructed. In `pd2bart`, the indices of a
-  pair of variables (columns of the predictor matrix) to plot. If `NULL`
-  a default of all columns is used for `pdbart` and the first two
-  columns is used for `pd2bart`.
+  `plot.pdbart`, the positions in the list returned by `pdbart`, or the
+  names of its variables, for which plots are to be constructed. In
+  `pd2bart`, the indices of a pair of variables (columns of the
+  predictor matrix) to plot. If `NULL` a default of all columns is used
+  for `pdbart` and the first two columns is used for `pd2bart`.
 
 - levs:
 

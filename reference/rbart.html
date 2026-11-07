@@ -98,7 +98,13 @@ Fits a varying intercept/random effect BART model. A fallback this function make
 <span><span class="fu"><a href="https://rdrr.io/r/stats/residuals.html" class="external-link">residuals</a></span><span class="op">(</span><span class="va">object</span>, <span class="va">...</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># S3 method for class 'rbart'</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">x</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">x</span>, <span class="va">...</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># S3 method for class 'rbart'</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/stats/sigma.html" class="external-link">sigma</a></span><span class="op">(</span><span class="va">object</span>, <span class="va">...</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># S3 method for class 'rbart'</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/stats/nobs.html" class="external-link">nobs</a></span><span class="op">(</span><span class="va">object</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -159,7 +165,7 @@ Fits a varying intercept/random effect BART model. A fallback this function make
 
 <div class="section">
 <h3 id="generics">Generics<a class="anchor" aria-label="anchor" href="#generics"></a></h3>
-<p>See the generics section of <code><a href="bartBT.html">bartBT</a></code>.</p>
+<p>See the generics section of <code><a href="bartBT.html">bartBT</a></code>. <code>sigma(fit)</code> is the posterior mean of the residual standard deviation, <code>mean(fit$sigma)</code>, and 1 on a binary response, which has none; <code>nobs(fit)</code> counts the rows in the likelihood, those of positive weight. <code>fitted</code>, <code>residuals</code>, <code>extract</code>, <code>sigma</code> and <code>nobs</code> warn of an argument name they do not take, and then disregard it.</p>
 </div>
 
     </div>
