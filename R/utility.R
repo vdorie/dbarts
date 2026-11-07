@@ -1283,8 +1283,9 @@ startingSigmaRoute <- function(x, rule = "auto") {
 ## predictors' columns: on the sparse route each as a column the caller gave
 ## dense and no factor's, so it is centered and paired as any such column is.
 ## A column in the span of the intercept and the others is left to lm.fit's
-## pivot and to the sparse routine's pivoted Cholesky, and the rank either
-## returns counts the columns only where they add to that span.
+## pivot and, on the sparse route, to the front end's duplicate-column step and
+## the pivoted Cholesky; the rank either returns counts the columns only where
+## they add to that span.
 startingSigmaDesign <- function(x, rule = "auto", bases = NULL) {
   if (startingSigmaRoute(x, rule) == "sparse") {
     design <- sparseSigmaDesign(x)

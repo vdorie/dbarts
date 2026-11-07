@@ -283,8 +283,13 @@ column. A forest of levels adds the indicator of its second level, which is the 
 predictor enters as ([`emittedLevels`](../../R/utility.R)); a basis holds at most two levels. The estimate of a BCF
 fit is then `summary(lm(y ~ x + factor(z)))$sigma` to the last bit on the dense route, with weights and with an
 offset, and agrees with it to rounding on the sparse route. A basis inside the span of the intercept and the
-predictors, as when z is also a predictor, leaves the estimate bitwise what it is with no basis: lm.fit's pivot and
-the sparse routine's pivoted Cholesky drop it, and the residual degrees of freedom come from the rank either routine
+predictors, as when z is also a predictor, leaves the estimate what it is with no basis. On the dense route it is
+bitwise: lm.fit's pivot moves the column last, and the residuals come from the columns before it. On the sparse route,
+which only `sigest = "sparse"` or a sparse x reaches, it is bitwise for a basis that repeats a predictor's column, and
+to rounding otherwise (`I(3 + x3)` beside x3, 2e-16 relative). A level's indicator that repeats a predictor's is
+dropped by the front end's duplicate-column step ([`sparseSigmaFrontEnd`](../../R/utility.R)); a numeric column that
+repeats one is centered and scaled to the same bits, and the pivoted Cholesky, taking the earlier of two equal
+columns first, leaves the later out. Either way the residual degrees of freedom come from the rank the routine
 returns, not from a count of columns.
 
 **Every creation route.** The data object carries the bases the model ends with before the estimate is made: a
