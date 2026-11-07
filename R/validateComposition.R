@@ -1,6 +1,6 @@
 # dbartsValidateComposition: simulation-based calibration over a one-sweep
-# step the HOST supplies, reporting per scalar functional whether the composed
-# kernel targets the posterior it claims. The host owns the prior, so nothing
+# step the caller supplies, reporting per scalar functional whether the composed
+# kernel targets the posterior it claims. The caller owns the prior, so nothing
 # here draws from a sampler's own prior the way the in-repo SBC harness does;
 # what is shared with it is the rank rule and the uniformity verdict below.
 
@@ -11,7 +11,7 @@
 # tags of the tied draws, so an atom contributes a Uniform{0, ..., #ties}
 # increment and the total stays uniform on {0, ..., L}. Applied to EVERY
 # functional: with no ties it is #{draws < theta0} exactly and consumes no
-# random numbers, and a host-supplied functional - an indicator, a discrete
+# random numbers, and a caller-supplied functional - an indicator, a discrete
 # parameter, a probability that underflows to zero - ties more readily than a
 # continuous draw does.
 sbcDiscreteRank <- function(draws, theta0) {

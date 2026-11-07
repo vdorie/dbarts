@@ -183,15 +183,16 @@ warnUnusedDots <- function(dots, generic, class) {
 }
 
 # dbarts()/dbartsControl() accept n.samples %/% n.thin == 0 - a sampler
-# meant to be driven by a host loop's own run() calls, never this entry
-# point's. bart2/xbart both return posterior draws, so the same
-# zero would fault deeper (an empty-array reshape); refused here instead,
-# by one message naming the entry point that was called.
+# the code that runs it inside a larger sampler drives with its own run()
+# calls, never this entry point's. bart2/xbart both return posterior
+# draws, so the same zero would fault deeper (an empty-array reshape);
+# refused here instead, by one message naming the entry point that was
+# called.
 refuseZeroSamples <- function(caller) {
   stop(
     "'n.samples' must leave at least one draw after thinning (n.samples ",
-    "%/% n.thin = 0); dbarts() and dbartsControl() accept a zero-draw run ",
-    "- a sampler driven by a host loop - but ",
+    "%/% n.thin = 0); dbarts() and dbartsControl() accept a zero-draw run, ",
+    "for the code that runs the BART sampler inside a larger sampler, but ",
     caller,
     "() returns posterior draws"
   )

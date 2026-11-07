@@ -713,7 +713,7 @@ buildSamplerPriors <- function(matchedCall, nodeK) {
   list(leaf.prior = leaf.prior)
 }
 
-# Builds the dbarts() host-sampler call shared by bart2's standard path and its
+# Builds the dbarts() sampler call shared by bart2's standard path and its
 # alternate-family paths (multinomial/ordinal/nbinom): redirect the matched
 # call to dbarts(), install the resolved control, drop n.samples (the sampler
 # is driven by run() rather than sampled at construction), and thread the
@@ -1176,7 +1176,7 @@ bart <- function(
   # 'family' is resolved from the caller's own unevaluated argument, so a
   # bare family constructor (student(3), hazard(breaks)) resolves in the
   # family vocabulary; nothing may force the argument before this. The
-  # resolved object is stamped back on, so every forwarding below - the host
+  # resolved object is stamped back on, so every forwarding below - the
   # dbarts() call, the hurdle components - carries the settings rather than
   # a spelling that has to be re-resolved against a different environment.
   familySpec <- resolveFamily(
@@ -1291,7 +1291,7 @@ bart <- function(
   argNames <- unique(c(names(matchedCall)[-1L], supplied))
 
   # 'factors' is a forwarded formal default: redirectCall only carries a name
-  # into the host dbarts() call when the caller supplied it, so an unsupplied
+  # into the dbarts() call when the caller supplied it, so an unsupplied
   # one must be resolved here, in this function's own frame, and stamped onto
   # matchedCall unconditionally, or it would silently take dbarts()'s own
   # default rather than the token this signature advertises.
@@ -1500,11 +1500,11 @@ bart <- function(
     # the n x K category offset: a matrix enters the raw fits before the
     # softmax and is threaded to bart2Multinomial/bart2MultinomialCounts' own
     # offset argument, which installs it through $setCategoryOffset after
-    # creation, never to the host dbarts() call below (matchedCall$offset is
+    # creation, never to the dbarts() call below (matchedCall$offset is
     # cleared so redirectCall does not forward it there, where it would be
     # read as a flat per-row offset). A flat vector stays refused - it points
     # exactly along the softmax's null direction (a common per-observation
-    # shift) and is identically inert, exactly as the host data object's own
+    # shift) and is identically inert, exactly as the data object's own
     # flat offset is (parseMultinomialData, refused separately, below).
     multinomialOffset <- NULL
     if (!missing(offset)) {
@@ -1522,10 +1522,11 @@ bart <- function(
     }
     # offset.test: the m x K category offset of the m fit-time test rows,
     # installed through $setCategoryTestOffset after creation and, like
-    # 'offset', never forwarded to the host call. When omitted it follows the
-    # other families' rule: the training offset is reused if the row counts
-    # match and refused by name otherwise (resolveMultinomialTestOffset). An
-    # explicit NULL means no test offset, and skips the reuse.
+    # 'offset', never forwarded to the dbarts() call. When omitted it follows
+    # the other families' rule: the training offset is reused if the row
+    # counts match and refused by name otherwise
+    # (resolveMultinomialTestOffset). An explicit NULL means no test offset,
+    # and skips the reuse.
     multinomialOffsetTest <- NULL
     if (!missing(offset.test) && is.null(offset.test)) {
       multinomialOffsetTest <- FALSE
@@ -1550,13 +1551,13 @@ bart <- function(
       )
     }
     # buildMultinomialForest fixes its own CGM tree prior and copies only
-    # power/base/proposal-probability fields from the host sampler it briefly
+    # power/base/proposal-probability fields from the temporary sampler it
     # builds, so none of the following reach the K-forest engine: the
     # monotone direction constraints (only their proposal-probability rewrite
-    # is copied) and a variance forest (the host sampler that would resolve
-    # one is discarded). Split probabilities that are not equal, dart()
-    # among them, are refused by their value where the host sampler resolves
-    # them against the columns.
+    # is copied) and a variance forest (the temporary sampler that would
+    # resolve one is discarded). Split probabilities that are not equal, dart()
+    # among them, are refused by their value where the temporary sampler
+    # resolves them against the columns.
     forestArguments <- resolveForestArguments(
       matchedCall,
       callingEnv,
@@ -1571,7 +1572,7 @@ bart <- function(
         "family = \"multinomial\" does not support ",
         paste0(names(unsupported)[unsupported], collapse = ", "),
         ": the K-forest engine copies only power/base/proposal-probability ",
-        "fields from the host sampler it briefly builds"
+        "fields from the temporary sampler it builds"
       )
     }
     checkFamilyUnsupportedArgs(
@@ -1608,7 +1609,7 @@ bart <- function(
       )
       y <- extracted$y
       # from here on, y drives the same factor-vs-count-matrix dispatch as
-      # the matrix interface; the host sampler (bart2Multinomial/
+      # the matrix interface; the sampler it builds (bart2Multinomial/
       # bart2MultinomialCounts, below) is built from the term-labeled
       # predictor DATA FRAME, not the formula - dbartsData's own
       # data-frame-as-x.train branch codes it (makeModelMatrix, chosen by
@@ -1966,7 +1967,7 @@ withFamilySpec <- function(familySpec, family, result) {
 # right-hand side is returned as the term-labeled predictor DATA FRAME
 # (model.frame -> terms, the data.R formula recipe short of the final
 # makeModelMatrix call), not yet coded: the caller installs it as the
-# matched call's 'formula', and the host sampler build below
+# matched call's 'formula', and the sampler build below
 # (bart2Multinomial/bart2MultinomialCounts) reuses dbartsData's own
 # data-frame-as-x.train branch to code it - the same makeModelMatrix
 # call, choosing the categorical or indicators builder the same way via
@@ -2252,7 +2253,7 @@ resolveMultinomialTestOffset <- function(sampler, offset, offset.test) {
 # skipped, as a single run call needs neither. offset, when
 # non-NULL, is the validated n x K category offset (bart2's own matrix-only
 # surface, above); it is installed on the constructed sampler through
-# $setCategoryOffset, before the run - never through the host dbarts()
+# $setCategoryOffset, before the run - never through the dbarts()
 # call's own flat offset argument.
 bart2Multinomial <- function(
   matchedCall,
@@ -2615,8 +2616,8 @@ ordinalCategoryProbabilities <- function(eta, thresholds) {
 # channel is aligned with each kept sweep's latent draw), so no per-sample
 # state read is needed. dbarts(family = "ordinal") does the 1-based recoding,
 # the fixed unit scale, and attaches K, so this reuses the standard bart2
-# host-build machinery unchanged. The fit is class "bartOrdinal", never "bart",
-# so the K-widened arrays never flow through a single-forest method.
+# sampler-build machinery unchanged. The fit is class "bartOrdinal", never
+# "bart", so the K-widened arrays never flow through a single-forest method.
 bart2Ordinal <- function(
   matchedCall,
   callingEnv,
@@ -2875,7 +2876,7 @@ negbinPpd <- function(mu, r) {
 # kept sample at a time; r and k come from the run's own per-draw channels, so
 # no state is serialized per sweep. dbarts(family = "nbinom") does the count
 # validation, the fixed unit scale, and attaches the shape spec, so this
-# reuses the standard bart2 host-build machinery. The fit is class
+# reuses the standard bart2 sampler-build machinery. The fit is class
 # "bartNegbin", never "bart".
 bart2Negbin <- function(
   matchedCall,

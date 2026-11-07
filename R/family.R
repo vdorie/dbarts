@@ -508,7 +508,7 @@ aft <- function(sigma = NULL) {
 ## anything of its own. Ten million rows is where that bound stops being
 ## something a modest machine absorbs; above it the refusal names both
 ## levers, coarsening the grid and raising the cap, because which one is
-## right depends on the column count and the host.
+## right depends on the column count and the machine.
 hazard <- function(
   breaks = NULL,
   max.rows = 1e7,

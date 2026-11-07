@@ -175,10 +175,9 @@ items
     docs/design/gpu-bart.md.
   grow-from-root: frontier 3.1's exact informed-proposal use of the
     shared cut scan (docs/design/parallel-bart-frontier.md sec 3.1).
-  host-wording-sweep: dbarts.h and a few R strings still say "host"
-    for the code that runs the BART sampler inside a larger sampler, in
-    about 7 header lines and the R strings (the help and the vignettes
-    are done); a docs-only sweep.
+  host-wording-sweep: dbarts.h still says "host" for the code that runs
+    the BART sampler inside a larger sampler, in about 7 header lines (the
+    help, the vignettes and the R strings are done); a docs-only sweep.
   interaction-constraints: formal heredity (an ensemble lattice prior)
     - a fourth formal beside interactions(max.order, groups, forbid)
     plus a prior change. Value gate lifted: it enables
