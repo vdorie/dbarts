@@ -82,6 +82,9 @@
       \item A package that forwards arguments to dbarts by filtering them
             against \code{formals(dbartsControl)} will now silently drop
             \code{rngSeed} and fit unseeded; accept \code{seed} instead.
+      \item A call giving both \code{rngSeed} and \code{seed} to
+            \code{bart}, \code{bart2} or \code{dbartsControl} is an error;
+            0.9-34's \code{bart2} used \code{seed}.
       \item \code{rbart_vi} still runs for this release, with the fixes
             listed under BUG FIXES, but multilevel models belong to
             \code{stan4bart::stan4bart}, which fits the same random

@@ -1077,3 +1077,47 @@ rm(
   fitResid,
   fitFamilyResid
 )
+
+# --- rngSeed beside seed names one seed twice and is refused, whatever the
+# values; rngSeed alone keeps its rename warning ---
+set.seed(41L)
+seedData <- data.frame(x = rnorm(20L), y = rnorm(20L))
+seedQuick <- list(
+  n.trees = 3L,
+  n.samples = 2L,
+  n.burn = 2L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+for (rngSeed in list(3L, NA)) {
+  expect_error(
+    do.call(
+      dbarts::bart,
+      c(list(y ~ x, seedData, rngSeed = rngSeed, seed = 4L), seedQuick)
+    ),
+    "'rngSeed' and 'seed' name the same seed on 'bart'; supply 'seed' alone",
+    fixed = TRUE
+  )
+}
+expect_error(
+  suppressWarnings(do.call(
+    dbarts::bart2,
+    c(list(y ~ x, seedData, rngSeed = 3L, seed = 4L), seedQuick)
+  )),
+  "'rngSeed' and 'seed' name the same seed on 'bart2'; supply 'seed' alone",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::dbartsControl(rngSeed = 2L, seed = 3L),
+  paste0(
+    "'rngSeed' and 'seed' name the same seed on 'dbartsControl'; supply ",
+    "'seed' alone"
+  ),
+  fixed = TRUE
+)
+expect_identical(
+  suppressWarnings(dbarts::dbartsControl(rngSeed = 2L))@seed,
+  2L
+)
+rm(seedData, seedQuick, rngSeed)

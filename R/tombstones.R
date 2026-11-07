@@ -1344,9 +1344,18 @@ refuseForeignFrontDoorArgs <- function(supplied, caller, own) {
 
 ## 'rngSeed' arrives through '...'; it is the same value under the old
 ## name, so it is accepted rather than refused, once per session.
-resolveRenamedSeed <- function(rngSeed, caller, seed) {
+resolveRenamedSeed <- function(rngSeed, caller, seed, door = caller) {
   if (is.null(rngSeed)) {
     return(seed)
+  }
+  # both names given is refused whatever the values, as every renamed pair is
+  if (!is.null(seed)) {
+    stop(
+      "'rngSeed' and 'seed' name the same seed on '",
+      door,
+      "'; supply 'seed' alone",
+      call. = FALSE
+    )
   }
   warnOnce(
     paste0("tombstone.rngSeed.", caller),

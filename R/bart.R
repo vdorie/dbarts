@@ -1134,7 +1134,8 @@ bart <- function(
     seed <- resolveRenamedSeed(
       eval(matchedCall$rngSeed, callingEnv),
       "bart",
-      seed
+      seed,
+      if (is.null(aliasForward)) "bart" else "bart2"
     )
     # stamped onto the matched call as well: the control is built by
     # redirecting that call by name, which the old spelling never reaches
