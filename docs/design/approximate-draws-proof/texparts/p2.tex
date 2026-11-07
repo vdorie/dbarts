@@ -1,0 +1,565 @@
+\section{The row kernel}\label{sec:row}
+
+Write $g_{a,\mu}(x)=\mu^ax^{a-1}e^{-\mu x}/\Gamma(a)$ for the $\Ga(a,\mu)$ density.
+
+\begin{proposition}[Reversibility]\label{prop:rev}
+For $b>0$, real $\psi$, $K\ge1$ and any positive rates, $q>0$ on $(0,\infty)$, and the kernel of
+Section~\ref{sec:setting} is reversible with respect to $\PG(b,\psi)$, hence leaves it invariant.
+\end{proposition}
+\begin{proof}
+$q$ is the density of a finite sum of independent gamma variables with positive shapes and rates, a convolution
+of densities positive on $(0,\infty)$, so $q>0$ there; $f>0$ there by the tilt formula and $\fz>0$: by Lemma~\ref{lem:gconv} below,
+$\fz=g_{b,c_1}\Phi$ with $\Phi(x)>0$ iff $P(Y<x)>0$ for $Y=\sum_{k\ge2}\Ga(b,c_k)$, and $P(Y<x)\ge P(\sum_{k=2}^n
+\Ga(b,c_k)<x/2)\,P(\sum_{k>n}\Ga(b,c_k)<x/2)>0$ for $n$ large (Markov's inequality for the second factor). The kernel is the
+Metropolis-Hastings algorithm of \cite[Sec.~2.1]{rr} with target density $f$, proposal density $q(x,y)=q(y)$
+and acceptance $\min\{1,f(y)q(x)/(f(x)q(y))\}$, which is \eqref{eq:ratio}. \cite[Prop.~2]{rr}: ``The
+Metropolis-Hastings algorithm (as described above) produces a Markov chain which is reversible with respect to
+$\pi$''; its only hypotheses are those of the construction: a target density and a proposal density with respect
+to a common measure, here Lebesgue measure on $(0,\infty)$. Reversibility implies invariance.
+\end{proof}
+
+\begin{lemma}[A gamma summand]\label{lem:gconv}
+Let $\lambda,a>0$, $X=G+Y$ with $G\sim\Ga(a,\lambda)$ independent of $Y\ge0$, $\E e^{\lambda Y}<\infty$. Then
+$p_X(x)=g_{a,\lambda}(x)\Phi(x)$ with $\Phi(x)=\E[(1-Y/x)^{a-1}e^{\lambda Y};\,Y<x]$, and:
+\begin{enumerate}[label=(\roman*)]
+\item if $a\ge1$, $\Phi(x)\le\E e^{\lambda Y}$;
+\item if $a<1$ and $Y$ has a density $p_Y$, $\Phi(x)\le2^{1-a}\E e^{\lambda Y}+\frac{x}{a2^a}\sup_{y\ge
+x/2}e^{\lambda y}p_Y(y)$;
+\item for $\theta\in(0,1]$ ($\theta<1$ if $a>1$) and $x>\tilde\mu/\theta$, where $\tilde\mu=\E[Ye^{\lambda
+Y}]/\E e^{\lambda Y}$: $\Phi(x)\ge(1-\theta)^{(a-1)_+}\E e^{\lambda Y}\,(1-\tilde\mu/(\theta x))$;
+\item if $a\ge1$, or if $p_Y(y)\le Ce^{-(\lambda+\delta)y}$ for $y\ge1$ and some $C,\delta>0$, then
+$\Phi(x)\to\E e^{\lambda Y}$ as $x\to\infty$.
+\end{enumerate}
+\end{lemma}
+\begin{proof}
+$p_X(x)=\int_{[0,x)}g_{a,\lambda}(x-y)P_Y(dy)$ and $g_{a,\lambda}(x-y)/g_{a,\lambda}(x)=(1-y/x)^{a-1}e^{\lambda
+y}$. (i): the power is at most 1. (ii): on $Y\le x/2$ the power is at most $2^{1-a}$; on $(x/2,x)$,
+$\int_{x/2}^x(1-y/x)^{a-1}e^{\lambda y}p_Y(y)\,dy\le\sup_{y\ge x/2}(e^{\lambda y}p_Y(y))\,x\int_0^{1/2}t^{a-1}dt$.
+(iii): restrict to $Y\le\theta x$, where the power is at least $(1-\theta)^{a-1}$ if $a\ge1$ and at least 1 if
+$a\le1$; then $\E[e^{\lambda Y};Y\le\theta x]=\E e^{\lambda Y}\,\widetilde P(Y\le\theta x)$ under the tilted
+distribution $\widetilde P(dy)\propto e^{\lambda y}P_Y(dy)$, and Markov's inequality gives $\widetilde P(Y>\theta
+x)\le\tilde\mu/(\theta x)$. (iv): for $a\ge1$ the integrand is at most $e^{\lambda Y}$ and tends to it pointwise;
+dominated convergence. For $a<1$, the part $Y\le x/2$ converges by dominated convergence (bound
+$2^{1-a}e^{\lambda Y}$) and the rest is at most $\frac{x}{a2^a}Ce^{-\delta x/2}\to0$ by (ii)'s computation.
+\end{proof}
+
+\begin{lemma}[Merging]\label{lem:merge}
+For $\mu_1\le\mu_2$, $g_{a,\mu_2}=(\mu_2/\mu_1)^ae^{-(\mu_2-\mu_1)x}g_{a,\mu_1}$, so
+$(\mu_1/\mu_2)^ag_{a,\mu_2}\le g_{a,\mu_1}$ and $g_{a,\mu_2}\le(\mu_2/\mu_1)^ag_{a,\mu_1}$. Hence the density of
+$\sum_j\Ga(a_j,\mu_j)$ lies between $\prod_j(\mu_j/\mu_{\max})^{a_j}g_{\sum a_j,\mu_{\max}}$ and
+$\prod_j(\mu_j/\mu_{\min})^{a_j}g_{\sum a_j,\mu_{\min}}$.
+\end{lemma}
+\begin{proof}
+The identity is direct; convolution of nonnegative functions is monotone, and $g_{a,\mu}*g_{a',\mu}=g_{a+a',\mu}$.
+\end{proof}
+
+\begin{lemma}[The tail limit]\label{lem:D}
+Let $K\ge1$ and $r_k=d_k$ for $2\le k\le K$ (the argument is the same with any $r_k>r_1$). If $r_1=d_1$ then
+$\lim_{x\to\infty}w(x)=e^{bD}$ with
+\begin{equation}\label{eq:D}
+D=-\sum_{k>K}\log\Bigl(1-\frac{d_1}{d_k}\Bigr)+\frac{m^2}{v}\log\Bigl(1-\frac{d_1}{\beta}\Bigr)
+=-\log\frac{d_1}{2\pi\cosh(\psi/2)}+\sum_{k=2}^K\log\Bigl(1-\frac{d_1}{d_k}\Bigr)+\frac{m^2}v\log\Bigl(1-\frac{d_1}\beta\Bigr),
+\end{equation}
+and $D>0$. If $r_1<d_1$ then $w(x)\to0$; if $r_1>d_1$ then $w(x)\to\infty$.
+\end{lemma}
+\begin{proof}
+Write $f$ as $\Ga(b,d_1)$ plus $Y_f=\sum_{k\ge2}G_k$ and $q$ as $\Ga(b,r_1)$ plus $Y_q=\sum_{k=2}^K\Ga(b,r_k)+
+\Ga(\alpha,\beta)$. Both $Y$'s have densities with $p_Y(y)\le Ce^{-(\mu+\delta)y}$ for $y\ge1$ whenever $\mu$ is
+below all their rates (Lemma~\ref{lem:merge}: merge enough summands into one gamma of shape at least 1, at the
+smallest rate, and apply Lemma~\ref{lem:gconv}(i) to the rest). Lemma~\ref{lem:gconv}(iv) gives
+$w=\frac{g_{b,d_1}\Phi_f}{g_{b,r_1}\Phi_q}$ with $\Phi_f\to\E e^{d_1Y_f}$, $\Phi_q\to\E e^{r_1Y_q}$, and
+$g_{b,d_1}/g_{b,r_1}=(d_1/r_1)^be^{-(d_1-r_1)x}$, which gives the three cases. With $r_1=d_1$ the common factors
+$k=2..K$ cancel: $e^{bD}=\prod_{k>K}(1-d_1/d_k)^{-b}(1-d_1/\beta)^{\alpha}$, the first form, since
+$\alpha=bm^2/v$. For the closed form, \eqref{eq:lt} gives $\prod_k(1+t/d_k)=\cosh\sqrt{(\sigma+t)/2}/\cosh(\psi/2)$;
+dividing by $1+t/d_1$ and letting $t\to-d_1$, where $(\sigma+t)/2\to-c_1/2=-\pi^2/4$, l'Hopital gives
+$\prod_{k\ge2}(1-d_1/d_k)=d_1\frac{\sinh(i\pi/2)}{4(i\pi/2)\cosh(\psi/2)}=\frac{d_1}{2\pi\cosh(\psi/2)}$.
+Positivity: with $p_n=\sum_{k>K}d_k^{-n}$, $m=p_1$, $v=p_2$, expanding both logarithms (valid as $d_1<d_k$ for
+$k>K$ and $d_1<\beta$),
+$D=\sum_{n\ge1}\frac{d_1^n}{n}\bigl[p_n-p_1^{2-n}p_2^{n-1}\bigr]$. The $n=1,2$ terms vanish. For $n\ge3$,
+$n\mapsto\log p_n$ is convex (Hoelder), so $p_2\le p_1^{(n-2)/(n-1)}p_n^{1/(n-1)}$, i.e. each bracket is
+nonnegative, and strictly positive because the $d_k$ are not all equal.
+\end{proof}
+
+\begin{proposition}[Bounded weight]\label{prop:bounded}
+If $r_1\le d_1$, then $w$ is continuous and positive on $(0,\infty)$, $w(x)\to0$ as $x\to0$, $w$ has a finite
+limit as $x\to\infty$, and so $M^*<\infty$. An explicit bound $M^*\le\max(M_A,M_B,M_C)$ in closed form is given
+in Appendix~\ref{app:explicit}.
+\end{proposition}
+\begin{proof}
+Continuity and positivity: Proposition~\ref{prop:rev} and continuity of convolutions of gamma densities on
+$(0,\infty)$. At $\infty$: Lemma~\ref{lem:D}. At 0: for $x\le x_s(b)$ (Proposition~\ref{prop:left}) $\fz(x)\le
+a_0(x)=2^{b-1}b(2\pi x^3)^{-1/2}e^{-b^2/(8x)}$, while Lemma~\ref{lem:merge} gives $\qt(x)\ge\tilde c\,g_{A,\tilde
+\beta}(x)$ with $\tilde\beta$ the largest rate of $\qt$ and $\tilde c>0$; the ratio tends to 0 since
+$e^{-b^2/(8x)}$ beats every power. A continuous function with finite limits at both ends is bounded.
+\end{proof}
+
+\begin{theorem}[Uniform ergodicity]\label{thm:row}
+Let $\pi=\PG(b,\psi)$ and $M^*<\infty$. For every $x>0$ and $n\ge1$,
+$P(x,\cdot)\ge\pi(\cdot)/M^*$ and $\TV(P^n(x,\cdot),\pi)\le(1-1/M^*)^n$. The stationary rejection probability is
+at most $2\,\TV(f,q)$.
+\end{theorem}
+\begin{proof}
+For $A$ not containing $x$,
+\[P(x,A)=\int_Aq(y)\min\{1,w(y)/w(x)\}dy=\int_A\min\{q(y),f(y)/w(x)\}dy\ge\int_Af/M^*,\]
+since $q=f/w\ge f/M^*$ and $w(x)\le M^*$; the point $x$ has $\pi$-measure 0. This is the
+minorization condition (8) of \cite{rr} with $n_0=1$, $\epsilon=1/M^*$, $\nu=\pi$ and small set the whole space.
+\cite[Thm.~8]{rr}: ``Consider a Markov chain with invariant probability distribution $\pi$. Suppose the
+minorisation condition (8) is satisfied for some $n_0\in\mathbb N$ and $\epsilon>0$ and probability measure
+$\nu$, in the special case $C=\mathcal X$. Then the chain is uniformly ergodic, and in fact $\|P^n(x,\cdot)-\pi\|
+\le(1-\epsilon)^{\lfloor n/n_0\rfloor}$ for all $x$''; its norm is $\TV$. Invariance is
+Proposition~\ref{prop:rev}. Rejection: the stationary acceptance is $\iint\min\{f(x)q(y),f(y)q(x)\}\ge(\int\min
+\{f,q\})^2=(1-\TV(f,q))^2\ge1-2\TV(f,q)$.
+\end{proof}
+
+\begin{proposition}[Where uniform ergodicity fails]\label{prop:K0}
+If $K=0$ (one gamma matched to the whole series) or $r_1>d_1$, then $M^*=\infty$ and the kernel is not uniformly
+ergodic.
+\end{proposition}
+\begin{proof}
+For $K=0$, $q=g_{\alpha_0,\beta_0}$ with $\beta_0=\sum d_k^{-1}/\sum d_k^{-2}>d_1$ (strict since the $d_k$ differ),
+and $w=g_{b,d_1}\Phi_f/g_{\alpha_0,\beta_0}\propto x^{b-\alpha_0}e^{(\beta_0-d_1)x}\Phi_f\to\infty$. For
+$r_1>d_1$, Lemma~\ref{lem:D}. From $x$ the move probability is at most $\int q(y)w(y)/w(x)\,dy=1/w(x)$, so
+$P^n(x,\{x\})\ge(1-1/w(x))^n$; as $\pi(\{x\})=0$, $\sup_x\TV(P^n(x,\cdot),\pi)=1$ for every $n$.
+\end{proof}
+\begin{remark}[What rounding $r_1$ down buys]\label{rem:r1}
+Exactness does not need $r_1\le d_1$: with any positive rates $q>0$ on $(0,\infty)$, so the kernel is invariant
+(Proposition~\ref{prop:rev}), $\pi$-irreducible (from any $x$, $P(x,A)\ge\int_Aq\min\{1,w/w(x)\}>0$ whenever
+$\pi(A)>0$, as $w>0$) and aperiodic (it holds with positive probability), and \cite[Thm.~4]{rr} gives convergence
+from $\pi$-almost every start. Rounding $r_1$ down buys uniform ergodicity, with the rate of
+Theorem~\ref{thm:row}, and the minorization that Theorem~\ref{thm:starts}(a) uses.
+\end{remark}
+
+\begin{proposition}[What the $K$ rule gives]\label{prop:Krule}
+(a) Exactness and uniform ergodicity hold for every $K\ge1$ (with $r_1\le d_1$); the $K$ rule is a cost and
+efficiency choice only. (b) $bD\le0.01$ makes the right-tail limit of $w$ at most $e^{0.01}$ (with $r_1=d_1$;
+with $r_1$ rounded down the limit is 0, and $w\approx e^{bD}$ until $x$ of order $1/(d_1-r_1)\approx1/(ud_1)$).
+(c) It does not bound $M^*$. With certified evaluations at grid points (ball arithmetic, \texttt{wgrid.py},
+Appendix~\ref{app:num}), $M^*\ge1.263$ at $(b,\psi,K)=(0.3,8,1)$ where $e^{bD}=1.010$; $M^*\ge1.160$ vs $1.0009$ at
+$(0.3,8,2)$; $M^*\ge1.070$ vs $1.0002$ at $(1,0,1)$; $M^*\ge1.091$ vs $1.034$ at $(1,8,1)$; $M^*\ge1.0181$ vs
+$1.0004$ at $(2,0,1)$; $M^*\ge1.0022$ vs $1.0008$ at $(4,0,1)$; $M^*\ge35.6$ vs $28.7$ at $(0.2,150,1)$. (d) The smallest $K$ with $bD\le0.01$ is in Table~\ref{tab:K}. A cap of
+$K=48$ violates the rule for $b>81.2$ at $|\psi|=64$, $b>6.08$ at 100 and $b>0.629$ at 150.
+\end{proposition}
+\begin{proof}
+(a) Proposition~\ref{prop:rev}, Theorem~\ref{thm:row}, Proposition~\ref{prop:bounded}. (b) Lemma~\ref{lem:D}.
+(c) $M^*\ge w(x_j)\ge\exp(\log\hat w(x_j)-\epsilon_j)$ with $\epsilon_j$ the certified bound; the values and bounds
+($\epsilon_j\le4.3\times10^{-13}$) are in Appendix~\ref{app:num}. (d) $D$ by \eqref{eq:D} in 40-digit
+arithmetic, checked against direct summation to $10^{-39}$ for $K\le10$. These figures choose a cost; they carry
+no exactness and were not computed with interval arithmetic.
+\end{proof}
+
+\begin{table}[h]\centering\small
+\caption{Smallest $K$ with $bD(\psi,K)\le0.01$.}\label{tab:K}
+\begin{tabular}{rrrrrrrr}\toprule
+$|\psi|$ & $b=0.2$ & 1 & 16 & 100 & $10^3$ & $10^4$ & $10^5$\\\midrule
+0 & 1 & 1 & 1 & 2 & 3 & 4 & 6\\
+8 & 1 & 2 & 3 & 5 & 8 & 12 & 19\\
+50 & 10 & 14 & 26 & 38 & 60 & 95 & 150\\
+64 & 13 & 19 & 35 & 51 & 80 & 128 & 202\\
+100 & 23 & 33 & 59 & 86 & 137 & 217 & 344\\
+150 & 37 & 54 & 96 & 140 & 223 & 353 & 560\\\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Density bounds}\label{sec:dens}
+
+Throughout, $X=\sum_j\Ga(a_j,2\tau_j^2)$ as in Section~\ref{sec:setting}, $p$ its density, $L$ its Laplace
+transform, $s<\tau_1^2$, $\tau_j'^2=\tau_j^2-s$, $\rho>0$, $r_2=\rho^2-s$ (so the vertex is $t_0=2r_2$ of
+Algorithm~\ref{alg:dens}, and $\rho^2<T_1=\tau_1^2+r_2$ is $s<\tau_1^2$), and $\Lt(z)=L(2z^2-2s)$.
+
+\begin{lemma}[Contour representation]\label{lem:contour}
+$\Lt$ extends analytically to $\mathrm{Re}\,z>0$ (continued from the positive axis, where it is positive), its
+only zeros or singularities being at $z=\pm i\tau_j'$. For $x>0$, with $z=\rho+iy$,
+\begin{equation}\label{eq:contour}
+p(x)=\frac2\pi e^{2xr_2}L(2r_2)\,S,\qquad S=\int_\R\mathrm{Re}\Bigl[e^{2x(z^2-\rho^2)}\frac{\Lt(z)}{\Lt(\rho)}\,z
+\Bigr]dy,
+\end{equation}
+the integral converging absolutely. The integrand's real part is even in $y$.
+\end{lemma}
+\begin{proof}
+\emph{Analyticity.} Finite family: $\Lt(z)=\prod_j((z^2+\tau_j'^2)/\tau_j^2)^{-a_j}$, and $z^2+\tau_j'^2$ vanishes
+only at $\pm i\tau_j'$. For $\fz$: $\Lt(z)=\cosh^{-b}\sqrt{z^2-s}$; $W\mapsto\cosh\sqrt W$ is entire with zeros at
+$W=-\tau_k^2$, i.e. $z=\pm i\tau_k'$. In both cases the base is analytic and zero-free on the simply connected
+half-plane $\mathrm{Re}\,z>0$ and positive on the positive axis (for $\fz$ at $0<z<\sqrt s$ it is
+$\cos\sqrt{s-z^2}>0$ as $s<\tau_1^2=\pi^2/4$), so a logarithm and the power $-b$ are defined there. Evenness:
+$\Lt(\bar z)=\overline{\Lt(z)}$ and $y\mapsto-y$ conjugates $z$.
+
+\emph{Finite family.} $|e^{2x(z^2-\rho^2)}|=e^{-2xy^2}$ and $|\Lt(\rho+iy)|\le C(1+y^2)^{-A}$. Call the right
+side of \eqref{eq:contour} $R(x)$. For $\lambda>\max(0,2r_2)$,
+$\int_0^\infty\!\int_\R e^{-\lambda x}e^{2xr_2-2xy^2}|\Lt(z)||z|\,dy\,dx=\int_\R|\Lt(z)||z|/(\lambda-2r_2+2y^2)\,dy
+<\infty$ (the integrand is $O(|y|^{-1-2A})$, $A>0$). By Fubini, with $t=2z^2-2s$ and $dt=4iz\,dy$,
+$\int_0^\infty e^{-\lambda x}R(x)dx=\mathrm{Re}\frac1{2\pi i}\int_\Gamma\frac{L(t)}{\lambda-t}dt$, $\Gamma$ the
+parabola $t(y)$ traversed upward, vertex $2r_2>-2\tau_1^2$. Close $\Gamma$ by an arc $|t|=T$ on its right: the
+enclosed region contains $t=\lambda$ and no singularity of $L$ (those are at $-2\tau_j^2<2r_2$); the boundary is
+clockwise, the residue of $L(t)/(\lambda-t)$ at $\lambda$ is $-L(\lambda)$, and the arc contributes
+$O(T\cdot T^{-A}/T)\to0$. So the Laplace transform of $R$ is $L(\lambda)$, that of $p$, for all large
+$\lambda$; both functions are continuous on $(0,\infty)$, so $R=p$ (uniqueness of the Laplace transform).
+
+\emph{$\fz$.} Here $|\Lt|$ does not decay along the line, so use the Bromwich integral. For $\gamma>-c_1$
+and $|\eta|>|\gamma|$, $\mathrm{Re}\sqrt{(\gamma+i\eta)/2}\ge\frac12\sqrt{|\eta|-|\gamma|}$, and
+$|\cosh w|\ge\sinh\mathrm{Re}\,w$, so
+\[|L(\gamma+i\eta)|\le C\exp\bigl(-\tfrac b2\sqrt{|\eta|-|\gamma|}\bigr)\]
+is integrable; Fourier
+inversion of the integrable continuous function $e^{-\gamma x}p(x)$ gives
+\[p(x)=\frac1{2\pi i}\int_{\gamma-i\infty}^{\gamma+i\infty}e^{tx}L(t)\,dt.\]
+Take $\gamma>2r_2$ and apply Cauchy's theorem between the line
+and $\Gamma$, cut at $\mathrm{Im}\,t=\pm T$. On the cut, write $\sqrt{t/2}=p'+iq'$: $p'q'=T/4$ and $p'^2+q'^2=|t|/2$,
+so $p'\ge T/(2\sqrt{2|t|})$. Where $\Gamma$ meets $\mathrm{Im}\,t=T$, $\mathrm{Re}\,t=2r_2-T^2/(8\rho^2)$, so on the
+whole cut $|t|\le T^2/(8\rho^2)+T+C$ and $p'\ge\rho/2$ for $T$ large: $|L|\le\sinh^{-b}(\rho/2)$. On the part with
+$\mathrm{Re}\,t\ge-\sqrt T$, $|t|\le\sqrt T+T+C$ and $p'\to\infty$. The cut integral is at most
+$(\sqrt T+\gamma)e^{\gamma x}\sup|L|+\sinh^{-b}(\rho/2)\int_{\sqrt T}^\infty e^{-Xx}dX\to0$. Along $\Gamma$ the
+integrand is absolutely integrable ($|e^{tx}|=e^{2x(r_2-y^2)}$, and $|\Lt|$ is bounded on the line by
+Lemma~\ref{lem:maj}(a)). Substituting $t=2z^2-2s$ gives \eqref{eq:contour}; the integral is real, so taking the
+real part changes nothing.
+
+\emph{$\PG(b,\psi)$.} $L(t)=\cosh^b(A_\psi)\,L_0(t+2A_\psi^2)$ with $L_0$ the transform of $\fz$, so
+$\Lt(z)=\cosh^b(A_\psi)\cosh^{-b}\sqrt{z^2-s'}$ with $s'=s-A_\psi^2<\tau_1^2-A_\psi^2=\pi^2/4$. The $\fz$ argument
+applies verbatim with $s'$ in place of $s$ and $t+2A_\psi^2$ in place of $t$; $s'\ge0$ was used only for the
+positivity at $0<z<\sqrt{s'}$, and for $s'<0$ the base $\cosh\sqrt{z^2-s'}$ is $\cosh$ of a positive number there.
+\end{proof}
+
+So $S=\int_\R G$, $G(\zeta)=e^{2x(z^2-\rho^2)}\frac{\Lt(z)}{\Lt(\rho)}z$ with $z=\rho+i\zeta$. $G$ is analytic in
+the strip $-a_-<\mathrm{Im}\,\zeta<a_+$ for any $a_+<\rho$ and $a_->0$: $\mathrm{Im}\,\zeta=\eta$ is the line
+$\mathrm{Re}\,z=\rho-\eta$.
+
+\begin{lemma}[Trapezoid rule from two edge lines]\label{lem:trap}
+Let $G$ be analytic on an open set containing the closed strip $-a_-\le\mathrm{Im}\,\zeta\le a_+$
+($a_\pm>0$), $G(\zeta)\to0$ uniformly in the strip as $|\mathrm{Re}\,\zeta|\to\infty$, and
+$M_\pm=\int_\R|G(y\pm ia_\pm)|dy<\infty$. Then for $h>0$
+\[
+\Bigl|h\sum_{k\in\mathbb Z}G(kh)-\int_\R G\Bigr|\le\frac{M_+}{e^{2\pi a_+/h}-1}+\frac{M_-}{e^{2\pi a_-/h}-1}.
+\]
+\end{lemma}
+\begin{proof}
+Let $m(\zeta)=\frac1{2i}\cot(\pi\zeta/h)$, with residue $\frac h{2\pi i}$ at each $kh$. On the rectangle with
+vertical sides at $\mathrm{Re}\,\zeta=\pm(n+\frac12)h$ and horizontal sides on the edge lines, $\oint mG=h\sum_{|k|
+\le n}G(kh)$. On the top side, with $Q=e^{2\pi i\zeta/h}$, $|Q|=e^{-2\pi a_+/h}$, $m=-\frac12(1+\frac{2Q}{1-Q})$;
+on the bottom, with $Q'=e^{-2\pi i\zeta/h}$, $m=\frac12(1+\frac{2Q'}{1-Q'})$. The top side runs right to left,
+so the two sides give $\frac12\int_{\mathrm{top}}G+\frac12\int_{\mathrm{bot}}G+\int_{\mathrm{top}}G\frac Q{1-Q}
++\int_{\mathrm{bot}}G\frac{Q'}{1-Q'}$ (both integrals left to right). On the vertical sides $|\cot|=|\tanh|\le1$
+and $G\to0$, so they vanish as $n\to\infty$, and by Cauchy both edge-line integrals equal $\int_\R G$. Finally
+$|Q/(1-Q)|\le1/(e^{2\pi a_+/h}-1)$, and likewise below.
+\end{proof}
+
+This is a variant of \cite[Thm.~5.1]{tw}, which assumes $\int|G(x+ib)|dx\le M$ for every $b$ in a symmetric strip
+and gives $2M/(e^{2\pi a/h}-1)$; the variant needs only the two edge lines, which may differ, and lets the strip
+be asymmetric (it is bounded by $\rho$ on one side only).
+
+\begin{lemma}[Line majorants]\label{lem:maj}
+Fix $u>0$ and $z=u+iy$, $y\ge0$.
+\begin{enumerate}[label=(\alph*)]
+\item ($\fz$) Let $w=\sqrt{z^2-s}=p+iq$ (principal), and first $s\ge0$. Then $p$ and $q$ are nondecreasing in $y$, $p\le u$, $q\ge
+y$, $p\ge uy/\sqrt{y^2+s}$, and $|\cosh w|^2=\sinh^2p+\cos^2q=\cosh^2p-\sin^2q\ge\max\{\sinh^2p,\;1+u^2-s-y^2\}$.
+So on $y\in[y_a,y_b]$: $|\cosh w|^2\ge\max\{\sinh^2p(y_a)+\min_{[q(y_a),q(y_b)]}\cos^2,\;1+u^2-s-y_b^2\}$, the
+minimum of $\cos^2$ being 0 if the interval contains a point of $\pi(\mathbb Z+\frac12)$ and otherwise attained
+at an endpoint; and for $y\ge Y$, $|\cosh w|\ge\sinh p(Y)\ge\sinh(uY/\sqrt{Y^2+s})$. If $s<0$, then $p$ is
+nonincreasing and $q$ nondecreasing in $y$, $p\ge u$ and $q\le y$; the same bounds hold with $\sinh^2p(y_b)$ in place
+of $\sinh^2p(y_a)$ (the code takes $\min(p(y_a),p(y_b))$, valid for either sign), and for $y\ge Y$,
+$|\cosh w|\ge\sinh u$. $|\Lt(z)|=|\cosh w|^{-b}$ for any branch. For $\PG(b,\psi)$ the same holds with $s'=s-A_\psi^2$ in place of $s$, and
+$|\Lt(z)/\Lt(\rho)|=(\cosh w_0/|\cosh w|)^b$, $w_0^2=\rho^2-s'$; the rule of Algorithm~\ref{alg:dens} gives
+$s'=\rho^2-(T_1-\pi^2/4)\in[0,\pi^2/4)$, but any $s'<\pi^2/4$ is covered.
+\item (finite family) $|z^2+\tau'^2|^2=(u^2+\tau'^2-Y)^2+4u^2Y$ with $Y=y^2$ is convex in $Y$ with minimum at
+$Y=\tau'^2-u^2$; its minimum over a cell $Y\in[y_a^2,y_b^2]$ is at the clamped point, and over $y\ge Y_0$ at
+$\max(Y_0^2,\tau'^2-u^2)$. $|\Lt(z)|=\prod_j(|z^2+\tau_j'^2|/\tau_j^2)^{-a_j}$. On the contour line ($u=\rho$), with $A_j=\rho^2+\tau_j'^2$,
+$c_j=2Y(A_j-2\rho^2)/A_j^2$ and $Y=y^2$: $|z^2+\tau_j'^2|^2/A_j^2\ge1-c_j$, so while $c_j<1$
+\[\log\bigl|(z^2+\tau_j'^2)/A_j\bigr|^{-a_j}\le\tfrac{a_j}2\,\frac{c_j}{1-c_j},\]
+a bound convex in $Y$; summed over $j$ with $-2xY$ it keeps the first-order cancellation of the saddle equation
+($\sum_ja_j/A_j=2x$ at the vertex), which the per-term minima above lose. The tail bound of
+Theorem~\ref{thm:dens} for the finite family uses it on $[Y_0^2,\max_j1/(2k_j)]$, $k_j=c_j/Y$, switching each
+term to its per-term minimum past $1/(2k_j)$; between switch points the sum is convex in $Y$, so its supremum is at
+an end. At large $K$ the per-term minima alone do not decay until $y^2$ passes $\tau'^2$ of the remainder gamma
+(about $10^7$ at $K=560$), which is out of reach.
+\item $\int_Y^\infty e^{-2xy^2}(u+y)dy\le e^{-2xY^2}(u/Y+1)/(4x)$ for $Y>0$; and $e^{-2xy^2}(u+y)$ is decreasing for
+$y\ge y_W=\frac12(-u+\sqrt{u^2+1/x})$.
+\end{enumerate}
+\end{lemma}
+\begin{proof}
+(a) $dw/dy=iz/w$. As $\arg z\in[0,\pi/2)$ and subtracting $s\ge0$ from $z^2$ in the closed upper half plane raises
+its argument, $\arg w\in[\arg z,\pi/2]$, so $\arg(z/w)\in(-\pi/2,0]$ and $iz/w$ has nonnegative real and imaginary
+parts. From $p^2-q^2=u^2-s-y^2\le u^2-y^2$ and $pq=uy$: $p>u$ would force $q<y$ and $p^2-q^2>u^2-y^2$; so $p\le u$,
+$q\ge y$. Then $q^2=p^2-u^2+y^2+s\le y^2+s$ and $p=uy/q$. For $s<0$, adding $|s|$ lowers the argument, so
+$\arg w\in[0,\arg z]$, $iz/w$ has nonpositive real and positive imaginary part, and $p<u$ would force $q>y$ and
+$p^2-q^2<u^2-y^2<u^2-s-y^2$; so $p\ge u$, $q\le y$, and $|\cosh w|\ge\sinh p\ge\sinh u$. The identities for $|\cosh(p+iq)|^2$ are standard; the
+coupled bound uses $\cosh^2p\ge1+p^2$, $\sin^2q\le q^2$ and $p^2-q^2=u^2-s-y^2$. $\cos^2$ is unimodal between
+consecutive zeros. (b) Expand $z^2=u^2-y^2+2iuy$; then $|z^2+\tau'^2|^2=A^2-2AY+4u^2Y+Y^2\ge A^2(1-c)$ at
+$u=\rho$, and $-\log(1-c)\le c/(1-c)$ for $c<1$; $c/(1-c)$ is convex in $Y$ for either sign of $k$. (c) $\int_Y^\infty ye^{-2xy^2}=e^{-2xY^2}/(4x)$ and
+$\int_Y^\infty e^{-2xy^2}=\sqrt{\pi/(8x)}\,\mathrm{erfc}(Y\sqrt{2x})$ with $\mathrm{erfc}(a)\le
+e^{-a^2}/(a\sqrt\pi)$; the derivative of $e^{-2xy^2}(u+y)$ is $e^{-2xy^2}(1-4xy(u+y))$.
+\end{proof}
+
+\begin{theorem}[A priori bound]\label{thm:dens}
+For the rule of Algorithm~\ref{alg:dens} with step $h$ and $N$ positive nodes, let
+$\hat S$ be the computed value of $h[G(0)+2\sum_{k=1}^N\mathrm{Re}\,G(kh)]$. Then $|\hat S-S|\le E=E_{\mathrm d}+
+E_{\mathrm t}+E_{\mathrm r}$, where:
+\begin{itemize}
+\item $E_{\mathrm d}=\min_{a_+}\frac{\bar M(\rho-a_+)}{e^{2\pi a_+/h}-1}+\min_{a_-}\frac{\bar M(\rho+a_-)}
+{e^{2\pi a_-/h}-1}$ over finite sets of $a_+\in(0,\rho)$ and $a_->0$, with
+$\bar M(u)=2e^{2x(u^2-\rho^2)}\bigl[\sum_jw_je^{-2xy_j^2}\Lambda_j\sqrt{u^2+y_{j+1}^2}+\Lambda_\infty
+e^{-2xY^2}\frac{u/Y+1}{4x}\bigr]$ for any partition $0=y_0<\dots<y_J=Y$ with widths $w_j$, $\Lambda_j\ge
+\sup_{[y_j,y_{j+1}]}|\Lt(u+iy)|/\Lt(\rho)$ and $\Lambda_\infty\ge\sup_{y\ge Y}$ from Lemma~\ref{lem:maj};
+\item $E_{\mathrm t}=2h\sum_{k>N}|G(kh)|$, bounded by the enclosures of $|G(kh)|$ node by node for $N<k\le N'$
+(or by cell majorants, a cell of width $\delta$ holding at most $\delta/h+1$ nodes) and, for $Y'=(N'+1)h\ge y_W$,
+by $2\Lambda_\infty(Y')[h(\rho+Y')e^{-2xY'^2}+e^{-2xY'^2}(\rho/Y'+1)/(4x)]$;
+\item $E_{\mathrm r}$, the rounding of $\hat S$, is the radius of its enclosure in ball arithmetic (Arb in the
+scripts; the rules of Appendix~\ref{app:round} in the engine).
+\end{itemize}
+If $\hat S>E$, then $\log p(x)\in\log\frac2\pi+2xr_2+\log L(2r_2)+\log[\hat S-E,\hat S+E]$, every term enclosed
+in ball arithmetic.
+\end{theorem}
+\begin{proof}
+Lemma~\ref{lem:trap} applies to $G$ on the strip of the chosen $a_\pm$ (analytic on a neighborhood since
+$a_+<\rho$; uniform decay from the factor $e^{-2xy^2}$ and the boundedness of $|\Lt|$ on each line,
+Lemma~\ref{lem:maj}); $M_\pm\le\bar M$ by bounding the integrand on each cell by its supremum and the tail by
+Lemma~\ref{lem:maj}(c), using $|z|\le\sqrt{u^2+y^2}\le u+y$ and evenness of $|G|$ on each line. The node sum
+over $|k|>N$ is bounded the same way, with the sum of a decreasing function at most its first term plus its
+integral. The trapezoid sum is real (evenness). If $|\hat S-S|\le E<\hat S$ then $\log S\in[\log\hat
+S+\log(1-E/\hat S),\log\hat S+\log(1+E/\hat S)]$.
+\end{proof}
+
+\begin{remark}[Choice of contour; coverage]\label{rem:coverage}
+Every $(\rho,s)$ with $\rho>0$, $s<\tau_1^2$ gives a valid formula and bound; the saddle vertex only keeps the
+condition number $\sum|G(kh)|/|\hat S|$ near 1, which keeps $E_{\mathrm r}$ near the floor (a fixed $\rho$ fails
+by cancellation at $x$ beyond the mean). The bound is a priori: valid wherever it is finite. As $h\to0$ and
+$N\to\infty$, $E_{\mathrm d}\to0$ and $E_{\mathrm t}\to0$, while $E_{\mathrm r}$ is proportional to the working
+precision's unit roundoff; so a ladder that refines $h$ and raises the precision drives $E\to0$ at every $x>0$
+(Proposition~\ref{prop:ladder}). At one fixed precision, finiteness of the bound at every reachable $x$ is not
+proven; it held at every pin (Appendix~\ref{app:num}).
+\end{remark}
+
+\subsection{The tilted, cancellation-free form and its rounding floor}\label{sec:floor}
+
+The rounding of a log-density computed from the contour is at least the unit roundoff times the size of the terms
+that are added: the lead $2xr_2+\log L(2r_2)$ and, at each node, the exponent $2x(z^2-\rho^2)+\log(\Lt(z)/\Lt(\rho))$.
+In the untilted form these are huge: at $(b,\psi)=(10^5,150)$ and $x$ the mean of $\PG(b,\psi)$, $\log\fz(x)=
+-3.68\times10^6$, and the node exponent is $-b$ times a difference of two values of $\log\cosh$ near 75, each
+rounded separately. The referees measured the first version's bound at $1.6\times10^{-8}$ there; the ball
+arithmetic of the scripts gives $1.4\times10^{-8}$ for the same formula (Table~\ref{tab:floor}). The tilted form
+removes both sources.
+
+\begin{proposition}[Cancellation-free node]\label{prop:cf}
+For $\PG(b,\psi)$ with vertex $t_0$, let $W_0=A_\psi^2+t_0/2\ (>-\pi^2/4)$, $w_0=\sqrt{W_0}$ ($w_0=i\sqrt{-W_0}$ if
+$W_0<0$), and at a node $\Delta=z^2-\rho^2=-y^2+2i\rho y$, $W=W_0+\Delta$, $w=\sqrt W$ (principal, $y>0$). Then
+$\log(\Lt(z)/\Lt(\rho))=-b\,\mathcal D$, where $\mathcal D=\log\cosh w-\log\cosh w_0$ on the branch continuous
+along the contour from $y=0$ is
+\begin{equation}\label{eq:cf}
+\mathcal D=\mathrm{log1p}\Bigl(\mathrm{expm1}(\delta)\,\frac{1-e^{-(w+w_0)}}{1+e^{-2w_0}}\Bigr)+2\pi ik,\qquad
+\delta=\frac{\Delta}{w+w_0},
+\end{equation}
+with the integer $k$ fixed by the direct form $\mathcal D=\lambda(w)-\lambda(w_0)$,
+$\lambda(\omega)=\omega-\log2+\mathrm{log1p}(e^{-2\omega})$, as the one integer within $\pi$ of
+$(\lambda(w)-\lambda(w_0)-\mathrm{log1p}(\cdot))/(2\pi i)$ (a rounded enclosure of the direct form suffices, its
+width being far below $\pi$). The lead is $\log L(t_0)=-b\,\mathcal D_0$ with $\mathcal D_0$ the same expression
+on the real path from $A_\psi^2$ to $W_0$ ($k=0$). For the finite family,
+$\log(\Lt(z)/\Lt(\rho))=-\sum_ja_j\,\mathrm{log1p}(2\Delta/(2\tau_j^2+t_0))$ with principal logarithms, and
+$\log L(t_0)=-\sum_ja_j\,\mathrm{log1p}(t_0/(2\tau_j^2))$.
+\end{proposition}
+\begin{proof}
+$\cosh w-\cosh w_0=2\sinh\frac{w+w_0}2\sinh\frac{w-w_0}2$ with $w-w_0=(W-W_0)/(w+w_0)=\delta$, and
+$2\sinh\frac{w+w_0}2/\cosh w_0=2e^{\delta/2}(1-e^{-(w+w_0)})/(1+e^{-2w_0})$, so the argument of log1p is
+$\cosh w/\cosh w_0-1$. Both forms are logarithms of $\cosh w/\cosh w_0$, so they differ by $2\pi ik$. The direct
+form is the continuous branch: $\lambda$ is analytic on $\mathrm{Re}\,\omega>0$ (there $|e^{-2\omega}|<1$), real
+on the positive axis and equal to $\log\cos v$ at $\omega=iv$, $|v|<\pi/2$; for $y>0$, $\mathrm{Im}\,W>0$, so $w$ lies
+in the open first quadrant and $\lambda(w(y))$ is continuous in $y$, with $\lambda(w(0^+))=\lambda(w_0)$. For the
+finite family $(2\tau_j^2+t)/(2\tau_j^2+t_0)$, $t=t_0+2\Delta$, has argument in $[0,\pi)$ for $y\ge0$, so the
+principal logarithm is continuous. Neither $w+w_0$ nor $1+e^{-2w_0}$ vanishes: $w$, $w_0$ lie in the closed first
+quadrant, not both at 0, and $|e^{-2w_0}|=1$ only for $w_0=iv$, $v<\pi/2$, where $1+e^{-2iv}=2\cos v\,e^{-iv}\ne0$.
+\end{proof}
+
+Every term of \eqref{eq:cf} is formed from $\Delta$, which is small where the integrand matters, with relative
+accuracy, so the node's rounding is the unit roundoff times the size of $2x\Delta$ and $b\mathcal D$, not of
+$b\log\cosh w$. Where the form loses (the direct form is tighter when $\cosh w/\cosh w_0$ is far from 1) the code
+takes whichever enclosure is narrower; both are valid.
+
+\paragraph{The lead.} The lead $xt_0+\log L(t_0)$ is a sum of terms of size $|xt_0|$, which is $x/\mathrm{sd}$
+times $|z|$ for $x$ the mean plus $z$ standard deviations ($t_0\approx z/\mathrm{sd}$), and for $q$ of $K+1$ terms
+$a_j\mathrm{log1p}(t_0/2\tau_j^2)$; the two cancel to first order (by the saddle equation) and leave about
+$z^2/2$. In 53 bits its rounding is therefore of order $u|z|x/\mathrm{sd}$, growing linearly in $|z|$: at
+$(10^5,150)$ it is $1.5\times10^{-11}$ at $z=3$ and $6.9\times10^{-11}$ at $z=12$ for $f$ (the first referee
+measured $9.5\times10^{-11}$ at $z=20$), and for $q$ at $(10^4,150)$, $K=353$, $1.5\times10^{-10}$ at $z=3$ (the
+first pins, \texttt{pins\_f.out} and \texttt{pins\_q.out}). With an undecided probability of twice the sum, a
+plain-double lead would put the step's floor near $4\times10^{-10}$, above a 32-bit grid step.
+
+The lead is one scalar per point, so the engine computes it in double-double arithmetic (pairs of doubles, unit
+$u_2=2^{-102}$ in Appendix~\ref{app:round}). From the exact doubles $x$, $t_0$, $b$, $A_\psi=|\psi|/2$ and the
+sampler's $a_j$ and rates $\mu_j=2\tau_j^2$, with $W_0=A_\psi^2+t_0/2$ and $\lambda(a)=a-\log2+\mathrm{log1p}(e^{-2a})$:
+\begin{equation}\label{eq:lead}
+\begin{gathered}
+  \ell_f=xt_0-b\,[\lambda(\sqrt{W_0})-\lambda(A_\psi)]\ \ (W_0\ge0),\qquad
+  \ell_f=xt_0-b\,[\log\cos\sqrt{-W_0}-\lambda(A_\psi)]\ \ (W_0<0),\\
+  \ell_q=xt_0-\sum_ja_j\,\mathrm{log1p}(t_0/\mu_j),
+\end{gathered}
+\end{equation}
+every operation and every function ($\exp$, $\log$, $\mathrm{log1p}$, $\sin$, $\sqrt{\cdot}$; $\log\cos v$ formed as
+$\log\sin(\pi/2-v)$ with $\pi/2$ in double-double) in double-double with a stated error bound. No cancellation-free rewriting is needed at that precision: the terms are at most about
+$10^7$ (for $f$, $b\lambda(A_\psi)\le7.4\times10^6$ at $b=10^5$, $|\psi|=150$), so the radius is of order
+$10^{-23}$ over the whole range (Appendix~\ref{app:round}), and the radius of the log-density is set by the nodes
+alone. The scripts carry the lead at 106 bits (\texttt{lead\_prec=106}), where its radius is at most
+$2.2\times10^{-25}$ at every pin, and, as a stand-in at least as pessimistic as double-double's bounds, at 100
+bits (\texttt{LEAD=100}) on 150 of the pins; both give the same radii of the log-density (Appendix~\ref{app:num}). The plain-double forms
+the previous version proposed, $t_0(x-m)-\sum_ja_j\,\mathrm{log1pmx}(t_0/\mu_j)$ with $m=\sum_ja_j/\mu_j$,
+and its analogue for $f$, are exact identities but are not specified: $t_0$ multiplies the rounding of $m$, a sum
+of $K+1$ terms whose certified error bound is $\gamma_{K}m$, about $2\times10^{-9}$ after the product at
+$(10^5,150)$, $z=12$. What remains
+at the nodes is of order $u\,x/\mathrm{sd}$ (the phase $\mathrm{Im}(2x\Delta)$ cancels against $\mathrm{Im}\,
+b\mathcal D$ to second order at the saddle, each of order $x$ times the node's distance from the vertex); a
+further refinement, not built, would cancel it through the saddle residual.
+
+\paragraph{The cache.} The update \eqref{eq:tiltupd} of the cached $\log f(x)$ from $\psi$ to $\psi'$ has two
+terms of size about $b|\psi'-\psi|/2$ and $x|\psi'^2-\psi^2|/2$. In 53 bits its rounding is of order
+$u\,b|\psi'-\psi|$: at $(10^5,150)$, $z=3$, $5.2\times10^{-12}$ for $|\psi'-\psi|=0.1$ and $3.1\times10^{-11}$ for 1
+(\texttt{cacheupd.py}). With $\lambda(a')-\lambda(a)$ formed as $(a'-a)+\mathrm{log1p}(e^{-2a'})-\mathrm{log1p}(e^{-2a})$ ($a=|\psi|/2$),
+its radius at 106 bits is at most $1.3\times10^{-26}$ for $|\psi'-\psi|\le5$ (\texttt{cacheupd.py}), and with
+double-double's error bounds below $10^{-23}$ (Appendix~\ref{app:round}); so the moved enclosure is the cached
+one widened by a negligible amount. With the addition to the cached value also at 106 bits, as the engine does it
+in double-double, the moved enclosure's radius equals the cached one's to the digits printed
+(\texttt{cacheupd\_r3.out}). It contained a fresh evaluation at $\psi'$ in every case run. The cached value is kept in double-double as well, so that rounding it to
+double does not add $u|\log f|$ at every sweep a point is kept. The cache thus saves one of the four evaluations
+every sweep, as in the design, and within a step it keeps enclosures across refinement levels.
+
+\paragraph{The floor reached.} With the lead in double-double (in the scripts at 106 bits, and at 100 on a subset)
+and the rest at 53 bits, over the pins of Appendix~\ref{app:num} the radius of $\log f$ is at most \FLOORFALL{}
+and of $\log q$ at most \FLOORQALL{}, at every $z$ from $-4$ to $12$ and every pinned $(b,\psi)$;
+Table~\ref{tab:floor} gives the values at the mean. The undecided probability of a step is at most twice the
+half-width of $\log r$, the sum of the four radii, plus $2^{1-\beta}$ for the uniform (Theorem~\ref{thm:dec}):
+$2(2\times1.41\times10^{-12}+2\times1.28\times10^{-13})+2^{1-\beta}=6.15\times10^{-12}+2^{1-\beta}$, so at most
+\FLOORSTEP{} per row step at the pins, against $10^{-9}$ to $10^{-7}$ in the untilted form. Three qualifiers apply
+to every floor figure in this note: it is a maximum over the pins, not a bound over every reachable $(b,\psi,x)$;
+it is Arb's radius, which an engine following Appendix~\ref{app:round} exceeds by a factor not measured; and it
+assumes the lead in double-double. Section~\ref{sec:changes} makes measuring the engine's floor at the pins a
+gate for S1.
+
+\begin{table}[h]\centering\small
+\caption{Rounding floors: radius of the certified enclosure of the log-density at $x$ the mean of $\PG(b,\psi)$,
+in ball arithmetic (\texttt{floor.py}, \texttt{floor\_all.out}). Untilted, 53 bits: $\log\fz$ (and $\log\qt$,
+entering LR) by the first version's formula. Tilted: $\log f$ and $\log q$ by Proposition~\ref{prop:cf} at 53 bits
+with the lead at 106, the proposal at the rule's $K$ from the sampler's rates; the last column is $\log f$ entirely
+at 106 bits. LR: the log-ratio floor $2(f+q)$ with both points at the mean. At $(10^5,150)$, $K=560$, the untilted
+$\log\qt$ was not computed (too slow) and $\log q$ is from \texttt{q560.py}. Away from the mean see the text.}\label{tab:floor}
+{\footnotesize\setlength{\tabcolsep}{3.5pt}
+FLOORTABLE}
+\end{table}
+
+
+\begin{proposition}[Left series]\label{prop:left}
+For $b>0$, $x>0$, $\fz(x)=\sum_{n\ge0}(-1)^na_n(x)$ with
+$a_n(x)=\frac{2^{b-1}}{\Gamma(b)}\frac{\Gamma(n+b)}{n!}\frac{2n+b}{\sqrt{2\pi x^3}}e^{-(2n+b)^2/(8x)}$
+(\cite[eq.~(11)]{wps} on the $J^*$ scale, $\PG(b,0)=J^*(b)/4$, so $\fz(x)=4f_{J^*}(4x\mid b)$). The term ratio is
+\[
+\frac{a_{n+1}}{a_n}=\frac{n+b}{n+1}\cdot\frac{2n+b+2}{2n+b}\cdot e^{-(2n+b+1)/(2x)}\le C_be^{-(2n+b+1)/(2x)},
+\qquad C_b=\begin{cases}b+2,&b\ge1\\(b+2)/b,&b<1,\end{cases}
+\]
+so the terms decrease from index $n_0=\max\{0,\lceil x\log C_b-(b+1)/2\rceil\}$ on. If the start condition
+$C_be^{-(b+1)/(2x)}\le\frac12$ holds, i.e. $x\le x_s(b)=(b+1)/(2\log(2C_b))$, every ratio is at most $\frac12$:
+the partial sums bracket $\fz$, $|\fz-\sum_{n\le N}(-1)^na_n|\le a_{N+1}$, $a_0/2\le\fz\le a_0$ and
+$\sum_na_n\le2a_0\le4\fz$ (condition number at most 4). The rule uses the series only under the start condition.
+\end{proposition}
+\begin{proof}
+The ratio is direct ($(2n+b+2)^2-(2n+b)^2=4(2n+b+1)$). For $b\ge1$, $\frac{n+b}{n+1}\le b$ and
+$\frac{2n+b+2}{2n+b}\le\frac{b+2}b$; for $b<1$, $\frac{n+b}{n+1}\le1$. The bracket and error bound are Leibniz's
+test; $\fz\ge a_0-a_1\ge a_0/2$. The series itself, for every $b>0$: on $\mathrm{Re}\sqrt{t/2}>0$,
+$\cosh^{-b}\sqrt{t/2}=2^be^{-b\sqrt{t/2}}(1+e^{-2\sqrt{t/2}})^{-b}=2^b\sum_{n\ge0}(-1)^n\frac{\Gamma(n+b)}{\Gamma(b)\,n!}
+e^{-(2n+b)\sqrt{t/2}}$ (binomial series, $|e^{-2\sqrt{t/2}}|<1$), and $e^{-c\sqrt{t/2}}$ is the Laplace transform of
+$\frac{c}{2\sqrt{2\pi x^3}}e^{-c^2/(8x)}$ (the Levy density, $c>0$). For $t>0$ the series of absolute values of the
+transforms converges, $\sum_n\frac{\Gamma(n+b)}{\Gamma(b)n!}e^{-(2n+b)\sqrt{t/2}}=e^{-b\sqrt{t/2}}(1-e^{-2\sqrt{t/2}})^{-b}
+<\infty$, so by Tonelli $\sum_na_n$ is integrable against $e^{-tx}$ and the Laplace transform of
+$\sum_n(-1)^na_n(x)$ (absolutely convergent at every $x>0$, the terms decaying like $e^{-n^2/(2x)}$) is the
+termwise sum; by uniqueness and continuity it equals $\fz$.
+\cite[Sec.~2.3]{psw} state this series for every $b>0$; \cite[Sec.~4.1]{wps} call eq.~(11) for $h\ne1$ ``still
+valid'' and prove monotonicity of the terms only for $h\ge1$ (their Prop.~5); the bound here needs only the ratio
+estimate. In the tilted form the series serves $\fz$-type evaluations only; for $f$ at $\psi\ne0$ it would
+reintroduce the tilt's large terms, so the contour is used.
+\end{proof}
+
+\begin{proposition}[The vertical line through the saddle point]\label{prop:tline}
+For $\fz$ and $t^*>-c_1$, $p(x)=\frac{e^{t^*x}}{2\pi}\int_\R e^{i\eta x}L(t^*+i\eta)d\eta$, and the integrand is
+analytic in $\eta$ for $\mathrm{Im}\,\eta<t^*+c_1$. On a line $\mathrm{Re}\,t=\gamma>-c_1$,
+$|L(\gamma+i\eta)|\le L(\gamma)(1+\eta^2V_\gamma)^{-b/2}$ with $V_\gamma=\sum_k(d_k+\gamma)^{-2}$ (in the untilted
+family $d_k=c_k$), whose integral is $L(\gamma)\sqrt{\pi/V_\gamma}\,\Gamma(\frac{b-1}2)/\Gamma(\frac b2)$ for
+$b>1$; for $b\le1$ it is not integrable, and $|L(\gamma+i\eta)|\le C\exp(-\frac b2\sqrt{|\eta|-|\gamma|})$ replaces
+it, with $C=4^b$ once $\sqrt{|\eta|-|\gamma|}\ge0.7$. Truncating the line at $|\eta|=H$ costs at most
+$\frac{e^{t^*x}}{\pi}\int_H^\infty|L(t^*+i\eta)|d\eta$, which is at most
+$\frac{e^{t^*x}}{\pi}L(t^*)\frac{V^{-b/2}H^{1-b}}{b-1}$ for $b>1$ and
+$\frac{e^{t^*x}}{\pi}4^b\frac8{b^2}(1+\frac b2\sqrt{H'})e^{-\frac b2\sqrt{H'}}$, $H'=H-|t^*|$, for every $b$.
+So Lemma~\ref{lem:trap} applies on this line for every $b>0$: the strip argument of the earlier large-shape
+construction holds as stated for $b>1$, and with the second majorant for $b\le1$, where the truncation point grows
+like $(2\log(1/\epsilon)/b)^2$ and the node count like $b^{-2}$.
+\end{proposition}
+\begin{proof}
+The representation and the second majorant are in the proof of Lemma~\ref{lem:contour}. Analyticity: $t=t^*+i\eta$
+reaches the singularities $t\le-c_1$ only when $\mathrm{Im}\,\eta\ge t^*+c_1$. Product bound:
+$|1+(\gamma+i\eta)/d|^2=(1+\gamma/d)^2(1+\eta^2/(d+\gamma)^2)$ and $\prod(1+x_k)\ge1+\sum x_k$. The integral is
+the beta integral $\int(1+u^2)^{-b/2}du=\sqrt\pi\,\Gamma(\frac{b-1}2)/\Gamma(\frac b2)$. Truncation:
+$(1+\eta^2V)^{-b/2}\le(\eta^2V)^{-b/2}$; $\sinh p\ge e^p/4$ for $p\ge\frac12\log2$; and $\int_a^\infty
+e^{-c\sqrt v}dv=\frac2{c^2}(1+c\sqrt a)e^{-c\sqrt a}$.
+\end{proof}
+This rule was not exercised numerically here; the contour of Algorithm~\ref{alg:dens} replaces it at every $b$.
+
+\subsection{A cheaper certificate}\label{sec:cheap}
+
+The certificate of Theorem~\ref{thm:dens} as the scripts compute it (cells with per-term majorants on the edge
+lines, dropped nodes evaluated one by one, $h$ found by walking down a ladder) costs far more than the main sum
+(Section~\ref{sec:changes}, item 8). The three results below give the pieces of a cheaper one. They are proven
+here but not built or measured; S1 builds them, checks them at the pins and then times them.
+
+\begin{lemma}[Aggregated majorant on a line]\label{lem:agg}
+Let the family have factors $j\in J$ with shapes $a_j$ (the finite family; or $f$, with $a_j=b$ for all $j\ge1$),
+fix $u>0$ with $A_j=u^2+\tau_j'^2>0$ for every $j$, and let $k_j=2(A_j-2u^2)/A_j^2$. Let $J_0\subset J$ be finite and
+contain every $j$ with $A_j<4u^2$, $J_1=J\setminus J_0$, $\kappa=\max_{J_1}k_j$ and $S=\sum_{J_1}a_jk_j$. Then for
+$z=u+iy$ and $Y=y^2<1/\kappa$,
+\[
+\log\Bigl|\frac{\Lt(z)}{\Lt(\rho)}\Bigr|\le\sum_{j\in J}a_j\log\frac{A_j(\rho)}{A_j(u)}
+-\sum_{j\in J_0}\frac{a_j}2\log\frac{|z^2+\tau_j'^2|^2}{A_j^2}+\frac S2\,\frac Y{1-\kappa Y},
+\]
+with $A_j(v)=v^2+\tau_j'^2$. For $f$, with $c'_j=\pi^2(j-\frac12)^2$, $s'$ as in Lemma~\ref{lem:maj}(a) and
+$W_v=v^2-s'$, so that $A_j(v)=W_v+c'_j$, the first sum is $b\log(\cosh\sqrt{W_\rho}/\cosh\sqrt{W_u})$ ($\cos\sqrt{-W}$
+for $W<0$) and $\sum_Ja_jk_j=2b\,[T_1(W_u)-2u^2T_2(W_u)]$, where $T_1(W)=\tanh(r)/(2r)$ and $T_2(W)=(\tanh r-r\,
+\mathrm{sech}^2r)/(4r^3)$, $r=\sqrt W$ (continued analytically to $W\le0$; $T_1(0)=\frac12$, $T_2(0)=\frac16$); so
+$S$ is that minus the finitely many terms of $J_0$. On a cell $[y_a,y_b]$ with $y_b^2<1/\kappa$ the last term is
+largest at $Y=y_b^2$ and the $J_0$ terms are bounded by their per-term minima (Lemma~\ref{lem:maj}(b)): the cell
+costs $|J_0|+O(1)$ operations after a setup of $O(|J_0|)$ for $f$ and of one pass over the $K+1$ terms for $q$.
+\end{lemma}
+\begin{proof}
+$|z^2+\tau_j'^2|^2=(A_j-Y)^2+4u^2Y=A_j^2-2Y(A_j-2u^2)+Y^2\ge A_j^2(1-k_jY)$. On $J_1$, $A_j\ge4u^2$, so $k_j>0$, and
+$g(A)=2(A-2u^2)/A^2$ decreases on $A\ge4u^2$, so $\kappa=g(\min_{J_1}A_j)$ is finite and $0<k_jY\le\kappa Y<1$;
+then $-\log(1-k_jY)\le k_jY/(1-k_jY)\le k_jY/(1-\kappa Y)$. Write $|\Lt(z)/\Lt(\rho)|=\prod_j(|z^2+\tau_j'^2|/
+A_j(\rho))^{-a_j}$: for the finite family this is the definition; for $f$ it is the product \eqref{eq:lt} with
+$1+t/d_j=2(z^2+\tau_j'^2)/d_j$, $t=2z^2-2s$, the product converging absolutely since $|z^2+\tau_j'^2|/A_j(\rho)=
+1+O(j^{-2})$. Split each factor as $(A_j(u)/A_j(\rho))\cdot(|z^2+\tau_j'^2|/A_j(u))$, take logarithms and sum;
+the $J_1$ terms give $\frac12\sum_{J_1}a_jk_jY/(1-\kappa Y)$, and $S<\infty$ as $k_j=O(j^{-2})$. Closed forms:
+$\prod_j(1+W/c'_j)=\cosh\sqrt W$ (the product after \eqref{eq:lt}), so $\prod_jA_j(u)/A_j(\rho)=\cosh\sqrt{W_u}/\cosh
+\sqrt{W_\rho}$; $T_1(W)=\sum_j(W+c'_j)^{-1}$ is the derivative of $\log\cosh\sqrt W$ (termwise, the series converging
+uniformly on compacts away from $-c'_1$) and $T_2=-T_1'=\sum_j(W+c'_j)^{-2}$; then
+$\sum_ja_jk_j=2b\sum_j(A_j^{-1}-2u^2A_j^{-2})$. The last term increases in $Y$; the cell statement follows.
+\end{proof}
+
+\begin{corollary}[A monotone tail and an a priori step]\label{cor:tail}
+(a) On the contour line $u=\rho$, let $\varphi(Y)=-2xY-\sum_{J_0}\frac{a_j}2\log(|z^2+\tau_j'^2|^2/A_j^2)+\frac S2
+\frac Y{1-\kappa Y}$, so that $|G(y)|\le(\rho+y)e^{\varphi(y^2)}$ for $y^2<1/\kappa$. Suppose $S<4x$, and take
+$Y_0=\max_{J_0}(A_j-2\rho^2)_+$ and $Y_1\in(Y_0,(1-\sqrt{S/(4x)})/\kappa)$, $\delta=2x-\frac S2(1-\kappa Y_1)^{-2}>0$.
+Then $\varphi'\le-\delta$ on $[Y_0,Y_1]$, and for $(N+1)h=y_1$ with $y_1^2\ge Y_0$ and $y_1\ge\frac12(-\rho+
+\sqrt{\rho^2+2/\delta})$,
+\[
+\sum_{k>N,\ (kh)^2\le Y_1}|G(kh)|\le e^{\varphi(y_1^2)}\Bigl[(\rho+y_1)+\frac1h\,\frac{\rho/y_1+1}{2\delta}\Bigr],
+\]
+the nodes past $\sqrt{Y_1}$ being bounded by Theorem~\ref{thm:dens}'s monotone tail at $Y'=\sqrt{Y_1}$. This replaces
+the node-by-node truncation by $O(|J_0|)$ operations. (b) The line majorants $\bar M(u)$ of Theorem~\ref{thm:dens} do
+not depend on $h$, so the largest step with $E_{\mathrm d}\le\epsilon$ on a pair of lines at distances $a_\pm$ is
+$h=\min_\pm2\pi a_\pm/\log(1+2\bar M(\rho\mp a_\pm)/\epsilon)$: the step can be chosen from the bound, with
+$\epsilon$ the rounding radius, instead of found by walking down a ladder.
+\end{corollary}
+\begin{proof}
+(a) The $J_0$ terms: $\frac d{dY}|z^2+\tau_j'^2|^2=-2(A_j-Y)+4\rho^2\ge0$ for $Y\ge A_j-2\rho^2$, so they do not
+increase on $[Y_0,\infty)$; the derivative of the other two is $-2x+\frac S2(1-\kappa Y)^{-2}\le-\delta$ for $Y\le
+Y_1$. So $e^{\varphi(y^2)}\le e^{\varphi(y_1^2)}e^{-\delta(y^2-y_1^2)}$ for $y_1\le y\le\sqrt{Y_1}$, and $(\rho+y)
+e^{-\delta y^2}$ decreases for $y\ge\frac12(-\rho+\sqrt{\rho^2+2/\delta})$ (Lemma~\ref{lem:maj}(c) with $2x$ replaced
+by $\delta$). A sum of a decreasing function over the nodes is at most its first term plus $1/h$ times its integral,
+and $\int_{y_1}^\infty(\rho+y)e^{-\delta(y^2-y_1^2)}dy\le(\rho/y_1+1)/(2\delta)$ as in Lemma~\ref{lem:maj}(c). (b)
+Lemma~\ref{lem:trap}'s bound is $\bar M/(e^{2\pi a/h}-1)$, decreasing in $1/h$; solve for equality with $\epsilon/2$
+on each side.
+\end{proof}
+
+At the saddle on $u=\rho$, $\frac12\sum_Ja_jk_j=\sum_ja_j/A_j-2\rho^2\sum_ja_j/A_j^2=2x-2\rho^2\sum_ja_j/A_j^2<2x$, so
+$S=\sum_Ja_jk_j-\sum_{J_0}a_jk_j<4x$ unless the terms of $J_0$ with $k_j<0$ (those with $A_j<2\rho^2$) are large;
+where it fails, part (a) does not apply and the node-by-node truncation remains. This is the first-order
+cancellation of Lemma~\ref{lem:maj}(b), now in closed form for $f$ as well. What is not settled is how many cells and how large a
+$J_0$ the edge lines need at each $(b,\psi,x)$, and so the cost; that is S1's measurement.
+

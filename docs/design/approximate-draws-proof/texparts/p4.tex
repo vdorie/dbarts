@@ -1,0 +1,612 @@
+\section{What S1 and S2 must build}\label{sec:build}
+
+\paragraph{S1, the densities.} One evaluator for $\log f$ and $\log q$ (the tilted form) at any $x>0$, returning
+a value and an enclosure:
+\begin{itemize}
+\item the saddle solve and the contour of Algorithm~\ref{alg:dens} ($\rho^2=\max(T_1-\pi^2/4,T_1/2)$); the step
+ladder $h\in\{2^{-j},\frac342^{-j}\}$, so nodes are exact; stop when the mathematical bound is below the rounding
+radius or stops improving;
+\item the node exponent and the lead by Proposition~\ref{prop:cf}, from $\Delta$, not as differences of large
+logarithms; for $f$, the branch integer of \eqref{eq:cf} from the direct form; for $q$, principal logarithms;
+the lead $xt_0+\log L(t_0)$ in double-double by \eqref{eq:lead} (Section~\ref{sec:floor}, ``The lead''), since in
+plain double its rounding grows linearly in the distance from the mean and reaches $10^{-10}$;
+\item the cached $\log f(x)$, in double-double, moved to the new $\psi$ by \eqref{eq:tiltupd} in double-double;
+\item rounding carried rigorously, by ball arithmetic or by the rules of Appendix~\ref{app:round} (absolute plus
+relative radii, every operation charged, no first-order step);
+\item truncation node by node (each dropped node's majorant, plus the monotone tail of Theorem~\ref{thm:dens}),
+compared in the log domain; for $q$ the tail from the combined majorant of Lemma~\ref{lem:maj}(b), since at large
+$K$ the per-term minima do not decay within reach; the discretization bound from two edge lines, a few $a_+\in(0,\rho)$ and $a_->0$
+tried, the line integrals bounded by cells with Lemma~\ref{lem:maj}'s majorants from the cell ends' $p,q$;
+\item the proposal from the rates the sampler draws with ($\fl(c_k+\sigma)$, $r_1$ rounded down, and the
+doubles $\alpha,\beta$), so that $q$ is the density of what is drawn;
+\item optionally the left series under its start condition (Proposition~\ref{prop:left});
+\item a second level at 106 bits if the build takes Section~\ref{sec:maint}'s option B'; otherwise the floor
+decision and the tally;
+\item pins: at every pin, the enclosure contains an independent reference, over $b\in[0.2,10^5]$, $|\psi|\le150$,
+$x$ from $-4$ to $+12$ standard deviations about the mean, with the proposal at the rule's $K$; for $q$ one
+reference independent of the parabolic contour (the vertical line at large total shape, Moschopoulos's series where
+the largest rate times $x$ is small);
+\item a gate on the engine's floor: at every pin, the engine's radius reported next to Arb's
+(Appendix~\ref{app:num}); the floor the documentation quotes is the engine's measured maximum, and S1 does not pass
+if it gives a step floor above $2.3\times10^{-11}$, a tenth of one 32-bit grid step;
+\item the cheaper certificate of Section~\ref{sec:cheap} (aggregated edge-line majorant, monotone tail, step chosen
+from the bound), its cell settings fixed before any evaluation, checked at the pins; designed and proven pieces
+beyond Section~\ref{sec:cheap} (how many cells, how large a $J_0$) are proven before timing;
+\item timing and its pass rule (Section~\ref{sec:changes}, item 8): the route's expected per-row cost against the sum's
+on one machine, the threshold $b^*(|\psi|)$ derived from it, the gate $b^*\le10^3$ at $|\psi|\le8$, and the
+fractional-shape budget.
+\end{itemize}
+
+\paragraph{S2, the step.} Algorithm~\ref{alg:row}: the proposal with $r_1$ rounded down (toward $-\infty$) and the
+remainder's $(\alpha,\beta)$ from the tail sums; the ratio in the tilted form, from three fresh evaluations,
+$\log f(\omega')$, $\log q(\omega')$ and $\log q(\omega)$, and the cached $\log f(\omega)$ moved to the current
+$\psi$ by \eqref{eq:tiltupd}; the enclosure of $\log r$ from all four density enclosures plus the rounding of their
+sum; a uniform of at least 53 bits held as an interval, with more bits drawn when the interval meets the
+enclosure; refinement that intersects enclosures (re-evaluating $f(\omega)$ only when its cached enclosure is too
+wide); the second level or the floor tally; the per-row cache of $\log f$ at a point, in double-double, with
+enclosure, level, the point as an exact double and the $(b,\psi)$ it was computed at, used only when the point
+equals $\omega_i$ bit for bit and $b$ is unchanged (moved to the new $\psi$ then), and otherwise ignored, so that
+setData, setState, a fresh draw and an outer step writing the latents can never leave a stale entry in use; when it
+is ignored the step makes four fresh evaluations.
+Algorithm~\ref{alg:sweep}: marks, the per-row rule, the nbinom rule with $\psi_i=\eta_i-\log r$, the cancel polled
+between rows.
+
+\section{Changes the design needs}\label{sec:changes}
+
+\begin{enumerate}
+\item \textbf{One density rule.} The parabola contour through the saddle point (Algorithm~\ref{alg:dens},
+Theorem~\ref{thm:dens}) serves $f$ and $q$ at every shape and $x$; the split at $b=12$, the Talbot contour and its
+error estimate go. The left series is optional at small $x$. The vertical line through the saddle point is valid at
+every $b$ but its integrability argument as written holds only for $b>1$, and its cost grows like $b^{-2}$.
+\item \textbf{The ratio in tilted, cancellation-free form.} $r=f(\omega')q(\omega)/(f(\omega)q(\omega'))$ from
+$\log f$ and $\log q$ evaluated by Proposition~\ref{prop:cf}. The untilted form ($\fz$ and $\qt$) the first version
+proposed puts the rounding floor at up to $10^{-7}$ per step at the largest shapes; the tilted form, with the
+lead in double-double, at about \FLOORSTEP{} at the pins (Section~\ref{sec:floor}). $q$ is evaluated at both points
+each sweep, as designed. $f$ is evaluated fresh at the proposal only: the current point's $\log f$ is the cached
+value moved to the new $\psi$ by the exact update \eqref{eq:tiltupd} (item 7). So a step makes three density
+evaluations and one update, the design's count, when the row's previous step left a valid entry; after a fresh draw
+or any other write to $\omega_i$ it makes four (item 7). Without the update the tilted form would always need four,
+since $\psi_i$ changes every sweep.
+\item \textbf{The floor figure.} The design's ``about $10^{-12}$ relative, an event of about that probability''
+should read: at the pins, in ball arithmetic and with the lead in double-double, each log-density's enclosure has
+radius at most \FLOORDENS{} and the undecided probability per row step is at most \FLOORSTEP; the engine's own
+figure is measured at the pins before it is quoted (item 17); and a build that stops at double precision is exact only in the sense of
+Section~\ref{sec:ideal} (Proposition~\ref{prop:fixedtop}); which sense the package adopts is
+Section~\ref{sec:maint}'s first question.
+\item \textbf{The proposal's own numbers.} $q$ uses the rates and shapes the sampler draws with. The first rate is
+rounded down: rounded up, the weight is unbounded and uniform ergodicity fails (Proposition~\ref{prop:K0}); the
+step is still invariant and converges from almost every start, so the rounding buys uniform ergodicity and the
+minorization Theorem~\ref{thm:starts}(a) uses, not invariance (Remark~\ref{rem:r1}).
+\item \textbf{The decision counts everything.} The enclosure includes all four densities and the arithmetic of the
+ratio; refinement intersects enclosures (so refining never makes a value worse, which subsumes the design's
+``refinement never raises the floor''). A non-finite value is undecided, never decided on.
+\item \textbf{The uniform.} At least 53 bits, held as an interval, with more bits drawn when the interval meets the
+enclosure. A 32-bit uniform alone puts a grid of $2.3\times10^{-10}$ under every decision, above the tilted form's
+floor.
+\item \textbf{The cache} holds $\log f$ at a point, in double-double, with its enclosure, level, the point as an
+exact double and the $(b,\psi)$ it was computed at, in place of the design's $\log\fz(\omega)$. It is keyed on the
+point: used only when the point equals the row's $\omega_i$ bit for bit and $b$ is unchanged, and then moved to the
+new $\psi$ by \eqref{eq:tiltupd} (exact; its rounding in double-double is below $10^{-23}$). Keying on $(b,\psi)$
+alone is wrong: setData (with only the response changed, $(b_i,\psi_i)$ stays), setState, a fresh draw by the sum
+and an outer step that writes the latents replace $\omega_i$ and would leave a stale value giving a wrong $\log r$
+silently. (Invalidating the entry at every write to $\omega_i$ outside the step is equivalent but easier to get
+wrong.) The cache saves one of four evaluations at every step whose row's previous step was a RowStep; after a
+fresh draw (marked rows, the first sweep, rows the rule moves from the sum, every negative binomial row after $r$
+moved: about 38 percent of steps in the design's estimated-$r$ cell) the step makes four, as the design's cache
+also did. It keeps refinements within a step. It does not hold $\log q(\omega)$: the proposal is re-matched at each
+$\psi$. The update costs two double-double exponentials and log1p's and about ten double-double operations, a few
+hundred double operations.
+\item \textbf{The cost figures.} The design's sizing (3.1 to 3.9\,$\mu$s a row at shapes of 64 and up, about two
+density passes at 17 to 21 nodes; 8.8 at 16; about 7.0 at fractional weights) was measured with uncertified
+densities. A certified evaluation is the main sum plus its certificate: the discretization bound's line majorants
+over cells, and the truncation's dropped nodes. What the certificate as specified (Theorem~\ref{thm:dens}, as the
+scripts build it) costs:
+\begin{itemize}
+\item \emph{How it was counted} (\texttt{cost3.py}, outputs \texttt{cost3\_a.out} to \texttt{cost3\_d.out},
+\texttt{cost3\_def1.out}, \texttt{cost3\_def2.out}; table \texttt{cost3\_table.py}, \texttt{cost3\_table.md}).
+Four cell configurations are fixed in the script before any evaluation: L10 (one edge line each side at
+$a_+=\rho/2$, $a_-=\rho/2$, 10 to 40 cells, no splitting; the second referee's setting), L32 (two lines each side,
+32 cells, two levels of splitting), L8 (one line each side, 8 cells, one level) and DEF (\texttt{arbpg.py}'s
+default). None is chosen per point. The evaluator charged is the a-priori cascade L10, then L32, then DEF, stopping
+at the first whose own run reaches the floor (its mathematical bound below its own rounding radius); every
+configuration tried is charged. L10 reached the floor at every point, so the cascade's cost is L10's. Each run's
+own radius is printed; under L10 the radii are up to $1.6\times10^{-12}$ for $\log f$ and $2.6\times10^{-13}$ for
+$\log q$ (at $b=10^5$), slightly above DEF's at the same points because the smaller $h$ adds rounding.
+\item \emph{What is counted.} Term evaluations at the final $h$: every node (main sum, dropped nodes and the line
+points), every cell; an $f$ node or cell is one term, a $q$ node or cell is $K+1$ terms. A row step is $f(y)$,
+$q(y)$ and $q(x)$. Times are kernel times on this machine in plain double without the radius bookkeeping of
+Appendix~\ref{app:round} (\texttt{bench/termbench.c}: 116\,ns an $f$ node, $f$ cells priced the same; 12.6\,ns a $q$
+node term, 3.1\,ns a $q$ cell term), so they are lower estimates of the evaluator as specified. Today's sum is timed
+on the same machine from the package's own sampler (\texttt{bench/pgbench.c}, \texttt{ext\_rng\_simulatePolyaGamma}
+compiled standalone): 157\,ns a trial at $\psi=0$ and 136 at $|\psi|=150$, matching the design's 130 to 160\,ns
+(its 0.13\,$\mu$s is the x86 box's). The proposal's $K+1$ gammas (41\,ns each in the design) and the saddle solves
+are not in the density column.
+\end{itemize}
+At $z=0$ (at $z=\pm3$ the counts are within 2 percent, except at $b=0.2$, $\psi=0$, within a factor 1.6):
+\begin{center}\scriptsize\setlength{\tabcolsep}{2pt}\hspace*{-2em}
+\begin{tabular}{rr|rrr|rrr|rrr|rrr}\toprule
+& sum & \multicolumn{3}{c|}{$\psi=0$} & \multicolumn{3}{c|}{$|\psi|=8$} & \multicolumn{3}{c|}{$|\psi|=50$} &
+\multicolumn{3}{c}{$|\psi|=150$}\\
+$b$ & $\mu$s & $K$ & terms & $\mu$s & $K$ & terms & $\mu$s & $K$ & terms & $\mu$s & $K$ & terms & $\mu$s\\\midrule
+0.2 & none & 1 & $1.9\times10^{3}$ & 62 (35.4) & 1 & $1.7\times10^{3}$ & 53 (17.7) & 10 & $6.2\times10^{3}$ & 90.5 (37.2) & 37 & $2.7\times10^{4}$ & 323 (189)\\
+1 & 0.157--0.136 & 1 & $1.4\times10^{3}$ & 42.4 (15.8) & 2 & $1.7\times10^{3}$ & 43.2 (10.8) & 14 & $6.9\times10^{3}$ & 87.7 (22.6) & 54 & $3\times10^{4}$ & 323 (117)\\
+16 & 2.51--2.18 & 1 & $1.1\times10^{3}$ & 33 (5.66) & 3 & $1.8\times10^{3}$ & 34.8 (4.12) & 26 & $1.1\times10^{4}$ & 112 (12.7) & 96 & $3.9\times10^{4}$ & 358 (51.2)\\
+64 & 10--8.7 & 2 & $1.4\times10^{3}$ & 31.3 (3.64) & 4 & $2.2\times10^{3}$ & 38.2 (4.6) & 34 & $1.4\times10^{4}$ & 146 (22.1) & 128 & $5.6\times10^{4}$ & 535 (67.3)\\
+$10^3$ & 157--136 & 3 & $1.8\times10^{3}$ & 41.4 (3.04) & 8 & $4.1\times10^{3}$ & 56.8 (6.51) & 60 & $3.3\times10^{4}$ & 347 (26.5) & 223 & $1.6\times10^{5}$ & 1660 (115)\\
+$10^4$ & 1570--1360 & 4 & $3.2\times10^{3}$ & 109 (3.65) & 12 & $7.3\times10^{3}$ & 99.6 (7.1) & 95 & $8.4\times10^{4}$ & 951 (71.9) & 353 & $4.4\times10^{5}$ & 5120 (305)\\
+$10^5$ & 15700--13600 & 6 & $1.3\times10^{4}$ & 874 (9.36) & 19 & $2.2\times10^{4}$ & 299 (24.2) & 150 & $3.2\times10^{5}$ & 3910 (276) & 560 & $1.9\times10^{6}$ & 24000 (1760)\\
+\bottomrule
+\end{tabular}
+\end{center}
+``terms'': term evaluations per row step; ``$\mu$s'': its density part at the kernel times above, and in
+parentheses the main sum alone ($N$ nodes for $f$, $N(K+1)$ terms for $q$) at the coarsest $h$ any configuration
+certified, which no certificate can go below at that $h$.
+\begin{itemize}
+\item \emph{Where the route as specified loses to the sum.} Comparing the density part alone with the sum: at
+$\psi=0$ it loses at $b\le64$ and wins from $b=10^3$ (crossing near $b=250$); at $|\psi|=8$ likewise (crossing near
+400); at $|\psi|=50$ it loses up to $b=10^3$ and wins at $10^4$ and $10^5$; at $|\psi|=150$ it loses at every shape
+tested, $10^3$ to $10^5$ (1.7 against 0.14\,ms at $10^3$, 24 against 14\,ms at $10^5$). The radius bookkeeping and
+the gammas only add to the route. The first referee's reading is right: at large $|\psi|$ the $K+1$ terms per $q$
+node decide it. At fractional shapes, where there is no sum, a row step costs 43 to 90\,$\mu$s at $|\psi|\le50$ and
+about 320 at $|\psi|=150$, against the design's 7.0.
+\item \emph{What a cheaper certificate could reach.} The main sum alone at the coarsest certified $h$ (the
+parenthesized figures) would beat the sum at every whole shape from $10^3$ up at every $|\psi|$ tested, about even at
+$10^3$, $|\psi|=150$. So the certificate, not the method, decides where the route pays. Section~\ref{sec:cheap}
+proves the pieces of a cheaper one: an aggregated majorant on the edge lines with $O(1)$ work per cell
+(Lemma~\ref{lem:agg}, in closed form for $f$), a monotone tail in place of node-by-node truncation
+(Corollary~\ref{cor:tail}(a)), and the step chosen from the bound instead of by walking a ladder
+(Corollary~\ref{cor:tail}(b)). They are not built or measured. S1 builds them, checks them at the pins, and only then
+times.
+\item \emph{S1's timing gate and its pass rule.} S1 times on one machine the route's expected per-row cost
+$c_R(b,\psi)$ and the sum's $c_S(b)$, at $|\psi|\in\{0,8,50,150\}$ and $b\in\{0.2,1,2.5,16,64,10^3,10^4,10^5\}$
+(0.2 and 2.5 for the fractional-shape budget below). $c_R$ is an expectation over steps: the density part with the
+bookkeeping, update, saddle solves and $K+1$ gammas at $z\in\{-3,0,3\}$, with three evaluations on a valid cache
+entry and four otherwise, weighted by the share of four-evaluation steps (about 38 percent in the negative binomial
+estimated-$r$ cell, measured per cell in S1), plus the cost of rows the $|\psi|$-dependent rule moves between the sum
+and the step from one sweep to the next (a moved row starts with no valid entry, so it is a four-evaluation step).
+It derives the threshold
+$b^*(|\psi|)$, the smallest whole $b$ with $c_R\le c_S$ (log-interpolated between grid points and rounded up), and
+dec-B590's rule becomes: the step at a whole-number row iff $b_i>b^*(|\psi_i|)$, taking at each $|\psi_i|$ the larger
+$b^*$ of the bracketing grid points ($b^*=\infty$ where the route never wins, and $b^*=\infty$ at
+$|\psi_i|>150$, above the grid, so the sum is used there). The rule reads $\psi_i$, not
+$\omega_i$, so Theorem~\ref{thm:rule} keeps it exact. The gate passes if $b^*\le10^3$ at $|\psi|\le8$, where the
+design's binomial and negative binomial cells lie (the scripts' counts give about 250 to 400); if it fails, the step
+has no case at whole-number shapes, and S1 goes back to the maintainer before S2. Fractional shapes have no sum to
+fall back on and keep the route whatever it costs: no inexact fallback is introduced. If $c_R$ there exceeds a
+budget of ten times the design's figure, 70\,$\mu$s a row step, S1 reports the cells that exceed it (in the
+scripts: $|\psi|\ge50$) for the documentation of real weights.
+\end{itemize}
+\item \textbf{The $K$ rule} is a cost choice: any $K\ge1$ is exact and uniformly ergodic. $bD\le0.01$ controls
+the right-tail limit of $f/q$ only; the sentence ``keeps each step uniformly ergodic with a constant the design
+controls'' should say that the constant is $\sup f/q$, which the rule does not control
+(Proposition~\ref{prop:Krule}). The table at $|\psi|=150$ is 140, 223, 353 and 560 for $b=10^2,\dots,10^5$
+(Table~\ref{tab:K}), not 110 to 120 (a truncated sum underestimated $D$); at 41 ns a gamma, the proposal's draws
+alone cost about 23 microseconds a row at the extreme, not 5, and evaluating $q$ at two points, with $K+1$
+terms at each node and cell (item 8), adds more.
+\item \textbf{Fresh on undecided} stays declined (Proposition~\ref{prop:fresh}).
+\item \textbf{Negative binomial.} $\psi_i=\eta_i-\log r$, as the engine forms it, so a moved $r$ changes both the
+shape and the tilt; the rule (fresh where $r$ moved, the step where it stayed) stands for the whole-number grid
+(Theorem~\ref{thm:nb}). A real dispersion needs an $r$ step that reads $\omega$.
+\item \textbf{Setters.} The refusal at fractional marked rows is needed for callers that integrate the latents out
+(contract I); a caller that conditions on them (contract C) is exact with the step at marked rows
+(Theorem~\ref{thm:setters}). setData and setState mark every row and are not refused at fractional shapes; the
+design's ``served by the route as a cold start is'' is not exact for a contract-I caller that calls setData between
+sweeps with data that change a fractional row's $(b_i,\psi_i)$ or activity. Section~\ref{sec:maint}'s second question gives the options. The help of getLatents and the setters should
+say that the guarantee covers the two kinds of outer step only.
+\item \textbf{The cancel} is polled between rows, never inside a row's refinement.
+\item \textbf{Starts.} Any starting value is valid (Theorem~\ref{thm:starts}); the design's ``a start needs no
+exact draw, only a chain that converges from it'' is right, with convergence from a fixed start assumed as today.
+\item \textbf{Multinomial} keeps the sum, for the reason of Theorem~\ref{thm:multi}.
+\item \textbf{Pins} check that the enclosure contains an independent reference, with the sampler's own rates,
+over the far tails the proposal visits, not only four points about the mean.
+\item \textbf{Two S1 gates} (Section~\ref{sec:build}): the engine's floor measured at the pins, with the step
+floor it implies at most $2.3\times10^{-11}$, before any floor figure is quoted; and the timing of item 8, with its
+pass rule. If the floor gate fails, the build either tightens the evaluator's rounding (compensated node sums, the
+slack of Appendix~\ref{app:round}'s bounds) or takes option B$'$ of Section~\ref{sec:maint}, whose second level
+removes the floor question; the documentation quotes no floor until one of them passes.
+\end{enumerate}
+
+\section{For the maintainer}\label{sec:maint}
+
+Two questions came out of the review. Neither is settled in the theorems: each theorem says which idealization
+it needs, and the answers below decide what the package promises.
+
+\subsection*{Question 1: what does ``exact'' mean once the arithmetic is floating point?}
+
+\textbf{Background.} Every sampler in the package, today's exact Polya-Gamma sum included, is exact in one sense
+only: if its random numbers were perfect real numbers and its arithmetic had no rounding, its long-run
+distribution would be the posterior. On a computer each random number is one of $2^{32}$ values, and each
+accept-or-reject test inside a sampler can come out differently from the ideal test, with probability up to about
+one in four billion. Today's sum makes two or more such tests for each unit of shape, so a draw at shape 64
+carries up to about one chance in twenty to thirty million of differing from its ideal, and nobody counts these. The new step has
+the same kind of error from its own random draws, plus one of its own: its accept-or-keep decision uses densities
+computed with a proven error bound, and when the decision is too close to call within that bound at the highest
+precision built, the step has to do something. The first version of the density formula left that case at up to
+about one step in ten million at the largest shapes. The revised formula, with one number per point (the lead
+term) computed in double-double, leaves it at \FLOORSTEPWORDS{} at every point tested; the engine's own figure
+is measured when it is built, and in plain double that one number alone would raise the figure to about one step
+in a few billion.
+
+\textbf{Options.}
+\begin{itemize}
+\item[A.] \emph{The package's standard.} The step is exact in the same sense as every other sampler: under perfect
+arithmetic, with its floor stated. The build uses the revised density formula in double precision with rigorous
+error bounds, the lead term and the cached density in double-double, keeps the old value when the decision is too
+close to call, and counts those cases. Build effort: the evaluator as designed, the error bookkeeping written once
+(about the size of the evaluator itself), and double-double versions, with error bounds, of five real functions
+(exp, log, log1p, sine, square root) for the lead and the cache; no new dependency. Run time: three density
+evaluations a step (four after a fresh draw), each far costlier than the design's sizing assumed. With the error
+bound as specified the step is slower than today's sum at every shape when $|\psi|$ is large, and pays only at
+shapes of a few hundred and up when $|\psi|$ is small; a cheaper bound (proven, not built) could make it pay from
+about a thousand trials. S1 times it and sets the rule from the timings (Section~\ref{sec:changes}, item 8). The
+double-double part is a few hundred operations for $f$'s lead and the update, plus one double-double log1p per
+term of each $q$ lead ($2(K+1)$ a step), small against the certificate. What a user would see: a count of close
+calls, expected to be zero in practice. The documentation quotes the engine's measured floor. At the scripts'
+floor, $6.2\times10^{-12}$ a step, about one fit in 1600 of $10^4$ rows by $10^4$ sweeps would see one; at the
+S1 gate's limit, $2.3\times10^{-11}$, about one fit in 430.
+\item[B$'$.] \emph{A, plus one more precision level.} The close calls are re-evaluated in double-double
+arithmetic (about 32 digits). The floor falls below $10^{-24}$ at the points tested, so the count is zero in any
+run anyone will make. Build effort: beyond A's real double-double functions, their complex versions and expm1,
+sine and the complex square root, with error bounds, and the node formula at that precision: a few hundred lines
+and their tests, about 1.3 to 1.5 times the work of A. Run time: none on average, since the second level runs
+about once in $10^{11}$ steps at the points tested.
+\item[B.] \emph{A full precision ladder.} Close calls are refined to any precision, so the decision is exactly the
+ideal decision. Build effort: a multiple-precision library with rigorous functions (MPFR and MPC, or Arb), a new
+system dependency on every platform CRAN builds for, plus the code. Run time: none on average. What it buys over
+B$'$: nothing a user can observe, and it does not make the step exact in the implemented arithmetic, since the
+proposal is still drawn with floating-point gamma generators and 32-bit uniforms (Section~\ref{sec:ideal}).
+\end{itemize}
+
+\textbf{Recommendation: A, with the lead term in double-double and the floor measured in S1.} It holds the step
+to the standard every other sampler in the package meets, and at the points tested its floor is far below what
+the step's own random numbers already carry. B$'$ if the design's gate ``the tally is
+zero in every gate cell'' should hold with certainty rather than with overwhelming probability; B is not
+recommended.
+
+\subsection*{Question 2: what should setData and setState do at fractional shapes?}
+
+\textbf{Background.} When the code that runs the BART sampler inside a larger sampler changes the data between
+sweeps, the rows whose latent distribution changed are marked and redrawn from scratch at the next sweep. At a
+fractional shape (real frequency weights, dec-B568) no from-scratch draw exists, so the other setters refuse such
+a change. setData and setState are not refused; the design moves their marked fractional rows by the step from
+the value the row had. That is exact if the larger sampler reads the latents and conditions on them. It is not
+exact if the larger sampler integrates the latents out and calls setData between sweeps with data that change
+such a row: the step then starts from
+a value drawn under the old data and does not forget it in one sweep, a bias of the kind dec-B589 removed for the
+ordinal cutpoints (about 1.5\% in total variation in the exact toy of Theorem~\ref{thm:setters}). setState is
+the same question when the state it installs was saved under other data than the sampler now holds; a state saved
+under the data now installed changes no row's distribution, and the step from it is exact. Whatever the answer,
+real weights are costlier than the design assumed: at fractional shapes the step is the only exact draw, and with
+the error bound as specified a row step costs about 40 to 90 microseconds at $|\psi|$ up to 50 and about 320 at
+150, against the design's 7 (Section~\ref{sec:changes}, item 8).
+
+\textbf{Options.}
+\begin{itemize}
+\item[(i)] \emph{Refuse setData and setState at fractional shapes once a chain has run}, as the other setters are
+refused; both stay allowed before the first sweep (a start, including restoring a saved state into a new
+sampler). Cost to a user: a caller with real weights who wants to swap data or restore a state mid-chain cannot;
+they build a new sampler and burn in again, or use whole-number weights. Build: one check and a message.
+\item[(ii)] \emph{Allow it, documented as a restart.} Cost to a user: after each call the chain must burn in
+again. For a caller that calls setData every sweep, as dec-B589 contemplates, every sweep is a restart and no
+draw is from the posterior; the bias is unknown and silent. Build: documentation.
+\item[(iii)] \emph{Allow it, documented as exact only for a caller that reads the latents.} Cost to a user: a caller
+that integrates them out gets a silent bias, and the engine cannot tell which kind of caller it serves. Build:
+documentation.
+\item[(iv)] \emph{Mark only what changed.} setData compares each row's response, weight, offset and predictors
+with the installed ones, marks only the rows that differ, and refuses only if a marked row has a fractional shape;
+setState, which cannot tell under which data its state was saved, stays refused mid-chain at fractional shapes.
+Cost to a user: none beyond (i), and a caller that hands the same data every sweep, or changes only whole-number
+rows, is served exactly. Build: a row-by-row comparison at each call (one pass over the data, a fraction of a
+sweep) and its tests, about twice (i).
+\end{itemize}
+
+\textbf{Recommendation: (i) now, (iv) if a caller needs it.} (i) keeps every caller exact at no run-time cost and
+matches the other setters; (iv) is (i) refined so that only an impossible request is refused. (ii) and (iii) leave
+a silent bias.
+
+\section{Not proven}\label{sec:notproven}
+
+\begin{enumerate}
+\item \textbf{A sharp certified $M^*$.} Appendix~\ref{app:explicit}'s bound is explicit but loose by many orders of
+magnitude in the bulk at large $b$ or $|\psi|$. A certified sup of $f/q$ (grid values with certified densities plus
+a certified bound between grid points, and the tail bounds of Appendix~\ref{app:explicit}) is not built. So the
+rate $(1-1/M^*)^n$ and Theorem~\ref{thm:mitro}'s constant have no certified numerical value, and rejection
+sampling from $q$ (which would give exact fresh draws at fractional shapes) is not available.
+\item \textbf{The engine's library.} The numbers here are certified in ball arithmetic (Arb), whose functions carry
+proven error bounds. A double-precision engine build relies on (A2) for its math library, which is assumed, not
+proven for any particular library, and on double-double functions with error at most $2^{-100}$ for the lead and
+the cache (A2$'$, Appendix~\ref{app:round}); the radii of a hand-written implementation with the rules of
+Appendix~\ref{app:round} were not measured and may exceed Arb's 53-bit radii by a small factor (an S1 gate).
+\item \textbf{Finiteness at one precision everywhere.} The enclosure is valid wherever it is finite, and with a
+precision ladder the evaluation succeeds at every $x$; that 53 bits suffice at every reachable $x$ was checked at
+the pins of Appendix~\ref{app:num}, not proven. The floor figures are measured at those points, in ball
+arithmetic with the lead at 106 or 100 bits, not bounded over the whole range or measured in an engine.
+\item \textbf{Cost.} The certified evaluator's cost is counted in the scripts and priced at kernel times, not timed
+in an engine; the cheaper certificate of Section~\ref{sec:cheap} is proven but not built, so whether it brings the
+cost near the main sum's is open (Section~\ref{sec:changes}, item 8).
+\item \textbf{The floors of today's samplers} (Section~\ref{sec:ideal}) are bounded per comparison; the number of
+comparisons per draw and the gamma generator's own approximation error were not measured.
+\item \textbf{Convergence from a fixed start} of the whole sampler (Harris recurrence, or $\varphi$-irreducibility
+and aperiodicity of today's sweep) is assumed, as for today's sampler.
+\item \textbf{Efficiency.} Nothing here bounds acceptance rates or effective draws beyond Theorem~\ref{thm:row}'s
+rejection bound $2\TV(f,q)$.
+\item \textbf{The vertical-line rule} at small $b$ was not run.
+\item \textbf{Multinomial:} only that the step with persistent latents and the existing forest step is not exact;
+not that no exact persistent-latent scheme exists.
+\item \textbf{Ranges.} The proofs hold for all $b>0$ and real $\psi$; numerical checks cover $b\in[0.2,10^5]$,
+$|\psi|\le150$, with the proposal pinned up to \QPINMAXK{} terms. \QPINKNOTE
+\item \textbf{Literature not read.} \cite{tierney}, \cite{mt} and \cite{wt} could not be fetched. Nothing here
+depends on them: reversibility and the convergence theorems are cited from \cite{rr}, the converse of uniform
+ergodicity for an unbounded weight is proven directly (Proposition~\ref{prop:K0}), and the contour lemmas are
+proven here rather than taken from \cite{wt}.
+\end{enumerate}
+
+\appendix
+
+\section{Rounding}\label{app:round}
+
+\paragraph{What the scripts do.} Every certified number in this note is computed in ball arithmetic (Arb through
+python-flint, \cite{arb}): a real or complex quantity is held as a midpoint $m$ and a radius $r\ge0$, the true value
+lying in the ball $\{|v-m|\le r\}$, and each operation returns a ball that contains the image of its input balls,
+its radius rounded upward. These are not first-order statements; each holds exactly. Arb's elementary functions
+($\exp$, $\log$, $\mathrm{log1p}$, $\mathrm{expm1}$, $\sin$, $\cos$, $\sinh$, $\cosh$, real and complex square root
+and logarithm) are rigorous in the same sense. The working precision $p$ (53 or 106 bits) sets the midpoints'
+rounding, so radii are of order $2^{-p}$ times the size of the quantities combined, absolute and relative by
+construction; the radius of $\log p(x)$ reported in Table~\ref{tab:floor} and in the pins is the full radius,
+rounding and mathematical error together. Inputs are exact doubles ($x$, $\psi$, the sampler's $r_k,\alpha,\beta$),
+so nothing is charged for representing them, and $\sigma=\psi^2/2$ is formed inside the arithmetic. This replaces
+the first version's first-order analysis and its multiplicative inflation, which shrank negative logarithms and
+did not scale with $b$; the first version's script is superseded by \texttt{arbpg.py}.
+
+\paragraph{The rules, for a double-precision engine build.} An engine without a ball library can carry the same
+enclosures in double precision with these rules, each exact under (A1)--(A2), with $u=2^{-53}$ and
+$\gamma_n=nu/(1-nu)$ \cite[Lemma~3.1]{higham}. Every radius is computed in floating point with its own rounding
+covered: either in upward rounding, or, in round to nearest, a radius formed by $n$ operations (a sum of $m$ terms
+counting $m-1$) is multiplied by $1+\gamma_n$ and increased by $n$ times the smallest positive double, for
+underflow. For the node sum and the truncation's dropped-node sums $n$ is the number of terms, up to $2\times10^4$
+under the scripts' caps, so $\gamma_n\le2.3\times10^{-12}$, still a negligible relative change of a radius.
+\begin{itemize}
+\item \emph{Sum.} $\widehat{x+y}=\fl(m_x+m_y)$, radius $r_x+r_y+u|\widehat{x+y}|$. A sum of $n$ terms computed
+recursively has error at most $\gamma_{n-1}\sum|m_i|$ \cite[Sec.~4.2]{higham}, added to $\sum r_i$.
+\item \emph{Product.} $|xy-m_xm_y|\le|m_x|r_y+|m_y|r_x+r_xr_y$, plus $u|\fl(m_xm_y)|$; for complex balls the same with
+moduli, plus $\gamma_2\cdot\sqrt2$ times the product of moduli for the complex multiplication itself. Quotient:
+$|x/y-m_x/m_y|\le(|m_x|r_y+|m_y|r_x)/(|m_y|(|m_y|-r_y))$ for $r_y<|m_y|$, plus $u|\fl(m_x/m_y)|$.
+\item \emph{Exponential.} $|e^x-e^{m}|\le e^{m}\,\mathrm{expm1}(r)$ for real $x$ (complex: $|e^{m}|\mathrm{expm1}(r)$),
+plus the library's $u_L|e^m|$; no premise on the size of $r$ (this replaces the first version's factor $1.01$,
+which assumed $\mathrm{expm1}(r)<0.01$ without checking it).
+\item \emph{Logarithm.} $|\log x-\log m|\le-\mathrm{log1p}(-r/|m|)$ for $r<|m|$, plus $u_L|\log m|$;
+$\mathrm{log1p}$ likewise with $1+m$ in place of $m$.
+\item \emph{Analytic functions} ($\sqrt{\cdot}$, $\mathrm{expm1}$, $\sin$, $\cos$, $\cosh$): $|g(x)-g(m)|\le r\sup|g'|$
+over the ball, with the supremum bounded from the ball's ends (for $\sqrt W$ with $|W|>r$:
+$r/(2\sqrt{|m|-r})$), plus the library's error.
+\item \emph{Branch cuts.} For the principal complex square root, logarithm and log1p the two rules above hold only
+on a ball that misses the branch cut (the closed negative real axis; for log1p, the real points at or below $-1$).
+Where the true argument is known to lie in the closed upper half plane, as $W=W_0+\Delta$ at a node with $y\ge0$
+($\mathrm{Im}\,\Delta=2\rho y$) and $1+2\Delta/(2\tau_j^2+t_0)$ for the finite family, the ball is first intersected
+with that half plane: on it the principal branch, continued to the cut from above, is continuous, and the
+derivative bound over the intersection (a convex set) applies. For the log1p of \eqref{eq:cf}, a ball of its
+argument plus 1 that meets the cut is replaced by the direct form $\lambda(w)-\lambda(w_0)$, whose
+$\mathrm{log1p}(e^{-2w})$ has $|e^{-2w}|<1$ and never meets it. Any other ball that meets a cut is widened to contain
+both one-sided limits, or the evaluation is marked undecided. Arb does the equivalent internally.
+\item \emph{Log-domain majorants.} A bound $\log M\le\hat\ell$ is valid when $\hat\ell$ is the computed value plus the
+error bound of the terms that formed it (the sum rule on the terms of the logarithm), never the computed value
+times a factor: a factor $1+\epsilon$ shrinks a negative logarithm, and a fixed offset does not scale with the
+terms, which at $b=10^5$ reach $10^6$.
+\end{itemize}
+The evaluator built this way is the one \texttt{arbpg.py} specifies; its radii are larger than Arb's by the
+library's $u_L$ terms and the slack of the bounds above, a small factor that was not measured.
+
+\paragraph{The lead and the cache in double-double.} A double-double number is an unevaluated sum of two doubles.
+The lead \eqref{eq:lead} and the update \eqref{eq:tiltupd} are carried with the same rules, $u$ replaced by
+$u_2=16u^2=2^{-102}$ and $\gamma_n$ by $\gamma^{(2)}_n=nu_2/(1-nu_2)$. $u_2$ bounds the relative error of the
+accurate double-double addition, multiplication and division of \cite{jmp}. The functions $\exp$, $\log$,
+$\mathrm{log1p}$, $\sin$ and $\sqrt{\cdot}$ in double-double are assumed to have a stated relative error
+$u_{L2}\le2^{-100}$ (A2$'$, the counterpart of (A2); the scripts' 100-bit stand-in is this case). The inputs $x$,
+$t_0$, $b$, $\psi$, $a_j$, $\mu_j$ are exact doubles, and a sum or product of two doubles is exact in
+double-double, so $A_\psi^2$, $\psi'-\psi$ and $\psi'+\psi$ carry no error. Counting operations as above: the
+radius of $\ell_q$ is at most $(\gamma^{(2)}_{K+4}+u_{L2})(|xt_0|+\sum_ja_j|\mathrm{log1p}(t_0/\mu_j)|)$, and that
+of $\ell_f$ at most $(\gamma^{(2)}_{12}+2u_{L2})(|xt_0|+b|\lambda(w_0)|+b|\lambda(A_\psi)|)+R_W$. Here $R_W$ carries
+the rounding of $W_0$ (radius $u_2|W_0|$) through $W\mapsto\lambda(\sqrt W)$, whose derivative is
+$\tanh(w_0)/(2w_0)\le\frac12$, or through $W\mapsto\log\cos\sqrt{-W}$, whose derivative $\tan(v)/(2v)$, $v=\sqrt{-W_0}$,
+is unbounded as $v\to\pi/2$; so the build charges $R_W=b\,u_2|W_0|\,D$ explicitly, where $D$ is the derivative
+at the lower end of $W_0$'s enclosure ($D$ decreases in $W$ across both branches, so this bounds it on the
+enclosure): $D=\tanh(w)/(2w)$ there on $W_0\ge0$, $D=\tan(v)/(2v)$ on $W_0<0$. At the saddle $b\tan(v)/(4v)=x$ (the
+saddle equation at $w_0=iv$), so there $R_W=2u_2x|W_0|\le u_2x|t_0|$, as $|W_0|\le|t_0|/2$ when $W_0<0$; on
+$W_0\ge0$, $R_W$ is $b\,u_2w_0\tanh(w_0)/2\le b\,u_2w_0/2$ up to a factor $1+O(u_2)$, and at most $u_2b\lambda(w_0)$, as
+$w\tanh w/2\le\log\cosh w$ (the difference is 0 at 0 and increasing); both are inside the count above,
+but $t_0$ is solved only approximately, so the explicit charge is what the build uses. $\log\cos v$ is formed as
+$\log\sin(\pi/2-v)$ with $\pi/2$ held in double-double, so that (A2$'$) needs a relative error bound for $\sin$ near
+0 only; the absolute error this leaves, $b(\pi/2)u_2/(\pi/2-v)$, is at the saddle about $\pi^2xu_2\le2u_2x|t_0|$
+($|t_0|\ge\pi^2/2$ when $v$ is near $\pi/2$), again inside the count. Over $b\le10^5$, $|\psi|\le150$ and $|z|\le20$ these sums are at most
+about $1.5\times10^7$ for $f$ and $1.1\times10^5$ for $q$, so both radii are below $10^{-22}$. The update's radius is
+small: in the difference form of Section~\ref{sec:floor} its terms are of size $b|\psi'-\psi|$ and $x|\psi'^2-\psi^2|/2$, at most about $10^6$ for
+$|\psi'-\psi|\le5$, so the radius is below $10^{-23}$. Rounding the cached value to double is avoided by storing
+it in double-double.
+
+\paragraph{The left series.} Its terms are computed in multiple precision in \texttt{refs.py} (a reference only); the
+certified left-series bound of Proposition~\ref{prop:left} is not used by the pins and needs, in an engine build,
+the same rules for its recurrence and its sum.
+
+\section{An explicit bound on the weight}\label{app:explicit}
+
+Untilted form: $w=\kappa\,\fz/\qt$ with $\kappa=\cosh^b(\psi/2)\widetilde L(\sigma)$ by \eqref{eq:qtilt}. Let
+$\tilde\rho_k=r_k-\sigma$ ($k\le K$, so $\tilde\rho_1\le c_1$), $\tilde\beta=\beta-\sigma$ (the largest rate of
+$\qt$), $A=Kb+\alpha$, $J=\lceil1/b\rceil$, $\tilde c=\prod_{k\le K}(\tilde\rho_k/\tilde\beta)^b$,
+$\Pi_J=\prod_{k=2}^J(c_k/c_1)^b$, $E_J=\prod_{k>J}(1-c_1/c_k)^{-b}$ (with $\prod_{k\ge2}(1-c_1/c_k)=\pi/4$),
+$Y_q=\sum_{k=2}^K\Ga(b,\tilde\rho_k)+\Ga(\alpha,\tilde\beta)$, $\tilde\mu=\sum_{k=2}^Kb/(\tilde\rho_k-\tilde\rho_1)+
+\alpha/(\tilde\beta-\tilde\rho_1)$, $E_q=\E e^{\tilde\rho_1Y_q}$, and $x_s=(b+1)/(2\log(2C_b))$. Choose $\theta\in
+(0,1]$ ($\theta<1$ if $b>1$) and $X>\tilde\mu/\theta$.
+
+\begin{proposition}\label{prop:explicit}
+$M^*\le\max(M_A,M_B,M_C)$, where
+\begin{align*}
+M_A&=\frac{\kappa\,2^{b-1}b\,\Gamma(A)}{\tilde c\sqrt{2\pi}\,\tilde\beta^A}\,e^{\tilde\beta x_s}\,
+\Bigl(\frac{8(A+\frac12)}{b^2}\Bigr)^{A+\frac12}e^{-(A+\frac12)}\quad(x\le x_s),\\
+M_B&=\frac{\kappa\,\Pi_JE_J}{\tilde c}\max_{x\in\{x_s,X\}}\frac{g_{Jb,c_1}(x)}{g_{A,\tilde\beta}(x)}\quad
+(x_s\le x\le X;\ \text{omit if }x_s\ge X),\\
+M_C&=\frac{\kappa\,(c_1/\tilde\rho_1)^bB}{E_q(1-\theta)^{(b-1)_+}(1-\tilde\mu/(\theta X))}\quad(x\ge X),
+\end{align*}
+with $B=E_1=(\pi/4)^{-b}$ if $b\ge1$, and for $b<1$ $B=2^{1-b}(\pi/4)^{-b}+\frac{\Pi'E'}{b2^b}
+\sup_{y\ge X/2}2y\,e^{c_1y}g_{Jb,c_2}(y)$, $\Pi'=\prod_{k=3}^{J+1}(c_k/c_2)^b$,
+$E'=\prod_{k\ge J+2}(1-c_2/c_k)^{-b}$, the supremum attained at $y=\max(X/2,Jb/(c_2-c_1))$.
+\end{proposition}
+\begin{proof}
+$x\le x_s$: $\fz\le a_0$ (Proposition~\ref{prop:left}), $\qt\ge\tilde cg_{A,\tilde\beta}$ (Lemma~\ref{lem:merge});
+\[a_0/g_{A,\tilde\beta}=\frac{2^{b-1}b\,\Gamma(A)}{\sqrt{2\pi}\,\tilde\beta^A}\,x^{-A-1/2}e^{-b^2/(8x)+\tilde\beta x},\]
+and
+$x^{-A-1/2}e^{-b^2/(8x)}$ is maximal at $x=b^2/(8(A+\frac12))$. $x_s\le x\le X$: merge the first $J$ terms of
+$\fz$ (Lemma~\ref{lem:merge}) into $\Pi_Jg_{Jb,c_1}$ and apply Lemma~\ref{lem:gconv}(i) with $a=Jb\ge1$; the ratio
+$g_{Jb,c_1}/g_{A,\tilde\beta}\propto x^{Jb-A}e^{(\tilde\beta-c_1)x}$ has a logarithm that is convex (if $A\ge Jb$)
+or increasing (if $A<Jb$), so its maximum on an interval is at an end. $x\ge X$: $\fz=g_{b,c_1}\Phi_f$ with
+$\Phi_f\le B$ by Lemma~\ref{lem:gconv}(i) or (ii) (for (ii), merge the terms $k=2,\dots,J+1$ of $Y_f$ and use (i)
+for the density bound $p_{Y_f}\le\Pi'E'g_{Jb,c_2}$, and $x\le2y$ on $y\ge x/2$); $\qt=g_{b,\tilde\rho_1}\Phi_q$ with
+$\Phi_q\ge E_q(1-\theta)^{(b-1)_+}(1-\tilde\mu/(\theta x))$ by Lemma~\ref{lem:gconv}(iii), increasing in $x$; and
+$g_{b,c_1}/g_{b,\tilde\rho_1}\le(c_1/\tilde\rho_1)^b$.
+\end{proof}
+Every factor is finite, so this proves Proposition~\ref{prop:bounded} with constants. It is useless for rates
+(script \texttt{explicit\_m.py}, 40 digits, $\theta$ and $X$ optimized on a grid): about $10^{18}$ at
+$(b,\psi,K)=(1,0,1)$, $10^{582}$ at $(16,8,3)$ and $10^{1000}$ at $(0.2,150,1)$, against certified lower bounds of
+1.07, 1.005 and 35.6; $M_A$ dominates every case, $M_C$ is between $10^2$ and $10^5$. in
+$M_A$ and $M_B$ the factor $e^{\tilde\beta x}$ with $\tilde\beta\ge c_{K+1}$ is astronomically large wherever the
+$K$ rule takes many terms, and $M_C$'s $(1-\theta)^{-(b-1)}$ grows exponentially in $b$.
+
+\section{The exact finite-state examples}\label{app:toys}
+
+All in rational arithmetic (script \texttt{exact\_toys.py}, output \texttt{exact\_toys.out}); random positive
+rational distributions from a fixed seed, so a zero is structural. Each reports $\max_j|(\pi P)_j-\pi_j|$ and the
+$\TV$ between the stationary distribution and the target.
+\begin{itemize}
+\item \textbf{Toy 1} (Section~\ref{sec:nb}): states $(f,r,\omega)$, $3\times3\times3$; $r$ drawn from
+$\pi(r\mid f)$, then $\omega$ fresh where $r$ moved and by IMH where it stayed, then $f\sim\pi(f\mid r,\omega)$.
+Designed rule: 0 and 0. IMH after every $r$ draw: 0.00954 and 0.0393.
+\item \textbf{Toy 2} (Proposition~\ref{prop:fresh}): described there. 1/120 and 0.0108.
+\item \textbf{Toy 3} (Theorem~\ref{thm:multi}): two categories, $p(t_1,t_2)$, latent $w_k\sim c_k(\cdot\mid t_1,
+t_2)$, forest $k$ drawing $t_k\sim p(t_k\mid t_{-k},w_k)$. Fresh $w_k$ before forest $k$: 0 and 0. Stored $w_k$
+moved by IMH against $c_k(\cdot\mid t)$: $t$-marginal $\TV$ 0.00607.
+\item \textbf{Toy 4} (Theorem~\ref{thm:setters}): outer $\theta$, fits $f$, one latent $w$; outer step, latent
+step, then $f\sim\pi(f\mid\theta,w)$. Contract C (outer $\theta\sim\pi(\theta\mid f,w)$): fresh 0, IMH 0.
+Contract I ($\theta\sim\pi(\theta\mid f)$): fresh 0; IMH 0.00323 and 0.0154.
+\item \textbf{Toy 5} (Theorem~\ref{thm:rule}): IMH alone 0; fresh alone 0; fresh at states 2, 3 and IMH at 0, 1:
+0.167 and 0.258.
+\item \textbf{Toy 6} (Proposition~\ref{prop:fixedtop}; \texttt{keep\_toy.py}, \texttt{keep\_toy.out}): the fixed
+decision ``keep $x$'' on an undecided band of width $d(x,y)$ just below $a(x,y)<1$ (the move is taken only when
+$U<a-d$; at $a=1$ it is always taken). Two states, target $(\frac23,\frac13)$, uniform proposal, $d=\frac1{100}$:
+$1/300$ and $0.00447$. Toy 2's three states and proposal with $d=a/100$: $1/600$ and $0.00251$; with
+$d=(1+x+2y)/100$: $3/200$ and $0.0208$. The three-state chain and its values are the first referee's (round 2),
+reproduced here.
+\end{itemize}
+
+\sloppy
+\section{Numerical verification}\label{app:num}
+
+Scripts are under \texttt{scripts/} beside this note (Python 3, mpmath, python-flint for Arb). The first
+version's \texttt{exact\_toys.py}, \texttt{kd.py}, \texttt{explicit\_m.py} and \texttt{pgref.py}, in the same
+folder, are used unchanged.
+\begin{itemize}
+\item \texttt{arbpg.py}: Algorithm~\ref{alg:dens}, Theorem~\ref{thm:dens} and Proposition~\ref{prop:cf} in ball
+arithmetic at 53 or 106 bits; a specification by example of S1, not the engine. It returns the enclosure of
+$\log f$ or $\log q$, the mathematical part $E$, and the rounding part separately.
+\item \texttt{proposal.py}: the proposal's numbers as the sampler forms them: $r_k=\fl(c_k+\fl(\psi^2/2))$ in
+double, $r_1$ then rounded down below $d_1$, and $\alpha,\beta$ from the tail sums in 40 digits, rounded to
+double. The pins of $q$ use these doubles, not $c_k/2$ (the first version's pins did).
+\item \texttt{refs.py}: independent references in mpmath: $\log f$ by the left alternating series in adaptive
+precision (the formula of the second referee's \texttt{refcheck.py}), and by quadrature on parabolic contours
+other than the enclosure's (\texttt{pgref.py}, 34 to 50 digits); $\log q$ by quadrature on two such contours. The
+two contour references agreed to every digit printed at every pin.
+\item \texttt{pins2.py}, \texttt{pins\_f.out}: $\log f$ at 500 pins, $b\in\{0.2,0.5,1,2.5,8,16,64,10^3,10^4,10^5\}$,
+$|\psi|\in\{0,8,50,100,150\}$, $x$ the mean plus $z\in\{-4,-2,-1,0,0.5,1.5,3,5,8,12\}$ standard deviations
+(the mean over 20 if that is not positive); the left series as a third reference for $b\le16$. Every enclosure
+contained every reference; largest error over radius 0.51. With the lead in 53 bits the radii run from
+$1.1\times10^{-14}$ to $6.9\times10^{-11}$ (the largest at $b=10^5$, $|\psi|=150$, $z=12$, set by the lead); with
+the lead in 106 bits (\texttt{pins\_f\_L.out}, the same 500 pins, all held) from $1.0\times10^{-14}$ to
+$1.4\times10^{-12}$ (the largest at $b=10^5$, $\psi=0$, $z=0$).
+\item \texttt{pins3.py}: $\log q$ at the rule's $K$ from the sampler's rates, \QPINS
+\item \texttt{floor.py}, \texttt{floor\_z0.out}, \texttt{floor\_1e5\_150.out} (merged in \texttt{floor\_all.out}), \texttt{q560.py}: Table~\ref{tab:floor}, at the mean, the first version's untilted
+formula and the tilted one in the same ball arithmetic, at 53 and 106 bits.
+\item \texttt{hi106.py}: radii at 106 bits away from the mean (\texttt{hi106\_f.out}, \texttt{hi106\_q.out}): at most
+$6\times10^{-27}$ for $\log f$ and $2.2\times10^{-25}$ for $\log q$ ($K=560$, $z=12$), the lead being then the
+largest part again.
+\item \texttt{wgrid.py} (\texttt{wgrid.out}): the certified lower bounds on $M^*$ below, from enclosures of $\log f-\log q$ on a grid of
+$z$ (the largest certified lower end over the grid).
+\item \texttt{pins\_f\_L100.out}, \texttt{pins\_q\_B.out}, \texttt{pins\_q\_B2.out} (round 2): the lead at 100 bits,
+a stand-in at least as pessimistic as double-double. $\log f$ at 120 pins ($b\in\{64,10^3,10^4,10^5\}$,
+$|\psi|\in\{0,8,50,100,150\}$, $z\in\{-4,-2,0,3,8,12\}$): all held, largest error over radius 0.34, radii up to
+$1.41\times10^{-12}$, as at 106 bits. $\log q$ at 30 pins ($b\in\{0.2,2.5,64,10^3,10^4\}$, $|\psi|\in\{8,150\}$,
+$z\in\{-4,0.5,12\}$) with a third reference independent of the parabolic contour: the vertical line through the
+saddle (\texttt{refs.logq\_bromwich}, 30 digits) at 21 pins, where it agreed with the contour references to
+$10^{-20}$ or better, and Moschopoulos's series for a sum of gammas \cite{mosch} (\texttt{refs.logq\_mosch}, 40
+digits, all terms positive) at the 9 pins with the largest rate times $x$ small, where it agreed to $10^{-17}$ or better. All
+held, largest error over radius 0.53, radii up to $9.0\times10^{-14}$. The vertical line alone failed at small
+total shape, where its integrand decays slowly (\texttt{pins\_q\_B.out}: disagreements up to 1 with both contour
+references), as the first referee found the Talbot inversion failing at large total shape; the failures are the
+reference's, and \texttt{pins\_q\_B2.out} reruns those pins with the series.
+\item \texttt{cacheupd.py}: the update \eqref{eq:tiltupd} of a cached $\log f(x)$ at 53 and 106 bits, against a
+fresh evaluation at the new $\psi$.
+\item \texttt{costcount.py} (round 2, superseded): per-point counts under settings not recorded with them.
+\item \texttt{cost3.py} (round 3): the counts of Section~\ref{sec:changes}, item 8, under four cell configurations
+fixed in the script before any evaluation, each run printing its own radius, rounding and mathematical parts,
+whether it reached the floor, the counts at the final $h$ and over the $h$-walk (\texttt{cost3\_a.out} to
+\texttt{cost3\_d.out}; \texttt{ONLY=DEF} runs, for the coarsest certified $h$, in \texttt{cost3\_def1.out},
+\texttt{cost3\_def2.out}); \texttt{cost3\_table.py} charges the a-priori cascade and prices it
+(\texttt{cost3\_table.md}, every point; \texttt{cost3\_note.tex}, the table in the note).
+\item \texttt{bench/termbench.c}: kernel times per term in plain double; \texttt{bench/pgbench.c} with
+\texttt{stubs.c}: today's $\PG(1,\psi)$ draw, the package's \texttt{ext\_rng\_simulatePolyaGamma} compiled
+standalone against R's normal distribution functions, on the same machine.
+\item \texttt{cacheupd\_r3.out}: the update rerun with the addition at 106 bits.
+\item \texttt{agg\_check.py} (\texttt{agg\_check.out}): Lemma~\ref{lem:agg}'s closed forms $T_1$, $T_2$ against
+direct sums (to $10^{-31}$), and its bound against $\log|\Lt(z)/\Lt(\rho)|$ for $f$ at 20 points on lines on both
+sides of the contour, $b$ from 0.2 to $10^5$, $\kappa Y$ from 0.1 to 0.99: it held at every point, tight to
+$0.004$ at $\kappa Y=0.1$ and loose as $\kappa Y\to1$ (which is why $J_0$ may be enlarged).
+\item \texttt{keep\_toy.py}: Toy 6.
+\item \texttt{exact\_toys.py}, \texttt{kd.py}, \texttt{explicit\_m.py}: as in the first version (the toys in rational
+arithmetic; $D$, Table~\ref{tab:K} and the cap thresholds in 40 digits; Appendix~\ref{app:explicit}'s bound).
+\end{itemize}
+
+What the pins cover: they test that the enclosure contains the true value at the points tested. The enclosure is
+an a priori bound computed at run time, so the pins check the implementation, not the theorem, and a point not
+pinned is covered by the same bound; what is not covered is whether 53 bits suffice to make the enclosure finite
+and narrow everywhere (Section~\ref{sec:notproven}).
+
+\begin{center}\small
+\begin{tabular}{rrrrrr}\toprule
+$b$ & $\psi$ & $K$ & $e^{bD}$ & $M^*\ge$ & at $z$\\\midrule
+WGRIDROWS
+\bottomrule
+\end{tabular}
+\end{center}
+The first version's entry at $(2,0,1)$, $M^*\ge1.0004$, came from a grid that missed the left-side maximum; the
+second referee found $1.0183$ at $z=-1.325$, and the grid here gives $1.0181$ at $z=-1.30$, so $M^*>e^{bD}$ also
+at $b=2$ and $b=4$, which strengthens Proposition~\ref{prop:Krule}(c).
+
+\begin{thebibliography}{99}
+\bibitem{psw} N.~G. Polson, J.~G. Scott and J.~Windle (2013). Bayesian inference for logistic models using
+P\'olya-Gamma latent variables. \emph{J. Amer. Statist. Assoc.} 108, 1339--1349 (arXiv:1205.0310).
+\bibitem{wps} J.~Windle, N.~G. Polson and J.~G. Scott (2014). Sampling P\'olya-Gamma random variates: alternate and
+approximate techniques. arXiv:1405.0506.
+\bibitem{rr} G.~O. Roberts and J.~S. Rosenthal (2004). General state space Markov chains and MCMC algorithms.
+\emph{Probab. Surveys} 1, 20--71.
+\bibitem{tw} L.~N. Trefethen and J.~A.~C. Weideman (2014). The exponentially convergent trapezoidal rule.
+\emph{SIAM Rev.} 56, 385--458.
+\bibitem{mitro} A.~Yu. Mitrophanov (2005). Sensitivity and convergence of uniformly ergodic Markov chains.
+\emph{J. Appl. Probab.} 42, 1003--1014.
+\bibitem{vdj} D.~A. van Dyk and X.~Jiao (2015). Metropolis-Hastings within partially collapsed Gibbs samplers.
+\emph{J. Comput. Graph. Statist.} 24, 301--327 (arXiv:1309.3217v2).
+\bibitem{arb} F.~Johansson (2017). Arb: efficient arbitrary-precision midpoint-radius interval arithmetic.
+\emph{IEEE Trans. Comput.} 66, 1281--1292.
+\bibitem{devroye} L.~Devroye (1986). \emph{Non-Uniform Random Variate Generation}. Springer, New York. Cited for its standard model of computation; not checked against a copy here.
+\bibitem{jmp} M.~Joldes, J.-M. Muller and V.~Popescu (2017). Tight and rigorous error bounds for basic building
+blocks of double-word arithmetic. \emph{ACM Trans. Math. Softw.} 44(2), article 15. Cited for the double-word error
+bounds; not checked against a copy here.
+\bibitem{mosch} P.~G. Moschopoulos (1985). The distribution of the sum of independent gamma random variables.
+\emph{Ann. Inst. Statist. Math.} 37, 541--544. Cited for the series used as a reference; not checked against a
+copy here.
+\bibitem{higham} N.~J. Higham (2002). \emph{Accuracy and Stability of Numerical Algorithms}, 2nd ed. SIAM,
+Philadelphia. Cited for the $\gamma_n$ bounds; not checked against a copy here.
+\bibitem{tierney} L.~Tierney (1994). Markov chains for exploring posterior distributions. \emph{Ann. Statist.} 22,
+1701--1762. Not read.
+\bibitem{mt} K.~L. Mengersen and R.~L. Tweedie (1996). Rates of convergence of the Hastings and Metropolis
+algorithms. \emph{Ann. Statist.} 24, 101--121. Not read.
+\bibitem{wt} J.~A.~C. Weideman and L.~N. Trefethen (2007). Parabolic and hyperbolic contours for computing the
+Bromwich integral. \emph{Math. Comp.} 76, 1341--1356. Not read.
+\end{thebibliography}
+\end{document}

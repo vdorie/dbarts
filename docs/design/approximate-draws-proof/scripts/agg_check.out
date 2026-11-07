@@ -1,0 +1,26 @@
+W=-2.0: T1 err 1.2e-30, T2 err 3.9e-30
+W=0.0: T1 err 0.0e+00, T2 err 0.0e+00
+W=0.3: T1 err 0.0e+00, T2 err 2.5e-32
+W=5.0: T1 err 2.5e-32, T2 err 3.1e-33
+W=400.0: T1 err 0.0e+00, T2 err 0.0e+00
+b=16 s'=0.5 rho=1.2 u=0.6 |J0|=0 kY=0.1: lhs 8.76804 rhs 8.88796 ok True
+b=16 s'=0.5 rho=1.2 u=0.6 |J0|=0 kY=0.5: lhs 12.6729 rhs 18.2349 ok True
+b=16 s'=0.5 rho=1.2 u=0.6 |J0|=0 kY=0.9: lhs 15.1863 rhs 102.357 ok True
+b=16 s'=0.5 rho=1.2 u=0.6 |J0|=0 kY=0.99: lhs 15.4344 rhs 1048.73 ok True
+b=16 s'=0.5 rho=1.2 u=1.8 |J0|=1 kY=0.1: lhs -9.20463 rhs -8.98496 ok True
+b=16 s'=0.5 rho=1.2 u=1.8 |J0|=1 kY=0.5: lhs -10.9695 rhs -0.765969 ok True
+b=16 s'=0.5 rho=1.2 u=1.8 |J0|=1 kY=0.9: lhs -10.7402 rhs 155.969 ok True
+b=16 s'=0.5 rho=1.2 u=1.8 |J0|=1 kY=0.99: lhs -10.6005 rhs 1999.45 ok True
+b=100000 s'=2.0 rho=1.6 u=0.8 |J0|=1 kY=0.1: lhs 87561.7 rhs 88596.9 ok True
+b=100000 s'=2.0 rho=1.6 u=0.8 |J0|=1 kY=0.5: lhs 9089.66 rhs 58068.8 ok True
+b=100000 s'=2.0 rho=1.6 u=0.8 |J0|=1 kY=0.9: lhs 3802.02 rhs 843449 ok True
+b=100000 s'=2.0 rho=1.6 u=0.8 |J0|=1 kY=0.99: lhs 6698.32 rhs 1.03021e+07 ok True
+b=0.2 s'=0.0 rho=0.9 u=2.5 |J0|=1 kY=0.1: lhs -0.288054 rhs -0.284251 ok True
+b=0.2 s'=0.0 rho=0.9 u=2.5 |J0|=1 kY=0.5: lhs -0.290304 rhs -0.118398 ok True
+b=0.2 s'=0.0 rho=0.9 u=2.5 |J0|=1 kY=0.9: lhs -0.288064 rhs 2.35837 ok True
+b=0.2 s'=0.0 rho=0.9 u=2.5 |J0|=1 kY=0.99: lhs -0.28829 rhs 31.1504 ok True
+b=64 s'=2.4 rho=0.4 u=0.2 |J0|=1 kY=0.1: lhs -85.838 rhs -85.2192 ok True
+b=64 s'=2.4 rho=0.4 u=0.2 |J0|=1 kY=0.5: lhs -161.594 rhs -132.188 ok True
+b=64 s'=2.4 rho=0.4 u=0.2 |J0|=1 kY=0.9: lhs -165.95 rhs 344.091 ok True
+b=64 s'=2.4 rho=0.4 u=0.2 |J0|=1 kY=0.99: lhs -163.524 rhs 6120.97 ok True
+max lhs - rhs -0.0038030998645740832

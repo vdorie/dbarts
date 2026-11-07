@@ -1,0 +1,9 @@
+b=30000 psi=-60 z=5 x=251.318: fresh rad 1.06e-13
+  dpsi=0.7: update rad 7.74e-28, updated rad 1.06e-13, fresh rad 1.11e-13, |upd mid - fresh mid| 3.6e-15, overlap True
+  dpsi=-2.3: update rad 3.09e-27, updated rad 1.06e-13, fresh rad 2.22e-13, |upd mid - fresh mid| 0.0e+00, overlap True
+  dpsi=121: update rad 7.57e-28, updated rad 1.06e-13, fresh rad 1.32e-13, |upd mid - fresh mid| 2.8e-14, overlap True
+b=100000 psi=150 z=3 x=333.698: fresh rad 2.47e-13
+  dpsi=0.01: update rad 3.19e-29, updated rad 2.47e-13, fresh rad 2.61e-13, |upd mid - fresh mid| 4.0e-15, overlap True
+  dpsi=0.1: update rad 3.56e-28, updated rad 2.47e-13, fresh rad 2.62e-13, |upd mid - fresh mid| 5.3e-15, overlap True
+  dpsi=1: update rad 2.66e-27, updated rad 2.47e-13, fresh rad 2.75e-13, |upd mid - fresh mid| 2.8e-14, overlap True
+  dpsi=5: update rad 1.31e-26, updated rad 2.47e-13, fresh rad 1.16e-12, |upd mid - fresh mid| 9.1e-13, overlap True

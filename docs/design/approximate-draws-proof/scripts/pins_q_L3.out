@@ -1,0 +1,3 @@
+q b=100000 psi=150 K=560 z=0.5 x=333.394 N=124 h=0.00195 rad=1.28e-13 round=1.28e-13 act=3.64e-14 ok=True refdis=4e-29 t=27.8
+q b=100000 psi=150 K=560 z=3 x=333.698 N=124 h=0.00195 rad=1.28e-13 round=1.28e-13 act=3.65e-14 ok=True refdis=2e-29 t=36.2
+SUMMARY q: pins=2 failures=0 max act/rad=0.285 max rad=1.28e-13

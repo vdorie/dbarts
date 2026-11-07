@@ -1,0 +1,6 @@
+b=1 psi=0 K=1: log10 bound = 18.3 (log10 M_A 18.3, M_B -, M_C 2; theta 1, X 0.051, x_s 0.558) certified lower bound 1.07: consistent
+b=1 psi=8 K=1: log10 bound = 27.4 (log10 M_A 27.4, M_B -, M_C 2.02; theta 1, X 0.0475, x_s 0.558) certified lower bound 1.0909: consistent
+b=0.3 psi=8 K=1: log10 bound = 12 (log10 M_A 12, M_B -, M_C 3.14; theta 1, X 0.0143, x_s 0.238) certified lower bound 1.2632: consistent
+b=2 psi=0 K=1: log10 bound = 22.9 (log10 M_A 22.9, M_B 17.89585022560134, M_C 2.06; theta 0.125, X 0.817, x_s 0.721) certified lower bound 1.0004: consistent
+b=16 psi=8 K=3: log10 bound = 582 (log10 M_A 582, M_B 557.380625185756, M_C 4.1; theta 0.275, X 2.97, x_s 2.37) certified lower bound 1.0048: consistent
+b=0.2 psi=150 K=1: log10 bound = 1e+03 (log10 M_A 1e+03, M_B -, M_C 4.73; theta 1, X 0.00128, x_s 0.194) certified lower bound 35.61: consistent

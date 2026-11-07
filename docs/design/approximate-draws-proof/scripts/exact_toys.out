@@ -1,0 +1,10 @@
+Toy 1, estimated r: designed rule  |piP - pi| = 0.0  TV(stationary, pi) = 0.0
+                    IMH after any r |piP - pi| = 0.009543804656848143  TV(stationary, pi) = 0.03928525967874714
+Toy 2, fresh draw on unresolved decisions: |piP - pi| = 0.008333333333333333  TV = 0.010773731862570671
+Toy 3, interleaved augmentation: fresh  |piP - pi| = 0.0  TV = 0.0
+                                 route  TV(theta-marginal, p) = 0.0060677433977814246
+Toy 4, contract C, latent fresh |piP - pi| = 0  TV = 0
+Toy 4, contract C, latent route |piP - pi| = 0  TV = 0
+Toy 4, contract I, latent fresh |piP - pi| = 0  TV = 0
+Toy 4, contract I, latent route |piP - pi| = 0.00323  TV = 0.0154
+Toy 5, IMH 0, fresh 0, choice read from w: |piP - pi| = 0.167, TV = 0.258

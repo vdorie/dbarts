@@ -1,0 +1,97 @@
+CONFIGS [('L10', {'fr_p': [0.5], 'am': [-0.5], 'ncell': (10, 40), 'maxdepth': 0}), ('L32', {'fr_p': [0.5, 0.2], 'am': [-0.5, 1.0], 'ncell': (32, 32), 'maxdepth': 2}), ('L8', {'fr_p': [0.3], 'am': [-0.5], 'ncell': (8, 8), 'maxdepth': 1}), ('DEF', None)] RULE ['L10', 'L32', 'DEF']
+PG b=1000 psi=0 K=3 z=-3 cfg=L10 rad=2.99e-14 round=2.98e-14 Emath=5.6e-17 floor=True N=21 h=0.0156 nodes=151 cells=80 total=231 terms=231 walk_nodes=358 walk_cells=80 t=0.0
+PG b=1000 psi=0 K=3 z=-3 cfg=L32 rad=2.98e-14 round=2.98e-14 Emath=9.6e-21 floor=True N=21 h=0.0156 nodes=350 cells=426 total=776 terms=776 walk_nodes=452 walk_cells=216 t=0.0
+PG b=1000 psi=0 K=3 z=-3 cfg=L8 rad=3.92e-14 round=3.92e-14 Emath=5.9e-20 floor=True N=56 h=0.00586 nodes=177 cells=30 total=207 terms=207 walk_nodes=646 walk_cells=20 t=0.0
+PG b=1000 psi=0 K=3 z=-3 cfg=DEF skipped (a lean configuration reached the floor)
+Gam b=1000 psi=0 K=3 z=-3 cfg=L10 rad=8.46e-15 round=8.46e-15 Emath=9.6e-21 floor=True N=21 h=0.0156 nodes=119 cells=80 total=199 terms=796 walk_nodes=214 walk_cells=80 t=0.0
+Gam b=1000 psi=0 K=3 z=-3 cfg=L32 rad=8.46e-15 round=8.46e-15 Emath=9.6e-21 floor=True N=21 h=0.0156 nodes=200 cells=190 total=390 terms=1560 walk_nodes=296 walk_cells=192 t=0.0
+Gam b=1000 psi=0 K=3 z=-3 cfg=L8 rad=8.46e-15 round=8.46e-15 Emath=9.6e-21 floor=True N=21 h=0.0156 nodes=57 cells=20 total=77 terms=308 walk_nodes=152 walk_cells=20 t=0.0
+Gam b=1000 psi=0 K=3 z=-3 cfg=DEF skipped (a lean configuration reached the floor)
+PG b=1000 psi=0 K=3 z=0 cfg=L10 rad=1.12e-13 round=1.12e-13 Emath=6.7e-21 floor=True N=27 h=0.0117 nodes=157 cells=80 total=237 terms=237 walk_nodes=415 walk_cells=80 t=0.0
+PG b=1000 psi=0 K=3 z=0 cfg=L32 rad=1.01e-13 round=1.01e-13 Emath=8.7e-21 floor=True N=20 h=0.0156 nodes=347 cells=422 total=769 terms=769 walk_nodes=432 walk_cells=212 t=0.0
+PG b=1000 psi=0 K=3 z=0 cfg=L8 rad=1.24e-13 round=1.24e-13 Emath=1.0e-19 floor=True N=53 h=0.00586 nodes=174 cells=30 total=204 terms=204 walk_nodes=622 walk_cells=20 t=0.0
+PG b=1000 psi=0 K=3 z=0 cfg=DEF skipped (a lean configuration reached the floor)
+Gam b=1000 psi=0 K=3 z=0 cfg=L10 rad=7.73e-15 round=7.73e-15 Emath=8.8e-21 floor=True N=20 h=0.0156 nodes=118 cells=80 total=198 terms=792 walk_nodes=196 walk_cells=80 t=0.0
+Gam b=1000 psi=0 K=3 z=0 cfg=L32 rad=7.73e-15 round=7.73e-15 Emath=8.7e-21 floor=True N=20 h=0.0156 nodes=198 cells=188 total=386 terms=1544 walk_nodes=278 walk_cells=192 t=0.0
+Gam b=1000 psi=0 K=3 z=0 cfg=L8 rad=7.73e-15 round=7.73e-15 Emath=9.1e-19 floor=True N=20 h=0.0156 nodes=56 cells=20 total=76 terms=304 walk_nodes=134 walk_cells=20 t=0.0
+Gam b=1000 psi=0 K=3 z=0 cfg=DEF skipped (a lean configuration reached the floor)
+PG b=1000 psi=0 K=3 z=3 cfg=L10 rad=9.27e-14 round=9.27e-14 Emath=3.4e-21 floor=True N=26 h=0.0117 nodes=156 cells=80 total=236 terms=236 walk_nodes=395 walk_cells=80 t=0.0
+PG b=1000 psi=0 K=3 z=3 cfg=L32 rad=9.11e-14 round=9.11e-14 Emath=1.3e-22 floor=True N=20 h=0.0156 nodes=328 cells=416 total=744 terms=744 walk_nodes=412 walk_cells=210 t=0.0
+PG b=1000 psi=0 K=3 z=3 cfg=L8 rad=9.56e-14 round=9.56e-14 Emath=6.1e-20 floor=True N=51 h=0.00586 nodes=172 cells=30 total=202 terms=202 walk_nodes=598 walk_cells=20 t=0.0
+PG b=1000 psi=0 K=3 z=3 cfg=DEF skipped (a lean configuration reached the floor)
+Gam b=1000 psi=0 K=3 z=3 cfg=L10 rad=8.47e-15 round=8.47e-15 Emath=5.3e-19 floor=True N=20 h=0.0156 nodes=118 cells=80 total=198 terms=792 walk_nodes=209 walk_cells=80 t=0.0
+Gam b=1000 psi=0 K=3 z=3 cfg=L32 rad=8.47e-15 round=8.47e-15 Emath=1.3e-22 floor=True N=20 h=0.0156 nodes=197 cells=186 total=383 terms=1532 walk_nodes=290 walk_cells=190 t=0.0
+Gam b=1000 psi=0 K=3 z=3 cfg=L8 rad=9.41e-15 round=9.41e-15 Emath=3.4e-21 floor=True N=26 h=0.0117 nodes=62 cells=20 total=82 terms=328 walk_nodes=189 walk_cells=20 t=0.0
+Gam b=1000 psi=0 K=3 z=3 cfg=DEF skipped (a lean configuration reached the floor)
+PG b=1000 psi=150 K=223 z=-3 cfg=L10 rad=2.04e-13 round=2.04e-13 Emath=5.7e-19 floor=True N=104 h=0.0234 nodes=202 cells=80 total=282 terms=282 walk_nodes=517 walk_cells=80 t=0.0
+PG b=1000 psi=150 K=223 z=-3 cfg=L32 rad=1.94e-13 round=1.94e-13 Emath=7.7e-20 floor=True N=53 h=0.0469 nodes=297 cells=320 total=617 terms=617 walk_nodes=448 walk_cells=320 t=0.0
+PG b=1000 psi=150 K=223 z=-3 cfg=L8 rad=2.04e-13 round=2.04e-13 Emath=5.7e-19 floor=True N=104 h=0.0234 nodes=146 cells=32 total=178 terms=178 walk_nodes=461 walk_cells=32 t=0.0
+PG b=1000 psi=150 K=223 z=-3 cfg=DEF skipped (a lean configuration reached the floor)
+Gam b=1000 psi=150 K=223 z=-3 cfg=L10 rad=9.25e-14 round=9.25e-14 Emath=1.1e-18 floor=True N=155 h=0.0156 nodes=269 cells=80 total=349 terms=78176 walk_nodes=736 walk_cells=80 t=0.9
+Gam b=1000 psi=150 K=223 z=-3 cfg=L32 rad=9.07e-14 round=9.07e-14 Emath=5.8e-19 floor=True N=104 h=0.0234 nodes=276 cells=176 total=452 terms=101248 walk_nodes=623 walk_cells=176 t=0.8
+Gam b=1000 psi=150 K=223 z=-3 cfg=L8 rad=9.25e-14 round=9.25e-14 Emath=1.1e-18 floor=True N=155 h=0.0156 nodes=207 cells=20 total=227 terms=50848 walk_nodes=674 walk_cells=20 t=0.8
+Gam b=1000 psi=150 K=223 z=-3 cfg=DEF skipped (a lean configuration reached the floor)
+PG b=1000 psi=150 K=223 z=0 cfg=L10 rad=1.85e-13 round=1.85e-13 Emath=3.7e-19 floor=True N=104 h=0.0234 nodes=202 cells=80 total=282 terms=282 walk_nodes=498 walk_cells=80 t=0.0
+PG b=1000 psi=150 K=223 z=0 cfg=L32 rad=1.75e-13 round=1.75e-13 Emath=2.3e-19 floor=True N=52 h=0.0469 nodes=296 cells=320 total=616 terms=616 walk_nodes=430 walk_cells=320 t=0.0
+PG b=1000 psi=150 K=223 z=0 cfg=L8 rad=1.85e-13 round=1.85e-13 Emath=3.7e-19 floor=True N=104 h=0.0234 nodes=146 cells=32 total=178 terms=178 walk_nodes=442 walk_cells=32 t=0.0
+PG b=1000 psi=150 K=223 z=0 cfg=DEF skipped (a lean configuration reached the floor)
+Gam b=1000 psi=150 K=223 z=0 cfg=L10 rad=9.26e-14 round=9.26e-14 Emath=1.2e-18 floor=True N=154 h=0.0156 nodes=268 cells=80 total=348 terms=77952 walk_nodes=748 walk_cells=80 t=0.9
+Gam b=1000 psi=150 K=223 z=0 cfg=L32 rad=9.08e-14 round=9.08e-14 Emath=3.7e-19 floor=True N=104 h=0.0234 nodes=275 cells=174 total=449 terms=100576 walk_nodes=635 walk_cells=174 t=0.8
+Gam b=1000 psi=150 K=223 z=0 cfg=L8 rad=9.26e-14 round=9.26e-14 Emath=1.2e-18 floor=True N=154 h=0.0156 nodes=206 cells=20 total=226 terms=50624 walk_nodes=686 walk_cells=20 t=0.9
+Gam b=1000 psi=150 K=223 z=0 cfg=DEF skipped (a lean configuration reached the floor)
+PG b=1000 psi=150 K=223 z=3 cfg=L10 rad=2.04e-13 round=2.04e-13 Emath=5.2e-19 floor=True N=103 h=0.0234 nodes=201 cells=80 total=281 terms=281 walk_nodes=511 walk_cells=80 t=0.0
+PG b=1000 psi=150 K=223 z=3 cfg=L32 rad=1.94e-13 round=1.94e-13 Emath=1.5e-19 floor=True N=52 h=0.0469 nodes=296 cells=320 total=616 terms=616 walk_nodes=444 walk_cells=320 t=0.0
+PG b=1000 psi=150 K=223 z=3 cfg=L8 rad=2.04e-13 round=2.04e-13 Emath=5.2e-19 floor=True N=103 h=0.0234 nodes=145 cells=32 total=177 terms=177 walk_nodes=455 walk_cells=32 t=0.0
+PG b=1000 psi=150 K=223 z=3 cfg=DEF skipped (a lean configuration reached the floor)
+Gam b=1000 psi=150 K=223 z=3 cfg=L10 rad=9.08e-14 round=9.08e-14 Emath=1.3e-18 floor=True N=153 h=0.0156 nodes=267 cells=80 total=347 terms=77728 walk_nodes=744 walk_cells=80 t=0.9
+Gam b=1000 psi=150 K=223 z=3 cfg=L32 rad=9.02e-14 round=9.02e-14 Emath=5.2e-19 floor=True N=103 h=0.0234 nodes=274 cells=174 total=448 terms=100352 walk_nodes=632 walk_cells=174 t=0.8
+Gam b=1000 psi=150 K=223 z=3 cfg=L8 rad=9.08e-14 round=9.08e-14 Emath=1.3e-18 floor=True N=153 h=0.0156 nodes=205 cells=20 total=225 terms=50400 walk_nodes=682 walk_cells=20 t=0.8
+Gam b=1000 psi=150 K=223 z=3 cfg=DEF skipped (a lean configuration reached the floor)
+PG b=10000 psi=0 K=4 z=-3 cfg=L10 rad=7.09e-14 round=7.09e-14 Emath=2.7e-19 floor=True N=68 h=0.00146 nodes=662 cells=80 total=742 terms=742 walk_nodes=2177 walk_cells=80 t=0.0
+PG b=10000 psi=0 K=4 z=-3 cfg=L32 rad=6.86e-14 round=6.86e-14 Emath=2.1e-19 floor=True N=51 h=0.00195 nodes=667 cells=328 total=995 terms=995 walk_nodes=1688 walk_cells=210 t=0.0
+PG b=10000 psi=0 K=4 z=-3 cfg=L8 rad=8.25e-14 round=8.25e-14 Emath=6.8e-19 floor=True N=135 h=0.000732 nodes=1166 cells=26 total=1192 terms=1192 walk_nodes=4128 walk_cells=20 t=0.0
+PG b=10000 psi=0 K=4 z=-3 cfg=DEF skipped (a lean configuration reached the floor)
+Gam b=10000 psi=0 K=4 z=-3 cfg=L10 rad=1.93e-14 round=1.93e-14 Emath=2.7e-19 floor=True N=68 h=0.00146 nodes=166 cells=80 total=246 terms=1230 walk_nodes=465 walk_cells=80 t=0.0
+Gam b=10000 psi=0 K=4 z=-3 cfg=L32 rad=1.79e-14 round=1.79e-14 Emath=2.1e-19 floor=True N=51 h=0.00195 nodes=224 cells=178 total=402 terms=2010 walk_nodes=456 walk_cells=178 t=0.0
+Gam b=10000 psi=0 K=4 z=-3 cfg=L8 rad=1.93e-14 round=1.93e-14 Emath=2.7e-19 floor=True N=68 h=0.00146 nodes=104 cells=20 total=124 terms=620 walk_nodes=403 walk_cells=20 t=0.0
+Gam b=10000 psi=0 K=4 z=-3 cfg=DEF skipped (a lean configuration reached the floor)
+PG b=10000 psi=0 K=4 z=0 cfg=L10 rad=3.96e-13 round=3.96e-13 Emath=2.7e-19 floor=True N=67 h=0.00146 nodes=661 cells=80 total=741 terms=741 walk_nodes=2174 walk_cells=80 t=0.0
+PG b=10000 psi=0 K=4 z=0 cfg=L32 rad=3.64e-13 round=3.64e-13 Emath=6.1e-20 floor=True N=51 h=0.00195 nodes=667 cells=328 total=995 terms=995 walk_nodes=1686 walk_cells=210 t=0.0
+PG b=10000 psi=0 K=4 z=0 cfg=L8 rad=4.11e-13 round=4.11e-13 Emath=6.8e-19 floor=True N=133 h=0.000732 nodes=1164 cells=26 total=1190 terms=1190 walk_nodes=4105 walk_cells=20 t=0.0
+PG b=10000 psi=0 K=4 z=0 cfg=DEF skipped (a lean configuration reached the floor)
+Gam b=10000 psi=0 K=4 z=0 cfg=L10 rad=1.79e-14 round=1.79e-14 Emath=2.7e-19 floor=True N=67 h=0.00146 nodes=165 cells=80 total=245 terms=1225 walk_nodes=462 walk_cells=80 t=0.0
+Gam b=10000 psi=0 K=4 z=0 cfg=L32 rad=1.23e-14 round=1.23e-14 Emath=6.1e-20 floor=True N=51 h=0.00195 nodes=224 cells=178 total=402 terms=2010 walk_nodes=454 walk_cells=178 t=0.0
+Gam b=10000 psi=0 K=4 z=0 cfg=L8 rad=1.79e-14 round=1.79e-14 Emath=2.7e-19 floor=True N=67 h=0.00146 nodes=103 cells=20 total=123 terms=615 walk_nodes=400 walk_cells=20 t=0.0
+Gam b=10000 psi=0 K=4 z=0 cfg=DEF skipped (a lean configuration reached the floor)
+PG b=10000 psi=0 K=4 z=3 cfg=L10 rad=2.52e-13 round=2.52e-13 Emath=2.8e-19 floor=True N=66 h=0.00146 nodes=644 cells=80 total=724 terms=724 walk_nodes=2139 walk_cells=80 t=0.0
+PG b=10000 psi=0 K=4 z=3 cfg=L32 rad=2.39e-13 round=2.39e-13 Emath=9.5e-20 floor=True N=50 h=0.00195 nodes=650 cells=328 total=978 terms=978 walk_nodes=1668 walk_cells=210 t=0.0
+PG b=10000 psi=0 K=4 z=3 cfg=L8 rad=2.62e-13 round=2.62e-13 Emath=1.3e-18 floor=True N=131 h=0.000732 nodes=1146 cells=26 total=1172 terms=1172 walk_nodes=4051 walk_cells=20 t=0.0
+PG b=10000 psi=0 K=4 z=3 cfg=DEF skipped (a lean configuration reached the floor)
+Gam b=10000 psi=0 K=4 z=3 cfg=L10 rad=1.94e-14 round=1.94e-14 Emath=2.8e-19 floor=True N=66 h=0.00146 nodes=164 cells=80 total=244 terms=1220 walk_nodes=459 walk_cells=80 t=0.0
+Gam b=10000 psi=0 K=4 z=3 cfg=L32 rad=1.37e-14 round=1.37e-14 Emath=9.5e-20 floor=True N=50 h=0.00195 nodes=223 cells=178 total=401 terms=2005 walk_nodes=452 walk_cells=178 t=0.0
+Gam b=10000 psi=0 K=4 z=3 cfg=L8 rad=1.94e-14 round=1.94e-14 Emath=2.8e-19 floor=True N=66 h=0.00146 nodes=102 cells=20 total=122 terms=610 walk_nodes=397 walk_cells=20 t=0.0
+Gam b=10000 psi=0 K=4 z=3 cfg=DEF skipped (a lean configuration reached the floor)
+PG b=10000 psi=150 K=353 z=-3 cfg=L10 rad=2.86e-13 round=2.86e-13 Emath=3.3e-18 floor=True N=386 h=0.00195 nodes=500 cells=80 total=580 terms=580 walk_nodes=1531 walk_cells=80 t=0.0
+PG b=10000 psi=150 K=353 z=-3 cfg=L32 rad=2.36e-13 round=2.36e-13 Emath=6.5e-19 floor=True N=131 h=0.00586 nodes=375 cells=320 total=695 terms=695 walk_nodes=773 walk_cells=320 t=0.0
+PG b=10000 psi=150 K=353 z=-3 cfg=L8 rad=2.86e-13 round=2.86e-13 Emath=3.3e-18 floor=True N=386 h=0.00195 nodes=444 cells=32 total=476 terms=476 walk_nodes=1475 walk_cells=32 t=0.0
+PG b=10000 psi=150 K=353 z=-3 cfg=DEF skipped (a lean configuration reached the floor)
+Gam b=10000 psi=150 K=353 z=-3 cfg=L10 rad=1.45e-13 round=1.45e-13 Emath=3.3e-18 floor=True N=386 h=0.00195 nodes=548 cells=80 total=628 terms=222312 walk_nodes=1707 walk_cells=80 t=3.6
+Gam b=10000 psi=150 K=353 z=-3 cfg=L32 rad=1.45e-13 round=1.45e-13 Emath=3.3e-18 floor=True N=386 h=0.00195 nodes=616 cells=164 total=780 terms=276120 walk_nodes=1775 walk_cells=164 t=3.7
+Gam b=10000 psi=150 K=353 z=-3 cfg=L8 rad=2.14e-13 round=2.14e-13 Emath=8.4e-18 floor=True N=763 h=0.000977 nodes=943 cells=20 total=963 terms=340902 walk_nodes=3176 walk_cells=20 t=5.6
+Gam b=10000 psi=150 K=353 z=-3 cfg=DEF skipped (a lean configuration reached the floor)
+PG b=10000 psi=150 K=353 z=0 cfg=L10 rad=2.65e-13 round=2.65e-13 Emath=3.5e-18 floor=True N=385 h=0.00195 nodes=499 cells=80 total=579 terms=579 walk_nodes=1526 walk_cells=80 t=0.0
+PG b=10000 psi=150 K=353 z=0 cfg=L32 rad=2.15e-13 round=2.15e-13 Emath=1.0e-18 floor=True N=130 h=0.00586 nodes=374 cells=320 total=694 terms=694 walk_nodes=771 walk_cells=320 t=0.0
+PG b=10000 psi=150 K=353 z=0 cfg=L8 rad=2.65e-13 round=2.65e-13 Emath=3.5e-18 floor=True N=385 h=0.00195 nodes=443 cells=32 total=475 terms=475 walk_nodes=1470 walk_cells=32 t=0.0
+PG b=10000 psi=150 K=353 z=0 cfg=DEF skipped (a lean configuration reached the floor)
+Gam b=10000 psi=150 K=353 z=0 cfg=L10 rad=1.45e-13 round=1.45e-13 Emath=3.5e-18 floor=True N=385 h=0.00195 nodes=547 cells=80 total=627 terms=221958 walk_nodes=1702 walk_cells=80 t=3.6
+Gam b=10000 psi=150 K=353 z=0 cfg=L32 rad=1.45e-13 round=1.45e-13 Emath=3.5e-18 floor=True N=385 h=0.00195 nodes=615 cells=164 total=779 terms=275766 walk_nodes=1770 walk_cells=164 t=3.8
+Gam b=10000 psi=150 K=353 z=0 cfg=L8 rad=2.13e-13 round=2.13e-13 Emath=8.1e-18 floor=True N=762 h=0.000977 nodes=942 cells=20 total=962 terms=340548 walk_nodes=3169 walk_cells=20 t=5.5
+Gam b=10000 psi=150 K=353 z=0 cfg=DEF skipped (a lean configuration reached the floor)
+PG b=10000 psi=150 K=353 z=3 cfg=L10 rad=2.88e-13 round=2.88e-13 Emath=3.7e-18 floor=True N=384 h=0.00195 nodes=498 cells=80 total=578 terms=578 walk_nodes=1525 walk_cells=80 t=0.0
+PG b=10000 psi=150 K=353 z=3 cfg=L32 rad=2.38e-13 round=2.38e-13 Emath=9.0e-19 floor=True N=130 h=0.00586 nodes=374 cells=320 total=694 terms=694 walk_nodes=771 walk_cells=320 t=0.0
+PG b=10000 psi=150 K=353 z=3 cfg=L8 rad=2.88e-13 round=2.88e-13 Emath=3.7e-18 floor=True N=384 h=0.00195 nodes=442 cells=32 total=474 terms=474 walk_nodes=1469 walk_cells=32 t=0.0
+PG b=10000 psi=150 K=353 z=3 cfg=DEF skipped (a lean configuration reached the floor)
+Gam b=10000 psi=150 K=353 z=3 cfg=L10 rad=1.43e-13 round=1.43e-13 Emath=3.7e-18 floor=True N=384 h=0.00195 nodes=546 cells=80 total=626 terms=221604 walk_nodes=1701 walk_cells=80 t=3.6
+Gam b=10000 psi=150 K=353 z=3 cfg=L32 rad=1.43e-13 round=1.43e-13 Emath=3.7e-18 floor=True N=384 h=0.00195 nodes=614 cells=164 total=778 terms=275412 walk_nodes=1769 walk_cells=164 t=3.7
+Gam b=10000 psi=150 K=353 z=3 cfg=L8 rad=2.12e-13 round=2.12e-13 Emath=7.9e-18 floor=True N=761 h=0.000977 nodes=925 cells=20 total=945 terms=334530 walk_nodes=3150 walk_cells=20 t=5.5
+Gam b=10000 psi=150 K=353 z=3 cfg=DEF skipped (a lean configuration reached the floor)

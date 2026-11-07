@@ -1,0 +1,12 @@
+FLOORSTEPWORDS	fewer than once in $10^{11}$ steps
+FLOORSTEP	$6.2\times10^{-12}+2^{1-\beta}$
+FLOORDENS	$1.4\times10^{-12}$
+FLOORFALL	$1.4\times10^{-12}$
+FLOORQALL	$1.3\times10^{-13}$
+FLOORHISTEP	$10^{-24}$
+FLOORHI	$2\times10^{-25}$
+QPINMAXK	560
+QPINKNOTE	The rule's largest $K$, 560 at $b=10^5$, $|\psi|=150$, is pinned at two points only ($z=0.5$ and 3), its references taking minutes each.
+QPINS	with the lead in 53 bits (\texttt{pins\_q.out}, 168 pins: $b\in\{0.2,1,2.5,16,64,10^3,10^4\}$, $|\psi|\in\{0,8,50,150\}$, $z\in\{-4,-1,0.5,3,8,12\}$; radii up to $5.8\times10^{-10}$, set by the lead) and in 106 bits (\texttt{pins\_q\_L.out}, the same grid plus $b=10^5$ at $|\psi|\in\{0,8\}$ and at $|\psi|=50$, $z=-4$, 181 pins; \texttt{pins\_q\_L3.out}, $K=560$ at $b=10^5$, $|\psi|=150$, $z=0.5$ and 3; radii $4.7\times10^{-15}$ to $1.3\times10^{-13}$); references by quadrature on two parabolic contours other than the enclosure's, which agreed with each other to $10^{-29}$ or better (a reference independent of the parabolic representation is added in round 2, below). Every enclosure contained every reference; largest error over radius 0.53. The tail bound of $q$ uses the combined majorant of Lemma~\ref{lem:maj}(b); without it no enclosure was produced at $K=560$.
+FLOORTABLE	@file:floortab.tex
+WGRIDROWS	0.3 & 8 & 1 & 1.0102 & 1.2632 & $-0.75$\\ 0.3 & 8 & 2 & 1.0009 & 1.1599 & $-0.80$\\ 1 & 0 & 1 & 1.0002 & 1.0700 & $-1.00$\\ 1 & 8 & 1 & 1.0345 & 1.0909 & $-1.00$\\ 2 & 0 & 1 & 1.0004 & 1.0181 & $-1.30$\\ 4 & 0 & 1 & 1.0008 & 1.0022 & $-1.55$\\ 16 & 8 & 3 & 1.0091 & 1.0048 & 16\\ 0.2 & 150 & 1 & 28.72 & 35.61 & 16\\

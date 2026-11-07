@@ -1,0 +1,458 @@
+\section{The certified decision}\label{sec:dec}
+
+An \emph{enclosure} of $\log r(x,y)$ is an interval $[\ell_-,\ell_+]$ that contains it; Algorithm~\ref{alg:row}
+builds it from the four density enclosures of Theorem~\ref{thm:dens} (and Proposition~\ref{prop:left}) and the
+rounding of their sum (Appendix~\ref{app:round}). Enclosures are intersected across levels, so they never widen.
+
+\begin{theorem}[Decisions taken are exact]\label{thm:dec}
+If Algorithm~\ref{alg:row} returns, it returns what the exact kernel returns for the same $y$ and the same
+uniform $U$ (the limit of its bits). At a level whose enclosure has half-width $E$, the probability, given $x$
+and $y$, that the decision is not taken is at most $2E+2^{1-\beta}$, with $\beta$ the number of bits of $U$
+drawn.
+\end{theorem}
+\begin{proof}
+The exact kernel moves iff $U<\min(1,r)$. Accept branch: if $\ell_-\ge0$ then $r\ge1>U$; if $\ell_-\ge\log U_+$
+then $U<U_+\le e^{\ell_-}\le r$. Reject branch: $\ell_+\le\log U_-<0$ gives $r\le e^{\ell_+}\le U_-\le U$ and
+$r<1$. The undecided event is contained in $\{\log U_+>\ell_-\}\cap\{\log U_-<\min(0,\ell_+)\}$; for exact $U$ its
+probability is at most $e^{\min(0,\ell_+)}-e^{\min(0,\ell_-)}\le2E$ as $e^t$ is 1-Lipschitz on $t\le0$, and the
+bit interval adds at most its width on each side.
+\end{proof}
+
+\subsection{The precision ladder}\label{sec:ladder}
+
+\begin{proposition}[Termination with a precision ladder]\label{prop:ladder}
+Let level $j=0,1,\dots$ evaluate the four log-densities at working precision $p_j$ bits ($p_0=53$, $p_1=106$,
+$p_j\to\infty$), with $h_j$ and the truncation chosen so that $E_{\mathrm d}+E_{\mathrm t}\le2^{-p_j}$, and hold
+$\beta_j\ge p_j$ bits of $U$. Suppose every function the evaluator uses ($+,-,\times,/$, real and complex square
+root, $\exp$, $\mathrm{expm1}$, $\log$, $\mathrm{log1p}$, $\sin$, $\cos$, and for the majorants $\sinh$) is
+available at precision $p_j$ with a rigorous error bound proportional to $2^{-p_j}$ (correctly rounded MPFR and
+MPC, or Arb). Then the half-widths satisfy $E_j\le C(x,y)\,p_j^{3/2}\,2^{-p_j}$, the number of levels $J$ satisfies
+$P(J>j\mid x,y)\le2E_j+2^{1-\beta_j}\to0$, so $J<\infty$ with probability one and the implemented kernel equals
+the exact kernel $P$ (under (A0) for the draws). If level $j$ costs at most a polynomial in $p_j$, the expected
+cost $\sum_j\mathrm{cost}_jP(J\ge j)$ is finite and dominated by level 0.
+\end{proposition}
+\begin{proof}
+At fixed $(x,y)$ the discretization bound decays like $e^{-2\pi a/h}$, so $h_j$ is of order $1/p_j$; the
+integrand decays like $e^{-2xy^2}$, so the truncation point is of order $\sqrt{p_j}$; the node count $N_j$ is
+therefore of order $p_j^{3/2}$. Ball arithmetic bounds the rounding of a recursive sum of $N_j$ terms by a constant
+times $N_j2^{-p_j}$ times a quantity that converges as $p_j$ grows (the sum of the moduli of the terms); add the
+mathematical part $2^{-p_j}$. Any polynomial in $p_j$ in place of $p_j^{3/2}$ gives the rest.
+Theorem~\ref{thm:dec} at each level; $P(J=\infty)\le\inf_j(2E_j+2^{1-\beta_j})=0$; on $J<\infty$ the outputs agree
+by Theorem~\ref{thm:dec}. Cost: $P(J\ge j)$ falls geometrically in $p_{j-1}$ up to a polynomial factor, while
+$\mathrm{cost}_j$ grows polynomially.
+\end{proof}
+
+The ladder is unbounded: $h_j\to0$, $N_j\to\infty$ and $p_j\to\infty$. A build that caps any of them, as
+\texttt{arbpg.py} caps $h$ at $0.75\cdot2^{-39}$ and the node count at 20000, keeps a positive floor even under
+exact arithmetic wherever a cap binds before $E_{\mathrm d}+E_{\mathrm t}$ is small; it is then a build that stops at a
+floor (Proposition~\ref{prop:floor}), with a floor no pin reached. Remark~\ref{rem:coverage}'s ``refining $h$
+alone drives the enclosure to zero'' is likewise a statement about the uncapped ladder.
+
+What it takes, in numbers (Section~\ref{sec:floor}, at the pins, with the lead in double-double): at level 0 (53 bits, tilted form) each log-density's
+enclosure has radius at most \FLOORDENS{} at every pin, and level 1 is reached with probability at most about
+\FLOORSTEP{} per row step; at 106 bits the radius is at most \FLOORHI{}
+per density, so level 2 is reached with probability of order \FLOORHISTEP. Level 1 needs double-double versions of the
+node formula of Proposition~\ref{prop:cf} (the complex functions above at 106 bits); the lead is in double-double
+at every level already; levels 2 and up need an
+arbitrary-precision library with rigorous functions, a new system dependency (MPFR and MPC) or a bundled one; the
+majorants $E_{\mathrm d},E_{\mathrm t}$ may stay in double, since they are driven below $2^{-p_j}$ by $h$ and $N$,
+not by precision, as long as their own rounding is bounded rigorously. The contour and the saddle stay in double
+at every level (any choice is valid).
+
+\begin{proposition}[A build that stops at a floor]\label{prop:floor}
+Suppose instead the build stops at level $j_f$ with half-width at most $E_f$, takes a fixed decision there and
+tallies the event. Then $\TV(\widetilde P(x,\cdot),P(x,\cdot))\le2E_f+2^{1-\beta}$ for every $x$; a sweep of $n$
+rows differs from the exact sweep by at most $n(2E_f+2^{1-\beta})$; and $N$ sweeps from the same start by at most
+$Nn(2E_f+2^{1-\beta})$, with no ergodicity assumption.
+\end{proposition}
+\begin{proof}
+The two kernels coincide off the floor event (Theorem~\ref{thm:dec}). Run both chains on the same randomness; they
+agree until the first floor event, whose probability over $N$ sweeps is at most the sum of the per-row bounds
+(also \cite[eqs.~(3.3)--(3.4)]{mitro}, which use only $\tau(P^i)\le1$).
+\end{proof}
+
+\begin{proposition}[A fixed top level is not exact]\label{prop:fixedtop}
+If the top level has positive half-width on a set of $(x,y)$ of positive $\pi\otimes q$ measure (as it has at any
+finite precision), the kernel with a fixed decision at the floor differs from $P$, and $\pi$ is not invariant for
+it in general. A tally counts floor events; it does not remove them.
+\end{proposition}
+\begin{proof}
+With the fixed decision ``keep $x$'', $\widetilde P(x,\{x\})-P(x,\{x\})=\int q(y)P(e^{\ell_-}\le U<\min(1,r)\mid x,y)\,dy$,
+positive wherever the enclosure has positive width with $r$ inside it; so $\widetilde P\ne P$. That $\pi$ is then
+not invariant in general is shown on two states, the argument of the second referee. Let the target be
+$(\pi_0,\pi_1)$ and the proposal $(q_0,q_1)$, with $r=r(0,1)=\pi_1q_0/(\pi_0q_1)<1$, and let the half-width $E$ at
+the top level be positive and below $\log(1/r)$. From 1 the ratio is $1/r>1$, its enclosure lies above 0, and the
+move to 0 is always decided: the flow $\pi_1q_0$ from 1 to 0 is the exact kernel's. From 0 the move is taken
+only when $U$ is certainly below $r$, which removes the probability $\epsilon>0$ that $U$ falls in the band below
+$r$: the flow from 0 to 1 is $\pi_0q_1(r-\epsilon)=\pi_1q_0-\pi_0q_1\epsilon$. On two states $\pi$ is invariant iff
+the two flows are equal, so it is not. Toy~6 (Appendix~\ref{app:toys}) gives the exact numbers on two and three
+states. The claim is non-invariance in general, which these settle; by how much a given row's target moves at a
+floor is bounded by Theorem~\ref{thm:mitro}, not computed.
+\end{proof}
+
+\begin{theorem}[Stationary error at a floor]\label{thm:mitro}
+At fixed $(b,\psi)$, if the floor chain $\widetilde P$ of one row has an invariant distribution $\tilde\pi$, then
+$\TV(\tilde\pi,\PG(b,\psi))\le(\lceil M^*\log2\rceil+M^*)\,\bar E$, where $\bar E=2E_f+2^{1-\beta}$ bounds the
+floor probability from every $x$.
+\end{theorem}
+\begin{proof}
+\cite[Cor.~3.1, eq.~(3.8)]{mitro}: if $X$ is uniformly ergodic, $\|e_xP^n-\pi\|\le C\rho^n$ for all $x$ (their
+(2.2)), and $\widetilde X$ has an invariant measure $\tilde\pi$, then $\|\tilde\pi-\pi\|\le(\hat n+C\rho^{\hat
+n}/(1-\rho))\|E\|$ with $E=\widetilde P-P$ and $\hat n=\lceil\log_\rho C^{-1}\rceil$. Their norm is the total
+variation of a signed measure, twice $\TV$, and $\|E\|=\sup_x\|e_xE\|$. Theorem~\ref{thm:row} gives (2.2) with
+$C=2$, $\rho=1-1/M^*$; Proposition~\ref{prop:floor} gives $\|E\|\le2\bar E$. Then $C\rho^{\hat n}\le1$,
+$1/(1-\rho)=M^*$, and $\hat n\le\lceil M^*\log2\rceil$ since $-\log(1-1/M^*)\ge1/M^*$; halve to pass from the
+norm to $\TV$.
+\end{proof}
+For the whole sampler no such stationary bound is available (uniform ergodicity of the BART chain is not known);
+Proposition~\ref{prop:floor}'s finite-horizon bound is what holds, and the tally measures it.
+
+\begin{proposition}[A fresh draw on an undecided decision]\label{prop:fresh}
+Replacing the step's output by a fresh exact draw from $\PG(b,\psi)$ whenever the decision is undecided does not
+keep $\PG(b,\psi)$ in general.
+\end{proposition}
+\begin{proof}
+Counterexample, in exact rational arithmetic (Toy 2, Appendix~\ref{app:toys}): three states, target
+$(\frac12,\frac13,\frac16)$, uniform proposal, undecided band $|U-a(x,y)|<(1+x+2y)/100$ resolved by a fresh draw:
+$\max_j|(\pi\widetilde P)_j-\pi_j|=1/120$ and the stationary distribution is $0.0108$ from $\pi$ in $\TV$.
+The mechanism, to first order in a relative band ($|\log U-\log r|<E$): the undecided probability from $x$ to $y$
+is $2E\,r(x,y)$ when $w(y)<w(x)$ and $O(E^2)$ in total otherwise, the exact kernel then moves with conditional
+probability $\frac12+O(E)$, and the change of $\pi\widetilde P-\pi$ has density
+$E\,f(z)\,[2c-Q(w>w(z))-F(w<w(z))/w(z)]+O(E^2)$, $c$ a constant, $Q,F$ the proposal and target measures. The
+bracket tends to $2c-1$ where $w(z)\to\inf w=0$ and to $2c-1/M^*$ where $w(z)\to M^*$, so it is constant only if
+$M^*=1$, i.e. $f=q$. Whether a decision resolves depends on the current value, which is why the fresh draw
+biases.
+\end{proof}
+
+\section{Floating point: the standard every sampler in the package meets}\label{sec:ideal}
+
+\paragraph{The idealization.} Every exactness claim about a Monte Carlo sampler, here and in the literature, is
+about the idealized algorithm: uniforms are exact real uniforms and arithmetic is exact (the model of
+\cite[Ch.~I.1]{devroye}). No floating-point sampler meets it in total variation: its output takes finitely many
+values, so its distribution is at total variation 1 from any continuous one. The meaningful comparison is a
+coupling: drive the idealized algorithm and the engine with the same random stream, the engine's uniform
+$\hat U$ being the idealized $U$ on the engine's grid. Rounding then moves continuous outputs by a few units in the
+last place, which no test can see, and occasionally flips a discrete decision (accept or reject, which branch),
+which changes the output. The probability of a flip per draw is the floor.
+
+\begin{lemma}\label{lem:flip}
+A comparison of a uniform against a threshold $c\in[0,1]$, computed as $\hat c$ with $|\hat c-c|\le\epsilon$,
+using a uniform on a grid of spacing $g$, decides differently from the idealized comparison with probability at
+most $g+\epsilon$.
+\end{lemma}
+\begin{proof}
+The decisions differ only if $U$ lies between $c$ and $\hat c$, or within $g$ of the threshold on the grid.
+\end{proof}
+
+\paragraph{Today's exact sum.} The engine's uniform is 32-bit ($g=2^{-32}=2.3\times10^{-10}$; Mersenne Twister,
+\texttt{randomBase.c}). Its $\PG(1,z)$ sampler (\texttt{ext\_rng\_simulatePolyaGamma}, the alternating-series
+sampler of \cite[Sec.~4.1]{psw}) compares, per proposal, a fresh uniform with the probability of the exponential
+piece (computed through \texttt{pnorm} in double), and a fresh uniform times the first series coefficient with
+partial sums $S_n$ computed in double; the truncated inverse-Gaussian piece adds one or more uniform comparisons
+of its own. By Lemma~\ref{lem:flip} each comparison can flip with probability up to about $2^{-32}$, so a
+$\PG(1)$ draw has a floor of about $5\times10^{-10}$ to $10^{-9}$, and $\PG(b)$, the sum of $b$ such draws, of
+order $10^{-9}b$ per row per sweep: a few times $10^{-8}$ at $b=64$, about $10^{-6}$ at $b=10^3$. Its gamma draws
+(Ahrens-Dieter GD, as in R) evaluate their acceptance tests with polynomial approximations whose coefficients
+carry seven digits, a further floor of the same kind, not quantified here. None of this is tallied, and the sum
+is exact in the only sense any sampler is: under (A0).
+
+\paragraph{The step under the same coupling.} A row step makes $K+1$ gamma draws (GD makes one or more
+uniform comparisons per draw, about two counting its exponential and normal parts), one acceptance comparison
+against a uniform of at least 53 bits, and at the floor a fixed decision, so its floor is about
+$2(K+1)\,2^{-32}+\bar E$ with $\bar E=2E_f+2^{1-\beta}$ the floor probability of the certified decision. In the
+tilted form $\bar E$ is at most \FLOORSTEP{} at every pin
+(Section~\ref{sec:floor}; at the pins, in ball arithmetic, with the lead in double-double), below the
+$2^{-32}=2.3\times10^{-10}$ of a single comparison; in the untilted form it
+reached $10^{-7}$ at $b=10^5$, $|\psi|=150$. The gamma part, $2(K+1)2^{-32}$, is below the sum's $2b\,2^{-32}$ or
+more wherever $K<b$, which holds at every whole-number shape the rule sends to the step except at large $|\psi|$
+with $b$ below a few hundred (at $|\psi|=150$, $K=140$ at $b=100$); there the two are of the same order.
+
+\paragraph{Same standard, or stricter?} Two things differ. (1) The step's error enters a chain: a per-step
+error $\bar E$ moves the row's stationary distribution by up to $(\lceil M^*\log2\rceil+M^*)\bar E$
+(Theorem~\ref{thm:mitro}), where a fresh draw's moves it by its own floor; the factor is of the size of $M^*$
+(between 1.0 and 36 where it is certified from below; no upper bound is certified). (2) Whether a floor event
+happens depends on the current value, as in Proposition~\ref{prop:fresh}; but so does every rounding flip in every
+sampler, whose thresholds depend on the state. Neither is a different kind of error: (1) is a constant factor and
+(2) is shared. So the step can be held to the package's standard: exact under (A0), with a floor that is quoted,
+here with the factor of (1). Under exact arithmetic the rounding radius is zero and refining $h$ alone drives the
+enclosure to zero (Remark~\ref{rem:coverage}), so the decision always resolves; the floor is the rounding part
+only, as for every other sampler. With the tilted form, the pins' \FLOORSTEP{} times the factor stays below one
+uniform's grid as long as $M^*$ is below about 20 (and the floor at most shapes is far smaller); no upper bound on
+$M^*$ is certified, and the engine's floor is still to be measured. With the untilted form the floor alone was up to $10^{-7}$. A stricter standard (exact in the implemented arithmetic) cannot be met by the step
+alone, since its proposal is drawn by floating-point gamma generators; Section~\ref{sec:maint} puts the choice to
+the maintainer.
+
+\section{The sweep}\label{sec:sweep}
+
+Let $\theta$ denote every unknown other than the latents (trees and leaves, the combiner's glue, $k$, DART's
+weights, nbinom's $r$), and $\pi(\theta,\omega)$ the posterior given the data the larger sampler installed.
+
+\begin{lemma}[Conditional independence]\label{lem:condind}
+$\pi(\omega\mid\theta)=\prod_{i\ \mathrm{active}}\PG(\omega_i\mid b_i(\theta),\psi_i(\theta))$.
+\end{lemma}
+\begin{proof}
+\cite[Thm.~1]{psw}: $(e^{\psi})^{y}/(1+e^{\psi})^{b}=2^{-b}e^{\kappa\psi}\int_0^\infty e^{-\omega\psi^2/2}
+p(\omega\mid b,0)\,d\omega$, $\kappa=y-b/2$, for $b>0$. The augmented posterior is the prior times $\prod_i
+2^{-b_i}e^{\kappa_i\psi_i}e^{-\omega_i\psi_i^2/2}p(\omega_i\mid b_i,0)$, which given $\theta$ factorizes into the
+tilts $\PG(b_i,\psi_i)$. For nbinom the row's likelihood is $\mu_i^{y_i}r^r/(\mu_i+r)^{y_i+r}$ up to factors
+free of $\eta_i$, that is $(e^{\psi_i})^{y_i}/(1+e^{\psi_i})^{y_i+r}$ with $\psi_i=\eta_i-\log r$ ($\eta_i=\log
+\mu_i$, offset included) and $b_i=y_i+r$, as the engine forms it (\texttt{NBResponse::anchor}); for binomial $b_i$
+is the trials times the row weight, with the weight entering as a power of the row's likelihood.
+\end{proof}
+
+\begin{theorem}[Sweep invariance]\label{thm:sweep}
+Let the latent step act as $L(\theta,\omega;d\omega')=\prod_iR_i(\omega_i,d\omega_i')$, where each $R_i$ leaves
+$\PG(b_i,\psi_i)$ invariant (a fresh draw or the step), chosen by anything except $\omega$ (marks, shape,
+settings). Let every other step of the sweep leave $\pi$ invariant. Then the sweep leaves $\pi$ invariant.
+\end{theorem}
+\begin{proof}
+For a set $B$ with sections $B_\theta$,
+\[\int\pi(d\theta,d\omega)L(\theta,\omega;B_\theta)=\int\pi(d\theta)\int\prod_i\PG_i(d\omega_i)\,
+\Bigl(\prod_iR_i\Bigr)(\omega,B_\theta)=\int\pi(d\theta)\Bigl(\prod_i\PG_i\Bigr)(B_\theta),\]
+by
+Lemma~\ref{lem:condind} and invariance of each factor on the product measure; this is $\pi(B)$. A composition
+of invariant kernels is invariant. Rows taken one at a time give the same result, each $R_i$ being invariant for
+$\pi(\omega_i\mid\theta,\omega_{-i})=\PG_i$.
+\end{proof}
+
+\begin{proposition}[Which later steps read $\omega$]\label{prop:steps}
+After the latent step, the trees read $\omega$ (through the working response $\kappa_i/\omega_i$ and weights
+$\omega_i$) and move $\psi$; each is a move for $\pi(\text{trees}\mid\omega,\text{rest})$, so after it
+$(\theta,\omega)$ is again distributed as $\pi$, and the next sweep's step meets $\omega$ from its conditional at
+the new $\psi$. The combiner's glue (where present) also reads $\omega$ through the working response. The level
+shift moves constants between trees with every row's total fit unchanged, so no $\psi_i$ changes and it reads no
+latent. The probit rescaling runs only for the probit family. $k$ and DART read the leaves and split counts and
+change no $\psi_i$; $\omega$ is conditionally independent of them given the leaves, so their draws are full
+conditionals. The only step that changes a row's conditional without reading $\omega$ is the nbinom $r$ step
+(Section~\ref{sec:nb}), plus, between sweeps, the setters (Section~\ref{sec:setters}).
+\end{proposition}
+\begin{proof}
+Each statement is the role of the step in the sweep order of the latents-first plan; invariance of each step for
+$\pi$ is the standing property of today's sampler, unchanged by this design. The tree step is a Metropolis or Gibbs
+move for its conditional given $\omega$, hence invariant for the joint.
+\end{proof}
+
+\section{Negative binomial with an estimated dispersion}\label{sec:nb}
+
+\begin{theorem}\label{thm:nb}
+Let $K_\theta(r,dr')$ leave $\pi(r\mid\theta_{-r})$ ($\omega$ integrated out) invariant and not read $\omega$; the
+build's grid draw is $K_\theta(r,\cdot)=\pi(\cdot\mid\theta_{-r})$. Follow it by: if $r'\ne r$, a fresh exact draw
+$\omega_i\sim\PG(y_i+r',\psi_i)$ at every active row; if $r'=r$, any latent step as in Theorem~\ref{thm:sweep}.
+Here $\omega_i$'s conditional is $\PG(y_i+r',\eta_i-\log r')$: both its shape and its tilt move with $r$. This
+block leaves $\pi$ invariant, and the per-row choice, made from $b_i=y_i+r'$, does not depend on $\omega$.
+\end{theorem}
+\begin{proof}
+Fix $\theta_{-r}$ and start from $(r,\omega)\sim\pi(r\mid\theta_{-r})\pi(\omega\mid r,\theta_{-r})$. Since
+$K$ does not read $\omega$, $\omega\perp r'\mid(r,\theta_{-r})$, so given $(r,r')$ with $r'=r=\rho_0$, $\omega\sim
+\pi(\omega\mid\rho_0,\theta_{-r})$, and the step keeps that. On $r'\ne r$, the fresh draw has that distribution
+at $\rho_0=r'$ regardless of the input. So given $(r,r')$, $\omega'\sim\pi(\cdot\mid r',\theta_{-r})$, and
+$P(r'\in C)=\int\pi(dr\mid\theta_{-r})K(r,C)=\pi(C\mid\theta_{-r})$. Hence $(r',\omega')\sim\pi(r,\omega\mid
+\theta_{-r})$, and the block, holding $\theta_{-r}$ fixed, is invariant for $\pi$. Positive probability of
+$\{r'=r\}$ is not needed. All of $b_i$, $\kappa_i$ and $\psi_i=\eta_i-\log r$ involve $r$; on
+$\{r'=r\}$ none changes, and on $\{r'\ne r\}$ the fresh draw is at $(y_i+r',\eta_i-\log r')$. The grid has whole-number values and nbinom takes no row weights, so every $b_i$ is a whole number and the
+fresh draw exists.
+\end{proof}
+
+Applying the step after $r$ moved is not invariant: in exact arithmetic (Toy 1) the stationary distribution is
+$0.039$ from $\pi$ in $\TV$, while the designed rule is exact. This is the situation of \cite[Sec.~3, Sampler
+Fragment 1 and the remark after it]{vdj}: ``an MH update in a step that follows a reduced step is
+problematic''; the fresh draw is their remedy, a direct draw after the reduced step. A real-valued dispersion
+makes $b_i$ fractional when $r$ moves, with no fresh draw; an $r$ step that reads $\omega$ (invariant for
+$\pi(r\mid\omega,\theta_{-r})$) needs none, and then the step is valid at every row.
+
+\section{The per-row rule}\label{sec:rule}
+
+\begin{theorem}\label{thm:rule}
+Let row $i$ use the fresh draw when $\chi_i=1$ and the step when $\chi_i=0$, with $\chi_i$ any measurable function
+of $(\theta,\omega_{-i})$, the marks, the settings and randomness independent of $\omega_i$; dec-B590's rule is
+$\chi_i=1$ iff $b_i\le64$ and $b_i\in\mathbb Z$, or the row is marked. Then the row's update leaves
+$\PG(b_i,\psi_i)$ invariant. A $\chi_i$ read from $\omega_i$ can break invariance.
+\end{theorem}
+\begin{proof}
+Given the conditioning variables, $\chi_i$ is fixed and both kernels are invariant. Counterexample for a choice
+read from $\omega_i$ (Toy 5): on four states, the step at states 0, 1 and a fresh draw at 2, 3 gives
+$\max|\pi\widetilde P-\pi|=0.167$ and stationary $\TV$ $0.258$, though each kernel alone is exact.
+\end{proof}
+
+\paragraph{The cancel.} Whether a row is processed before a cancel lands is a choice of the kind the theorem
+excludes when the time a row takes depends on its own $\omega_i$ (the refinement does), so a cancel polled inside a
+row's step leaves that row unchanged by a rule read from $\omega_i$. Today's refresh polls once every $2^{16}$
+$\PG(1)$ draws (\texttt{RefreshPoll}), a count that can fall inside a row's sum, and a stopped row is left
+unchanged; the count does not depend on the values drawn, only the moment the cancel arrives does. For the step,
+the build should poll between rows only (counting rows or steps), never inside a row's refinement, whose length
+depends on $\omega_i$. Even
+then a cancel ends the run partway through a sweep, and the state it leaves is a start for a later run
+(Section~\ref{sec:starts}), not a draw from $\pi$; that is today's behavior too.
+
+\section{Setters, marked rows and the two contracts}\label{sec:setters}
+
+The code that runs the BART sampler inside a larger sampler has its own unknowns $\phi$ and installs data from them
+(offsets, weights, responses, predictors) through setters between sweeps; a setter marks every row whose
+$(b_i,\psi_i)$ or activity it may change, and setData and setState mark every row. The joint target is
+$\Pi(\phi,\theta,\omega)=p(\phi)\,\pi_\phi(\theta,\omega)$, where $p(\phi)$ is $\phi$'s marginal under $\Pi$ (its
+prior times the marginal likelihood of the BART part, normalized), not its prior.
+
+\begin{definition}[Contracts]
+Under \emph{contract C} the larger sampler's step on $\phi$ leaves $\Pi(\phi\mid\theta,\omega)$ invariant; it may
+read $\omega$ (through getLatents). Under \emph{contract I} its step leaves $\Pi(\phi\mid\theta)$ invariant and
+does not read $\omega$ (the latents are integrated out).
+\end{definition}
+
+\begin{theorem}\label{thm:setters}
+(a) Under contract C the composite chain leaves $\Pi$ invariant, with fresh draws or the step at marked rows.
+(b) Under contract I it leaves $\Pi$ invariant when every marked row is drawn fresh at the next sweep's start and
+the marks cover every row whose conditional changed. (c) Under contract I the step at a marked row whose conditional changed does not keep
+$\Pi$ in general. This includes the rows setData and setState mark when their shape is fractional: the design
+serves them by the step from the installed value, and under contract I that is the case of (c) whenever the call,
+made between sweeps of a chain, changes such a row's $(b_i,\psi_i)$ or its activity. A call that changes no row's
+conditional (the same data handed again, or a state saved under the data now installed) leaves the step exact
+(Section~\ref{sec:maint} gives the options).
+\end{theorem}
+\begin{proof}
+(a) The $\phi$ step is invariant for $\Pi$ (a move for a full conditional); the sweep is invariant for
+$\pi_\phi$ at each $\phi$ (Theorem~\ref{thm:sweep}) whatever the marks choose. (b) From $(\phi,\theta,\omega)\sim
+\Pi$, $\phi'\sim K_\theta(\phi,\cdot)$ not reading $\omega$, so $\omega\mid(\phi,\phi',\theta)\sim\prod_i\PG(b_i(
+\phi),\psi_i(\phi,\theta))$. Unmarked rows have the same factor at $\phi'$; marked rows are replaced by draws from
+their factor at $\phi'$; by conditional independence, $\omega'\mid(\phi,\phi',\theta)\sim\pi_{\phi'}(\omega\mid
+\theta)$, while $(\phi',\theta)$ has the $\Pi$ marginal by invariance of $K$. So $(\phi',\theta,\omega')\sim\Pi$;
+then the rest of the sweep. (c) Toy 4 in exact arithmetic: under contract I the step at the changed row leaves a
+stationary distribution $0.0154$ from $\Pi$ in $\TV$ ($\max|\Pi\widetilde P-\Pi|=0.00323$); the fresh draw and
+both variants under contract C are exact.
+\end{proof}
+
+\paragraph{Outer steps under neither contract.} The two contracts do not cover every step a larger sampler can
+take. A step that reads $\omega$ (in its proposal, say) but is invariant only for $\Pi(\phi\mid\theta)$, or that
+mixes steps of both kinds, is covered by neither: after it, $\omega$ and $\phi'$ are dependent given $\theta$ in a
+way neither $\Pi(\phi\mid\theta,\omega)$ nor the latent conditional accounts for, and fresh draws at marked rows do
+not repair the unmarked rows, whose $\omega_i$ is now correlated with $\phi'$. Nothing is guaranteed for such a
+step, with the step or with today's fresh draws: Theorem~\ref{thm:setters} gives exactness for an outer step of
+kind C or of kind I only. The engine's documentation of getLatents and the setters should say so: reading the
+latents commits the caller to contract C (a move for $\phi$'s full conditional given $\omega$); not reading them,
+with a move for $\phi$ given $\theta$ alone, is contract I.
+
+\begin{lemma}[Only a fresh draw forgets the old conditional]\label{lem:complete}
+Let $K$ be a Markov kernel on $(0,\infty)$ with $\int\PG(b,\psi_0)(dx)K(x,A)=\PG(b,\psi_1)(A)$ for every Borel
+$A$ and every $\psi_0$ with $\psi_0^2/2$ in an open interval $I$. Then $K(x,\cdot)=\PG(b,\psi_1)$ for almost every
+$x$.
+\end{lemma}
+\begin{proof}
+For fixed $A$, $g(x)=K(x,A)-\PG(b,\psi_1)(A)$ is bounded and $\int g(x)\fz(x)e^{-\sigma x}dx=0$ for $\sigma\in I$.
+The left side is the Laplace transform of the finite signed measure $g\fz\,dx$, analytic for $\mathrm{Re}\,\sigma>
+-c_1$; vanishing on $I$, it vanishes there identically, so $g\fz=0$ a.e. by uniqueness, and $\fz>0$. Apply this to
+the intervals with rational endpoints, a countable class closed under intersection that generates the Borel sets.
+\end{proof}
+
+\begin{corollary}[Fractional-shape marked rows]\label{cor:frac}
+Let a marked row's kernel $K_{\psi_1}$ depend on the new $\psi_1$ and the row's data but not on the old $\psi_0$
+(the step keeps no record of it). If the chain leaves $\Pi$ invariant for every contract-I outer step, then
+$K_{\psi_1}(x,\cdot)=\PG(b,\psi_1)$ for almost every $x$: it is an exact fresh draw. At fractional $b$ none is available here: none is published below 1, and the sampler of
+\cite[Sec.~4]{wps} for non-integer shapes rests on their Conjecture 8, of which they write ``We numerically verify this is the case for $h\in[1,4]$''.
+Kernels that use $\psi_0$ exist in principle, such as the transport $x\mapsto F_{\psi_1}^{-1}(F_{\psi_0}(x))$ of
+the distribution functions, or rejection from $q$ given a certified $M^*$; neither is built. So, at fractional
+shapes, only refusing a mid-chain change keeps every contract-I caller exact; contract-C callers are exact with
+the step.
+\end{corollary}
+\begin{proof}
+Under contract I, $\omega_i\mid(\phi,\phi',\theta)\sim\PG(b,\psi_0)$ with $\psi_0=\psi_i(\phi,\theta)$, so
+invariance needs $\int\mu(d\psi_0)\int\PG(b,\psi_0)(dx)K_{\psi_1}(x,\cdot)=\PG(b,\psi_1)$, where $\mu$ is the
+conditional of $\psi_0$ given $(\phi',\theta)$: one condition on a mixture, which by itself does not force
+$K_{\psi_1}$ to be a fresh draw. Necessity comes from asking it of every contract-I outer step, including
+deterministic ones. Let $\phi$ be real (an offset shift, say) with a continuous conditional distribution function
+$F_\theta$ under $\Pi(\phi\mid\theta)$, strictly increasing on an interval where $\psi_i(\cdot,\theta)$ is continuous
+and not constant, and for $s\in(0,1)$ let $T_s(\phi)=F_\theta^{-1}(F_\theta(\phi)+s\bmod1)$, the quantile rotation
+(the referees' construction). If $\phi\sim\Pi(\cdot\mid\theta)$ then $F_\theta(\phi)$ is uniform on $(0,1)$, which
+the rotation by $s$ preserves, so $T_s\phi\sim\Pi(\cdot\mid\theta)$: each $T_s$ is a deterministic contract-I step,
+in every model with a continuous conditional. Given $\phi'=T_s\phi$ it fixes $\phi=T_s^{-1}\phi'$ almost surely, so
+$\mu$ is a point mass at $\psi_0=\psi_i(T_s^{-1}\phi',\theta)$, while $\psi_1=\psi_i(\phi',\theta)$ does not depend
+on $s$. A kernel that ignores which step was taken must meet the condition for every $s$; for $s$ in a countable
+dense set it holds for almost every $\phi'$, and as $s$ varies $\psi_0$ sweeps an interval, so $\psi_0^2/2$ sweeps an
+open interval $I$ on a dense subset of which the Laplace transform of Lemma~\ref{lem:complete}'s proof vanishes,
+hence on all of $I$ by continuity. That is the hypothesis of Lemma~\ref{lem:complete}, which gives the claim. For a single outer step, a kernel tuned to its $\mu$ is not
+excluded, but it would have to know $\mu$, which the engine does not.
+\end{proof}
+
+\section{Starting values}\label{sec:starts}
+
+Let $S_F$ be the sweep with fresh draws at every row (today's sampler) and $S_R$ the sweep with the step at the rows
+an $\omega$-free rule picks.
+
+\begin{theorem}\label{thm:starts}
+(a) $S_R(\xi,\cdot)\ge\epsilon(\theta)S_F(\xi,\cdot)$ with $\epsilon(\theta)=\prod_{i\ \mathrm{step}}1/M^*(b_i,
+\psi_i)>0$. (b) If $S_F$ is $\varphi$-irreducible, so is $S_R$; if $S_F$ is also aperiodic, so is $S_R$. (c) Then,
+by \cite[Thm.~4]{rr}, $\|S_R^n(\xi,\cdot)-\pi\|\to0$ for $\pi$-almost every start $\xi$, and for every initial
+distribution $\mu\ll\pi$. (d) At fixed $\theta$, the latents forget any starting value at the rate of
+Theorem~\ref{thm:row}. (e) An exact draw of $\omega$ at a start with fixed $\theta_0$ does not make the start
+distribution absolutely continuous, so it adds nothing to (c).
+\end{theorem}
+\begin{proof}
+(a) The latent step is first and $R_i\ge\PG_i/M^*_i$ (Theorem~\ref{thm:row}). (b) Iterating (a),
+$S_R^n(\xi,A)\ge\int\epsilon(\theta_0)S_F(\xi,d\xi_1)\epsilon(\theta_1)\cdots S_F(\xi_{n-1},d\xi_n)1_A(\xi_n)$,
+positive whenever $S_F^n(\xi,A)>0$. If $S_R$ had a $d$-cycle $D_1,\dots,D_d$ ($d\ge2$, in the sense of
+\cite[Sec.~3]{rr}), then for $\xi\in D_i$, $S_F(\xi,D_{i+1}^c)\le S_R(\xi,D_{i+1}^c)/\epsilon(\theta)=0$, a cycle of
+$S_F$. (c) \cite[Thm.~4]{rr}: ``If a Markov chain on a state space with countably generated $\sigma$-algebra is
+$\varphi$-irreducible and aperiodic, and has a stationary distribution $\pi$, then for $\pi$-a.e. $x$,
+$\lim_n\|P^n(x,\cdot)-\pi\|=0$''; the state space (tree shapes times Euclidean spaces) is countably generated;
+stationarity is Theorem~\ref{thm:sweep}. For $\mu\ll\pi$, dominated convergence. (d) Theorem~\ref{thm:row}.
+(e) The leaves at $\theta_0$ form a point of a continuous space.
+\end{proof}
+
+So exactness needs invariance and convergence from the start used; the start itself may be any value (the
+installed value, the creation value, or a draw from $q$). What is not proven, here or for today's sampler, is
+convergence from every fixed start (Section~\ref{sec:notproven}).
+
+\section{Multinomial}\label{sec:multi}
+
+With categories $k$ and forests $f_k$, category $k$'s rows have shape $n_i$ and $\psi_{ik}=f_{ik}-C_{ik}$,
+$C_{ik}=\log\sum_{j\ne k}e^{f_{ij}}$. The build, before forest $k$, draws $\omega_k$ fresh against the current
+$f_{-k}$ and then forest $k$ given $\omega_k$: a data-augmentation pair, invariant for $p(f)$.
+
+\begin{theorem}\label{thm:multi}
+Keep $\omega_k$ between visits and move it by the step against $\PG(n_i,f_{ik}-C_{ik})$ instead. Under the
+extended target $\Pi(f,\omega)=p(f)\prod_k\prod_i\PG(\omega_{ik}\mid n_i,f_{ik}-C_{ik})$ (the one whose latent
+conditionals are what the step targets), forest $j$'s draw from $p(f_j\mid f_{-j},\omega_j)$ is not its full
+conditional, since $\Pi$'s conditional of $f_j$ carries the factors $\PG(\omega_{ik}\mid n_i,f_{ik}-C_{ik})$,
+$k\ne j$, which depend on $f_j$ through $C_{ik}$. The scheme is not exact: in Toy 3 its stationary $f$-marginal is
+$0.0061$ from $p$ in $\TV$, while fresh draws are exact.
+\end{theorem}
+\begin{proof}
+The factor computation is direct. Equivalently, every other category's forest step changes $C_{ik}$, hence row
+$i$'s conditional, without reading $\omega_k$: the situation of Theorem~\ref{thm:setters}(c) at every row and every
+sweep. Toy 3 is in exact arithmetic (Appendix~\ref{app:toys}).
+\end{proof}
+
+\section{Theorems and the design elements they cover}\label{sec:map}
+
+\begin{center}\small
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.3\textwidth}>{\raggedright\arraybackslash}p{0.62\textwidth}}\toprule
+Result & Design element\\\midrule
+Prop.~\ref{prop:rev}, Thm.~\ref{thm:row} & the accept-or-keep step itself; its ratio in untilted form; uniform
+ergodicity and its rate\\
+Lemma~\ref{lem:D}, Props.~\ref{prop:bounded}, \ref{prop:K0}, \ref{prop:Krule}, App.~\ref{app:explicit} & the $K$
+rule, the remainder matched at $\psi$, the bounded weight, the rounding of the first rate, the rejection-sampler
+research note\\
+Lemmas~\ref{lem:contour}--\ref{lem:maj}, Thm.~\ref{thm:dens}, App.~\ref{app:round} & S1's certified densities $f$
+and $q$ at every reachable $(b,\psi)$; the pins\\
+Prop.~\ref{prop:cf}, Table~\ref{tab:floor} & the tilted, cancellation-free form of the densities and its floor\\
+Eqs.~\eqref{eq:tiltupd}, \eqref{eq:lead}, App.~\ref{app:round} & the cache of $\log f$ across sweeps; the lead in
+double-double\\
+Prop.~\ref{prop:left} & the left series region\\
+Lemma~\ref{lem:agg}, Cor.~\ref{cor:tail} & a cheaper certificate for S1 (not built); the cost figures and S1's
+timing gate\\
+Prop.~\ref{prop:tline} & the vertical line through the saddle point (the earlier large-shape construction)\\
+Thm.~\ref{thm:dec}, Props.~\ref{prop:ladder}, \ref{prop:floor}, \ref{prop:fixedtop}, Thm.~\ref{thm:mitro} & S2's
+certified decision, refinement, the rounding floor and its tally\\
+Section~\ref{sec:ideal}, Lemma~\ref{lem:flip} & what ``exact'' means in floating point, for the step and for
+today's sum\\
+Prop.~\ref{prop:fresh} & declining a fresh draw on an undecided decision\\
+Lemma~\ref{lem:condind}, Thm.~\ref{thm:sweep}, Prop.~\ref{prop:steps} & the step at the sweep's start (latents
+first); rows independent given the trees\\
+Thm.~\ref{thm:nb} & estimated-$r$ nbinom: fresh where $r$ moved, the step where it stayed\\
+Thm.~\ref{thm:rule} & dec-B590's per-row rule\\
+Thm.~\ref{thm:setters}, Lemma~\ref{lem:complete}, Cor.~\ref{cor:frac} & marked rows, setters (setData and
+setState included), the refusal at fractional shapes, outer steps of neither kind\\
+Thm.~\ref{thm:rule}, the cancel paragraph & the cancel polled between rows\\
+Thm.~\ref{thm:starts} & starting points served by the step from the installed value\\
+Thm.~\ref{thm:multi} & multinomial keeps the sum\\\bottomrule
+\end{tabular}
+\end{center}
+

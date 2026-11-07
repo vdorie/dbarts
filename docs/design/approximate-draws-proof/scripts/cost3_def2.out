@@ -1,0 +1,9 @@
+CONFIGS [('DEF', None)] RULE ['L10', 'L32', 'DEF']
+PG b=100000 psi=0 K=6 z=0 cfg=DEF rad=1.41e-12 round=1.41e-12 Emath=6.8e-20 floor=True N=32 h=0.000977 nodes=52441 cells=73166 total=125607 terms=125607 walk_nodes=43696 walk_cells=51492 t=1.1
+Gam b=100000 psi=0 K=6 z=0 cfg=DEF rad=1.79e-14 round=1.79e-14 Emath=6.8e-20 floor=True N=32 h=0.000977 nodes=5128 cells=5946 total=11074 terms=77518 walk_nodes=5335 walk_cells=5984 t=0.2
+PG b=100000 psi=8 K=19 z=0 cfg=DEF rad=3.76e-14 round=3.76e-14 Emath=6.2e-20 floor=True N=39 h=0.00146 nodes=27238 cells=45757 total=72995 terms=72995 walk_nodes=59675 walk_cells=91628 t=1.7
+Gam b=100000 psi=8 K=19 z=0 cfg=DEF rad=3.33e-14 round=3.33e-14 Emath=6.2e-20 floor=True N=39 h=0.00146 nodes=5021 cells=5718 total=10739 terms=214780 walk_nodes=5239 walk_cells=5720 t=0.3
+PG b=100000 psi=50 K=150 z=0 cfg=DEF rad=9.37e-14 round=9.37e-14 Emath=3.0e-22 floor=True N=19 h=0.00781 nodes=50056 cells=86294 total=136350 terms=136350 walk_nodes=71135 walk_cells=121974 t=2.3
+Gam b=100000 psi=50 K=150 z=0 cfg=DEF rad=4.45e-14 round=4.45e-14 Emath=3.2e-19 floor=True N=72 h=0.00195 nodes=4943 cells=5496 total=10439 terms=1576289 walk_nodes=5222 walk_cells=5496 t=2.6
+PG b=100000 psi=150 K=560 z=0 cfg=DEF rad=2.31e-13 round=2.31e-13 Emath=1.8e-20 floor=True N=32 h=0.00781 nodes=40544 cells=65877 total=106421 terms=106421 walk_nodes=49760 walk_cells=81551 t=1.6
+Gam b=100000 psi=150 K=560 z=0 cfg=DEF rad=1.28e-13 round=1.28e-13 Emath=6.6e-19 floor=True N=124 h=0.00195 nodes=4925 cells=5324 total=10249 terms=5749689 walk_nodes=5381 walk_cells=5324 t=14.0

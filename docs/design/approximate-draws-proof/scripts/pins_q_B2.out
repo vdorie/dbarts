@@ -1,0 +1,13 @@
+q b=0.2 psi=8 K=1 z=-4 x=0.000624581 N=170 h=1 rad=3.68e-14 round=3.68e-14 act=1.95e-14 ok=True refdis=2e-35 t=0.0 ref3=mosch
+q b=0.2 psi=8 K=1 z=0.5 x=0.0194582 N=164 h=0.188 rad=3.19e-14 round=3.19e-14 act=1.53e-14 ok=True refdis=2e-35 t=0.0 ref3=mosch
+q b=0.2 psi=8 K=1 z=12 x=0.17969 N=224 h=0.0469 rad=3.35e-14 round=3.31e-14 act=1.54e-14 ok=True refdis=3e-35 t=0.0 ref3=mosch
+q b=0.2 psi=150 K=37 z=-4 x=3.33333e-05 N=573 h=1 rad=8.32e-14 round=8.32e-14 act=2.93e-14 ok=True refdis=1e-17 t=0.4 ref3=mosch
+q b=0.2 psi=150 K=37 z=0.5 x=0.000752733 N=168 h=1 rad=3.19e-14 round=3.19e-14 act=1.47e-14 ok=True refdis=4e-22 t=0.3 ref3=mosch
+q b=0.2 psi=150 K=37 z=12 x=0.00273226 N=87 h=1 rad=1.98e-14 round=1.98e-14 act=5.89e-15 ok=True refdis=4e-23 t=0.1 ref3=mosch
+q b=2.5 psi=8 K=2 z=-4 x=0.00780726 N=40 h=1 rad=1.55e-14 round=1.55e-14 act=1.76e-15 ok=True refdis=2e-35 t=0.1 ref3=mosch
+q b=2.5 psi=8 K=2 z=0.5 x=0.180776 N=45 h=0.25 rad=1.03e-14 round=1.03e-14 act=4.32e-15 ok=True refdis=2e-35 t=0.0 ref3=mosch
+q b=2.5 psi=8 K=2 z=12 x=0.747281 N=83 h=0.0625 rad=1.55e-14 round=1.55e-14 act=5.10e-15 ok=True refdis=4e-34 t=0.1 ref3=mosch
+q b=2.5 psi=150 K=65 z=-4 x=0.00589901 N=58 h=1 rad=1.80e-14 round=1.80e-14 act=5.42e-15 ok=True refdis=1e-20 t=0.7 ref3=brom
+q b=2.5 psi=150 K=65 z=0.5 x=0.00863762 N=49 h=1 rad=1.69e-14 round=1.69e-14 act=6.44e-15 ok=True refdis=3e-21 t=0.6 ref3=brom
+q b=2.5 psi=150 K=65 z=12 x=0.0156363 N=36 h=1 rad=2.32e-14 round=2.32e-14 act=1.58e-15 ok=True refdis=6e-25 t=0.7 ref3=brom
+SUMMARY q: pins=12 failures=0 max act/rad=0.530 max rad=8.32e-14

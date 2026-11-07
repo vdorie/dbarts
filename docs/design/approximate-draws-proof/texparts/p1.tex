@@ -1,0 +1,333 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs,array}
+\usepackage{float}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\setlist{nosep,leftmargin=1.5em}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{remark}[theorem]{Remark}
+\newtheorem*{mainthm}{Main results}
+\newcommand{\PG}{\mathrm{PG}}
+\newcommand{\Ga}{\mathrm{Ga}}
+\newcommand{\TV}{d_{\mathrm{TV}}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Lt}{\widetilde L}
+\newcommand{\qt}{\widetilde q}
+\newcommand{\fz}{f_0}
+\newcommand{\fl}{\mathrm{fl}}
+\title{The accept-or-keep Polya-Gamma step:\\ where it keeps the posterior exact, and where it does not}
+\author{dbarts}
+\date{2026-11-06}
+\emergencystretch=3em
+\begin{document}
+\begin{center}
+{\Large\bfseries The accept-or-keep Polya-Gamma step:\\[2pt] where it keeps the posterior exact, and where it does
+not}\\[4pt]
+2026-11-05; revised after two referee reports, 2026-11-06
+\end{center}
+
+\section*{Summary for the maintainer}
+
+\textbf{What the step is.} Logistic, binomial and negative binomial fits carry one Polya-Gamma latent per row.
+Today each latent is redrawn from scratch every sweep by a sum whose cost grows with the row's shape. The step
+studied here proposes a new latent from a fast approximation (the first $K$ terms of the latent's exact series
+plus one gamma matched to the rest) and keeps the proposal or the old value with the Metropolis-Hastings
+probability, computed from the exact density of the latent and of the proposal. The densities have no closed
+form; they are computed numerically with a proven error bound, and the keep-or-move decision is taken only when
+that bound cannot change it.
+
+\textbf{What is proven.} Under exact arithmetic and exact random numbers (the idealization every sampler in the
+package is proven under, Section~\ref{sec:ideal}): the step leaves each row's latent distribution exactly
+invariant for every shape $b>0$, fit value and $K\ge1$, and converges from any value (Theorem~\ref{thm:row}); a
+decision taken under the bound is the exact decision, and refining the numerical rule always resolves it
+(Section~\ref{sec:dec}); inside the sweep every family the design gives the step keeps the joint posterior,
+including the negative binomial with an estimated dispersion and the per-row choice between the step and the sum
+(Sections~\ref{sec:sweep}--\ref{sec:rule}); rows a setter changed are exact when drawn fresh, for the two ways of
+using the latents defined in Section~\ref{sec:setters}; a starting value needs no exact draw.
+
+\textbf{Floating point.} No sampler in the package is exact in floating point: each of its comparisons against a
+32-bit uniform is off by up to $2^{-32}$, so today's exact sum carries up to about $10^{-9}$ per unit of shape per draw.
+The first version of this note evaluated the densities in a form whose rounding grew with the size of the
+log-density (to $1.4\times10^{-8}$ at the largest shapes), so that up to one step in ten million was too close to
+call. The density is now evaluated in a form whose rounding does not grow that way. Over shapes 0.2 to $10^5$ and
+$|\psi|$ to 150, at every point tested, each log-density is certified in interval arithmetic to within \FLOORDENS{}
+and contains independent references, provided one number per point, the lead term, is carried in double-double
+arithmetic (about 32 digits), as the engine must do it; in plain double that term alone reaches $10^{-10}$ far from
+the mean. At those points a step is too close to call \FLOORSTEPWORDS{} (Section~\ref{sec:floor}). That is below the
+$2^{-32}$ that each of the step's own random comparisons already carries. The engine's own figure is to be measured
+at the same points when it is built (Section~\ref{sec:changes}).
+
+\textbf{Cost.} The step evaluates three densities a row, as the design priced, when the row's previous step left
+its density in the cache (the current point's density is carried from the previous sweep by an exact update), and
+four otherwise. But a certified density costs far more than the design's uncertified sizing, and that decides
+where the feature pays. With the error bound as the scripts compute it, the step is slower than today's exact sum
+at every shape tested when $|\psi|=150$, and pays only from shapes of a few hundred at $|\psi|\le8$ and of several
+thousand at $|\psi|=50$; at fractional shapes, where there is no sum, a step costs 40 to 320 microseconds against
+the design's 7. A cheaper error bound, proven here but not built, could make the step pay from about a thousand
+trials at every $|\psi|$ tested. So S1 must build and time it, and the choice between the sum and the step is then
+set from S1's timings by $|\psi|$ as well as by shape (Section~\ref{sec:changes}, item 8).
+
+\textbf{Where it is not exact.} (1) Replacing an undecided decision by a fresh exact draw. (2) The step at a row
+a setter changed, when the larger sampler integrates the latents out; at a fractional shape the design reaches
+this through setData and setState, which it does not refuse (Section~\ref{sec:setters}). (3) Multinomial fits.
+(4) Choosing between the step and the sum by looking at the latent's own value. (5) A larger sampler whose step
+fits neither of the two ways defined in Section~\ref{sec:setters}.
+
+\textbf{What is not proven.} A sharp bound on how far the proposal can fall below the target, so the speed of
+convergence has no usable number. The math library's accuracy, for the engine's double-precision version (the
+scripts here use interval arithmetic and need no such assumption). The floor over every point rather than the
+points tested, and in the engine's arithmetic rather than the scripts'. The cost of a built evaluator. Convergence
+of the whole BART sampler from a fixed start, assumed as today.
+
+\textbf{Two questions for you} (Section~\ref{sec:maint}): what ``exact'' should mean once arithmetic is floating
+point (recommended: the package's existing standard, with the new density form and its lead term in
+double-double); and what setData and setState should do at fractional shapes (recommended: refuse once a chain has
+run, as the other setters are refused). \textbf{What the design must change} is in Section~\ref{sec:changes}: the
+density form and its lead term, the cache, the cost figures, the $K$ table at $|\psi|=150$ (140 to 560 terms, not
+110 to 120), the negative binomial $\psi$, the floor figure and its measurement, and the setters.
+
+\newpage
+\tableofcontents
+\newpage
+
+\section{Setting, notation and assumptions}\label{sec:setting}
+
+\paragraph{The latent distribution.} For $b>0$ and real $\psi$ let $c_k=2\pi^2(k-\tfrac12)^2$,
+$\sigma=\psi^2/2$, $d_k=c_k+\sigma$ ($k\ge1$). $\PG(b,\psi)$ is the distribution of $\sum_{k\ge1}G_k$ with
+independent $G_k\sim\Ga(b,d_k)$ (shape $b$, rate $d_k$) \cite[eq.~(1) and Thm.~1]{psw}. Its Laplace transform is
+\begin{equation}\label{eq:lt}
+  L_{b,\psi}(t)=\E e^{-tX}=\prod_{k\ge1}\Bigl(1+\frac t{d_k}\Bigr)^{-b}
+  =\frac{\cosh^b(\psi/2)}{\cosh^b\sqrt{(\sigma+t)/2}},\qquad t>-d_1,
+\end{equation}
+by the product $\cosh u=\prod_k(1+u^2/(\pi^2(k-\frac12)^2))$. Its density is the exponential tilt
+$f_{b,\psi}(x)=\cosh^b(\psi/2)\,e^{-\sigma x}f_{b,0}(x)$ \cite[Sec.~2.3 and Thm.~1]{psw}; write $f=f_{b,\psi}$, $\fz=f_{b,0}$.
+In the model, rows are conditionally independent given everything else, row $i$'s latent $\omega_i$ having
+distribution $\PG(b_i,\psi_i)$ with $b_i$ the row's shape and $\psi_i$ its log-odds: for logistic and binomial
+the linear predictor $\eta_i$ (fit plus offset), for the negative binomial with dispersion $r$, $\psi_i=\eta_i-\log
+r$, since the success probability is $\mu_i/(\mu_i+r)$ (the engine's \texttt{NBResponse::anchor} is offset plus
+centering constant minus $\log r$) \cite[Sec.~3 and Thm.~1]{psw}.
+
+\paragraph{The proposal.} Fix $K\ge1$. Let $m=\sum_{k>K}d_k^{-1}$, $v=\sum_{k>K}d_k^{-2}$, $\alpha=bm^2/v$,
+$\beta=m/v$, so that $\Ga(\alpha,\beta)$ has the mean $bm$ and variance $bv$ of $\sum_{k>K}G_k$. The proposal
+$q=q_{b,\psi,K}$ is the distribution of $\sum_{k\le K}\Ga(b,r_k)+\Ga(\alpha,\beta)$, where $r_k$ are the rates the
+sampler actually uses (floating-point values of $d_k$; Section~\ref{sec:changes} requires $r_1\le d_1$). The
+values $\alpha,\beta$ used are likewise the sampler's doubles; any positive values give a valid proposal, so
+rounding in them changes efficiency only. Since $\beta\ge d_{K+1}>\sigma$ (each $d_k^{-1}\ge d_{K+1}d_k^{-2}$
+for $k>K$), every rate exceeds $\sigma$ and
+\begin{equation}\label{eq:qtilt}
+  q(x)=e^{-\sigma x}\qt(x)/\widetilde L(\sigma),\qquad \widetilde L(\sigma)
+  =\prod_{k\le K}\Bigl(\frac{r_k-\sigma}{r_k}\Bigr)^b\Bigl(\frac{\beta-\sigma}{\beta}\Bigr)^\alpha,
+\end{equation}
+with $\qt$ the density of $\sum_{k\le K}\Ga(b,r_k-\sigma)+\Ga(\alpha,\beta-\sigma)$, the \emph{untilted
+proposal}. The \emph{weight} is $w=f/q$ and $M^*=\sup_{x>0}w(x)$.
+
+\paragraph{The step.} The independence Metropolis-Hastings (IMH) kernel with target $f$ and proposal $q$:
+from $x$, draw $y\sim q$ and $U\sim\mathrm{Unif}(0,1)$; move to $y$ if $U<a(x,y)$, else stay, where
+\begin{equation}\label{eq:ratio}
+  a(x,y)=\min\{1,\,r(x,y)\},\qquad
+  r(x,y)=\frac{f(y)q(x)}{f(x)q(y)}=\frac{\fz(y)\,\qt(x)}{\fz(x)\,\qt(y)} .
+\end{equation}
+The second (untilted) form follows from \eqref{eq:qtilt} and the tilt. The two are equal in exact arithmetic;
+the step evaluates the first, from $\log f$ and $\log q$ directly. The untilted form, which the first version of
+this note used, evaluates $\fz$ far in its left tail, where $|\log\fz|$ reaches $4\times10^6$ and rounding grows with
+it (Section~\ref{sec:floor}). In the tilted form $f$ is evaluated at the engine's $\psi$ and $q$ at the
+sampler's own doubles $r_k,\alpha,\beta$, so nothing has to cancel between them: the rounding of
+$\sigma=\psi^2/2$ never enters, and $q$ is exactly the density of the proposal drawn (under (A0)).
+
+The ratio needs four log-densities. $\log q(x)$ is evaluated afresh each sweep, as the design priced: the
+proposal is re-matched at the current $\psi$ and is not a tilt. $\log f(x)$ need not be. The design cached
+$\log\fz(x)$, which does not depend on $\psi$; in the tilted form the cache holds $\log f_{b,\psi}(x)$ from the
+previous sweep and moves it to the new $\psi'$ by the exact identity
+\begin{equation}\label{eq:tiltupd}
+  \log f_{b,\psi'}(x)=\log f_{b,\psi}(x)+b\,\bigl[\lambda(|\psi'|/2)-\lambda(|\psi|/2)\bigr]
+  -\frac x2\,(\psi'-\psi)(\psi'+\psi),
+\end{equation}
+with $\lambda(a)=a-\log2+\mathrm{log1p}(e^{-2a})=\log\cosh a$ for $a\ge0$: the tilt formula at $\psi'$ divided by
+that at $\psi$. Its two terms are
+of size $b|\psi'-\psi|$, not $b\log\cosh(\psi/2)$, and are computed in double-double (Section~\ref{sec:floor},
+``The cache''). The entry is valid only for the point it was computed at: it stores that point as the exact double
+$x$, with $b$ and $\psi$, and is used only when $x$ equals the row's current $\omega_i$ bit for bit and $b$ is
+unchanged. setData, setState, a fresh draw by the sum and an outer step that writes the latents can each replace
+$\omega_i$ with $b$ and $\psi$ unchanged (setData with only the response changed leaves $\PG(b_i,\psi_i)$ as it
+was), and a stale entry would then give a wrong $\log r$ silently; the match on $x$ excludes that. So a step makes
+three density evaluations, $f(y)$, $q(y)$ and $q(x)$, and one update (two double-double exponentials and
+log1p's and about ten double-double operations, a few hundred double operations), the count the design priced, whenever the row's previous step
+was a RowStep that left a valid entry. Otherwise, after a fresh draw by the sum (a marked row, the first sweep, a
+row the rule moved from the sum, every negative binomial row after $r$ moved) or any other write to $\omega_i$, it
+makes four. The design's cache of $\log\fz(\omega_i)$ had the same gap. In the design's estimated-$r$ negative
+binomial cell, where $r$ moved on 38 percent of sweeps, about 38 percent of steps make four evaluations.
+Rebuilding $\log f(x)$ from a cached $\log\fz(x)$ would not do: that value carries the untilted form's large
+rounding.
+
+\paragraph{Families evaluated.} Both $f$ and $q$ are densities of $X=\sum_j\Ga(a_j,2\tau_j^2)$ with
+$0<\tau_1\le\tau_2\le\cdots$ (finitely or infinitely many terms) and Laplace transform
+$L(t)=\prod_j(1+t/(2\tau_j^2))^{-a_j}$: for $f$, $2\tau_k^2=d_k$, $a_k=b$ and
+$L(t)=\cosh^b(A_\psi)/\cosh^b\sqrt{A_\psi^2+t/2}$, $A_\psi=|\psi|/2$; for $q$, $K+1$ terms with $2\tau_k^2=r_k$ and
+$2\tau_{K+1}^2=\beta$. Total shape $A=\sum a_j$ ($A=\infty$ for $f$). The case $\psi=0$ is $\fz$; with rates
+$r_k-\sigma$, $\beta-\sigma$ the finite family is $\qt$.
+
+\paragraph{Assumptions.}
+\begin{itemize}
+\item[(A0)] The idealization of Section~\ref{sec:ideal}: uniforms are exact real uniforms, gamma variates exact
+draws, the state ($\omega_i$, the proposal $y$, the trees) real-valued, sums such as the proposal's
+$\sum_kG_k$ exact, and the model's quantities ($b_i$, $\psi_i$, the fits) the values the engine computes. Every
+exactness theorem below holds under (A0). What floating point changes is in Section~\ref{sec:ideal}.
+\item[(A1)] IEEE 754 binary64 arithmetic: $+,-,\times,/$ and real square root correctly rounded, unit roundoff
+$u=2^{-53}$. Used only for the engine's double-precision evaluation (Appendix~\ref{app:round}).
+\item[(A2)] The engine's math library returns $\exp,\log,\mathrm{log1p},\mathrm{expm1},\sinh,\cosh,\tanh,\arctan$,
+$\sin,\cos$ and the complex square root with a stated bound $u_L$ on the error (relative; absolute for $\sin,\cos$),
+for example $u_L=2u$. This is an assumption about the library, not a theorem. The scripts that certify the numbers
+in this note use ball arithmetic (Arb, \cite{arb}), whose functions carry rigorous error bounds, and need no
+(A2).
+\end{itemize}
+Total variation is $\TV(\mu,\nu)=\sup_A|\mu(A)-\nu(A)|$. ``Exact'' means, as ruled (dec-B583, dec-B591): the
+chain's long-run distribution is the posterior; operationally, the posterior is invariant and the chain converges
+to it. Every theorem is stated under the idealization it needs; what exactness should mean in floating point is
+put to the maintainer in Section~\ref{sec:maint}, not settled here.
+
+\section{The algorithm}\label{sec:alg}
+
+The latent step runs at the start of each sweep, after the per-sweep hook and before the trees. $\mathcal M$ is
+the set of rows marked by setters since their last fresh draw. $\mathrm{Sum}(b,\psi)$ is today's exact draw (a sum
+of $b$ exact $\PG(1,\psi)$ draws), available only for whole-number $b$.
+
+\begin{algorithm}[H]
+\caption{Latent step at the start of a sweep}\label{alg:sweep}
+\begin{algorithmic}[1]
+\State \textbf{if} the family is negative binomial with estimated $r$: draw $r'$ from its distribution given $y$,
+fits and offset with $\omega$ integrated out; $\mathit{moved}\gets(r'\neq r)$; $r\gets r'$
+\For{each active row $i$} \Comment{rows are conditionally independent; any order}
+  \State $b_i\gets$ the row's shape (nbinom: $y_i+r$); $\psi_i\gets$ its log-odds (nbinom: $\eta_i-\log r$)
+  \If{($i\in\mathcal M$ \textbf{or} $\mathit{moved}$) \textbf{and} $b_i\in\mathbb Z$}
+     \State $\omega_i\gets\mathrm{Sum}(b_i,\psi_i)$; clear $i$'s mark
+  \ElsIf{$i\in\mathcal M$} \Comment{fractional $b_i$: reached only through setData or setState}
+     \State $\omega_i\gets\textsc{RowStep}(\omega_i,b_i,\psi_i)$; clear $i$'s mark
+     \Comment{not exact under contract I if the call changed the row (Thm.~\ref{thm:setters}(c))}
+  \ElsIf{$b_i>64$ \textbf{or} $b_i\notin\mathbb Z$} \Comment{dec-B590}
+     \State $\omega_i\gets\textsc{RowStep}(\omega_i,b_i,\psi_i)$
+  \Else
+     \State $\omega_i\gets\mathrm{Sum}(b_i,\psi_i)$
+  \EndIf
+  \State poll the run's cancel here, between rows only
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+The other setters that would mark a fractional-shape row are refused, as designed. The design serves a marked
+fractional row after setData or setState by the step ``as a cold start is''; line 6 records that, and whether
+those two calls should instead be refused once a chain has run is the second question of Section~\ref{sec:maint}.
+A cancel polled inside a row's refinement would leave that row unchanged after a time that depends on
+$\omega_i$, a choice read from $\omega_i$ (Theorem~\ref{thm:rule}); it is harmless only because a cancel ends the
+run and a later run starts from that state as from any start (Theorem~\ref{thm:starts}), but polling between rows
+avoids the question.
+
+\begin{algorithm}[H]
+\caption{\textsc{RowStep}$(x,b,\psi)$: one IMH step with a certified decision}\label{alg:row}
+\begin{algorithmic}[1]
+\State $K\gets$ the $K$ rule (any $K\ge1$ is exact; Section~\ref{sec:row}); form $r_k$ ($r_1\le d_1$), $\alpha$,
+$\beta$ as doubles
+\State $y\gets\sum_{k\le K}\Ga(b,r_k)+\Ga(\alpha,\beta)$ \Comment{exact draws under (A0)}
+\State $U\gets$ a uniform, held as the interval $[U_-,U_+)$ its drawn bits determine
+\State $j\gets0$; $I_{f(x)}\gets$ the cached enclosure of $\log f(x)$ moved to the current $\psi$ by
+\eqref{eq:tiltupd} if the entry's point equals $x$ bit for bit and its $b$ is the row's; else $\R$; $I_\bullet\gets\R$ for $\log f(y),\log q(x),\log q(y)$
+\Loop
+  \State refine: at level $j$, evaluate $f(y)$, $q(x)$, $q(y)$ (Algorithm~\ref{alg:dens}), and $f(x)$ only if
+  $I_{f(x)}$ is wider than level $j$ gives; intersect
+  \State $[\ell_-,\ell_+]\gets$ the enclosure of $\log r(x,y)=\log f(y)+\log q(x)-\log f(x)-\log q(y)$ from the four
+  \State \textbf{if} $\ell_-\ge\min(0,\log U_+)$: cache $(y,b,\psi,I_{f(y)})$; \Return $y$ \Comment{$U<r$ certain}
+  \State \textbf{if} $\ell_+\le\log U_-$: cache $(x,b,\psi,I_{f(x)})$; \Return $x$ \Comment{$U\ge r$ certain}
+  \State $j\gets j+1$; draw more bits of $U$ if its interval meets $[e^{\ell_-},e^{\ell_+}]$
+\EndLoop
+\end{algorithmic}
+\end{algorithm}
+
+The refinement levels are: smaller steps $h$ at a fixed precision, then, if the build has them, higher precisions
+(a precision ladder, Section~\ref{sec:ladder}). A build with a fixed top precision replaces the loop, once that
+level is exhausted, by a fixed decision (keep $x$) and a tally (Proposition~\ref{prop:floor}). The cache holds,
+per row, $\log f$ at a point with its enclosure and level, the value in double-double, the point as an exact
+double and the $(b,\psi)$ it was computed at; it is used only when the point equals the row's $\omega_i$ and $b$ is
+unchanged, and then moved to the new $\psi$ by \eqref{eq:tiltupd}. $\log q(x)$ is not carried
+across sweeps: the proposal's rates and remainder move with $\psi$, and $q$ is no tilt.
+
+\begin{algorithm}[H]
+\caption{Log density with an enclosure, family $(a_j,\tau_j)$, point $x>0$}\label{alg:dens}
+\begin{algorithmic}[1]
+\State solve $x=\sum_ja_j/(2\tau_j^2+t_0)$ for the saddle $t_0>-2\tau_1^2$ (for $f$: $x=b\tanh(w_0)/(4w_0)$,
+$w_0^2=A_\psi^2+t_0/2$, the $\tan$ form if $w_0^2<0$); any $t_0$ is valid, double precision suffices
+\State $T_1\gets\tau_1^2+t_0/2$; $\rho^2\gets\max\{T_1-\pi^2/4,\ T_1/2\}$ \Comment{any $\rho>0$ with $\rho^2<T_1$ is
+valid}
+\For{$h$ in $1,\tfrac34,\tfrac12,\tfrac38,\dots$ (so $kh$ is exact)}
+   \State $\hat S\gets h[G(0)+2\sum_{k=1}^N\mathrm{Re}\,G(kh)]$, $G(y)=\exp\bigl(2x\Delta+\ell(\Delta)\bigr)(\rho+iy)$,
+   $\Delta=-y^2+2i\rho y$, $\ell$ by \eqref{eq:cf}
+   \State bound the discretization and truncation, $E$ (Theorem~\ref{thm:dens}); rounding is carried in the ball
+   arithmetic
+   \State \textbf{if} $\hat S>E$: $\log\hat p\gets\log\frac2\pi+xt_0+\log L(t_0)+\log(\hat S\pm E)$, the lead
+   $xt_0+\log L(t_0)$ in its cancellation-free form (Section~\ref{sec:floor})
+   \State stop when $E$ is below the rounding radius or stops improving
+\EndFor
+\State optional, at small $x$ for $\fz$-type families: the left series (Proposition~\ref{prop:left})
+\end{algorithmic}
+\end{algorithm}
+
+\clearpage
+\section{Main results}\label{sec:main}
+
+\begin{mainthm}
+Under (A0), for every $b>0$, real $\psi$ and $K\ge1$:
+\begin{enumerate}[label=\textbf{T\arabic*.},leftmargin=2.2em]
+\item \emph{Row kernel.} The IMH kernel $P$ with ratio \eqref{eq:ratio} is reversible with respect to
+$\PG(b,\psi)$; $q>0$ on $(0,\infty)$; with the first rate not above $d_1$, $M^*=\sup f/q<\infty$, with
+$\lim_{x\to\infty}w=e^{bD}$ at exact rates, $D>0$ in closed form, $\lim_{x\to0}w=0$ and an explicit (loose) bound on $M^*$; and
+$\TV(P^n(x,\cdot),\PG(b,\psi))\le(1-1/M^*)^n$ for every $x$. The $K$ rule $bD\le0.01$ bounds the tail limit only:
+$M^*>e^{bD}$ is certified at small $b$. With $K=0$, or with $r_1>d_1$, $M^*=\infty$ and the step is not
+uniformly ergodic (it is still invariant and converges from almost every start).
+\item \emph{Decision.} With valid enclosures (Arb, or (A1)--(A2) and Appendix~\ref{app:round}), a decision taken
+when the enclosure of $\log r$ clears $\log U$ equals the exact decision. The undecided probability at a level of
+half-width $E$ with $\beta$ bits of $U$ is at most $2E+2^{1-\beta}$; with a precision ladder whose bounds tend to
+zero the step terminates with probability one and equals the exact kernel. Stopped at a top level with
+$\bar E=2E_f+2^{1-\beta}$: the kernel is within $\bar E$ of the exact one in total variation per row, $N$ sweeps of
+$n$ rows within $nN\bar E$, and the row chain's stationary distribution within $(\lceil M^*\log2\rceil+M^*)\bar E$.
+A fixed top level is not exact. Replacing an undecided decision by a fresh exact draw does not keep $\PG(b,\psi)$
+in general.
+\item \emph{Densities.} For the contour and step of Algorithm~\ref{alg:dens}, $|\hat S-S|\le E$ plus the rounding,
+with $E$ an a priori bound (discretization by two edge lines, truncation). In the tilted form, with the lead
+$xt_0+\log L(t_0)$ in double-double and the rest at 53 bits, the radius of each log-density's enclosure in ball
+arithmetic is at most \FLOORDENS{} at every pin over $b\in[0.2,10^5]$, $|\psi|\le150$ and $x$ from 4 standard
+deviations below the mean to 12 above (against $1.4\times10^{-8}$ at the mean in the untilted form), and \FLOORHI{}
+at 106 bits; the undecided probability per row step at the pins is then at most \FLOORSTEP. With the lead in plain
+double the radius reaches $10^{-10}$ away from the mean. Every enclosure contained independent references at
+every pin. The left series bound and the vertical-line rule hold as stated in
+Section~\ref{sec:dens}.
+\item \emph{Sweep.} With the latent step first and every other step invariant for the joint posterior, the sweep
+is invariant. Only the trees (and, where present, the combiner's glue) read $\omega$ among the steps after it;
+the level shift and the probit rescaling do not change any row's conditional.
+\item \emph{Estimated nbinom $r$.} The collapsed $r$ step, then fresh exact $\omega$ where $r$ moved and the step
+where it stayed, is invariant, for any $r$ kernel that is invariant for $r$'s marginal and does not read
+$\omega$.
+\item \emph{Per-row rule.} Any per-row choice between the sum and the step that depends on anything but the row's
+own $\omega_i$ keeps the row's conditional; a choice read from $\omega_i$ can break it.
+\item \emph{Setters.} Under contract C (the larger sampler's step conditions on $\omega$) the composite chain is
+exact with fresh draws or the step at marked rows. Under contract I (it integrates $\omega$ out and does not read
+it) it is exact with fresh draws at marked rows and not with the step at a row whose conditional changed; so the
+design's step at fractional rows after a setData or setState that changes their $(b_i,\psi_i)$ or activity is not
+exact under contract I (a call that changes no row's conditional leaves it exact). A remedy exact for every contract-I step either is a
+fresh draw or uses the row's previous conditional. Outer steps of neither kind are not covered.
+\item \emph{Starts.} Exactness needs invariance and convergence from the start used; an exact draw at the start
+is neither needed nor, with the trees at a fixed start, sufficient. The step inherits irreducibility and
+aperiodicity from today's sampler.
+\item \emph{Multinomial.} With persistent latents moved by the step, the forest steps are not invariant for the
+extended target the step needs, and the scheme is not exact (an exact counterexample). Fresh draws are.
+\end{enumerate}
+In floating point every statement above holds for the idealized chain; the implemented chain differs from it by
+the floors of Section~\ref{sec:ideal}, which every sampler in the package shares.
+\end{mainthm}
+

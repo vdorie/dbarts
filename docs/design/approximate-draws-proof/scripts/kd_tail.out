@@ -1,0 +1,9 @@
+# grid max of w (certified lower bound on sup w) vs exp(b D)
+b=0.3 psi=8 K=1: exp(bD)=1.010225 max_grid w=1.263161 (+-4.9e-14 in log) at z=-0.75, w at z=16: 1.014101
+b=0.3 psi=8 K=2: exp(bD)=1.000932 max_grid w=1.146924 (+-4.8e-14 in log) at z=-0.75, w at z=16: 1.001198
+b=1 psi=0 K=1: exp(bD)=1.000202 max_grid w=1.069963 (+-6.7e-14 in log) at z=-1, w at z=16: 1.000202
+b=1 psi=8 K=1: exp(bD)=1.034493 max_grid w=1.090940 (+-1.0e-13 in log) at z=-1, w at z=16: 1.034493
+b=2 psi=0 K=1: exp(bD)=1.000405 max_grid w=1.000424 (+-5.6e-14 in log) at z=-1, w at z=16: 1.000353
+b=16 psi=8 K=3: exp(bD)=1.009110 max_grid w=1.004804 (+-4.0e-13 in log) at z=16, w at z=16: 1.004804
+b=0.2 psi=150 K=1: exp(bD)=28.715521 max_grid w=35.607577 (+-1.4e-13 in log) at z=16, w at z=16: 35.607577
+b=4 psi=100 K=2: exp(bD)=1357396983870.670898 max_grid w=1480.033343 (+-4.3e-13 in log) at z=16, w at z=16: 1480.033343

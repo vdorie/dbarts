@@ -1,0 +1,34 @@
+# D closed form vs direct summation
+psi=0 K=1 D=0.000202372200571 |closed-direct|=2.87e-42
+psi=0 K=3 D=1.65058882231e-6 |closed-direct|=2.87e-42
+psi=0 K=10 D=4.56404902554e-9 |closed-direct|=4.66e-42
+psi=8 K=1 D=0.0339115560698 |closed-direct|=2.3e-41
+psi=8 K=3 D=0.000566823395168 |closed-direct|=0.0
+psi=8 K=10 D=1.87316932192e-6 |closed-direct|=1.43e-41
+psi=64 K=1 D=5.23714031002 |closed-direct|=1.1e-39
+psi=64 K=3 D=1.95457477745 |closed-direct|=3.67e-40
+psi=64 K=10 D=0.118323115482 |closed-direct|=5.51e-40
+psi=150 K=1 D=16.7871888657 |closed-direct|=1.47e-39
+psi=150 K=3 D=10.4402944422 |closed-direct|=1.47e-39
+psi=150 K=10 D=2.58517334649 |closed-direct|=1.47e-39
+# K rule: smallest K >= 1 with b D(psi, K) <= 0.01
+psi=0: b=0.2:K=1 b=1:K=1 b=16:K=1 b=100:K=2 b=1000:K=3 b=10000:K=4 b=100000:K=6
+psi=8: b=0.2:K=1 b=1:K=2 b=16:K=3 b=100:K=5 b=1000:K=8 b=10000:K=12 b=100000:K=19
+psi=50: b=0.2:K=10 b=1:K=14 b=16:K=26 b=100:K=38 b=1000:K=60 b=10000:K=95 b=100000:K=150
+psi=64: b=0.2:K=13 b=1:K=19 b=16:K=35 b=100:K=51 b=1000:K=80 b=10000:K=128 b=100000:K=202
+psi=100: b=0.2:K=23 b=1:K=33 b=16:K=59 b=100:K=86 b=1000:K=137 b=10000:K=217 b=100000:K=344
+psi=150: b=0.2:K=37 b=1:K=54 b=16:K=96 b=100:K=140 b=1000:K=223 b=10000:K=353 b=100000:K=560
+# b at which b D(psi, 48) = 0.01 (the K = 48 cap fails above it)
+psi=64: b* = 81.18
+psi=100: b* = 6.083
+psi=150: b* = 0.6293
+# K rule at b = 1e5, psi = 150: 560
+# grid max of w (certified lower bound on sup w) vs exp(b D)
+b=0.3 psi=8 K=1: exp(bD)=1.010225 max_grid w=1.263161 (+-5.0e-14 in log) at z=-0.75, w at z=16: 1.014101
+b=0.3 psi=8 K=2: exp(bD)=1.000932 max_grid w=1.146924 (+-4.8e-14 in log) at z=-0.75, w at z=16: 1.001198
+b=1 psi=0 K=1: exp(bD)=1.000202 max_grid w=1.069963 (+-6.7e-14 in log) at z=-1, w at z=16: 1.000202
+b=1 psi=8 K=1: exp(bD)=1.034493 max_grid w=1.090940 (+-1.0e-13 in log) at z=-1, w at z=16: 1.034493
+b=2 psi=0 K=1: exp(bD)=1.000405 max_grid w=1.000424 (+-5.6e-14 in log) at z=-1, w at z=16: 1.000353
+b=16 psi=8 K=3: exp(bD)=1.009110 max_grid w=1.004804 (+-4.0e-13 in log) at z=16, w at z=16: 1.004804
+b=0.2 psi=150 K=1: exp(bD)=28.715521 max_grid w=35.607577 (+-1.4e-13 in log) at z=16, w at z=16: 35.607577
+b=4 psi=100 K=2: exp(bD)=1357396983870.670898 max_grid w=1480.033343 (+-4.3e-13 in log) at z=16, w at z=16: 1480.033343

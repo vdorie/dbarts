@@ -1,0 +1,2 @@
+q b=100000 psi=50 K=150 z=-4 x=997.47 N=72 h=0.00195 rad=4.64e-14 round=4.64e-14 act=5.66e-15 ok=True refdis=3e-30 t=3.3
+q b=100000 psi=50 K=150 z=-1 x=999.368 N=72 h=0.00195 rad=4.45e-14 round=4.45e-14 act=7.02e-15 ok=True refdis=4e-30 t=4.5
