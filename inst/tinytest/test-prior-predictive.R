@@ -765,8 +765,11 @@ uniformEv <- samplePriorPredictive(
 expect_false(identical(dartEv, uniformEv))
 
 # where few joint draws are held (60 rows, 8 columns, 200 trees: about one in
-# a hundred), every sample is still the accepted joint draw, with no cap on
-# the attempts: 50 samples take about 5,000
+# two hundred), every sample is still the accepted joint draw, with no cap on
+# the attempts: 400 samples take about 80,000. Each engine call of attempts
+# draws k and the shape afresh, so on a negative-binomial sampler k follows
+# its chi(1.5, 2) prior and the shape its grid's weights, however many
+# attempts a call makes
 set.seed(seedBase + 14L)
 xWide <- matrix(runif(nPrior * 8L), nPrior, 8L)
 wide <- dbarts(
@@ -776,16 +779,41 @@ wide <- dbarts(
   control = control.plain,
   split.probs = dart()
 )
+wideCounts <- dbarts(
+  xWide,
+  rnbinom(nPrior, mu = 3, size = 2),
+  family = nbinomFamily(),
+  n.trees = 200L,
+  control = control.plain,
+  split.probs = dart()
+)
 wideDraws <- dbarts:::drawPriorForests(
-  wide,
+  wideCounts,
   xWide[1:2, ],
   NULL,
-  50L,
+  400L,
   1L,
   FALSE
 )$hyperparameters
 expect_true(all(vapply(wideDraws, `[[`, logical(1L), "forests.drawn")))
-expect_true(sum(vapply(wideDraws, `[[`, numeric(1L), "attempts")) > 500)
+expect_true(sum(vapply(wideDraws, `[[`, numeric(1L), "attempts")) > 8000)
+kPrior <- wideCounts$model@leaf.hyperprior
+expect_true(
+  ksP(
+    vapply(wideDraws, `[[`, numeric(1L), "k"),
+    function(v) pchisq((v / kPrior@scale)^2, kPrior@degreesOfFreedom)
+  ) >
+    pAbove
+)
+wideShapes <- vapply(wideDraws, `[[`, numeric(1L), "shape")
+expect_true(all(wideShapes %in% shapeGrid))
+expect_true(
+  chiSquaredP(
+    tabulate(match(wideShapes, shapeGrid), length(shapeGrid)),
+    length(wideShapes) * shapeWeights
+  ) >
+    pAbove
+)
 
 # a call projected to run long warns once, naming the acceptance so far and
 # the projected time; an internal option sets the threshold, here 0 seconds so
@@ -845,6 +873,38 @@ expect_identical(
   samplePriorPredictive(seeded, n.samples = 3L, type = "ev"),
   before
 )
+
+# where no forest is ever held (two points on the diagonal, 200 trees: each
+# tree is held with probability about 0.6), a call holding nothing never ends
+# a sample, and the first projection, at a sixtieth of the threshold, is the
+# time so far times n.samples, so a 3-second threshold warns within a fraction
+# of a second
+never <- dbarts(
+  matrix(c(0, 1), 10L, 2L),
+  rnorm(10L),
+  n.trees = 200L,
+  control = control.plain,
+  split.probs = dart()
+)
+countHooks(12L)
+interrupted <- tryCatch(
+  {
+    samplePriorPredictive(never, n.samples = 1L, type = "ev")
+    "not interrupted"
+  },
+  interrupt = function(cond) "interrupted"
+)
+countHooks(0L)
+expect_identical(interrupted, "interrupted")
+oldOptions <- options(dbarts.priorPredictiveWarnSeconds = 3)
+started <- proc.time()[["elapsed"]]
+warned <- tryCatch(
+  samplePriorPredictive(never, n.samples = 100L, type = "ev"),
+  warning = function(w) conditionMessage(w)
+)
+options(oldOptions)
+expect_true(proc.time()[["elapsed"]] - started < 1.5)
+expect_true(grepl("none of .*\\(acceptance none in .*at least about ", warned))
 
 rm(
   normal,
@@ -939,11 +999,17 @@ rm(
   shapeDraws,
   oldOptions,
   wideDraws,
+  wideCounts,
+  kPrior,
+  wideShapes,
   warnings,
   countHooks,
   seeded,
   before,
-  interrupted
+  interrupted,
+  never,
+  started,
+  warned
 )
 
 rm(
