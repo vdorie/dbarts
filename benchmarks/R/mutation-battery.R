@@ -273,8 +273,8 @@ mutations <- list(
   mk(
     "m11",
     "src/bartcore/model.hpp",
-    "      omega_[i] = omega;\n      double weight = weights_ != nullptr ? weights_[i] : 1.0;",
-    "      omega_[i] = omega * omega;\n      double weight = weights_ != nullptr ? weights_[i] : 1.0;",
+    "      omega_[i] = omega;\n      working_[i] = kappa(i) / omega - offset;",
+    "      omega_[i] = omega * omega;\n      working_[i] = kappa(i) / omega - offset;",
     "KILL_EXPECTED",
     kEquiv("logistic"),
     "poison 11: logistic response reports omega^2 as its working weight, though the working response itself still divides by the true omega (was model.hpp:2180)"
