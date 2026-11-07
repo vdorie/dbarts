@@ -1051,3 +1051,59 @@ for (key in savedKeys) {
   onceState[[key]] <- savedState[[key]]
 }
 rm(key, onceState, savedKeys, savedState, resetPdbartKeys)
+
+# ---- a fit whose forest basis is written as code ----
+# the rows averaged over are the fit's own, so the variables a basis reads
+# are collected with the predictors': pdbart and pd2bart with no newdata
+# equal them given the fit's data
+set.seed(17L)
+basisData <- data.frame(
+  x1 = runif(60L),
+  x2 = runif(60L),
+  z = sample(c("a", "b"), 60L, TRUE),
+  w = runif(60L, 0.5, 2)
+)
+basisData$y <- basisData$x1 + (basisData$z == "b") * basisData$x2 +
+  rnorm(60L, 0, 0.3)
+basisData$yb <- as.integer(basisData$y > median(basisData$y))
+for (case in list(
+  list(formula = y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z))),
+  list(formula = y ~ forest(x1 + x2) + forest(x1, basis = log(w))),
+  list(
+    formula = yb ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
+    family = "probit"
+  )
+)) {
+  basisFit <- do.call(
+    bart,
+    c(
+      list(case$formula, basisData),
+      if (!is.null(case$family)) list(family = case$family),
+      list(
+        n.samples = 10L,
+        n.burn = 10L,
+        n.chains = 1L,
+        n.threads = 1L,
+        seed = 2L,
+        keepTrees = TRUE,
+        verbose = FALSE
+      )
+    )
+  )
+  expect_identical(
+    pdbart(basisFit, xind = "x1", pl = FALSE)$fd,
+    pdbart(basisFit, xind = "x1", newdata = basisData, pl = FALSE)$fd
+  )
+  if (length(all.vars(case$formula[[3L]][[2L]])) > 1L) {
+    expect_identical(
+      pd2bart(basisFit, xind = c("x1", "x2"), pl = FALSE)$fd,
+      pd2bart(
+        basisFit,
+        xind = c("x1", "x2"),
+        newdata = basisData,
+        pl = FALSE
+      )$fd
+    )
+  }
+}
+rm(basisData, case, basisFit)

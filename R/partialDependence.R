@@ -844,7 +844,9 @@ pdbart.setVariables <- function(rows, keys, values) {
 # A formula fit's rows as the variables of its data, collected as
 # get_all_vars collects them and cut to the rows the fit was made on by their
 # names. 'getData' gives the data as list(value), NULL when the call named
-# none, or FALSE when it cannot be had.
+# none, or FALSE when it cannot be had. A forest's basis written as code is
+# rebuilt at the averaged rows from the variables it reads, so they are
+# collected beside the predictors'.
 pdbart.trainingRows <- function(
   sampler,
   getData,
@@ -878,6 +880,28 @@ pdbart.trainingRows <- function(
     },
     error = function(e) NULL
   )
+  if (!is.null(rows)) {
+    for (record in sampler$model@forests) {
+      basisTerm <- record@basis.term
+      if (is.null(basisTerm)) {
+        next
+      }
+      basisRows <- tryCatch(
+        if (is.null(data)) {
+          stats::get_all_vars(basisTerm$terms)
+        } else {
+          stats::get_all_vars(basisTerm$terms, as.data.frame(data[[1L]]))
+        },
+        error = function(e) NULL
+      )
+      if (is.null(basisRows) || nrow(basisRows) != nrow(rows)) {
+        next
+      }
+      for (name in setdiff(names(basisRows), names(rows))) {
+        rows[[name]] <- basisRows[[name]]
+      }
+    }
+  }
   index <- if (!is.null(rows)) match(rowNames, rownames(rows))
   if (is.null(rows) || length(rowNames) != count || anyNA(index)) {
     refuse()
