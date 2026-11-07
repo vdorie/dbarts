@@ -19,6 +19,7 @@
 #include "chain.hpp"
 #include "sampler.hpp"
 #include "facade.hpp"
+#include "pgdensity.hpp"
 // IWYU pragma: end_exports
 
 #endif  // BARTCORE_BARTCORE_HPP
