@@ -269,6 +269,33 @@ items
     be weighted: the residual sd of the intercept alone, which is on
     the regression's scale where the weights are far from 1 (1.28 for
     1.12 on one run under weights between 0.5 and 2).
+  study-firming: every study whose result decides a default, a sampler
+    change or a gate is brought, in time, to what published research
+    of its kind would do (dec-B637); k-move-pricing is the first. In
+    order:
+    - drop of the swap move from the default mixture (dec-B02): rerun
+      at the defaults (75 trees, 4 chains, 20 or more seeds) with
+      rank-normalized bulk and tail effective draws, effective draws per
+      second, and coverage and length for f, before the release, since
+      NEWS says it "costs nothing measurable";
+    - the logistic k default: reread the October study's stored fits,
+      whose truths were probit surfaces; redesign the September rerun
+      (dec-B390, dec-B634) on Chipman, George and McCulloch (2010)'s
+      lines, with a cross-validated comparison on real data;
+    - the negative binomial default (nbinom-default-prior): reread the
+      stored fits for RMSE, bias and coverage per real dataset, and
+      score Murray's published rule;
+    - stan4bart's initial fit (dec-B441) and the starting sigma on
+      forest bases (dec-B603): widen each to several designs;
+    - the monotone defaults: reread the stored runs against nominal;
+    - each planned study (dart's split rule, the variance-forest
+      calibration, the Polya-Gamma defaults) designed to the standard
+      from the start;
+    - the probit k default's cross-validated arm, then the internal
+      gates: the SBC comparison rule and the equivalence harness's
+      false-alarm rate;
+    - the rest, minor: the Carnegie DOI in
+      docs/design/grow-from-root-default.md is wrong (10.1214/18-STS682).
   warm-start-across-models: a warm start from a donor that is another
     model, such as a fast fit on a transformed response seeding a slower
     model on the original scale, with whatever scale or dispersion the
