@@ -3687,7 +3687,7 @@ dbartsData <- function(
     # before the backticks of a non-syntactic name are stripped below, since
     # the scan reads them as the quoting they are
     refuseInteractionTerms(termLabels)
-    badLabels <- grepl("`.* .*`", termLabels)
+    badLabels <- grepl("^`[^`]*`$", termLabels)
     if (sum(badLabels) > 0) {
       termLabels[badLabels] <- gsub("^`(.*)`$", "\\1", termLabels[badLabels])
     }

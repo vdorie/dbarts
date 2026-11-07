@@ -1078,6 +1078,11 @@
             first column as a factor and dropped the others, with only R's
             warning that a replacement element had too many rows. A logical
             or numeric matrix column is one predictor per column, as before.
+      \item A formula reads a column whose name is not syntactic, such as
+            \code{1x}, \code{x-y}, \code{x:y} or \code{if} in a frame
+            read with \code{check.names = FALSE}, through \code{y ~ .} or
+            written in backticks. 0.9-34 stopped with \dQuote{undefined
+            columns selected} unless the name held a space.
     }
   }
 }

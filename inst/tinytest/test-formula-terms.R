@@ -1304,3 +1304,63 @@ for (family in c("aft", "ordinal", "nbinom")) {
     family = family
   )
 }
+
+# ---- non-syntactic column names ----
+# a frame read with check.names = FALSE holds names a formula must backtick;
+# model.frame names their columns without the backticks, so every wholly
+# backticked label is read by its bare name, through y ~ . and written out
+# alike, and fits as a syntactically named twin does
+set.seed(81L)
+odd <- data.frame(
+  "1x" = runif(40L),
+  "x-y" = runif(40L),
+  "x:y" = runif(40L),
+  "if" = runif(40L),
+  "a b" = runif(40L),
+  check.names = FALSE
+)
+odd$y <- odd[["1x"]] - odd[["x:y"]] + rnorm(40L, 0, 0.3)
+twin <- odd
+names(twin) <- c("v1", "v2", "v3", "v4", "v5", "y")
+fitNames <- function(formula, data) {
+  bart(
+    formula,
+    data,
+    n.trees = 10L,
+    n.burn = 10L,
+    n.samples = 10L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 4L,
+    keepTrees = TRUE,
+    verbose = FALSE
+  )
+}
+fitTwin <- fitNames(y ~ ., twin)
+for (formula in list(y ~ ., y ~ `1x` + `x-y` + `x:y` + `if` + `a b`)) {
+  fitOdd <- fitNames(formula, odd)
+  expect_identical(
+    colnames(fitOdd$fit$data@x),
+    c("1x", "x-y", "x:y", "if", "a b")
+  )
+  expect_identical(fitOdd$yhat.train, fitTwin$yhat.train)
+  expect_equal(colMeans(predict(fitOdd, odd)), fitted(fitOdd))
+}
+
+# the multinomial door reads its formula on its own
+odd$k <- factor(sample(c("a", "b", "c"), 40L, TRUE))
+fitOddK <- bart(
+  k ~ `1x` + `x:y`,
+  odd,
+  family = "multinomial",
+  n.trees = 5L,
+  n.burn = 5L,
+  n.samples = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+expect_identical(dim(predict(fitOddK, odd)), c(5L, 40L, 3L))
+
+rm(odd, twin, fitNames, fitTwin, formula, fitOdd, fitOddK)
