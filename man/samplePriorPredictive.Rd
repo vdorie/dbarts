@@ -86,9 +86,9 @@ samplePriorPredictive(
   trees, where 1,000 samples take a few seconds. With few rows and many trees the draw can take
   long: at 8 columns, 1,000 samples take about a minute at 60 rows and 500 trees, and one and a
   half to two and a half hours at 60 rows and 1,000 trees or at 30 rows and 500 trees. Once the
-  attempts made project a call longer than about a minute, a warning gives the share of draws kept
-  so far and the projected time. The draw can be interrupted as a run is; the sampler passed in is
-  left as it was.
+  attempts made project a call longer than about a minute, a warning, printed when issued, gives the
+  share of draws kept so far and the projected time. The draw can be interrupted as a run is; the
+  sampler passed in is left as it was.
 
   For \code{type = "ppd"} on a gaussian sampler, sigma is drawn once per sample from the model's
   residual-variance prior: a scaled-inverse-chi-squared calibrated so that

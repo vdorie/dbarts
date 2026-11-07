@@ -2043,9 +2043,10 @@ formatPriorPredictiveSeconds <- function(seconds) {
 # acceptance. Once a second (scaled with the threshold) has gone into the
 # attempts, each call projects the whole: the time so far times n.samples
 # over the samples accepted, or with none accepted yet, the time so far times
-# n.samples as a lower bound, acceptance being below about one in the
-# attempts made. The first projection over priorPredictiveWarnSeconds() warns,
-# once. Returns list(fits, variances, hyperparameters), one entry a sample.
+# n.samples as a lower bound. The first projection over
+# priorPredictiveWarnSeconds() warns, once, printed when raised so that it
+# arrives while the draw runs. Returns list(fits, variances, hyperparameters),
+# one entry a sample.
 drawPriorForests <- function(
   draw,
   xt,
@@ -2093,7 +2094,7 @@ drawPriorForests <- function(
         "none of ",
         format(attempts, big.mark = ",", scientific = FALSE),
         " joint draws of the split weights and trees so far was one the ",
-        "sampler holds (acceptance below 1 in ",
+        "sampler holds (acceptance none in ",
         format(attempts, big.mark = ",", scientific = FALSE),
         "), so the call will take at least about ",
         formatPriorPredictiveSeconds(projected)
@@ -2104,7 +2105,8 @@ drawPriorForests <- function(
       "samplePriorPredictive: under dart() ",
       message,
       "; it can be interrupted",
-      call. = FALSE
+      call. = FALSE,
+      immediate. = TRUE
     )
   }
 
