@@ -342,3 +342,51 @@ for (q in c(9L, 12L)) {
     tolerance = 1e-12
   )
 }
+
+# a sampler and its copy draw alike after a run and again after setWeights:
+# a copy derives every cached leaf statistic afresh, so a live sampler whose
+# cache went stale when the weights changed, or when a Student-t sweep redrew
+# its latent weights, parts from it. Each copy is taken after the run that
+# precedes it, since one taken before shares the stale cache, and the two
+# agree to rounding rather than bit for bit.
+set.seed(5)
+nCopy <- 100L
+xCopy <- cbind(x1 = runif(nCopy), x2 = runif(nCopy))
+yCopy <- 2 * xCopy[, 1L] + rnorm(nCopy, sd = 0.3)
+ytCopy <- 2 * xCopy[, 1L] + rt(nCopy, 2) * 0.3
+wCopy <- runif(nCopy, 0.1, 5)
+for (family in c("gaussian", "student")) {
+  live <- dbarts(
+    xCopy,
+    if (family == "student") ytCopy else yCopy,
+    family = family,
+    leaf.prior = dbartsPriors$linear("x1"),
+    control = dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      updateState = FALSE,
+      seed = 9L
+    ),
+    n.trees = 10L
+  )
+  invisible(live$run(20L, 1L))
+  live$storeState()
+  twin <- live$copy()
+  expect_equal(
+    live$run(0L, 5L)$train,
+    twin$run(0L, 5L)$train,
+    tolerance = 1e-10,
+    info = paste(family, "run")
+  )
+  live$storeState()
+  twin <- live$copy()
+  live$setWeights(wCopy)
+  twin$setWeights(wCopy)
+  expect_equal(
+    live$run(0L, 5L)$train,
+    twin$run(0L, 5L)$train,
+    tolerance = 1e-10,
+    info = paste(family, "setWeights")
+  )
+}
+rm(family, live, twin)

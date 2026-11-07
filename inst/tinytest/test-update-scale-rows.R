@@ -1127,3 +1127,35 @@ for (flag in c(TRUE, FALSE)) {
     expect_false(identical(engineState(s), stateBefore))
   }
 }
+
+# Student-t: setWeights and then setResponse(updateScale = TRUE) take the
+# response's scale from the rows the weights keep in, as a sampler created with
+# those weights and that response does
+set.seed(5)
+nT <- 100L
+xT <- cbind(x1 = runif(nT), x2 = runif(nT))
+yT <- 2 * xT[, 1L] + rt(nT, 2) * 0.3
+wT <- rep(c(1, 0), each = nT / 2L)
+yTOut <- yT
+yTOut[wT == 0] <- 1000
+controlT <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  updateState = FALSE,
+  seed = 9L
+)
+handedT <- dbarts(xT, yT, family = "student", control = controlT, n.trees = 10L)
+handedT$setWeights(wT)
+handedT$setResponse(yTOut, updateScale = TRUE)
+createdT <- dbarts(
+  xT,
+  yTOut,
+  weights = wT,
+  family = "student",
+  control = controlT,
+  n.trees = 10L
+)
+expect_equal(
+  handedT$getLeafPrior()$response.scale,
+  createdT$getLeafPrior()$response.scale
+)

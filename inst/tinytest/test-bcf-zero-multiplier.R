@@ -75,3 +75,38 @@ expect_true(all(vapply(
   function(fits) diff(range(fits)) < 1e-12,
   logical(1L)
 )))
+
+# the zero-multiplier bound is taken over the rows in the likelihood: a row of
+# weight zero with a huge basis value neither snaps every other row's
+# multiplier to zero nor enters the forest's response, so the fit on the rows
+# in recovers the truth
+set.seed(1)
+nZero <- 200L
+xZero <- matrix(runif(nZero * 2L), nZero, 2L)
+vZero <- runif(nZero, 1, 2)
+vZero[1L] <- 1e9
+truthZero <- 1 + vZero * (2 * xZero[, 1L])
+yZero <- truthZero + rnorm(nZero, sd = 0.1)
+yZero[1L] <- 0
+wZero <- rep(1, nZero)
+wZero[1L] <- 0
+zeroSampler <- dbarts(
+  xZero,
+  yZero,
+  weights = wZero,
+  forests = list(
+    dbartsForests$forest(),
+    dbartsForests$forest(basis = vZero, n.trees = 25L)
+  ),
+  control = dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    updateState = FALSE,
+    seed = 11L
+  ),
+  n.trees = 50L
+)
+zeroSamples <- zeroSampler$run(100L, 50L)
+expect_true(
+  sqrt(mean((rowMeans(zeroSamples$train)[-1L] - truthZero[-1L])^2)) < 0.15
+)

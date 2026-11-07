@@ -96,3 +96,30 @@ rm(
   z.probit,
   n
 )
+
+# after setOffset a logistic sampler's working response is rebuilt: the sums
+# of squared residuals it reports equal those of a copy, which derives them
+# afresh
+set.seed(5)
+nL <- 100L
+xL <- cbind(x1 = runif(nL), x2 = runif(nL))
+zL <- rbinom(nL, 1L, plogis(2 * xL[, 1L] - 1))
+logisticL <- dbarts(
+  xL,
+  zL,
+  family = binomial(link = "logit"),
+  control = dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    updateState = FALSE,
+    seed = 9L
+  ),
+  n.trees = 10L
+)
+invisible(logisticL$run(20L, 1L))
+logisticL$storeState()
+logisticL$setOffset(rep(3, nL))
+expect_equal(
+  logisticL$getSumsOfSquaredResiduals(),
+  logisticL$copy()$getSumsOfSquaredResiduals()
+)
