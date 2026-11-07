@@ -2,9 +2,13 @@
 
 Status: built, in review (branch review4-engine-robustness).
 
-rng: neutral. Every complete run, and every state the package writes, draws bit for bit as before; the
-equivalence baselines and the four snapshot files are unchanged ([Gates](#gates)). What changes is what
-an incomplete run leaves, what an allocation failure leaves, and which edited or damaged states and
+rng: neutral, with one exception. Every complete run, and every state the package writes, draws bit for
+bit as before; the equivalence baselines and the four snapshot files are unchanged ([Gates](#gates)).
+The exception is one warm-start route: a donor whose DART weights hold 0 on a column the recipient's
+forest may split on, as a forest under a column restriction writes them, now starts the recipient's DART
+weights fresh (1/3 each over three columns, where main keeps the donor's 0.5, 0.5, 0), so the
+draws after such a warm start differ ([Calls made](#calls-made), 3). What else changes is what an
+incomplete run leaves, what an allocation failure leaves, and which edited or damaged states and
 warm-start donors are refused.
 
 Findings fixed: engine-01, engine-02, engine-03, engine-V-01, bridge-01 and bridge-V-01 of the fourth
@@ -66,9 +70,9 @@ birth had outgrown (amendment 4).
 Now: `Chain::reserveForMove` reserves, before each tree's move, room for one more child pair in the
 tree's nodes, its leaf table and its bottom scratch, so nothing from an accepted move to the end of that
 tree's draw reallocates them. `Chain::settleAfterAllocationFailure` (noexcept) makes the tree in flight
-(`treeInFlight_`) consistent without allocating - a constant leaf's map marked stale and its table
-resized within the reserve, a vector leaf's block likewise - and re-sums every forest through
-`rebuildTotalFitsFromTrees`, which gains the dense branch for linear and gp leaves.
+(`treeInFlight_`) consistent without allocating - a constant leaf's map, the monotone one's included,
+marked stale and its table resized within the reserve, a vector leaf's block likewise - and re-sums
+every forest through `rebuildTotalFitsFromTrees`, which gains the dense branch for linear and gp leaves.
 `sampleNodeParametersFromPrior` catches for every leaf (amendment 10). `Tree::compactMaskPoolIfNeeded`
 reserves its scratch (`liveMaskWordsBelow`) before pointing a rule into it.
 
@@ -76,20 +80,36 @@ The harness found two older defects of the same kind, fixed here: the gp kernel 
 members (its key) before building its kernel, so a failure left an entry a later leaf matched with no
 kernel (a segfault); `MonotoneLeafGeometry::build` left its axis map stale on a throw, which the next
 build read past its axes (a segfault). The cache now writes the key last, and the geometry resets the map
-on every exit.
+on every exit. The fix round's harness found a third: the settle left the monotone leaf's map unmarked,
+on the view that its failures put the tree back, but a failure in its branch score (the leaf list it
+gathers) leaves the proposed tree in place, so the next sweep scattered sufficient statistics through a
+map naming a split as a leaf (wrong statistics under NDEBUG, a failed assertion in tests/cpp). The
+monotone tree's map is now marked stale too, and its next draw restarts its leaf values at the all-equal
+zero, as a stale monotone tree does.
 
 Tests: test_alloc.cpp (new suite `alloc`) replaces every global `operator new` and `delete` form, counts
 the allocations of a sweep, and for each N fails the N-th on a fresh sampler, then checks the totals
-equal the trees' sum, `getState` and `setState` succeed, and one more sweep is consistent. Arms: constant
-(births forced), linear, gp and monotone leaves, each over a sweep and over `sampleNodeParametersFromPrior`,
-and a kept-draws arm whose failures land inside the kept sweep with a full ring. All N fail cleanly:
-constant 47 of 47 and 1 of 1, linear 83 of 83 (the prior draw makes no allocation), gp 94 of 94 and 30 of
-30, monotone 167 of 167 and 39 of 39, kept draws 40 of 40 (39 inside the kept sweep).
+equal the trees' sum, the state it leaves reads and installs on a new sampler, the failed sampler's next
+sweep is consistent, and after it each tree's fits equal those of a new sampler built from its state, so
+every leaf map the failure left behind its tree is rebuilt before it is read. The install goes to a new
+sampler because an install on the failed one rebuilds its maps and hides a stale one. Arms: constant,
+linear, gp and monotone leaves, each over a sweep of births and deaths from stumps and over
+`sampleNodeParametersFromPrior`; a pooled-factor arm, a column of 60000 categories whose masks live in
+the tree's pool, so a split on it crosses the pool's high-water mark and the failures land in the
+compaction's reserve and around the stale-map marking; a tree-level arm compacting a pool of two live
+masks stored past garbage, after each failure every rule reading its own words; and a kept-draws arm
+whose failures land inside the kept sweep with a full ring. The sweep arms' birth probability is 0.5: at
+1 a birth has no reverse death and is always rejected, so the trees never grew. All N fail cleanly:
+constant 47 of 47 and 2 of 2, linear 85 of 85 (the prior draw makes no allocation), gp 102 of 102 and 58
+of 58, monotone 189 of 189 and 105 of 105, pooled factor 75 of 75, compaction 1 of 1, kept draws 40 of
+40 (39 inside the kept sweep).
 
 ### bridge-01 and bridge-V-01: values no chain can run from are refused
 
 `Chain::drawnScalarsAreValid`, judged only where the chain draws the value and the state holds one: sigma
-positive and finite; each forest's k positive, and finite unless its prior lets a draw reach +Inf
+positive and finite; each forest's k positive and finite, except 0 where its prior lets a draw reach 0
+(`Chain::kDrawCanBeZero`, a squared scale below 2^-960: the draw's rate overflows below 2^-1025, and
+below 2^-969 a gamma draw can round to 0) and +Inf where it lets a draw reach +Inf
 (`Chain::kDrawCanBeInfinite`, amendment 1); DART weights finite, not negative, not all zero, and positive
 on every column the forest may split on, the masked columns free (amendment 3), the concentration
 positive and finite; the response transform finite. `Chain::generatorStateIsValid` wraps
@@ -108,11 +128,13 @@ writes them, starts the recipient's DART fresh (`Chain::startDartFresh`) instead
 
 Tests: `testStateValueFloors` (test_state.cpp) - each floor refused at its edge and its package-written
 value accepted, in both forms; k = +Inf accepted under scales Inf and 1e150, refused under 1e140 and 2;
+k = 0 written under 1e-160 and accepted by setState, a new sampler and a warm start, refused under 1e-140;
 the index at -1, -100000, N + 1 and N + 2 refused, 0 and N accepted; all-zero and low-bits-only words
 refused; a memo edit installed recomputed to the bit and running bitwise equal; the DART, ordinal and
 warm-start cases. test-state-value-floors.R - the same through setState in both forms, two copies of one
 sampler compared by `identical()` (amendment 8), a reload refused rather than a crash, installTrees
-refused by its message, k = Inf under chi(1.5, Inf) installed, a restricted DART donor starting a
+refused by its message, k = Inf under chi(1.5, Inf) installed, the k = 0 a chi(1.5, 1e-160) sampler writes
+taken by setState, a copy, a reload and installTrees, a restricted DART donor starting a
 recipient's weights at 1/3 each.
 
 ## Gates
@@ -120,13 +142,17 @@ recipient's weights at 1/3 each.
 Run on arm64 macOS against the branch's own libraries (shipped and reference builds, each installed with
 `--preclean`).
 
-- tests/cpp: every suite passes, plain and under `-fsanitize=address,undefined` (443 checks reported
-  ok in each, no sanitizer report).
+- tests/cpp: every suite passes, plain and under `-fsanitize=address,undefined` (445 checks reported
+  ok in each after the fix round, 443 before it, no sanitizer report).
   The new suite `alloc` reports the counts under engine-03 above.
+- Fix round, shipped build: test-state-value-floors.R, test-interrupt-saved-trees.R, test-capi.R,
+  test-sweep-order.R and test-interrupt-signal.R, 78, 9, 324, 26 and 2 results, 0 failed. The full
+  tinytest, R-loaded ASan and R CMD check lines below are from the build, before the fix round.
 - Full tinytest, one process, shipped build: 41276 results in 303 files, 0 failed.
 - Equivalence trio on the reference build, `--bitwise` (and `--strict-coverage` on equivalence.R): 55,
-  19 and 11 scenarios compared, 0 skipped, every one identical draws.
-- The four snapshot files on the reference build: 14, 3, 7 and 3 assertions, 0 failed (unchanged).
+  19 and 11 scenarios compared, 0 skipped, every one identical draws; the same again after the fix round.
+- The four snapshot files on the reference build: 14, 3, 7 and 3 assertions, 0 failed (unchanged); the
+  same again after the fix round.
 - R-loaded ASan (the bridge compiled with `-fsanitize=address`, run through `bin/exec/R` with the
   runtime inserted): the four new or touched files and nine neighbors (state, warm start, callbacks,
   ordinal, DART, gp, monotone, serialization), 1286 results, 0 failed, no report. test-interrupt-signal.R
@@ -136,7 +162,8 @@ Run on arm64 macOS against the branch's own libraries (shipped and reference bui
   external site's expired certificate, cited from two help pages this slice does not touch, and the Date
   field).
 - `lintr::lint_package()` 0 lints; `air format --check .`, check-rc-codoc.R (53 methods), check-win-drift.R,
-  check-doc-freshness.R and `mutation-battery.R verify-anchors` all OK.
+  check-doc-freshness.R and `mutation-battery.R verify-anchors` all OK; after the fix round lintr, air,
+  codoc, win-drift and doc-freshness again OK.
 - Mutants, each built into a copy of the tree and run against tests/cpp:
 
   | mutant | killed by |
@@ -144,7 +171,11 @@ Run on arm64 macOS against the branch's own libraries (shipped and reference bui
   | the guard dismissed on the cancel path | three stopped-run checks in `testStoppedRunKeepsEarlierDraws` |
   | the slot counted after the saved writes (amendment 2) | `testMonotoneCountFailureKeptDraws` and the alloc suite's kept-draws arm |
   | `if constexpr (NormalizedLeafModel<L>)` restored in `Chain::run`'s catch | the alloc suite's constant, linear and gp sweep arms |
-  | each floor of `drawnScalarsAreValid` removed: sigma; k not positive; k infinite; transform; DART well formed; DART positive where the forest splits; DART concentration | its own check in `testStateValueFloors`, the two DART weight floors each by the weights check |
+  | each floor of `drawnScalarsAreValid` removed: sigma; k negative; k infinite; transform; DART well formed; DART positive where the forest splits; DART concentration | its own check in `testStateValueFloors`, the two DART weight floors each by the weights check |
+  | k = 0 accepted under every scale; k = 0 refused under every scale (`kDrawCanBeZero` false) | the refusal under 1e-140; the acceptance of a chi(1.5, 1e-160) sampler's own state |
+  | the settle's stale mark removed (the reviewer's M6) | the engine's map assertion in the alloc suite's constant sweep arm; with `-DNDEBUG`, the pooled-factor arm's routed-fits check |
+  | the monotone leaf excluded from the stale mark again | the engine's map assertion in the alloc suite's monotone sweep arm |
+  | the compaction's reserve removed | the alloc suite's mask-pool compaction arm |
   | each ordinal floor removed: first 0; finite; increasing | the cutpoints check |
   | the warm start's `valueMismatch` removed | the warm-start donor check |
   | each generator floor removed: the index range; the essential bits; the memo re-derivation | the index, essential-bits and memo checks |
@@ -163,7 +194,12 @@ Run on arm64 macOS against the branch's own libraries (shipped and reference bui
    recomputation would refuse a state saved on a build that contracts the arithmetic differently.
 2. k = +Inf is accepted wherever a draw can overflow, `scale^2 > 2^970` (`Chain::kDrawCanBeInfinite`),
    not only under an infinite scale as amendment 1 states: under chi(df, 1e150) the draw's bound
-   can overflow too, and the amendment's test would refuse a state such a sampler writes.
+   can overflow too, and the amendment's test would refuse a state such a sampler writes. Its mirror
+   came in the review's fix round: under chi(1.5, 1e-160) the draw's rate overflows and the chain
+   writes k = 0, so k = 0 is accepted wherever a draw can reach it, a squared scale below 2^-960
+   (`Chain::kDrawCanBeZero`: below 2^-969 the smallest gamma draw the generator makes, 2^-106, times the
+   gamma scale rounds to 0), at every door the floor reaches. Alternative: refuse such scales when the
+   prior is built, a change to what a user may pass.
 3. A warm-start donor whose DART weights are well formed but hold 0 on a column this forest may split on
    starts the recipient's DART fresh; setState refuses the same weights. Such a donor is package-written
    (a `forest(x1 + x2)` fit on the same three predictors, which the tinytest builds), and a warm start
