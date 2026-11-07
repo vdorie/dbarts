@@ -495,7 +495,9 @@ void refuseSavedGPDrawReanchor(const bartcore::SamplerBase& sampler,
 /// reaches here, so what arrives is a weighted likelihood), logistic on any
 /// element that is not a finite positive integer no larger than
 /// bartcore::maximumCount, since its weights are observation counts and
-/// PG(w, psi) is the sum of w PG(1, psi) draws, and
+/// PG(w, psi) is the sum of w PG(1, psi) draws, nbinom on any element that
+/// is not a finite non-negative whole number, its weights also counts and a 0
+/// a row out, and
 /// gaussian on any element that is not finite and non-negative, since a case
 /// weight is a precision multiplier there and a negative one subtracts
 /// information from a leaf's sufficient statistics. numObservations sizes the
@@ -513,16 +515,24 @@ void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
 [[noreturn]] void refuseCountOverCap(const char* caller, const char* family,
                                      const char* what, const char* reason);
 
+/// Errors where a row of count w > 1 would draw more than
+/// bartcore::maximumCount Polya-Gamma units per sweep: w (y + r) on nbinom,
+/// \p shape the fixed r or, where \p drawsShape, the grid's largest point.
+/// At w = 1 today's caps on y and r stand. Null weights or y are a no-op.
+void refuseWeightedCountsOverCap(const char* caller, const double* weights,
+                                 const double* y, std::size_t numObservations,
+                                 double shape, bool drawsShape);
+
 /// Errors on a post-creation case-weight change under a family that carries no
-/// weights at all: probit, ordinal, aft and nbinom. A probit or ordinal 0/1
+/// weights at all: probit, ordinal and aft. A probit or ordinal 0/1
 /// vector states membership, not precision, and the R layer routes it to the
 /// active-row mask ahead of this, so only a weighted likelihood arrives here.
-/// gaussian and logistic are accepted - a logistic swap is a model change with
-/// a defined meaning, since the counts are the Polya-Gamma shape and the engine
-/// redraws the latents against them - and are held to the creation policy by
-/// enforceBinaryWeightPolicy above. The message names the actual family rather
-/// than "a binary response", which is the only thing an aft, ordinal or nbinom
-/// caller can act on. The flat C API has no weight entry, so the R bridge's
+/// gaussian, logistic and nbinom are accepted - a count swap is a model change
+/// with a defined meaning, since the counts are the Polya-Gamma shape and the
+/// engine redraws the latents against them - and are held to the creation
+/// policy by enforceBinaryWeightPolicy above. The message names the actual
+/// family rather than "a binary response", which is the only thing an aft or
+/// ordinal caller can act on. The flat C API has no weight entry, so the R bridge's
 /// weight conduits are its only callers.
 void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler);
 

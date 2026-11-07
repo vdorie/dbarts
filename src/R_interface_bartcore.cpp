@@ -3621,12 +3621,12 @@ bartcore::ResponseFamily parseSamplerSpecification(
   if (family == bartcore::ResponseFamily::ordinal && data.weights != NULL)
     Rf_error("ordinal models do not support weights: a weighted truncated-"
              "normal latent likelihood is not a coherent model");
-  // nbinom refuses weights in v1: the usual count "weight" is exposure,
-  // which belongs in the offset as a log-exposure term, not in observation
-  // replication
-  if (family == bartcore::ResponseFamily::nbinom && data.weights != NULL)
-    Rf_error("nbinom (count) models do not support weights: exposure belongs in "
-             "the offset as a log-exposure term");
+  // nbinom weights are counts, held to the policy above; a row of count w
+  // draws w (y + r) units, r at the grid's largest point where it is drawn
+  if (family == bartcore::ResponseFamily::nbinom)
+    bartcore_bridge::refuseWeightedCountsOverCap(
+      "sampler creation", data.weights, data.y, data.numObservations,
+      model.shape, !(model.shape > 0.0));
   // Student-t continuous errors: a finite resid.df selects the scale-mixture
   // error distribution - a positive value fixes the degrees of freedom, 0
   // estimates them on the grid. Only the gaussian family carries it; NaN
@@ -3743,7 +3743,8 @@ void refuseMultiForestWarmStart(const bartcore::SamplerBase& sampler,
 // unweighted - so only the opt-in half applies to them, unless the call also
 // asks for the transform to be re-derived over the rows the weights leave in.
 // A mask is no response conduit - every coupling takes one - so it is held to
-// the scale half alone, on the same request.
+// the scale half alone, on the same request, and so are the case weights of a
+// coupling that owns its counts, which reads them as counts of its rows.
 // External linkage: the flat C API reuses this guard's SCALE arm on its own
 // setResponse and setOffset entries, and answers the conduit arm - a fixed
 // property of the sampler, so no argument would have worked - through the
@@ -3757,11 +3758,13 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
                                        ResponseConduit conduit,
                                        int updateScale) {
   bartcore::SamplerShape shape = sampler.shape();
-  if (conduit != ResponseConduit::activeRows && responseConduitIsFixed(shape)) {
+  bool scaleHalfOnly = conduit == ResponseConduit::activeRows ||
+                       (conduit == ResponseConduit::weights &&
+                        shape.supportsCountsMutation);
+  if (!scaleHalfOnly && responseConduitIsFixed(shape)) {
     // A coupling that owns its response as a count matrix does not fix it at
-    // creation - it swaps through its own entry, and an integer case weight is
-    // exactly the row-wise count replication that matrix already expresses - so
-    // naming the channel is the whole repair. The offset conduit names the
+    // creation - it swaps through its own entry - so naming the channel is the
+    // whole repair. The offset conduit names the
     // other half: a flat offset really is inert under a softmax, but an n x K
     // one is not, and it has its own entry too. Both this bridge and the flat C
     // API call this helper, so the hint lands on both surfaces, which is the
@@ -3772,15 +3775,6 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
         Rf_error("%s: this sampler's offset is its n x K category matrix, "
                  "which a flat offset cannot express; write it through the "
                  "category offset channel", caller);
-      // Weights get their own arm rather than falling through to the response
-      // one: they are not refused because a flat vector cannot carry the
-      // matrix, but on MODEL grounds, and a caller told to swap the counts
-      // instead would not learn that an integer weight already IS that swap.
-      if (conduit == ResponseConduit::weights)
-        Rf_error("%s: this sampler's case weights are already expressed by its "
-                 "n x K count matrix - an integer weight is row-wise count "
-                 "replication - and a non-integer one has no exact "
-                 "augmentation sampler", caller);
       Rf_error("%s: this sampler's response is its n x K count matrix; replace "
                "it through the counts channel", caller);
     }
@@ -3870,6 +3864,20 @@ void refuseCountOverCap(const char* caller, const char* family,
            family, what, bartcore::maximumCount, reason);
 }
 
+void refuseWeightedCountsOverCap(const char* caller, const double* weights,
+                                 const double* y, size_t numObservations,
+                                 double shape, bool drawsShape) {
+  if (weights == NULL || y == NULL) return;
+  double r = drawsShape
+    ? bartcore::NBShapePrior::grid[bartcore::NBShapePrior::gridSize - 1]
+    : shape;
+  for (size_t i = 0; i < numObservations; ++i)
+    if (weights[i] > 1.0 && weights[i] * (y[i] + r) > bartcore::maximumCount)
+      refuseCountOverCap(caller, "nbinom", "'weights' times (y + r)",
+                         "each unit of a count is a Polya-Gamma draw per "
+                         "sweep");
+}
+
 void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
                                const double* weights,
                                size_t numObservations, const char* caller) {
@@ -3892,6 +3900,15 @@ void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
                            "each unit of a count is a Polya-Gamma draw per "
                            "sweep");
     }
+  // nbinom weights are counts as logistic's are, a 0 a row out of the
+  // likelihood; the product with the count is capped where y is known
+  if (family == bartcore::ResponseFamily::nbinom)
+    for (size_t i = 0; i < numObservations; ++i)
+      if (!(weights[i] >= 0.0) || !std::isfinite(weights[i]) ||
+          weights[i] != std::floor(weights[i]))
+        Rf_error("nbinom weights are observation counts and must be "
+                 "non-negative whole numbers; an exposure belongs in the "
+                 "offset as a log-exposure term");
   // a gaussian weight enters the leaf sufficient statistics as a precision, so
   // a negative one subtracts information and NaN/Inf poisons the sum - both
   // fit silently rather than erroring. !(w >= 0.0) catches NaN. The O(n) scan
@@ -3904,19 +3921,20 @@ void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
                  "weight is a precision multiplier, sd_i = sigma / sqrt(w_i)");
 }
 
-// The post-creation half of that policy: gaussian and logistic accept a weight
-// change - the logistic one is a model change with a defined meaning, since
+// The post-creation half of that policy: gaussian, logistic and nbinom accept a
+// weight change - a count one is a model change with a defined meaning, since
 // the counts are its Polya-Gamma shape and the next sweep draws the latents
-// against them - while probit, ordinal, aft and nbinom carry no weights to
-// change under any surface. Naming the actual family matters: the one message
-// this used to carry told an aft, ordinal or nbinom caller about "a binary
-// response" they had not asked for.
+// against them - while probit, ordinal and aft carry no weights to change
+// under any surface. Naming the actual family matters: the one message this
+// used to carry told an aft or ordinal caller about "a binary response" they
+// had not asked for.
 // The flat C API has no weight entry, so weights reach the engine only through
 // the R methods' conduits, which raise through refuseBinaryWeightChange.
 static bool familyCarriesNoWeights(const bartcore::SamplerBase& sampler) {
   bartcore::ResponseFamily family = sampler.shape().family;
   return family != bartcore::ResponseFamily::gaussian &&
-         family != bartcore::ResponseFamily::logistic;
+         family != bartcore::ResponseFamily::logistic &&
+         family != bartcore::ResponseFamily::nbinom;
 }
 
 void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler) {
@@ -3925,7 +3943,6 @@ void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler) {
   const char* name = "probit";
   if (family == bartcore::ResponseFamily::aft) name = "aft (survival)";
   else if (family == bartcore::ResponseFamily::ordinal) name = "ordinal";
-  else if (family == bartcore::ResponseFamily::nbinom) name = "nbinom (count)";
   Rf_error("%s models do not support case weights, so no weighted likelihood "
            "can be set after creation; a probit or ordinal vector of 0s and 1s "
            "states membership rather than precision and is installed as the "
@@ -4552,9 +4569,40 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   return holder;
 }
 
+// A multinomial row of count w is w identical rows, PG(w n_i, .) per category:
+// the counts must be finite non-negative whole numbers, a 0 a row out of the
+// likelihood as a zero-trial row is, and a row of count w > 1 draws no more
+// than bartcore::maximumCount units, at w = 1 the row totals' own cap standing.
+// Null weights are a no-op; trials are the row totals in force, null to check
+// the values alone.
+static void refuseMultinomialWeightsOverCap(const double* weights,
+                                            size_t n, const int* trials,
+                                            const char* caller) {
+  if (weights == NULL || trials == NULL) return;
+  for (size_t i = 0; i < n; ++i)
+    if (weights[i] > 1.0 &&
+        weights[i] * static_cast<double>(trials[i]) > bartcore::maximumCount)
+      refuseCountOverCap(caller, "multinomial",
+                         "'weights' times the 'counts' row totals",
+                         "each trial is a Polya-Gamma draw per category per "
+                         "sweep");
+}
+
+static void enforceMultinomialWeightPolicy(const double* weights, size_t n,
+                                           const int* trials,
+                                           const char* caller) {
+  if (weights == NULL) return;
+  for (size_t i = 0; i < n; ++i)
+    if (!(weights[i] >= 0.0) || !std::isfinite(weights[i]) ||
+        weights[i] != std::floor(weights[i]))
+      Rf_error("multinomial weights are observation counts and must be "
+               "non-negative whole numbers");
+  refuseMultinomialWeightsOverCap(weights, n, trials, caller);
+}
+
 // The parse and validation both multinomial entries share: parse the sampler
 // spec, refuse the response combinations the single-trial softmax cannot carry
-// (case weights, an offset, a test offset, a mixed test store), and require
+// (an offset, a test offset, a mixed test store), and require
 // dense predictors and K >= 2. Runs before any rng is created, so a refusal
 // needs no cleanup. The predictors ride the data object; the data's response
 // is ignored (the counts are the response, borrowed separately).
@@ -4562,19 +4610,17 @@ static void parseMultinomialData(SEXP controlExpr, SEXP modelExpr,
                                  SEXP dataExpr, ParsedControl& control,
                                  ParsedModel& model, ParsedData& data,
                                  bool& sigmaIsFixed, size_t numCategories) {
+  // case weights are counts, their values held to the count rule ahead of the
+  // shared parse, whose policy would state the gaussian one; the product with
+  // the trials is capped once those are known
+  parseData(data, dataExpr);
+  enforceMultinomialWeightPolicy(data.weights, data.numObservations, NULL,
+                                 "sampler creation");
   parseSamplerSpecification(controlExpr, modelExpr, dataExpr, "", control, model,
                             data, sigmaIsFixed);
   validateCategoricalPredictors(data);
   if (!data.predictors.isDenseColumnar())
     Rf_error("multinomial requires dense predictors");
-  // an integer weight is exactly the row-wise count replication the counts
-  // response already expresses, and a non-integer one would need a
-  // real-shape PG(w_i n_i, .) draw with no exact sampler
-  if (data.weights != NULL)
-    Rf_error("multinomial (softmax) models do not support case weights: an "
-             "integer weight is already expressible as row-wise count "
-             "replication in the response, and a non-integer one has no "
-             "exact augmentation sampler");
   // the softmax is invariant to a common per-observation shift, so the HOST
   // data object's flat offset points exactly along the null direction and is
   // identically inert; the meaningful one is the n x K category offset the
@@ -4610,7 +4656,7 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
     const ParsedControl& control, const ParsedModel& model,
     const ParsedData& data, SEXP modelExpr, bool sigmaIsFixed,
     size_t numCategories, const int* counts, const int* trials,
-    const double* offset, const double* testOffset,
+    const double* weights, const double* offset, const double* testOffset,
     std::vector<ext_rng*>& rngs) {
   bartcore::SamplerOptions options =
     optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
@@ -4630,6 +4676,7 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
   spec.numCategories = numCategories;
   spec.counts = counts;
   spec.trials = trials;
+  spec.weights = weights;
   // borrowed for the sampler's lifetime, as the counts are; the caller owns the
   // buffer and the combiner reads it every sweep
   spec.offset = offset;
@@ -4742,6 +4789,7 @@ BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
   unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
                  model = ParsedModel{}, rngs = std::vector<ext_rng*>{},
                  counts = std::vector<int>{}, trials = std::vector<int>{},
+                 weights = std::vector<double>{},
                  offset = std::vector<double>{},
                  testOffset = std::vector<double>{},
                  moveRecord = MoveRecord{},
@@ -4774,6 +4822,12 @@ BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
     counts.assign(src, src + n * numCategories);
     sumMultinomialTrials(counts, n, numCategories, trials,
                          "sampler creation");
+    enforceMultinomialWeightPolicy(data.weights, n, trials.data(),
+                                   "sampler creation");
+    // sized whether or not the data carry weights, so a later set copies into
+    // storage that exists (COPY-ON-SET)
+    weights.resize(n);
+    const double* ownedWeights = adoptVector(weights, data.weights, n);
     parseCategoryOffset(categoryOffsetExpr, n, numCategories, offset,
                         "multinomial category offset");
     parseCategoryTestOffset(categoryTestOffsetExpr, data.numTestObservations,
@@ -4782,7 +4836,7 @@ BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
 
     std::unique_ptr<bartcore::SamplerBase> sampler = buildMultinomialSampler(
       control, model, data, modelExpr, sigmaIsFixed, numCategories,
-      counts.data(), trials.data(),
+      counts.data(), trials.data(), ownedWeights,
       offset.empty() ? NULL : offset.data(),
       testOffset.empty() ? NULL : testOffset.data(), rngs);
     // the one entry a multinomial record holds sets every category forest,
@@ -4802,6 +4856,7 @@ BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
     // both category offsets stay valid
     holder->ownedCounts = std::move(counts);
     holder->ownedTrials = std::move(trials);
+    holder->ownedWeights = std::move(weights);
     holder->ownedCategoryOffset = std::move(offset);
     holder->ownedCategoryTestOffset = std::move(testOffset);
     return R_NilValue;
@@ -5242,6 +5297,8 @@ SEXP bartcore_setCounts(SEXP ptrExpr, SEXP countsExpr) {
     const int* src = INTEGER(countsExpr);
     counts.assign(src, src + n * K);
     bartcore_bridge::sumMultinomialTrials(counts, n, K, trials, "$setCounts");
+    bartcore_bridge::refuseMultinomialWeightsOverCap(
+      holder.sampler->weights(), n, trials.data(), "$setCounts");
 
     holder.ownedCounts.swap(counts);
     holder.ownedTrials.swap(trials);
@@ -6811,6 +6868,11 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr,
   validateResponseSupport(shape.family, shape.numOrdinalThresholds + 1,
                           REAL(yExpr), shape.numObservations,
                           "$setResponse");
+  if (shape.family == bartcore::ResponseFamily::nbinom)
+    bartcore_bridge::refuseWeightedCountsOverCap(
+      "$setResponse", holder.sampler->weights(), REAL(yExpr),
+      shape.numObservations, holder.sampler->shapeParameter(0),
+      shape.drawsShape);
   const double* status = NULL;
   if (!Rf_isNull(statusExpr)) {
     if (shape.family != bartcore::ResponseFamily::aft)
@@ -6958,6 +7020,11 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
     validateResponseSupport(shape.family, shape.numOrdinalThresholds + 1,
                             data.y, data.numObservations,
                             "$setData");
+    // and the counts' cap, r kept across the swap
+    if (shape.family == bartcore::ResponseFamily::nbinom)
+      bartcore_bridge::refuseWeightedCountsOverCap(
+        "$setData", data.weights, data.y, data.numObservations,
+        sampler.shapeParameter(0), shape.drawsShape);
     for (size_t j = 0; j < data.numPredictors; ++j) {
       // the kind fixes the grid, so a replacement that changes it is a
       // different design rather than new values for this one
@@ -7322,9 +7389,19 @@ SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr,
   // the same values creation accepts, or the swap walks the sampler off its
   // family's weight policy: a logistic count that is zero, negative or
   // fractional is silently rounded by the PG draw's lround and leaves a row
-  // carrying a full PG(1, psi) precision it has no observation for
-  enforceBinaryWeightPolicy(shape.family, weights, numObservations,
-                            "$setWeights");
+  // carrying a full PG(1, psi) precision it has no observation for. A
+  // multinomial sampler reports the logistic family and holds its own rule.
+  if (shape.supportsCountsMutation) {
+    bartcore_bridge::enforceMultinomialWeightPolicy(
+      weights, numObservations, holder.ownedTrials.data(), "$setWeights");
+  } else {
+    enforceBinaryWeightPolicy(shape.family, weights, numObservations,
+                              "$setWeights");
+    if (shape.family == bartcore::ResponseFamily::nbinom)
+      bartcore_bridge::refuseWeightedCountsOverCap(
+        "$setWeights", weights, holder.ownedResponse.data(), numObservations,
+        holder.sampler->shapeParameter(0), shape.drawsShape);
+  }
   holder.sampler->setWeights(
     adoptVector(holder.ownedWeights, weights, numObservations));
   return rederiveAfterInstall(holder, updateScale, updateStandardization,
@@ -7558,6 +7635,10 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
       Rf_error("$setModel: the negative-binomial shape must be a whole number "
                "no larger than %g, on a negative-binomial sampler",
                bartcore::maximumCount);
+    if (installsShape)
+      bartcore_bridge::refuseWeightedCountsOverCap(
+        "$setModel", sampler.weights(), holder.ownedResponse.data(),
+        shape.numObservations, model.shape, !(model.shape > 0.0));
     bool installsDart = parseDartSettings(dart, modelExpr);
     if (installsDart != shape.usesDart)
       Rf_error("$setModel cannot change the tree prior's kind");
