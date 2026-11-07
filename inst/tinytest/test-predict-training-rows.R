@@ -1512,4 +1512,37 @@ expect_identical(
 )
 
 rm(x.one, y.one, fitOne, fit.one, renamed, other, x.rep, fit.rep, warnings.rep)
+
+# ---- a named vector as newdata ----
+# a vector is one row whose names are the columns', so it is matched by name
+# as a named one-row matrix is
+set.seed(24)
+x.v <- matrix(runif(90L), 30L, dimnames = list(NULL, c("a", "b", "c")))
+d.v <- data.frame(x.v, y = x.v[, 1L] - x.v[, 3L] + rnorm(30L, 0, 0.3))
+quickVector <- function(...) {
+  bart(
+    ...,
+    n.trees = 10L,
+    n.burn = 10L,
+    n.samples = 10L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 2L,
+    keepTrees = TRUE,
+    verbose = FALSE
+  )
+}
+v <- c(c = 0.9, a = 0.1, b = 0.5)
+row.v <- matrix(c(0.1, 0.5, 0.9), 1L, dimnames = list(NULL, c("a", "b", "c")))
+for (fit.v in list(quickVector(x.v, d.v$y), quickVector(y ~ a + b + c, d.v))) {
+  expect_identical(
+    countWarnings(
+      expect_identical(unname(predict(fit.v, v)), unname(predict(fit.v, row.v))),
+      "warning"
+    ),
+    0L
+  )
+}
+
+rm(x.v, d.v, quickVector, v, row.v, fit.v)
 rm(countWarnings, captureWarnings)

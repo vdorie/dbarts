@@ -1850,8 +1850,13 @@ validateXTest <- function(
     return(x.test)
   }
   x.test <- asNumericPredictors(x.test)
+  # a vector is one row, its names those of the columns
   if (is.numeric(x.test) && is.null(dim(x.test)) && length(x.test) > 0L) {
-    x.test <- matrix(x.test, ncol = length(x.test))
+    x.test <- matrix(
+      x.test,
+      nrow = 1L,
+      dimnames = list(NULL, names(x.test))
+    )
   }
   if (is.numeric(x.test) && NCOL(x.test) == 0L) {
     return(NULL)
