@@ -1090,7 +1090,7 @@ predict.bart <- function(
   n.threads = object$fit$control@n.threads,
   ...
 ) {
-  checkCombineChains(combineChains)
+  combineChains <- checkCombineChains(combineChains)
   trainingRows <- predictsTrainingRows(newdata)
   if (!trainingRows && is.null(object[["fit"]])) {
     refuseWithoutTrees("predict", bartKeepTreesArgument(object))
@@ -1701,7 +1701,7 @@ extract.bart <- function(
   contribution = FALSE,
   ...
 ) {
-  checkCombineChains(combineChains)
+  combineChains <- checkCombineChains(combineChains)
   type <- validateType(type, eval(formals(extract.bart)$type))
   sampleSupplied <- !missing(sample)
 
@@ -2518,7 +2518,7 @@ extract.bartMultinomial <- function(
   combineChains = TRUE,
   ...
 ) {
-  checkCombineChains(combineChains)
+  combineChains <- checkCombineChains(combineChains)
   type <- validateType(type, eval(formals(extract.bartMultinomial)$type))
   sampleSupplied <- !missing(sample)
   refuseMultinomialLatentType(type)
@@ -2876,7 +2876,7 @@ predict.bartMultinomial <- function(
   n.threads = object$fit$control@n.threads,
   ...
 ) {
-  checkCombineChains(combineChains)
+  combineChains <- checkCombineChains(combineChains)
   type <- validateType(type, eval(formals(predict.bartMultinomial)$type))
   refuseMultinomialLatentType(type)
   refuseUnusedGenericArgs(
@@ -3075,7 +3075,7 @@ extract.bartOrdinal <- function(
   combineChains = TRUE,
   ...
 ) {
-  checkCombineChains(combineChains)
+  combineChains <- checkCombineChains(combineChains)
   type <- validateType(type, eval(formals(extract.bartOrdinal)$type))
   sampleSupplied <- !missing(sample)
   refuseUnusedGenericArgs(
@@ -3292,7 +3292,7 @@ predict.bartOrdinal <- function(
   n.threads = object$fit$control@n.threads,
   ...
 ) {
-  checkCombineChains(combineChains)
+  combineChains <- checkCombineChains(combineChains)
   type <- validateType(type, eval(formals(predict.bartOrdinal)$type))
   refuseUnusedGenericArgs(
     list(...),
@@ -3460,7 +3460,7 @@ extract.bartNegbin <- function(
   combineChains = TRUE,
   ...
 ) {
-  checkCombineChains(combineChains)
+  combineChains <- checkCombineChains(combineChains)
   type <- validateType(type, eval(formals(extract.bartNegbin)$type))
   sampleSupplied <- !missing(sample)
   refuseUnusedGenericArgs(
@@ -3652,7 +3652,7 @@ predict.bartNegbin <- function(
   n.threads = object$fit$control@n.threads,
   ...
 ) {
-  checkCombineChains(combineChains)
+  combineChains <- checkCombineChains(combineChains)
   type <- validateType(type, eval(formals(predict.bartNegbin)$type))
   refuseUnusedGenericArgs(
     list(...),
@@ -4350,7 +4350,7 @@ extract.bartHurdle <- function(
   combineChains = TRUE,
   ...
 ) {
-  checkCombineChains(combineChains)
+  combineChains <- checkCombineChains(combineChains)
   type <- resolveHurdleType(type, eval(formals(extract.bartHurdle)$type))
   sampleSupplied <- !missing(sample)
   refuseUnusedGenericArgs(
@@ -4509,7 +4509,7 @@ predict.bartHurdle <- function(
   n.threads = object$zero$fit$control@n.threads,
   ...
 ) {
-  checkCombineChains(combineChains)
+  combineChains <- checkCombineChains(combineChains)
   type <- resolveHurdleType(type, eval(formals(predict.bartHurdle)$type))
   refuseUnusedGenericArgs(
     list(...),

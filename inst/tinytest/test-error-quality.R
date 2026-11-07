@@ -184,7 +184,11 @@ quickBart <- function(...) {
   do.call(dbarts::bart, c(list(testData$x, testData$y, ...), quickArgs))
 }
 for (flag in c("keepCall", "keepSampler", "samplerOnly")) {
-  values <- if (flag == "samplerOnly") list(NA, "yes") else list(NA, NULL)
+  values <- if (flag == "samplerOnly") {
+    list(NA, "yes")
+  } else {
+    list(NA, "yes", NULL)
+  }
   for (value in values) {
     expect_error(
       do.call(quickBart, structure(list(value), names = flag)),
@@ -194,6 +198,14 @@ for (flag in c("keepCall", "keepSampler", "samplerOnly")) {
     )
   }
 }
+# a number is read as as.logical reads it, as 0.9-34's bart2 read one: 1 is
+# TRUE and 0 is FALSE
+expect_null(quickBart(keepCall = 0)$call)
+expect_false(is.null(quickBart(keepCall = 1)$call))
+expect_inherits(quickBart(samplerOnly = 1), "dbartsSampler")
+expect_inherits(quickBart(samplerOnly = 0), "bart")
+expect_inherits(quickBart(keepSampler = 1)$fit, "dbartsSampler")
+expect_null(quickBart(keepSampler = 0)$fit)
 sigestWords <- paste0(
   "'sigest' must be a positive finite number, or \"auto\", \"dense\" ",
   "or \"sparse\""

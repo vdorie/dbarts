@@ -475,6 +475,15 @@ for (fit in list(bart2FitKT, multinomialFitKT, ordinalFitKT, negbinFitKT)) {
       fixed = TRUE
     )
   }
+  # a number is read as as.logical reads it
+  expect_identical(
+    predict(fit, newRows, combineChains = 1),
+    predict(fit, newRows, combineChains = TRUE)
+  )
+  expect_identical(
+    extract(fit, combineChains = 0),
+    extract(fit, combineChains = FALSE)
+  )
   for (type in list(NA_character_, NA, character(0), 1)) {
     expect_error(extract(fit, type = type), "type must be in '", fixed = TRUE)
     expect_error(fitted(fit, type = type), "type must be in '", fixed = TRUE)
@@ -485,19 +494,38 @@ for (fit in list(bart2FitKT, multinomialFitKT, ordinalFitKT, negbinFitKT)) {
     )
   }
 }
-expect_error(
-  predict(hurdleFitKT, xSmall[1:2, ], combineChains = NA),
-  "'combineChains' must be TRUE/FALSE",
-  fixed = TRUE
+for (flag in list(NA, "yes")) {
+  expect_error(
+    predict(hurdleFitKT, xSmall[1:2, ], combineChains = flag),
+    "'combineChains' must be TRUE/FALSE",
+    fixed = TRUE
+  )
+  expect_error(
+    extract(hurdleFitKT, combineChains = flag),
+    "'combineChains' must be TRUE/FALSE",
+    fixed = TRUE
+  )
+  expect_error(
+    survivalProbabilities(bart2FitKT, combineChains = flag),
+    "'combineChains' must be TRUE/FALSE",
+    fixed = TRUE
+  )
+}
+expect_identical(
+  predict(hurdleFitKT, xSmall[1:2, ], combineChains = 0),
+  predict(hurdleFitKT, xSmall[1:2, ], combineChains = FALSE)
+)
+expect_identical(
+  extract(hurdleFitKT, combineChains = 1),
+  extract(hurdleFitKT, combineChains = TRUE)
+)
+expect_identical(
+  survivalProbabilities(bart2FitKT, combineChains = 0),
+  survivalProbabilities(bart2FitKT, combineChains = FALSE)
 )
 expect_error(
   extract(hurdleFitKT, type = NA_character_),
   "type must be in '",
-  fixed = TRUE
-)
-expect_error(
-  survivalProbabilities(bart2FitKT, combineChains = NA),
-  "'combineChains' must be TRUE/FALSE",
   fixed = TRUE
 )
 # summary's vars name fields

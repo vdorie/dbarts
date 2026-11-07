@@ -136,6 +136,20 @@ warnFamilyGatedArgs <- function(suppliedNames, family) {
   invisible(NULL)
 }
 
+# A TRUE/FALSE argument, as as.logical reads one: a single logical or number,
+# 0 being FALSE; NA, a string and any other length refused by name. Returns
+# the logical.
+checkFlag <- function(value, name) {
+  if (
+    !(is.logical(value) || is.numeric(value)) ||
+      length(value) != 1L ||
+      is.na(value)
+  ) {
+    stop("'", name, "' must be TRUE/FALSE", call. = FALSE)
+  }
+  as.logical(value)
+}
+
 # Diagnoses the names left in a method's '...' after its own by-name
 # refusals have run: everything still there is a name the method neither
 # takes nor recognizes, and would otherwise be discarded without a word
@@ -148,13 +162,6 @@ warnFamilyGatedArgs <- function(suppliedNames, family) {
 # unaffected by how the dots were forwarded. Package-local, not base's
 # chkDots: it quotes with the locale's fancy quotes before R 4.6, and this
 # diagnosis must be matchable by message on every R the package supports.
-# A TRUE/FALSE argument, refused by name as anything else.
-checkFlag <- function(value, name) {
-  if (!is.logical(value) || length(value) != 1L || is.na(value)) {
-    stop("'", name, "' must be TRUE/FALSE", call. = FALSE)
-  }
-}
-
 warnUnusedDots <- function(dots, generic, class) {
   supplied <- names(dots)
   unused <- if (is.null(supplied)) {

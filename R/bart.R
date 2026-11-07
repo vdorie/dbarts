@@ -1098,18 +1098,12 @@ bart <- function(
   validateCallback(callback)
   # refused by name, as the control's own flags (keepTrees, verbose) are,
   # before anything branches on it
-  if (
-    !is.logical(combineChains) ||
-      length(combineChains) != 1L ||
-      is.na(combineChains)
-  ) {
-    stop("'combineChains' must be TRUE/FALSE")
-  }
-  checkFlag(keepCall, "keepCall")
-  checkFlag(samplerOnly, "samplerOnly")
+  combineChains <- checkFlag(combineChains, "combineChains")
+  keepCall <- checkFlag(keepCall, "keepCall")
+  samplerOnly <- checkFlag(samplerOnly, "samplerOnly")
   # left out, keepSampler is keepTrees, which the control checks by its name
   if (!missing(keepSampler)) {
-    checkFlag(keepSampler, "keepSampler")
+    keepSampler <- checkFlag(keepSampler, "keepSampler")
   }
   # the names dec-B98's consolidation moved onto the family and prior
   # objects: read once, then cleared from the matched call so no forwarding
@@ -4366,7 +4360,7 @@ survivalProbabilities.bart <- function(
   sample = c("train", "test"),
   ...
 ) {
-  checkCombineChains(combineChains)
+  combineChains <- checkCombineChains(combineChains)
   refuseUnusedGenericArgs(
     list(...),
     "survivalProbabilities",

@@ -87,6 +87,42 @@ expect_error(
   "'combineChains' must be TRUE/FALSE",
   fixed = TRUE
 )
+expect_error(
+  predict(
+    rbartSmall,
+    testData[1:2, ],
+    group.by = testData$g[1:2],
+    combineChains = "yes"
+  ),
+  "'combineChains' must be TRUE/FALSE",
+  fixed = TRUE
+)
+expect_error(
+  extract(rbartSmall, combineChains = NA),
+  "'combineChains' must be TRUE/FALSE",
+  fixed = TRUE
+)
+# a number is read as as.logical reads it
+expect_identical(
+  extract(rbartSmall, combineChains = 0),
+  extract(rbartSmall, combineChains = FALSE)
+)
+rbartKept <- rbartDefault(keepTrees = TRUE)
+expect_identical(
+  predict(
+    rbartKept,
+    testData[1:2, ],
+    group.by = testData$g[1:2],
+    combineChains = 1
+  ),
+  predict(
+    rbartKept,
+    testData[1:2, ],
+    group.by = testData$g[1:2],
+    combineChains = TRUE
+  )
+)
+rm(rbartKept)
 for (type in list(NA_character_, character(0))) {
   expect_error(
     extract(rbartSmall, type = type),

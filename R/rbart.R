@@ -1197,7 +1197,7 @@ predict.rbart <- function(
   combineChains = TRUE,
   ...
 ) {
-  checkCombineChains(combineChains)
+  combineChains <- checkCombineChains(combineChains)
   if (is.null(object$fit)) {
     stop("predict requires rbart to be called with 'keepTrees' == TRUE")
   }
@@ -1429,7 +1429,7 @@ extract.rbart <- function(
   combineChains = TRUE,
   ...
 ) {
-  checkCombineChains(combineChains)
+  combineChains <- checkCombineChains(combineChains)
   type <- foldTypeAliases(type)
   if (
     !is.character(type) ||

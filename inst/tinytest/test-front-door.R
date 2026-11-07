@@ -1118,13 +1118,22 @@ smallFit <- function(...) {
   )
 }
 
-# combineChains is refused by name, as keepTrees is
+# combineChains is refused by name, as keepTrees is; a number is read as
+# as.logical reads it, as 0.9-34's bart2 read one
 for (value in list(NA, "yes", c(TRUE, FALSE))) {
   expect_error(
     smallFit(combineChains = value),
     pattern = "'combineChains' must be TRUE/FALSE"
   )
 }
+expect_identical(
+  dim(smallFit(n.chains = 2L, combineChains = 0)$yhat.train),
+  dim(smallFit(n.chains = 2L, combineChains = FALSE)$yhat.train)
+)
+expect_identical(
+  dim(smallFit(n.chains = 2L, combineChains = 1)$yhat.train),
+  dim(smallFit(n.chains = 2L, combineChains = TRUE)$yhat.train)
+)
 
 # keepCall = FALSE stores no call, as a base R fit without one has none
 fit.noCall <- smallFit(n.chains = 1L, keepCall = FALSE)
