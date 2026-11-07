@@ -299,4 +299,43 @@ expect_silent(plot(fit.multiOne))
 dev.off()
 rm(y.multi, fit.multinomial, fit.multiOne)
 
+# an aft fit's panel is labeled as the log of the observed time, its
+# censored rows drawn open and its events filled under a two-entry legend;
+# read back from the recorded display list
+fit.aft <- bart(
+  survival::Surv(exp(y.cont), z.bin) ~ x1 + x2,
+  data.frame(x1 = x[, 1L], x2 = x[, 2L], y.cont = y.cont, z.bin = z.bin),
+  family = "aft",
+  n.trees = 10L,
+  n.burn = 10L,
+  n.samples = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+pdf(NULL)
+dev.control("enable")
+plot(fit.aft)
+recorded <- recordPlot()
+dev.off()
+displayCalls <- function(recorded, routine) {
+  Filter(
+    function(entry) identical(entry[[2L]][[1L]]$name, routine),
+    recorded[[1L]]
+  )
+}
+titles <- lapply(displayCalls(recorded, "C_title"), function(entry) {
+  as.list(entry[[2L]])[4:5]
+})
+expect_true(list(list("log observed time", "posterior interval for E(log T | x)")) %in% titles)
+pchs <- lapply(displayCalls(recorded, "C_plotXY"), function(entry) {
+  as.list(entry[[2L]])[[4L]]
+})
+expect_true(list(ifelse(fit.aft$status == 1, 19, 1)) %in% pchs)
+legendText <- lapply(displayCalls(recorded, "C_text"), function(entry) {
+  as.list(entry[[2L]])[[3L]]
+})
+expect_true(list(c("event", "censored")) %in% legendText)
+rm(fit.aft, recorded, displayCalls, titles, pchs, legendText)
+
 rm(x, y.cont, z.bin, g, n)

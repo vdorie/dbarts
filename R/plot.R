@@ -95,14 +95,37 @@ plot.bart <- function(
       quantile,
       probs = plquants[2]
     )
-    plot(
-      x$y,
-      qm,
-      ylim = range(ql, qu),
-      xlab = "y",
-      ylab = "posterior interval for E(Y|x)",
-      ...
-    )
+    if (fitFamily(x) == "aft") {
+      # an aft fit's y is the log of the observed time, a censoring time on
+      # a censored row, whose fit is a lower bound on it; those rows are
+      # drawn open, the events filled
+      status <- x[["status"]]
+      event <- if (is.null(status)) rep_len(TRUE, length(qm)) else status == 1
+      plot(
+        x$y,
+        qm,
+        ylim = range(ql, qu),
+        xlab = "log observed time",
+        ylab = "posterior interval for E(log T | x)",
+        pch = ifelse(event, 19, 1),
+        ...
+      )
+      legend(
+        "topleft",
+        legend = c("event", "censored"),
+        pch = c(19, 1),
+        bty = "n"
+      )
+    } else {
+      plot(
+        x$y,
+        qm,
+        ylim = range(ql, qu),
+        xlab = "y",
+        ylab = "posterior interval for E(Y|x)",
+        ...
+      )
+    }
     # nolint next: seq_linter. 1:length preserves the (empty qm) edge behavior.
     for (i in 1:length(qm)) {
       lines(rep(x$y[i], 2), c(ql[i], qu[i]), col = cols[1])
