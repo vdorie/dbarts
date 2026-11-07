@@ -1000,13 +1000,14 @@ control.bad@seed <- 71L
 expect_error(sampler.sc$setControl(control.bad), pattern = "seed")
 
 # a control the bridge refuses is not stored: the sampler keeps the control it
-# had and runs under it
+# had and runs under it (an NA n.samples is no longer one: the sampler keeps
+# its own draw count)
 control.bad <- control.sc
-control.bad@n.samples <- NA_integer_
+control.bad@n.threads <- NA_integer_
 control.before <- sampler.sc$control
 expect_error(
   sampler.sc$setControl(control.bad),
-  pattern = "number of samples cannot be NA"
+  pattern = "number of threads cannot be NA"
 )
 expect_identical(sampler.sc$control, control.before)
 expect_equal(dim(sampler.sc$run(0L, 8L)$train), c(n, 8L))
