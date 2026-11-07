@@ -213,12 +213,14 @@ cutBasisRows <- function(basis, rows) {
   }
 }
 
-## An out-of-range 'subset' is silent in base R: row indexing pads an
-## unmatched row with NA rather than erroring, and the na.action would then
-## drop exactly those rows and fit fewer observations than the caller asked
-## for without a word. Named here instead, ahead of the model frame. `n` of
-## NA means the row count is not known this early, which leaves the check
-## unrun rather than guessed at.
+## An index past the data's rows is silent in base R: row indexing pads it
+## with NA rather than erroring, and the na.action would then drop exactly
+## that row and fit fewer observations than the caller asked for without a
+## word. Named here instead, ahead of the model frame. A missing entry of a
+## logical or a numeric subset is read as lm reads it, the row it pads left
+## to the na.action; a missing name matches no row and is refused with the
+## names the data lacks. `n` of NA means the row count is not known this
+## early, which leaves the check unrun rather than guessed at.
 refuseOutOfRangeSubset <- function(index, n, rowNames = NULL) {
   if (is.null(index) || is.na(n)) {
     return(invisible(NULL))
@@ -226,7 +228,7 @@ refuseOutOfRangeSubset <- function(index, n, rowNames = NULL) {
   outOfRange <- if (is.logical(index)) {
     length(index) > n
   } else if (is.numeric(index)) {
-    anyNA(index) || any(abs(index) > n)
+    any(abs(index[!is.na(index)]) > n)
   } else if (is.character(index)) {
     anyNA(index) || any(index %not_in% rowNames)
   } else {

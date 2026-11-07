@@ -358,3 +358,34 @@ fitOneNA <- do.call(dbarts::bart, c(list(xOneNA, yOneNA), quick))
 expect_identical(ncol(fitOneNA$yhat.train), 29L)
 
 rm(xNamed, yNamed, subsetNA, fitNamed, xOneNA, yOneNA, fitOneNA)
+
+# ---- an integer subset holding NA ----
+# read as lm reads it: the row the NA pads is dropped by the na.action and
+# padded back under na.exclude, on the formula and matrix routes alike; an
+# index past the data is still refused
+set.seed(313L)
+dSub <- data.frame(p = runif(20L), q = runif(20L))
+dSub$y <- dSub$p + rnorm(20L, 0, 0.25)
+xSub <- as.matrix(dSub[c("p", "q")])
+iNA <- c(1:6, NA, 9:14)
+expect_identical(nobs(lm(y ~ p + q, dSub, subset = iNA)), 12L)
+expect_identical(length(dbarts::dbartsData(y ~ p + q, dSub, subset = iNA)@y), 12L)
+expect_identical(length(dbarts::dbartsData(xSub, dSub$y, subset = iNA)@y), 12L)
+fitSub <- function(...) {
+  do.call(dbarts::bart, c(list(...), quick, list(seed = 5L)))
+}
+for (route in list(list(y ~ p + q, dSub), list(xSub, dSub$y))) {
+  withNA <- do.call(fitSub, c(route, list(subset = iNA)))
+  without <- do.call(fitSub, c(route, list(subset = iNA[!is.na(iNA)])))
+  expect_identical(withNA$yhat.train, without$yhat.train)
+  excluded <- do.call(fitSub, c(route, list(subset = iNA, na.action = na.exclude)))
+  expect_identical(length(fitted(excluded)), 13L)
+  expect_true(is.na(fitted(excluded)[7L]))
+  expect_error(
+    do.call(fitSub, c(route, list(subset = c(1:6, 21L)))),
+    pattern = "'subset' selects rows outside the data, which has 20 rows",
+    fixed = TRUE
+  )
+}
+
+rm(dSub, xSub, iNA, fitSub, route, withNA, without, excluded)
