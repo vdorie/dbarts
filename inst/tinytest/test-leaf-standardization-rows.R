@@ -1852,6 +1852,27 @@ s$setActiveRows(a)
 copied <- s$copy()
 copied$setPredictor(stretched, "x1", TRUE, updateStandardization = TRUE)
 expectRecord(copied, literal(stretched, a == 1), "a copy's mask")
+# a mask that switches off only the first or only the last row is a mask: a
+# re-derivation does not read that row, far from the rest
+for (edge in c(1L, n)) {
+  farEdge <- x1
+  farEdge[edge] <- 100
+  edgeOut <- seq_len(n) != edge
+  for (kind in c("gaussian", "probit")) {
+    s <- make(kind)
+    s$setActiveRows(as.double(edgeOut))
+    s$setPredictor(farEdge, "x1", TRUE, updateStandardization = TRUE)
+    expectRecord(
+      s,
+      literal(farEdge, edgeOut),
+      paste("a mask on row", edge, kind)
+    )
+    # clearing it reads every row again
+    s$setActiveRows(NULL)
+    s$setPredictor(farEdge, "x1", TRUE, updateStandardization = TRUE)
+    expectRecord(s, literal(farEdge), paste("a cleared mask", edge, kind))
+  }
+}
 # too little keeps: a covariate the rows in hold at one value keeps its
 # numbers, once warned per sampler in the leaf's words, the flag the response
 # setters' too; a response keep's text is as it was; FALSE holds

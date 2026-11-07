@@ -135,6 +135,24 @@ for (family in c("probit", "logistic")) {
     info = paste(family, "mask")
   )
 }
+# a mask that switches off only the first or only the last row is a mask: the
+# row, far from the rest, is not read
+for (edge in c(1L, n)) {
+  farEdge <- dose
+  farEdge[edge] <- 500 + dose[edge]
+  edgeOut <- seq_len(n) != edge
+  for (family in c("probit", "logistic")) {
+    masked <- threeForests(farEdge, family = family)
+    masked$setActiveRows(edgeOut)
+    masked$setForestBasis(3L, farEdge, updateBasisScale = TRUE)
+    expect_equal(
+      recordOf(masked),
+      sd(farEdge[edgeOut]),
+      tolerance = 1e-12,
+      info = paste(family, "mask on row", edge)
+    )
+  }
+}
 # a forest's own weights are not read
 ownWeights <- threeForests(dose)
 ownWeights$setForestWeights(3L, rep(c(0, 1), length.out = n))
