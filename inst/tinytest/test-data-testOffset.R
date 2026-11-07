@@ -394,6 +394,48 @@ expect_identical(
   )$yhat.test,
   formulaDirect$yhat.test
 )
+# a name the wrapper's caller holds as a local of its own is read there, on
+# both interfaces
+heldOffset <- rep(0.3, 5L)
+heldDirect <- dotsFit(
+  dotsX,
+  dotsY,
+  test = dotsTestX,
+  offset = dotsOffset,
+  offset.test = heldOffset
+)
+heldFormulaDirect <- dotsFit(
+  y ~ a + b,
+  data = dotsFrame,
+  test = dotsTest,
+  offset = o,
+  offset.test = heldOffset
+)
+rm(heldOffset)
+callerWithLocal <- function() {
+  localOffset <- rep(0.3, 5L)
+  list(
+    matrix = dotsFit(
+      dotsX,
+      dotsY,
+      test = dotsTestX,
+      offset = dotsOffset,
+      offset.test = localOffset
+    ),
+    formula = dotsFit(
+      y ~ a + b,
+      data = dotsFrame,
+      test = dotsTest,
+      offset = o,
+      offset.test = localOffset
+    )
+  )
+}
+heldLocally <- callerWithLocal()
+expect_equal(heldLocally$matrix$offset.test, rep(0.3, 5L))
+expect_identical(heldLocally$matrix$yhat.test, heldDirect$yhat.test)
+expect_equal(heldLocally$formula$offset.test, rep(0.3, 5L))
+expect_identical(heldLocally$formula$yhat.test, heldFormulaDirect$yhat.test)
 samplerFit <- function(...) {
   dbarts::dbarts(
     ...,
@@ -441,5 +483,9 @@ rm(
   viaDots,
   shifted,
   formulaDirect,
+  heldDirect,
+  heldFormulaDirect,
+  callerWithLocal,
+  heldLocally,
   samplerFit
 )
