@@ -302,16 +302,50 @@ fitActiveRows <- function(sampler) {
   if (!isMaskedWeightFamily(sampler$model@family) || is.null(weights)) {
     return(active)
   }
+  # an nbinom count's row is in at any positive count
+  if (!all(weights == 0 | weights == 1)) {
+    weights <- as.double(weights > 0)
+  }
   if (is.null(active)) weights else weights * active
 }
 
-## The weights a fit carries for its predictive draws: the data's, except on
-## a family whose 0/1 weights are membership, which fitActiveRows records.
+## The weights a fit carries for its predictive draws and log-likelihood: the
+## data's, except on a family whose 0/1 weights are membership, which
+## fitActiveRows records; an nbinom fit's counts other than 0 and 1 are
+## carried as counts.
 fitWeights <- function(sampler) {
-  if (isMaskedWeightFamily(sampler$model@family)) {
+  weights <- sampler$data@weights
+  if (
+    isMaskedWeightFamily(sampler$model@family) &&
+      (is.null(weights) || all(weights == 0 | weights == 1))
+  ) {
     return(NULL)
   }
-  sampler$data@weights
+  weights
+}
+
+## Puts on a packaged fit the weights its predictive draws read: the training
+## rows' (fitWeights), the test rows', which a test row is drawn under as a
+## training row of that weight is, and, on a family with a residual scale
+## whose weights count identical rows, weights.type = "frequency", absent
+## under the precision default. Every family but the residual ones reads its
+## weights as counts or 0/1 membership, which its family says.
+withFitWeights <- function(result, sampler) {
+  weights <- fitWeights(sampler)
+  if (length(weights) > 0L) {
+    result$weights <- weights
+  }
+  weightsTest <- sampler$data@weights.test
+  if (length(weightsTest) > 0L) {
+    result$weights.test <- weightsTest
+  }
+  if (
+    identical(sampler$model@weights.type, "frequency") &&
+      identical(sampler$model@family, "gaussian")
+  ) {
+    result$weights.type <- "frequency"
+  }
+  result
 }
 
 packageBartResults <- function(
@@ -1057,6 +1091,7 @@ bart <- function(
     "hazard.logistic",
     "hurdle.lognormal"
   ),
+  weights.type = NULL,
   na.action = dbarts::na.keepPredictors,
   leaf.prior = NULL,
   storage = c("double", "single"),
@@ -1244,6 +1279,9 @@ bart <- function(
   # object it forwards, so a retired spelling is stamped onto it here
   familySpec <- withResidPrior(familySpec, residPrior)
   matchedCall$family <- familySpec
+  # refused here by its own rule, before any family's arc reads the weights;
+  # each arc's sampler resolves it against its family
+  validateWeightsType(weights.type)
 
   # A data object carrying an n x K count matrix declares the multinomial
   # (softmax) model, whose fitted quantity is K probabilities per observation
@@ -1516,13 +1554,6 @@ bart <- function(
       formula <- plainFormula
       matchedCall$formula <- plainFormula
     }
-    if (!missing(weights)) {
-      stop(
-        "family = \"multinomial\" does not support 'weights': a non-integer ",
-        "weight has no exact augmentation sampler, and an integer weight is ",
-        "already expressible as row-wise count replication in the response"
-      )
-    }
     # the n x K category offset: a matrix enters the raw fits before the
     # softmax and is threaded to bart2Multinomial/bart2MultinomialCounts' own
     # offset argument, which installs it through $setCategoryOffset after
@@ -1533,6 +1564,7 @@ bart <- function(
     # shift) and is identically inert, exactly as the data object's own
     # flat offset is (parseMultinomialData, refused separately, below).
     multinomialOffset <- NULL
+    multinomialTestWeights <- NULL
     if (!missing(offset)) {
       if (is.data.frame(offset)) {
         offset <- as.matrix(offset)
@@ -1634,6 +1666,17 @@ bart <- function(
         data
       )
       y <- extracted$y
+      # the weights are read from the data with the response, the sampler
+      # being built from the predictors alone, and a test frame's from the
+      # test rows, as the formula route of every other family reads them
+      if (!is.null(matchedCall$weights)) {
+        multinomialTestWeights <- formulaTestWeights(
+          matchedCall,
+          callingEnv,
+          formula
+        )
+        matchedCall$weights <- extracted$weights
+      }
       # from here on, y drives the same factor-vs-count-matrix dispatch as
       # the matrix interface; the sampler it builds (bart2Multinomial/
       # bart2MultinomialCounts, below) is built from the term-labeled
@@ -1684,18 +1727,21 @@ bart <- function(
       return(withFamilySpec(
         familySpec,
         family,
-        bart2MultinomialCounts(
-          matchedCall,
-          callingEnv,
-          control,
-          y,
-          levels,
-          sigest,
-          combineChains,
-          offset = multinomialOffset,
-          offset.test = multinomialOffsetTest,
-          keepSampler = keepSampler,
-          samplerOnly = samplerOnly
+        withMultinomialTestWeights(
+          bart2MultinomialCounts(
+            matchedCall,
+            callingEnv,
+            control,
+            y,
+            levels,
+            sigest,
+            combineChains,
+            offset = multinomialOffset,
+            offset.test = multinomialOffsetTest,
+            keepSampler = keepSampler,
+            samplerOnly = samplerOnly
+          ),
+          multinomialTestWeights
         )
       ))
     }
@@ -1718,17 +1764,20 @@ bart <- function(
     return(withFamilySpec(
       familySpec,
       family,
-      bart2Multinomial(
-        matchedCall,
-        callingEnv,
-        control,
-        y,
-        sigest,
-        combineChains,
-        offset = multinomialOffset,
-        offset.test = multinomialOffsetTest,
-        keepSampler = keepSampler,
-        samplerOnly = samplerOnly
+      withMultinomialTestWeights(
+        bart2Multinomial(
+          matchedCall,
+          callingEnv,
+          control,
+          y,
+          sigest,
+          combineChains,
+          offset = multinomialOffset,
+          offset.test = multinomialOffsetTest,
+          keepSampler = keepSampler,
+          samplerOnly = samplerOnly
+        ),
+        multinomialTestWeights
       )
     ))
   }
@@ -1831,6 +1880,17 @@ bart <- function(
     # never asked for
     if (!is.null(variance) && !isFALSE(variance)) {
       stop("family = \"hurdle.lognormal\" does not take a variance forest")
+    }
+    # its weights mark rows in and out of both parts; a precision would be
+    # refused by the zero part in a probit's words
+    if (identical(validateWeightsType(weights.type), "precision")) {
+      stop(
+        "weights.type = \"precision\" is not taken under family = ",
+        "\"hurdle.lognormal\": its weights of 0 and 1 mark rows in and out ",
+        "of both parts, and its zero part, a probit, has no residual scale; ",
+        "leave weights.type NULL",
+        call. = FALSE
+      )
     }
     return(withFamilySpec(
       familySpec,
@@ -1949,15 +2009,7 @@ bart <- function(
     result$sigest.fallback <- TRUE
   }
   # needed to extract ppd
-  if (length(fitWeights(sampler)) > 0L) {
-    result$weights <- sampler$data@weights
-    if (
-      !is.null(sampler$data@weights.test) &&
-        length(sampler$data@weights.test) > 0L
-    ) {
-      result$weights.test <- sampler$data@weights.test
-    }
-  }
+  result <- withFitWeights(result, sampler)
   result$active <- fitActiveRows(sampler)
 
   result
@@ -2018,7 +2070,7 @@ extractMultinomialFormulaData <- function(
   modelFrameCall <- matchedCall
   modelFrameCall <- modelFrameCall[c(
     1L,
-    match(c("formula", "data"), names(modelFrameCall), nomatch = 0L)
+    match(c("formula", "data", "weights"), names(modelFrameCall), nomatch = 0L)
   )]
   modelFrameCall$drop.unused.levels <- FALSE
   modelFrameCall$na.action <- stats::na.pass
@@ -2058,7 +2110,42 @@ extractMultinomialFormulaData <- function(
     formulaDataNames(data),
     if (is.data.frame(data)) nrow(data) else NA_integer_
   )
-  list(y = y, x = x)
+  weights <- model.weights(modelFrame)
+  list(y = y, x = x, weights = if (!is.null(weights)) as.double(weights))
+}
+
+# The weights of a multinomial fit's test rows on the formula route, read
+# from 'test' as the training weights were read from 'data'; NULL where there
+# is no test frame or it does not hold them.
+formulaTestWeights <- function(matchedCall, callingEnv, formula) {
+  test <- if (!is.null(matchedCall$test)) eval(matchedCall$test, callingEnv)
+  if (!is.data.frame(test)) {
+    return(NULL)
+  }
+  frameCall <- as.call(list(
+    quote(stats::model.frame),
+    stats::reformulate("1", env = environment(formula)),
+    data = test,
+    weights = matchedCall$weights,
+    na.action = stats::na.pass
+  ))
+  frame <- tryCatch(eval(frameCall, callingEnv), error = function(e) NULL)
+  weights <- if (!is.null(frame)) frame[["(weights)"]]
+  if (is.null(weights) || length(weights) != nrow(test)) {
+    return(NULL)
+  }
+  weights <- as.double(weights)
+  refuseFamilyWeightValues(weights, "multinomial", "'weights.test'")
+  weights
+}
+
+# A packaged multinomial fit with its test rows' weights, which its test
+# draws read as a training row's own; a sampler passes through.
+withMultinomialTestWeights <- function(result, weights) {
+  if (!is.null(weights) && inherits(result, "bartMultinomial")) {
+    result$weights.test <- weights
+  }
+  result
 }
 
 # Whether a formula carries an offset() term, for the fits that refuse an
@@ -2605,6 +2692,7 @@ packageMultinomialResults <- function(
   if (!is.null(data) && !is.null(data@offset.category)) {
     result$offset <- data@offset.category
   }
+  result <- withFitWeights(result, sampler)
   # a fit kept without its call carries none, as a bart fit does
   result <- dropAbsentCall(result)
   class(result) <- "bartMultinomial"
@@ -2859,6 +2947,7 @@ packageOrdinalResults <- function(
   }
   # the rows out, which the log-likelihood channel reads as bart's
   # single-forest packager records them
+  result <- withFitWeights(result, sampler)
   result$active <- fitActiveRows(sampler)
   # a fit kept without its call carries none, as a bart fit does
   result <- dropAbsentCall(result)
@@ -2878,14 +2967,29 @@ negbinMeanCounts <- function(eta) {
 # shape. mu is a (chains x) draws x obs array; r is the draws-shaped
 # shape, broadcast across the observation
 # margin so each column shares its draw's r. Only this and predict's ppd touch
-# the RNG, so type = "ev"/"bart" stay draw-neutral.
-negbinPpd <- function(mu, r) {
+# the RNG, so type = "ev"/"bart" stay draw-neutral. 'trials', one per
+# observation, are predict's: w new observations summed, one NB(size w r,
+# mean w mu) draw, a 0 drawn at 1 and then set to 0, the sum of none.
+negbinPpd <- function(mu, r, trials = NULL) {
   d <- dim(mu)
-  array(
-    rnbinom(length(mu), size = as.vector(array(r, d)), mu = as.vector(mu)),
-    d,
-    dimnames(mu)
-  )
+  size <- as.vector(array(r, d))
+  mean <- as.vector(mu)
+  none <- NULL
+  if (!is.null(trials)) {
+    w <- rep(
+      rep_len(as.double(trials), d[length(d)]),
+      each = prod(d[-length(d)])
+    )
+    none <- w == 0
+    w[none] <- 1
+    size <- size * w
+    mean <- mean * w
+  }
+  draws <- rnbinom(length(mu), size = size, mu = mean)
+  if (!is.null(none)) {
+    draws[none] <- 0
+  }
+  array(draws, d, dimnames(mu))
 }
 
 # The negative-binomial count fit path, reached from bart2's family =
@@ -3122,6 +3226,7 @@ packageNegbinResults <- function(
   }
   # the rows out, which the log-likelihood channel reads as bart's
   # single-forest packager records them
+  result <- withFitWeights(result, sampler)
   result$active <- fitActiveRows(sampler)
   # a fit kept without its call carries none, as a bart fit does
   result <- dropAbsentCall(result)
@@ -3888,6 +3993,8 @@ bart2Hurdle <- function(
   zeroCall[hurdleIngestedArguments] <- NULL
   zeroCall$formula <- parts$zero
   zeroCall$family <- "probit"
+  # both parts read the 0/1 weights as membership, the hurdle's one reading
+  zeroCall$weights.type <- "frequency"
   zeroCall["seed"] <- list(seeds[[1L]])
   zeroCall$keepTrees <- control@keepTrees
   zero <- eval(zeroCall, callingEnv)
@@ -3909,6 +4016,7 @@ bart2Hurdle <- function(
   } else {
     gaussian(sigma = residPrior)
   }
+  positiveCall$weights.type <- "frequency"
   positiveCall["seed"] <- list(seeds[[2L]])
   positiveCall$keepTrees <- control@keepTrees
   # the thread-budget warning is once per session, and the zero component

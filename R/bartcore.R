@@ -1684,7 +1684,9 @@ bartcoreSamplerSetData <- function(
   # all-ones is no weights at all, as at creation
   if (isMaskedWeightFamily(sampler$model@family) && !is.null(newData@weights)) {
     w <- newData@weights
-    if (anyNA(w) || any(w != 0 & w != 1)) {
+    if (identical(sampler$model@family, "nbinom")) {
+      refuseNonCountFamilyWeights(w, "nbinom")
+    } else if (anyNA(w) || any(w != 0 & w != 1)) {
       stop(
         sampler$model@family,
         " models do not support case weights other than 0 and 1, which mark ",

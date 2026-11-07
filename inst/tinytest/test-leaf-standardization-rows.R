@@ -122,7 +122,7 @@ sweeps <- function(s, count = 5L) s$run(0L, count)$train
 
 # rows out by weight 0 (gaussian, Student-t) or by 0/1 weights the mask takes
 # (probit, ordinal, nbinom, hazard.probit): the rows in. logistic weights are
-# counts and aft takes none, so every row is in
+# counts, each row read as many times, and aft takes none, so every row is in
 for (kind in names(families)) {
   rowsOut <- !kind %in% c("logistic", "aft")
   weights <- if (kind == "logistic") {
@@ -141,6 +141,9 @@ for (kind in names(families)) {
       # the person-period rows of the subjects in, as the expansion lays them
       rows <- s$data@weights != 0
       expected <- literal(s$data@x[, "x1"], rows, gp)
+    } else if (kind == "logistic") {
+      # counts of 2: every row read twice, as the data written out
+      expected <- literal(rep(x1, 2L), gp = gp)
     } else {
       expected <- literal(x1, if (rowsOut) inRows else seq_len(n), gp)
     }
@@ -198,10 +201,17 @@ for (kind in names(families)) {
         )
       )
     } else {
+      # logistic's counts of 2 read every row twice, as the data written out
+      copies <- if (kind == "logistic") 2L else 1L
+      x1Read <- rep(x1, copies)
+      x2Read <- rep(x2, copies)
       list(
-        center = c(mean(x1), mean(x2)),
-        scale = c(stats::sd(x1), stats::sd(x2)),
-        lengthscale = c(heuristic(scale(x1)[, 1L]), heuristic(scale(x2)[, 1L]))
+        center = c(mean(x1Read), mean(x2Read)),
+        scale = c(stats::sd(x1Read), stats::sd(x2Read)),
+        lengthscale = c(
+          heuristic(scale(x1Read)[, 1L]),
+          heuristic(scale(x2Read)[, 1L])
+        )
       )
     },
     paste("every row in,", kind)

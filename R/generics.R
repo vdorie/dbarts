@@ -171,9 +171,10 @@ heteroscedasticScale <- function(s, n.chains) {
 # object$family, not on the presence of sigma, so a new family cannot
 # silently reuse a formula that does not fit it (an aft fit has non-null
 # sigma but is not gaussian): gaussian evaluates the normal density with
-# weights as precision (y | x ~ N(f(x), sigma^2 / w)), and a
-# student() residual distribution the t marginal at the same location and
-# scale; probit and logistic the bernoulli mass on the y scale, weights being
+# weights as precision (y | x ~ N(f(x), sigma^2 / w)), or under
+# weights.type = "frequency" as counts, w times the log density of one
+# observation, and a student() residual distribution the t marginal at the
+# same location and scale; probit and logistic the bernoulli mass on the y scale, weights being
 # trial counts for logistic (probit never stores weights); aft the log density
 # for events and the log survival tail for right-censored rows, mirroring the
 # engine's AFTResponse::computeLogLikelihood. Any other family errors rather
@@ -215,7 +216,10 @@ pointwiseLogLikelihood <- function(object, ev) {
     } else {
       as.vector(s)
     }
-    if (!is.null(weights)) {
+    # under frequency a row of weight w is w observations of one density,
+    # whose log is taken w times, below
+    counted <- identical(object[["weights.type"]], "frequency")
+    if (!is.null(weights) && !counted) {
       sd <- sd / rep(sqrt(weights), each = n.draws)
     }
     if (isStudent) {
@@ -233,6 +237,9 @@ pointwiseLogLikelihood <- function(object, ev) {
       result <- dt((y - as.vector(ev)) / sd, df, log = TRUE) - log(sd)
     } else {
       result <- dnorm(y, as.vector(ev), sd, log = TRUE)
+    }
+    if (!is.null(weights) && counted) {
+      result <- rep(weights, each = n.draws) * result
     }
     # a zero-weight row is not in the model, so the channel flags it as
     # unavailable rather than reporting the -Inf an infinite sd would give
@@ -625,7 +632,7 @@ refuseTrainingRowWeightsForm <- function(nObs, weights) {
 ## reads no weight takes whatever else the shape allows and gets NULL back, the
 ## fit's own weights standing.
 trainingRowWeights <- function(object, weights, type) {
-  nObs <- numTrainingRows(object)
+  nObs <- trainingRowCount(object)
   refuseTrainingRowWeightsForm(nObs, weights)
   if (type != "ppd") {
     return(NULL)
@@ -884,8 +891,10 @@ withTrainingRowsKept <- function(object, index) {
       object[[name]] <- cutRows(object[[name]], trailing[[name]])
     }
   }
-  if (length(object[["weights"]]) == nObs) {
-    object[["weights"]] <- object[["weights"]][index]
+  for (name in c("weights", "ppd.weights", "active")) {
+    if (length(object[[name]]) == nObs) {
+      object[[name]] <- object[[name]][index]
+    }
   }
   # a count-matrix response, whose trials a multinomial draw reads
   y <- object[["y"]]
@@ -903,15 +912,16 @@ trainingRowMargin <- function(object) {
 
 ## whether the draws a call at the training rows returns keep the category
 ## margin after the observation margin: the probabilities of an ordinal or
-## multinomial fit, and the counts a multinomial fit on a count matrix draws, one
-## vector of counts per row. The posterior predictive category of a fit on a
-## factor is one number per draw and row.
+## multinomial fit, and the counts a multinomial fit on a count matrix draws, or
+## any of them under predict's weights, one vector of counts per row. The
+## posterior predictive category of a fit on a factor is one number per draw
+## and row.
 trainingResultHasCategories <- function(object, type) {
   trainingRowMargin(object) == 1L &&
     (type == "ev" ||
       (type == "ppd" &&
-        inherits(object, "bartMultinomial") &&
-        !is.factor(object[["y"]])))
+        (!is.null(object[["ppd.weights"]]) ||
+          (inherits(object, "bartMultinomial") && !is.factor(object[["y"]])))))
 }
 
 ## the names of the training rows on the observation margin of a channel
@@ -970,7 +980,7 @@ trainingRowDraws <- function(
     source <- withTrainingOffset(source, offset, complete = FALSE)
   }
   if (!is.null(weights)) {
-    source[["weights"]] <- weights
+    source[["ppd.weights"]] <- weights
   }
   # as at newdata, only the rows na.action keeps are read and drawn; the rest
   # are set to NA or left out after. With none kept one row stands in, as at
@@ -1034,15 +1044,60 @@ trainingRowClass <- function(
   )
 }
 
+## predict's weights at newdata: one number or one per row.
+refusePredictWeightsForm <- function(weights) {
+  if (
+    !is.null(weights) && (!is.atomic(weights) || weightsNotOneColumn(weights))
+  ) {
+    stop(
+      "'weights' must be one number or one per row of 'newdata'",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
 ## The weights of a posterior predictive draw at rows the fit never saw (newdata,
-## or the training rows under new weights). A binary draw's weights are its
-## trial counts, Binomial(w, p), under either link, as a logistic fit's own
-## weights are. On every family with a residual distribution, aft's log-time
-## one included, they are precision multipliers, sd_i = scale_i / sqrt(w_i): an
-## infinite one silently draws the expected value and a negative one draws
-## NaN; a weight of 0 gives the row NA draws. A missing one is the row's
-## na.action's to answer.
+## or the training rows under new weights). On a count family they are new
+## trials, whole and non-negative, a 0 drawing no trials: a binary draw's
+## Binomial(w, p) under either link, an nbinom draw's sum of w new counts, an
+## ordinal or multinomial draw's counts per category over w trials. On every
+## family with a residual distribution, aft's log-time one included, they are
+## precision multipliers, sd_i = scale_i / sqrt(w_i): an infinite one silently
+## draws the expected value and a negative one draws NaN; a weight of 0 gives
+## the row NA draws. Under weights.type = "frequency" a row's draw is one of
+## the observations its weight counts, so 1 and 0 are the weights it takes. A
+## missing one is the row's na.action's to answer.
 refuseUnfitPredictiveWeights <- function(object, weights) {
+  if (inherits(object, "bartNegbin")) {
+    refuseNonCountWeights(
+      weights,
+      what = paste0(
+        "the posterior predictive 'weights' of a nbinom fit count new ",
+        "observations, whose draws are summed,"
+      )
+    )
+    return(invisible(NULL))
+  }
+  if (inherits(object, c("bartOrdinal", "bartMultinomial"))) {
+    if (
+      anyNA(weights) ||
+        any(weights < 0) ||
+        !all(is.finite(weights)) ||
+        any(weights != round(weights))
+    ) {
+      family <- fitFamily(object)
+      stop(
+        "the posterior predictive 'weights' of ",
+        if (family == "ordinal") "an " else "a ",
+        family,
+        " fit are trial counts, each draw the count per category over that ",
+        "many new trials, and must be non-negative whole numbers",
+        call. = FALSE
+      )
+    }
+    return(invisible(NULL))
+  }
   if (inherits(object, "bartHurdle")) {
     if (!all(weights[!is.na(weights)] %in% c(0, 1))) {
       stop(
@@ -1062,6 +1117,16 @@ refuseUnfitPredictiveWeights <- function(object, weights) {
         " fit are trial counts"
       )
     )
+  } else if (identical(object[["weights.type"]], "frequency")) {
+    observed <- weights[!is.na(weights)]
+    if (!all(observed == 0 | observed == 1)) {
+      stop(
+        "on a fit with weights.type = \"frequency\" predict takes weights ",
+        "of 1, a new observation, and 0, a row held out: a row of weight w ",
+        "stands for w observations, and its draw is one of them",
+        call. = FALSE
+      )
+    }
   } else if (fitHasResidual(object)) {
     observed <- weights[!is.na(weights)]
     if (any(observed < 0) || !all(is.finite(observed))) {
@@ -1252,14 +1317,7 @@ predict.bart <- function(
     ))
   }
 
-  if (
-    !is.null(weights) && (!is.atomic(weights) || weightsNotOneColumn(weights))
-  ) {
-    stop(
-      "'weights' must be one number or one per row of 'newdata'",
-      call. = FALSE
-    )
-  }
+  refusePredictWeightsForm(weights)
 
   # the fit's offset argument and offset() terms are evaluated on newdata, as
   # predict.lm does, and added to an 'offset' given here; the per-forest arm
@@ -1417,7 +1475,8 @@ predict.bart <- function(
         object,
         weights,
         n.chains,
-        heteroscedasticScale(s, n.chains)
+        heteroscedasticScale(s, n.chains),
+        trials = TRUE
       )
     }
   }
@@ -1831,7 +1890,7 @@ extract.bart <- function(
   }
 
   result <- if (sample == "train") object$yhat.train else object$yhat.test
-  weights <- if (sample == "train") object$weights else object$weights.test
+  ppd <- fitPpdWeights(object, sample)
 
   result <- combineOrUncombineChains(result, n.chains, combineChains)
 
@@ -1869,13 +1928,47 @@ extract.bart <- function(
     result <- sampleFromPPD(
       result,
       object,
-      weights,
+      ppd$weights,
       n.chains,
-      heteroscedasticScale(s, n.chains)
+      heteroscedasticScale(s, n.chains),
+      trials = ppd$trials,
+      out = ppd$out
     )
   }
 
   result
+}
+
+## The weights a predictive draw at a fit's rows reads. At the training rows
+## predict's weights where it gave them (trainingRowDraws), each the trial
+## count of the draw on the families that count trials; else the fit's own,
+## each row one observation like it, and its rows out of the likelihood
+## ('out') NA. At the test rows the test rows' own weights, read as the fit's.
+fitPpdWeights <- function(object, sample) {
+  if (sample == "test") {
+    return(list(weights = object[["weights.test"]], trials = FALSE))
+  }
+  if (!is.null(object[["ppd.weights"]])) {
+    return(list(weights = object[["ppd.weights"]], trials = TRUE))
+  }
+  out <- !fitRowsInLikelihood(object)
+  list(
+    weights = object[["weights"]],
+    trials = FALSE,
+    out = if (any(out)) out
+  )
+}
+
+## The rows of 'nObs' whose predictive draws are NA under fitPpdWeights'
+## 'ppd': those out of the likelihood and, where the weights are the fit's
+## own, those of weight 0.
+ppdRowsOut <- function(ppd, nObs) {
+  out <- if (is.null(ppd$out)) rep_len(FALSE, nObs) else ppd$out
+  if (!isTRUE(ppd$trials) && !is.null(ppd$weights)) {
+    weights <- rep_len(ppd$weights, nObs)
+    out <- out | is.na(weights) | weights == 0
+  }
+  out
 }
 
 # Selects one or more forests from a per-forest channel's trailing margin, by
@@ -2308,7 +2401,7 @@ predictBlend <- function(
       result <- probabilityFromLatents(result, object)
     }
     if (type == "ppd") {
-      result <- sampleFromPPD(result, object, weights, n.chains)
+      result <- sampleFromPPD(result, object, weights, n.chains, trials = TRUE)
     }
   }
 
@@ -2620,17 +2713,7 @@ extract.bartMultinomial <- function(
   if (type == "ev") {
     return(probs)
   }
-  # a count-row fit's own rows draw what it modeled, a count vector of each
-  # row's trials; test rows have no trial count, so they draw one category
-  # per draw, as predict does
-  if (sample == "train" && !is.factor(object[["y"]])) {
-    return(multinomialCountPpdFromProbs(
-      probs,
-      rowSums(object[["y"]]),
-      n.chains
-    ))
-  }
-  multinomialPpdFromProbs(probs, n.chains)
+  categoryPpd(object, probs, n.chains, sample)
 }
 
 # ONE formula covers both response ingestions: with p[s,i,k] the reported
@@ -2666,11 +2749,16 @@ multinomialLogLik <- function(object, probs) {
   cells <- expanded * log(flat)
   cells[expanded == 0] <- 0
   term <- rowSums(cells)
-  array(
-    rep(logCoef, each = n.draws) + term,
-    d[-length(d)],
-    dimnames(probs)[-length(d)]
-  )
+  result <- rep(logCoef, each = n.draws) + term
+  # a row of count w is w observations of one density, a 0 out of the
+  # likelihood with none to report
+  weights <- object[["weights"]]
+  if (!is.null(weights)) {
+    weights <- rep(weights, each = n.draws)
+    result <- weights * result
+    result[weights == 0] <- NaN
+  }
+  array(result, d[-length(d)], dimnames(probs)[-length(d)])
 }
 
 # Runs 'draw' on probs in the split layout, (chains x) samples x obs x K, whose
@@ -2706,6 +2794,86 @@ multinomialPpdFromProbs <- function(probs, n.chains = 1L) {
     codes <- apply(flat, 1L, function(p) sample.int(K, 1L, prob = p))
     array(codes, d[-length(d)], dimnames(split)[-length(d)])
   })
+}
+
+# The posterior predictive draws of an ordinal or multinomial fit at its own
+# rows, from its category probabilities 'probs' (K trailing), in the shape of
+# its response: a category per draw and row, or on a multinomial fit to count
+# rows a count vector, at the row's trials at a training row and at one trial
+# at a test row, whose trials are unknown. A row is one observation like it,
+# whatever its weight; a training row out of the likelihood and a row of
+# weight 0 have NA draws, drawn first so the stream is the one without them.
+# predict's weights at the training rows (fitPpdWeights) are trials instead:
+# each draw the count per category over that many new trials, a 0 all zeros.
+categoryPpd <- function(object, probs, n.chains, sample) {
+  d <- dim(probs)
+  nObs <- d[length(d) - 1L]
+  ppd <- fitPpdWeights(object, sample)
+  if (isTRUE(ppd$trials)) {
+    return(multinomialCountPpdFromProbs(
+      probs,
+      rep_len(ppd$weights, nObs),
+      n.chains
+    ))
+  }
+  countFit <- inherits(object, "bartMultinomial") && !is.factor(object[["y"]])
+  result <- if (!countFit) {
+    multinomialPpdFromProbs(probs, n.chains)
+  } else if (sample == "train") {
+    multinomialCountPpdFromProbs(probs, rowSums(object[["y"]]), n.chains)
+  } else {
+    multinomialCountPpdFromProbs(probs, rep_len(1L, nObs), n.chains)
+  }
+  out <- ppdRowsOut(ppd, nObs)
+  if (!any(out)) {
+    return(result)
+  }
+  if (countFit) {
+    setCategoryRowsNA(result, which(out))
+  } else {
+    setObservationsNA(result, which(out))
+  }
+}
+
+# Whether what predict returns of an ordinal or multinomial fit keeps the
+# category margin: its probabilities (type = "ev"), and its posterior
+# predictive draws where they are counts - under predict's weights, and on a
+# multinomial fit to count rows, at a training row its trials' and at a new
+# row one trial's.
+categoryDrawsCount <- function(object, type, weights) {
+  type == "ev" ||
+    (type == "ppd" &&
+      (!is.null(weights) ||
+        (inherits(object, "bartMultinomial") && !is.factor(object[["y"]]))))
+}
+
+# predict's posterior predictive draws at new rows of an ordinal or
+# multinomial fit: under 'weights' the count per category over that many new
+# trials, a 0 all zeros; without them the response's shape, a category, or on
+# a fit to count rows the count vector of one trial, a new row's trials being
+# unknown. Every count vector is drawn by the one routine, so on a count fit
+# no weights and weights of 1 draw alike.
+newRowCategoryPpd <- function(object, probs, n.chains, weights) {
+  countFit <- inherits(object, "bartMultinomial") && !is.factor(object[["y"]])
+  if (is.null(weights) && !countFit) {
+    return(multinomialPpdFromProbs(probs, n.chains))
+  }
+  d <- dim(probs)
+  nObs <- d[length(d) - 1L]
+  multinomialCountPpdFromProbs(
+    probs,
+    if (is.null(weights)) rep_len(1L, nObs) else rep_len(weights, nObs),
+    n.chains
+  )
+}
+
+# x, its observations on the margin before its last, the categories', with
+# the observations 'rows' set to NA in every draw and category
+setCategoryRowsNA <- function(x, rows) {
+  d <- dim(x)
+  index <- rep(list(quote(expr = )), length(d))
+  index[[length(d) - 1L]] <- rows
+  do.call(`[<-`, c(list(x), index, list(value = NA)))
 }
 
 # The count-row counterpart: a Multinomial(n_i, p) count vector per draw and
@@ -2871,6 +3039,7 @@ predict.bartMultinomial <- function(
   newdata,
   type = c("ev", "ppd", "bart", "forest", "class"),
   offset = NULL,
+  weights = NULL,
   combineChains = TRUE,
   ci.level = NULL,
   na.action = dbarts::na.keepPredictors,
@@ -2918,7 +3087,8 @@ predict.bartMultinomial <- function(
       offset,
       combineChains,
       ci.level,
-      trailing = if (trainingResultHasCategories(object, type)) 2L else 1L,
+      trailing = if (categoryDrawsCount(object, type, weights)) 2L else 1L,
+      weights = weights,
       na.action = na.action
     ))
   }
@@ -2934,18 +3104,23 @@ predict.bartMultinomial <- function(
     "offset",
     identical(object$levels.source, "index")
   )
-  # a missing offset row is incomplete the same way an unroutable predictor
-  # is (dec-A89)
+  refusePredictWeightsForm(weights)
+  # a missing offset or weight row is incomplete the same way an unroutable
+  # predictor is (dec-A89)
   rows <- preparePredictRows(
     newdata,
     object$fit$data@x,
     na.action,
-    list(offset = offset),
+    list(offset = offset, weights = weights),
     dataMissingSeen(object$fit$data)
   )
   if (isTRUE(rows$placeholder)) {
     restoreSeed <- protectRandomSeed()
     on.exit(restoreSeed(), add = TRUE)
+  }
+  weights <- subsetPredictInput(weights, rows, "weights")
+  if (type == "ppd" && !is.null(weights)) {
+    refuseUnfitPredictiveWeights(object, weights)
   }
   newdata <- rows$x
   offset <- subsetPredictInput(
@@ -2983,15 +3158,16 @@ predict.bartMultinomial <- function(
     combineChains,
     leadNames = rows$keptNames
   )
+  counts <- categoryDrawsCount(object, type, weights)
   if (type == "ppd") {
-    probs <- multinomialPpdFromProbs(probs, object$n.chains)
+    probs <- newRowCategoryPpd(object, probs, object$n.chains, weights)
   }
   if (!is.null(ci.level)) {
     return(padPredictedRows(
       posteriorInterval(
         probs,
         ci.level,
-        trailing = if (type %in% c("ev", "class")) 2L else 1L
+        trailing = if (type == "class" || counts) 2L else 1L
       ),
       rows,
       first = TRUE
@@ -3004,7 +3180,7 @@ predict.bartMultinomial <- function(
       rows
     ))
   }
-  padPredictedRows(probs, rows, trailing = if (type == "ppd") 0L else 1L)
+  padPredictedRows(probs, rows, trailing = if (counts) 1L else 0L)
 }
 
 # Shared "Call:" preamble for the print and summary methods. A fit kept with
@@ -3146,7 +3322,7 @@ extract.bartOrdinal <- function(
   if (type == "ev") {
     return(probs)
   }
-  multinomialPpdFromProbs(probs, n.chains)
+  categoryPpd(object, probs, n.chains, sample)
 }
 
 # log P(y_i = k | eta, gamma) IS the reported category probability at the
@@ -3287,6 +3463,7 @@ predict.bartOrdinal <- function(
   newdata,
   type = c("ev", "ppd", "bart", "class"),
   offset = NULL,
+  weights = NULL,
   combineChains = TRUE,
   ci.level = NULL,
   na.action = dbarts::na.keepPredictors,
@@ -3325,7 +3502,8 @@ predict.bartOrdinal <- function(
       offset,
       combineChains,
       ci.level,
-      trailing = if (type == "ev") 2L else 1L,
+      trailing = if (categoryDrawsCount(object, type, weights)) 2L else 1L,
+      weights = weights,
       na.action = na.action
     ))
   }
@@ -3335,12 +3513,13 @@ predict.bartOrdinal <- function(
   # after the store check, whose absence the default here would otherwise
   # report as a missing slot
   n.threads <- validatePredictThreads(n.threads)
+  refusePredictWeightsForm(weights)
   offset <- predictTermOffset(object$fit$data, newdata, offset)
   rows <- preparePredictRows(
     newdata,
     object$fit$data@x,
     na.action,
-    list(offset = offset),
+    list(offset = offset, weights = weights),
     dataMissingSeen(object$fit$data)
   )
   if (isTRUE(rows$placeholder)) {
@@ -3348,6 +3527,10 @@ predict.bartOrdinal <- function(
     on.exit(restoreSeed(), add = TRUE)
   }
   offset <- subsetPredictInput(offset, rows, "offset")
+  weights <- subsetPredictInput(weights, rows, "weights")
+  if (type == "ppd" && !is.null(weights)) {
+    refuseUnfitPredictiveWeights(object, weights)
+  }
   rowNames <- rows$keptNames
   n.chains <- object$n.chains
   # raw is n.new x n.samples (x n.chains): the replayed latent eta + o, the
@@ -3391,11 +3574,12 @@ predict.bartOrdinal <- function(
     combineChains,
     leadNames = rowNames
   )
+  counts <- categoryDrawsCount(object, type, weights)
   if (type == "ppd") {
-    probs <- multinomialPpdFromProbs(probs, n.chains)
+    probs <- newRowCategoryPpd(object, probs, n.chains, weights)
   }
   if (!is.null(ci.level)) {
-    trailing <- if (type %in% c("ev", "class")) 2L else 1L
+    trailing <- if (type == "class" || counts) 2L else 1L
     return(padPredictedRows(
       posteriorInterval(probs, ci.level, trailing = trailing),
       rows,
@@ -3409,7 +3593,7 @@ predict.bartOrdinal <- function(
       rows
     ))
   }
-  padPredictedRows(probs, rows, trailing = if (type == "ppd") 0L else 1L)
+  padPredictedRows(probs, rows, trailing = if (counts) 1L else 0L)
 }
 
 print.bartOrdinal <- function(x, ...) {
@@ -3522,11 +3706,14 @@ extract.bartNegbin <- function(
   # caller's request
   muSplit <- combineOrUncombineChains(mu, n.chains, FALSE)
   disp <- heldOrDrawnVec(object, "shape", n.chains, length(muSplit))
-  result <- array(
-    rnbinom(length(muSplit), size = disp, mu = as.vector(muSplit)),
-    dim(muSplit),
-    dimnames(muSplit)
-  )
+  ppd <- fitPpdWeights(object, sample)
+  result <- negbinPpd(muSplit, disp, if (isTRUE(ppd$trials)) ppd$weights)
+  # a row the fit's own weight holds out, or one out of the likelihood, has
+  # NA draws, drawn first so the stream is the one without it
+  out <- ppdRowsOut(ppd, dim(muSplit)[length(dim(muSplit))])
+  if (any(out)) {
+    result <- setObservationsNA(result, which(out))
+  }
   combineOrUncombineChains(result, n.chains, combineChains)
 }
 
@@ -3545,6 +3732,11 @@ negbinLogLik <- function(object, mu, n.chains) {
     mu = as.vector(mu),
     log = TRUE
   )
+  # a row of count w is w observations of one density
+  weights <- object[["weights"]]
+  if (!is.null(weights)) {
+    result <- rep(weights, each = n.draws) * result
+  }
   # a row the active-row mask takes out of the data set has no likelihood to
   # report, as pointwiseLogLikelihood reports it
   active <- object[["active"]]
@@ -3647,6 +3839,7 @@ predict.bartNegbin <- function(
   newdata,
   type = c("ev", "ppd", "bart"),
   offset = NULL,
+  weights = NULL,
   combineChains = TRUE,
   ci.level = NULL,
   na.action = dbarts::na.keepPredictors,
@@ -3675,6 +3868,7 @@ predict.bartNegbin <- function(
       offset,
       combineChains,
       ci.level,
+      weights = weights,
       na.action = na.action
     ))
   }
@@ -3684,14 +3878,15 @@ predict.bartNegbin <- function(
   # after the store check, whose absence the default here would otherwise
   # report as a missing slot
   n.threads <- validatePredictThreads(n.threads)
+  refusePredictWeightsForm(weights)
   offset <- predictTermOffset(object$fit$data, newdata, offset)
-  # a missing offset row is incomplete the same way an unroutable predictor
-  # is (dec-A89)
+  # a missing offset or weight row is incomplete the same way an unroutable
+  # predictor is (dec-A89)
   rows <- preparePredictRows(
     newdata,
     object$fit$data@x,
     na.action,
-    list(offset = offset),
+    list(offset = offset, weights = weights),
     dataMissingSeen(object$fit$data)
   )
   if (isTRUE(rows$placeholder)) {
@@ -3700,6 +3895,10 @@ predict.bartNegbin <- function(
   }
   rowNames <- rows$keptNames
   offset <- subsetPredictInput(offset, rows, "offset")
+  weights <- subsetPredictInput(weights, rows, "weights")
+  if (type == "ppd" && !is.null(weights)) {
+    refuseUnfitPredictiveWeights(object, weights)
+  }
   n.chains <- object$n.chains
   # raw is n.new x n.samples (x n.chains): the replayed log mean eta
   raw <- predictCodedTest(object$fit, rows$x, offset, n.threads)
@@ -3755,7 +3954,8 @@ predict.bartNegbin <- function(
           convertSamplesForCaller(means, n.chains, FALSE),
           rowNames
         ),
-        convertSamplesForCaller(shapes, n.chains, FALSE)
+        convertSamplesForCaller(shapes, n.chains, FALSE),
+        weights
       ),
       n.chains,
       combineChains
@@ -4005,7 +4205,6 @@ bartUnusedArgs <- list(
 # 'reasons', and composition order is priority order.
 predictForeignReasons <- list(
   sample = "the fit's stored train and test channels are extract's 'sample'",
-  weights = "this family's posterior-predictive draw takes no per-observation weight",
   bases = "only an amplitude-coupled multi-forest fit takes 'bases' at the predicted rows",
   contribution = "the per-observation contribution decomposition belongs to extract(type = \"forest\")",
   value = "predict's channel argument is named 'type'"
@@ -4979,7 +5178,25 @@ ppdNumDraws <- function(sigma, s, n.obs) {
 # perform that reshape. s carries a heteroscedastic fit's per-observation
 # residual scale in that same split layout (heteroscedasticScale); it is NULL
 # for a homoscedastic fit, whose scale is the per-draw scalar sigma.
-sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
+#
+# 'weights' are the fit's own at its training or test rows, each row drawn as
+# one observation like it, or, under 'trials', predict's, which on a binary
+# fit are the trial counts of the draw, Binomial(w, p), a 0 drawing 0. On a
+# gaussian-type fit both are precisions, sd sigma / sqrt(w), or under
+# weights.type = "frequency" counts whose draw is one observation at sd sigma.
+# A row of weight 0 the draw does not count as trials, and each row 'out'
+# names (the training rows out of the likelihood), are drawn as a row of
+# weight 1 and then set to NA, so the random stream is the one a draw without
+# them consumes.
+sampleFromPPD <- function(
+  ev,
+  object,
+  weights,
+  n.chains = 1L,
+  s = NULL,
+  trials = FALSE,
+  out = NULL
+) {
   oldSeed <- NULL
   if (!is.null(object[["seed"]])) {
     oldSeed <- .GlobalEnv$.Random.seed
@@ -5023,12 +5240,17 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
   # a weight of 0 holds a row out of the fit and leaves it no noise scale, sd
   # sigma / sqrt(w), so its draws are NA. The row is drawn at weight 1 and its
   # draws overwritten, which leaves the random stream and every other row's
-  # draw as they are. A binary fit's weights are trial counts and stay.
-  heldOut <- integer(0L)
-  if (!is.null(weights) && !responseIsBinary) {
+  # draw as they are. A binary draw's trial counts stay, and a weight that
+  # counts copies of a row draws one observation, at unit weight.
+  heldOut <- if (is.null(out)) integer(0L) else which(out)
+  countsTrials <- responseIsBinary && trials
+  if (!is.null(weights) && !countsTrials) {
     weights <- rep_len(weights, dim(ev)[length(dim(ev))])
-    heldOut <- which(weights == 0)
+    heldOut <- union(heldOut, which(is.na(weights) | weights == 0))
     weights[heldOut] <- 1
+    if (responseIsBinary || identical(object[["weights.type"]], "frequency")) {
+      weights <- NULL
+    }
   }
 
   if (is.null(weights)) {

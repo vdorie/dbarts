@@ -783,6 +783,7 @@ dbarts <- function(
     "hazard.probit",
     "hazard.logistic"
   ),
+  weights.type = NULL,
   na.action = dbarts::na.keepPredictors,
   sigma = NULL,
   node.prior = NULL,
@@ -1706,7 +1707,8 @@ dbarts <- function(
       familySpec = familySpec,
       basisRecords = basisRecords,
       sigestRule = sigestRule,
-      treePrior = retiredTreePrior$record
+      treePrior = retiredTreePrior$record,
+      weightsType = validateWeightsType(weights.type)
     ),
     dbartsScaleFallbackWarning = function(w) {
       heldWarning <<- w
@@ -3004,6 +3006,15 @@ dbartsSampler <- setRefClass(
       taken <- takeControlReadings(control, model, data)
       model <- taken$model
       data <- taken$data
+      # a model made by hand states the family's own reading as NA, which
+      # resolves here as a fitting function resolves it
+      if (is.na(model@weights.type)) {
+        family <- bridgeFamily(control, model)
+        model@weights.type <- familyWeightsType(
+          NA_character_,
+          if (identical(family, "")) "gaussian" else family
+        )
+      }
       handedControl <- control
       control <- mirrorControl(control, model, data)
       .self$control <- control
@@ -3437,6 +3448,21 @@ dbartsSampler <- setRefClass(
         stop("'model' must inherit from dbartsModel")
       }
       modelStructureRefusal(.self, newModel)
+      # the reading is fixed at creation; a model stating none states the
+      # sampler's
+      if (
+        !is.na(newModel@weights.type) &&
+          !identical(
+            newModel@weights.type,
+            familyWeightsType(model@weights.type, model@family)
+          )
+      ) {
+        stop(
+          "$setModel cannot change weights.type, which is fixed when the ",
+          "sampler is created; create a new sampler",
+          call. = FALSE
+        )
+      }
       refuseInvalidLeafPrior(newModel@leaf.prior)
       # the variance forest is the sampler's, whatever the model's record of
       # it says, and recalibrates to the new residual prior
@@ -3480,6 +3506,7 @@ dbartsSampler <- setRefClass(
         }
       }
       newModel@family <- model@family
+      newModel@weights.type <- model@weights.type
       # what the sampler holds for its life stays the sampler's
       newModel <- keepModelRecords(newModel, model)
       # a negative-binomial shape the model's family states is a parameter,
@@ -3636,7 +3663,7 @@ dbartsSampler <- setRefClass(
       updateScale = FALSE,
       updateStandardization = FALSE
     ) {
-      "Changes the weights with which the sampler is fitted. A row of weight 0 leaves the likelihood but stays in the fit, occupying a leaf. A probit, ordinal or nbinom sampler takes only weights of 0 and 1: those name the rows in its data set, and are held in the data object's weights slot and composed with the active-row mask (see setActiveRows), a row being in when its weight is 1 and the mask keeps it. A Student-t sampler keeps its scales, which the next sweep draws against the new weights. updateScale = TRUE then takes the response's scale (a count sampler's center) again from the rows the new weights leave in, as setOffset(updateScale = TRUE) does; it is refused on a sampler of several forests, and kept, with one warning per sampler, where those rows hold fewer than two distinct values. updateStandardization = TRUE then takes a linear or gp leaf's covariate center and scale, and a gp leaf's heuristic lengthscale, again from those rows, as setPredictor(updateStandardization = TRUE) does for every leaf covariate, keeping a covariate those rows hold at one value with the same warning, and every covariate where updateScale = TRUE keeps the response's scale in the same call or, on a hazard fit, fewer than two subjects are in, the period among them, under a warning counting subjects; a gp sampler holding saved draws refuses it. Both are for burn-in: pass them TRUE while burning in and FALSE after, so every kept draw comes from one prior. updateState follows control@updateState; see setData. This draws nothing; the next sweep draws the augmentation variables against the change. A weight change is undone by setWeights and setState in either order, the sampler then continuing bit for bit as one that installed the stored state under the old weights would."
+      "Changes the weights with which the sampler is fitted. A row of weight 0 leaves the likelihood but stays in the fit, occupying a leaf. A probit or ordinal sampler takes only weights of 0 and 1, and an nbinom sampler whole-number counts: 0s and 1s name the rows in its data set, and are held in the data object's weights slot and composed with the active-row mask (see setActiveRows), a row being in when its weight is 1 and the mask keeps it. Under weights.type = \"frequency\", fixed at creation, a gaussian weight is a count of identical observations. A Student-t sampler keeps its scales, which the next sweep draws against the new weights. updateScale = TRUE then takes the response's scale (a count sampler's center) again from the rows the new weights leave in, as setOffset(updateScale = TRUE) does; it is refused on a sampler of several forests, and kept, with one warning per sampler, where those rows hold fewer than two distinct values. updateStandardization = TRUE then takes a linear or gp leaf's covariate center and scale, and a gp leaf's heuristic lengthscale, again from those rows, as setPredictor(updateStandardization = TRUE) does for every leaf covariate, keeping a covariate those rows hold at one value with the same warning, and every covariate where updateScale = TRUE keeps the response's scale in the same call or, on a hazard fit, fewer than two subjects are in, the period among them, under a warning counting subjects; a gp sampler holding saved draws refuses it. Both are for burn-in: pass them TRUE while burning in and FALSE after, so every kept draw comes from one prior. updateState follows control@updateState; see setData. This draws nothing; the next sweep draws the augmentation variables against the change. A weight change is undone by setWeights and setState in either order, the sampler then continuing bit for bit as one that installed the stored state under the old weights would."
       updateState <- checkUpdateState(updateState)
       updateScale <- checkUpdateScale(updateScale)
       updateStandardization <- checkUpdateStandardization(
@@ -3670,18 +3697,16 @@ dbartsSampler <- setRefClass(
         stop("'weights' must all be finite")
       }
       # a latent family's weights are membership, 0 or 1, which the engine
-      # composes with the active-row mask
-      if (isMaskedWeightFamily(model@family)) {
+      # composes with the active-row mask; nbinom's count identical rows
+      if (identical(model@family, "nbinom")) {
+        refuseNonCountFamilyWeights(weights, "nbinom")
+      } else if (isMaskedWeightFamily(model@family)) {
         if (any(weights != 0 & weights != 1)) {
           stop(
             model@family,
             " models do not support case weights other than 0 and 1, which ",
-            "mark rows in and out of the likelihood: ",
-            if (model@family == "nbinom") {
-              "an exposure belongs in the offset as a log-exposure term"
-            } else {
-              "a weighted truncated-normal latent likelihood is not a coherent model"
-            }
+            "mark rows in and out of the likelihood: a weighted ",
+            "truncated-normal latent likelihood is not a coherent model"
           )
         }
       }

@@ -4111,7 +4111,14 @@ dbartsData <- function(
   weights.test <- NULL
   # 'weights' bound to NULL gave the training rows none, so there are none to
   # look for in the test rows
-  if (!is.null(x.test) && !is.null(matchedCall$weights) && !is.null(weights)) {
+  # a multinomial fit's test weights are read where its formula is, before
+  # the count response reaches here
+  if (
+    !is.null(x.test) &&
+      !is.null(matchedCall$weights) &&
+      !is.null(weights) &&
+      is.null(counts)
+  ) {
     if (!is.formula(formula)) {
       warning(
         "'weights' are ignored for test data when model is not specified as a formula; this only impacts extracting samples from the posterior predictive distribution of the test data",

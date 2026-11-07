@@ -204,11 +204,6 @@ expect_error(
   fixed = TRUE
 )
 expect_error(
-  predict(multinomialFitKT, xSmall, weights = rep(1, n)),
-  "'weights' is not used by predict on a bartMultinomial fit",
-  fixed = TRUE
-)
-expect_error(
   predict(multinomialFitKT, xSmall),
   "requires the fit's saved trees; refit with keepTrees = TRUE",
   fixed = TRUE
@@ -244,11 +239,6 @@ expect_error(
   fixed = TRUE
 )
 expect_error(
-  predict(ordinalFitKT, xSmall, weights = rep(1, n)),
-  "'weights' is not used by predict on a bartOrdinal fit",
-  fixed = TRUE
-)
-expect_error(
   predict(ordinalFitKT, xSmall),
   "requires the fit's saved trees; refit with keepTrees = TRUE",
   fixed = TRUE
@@ -278,11 +268,6 @@ negbinFitKT <- dbarts::bart(
 expect_error(
   predict(negbinFitKT, xSmall, offset.test = rep(0, n)),
   "'offset.test' is not used by predict on a bartNegbin fit",
-  fixed = TRUE
-)
-expect_error(
-  predict(negbinFitKT, xSmall, weights = rep(1, n)),
-  "'weights' is not used by predict on a bartNegbin fit",
   fixed = TRUE
 )
 expect_error(

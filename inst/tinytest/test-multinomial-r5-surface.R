@@ -190,7 +190,8 @@ expect_error(
     weights = runif(n, 0.5, 1.5),
     n.trees = 25L
   ),
-  "row-wise replication"
+  "multinomial weights are observation counts and must be non-negative whole numbers",
+  fixed = TRUE
 )
 # and the token needs a response to name
 expect_error(

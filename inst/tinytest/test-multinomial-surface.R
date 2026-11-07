@@ -689,20 +689,19 @@ expect_error(
 )
 
 # --- honest refusals ---
-# the improved message names the model reason (binding decision 4): an
-# integer weight is already expressible as the count matrix's row-wise
-# replication, a non-integer one has no exact augmentation sampler
+# weights are counts of identical rows, so a fraction has no reading
 expect_error(
   bart(
     x2,
     y2,
     family = "multinomial",
-    weights = rep(1, n2),
+    weights = rep(1.5, n2),
     n.trees = 5L,
     n.burn = 2L,
     n.samples = 2L
   ),
-  "already expressible as row-wise count replication"
+  "multinomial weights are observation counts and must be non-negative whole numbers",
+  fixed = TRUE
 )
 # a flat vector stays refused - it is the softmax's own null direction and
 # identically inert (only an n x K matrix carries a meaningful offset)

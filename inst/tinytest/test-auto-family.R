@@ -388,7 +388,7 @@ expect_identical(
 # a refusal comes before the announcement
 expect_identical(
   autoLines(try(
-    bart(x, counts, weights = rep(1, n), control = ctl, n.trees = 10L),
+    bart(x, counts, monotone = 1, control = ctl, n.trees = 10L),
     silent = TRUE
   )),
   character()

@@ -261,13 +261,11 @@ for (binary.fit in list(fit.p, fit.lg)) {
   b <- predict(binary.fit, df, weights = n.trials, type = "ppd")
   expect_equal(a, b)
   expect_true(all(a >= 0 & a <= rep(n.trials, each = nrow(a))))
-  expect_error(
-    predict(binary.fit, weights = 0, type = "ppd"),
-    "trial counts and must be positive integers"
-  )
+  # a count of 0 is no trials, drawing 0 successes (dec-B595)
+  expect_true(all(predict(binary.fit, weights = 0, type = "ppd") == 0))
   expect_error(
     predict(binary.fit, weights = 1.5, type = "ppd"),
-    "trial counts and must be positive integers"
+    "trial counts and must be non-negative integers"
   )
 }
 # checked as at newdata: one value or one per training row, a missing one being
@@ -407,9 +405,15 @@ for (given in bad.weights) {
     info = "sigma, newdata"
   )
 }
-# the other families take no weight in a posterior predictive draw, as at newdata
-expect_error(predict(fit.nb, weights = 1), "takes no per-observation weight")
-expect_error(predict(fit.ord, weights = 1), "takes no per-observation weight")
+# the count families take theirs as new trials, a fraction refused
+expect_error(
+  predict(fit.nb, weights = 0.5, type = "ppd"),
+  "count new observations, whose draws are summed, and must be non-negative integers"
+)
+expect_error(
+  predict(fit.ord, weights = 0.5, type = "ppd"),
+  "trial counts, each draw the count per category over that many new trials"
+)
 
 # an offset, weights or bases replace the fit's own on the stored training
 # draws, so a fit kept without them is refused by name, the same for all three
@@ -637,8 +641,8 @@ expect_identical(
   c(1L, 4L)
 )
 
-# a binary fit's weights are trial counts and a count of 0 stays refused; the
-# rows a probit fit's 0/1 weights mask out draw as they did
+# a binary fit's weights are trial counts, a count of 0 drawing 0 successes;
+# the rows a probit fit's 0/1 weights leave out have NA draws (dec-B580)
 fit.mask <- suppressWarnings(bart(
   x,
   df$z,
@@ -651,14 +655,18 @@ fit.mask <- suppressWarnings(bart(
   keepTrees = TRUE,
   verbose = FALSE
 ))
-expect_false(anyNA(extract(fit.mask, "ppd")))
-expect_error(
-  predict(fit.mask, x[1:3, ], type = "ppd", weights = c(0, 1, 1)),
-  "trial counts and must be positive integers"
+expect_identical(
+  which(colSums(is.na(extract(fit.mask, "ppd"))) > 0L),
+  which(w == 0)
 )
+expect_true(all(is.na(extract(fit.mask, "ppd")[, w == 0])))
+expect_true(all(
+  predict(fit.mask, x[1:3, ], type = "ppd", weights = c(0, 1, 1))[, 1L] == 0
+))
 
-# a logistic fit's test-frame weight of 0 is a count of no trials, whose draw
-# is 0 successes and finite, where a precision weight of 0 has NA draws
+# a logistic fit's test-frame weight means what its training weight does
+# (dec-B596): a 0 is a row out, with NA draws, and a positive count one 0/1
+# draw
 count.train <- data.frame(x, z = df$z, count = rep(c(1, 2, 3), length.out = n))
 count.test <- count.train[1:6, ]
 count.test$count <- c(0, 1, 1, 0, 2, 1)
@@ -678,8 +686,9 @@ fit.count <- suppressWarnings(bart(
 ))
 expect_identical(fit.count$weights.test, count.test$count)
 ppd.count <- extract(fit.count, "ppd", sample = "test")
-expect_false(anyNA(ppd.count))
-expect_true(all(ppd.count[, c(1L, 4L)] == 0))
+expect_true(all(is.na(ppd.count[, c(1L, 4L)])))
+expect_false(anyNA(ppd.count[, -c(1L, 4L)]))
+expect_true(all(ppd.count[, -c(1L, 4L)] %in% c(0, 1)))
 
 # a missing offset or weight at the training rows is its row's na.action to
 # answer, exactly as at newdata (dec-B482): the default and na.fail refuse in

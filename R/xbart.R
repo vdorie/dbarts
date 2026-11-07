@@ -23,6 +23,7 @@ xbart <- function(
   seed = NULL,
   factors = c("categorical", "indicators"),
   family = c("auto", "gaussian", "probit", "logistic"),
+  weights.type = NULL,
   leaf.prior = NULL,
   n.cuts = 100L,
   useQuantiles = FALSE,
@@ -293,6 +294,11 @@ xbart <- function(
   # gaussian/probit/logistic, so the function's ordinal/nbinom branches never
   # fire here. Each fold's view carries its rows' weights to the fold's
   # sampler, and the held-out loss weights a row of weight 0 out.
+  weightsType <- resolveWeightsType(
+    validateWeightsType(weights.type),
+    family,
+    weights = data@weights
+  )
   data <- enforceWeightPolicy(data, family)
   # one warning for the rows in the likelihood leaving nothing to read a scale
   # from; the folds fall back in silence
@@ -545,7 +551,8 @@ xbart <- function(
       estimateStartingSigma(
         if (allRows) withoutWeights(data) else data,
         sigestRule,
-        verbose
+        verbose,
+        frequency = identical(weightsType, "frequency")
       ),
       dbartsSigmaFallback = function(condition) fellBack <<- TRUE
     )
@@ -567,6 +574,7 @@ xbart <- function(
     prior.scale = kAnchors[[1L]],
     leaf.scale = defaultLeafScale(family)
   )
+  model@weights.type <- weightsType
   # each cell's tree count goes on its model's record (cellModel); the
   # quantile rule is the data object's, which the shared handle takes
   model@forests <- list(plainForestRecord(n.trees[1L]))
@@ -1113,6 +1121,9 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
       design
     }
   })
+  # under frequency a fold's regression counts each row its weight's times
+  frequency <- identical(spec$model@weights.type, "frequency") &&
+    identical(family, "gaussian")
   # the units that were to run a regression and whose training rows leave it
   # no residual degrees of freedom, counted for the caller to announce
   numSigmaFallbacks <- 0L
@@ -1149,14 +1160,15 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
     # takes the sd of the fold's response
     sigma <- if (route == "dense") {
       x <- sigmaDesign[trainRows, , drop = FALSE]
-      residualStandardError(y, x, weights, offset)
+      residualStandardError(y, x, weights, offset, frequency)
     } else if (route == "sparse") {
       sparseResidualStandardError(
         data@y,
         sigmaDesign,
         if (!allRows) data@weights,
         data@offset,
-        rows = trainRows
+        rows = trainRows,
+        frequency = frequency
       )
     } else {
       NA_real_
@@ -1168,7 +1180,11 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
       if (!is.null(offset)) y - offset else y,
       weights
     )
-    data@sigma <- floorSigmaEstimate(sigma, residual)
+    data@sigma <- floorSigmaEstimate(
+      sigma,
+      residual,
+      if (frequency) residualOfRowsIn(weights, weights)
+    )
     data
   }
 

@@ -127,6 +127,22 @@ expect_false(anyNA(loglik[, d$w == 1]))
 set.seed(1L)
 ppdAll <- extract(fitHurdle(y ~ a + b + f, data = d), type = "ppd")
 expect_equal(dim(ppdAll), dim(ppd))
+# weights.type: NULL and "frequency" are one reading, 0/1 weights being rows in
+# and out of both parts, and "precision" is refused in the hurdle's words
+stated <- fitHurdle(
+  y ~ a + b + f,
+  data = d,
+  weights = w,
+  weights.type = "frequency"
+)
+expect_identical(extract(stated, "ev"), extract(held, "ev"))
+set.seed(1L)
+expect_identical(extract(stated, type = "ppd"), ppd)
+expect_error(
+  fitHurdle(y ~ a + b, data = d, weights = w, weights.type = "precision"),
+  "is not taken under family = \"hurdle.lognormal\"",
+  fixed = TRUE
+)
 # a test frame's weights column gives the test rows' weights, a 0 an NA draw
 te <- d[1:10, ]
 te$w <- c(0, 1, 1, 1, 1, 0, 1, 1, 1, 1)

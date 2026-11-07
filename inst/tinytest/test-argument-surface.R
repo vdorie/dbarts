@@ -148,8 +148,9 @@ expect_silent(dbarts::bartBT(
 
 # monotonicity: an already-loud refusal keeps its severity and message
 expect_error(
-  fit2(y.multi, family = "multinomial", weights = rep(1, n)),
-  pattern = "does not support 'weights'"
+  fit2(y.multi, family = "multinomial", weights = rep(0.5, n)),
+  pattern = "multinomial weights are observation counts and must be non-negative whole numbers",
+  fixed = TRUE
 )
 
 # samplerOnly: unblocked for ordinal/nbinom now that pointer adoption makes
@@ -855,8 +856,8 @@ expect_identical(
   names(formals(dbarts::xbart))[length(formals(dbarts::xbart))],
   "..."
 )
-# the sd grid beside k, and no tree.prior (34)
-expect_equal(length(formals(dbarts::xbart)), 34L)
+# the sd grid beside k, weights.type, and no tree.prior (35)
+expect_equal(length(formals(dbarts::xbart)), 35L)
 # The two-door contract (dec-B83): the legacy door is a strict compatibility
 # mode carrying 0.9-34's argument list and nothing else, and every capability
 # the branch had briefly appended to it lives at the modern door instead.

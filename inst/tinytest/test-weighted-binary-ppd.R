@@ -1,8 +1,9 @@
-# The posterior predictive draw for a weight-w logistic row is the number of
-# successes among w iid bernoulli trials (binomial(w, p)), not a bernoulli
-# draw multiplied by w - that older code gave a degenerate {0, w} PPD whose
-# mean was coincidentally right but whose intervals/quantiles were not. See
-# issue #79.
+# A logistic row of weight w stands for w observations, and its posterior
+# predictive draw is one of them, a 0/1 draw (dec-B566); w new trials at the
+# row are asked of predict, whose draw is the number of successes among w iid
+# bernoulli trials (binomial(w, p)), not a bernoulli draw multiplied by w -
+# older code gave a degenerate {0, w} PPD whose mean was coincidentally right
+# but whose intervals/quantiles were not. See issue #79.
 
 set.seed(2, sample.kind = "Rejection")
 n <- 200L
@@ -30,8 +31,10 @@ fit <- bart(
 )
 
 set.seed(11)
-ppd <- extract(fit, type = "ppd")
+ppd <- predict(fit, type = "ppd", weights = w)
 ev <- extract(fit, type = "ev")
+# the fit's own draw at a row is one observation
+expect_true(all(extract(fit, type = "ppd") %in% c(0, 1)))
 
 # 1. every column's draws stay within [0, w], and an interior w=5 column hits
 # at least one intermediate value (not just the endpoints 0 and 5). The old
@@ -64,7 +67,7 @@ expect_true(all(abs(colMeans(ppd) - w * colMeans(ev)) < 0.5))
 
 # 6. reproducibility: identical seed, identical draws
 set.seed(11)
-ppd2 <- extract(fit, type = "ppd")
+ppd2 <- predict(fit, type = "ppd", weights = w)
 expect_equal(ppd, ppd2)
 
 rm(inRange, w5cols, hitsIntermediate, ppd2)
@@ -91,7 +94,7 @@ fit.align <- bart(
   n.threads = 1L,
   verbose = FALSE
 )
-ppd.align <- extract(fit.align, type = "ppd")
+ppd.align <- predict(fit.align, type = "ppd", weights = w)
 
 expect_true(max(ppd.align[, 1L]) > 1)
 expect_true(all(ppd.align[, -1L] %in% c(0, 1)))
@@ -139,7 +142,7 @@ fit.mc <- bart(
   n.threads = 1L,
   verbose = FALSE
 )
-ppd.mc <- extract(fit.mc, type = "ppd", combineChains = FALSE)
+ppd.mc <- predict(fit.mc, type = "ppd", weights = w, combineChains = FALSE)
 
 expect_equal(length(dim(ppd.mc)), 3L)
 expect_equal(dim(ppd.mc)[3L], n)

@@ -1177,8 +1177,11 @@ rawPredictorMatrix <- function(x) {
 ##
 ## lm()'s default na.action drops any row whose response, weight or offset is
 ## missing before fitting, so the same rows are dropped here; x itself
-## carries no NA at this point (the caller imputes them).
-residualStandardError <- function(y, x, weights, offset) {
+## carries no NA at this point (the caller imputes them). Under 'frequency'
+## the weights count identical rows, and the residual degrees of freedom are
+## the expanded rows', the weights' sum less the rank: the expansion's
+## coefficients and residual sum of squares are the weighted fit's.
+residualStandardError <- function(y, x, weights, offset, frequency = FALSE) {
   keep <- !is.na(y)
   if (!is.null(weights)) {
     keep <- keep & !is.na(weights)
@@ -1206,6 +1209,10 @@ residualStandardError <- function(y, x, weights, offset) {
     sum(residual^2)
   } else {
     sum(fit$weights * residual^2)
+  }
+  if (frequency && !is.null(weights)) {
+    df <- sum(weights) - fit$rank
+    return(if (df > 0) sqrt(rss / df) else NaN)
   }
   sqrt(rss / fit$df.residual)
 }
@@ -1752,8 +1759,14 @@ sparseSigmaRoutine <- function(front) {
   unitNorm <- function(squaredNorms) {
     Matrix::Diagonal(x = 1 / sqrt(replace(squaredNorms, squaredNorms == 0, 1)))
   }
+  # the rows the degrees of freedom count: under frequency the weights' sum
+  count <- if (is.null(front$count)) n else front$count
   result <- function(residual, rank) {
-    sigma <- if (rank < n) sqrt(sum(residual^2) / (n - rank)) else NA_real_
+    sigma <- if (rank < count) {
+      sqrt(sum(residual^2) / (count - rank))
+    } else {
+      NA_real_
+    }
     list(sigma = sigma, rank = rank)
   }
 
@@ -1874,11 +1887,22 @@ sparseSigmaRoutine <- function(front) {
 ## a column lm keeps. 'x' is a predictor source or the sparse design built
 ## from one; 'rows' restricts the regression to some of its rows. NA where the
 ## design leaves no residual degrees of freedom.
-sparseResidualStandardError <- function(y, x, weights, offset, rows = NULL) {
+sparseResidualStandardError <- function(
+  y,
+  x,
+  weights,
+  offset,
+  rows = NULL,
+  frequency = FALSE
+) {
   if (!inherits(x, "dbartsSparseSigmaDesign")) {
     x <- sparseSigmaDesign(x)
   }
-  sparseSigmaRoutine(sparseSigmaFrontEnd(x, y, weights, offset, rows))$sigma
+  front <- sparseSigmaFrontEnd(x, y, weights, offset, rows)
+  if (frequency && !is.null(weights)) {
+    front$count <- sum(front$w)
+  }
+  sparseSigmaRoutine(front)$sigma
 }
 
 ## Starting sigma estimate: the residual standard error of the linear
@@ -1898,16 +1922,29 @@ estimateSigmaFromLinearModel <- function(
     data@x,
     rule,
     sigmaBasisColumns(data@bases, dataBasisLevels(data))
-  )
+  ),
+  frequency = FALSE
 ) {
   residual <- residualOfRowsIn(
     if (!is.null(data@offset)) data@y - data@offset else data@y,
     data@weights
   )
   sigma <- if (inherits(design, "dbartsSparseSigmaDesign")) {
-    sparseResidualStandardError(data@y, design, data@weights, data@offset)
+    sparseResidualStandardError(
+      data@y,
+      design,
+      data@weights,
+      data@offset,
+      frequency = frequency
+    )
   } else {
-    residualStandardError(data@y, design, data@weights, data@offset)
+    residualStandardError(
+      data@y,
+      design,
+      data@weights,
+      data@offset,
+      frequency
+    )
   }
   if (!is.finite(sigma)) {
     signalCondition(structure(
@@ -1918,7 +1955,11 @@ estimateSigmaFromLinearModel <- function(
       )
     ))
   }
-  floorSigmaEstimate(sigma, residual)
+  floorSigmaEstimate(
+    sigma,
+    residual,
+    if (frequency) residualOfRowsIn(data@weights, data@weights)
+  )
 }
 
 ## The response less its offset over the rows of positive weight, which the
@@ -1950,11 +1991,23 @@ sigmaDesignMatrix <- function(x) {
 ## A linear fit's residual standard error made a usable starting sigma. A
 ## design with no residual degrees of freedom leaves it non-finite, which is
 ## not an estimate at all: the sd of the response less its offset stands in.
-floorSigmaEstimate <- function(sigma, residual) {
+floorSigmaEstimate <- function(sigma, residual, counts = NULL) {
   if (!is.finite(sigma)) {
-    sigma <- sd(residual)
+    sigma <- if (is.null(counts)) sd(residual) else countedSd(residual, counts)
   }
   floorMarginalSigma(sigma, residual)
+}
+
+## The sd of 'x' with each value written out as many times as 'counts' says:
+## its weighted variance over the counts' sum less one. NA where that sum is
+## at most 1, as sd() of one value is.
+countedSd <- function(x, counts) {
+  total <- sum(counts)
+  if (!(total > 1)) {
+    return(NA_real_)
+  }
+  center <- sum(counts * x) / total
+  sqrt(sum(counts * (x - center)^2) / (total - 1))
 }
 
 ## A response the fit reproduces exactly returns rounding noise instead of

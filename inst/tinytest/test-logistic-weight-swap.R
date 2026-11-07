@@ -208,9 +208,10 @@ expect_identical(
 )
 
 # --- the families that decline by identification ---------------------------
-# probit, ordinal and nbinom carry no precision, so a 0/1 vector is
-# membership, kept on the data object, all ones as no weights; w2 is a count
-# vector and stays refused on both conduits.
+# probit and ordinal carry no precision, so a 0/1 vector is membership, kept
+# on the data object, all ones as no weights; w2 is a count vector and stays
+# refused on both conduits. nbinom reads 0/1 as membership too and takes w2 as
+# counts on both.
 masked <- list(
   probit = list(
     y = y,
@@ -219,10 +220,6 @@ masked <- list(
   ordinal = list(
     y = as.double(1L + (seq_len(n) %% 3L)),
     text = "ordinal models do not support case weights other than 0 and 1"
-  ),
-  nbinom = list(
-    y = as.double(seq_len(n) %% 5L),
-    text = "nbinom models do not support case weights other than 0 and 1"
   )
 )
 for (name in names(masked)) {
@@ -245,6 +242,28 @@ for (name in names(masked)) {
     info = name
   )
 }
+countFit <- dbarts(
+  x,
+  as.double(seq_len(n) %% 5L),
+  family = "nbinom",
+  control = logisticControl(),
+  n.trees = 20L
+)
+expect_silent(countFit$setWeights(w1))
+expect_true(is.null(countFit$data@weights))
+expect_silent(countFit$setWeights(w2))
+expect_identical(countFit$data@weights, w2)
+expect_silent(countFit$setData(dbartsData(
+  x,
+  as.double(seq_len(n) %% 5L),
+  weights = w2
+)))
+expect_identical(countFit$data@weights, w2)
+expect_error(
+  countFit$setWeights(w2 + 0.5),
+  "nbinom weights are observation counts and must be non-negative whole numbers",
+  fixed = TRUE
+)
 aftFit <- dbarts(
   x,
   cbind(exp(f + rnorm(n)), rep_len(c(1L, 0L), n)),
@@ -272,6 +291,7 @@ rm(
   built,
   held,
   untouched,
+  countFit,
   o1,
   o2,
   handed,

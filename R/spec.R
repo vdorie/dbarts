@@ -156,14 +156,91 @@ drawsLeafKByDefault <- function(family) {
   isBinaryFamily(family) || identical(family, "nbinom")
 }
 
-## The families whose weights the R layer takes only as 0 and 1. A weight
-## vector of 0s and 1s there is membership rather than precision - the row
-## leaves the likelihood, keeps its leaf occupancy, its latent and its fitted
-## value - which the engine composes with the active-row mask. Any other value
-## is a weighted latent likelihood, which probit and ordinal have no coherent
-## form for, and stays refused.
+## The families whose 0/1 weights are membership rather than precision - the
+## row leaves the likelihood, keeps its leaf occupancy, its latent and its
+## fitted value - which the engine composes with the active-row mask, and
+## which a fit records as its rows in. Any other value is a weighted latent
+## likelihood, which probit and ordinal have no coherent form for, and stays
+## refused; on nbinom it is a count of identical observations.
 isMaskedWeightFamily <- function(family) {
   family %in% c("probit", "ordinal", "nbinom")
+}
+
+## weights.type as the caller gave it: NA_character_ for NULL, the family's
+## own reading, else "precision" or "frequency".
+validateWeightsType <- function(weights.type) {
+  if (is.null(weights.type)) {
+    return(NA_character_)
+  }
+  if (
+    !is.character(weights.type) ||
+      length(weights.type) != 1L ||
+      is.na(weights.type) ||
+      !(weights.type %in% c("precision", "frequency"))
+  ) {
+    stop(
+      "'weights.type' must be NULL, \"precision\" or \"frequency\"",
+      call. = FALSE
+    )
+  }
+  weights.type
+}
+
+## The reading 'stated' resolves to on the engine family 'family', refusing
+## nothing: NA is the family's own.
+familyWeightsType <- function(stated, family) {
+  if (!is.na(stated)) {
+    return(stated)
+  }
+  if (family %in% c("gaussian", "aft")) "precision" else "frequency"
+}
+
+## The reading a sampler of the engine family 'family' is created under, from
+## the stated one (validateWeightsType's value): NA resolves to precision where
+## there is a residual scale (gaussian, its student and heteroscedastic forms)
+## and to frequency, counts or 0/1 membership, everywhere else. aft takes no
+## weights and reads precision. 'shown' is the family as the caller wrote it,
+## for the refusals; 'weights' the data's, for the 0/1 rule of the membership
+## families under a stated "frequency".
+resolveWeightsType <- function(stated, family, shown = family, weights = NULL) {
+  if (identical(family, "aft")) {
+    if (identical(stated, "frequency")) {
+      stop(
+        "weights.type = \"frequency\" is not taken under family = \"aft\", ",
+        "which takes no weights",
+        call. = FALSE
+      )
+    }
+    return("precision")
+  }
+  if (identical(family, "gaussian")) {
+    return(if (is.na(stated)) "precision" else stated)
+  }
+  if (identical(stated, "precision")) {
+    stop(
+      "weights.type = \"precision\" needs a residual scale, and family = \"",
+      shown,
+      "\" has none: its weights count identical observations or, at 0 and ",
+      "1, mark rows in and out; leave weights.type NULL",
+      call. = FALSE
+    )
+  }
+  if (
+    identical(stated, "frequency") &&
+      family %in% c("probit", "ordinal") &&
+      !is.null(weights) &&
+      any(!is.na(weights) & weights != 0 & weights != 1)
+  ) {
+    stop(
+      "weights.type = \"frequency\" is not taken under family = \"",
+      shown,
+      "\" for weights other than 0 and 1: a frequency weight there needs a ",
+      "hidden value for each copy, which the sampler does not draw; weights of ",
+      "0 and 1 mark rows out of and in the likelihood under either reading",
+      call. = FALSE
+    )
+  }
+  "frequency"
 }
 
 ## The rows in the likelihood: weight positive and no mask switching them off.
@@ -229,14 +306,20 @@ scaleRowsFallBack <- function(data, family, active = NULL, warn = TRUE) {
 ## The starting sigma for a data object, by the rule 'sigest' named: the
 ## residual sd of the regression of the response on the predictors and on
 ## each forest's basis (sigmaBasisColumns), which the data object holds as
-## the model ends with. Wraps estimateSigmaFromLinearModel so every caller
+## the model ends with; under 'frequency' that of the regression on the rows
+## written out as many times as their weights count. Wraps estimateSigmaFromLinearModel so every caller
 ## raises the same failure message instead of a bare lm() error. An infinite
 ## predictor value is refused first, for every design and before any routine
 ## runs; a basis is finite by its own check. Under 'verbose' one line says
 ## what is about to be computed, which cannot be interrupted once begun, and
 ## another where no regression was defined and the sd of the response stands
 ## in.
-estimateStartingSigma <- function(data, rule = "auto", verbose = FALSE) {
+estimateStartingSigma <- function(
+  data,
+  rule = "auto",
+  verbose = FALSE,
+  frequency = FALSE
+) {
   nonFinite <- nonFinitePredictorNames(data@x)
   if (length(nonFinite) > 0L) {
     stop(
@@ -267,7 +350,7 @@ estimateStartingSigma <- function(data, rule = "auto", verbose = FALSE) {
           size[2L],
           " columns; see 'sigest'"
         )
-        estimateSigmaFromLinearModel(data, rule, design)
+        estimateSigmaFromLinearModel(data, rule, design, frequency)
       },
       dbartsSigmaFallback = function(condition) fellBack <<- TRUE
     ),
@@ -339,11 +422,12 @@ nonFinitePredictorNames <- function(x) {
   if (is.null(names)) as.character(bad) else names[bad]
 }
 
-## The weights of a binary fit's posterior predictive draw at new rows are
-## its trial counts, positive integers. 'what' names whose weights they are.
+## The weights of a count family's posterior predictive draw are the trial
+## counts or the observations of the draw, non-negative integers, a 0 drawing
+## a count of 0. 'what' names whose weights they are.
 refuseNonCountWeights <- function(w, remedy = "", what) {
-  if (anyNA(w) || any(w <= 0) || !all(is.finite(w)) || any(w != round(w))) {
-    stop(what, " and must be positive integers", remedy, call. = FALSE)
+  if (anyNA(w) || any(w < 0) || !all(is.finite(w)) || any(w != round(w))) {
+    stop(what, " and must be non-negative integers", remedy, call. = FALSE)
   }
   invisible(NULL)
 }
@@ -361,55 +445,84 @@ refuseLogisticWeights <- function(w) {
   invisible(NULL)
 }
 
+## Whole non-negative counts, the weights of the count families, refused in
+## 'family''s words otherwise.
+refuseNonCountFamilyWeights <- function(w, family) {
+  if (anyNA(w) || any(w < 0) || !all(is.finite(w)) || any(w != round(w))) {
+    stop(
+      family,
+      " weights are observation counts and must be non-negative whole numbers",
+      if (identical(family, "nbinom")) {
+        "; an exposure belongs in the offset as a log-exposure term"
+      },
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
 ## The binary/ordinal/nbinom weight policy, shared by every entry point that
 ## can reach these families: a probit has no tractable weighted latent-
 ## variable form and is refused, except that weights identically 1 are the
 ## unweighted likelihood and are treated as absent (SuperLearner-style
 ## callers pass obsWeights = rep(1, n) unconditionally), and weights that are
 ## all 0 or 1 name the rows in the data set (isMaskedWeightFamily above),
-## which the engine composes with the active-row mask; a logistic model
-## treats weights as observation counts (its Polya-Gamma latent is a sum of
-## per-copy draws), so they must be whole numbers, a 0 a row out; ordinal and
-## nbinom follow probit (an nbinom exposure belongs in the offset, not in a
-## weight). Gaussian weights are unrestricted and reach here as a no-op.
+## which the engine composes with the active-row mask; ordinal follows probit.
+## The count families, logistic, nbinom and multinomial, read weights as
+## counts of identical observations (each copy's Polya-Gamma draw summed), so
+## they must be whole numbers, a 0 a row out; an nbinom vector of 0s and 1s is
+## kept as probit's is. Gaussian weights are unrestricted and reach here as a
+## no-op.
 ##
 ## Returns the data with the policy applied: the weights slot cleared where
 ## the weights are all ones on a family whose weights are membership, and
 ## kept otherwise.
 enforceWeightPolicy <- function(data, family) {
-  if (is.null(data@weights)) {
-    return(data)
+  if (!is.null(data@weights)) {
+    refuseFamilyWeightValues(data@weights, family, "'weights'")
+    w <- data@weights
+    if (
+      (isMaskedWeightFamily(family) || family == "multinomial") &&
+        !anyNA(w) &&
+        all(w == 1)
+    ) {
+      data@weights <- NULL
+    }
   }
+  # a test row is drawn as a training row of its weight is, so its weight is
+  # held to the same rule; a missing one gives the row NA draws
+  test <- data@weights.test
+  if (!is.null(test) && any(!is.na(test))) {
+    refuseFamilyWeightValues(test[!is.na(test)], family, "'weights.test'")
+  }
+  data
+}
+
+## The values 'family' takes as weights, 'what' naming whose they are.
+refuseFamilyWeightValues <- function(w, family, what) {
   # a data object's slot can be edited past its validity check, and a gaussian
   # fit would otherwise fail on the starting sigma without naming the weights;
   # NA is left to each family's own rule
-  observed <- data@weights[!is.na(data@weights)]
+  observed <- w[!is.na(w)]
   if (any(observed < 0)) {
-    stop("'weights' must all be non-negative")
+    stop(what, " must all be non-negative")
   }
   if (!all(is.finite(observed))) {
-    stop("'weights' must all be finite")
+    stop(what, " must all be finite")
   }
   if (isMaskedWeightFamily(family)) {
-    w <- data@weights
-    if (!anyNA(w) && all(w == 1)) {
-      data@weights <- NULL
-    } else if (!anyNA(w) && all(w == 0 | w == 1)) {
+    if (!anyNA(w) && all(w == 0 | w == 1)) {
       # membership: kept on the data object, the engine composing it with
       # the active-row mask
+    } else if (family == "nbinom") {
+      # counts of identical observations, a 0 a row out
+      refuseNonCountFamilyWeights(w, family)
     } else if (family == "probit") {
       stop(
         "probit models do not support weights other than 0 and 1, which mark ",
         "rows in and out of the likelihood as the sampler's $setActiveRows ",
         "does; fit integer count weights with family = \"logistic\", or ",
         "model continuous weights' latents directly"
-      )
-    } else if (family == "nbinom") {
-      stop(
-        "nbinom (count) models do not support weights other than 0 and 1, ",
-        "which mark rows in and out of the likelihood as the sampler's ",
-        "$setActiveRows does: exposure belongs in the offset as a ",
-        "log-exposure term"
       )
     } else {
       stop(
@@ -420,19 +533,11 @@ enforceWeightPolicy <- function(data, family) {
       )
     }
   } else if (family == "logistic") {
-    refuseLogisticWeights(data@weights)
+    refuseLogisticWeights(w)
   } else if (family == "multinomial") {
-    if (all(data@weights == 1)) {
-      data@weights <- NULL
-    } else {
-      stop(
-        "multinomial (softmax) models do not support weights: an integer ",
-        "weight is already row-wise replication in the count response, and a ",
-        "non-integer one has no exact augmentation sampler"
-      )
-    }
+    refuseNonCountFamilyWeights(w, family)
   }
-  data
+  invisible(NULL)
 }
 
 ## Whether a tree-prior record's split probabilities are other than equal:
@@ -470,7 +575,8 @@ resolveSamplerSpec <- function(
   basisRecords = NULL,
   sigestRule = "auto",
   basisLevels = NULL,
-  treePrior = NULL
+  treePrior = NULL,
+  weightsType = NA_character_
 ) {
   # a data object handed in whole is held to its own record here, at
   # dbarts() and at dbartsSpec() alike
@@ -642,6 +748,14 @@ resolveSamplerSpec <- function(
   # including a gaussian fit of a 0/1 response, are unrestricted and pass
   # through untouched. A latent family's 0/1 weights stay on the data object,
   # which the engine composes with any mask installed later.
+  # the reading is resolved first, so a stated one is refused in its own
+  # words before a family's rule on the values could refuse the weights
+  weightsType <- resolveWeightsType(
+    weightsType,
+    family,
+    if (identical(requestedFamily, "auto")) family else requestedFamily,
+    data@weights
+  )
   data <- enforceWeightPolicy(data, family)
 
   # the rows in the likelihood leave nothing to read a scale from: every
@@ -657,7 +771,8 @@ resolveSamplerSpec <- function(
       estimateStartingSigma(
         if (allRows) withoutWeights(data) else data,
         sigestRule,
-        control@verbose
+        control@verbose,
+        frequency = identical(weightsType, "frequency")
       )
     }
   }
@@ -912,6 +1027,8 @@ resolveSamplerSpec <- function(
     prior.scale = priors$prior.scale,
     leaf.scale = defaultLeafScale(family)
   )
+  # the reading as resolved, which the bridge reads and creation fixes
+  model@weights.type <- weightsType
 
   # Student-t residuals: only a continuous
   # gaussian response carries them (the binary families and aft have their own
@@ -1538,6 +1655,7 @@ dbartsSpec <- function(
     "ordinal",
     "nbinom"
   ),
+  weights.type = NULL,
   survival = NULL,
   tree.prior = NULL,
   parentEnv = parent.frame(),
@@ -1739,6 +1857,7 @@ dbartsSpec <- function(
     familySpec = familySpec,
     basisRecords = basisRecords,
     sigestRule = sigestRule,
-    treePrior = retiredTreePrior$record
+    treePrior = retiredTreePrior$record,
+    weightsType = validateWeightsType(weights.type)
   )
 }
