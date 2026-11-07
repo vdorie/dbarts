@@ -178,6 +178,37 @@ Run on arm64 macOS against the branch's own libraries (shipped and reference bui
    beside the NaN refusal.
 10. docs-10 changes each `host` in dbarts.h to "caller"; every hit is about the C caller of the API.
     Alternative: the long form where the sentence is about running the sampler inside a larger one.
+11. ingest-04 gets a BUG FIXES line: a predictor whose range is wider than the largest double is split on
+    now, where 0.9-34 never split it (fix round 1). Alternative: no line, as too niche for NEWS.
+
+## Fix round 1
+
+The review at 036e51405 asked for three minor fixes and a nit.
+
+- F1, a test gap: with every chain's observer scratch pointed at one block (the reviewer's O01, dropping the
+  chain offset in `Sampler::provideObserverScratch`), no gate failed. `testDrawCallbackCarriesEveryChannel`
+  now records each non-null channel's block per chain at the first call. It checks that every later call
+  hands the same block and that no two blocks of any chain overlap. O01 built into the tree fails that check
+  in all four arms (DART, ordinal, variance forest, BCF), 4 FAIL lines; reverted, it passes.
+- F2: the run method's callback item in man/dbartsSampler-class.Rd says a channel the run does not keep is
+  per-chain scratch: the per-observation channels under `keepFits = FALSE`, and always the log-likelihood,
+  which the R run never returns and computes only for the callback.
+- F3: a NEWS BUG FIXES line for ingest-04 ([Calls made](#calls-made), 11).
+- F4: the comment in `bartcore_setCutPoints` says that a cut at -Inf and one at -DBL_MAX differ for a row at
+  -DBL_MAX, since a row goes left when its value is at most the cut.
+
+Gates, shipped build installed with `--preclean`:
+
+- tests/cpp: 561 checks ok, both plain and under `-fsanitize=address,undefined`; no sanitizer report.
+- test-capi.R, test-callback.R, test-cut-points-undo.R and test-cut-grid-distinct.R: 507, 40, 169 and 417
+  results, 0 failed.
+- Full tinytest, one process: 42283 results in 303 files, 0 failed.
+- `lintr::lint_package()`: 0 lints.
+- `air format --check .`, check-rc-codoc.R (53 methods), check-win-drift.R, check-doc-freshness.R and
+  `mutation-battery.R verify-anchors`: all OK.
+- NEWS parses, 255 entries.
+
+Engine and bridge code change only in a comment, so the trio and the snapshot files were not rerun.
 
 ## Design-doc register
 
@@ -190,5 +221,7 @@ Run on arm64 macOS against the branch's own libraries (shipped and reference bui
 - docs/design/per-draw-callbacks.md: the channel paragraph states presence and the NaN sigma; the stride
   paragraph says every draw-indexed channel has a stride and `Sampler::run` supplies the observer's scratch
   (`Chain::carriedChannels`).
-- man/dbartsSampler-class.Rd: the run method's callback item (amendment 12); setCutPoints' cuts are finite.
-- inst/NEWS.Rd, UPGRADING: setCutPoints refuses an infinite cut point, which 0.9-34 took.
+- man/dbartsSampler-class.Rd: the run method's callback item (amendment 12; F2 says the log-likelihood is
+  always scratch on the R route); setCutPoints' cuts are finite.
+- inst/NEWS.Rd, UPGRADING: setCutPoints refuses an infinite cut point, which 0.9-34 took. BUG FIXES (F3): a
+  predictor whose range is wider than the largest double is split on.
