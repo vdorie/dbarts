@@ -667,7 +667,9 @@
             0.9-34 stopped on it. Fits report probabilities, and
             predictive draws and the log-likelihood are binomial at a
             training row's trials; at new rows the trials are
-            \code{predict}'s weights, one where none are given. A row of
+            \code{predict}'s weights, or, where none are given, the
+            successes and failures \code{newdata} or a \code{test} frame
+            carries, complete, and one trial otherwise. A row of
             no trials is fitted and enters no likelihood. \code{xbart}'s
             \code{"log"} and \code{"mcr"} losses score the rows as their
             trials written out one each.
