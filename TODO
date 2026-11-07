@@ -48,6 +48,13 @@ items
     the saved draws allocates a block-offset table per saved tree.
     Either way only predictions from kept draws mix units, after an
     allocation failure R reports as an error.
+  alloc-test-container-overflow: tests/cpp under ASan reports a
+    container-overflow in initializeChains in the alloc suite at the
+    Makefile's link order; it also appears with every object built
+    without the approximate-draws headers, and goes away when
+    test_alloc.o links last. Undiagnosed: find whether it is a real
+    overflow or an annotation mismatch between objects (found by
+    approximate-draws S1, 2026-11-07).
   approximate-distributions: research arc, opened 2026-11-03 by the
     binomial family's large trial counts (dec-B567); plan
     docs/plans/approximate-draws.md on its branch. Ruled 2026-11-05: the
@@ -149,6 +156,11 @@ items
     veto stays and the help documents the prior the sampler runs
     (dec-B608); samplePriorPredictive draws that prior (slice S-C of
     the fourth review). No plan doc yet.
+  dots-forwarded-weights: bart called through a wrapper that passes
+    weights in ... followed by another named argument stops with
+    "..3 used in an incorrect context"; found building frequency-weights
+    S5 (2026-11-07), present before it. Forward the dots as the other
+    front doors do, with a test through a wrapper.
   doc-freshness-guard-tightening: door, VD decision. The symbol rule
     in tools/check-doc-freshness.R accepts a cite when each component
     occurs anywhere in the target file, and the guard reads docs/design
