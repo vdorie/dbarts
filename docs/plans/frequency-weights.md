@@ -103,7 +103,7 @@ What does not move. No posterior draw of any fit that runs on the build this sta
 numbers, the four recorded snapshot files and the equivalence baselines stay bit for bit, and each slice proves it. stan4bart,
 bartCause and treatSens need no change; stan4bart can drop about 30 lines that become dead.
 
-Two open calls, below. The feature is about 4,450 lines over eight slices, about 101 agent-hours as estimated, 150 to 200
+Three open calls, below, the third raised in S3. The feature is about 4,450 lines over eight slices, about 101 agent-hours as estimated, 150 to 200
 by the record of plans here.
 
 ## Goal
@@ -696,12 +696,44 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
     rescaling `$setForestBasis`, in words naming that total ("the rows its basis is read over carry a total count of at
     most 1"; the warning's "the rows in the likelihood carry a total count of at most 1"), a column constant there keeping
     "constant". Alternative: S1's "constant" for both, which is false of a column that varies.
+31. A binomial row's read-offs (a numeric basis's scale, a linear or gp leaf's standardization, the case weight a tree's
+    variation is read at) read it at its trials times its weight, 1 absent, under either reading, as the n binary rows it
+    stands for; a row of 0 trials is out of the rows in, as a masked row, so a fallback counts it out. Alternative: the
+    trials only under frequency, which reads a binomial row as one binary row under precision, a reading no expansion
+    matches and S5 refuses on logistic.
+32. The engine's names: `SamplerOptions::trials`, `ResponseModel::trials()`, `setBinomialCounts` on the response, chain,
+    sampler and facade, and `SamplerShape::holdsTrials`, beside the multinomial `setCounts` rather than through it:
+    `supportsCountsMutation` is what `dbarts_sampler_family` reads as multinomial. `Sampler::setData` returns false on a
+    binomial response. Alternative: one `setCounts` virtual taking either layout, which mixes an int K-column matrix with
+    two double vectors.
+33. Under logistic, a data object's counts slot is read for the successes and trials and its y is not read, as
+    multinomial does not read it. A slot of K >= 3 columns takes refusal 17; one of another malformed shape "a binomial
+    response's counts must be an n x 2 integer matrix of successes and failures, one row per observation". Alternative:
+    requiring y to equal the trials at the bridge, which S6's R constructor settles either way.
+34. The trials cap at w = 1 is dec-B202's million in `refuseCountOverCap`'s form, "<caller>: family "logistic" requires
+    the trials no larger than 1000000; each trial is a Polya-Gamma draw per sweep", at creation and `$setCounts`; for
+    w > 1, refusal 8 at creation, `$setWeights` and `$setCounts`. Alternative: no cap at w = 1, which leaves one row's
+    draws unbounded.
+35. Refusal 13 at the bridge names the first five rows, then ", ...". Alternative: every row, which a large count
+    matrix makes unreadable.
+36. `$setData` on a binomial sampler is refused at the bridge (Open call 4): "$setData: a binomial sampler's rows and
+    their trials are fixed at creation; replace its successes and failures with $setCounts, or make a new sampler".
+37. The flat C API's `dbarts_sampler_setResponse` refuses a binomial sampler in refusal 15's words, as `$setResponse`
+    does. Alternative: taking a 0/1 vector as the successes against the trials in force, which a row of 0 trials
+    makes invalid.
+38. A fold over a data handle (`bartcore_createFromHandle`, xbart's) carries the trials with the successes, so S6's
+    binomial xbart needs no bridge change. Alternative: refusing a binomial fold until S6.
+39. A row of 0 trials goes out of the likelihood in the engine and warns nowhere in S3: the zero-trial warning is the R
+    layer's, raised after creation or `$setCounts` returns as multinomial's is, so S6 adds the binomial wording with its
+    constructor and setter. Alternative: a warning from the bridge, which would warn at a call the R layer may still
+    refuse.
 
 ## Open calls
 
-Two, put to the maintainer as written, both left by the ruling of Open call 1. Every other user- or consumer-visible choice
-the plan makes is settled by dec-B563 to dec-B570, dec-B573, dec-B574, dec-B580, dec-B588, dec-B594 or the design note's
-calls made. S5 builds the recommendations; the other options change it by under half an hour.
+Three, put to the maintainer as written: two left by the ruling of Open call 1, and one raised in S3. Every other user- or
+consumer-visible choice the plan makes is settled by dec-B563 to dec-B570, dec-B573, dec-B574, dec-B580, dec-B588,
+dec-B594 or the design note's calls made. S5 builds the recommendations; the other options change it by under half an
+hour.
 
 ### 1. What predict's weights mean on a fit whose one draw is a category (RULED, dec-B594)
 
@@ -758,6 +790,26 @@ vectors whenever the test data carry it. 0.9-34 had neither family.
 
 Recommendation: (a). An ordinal fit's weights mark rows in and out wherever they come from, so its draws stay categories,
 and a multinomial fit's test rows take their trials as logistic's do.
+
+### 4. What `$setData` does on a binomial sampler (raised in S3)
+
+When a sampler fitted to successes and failures is handed a new data object, what happens?
+
+Background. The design note's call 9 swaps a binomial response through `$setCounts` and refuses a flat vector at
+`$setResponse`; it says nothing of `$setData`, which on every other family replaces the rows, the response and the
+weights together and may change the number of rows. A multinomial sampler refuses `$setData` ("make a new sampler
+instead"). S3's bridge refuses it on a binomial sampler, the engine's trials being sized to the rows it was built on;
+nothing reaches it until S6 lets the fitting functions take a binomial response. 0.9-34 had no binomial response.
+
+- (a) Refused, as on a multinomial sampler: `$setData: a binomial sampler's rows and their trials are fixed at creation;
+  replace its successes and failures with $setCounts, or make a new sampler`. No further work. Cost: a binomial sampler
+  inside a larger Gibbs sampler cannot swap its predictors and counts in one call, as a binary one can.
+- (b) Taken: the new object's counts slot gives the successes and trials, n free, as its y does on a binary sampler.
+  About 40 lines in the engine and bridge, and S6's R method. Cost: a fourth route by which the trials change, each with
+  the caps and the zero-trial mask.
+
+Recommendation: (a). It is multinomial's rule for the same reason, the count response is not a column of the data,
+and `$setCounts` plus a new sampler cover the cases (b) would; (b) can follow if a consumer asks.
 
 ## Slices
 
@@ -851,7 +903,20 @@ reload round trip of a binomial sampler; `$setCounts` consuming no variate and l
 rebuilt from omega, the counts and the offset at every row; `ext_lchoose` against Rmath bitwise on the reference host and the
 `standalone-math` target building with it; a null-trials sampler bitwise today's; the trio; the suite. Today a weight-0 logistic
 row still draws one variate, so k = 0 and k = n join the draw-for-draw test in S4, once the expansion's weight-0 row is masked
-and draws none.
+and draws none. As built: the binomial row within 5.5e-14 of its split rows over 300 sweeps, the same variates consumed;
+at frequency weight w bitwise the row of k w successes in n w trials, and a one-trial row bitwise the binary response,
+weighted and not, its log-likelihood included; the log-likelihood against `dbinom` times w over 252 rows, worst 1.5e-11
+relative, at n = 1e6 2.3e-12 at k = n / 2 and 1.3e-13 at k = n / 1000, and after a successes swap the constants recomputed;
+a zero-trial row a masked row of one trial, bitwise at the rows in, reporting a log-likelihood of 0, and a zero-weight
+binomial row finite; the cold start by its expressions; a state, copy and reload round trip within 1e-9; `$setCounts`
+consuming no variate, the latents unchanged and the working response the one rebuilt at every row; the read-offs (a basis
+scale under both readings and its rescale, a linear leaf's moments, the fallback, after a count or weight change) against
+the n binary rows within 1e-14 (Calls made, 31); `ext_lchoose` against Rmath bitwise over 4,115 (n, k) pairs, choose.c
+needing nothing beyond the copy, `standalone-math` passing with no R symbol and `r-math-symbols` naming `Rf_lchoose`; the
+bridge in tinytest (test-binomial-bridge.R, 20 results: creation, a fold, `$setCounts`, the caps at w = 1 and w > 1, the
+refusals); the trio bitwise (55, 19 and 11 scenarios); the suite, 41,227 results; tests/cpp and the binomial and
+logistic tinytest files under ASan and UBSan, clean. Mutant 22 is killed by the `standalone-math` driver (2 failures),
+not by the nmath suite, which calls the copy's routine by its own name rather than through the macro.
 
 ### S4: membership and zero weights (~50 engine, ~30 bridge, ~80 R, ~180 tinytest)
 
@@ -977,8 +1042,8 @@ A reviewer applies each to a copy, rebuilds with `--preclean`, and runs the name
 19. S5: predict on a frequency fit takes weights 2 - its refusal test.
 20. S5: the sparse sigest route unweighted under frequency - its expanded-data test.
 21. S6: the binomial residual `k - p` - test-binomial.R.
-22. S3: `ext_lchoose` mapped to `std::lgamma` arithmetic under `DBARTS_HOST_STANDALONE` - the nmath suite's bitwise compare
-    against Rmath on the reference host.
+22. S3: `ext_lchoose` mapped to `std::lgamma` arithmetic under `DBARTS_HOST_STANDALONE` - the `standalone-math` driver's
+    lchoose checks (the nmath suite calls the copy by its own name, past the macro).
 23. S3: `$setCounts` keeps the old working response - the tests/cpp working-response read after the swap.
 24. S5: nbinom predict(weights = w) draws one count at mean mu - the `rnbinom(size = 3 r, mu = 3 mu)` test.
 25. S5: the hurdle hands NULL to its zero part and "frequency" to its positive part with no check of "precision" - the
