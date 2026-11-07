@@ -643,8 +643,8 @@ mutations <- c(
     r3(
       "m44",
       "src/bartcore/chain.hpp",
-      "if (forest.leaf.prior != MonotonePrior::joint ||",
-      "if (forest.leaf.prior == MonotonePrior::joint ||",
+      "if (forest.leaf.prior == MonotonePrior::joint &&",
+      "if (forest.leaf.prior != MonotonePrior::joint &&",
       c(kMonotone, kTests("test-calibration-prior-draws.R")),
       "monotone prior tree draw: the joint prior's accept step runs under leaf instead"
     ),
