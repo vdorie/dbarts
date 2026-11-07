@@ -15,18 +15,19 @@
 /* Apple's libm has __cospi and friends and no C23 cospi, so there the copy
    calls what R calls. Elsewhere the copy always uses its own cospi, sinpi and
    tanpi, while R's configure checks for the C23 functions and, where the C
-   library has them (glibc 2.41 and later), R calls the library's. Of the six
+   library has them (glibc 2.41 and later), R calls the library's. Of the seven
    routines only qt can tell: at df within 1e-12 of 1 it returns
    1 / tanpi(P / 2), exact in both at p = 1/4 and 3/4 and possibly a last digit
    apart at any other p (the engine calls qt only at 0.75). sinpi reaches
-   gammafn and lgammafn only at negative arguments, which none of the six
-   passes. */
+   gammafn and lgammafn only at negative arguments, which none of the seven
+   reaches at the arguments the engine passes (lchoose takes whole n >= k). */
 #if defined(__APPLE__)
 #  define HAVE___COSPI 1
 #  define HAVE___SINPI 1
 #  define HAVE___TANPI 1
 #endif
 
+#define choose               dbarts_nmath_choose
 #define cospi                dbarts_nmath_cospi
 #define d1mach_              dbarts_nmath_d1mach_
 #define dgamma               dbarts_nmath_dgamma
@@ -39,6 +40,7 @@
 #define gammafn              dbarts_nmath_gammafn
 #define i1mach_              dbarts_nmath_i1mach_
 #define lbeta                dbarts_nmath_lbeta
+#define lchoose              dbarts_nmath_lchoose
 #define lgamma1p             dbarts_nmath_lgamma1p
 #define lgammafn             dbarts_nmath_lgammafn
 #define lgammafn_sign        dbarts_nmath_lgammafn_sign
@@ -64,6 +66,7 @@
 #define Rf_d1mach            dbarts_nmath_Rf_d1mach
 #define Rf_ebd0              dbarts_nmath_Rf_ebd0
 #define Rf_i1mach            dbarts_nmath_Rf_i1mach
+#define Rf_lfastchoose       dbarts_nmath_Rf_lfastchoose
 #define Rf_lgammacor         dbarts_nmath_Rf_lgammacor
 #define Rf_pgamma_raw        dbarts_nmath_Rf_pgamma_raw
 #define Rf_stirlerr          dbarts_nmath_Rf_stirlerr

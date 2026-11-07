@@ -273,6 +273,9 @@ double	lgammafn_sign(double, int*);
 
 double	lbeta(double, double);
 
+double	choose(double, double);
+double	lchoose(double, double);
+
 	/* General Support Functions */
 
 double	fmax2(double, double);

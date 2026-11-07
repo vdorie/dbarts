@@ -10,12 +10,12 @@ R 4.6.2, src/nmath, from the CRAN release tarball
 https://cran.r-project.org/src/base/R-4/R-4.6.2.tar.gz
 (SHA-256 c297040f6392b1dac6e5c0eb398422cfdaedf540ae2205edb9ad0d10cb10ee00).
 
-Copied unedited, the closure of the six routines dbarts calls (pnorm, qnorm,
-dnorm, dt, qt, qchisq) and nothing else:
+Copied unedited, the closure of the seven routines dbarts calls (pnorm, qnorm,
+dnorm, dt, qt, qchisq, lchoose) and nothing else:
 
-  bd0.c chebyshev.c cospi.c d1mach.c dgamma.c dnorm.c dpois.c dt.c fmax2.c
-  fmin2.c gamma.c i1mach.c lbeta.c lgamma.c lgammacor.c pbeta.c pgamma.c
-  pnorm.c pt.c qchisq.c qgamma.c qnorm.c qt.c stirlerr.c toms708.c
+  bd0.c chebyshev.c choose.c cospi.c d1mach.c dgamma.c dnorm.c dpois.c dt.c
+  fmax2.c fmin2.c gamma.c i1mach.c lbeta.c lgamma.c lgammacor.c pbeta.c
+  pgamma.c pnorm.c pt.c qchisq.c qgamma.c qnorm.c qt.c stirlerr.c toms708.c
   nmath.h dpq.h
 
 Reduced from the headers R 4.6.2 installs (include/), keeping only what the
@@ -42,7 +42,7 @@ Each .c file is compiled with
 and R's own C compiler and flags (R CMD config CC, R CMD config CFLAGS); the
 recipe is in tests/cpp/Makefile. Compiled that way on the reference host
 (arm64 macOS, R 4.6.x) the copy returns exactly R's values: the tests/cpp
-nmath suite compares the two on a grid over the six routines and their flag
+nmath suite compares the two on a grid over the seven routines and their flag
 combinations, bitwise there and within a relative 1e-13 elsewhere. Other
 flags change the last digits (with contraction of a * b + c turned off, a
 quarter of the grid moves: qnorm by up to 432 units in the last place in its

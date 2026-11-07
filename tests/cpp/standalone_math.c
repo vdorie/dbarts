@@ -1,6 +1,6 @@
 /* The standalone-math target's driver: the support libraries (external, misc)
  * and the copy of R's math compiled with DBARTS_HOST_STANDALONE, linked with no
- * libR. It calls each of the six math names through the support library's own
+ * libR. It calls each of the seven math names through the support library's own
  * header, draws from the generators that reach them (the inversion normal, the
  * truncated normals), prints through the standalone output functions, checks
  * values that hold exactly in any correct build, and checks that each name
@@ -75,6 +75,13 @@ int main(void) {
         "ext_quantileOfNormal");
   check(ext_quantileOfStudentT(0.3, 3.5) == dbarts_nmath_qt(0.3, 3.5, 1, 0),
         "ext_quantileOfStudentT");
+  /* lchoose, the binomial row's constant: exact where the routine's small
+     branches answer, and its two arguments passed in order at a point where
+     swapping them gives -Inf */
+  check(ext_lchoose(7.0, 0.0) == 0.0 && ext_lchoose(7.0, 1.0) == log(7.0) &&
+          ext_lchoose(7.0, 6.0) == log(7.0), "lchoose at k = 0, 1 and n - 1");
+  check(ext_lchoose(1e6, 1000.0) == dbarts_nmath_lchoose(1e6, 1000.0) &&
+          ext_lchoose(1000.0, 1e6) == -INFINITY, "ext_lchoose");
 
   ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   check(rng != NULL && ext_rng_setSeed(rng, 42) == 0, "a seeded Mersenne Twister");

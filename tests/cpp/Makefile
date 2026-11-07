@@ -231,6 +231,7 @@ clean:
 	rm -f test_fuzz.d test_nmath.d
 	rm -rf test_bartcore.dSYM
 	rm -f build-standalone/nmath/bd0.o build-standalone/nmath/chebyshev.o
+	rm -f build-standalone/nmath/choose.o
 	rm -f build-standalone/nmath/cospi.o build-standalone/nmath/d1mach.o
 	rm -f build-standalone/nmath/dgamma.o build-standalone/nmath/dnorm.o
 	rm -f build-standalone/nmath/dpois.o build-standalone/nmath/dt.o

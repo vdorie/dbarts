@@ -33,7 +33,7 @@
 
 #endif // DBARTS_HOST_STANDALONE
 
-#include <external/nmath.h> // the six ext_ names and their implementation
+#include <external/nmath.h> // the seven ext_ names and their implementation
 
 #define ext_quantileOfChiSquared(_P_, _NU_) ext_qchisq((_P_), (_NU_), 1, 0)
 

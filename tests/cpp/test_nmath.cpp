@@ -1,5 +1,5 @@
 // The standalone build's copy of R's math routines (standalone/nmath) against
-// R's own (libR's Rmath), on a grid over the six routines the engine and the
+// R's own (libR's Rmath), on a grid over the seven routines the engine and the
 // support library call and their flag combinations.
 //
 // This binary links both: the copy's symbols carry a dbarts_nmath_ prefix, so
@@ -33,6 +33,7 @@ double dbarts_nmath_qnorm5(double, double, double, int, int);
 double dbarts_nmath_dt(double, double, int);
 double dbarts_nmath_qt(double, double, int, int);
 double dbarts_nmath_qchisq(double, double, int, int);
+double dbarts_nmath_lchoose(double, double);
 }
 
 #if defined(__APPLE__) && defined(__aarch64__) && R_VERSION >= R_Version(4, 6, 0) && \
@@ -42,13 +43,13 @@ double dbarts_nmath_qchisq(double, double, int, int);
 
 namespace {
 
-enum Routine { PNORM, QNORM, DNORM, DT, QT, QCHISQ, NUM_ROUTINES };
-const char* const routineNames[NUM_ROUTINES] = {"pnorm", "qnorm", "dnorm",
-                                                "dt",    "qt",    "qchisq"};
+enum Routine { PNORM, QNORM, DNORM, DT, QT, QCHISQ, LCHOOSE, NUM_ROUTINES };
+const char* const routineNames[NUM_ROUTINES] = {
+  "pnorm", "qnorm", "dnorm", "dt", "qt", "qchisq", "lchoose"};
 
 struct Point {
   Routine routine;
-  double a, b, c;  // x or p; then mu and sd, or df
+  double a, b, c;  // x or p; then mu and sd, or df; lchoose's n and k
   int lowerTail, logP;
 };
 
@@ -60,6 +61,7 @@ double evalR(const Point& p) {
     case DT: return ext_dt(p.a, p.b, p.logP);
     case QT: return ext_qt(p.a, p.b, p.lowerTail, p.logP);
     case QCHISQ: return ext_qchisq(p.a, p.b, p.lowerTail, p.logP);
+    case LCHOOSE: return ext_lchoose(p.a, p.b);
     case NUM_ROUTINES: break;
   }
   return std::numeric_limits<double>::quiet_NaN();
@@ -73,6 +75,7 @@ double evalCopy(const Point& p) {
     case DT: return dbarts_nmath_dt(p.a, p.b, p.logP);
     case QT: return dbarts_nmath_qt(p.a, p.b, p.lowerTail, p.logP);
     case QCHISQ: return dbarts_nmath_qchisq(p.a, p.b, p.lowerTail, p.logP);
+    case LCHOOSE: return dbarts_nmath_lchoose(p.a, p.b);
     case NUM_ROUTINES: break;
   }
   return std::numeric_limits<double>::quiet_NaN();
@@ -199,6 +202,26 @@ std::vector<Point> buildGrid() {
   grid.push_back({DNORM, 1.0, 0.0, -1.0, 1, 0});
   grid.push_back({DT, 1.0, -1.0, 0.0, 1, 0});
   grid.push_back({DT, 1.0, inf, 0.0, 1, 0});
+
+  // lchoose at the binomial row's log choose constants: whole n up to the
+  // trial cap of one million and whole k in [0, n], log-uniform in n; every
+  // k at small n, where the routine's branches (k < 2, n - k < 2) lie; and
+  // the cap's k = n / 2 and n / 1000
+  for (int n = 0; n <= 12; ++n)
+    for (int k = 0; k <= n; ++k) grid.push_back({LCHOOSE, (double) n, (double) k, 0.0, 1, 0});
+  for (int i = 0; i < 2000; ++i) {
+    double n = std::floor(g.logUniform(1.0, 1e6));
+    double k = std::floor((n + 1.0) * g.unif());
+    if (k > n) k = n;
+    grid.push_back({LCHOOSE, n, k, 0.0, 1, 0});
+    grid.push_back({LCHOOSE, n, n - k, 0.0, 1, 0});
+  }
+  const double caps[] = {1e6, 1e6 - 1.0, 999983.0};
+  for (double n : caps) {
+    const double ks[] = {0.0, 1.0, 2.0, std::floor(n / 1000.0), std::floor(n / 2.0), n - 2.0,
+                         n - 1.0, n};
+    for (double k : ks) grid.push_back({LCHOOSE, n, k, 0.0, 1, 0});
+  }
 
   return grid;
 }
