@@ -567,6 +567,37 @@ void testThresholds() {
   check(outside == 0 && ownOutside == 0,
         "pgdensity: the uniform's log bounds hold under any library within u_L");
   check(wide == 0, "pgdensity: the uniform's log bounds are within the floor's slack");
+
+  // the widening's sufficient condition, exact in doubles and with no
+  // reference: d = widenUp(l) - l and l - widenDown(l) are exact (Sterbenz),
+  // and d (1 - u_L) >= u_L |l| is decided by a twoSum, at l on both sides of
+  // powers of two and at random l
+  auto enough = [&](double d, double l) {
+    double b = d * uL, c = uL * std::fabs(l);
+    double s = b + c, bb = s - b, e = (b - (s - bb)) + (c - bb);
+    return d > s || (d == s && e <= 0.0);
+  };
+  int nExact = 0, short_ = 0;
+  auto exact = [&](double l) {
+    nExact += 2;
+    short_ += !enough(pg::logWidenUp(l) - l, l);
+    short_ += !enough(l - pg::logWidenDown(l), l);
+  };
+  for (int k = -60; k < 7; ++k) {
+    double a = -std::ldexp(1.0, k), c = a;
+    for (int j = 0; j < 300; ++j) {
+      exact(a);
+      a = std::nextafter(a, -kInf);
+      c = std::nextafter(c, 0.0);
+      exact(c);
+    }
+  }
+  std::mt19937_64 g2(3);
+  std::uniform_real_distribution<double> U12(1.0, 2.0);
+  for (int i = 0; i < 100000; ++i) exact(-std::ldexp(U12(g2), static_cast<int>(g2() % 66) - 60));
+  printf("pgdensity thresholds: the widening checked exactly at %d bounds, %d short of u_L |l| / (1 - u_L)\n",
+         nExact, short_);
+  check(short_ == 0, "pgdensity: the widening covers u_L |l| / (1 - u_L), exactly in doubles");
   check(pg::UniformInterval{0}.logLowerDown() == -kInf &&
             pg::UniformInterval{(std::uint64_t{1} << 53) - 1}.logUpperUp() > 0.0,
         "pgdensity: log U- is -inf at k = 0 and log U+ above 0 at U+ = 1");
