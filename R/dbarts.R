@@ -1849,12 +1849,10 @@ samplePriorPredictive <- function(
   # draws across calls by default with set.seed governing reproducibility.
   # The prior draws overwrite all tree state, so no donor state is needed.
   # keepTrees is forced off: it makes predict() serve saved posterior
-  # samples instead of the live trees this function just drew. verbose is
-  # forced off for the run a DART draw may fall back on. Prior draws are
-  # chain-free, so the sampler runs one chain.
+  # samples instead of the live trees this function just drew. Prior draws
+  # are chain-free, so the sampler runs one chain.
   newControl <- sampler$control
   newControl@keepTrees <- FALSE
-  newControl@verbose <- FALSE
   newControl@n.chains <- 1L
   # under the caller's prior, on the grid, range and leaf standardization its
   # data object records
@@ -2004,38 +2002,50 @@ leafPriorIsImproper <- function(model) {
     !is.finite(hyperprior@scale)
 }
 
-# Whole-forest draws a DART prior draw may make per requested sample, pooled
-# over the call: below an acceptance of about one in this many the draws come
-# from the sampler's own run instead.
-priorForestAttemptsPerSample <- 50L
+# The projected length, in seconds, of a call whose DART draws earn one
+# warning. An unexported, undocumented option, read fresh per call, sets it
+# instead, so a test can force the warning at any seed.
+priorPredictiveWarnSeconds <- function() {
+  forced <- getOption("dbarts.priorPredictiveWarnSeconds")
+  if (is.null(forced)) {
+    return(60)
+  }
+  seconds <- as.double(forced)[1L]
+  if (is.na(seconds) || seconds < 0) {
+    stop(
+      "option 'dbarts.priorPredictiveWarnSeconds' must be a non-negative ",
+      "number of seconds"
+    )
+  }
+  seconds
+}
 
-# The pooled budget of whole-forest draws for a call of n.samples. An
-# unexported, undocumented option, read fresh per call, sets the call's total
-# instead, so a test can reach the fallback at any seed: 0 sends the first
-# sample to it, 1 under a draw always held the second.
-priorForestAttempts <- function(n.samples) {
-  forced <- getOption("dbarts.priorForestAttempts")
-  total <- if (is.null(forced)) {
-    priorForestAttemptsPerSample * as.double(n.samples)
+# A projected length in words: seconds, minutes or hours.
+formatPriorPredictiveSeconds <- function(seconds) {
+  if (seconds < 120) {
+    sprintf("%.0f seconds", seconds)
+  } else if (seconds < 7200) {
+    sprintf("%.0f minutes", seconds / 60)
   } else {
-    as.double(forced)[1L]
+    sprintf("%.1f hours", seconds / 3600)
   }
-  if (is.na(total) || total < 0) {
-    stop("option 'dbarts.priorForestAttempts' must be a non-negative count")
-  }
-  as.integer(min(floor(total), .Machine$integer.max))
 }
 
 # samplePriorPredictive's forests: n.samples independent draws of the prior
 # the private sampler 'draw' runs under, each evaluated at xt. Each sample
 # draws the hyperparameters first, then the trees, then the leaves. Under
-# dart() the split weights and the trees are one draw, rejected whole while
-# any tree is one the sampler refuses; when too few are accepted (the pooled
-# budget above runs out), every sample comes instead from the sampler run with
-# every row inactive, whose stationary distribution is that prior: the
-# control's burn-in, then n.thin sweeps between samples, k, the response's
-# hyperparameters and the leaves still drawn fresh for each. Returns
-# list(fits, variances, hyperparameters, run), one entry a sample.
+# dart() the split weights and the trees are one draw, redrawn whole, with no
+# cap, while any tree is one the sampler refuses. The engine makes the
+# attempts in calls of a bounded count, sized to about a tenth of a second,
+# and polls for an interrupt after each, so every call leaves the sampler in
+# a state it holds; a call that accepts nothing has drawn k and the family's
+# hyperparameters too, which the next redraws, as they do not bear on
+# acceptance. Once a second (scaled with the threshold) has gone into the
+# attempts, each call projects the whole: the time so far times n.samples
+# over the samples accepted, or with none accepted yet, the time so far times
+# n.samples as a lower bound, acceptance being below about one in the
+# attempts made. The first projection over priorPredictiveWarnSeconds() warns,
+# once. Returns list(fits, variances, hyperparameters), one entry a sample.
 drawPriorForests <- function(
   draw,
   xt,
@@ -2046,23 +2056,93 @@ drawPriorForests <- function(
 ) {
   ptr <- draw$getPointer()
   isMultinomial <- samplerCarriesCounts(draw)
-  attemptsLeft <- priorForestAttempts(n.samples)
-  sampleOnce <- function(fromRun) {
-    if (fromRun) {
-      draw$run(0L, 1L, updateState = FALSE)
+  warnSeconds <- priorPredictiveWarnSeconds()
+  elapsed <- function() proc.time()[["elapsed"]]
+  attemptsPerCall <- 1L
+  attempts <- 0
+  accepted <- 0L
+  started <- NA_real_
+  warned <- FALSE
+
+  projectDuration <- function() {
+    spent <- elapsed() - started
+    if (warned || spent < warnSeconds / 60) {
+      return(invisible(NULL))
     }
-    drawn <- .Call(
-      C_dbarts_bartcore_sampleHyperparametersFromPrior,
-      ptr,
-      if (fromRun) 0L else attemptsLeft
+    if (accepted > 0L) {
+      projected <- spent * n.samples / accepted
+      if (projected < warnSeconds) {
+        return(invisible(NULL))
+      }
+      message <- paste0(
+        accepted,
+        " of ",
+        format(attempts, big.mark = ",", scientific = FALSE),
+        " joint draws of the split weights and trees so far were ones the ",
+        "sampler holds (acceptance ",
+        signif(accepted / attempts, 2L),
+        "), so the call is projected to take about ",
+        formatPriorPredictiveSeconds(projected)
+      )
+    } else {
+      projected <- spent * n.samples
+      if (projected < warnSeconds) {
+        return(invisible(NULL))
+      }
+      message <- paste0(
+        "none of ",
+        format(attempts, big.mark = ",", scientific = FALSE),
+        " joint draws of the split weights and trees so far was one the ",
+        "sampler holds (acceptance below 1 in ",
+        format(attempts, big.mark = ",", scientific = FALSE),
+        "), so the call will take at least about ",
+        formatPriorPredictiveSeconds(projected)
+      )
+    }
+    warned <<- TRUE
+    warning(
+      "samplePriorPredictive: under dart() ",
+      message,
+      "; it can be interrupted",
+      call. = FALSE
     )
-    if (!fromRun && !is.null(drawn$split.probabilities)) {
-      attemptsLeft <<- attemptsLeft - drawn$attempts
-      if (!drawn$forests.drawn) {
-        return(NULL)
+  }
+
+  # the entry's draw, repeated under dart() until the whole forest is held
+  drawHyperparameters <- function() {
+    repeat {
+      if (is.na(started)) {
+        started <<- elapsed()
+      }
+      callStarted <- elapsed()
+      drawn <- .Call(
+        C_dbarts_bartcore_sampleHyperparametersFromPrior,
+        ptr,
+        attemptsPerCall
+      )
+      if (is.null(drawn$split.probabilities)) {
+        return(drawn)
+      }
+      callSeconds <- elapsed() - callStarted
+      attempts <<- attempts + drawn$attempts
+      if (drawn$forests.drawn) {
+        accepted <<- accepted + 1L
+      }
+      if (callSeconds < 0.05) {
+        attemptsPerCall <<- min(2L * attemptsPerCall, 1048576L)
+      } else if (callSeconds > 0.2) {
+        attemptsPerCall <<- max(attemptsPerCall %/% 2L, 1L)
+      }
+      projectDuration()
+      if (drawn$forests.drawn) {
+        return(drawn)
       }
     }
-    if (!fromRun && !drawn$forests.drawn) {
+  }
+
+  sampleOnce <- function() {
+    drawn <- drawHyperparameters()
+    if (!drawn$forests.drawn) {
       draw$sampleTreesFromPrior(updateState = FALSE)
     }
     draw$sampleLeafParametersFromPrior(updateState = FALSE)
@@ -2083,38 +2163,11 @@ drawPriorForests <- function(
     list(fit = fit, variance = variance, hyperparameters = drawn)
   }
 
-  fromRun <- FALSE
-  samples <- vector("list", n.samples)
-  for (i in seq_len(n.samples)) {
-    # held apart: a NULL assigned into the list would delete the element
-    sample <- sampleOnce(FALSE)
-    if (is.null(sample)) {
-      fromRun <- TRUE
-      break
-    }
-    samples[[i]] <- sample
-  }
-  if (fromRun) {
-    draw$setActiveRows(rep_len(0, length(draw$data@y)), updateState = FALSE)
-    draw$run(draw$control@n.burn, 0L, updateState = FALSE)
-    for (i in seq_len(n.samples)) {
-      samples[[i]] <- sampleOnce(TRUE)
-    }
-    warning(
-      "samplePriorPredictive: under dart() fewer than one in ",
-      priorForestAttemptsPerSample,
-      " independent draws of the split weights and trees was one the ",
-      "sampler holds, so the draws come from the sampler run with every row ",
-      "inactive and successive draws are dependent; see ",
-      "?samplePriorPredictive",
-      call. = FALSE
-    )
-  }
+  samples <- lapply(seq_len(n.samples), function(i) sampleOnce())
   list(
     fits = lapply(samples, `[[`, "fit"),
     variances = lapply(samples, `[[`, "variance"),
-    hyperparameters = lapply(samples, `[[`, "hyperparameters"),
-    run = fromRun
+    hyperparameters = lapply(samples, `[[`, "hyperparameters")
   )
 }
 
