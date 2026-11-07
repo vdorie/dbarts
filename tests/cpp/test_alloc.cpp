@@ -512,6 +512,29 @@ void runLeafArms(const HarnessData& data, SamplerOptions options,
   report(failEachAllocation(make, grown,
                             [](Sampler<L>& s) { s.sampleTreesFromPrior(); }),
          "allocation failure in a prior tree draw, " + leaf + " leaf");
+  // DART's joint prior draw of the weights and every tree, at budgets of 1000
+  // and of one (where a refused draw falls to the per-tree draw)
+  SamplerOptions dartOptions = options;
+  dartOptions.useDart = true;
+  auto makeDart = [&]() {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, seed);
+    rngs.push_back(rng);
+    return makeHarnessSampler<L>(data, dartOptions, &rngs.back());
+  };
+  SamplerStateData dartGrown;
+  {
+    auto dart = makeDart();
+    dart->run(5, 0, none);
+    dart->getState(dartGrown);
+  }
+  for (std::size_t budget : {std::size_t(1000), std::size_t(1)})
+    report(failEachAllocation(makeDart, dartGrown,
+                              [&](Sampler<L>& s) {
+                                (void) s.sampleHyperparametersFromPrior(budget);
+                              }),
+           "allocation failure in a DART joint prior draw, " + leaf +
+             " leaf, budget " + std::to_string(budget));
   report(failEachAllocation(make, stumps,
                             [&](Sampler<L>& s) { s.setState(grown, nullptr); }),
          "allocation failure in a state install, " + leaf + " leaf");
