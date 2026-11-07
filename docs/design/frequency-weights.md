@@ -1,7 +1,7 @@
 # Frequency weights and the binomial response
 
 Status: DECIDED 2026-11-03, design note before the plan; Calls made 5 and the state and hurdle rows of What moves
-amended 2026-11-05 for dec-B586 and dec-B588, and Calls made 10 on 2026-11-06 for dec-B594. Rulings, in docs/decisions.md: dec-B125 (frequency
+amended 2026-11-05 for dec-B586 and dec-B588, and Calls made 10 on 2026-11-06 for dec-B594 and on 2026-11-07 for dec-B638. Rulings, in docs/decisions.md: dec-B125 (frequency
 weights join precision weights by explicit choice; precision stays the default), dec-A11 (under precision weights
 sigma's degrees of freedom count only positive-weight rows), dec-B120 (the comparison against 0.9-34 is a release
 gate), and the note's own rulings dec-B563 to dec-B570, dec-B573, dec-B574 and dec-B580, each cited where it applies. The
@@ -291,6 +291,10 @@ and the predictive and log-likelihood code reads n.
     matrix with the response's columns absent, so its trials come through weights as on the other count families.
     Alternative: refuse ppd at newdata without weights, as rstanarm and brms in effect do, which no other dbarts
     count family does.
+    Amended by dec-B638 (2026-11-07): where no weights are stated and the new data, at predict or as a fit-time
+    test frame, carry both response columns, complete, a row draws Binomial(k + f, p), as rstanarm's
+    posterior_predict reads them; stated weights keep dec-B594's meaning at predict and dec-B596's at a test frame;
+    otherwise one trial.
 11. The pointwise log-likelihood of a binomial row is log dbinom(k; n, p), its binomial coefficient included as in
     glm's logLik, times the row's frequency weight. Alternative: the kernel alone, the two-frequency-row value,
     which differs by log choose(n, k) and is not the row's density.

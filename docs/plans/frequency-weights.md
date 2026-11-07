@@ -854,7 +854,9 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
     K count matrix". Alternative: Refusal 17's form on xbart's matrix route, its formula route then differing.
 72. Refusal 12 is raised wherever bart, dbarts or xbart meets a probit family and a two-column response, on either
     route, and on a data object whose counts slot has two columns; bartBT and rbart_vi keep their own words, taking no
-    binomial. Alternative: Refusal 12 there too, naming a family = binomial they do not take.
+    binomial. Alternative: Refusal 12 there too, naming a family = binomial they do not take. As built in S6, a data
+    object met Refusals 12 and 17 at dbarts only, bart and xbart giving their older multinomial words; the fix round
+    gives them at all three (call 85).
 73. A binomial fit warns of a single class where every success or every failure is 0, as a binary fit does. Alternative:
     no warning, the trials giving the prior something to read.
 74. xbart's rmse on a binomial compares the proportion with the probability, each row weighted by its trials times its
@@ -870,13 +872,34 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
     `x.test` cannot carry.
 78. fit$y on a binomial fit is the two columns as written, integer, with their names; numTrainingRows and the
     log-likelihood's draw count read NROW. Alternative: the trials vector the data object holds as y.
+79. dec-B638's columns are complete when every value in them is present: a missing value in either gives every row of
+    that new data one trial, as one column absent does. Alternative: per row, the rows holding both drawing at their
+    trials and the others at one, two rules in one call.
+80. A binomial test frame's weights are read from the column the training weights name, as a binary fit's are, so
+    dec-B596's stated test weights win over the columns; S6 had left them unread under the counts slot's multinomial
+    exclusion. Alternative: unread, the columns then always giving the trials.
+81. Columns present and complete that are not counts (negative or fractional) are refused in Refusal 13's words, led by
+    'newdata' at predict and by 'test' at a test frame, the latter before the run. Alternative: one trial, the columns
+    then read only when they are counts.
+82. The columns are the response expression as the formula wrote it, evaluated on the new data alone: cbind(k, n - k)
+    reads columns k and n, and a name newdata does not hold is never looked for in the formula's environment; a matrix
+    newdata is read by its column names. Alternative: only a cbind of two bare names.
+83. A binomial fit records `trials.response`, the response expression as a one-sided formula, and, where a test frame
+    gives them, `trials.test`; the test draws read `trials.test` before `weights.test`. Alternative: re-deriving the
+    expression from the stored call, which a call kept as a symbol cannot give.
+84. A data frame as the matrix interface's response on a binomial gives R's own coercion error ("'list' object cannot be
+    coerced to type 'double'"), left as built: glm takes a matrix or cbind there too. Alternative: a refusal naming
+    cbind() or a matrix.
+85. bart and xbart give Refusal 12 for a data object with two count columns under probit, and Refusal 17's form for one
+    of three or more under logistic, through the check they already make on a data object carrying counts; probit with
+    three or more columns keeps the multinomial words. Alternative: the older words, call 72 amended to say so.
 
 ## Open calls
 
-All four ruled: Open call 1 (dec-B594) and the two it left, Open calls 2 (dec-B595) and 3 (dec-B596), and Open call
-4, raised in S3 (dec-B628). Every other user- or consumer-visible choice the plan makes is settled by dec-B563 to
-dec-B570, dec-B573, dec-B574, dec-B580, dec-B588, dec-B594 to dec-B596, dec-B628, dec-B632 or the design note's calls
-made.
+All five ruled: Open call 1 (dec-B594) and the two it left, Open calls 2 (dec-B595) and 3 (dec-B596), Open call
+4, raised in S3 (dec-B628), and Open call 5, the question Open call 3 left, raised in S6 (dec-B638). Every other user- or consumer-visible choice the plan makes is settled by dec-B563 to
+dec-B570, dec-B573, dec-B574, dec-B580, dec-B588, dec-B594 to dec-B596, dec-B628, dec-B632, dec-B638 or the design note's
+calls made.
 
 ### 1. What predict's weights mean on a fit whose one draw is a category (RULED, dec-B594)
 
@@ -916,7 +939,7 @@ are read with the fit's meaning on every family, each test row drawn as a traini
 observation, a 0 giving NA draws, the values checked by the fit's rule; gaussian, Student-t and the hurdle unchanged; a
 logistic test weight of 3 one 0/1 draw; probit, ordinal and nbinom test weights reaching the draws; a count-family test
 row with no weights one trial. Left open by it: whether a binomial fit's new rows take their trials from the response
-columns when the new data carry them (S6's to state, not built here). Built in S5 as
+columns when the new data carry them (S6's to state, not built here; ruled as Open call 5, dec-B638). Built in S5 as
 [The R surface (S5, S6)](#the-r-surface-s5-s6) states it.
 
 ### 4. What `$setData` does on a binomial sampler (RULED, dec-B628)
@@ -925,6 +948,17 @@ Ruled by the maintainer, 2026-11-07 (dec-B628): a binomial sampler takes `$setDa
 giving the successes and failures and the number of rows free, and a count response is replaced through `$setResponse`
 as its formula writes it, `$setCounts` removed. Built in S5's fix round; S5 as built, calls 58 on, records how. The
 alternative was a refusal, as on a multinomial sampler, whose `$setData` stays refused as a separate call.
+
+### 5. What trials a binomial fit's new rows take (RULED, dec-B638)
+
+Put on 2026-11-07 from S6 as options (a) as built, the trials only from weights, one where none are given; (b) the trials
+read from the two response columns when the new data carry both, complete, stated weights winning, at predict and in a
+fit-time test frame, recommended; (c) (a) with a warning naming weights = k + f. The maintainer asked what would match lm
+or other user expectations, and, shown that lm and glm never read the response at new rows but never draw counts there
+either, while the fitters that draw counts at new rows (rstanarm, brms) read the trials from the new data: "OK, do (b)
+then." Recorded as dec-B638: where the new data of a binomial fit carry both response columns, complete, and no weights
+are stated, each row draws Binomial(k + f, p); stated weights keep dec-B594's meaning at predict and dec-B596's at a test
+frame; otherwise one trial. Built in S6's fix round, calls 79 to 83.
 
 ## Slices
 
@@ -1157,7 +1191,7 @@ the counts slot as multinomial counts do. Refusals 11 to 14 and 16 to 18 are rai
 hazard family's (time, status) pair is not read as one. fit$y keeps the two columns (call 78); `fitted` and `residuals`
 report the probability and k / n - p, and for the draws n p and k - n p; `extract(type = "ppd")` draws Binomial(n, p) at a
 training row; `pointwiseLogLikelihood` is `w log dbinom(k; n, p)`, 0 at a row of no trials; predict and the test sample draw
-one trial or predict's weights (dec-B596's open question left open, below). xbart's log and mcr losses read a row as its
+one trial or predict's weights, and from the fix round the trials the new data's response columns give (Open call 5). xbart's log and mcr losses read a row as its
 proportion weighted by its trials times its weight (design Calls made, 12), rmse alike (call 74). A binomial sampler takes
 the binary logistic sampler's doors (call 68, call 66 so answered), and call 59's fallback words name its trials (call 75).
 The S3 review's notes: a binary sampler's `$setData` refuses data carrying counts, the reading creation gives them, and a
@@ -1171,10 +1205,25 @@ weights a supplied loss receives, and the built-in log and mcr losses equal to t
 out one trial each, to rounding, from the fold's own draws (a deviation: xbart cannot assign a row's trials to one fold, so
 an xbart run on the expanded data scores other folds; the arm shows the scoring is the expansion's). Gates: the suite 42484/0 in one process; test-binomial.R 65/0 and test-xbart-loss.R 37/0; after the rebase onto main at 980bc50f9 the trio bitwise on the reference build against equivalence-38da480c, bcf-equivalence-38da480c and multinomial-equivalence-80b1c8d4 (55, 19 and 11 scenarios, none skipped, none moved) and the four snapshot files (27 expectations, 0 failed), not rerun at the tip, no engine or bridge file having changed; lint_package, air, codoc, win drift and doc-freshness clean; verify-anchors (82) clean; R CMD check --as-cran on the built tarball, one NOTE, an expired certificate at a cited URL and the Date field. Mutants, each killed: the log loss reading a proportion as 0, the mcr loss as 0/1, the loss weights without the trials (test-xbart-loss.R); the residual's proportion as the successes, the log-likelihood's trials out of row order, `samplerCarriesCounts` true on a binomial, the fallback words without the trials, the hazard pair read as a binomial, the training draw at one trial (test-binomial.R).
 Calls made 68 to 78.
-dec-B596's open question, a binomial fit's new rows taking their trials from newdata's response columns, is left open
-for a ruling: glm's and mgcv's predict ignore them (probabilities only, and glm's simulate draws at the training trials),
-rstanarm's posterior_predict reads them and brms needs them; 0.9-34 fitted no binomial; today predict and the test sample
-ignore them.
+The fix round, from the review's four low findings and dec-B638 (Open call 5): predict.bart, where no weights are given
+on a binomial fit's `type = "ppd"`, evaluates the fit's `trials.response` on newdata and draws at the trials it gives, and
+bart() reads a test frame's the same way before the run, into `trials.test` (calls 79 to 83); a binomial test frame's
+weights are read as a binary fit's (call 80). Refusal 13 takes a count past the integer range, Inf included (finding 1).
+bart and xbart give Refusals 12 and 17 on a data object (finding 4, call 85). The data frame response is left (finding
+3, call 84). Tests: test-binomial.R 95 expectations (k = 30, f = 70 and no weights drawing within 3 of 75 of 100 at
+predict and at the test frame; stated weights winning at both; one column absent, either column with an NA, and a column
+outside newdata found only in the formula's environment, each one trial; probabilities unmoved; the columns refused as
+counts at predict and at a test frame; a binary fit's newdata untouched; Inf and 3e9 refused on both routes; Refusals 12
+and 17 at bart and xbart on a data object; the single-class warning at bart and dbarts, both spellings of one class, and
+none on a fit holding both; the formula route's data@y the trials) and test-xbart-loss.R 41 (the log and mcr losses
+against their definitions written by hand, the fold probabilities on both sides of 0.5). Gates, rebased onto main at bd803e202 (records only, so no trio run): a --preclean install; test-binomial.R 95/0 and test-xbart-loss.R 41/0; the suite 42520/0 in one process; lint_package 0, air, codoc (52), win drift and doc-freshness clean; verify-anchors (82) clean; the exact gates in quick, 44 of 44, the fit object now carrying `trials.response` and `trials.test`; R CMD check --as-cran on the built tarball, 1 NOTE: the expired certificate of rob-mcculloch.org in two help pages and the Date field over a month old, both on main. No engine or bridge file changed. Mutants, each
+killed: the predict branch off, stated predict weights overwritten, NA columns read, the columns looked for outside
+newdata, the test trials not recorded, stated test weights overwritten, binomial test weights unread, the integer bound
+off (Inf and 3e9), bart's and xbart's Refusals 12 and 17 off (test-binomial.R); the review's mcr mutants
+(successes always, the direction swapped; test-xbart-loss.R) and the single-class warning off (test-binomial.R). The
+review's mutant 5, the formula route's y set to the successes, is equivalent: the data object re-derives y from the
+counts at the shared counts step, and test-binomial.R now pins data@y. The binary fit's branch has no single-point
+mutant: a binary fit records no response expression.
 
 ### S7: gates (~450 in benchmarks/R, ~20 workflow)
 
