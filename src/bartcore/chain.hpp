@@ -215,6 +215,12 @@ struct SamplerOptions {
   // argument then holds the log survival/censoring times.
   const double* survivalStatus = nullptr;
 
+  // a binomial response (logistic only): per-observation trials, whole and
+  // borrowed for the sampler's lifetime, the y creation argument then holding
+  // the successes in them; null for a binary response. Every other family
+  // refuses it at the build.
+  const double* trials = nullptr;
+
   // split-variable selection: fixed weights (borrowed; normalized over
   // available variables at each node) or DART; both null/false = uniform
   const double* splitProbabilities = nullptr;
@@ -334,6 +340,16 @@ struct SamplerOptions {
 inline double singleForestDefaultSize() {
   const SamplerOptions defaults;
   return defaults.nodeScale / defaults.k;
+}
+
+/// A binomial response's per-row counts: \p trials times \p weights, the
+/// trials alone where \p weights is null. The read-offs read a row at that
+/// count, a row of n trials standing for n binary rows of its weight.
+inline void composeTrialCounts(const double* trials, const double* weights,
+                               std::size_t n, std::vector<double>& out) {
+  out.resize(n);
+  for (std::size_t i = 0; i < n; ++i)
+    out[i] = weights != nullptr ? trials[i] * weights[i] : trials[i];
 }
 
 /// Receives chains' formatted progress lines during a run. Worker-thread runs
@@ -1094,8 +1110,8 @@ public:
       response_ = std::make_unique<ProbitResponse>(y, offset, numObservations);
       break;
     case ResponseFamily::logistic:
-      response_ =
-        std::make_unique<LogisticResponse>(y, offset, weights, numObservations);
+      response_ = std::make_unique<LogisticResponse>(
+        y, offset, weights, numObservations, options.trials);
       break;
     case ResponseFamily::gaussian:
       // a finite residualDf selects the Student-t scale-mixture error
@@ -1131,6 +1147,7 @@ public:
       break;
     }
     options_.survivalStatus = nullptr;  // consumed above
+    adoptTrials(options.trials);
 
     forest.leaf.scale = options.nodeScale /
                         std::sqrt(static_cast<double>(forest.numTrees));
@@ -1272,8 +1289,8 @@ public:
         std::make_unique<ProbitResponse>(y, offset, data.numObservations);
       break;
     case ResponseFamily::logistic:
-      response_ = std::make_unique<LogisticResponse>(y, offset, weights,
-                                                     data.numObservations);
+      response_ = std::make_unique<LogisticResponse>(
+        y, offset, weights, data.numObservations, options.trials);
       break;
     case ResponseFamily::gaussian:
     case ResponseFamily::aft:
@@ -1285,6 +1302,7 @@ public:
       break;
     }
     family_ = spec.family;
+    adoptTrials(options.trials);
     // the single-forest rule, verbatim: only the binary families fix sigma by
     // construction. Left at options.sigmaIsFixed a probit K-forest would enter
     // run() advertising a drawn sigma and call drawSigma every sweep - the
@@ -1721,6 +1739,28 @@ public:
   bool setCounts(const int* counts, const int* trials) {
     if (!supportsCountsMutation()) return false;
     combiner_->setCounts(counts, trials);
+    return true;
+  }
+
+  /// Whether the response is a binomial one, successes out of per-row trials.
+  bool holdsTrials() const { return response_->trials() != nullptr; }
+  /// A binomial response's trials times the weights, the counts its read-offs
+  /// read each row at; null for every other response.
+  const double* trialCounts() const {
+    return trialCounts_.empty() ? nullptr : trialCounts_.data();
+  }
+
+  /// Installs a binomial response's BORROWED successes and trials, one per
+  /// row; false, installing nothing, where the response holds no trials.
+  /// Nothing is drawn: the response rebuilds its working response from the
+  /// latents in force, and the next sweep draws them under the new trials
+  /// first. The read-offs' counts follow; a linear leaf's statistics, which
+  /// read the working weights, are rebuilt on next use.
+  bool setBinomialCounts(const double* successes, const double* trials) {
+    if (!response_->setBinomialCounts(successes, trials)) return false;
+    composeTrialCounts(trials, weights_, data_.numObservations, trialCounts_);
+    if constexpr (L::hasVectorParams)
+      forests_[0].leaf.invalidateStatistics();
     return true;
   }
 
@@ -2946,6 +2986,9 @@ public:
   void setWeights(const double* weights) {
     weights_ = weights;
     response_->setWeights(weights);
+    if (!trialCounts_.empty())
+      composeTrialCounts(response_->trials(), weights, data_.numObservations,
+                         trialCounts_);
     // a coupling that owns its per-observation precisions takes the counts
     // here, as it takes the mask (the multinomial softmax); inert for the
     // additive couplings, which read the response's
@@ -8943,11 +8986,16 @@ private:
     case ResponseFamily::probit:
     case ResponseFamily::logistic: {
       result.counts = frequencyCounts();
-      if (spec.activeRows == nullptr) return result;
+      // a binomial row of no trials is out of the likelihood, as a masked one
+      const double* trialCounts =
+        trialCounts_.empty() ? nullptr : trialCounts_.data();
+      if (spec.activeRows == nullptr && trialCounts == nullptr) return result;
       result.rows.resize(n);
       std::size_t numIn = 0;
       for (std::size_t i = 0; i < n; ++i) {
-        result.rows[i] = spec.activeRows[i] != 0.0;
+        result.rows[i] =
+          (spec.activeRows == nullptr || spec.activeRows[i] != 0.0) &&
+          (trialCounts == nullptr || trialCounts[i] > 0.0);
         numIn += result.rows[i] != 0 ? 1 : 0;
       }
       if (numIn == 0 || (numIn == 1 && n > 1)) {
@@ -8974,12 +9022,25 @@ private:
     return result;
   }
 
-  /// The user weights where the chain reads them as frequencies, else null:
-  /// every scale a creation reads off the rows, the rows in or every row in
-  /// their place, then reads each row at its count.
+  /// The counts every scale a creation reads off the rows reads each row at,
+  /// the rows in or every row in their place: under a binomial response a
+  /// row's trials times its weight under either reading, as the row stands
+  /// for that many binary rows; else the user weights where the chain reads
+  /// them as frequencies, and null.
   const double* frequencyCounts() const {
+    if (!trialCounts_.empty()) return trialCounts_.data();
     return options_.weightsReading == WeightsReading::frequency ? weights_
                                                                 : nullptr;
+  }
+
+  /// Takes a binomial response's \p trials, borrowed and already handed to the
+  /// response, into the per-row counts the read-offs read (frequencyCounts).
+  void adoptTrials(const double* trials) {
+    options_.trials = nullptr;  // borrowed; held by the response
+    trialCounts_.clear();
+    if (trials != nullptr)
+      composeTrialCounts(trials, weights_, data_.numObservations,
+                         trialCounts_);
   }
 
   /// Variant A block-additive install: confine each whole tree to one
@@ -9518,6 +9579,9 @@ private:
   // user weights, held only to forward to the response model; the engine's
   // per-iteration precisions come from response_->workingWeights()
   const double* weights_;
+  // a binomial response's trials times the weights (1 absent), the counts
+  // its read-offs read (frequencyCounts); empty for every other response
+  std::vector<double> trialCounts_;
   ext_rng* rng_;
 
   std::unique_ptr<ResponseModel> response_;

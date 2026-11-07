@@ -2621,6 +2621,9 @@ public:
                              const double* testOffset = nullptr,
                              const DataReplacement& replacement = {}) {
     bool hasTest = x_test != nullptr && numTestObservations > 0;
+    // a binomial response's trials are replaced with its successes alone
+    // (setBinomialCounts), never under a flat response
+    if (holdsTrials()) return false;
     if (!data_.replacementLevelCodesAreValid(x, numObservations)) return false;
     if (hasTest &&
         !data_.testSourceIsIngestible(x_test, numTestObservations))
@@ -2757,13 +2760,15 @@ public:
       const L& leaf = chains_[0]->leaf();
       size_t n = data_.numObservations;
       std::vector<std::uint8_t> storage;
+      const double* trialCounts = chains_[0]->trialCounts();
       LeafRows rows = withCounts(
         tooFewUnitsIn
           ? LeafRows{nullptr, true}
-          : leafRowsFrom(chains_[0]->weights(),
+          : leafRowsFrom(trialCounts != nullptr ? trialCounts
+                                                : chains_[0]->weights(),
                          activeRows_.empty() ? nullptr : activeRows_.data(), n,
                          storage),
-        chains_[0]->weights());
+        chains_[0]->weights(), trialCounts);
       keptCovariates.assign(leaf.numCovariates(), 0);
       bool anyKept = false;
       for (size_t j = 0; j < leaf.numCovariates(); ++j) {
@@ -3079,11 +3084,12 @@ public:
       return BasisRescaleResult::refused;
     size_t n = data_.numObservations;
     std::vector<std::uint8_t> storage;
+    const double* trialCounts = chains_[0]->trialCounts();
     LeafRows rows = withCounts(
-      leafRowsFrom(chains_[0]->weights(),
+      leafRowsFrom(trialCounts != nullptr ? trialCounts : chains_[0]->weights(),
                    activeRows_.empty() ? nullptr : activeRows_.data(), n,
                    storage),
-      chains_[0]->weights());
+      chains_[0]->weights(), trialCounts);
     BasisRescaleResult outcome = BasisRescaleResult::rescaled;
     double scale = std::numeric_limits<double>::quiet_NaN();
     if (rows.tooFewIn) {
@@ -3195,6 +3201,18 @@ public:
     for (auto& chain : chains_)
       installed = chain->setCounts(counts, trials) && installed;
     return installed;
+  }
+  /// Whether the response is a binomial one, successes out of per-row trials;
+  /// chain 0 answers for all.
+  bool holdsTrials() const { return chains_[0]->holdsTrials(); }
+  /// Installs a binomial response's borrowed successes and trials in every
+  /// chain, drawing nothing (Chain::setBinomialCounts); false, installing
+  /// nothing, where the response holds no trials, which every chain answers
+  /// alike.
+  bool setBinomialCounts(const double* successes, const double* trials) {
+    if (!holdsTrials()) return false;
+    for (auto& chain : chains_) chain->setBinomialCounts(successes, trials);
+    return true;
   }
   /// Installs (or clears, at null) the borrowed n x K category offset in every
   /// chain, so a multi-chain sampler cannot be left half offset; false,
@@ -3500,8 +3518,12 @@ private:
   /// \p rows with \p weights as its counts where the sampler reads its
   /// weights as frequencies, the rows in and every row read in their place
   /// alike, each at its count.
-  LeafRows withCounts(LeafRows rows, const double* weights) const {
-    if (options_.weightsReading == WeightsReading::frequency)
+  /// A binomial response's \p trialCounts, its trials times the weights, are
+  /// its counts under either reading (Chain::frequencyCounts).
+  LeafRows withCounts(LeafRows rows, const double* weights,
+                      const double* trialCounts = nullptr) const {
+    if (trialCounts != nullptr) rows.counts = trialCounts;
+    else if (options_.weightsReading == WeightsReading::frequency)
       rows.counts = weights;
     return rows;
   }
@@ -3576,22 +3598,32 @@ private:
                         double sigmaDf, double sigmaRawScale,
                         ext_rng* const* rngs) {
     std::vector<std::uint8_t> leafRowStorage;
+    // a binomial response's rows are read at their trials times the weights
+    std::vector<double> trialCounts;
     LeafRows leafRows;
-    if constexpr (L::hasVectorParams || L::hasFunctionParams)
+    if constexpr (L::hasVectorParams || L::hasFunctionParams) {
+      if (options_.trials != nullptr)
+        composeTrialCounts(options_.trials, weights, data_.numObservations,
+                           trialCounts);
+      const double* rowCounts =
+        trialCounts.empty() ? nullptr : trialCounts.data();
       leafRows = withCounts(
         options_.tooFewUnitsIn
           ? LeafRows{nullptr, true}
           : withResponseFallback(
-              leafRowsFrom(weights, options_.activeRows, data_.numObservations,
+              leafRowsFrom(rowCounts != nullptr ? rowCounts : weights,
+                           options_.activeRows, data_.numObservations,
                            leafRowStorage),
               y, offset, data_.numObservations),
-        weights);
+        weights, rowCounts);
+    }
     chains_.reserve(options_.numChains);
     for (size_t c = 0; c < options_.numChains; ++c)
       chains_.push_back(std::make_unique<Chain<L, ResidT>>(
         data_, y, weights, offset, family_, sigmaEstimate, sigmaDf,
         sigmaRawScale, options_, rngs[c], leafRows));
     options_.survivalStatus = nullptr;  // borrowed; consumed by the chains
+    options_.trials = nullptr;
     options_.suppliedStandardization = {};
     options_.activeRows = nullptr;
     options_.tooFewUnitsIn = false;

@@ -117,6 +117,10 @@ struct SamplerShape {
   /// name for the same number. dbarts_sampler_family reads it to report
   /// DBARTS_FAMILY_MULTINOMIAL.
   bool supportsCountsMutation;
+  /// Whether the response is a binomial one, successes out of per-row trials
+  /// (logistic built with SamplerOptions::trials), which setBinomialCounts
+  /// replaces. Internal, invisible to dbarts.h.
+  bool holdsTrials;
   /// Whether the recorded test-fit channel carries a defined value: false only
   /// for BCF (no test treatment vector to blend off-sample). The bridge's
   /// test-surface refusal gates on it, so multinomial and single-forest
@@ -502,6 +506,12 @@ public:
   /// a counts-owning coupling. n and K are fixed at creation, so the host
   /// validates the shape. Chain::setCounts states the semantics.
   virtual bool setCounts(const int* counts, const int* trials) = 0;
+  /// Installs a binomial response's borrowed successes and trials, one per
+  /// row, in every chain, drawing nothing; false, installing nothing, where
+  /// the response holds no trials. Chain::setBinomialCounts states the
+  /// semantics.
+  virtual bool setBinomialCounts(const double* successes,
+                                 const double* trials) = 0;
   /// Installs a borrowed n x K category offset (category-major) on the forest
   /// coupling's linear predictor in every chain, clearing it at a null pointer;
   /// false, installing nothing, off a counts-owning coupling. Distinct from
@@ -588,6 +598,7 @@ public:
     s.supportsForestWeights = impl_.supportsForestWeights();
     s.supportsActiveRows = impl_.supportsActiveRows();
     s.supportsCountsMutation = impl_.supportsCountsMutation();
+    s.holdsTrials = impl_.holdsTrials();
     s.testFitsAreDefined = impl_.testFitsAreDefined();
     s.forestReportingIsDefined = impl_.forestReportingIsDefined();
     return s;
@@ -877,6 +888,10 @@ public:
   bool setCounts(const int* counts, const int* trials) override {
     return impl_.setCounts(counts, trials);
   }
+  bool setBinomialCounts(const double* successes,
+                         const double* trials) override {
+    return impl_.setBinomialCounts(successes, trials);
+  }
   bool setCategoryOffset(const double* offset) override {
     return impl_.setCategoryOffset(offset);
   }
@@ -1058,6 +1073,12 @@ inline bool varianceForestIsRefused(const SamplerOptions& options,
          monotoneConstraintIsActive(options, numPredictors);
 }
 
+/// Trials are a binomial response's, read under logistic alone.
+inline bool trialsAreRefused(const SamplerOptions& options,
+                             ResponseFamily family) {
+  return options.trials != nullptr && family != ResponseFamily::logistic;
+}
+
 /// Dispatch on the leaf model: designated leaf covariates select the
 /// linear-leaf instantiation - or the GP one under options.gpLeaves -
 /// anything else the constant leaf. Returns null on an invalid
@@ -1073,7 +1094,9 @@ inline std::unique_ptr<SamplerBase> createSampler(
   ResponseFamily family, double sigmaEstimate, double sigmaDf,
   double sigmaRawScale, const SamplerOptions& options, ext_rng* const* rngs) {
   // refused before any Chain is built
-  if (varianceForestIsRefused(options, family, numPredictors)) return nullptr;
+  if (varianceForestIsRefused(options, family, numPredictors) ||
+      trialsAreRefused(options, family))
+    return nullptr;
   if (options.numLeafCovariates == 0 &&
       monotoneConstraintIsActive(options, numPredictors))
     return makeIngestingFacade<MonotoneConstantGaussianLeaf>(
@@ -1119,7 +1142,8 @@ inline std::unique_ptr<SamplerBase> createSamplerOverStore(
   ext_rng* const* rngs) {
   // as createSampler: the same refusal, so a view cannot build a composition
   // the full-data factory declines
-  if (varianceForestIsRefused(options, family, store.numPredictors))
+  if (varianceForestIsRefused(options, family, store.numPredictors) ||
+      trialsAreRefused(options, family))
     return nullptr;
   if (options.numLeafCovariates == 0)
     return std::make_unique<SamplerFacade<ConstantGaussianLeaf>>(
@@ -1162,6 +1186,7 @@ inline std::unique_ptr<SamplerBase> createAmplitudeSampler(
       spec.family != ResponseFamily::probit &&
       spec.family != ResponseFamily::logistic)
     return nullptr;
+  if (trialsAreRefused(options, spec.family)) return nullptr;
   return makeIngestingFacade<ConstantGaussianLeaf>(
     x, y, numObservations, numPredictors, weights, offset, sigmaEstimate,
     sigmaDf, sigmaRawScale, options, spec, rngs);
@@ -1174,8 +1199,9 @@ inline std::unique_ptr<SamplerBase> createMultinomialSampler(
   const double* x, std::size_t numObservations, std::size_t numPredictors,
   const SamplerOptions& options, const MultinomialSpec& spec,
   ext_rng* const* rngs) {
-  // as createAmplitudeSampler
-  if (options.numVarianceTrees > 0) return nullptr;
+  // as createAmplitudeSampler; its counts ride the spec, never trials
+  if (options.numVarianceTrees > 0 || options.trials != nullptr)
+    return nullptr;
   return makeIngestingFacade<ConstantGaussianLeaf>(
     x, numObservations, numPredictors, options, spec, rngs);
 }

@@ -50,6 +50,7 @@ void checkShapeMatchesImpl(const SamplerFacade<L, ResidT>& facade,
   CHECK_SHAPE_FIELD(supportsForestWeights);
   CHECK_SHAPE_FIELD(supportsActiveRows);
   CHECK_SHAPE_FIELD(supportsCountsMutation);
+  CHECK_SHAPE_FIELD(holdsTrials);
   CHECK_SHAPE_FIELD(testFitsAreDefined);
 }
 
@@ -131,6 +132,7 @@ void testConstantGaussian(ShapeFixture& fixture) {
         "shape: a single-forest sampler admits no per-forest weight");
   check(!shape.supportsCountsMutation,
         "shape: a single-forest sampler owns no count response");
+  check(!shape.holdsTrials, "shape: a gaussian response holds no trials");
   check(shape.supportsActiveRows,
         "shape: a gaussian sampler accepts an active-row mask");
   check(shape.usesDart && shape.kIsSampled, "shape: dart and sampled k");

@@ -4916,6 +4916,19 @@ public:
   /// in force. Default: a no-op (the host rejects earlier).
   virtual void setWeights(const double*) {}
 
+  /// A binomial response's per-row trials, borrowed, the successes in y
+  /// (LogisticResponse constructed with trials); null for every other one.
+  virtual const double* trials() const { return nullptr; }
+
+  /// Replace a binomial response's successes and trials (both borrowed, one
+  /// per row, the successes whole and at most the trials): the latents stand
+  /// and what is deterministic is rebuilt from them, and the next sweep draws
+  /// against the new counts. False, replacing nothing, where the response
+  /// holds no trials.
+  virtual bool setBinomialCounts(const double*, const double*) {
+    return false;
+  }
+
   /// Whether this family implements the active-row channel. setActiveRows's
   /// own refusal reads it, so the advertised capability and the refusal
   /// cannot disagree.
@@ -6047,31 +6060,49 @@ private:
 /// weighted gaussian with sigma fixed at 1. Case weights are observation
 /// COUNTS, the augmentation's own shape parameter rather than a precision.
 /// latents() exposes the omega draws.
+///
+/// A binomial response holds per-row trials n_i beside y, which then holds
+/// the successes k_i: a row of count w draws omega_i ~ PG(w n_i, eta_i) and
+/// its kappa is w (k_i - n_i / 2), the sum of its w n_i single trials'. A row
+/// of zero trials is out of the likelihood, as a masked row is, and reports a
+/// log-likelihood of 0. With null trials every expression is the binary
+/// one, operand for operand.
 class LogisticResponse final : public ResponseModel {
 public:
   /// weights are observation counts (positive integers) or null for unit
   /// weights; the host validates integrality. A count-w observation's
   /// Polya-Gamma latent is PG(w, psi), drawn exactly as the sum of w
   /// independent PG(1, psi) variates, so null weights reproduce the
-  /// unweighted stream bit for bit.
+  /// unweighted stream bit for bit. trials, where not null, are the binomial
+  /// trials (whole, at most the host's cap), y the successes in them.
   LogisticResponse(const double* y, const double* offset,
-                   const double* weights, std::size_t numObservations)
-    : y_(y), offset_(offset), weights_(weights),
+                   const double* weights, std::size_t numObservations,
+                   const double* trials = nullptr)
+    : y_(y), offset_(offset), weights_(weights), trials_(trials),
       numObservations_(numObservations) {
     omega_.resize(numObservations);
     working_.resize(numObservations);
+    if (trials_ != nullptr) {
+      computeLogChoose();
+      composeRowsIn();
+    }
     coldStart();
   }
 
   double* workingResponse() override { return working_.data(); }
   /// The Polya-Gamma draws, or a_i omega_i from a SEPARATE composite while a
-  /// mask is installed. The zero is never written into omega_ itself: the
-  /// working response divides by it, and 0 * inf in the node kernels is a NaN.
+  /// mask or a zero-trial row is in force. The zero is never written into
+  /// omega_ itself: the working response divides by it, and 0 * inf in the
+  /// node kernels is a NaN.
   const double* workingWeights() const override {
-    return activeRows_.empty() ? omega_.data() : composite_.data();
+    return rowsIn_.empty() ? omega_.data() : composite_.data();
   }
+  /// The row's count, times its trials on a binomial response: the number of
+  /// single-trial observations it stands for.
   double caseWeight(std::size_t i) const override {
     if (!isActive(i)) return 0.0;
+    if (trials_ != nullptr)
+      return weights_ != nullptr ? weights_[i] * trials_[i] : trials_[i];
     return weights_ != nullptr ? weights_[i] : 1.0;
   }
   bool workingWeightsVaryPerSweep() const override { return true; }
@@ -6093,7 +6124,7 @@ public:
       if (!isActive(i)) continue;
       double offset = offset_ != nullptr ? offset_[i] : 0.0;
       double psi = totalFits[i] + offset;
-      long reps = weights_ != nullptr ? std::lround(weights_[i]) : 1L;
+      long reps = numUnitDraws(i);
       double omega = ext_rng_simulatePolyaGamma(rng, psi);
       bool stop = refreshPoll_.stop();
       for (long c = 1; c < reps && !stop; ++c) {
@@ -6105,8 +6136,7 @@ public:
         throw RefreshCanceled();
       }
       omega_[i] = omega;
-      double weight = weights_ != nullptr ? weights_[i] : 1.0;
-      working_[i] = weight * (y_[i] - 0.5) / omega - offset;
+      working_[i] = kappa(i) / omega - offset;
     }
     recompose();
   }
@@ -6115,15 +6145,12 @@ public:
 
   /// The mask is NOT redundant with the count weights: a zero count is refused
   /// at creation and at a count change, and a zero-count row would still
-  /// consume one PG variate here.
+  /// consume one PG variate here. A binomial row of zero trials stays out
+  /// whatever the mask.
   bool setActiveRows(const double* active) override {
-    if (active == nullptr) {
-      activeRows_.clear();
-      return true;
-    }
-    activeRows_.assign(active, active + numObservations_);
-    composite_.resize(numObservations_);
-    recompose();
+    if (active == nullptr) activeRows_.clear();
+    else activeRows_.assign(active, active + numObservations_);
+    composeRowsIn();
     return true;
   }
 
@@ -6132,19 +6159,38 @@ public:
   }
 
   /// The setters keep omega and rebuild the working response from it, so it
-  /// stays w (y - 1/2) / omega - offset at every row, an inactive one
+  /// stays w (y - n / 2) / omega - offset at every row, an inactive one
   /// included, under the response, counts and offset in force. The next
   /// sweep draws omega against them before the trees read either.
   void setResponse(const double* y, bool, double*) override {
     y_ = y;
+    if (trials_ != nullptr) computeLogChoose();
     rebuildWorking();
   }
 
   /// The counts are the Polya-Gamma shape; an omega drawn under the old ones
-  /// stands until the next sweep draws it as PG(w, psi) under these.
+  /// stands until the next sweep draws it as PG(w n, psi) under these.
   void setWeights(const double* weights) override {
     weights_ = weights;
     rebuildWorking();
+  }
+
+  const double* trials() const override { return trials_; }
+
+  /// New successes and trials: the log choose constants recomputed, the rows
+  /// of zero trials recomposed out, and the working response rebuilt from
+  /// omega at every row; omega stands, and the next sweep draws it as
+  /// PG(w n, psi) under the new trials first.
+  bool setBinomialCounts(const double* successes,
+                         const double* trials) override {
+    if (trials_ == nullptr || successes == nullptr || trials == nullptr)
+      return false;
+    y_ = successes;
+    trials_ = trials;
+    computeLogChoose();
+    composeRowsIn();
+    rebuildWorking();
+    return true;
   }
 
   /// The offset may arrive in the buffer the old one was read from, so the
@@ -6155,6 +6201,8 @@ public:
     rebuildWorking();
   }
 
+  /// A binomial response's trials are sized to the rows it was built on, so
+  /// the host refuses this on one; the binary response cold-starts.
   void setData(const double* y, const double* offset, const double* weights,
                std::size_t numObservations, double*) override {
     y_ = y;
@@ -6162,6 +6210,7 @@ public:
     weights_ = weights;
     numObservations_ = numObservations;
     activeRows_.clear();  // length-n and n may have changed
+    rowsIn_.clear();
     composite_.clear();
     omega_.resize(numObservations);
     working_.resize(numObservations);
@@ -6187,65 +6236,128 @@ public:
 
   /// w_i log dbinom(y_i, 1, plogis(eta_i)) with eta the log-odds f(x) + offset
   /// and w_i the integer trial count (1 unweighted): -log(1 + exp(-eta)) for a
-  /// success, -log(1 + exp(eta)) for a failure. An inactive row is not in the
-  /// model, so its entry is NaN rather than the value its fit would give.
+  /// success, -log(1 + exp(eta)) for a failure. A binomial row reports
+  /// w_i log dbinom(k_i, n_i, plogis(eta_i)), its log choose constant
+  /// included, and a row of zero trials 0. A row the mask leaves out is not
+  /// in the model, so its entry is NaN rather than the value its fit would
+  /// give.
   void computeLogLikelihood(const double* totalFits, double,
                             std::size_t numObservations,
                             double* out) const override {
     for (std::size_t i = 0; i < numObservations; ++i) {
-      if (!isActive(i)) {
+      if (!activeRows_.empty() && activeRows_[i] == 0.0) {
         out[i] = std::numeric_limits<double>::quiet_NaN();
         continue;
       }
       double eta = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
-      double ll = y_[i] != 0.0 ? -logOnePlusExp(-eta) : -logOnePlusExp(eta);
+      double ll;
+      if (trials_ != nullptr)
+        ll = -y_[i] * logOnePlusExp(-eta) -
+             (trials_[i] - y_[i]) * logOnePlusExp(eta) + logChoose_[i];
+      else
+        ll = y_[i] != 0.0 ? -logOnePlusExp(-eta) : -logOnePlusExp(eta);
       out[i] = (weights_ != nullptr ? weights_[i] : 1.0) * ll;
     }
   }
 
 private:
-  /// Whether row i is in the data set this sweep; true throughout when no
-  /// mask is installed.
+  /// Whether row i is in the data set this sweep: kept by the mask and, on a
+  /// binomial response, of at least one trial; true throughout when neither
+  /// leaves a row out.
   bool isActive(std::size_t i) const {
-    return activeRows_.empty() || activeRows_[i] != 0.0;
+    return rowsIn_.empty() || rowsIn_[i] != 0.0;
   }
 
-  /// c_i = a_i omega_i, the served precisions while a mask is installed; a
-  /// no-op otherwise, when omega_ is served by identity.
-  void recompose() {
-    if (activeRows_.empty()) return;
+  /// The unit draws row i's omega sums: its count, times its trials on a
+  /// binomial response.
+  long numUnitDraws(std::size_t i) const {
+    if (trials_ == nullptr)
+      return weights_ != nullptr ? std::lround(weights_[i]) : 1L;
+    double shape = trials_[i];
+    if (weights_ != nullptr) shape *= weights_[i];
+    return std::lround(shape);
+  }
+
+  /// w (y - n / 2), n = 1 on a binary response.
+  double kappa(std::size_t i) const {
+    double half = trials_ != nullptr ? 0.5 * trials_[i] : 0.5;
+    double weight = weights_ != nullptr ? weights_[i] : 1.0;
+    return weight * (y_[i] - half);
+  }
+
+  /// log choose(n_i, k_i) per row, R's lchoose, read by the log-likelihood.
+  void computeLogChoose() {
+    logChoose_.resize(numObservations_);
     for (std::size_t i = 0; i < numObservations_; ++i)
-      composite_[i] = activeRows_[i] * omega_[i];
+      logChoose_[i] = ext_lchoose(trials_[i], y_[i]);
+  }
+
+  /// The rows in: the mask, less a binomial response's rows of zero trials;
+  /// empty where neither leaves a row out.
+  void composeRowsIn() {
+    rowsIn_ = activeRows_;
+    if (trials_ != nullptr) {
+      std::size_t i = 0;
+      while (i < numObservations_ && trials_[i] != 0.0) ++i;
+      if (i < numObservations_) {
+        if (rowsIn_.empty()) rowsIn_.assign(numObservations_, 1.0);
+        for (; i < numObservations_; ++i)
+          if (trials_[i] == 0.0) rowsIn_[i] = 0.0;
+      }
+    }
+    if (rowsIn_.empty()) return;
+    composite_.resize(numObservations_);
+    recompose();
+  }
+
+  /// c_i = a_i omega_i, the served precisions while a row is out; a no-op
+  /// otherwise, when omega_ is served by identity.
+  void recompose() {
+    if (rowsIn_.empty()) return;
+    for (std::size_t i = 0; i < numObservations_; ++i)
+      composite_[i] = rowsIn_[i] * omega_[i];
   }
 
   /// Deterministic cold start, the analog of probit's z = 2 y - 1: omega
   /// at PG(w, 0)'s mean of w/4, so the working response starts at
   /// 4 (y - 1/2) - offset independent of the weight; real draws replace it
-  /// after the first tree sweep.
+  /// after the first tree sweep. A binomial row starts at PG(w n, 0)'s mean,
+  /// at least a quarter, and at 4 (k / n - 1/2) - offset, a row of zero
+  /// trials at -2 - offset: positive and finite though out of the
+  /// likelihood.
   void coldStart() {
     for (std::size_t i = 0; i < numObservations_; ++i) {
-      omega_[i] = 0.25 * (weights_ != nullptr ? weights_[i] : 1.0);
-      working_[i] =
-        4.0 * (y_[i] - 0.5) - (offset_ != nullptr ? offset_[i] : 0.0);
+      double offset = offset_ != nullptr ? offset_[i] : 0.0;
+      if (trials_ == nullptr) {
+        omega_[i] = 0.25 * (weights_ != nullptr ? weights_[i] : 1.0);
+        working_[i] = 4.0 * (y_[i] - 0.5) - offset;
+        continue;
+      }
+      double shape = trials_[i] * (weights_ != nullptr ? weights_[i] : 1.0);
+      omega_[i] = 0.25 * std::max(shape, 1.0);
+      working_[i] = 4.0 * (y_[i] / std::max(trials_[i], 1.0) - 0.5) - offset;
     }
   }
 
-  /// w (y - 1/2) / omega - offset from the omega in place, every row, in the
-  /// expression refreshLatents writes, so a rebuild is bitwise the draw's.
+  /// w (y - n / 2) / omega - offset from the omega in place, every row, in
+  /// the expression refreshLatents writes, so a rebuild is bitwise the
+  /// draw's.
   void rebuildWorking() {
     for (std::size_t i = 0; i < numObservations_; ++i) {
       double offset = offset_ != nullptr ? offset_[i] : 0.0;
-      double weight = weights_ != nullptr ? weights_[i] : 1.0;
-      working_[i] = weight * (y_[i] - 0.5) / omega_[i] - offset;
+      working_[i] = kappa(i) / omega_[i] - offset;
     }
   }
 
   const double* y_;
   const double* offset_;
   const double* weights_;
+  const double* trials_;  // a binomial response's, null for a binary one
   std::size_t numObservations_;
   std::vector<double> activeRows_;  // the 0/1 mask; empty when none
-  std::vector<double> composite_;   // c_i = a_i omega_i, served while masked
+  std::vector<double> rowsIn_;      // the mask less zero-trial rows
+  std::vector<double> composite_;   // c_i = a_i omega_i, served while out
+  std::vector<double> logChoose_;   // log choose(n_i, k_i), binomial only
   std::vector<double> omega_;
   std::vector<double> working_;
 };

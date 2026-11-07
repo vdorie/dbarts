@@ -52,7 +52,8 @@ enum class FacadeVirtual {
   printTrees, rng, data, latents, sigma, shapeParameter, setForestBasis,
   setForestBasisRescaled, setForestWeights, forestCalibration, setForestNamedSd, setForestFixedK,
   setForestMapSd, setForestCoefficientPrior, setActiveRows, rederiveScale,
-  setCounts, setCategoryOffset, setCategoryTestOffset, totalAmplitudes,
+  setCounts, setBinomialCounts, setCategoryOffset, setCategoryTestOffset,
+  totalAmplitudes,
   numForestAmplitudes, amplitudes, forestTotalFits, fitsWithoutOffset,
   currentVarianceFits, forestVariableCounts, numTreesInForest,
   count
@@ -246,6 +247,7 @@ public:
   SPY_RET(bool, setActiveRows, (const double* a), (a))
   SPY_RET(ResponseUpdateResult, rederiveScale, (), ())
   SPY_RET(bool, setCounts, (const int* c, const int* t), (c, t))
+  SPY_RET(bool, setBinomialCounts, (const double* k, const double* t), (k, t))
   SPY_RET(bool, setCategoryOffset, (const double* o), (o))
   SPY_RET(bool, setCategoryTestOffset, (const double* o), (o))
   SPY_RET(std::size_t, totalAmplitudes, () const, ())
@@ -302,11 +304,12 @@ struct Fixtures {
 
   std::vector<double> x, y, y3, xTest, xTest2, offset, offset3, weights,
     zeroedWeights, yBinary, yCount, logTime, survivalStatus, survivalStatus2, unitBasis, wideBasis, wideBasis2, categoryOffset,
-    testCategoryOffset, testOffset, newColumn, replacement;
+    testCategoryOffset, testOffset, newColumn, replacement, successes,
+    binomialTrials, successes2, binomialTrials2;
   std::vector<int> counts, trials, counts0;
   std::vector<double> xPooled, newColumn2;
   std::vector<ext_rng*> rngs;
-  Fixture g, gt, d, b, m, v, l, nb, af, t;
+  Fixture g, gt, d, b, m, v, l, nb, af, t, bn;
   FixtureT<LinearGaussianLeaf> lin;
   std::size_t leafCovariate = 0;
   SamplerOptions gaussianOptions;
@@ -372,6 +375,10 @@ struct Fixtures {
       wideBasis[2 * i + 1] = x[i] > 0.5 ? 1.0 : 0.0;
       counts[(i % K) * n + i] = 1;
       counts0[i] = 1;  // every observation in category 0
+      binomialTrials.push_back(static_cast<double>(1 + i % 5));
+      successes.push_back(yBinary[i] * binomialTrials.back());
+      binomialTrials2.push_back(static_cast<double>(4 + i % 3));
+      successes2.push_back(binomialTrials2.back());  // every trial a success
     }
     for (double& value : xTest) value = runif01();
     for (double& value : xTest2) value = runif01();
@@ -388,6 +395,7 @@ struct Fixtures {
     buildMultinomial();
     buildVariance();
     buildLogistic();
+    buildBinomial();
     buildNegativeBinomial();
     buildSurvival();
     buildVectorLeaf();
@@ -501,6 +509,18 @@ struct Fixtures {
             pair);
     Results results;
     l.impl().run(5, 1, results);
+  }
+
+  void buildBinomial() {
+    SamplerOptions options;
+    options.numTrees = 6;
+    options.trials = binomialTrials.data();
+    ext_rng* one = newRng(51020u);
+    bn.build(x.data(), successes.data(), n, p, nullptr, nullptr,
+             ResponseFamily::logistic, 1.0, 3.0, 0.37804942330213542, options,
+             &one);
+    Results results;
+    bn.impl().run(5, 1, results);
   }
 
   /// The one fixture whose saved store carries the two side channels: a vector
@@ -1557,6 +1577,23 @@ const Row rows[] = {
     }
     check(first > 2.0 * second,
           "facade setCounts: the replacement counts move the fitted softmax");
+  }},
+  {FacadeVirtual::setBinomialCounts, "setBinomialCounts", [](Fixtures& f) {
+    check(!f.l.base().setBinomialCounts(f.yBinary.data(), f.unitBasis.data()),
+          "facade setBinomialCounts: a response holding no trials refuses");
+    check(!f.l.base().shape().holdsTrials && f.bn.base().shape().holdsTrials,
+          "facade setBinomialCounts: the shape reports the trials");
+    check(f.bn.base().setBinomialCounts(f.successes2.data(),
+                                        f.binomialTrials2.data()),
+          "facade setBinomialCounts: a binomial response takes them");
+    std::vector<double> fits(Fixtures::n, 0.0);
+    Results results;
+    results.trainingFits = fits.data();
+    f.bn.impl().run(20, 1, results);
+    double mean = 0.0;
+    for (double fit : fits) mean += fit / static_cast<double>(Fixtures::n);
+    check(mean > 1.0,
+          "facade setBinomialCounts: every trial a success moves the fit up");
   }},
   {FacadeVirtual::setCategoryOffset, "setCategoryOffset", [](Fixtures& f) {
     check(!f.g.base().setCategoryOffset(f.categoryOffset.data()),
