@@ -171,6 +171,14 @@ should answer: whether its datasets are ones people meet, whether its estimands
 are natural to each dataset, and whether it scores RMSE, bias and, where they
 apply, heterogeneous effects.
 
+Every study whose result decides a default, a sampler change or a gate follows
+what published research of its kind would do: its readings, bars, datasets and
+decision rules come from published comparisons, and anything without a
+published model is named as the project's own (dec-B633). Landed studies are
+brought up to that standard in order of priority (dec-B637; TODO
+study-firming). Before a report is written, published reports of its kind are
+read for what they contain (dec-B626).
+
 ## Landing
 
 The landing record is the plan's `## Landing` (or `## Landing note`)
@@ -209,6 +217,14 @@ The procedure around those edits, as practiced:
 5. Watch CI on main to green (below), then delete the merged branch on
    origin. The next engine feature branches off a main whose engine CI is
    green; an R-surface feature need not wait.
+
+Each session closes out (dec-B629). The maintainer calls a wind-down: no
+new work starts and the lines in flight finish. Then every agent-made call
+recorded in the session (each section A entry written in it, and the
+calls of plans built or amended in it) is brought to the maintainer to
+ratify or reject. Each entry's Marked line records the answer, and a
+rejected call gets a fix. Then the follow-ups are planned. Landings do not
+wait for the close-out.
 
 Independent file-disjoint slices may run in parallel worktrees off one
 base, each with its own implementer and gate run; they stack by rebase in
