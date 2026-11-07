@@ -46,12 +46,23 @@ likelihood with a drawn leaf scale.
 **Who used it on which samplers.**
 - Data augmentation, with working parameters and parameter expansion: Meng and van Dyk (1999) is a theoretical
   study of conditional and marginal augmentation, with the univariate t model as its running example, judged by
-  the rate of convergence. Liu and Wu (1999) and Liu and Sabatti (2000) were not reached; van Dyk and Meng (2001)
-  describe their results as establishing the validity of parameter-expanded and group-orbit moves and the choice of
-  working prior that gives the fastest rate.
-- Polya-Gamma augmentation for logistic regression: Choi and Hobert (2013), not reached, are cited by later work
-  as proving the sampler of Polson, Scott and Windle (2013) uniformly ergodic under a normal prior on the
-  coefficients, through a minorization condition. That is a qualitative guarantee, not a burn-in.
+  the rate of convergence. Liu and Wu (1999) define parameter-expanded data augmentation and prove that, when the
+  expansion parameter indexes a transformation of the missing data and has its own prior, it converges no slower
+  than ordinary augmentation, and that with the group's Haar measure as that prior it is optimal among such schemes,
+  reparameterizations included; the rate they compare is the second-largest eigenvalue of the transition operator,
+  the square of the maximal correlation between the missing data and the parameter, which in their normal example
+  is the lag-one autocorrelation at stationarity and the fraction of missing information. Liu and Sabatti (2000)
+  generalize the Gibbs step to a draw of a group element (a translation, a scale) from its conditional given the
+  current state, and show in their second theorem that a Metropolis-type step leaving that conditional invariant
+  may replace the exact draw only when the step is itself invariant along the group's orbits, with a
+  counterexample in which a step that fails the condition preserves the wrong distribution. Both judge their
+  samplers by autocorrelation at stationarity, not from a start (see the table below).
+- Polya-Gamma augmentation for logistic regression: Choi and Hobert (2013) prove the sampler of Polson, Scott and
+  Windle (2013) uniformly ergodic for logistic regression under a proper normal prior on the coefficients, through a
+  minorization condition with an explicit constant. They say that the constant will often be so close to zero that
+  the bound on the total variation distance it gives is of no practical use for a burn-in; the value they claim is
+  that central limit theorems and consistent estimators of the Monte Carlo variance then exist, by which to decide
+  how long to run. The paper has no numerical study.
 - Imbalanced categorical data: Johndrow, Smith, Pillai and Dunson (2019) show that in the limit of a fixed number of
   successes and a growing sample, the spectral gap of data augmentation, Polya-Gamma for logit and truncated normal
   for probit, shrinks polynomially in the sample size, while adaptive Metropolis's shrinks only logarithmically;
@@ -199,9 +210,10 @@ effect of the start on what users estimate, at fixed run lengths, rather than a 
 |---|---|---|---|
 | Meng and van Dyk 1999 | data augmentation with working parameters; t model | theoretical rate | |
 | van Dyk and Meng 2001 | data augmentation; t, probit, mixed models | R-hat against iteration from three starts; histograms after 5,000 draws against the target | lag-one and lag-two autocorrelation; lag at which it falls under 0.05 |
-| Liu and Wu 1999; Liu and Sabatti 2000 | parameter expansion; moves along group orbits | not reached | not reached |
+| Liu and Wu 1999 | parameter-expanded augmentation, the latent variance as the expansion; probit regression, 100 rows, true slopes 1 to 8 | theoretical rate only | autocorrelation functions of the slope for both samplers; the extra cost called negligible, so rates stand for computing time |
+| Liu and Sabatti 2000 | group moves added to Gibbs samplers; a state-space model, a diffusion, ordinal probit with a scale move | none: one example starts its chains at the stationary distribution | autocorrelation functions at matched cost per iteration, or with the extra computing time stated (1.8 times); the bridged posterior set against the exact one |
 | Polson, Scott and Windle 2013 | Polya-Gamma Gibbs; logit and negative binomial benchmarks | none in the main text | effective draws and effective draws per second after burn-in, median over coefficients |
-| Choi and Hobert 2013 | Polya-Gamma Gibbs; logistic regression | uniform ergodicity (not reached) | |
+| Choi and Hobert 2013 | Polya-Gamma Gibbs; logistic regression | uniform ergodicity, a bound they call too loose to use | none; no numerical study |
 | Johndrow, Smith, Pillai and Dunson 2019 | Polya-Gamma and truncated normal augmentation; imbalanced data | spectral gap as n grows with successes fixed | autocorrelations to lag 100 after 30,000 burn-in; effective draws per second |
 | Biswas, Jacob and Vanetti 2019 | Polya-Gamma Gibbs against Hamiltonian Monte Carlo; logistic regression | coupling bound on total variation against iteration, start from the prior | |
 | Ronen, Saarinen, Tan, Duncan and Yu 2022 | BART and one-tree BART (dbarts); Bayesian CART | mixing-time lower bound; Gelman and Rubin's statistic on held-out error across 8 chains as n grows; root-split changes | |
@@ -210,7 +222,8 @@ effect of the start on what users estimate, at fixed run lengths, rather than a 
 | He and Hahn 2023 | BART from its default start against chains started at XBART draws | coverage, interval length and error at fixed run lengths | running time |
 
 Under data augmentation and Polya-Gamma samplers, convergence from a start has mostly been argued from theory and
-from R-hat and autocorrelation; the one published start-based distance for the Polya-Gamma logistic sampler is
+from R-hat and autocorrelation; the papers that introduced parameter expansion and group moves read only
+autocorrelation at stationarity; the one published start-based distance for the Polya-Gamma logistic sampler is
 Biswas and coauthors' coupling bound, on a logistic regression with a linear predictor (49 coefficients, the German
 credit data), not on trees. For BART, the published readings are R-hat across a few
 chains, trace plots, hitting times and coverage at fixed run lengths from different starts.
@@ -231,8 +244,10 @@ chains, trace plots, hitting times and coverage at fixed run lengths from differ
   the data is itself one exact draw from the posterior, independent of every chain run on those data. Calibration
   checks of samplers rest on this at stationarity (Cook, Gelman and Rubin 2006; Talts, Betancourt, Simpson,
   Vehtari and Gelman 2018). It supplies a reference draw in every replication, including those where no long run
-  can be trusted. Reading it sweep by sweep, as the rank of the truth among independent chains' states at each
-  sweep, is not a method this survey found in a published comparison; a design using it is the study's own.
+  can be trusted. Its published use for the effect of a start is the coverage and length of intervals and the error
+  of estimates against the truth at fixed run lengths (He and Hahn 2023). Reading it sweep by sweep, as the rank of
+  the truth among independent chains' states at each sweep, is not a method this survey found in a published
+  comparison.
 - **Starts.** Published comparisons start from what the user gets or from a distribution overdispersed relative to
   the posterior: Gelman and Rubin and their successors ask for diffuse starts, Biswas and coauthors start the
   logistic comparison from the prior, Kim and Rockova start at the root, and He and Hahn compare the default start
@@ -270,11 +285,9 @@ part); Polson, Scott and Windle (2013), Journal of the American Statistical Asso
 Bayesian Analysis 11; Ronen, Saarinen, Tan, Duncan and Yu (2022), preprint; Roy (2020), Annual Review of
 Statistics and Its Application 7; van Dyk and Meng (2001), Journal of Computational and Graphical Statistics 10;
 Vats and Knudson (2021), Statistical Science 36; Vehtari, Gelman, Simpson, Carpenter and Burkner (2021), Bayesian
-Analysis 16; Zhang, Carpenter, Gelman and Vehtari (2022), Journal of Machine Learning Research 23.
-
-Not reached: Liu and Sabatti (2000), Biometrika 87, and Liu and Wu (1999), Journal of the American Statistical
-Association 94, both behind a paywall; Choi and Hobert (2013), Electronic Journal of Statistics 7, open access but
-refusing automated download. What is said of them here is how the papers above cite them.
+Analysis 16; Zhang, Carpenter, Gelman and Vehtari (2022), Journal of Machine Learning Research 23; Liu and Wu
+(1999), Journal of the American Statistical Association 94; Liu and Sabatti (2000), Biometrika 87; Choi and Hobert
+(2013), Electronic Journal of Statistics 7.
 
 Cited only as other papers describe them, not read: Johnson (1996) and Jones and Hobert (2001), as Biswas and
 coauthors and Roy describe them; Hohna, Defoin-Platel and Drummond (2008), Whidden and Matsen (2015) and Meyer
