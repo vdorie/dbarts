@@ -8782,7 +8782,8 @@ private:
   /// the rows written out that many times, the total count less one its
   /// divisor. Rows read holding one value give 0 exactly: a weighted mean of
   /// equal values can miss the value by a rounding, which would leave a
-  /// spread of that rounding in place of none.
+  /// spread of that rounding in place of none. So does a total count not
+  /// above 1 (countTotalIsAboveOne), whose divisor is not positive.
   double countedScaledResponseSd(const unsigned char* rows,
                                  const double* counts) const {
     std::size_t n = data_.numObservations;
@@ -8791,6 +8792,7 @@ private:
       return (rows == nullptr || rows[i] != 0) && counts[i] > 0.0;
     };
     double mean = 0.0, total = 0.0, sumSquares = 0.0, first = 0.0;
+    std::size_t numRowsRead = 0;
     bool observed = false, varies = false;
     for (std::size_t i = 0; i < n; ++i) {
       if (!read(i)) continue;
@@ -8799,8 +8801,9 @@ private:
       observed = true;
       mean += counts[i] * yScaled[i];
       total += counts[i];
+      ++numRowsRead;
     }
-    if (observed && !varies) return 0.0;
+    if (!varies || !countTotalIsAboveOne(total, numRowsRead)) return 0.0;
     mean /= total;
     for (std::size_t i = 0; i < n; ++i) {
       if (!read(i)) continue;

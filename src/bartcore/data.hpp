@@ -222,6 +222,17 @@ struct DenseColumnValues {
   }
 };
 
+/// Whether a total of frequency counts over \p numRowsRead rows is above 1, so
+/// that a sample sd over them has a positive divisor, the total less one. A
+/// total within its sum's rounding of 1 is not: weights rescaled to sum to 1
+/// can sum to 1 plus a few units in the last place, a divisor of that rounding
+/// in place of none. Whole counts sum exactly and are unaffected.
+inline bool countTotalIsAboveOne(double totalCount, std::size_t numRowsRead) {
+  return totalCount - 1.0 >
+         static_cast<double>(numRowsRead) *
+           std::numeric_limits<double>::epsilon() * totalCount;
+}
+
 /// Mean and sample sd of the observed (non-missing) values of a raw column
 /// over the rows \p rows marks (a nonzero byte each; null reads every row):
 /// the leaf-covariate standardization constants, unweighted. A constant (or
@@ -245,6 +256,7 @@ inline bool standardizationMomentsForColumn(const double* column, size_t n,
                                             const double* counts = nullptr) {
   if (counts != nullptr) {
     double total = 0.0, first = 0.0, totalCount = 0.0;
+    std::size_t numRowsRead = 0;
     bool observed = false, isConstant = true;
     auto read = [&](size_t i) {
       return (rows == nullptr || rows[i] != 0) && !isNA(column[i]) &&
@@ -257,14 +269,16 @@ inline bool standardizationMomentsForColumn(const double* column, size_t n,
       observed = true;
       total += counts[i] * column[i];
       totalCount += counts[i];
+      ++numRowsRead;
     }
     double mean = isConstant ? first : total / totalCount;
     double sumOfSquares = 0.0;
     for (size_t i = 0; i < n; ++i)
       if (read(i))
         sumOfSquares += counts[i] * ((column[i] - mean) * (column[i] - mean));
-    double sd = totalCount > 1.0 ? std::sqrt(sumOfSquares / (totalCount - 1.0))
-                                 : 0.0;
+    double sd = countTotalIsAboveOne(totalCount, numRowsRead)
+                  ? std::sqrt(sumOfSquares / (totalCount - 1.0))
+                  : 0.0;
     if (!(sd > 0.0)) sd = 1.0;
     *mean_ = mean;
     *sd_ = sd;

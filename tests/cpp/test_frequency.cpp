@@ -1186,6 +1186,65 @@ void testGaussianFallbackWeighted() {
   ext_rng_destroy(rngE);
 }
 
+/// The gaussian anchor where the counts over the rows read total no more
+/// than 1, the rows varying: the sd has no positive divisor, so the anchor
+/// is the one a response with no spread gets. At 32 rows of weight 1/32,
+/// a total of exactly 1, and at whole weights rescaled to sum to 1.
+void testAnchorTotalAtMostOne() {
+  auto spec = []() {
+    AmplitudeSpec s;
+    s.forests.resize(2);
+    s.forests[0].forest.numTrees = 15;
+    s.forests[1].forest.numTrees = 10;
+    return s;
+  };
+  auto anchorAt = [&](const Fixture& f, const std::vector<double>& w) {
+    ext_rng* rng = seededRng(4242u);
+    ConstantLeafSampler sampler(f.x.data(), f.y.data(), f.n, f.p, w.data(),
+                                nullptr, 1.0, sigmaDf, sigmaRawScale,
+                                frequencyOptions(SamplerOptions()), spec(),
+                                &rng);
+    double anchor = sampler.forestCalibration(0, 1).mapAnchor;
+    ext_rng_destroy(rng);
+    return anchor;
+  };
+  Fixture exact(32);
+  std::vector<double> w(32, 1.0 / 32.0);
+  double anchor = anchorAt(exact, w);
+  check(anchor == singleForestDefaultSize(),
+        "frequency gaussian anchor at a total count of exactly 1 is the "
+        "no-spread one");
+  Fixture rescaled(40);
+  double sum = 0.0;
+  for (double v : rescaled.w) sum += v;
+  std::vector<double> u(40);
+  double total = 0.0;
+  for (std::size_t i = 0; i < 40; ++i) {
+    u[i] = rescaled.w[i] / sum;
+    total += u[i];
+  }
+  anchor = anchorAt(rescaled, u);
+  printf("  anchor at weights rescaled to sum to 1: total - 1 = %.3g, "
+         "anchor %.6g\n", total - 1.0, anchor);
+  check(anchor == singleForestDefaultSize(),
+        "frequency gaussian anchor at whole weights rescaled to sum to 1 is "
+        "the no-spread one");
+  // the two siblings read the same total: a leaf covariate's sd is its
+  // placeholder and a basis column has no scale
+  double mean = 0.0, sd = 0.0;
+  standardizationMomentsForColumn(rescaled.y.data(), 40, &mean, &sd, nullptr,
+                                  u.data());
+  bool refused = false;
+  try {
+    countedBasisColumnScale(rescaled.y.data(), 40, nullptr, u.data());
+  } catch (const BasisScaleError&) {
+    refused = true;
+  }
+  check(sd == 1.0 && refused,
+        "frequency leaf moments and basis scale at weights rescaled to sum "
+        "to 1 take no scale");
+}
+
 }  // namespace
 
 void runFrequencyTests() {
@@ -1211,5 +1270,6 @@ void runFrequencyTests() {
   testGPLengthscale();
   testGPLengthscaleMaskedAndReal();
   testGaussianFallbackWeighted();
+  testAnchorTotalAtMostOne();
   rngState = savedState;
 }

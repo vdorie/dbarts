@@ -458,6 +458,7 @@ inline double countedBasisColumnScale(const double* column, std::size_t n,
   bool observed = false, varies = false;
   double first = std::numeric_limits<double>::quiet_NaN(), largest = 0.0,
          sum = 0.0, numRows = 0.0;
+  std::size_t numRowsRead = 0;
   for (std::size_t i = 0; i < n; ++i) {
     if (!read(i)) continue;
     double value = column[i];
@@ -467,8 +468,9 @@ inline double countedBasisColumnScale(const double* column, std::size_t n,
     largest = std::max(largest, std::fabs(value));
     sum += counts[i] * value;
     numRows += counts[i];
+    ++numRowsRead;
   }
-  if (!varies || !(numRows > 1.0))
+  if (!varies || !countTotalIsAboveOne(numRows, numRowsRead))
     throw BasisScaleError("a basis column is constant, so no default sd can "
                           "be taken from its standard deviation",
                           first, std::numeric_limits<double>::quiet_NaN());
