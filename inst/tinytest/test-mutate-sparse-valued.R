@@ -605,8 +605,8 @@ expect_error(
   pattern = "column 'f' is categorical"
 )
 
-# --- a column named twice and rolled back unwinds exactly, on a sparse and a
-# dense design
+# --- a column named twice is refused before anything is written, on a sparse
+# and a dense design
 for (design in list(x.a, a.values)) {
   expectRefusalLeavesTwin(
     design,
@@ -614,7 +614,7 @@ for (design in list(x.a, a.values)) {
     sparseBlock(cbind(a.near[, 1L], 0)),
     list(c(1L, 1L)),
     "none",
-    NULL
+    "'column' names column 1 more than once"
   )
 }
 
