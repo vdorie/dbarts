@@ -727,6 +727,9 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
     layer's, raised after creation or `$setCounts` returns as multinomial's is, so S6 adds the binomial wording with its
     constructor and setter. Alternative: a warning from the bridge, which would warn at a call the R layer may still
     refuse.
+40. Call 37's refusal at the flat C API is tested now, in test-capi.R through its consumer, a binomial sampler built from
+    a hand-written counts slot (about 40 lines). Alternative: recording it for S6, whose R surface builds binomial
+    samplers without the hand-written slot.
 
 ## Open calls
 
@@ -917,6 +920,12 @@ bridge in tinytest (test-binomial-bridge.R, 20 results: creation, a fold, `$setC
 refusals); the trio bitwise (55, 19 and 11 scenarios); the suite, 41,227 results; tests/cpp and the binomial and
 logistic tinytest files under ASan and UBSan, clean. Mutant 22 is killed by the `standalone-math` driver (2 failures),
 not by the nmath suite, which calls the copy's routine by its own name rather than through the macro.
+The review's fix round added three arms, each shown to kill a mutant the suite let through: a fold over rows 11 to 20 in
+test-binomial-bridge.R, its draws unmoved by the counts of rows 1 to 10 and moved by its own rows' trials, kills the fold
+reading the trials by position rather than by its rows (2 failures); a warm start into 5 of a donor's 20 trees in tests/cpp,
+the binomial sampler's kept trees its split rows' (fits 0 apart) and not those of the rows read once each (0.32 apart),
+kills the case weight dropping the trials (1 failure); and test-capi.R's flat `dbarts_sampler_setResponse` on a binomial
+sampler, refused in refusal 15's words, kills the refusal's call site deleted (1 failure) (Calls made, 40).
 
 ### S4: membership and zero weights (~50 engine, ~30 bridge, ~80 R, ~180 tinytest)
 
@@ -981,6 +990,10 @@ definition exactly, the log-likelihood's constant against `dbinom`, predict's tr
 its -p residual, "auto" on a counts data object still multinomial, every refusal by its words); test-xbart-loss.R with an arm
 showing a binomial xbart equals xbart on the trial-level expansion for the log and misclassification losses exactly; the
 R-surface checks of S5.
+Notes from the S3 review: a binary sampler's `$setData` takes a data object with a hand-written counts slot and reads its y,
+though creation reads the same object as binomial (not a door, dec-B554, but S6's routing should read the slot one way at
+both); a hand-written slot on a binomial sampler meets `refuseCountsMutation`'s multinomial words before the bridge's, which
+S6 words for the binomial; the `$setData` refusal's words are call 36's, pending Open call 4.
 
 ### S7: gates (~450 in benchmarks/R, ~20 workflow)
 
