@@ -480,12 +480,16 @@ withCallingHandlers(
 )
 expect_identical(warnings, character())
 expect_identical(cutPointsOf(sampler), set)
-# entries are dropped by position only when no column is named: a column
-# named three times on this design of three columns has each entry read
-expect_silent(sampler$setCutPoints(list(0.2, 0.4, 0.6), c(1L, 1L, 1L)))
-expect_identical(cutPointsOf(sampler), c(list(0.6), own[-1L]))
+# a column named more than once is refused before any entry is read, the
+# grid left as it was
 expect_error(
-  sampler$setCutPoints(list(0.2, "0.4", 0.6), c(1L, 1L, 1L)),
+  sampler$setCutPoints(list(0.2, 0.4, 0.6), c(1L, 1L, 1L)),
+  "'column' names column 1 more than once",
+  fixed = TRUE
+)
+expect_identical(cutPointsOf(sampler), set)
+expect_error(
+  sampler$setCutPoints(list("0.4"), 1L),
   pattern = notNumeric,
   fixed = TRUE
 )
