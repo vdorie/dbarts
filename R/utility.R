@@ -1278,13 +1278,58 @@ startingSigmaRoute <- function(x, rule = "auto") {
 
 ## The design the starting sigma's regression reads, factors as indicators,
 ## for the routine the rule names. Built from the predictor source, never
-## stored on it.
-startingSigmaDesign <- function(x, rule = "auto") {
+## stored on it. 'bases' is NULL or the columns the forests' bases add
+## (sigmaBasisColumns), a matrix with a row per row of 'x', put after the
+## predictors' columns: on the sparse route each as a column the caller gave
+## dense and no factor's, so it is centered and paired as any such column is.
+## A column in the span of the intercept and the others is left to lm.fit's
+## pivot and to the sparse routine's pivoted Cholesky, and the rank either
+## returns counts the columns only where they add to that span.
+startingSigmaDesign <- function(x, rule = "auto", bases = NULL) {
   if (startingSigmaRoute(x, rule) == "sparse") {
-    sparseSigmaDesign(x)
+    design <- sparseSigmaDesign(x)
+    if (!is.null(bases)) {
+      design$X <- Matrix::cbind2(
+        design$X,
+        methods::as(unname(bases), "CsparseMatrix")
+      )
+      design$term <- c(design$term, rep.int(NA_integer_, ncol(bases)))
+      design$dense <- c(design$dense, rep.int(TRUE, ncol(bases)))
+    }
+    design
   } else {
-    denseSigmaDesign(x)
+    design <- denseSigmaDesign(x)
+    if (is.null(bases)) design else cbind(design, unname(bases))
   }
+}
+
+## The columns the forests' bases add to the starting sigma's regression, as
+## a double matrix with a row per observation; NULL where no forest has a
+## basis. 'bases' is a data object's per-forest blocks and 'levels' its
+## per-forest levels (dataBasisLevels). A forest of numbers adds its column. A
+## forest of levels adds the indicators of every level but its first: for the
+## two levels a block holds, the second's, the one column a two-level factor
+## predictor adds (emittedLevels).
+sigmaBasisColumns <- function(bases, levels = NULL) {
+  columns <- lapply(seq_along(bases), function(index) {
+    block <- bases[[index]]
+    if (is.null(block)) {
+      return(NULL)
+    }
+    block <- as.matrix(block)
+    storage.mode(block) <- "double"
+    if (index <= length(levels) && !is.null(levels[[index]])) {
+      block[, -1L, drop = FALSE]
+    } else {
+      block
+    }
+  })
+  columns <- columns[!vapply(columns, is.null, logical(1L))]
+  if (length(columns) == 0L) {
+    return(NULL)
+  }
+  result <- unname(do.call(cbind, columns))
+  if (ncol(result) == 0L) NULL else result
 }
 
 ## The levels of a factor that get an indicator column, from the count of rows
@@ -1826,18 +1871,23 @@ sparseResidualStandardError <- function(y, x, weights, offset, rows = NULL) {
 }
 
 ## Starting sigma estimate: the residual standard error of the linear
-## regression of the response on the predictors, factors as indicators, by
-## the routine the rule names. NAs in the predictors are mean-imputed for this
-## estimate only: complete cases can be scarce when missingness is scattered,
-## and the estimate just anchors the residual variance prior. Where the design
-## leaves no residual degrees of freedom there is no regression and the sd of
-## the response less its offset stands in; a condition of class
-## dbartsSigmaFallback is signaled first, for a caller that records it. Not a
-## message class: a handler that muffles messages would find no restart.
+## regression of the response on the predictors, factors as indicators, and on
+## each forest's basis (sigmaBasisColumns), by the routine the rule names.
+## NAs in the predictors are mean-imputed for this estimate only: complete
+## cases can be scarce when missingness is scattered, and the estimate just
+## anchors the residual variance prior. Where the design leaves no residual
+## degrees of freedom there is no regression and the sd of the response less
+## its offset stands in; a condition of class dbartsSigmaFallback is signaled
+## first, for a caller that records it. Not a message class: a handler that
+## muffles messages would find no restart.
 estimateSigmaFromLinearModel <- function(
   data,
   rule = "auto",
-  design = startingSigmaDesign(data@x, rule)
+  design = startingSigmaDesign(
+    data@x,
+    rule,
+    sigmaBasisColumns(data@bases, dataBasisLevels(data))
+  )
 ) {
   residual <- residualOfRowsIn(
     if (!is.null(data@offset)) data@y - data@offset else data@y,

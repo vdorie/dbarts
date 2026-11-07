@@ -227,13 +227,16 @@ scaleRowsFallBack <- function(data, family, active = NULL, warn = TRUE) {
   TRUE
 }
 
-## The starting sigma for a data object, by the rule 'sigest' named. Wraps
-## estimateSigmaFromLinearModel so every caller raises the same failure
-## message instead of a bare lm() error. An infinite predictor value is
-## refused first, for every design and before any routine runs. Under
-## 'verbose' one line says what is about to be computed, which cannot be
-## interrupted once begun, and another where no regression was defined and
-## the sd of the response stands in.
+## The starting sigma for a data object, by the rule 'sigest' named: the
+## residual sd of the regression of the response on the predictors and on
+## each forest's basis (sigmaBasisColumns), which the data object holds as
+## the model ends with. Wraps estimateSigmaFromLinearModel so every caller
+## raises the same failure message instead of a bare lm() error. An infinite
+## predictor value is refused first, for every design and before any routine
+## runs; a basis is finite by its own check. Under 'verbose' one line says
+## what is about to be computed, which cannot be interrupted once begun, and
+## another where no regression was defined and the sd of the response stands
+## in.
 estimateStartingSigma <- function(data, rule = "auto", verbose = FALSE) {
   nonFinite <- nonFinitePredictorNames(data@x)
   if (length(nonFinite) > 0L) {
@@ -248,10 +251,11 @@ estimateStartingSigma <- function(data, rule = "auto", verbose = FALSE) {
   weights <- if (is.null(data@weights)) 1 else data@weights
   size <- sum(!is.na(data@y + offset) & !is.na(weights) & weights > 0)
   fellBack <- FALSE
+  bases <- sigmaBasisColumns(data@bases, dataBasisLevels(data))
   tryResult <- tryCatch(
     withCallingHandlers(
       {
-        design <- startingSigmaDesign(data@x, rule)
+        design <- startingSigmaDesign(data@x, rule, bases)
         sparse <- inherits(design, "dbartsSparseSigmaDesign")
         size[2L] <- if (sparse) ncol(design$X) else ncol(design)
         announceStartingSigma(
@@ -283,8 +287,12 @@ estimateStartingSigma <- function(data, rule = "auto", verbose = FALSE) {
       format(tryResult, digits = 4L),
       "): the linear model on ",
       size[2L],
-      " columns (factors as indicators) leaves no residual degrees of ",
-      "freedom in ",
+      if (is.null(bases)) {
+        " columns (factors as indicators)"
+      } else {
+        " columns (factors as indicators, each forest's basis among them)"
+      },
+      " leaves no residual degrees of freedom in ",
       size[1L],
       " rows; supply 'sigest' to set it"
     )
@@ -606,6 +614,25 @@ resolveSamplerSpec <- function(
     identical(family, "ordinal") ||
     identical(family, "nbinom") ||
     identical(family, "multinomial")
+
+  # a declaration's blocks, finished by the one caller that supplies them,
+  # replace the data object's, and their levels with them; the scale the
+  # object records for a forest whose basis is replaced goes, and is taken
+  # from the new column. Installed ahead of the starting sigma, whose
+  # regression reads the bases the model ends with
+  if (!is.null(bases)) {
+    data@bases <- bases
+    data@basis.levels <- basisLevels
+    scales <- dataBasisScale(data)
+    if (!is.null(scales)) {
+      for (index in seq_along(bases)) {
+        if (!is.null(bases[[index]]) && index <= length(scales)) {
+          scales[index] <- list(NULL)
+        }
+      }
+      data@basis.scale <- if (all(vapply(scales, is.null, NA))) NULL else scales
+    }
+  }
 
   # binary/ordinal/nbinom weight policy, enforced here in the R layer (the
   # bridge keeps the same checks as a backstop) - see enforceWeightPolicy's
@@ -1131,36 +1158,20 @@ resolveSamplerSpec <- function(
   # two-level factor basis selects the model y = a mu(x) + b_z tau(x) + eps.
   # The block that basis expands to (a factor's level indicators) and the
   # factor's levels are conditioning DATA and ride the data object beside the
-  # weights they mirror; a block put here by dbartsSpec() was finished there,
-  # on the rows kept, and a data object handed in whole was checked on entry; the second forest's
+  # weights they mirror; a block dbartsSpec() declares was finished there, on
+  # the rows kept, and installed above, and a data object handed in whole was
+  # checked on entry; the second forest's
   # CONFIGURATION - its tree count and structure prior, its column mask, the
   # amplitude scales and the per-forest constraints - rides the model's forest
   # records the C bridge reads, as the variance forest's does above. The bridge
   # cross-checks the two halves in both directions, so a stripped record is a
   # loud error, never a silent single-forest fit.
-  if (!is.null(bases)) {
-    # a declaration's blocks, finished by the one caller that supplies them,
-    # replace the data object's, and their levels with them; the scale the
-    # object records for a forest whose basis is replaced goes, and is taken
-    # from the new column
-    data@bases <- bases
-    data@basis.levels <- basisLevels
-    scales <- dataBasisScale(data)
-    if (!is.null(scales)) {
-      for (index in seq_along(bases)) {
-        if (!is.null(bases[[index]]) && index <= length(scales)) {
-          scales[index] <- list(NULL)
-        }
-      }
-      data@basis.scale <- if (all(vapply(scales, is.null, NA))) NULL else scales
-    }
-  }
   if (!is.null(data@bases)) {
     # the RESOLVED forest count, which is the data object's own bases or the
-    # declaration that replaced them just above, and which the refusal below
-    # names the source of: a length-1 declaration over a data object already
-    # carrying two bases resolves to one, and telling that caller they wrote
-    # one basis would be false
+    # declaration installed in their place above the starting sigma, and
+    # which the refusal below names the source of: a length-1 declaration
+    # over a data object already carrying two bases resolves to one, and
+    # telling that caller they wrote one basis would be false
     numForests <- length(data@bases)
     # K = 1 is not a shipped configuration (dec-A109). Both creation routes
     # reach here - the dbartsData(bases = ) one and the forests = one, whose
