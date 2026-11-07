@@ -108,21 +108,22 @@ expect_identical(
   extract(rbartSmall, combineChains = FALSE)
 )
 rbartKept <- rbartDefault(keepTrees = TRUE)
+keptRows <- data.frame(x = I(testData$x[1:2, ]))
 expect_identical(
   predict(
     rbartKept,
-    testData[1:2, ],
+    keptRows,
     group.by = testData$g[1:2],
     combineChains = 1
   ),
   predict(
     rbartKept,
-    testData[1:2, ],
+    keptRows,
     group.by = testData$g[1:2],
     combineChains = TRUE
   )
 )
-rm(rbartKept)
+rm(rbartKept, keptRows)
 for (type in list(NA_character_, character(0))) {
   expect_error(
     extract(rbartSmall, type = type),
