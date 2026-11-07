@@ -1731,15 +1731,24 @@ naming the column and the value: no sampler of this version writes one,
 and with every point held once a stored split's value names one
 position. A Student-t, logistic or negative-binomial sampler also
 refuses a state whose latent variables are not all positive and finite.
-Beyond that a state is not checked against the response family of the
-sampler that stored it: one whose contents fit this sampler is
-installed, and what the sampler then holds of another family's state is
-not promised. To start a sampler from a fit of another family, use
-`installTrees`, which takes the donor's trees and, where this sampler
-draws them, its `sigma`, `k` and DART state, and none of its latent
-variables. A state's `k` is installed as recorded, whatever leaf prior
-this sampler holds; the leaf sd is then `k.scale / k` against this
-sampler's `k.scale`.
+So is one holding a value no chain could run from, which no sampler
+writes: a `sigma` that is not positive and finite; a `k` that is
+negative, or is 0 or infinite under a prior whose scale could not draw
+that value (a draw reaches 0 only under a scale below about 3e-145 and
+infinity only under an infinite scale or one above about 1e146); a
+response transform that is not finite; a random-number generator state
+out of range or all zero; DART split weights that are negative or not
+finite, or 0 on a column the forest may split on, or a DART
+concentration that is not positive and finite; and ordinal cutpoints
+whose first is not 0 or that do not increase. Beyond that a state is not
+checked against the response family of the sampler that stored it: one
+whose contents fit this sampler is installed, and what the sampler then
+holds of another family's state is not promised. To start a sampler from
+a fit of another family, use `installTrees`, which takes the donor's
+trees and, where this sampler draws them, its `sigma`, `k` and DART
+state, and none of its latent variables. A state's `k` is installed as
+recorded, whatever leaf prior this sampler holds; the leaf sd is then
+`k.scale / k` against this sampler's `k.scale`.
 
 Assigning the field directly (`sampler$state <- newState`) does *not*
 restore the sampler - it only overwrites the R-side cache, leaving the
@@ -2059,34 +2068,38 @@ random-number stream and redraws everything else, so several chains
 seeded from one donor stay overdispersed. DART weights go only between
 two DART fits and a variance forest only where both have one: a donor's
 that this sampler has no place for is left behind, and this sampler's
-own, where the donor has none, starts as a new fit's once the donor goes
-in, DART drawing its weights from the trees taken at the first sweep;
-neither is judged, and a donor that is declined leaves them as they
-were. A donor of constant leaves into linear ones gives each leaf its
-value as intercept and slopes of zero, the donor as it stands. A donor
-of linear leaves into constant ones, or into linear ones on another
-number of covariates, leaves its slopes behind, each leaf starting at
-the intercept the donor stores. A donor of Gaussian-process leaves where
-this sampler's are of another kind, or the reverse, or one fit to
-another number of rows, is an error naming the two, as is a donor fit to
-another number of predictors or one whose column is an unordered factor
-where this sampler's is not, or the reverse. A donor of fewer trees than
-this sampler is taken whole, its trees in its order and the rest
-starting as single leaves at zero, or at one in a variance forest. Under
-`blocks`, whatever the donor's tree count, each block in turn takes, in
-the donor's order and up to its count, the donor's trees not yet taken
-that it holds as they stand, the rest of its trees starting as single
-leaves, and where that leaves a tree out, the same is tried once more
-with the donor's single leaves offered last; a donor all of whose trees
-go in so is taken whole, and one fitted with the same blocks and counts
-goes in tree for tree. A donor of more trees, or under `blocks` one
-whose trees do not all go in so, gives those whose fitted values vary
-most over this sampler's rows, each row weighted by its case weight, in
-the donor's order, the mean and the variance forest choosing apart and
-each chain among the trees of the donor sample it takes; under `blocks`
-each block in turn takes up to its count of the trees that vary most
-within it as it holds them, never one it would hold as a single leaf
-when the donor holds it as more, and starts the rest as single leaves.
+own, where the donor has none or where the donor's hold 0 on a column
+this sampler's forest may split on, starts as a new fit's once the donor
+goes in, DART drawing its weights from the trees taken at the first
+sweep; neither is judged, and a donor that is declined leaves them as
+they were. A donor holding a value no chain could run from, as
+`setState` refuses one, is an error in both forms, and nothing is
+installed. A donor of constant leaves into linear ones gives each leaf
+its value as intercept and slopes of zero, the donor as it stands. A
+donor of linear leaves into constant ones, or into linear ones on
+another number of covariates, leaves its slopes behind, each leaf
+starting at the intercept the donor stores. A donor of Gaussian-process
+leaves where this sampler's are of another kind, or the reverse, or one
+fit to another number of rows, is an error naming the two, as is a donor
+fit to another number of predictors or one whose column is an unordered
+factor where this sampler's is not, or the reverse. A donor of fewer
+trees than this sampler is taken whole, its trees in its order and the
+rest starting as single leaves at zero, or at one in a variance forest.
+Under `blocks`, whatever the donor's tree count, each block in turn
+takes, in the donor's order and up to its count, the donor's trees not
+yet taken that it holds as they stand, the rest of its trees starting as
+single leaves, and where that leaves a tree out, the same is tried once
+more with the donor's single leaves offered last; a donor all of whose
+trees go in so is taken whole, and one fitted with the same blocks and
+counts goes in tree for tree. A donor of more trees, or under `blocks`
+one whose trees do not all go in so, gives those whose fitted values
+vary most over this sampler's rows, each row weighted by its case
+weight, in the donor's order, the mean and the variance forest choosing
+apart and each chain among the trees of the donor sample it takes; under
+`blocks` each block in turn takes up to its count of the trees that vary
+most within it as it holds them, never one it would hold as a single
+leaf when the donor holds it as more, and starts the rest as single
+leaves.
 
 `installTrees(donor)` asks first. A donor every tree of which fits this
 sampler as stored is installed and the call returns `TRUE`. One that
@@ -2224,8 +2237,10 @@ The call returns no samples. The sampler's chains are left where they
 stopped and it can be run again; where the stop falls inside a pass over
 the trees (a slow monotone count, a latent refresh) that pass may be
 partly applied, each latent at this iteration's draw or the previous
-one, which is a valid state to run on from. Unlike a base R interrupt,
-it offers no `"resume"` restart: the run is over. Under
+one, which is a valid state to run on from. The saved trees the stopped
+call wrote are dropped: `predict` and `getTrees` serve the earlier
+calls' draws it did not overwrite, oldest first. Unlike a base R
+interrupt, it offers no `"resume"` restart: the run is over. Under
 `control@keepFits == FALSE`, `train`, `test`, and (when the model
 carries them) the variance and forest channels come back `NULL` rather
 than an array - present in the list, holding nothing, unlike
@@ -2233,9 +2248,9 @@ than an array - present in the list, holding nothing, unlike
 see `callback` above and
 [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
 `keepFits`. A `callback` that returns nonzero ABORTS the run the same
-way an interrupt does: the results are discarded and `run` signals an
-error, naming that a callback stopped it; that is an error, where an
-interrupt is not.
+way an interrupt does: the results and the saved trees the call wrote
+are discarded and `run` signals an error, naming that a callback stopped
+it; that is an error, where an interrupt is not.
 
 For `setCutPoints`, `NULL` invisibly. The change is always made, as in
 0.9-x: there is no unforced form and no `forceUpdate` argument, and a
