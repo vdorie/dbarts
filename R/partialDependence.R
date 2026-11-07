@@ -601,17 +601,79 @@ pdbart.checkAveraging <- function(
   invisible(NULL)
 }
 
+# Refuse an 'xind' that is not a set of varied predictors rather than
+# reinterpret it: column numbers (for plot.pdbart, positions in the result)
+# are whole numbers in 1:numColumns, every 'xind' is nonempty with no repeat,
+# and pd2bart's is a pair. Names are checked against the fit by the caller.
+pdbart.checkXind <- function(xind, numColumns, pair, caller) {
+  plotting <- caller == "plot.pdbart"
+  if (!(is.character(xind) || is.numeric(xind)) || anyNA(xind)) {
+    stop(
+      if (plotting) {
+        "'xind' takes the names or positions of the result's variables"
+      } else {
+        paste0(
+          "'xind' takes names, column numbers, or the bare right-hand side ",
+          "of a formula"
+        )
+      },
+      call. = FALSE
+    )
+  }
+  if (pair && length(xind) != 2L) {
+    stop(
+      caller,
+      "'s 'xind' names a pair of variables; got ",
+      length(xind),
+      call. = FALSE
+    )
+  }
+  if (length(xind) == 0L) {
+    stop("'xind' names no variable; give at least one to vary", call. = FALSE)
+  }
+  if (is.numeric(xind)) {
+    bad <- xind != round(xind) | xind < 1 | xind > numColumns
+    if (any(bad)) {
+      stop(
+        "'xind' must be ",
+        if (plotting) "positions" else "column numbers",
+        " between 1 and ",
+        numColumns,
+        "; got ",
+        paste0(unique(xind[bad]), collapse = ", "),
+        call. = FALSE
+      )
+    }
+  }
+  repeated <- anyDuplicated(xind)
+  if (repeated > 0L) {
+    stop(
+      "'xind' repeats ",
+      if (is.character(xind)) {
+        paste0("'", xind[repeated], "'")
+      } else {
+        paste(if (plotting) "position" else "column", xind[repeated])
+      },
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
 # Resolve 'xind' to the varied predictors: in a formula fit the names of
 # variables of the data, otherwise column indices into the predictor matrix.
 # 'xind' is forwarded as a promise so that a formula-style expression, which
-# names them as terms, is read unevaluated.
+# names them as terms, is read unevaluated. pd2bart's default is the first
+# two predictors.
 pdbart.resolveXind <- function(
   xind,
   matchedCall,
   sampler,
   formulaFit,
-  hazard = FALSE
+  hazard = FALSE,
+  caller = "pdbart"
 ) {
+  pair <- caller == "pd2bart"
   available <- if (formulaFit) {
     pdbart.formulaVariables(sampler)
   } else {
@@ -627,6 +689,8 @@ pdbart.resolveXind <- function(
   } else if (
     is.character(xind) &&
       length(xind) == 1L &&
+      !is.na(xind) &&
+      nzchar(xind) &&
       xind %not_in% available
   ) {
     formula <- ~a
@@ -639,7 +703,18 @@ pdbart.resolveXind <- function(
     } else {
       seq_len(numColumns - as.integer(hazard))
     }
+    if (pair) {
+      xind <- xind[seq_len(min(2L, length(xind)))]
+    }
   }
+  if (formulaFit && is.numeric(xind)) {
+    stop(
+      "in a formula fit 'xind' names variables of the data; a column number ",
+      "of the model matrix is not taken",
+      call. = FALSE
+    )
+  }
+  pdbart.checkXind(xind, numColumns, pair, caller)
   if (
     hazard &&
       (identical(xind, "period") ||
@@ -653,13 +728,6 @@ pdbart.resolveXind <- function(
     )
   }
 
-  if (formulaFit && !is.character(xind)) {
-    stop(
-      "in a formula fit 'xind' names variables of the data; a column number ",
-      "of the model matrix is not taken",
-      call. = FALSE
-    )
-  }
   if (is.character(xind)) {
     if (is.null(available)) {
       stop(
@@ -1495,7 +1563,14 @@ pdbart.setup <- function(
   }
   hazard <- !isSampler && fitIsHazard(prologue$fit)
   formulaFit <- !isSampler && pdbart.isFormulaFit(sampler)
-  xind <- pdbart.resolveXind(xind, matchedCall, sampler, formulaFit, hazard)
+  xind <- pdbart.resolveXind(
+    xind,
+    matchedCall,
+    sampler,
+    formulaFit,
+    hazard,
+    caller
+  )
   type <- pdbart.resolveType(type, prologue$fit, isSampler, caller, sampler)
   survival <- type %in% pdbart.survivalTypes
   if (!is.null(times) && !survival) {

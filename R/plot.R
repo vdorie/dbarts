@@ -620,6 +620,23 @@ plot.pdbart <- function(
     )
   }
 
+  # xind indexes the result's variables, by position or by name
+  pdbart.checkXind(xind, length(x$fd), FALSE, "plot.pdbart")
+  if (is.character(xind)) {
+    unknown <- xind %not_in% x$xlbs
+    if (any(unknown)) {
+      stop(
+        "the result holds no variable '",
+        paste0(xind[unknown], collapse = "', '"),
+        "'; it holds '",
+        paste0(x$xlbs, collapse = "', '"),
+        "'",
+        call. = FALSE
+      )
+    }
+    xind <- match(xind, x$xlbs)
+  }
+
   survival <- !is.null(x$times)
   fd <- lapply(x$fd, pdMergedDraws, survival)
   rgy <- range(fd)

@@ -262,6 +262,13 @@
             \code{$setCutPoints} refuse a logical \code{column} and a column
             given twice; 0.9-34 read \code{TRUE} as column 1 and installed
             the last of a repeated column's values.
+      \item \code{pdbart}, \code{pd2bart} and \code{plot} of a
+            \code{pdbart} result refuse an \code{xind} that is not whole
+            column numbers in range or known names, is empty, names a
+            variable twice, or for \code{pd2bart} is not a pair; 0.9-34 read
+            \code{-1} and \code{1.5} as other columns and \code{pd2bart}
+            dropped a third variable. \code{plot} also takes the result's
+            variable names.
     }
   }
   \subsection{USER-VISIBLE CHANGES}{

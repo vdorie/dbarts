@@ -1107,3 +1107,140 @@ for (case in list(
   }
 }
 rm(basisData, case, basisFit)
+
+# ---- xind names the varied predictors, or is refused by its words ----
+# a numeric xind is whole column numbers in range, every xind is nonempty
+# with no repeat, pd2bart's a pair; nothing is reinterpreted
+set.seed(5L)
+xindData <- data.frame(a = rnorm(30L), b = rnorm(30L), c = rnorm(30L))
+xindData$y <- xindData$a + rnorm(30L)
+xindFit <- function(...) {
+  bart(
+    ...,
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 1L,
+    keepTrees = TRUE,
+    verbose = FALSE
+  )
+}
+xindFormula <- xindFit(y ~ a + b + c, xindData)
+xindMatrix <- xindFit(as.matrix(xindData[1:3]), xindData$y)
+xindShape <- paste0(
+  "'xind' takes names, column numbers, or the bare right-hand side of a ",
+  "formula"
+)
+for (fit in list(xindFormula, xindMatrix)) {
+  for (xind in list(NA, NA_character_, TRUE, list("a"), ~a)) {
+    expect_error(pdbart(fit, xind = xind, pl = FALSE), xindShape, fixed = TRUE)
+  }
+  expect_error(
+    pdbart(fit, xind = character(0), pl = FALSE),
+    "'xind' names no variable; give at least one to vary",
+    fixed = TRUE
+  )
+  expect_error(
+    pdbart(fit, xind = c("a", "a"), pl = FALSE),
+    "'xind' repeats 'a'",
+    fixed = TRUE
+  )
+  expect_error(
+    pd2bart(fit, xind = c("a", "b", "c"), pl = FALSE),
+    "pd2bart's 'xind' names a pair of variables; got 3",
+    fixed = TRUE
+  )
+  expect_error(
+    pd2bart(fit, xind = "a", pl = FALSE),
+    "pd2bart's 'xind' names a pair of variables; got 1",
+    fixed = TRUE
+  )
+  expect_error(
+    pd2bart(fit, xind = c("b", "b"), pl = FALSE),
+    "'xind' repeats 'b'",
+    fixed = TRUE
+  )
+  # the default of pd2bart is the first two predictors, as the help says
+  expect_identical(pd2bart(fit, pl = FALSE)$xlbs, c("a", "b"))
+}
+for (xind in list(0, 4, 1.5, -1, c(2, 7))) {
+  expect_error(
+    pdbart(xindMatrix, xind = xind, pl = FALSE),
+    paste0(
+      "'xind' must be column numbers between 1 and 3; got ",
+      if (identical(xind, c(2, 7))) 7 else xind
+    ),
+    fixed = TRUE
+  )
+}
+expect_error(
+  pdbart(xindMatrix, xind = c(1, 1), pl = FALSE),
+  "'xind' repeats column 1",
+  fixed = TRUE
+)
+expect_error(
+  pd2bart(xindMatrix, xind = 1, pl = FALSE),
+  "pd2bart's 'xind' names a pair of variables; got 1",
+  fixed = TRUE
+)
+expect_error(
+  pdbart(xindFormula, xind = 1, pl = FALSE),
+  "a column number of the model matrix is not taken",
+  fixed = TRUE
+)
+# the spellings taken still are
+expect_identical(pdbart(xindFormula, xind = a + b, pl = FALSE)$xlbs, c("a", "b"))
+expect_identical(pdbart(xindMatrix, xind = "b", pl = FALSE)$xlbs, "b")
+expect_identical(pdbart(xindMatrix, xind = 2L, pl = FALSE)$xlbs, "b")
+
+# plot.pdbart's xind is positions in the result, or its variables' names
+xindPd <- pdbart(xindMatrix, xind = c(1, 2), pl = FALSE)
+recordXind <- function(xind) {
+  pdf(NULL)
+  dev.control("enable")
+  plot(xindPd, xind = xind)
+  recorded <- recordPlot()
+  dev.off()
+  recorded[[1L]]
+}
+expect_identical(recordXind("b"), recordXind(2))
+pdf(NULL)
+expect_error(
+  plot(xindPd, xind = 3),
+  "'xind' must be positions between 1 and 2; got 3",
+  fixed = TRUE
+)
+expect_error(
+  plot(xindPd, xind = 0),
+  "'xind' must be positions between 1 and 2; got 0",
+  fixed = TRUE
+)
+expect_error(
+  plot(xindPd, xind = -1),
+  "'xind' must be positions between 1 and 2; got -1",
+  fixed = TRUE
+)
+expect_error(
+  plot(xindPd, xind = NA),
+  "'xind' takes the names or positions of the result's variables",
+  fixed = TRUE
+)
+expect_error(
+  plot(xindPd, xind = "c"),
+  "the result holds no variable 'c'; it holds 'a', 'b'",
+  fixed = TRUE
+)
+dev.off()
+rm(
+  xindData,
+  xindFit,
+  xindFormula,
+  xindMatrix,
+  xindShape,
+  fit,
+  xind,
+  xindPd,
+  recordXind
+)
