@@ -1408,6 +1408,11 @@ bart <- function(
   # what a caller that handed its arguments on by value wrote, as pdbart does
   storedCall <- writtenCall(matchedCall)
   storedCall$family <- suppliedFamily
+  # the factors stamp is for the calls forwarded below; the fit keeps the
+  # call as written
+  if (!factorsSupplied) {
+    storedCall$factors <- NULL
+  }
   # bart2 forwards here; the fit keeps the call as bart2 was written
   if (!is.null(aliasForward)) {
     storedCall[[1L]] <- aliasForward$head

@@ -176,6 +176,38 @@ expect_inherits(
   "bart"
 )
 
+# the fit keeps its call as written: no factors stamp, so update() refits the
+# same model, and draws the same under one seed
+callFit <- dbarts::bart(
+  y ~ x.1 + x.2,
+  data,
+  n.trees = 5L,
+  n.samples = 5L,
+  n.burn = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 3L,
+  verbose = FALSE
+)
+expect_null(callFit$call$factors)
+expect_identical(update(callFit)$yhat.train, callFit$yhat.train)
+expect_identical(
+  dbarts::bart(
+    y ~ x.1 + x.2,
+    data,
+    factors = "indicators",
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 3L,
+    verbose = FALSE
+  )$call$factors,
+  "indicators"
+)
+rm(callFit)
+
 rm(data)
 
 rm(testData)
