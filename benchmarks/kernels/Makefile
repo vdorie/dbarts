@@ -24,10 +24,17 @@ monotone_count: monotone_count.cpp
 monotone_ratio: monotone_ratio.cpp
 	$(CXX) $(OPT) -std=c++17 -o $@ monotone_ratio.cpp
 
+# The certified Polya-Gamma step against the exact sum (src/bartcore/pgdensity.hpp);
+# external.a's rng references the R API, so libR is linked (never called here).
+EXTERNAL_LIB := ../../src/external.a
+pg_step: pg_step.cpp ../../src/bartcore/pgdensity.hpp ../../src/bartcore/ddouble.hpp $(EXTERNAL_LIB) $(MISC_LIB)
+	$(CXX) $(OPT) -std=c++20 $(CPPFLAGS) -I../../src -o $@ pg_step.cpp $(EXTERNAL_LIB) $(MISC_LIB) ../../src/rc.a \
+	  $(shell R CMD config --ldflags) -lm
+
 $(MISC_LIB):
 	@echo "error: $(MISC_LIB) not found; run 'R CMD INSTALL .' from the package root first" >&2; exit 1
 
 clean:
-	rm -f bench sparse grow_from_root monotone_count monotone_ratio
+	rm -f bench sparse grow_from_root monotone_count monotone_ratio pg_step
 
 .PHONY: all clean
