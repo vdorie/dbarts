@@ -6647,21 +6647,12 @@ SEXP bartcore_sampleVarianceForestFromPrior(SEXP ptrExpr) {
   return R_NilValue;
 }
 
-// The hyperparameters' prior draw samplePriorPredictive makes before each
-// sample's leaves (Chain::sampleHyperparametersFromPrior). maxForestAttemptsExpr
-// is the number of joint DART draws of the split weights and the trees the
-// call may make, 0 to leave both as they are. Returns the first chain's
-// list(forests.drawn, attempts, k, split.probabilities, residual.df, shape,
-// thresholds): whether the trees were drawn with the weights, the draws that
-// took, each forest's k, then the DART weights, the Student-t df, the
-// negative-binomial shape and the ordinal cutpoints in force, each NULL where
-// the sampler has none.
-SEXP bartcore_sampleHyperparametersFromPrior(SEXP ptrExpr,
-                                             SEXP maxForestAttemptsExpr) {
-  BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  int maxForestAttempts = Rf_asInteger(maxForestAttemptsExpr);
-  if (maxForestAttempts == NA_INTEGER || maxForestAttempts < 0)
-    Rf_error("the number of forest attempts must be a non-negative integer");
+// The engine draw and its result list, unprotected, for
+// bartcore_sampleHyperparametersFromPrior; every C++ object it makes is gone
+// when it returns. Sets attemptsMade to the joint draws the engine made.
+static SEXP drawHyperparametersFromPrior(BartcoreHolder& holder,
+                                         int maxForestAttempts,
+                                         std::size_t& attemptsMade) {
   bartcore_bridge::CapturedError error;
   bartcore::PriorHyperparameterDraw drawn;
   GetRNGstate();
@@ -6696,6 +6687,33 @@ SEXP bartcore_sampleHyperparametersFromPrior(SEXP ptrExpr,
     SET_VECTOR_ELT(resultExpr, 5, Rf_ScalarReal(drawn.shape));
   if (!drawn.thresholds.empty())
     SET_VECTOR_ELT(resultExpr, 6, realVector(drawn.thresholds));
+  attemptsMade = drawn.forestAttempts;
+  UNPROTECT(1);
+  return resultExpr;
+}
+
+// The hyperparameters' prior draw samplePriorPredictive makes before each
+// sample's leaves (Chain::sampleHyperparametersFromPrior). maxForestAttemptsExpr
+// is the number of joint DART draws of the split weights and the trees the
+// call may make, 0 to leave both as they are. Returns the first chain's
+// list(forests.drawn, attempts, k, split.probabilities, residual.df, shape,
+// thresholds): whether the trees were drawn with the weights, the draws that
+// took, each forest's k, then the DART weights, the Student-t df, the
+// negative-binomial shape and the ordinal cutpoints in force, each NULL where
+// the sampler has none. A call that made a joint draw polls for an interrupt
+// once the draw is done, the sampler then holding every tree it carries and
+// no C++ object left in this frame, and raises it there.
+SEXP bartcore_sampleHyperparametersFromPrior(SEXP ptrExpr,
+                                             SEXP maxForestAttemptsExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  int maxForestAttempts = Rf_asInteger(maxForestAttemptsExpr);
+  if (maxForestAttempts == NA_INTEGER || maxForestAttempts < 0)
+    Rf_error("the number of forest attempts must be a non-negative integer");
+  std::size_t attemptsMade = 0;
+  SEXP resultExpr = PROTECT(
+    drawHyperparametersFromPrior(holder, maxForestAttempts, attemptsMade));
+  if (attemptsMade > 0 && bartcore_bridge::userInterrupted())
+    bartcore_bridge::raiseInterrupt();
   UNPROTECT(1);
   return resultExpr;
 }
