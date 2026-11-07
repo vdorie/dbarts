@@ -90,7 +90,9 @@ gains the dense branch for linear and gp leaves. The settle runs from `Chain::ru
 other path that resets and rebuilds a tree: `growForestFromRoot` (reached by `$growFromRoot` and
 `bart(n.grow.sweeps =)`), `sampleTreesFromPrior`, `sampleVarianceForestFromPrior`, and the installs
 behind setState and a warm start (`rebuildLiveForest`, `rebuildVarianceForest`), on a throw or a refusal
-part way. The data paths (`setData` and its kin) re-route trees inside their transactions and reset none.
+part way. The paths that move the store under the trees settle too, each as the audit below says; the
+second fix round's records said they re-route inside their transactions and reset none, which was
+wrong: the forced refresh and the data replacement rebuilt every tree with nothing to settle them.
 `sampleNodeParametersFromPrior` catches for every leaf (amendment 10). `Tree::compactMaskPoolIfNeeded`
 reserves its scratch (`liveMaskWordsBelow`) before pointing a rule into it.
 
@@ -126,6 +128,81 @@ the trees never grew. All N fail cleanly (sweep, prior leaf, prior tree, install
 2, 16, 32, 62; linear 85, 0 (the prior draw makes no allocation), 17, 32; gp 102, 58, 13, 23; monotone
 189, 105, 15, 82, 69; variance forest 72 in a sweep, 15 in its prior draw, 41 in an install, 60 in a
 grow; pooled factor 75, compaction 1, kept draws 40 (39 inside the kept sweep).
+
+The third fix round adds checks after each failure: every leaf holds a row; the store's grid is whole,
+each column holding as many points as its count says, and its codes are those of the values held or
+the values moved to; a linear or gp leaf's covariates are the store's values under the constants the
+leaf holds; the test fits, the variance surface and the leaf's test covariates cover the store's test
+rows; every chain is checked, not only the first; and, in new per-move arms, every tree splits as the
+unfailed sweeps have it at the start or the end of one, so a proposal left in place shows. Its new
+arms, for each leaf: three sweeps of each move kind alone (births and deaths, changes, swaps, perturbs,
+rule Gibbs steps) from trees grown 25 sweeps; a warm start; an unforced setPredictor and a forced one
+on grids derived again. For each leaf and a variance forest: a forced tree refresh (setCutPoints); a
+data replacement over a reversed column, with and without test rows (a variance forest's without); a
+test data replacement; and a state install that repairs, into a sampler whose columns are squeezed
+into the middle tenth of their grids, so the stored trees' outer leaves hold no row. For the linear and
+gp leaves, a standardization rederive over those squeezed columns, so the constants move. For a
+constant leaf, a variance forest and two chains: a forced and an unforced setPredictor, each on the
+grids held and on grids derived again; a forced one deriving grids longer than the 7 and 5 cuts
+setCutPoints gave; a per-row update; a state install and a warm start across grids; and, for the two
+chains, the forced refresh and the data replacement. All 114 arms pass under
+`-fsanitize=address,undefined`, every failure reaching the caller and none absorbed.
+
+#### Audit: every path that resets, rebuilds, re-routes or regrows a tree
+
+| path | a throw part way is settled by | arm |
+|---|---|---|
+| a sweep's moves (birth and death, change, swap, perturb, rule Gibbs), `Chain::run` | the move taking its proposal back before it rethrows (the birth's pair released, the death's node put back, the changed, swapped or perturbed subtree restored, the incumbent rule put back); then the settle keeps the tree in flight, rewrites its map and fits and re-sums the totals | the sweep arms (births; every move), the per-move arms, each leaf; the variance, pooled-factor and kept-draws arms |
+| leaf draws, in a sweep and `sampleNodeParametersFromPrior` | the settle, the tree in flight kept | the prior leaf draw arms |
+| prior tree draws, `sampleTreesFromPrior` and the variance forest's | the tree in flight and every tree after it, in its forest, later forests and the variance forest, back to a single leaf (`markRebuildAt`, `restUnreached_`) | the prior tree draw arms, the variance prior draw |
+| the grow from the root | the same | the grow arms (constant, monotone, variance) |
+| a state install, forced or not (setState; `installLiveForestTrees`, `installVarianceTrees`), the forced one repairing a tree (`rebuildLiveForest`, `rebuildVarianceForest`) | the same | the state install arms; the repairing install arms, each leaf and variance |
+| a warm start (`installForests`) | the chains it touched restored from the states taken before it | the warm start arms |
+| an install across grids (setState or a warm start from another grid, `installAcrossGrids`) | the store's grid put back; once the install has begun, every chain's trees back to a single leaf; the refresh after it as the next row | the across-grid install and warm start arms, one and two chains |
+| the forced tree refresh (`forceRefreshTrees`, behind setCutPoints, an install across grids and a forced setPredictor) | the trees re-routed before the throw kept, the one in flight and every later one reset (marks per tree); every later chain reset (`refreshEveryChain`); a throw while setCutPoints installs the grid resets every chain, each column's grid going in whole (`setCutPointsForColumn`) | the forced refresh arms, each leaf, variance, two chains |
+| a forced setPredictor or updatePredictor | before the refresh, every chain reset, a grid derived again going in whole per column (`deriveNumericCuts`); in the refresh, as the forced refresh | the forced setPredictor arms, on the grids held, on new ones and on longer ones |
+| an unforced setPredictor or updatePredictor (`runPredictorTransaction`) | the store's snapshot taken whole before anything moves (`WholeMatrixUpdate`, `SubsetUpdate::applied`); a throw before the fits are rebuilt puts the store back and re-routes the trees; one while they are rebuilt settles every tree in place (`settleEveryTreeInPlace`) | the setPredictor arms, on the grids held and on new ones |
+| the per-row predictor update (its session's finalize) | the cells committed, every tree re-routed over them and settled in place | the per-row update arms |
+| a data replacement (setData; `applyNewData`) | the store's replacement all or nothing (`ColumnStore::setData`); a throw after it drops the test rows and resets every chain not yet given the rows; within a chain, as the forced refresh, the leaf covariates gathered again from the store's values, the variance forest after | the data replacement arms, with and without test rows, each leaf, variance, two chains |
+| a test data replacement (`setTestData`) | the test rows dropped, the store's test count back to 0, so no chain's test fits fall short of it; the training trees are not touched | the test data replacement arms, each leaf and variance |
+| a standardization rederive (`rederiveStandardization`, behind setPredictor and `rederiveAfterInstall`) | the covariates gathered again under the constants the leaf holds, every tree's fits rewritten from its blocks, the totals re-summed | the rederive arms, linear and gp, over moved values |
+
+Not settled, each listed in TODO: a data replacement with another row count, where the store, each
+chain's per-row storage, its response and its leaf covariates are sized in turn, so a throw between them
+leaves them sized for different counts and the sampler must not be used again; and a standardization
+rederive's saved draws, or a linear leaf's in a data replacement, where one the rewrite had not reached
+keeps its old basis. Each is reached from R only through an allocation failure, which R reports as an
+error from the call. A failed test data replacement, or a data replacement with test rows, leaves the
+sampler with none: its next run records no test fits until test rows are set again.
+
+The reviewer's empty leaf, left by a failure in the constant sweep arm on the second round's code, is
+reachable from R: an allocation failure inside a change, swap or perturb proposal, between its refresh
+and its decision, under `$run()` or a fit. R reports the error; the sampler then kept the proposed tree,
+whose leaf might hold no row. A user who ran on would see no further error, but the chain would run on
+a tree the moves never admit: the empty leaf held at zero, not drawn, until a later move removed it;
+a save and load collapsed it, and setState refused the state it stored unless forced. Each move now takes its proposal back before it rethrows, so the tree is
+the one before the proposal.
+
+The reviewer's Y1 mutant, the rebuilt tree's reset removed, survived the second round's harness; its
+records called it killed. The mutant the records ran removed the reset line whole, so also the reset of
+a tree whose table cannot cover it, which the monotone install arm caught. Y1 skips only the rebuilt
+tree's reset, and leaves empty leaves in the gp install arm, which nothing then checked. It now dies,
+with assertions on and under `-DNDEBUG`, by the state checks (every leaf holding a row among them) in
+the forced refresh, data replacement, gp install and across-grid install arms.
+
+The round's harness found four more gaps. The predictor transaction's revalidation allocated its
+working state outside its rollback, so a failure there left the store moved under trees routed by the
+old one; it is now allocated inside. The predictor arms' shift of 0.004 had moved no row across a cut,
+the column's cuts lying midway between values 1/80 apart, so those arms had re-routed nothing; the
+shift is now 0.009, and the failure above showed only once it was. (The data replacement over the
+shifted values had the same blind spot, a grid derived again absorbing the shift, so it now reverses a
+column; the rederive arm, over values whose constants it derived again unchanged, moved nothing, so it
+now runs over squeezed columns; and no arm derived a grid longer than the one it replaced, the only
+case where the derivation allocates after its first write, so one now does.) The store's test build sets its count before it allocates, and each chain sizes its test fits
+to that count, so a failure there left the next sweep writing past them (a segfault under
+AddressSanitizer); a throw now drops the test rows. And a data replacement that failed before the leaf
+was reinitialized left a linear or gp leaf's covariates gathered from the values the store had
+replaced; the catch now gathers them again.
 
 ### bridge-01 and bridge-V-01: values no chain can run from are refused
 
@@ -165,14 +242,15 @@ recipient's weights at 1/3 each.
 Run on arm64 macOS against the branch's own libraries (shipped and reference builds, each installed with
 `--preclean`).
 
-- tests/cpp: every suite passes, plain and under `-fsanitize=address,undefined` (460 checks reported
-  ok in each after the second fix round, 445 after the first, 443 before it, no sanitizer report).
+- tests/cpp: every suite passes, plain and under `-fsanitize=address,undefined` (548 checks reported
+  ok in each after the third fix round, 460 after the second, 445 after the first, 443 before it, no
+  sanitizer report).
   The new suite `alloc` reports the counts under engine-03 above.
-- Both fix rounds, shipped build: test-state-value-floors.R, test-interrupt-saved-trees.R,
+- Each fix round, shipped build: test-state-value-floors.R, test-interrupt-saved-trees.R,
   test-capi.R, test-sweep-order.R and test-interrupt-signal.R, 78, 9, 324, 26 and 2 results, 0 failed.
   The R-loaded ASan and R CMD check lines below are from the build, before the fix rounds.
-- Full tinytest, one process, shipped build: 41281 results in 303 files, 0 failed, after the second fix
-  round (41276 at the build).
+- Full tinytest, one process, shipped build: 41281 results in 303 files, 0 failed, after the second and
+  third fix rounds (41276 at the build).
 - Equivalence trio on the reference build, `--bitwise` (and `--strict-coverage` on equivalence.R): 55,
   19 and 11 scenarios compared, 0 skipped, every one identical draws; the same again after each fix
   round.
@@ -206,12 +284,39 @@ Run on arm64 macOS against the branch's own libraries (shipped and reference bui
   | the monotone leaf excluded from the map rewrite (the reviewer's unmarked mutant on this settle) | the engine's map assertion in the monotone prior tree draw arm; with `-DNDEBUG`, a trap there |
   | the monotone block's zero restart removed | the monotone settle arm, with and without `-DNDEBUG` |
   | the vector leaf's fits rewrite removed | with `-DNDEBUG`, the linear sweep and prior tree draw arms' state checks |
-  | a regrown tree's reset removed | with `-DNDEBUG`, the monotone install arm's routed check |
+  | the settle's reset line removed whole, every reset with it | the engine's map assertion; with `-DNDEBUG`, the constant install arm's state check, then a trap |
   | the variance tree's reset removed | with `-DNDEBUG`, the variance prior draw and install arms' state checks |
   | the compaction's reserve removed | the alloc suite's mask-pool compaction arm, with `-DNDEBUG` |
   | each ordinal floor removed: first 0; finite; increasing | the cutpoints check |
   | the warm start's `valueMismatch` removed | the warm-start donor check |
   | each generator floor removed: the index range; the essential bits; the memo re-derivation | the index, essential-bits and memo checks |
+
+  Third fix round, each against the alloc suite with assertions on and under `-DNDEBUG`, killed the
+  same way in both unless the row says otherwise:
+
+  | mutant | killed by |
+  |---|---|
+  | the reviewer's Y1, the rebuilt tree's reset skipped | the forced refresh, data replacement, gp install and across-grid install arms' state checks |
+  | each move's undo removed: birth, death, change, swap, perturb, rule Gibbs | the per-move arms' structure check (linear leaf; the swap's in the gp arm); the rule Gibbs undo by the constant arm's state check |
+  | the forced refresh's settle removed; the data replacement's | the engine's totals assertion; with `-DNDEBUG`, the forced refresh and data replacement arms' totals checks |
+  | the forced refresh's per-tree marks removed; the data replacement's first mark | the forced refresh arms' state checks; the linear data replacement arm's |
+  | the trees after the one in flight left as they were (`restUnreached_`) | the forced refresh arms' state checks |
+  | the data replacement's covariate regather removed | the linear data replacement arm's state check |
+  | the unforced transaction's rollback removed; the revalidation's rollback; the snapshot's flag; the revalidation state allocated outside its rollback | the setPredictor arms' state checks (new grids; held grids; held grids); a segfault in the constant setPredictor arm |
+  | the forced transaction's reset removed | the forced setPredictor arms' state checks |
+  | the per-row session's settle removed | the variance forest's per-row update arm's state check |
+  | a later chain's reset removed: in `refreshEveryChain`; after a chain's data replacement; in the install across grids; in setCutPoints; in setData before the chains | the two-chain growing-grid and data replacement arms, the across-grid install arm, the forced refresh arm and the data replacement with test rows arm, by their state checks |
+  | the test rows' drop removed: in setData's two catches; in `setTestData` | a segfault in the data replacement with test rows arm; in the test data replacement arm |
+  | the store's replacement hold removed | the data replacement arm's state check |
+  | a column's grid installed in pieces; the derivation's hold removed | the forced refresh arm's grid check; the growing-grid arm's |
+  | the rederive's settle removed | the linear rederive arm's state check |
+  | the second round's engine mutants again (grow, prior tree and install marks, variance marks, map, table, monotone, vector fits, variance reset, compaction) | as in the table above, or by an earlier arm's state check or trap |
+
+  Two survive. The variance refresh's per-tree mark removed: the mean forest's last mark still stands,
+  so a throw there resets every variance tree, more than the mark would, and the chain is as
+  consistent. The rebuild phase's in-place settle removed: no failure in any arm reaches that phase (a
+  probe aborting in its catch never fires), which writes into storage the validate phase left sized, so
+  the settle is a guard.
 
   The engine mutants of the second fix round were run against the alloc suite alone, built from the
   same sources; the state checks are the reads just after a failure, before any further sweep. The floor
@@ -292,6 +397,35 @@ Run on arm64 macOS against the branch's own libraries (shipped and reference bui
     split on, the Dirichlet draw being positive there; the warm start, which crosses model differences,
     starts such weights fresh instead (call 3). Alternative: accept it, as main does, the next sweep's
     DART draw moving the weight off 0.
+16. A move takes its own proposal back on a throw, from what it already holds (the birth's pair, the
+    death's node, the subtree snapshot, the incumbent rule), and a birth's undo puts the structure
+    back before it releases the pair, the free list's room reserved with the move's. Alternative: the
+    settle collapses a proposal's empty leaves, which keeps a tree the chain never accepted.
+17. A throw in a rebuild of every tree, in order, resets the tree in flight and every tree after it,
+    the later forests' and the variance forest's included (`restUnreached_`), since they still index
+    the rows or grid the rebuild replaced. Alternative: copy every tree first to put back, an
+    allocation on every rebuild.
+18. A chain the store has moved under while another chain threw, or before any chain was rebuilt,
+    gets its trees reset (`Chain::resetEveryTree`) rather than re-routed: its rules still name the old
+    grid's positions, and moving them allocates. Alternative: re-route without the move, which can
+    leave a split past the new grid's last point.
+19. In the unforced predictor transaction, a throw while the fits are rebuilt settles every tree in
+    place, its structure and leaf values kept and its map and fits rewritten, every variance tree
+    reset, rather than rolling the store back: by then the recovered parameters are partly written.
+    Alternative: keep a copy of every leaf table and factor to roll back to.
+20. The store's data replacement is all or nothing: its grids are derived over copies of the ones held
+    and its codes written only after, at the cost of the grids' copy, never the codes'; a column's grid
+    derived again or installed goes in whole the same way. Alternative: settle a half-replaced store, a
+    column's count and points then apart.
+21. A standardization rederive settles to the constants the leaf holds when the throw comes, rather
+    than the ones before the call, which would need a copy made before anything moves. Alternative: that
+    copy, an allocation on every rederive.
+22. A data replacement with another row count and a rederive's saved draws are left unsettled (TODO,
+    allocation-failure-residuals): settling the first means staging the response's and the leaf's
+    per-row storage, every family's, before the store moves.
+23. A throw while test rows are built or sized drops them, the store's test count back to 0, rather
+    than keeping the rows held before: keeping them means building the new test store aside, a copy of
+    every test column on every call. Alternative: that copy.
 
 ## Design-doc register
 

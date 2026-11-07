@@ -31,6 +31,16 @@ re-run a full census before release.
 A "door" below means a recorded, undecided question, not a task.
 
 items
+  allocation-failure-residuals: two paths an allocation failure part
+    way leaves unsettled, from review 4's slice S-A (the audit in
+    docs/plans/review-2026-11-06/engine-robustness.md). A data
+    replacement with another row count sizes the store, each chain's
+    per-row storage, its response and its leaf covariates in turn, so a
+    throw between them leaves them sized for different counts and the
+    sampler unusable; staging every allocation before the store moves
+    would settle it. A standardization rederive, or a linear leaf's data
+    replacement, leaves a saved draw the rewrite had not reached in the
+    old basis.
   approximate-distributions: research arc, opened 2026-11-03 by the
     binomial family's large trial counts (dec-B567); plan
     docs/plans/approximate-draws.md on its branch. Ruled 2026-11-05: the
