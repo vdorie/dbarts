@@ -478,6 +478,72 @@ expect_error(
   fixed = TRUE
 )
 expect_error(heldSampler$setModel(infiniteModel), infiniteDf, fixed = TRUE)
+# a forest's power and base, at creation and live, on a mean forest and the
+# variance forest, are held to the checks bart() makes of its own: a string, a
+# logical or a factor is refused by name, not read as the number it codes
+forestRefusals <- list(
+  list("power", "2", "forest 'power' must be a single positive number"),
+  list("power", TRUE, "forest 'power' must be a single positive number"),
+  list("power", factor("3"), "forest 'power' must be a single positive number"),
+  list("base", "0.5", "forest 'base' must be a single number in (0, 1)")
+)
+twoForests <- dbarts(
+  y ~ a + b,
+  df,
+  forests = list(f1 = forest(), f2 = forest()),
+  control = control,
+  n.trees = 5L
+)
+withVariance <- dbarts(
+  y ~ a + b,
+  df,
+  variance = TRUE,
+  control = control,
+  n.trees = 5L
+)
+for (entry in forestRefusals) {
+  stated <- setNames(list(entry[[2L]]), entry[[1L]])
+  info <- paste(entry[[1L]], deparse(entry[[2L]]))
+  expect_error(
+    dbarts(
+      y ~ a + b,
+      df,
+      forests = list(
+        f1 = do.call(dbartsForests$forest, stated),
+        f2 = dbartsForests$forest()
+      ),
+      control = control,
+      n.trees = 5L
+    ),
+    entry[[3L]],
+    fixed = TRUE,
+    info = info
+  )
+  expect_error(
+    do.call(twoForests$setForest, c(list("f1"), stated)),
+    entry[[3L]],
+    fixed = TRUE,
+    info = info
+  )
+  expect_error(
+    dbarts(
+      y ~ a + b,
+      df,
+      variance = do.call(dbartsForests$varianceForest, stated),
+      control = control,
+      n.trees = 5L
+    ),
+    entry[[3L]],
+    fixed = TRUE,
+    info = info
+  )
+  expect_error(
+    do.call(withVariance$setVarianceForest, stated),
+    entry[[3L]],
+    fixed = TRUE,
+    info = info
+  )
+}
 rm(
   dfKind,
   refusedScalars,
@@ -492,5 +558,10 @@ rm(
   dartInfinite,
   splitProbsOf,
   asVector,
-  asNamed
+  asNamed,
+  forestRefusals,
+  twoForests,
+  withVariance,
+  stated,
+  info
 )

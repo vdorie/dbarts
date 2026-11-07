@@ -1108,15 +1108,16 @@ resolveSamplerSpec <- function(
     if (!is.null(varianceNTrees)) {
       varianceRecord@stated <- "n.trees"
     }
+    # a stated power or base is held to what setVarianceForest holds it to
     varianceRecord@base <- if (is.null(varianceBase)) {
       model@tree.prior@base
     } else {
-      as.double(varianceBase)
+      validateForestTreePrior(varianceBase, "base")
     }
     varianceRecord@power <- if (is.null(variancePower)) {
       model@tree.prior@power
     } else {
-      as.double(variancePower)
+      validateForestTreePrior(variancePower, "power")
     }
     varianceRecord@columns <- if (allColumns) {
       NULL

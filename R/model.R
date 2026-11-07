@@ -1662,6 +1662,20 @@ alignForestBasisToSubset <- function(basis, forestIndex, subsetRows) {
   basis
 }
 
+## A forest's stated power or base, held to the checks cgm() makes of the
+## fitting function's: one number, no string, logical or factor, in range.
+validateForestTreePrior <- function(value, name) {
+  refusal <- if (identical(name, "power")) {
+    priorScalarRefusal(value, name, isPositiveNumber, "positive number")
+  } else {
+    priorScalarRefusal(value, name, isOpenUnitInterval, "number in (0, 1)")
+  }
+  if (!is.null(refusal)) {
+    stop("forest ", refusal, call. = FALSE)
+  }
+  as.double(value)
+}
+
 ## Validate the knobs one forest() declares. Only a declared (non-NULL) knob is
 ## checked; an omitted one keeps its NULL, so the caller can tell "not
 ## declared" from "declared at the default" - which is what makes the
@@ -1676,21 +1690,13 @@ validateForestKnobs <- function(spec) {
     spec$n.trees <- numTrees
   }
   if (!is.null(spec$power)) {
-    value <- suppressWarnings(as.double(spec$power))
-    if (length(value) != 1L || is.na(value) || value <= 0.0) {
-      stop("forest 'power' must be a single positive number")
-    }
-    spec$power <- value
+    spec$power <- validateForestTreePrior(spec$power, "power")
   }
   if (!is.null(spec$sd)) {
     spec$sd <- validateForestSd(spec$sd)
   }
   if (!is.null(spec$base)) {
-    base <- suppressWarnings(as.double(spec$base))
-    if (length(base) != 1L || is.na(base) || base <= 0.0 || base >= 1.0) {
-      stop("forest 'base' must be a single number in (0, 1)")
-    }
-    spec$base <- base
+    spec$base <- validateForestTreePrior(spec$base, "base")
   }
   if (!is.null(spec$amplitude)) {
     spec$amplitude <- validateForestAmplitude(spec$amplitude)
