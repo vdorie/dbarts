@@ -2923,7 +2923,7 @@ resolveMultinomialCounts <- function(y) {
 # (every na.action but na.pass) is gone after the subset below, and na.pass
 # keeps it, all-NA, for the generic missing-response check downstream to
 # name. allowMissing is FALSE for every
-# other caller ($setCounts mutates a live sampler's response outright, with
+# other caller ($setResponse mutates a live sampler's response outright, with
 # no na.action of its own to defer to), where any NA is refused here by name.
 # The whole-number check runs on the ORIGINAL doubles, before asCountMatrix's
 # integer coercion would silently floor a fraction into passing.
@@ -2973,7 +2973,7 @@ withoutZeroTrialsWarning <- function(expr) {
 }
 
 # Warns, once per session, that a count matrix a sampler has just taken has
-# rows with no trial. Called only after the creation or $setCounts .Call has
+# rows with no trial. Called only after the creation or $setResponse .Call has
 # returned, so a refused call never spends the key; NULL (a sampler that
 # carries no counts) and a matrix without such a row are silent.
 warnZeroTrials <- function(counts) {

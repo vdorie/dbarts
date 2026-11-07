@@ -55,6 +55,13 @@ samplerCarriesCounts <- function(sampler) {
   !is.null(dataCounts(sampler$data))
 }
 
+# A binomial sampler: a logistic one whose data object carries the n x 2
+# successes and failures, the trials their row sums.
+samplerHoldsTrials <- function(sampler) {
+  identical(sampler$model@family, "logistic") &&
+    !is.null(dataCounts(sampler$data))
+}
+
 # Capability-specific wording for a channel the K-forest softmax gives no
 # meaning to. Raised R-side, before the .Call, so a multinomial sampler never
 # reaches the bridge's generic multi-forest phrasing, and so the R-canonical
@@ -87,6 +94,13 @@ requireCountsCapability <- function(sampler, what) {
 # a write that took.
 bartcoreSamplerSetCounts <- function(sampler, counts) {
   current <- dataCounts(sampler$data)
+  if (!is.matrix(counts) && !is.data.frame(counts)) {
+    stop(
+      "$setResponse: a multinomial sampler's response is the n x K count ",
+      "matrix; a vector cannot say how each row's trials split among the ",
+      "categories"
+    )
+  }
   # K is the forest count, so a wrong category count is a different sampler,
   # not a malformed matrix; ask that before any per-row invariant, which a
   # truncated matrix would fail first and misattribute
@@ -108,6 +122,85 @@ bartcoreSamplerSetCounts <- function(sampler, counts) {
   # after the mirror, so a warning promoted to an error leaves them in step
   warnZeroTrials(counts)
   invisible(ptr)
+}
+
+# A binomial sampler's response replaced: an n x 2 matrix of successes and
+# failures, or a vector of successes against each row's trials as they stand,
+# a count above its row's trials refused. Mirrored into data@counts, and the
+# trials into data@y, as the multinomial counts are.
+bartcoreSamplerSetBinomialResponse <- function(sampler, y) {
+  current <- dataCounts(sampler$data)
+  n <- nrow(current)
+  trials <- rowSums(current)
+  if (is.data.frame(y)) {
+    y <- as.matrix(y)
+  }
+  if (is.matrix(y)) {
+    if (!is.numeric(y) || nrow(y) != n || ncol(y) != 2L) {
+      stop(
+        "$setResponse: a binomial sampler's response is an n x 2 matrix of ",
+        "successes and failures, n = ",
+        n,
+        ", or a vector of successes against each row's trials"
+      )
+    }
+    counts <- y
+  } else {
+    if (!is.numeric(y) || length(y) != n) {
+      stop(
+        "$setResponse: a binomial sampler's successes must be numeric, one ",
+        "per row (",
+        n,
+        "), or an n x 2 matrix of successes and failures"
+      )
+    }
+    counts <- cbind(y, trials - y)
+  }
+  bad <- which(
+    rowSums(!is.finite(counts)) > 0L |
+      rowSums(counts < 0 | counts != round(counts), na.rm = TRUE) > 0L
+  )
+  if (!is.matrix(y)) {
+    over <- which(is.finite(y) & y > trials)
+    if (length(over) > 0L) {
+      stop(
+        "$setResponse: a vector gives a binomial sampler's successes, each ",
+        "row's trials held; ",
+        rowsNamed(over),
+        " hold more successes than trials"
+      )
+    }
+  }
+  if (length(bad) > 0L) {
+    stop(
+      "$setResponse: a binomial response's successes and failures must be ",
+      "non-negative whole numbers; ",
+      rowsNamed(bad)
+    )
+  }
+  if (any(counts > .Machine$integer.max)) {
+    stop(
+      "$setResponse: a binomial response's successes and failures must be ",
+      "representable as integers"
+    )
+  }
+  counts <- unname(counts)
+  storage.mode(counts) <- "integer"
+  dimnames(counts) <- dimnames(current)
+  ptr <- sampler$getPointer()
+  .Call(C_dbarts_bartcore_setCounts, ptr, counts)
+  sampler$data@counts <- counts
+  sampler$data@y <- as.double(rowSums(counts))
+  invisible(ptr)
+}
+
+# 'row(s) i, j, ...' for a refusal, the first five named
+rowsNamed <- function(rows) {
+  paste0(
+    "row(s) ",
+    paste(utils::head(rows, 5L), collapse = ", "),
+    if (length(rows) > 5L) ", ..."
+  )
 }
 
 # The sampler's own category names are its counts' column names, or "1".."K"

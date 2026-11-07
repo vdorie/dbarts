@@ -3572,12 +3572,16 @@ dbartsSampler <- setRefClass(
     ) {
       "Sets the data object for the sampler to a new one; a sampler created with one forest and none refuses data that carry bases. A cut count or quantile rule the object states wins, and the sampler derives by it from then on; one carrying cutPoints brings the count and rule that made them, an unstated rule reading as even; one stating neither keeps the sampler's, as updateCutPoints = \"none\" does whatever it states. Preserves the sigma slot and the level tables: columns are matched by name, the names being the sampler's in any order and any other refused, as predict refuses them, while a matrix with no column names is read by position with no message, as is any data handed to a sampler with none, whose record then takes the data's names, which predict needs; a factor is read by label against the levels the sampler was created with, so fewer levels, another order and declared levels no row holds are taken, while a row at a label the sampler never had, or a factor column of bare numbers, is refused. A factor whose labels were changed on purpose is relabeled to the sampler's labels with levels<- first, or given to a new sampler. The cut points, the response range and a linear or gp leaf's covariate standardization each follow updateCutPoints, updateScale and updateStandardization where given: \"position\", \"value\" or TRUE derive the value from the new data, and \"none\" or FALSE keep the sampler's. Left NULL, a value the data object records (its cutPoints, response.range and standardization slots, which the sampler writes into its own data) is used, and one it does not record is derived, so setData(sampler$data) keeps every derived value and a fresh dbartsData() derives them. A derived standardization is read over the new data's rows in the likelihood, over every row where fewer than two are in (subjects, for a hazard fit, whose rows must hold each subject's together at periods 1, 2, 3 and on, as dbarts() expands them) or the response's scale is read from every row, and refused where two or more rows in hold one value of a leaf covariate, unless a gp leaf states its lengthscale, which takes the placeholder; FALSE keeps the sampler's. A probit, ordinal or nbinom sampler's 0/1 weights ride the data object, so setData(sampler$data) keeps the rows of weight 0 out; the active-row mask set by setActiveRows is cleared, the rows possibly changing. Saved draws are rewritten so that they predict what they did. updateState follows control@updateState: NULL, its default, resolves to the control's setting, and an explicit TRUE or FALSE overrides it - the same rule run() applies. It keeps the trees, the ordinal cutpoints, the Student-t degrees of freedom and the negative-binomial shape, and starts the latents as creation does (an ordinal or negative-binomial sampler from the kept cutpoints or shape). This draws nothing; the next sweep draws the augmentation variables against the change."
       updateState <- checkUpdateState(updateState)
-      refuseCountsMutation(
-        .self,
-        "$setData",
-        "its K category forests fix their data at creation, and the count ",
-        "response is not a column of it; make a new sampler instead"
-      )
+      # a binomial sampler's new data carry its successes and failures, the
+      # number of rows free
+      if (!samplerHoldsTrials(.self)) {
+        refuseCountsMutation(
+          .self,
+          "$setData",
+          "its K category forests fix their data at creation, and the count ",
+          "response is not a column of it; make a new sampler instead"
+        )
+      }
       fellBack <- bartcoreSamplerSetData(
         .self,
         newData,
@@ -3607,7 +3611,7 @@ dbartsSampler <- setRefClass(
       updateState = NULL,
       status = NULL
     ) {
-      "Changes the response against which the sampler is fitted, and, for an aft (survival) sampler given a non-null status, its censoring structure in the same call. updateState follows control@updateState; see setData. This draws nothing; the next sweep draws the augmentation variables against the change. An aft sampler leaves a censored row at its new bound, a Student-t sampler keeps its degrees of freedom and scales, and an ordinal sampler keeps its cutpoints."
+      "Changes the response against which the sampler is fitted, and, for an aft (survival) sampler given a non-null status, its censoring structure in the same call. updateState follows control@updateState; see setData. This draws nothing; the next sweep draws the augmentation variables against the change. An aft sampler leaves a censored row at its new bound, a Student-t sampler keeps its degrees of freedom and scales, and an ordinal sampler keeps its cutpoints. A count response is written as its formula writes it: a binomial sampler takes an n x 2 matrix of successes and failures, or a vector of successes against each row's trials as they stand, a count above its row's trials refused; a multinomial sampler takes the n x K count matrix, and refuses a vector, which cannot say how each row's trials split among the categories. Either has the number of rows fixed, keeps its trees, reads no response scale and mirrors the counts into data@counts and their row sums into data@y."
       updateState <- checkUpdateState(updateState)
       # a caller porting $setResponse(y, updateState) from before the
       # updateScale/updateState reorder gets the same TRUE/FALSE/NA in the
@@ -3634,14 +3638,27 @@ dbartsSampler <- setRefClass(
           )
         )
       }
-      refuseCountsMutation(
-        .self,
-        "$setResponse",
-        "its response is the n x K count matrix, which a flat vector cannot ",
-        "express and which a length-n integer vector would only be guessed ",
-        "into; replace it with $setCounts"
-      )
       updateScale <- checkUpdateScale(updateScale)
+      # a count response as its formula writes it: a binomial sampler's
+      # successes and failures, or its successes against the trials held, and
+      # a multinomial sampler's n x K counts. Neither reads a response scale.
+      if (samplerCarriesCounts(.self)) {
+        if (!is.null(status)) {
+          stop(
+            "$setResponse: 'status' is an aft (survival) sampler's censoring ",
+            "structure; a count sampler takes none"
+          )
+        }
+        if (samplerHoldsTrials(.self)) {
+          ptr <- bartcoreSamplerSetBinomialResponse(.self, y)
+        } else {
+          ptr <- bartcoreSamplerSetCounts(.self, y)
+        }
+        if (resolveUpdateState(updateState, control)) {
+          storeState(ptr)
+        }
+        return(invisible(NULL))
+      }
       scaleKept <- bartcoreSamplerSetResponse(.self, y, updateScale, status)
       if (isTRUE(updateScale)) {
         recordResponseRange(.self, getPointer())
@@ -3774,18 +3791,8 @@ dbartsSampler <- setRefClass(
       warnRowsKept(.self, tryResult, units)
       invisible(NULL)
     },
-    setCounts = function(counts, updateState = NULL) {
-      "Replaces a multinomial sampler's response: the n x K matrix of non-negative integer counts whose column k holds category k's successes, with trials n_i = sum_k counts[i, k] at least 0: a row with no trial enters no likelihood and still receives fitted probabilities, and the first such row in a session warns. n and K are fixed at creation - every combiner buffer is sized by n, and K is the forest count - so only the values change. The trees carry over, fitted to the previous counts exactly as setResponse leaves a single-forest sampler's, and the next run forms every category's working response against the new matrix. The matrix is mirrored into data@counts, and its row sums into data@y, so getPointer's transparent re-creation after save/load carries the current response rather than the one the sampler was created with. The sweep draws n_i Polya-Gamma variates per observation per category, so replacing single-trial labels with grouped counts multiplies sweep cost by mean(n_i). updateState follows control@updateState; see setData."
-      updateState <- checkUpdateState(updateState)
-      requireCountsCapability(.self, "$setCounts")
-      ptr <- bartcoreSamplerSetCounts(.self, counts)
-      if (resolveUpdateState(updateState, control)) {
-        storeState(ptr)
-      }
-      invisible(NULL)
-    },
     setCategoryOffset = function(offset, updateState = NULL) {
-      "Installs, or at NULL clears, a multinomial sampler's n x K category offset: the latent becomes f_ik + o_ik, so the offset enters the log-sum-exp margins, every category's working response and the reported softmax probabilities, and never a leaf value. This is the response-side counterpart of setCounts rather than of setOffset, whose flat shift is added after the categories are blended - the wrong side of the nonlinearity - and is the softmax's own null direction besides. Only the row-centered part is identified: adding a constant to a whole row leaves every reported probability unchanged, and the entrance leaves the matrix as given rather than re-centering it. It shifts the TRAIN latent only; the test rows are other rows and carry their own (setCategoryTestOffset), and predict takes its own matrix per call. Mirrored into data@offset.category, so a re-created sampler carries it. updateState follows control@updateState; see setData."
+      "Installs, or at NULL clears, a multinomial sampler's n x K category offset: the latent becomes f_ik + o_ik, so the offset enters the log-sum-exp margins, every category's working response and the reported softmax probabilities, and never a leaf value. This is the response-side counterpart of setResponse's count matrix rather than of setOffset, whose flat shift is added after the categories are blended - the wrong side of the nonlinearity - and is the softmax's own null direction besides. Only the row-centered part is identified: adding a constant to a whole row leaves every reported probability unchanged, and the entrance leaves the matrix as given rather than re-centering it. It shifts the TRAIN latent only; the test rows are other rows and carry their own (setCategoryTestOffset), and predict takes its own matrix per call. Mirrored into data@offset.category, so a re-created sampler carries it. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
       requireCountsCapability(.self, "$setCategoryOffset")
       ptr <- bartcoreSamplerSetCategoryOffset(.self, offset)
