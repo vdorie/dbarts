@@ -51,6 +51,23 @@ fitIsBinary <- function(object) {
   fitEngineFamily(object) %in% c("probit", "logistic")
 }
 
+# a logistic fit to successes and failures, its response an n x 2 matrix
+fitIsBinomial <- function(object) {
+  identical(fitEngineFamily(object), "logistic") &&
+    length(dim(object[["y"]])) == 2L
+}
+
+# a binomial fit's response as each type reads it: the successes for the
+# draws, which are counts, and otherwise the observed proportion, 0 at a row
+# of no trials, as glm reads a row of weight 0
+binomialObserved <- function(y, type) {
+  if (identical(type, "ppd")) {
+    return(as.double(y[, 1L]))
+  }
+  trials <- rowSums(y)
+  ifelse(trials > 0, y[, 1L] / pmax(trials, 1), 0)
+}
+
 # a family with a residual distribution, and so the resid.scale descriptor
 fitHasResidual <- function(object) {
   fitEngineFamily(object) %in% c("gaussian", "aft")
@@ -191,7 +208,13 @@ pointwiseLogLikelihood <- function(object, ev) {
   }
   family <- fitEngineFamily(object)
   weights <- object[["weights"]]
-  n.draws <- length(ev) %/% length(y)
+  n.draws <- length(ev) %/% NROW(y)
+  # a binomial row's successes in its trials
+  trials <- NULL
+  if (fitIsBinomial(object)) {
+    trials <- rep(as.double(rowSums(y)), each = n.draws)
+    y <- y[, 1L]
+  }
   y <- rep(y, each = n.draws)
   n.chains <- fitNChains(object)
   chainFastest <- function(x) {
@@ -247,7 +270,14 @@ pointwiseLogLikelihood <- function(object, ev) {
       result[rep(weights, each = n.draws) == 0] <- NaN
     }
   } else if (identical(family, "probit") || identical(family, "logistic")) {
-    result <- dbinom(y, 1L, as.vector(ev), log = TRUE)
+    # a binomial row's density includes its binomial coefficient, as glm's
+    # logLik does, and a row of no trials is certain, 0
+    result <- dbinom(
+      y,
+      if (is.null(trials)) 1L else trials,
+      as.vector(ev),
+      log = TRUE
+    )
     if (!is.null(weights)) {
       result <- rep(weights, each = n.draws) * result
     }
@@ -596,7 +626,7 @@ numTrainingRows <- function(object) {
   if (!is.null(fits)) {
     return(dim(fits)[length(dim(fits)) - 1L])
   }
-  length(object[["y"]])
+  NROW(object[["y"]])
 }
 
 ## a weight per row comes as a vector or a one-column matrix; a second column
@@ -1952,6 +1982,14 @@ fitPpdWeights <- function(object, sample) {
     return(list(weights = object[["ppd.weights"]], trials = TRUE))
   }
   out <- !fitRowsInLikelihood(object)
+  # a binomial row draws as many trials as it holds, whatever its weight
+  if (fitIsBinomial(object)) {
+    return(list(
+      weights = as.double(rowSums(object[["y"]])),
+      trials = TRUE,
+      out = if (any(out)) out
+    ))
+  }
   list(
     weights = object[["weights"]],
     trials = FALSE,
@@ -2500,8 +2538,14 @@ residuals.bart <- function(object, type = "ev", ...) {
   )
   warnUnusedDots(list(...), "residuals", "bart")
   # the response the fit kept, padded the same way the fitted values are, so
-  # the two line up row for row at the caller's own shape
-  padOmittedRows(object[["na.action"]], object$y) -
+  # the two line up row for row at the caller's own shape; a binomial's on
+  # the scale of the type, a count for the draws and a proportion otherwise
+  observed <- if (fitIsBinomial(object)) {
+    binomialObserved(object$y, type)
+  } else {
+    object$y
+  }
+  padOmittedRows(object[["na.action"]], observed) -
     fitted.bart(object, type = type, sample = "train")
 }
 
