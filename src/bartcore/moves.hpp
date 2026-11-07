@@ -248,69 +248,76 @@ bool enumerateNogRuleNeighborhood(const MoveContext& ctx, const L& leaf,
       if (available[j] != 0)
         totalSplitProbability += ctx.treePrior.splitProbabilities[j];
 
-  for (std::size_t j = 0; j < data.numPredictors; ++j) {
-    if (available[j] == 0 || data.splitsBySubset(j)) continue;
+  // a throw part way, out of a scan or a candidate's push, puts the incumbent
+  // back before it goes on, so the node's rule routes the rows it holds
+  try {
+    for (std::size_t j = 0; j < data.numPredictors; ++j) {
+      if (available[j] == 0 || data.splitsBySubset(j)) continue;
 #ifdef BARTCORE_RULE_GIBBS_CUT_ONLY
-    // the private cut-only variant: hold the incumbent variable and enumerate
-    // its cuts alone, one scan a proposal (the note below the enumerator)
-    if (static_cast<int32_t>(j) != incumbent.variableIndex) continue;
+      // the private cut-only variant: hold the incumbent variable and enumerate
+      // its cuts alone, one scan a proposal (the note below the enumerator)
+      if (static_cast<int32_t>(j) != incumbent.variableIndex) continue;
 #endif
-    int32_t low, high;
-    tree.splitInterval(data, node, static_cast<int32_t>(j), &low, &high);
-    if (high < low) continue;  // availability is this test; belt and braces
+      int32_t low, high;
+      tree.splitInterval(data, node, static_cast<int32_t>(j), &low, &high);
+      if (high < low) continue;  // availability is this test; belt and braces
 
-    std::size_t numCuts = static_cast<std::size_t>(data.numCuts[j]);
-    if (scratch.scanScores.size() < 2 * numCuts)
-      scratch.scanScores.resize(2 * numCuts);
-    std::size_t written = scanOrdinalCuts(
-      data, j, members, numMembers, y, ctx.weights, leaf, ctx.k, sigma * sigma,
-      scratch.scanBins, scratch.scanScores.data(), true);
-    if (numVariablesScanned != nullptr) ++*numVariablesScanned;
+      std::size_t numCuts = static_cast<std::size_t>(data.numCuts[j]);
+      if (scratch.scanScores.size() < 2 * numCuts)
+        scratch.scanScores.resize(2 * numCuts);
+      std::size_t written = scanOrdinalCuts(
+        data, j, members, numMembers, y, ctx.weights, leaf, ctx.k, sigma * sigma,
+        scratch.scanBins, scratch.scanScores.data(), true);
+      if (numVariablesScanned != nullptr) ++*numVariablesScanned;
 
-    // the doubled layout says the node routes missing rows, so the direction
-    // is part of the candidate and the rule prior widens by the same factor
-    // two the candidate count does
-    bool doubled = numCuts > 0 && written == 2 * numCuts;
-    double logRulePrior = -std::log(data.cutIntervalMass(j, low, high)) -
-                          (doubled ? std::log(2.0) : 0.0);
-    const bool weighted = data.cutsWeighted(j);
-    double logVariablePrior =
-      ctx.treePrior.splitProbabilities == nullptr
-        ? 0.0
-        : std::log(ctx.treePrior.splitProbabilities[j] / totalSplitProbability);
-    int directions = doubled ? 2 : 1;
+      // the doubled layout says the node routes missing rows, so the direction
+      // is part of the candidate and the rule prior widens by the same factor
+      // two the candidate count does
+      bool doubled = numCuts > 0 && written == 2 * numCuts;
+      double logRulePrior = -std::log(data.cutIntervalMass(j, low, high)) -
+                            (doubled ? std::log(2.0) : 0.0);
+      const bool weighted = data.cutsWeighted(j);
+      double logVariablePrior =
+        ctx.treePrior.splitProbabilities == nullptr
+          ? 0.0
+          : std::log(ctx.treePrior.splitProbabilities[j] / totalSplitProbability);
+      int directions = doubled ? 2 : 1;
 
-    for (int32_t c = low; c <= high; ++c) {
-      for (int direction = 0; direction < directions; ++direction) {
-        std::size_t entry =
-          doubled ? 2 * static_cast<std::size_t>(c) +
-                      static_cast<std::size_t>(direction)
-                  : static_cast<std::size_t>(c);
-        // the rule would leave a child empty
-        if (scratch.scanScores[entry] == cutScanEmptySentinel) continue;
+      for (int32_t c = low; c <= high; ++c) {
+        for (int direction = 0; direction < directions; ++direction) {
+          std::size_t entry =
+            doubled ? 2 * static_cast<std::size_t>(c) +
+                        static_cast<std::size_t>(direction)
+                    : static_cast<std::size_t>(c);
+          // the rule would leave a child empty
+          if (scratch.scanScores[entry] == cutScanEmptySentinel) continue;
 
-        // the below-node prior reads the node's rule through the children's
-        // availability, so the candidate is installed to score it and the
-        // incumbent restored once the enumeration ends; nothing else here
-        // touches membership, a leaf statistic or a draw
-        Rule& rule(tree.at(node).rule);
-        rule.variableIndex = static_cast<int32_t>(j);
-        rule.setSplitIndex(c);
-        if (doubled) rule.setMissingGoesRight(direction == 1);
-        double below =
-          std::log(1.0 -
-                   ctx.treePrior.growthProbability(tree, data, leftChild)) +
-          std::log(1.0 - ctx.treePrior.growthProbability(tree, data,
-                                                         leftChild + 1));
-        scratch.candidates.push_back(
-          NogRuleCandidate{static_cast<int32_t>(j), c,
-                           doubled ? direction : -1,
-                           scratch.scanScores[entry] + logVariablePrior +
-                             logRulePrior + below +
-                             (weighted ? std::log(data.cutWeight(j, c))
-                                       : 0.0)});
+          // the below-node prior reads the node's rule through the children's
+          // availability, so the candidate is installed to score it and the
+          // incumbent restored once the enumeration ends; nothing else here
+          // touches membership, a leaf statistic or a draw
+          Rule& rule(tree.at(node).rule);
+          rule.variableIndex = static_cast<int32_t>(j);
+          rule.setSplitIndex(c);
+          if (doubled) rule.setMissingGoesRight(direction == 1);
+          double below =
+            std::log(1.0 -
+                     ctx.treePrior.growthProbability(tree, data, leftChild)) +
+            std::log(1.0 - ctx.treePrior.growthProbability(tree, data,
+                                                           leftChild + 1));
+          scratch.candidates.push_back(
+            NogRuleCandidate{static_cast<int32_t>(j), c,
+                             doubled ? direction : -1,
+                             scratch.scanScores[entry] + logVariablePrior +
+                               logRulePrior + below +
+                               (weighted ? std::log(data.cutWeight(j, c))
+                                         : 0.0)});
+        }
       }
     }
+  } catch (...) {
+    tree.at(node).rule = incumbent;
+    throw;
   }
   tree.at(node).rule = incumbent;
 
@@ -1114,17 +1121,6 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
     Rule newRule = ctx.treePrior.drawRuleAndVariable(tree, ctx.data, rng, nodeToChange);
     tree.birth(ctx.data, nodeToChange, newRule, y, ctx.weights);
 
-    double leftPriorGrowthProbability = ctx.treePrior.growthProbability(
-      tree, ctx.data, tree.at(nodeToChange).leftChild);
-    double rightPriorGrowthProbability = ctx.treePrior.growthProbability(
-      tree, ctx.data, tree.at(nodeToChange).leftChild + 1);
-    double newPriorProbability = parentPriorGrowthProbability *
-                                 (1.0 - leftPriorGrowthProbability) *
-                                 (1.0 - rightPriorGrowthProbability);
-
-    BranchScore newScore =
-      logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
-
     // Reference behavior: the index segment stays permuted; only structure
     // and cached leaf stats are restored. A rejected pooled draw is the
     // last pool allocation, so the mark reclaims it.
@@ -1135,63 +1131,69 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
       tree.at(nodeToChange).sumWeightedResponse = oldNode.sumWeightedResponse;
     };
 
-    // T* is in place: the normalized leaf builds its order here, and counts
-    // off it only if the bound leaves the decision open. A count that is
-    // canceled or runs out of memory leaves the tree at T0 before the
-    // exception goes on.
-    [[maybe_unused]] bool normalized = false;
-    [[maybe_unused]] double logBound = 0.0;
-    if constexpr (NormalizedLeafModel<L>) {
-      normalized = leaf.normalizerIsActive();
-      if (normalized) {
-        try {
-          logBound = leaf.prepareLogNormalizerRatio(tree, nodeToChange);
-        } catch (...) {
-          undoBirth();
-          throw;
-        }
-      }
-    }
-
-    double transitionProbabilityOfDeathStep =
-      1.0 - probabilityOfBirthStep(ctx, tree, birthableNodeExists(ctx, tree));
-    double transitionProbabilityOfSelectingNodeForDeath =
-      probabilityOfSelectingNodeForDeath(tree, ctx.scratch.nodeScratch);
-
-    double priorRatio = newPriorProbability / oldPriorProbability;
-    double transitionRatio =
-      (transitionProbabilityOfDeathStep * transitionProbabilityOfSelectingNodeForDeath) /
-      (transitionProbabilityOfBirthStep * transitionProbabilityOfSelectingNodeForBirth);
-    double oldLogLikelihood, newLogLikelihood;
-    resolveEmptyLeafVeto(oldScore, newScore, &oldLogLikelihood, &newLogLikelihood);
-    double likelihoodRatio = std::exp(newLogLikelihood - oldLogLikelihood);
-
-    ratio = priorRatio * likelihoodRatio * transitionRatio;
-
-    double u = ext_rng_simulateContinuousUniform(rng);
-    bool accept;
+    // a throw from here to the decision, an allocation failure, a cancel
+    // or a count's, leaves the tree at T0 before it goes on
+    bool accept = false;
     [[maybe_unused]] double logNormalizer = 0.0;
+    double priorRatio = 1.0, transitionRatio = 1.0;
+    double oldLogLikelihood = 0.0, newLogLikelihood = 0.0;
 #ifdef BARTCORE_MOVE_CENSUS
     census::NormalizerRecord record;
 #endif
-    if constexpr (NormalizedLeafModel<L>) {
-      if (normalized) {
-        try {
+    [[maybe_unused]] bool normalized = false;
+    try {
+      double leftPriorGrowthProbability = ctx.treePrior.growthProbability(
+        tree, ctx.data, tree.at(nodeToChange).leftChild);
+      double rightPriorGrowthProbability = ctx.treePrior.growthProbability(
+        tree, ctx.data, tree.at(nodeToChange).leftChild + 1);
+      double newPriorProbability = parentPriorGrowthProbability *
+                                   (1.0 - leftPriorGrowthProbability) *
+                                   (1.0 - rightPriorGrowthProbability);
+
+      BranchScore newScore =
+        logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
+
+      // T* is in place: the normalized leaf builds its order here, and counts
+      // off it only if the bound leaves the decision open
+      [[maybe_unused]] double logBound = 0.0;
+      if constexpr (NormalizedLeafModel<L>) {
+        normalized = leaf.normalizerIsActive();
+        if (normalized)
+          logBound = leaf.prepareLogNormalizerRatio(tree, nodeToChange);
+      }
+
+      double transitionProbabilityOfDeathStep =
+        1.0 - probabilityOfBirthStep(ctx, tree, birthableNodeExists(ctx, tree));
+      double transitionProbabilityOfSelectingNodeForDeath =
+        probabilityOfSelectingNodeForDeath(tree, ctx.scratch.nodeScratch);
+
+      priorRatio = newPriorProbability / oldPriorProbability;
+      transitionRatio =
+        (transitionProbabilityOfDeathStep * transitionProbabilityOfSelectingNodeForDeath) /
+        (transitionProbabilityOfBirthStep * transitionProbabilityOfSelectingNodeForBirth);
+      resolveEmptyLeafVeto(oldScore, newScore, &oldLogLikelihood, &newLogLikelihood);
+      double likelihoodRatio = std::exp(newLogLikelihood - oldLogLikelihood);
+
+      ratio = priorRatio * likelihoodRatio * transitionRatio;
+
+      double u = ext_rng_simulateContinuousUniform(rng);
+      if constexpr (NormalizedLeafModel<L>) {
+        if (normalized) {
           accept = decideNormalizedMove(leaf, u, logBound, true, &ratio,
                                         &logNormalizer
 #ifdef BARTCORE_MOVE_CENSUS
                                         , &record
 #endif
           );
-        } catch (...) {
-          undoBirth();
-          throw;
+        } else {
+          accept = u < ratio;
         }
       } else {
         accept = u < ratio;
       }
-    } else {
-      accept = u < ratio;
+    } catch (...) {
+      undoBirth();
+      throw;
     }
 
     if (accept) {
@@ -1246,55 +1248,57 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
     Node oldNode = tree.at(nodeToChange);
     tree.orphanChildren(nodeToChange);
 
-    BranchScore newScore =
-      logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
-    double transitionProbabilityOfBirthStepReverse =
-      probabilityOfBirthStep(ctx, tree, true);
-    double reverseTransitionProbabilityOfSelectingNodeForBirth =
-      probabilityOfSelectingNodeForBirth(ctx, tree);
-
-    double oldPriorProbability = parentPriorGrowthProbability *
-                                 (1.0 - leftPriorGrowthProbability) *
-                                 (1.0 - rightPriorGrowthProbability);
-    double newPriorProbability = 1.0 - parentPriorGrowthProbability;
-
-    double priorRatio = newPriorProbability / oldPriorProbability;
-    double transitionRatio =
-      (transitionProbabilityOfBirthStepReverse * reverseTransitionProbabilityOfSelectingNodeForBirth) /
-      (transitionProbabilityOfDeathStep * transitionProbabilityOfSelectingNodeForDeath);
-    double oldLogLikelihood, newLogLikelihood;
-    resolveEmptyLeafVeto(oldScore, newScore, &oldLogLikelihood, &newLogLikelihood);
-    double likelihoodRatio = std::exp(newLogLikelihood - oldLogLikelihood);
-
-    ratio = priorRatio * likelihoodRatio * transitionRatio;
-
-    double u = ext_rng_simulateContinuousUniform(rng);
-    bool accept;
+    // the scores and the count run with the children orphaned, since the
+    // bound needs the merged leaf's score; a throw before the decision, an
+    // allocation failure, a cancel or a count's, reattaches them, as a
+    // rejection does, before it goes on
+    bool accept = false;
     [[maybe_unused]] double logNormalizer = 0.0;
+    double priorRatio = 1.0, transitionRatio = 1.0;
+    double oldLogLikelihood = 0.0, newLogLikelihood = 0.0;
 #ifdef BARTCORE_MOVE_CENSUS
     census::NormalizerRecord record;
 #endif
-    if constexpr (NormalizedLeafModel<L>) {
-      if (normalized) {
-        // the count runs with the children orphaned, since the bound needs
-        // the merged leaf's score; a cancel or an allocation failure
-        // reattaches them, as a rejection does, before the exception goes on
-        try {
+    try {
+      BranchScore newScore =
+        logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
+      double transitionProbabilityOfBirthStepReverse =
+        probabilityOfBirthStep(ctx, tree, true);
+      double reverseTransitionProbabilityOfSelectingNodeForBirth =
+        probabilityOfSelectingNodeForBirth(ctx, tree);
+
+      double oldPriorProbability = parentPriorGrowthProbability *
+                                   (1.0 - leftPriorGrowthProbability) *
+                                   (1.0 - rightPriorGrowthProbability);
+      double newPriorProbability = 1.0 - parentPriorGrowthProbability;
+
+      priorRatio = newPriorProbability / oldPriorProbability;
+      transitionRatio =
+        (transitionProbabilityOfBirthStepReverse * reverseTransitionProbabilityOfSelectingNodeForBirth) /
+        (transitionProbabilityOfDeathStep * transitionProbabilityOfSelectingNodeForDeath);
+      resolveEmptyLeafVeto(oldScore, newScore, &oldLogLikelihood, &newLogLikelihood);
+      double likelihoodRatio = std::exp(newLogLikelihood - oldLogLikelihood);
+
+      ratio = priorRatio * likelihoodRatio * transitionRatio;
+
+      double u = ext_rng_simulateContinuousUniform(rng);
+      if constexpr (NormalizedLeafModel<L>) {
+        if (normalized) {
           accept = decideNormalizedMove(leaf, u, logBound, false, &ratio,
                                         &logNormalizer
 #ifdef BARTCORE_MOVE_CENSUS
                                         , &record
 #endif
           );
-        } catch (...) {
-          tree.at(nodeToChange) = oldNode;
-          throw;
+        } else {
+          accept = u < ratio;
         }
       } else {
         accept = u < ratio;
       }
-    } else {
-      accept = u < ratio;
+    } catch (...) {
+      tree.at(nodeToChange) = oldNode;
+      throw;
     }
 
     if (accept) {
@@ -1547,7 +1551,14 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
   if (tree.hasInteractionConstraint()) {
     Rule savedRule = tree.at(nodeToChange).rule;
     tree.at(nodeToChange).rule = newRule;
-    bool valid = tree.interactionSubtreeIsValid(nodeToChange);
+    bool valid = false;
+    try {
+      valid = tree.interactionSubtreeIsValid(nodeToChange);
+    } catch (...) {
+      tree.at(nodeToChange).rule = savedRule;
+      tree.truncateMaskPool(maskPoolMark);
+      throw;
+    }
     tree.at(nodeToChange).rule = savedRule;
     if (!valid) {
       tree.truncateMaskPool(maskPoolMark);
@@ -1579,14 +1590,21 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
 
   tree.snapshotSubtree(nodeToChange, ctx.scratch.snapshot);
 
+  // a throw while T' is in place, an allocation failure in its score, puts
+  // T back before it goes on, as a rejection does
   tree.at(nodeToChange).rule = newRule;
-  tree.refreshSubtree(ctx.data, nodeToChange, y, ctx.weights);
-
-  double belowY =
-    ctx.treePrior.treeLogProbability(tree, ctx.data, leftChild) +
-    ctx.treePrior.treeLogProbability(tree, ctx.data, leftChild + 1);
-  BranchScore yScore =
-    logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
+  double belowY = 0.0;
+  BranchScore yScore{};
+  try {
+    tree.refreshSubtree(ctx.data, nodeToChange, y, ctx.weights);
+    belowY = ctx.treePrior.treeLogProbability(tree, ctx.data, leftChild) +
+             ctx.treePrior.treeLogProbability(tree, ctx.data, leftChild + 1);
+    yScore = logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
+  } catch (...) {
+    tree.restoreSubtree(ctx.scratch.snapshot);
+    tree.truncateMaskPool(maskPoolMark);
+    throw;
+  }
 
   // the veto gates the one exp the acceptance has always taken: the resolved
   // pair reproduces its exact argument wherever neither branch holds an empty
@@ -1783,14 +1801,20 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
 
   // test the swap for logical consistency before scoring it
   applySwap();
-  bool swapIsSensible = ruleIsValid(ctx, tree, parent, childRule.variableIndex);
-  if (childRule.variableIndex != parentRule.variableIndex && swapIsSensible)
-    swapIsSensible = ruleIsValid(ctx, tree, parent, parentRule.variableIndex);
-  // interaction is a WHOLE-subtree, all-variables property the per-variable
-  // ruleIsValid checks above cannot see (the swap sibling-strand break): a
-  // swap that lifts x2 above x3 co-occurs a forbidden pair with neither
-  // swapped variable equal to x3. Score it the -1.0 no-op (pi(T') = 0).
-  if (swapIsSensible) swapIsSensible = tree.interactionSubtreeIsValid(parent);
+  bool swapIsSensible = false;
+  try {
+    swapIsSensible = ruleIsValid(ctx, tree, parent, childRule.variableIndex);
+    if (childRule.variableIndex != parentRule.variableIndex && swapIsSensible)
+      swapIsSensible = ruleIsValid(ctx, tree, parent, parentRule.variableIndex);
+    // interaction is a WHOLE-subtree, all-variables property the per-variable
+    // ruleIsValid checks above cannot see (the swap sibling-strand break): a
+    // swap that lifts x2 above x3 co-occurs a forbidden pair with neither
+    // swapped variable equal to x3. Score it the -1.0 no-op (pi(T') = 0).
+    if (swapIsSensible) swapIsSensible = tree.interactionSubtreeIsValid(parent);
+  } catch (...) {
+    undoSwap();
+    throw;
+  }
   undoSwap();
 
   if (!swapIsSensible) {
@@ -1804,12 +1828,18 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
     logLikelihoodForBranch(ctx, leaf, tree, parent, y, sigma);
 
   tree.snapshotSubtree(parent, ctx.scratch.snapshot);
+  // as in changeMove, a throw while T' is in place puts T back
   applySwap();
-  tree.refreshSubtree(ctx.data, parent, y, ctx.weights);
-
-  double yLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, parent);
-  BranchScore yScore =
-    logLikelihoodForBranch(ctx, leaf, tree, parent, y, sigma);
+  double yLogPi = 0.0;
+  BranchScore yScore{};
+  try {
+    tree.refreshSubtree(ctx.data, parent, y, ctx.weights);
+    yLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, parent);
+    yScore = logLikelihoodForBranch(ctx, leaf, tree, parent, y, sigma);
+  } catch (...) {
+    tree.restoreSubtree(ctx.scratch.snapshot);
+    throw;
+  }
 
   // as in changeMove, the veto gates the existing single exp
   double xLogL, yLogL;
@@ -1935,14 +1965,19 @@ double perturbMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
 
   tree.snapshotSubtree(nodeToPerturb, ctx.scratch.snapshot);
 
+  // as in changeMove, a throw while T' is in place puts T back
   tree.at(nodeToPerturb).rule.setSplitIndex(target);
-  tree.refreshSubtree(ctx.data, nodeToPerturb, y, ctx.weights);
-
-  double belowY =
-    ctx.treePrior.treeLogProbability(tree, ctx.data, leftChild) +
-    ctx.treePrior.treeLogProbability(tree, ctx.data, leftChild + 1);
-  BranchScore yScore =
-    logLikelihoodForBranch(ctx, leaf, tree, nodeToPerturb, y, sigma);
+  double belowY = 0.0;
+  BranchScore yScore{};
+  try {
+    tree.refreshSubtree(ctx.data, nodeToPerturb, y, ctx.weights);
+    belowY = ctx.treePrior.treeLogProbability(tree, ctx.data, leftChild) +
+             ctx.treePrior.treeLogProbability(tree, ctx.data, leftChild + 1);
+    yScore = logLikelihoodForBranch(ctx, leaf, tree, nodeToPerturb, y, sigma);
+  } catch (...) {
+    tree.restoreSubtree(ctx.scratch.snapshot);
+    throw;
+  }
 
   // as in changeMove, the veto gates the single exp the acceptance takes
   double xLogL, yLogL;

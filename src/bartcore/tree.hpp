@@ -1001,10 +1001,13 @@ public:
     computeLeafStats(pair + 1, y, weights);
   }
 
+  /// The structure goes back before the pair is released, so a release that
+  /// cannot grow the free list leaves the tree whole.
   void undoBirth(int32_t nodeIndex) {
-    releasePair(at(nodeIndex).leftChild);
+    int32_t pair = at(nodeIndex).leftChild;
     at(nodeIndex).leftChild = invalidNode;
     at(nodeIndex).rule = Rule();
+    releasePair(pair);
   }
 
   /// Merge children into their parent (death proposal). Does not free the
@@ -1032,6 +1035,13 @@ public:
   }
 
   void releasePair(int32_t pair) { freePairs.push_back(pair); }
+
+  /// Room for one more released pair, so the release a rejected birth or an
+  /// accepted death makes allocates nothing.
+  void reserveReleasedPair() {
+    if (freePairs.capacity() <= freePairs.size())
+      freePairs.reserve(std::max<size_t>(4, 2 * freePairs.capacity()));
+  }
 
   /// Snapshot/restore of a subtree for change/swap rollback: node structs
   /// plus the index-segment content the repartition scrambles.

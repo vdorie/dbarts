@@ -1474,7 +1474,23 @@ struct ColumnStore {
   /// between neighboring values, the quantile rule's grid for the same
   /// values, each weighted by the gap's width (weighGapsByWidth); otherwise
   /// it places its evenly spaced points, equally likely.
+  ///
+  /// A throw leaves the column's count, points and weights as they were.
   void deriveNumericCuts(size_t j, const double* values) {
+    std::vector<double> heldPoints(cutPoints[j]), heldMass(cutMass[j]);
+    std::uint32_t heldCount = numCuts[j];
+    try {
+      deriveNumericCutsInPlace(j, values);
+    } catch (...) {
+      cutPoints[j].swap(heldPoints);
+      cutMass[j].swap(heldMass);
+      numCuts[j] = heldCount;
+      throw;
+    }
+  }
+
+  /// deriveNumericCuts' body, writing the column's grid as it goes.
+  void deriveNumericCutsInPlace(size_t j, const double* values) {
     cutMass[j].clear();
     if (useQuantiles) {
       QuantileGrid grid = values == nullptr
@@ -1650,12 +1666,14 @@ struct ColumnStore {
     // every column that splits by threshold and relies on this return to
     // leave an ordered factor's as it is
     if (isFactor(j)) return;
-    cutPoints[j].assign(cuts, cuts + numCutPoints);
+    // the grid is built aside and swapped in, so a throw leaves the column's
+    // count, points and weights together
+    std::vector<double> points(cuts, cuts + numCutPoints);
+    std::vector<double> weights;
+    if (mass != nullptr) weights.assign(mass, mass + numCutPoints + 1);
+    cutPoints[j].swap(points);
+    cutMass[j].swap(weights);
     numCuts[j] = numCutPoints;
-    if (mass != nullptr)
-      cutMass[j].assign(mass, mass + numCutPoints + 1);
-    else
-      cutMass[j].clear();
     quantizeColumn(j, rawColumnForRequantize(j, x));
     if (numTestObservations > 0) quantizeTestColumn(j);
   }
@@ -2911,27 +2929,45 @@ struct ColumnStore {
   /// pinned, so the count sweep build runs cannot arise here and the check is
   /// membership instead - and it runs before a single code is written, since
   /// unlike a creation build this store has values to preserve.
+  ///
+  /// Everything the replacement allocates comes before anything moves: the
+  /// room for the new codes and gathered copies, and every grid, derived over
+  /// copies of the ones held. A throw leaves the store as it was.
   [[nodiscard]] bool setData(
       const double* x_, size_t n,
       DerivedValueChoice grid = DerivedValueChoice::derive,
       const SuppliedCutGrid& supplied = {}) {
     if (!replacementLevelCodesAreValid(x_, n)) return false;
+    train.codes.reserve(n * numPredictors);
+    gatheredRawValues.reserve(gatheredRawColumns.size() * n);
+    std::vector<std::vector<double>> heldCutPoints(cutPoints);
+    std::vector<std::vector<double>> heldCutMass(cutMass);
+    std::vector<std::uint32_t> heldNumCuts(numCuts);
+    size_t heldNumObservations = numObservations;
+    // a grid is derived over the new count of rows
     numObservations = n;
+    try {
+      for (size_t j = 0; j < numPredictors; ++j) {
+        // the level count is pinned, so the count sweep does not run here;
+        // the membership check above is what stands in for it
+        if (grid == DerivedValueChoice::supply &&
+            types[j] == ColumnKind::numeric && supplied.suppliesColumn(j))
+          installSuppliedGrid(j, supplied);
+        else if (splitsByThreshold(j) && grid != DerivedValueChoice::keep)
+          (void)buildCutsForColumn(j, x_ + j * n, true);
+      }
+    } catch (...) {
+      numObservations = heldNumObservations;
+      cutPoints = std::move(heldCutPoints);
+      cutMass = std::move(heldCutMass);
+      numCuts = std::move(heldNumCuts);
+      throw;
+    }
+    // within the room reserved above, so nothing here allocates
     train.codes.resize(n * numPredictors);
     for (size_t j = 0; j < numPredictors; ++j) train.codeOffsets[j] = j * n;
-    // resize the gathered leaf-covariate copies for the new observation count
     gatheredRawValues.assign(gatheredRawColumns.size() * n, 0.0);
-    for (size_t j = 0; j < numPredictors; ++j) {
-      const double* column = x_ + j * n;
-      // the level count is pinned, so the count sweep does not run here; the
-      // membership check above is what stands in for it
-      if (grid == DerivedValueChoice::supply &&
-          types[j] == ColumnKind::numeric && supplied.suppliesColumn(j))
-        installSuppliedGrid(j, supplied);
-      else if (splitsByThreshold(j) && grid != DerivedValueChoice::keep)
-        (void)buildCutsForColumn(j, column, true);
-      quantizeColumn(j, column);
-    }
+    for (size_t j = 0; j < numPredictors; ++j) quantizeColumn(j, x_ + j * n);
     return true;
   }
 

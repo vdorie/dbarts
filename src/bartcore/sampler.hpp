@@ -467,16 +467,24 @@ public:
   /// outlive the call. Refuses (returns false, test store untouched) a
   /// designated leaf covariate that would be CSC-backed, since leaf models
   /// gather dense raw test covariates that sparse storage does not serve, and
-  /// a factor cell that is not a level code of the training table.
+  /// a factor cell that is not a level code of the training table. A throw
+  /// part way leaves the sampler with no test rows.
   bool setTestData(const PredictorSource& source) {
     size_t numCovariates = numLeafCovariates();
     const size_t* covariateColumns = leafCovariateColumns();
     for (size_t k = 0; k < numCovariates; ++k)
       if (source.sourceOf(covariateColumns[k]) < 0) return false;
     const double* testOffset = data_.testOffset;
-    if (!data_.buildTest(source)) return false;
-    data_.testOffset = testOffset;
-    for (auto& chain : chains_) chain->resizeTestStorage();
+    try {
+      if (!data_.buildTest(source)) return false;
+      data_.testOffset = testOffset;
+      for (auto& chain : chains_) chain->resizeTestStorage();
+    } catch (...) {
+      // the store sets its test count before it allocates, and a chain sizes
+      // its test fits to it, so neither is left part way
+      data_.resetTestStorage();
+      throw;
+    }
     return true;
   }
 
@@ -2545,19 +2553,39 @@ public:
         replacement.maxNumCuts + data_.numPredictors);
       data_.useQuantiles = replacement.useQuantiles;
     }
+    // a throw in the store's replacement leaves it as it was
+    // (ColumnStore::setData); one after it, before a chain takes the new
+    // rows, sends that chain's trees back to a single leaf. That holds only
+    // while the row count is the one the chains are sized for: a throw that
+    // leaves the store at another count, or a chain part way through being
+    // sized for it, is not settled.
+    size_t oldNumObservations = data_.numObservations;
+    auto resetChainsFrom = [&](size_t first) {
+      if (data_.numObservations != oldNumObservations) return;
+      for (size_t c = first; c < chains_.size(); ++c)
+        chains_[c]->resetEveryTree();
+    };
+    DataReplacement choices = replacement;
     if (!data_.setData(x, numObservations, replacement.grid,
                        replacement.suppliedGrid))
       return false;
-    DataReplacement choices = replacement;
-    if (replacement.grid != DerivedValueChoice::derive) {
-      choices.placement = SplitPlacement::byValue;
-      (void)splitsToMove(oldCutPoints, choices.placement);
-    }
-    if (hasTest) {
-      if (!data_.buildTest(x_test, numTestObservations)) return false;
-      data_.testOffset = testOffset;
-    } else {
+    try {
+      if (replacement.grid != DerivedValueChoice::derive) {
+        choices.placement = SplitPlacement::byValue;
+        (void)splitsToMove(oldCutPoints, choices.placement);
+      }
+      if (hasTest) {
+        if (!data_.buildTest(x_test, numTestObservations)) return false;
+        data_.testOffset = testOffset;
+      } else {
+        data_.resetTestStorage();
+      }
+    } catch (...) {
+      // a test build part way is dropped, as are test rows quantized on the
+      // grid the replacement moved
       data_.resetTestStorage();
+      resetChainsFrom(0);
+      throw;
     }
 
     // the columns the replacement first gave a missing value; the flags
@@ -2573,11 +2601,21 @@ public:
     // with them; the host installs the new rows' mask afterward
     activeRows_.clear();
     SavedDrawSlots kept = savedDrawSlots();
-    for (size_t c = 0; c < chains_.size(); ++c)
-      chains_[c]->applyNewData(y, weights, offset, oldCutPoints, params[c],
-                               varianceParams[c], kept,
-                               anyRaised ? raisedMissing.data() : nullptr,
-                               choices, leafRows);
+    // a chain that throws settles itself (Chain::applyNewData)
+    size_t c = 0;
+    try {
+      for (; c < chains_.size(); ++c)
+        chains_[c]->applyNewData(y, weights, offset, oldCutPoints, params[c],
+                                 varianceParams[c], kept,
+                                 anyRaised ? raisedMissing.data() : nullptr,
+                                 choices, leafRows);
+    } catch (...) {
+      // a chain part way through sizing its test fits holds fewer than the
+      // store's test rows, so the rows are dropped
+      data_.resetTestStorage();
+      resetChainsFrom(c + 1);
+      throw;
+    }
     recordAnchor();
     return true;
   }
@@ -2717,21 +2755,46 @@ public:
       if (oldCutPoints[columns[k]].empty())
         oldCutPoints[columns[k]] = data_.cutPoints[columns[k]];
     // a grid other than the one the column holds goes in unweighted; the held
-    // grid, handed back bit for bit, keeps its weights, so the call is a no-op
-    for (size_t k = 0; k < numColumns; ++k) {
-      size_t j = columns[k];
-      bool held = numCutPoints[k] == data_.numCuts[j] &&
-        std::memcmp(newCutPoints[k], data_.cutPoints[j].data(),
-                    numCutPoints[k] * sizeof(double)) == 0;
-      std::vector<double> mass;
-      if (held) mass = data_.cutMass[j];
-      data_.setCutPointsForColumn(j, newCutPoints[k], numCutPoints[k],
-                                  currentPredictors,
-                                  mass.empty() ? nullptr : mass.data());
+    // grid, handed back bit for bit, keeps its weights, so the call is a no-op.
+    // The grids go in with nothing kept to put back, so a throw before the
+    // refresh sends every tree back to a single leaf.
+    const std::vector<std::vector<double>>* moved = nullptr;
+    try {
+      for (size_t k = 0; k < numColumns; ++k) {
+        size_t j = columns[k];
+        bool held = numCutPoints[k] == data_.numCuts[j] &&
+          std::memcmp(newCutPoints[k], data_.cutPoints[j].data(),
+                      numCutPoints[k] * sizeof(double)) == 0;
+        std::vector<double> mass;
+        if (held) mass = data_.cutMass[j];
+        data_.setCutPointsForColumn(j, newCutPoints[k], numCutPoints[k],
+                                    currentPredictors,
+                                    mass.empty() ? nullptr : mass.data());
+      }
+      moved = splitsToMove(oldCutPoints, placement);
+    } catch (...) {
+      for (auto& chain : chains_) chain->resetEveryTree();
+      throw;
     }
-    const std::vector<std::vector<double>>* moved =
-      splitsToMove(oldCutPoints, placement);
-    for (auto& chain : chains_) chain->forceRefreshTrees(moved, placement);
+    refreshEveryChain(
+      [&](Chain<L, ResidT>& chain) { chain.forceRefreshTrees(moved, placement); });
+  }
+
+  /// Runs \p refresh, a re-route of every tree over a store that has moved,
+  /// on each chain in order. A throw in one, which settles that chain, sends
+  /// every later chain's trees back to a single leaf
+  /// (Chain::resetEveryTree), since the store has moved under them too,
+  /// before it goes on.
+  template <typename Refresh>
+  void refreshEveryChain(Refresh&& refresh) {
+    size_t c = 0;
+    try {
+      for (; c < chains_.size(); ++c) refresh(*chains_[c]);
+    } catch (...) {
+      for (size_t d = c + 1; d < chains_.size(); ++d)
+        chains_[d]->resetEveryTree();
+      throw;
+    }
   }
 
   /// Narrows \p oldCutPoints, the grids some columns held before a change
@@ -3235,11 +3298,12 @@ private:
   /// whole trees with fits on the stored grid, as Chain::setState leaves
   /// them. A false from install puts the store's grid back, moves nothing
   /// and is returned. A throw, from install or from the re-quantization
-  /// before it, leaves with the store's grid, weights and codes back and
-  /// nothing moved. The chains are then as install left them: a chain it
-  /// had finished holds trees built on the stored grid over a store that is
-  /// back on its own, so after a throw that follows an install the sampler
-  /// must not be read or run until a state is installed. \p repair is what
+  /// before it, leaves with the store's grid, weights and codes back. One
+  /// from the re-quantization moves no tree; one from install, after which a
+  /// chain it had finished would hold trees built on the stored grid over a
+  /// store back on its own, sends every chain's trees back to a single leaf
+  /// (Chain::resetEveryTree), so the sampler stays one that can be read and
+  /// run. \p repair is what
   /// a monotone tree the move leaves out of order gets: the reset for a
   /// state, the collapse for a warm start.
   template <typename Install>
@@ -3254,21 +3318,26 @@ private:
         moved[j] = storedCutPoints[j];
     GridSnapshot own(data_);
     bool installed = false;
+    bool installing = false;
     try {
       for (size_t j = 0; j < data_.numPredictors; ++j)
         if (!moved[j].empty())
           data_.setCutPointsForColumn(
             j, moved[j].data(), static_cast<std::uint32_t>(moved[j].size()),
             currentPredictors);
+      installing = true;
       installed = install();
     } catch (...) {
       own.restore(data_);
+      if (installing)
+        for (auto& chain : chains_) chain->resetEveryTree();
       throw;
     }
     own.restore(data_);
     if (!installed) return false;
-    for (auto& chain : chains_)
-      chain->forceRefreshTrees(&moved, SplitPlacement::byValue, repair);
+    refreshEveryChain([&](Chain<L, ResidT>& chain) {
+      chain.forceRefreshTrees(&moved, SplitPlacement::byValue, repair);
+    });
     return true;
   }
 
@@ -3452,25 +3521,46 @@ private:
   /// and fails where a split's interval is empty. A failure puts every moved
   /// position back before it returns, so the caller's restore of the store
   /// and a repartition leave the trees as they were.
+  ///
+  /// An exception in phase one puts every moved position back too and calls
+  /// \p onValidateThrow, which settles the trees as the caller leaves the
+  /// store, before it goes on; one in phase two, after which the store
+  /// stays, leaves every chain re-routed in place with its fits rewritten
+  /// (Chain::settleEveryTreeInPlace).
+  template <typename OnValidateThrow>
   bool revalidateAllChains(
       const size_t* columns, size_t numColumns,
-      const std::vector<std::vector<double>>* movedCutPoints = nullptr,
-      SplitPlacement placement = SplitPlacement::byPosition) {
+      const std::vector<std::vector<double>>* movedCutPoints,
+      SplitPlacement placement, OnValidateThrow&& onValidateThrow) {
     size_t numChains = chains_.size();
-    std::vector<typename Chain<L, ResidT>::ForestRevalidation> state(numChains);
+    std::vector<typename Chain<L, ResidT>::ForestRevalidation> state;
 
     bool allValid = true;
-    for (size_t c = 0; c < numChains && allValid; ++c)
-      allValid = chains_[c]->revalidateTrees(state[c], columns, numColumns,
-                                             movedCutPoints, placement);
+    try {
+      state.resize(numChains);
+      for (size_t c = 0; c < numChains && allValid; ++c)
+        allValid = chains_[c]->revalidateTrees(state[c], columns, numColumns,
+                                               movedCutPoints, placement);
+    } catch (...) {
+      for (size_t c = 0; c < state.size(); ++c)
+        Chain<L, ResidT>::undoSplitMoves(state[c]);
+      onValidateThrow();
+      throw;
+    }
     if (!allValid) {
       for (size_t c = 0; c < numChains; ++c)
         Chain<L, ResidT>::undoSplitMoves(state[c]);
       return false;
     }
 
-    for (size_t c = 0; c < numChains; ++c)
-      chains_[c]->rebuildFitsFromParameters(state[c]);
+    try {
+      for (size_t c = 0; c < numChains; ++c)
+        chains_[c]->rebuildFitsFromParameters(state[c]);
+    } catch (...) {
+      for (size_t c = 0; c < numChains; ++c)
+        chains_[c]->settleEveryTreeInPlace(false);
+      throw;
+    }
     return true;
   }
 
@@ -3499,14 +3589,17 @@ private:
     std::vector<std::vector<int>> oldOwnedRows;
     std::vector<std::vector<double>> oldOwnedValues;
     std::vector<std::uint8_t> oldCscOwned;
+    // whether snapshotApply took its snapshot, which restore puts back
+    bool snapshotTaken = false;
 
     size_t numColumns() const { return data.numPredictors; }
     void applyForced(bool updateCuts) { data.setPredictors(source, updateCuts); }
+    /// The snapshot is taken whole before anything in the store moves, so a
+    /// throw part way leaves restore putting back exactly what moved.
     void snapshotApply(bool updateCuts) {
       // move the live codes aside and rebuild into fresh storage: a reject swaps
       // them back and an accept drops them, so no whole-matrix copy survives
-      oldCodes = std::move(data.train.codes);
-      data.train.codes.assign(oldCodes.size(), 0);
+      std::vector<xint_t> fresh(data.train.codes.size(), 0);
       oldHasMissing = data.hasMissing;
       if (updateCuts) {
         // a refreshed grid may hold another count than the one it replaces
@@ -3522,9 +3615,13 @@ private:
         oldOwnedValues = data.ownedCscValues;
         oldCscOwned = data.cscColumnOwned;
       }
+      oldCodes = std::move(data.train.codes);
+      data.train.codes = std::move(fresh);
+      snapshotTaken = true;
       data.setPredictors(source, updateCuts);
     }
     void restore(bool updateCuts) {
+      if (!snapshotTaken) return;
       data.train.codes = std::move(oldCodes);
       data.hasMissing = std::move(oldHasMissing);
       if (updateCuts) {
@@ -3561,6 +3658,9 @@ private:
     // instead of the dense per-cell journal (which has no codes[] to journal
     // for a rank column)
     std::vector<ColumnStore::CscColumnRollback> cscRecords;
+    // the columns snapshotApply has snapshotted, which restore puts back: a
+    // throw part way leaves the later ones untouched
+    size_t applied = 0;
 
     size_t numColumns() const { return count; }
     void applyForced(bool updateCuts) {
@@ -3588,6 +3688,7 @@ private:
         }
         bool csc = data.columnIsCscBacked(j);
         if (csc) data.snapshotCscColumn(j, cscRecords[k]);
+        applied = k + 1;
         data.mutateColumnFromSource(j, source, k, updateCuts, scratch,
                                     csc ? nullptr : &records[k]);
       }
@@ -3596,7 +3697,7 @@ private:
     /// k - 1 were applied, so a column named twice unwinds to its pre-call
     /// state only in that order.
     void restore(bool updateCuts) {
-      for (size_t k = count; k-- > 0;) {
+      for (size_t k = applied; k-- > 0;) {
         size_t j = columns[k];
         if (data.columnIsCscBacked(j))
           data.restoreCscColumn(j, cscRecords[k]);
@@ -3667,11 +3768,21 @@ private:
     const std::vector<std::uint8_t> flagsBefore(data_.hasMissing);
 
     if (forceUpdate) {
-      strategy.applyForced(updateCutPoints);
-      drawFirstSightDirections(flagsBefore);
-      const std::vector<std::vector<double>>* moved =
-        updateCutPoints ? splitsToMove(oldCutPoints, placement) : nullptr;
-      for (auto& chain : chains_) chain->forceRefreshTrees(moved, placement);
+      // the change goes in place with nothing kept to put back, so a throw
+      // before the refresh sends every tree back to a single leaf, which
+      // holds whatever rows the store then has
+      const std::vector<std::vector<double>>* moved = nullptr;
+      try {
+        strategy.applyForced(updateCutPoints);
+        drawFirstSightDirections(flagsBefore);
+        moved = updateCutPoints ? splitsToMove(oldCutPoints, placement) : nullptr;
+      } catch (...) {
+        for (auto& chain : chains_) chain->resetEveryTree();
+        throw;
+      }
+      refreshEveryChain([&](Chain<L, ResidT>& chain) {
+        chain.forceRefreshTrees(moved, placement);
+      });
       requantizeTestColumns(strategy, updateCutPoints);
       return PredictorUpdateResult::accepted;
     }
@@ -3680,18 +3791,29 @@ private:
     ColumnStore::OwnedDenseRollback oldOwnedDense;
     data_.snapshotOwnedDenseColumns(strategy.columns, strategy.numColumns(),
                                     oldOwnedDense);
-    strategy.snapshotApply(updateCutPoints);
     std::vector<MissingDirectionDraw> firstSight;
-    drawFirstSightDirections(flagsBefore, &firstSight);
-    const std::vector<std::vector<double>>* moved =
-      updateCutPoints ? splitsToMove(oldCutPoints, placement) : nullptr;
-    if (!revalidateAllChains(strategy.columns, strategy.numColumns(), moved,
-                             placement)) {
+    // a refusal, and a throw before the fits are rebuilt, put the store back
+    // as far as the snapshot took it and re-route the trees over it, leaving
+    // them as they were
+    auto rollBack = [&]() {
       takeBackMissingDirections(firstSight);
       data_.gatheredRawValues = std::move(oldGatheredRaw);
       data_.restoreOwnedDenseColumns(oldOwnedDense);
       strategy.restore(updateCutPoints);
       for (auto& chain : chains_) chain->repartitionTrees();
+    };
+    const std::vector<std::vector<double>>* moved = nullptr;
+    try {
+      strategy.snapshotApply(updateCutPoints);
+      drawFirstSightDirections(flagsBefore, &firstSight);
+      moved = updateCutPoints ? splitsToMove(oldCutPoints, placement) : nullptr;
+    } catch (...) {
+      rollBack();
+      throw;
+    }
+    if (!revalidateAllChains(strategy.columns, strategy.numColumns(), moved,
+                             placement, rollBack)) {
+      rollBack();
       return PredictorUpdateResult::rolledBack;
     }
     requantizeTestColumns(strategy, updateCutPoints);
@@ -3828,7 +3950,12 @@ private:
     /// order holds under the directions drawn with it.
     bool finalize() override {
       settleFirstSight();
-      return sampler_.revalidateAllChains(&column_, 1);
+      // the cells are committed and stay, so a throw in the re-route settles
+      // every tree against them
+      return sampler_.revalidateAllChains(
+        &column_, 1, nullptr, SplitPlacement::byPosition, [&]() {
+          for (auto& chain : sampler_.chains_) chain->settleEveryTreeInPlace(true);
+        });
     }
 
   private:

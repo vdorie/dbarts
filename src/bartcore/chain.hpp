@@ -2188,9 +2188,7 @@ public:
       ~CancelScope() { chain.setCancel(nullptr); }
     } scope{*this};
     setCancel(shouldCancel);
-    treeInFlight_ = noTreeInFlight;
-    treeInFlightRegrown_ = false;
-    varianceTreeInFlight_ = noTreeInFlight;
+    clearRebuildMarks();
     try {
       return runSweeps(numBurnIn, numSamples, results, progress, chainIndex,
                        shouldCancel, onSweep, onDraw);
@@ -2213,61 +2211,46 @@ public:
   }
 
   /// What an exception out of a sweep, a grow from the root, a prior tree
-  /// draw or a state's install leaves, made consistent without allocating,
-  /// so the chain is the one its state describes. The mean tree in flight,
-  /// whose structure a move may have changed without its obs-to-leaf map,
-  /// leaf table or fits following, keeps its structure and has its table
-  /// cover its nodes, inside the room reserveForMove made, a new leaf at 0;
-  /// a tree being regrown or installed, or one whose table cannot cover it,
+  /// draw, a state's install or a re-route over moved data leaves, made
+  /// consistent without allocating, so the chain is the one its state
+  /// describes. The mean tree in flight, whose structure an accepted move
+  /// may have changed without its obs-to-leaf map, leaf table or fits
+  /// following, keeps its structure and has its table cover its nodes,
+  /// inside the room reserveForMove made, a new leaf at 0; a tree being
+  /// regrown, installed or re-routed, or one whose table cannot cover it,
   /// goes back to a single leaf at 0. The tree's map is then rewritten from
   /// its partition and its fits from its table, the monotone leaf's block
-  /// restarting at the all-equal zero. A variance tree being drawn or
-  /// installed goes back to a single factor of 1, and the variance surface
-  /// is the product of the factors again. Every forest's totalFits is then
-  /// re-summed from its trees.
+  /// restarting at the all-equal zero. A variance tree being drawn,
+  /// installed or re-routed goes back to a single factor of 1, and the
+  /// variance surface is the product of the factors again. Under
+  /// restUnreached_ every tree a rebuild of them all had not reached goes
+  /// back to a single leaf too: after a mean tree, the rest of its forest,
+  /// every later forest and every variance tree; after a variance tree, the
+  /// later variance trees. Every forest's totalFits is then re-summed from
+  /// its trees.
   void settleAfterAllocationFailure() noexcept {
-    size_t n = data_.numObservations;
     if (treeInFlight_ != noTreeInFlight) {
-      Forest<L, ResidT>& forest = forests_[forestInFlight_];
-      size_t t = treeInFlight_;
-      Tree& tree = forest.trees[t];
-      size_t stride = 1;
-      std::vector<double>* table = nullptr;
-      if constexpr (leafIsConstant) {
-        table = &forest.muByTree[t];
-      } else if constexpr (L::hasVectorParams) {
-        table = &forest.paramsByTree[t];
-        stride = forest.leaf.numParams();
-      }
-      bool reset = treeInFlightRegrown_ ||
-                   (table != nullptr &&
-                    table->capacity() < tree.nodes.size() * stride);
-      if (reset) tree.initialize(forest.indexBuffer.data() + t * n, n);
-      if (table != nullptr) {
-        if (table->size() < tree.nodes.size() * stride)
-          table->resize(tree.nodes.size() * stride, 0.0);
-        if (reset) std::fill(table->begin(), table->begin() + stride, 0.0);
-      }
-      if constexpr (leafIsConstant) {
-        if constexpr (TreeDrawLeafModel<L>)
-          std::fill(table->begin(), table->end(), 0.0);
-        writeLeafOfBelow(tree, 0, forest.leafOf.data() + t * n);
-        forest.leafOfStale[t] = 0;
-      } else if constexpr (L::hasVectorParams) {
-        writeParameterFitsBelow(forest, tree, 0, table->data(),
-                                forest.treeFits.data() + t * n);
-      } else {
-        if (reset) misc_setVectorToConstant(forest.treeFits.data() + t * n,
-                                            n, 0.0);
+      size_t f = forestInFlight_;
+      settleMeanTree(f, treeInFlight_, treeInFlightRegrown_);
+      if (restUnreached_) {
+        for (size_t t = treeInFlight_ + 1; t < forests_[f].numTrees; ++t)
+          settleMeanTree(f, t, true);
+        for (size_t g = f + 1; g < forests_.size(); ++g)
+          for (size_t t = 0; t < forests_[g].numTrees; ++t)
+            settleMeanTree(g, t, true);
+        varianceTreeInFlight_ = 0;
       }
       treeInFlight_ = noTreeInFlight;
     }
     treeInFlightRegrown_ = false;
     if (varianceForest_ && varianceTreeInFlight_ != noTreeInFlight) {
       VarianceForest& vf = *varianceForest_;
-      size_t j = varianceTreeInFlight_;
-      vf.trees[j].initialize(vf.indexBuffer.data() + j * n, n);
-      misc_setVectorToConstant(vf.factorByTree.data() + j * n, n, 1.0);
+      size_t n = data_.numObservations;
+      size_t last = restUnreached_ ? vf.numTrees : varianceTreeInFlight_ + 1;
+      for (size_t j = varianceTreeInFlight_; j < last; ++j) {
+        vf.trees[j].initialize(vf.indexBuffer.data() + j * n, n);
+        misc_setVectorToConstant(vf.factorByTree.data() + j * n, n, 1.0);
+      }
       for (size_t i = 0; i < n; ++i) {
         double product = 1.0;
         for (size_t k = 0; k < vf.numTrees; ++k)
@@ -2276,7 +2259,106 @@ public:
       }
     }
     varianceTreeInFlight_ = noTreeInFlight;
+    restUnreached_ = false;
     rebuildTotalFitsFromTrees();
+  }
+
+  /// settleAfterAllocationFailure's step for forest f's tree t, \p reset
+  /// sending it back to a single leaf at 0 and \p restartMonotone sending
+  /// the monotone leaf's block back to the all-equal zero.
+  void settleMeanTree(size_t f, size_t t, bool reset,
+                      bool restartMonotone = true) noexcept {
+    size_t n = data_.numObservations;
+    Forest<L, ResidT>& forest = forests_[f];
+    Tree& tree = forest.trees[t];
+    size_t stride = 1;
+    std::vector<double>* table = nullptr;
+    if constexpr (leafIsConstant) {
+      table = &forest.muByTree[t];
+    } else if constexpr (L::hasVectorParams) {
+      table = &forest.paramsByTree[t];
+      stride = forest.leaf.numParams();
+    }
+    reset = reset || (table != nullptr &&
+                      table->capacity() < tree.nodes.size() * stride);
+    if (reset) tree.initialize(forest.indexBuffer.data() + t * n, n);
+    if (table != nullptr) {
+      if (table->size() < tree.nodes.size() * stride)
+        table->resize(tree.nodes.size() * stride, 0.0);
+      if (reset) std::fill(table->begin(), table->begin() + stride, 0.0);
+    }
+    if constexpr (leafIsConstant) {
+      if constexpr (TreeDrawLeafModel<L>)
+        if (restartMonotone) std::fill(table->begin(), table->end(), 0.0);
+      writeLeafOfBelow(tree, 0, forest.leafOf.data() + t * n);
+      forest.leafOfStale[t] = 0;
+    } else if constexpr (L::hasVectorParams) {
+      writeParameterFitsBelow(forest, tree, 0, table->data(),
+                              forest.treeFits.data() + t * n);
+    } else {
+      if (reset) misc_setVectorToConstant(forest.treeFits.data() + t * n,
+                                          n, 0.0);
+    }
+  }
+
+  /// What an exception out of a transaction's re-route leaves where the
+  /// store is not put back, made consistent without allocating: every mean
+  /// tree, re-routed against the store first when \p reroute, keeps its
+  /// structure and leaf values, its map and fits rewritten from its
+  /// partition and the leaf's covariates gathered again; every variance
+  /// tree, whose factors a re-route leaves behind its rows, goes back to a
+  /// single factor of 1 when \p resetVariance; and the totals are re-summed.
+  void settleEveryTreeInPlace(bool reroute, bool resetVariance = true) noexcept {
+    clearRebuildMarks();
+    for (size_t f = 0; f < forests_.size(); ++f) {
+      Forest<L, ResidT>& forest = forests_[f];
+      if constexpr (L::hasVectorParams || L::hasFunctionParams)
+        forest.leaf.regatherTrainingCovariates(data_);
+      for (size_t t = 0; t < forest.numTrees; ++t) {
+        if (reroute) forest.trees[t].repartitionSubtree(data_, 0);
+        settleMeanTree(f, t, false, false);
+      }
+    }
+    if (varianceForest_ && resetVariance) markVarianceRebuildAt(0);
+    settleAfterAllocationFailure();
+  }
+
+  /// Marks forest f's tree t as the one a rebuild of every tree, in order,
+  /// is at, so a throw sends it and every tree after it back to a single
+  /// leaf (settleAfterAllocationFailure).
+  void markRebuildAt(size_t f, size_t t) noexcept {
+    forestInFlight_ = f;
+    treeInFlight_ = t;
+    treeInFlightRegrown_ = true;
+    restUnreached_ = true;
+  }
+  /// markRebuildAt for variance tree j.
+  void markVarianceRebuildAt(size_t j) noexcept {
+    treeInFlight_ = noTreeInFlight;
+    treeInFlightRegrown_ = false;
+    varianceTreeInFlight_ = j;
+    restUnreached_ = true;
+  }
+  /// Clears a rebuild's marks once every tree is through.
+  void clearRebuildMarks() noexcept {
+    treeInFlight_ = noTreeInFlight;
+    treeInFlightRegrown_ = false;
+    varianceTreeInFlight_ = noTreeInFlight;
+    restUnreached_ = false;
+  }
+
+  /// Every tree of every forest, the variance forest's included, back to a
+  /// single leaf, the leaf covariates gathered again from the store and the
+  /// totals re-summed: what a chain a rebuild over moved data never reached
+  /// gets when a throw stops the rebuild in an earlier chain. The store must
+  /// hold the row count the chain is sized for. Allocates nothing.
+  void resetEveryTree() noexcept {
+    if (forests_.empty()) return;
+    if constexpr (L::hasVectorParams || L::hasFunctionParams)
+      for (Forest<L, ResidT>& forest : forests_)
+        forest.leaf.regatherTrainingCovariates(data_);
+    markRebuildAt(0, 0);
+    settleAfterAllocationFailure();
   }
 
   /// Points every member row of node \p i's subtree at its bottom, read from
@@ -2322,14 +2404,16 @@ public:
 
   /// Room, ahead of tree t's move, for the one child pair a birth adds, in
   /// the tree's nodes, its leaf table and the scratch its leaves are listed
-  /// in, so that nothing from an accepted move to the end of the tree's draw
-  /// reallocates any of them. A vector grows at least geometrically, so the
+  /// in, and for the pair a rejected birth or an accepted death frees, so
+  /// that nothing from an accepted move to the end of the tree's draw
+  /// reallocates any of them, nor a move's undo. A vector grows at least geometrically, so the
   /// check costs a compare where the room is there.
   void reserveForMove(Forest<L, ResidT>& forest, size_t t) {
     Tree& tree(forest.trees[t]);
     size_t numNodes = tree.nodes.size() + 2;
     reserveAtLeast(tree.nodes, numNodes);
     reserveAtLeast(tree.bottomScratch, numNodes);
+    tree.reserveReleasedPair();
     if constexpr (leafIsConstant)
       reserveAtLeast(forest.muByTree[t], numNodes);
     else if constexpr (L::hasVectorParams)
@@ -4061,6 +4145,14 @@ public:
   /// saved draw and no coefficient. A derived standardization is read over
   /// \p leafRows, which the caller has found to hold enough of every
   /// covariate it derives.
+  ///
+  /// The per-row storage of the trees and their fits is sized first. Where
+  /// the row count is unchanged nothing is sized, and an exception leaves the
+  /// trees re-routed before it re-routed, and the tree being re-routed and
+  /// every one after it a single leaf (settleAfterAllocationFailure), the
+  /// leaf covariates gathered again from the store. Where it changed, that
+  /// storage, the response's and the leaf covariates are sized in turn, and
+  /// an exception between them is not settled.
   void applyNewData(const double* y, const double* weights,
                     const double* offset,
                     const std::vector<std::vector<double>>& oldCutPoints,
@@ -4075,6 +4167,52 @@ public:
     size_t n = data_.numObservations;
     bool numObservationsChanged =
       n * forest.numTrees != forest.indexBuffer.size();
+    bool varianceCountChanged =
+      varianceForest_ && varianceForest_->numObservations() != n;
+    if (numObservationsChanged) {
+      forest.indexBuffer.resize(n * forest.numTrees);
+      if constexpr (leafIsConstant)
+        forest.leafOf.assign(n * forest.numTrees, 0);
+      else
+        forest.treeFits.resize(n * forest.numTrees);
+      forest.totalFits.resize(n);
+      forest.treeY.resize(n);
+    }
+    // the variance forest lives outside forests_ and pins seven n-sized
+    // allocations at the creation count, so a replacement data set of a
+    // different length overruns them (meanWeights_ first, in formMeanWeights)
+    if (varianceCountChanged) resizeVarianceStorage(n);
+    try {
+      replaceData(y, weights, offset, oldCutPoints, params, varianceParams,
+                  kept, raisedMissing, replacement, leafRows,
+                  numObservationsChanged, varianceCountChanged);
+    } catch (...) {
+      // the store holds the replacement's values, which covariates gathered
+      // before the leaf was reinitialized do not
+      if constexpr (L::hasVectorParams || L::hasFunctionParams)
+        if (!numObservationsChanged)
+          forest.leaf.regatherTrainingCovariates(data_);
+      settleAfterAllocationFailure();
+      throw;
+    }
+    clearRebuildMarks();
+  }
+
+  /// applyNewData past its sizing; \p numObservationsChanged and
+  /// \p varianceCountChanged say the storage moved.
+  void replaceData(const double* y, const double* weights,
+                   const double* offset,
+                   const std::vector<std::vector<double>>& oldCutPoints,
+                   TreeParameters& params,
+                   const TreeParameters& varianceParams, SavedDrawSlots kept,
+                   const std::uint8_t* raisedMissing,
+                   const DataReplacement& replacement,
+                   const LeafRows& leafRows, bool numObservationsChanged,
+                   bool varianceCountChanged) {
+    Forest<L, ResidT>& forest = forests_[0];
+    size_t n = data_.numObservations;
+    // every tree indexes rows the store no longer holds until it is re-routed
+    markRebuildAt(0, 0);
 
     weights_ = weights;
     double previousSigmaScale = varianceScaleAnchor();
@@ -4091,15 +4229,6 @@ public:
     // the data's scale moved with the transform
     translateNamedSds();
 
-    if (numObservationsChanged) {
-      forest.indexBuffer.resize(n * forest.numTrees);
-      if constexpr (leafIsConstant)
-        forest.leafOf.assign(n * forest.numTrees, 0);
-      else
-        forest.treeFits.resize(n * forest.numTrees);
-      forest.totalFits.resize(n);
-      forest.treeY.resize(n);
-    }
     misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
     forest.totalFitsScale = 1.0;
 
@@ -4132,6 +4261,7 @@ public:
 
     if (raisedMissing != nullptr) drawMissingDirections(raisedMissing, kept);
     for (size_t t = 0; t < forest.numTrees; ++t) {
+      markRebuildAt(0, t);
       forest.trees[t].mapOldCutPointsOntoNew(data_, oldCutPoints, params[t],
                                              paramStride,
                                              replacement.placement);
@@ -4150,20 +4280,22 @@ public:
       if constexpr (leafIsConstant) rebuildLeafOf(forest, t);
       addTreeFitsToTotal(forest, t);
     }
+    // the variance trees still index rows the store no longer holds
+    if (varianceForest_)
+      markVarianceRebuildAt(0);
+    else
+      clearRebuildMarks();
 
     resizeTestStorage();
 
-    // the variance forest lives outside forests_ and pins seven n-sized
-    // allocations at the creation count, so a replacement data set of a
-    // different length overruns them (meanWeights_ first, in formMeanWeights).
-    // Resize, then re-anchor through the rebuilt grid with the factors
-    // recovered before the store moved. Appended after the forest-0 body:
-    // nothing above it moves, so a homoscedastic chain draws what it drew.
+    // re-anchor the variance forest, sized above, through the rebuilt grid
+    // with the factors recovered before the store moved. Appended after the
+    // forest-0 body: nothing above it moves, so a homoscedastic chain draws
+    // what it drew.
     if (varianceForest_) {
-      bool varianceCountChanged = varianceForest_->numObservations() != n;
-      if (varianceCountChanged) resizeVarianceStorage(n);
       refreshVarianceForest(&oldCutPoints, &varianceParams,
                             varianceCountChanged, replacement.placement);
+      clearRebuildMarks();
       // the refresh re-routes the recovered factors through the new partition,
       // which is scale-free: they are still in the ABANDONED working units and
       // the prior is still stated against them, while response_->setData has
@@ -4253,35 +4385,58 @@ public:
   /// A gp leaf's per-observation fits stay as they are; its saved draws,
   /// which replay only under the kernel they were drawn with, are the
   /// caller's to refuse.
+  ///
+  /// A throw part way can leave a leaf's constants partly derived and its
+  /// live coefficients partly rewritten; the covariates, test ones too, are
+  /// then gathered again under the constants the leaf holds and every
+  /// tree's fits rewritten from its blocks, so each tree is the function its
+  /// blocks give there. A saved draw the rewrite had not reached keeps its
+  /// old basis.
   void rederiveStandardization(SavedDrawSlots kept,
                                const std::uint8_t* replaced,
                                const LeafRows& leafRows = {}) {
     if constexpr (L::hasVectorParams || L::hasFunctionParams) {
-      std::vector<double> held;
-      for (Forest<L, ResidT>& forest : forests_) {
-        SuppliedStandardization supplied =
-          replaced == nullptr
-            ? SuppliedStandardization{}
-            : heldStandardization(forest.leaf, held, replaced);
-        if constexpr (L::hasVectorParams) {
-          size_t n = data_.numObservations;
-          LeafStandardization previous = forest.leaf.standardization();
-          forest.leaf.reinitialize(data_, supplied, leafRows);
-          convertLinearForest(forest, forest.paramsByTree, previous, kept);
-          misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
-          forest.totalFitsScale = 1.0;
-          for (size_t t = 0; t < forest.numTrees; ++t) {
-            setTreeFitsFromParameterBlocks(forest, t, forest.paramsByTree[t]);
-            addTreeFitsToTotal(forest, t);
-          }
-        } else {
-          forest.leaf.reinitialize(data_, supplied, leafRows);
-        }
+      try {
+        rederiveEveryStandardization(kept, replaced, leafRows);
+      } catch (...) {
+        // the test covariates keep their count, so this allocates nothing
+        for (Forest<L, ResidT>& forest : forests_)
+          forest.leaf.rebuildTestCovariates(data_);
+        settleEveryTreeInPlace(false, false);
+        throw;
       }
     }
     (void) kept;
     (void) replaced;
     (void) leafRows;
+  }
+
+  /// rederiveStandardization's body, outside its settle; a leaf that takes
+  /// covariates only.
+  void rederiveEveryStandardization(SavedDrawSlots kept,
+                                    const std::uint8_t* replaced,
+                                    const LeafRows& leafRows) {
+    std::vector<double> held;
+    for (Forest<L, ResidT>& forest : forests_) {
+      SuppliedStandardization supplied =
+        replaced == nullptr
+          ? SuppliedStandardization{}
+          : heldStandardization(forest.leaf, held, replaced);
+      if constexpr (L::hasVectorParams) {
+        size_t n = data_.numObservations;
+        LeafStandardization previous = forest.leaf.standardization();
+        forest.leaf.reinitialize(data_, supplied, leafRows);
+        convertLinearForest(forest, forest.paramsByTree, previous, kept);
+        misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
+        forest.totalFitsScale = 1.0;
+        for (size_t t = 0; t < forest.numTrees; ++t) {
+          setTreeFitsFromParameterBlocks(forest, t, forest.paramsByTree[t]);
+          addTreeFitsToTotal(forest, t);
+        }
+      } else {
+        forest.leaf.reinitialize(data_, supplied, leafRows);
+      }
+    }
   }
 
   /// The first-sight draw: the store has just raised the missing-value flag
@@ -4500,16 +4655,35 @@ public:
   /// re-routed, a split whose interval is empty merging there
   /// (Tree::mapOldCutPointsOntoNew). \p repair is what a monotone tree the
   /// refresh leaves out of order gets.
+  ///
+  /// An exception part way leaves the trees refreshed before it refreshed,
+  /// and the tree being refreshed and every one after it a single leaf
+  /// (settleAfterAllocationFailure).
   void forceRefreshTrees(
       const std::vector<std::vector<double>>* movedCutPoints = nullptr,
       SplitPlacement placement = SplitPlacement::byPosition,
       MonotoneRepair repair = MonotoneRepair::reset) {
+    try {
+      refreshEveryTree(movedCutPoints, placement, repair);
+    } catch (...) {
+      settleAfterAllocationFailure();
+      throw;
+    }
+    clearRebuildMarks();
+  }
+
+  /// forceRefreshTrees' re-route, tree by tree.
+  void refreshEveryTree(
+      const std::vector<std::vector<double>>* movedCutPoints,
+      SplitPlacement placement, MonotoneRepair repair) {
     size_t n = data_.numObservations;
     // every tree still holds the partition its fits were drawn on, so a
     // merge at the move weighs leaves by their rows, as the collapse does
     const Tree::LiveRows liveRows{response_->workingWeights()};
 
-    for (Forest<L, ResidT>& forest : forests_) {
+    for (size_t f = 0; f < forests_.size(); ++f) {
+      Forest<L, ResidT>& forest = forests_[f];
+      markRebuildAt(f, 0);
       misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
       forest.totalFitsScale = 1.0;
 
@@ -4517,6 +4691,7 @@ public:
         forest.leaf.regatherTrainingCovariates(data_);
         std::vector<double> dummyParams;
         for (size_t t = 0; t < forest.numTrees; ++t) {
+          markRebuildAt(f, t);
           dummyParams.assign(forest.trees[t].nodes.size(), 0.0);
           if (movedCutPoints != nullptr)
             forest.trees[t].mapOldCutPointsOntoNew(
@@ -4529,6 +4704,7 @@ public:
       } else if constexpr (!L::hasVectorParams) {
         std::vector<double> paramByNode;
         for (size_t t = 0; t < forest.numTrees; ++t) {
+          markRebuildAt(f, t);
           recoverParametersFromFits(forest, t, paramByNode);
           if (movedCutPoints != nullptr)
             forest.trees[t].mapOldCutPointsOntoNew(
@@ -4545,6 +4721,7 @@ public:
         forest.leaf.regatherTrainingCovariates(data_);
         size_t numParams = forest.leaf.numParams();
         for (size_t t = 0; t < forest.numTrees; ++t) {
+          markRebuildAt(f, t);
           if (movedCutPoints != nullptr)
             forest.trees[t].mapOldCutPointsOntoNew(
               data_, *movedCutPoints, forest.paramsByTree[t], numParams,
@@ -7346,6 +7523,7 @@ private:
     std::vector<double> leafValues;
     for (std::size_t j = 0; j < vf.numTrees; ++j) {
       Tree& tree = vf.trees[j];
+      markVarianceRebuildAt(j);
       // the empty-leaf veto admits no unoccupied bottom into live state, so
       // every factor recovered HERE is a drawn (positive) scale. A
       // caller supplying recoveredFactors read them itself and owns that
@@ -9059,16 +9237,19 @@ private:
   // keptDrawsThisRun's count, which Sampler::run reads to drop the slots a
   // stopped run overwrote
   size_t keptDrawsThisRun_ = 0;
-  // the tree a sweep is moving and drawing, or a grow, a prior draw or an
-  // install is building, noTreeInFlight outside that stretch;
+  // the tree a sweep is moving and drawing, or a grow, a prior draw, an
+  // install or a re-route is building, noTreeInFlight outside that stretch;
   // settleAfterAllocationFailure reads it
   static constexpr size_t noTreeInFlight = static_cast<size_t>(-1);
   size_t forestInFlight_ = 0, treeInFlight_ = noTreeInFlight;
-  // whether the tree in flight was reset to be regrown or installed, which
-  // the settle then leaves a single leaf; and the variance tree a prior draw
-  // or an install is building
+  // whether the tree in flight was reset to be regrown, installed or
+  // re-routed, which the settle then leaves a single leaf; and the variance
+  // tree a prior draw, an install or a re-route is building
   bool treeInFlightRegrown_ = false;
   size_t varianceTreeInFlight_ = noTreeInFlight;
+  // whether every tree after the one in flight, mean or variance, is one a
+  // rebuild of them all, in order, had not reached
+  bool restUnreached_ = false;
 
   // One map forest: what it states, what it multiplies, a numeric column's
   // scale (NaN where none is held) with whether it was read from every row,
