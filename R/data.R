@@ -1849,6 +1849,14 @@ validateXTest <- function(
   if (is.null(x.test)) {
     return(x.test)
   }
+  # a plain list of columns is the data frame it holds, as predict.lm reads
+  # one
+  if (is.list(x.test) && !is.object(x.test)) {
+    if (length(x.test) == 0L || length(unique(lengths(x.test))) != 1L) {
+      stop("'test' must be a data frame, a matrix or a vector")
+    }
+    x.test <- as.data.frame(x.test, optional = TRUE)
+  }
   x.test <- asNumericPredictors(x.test)
   # a vector is one row, its names those of the columns
   if (is.numeric(x.test) && is.null(dim(x.test)) && length(x.test) > 0L) {

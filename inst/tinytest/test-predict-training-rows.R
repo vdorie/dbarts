@@ -1545,4 +1545,43 @@ for (fit.v in list(quickVector(x.v, d.v$y), quickVector(y ~ a + b + c, d.v))) {
 }
 
 rm(x.v, d.v, quickVector, v, row.v, fit.v)
+
+# ---- a list as newdata ----
+# a plain list of equal-length columns is the data frame it holds, as
+# predict.lm reads one; any other list names the forms taken
+set.seed(25)
+d.l <- data.frame(
+  a = runif(30L),
+  b = runif(30L),
+  g = factor(sample(c("p", "q"), 30L, replace = TRUE))
+)
+d.l$y <- d.l$a + as.integer(d.l$g) + rnorm(30L, 0, 0.3)
+fit.l <- bart(
+  y ~ a + b + g,
+  d.l,
+  n.trees = 10L,
+  n.burn = 10L,
+  n.samples = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 2L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+expect_identical(
+  unname(predict(fit.l, as.list(d.l[1:3, ]))),
+  unname(predict(fit.l, d.l[1:3, ]))
+)
+expect_error(
+  predict(fit.l, list(a = 1:2, b = 1:3, g = "p")),
+  pattern = "'test' must be a data frame, a matrix or a vector",
+  fixed = TRUE
+)
+expect_error(
+  predict(fit.l, list()),
+  pattern = "'test' must be a data frame, a matrix or a vector",
+  fixed = TRUE
+)
+
+rm(d.l, fit.l)
 rm(countWarnings, captureWarnings)
