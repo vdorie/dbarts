@@ -93,6 +93,14 @@ items
     splitprobs (0.9-34 does too), fitting equal probabilities. A separate
     change that moves draws for those calls: about 3 lines, a pin and a
     NEWS line. Found reviewing tree-prior-flat.
+  capi-sampler-info: dec-B615. dbarts.h describes a sampler through one
+    struct led by structSize, filled by one entry, holding every count
+    and fact the one-fact entries report today, with the variance
+    forest (dec-B601) and the Student-t residual as fields of their
+    own; the one-fact entries are removed and stan4bart's calls move to
+    it in the same landing. Built in the host-neutral engine's header
+    stage, before the freeze; its plan carries it at its next
+    amendment.
   capi-unwind-protect: closed but for one arm. A host draw callback's R
     error is now caught at the callback itself, where R_UnwindProtect can
     still turn it into a C++ unwind, so the engine's run frames run their
