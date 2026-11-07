@@ -218,7 +218,7 @@ xbart <- function(
   # evaluates is written against one location, so the fit would be scored as
   # though the slab were n rows. Refused ahead of the family resolution below,
   # which resolves counts to multinomial from "auto"
-  refuseCountsCarryingData(formula, "xbart()")
+  refuseCountsCarryingData(formula, "xbart()", family)
   refuseBasesCarryingData(
     formula,
     "xbart()",
@@ -227,8 +227,34 @@ xbart <- function(
   refuseResponseFreeFormula(formula, "xbart()")
   refuseForestTerm(formula, "xbart")
   # the first argument has been read above and is handed on as its value;
-  # predictors that draw their rows are then read once, as the response is
-  dataCall <- handOn(dataCall, list(formula = formula))
+  # predictors that draw their rows are then read once, as the response is.
+  # Under a logistic family a two-column response is a binomial's successes
+  # and failures, as bart() reads it: on a formula the data object reads them
+  # off the model frame, and on the matrix interface they ride its counts
+  handed <- list(formula = formula)
+  if (identical(family, "logistic")) {
+    if (is.formula(formula)) {
+      attr(handed$formula, binomialResponseAttr) <- TRUE
+    } else if (
+      !inherits(formula, "dbartsData") &&
+        !missing(data) &&
+        is.matrix(data) &&
+        ncol(data) == 2L
+    ) {
+      # another matrix reaches the data object, whose refusal is restated
+      # in xbart's words
+      handed$counts <- validateBinomialCounts(data)
+      dataCall$data <- NULL
+    }
+  } else if (
+    identical(family, "probit") &&
+      !missing(data) &&
+      is.matrix(data) &&
+      ncol(data) == 2L
+  ) {
+    stop(probitBinomialMessage)
+  }
+  dataCall <- handOn(dataCall, handed)
   data <- withMatrixResponseRestated(
     "xbart()",
     family,
@@ -266,7 +292,17 @@ xbart <- function(
     "xbart",
     "gaussian"
   )
-  if (data@response.type == "numeric") {
+  binomial <- identical(family, "logistic") && !is.null(dataCounts(data))
+  if (binomial) {
+    # data@y is the trials, which no 0/1 rule reads
+    counts <- dataCounts(data)
+    if (
+      all(counts[, 1L] == 0L, na.rm = TRUE) ||
+        all(counts[, 2L] == 0L, na.rm = TRUE)
+    ) {
+      warnSingleClass(family)
+    }
+  } else if (data@response.type == "numeric") {
     uniqueResponses <- unique(data@y)
     responseIsBinary <- length(uniqueResponses) == 2L &&
       all(sort(uniqueResponses) == c(0, 1))
@@ -279,10 +315,10 @@ xbart <- function(
     ) {
       # gaussian on a 0/1 response is a legitimate request; the binary
       # families need latent-variable coding
-      refuseNonBinaryResponse(family)
+      refuseNonBinaryResponse(family, data@y)
     }
   }
-  if (isBinaryFamily(family) && responseHasSingleClass(data@y)) {
+  if (isBinaryFamily(family) && !binomial && responseHasSingleClass(data@y)) {
     warnSingleClass(family)
   }
   control@binary <- isBinaryFamily(family)
@@ -1021,7 +1057,17 @@ xbartLossFunction <- function(loss, control, family) {
     },
     log = function(y.test, testSamples, weights) {
       p.test <- rowMeans(probFromLatent(testSamples))
-      logLikelihood <- ifelse(y.test > 0, log(p.test), log1p(-p.test))
+      # a binomial row's proportion y is y of its trials' successes; a 0/1
+      # row reads one term
+      logLikelihood <- ifelse(
+        y.test == 1,
+        log(p.test),
+        ifelse(
+          y.test == 0,
+          log1p(-p.test),
+          y.test * log(p.test) + (1 - y.test) * log1p(-p.test)
+        )
+      )
       if (is.null(weights)) {
         -mean(logLikelihood)
       } else {
@@ -1029,10 +1075,13 @@ xbartLossFunction <- function(loss, control, family) {
       }
     },
     mcr = function(y.test, testSamples, weights) {
-      misclassified <- as.numeric(
-        rowMeans(probFromLatent(testSamples)) > 0.5
-      ) !=
+      # the share of a row's trials on the wrong side of 0.5: its failures
+      # where the probability is above, its successes otherwise
+      misclassified <- ifelse(
+        rowMeans(probFromLatent(testSamples)) > 0.5,
+        1 - y.test,
         y.test
+      )
       if (is.null(weights)) {
         mean(misclassified)
       } else {
@@ -1095,6 +1144,20 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
   numObservations <- length(data@y)
   hasWeights <- !is.null(data@weights)
   family <- spec$model@family
+  # what the losses read: a binomial row is its observed proportion, weighted
+  # by its trials times its weight
+  counts <- dataCounts(data)
+  lossResponse <- if (is.null(counts)) {
+    data@y
+  } else {
+    binomialObserved(counts, "ev")
+  }
+  lossWeights <- if (is.null(counts)) {
+    data@weights
+  } else {
+    as.double(rowSums(counts)) *
+      (if (hasWeights) data@weights else 1)
+  }
 
   # linear and gp leaf priors read raw covariate values, fixed across cells;
   # the handle must own raw for them so each fold view can gather them
@@ -1211,8 +1274,8 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
   sweepCells <- function(testRows, treeSeeds) {
     trainRows <- seq_len(numObservations)[-testRows]
     trainData <- foldData(trainRows)
-    y.test <- data@y[testRows]
-    weights.test <- if (hasWeights) data@weights[testRows] else NULL
+    y.test <- lossResponse[testRows]
+    weights.test <- if (!is.null(lossWeights)) lossWeights[testRows]
 
     lossValues <- NULL
     sampler <- NULL
