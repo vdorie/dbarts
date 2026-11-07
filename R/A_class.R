@@ -888,10 +888,9 @@ methods::setClass(
     offset.test = "numericOrNULL",
     n.cuts = "integer",
     sigma = "numeric",
-    # always "incorporate" from every entry point: missing predictor values
-    # are modeled for whichever rows 'na.action' kept. The slot survives for
-    # a host that drives a sampler directly and wants new predictors refused
-    # rather than routed.
+    # always "incorporate", the one mode: missing predictor values are
+    # modeled for whichever rows 'na.action' kept, and na.action is the one
+    # way to refuse them
     missing = "character",
     # what the fit's 'na.action' removed, in the shape base R records it: a
     # named integer vector of dropped row numbers whose class ("omit" or
@@ -1251,11 +1250,8 @@ methods::setValidity("dbartsData", function(object) {
   if (length(object@useQuantiles) != 1L) {
     return("'useQuantiles' must be TRUE, FALSE or NA")
   }
-  if (
-    length(object@missing) != 1L ||
-      !(object@missing %in% c("incorporate", "error"))
-  ) {
-    return("'missing' must be \"incorporate\" or \"error\"")
+  if (!identical(object@missing, "incorporate")) {
+    return("'missing' must be \"incorporate\"")
   }
 
   TRUE

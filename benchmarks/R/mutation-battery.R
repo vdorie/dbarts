@@ -331,20 +331,11 @@ mutations <- list(
   # plant a mutation in. No other site is checked by the same gate, so
   # there is nothing live to repoint m19 at.
 
-  mk(
-    "m20",
-    "R/utility.R",
-    "checkMissingPolicy <- function(data, hasMissing, what) {\n  if (data@missing == \"error\" && hasMissing) {",
-    "checkMissingPolicy <- function(data, hasMissing, what) {\n  if (data@missing != \"error\" && hasMissing) {",
-    "KILL_EXPECTED",
-    kTinytest("inst/tinytest/test-data-missing.R"),
-    paste0(
-      "R/: checkMissingPolicy's policy comparison inverted, so a ",
-      "missing = \"error\" sampler no longer refuses new missing values ",
-      "(dropping hasMissing instead is undetectable: the one existing test's",
-      " scenario always has hasMissing TRUE)"
-    )
-  ),
+  # m20 retired, id left unassigned rather than reused: it targeted
+  # checkMissingPolicy, which refused new missing values on a data object
+  # whose missing slot was "error". That mode and the code that read it are
+  # gone (na.action = na.fail is the one way to refuse missing values), so
+  # there is no live site to repoint m20 at.
 
   ## SURVIVE_DOCUMENTED: the setState / readWarmStartState SEXP-parsing
   ## validation clusters are the two largest UNTESTED-PATH clusters in the

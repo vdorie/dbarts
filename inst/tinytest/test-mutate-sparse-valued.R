@@ -4,10 +4,6 @@
 # entries, read under the STORE's implicit rule, so every accepted shape must
 # land BITWISE what its dense equivalent lands: fits, cut grid, predictions
 
-source(
-  system.file("common", "strictData.R", package = "dbarts"),
-  local = TRUE
-)
 if (!requireNamespace("Matrix", quietly = TRUE)) {
   exit_file("Matrix not available")
 }
@@ -323,8 +319,8 @@ expect_error(
   pattern = "column 'f' is categorical"
 )
 
-# --- an NA in a sparse argument is a stored NaN, and trips a data object
-# whose missing policy is "error"
+# --- an NA in a sparse argument is a stored NaN, and lands where its dense
+# equivalent lands
 na.column <- Matrix::sparseMatrix(
   i = c(4L, 9L),
   j = c(1L, 1L),
@@ -332,27 +328,23 @@ na.column <- Matrix::sparseMatrix(
   dims = c(n, 1L),
   repr = "C"
 )
-sampler.strict <- dbarts(
-  strictData(x.a, y.a),
+expectTwinsAgree(x.a, y.a, na.column, as.double(na.column), column = 1L)
+sampler.shapes <- dbarts(
+  x.a,
+  y.a,
   control = control,
   n.trees = 20L,
   sigest = sd(y.a)
 )
-expect_error(
-  sampler.strict$setPredictor(na.column, column = 1L, forceUpdate = TRUE),
-  pattern = "missing values"
-)
-# with missingness admitted the NA lands where its dense equivalent lands
-expectTwinsAgree(x.a, y.a, na.column, as.double(na.column), column = 1L)
 
 # --- mis-shaped arguments are refused, never reinterpreted: a sparseVector
 # carries no column layout, so it can only fill one column's worth of rows
 expect_error(
-  sampler.strict$setPredictor(a.vector, column = c(1L, 2L), forceUpdate = TRUE),
+  sampler.shapes$setPredictor(a.vector, column = c(1L, 2L), forceUpdate = TRUE),
   pattern = "'x' must have length"
 )
 expect_error(
-  sampler.strict$setPredictor(a.one, column = integer(0), forceUpdate = TRUE),
+  sampler.shapes$setPredictor(a.one, column = integer(0), forceUpdate = TRUE),
   pattern = "."
 )
 

@@ -1,12 +1,6 @@
 # NAs in the predictors are modeled, every split rule learning a direction
 # for missing values, for whatever rows the fit's na.action kept; na.fail
-# rejects them, and a data object whose own missing policy is "error"
-# refuses NA updates on a live sampler
-
-source(
-  system.file("common", "strictData.R", package = "dbarts"),
-  local = TRUE
-)
+# rejects them
 
 set.seed(42)
 n <- 400L
@@ -119,20 +113,6 @@ dev.off()
 predictions <- sampler.keep$predict(test.df)
 expect_equal(dim(predictions), c(20L, 5L))
 expect_true(!anyNA(predictions))
-
-# a sampler whose data object carries the "error" missing policy refuses NA
-# updates
-sampler.strict <- dbarts(
-  strictData(y ~ x2, df),
-  control = control,
-  n.trees = 50L
-)
-x2.bad <- df$x2
-x2.bad[1L] <- NA
-expect_error(
-  sampler.strict$setPredictor(x2.bad, "x2"),
-  pattern = "missing = \"error\""
-)
 
 # on an incorporate sampler setPredictor may MOVE a column's NA pattern:
 # install a replacement whose missingness carries the response signal, and the
@@ -273,13 +253,6 @@ expect_error(
   pattern = "'x2'"
 )
 
-# the "error" policy: no column ever learned a route, so any test NA is
-# refused - today (pre-D8) it answers silently
-expect_error(
-  sampler.strict$predict(data.frame(x2 = c(NA_real_, 0.4, 0.6))),
-  pattern = "'x2'"
-)
-
 # the S3 surface: predict.bart reaches the same refusal on a bart() fit,
 # so it is proven to reach a fit and not only a raw sampler
 fit.b2 <- bart(
@@ -298,7 +271,6 @@ expect_error(predict(fit.b2, test.df.x2na), pattern = "'x2'")
 rm(
   sampler,
   sampler.keep,
-  sampler.strict,
   sampler.state,
   sampler.restored,
   sampler.extra,
@@ -342,6 +314,5 @@ rm(
   x1.moved,
   fits.before,
   fits.after,
-  run.after,
-  x2.bad
+  run.after
 )

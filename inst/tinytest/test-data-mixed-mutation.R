@@ -4,11 +4,6 @@
 # covariate regather all read the mutated values rather than the ones the
 # container was built from
 
-source(
-  system.file("common", "strictData.R", package = "dbarts"),
-  local = TRUE
-)
-
 if (!requireNamespace("Matrix", quietly = TRUE)) {
   exit_file("Matrix not available")
 }
@@ -197,48 +192,4 @@ x.wrong.shape <- Matrix::t(as(matrix(rnorm(n * 3L), n, 3L), "CsparseMatrix"))
 expect_error(
   sampler.transposed$setPredictor(x.wrong.shape, forceUpdate = TRUE),
   pattern = "dimension of x"
-)
-
-# ANYNA ON A CONTAINER, both directions: a container with exactly one sparse
-# ordinal column carries sparseReference = NA_integer_ (the "no reference
-# level" sentinel) as a length-one list element, which base anyNA() on a
-# list misreads as a missing value that is not there
-sampler.strict <- dbarts(
-  strictData(x.frame, y),
-  control = control,
-  sigest = 1,
-  n.trees = 25L
-)
-test.one.sparse <- data.frame(u = rnorm(5L), w = rnorm(5L))
-test.one.sparse$sv <- Matrix::sparseVector(
-  x = c(0.6, 0.9),
-  i = c(1L, 4L),
-  length = 5L
-)
-container.no.na <- dbarts:::makeCategoricalModelMatrix(test.one.sparse)
-expect_equal(length(container.no.na$sparseReference), 1L)
-expect_true(is.na(container.no.na$sparseReference))
-expect_silent(sampler.strict$setTestPredictor(container.no.na))
-
-# with two or more sparse columns, sparseReference is a length>1 element -
-# never inspected for NA by a top-level list anyNA() at all - so a real NA
-# in sparse@x goes undetected in the other direction
-sampler.strict2 <- dbarts(
-  strictData(x.frame, y),
-  control = control,
-  sigest = 1,
-  n.trees = 25L
-)
-test.two.sparse <- data.frame(u = rnorm(5L))
-test.two.sparse$w <- Matrix::sparseVector(
-  x = c(NA_real_, 0.4),
-  i = c(1L, 3L),
-  length = 5L
-)
-test.two.sparse$sv <- Matrix::sparseVector(x = 0.7, i = 2L, length = 5L)
-container.has.na <- dbarts:::makeCategoricalModelMatrix(test.two.sparse)
-expect_true(length(container.has.na$sparseReference) > 1L)
-expect_error(
-  sampler.strict2$setTestPredictor(container.has.na),
-  pattern = "missing values"
 )
