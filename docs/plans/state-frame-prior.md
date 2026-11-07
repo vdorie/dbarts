@@ -1072,7 +1072,7 @@ or, where the family has one, the range, or takes a record whose numbers differ 
 ([`standardizationRecordIsHeld`](../../src/R_interface_bartcore.cpp)), with dec-B237's remedy in its text; the
 grid never refuses. The predictor entries refuse `updateStandardization = TRUE` on a gp sampler holding kept
 draws before anything moves. A count sampler's mask installed by `setData` re-reads the center only where the
-range is derived ([`installWeightsMask`](../../R/bartcore.R)), and the fallback warning is raised only there. The
+range is derived (`installWeightsMask`), and the fallback warning is raised only there. The
 help's Saving section carries the design's table; NEWS says `setData` uses the record.
 
 Departures from the steps and the test table:

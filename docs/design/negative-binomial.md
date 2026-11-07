@@ -445,9 +445,10 @@ a fixed-unit-scale family keeps its zero offset meaningful ([`resolveSamplerSpec
 as probit/logistic/ordinal do. The offset enters c (section 1), so an offset
 swap with updateScale re-derives c, as a gaussian swap re-derives its range.
 
-**Weights: refused, except 0/1 as the row mask (dec-B179).** Weights of 0
-and 1 name the rows in the data set and install as the active-row mask, as on
-probit and ordinal. Any other weight is refused. The original reasoning: a frequency/case weight replicating an observation
+**Weights: refused, except 0/1 as membership (dec-B179, dec-B569).** Weights
+of 0 and 1 name the rows in the data set: they stay on the data object, a 0 a
+count out of the likelihood composed with the active-row mask, as on probit and
+ordinal. Any other weight is refused. The original reasoning: a frequency/case weight replicating an observation
 w_i times would draw PG(w_i (y_i + r), psi) - inside fork (A)'s integer
 envelope that stays exact for integer w (w (y_i + r) is integer), but it also
 multiplies the count histogram into the grid kernel and the exposure question

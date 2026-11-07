@@ -98,7 +98,7 @@ in [Recheck against bartcore 030b39f0 and state-frame-prior slices 2 and 3 as bu
   counted at its standardized value 0, and 1 where the distances are all 0.
 - The leaf is initialized in the [`Chain`](../../src/bartcore/chain.hpp) constructor from the column store
   alone, before the response model exists. Weights are there; a latent family's mask is not, being
-  installed after creation by [`installWeightsMask`](../../R/bartcore.R). The engine holds the mask in each
+  installed after creation by `installWeightsMask`. The engine holds the mask in each
   response model and drops it at a data swap, whose row count may differ.
 - [`Chain::applyNewData`](../../src/bartcore/chain.hpp) (setData) calls `reinitialize`: every row of the
   new data. The predictor setters regather under the constants in force. The weight and mask setters touch
@@ -471,7 +471,7 @@ Bridge.
 R.
 - [`bartcoreSamplerSetData`](../../R/bartcore.R) passes the mask it resolves from the new weights to the
   bridge as the sixth argument, before the engine swaps, and still installs it afterwards through
-  [`installWeightsMask`](../../R/bartcore.R) as slice 3 does.
+  `installWeightsMask` as slice 3 does.
 - The creation warning for no row in: where the engine reports a leaf covariate read from every row, the
   sampler's `initialize` raises it from [`createEngine`](../../R/dbarts.R)'s records, class
   `dbartsScaleFallbackWarning`, under every family, in forest-multiplier push 2's form: under gaussian,
@@ -1035,7 +1035,7 @@ Holds:
   [`firstScaleKept`](../../src/R_interface_bartcore.cpp).
 - [`refuseSavedGPDrawReanchor`](../../src/R_interface_bartcore.cpp), called by
   [`refuseRowsRederivation`](../../src/R_interface_bartcore.cpp), the nearer home for push 2's refusal.
-- [`installWeightsMask`](../../R/bartcore.R) (slice 3 gives it a `rederive` argument),
+- `installWeightsMask` (slice 3 gives it a `rederive` argument),
   [`bartcoreSamplerSetData`](../../R/bartcore.R) (resolves the 0/1 weights' mask before the bridge call),
   [`warnScaleKept`](../../R/bartcore.R), [`checkUpdateScale`](../../R/bartcore.R), `reapplyActiveRows`
   (passes FALSE to the bridge), [`enforceWeightPolicy`](../../R/spec.R), [`scaleRowsFallBack`](../../R/spec.R)
