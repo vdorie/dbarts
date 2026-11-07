@@ -283,3 +283,71 @@ rm(
   data,
   x3
 )
+
+# ---- a character matrix column ----
+# a vector of characters is levels; a matrix of them has no such reading, so
+# it is refused by name at every door, where as.factor would keep its first
+# column alone; a logical matrix column still splices one 0/1 predictor per
+# column, as a numeric one does
+set.seed(91L)
+charFrame <- data.frame(x = runif(30L))
+charFrame$y <- charFrame$x + rnorm(30L, 0, 0.3)
+charFrame$z <- matrix(sample(c("a", "b"), 60L, TRUE), 30L, 2L)
+oneCharFrame <- data.frame(x = charFrame$x, y = charFrame$y)
+oneCharFrame$z <- matrix(sample(c("a", "b"), 30L, TRUE), 30L, 1L)
+charMatrixWords <- "column 'z' is a matrix of characters; give each of its columns as a column of its own, or as a factor"
+quickChar <- function(...) {
+  bart(
+    ...,
+    n.trees = 5L,
+    n.burn = 5L,
+    n.samples = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    keepTrees = TRUE,
+    verbose = FALSE
+  )
+}
+for (frame in list(charFrame, oneCharFrame)) {
+  expect_error(quickChar(y ~ x + z, frame), pattern = charMatrixWords, fixed = TRUE)
+  expect_error(
+    quickChar(y ~ x + z, frame, factors = "indicators"),
+    pattern = charMatrixWords,
+    fixed = TRUE
+  )
+  expect_error(dbartsData(y ~ x + z, frame), pattern = charMatrixWords, fixed = TRUE)
+  expect_error(
+    quickChar(frame[c("x", "z")], frame$y),
+    pattern = charMatrixWords,
+    fixed = TRUE
+  )
+}
+# at predict, a fit whose z is a numeric matrix column
+numericFrame <- data.frame(x = charFrame$x, y = charFrame$y)
+numericFrame$z <- matrix(runif(60L), 30L, 2L)
+newChar <- data.frame(x = charFrame$x[1:3])
+newChar$z <- charFrame$z[1:3, ]
+for (fitChar in list(
+  quickChar(y ~ x + z, numericFrame),
+  quickChar(numericFrame[c("x", "z")], numericFrame$y)
+)) {
+  expect_error(predict(fitChar, newChar), pattern = charMatrixWords, fixed = TRUE)
+}
+logicalFrame <- data.frame(x = charFrame$x, y = charFrame$y)
+logicalFrame$lm <- matrix(runif(60L) > 0.5, 30L, 2L)
+expect_identical(
+  colnames(dbartsData(y ~ x + lm, logicalFrame)@x),
+  c("x", "lm.1", "lm.2")
+)
+
+rm(
+  charFrame,
+  oneCharFrame,
+  charMatrixWords,
+  quickChar,
+  frame,
+  numericFrame,
+  fitChar,
+  newChar,
+  logicalFrame
+)

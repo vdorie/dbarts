@@ -1073,6 +1073,11 @@
             values does. 0.9-34 dropped a column constant on those rows and
             stopped with \dQuote{number of columns in 'test' must be equal
             to that of 'x'}.
+      \item A data-frame column that is a matrix of characters is an error
+            naming the column, at the fit and at predict. 0.9-34 kept its
+            first column as a factor and dropped the others, with only R's
+            warning that a replacement element had too many rows. A logical
+            or numeric matrix column is one predictor per column, as before.
     }
   }
 }

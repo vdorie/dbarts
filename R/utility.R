@@ -829,6 +829,25 @@ makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
   result
 }
 
+## A character matrix column has no reading as levels: as.factor would drop
+## its dimensions, and the frame would keep its first column alone. A vector
+## is levels and a matrix is numbers, as at the basis doors, so a logical or
+## numeric matrix column splices in one predictor per column and a
+## character one is refused by name.
+refuseCharacterMatrixColumns <- function(x) {
+  for (name in names(x)) {
+    column <- x[[name]]
+    if (is.character(column) && !is.null(dim(column))) {
+      stop(
+        "column '",
+        name,
+        "' is a matrix of characters; give each of its columns as a ",
+        "column of its own, or as a factor"
+      )
+    }
+  }
+}
+
 ## storage = "auto" lets the fit's own training design build indicator columns
 ## sparse where they are sparse enough (sparseIndicatorMode); "dense" builds
 ## every one dense, as the exported builder and a test set's coding do.
@@ -847,6 +866,7 @@ makeIndicatorModelMatrix <- function(x, drop = TRUE, storage = "auto") {
     stop("when list, drop must have length equal to x")
   }
 
+  refuseCharacterMatrixColumns(x)
   characterCols <- sapply(x, typeof) == "character"
   if (any(characterCols)) {
     x[characterCols] <- lapply(x[characterCols], as.factor)
@@ -985,6 +1005,7 @@ makeCategoricalModelMatrix <- function(x) {
     stop("x is not a dataframe")
   }
 
+  refuseCharacterMatrixColumns(x)
   characterCols <- sapply(x, typeof) == "character"
   if (any(characterCols)) {
     x[characterCols] <- lapply(x[characterCols], as.factor)
