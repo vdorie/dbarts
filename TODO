@@ -339,7 +339,9 @@ items
     having been seen; (4) an opt-in if both fail. Not sized; a rough
     guess of tens of core-hours, mostly step 2. Logistic fits only;
     probit keeps its own rescaling step (dec-B617); the move reaches
-    the forests sharing one prior total (dec-B618). Record
+    the forests sharing one prior total (dec-B618) and hazard.logistic
+    and count-weighted logistic fits, timed, not scored (dec-B619).
+    Record
     docs/plans/binary-k-mixing-need.md, What the result leads to;
     move on wt/collapsed-move-plan, plan
     docs/plans/collapsed-scale-move.md.
