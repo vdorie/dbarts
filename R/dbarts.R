@@ -1850,10 +1850,12 @@ samplePriorPredictive <- function(
   # The prior draws overwrite all tree state, so no donor state is needed.
   # keepTrees is forced off: it makes predict() serve saved posterior
   # samples instead of the live trees this function just drew. verbose is
-  # forced off for the run a DART draw may fall back on.
+  # forced off for the run a DART draw may fall back on. Prior draws are
+  # chain-free, so the sampler runs one chain.
   newControl <- sampler$control
   newControl@keepTrees <- FALSE
   newControl@verbose <- FALSE
+  newControl@n.chains <- 1L
   # under the caller's prior, on the grid, range and leaf standardization its
   # data object records
   draw <- dbartsSampler$new(newControl, sampler$model, sampler$data)
@@ -2007,6 +2009,23 @@ leafPriorIsImproper <- function(model) {
 # from the sampler's own run instead.
 priorForestAttemptsPerSample <- 50L
 
+# The pooled budget of whole-forest draws for a call of n.samples. An
+# unexported, undocumented option, read fresh per call, sets the call's total
+# instead, so a test can reach the fallback at any seed: 0 sends the first
+# sample to it, 1 under a draw always held the second.
+priorForestAttempts <- function(n.samples) {
+  forced <- getOption("dbarts.priorForestAttempts")
+  total <- if (is.null(forced)) {
+    priorForestAttemptsPerSample * as.double(n.samples)
+  } else {
+    as.double(forced)[1L]
+  }
+  if (is.na(total) || total < 0) {
+    stop("option 'dbarts.priorForestAttempts' must be a non-negative count")
+  }
+  as.integer(min(floor(total), .Machine$integer.max))
+}
+
 # samplePriorPredictive's forests: n.samples independent draws of the prior
 # the private sampler 'draw' runs under, each evaluated at xt. Each sample
 # draws the hyperparameters first, then the trees, then the leaves. Under
@@ -2027,10 +2046,7 @@ drawPriorForests <- function(
 ) {
   ptr <- draw$getPointer()
   isMultinomial <- samplerCarriesCounts(draw)
-  attemptsLeft <- as.integer(min(
-    priorForestAttemptsPerSample * as.double(n.samples),
-    .Machine$integer.max
-  ))
+  attemptsLeft <- priorForestAttempts(n.samples)
   sampleOnce <- function(fromRun) {
     if (fromRun) {
       draw$run(0L, 1L, updateState = FALSE)
@@ -2051,9 +2067,8 @@ drawPriorForests <- function(
     }
     draw$sampleLeafParametersFromPrior(updateState = FALSE)
     fit <- withCodedPredictors(draw$predict(xt, offset.test, n.threads))
-    # multi-chain samplers draw an independent prior stream per chain; prior
-    # draws are chain-free, so only the first chain's stream is kept. A
-    # multinomial sampler's rows carry K probabilities, kept as rows x K.
+    # one chain's fit, as a vector of rows; a multinomial sampler's rows
+    # carry K probabilities, kept as rows x K
     d <- dim(fit)
     if (length(d) == 3L) {
       fit <- array(fit[,, 1L], d[1:2])
@@ -2071,11 +2086,13 @@ drawPriorForests <- function(
   fromRun <- FALSE
   samples <- vector("list", n.samples)
   for (i in seq_len(n.samples)) {
-    samples[[i]] <- sampleOnce(FALSE)
-    if (is.null(samples[[i]])) {
+    # held apart: a NULL assigned into the list would delete the element
+    sample <- sampleOnce(FALSE)
+    if (is.null(sample)) {
       fromRun <- TRUE
       break
     }
+    samples[[i]] <- sample
   }
   if (fromRun) {
     draw$setActiveRows(rep_len(0, length(draw$data@y)), updateState = FALSE)
