@@ -7983,8 +7983,10 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
       for (R_xlen_t i = 0; i < numCuts; ++i)
         if (bartcore::isNA(cuts[i]))
           Rf_error("$setCutPoints: 'cuts' must not contain NA or NaN");
-      // a cut at Inf is never a split, and one at -Inf separates exactly what
-      // -DBL_MAX does; neither is a grid the sampler's record can hold
+      // a row goes left when its value is at most the cut, so a cut at Inf
+      // never splits, and one at -Inf sends left only the rows at -Inf, which
+      // a cut at -DBL_MAX also sends left with any row at -DBL_MAX; neither
+      // infinity is a grid the sampler's record can hold
       for (R_xlen_t i = 0; i < numCuts; ++i)
         if (!std::isfinite(cuts[i]))
           Rf_error("$setCutPoints: 'cuts' must be finite; a cut at "
