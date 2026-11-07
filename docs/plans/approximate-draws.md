@@ -3,7 +3,8 @@
 Status: DESIGN, re-planned 2026-11-03 under dec-B583, dec-B584 and dec-B585; amended 2026-11-05 from the sizing
 study and its independent review, and for dec-B586 (augmentation variables drawn at the start of each sweep);
 amended 2026-11-06 for the proof dec-B591 asked for and for the rulings dec-B590 to dec-B593, dec-B606 and
-dec-B607; amended again 2026-11-06 from a blind critique of that amendment. The three open calls are ruled. The
+dec-B607; amended again 2026-11-06 from a blind critique of that amendment, and from a conformance check of the
+result (dec-B590's twice-speed threshold, S1's design for its builder). The three open calls are ruled. The
 build starts with S1, whose two gates (the close-call floor and the timing) decide whether S2 proceeds as planned;
 the per-row threshold's dependence on |psi| comes back to the maintainer with S1's timings. The defaults come from
 a study run before 1.0-0, right after the build (dec-B592).
@@ -19,9 +20,9 @@ before S1. S3 lands after frequency-weights.
 window: everything built here ships in 1.0-0, the approximate settings opt-in (dec-B592); the defaults study runs
 before 1.0-0, right after the build.
 budget: the sizing ran at 970 lines in a scratch build and 1.6 core-hours. The build, with every survivor, about
-5,000 written lines over five slices (the proof's source and scripts, moved into the tree, not counted) and about
-76 agent-hours, with about 13 core-hours of local gates and about 20 of scheduled CI ([What is built](#what-is-built));
-before the proof, 2,350 lines and 40 agent-hours.
+5,070 written lines over five slices (the proof's source and scripts, moved into the tree, not counted) and about
+78 agent-hours without the cache, 5,170 and 79.5 with it, with about 12 to 15 core-hours of local gates and about
+20 of scheduled CI ([What is built](#what-is-built)); before the proof, 2,350 lines and 40 agent-hours.
 
 ## Summary for the maintainer
 
@@ -58,23 +59,25 @@ What the proof found. The route is exact under the standard every sampler in the
 with a proven error bound costs far more than the sizing's. With the bound as first specified, a step's density
 work alone costs about 30 to 110 microseconds a row at log-odds up to 8 and shapes to 10,000, 90 to 350 at log-odds 50 for shapes to
 1,000, and 320 and up at log-odds 150. So the route beats the sum only from a few hundred trials at log-odds up to
-8, from several thousand at log-odds 50, and never at log-odds 150. At fractional weights, where there is no sum,
-a step costs 40 to 90 microseconds, and about 320 at log-odds 150, against the sizing's 7. A cheaper bound, proven
-but not yet built, might bring the route under the sum from about 1,000 trials at every log-odds tested. So the
-first slice builds that bound and times the route. The threshold between the sum and the route is then set from
-those timings, by log-odds as well as by shape, never below your 64, and its dependence on log-odds comes back to
-you with them. A close call, too close to decide
+8, from several thousand at log-odds 50, and never at log-odds 150; it reaches twice the sum's speed, the measure
+your 64 was set by, only from about 500 to 800 trials at log-odds up to 8 and 16,000 to 24,000 at log-odds 50. At
+fractional weights, where there is no sum, a step costs 40 to 90 microseconds, and about 320 at log-odds 150,
+against the sizing's 7. A cheaper bound, proven but not yet built, might bring the route to twice the sum's speed
+from about 1,000 trials at log-odds up to 50. So the first slice builds that bound and times the route. The
+threshold between the sum and the route is then set from those timings, where the route measures twice the sum's
+speed, by log-odds as well as by shape, never below your 64, and its dependence on log-odds comes back to you with
+them. A close call, too close to decide
 within the bound, came at most about once in 160 billion steps where tested.
 
 What it builds. The certified density; the exact route for logistic, binomial, logistic hazard and negative
 binomial; fractional weights under the route; the approximation as a setting, for every Polya-Gamma family
 including multinomial; and the setting at the doors users reach.
 
-What comes back to you: the threshold's dependence on log-odds, with the first slice's timings; that slice itself
-if the route does not beat the sum by 1,000 trials at small log-odds, or if its close calls are more frequent than
-its gate allows and tighter rounding does not fix that; whether the C header packages build against gains a reader
-of the close-call count; and, with the setting's names, which your ruling left to the build, four smaller calls on
-what a user is told or refused.
+What comes back to you: the threshold's dependence on log-odds, with the first slice's timings; that slice itself if
+the route does not reach twice the sum's speed by 1,000 trials at small log-odds, or if its close calls are more
+frequent than its gate allows and tighter rounding does not fix that; whether the C header packages build against
+gains a reader of the close-call count; and, with the setting's names, which your ruling left to the build, four
+smaller calls on what a user is told or refused.
 
 ## Goal
 
@@ -102,8 +105,10 @@ Rulings, quoted, not reopened:
 - dec-B589: setData keeps the ordinal cutpoints, Student-t degrees of freedom and negative binomial shape; the next
   sweep draws the latents from the kept values.
 - dec-B590: until the study, the route where a row's shape is above 64 or not a whole number, the exact sum
-  otherwise; "And yes, you can use your recommendation." S1's timed rule may raise the threshold by |psi|, never
-  below 64 ([The per-row rule](#the-per-row-rule)); that dependence comes back to the maintainer.
+  otherwise; "And yes, you can use your recommendation." The 64 was where the route measured twice the sum's speed
+  on one x86 machine, erring toward the sum, and S1's timed threshold keeps that criterion. It may raise the
+  threshold by |psi|, never below 64 ([The per-row rule](#the-per-row-rule)); that dependence comes back to the
+  maintainer.
 - dec-B592: every sampler built ships in 1.0-0, the approximate ones opt-in, revising dec-B14's 1.0 clause and
   dec-B143's "for 1.0-0"; the defaults study runs before 1.0-0, right after the build: "Sure, we can do that."
 - dec-B593: the method by name, NULL the automatic rule, and a separate tolerance, the target total variation
@@ -142,10 +147,20 @@ the marks. [`dbartsDrawLatents`](../../R/augmentation.R) is a fresh draw and kee
 The proof (dec-B591): "The accept-or-keep Polya-Gamma step: where it keeps the posterior exact, and where it does
 not", 2026-11-06, checked by two independent referees, the second confirming every point of its last round. Its
 sections are cited below by name; its section "Changes the design needs" is taken in item by item ([The proof's
-changes](#the-proofs-changes)). Its TeX source, the scripts its appendix "Numerical verification" lists, and the
-two referees' reports on rows that re-enter the fit (the source of the pseudo-prior route) land in
-docs/design/approximate-draws-proof/ with S1, with a short README saying how to build the PDF (no PDF is checked
-in; docs/ holds none). A design note, docs/design/approximate-draws.md, lands beside it, as
+changes](#the-proofs-changes)). Its source is scratch/apx-fix1/proof.tex, assembled from
+scratch/apx-fix1/texparts/p1.tex to p4.tex (the 17-item version this plan cites; scratch/apx-proof/proof.tex is an
+earlier draft and does not move). The scripts its appendix "Numerical verification" lists are in
+scratch/apx-fix1/scripts (with bench/ and the .out files they print), and import pgref.py and kd.py from
+scratch/apx-proof/scripts, which move with them, as do exact_toys.py and explicit_m.py there, used unchanged. Their
+environment is rebuilt from a requirements list that lands beside them, not from the scratch venv: Python 3,
+mpmath 1.4.1 and python-flint 0.9.0 (Arb), and a C compiler for bench/*.c against the package's
+src/external/random.c. The referee reports that land with it: on the note's last rounds, scratch/apx-ref1/report3.md and
+scratch/apx-ref2/report4.md (the second's confirmation), and on rows that re-enter the fit, the source of the pseudo-prior route,
+scratch/apx-ref2/report5.md and scratch/apx-ref1/report-chk4.md with its toy scratch/apx-ref1/chk4/pseudo.R. All
+land in docs/design/approximate-draws-proof/ with S1, with a short README saying how to build the PDF and run
+the scripts (no PDF is checked in; docs/ holds none). On the move S1 also brings the note's setter passages up to
+the rulings ([The proof's changes](#the-proofs-changes), item 12). A design note, docs/design/approximate-draws.md,
+lands beside it, as
 [RNG classes and their gates](README.md#rng-classes-and-their-gates) asks of the posterior-changing class (S4);
 Verification cites both there. dec-B591's teensy vignette stays S5's.
 
@@ -232,6 +247,15 @@ doubles formed from the tail sums. Rounding r_1 down buys uniform ergodicity, no
 weight f/q is unbounded (the proof, "The row kernel"). The proof shows the step leaves PG(b, psi) invariant for
 every b > 0, psi and K >= 1, and the sweep the joint posterior ("The sweep").
 
+What S1 builds and what S2 wires. S1 builds every piece its pins and its timing need, as functions on one row with
+no sampler around them: the proposal's rates fl(c_k + fl(psi^2 / 2)) with r_1 rounded down; the tail sums and the
+remainder's (alpha, beta); K from D's closed form (the K rule below); the K + 1 gamma draws from an ext_rng; the
+saddle solve; f and q with their enclosures; the ratio's enclosure; and a step on one row, proposal to decision,
+which the timing harness times. S2 wires that step into the sampler: called at the sweep's start from
+LogisticResponse::refreshLatents and NBResponse::drawOmega, the per-row rule and the marks deciding which rows
+take it, the interval uniform drawn from the chain's own generator, the close-call count, the cache if built, the
+cancel between rows, the moved-r rule, the internal switch, and the R pieces.
+
 The ratio (S1 forms it, S2 uses it). It is evaluated in the tilted, cancellation-free form: log f and log q
 directly, each node's exponent formed from the node's offset Delta from the vertex, and the lead x t_0 + log L(t_0)
 in double-double ("The tilted, cancellation-free form and its rounding floor"). The untilted form, from PG(b, 0)
@@ -249,8 +273,13 @@ cache entry, and four otherwise; without the cache, always four, which the proof
 
 The cache (S2, conditional). It saves at most one of four evaluations, so it moves b* by at most a factor of 4/3,
 and it costs the double-double update, about 56 bytes a row per chain, and a broken build and a mutant of its own.
-It is built only if S1's three- and four-evaluation timings move b* materially; S1 states, before timing, the
-change in b* that counts as material. As specified, if built: per row: log f at a point, in double-double, with its enclosure, its refinement level, the point
+It is built only if S1's three- and four-evaluation timings move b* materially. The threshold, fixed here before
+any timing runs: the move is material if, at |psi| 0 or 8, the b* the per-row rule's criterion gives from the
+three-evaluation cost is at least 10 percent below the b* it gives from the four-evaluation cost (the most the
+cache can move it is 25 percent). S1's timing record cites the commit of this plan that carries this sentence. The
+lead needs all five double-double functions (exp, log, log1p, sine, square root) whether or not the cache is
+built, so S1 builds all five either way; the cache adds only double-double arithmetic over them, and dec-B606's
+"cached density in double-double" applies only if it is built. As specified, if built: per row: log f at a point, in double-double, with its enclosure, its refinement level, the point
 as an exact double and the (b, psi) it was computed at. It is used only when the point equals the row's omega_i
 bit for bit and b is unchanged, and is then moved to the current psi; otherwise it is ignored and the step makes
 four evaluations. Keying on (b, psi) alone would be wrong: setData with only the response changed, setState, a
@@ -304,26 +333,36 @@ certificate can go below:
 | 1e4 | 1,360 to 1,570 | 109 (3.7) | 100 (7.1) | 951 (72) | 5,120 (305) |
 | 1e5 | 13,600 to 15,700 | 874 (9.4) | 299 (24) | 3,910 (276) | 24,000 (1,760) |
 
-So the route as first specified crosses the sum near b 250 at psi 0 and near 400 at |psi| 8, loses to 1e3 and
-wins from 1e4 at |psi| 50, and loses at every shape tested at |psi| 150, where the K + 1 terms of each q node
-decide it. The main sum alone would beat the sum at every whole shape from 1e3 up at every |psi| tested, about even
-at 1e3 and |psi| 150: the certificate, not the method, decides where the route pays. The sizing's 3.1 to 3.9 us
+So the route as first specified breaks even with the sum near b 230 to 270 at psi 0 and 300 to 360 at |psi| 8,
+and near 4,100 to 5,300 at |psi| 50, and loses at every shape tested at |psi| 150, where the K + 1 terms of each q
+node decide it. Twice the sum's speed, dec-B590's criterion, comes later: near b 490 to 580 at psi 0, 690 to 810 at
+|psi| 8 and 16,000 to 24,000 at |psi| 50, never at 150 (log-log interpolation of the table, the sum at 0.136 to
+0.157 us a trial; lower estimates, since the table leaves out the gammas, the saddle solves and the bookkeeping).
+The main sum alone would reach twice the sum's speed at every whole shape from 1e3 up at |psi| to 50 and from 1e4
+at 150: the certificate, not the method, decides where the route pays. The sizing's 3.1 to 3.9 us
 at 64 and up, 8.8 at 16 and 7.0 at fractional weights were measured with the uncertified density.
 
-The decision (S2). The enclosure of log r is formed from all four density enclosures plus the rounding of their
-sum. The uniform has at least 53 bits, held as the interval [U_-, U_+) its drawn bits determine, with more bits
-drawn when the interval meets the enclosure; a 32-bit uniform alone puts a grid of 2.3e-10 under every decision,
-above the floor. The bits are formed from the Mersenne-Twister words of the chain's generator, the algorithm every
-chain is created with. The step accepts when l_- >= min(0, log U_+), keeps when l_+ <= log U_-, and otherwise refines,
-re-evaluating f(omega) only when its cached enclosure is too wide. At the top level a close call keeps the row's
-old value and is counted (dec-B606): the count is kept per chain and summed, exposed by a sampler accessor, warned
-about by run() when nonzero, and carried on bart2, bart and rbart fits, whose creators warn as well. No gate can
-provoke a close call at the real floor, so a test-only setting inflates every enclosure until close calls occur;
-the count, report and warning tests and the count's mutant use it. Whether the shipped C header gains a reader of
-the count, for packages that build against it, is an ABI event, as dec-B601's accessor was, and an open call to the
-maintainer at S2 ([Calls left open](#calls-left-open)). A fresh exact draw in place of an undecided decision stays declined: it does not keep PG(b, psi)
-(the proof's exact counterexample, a stationary distribution 0.0108 from the target), whether a decision resolves
-depending on the current value, and none exists at fractional shapes.
+The decision (S2). The enclosure of log r is formed from all four density enclosures plus the rounding of their sum.
+The uniform has at least 53 bits, held as the interval [U_-, U_+) its drawn bits determine, with more bits drawn
+when the interval meets the enclosure; a 32-bit uniform alone puts a grid of 2.3e-10 under every decision, above the
+floor. The bits are formed from the Mersenne-Twister words of the chain's generator, the algorithm every chain is
+created with. The step accepts when l_- >= min(0, log U_+), keeps when l_+ <= log U_-, and otherwise refines,
+re-evaluating f(omega) only when its cached enclosure is too wide. At the top level a close call keeps the row's old
+value and is counted (dec-B606): the count is kept per chain and summed, with the count of route steps beside it,
+both read by a sampler accessor, getLatentStepCounts(), on dbartsSampler (R/dbarts.R, through a bridge entry in
+src/R_interface_bartcore.cpp), a chains-by-two matrix of doubles (steps, close calls). It is warned about once.
+run() warns when its own run's close-call count is nonzero, but bart, bart2 and rbart, which call run() for burn-in
+and draws (rbart once a sweep), set an internal flag on the sampler that turns run()'s warning off while they run
+it; each then warns once, from the count summed over chains, carries the count on the fit, and clears the flag
+before returning, so a user running the kept sampler further is warned by run(). No gate can provoke a close call at
+the real floor, so a test-only setting inflates every enclosure until close calls occur; the count, report and
+warning tests and the count's mutant use it. It is an inflation factor on every radius, a per-chain engine member
+set only through an unexported R function, dbarts:::setCloseCallInflation(sampler, factor), over its own bridge
+entry, and documented only in the tests that call it. Whether the shipped C header gains a reader of the count, for
+packages that build against it, is an ABI event, as dec-B601's accessor was, and an open call to the maintainer at
+S2 ([Calls left open](#calls-left-open)). A fresh exact draw in place of an undecided decision stays declined: it
+does not keep PG(b, psi) (the proof's exact counterexample, a stationary distribution 0.0108 from the target),
+whether a decision resolves depending on the current value, and none exists at fractional shapes.
 
 The floor. At the proof's pins (b 0.2 to 1e5, |psi| to 150, x from 4 standard deviations below the mean to 12
 above), in ball arithmetic with the lead in double-double, each log-density's enclosure has radius at most 1.4e-12
@@ -341,10 +380,11 @@ perfect arithmetic, as today's sum is; each of the sum's comparisons against a 3
 probability up to about 2^-32, about one draw in 20 to 30 million at a shape of 64, uncounted ("Floating point: the
 standard every sampler in the package meets").
 
-The K rule (S2). A cost choice: with r_1 rounded down every K >= 1 is exact and uniformly ergodic. The weight f/q
-has right-tail limit exp(b D(psi, K)), D > 0 in closed form; K is chosen per row as the smallest with
-b D <= 0.01. That bounds the tail limit only, not sup f/q, which the rule does not control: certified lower bounds
-on sup f/q exceed exp(b D) at small b (1.263 against 1.010 at b 0.3, psi 8, K 1; 35.6 against 28.7 at b 0.2,
+The K rule (S1 builds it, S2 applies it per row). A cost choice: with r_1 rounded down every K >= 1 is exact and
+uniformly ergodic. The weight f/q has right-tail limit exp(b D(psi, K)), D > 0 in closed form; K is chosen per row
+as the smallest with b D <= 0.01. That bounds the tail limit only, not sup f/q, which the rule does not control:
+certified lower bounds on sup f/q exceed exp(b D) at small b (1.263 against 1.010 at b 0.3, psi 8, K 1; 35.6 against
+28.7 at b 0.2,
 |psi| 150). The smallest K, from D in 40-digit arithmetic:
 
 | \|psi\| | b = 0.2 | 1 | 16 | 100 | 1e3 | 1e4 | 1e5 |
@@ -359,10 +399,14 @@ on sup f/q exceed exp(b D) at small b (1.263 against 1.010 at b 0.3, psi 8, K 1;
 The first amendment's 110 to 120 at |psi| 150 came from a truncated sum that underestimated D. At 41 ns a gamma the
 proposal's draws alone cost about 23 us a row at the extreme, and q at two points with K + 1 terms per node and
 cell adds more (the cost table). The scratch build's cap at 48 broke the rule above b 81 at |psi| 64, 6.1 at 100
-and 0.63 at 150. Such |psi| arise in fits near separation, not ordinary ones.
+and 0.63 at 150. Such |psi| arise in fits near separation, not ordinary ones. S1's tests/cpp pins the rule's K at
+every cell of the table above, from D in double against the 40-digit values, so the rule is tested directly and
+not only through the cap mutant.
 
 The cancel (S2). Polled between rows only, never inside a row's refinement: a refinement's length depends on
-omega_i, so a cancel landing inside it would leave the row unchanged by a rule read from omega_i.
+omega_i, so a cancel landing inside it would leave the row unchanged by a rule read from omega_i. A tests/cpp test
+cancels from the poll at row j and checks that rows before j hold their stepped values, rows from j on their old
+ones bit for bit, with their marks still set.
 
 Rejection from the same proposal with a certified bound M on f/q would give independent exact draws, which would
 also serve multinomial and fractional-shape rows a setter changed. The proof's explicit bound is finite but useless
@@ -390,37 +434,43 @@ multinomial sections, with exact finite-state examples):
   each category's omega as a temporary latent against the current margins just before that category's forest,
   and with persistent latents the forest steps are not invariant for the target the step needs (an exact example:
   0.0061 in total variation). Multinomial keeps the exact sum under every exact setting; an approximate setting,
-  being a fresh draw, can serve it. A forced route on multinomial is refused naming the method, as recommended
-  ([Calls left open](#calls-left-open)).
+  being a fresh draw, can serve it. What a forced route on multinomial does is an open call at S5: refuse naming
+  the method (recommended) or draw by the sum ([Calls left open](#calls-left-open)).
 
 ### The per-row rule
 
 dec-B590 ruled the route at a row whose shape is above 64 or not a whole number, the sum otherwise. The 64 was
-where the sizing's uncertified route was twice the sum's speed; under the certified cost the route loses to the
-sum at 64 at every |psi| measured, while a cheap certificate could bring it below the sum there (the main sum alone
-costs 3.6 us at b 64, psi 0, against the sum's 8.7 to 10). S1's timed rule refines the threshold (the proof,
+where the sizing's uncertified route was twice the sum's speed (dec-B590: "The threshold is where the route
+measured twice the sum's speed on one x86 machine, erring toward the sum"); under the certified cost the route
+loses to the sum at 64 at every |psi| measured, while a cheap certificate could bring it near twice the sum's speed
+there (the main sum alone costs 3.6 us at b 64, psi 0, against the sum's 8.7 to 10). S1's timed rule refines the
+threshold (the proof,
 "Changes the design needs", item 8, of the note dec-B606 rules on): at a whole-number row, the step if and only if
 b_i > b*(|psi_i|), the sum otherwise; a fractional row always takes the step. b*(|psi|) is the timed value or 64,
 whichever is larger, so dec-B590's guarantee, that a fit whose shapes are all whole numbers of 64 or less draws as
-the build before it, holds whatever S1 measures; the proof's counts put the timed value at 250 and up. The
+the build before it, holds whatever S1 measures; the proof's counts put the timed value at about 490 and up. The
 dependence on |psi| revises dec-B590's rule, so it comes back to the maintainer with S1's timings before S2 makes
 it the default.
 
-S1's timing gate. S1 times, on the x86 bench box, quiet, one core (arm64 reported, not used: the constants are
-fixed in the code for every user, and dec-B590's 64 was set on that box), the route's per-row cost c_R(b, psi) and
-the sum's c_S(b) at |psi| in {0, 8, 50, 150} and b in {0.2, 1, 2.5, 16, 64, 1e3, 1e4, 1e5} (0.2 and 2.5 for the
+S1's timing gate. S1 times, on the x86 bench box, quiet, one core (arm64 reported, not used: the constants are fixed
+in the code for every user, and dec-B590's 64 was set on that box), the route's per-row cost c_R(b, psi) and the
+sum's c_S(b) at |psi| in {0, 8, 50, 150} and b in {0.2, 1, 2.5, 16, 64, 1e3, 1e4, 1e5} (0.2 and 2.5 for the
 fractional-shape budget). c_R is the four-evaluation cost of a step (no valid cache entry): the density part with
 its bookkeeping, the saddle solves and the K + 1 gammas, the maximum over z in {-3, 0, 3}; the three-evaluation
 figure, with the update, is reported beside it and decides only whether the cache is built. So b* is decided from
-S1's timings alone, with no share of steps or of rows the rule moves to estimate from fits, and errs toward the
-sum, as dec-B590 did. The timed b*(|psi|) is the smallest whole b with c_R <= c_S, log-interpolated between grid
-points and rounded up; at each |psi_i| the rule takes the larger b* of the bracketing grid points; b* is infinite
-where the route never wins and at every |psi_i| above 150, so the sum is used there.
-The gate passes if the timed b* <= 1e3 at |psi| <= 8, where the sizing's binomial and negative binomial cells lie (the proof's
-counts give about 250 to 400). If it fails, the step has no case at whole-number shapes and S1 goes back to the
-maintainer before S2. Fractional shapes have no sum to fall back on and keep the route whatever it costs; no
-inexact fallback is introduced. If c_R there exceeds 70 us a row step, ten times the sizing's figure, S1 reports
-the cells that do (in the proof's counts, |psi| >= 50) for the help of real weights.
+S1's timings alone, with no share of steps or of rows the rule moves to estimate from fits, and errs toward the sum,
+as dec-B590 did. The timed b*(|psi|) is the smallest whole b where the route measures at least twice the sum's
+speed, c_R <= c_S / 2, log-interpolated between grid points and rounded up, and the rule's b* is the larger of that
+and 64; at each |psi_i| the rule takes the larger b* of the bracketing grid points; b* is infinite where the route
+never reaches twice the sum's speed and at every |psi_i| above 150, so the sum is used there (the proof's note gave
+break-even, c_R <= c_S, its item 8; this plan keeps the ruling's criterion). The gate passes if the timed b* <= 1e3
+at |psi| <= 8, where the sizing's binomial and negative binomial cells lie. Under twice-speed the proof's counts
+give about 490 to 580 at psi 0 and 690 to 810 at |psi| 8 (break-even, 230 to 360): the gate passes on them by a
+factor of about 1.2 to 2, a thinner margin than break-even's 3 to 4, and the counts are lower estimates, so whether
+the gate passes likely turns on the cheaper certificate. If it fails, the step has no case at whole-number shapes
+and S1 goes back to the maintainer before S2. Fractional shapes have no sum to fall back on and keep the route
+whatever it costs; no inexact fallback is introduced. If c_R there exceeds 70 us a row step, ten times the sizing's
+figure, S1 reports the cells that do (in the proof's counts, |psi| >= 50) for the help of real weights.
 
 psi_i moves every sweep, so a row near b* moves between the sum and the step, starting each stepped sweep after a
 sum draw with no valid cache entry, which the four-evaluation c_R already prices; the rule's table is fixed
@@ -439,7 +489,10 @@ fixed at 1 on these families, so it moves no row's conditional.
 The marks do not exist on main, where every active row is drawn every sweep; S2 builds them. Per row, per chain:
 set by setOffset, setForestBasis, setResponse, setData, setModel's shape and setState (every row), setPredictor
 (the moved rows), setWeights and setActiveRows (the changed rows), inside the per-sweep hook included; copied with
-the sampler; never state; each cleared only after the row's draw, so a cancel leaves it set.
+the sampler; never state; each cleared only after the row's draw, so a cancel leaves it set. Tests in tests/cpp
+pin each of these: after each setter, the set of marked rows equals the list above for it (every row, the moved
+rows, the changed rows), inside the per-sweep hook as well; a copied sampler carries its original's marks; a
+cancel before a marked row's draw leaves its mark set, and the next sweep draws it.
 
 So the separate exact path this plan had for setters is one branch at the sweep's start (S2): a marked row at a
 whole-number shape is drawn by the sum, and a marked row at a fractional shape takes the step from its installed
@@ -495,7 +548,9 @@ engine on main):
   skips the latent draw as the mask does; S3 checks that on that plan's build and says so in the help, or leaves the
   toggle out of it.
 
-The help carries the pseudo-prior route with a two-line example of the membership step. The proof, when it moves
+The help carries the pseudo-prior route with a two-line example of the membership step; a tinytest runs it on a
+small logistic and an nbinom fit (r fixed) and checks its log factor at each row against the same factor computed
+independently in the test from the referees' formula. The proof, when it moves
 into the tree in S1, gains the scope note on its result for latent-reading samplers: "for a fixed set of rows; an
 activity change at a fractional shape is covered only on the pseudo-prior extension". The setActiveRows help's
 sentence that "a caller that draws the mask from the fit with the latents integrated out ... need not call
@@ -538,10 +593,12 @@ them; and the conditional arm reading latents saved before the sweep must fail. 
 integrating outer step cannot fail at a feasible size (a changed row stays stale only with the step's rejection
 probability, 0.002 to 0.006 at the sizing's real-weight cells, against a fully stale latent's |z| of 17.8 in quick
 mode), so it is run and its largest |z| reported, not gated, and the help's "small bias" quotes it. The example
-itself is run by R CMD check and by a tinytest comparing its intercept means at whole-number weights, with the
-method forced to the route, against a run with the method forced to the sum. Compute: 32 rows at 40 to 90 us a row
-step is 1.3 to 2.9 ms a sweep, 20 to 50 minutes an arm in quick mode against about 35 seconds today; five arm runs,
-about 2.5 to 4 core-hours.
+itself is run by R CMD check and by a tinytest at fractional weights that checks it runs with the route taken
+(the route-step count of getLatentStepCounts() positive) and reads the close-call count. Its exactness is the
+outer-step gate's fractional arms' job, not the tinytest's: at whole-number weights setOffset marks every row every
+sweep, so a run forced to the route and one forced to the sum both draw by the sum and a comparison of them has no
+power. Compute: 32 rows at 40 to 90 us a row step is 1.3 to 2.9 ms a sweep, 20 to 50 minutes an arm in quick
+mode against about 35 seconds today; five arm runs, 1.7 to 4.2 core-hours.
 
 ### Real shapes
 
@@ -553,9 +610,9 @@ exact setting:
 - Real weights on logistic, binomial and hazard.logistic are taken at creation, and every between-sweep setter and
   setState is taken (dec-B607), the rows they mark at fractional shapes served by the step from their installed
   values: exact for a larger sampler that reads the latents ([Setters and marked rows](#setters-and-marked-rows)).
-  A starting point is served by the step as a cold start is. A forced sum at fractional weights has no draw and is
-  refused naming the method, as recommended ([Calls left open](#calls-left-open)). dbartsDrawLatents, a fresh
-  draw, keeps refusing fractional weights. A fresh draw at fractional shapes, by rejection from
+  A starting point is served by the step as a cold start is. A forced sum at fractional weights has no draw; what
+  it does is an open call at S5, refusing naming the method (recommended) or quietly taking the route
+  ([Calls left open](#calls-left-open)). dbartsDrawLatents, a fresh draw, keeps refusing fractional weights. A fresh draw at fractional shapes, by rejection from
   the proposal once its bound is certified or by a transport of the distribution functions, would make the
   integrated-out case exact too; research, not built.
 - At fractional shapes the step is the only exact draw, and costly: under the certificate as first specified, 40 to
@@ -654,54 +711,116 @@ dec-B593's.
 
 | slice | content | tier | lines | agent-hours |
 |---|---|---|---|---|
-| S1 | the certified PG density, f and q, at every x > 0 for every reachable (b, psi): the parabolic contour through the saddle with its a priori bound; the tilted, cancellation-free form; the lead and the cached value in double-double with five double-double functions with bounds; rounding carried rigorously; q from the sampler's own rates; the cheaper certificate, its settings fixed before any evaluation and its open pieces proven before timing and checked by an independent referee before the timing gate is read; pins against reference tables generated in Arb and checked in (tests/cpp cannot call Arb); the double-double functions' gate; the floor gate; the timing gate on the x86 box and b*; the proof's source and scripts moved into docs/design/approximate-draws-proof/ with a README, and the design note | engine, neutral | 1,950 | 27 |
-| S2 | the per-row marks; the route at the sweep's start for logistic, binomial, hazard.logistic, fixed- and estimated-r nbinom (psi_i = eta_i - log r); marked rows at whole shapes by the sum; the per-row rule by b*(\|psi_i\|) once ruled; the moved-r rule; the cache keyed on the point, if S1's timings call for it; the K rule from D's closed form with r_1 rounded down; the decision on enclosures with an interval uniform of at least 53 bits from the Mersenne-Twister words; close calls kept, counted per chain, read by a sampler accessor, warned by run() and carried on bart2, bart and rbart fits, with a test-only setting that provokes them; the cancel between rows; the setting's engine side and an internal R switch forcing the method, ahead of S5's door; the joint-distribution harnesses for the Polya-Gamma families; an equivalence scenario of binomial rows above b* | engine, shifting where selected, with a small R piece for the count and the switch | 1,750 | 24 |
-| S3 | real weights under the route on logistic, binomial, hazard.logistic; every setter and setState taken at fractional shapes, marked rows served by the step; setData keeping each persisting row's omega at an unchanged row count, with its test; the help passage of the setters and getLatents, with the clause on rows that enter the fit, the pseudo-prior route with its two-line example (r fixed on nbinom), and the setActiveRows sentence on integrated-out masks rewritten; the example, its tinytest and the outer-step gate's fractional arms; an equivalence scenario at fractional weights; the frequency-weights plan's interaction paragraph brought up to date | engine plus R surface | 500 | 11 |
+| S1 | the certified PG density, f and q, at every x > 0 for every reachable (b, psi): the parabolic contour through the saddle with its a priori bound; the tilted, cancellation-free form; the lead in double-double with five double-double functions with bounds (all five needed by the lead, cache or not); rounding carried rigorously; the proposal's pieces on one row (rates with r_1 rounded down, tail sums and (alpha, beta), K from D's closed form with its table test, the K + 1 gammas, the saddle solve) and a step on one row, enough for the pins and the timing; q from those rates; the cheaper certificate, its settings fixed before any evaluation and its open pieces proven before timing and checked by an independent referee before the timing gate is read; pins against reference tables generated in Arb and checked in (tests/cpp cannot call Arb); the double-double functions' gate; the floor gate; the timing harness, the timing gate on the x86 box and b*, the cache's materiality read against the threshold this plan fixes; the proof's source, scripts and referee reports moved into docs/design/approximate-draws-proof/ with a README and a requirements list, its setter passages brought up to the rulings, and the design note | engine, neutral | 2,130 | 29.5 |
+| S2 | the per-row marks, with tests of each setter's mark set, marks copied with the sampler and a cancel leaving them set; S1's step wired in at the sweep's start through LogisticResponse (logistic and hazard.logistic, and binomial rows once frequency-weights brings them) and NBResponse (fixed- and estimated-r nbinom, psi_i = eta_i - log r); marked rows at whole shapes by the sum; the per-row rule by b*(\|psi_i\|) once ruled; the moved-r rule; the K rule applied per row; the decision on enclosures with an interval uniform of at least 53 bits from the Mersenne-Twister words; close calls kept, counted per chain beside the route steps, read by getLatentStepCounts(), warned once (by run(), or by bart, bart2 and rbart from the summed count under the internal flag) and carried on their fits, with the test-only setting that provokes them; the cancel between rows, with its test; the setting's engine side and an internal R switch forcing the method, ahead of S5's door; the joint-distribution harnesses for logistic at unit weights and fixed- and estimated-r nbinom; an equivalence scenario of logistic rows with whole count weights above b*; the cache keyed on the point only if S1's timings call for it (not in the figures: about 100 lines and 1.5 hours more) | engine, shifting where selected, with a small R piece for the count, the warning and the switch | 1,510 | 21.5 |
+| S3 | real weights under the route on logistic, binomial, hazard.logistic; every setter and setState taken at fractional shapes, marked rows served by the step; setData keeping each persisting row's omega at an unchanged row count, with its test; the help passage of the setters and getLatents, with the clause on rows that enter the fit, the pseudo-prior route with its two-line example and the example's tinytest (r fixed on nbinom), and the setActiveRows sentence on integrated-out masks rewritten; the example, its tinytest at fractional weights and the outer-step gate's fractional arms; the binomial arms of the joint-distribution check, the single-tree exact posterior and simulation-based calibration, which need frequency-weights' binomial rows; an equivalence scenario at fractional weights; the frequency-weights plan's interaction paragraph brought up to date | engine plus R surface | 630 | 13 |
 | S4 | the series as an approximate method for all PG families including multinomial, its terms chosen per row from the tolerance by a table computed once by inversion (0 terms, the gamma, at the loose end); the normal only if step 10's check passes it; the design note's section for it | engine, posterior-changing where selected | 300 | 6 |
-| S5 | the setting at the doors users reach: the method by name, NULL the automatic rule, and a separate tolerance read only by the approximate method (dec-B593), the names put to the maintainer with the four calls below; a forced route on multinomial and a forced sum at fractional weights refused by name; dec-B202's cap message corrected; help quoting the engine's measured floor, unmeasured above \|psi\| 150, and the close-call count; NEWS; dec-B591's teensy vignette if S1 leaves the route a case worth motivating | R surface | 500 | 8 |
+| S5 | the setting at the doors users reach: the method by name, NULL the automatic rule, and a separate tolerance read only by the approximate method (dec-B593), the names put to the maintainer with the four calls below; what a forced route on multinomial and a forced sum at fractional weights do, as those calls are ruled (sized as refusals by name); dec-B202's cap message corrected; help quoting the engine's measured floor, unmeasured above \|psi\| 150, and the close-call count; NEWS; dec-B591's teensy vignette if S1 leaves the route a case worth motivating | R surface | 500 | 8 |
 
-The sizing, re-audited after the critique: about 5,000 written lines and 76 agent-hours, against the critic's
-4,450 and 69 and the previous 3,700 and 56. Per slice:
+The sizing, re-audited after the conformance check: about 5,070 written lines and 78 agent-hours without the cache,
+5,170 and 79.5 with it, against the second amendment's 5,000 and 76 (with the cache), the critic's 4,450 and 69
+and the previous 3,700 and 56. Per slice, each figure the sum of the items it lists:
 
-- S1, 1,950 lines and 27 hours (critic 1,800 and 26; previously 1,500 and 20). Added: the double-double functions'
-  gate against 200-digit references (about 100 lines, 1 hour); the reference tables generated in Arb and checked in
-  (about 200 lines); the independent referee of S1's own proofs (3 hours); the design note (about 150 lines) and
-  the proof's move with its README (2.5 hours with the note; the TeX and scripts, about 2,000 lines, copied rather
-  than written, are not counted). The timing gate is simpler, its cost decided from S1's measurements alone. The
-  critic's figure omits the design note and the move, which accounts for the difference.
-- S2, 1,750 lines and 24 hours (critic 1,450 and 22; previously 1,000 and 15). Added: the marks (about 250 lines, 4
-  hours); three joint-distribution harnesses extended from the gaussian one (about 350 lines, 3 hours, counted
-  higher than the critic's); the test-only setting, the accessor and the fit fields beyond the earlier count (about
-  100 lines, 1.5 hours); the internal switch and the new equivalence scenario under its oracle (about 60 lines, 1
-  hour). Without the cache, about 100 lines and 1.5 hours less.
-- S3, 500 lines and 11 hours (previously 450 and 8; the critic gave no figure). The quadrature arms go (about 130
-  lines less); the 20-line fractional arms, the tinytest, the mutant arms, the fractional equivalence scenario and
-  the frequency-weights edit come; setData keeping omega at persisting rows with its test (about 50 lines, 1.5
-  hours), the pseudo-prior help passage and example and the setActiveRows rewrite (1 hour), and the gate's longer
-  runs add 3 hours net, to 500 lines and 11 hours. The two referees' checks are done and not counted here.
+- S1, 2,130 lines and 29.5 hours (second amendment 1,950 and 27; critic 1,800 and 26; previously 1,500 and 20).
+  Added to the previous: the double-double functions' gate against 200-digit references (about 100 lines, 1 hour);
+  the reference tables generated in Arb and checked in (about 200 lines, generated, no hours of their own); the
+  independent referee of S1's own proofs (3 hours); the design note (about 150 lines) and the proof's move with its
+  README, requirements list and the setter passages brought up to the rulings (3 hours with the note; the TeX,
+  scripts and reports, about 2,000 lines, copied rather than written, are not counted); the proposal's pieces moved
+  from S2 (about 150 lines, 2 hours); the K table test (about 30 lines, 0.5 hours). 1,500 + 100 + 200 + 150 + 150 +
+  30 = 2,130 lines; 20 + 1 + 3 + 3 + 2 + 0.5 = 29.5 hours. The timing gate is simpler, its cost decided from S1's
+  measurements alone. The critic's figure omits the design note and the move.
+- S2, 1,510 lines and 21.5 hours without the cache (second amendment 1,750 and 24 with it, whose items summed to
+  1,760 and 24.5; critic 1,450 and 22). From the previous 1,000 lines and 15 hours: the cache out (100 lines, 1.5
+  hours, conditional) and the proposal's pieces moved to S1 (150 lines, 2 hours), leaving 750 and 11.5. Added: the
+  marks (about 250 lines, 4 hours); the joint-distribution harnesses for logistic at unit weights and the two nbinom
+  arms (about 250 lines, 2 hours; the binomial arm moves to S3); the test-only setting, the accessor and the fit
+  fields (about 100 lines, 1.5 hours); the internal switch and the equivalence scenario under its oracle (about 60
+  lines, 1 hour); the warning-once flag (about 20 lines, 0.5 hours); the mark, copy and cancel tests (about 80
+  lines, 1 hour). 750 + 250 + 250 + 100 + 60 + 20 + 80 = 1,510 lines; 11.5 + 4 + 2 + 1.5 + 1 + 0.5 + 1 = 21.5 hours.
+- S3, 630 lines and 13 hours (second amendment 500 and 11; previously 450 and 8; the critic gave no figure). From
+  the previous 450 lines and 8 hours: the quadrature arms go (about 130 lines, 1.5 hours less); the 20-line
+  fractional arms, the mutant arms, the tinytest, the fractional equivalence scenario and the frequency-weights edit
+  (about 80 lines, 1 hour); setData keeping omega at persisting rows with its test (about 50 lines, 1.5 hours); the
+  pseudo-prior help passage and example and the setActiveRows rewrite (about 50 lines, 1 hour); the outer-step
+  gate's longer runs, 20 to 50 minutes an arm against 35 seconds (1 hour); the binomial arms moved from S2 (about
+  100 lines, 1 hour); the pseudo-prior example's tinytest (about 30 lines, 0.5 hours). 450 - 130 + 80 + 50 + 50 +
+  100 + 30 = 630 lines; 8 - 1.5 + 1 + 1.5 + 1 + 1 + 1 + 0.5 = 13 hours. The two referees' checks are done and not
+  counted here.
 - S4, 300 lines and 6 hours, unchanged; a tolerance separate from the name costs as the single overloaded setting
   did.
-- S5, 500 lines and 8 hours (previously 450 and 7): the two refusals by name, the cap message and the floor's
-  caveat.
+- S5, 500 lines and 8 hours (previously 450 and 7): the two forced-method calls (sized as refusals by name), the
+  cap message and the floor's caveat.
+
+Totals: 2,130 + 1,510 + 630 + 300 + 500 = 5,070 lines; 29.5 + 21.5 + 13 + 6 + 8 = 78 hours; with the cache, 5,170
+and 79.5.
 
 The defaults study is not sized here.
 
-Compute per gate, one core unless named; about 2.3 core-hours in S1, 5 in S2, 5 in S3 and 0.7 before and in S4,
-about 13 locally, and about 20 in CI:
+Compute per gate, one core unless named; about 2.3 core-hours in S1, 5 in S2, 4.4 to 6.9 in S3 and 0.7 before
+and in S4, about 12 to 15 locally, and about 20 in CI:
 
 | slice | gate | compute |
 |---|---|---|
 | S1 | reference tables for the pins and the double-double functions (Arb, offline; q at K up to 560 is the slow part) | about 2 core-hours |
 | S1 | pins, floor gate, double-double gate in tests/cpp | minutes |
 | S1 | timing gate on the x86 box: 96 points of (b, psi, z), both methods | about 0.3 core-hours |
-| S2 | joint-distribution checks, three families at quick size (300 chains of 100 refreshes, 3 sweeps between, about 100 rows at 40 us a row step under the forced route): about 10 minutes a family; the five broken builds again, each a build | about 1.5 core-hours |
+| S2 | joint-distribution checks, three arms (logistic at unit weights, fixed- and estimated-r nbinom) at quick size (300 chains of 100 refreshes, 3 sweeps between, about 100 rows at 40 us a row step under the forced route): about 10 minutes an arm; the five broken builds again, each a build | about 1.5 core-hours |
 | S2 | KS cells, 84 cells of 1e5 steps each, dominated by the 48 cells at \|psi\| 80 and up at 0.3 to 1.7 ms a step | about 1 core-hour |
-| S2 | the single-tree exact posterior with rows of b trials under the forced route | about 0.5 core-hours |
-| S2 | simulation-based calibration with binomial rows under the forced route: at its default 150 rows, about 6 ms a sweep, some 20 core-hours at the logistic arm's size; CI's scheduled run, not a local gate, its size set in S2 against that | about 20 core-hours, in CI |
+| S2 | the single-tree exact posterior with logistic rows of whole count weight b under the forced route | about 0.5 core-hours |
+| S2, S3 | simulation-based calibration under the forced route, logistic at unit weights from S2 and binomial rows from S3: at its default 150 rows, about 6 ms a sweep, some 20 core-hours at the logistic arm's size; CI's scheduled run, not a local gate, its size set in S2 and again in S3 so both arms together stay near that | about 20 core-hours, in CI |
 | S2, S3 | the engine tier's battery and the exact gates, quick | about 2 core-hours each |
-| S3 | outer-step gate, five arm runs at fractional weights in quick mode, 20 to 50 minutes each | about 2.5 to 4 core-hours |
+| S3 | outer-step gate, five arm runs at fractional weights in quick mode, 20 to 50 minutes each | 1.7 to 4.2 core-hours |
+| S3 | the binomial arms: the joint-distribution check (about 10 minutes, with its control) and the single-tree exact posterior | about 0.7 core-hours |
 | S4 | the table of terms by inversion, and TV per row in tests/cpp | about 0.5 core-hours |
 | before S4 | step 10's timing at 25 and 50 trees | about 0.2 core-hours |
+
+S1's design, for its builder (the proof's sections hold the mathematics; what follows fixes what would otherwise
+be asked):
+
+- Files. The evaluator is header-only in src/bartcore/pgdensity.hpp, namespace bartcore, beside the other engine
+  headers and reached through the same include from src/R_interface_bartcore.cpp; double-double lives in its own
+  header, src/bartcore/ddouble.hpp (the type, its arithmetic and the five functions). Header-only, so neither
+  src/Makevars.in, the *.win files nor configure change; tests/cpp/Makefile's SOURCES gains test_pgdensity.cpp.
+  Nothing in inst/include changes in S1.
+- The API, as one row's functions with no sampler around them: a proposal built from (b, psi) holding the rates
+  (r_1 rounded down), K, and the remainder's (alpha, beta); its draw from an ext_rng (K + 1 gammas); log f(x) and
+  log q(x) each returned as an enclosure at a requested refinement level; and the one-row step, proposal to
+  decision, given the current point and a uniform source. Function and member names are build details.
+- The enclosure is a midpoint-radius pair of doubles: the value lies in [mid - rad, mid + rad], the radius an
+  absolute bound on the log density's error that carries every rounding charged; a non-finite midpoint or radius
+  is undecided. Enclosures from successive levels are intersected. The lead is a double-double midpoint with its
+  own radius, folded into the enclosure.
+- The pin grid, the proof's: log f at b in {0.2, 0.5, 1, 2.5, 8, 16, 64, 1e3, 1e4, 1e5} by |psi| in {0, 8, 50,
+  100, 150} by z in {-4, -2, -1, 0, 0.5, 1.5, 3, 5, 8, 12} (500 pins); log q at the rule's K from the sampler's
+  own rates at b in {0.2, 2.5, 64, 1e3, 1e4} by |psi| in {8, 150} by z in {-4, 0.5, 12} (30 pins), against the
+  reference independent of the contour. z means x = E + z sd, the PG(b, psi) mean and standard deviation in closed
+  form; where E + z sd is not positive, x = E / 20. The timing's z in {-3, 0, 3} means the same.
+- The reference tables: a script added to docs/design/approximate-draws-proof/scripts, built on refs.py and
+  pins2.py and run in the requirements list's environment, writes tests/cpp/pgdensity_refs.inc, C arrays of
+  hex-float doubles: per pin (b, psi, x, K) and Arb's midpoint and radius of the log density, and for the
+  double-double gate the argument and its 200-digit value rounded to a double-double. The file's header names the
+  command that regenerated it; it is checked in, and tests/cpp is not shipped (.Rbuildignore).
+- The double-double gate's ranges: the arguments the lead's formula gives its five functions over the pins'
+  (b, psi) and x from 4 sd below the mean to 12 above: the square root of W_0 = (psi/2)^2 + t_0/2; exp(-2a) and
+  log1p of it, a from 0 to the largest sqrt(W_0); log1p(t_0 / mu_j) over the rates; the sine of pi/2 - v with v in
+  (0, pi/2), and the log of it. S1 derives the bounds of each range from the saddle's reach and writes them as
+  constants in the test; each function's stated bound is a relative error of at most 2^-100 over its range (the
+  proof's assumption A2'), and the test reports the largest error found on a grid of each range.
+- The floor's map: per pin (b, psi), the step floor is 2 (2 max_z rad_f + 2 max_z rad_q) + 2^(1 - beta) (the proof's
+  "Decisions taken are exact": twice the half-width of log r, the sum of four radii, plus the uniform's grain),
+  computed from the engine's own radii; the gate is its maximum over the pins at most 2.3e-11, beta = 53.
+- The cheaper certificate's starting settings: the edge lines at L10, one line each side at a_+ = a_- = rho/2 with
+  10 to 40 cells and no splitting (the setting the proof's counts reached the floor with at every point), then L32
+  (two lines each side, 32 cells, two levels of splitting) and the default only where L10 does not reach the floor;
+  J_0 the smallest set containing every term with A_j < 4u^2 (Lemma "Aggregated majorant on a line"), enlarged
+  where the monotone tail's condition S < 4x fails, the node-by-node truncation kept where it still fails. What S1
+  proves before timing is how many cells and how large a J_0 these need over the reachable (b, psi, x).
+- The timing harness lives in benchmarks/kernels (its Makefile gains the target), a C++ driver including the
+  engine headers and linking src/external/random.c, timing the one-row step and the sum's
+  ext_rng_simulatePolyaGamma loop in one process; its results and the b* table go to benchmarks/README.md with the
+  commit timed and the commit of this plan that fixes the materiality threshold.
+- The K table test, the pins, the floor and the double-double gates run from tests/cpp/test_pgdensity.cpp.
 
 Gates for S1:
 - pins in tests/cpp: at every pin the enclosure contains an independent reference, over b in [0.2, 1e5],
@@ -718,13 +837,23 @@ Gates for S1:
   2.3e-11; on failure the rounding tightened, or back to the maintainer before B';
 - the timing gate of [The per-row rule](#the-per-row-rule), on the x86 box: the timed b* <= 1e3 at |psi| <= 8, or
   back to the maintainer before S2; the fractional-shape cells above 70 us reported; the three-evaluation figures
-  against the materiality threshold S1 stated, deciding the cache;
-- the engine tier's battery, sanitizers on tests/cpp included.
+  against the materiality threshold fixed in [The exact accept-or-keep route](#the-exact-accept-or-keep-route) (the
+  cache), deciding the cache, the record citing the plan commit that fixes it;
+- the K rule's K at every cell of the K table, from D in double against the 40-digit values;
+- the engine tier's battery, sanitizers on tests/cpp included; S1 changes no R code, so of the lint and
+  doc-freshness workflows' checks it runs tools/check-doc-freshness.R (its docs land), and lintr, air and the
+  codoc and Windows-drift checks only if it touches R/, man/ or the *.win files; S2 on run them all.
 
 Gates for S2 and S3 (exactness), each with the exact sum as control, passing first. Every gate forces the method
-to the route through S2's internal switch: at b 16, say, the rule picks the sum.
+to the route through S2's internal switch: at b 16, say, the rule picks the sum. S2's gates use only what main
+has when S2 lands: logistic takes whole-number count weights there and binomial rows come with frequency-weights,
+and a 0/1 response under a count weight above 1 has no generative model (weight w is w copies of one outcome), so
+S2's joint-distribution and calibration arms run logistic at unit weights with the route forced (the step is exact
+at every b > 0) and nbinom, whose counts give large shapes; the arms with binomial rows are S3's, which lands
+after frequency-weights.
 - joint-distribution check (Geweke 2004), extended from [geweke-mc.R](../../benchmarks/R/geweke-mc.R) (gaussian
-  only) to logistic with binomial rows and fixed- and estimated-r nbinom: the successive-conditional arm runs m >= 3
+  only) to logistic at unit weights and fixed- and estimated-r nbinom (S2), and to logistic with binomial rows (S3):
+  the successive-conditional arm runs m >= 3
   sweeps between refreshes of y, with the method forced to the route, so sweeps 2 to m take the step from a
   sum-drawn or stepped omega (a refresh through setResponse marks every row, so with one sweep between refreshes the
   check would never run the step); broken builds, each shown to fail: the step applied after r moved, the point
@@ -735,17 +864,27 @@ to the route through S2's internal switch: at b 16, say, the rule picks the sum.
   by |psi| in {0, 8, 50, 80, 100, 120, 150}, with the close-call count zero in every cell; a broken build with q on
   the scratch build's uncertified contour must fail at b 8, |psi| 100 and b 2.5, |psi| 150;
 - the exact single-tree posterior of [logistic-reference.R](../../benchmarks/R/logistic-reference.R) part 1
-  with rows of b trials;
-- simulation-based calibration through [sbc.R](../../benchmarks/R/sbc.R)'s logistic machinery with binomial
-  rows, its exact arm passing first; run in CI on its schedule, sized in S2 against its compute (below);
-- S3: the outer-step gate's fractional arms, the mutant arms and the example's tinytest
-  ([Setters and marked rows](#setters-and-marked-rows)), the real step's largest |z| under the integrating outer
-  step reported;
+  with logistic rows of whole count weight b, the posterior's log-likelihood w times a row's (S2), and with
+  binomial rows (S3);
+- simulation-based calibration through [sbc.R](../../benchmarks/R/sbc.R)'s logistic machinery, logistic at unit
+  weights (S2) and binomial rows (S3), its exact arm passing first; run in CI on its schedule, sized against its
+  compute (below);
+- marks, in tests/cpp (S2): after each setter the marked set equals the plan's list for it, inside the per-sweep
+  hook as well; a copied sampler carries its marks; a cancel before a marked row's draw leaves the mark set and the
+  next sweep draws the row; a cancel at the poll before row j leaves rows j on bit for bit unchanged
+  ([The exact accept-or-keep route](#the-exact-accept-or-keep-route), the cancel);
+- S3: the outer-step gate's fractional arms and the mutant arms, the real step's largest |z| under the integrating
+  outer step reported (these carry the example's exactness); the example's tinytest at fractional weights, the
+  route-step count positive and the close-call count read; the pseudo-prior example's tinytest, its log factor
+  against an independent computation; setData's test, a fractional row's omega unchanged after setData at the same
+  row count and a whole-number fit's draws unchanged ([Setters and marked rows](#setters-and-marked-rows));
 - close calls: under the test-only setting that inflates every enclosure, the count, its report on the sampler and
-  the fits, and run()'s warning, each tested; the warning counted with withCallingHandlers;
+  the fits, and the warning, each tested, the warnings counted with withCallingHandlers: bart2, bart and rbart
+  each warn exactly once a fit, and a user's run() of a sampler, a fit's kept one included, warns once a run;
 - RNG and baselines: S2 is bitwise on every current baseline (checked: no scenario's shapes reach 64; logistic
   weights are 1 to 3, the nbinom counts small; the four snapshot files are probit, gaussian and xbart); S2 adds an
-  equivalence scenario of binomial rows above b* drawn by the route and S3 one at fractional weights, each recorded
+  equivalence scenario of logistic rows with whole count weights above b* drawn by the route and S3 one at
+  fractional weights, each recorded
   with its oracle under the baselines MANIFEST's rule P17;
 - the engine tier's battery: tests/cpp, full tinytest, sanitizers on tests/cpp and the R-loaded path, R CMD
   check, the arm64 snapshots, bench-sampler.R compare on a quiet machine (maintainer-run) for the hot path; and,
@@ -783,9 +922,10 @@ options and the maintainer's words.
 Ruled, dec-B590 (2026-11-05): per row, the route where the shape is above 64 or not a whole number, the sum
 otherwise; the route takes this place only once proven (dec-B591) and its gates pass. The options as put: (a) that
 rule, recommended; (b) the sum wherever it can draw, the route by setting and for fractional shapes; (c) the
-approximation above a shape. S1's timed rule may raise the threshold by |psi|, never below 64, and that dependence
-comes back to the maintainer ([The per-row rule](#the-per-row-rule)); the per-row form, the guarantee for shapes of
-64 or less, the fractional rows and the forcing setting stand.
+approximation above a shape. S1's timed rule keeps the ruling's criterion, the route at twice the sum's speed, and
+may raise the threshold by |psi|, never below 64, and that dependence comes back to the maintainer ([The per-row
+rule](#the-per-row-rule)); the per-row form, the guarantee for shapes of 64 or less, the fractional rows and the
+forcing setting stand.
 
 ### Open call 2: what ships in 1.0-0
 
@@ -815,8 +955,8 @@ Ruled, dec-B606 (2026-11-06): what exact means in floating point, as the proof's
 
 To the maintainer, each when its evidence exists:
 
-- With S1's timings, before S2 makes it the default: the threshold's dependence on |psi|, b*(|psi|) never below
-  dec-B590's 64. Recommendation then: adopt it as timed.
+- With S1's timings, before S2 makes it the default: the threshold's dependence on |psi|, b*(|psi|) where the
+  route measures twice the sum's speed, never below dec-B590's 64. Recommendation then: adopt it as timed.
 - From S1, if its timing gate fails (the timed b* above 1e3 at |psi| <= 8): the step has no case at whole-number
   shapes; before S2.
 - From S1, if its floor gate fails after the rounding is tightened: before taking B' (dec-B606).
@@ -836,8 +976,9 @@ To the maintainer, each when its evidence exists:
 
 Left to the build, with the evidence named:
 
-- S1 states, before timing, the change in b* that counts as material; the cache is built only if the three- and
-  four-evaluation timings move b* by that much.
+- Whether the cache is built: only if the three- and four-evaluation timings move b* by the threshold this plan
+  fixes before timing (10 percent at |psi| 0 or 8; [The exact accept-or-keep route](#the-exact-accept-or-keep-route),
+  the cache).
 - dec-B591's vignette is the agents' judgment by its own words; decided once S1's timings show where the route
   pays, and written in S5 if it does.
 
@@ -856,7 +997,8 @@ The 53-bit uniform formed from the Mersenne-Twister words is a build detail, not
   state, and is read only on a bit-for-bit match of the point.
 - No new system dependency (dec-B606's option A).
 - The cancel is polled between rows, never inside a row's step.
-- A close call is never silent: counted per chain, read by an accessor, warned by run() and on the fits.
+- A close call is never silent: counted per chain, read by an accessor, carried on the fits and warned once, by
+  the fit's creator or by a user's run().
 - S2 builds the marks and meets the latents-first marked-row constraint; the marks are never state and a cancel
   leaves them set.
 - Order: S3 lands after frequency-weights; S1 and S2 on either side. Whichever of S2 and frequency-weights lands
@@ -874,7 +1016,7 @@ The 53-bit uniform formed from the Mersenne-Twister words is a build detail, not
 4. Done: the latents-first engine slices, landed on main 2026-11-05.
 5. Done: the proof of dec-B591, checked by two independent referees; its two questions ruled (dec-B606,
    dec-B607); the amendment for them; the blind critique of that amendment and the second amendment; the proof's
-   referee on rows that re-enter the fit.
+   referee on rows that re-enter the fit; the conformance check and the third amendment.
 6. Rebase the branch onto main.
 7. S1 through its tier: the proof and the design note into docs/design/; its own proofs checked by an independent
    referee; its double-double, floor and timing gates; then to the maintainer with the timings for the threshold's
@@ -912,10 +1054,12 @@ The 53-bit uniform formed from the Mersenne-Twister words is a build detail, not
 - From the sizing: the verdict per survivor; the costs (the route's replaced by the proof's); the
   integer-plus-fraction split, considered and not taken ([Real shapes](#real-shapes)).
 - From the proof: every item of its "Changes the design needs" ([The proof's changes](#the-proofs-changes)),
-  with two replaced by rulings: its recommendation to refuse setData and setState at fractional shapes, and the
-  design's refusals at the other setters, both replaced by dec-B607's taking every setter; and its fallback to B'
-  on a failed floor gate, which dec-B606 makes a return to the maintainer.
+  with three replaced: its item 12, where dec-B607 takes every setter and setState at fractional shapes, nothing
+  refused, the help saying when that is exact and the narrowing for rows that enter the fit stated; its fallback to
+  B' on a failed floor gate, which dec-B606 makes a return to the maintainer; and its item 8's break-even
+  threshold, where dec-B590's twice the sum's speed binds.
 - From the blind critique of the amended plan: all 18 amendments ([The second critique](#the-second-critique)).
+- From the conformance check of the second amendment: all 13 items ([The conformance check](#the-conformance-check)).
 - From the two referees on rows that re-enter the fit: the critic's claim confirmed for rows setData adds and
   weights drawn from 0, refuted for reactivation, which the pseudo-prior route covers (r fixed on nbinom; a
   fixed-weight toggle only if weight 0 skips the draw); the second's corrections to the factor (kappa, the binomial
@@ -949,7 +1093,8 @@ orchestrator amended them:
 5. The proof's source and scripts into docs/design/approximate-draws-proof/ with a README, no PDF, and a design
    note beside it, with S1: Context.
 6. S1's own proofs checked by an independent referee before the timing gate is read: S1's gates.
-7. c_R the four-evaluation cost, the maximum over z; b* from S1's timings alone: [The per-row rule](#the-per-row-rule).
+7. c_R the four-evaluation cost, the maximum over z; b* from S1's timings alone: [The per-row
+   rule](#the-per-row-rule).
 8. b* the timed value or 64, whichever is larger: the same, Constraints.
 9. Rows that enter the fit at fractional weights: the claim put to the proof's referee, who confirmed it for added
    rows and drawn weights and found the pseudo-prior route for reactivation; a second referee confirmed the route
@@ -970,6 +1115,29 @@ orchestrator amended them:
 18. Four user-visible calls listed with recommendations, for S5; the uniform from the Mersenne-Twister words, a
     build detail: [Calls left open](#calls-left-open).
 
+## The conformance check
+
+A conformance check of the second amendment against the rulings (2026-11-06) found 13 items, all taken as the
+orchestrator disposed them:
+
+1. b* at twice the sum's speed, dec-B590's criterion, not the note's break-even; the counts re-derived and the
+   pass test re-read: [The per-row rule](#the-per-row-rule).
+2. What S1 builds of the proposal and what S2 wires, the lines and hours moved: the route, [What is
+   built](#what-is-built).
+3. The note's source, scripts, environment and referee reports named by path: Context.
+4. The example's tinytest at fractional weights, route-step count and close-call count, exactness left to the
+   outer-step arms: [Setters and marked rows](#setters-and-marked-rows).
+5. S2's gates on what main has, binomial arms in S3: S2's and S3's gates.
+6. Nothing refused at fractional setters; the note's passages brought up to the ruling on its move:
+   [The proof's changes](#the-proofs-changes), item 12.
+7. Tests for the marks, copies, cancels, the K table, the pseudo-prior example and setData: the gates.
+8. The close-call warning once, through an internal flag the fit creators set: the route (the decision).
+9. The sizing's arithmetic, item by item, the cache shown apart: [What is built](#what-is-built).
+10. The forced-method refusals worded as open calls: the route, [Real shapes](#real-shapes), S5.
+11. The five double-double functions all needed by the lead, cache or not: the route (the cache).
+12. The cache's materiality threshold fixed in this plan before timing: the same.
+13. S1's design for its builder: [What is built](#what-is-built).
+
 ## The proof's changes
 
 Each item of the proof's "Changes the design needs", and where it is built:
@@ -981,7 +1149,8 @@ Each item of the proof's "Changes the design needs", and where it is built:
    forms, S2 uses (the ratio).
 3. The floor figure: 1.4e-12 a density and 6.2e-12 + 2^(1 - beta) a step at the pins, the engine's own measured
    before it is quoted, exact in the package's standard (dec-B606): S1 and S5 (the floor).
-4. The proposal's own numbers, the first rate rounded down: S1 (q) and S2 (the proposal).
+4. The proposal's own numbers, the first rate rounded down: S1 builds them on one row (rates, tail sums, K from D,
+   the gamma draws), for q, the pins and the timing; S2 wires them into the sampler (the route, what S1 builds).
 5. The decision counts all four densities and the ratio's arithmetic; enclosures intersected; non-finite values
    undecided: S2 (the decision).
 6. The uniform, at least 53 bits held as an interval: S2 (the decision).
@@ -989,15 +1158,23 @@ Each item of the proof's "Changes the design needs", and where it is built:
    call for it.
 8. The cost figures, the cheaper certificate built and timed in S1, the timing gate and its pass rule, b* infinite
    above |psi| 150: S1 (the cost, [The per-row rule](#the-per-row-rule)), with c_R the four-evaluation cost at the
-   worst z and b* never below 64; the dependence on |psi| to the maintainer.
-9. The K rule as a cost choice; the table at |psi| 150 of 140 to 560; about 23 us of gammas at the extreme: S2 (the
-   K rule).
+   worst z and b* never below 64; the note's break-even (c_R <= c_S) replaced by dec-B590's twice the sum's speed
+   (c_R <= c_S / 2); the dependence on |psi| to the maintainer.
+9. The K rule as a cost choice; the table at |psi| 150 of 140 to 560; about 23 us of gammas at the extreme: S1
+   builds it and tests it at the table, S2 applies it per row (the K rule).
 10. A fresh draw on an undecided decision stays declined: S2 (the decision).
 11. Negative binomial with psi_i = eta_i - log r; the rule stands; real dispersion needs an r step that reads omega:
     S2 (where the route keeps the posterior); out of scope.
 12. The setters and the two kinds of larger sampler, the help saying the guarantee covers those two only: S3,
     under dec-B607 ([Setters and marked rows](#setters-and-marked-rows)), with the scope note on a fixed set of
-    rows and the pseudo-prior route for rows that re-enter.
+    rows and the pseudo-prior route for rows that re-enter. The note's own item 12, written before the ruling,
+    recommends refusing setData and setState at fractional shapes as the other setters were to be refused;
+    dec-B607 ruled otherwise, and nothing is refused: every setter and setState is taken at fractional shapes, its
+    marked rows served by the step from their installed values, and the help says when that is exact. When S1
+    moves the note into the tree it brings every passage that still says so up to the ruling (its summary, the
+    setters section, Corollary "Fractional-shape marked rows"' closing sentence, its table of results, item 12 and
+    the second question to the maintainer, which gains the ruling's words), and adds the scope note. The narrowing
+    for rows that enter the fit stands as written above.
 13. The cancel polled between rows: S2 (the cancel).
 14. Starts: any starting value valid: S2 and S3 (where the route keeps the posterior).
 15. Multinomial keeps the sum: S2 and S4.
@@ -1015,7 +1192,8 @@ Each item of the proof's "Changes the design needs", and where it is built:
   accuracy are assumed, not proven for a particular library.
 - That 53 bits make every enclosure finite and narrow at every reachable point: checked at the pins, not proven.
 - A sharp certified bound on f/q, so the rate of convergence has no usable number.
-- The crossover between the sum and the route, and every timing on arm64.
+- The crossover between the sum and the route, and every timing on arm64; the twice-speed thresholds above are
+  interpolated from the proof's lower-estimate counts, not timed.
 - K past |psi| 64 is from the closed form of D, not from chains at those K.
 - Gamma and normal below 75 trees: arithmetic only, until step 10.
 - That effective draws per sweep match across arms beyond the two high-ESS cells and theory.
