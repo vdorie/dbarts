@@ -43,8 +43,10 @@ namespace dd = ddouble;
 
 /// Unit roundoff of binary64.
 inline constexpr double kU = 0x1p-53;
-/// Relative error the math library's exp, expm1, log, log1p, sin, cos, tan,
-/// sinh, cosh, tanh and atan2 are assumed to stay within (two ulps).
+/// u_L, two ulps, and the assumption (A2s) on the math library: exp,
+/// expm1, log, log1p, sinh, cosh, tanh and atan2 stay within u_L relative;
+/// sin and cos within u_L absolutely at every argument; sin on |x| <= 1/2 and
+/// cos and tan on [0, pi/2 - 2^-15] within u_L relative.
 inline constexpr double kLibRelErr = 0x1p-51;
 inline constexpr double kPi = 0x1.921fb54442d18p+1;
 inline constexpr double kPiSquared = 0x1.3bd3cc9be45dep+3;
@@ -155,7 +157,9 @@ inline CBall cdiv(CBall a, CBall b) {
 }
 
 /// exp(z): |e^z - e^m| <= |e^m| expm1(r); the midpoint's error is at most
-/// (2 u_L + u) |e^m| (exp, then cos or sin, then the product).
+/// ((1 + sqrt 2) u_L + u) |e^m|: exp relative, cos and sin each within u_L
+/// absolutely (which is all (A2s) gives at large arguments), then the
+/// products.
 inline CBall cexp(CBall z) {
   double ex = std::exp(z.re);
   double c = std::cos(z.im);
@@ -163,12 +167,13 @@ inline CBall cexp(CBall z) {
   double re = ex * c;
   double im = ex * s;
   double exu = ex * (1.0 + kLibRelErr);
-  double r = exu * (std::expm1(z.r) * (1.0 + kLibRelErr) + 2.0 * kLibRelErr + kU);
+  double r = exu * (std::expm1(z.r) * (1.0 + kLibRelErr) + 2.5 * kLibRelErr + kU);
   return CBall{re, im, up(r)};
 }
 
 /// expm1(z) for |z| below 1/2 by expm1(a) cos b - 2 sin^2(b/2) +
-/// i e^a sin b (relative accuracy at small |z|), else e^z - 1.
+/// i e^a sin b (relative accuracy at small |z|: (A2s) gives sin on |b| <=
+/// 1/2 and cos on [0, pi/2 - 2^-15] relative), else e^z - 1.
 inline CBall cexpm1(CBall z) {
   if (l1(z.re, z.im) >= 0.5) {
     CBall e = cexp(z);
@@ -176,7 +181,7 @@ inline CBall cexpm1(CBall z) {
     return CBall{re, e.im, up(e.r + kU * std::fabs(re))};
   }
   double em = std::expm1(z.re);
-  double c = std::cos(z.im);
+  double c = std::cos(std::fabs(z.im));
   double s = std::sin(z.im);
   double sh = std::sin(0.5 * z.im);
   double t1 = em * c;
@@ -938,8 +943,11 @@ inline double TargetDensity::cellLogMajorDirect(double u, double ya, double yb) 
     double j = std::ceil(qlo / kPi - 0.5 - 1e-12);
     bool hit = (j + 0.5) * kPi <= qhi * (1.0 + 1e-12) + 1e-12;
     if (!hit) {
-      double ca = std::cos(qlo), cb = std::cos(qhi);
-      c2 = std::min(ca * ca, cb * cb) * (1.0 - 4.0 * kLibRelErr) - 1e-300;
+      // (|cos| - u_L)_+^2: (A2s) bounds cos only absolutely at large q
+      double ca = std::fabs(std::cos(qlo)) - kLibRelErr;
+      double cb = std::fabs(std::cos(qhi)) - kLibRelErr;
+      double cm = std::max(0.0, std::min(ca, cb));
+      c2 = cm * cm * (1.0 - 4.0 * kU) - 1e-300;
       if (c2 < 0.0) c2 = 0.0;
     }
   }
