@@ -670,8 +670,9 @@
             \code{predict}'s weights, or, where none are given, the
             successes and failures \code{newdata} or a \code{test} frame
             carries, and one trial otherwise; a row missing a count is
-            refused, or at \code{predict} answered by \code{na.action}
-            as a row missing its weight is.
+            refused by default, \code{predict}'s \code{na.action = na.pass}
+            giving it \code{NA} draws and \code{na.omit} dropping it, and
+            columns missing a count in every row are read as absent.
             A row of
             no trials is fitted and enters no likelihood. \code{xbart}'s
             \code{"log"} and \code{"mcr"} losses score the rows as their
