@@ -295,7 +295,8 @@ sampler created at NULL passes and one stating "frequency" is refused (10).
   and at every weight or count change. (A product cap at w = 1 with r at the grid maximum of 50 would refuse y from 999,950,
   accepted today.)
 - A weight change on either family (`setWeights`, `setData`) stores the counts and rebuilds what is deterministic (nbinom's
-  count kernel, center and composite, as latents-first's setActiveRows row has them); it draws nothing, the next sweep drawing
+  count kernel and composite, as latents-first's setActiveRows row has them, the center held unless the caller asks for a
+  rescale, Calls made 24); it draws nothing, the next sweep drawing
   omega at the new shapes first. `setData` keeps a drawn r (dec-B589).
 
 ### Engine: the binomial row (S3)
@@ -671,6 +672,26 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
 23. Where too few rows are in (fewer than two, or one response value over the rows in) and a read-off falls back to every
     row, under frequency it reads every row at its count, as the expansion's every row; a row of weight 0 still counts 0.
     Alternative: the fallback unweighted, as under precision, which no expansion matches.
+24. nbinom's center is held at a weight change, as at a mask change, and re-derived over the counts only where the caller
+    asks (`updateScale = TRUE`, which reads the weighted center over the rows in). Alternative: a re-derivation at every
+    `setWeights`, which moves the transform unasked where gaussian's `setWeights` never does.
+25. An nbinom row of count w > 0 cold-starts at PG(w (y + r), 0)'s mean, w (y + r) / 4, as logistic's w / 4, so its working
+    response starts where its copies' do; a row of count 0 keeps (y + r) / 4. Alternative: (y + r) / 4 at every row. Under
+    latents-first a row in draws omega before the trees read it, so neither moves a draw.
+26. The cap at w > 1 lives in the bridge, in refusal 8's words, and holds at creation, `$setWeights`, and every change of
+    what it multiplies: `$setResponse` and `$setData` (y), a `$setModel` shape install (r), and `$setCounts` (the row
+    totals). It is tested in tinytest at the entries themselves, since the fitting functions refuse these weights until
+    S5. Alternative: creation and `$setWeights` alone, which a later y or r change walks past.
+27. The bridge reads the weights and the shape's mode in force from the engine, a `weights()` accessor on the sampler
+    interface and `SamplerShape::drawsShape`. Alternative: a record on the bridge's holder of whether weights are
+    installed, a second copy of engine state.
+28. The total-count guard of the anchor, the basis scale and the leaf moments reads "not above 1" to the rounding of the
+    total's sum (`countTotalIsAboveOne`): whole counts sum exactly and are unaffected, and weights rescaled to sum to 1,
+    which sum to 1 plus 4.4e-16 in the test's probe, take the no-spread values. Alternative: the total strictly above 1,
+    which leaves that probe an anchor of 1.2e7.
+29. nbinom's and multinomial's engine read their weights as counts under either reading, the likelihood having no other
+    one; "precision" on them is refused in R (Refusals, 3, S5). Alternative: the engine refusing them under precision, a
+    rule the bridge's resolved reading already states.
 
 ## Open calls
 
@@ -798,7 +819,14 @@ Gates: tests/cpp: an nbinom row of weight w against w adjacent copies draw for d
 draw reads the same histogram, the unit draws are consumed in row order), within 1e-10; a multinomial row of weight w against
 w adjacent copies (unit draws in row order inside each category's loop) and against the counts times w, draw for draw; a 0
 weight on each family, finite throughout; y at 999,999 with w = 1 taken, the product cap at w = 2 refused; a weight change
-consuming no variate; a state round trip; the trio; the suite; sanitizers.
+consuming no variate; a state round trip; the trio; the suite; sanitizers. As built: the nbinom fits within 2.5e-14 of the
+copies' at a fixed r and 3.1e-14 at a drawn r over the run, its log-likelihood against the sum over the copies; the
+multinomial fits within 6.3e-15 of the copies' and bitwise against the counts and trials times w; a 0 weight on each
+family against the row masked, bitwise at the rows in and within 1e-12 at the row out (its working response rides the
+trees); `$setWeights` against the sampler created with those weights, consuming no variate; a state round trip within
+1e-9; the caps in tinytest at the bridge's entries (test-frequency-counts-bridge.R: creation, `$setWeights`,
+`$setResponse` and `$setCounts`, a drawn r capped at its grid's largest point, a fixed r at itself); the anchor's guard at
+a total of exactly 1 and at rescaled weights (S1's follow-up, amendments row 7); `mutation-battery.R verify-anchors`.
 
 ### S3: engine and bridge, the binomial row (~125 code, ~25 standalone math and choose.c copied, ~220 tests/cpp, ~50 bridge)
 
@@ -928,7 +956,8 @@ A reviewer applies each to a copy, rebuilds with `--preclean`, and runs the name
 7. S1: the nu constant over every row, m_i = 0 included - the zero-weight Student-t test (an infinite constant).
 8. S2: nbinom kappa without w - the nbinom draw-for-draw test.
 9. S2: multinomial shape `n_i` not `w n_i` - the multinomial draw-for-draw test.
-10. S2: the product cap at w = 1 - the y = 999,999 test.
+10. S2: the product cap at w = 1 - the y = 999,999 test (tinytest, test-frequency-counts-bridge.R: the cap is the
+    bridge's).
 11. S3: kappa `w (k - 1/2)`, the binary expression on the successes - the binomial draw-for-draw test.
 12. S3: the log choose by `std::lgamma` - the log-likelihood test at n = 1e6, k = n / 1000.
 13. S3: the shape `lround(n)` without the frequency weight - the weighted binomial row against k w in n w, bitwise.
