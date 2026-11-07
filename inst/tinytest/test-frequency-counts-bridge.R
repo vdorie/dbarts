@@ -113,6 +113,87 @@ expect_true(
   info = "nbinom: a sampler holding counts, one of them 0, runs"
 )
 
+# $setData swaps y and the weights together; the R method refuses counts
+# until the fitting functions take them, so the entry is reached directly
+setData <- function(sampler, data) {
+  .Call(
+    dbarts:::C_dbarts_bartcore_setData,
+    sampler$getPointer(),
+    data,
+    "none",
+    "keep",
+    "keep",
+    NULL,
+    NULL
+  )
+}
+swapped <- dbarts::dbarts(
+  x,
+  y,
+  family = "nbinom",
+  control = control,
+  n.trees = 5L
+)
+expect_error(
+  setData(swapped, withCounts(large, twice)),
+  capText,
+  fixed = TRUE,
+  info = "nbinom: $setData to y = 999,999 at a count of 2 is refused"
+)
+
+# a $setModel shape install moves r under counts already installed: a fixed r
+# of 3 at y = 499,975 and a count of 2 holds 999,956 units
+specOf <- function(family) {
+  fit <- dbarts::dbarts(
+    x,
+    y,
+    family = family,
+    control = control,
+    n.trees = 5L
+  )
+  attr(fit$model, "family.spec", exact = TRUE)
+}
+modelWith <- function(sampler, family) {
+  model <- sampler$model
+  attr(model, "family.spec") <- specOf(family)
+  model
+}
+shaped <- dbarts::dbarts(
+  x,
+  y,
+  family = dbarts::dbartsFamilies$nbinom(shape = 3),
+  control = control,
+  n.trees = 5L
+)
+shaped$setResponse(middle)
+setWeights(shaped, twice)
+expect_error(
+  shaped$setModel(modelWith(shaped, dbarts::dbartsFamilies$nbinom())),
+  capText,
+  fixed = TRUE,
+  info = "nbinom: $setModel to a drawn r (bound 50) at y = 499,975 and a count of 2 is refused"
+)
+expect_error(
+  shaped$setModel(
+    modelWith(shaped, dbarts::dbartsFamilies$nbinom(shape = 600000))
+  ),
+  capText,
+  fixed = TRUE,
+  info = "nbinom: $setModel to a fixed r of 600,000 at a count of 2 is refused"
+)
+expect_true(
+  tryCatch(
+    {
+      shaped$setModel(
+        modelWith(shaped, dbarts::dbartsFamilies$nbinom(shape = 10))
+      )
+      TRUE
+    },
+    error = function(e) FALSE
+  ),
+  info = "nbinom: $setModel to a fixed r of 10 at a count of 2 (999,970) is taken"
+)
+
 # multinomial: the counts slot's row totals times the weights
 # every row has a trial, so no zero-trial warning
 y3 <- matrix(rpois(3L * n, 1), n, 3L) + rep(c(1L, 0L, 0L), each = n)
@@ -161,4 +242,19 @@ expect_error(
   multinomialText,
   fixed = TRUE,
   info = "multinomial: $setCounts to a row total of 600,000 at a count of 2 is refused"
+)
+# the other order: the row total first at a count of 1, then the weights
+totals <- dbarts::dbarts(
+  x,
+  y3,
+  family = "multinomial",
+  control = control,
+  n.trees = 5L
+)
+.Call(dbarts:::C_dbarts_bartcore_setCounts, totals$getPointer(), big)
+expect_error(
+  setWeights(totals, twice),
+  multinomialText,
+  fixed = TRUE,
+  info = "multinomial: $setWeights to a count of 2 at a row total of 600,000 is refused"
 )
