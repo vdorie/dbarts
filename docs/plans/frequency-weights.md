@@ -834,9 +834,42 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
 65. The bridge entry `bartcore_setCounts` keeps its name and serves both count samplers' `$setResponse`. Alternative:
     renaming it, which touches every internal caller for no user-visible change.
 66. A binomial sampler's other R doors (`$setWeights`, `$setOffset` and the rest) keep `refuseCountsMutation`'s
-    multinomial words until S6 words them. Alternative: wording them now, ahead of S6's constructor.
+    multinomial words until S6 words them. Alternative: wording them now, ahead of S6's constructor. As built in S6
+    (call 68): the doors are taken, not reworded.
 67. A count sampler's `$setResponse` checks `updateScale` as every other sampler does before it ignores it (call 61),
     so "yes" or NA is refused in probit's words. Alternative: not checking it, taking any value silently.
+68. A binomial sampler is a logistic sampler at every door but the response's: `samplerCarriesCounts` answers for the
+    multinomial alone, so `$setWeights`, `$setOffset`, `$setPredictor`, `$setTestPredictor`, `$setActiveRows`, the
+    forest and fitting-level readers and `samplePriorPredictive` take a binomial sampler as they take a binary logistic
+    one, the engine's response reading the trials at each. Alternative: call 66's reworded refusals, refusing what the
+    engine does.
+69. The formula route marks the formula it hands the data object with an internal attribute under a logistic family,
+    and the data object then reads a two-column response off the model frame as successes and failures, after `subset`
+    and the na.action; `dbartsData` called on such a formula directly keeps Refusal 16. Alternative: a `family` argument
+    on `dbartsData`, a public argument for an internal handoff.
+70. A missing success or failure makes the row a missing response, routed by the na.action as on every family; Refusal
+    13 names negative and fractional counts. Alternative: refusing a missing count, which no other response does.
+71. xbart's matrix route hands a matrix of other than two columns to the data object, so both of xbart's routes raise
+    Refusal 18; bart's and dbarts' matrix routes under a logistic family raise Refusal 17's form, "the response is an n x
+    K count matrix". Alternative: Refusal 17's form on xbart's matrix route, its formula route then differing.
+72. Refusal 12 is raised wherever bart, dbarts or xbart meets a probit family and a two-column response, on either
+    route, and on a data object whose counts slot has two columns; bartBT and rbart_vi keep their own words, taking no
+    binomial. Alternative: Refusal 12 there too, naming a family = binomial they do not take.
+73. A binomial fit warns of a single class where every success or every failure is 0, as a binary fit does. Alternative:
+    no warning, the trials giving the prior something to read.
+74. xbart's rmse on a binomial compares the proportion with the probability, each row weighted by its trials times its
+    weight; on the rows written out it would add a term that depends on the data alone, so only log and mcr equal the
+    expansion (the help says so). Alternative: rmse on the expansion, a number no fit can lower to 0.
+75. Call 59's fallback words take a binomial's trials: a leaf's or a basis's numbers are "taken from all N at their trials
+    times their weights, a count of 0 read as 1" where those products are not all 0 and 1, the plain words otherwise, as
+    the engine reads them. Alternative: "at their weights' counts", which misstates the counts read.
+76. The zero-trial warning names "binomial rows" and shares the multinomial's once-per-session key. Alternative: a key
+    of its own, two warnings in a session that fits both.
+77. samplePriorPredictive's ppd on a binomial sampler draws one trial per row, as on a multinomial sampler fitted to
+    count rows and as predict draws at a new row. Alternative: the training trials at the training predictors, which an
+    `x.test` cannot carry.
+78. fit$y on a binomial fit is the two columns as written, integer, with their names; numTrainingRows and the
+    log-likelihood's draw count read NROW. Alternative: the trials vector the data object holds as y.
 
 ## Open calls
 
@@ -1094,10 +1127,11 @@ under the mutant: C4, the 0-as-1 fallback at an nbinom `$setData` to one counted
 counted-center wording, by test-frequency-weights.R; EB3, a binomial linear-leaf `$setData` reading every row at its
 weight, EB5, the `$setData` trials cap, RB1, the kept names of call 60, RB5, updateState on a count `$setResponse`, and RB6,
 data@y when the trials change, by test-count-response-doors.R. EB3 is also killed by a tests/cpp arm, a binomial linear
-leaf's standardization after `setData` against one created on the new trials and weights. Left as built, harmless: the
-lifts of a count of 0 to 1 outside a fallback (the setWeights and setActiveRows doors) are dead, since those doors keep
-the numbers when too few rows are in, and a lift outside a fallback lands only on rows already out (the review's C1, C6
-and C7 equivalent); EB1 is masked from R by the bridge's follow-up setWeights, and EB2 touches only the log-likelihood
+leaf's standardization after `setData` against one created on the new trials and weights. Left as built, harmless: two
+lifts of a count of 0 to 1 are dead, one at the leaf standardization's re-derivation in the engine's sampler (reached
+from setWeights, setActiveRows and setPredictor) and one at setForestBasis's rescale, each on a too-few-rows branch whose
+door keeps the numbers; a lift outside a fallback lands only on rows already out (the review's C1, C6 and C7 equivalent);
+EB1 is masked from R by the bridge's follow-up setWeights, and EB2 touches only the log-likelihood
 channel, which R never fills. Call 67.
 
 ### S6: R surface, the binomial and xbart (~250 R, ~55 help, ~400 tinytest)
@@ -1115,6 +1149,32 @@ Notes from the S3 review: a binary sampler's `$setData` takes a data object with
 though creation reads the same object as binomial (not a door, dec-B554, but S6's routing should read the slot one way at
 both); a hand-written slot on a binomial sampler meets `refuseCountsMutation`'s multinomial words before the bridge's, which
 S6 words for the binomial; `$setData` on a binomial sampler is taken (dec-B628, built in S5's fix round).
+As built: pure R, no engine or bridge file touched. The parse: on the formula route of bart, dbarts and xbart a logistic
+family marks the formula it hands the data object, which reads a two-column response off the model frame as successes
+and failures, the trials the data's y (call 69); on the matrix route a two-column response under a logistic family rides
+the counts slot as multinomial counts do. Refusals 11 to 14 and 16 to 18 are raised in their words, 12 on every route
+(call 72), 17 and 18 on the routes call 71 names; Refusal 15 is superseded by dec-B628, `$setResponse` taking the pair. A
+hazard family's (time, status) pair is not read as one. fit$y keeps the two columns (call 78); `fitted` and `residuals`
+report the probability and k / n - p, and for the draws n p and k - n p; `extract(type = "ppd")` draws Binomial(n, p) at a
+training row; `pointwiseLogLikelihood` is `w log dbinom(k; n, p)`, 0 at a row of no trials; predict and the test sample draw
+one trial or predict's weights (dec-B596's open question left open, below). xbart's log and mcr losses read a row as its
+proportion weighted by its trials times its weight (design Calls made, 12), rmse alike (call 74). A binomial sampler takes
+the binary logistic sampler's doors (call 68, call 66 so answered), and call 59's fallback words name its trials (call 75).
+The S3 review's notes: a binary sampler's `$setData` refuses data carrying counts, the reading creation gives them, and a
+binomial sampler meets no multinomial words. Tests: test-binomial.R (65 expectations: the routes alike and the family
+spellings; all trials 1 equal to the binary fit draw for draw; the two scales and their residuals exactly; the predictive
+draws' trials and their mean; the log-likelihood against `dbinom`, weighted; predict's trials; the zero-trial row's 0
+log-likelihood, -p residual, 0 draws and warning; glm's fitted probabilities within 0.03 on a 600-row design, 0.015 to 0.017
+over four seeds; "auto" on a counts data object multinomial; the sampler's doors; the fallback text; every refusal by its
+words; xbart's two routes alike) and test-xbart-loss.R's binomial arm: the held-out proportion and trials-times-weight
+weights a supplied loss receives, and the built-in log and mcr losses equal to the same losses on the fold's rows written
+out one trial each, to rounding, from the fold's own draws (a deviation: xbart cannot assign a row's trials to one fold, so
+an xbart run on the expanded data scores other folds; the arm shows the scoring is the expansion's). Gates: the suite 42484/0 in one process; test-binomial.R 65/0 and test-xbart-loss.R 37/0; after the rebase onto main at 980bc50f9 the trio bitwise on the reference build against equivalence-38da480c, bcf-equivalence-38da480c and multinomial-equivalence-80b1c8d4 (55, 19 and 11 scenarios, none skipped, none moved) and the four snapshot files (27 expectations, 0 failed), not rerun at the tip, no engine or bridge file having changed; lint_package, air, codoc, win drift and doc-freshness clean; verify-anchors (82) clean; R CMD check --as-cran on the built tarball, one NOTE, an expired certificate at a cited URL and the Date field. Mutants, each killed: the log loss reading a proportion as 0, the mcr loss as 0/1, the loss weights without the trials (test-xbart-loss.R); the residual's proportion as the successes, the log-likelihood's trials out of row order, `samplerCarriesCounts` true on a binomial, the fallback words without the trials, the hazard pair read as a binomial, the training draw at one trial (test-binomial.R).
+Calls made 68 to 78.
+dec-B596's open question, a binomial fit's new rows taking their trials from newdata's response columns, is left open
+for a ruling: glm's and mgcv's predict ignore them (probabilities only, and glm's simulate draws at the training trials),
+rstanarm's posterior_predict reads them and brms needs them; 0.9-34 fitted no binomial; today predict and the test sample
+ignore them.
 
 ### S7: gates (~450 in benchmarks/R, ~20 workflow)
 
