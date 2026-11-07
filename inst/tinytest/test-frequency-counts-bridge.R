@@ -34,6 +34,14 @@ create <- function(model, data, family) {
     NULL
   )
 }
+# a refusal where a creation is taken fails its expectation rather than the
+# file
+created <- function(model, data, family) {
+  tryCatch(
+    inherits(create(model, data, family), "externalptr"),
+    error = function(e) FALSE
+  )
+}
 withCounts <- function(y, weights) {
   data <- counts$data
   data@y <- y
@@ -44,10 +52,7 @@ capText <- "'weights' times (y + r) no larger than 1000000"
 
 large <- replace(y, 1L, 999999)
 expect_true(
-  inherits(
-    create(counts$model, withCounts(large, rep(1, n)), "nbinom"),
-    "externalptr"
-  ),
+  created(counts$model, withCounts(large, rep(1, n)), "nbinom"),
   info = "nbinom: y = 999,999 at a count of 1 is taken"
 )
 expect_error(
@@ -68,7 +73,7 @@ expect_error(
 fixed <- counts$model
 fixed@shape <- 3
 expect_true(
-  inherits(create(fixed, withCounts(middle, twice), "nbinom"), "externalptr"),
+  created(fixed, withCounts(middle, twice), "nbinom"),
   info = "nbinom: a fixed r of 3 takes 2 (499975 + 3)"
 )
 expect_error(
@@ -129,10 +134,7 @@ withRows <- function(weights, rowTotal = NULL) {
 }
 multinomialText <- "'weights' times the 'counts' row totals no larger than 1000000"
 expect_true(
-  inherits(
-    create(categories$model, withRows(rep(1, n), 600000L), "multinomial"),
-    "externalptr"
-  ),
+  created(categories$model, withRows(rep(1, n), 600000L), "multinomial"),
   info = "multinomial: a row total of 600,000 at a count of 1 is taken"
 )
 expect_error(
