@@ -746,8 +746,9 @@ void testPointBalls() {
 }
 
 /// Past the saddle cap: log f decided far to the right, x 400 b and 1000 b,
-/// where the saddle's v is capped below the closed forms' guard (at b 16,
-/// 2000 b is undecided, log f near -1.6e5: no draw gets there).
+/// where the saddle's v is capped below the closed forms' guard (log f is
+/// undecided from about 1e4 in x at b <= 2, 1,422 b at b 16 and 403 b at
+/// b 1e3, log f there below -4.7e4: no draw at a fixed b gets there).
 void testFarRight() {
   int undecided = 0, n = 0;
   for (double b : {0.2, 1.0, 16.0}) {
