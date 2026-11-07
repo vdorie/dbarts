@@ -64,7 +64,9 @@ A list of functions:
   `m`; see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
   Details for the response-scaling caveat this relies on. A string such
-  as `"chi(1.5)"` is kept for 0.9-x.
+  as `"chi(1.5)"` is kept for 0.9-x. `k = Inf` is accepted and holds
+  every tree at zero, so the fit is the offset, plus on a continuous
+  response the center of the range `y - offset` spans.
 
   `sd` is the standard deviation of the normal prior on the leaf model's
   own parameter, for the forest total, on the scale the family's forest
@@ -218,7 +220,10 @@ A list of functions:
   `sigest`, the residual-scale estimate supplied (or derived) at
   creation: `quant` is the prior probability that the residual standard
   deviation is below that estimate, so `sigest = 1` gives the prior
-  under which \\\sigma\\ is below 1 with probability `quant`.
+  under which \\\sigma\\ is below 1 with probability `quant`. `df` is a
+  single positive finite number and `quant` a single number between 0
+  and 1: an infinite `df`, the limit that holds \\\sigma\\ at a point,
+  is refused, and `fixed()` states a held value.
 
 - `fixed(value = 1)`:
 
@@ -227,6 +232,7 @@ A list of functions:
   which is refused beside it unless it equals the square root of
   `value`, when it is accepted with a message and is an error from
   dbarts 1.1-0 - and suppresses the sampler's own \\\sigma\\ draw.
+  `value` is a single positive finite number.
 
 - `student(df = 1)`:
 

@@ -303,25 +303,29 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   keeps the sampler's. A split probability of zero on a column some
   chain's trees split on is refused, naming the column. A residual prior
   other than the sampler's own is refused on a family with no residual
-  scale (probit, logistic, ordinal, negative binomial, hazard), and so
-  is a model whose leaf prior's `k` or `sd` does not resolve to the leaf
-  hyperprior and prior scale it carries: `setLeafPrior` restates a leaf
-  prior. The sampler's own model, as after `setResponse` or `setOffset`,
-  is always accepted. On a sampler of several forests or a multinomial
-  one it takes the fitting function's level, as `setTreePrior` and
-  `setLeafPrior` write it: a changed `power` or `base` reaches the
-  forests with no basis that state none of their own, and, where one
-  forest has no basis, or on a multinomial sampler's category forests,
-  those forests whatever they state; the leaf prior goes where
-  `setLeafPrior` sends it; and the residual prior is installed as on one
-  forest. A forest's own value that differs, its coefficient's prior
-  included, or a change in which values it states, is refused, naming
-  `setForest`, which changes one forest; so is a leaf scale other than
-  the sampler's, and split probabilities other than equal ones. A
-  variance forest stays as it is, whatever the model's record of it
-  says; `setVarianceForest` changes it. A new fixed negative-binomial
-  shape keeps the latents in force. This draws nothing; the next sweep
-  draws the augmentation variables against the change.
+  scale (probit, logistic, ordinal, negative binomial, hazard), a
+  `chisq()` residual prior of `df` 2 or below on a sampler whose
+  variance forest has two or more trees, each tree's prior being
+  calibrated to the prior mean of \\\sigma^2\\, which is infinite there,
+  and so is a model whose leaf prior's `k` or `sd` does not resolve to
+  the leaf hyperprior and prior scale it carries: `setLeafPrior`
+  restates a leaf prior. The sampler's own model, as after `setResponse`
+  or `setOffset`, is always accepted. On a sampler of several forests or
+  a multinomial one it takes the fitting function's level, as
+  `setTreePrior` and `setLeafPrior` write it: a changed `power` or
+  `base` reaches the forests with no basis that state none of their own,
+  and, where one forest has no basis, or on a multinomial sampler's
+  category forests, those forests whatever they state; the leaf prior
+  goes where `setLeafPrior` sends it; and the residual prior is
+  installed as on one forest. A forest's own value that differs, its
+  coefficient's prior included, or a change in which values it states,
+  is refused, naming `setForest`, which changes one forest; so is a leaf
+  scale other than the sampler's, and split probabilities other than
+  equal ones. A variance forest stays as it is, whatever the model's
+  record of it says; `setVarianceForest` changes it. A new fixed
+  negative-binomial shape keeps the latents in force. This draws
+  nothing; the next sweep draws the augmentation variables against the
+  change.
 
 - newData:
 
@@ -1070,8 +1074,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   leaf's `columns`; any it states must match. Changing the leaf model,
   or anything else about the model, is `setModel`'s. A multinomial
   sampler takes `normal(k = )` with a fixed `k`, `Inf` included, as its
-  creation does. On a sampler whose forests carry amplitudes it is the
-  fitting function's leaf prior; see ‘Value’.
+  creation does. On any sampler `normal(k = Inf)` holds every tree at
+  zero, so the fit is the offset, plus on a continuous response the
+  center of the range the response less its offset spans. On a sampler
+  whose forests carry amplitudes it is the fitting function's leaf
+  prior; see ‘Value’.
 
 - sd, power, base, amplitude, proposal.probs, n.perturb.cuts, treeShift:
 

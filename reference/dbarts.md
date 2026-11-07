@@ -372,12 +372,16 @@ dbarts(
   `variance`. The per-tree leaf prior is calibrated from the residual
   prior's (`family = gaussian(sigma = )`) hyperparameters so that a
   constant variance surface reproduces the homoscedastic `sigma`
-  posterior. The fit gains posterior draws `s.train`/`s.test` of
-  \\s(x)\\, and `predict` attaches an `"s"` attribute with \\s(x)\\ at
-  new predictors (requires `keepTrees`). \\s(x)\\ is the fit's residual
-  scale wherever one is reported or drawn at: `extract(type = "loglik")`
-  scores at \\s(x_i)/\sqrt{w_i}\\, `type = "ppd"` draws its noise there,
-  and
+  posterior. With two or more variance trees that calibration matches
+  the prior mean of \\\sigma^2\\, which is finite only above `df` 2, so
+  a `chisq()` residual prior of `df` 2 or below is refused there, at
+  creation and by `setModel`; a variance forest of one tree takes the
+  residual prior itself, at any `df`. The fit gains posterior draws
+  `s.train`/`s.test` of \\s(x)\\, and `predict` attaches an `"s"`
+  attribute with \\s(x)\\ at new predictors (requires `keepTrees`).
+  \\s(x)\\ is the fit's residual scale wherever one is reported or drawn
+  at: `extract(type = "loglik")` scores at \\s(x_i)/\sqrt{w_i}\\,
+  `type = "ppd"` draws its noise there, and
   [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
   summarizes `mean.s` in place of `sigma`; `extract` and `predict`
   return it as `type = "sigma"`. Such a fit carries no `sigma` or

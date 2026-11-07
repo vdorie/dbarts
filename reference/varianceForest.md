@@ -44,7 +44,10 @@ varianceForest(
 
   The number of variance trees. `NULL` (the default) takes the variance
   forest's own default of `40`, the same value `variance = TRUE` and the
-  other plain-selector forms use.
+  other plain-selector forms use. Two or more trees need a `chisq()`
+  residual prior with `df` above 2: each tree's prior is calibrated to
+  the residual prior's mean of \\\sigma^2\\, which is infinite at `df` 2
+  or below. One tree takes the residual prior itself, at any `df`.
 
 - base, power:
 

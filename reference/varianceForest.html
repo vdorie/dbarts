@@ -98,7 +98,11 @@ The constructor is not exported: it resolves by bare name inside the
   <dt id="arg-n-trees">n.trees<a class="anchor" aria-label="anchor" href="#arg-n-trees"></a></dt>
 <dd><p>The number of variance trees. <code>NULL</code> (the default) takes the
     variance forest's own default of <code>40</code>, the same value <code>variance
-    = TRUE</code> and the other plain-selector forms use.</p></dd>
+    = TRUE</code> and the other plain-selector forms use. Two or more trees need a
+    <code>chisq()</code> residual prior with <code>df</code> above 2: each tree's prior
+    is calibrated to the residual prior's mean of \(\sigma^2\),
+    which is infinite at <code>df</code> 2 or below. One tree takes the residual
+    prior itself, at any <code>df</code>.</p></dd>
 
   <dt id="arg-base-power">base, power<a class="anchor" aria-label="anchor" href="#arg-base-power"></a></dt>
 <dd><p>The variance forest's tree-structure prior. <code>NULL</code> (the default)

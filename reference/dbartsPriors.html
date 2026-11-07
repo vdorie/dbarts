@@ -117,7 +117,9 @@ The residual priors chisq and fixed are what a family
       prior standard deviations of \(f(x)\) span the whole response
       range regardless of <code>m</code>; see <code><a href="dbarts.html">dbarts</a></code>'s Details for
       the response-scaling caveat this relies on. A string such as
-      <code>"chi(1.5)"</code> is kept for 0.9-x.</p>
+      <code>"chi(1.5)"</code> is kept for 0.9-x. <code>k = Inf</code> is accepted and
+      holds every tree at zero, so the fit is the offset, plus on a
+      continuous response the center of the range <code>y - offset</code> spans.</p>
 <p><code>sd</code> is the standard deviation of the normal prior on the leaf
       model's own parameter, for the forest total, on the scale the
       family's forest fits: a positive number, or a hyperprior on the sd
@@ -257,14 +259,18 @@ The residual priors chisq and fixed are what a family
       creation: <code>quant</code> is the prior probability that the residual
       standard deviation is below that estimate, so <code>sigest = 1</code> gives
       the prior under which \(\sigma\) is below 1 with probability
-      <code>quant</code>.</p></dd>
+      <code>quant</code>. <code>df</code> is a single positive finite number and
+      <code>quant</code> a single number between 0 and 1: an infinite <code>df</code>,
+      the limit that holds \(\sigma\) at a point, is refused, and
+      <code>fixed()</code> states a held value.</p></dd>
 
     <dt><code>fixed(value = 1)</code></dt>
 <dd><p>Fixed residual variance, in squared response units. It is the residual
       scale rather than a distribution over one, so it ignores <code>sigest</code> - which
       is refused beside it unless it equals the square root of <code>value</code>,
       when it is accepted with a message and is an error from dbarts 1.1-0 - and
-      suppresses the sampler's own \(\sigma\) draw.</p></dd>
+      suppresses the sampler's own \(\sigma\) draw. <code>value</code>
+      is a single positive finite number.</p></dd>
 
     <dt><code>student(df = 1)</code></dt>
 <dd><p>A Student-t prior with <code>df</code> degrees of freedom, finite and at least

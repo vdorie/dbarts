@@ -882,7 +882,9 @@ print(x, ...)
   scale; `family = "logistic"` widens this to \\\pm \pi \sqrt{3}\\,
   three standard deviations of the standard logistic latent variable.
   The value can be either a fixed number, or a *hyperprior* of the form
-  `chi(df = 1.5, scale = 2)`. The spread can instead be named on the
+  `chi(df = 1.5, scale = 2)`; `k = Inf` holds every tree at zero, so the
+  fit is the offset, plus on a continuous response the center of the
+  range `y - offset` spans. The spread can instead be named on the
   family's own scale, `leaf.prior = normal(sd = )`; see
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md).
   The default, `NULL`, uses the value 2 for continuous responses and the
@@ -2267,7 +2269,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001635
+#> total seconds in loop: 0.001617
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 3 3 2 2 2 2 2 3 2 2 2 3 3 2 
@@ -2304,7 +2306,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000875
+#> total seconds in loop: 0.000871
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 2 1 2 1 1 2 2 1 1 1 2 2 2 2 
@@ -2339,7 +2341,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001338
+#> total seconds in loop: 0.001299
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 3 2 4 2 2 3 2 2 2 2 3 3 2 
@@ -2393,7 +2395,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.001773
+#> total seconds in loop: 0.001810
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 3 2 3 2 3 3 2 
