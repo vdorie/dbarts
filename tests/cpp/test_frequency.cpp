@@ -1147,7 +1147,7 @@ void testGPLengthscaleMaskedAndReal() {
 /// A gaussian two-forest fit whose rows in hold one response value while
 /// the rows of weight 0 vary: the response's range falls back to every row,
 /// and under frequency the basis scale and the anchor read every row at its
-/// count, the expansion's every row.
+/// count, a count of 0 at 1, the expansion's every row at those counts.
 void testGaussianFallbackWeighted() {
   const std::size_t n = 40;
   Fixture f(n);
@@ -1157,7 +1157,10 @@ void testGaussianFallbackWeighted() {
     f.y[i] = f.w[i] == 0.0 ? 3.0 * runif01() : 0.7;
     dose[i] = 0.5 + runif01() * (i % 3 == 0 ? 3.0 : 1.0);
   }
-  Expansion e(f, f.w, &dose);
+  std::vector<double> lifted(f.w);
+  for (double& count : lifted)
+    if (count == 0.0) count = 1.0;
+  Expansion e(f, lifted, &dose);
   auto spec = [](const double* basis) {
     AmplitudeSpec s;
     s.forests.resize(2);
@@ -2097,12 +2100,14 @@ void testBinomialReadOffs() {
     ext_rng* rng = seededRng(7711u);
     ConstantLeafSampler sampler(x, y, rows, f.p, w, nullptr, 1.0, sigmaDf,
                                 sigmaRawScale, options, spec, &rng);
-    double created = sampler.forestCalibration(0, 1).basisScale;
+    ForestCalibration atCreation = sampler.forestCalibration(0, 1);
     bool rescaled = sampler.setForestBasisRescaled(1, basis2, 1) ==
                     BasisRescaleResult::rescaled;
     double changed = sampler.forestCalibration(0, 1).basisScale;
     ext_rng_destroy(rng);
-    return std::array<double, 3>{created, changed, rescaled ? 1.0 : 0.0};
+    return std::array<double, 4>{atCreation.basisScale, changed,
+                                 rescaled ? 1.0 : 0.0,
+                                 atCreation.basisScaleFromAllRows ? 1.0 : 0.0};
   };
   auto expansion = scalesOf(e.x.data(), yE.data(), e.n, nullptr, nullptr,
                             e.extra.data(), dose2E.data(), false);
@@ -2120,18 +2125,22 @@ void testBinomialReadOffs() {
         "rescaling basis change, under either reading");
 
   // one row of trials is too few rows in, as one row the mask keeps: the
-  // scale is read off every row at its count, where the basis has no spread
-  std::vector<double> oneRow(n, 0.0), oneK(n, 0.0);
-  oneRow[2] = 3.0;
-  bool fellBack = false;
-  try {
-    scalesOf(b.x.data(), oneK.data(), n, nullptr, oneRow.data(), dose.data(),
-             dose2.data(), false);
-  } catch (const BasisScaleError& error) {
-    fellBack = error.fromAllRows;
-  }
-  check(fellBack, "a binomial row of no trials is out of the rows a basis "
-                  "scale is read over, as a masked row");
+  // scale is read off every row, a row of no trials at 1 as a masked row is,
+  // the expansion's at those counts
+  std::vector<double> oneRow(n, 0.0), oneK(n, 0.0), lifted(n, 1.0);
+  oneRow[2] = lifted[2] = 3.0;
+  Expansion eLifted(f, lifted, &dose);
+  std::vector<double> yLifted(eLifted.n), dose2Lifted = expanded(eLifted, dose2);
+  for (std::size_t r = 0; r < eLifted.n; ++r) yLifted[r] = r % 2 == 0 ? 1.0 : 0.0;
+  auto oneRowIn = scalesOf(b.x.data(), oneK.data(), n, nullptr, oneRow.data(),
+                           dose.data(), dose2.data(), false);
+  auto everyRow = scalesOf(eLifted.x.data(), yLifted.data(), eLifted.n,
+                           nullptr, nullptr, eLifted.extra.data(),
+                           dose2Lifted.data(), false);
+  check(oneRowIn[3] == 1.0 && relativeGap(oneRowIn[0], everyRow[0]) < 1e-14,
+        "a binomial row of no trials is out of the rows a basis scale is "
+        "read over, as a masked row, and read at 1 where the read falls back "
+        "to every row");
 
   // the counts read follow a count change and a weight change
   std::vector<double> k2(b.k), n2(b.trials), w2(b.w);
