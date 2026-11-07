@@ -2016,6 +2016,13 @@ bart <- function(
   # needed to extract ppd
   result <- withFitWeights(result, sampler)
   result$active <- fitActiveRows(sampler)
+  result <- withBinomialTrials(
+    result,
+    sampler,
+    formula,
+    matchedCall,
+    callingEnv
+  )
 
   result
 }
@@ -2153,6 +2160,36 @@ withMultinomialTestWeights <- function(result, weights) {
   result
 }
 
+# A packaged binomial fit with what its new rows read their trials from
+# (dec-B638): the response expression as the formula wrote it, a one-sided
+# formula in the formula's environment, and the trials a test frame carrying
+# its columns gives, where no test weights were stated.
+withBinomialTrials <- function(result, sampler, formula, matchedCall, env) {
+  if (
+    !is.formula(formula) ||
+      length(formula) != 3L ||
+      !identical(sampler$model@family, "logistic") ||
+      NCOL(dataCounts(sampler$data)) != 2L
+  ) {
+    return(result)
+  }
+  response <- formula[-2L]
+  response[[2L]] <- formula[[2L]]
+  result$trials.response <- response
+  if (
+    NROW(sampler$data@x.test) > 0L &&
+      is.null(result[["weights.test"]]) &&
+      !is.null(matchedCall$test)
+  ) {
+    test <- eval(matchedCall$test, env)
+    trials <- binomialNewDataTrials(response, test)
+    if (!is.null(trials) && length(trials) == NROW(sampler$data@x.test)) {
+      result$trials.test <- trials
+    }
+  }
+  result
+}
+
 # Whether a formula carries an offset() term, for the fits that refuse an
 # offset before any model frame is built.
 formulaHasOffsetTerm <- function(formula) {
@@ -2180,6 +2217,13 @@ refuseCountsCarryingData <- function(formula, caller, family = NULL) {
   # failures, one location per row
   if (identical(family, "logistic") && NCOL(counts) == 2L) {
     return(invisible(NULL))
+  }
+  # a binary family's words, as dbarts() gives them on the same object
+  if (identical(family, "logistic") && !is.null(counts)) {
+    stop(binomialCountColumnsMessage(ncol(counts), "the data carry"))
+  }
+  if (identical(family, "probit") && NCOL(counts) == 2L) {
+    stop(probitBinomialMessage)
   }
   if (!is.null(counts)) {
     stop(

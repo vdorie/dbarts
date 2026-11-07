@@ -4148,12 +4148,13 @@ dbartsData <- function(
   # 'weights' bound to NULL gave the training rows none, so there are none to
   # look for in the test rows
   # a multinomial fit's test weights are read where its formula is, before
-  # the count response reaches here
+  # the count response reaches here; a binomial's are read here, as a binary
+  # fit's are
   if (
     !is.null(x.test) &&
       !is.null(matchedCall$weights) &&
       !is.null(weights) &&
-      is.null(counts)
+      (is.null(counts) || binomialResponse)
   ) {
     if (!is.formula(formula)) {
       warning(

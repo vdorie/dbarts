@@ -68,6 +68,44 @@ binomialObserved <- function(y, type) {
   ifelse(trials > 0, y[, 1L] / pmax(trials, 1), 0)
 }
 
+# The trials new rows of a binomial fit carry (dec-B638): the fit's response
+# expression, cbind(successes, failures) as its formula wrote it, evaluated on
+# 'newdata' where newdata holds every column it names and gives two columns,
+# complete, of non-negative whole numbers; NULL otherwise, the rows then
+# drawing one trial. 'response' is the one-sided formula a fit records.
+binomialNewDataTrials <- function(response, newdata) {
+  if (is.null(response) || is.null(newdata)) {
+    return(NULL)
+  }
+  if (is.matrix(newdata)) {
+    if (is.null(colnames(newdata))) {
+      return(NULL)
+    }
+    newdata <- as.data.frame(newdata)
+  }
+  if (!is.list(newdata)) {
+    return(NULL)
+  }
+  expression <- response[[2L]]
+  if (!all(all.vars(expression) %in% names(newdata))) {
+    return(NULL)
+  }
+  value <- tryCatch(
+    eval(expression, newdata, environment(response)),
+    error = function(e) NULL
+  )
+  if (
+    !is.matrix(value) ||
+      ncol(value) != 2L ||
+      nrow(value) != NROW(newdata) ||
+      !(is.numeric(value) || is.logical(value)) ||
+      anyNA(value)
+  ) {
+    return(NULL)
+  }
+  as.double(rowSums(validateBinomialCounts(value, "'newdata': ")))
+}
+
 # a family with a residual distribution, and so the resid.scale descriptor
 fitHasResidual <- function(object) {
   fitEngineFamily(object) %in% c("gaussian", "aft")
@@ -1348,6 +1386,11 @@ predict.bart <- function(
   }
 
   refusePredictWeightsForm(weights)
+  # a binomial's new rows carrying its successes and failures, and no weights
+  # stated, draw at those trials (dec-B638)
+  if (type == "ppd" && is.null(weights) && fitIsBinomial(object)) {
+    weights <- binomialNewDataTrials(object[["trials.response"]], newdata)
+  }
 
   # the fit's offset argument and offset() terms are evaluated on newdata, as
   # predict.lm does, and added to an 'offset' given here; the per-forest arm
@@ -1976,6 +2019,11 @@ extract.bart <- function(
 ## ('out') NA. At the test rows the test rows' own weights, read as the fit's.
 fitPpdWeights <- function(object, sample) {
   if (sample == "test") {
+    # a binomial test frame's own trials, where it carried them and no
+    # weights (dec-B638)
+    if (!is.null(object[["trials.test"]])) {
+      return(list(weights = object[["trials.test"]], trials = TRUE))
+    }
     return(list(weights = object[["weights.test"]], trials = FALSE))
   }
   if (!is.null(object[["ppd.weights"]])) {
