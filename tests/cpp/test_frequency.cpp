@@ -14,6 +14,8 @@
 #include <numbers>
 #include <string>
 
+extern "C" double Rf_dbinom_raw(double, double, double, double, int);
+
 namespace {
 
 constexpr double sigmaDf = 3.0;
@@ -1674,6 +1676,421 @@ void testMultinomialZeroWeightsAndState() {
   ext_rng_destroy(rngF);
 }
 
+// --- the binomial row: a logistic row of k successes in n trials stands for
+// n binary rows of the same x, k of them successes, and draws its n unit
+// Polya-Gamma variates at the one psi those rows share. ---
+
+/// Binomial rows: trials 1 to 6 with 0 < k < n wherever n > 1 (\p interior),
+/// or any k in 0..n, and whole weights 1 to 4; x as Fixture's.
+struct BinomialFixture {
+  std::size_t n = 0, p = 2;
+  std::vector<double> x, w, k, trials;
+
+  BinomialFixture(std::size_t n_, bool interior) : n(n_) {
+    Fixture f(n_);
+    x = f.x;
+    w = f.w;
+    k.resize(n);
+    trials.resize(n);
+    for (std::size_t i = 0; i < n; ++i) {
+      double size = interior ? 2.0 + std::floor(5.0 * runif01())
+                             : 1.0 + std::floor(6.0 * runif01());
+      double prob = 1.0 / (1.0 + std::exp(-3.0 * std::sin(6.0 * x[i])));
+      double successes = 0.0;
+      for (int t = 0; t < static_cast<int>(size); ++t)
+        successes += runif01() < prob ? 1.0 : 0.0;
+      if (interior)
+        successes = std::min(std::max(successes, 1.0), size - 1.0);
+      trials[i] = size;
+      k[i] = successes;
+    }
+  }
+};
+
+std::unique_ptr<ConstantLeafSampler> makeBinomialSampler(
+    const double* x, const double* y, std::size_t n, std::size_t p,
+    const double* w, const double* trials, ext_rng** rng,
+    const double* offset = nullptr) {
+  SamplerOptions options;
+  options.numTrees = 20;
+  options.trials = trials;
+  return std::make_unique<ConstantLeafSampler>(x, y, n, p, w, offset,
+                                               ResponseFamily::logistic, 1.0,
+                                               sigmaDf, 1.0, options, rng);
+}
+
+/// A binomial row of k successes in n trials against two adjacent binary
+/// rows of weights k (a success) and n - k (a failure), 0 < k < n: the same
+/// unit draws at the same psi, so the fits agree to the association of the
+/// omega sums over 300 sweeps and both runs consume the same variates.
+void testBinomialAgainstSplitRows() {
+  const std::size_t n = 40, numSamples = 300;
+  BinomialFixture b(n, true);
+  std::size_t m = 2 * n;
+  std::vector<double> xs(m * b.p), ys(m), ws(m);
+  for (std::size_t i = 0; i < n; ++i) {
+    for (std::size_t j = 0; j < b.p; ++j)
+      xs[j * m + 2 * i] = xs[j * m + 2 * i + 1] = b.x[j * n + i];
+    ys[2 * i] = 1.0;
+    ys[2 * i + 1] = 0.0;
+    ws[2 * i] = b.k[i];
+    ws[2 * i + 1] = b.trials[i] - b.k[i];
+  }
+  ext_rng* rngB = seededRng(7601u);
+  ext_rng* rngS = seededRng(7601u);
+  auto binomial = makeBinomialSampler(b.x.data(), b.k.data(), n, b.p, nullptr,
+                                      b.trials.data(), &rngB);
+  auto split = makeBinomialSampler(xs.data(), ys.data(), m, b.p, ws.data(),
+                                   nullptr, &rngS);
+  CountDraws db(n, numSamples), ds(m, numSamples);
+  Results rb = db.results(), rs = ds.results();
+  rb.shape = rs.shape = nullptr;
+  bool ran = !binomial->run(0, numSamples, rb) && !split->run(0, numSamples, rs);
+  double gap = 0.0;
+  for (std::size_t s = 0; s < numSamples; ++s)
+    for (std::size_t r = 0; r < m; ++r)
+      gap = std::max(gap, relativeGap(db.fits[s * n + r / 2],
+                                      ds.fits[s * m + r]));
+  bool sameVariates = ext_rng_simulateContinuousUniform(rngB) ==
+                      ext_rng_simulateContinuousUniform(rngS);
+  printf("  binomial row against its split rows: largest gap %.3g over %zu "
+         "sweeps\n", gap, numSamples);
+  check(ran && gap < 1e-10 && sameVariates,
+        "a binomial row equals two rows of weights k and n - k to 1e-10, "
+        "consuming the same variates");
+  ext_rng_destroy(rngB);
+  ext_rng_destroy(rngS);
+}
+
+/// A binomial row at frequency weight w against the row of k w successes in
+/// n w trials, and a binomial response of one trial a row against the binary
+/// response, weighted and not: fits bitwise, and the one-trial
+/// log-likelihood bitwise the binary one's.
+void testBinomialScaledAndBinary() {
+  const std::size_t n = 40, numSamples = 100;
+  BinomialFixture b(n, false);
+  std::vector<double> kw(n), nw(n), ones(n, 1.0), yBinary(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    kw[i] = b.k[i] * b.w[i];
+    nw[i] = b.trials[i] * b.w[i];
+    yBinary[i] = b.k[i] > 0.5 * b.trials[i] ? 1.0 : 0.0;
+  }
+  ext_rng* rngA = seededRng(7701u);
+  ext_rng* rngB = seededRng(7701u);
+  auto weighted = makeBinomialSampler(b.x.data(), b.k.data(), n, b.p,
+                                      b.w.data(), b.trials.data(), &rngA);
+  auto scaled = makeBinomialSampler(b.x.data(), kw.data(), n, b.p, nullptr,
+                                    nw.data(), &rngB);
+  CountDraws da(n, numSamples), db(n, numSamples);
+  Results ra = da.results(), rb = db.results();
+  ra.shape = rb.shape = nullptr;
+  bool ran = !weighted->run(0, numSamples, ra) &&
+             !scaled->run(0, numSamples, rb);
+  check(ran && da.fits == db.fits,
+        "a binomial row at weight w equals the row of k w successes in n w "
+        "trials, bitwise");
+  ext_rng_destroy(rngA);
+  ext_rng_destroy(rngB);
+
+  for (bool withWeights : {false, true}) {
+    const double* w = withWeights ? b.w.data() : nullptr;
+    ext_rng* rngC = seededRng(7702u);
+    ext_rng* rngD = seededRng(7702u);
+    auto oneTrial = makeBinomialSampler(b.x.data(), yBinary.data(), n, b.p, w,
+                                        ones.data(), &rngC);
+    auto binary = makeBinomialSampler(b.x.data(), yBinary.data(), n, b.p, w,
+                                      nullptr, &rngD);
+    CountDraws dc(n, numSamples), dd(n, numSamples);
+    Results rc = dc.results(), rd = dd.results();
+    rc.shape = rd.shape = nullptr;
+    ran = !oneTrial->run(0, numSamples, rc) && !binary->run(0, numSamples, rd);
+    check(ran && dc.fits == dd.fits && dc.logLikelihood == dd.logLikelihood,
+          withWeights ? "a weighted binomial response of one trial a row is "
+                        "the binary one, bitwise"
+                      : "a binomial response of one trial a row is the "
+                        "binary one, bitwise");
+    ext_rng_destroy(rngC);
+    ext_rng_destroy(rngD);
+  }
+}
+
+/// The binomial row's log-likelihood against R's dbinom times the weight, to
+/// 1e-10 relative, at trials up to one million: among them k = n / 2 and
+/// k = n / 1000, where a log choose constant from std::lgamma is 1e-10 off.
+/// A row of no trials reports 0 and a row the mask leaves out NaN.
+void testBinomialLogLikelihood() {
+  std::vector<double> k, trials, eta, w;
+  auto add = [&](double size, double successes) {
+    double rate = successes / size;
+    std::vector<double> etas = {0.0, 0.7, -1.3};
+    if (successes > 0.0 && successes < size)
+      etas.push_back(std::log(rate / (1.0 - rate)));
+    for (double e : etas)
+      for (double weight : {1.0, 3.0}) {
+        k.push_back(successes);
+        trials.push_back(size);
+        eta.push_back(e);
+        w.push_back(weight);
+      }
+  };
+  for (double size : {1.0, 7.0, 100.0, 1e4, 999983.0, 1e6})
+    for (double successes : {0.0, 1.0, std::floor(size / 1000.0),
+                             std::floor(size / 2.0), size - 1.0, size})
+      if (successes >= 0.0 && successes <= size) add(size, successes);
+  std::size_t n = k.size();
+  LogisticResponse response(k.data(), nullptr, w.data(), n, trials.data());
+  std::vector<double> out(n);
+  response.computeLogLikelihood(eta.data(), 1.0, n, out.data());
+  double worst = 0.0, worstHalf = 0.0, worstThousandth = 0.0;
+  for (std::size_t i = 0; i < n; ++i) {
+    double p = 1.0 / (1.0 + std::exp(-eta[i]));
+    double q = 1.0 / (1.0 + std::exp(eta[i]));
+    double expected = w[i] * Rf_dbinom_raw(k[i], trials[i], p, q, 1);
+    double gap = std::fabs(out[i] - expected) /
+                 std::max(std::fabs(expected), 1e-300);
+    if (expected == 0.0) gap = std::fabs(out[i]);
+    worst = std::max(worst, gap);
+    if (trials[i] == 1e6 && k[i] == 5e5) worstHalf = std::max(worstHalf, gap);
+    if (trials[i] == 1e6 && k[i] == 1e3)
+      worstThousandth = std::max(worstThousandth, gap);
+  }
+  printf("  binomial log-likelihood against dbinom: %zu rows, worst %.3g, "
+         "n = 1e6 at k = n/2 %.3g and k = n/1000 %.3g\n", n, worst, worstHalf,
+         worstThousandth);
+  check(worst < 1e-10 && worstHalf < 1e-10 && worstThousandth < 1e-10,
+        "the binomial log-likelihood is w log dbinom(k; n, p) to 1e-10 relative");
+
+  std::vector<double> k2 = {0.0, 2.0, 1.0}, n2 = {0.0, 5.0, 3.0},
+                      eta2 = {0.4, 0.4, 0.4}, mask = {1.0, 1.0, 0.0}, out2(3);
+  LogisticResponse small(k2.data(), nullptr, nullptr, 3, n2.data());
+  small.setActiveRows(mask.data());
+  small.computeLogLikelihood(eta2.data(), 1.0, 3, out2.data());
+  check(out2[0] == 0.0 && std::isfinite(out2[1]) && std::isnan(out2[2]),
+        "a binomial row of no trials reports 0, a masked one NaN");
+}
+
+/// A row of no trials and a binomial row of weight 0: finite throughout,
+/// every fit, omega and working response, and the zero-trial row consumes
+/// nothing and reads as a masked row of one trial, bitwise at the rows in.
+void testBinomialZeroRows() {
+  const std::size_t n = 40, numSamples = 300;
+  BinomialFixture b(n, false);
+  std::vector<double> kZero(b.k), nZero(b.trials), nOne(b.trials), mask(n, 1.0),
+    wZero(b.w);
+  for (std::size_t i = 3; i < n; i += 9) {
+    kZero[i] = 0.0;
+    nZero[i] = 0.0;
+    nOne[i] = 1.0;
+    mask[i] = 0.0;
+  }
+  wZero[5] = 0.0;
+  ext_rng* rngA = seededRng(7801u);
+  ext_rng* rngB = seededRng(7801u);
+  auto zero = makeBinomialSampler(b.x.data(), kZero.data(), n, b.p,
+                                  wZero.data(), nZero.data(), &rngA);
+  auto masked = makeBinomialSampler(b.x.data(), kZero.data(), n, b.p,
+                                    wZero.data(), nOne.data(), &rngB);
+  masked->setActiveRows(mask.data());
+  CountDraws da(n, numSamples), db(n, numSamples);
+  Results ra = da.results(), rb = db.results();
+  ra.shape = rb.shape = nullptr;
+  bool ran = !zero->run(0, numSamples, ra) && !masked->run(0, numSamples, rb);
+  bool finite = allFinite(da.fits) && allFinite(da.logLikelihood);
+  const double* omega = zero->latents(0);
+  const double* working = TestPeer::workingResponse(zero->chain(0));
+  for (std::size_t i = 0; i < n; ++i)
+    finite = finite && std::isfinite(omega[i]) && omega[i] > 0.0 &&
+             std::isfinite(working[i]);
+  bool zeroReportsZero = true;
+  for (std::size_t s = 0; s < numSamples; ++s)
+    for (std::size_t i = 0; i < n; ++i)
+      if (nZero[i] == 0.0 || wZero[i] == 0.0)
+        zeroReportsZero = zeroReportsZero && da.logLikelihood[s * n + i] == 0.0;
+  check(ran && finite && zeroReportsZero,
+        "a binomial row of no trials and one of weight 0 are finite "
+        "throughout, each reporting a log-likelihood of 0");
+  check(agreeOnRowsIn(da.fits, db.fits, mask, n) &&
+          ext_rng_simulateContinuousUniform(rngA) ==
+            ext_rng_simulateContinuousUniform(rngB),
+        "a binomial row of no trials is a masked row of one, bitwise at the "
+        "rows in, consuming the same variates");
+  ext_rng_destroy(rngA);
+  ext_rng_destroy(rngB);
+}
+
+/// setBinomialCounts draws nothing and leaves the working response
+/// w (k - n / 2) / omega - offset under the new counts at every row, a row
+/// of no trials and a masked one included; a refusal on a binary response;
+/// and a state round trip of a binomial sampler, copied into a sampler
+/// built on the same rows and reloaded into a fresh one, continues to
+/// rounding.
+void testBinomialSetCountsAndState() {
+  const std::size_t n = 40, numSamples = 40;
+  BinomialFixture b(n, false);
+  std::vector<double> offset(n), k2(n), n2(n), mask(n, 1.0);
+  for (std::size_t i = 0; i < n; ++i) {
+    offset[i] = 0.2 * std::sin(static_cast<double>(i));
+    n2[i] = i % 7 == 0 ? 0.0 : b.trials[i] + static_cast<double>(i % 3);
+    k2[i] = std::min(n2[i], b.k[i] + 1.0);
+  }
+  mask[4] = 0.0;
+  ext_rng* rngA = seededRng(7901u);
+  auto sampler = makeBinomialSampler(b.x.data(), b.k.data(), n, b.p,
+                                     b.w.data(), b.trials.data(), &rngA,
+                                     offset.data());
+  sampler->setActiveRows(mask.data());
+  Results none;
+  bool ran = !sampler->run(10, 0, none);
+  SamplerStateData before;
+  sampler->getState(before);
+  bool installed = sampler->setBinomialCounts(k2.data(), n2.data());
+  SamplerStateData after;
+  sampler->getState(after);
+  const double* omega = sampler->latents(0);
+  const double* working = TestPeer::workingResponse(sampler->chain(0));
+  bool rebuilt = true;
+  for (std::size_t i = 0; i < n; ++i)
+    rebuilt = rebuilt &&
+      working[i] == b.w[i] * (k2[i] - 0.5 * n2[i]) / omega[i] - offset[i];
+  check(ran && installed && rebuilt &&
+          after.chains[0].rngState == before.chains[0].rngState &&
+          after.chains[0].latents == before.chains[0].latents,
+        "binomial setBinomialCounts draws nothing and rebuilds the working "
+        "response from omega, the counts and the offset at every row");
+
+  ext_rng* rngC = seededRng(7902u);
+  auto binary = makeBinomialSampler(b.x.data(), mask.data(), n, b.p, nullptr,
+                                    nullptr, &rngC);
+  check(!binary->setBinomialCounts(k2.data(), n2.data()) &&
+          !binary->holdsTrials() && sampler->holdsTrials(),
+        "setBinomialCounts is refused on a binary response");
+  check(!sampler->setData(b.x.data(), k2.data(), n, b.w.data(), offset.data(),
+                          nullptr, 0),
+        "setData is refused on a binomial response");
+
+  ext_rng* rngD = seededRng(7903u);
+  ext_rng* rngE = seededRng(7904u);
+  auto copy = makeBinomialSampler(b.x.data(), k2.data(), n, b.p, b.w.data(),
+                                  n2.data(), &rngD, offset.data());
+  copy->setActiveRows(mask.data());
+  auto reloaded = makeBinomialSampler(b.x.data(), k2.data(), n, b.p,
+                                      b.w.data(), n2.data(), &rngE,
+                                      offset.data());
+  reloaded->setActiveRows(mask.data());
+  ran = !sampler->run(5, 0, none);
+  SamplerStateData state;
+  sampler->getState(state);
+  bool copied = restoresExactly(*copy, state, b.x.data());
+  bool reloadedOk = restoresExactly(*reloaded, state, b.x.data());
+  checkStructuralRoundTrip(state, *copy, "binomial state round trip");
+  CountDraws d1(n, numSamples), d2(n, numSamples), d3(n, numSamples);
+  Results r1 = d1.results(), r2 = d2.results(), r3 = d3.results();
+  r1.shape = r2.shape = r3.shape = nullptr;
+  ran = ran && !sampler->run(0, numSamples, r1) &&
+        !copy->run(0, numSamples, r2) && !reloaded->run(0, numSamples, r3);
+  check(ran && copied && reloadedOk && largestGap(d1.fits, d2.fits) < 1e-9 &&
+          largestGap(d1.fits, d3.fits) < 1e-9 &&
+          largestGap(d1.logLikelihood, d2.logLikelihood) < 1e-9,
+        "a binomial sampler continues from its state, copied and reloaded");
+  ext_rng_destroy(rngA);
+  ext_rng_destroy(rngC);
+  ext_rng_destroy(rngD);
+  ext_rng_destroy(rngE);
+}
+
+/// The read-offs of a binomial row are its n binary rows' of its weight,
+/// under either reading: a numeric basis's default scale, at creation and
+/// re-read by a rescaling basis change, and a linear leaf's standardization
+/// equal the expansion's to rounding, a row of no trials out of each.
+void testBinomialReadOffs() {
+  const std::size_t n = 40;
+  BinomialFixture b(n, false);
+  for (std::size_t i = 1; i < n; i += 8) {
+    b.trials[i] = 0.0;
+    b.k[i] = 0.0;
+  }
+  Fixture f(n);
+  f.x = b.x;
+  std::vector<double> counts(n), dose(n), dose2(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    counts[i] = b.trials[i] * b.w[i];
+    dose[i] = 0.5 + runif01() * (i % 3 == 0 ? 3.0 : 1.0);
+    dose2[i] = runif01() * (i % 4 == 0 ? 5.0 : 1.0);
+  }
+  // a row of no trials far out on both columns, which only its absence
+  // leaves the scale untouched by
+  dose[1] = dose2[1] = 1.0e3;
+  Expansion e(f, counts, &dose);
+  std::vector<double> yE(e.n), dose2E = expanded(e, dose2);
+  for (std::size_t r = 0; r < e.n; ++r) yE[r] = r % 2 == 0 ? 1.0 : 0.0;
+  auto scalesOf = [&](const double* x, const double* y, std::size_t rows,
+                      const double* w, const double* trials,
+                      const double* basis, const double* basis2,
+                      bool frequency) {
+    AmplitudeSpec spec;
+    spec.family = ResponseFamily::logistic;
+    spec.forests.resize(2);
+    spec.forests[1].kind = ForestKind::numeric;
+    spec.forests[1].basis = basis;
+    SamplerOptions options;
+    if (frequency) options = frequencyOptions(options);
+    options.trials = trials;
+    ext_rng* rng = seededRng(7711u);
+    ConstantLeafSampler sampler(x, y, rows, f.p, w, nullptr, 1.0, sigmaDf,
+                                sigmaRawScale, options, spec, &rng);
+    double created = sampler.forestCalibration(0, 1).basisScale;
+    bool rescaled = sampler.setForestBasisRescaled(1, basis2, 1) ==
+                    BasisRescaleResult::rescaled;
+    double changed = sampler.forestCalibration(0, 1).basisScale;
+    ext_rng_destroy(rng);
+    return std::array<double, 3>{created, changed, rescaled ? 1.0 : 0.0};
+  };
+  auto expansion = scalesOf(e.x.data(), yE.data(), e.n, nullptr, nullptr,
+                            e.extra.data(), dose2E.data(), false);
+  bool basisAgrees = expansion[2] == 1.0;
+  for (bool frequency : {false, true}) {
+    auto binomial = scalesOf(b.x.data(), b.k.data(), n, b.w.data(),
+                             b.trials.data(), dose.data(), dose2.data(),
+                             frequency);
+    basisAgrees = basisAgrees && binomial[2] == 1.0 &&
+                  relativeGap(binomial[0], expansion[0]) < 1e-14 &&
+                  relativeGap(binomial[1], expansion[1]) < 1e-14;
+  }
+  check(basisAgrees,
+        "a binomial basis scale is its binary rows', at creation and at a "
+        "rescaling basis change, under either reading");
+
+  const std::size_t columns[] = {0};
+  SamplerOptions options;
+  options.numTrees = 5;
+  options.leafCovariateColumns = columns;
+  options.numLeafCovariates = 1;
+  std::vector<double> xFar(b.x);
+  xFar[1] = 50.0;  // the row of no trials, out
+  Fixture g(n);
+  g.x = xFar;
+  Expansion eLeaf(g, counts);
+  ext_rng* rngB = seededRng(7712u);
+  ext_rng* rngE = seededRng(7712u);
+  SamplerOptions binomialOptions = options;
+  binomialOptions.trials = b.trials.data();
+  Sampler<LinearGaussianLeaf> binomial(xFar.data(), b.k.data(), n, b.p,
+                                       b.w.data(), nullptr,
+                                       ResponseFamily::logistic, 1.0, sigmaDf,
+                                       1.0, binomialOptions, &rngB);
+  Sampler<LinearGaussianLeaf> binary(eLeaf.x.data(), yE.data(), eLeaf.n, b.p,
+                                     nullptr, nullptr,
+                                     ResponseFamily::logistic, 1.0, sigmaDf,
+                                     1.0, options, &rngE);
+  const auto& lb = binomial.chain(0).leaf();
+  const auto& le = binary.chain(0).leaf();
+  check(relativeGap(lb.covariateMeans()[0], le.covariateMeans()[0]) < 1e-14 &&
+          relativeGap(lb.covariateSds()[0], le.covariateSds()[0]) < 1e-14,
+        "a binomial linear leaf's standardization is its binary rows'");
+  ext_rng_destroy(rngB);
+  ext_rng_destroy(rngE);
+}
+
 }  // namespace
 
 void runFrequencyTests() {
@@ -1706,5 +2123,11 @@ void runFrequencyTests() {
   testMultinomialAgainstExpansion(false);
   testMultinomialAgainstExpansion(true);
   testMultinomialZeroWeightsAndState();
+  testBinomialAgainstSplitRows();
+  testBinomialScaledAndBinary();
+  testBinomialLogLikelihood();
+  testBinomialZeroRows();
+  testBinomialSetCountsAndState();
+  testBinomialReadOffs();
   rngState = savedState;
 }
