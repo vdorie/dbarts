@@ -700,14 +700,17 @@ inline void TargetDensity::prepare(double x) {
   logCosh0Err_ = lerr;
 
   // The lead x t0 - b [lambda(w0) - lambda(A)] in double-double, t0 =
-  // 2 (W0 - A^2) exact as a double-double.
+  // 2 (W0 - A^2) within 3 u^2 of itself (one AccurateDWPlusDW), charged with
+  // the products in the 16 kU2 mag term below.
   dd::DD A2 = dd::twoProd(a_, a_);
   dd::DD t0 = dd::ldexp(dd::sub(dd::fromDouble(W0_), A2), 1);
   dd::DD xt0 = dd::mul(t0, x);
-  auto lambdaDD = [](double w, double& mag) {
+  double dropped = 0.0;  // the log1p terms left out, each below e^-650 < 2^-937
+  auto lambdaDD = [&dropped](double w, double& mag) {
     // w - log 2 + log1p(e^{-2w}); past w = 325 the last term is below e^-650
     dd::DD v = dd::sub(dd::fromDouble(w), dd::kLn2);
     double l = 0.0;
+    if (w > 325.0) dropped += 0x1p-937;
     if (w <= 325.0) {
       dd::DD e = dd::exp(dd::fromDouble(-2.0 * w));
       dd::DD lp = dd::log1p(e);
@@ -737,8 +740,7 @@ inline void TargetDensity::prepare(double x) {
   dd::DD lead = dd::sub(xt0, bdiff);
   double ulf = dd::kLogRelErr;  // the largest of the functions' bounds
   double mag = std::fabs(xt0.hi) + b_ * (mag0 + magA + 2.0);
-  double rad = (16.0 * dd::kU2 + 3.0 * ulf) * mag + b_ * extra * 2.0 +
-               (W0_ >= 0.0 ? 0.0 : 0.0);
+  double rad = (16.0 * dd::kU2 + 3.0 * ulf) * mag + b_ * extra * 2.0 + b_ * dropped;
   // The lead plus log(2 / pi): the double midpoint's rounding is charged.
   double mid = lead.hi + (lead.lo + kLogTwoOverPi);
   rad += kU * std::fabs(mid) + 0x1p-55 + kU * std::fabs(lead.lo + kLogTwoOverPi);

@@ -240,9 +240,12 @@ inline constexpr DD kSinCoef[18] = {
 /// steps q <- q (2 + q). Relative error: the reduced Taylor sum s P(s),
 /// |s| <= 0.0438, has truncation below 2^-111 and Horner error at most
 /// 4.5 u^2 (each step's error damped by |s| / (i + 1)), 9 u^2 after the
-/// product by s; a step multiplies the relative error by
-/// 1 + |q| / |2 + q| <= 1.18 and adds 6 u^2 (one DWPlusFP, one DWTimesDW3),
-/// so three steps give at most 33 u^2.
+/// product by s; a step multiplies the relative error by 1 + |q| / |2 + q|
+/// and adds 6 u^2 (one DWPlusFP, 2 u^2 of 2 + q, and one DWTimesDW3, 4 u^2).
+/// Entering step i (i = 1, 2, 3), |q| <= e^{0.35 / 2^(4 - i)} - 1, at most
+/// 0.0448, 0.0915 and 0.1912, so the factors are at most 1.0230, 1.0479 and
+/// 1.1057 and three steps give at most ((9 1.0230 + 6) 1.0479 + 6) 1.1057
+/// + 6 <= 30.3 u^2.
 inline DD expm1Reduced(DD r) {
   DD s = ldexp(r, -3);
   DD p = kInvFactorial[15];
@@ -256,7 +259,8 @@ inline DD expm1Reduced(DD r) {
 /// z = s^2 by Horner: truncation below 2^-112 relative; Horner error at most
 /// 4.6 u^2 (one AccurateDWPlusDW and a coefficient rounding per step, each
 /// later step damped by z / 3); the product by s adds 4 u^2. The input's own
-/// relative error passes through with factor at most 1.01.
+/// relative error passes through with factor
+/// s / ((1 - s^2) atanh s) <= 1.0202 at |s| = 0.1716.
 inline DD twoAtanh(DD s) {
   DD z = mul(s, s);
   DD p = kInvOdd[20];
@@ -296,7 +300,8 @@ inline DD logCore(DD y, const DD* ym1) {
 /// r = x - k ln 2 with ln 2 in three parts (k * kLn2Hi30 exact, x.hi minus it
 /// exact by Sterbenz), absolute error at most 5 u^2 |r| + 2^-125; then
 /// 2^k (1 + expm1(r)). The sum 1 + q, |q| / (1 + q) <= 0.42, carries 0.42 of
-/// expm1's 33 u^2 plus r's error and 2 u^2: at most 24 u^2 in all.
+/// expm1's 30.3 u^2 (12.8 u^2), r's error (at most 1.8 u^2 relative at
+/// |r| <= 0.3466) and its own 2 u^2: at most 16.6 u^2, stated as 24 u^2.
 inline constexpr double kExpRelErr = 0x1.8p-102;  // 24 u^2
 inline DD exp(DD x) {
   double k = std::nearbyint(x.hi * 0x1.71547652b82fep+0);
@@ -309,9 +314,12 @@ inline DD exp(DD x) {
   return ldexp(e, static_cast<int>(k));
 }
 
-/// log1p(t) for t > -1 finite. With y = 1 + t (one DWPlusFP, 2 u^2) written
-/// 2^k m: for k == 0 (t in [-0.293, 0.414)) s = t / (2 + t) from t directly,
-/// relative error at most 17 u^2, and 2 atanh(s) carries 26 u^2 in all; for
+/// log1p(t) for t = 0 or t > -1 finite with |t| >= 2^-960 (below that the
+/// low words of t / (2 + t) and its square go subnormal and the bound
+/// fails; the callers pass e^{-2w} >= e^-650 > 2^-938). With y = 1 + t (one
+/// DWPlusFP, 2 u^2) written 2^k m: for k == 0 (t in [-0.293, 0.414))
+/// s = t / (2 + t) from t directly, relative error at most 17 u^2, and
+/// 2 atanh(s) carries 1.0202 (17 u^2) + 8.6 u^2 <= 26 u^2 in all; for
 /// k != 0, |k ln 2| >= 0.693 >= 2 |2 atanh s|, so the sum's relative error
 /// is at most 2 (3 u^2) + 26 u^2 + 2 u^2 / 0.3466 + 3 u^2, about 41 u^2.
 inline constexpr double kLog1pRelErr = 0x1.8p-101;  // 48 u^2
@@ -327,7 +335,8 @@ inline DD log1p(DD t) {
   return detail::logCore(y, nullptr);
 }
 
-/// log(x) for x > 0 finite and normal: the same reduction with y = x and,
+/// log(x) for x in [2^-960, 2^1023] (the low words stay normal through the
+/// reduction): the same reduction with y = x and,
 /// for k == 0, x - 1 exact; relative error as log1p's.
 inline constexpr double kLogRelErr = 0x1.8p-101;  // 48 u^2
 inline DD log(DD x) {
@@ -338,11 +347,13 @@ inline DD log(DD x) {
   return detail::logCore(x, nullptr);
 }
 
-/// sin(x) for x in [0, pi/2]: x P(x^2), P the Taylor series of 18 terms
-/// (truncation below 2^-111 relative at x = pi/2). The alternating Horner
-/// sum has relative error at most 7.4 u^2 (the first step's |z P_1 / 6| is
-/// at most 0.57 of P_0) plus coefficient rounding, and the product by x
-/// 4 u^2: at most 12 u^2.
+/// sin(x) for x in [2^-400, pi/2]: x P(z), z = x^2, P the Taylor series of
+/// 18 terms (truncation below 2^-111 relative at x = pi/2). z = x * x
+/// carries 4 u^2 relative, which reaches P with factor
+/// |z P'(z) / P(z)| = (1 - x cot x) / 2 <= 1/2: 2 u^2. The alternating Horner
+/// sum adds at most 7.4 u^2 (the first step's |z P_1 / 6| is at most 0.57 of
+/// P_0), the coefficients' rounding (2^-107 relative each) at most 1.1 u^2,
+/// and the product by x 4 u^2: at most 14.5 u^2.
 inline constexpr double kSinRelErr = 0x1p-102;  // 16 u^2
 inline DD sin(DD x) {
   DD z = mul(x, x);
@@ -351,9 +362,12 @@ inline DD sin(DD x) {
   return mul(x, p);
 }
 
-/// sqrt(x) for x > 0 normal: one Newton step from the double square root s,
-/// x - s^2 formed exactly to the rounding of two additions. The step's own
-/// error is at most u^2 / 2 relative and the correction's rounding 3.2 u^2.
+/// sqrt(x) for x in [2^-960, 2^1000] (below that s^2's low word goes
+/// subnormal): one Newton step from the double square root s, x - s^2 formed
+/// exactly to the rounding of two additions. s is within 1.5 u of sqrt(x)
+/// (its own rounding and x.lo's u / 2), so the step's quadratic term is at
+/// most (1.5 u)^2 / 2 <= 1.13 u^2 relative, and the correction's rounding adds
+/// 3.2 u^2.
 inline constexpr double kSqrtRelErr = 0x1p-103;  // 8 u^2
 inline DD sqrt(DD x) {
   double s = std::sqrt(x.hi);
