@@ -11,9 +11,9 @@
 #                sigma and every row's fit within 1e-12 (the default sigma
 #                estimate included, which reads the expanded rows)
 #   linear       the same with a linear leaf, its covariate moments counted
-#   forests      the same with two forests, one stating its sd: a stated sd
-#                is read in units of the response's sd, which is counted (a
-#                default sd is a multiple of that sd and does not read it)
+#   forests      the same with two forests, the second on a factor basis,
+#                whose default sd is the response's sd read at the counts;
+#                within 1e-10, its coefficient's sums taken in another order
 #   quantiles    the same with useQuantiles and fewer cuts than unique values:
 #                the quantile grid reads unique values, which copies leave
 #   hetero       a variance forest, each variance leaf counting w
@@ -175,12 +175,35 @@ if ("linear" %in% arms) {
   )
 }
 if ("forests" %in% arms) {
-  runExpansionArm(
+  # a factor basis's default sd is one anchor, the response's sd read at the
+  # counts; a forest's sd, stated or by default with no basis, is divided by
+  # the anchor and multiplied back, so the anchor cancels there
+  z <- factor(rep_len(c(0L, 1L), n))
+  zRows <- z[rows]
+  drawForDraw(
     "forests",
-    expansionPair(
+    dbarts(
+      x,
       y,
-      forests = list(forest(n.trees = 10L, sd = 0.5), forest(n.trees = 10L))
-    )
+      weights = w,
+      weights.type = "frequency",
+      control = drawControl,
+      seed = 9L,
+      forests = list(forest(n.trees = 10L), forest(n.trees = 10L, basis = z))
+    ),
+    dbarts(
+      x[rows, , drop = FALSE],
+      y[rows],
+      control = drawControl,
+      seed = 9L,
+      forests = list(
+        forest(n.trees = 10L),
+        forest(n.trees = 10L, basis = zRows)
+      )
+    ),
+    rows,
+    seq_along(rows),
+    1e-10
   )
 }
 if ("quantiles" %in% arms) {

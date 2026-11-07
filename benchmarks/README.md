@@ -378,10 +378,11 @@ also requires the fit to miss the reference whose center is over every row.
 
 frequency-exact is the gate for frequency weights (docs/plans/frequency-weights.md,
 S7). Seven arms hold a weighted fit to the fit on its rows written out, draw for
-draw over 300 sweeps within 1e-12: gaussian, a linear leaf, two forests,
-useQuantiles with fewer cuts than unique values, a variance forest, nbinom at a
-fixed and a drawn shape, and multinomial; an eighth holds cbind(k, f) at a row
-weight to its two adjacent logistic rows of counts within 1e-10. Three are in
+draw over 300 sweeps within 1e-12: gaussian, a linear leaf, two forests (the
+second on a factor basis, within 1e-10), useQuantiles with fewer cuts than
+unique values, a variance forest, nbinom at a fixed and a drawn shape, and
+multinomial; an eighth holds cbind(k, f) at a row weight to its two adjacent
+logistic rows of counts within 1e-10. Three are in
 distribution, at |z| 4.5 by batch means: sigma on one leaf at real weights
 against its exact posterior, Student-t's nu on fixed residuals at whole, real
 and zero counts against the grid's exact probabilities, and Student-t against

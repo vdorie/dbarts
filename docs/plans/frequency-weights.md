@@ -958,8 +958,13 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
     ladder earns admission. Alternative: admitted now, M = 91.
 102. Four mutants join the plan's list, each the discriminating mutant of an arm the list gave none: S, sigma's count at
     each weight rounded to a whole number (the sigma arm; the gaussian arm's whole weights cannot see it); F, the
-    multi-forest anchor read unweighted (forests); Q, the quantile grid over the rows rather than their unique values
-    (quantiles); T, Student-t's latent at one copy's shape (student). Alternative: arms with no mutant shown red.
+    anchor a stated forest sd is read against taken unweighted (forests); Q, the quantile grid over the rows rather than
+    their unique values (quantiles); T, Student-t's latent at one copy's shape (student). Alternative: arms with no mutant shown red.
+103. The forests arm puts its second forest on a factor basis, whose default sd is one anchor, the response's sd at the
+    counts: a forest with no basis, its sd stated or not, has its sd divided by the anchor and multiplied back, so the
+    anchor cancels and two such forests cannot see it read unweighted (mutant F survived the first arm, and one stating
+    sd = 0.5 too). The arm holds within 1e-10, the coefficient's sums over the rows taken in another order than over the
+    copies (1.3e-12 at 300 sweeps). Alternative: two forests with no basis, the anchor's read under no arm.
 
 ## Open calls
 
