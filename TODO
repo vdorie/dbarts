@@ -709,6 +709,16 @@ items
     Per-forest masking is NOT a door - permanently refused, a
     category's margin being a log-sum-exp over the other K - 1
     forests. consumer-gated.
+  multinomial-setdata: dec-B640. A multinomial sampler takes $setData,
+    the new data object's n x K count matrix giving the response and
+    the number of rows free, as a binomial sampler does (dec-B628). The
+    whole-data replacement runs over each category forest and its saved
+    draws, and the softmax combiner's per-row state and borrowed counts,
+    trials, offset and weights are resized and re-pointed; the BCF
+    sampler keeps refusing it. About 200 engine, 40 bridge, 20 R and
+    150 test lines, an estimate from reading, not a plan; a sizing well
+    above it goes back to VD. Its own slice after frequency-weights
+    lands.
   negbin-real-dispersion: real-valued shape needs a
     non-integer-shape Polya-Gamma draw, for which no exact sampler
     exists, so it opens on one of two unlocks: a published exact
