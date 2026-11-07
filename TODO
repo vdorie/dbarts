@@ -821,7 +821,9 @@ items
     sampler keeps refusing it. About 200 engine, 40 bridge, 20 R and
     150 test lines, an estimate from reading, not a plan; a sizing well
     above it goes back to VD. Its own slice after frequency-weights
-    lands.
+    lands; the binomial sampler's $setData it follows is recorded in
+    docs/plans/frequency-weights.md, call 62 (branch
+    frequency-weights).
   negbin-real-dispersion: real-valued shape needs a
     non-integer-shape Polya-Gamma draw, for which no exact sampler
     exists, so it opens on one of two unlocks: a published exact
@@ -1190,8 +1192,8 @@ items
     setData for every masked sampler. Until then the help says to hand
     back the 0/1 weights on the data object or to call setActiveRows
     after. Ruled by dec-B569 (the mask rides the data object as the 0/1
-    weights); planned as slice S4 of docs/plans/frequency-weights.md
-    (branch frequency-weights).
+    weights); built as slice S4 of docs/plans/frequency-weights.md
+    (branch frequency-weights, in review).
   rederive-same-range-ulp: a re-derivation that finds the range in
     force again is not a no-op in bits. GaussianResponse::setOffset
     and setResponse at updateScale = TRUE take sigma and its prior
@@ -1382,9 +1384,11 @@ frequency weights (decided, VD 2026-09-24; docs/decisions.md dec-B125)
   docs/design/frequency-weights.md (DECIDED 2026-11-03: dec-B563 to
   dec-B570, with the binomial response of dec-B567 and its dec-B573 and
   dec-B574). Plan: docs/plans/frequency-weights.md (PLANNED 2026-11-03,
-  amended 2026-11-05 and 2026-11-06, branch frequency-weights), eight
-  slices with the binomial and the hurdle's 0/1 weights; its first open
-  call ruled (dec-B594), two left by that ruling open there.
+  amended 2026-11-05 to 2026-11-07, branch frequency-weights), eight
+  slices with the binomial and the hurdle's 0/1 weights; its open calls
+  ruled (dec-B594 to dec-B596, dec-B628, dec-B638). BUILT, IN REVIEW
+  2026-11-07 on that branch: S1 to S7 as built and their calls made 1 to
+  102 in the plan, the gates in its S7 section.
 
 engine constants audit (decided, VD 2026-09-08; docs/decisions.md
   dec-B91; LANDED; plan docs/plans/engine-performance.md)

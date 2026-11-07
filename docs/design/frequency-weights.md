@@ -1,6 +1,7 @@
 # Frequency weights and the binomial response
 
-Status: DECIDED 2026-11-03, design note before the plan; Calls made 5 and the state and hurdle rows of What moves
+Status: DECIDED 2026-11-03, design note before the plan; BUILT, IN REVIEW 2026-11-07 on branch frequency-weights
+(docs/plans/frequency-weights.md, S1 to S7 as built); Calls made 5 and the state and hurdle rows of What moves
 amended 2026-11-05 for dec-B586 and dec-B588, and Calls made 10 on 2026-11-06 for dec-B594 and on 2026-11-07 for dec-B638 and dec-B641. Rulings, in docs/decisions.md: dec-B125 (frequency
 weights join precision weights by explicit choice; precision stays the default), dec-A11 (under precision weights
 sigma's degrees of freedom count only positive-weight rows), dec-B120 (the comparison against 0.9-34 is a release
