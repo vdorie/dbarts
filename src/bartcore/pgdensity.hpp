@@ -140,7 +140,7 @@ inline CBall cmul(CBall a, CBall b) {
   double im = a.re * b.im + a.im * b.re;
   double ma = modUp(a.re, a.im);
   double mb = modUp(b.re, b.im);
-  double r = ma * b.r + mb * a.r + a.r * b.r + 2.25 * kU * ma * mb;
+  double r = ma * b.r + mb * a.r + a.r * b.r + 2.25 * kU * (ma * mb);
   return CBall{re, im, up(r)};
 }
 
@@ -291,7 +291,7 @@ inline CBall clog1pMinus(CBall z) {
   if (m <= 0.25) {
     if (m == 0.0) return CBall{0.0, 0.0, 0.0};
     int e;
-    std::frexp(m, &e);  // m < 2^e, e <= -2
+    std::frexp(m, &e);  // m < 2^e; e <= -2, or -1 at m = 1/4
     const int n = (54 + (-e) - 1) / (-e);
     double pr = 1.0 / (n + 1), pi = 0.0;
     for (int k = n - 1; k >= 0; --k) {
@@ -319,11 +319,11 @@ inline CBall clog1pMinus(CBall z) {
 class LogSumExpUpper {
  public:
   void add(double v) {
-    if (!(v > -kInf)) return;
     if (std::isnan(v) || v == kInf) {
       bad_ = true;
       return;
     }
+    if (v == -kInf) return;
     if (v > max_) {
       sum_ = sum_ * std::exp(max_ - v) * (1.0 + kLibRelErr) + 1.0;
       max_ = v;
