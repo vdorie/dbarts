@@ -2214,14 +2214,16 @@ public:
   /// without allocating: the tree in flight, whose structure a move may have
   /// changed without its obs-to-leaf map or leaf table following, has its
   /// leaf table cover its nodes, inside the room reserveForMove made, a new
-  /// leaf at 0, and a constant leaf other than the monotone one, whose count
-  /// puts its tree back as it was, rebuilds its map at its next draw. Every
-  /// forest's totalFits is then re-summed from its trees. The tree keeps the
-  /// fits its map and table give until its next draw.
+  /// leaf at 0, and a constant leaf, the monotone one included (a failure in
+  /// its branch score leaves the proposed tree in place), rebuilds its map at
+  /// its next draw, where the monotone leaf restarts its block at the
+  /// all-equal zero. Every forest's totalFits is then re-summed from its
+  /// trees. The tree keeps the fits its map and table give until its next
+  /// draw.
   void settleAfterAllocationFailure() noexcept {
     if (treeInFlight_ != noTreeInFlight) {
       Forest<L, ResidT>& forest = forests_[forestInFlight_];
-      if constexpr (leafIsConstant && !TreeDrawLeafModel<L>) {
+      if constexpr (leafIsConstant) {
         forest.leafOfStale[treeInFlight_] = 1;
         std::vector<double>& mu = forest.muByTree[treeInFlight_];
         size_t size = forest.trees[treeInFlight_].nodes.size();
@@ -5238,6 +5240,19 @@ public:
     return !(prior.scale * prior.scale <= 0x1p970);
   }
 
+  /// Whether a k drawn under \p prior can be 0, kDrawCanBeInfinite's mirror.
+  /// Where scale^2 is below 2^-1025 the rate term 0.5 / scale^2 overflows and
+  /// every draw is 0. Above that, while the leaves' sum of squares in units
+  /// of the leaf scale stays under 1 / scale^2, the gamma scale is at least
+  /// scale^2, and a unit-scale gamma draw at a forest's shape (above 1/2) is
+  /// 0 only by an exact cancellation and otherwise at least 2^-106 (the GD
+  /// algorithm squares a difference of doubles above 1/2, the GS algorithm
+  /// raises a uniform above 2^-34 to a power under 2), so k^2 rounds to 0
+  /// only where scale^2 is below 2^-969; 2^-960 covers the rate's rounding.
+  static bool kDrawCanBeZero(const ChiKHyperprior& prior) {
+    return !(prior.scale * prior.scale >= 0x1p-960);
+  }
+
   /// The k prior forest f's draw is made under: the first sharer's for the
   /// forests that share one total (drawSharedK), else its own.
   const ChiKHyperprior& kPriorOf(size_t f) const {
@@ -5271,11 +5286,14 @@ public:
   /// Whether the scalars of \p state that an install writes into this chain
   /// are values it can run from, judged only where it draws them and the
   /// state holds one (NaN is absent): sigma positive and finite; each
-  /// forest's k positive, and finite unless its prior lets a draw reach +Inf
-  /// (kDrawCanBeInfinite), as an infinite scale does; the DART split weights
-  /// well formed and positive on every column the forest may split on, and
-  /// the concentration positive and finite. The response transform it
-  /// records is finite. No state this package writes fails any of these.
+  /// forest's k positive and finite, except 0 where its prior lets a draw
+  /// reach 0 (kDrawCanBeZero), as a scale past the rate's overflow does, and
+  /// +Inf where it lets a draw reach +Inf (kDrawCanBeInfinite), as an
+  /// infinite scale does; the DART split weights well formed and positive on
+  /// every column the forest may split on, and the concentration positive and
+  /// finite. The response transform it records is finite. A state this
+  /// package writes fails none of these: each refusal is a value no draw of
+  /// this chain's priors reaches.
   bool drawnScalarsAreValid(const ChainStateData& state) const {
     if (drawsSigma() && !std::isnan(state.sigma) &&
         !(state.sigma > 0.0 && std::isfinite(state.sigma)))
@@ -5283,7 +5301,8 @@ public:
     for (size_t f = 0; f < forests_.size() && f < state.forests.size(); ++f) {
       double k = state.forests[f].k;
       if (!forests_[f].updateK || std::isnan(k)) continue;
-      if (!(k > 0.0)) return false;
+      if (!(k >= 0.0)) return false;
+      if (k == 0.0 && !kDrawCanBeZero(kPriorOf(f))) return false;
       if (!std::isfinite(k) && !kDrawCanBeInfinite(kPriorOf(f))) return false;
     }
     const Forest<L, ResidT>& forest = forests_[0];
