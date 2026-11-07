@@ -2001,7 +2001,8 @@ extractMultinomialFormulaData <- function(
   }
 
   modelTerms <- terms(modelFrame)
-  if (is.empty.model(modelTerms)) {
+  # an intercept or an offset() term is no predictor
+  if (length(attr(modelTerms, "term.labels")) == 0L) {
     stop("predictors must be specified for regression tree analysis")
   }
   # an offset() term is a flat offset, refused as the 'offset' argument is

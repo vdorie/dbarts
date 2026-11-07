@@ -3672,10 +3672,14 @@ dbartsData <- function(
 
     ## predictors
     modelTerms <- terms(modelFrame)
-    # a formula naming only sparse predictors rewrites to a dense-only RHS
-    # with no terms of its own (above) - empty in exactly the sense
-    # is.empty.model checks for, but not actually empty of predictors
-    if (is.empty.model(modelTerms) && length(sparseColumns) == 0L) {
+    # no term label is no predictor, an intercept or an offset() term
+    # notwithstanding (y ~ 1, y ~ offset(o), y ~ . less every column); a
+    # formula naming only sparse predictors rewrites to a dense-only RHS with
+    # no terms of its own (above), empty here but not of predictors
+    if (
+      length(attr(modelTerms, "term.labels")) == 0L &&
+        length(sparseColumns) == 0L
+    ) {
       stop("predictors must be specified for regression tree analysis")
     }
 
@@ -3755,6 +3759,9 @@ dbartsData <- function(
     # as the formula path already rejects an empty model frame
     if (initialNumObservations == 0L) {
       stop("data has zero rows")
+    }
+    if (NCOL(formula) == 0L) {
+      stop("predictors must be specified for regression tree analysis")
     }
 
     if (missing(subset) || is.null(subset)) {
@@ -3860,6 +3867,9 @@ dbartsData <- function(
     # as the formula path already rejects an empty model frame
     if (initialNumObservations == 0L) {
       stop("data has zero rows")
+    }
+    if (NCOL(formula) == 0L) {
+      stop("predictors must be specified for regression tree analysis")
     }
 
     # a data frame's automatic names stay a deferred string until indexed,

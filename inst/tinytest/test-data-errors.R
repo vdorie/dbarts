@@ -163,4 +163,60 @@ expect_silent(
   dbarts::dbartsData(testData$x, testData$y, weights = 2)
 )
 
+# a design of no predictor columns is refused by name, however it is
+# written: an intercept, an offset() term, a dot less every column, or a
+# matrix or frame with no columns, before any compiled call
+set.seed(1)
+emptyFrame <- data.frame(
+  y = rnorm(20L),
+  x = runif(20L),
+  f = factor(sample(c("a", "b"), 20L, TRUE)),
+  o = rnorm(20L)
+)
+noPredictors <- "predictors must be specified for regression tree analysis"
+quickEmpty <- function(...) {
+  dbarts::bart(
+    ...,
+    n.trees = 5L,
+    n.burn = 5L,
+    n.samples = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  )
+}
+for (formula in list(y ~ 1, y ~ offset(o), y ~ . - x - f - o)) {
+  expect_error(quickEmpty(formula, emptyFrame), noPredictors, fixed = TRUE)
+  expect_error(dbarts::dbarts(formula, emptyFrame), noPredictors, fixed = TRUE)
+  expect_error(dbarts::dbartsData(formula, emptyFrame), noPredictors, fixed = TRUE)
+}
+expect_error(
+  quickEmpty(matrix(0, 20L, 0L), emptyFrame$y),
+  noPredictors,
+  fixed = TRUE
+)
+expect_error(
+  quickEmpty(emptyFrame[0L], emptyFrame$y),
+  noPredictors,
+  fixed = TRUE
+)
+expect_error(
+  dbarts::dbarts(matrix(0, 20L, 0L), emptyFrame$y),
+  noPredictors,
+  fixed = TRUE
+)
+expect_error(
+  dbarts::dbartsData(matrix(0, 20L, 0L), emptyFrame$y),
+  noPredictors,
+  fixed = TRUE
+)
+# the multinomial door reads its formula on its own
+emptyFrame$k <- factor(sample(c("a", "b", "c"), 20L, TRUE))
+expect_error(
+  quickEmpty(k ~ 1, emptyFrame, family = "multinomial"),
+  noPredictors,
+  fixed = TRUE
+)
+rm(emptyFrame, noPredictors, quickEmpty, formula)
+
 rm(testData)
