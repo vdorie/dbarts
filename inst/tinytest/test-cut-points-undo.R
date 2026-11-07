@@ -325,6 +325,29 @@ for (cuts in list(c(0.2, NaN), c(0.2, NA), c(0.6, NaN, 0.5))) {
     fixed = TRUE
   )
 }
+# a cut at Inf or -Inf is refused too, naming the finite cut that separates
+# values at -Inf, so the grid stays one the sampler's record can hold and a
+# copy of it runs
+infiniteRefusal <- paste(
+  "$setCutPoints: 'cuts' must be finite; a cut at -.Machine$double.xmax",
+  "separates values at -Inf"
+)
+for (cuts in list(c(-Inf, 0.5, Inf), c(0.2, Inf), c(-Inf, 0.2), Inf)) {
+  expect_error(
+    sampler$setCutPoints(cuts, 1L),
+    pattern = infiniteRefusal,
+    fixed = TRUE
+  )
+  expect_error(
+    sampler$setCutPoints(list(cuts, own[[2L]], own[[3L]])),
+    pattern = infiniteRefusal,
+    fixed = TRUE
+  )
+}
+expect_identical(cutPointsOf(sampler), own)
+expect_silent(sampler$setCutPoints(c(-.Machine$double.xmax, 0.5), 1L))
+expect_silent(sampler$copy()$run(0L, 1L))
+expect_silent(sampler$setCutPoints(own))
 for (cuts in list(
   rep(2, 100L),
   rep(own[[2L]], 2L),

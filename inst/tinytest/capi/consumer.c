@@ -1139,3 +1139,231 @@ static int capi_noopDraw(void* context, const dbarts_draw* draw) {
 SEXP capi_noop_function(void) {
   return R_MakeExternalPtrFn((DL_FUNC) capi_noopDraw, R_NilValue, R_NilValue);
 }
+
+/* ------------------------------------------------------------------------
+ * The RECORDING callback: which channels a draw hands over and a copy of each
+ * at one (chain, draw), so the R side can hold them against the arrays a run
+ * stores. A copy is made with malloc, which any thread may call; the R API is
+ * not touched here, for the reasons capi_countingDraw states. Only the target
+ * chain writes the copies, and each chain writes only its own counters.
+ * ------------------------------------------------------------------------ */
+
+#define CAPI_REC_MAX_CHAINS 4
+#define CAPI_REC_MAX_DRAWS 32
+#define CAPI_REC_NUM_CHANNELS 10
+
+static const char* const capi_recChannelNames[CAPI_REC_NUM_CHANNELS] = {
+  "train", "test", "variance", "varianceTest", "forestFits", "glue",
+  "varprobs", "logLikelihood", "thresholds", "varcount" };
+
+typedef struct {
+  size_t calls[CAPI_REC_MAX_CHAINS];
+  int mask[CAPI_REC_MAX_CHAINS];    /* channels non-null on the first call */
+  int steady[CAPI_REC_MAX_CHAINS];  /* 0 once a later call's mask differs */
+  double sigma[CAPI_REC_MAX_CHAINS][CAPI_REC_MAX_DRAWS];
+  size_t targetChain, targetDraw;
+  size_t numOrdinalThresholds;
+  double* copy[CAPI_REC_NUM_CHANNELS];
+  size_t length[CAPI_REC_NUM_CHANNELS];
+} capi_recording;
+
+static capi_recording capi_rec;
+
+static void capi_recTake(int channel, const double* from, size_t length) {
+  size_t i;
+  if (from == NULL) return;
+  capi_rec.copy[channel] = (double*) malloc(length * sizeof(double) + 1);
+  if (capi_rec.copy[channel] == NULL) return;
+  for (i = 0; i < length; ++i) capi_rec.copy[channel][i] = from[i];
+  capi_rec.length[channel] = length;
+}
+
+static int capi_recordingDraw(void* context, const dbarts_draw* draw)
+{
+  capi_recording* rec = (capi_recording*) context;
+  size_t chain = draw->chainIndex, n = draw->numObservations,
+         nTest = draw->numTestObservations,
+         fitted = draw->numFittedValuesPerObservation;
+  const void* channels[CAPI_REC_NUM_CHANNELS];
+  int mask = 0, k;
+  if (chain >= CAPI_REC_MAX_CHAINS) return 0;
+  channels[0] = draw->train;
+  channels[1] = draw->test;
+  channels[2] = draw->varianceFits;
+  channels[3] = draw->varianceTestFits;
+  channels[4] = draw->forestFits;
+  channels[5] = draw->glue;
+  channels[6] = draw->splitProbabilities;
+  channels[7] = draw->logLikelihood;
+  channels[8] = draw->ordinalThresholds;
+  channels[9] = draw->varcount;
+  for (k = 0; k < CAPI_REC_NUM_CHANNELS; ++k)
+    if (channels[k] != NULL) mask |= 1 << k;
+  if (rec->calls[chain] == 0) rec->mask[chain] = mask;
+  else if (rec->mask[chain] != mask) rec->steady[chain] = 0;
+  if (draw->drawIndex < CAPI_REC_MAX_DRAWS)
+    rec->sigma[chain][draw->drawIndex] = draw->sigma;
+  rec->calls[chain] += 1;
+  if (chain == 0) rec->numOrdinalThresholds = draw->numOrdinalThresholds;
+  if (chain != rec->targetChain || draw->drawIndex != rec->targetDraw)
+    return 0;
+  capi_recTake(0, draw->train, n * fitted);
+  capi_recTake(1, draw->test, nTest * fitted);
+  capi_recTake(2, draw->varianceFits, n);
+  capi_recTake(3, draw->varianceTestFits, nTest);
+  capi_recTake(4, draw->forestFits, n * draw->numForests);
+  capi_recTake(5, draw->glue, draw->numAmplitudes);
+  capi_recTake(6, draw->splitProbabilities, draw->numPredictors);
+  capi_recTake(7, draw->logLikelihood, n);
+  capi_recTake(8, draw->ordinalThresholds, draw->numOrdinalThresholds);
+  if (draw->varcount != NULL) {
+    size_t length = draw->numPredictors * draw->numVariableCountForests, i;
+    capi_rec.copy[9] = (double*) malloc(length * sizeof(double) + 1);
+    if (capi_rec.copy[9] != NULL) {
+      for (i = 0; i < length; ++i)
+        capi_rec.copy[9][i] = (double) draw->varcount[i];
+      capi_rec.length[9] = length;
+    }
+  }
+  return 0;
+}
+
+SEXP capi_recording_function(void) {
+  return R_MakeExternalPtrFn((DL_FUNC) capi_recordingDraw, R_NilValue,
+                             R_NilValue);
+}
+
+SEXP capi_recording_context(void) {
+  return R_MakeExternalPtr(&capi_rec, R_NilValue, R_NilValue);
+}
+
+/* frees the copies, zeroes the counters, and names the (chain, draw) to copy,
+ * both 0-based */
+SEXP capi_recording_reset(SEXP targetChainExpr, SEXP targetDrawExpr) {
+  int k, c;
+  for (k = 0; k < CAPI_REC_NUM_CHANNELS; ++k) free(capi_rec.copy[k]);
+  memset(&capi_rec, 0, sizeof(capi_recording));
+  for (c = 0; c < CAPI_REC_MAX_CHAINS; ++c) capi_rec.steady[c] = 1;
+  capi_rec.targetChain = (size_t) Rf_asInteger(targetChainExpr);
+  capi_rec.targetDraw = (size_t) Rf_asInteger(targetDrawExpr);
+  return R_NilValue;
+}
+
+SEXP capi_set_recording_callback(SEXP ptrExpr, SEXP registerExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  if (Rf_asLogical(registerExpr) == TRUE)
+    dbarts_sampler_setDrawCallback(sampler, &capi_recordingDraw, &capi_rec);
+  else
+    dbarts_sampler_setDrawCallback(sampler, NULL, NULL);
+  return R_NilValue;
+}
+
+/* calls and masks per chain (the mask as the names of the channels non-null on
+ * the first call), whether every call's mask was the first one's, sigma per
+ * draw per chain, the threshold count, and the copies */
+SEXP capi_recording_report(SEXP numChainsExpr, SEXP numDrawsExpr) {
+  const char* names[] = { "calls", "channels", "steady", "sigma",
+                          "num.ordinal.thresholds", "copies", "" };
+  size_t numChains = (size_t) Rf_asInteger(numChainsExpr),
+         numDraws = (size_t) Rf_asInteger(numDrawsExpr), c, d;
+  int k, steady = 1;
+  SEXP result, calls, channels, sigma, copies, copyNames;
+  if (numChains > CAPI_REC_MAX_CHAINS || numDraws > CAPI_REC_MAX_DRAWS)
+    Rf_error("past the recording callback's capacity");
+  result = PROTECT(Rf_mkNamed(VECSXP, names));
+  calls = PROTECT(Rf_allocVector(INTSXP, (R_xlen_t) numChains));
+  channels = PROTECT(Rf_allocVector(VECSXP, (R_xlen_t) numChains));
+  sigma = PROTECT(Rf_allocMatrix(REALSXP, (int) numDraws, (int) numChains));
+  for (c = 0; c < numChains; ++c) {
+    int count = 0, j = 0;
+    SEXP present;
+    INTEGER(calls)[c] = (int) capi_rec.calls[c];
+    steady = steady && capi_rec.steady[c];
+    for (k = 0; k < CAPI_REC_NUM_CHANNELS; ++k)
+      if (capi_rec.mask[c] & (1 << k)) ++count;
+    present = Rf_allocVector(STRSXP, count);
+    SET_VECTOR_ELT(channels, (R_xlen_t) c, present);
+    for (k = 0; k < CAPI_REC_NUM_CHANNELS; ++k)
+      if (capi_rec.mask[c] & (1 << k))
+        SET_STRING_ELT(present, j++, Rf_mkChar(capi_recChannelNames[k]));
+    for (d = 0; d < numDraws; ++d)
+      REAL(sigma)[d + c * numDraws] = capi_rec.sigma[c][d];
+  }
+  copies = PROTECT(Rf_allocVector(VECSXP, CAPI_REC_NUM_CHANNELS));
+  copyNames = PROTECT(Rf_allocVector(STRSXP, CAPI_REC_NUM_CHANNELS));
+  for (k = 0; k < CAPI_REC_NUM_CHANNELS; ++k) {
+    SET_STRING_ELT(copyNames, k, Rf_mkChar(capi_recChannelNames[k]));
+    if (capi_rec.copy[k] != NULL) {
+      SEXP copy = Rf_allocVector(REALSXP, (R_xlen_t) capi_rec.length[k]);
+      SET_VECTOR_ELT(copies, k, copy);
+      memcpy(REAL(copy), capi_rec.copy[k],
+             capi_rec.length[k] * sizeof(double));
+    }
+  }
+  Rf_setAttrib(copies, R_NamesSymbol, copyNames);
+  SET_VECTOR_ELT(result, 0, calls);
+  SET_VECTOR_ELT(result, 1, channels);
+  SET_VECTOR_ELT(result, 2, Rf_ScalarLogical(steady));
+  SET_VECTOR_ELT(result, 3, sigma);
+  SET_VECTOR_ELT(result, 4,
+                 Rf_ScalarInteger((int) capi_rec.numOrdinalThresholds));
+  SET_VECTOR_ELT(result, 5, copies);
+  UNPROTECT(6);
+  return result;
+}
+
+/* a run with results NULL (every = FALSE), returning NULL, or with every
+ * dbarts_results field given, returning each: k prefilled with -1 and varprobs
+ * with -2, so a field the run leaves untouched reads as its sentinel */
+SEXP capi_run_every(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
+                    SEXP everyExpr) {
+  const char* names[] = { "sigma", "train", "test", "varcount", "k",
+                          "varprobs", "logLikelihood", "shape", "residualDf",
+                          "" };
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  size_t numBurnIn = (size_t) Rf_asInteger(numBurnInExpr);
+  size_t numSamples = (size_t) Rf_asInteger(numSamplesExpr);
+  size_t n = dbarts_sampler_numObservations(sampler);
+  size_t p = dbarts_sampler_numPredictors(sampler);
+  size_t nTest = dbarts_sampler_numTestObservations(sampler);
+  size_t draws = numSamples * dbarts_sampler_numChains(sampler);
+  size_t fitted = dbarts_sampler_numFittedValuesPerObservation(sampler);
+  size_t forests = dbarts_sampler_numVariableCountForests(sampler), i;
+  dbarts_results results = DBARTS_RESULTS_INIT;
+  SEXP result, varcountExpr;
+  uint32_t* varcount;
+  if (Rf_asLogical(everyExpr) != TRUE) {
+    dbarts_sampler_run(sampler, numBurnIn, numSamples, NULL);
+    return R_NilValue;
+  }
+  result = PROTECT(Rf_mkNamed(VECSXP, names));
+  SET_VECTOR_ELT(result, 0, Rf_allocVector(REALSXP, (R_xlen_t) draws));
+  SET_VECTOR_ELT(result, 1,
+                 Rf_allocVector(REALSXP, (R_xlen_t) (n * fitted * draws)));
+  SET_VECTOR_ELT(result, 2,
+                 Rf_allocVector(REALSXP, (R_xlen_t) (nTest * fitted * draws)));
+  varcountExpr = Rf_allocVector(INTSXP, (R_xlen_t) (p * forests * draws));
+  SET_VECTOR_ELT(result, 3, varcountExpr);
+  SET_VECTOR_ELT(result, 4, Rf_allocVector(REALSXP, (R_xlen_t) draws));
+  SET_VECTOR_ELT(result, 5, Rf_allocVector(REALSXP, (R_xlen_t) (p * draws)));
+  SET_VECTOR_ELT(result, 6, Rf_allocVector(REALSXP, (R_xlen_t) (n * draws)));
+  SET_VECTOR_ELT(result, 7, Rf_allocVector(REALSXP, (R_xlen_t) draws));
+  SET_VECTOR_ELT(result, 8, Rf_allocVector(REALSXP, (R_xlen_t) draws));
+  for (i = 0; i < draws; ++i) REAL(VECTOR_ELT(result, 4))[i] = -1.0;
+  for (i = 0; i < p * draws; ++i) REAL(VECTOR_ELT(result, 5))[i] = -2.0;
+  varcount = (uint32_t*) R_alloc(p * forests * draws + 1, sizeof(uint32_t));
+  results.sigma = REAL(VECTOR_ELT(result, 0));
+  results.train = REAL(VECTOR_ELT(result, 1));
+  results.test = nTest > 0 ? REAL(VECTOR_ELT(result, 2)) : NULL;
+  results.varcount = varcount;
+  results.k = REAL(VECTOR_ELT(result, 4));
+  results.varprobs = REAL(VECTOR_ELT(result, 5));
+  results.logLikelihood = REAL(VECTOR_ELT(result, 6));
+  results.shape = REAL(VECTOR_ELT(result, 7));
+  results.residualDf = REAL(VECTOR_ELT(result, 8));
+  dbarts_sampler_run(sampler, numBurnIn, numSamples, &results);
+  for (i = 0; i < p * forests * draws; ++i)
+    INTEGER(varcountExpr)[i] = (int) varcount[i];
+  UNPROTECT(1);
+  return result;
+}

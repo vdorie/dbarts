@@ -547,6 +547,63 @@ expect_error(
   fixed = TRUE
 )
 sampler$state <- good
+# the refusal names a repeat wherever it sits: at the first or the last pair,
+# on a grid of the length the sampler holds or longer, through a state and
+# through a warm-start donor
+for (grid in list(
+  c(0.25, 0.25, 0.75),
+  c(0.25, 0.25, 0.5, 0.75),
+  c(0.25, 0.75, 0.75),
+  c(0.25, 0.5, 0.75, 0.75)
+)) {
+  repeated <- good
+  attr(repeated, "cutPoints")[[2L]] <- grid
+  value <- format(grid[anyDuplicated(grid)])
+  info <- paste(grid, collapse = " ")
+  expect_error(
+    sampler$setState(repeated),
+    pattern = paste0(
+      "cut points of column 2 in bartcore state repeat a value (",
+      value,
+      ")"
+    ),
+    fixed = TRUE,
+    info = info
+  )
+  expect_error(
+    recipient$installTrees(repeated),
+    pattern = paste0(
+      "cut points of column 2 in warm-start donor repeat a value (",
+      value,
+      ")"
+    ),
+    fixed = TRUE,
+    info = info
+  )
+}
+expect_identical(recipient$run(0L, 3L), recipientTwin$run(0L, 3L))
+
+# a cut grid must be finite: a state or a donor whose grid ends at Inf or
+# starts at -Inf is refused by the messages a malformed grid takes, and
+# changes nothing
+for (grid in list(c(0.25, 0.5, Inf), c(-Inf, 0.5, 0.75))) {
+  infinite <- good
+  attr(infinite, "cutPoints")[[2L]] <- grid
+  info <- paste(grid, collapse = " ")
+  expect_error(
+    sampler$setState(infinite),
+    pattern = "state is not consistent with this sampler",
+    fixed = TRUE,
+    info = info
+  )
+  expect_error(
+    recipient$installTrees(infinite),
+    pattern = "a malformed donor cut grid",
+    fixed = TRUE,
+    info = info
+  )
+}
+expect_identical(recipient$run(0L, 3L), recipientTwin$run(0L, 3L))
 
 # setCutPoints refuses a repeat as it did, and takes the grid the column holds
 expect_error(
@@ -1047,3 +1104,65 @@ expect_null(sampler$setPredictor(
 ))
 expect_null(massOf(sampler))
 expect_identical(length(cutPointsOf(sampler)[[2L]]), 100L)
+
+# The uniform rule over a column spanning about +-1e308, wider than DBL_MAX,
+# gives finite cuts the column splits on, on a dense column, on a sparse one
+# holding zeros, and at a refresh through setPredictor; the record copies.
+set.seed(21)
+nWide <- 40L
+wide <- seq(-1e308, 1e308, length.out = nWide)[sample(nWide)]
+narrow <- runif(nWide)
+yWide <- as.numeric(wide > 0) + narrow + rnorm(nWide, 0, 0.1)
+xWide <- cbind(w = wide, z = narrow)
+wideControl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.samples = 200L,
+  n.burn = 20L,
+  updateState = TRUE,
+  seed = 13L
+)
+expectWideGrid <- function(sampler, info) {
+  grid <- sampler$data@cutPoints[[1L]]
+  expect_identical(length(grid), 5L, info = info)
+  expect_true(all(is.finite(grid)), info = info)
+  expect_true(!is.unsorted(grid, strictly = TRUE), info = info)
+  draws <- sampler$run()
+  expect_true(sum(draws$varcount[1L, ]) > 0L, info = info)
+  copied <- sampler$copy()
+  expect_identical(copied$data@cutPoints, sampler$data@cutPoints, info = info)
+  expect_silent(copied$run(0L, 2L))
+}
+expectWideGrid(
+  dbarts(xWide, yWide, control = wideControl, n.cuts = 5L, sigest = 1),
+  "dense"
+)
+if (requireNamespace("Matrix", quietly = TRUE)) {
+  xSparse <- xWide
+  xSparse[seq(1L, nWide, by = 4L), 1L] <- 0
+  expectWideGrid(
+    dbarts(
+      Matrix::Matrix(xSparse, sparse = TRUE),
+      yWide,
+      control = wideControl,
+      n.cuts = 5L,
+      sigest = 1
+    ),
+    "sparse, with zeros"
+  )
+}
+refreshed <- dbarts(
+  cbind(w = runif(nWide), z = narrow),
+  yWide,
+  control = wideControl,
+  n.cuts = 5L,
+  sigest = 1
+)
+invisible(refreshed$run(0L, 5L))
+expect_null(refreshed$setPredictor(
+  wide,
+  1L,
+  updateCutPoints = "value",
+  forceUpdate = TRUE
+))
+expectWideGrid(refreshed, "a refresh")

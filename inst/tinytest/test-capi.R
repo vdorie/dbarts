@@ -1960,3 +1960,299 @@ rm(
   flatPredict
 )
 invisible(gc(FALSE))
+
+# EVERY CHANNEL THE FIT CARRIES reaches a registered callback, whether or not
+# the run stores it: the recording callback notes the channels each call hands
+# over and copies each one at draw 2 of chain 2. Each arm runs 3 draws on 2
+# chains and 2 threads, with results NULL and with every dbarts_results field,
+# and through the R run at keepFits TRUE and FALSE; under one seed each copy
+# equals the array of the route that stores it (the flat route: train, test,
+# varcount, varprobs, the log-likelihood; the R route: the thresholds, the
+# variance pair, forestFits and glue). So storing or not moves no draw either.
+set.seed(31)
+nC <- 60L
+pC <- 3L
+nTestC <- 8L
+xC <- matrix(runif(nC * pC), nC, pC)
+xTestC <- matrix(runif(nTestC * pC), nTestC, pC)
+zC <- rbinom(nC, 1L, 0.5)
+yC <- xC[, 1L] + zC * (1 + xC[, 2L]) + (0.2 + xC[, 3L]) * rnorm(nC, sd = 0.3)
+ordinalC <- cut(xC[, 1L] + rnorm(nC, sd = 0.2), 3L, labels = FALSE)
+timeC <- exp(yC / 2)
+statusC <- rbinom(nC, 1L, 0.7)
+channelControl <- function(keepFits = TRUE) {
+  dbartsControl(
+    n.chains = 2L,
+    n.threads = 2L,
+    updateState = FALSE,
+    seed = 17L,
+    keepFits = keepFits
+  )
+}
+channelArms <- list(
+  dart = list(
+    build = function(keepFits = TRUE) {
+      dbarts(
+        xC,
+        yC,
+        test = xTestC,
+        split.probs = dart(),
+        control = channelControl(keepFits),
+        n.trees = 8L
+      )
+    },
+    channels = c("train", "test", "varprobs", "logLikelihood", "varcount")
+  ),
+  ordinal = list(
+    build = function(keepFits = TRUE) {
+      dbarts(
+        xC,
+        ordinalC,
+        test = xTestC,
+        family = "ordinal",
+        control = channelControl(keepFits),
+        n.trees = 8L
+      )
+    },
+    channels = c("train", "test", "logLikelihood", "thresholds", "varcount")
+  ),
+  variance = list(
+    build = function(keepFits = TRUE) {
+      dbarts(
+        xC,
+        yC,
+        test = xTestC,
+        variance = varianceForest(n.trees = 4L),
+        control = channelControl(keepFits),
+        n.trees = 8L
+      )
+    },
+    channels = c(
+      "train",
+      "test",
+      "variance",
+      "varianceTest",
+      "logLikelihood",
+      "varcount"
+    )
+  ),
+  aft = list(
+    build = function(keepFits = TRUE) {
+      dbarts(
+        xC,
+        cbind(timeC, statusC),
+        test = xTestC,
+        family = "aft",
+        variance = varianceForest(n.trees = 4L),
+        control = channelControl(keepFits),
+        n.trees = 8L
+      )
+    },
+    channels = c(
+      "train",
+      "test",
+      "variance",
+      "varianceTest",
+      "logLikelihood",
+      "varcount"
+    )
+  ),
+  bcf = list(
+    build = function(keepFits = TRUE) {
+      dbarts(
+        xC,
+        yC,
+        forests = list(forest(), forest(basis = ~ factor(zC))),
+        control = channelControl(keepFits),
+        n.trees = 8L
+      )
+    },
+    channels = c("train", "forestFits", "glue", "varcount")
+  )
+)
+recordingCallback <- list(
+  fn = CALL("capi_recording_function"),
+  context = CALL("capi_recording_context")
+)
+# chain 2's draw 2 of an array whose leading extent is perDraw, draws and then
+# chains varying slowest
+drawOf <- function(values, perDraw) {
+  slot <- 1L * 3L + 1L
+  as.vector(values)[slot * perDraw + seq_len(perDraw)]
+}
+flatRecording <- function(sampler, every) {
+  CALL("capi_recording_reset", 1L, 1L)
+  CALL("capi_set_recording_callback", sampler$getPointer(), TRUE)
+  stored <- CALL("capi_run_every", sampler$getPointer(), 5L, 3L, every)
+  CALL("capi_set_recording_callback", sampler$getPointer(), FALSE)
+  list(stored = stored, report = CALL("capi_recording_report", 2L, 3L))
+}
+rRecording <- function(sampler) {
+  CALL("capi_recording_reset", 1L, 1L)
+  stored <- sampler$run(5L, 3L, callback = recordingCallback)
+  list(stored = stored, report = CALL("capi_recording_report", 2L, 3L))
+}
+for (armName in names(channelArms)) {
+  arm <- channelArms[[armName]]
+  flatNone <- flatRecording(arm$build(), FALSE)
+  flatEvery <- flatRecording(arm$build(), TRUE)
+  rKept <- rRecording(arm$build(TRUE))
+  rDropped <- rRecording(arm$build(FALSE))
+  reports <- list(
+    flat.null = flatNone$report,
+    flat.every = flatEvery$report,
+    r.keepFits = rKept$report,
+    r.noFits = rDropped$report
+  )
+  for (route in names(reports)) {
+    report <- reports[[route]]
+    info <- paste(armName, route)
+    expect_identical(report$calls, c(3L, 3L), info = info)
+    expect_true(report$steady, info = info)
+    for (chain in 1:2) {
+      expect_identical(report$channels[[chain]], arm$channels, info = info)
+    }
+    # every route hands over the same draw
+    expect_identical(report$copies, flatNone$report$copies, info = info)
+    expect_identical(report$sigma, flatNone$report$sigma, info = info)
+  }
+  copies <- flatNone$report$copies
+  flat <- flatEvery$stored
+  expect_identical(copies$train, drawOf(flat$train, nC), info = armName)
+  expect_identical(
+    copies$varcount,
+    as.double(drawOf(flat$varcount, length(copies$varcount))),
+    info = armName
+  )
+  if ("test" %in% arm$channels) {
+    expect_identical(copies$test, drawOf(flat$test, nTestC), info = armName)
+  }
+  if ("varprobs" %in% arm$channels) {
+    expect_identical(copies$varprobs, drawOf(flat$varprobs, pC), info = armName)
+  }
+  if ("logLikelihood" %in% arm$channels) {
+    expect_identical(
+      copies$logLikelihood,
+      drawOf(flat$logLikelihood, nC),
+      info = armName
+    )
+  }
+  stored <- rKept$stored
+  if ("thresholds" %in% arm$channels) {
+    expect_identical(
+      copies$thresholds,
+      drawOf(stored$thresholds, flatNone$report$num.ordinal.thresholds),
+      info = armName
+    )
+  }
+  if ("variance" %in% arm$channels) {
+    expect_identical(copies$variance, drawOf(stored$variance, nC))
+    expect_identical(copies$varianceTest, drawOf(stored$varianceTest, nTestC))
+  }
+  if ("forestFits" %in% arm$channels) {
+    expect_identical(copies$forestFits, drawOf(stored$forestFits, 2L * nC))
+    expect_identical(copies$glue, drawOf(stored$glue, 3L))
+  }
+  # a variance forest has no single residual scale: sigma is NaN in every
+  # draw the callback sees and every draw the flat run stores; elsewhere the
+  # callback's sigma is the stored one
+  if ("variance" %in% arm$channels) {
+    expect_true(all(is.nan(flatNone$report$sigma)), info = armName)
+    expect_true(all(is.nan(flat$sigma)), info = armName)
+    expect_null(stored$sigma, info = armName)
+  } else {
+    expect_identical(as.vector(flatNone$report$sigma), flat$sigma)
+    expect_identical(as.vector(flatNone$report$sigma), as.vector(stored$sigma))
+  }
+}
+
+# the scalar sigma is NaN keyed on the variance forest, not on a sigma held
+# fixed: a probit sampler stores and hands over the pinned 1, a gaussian one at
+# sigma = fixed(1) the 1 it holds
+for (pinned in list(
+  probit = function() {
+    dbarts(
+      xC,
+      as.numeric(yC > 1),
+      family = "probit",
+      control = channelControl(),
+      n.trees = 8L
+    )
+  },
+  fixed = function() {
+    dbarts(
+      xC,
+      yC,
+      family = gaussian(sigma = fixed(1)),
+      control = channelControl(),
+      n.trees = 8L
+    )
+  }
+)) {
+  recorded <- flatRecording(pinned(), TRUE)
+  expect_true(all(recorded$stored$sigma == 1))
+  expect_true(all(recorded$report$sigma == 1))
+}
+rm(
+  flatNone,
+  flatEvery,
+  rKept,
+  rDropped,
+  reports,
+  report,
+  copies,
+  flat,
+  stored,
+  recorded
+)
+CALL("capi_recording_reset", 0L, 0L)
+invisible(gc(FALSE))
+
+# kIsSampled follows the model as it now stands, through setLeafPrior and
+# setModel alike: a fixed-k sampler given a k hyperprior reports 1 and writes
+# results.k, its draws varying, and the R run returns k; given a fixed k again
+# it reports 0, leaves results.k at the caller's sentinel and the R run returns
+# no k
+kControl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  updateState = FALSE,
+  seed = 23L
+)
+kFixed <- function() dbarts(xC, yC, control = kControl, n.trees = 8L)
+kDrawn <- function() {
+  dbarts(
+    xC,
+    yC,
+    leaf.prior = normal(k = chi(1.5, 2)),
+    control = kControl,
+    n.trees = 8L
+  )
+}
+expectKDrawn <- function(sampler, drawn, info) {
+  expect_equal(CALL("capi_dims", sampler$getPointer())[7L], as.integer(drawn))
+  flatK <- CALL("capi_run_every", sampler$getPointer(), 0L, 4L, TRUE)$k
+  if (drawn) {
+    expect_true(all(is.finite(flatK) & flatK > 0), info = info)
+    expect_true(length(unique(flatK)) > 1L, info = info)
+  } else {
+    expect_identical(flatK, rep(-1, 4L), info = info)
+  }
+  expect_identical(!is.null(sampler$run(0L, 2L)$k), drawn, info = info)
+}
+sK <- kFixed()
+expectKDrawn(sK, FALSE, "created with k fixed")
+sK$setLeafPrior(normal(k = chi(1.5, 2)))
+expectKDrawn(sK, TRUE, "setLeafPrior to a k hyperprior")
+sK$setLeafPrior(normal(k = 2))
+expectKDrawn(sK, FALSE, "setLeafPrior back to k = 2")
+sK <- kFixed()
+fixedModel <- sK$model
+sK$setModel(kDrawn()$model)
+expectKDrawn(sK, TRUE, "setModel to a k hyperprior")
+sK$setModel(fixedModel)
+expectKDrawn(sK, FALSE, "setModel back to k fixed")
+sK <- kDrawn()
+expectKDrawn(sK, TRUE, "created with a k hyperprior")
+rm(sK, fixedModel)
+invisible(gc(FALSE))
