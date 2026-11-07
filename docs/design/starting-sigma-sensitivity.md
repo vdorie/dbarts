@@ -1,9 +1,10 @@
 # Starting sigma: how much the fit depends on it, and what to do for a large sparse design
 
 Status: FINDING, 2026-10-10 (dec-B403, dec-B421, dec-B422); the recommendation was not taken (dec-B433; see
-Recommendation). A sensitivity study on dense data and an LSQR prototype for sparse designs too large for an
-exact fit. Measured on arm64 macOS (M1 Max, R 4.6.1, R's reference BLAS), two jobs at a time. Scripts and
-outputs are in scratch/ssens, untracked.
+Recommendation). The forests' bases entering the regression, 2026-11-07 (dec-B603), is its own section, last. A
+sensitivity study on dense data and an LSQR prototype for sparse designs too large for an exact fit. Measured on
+arm64 macOS (M1 Max, R 4.6.1, R's reference BLAS), two jobs at a time. Scripts and outputs are in scratch/ssens,
+untracked.
 
 ## Summary
 
@@ -267,3 +268,41 @@ Limits of the evidence: one test function, gaussian responses, unweighted fits, 
 Part 1 (larger n was not run; the trend from 200 to 5000 is monotone), and random sparse designs in the
 cost tables, which converge in about 50 iterations; a badly conditioned real design would take several
 times as many, at the same cost per iteration.
+
+## The forests' bases
+
+2026-11-07 (dec-B603). With no `sigest`, the regression behind the starting sigma takes each forest's basis beside
+the predictors. The regression stands for the model's signal (dec-B422's reason for expanding a factor predictor),
+and in `y ~ forest(x) + forest(x, basis = factor(z))` the treatment z is signal the model holds as a basis, not as a
+predictor, so a regression on x alone carried the whole treatment effect. The bcf package regresses on x and z, and
+the same model written as one forest, `y ~ x + z`, already does.
+
+**The columns.** One per forest with a basis, after the predictors' columns
+([`sigmaBasisColumns`](../../R/utility.R), [`startingSigmaDesign`](../../R/utility.R)). A forest of numbers adds its
+column. A forest of levels adds the indicator of its second level, which is the one column a two-level factor
+predictor enters as ([`emittedLevels`](../../R/utility.R)); a basis holds at most two levels. The estimate of a BCF
+fit is then `summary(lm(y ~ x + factor(z)))$sigma` to the last bit on the dense route, with weights and with an
+offset, and agrees with it to rounding on the sparse route. A basis inside the span of the intercept and the
+predictors, as when z is also a predictor, leaves the estimate bitwise what it is with no basis: lm.fit's pivot and
+the sparse routine's pivoted Cholesky drop it, and the residual degrees of freedom come from the rank either routine
+returns, not from a count of columns.
+
+**Every creation route.** The data object carries the bases the model ends with before the estimate is made: a
+declaration given to [`dbartsSpec()`](../../R/spec.R), which replaces the bases of the data object it is handed, is
+installed ahead of the estimate in [`resolveSamplerSpec`](../../R/spec.R), as `dbarts()`'s declarations already
+were.
+
+**Who it reaches.** Only gaussian fits with a basis outside that span and no stated `sigest`: gaussian is the only
+family that both takes a basis and estimates a starting sigma (Student-t residuals and the other continuous families
+refuse several forests, and the latent ones fix the scale). A stated `sigest`, a fixed residual scale and a data
+object carrying its own estimate into `dbartsSpec()` make no estimate, and xbart refuses bases.
+
+**What it moves.** On 100 rows with noise sd 0.5 and a treatment effect of 4, the default estimate goes from 2.05 to
+0.52. Over 20 seeds at 100 rows the treatment effects did not move: the average effect's 90 percent interval covered
+in 16 of 20 seeds either way, the per-row effect RMSE was 0.231 both ways, and the same held at 250 rows and with a
+heterogeneous effect of about two noise sds. The noise sd's own interval covered the true 0.5 in 20 of 20
+seeds under the old default, in 10 of 20 with z in the regression and in 15 of 20 for the same model written as one
+forest; by 400 rows the three did not differ. So the change makes the noise prior the one a user means, the noise
+left after the model's signal, at a cost in the noise sd's coverage at small n that the treatment effects do not
+share. The measurement is the review's, one design and gaussian noise; no multi-forest package other than bcf was
+checked.
