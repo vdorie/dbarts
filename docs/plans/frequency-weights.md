@@ -734,28 +734,30 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
     response's counts must be an n x 2 integer matrix of successes and failures, one row per observation". Alternative:
     requiring y to equal the trials at the bridge, which S6's R constructor settles either way.
 34. The trials cap at w = 1 is dec-B202's million in `refuseCountOverCap`'s form, "<caller>: family "logistic" requires
-    the trials no larger than 1000000; each trial is a Polya-Gamma draw per sweep", at creation and `$setCounts`; for
-    w > 1, refusal 8 at creation, `$setWeights` and `$setCounts`. Alternative: no cap at w = 1, which leaves one row's
+    the trials no larger than 1000000; each trial is a Polya-Gamma draw per sweep", at creation and the count
+    `$setResponse` (`$setCounts` until dec-B628); for w > 1, refusal 8 at creation, `$setWeights` and the count
+    `$setResponse`. Alternative: no cap at w = 1, which leaves one row's
     draws unbounded.
 35. Refusal 13 at the bridge names the first five rows, then ", ...". Alternative: every row, which a large count
     matrix makes unreadable.
-36. `$setData` on a binomial sampler is refused at the bridge (Open call 4): "$setData: a binomial sampler's rows and
-    their trials are fixed at creation; replace its successes and failures with $setCounts, or make a new sampler".
+36. `$setData` on a binomial sampler was refused at the bridge, pending Open call 4; dec-B628 takes it instead (call
+    58 on).
 37. The flat C API's `dbarts_sampler_setResponse` refuses a binomial sampler in refusal 15's words, as `$setResponse`
     does. Alternative: taking a 0/1 vector as the successes against the trials in force, which a row of 0 trials
     makes invalid.
 38. A fold over a data handle (`bartcore_createFromHandle`, xbart's) carries the trials with the successes, so S6's
     binomial xbart needs no bridge change. Alternative: refusing a binomial fold until S6.
 39. A row of 0 trials goes out of the likelihood in the engine and warns nowhere in S3: the zero-trial warning is the R
-    layer's, raised after creation or `$setCounts` returns as multinomial's is, so S6 adds the binomial wording with its
-    constructor and setter. Alternative: a warning from the bridge, which would warn at a call the R layer may still
+    layer's, raised after creation or a count `$setResponse` returns as multinomial's is, so S6 adds the binomial
+    wording with its constructor and setter. Alternative: a warning from the bridge, which would warn at a call the R layer may still
     refuse.
 40. Call 37's refusal at the flat C API is tested now, in test-capi.R through its consumer, a binomial sampler built from
     a hand-written counts slot (about 40 lines). Alternative: recording it for S6, whose R surface builds binomial
     samplers without the hand-written slot.
 41. nbinom's center fallback, where the rows in lack two distinct counts, reads every row with a count of 0 read as 1, as
-    the mask's fallback reads every row, so 0/1 weights draw as the mask there too. Alternative: S2's every row at its
-    count, which reads a row of weight 0 at 0 and parts from the mask's center.
+    the mask's fallback reads every row, so 0/1 weights draw as the mask there too; dec-B632 extends the rule to every
+    read-off that falls back to every row (call 51). Alternative: S2's every row at its count, which reads a row of
+    weight 0 at 0 and parts from the mask's center.
 42. `pointwiseLogLikelihood` is NaN at every row out of the likelihood, weight 0 or masked, on every family, which takes
     S5's NaN half forward. Alternative: leaving it to S5, a probit row of weight 0 reading the engine's 0 until then.
 43. On probit, ordinal and nbinom a fit records its rows in as `fit$active`, the weights times the mask, and stores no
@@ -781,12 +783,16 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
 50. Under "frequency" the starting sigma's fallback, where the regression leaves no residual degrees of freedom, is the
     sd of the expanded rows (the weights' sum less one in its denominator), on both routes and in xbart's folds.
     Alternative: the sd of the rows in, unweighted, which the expanded data's fit does not give.
-51. The bridge reads a probit or ordinal sampler's weights as the mask under either reading, and an nbinom sampler's so
-    where every creation weight is 0 or 1 (or there are none): a read-off falling back to every row reads a row of
-    weight 0 at 1, as the mask's fallback does, so 0/1 weights draw as the mask and as before S5 (S4's equalities hold).
-    An nbinom sampler created so and given counts later reads an update-requested read-off over the rows in unweighted;
-    one created with counts reads it counted (call 23). Alternative: call 23's counts everywhere, which reads a row of
-    weight 0 at 0 at those fallbacks and moves a 0/1-weighted fit off its masked twin.
+51. Ruled by the maintainer (dec-B632): an nbinom sampler reads its weights as counts however it was created, and
+    wherever a center or scale read-off falls back to every row (a linear or gp leaf's covariates, a basis's scale, at
+    creation and at a `$setData` that derives them) a row of count 0 is read at 1, as the mask's fallback reads it,
+    on every family that reads counts. So 0/1 weights read as the mask does, the one-row-in leaf still fits, and the
+    same counts read the same however the sampler was made: with a linear leaf on one column and counts {1, 0, 3}, a
+    sampler created with the counts and one given them by `$setWeights(updateStandardization = TRUE)` both read the
+    expanded data's center and scale. Probit and ordinal keep reading weights as the mask. Only branch-built fits
+    created with counts that reach a scale's fallback draw otherwise. Alternative: S5's creation-time switch, an
+    nbinom sampler created unweighted or 0/1 reading its weights as the mask from then on, so the same counts read by
+    the sampler's history.
 52. A predict weight of 0 on nbinom draws the row at one trial and reports 0, so a row's variate is consumed whatever
     its weight and the other rows' draws do not move with it. Alternative: drawing nothing at the row, which shifts
     every later row's draw.
@@ -803,13 +809,39 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
 57. A weighted logistic fit with a linear or gp leaf, or a numeric basis, reads its leaf covariates' scale at counts
     once "frequency" is its reading (call 21); test-leaf-standardization-rows.R re-pins the logistic arm against the
     rows written out. Alternative: none, the reading settles it.
+58. Call 52's draw covers every count family: probit, logistic, ordinal and multinomial draw a row of predict weight 0 at
+    one trial and report 0, at newdata and at the training rows, so moving one row's weight from 1 to 0 moves no other
+    row's draw. Alternative: drawing nothing at the row, which shifts every later row's draw.
+59. A fallback's warning says what it reads. Where the weights are counts and not all 0 and 1, a leaf's or a basis's
+    numbers are "taken from all N at their weights' counts, a weight of 0 read as 1"; a gaussian sampler's response
+    scale and prior center are a range, taken from all N alike, and an nbinom sampler's center is read at the counts
+    too. 0/1 weights keep the plain words, since they read as the mask does. Alternative: one text for every reading,
+    which misstates the counted numbers.
+60. A binomial `$setResponse` (dec-B628) takes an n x 2 matrix of successes and failures, or a vector of successes
+    against each row's trials held; the refusals name the rows (first five) with more successes than trials, or with
+    values that are not non-negative whole numbers, and the wrong shape. The counts keep the sampler's column names.
+    Alternative: taking the new matrix's names, which a vector cannot give.
+61. A count sampler's `$setResponse` ignores `updateScale`, having no response scale to re-anchor, and refuses
+    `status`. Alternative: refusing `updateScale = TRUE`, which every other family without a scale accepts.
+62. A binomial `$setData` takes new data whose counts slot holds the successes and failures, the number of rows free,
+    and checks them as creation does (support, the trials cap); data without counts are refused, and a sampler created
+    on a binary logistic response refuses data that carry counts ("make a new sampler"), the engine holding no trials
+    there. Alternative: switching a binary sampler to binomial in place.
+63. A sampler without a count response given a matrix by `$setResponse` keeps the length refusal it gave before.
+    Alternative: a refusal naming the count samplers.
+64. The flat C API's `dbarts_sampler_setResponse` still refuses a binomial sampler (call 37), its words now naming
+    the R sampler's `$setResponse`. Alternative: a C entry for the pair, an ABI event with no consumer asking.
+65. The bridge entry `bartcore_setCounts` keeps its name and serves both count samplers' `$setResponse`. Alternative:
+    renaming it, which touches every internal caller for no user-visible change.
+66. A binomial sampler's other R doors (`$setWeights`, `$setOffset` and the rest) keep `refuseCountsMutation`'s
+    multinomial words until S6 words them. Alternative: wording them now, ahead of S6's constructor.
 
 ## Open calls
 
-One open, raised in S3, and three ruled: Open call 1 (dec-B594) and the two it left, Open calls 2 (dec-B595) and 3
-(dec-B596). Every other user- or consumer-visible choice the plan makes is settled by dec-B563 to dec-B570, dec-B573,
-dec-B574, dec-B580, dec-B588, dec-B594 to dec-B596 or the design note's calls made. Open call 4 is built as its
-recommendation, refused.
+All four ruled: Open call 1 (dec-B594) and the two it left, Open calls 2 (dec-B595) and 3 (dec-B596), and Open call
+4, raised in S3 (dec-B628). Every other user- or consumer-visible choice the plan makes is settled by dec-B563 to
+dec-B570, dec-B573, dec-B574, dec-B580, dec-B588, dec-B594 to dec-B596, dec-B628, dec-B632 or the design note's calls
+made.
 
 ### 1. What predict's weights mean on a fit whose one draw is a category (RULED, dec-B594)
 
@@ -852,25 +884,12 @@ row with no weights one trial. Left open by it: whether a binomial fit's new row
 columns when the new data carry them (S6's to state, not built here). Built in S5 as
 [The R surface (S5, S6)](#the-r-surface-s5-s6) states it.
 
-### 4. What `$setData` does on a binomial sampler (raised in S3)
+### 4. What `$setData` does on a binomial sampler (RULED, dec-B628)
 
-When a sampler fitted to successes and failures is handed a new data object, what happens?
-
-Background. The design note's call 9 swaps a binomial response through `$setCounts` and refuses a flat vector at
-`$setResponse`; it says nothing of `$setData`, which on every other family replaces the rows, the response and the
-weights together and may change the number of rows. A multinomial sampler refuses `$setData` ("make a new sampler
-instead"). S3's bridge refuses it on a binomial sampler, the engine's trials being sized to the rows it was built on;
-nothing reaches it until S6 lets the fitting functions take a binomial response. 0.9-34 had no binomial response.
-
-- (a) Refused, as on a multinomial sampler: `$setData: a binomial sampler's rows and their trials are fixed at creation;
-  replace its successes and failures with $setCounts, or make a new sampler`. No further work. Cost: a binomial sampler
-  inside a larger Gibbs sampler cannot swap its predictors and counts in one call, as a binary one can.
-- (b) Taken: the new object's counts slot gives the successes and trials, n free, as its y does on a binary sampler.
-  About 40 lines in the engine and bridge, and S6's R method. Cost: a fourth route by which the trials change, each with
-  the caps and the zero-trial mask.
-
-Recommendation: (a). It is multinomial's rule for the same reason, the count response is not a column of the data,
-and `$setCounts` plus a new sampler cover the cases (b) would; (b) can follow if a consumer asks.
+Ruled by the maintainer, 2026-11-07 (dec-B628): a binomial sampler takes `$setData`, the new data object's counts
+giving the successes and failures and the number of rows free, and a count response is replaced through `$setResponse`
+as its formula writes it, `$setCounts` removed. Built in S5's fix round; S5 as built, calls 58 on, records how. The
+alternative was a refusal, as on a multinomial sampler, whose `$setData` stays refused as a separate call.
 
 ## Slices
 
@@ -1083,7 +1102,7 @@ R-surface checks of S5.
 Notes from the S3 review: a binary sampler's `$setData` takes a data object with a hand-written counts slot and reads its y,
 though creation reads the same object as binomial (not a door, dec-B554, but S6's routing should read the slot one way at
 both); a hand-written slot on a binomial sampler meets `refuseCountsMutation`'s multinomial words before the bridge's, which
-S6 words for the binomial; the `$setData` refusal's words are call 36's, pending Open call 4.
+S6 words for the binomial; `$setData` on a binomial sampler is taken (dec-B628, built in S5's fix round).
 
 ### S7: gates (~450 in benchmarks/R, ~20 workflow)
 

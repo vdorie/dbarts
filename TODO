@@ -234,9 +234,9 @@ items
     exists (constant, linear).
   multinomial-door-gaps: bart(family = "multinomial") refuses a data frame
     of counts that dbarts() takes, and takes a character matrix that
-    dbarts() refuses; $setCounts refuses a vector as the wrong category
-    count where 'counts must be a matrix' is what it means. Found reviewing
-    dec-B536's build (dec-A248); not ruled. Small.
+    dbarts() refuses. Found reviewing dec-B536's build (dec-A248); not
+    ruled. Small. (The vector refusal it also named is worded by dec-B628's
+    $setResponse.)
   pdbart-closed-arguments: at 1.1-0, when pdbart's BayesTree spellings
     are refused, replace pdbart's and pd2bart's ... with bart's usable
     arguments listed explicitly, pinned by a test against bart's formals

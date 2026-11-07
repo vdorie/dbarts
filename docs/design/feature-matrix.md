@@ -86,7 +86,8 @@ follow their columns; `updateScale = TRUE`, on `setResponse`, `setOffset`, `setW
 `setActiveRows`, follows the unit-scale column (a no-op where the transform is fixed, refused
 where a re-anchor would break a coupling's or a variance forest's calibration); test predictors, offsets and `predict()` follow the test-fits column;
 `setResponse`/`setOffset`/`setPredictor` (+ per-observation) are open wherever a sampler
-exists, except multinomial blocks the first two ([f9]) and hurdle has none. Three exceptions
+exists, except multinomial takes `setResponse` only as its count matrix and blocks `setOffset` ([f9]) and hurdle has
+none. Three exceptions
 follow from no column:
 
 - A zero weight, which takes a row out of the likelihood and keeps it in the design, follows
@@ -303,7 +304,11 @@ the creation-time positive-integer policy holds on every conduit.
 
 [f9] Multinomial carries a counts response: the R surface refuses a weight vector, and the shared counts guard, keyed
 on `samplerCarriesCounts`, blocks every mutation conduit that would touch the response ([`refuseCountsMutation`](../../R/bartcore.R); full
-inventory [1. Problem statement and inventory](multinomial-mutation-arc.md#1-problem-statement-and-inventory)).
+inventory [1. Problem statement and inventory](multinomial-mutation-arc.md#1-problem-statement-and-inventory)), except
+`setResponse`, which takes the response as its formula writes it, the n x K count matrix, and refuses a vector
+([`bartcoreSamplerSetCounts`](../../R/bartcore.R); dec-B628). A binomial sampler, a logistic one whose data carry
+counts of successes and failures, takes `setResponse` as the n x 2 matrix or a vector of successes, and `setData`
+([`bartcoreSamplerSetBinomialResponse`](../../R/bartcore.R)).
 
 [f10] Hurdle has no sampler of its own: [`bart2Hurdle`](../../R/bart.R) composes two ordinary `bart()`
 fits - zero-part probit and lognormal positive part - glued at report time

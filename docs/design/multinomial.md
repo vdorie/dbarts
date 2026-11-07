@@ -236,7 +236,7 @@ both supported (below).
   equivalence baseline; K is the level count on the label entry and the
   column count on the count entry. A bare number or logical names no category and
   is refused at dbarts() as bart() refuses it (dec-B536). An empty row
-  (n_i = 0) is accepted at creation and through $setCounts, and the first
+  (n_i = 0) is accepted at creation and through $setResponse, and the first
   in a session warns. Its likelihood
   factor is the constant 1 - PG(0, .) is the point mass at 0 and
   y_ik - n_i/2 = 0 - so the coupling composes it into its global
@@ -320,8 +320,9 @@ both supported (below).
   (logLikelihoodIsDefined() false): storeSample scores one forest's fits
   through response_->computeLogLikelihood, which cannot see the K-blend -
   BCF's exact NaN-flag choice, untouched by this arc.
-- Two mutation channels (public since the mutation arc's S2+S3 as
-  `$setCounts` / `$setCategoryOffset` / `$setCategoryTestOffset` on an
+- Two mutation channels (public since the mutation arc's S2+S3, the count
+  matrix through `$setResponse` since dec-B628, `$setCategoryOffset` /
+  `$setCategoryTestOffset`, on an
   ordinary dbartsSampler built by `dbarts(family = "multinomial")`; still
   reachable as the internal `bartcore*` entries a bart2 handle drives;
   docs/plans/archive/multinomial-counts-mutation.md) are the exceptions to an

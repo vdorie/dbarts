@@ -505,7 +505,7 @@ runScenarios <- function() {
   })
 
   # (k) K = 3 GROUPED COUNTS with a mid-chain RESPONSE swap: create on one n x K
-  # count matrix, run, replace the whole response through $setCounts -
+  # count matrix, run, replace the whole response through $setResponse -
   # the trees carry over, fitted to the previous counts, and the next run forms
   # every category's working response against the new ones - then run again and
   # record the post-swap state. The swap stream was only TRANSITIVELY pinned
@@ -545,7 +545,7 @@ runScenarios <- function() {
       n.trees = n.trees
     )
     bc$run(n.burn, n.samples)
-    bc$setCounts(counts2, updateState = FALSE)
+    bc$setResponse(counts2, updateState = FALSE)
     res <- bc$run(n.burn, n.samples)
     recordChannels(bc, res, K)
   })

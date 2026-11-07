@@ -54,7 +54,8 @@ them, exactly when those rows add no cut points.
   the `counts` item of [`dbartsData`](../../man/dbartsData.Rd), the multinomial item of
   [`dbarts`](../../man/dbarts.Rd), the count-matrix text of [`bart`](../../man/bart.Rd), the `setCounts` item of
   [`dbartsSampler`](../../man/dbartsSampler-class.Rd) and its docstring in
-  [`dbartsSampler$setCounts`](../../R/dbarts.R); the 1.0-0 NEWS item on `$setCounts` ("at least 1").
+  retired: [`dbartsSampler$setCounts`](../../R/dbarts.R), a method that is gone, its count matrix now taken by
+  `$setResponse` (dec-B628); the 1.0-0 NEWS item on `$setCounts` ("at least 1").
 
 ## What a zero-trial row does
 

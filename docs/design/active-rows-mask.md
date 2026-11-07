@@ -297,7 +297,7 @@ responses at the inactive rows leaving every active row's recorded draw bitwise
 (["logistic, nbinom and aft"](../../inst/tinytest/test-active-rows-pins.R),
 ["multinomial, GLOBAL only"](../../inst/tinytest/test-active-rows-pins.R));
 zero-trial rows against the same rows carrying counts and masked, through
-creation, `$setCounts`, `$sampleTreesFromPrior` and re-creation, and beside
+creation, the count `$setResponse`, `$sampleTreesFromPrior` and re-creation, and beside
 the fit without them, which they are close to and not equal to
 (["empty rows are masked rows"](../../inst/tinytest/test-multinomial-zero-trials.R)); the
 gaussian, Student-t, BCF and heteroscedastic arms bitwise against

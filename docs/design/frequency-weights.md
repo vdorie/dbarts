@@ -279,9 +279,12 @@ and the predictive and log-likelihood code reads n.
    scale; a 0/1 response's weight is a frequency, so a binomial row is written with cbind. Alternative:
    documenting only the arithmetic.
 9. A binomial response is held as two count columns in the data object's counts slot, the slot multinomial
-   count rows use, and the sampler swaps it through `$setCounts`, `$setResponse` refusing a vector on a binomial
-   sampler by name; the fit keeps the two-column response as given. Alternative: a trials slot beside y, a
-   second representation of the same counts.
+   count rows use, and the fit keeps the two-column response as given. The sampler replaces it as its formula
+   writes it (ruled, dec-B628): `$setResponse` takes the n x 2 successes and failures, or a vector of successes
+   with each row's trials held, a count above its row's trials refused; `$setData` takes new data whose counts
+   give the successes and failures, the number of rows free. A multinomial sampler's `$setResponse` takes its
+   n x K count matrix and refuses a vector, which with the trials held cannot say how they split. Alternative:
+   a trials slot beside y, a second representation of the same counts.
 10. At newdata with no weights a binomial fit draws one trial, as multinomial count fits draw one trial at new
     rows (dec-B177; a one-trial count vector under dec-B594), and a test sample's weights give its trials. rstanarm and brms require the
     trials at newdata (critique probe p9: rstanarm stops on the missing columns); dbarts's newdata is a predictor
