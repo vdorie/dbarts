@@ -222,6 +222,7 @@ weighted <- dbarts::rbart_vi(
   weights = w,
   n.samples = 7L,
   n.burn = 0L,
+  n.thin = 1L,
   n.chains = 2L,
   n.trees = 10L,
   n.threads = 1L,
