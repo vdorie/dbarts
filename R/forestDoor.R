@@ -123,7 +123,7 @@ movesInForce <- function(moves, control, mode = TRUE) {
 
 ## The refusal of a control a caller wrote a tree-move setting on that differs
 ## from the one in force when no forest would take it: every forest, the
-## variance forest included, states its own, so  would store a
+## variance forest included, states its own, so $setControl would store a
 ## value nothing reads. NULL where some forest follows the control, or the
 ## setting is not the caller's (not named when the control was built, equal to
 ## a fresh control's) or equals the one in force.

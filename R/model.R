@@ -1042,6 +1042,15 @@ resolveVarianceColumns <- function(variance, data, argument = "variance") {
     # grammar: the terms matched to the fit's column labels
     code <- captureForestVars(variance, "the 'variance' formula")
     code$unbound <- all.vars(code$expr)
+    if (length(code$unbound) == 0L) {
+      stop(
+        "the 'variance' formula '",
+        paste(deparse(variance, width.cutoff = 500L), collapse = " "),
+        "' names no predictor; omit variance for a constant variance, or ",
+        "write ~ . for every column",
+        call. = FALSE
+      )
+    }
     columns <- resolveForestVars(
       code,
       data,

@@ -195,6 +195,36 @@ expect_identical(
   )
 )
 
+# ~ 1 names no predictor: refused with the remedy; an intercept term beside a
+# predictor is refused as varianceForest() refuses it
+expect_true(grepl(
+  "omit variance for a constant variance, or write ~ . for every column",
+  refusal(eval(withVariance(~1))),
+  fixed = TRUE
+))
+for (written in c("~ x2 - 1", "~ 0 + x2")) {
+  expect_true(
+    grepl(
+      "an intercept term",
+      refusal(eval(withVariance(str2lang(written)))),
+      fixed = TRUE
+    ),
+    info = written
+  )
+  expect_true(
+    grepl(
+      "an intercept term",
+      refusal(eval(withVariance(str2lang(paste0(
+        "varianceForest(",
+        written,
+        ")"
+      ))))),
+      fixed = TRUE
+    ),
+    info = written
+  )
+}
+
 ## --- what is refused --------------------------------------------------------------
 twoSided <- y ~ x1 + x2
 expect_identical(
