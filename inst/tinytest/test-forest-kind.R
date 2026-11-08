@@ -1419,6 +1419,53 @@ attr(unrecorded, "basisLevels") <- NULL
 byPosition <- swapSampler(reversed)
 expect_true(valueOf(byPosition$setState(unrecorded)))
 expect_identical(byPosition$getForestAmplitudes(), donorAmplitudes)
+# a record whose entry is neither NULL nor character is refused, the sampler
+# left as it was
+malformed <- donor$state
+attr(malformed, "basisLevels") <- list(NULL, factor(c("control", "treated")))
+untouched <- swapSampler(reversed)
+untouched$storeState()
+untouchedState <- untouched$state
+untouchedAmplitudes <- untouched$getForestAmplitudes()
+expect_error(
+  untouched$setState(malformed),
+  "the state's 'basisLevels' record must be a list of NULL or character entries",
+  fixed = TRUE
+)
+expect_identical(untouched$state, untouchedState)
+expect_identical(untouched$getForestAmplitudes(), untouchedAmplitudes)
+# every chain's coefficients go by name, not chain 1's alone
+twoChains <- function(B) {
+  set.seed(7)
+  sampler <- dbarts(
+    x,
+    y,
+    forests = valueForests(B),
+    control = dbartsControl(
+      n.chains = 2L,
+      n.threads = 1L,
+      n.samples = 10L,
+      n.burn = 0L,
+      updateState = FALSE
+    ),
+    n.trees = 15L
+  )
+  sampler$run(0L, 3L)
+  sampler
+}
+chainsDonor <- twoChains(factor(zc, levels = c("control", "treated")))
+chainsDonor$storeState()
+chainsAmplitudes <- chainsDonor$getForestAmplitudes()
+expect_identical(dim(chainsAmplitudes), c(3L, 2L))
+chainsRecipient <- twoChains(reversed)
+expect_true(valueOf(chainsRecipient$setState(chainsDonor$state)))
+for (chain in 1:2) {
+  expect_identical(
+    chainsRecipient$getForestAmplitudes()[, chain],
+    chainsAmplitudes[c(1L, 3L, 2L), chain],
+    info = paste("chain", chain)
+  )
+}
 
 # a live copy's state is its engine's chain, recording the copy's levels, and
 # goes by name into a sampler of the donor's order

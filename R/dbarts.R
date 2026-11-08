@@ -2376,8 +2376,19 @@ stateLevelOrder <- function(state, data) {
   if (is.null(recorded)) {
     return(NULL)
   }
-  if (!is.list(recorded)) {
-    stop("the state's 'basisLevels' record must be a list", call. = FALSE)
+  if (
+    !is.list(recorded) ||
+      !all(vapply(
+        recorded,
+        function(levels) is.null(levels) || is.character(levels),
+        NA
+      ))
+  ) {
+    stop(
+      "the state's 'basisLevels' record must be a list of NULL or character ",
+      "entries",
+      call. = FALSE
+    )
   }
   own <- dataBasisLevels(data)
   describe <- function(levels) {
