@@ -553,17 +553,6 @@ items
     predict as a factor predictor's NA level is; a plain missing value
     stays refused (dec-B669, VD 2026-11-07: "Do (b)"). About 10 to 20
     lines; no fit that runs today moves.
-  rbart-vi-warning-once: rbart_vi says each creation warning once per
-    fit, whatever its chain and thread counts, its chains' samplers
-    silent on what the checking sampler said, as for the starting
-    sigma's message (dec-B668, VD 2026-11-07: "One warning per fit.").
-    About 3 lines and a test; no draw moves.
-  keepfits-forest-records: a fit of several forests keeps its forests'
-    labels, tree counts and unit whatever keepFits says, and under
-    keepFits = FALSE the numbers its printed block reads in place of
-    each basis vector (dec-B671, VD 2026-11-07: "Use your revised
-    recommendation."). About 10 lines, a test rewritten, two help
-    sentences; no draw moves.
   kmp-heldout-design: pricing of the logistic k move uses the 24 real
     datasets and the rule the referees passed, as sealed (dec-B691,
     after dec-B651 and dec-B667), starting by rebuilding the move on

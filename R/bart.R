@@ -680,6 +680,12 @@ packageBartResults <- function(
     if (!all(vapply(basisTerms, is.null, NA))) {
       result$basis.terms <- basisTerms
     }
+  }
+  # a fit of several forests under an amplitude coupling keeps its forests'
+  # labels, tree counts and unit whatever keepFits says, which dropped only
+  # the per-draw arrays; the glue channel is there with or without them
+  if (numForests > 1L && !is.null(samples$glue)) {
+    records <- fit$model@forests
     # one label for each forest, always
     attr(result, "forest.labels") <- vapply(
       records,
@@ -696,6 +702,15 @@ packageBartResults <- function(
     # the number the forests' sds are stated in, which the printed block names,
     # as the data object records it
     attr(result, "forest.unit") <- dataForestCalibration(fit$data)[["unit"]]
+    # without the bases, the numbers the block and summary read from them: a
+    # numeric basis's mean, sd, range and whether it is constant over the rows
+    # in the likelihood, a factor basis's levels
+    if (!hasForestReporting) {
+      result$basis.columns <- storedBasisColumns(
+        storedForestBases(fit$data),
+        fitWeights(fit)
+      )
+    }
   }
 
   if (keepSampler) {

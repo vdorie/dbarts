@@ -307,26 +307,107 @@ heldLines <- summaryLines(sigmaHeld)
 expect_true("(Fixed, not sampled: sigma = 0.5)" %in% heldLines)
 expect_false(any(grepl("leaf.prior.sd[", heldLines, fixed = TRUE)))
 expect_identical(length(fullOf(heldLines)), 4L)
-# a fit made without keeping its fits keeps no bases and no labels, so it
-# prints no block, short or full, and its summary keeps the sds on the line
-# under the table
-noFits <- counted(bartFit(
-  y ~ forest(x1 + x2) + forest(x1, basis = dose),
-  d,
-  keepFits = FALSE
-))
+# a fit made without keeping its fits keeps its forests' labels, tree counts
+# and unit, and in place of each basis the numbers the block reads, so print
+# and summary give the block keepFits = TRUE gives; a numeric basis, a factor
+# one and (below) a constant one, with rows out of the likelihood
+d$zf <- factor(d$z)
+byFits <- function(keep) {
+  counted(bartFit(
+    y ~
+      forest(x1 + x2) +
+      forest(x1, basis = dose) +
+      forest(x2, basis = zf),
+    d,
+    weights = w,
+    keepTrees = TRUE,
+    keepFits = keep
+  ))
+}
+withFits <- byFits(TRUE)
+noFits <- byFits(FALSE)
+expect_false(is.null(shortOf(printLines(withFits))))
+# the call, which says keepFits, apart
+noCall <- function(lines) {
+  start <- which(lines == "Call:")
+  lines[-seq.int(start, start + which(lines[-seq_len(start)] == "")[1L])]
+}
+expect_identical(noCall(printLines(noFits)), noCall(printLines(withFits)))
+expect_identical(
+  noCall(summaryLines(noFits)),
+  noCall(summaryLines(withFits))
+)
+expect_false(is.null(fullOf(summaryLines(noFits))))
+expect_true(any(grepl("factor basis, 2 levels", printLines(noFits))))
+for (name in c("forest.labels", "forest.trees", "forest.unit")) {
+  expect_identical(
+    attr(noFits, name, exact = TRUE),
+    attr(withFits, name, exact = TRUE),
+    info = name
+  )
+}
+# what stands in for the bases is a few numbers, not a vector for each: about
+# 150 rows' worth of bases against a handful of doubles
 expect_null(noFits[["bases"]])
-expect_null(attr(noFits, "forest.labels", exact = TRUE))
-expect_null(attr(noFits, "forest.unit", exact = TRUE))
-expect_null(shortOf(printLines(noFits)))
-noFitsSummary <- summaryLines(noFits)
-expect_null(fullOf(noFitsSummary))
-expect_null(summary(noFits)$forests)
-expect_true(any(grepl(
-  "(Fixed, not sampled: leaf.prior.sd = ",
-  noFitsSummary,
-  fixed = TRUE
-)))
+expect_null(noFits[["basis.terms"]])
+expect_true(
+  length(unlist(noFits$basis.columns)) < length(unlist(withFits$bases)) / 5
+)
+expect_true(is.null(noFits$basis.columns[[1L]]))
+expect_identical(nlevels(noFits$basis.columns[[3L]]), 2L)
+# a column a swap left constant, with the sampler's own packaging
+swappedFit <- function(keep) {
+  frame <- data.frame(d)
+  frame$flat <- dose
+  sampler <- counted(dbarts(
+    y ~ forest(x1 + x2) + forest(x1, basis = flat, sd = 5),
+    frame,
+    control = dbartsControl(
+      n.samples = 5L,
+      n.burn = 0L,
+      n.chains = 1L,
+      n.threads = 1L,
+      keepFits = keep,
+      updateState = FALSE,
+      verbose = FALSE
+    ),
+    n.trees = 10L
+  ))
+  sampler$setForestBasis(2L, rep(2, n))
+  counted(dbarts:::packageBartResults(
+    sampler,
+    sampler$run(0L, 5L),
+    NULL,
+    NULL,
+    FALSE,
+    FALSE
+  ))
+}
+flatNoFits <- swappedFit(FALSE)
+expect_identical(flatNoFits$basis.columns[[2L]]$constant, TRUE)
+flatFits <- swappedFit(TRUE)
+expect_identical(shortOf(printLines(flatNoFits)), shortOf(printLines(flatFits)))
+expect_true(any(grepl("numeric basis, mean 2, sd 0", printLines(flatNoFits))))
+expect_identical(
+  fullOf(summaryLines(flatNoFits)),
+  fullOf(summaryLines(flatFits))
+)
+# a fit that keeps its fits carries no such element
+expect_null(withFits[["basis.columns"]])
+# extract names and picks forests by label on this fit
+labels <- attr(noFits, "forest.labels", exact = TRUE)
+expect_identical(names(extract(noFits, type = "leaf.prior.sd")), labels)
+expect_identical(
+  extract(noFits, type = "leaf.prior.sd", forest = labels[2L]),
+  extract(withFits, type = "leaf.prior.sd", forest = labels[2L])
+)
+# predicting at new rows still needs the per-forest fits it dropped
+expect_error(predict(noFits, d), "keepFits")
+# a single-forest fit carries none of it
+expect_null(attr(
+  counted(bartFit(y ~ x1 + x2, d, keepFits = FALSE)),
+  "forest.labels"
+))
 
 # a copy is not a creation, and a creation prints the full block once
 verboseSampler <- NULL

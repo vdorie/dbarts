@@ -48,6 +48,24 @@ printedColumn <- function(column, rowsIn) {
   )
 }
 
+## What a fit keeps of its forests' bases when it drops them (keepFits =
+## FALSE): for a numeric basis printedColumn's numbers over the rows in the
+## likelihood, for a factor its levels (a factor of no rows), NULL for a forest
+## with none. printedForest reads either in place of the basis.
+storedBasisColumns <- function(bases, weights = NULL) {
+  numRows <- max(0L, vapply(bases, NROW, 0L))
+  rows <- rowsInLikelihood(if (length(weights) > 0L) weights, NULL, numRows)
+  lapply(bases, function(basis) {
+    if (is.null(basis)) {
+      NULL
+    } else if (is.factor(basis)) {
+      basis[0L]
+    } else {
+      printedColumn(basis, rows)
+    }
+  })
+}
+
 ## One forest's line, after its label. `entry` is the reader's entry for it,
 ## `basis` the forest's stored basis (NULL, a factor or a column), `rowsIn`
 ## the rows in the likelihood, `full` whether the line is the full block's,
@@ -126,7 +144,7 @@ printedForest <- function(entry, basis, rowsIn, full, label, family) {
       held
     ),
     numeric = {
-      column <- printedColumn(basis, rowsIn)
+      column <- if (is.list(basis)) basis else printedColumn(basis, rowsIn)
       recorded <- entry[["basis.scale"]]
       range <- if (full) {
         paste0(
@@ -202,7 +220,11 @@ forestPriorLines <- function(
   ) {
     return(character(0L))
   }
-  numRows <- max(0L, vapply(bases, NROW, 0L))
+  # stored numbers (a list) have no rows to count
+  numRows <- max(
+    0L,
+    vapply(bases, function(basis) if (is.list(basis)) 0L else NROW(basis), 0L)
+  )
   rows <- rowsInLikelihood(
     if (length(weights) > 0L) weights,
     if (length(active) > 0L) active,
@@ -351,7 +373,7 @@ fitForestLines <- function(fit, full = FALSE) {
   forestPriorLines(
     fit[["leaf.prior"]],
     attr(fit, "forest.labels", exact = TRUE),
-    fit[["bases"]],
+    if (is.null(fit[["bases"]])) fit[["basis.columns"]] else fit[["bases"]],
     fit[["weights"]],
     fit[["active"]],
     fit[["family"]],

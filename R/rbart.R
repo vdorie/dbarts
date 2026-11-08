@@ -537,12 +537,13 @@ rbart_vi <- function(
       set.seed(seed)
     }
 
+    # a chain's sampler repeats the checking sampler's scale fallback when
+    # its warm-up sets the rows; parallel chains pass nothing back, so these
+    # say nothing either
     for (chainNum in seq_len(n.chains)) {
-      chainResults[[chainNum]] <- rbart_vi_fit(
-        1L,
-        NA_integer_,
-        samplerArgs,
-        rbartArgs
+      chainResults[[chainNum]] <- withCallingHandlers(
+        rbart_vi_fit(1L, NA_integer_, samplerArgs, rbartArgs),
+        dbartsScaleFallbackWarning = function(w) invokeRestart("muffleWarning")
       )
     }
   }
@@ -723,11 +724,13 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs) {
     set.seed(seed)
   }
 
-  # the starting sigma was announced once, by the sampler that validated
-  # these arguments; each chain estimates it again and says nothing
+  # the starting sigma and each creation warning were said once, by the
+  # sampler that validated these arguments; each chain builds the same
+  # sampler again and says nothing
   sampler <- withCallingHandlers(
     do.call(dbarts::dbarts, samplerArgs),
-    dbartsStartingSigmaMessage = function(m) invokeRestart("muffleMessage")
+    dbartsStartingSigmaMessage = function(m) invokeRestart("muffleMessage"),
+    warning = function(w) invokeRestart("muffleWarning")
   )
   sampler$control@call <- samplerArgs$control@call
 

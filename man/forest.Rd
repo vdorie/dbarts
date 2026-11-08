@@ -576,8 +576,10 @@ forest(
     the one it was taken from (the column replaced, the weights or the active
     rows changed, or, under \code{"gaussian"}, every observation read because
     those in the likelihood held fewer than two values of the response) says
-    so. A fit made with \code{keepFits = FALSE} keeps no bases or labels and
-    gives no block.
+    so. A fit made with \code{keepFits = FALSE} keeps its labels, tree counts
+    and unit, and in place of each basis the few numbers the block reads (a
+    numeric column's mean, sd, range and whether it is constant over the rows
+    in the likelihood, a factor's levels), so it gives the same block.
     Two things to look for. The mean of a numeric column, in either block, and
     its range, in the full one: a mean far from 0 is a column that never comes
     near 0, an age or a year, and should be centered, unless 0 means none, as
