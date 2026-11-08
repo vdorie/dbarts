@@ -1744,19 +1744,24 @@ isSavedBy09x <- function(...) {
 ## plotTree, print, and every method of a saved sampler (the `$` method on
 ## dbartsSampler).
 refuseSavedBy09x <- function(sampler, what = "fit") {
-  if (
-    is.environment(sampler) &&
-      isSavedBy09x(sampler$data, sampler$model, sampler$control)
-  ) {
-    stop(
-      "this ",
-      what,
-      " was saved by dbarts 0.9-x; dbarts 1.0-0 cannot read it, so refit ",
-      "it with this version",
-      call. = FALSE
-    )
+  if (samplerSavedBy09x(sampler)) {
+    stop(savedBy09xSentence(what), call. = FALSE)
   }
   invisible(NULL)
+}
+
+samplerSavedBy09x <- function(sampler) {
+  is.environment(sampler) &&
+    isSavedBy09x(sampler$data, sampler$model, sampler$control)
+}
+
+savedBy09xSentence <- function(what = "fit") {
+  paste0(
+    "this ",
+    what,
+    " was saved by dbarts 0.9-x; dbarts 1.0-0 cannot read it, so refit ",
+    "it with this version"
+  )
 }
 
 refuseLegacyState <- function(state) {

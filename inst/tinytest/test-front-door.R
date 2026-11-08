@@ -1039,7 +1039,24 @@ expect_error(
 )
 expect_error(savedSampler$setResponse(yFD), pattern = savedSamplerMsg)
 expect_error(print(savedSampler), pattern = savedSamplerMsg)
-expect_error(print(savedFit), pattern = savedMsg)
+# print of a saved fit shows its call and the refit sentence as a note
+savedPrintOut <- character()
+savedPrintMsgs <- character()
+savedPrintValue <- withCallingHandlers(
+  {
+    savedPrintOut <- capture.output(res <- print(savedFit))
+    res
+  },
+  message = function(m) {
+    savedPrintMsgs <<- c(savedPrintMsgs, conditionMessage(m))
+    invokeRestart("muffleMessage")
+  }
+)
+expect_true(any(grepl("^Call:", savedPrintOut)))
+expect_identical(length(savedPrintMsgs), 1L)
+expect_true(grepl(paste0("^Note: this fit was ", savedMsg), savedPrintMsgs))
+expect_identical(savedPrintValue, savedFit)
+rm(savedPrintOut, savedPrintMsgs, savedPrintValue)
 expect_true(inherits(savedSampler$data, "dbartsData"))
 expect_true(inherits(savedSampler$control, "dbartsControl"))
 expect_true(inherits(savedSampler$model, "dbartsModel"))

@@ -102,8 +102,8 @@
             fits, cannot be restored, so such a fit cannot \code{predict}
             on new rows or give its trees, and says so; refit it. A
             sampler saved by 0.9-34 (or a fit's \code{$fit}) refuses every
-            method call, \code{print} of such a fit does too, each saying
-            to refit; \code{fitted}, \code{residuals}, \code{summary} and
+            method call, each saying to refit; \code{print} of such a fit shows its
+            call and says the same as a note; \code{fitted}, \code{residuals}, \code{summary} and
             \code{extract} of the saved draws still work. A
             \code{dbartsData} object saved by 0.9-34 keeps its old factor
             coding and fits differently from one built fresh; rebuild it

@@ -5777,8 +5777,13 @@ fitSynopsis <- function(x) {
 }
 
 print.bart <- function(x, ...) {
-  refuseSavedBy09x(x[["fit"]])
   printCall(x)
+  # a fit saved by 0.9-x shows its call and says what to do as a note: print
+  # is the one door that can answer without the trees
+  if (samplerSavedBy09x(x[["fit"]])) {
+    message("Note: ", savedBy09xSentence())
+    return(invisible(x))
+  }
   fitSynopsis(x)
   invisible(x)
 }
