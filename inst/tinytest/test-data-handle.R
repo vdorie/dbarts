@@ -137,7 +137,8 @@ expect_error(
     .Call(dbarts:::C_dbarts_bartcore_storeState, bc.fold$ptr),
     NULL,
     FALSE,
-    TRUE
+    TRUE,
+    NULL
   ),
   pattern = "owns its predictors"
 )
@@ -150,7 +151,8 @@ expect_error(
     .Call(dbarts:::C_dbarts_bartcore_storeState, bc.fold$ptr),
     NULL,
     FALSE,
-    FALSE
+    FALSE,
+    NULL
   ),
   pattern = "^\\$setState: requires a sampler that owns its predictors"
 )

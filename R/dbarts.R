@@ -2349,6 +2349,84 @@ predictForestsCodedTest <- function(sampler, x.test, offset.test, n.threads) {
   )
 }
 
+## The chain the engine at ptr holds, as a stored state, with the level names
+## of each forest a factor multiplies as the data object records them: the
+## state's "basisLevels" attribute, one entry per forest, NULL for a forest
+## of no factor. Written only where some forest is of a factor, so every other
+## state is the object the engine wrote. Every store of a sampler's chain goes
+## through here.
+storedState <- function(ptr, data) {
+  state <- .Call(C_dbarts_bartcore_storeState, ptr)
+  levels <- dataBasisLevels(data)
+  if (!all(vapply(levels, is.null, NA))) {
+    attr(state, "basisLevels") <- levels
+  }
+  state
+}
+
+## How a state's coefficients go onto the levels a data object records: NULL
+## where they go as stored, the state recording no levels (it holds no forest
+## of a factor, or was stored before the record) or every factor's levels in
+## the data's order; otherwise a list with, for each forest, NULL or the
+## stored position of each of the data's levels. Each forest must multiply no
+## factor on both sides, or a factor of the same level names on both, in any
+## order; any other state is refused, whatever forceUpdate says.
+stateLevelOrder <- function(state, data) {
+  recorded <- attr(state, "basisLevels", exact = TRUE)
+  if (is.null(recorded)) {
+    return(NULL)
+  }
+  if (!is.list(recorded)) {
+    stop("the state's 'basisLevels' record must be a list", call. = FALSE)
+  }
+  own <- dataBasisLevels(data)
+  describe <- function(levels) {
+    if (is.null(levels)) {
+      "no factor"
+    } else {
+      paste(
+        "a factor with the levels",
+        quotedLevelList(levels, comma = TRUE)
+      )
+    }
+  }
+  order <- vector("list", length(recorded))
+  moved <- FALSE
+  for (forest in seq_len(max(length(recorded), length(own)))) {
+    stored <- if (forest <= length(recorded)) recorded[[forest]]
+    held <- if (forest <= length(own)) own[[forest]]
+    if (is.null(stored) && is.null(held)) {
+      next
+    }
+    position <- if (is.character(stored)) match(held, stored)
+    if (
+      is.null(position) ||
+        length(stored) != length(held) ||
+        anyNA(position) ||
+        anyDuplicated(position) > 0L
+    ) {
+      stop(
+        "the state's forest ",
+        forest,
+        " multiplies ",
+        describe(stored),
+        ", and this sampler's forest ",
+        forest,
+        " multiplies ",
+        describe(held),
+        ": a state's coefficients go only onto levels of the same names, ",
+        "in any order",
+        call. = FALSE
+      )
+    }
+    if (!identical(position, seq_along(held))) {
+      order[[forest]] <- position
+      moved <- TRUE
+    }
+  }
+  if (moved) order else NULL
+}
+
 ## The install every re-creation shares - getPointer, $setState and copy: the
 ## state goes into the engine at ptr, then what rides no state is put back from
 ## the sampler's own mirrors, in this order. adopt is TRUE only where the
@@ -2361,13 +2439,15 @@ predictForestsCodedTest <- function(sampler, x.test, offset.test, n.threads) {
 ## in, and 2L for one that went in onto cut points or weights other than the
 ## ones it records.
 installStateOnto <- function(sampler, ptr, state, predictors, adopt, force) {
+  levelOrder <- stateLevelOrder(state, sampler$data)
   status <- .Call(
     C_dbarts_bartcore_setState,
     ptr,
     state,
     predictors,
     adopt,
-    force
+    force,
+    levelOrder
   )
   if (status == 0L) {
     return(0L)
@@ -3112,7 +3192,7 @@ dbartsSampler <- setRefClass(
             control@updateState &&
               .Call(C_dbarts_bartcore_isValidPointer, pointer)
           ) {
-            .Call(C_dbarts_bartcore_storeState, pointer)
+            storedState(pointer, data)
           } else {
             NULL
           }
@@ -3280,7 +3360,7 @@ dbartsSampler <- setRefClass(
       # is opaque and never mutated in place (storeState replaces it whole),
       # so the copy can install the same object
       installing <- if (live) {
-        .Call(C_dbarts_bartcore_storeState, pointer)
+        storedState(pointer, data)
       } else {
         state
       }
@@ -3309,7 +3389,7 @@ dbartsSampler <- setRefClass(
         # onto other cut points than it records, what the engine then holds,
         # so that a reload of the copy rebuilds what the copy was
         dupe$state <- if (status == 2L) {
-          .Call(C_dbarts_bartcore_storeState, dupe$pointer)
+          storedState(dupe$pointer, dupe$data)
         } else {
           installing
         }
@@ -3954,7 +4034,7 @@ dbartsSampler <- setRefClass(
       updateState = NULL,
       updateBasisScale = FALSE
     ) {
-      "Changes the basis the named forest's amplitudes multiply. forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i), as with setForestWeights and getLeafPrior/getK (a Bayesian causal forest's basis forest is 2). basis is a value, or a one-sided formula, which is read as the basis of a forest() is, its names found where the formula was written. It must be of the class the forest was created with, which decides what the forest multiplies and never changes. A forest of levels (created with a factor, a character vector or a logical vector) takes one of those three, matched to the forest's levels by name and not by position: the replacement may list its levels in another order or leave one out, a level of the forest that no row has is a column of zeros (a swap can leave one momentarily unobserved), and a row at a level the forest does not have, or at NA, is refused. Coefficient j multiplies level j's rows after any swap. Numbers are refused for such a forest, the level indicators the sampler stores among them; hand back the factor. A forest of numbers takes one numeric column, a vector or a matrix of one column, a column of all zeros among them (creation refuses one), and refuses several columns, a factor, a character vector and a logical vector; a forest created with no basis takes none. The sampler keeps the forest's block, in data@bases, and its levels, in data@basis.levels, each read by the forest's position (neither list has names, so a label does not index them), and not the factor it was handed: a caller that will hand a basis back keeps the factor it handed over. A state carries no levels, so one installed from a sampler whose factor has the same levels in another order goes in by position. No forest changes width, so the names the basis was created with stay, whatever names the replacement has. The forest's label does not change. This is the SOLE route by which a basis changes after creation, and the amplitudes are preserved: an install leaves every one of them bitwise. A swap moves the basis and nothing else: no forest's prior moves, so a numeric forest keeps the sd per unit its creation gave it, a default one the scale of the column it was created on (data@basis.scale). updateBasisScale = TRUE, for burn-in, also takes a numeric forest's default scale again from the column installed, over the rows in the likelihood at the call (a positive weight, kept by the active-row mask; a forest's own weights are not read), which may differ from the rows the response's scale was read from at creation, and restates that forest's default sd from it from the next sweep, leaving the trees and the coefficients as they are; the new scale replaces the forest's entry of data@basis.scale, so a copy or a reload runs the new prior. Re-installing the column in force with TRUE rescales it after the weights or the mask change. Where fewer than two rows are in, the column is constant over them, or the weights are counts that total at most 1 over them, the column is installed and the scale in force kept, with a warning on the sampler's first keep. TRUE is refused on a forest that states its sd and on one multiplied by a factor, neither having a default taken from a column. The matrix is mirrored into data@bases as setWeights mirrors weights, so it survives the sampler's re-creation. updateState follows control@updateState; see setData. This draws nothing; the next sweep draws the augmentation variables against the change."
+      "Changes the basis the named forest's amplitudes multiply. forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i), as with setForestWeights and getLeafPrior/getK (a Bayesian causal forest's basis forest is 2). basis is a value, or a one-sided formula, which is read as the basis of a forest() is, its names found where the formula was written. It must be of the class the forest was created with, which decides what the forest multiplies and never changes. A forest of levels (created with a factor, a character vector or a logical vector) takes one of those three, matched to the forest's levels by name and not by position: the replacement may list its levels in another order or leave one out, a level of the forest that no row has is a column of zeros (a swap can leave one momentarily unobserved), and a row at a level the forest does not have, or at NA, is refused. Coefficient j multiplies level j's rows after any swap. Numbers are refused for such a forest, the level indicators the sampler stores among them; hand back the factor. A forest of numbers takes one numeric column, a vector or a matrix of one column, a column of all zeros among them (creation refuses one), and refuses several columns, a factor, a character vector and a logical vector; a forest created with no basis takes none. The sampler keeps the forest's block, in data@bases, and its levels, in data@basis.levels, each read by the forest's position (neither list has names, so a label does not index them), and not the factor it was handed: a caller that will hand a basis back keeps the factor it handed over. A state records the levels of each forest a factor multiplies, and setState puts each of its coefficients on this sampler's level of the same name, refusing a state whose names differ. No forest changes width, so the names the basis was created with stay, whatever names the replacement has. The forest's label does not change. This is the SOLE route by which a basis changes after creation, and the amplitudes are preserved: an install leaves every one of them bitwise. A swap moves the basis and nothing else: no forest's prior moves, so a numeric forest keeps the sd per unit its creation gave it, a default one the scale of the column it was created on (data@basis.scale). updateBasisScale = TRUE, for burn-in, also takes a numeric forest's default scale again from the column installed, over the rows in the likelihood at the call (a positive weight, kept by the active-row mask; a forest's own weights are not read), which may differ from the rows the response's scale was read from at creation, and restates that forest's default sd from it from the next sweep, leaving the trees and the coefficients as they are; the new scale replaces the forest's entry of data@basis.scale, so a copy or a reload runs the new prior. Re-installing the column in force with TRUE rescales it after the weights or the mask change. Where fewer than two rows are in, the column is constant over them, or the weights are counts that total at most 1 over them, the column is installed and the scale in force kept, with a warning on the sampler's first keep. TRUE is refused on a forest that states its sd and on one multiplied by a factor, neither having a default taken from a column. The matrix is mirrored into data@bases as setWeights mirrors weights, so it survives the sampler's re-creation. updateState follows control@updateState; see setData. This draws nothing; the next sweep draws the augmentation variables against the change."
       updateState <- checkUpdateState(updateState)
       updateBasisScale <- checkFlag(updateBasisScale, "updateBasisScale")
       refuseCountsMutation(
@@ -4626,12 +4706,15 @@ dbartsSampler <- setRefClass(
       pointer
     },
     setState = function(newState, forceUpdate = FALSE) {
-      "Installs a stored state: the chains, never the model, and never the cut points or their weights, which stay this sampler's. A state carries no data, so one from a sampler whose factor has the same levels in another order goes in by position, with no message. The state goes in as stored: its trees, leaf values, linear slopes, k, sigma and kept draws are numbers on the sampler's internal scale, read against this sampler's response mapping and its leaf covariates' centers and scales, which stay its own, and never converted; kept linear draws then predict under the sampler's standardization until replaced, and saved Gaussian-process draws made under another standardization or lengthscale are refused. A state stored under the mapping in force puts the chain back where it was stored, value for value; one stored before a re-anchor, or by another sampler, is legal and has no special meaning. Of the state's kept draws the newest that fit this sampler's store are taken. A state one of whose trees would have to be changed to fit this sampler - a split whose threshold is not one of this sampler's cut points, a leaf no row reaches, a split outside its interval or on a column, or in an interaction, its forest does not allow, a missing-value side on a column that has never held a missing value, monotone leaf values out of order - is not installed: the sampler is left as it was and FALSE is returned, where TRUE says the state went in. With forceUpdate = TRUE such a state is installed, the trees repaired - a split off the cut points moved to the nearest point its tree still allows, or merged with what is beneath it into one leaf - and NULL is returned invisibly. A state does not bring its cut points: to restore them too, hold the state in a variable st and call setCutPoints(attr(st, \"cutPoints\")), the whole set, before setState(st). A column whose cut points were changed and that attr(st, \"cutMass\") lists then has its points and not its weights: the restore still returns TRUE and the chain runs with that column's points equally likely; setPredictor(x[, j], j, updateCutPoints = \"value\") restores both while the column holds the values its cut points were derived from. A sampler whose engine is gone, as after a save and load, is first rebuilt on the cut points, weights, response range and leaf standardization its data object records, and from its own stored state where it has one. See Saving and Value in ?dbartsSampler. The latents it carries are the values its trees were drawn from. This draws nothing; the next sweep draws the augmentation variables against the change."
+      "Installs a stored state: the chains, never the model, and never the cut points or their weights, which stay this sampler's. A state records the level names of each forest a factor multiplies, and each of its coefficients goes onto this sampler's level of the same name, in whatever order the two list them; a state whose names differ from this sampler's, forest by forest, is refused under either forceUpdate, and one that records none, as from a sampler without such a forest, goes in by position. The state goes in as stored: its trees, leaf values, linear slopes, k, sigma and kept draws are numbers on the sampler's internal scale, read against this sampler's response mapping and its leaf covariates' centers and scales, which stay its own, and never converted; kept linear draws then predict under the sampler's standardization until replaced, and saved Gaussian-process draws made under another standardization or lengthscale are refused. A state stored under the mapping in force puts the chain back where it was stored, value for value; one stored before a re-anchor, or by another sampler, is legal and has no special meaning. Of the state's kept draws the newest that fit this sampler's store are taken. A state one of whose trees would have to be changed to fit this sampler - a split whose threshold is not one of this sampler's cut points, a leaf no row reaches, a split outside its interval or on a column, or in an interaction, its forest does not allow, a missing-value side on a column that has never held a missing value, monotone leaf values out of order - is not installed: the sampler is left as it was and FALSE is returned, where TRUE says the state went in. With forceUpdate = TRUE such a state is installed, the trees repaired - a split off the cut points moved to the nearest point its tree still allows, or merged with what is beneath it into one leaf - and NULL is returned invisibly. A state does not bring its cut points: to restore them too, hold the state in a variable st and call setCutPoints(attr(st, \"cutPoints\")), the whole set, before setState(st). A column whose cut points were changed and that attr(st, \"cutMass\") lists then has its points and not its weights: the restore still returns TRUE and the chain runs with that column's points equally likely; setPredictor(x[, j], j, updateCutPoints = \"value\") restores both while the column holds the values its cut points were derived from. A sampler whose engine is gone, as after a save and load, is first rebuilt on the cut points, weights, response range and leaf standardization its data object records, and from its own stored state where it has one. See Saving and Value in ?dbartsSampler. The latents it carries are the values its trees were drawn from. This draws nothing; the next sweep draws the augmentation variables against the change."
       refuseLegacyState(newState)
       if (!inherits(newState, "bartcoreState")) {
         stop("'state' must inherit from bartcoreState")
       }
       forceUpdate <- checkFlag(forceUpdate, "forceUpdate")
+      # a state whose levels this sampler does not have is refused before a
+      # sampler whose engine is gone is rebuilt, so it is left as it was
+      stateLevelOrder(newState, data)
       selfEnv <- parent.env(environment())
       ptr <- pointer
       if (.Call(C_dbarts_bartcore_isValidPointer, pointer) == FALSE) {
@@ -4665,7 +4748,7 @@ dbartsSampler <- setRefClass(
             # where the field is what was handed in
             selfEnv$pointer <- ptr
             if (rebuilt == 2L) {
-              held <- .Call(C_dbarts_bartcore_storeState, ptr)
+              held <- storedState(ptr, data)
               if (identical(newState, state)) {
                 newState <- held
               }
@@ -4712,7 +4795,7 @@ dbartsSampler <- setRefClass(
     storeState = function(ptr = getPointer()) {
       "Updates the cached internal state used for saving/loading: the chains and the units they are stored in, no prior or fixed value, with the cut points and weights in force, against which a reload moves the stored splits onto the ones its data object records. Call it before saving after the cut points change, so that a reload has the chain as it stands."
       selfEnv <- parent.env(environment())
-      selfEnv$state <- .Call(C_dbarts_bartcore_storeState, ptr)
+      selfEnv$state <- storedState(ptr, data)
       invisible(NULL)
     },
     installTrees = function(donor, samples = NULL, forceUpdate = FALSE) {

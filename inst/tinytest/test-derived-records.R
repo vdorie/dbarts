@@ -48,8 +48,10 @@ recordOf <- function(sampler) {
     standardization = sampler$data@standardization
   )
 }
+# the engine's chain as a store writes it, the levels of a factor forest
+# recorded with it
 stateOf <- function(sampler) {
-  .Call(dbarts:::C_dbarts_bartcore_storeState, sampler$getPointer())
+  dbarts:::storedState(sampler$getPointer(), sampler$data)
 }
 cutPointsOf <- function(sampler) attr(stateOf(sampler), "cutPoints")
 treeFields <- c("tree.vars", "tree.values", "tree.sizes", "tree.flags")

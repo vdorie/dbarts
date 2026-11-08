@@ -380,11 +380,14 @@ SEXP storeState(bartcore::SamplerBase& sampler);
 /// is accepted, the re-creation path's need. force and gridDiffers are
 /// Sampler::setState's: gridDiffers, which must not be null, reports an
 /// install onto points or weights other than the state records.
+/// levelOrderExpr reorders each forest's coefficients before the install:
+/// NULL, or a list with, per forest, NULL or the stored position, from one, of
+/// the coefficient each of the forest's positions takes.
 /// Returns whether the state was installed: false only without force, for a
 /// state a tree of which would have to be changed, the sampler untouched.
 bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
               const double* currentPredictors, bool adoptStoreCapacity,
-              bool force, bool* gridDiffers);
+              bool force, bool* gridDiffers, SEXP levelOrderExpr);
 
 /// A data.frame of tree structure over 0-based index arrays; unprotected on
 /// return. Reads saved trees unless useLiveTrees (sample indices are then

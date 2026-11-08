@@ -1374,25 +1374,171 @@ for (how in c("copy", "reload", "new")) {
     expect_identical(dim(sampler$run(0L, 5L)$train), c(n, 5L), info = how)
   }
 }
-# a state carries no data: installed in a sampler whose factor has the same
-# levels in another order it goes by position, and the recipient's levels
-# and block are its own before and after
+# --- a state records each factor forest's levels and installs by name ---
+# The state carries no data, but records the levels of each forest a factor
+# multiplies, and each coefficient goes onto the recipient's level of the
+# same name; the recipient's levels and block are its own before and after.
 donor <- swapSampler(factor(zc, levels = c("control", "treated")))
 recipient <- swapSampler(reversed)
 donor$run(0L, 5L)
 donor$storeState()
+expect_identical(
+  attr(donor$state, "basisLevels"),
+  list(NULL, c("control", "treated"))
+)
+# a sampler with no forest of a factor writes no record
+numericForest <- swapSampler(dose)
+numericForest$storeState()
+expect_null(attr(numericForest$state, "basisLevels"))
+donorAmplitudes <- donor$getForestAmplitudes()
+# rows: forest 1's one coefficient, then forest 2's in its own level order
+swapped <- donorAmplitudes[c(1L, 3L, 2L), , drop = FALSE]
 ownBlock <- recipient$data@bases[[2L]]
 expect_identical(ownBlock, unname(cbind(z, 1 - z)))
 expect_true(valueOf(recipient$setState(donor$state)))
-expect_identical(
-  recipient$getForestAmplitudes(),
-  donor$getForestAmplitudes()
-)
+expect_identical(recipient$getForestAmplitudes(), swapped)
 expect_identical(recipient$data@bases[[2L]], ownBlock)
 expect_identical(
   recipient$data@basis.levels,
   list(NULL, c("treated", "control"))
 )
+# the field is the state handed over, with its record, so a copy or a reload
+# matches it by name again
+expect_identical(recipient$state, donor$state)
+# in the same order the coefficients go in as stored
+sameOrder <- swapSampler(factor(zc, levels = c("control", "treated")))
+expect_true(valueOf(sameOrder$setState(donor$state)))
+expect_identical(sameOrder$getForestAmplitudes(), donorAmplitudes)
+# forced, a state of the same names is matched by name as well
+forced <- swapSampler(reversed)
+expect_null(refusalOf(forced$setState(donor$state, forceUpdate = TRUE)))
+expect_identical(forced$getForestAmplitudes(), swapped)
+# a state that records no levels goes in by position
+unrecorded <- donor$state
+attr(unrecorded, "basisLevels") <- NULL
+byPosition <- swapSampler(reversed)
+expect_true(valueOf(byPosition$setState(unrecorded)))
+expect_identical(byPosition$getForestAmplitudes(), donorAmplitudes)
+
+# a live copy's state is its engine's chain, recording the copy's levels, and
+# goes by name into a sampler of the donor's order
+copied <- recipient$copy()
+expect_identical(
+  attr(copied$state, "basisLevels"),
+  list(NULL, c("treated", "control"))
+)
+expect_identical(copied$getForestAmplitudes(), swapped)
+fromCopy <- swapSampler(factor(zc, levels = c("control", "treated")))
+expect_true(valueOf(fromCopy$setState(copied$state)))
+expect_identical(fromCopy$getForestAmplitudes(), donorAmplitudes)
+# a reload, and a copy of it, install the stored state, the donor's, by name
+# onto the recipient's levels
+file <- tempfile(fileext = ".rds")
+saveRDS(recipient, file)
+reloaded <- readRDS(file)
+reloadedAgain <- readRDS(file)
+unlink(file)
+expect_identical(reloaded$getForestAmplitudes(), swapped)
+reloadCopy <- reloadedAgain$copy()
+expect_identical(reloadCopy$getForestAmplitudes(), swapped)
+
+# names that differ are refused under either forceUpdate, the sampler left
+# as it was: its chain, its field and, for one whose engine is gone, the
+# engine still gone
+levelsRefusal <- function(stored, held) {
+  paste0(
+    "the state's forest 2 multiplies ",
+    stored,
+    ", and this sampler's forest 2 multiplies ",
+    held,
+    ": a state's coefficients go only onto levels of the same names, in any ",
+    "order"
+  )
+}
+donorLevels <- "a factor with the levels 'control', 'treated'"
+relabeled <- swapSampler(ifelse(z == 1, "b", "a"))
+relabeled$storeState()
+relabeledState <- relabeled$state
+relabeledAmplitudes <- relabeled$getForestAmplitudes()
+for (force in c(FALSE, TRUE)) {
+  expect_error(
+    relabeled$setState(donor$state, forceUpdate = force),
+    levelsRefusal(donorLevels, "a factor with the levels 'a', 'b'"),
+    fixed = TRUE,
+    info = paste("forceUpdate", force)
+  )
+  expect_identical(relabeled$state, relabeledState)
+  expect_identical(relabeled$getForestAmplitudes(), relabeledAmplitudes)
+}
+expect_error(
+  numericForest$setState(donor$state),
+  levelsRefusal(donorLevels, "no factor"),
+  fixed = TRUE
+)
+# a numeric forest's state records nothing and goes by position, where the
+# widths differ
+expect_error(donor$setState(numericForest$state), "not consistent")
+file <- tempfile(fileext = ".rds")
+saveRDS(relabeled, file)
+gone <- readRDS(file)
+unlink(file)
+expect_error(
+  gone$setState(donor$state),
+  levelsRefusal(donorLevels, "a factor with the levels 'a', 'b'"),
+  fixed = TRUE
+)
+expect_false(.Call(dbarts:::C_dbarts_bartcore_isValidPointer, gone$pointer))
+expect_identical(gone$state, relabeledState)
+
+# The harm the record removes, on the ruling's probe: 150 rows, a difference
+# of 0.92 between the arms, a state taken after 300 draws. The first draw
+# after an install has the difference near 0.92 in either level order; by
+# position the reversed order gave 0.03.
+local({
+  set.seed(1)
+  rows <- 150L
+  xp <- matrix(runif(rows * 3L), rows, 3L)
+  colnames(xp) <- paste0("x", 1:3)
+  armp <- factor(sample(c("control", "treated"), rows, TRUE))
+  yp <- sin(pi * xp[, 1L]) + 0.92 * (armp == "treated") + rnorm(rows, sd = 0.3)
+  probeSampler <- function(a) {
+    set.seed(2)
+    dbarts(
+      xp,
+      yp,
+      forests = list(forest(), forest(basis = a)),
+      control = dbartsControl(
+        n.chains = 1L,
+        n.threads = 1L,
+        updateState = FALSE,
+        seed = 3L
+      ),
+      n.trees = 50L
+    )
+  }
+  # the difference in the response's units: the forest's fit times the
+  # treated level's coefficient less the control level's, on the range of
+  # the response the internal scale is a unit of
+  difference <- function(sampler, result) {
+    levels <- sampler$data@basis.levels[[2L]]
+    coefficients <- result$glue[1L + seq_along(levels), 1L]
+    names(coefficients) <- levels
+    mean(
+      result$forestFits[, 2L, 1L] *
+        (coefficients[["treated"]] - coefficients[["control"]])
+    ) *
+      diff(range(yp))
+  }
+  probeDonor <- probeSampler(armp)
+  probeDonor$run(300L, 1L)
+  probeDonor$storeState()
+  for (levels in list(c("control", "treated"), c("treated", "control"))) {
+    probe <- probeSampler(factor(armp, levels = levels))
+    expect_true(probe$setState(probeDonor$state))
+    first <- difference(probe, probe$run(0L, 1L))
+    expect_true(abs(first - 0.92) < 0.3, info = paste(levels, collapse = ", "))
+  }
+})
 
 # --- $setData on a sampler of one forest ---
 plain <- function() {

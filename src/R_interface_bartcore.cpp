@@ -8733,9 +8733,13 @@ SEXP bartcore_storeState(SEXP ptrExpr) {
 
 // Returns 0 for a state declined, 1 for one installed and 2 for one
 // installed onto cut points or weights other than the ones it records.
+// levelOrderExpr is NULL or, for each forest, NULL or the stored position of
+// each of the forest's coefficients in the sampler's order, the caller having
+// matched a factor's levels by name.
 SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr,
                        SEXP currentPredictorsExpr,
-                       SEXP adoptStoreCapacityExpr, SEXP forceExpr) {
+                       SEXP adoptStoreCapacityExpr, SEXP forceExpr,
+                       SEXP levelOrderExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   // a forced install that moves a state's splits onto the sampler's grid
   // re-quantizes from raw values, which views lack; no other install reads
@@ -8752,7 +8756,7 @@ SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr,
     bartcore_bridge::setState(*holder.sampler, stateExpr, currentPredictors,
                               Rf_asLogical(adoptStoreCapacityExpr) == TRUE,
                               Rf_asLogical(forceExpr) == TRUE,
-                              &gridDiffers);
+                              &gridDiffers, levelOrderExpr);
   return Rf_ScalarInteger(!installed ? 0 : gridDiffers ? 2 : 1);
 }
 
@@ -10116,6 +10120,48 @@ bool readAmplitudeGlue(SEXP glueExpr, bartcore::ChainStateData& chainState) {
   return true;
 }
 
+/// Moves each forest's coefficients in \p chainState's amplitude block to the
+/// positions \p levelOrderExpr names: NULL moves nothing; otherwise a list of
+/// at most one entry per forest, NULL where the block stays and elsewhere an
+/// integer vector whose entry j, from one, is the stored position of the
+/// coefficient that goes to position j. False, with the block possibly
+/// half-moved, on an order that is not a permutation of its forest's block or
+/// on a state with no block to move.
+static bool reorderAmplitudes(SEXP levelOrderExpr,
+                              bartcore::ChainStateData& chainState) {
+  if (Rf_isNull(levelOrderExpr)) return true;
+  size_t numForests = chainState.amplitudeWidths.size();
+  if (!chainState.hasAmplitudes || !Rf_isNewList(levelOrderExpr) ||
+      static_cast<size_t>(Rf_xlength(levelOrderExpr)) > numForests)
+    return false;
+  std::vector<double> stored;
+  std::vector<unsigned char> taken;
+  size_t offset = 0;
+  for (size_t f = 0; f < numForests; ++f) {
+    size_t width = chainState.amplitudeWidths[f];
+    SEXP orderExpr = f < static_cast<size_t>(Rf_xlength(levelOrderExpr))
+      ? VECTOR_ELT(levelOrderExpr, static_cast<R_xlen_t>(f)) : R_NilValue;
+    if (!Rf_isNull(orderExpr)) {
+      if (!Rf_isInteger(orderExpr) ||
+          static_cast<size_t>(Rf_xlength(orderExpr)) != width)
+        return false;
+      double* block = chainState.amplitudes.data() + offset;
+      stored.assign(block, block + width);
+      taken.assign(width, 0);
+      const int* order = INTEGER(orderExpr);
+      for (size_t j = 0; j < width; ++j) {
+        if (order[j] < 1 || static_cast<size_t>(order[j]) > width ||
+            taken[static_cast<size_t>(order[j] - 1)])
+          return false;
+        taken[static_cast<size_t>(order[j] - 1)] = 1;
+        block[j] = stored[static_cast<size_t>(order[j] - 1)];
+      }
+    }
+    offset += width;
+  }
+  return true;
+}
+
 /// The refusal for a stored cut grid that holds a value twice, naming the
 /// column, counted from one, and the value; null where no two neighbors are
 /// equal. \p what names the source. No sampler of this version writes such a
@@ -10189,7 +10235,7 @@ static bool readMissingColumns(SEXP stateExpr,
 
 bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
               const double* currentPredictors, bool adoptStoreCapacity,
-              bool force, bool* gridDiffers) {
+              bool force, bool* gridDiffers, SEXP levelOrderExpr) {
   *gridDiffers = false;
   bartcore::SamplerShape shape = sampler.shape();
   if (!Rf_inherits(stateExpr, "bartcoreState"))
@@ -10543,6 +10589,10 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
         errorMessage = "malformed amplitude glue in bartcore state";
         break;
       }
+    }
+    if (!reorderAmplitudes(levelOrderExpr, chainState)) {
+      errorMessage = "the level order does not fit the state's amplitude glue";
+      break;
     }
 
     // additive t-only block, present where the saver drew nu: absent leaves

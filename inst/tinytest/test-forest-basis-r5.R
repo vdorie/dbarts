@@ -155,9 +155,25 @@ reversed <- dbarts(
 reversed$run(5L, 2L)
 reversed$storeState()
 reversedState <- reversed$state
-# same total (3), different layout: each refuses the other
-expect_error(reversed$setState(raggedState), "not consistent")
-expect_error(ragged$setState(reversedState), "not consistent")
+# same total (3), different layout: each refuses the other, first by the
+# factor's levels each records and, for a state without the record, by the
+# widths
+expect_error(
+  reversed$setState(raggedState),
+  "the state's forest 1 multiplies no factor, and this sampler's forest 1 multiplies a factor",
+  fixed = TRUE
+)
+expect_error(
+  ragged$setState(reversedState),
+  "this sampler's forest 1 multiplies no factor",
+  fixed = TRUE
+)
+withoutLevels <- function(state) {
+  attr(state, "basisLevels") <- NULL
+  state
+}
+expect_error(reversed$setState(withoutLevels(raggedState)), "not consistent")
+expect_error(ragged$setState(withoutLevels(reversedState)), "not consistent")
 # its own state restores, and the amplitudes come back bitwise
 raggedAmplitudes <- ragged$getForestAmplitudes()
 ragged$run(0L, 1L)

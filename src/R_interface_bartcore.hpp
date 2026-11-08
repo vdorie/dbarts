@@ -97,7 +97,7 @@ SEXP bartcore_getTrees(SEXP ptr, SEXP chainNums, SEXP sampleNums,
                        SEXP trainingData, SEXP forest);
 SEXP bartcore_storeState(SEXP ptr);
 SEXP bartcore_setState(SEXP ptr, SEXP state, SEXP currentPredictors,
-                       SEXP adoptStoreCapacity, SEXP force);
+                       SEXP adoptStoreCapacity, SEXP force, SEXP levelOrder);
 SEXP bartcore_installForests(SEXP ptr, SEXP donorState, SEXP samples,
                              SEXP currentPredictors, SEXP force);
 SEXP bartcore_anchor(SEXP ptr, SEXP record);
