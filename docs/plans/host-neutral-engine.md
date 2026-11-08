@@ -9,7 +9,12 @@ approximate-draws (dec-B583 to dec-B585). Rebased onto main at f79874ea8 and ame
 ([Amendments of 2026-11-07](#amendments-of-2026-11-07)): dec-B615 (the sampler's facts in one struct), the landings since
 7937d252f (coefficient-prior-live, hurdle-completion, latents-first, and the fourth review's slices S-D, S-F and S-A, with
 docs-10's R share), the fourth review's S-C, S-B and S-G and frequency-weights' S1 to S3 on their branches, and one new open
-call. The main feature is not built. Rulings, quoted where they settle a call: dec-B85
+call. Rebased onto main at 7e7edb526 and amended again 2026-11-07
+([Amendments of 2026-11-07, second](#amendments-of-2026-11-07-second)): dec-B639 rules open call 8, the per-forest facts
+reported through an array of per-forest structs at a stated element size; the fourth review's S-C (dec-A269), S-G (dec-A267) and S-B
+(dec-A270) landed, and the work in flight placed (rchk-findings, frequency-weights' S7 and S8, state-basis-levels for
+dec-B647, small-rulings-1107, approximate-draws, the dec-B640 slice). No call is open. The main feature is not built.
+Rulings, quoted where they settle a call: dec-B85
 (the staged route), dec-B84 (the header is pure C), dec-B119 (a status from every entry point, the unwind to the entry point staying), dec-A74 (printing chosen at build time, the
 run-time print pointers removed), dec-A73 (a plain-C sigma getter rides this header change), dec-B124 (the specification's
 predictor part is `dbarts_predictor_source`, its dense channel stated per column), dec-A50 (the engine's R touchpoints), dec-A20
@@ -24,7 +29,8 @@ open calls, all ruled, and the status words; see [Ruled](#ruled)), and the frequ
 dec-B580 (the reading of a weight is fixed at creation and the header gains its field in this change; real weights where the
 draw is exact; probit and ordinal membership as 0/1 weights; a zero weight alike on every family, its predictive draws NA; a
 binomial response for logistic), dec-B615 (the header describes a sampler through one struct led by its size, filled by one
-call, the one-fact entries removed; "Yes, let's do that."), with dec-B601 (sigma NaN on a sampler with a variance forest, and
+call, the one-fact entries removed; "Yes, let's do that."), dec-B639 (each forest reported through the caller's array of
+per-forest fact structs at a stated element size; "Let's just do (d) now, and think ahead."), with dec-B601 (sigma NaN on a sampler with a variance forest, and
 a fact saying whether it has one) and dec-B600 (a registered callback receives every channel the fit carries), dec-B593
 (approximate-draws' setting is a method name and a separate tolerance). The runs behind it: reads of the tree at
 c3d268c8f, of stan4bart main (27ef163) and treatSens master (268b2db), and of frequency-weights (da210ce2d); the critic's probe of
@@ -34,7 +40,11 @@ coefficient-prior-live at 0c485ed44, hurdle-completion at d27be2cc7, and the pla
 2026-11-07 amendment read main f79874ea8 against 7937d252f, the branches review4-prior-predictive (59c3e59a5),
 review4-sigest-bases (c170d0f9e), frequency-weights (831e0f434) and approximate-draws (94aed03c1), slice S-B's build
 prompt with its plans and accepted critique (its branch, review4-draw-channels, not yet made), stan4bart main (8e23a1b) and
-treatSens master (268b2db); it built nothing.
+treatSens master (268b2db); it built nothing. The second 2026-11-07 amendment read main 7e7edb526 against f79874ea8 (the
+records of S-C, S-G and S-B with their Landing notes and dec-A267 to dec-A270), the branches rchk-findings (843470f35),
+frequency-weights (ab739157c), state-basis-levels (5b068cceb, its plan), small-rulings-1107 (2e170e9f1) and
+approximate-draws (e50e1145a), dec-B628, dec-B632, dec-B639, dec-B640 and dec-B647, stan4bart main (98db852) and treatSens
+master (268b2db); it recounted by grep and built nothing.
 
 agent: S1 landed (one opus implementer, one opus review with its mutants and a fix round). The main feature: S2a, S2b and S3
 one opus implementer each (effort high), S2b the riskiest; S4 one sonnet implementer per consumer, in that consumer's own
@@ -42,22 +52,22 @@ checkout; S5 sonnet. One opus review per engine slice (S2a, S2b, S3) that runs t
 the fix round unless the fixes change engine behavior. Tier "Changes draws" for every engine slice ([Process by risk](README.md#process-by-risk)): nothing is
 meant to move a draw, but every creation route and every flat entry is rewritten, and the gates are the draw-changing tier's.
 rng: neutral, bit for bit, on the R build: the equivalence trio, the four snapshot files, tests/cpp and the full tinytest suite
-do not move against the baselines main names at the branch's base (by then those S-G records and any frequency weights or
-approximate-draws records after them), and no R message changes. The standalone build is new; its math is bitwise equal to Rmath on the reference host and within a relative
+do not move against the baselines main names at the branch's base (S-G's re-recorded equivalence and bcf-equivalence
+baselines on main now, and any frequency weights, dec-B640 or approximate-draws records after them), and no R message changes. The standalone build is new; its math is bitwise equal to Rmath on the reference host and within a relative
 floor elsewhere; see [RNG class](#rng-class).
 window: before the 1.0-0 submission (dec-B85: "post merging into main, but before 1.0 since it might change a number of packages
 and is an interface change"). Two features. S1 (build-time math and printing) LANDED on main 2026-11-03. The main feature
-(branch host-neutral-engine: S2a, S2b, S3, then S5) starts after the fourth review's S-C, S-B and S-G, frequency-weights
-and approximate-draws merge, the release map's order
+(branch host-neutral-engine: S2a, S2b, S3, then S5) starts after frequency-weights, the dec-B640 slice and
+approximate-draws merge (the fourth review's S-C, S-G and S-B landed on 2026-11-07), the release map's order
 ([Interaction with the other pending plans, and order](#interaction-with-the-other-pending-plans-and-order));
 it merges once (dec-B494), the consumer ports (S4) merging right after it.
 budget: S1 as built ~910 lines written, 6,329 copied unedited from R's math library and 395 of reduced R headers. The rest
-~5,920 lines written: S2a ~980, S2b ~1,770, S3 ~3,170; S4 ~110 in stan4bart and ~50 in treatSens. Agent time for what is
-left, estimated and not measured: S2a ~21.5, S2b ~32, S3 ~33, S4 ~7, S5 ~1, rebases onto main ~5: ~99.5. Plans here run 1.5 to 2
-times low, so 150 to 200 (S1's builder reported about 3 hours against the ~5 planned, the simplest slice). Counted with
-frequency weights and approximate-draws landed first (52 fields, `trials` among them); the other order is costed under the
-interaction section. The sampler-facts struct (dec-B615) is about 270 of S3's lines and 3.5 of its hours, and 30 lines and
-an hour of S4's. The callback
+~6,120 lines written: S2a ~1,000, S2b ~1,790, S3 ~3,330; S4 ~115 in stan4bart and ~50 in treatSens. Agent time for what
+is left, estimated and not measured: S2a ~22.5, S2b ~33, S3 ~35, S4 ~7, S5 ~1, rebases onto main ~5: ~103.5. Plans here run
+1.5 to 2 times low, so 155 to 205 (S1's builder reported about 3 hours against the ~5 planned, the simplest slice). Counted
+with frequency weights, the dec-B640 slice and approximate-draws landed first (52 fields, `trials` among them). The
+sampler-facts struct (dec-B615, with dec-B639's per-forest element) is about 420 of S3's lines and 5 of its hours, and 35
+lines and an hour of S4's. The callback
 statuses and the status words (dec-B579, dec-B581) are about 300 of S3's lines and 3 of its hours. Counted under dec-B575's
 middle course, with the forward-compatibility work it asks for
 ([Forward compatibility with several forests and multinomial](#forward-compatibility-with-several-forests-and-multinomial)):
@@ -91,30 +101,32 @@ calls that report them today, as you ruled on 2026-11-06. stan4bart and treatSen
 and stan4bart reads its sizes from the struct; with the helper you chose, an R user of either sees the same errors,
 interrupts and time limits as today.
 
-You have ruled every choice this plan raised but one. Entries that cannot fail keep returning their value. A failure's message
-is read from one call, per thread, and a second call gives fixed words for each status, the same text for every program, which
-the R helper falls back on and never replaces with words of its own. A C program creates the middle of the model in 1.0, with
-the description shaped so that models of several forests and the multinomial model can be added later without changing what
-any 1.0 field means; the plan says what that addition looks like and tests that a 1.0 description reads the same under it. The
+You have ruled every choice this plan raised. Entries that cannot fail keep returning their value. A failure's message is read
+from one call, per thread, and a second call gives fixed words for each status, the same text for every program, which the R
+helper falls back on and never replaces with words of its own. A C program creates the middle of the model in 1.0, with the
+description shaped so that models of several forests and the multinomial model can be added later without changing what any
+1.0 field means; the plan says what that addition looks like and tests that a 1.0 description reads the same under it. The
 description is one struct with a size field and an initializer. Creating from C requires a seed. A callback's return says what
 happened: zero continues, a positive value stops the run on purpose, a negative value reports the callback's own failure, and a
 C++ exception thrown from a callback is caught on whatever thread ran it and reported the same way. The facts struct follows
-the description's pattern: a size field first, an initializer, fields added only at the end. The one open choice is how it
-carries the tree count of each forest, since a sampler built from R can have several forests and a fixed struct holds a fixed
-number of fields; the plan recommends that the caller hand it a short array to fill, as the run's output buffers are handed
-over today (Open calls, 8).
+the description's pattern: a size field first, an initializer, fields added only at the end. On 2026-11-07 you chose how it
+reports each forest: the caller hands it an array of small per-forest structs and says how large each is, and the call fills
+each one up to the number the caller gave. In 1.0 each holds its forest's tree count. Later facts about a forest are added to
+the end of that small struct, and it is shaped beside the per-forest part of the creation description sketched for later, so
+what a forest reports matches what creating it states. stan4bart hands it an array of one.
 
-What is left costs about 5,900 lines and roughly 150 to 200 agent-hours, most of it in rewriting how samplers are created.
-The live coefficient prior, the hurdle work and drawing the hidden values at the start of each sweep have landed, and the
-header already carries that last one's wording on what a program reading the hidden values gets and what an interrupted run
-leaves; the fourth review's fixes so far changed what a stopped or failed run leaves, which the statuses now report as it
-stands. Several pieces of work come first, in the order the release map gives: the rest of the fourth review's fixes (the
-prior predictive, the callback's channels, the starting sigma), frequency weights, then the approximate draws. None makes
-this plan write anything twice: the description and the header carry the final weights reading and the binomial trial
+What is left costs about 6,100 lines and roughly 155 to 205 agent-hours, most of it in rewriting how samplers are created. The
+fourth review's fixes have all landed: the prior predictive draw, the callback receiving every channel the fit carries (sigma
+reported as not a number where a variance forest gives each row its own scale), and the starting sigma that reads each
+forest's basis. None changes what this plan builds; the callback's channels and the k flag that follows the model are carried
+into the new header as they stand. Several pieces of work come first, in the release map's order: a fix to how the R layer
+protects its objects from R's memory manager, which touches the code this plan rewrites and lands next; frequency weights;
+the change that lets a multinomial sampler take new data, which you ruled on 2026-11-07; then the approximate draws. None
+makes this plan write anything twice: the description and the header carry the final weights reading and the binomial trial
 counts from the start, and the approximate draws' setting gets no field in the 1.0 description (a C program gets the default
-an R user gets, and the field can be added later without changing the meaning of anything already there). Frequency weights
-first saves 6 to 10 hours against the other order and a second header change. Other work can still land between this plan's
-pieces; the plan rebases and rechecks after each.
+an R user gets, and the field can be added later without changing the meaning of anything already there). Two smaller pieces
+of R work may land any time: a stored state that matches a factor basis's levels by name, and a batch of small rulings.
+Other work can still land between this plan's pieces; the plan rebases and rechecks after each.
 
 ## Goal
 
@@ -151,7 +163,9 @@ treatSens build against the new header and pass their suites.
   [`UnwindJump`](../../src/R_interface_bartcore_common.hpp) the entry resumes; the poll
   [`userInterrupted`](../../src/R_interface_bartcore.cpp) consumes either an interrupt or an R error raised while polling (a
   `setTimeLimit` expiry, pinned in test-monotone.R), and [`raiseInterrupt`](../../src/R_interface_bartcore.cpp) re-raises the
-  one it consumed; a slow monotone count warns through [`raiseSlowCountWarning`](../../src/C_interface.cpp). The handle is the
+  one it consumed, at five sites on main: the flat run, the R run, its burn-in route, the sweep-closure entry and S-C's
+  [`bartcore_sampleHyperparametersFromPrior`](../../src/R_interface_bartcore.cpp), which polls once after a call that made
+  joint draws; a slow monotone count warns through [`raiseSlowCountWarning`](../../src/C_interface.cpp). The handle is the
   bridge's holder, [`dbarts_sampler_t`](../../src/R_interface_bartcore_common.hpp), which carries no R type.
 - R frames and C++ exceptions: [`unwindProtect`](../../src/R_interface_bartcore.cpp) protects a body against R's jump and catches
   no C++ exception, so an exception must never leave a body it wraps or cross any R frame. The shared refusals declared in
@@ -162,12 +176,17 @@ treatSens build against the new header and pass their suites.
   S2 and S3, on its branch at 831e0f434, add three (`refuseWeightedCountsOverCap`, `refuseWeightedTrialsOverCap`,
   `refuseBinomialResponseSwap`), twenty in all on 90 bridge lines and 13 flat. The bridge's other `Rf_error` sites are R's own
   and stay: 421 lines of the file at f79874ea8, 379 at c3d268c8f, forest-door adding 32, coefficient-prior-live 5 and the
-  fourth review's S-D and S-A 5; 428 on frequency-weights' tip and 423 on S-C's.
+  fourth review's S-D and S-A 5; 428 on frequency-weights' tip and 423 on S-C's. At main 7e7edb526 (the second 2026-11-07
+  amendment, a grep of the twenty names in the two files with comment lines dropped, a wider match than the counts above,
+  which matched calls and definitions only): S-C, S-G and S-B moved no shared-refusal line (90 bridge and 20 flat lines at
+  f79874ea8 and at 7e7edb526 alike, 108 and 21 on frequency-weights' tip ab739157c), and added three R-only `Rf_error` lines,
+  S-C's two (a captured engine refusal and the attempt count) and S-B's setCutPoints refusal, about 424 by the earlier count;
+  frequency-weights' tip adds eight over its base. S2a recounts on the base it starts from, by one rule.
 - Process-wide state on the predict path: [`predictPartition`](../../src/bartcore/sampler.hpp), a plain struct holding a
   `std::vector`, is written by every predict and read by a test hook; it is safe today only because predict is main-thread-only.
   [`testFitPartition`](../../src/bartcore/chain.hpp) is relaxed atomics, last writer wins, a diagnostic no answer reads.
-- Engine exception types: `std::invalid_argument` (eleven sites at main, forest-door's one included; thirteen on S-C's branch,
-  the hyperparameter draw's two refusals), `std::length_error` (two, saved-tree storage past the addressable size),
+- Engine exception types: `std::invalid_argument` (thirteen sites at main, forest-door's one and S-C's two, the
+  hyperparameter draw's refusals, included; S-B added none), `std::length_error` (two, saved-tree storage past the addressable size),
   `std::bad_alloc` (one), `std::logic_error` (one, S-A's: [`Sampler::run`](../../src/bartcore/sampler.hpp) started while a
   run of the same sampler is in progress, as from inside its sweep hook or a draw callback), and `std::runtime_error` at
   three: the two prior-draw exhaustions in [`Chain::sampleTreesFromPrior`](../../src/bartcore/chain.hpp) and predict's join, which rethrows any worker
@@ -208,7 +227,8 @@ treatSens build against the new header and pass their suites.
 - Consumers, read-only: stan4bart main calls run (2 sites), sampleTreesFromPrior, setOffset (2), setSigma (2), getLatents (2),
   predict, setTreeStorage (2), printTrees, setVerbose, numTrees (forest 0), destroy, the version pair and six accessors
   (numObservations, numTestObservations, kIsSampled, numPredictors 3 times, numChains and numSavedSamples twice each; eleven
-  one-fact calls with numTrees, the same at 8e23a1b as at 27ef163), all in src/init.cpp, plus `dbarts_results` in src/bart_util.hpp and `dbarts_dense_predictor_source`. treatSens master calls run (3),
+  one-fact calls with numTrees, forest 0's count read once to bound printTrees' indices; the same at 98db852 as at 8e23a1b
+  and 27ef163), all in src/init.cpp, plus `dbarts_results` in src/bart_util.hpp and `dbarts_dense_predictor_source`. treatSens master calls run (3),
   setResponse (4), setOffset, setSigma, setVerbose (2), setNumThreads (2), destroy (2) and the version pair, in
   src/R_interface.cpp, src/bartTreatmentModel.cpp and src/sensitivityAnalysis.cpp. Both define `DBARTS_USE_STUBS`; neither
   defines `DBARTS_REQUIRE_EXACT_ABI`; neither creates through C or registers a draw callback. bartCause and bairrtt link nothing
@@ -219,11 +239,12 @@ treatSens build against the new header and pass their suites.
   [Reproducibility contract](../architecture.md#reproducibility-contract), docs/plans/python-bindings.md.
 - The work landed since the fourth amendment: docs/plans/coefficient-prior-live.md, docs/plans/hurdle-completion.md and
   docs/plans/latents-first.md (Landing notes), the fourth review's records in docs/plans/review-2026-11-06/ (r-surface.md,
-  r-surface-2.md, engine-robustness.md, docs.md). The work that lands around this plan, each on its branch until merged: the
-  fourth review's prior-predictive.md (S-C), draw-channels.md (S-B, its branch not yet made) and sigest-bases.md (S-G) under
-  the same directory; docs/plans/frequency-weights.md (Interaction with the other pending plans, and order) and
-  docs/plans/approximate-draws.md (What is built, Decision); TODO capi-sampler-info (dec-B615); S1's builder and review
-  reports in scratch/hnm-s1 and scratch/hnm-rev.
+  r-surface-2.md, engine-robustness.md, docs.md), and since the fifth its prior-predictive.md (S-C, dec-A269),
+  sigest-bases.md (S-G, dec-A267) and draw-channels.md (S-B, dec-A270), each with its Landing note. The work that lands
+  around this plan, each on its branch until merged: TODO rchk-findings (branch rchk-findings);
+  docs/plans/frequency-weights.md (Interaction with the other pending plans, and order); docs/plans/state-basis-levels.md
+  (dec-B647); TODO multinomial-setdata (dec-B640, no plan yet); docs/plans/approximate-draws.md (What is built, Decision);
+  TODO capi-sampler-info (dec-B615, dec-B639); S1's builder and review reports in scratch/hnm-s1 and scratch/hnm-rev.
 
 ## Constraints
 
@@ -361,8 +382,11 @@ multinomial part is the engine's
 [`MultinomialSpec`](../../src/bartcore/combiner.hpp): K is the 1.0 field `numCategories`, the shared category forest is the 1.0
 tree and leaf fields (`numTrees`, `base`, `power`, `k`, `nodeScale`), and counts, trials and the category offset are the three
 appended pointers. The result side is already there: the flat run sizes `dbarts_results` by F
-(`dbarts_sampler_numFittedValuesPerObservation`, K or the forest count) and V (`dbarts_sampler_numVariableCountForests`), and
-multinomial runs and predicts through the flat API today (dec-B163), so the append adds nothing to `dbarts_results`.
+(`numFittedValuesPerObservation`, K or the forest count) and V (`numVariableCountForests`), both facts-struct fields from S3,
+and multinomial runs and predicts through the flat API today (dec-B163), so the append adds nothing to `dbarts_results`. The
+reported side is there from 1.0 too: the facts struct reports each forest through a caller's array of `dbarts_forest_info`
+at a caller-stated stride (dec-B639; [The sampler's facts (dec-B615)](#the-samplers-facts-dec-b615)), forest f of it the
+forest f of `forests` above, of `dbarts_draw` and of printTrees' index.
 
 Invariants every 1.0 description keeps, under the append and any later one:
 
@@ -407,6 +431,17 @@ as `dbarts_forest_spec` and the multinomial fields, adds `dbarts_forest_spec_ini
 `dbarts_sampler_create` copy the caller's array into the extension at its stride before the same `buildSampler` call; the
 R-only part (a sharer's share and a basis scale as first set, the anchor and unit) stays R's.
 
+The two per-forest elements are designed side by side (dec-B639: "so a forest's reported facts mirror what creating it
+states"). `dbarts_forest_info` ships at 1.0 with one field, `size_t numTrees`, the name, type, meaning and first position of
+`dbarts_forest_spec`'s first field. Its rules are invariant 7's in the library-to-caller direction: the parent states the
+array, its length and the caller's element size once (`forests`, `forestsLength`, `forestStride` in the facts struct, the
+spec's `forests` and `forestStride` mirrored); the library writes element i at byte i times the stride, each field whose end
+lies within the stride, and never a byte past it. A fact a later minor appends to the element takes `dbarts_forest_spec`'s
+name, type and meaning where the spec states the same thing (a forest's `kind`, `numBasisColumns`, and the tree prior as it
+now stands after a live restatement, `base` and `power`), and reads 0 where it is absent, so an older library's 0 is
+"absent". The element reports what holds now; the spec element states what creation asks for; where they share a name the
+values agree at creation.
+
 The gate (S3): a tests/cpp target builds the library with `-DDBARTS_TEST_SPEC_APPEND`, under which dbarts.h appends the sketch
 above to the spec, and the build stage honors it. A C99 translation unit compiled WITHOUT the define fills a 1.0-sized
 description (structSize the 1.0 size) of a gaussian and a probit sampler; a second, compiled WITH it, fills the same values with
@@ -414,6 +449,11 @@ the append zeroed; both create through the appended build, and their draws equal
 bit for bit. The same target creates a two-forest sampler through the test append and compares it bitwise with the R-created
 BCF fit of the bcf-equivalence scenario it copies, and hands the shipped build a description carrying a nonzero appended
 field, which returns UNSUPPORTED. The two struct definitions never meet in one translation unit, and both consumers are C.
+Under the same define the header appends a test field to `dbarts_forest_info` (`size_t testForestIndex`, the forest's
+index plus one), which the appended library writes. The unit compiled WITHOUT the define reads the facts of the two-forest
+sampler the appended unit created, through the appended library at the 1.0 stride: each element's `numTrees` is the forest's, and a sentinel the caller placed after the
+last element survives, so the library wrote no field past the stride the caller gave. The unit compiled WITH it reads both
+fields of each element at its own stride.
 
 ### Seeding
 
@@ -475,7 +515,7 @@ Per entry (the infallible ones keep returning their value, dec-B571), with what 
 | `dbarts_sampler_setTreeStorage` | status | OUT_OF_MEMORY | the store empty, as any change of storage leaves it |
 | `dbarts_sampler_printTrees` | status | INVALID_ARGUMENT (an index out of range) | nothing printed |
 | `dbarts_sampler_setVerbose` | status | INVALID_ARGUMENT (printEvery 0) | unchanged |
-| `dbarts_sampler_getInfo` (new, dec-B615) | status | INVALID_ARGUMENT (structSize 0 or below the first release's) | info untouched |
+| `dbarts_sampler_getInfo` (new, dec-B615, dec-B639) | status | INVALID_ARGUMENT (structSize 0 or below the first release's; a non-NULL `forests` with `forestsLength` above 0 and a `forestStride` below the first release's element size, 0 included) | info and the caller's array untouched |
 | `destroy`, `setDrawCallback`, `setNumThreads`, the version triple, `dbarts_lastErrorMessage`, `dbarts_statusString`, `dbarts_sampler_spec_init`, `dbarts_sampler_info_init` | value, void, or OK | nothing (the two inits: INVALID_ARGUMENT on a structSize below the first release's) | - |
 
 The message: `const char* dbarts_lastErrorMessage(void)`, the message of the most recent call on this thread that returned a
@@ -629,20 +669,27 @@ R object keeps the holder, and a second destroy does nothing. The holder records
 `dbarts_sampler_getSigmas(const dbarts_sampler*, double* out)` writes each chain's current residual sd on the original response
 scale, numChains values, as `$getSigmas()` returns them ([`bartcore_getSigmas`](../../src/R_interface_bartcore.cpp)): the pinned
 value on the fixed-unit-scale families, and UNSUPPORTED, writing nothing, on a heteroscedastic sampler, where R returns NULL.
-The facts struct's `usesVarianceForest` predicts that refusal, as it predicts setSigma's, and S-B's NaN in every draw's sigma
-there (dec-B601).
+The facts struct's `usesVarianceForest` predicts that refusal, as it predicts setSigma's, and the NaN in every draw's sigma
+and in `results.sigma` there, which S-B landed (dec-B601, dec-A270).
 
 ### The sampler's facts (dec-B615)
 
 One struct, filled by one call, in place of the eleven one-fact entries (the eight counts, `kIsSampled`, `usesDart` and
-`family`), with dec-B601's variance forest and the Student-t residual as fields of their own. The layout under the
-recommendation of [Open calls](#open-calls), 8 (the tree counts through a caller's buffer):
+`family`), with dec-B601's variance forest and the Student-t residual as fields of their own, and each forest reported
+through the caller's array of per-forest fact structs at a stated element size (dec-B639, which ruled open call 8 as (d)):
 
 ```c
+typedef struct dbarts_forest_info_t {  /* one forest's facts; no size field: the parent states the stride */
+  size_t numTrees;             /* the forest's tree count; dbarts_forest_spec's first field */
+  /* 1.0-0 field boundary: appends go below, never above */
+} dbarts_forest_info;
+#define DBARTS_FOREST_INFO_INIT { 0 }
+
 typedef struct dbarts_sampler_info_t {
   size_t structSize;           /* the caller sets it: sizeof(dbarts_sampler_info) as compiled */
-  size_t* treeCounts;          /* the caller's buffer, NULL none: forest f's tree count at index f */
-  size_t treeCountsLength;     /* entries it holds; the first min(this, numForests) are written */
+  size_t forestsLength;        /* the caller sets it: elements its array holds; the first min(this, numForests) are written */
+  size_t forestStride;         /* the caller sets it: sizeof(dbarts_forest_info) as compiled; the INIT macro sets it */
+  dbarts_forest_info* forests; /* the caller's array, NULL none: forest f at byte f * forestStride */
   size_t numObservations;
   size_t numPredictors;
   size_t numTestObservations;
@@ -661,27 +708,44 @@ typedef struct dbarts_sampler_info_t {
 ```
 
 - The entry: `dbarts_status dbarts_sampler_getInfo(const dbarts_sampler* sampler, dbarts_sampler_info* info)`, with
-  `DBARTS_SAMPLER_INFO_INIT` (every member spelled, structSize set, the rest zero) and `dbarts_sampler_info_init(info,
-  structSize)` for bindings, as dec-B582 gives the description. The direction is `dbarts_results`': the caller sizes, the
-  library writes each value field whose end lies within `structSize` and never writes the three caller fields. A
-  `structSize` of 0 or below the first release's is INVALID_ARGUMENT with `info` untouched (`dbarts_sampler_getInfo:
-  info.structSize is 0 - set it to sizeof(dbarts_sampler_info) (e.g. dbarts_sampler_info i = DBARTS_SAMPLER_INFO_INIT)`).
+  `DBARTS_SAMPLER_INFO_INIT` (every member spelled, structSize and forestStride set to the caller's sizes, the rest zero)
+  and `dbarts_sampler_info_init(info, structSize)` for bindings, as dec-B582 gives the description; the function sets
+  structSize and zeroes the rest, `forestStride` included, since it cannot know the element size the binding compiled
+  (Calls made, 47). The direction is `dbarts_results`': the caller sizes, the library writes each value field whose end lies
+  within `structSize` and never writes the four caller fields. A `structSize` of 0 or below the first release's is
+  INVALID_ARGUMENT with `info` untouched (`dbarts_sampler_getInfo: info.structSize is 0 - set it to
+  sizeof(dbarts_sampler_info) (e.g. dbarts_sampler_info i = DBARTS_SAMPLER_INFO_INIT)`).
+- The forests (dec-B639): with `forests` NULL or `forestsLength` 0 no element is written and the other fields are. Otherwise
+  `forestStride` must be at least the first release's element size, `sizeof(size_t)`, else INVALID_ARGUMENT with nothing
+  written (`dbarts_sampler_getInfo: info.forestStride is 0 - set it to sizeof(dbarts_forest_info)`, or `info.forestStride %zu
+  is smaller than any dbarts_forest_info`); the checks come before any write. Then for each f below min(`forestsLength`,
+  `numForests`) the library writes, at byte f times `forestStride`, each element field it knows whose end lies within
+  `forestStride`, by `memcpy` so a stride a binding computed need not be aligned, and leaves every other byte of the array:
+  the elements past `numForests`, and the tail of each element past the fields it knows. A caller that hands a short array
+  reads `numForests` in the same call and calls again with a longer one. A single-forest caller hands an array of one.
 - Zero means absent, in this direction: a caller built against a later header that initialized with the INIT reads 0 in a
   field the installed library does not know, so every field appended after 1.0 is defined so that 0 is what a library
-  predating it implies (no such feature), invariant 1 of the description read the other way.
+  predating it implies (no such feature), invariant 1 of the description read the other way. The same holds per element: the
+  library never writes past the fields it knows, so the caller zeroes each element (`DBARTS_FOREST_INFO_INIT`, or zeroed
+  memory) and reads 0 in a field an older library left.
 - It reads the values as they stand at the call (`SamplerBase::shape` and `numTreesInForest`, nothing cached), so a caller
   reads it again after a call that changes one: a run (`numSavedSamples`), setTreeStorage (the store emptied), R's data and
-  test conduits (`numObservations`, `numTestObservations`), and R's setLeafPrior, setModel and setForest (`kIsSampled`, which
-  S-B makes follow the model). The header names those; every other field is fixed for the sampler's life.
+  test conduits (`numObservations`, `numTestObservations`; a binomial sampler's setData under dec-B628 and, once dec-B640's
+  slice lands, a multinomial one's among them), and R's setLeafPrior, setModel and setForest (`kIsSampled`, which S-B made
+  follow the model: `Sampler::kIsSampled` reads chain 0's forest calibrations, dec-A270). The header names those; every other
+  field is fixed for the sampler's life as far as traced (setForest and setVarianceForest refuse `n.trees` by name, so an
+  element's `numTrees` holds; see Not verified).
 - `family` keeps the one-fact entry's meaning: a Student-t sampler reports GAUSSIAN with `usesStudentResidual` 1, as dec-B615
   has the residual a field of its own (its option (c), reporting STUDENT, was not taken), while a C caller creates one with
   `family = DBARTS_FAMILY_STUDENT` (Calls made, 21); the header says both. `usesStudentResidual` reads
   `SamplerShape::carriesResidualDf` and `usesVarianceForest` `SamplerShape::hasVarianceForest`.
 - The hash: the struct folds as `dbarts_draw` does, its field count, the size_t and pointer fields by offset in pointer units
   and the five ints by name, declaration position and width, since an int's offset in pointer units is not one number on
-  every platform. `DBARTS_C_API_LIST` gains `dbarts_sampler_getInfo` and `dbarts_sampler_info_init` and loses the eleven.
+  every platform; `dbarts_forest_info` folds the same way, its field count and `numTrees` by offset. `DBARTS_C_API_LIST`
+  gains `dbarts_sampler_getInfo` and `dbarts_sampler_info_init` and loses the eleven; the element adds no entry.
 - The prose that names a removed entry names the field instead: the contract's VALUE list (the version accessors remain),
-  the forest paragraph (an index past the last forest is INVALID_ARGUMENT on printTrees, the counts read from `treeCounts`),
+  the forest paragraph (an index past the last forest is INVALID_ARGUMENT on printTrees, the counts read from the elements'
+  `numTrees`),
   `dbarts_results`' F, V and the k, varprobs and residualDf conditions, `dbarts_draw`'s LAYOUT, predict's draw count and
   printTrees' bounds, setSigma's paragraph and S-B's sigma sentence (`usesVarianceForest`), getSigmas.
 - What it replaces owes nothing: the eleven entries never shipped and 0.9-34 had no C header (compatibility is owed to shipped
@@ -762,7 +826,8 @@ typedef int (*dbarts_draw_callback)(void* context, const dbarts_draw* draw);  /*
 Types: `DBARTS_STATUS_LIST` and `dbarts_status` added (the list takes three arguments, so it gets its own enumerator macro beside
 `DBARTS_ENUMERATOR`, and the library's word table expands the third), `DBARTS_SWAP_STATUS_LIST` and `dbarts_swap_status` removed;
 `DBARTS_WEIGHTS_TYPE_LIST` and `dbarts_weights_type` added; `dbarts_sampler_spec` and `DBARTS_SAMPLER_SPEC_INIT` added;
-`dbarts_sampler_info` and `DBARTS_SAMPLER_INFO_INIT` added ([The sampler's facts (dec-B615)](#the-samplers-facts-dec-b615)); in
+`dbarts_sampler_info` and `DBARTS_SAMPLER_INFO_INIT`, and before them `dbarts_forest_info` and `DBARTS_FOREST_INFO_INIT`
+(dec-B639), added ([The sampler's facts (dec-B615)](#the-samplers-facts-dec-b615)); in
 `dbarts_predictor_source` the field `denseChannels` (per column, k >= 0 double column k of `denseValues`, k < 0 code column ~k
 of `denseCodes`, NULL every dense column in `denseValues` at `columnSources[j]`) is added above the boundary beside `denseCodes`
 and `numDenseCodeColumns`, which move above it too, and the kind-selected reading of `columnSources` for a dense column goes
@@ -789,20 +854,24 @@ R_alloc"; `dbarts_sampler_getLatents` keeps latents-first's sentence (dec-B586: 
 from) and gains frequency weights' sentence on a frequency row's latent (dec-B564's note); every
 per-entry "raises" becomes the status it returns; the spec's block states invariants 1 to 7 of the forward-compatibility
 section, the reserved family values and the zero-tail rule; the eleven one-fact entries' docs go, the info struct's block
-taking their sentences (S-B's kIsSampled sentence among them) and every cross reference re-pointed to its fields
+taking their sentences (S-B's kIsSampled sentence among them, and its "re-reads dbarts_sampler_kIsSampled before sizing it"
+in `dbarts_results`' paragraph becoming a re-read of the info struct) and every cross reference re-pointed to its fields;
+`dbarts_forest_info`'s block states the stride rule, the zeroed element and the mirror of the creation element
 ([The sampler's facts (dec-B615)](#the-samplers-facts-dec-b615)); `dbarts_draw_callback` says a run started from inside it on its own
 sampler returns INVALID_ARGUMENT. The text S-A and latents-first landed (a stopped run drops the saved trees it wrote, an
 allocation failure leaves the chains runnable, the draws that open a sweep) and S-B's (the channels a callback receives,
-sigma NaN under a variance forest, no "host" for the caller) is carried into the status form as it stands; the new prose says
-"the caller" or "the code that runs the BART sampler inside a larger sampler", never "host". About +680/-240 lines in the
-header.
+sigma NaN under a variance forest, no "host" for the caller) is carried into the status form as it stands. S-B's docs-10 share
+left no "host" in dbarts.h (a grep at 7e7edb526 finds none), so the release map's host-wording item has nothing left for S3;
+the new prose says "the caller" or "the code that runs the BART sampler inside a larger sampler", never "host". About
++700/-240 lines in the header.
 
 The hash: [`dbarts_foldLayout`](../../src/C_interface.cpp) gains the spec's size and every field's name and offset in pointer
 units, as `dbarts_results`, and `DBARTS_STATUS_LIST` (values and words) and `DBARTS_WEIGHTS_TYPE_LIST` join the enum fold;
 `dbarts_statusString` enters the hash as a list entry like any other; both tokens are re-baked
 ([`dbarts_apiSignatureToken`](../../src/C_interface.cpp) and the literal). Several by-value doubles in the spec make its offsets
 differ by platform in pointer units, as `dbarts_draw`'s do, so the spec folds as `dbarts_draw` does: field count, and doubles by
-name, position and width. The info struct folds the same way, its ints by name, position and width. tools/check-api-hash.sh is
+name, position and width. The info struct folds the same way, its ints by name, position and width, and `dbarts_forest_info`
+by its field count and offsets; the INIT macros are not folded, as `DBARTS_RESULTS_INIT` is not. tools/check-api-hash.sh is
 unchanged and still skips (no release tag).
 
 Development binaries: a stan4bart or treatSens binary built against today's header still loads against the new dbarts, since
@@ -838,7 +907,9 @@ The build stage also repeats, in its own words, a refusal the R parse raises fir
 (dec-A264's models-01: a variance forest of two or more trees under a chi-squared residual prior of df 2 or below), `a
 variance forest of %zu trees needs sigmaPriorDf above 2`, which no 1.0 description reaches (the variance forest is an append)
 and the extension's variance group does. `dbarts_sampler_getInfo` and `dbarts_sampler_info_init` refuse a `structSize` as
-the spec's entries do (`info.structSize is 0 - ...`, `structSize %zu is smaller than any dbarts_sampler_info`). A run
+the spec's entries do (`info.structSize is 0 - ...`, `structSize %zu is smaller than any dbarts_sampler_info`), and getInfo a
+`forestStride` below the first release's element size where it would write an element (`info.forestStride is 0 - set it to
+sizeof(dbarts_forest_info)`, `info.forestStride %zu is smaller than any dbarts_forest_info`). A run
 started inside a run of the same sampler returns INVALID_ARGUMENT with S-A's engine words under the entry's prefix.
 
 The run's callback failures (CALLBACK_FAILED), under `dbarts_sampler_run`'s prefix: `the draw callback for chain %zu returned
@@ -875,8 +946,8 @@ Neutral on the R build, by construction and by gate:
 
 The maintainer ruled open calls 1 to 7 of this plan on 2026-11-03, and added two rulings it now builds (dec-B579 and the words
 clause of dec-B578); the numbers are the plan's open-call numbers, which the ledger's records cite. Item 8 was ruled on
-2026-11-06 from the fourth review, outside this plan's calls, and revises item 1's accessors; open call 8, below, is the one
-choice it left to this plan that a caller sees:
+2026-11-06 from the fourth review, outside this plan's calls, and revises item 1's accessors; item 9 is this plan's open call
+8, the one choice item 8 left to it that a caller sees, ruled on 2026-11-07:
 
 1. dec-B571: in the shipped header only an entry that can fail returns a status; the counts and the other accessors return their
    value, and numTrees moves to a status since its forest index can be out of range. The maintainer: "For the host-neutral
@@ -915,7 +986,19 @@ choice it left to this plan that a caller sees:
    is fixed at 1.0 and grows only at the end; the one-fact entries are removed, stan4bart's calls moving to it in the same
    landing. "The entry's and struct's names, and how the per-forest tree counts are carried, come with the plan." The
    maintainer: "Yes, let's do that." Built in [The sampler's facts (dec-B615)](#the-samplers-facts-dec-b615), S3 and S4; the names are
-   Calls made, 38, the tree counts Open calls, 8.
+   Calls made, 38, the tree counts item 9.
+9. dec-B639, open call 8 (how the facts struct carries each forest's tree count): the facts struct carries the forest count
+   and a pointer to the caller's array of per-forest fact structs, with their count and element size, versioned as the
+   sketched several-forest creation array is (invariant 7, a stride stated once by the parent); the call fills each element
+   up to the count the caller gave, at the size the caller compiled, and leaves the rest; at 1.0 an element holds a forest's
+   tree count, and later per-forest facts append to the element under the header's size rules; the element's shape is
+   designed beside the sketched `dbarts_forest_spec`, so a forest's reported facts mirror what creating it states. The plan
+   had recommended (a), a caller's array of tree counts with its length. The maintainer asked "Is (d) inevitable, based on
+   planned work?", was shown that no plan or TODO schedules creating several-forest samplers from C and that a per-forest
+   array appended later would report a forest's tree count twice, and ruled: "Let's just do (d) now, and think ahead." Built
+   in [The sampler's facts (dec-B615)](#the-samplers-facts-dec-b615) and
+   [Forward compatibility with several forests and multinomial](#forward-compatibility-with-several-forests-and-multinomial), S3 and S4;
+   the names and the remaining details are Calls made, 45 to 49.
 
 ## Calls made
 
@@ -1047,44 +1130,36 @@ choice it left to this plan that a caller sees:
     is a field S3 adds, to `dbarts_results` if it is per run and to the info struct if it is the sampler's, never an entry
     of that plan's S2 that S3 then moves, so the header changes once. Alternative: an entry at its S2, two ABI events and an
     entry dec-B615's shape would retire.
+45. The names under dec-B639: the element `dbarts_forest_info`, as `dbarts_sampler_info` reports what `dbarts_sampler_spec`
+    states and `dbarts_forest_info` what the sketched `dbarts_forest_spec` states; the parent's `forests` and `forestStride`,
+    the sketch's own names; `forestsLength` for the elements the caller's array holds, since `numForests` is the sampler's
+    count the library writes; `DBARTS_FOREST_INFO_INIT`. Its one 1.0 field is `numTrees`, `dbarts_forest_spec`'s first
+    field's name and type. Alternatives: `dbarts_forest_facts`, which breaks the spec-info pairing; `numForestsGiven` for the
+    length, a second "numForests" a reader must tell from the library's.
+46. The caller's fields follow `structSize` in the sketch's order, `forestsLength`, `forestStride`, `forests`, then the
+    library's fields as call 41 has them. Alternative: the pointer first, as the earlier tree-count buffer was, which orders
+    the same three facts differently in the two structs.
+47. `DBARTS_SAMPLER_INFO_INIT` sets `forestStride` to `sizeof(dbarts_forest_info)` as the caller compiles it;
+    `dbarts_sampler_info_init` leaves it 0, since a library cannot know the element size a binding compiled, and a binding
+    that forgets it is refused, never overrun. Alternatives: neither sets it, one more line for every C caller; or the
+    function writes the library's element size, which on a library newer than the binding writes past each of the binding's
+    elements.
+48. No `dbarts_forest_info_init` function: every element default is 0 and a binding zeroes its memory, while the sketched
+    `dbarts_forest_spec_init` exists for the creation element's nonzero defaults (base, power). Alternative: the function
+    for symmetry, an entry and a hash event whose body is a memset.
+49. The library writes each element field by `memcpy` at its offset and takes any stride at least the first release's
+    element size; the stride is checked only where an element would be written (`forests` non-NULL and `forestsLength`
+    above 0), so a caller that wants no forest leaves all three at 0. Alternatives: refuse a stride that is not a multiple
+    of the element's alignment, a refusal no compiled caller meets; check the stride always, which refuses the function
+    path's zeroed struct with no array.
 
 ## Open calls
 
-One, put to the maintainer as written. Every other call this plan raised is ruled ([Ruled](#ruled)).
-
-### 8. How the facts struct carries each forest's tree count
-
-How should the one struct that reports a sampler's facts carry the number of trees in each forest?
-
-Background. You ruled on 2026-11-06 that dbarts.h reports a sampler's facts through one struct read by one call, the one-fact
-calls removed, and left this to the plan: "The entry's and struct's names, and how the per-forest tree counts are carried,
-come with the plan." A sampler a program creates through the C description in 1.0 has one forest, but samplers built from R
-and handed to C code can have several: two in BCF, with different tree counts, and K in a multinomial fit, all of one count.
-Today the count comes from a call taking a forest number, and printing trees needs it to keep tree numbers in range. A fixed
-struct has a fixed number of fields, so a list of any length cannot sit in it by value. The results of a run already solve
-the same problem: the caller hands the library buffers it sized and the library fills them. 0.9-34 had one forest per sampler
-and no such header (its compiled interface was a C++ one, removed in 1.0-0); R users read the tree count from the fit's
-settings, which this does not change.
-
-Options.
-- (a) The struct carries the forest count and a pointer to the caller's array with its length; the call writes the tree
-  count of each forest up to that length and leaves the rest. A single-forest caller hands an array of one and reads it in
-  the same call; a several-forest caller reads the forest count first, or hands a long enough array. About 30 lines; the
-  struct holds two fields the caller sets beside the ones the library sets, as the run's results do. stan4bart's port: one
-  call, as today.
-- (b) The struct carries the forest count and the first forest's tree count only. The cheapest, about 10 lines; a C caller
-  of a BCF sampler built from R loses the second forest's count, which the call that takes a forest number gives today,
-  until several-forest creation from C adds a per-forest description.
-- (c) The struct carries the forest count, and the call taking a forest number stays as the one exception to "the one-fact
-  calls are removed", returning a status. About 20 lines; a second call for one sampler's facts, against the ruling's words.
-- (d) The struct carries the forest count and a pointer to the caller's array of per-forest structs, each holding a tree count
-  now and later facts of its forest, versioned by a stated element size as the several-forest creation description is.
-  The most room to grow; about 70 lines, an element type and its initializer for one field at 1.0, and the shape of the
-  per-forest report fixed before several-forest creation is designed.
-
-Recommendation: (a). It follows what the header already does for a run's output, keeps one call for every fact, and keeps
-the counts a C caller has today. A per-forest description can still be appended later, under the size rules, when creating
-several forests from C is built, and (a)'s array stays meaningful beside it.
+None. Open call 8, the last, was ruled on 2026-11-07 as (d) (dec-B639; [Ruled](#ruled), 9). The second 2026-11-07
+amendment raised no call a user sees that the rulings leave open: the per-forest element's names and details are the plan's
+under dec-B615's "The entry's and struct's names ... come with the plan" and dec-B639's "designed beside the sketched
+dbarts_forest_spec" (Calls made, 45 to 49), and the landings and work in flight it placed change no R surface and no
+header meaning beyond what their own rulings state.
 
 ## Slices
 
@@ -1111,7 +1186,8 @@ Steps: `Refusal` and `raiseRefusal`; the shared validators, nineteen with freque
 (`refuseWeightedCountsOverCap`, `refuseWeightedTrialsOverCap`, `refuseBinomialResponseSwap`), and `refuseCountOverCap` beneath
 them (Calls made, 36), and the flat file's `translateSource`, `validateTestSource` and `refuseTestMissingness`, returning
 refusals, their named lines in the bridge and the flat file wrapped (74 and 12 on main f79874ea8, 90 and 13 on frequency
-weights' S3 tip; the implementer recounts on the base S2a starts from, after frequency weights' S4) (createDataHandle and the R test-predictor setters call the last
+weights' S3 tip by the first count; 90 and 20 on main 7e7edb526 and 108 and 21 on frequency weights' tip ab739157c by the
+second amendment's wider grep, Context; the implementer recounts on the base S2a starts from, by one rule) (createDataHandle and the R test-predictor setters call the last
 three inside `unwindProtect` bodies, outside any route's catch); the translated source, which owns storage, held as an
 init-capture wherever it lives in an R frame, by `unwindProtect`'s own rule; R_interface_bartcore_common.hpp split into the
 R-free core and the SEXP-facing half; `translateSource` moved into the core, used by the R parse's views and the data handle,
@@ -1125,14 +1201,27 @@ holds no shared refusal. The fourth review's bridge code, none of it a shared re
 to the SEXP-facing half as it stands: S-D's `refuseVarianceCalibration` and parseModel's infinite-df refusal (raised in the
 R parse before the spec fill), S-A's sweep-closure checks (`checkSweepBuffer` and the shape stop in
 `bartcore_runWithCallback`, an R entry, not a flat one) and the warm-start value refusal, S-C's
-`bartcore_sampleHyperparametersFromPrior`, and S-B's setCutPoints floor and repeated-cut refusal.
+`bartcore_sampleHyperparametersFromPrior` (landed, dec-A269: its captured engine refusal and attempt-count refusal, raised
+after every C++ object of its frame is gone, and its poll), and S-B's setCutPoints floor and repeated-cut refusal (landed,
+dec-A270). The work landing before S2a, each taken as it stands: rchk-findings' protection of the model's slot reads
+(PROTECT and UNPROTECT around `slotOrNull` in parseModel, parseDartSettings, the move-record readers, the variance and
+forest record readers, `refuseVarianceCalibration` and `forestMessageName`), which S2a's wrapping must keep balanced where a
+wrapped call sits between them; frequency weights' binomial setData (dec-B628) and nbinom's counts reading under every
+creation (dec-B632, the bridge's creation-time switch removed), R-only entries and no shared refusal; state-basis-levels'
+`bartcore_setState` argument and glue reorder (dec-B647), moved to the SEXP-facing half as it stands, wherever its builder
+puts the level record (its plan has an R attribute; the engine's state, its alternative, holds no shared refusal either);
+and the dec-B640 slice's multinomial setData (not yet planned), which must let a multinomial sampler past
+`refuseMultiForestMutation` at setData while BCF stays refused, and replace the counts and trials the holder owns
+(`ownedCounts`, `ownedTrials`), which the softmax combiner borrows; S2a converts that shared refusal and moves the holder
+into the R-free core as the slice leaves them.
 
 Gates: tests/cpp, every target; the full tinytest suite in one process, every message pin unchanged (frequency weights' and
 hurdle-completion's new pins among them); the trio bitwise; the four snapshots on the reference build; R CMD check --as-cran
 from a clean tarball, no standalone/ file in it; sanitizers on tests/cpp and the R-loaded ASan run over the creation and
-mutation suites; mutation-battery verify-anchors; the x86 leg.
+mutation suites; mutation-battery verify-anchors; rchk dispatched on the branch tip, no finding (main's are zero once
+rchk-findings lands); the x86 leg.
 
-Budget: ~980 lines. Agent ~13, review ~5, gates ~3.5.
+Budget: ~1,000 lines. Agent ~13.5, review ~5, gates ~4.
 
 ### S2b: the plain-C specification (bridge)
 
@@ -1149,23 +1238,32 @@ as the sketched append, the several-forest and multinomial R routes reading it; 
 families, fields read only under the families that name them, `trials` off LOGISTIC refused). The forest records are as on
 main: coefficient-prior-live writes `held.amplitude`, `amplitude.df`, `sd` and `share` at its live door and adds no slot, so
 `ForestRecord` mirrors forest-door's records. The build stage repeats S-D's variance calibration in its own words over the
-extension's variance group (Refusals), R's words staying in the parse before the fill. What it takes as it stands: S-G's
-starting sigma regressed on each forest's basis, which R resolves and the spec's `sigmaEstimate` carries; S-B's cut-grid
-floor, which `cutGridIsValid` holds in the engine, so the R-only cut-grid record the extension carries needs no check of its
-own; S-C's hyperparameter draw, no creation route and no creation field.
+extension's variance group (Refusals), R's words staying in the parse before the fill. What it takes as it stands, all
+landed: S-G's starting sigma regressed on each forest's basis (dec-A267), which R resolves and the spec's `sigmaEstimate`
+carries; S-B's cut-grid floor (dec-A270), which `cutGridIsValid` holds in the engine, so the R-only cut-grid record the
+extension carries needs no check of its own; S-C's hyperparameter draw (dec-A269), no creation route and no creation field,
+whose exact-prior tests in test-prior-predictive.R read k's prior, DART's six and the response hyperpriors off a created
+sampler, so a prior field the build forgets moves them. And as they land before it: rchk-findings' protected parse, which
+the rework keeps balanced as its outputs move into spec fields (its own gate, rchk on the branch tip, catches a slip);
+nbinom's counts reading under every creation (dec-B632), so under NBINOM every pair the weights check accepts reads
+`weights` as counts, 0/1 weights included, with no creation record for it; the dec-B640 slice's multinomial setData, which replaces the holder's
+counts and trials after creation, so `MultinomialRecord` borrows them from the holder as the combiner does today, never a
+copy taken at the fill.
 
 Gates: as S2a, plus a binomial and a frequency-weighted sampler created through the spec against the same fits created on the
-base, bitwise, and a fit under each of approximate-draws' methods likewise.
+base, bitwise, and a fit under each of approximate-draws' methods likewise; a multinomial sampler created through the spec,
+then given `$setData` at another row count (dec-B640), against the same calls on the base.
 
-Budget: ~1,770 lines (header ~220, extension ~300, build stage ~720 moved, parse rework ~420, tests/cpp ~280). Agent ~20,
-review ~7.5, gates ~4.5.
+Budget: ~1,790 lines (header ~220, extension ~300, build stage ~720 moved, parse rework ~430, tests/cpp ~290). Agent ~20.5,
+review ~7.5, gates ~5.
 
 ### S3: statuses, the creation entry, the sigma getter, the facts struct, the header (bridge, flat entry file, tests)
 
 Steps: `DBARTS_STATUS_LIST` with its words and `dbarts_statusString`; the list as in [The header diff](#the-header-diff);
 `dbarts_sampler_create`, `spec_init`, `getSigmas`, `lastErrorMessage` with the overwrite-on-every-failure record;
-`dbarts_sampler_info`, its INIT, `info_init` and `getInfo` (dec-B615), the eleven one-fact entries and their provider-side
-bindings removed, `std::logic_error` mapped (Calls made, 43); C_interface.cpp
+`dbarts_sampler_info`, its INIT, `info_init` and `getInfo` (dec-B615), with `dbarts_forest_info`, its INIT and the stride
+rule (dec-B639), the eleven one-fact entries and their provider-side bindings removed, `std::logic_error` mapped (Calls
+made, 43); C_interface.cpp
 off R (owned scratch, statuses, the thread's record); `predictPartition` thread_local; predict's join keeping its category;
 src/host_r.cpp and standalone/host_standalone.cpp, with the callback catch for the inline call and the worker trampoline; the
 engine's three-way stop record (continue, stop, failure with chain and value or text) in place of the one stop flag, and the
@@ -1176,9 +1274,12 @@ between a setter and the next run) and for a stop inside the latent draws, which
 and frequency weights' sentence on a frequency row's latent; the spec's block stating `weightsType` and `trials`; the info
 struct's block ([The sampler's facts (dec-B615)](#the-samplers-facts-dec-b615)). The stop record sits where latents-first leaves the
 sweep: the callback still fires at the record, the sweep's last step, and the interrupt's cancel point inside the latent draws
-keeps its arm. In [`Sampler::run`](../../src/bartcore/sampler.hpp) it replaces the `stoppedByCallback` flag beside what S-A
-and S-B put there: S-A's stopped-run guard and running flag, and S-B's observer scratch, one block per channel the fit
-carries when a callback is registered, with the stride fields `Results` gains for it (dec-B600). Tests: consumer.c and test-capi.R rewritten for statuses
+keeps its arm. In [`Sampler::run`](../../src/bartcore/sampler.hpp) it replaces the `stoppedByCallback` out-parameter and the
+relay's `stopped` flag beside what S-A and S-B put there, both landed: S-A's stopped-run guard and `running_` flag, and S-B's
+observer scratch (`provideObserverScratch`, one block per channel the fit carries, allocated in the run's frame only when a
+callback is registered, from `Chain::carriedChannels`), with the per-draw strides `Results` gained for it (dec-B600,
+dec-A270). The flat run keeps S-B's `results.k` rule (left NULL to the engine where `kIsSampled` is 0) under its status
+return, and the poll moved to src/host_r.cpp serves its five call sites, S-C's among them (Context). Tests: consumer.c and test-capi.R rewritten for statuses
 (each entry's failure reached and its status and message read; INIT plus data and seed against `dbarts()`'s draws bitwise; a
 C-created sampler against the R-created one bitwise, a binomial one with `trials` and a gaussian one under FREQUENCY among
 them; `denseChannels` with packed blocks against the dense source; getSigmas on two chains and its UNSUPPORTED on a
@@ -1190,21 +1291,30 @@ discarded, a second run valid from where it stopped), a negative return (CALLBAC
 value), a `std::runtime_error` thrown on a worker (two threads, CALLBACK_FAILED with its `what()`, the process alive), and the
 same thrown inline (one thread, the same status and message); and, under R on an inline run, an `Rf_error` from the callback
 still reaching R as its own error; a callback that calls `dbarts_sampler_run` on its own sampler getting INVALID_ARGUMENT
-and the outer run completing), the five handshake arms kept; the facts struct, every accessor call in consumer.c (44 today)
-read from it through one helper: each field on gaussian, probit, Student-t, BCF, multinomial and variance-forest samplers
-against R's view of the same sampler; `treeCounts` on BCF and multinomial against R's tree counts, a length of 1 on BCF
-writing forest 0 and leaving a sentinel in the next slot, NULL skipped; `usesVarianceForest` 1 on gaussian and aft with a
+and the outer run completing), the five handshake arms kept, and S-B's recording callback with its channel arms over the
+four routes kept under the status return; the facts struct, every accessor call in consumer.c (50 at 7e7edb526, S-B's arms
+added six) read from it through one helper: each field on gaussian, probit, Student-t, BCF, multinomial and variance-forest
+samplers against R's view of the same sampler; the forest elements (dec-B639) on BCF and multinomial against R's tree
+counts, each array placed between sentinel words: a short array (`forestsLength` 1 on BCF: forest 0 written, the next
+slot's sentinel intact, `numForests` 2), a long array (`forestsLength` 4 on BCF: two written, slots 2 and 3 intact), a
+larger stride than the library knows (`sizeof(dbarts_forest_info)` plus 16: each element at its offset, its tail intact),
+and an older element size (the `spec-append` target's test field, below); `forests` NULL with the other fields written;
+`forestsLength` 0 with a stride of 0 accepted; a stride of 0 and a stride of 4 with an array refused with their messages,
+the struct and the array untouched; `dbarts_sampler_info_init`'s struct with an array and no stride refused, the INIT's
+accepted; `usesVarianceForest` 1 on gaussian and aft with a
 variance forest and 0 on gaussian, probit, multinomial and BCF, unchanged after `$setVarianceForest(power = 3)` and on the
 re-read handle after `s$copy()` (critique amendment 1's arms, built here); `usesStudentResidual` equal to whether a run
 writes a preset `results.residualDf`; S-B's `kIsSampled` transitions through setLeafPrior and setModel read from the struct;
-a re-read after a run, setTreeStorage, R's setTestPredictor and a setData of another row count; a struct whose `structSize`
+a re-read after a run, setTreeStorage, R's setTestPredictor and a setData of another row count (a gaussian, a binomial
+under dec-B628 and a multinomial under dec-B640's slice); a struct whose `structSize`
 ends before its last field leaving a sentinel there; `structSize` 0 and below the first release's refused with their
 messages; stan4bart-shaped reads (one forest, an array of one); a tests/cpp unit for `dbarts_statusString`, every listed status
 against its words and an unlisted one against "unknown status"; tests/cpp's `standalone-consumer` target: a C99 file including the prototype
 view, creating gaussian, probit and Student-t samplers, running, predicting, reading sigma, refusing, destroying, built and
 linked with no R, `nm` showing no undefined R symbol, and its draws compared with the R-created sampler's at the same spec and
 seed; the `spec-append` target of [Forward compatibility with several forests and multinomial](#forward-compatibility-with-several-forests-and-multinomial)
-(the test-only append, the 1.0-sized and the appended consumer, the two-forest arm and the nonzero-tail refusal); the
+(the test-only append, the 1.0-sized and the appended consumer, the two-forest arm, the nonzero-tail refusal, and the
+forest element's test field read at the 1.0 stride and at the appended one); the
 cpp-tests workflow runs both. Docs: dbarts-embedding.Rd's C section, the architecture's layering and callbacks sections,
 NEWS.
 
@@ -1212,11 +1322,13 @@ Gates: as S2a, plus test-capi.R under ASan on the R-loaded path, tests/cpp's sta
 for the two-thread and worker-exception arms, on the x86 leg LeakSanitizer (C-created handles are new owners); the header-compiles target;
 `sh tools/check-api-hash.sh`.
 
-Budget: ~3,170 lines (header +680/-240 with the test-only append ~80, the weights and trials prose and the facts struct,
-C_interface.cpp ~560 with getInfo and the eleven accessors gone, build units ~290 with the callback catch, engine stop record
-~40, bridge ~120, consumer.c ~710, test-capi.R ~420, tests/cpp ~600, workflow ~20, docs ~140). Agent ~19.5, review ~7.5,
-gates ~6. The facts struct is ~270 of those lines and ~3.5 of those hours, within the ruling's 100 to 150 lines for the
-header, the entry and stan4bart's calls once the test arms are counted.
+Budget: ~3,330 lines (header +700/-240 with the test-only append ~90, the weights and trials prose and the facts struct with
+its forest element, C_interface.cpp ~585 with getInfo, the stride writes and the eleven accessors gone, build units ~290 with
+the callback catch, engine stop record ~40, bridge ~120, consumer.c ~790, test-capi.R ~440, tests/cpp ~640, workflow ~20,
+docs ~140). Agent ~21, review ~8, gates ~6. The facts struct is ~420 of those lines and ~5 of those hours: the ~270 and 3.5
+of the fifth amendment, and dec-B639's element, ~150 lines and 1.5 hours (header ~25, library ~25, consumer.c and
+test-capi.R ~60, the spec-append arm ~40), above the ruling's "about 70 lines" by its test arms; with S-B landed, the flat
+run's scratch and kIsSampled are read, not estimated, and consumer.c's six more accessor calls are counted.
 
 ### S4: the consumer ports (stan4bart, treatSens)
 
@@ -1224,19 +1336,24 @@ Each in its own checkout, on a branch, against a private library of the S3 tip, 
 while in review. stan4bart: the fallible calls in src/init.cpp (run twice, sampleTreesFromPrior, setOffset twice, setSigma twice,
 getLatents twice, predict, setTreeStorage twice, printTrees, setVerbose) wrapped in `DBARTS_R_CHECK`, and its eleven one-fact
 calls (numObservations, numTestObservations, kIsSampled, numPredictors three times, numChains and numSavedSamples twice each,
-numTrees of forest 0) read from one `dbarts_sampler_getInfo` per function, the tree count through a `treeCounts` array of one;
-nothing else changes (the dense helper is source-compatible). Its R code's empty-design check, which the fourth review's S-F
+numTrees of forest 0) read from one `dbarts_sampler_getInfo` per function, printTrees' tree count through an array of one
+`dbarts_forest_info` (dec-B639): `dbarts_forest_info forest = DBARTS_FOREST_INFO_INIT;`, the INIT'd info's `forests = &forest`
+and `forestsLength = 1`, `DBARTS_R_CHECK(dbarts_sampler_getInfo(fit, &info))`, then `forest.numTrees`, where it calls
+`dbarts_sampler_numTrees(fit, 0)` today (src/init.cpp, printTrees, read at 98db852); nothing else changes (the dense helper
+is source-compatible). Its R code's empty-design check, which the fourth review's S-F
 moves ahead of the call (TODO stan4bart-empty-bart-guard), is R code beside this port, not in its files. treatSens: run three times, setResponse four times,
 setOffset, setSigma and setVerbose twice, likewise. Each suite run (stan4bart's tinytest, recompute-exactness and
 compare-posterior; treatSens' testthat), R CMD check, and revdep-smoke dispatched on the dbarts branch tip with both branches,
 bartCause included, all green. They merge right after dbarts' merge, their dbarts reference back to main.
 
-Budget: stan4bart ~110 lines, treatSens ~50. Agent ~4 and ~3, review folded into S3's reviewer reading both diffs.
+Budget: stan4bart ~115 lines, treatSens ~50. Agent ~4 and ~3, review folded into S3's reviewer reading both diffs.
 
 ### S5: records
 
 TODO's host-neutral entry and python-bindings entry (the engine is R-free below the bridge; what a binding still owns:
-ingestion, resolution, its own build unit and the standalone recipe); TODO capi-sampler-info closed (dec-B615, built in S3); docs/plans/python-bindings.md's Context; the feature
+ingestion, resolution, its own build unit and the standalone recipe); TODO capi-sampler-info closed (dec-B615 and dec-B639,
+built in S3); TODO host-wording-sweep closed if still open (S-B's docs-10 share left no "host" in dbarts.h, and the help, the
+vignettes and the R strings were done before it); docs/plans/python-bindings.md's Context; the feature
 matrix's reach column for the flat header; INDEX rows; NEWS's 1.0-0 entry for compiled consumers; the Landing note and
 dec-A entry for the main feature's calls. Doc-freshness only.
 
@@ -1263,6 +1380,7 @@ Rscript -e 'lintr::lint_package()' && air format --check . && Rscript tools/chec
 R CMD build . && tar tzf dbarts_*.tar.gz | grep standalone   # expect nothing
 R CMD check --as-cran <tarball from a clean copy>
 sh tools/check-api-hash.sh                                 # "no release tag, skipped"
+gh workflow run rchk --ref host-neutral-engine             # no finding; the bridge's PROTECT balance after each slice
 ```
 
 plus sanitizers on tests/cpp and on the R-loaded path ([Gate hygiene](README.md#gate-hygiene)), and the x86 leg before landing
@@ -1328,7 +1446,7 @@ its review and are recorded as run:
 35. S3: `usesStudentResidual` reading `carriesShape` - the Student-t arm and the nbinom arm, against the preset
     `results.residualDf`.
 36. S3: getInfo writing a field past the caller's `structSize` - the short-struct arm's sentinel.
-37. S3: `treeCounts` written for every forest whatever `treeCountsLength` says - the BCF length-1 arm's sentinel (and
+37. S3: a forest element written for every forest whatever `forestsLength` says - the short-array arm's sentinel (and
     R-loaded ASan).
 38. S3: getInfo reading `numSavedSamples` or `kIsSampled` from a copy taken at creation - the re-read arms after a run and
     after setLeafPrior.
@@ -1336,6 +1454,18 @@ its review and are recorded as run:
 40. S3: a plain `std::logic_error` mapped to FAILED - the re-entering callback's arm, which reads INVALID_ARGUMENT.
 41. S2b: the build stage's variance calibration check dropped - a tests/cpp unit of the build stage over the extension's
     variance group at df 2 and two trees; R's pin from S-D holds either way, the parse raising first.
+42. S3: the elements indexed by the library's `sizeof(dbarts_forest_info)` instead of the caller's `forestStride` - the
+    larger-stride arm (element 1 found at the wrong offset, a tail sentinel overwritten).
+43. S3: every element field the library knows written whatever `forestStride` says - the `spec-append` target's 1.0-stride
+    unit (the next element's `numTrees` and the closing sentinel overwritten), and R-loaded ASan on the larger-stride arm's
+    neighbor.
+44. S3: a stride of 0 accepted with an array - the stride-0 refusal arm (every forest written onto element 0, the status OK).
+45. S3: the stride checked when no element would be written - the `dbarts_sampler_info_init` arm with no array, refused
+    where it must succeed.
+46. S3: elements written past `numForests` up to `forestsLength` (a zeroed count in the long array's slots 2 and 3) - the
+    long-array arm's sentinels.
+47. S2a: one wrapped validator site in a protected parse function returning early on success before its UNPROTECT - rchk on
+    the branch tip, and R's "stack imbalance" warning counted in the suite run that reaches it.
 
 ## Interaction with the other pending plans, and order
 
@@ -1402,27 +1532,48 @@ its review and are recorded as run:
   the caller); its dbarts.h share is S-B's. This plan's new prose follows it. The build-environment names the plan holds
   (`DBARTS_HOST_STANDALONE`, src/host_r.cpp, standalone/host_standalone.cpp) are a different sense, which build, not who
   calls, and stay.
-- The fourth review's slice S-C, prior predictive (building, read at 59c3e59a5): the bridge entry
-  `bartcore_sampleHyperparametersFromPrior` (an R entry, registered in R_interface.cpp, two R-only `Rf_error` lines) and the
-  facade and sampler virtual `sampleHyperparametersFromPrior`, with two `std::invalid_argument` sites. S2a: its lines join
-  the R-only set, moved as is. S2b: none; it is no creation route and adds no field. S3: no flat entry; its virtual sits in
-  facade.hpp beside the predict join, and its `invalid_argument` sites are reached from no flat entry.
-- The fourth review's slice S-B, draw channels (branch review4-draw-channels, not yet made; its fix plans and accepted
-  critique read): `Results` gains `logLikelihoodStride`; `dbarts_sampler_run` points every channel the fit carries at
-  per-chain scratch when a callback is registered (dec-B600); `Sampler::kIsSampled` follows setLeafPrior and setModel;
-  a draw's sigma and `results.sigma` are NaN under a variance forest (dec-B601); `bartcore_setCutPoints` refuses a cut that
-  is not finite and `repeatedCutRefusal` names a repeat at every pair (dec-B604); dbarts.h's kIsSampled line, its sigma
-  sentence, the ABSENCE text and docs-10's header share. It adds no entry for the facts (dec-B615 supersedes its
-  critique's amendment 8) and is an ABI event only if it changes a declaration. What it hands over:
+- The fourth review's slice S-C, prior predictive, LANDED on main 2026-11-07 (9a144199b, records 980bc50f9, dec-A269): the
+  engine entry `sampleHyperparametersFromPrior` (chain, sampler and facade virtual; `DartPrior` drawing alpha and the split
+  weights from its prior), with two `std::invalid_argument` sites; the bridge entry `bartcore_sampleHyperparametersFromPrior`
+  (an R entry, registered in R_interface.cpp; two R-only `Rf_error` lines, one forwarding the engine's captured refusal
+  after its frame's C++ objects are gone, and a poll after a call that made joint draws); tests/cpp's test_alloc.cpp DART
+  joint-draw arm and test_moves.cpp units. S2a: its lines join the R-only set, moved to the SEXP-facing half as is; no
+  shared refusal. S2b: none in code; it is no creation route and adds no field, and test-prior-predictive.R's exact-prior
+  arms check the prior fields a spec-built sampler carries. S3: no flat entry; its virtual sits in facade.hpp beside the
+  predict join, its `invalid_argument` sites are reached from no flat entry, and its poll is one of the five the moved poll
+  serves.
+- The fourth review's slice S-G, sigest bases, LANDED on main 2026-11-07 (records 61f610bae, dec-A267): R only (R/utility.R,
+  R/spec.R), nothing under src/, inst/include or tests/cpp; the equivalence and bcf-equivalence baselines re-recorded and
+  renamed after the draw-changing commit as rebased, which the MANIFEST names. S2b takes the starting sigma R resolves, now
+  regressed on each forest's basis, as the spec's `sigmaEstimate`, unchanged; every slice's gates run against those
+  baselines or later ones. S2a and S3: nothing.
+- The fourth review's slice S-B, draw channels, LANDED on main 2026-11-07 (fd78973ee, records cdb3fd26f, dec-A270); not an
+  ABI event, dbarts.h changing in comments only, the hash unmoved. What it built: `Results` carries a per-draw stride for
+  every draw-indexed channel (`logLikelihoodStride` among five new); `Chain::carriedChannels` states the channels the fit
+  carries; `Sampler::provideObserverScratch`, called by `Sampler::run` only when a callback is set, points each carried
+  channel the caller left NULL at one draw of per-chain scratch owned by the run's frame (dec-B600); `Sampler::kIsSampled`
+  reads chain 0's forest calibrations, so it follows setLeafPrior and setModel, and `bartcore_run` and the flat run read it
+  (dec-A270's bridge-03); a draw's sigma and `results.sigma` are NaN under a variance forest (dec-B601); the uniform grid
+  stays finite over a span wider than `DBL_MAX`; `cutGridIsValid` requires finite ends and `bartcore_setCutPoints` refuses a
+  non-finite cut in R's words (dec-B604); dbarts.h's PRESENCE AND ABSENCE paragraph, its results paragraph's k and
+  log-likelihood sentences, `dbarts_draw::sigma`'s and `dbarts_sampler_kIsSampled`'s comments, and "caller" for every
+  "host"; consumer.c's recording callback and test-capi.R's channel arms over four routes. S-B is done: nothing of it is
+  left to land. What it hands this plan, all S3's but one:
   - the facts: the header's sigma sentence names no accessor, and S3 adds that `usesVarianceForest` predicts the NaN; S3's
-    info reads `kIsSampled` from S-B's current computation, and the one-fact `dbarts_sampler_kIsSampled` S-B documents goes
-    with the other ten; TODO capi-sampler-info is this plan's, closed at S5;
-  - the flat run: S3 rewrites `dbarts_sampler_run` with S-B's scratch in it, the status return and the stop record taking
-    the scratch block as it stands, and its observer scratch and stride fields sit beside S-A's guard in `Sampler::run`;
-  - the bridge: the setCutPoints floor and the repeated-cut refusal are R-worded and no shared refusal, moved by S2a as is.
-- The fourth review's slice S-G, sigest bases (landing now, read at c170d0f9e): R only, with the equivalence and
-  bcf-equivalence baselines re-recorded at 38da480c. S2b takes the starting sigma R resolves, now regressed on each forest's
-  basis, as the spec's `sigmaEstimate`, unchanged; the gates of every slice run against its baselines or later ones.
+    getInfo reads `kIsSampled` from the current computation; the one-fact `dbarts_sampler_kIsSampled` and its new comment
+    go with the other ten, the comment's sentence moving to the info block and `dbarts_results`' "re-reads
+    dbarts_sampler_kIsSampled" becoming a re-read of the struct; TODO capi-sampler-info is this plan's, closed at S5;
+  - the flat run: S3 rewrites `dbarts_sampler_run` with the scratch in the engine, so the flat file holds none, and keeps its
+    `results.k` rule under the status return; the stop record replaces the `stoppedByCallback` out-parameter and the relay's
+    flag beside S-A's guard and the scratch in `Sampler::run`; the callback catch on the worker trampoline sees the scratch
+    pointers S-B hands it, which tests/cpp's `testDrawCallbackCarriesEveryChannel` (each chain's blocks distinct and stable)
+    holds under the catch;
+  - consumer.c (1,369 lines, 50 one-fact calls) and test-capi.R (2,258 lines), which S3 rewrites for statuses with S-B's
+    recording arms kept;
+  - the caller's name: no "host" left in dbarts.h, so the release map's host-wording item folded into S3 is done, and S5 closes
+    TODO host-wording-sweep if it is still open;
+  - S2a (the one not S3's): the setCutPoints refusal is R-worded and no shared refusal, moved to the SEXP-facing half as is;
+    the state's and donor's infinite-grid refusals reuse existing messages through the engine's floor.
 - frequency-weights (dec-B563 to dec-B570, dec-B580; S1 to S3 built and S4 building, read at 831e0f434). On its tip the
   shared refusals are twenty, on 90 bridge lines and 13 flat (`refuseWeightedCountsOverCap`, `refuseWeightedTrialsOverCap`
   and `refuseBinomialResponseSwap` new, the last called from C_interface.cpp's setResponse), and the R-only `Rf_error` lines
@@ -1445,11 +1596,50 @@ its review and are recorded as run:
   - No overlap: its engine work in model.hpp and the multinomial loop in combiner.hpp; predict's weights and predict's doors
     (R only, and the flat predict takes no weights); its reworded two-column refusals (R's data and xbart code); its R slices S5
     to S8.
-- approximate-draws (dec-B583 to dec-B585, dec-B593; S1 planned, read at 94aed03c1): dec-B593 rules its setting a method
+  - Since 831e0f434 (read again at ab739157c, S1 to S7 built, S8's records written; S7 in its fix round, then the x86 leg,
+    the SBC dispatch and its landing): no dbarts.h change and no new shared-refusal declaration; its bridge gains a binomial
+    sampler's setData with counts (dec-B628) and loses the creation-time switch for nbinom's weights reading (dec-B632);
+    S7 is gate-only (frequency-exact.R, the SBC arm), S8 records, and dec-B649's fit-time refusal of a factor count column
+    is R's. By the wider grep its tip has 108 bridge and 21 flat shared-refusal lines and eight more R-only `Rf_error`
+    lines than its base. S2a converts the refusals as it leaves them; S2b reads dec-B632 as the build's NBINOM rule; S3
+    reads a binomial setData's row count in the facts re-read arm.
+- rchk-findings (TODO rchk-findings; branch at 843470f35, two commits on c4ba5427a, reviewed LAND, CI and rchk running,
+  landing next): the bridge's model parser protects its slot reads (`slotOrNull` results PROTECTed across allocating calls in
+  parseModel, parseDartSettings, the move-record readers, the variance and forest record readers, `refuseVarianceCalibration`
+  and `forestMessageName`, about 120 lines of R_interface_bartcore.cpp), and a debug-only count in chain.hpp moves into its
+  check block. No draw, message or header change. S2a: those functions sit in the creation parse that stays R-side; where
+  S2a wraps a validator call inside one, the protection stays balanced (mutant 47), and rchk joins every slice's gates.
+  S2b: its parse rework reads exactly these functions and moves their outputs into spec fields, keeping each PROTECT pair;
+  about half an hour more than on the unprotected form, counted. S3: chain.hpp's moved count is beside no S3 code.
+  Rebase cost: a docs rebase now, the branch holding the plan only.
+- state-basis-levels (dec-B647, revising dec-A210's call 6; plan at 5b068cceb, building): a stored state records each factor
+  forest's level names and `$setState`, `copy()` and a reload put each coefficient on its own level by name. Its plan's
+  call 1 puts the record in an R attribute, R matching the names and handing `bartcore_setState` one integer order per
+  forest, the bridge reordering each chain's glue block; its alternative, the engine's state, is not taken there (the engine
+  keeps no names). S2a: `setState` and `readAmplitudeGlue` move to the SEXP-facing half with the added argument as they
+  stand; no shared refusal. S2b: none; a state is no creation input. S3: none; the flat API carries no state. Were the record
+  put in the engine's state instead, it would still meet no slice here but S2a's move of `storeState`, at no added cost.
+  Rebase cost: a docs rebase.
+- small-rulings-1107 (dec-B642, dec-B643, dec-B646; branch at 2e170e9f1, in review): R only, nothing under src/,
+  inst/include or tests/cpp. Its pins join the suite every slice must hold. Rebase cost: a docs rebase.
+- The dec-B640 slice (TODO multinomial-setdata; no plan or branch yet; after frequency-weights lands): a multinomial sampler
+  takes `$setData`, the new n x K counts giving the response and the number of rows free; about 200 engine lines (the
+  whole-data replacement, `Chain::recoverTreeParameters` and `Chain::applyNewData`, over the K category forests and their
+  saved draws, and `MultinomialForestCombiner`'s per-row state resized and re-pointed), 40 bridge, 20 R and 150 test lines.
+  S2a: it changes where `refuseMultiForestMutation` (a shared refusal) refuses and replaces the holder's owned counts and
+  trials, both of which S2a converts and moves; it should land before S2a starts, about half an hour of S2a's recount and
+  conversion if so, a between-slice rebase and re-gate (about an hour) if it lands during S2a to S3. S2b: the multinomial
+  route's `MultinomialRecord` borrows the counts from the holder, which setData replaces after creation, and a
+  spec-created multinomial sampler's setData joins S2b's gates. S3: no flat entry; the facts re-read arm reads its row
+  count. Recommended: land it after frequency-weights and before approximate-draws' S2, or at the latest before S2a.
+- approximate-draws (dec-B583 to dec-B585, dec-B593; S1 built and accepted at e50e1145a, its tests/cpp density units only;
+  S2 waits for frequency weights and an independent proof of its call 28's bound): dec-B593 rules its setting a method
   name and a separate tolerance. Its S2 adds their engine side, read from the control in the parse S2b moves; it lands
   first, so S2b carries both into the extension, with no 1.0 field (Calls made, 35). Its S2's close-call reader becomes a
   field S3 appends to the facts struct, never an entry (Calls made, 44). Its S3's real weights on logistic and the binomial
-  widen what the build takes under FREQUENCY, with no field. Its S1 (the density) and S4 (the series) touch nothing here.
+  widen what the build takes under FREQUENCY, with no field. Its S1 (the density, src/bartcore/pgdensity.hpp and
+  ddouble.hpp, header-only and R-free) and S4 (the series) touch nothing here; the standalone build compiles them as they
+  are.
 - Landings between this plan's slices: the DART split rule (dec-B605, TODO dart-split-rule) and k-move-pricing if its move
   wins (dec-B530) are engine work that may merge while S2a to S3 build; each costs this plan one rebase and re-gate between
   slices, below.
@@ -1460,22 +1650,32 @@ its review and are recorded as run:
 - The sister re-verification at the freeze follows this arc (TODO), with stan4bart's sanitizer job dispatched against the final
   header (dec-A36).
 
-Order, the release map's: S-A (landed), S-C, S-B, S-G, then frequency weights S1 to S8, then approximate-draws, then S2a,
-S2b and S3, with S4 right after the merge. That is the 2026-11-05 amendment's recommended order (frequency weights before
-S2a); the other order's cost, 6 to 10 hours of re-targeting in frequency weights and a second header change, is no longer
-in play. The header and its hash change once, with the final weights reading, the approximate draws' settings in the
-extension, S-B's channels and the facts struct.
+Order, the release map's critical path with the work since placed: S-A, S-C, S-G and S-B (all landed by 2026-11-07); then
+rchk-findings (landing next); state-basis-levels and small-rulings-1107 whenever each is ready (R and bridge-state only,
+neither on the critical path); frequency weights S1 to S8 (S7's fix round, then its landing); the dec-B640 slice (after
+frequency weights, ruled "its own slice after frequency-weights lands"; placed here, before approximate-draws' S2, so it
+lands before S2a); approximate-draws S2 to S5 (its S1 accepted; S2 after frequency weights and the proof of its call 28);
+then S2a, S2b and S3, with S4 right after the merge; then the approximate draws' defaults study, the freeze (the hash
+re-baked, the sisters re-verified, stan4bart's sanitizers) and the release battery. That is the 2026-11-05 amendment's
+recommended order (frequency weights before S2a); the other order's cost, 6 to 10 hours of re-targeting in frequency
+weights and a second header change, is no longer in play. The header and its hash change once, with the final weights
+reading, the approximate draws' settings in the extension, S-B's channels and the facts struct with its forest element.
 
 What each rebase costs this plan:
 
-- Before S2a, onto S-C, S-B, S-G, frequency weights and approximate-draws as each lands: the branch holds this plan only, so
-  each is a docs rebase, minutes, any conflict in docs/plans/INDEX.md resolved by keeping both rows. No re-gate: nothing is
-  built.
+- Before S2a, onto rchk-findings, state-basis-levels, small-rulings-1107, frequency weights, the dec-B640 slice and
+  approximate-draws as each lands: the branch holds this plan only, so each is a docs rebase, minutes, any conflict in
+  docs/plans/INDEX.md resolved by keeping both rows. No re-gate: nothing is built. The rebase onto 7e7edb526 (S-C, S-G and
+  S-B landed) was such a rebase, with no conflict.
 - At S2a's start, one recount on the base it then has: shared refusal lines, the R-only `Rf_error` lines, the
-  `invalid_argument` sites, and the bridge regions S-B and frequency weights moved, about half an hour, counted in S2a.
+  `invalid_argument` sites, and the bridge regions frequency weights, rchk-findings, state-basis-levels and the dec-B640
+  slice moved, about half an hour, counted in S2a.
 - The features' own code, counted in the slices: frequency weights' twenty refusals and ~200 bridge lines, about an hour
-  each in S2a and S2b; approximate-draws' two settings, about half an hour in S2b; S-B's run scratch and kIsSampled, about
-  half an hour in S3.
+  each in S2a and S2b; approximate-draws' two settings, about half an hour in S2b; rchk-findings' protected parse, about
+  half an hour in S2b and a quarter in S2a's gates; the dec-B640 slice's refusal and holder counts, about half an hour in
+  S2a and half in S2b; S-B's run scratch and kIsSampled, landed and read, about half an hour in S3.
+- If the dec-B640 slice or state-basis-levels slips into S2a to S3's build, it becomes a between-slice landing: the rebase
+  and re-gate below, about an hour, and for dec-B640 the S2a conversion of its refusal done on the rebased tree.
 - Between slices, each landing that touches src/ (the DART split rule, k-move-pricing, any fix round): one rebase and the
   re-gate below, about half an hour to an hour each; the ~5 hours of rebases count four such and the docs rebases.
 
@@ -1489,8 +1689,8 @@ between slices:
 - The branch rebases onto main only between slices: never while a slice is in review (from the implementer's report through
   the reviewer's verdict on the fix round), and always before the next slice's implementer starts.
 - After each rebase the slices already built are re-gated on the rebased tree, against the baselines the MANIFEST then names:
-  the trio bitwise, the four snapshot files, tests/cpp and the full suite in one process; the R-loaded ASan run when the rebase
-  touched the bridge; and, once S3 is built, the hash re-bake, header-compiles and test-capi.R when it touched dbarts.h, with
+  the trio bitwise, the four snapshot files, tests/cpp and the full suite in one process; the R-loaded ASan run and rchk when
+  the rebase touched the bridge; and, once S3 is built, the hash re-bake, header-compiles and test-capi.R when it touched dbarts.h, with
   S4's consumer runs repeated before the merge.
 - A feature that rewrites what a slice in build rewrites (the creation parse, the shared refusals, the flat entry file,
   dbarts.h) merges before that slice starts or after its review ends; if it merges during the build, the slice rebases before
@@ -1501,23 +1701,24 @@ This works because every gate here is neutral: a rebase is checked against the b
 ## Cost
 
 S1, landed: about 910 lines written, 6,329 copied and 395 of reduced headers, none of them in the tarball. What is left: about
-5,920 lines written here and ~160 in the two consumers; ~99.5 agent-hours estimated (S2a ~21.5, S2b ~32, S3 ~33, S4 ~7, S5 ~1,
-rebases ~5), 150 to 200 by the record of plans here, S2b and S3 most of it, in the release map's order. The rise from ~91:
-the facts struct (about 270 lines and 3.5 hours in S3, 30 lines and an hour in S4), the fourth review's landings and S-B
-(about 2 hours across S2a, S2b and S3: S-A's re-entry status and settled rows, S-D's build-stage check, S-B's run scratch),
-approximate-draws' two settings (half an hour), frequency weights' three new refusals (half an hour) and one more
-between-slice rebase. The forward-compatibility work is about 300 of those lines and 4 of those hours; the callback
-statuses and the status words about 300 and 3.
+6,120 lines written here and ~165 in the two consumers; ~103.5 agent-hours estimated (S2a ~22.5, S2b ~33, S3 ~35, S4 ~7,
+S5 ~1, rebases ~5), 155 to 205 by the record of plans here, S2b and S3 most of it, in the release map's order. The rise from
+~99.5 (the fifth amendment): dec-B639's per-forest element (about 150 lines and 1.5 hours in S3, 5 lines in S4), S3's
+consumer.c carrying S-B's six more accessor calls and its recording arms (a quarter hour), rchk-findings' protected parse
+(about 40 lines and three quarters of an hour across S2a's gates and S2b's rework, rchk added to every slice's gates), the
+dec-B640 slice's shared refusal and holder counts (about 20 lines and an hour across S2a and S2b) and S2b's multinomial
+setData twin (a quarter hour). S-C, S-G and S-B landing as read cost nothing more. The forward-compatibility work is about
+300 of those lines and 4 of those hours; the callback statuses and the status words about 300 and 3.
 
 | slice | state | lines written | agent-hours (was) |
 |---|---|---|---|
 | S1 | LANDED 2026-11-03 (dec-A260) | ~910 (+6,329 copied, 395 reduced) | builder ~3 (8 planned in all) |
-| S2a | planned, after S-C, S-B, S-G, frequency weights and approximate-draws | ~980 | ~21.5 (21) |
-| S2b | planned | ~1,770 | ~32 (30.5) |
-| S3 | planned, with the facts struct | ~3,170 | ~33 (28.5) |
-| S4 | planned, in stan4bart and treatSens | ~160 | ~7 (6) |
+| S2a | planned, after rchk-findings, frequency weights, the dec-B640 slice and approximate-draws | ~1,000 | ~22.5 (21.5) |
+| S2b | planned | ~1,790 | ~33 (32) |
+| S3 | planned, with the facts struct and its forest element | ~3,330 | ~35 (33) |
+| S4 | planned, in stan4bart and treatSens | ~165 | ~7 (7) |
 | S5 | planned, records | - | ~1 (1) |
-| rebases | docs rebases before S2a, the recount, and between slices | - | ~5 (4) |
+| rebases | docs rebases before S2a, the recount, and between slices | - | ~5 (5) |
 
 ## Not verified
 
@@ -1532,23 +1733,32 @@ statuses and the status words about 300 and 3.
   forest-door's were read for `ForestSpec` and `forestSharers` only.
 - Where the engine's sweep loop can carry a chain index and a callback value to the stop record without a cost per sweep; the
   ruling's "about 40 lines" is its estimate, not measured, read against latents-first's loop as landed, with S-A's guard and
-  S-B's scratch (not yet built) beside it.
+  S-B's scratch (landed) beside it.
 - The binomial response's engine form is frequency weights' plan (`trials` beside `y` under logistic); not built, and its flat
   setResponse on a binomial sampler is that plan's to settle.
 - frequency weights' bridge changes (about 200 lines) are its plan's estimate, counted on its tip with S4 still building;
   S2a's implementer recounts the shared refusals' lines on the base it starts from.
-- S-B is not built: its handover is read from its fix plans, accepted critique and prompt, and S3's run, kIsSampled and
-  sigma text are planned against that reading; S-C is read on its building branch, S-G before it lands.
+- S-B, S-C and S-G are landed and their code read on main 7e7edb526; what S3 does with S-B's scratch under the worker
+  catch is planned, not prototyped.
+- The dec-B640 slice has no plan: its overlap with S2a (`refuseMultiForestMutation`, the holder's owned counts) and S2b
+  (`MultinomialRecord` borrowing them) is read from the ruling's sizing, not from its code, and its own estimate goes back
+  to the maintainer if it sizes well above it.
+- state-basis-levels is building: where its builder puts the level record (its plan: an R attribute) was read from the
+  plan; either place meets no slice here beyond S2a's move of the state code.
+- rchk-findings' protection was read on its branch before landing; rchk's own CI result on it was not read here.
+- The forest element's stride writes by `memcpy`, a stride that is not a multiple of the element's alignment, and a
+  32-bit platform's `sizeof(size_t)` of 4 (the first release's element size there) are designed, not probed.
 - approximate-draws' setting names are its S5's to settle and the close-call reader's shape its S2's (dec-B593 rules only a
   method name and a separate tolerance); Calls made 35 and 44 hold for any names whose zero means the default.
 - Which facts setters change beyond those the facts section names (kIsSampled through setLeafPrior and setModel, the saved
   sample count after a run): whether setModel can change `usesDart`, or a setter a tree count, was not traced through every
-  setter; S3's re-read arms pin the ones named, and getInfo reads current values whichever change.
+  setter (setForest and setVarianceForest refuse `n.trees` by name, read in their help); S3's re-read arms pin the ones
+  named, and getInfo reads current values, each element's `numTrees` included, whichever change.
 - S-A's settle is now pinned by its tests for the in-sweep allocation failure; what a FAILED run leaves beyond that is still
   "valid to read and destroy", as above.
 - Whether the engine's several-forest chain takes DART, split probabilities and the k prior per forest; the sketch leaves them
   sampler-wide and the append refuses what the factory refuses.
-- stan4bart's and treatSens' call sites were read on their main (8e23a1b) and master (268b2db); their 1.0 compat branches
+- stan4bart's and treatSens' call sites were read on their main (98db852) and master (268b2db); their 1.0 compat branches
   may differ.
 - That no consumer under R other than the two links dbarts.h; the reverse LinkingTo list on CRAN was not queried.
 
@@ -1593,3 +1803,31 @@ built or run beyond reads, recounts and the doc check.
 | 13 | Re-estimated: ~5,920 lines and ~99.5 agent-hours left (150 to 200), was ~91 | front block, budget; Slices; Cost; Summary |
 | 14 | Not verified updated: S-B unbuilt, setters that change a fact, approximate-draws' names, S-A's settle | Not verified |
 | 15 | S5 closes TODO capi-sampler-info | S5 |
+
+## Amendments of 2026-11-07, second
+
+Rebased onto main 7e7edb526 (from f79874ea8, no conflict) and brought up to date for dec-B639, the landings of S-C, S-G and
+S-B, and the work in flight; nothing was built or run beyond reads, recounts by grep and the doc check.
+
+| # | change | where it went |
+|---|---|---|
+| 1 | dec-B639 rules open call 8 as (d), not the (a) recommended: Open call 8 moves to Ruled with the maintainer's words; no call is open | Ruled, 9; Open calls; Status; Summary |
+| 2 | The per-forest element `dbarts_forest_info` (one field, `numTrees`, `dbarts_forest_spec`'s first), `DBARTS_FOREST_INFO_INIT`, and the parent's `forestsLength`, `forestStride` and `forests` in place of `treeCounts` and `treeCountsLength`; the stride rule (checks before writes, `memcpy` per field within the stride, nothing past it, elements past `numForests` left), the stride refusals, the INIT setting the stride and the function not | The sampler's facts; Statuses, getInfo row; Refusals; The header diff, types and prose; S3 |
+| 3 | The element designed beside the sketched creation element: shared names, types and meanings, appends mirroring it, zero meaning absent per element | Forward compatibility, the reported side and the element paragraph; The sampler's facts |
+| 4 | The hash folds the element by field count and offsets, the INIT macros unfolded; the token re-baked once as before | The sampler's facts, hash; The header diff, hash |
+| 5 | Calls made 45 to 49: the names, the caller fields' order, the INIT and the init function on the stride, no element init function, `memcpy` writes and the stride checked only where an element is written | Calls made |
+| 6 | Tests: a short array, a long array, a larger stride, an older element size through the `spec-append` target's test field, NULL and zero-length arrays, the stride refusals, the init function's zeroed stride | S3 tests; Forward compatibility, the gate |
+| 7 | Mutants 37 rewritten and 42 to 46 added for the element; 47 for rchk's balance under S2a | Mutants |
+| 8 | stan4bart's port: printTrees' `dbarts_sampler_numTrees(fit, 0)` becomes an array of one element read through getInfo; its call sites re-read at 98db852 | S4; Context, consumers; Not verified |
+| 9 | S-C (dec-A269) recorded as landed: engine and facade virtual, the bridge entry's two R-only lines and its poll, the poll's five sites, thirteen `invalid_argument` sites | Context; Interaction, S-C; S2a; S2b; S3 |
+| 10 | S-G (dec-A267) recorded as landed: R only, the re-recorded baselines | Interaction, S-G; front block, rng; S2b |
+| 11 | S-B (dec-A270) recorded as landed and done: what it built, what it hands S3 (the facts, the flat run's scratch and k rule, the stop record's place, consumer.c's 50 calls and recording arms, no "host" left) and S2a (the setCutPoints refusal) | Interaction, S-B; The sigma getter; The sampler's facts; The header diff, prose; S2a; S3; S5 |
+| 12 | Recount at 7e7edb526 by a wider grep: shared-refusal lines 90 and 20, unmoved since f79874ea8, 108 and 21 on frequency weights' tip; three R-only `Rf_error` lines added | Context; S2a |
+| 13 | rchk-findings placed: its protected parse functions inherited by S2a and S2b, rchk added to every slice's gates and to the rebase re-gate | Interaction; S2a; S2b; Tests and gates; Order |
+| 14 | frequency-weights since 831e0f434: dec-B628's binomial setData, dec-B632's nbinom counts reading under every creation (the build's NBINOM rule, no creation record), S7 gate-only and S8 records | Interaction, frequency-weights; S2a; S2b; S3 |
+| 15 | state-basis-levels (dec-B647), small-rulings-1107 and the dec-B640 slice placed, each slice's overlap and each rebase's cost named; dec-B640 recommended before S2a | Interaction; S2a; S2b; S3; Order |
+| 16 | approximate-draws: S1 accepted, header-only and R-free, S2 waiting on frequency weights and its call 28's proof | Interaction, approximate-draws |
+| 17 | Order restated: rchk-findings, then frequency weights, the dec-B640 slice, approximate-draws, then S2a to S3, the R-only work any time | Interaction, Order; front block, window; Summary |
+| 18 | Re-estimated: ~6,120 lines and ~103.5 agent-hours left (155 to 205), was ~99.5 | front block, budget; Slices; Cost; Summary |
+| 19 | S5 also closes TODO host-wording-sweep if still open | S5 |
+| 20 | Not verified updated: S-B, S-C and S-G landed, the dec-B640 slice unplanned, state-basis-levels' record, rchk's CI, the element's stride writes | Not verified |
