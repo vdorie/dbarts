@@ -280,7 +280,7 @@ void testUnitWeightIdentity() {
     rp.logLikelihood = rf.logLikelihood = nullptr;
     bool ran = !precision->run(10, numSamples, rp) &&
                !frequency->run(10, numSamples, rf);
-    bool same = dp.sigma == df.sigma && dp.fits == df.fits &&
+    bool same = sameBits(dp.sigma, df.sigma) && dp.fits == df.fits &&
                 (!student || dp.df == df.df) &&
                 (!hetero || dp.variance == df.variance);
     std::string label = std::string("frequency at unit weights is precision "
@@ -320,10 +320,11 @@ void testZeroWeights() {
     Draws d(n, numSamples);
     Results r = d.results(hetero, student);
     bool ran = !sampler->run(20, numSamples, r);
-    bool finite = allFinite(d.sigma) && allFinite(d.fits) &&
-                  (!student || allFinite(d.df)) &&
+    bool finite = allFinite(d.fits) && (!student || allFinite(d.df)) &&
                   (!hetero || allFinite(d.variance));
-    for (double s : d.sigma) finite = finite && s > 0.0;
+    // a variance forest has no single residual scale: its sigma is NaN
+    for (double s : d.sigma)
+      finite = finite && (hetero ? std::isnan(s) : std::isfinite(s) && s > 0.0);
     if (student)
       for (double nu : d.df)
         finite = finite &&
