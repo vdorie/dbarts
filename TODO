@@ -1216,10 +1216,7 @@ items
     second data object around a stand-in response (values identical,
     about 30 lines become 10); bcf names its treatment basis in the
     forests list in place of bases = once the basis-references calls
-    allow it (identical fits run); plot_support on a fit with missing
-    responses stops with "'x' and 'y' lengths differ" (117 rows of x
-    against 120 of trt), the design over all rows being the first n
-    rows of x.test, about 5 lines.
+    allow it (identical fits run).
   bartcause-draws-twice: a bartc fit stores its draws twice, about 54
     MB of a 162 MB fit at 750 rows (found 2026-11-08): fit.rsp's
     yhat.train and yhat.test repeat mu.hat.obs and mu.hat.cf, and
@@ -1229,9 +1226,6 @@ items
     call.
   bartcause-fitted-ite-warning: fitted(fit, type = "ite") warns on an
     att or atc fit with missing responses (found 2026-11-08).
-  bartcause-long-formula: bartc(y, z, x1 + ... + x25, data = d) fails
-    with "the condition has length > 1", treatmentFit.R running grepl
-    over a multi-line deparse() (found 2026-11-08).
   bartcause-plot-support-atc: plot_support on an atc fit with the
     p.score plot stops with "'x' and 'y' lengths differ", missing
     responses or not (found 2026-11-08).
