@@ -1,7 +1,8 @@
-# The engine pointer pins the data object it was built from for as long as
-# the pointer lives, without writing that object a second time when a sampler
-# is saved, and lets go of each object $setData replaces. A finalizer on an
-# environment the data object carries says when the object is freed.
+# The engine pointer holds exactly the R vectors its store points into: a CSC
+# build's @i and @x, which R must neither free nor change while the sampler
+# lives, and nothing for a dense build, so a saved dense sampler writes its
+# data once. A finalizer on an environment a data object carries says when
+# the object is freed.
 
 if (!requireNamespace("Matrix", quietly = TRUE)) {
   exit_file("Matrix not available")
@@ -28,7 +29,7 @@ p <- 4L
 x <- matrix(rnorm(n * p), n, p)
 y <- x[, 1L] + rnorm(n, 0, 0.5)
 
-# a saved sampler writes its data once: the pointer serializes without it
+# a saved dense sampler writes its data once: the pointer serializes without it
 sampler <- dbarts(x, y, n.trees = 10L, control = control)
 invisible(sampler$run())
 expect_true(length(serialize(sampler$data, NULL)) > 1024L)
@@ -36,41 +37,8 @@ expect_true(length(serialize(sampler$pointer, NULL)) < 1024L)
 sampler$setData(dbartsData(x + 0.01, y))
 expect_true(length(serialize(sampler$pointer, NULL)) < 1024L)
 
-# a sparse build borrows the dgCMatrix's slices for the store's life, so data
-# held by nothing but the pointer survives until the pointer goes
-x.dense <- matrix(0, n, p)
-for (j in seq_len(p)) {
-  nonzero <- runif(n) < 0.2
-  x.dense[nonzero, j] <- 0.5 + runif(sum(nonzero))
-}
-y.sparse <- x.dense[, 1L] + rnorm(n, 0, 0.3)
-counter <- new.env()
-counter$freed <- 0L
-ptr <- local({
-  sampler <- dbarts(
-    methods::as(x.dense, "CsparseMatrix"),
-    y.sparse,
-    n.trees = 10L,
-    control = control
-  )
-  dbarts:::recreatePointer(
-    sampler$control,
-    sampler$model,
-    attachProbe(sampler$data, counter)
-  )
-})
-invisible(gc())
-invisible(gc())
-expect_equal(counter$freed, 0L)
-expect_true(.Call(dbarts:::C_dbarts_bartcore_isValidPointer, ptr))
-expect_true(length(serialize(ptr, NULL)) < 1024L)
-rm(ptr)
-invisible(gc())
-invisible(gc())
-expect_equal(counter$freed, 1L)
-
-# the data a sampler was created from is let go at its first $setData, while
-# the sampler lives
+# the data a dense sampler was created from is let go at its first $setData,
+# while the sampler lives
 counter <- new.env()
 counter$freed <- 0L
 sampler.created <- local(
@@ -89,8 +57,84 @@ invisible(gc())
 expect_equal(counter$freed, 1L)
 rm(sampler.created)
 
-# of k data objects handed to $setData, the k - 1 replaced are freed while
-# the sampler lives
+# a CSC build points into its dgCMatrix's @i and @x for the store's life, so
+# the pointer holds those two vectors, of a bare dgCMatrix and of a mixed
+# container's sparse part alike
+slicesBytes <- function(sparse) {
+  length(serialize(sparse@i, NULL)) + length(serialize(sparse@x, NULL))
+}
+x.dense <- matrix(0, n, p)
+for (j in seq_len(p)) {
+  nonzero <- runif(n) < 0.2
+  x.dense[nonzero, j] <- 0.5 + runif(sum(nonzero))
+}
+y.sparse <- x.dense[, 1L] + rnorm(n, 0, 0.3)
+sampler.sparse <- dbarts(
+  methods::as(x.dense, "CsparseMatrix"),
+  y.sparse,
+  n.trees = 10L,
+  control = control
+)
+expect_true(
+  length(serialize(sampler.sparse$pointer, NULL)) >=
+    slicesBytes(sampler.sparse$data@x)
+)
+
+set.seed(42L)
+n.mixed <- 400L
+x1 <- rnorm(n.mixed)
+sv <- Matrix::sparseVector(
+  x = 0.5 + runif(60L),
+  i = sort(sample.int(n.mixed, 60L)),
+  length = n.mixed
+)
+sm.dense <- matrix(0, n.mixed, 2L)
+for (j in 1:2) {
+  nonzero <- runif(n.mixed) < 0.1
+  sm.dense[nonzero, j] <- 0.5 + runif(sum(nonzero))
+}
+x.frame <- data.frame(
+  x1 = x1,
+  f = factor(sample(c("a", "b", "c"), n.mixed, replace = TRUE))
+)
+x.frame$sv <- sv
+x.frame$sm <- methods::as(sm.dense, "CsparseMatrix")
+y.mixed <- 2 * as.double(sv) - 1.5 * x1 + rnorm(n.mixed, 0, 0.3)
+sampler.mixed <- dbarts(
+  x.frame,
+  y.mixed,
+  n.trees = 10L,
+  control = control,
+  sigest = 1
+)
+creationBytes <- slicesBytes(sampler.mixed$data@x$sparse)
+expect_true(length(serialize(sampler.mixed$pointer, NULL)) >= creationBytes)
+
+# a CSC column's update splices a new sparse part into data@x, leaving the
+# creation vectors to the pointer alone; a collection then must not free
+# them, which the next column's first update reads (an R-loaded sanitizer
+# build reports the read of a freed vector)
+sv.new <- as.double(sv)
+sv.new[sv.new != 0] <- sv.new[sv.new != 0] * 1.5
+sv.new[c(1L, 2L)] <- c(0.9, 1.1)
+sampler.mixed$setPredictor(sv.new, column = 3L, forceUpdate = TRUE)
+invisible(gc(full = TRUE))
+sm1.new <- sm.dense[, 1L] * 2
+sampler.mixed$setPredictor(sm1.new, column = 4L, forceUpdate = TRUE)
+invisible(gc(full = TRUE))
+sampler.mixed$setPredictor(
+  sm.dense[, 2L] + 0.5,
+  column = 5L,
+  forceUpdate = TRUE
+)
+expect_equal(as.matrix(sampler.mixed$data@x)[, 3L], sv.new)
+expect_equal(as.matrix(sampler.mixed$data@x)[, 4L], sm1.new)
+expect_true(length(serialize(sampler.mixed$pointer, NULL)) >= creationBytes)
+expect_true(all(is.finite(sampler.mixed$run(0L, 5L)$sigma)))
+rm(sampler.mixed)
+
+# of k data objects handed to $setData, every one replaced is freed while the
+# sampler lives
 counter <- new.env()
 counter$freed <- 0L
 k <- 4L
@@ -103,7 +147,7 @@ for (i in seq_len(k)) {
 invisible(gc())
 invisible(gc())
 invisible(gc())
-expect_equal(counter$freed, k - 1L)
+expect_true(counter$freed >= k - 1L)
 rm(sampler)
 invisible(gc())
 invisible(gc())

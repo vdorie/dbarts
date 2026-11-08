@@ -64,15 +64,17 @@ using bartcore_bridge::validateTestContainerAgainstStore;
 
 namespace {
 
-// The external pointer's protection slot pins the data specification object
-// and nothing else, through a weak reference (retain below) so that a saved
-// pointer does not write the data a second time. The pin is load-bearing: a
-// sparse build keeps the dgCMatrix's @i and @x slices for the store's life and
-// a sparse column's reader borrows its nonzero values, so the data object must
-// outlive the pointer's holder. Every other value the engine keeps lives in a
-// holder-owned buffer (adoptVector below) or in the store's owned codes.
+// The external pointer's protection slot holds exactly the R vectors the
+// engine keeps pointers into for the sampler's life (pinBorrowedSlices below):
+// a CSC build's store keeps each column's slice of the dgCMatrix's @i and @x
+// until the column is first mutated, so those two vectors are held there, and
+// a dense build, which keeps no pointer into R memory, holds nothing. Every
+// other value the engine keeps lives in a holder-owned buffer (adoptVector
+// below) or in the store's owned codes. The data object itself is not held:
+// the sampler's data field keeps it, a saved pointer then writing only a
+// sparse build's two vectors.
 enum {
-  PROT_DATA = 0,
+  PROT_BORROWED = 0,
   PROT_COUNT
 };
 
@@ -89,16 +91,24 @@ static const char storageSingleUnsupportedMessage[] =
 // derivation. Written as a hex literal because 2^-26 is exact.
 static constexpr double sumToOneTolerance = 0x1p-26;
 
-// A weak reference keyed on the pointer keeps value alive exactly as long as
-// the pointer is reachable, and serializes as an empty reference. R keeps
-// every weak reference whose key lives, so the one replaced is cleared rather
-// than dropped, or it would pin its value for the pointer's lifetime.
-void retain(SEXP ptrExpr, int slot, SEXP value) {
-  SEXP protExpr = R_ExternalPtrProtected(ptrExpr);
-  SEXP previous = VECTOR_ELT(protExpr, slot);
-  SEXP pin = R_MakeWeakRef(ptrExpr, value, R_NilValue, FALSE);
-  SET_VECTOR_ELT(protExpr, slot, pin);
-  if (TYPEOF(previous) == WEAKREFSXP) R_RunWeakRefFinalizer(previous);
+// Holds in the pointer's protection slot the @i and @x of the dgCMatrix a
+// train build over \p dataExpr reads its CSC columns from - the data's x
+// itself, or a mixed container's sparse part - as the vectors themselves, so
+// that R neither frees nor modifies them in place while the store points into
+// them. A data object with no sparse part leaves the slot empty.
+void pinBorrowedSlices(SEXP ptrExpr, SEXP dataExpr) {
+  SEXP xExpr = Rf_getAttrib(dataExpr, Rf_install("x"));
+  SEXP sparseExpr = R_NilValue;
+  if (Rf_inherits(xExpr, "dgCMatrix"))
+    sparseExpr = xExpr;
+  else if (Rf_inherits(xExpr, "dbartsMixedMatrix"))
+    sparseExpr = rc_getListElement(xExpr, "sparse");
+  if (!Rf_inherits(sparseExpr, "dgCMatrix")) return;
+  SEXP slicesExpr = PROTECT(Rf_allocVector(VECSXP, 2));
+  SET_VECTOR_ELT(slicesExpr, 0, Rf_getAttrib(sparseExpr, Rf_install("i")));
+  SET_VECTOR_ELT(slicesExpr, 1, Rf_getAttrib(sparseExpr, Rf_install("x")));
+  SET_VECTOR_ELT(R_ExternalPtrProtected(ptrExpr), PROT_BORROWED, slicesExpr);
+  UNPROTECT(1);
 }
 
 void holderFinalizer(SEXP ptrExpr) {
@@ -114,13 +124,13 @@ void holderFinalizer(SEXP ptrExpr) {
 // (R_SetExternalPtrAddr does not allocate, so no OOM longjmp can strand the
 // holder between its construction and its finalizer), build the holder, then
 // install its address. \p buildHolder returns the holder; its own parse errors
-// longjmp past this before any address is installed. The protection vector pins
-// dataExpr (PROT_DATA) through a weak reference keyed on the pointer.
+// longjmp past this before any address is installed. The protection vector
+// holds what the build borrows from dataExpr (PROT_BORROWED).
 template <typename BuildHolder>
 SEXP createExternalHolder(SEXP dataExpr, BuildHolder buildHolder) {
   SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
   SEXP result = PROTECT(R_MakeExternalPtr(NULL, R_NilValue, protExpr));
-  retain(result, PROT_DATA, dataExpr);
+  pinBorrowedSlices(result, dataExpr);
   R_RegisterCFinalizerEx(result, holderFinalizer, static_cast<Rboolean>(FALSE));
 
   BartcoreHolder* holder = buildHolder();
@@ -5072,9 +5082,9 @@ bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
 
 extern "C" {
 
-// The external pointer's protection slot holds the data expression weakly,
-// for as long as the pointer lives (retain); the setters copy what they are
-// handed into holder-owned buffers. family is as createHolder's.
+// The external pointer's protection slot holds the R vectors a CSC build
+// borrows (pinBorrowedSlices); the setters copy what they are handed into
+// holder-owned buffers. family is as createHolder's.
 // tooFewUnitsExpr, TRUE or NULL, is the host's count of its units in the
 // likelihood, fewer than two (SamplerOptions::tooFewUnitsIn).
 SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
@@ -5193,10 +5203,10 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
                         rngs = std::vector<ext_rng*>{}]() mutable -> SEXP {
     // the pointer and its finalizer before anything is owned, so no
     // allocation runs while a frame local holds the sampler or the holder
-    // (createExternalHolder)
+    // (createExternalHolder); the protection slot stays empty, a fold's store
+    // being a gathered copy of the handle's that points into no R vector
     SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
     SEXP result = PROTECT(R_MakeExternalPtr(NULL, R_NilValue, protExpr));
-    retain(result, PROT_DATA, dataExpr);
     R_RegisterCFinalizerEx(result, holderFinalizer,
                            static_cast<Rboolean>(FALSE));
 
@@ -7451,10 +7461,8 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
     if (shape.family == bartcore::ResponseFamily::logistic)
       sampler.setWeights(weights);
 
-    // the new spec replaces the old as the pinned object, so the old one is
-    // freed while the sampler lives; this door refuses a CSC-built sampler and
-    // sparse data, so the engine borrows nothing from either
-    retain(ptrExpr, PROT_DATA, dataExpr);
+    // nothing to hold: this door refuses a CSC-built sampler and sparse data,
+    // and a dense build keeps no pointer into the new data
 
     return R_NilValue;
   });
