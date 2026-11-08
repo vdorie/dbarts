@@ -296,8 +296,7 @@ items
     2026-11-07: "Use your new recommendation."). A design note first:
     what a pre-built data object keeps, dbartsSpec()'s resolution,
     predict's bases =, the matrix interface, the tests using bases =;
-    it comes back as a decision. Interim: dbartsSpec() refuses a data
-    object carrying bases beside a list declaring one, as dbarts() does.
+    it comes back as a decision.
     The object keeps the data frame whole and as little derived from it
     as it can, the quantized predictor block made from the frame when a
     sampler needs it (dec-B670, VD 2026-11-07: "keep the data frame, but
@@ -318,7 +317,41 @@ items
     frame is dropped and the sampler's data holds the model frame and
     what its forests need, the setters writing into it (dec-B678, VD
     2026-11-08: "Yes, of course, the model frame. And whatever we need
-    for forests."); the note designs and sizes it.
+    for forests."); the note designs and sizes it. It lands in two
+    parts, this item the first: the data object and the forest doors
+    (dec-B679, VD 2026-11-08: "So use (b) I guess."). A basis vector
+    has one entry per row handed over (dec-B680, VD 2026-11-08:
+    "(a)."); dbarts(o, forests = ) reads a declared basis as
+    dbartsSpec(o) does (dec-B681, VD 2026-11-08: "(a), but I thought we
+    moved forest stuff off the data, it just has to hold the frame.");
+    beside an object with no caller frame a name it holds is read from
+    it and another of the frame's names refused (dec-B682, VD
+    2026-11-08: "(b)"); an environment's object holds what it read at
+    the build (dec-B683, VD 2026-11-08: "(a)"); a forests list states
+    the forests in full, a sampler's data included (dec-B684, VD
+    2026-11-08: "(a)."), replacing dec-B663's interim refusal, never
+    built. Plan: docs/plans/basis-references-part-1.md, three slices
+    (the data object, the forest doors, the consumers), five open calls
+    for the maintainer.
+  basis-references-part-2: the sampler's model frame (dec-B678), the
+    second landing of the basis-references design (dec-B679): a
+    sampler's data holds the model frame and its forests' basis
+    columns, the setters writing into it, model.frame(s$data) reading
+    it, stand-ins in its x, y, weights and offset slots, a lint rule on
+    slot reads, the bridge's whole-matrix split. Open: calls 39 (what
+    model.frame(s$data) shows), 36 (the stand-in's attributes), 41 (the
+    mask in the frame) and stan4bart's saved bundle. It reshapes part
+    1's resolution, model.frame() of block-holding objects, the held
+    basis's name and the environment's object, and stan4bart's three
+    reads of sampler$data. After part 1; saved-sampler-data-twice is
+    examined before it.
+  sampler-help-mask-sentence: the dbartsSampler help's data argument
+    says "Under such a family the sampler's own data object carries no
+    weights, so setData(sampler$data) drops the mask in force"; on main
+    a probit or ordinal fit's 0/1 weights ride s$data@weights and
+    survive setData(s$data) (run 2026-11-08), and only a mask set by
+    setActiveRows is cleared, as the help says elsewhere. A help
+    sentence.
   basis-one-column-labels: a one-column character, logical or factor
     matrix given as a basis is read as its column, two levels, at every
     door; wider ones stay refused (dec-B662, VD 2026-11-07: "We can use

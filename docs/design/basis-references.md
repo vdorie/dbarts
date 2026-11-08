@@ -1,12 +1,31 @@
 # A forest's basis names a column of the data
 
-Status: PROPOSED, 2026-11-07, revised 2026-11-08 to the rulings dec-B674 to dec-B678.
+Status: PROPOSED, 2026-11-07, revised 2026-11-08 to the rulings dec-B674 to dec-B684; part 1 planned in
+[basis-references-part-1.md](../plans/basis-references-part-1.md), not built.
 Follows dec-B663 (a forest's basis is a reference to a column of the data), dec-B666 (the frame kept on the
 data object), dec-B670 (the whole frame kept, and beside it as little derived from it as can be), dec-B671
 (what a fit of several forests keeps under `keepFits = FALSE`), dec-B674 (`keep.data = FALSE`, the frame kept
 by default), dec-B675 (the response, weights and offsets made from the frame), dec-B676 (`o@x` a stand-in
-that stops when read), dec-B677 (`model.frame(o)` and `nobs(o)` the accessors; `extract()` keeps to samples)
-and dec-B678 (a sampler's data holds the model frame and what its forests need, the setters writing into it).
+that stops when read), dec-B677 (`model.frame(o)` and `nobs(o)` the accessors; `extract()` keeps to samples),
+dec-B678 (a sampler's data holds the model frame and what its forests need, the setters writing into it),
+dec-B679 (two landings), dec-B680 (a basis vector has one entry per row handed over), dec-B681 (`dbarts(o)`
+reads a declared basis as `dbartsSpec(o)` does), dec-B682 (beside an object with no caller frame, a name it
+holds is read from it; it revises dec-B674's words), dec-B683 (an environment's object holds what it read at
+the build) and dec-B684 (a forests list states the forests in full).
+
+## Two landings
+
+The design lands in two parts (dec-B679):
+
+- **Part 1, the data object and the forest doors**: sections 2.1 to 2.3, 2.7 to 2.9, the user's object's
+  stand-ins, `model.frame()` and `nobs()`, `keep.data`, and the rulings on calls 1, 2, 3, 6 and 7. A sampler's
+  data is today's object with real slots: the caller's frame dropped where a sampler is handed its data, its
+  column names kept. About 365 lines of R.
+- **Part 2, the sampler's model frame** (dec-B678): sections 2.4 to 2.6, the setters, the stand-ins on a
+  sampler's data, the lint rule and the bridge entry. Its open calls are 39, 36, stan4bart's bundle (Costs
+  dec-B678 did not weigh) and 41.
+
+Between the two, main holds a user's object of the new shape beside a sampler's data of today's.
 
 ## In short
 
@@ -73,7 +92,8 @@ Run on main, 2026-11-07 and 2026-11-08.
   - `$setOffset`, `$setWeights`, `$setTestPredictor` and `$setForestBasis` write their slots.
   - Two per-row quantities live outside it, in fields of the sampler: `$setForestWeights`'s per-forest weights
     and `$setActiveRows`'s mask. Getting the engine back, `$setState` and `$copy()` each apply them again.
-  - A probit or ordinal fit's 0/1 weights become the mask and leave the data, so `$setData(s$data)` drops it.
+  - A probit or ordinal fit's 0/1 weights ride `s$data@weights` and survive `$setData(s$data)` (run on main
+    at 7a54b2b1d); only a mask set by `$setActiveRows` is cleared. The two channels compose.
   - The flat C API's `dbarts_sampler_setResponse` and `dbarts_sampler_setOffset` change the engine and write no
     slot. stan4bart calls the second every iteration.
   - The engine keeps no predictor block. It reads the data object at creation, at `$setData`, at a model
@@ -111,8 +131,9 @@ that is no column is looked up where `forest()` was called. Set aside: the frame
 a dropped row misreads them in silence) and named columns only (dec-B666).
 
 `keep.data = FALSE` keeps no frame (dec-B674). The object keeps the block, `y`, `weights` and `offset` as
-today, and the frame's column names, so a basis named by one of them is refused rather than read from the
-caller (call 6).
+today, the positions of its rows (dec-B680 cuts a full-length basis by them) and the frame's column names.
+Beside it a basis naming a column the object holds is read from it, and another of the frame's names is
+refused, naming the object built with its frame (dec-B682, revising dec-B674's words).
 
 ### 2.3 A user's object, under dec-B670 and dec-B674 to dec-B677
 
@@ -171,8 +192,10 @@ a default object it needs no block and gives what it gives today.
 Saved, a user's object is the frame and the record: 2.22 MB at 20,000 rows with a 26-level factor, where frame
 and block together would be 4.5 MB.
 
-**An object built on an environment** (call 7) holds the model frame made at the build, the shape a sampler's
-data holds (2.4), and the environment's variable names.
+**An object built on an environment** (dec-B683, call 7) holds the model frame made at the build, the shape a
+sampler's data holds (2.4; in part 1, the block, as a sampler's data holds it then), and the environment's
+variable names. A basis naming a model variable is read from it; another of the environment's names is
+refused, naming a data frame or list. Every value is read at the build.
 
 ### 2.4 The sampler's data, under dec-B678
 
@@ -189,8 +212,8 @@ terms built from its own columns, the response at position 1, its term labels it
 |---|---|
 | the response | as the sampler reads it: coded doubles (0/1, ordinal codes); for `aft` the time, its status in `(status)` (call 34); for `multinomial` the count matrix (call 35) |
 | each predictor column the engine reads | a numeric column as doubles; a factor as a factor of the recorded levels, a character column coded to one (call 26); a matrix-valued term (`poly()`, `scale()`, a matrix variable) as one column each (call 24); under `factors = "indicators"`, each indicator column (call 25) |
-| `(weights)` | the weights, absent where there are none; where the family reads 0/1 weights as the mask (probit among them), the mask (call 41) |
-| `(active)` | the active-row mask of other families, absent where every row is in (call 41) |
+| `(weights)` | the weights, absent where there are none; a probit or ordinal fit's 0/1 weights among them, which ride the data today |
+| `(active)` | the mask `$setActiveRows` installs, in every family, composing with the weights; absent where every row is in (call 41) |
 | `(offset)` | the one offset the sampler adds, the formula's `offset()` terms summed with the argument (call 27) |
 | `(offset.category)` | the multinomial category offset |
 | `(basis.<label>)` | a forest's basis, a number or a two-level factor, for each forest that has one (call 28) |
@@ -212,7 +235,7 @@ Kept as records, none a copy of a row:
 - what a sampler writes: `missing.seen`, `cutPoints`, `response.range`, `forest.calibration` and
   `standardization`
 
-The caller's frame and the row positions are dropped. The frame's column names are kept for call 6.
+The caller's frame and the row positions are dropped. The frame's column names are kept for dec-B682.
 
 The test rows stay where they are, in `x.test`, `weights.test`, `offset.test` and `offset.category.test`
 (call 29). They come from `test`.
@@ -266,7 +289,7 @@ codes are what the engine derives from it, as today (call 30).
 | `$setPredictor(x, forceUpdate = "partial")`, `updatePredictorPerObservationJointly` | the installed rows of the column | as today | as today |
 | `$setOffset(o)` | `(offset)`, removed for `NULL` | 140 us (140 to 145) | about 147 us |
 | `$setWeights(w)` | `(weights)`, removed for `NULL` | 160 us (160 to 170) | about 167 us |
-| `$setActiveRows(a)` | `(active)`, or `(weights)` where it is the mask | 240 us (240 to 260) | about 247 us |
+| `$setActiveRows(a)` | `(active)` | 240 us (240 to 260) | about 247 us |
 | `$setForestWeights` | `(forest.weights.<label>)` | | one column write |
 | `$setForestBasis` | `(basis.<label>)` | | one column write |
 | `$setCounts`, multinomial | the response's count matrix | | one column write; the trials are made from it where read |
@@ -372,10 +395,16 @@ of `x`, `y`, `weights`, `offset` and `bases`, sized as the frame saves from the 
 - **`dbartsSpec(o, forests = )`** and **`dbarts(o, forests = )`** read a basis against `o`'s frame, then where
   `forest()` was called, built on `o`'s rows by the function `dbarts()` uses. So
   `dbartsSpec(dbartsData(f, d), forests = L)` and `dbarts(f, d, forests = L)` draw the same.
-  - A value has the length of the rows handed over (call 1).
-  - `dbarts(o)` takes a declaring list (call 2).
-- **A sampler's data beside a declaring list** is refused where it carries basis columns (call 3). Where it
-  carries none, a name of a column of the caller's frame is refused (call 6).
+  - A value has one entry per row handed over, before `subset` and the na.action, and is cut with them; a
+    vector of the cut length on an object that dropped rows is refused (dec-B680, call 1).
+  - `dbarts(o)` reads a declaring list exactly as `dbartsSpec(o)` does (dec-B681, call 2).
+- **Beside an object with no caller frame** (a sampler's data, a `keep.data = FALSE` object), a basis naming
+  a column the object holds, a model variable or a held basis, is read from it; another of the caller's
+  frame's names is refused, naming the data object built with its frame; any other name is the caller's
+  value (dec-B682, call 6). How a held basis is named in part 1 is open (the plan's open call 1).
+- **Beside any data, a sampler's data included, a forests list states the forests in full** (dec-B684, call
+  3): a forest declaring no basis has none, keeping a held basis means naming it, a list of tree counts alone
+  gives plain forests and no list gives one forest. dec-B663's interim refusal is not built.
 - **`$setForestBasis`** and **`predict`**: as built.
 - **The matrix interface**: a value, full length, cut by the record.
 - **Fit and reload**: `dbartsSpec()` and `dbarts(o)` write the model record `dbarts(f, d)` writes.
@@ -392,8 +421,9 @@ Once `bases =` goes, a data object carries basis columns only where a sampler of
   points to the data object they were made from or to `dbarts()`. Its own data handed back is taken, and now
   keeps its mask and forest weights, which live in the frame.
 - **`$setData` on a sampler of several forests**: refused whatever it is given, as today.
-- **`dbarts(s$data)`, `dbartsSpec(s$data)` and a reload**: the basis columns and `basis.levels` re-create the
-  forests.
+- **`dbarts(s$data)` and `dbartsSpec(s$data)`**: the list states the forests (dec-B684), a held basis kept
+  where a forest names it. **A reload** re-creates the forests from the model record and the data's basis
+  columns.
 
 Three texts that advise the data door are reworded: the `$setData` refusal, `dbarts()`'s refusal of a
 declaring list, and the refusal of a model of one forest with a basis.
@@ -445,10 +475,14 @@ Run where installed (mgcv 1.9.4, nlme 3.1.171, lme4 2.1.0, brms 2.23.0); stochtr
 - `$setData(s$data)` keeps the sampler's mask and forest weights, where today it drops the mask.
 - treatSens uses the matrix interface and reads no slot, so nothing moves.
 - bartCause and stan4bart: 2.5.
-- A `dbartsSpec()` caller with a basis:
+- A `dbartsSpec()` or `dbarts(o)` caller with a basis (part 1):
   - A name that is a column now finds it. Where it is also a caller's variable, the column wins, as at
-    `dbarts()`: the one call whose draws move.
-  - A kept-length value on an object that dropped rows is refused.
+    `dbarts()`, and the draws move.
+  - Beside a sampler's data or a `keep.data = FALSE` object, a name the object holds is read from it where
+    today the caller's variable is (dec-B682), and the draws move.
+  - Beside a sampler's data of several forests, no list gives one forest and a list of tree counts plain
+    forests, where today the held bases are kept (dec-B684), and the draws move.
+  - A kept-length value on an object that dropped rows is refused; `dbarts(o)` takes a declaring list.
 - Anyone who saves a data object built from a frame: it holds the frame in place of the block, about the same
   size where the frame is mostly the model's columns, larger where it holds others.
 
@@ -520,35 +554,29 @@ Ruled:
 - call 5, by dec-B678: the caller's frame is dropped where a sampler is handed its data, and the sampler's
   data holds the model frame and what its forests need
 - the former call 11, by dec-B671
+- call 1, by dec-B680: a basis vector has one entry per row handed over, before `subset` and the na.action, at
+  every door that builds a model; a vector of the cut length on an object that dropped rows is refused, the
+  message saying the length expected
+- call 2, by dec-B681: `dbarts(o, forests = )` reads a declared basis exactly as `dbartsSpec(o, forests = )`
+  does; a data object holds the frame and no forest settings
+- call 6, by dec-B682, which takes the alternative and revises dec-B674's words: beside a sampler's data or a
+  `keep.data = FALSE` object, a basis naming a column the object holds (a model variable or a basis column) is
+  read from it; a name that was another column of the caller's frame is refused, naming the data object built
+  with its frame; any other name is the caller's value
+- call 7, by dec-B683: an environment's object holds the model frame made at the build and the environment's
+  names; a basis named later is read from that frame or refused, naming a data frame or list
+- call 3, by dec-B684, which takes neither the design's refusal nor its alternatives: beside any data, a
+  sampler's data included, a forests list states the forests in full; a forest declaring no basis has none,
+  keeping a held basis means naming it, no list gives one forest; dec-B663's interim refusal is replaced
+- the split into two landings, by dec-B679
+
+Open, part 2: calls 39 (what `model.frame(s$data)` shows), 36 (the stand-in's attributes on a sampler's data),
+stan4bart's bundle (Costs dec-B678 did not weigh) and 41 (the mask in the frame). Open, part 1: the calls its
+plan lists.
 
 The calls below are agent calls: the design takes each so that it can be stated whole, and each waits for the
 maintainer's mark before the build. They follow the rulings' direction: one shape for a user's object and a
 sampler's data, base R's verbs, one source of truth with no derived copies, and matching by name.
-
-1. **The length of a basis given as a value**: the length of the rows handed over, at every creation door. A
-   value already cut to the kept rows is refused where rows were dropped. This is one meaning for one
-   argument, as at `dbarts(f, d, forests = )`. Cost: within `dbartsSpec()`'s lines. Alternative: either
-   length at `dbartsSpec()`.
-2. **`dbarts(o, forests = )` declaring a basis**: taken, as `dbartsSpec()` takes it, so both read one data
-   object alike; bartCause's `bcf()` needs it. Cost: about 25 lines. Alternative: `dbarts()` refusing, and
-   bartCause moving to `dbartsSpec()` and `new("dbartsSampler")`.
-3. **A sampler's data carrying basis columns, beside a list declaring a basis**: refused at both doors, naming
-   the data object to start from; a list of knobs only keeps the record. A sampler's model frame holds the
-   model's variables and its basis columns, not the caller's columns a basis expression names, so a new basis
-   has nothing to be read against. Cost: about 10 lines. Alternatives: the list replacing the bases whole,
-   where a plain forest in it loses its basis; or any list refused, knobs too.
-6. **A basis naming a column of the caller's frame, beside an object with no caller's frame** (a sampler's
-   data of one forest, a `keep.data = FALSE` object): refused, pointing to the object built with its frame,
-   as dec-B674 rules for a `keep.data = FALSE` object, the frame's names kept in `frame.columns` for it. Any
-   other name is the caller's value. Cost: about 10 lines. Alternative, a revision of dec-B674's words and so
-   the maintainer's: a name that is a column of the model frame the object holds is read from there, and only
-   the frame's other names are refused.
-7. **An environment given as `data`**: the object holds the model frame made at the build, as a sampler's
-   data does, and the environment's variable names. A basis naming a model variable is read from that frame,
-   and another of the environment's names is refused, pointing to a data frame. Every value is read at one
-   time, the build. Cost: about 10 lines. Alternatives: the environment kept and read at the resolution,
-   which answers a basis named later from the environment but reads it later than the predictors; or the
-   block kept as today, with every environment name refused.
 
 Made in building dec-B678, agent calls as above:
 
@@ -637,10 +665,11 @@ Made in building dec-B678, agent calls as above:
     forest needs, so `$setData(s$data)`, a copy and a reload carry them from one place, and the sampler field
     goes. Cost: about 15 lines; a `$setForestWeights` costs one column write more. Alternative: the field as
     today, applied again on each re-creation.
-41. **The active-row mask lives in the frame**: in `(weights)` where the family reads 0/1 weights as the mask,
-    which they are, and in `(active)` elsewhere. `$setData(s$data)` then keeps it, where today the mask is
-    dropped, and the sampler field goes. Cost: about 15 lines; `$setActiveRows` is 7 us more. Alternative: the
-    field as today, `$setData(s$data)` dropping a probit sampler's mask.
+41. **The active-row mask lives in the frame**, in `(active)` in every family. A probit or ordinal fit's 0/1
+    weights ride the data already and survive `$setData(s$data)` (corrected 2026-11-08; the earlier premise
+    said they became the mask); what `$setData(s$data)` drops today is a mask set by `$setActiveRows`, which
+    it would then keep, and the sampler field goes. Cost: about 15 lines; `$setActiveRows` is 7 us more.
+    Alternative: the field as today, `$setData(s$data)` dropping that mask. Open, part 2.
 42. **The flat C API's setters do not write the frame**: they change the engine only, as they write no slot
     today, and the header does not change. `model.frame(s$data)` shows the last values given through R, and a
     copy or a reload rebuilds from them; the help says so. Alternative: an R-side mirror kept by the C entries,

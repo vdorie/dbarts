@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (142 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (145 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:` line or `## Status` section; the one plan with neither,
@@ -60,6 +60,7 @@ Columns: `file | STATUS | one-liner`.
 
 | file | STATUS | purpose |
 |---|---|---|
+| basis-references-part-1.md | PLANNED 2026-11-08, awaiting its blind critique and five open calls; design basis-references.md, part 1 of two (dec-B679) | A data object built from a frame keeps the frame, its rows' positions and the coding record, read through `model.frame(o)` and `nobs(o)`, its `x`, `y`, `weights` and `offset` stand-ins, `keep.data = FALSE` keeping the block (dec-B674 to dec-B677); every door that builds a model reads a forest's basis by one function, full length, names a frameless object holds read from it, a forests list stating the forests in full (dec-B680 to dec-B684); `dbartsData(bases = )` goes; bartCause and stan4bart pass `keep.data = FALSE`. Three slices; no draw moves but three named calls'. |
 | column-kind-consolidation.md | LANDED (all seven slices) | Gives factor columns their own semantic column kind, separate from plain ordinal columns; changes an ordered factor's split grid to the midpoints between its declared levels (posterior-changing) and makes a factor column's stored representation its codes alone. |
 
 ## SBC / calibration cluster
