@@ -188,3 +188,15 @@ the setWeights and setActiveRows keeps; the test skipped in
 pin, the chain's own derivation throwing where the sampler marked the
 covariate derivable; the corrected center removed fails the C++ row-count
 check.
+
+Fix round, 95534dd61, after the engine review (SOUND AFTER NITS). F1
+(dec-B673): the refusal advises dropping the column, recomputing it from
+its source about an origin near its values where they truly differ, or
+changing the rows in; the help says why subtracting a constant does not
+work. F2: calls 8. F3 and F4: calls 5 and 9. Two defects present before
+the slice are filed in TODO (leaf-covariate-infinite-value,
+leaf-covariate-moments-range). Gates on that code: tests/cpp plain; the
+full suite, 42317 results, 0 failed; the trio on the reference build, 55,
+19 and 11 scenarios identical, none skipped; the four reproducibility
+files, 27 results; lint, air, codoc, win-drift, doc-freshness,
+verify-anchors.
