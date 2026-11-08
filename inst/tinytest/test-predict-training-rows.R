@@ -644,6 +644,23 @@ expect_error(
   ),
   naTestMsg
 )
+# and at the door that installs a data object on a live sampler
+cleanSampler <- dbarts(
+  y ~ a + b + c,
+  train.frame,
+  test = test.frame,
+  weights = weights,
+  n.trees = 10L,
+  control = dbartsControl(n.chains = 1L, n.threads = 1L, verbose = FALSE)
+)
+naData <- dbartsData(
+  y ~ a + b + c,
+  train.frame,
+  test = naTest,
+  weights = weights
+)
+expect_error(cleanSampler$setData(naData), naTestMsg)
+rm(cleanSampler, naData)
 rm(naTest, naTestMsg, mnTrain, mnTest)
 set.seed(4)
 ppd.t <- counted(extract(fit.wt, "ppd", sample = "test"))
