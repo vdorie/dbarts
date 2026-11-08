@@ -1333,21 +1333,22 @@ First, the S6 re-check's two leftovers: a character or factor column among those
 at new rows is refused in Refusal 13's words (call 91; test-binomial.R 116 expectations, the factor check off and the
 old absent reading restored each killed), and NEWS's dec-B641 sentence names na.action's pass and omit and the pair
 missing in every row read as absent.
-As built: benchmarks/R/frequency-exact.R, eleven arms, each fit through dbarts() with `weights.type = "frequency"`
-(call 92) on 40 rows at counts 1 to 4. Draw for draw over 300 sweeps, every draw the run reports compared by row (call
-93): gaussian, a linear leaf, useQuantiles at 10 cuts below the 40 unique values (call 94), a variance forest, nbinom at a
+As built: benchmarks/R/frequency-exact.R, eleven arms, each fit through dbarts() with `weights.type = "frequency"` (call
+92) on 40 rows at counts 1 to 4. Draw for draw over 300 sweeps, every draw the run reports compared by row (call 93):
+gaussian, a linear leaf, useQuantiles at 10 cuts below the 40 unique values (call 94), a variance forest, nbinom at a
 fixed and a drawn shape and multinomial, within 1e-12; two forests, the second on a factor basis (call 103), and the
 binomial pair at a row weight against adjacent logistic rows of counts v k and v f, 0 < k < n (call 95), within 1e-10.
 In distribution at |z| 4.5 by batch means (call 99): sigma on one leaf at real weights against a grid posterior with the
-leaf integrated (call 96), deciles 0.1, 0.5 and 0.9 and the mean; nu on fixed residuals at counts 0, 1, 2, 3, 0.5, 1.7 and
-2.4 against the grid's exact probabilities (call 97); Student-t against its expanded rows by Welch z on the 24 rows' fits,
-sigma and nu (call 98). Green at the tip: the draw-for-draw gaps 4.2e-15 to 4.2e-14, the forests' 1.3e-12; sigma's z at
-most 0.63, nu's 0.91 over nine grid points, Student-t's 1.88. Quick 3.8 s, full 18.6 s, on the laptop. The script
-joins exact-gates.yaml's list after categorical-exact.R and benchmarks/README.md describes it. sbc.R's frequency arm,
-by dispatch (call 101): a gaussian fit at Uniform(0.5, 2) weights, sigest 3, theta0's sigma from the prior tilted by
-(sigma^2)^(-(W - n) / 2) and y0 at sd sigma / sqrt(w) (sbcFrequencySigmaDraw, call 100, a construction of ours). At
-R = 200, L = 200, thin 30 it passed all seven functionals at the per-functional 5% band, sigma's chi-square p 0.315, in 637.5 s; against mutant 1's build sigma
-flagged (chi-square p below 1e-3, ecdf difference 0.875 against a band of 0.092), the fits passing, in 665.5 s.
+leaf integrated (call 96), deciles 0.1, 0.5 and 0.9 and the mean; nu on fixed residuals at counts 0, 1, 2, 3, 0.5, 1.7
+and 2.4 against the grid's exact probabilities (call 97); Student-t against its expanded rows by Welch z on the 24 rows'
+fits, sigma and nu (call 98). Green at the tip: the draw-for-draw gaps 4.2e-15 to 4.2e-14, the forests' 1.3e-12; sigma's
+z at most 0.63, nu's 0.91 over nine grid points, Student-t's 1.88. Quick 3.8 s, full 18.6 s, on the laptop. The script
+joins exact-gates.yaml's list after categorical-exact.R and benchmarks/README.md describes it. sbc.R's frequency arm, by
+dispatch (call 101): a gaussian fit at Uniform(0.5, 2) weights, sigest 3, theta0's sigma from the prior tilted by
+(sigma^2)^(-(W - n) / 2) and y0 at sd sigma / sqrt(w) (sbcFrequencySigmaDraw, call 100, a construction of ours). At R =
+200, L = 200, thin 30 it passed all seven functionals at the per-functional 5% band, sigma's chi-square p 0.315, in
+637.5 s; against mutant 1's build sigma flagged (chi-square p below 1e-3, ecdf difference 0.875 against a band of
+0.092), the fits passing, in 665.5 s.
 Mutants, each on an archive of the branch tip rebuilt with `--preclean`, each red on its arm: 1 (each row counted 1) on
 gaussian (19) and sigma (z to 7400); S (sigma's count rounded, call 102) on sigma (z to 186; gaussian's whole counts
 pass it); 6 (leaf moments unweighted) on linear (12); F (the anchor read unweighted) on forests (8; it passed the first
@@ -1359,15 +1360,14 @@ on student (max |z| 278, nu at -133). The plan's other mutants belong to the sli
 Feature-end gates, on arm64 macOS at the tip before the records (the gates' tip, 5521d87c7): a --preclean shipped
 install; the full suite in one process, 42541 results, 0 failed; tests/cpp plain, 559 checks, all passed, and under
 OPT="-O2 -g -fsanitize=address,undefined" on a fresh copy of the tip, 559, all passed, no report, twice (in the worktree
-`make clean` had left test_alloc.o and test_frequency.o unsanitized, and the mixed binary reported a container
-overflow in the allocation harness; the clean list now names both, and main at 063e27c75 under the same flags gives
-559 with no report); on a --preclean reference build the trio --bitwise against equivalence-38da480c,
-bcf-equivalence-38da480c and multinomial-equivalence-80b1c8d4, 55, 19 and 11 scenarios, none skipped, none moved, and
-the four snapshot files, 27 results, 0 failed; the exact gates in quick, 45 of 45, frequency-exact.R among them;
-R CMD build, then R CMD check --as-cran on the tarball, 1 NOTE: the expired certificate of rob-mcculloch.org in two
-help pages and the Date field over a month old, both on main; lint_package 0, air, codoc (52), win drift and
-doc-freshness clean; verify-anchors (82) clean. The x86 leak-sanitizer leg and bench-sampler.R's compare on a quiet
-machine are the landing's.
+`make clean` had left test_alloc.o and test_frequency.o unsanitized, and the mixed binary reported a container overflow
+in the allocation harness; the clean list now names both, and main at 063e27c75 under the same flags gives 559 with no
+report); on a --preclean reference build the trio --bitwise against equivalence-38da480c, bcf-equivalence-38da480c and
+multinomial-equivalence-80b1c8d4, 55, 19 and 11 scenarios, none skipped, none moved, and the four snapshot files, 27
+results, 0 failed; the exact gates in quick, 45 of 45, frequency-exact.R among them; R CMD build, then R CMD check
+--as-cran on the tarball, 1 NOTE: the expired certificate of rob-mcculloch.org in two help pages and the Date field over
+a month old, both on main; lint_package 0, air, codoc (52), win drift and doc-freshness clean; verify-anchors (82)
+clean. The x86 leak-sanitizer leg and bench-sampler.R's compare on a quiet machine are the landing's.
 The asymmetry call 91 leaves: at training a factor column a binomial's response expression reads is read by its codes,
 as glm reads it, and at new rows refused.
 Calls made 91 to 103.
