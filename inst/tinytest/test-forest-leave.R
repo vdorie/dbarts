@@ -342,10 +342,14 @@ expect_error(live$setLeafPrior(normal(k = 3)), "$setForest(", fixed = TRUE)
 live <- build()
 saved <- live$model
 live$setForest(1L, sd = 0.4)
-# a model saved before the leave reads the withdrawn statement, not the share
+# a model saved before the leave states no sd, which is left, and gives forest 1
+# a part of the total it no longer has
 expect_error(
   live$setModel(saved),
-  "cannot withdraw forest 1's own 'sd'",
+  paste0(
+    "$setModel cannot give forest 1 another part of the prior total ",
+    "(none here, 1/3 in the model given)"
+  ),
   fixed = TRUE
 )
 other <- build(sds = list(`1` = 0.4))

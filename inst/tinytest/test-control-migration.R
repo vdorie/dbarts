@@ -671,10 +671,12 @@ structureRefused(
   sampler$model,
   "columns of the variance forest"
 )
-# a variance forest's prior is a parameter: not refused, the sampler's kept
+# a variance forest's prior is a parameter: not refused, and installed where
+# the model states it
 parameter <- varianceOf(n.trees = 7L, base = 0.8, power = 1.5)$model
 sampler$setModel(parameter)
-expect_identical(sampler$model@variance@base, 0.95)
+expect_identical(sampler$model@variance@base, 0.8)
+expect_identical(sampler$model@variance@power, 1.5)
 expect_identical(sampler$model@variance@n.trees, 7L)
 sampler$setModel(sampler$model)
 
