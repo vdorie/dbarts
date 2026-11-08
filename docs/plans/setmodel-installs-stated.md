@@ -1,5 +1,8 @@
 # setmodel-installs-stated: $setModel installs each forest's stated number
 
+Status: LANDED 2026-11-08 on main by fast-forward (273a8dad3 to b1e7379c7; ledger entry dec-A278; see the
+Landing note). Plan calls 3, 9 and 10 are for the maintainer to mark; P1 (see the Landing note) is owed.
+
 agent: opus
 rng: neutral for every call taken today with a model that states nothing
 different; draw-changing for the calls ignored or refused today
@@ -181,3 +184,18 @@ no per-forest settings, so nothing shipped is owed a migration.
     does not: the model's numbers are copies of its level, which dec-B652
     leaves. Alternative: refuse a model whose level differs and reaches no
     forest, naming `$setForest`, as `$setTreePrior` does.
+
+## Landing note
+
+Landed 2026-11-08 by fast-forward from 73705f36c to b1e7379c7: the plan (273a8dad3), the code (9ff0c6ab2), the
+tests (c41464362) and two fixes from the review (be661417f, which compares a forest's stated number with the
+sampler's before the call so the one candidate's own sd beside another leaf prior takes the leaf prior as
+before, and b1e7379c7, which compares a stated depth once the level is written and a stated sd where the level
+leaves its size, and drops the unreachable no-spread check, call 9). Built as planned, with calls 2 and 9
+as the review settled them. R only; no engine or bridge change. Gates: the suite 43114 results, 0 failed; the
+trio bitwise with strict coverage (55 identical, 0 skipped; bcf and multinomial every channel identical); the
+four snapshot files 27 of 27; the exact gates in quick 49 of 49; lint, air, codoc, win-drift and
+doc-freshness clean; all ten CI workflows green on 1650904ba; the rebase onto main differed only in docs.
+Owed, found in review and not this slice's (P1): a probit sampler of several forests whose candidate states
+an sd at creation refuses its own model, against the help's "always accepted"; the root TODO carries it as
+setmodel-probit-stated-sd.

@@ -135,6 +135,10 @@ items
     are C and still raise through R from under a run. Both are default
     arms over kinds the library implements, so nothing reaches them
     today; closing them means an error channel out of the C rng API.
+  ci-exact-gates-timeout: the exact-gates job's 40-minute timeout is
+    within a few minutes of its run time on a slow hosted runner (25 to
+    40 minutes on 2026-11-08) and cut off four attempts on one branch;
+    raise it.
   correlated-outcomes: AR-1 / serially-correlated errors. Longitudinal,
     panel, ITS and DiD compose today via a latent AR-state + nugget in
     the outer sampler, driven through the setOffset conduit; EXACT
@@ -258,16 +262,12 @@ items
     probability as the variable moves, a category margin on the result
     and one line per category in the plots. Refused until then.
     Scheduled after 1.0-0 (VD 2026-10-04, dec-B209).
-  setmodel-installs-stated: $setModel installs each forest's number
-    the model states, the variance forest's power and base and a mean
-    forest's own sd, power and base, through the code $setVarianceForest
-    and $setForest run, bitwise theirs; an unstated number, a copy from
-    the fitting function's level among them, is left (dec-B652, VD
-    2026-11-07: "Ok, use your revised recommendation for the setModel
-    question."). The model's records note what each forest states (the
-    variance record does so today for the tree count only). Draw-
-    changing for the calls refused or ignored today; help on setModel,
-    setForest and setVarianceForest rewritten.
+  setmodel-probit-stated-sd: a probit sampler of several forests whose
+    candidate states an sd at creation refuses its own model ("does not
+    resolve to the leaf hyperprior"), against the help's "always
+    accepted"; a stated-sd install through $setModel cannot reach such a
+    sampler. Found reviewing setmodel-installs-stated (dec-A278); on
+    main before it. A fix and a pin.
   basis-references-to-data: a forest's basis is a reference to a column
     of the data, resolved by name where a data frame is given; the
     data object's per-forest bases become the package's record of that,
