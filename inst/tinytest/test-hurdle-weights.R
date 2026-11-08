@@ -240,8 +240,15 @@ newdata <- d[1:6, ]
 set.seed(4L)
 drawn <- predict(held, newdata, type = "ppd", weights = c(1, 0, 1, 1, 1, 1))
 expect_identical(unname(which(is.na(drawn[1L, ]))), 2L)
+# no weights stated: the weights column of newdata is read, a 0 holding its
+# row out (dec-B648), and newdata without the column draws every row
 set.seed(4L)
-expect_false(anyNA(predict(held, newdata, type = "ppd")))
+expect_identical(
+  unname(which(is.na(predict(held, newdata, type = "ppd")[1L, ]))),
+  2:3
+)
+set.seed(4L)
+expect_false(anyNA(predict(held, newdata[c("a", "b", "f")], type = "ppd")))
 expect_error(
   predict(held, newdata, type = "ppd", weights = 1:2),
   "same number of rows as 'newdata'"

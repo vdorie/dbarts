@@ -1700,6 +1700,32 @@ offsetArgumentFormula <- function(expr, env, dataNames, numRows) {
   result
 }
 
+## The 'weights' argument of a formula fit as written when it names columns of
+## the fit's data, kept on the data object as its "weights.argument" attribute:
+## a one-sided formula whose expression reads those columns from new rows alone
+## (freezeExpression), so that predict finds them in newdata and never in the
+## caller's frame. NULL where the weights name no column: a vector, a constant,
+## or a fit with no data to name columns.
+weightsArgumentFormula <- function(expr, env, dataNames) {
+  # d$w reads a vector from an object, not a column of the data
+  if (
+    is.null(expr) ||
+      is.null(dataNames) ||
+      isDotsReference(expr) ||
+      any(c("$", "@") %in% all.names(expr))
+  ) {
+    return(NULL)
+  }
+  frozen <- tryCatch(
+    freezeExpression(expr, dataNames, env, NA_integer_),
+    error = function(e) NULL
+  )
+  if (is.null(frozen) || length(all.vars(frozen)) == 0L) {
+    return(NULL)
+  }
+  stats::as.formula(call("~", frozen), env = baseenv())
+}
+
 ## A formula fit's 'offset' expression evaluated as model.frame evaluates
 ## one: in 'data', with 'env' for every name it does not carry. Returns the
 ## error rather than signaling it.
@@ -3220,6 +3246,9 @@ dbartsData <- function(
   # the 'offset' argument as written, re-evaluated on new rows
   # (offsetArgumentFormula)
   offsetArgument <- NULL
+  # the 'weights' argument as written when it names data columns, re-read from
+  # new rows (weightsArgumentFormula)
+  weightsArgument <- NULL
   # the response's original type, recorded on the result so the fitters can
   # route family = "auto" and reject a categorical response an unsupported
   # family cannot fit; each y-producing branch below refreshes it
@@ -3401,6 +3430,14 @@ dbartsData <- function(
           stop("'weights' must have the same length as 'y'")
         }
       }
+    }
+
+    if (!missing(weights) && !dataIsMissing) {
+      weightsArgument <- weightsArgumentFormula(
+        matchedCall$weights,
+        environment(formula),
+        formulaDataNames(data)
+      )
     }
 
     modelFrameCall <- matchedCall
@@ -4466,6 +4503,9 @@ dbartsData <- function(
   result@na.action <- naOmitted
   if (!is.null(offsetArgument)) {
     attr(result, "offset.argument") <- offsetArgument
+  }
+  if (!is.null(weightsArgument)) {
+    attr(result, "weights.argument") <- weightsArgument
   }
   if (!is.null(trainRowNames) || !is.null(testRowNames)) {
     result@rowNames <- list(train = trainRowNames, test = testRowNames)

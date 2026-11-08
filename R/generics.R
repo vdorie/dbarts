@@ -740,6 +740,74 @@ trainingRowWeights <- function(object, weights, type) {
   rep_len(as.double(weights), nObs)
 }
 
+## The weights a fit read from a column of its data, found in newdata alone
+## (dec-B648): the fit's recorded weights expression evaluated on newdata, its
+## names all columns there, never in the caller's frame. NULL where the fit's
+## weights were not a column, newdata lacks one of its columns, or the value is
+## not one number per row; the rows then draw as they do with no weights.
+newdataWeightsColumn <- function(object, newdata) {
+  argument <- attr(object$fit$data, "weights.argument")
+  if (is.null(argument)) {
+    return(NULL)
+  }
+  columns <- if (is.data.frame(newdata)) {
+    newdata
+  } else if (is.matrix(newdata) && !is.null(colnames(newdata))) {
+    as.data.frame(newdata)
+  } else if (is.list(newdata) && !is.object(newdata)) {
+    newdata
+  }
+  if (!all(all.vars(argument[[2L]]) %in% names(columns))) {
+    return(NULL)
+  }
+  value <- tryCatch(
+    eval(argument[[2L]], columns, environment(argument)),
+    error = function(e) NULL
+  )
+  if (
+    !is.numeric(value) ||
+      !is.null(dim(value)) ||
+      length(value) != NROW(newdata)
+  ) {
+    return(NULL)
+  }
+  as.double(value)
+}
+
+## How a refusal names a missing value in the weights column found in newdata.
+weightsColumnLabels <- function(column) {
+  if (!is.null(column)) {
+    list(
+      column = list(
+        subject = "the fit's weights column in 'newdata' has",
+        remedy = ", or state the weights in 'weights'"
+      )
+    )
+  }
+}
+
+## The rows of a weights column a predictive draw holds out, as a logical
+## vector: weight 0, or missing under na.pass, NA draws with no warning
+## (dec-B648). NULL with no column or no such row.
+newdataWeightsHeldOut <- function(column) {
+  held <- is.na(column) | column == 0
+  if (any(held)) held
+}
+
+## The weights a fit's posterior predictive draws read at its rows, with the
+## fit's own meaning (dec-B596): a precision on a gaussian or Student-t fit,
+## where a stated weight means the same, and otherwise one observation, the
+## column holding rows out alone.
+newdataPrecisionWeights <- function(object, column) {
+  if (
+    !is.null(column) &&
+      fitHasResidual(object) &&
+      !identical(object[["weights.type"]], "frequency")
+  ) {
+    column
+  }
+}
+
 ## the replacement offset as one number per row of the set 'rows' names, less
 ## the fit's own there ('old'). A missing value is refused unless the caller
 ## has answered it already ('complete' FALSE, predict's, whose na.action has
@@ -1435,20 +1503,34 @@ predict.bart <- function(
   # predicts, and padPredictedRows puts them back on newdata's rows. A
   # missing offset or weight marks its row incomplete the same way (dec-A89),
   # as does a binomial's missing count (dec-B641).
+  # no weights stated, a fit whose weights were a column of its data finds
+  # that column in newdata, and draws with the fit's meaning (dec-B648)
+  column <- NULL
+  if (type == "ppd" && is.null(weights)) {
+    column <- newdataWeightsColumn(object, newdata)
+  }
   rows <- preparePredictRows(
     newdata,
     object$fit$data@x,
     na.action,
-    list(offset = offset, weights = weights, trials = trials),
+    list(
+      offset = offset,
+      weights = weights,
+      trials = trials,
+      column = column
+    ),
     dataMissingSeen(object$fit$data),
-    labels = if (!is.null(trials)) {
-      list(
-        trials = list(
-          subject = binomialTrialsMissingSubject(trials),
-          remedy = ", or state the trials in 'weights'"
+    labels = c(
+      if (!is.null(trials)) {
+        list(
+          trials = list(
+            subject = binomialTrialsMissingSubject(trials),
+            remedy = ", or state the trials in 'weights'"
+          )
         )
-      )
-    }
+      },
+      weightsColumnLabels(column)
+    )
   )
   if (isTRUE(rows$placeholder)) {
     restoreSeed <- protectRandomSeed()
@@ -1461,6 +1543,13 @@ predict.bart <- function(
     "weights"
   )
   if (type == "ppd" && !is.null(weights)) {
+    refuseUnfitPredictiveWeights(object, weights)
+  }
+  column <- subsetPredictInput(column, rows, "weights")
+  held <- newdataWeightsHeldOut(column)
+  if (!is.null(newdataPrecisionWeights(object, column))) {
+    weights <- column
+    held <- NULL
     refuseUnfitPredictiveWeights(object, weights)
   }
 
@@ -1501,7 +1590,8 @@ predict.bart <- function(
         bases,
         n.threads,
         rows$keptNames,
-        rows$newdata
+        rows$newdata,
+        held
       ),
       rows,
       first = !is.null(ci.level)
@@ -1595,7 +1685,8 @@ predict.bart <- function(
         weights,
         n.chains,
         heteroscedasticScale(s, n.chains),
-        trials = TRUE
+        trials = TRUE,
+        out = held
       )
     }
   }
@@ -2476,7 +2567,8 @@ predictBlend <- function(
   bases,
   n.threads,
   rowNames = NULL,
-  rawNewdata = newdata
+  rawNewdata = newdata,
+  held = NULL
 ) {
   n.chains <- object$fit$control@n.chains
   perForest <- predictForest(object, newdata, NULL, TRUE, NULL, n.threads)
@@ -2533,7 +2625,14 @@ predictBlend <- function(
       result <- probabilityFromLatents(result, object)
     }
     if (type == "ppd") {
-      result <- sampleFromPPD(result, object, weights, n.chains, trials = TRUE)
+      result <- sampleFromPPD(
+        result,
+        object,
+        weights,
+        n.chains,
+        trials = TRUE,
+        out = held
+      )
     }
   }
 
@@ -3665,12 +3764,16 @@ predict.bartOrdinal <- function(
   n.threads <- validatePredictThreads(n.threads)
   refusePredictWeightsForm(weights)
   offset <- predictTermOffset(object$fit$data, newdata, offset)
+  column <- if (type == "ppd" && is.null(weights)) {
+    newdataWeightsColumn(object, newdata)
+  }
   rows <- preparePredictRows(
     newdata,
     object$fit$data@x,
     na.action,
-    list(offset = offset, weights = weights),
-    dataMissingSeen(object$fit$data)
+    list(offset = offset, weights = weights, column = column),
+    dataMissingSeen(object$fit$data),
+    labels = weightsColumnLabels(column)
   )
   if (isTRUE(rows$placeholder)) {
     restoreSeed <- protectRandomSeed()
@@ -3727,6 +3830,10 @@ predict.bartOrdinal <- function(
   counts <- categoryDrawsCount(object, type, weights)
   if (type == "ppd") {
     probs <- newRowCategoryPpd(object, probs, n.chains, weights)
+    held <- newdataWeightsHeldOut(subsetPredictInput(column, rows, "weights"))
+    if (!is.null(held)) {
+      probs <- setObservationsNA(probs, which(held))
+    }
   }
   if (!is.null(ci.level)) {
     trailing <- if (type == "class" || counts) 2L else 1L
@@ -4032,12 +4139,16 @@ predict.bartNegbin <- function(
   offset <- predictTermOffset(object$fit$data, newdata, offset)
   # a missing offset or weight row is incomplete the same way an unroutable
   # predictor is (dec-A89)
+  column <- if (type == "ppd" && is.null(weights)) {
+    newdataWeightsColumn(object, newdata)
+  }
   rows <- preparePredictRows(
     newdata,
     object$fit$data@x,
     na.action,
-    list(offset = offset, weights = weights),
-    dataMissingSeen(object$fit$data)
+    list(offset = offset, weights = weights, column = column),
+    dataMissingSeen(object$fit$data),
+    labels = weightsColumnLabels(column)
   )
   if (isTRUE(rows$placeholder)) {
     restoreSeed <- protectRandomSeed()
@@ -4049,6 +4160,7 @@ predict.bartNegbin <- function(
   if (type == "ppd" && !is.null(weights)) {
     refuseUnfitPredictiveWeights(object, weights)
   }
+  held <- newdataWeightsHeldOut(subsetPredictInput(column, rows, "weights"))
   n.chains <- object$n.chains
   # raw is n.new x n.samples (x n.chains): the replayed log mean eta
   raw <- predictCodedTest(object$fit, rows$x, offset, n.threads)
@@ -4110,6 +4222,9 @@ predict.bartNegbin <- function(
       n.chains,
       combineChains
     )
+    if (!is.null(held)) {
+      means <- setObservationsNA(means, which(held))
+    }
   } else {
     means <- nameObservationMargin(
       convertSamplesForCaller(means, n.chains, combineChains),
@@ -4912,6 +5027,11 @@ predict.bartHurdle <- function(
       "positive"
     )
   )
+  # no weights stated, the zero part's weights column found in newdata is read
+  # as a stated 0 or 1 is (dec-B648)
+  if (type == "ppd" && is.null(weights)) {
+    weights <- newdataWeightsColumn(object$zero, newdata)
+  }
   rows <- preparePredictRows(
     newdata,
     object$zero$fit$data@x,
