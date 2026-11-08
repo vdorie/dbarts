@@ -56,13 +56,14 @@ samplePriorPredictive(
   from its prior when the df is estimated; a bernoulli draw from the
   `"ev"` probabilities for a binary sampler; a negative-binomial count
   at the sample's shape, fixed or drawn; an integer category code \\1,
-  \ldots, K\\ for an ordinal sampler, and for a multinomial one fitted
-  to one category per row; a count vector of one trial for a multinomial
-  sampler fitted to count rows, as `predict` draws at a new row. On an
-  aft (survival) sampler the draw is on the log-time scale (the model
-  fits \\\log T\\), and on a heteroscedastic one the noise is drawn at a
-  prior draw of that observation's own \\s(x)\\ rather than at a scalar
-  sigma. Unlike
+  \ldots, K\\ for an ordinal sampler, and for a multinomial one whose
+  response was written as a factor; a count vector of one trial for a
+  multinomial sampler whose response was written as a count matrix,
+  whatever the rows' trials, as `predict` draws at a new row. A
+  `$setCounts` makes the response a count matrix. On an aft (survival)
+  sampler the draw is on the log-time scale (the model fits \\\log T\\),
+  and on a heteroscedastic one the noise is drawn at a prior draw of
+  that observation's own \\s(x)\\ rather than at a scalar sigma. Unlike
   [`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
   posterior `"ppd"`, prior predictive draws are weight-blind: they use
   unit weights rather than a weighted precision (\\\sigma / \sqrt{w}\\
@@ -169,8 +170,9 @@ convention
 [`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md) uses
 for a single chain, with no chain dimension. For an ordinal or
 multinomial sampler `"ev"` is an `n.samples` by rows by \\K\\ array of
-category probabilities, as is `"ppd"` on a multinomial sampler fitted to
-count rows, holding the counts; category codes are integers.
+category probabilities, as is `"ppd"` on a multinomial sampler whose
+response was written as a count matrix, holding the counts; category
+codes are integers.
 
 ## See also
 

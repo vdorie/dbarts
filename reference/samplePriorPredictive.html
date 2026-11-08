@@ -90,9 +90,10 @@
     \(t_\nu\) noise at the family's df, or at the sample's df drawn from its prior when the
     df is estimated; a bernoulli draw from the <code>"ev"</code> probabilities for a binary sampler; a
     negative-binomial count at the sample's shape, fixed or drawn; an integer category code
-    \(1, \ldots, K\) for an ordinal sampler, and for a multinomial one fitted to one
-    category per row; a count vector of one trial for a multinomial sampler fitted to count rows,
-    as <code>predict</code> draws at a new row. On an aft (survival) sampler the draw is on the log-time
+    \(1, \ldots, K\) for an ordinal sampler, and for a multinomial one whose response was
+    written as a factor; a count vector of one trial for a multinomial sampler whose response was
+    written as a count matrix, whatever the rows' trials, as <code>predict</code> draws at a new row. A
+    <code>$setCounts</code> makes the response a count matrix. On an aft (survival) sampler the draw is on the log-time
     scale (the model fits \(\log T\)), and on a heteroscedastic one the noise is drawn at
     a prior draw of that observation's own \(s(x)\) rather than at a scalar sigma.
     Unlike <code><a href="bartBT.html">extract</a></code>'s posterior <code>"ppd"</code>, prior predictive draws are weight-blind:
@@ -171,7 +172,7 @@
   predictors, when <code>x.test</code> is <code>NULL</code>) - the combined-draws convention <code><a href="bartBT.html">extract</a></code>
   uses for a single chain, with no chain dimension. For an ordinal or multinomial sampler
   <code>"ev"</code> is an <code>n.samples</code> by rows by \(K\) array of category probabilities, as is
-  <code>"ppd"</code> on a multinomial sampler fitted to count rows, holding the counts; category codes
+  <code>"ppd"</code> on a multinomial sampler whose response was written as a count matrix, holding the counts; category codes
   are integers.</p>
     </div>
     <div class="section level2">
