@@ -51,25 +51,32 @@ fallbacks <- function(expr) {
   )
   list(value = value, warnings = caught)
 }
-test <- paste0(
-  ", its spread about its center being under 64 times machine precision of ",
-  "its size (||z - center|| < 64 * .Machine$double.eps * ||z||), so its ",
-  "center and scale cannot be taken from them; "
+holds <- paste0(
+  "the leaf covariate \"z\" holds values whose spread about their center is ",
+  "under 64 times machine precision of their size (||z - center|| < 64 * ",
+  ".Machine$double.eps * ||z||)"
+)
+cannot <- ", so its center and scale cannot be taken from them; "
+# subtracting a constant from the stored values restores no lost digit, so
+# the refusal advises recomputing from the source
+recompute <- paste0(
+  "or, if its values truly differ, recompute it from its source about an ",
+  "origin near its values, "
 )
 refusal <- function(count, gp = FALSE) {
   paste0(
-    "the leaf covariate \"z\" holds values that differ only by rounding over ",
-    "the rows in the likelihood (",
+    holds,
+    " over the rows in the likelihood (",
     count,
     " of 200 observations are in it)",
-    test,
+    cannot,
     if (gp) {
       "state its lengthscale in gp(), drop it from gp(), "
     } else {
       "drop it from linear(), "
     },
-    "subtract a constant from it, or change the rows in (the weights, the ",
-    "0/1 weights' mask, or subset)"
+    recompute,
+    "or change the rows in (the weights, the 0/1 weights' mask, or subset)"
   )
 }
 keepText <- paste0(
@@ -133,22 +140,30 @@ expect_equal(
   list(center = mean(roundingIn), scale = sd(roundingIn))
 )
 
-# a gp leaf that states its lengthscale takes the placeholder, divided by 1
+# a gp leaf that states its lengthscale takes the placeholder, divided by 1,
+# and records it as it records a column of one value
 s <- make(rounding, leaf.prior = dbartsPriors$gp("z", lengthscale = 0.5))
-expect_identical(recordOf(s)$scale, 1)
-expect_equal(recordOf(s)$center, 0.3, tolerance = 1e-13)
+constant <- make(
+  rep(0.3, n),
+  leaf.prior = dbartsPriors$gp("z", lengthscale = 0.5)
+)
+expect_true(is.na(recordOf(s)$scale))
+expect_identical(recordOf(s)$scale, recordOf(constant)$scale)
+# centered at the corrected mean, within a unit in the last place of 0.3
+expect_true(abs(recordOf(s)$center - 0.3) <= 1e-16)
 
 # ---- setData -----------------------------------------------------------------
 
 # deriving, at NULL and TRUE, refused and the sampler as it was; FALSE keeps
 setDataRefusal <- paste0(
-  "$setData: the leaf covariate \"z\" holds values that differ only by ",
-  "rounding over the rows in the likelihood (200 of 200 observations are in ",
-  "it)",
-  test,
-  "drop it from linear(), subtract a constant from it, change the rows in ",
-  "(the weights, the 0/1 weights' mask, or subset), or keep the sampler's ",
-  "with updateStandardization = FALSE"
+  "$setData: ",
+  holds,
+  " over the rows in the likelihood (200 of 200 observations are in it)",
+  cannot,
+  "drop it from linear(), recompute it from its source about an origin near ",
+  "its values if its values truly differ, change the rows in (the weights, ",
+  "the 0/1 weights' mask, or subset), or keep the sampler's with ",
+  "updateStandardization = FALSE"
 )
 s <- make(real)
 before <- recordOf(s)
@@ -238,11 +253,13 @@ expect_error(
     seed = 1L
   ),
   paste0(
-    "in a fold of xbart, the leaf covariate \"z\" holds values that differ ",
-    "only by rounding over the fold's training rows in the likelihood",
-    test,
-    "drop it from linear(), subtract a constant from it, or change the rows ",
-    "(the weights, subset or n.test)"
+    "in a fold of xbart, ",
+    holds,
+    " over the fold's training rows in the likelihood",
+    cannot,
+    "drop it from linear(), ",
+    recompute,
+    "or change the rows (the weights, subset or n.test)"
   ),
   fixed = TRUE
 )

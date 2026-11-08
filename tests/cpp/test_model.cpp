@@ -5065,8 +5065,10 @@ static void testLeafSpreadRounding() {
   standardizationMomentsForColumn(ulp.data(), ulp.size(), &plainMean,
                                   &plainSd);
   leafCovariateMoments(ulp.data(), ulp.size(), &mean, &sd);
-  check(mean == plainMean && sd == 1.0 && plainSd != 1.0,
-        "spread rounding: the computed center and the placeholder scale");
+  double corrected = correctedMean(ulp.data(), ulp.size(), plainMean);
+  check(mean == corrected && std::fabs(corrected - 0.3) <= 1e-16 &&
+          sd == 1.0 && plainSd != 1.0,
+        "spread rounding: the corrected center and the placeholder scale");
 
   // the leaves: linear and gp refused, naming rounding; gp with stated
   // lengthscales takes the placeholder; one value is not rounding
@@ -5103,9 +5105,23 @@ static void testLeafSpreadRounding() {
   double lengthscale = 0.5;
   stated.initialize(store, columns, 1, &lengthscale, 256);
   check(stated.covariateSds()[0] == 1.0 &&
-          stated.covariateMeans()[0] == plainMean,
+          stated.covariateMeans()[0] == corrected &&
+          !stated.standardization().hasSpread[0] &&
+          std::isnan(stated.standardization().recordedScales()[0]),
         "spread rounding: a gp leaf stating its lengthscale takes the "
-        "placeholder");
+        "placeholder, marked as one value");
+  // the mark reads spread above the tolerance at the placeholder scale
+  double heldCenter = 0.3, heldScale = nan;
+  std::vector<double> spread(x);
+  for (size_t i = 0; i < n; ++i) spread[i + n] = small[i];
+  ColumnStore spreadStore;
+  built(spreadStore.build(spread.data(), n, 2, 100, false, nullptr, gather, 1));
+  GPGaussianLeaf held;
+  held.initialize(spreadStore, columns, 1, &lengthscale, 256, 1,
+                  SuppliedStandardization{&heldCenter, &heldScale});
+  check(held.covariateSds()[0] == 1.0 && held.standardization().hasSpread[0],
+        "spread rounding: the placeholder scale over real spread is marked "
+        "as spread");
   for (size_t i = 0; i < n; ++i) x[i + n] = 0.3;
   ColumnStore flat;
   built(flat.build(x.data(), n, 2, 100, false, nullptr, gather, 1));

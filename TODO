@@ -703,6 +703,22 @@ items
     We'll probably also have to update setters, not just the creation
     method."). A slope on a column moved to another single value stays
     converted by the formula (dec-B328).
+  leaf-covariate-infinite-value: a linear leaf covariate holding an
+    Inf, with sigest given so the starting sigma's regression, which
+    refuses it, does not run, is centered at Inf, and every fitted value
+    is NaN with no message. Found 2026-11-07 by the leaf-spread-rounding
+    review's probe: 199 uniform values and one Inf, bart() with
+    linear("z") and sigest = 0.3, counting the NaN fits (all of them).
+    Present before that slice.
+  leaf-covariate-moments-range: standardizationMomentsForColumn takes a
+    leaf covariate's sd through plain squares, so a column whose spread
+    is above about 1e154 gets sd Inf, the leaf term then reading zero on
+    every row, and one whose spread is below about 1e-154, or denormal,
+    gets the placeholder 1 as though it held one value. Scaling by a
+    power of two, as the rounding test does, fixes both and keeps every
+    bit in the normal range. Found 2026-11-07 by the leaf-spread-rounding
+    review's probe of the spread test at the ends of the double range.
+    Present before that slice.
   missing-label-refusal-text: setPredictor and the joint row update
     refuse a missing label for a factor column with "has missing
     values, which its training values do not"; on a column of 70

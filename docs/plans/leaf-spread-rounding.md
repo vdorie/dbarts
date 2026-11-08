@@ -12,8 +12,8 @@ Status: BUILT 2026-11-07, not yet reviewed (03f9e1618)
 A linear or gp leaf covariate whose spread about its center, over the rows
 in the likelihood, is under 64 times machine precision of its size,
 `||z - center|| < 64 * DBL_EPSILON * ||z||`, is read as one value: refused
-at creation with a message that names the test and says to drop the column
-or subtract a constant from it, and treated as a column of one value by
+at creation with a message that names the test and advises only what works
+for each kind of column (dec-B673), and treated as a column of one value by
 every setter that re-derives the center and scale (dec-B654, dec-B655). A
 column above the tolerance draws what it drew.
 
@@ -66,12 +66,16 @@ column above the tolerance draws what it drew.
   with n. The stored center and sd keep their bits.
 - The message. `LeafStandardizationError` gains `rounding`: the rows in hold
   two or more distinct observed values. The bridge words it: the leaf
-  covariate "z" holds values that differ only by rounding over the rows in
-  ..., its spread about its center under 64 times machine precision of its
-  size (`||z - center|| < 64 * .Machine$double.eps * ||z||`), so its center
-  and scale cannot be taken from them; drop it from linear() or subtract a
-  constant from it, or change the rows in (...). A gp leaf's remedies lead
-  with stating its lengthscale, as for one value. Same three doors.
+  covariate "z" holds values whose spread about their center is under 64
+  times machine precision of their size (`||z - center|| < 64 *
+  .Machine$double.eps * ||z||`) over the rows in ..., so its center and
+  scale cannot be taken from them; drop it from linear(), or, if its values
+  truly differ, recompute it from its source about an origin near its
+  values, or change the rows in (...) (dec-B673: subtracting a constant from
+  the stored values restores no lost digit, and on values meant to be equal
+  leaves a column that passes the test at a rounding-sized scale). A gp
+  leaf's remedies lead with stating its lengthscale, as for one value. Same
+  three doors.
 - The setters.
   - creation, xbart fold: refused, the message above.
   - `setData` deriving: refused before anything moves, `$setData:` door.
@@ -89,8 +93,9 @@ column above the tolerance draws what it drew.
   differ by more than rounding are in the likelihood", true of both cases.
 - The gp leaf. A gp leaf without stated lengthscales is refused as the
   linear leaf is. One that states them takes the placeholder, as it does
-  for one value: centered at the computed center and divided by 1, every
-  training row then reading within rounding of zero.
+  for one value: centered at the corrected mean and divided by 1, every
+  training row then reading within rounding of zero, and marked as without
+  spread, so its record shows the scale NA a column of one value shows.
 
 ## Calls (each with its alternative)
 
@@ -104,13 +109,37 @@ column above the tolerance draws what it drew.
 4. Power-of-two scaling; alternative, plain sums of squares, overflowing
    above about 1e154.
 5. A rounding column under a gp leaf with stated lengthscales centered at
-   the computed center; alternative, its first observed value. Its spread
-   mark (`standardizedColumnHasSpread`, read for the record's scale) is left
-   as built, reading the gathered values, so the record shows scale 1 where
-   a column of one value shows NA; alternative, a tolerance-aware mark.
+   the corrected mean the test computes (fix round, the review's F3), so
+   every row reads within about a unit in the last place of zero whatever
+   n; alternatives, the mean through the sum (20 units off at 200 rows,
+   more as n grows) or its first observed value. Its spread mark
+   (`standardizedColumnHasSpread`) applies the tolerance to the gathered
+   values' distance from the center in force, so the record shows NA as
+   for one value; alternative, the mark as first built, reading any nonzero
+   value as spread. The distance is from the center, not the values'
+   spread about their own mean, so a column moved to one value off its
+   center keeps its mark and its conversion by the formula (dec-B328). A gp leaf reads
+   the mark only for its record. A linear leaf reaches the placeholder
+   scale only from a supplied record; a setPredictor that keeps its numbers
+   can then move the column to values at rounding apart, which the next
+   conversion (setData, a warm start) now reads as one value, keeping a
+   live block as for one value, the one case where a draw moves.
 6. The keep warning reworded for both cases; alternative, a separate text
    for the rounding case, carried through the bridge's keep answer.
 7. NEWS: none. Linear and gp leaves are new in 1.0-0; 0.9-34 had none.
+8. The re-derivation after setPredictor, setWeights and setActiveRows
+   (`rederiveOrRelease` in the bridge) catches any C++ exception, releases
+   the sampler and raises an R error, the sampler re-created from its
+   stored state on next use, as a setData that fails part-way is
+   (the review's F2). No path reaches it short of an allocation failure:
+   the sampler's test and the leaves' own derivation call one function on
+   the same values and rows, so there is no pin; the abort it guards
+   against is shown by mutating the sampler's test away. Alternative, the
+   abort an uncaught exception gives.
+9. The refusal's lead reads "holds values whose spread about their center
+   is under ..." rather than "holds values that differ only by rounding",
+   which misstated a column of one outlier among equal values (the
+   review's F4); alternative, the first words.
 
 ## Constraints
 

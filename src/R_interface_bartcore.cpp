@@ -4395,35 +4395,38 @@ std::string predictorColumnLabel(SEXP dataExpr, size_t column) {
 }
 
 // The refusal of a derivation whose rows in the likelihood hold fewer than
-// two distinct values of a leaf covariate, or values that differ by rounding
-// only: the engine decides which rows are in and what the covariate holds
-// there, and this words it, naming the column the data object holds it in
-// and, for rounding, the test.
+// two distinct values of a leaf covariate, or values whose spread is under
+// the rounding tolerance: the engine decides which rows are in and what the
+// covariate holds there, and this words it, naming the column the data
+// object holds it in and, for the tolerance, the test. Values meant to be
+// equal are fixed only by dropping the column, and a large offset at the
+// limit of storage precision only by recomputing it from its source, as
+// subtracting a constant from the stored values restores no digit.
 std::string leafStandardizationMessage(
     SEXP dataExpr, const bartcore::LeafStandardizationError& error,
     size_t dataColumn, bool gp, LeafRefusalDoor door) {
   std::string holds = error.rounding
-    ? "holds values that differ only by rounding"
+    ? "holds values whose spread about their center is under 64 times "
+      "machine precision of their size (||z - center|| < 64 * "
+      ".Machine$double.eps * ||z||)"
     : error.observed ? "holds one value" : "holds no observed value";
   std::string what = "the leaf covariate " +
                      predictorColumnLabel(dataExpr, dataColumn) + " " + holds;
   std::string prior = gp ? "gp()" : "linear()";
   std::string remedies =
-    (gp ? "state its lengthscale in gp(), drop it from gp(), "
-        : "drop it from " + prior + ", ") +
-    (error.rounding ? std::string("subtract a constant from it, ")
-                    : std::string());
-  std::string cannot =
-    (error.rounding
-       ? std::string(", its spread about its center being under 64 times "
-                     "machine precision of its size (||z - center|| < 64 * "
-                     ".Machine$double.eps * ||z||)")
-       : std::string()) +
-    ", so its center and scale cannot be taken from them; ";
+    gp ? "state its lengthscale in gp(), drop it from gp(), " : "drop it from " +
+                                                                  prior + ", ";
+  // ends a list that closes on "or change the rows"
+  std::string recompute =
+    error.rounding ? "or, if its values truly differ, recompute it from its "
+                     "source about an origin near its values, "
+                   : "";
+  std::string cannot = ", so its center and scale cannot be taken from them; ";
   if (door == LeafRefusalDoor::fold)
     return "in a fold of xbart, " + what +
            " over the fold's training rows in the likelihood" + cannot +
-           remedies + "or change the rows (the weights, subset or n.test)";
+           remedies + recompute +
+           "or change the rows (the weights, subset or n.test)";
   bool oneRow = error.numObservations == 1;
   std::string over =
     error.numRowsIn == 0
@@ -4439,10 +4442,13 @@ std::string leafStandardizationMessage(
   std::string rows = "the weights, the active-row mask, or subset";
   if (door == LeafRefusalDoor::setData)
     return "$setData: " + what + over + cannot + remedies +
+           (error.rounding ? "recompute it from its source about an origin "
+                             "near its values if its values truly differ, "
+                           : "") +
            "change the rows in (" + rows +
            "), or keep the sampler's with updateStandardization = FALSE";
-  return what + over + cannot + remedies + "or change the rows in (" + rows +
-         ")";
+  return what + over + cannot + remedies + recompute +
+         "or change the rows in (" + rows + ")";
 }
 
 // family resolution: see resolveFamily() above. activeExpr is the active-row
@@ -5742,6 +5748,30 @@ static void refuseRowsRederivation(const bartcore::SamplerBase& sampler,
   refuseSavedGPStandardizationUpdate(sampler, caller, updateStandardization);
 }
 
+// Sampler::rederiveStandardization for \p caller. The sampler tests each
+// covariate as its leaves' own derivation does, so nothing past an allocation
+// throws; a throw can leave the chains on different standardizations, so the
+// sampler is released and re-created from its stored state on its next use,
+// as a setData that fails part-way is. Raises outside the handler, and owns
+// nothing across the raise.
+static std::vector<std::uint8_t> rederiveOrRelease(BartcoreHolder& holder,
+                                                   const char* caller,
+                                                   const std::uint8_t* replaced,
+                                                   bool tooFewUnitsIn) {
+  char failure[256] = "";
+  try {
+    return holder.sampler->rederiveStandardization(replaced, tooFewUnitsIn);
+  } catch (const std::exception& error) {
+    std::snprintf(failure, sizeof(failure), "%s", error.what());
+  } catch (...) {
+    std::snprintf(failure, sizeof(failure), "unknown C++ exception");
+  }
+  holder.sampler.reset();
+  Rf_error("%s failed part-way (%s), so the sampler was released; its next "
+           "use re-creates it from its stored state, as after a reload",
+           caller, failure);
+}
+
 // And once the rows are installed: at updateScale true the transform, and
 // then at updateStandardization every leaf covariate's standardization,
 // re-derived over the rows now in, with no engine call for either otherwise.
@@ -5752,8 +5782,8 @@ static void refuseRowsRederivation(const bartcore::SamplerBase& sampler,
 // The answer is firstKeep's for a keep of either, carrying, where a leaf
 // covariate was kept, keptCovariatesAnswer's positions and "scale.kept",
 // whether the transform was kept with them.
-static SEXP rederiveAfterInstall(BartcoreHolder& holder, int updateScale,
-                                 bool updateStandardization,
+static SEXP rederiveAfterInstall(BartcoreHolder& holder, const char* caller,
+                                 int updateScale, bool updateStandardization,
                                  bool tooFewUnitsIn) {
   bool scaleKept = updateScale == TRUE &&
                    holder.sampler->rederiveScale() ==
@@ -5762,7 +5792,7 @@ static SEXP rederiveAfterInstall(BartcoreHolder& holder, int updateScale,
   if (updateStandardization && scaleKept)
     kept.assign(holder.sampler->shape().numLeafCovariates, 1);
   else if (updateStandardization)
-    kept = holder.sampler->rederiveStandardization(nullptr, tooFewUnitsIn);
+    kept = rederiveOrRelease(holder, caller, nullptr, tooFewUnitsIn);
   SEXP resultExpr = keptCovariatesAnswer(false, kept);
   if (resultExpr == R_NilValue)
     return Rf_ScalarLogical(firstKeep(holder, scaleKept) ? TRUE : FALSE);
@@ -5810,8 +5840,8 @@ SEXP bartcore_setActiveRows(SEXP ptrExpr, SEXP activeExpr,
                          updateStandardization);
   if (activeExpr == R_NilValue) {
     holder.sampler->setActiveRows(NULL);
-    return rederiveAfterInstall(holder, updateScale, updateStandardization,
-                                tooFewUnits);
+    return rederiveAfterInstall(holder, "$setActiveRows", updateScale,
+                                updateStandardization, tooFewUnits);
   }
   size_t n = shape.numObservations;
   if (!Rf_isReal(activeExpr) ||
@@ -5821,8 +5851,8 @@ SEXP bartcore_setActiveRows(SEXP ptrExpr, SEXP activeExpr,
   // and the re-derivation probed above, no other reason to refuse remains
   refuseNonBinaryMask(REAL(activeExpr), n);
   holder.sampler->setActiveRows(REAL(activeExpr));
-  return rederiveAfterInstall(holder, updateScale, updateStandardization,
-                              tooFewUnits);
+  return rederiveAfterInstall(holder, "$setActiveRows", updateScale,
+                              updateStandardization, tooFewUnits);
 }
 
 // The sampler's forest count, the R twin of dbarts_sampler_numForests. The R5
@@ -7610,8 +7640,8 @@ SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr,
   }
   holder.sampler->setWeights(
     adoptVector(holder.ownedWeights, weights, numObservations));
-  return rederiveAfterInstall(holder, updateScale, updateStandardization,
-                              tooFewUnits);
+  return rederiveAfterInstall(holder, "$setWeights", updateScale,
+                              updateStandardization, tooFewUnits);
 }
 
 // Between-run reconfiguration. The R side refuses changes to the engine, rng,
@@ -8153,8 +8183,8 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
     std::vector<std::uint8_t> kept;
     if (updateStandardization &&
         result == bartcore::PredictorUpdateResult::accepted)
-      kept = holder.sampler->rederiveStandardization(
-        nullptr, tooFewUnitsFromExpression(tooFewUnitsExpr));
+      kept = rederiveOrRelease(holder, "$setPredictor", nullptr,
+                               tooFewUnitsFromExpression(tooFewUnitsExpr));
     // the engine re-quantized the values into owned codes and retains no
     // pointer; the R method reassigns sampler$data@x, which keeps the current
     // source alive
@@ -8167,8 +8197,11 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
                               SEXP forceUpdateExpr, SEXP updateCutPointsExpr,
                               SEXP updateStandardizationExpr,
                               SEXP tooFewUnitsExpr) {
+  // replaced is live across the re-derivation, which can raise
   return unwindProtect([&, columns = std::vector<size_t>{},
-                        parsed = ParsedMutationSource{}]() mutable -> SEXP {
+                        parsed = ParsedMutationSource{},
+                        replaced = std::vector<std::uint8_t>{}]() mutable
+                       -> SEXP {
     const char* shapeMessage =
       "$setPredictor requires numObservations values per column";
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
@@ -8225,10 +8258,10 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
     std::vector<std::uint8_t> kept;
     if (updateStandardization &&
         result == bartcore::PredictorUpdateResult::accepted) {
-      std::vector<std::uint8_t> replaced(numPredictors, 0);
+      replaced.assign(numPredictors, 0);
       for (size_t column : columns) replaced[column] = 1;
-      kept = holder.sampler->rederiveStandardization(
-        replaced.data(), tooFewUnitsFromExpression(tooFewUnitsExpr));
+      kept = rederiveOrRelease(holder, "$setPredictor", replaced.data(),
+                               tooFewUnitsFromExpression(tooFewUnitsExpr));
     }
     return predictorUpdateAnswer(
       holder, result == bartcore::PredictorUpdateResult::accepted, kept);
