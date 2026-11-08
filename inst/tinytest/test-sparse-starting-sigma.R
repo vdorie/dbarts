@@ -736,9 +736,9 @@ expect_error(
 foldSigmas <- function(x, y, ...) {
   seen <- numeric()
   original <- dbarts:::floorSigmaEstimate
-  recording <- function(sigma, residual, counts = NULL) {
+  recording <- function(sigma, ...) {
     seen <<- c(seen, sigma)
-    original(sigma, residual, counts)
+    original(sigma, ...)
   }
   assignInNamespace("floorSigmaEstimate", recording, "dbarts")
   on.exit(assignInNamespace("floorSigmaEstimate", original, "dbarts"))

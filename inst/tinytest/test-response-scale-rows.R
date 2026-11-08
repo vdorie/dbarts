@@ -922,13 +922,16 @@ fit <- caught(bart(
 expect_true(isTRUE(fit$value$sigest.fallback))
 lines <- startingLines(sampler(yA, weights = three, ctl = verboseControl))
 expect_true(any(grepl("in 3 rows", lines, fixed = TRUE)))
-# what stands in is unweighted over the rows of positive weight, one of
-# weight below 1 included: the sd of 1, 2 and 4, sqrt(7 / 3), written out
+# what stands in is weighted over the rows of positive weight, as the
+# regression is, one of weight below 1 included: lm(y ~ 1, weights = w)'s
+# sigma at 1, 2 and 4 weighted 0.5, 2 and 3, about the weighted mean 3,
+# sqrt(7 / 2), written out
 yLiteral <- yA
 yLiteral[1:3] <- c(1, 2, 4)
-made <- caught(sampler(yLiteral, weights = c(0.5, 2, 3, rep(0, n - 3L))))
+wLiteral <- c(0.5, 2, 3, rep(0, n - 3L))
+made <- caught(sampler(yLiteral, weights = wLiteral))
 expect_equal(made$sigmaFallbacks, 1L)
-expect_equal(made$value$data@sigma, 1.5275252316519468, tolerance = 1e-14)
+expect_equal(made$value$data@sigma, 1.8708286933869707, tolerance = 1e-14)
 expect_equal(length(made$scale), 0L)
 expect_equal(length(made$others), 1L)
 expect_true(grepl(
@@ -936,6 +939,93 @@ expect_true(grepl(
   conditionMessage(made$others[[1L]]),
   fixed = TRUE
 ))
+# by each routine and with an offset the stand-in is the intercept-only
+# regression's on the response less its offset, lm's own over the rows of
+# positive weight
+interceptSigma <- function(response, weights, offset = NULL) {
+  summary(lm(response ~ 1, weights = weights, offset = offset))$sigma
+}
+for (rule in c("dense", "sparse")) {
+  made <- caught(sampler(yLiteral, weights = wLiteral, sigest = rule))
+  expect_equal(made$sigmaFallbacks, 1L, info = rule)
+  expect_equal(
+    made$value$data@sigma,
+    interceptSigma(yLiteral, wLiteral),
+    tolerance = 1e-14,
+    info = rule
+  )
+  made <- caught(
+    sampler(yLiteral, weights = wLiteral, offset = off, sigest = rule)
+  )
+  expect_equal(made$sigmaFallbacks, 1L, info = rule)
+  expect_equal(
+    made$value$data@sigma,
+    interceptSigma(yLiteral, wLiteral, off),
+    tolerance = 1e-14,
+    info = rule
+  )
+}
+if (requireNamespace("Matrix", quietly = TRUE)) {
+  made <- caught(dbarts(
+    Matrix::Matrix(x, sparse = TRUE),
+    yLiteral,
+    weights = wLiteral,
+    control = control,
+    n.trees = 10L
+  ))
+  expect_equal(made$sigmaFallbacks, 1L)
+  expect_equal(
+    made$value$data@sigma,
+    interceptSigma(yLiteral, wLiteral),
+    tolerance = 1e-14
+  )
+}
+# with residual degrees of freedom left the weighted regression is taken as
+# it was, to the bit
+wSpread <- 0.5 + (seq_len(n) %% 7L) / 4
+expect_identical(
+  sampler(yA, weights = wSpread, sigest = "dense")$data@sigma,
+  summary(lm(y ~ x1 + x2, df(yA), weights = wSpread))$sigma
+)
+# weights 100 on 40 rows and 60 columns put the stand-in on the scale of a row
+# of weight 1, ten times that at weights 1, as the regression's estimate is
+# where it is defined
+x60 <- sin(outer(seq_len(40L), seq_len(60L)))
+y60 <- x60[, 1L] + cos(3.7 * seq_len(40L))
+hundred <- caught(dbarts(
+  x60,
+  y60,
+  weights = rep(100, 40L),
+  control = control,
+  n.trees = 10L
+))
+expect_equal(hundred$sigmaFallbacks, 1L)
+expect_equal(hundred$value$data@sigma, 10 * sd(y60), tolerance = 1e-14)
+expect_equal(
+  hundred$value$data@sigma,
+  10 * dbarts(x60, y60, weights = rep(1, 40L), control = control)$data@sigma,
+  tolerance = 1e-14
+)
+x38 <- x60[, 1:38]
+expect_equal(
+  dbarts(x38, y60, weights = rep(100, 40L), control = control)$data@sigma,
+  10 * dbarts(x38, y60, control = control)$data@sigma,
+  tolerance = 1e-12
+)
+# rows in at one value take the regression over every row unweighted, and so
+# what stands in for it where that leaves no residual degrees of freedom
+yOne <- y60
+yOne[1:2] <- 1.5
+made <- caught(dbarts(
+  x60,
+  yOne,
+  weights = c(4, 9, rep(0, 38L)),
+  control = control,
+  n.trees = 10L
+))
+expect_equal(length(made$scale), 1L)
+expect_equal(made$sigmaFallbacks, 1L)
+expect_equal(made$value$data@sigma, sd(yOne), tolerance = 1e-14)
 # a response the predictors fit exactly among the rows in: the floor reads
 # the rows in
 exact <- 1 + 2 * x[, 1L] - x[, 2L]
@@ -1064,6 +1154,69 @@ expect_true(all(vapply(
   },
   NA
 )))
+# under weights other than 1 what stands in for a fold's regression is the
+# intercept-only one weighted over the fold's rows in, on lm.fit's route and
+# where no regression is defined on all rows alike
+foldStandIns <- function(x, response, weights) {
+  original <- dbarts:::floorSigmaEstimate
+  given <- numeric()
+  made <- numeric()
+  recording <- function(sigma, ...) {
+    given <<- c(given, sigma)
+    result <- original(sigma, ...)
+    made <<- c(made, result)
+    result
+  }
+  assignInNamespace("floorSigmaEstimate", recording, "dbarts")
+  on.exit(assignInNamespace("floorSigmaEstimate", original, "dbarts"))
+  held <- list()
+  loss <- function(y.test, testSamples, weights) {
+    held[[length(held) + 1L]] <<- y.test
+    0
+  }
+  invisible(caught(xbart(
+    x,
+    response,
+    weights = weights,
+    loss = loss,
+    n.samples = 10L,
+    n.burn = 5L,
+    n.trees = 5L,
+    n.reps = 1L,
+    n.test = 4,
+    n.threads = 1L,
+    seed = 7L,
+    verbose = FALSE
+  )))
+  # the estimate on all rows comes first, then one per fold in its order
+  folds <- seq_along(held)
+  expected <- vapply(
+    folds,
+    function(k) {
+      train <- !(response %in% held[[k]])
+      interceptSigma(response[train], weights[train])
+    },
+    0
+  )
+  standsIn <- !is.finite(given[folds + 1L])
+  list(
+    count = length(folds),
+    standsIn = standsIn,
+    made = made[folds + 1L][standsIn],
+    expected = expected[standsIn]
+  )
+}
+wSpreadThirteen <- replace(rep(0, n), thirteen, 0.5 + (1:13 %% 5L) / 2)
+folds <- foldStandIns(xWide, yFold, wSpreadThirteen)
+expect_equal(folds$count, 4L)
+expect_true(any(folds$standsIn))
+expect_equal(folds$made, folds$expected, tolerance = 1e-12)
+# 15 coefficients on 13 rows in: no regression on all rows, none in a fold
+xWider <- cbind(xWide, cos(outer(seq_len(n), 1:4 + 0.5)))
+folds <- foldStandIns(xWider, yFold, wSpreadThirteen)
+expect_equal(folds$count, 4L)
+expect_true(all(folds$standsIn))
+expect_equal(folds$made, folds$expected, tolerance = 1e-12)
 # a fold's rule 4 tests the response less its offset: rows in at one response
 # and several offsets hold a range, so its regression keeps the weights
 seen <- floorCalls(x, ySame, weights = sameIn, offset = off)

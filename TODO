@@ -409,13 +409,6 @@ items
     door; wider ones stay refused (dec-B662, VD 2026-11-07: "We can use
     (b)."). About 5 lines, 19 test lines rewritten, a help sentence in
     dbartsData and forest.
-  starting-sigma-fallback-zero-weights: where no regression is defined
-    a weighted fit's starting sigma becomes the weighted residual sd of
-    the intercept alone over the rows of positive weight, sd(y) at unit
-    weights, on both routes and in xbart's folds; the fewer-than-two-
-    values fallback stays unweighted (dec-B660, VD 2026-11-07: "Yes, do
-    (b)."). About 5 lines, one pin moved (1.528 to 1.871), one test of
-    weights 100.
   state-basis-levels-by-name: owed when a factor basis may have three
     or more levels: a pin of the permutation's direction in a state
     install by level name (dec-B647, dec-A277), which two levels cannot

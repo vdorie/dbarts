@@ -1912,7 +1912,8 @@ sparseResidualStandardError <- function(
 ## cases can be scarce when missingness is scattered, and the estimate just
 ## anchors the residual variance prior. Where the design leaves no residual
 ## degrees of freedom there is no regression and the sd of the response less
-## its offset stands in; a condition of class dbartsSigmaFallback is signaled
+## its offset stands in, weighted as the regression is (floorSigmaEstimate);
+## a condition of class dbartsSigmaFallback is signaled
 ## first, for a caller that records it. Not a message class: a handler that
 ## muffles messages would find no restart.
 estimateSigmaFromLinearModel <- function(
@@ -1958,7 +1959,8 @@ estimateSigmaFromLinearModel <- function(
   floorSigmaEstimate(
     sigma,
     residual,
-    if (frequency) residualOfRowsIn(data@weights, data@weights)
+    residualOfRowsIn(data@weights, data@weights),
+    frequency
   )
 }
 
@@ -1990,24 +1992,39 @@ sigmaDesignMatrix <- function(x) {
 
 ## A linear fit's residual standard error made a usable starting sigma. A
 ## design with no residual degrees of freedom leaves it non-finite, which is
-## not an estimate at all: the sd of the response less its offset stands in.
-floorSigmaEstimate <- function(sigma, residual, counts = NULL) {
+## not an estimate at all: the residual sd of the intercept alone stands in,
+## the sd of the response less its offset, weighted where 'weights' (those of
+## the rows of 'residual', all positive) are given.
+floorSigmaEstimate <- function(
+  sigma,
+  residual,
+  weights = NULL,
+  frequency = FALSE
+) {
   if (!is.finite(sigma)) {
-    sigma <- if (is.null(counts)) sd(residual) else countedSd(residual, counts)
+    sigma <- if (is.null(weights)) {
+      sd(residual)
+    } else {
+      weightedSd(residual, weights, frequency)
+    }
   }
   floorMarginalSigma(sigma, residual)
 }
 
-## The sd of 'x' with each value written out as many times as 'counts' says:
-## its weighted variance over the counts' sum less one. NA where that sum is
-## at most 1, as sd() of one value is.
-countedSd <- function(x, counts) {
-  total <- sum(counts)
-  if (!(total > 1)) {
+## The residual sd of the weighted regression of 'x' on an intercept: its
+## weighted sum of squares about its weighted mean over the rows less one, the
+## sigma of lm(x ~ 1, weights = weights), or under 'frequency' over the
+## weights' sum less one, the sd of each value written out as many times as
+## its weight counts. NA where that count is at most 1, as sd() of one value
+## is.
+weightedSd <- function(x, weights, frequency = FALSE) {
+  total <- sum(weights)
+  rows <- if (frequency) total else length(x)
+  if (!(rows > 1)) {
     return(NA_real_)
   }
-  center <- sum(counts * x) / total
-  sqrt(sum(counts * (x - center)^2) / (total - 1))
+  center <- sum(weights * x) / total
+  sqrt(sum(weights * (x - center)^2) / (rows - 1))
 }
 
 ## A response the fit reproduces exactly returns rounding noise instead of

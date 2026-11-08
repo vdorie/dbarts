@@ -1220,7 +1220,7 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
       weights <- NULL
     }
     # no routine, or one whose rows leave no residual degrees of freedom,
-    # takes the sd of the fold's response
+    # takes the sd of the fold's response, weighted as its regression is
     sigma <- if (route == "dense") {
       x <- sigmaDesign[trainRows, , drop = FALSE]
       residualStandardError(y, x, weights, offset, frequency)
@@ -1246,7 +1246,8 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
     data@sigma <- floorSigmaEstimate(
       sigma,
       residual,
-      if (frequency) residualOfRowsIn(weights, weights)
+      residualOfRowsIn(weights, weights),
+      frequency
     )
     data
   }

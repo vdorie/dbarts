@@ -549,7 +549,8 @@
       \item Where the linear regression behind the starting \code{sigest}
             leaves no residual degrees of freedom, as with more columns
             than rows, the fit starts from the standard deviation of the
-            response, saying so in a line under \code{verbose} and in its
+            response, weighted as the regression is (\code{sd(y)} at unit
+            weights), saying so in a line under \code{verbose} and in its
             \code{summary}; 0.9-34 stopped.
       \item \code{xbart}'s \code{sigest} may be a function, called on
             each fold's training rows.
