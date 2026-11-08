@@ -150,8 +150,9 @@ column above the tolerance draws what it drew.
 10. The orchestrator's call, after the rebase's delta review (F3), from the
    rule that frequency counts read as the rows written out: the spread mark
    at the placeholder scale reads every gathered row at the counts its
-   chain reads rows at, a row of count 0 not read, and every row once where
-   fewer than two have a positive count (as fallbackCounts lifts them). A
+   chain reads rows at, a row of count 0 not read; where fewer than two
+   have a positive count every row is read, a count of 0 as 1 and a
+   positive row at its count (dec-B632, as fallbackCounts lifts them). A
    gp leaf stating its lengthscale over a column at rounding apart at its
    counts then records scale NA, as its rows written out do. A setData
    takes the old mark before its counts move to the new rows, the counts
@@ -252,3 +253,16 @@ suite, 43250 results, 0 failed; the trio `--bitwise --strict-coverage` on
 the reference build, 55, 19 and 11 scenarios identical, none skipped; the
 four reproducibility files, 27 results; the exact gates in quick, 49 of
 49; lint 0, air, codoc, win-drift, doc-freshness, verify-anchors.
+
+Pins round, after the fresh review of the delta fix round (FIX; tests and
+records only, no code change). Its findings 1 and 2 pinned in
+test-leaf-spread-rounding.R: a setData from frequency counts 1, 1 and
+1000, two rows 1e-10 off a record's center, onto a record at another
+center, whose predictions stay small only where the old mark is read
+before the counts move, killing the mutant taking it after; and a gp leaf
+stating its lengthscale over one row of count 5, which records scale NA
+only through the fewer-than-two fallback, killing the mutant without it,
+as does testLeafSpreadRounding's mark check, now over rows 1e-17 off the
+center. Finding 3: call 10's fallback reworded. Gates: the spread file
+and five leaf and count files, 1646 results, 0 failed; tests/cpp plain
+and under ASan and UBSan, 0 diagnostics; lint, air, doc-freshness.

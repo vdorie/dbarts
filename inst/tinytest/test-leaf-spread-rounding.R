@@ -434,3 +434,63 @@ writtenOut <- dbarts::dbarts(
 )
 expect_true(is.na(recordOf(s)$scale))
 expect_identical(recordOf(s)$scale, recordOf(writtenOut)$scale)
+# where fewer than two rows have a positive count the mark reads every row, a
+# count of 0 as 1 and a positive row at its count: one row of count 5 over a
+# column within rounding of its center on every row records scale NA, as its
+# rows written out, five copies of one row, do
+caught <- list()
+s <- withCallingHandlers(
+  countsFit(
+    z = rounding,
+    weights = c(5, rep(0, n - 1L)),
+    weights.type = "frequency",
+    leaf.prior = gpStated
+  ),
+  warning = function(w) {
+    caught[[length(caught) + 1L]] <<- w
+    invokeRestart("muffleWarning")
+  }
+)
+expect_true(is.na(recordOf(s)$scale))
+expect_identical(length(caught), 2L)
+expect_identical(
+  conditionMessage(caught[[1L]]),
+  paste0(
+    "rows with 'weights' of 0 are left out of the likelihood but stay in ",
+    "the fit; use 'subset' to drop them"
+  )
+)
+expect_true(inherits(caught[[2L]], "dbartsScaleFallbackWarning"))
+
+# a setData reads the old mark at the old counts, before they move to the new
+# rows: a linear leaf at the placeholder scale over a column within rounding
+# of its center at counts 1, 1 and 1000, and not read once each, set onto a
+# record at another center whose rows hold one value keeps each block for the
+# column, neither side having spread; read at the new counts the old side has
+# spread, and the intercept moves by the slope times 1000
+onRecord <- function(x, weights, center) {
+  data <- dbarts::dbartsData(
+    x,
+    x[, 1L] + rnorm(nrow(x), 0, 0.1),
+    weights = weights
+  )
+  data@standardization <- list(list(
+    center = c(z = center),
+    scale = c(z = NA_real_)
+  ))
+  data
+}
+s <- dbarts::dbarts(
+  onRecord(cbind(x1 = runif(40L), z = 1000), rep(c(1, 1000), c(2L, 38L)), 1000),
+  leaf.prior = dbartsPriors$linear("z"),
+  weights.type = "frequency",
+  control = controlWith(),
+  n.trees = 5L
+)
+invisible(s$run())
+expect_true(
+  s$setPredictor(c(1000 + 1e-10, 1000 - 1e-10, rep(1000, 38L)), "z")
+)
+newRows <- cbind(x1 = runif(80L), z = 2000)
+s$setData(onRecord(newRows, rep(1, 80L), 2000))
+expect_true(max(abs(s$predict(newRows))) < 10)

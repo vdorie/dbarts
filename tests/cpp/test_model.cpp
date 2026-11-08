@@ -5077,20 +5077,21 @@ static void testLeafSpreadRounding() {
           "spread rounding: the center is corrected at the counts");
     // the record's mark reads the gathered rows at their counts too: 20 rows
     // 1e-13 off the center are spread read once each and rounding at 100
-    // against 1 on the rest, and fewer than two rows of positive count read
-    // every row once
+    // against 1 on the rest; where fewer than two rows have a positive count
+    // every row is read, a count of 0 as 1, so rows 1e-17 off the center
+    // under one count of 5 are rounding, not one row read
     std::vector<double> offCenter(200, 0.0), markCounts(200, 100.0);
     for (size_t i = 180; i < 200; ++i) {
       offCenter[i] = 1.0e-13;
       markCounts[i] = 1.0;
     }
-    std::vector<double> onePositive(200, 0.0);
-    onePositive[0] = 1.0;
+    std::vector<double> nearCenter(200, 1.0e-17), onePositive(200, 0.0);
+    onePositive[0] = 5.0;
     check(standardizedColumnHasSpread(offCenter.data(), 200, 1, 1.0, 1.0) &&
             !standardizedColumnHasSpread(offCenter.data(), 200, 1, 1.0, 1.0,
                                          markCounts.data()) &&
-            standardizedColumnHasSpread(offCenter.data(), 200, 1, 1.0, 1.0,
-                                        onePositive.data()),
+            !standardizedColumnHasSpread(nearCenter.data(), 200, 1, 1.0, 1.0,
+                                         onePositive.data()),
           "spread rounding: the mark reads the rows at their counts");
     std::vector<double> outlier = halves(10, 0.3, 0.1 * 3.0);
     outlier[9] = 5.0;
