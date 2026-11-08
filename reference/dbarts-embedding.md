@@ -36,7 +36,7 @@ at the next sweep. All of them are documented in
 | **method** | **what the outer block owns** | **typical use** |
 | `$setResponse(y)` | the regression target | a partial residual, a working response, an imputed outcome |
 | `$setOffset(o)` | an additive term BART does not fit | another block's linear predictor, a fixed exposure |
-| `$setWeights(w)` | per-observation precision | a Polya-Gamma precision, a variance mixture, survey weights |
+| `$setWeights(w)` | per-observation precision, or under `weights.type = "frequency"` a count of identical observations | a Polya-Gamma precision, a variance mixture; under frequency, fractional counts such as expected memberships |
 | `$setSigma(s)` | the residual standard deviation | a scale drawn elsewhere; use with `family = gaussian(sigma = fixed())` so the next `run()` does not redraw it |
 | `$setPredictor(x, column)` | one predictor column | a latent covariate, an imputed predictor |
 | `$setActiveRows(a)` | which rows enter the likelihood | a subset indicator drawn by another block |

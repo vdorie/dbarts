@@ -22,6 +22,7 @@ dbarts(
     family = c("auto", "gaussian", "student", "probit", "logistic", "aft",
                "multinomial", "ordinal",
                "nbinom", "hazard", "hazard.probit", "hazard.logistic"),
+    weights.type = NULL,
     na.action = dbarts::na.keepPredictors,
     sigma = NULL, node.prior = NULL, tree.prior = NULL, callback = NULL, ...)
 ```
@@ -120,28 +121,35 @@ dbarts(
 
   An optional vector of weights to be used in the fitting process. For a
   gaussian response, BART fits a model with observations \\y \mid x \sim
-  N(f(x), \sigma^2 / w)\\, where \\f(x)\\ is the unknown function.
-  Binary responses differ: a `"probit"` model does not support a
-  weighted likelihood (a weighted probit has no tractable
-  latent-variable form), except that weights identically 1 are treated
-  as absent. A `"probit"`, `"ordinal"` or `"nbinom"` fit does accept
-  weights that are all 0 and 1: those name the rows in the data set
-  rather than a precision, so they install as the sampler's active-row
-  mask, where a 0 row leaves the likelihood but keeps its leaf
-  occupancy, its latent and its fitted value. For `"nbinom"` the leaf
-  prior's center, the log of the total count over the total exposure, is
-  taken over the rows of weight 1, as a gaussian or Student-t fit's
-  response transform is taken over the rows of positive weight (an
-  `"aft"` fit takes no weights, so every row is in when it is created).
-  A `"logistic"` model differs again: it treats them as observation
-  counts and so requires positive integers (its Polya-Gamma latent for a
+  N(f(x), \sigma^2 / w)\\, where \\f(x)\\ is the unknown function; under
+  `weights.type = "frequency"` a row of weight \\w\\ is instead \\w\\
+  identical observations (see that item). Binary responses differ: a
+  `"probit"` model does not support a weighted likelihood (a weighted
+  probit has no tractable latent-variable form), except that weights
+  identically 1 are treated as absent. A `"probit"` or `"ordinal"` fit
+  does accept weights that are all 0 and 1, as does an `"nbinom"` fit:
+  those name the rows in the data set rather than a precision, are held
+  in the data object's weights slot and compose with the sampler's
+  active-row mask, a row being in when its weight is 1 and the mask
+  keeps it; a 0 row leaves the likelihood but keeps its leaf occupancy,
+  its latent and its fitted value. For `"nbinom"` the leaf prior's
+  center, the log of the total count over the total exposure, is taken
+  over the rows in, each counted its weight's number of times, as a
+  gaussian or Student-t fit's response transform is taken over the rows
+  of positive weight (an `"aft"` fit takes no weights, so every row is
+  in when it is created). A `"logistic"`, `"nbinom"` or `"multinomial"`
+  model differs again: it treats them as observation counts and so
+  requires non-negative whole numbers, a count of 0 leaving the row out
+  of the likelihood as on every family (its Polya-Gamma latent for a
   count \\w\\ is a sum of \\w\\ unit draws, so a sweep's time grows with
-  the total count, and a count above \\10^6\\ is refused). A weight of 0
-  takes an observation out of the likelihood and out of the residual
-  degrees of freedom but not out of the design: the row still occupies a
-  leaf, which the trees may split around, and still receives a fitted
-  value, so the fit is close to the fit on the remaining rows without
-  being that fit (see the `weights` item of
+  the total count, and a count times the row's trials, \\y + r\\ or row
+  total above \\10^6\\ is refused); an `"nbinom"` exposure belongs in
+  the offset, not in a weight. A weight of 0 takes an observation out of
+  the likelihood and out of the residual degrees of freedom but not out
+  of the design: the row still occupies a leaf, which the trees may
+  split around, and still receives a fitted value, so the fit is close
+  to the fit on the remaining rows without being that fit (see the
+  `weights` item of
   [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md);
   `subset` drops rows). A row of weight 0 takes no part in the
   response's scale, which the leaf prior is stated against, in the
@@ -155,11 +163,10 @@ dbarts(
   fewer than two distinct values of the response, every row is used
   instead, under a warning of class `dbartsScaleFallbackWarning`. It is
   warned about unless every weight is 0 or 1 - a vector of nothing but
-  those states which rows are in the data set, and is the active-row
-  mask outright for a `"probit"`, `"ordinal"` or `"nbinom"` fit; the
-  same class covers `weights` going unused for `test` - when the model
-  is not specified as a formula, and when `weights` names a column
-  `test` does not carry.
+  those states which rows are in the data set, and is the membership a
+  `"probit"`, `"ordinal"` or `"nbinom"` fit takes; the same class covers
+  `weights` going unused for `test` - when the model is not specified as
+  a formula, and when `weights` names a column `test` does not carry.
 
 - offset:
 
@@ -241,22 +248,21 @@ dbarts(
   internally, all coefficients sharing the `normal(k)` prior. Each
   covariate is centered and scaled by its mean and standard deviation
   over the rows in the likelihood when the sampler is created, those of
-  positive weight that no 0/1 weights' mask leaves out, each counting in
-  full, or over every row, under one warning, where fewer than two are
-  in (subjects, for a hazard fit, however many periods they span) or
-  where the response's scale is read from every row because the rows in
-  hold fewer than two distinct values of it; the numbers are held from
-  then on, `gp`'s default lengthscale with them. A covariate those rows
-  hold at one value, or observe at none, a constant column among them,
-  is refused, since no scale can be taken from it, unless its `gp` leaf
-  states `lengthscale`: it is then centered at that value and divided by
-  1; unordered factor columns cannot be designated.
-  `gp(columns, k, lengthscale, max.leaf.size)` fits each leaf with a
-  smooth Gaussian-process function of the designated columns under a
-  squared-exponential kernel; leaves larger than `max.leaf.size` fall
-  back to constant fits. An ordered factor may be designated under
-  either, and enters as its level codes 1, 2, and so on, which treats
-  its levels as equally spaced, as the linear contrast
+  positive weight, each counting in full, or over every row, under one
+  warning, where fewer than two are in (subjects, for a hazard fit,
+  however many periods they span) or where the response's scale is read
+  from every row because the rows in hold fewer than two distinct values
+  of it; the numbers are held from then on, `gp`'s default lengthscale
+  with them. A covariate those rows hold at one value, or observe at
+  none, a constant column among them, is refused, since no scale can be
+  taken from it, unless its `gp` leaf states `lengthscale`: it is then
+  centered at that value and divided by 1; unordered factor columns
+  cannot be designated. `gp(columns, k, lengthscale, max.leaf.size)`
+  fits each leaf with a smooth Gaussian-process function of the
+  designated columns under a squared-exponential kernel; leaves larger
+  than `max.leaf.size` fall back to constant fits. An ordered factor may
+  be designated under either, and enters as its level codes 1, 2, and so
+  on, which treats its levels as equally spaced, as the linear contrast
   [`lm`](https://rdrr.io/r/stats/lm.html) gives an ordered factor does;
   levels spaced otherwise need a numeric column holding their scores.
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) accepts
@@ -696,13 +702,13 @@ dbarts(
   response is fit as `"aft"`, and an n x K matrix (K \>= 3) of
   non-negative whole numbers on the matrix interface as `"multinomial"`
   (a formula with a `cbind` left-hand side is refused here, naming
-  `bart`; a two-column matrix is refused, naming both readings, counts
-  and (time, status)). A two-level factor, logical, or two-level
-  character response is also detected and fit as probit. Every
-  resolution of `"auto"` is reported in a one-line message naming the
-  family fit (printed only under `verbose = TRUE`), while an unordered
-  factor (or character) response with three or more levels is an error
-  directing to
+  `bart`; a two-column matrix is refused, naming the readings, successes
+  and failures under `family = binomial` and (time, status)). A
+  two-level factor, logical, or two-level character response is also
+  detected and fit as probit. Every resolution of `"auto"` is reported
+  in a one-line message naming the family fit (printed only under
+  `verbose = TRUE`), while an unordered factor (or character) response
+  with three or more levels is an error directing to
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
   `family = "multinomial"`. An explicit family that a factor response
   cannot support (e.g. `"gaussian"`) is also an error rather than a
@@ -712,10 +718,15 @@ dbarts(
   fitted with one warning saying so, the prior alone then driving the
   fitted probabilities toward 0 or 1) and fit latent-variable models,
   with fits and predictions on the latent scale. `"logistic"` uses
-  Polya-Gamma augmentation. Base R family objects map as
-  [`glm`](https://rdrr.io/r/stats/glm.html) takes them (`binomial` is
-  the logit link, so `family = binomial` is `"logistic"`, not probit)
-  and the rest are refused; see
+  Polya-Gamma augmentation, and also takes a binomial response, an n x 2
+  matrix of successes and failures, or `cbind(successes, failures)` on a
+  formula, as [`glm`](https://rdrr.io/r/stats/glm.html) does: a row's
+  trials are its row sum, a row of no trials enters no likelihood and is
+  still fitted, and a weight counts the row that many times (see
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)). Base R
+  family objects map as [`glm`](https://rdrr.io/r/stats/glm.html) takes
+  them (`binomial` is the logit link, so `family = binomial` is
+  `"logistic"`, not probit) and the rest are refused; see
   [`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md).
 
   `"aft"` fits an accelerated failure time (log-normal) survival model:
@@ -766,7 +777,8 @@ dbarts(
   sampler. The sampler is an ordinary
   [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   whose response and per-category offsets are mutable through
-  `$setCounts`, `$setCategoryOffset` and `$setCategoryTestOffset`; see
+  `$setResponse`, which takes the count matrix, `$setCategoryOffset` and
+  `$setCategoryTestOffset`; see
   [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   for what the softmax refuses and why. `monotone`, a non-uniform
   `split.probs` (a vector or `dart()`), a linear or Gaussian-process
@@ -871,6 +883,46 @@ dbarts(
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) builds, so
   requesting it here is an error directing to
   [`bart()`](https://vdorie.github.io/dbarts/reference/bart.md).
+
+- weights.type:
+
+  How `weights` are read. Under `"precision"` a weight scales a row's
+  residual variance, \\y \mid x \sim N(f(x), \sigma^2 / w)\\, as
+  [`lm`](https://rdrr.io/r/stats/lm.html) reads weights. Under
+  `"frequency"` a row of weight \\w\\ stands for \\w\\ identical
+  observations, so the posterior is the one for the data with each row
+  written out \\w\\ times, a real \\w\\ raising the row's likelihood to
+  that power; a weight of 0 is a row out of the likelihood under either.
+  `NULL` (the default) is each family's own reading, which the sampler
+  records: precision where there is a residual scale, and frequency
+  everywhere else, where a weight counts identical observations or, on
+  the families with a latent no weight can scale, marks a row in or out
+  of the likelihood at 0 and 1:
+
+  |  |  |  |  |
+  |----|----|----|----|
+  | **family** | **NULL reads** | **`"precision"`** | **`"frequency"`** |
+  | gaussian, `student`, a variance forest | precision | taken, real \\w \ge 0\\ | taken, real \\w \ge 0\\ |
+  | logistic, hazard.logistic, nbinom, multinomial | frequency, counts | refused | whole \\w \ge 0\\ |
+  | probit, hazard, hazard.probit, ordinal | frequency, membership | refused | 0 and 1 only |
+  | aft | precision, no weights | no weights | refused |
+
+  Under `"frequency"` on a gaussian-type fit, the starting sigma
+  (`sigest`) is the residual sd of the regression on the rows written
+  out, its degrees of freedom the total weight less the regression's
+  rank, the sd stand-in a weighted one; the residual scale's posterior
+  counts \\w\\ observations at a row; a row's predictive draw is one
+  observation at sd \\\sigma\\; its log-likelihood is \\w\\ times one
+  observation's; and `predict` takes weights of 1 and 0 only. Under
+  Student-t, a row's latent precision (`$getLatents()`) is the composite
+  of its \\w\\ copies'. A frequency weight is data, not a design weight:
+  weights rescaled to sum to 1 leave \\\sigma\\ one observation's worth
+  of data, survey or inverse-probability weights are not counts, and
+  \\w\\ copies of a continuous response are exact ties, which the fit
+  reads as nearly noiseless data. A 0/1 response's weight is always a
+  count of identical rows. The reading is fixed when the sampler is
+  created: `$setModel` cannot change it, and `$setWeights`, `$setData`
+  and `predict` read new weights under it.
 
 ## Details
 

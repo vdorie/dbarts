@@ -232,22 +232,25 @@ family(object, ...)
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) with the
   default binary family) does not support weights, except that weights
   identically 1 are treated as absent, and weights that are all 0 and 1
-  name the rows in the data set and install as the fit's active-row
-  mask, a 0 row leaving the likelihood but keeping its leaf occupancy,
-  its latent and its fitted value (the same holds for
-  `family = "ordinal"`); a `family = "logistic"` fit treats them as
-  observation counts and requires positive integers no larger than
-  \\10^6\\, as a sweep's time grows with the total count. For a weighted
-  logistic fit, the `"ppd"` draw at an observation with weight \\w\\ is
-  the number of successes among \\w\\ trials, \\\mathrm{Binomial}(w,
-  p)\\ with \\p\\ the fitted probability. On a gaussian or Student-t
-  fit, a row at weight 0 has `NA` `"ppd"` draws in every route: a
-  training row (`extract`, `fitted(type = "ppd")`), a row of the test
-  sample whose test-frame weight is 0, and a row given `weights` of 0 to
-  `predict`; an `aft` fit takes no case weights at fit time, so only
-  `predict(weights = )` reaches a weight of 0 on it, with the same
-  result. A weight of 0 holds a row out of the fit and gives it no noise
-  scale, \\\sigma / \sqrt{w}\\, as
+  name the rows in the data set, a 0 row leaving the likelihood but
+  keeping its leaf occupancy, its latent and its fitted value (the same
+  holds for `family = "ordinal"`); a `family = "logistic"` fit treats
+  them as observation counts and requires non-negative whole numbers no
+  larger than \\10^6\\, as a sweep's time grows with the total count, a
+  count of 0 leaving the row out of the likelihood. A training row's
+  `"ppd"` draw is one observation like the row, one 0/1 draw on a binary
+  fit whatever its weight; `predict`'s `weights` on a binary fit are
+  trial counts, drawing \\\mathrm{Binomial}(w, p)\\ successes with \\p\\
+  the fitted probability, a 0 drawing none (see
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
+  `weights` item). A row at weight 0 has `NA` `"ppd"` draws on every
+  family and in every route: a training row (`extract`,
+  `fitted(type = "ppd")`), a row of the test sample whose test-frame
+  weight is 0, and, on a gaussian or Student-t fit, a row given
+  `weights` of 0 to `predict`; an `aft` fit takes no case weights at fit
+  time, so only `predict(weights = )` reaches a weight of 0 on it, with
+  the same result. A weight of 0 holds a row out of the fit, and on a
+  gaussian fit gives it no noise scale, \\\sigma / \sqrt{w}\\, as
   [`simulate`](https://rdrr.io/r/stats/simulate.html) gives `NaN` at a
   weight-0 row of an `lm` fit; no warning is raised, and every other
   row's draw is as it would be without the row. To draw such a row as a
@@ -1421,7 +1424,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.166037
+#> total seconds in loop: 0.211984
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

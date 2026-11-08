@@ -37,7 +37,8 @@ dbartsData(
   validated here only for length, `NA` and non-negativity; the family's
   own rule applies when a sampler is built from the object, where a
   `"probit"`, `"ordinal"` or `"nbinom"` fit accepts only weights of 0
-  and 1 and installs them as its active-row mask.
+  and 1, which name the rows in the data set and compose with the
+  sampler's active-row mask.
 
 - bases:
 
@@ -116,9 +117,15 @@ dbartsData(
   present, label the categories.
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)`(family = "multinomial")`
   writes this argument from a count-matrix or factor response rather
-  than requiring it here. Paired with `counts`, a matrix
-  `offset`/`offset.test` is the per-category shift added to the raw
-  per-category values BEFORE the softmax - which is the only place a
+  than requiring it here. Under `family = binomial` or `"logistic"` an
+  `n` x 2 matrix is instead the binomial response, its columns a row's
+  successes and failures: `y` is again the row sums, the trials, and the
+  offset is the flat shift on the log-odds a binary logistic fit takes;
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) and
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) write
+  it from a `cbind(successes, failures)` response. Paired with `counts`,
+  a matrix `offset`/`offset.test` is the per-category shift added to the
+  raw per-category values BEFORE the softmax - which is the only place a
   shift means anything under one, since the blend is invariant to a
   common per-observation shift and a flat shift would be added after it.
   Only the row-centered part is identified: adding a constant to a whole

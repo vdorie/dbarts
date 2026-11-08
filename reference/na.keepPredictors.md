@@ -111,7 +111,12 @@ unaffected. A missing value in a per-row `offset` or `weights` (an
 row incomplete exactly as an unroutable predictor does, and every
 `na.action` above governs it the same way: the default and `na.fail`
 refuse it by name, `na.pass` returns `NA` for it, and
-`na.omit`/`na.exclude` drop it (`na.exclude` padding it back). A missing
+`na.omit`/`na.exclude` drop it (`na.exclude` padding it back). On a
+binomial fit given no `weights`, a predictive draw's missing success or
+failure count in `newdata`'s response columns marks its row the same
+way, unless the columns miss a count in every row and so are read as
+absent (see the `family` item of
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)). A missing
 value in a single (length-one) `offset` or `weights` is always an error,
 whatever `na.action` is, since there is then no row for it to mark. A
 missing value in `bases` never marks its row: on a row that is

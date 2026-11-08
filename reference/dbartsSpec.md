@@ -21,6 +21,7 @@ dbartsSpec(
     sigest = NULL, seed = NULL,
     family = c("auto", "gaussian", "student", "probit", "logistic", "aft",
                "multinomial", "ordinal", "nbinom"),
+    weights.type = NULL,
     survival = NULL, tree.prior = NULL,
     parentEnv = parent.frame(), ...)
 ```
@@ -43,7 +44,7 @@ dbartsSpec(
 
 - control, power, base, split.probs, tree.prior, leaf.prior,
   proposal.probs, monotone, interactions, blocks, variance, forests,
-  n.trees, sigest, seed, family, ...:
+  n.trees, sigest, seed, family, weights.type, ...:
 
   As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
   (except that `proposal.probs`, the control's setting, is still
@@ -176,57 +177,33 @@ A list with components
 
   a `dbartsModel`, carrying the parsed priors, each forest's record and
   the variance forest's, the category count, the shape setting, the
-  hazard periods, and any monotone, interaction, block, and
-  residual-degrees-of-freedom attributes.
+  hazard periods, the resolved `weights.type` (never `NA`), and any
+  monotone, interaction, block, and residual-degrees-of-freedom
+  attributes.
 
 - data:
 
   a `dbartsData`, with the response coded, `sigma` resolved, and the
-  censoring status and quantile rule recorded.
+  censoring status and quantile rule recorded. Its weights slot holds
+  the fit's weights, a `"probit"`, `"ordinal"` or `"nbinom"` fit's 0/1
+  weights among them, all ones as none, so
+  `new("dbartsSampler", spec$control, spec$model, spec$data)` makes the
+  sampler `dbarts` makes: the response's scale, a count fit's center, a
+  `linear` or `gp` leaf's covariate centers and scales and a numeric
+  forest's default `sd` are read over the rows the weights keep, and the
+  two are [`identical()`](https://rdrr.io/r/base/identical.html) in the
+  stored state and every array `run()` returns from the same seed. A
+  mask handed to that call as `active` composes with the weights, a row
+  being in when its weight is positive and the mask keeps it. On a
+  gaussian or Student-t list, where the rows the weights keep hold fewer
+  than two distinct values of the response and a forest on a numeric
+  column states no `sd`, that route warns twice, here for the response's
+  scale and center and at creation for those and the column's scale,
+  where `dbarts` warns once.
 
 - family:
 
   the resolved family token, never `"auto"`.
-
-- active:
-
-  the active-row mask a `"probit"`, `"ordinal"` or `"nbinom"` fit's 0/1
-  case weights resolved to, `NULL` when they resolved to none; the
-  `data` object's weights slot is cleared either way, since neither
-  family carries one, so a caller building a sampler from this list must
-  install the mask on it. For a count (`"nbinom"`) list,
-  `sampler <- new("dbartsSampler", spec$control, spec$model, spec$data)`
-  followed by `sampler$setActiveRows(spec$active, updateScale = TRUE)`
-  makes the sampler `dbarts` makes: the center is taken over the rows
-  the mask keeps, and the two are
-  [`identical()`](https://rdrr.io/r/base/identical.html) in the leaf
-  prior, `$model`, `$data`, `$activeRows`, the stored state and every
-  array `run()` returns from the same seed. A caller who redraws the
-  mask each sweep and wants the center re-derived in burn-in and held
-  afterward passes `updateScale = i <= n.burn` to that call. Where the
-  mask keeps fewer than two distinct counts the call keeps the center
-  and warns, so the by-hand route has warned twice, here and at
-  `dbartsSpec`, and has spent the sampler's one warning: a later such
-  call is silent on it and warns once on `dbarts`'s sampler. For a
-  probit or ordinal list `sampler$setActiveRows(spec$active)` with no
-  argument makes it `dbarts`'s, there being nothing to re-derive, and a
-  list that carries several forests is refused the argument. A list
-  whose leaves take covariates (`linear`, `gp`) takes the mask at
-  creation,
-  `new("dbartsSampler", spec$control, spec$model, spec$data, active = spec$active)`,
-  which installs it as `dbarts` does and reads the covariates' centers
-  and scales over the rows it keeps; created without it, the sampler
-  reads them over every row. A list of several forests, one of them on a
-  numeric column that states no `sd`, takes the mask at creation,
-  `new("dbartsSampler", spec$control, spec$model, spec$data, active = spec$active)`,
-  which installs it as `dbarts` does and reads the column's scale over
-  the rows it keeps; a mask installed after creation moves no forest's
-  prior. A Gaussian or Student-t list has no mask, its weights riding
-  the data object into creation, and needs no call. Where the rows its
-  weights keep hold fewer than two distinct values of the response and a
-  forest on a numeric column states no `sd`, that route warns twice,
-  here for the response's scale and center and at creation for those and
-  the column's scale, where `dbarts` warns once.
 
 ## See also
 

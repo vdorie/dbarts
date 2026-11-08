@@ -93,7 +93,6 @@ weights can change between draws, for use inside larger MCMC schemes.
   [`setResponse(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`setOffset(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`setWeights(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
-  [`setCounts(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`setCategoryOffset(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`setCategoryTestOffset(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`setActiveRows(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)

@@ -20,6 +20,7 @@ xbart(
     seed = NULL,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic"),
+    weights.type = NULL,
     leaf.prior = NULL, n.cuts = 100L, useQuantiles = FALSE, n.thin = 1L,
     storage = c("double", "single"),
     parallel = getOption("dbarts.parallel", "auto"), cl = NULL,
@@ -97,11 +98,13 @@ xbart(
   N(f(x), \sigma^2 / w)\\, where \\f(x)\\ is the unknown function.
   Binary responses differ: a `"probit"` model does not support weights
   (a weighted probit has no tractable latent-variable form), except that
-  weights identically 1 are treated as absent - the all-0/1 vector
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
-  installs as an active-row mask is refused here, cross-validation
-  partitioning the rows itself; a `"logistic"` model treats them as
-  observation counts and so requires positive integers (its Polya-Gamma
+  weights identically 1 are treated as absent and weights all 0 and 1
+  name the rows in the data set, as in
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md): a
+  fold's training rows of weight 0 are out of its likelihood and its
+  held-out rows of weight 0 out of its loss, as on every family; a
+  `"logistic"` model treats them as observation counts and so requires
+  non-negative whole numbers, a 0 out of the likelihood (its Polya-Gamma
   latent for a count \\w\\ is a sum of \\w\\ unit draws, so a sweep's
   time grows with the total count, and a count above \\10^6\\ is
   refused). A gaussian row of weight 0 takes no part in a fold's
@@ -398,14 +401,17 @@ xbart(
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md):
   `"auto"` fits gaussian models to continuous responses and probit
   models to those coded 0/1, `"gaussian"` forces a continuous fit, and
-  `"probit"` and `"logistic"` require a 0/1 response. A two-level
-  factor, logical, or two-level character response is detected and fit
-  as probit; a factor with three or more levels is an error, as `xbart`
-  does not cross-validate the multinomial model, and neither is a matrix
-  response (per-category counts or a (time, status) pair), which is
-  refused naming `bart`. A survival response - a `Surv` object or
-  two-column `(time, status)` pair, on `formula` or as `data` directly -
-  is likewise an error naming `bart`/`dbarts` with
+  `"probit"` and `"logistic"` require a 0/1 response,
+  `family = binomial` or `"logistic"` also taking a binomial response,
+  `cbind(successes, failures)`, as
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) does. A
+  two-level factor, logical, or two-level character response is detected
+  and fit as probit; a factor with three or more levels is an error, as
+  `xbart` does not cross-validate the multinomial model, and neither is
+  another matrix response (per-category counts or a (time, status)
+  pair), which is refused naming `bart`. A survival response - a `Surv`
+  object or two-column `(time, status)` pair, on `formula` or as `data`
+  directly - is likewise an error naming `bart`/`dbarts` with
   `family = "aft"`/`"hazard"`: `xbart` does not cross-validate a
   survival model. The built-in binary losses transform test predictions
   through the family's link. This vocabulary is narrower than
@@ -417,6 +423,16 @@ xbart(
   (`binomial` is the logit link, so `family = binomial` is `"logistic"`,
   not probit) and the rest are refused; see
   [`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md).
+
+- weights.type:
+
+  How `weights` are read, as in
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md):
+  `NULL` (the default) is precision on a gaussian fit and frequency on a
+  probit or logistic one, `"precision"` is refused on those two, and
+  `"frequency"` on a gaussian fit reads a row of weight \\w\\ as \\w\\
+  identical observations, each fold's starting sigma being the residual
+  sd of the regression on its training rows written out that many times.
 
 - leaf.prior:
 
@@ -503,7 +519,16 @@ link applied to each draw, then averaged), as `"log"` and `"mcr"` do,
 while a supplied function receives the latent draws. A third option is
 to pass a list of `list(function, evaluationEnvironment)`, so as to
 provide default bindings. The binary losses `"log"` and `"mcr"` cannot
-apply to continuous responses.
+apply to continuous responses. On a binomial response a row is read as
+its trials: `y.test` is its observed proportion \\k / n\\ (0 at a row of
+no trials), `weights` are its trials times its weight, and the built-in
+losses read each row so weighted, `"log"` as \\-\[y \log p + (1 - y)
+\log(1 - p)\]\\ and `"mcr"` as the share of the row's trials on the
+wrong side of 0.5, which is what both losses give on the rows written
+out one trial each; `"rmse"` compares the proportion with the
+probability, a row weighted by its trials, and on the rows written out
+would add a term that depends on the data alone. A supplied function
+receives the same `y.test` and `weights`, and the latent draws.
 
 ## Value
 

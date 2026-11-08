@@ -46,6 +46,7 @@ bart(
     family = c("auto", "gaussian", "student", "probit", "logistic", "aft",
                "multinomial", "ordinal", "nbinom", "hazard", "hazard.probit",
                "hazard.logistic", "hurdle.lognormal"),
+    weights.type = NULL,
     na.action = dbarts::na.keepPredictors,
     leaf.prior = NULL,
     storage = c("double", "single"), updateState = TRUE,
@@ -70,7 +71,7 @@ fitted(
 predict(
     object, newdata,
     type = c("ev", "ppd", "bart", "forest", "class"),
-    offset = NULL,
+    offset = NULL, weights = NULL,
     combineChains = TRUE, ci.level = NULL,
     na.action = dbarts::na.keepPredictors, n.threads, ...)
 
@@ -99,7 +100,7 @@ fitted(
 predict(
     object, newdata,
     type = c("ev", "ppd", "bart", "class"),
-    offset = NULL,
+    offset = NULL, weights = NULL,
     combineChains = TRUE, ci.level = NULL,
     na.action = dbarts::na.keepPredictors, n.threads, ...)
 
@@ -128,7 +129,7 @@ fitted(
 predict(
     object, newdata,
     type = c("ev", "ppd", "bart"),
-    offset = NULL,
+    offset = NULL, weights = NULL,
     combineChains = TRUE, ci.level = NULL,
     na.action = dbarts::na.keepPredictors, n.threads, ...)
 
@@ -308,37 +309,83 @@ nobs(object, ...)
   zero, and 0.05 with a whole region at weight zero;
   [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
   `weights` item has the figures. `subset` drops rows, and with them
-  their part in the cut points and the response scale. A probit fit (the
-  default binary family here, and
-  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s)
-  does not support weights, except that weights identically 1 are
-  treated as absent, and weights that are all 0 and 1 name the rows in
-  the data set and install as the fit's active-row mask, a 0 row leaving
-  the likelihood but keeping its leaf occupancy, its latent and its
-  fitted value (the same holds for `family = "ordinal"` and `"nbinom"`;
-  for `"nbinom"` the leaf prior's center, the log of the total count
-  over the total exposure, is taken over the rows of weight 1, and a 0
-  row takes no part in it); a `family = "logistic"` fit treats them as
-  observation counts and requires positive integers no larger than
-  \\10^6\\, as a sweep's time grows with the total count. For a weighted
-  logistic fit, the `"ppd"` draw at an observation with weight \\w\\ is
-  the number of successes among \\w\\ trials, \\\mathrm{Binomial}(w,
-  p)\\ with \\p\\ the fitted probability. On a gaussian or Student-t
-  fit, a row at weight 0 has `NA` `"ppd"` draws in every route: a
-  training row (`extract`, `fitted(type = "ppd")`), a row of the test
-  sample whose test-frame weight is 0, and a row given `weights` of 0 to
-  `predict`; an `aft` fit takes no case weights at fit time, so only
+  their part in the cut points and the response scale. How a weight is
+  read is `weights.type`'s (see that item): by default a gaussian or
+  Student-t weight is the precision above, and on every other family a
+  weight counts identical observations or, at 0 and 1, marks a row in or
+  out of the likelihood. A probit fit (the default binary family here,
+  and [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s)
+  takes weights of 0 and 1 only, which name the rows in the data set, a
+  0 row leaving the likelihood but keeping its leaf occupancy, its
+  latent and its fitted value, and weights identically 1 are treated as
+  absent; the same holds for `family = "ordinal"`. A
+  `family = "logistic"`, `"nbinom"` or `"multinomial"` fit reads its
+  weights as observation counts, a row of weight \\w\\ standing for
+  \\w\\ copies of itself, and requires non-negative whole numbers, a
+  count of 0 leaving the row out of the likelihood; as a sweep's time
+  grows with the total count, a weight times the row's trials
+  (logistic), times \\y + r\\ (nbinom) or times the row total
+  (multinomial) is refused above \\10^6\\. An nbinom fit's 0/1 weights
+  are membership as a probit fit's are, and its leaf prior's center, the
+  log of the total count over the total exposure, counts each row its
+  weight's number of times; an exposure belongs in the offset, not in a
+  weight. A training row's `"ppd"` draw is one observation like the row,
+  whatever its weight: under precision at sd \\\sigma / \sqrt{w}\\,
+  under frequency at sd \\\sigma\\, one 0/1 draw on a binary fit, one
+  count on an nbinom fit, one category on an ordinal fit or a
+  multinomial fit to categories, and a count vector at the row's trials
+  on a multinomial fit to count rows; `predict`'s weights draw more
+  (below). A row at weight 0 has `NA` `"ppd"` draws on every family and
+  in every route: a training row (`extract`, `fitted(type = "ppd")`), a
+  row of the test sample whose test weight is 0, and, on a gaussian,
+  Student-t or aft fit, a row given `weights` of 0 to `predict`; an
+  `aft` fit takes no case weights at fit time, so only
   `predict(weights = )` reaches a weight of 0 on it, with the same
   result. A credible band (`ci.level`) over such a row is `NA` in all
-  three columns. A weight of 0 holds a row out of the fit and gives it
-  no noise scale, \\\sigma / \sqrt{w}\\, as
+  three columns. A weight of 0 holds a row out of the fit, and under
+  precision gives it no noise scale, \\\sigma / \sqrt{w}\\, as
   [`simulate`](https://rdrr.io/r/stats/simulate.html) gives `NaN` at a
-  weight-0 row of an `lm` fit; no warning is raised, and every other
-  row's draw is as it would be without the row. To draw such a row as a
-  new observation, state its weight:
-  `predict(fit, type = "ppd", weights = 1)`. A
-  `family = "hurdle.lognormal"` fit takes weights of 0 and 1 on both its
-  parts, with the same rows and the same result (see the `family` item).
+  weight-0 row of an `lm` fit; no warning is raised, the row's fitted
+  value is still reported, and every other row's draw is as it would be
+  without the row. To draw such a row as a new observation, state its
+  weight: `predict(fit, type = "ppd", weights = 1)`.
+
+  A test sample's weights, the `weights` expression evaluated on `test`
+  on the formula interface, mean what the fit's own do, and are checked
+  by the same rule: each test row is drawn as a training row of that
+  weight is, one observation, `NA` at a 0, so a logistic test row of
+  weight 3 gives one 0/1 draw. A test row with no weight on a count
+  family (logistic, probit and the hazard families, nbinom, ordinal,
+  multinomial) draws one trial; there `extract(sample = "test")` agrees
+  with `predict(newdata = test)` given no weights, the 0 rows aside, and
+  on a gaussian, Student-t or aft fit with `predict` given the test
+  weights.
+
+  For `predict`, the weights of the rows drawn by `type = "ppd"`, one
+  value or one per row. On a gaussian, Student-t or aft fit they are
+  precisions, a 0 giving `NA`; under `weights.type = "frequency"`
+  `predict` takes 1, a new observation, and 0, a row held out, and
+  refuses other values, since a training row of weight \\w\\ stands for
+  \\w\\ observations and its draw is one of them. On a count family a
+  weight is the number of new trials the draw is made over:
+  \\\mathrm{Binomial}(w, p)\\ successes on a binary fit, \\p\\ the
+  fitted probability, a binomial fit given none drawing at the trials
+  `newdata`'s response columns give where it carries them, and at one
+  trial where it was fit through the matrix interface (see the `family`
+  item); on an nbinom fit the sum of \\w\\ new counts, one
+  \\\mathrm{NB}(\mathrm{size} = w r, \mathrm{mu} = w \mu)\\ draw; on an
+  ordinal or multinomial fit the count per category over \\w\\ new
+  trials, an array of draws by rows by categories, so `weights = 1` on a
+  fit to categories gives each draw's category as a unit vector. A
+  weight of 0 is zero new trials and draws zero counts, by every route;
+  a row not to be drawn is left out of `newdata`. With no `newdata`, the
+  weights given replace the fit's own at the training rows for the
+  predictive draws, worked from the stored draws, and a training row
+  whose fit weight is 0 keeps its `NA` draws when `predict` is given no
+  weights. The types that draw nothing read no weight, and a missing
+  weight follows `na.action`. A `family = "hurdle.lognormal"` fit takes
+  weights of 0 and 1 on both its parts, with the same rows and the same
+  result (see the `family` item).
 
 - offset:
 
@@ -491,17 +538,18 @@ nobs(object, ...)
   probit, multinomial, ordinal, aft for a `Surv` response - is reported
   once per call in a one-line message naming the family fit (suppressed
   by `verbose = FALSE`; an explicitly named family prints nothing). An n
-  x 2 matrix under `"auto"` is an error naming both readings,
-  per-category counts (add `family = "multinomial"`) and a (time,
-  status) pair (use a `Surv` response or `family = "aft"`/`"hazard"`),
-  and so is an n x K matrix with negative or fractional entries.
-  `"gaussian"`, `"probit"`, and `"logistic"` force those fits directly;
-  `"aft"`, `"hazard"`, `"hazard.probit"` (an accepted alias for
-  `"hazard"`), `"hazard.logistic"`, `"multinomial"`, `"ordinal"`,
-  `"nbinom"`, and `"hurdle.lognormal"` reach the extended families
-  described below. A `"probit"` or `"logistic"` response that holds one
-  class is fitted, with one warning saying so; the prior alone then
-  drives the fitted probabilities toward 0 or 1.
+  x 2 matrix under `"auto"` is an error naming its readings, successes
+  and failures (add `family = binomial`), per-category counts (add
+  `family = "multinomial"`) and a (time, status) pair (use a `Surv`
+  response or `family = "aft"`/`"hazard"`), and so is an n x K matrix
+  with negative or fractional entries. `"gaussian"`, `"probit"`, and
+  `"logistic"` force those fits directly; `"aft"`, `"hazard"`,
+  `"hazard.probit"` (an accepted alias for `"hazard"`),
+  `"hazard.logistic"`, `"multinomial"`, `"ordinal"`, `"nbinom"`, and
+  `"hurdle.lognormal"` reach the extended families described below. A
+  `"probit"` or `"logistic"` response that holds one class is fitted,
+  with one warning saying so; the prior alone then drives the fitted
+  probabilities toward 0 or 1.
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) takes
   no `family` argument at all: every fit it makes is the default
   gaussian/probit pair. Base R family objects map as
@@ -533,6 +581,56 @@ nobs(object, ...)
   forwards an ordinary variable, which has to hold a token or a prebuilt
   object
   (`dbartsFamilies$gaussian(sigma = dbartsPriors$chisq(3, 0.9))`).
+
+  `family = binomial`,
+  [`stats::binomial()`](https://rdrr.io/r/stats/family.html) or
+  `"logistic"` also fits a binomial response, written as `glm` writes
+  it: `cbind(successes, failures)` on the left of a formula, or an n x 2
+  matrix of successes and failures as the response on the matrix
+  interface, a data frame there being refused (a data object takes the
+  pair as
+  [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)`(counts = )`).
+  A row of \\k\\ successes in \\n\\ trials is one logistic row of \\n\\
+  trials, drawn as its \\n\\ 0/1 rows would be. Successes and failures
+  must be non-negative whole numbers, a factor or character column among
+  those the left-hand side reads being refused, at the fit as at new
+  rows, a row with a missing value going to `na.action`; \\n\\ times the
+  row's weight is capped at \\10^6\\. The fit reports on two scales, as
+  `glm` does: `fitted(type = "ev")` is the probability \\p\\ and its
+  residual \\k / n - p\\; the predictive draws are counts,
+  \\\mathrm{Binomial}(n, p)\\ at a training row, so
+  `fitted(type = "ppd")` estimates \\n p\\ and its residual is \\k - n
+  p\\. `fit$y` keeps the two columns as written. At new rows
+  `predict(type = "ppd")` draws \\\mathrm{Binomial}(w, p)\\ with \\w\\
+  from its `weights`, as on a 0/1 fit; where no weights are given and
+  `newdata` carries the response's columns, every one the formula's
+  left-hand side names, a row draws \\\mathrm{Binomial}(k + f, p)\\ at
+  the trials they give, and otherwise one trial. A fit made through the
+  matrix interface carries no response columns to read, so its new rows
+  draw one trial each unless `predict` is given `weights`, their trials;
+  the formula route reads the trials from new data that carry both
+  columns. A row missing either count is treated as a row missing its
+  weight: refused by default, its draws `NA` under
+  `na.action = na.pass`, dropped under `na.omit`; columns missing a
+  count in every row read as absent, one trial a row. A row of the test
+  sample draws likewise: at the test weights' meaning where the training
+  `weights` name a column of `test`, one 0/1 draw a row, else at the
+  trials its columns give, a row missing a count refused before the run,
+  else one trial. The probabilities do not read the columns. A weight
+  \\w\\ counts copies of the row: the row stands for \\w n\\ trials in
+  the likelihood, its log-likelihood is \\w \log \mathrm{dbinom}(k; n,
+  p)\\, the binomial coefficient included as in `glm`'s `logLik`, and
+  its predictive draw is still one row's, \\\mathrm{Binomial}(n, p)\\. A
+  row of no trials is out of the likelihood, with a warning, as a
+  multinomial row of no trials is: its fitted probability is still
+  reported, its draws are 0, its log-likelihood is 0 in every draw and
+  its residual \\-p\\, its observed proportion read as 0. `glm`'s other
+  spelling, a proportion with the trials as `weights`, is refused with a
+  message showing the `cbind` form, since a logistic weight counts
+  copies of a row and its draw is one row; `binomial("probit")` with
+  successes and failures is refused, the probit binomial not being
+  fitted. [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md)
+  takes the binomial response as `bart` does.
 
   `family = "multinomial"` fits a K-category softmax classifier: K
   forests, one per category, coupled through an interleaved Polya-Gamma
@@ -581,21 +679,22 @@ nobs(object, ...)
   factor (or logical) response resolves to probit, and a numeric vector
   response is unchanged. A two-column matrix is never read as counts
   under `"auto"`, since it is equally a (time, status) pair: it needs
-  `family = "multinomial"` (or a `Surv` response) to be fit. `weights`,
-  `subset`, `samplerOnly`, `warm.start`, `n.grow.sweeps`, a non-uniform
-  `split.probs` (a vector or `dart()`), `monotone`, and `variance` are
-  all refused with an error naming the limitation (an integer weight is
-  already expressible as row-wise count replication in the response, a
-  non-integer one has no exact augmentation sampler, and the K-forest
-  engine copies only power/base/proposal-probability fields from the
-  temporary sampler it builds, so DART, fixed split probabilities,
-  monotone direction constraints, and a variance forest never reach it).
-  `offset` is accepted only as an n x K numeric matrix, entering the K
-  forests' raw fits before the softmax, one column per category, in the
-  same layout as a count-matrix `y.train`; a flat (length-n) offset is
-  refused by name, since a common per-observation shift is the softmax's
-  own null direction and is identically inert. `offset.test` takes an m
-  x K numeric matrix for the m `test` rows, in the same column layout as
+  `family = "multinomial"` (or a `Surv` response) to be fit. `weights`
+  are observation counts, non-negative whole numbers (see the `weights`
+  item), a row of weight \\w\\ the row written out \\w\\ times; on a
+  count fit that is its counts times \\w\\. `subset`, `samplerOnly`,
+  `warm.start`, `n.grow.sweeps`, a non-uniform `split.probs` (a vector
+  or `dart()`), `monotone`, and `variance` are all refused with an error
+  naming the limitation (the K-forest engine copies only
+  power/base/proposal-probability fields from the temporary sampler it
+  builds, so DART, fixed split probabilities, monotone direction
+  constraints, and a variance forest never reach it). `offset` is
+  accepted only as an n x K numeric matrix, entering the K forests' raw
+  fits before the softmax, one column per category, in the same layout
+  as a count-matrix `y.train`; a flat (length-n) offset is refused by
+  name, since a common per-observation shift is the softmax's own null
+  direction and is identically inert. `offset.test` takes an m x K
+  numeric matrix for the m `test` rows, in the same column layout as
   `offset`; omitted, it defaults to `offset` when the row counts match,
   and an `offset` beside a `test` set of another length is refused by
   name asking for `offset.test`. An explicit `offset.test = NULL` means
@@ -651,7 +750,8 @@ nobs(object, ...)
   response (with a message that the category order is taken from the
   level order - usually alphabetical, so order the levels yourself) and
   a numeric response, whose ordered levels are `sort(unique(y.train))`.
-  `weights` are not supported (a weighted truncated-normal latent
+  `weights` are taken as 0 and 1 only, marking rows in and out of the
+  likelihood as on a probit fit (a weighted truncated-normal latent
   likelihood is not a coherent model); `warm.start` and `n.grow.sweeps`
   are refused with an error naming the limitation. `samplerOnly` is
   supported, unlike multinomial: it returns the fitted sampler unrun,
@@ -690,21 +790,21 @@ nobs(object, ...)
   tell from a larger one, so the posterior there leans on the grid's cap
   and prior. Passing `shape` as a positive integer fixes \\r\\ instead
   (a real fixed shape is refused). Like probit, there is no residual
-  scale, and `weights` are accepted only as 0 and 1, marking rows in and
-  out of the likelihood (exposure belongs in the offset, not in
-  observation replication); `warm.start` and `n.grow.sweeps` are refused
-  with an error naming the limitation. `samplerOnly` is supported,
-  unlike multinomial: it returns the fitted sampler unrun, the same
-  object `fit` is under `keepSampler`. `test` and `keepTrees` are
-  supported as for ordinal, and `predict` replays the saved trees at new
-  predictors, reporting mean counts \\e^{\eta}\\, with `type = "ppd"`
-  drawing at the stored per-draw shape (a log-exposure offset enters
-  \\\eta\\ additively). `xbart` does not fit count responses. `y.train`
-  is additionally capped at \\10^6\\: the shape grid's count histogram
-  is sized from the largest count, so a larger one allocates without
-  bound, and a count above it is refused at creation and at every
-  response swap alike. The fit's class is `"bartNegbin"`, not `"bart"`:
-  see ‘Value’ below.
+  scale; `weights` are observation counts, non-negative whole numbers, a
+  weight of 0 or 1 marking a row out of or in the likelihood (exposure
+  belongs in the offset, not in a weight); `warm.start` and
+  `n.grow.sweeps` are refused with an error naming the limitation.
+  `samplerOnly` is supported, unlike multinomial: it returns the fitted
+  sampler unrun, the same object `fit` is under `keepSampler`. `test`
+  and `keepTrees` are supported as for ordinal, and `predict` replays
+  the saved trees at new predictors, reporting mean counts \\e^{\eta}\\,
+  with `type = "ppd"` drawing at the stored per-draw shape (a
+  log-exposure offset enters \\\eta\\ additively). `xbart` does not fit
+  count responses. `y.train` is additionally capped at \\10^6\\: the
+  shape grid's count histogram is sized from the largest count, so a
+  larger one allocates without bound, and a count above it is refused at
+  creation and at every response swap alike. The fit's class is
+  `"bartNegbin"`, not `"bart"`: see ‘Value’ below.
 
   `family = "hazard"` and `family = "hazard.logistic"` fit a
   discrete-time survival hazard model as *ingestion sugar* over the
@@ -735,7 +835,7 @@ nobs(object, ...)
   [`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md)).
   Offsets are on the link scale and replicate per subject; `weights`
   replicate and then follow the chosen binary family's policy (probit
-  refuses non-unit weights, logistic requires integer counts); a subject
+  takes 0 and 1 only, logistic requires whole-number counts); a subject
   at weight 0 is expanded on that grid, its time in the interval it
   falls in, and one past the last period is at risk in every period with
   no event. A `Surv` response requires the family to be requested
@@ -849,6 +949,49 @@ nobs(object, ...)
   fit the parts separately - a probit fit of \\1\\y \> 0\\\\ and a
   gaussian fit of \\\log y\\ over the positive rows, each with its own
   `sd` - which is the same posterior, the parts being independent.
+
+- weights.type:
+
+  How `weights` are read. Under `"precision"` a weight scales a row's
+  residual variance, \\y \mid x \sim N(f(x), \sigma^2 / w)\\, as
+  [`lm`](https://rdrr.io/r/stats/lm.html) reads weights. Under
+  `"frequency"` a row of weight \\w\\ stands for \\w\\ identical
+  observations, so the posterior is the one for the data with each row
+  written out \\w\\ times, a real \\w\\ raising the row's likelihood to
+  that power; a weight of 0 is a row out of the likelihood under either.
+  `NULL` (the default) is each family's own reading, which the sampler
+  records: precision where there is a residual scale, and frequency
+  everywhere else, where a weight counts identical observations or, on
+  the families with a latent no weight can scale, marks a row in or out
+  of the likelihood at 0 and 1:
+
+  |  |  |  |  |
+  |----|----|----|----|
+  | **family** | **NULL reads** | **`"precision"`** | **`"frequency"`** |
+  | gaussian, `student`, a variance forest | precision | taken, real \\w \ge 0\\ | taken, real \\w \ge 0\\ |
+  | logistic, hazard.logistic, nbinom, multinomial | frequency, counts | refused | whole \\w \ge 0\\ |
+  | probit, hazard, hazard.probit, ordinal | frequency, membership | refused | 0 and 1 only |
+  | hurdle.lognormal | frequency, membership | refused | 0 and 1 only |
+  | aft | precision, no weights | no weights | refused |
+
+  Under `"frequency"` on a gaussian-type fit, the starting sigma
+  (`sigest`) is the residual sd of the regression on the rows written
+  out, its degrees of freedom the total weight less the regression's
+  rank, the sd stand-in a weighted one; the residual scale's posterior
+  counts \\w\\ observations at a row; a row's predictive draw is one
+  observation at sd \\\sigma\\; its log-likelihood is \\w\\ times one
+  observation's; and `predict` takes weights of 1 and 0 only. Under
+  Student-t, a row's latent precision (`$getLatents()`) is the composite
+  of its \\w\\ copies'. A frequency weight is data, not a design weight:
+  weights rescaled to sum to 1 leave \\\sigma\\ one observation's worth
+  of data, survey or inverse-probability weights are not counts, and
+  \\w\\ copies of a continuous response are exact ties, which the fit
+  reads as nearly noiseless data. A 0/1 response's weight is always a
+  count of identical rows. A `"hurdle.lognormal"` fit reads its 0/1
+  weights as membership in both parts and refuses `"precision"`. The
+  reading is fixed when the sampler is created: `$setModel` cannot
+  change it, and `$setWeights`, `$setData` and `predict` read new
+  weights under it.
 
 - sigest:
 
@@ -1954,11 +2097,11 @@ that margin. `fit` is present whenever `keepTrees` is `TRUE` *or*
 `keepSampler` is set, independent of `keepTrees`: it is the
 `dbartsSampler` whose K-forest engine actually ran (not the temporary
 sampler it builds along the way), fully mutable and readable on the
-channels the softmax gives meaning to - `$setCounts`,
-`$setCategoryOffset`, `$setPredictor`, `$setLeafPrior(normal(k = ))`,
-and the rest - and refused by name on the ones it does not
-(`$setResponse`, `$setOffset`, `$setSigma`, `$setForestWeights`);
-`fit$storeState()` followed by
+channels the softmax gives meaning to - `$setResponse` with the count
+matrix, `$setCategoryOffset`, `$setPredictor`,
+`$setLeafPrior(normal(k = ))`, and the rest - and refused by name on the
+ones it does not (`$setResponse` given a vector, `$setOffset`,
+`$setSigma`, `$setForestWeights`); `fit$storeState()` followed by
 [`save`](https://rdrr.io/r/base/save.html)/[`load`](https://rdrr.io/r/base/load.html)
 restores a sampler `predict.bartMultinomial` can replay through.
 `predict` still requires `keepTrees = TRUE` - a kept `fit` alone carries
@@ -1979,32 +2122,37 @@ whose response is a count matrix, its training rows instead draw a
 vector of category counts with that row's number of trials,
 `rmultinom(1, n_i, p)` per draw and row (all zeros at a row with no
 trial), in an array shaped like `"ev"`, while its test rows, whose trial
-counts are unknown, draw one category as above.
-`extract`/`fitted`/`predict` with `type = "bart"`, and
-`extract`/`fitted`/`predict` with `type = "forest"`, error naming the
-reason: the run records only the identified softmax probabilities, and a
-category's forest is a latent whose level is reproducibly structured yet
-not identified (in the same sense as BCF's \\a\\), so a raw replay would
-read as signal - the identified content is the log-ratio, which the logs
-of the reported probabilities carry. `predict(object, newdata)` requires
-`object` fit with `keepTrees = TRUE` (error otherwise); it codes
-`newdata` to the training columns exactly as `predict.bart` does and
-returns a levels-named (`n.chains` \\\times\\) `n.samples` \\\times\\
-number of new observations \\\times\\ K probability array, the
+counts are unknown, draw a one-trial count vector, the unit vector of a
+category, in the same shape. A row of weight 0, training or test, has
+`NA` draws (see the `weights` item). `extract`/`fitted`/`predict` with
+`type = "bart"`, and `extract`/`fitted`/`predict` with
+`type = "forest"`, error naming the reason: the run records only the
+identified softmax probabilities, and a category's forest is a latent
+whose level is reproducibly structured yet not identified (in the same
+sense as BCF's \\a\\), so a raw replay would read as signal - the
+identified content is the log-ratio, which the logs of the reported
+probabilities carry. `predict(object, newdata)` requires `object` fit
+with `keepTrees = TRUE` (error otherwise); it codes `newdata` to the
+training columns exactly as `predict.bart` does and returns a
+levels-named (`n.chains` \\\times\\) `n.samples` \\\times\\ number of
+new observations \\\times\\ K probability array, the
 `yhat.test`/`yhat.train` convention; `type = "ppd"` draws one category
 per posterior draw the same way `extract(object, type = "ppd")` does on
-a factor response, a single trial on a count-matrix fit too, since the
-trial count of a new row is unknown; `type = "bart"` and
-`type = "forest"` are named only to be refused, for the
-non-identification reason above; `type = "class"` returns the same
-argmax factor `fitted(object, type = "class")` does, over the
-probability draws `predict` itself replays; paired with `ci.level` it is
-refused by name instead - a class prediction is a label rather than a
-quantity with a credible band. `offset` supplies the per-category shift
-at the new rows, required on a fit trained with an `offset` and
-reproducing `yhat.train` when the training offset is passed back at the
-training rows. `residuals(object)` returns an n \\\times\\ K matrix, the
-observed proportion (an indicator for a factor response,
+a factor response, and on a count-matrix fit a one-trial count vector,
+since the trial count of a new row is unknown; with `weights`, each draw
+is instead the count per category over that many new trials, in an array
+shaped like `"ev"`, at `newdata` or, without it, at the training rows in
+place of their trials, a weight of 0 drawing K zero counts (see the
+`weights` item); `type = "bart"` and `type = "forest"` are named only to
+be refused, for the non-identification reason above; `type = "class"`
+returns the same argmax factor `fitted(object, type = "class")` does,
+over the probability draws `predict` itself replays; paired with
+`ci.level` it is refused by name instead - a class prediction is a label
+rather than a quantity with a credible band. `offset` supplies the
+per-category shift at the new rows, required on a fit trained with an
+`offset` and reproducing `yhat.train` when the training offset is passed
+back at the training rows. `residuals(object)` returns an n \\\times\\ K
+matrix, the observed proportion (an indicator for a factor response,
 `y / rowSums(y)` for a count-matrix one, 0 at a row with no trial as
 `glm` takes a zero-weight row) minus the fitted probability in
 `fitted(object)`, per category. `extract`'s `combineChains` (default
@@ -2093,8 +2241,9 @@ probability draws, `type = "bart"` (alias `"link"`) the latent draws,
 and `type = "ppd"` draws one category per posterior draw (1-based codes
 indexing `levels`). `predict(object, newdata)` requires
 `keepTrees = TRUE` and returns the probability draws at `newdata`
-(`type = "bart"` the replayed latent; `type = "ppd"` category draws;
-`type = "class"` the argmax ordered factor
+(`type = "bart"` the replayed latent; `type = "ppd"` category draws, or
+with `weights` the count per category over that many new trials, as for
+`bartMultinomial`; `type = "class"` the argmax ordered factor
 `fitted(object, type = "class")` returns, over the replayed draws;
 paired with `ci.level` it is refused by name instead, for the same
 reason `bartMultinomial` refuses it); when `newdata` matches the
@@ -2163,12 +2312,13 @@ per posterior draw from \\\mathrm{NB}(\mathrm{size} = r, \mathrm{mu} =
 \mu)\\; `sample = "test"` selects the test channel.
 `predict(object, newdata)` requires `keepTrees = TRUE` and returns the
 mean-count draws at `newdata` (`type = "bart"` the replayed log mean;
-`type = "ppd"` count draws), with an optional log-exposure `offset`;
-when `newdata` matches the fit-time `test` and no offset is given it
-reproduces `yhat.test`. `residuals(object)` returns the observed count
-minus the posterior-mean count per observation. `extract`'s
-`combineChains` and `fitted`/`predict`'s `ci.level` (a plain 3-column
-matrix here - this family has no K margin) work as for
+`type = "ppd"` count draws, or with `weights` the sum of that many new
+counts, a weight of 0 drawing 0), with an optional log-exposure
+`offset`; when `newdata` matches the fit-time `test` and no offset is
+given it reproduces `yhat.test`. `residuals(object)` returns the
+observed count minus the posterior-mean count per observation.
+`extract`'s `combineChains` and `fitted`/`predict`'s `ci.level` (a plain
+3-column matrix here - this family has no K margin) work as for
 [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md),
 including `combineChains`'s refusal on `fitted`/`residuals` and
 `ci.level`'s on `residuals`. `extract(object, type = "loglik")` is
@@ -2319,7 +2469,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001474
+#> total seconds in loop: 0.001626
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 3 3 2 2 2 2 2 3 2 2 2 3 3 2 
@@ -2356,7 +2506,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000760
+#> total seconds in loop: 0.000876
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 2 1 2 1 1 2 2 1 1 1 2 2 2 2 
@@ -2391,7 +2541,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001151
+#> total seconds in loop: 0.001308
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 3 2 4 2 2 3 2 2 2 2 3 3 2 
@@ -2445,7 +2595,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.001630
+#> total seconds in loop: 0.001952
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 2 2 2 2 2 2 3 3 2 

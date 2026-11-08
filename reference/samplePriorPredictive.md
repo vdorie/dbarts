@@ -54,21 +54,26 @@ samplePriorPredictive(
   freshly drawn from its own prior for each sample; for Student-t, sigma
   times \\t\_\nu\\ noise at the family's df, or at the sample's df drawn
   from its prior when the df is estimated; a bernoulli draw from the
-  `"ev"` probabilities for a binary sampler; a negative-binomial count
-  at the sample's shape, fixed or drawn; an integer category code \\1,
-  \ldots, K\\ for an ordinal sampler, and for a multinomial one whose
-  response was written as a factor; a count vector of one trial for a
-  multinomial sampler whose response was written as a count matrix,
-  whatever the rows' trials, as `predict` draws at a new row. A
-  `$setCounts` makes the response a count matrix. On an aft (survival)
-  sampler the draw is on the log-time scale (the model fits \\\log T\\),
-  and on a heteroscedastic one the noise is drawn at a prior draw of
-  that observation's own \\s(x)\\ rather than at a scalar sigma. Unlike
+  `"ev"` probabilities for a binary sampler, a binomial one included,
+  one trial per row as `predict` draws at a new row given no weights; a
+  negative-binomial count at the sample's shape, fixed or drawn; an
+  integer category code \\1, \ldots, K\\ for an ordinal sampler, and for
+  a multinomial one whose response was written as a factor; a count
+  vector of one trial for a multinomial sampler whose response was
+  written as a count matrix, whatever the rows' trials, as `predict`
+  draws at a new row. A `$setResponse`, which on a multinomial sampler
+  takes a count matrix, makes the response one written as a count
+  matrix. On an aft (survival) sampler the draw is on the log-time scale
+  (the model fits \\\log T\\), and on a heteroscedastic one the noise is
+  drawn at a prior draw of that observation's own \\s(x)\\ rather than
+  at a scalar sigma. Unlike
   [`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
   posterior `"ppd"`, prior predictive draws are weight-blind: they use
   unit weights rather than a weighted precision (\\\sigma / \sqrt{w}\\
-  for gaussian) or a \\\mathrm{Binomial}(w, p)\\ success count (weighted
-  logistic); supply any weighted precision downstream.
+  for gaussian), and a row of weight 0 is drawn as every other row is,
+  where the posterior draw at it is `NA`; each draw is one observation,
+  as a training row's posterior draw is under every reading. Supply any
+  weighted precision downstream.
 
 - offset.test:
 

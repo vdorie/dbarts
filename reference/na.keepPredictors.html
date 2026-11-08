@@ -130,7 +130,11 @@
   unroutable predictor does, and every <code>na.action</code> above governs it the
   same way: the default and <code>na.fail</code> refuse it by name, <code>na.pass</code>
   returns <code>NA</code> for it, and <code>na.omit</code>/<code>na.exclude</code> drop it
-  (<code>na.exclude</code> padding it back). A missing value in a single
+  (<code>na.exclude</code> padding it back). On a binomial fit given no
+  <code>weights</code>, a predictive draw's missing success or failure count in
+  <code>newdata</code>'s response columns marks its row the same way, unless the
+  columns miss a count in every row and so are read as absent (see the
+  <code>family</code> item of <code><a href="bart.html">bart</a></code>). A missing value in a single
   (length-one) <code>offset</code> or <code>weights</code> is always an error, whatever
   <code>na.action</code> is, since there is then no row for it to mark. A missing
   value in <code>bases</code> never marks its row: on a row that is incomplete

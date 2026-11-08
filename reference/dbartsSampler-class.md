@@ -53,8 +53,6 @@ setWeights(
   updateStandardization = FALSE
 )
 # S4 method for class 'dbartsSampler'
-setCounts(counts, updateState = NULL)
-# S4 method for class 'dbartsSampler'
 setCategoryOffset(offset, updateState = NULL)
 # S4 method for class 'dbartsSampler'
 setCategoryTestOffset(offset.test)
@@ -224,10 +222,10 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   method that takes this argument - `run`, `sampleTreesFromPrior`,
   `sampleLeafParametersFromPrior`, `sampleVarianceForestFromPrior`,
   `growFromRoot`, and every mutator (`setData`, `setResponse`,
-  `setOffset`, `setWeights`, `setCounts`, `setCategoryOffset`,
-  `setActiveRows`, `setForestWeights`, `setForestBasis`, `setSigma`,
-  `setLeafPrior`, `setPredictor`, and `setCutPoints`): `NULL` (the
-  default) resolves to the sampler's
+  `setOffset`, `setWeights`, `setCategoryOffset`, `setActiveRows`,
+  `setForestWeights`, `setForestBasis`, `setSigma`, `setLeafPrior`,
+  `setPredictor`, and `setCutPoints`): `NULL` (the default) resolves to
+  the sampler's
   [`control`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
   object's `updateState`, and an explicit `TRUE` or `FALSE`, or a single
   number read as `as.logical` reads it (0 is `FALSE`), overrides it.
@@ -394,9 +392,7 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   nothing. A row whose leaf covariate is missing is read at that
   covariate's center, so what a linear leaf predicts for it follows the
   center to the new data's. A standardization the call derives is read
-  over the new data's rows in the likelihood, those of positive weight
-  or, under a family whose 0/1 weights are a mask (`probit`, `ordinal`,
-  `nbinom` and `hazard.probit`), those the mask they resolve to keeps;
+  over the new data's rows in the likelihood, those of positive weight;
   where fewer than two rows are in (subjects, for a hazard fit, whose
   data hold each subject's rows together, at periods 1, 2, 3 and on in
   order, as
@@ -449,20 +445,50 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
 - y:
 
-  A numeric response vector of length equal to that with which the
-  sampler was created, and lying in the response family's support: 0/1
-  for `probit` and `logistic`, an integer category index in \\\[1, K\]\\
-  for `ordinal`, and a finite non-negative integer count no larger than
-  \\10^6\\ for `nbinom` (the shape grid's count histogram is sized from
-  the largest count, so a larger one allocates without bound). Values
-  off the support are refused, as they are at creation; `gaussian` and
-  `aft` (log survival times) constrain nothing. A missing value is
-  refused in every family: to leave a row out of the likelihood
-  mid-chain, mark it inactive with `setActiveRows` and give it any value
-  in the support, which enters no draw while the row stays inactive
-  unless the call re-anchors the scale (`updateScale = TRUE`), which
-  reads the rows in the likelihood. This draws nothing; the next sweep
-  draws the augmentation variables against the change.
+  A numeric response vector, or on a count sampler the matrix below, of
+  length equal to that with which the sampler was created, and lying in
+  the response family's support: 0/1 for `probit` and `logistic`, an
+  integer category index in \\\[1, K\]\\ for `ordinal`, and a finite
+  non-negative integer count no larger than \\10^6\\ for `nbinom` (the
+  shape grid's count histogram is sized from the largest count, so a
+  larger one allocates without bound). Values off the support are
+  refused, as they are at creation; `gaussian` and `aft` (log survival
+  times) constrain nothing. A missing value is refused in every family:
+  to leave a row out of the likelihood mid-chain, mark it inactive with
+  `setActiveRows` and give it any value in the support, which enters no
+  draw while the row stays inactive unless the call re-anchors the scale
+  (`updateScale = TRUE`), which reads the rows in the likelihood. On a
+  multinomial (softmax) sampler `y` is its response as its formula
+  writes it: an \\n \times K\\ matrix of non-negative integer counts,
+  column \\k\\ holding category \\k\\'s successes, with trials \\n_i =
+  \sum_k\\ `y[i, ]` at least 0 and no larger than \\10^6\\: a row with
+  no trial enters no likelihood and still receives fitted probabilities,
+  and the first such row in a session warns. Both \\n\\ and \\K\\ are
+  fixed at creation - every combiner buffer is sized by \\n\\, and \\K\\
+  is the forest count - so only the values may change; a matrix of the
+  wrong shape is refused naming the count in force. The trees carry
+  over, fitted to the previous counts exactly as `setResponse` leaves
+  any sampler's, and the next `run` forms every category's working
+  response against the new matrix. The matrix is written to both the
+  engine and `data@counts` (its row sums to `data@y`), so `getPointer`'s
+  transparent re-creation after save and load carries the current
+  response rather than the one the sampler was created with. Cost, not a
+  defect: the sweep draws \\n_i\\ Polya-Gamma variates per observation
+  per category, so replacing single-trial labels with grouped counts
+  multiplies sweep cost by `mean(n_i)`. A missing count is refused, as a
+  missing response is; to leave a row out of the likelihood mid-chain,
+  mark it inactive with `setActiveRows`, as in every family, or write
+  zeros into it, which is the same as far as the likelihood goes. A
+  vector is refused there, since with each row's trials held it cannot
+  say how they split among the categories. On a binomial sampler, a
+  `logistic` one whose data carry the response as counts of successes
+  and failures, `y` is the \\n \times 2\\ matrix of successes and
+  failures, or a vector of successes with each row's trials held, a
+  count above its row's trials refused; `setData` takes new data whose
+  counts give both, the number of rows free. A count sampler has no
+  response scale to re-anchor and ignores `updateScale`. This draws
+  nothing; the next sweep draws the augmentation variables against the
+  change.
 
 - status:
 
@@ -553,22 +579,23 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   latent becomes \\f\_{ik} + o\_{ik}\\, so the shift enters the
   log-sum-exp margins, every category's working response and the
   reported probabilities, and never a leaf value. This is the
-  response-side counterpart of `setCounts` rather than of `setOffset`,
-  whose flat shift is added AFTER the categories are blended - the wrong
-  side of the nonlinearity - and is the softmax's own null direction
-  besides, which is why `setOffset` itself is refused on such a sampler.
-  Only the row-centered part is identified: adding a constant to a whole
-  row leaves every reported probability unchanged, and the entrance
-  leaves the matrix as given rather than re-centering it. It shifts the
-  TRAINING latent only. Mirrored into `data@offset.category`, so a
-  re-created sampler carries it. Column names, when present, are matched
-  to the sampler's category names (the column names of its counts;
-  `"1"`, ..., `"K"` when it has none): a permutation is reordered by
-  name and other names are refused, except that a sampler without count
-  column names reorders a permutation of its indices and ignores other
-  names. Unnamed columns stay positional. `setOffset` draws nothing: the
-  next sweep draws the augmentation variables against the new offset, on
-  a logistic sampler as on every other family.
+  response-side counterpart of `setResponse`'s count matrix rather than
+  of `setOffset`, whose flat shift is added AFTER the categories are
+  blended - the wrong side of the nonlinearity - and is the softmax's
+  own null direction besides, which is why `setOffset` itself is refused
+  on such a sampler. Only the row-centered part is identified: adding a
+  constant to a whole row leaves every reported probability unchanged,
+  and the entrance leaves the matrix as given rather than re-centering
+  it. It shifts the TRAINING latent only. Mirrored into
+  `data@offset.category`, so a re-created sampler carries it. Column
+  names, when present, are matched to the sampler's category names (the
+  column names of its counts; `"1"`, ..., `"K"` when it has none): a
+  permutation is reordered by name and other names are refused, except
+  that a sampler without count column names reorders a permutation of
+  its indices and ignores other names. Unnamed columns stay positional.
+  `setOffset` draws nothing: the next sweep draws the augmentation
+  variables against the new offset, on a logistic sampler as on every
+  other family.
 
 - updateScale:
 
@@ -704,47 +731,25 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   until the next write. This draws nothing; the next sweep draws the
   augmentation variables against the change.
 
-- counts:
-
-  For `setCounts`, the replacement response of a multinomial (softmax)
-  sampler: an \\n \times K\\ matrix of non-negative integer counts,
-  column \\k\\ holding category \\k\\'s successes, with trials \\n_i =
-  \sum_k\\ `counts[i, ]` at least 0 and no larger than \\10^6\\: a row
-  with no trial enters no likelihood and still receives fitted
-  probabilities, and the first such row in a session warns. Both \\n\\
-  and \\K\\ are fixed at creation - every combiner buffer is sized by
-  \\n\\, and \\K\\ is the forest count - so only the values may change;
-  a matrix of the wrong shape is refused naming the count in force. The
-  trees carry over, fitted to the previous counts exactly as
-  `setResponse` leaves a single-forest sampler's, and the next `run`
-  forms every category's working response against the new matrix. The
-  matrix is written to both the engine and `data@counts` (its row sums
-  to `data@y`), so `getPointer`'s transparent re-creation after save and
-  load carries the current response rather than the one the sampler was
-  created with. Cost, not a defect: the sweep draws \\n_i\\ Polya-Gamma
-  variates per observation per category, so replacing single-trial
-  labels with grouped counts multiplies sweep cost by `mean(n_i)`. A
-  missing count is refused, as a missing response is by `setResponse`;
-  to leave a row out of the likelihood mid-chain, mark it inactive with
-  `setActiveRows`, as in every family, or write zeros into it, which is
-  the same as far as the likelihood goes. Refused, naming the reason, on
-  any sampler that carries no count response.
-
 - weights:
 
   A numeric vector of case weights, of length equal to that with which
   the sampler was created. What a weight MEANS is family-specific: for a
-  gaussian-family sampler it is a precision, non-negative, and a weight
+  gaussian-family sampler it is a precision, non-negative, or under
+  `weights.type = "frequency"` (fixed at creation, see
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)) a
+  count of identical observations, real and non-negative, and a weight
   of zero takes an observation out of the likelihood and out of the
   residual degrees of freedom while keeping it in the design, its place
-  in a leaf and its fitted values (see below); for a `logistic`-family
-  sampler it is an observation COUNT and must be a positive integer no
-  larger than \\10^6\\, a zero count being a dropped row rather than a
-  down-weighted one (`active` is the supported way to take a row out of
-  the data set for a sweep). A zero-weight row is IN THE DESIGN BUT NOT
-  IN THE LIKELIHOOD, and takes no part in the response scale, the count
-  center or a forest's default sd, which are taken over the rows of
-  positive weight when the sampler is created (a row is in when its
+  in a leaf and its fitted values (see below); for a `logistic`-,
+  `nbinom`- or `multinomial`-family sampler it is an observation COUNT
+  and must be a non-negative whole number, no larger than \\10^6\\ times
+  the row's trials, \\y + r\\ or row total, a count of 0 taking the row
+  out of the likelihood: it consumes no random number, and the row draws
+  as one masked by `active` does. A zero-weight row is IN THE DESIGN BUT
+  NOT IN THE LIKELIHOOD, and takes no part in the response scale, the
+  count center or a forest's default sd, which are taken over the rows
+  of positive weight when the sampler is created (a row is in when its
   weight is positive and no mask switches it off) and held when the
   weights or the mask change, unless the call carries
   `updateScale = TRUE`, so the three ways to leave a row out - at
@@ -773,34 +778,34 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   next sweep draws every scale from its conditional given the fit and
   the weights then in force, so an outer sampler that draws the weight
   given the scales and one that draws it with the scales integrated out
-  are both exact. `setWeights` applies to gaussian- and
-  `logistic`-family samplers. A logistic swap is a model change with a
-  defined meaning rather than a reweighting: the counts are the shape of
-  the Polya-Gamma latents, which the next sweep draws against the new
-  counts, so an outer sampler can vary exposure between runs. `probit`,
-  `ordinal`, `aft` and `nbinom` refuse a weighted likelihood by
-  identification: a weighted probit has no tractable latent-variable
-  form, `ordinal` inherits that, `aft` fixes its censoring structure at
-  creation, and `nbinom`'s Polya-Gamma shape is \\y_i + r\\ with no
-  weight slot. On a `probit`, `ordinal` or `nbinom` sampler a vector of
-  0s and 1s is accepted all the same: it names the rows in the data set
-  rather than a precision, so `setWeights` routes it to `active` below -
-  installing the mask, all-ones clearing it - and leaves the data
-  object's `weights` slot empty; any other value keeps the refusal.
-  `setData` carries the same rule on the whole-data conduit, the next
-  sweep drawing the latents against the counts the replacement data
-  carries; replacement data given without weights is single-trial, as at
-  creation, so a logistic sampler built with counts and handed
-  weightless data becomes an unweighted one. The weights themselves are
-  not part of the saved `state`, and the state records nothing of them:
-  the latents it carries are the values its trees were drawn from, which
-  `setState` installs without drawing, and the next sweep draws them
-  against the weights then in force. A weight change is undone by
-  `setWeights` with the old weights and `setState` with the stored
-  state, in either order, the sampler then continuing bit for bit as one
-  that installed the stored state under the old weights would. This
-  draws nothing; the next sweep draws the augmentation variables against
-  the change. See
+  are both exact. `setWeights` sets a weighted likelihood on gaussian-,
+  `logistic`- and `nbinom`-family samplers. A logistic or nbinom swap is
+  a model change with a defined meaning rather than a reweighting: the
+  counts multiply the shape of the Polya-Gamma latents, which the next
+  sweep draws against the new counts, so an outer sampler can vary
+  exposure between runs. `probit`, `ordinal` and `aft` refuse a weighted
+  likelihood by identification: a weighted probit has no tractable
+  latent-variable form, `ordinal` inherits that, and `aft` fixes its
+  censoring structure at creation. On a `probit`, `ordinal` or `nbinom`
+  sampler a vector of 0s and 1s is accepted all the same: it names the
+  rows in the data set rather than a precision, is held in the data
+  object's `weights` slot, all ones as no weights, and composes with
+  `active` below, a row being in when its weight is 1 and the mask keeps
+  it; any other value keeps the refusal on `probit` and `ordinal`, and
+  is a count on `nbinom`. `setData` carries the same rule on the
+  whole-data conduit, the next sweep drawing the latents against the
+  counts the replacement data carries; replacement data given without
+  weights is single-trial, as at creation, so a logistic sampler built
+  with counts and handed weightless data becomes an unweighted one. The
+  weights themselves are not part of the saved `state`, and the state
+  records nothing of them: the latents it carries are the values its
+  trees were drawn from, which `setState` installs without drawing, and
+  the next sweep draws them against the weights then in force. A weight
+  change is undone by `setWeights` with the old weights and `setState`
+  with the stored state, in either order, the sampler then continuing
+  bit for bit as one that installed the stored state under the old
+  weights would. This draws nothing; the next sweep draws the
+  augmentation variables against the change. See
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for
   the family-specific weight rules that apply at creation time.
 
@@ -816,28 +821,29 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   is then a draw from the leaf prior), and the reported location still
   carries the forest's full contribution even when every row is
   excluded. The third leg of a three-way degenerate-value contrast:
-  `weights` installs and is measurably distinct from carrying none,
-  `active` at all-ones installs nothing and clears any mask in force,
-  and `setForestWeights` at all-ones INSTALLS - a round trip reports
-  it - but is bitwise IDENTICAL to carrying no per-forest weight at all,
-  the null gate its multiplicative composition (\\m_f \times 1 = m_f\\)
-  is built to guarantee. The weight does not ride the sampler's saved
-  `state` - a sampler rebuilt with `setState` from a stored state
-  silently drops it while `statesAgree` still reports agreement - so it
-  is additionally mirrored on an R5 field that `getPointer`, `setState`,
-  and `copy` all reinstall on every re-creation; a caller never
-  reinstalls it by hand. `setData` needs no clearing rule here the way
-  it does for `active`: it is refused outright on any multi-forest
-  sampler (“a multi-forest sampler fixes its data at creation”), so the
-  two channels never interact.
+  `weights` at all-ones installs and, on gaussian and logistic, is
+  measurably distinct from carrying none, `active` at all-ones installs
+  nothing and clears any mask in force, and `setForestWeights` at
+  all-ones INSTALLS - a round trip reports it - but is bitwise IDENTICAL
+  to carrying no per-forest weight at all, the null gate its
+  multiplicative composition (\\m_f \times 1 = m_f\\) is built to
+  guarantee. The weight does not ride the sampler's saved `state` - a
+  sampler rebuilt with `setState` from a stored state silently drops it
+  while `statesAgree` still reports agreement - so it is additionally
+  mirrored on an R5 field that `getPointer`, `setState`, and `copy` all
+  reinstall on every re-creation; a caller never reinstalls it by hand.
+  `setData` needs no clearing rule here the way it does for `active`: it
+  is refused outright on any multi-forest sampler (“a multi-forest
+  sampler fixes its data at creation”), so the two channels never
+  interact.
 
 - active:
 
   A numeric vector of per-observation 0/1 membership indicators - "row
   \\i\\ is not in the data set for this sampler this sweep" - of length
   equal to that with which the sampler was created, or `NULL`.
-  `setActiveRows` reaches every family, the four that refuse case
-  weights entirely included: gaussian, Student-t, `probit`, `ordinal`,
+  `setActiveRows` reaches every family, the four that refuse a weighted
+  likelihood included: gaussian, Student-t, `probit`, `ordinal`,
   `logistic`, `nbinom`, and `aft` samplers all accept it, including a
   multi-forest (`forests`) sampler, whose forests share one response of
   whichever family it was built under. It is absolute and independent of
@@ -846,17 +852,19 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   are validated as for `weights`; the only legal values are exactly `0`
   and `1`, and a fractional element refuses the WHOLE call and installs
   nothing. An all-ones vector reports success but installs NOTHING,
-  clearing any previously installed mask - the OPPOSITE of `weights`,
-  where an all-ones vector installs and is measurably distinct from
-  carrying no weights at all. One channel states membership, the other
-  precision, and the two deliberately carry opposite degenerate-value
-  policies. The response scale, the count center and a forest's default
-  sd are held across a mask as across weights, unless the call carries
-  `updateScale = TRUE`, and a `linear` or `gp` leaf's covariate
-  standardization unless it carries `updateStandardization = TRUE`. A
-  `probit`, `ordinal` or `nbinom` sampler, which carries no precision
-  channel at all, reaches this one through `setWeights` and `setData` as
-  well: 0/1 weights there install the mask rather than being refused.
+  clearing any previously installed mask - the OPPOSITE of `weights` on
+  gaussian and logistic, where an all-ones vector installs and is
+  measurably distinct from carrying no weights at all. One channel
+  states membership, the other precision, and the two deliberately carry
+  opposite degenerate-value policies. The response scale, the count
+  center and a forest's default sd are held across a mask as across
+  weights, unless the call carries `updateScale = TRUE`, and a `linear`
+  or `gp` leaf's covariate standardization unless it carries
+  `updateStandardization = TRUE`. On a `probit`, `ordinal` or `nbinom`
+  sampler, whose 0/1 weights state membership too, `activeRows` holds
+  only what `setActiveRows` installed, and a row either channel brings
+  back in draws nothing at the call, the next sweep drawing its latent
+  first.
 
   An inactive row (`active[i] == 0`) contributes nothing to any leaf
   sufficient statistic, branch log-likelihood, birth-scan weight total,
@@ -1019,13 +1027,14 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   replaces the forest's entry of `data@basis.scale`, so a copy, a saved
   and reloaded sampler and a sampler made again from its own control,
   model and data run the new prior. Where fewer than two observations
-  are in the likelihood, or the column takes one value over them, the
-  column is installed and the scale in force kept, with a warning the
-  first time the sampler keeps a scale; a sampler created on such a
-  column with no `sd` is refused. `TRUE` is refused, before anything is
-  installed, on a forest that states its `sd`, at creation or through
-  `setLeafPrior`, and on a forest multiplied by a factor, neither having
-  a default taken from a column.
+  are in the likelihood, the column takes one value over them, or the
+  weights are counts that total at most 1 over them, the column is
+  installed and the scale in force kept, with a warning the first time
+  the sampler keeps a scale; a sampler created on such a column with no
+  `sd` is refused. `TRUE` is refused, before anything is installed, on a
+  forest that states its `sd`, at creation or through `setLeafPrior`,
+  and on a forest multiplied by a factor, neither having a default taken
+  from a column.
 
 - forest:
 
@@ -1536,16 +1545,17 @@ a sampler is created by
 `new("dbartsSampler", control, model, data, active = NULL)` from the
 list
 [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
-returns. `active` is the 0/1 mask that list's `active` element holds,
-installed once the sampler is built, as `setActiveRows(active)` installs
-it. A sampler created with it is the sampler `dbarts` builds, reading
-over the rows the mask keeps the center of an `"nbinom"` count, a
-`linear` or `gp` leaf's covariate center and scale under every family
-the mask applies to, and under `"probit"` and `"logistic"` the default
-`sd` of a forest on a numeric column that states none; created without
-it, the sampler reads them over every row
+returns. The list's data object carries the fit's weights, a `"probit"`,
+`"ordinal"` or `"nbinom"` fit's 0/1 weights among them, so a sampler
+created from it is the sampler `dbarts` builds
 ([`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),
-`active`, gives the by-hand route).
+`data`, gives the by-hand route). `active` is a 0/1 mask installed once
+the sampler is built, as `setActiveRows(active)` installs it, composing
+with the weights; a sampler created with it reads over the rows in,
+those the weights and the mask both keep, the center of an `"nbinom"`
+count, a `linear` or `gp` leaf's covariate center and scale, and under
+`"probit"` and `"logistic"` the default `sd` of a forest on a numeric
+column that states none.
 
 A sampler made this way takes its tree count from the model and its
 quantile rule and cut count from the data object, where they state them.
@@ -1575,15 +1585,16 @@ state or from stored draws:
 
 A multinomial (softmax) sampler reads and writes a strict subset of this
 surface, by the model rather than by omission. Its response channels are
-`$setCounts`, `$setCategoryOffset` and `$setCategoryTestOffset`; the
-predictor family (`$setPredictor` in all four shapes, `$setCutPoints`,
+`$setResponse`, which takes the \\n \times K\\ count matrix,
+`$setCategoryOffset` and `$setCategoryTestOffset`; the predictor family
+(`$setPredictor` in all four shapes, `$setCutPoints`,
 `$setTestPredictor`) and the global `$setActiveRows` are open, and
 `$predict` answers with the \\K\\ category probabilities and takes the
 matching per-category offset. Everything else on the mutation surface is
 refused, each by a message naming the capability and, where one exists,
-the channel that serves the caller instead: `$setResponse` and
-`$setOffset` (a flat vector cannot express the matrix, and a flat shift
-is the softmax's null direction), `$setActiveRows` at
+the channel that serves the caller instead: `$setResponse` given a
+vector and `$setOffset` (a flat vector cannot express the matrix, and a
+flat shift is the softmax's null direction), `$setActiveRows` at
 `updateScale = TRUE` (the categories keep their scale at creation),
 `$setWeights` (an integer case weight is already row-wise replication in
 the count response, and a non-integer one has no exact augmentation
