@@ -1209,13 +1209,6 @@ items
     shifts draws of both response setters, so it takes that class's
     re-record. After 1.0-0 unless a slice touching that function takes
     it.
-  bartcause-args-list-priors: dec-B650 (VD 2026-11-07, "Make it to
-    fit."): bartc no longer evaluates a list written out in its call for
-    args.rsp or args.trt before handing its entries on, so
-    args.rsp = list(k = chi(1.25, Inf)) fits as k = chi(1.25, Inf) does
-    at the top level, and each entry is evaluated once (today twice).
-    About 4 lines in R/bartc.R, tests and a NEWS line; recheck the bcf
-    help sentence on forest constraints written in the list.
   bartcause-data-route: from the examination dec-B674 asked for
     (2026-11-08): bartc passes keep.data = FALSE at its two
     dbartsData() call sites (3 objects); the counterfactual rows go to
