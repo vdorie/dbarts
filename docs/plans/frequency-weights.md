@@ -916,11 +916,12 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
 90. Call 84's refusal is made at the data object's matrix interface, so it holds on every family and at bart, dbarts,
     xbart and dbartsData alike: no family read a data frame there, each giving the coercion error. Alternative: refused
     under a binomial family alone, the others keeping R's error.
-91. A character or factor column among those a binomial's response expression reads at new rows is refused in Refusal
-    13's words for a response that is not numeric, led by 'newdata' or 'test' (the S6 re-check's finding 1, call 81):
-    cbind would turn the one to text and the other to its codes. An expression that converts a factor itself is refused
-    too. The training route reads a factor column there by its codes, as glm does; that asymmetry is left (see the S7
-    records). Alternative: a factor's codes read at new rows as at the fit.
+91. A character or factor column among those a binomial's response expression reads is refused in Refusal 13's words
+    for a response that is not numeric, at new rows led by 'newdata' or 'test' (the S6 re-check's finding 1, call 81),
+    and at fit time, on bart, dbarts and xbart's formula routes, as ruled (dec-B649, revising the training half, which
+    first read a factor by its codes as glm does): cbind would turn the one to text and the other to its codes. An
+    expression that converts a factor itself is refused at both. Alternative, at new rows: a factor's codes read as at
+    the fit.
 92. frequency-exact.R reaches every arm through dbarts() with `weights.type = "frequency"`, not through a sampler whose
     model record is written by hand, so the argument's resolution and the bridge are under the gate with the engine.
     Alternative: the record written by hand, as test-frequency-engine.R does.
@@ -936,8 +937,11 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
 96. The sigma arm's exact posterior is a grid over log sigma of the scaled inverse chi-squared prior times the counted
     likelihood, the leaf integrated in closed form against its normal prior; with that prior the marginal is not
     inverse chi-squared, which it is only under a flat leaf prior. It tests E[sigma] and P(sigma <= q) at the exact
-    deciles 0.1, 0.5 and 0.9. Alternative: a leaf prior wide enough to read as flat and the closed form, approximate
-    by the prior's width.
+    deciles 0.1, 0.5 and 0.9. The review rederived it: the leaf is integrated out, the posterior proportional to the
+    prior times the counted likelihood, (sigma^2)^(-W/2) exp(-SS / (2 sigma^2)) sqrt(sigma^2 / W) times the normal
+    density of the counted mean at the leaf prior's variance plus sigma^2 / W; a flat leaf prior's inverse chi-squared
+    is approximate (E[sigma] off by 1.4e-4 here). Alternative: a leaf prior wide enough to read as flat and the closed
+    form, approximate by the prior's width.
 97. The nu arm fixes the residuals with a leaf prior sd of 1e-9 and sigma fixed, at counts of 0, 1, 2, 3, 0.5, 1.7 and
     2.4; its residuals are normal so the posterior spreads over all nine grid points (t residuals put most of it at 3),
     and each point's batch-means error is floored at the independent-draw error at the exact probability, so a point the
@@ -948,12 +952,19 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
     rows' fits, sigma and nu; the expansion's chains take other seeds. Alternative: one long chain each.
 99. The in-distribution arms bound |z| at 4.5 on each statistic, as mask-redraw-exact.R does; at a fixed seed a build
     passes or does not. Alternative: a Bonferroni bound per arm.
-100. The SBC arm draws theta0's sigma from the prior tilted by (sigma^2)^(-(W - n) / 2), W the weights' total, and y0 at
-    the precision model's sd sigma / sqrt(w): the frequency likelihood is the precision model's times that factor, which
-    is no sampling distribution of y, so the tilt is what makes the ranks uniform for a correct sampler. Weights
-    Uniform(0.5, 2) add about 37 degrees of freedom, and a sigest of 3 keeps sigma near the gaussian arm's. The
-    construction is ours, not from the SBC literature. Alternative: integer weights with y0 written out w times, which
-    the frequency model reads as exact ties, another data distribution.
+100. The SBC arm draws theta0's sigma from the prior tilted by (sigma^2)^(-(W - n+) / 2), W the weights' total and n+
+    the rows of positive weight, and y0 at the precision model's sd sigma / sqrt(w): the frequency likelihood is the
+    precision model's times that factor, which is no sampling distribution of y, so the tilt is what makes the ranks
+    uniform for a correct sampler (SBC shows the one direction: uniform when the sampler is right). Weights
+    Uniform(0.5, 2) add about 43 degrees of freedom at the arm's seed, and a sigest of 3 keeps sigma near the gaussian
+    arm's. The construction is ours, not from the SBC literature; an independent referee found it sound with
+    conditions (scratch/fw-sbc-ref/referee.md): the tilt is a distribution only where df + W - n+ is positive, where
+    the arm stops otherwise; it covers one sigma under the scaled inverse chi-square prior, not a variance forest or
+    Student-t errors; and the sampler's scale is held across replications. From it the tilt counts n+ rather than every
+    row, so a reuse with zero weights stays exact, and the self-check reads the tilted draw's median against the scaled
+    inverse chi-square's at df + W - n+ (0.342 at the arm's settings), as it reads the untilted one. The band's
+    multiplicity over the seven functionals is the harness's, left to a separate item. Alternative: integer weights
+    with y0 written out w times, which the frequency model reads as exact ties, another data distribution.
 101. The SBC arm runs by dispatch at the per-functional 5% band, outside sbc.yaml's matrix and its M = 84, until its
     ladder earns admission. Alternative: admitted now, M = 91.
 102. Four mutants join the plan's list, each the discriminating mutant of an arm the list gave none: S, sigma's count at
@@ -965,6 +976,13 @@ exact-gates list grows by one script (S7); no existing gate's arm changes.
     anchor cancels and two such forests cannot see it read unweighted (mutant F survived the first arm, and one stating
     sd = 0.5 too). The arm holds within 1e-10, the coefficient's sums over the rows taken in another order than over the
     copies (1.3e-12 at 300 sweeps). Alternative: two forests with no basis, the anchor's read under no arm.
+104. bart.Rd says, where the binomial family and predict's weights are described, that a binomial fit made through the
+    matrix interface draws one trial at each new row unless predict is given weights, its trials, a matrix carrying
+    no response columns, while the formula route reads them from new data carrying both (dec-B594, dec-B638): the S6
+    re-check found the matrix user meets it silently. Alternative: a warning at predict on a matrix-interface binomial
+    fit given no weights.
+105. The binomial arm holds within 1e-12, 25 times its 4e-14 gap on the quick and full runs, as the review suggested
+    (it was 1e-10). Alternative: 1e-11.
 
 ## Open calls
 
@@ -1337,7 +1355,8 @@ As built: benchmarks/R/frequency-exact.R, eleven arms, each fit through dbarts()
 92) on 40 rows at counts 1 to 4. Draw for draw over 300 sweeps, every draw the run reports compared by row (call 93):
 gaussian, a linear leaf, useQuantiles at 10 cuts below the 40 unique values (call 94), a variance forest, nbinom at a
 fixed and a drawn shape and multinomial, within 1e-12; two forests, the second on a factor basis (call 103), and the
-binomial pair at a row weight against adjacent logistic rows of counts v k and v f, 0 < k < n (call 95), within 1e-10.
+binomial pair at a row weight against adjacent logistic rows of counts v k and v f, 0 < k < n (call 95), within 1e-10,
+1e-12 from the fix round (call 105).
 In distribution at |z| 4.5 by batch means (call 99): sigma on one leaf at real weights against a grid posterior with the
 leaf integrated (call 96), deciles 0.1, 0.5 and 0.9 and the mean; nu on fixed residuals at counts 0, 1, 2, 3, 0.5, 1.7
 and 2.4 against the grid's exact probabilities (call 97); Student-t against its expanded rows by Welch z on the 24 rows'
@@ -1345,7 +1364,8 @@ fits, sigma and nu (call 98). Green at the tip: the draw-for-draw gaps 4.2e-15 t
 z at most 0.63, nu's 0.91 over nine grid points, Student-t's 1.88. Quick 3.8 s, full 18.6 s, on the laptop. The script
 joins exact-gates.yaml's list after categorical-exact.R and benchmarks/README.md describes it. sbc.R's frequency arm, by
 dispatch (call 101): a gaussian fit at Uniform(0.5, 2) weights, sigest 3, theta0's sigma from the prior tilted by
-(sigma^2)^(-(W - n) / 2) and y0 at sd sigma / sqrt(w) (sbcFrequencySigmaDraw, call 100, a construction of ours). At R =
+(sigma^2)^(-(W - n+) / 2) and y0 at sd sigma / sqrt(w) (sbcFrequencySigmaDraw, call 100, a construction of ours,
+refereed sound with conditions). At R =
 200, L = 200, thin 30 it passed all seven functionals at the per-functional 5% band, sigma's chi-square p 0.315, in
 637.5 s; against mutant 1's build sigma flagged (chi-square p below 1e-3, ecdf difference 0.875 against a band of
 0.092), the fits passing, in 665.5 s.
@@ -1368,9 +1388,21 @@ results, 0 failed; the exact gates in quick, 45 of 45, frequency-exact.R among t
 --as-cran on the tarball, 1 NOTE: the expired certificate of rob-mcculloch.org in two help pages and the Date field over
 a month old, both on main; lint_package 0, air, codoc (52), win drift and doc-freshness clean; verify-anchors (82)
 clean. The x86 leak-sanitizer leg and bench-sampler.R's compare on a quiet machine are the landing's.
-The asymmetry call 91 leaves: at training a factor column a binomial's response expression reads is read by its codes,
-as glm reads it, and at new rows refused.
 Calls made 91 to 103.
+The fix round, rebased onto main at 6fa482432 (the draw-channels slice; no textual conflict, but main's sigma NaN under
+a variance forest failed test_frequency.cpp's two heteroscedastic arms, which now read sigma as NaN there): dec-B649, a
+factor or character column a binomial's response expression reads refused at fit time on bart, dbarts and xbart's
+formula routes in the words it meets at new rows, an expression converting a factor itself too
+(`refuseNonNumericBinomialColumns`, read at both; call 91 revised); bart.Rd's family and weights items saying a
+matrix-interface binomial fit draws one trial at new rows unless predict is given weights, and that a factor or
+character count column is refused (call 104); the binomial arm at 1e-12 (call 105); the nu arm muffling only the count-0
+row's warning; the new-row comment stating its constraint; sbc.R's frequency arm counting the rows of positive weight in
+the tilt and checking the tilted draw's median (0.342 at its settings), its comments as the referee read them (call
+100). Tests: test-binomial.R 124 expectations (a factor and a character column at fit time at bart, dbarts and xbart,
+the converted factor, a factor predictor still fitted); the helper turned off fails four of them and one new-row pin.
+Gates: --preclean install; the suite 42777, 0 failed, in one process; tests/cpp plain, all passed; the exact gates in
+quick 45, 0 failed; frequency-exact quick and full green; the trio bitwise 55, 19 and 11, none moved or skipped; the
+snapshots 27, 0 failed; lint, air, codoc, win-drift and doc-freshness clean. Calls made 104 and 105.
 
 ### S8: records (~60)
 
