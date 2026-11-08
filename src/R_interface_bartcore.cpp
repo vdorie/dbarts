@@ -65,12 +65,12 @@ using bartcore_bridge::validateTestContainerAgainstStore;
 namespace {
 
 // The external pointer's protection slot pins the data specification object
-// and nothing else. No R VECTOR is retained: every value the engine borrows
-// for a sampler's lifetime lives in a holder-owned buffer (adoptVector below),
-// and the predictors are quantized into owned codes at build time, so the data
-// object is here as the creation contract and the call-time raw source for
-// saved-tree replay and cross-grid state restore, not as a lifetime anchor for
-// anything the engine points at.
+// and nothing else, through a weak reference (retain below) so that a saved
+// pointer does not write the data a second time. The pin is load-bearing: a
+// sparse build keeps the dgCMatrix's @i and @x slices for the store's life and
+// a sparse column's reader borrows its nonzero values, so the data object must
+// outlive the pointer's holder. Every other value the engine keeps lives in a
+// holder-owned buffer (adoptVector below) or in the store's owned codes.
 enum {
   PROT_DATA = 0,
   PROT_COUNT
@@ -89,8 +89,16 @@ static const char storageSingleUnsupportedMessage[] =
 // derivation. Written as a hex literal because 2^-26 is exact.
 static constexpr double sumToOneTolerance = 0x1p-26;
 
+// A weak reference keyed on the pointer keeps value alive exactly as long as
+// the pointer is reachable, and serializes as an empty reference. R keeps
+// every weak reference whose key lives, so the one replaced is cleared rather
+// than dropped, or it would pin its value for the pointer's lifetime.
 void retain(SEXP ptrExpr, int slot, SEXP value) {
-  SET_VECTOR_ELT(R_ExternalPtrProtected(ptrExpr), slot, value);
+  SEXP protExpr = R_ExternalPtrProtected(ptrExpr);
+  SEXP previous = VECTOR_ELT(protExpr, slot);
+  SEXP pin = R_MakeWeakRef(ptrExpr, value, R_NilValue, FALSE);
+  SET_VECTOR_ELT(protExpr, slot, pin);
+  if (TYPEOF(previous) == WEAKREFSXP) R_RunWeakRefFinalizer(previous);
 }
 
 void holderFinalizer(SEXP ptrExpr) {
@@ -107,12 +115,12 @@ void holderFinalizer(SEXP ptrExpr) {
 // holder between its construction and its finalizer), build the holder, then
 // install its address. \p buildHolder returns the holder; its own parse errors
 // longjmp past this before any address is installed. The protection vector pins
-// dataExpr (PROT_DATA); the setters fill the remaining slots later.
+// dataExpr (PROT_DATA) through a weak reference keyed on the pointer.
 template <typename BuildHolder>
 SEXP createExternalHolder(SEXP dataExpr, BuildHolder buildHolder) {
   SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
-  SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);
   SEXP result = PROTECT(R_MakeExternalPtr(NULL, R_NilValue, protExpr));
+  retain(result, PROT_DATA, dataExpr);
   R_RegisterCFinalizerEx(result, holderFinalizer, static_cast<Rboolean>(FALSE));
 
   BartcoreHolder* holder = buildHolder();
@@ -5187,8 +5195,8 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
     // allocation runs while a frame local holds the sampler or the holder
     // (createExternalHolder)
     SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
-    SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);
     SEXP result = PROTECT(R_MakeExternalPtr(NULL, R_NilValue, protExpr));
+    retain(result, PROT_DATA, dataExpr);
     R_RegisterCFinalizerEx(result, holderFinalizer,
                            static_cast<Rboolean>(FALSE));
 
@@ -7443,8 +7451,8 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
     if (shape.family == bartcore::ResponseFamily::logistic)
       sampler.setWeights(weights);
 
-    // the new spec is the creation contract and the call-time raw source; the
-    // engine re-quantized it and retains no predictor pointer
+    // the new spec replaces the old as the pinned object: a sparse build's
+    // store borrows its CSC slices, and the old spec's pin is cleared
     retain(ptrExpr, PROT_DATA, dataExpr);
 
     return R_NilValue;
