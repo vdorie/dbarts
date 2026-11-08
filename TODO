@@ -275,7 +275,11 @@ items
     as it can, the quantized predictor block made from the frame when a
     sampler needs it (dec-B670, VD 2026-11-07: "keep the data frame, but
     we'll want to be careful what derivative data objects we keep from
-    it").
+    it"). dbartsData(keep.data = FALSE) keeps no frame, the default
+    keeping it (dec-B674, VD 2026-11-08: "(a), but I would critically
+    examine what bartCause and stan4bart do now versus what they should
+    do"): what the two packages pass and read is settled by that
+    examination, not by their current code.
   basis-one-column-labels: a one-column character, logical or factor
     matrix given as a basis is read as its column, two levels, at every
     door; wider ones stay refused (dec-B662, VD 2026-11-07: "We can use
