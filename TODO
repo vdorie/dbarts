@@ -293,7 +293,11 @@ items
     read, naming the accessor (dec-B676, VD 2026-11-08: "Sure, (a).").
     A data object's data is read with model.frame(o), its rows counted
     with nobs(o); extract() gets no data-object method (dec-B677, VD
-    2026-11-08: "OK, do that.").
+    2026-11-08: "OK, do that."). Where a sampler is made the caller's
+    frame is dropped and the sampler's data holds the model frame and
+    what its forests need, the setters writing into it (dec-B678, VD
+    2026-11-08: "Yes, of course, the model frame. And whatever we need
+    for forests."); the note designs and sizes it.
   basis-one-column-labels: a one-column character, logical or factor
     matrix given as a basis is read as its column, two levels, at every
     door; wider ones stay refused (dec-B662, VD 2026-11-07: "We can use
