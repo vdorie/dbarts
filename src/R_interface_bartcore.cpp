@@ -97,18 +97,24 @@ static constexpr double sumToOneTolerance = 0x1p-26;
 // that R neither frees nor modifies them in place while the store points into
 // them. A data object with no sparse part leaves the slot empty.
 void pinBorrowedSlices(SEXP ptrExpr, SEXP dataExpr) {
-  SEXP xExpr = Rf_getAttrib(dataExpr, Rf_install("x"));
+  SEXP xExpr = PROTECT(Rf_getAttrib(dataExpr, Rf_install("x")));
   SEXP sparseExpr = R_NilValue;
   if (Rf_inherits(xExpr, "dgCMatrix"))
     sparseExpr = xExpr;
   else if (Rf_inherits(xExpr, "dbartsMixedMatrix"))
     sparseExpr = rc_getListElement(xExpr, "sparse");
-  if (!Rf_inherits(sparseExpr, "dgCMatrix")) return;
+  PROTECT(sparseExpr);
+  if (!Rf_inherits(sparseExpr, "dgCMatrix")) {
+    UNPROTECT(2);
+    return;
+  }
+  SEXP rowsExpr = PROTECT(Rf_getAttrib(sparseExpr, Rf_install("i")));
+  SEXP valuesExpr = PROTECT(Rf_getAttrib(sparseExpr, Rf_install("x")));
   SEXP slicesExpr = PROTECT(Rf_allocVector(VECSXP, 2));
-  SET_VECTOR_ELT(slicesExpr, 0, Rf_getAttrib(sparseExpr, Rf_install("i")));
-  SET_VECTOR_ELT(slicesExpr, 1, Rf_getAttrib(sparseExpr, Rf_install("x")));
+  SET_VECTOR_ELT(slicesExpr, 0, rowsExpr);
+  SET_VECTOR_ELT(slicesExpr, 1, valuesExpr);
   SET_VECTOR_ELT(R_ExternalPtrProtected(ptrExpr), PROT_BORROWED, slicesExpr);
-  UNPROTECT(1);
+  UNPROTECT(5);
 }
 
 // Empties the slot pinBorrowedSlices fills once every CSC-backed column of

@@ -60,9 +60,11 @@ rm(sampler.created)
 
 # a CSC build points into its dgCMatrix's @i and @x for the store's life, so
 # the pointer holds those two vectors, of a bare dgCMatrix and of a mixed
-# container's sparse part alike
+# container's sparse part alike. The two are measured serialized together, as
+# the pointer writes them, so the stream header, whose length follows the
+# locale's encoding name, is counted once on both sides.
 slicesBytes <- function(sparse) {
-  length(serialize(sparse@i, NULL)) + length(serialize(sparse@x, NULL))
+  length(serialize(list(sparse@i, sparse@x), NULL))
 }
 x.dense <- matrix(0, n, p)
 for (j in seq_len(p)) {
