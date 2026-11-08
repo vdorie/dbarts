@@ -21,7 +21,7 @@
 #                draws its Polya-Gamma latent as w unit draws, in row order
 #   multinomial  the K softmax forests the same way
 #   binomial     cbind(k, f) at row weight v against two adjacent rows of
-#                logistic counts v k and v f, within 1e-10, 0 < k < n
+#                logistic counts v k and v f, within 1e-12, 0 < k < n
 #   sigma        one leaf (a constant predictor) under real weights: sigma's
 #                draws against its exact posterior, the leaf integrated out
 #                in closed form and sigma^2 on a grid, by batch-means z
@@ -277,7 +277,7 @@ if ("binomial" %in% arms) {
     ),
     seq_len(n),
     seq.int(1L, 2L * n, by = 2L),
-    1e-10
+    1e-12
   )
 }
 
@@ -409,25 +409,35 @@ if ("nu" %in% arms) {
   exact <- exact / sum(exact)
 
   numSweeps <- if (quick) 200000L else 1000000L
-  draws <- suppressWarnings(dbarts(
-    matrix(0, nNu, 1L, dimnames = list(NULL, "c")),
-    yNu,
-    weights = counts,
-    weights.type = "frequency",
-    family = dbartsFamilies$student(
-      sigma = dbartsPriors$fixed(sigmaNu^2)
+  # the count-0 row's warning is expected; any other surfaces
+  draws <- withCallingHandlers(
+    dbarts(
+      matrix(0, nNu, 1L, dimnames = list(NULL, "c")),
+      yNu,
+      weights = counts,
+      weights.type = "frequency",
+      family = dbartsFamilies$student(
+        sigma = dbartsPriors$fixed(sigmaNu^2)
+      ),
+      leaf.prior = normal(sd = 1e-9),
+      n.trees = 1L,
+      control = dbartsControl(
+        n.samples = numSweeps,
+        n.burn = 1000L,
+        n.chains = 1L,
+        n.threads = 1L,
+        updateState = FALSE
+      ),
+      seed = 22L
     ),
-    leaf.prior = normal(sd = 1e-9),
-    n.trees = 1L,
-    control = dbartsControl(
-      n.samples = numSweeps,
-      n.burn = 1000L,
-      n.chains = 1L,
-      n.threads = 1L,
-      updateState = FALSE
-    ),
-    seed = 22L
-  ))$run()$resid.df
+    warning = function(w) {
+      if (
+        startsWith(conditionMessage(w), "rows with 'weights' of 0 are left")
+      ) {
+        invokeRestart("muffleWarning")
+      }
+    }
+  )$run()$resid.df
   z <- vapply(
     seq_along(grid),
     function(k) {
