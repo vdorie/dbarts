@@ -340,7 +340,12 @@ expect_identical(seen(held), c(FALSE, FALSE, TRUE))
 refilled <- oneWay(held)
 expect_identical(held$setState(refilled), FALSE)
 expect_null(held$setState(refilled, forceUpdate = TRUE))
-expect_identical(held$state, refilled)
+# the field is the chain the forced install left, which installs unforced
+field <- held$state
+held$storeState()
+expect_identical(held$state, field)
+expect_false(identical(field, refilled))
+expect_true(held$setState(field))
 expect_identical(nrow(held$getTrees()), 1L)
 
 # ---- row by row, a first missing value that would empty a leaf ----

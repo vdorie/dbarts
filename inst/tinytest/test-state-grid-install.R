@@ -509,11 +509,16 @@ sampler <- make()
 sampler$setCutPoints(finer, 1L, splits = "value")
 expect_true(sampler$setState(stored))
 expectFieldFollows(sampler, stored, "clean on a finer grid")
-# a forced repair on the state's own grid leaves the state as given
+# a forced repair on the state's own grid leaves the chain as repaired in the
+# field, which installs again unforced
 sampler <- make()
 sampler$setPredictor(collapsed, 1L, forceUpdate = TRUE)
 expect_null(sampler$setState(stored, forceUpdate = TRUE))
-expect_identical(sampler$state, stored)
+field <- sampler$state
+expect_false(identical(field, stored))
+sampler$storeState()
+expect_identical(sampler$state, field)
+expect_true(sampler$setState(field))
 expect_false(identical(liveOf(stateOf(sampler)), liveOf(stored)))
 
 # ---- reload, first call ---------------------------------------------------
