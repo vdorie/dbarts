@@ -3860,7 +3860,11 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
     Rf_error("%s: this multi-forest sampler %s; make a new sampler instead",
              caller, fixed);
   }
-  if (shape.numForests >= 2 && updateScale != FALSE) {
+  // the K-forest softmax has no response scale to move, so its mask takes
+  // the request and derives nothing
+  bool maskOnCounts =
+    conduit == ResponseConduit::activeRows && shape.supportsCountsMutation;
+  if (shape.numForests >= 2 && updateScale != FALSE && !maskOnCounts) {
     const char* what = "a response swap";
     if (conduit == ResponseConduit::offset) what = "an offset swap";
     else if (conduit == ResponseConduit::weights) what = "a case-weight swap";

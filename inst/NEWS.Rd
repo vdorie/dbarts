@@ -388,8 +388,9 @@
             leaf is reached by no row after a \code{$setPredictor}. The new
             \code{forceUpdate = TRUE} installs such a state, merging what
             does not fit as a forced \code{$setPredictor} does, and returns
-            \code{NULL} invisibly. 0.9-34 installed whatever state it was
-            given and returned \code{NULL}.
+            \code{NULL} invisibly, the sampler's stored state then being
+            the chain as installed, repairs included. 0.9-34 installed
+            whatever state it was given and returned \code{NULL}.
       \item \code{$setState} no longer brings back the cut points a state
             was stored on, which 0.9-34's did: the cut points, like the
             predictors, stay the sampler's. A state with a split on a

@@ -100,19 +100,23 @@ expect_equal(unname(fromMatrix$data@counts), expected)
 
 # the other doors a numeric vector could reach: a data object's counts takes a
 # matrix and refuses a vector by name, and a live multinomial sampler's
-# $setResponse takes a matrix and refuses a vector, a factor and a character
-# vector, none of which says how a row's trials split
+# $setResponse takes a matrix, or a factor where every row holds one trial, and
+# refuses a vector of numbers, which does not say how a row's trials split
 expect_error(
   dbartsData(x, rep(1, n), counts = codes),
   "'counts' must be a numeric matrix"
 )
-for (vector in list(codes, factor(codes), as.character(codes))) {
+for (vector in list(codes, as.double(codes))) {
   expect_error(
     fromFactor$setResponse(vector),
     "a vector cannot say how each row's trials split among the categories",
     fixed = TRUE
   )
 }
+fromFactor$setResponse(factor(codes))
+expect_equal(unname(fromFactor$data@counts), expected)
+fromFactor$setResponse(as.character(codes))
+expect_equal(unname(fromFactor$data@counts), expected)
 expect_error(
   fromFactor$setResponse(matrix(codes, n, 2L)),
   "'counts' must have 3 categories"

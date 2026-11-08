@@ -684,11 +684,53 @@ for (build in list(mkTwoForests, mkTwoProbit)) {
     "several forests, mask"
   )
 }
-expectRefused(
-  mkMultinomial,
-  function(s) s$setActiveRows(w01, updateScale = TRUE),
-  "is not available on a multinomial sampler: .*; call it without updateScale$",
-  "multinomial, mask"
+# a multinomial sampler takes the mask at updateScale = TRUE, as the documented
+# burn-in loop passes it, and derives nothing: its leaf prior is the same
+# before, after and across masks, and the draws are those of the same loop at
+# updateScale = FALSE
+maskLoop <- function(flag) {
+  s <- mkMultinomial()
+  before <- readers(s)
+  masks <- list(w01, rev(w01), replace(w01, 1:3, 1))
+  draws <- list()
+  priors <- list()
+  for (i in seq_along(masks)) {
+    s$setActiveRows(masks[[i]], updateScale = flag(i))
+    priors[[i]] <- readers(s)
+    draws[[i]] <- s$run(0L, 3L)
+  }
+  list(before = before, priors = priors, draws = draws, active = s$activeRows)
+}
+burnLoop <- maskLoop(function(i) i <= 2L)
+plainLoop <- maskLoop(function(i) FALSE)
+for (prior in burnLoop$priors) {
+  expect_identical(prior, burnLoop$before)
+}
+expect_identical(burnLoop$draws, plainLoop$draws)
+expect_identical(burnLoop$active, plainLoop$active)
+expect_false(is.null(burnLoop$active))
+# the bridge takes the request on the mask alone: weights, response and offset
+# keep their refusals on the same sampler
+expect_silent(
+  .Call(
+    dbarts:::C_dbarts_bartcore_setActiveRows,
+    mkMultinomial()$getPointer(),
+    w01,
+    TRUE,
+    FALSE,
+    NULL
+  )
+)
+expect_error(
+  .Call(
+    dbarts:::C_dbarts_bartcore_setWeights,
+    mkMultinomial()$getPointer(),
+    w01,
+    TRUE,
+    FALSE,
+    NULL
+  ),
+  "updateScale"
 )
 expectRefused(
   mkMultinomial,

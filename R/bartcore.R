@@ -94,7 +94,7 @@ requireCountsCapability <- function(sampler, what) {
 # their own. Validation is R-side (safe over fast) and total before the .Call,
 # which itself refuses before it installs anything, so the mirror runs only on
 # a write that took.
-bartcoreSamplerSetCounts <- function(sampler, counts) {
+bartcoreSamplerSetCounts <- function(sampler, counts, asFactor = FALSE) {
   current <- dataCounts(sampler$data)
   if (!is.matrix(counts) && !is.data.frame(counts)) {
     stop(
@@ -117,13 +117,110 @@ bartcoreSamplerSetCounts <- function(sampler, counts) {
   ptr <- sampler$getPointer()
   .Call(C_dbarts_bartcore_setCounts, ptr, counts)
   sampler$data@counts <- counts
-  # a count matrix now, whatever the response was first written as
-  sampler$data@counts.as.factor <- FALSE
+  # the form the response was written in just now, whatever it was first
+  sampler$data@counts.as.factor <- asFactor
   # y is the trials the counts imply, never an independent quantity
   sampler$data@y <- as.double(rowSums(counts))
   # after the mirror, so a warning promoted to an error leaves them in step
   warnZeroTrials(counts)
   invisible(ptr)
+}
+
+## 'labels' as a quoted, comma-separated list for a refusal
+quotedLabels <- function(labels) {
+  paste0("'", labels, "'", collapse = ", ")
+}
+
+## The labels of a factor (or a character vector read as one) handed to
+## $setResponse, refused when one is NA, when it is not one per row, or when a
+## label is not among 'levels', the sampler's own, matched by name and never
+## by position.
+responseLabels <- function(y, levels, n, where) {
+  labels <- as.character(y)
+  if (length(labels) != n) {
+    stop(
+      "$setResponse: ",
+      where,
+      " takes one label per row, ",
+      n,
+      "; got ",
+      length(labels)
+    )
+  }
+  if (anyNA(labels)) {
+    stop("$setResponse: a factor response contains missing values")
+  }
+  foreign <- setdiff(unique(labels), levels)
+  if (length(foreign) > 0L) {
+    stop(
+      "$setResponse: ",
+      where,
+      " has the levels ",
+      quotedLabels(levels),
+      "; the labels ",
+      quotedLabels(foreign),
+      " are not among them"
+    )
+  }
+  labels
+}
+
+## A factor handed to a multinomial sampler's $setResponse as its n x K count
+## matrix of one trial per row, its labels matched by name to the categories
+## the sampler records. Where any row holds more than one trial, or the
+## sampler records no category names, the trials cannot be read off a label
+## and the count matrix is named.
+factorAsCounts <- function(sampler, y) {
+  current <- dataCounts(sampler$data)
+  levels <- colnames(current)
+  if (any(rowSums(current) != 1L)) {
+    stop(
+      "$setResponse: a factor gives one trial to each row, and this ",
+      "sampler's rows do not all hold one trial; give the n x K count matrix"
+    )
+  }
+  if (is.null(levels)) {
+    stop(
+      "$setResponse: this sampler records no category names to match a ",
+      "factor's labels to; give the n x K count matrix"
+    )
+  }
+  labels <- responseLabels(
+    y,
+    levels,
+    nrow(current),
+    "a multinomial sampler"
+  )
+  counts <- matrix(
+    0L,
+    nrow(current),
+    length(levels),
+    dimnames = dimnames(current)
+  )
+  counts[cbind(seq_along(labels), match(labels, levels))] <- 1L
+  counts
+}
+
+## A factor handed to a probit or logistic sampler's $setResponse as its 0/1
+## codes: the first level the sampler recorded is 0 and the second 1, the
+## labels matched by name, so a factor that lists its levels in another order
+## does not flip the model. A sampler whose response was written as numbers
+## recorded no levels and takes only 0 and 1.
+factorAsBinaryCodes <- function(sampler, y) {
+  levels <- sampler$data@response.levels
+  if (length(levels) != 2L || !is.character(levels)) {
+    stop(
+      "$setResponse: this sampler's response was written as numbers, so it ",
+      "records no levels to match a factor to; give 0 and 1"
+    )
+  }
+  labels <- responseLabels(
+    y,
+    levels,
+    length(sampler$data@y),
+    "a binary sampler"
+  )
+  as.double(match(labels, levels) - 1L)
 }
 
 # A binomial sampler's response replaced: an n x 2 matrix of successes and

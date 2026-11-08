@@ -464,7 +464,8 @@ bool responseConduitIsFixed(const bartcore::SamplerShape& shape);
 /// to move the response transform its per-forest leaf calibrations are stated
 /// against (any updateScale but FALSE, which a weight or mask call that asks
 /// for no re-derivation passes). The mask conduit is held to that second
-/// condition alone. The one multi-forest mutation family that is opt-in
+/// condition alone, and a coupling that owns its counts takes even that
+/// request on the mask, having no transform to move. The one multi-forest mutation family that is opt-in
 /// rather than
 /// refused; both the R bridge and the flat C API guard with this, so the two
 /// surfaces cannot state different rules. A coupling whose response is its own

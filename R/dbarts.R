@@ -3750,7 +3750,7 @@ dbartsSampler <- setRefClass(
       updateState = NULL,
       status = NULL
     ) {
-      "Changes the response against which the sampler is fitted, and, for an aft (survival) sampler given a non-null status, its censoring structure in the same call. updateState follows control@updateState; see setData. This draws nothing; the next sweep draws the augmentation variables against the change. An aft sampler leaves a censored row at its new bound, a Student-t sampler keeps its degrees of freedom and scales, and an ordinal sampler keeps its cutpoints. A count response is written as its formula writes it: a binomial sampler takes an n x 2 matrix of successes and failures, or a vector of successes against each row's trials as they stand, a count above its row's trials refused; a multinomial sampler takes the n x K count matrix, and refuses a vector, which cannot say how each row's trials split among the categories. Either has the number of rows fixed, keeps its trees, reads no response scale and mirrors the counts into data@counts and their row sums into data@y."
+      "Changes the response against which the sampler is fitted, and, for an aft (survival) sampler given a non-null status, its censoring structure in the same call. updateState follows control@updateState; see setData. This draws nothing; the next sweep draws the augmentation variables against the change. An aft sampler leaves a censored row at its new bound, a Student-t sampler keeps its degrees of freedom and scales, and an ordinal sampler keeps its cutpoints. A count response is written as its formula writes it: a binomial sampler takes an n x 2 matrix of successes and failures, or a vector of successes against each row's trials as they stand, a count above its row's trials refused; a multinomial sampler takes the n x K count matrix, and refuses a vector of numbers, which cannot say how each row's trials split among the categories. A factor, or a character vector read as one, is taken by a multinomial sampler whose rows each hold one trial, its labels matched by name to the categories the sampler records in any order (a label it lacks is refused by name, a factor is refused where any row holds more than one trial, naming the count matrix, and the response is then recorded as written as a factor, so draws come back as categories), and by a probit or logistic sampler whose response was written as a two-level factor, its labels matched by name to the two recorded levels, the first coded 0 and the second 1 whatever the new factor's level order (a label the sampler lacks is refused by name; a sampler whose response was written as numbers takes only 0 and 1). Either has the number of rows fixed, keeps its trees, reads no response scale and mirrors the counts into data@counts and their row sums into data@y."
       updateState <- checkUpdateState(updateState)
       # a caller porting $setResponse(y, updateState) from before the
       # updateScale/updateState reorder gets the same TRUE/FALSE/NA in the
@@ -3778,6 +3778,21 @@ dbartsSampler <- setRefClass(
         )
       }
       updateScale <- checkUpdateScale(updateScale)
+      # a factor (or a character vector read as one) is read against the
+      # levels the sampler recorded: a multinomial sampler's one-trial rows
+      # as categories, a binary sampler's two as 0 and 1
+      asFactor <- FALSE
+      if (is.factor(y) || is.character(y)) {
+        if (samplerCarriesCounts(.self)) {
+          y <- factorAsCounts(.self, y)
+          asFactor <- TRUE
+        } else if (
+          !samplerHoldsTrials(.self) &&
+            model@family %in% c("probit", "logistic")
+        ) {
+          y <- factorAsBinaryCodes(.self, y)
+        }
+      }
       # a count response as its formula writes it: a binomial sampler's
       # successes and failures, or its successes against the trials held, and
       # a multinomial sampler's n x K counts. Neither reads a response scale.
@@ -3791,7 +3806,7 @@ dbartsSampler <- setRefClass(
         if (samplerHoldsTrials(.self)) {
           ptr <- bartcoreSamplerSetBinomialResponse(.self, y)
         } else {
-          ptr <- bartcoreSamplerSetCounts(.self, y)
+          ptr <- bartcoreSamplerSetCounts(.self, y, asFactor)
         }
         if (resolveUpdateState(updateState, control)) {
           storeState(ptr)
@@ -3952,19 +3967,13 @@ dbartsSampler <- setRefClass(
       updateScale = FALSE,
       updateStandardization = FALSE
     ) {
-      "Sets the per-observation 0/1 mask of rows in the data set for this sampler. An inactive row leaves every sufficient statistic, every family-level parameter update and its own latent draw, but keeps its leaf occupancy and its fitted value. The mask composes with the weights in either order: a row is in when its weight is positive and the mask keeps it, so on a probit, ordinal or nbinom sampler, whose 0/1 weights ride the data object, activeRows is only what this installed. Each sweep draws the latent of every row the mask holds in, so a row switched back in is drawn against the current fit with the rest. updateScale = TRUE then takes the response's scale (a count sampler's center) again from the rows the mask leaves in, as setOffset(updateScale = TRUE) does; it is refused on a multinomial sampler and on a sampler of several forests, and kept, with one warning per sampler, where those rows hold fewer than two distinct values. updateStandardization = TRUE then takes a linear or gp leaf's covariate standardization again from those rows, as setWeights does. NULL clears, and an all-ones mask installs nothing. The mask does not ride the saved state; it is mirrored on an R5 field that getPointer, setState and copy reinstall on every re-creation. updateState follows control@updateState; see setData. This draws nothing; the next sweep draws the augmentation variables against the change."
+      "Sets the per-observation 0/1 mask of rows in the data set for this sampler. An inactive row leaves every sufficient statistic, every family-level parameter update and its own latent draw, but keeps its leaf occupancy and its fitted value. The mask composes with the weights in either order: a row is in when its weight is positive and the mask keeps it, so on a probit, ordinal or nbinom sampler, whose 0/1 weights ride the data object, activeRows is only what this installed. Each sweep draws the latent of every row the mask holds in, so a row switched back in is drawn against the current fit with the rest. updateScale = TRUE then takes the response's scale (a count sampler's center) again from the rows the mask leaves in, as setOffset(updateScale = TRUE) does; a multinomial sampler takes it and derives nothing, its leaf scale and center being the same whatever rows are in, as a probit or logistic sampler does; it is refused on a sampler of several forests, and kept, with one warning per sampler, where those rows hold fewer than two distinct values. updateStandardization = TRUE then takes a linear or gp leaf's covariate standardization again from those rows, as setWeights does. NULL clears, and an all-ones mask installs nothing. The mask does not ride the saved state; it is mirrored on an R5 field that getPointer, setState and copy reinstall on every re-creation. updateState follows control@updateState; see setData. This draws nothing; the next sweep draws the augmentation variables against the change."
       updateState <- checkUpdateState(updateState)
       updateScale <- checkUpdateScale(updateScale)
       updateStandardization <- checkUpdateStandardization(
         updateStandardization
       )
       if (updateScale) {
-        refuseCountsMutation(
-          .self,
-          "$setActiveRows(updateScale = TRUE)",
-          "its K category forests keep their scale at creation, and the count ",
-          "response is not a column of the data; call it without updateScale"
-        )
         refuseAmplitudeMutation(
           .self,
           "setActiveRows(updateScale = TRUE)",
@@ -4724,7 +4733,7 @@ dbartsSampler <- setRefClass(
       pointer
     },
     setState = function(newState, forceUpdate = FALSE) {
-      "Installs a stored state: the chains, never the model, and never the cut points or their weights, which stay this sampler's. A state records the level names of each forest a factor multiplies, and each of its coefficients goes onto this sampler's level of the same name, in whatever order the two list them; a state whose names differ from this sampler's, forest by forest, is refused under either forceUpdate, and one that records none, as from a sampler without such a forest, goes in by position. The state goes in as stored: its trees, leaf values, linear slopes, k, sigma and kept draws are numbers on the sampler's internal scale, read against this sampler's response mapping and its leaf covariates' centers and scales, which stay its own, and never converted; kept linear draws then predict under the sampler's standardization until replaced, and saved Gaussian-process draws made under another standardization or lengthscale are refused. A state stored under the mapping in force puts the chain back where it was stored, value for value; one stored before a re-anchor, or by another sampler, is legal and has no special meaning. Of the state's kept draws the newest that fit this sampler's store are taken. A state one of whose trees would have to be changed to fit this sampler - a split whose threshold is not one of this sampler's cut points, a leaf no row reaches, a split outside its interval or on a column, or in an interaction, its forest does not allow, a missing-value side on a column that has never held a missing value, monotone leaf values out of order - is not installed: the sampler is left as it was and FALSE is returned, where TRUE says the state went in. With forceUpdate = TRUE such a state is installed, the trees repaired - a split off the cut points moved to the nearest point its tree still allows, or merged with what is beneath it into one leaf - and NULL is returned invisibly. A state does not bring its cut points: to restore them too, hold the state in a variable st and call setCutPoints(attr(st, \"cutPoints\")), the whole set, before setState(st). A column whose cut points were changed and that attr(st, \"cutMass\") lists then has its points and not its weights: the restore still returns TRUE and the chain runs with that column's points equally likely; setPredictor(x[, j], j, updateCutPoints = \"value\") restores both while the column holds the values its cut points were derived from. A sampler whose engine is gone, as after a save and load, is first rebuilt on the cut points, weights, response range and leaf standardization its data object records, and from its own stored state where it has one. See Saving and Value in ?dbartsSampler. The latents it carries are the values its trees were drawn from. This draws nothing; the next sweep draws the augmentation variables against the change."
+      "Installs a stored state: the chains, never the model, and never the cut points or their weights, which stay this sampler's. A state records the level names of each forest a factor multiplies, and each of its coefficients goes onto this sampler's level of the same name, in whatever order the two list them; a state whose names differ from this sampler's, forest by forest, is refused under either forceUpdate, and one that records none, as from a sampler without such a forest, goes in by position. The state goes in as stored: its trees, leaf values, linear slopes, k, sigma and kept draws are numbers on the sampler's internal scale, read against this sampler's response mapping and its leaf covariates' centers and scales, which stay its own, and never converted; kept linear draws then predict under the sampler's standardization until replaced, and saved Gaussian-process draws made under another standardization or lengthscale are refused. A state stored under the mapping in force puts the chain back where it was stored, value for value; one stored before a re-anchor, or by another sampler, is legal and has no special meaning. Of the state's kept draws the newest that fit this sampler's store are taken. A state one of whose trees would have to be changed to fit this sampler - a split whose threshold is not one of this sampler's cut points, a leaf no row reaches, a split outside its interval or on a column, or in an interaction, its forest does not allow, a missing-value side on a column that has never held a missing value, monotone leaf values out of order - is not installed: the sampler is left as it was and FALSE is returned, where TRUE says the state went in. With forceUpdate = TRUE such a state is installed, the trees repaired - a split off the cut points moved to the nearest point its tree still allows, or merged with what is beneath it into one leaf - and NULL is returned invisibly. The sampler's stored state is then the chain as installed, repairs included, not the state as handed in, so it installs again without forceUpdate, returning TRUE, and a copy or a reload starts from it. A state does not bring its cut points: to restore them too, hold the state in a variable st and call setCutPoints(attr(st, \"cutPoints\")), the whole set, before setState(st). A column whose cut points were changed and that attr(st, \"cutMass\") lists then has its points and not its weights: the restore still returns TRUE and the chain runs with that column's points equally likely; setPredictor(x[, j], j, updateCutPoints = \"value\") restores both while the column holds the values its cut points were derived from. A sampler whose engine is gone, as after a save and load, is first rebuilt on the cut points, weights, response range and leaf standardization its data object records, and from its own stored state where it has one. See Saving and Value in ?dbartsSampler. The latents it carries are the values its trees were drawn from. This draws nothing; the next sweep draws the augmentation variables against the change."
       refuseLegacyState(newState)
       if (!inherits(newState, "bartcoreState")) {
         stop("'state' must inherit from bartcoreState")
@@ -4791,11 +4800,11 @@ dbartsSampler <- setRefClass(
         return(FALSE)
       }
       selfEnv$pointer <- ptr
-      # a state that went onto other cut points or weights than it records
-      # is no longer what the engine holds: a copy or a reload made from it
-      # would take its trees unmoved, so the engine's own state is the one
-      # kept
-      if (status == 2L) {
+      # a state that went onto other cut points or weights than it records,
+      # or that was forced in, is no longer what the engine holds where a
+      # tree was repaired: a copy or a reload made from it would take its
+      # trees unmoved, so the engine's own chain is the one kept
+      if (status == 2L || forceUpdate) {
         storeState(ptr)
       } else {
         selfEnv$state <- newState

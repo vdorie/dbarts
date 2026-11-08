@@ -973,29 +973,10 @@ items
     docs/plans/release-candidate-review.md's wave-3 landing note; the
     review's own DEFER bin is
     docs/plans/review-2026-08-24/consolidated-report.md.
-  multinomial-active-rows-update-scale: a multinomial sampler takes
-    setActiveRows(mask, updateScale = TRUE), installs the mask and
-    derives nothing, as probit and logistic do (dec-B661, VD
-    2026-11-07: "use (b)."). About 6 lines, one test, the help clause.
-  multinomial-setresponse-factor: a multinomial sampler every row of
-    whose response holds one trial takes a factor in $setResponse,
-    matched to its levels by label, the written-form record becoming
-    factor; a factor refused where any row holds more than one trial,
-    naming the count matrix; numeric codes still refused (dec-B656, VD
-    2026-11-07: "You can use (b)."). With it, a probit or logistic
-    sampler built from a two-level factor takes a factor matched by
-    label to its recorded levels, first level 0 whatever the new order,
-    a foreign label or a third level refused (dec-B657, "Yes, do
-    that.").
   setresponse-positional-arg-warning: drop the once-per-session warning on
     a positionally-supplied second argument to $setResponse (it now sets
     updateScale, not updateState) once callers have had a full minor cycle
     to move to named arguments. Scheduled for 1.2-0 (VD 2026-09-01).
-  setstate-forced-field-chain: after every forced setState the state
-    field holds the engine's chain as installed, repairs included, so it
-    reinstalls unforced with TRUE (dec-B659, VD 2026-11-07: "That's what
-    I would store, since it is the only accurate representation of the
-    sampler's state."). About 3 lines, one test, the help sentence.
   sparse-extensions: open halves of docs/plans/sparse-extensions.md's
     Status list. Linear leaf on sparse: value gate lifted (a linear
     leaf over high-dimensional sparse designs). Streaming range kernel

@@ -68,6 +68,11 @@ expectClean <- function(make, state, info) {
     forcedValue,
     info = info
   )
+  # the field is the chain the engine holds, which installs again unforced
+  field <- forced$state
+  forced$storeState()
+  expect_identical(forced$state, field, info = info)
+  expect_identical(withVisible(make()$setState(field)), visibly(TRUE), info)
   expect_identical(liveTrees(unforced), liveTrees(forced), info = info)
   expect_identical(unforced$run(0L, 20L), forced$run(0L, 20L), info = info)
   unforced
@@ -99,15 +104,14 @@ expectDeclined <- function(make, state, info, crossesGrid = FALSE) {
     forcedValue,
     info = info
   )
-  if (crossesGrid) {
-    field <- forced$state
-    expect_false(identical(field, state), info = info)
-    forced$storeState()
-    expect_identical(forced$state, field, info = info)
-  } else {
-    expect_identical(forced$state, state, info = info)
-    forced$storeState()
-  }
+  # the field is the chain the engine holds after the install, repairs
+  # included, and not the state as handed in: it is what storeState() gives,
+  # and it installs again without force
+  field <- forced$state
+  expect_false(identical(field, state), info = info)
+  forced$storeState()
+  expect_identical(forced$state, field, info = info)
+  expect_identical(withVisible(make()$setState(field)), visibly(TRUE), info)
   forced
 }
 
@@ -123,6 +127,12 @@ for (bad in list(NA, "partial", c(TRUE, FALSE), "TRUE", NULL)) {
 }
 
 # ---- clean ----------------------------------------------------------------
+
+# a forced install that repairs nothing stores a state identical to the one
+# given, and the field installs again unforced
+twinOwn <- warmed()
+expect_null(twinOwn$setState(own$state, forceUpdate = TRUE))
+expect_identical(twinOwn$state, own$state)
 
 # the sampler's own state, and a recorded chain put into a fresh sampler
 expectClean(warmed, own$state, "own state")
@@ -286,6 +296,20 @@ expect_identical(
   merged$state[[1L]]$forests[[1L]][c("tree.vars", "tree.sizes", "tree.values")]
 )
 
+# a copy and a reload of the forced sampler start from the repaired chain the
+# field holds, not from the state handed in, and draw what it draws
+copied <- forced$copy()
+expect_identical(copied$state, forced$state)
+path <- tempfile(fileext = ".rds")
+saveRDS(forced, path)
+restored <- readRDS(path)
+unlink(path)
+expect_identical(restored$state, forced$state)
+expect_true(restored$setState(restored$state))
+expect_identical(liveTrees(copied), liveTrees(forced))
+expect_identical(liveTrees(restored), liveTrees(forced))
+expect_identical(copied$run(0L, 5L), forced$run(0L, 5L))
+
 # in the variance forest alone: the forced update's state with the stored
 # variance trees put back
 varianceFields <- paste0("variance.", c("vars", "values", "sizes", "flags"))
@@ -345,7 +369,9 @@ expect_false(isLive(stateless))
 expect_null(stateless$state)
 expect_null(stateless$setState(own$state, forceUpdate = TRUE))
 expect_true(isLive(stateless))
-expect_identical(stateless$state, own$state)
+# the field is the chain the forced install left, not the state handed in
+expect_false(identical(stateless$state, own$state))
+expect_identical(stateless$state[[1L]], engineState(stateless)[[1L]])
 
 # ---- not clean: a side for missing values on a column never missing -------
 
