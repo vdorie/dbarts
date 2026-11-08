@@ -312,6 +312,75 @@ inline bool standardizationMomentsForColumn(const double* column, size_t n,
   return isConstant;
 }
 
+/// The relative spread under which a leaf covariate's values cannot be told
+/// from rounding: a centered and scaled column whose spread is under this
+/// multiple of its size holds rounding noise and nothing else.
+constexpr double leafSpreadTolerance =
+  64.0 * std::numeric_limits<double>::epsilon();
+
+/// Whether the observed values z of a raw column over the rows \p rows marks
+/// (null reads every row) differ by rounding only:
+/// ||z - c|| < leafSpreadTolerance ||z||, c their mean. Rows count as they do
+/// in the center and scale (standardizationMomentsForColumn): once each, or,
+/// where \p counts is not null, as counts[i] identical rows, a row of count 0
+/// or less not read, so the test is that of the rows written out.
+///
+/// c is \p center, a mean taken through the sum, corrected by the mean of the
+/// deviations from it: the sum misses by up to about n machine precision of
+/// the values' size, which would add as much to the measured spread, while the
+/// corrected mean is good to about one, so the test does not grow with the
+/// number of rows. Both norms are taken over the values scaled by a power of
+/// two, which is exact and cannot overflow.
+inline bool spreadIsRounding(const double* column, size_t n, double center,
+                             const std::uint8_t* rows = nullptr,
+                             const double* counts = nullptr) {
+  auto read = [&](size_t i) {
+    return (rows == nullptr || rows[i] != 0) && !isNA(column[i]) &&
+           (counts == nullptr || counts[i] > 0.0);
+  };
+  auto count = [&](size_t i) { return counts == nullptr ? 1.0 : counts[i]; };
+  double largest = 0.0, deviation = 0.0, totalCount = 0.0;
+  size_t numObserved = 0;
+  for (size_t i = 0; i < n; ++i) {
+    if (!read(i)) continue;
+    largest = std::max(largest, std::fabs(column[i]));
+    deviation += count(i) * (column[i] - center);
+    totalCount += count(i);
+    ++numObserved;
+  }
+  if (numObserved < 2 || !(largest > 0.0) || !std::isfinite(largest))
+    return false;
+  int exponent;
+  (void) std::frexp(largest, &exponent);
+  double refined = std::ldexp(center + deviation / totalCount, -exponent);
+  double spread = 0.0, size = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    if (!read(i)) continue;
+    double value = std::ldexp(column[i], -exponent);
+    spread += count(i) * ((value - refined) * (value - refined));
+    size += count(i) * (value * value);
+  }
+  return spread < leafSpreadTolerance * leafSpreadTolerance * size;
+}
+
+/// A leaf covariate's center and scale (standardizationMomentsForColumn),
+/// where a column whose values differ by rounding only (spreadIsRounding)
+/// also holds too little: its sd is then the placeholder 1, its center the
+/// one computed.
+///
+/// \returns true where the rows read hold fewer than two distinct observed
+/// values, or values that differ by rounding only.
+inline bool leafCovariateMoments(const double* column, size_t n, double* mean,
+                                 double* sd,
+                                 const std::uint8_t* rows = nullptr,
+                                 const double* counts = nullptr) {
+  if (standardizationMomentsForColumn(column, n, mean, sd, rows, counts))
+    return true;
+  if (!spreadIsRounding(column, n, *mean, rows, counts)) return false;
+  *sd = 1.0;
+  return true;
+}
+
 /// A column's semantic kind, which fixes how its values are read. A numeric
 /// column quantizes real values against cut points; a categorical column
 /// holds integer category codes 0..numCategories-1 directly; an ordered

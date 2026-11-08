@@ -2502,30 +2502,40 @@ inline std::size_t leafRowsInCount(const LeafRows& rows, std::size_t n) {
 
 /// Thrown where a derivation of a leaf covariate's center and scale finds
 /// fewer than two distinct observed values over the rows it reads, one value
-/// or none observed: there is no scale to take, and no number in force to
-/// keep. covariate is its position among the leaf's covariates and column the
-/// store's predictor column; numRowsIn counts the rows in the likelihood out
-/// of numObservations, 0 where too few were in (LeafRows::tooFewIn) and every
-/// row was read; observed
-/// says whether any row read holds a value of it. The host words the refusal.
+/// or none observed, or values that differ by rounding only
+/// (leafCovariateMoments): there is no scale to take, and no number in force
+/// to keep. covariate is its position among the leaf's covariates and column
+/// the store's predictor column; numRowsIn counts the rows in the likelihood
+/// out of numObservations, 0 where too few were in (LeafRows::tooFewIn) and
+/// every row was read; observed says whether any row read holds a value of
+/// it, and rounding whether they hold two or more distinct values, which
+/// differ by rounding only. The host words the refusal.
 struct LeafStandardizationError : std::domain_error {
   LeafStandardizationError(std::size_t covariate_, std::size_t column_,
                            std::size_t numRowsIn_,
-                           std::size_t numObservations_, bool observed_)
-    : std::domain_error("a leaf covariate holds fewer than two distinct "
-                        "values over the rows in the likelihood, so its "
-                        "center and scale cannot be taken from them"),
+                           std::size_t numObservations_, bool observed_,
+                           bool rounding_ = false)
+    : std::domain_error(
+        rounding_ ? "a leaf covariate's values differ by rounding only over "
+                    "the rows in the likelihood, so its center and scale "
+                    "cannot be taken from them"
+                  : "a leaf covariate holds fewer than two distinct values "
+                    "over the rows in the likelihood, so its center and "
+                    "scale cannot be taken from them"),
       covariate(covariate_), column(column_), numRowsIn(numRowsIn_),
-      numObservations(numObservations_), observed(observed_) {}
+      numObservations(numObservations_), observed(observed_),
+      rounding(rounding_) {}
   std::size_t covariate;
   std::size_t column;
   std::size_t numRowsIn;
   std::size_t numObservations;
   bool observed;
+  bool rounding;
 };
 
 /// Covariate \p j's center and scale, its values \p column over \p n rows,
-/// derived over the rows \p rows reads (standardizationMomentsForColumn).
+/// derived over the rows \p rows reads, each at its count where it carries
+/// counts (leafCovariateMoments).
 /// Where those hold too little, \p placeholder takes the placeholder there,
 /// as a gp leaf whose model states its lengthscales does, the kernel width
 /// then fixed by the model; otherwise the derivation is refused.
@@ -2533,20 +2543,27 @@ struct LeafStandardizationError : std::domain_error {
 /// \returns false where the placeholder was taken, true where the numbers
 /// were read from the rows.
 /// \throws LeafStandardizationError where the rows read hold fewer than two
-/// distinct observed values and \p placeholder is false.
+/// distinct observed values, or values that differ by rounding only, and
+/// \p placeholder is false.
 inline bool deriveLeafMoments(const double* column, std::size_t n,
                               std::size_t j, std::size_t columnIndex,
                               const LeafRows& rows, bool placeholder,
                               double* mean, double* sd) {
-  if (!standardizationMomentsForColumn(column, n, mean, sd, rows.rows,
-                                       rows.counts))
+  if (!leafCovariateMoments(column, n, mean, sd, rows.rows, rows.counts))
     return true;
   if (placeholder) return false;
-  bool observed = false;
-  for (std::size_t i = 0; i < n && !observed; ++i)
-    observed = (rows.rows == nullptr || rows.rows[i] != 0) && !isNA(column[i]);
+  bool observed = false, rounding = false;
+  double first = 0.0;
+  for (std::size_t i = 0; i < n && !rounding; ++i) {
+    if ((rows.rows != nullptr && rows.rows[i] == 0) || isNA(column[i]) ||
+        (rows.counts != nullptr && !(rows.counts[i] > 0.0)))
+      continue;
+    if (observed) rounding = column[i] != first;
+    else first = column[i];
+    observed = true;
+  }
   throw LeafStandardizationError(j, columnIndex, leafRowsInCount(rows, n), n,
-                                 observed);
+                                 observed, rounding);
 }
 
 /// Whether a recorded standardization, \p centers and \p scales, is
@@ -2646,8 +2663,8 @@ struct LinearGaussianLeaf {
   /// Gather and standardize the designated columns from the store's raw
   /// training values. Standardization constants come from the observed
   /// values of the rows \p rows reads alone, or are the ones \p supplied
-  /// gives; a column whose rows read hold one value, or none, is refused
-  /// (deriveLeafMoments).
+  /// gives; a column whose rows read hold one value, or none, or values that
+  /// differ by rounding only, is refused (deriveLeafMoments).
   void initialize(const ColumnStore& data, const std::size_t* columns,
                   std::size_t numColumns, std::size_t numChains = 1,
                   const SuppliedStandardization& supplied = {},
@@ -3174,8 +3191,9 @@ struct GPGaussianLeaf {
   /// supplied) lengthscales for the stored designation over the rows \p rows
   /// reads, on a view its own; the whole-data analog of the rebuilt cut
   /// grid. Values \p supplied gives are taken in place of derived ones. A
-  /// covariate whose rows read hold one value, or none, takes the placeholder
-  /// where the model states the lengthscales and is refused otherwise
+  /// covariate whose rows read hold one value, or none, or values that differ
+  /// by rounding only, takes the placeholder where the model states the
+  /// lengthscales and is refused otherwise
   /// (deriveLeafMoments), as the linear leaf refuses it.
   void reinitialize(const ColumnStore& data,
                     const SuppliedStandardization& supplied = {},

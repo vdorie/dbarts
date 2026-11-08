@@ -371,7 +371,8 @@
     rewrites a \code{linear} leaf's coefficients, current and saved, into it,
     so that each leaf is the function of the covariate it was and \code{predict}
     returns what it did. A replaced covariate those rows hold at one value,
-    or observe at none, keeps its numbers, and the call warns, with class
+    or observe at none, or at values that differ by rounding only (see
+    \code{leaf.prior} in \code{\link{dbarts}}), keeps its numbers, and the call warns, with class
     \code{dbartsScaleFallbackWarning}, on the sampler's first keep, of this
     or of the response's scale (\code{updateScale}); on a hazard fit where
     fewer than two subjects are in, every replaced covariate keeps, the
@@ -380,8 +381,8 @@
     object records and otherwise derives it from the new data's rows in,
     \code{TRUE} derives it, both reading every row where fewer than two rows
     are in or the response's scale is read from every row, and refused where
-    two or more rows in hold one value of a covariate unless a \code{gp} leaf
-    states its \code{lengthscale}, which takes the placeholder (see
+    two or more rows in hold one value of a covariate, or values that differ
+    by rounding only, unless a \code{gp} leaf states its \code{lengthscale}, which takes the placeholder (see
     \code{newData}), and \code{FALSE} keeps the sampler's, the new rows read
     under it. A leaf that takes no
     covariate has nothing to derive. A \code{gp} sampler that holds saved draws
@@ -397,7 +398,8 @@
     likelihood, as \code{setPredictor} with \code{TRUE} would on every leaf
     covariate's values in force, rewriting a \code{linear} leaf's
     coefficients in the same way. A covariate those rows hold at one value,
-    or observe at none, keeps its numbers, the others re-deriving, and the
+    or observe at none, or at values that differ by rounding only, keeps its
+    numbers, the others re-deriving, and the
     call warns as \code{setPredictor} does, once per sampler. On a hazard
     fit, where fewer than two subjects are in after the call, every covariate
     keeps its numbers, the period among them, which varies within a subject,
@@ -434,7 +436,7 @@ for (i in seq_len(n.burn + n.keep)) {
     Creation and a \code{setData} that derives read every row where fewer
     than two rows are in, or where the response's scale is read from every
     row, and refuse two or more rows in that hold one value of a leaf
-    covariate, a \code{gp} leaf that states its \code{lengthscale} taking the
+    covariate, or values that differ by rounding only, a \code{gp} leaf that states its \code{lengthscale} taking the
     placeholder (see \code{newData}); these setters keep instead, one row or
     one subject in included.
   }

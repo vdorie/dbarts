@@ -1163,9 +1163,9 @@ made <- fallbacks(s$setWeights(
 expect_identical(
   made$warnings,
   paste0(
-    "fewer than two distinct values of the leaf covariate \"x1\" are in the ",
-    "likelihood, so its center and scale are kept as they were (said once ",
-    "per sampler)"
+    "fewer than two values of the leaf covariate \"x1\" that differ by more ",
+    "than rounding are in the likelihood, so its center and scale are kept ",
+    "as they were (said once per sampler)"
   )
 )
 held <- twoRead(s)
@@ -1309,9 +1309,9 @@ made <- fallbacks(s$setPredictor(
 expect_identical(
   made$warnings,
   paste0(
-    "fewer than two distinct values of the leaf covariate \"x1\" are in the ",
-    "likelihood, so its center and scale are kept as they were (said once ",
-    "per sampler)"
+    "fewer than two values of the leaf covariate \"x1\" that differ by more ",
+    "than rounding are in the likelihood, so its center and scale are kept ",
+    "as they were (said once per sampler)"
   )
 )
 held <- twoRead(s)
@@ -1900,9 +1900,9 @@ for (edge in c(1L, n)) {
 # numbers, once warned per sampler in the leaf's words, the flag the response
 # setters' too; a response keep's text is as it was; FALSE holds
 keepText <- paste0(
-  "fewer than two distinct values of the leaf covariate \"x1\" are in the ",
-  "likelihood, so its center and scale are kept as they were (said once ",
-  "per sampler)"
+  "fewer than two values of the leaf covariate \"x1\" that differ by more ",
+  "than rounding are in the likelihood, so its center and scale are kept ",
+  "as they were (said once per sampler)"
 )
 s <- make(weights = w, leaf.prior = dbartsPriors$linear(c("x1", "x2")))
 before <- recordOf(s)
@@ -1967,9 +1967,9 @@ expect_identical(
     updateStandardization = TRUE
   ))$warnings,
   paste0(
-    "fewer than two distinct values of each of the leaf covariates \"x1\" ",
-    "and \"x2\" are in the likelihood, so their centers and scales are kept ",
-    "as they were (said once per sampler)"
+    "fewer than two values of each of the leaf covariates \"x1\" and ",
+    "\"x2\" that differ by more than rounding are in the likelihood, so ",
+    "their centers and scales are kept as they were (said once per sampler)"
   )
 )
 # an unnamed column is the leaf covariate in its column
@@ -1982,9 +1982,9 @@ expect_identical(
     updateStandardization = TRUE
   ))$warnings,
   paste0(
-    "fewer than two distinct values of the leaf covariate in column 1 are in ",
-    "the likelihood, so its center and scale are kept as they were (said ",
-    "once per sampler)"
+    "fewer than two values of the leaf covariate in column 1 that differ by ",
+    "more than rounding are in the likelihood, so its center and scale are ",
+    "kept as they were (said once per sampler)"
   )
 )
 # a covariate at one value over the rows in that the call does not replace is
@@ -2690,9 +2690,9 @@ before <- recordOf(s)
 expect_identical(
   fallbacks(s$setActiveRows(oneIn, updateStandardization = TRUE))$warnings,
   paste0(
-    "fewer than two distinct values of each of the leaf covariates \"x1\" ",
-    "and \"x2\" are in the likelihood, so their centers and scales are kept ",
-    "as they were (said once per sampler)"
+    "fewer than two values of each of the leaf covariates \"x1\" and ",
+    "\"x2\" that differ by more than rounding are in the likelihood, so ",
+    "their centers and scales are kept as they were (said once per sampler)"
   )
 )
 expect_identical(recordOf(s), before)

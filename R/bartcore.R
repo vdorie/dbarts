@@ -1483,20 +1483,20 @@ warnScaleKept <- function(
   } else if (length(covariates) == 1L) {
     warnClassed(
       "dbartsScaleFallbackWarning",
-      "fewer than two distinct values of the leaf covariate ",
+      "fewer than two values of the leaf covariate ",
       covariates,
-      " are in the likelihood, so its center and scale are kept as they ",
-      "were (said once per sampler)"
+      " that differ by more than rounding are in the likelihood, so its ",
+      "center and scale are kept as they were (said once per sampler)"
     )
   } else {
     warnClassed(
       "dbartsScaleFallbackWarning",
-      "fewer than two distinct values of each of the leaf covariates ",
+      "fewer than two values of each of the leaf covariates ",
       paste(covariates[-length(covariates)], collapse = ", "),
       " and ",
       covariates[[length(covariates)]],
-      " are in the likelihood, so their centers and scales are kept as ",
-      "they were (said once per sampler)"
+      " that differ by more than rounding are in the likelihood, so their ",
+      "centers and scales are kept as they were (said once per sampler)"
     )
   }
   invisible(NULL)

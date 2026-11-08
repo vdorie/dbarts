@@ -4979,6 +4979,146 @@ struct GPLeafFixture {
   }
 };
 
+// A leaf covariate whose spread about its center is under 64 times machine
+// precision of its size is read as one value: the test against literals at
+// either side of the tolerance, its rows, its range and its row count, and
+// the leaves' refusal and placeholder.
+static void testLeafSpreadRounding() {
+  const double eps = std::numeric_limits<double>::epsilon();
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  auto halves = [](size_t n, double a, double b) {
+    std::vector<double> z(n);
+    for (size_t i = 0; i < n; ++i) z[i] = i % 2 == 0 ? a : b;
+    return z;
+  };
+  auto rounding = [](const std::vector<double>& z,
+                     const std::uint8_t* rows = nullptr) {
+    double mean, sd;
+    return leafCovariateMoments(z.data(), z.size(), &mean, &sd, rows) &&
+           !standardizationMomentsForColumn(z.data(), z.size(), &mean, &sd,
+                                            rows);
+  };
+
+  // 0.3 against 0.1 * 3, one unit in the last place apart
+  std::vector<double> ulp = halves(100, 0.3, 0.1 * 3.0);
+  check(ulp[0] != ulp[1] && rounding(ulp),
+        "spread rounding: 0.3 against 0.1 * 3 is one value");
+  // either side of the tolerance: spread d / 2 about a center near 1
+  check(rounding(halves(100, 1.0, 1.0 + 126.0 * eps)) &&
+          !rounding(halves(100, 1.0, 1.0 + 130.0 * eps)),
+        "spread rounding: 63 times machine precision is one value, 65 not");
+  // seconds since 1970 over 100 seconds, and an sd of 1e-6 at 0.3, run
+  // fixed fractions, so the suite's generator is not drawn from
+  auto fraction = [](size_t i) {
+    double value = 0.6180339887498949 * static_cast<double>(i + 1);
+    return value - std::floor(value);
+  };
+  std::vector<double> times(100), small(100);
+  for (size_t i = 0; i < times.size(); ++i) {
+    times[i] = 1.7e9 + 100.0 * fraction(i);
+    small[i] = 0.3 + 1.0e-6 * (fraction(i) - 0.5) * 3.4;
+  }
+  double mean, sd;
+  check(!leafCovariateMoments(times.data(), times.size(), &mean, &sd) &&
+          !leafCovariateMoments(small.data(), small.size(), &mean, &sd),
+        "spread rounding: a timestamp over 100 seconds and an sd of 1e-6 "
+        "have spread");
+  // the rows in decide it: rounding on them, real spread on the rows out
+  std::vector<double> mixed = halves(100, 0.3, 0.1 * 3.0);
+  std::vector<std::uint8_t> rowsIn(100, 1);
+  for (size_t i = 0; i < 10; ++i) {
+    mixed[i] = 5.0 + static_cast<double>(i);
+    rowsIn[i] = 0;
+  }
+  check(rounding(mixed, rowsIn.data()) &&
+          !leafCovariateMoments(mixed.data(), mixed.size(), &mean, &sd),
+        "spread rounding: read over the rows in alone");
+  // missing values are skipped
+  std::vector<double> holed = ulp;
+  holed[3] = nan;
+  holed[10] = nan;
+  check(rounding(holed), "spread rounding: missing values are skipped");
+  // overflow and underflow: squares of these leave the double range
+  check(rounding(halves(10, 1.0e300, std::nextafter(1.0e300, 2.0e300))) &&
+          !rounding(halves(10, 1.0e300, 1.5e300)) &&
+          rounding(halves(10, 1.0e-300, std::nextafter(1.0e-300, 1.0))) &&
+          !rounding(halves(10, 1.0e-300, 1.5e-300)),
+        "spread rounding: values near either end of the range");
+  // a million rows: the mean through the sum misses 0.1 by far more than the
+  // tolerance, which the corrected center takes back
+  std::vector<double> many =
+    halves(1000000, 0.1, std::nextafter(0.1, 1.0));
+  double total = 0.0;
+  for (double v : many) total += v;
+  double naive = total / static_cast<double>(many.size());
+  check(std::fabs(naive - 0.1) > 64.0 * eps * 0.1 && rounding(many),
+        "spread rounding: the test does not grow with the row count");
+  // above the tolerance the moments keep their bits
+  double plainMean, plainSd;
+  standardizationMomentsForColumn(times.data(), times.size(), &plainMean,
+                                  &plainSd);
+  leafCovariateMoments(times.data(), times.size(), &mean, &sd);
+  check(std::memcmp(&mean, &plainMean, sizeof(double)) == 0 &&
+          std::memcmp(&sd, &plainSd, sizeof(double)) == 0,
+        "spread rounding: a column with spread keeps its moments' bits");
+  // under it, the computed center and the placeholder scale
+  standardizationMomentsForColumn(ulp.data(), ulp.size(), &plainMean,
+                                  &plainSd);
+  leafCovariateMoments(ulp.data(), ulp.size(), &mean, &sd);
+  check(mean == plainMean && sd == 1.0 && plainSd != 1.0,
+        "spread rounding: the computed center and the placeholder scale");
+
+  // the leaves: linear and gp refused, naming rounding; gp with stated
+  // lengthscales takes the placeholder; one value is not rounding
+  const size_t n = ulp.size();
+  std::vector<double> x(2 * n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = fraction(i);
+    x[i + n] = ulp[i];
+  }
+  size_t gather[] = {1};
+  ColumnStore store;
+  built(store.build(x.data(), n, 2, 100, false, nullptr, gather, 1));
+  size_t columns[] = {1};
+  auto refusal = [&](auto& leaf, auto initialize) {
+    try {
+      initialize(leaf);
+    } catch (const LeafStandardizationError& error) {
+      return error.rounding && error.observed && error.covariate == 0 &&
+             error.column == 1 && error.numRowsIn == n;
+    }
+    return false;
+  };
+  LinearGaussianLeaf linear;
+  GPGaussianLeaf gp, stated;
+  check(refusal(linear,
+                [&](LinearGaussianLeaf& leaf) {
+                  leaf.initialize(store, columns, 1);
+                }) &&
+          refusal(gp,
+                  [&](GPGaussianLeaf& leaf) {
+                    leaf.initialize(store, columns, 1, nullptr, 256);
+                  }),
+        "spread rounding: linear and gp leaves refuse, naming rounding");
+  double lengthscale = 0.5;
+  stated.initialize(store, columns, 1, &lengthscale, 256);
+  check(stated.covariateSds()[0] == 1.0 &&
+          stated.covariateMeans()[0] == plainMean,
+        "spread rounding: a gp leaf stating its lengthscale takes the "
+        "placeholder");
+  for (size_t i = 0; i < n; ++i) x[i + n] = 0.3;
+  ColumnStore flat;
+  built(flat.build(x.data(), n, 2, 100, false, nullptr, gather, 1));
+  bool oneValue = false;
+  try {
+    LinearGaussianLeaf leaf;
+    leaf.initialize(flat, columns, 1);
+  } catch (const LeafStandardizationError& error) {
+    oneValue = !error.rounding && error.observed;
+  }
+  check(oneValue, "spread rounding: one value is not named rounding");
+}
+
 static void testGPLeafMarginal() {
   GPLeafFixture f;
 
@@ -10787,6 +10927,7 @@ static void testVectorLeafLatentRefreshCache() {
 }
 
 void runModelTests(ext_rng* rng) {
+  testLeafSpreadRounding();
   testLeafSeamDispatch();
   testUnitLowerFactorization();
   testIntegratedLikelihood();

@@ -2752,6 +2752,7 @@ public:
   /// function it was (Chain::rederiveStandardization). The rows read are
   /// those in the likelihood now, under the weights and the mask in force
   /// (leafRowsFrom); a marked covariate those hold at one value, or none, or
+  /// at values that differ by rounding only (leafCovariateMoments), or
   /// every marked one where fewer than two rows are in, or where the host
   /// says too few of its units are in (\p tooFewUnitsIn, as
   /// DataReplacement::tooFewUnitsIn), keeps the numbers in force. Decided
@@ -2785,9 +2786,9 @@ public:
         size_t column = leaf.covariateColumns()[j];
         if (replaced != nullptr && replaced[column] == 0) continue;
         double mean, sd;
-        if (rows.tooFewIn || standardizationMomentsForColumn(
-                             data_.rawColumn(column), n, &mean, &sd,
-                             rows.rows, rows.counts)) {
+        if (rows.tooFewIn ||
+            leafCovariateMoments(data_.rawColumn(column), n, &mean, &sd,
+                                 rows.rows, rows.counts)) {
           keptCovariates[j] = 1;
           anyKept = true;
         }

@@ -4395,24 +4395,35 @@ std::string predictorColumnLabel(SEXP dataExpr, size_t column) {
 }
 
 // The refusal of a derivation whose rows in the likelihood hold fewer than
-// two distinct values of a leaf covariate: the engine decides which rows are
-// in and what the covariate holds there, and this words it, naming the
-// column the data object holds it in.
+// two distinct values of a leaf covariate, or values that differ by rounding
+// only: the engine decides which rows are in and what the covariate holds
+// there, and this words it, naming the column the data object holds it in
+// and, for rounding, the test.
 std::string leafStandardizationMessage(
     SEXP dataExpr, const bartcore::LeafStandardizationError& error,
     size_t dataColumn, bool gp, LeafRefusalDoor door) {
-  std::string holds = error.observed ? "holds one value" : "holds no observed value";
+  std::string holds = error.rounding
+    ? "holds values that differ only by rounding"
+    : error.observed ? "holds one value" : "holds no observed value";
   std::string what = "the leaf covariate " +
                      predictorColumnLabel(dataExpr, dataColumn) + " " + holds;
   std::string prior = gp ? "gp()" : "linear()";
   std::string remedies =
-    gp ? "state its lengthscale in gp(), drop it from gp(), " : "drop it from " +
-                                                                  prior + ", ";
+    (gp ? "state its lengthscale in gp(), drop it from gp(), "
+        : "drop it from " + prior + ", ") +
+    (error.rounding ? std::string("subtract a constant from it, ")
+                    : std::string());
+  std::string cannot =
+    (error.rounding
+       ? std::string(", its spread about its center being under 64 times "
+                     "machine precision of its size (||z - center|| < 64 * "
+                     ".Machine$double.eps * ||z||)")
+       : std::string()) +
+    ", so its center and scale cannot be taken from them; ";
   if (door == LeafRefusalDoor::fold)
     return "in a fold of xbart, " + what +
-           " over the fold's training rows in the likelihood, so its center "
-           "and scale cannot be taken from them; " + remedies +
-           "or change the rows (the weights, subset or n.test)";
+           " over the fold's training rows in the likelihood" + cannot +
+           remedies + "or change the rows (the weights, subset or n.test)";
   bool oneRow = error.numObservations == 1;
   std::string over =
     error.numRowsIn == 0
@@ -4427,12 +4438,11 @@ std::string leafStandardizationMessage(
           (error.numRowsIn == 1 || oneRow ? " is in it)" : " are in it)");
   std::string rows = "the weights, the active-row mask, or subset";
   if (door == LeafRefusalDoor::setData)
-    return "$setData: " + what + over +
-           ", so its center and scale cannot be taken from them; " +
-           remedies + "change the rows in (" + rows +
+    return "$setData: " + what + over + cannot + remedies +
+           "change the rows in (" + rows +
            "), or keep the sampler's with updateStandardization = FALSE";
-  return what + over + ", so its center and scale cannot be taken from them; " +
-         remedies + "or change the rows in (" + rows + ")";
+  return what + over + cannot + remedies + "or change the rows in (" + rows +
+         ")";
 }
 
 // family resolution: see resolveFamily() above. activeExpr is the active-row
