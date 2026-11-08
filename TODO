@@ -318,6 +318,8 @@ items
     coefficients for the first ten or so draws. About 50 lines and
     tests, unsized against the state's layout; the help sentence in
     setState and setForestBasis is rewritten.
+    Owed when a factor basis may have three or more levels: a pin of
+    the permutation's direction, which two levels cannot test.
   study-firming: every study whose result decides a default, a sampler
     change or a gate is brought, in time, to what published research
     of its kind would do (dec-B637); k-move-pricing is the first. In

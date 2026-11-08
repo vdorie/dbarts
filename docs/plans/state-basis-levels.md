@@ -98,6 +98,9 @@ None: factor bases are new in 1.0-0, and 0.9-34 is not affected.
   four reproducibility snapshot files unchanged.
 - No engine change; the bridge's `bartcore_setState` takes one more argument.
 - Out of scope: `installTrees`, which refuses a sampler of several forests.
+- Owed later: a pin of the permutation's direction on a factor of three or more levels, when a forest
+  may multiply one. On two levels a permutation is its own inverse, so an inverted order passes every
+  test today.
 
 ## Steps
 
