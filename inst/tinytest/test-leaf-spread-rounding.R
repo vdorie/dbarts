@@ -76,7 +76,7 @@ refusal <- function(count, gp = FALSE) {
       "drop it from linear(), "
     },
     recompute,
-    "or change the rows in (the weights, the 0/1 weights' mask, or subset)"
+    "or change the rows in (the weights, the active-row mask, or subset)"
   )
 }
 keepText <- paste0(
@@ -162,7 +162,7 @@ setDataRefusal <- paste0(
   cannot,
   "drop it from linear(), recompute it from its source about an origin near ",
   "its values if its values truly differ, change the rows in (the weights, ",
-  "the 0/1 weights' mask, or subset), or keep the sampler's with ",
+  "the active-row mask, or subset), or keep the sampler's with ",
   "updateStandardization = FALSE"
 )
 s <- make(real)
