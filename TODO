@@ -148,10 +148,6 @@ items
     are C and still raise through R from under a run. Both are default
     arms over kinds the library implements, so nothing reaches them
     today; closing them means an error channel out of the C rng API.
-  ci-exact-gates-timeout: the exact-gates job's 40-minute timeout is
-    within a few minutes of its run time on a slow hosted runner (25 to
-    40 minutes on 2026-11-08) and cut off four attempts on one branch;
-    raise it.
   correlated-outcomes: AR-1 / serially-correlated errors. Longitudinal,
     panel, ITS and DiD compose today via a latent AR-state + nugget in
     the outer sampler, driven through the setOffset conduit; EXACT

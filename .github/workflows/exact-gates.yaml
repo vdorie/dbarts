@@ -93,7 +93,7 @@ permissions: read-all
 jobs:
   exact-gates:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -111,7 +111,22 @@ jobs:
           echo 'Acquire::http::Timeout "15";' | sudo tee -a /etc/apt/apt.conf.d/99-ci-retry
           echo 'Acquire::https::Timeout "15";' | sudo tee -a /etc/apt/apt.conf.d/99-ci-retry
 
-      - uses: r-lib/actions/setup-r@v2
+      - id: setup_r_1
+        continue-on-error: true
+        uses: r-lib/actions/setup-r@v2
+        timeout-minutes: 12
+        with:
+          r-version: 'release'
+          use-public-rspm: true
+
+      - name: Wait before retrying setup-r
+        if: steps.setup_r_1.outcome == 'failure'
+        shell: bash
+        run: sleep 30
+
+      - name: Retry setup-r
+        if: steps.setup_r_1.outcome == 'failure'
+        uses: r-lib/actions/setup-r@v2
         timeout-minutes: 12
         with:
           r-version: 'release'
@@ -261,7 +276,7 @@ jobs:
       # dbarts the runner happens to hold reports ratios in the millions and
       # says nothing about this commit.
       # Both compares finish in about a second on a 2020 desktop, against the
-      # ~4-minute install and 40-minute timeout of this job. The bcf and
+      # ~4-minute install and 60-minute timeout of this job. The bcf and
       # multinomial baseline hashes are pinned only here now - equivalence.yaml's
       # own copies were dropped as duplicates of this job's compares - so a
       # re-record repins this file alone.
@@ -319,10 +334,10 @@ jobs:
           '
 
   # one job per prior: both in one job ran 34 minutes (23 of them the gate)
-  # against the 40-minute timeout
+  # against the 60-minute timeout
   monotone-exact-enumeration:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -340,7 +355,22 @@ jobs:
           echo 'Acquire::http::Timeout "15";' | sudo tee -a /etc/apt/apt.conf.d/99-ci-retry
           echo 'Acquire::https::Timeout "15";' | sudo tee -a /etc/apt/apt.conf.d/99-ci-retry
 
-      - uses: r-lib/actions/setup-r@v2
+      - id: setup_r_1
+        continue-on-error: true
+        uses: r-lib/actions/setup-r@v2
+        timeout-minutes: 12
+        with:
+          r-version: 'release'
+          use-public-rspm: true
+
+      - name: Wait before retrying setup-r
+        if: steps.setup_r_1.outcome == 'failure'
+        shell: bash
+        run: sleep 30
+
+      - name: Retry setup-r
+        if: steps.setup_r_1.outcome == 'failure'
+        uses: r-lib/actions/setup-r@v2
         timeout-minutes: 12
         with:
           r-version: 'release'
