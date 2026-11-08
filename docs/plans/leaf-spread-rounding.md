@@ -147,6 +147,16 @@ column above the tolerance draws what it drew.
    is under ..." rather than "holds values that differ only by rounding",
    which misstated a column of one outlier among equal values (the
    review's F4); alternative, the first words.
+10. The orchestrator's call, after the rebase's delta review (F3), from the
+   rule that frequency counts read as the rows written out: the spread mark
+   at the placeholder scale reads every gathered row at the counts its
+   chain reads rows at, a row of count 0 not read, and every row once where
+   fewer than two have a positive count (as fallbackCounts lifts them). A
+   gp leaf stating its lengthscale over a column at rounding apart at its
+   counts then records scale NA, as its rows written out do. A setData
+   takes the old mark before its counts move to the new rows, the counts
+   then being sized to the old rows. Alternative, the mark once per row,
+   which records scale 1 there.
 
 ## Constraints
 
@@ -229,3 +239,16 @@ identical, none skipped; the four reproducibility files, 27 results; the
 exact gates in quick, 49 of 49; the leaf, frequency-weights and binomial
 test files under R-loaded ASan and UBSan, 1452 results, 0 failed; lint,
 air, codoc, win-drift, doc-freshness, verify-anchors.
+
+Delta fix round, a86bf7f32, after the rebase's delta review (FIX). F1: the
+center corrected at the counts is pinned at creation (counts 1000 and 1 on
+halves at 1 and 1 + 1e-13), killing the mutant correctedMean ignoring
+counts. F2: R pins at counts for the binomial setPredictor and setData,
+setActiveRows and the xbart fold, killing the mutant dropping the trials
+from the re-derivation's counts. F3: call 10, pinned in tests/cpp and by
+the gp record at counts against its rows written out. Gates on that code,
+--preclean installs: tests/cpp plain and under ASan and UBSan; the full
+suite, 43250 results, 0 failed; the trio `--bitwise --strict-coverage` on
+the reference build, 55, 19 and 11 scenarios identical, none skipped; the
+four reproducibility files, 27 results; the exact gates in quick, 49 of
+49; lint 0, air, codoc, win-drift, doc-freshness, verify-anchors.
