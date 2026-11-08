@@ -230,7 +230,11 @@ items
     periods as dbarts() does at creation; what a time past the last
     period does (refused or censored) follows the creation path's rule
     (dec-B694). Not sized beyond the
-    door, its tests and help.
+    door, its tests and help. Built with it: a hand-built person-period
+    matrix whose last column is not named period is refused, $setData and
+    new() checking it before the count, the message naming the two doors
+    that fit (survival data at $setData, or a binary fit of the rows with
+    the period a predictor), about 3 to 5 lines and the pins (dec-B703).
   host-wording-sweep: dbarts.h still says "host" for the code that runs
     the BART sampler inside a larger sampler, in about 7 header lines (the
     help, the vignettes and the R strings are done); a docs-only sweep.
