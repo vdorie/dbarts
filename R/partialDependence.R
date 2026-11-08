@@ -102,10 +102,7 @@ pdbart.dataFamily <- function(call, object, getData, callingEnv, caller) {
 }
 
 pdbart.flag <- function(value, name) {
-  if (!is.logical(value) || length(value) != 1L || is.na(value)) {
-    stop("'", name, "' must be TRUE or FALSE", call. = FALSE)
-  }
-  value
+  checkFlag(value, name)
 }
 
 # A data call: the caller's call rewritten into a bart call, with trees and

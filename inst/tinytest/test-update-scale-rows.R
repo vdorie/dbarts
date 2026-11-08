@@ -397,16 +397,16 @@ stored <- positional$state
 positional$storeState()
 expect_identical(positional$state, stored)
 # a value that is not TRUE or FALSE stops with nothing installed
-for (bad in list(NA, 1, "TRUE", c(TRUE, FALSE))) {
+for (bad in list(NA, "TRUE", c(TRUE, FALSE))) {
   s <- mkG()
   twin <- mkG()
   expect_error(
     s$setWeights(w01, updateScale = bad),
-    "'updateScale' must be TRUE or FALSE"
+    "'updateScale' must be TRUE/FALSE"
   )
   expect_error(
     s$setActiveRows(w01, updateScale = bad),
-    "'updateScale' must be TRUE or FALSE"
+    "'updateScale' must be TRUE/FALSE"
   )
   expect_null(s$data@weights)
   expect_null(s$activeRows)

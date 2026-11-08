@@ -114,10 +114,10 @@ expectDeclined <- function(make, state, info, crossesGrid = FALSE) {
 # ---- the argument ---------------------------------------------------------
 
 own <- warmed()
-for (bad in list(NA, "partial", c(TRUE, FALSE), 1, NULL)) {
+for (bad in list(NA, "partial", c(TRUE, FALSE), "TRUE", NULL)) {
   expect_error(
     own$setState(own$state, forceUpdate = bad),
-    pattern = "'forceUpdate' must be TRUE or FALSE",
+    pattern = "'forceUpdate' must be TRUE/FALSE",
     fixed = TRUE
   )
 }

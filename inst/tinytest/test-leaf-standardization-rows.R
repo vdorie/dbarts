@@ -2536,13 +2536,13 @@ for (setter in c("setWeights", "setActiveRows")) {
   expect_identical(recordOf(s), before, info = setter)
   expect_identical(recordOf(twin), before, info = setter)
   expect_identical(sweeps(s), sweeps(twin), info = setter)
-  # NA and 1 are refused, nothing installed
-  for (value in list(NA, 1)) {
+  # NA and a string are refused, nothing installed
+  for (value in list(NA, "1")) {
     weights <- s$data@weights
     active <- s$activeRows
     expect_error(
       setterOf(s, setter)(a, updateStandardization = value),
-      "'updateStandardization' must be TRUE or FALSE",
+      "'updateStandardization' must be TRUE/FALSE",
       fixed = TRUE,
       info = setter
     )

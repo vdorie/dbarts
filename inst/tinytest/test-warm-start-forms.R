@@ -220,10 +220,10 @@ expect_identical(stateOf(stale), stateOf(twin))
 expect_identical(stale$predict(x[1L:40L, ]), twin$predict(x[1L:40L, ]))
 expect_identical(stale$run(0L, 5L), twin$run(0L, 5L))
 
-for (bad in list(1, NA, c(TRUE, TRUE), "partial")) {
+for (bad in list("TRUE", NA, c(TRUE, TRUE), "partial")) {
   expect_error(
     make()$installTrees(donor, forceUpdate = bad),
-    "'forceUpdate' must be TRUE or FALSE",
+    "'forceUpdate' must be TRUE/FALSE",
     fixed = TRUE
   )
 }

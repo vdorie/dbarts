@@ -104,10 +104,7 @@ xbart <- function(
   if (length(n.cuts) == 0L || anyNA(n.cuts) || any(n.cuts <= 0L)) {
     stop("'n.cuts' must contain positive integers")
   }
-  useQuantiles <- coerceOrError(useQuantiles, "logical")
-  if (is.na(useQuantiles)) {
-    stop("'useQuantiles' must be TRUE/FALSE")
-  }
+  useQuantiles <- checkFlag(useQuantiles, "useQuantiles")
   n.thin <- coerceOrError(n.thin, "integer")
   if (is.na(n.thin) || n.thin <= 0L) {
     stop("'n.thin' must be a positive integer")
@@ -465,10 +462,7 @@ xbart <- function(
 
   power <- coerceOrError(power, "numeric")
   base <- coerceOrError(base, "numeric")
-  drop <- coerceOrError(drop, "logical")
-  if (length(drop) != 1L || is.na(drop)) {
-    stop("'drop' must be TRUE/FALSE", call. = FALSE)
-  }
+  drop <- checkFlag(drop, "drop")
   if (anyNA(power) || any(power <= 0)) {
     stop("'power' must contain only positive values")
   }

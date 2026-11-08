@@ -518,7 +518,7 @@ expect_error(
 )
 expect_error(
   sampler$setPredictor(x[, 2L], "b", TRUE, updateStandardization = NA),
-  "'updateStandardization' must be TRUE or FALSE"
+  "'updateStandardization' must be TRUE/FALSE"
 )
 
 # ---- gp narrowed -----------------------------------------------------------

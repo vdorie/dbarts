@@ -248,12 +248,12 @@ refusedOn(
     "reads no column; leave updateBasisScale FALSE"
   )
 )
-for (bad in list(NA, c(TRUE, TRUE), 1, "yes", NULL)) {
+for (bad in list(NA, c(TRUE, TRUE), "TRUE", "yes", NULL)) {
   refusedOn(
     running,
     3L,
     dose,
-    "'updateBasisScale' must be TRUE or FALSE",
+    "'updateBasisScale' must be TRUE/FALSE",
     flag = bad
   )
 }

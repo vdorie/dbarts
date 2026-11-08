@@ -3317,13 +3317,7 @@ dart <- function(
       "non-negative number"
     )
   }
-  if (
-    !is.logical(update.alpha) ||
-      length(update.alpha) != 1L ||
-      is.na(update.alpha)
-  ) {
-    stop("'update.alpha' must be TRUE/FALSE", call. = FALSE)
-  }
+  update.alpha <- checkFlag(update.alpha, "update.alpha")
   newValidated(
     "dbartsDartPrior",
     power = 2,

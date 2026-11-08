@@ -155,15 +155,15 @@ expect_error(
 expect_error(sampler$setSigma(Inf), "'sigma' must be finite and positive")
 rm(badData)
 
-# --- updateScale is a single TRUE or FALSE: 1 rescaled the engine while the R
-# side skipped its own rescaling steps
+# --- updateScale is a single logical or number, read as one logical by both
+# the R side and the engine
 expect_error(
-  sampler$setOffset(numeric(n), updateScale = 1),
-  "'updateScale' must be TRUE or FALSE"
+  sampler$setOffset(numeric(n), updateScale = "TRUE"),
+  "'updateScale' must be TRUE/FALSE"
 )
 expect_error(
   sampler$setResponse(y, updateScale = NA),
-  "'updateScale' must be TRUE or FALSE"
+  "'updateScale' must be TRUE/FALSE"
 )
 
 # --- a refused offset swap leaves the mirror a save and load re-creates from
@@ -187,7 +187,7 @@ bcf <- dbarts(
 bcf$setOffset(rep(0.5, nb), updateScale = FALSE)
 expect_error(
   bcf$setOffset(rep(5, nb), updateScale = NA),
-  "'updateScale' must be TRUE or FALSE"
+  "'updateScale' must be TRUE/FALSE"
 )
 expect_identical(bcf$data@offset, rep(0.5, nb))
 

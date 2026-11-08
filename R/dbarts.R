@@ -675,9 +675,14 @@ validateArgumentsInEnvironment <- function(
   }
 
   if (!missing(verbose)) {
-    if (!is.logical(verbose) || is.na(verbose)) {
+    if (
+      !(is.logical(verbose) || is.numeric(verbose)) ||
+        length(verbose) != 1L ||
+        is.na(verbose)
+    ) {
       stop("'verbose' argument to ", funcName, " must be TRUE/FALSE")
     }
+    envir$verbose <- as.logical(verbose)
   } else if (!controlIsMissing) {
     envir$verbose <- control@verbose
   }
@@ -2177,7 +2182,7 @@ drawPriorForests <- function(
 ## state (the copy storeState/setState carry): an explicit TRUE or FALSE
 ## wins, and NULL - every one of these methods' own default - resolves
 ## against control@updateState, exactly as run() has always resolved it.
-## Anything else is refused by name. 0.9-x's default was NA, which is a
+## A number reads as as.logical reads it; anything else is refused by name. 0.9-x's default was NA, which is a
 ## missing value now and reads as NULL, after one warning.
 checkUpdateState <- function(updateState) {
   if (is.null(updateState)) {
@@ -2187,7 +2192,10 @@ checkUpdateState <- function(updateState) {
     warnNAForNull("updateState", "dbartsSampler")
     return(NULL)
   }
-  if (!is.logical(updateState) || length(updateState) != 1L) {
+  if (
+    !(is.logical(updateState) || is.numeric(updateState)) ||
+      length(updateState) != 1L
+  ) {
     shown <- paste(deparse(updateState), collapse = " ")
     if (nchar(shown) > 40L) {
       shown <- paste0(substr(shown, 1L, 37L), "...")
@@ -2198,7 +2206,7 @@ checkUpdateState <- function(updateState) {
       call. = FALSE
     )
   }
-  updateState
+  as.logical(updateState)
 }
 
 ## A run's burn-in or sample count: NULL takes the control's, which the
@@ -3578,6 +3586,7 @@ dbartsSampler <- setRefClass(
         "express and which a length-n integer vector would only be guessed ",
         "into; replace it with $setCounts"
       )
+      updateScale <- checkUpdateScale(updateScale)
       scaleKept <- bartcoreSamplerSetResponse(.self, y, updateScale, status)
       if (isTRUE(updateScale)) {
         recordResponseRange(.self, getPointer())
@@ -3598,6 +3607,7 @@ dbartsSampler <- setRefClass(
         "so a flat offset is inert; the shift that is not is the n x K ",
         "matrix $setCategoryOffset takes"
       )
+      updateScale <- checkUpdateScale(updateScale)
       scaleKept <- bartcoreSamplerSetOffset(.self, offset, updateScale)
       if (isTRUE(updateScale)) {
         recordResponseRange(.self, getPointer())
@@ -3848,13 +3858,7 @@ dbartsSampler <- setRefClass(
     ) {
       "Changes the basis the named forest's amplitudes multiply. forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i), as with setForestWeights and getLeafPrior/getK (a Bayesian causal forest's basis forest is 2). basis is a value, or a one-sided formula, which is read as the basis of a forest() is, its names found where the formula was written. It must be of the class the forest was created with, which decides what the forest multiplies and never changes. A forest of levels (created with a factor, a character vector or a logical vector) takes one of those three, matched to the forest's levels by name and not by position: the replacement may list its levels in another order or leave one out, a level of the forest that no row has is a column of zeros (a swap can leave one momentarily unobserved), and a row at a level the forest does not have, or at NA, is refused. Coefficient j multiplies level j's rows after any swap. Numbers are refused for such a forest, the level indicators the sampler stores among them; hand back the factor. A forest of numbers takes one numeric column, a vector or a matrix of one column, a column of all zeros among them (creation refuses one), and refuses several columns, a factor, a character vector and a logical vector; a forest created with no basis takes none. The sampler keeps the forest's block, in data@bases, and its levels, in data@basis.levels, each read by the forest's position (neither list has names, so a label does not index them), and not the factor it was handed: a caller that will hand a basis back keeps the factor it handed over. A state carries no levels, so one installed from a sampler whose factor has the same levels in another order goes in by position. No forest changes width, so the names the basis was created with stay, whatever names the replacement has. The forest's label does not change. This is the SOLE route by which a basis changes after creation, and the amplitudes are preserved: an install leaves every one of them bitwise. A swap moves the basis and nothing else: no forest's prior moves, so a numeric forest keeps the sd per unit its creation gave it, a default one the scale of the column it was created on (data@basis.scale). updateBasisScale = TRUE, for burn-in, also takes a numeric forest's default scale again from the column installed, over the rows in the likelihood at the call (a positive weight, kept by the active-row mask; a forest's own weights are not read), which may differ from the rows the response's scale was read from at creation, and restates that forest's default sd from it from the next sweep, leaving the trees and the coefficients as they are; the new scale replaces the forest's entry of data@basis.scale, so a copy or a reload runs the new prior. Re-installing the column in force with TRUE rescales it after the weights or the mask change. Where fewer than two rows are in, or the column is constant over them, the column is installed and the scale in force kept, with a warning on the sampler's first keep. TRUE is refused on a forest that states its sd and on one multiplied by a factor, neither having a default taken from a column. The matrix is mirrored into data@bases as setWeights mirrors weights, so it survives the sampler's re-creation. updateState follows control@updateState; see setData. This draws nothing; the next sweep draws the augmentation variables against the change."
       updateState <- checkUpdateState(updateState)
-      if (
-        !is.logical(updateBasisScale) ||
-          length(updateBasisScale) != 1L ||
-          is.na(updateBasisScale)
-      ) {
-        stop("'updateBasisScale' must be TRUE or FALSE", call. = FALSE)
-      }
+      updateBasisScale <- checkFlag(updateBasisScale, "updateBasisScale")
       refuseCountsMutation(
         .self,
         "$setForestBasis",
@@ -4529,13 +4533,7 @@ dbartsSampler <- setRefClass(
       if (!inherits(newState, "bartcoreState")) {
         stop("'state' must inherit from bartcoreState")
       }
-      if (
-        !is.logical(forceUpdate) ||
-          length(forceUpdate) != 1L ||
-          is.na(forceUpdate)
-      ) {
-        stop("'forceUpdate' must be TRUE or FALSE", call. = FALSE)
-      }
+      forceUpdate <- checkFlag(forceUpdate, "forceUpdate")
       selfEnv <- parent.env(environment())
       ptr <- pointer
       if (.Call(C_dbarts_bartcore_isValidPointer, pointer) == FALSE) {
@@ -4648,13 +4646,7 @@ dbartsSampler <- setRefClass(
        sampler's starts as a new fit's. Gaussian-process leaves go only to
        Gaussian-process leaves on as many rows. Single-forest samplers only.
        See Warm starts in ?dbartsSampler."
-      if (
-        !is.logical(forceUpdate) ||
-          length(forceUpdate) != 1L ||
-          is.na(forceUpdate)
-      ) {
-        stop("'forceUpdate' must be TRUE or FALSE", call. = FALSE)
-      }
+      forceUpdate <- checkFlag(forceUpdate, "forceUpdate")
       report <- installDonorTrees(.self, donor, samples, forceUpdate)
       if (!forceUpdate) report$installed else invisible(NULL)
     },

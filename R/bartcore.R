@@ -1069,10 +1069,15 @@ bartcoreSamplerSetPredictor <- function(
   forceUpdate <- if (is.null(forceUpdate)) {
     is.null(column)
   } else {
-    coerceOrError(forceUpdate, "logical")
-  }
-  if (length(forceUpdate) != 1L || is.na(forceUpdate)) {
-    stop("'forceUpdate' must be TRUE, FALSE or \"partial\"")
+    # "partial" took its own path above; what remains is a flag
+    if (
+      !(is.logical(forceUpdate) || is.numeric(forceUpdate)) ||
+        length(forceUpdate) != 1L ||
+        is.na(forceUpdate)
+    ) {
+      stop("'forceUpdate' must be TRUE, FALSE or \"partial\"", call. = FALSE)
+    }
+    as.logical(forceUpdate)
   }
   updateCutPoints <- cutPointRuleCodes[[updateCutPoints]]
   # a hazard fit's subjects, counted over the rows in, which the update
@@ -1279,27 +1284,13 @@ bartcoreSamplerSetPredictor <- function(
 # otherwise skip the isTRUE pre-checks below and reach the engine as a
 # different answer than the R side acted on.
 checkUpdateScale <- function(updateScale) {
-  if (
-    !is.logical(updateScale) ||
-      length(updateScale) != 1L ||
-      is.na(updateScale)
-  ) {
-    stop("'updateScale' must be TRUE or FALSE", call. = FALSE)
-  }
-  updateScale
+  checkFlag(updateScale, "updateScale")
 }
 
 # updateStandardization on setPredictor, setWeights and setActiveRows, by the
 # same rule as updateScale; setData's, which may be NULL, is resolved apart.
 checkUpdateStandardization <- function(updateStandardization) {
-  if (
-    !is.logical(updateStandardization) ||
-      length(updateStandardization) != 1L ||
-      is.na(updateStandardization)
-  ) {
-    stop("'updateStandardization' must be TRUE or FALSE", call. = FALSE)
-  }
-  updateStandardization
+  checkFlag(updateStandardization, "updateStandardization")
 }
 
 bartcoreSamplerSetResponse <- function(
@@ -1555,10 +1546,14 @@ setDataChoices <- function(
     if (is.null(value)) {
       return(if (is.null(record)) "derive" else "record")
     }
-    if (!is.logical(value) || length(value) != 1L || is.na(value)) {
+    if (
+      !(is.logical(value) || is.numeric(value)) ||
+        length(value) != 1L ||
+        is.na(value)
+    ) {
       stop("'", name, "' must be NULL, TRUE or FALSE", call. = FALSE)
     }
-    if (value) "derive" else "keep"
+    if (as.logical(value)) "derive" else "keep"
   }
   grid <- if (!is.null(updateCutPoints)) {
     matchCutPointRule(

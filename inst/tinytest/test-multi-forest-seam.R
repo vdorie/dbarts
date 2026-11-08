@@ -98,7 +98,7 @@ expect_error(
 # either refusal above
 expect_error(
   bc.bcf$setResponse(y.bcf + 1, updateScale = NA),
-  "'updateScale' must be TRUE or FALSE"
+  "'updateScale' must be TRUE/FALSE"
 )
 # the case weights ride the same opt-in: Chain::setWeights is a pointer swap
 # plus a positive-weight recount, BCF re-derives every per-forest response and
@@ -176,7 +176,7 @@ expect_error(
 # and updateScale = NA is refused as for setResponse above
 expect_error(
   bc.bcf$setOffset(rep(0.1, n), updateScale = NA),
-  "'updateScale' must be TRUE or FALSE"
+  "'updateScale' must be TRUE/FALSE"
 )
 expect_silent(bc.bcf$setOffset(NULL))
 

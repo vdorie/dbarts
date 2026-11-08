@@ -345,7 +345,7 @@ expect_one_warning(
 # an NA reads as NULL, so it defers to the control
 expect_false(naResolved)
 expect_true(resolve(NA, onControl))
-for (bad in list("yes", 1L, c(TRUE, FALSE), NA_character_[0L], list())) {
+for (bad in list("yes", c(TRUE, FALSE), NA_character_[0L], list())) {
   expect_error(
     resolve(bad, onControl),
     "'updateState' must be TRUE, FALSE or NULL"
@@ -363,16 +363,19 @@ expect_identical(mutable$getSigmas(), sigmaBefore)
 expect_no_warning_of(mutable$setSigma(3, updateState = NULL))
 expect_equal(as.vector(mutable$getSigmas()), 3)
 expect_error(
-  mutable$run(0L, 1L, updateState = 1L),
+  mutable$run(0L, 1L, updateState = "1"),
   "'updateState' must be TRUE, FALSE or NULL"
 )
-# the refusal shows the value given (0.9-34's third positional argument of
-# $run was updateState and took 1L)
+# the refusal shows the value given
 expect_error(
-  mutable$run(0L, 1L, updateState = 1L),
-  "'updateState' must be TRUE, FALSE or NULL, not 1L",
+  mutable$run(0L, 1L, updateState = "1"),
+  "'updateState' must be TRUE, FALSE or NULL, not \"1\"",
   fixed = TRUE
 )
+# a number reads as as.logical reads it (0.9-34's third positional argument
+# of $run was updateState and took 1L)
+expect_silent(mutable$run(0L, 1L, updateState = 1L))
+expect_silent(mutable$run(0L, 1L, updateState = 0L))
 expect_error(
   mutable$setSigma(3, updateState = "yes"),
   "must be TRUE, FALSE or NULL, not \"yes\"",

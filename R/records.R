@@ -132,14 +132,10 @@ checkFlatCopies <- function(
     result$n.cuts <- n.cuts
   }
   if (!is.null(useQuantiles)) {
-    useQuantiles <- coerceOrError(useQuantiles, "logical")
     if (length(useQuantiles) != 1L) {
       stop("'useQuantiles' must be of length 1", call. = FALSE)
     }
-    if (is.na(useQuantiles)) {
-      stop("'useQuantiles' must be TRUE/FALSE", call. = FALSE)
-    }
-    result$useQuantiles <- useQuantiles
+    result$useQuantiles <- checkFlag(useQuantiles, "useQuantiles")
   }
   result
 }
