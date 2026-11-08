@@ -684,18 +684,21 @@ forest(
   `sd = 1` under `"probit"` and `sd = pi / sqrt(3)` under `"logistic"`.
   The draw is exact: under `student(df)` a normal coefficient given a
   variance drawn from its inverse-gamma conditional, under `normal()` a
-  normal coefficient alone. `fixed()` holds it for the sampler's life,
-  the choice being made at creation, wherever the forest stands: a held
-  coefficient is 1, and what it multiplies is the basis, so a forest
-  with no `basis` enters at 1, a forest on a numeric column at the
-  column as given, and a forest on a factor, a character or a logical
-  vector of two levels at 0 for the first level and 1 for the second.
-  The forest is then held out of the first level and enters at full size
-  for the second, so it is the second level's difference from the first.
-  Another coding is another basis, and another size is `sd`, which a
-  held coefficient makes exact: the forest's contribution then has prior
-  standard deviation `sd`. A held forest with no basis that states no
-  `sd` takes the leaf prior
+  normal coefficient alone. A forest on a factor, a character or a
+  logical vector has two coefficients, and under `student(df)` they
+  share one scale, one variance drawn for the pair, so that their
+  difference is itself a Student-t with the median size of the normal's.
+  `fixed()` holds it at 1 until `$setForest(f, amplitude = )` changes
+  it; a held coefficient is 1, and what it multiplies is the basis, so a
+  forest with no `basis` enters at 1, a forest on a numeric column at
+  the column as given, and a forest on a factor, a character or a
+  logical vector of two levels at 0 for the first level and 1 for the
+  second. The forest is then held out of the first level and enters at
+  full size for the second, so it is the second level's difference from
+  the first. Another coding is another basis, and another size is `sd`,
+  which a held coefficient makes exact: the forest's contribution then
+  has prior standard deviation `sd`. A held forest with no basis that
+  states no `sd` takes the leaf prior
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) gives the
   one forest of an ordinary fit, so `fixed()` restates what such a
   forest has with no prior stated. A numeric column held enters as
@@ -944,7 +947,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)
 #>   trees: 10, 10; 20 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.000496
+#> total seconds in loop: 0.000509
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 2 5 2 3 2 

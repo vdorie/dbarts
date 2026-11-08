@@ -656,8 +656,11 @@ The constructor is not exported: it resolves by bare name inside the
     <code>"logistic"</code>.
     The draw is exact: under <code>student(df)</code> a normal coefficient given a
     variance drawn from its inverse-gamma conditional, under <code>normal()</code>
-    a normal coefficient alone. <code>fixed()</code> holds it for the sampler's life,
-    the choice being made at creation, wherever the forest stands: a held
+    a normal coefficient alone. A forest on a factor, a character or a logical
+    vector has two coefficients, and under <code>student(df)</code> they share one
+    scale, one variance drawn for the pair, so that their difference is itself
+    a Student-t with the median size of the normal's. <code>fixed()</code> holds it
+    at 1 until <code>$setForest(f, amplitude = )</code> changes it; a held
     coefficient is 1, and what it multiplies is the basis, so a forest with no
     <code>basis</code> enters at 1, a forest on a numeric column at the column as
     given, and a forest on a factor, a character or a logical vector of two
@@ -907,7 +910,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   trees: 10, 10; 20 in all</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000496</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000509</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 2 2 5 2 3 2 </span>

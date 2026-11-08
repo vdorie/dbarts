@@ -357,9 +357,11 @@ nobs(object, ...)
   weight 3 gives one 0/1 draw. A test row with no weight on a count
   family (logistic, probit and the hazard families, nbinom, ordinal,
   multinomial) draws one trial; there `extract(sample = "test")` agrees
-  with `predict(newdata = test)` given no weights, the 0 rows aside, and
-  on a gaussian, Student-t or aft fit with `predict` given the test
-  weights.
+  with `predict(newdata = test)` given no weights, where the formula
+  fit's weights name a column of `test` that holds a 0 (both give `NA`
+  there; a binomial fit with response columns aside, see the `family`
+  item), and on a gaussian, Student-t or aft fit with `predict` given
+  the test weights.
 
   For `predict`, the weights of the rows drawn by `type = "ppd"`, one
   value or one per row. On a gaussian, Student-t or aft fit they are
@@ -385,7 +387,23 @@ nobs(object, ...)
   weights. The types that draw nothing read no weight, and a missing
   weight follows `na.action`. A `family = "hurdle.lognormal"` fit takes
   weights of 0 and 1 on both its parts, with the same rows and the same
-  result (see the `family` item).
+  result (see the `family` item). Where the fit took its weights from a
+  column of its data on the formula interface (`weights = w` or an
+  expression of columns, not a vector) and `predict` is given `newdata`
+  that hold those columns and no `weights`, the column is read from
+  `newdata` alone, never from the calling environment, and means what
+  the fit's weights do, as a test sample's do: a precision on a gaussian
+  or Student-t fit, so `predict(fit, d, type = "ppd")` on the training
+  frame `d` equals the same call with `weights = d$w`; one new
+  observation on the other families, a binomial fit still drawing at the
+  trials its response columns give; and a weight of 0, or a missing one
+  under `na.pass`, gives `NA` draws with no warning, every other draw
+  unchanged. A missing weight in the column is answered by `na.action`
+  as a missing `weights` is. `newdata` without the column, and a fit
+  whose weights were a vector, draw as with no `weights`: at weight 1, a
+  binomial fit at the trials its response columns give where `newdata`
+  carry them. The column is checked by the fit's rule, as a test
+  sample's weights are, and must be numeric.
 
 - offset:
 
@@ -613,24 +631,27 @@ nobs(object, ...)
   weight: refused by default, its draws `NA` under
   `na.action = na.pass`, dropped under `na.omit`; columns missing a
   count in every row read as absent, one trial a row. A row of the test
-  sample draws likewise: at the test weights' meaning where the training
-  `weights` name a column of `test`, one 0/1 draw a row, else at the
-  trials its columns give, a row missing a count refused before the run,
-  else one trial. The probabilities do not read the columns. A weight
-  \\w\\ counts copies of the row: the row stands for \\w n\\ trials in
-  the likelihood, its log-likelihood is \\w \log \mathrm{dbinom}(k; n,
-  p)\\, the binomial coefficient included as in `glm`'s `logLik`, and
-  its predictive draw is still one row's, \\\mathrm{Binomial}(n, p)\\. A
-  row of no trials is out of the likelihood, with a warning, as a
-  multinomial row of no trials is: its fitted probability is still
-  reported, its draws are 0, its log-likelihood is 0 in every draw and
-  its residual \\-p\\, its observed proportion read as 0. `glm`'s other
-  spelling, a proportion with the trials as `weights`, is refused with a
-  message showing the `cbind` form, since a logistic weight counts
-  copies of a row and its draw is one row; `binomial("probit")` with
-  successes and failures is refused, the probit binomial not being
-  fitted. [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md)
-  takes the binomial response as `bart` does.
+  sample draws at the trials its columns give; but where the training
+  `weights` name a column of `test` it is drawn at that column's
+  meaning, one 0/1 draw a row, whereas `predict` given the same rows
+  draws at the trials its columns give and reads that column only to
+  hold its 0 rows out. Otherwise a row missing a count is refused before
+  the run, else it draws one trial. The probabilities do not read the
+  columns. A weight \\w\\ counts copies of the row: the row stands for
+  \\w n\\ trials in the likelihood, its log-likelihood is \\w \log
+  \mathrm{dbinom}(k; n, p)\\, the binomial coefficient included as in
+  `glm`'s `logLik`, and its predictive draw is still one row's,
+  \\\mathrm{Binomial}(n, p)\\. A row of no trials is out of the
+  likelihood, with a warning, as a multinomial row of no trials is: its
+  fitted probability is still reported, its draws are 0, its
+  log-likelihood is 0 in every draw and its residual \\-p\\, its
+  observed proportion read as 0. `glm`'s other spelling, a proportion
+  with the trials as `weights`, is refused with a message showing the
+  `cbind` form, since a logistic weight counts copies of a row and its
+  draw is one row; `binomial("probit")` with successes and failures is
+  refused, the probit binomial not being fitted.
+  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) takes
+  the binomial response as `bart` does.
 
   `family = "multinomial"` fits a K-category softmax classifier: K
   forests, one per category, coupled through an interleaved Polya-Gamma
@@ -2469,7 +2490,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001391
+#> total seconds in loop: 0.001300
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 3 3 2 2 2 2 2 3 2 2 2 3 3 2 
@@ -2506,7 +2527,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000743
+#> total seconds in loop: 0.000682
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 2 1 2 1 1 2 2 1 1 1 2 2 2 2 
@@ -2541,7 +2562,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001071
+#> total seconds in loop: 0.000992
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 3 2 4 2 2 3 2 2 2 2 3 3 2 
@@ -2595,7 +2616,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.001566
+#> total seconds in loop: 0.001459
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 2 2 2 2 2 2 3 3 2 

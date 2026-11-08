@@ -446,9 +446,9 @@ xbart(
   weight, as a fit on those rows would. Where those rows hold fewer than
   two distinct values of a gaussian response, the fold reads its
   response's scale and the covariates over every training row; otherwise
-  a fold whose such rows hold one value of a covariate refuses the call,
-  unless its `gp` leaf states `lengthscale`. A written `NULL` is the
-  argument left out.
+  a fold whose such rows hold one value of a covariate, or values that
+  differ by rounding only, refuses the call, unless its `gp` leaf states
+  `lengthscale`. A written `NULL` is the argument left out.
 
   A named `sd` inside the prior (`normal(sd = )`, and likewise for
   `linear` and `gp`) stands in for a missing `sd` argument, as a

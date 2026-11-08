@@ -1260,6 +1260,8 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   coefficients, current and saved, into it, so that each leaf is the
   function of the covariate it was and `predict` returns what it did. A
   replaced covariate those rows hold at one value, or observe at none,
+  or at values that differ by rounding only (see `leaf.prior` in
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)),
   keeps its numbers, and the call warns, with class
   `dbartsScaleFallbackWarning`, on the sampler's first keep, of this or
   of the response's scale (`updateScale`); on a hazard fit where fewer
@@ -1269,13 +1271,14 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   otherwise derives it from the new data's rows in, `TRUE` derives it,
   both reading every row where fewer than two rows are in or the
   response's scale is read from every row, and refused where two or more
-  rows in hold one value of a covariate unless a `gp` leaf states its
-  `lengthscale`, which takes the placeholder (see `newData`), and
-  `FALSE` keeps the sampler's, the new rows read under it. A leaf that
-  takes no covariate has nothing to derive. A `gp` sampler that holds
-  saved draws refuses `TRUE` on `setPredictor`, and on `setData` any
-  call that would change the standardization (see `newData`). It cannot
-  be combined with `forceUpdate = "partial"`.
+  rows in hold one value of a covariate, or values that differ by
+  rounding only, unless a `gp` leaf states its `lengthscale`, which
+  takes the placeholder (see `newData`), and `FALSE` keeps the
+  sampler's, the new rows read under it. A leaf that takes no covariate
+  has nothing to derive. A `gp` sampler that holds saved draws refuses
+  `TRUE` on `setPredictor`, and on `setData` any call that would change
+  the standardization (see `newData`). It cannot be combined with
+  `forceUpdate = "partial"`.
 
   For `setWeights` and `setActiveRows`, the argument after
   `updateScale`: `FALSE`, the default, keeps the standardization
@@ -1285,21 +1288,22 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   the likelihood, as `setPredictor` with `TRUE` would on every leaf
   covariate's values in force, rewriting a `linear` leaf's coefficients
   in the same way. A covariate those rows hold at one value, or observe
-  at none, keeps its numbers, the others re-deriving, and the call warns
-  as `setPredictor` does, once per sampler. On a hazard fit, where fewer
-  than two subjects are in after the call, every covariate keeps its
-  numbers, the period among them, which varies within a subject, under
-  one warning that counts subjects. Where the call also passes
-  `updateScale = TRUE` and keeps the response's scale, those rows
-  holding fewer than two distinct values of the response, the prior in
-  force is kept whole: every covariate keeps its numbers too, whatever
-  its spread over those rows, and one warning names the response and the
-  covariates, as creation on those rows would read the response's scale
-  and the covariates from every row together. A `gp` sampler holding
-  saved draws refuses it before anything is installed. A sampler whose
-  leaves take no covariate, one of several forests among them, takes it
-  and has nothing to derive. A `probit`, `ordinal` or `nbinom` sampler's
-  `setWeights` passes it to `setActiveRows` with the 0/1 weights.
+  at none, or at values that differ by rounding only, keeps its numbers,
+  the others re-deriving, and the call warns as `setPredictor` does,
+  once per sampler. On a hazard fit, where fewer than two subjects are
+  in after the call, every covariate keeps its numbers, the period among
+  them, which varies within a subject, under one warning that counts
+  subjects. Where the call also passes `updateScale = TRUE` and keeps
+  the response's scale, those rows holding fewer than two distinct
+  values of the response, the prior in force is kept whole: every
+  covariate keeps its numbers too, whatever its spread over those rows,
+  and one warning names the response and the covariates, as creation on
+  those rows would read the response's scale and the covariates from
+  every row together. A `gp` sampler holding saved draws refuses it
+  before anything is installed. A sampler whose leaves take no
+  covariate, one of several forests among them, takes it and has nothing
+  to derive. A `probit`, `ordinal` or `nbinom` sampler's `setWeights`
+  passes it to `setActiveRows` with the 0/1 weights.
 
   A loop whose rows in the likelihood change, such as a mixture
   component or an imputation step, can let the response's scale and the
@@ -1324,9 +1328,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   Creation and a `setData` that derives read every row where fewer than
   two rows are in, or where the response's scale is read from every row,
   and refuse two or more rows in that hold one value of a leaf
-  covariate, a `gp` leaf that states its `lengthscale` taking the
-  placeholder (see `newData`); these setters keep instead, one row or
-  one subject in included.
+  covariate, or values that differ by rounding only, a `gp` leaf that
+  states its `lengthscale` taking the placeholder (see `newData`); these
+  setters keep instead, one row or one subject in included.
 
 - splits:
 
