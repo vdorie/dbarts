@@ -596,8 +596,10 @@ The constructor is not exported: it resolves by bare name inside the
     the one it was taken from (the column replaced, the weights or the active
     rows changed, or, under <code>"gaussian"</code>, every observation read because
     those in the likelihood held fewer than two values of the response) says
-    so. A fit made with <code>keepFits = FALSE</code> keeps no bases or labels and
-    gives no block.
+    so. A fit made with <code>keepFits = FALSE</code> keeps its labels, tree counts
+    and unit, and in place of each basis the few numbers the block reads (a
+    numeric column's mean, sd, range and whether it is constant over the rows
+    in the likelihood, a factor's levels), so it gives the same block.
     Two things to look for. The mean of a numeric column, in either block, and
     its range, in the full one: a mean far from 0 is a column that never comes
     near 0, an age or a year, and should be centered, unless 0 means none, as
@@ -905,7 +907,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   trees: 10, 10; 20 in all</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000629</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000496</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 2 2 5 2 3 2 </span>

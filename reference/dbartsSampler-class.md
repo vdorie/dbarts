@@ -320,15 +320,23 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   and, where one forest has no basis, or on a multinomial sampler's
   category forests, those forests whatever they state; the leaf prior
   goes where `setLeafPrior` sends it; and the residual prior is
-  installed as on one forest. A forest's own value that differs, its
-  coefficient's prior included, or a change in which values it states,
-  is refused, naming `setForest`, which changes one forest; so is a leaf
-  scale other than the sampler's, and split probabilities other than
-  equal ones. A variance forest stays as it is, whatever the model's
-  record of it says; `setVarianceForest` changes it. A new fixed
-  negative-binomial shape keeps the latents in force. This draws
-  nothing; the next sweep draws the augmentation variables against the
-  change.
+  installed as on one forest. A number a forest's record in the model
+  states, a mean forest's own `sd`, `power` or `base` or the variance
+  forest's `power` or `base`, is installed where it differs from the
+  sampler's, through the code `setForest` or `setVarianceForest` runs on
+  that forest, so the sampler runs as after that call; the later write
+  wins between this and those methods. A number the record does not
+  state is left as it is:
+  `dbartsSpec(data, power = 2.5, variance = varianceForest())$model`
+  moves the mean forest's depth and leaves the variance forest's, which
+  only copied the mean depth at creation, and a forest that states its
+  own on the sampler keeps it. A forest's coefficient's prior that
+  differs is refused, naming `setForest`; so is a leaf scale other than
+  the sampler's, split probabilities other than equal ones, and a
+  forest's `sd` whose sharers' parts of the prior total then differ from
+  the model's. A new fixed negative-binomial shape keeps the latents in
+  force. This draws nothing; the next sweep draws the augmentation
+  variables against the change.
 
 - newData:
 
@@ -2819,8 +2827,11 @@ Where `setForest` and `setTreePrior`, `setLeafPrior` or `setModel` reach
 one setting of one forest, as on a model of one forest, the later write
 wins, whatever the forest stated. A heteroscedastic sampler's variance
 forest takes the mean forest's depth at creation and is on its own after
-that: `setForest`, `setTreePrior` and `setModel` leave it, and
-`setVarianceForest` changes it.
+that: `setForest` and `setTreePrior` leave it, `setVarianceForest`
+changes it, and `setModel` installs a `power` or `base` the model's
+variance record states as `setVarianceForest` does. A model records what
+each forest states, a write here included, so `setModel` on another
+sampler installs it.
 
 For `setTreePrior`, `NULL` invisibly. It changes the fitting function's
 tree prior, as `power`, `base` and `split.probs` mean at creation,
