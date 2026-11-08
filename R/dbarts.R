@@ -1284,7 +1284,8 @@ dbarts <- function(
       )
     }
     multinomialCounts <- resolveMultinomialCounts(data)
-    multinomialAsFactor <- !is.matrix(data) && !is.data.frame(data)
+    multinomialAsFactor <- !is.data.frame(data) &&
+      (!is.matrix(data) || (is.character(data) && ncol(data) == 1L))
     matchedCall$data <- NULL
   }
   # the binomial on the matrix interface: a two-column response under a

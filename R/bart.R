@@ -1721,6 +1721,9 @@ bart <- function(
       }
       y <- data
     }
+    # a data frame of counts is its numeric matrix and a one-column character
+    # matrix its labels, as dbarts() reads them
+    y <- readMultinomialShape(y)
     # the count-matrix response form: an n x K matrix of nonnegative
     # integer trial counts, beside the factor path
     # below. Any numeric matrix is treated as an attempted count response, so

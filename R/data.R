@@ -2955,6 +2955,27 @@ multinomialResponseMessage <- paste0(
   "or an n x K count matrix"
 )
 
+# The shapes a multinomial response is written in, read alike by bart() and
+# dbarts(): a data frame is the numeric matrix of its columns (one that is
+# not numeric is refused), and a one-column character matrix is its vector of
+# labels, as a one-column matrix is read where a vector is wanted. Returns a
+# numeric matrix, or a vector for the caller's label path.
+readMultinomialShape <- function(y) {
+  if (is.data.frame(y)) {
+    y <- as.matrix(y)
+  }
+  if (is.matrix(y) && !is.numeric(y)) {
+    if (is.character(y) && ncol(y) == 1L) {
+      return(as.vector(y))
+    }
+    stop(
+      "a multinomial count-matrix response must be numeric, not ",
+      typeof(y)
+    )
+  }
+  y
+}
+
 # Coerce a raw multinomial response to the n x K count matrix the softmax
 # engine's response is. Two shapes arrive: an
 # n x K matrix (or data frame) of non-negative integer counts, whose trials are
@@ -2970,16 +2991,8 @@ multinomialResponseMessage <- paste0(
 # any of its cells is NA (validateMultinomialCounts). na.action reads that
 # row downstream, as it does for every other family's response.
 resolveMultinomialCounts <- function(y) {
-  if (is.data.frame(y)) {
-    y <- as.matrix(y)
-  }
+  y <- readMultinomialShape(y)
   if (is.matrix(y)) {
-    if (!is.numeric(y)) {
-      stop(
-        "a multinomial count-matrix response must be numeric, not ",
-        typeof(y)
-      )
-    }
     return(y)
   }
   if (is.character(y)) {
