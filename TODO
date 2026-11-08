@@ -792,6 +792,13 @@ items
   sbc-family-tiers: one open arm (docs/plans/sbc-family-tiers.md,
     docs/plans/archive/runsbcbcf-repair.md): the full-R ladder re-runs,
     whose commands the plan records.
+  sbc-band-multiplicity: every arm of benchmarks/R/sbc.R flags a
+    functional outside its own 5% ecdf band, uncorrected, so a correct
+    sampler flags at least one of an arm's seven functionals with
+    probability up to 0.30 (the frequency arm's referee, 2026-11-07).
+    Decide a family-wise rule for all arms (alpha / number of
+    functionals, or a simultaneous band over them), with each arm's
+    power against its known-wrong build rechecked.
   sbc-ordered-factor-arm: benchmarks/R/sbc.R carries no ordered-factor
     PREDICTOR arm - its ordered factors are ordinal RESPONSES - so the
     midpoint cut grid's posterior shift is adjudicated only at the four-
