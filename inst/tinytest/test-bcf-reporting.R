@@ -256,15 +256,16 @@ expect_identical(
 )
 
 # --- the multi-forest varcount packaging: the bart packaging path. A
-# dbartsData carrying bases reaches bart
-# today, and its varcount is the one channel that widens, so it is packaged
-# through the same K-margin reshape multinomial's per-category counts take:
-# draws-first, predictor names on the lead margin, engine-vocabulary forest
-# names on the trailing one. n.forests records the count the packaged rank
-# alone cannot recover ---
-bcfData <- dbartsData(x, y, bases = list(NULL, factor(z)))
+# forest() term reaches bart, and its varcount is the one channel that widens,
+# so it is packaged through the same K-margin reshape multinomial's
+# per-category counts take: draws-first, predictor names on the lead margin,
+# the forests' labels on the trailing one. n.forests records the count the
+# packaged rank alone cannot recover ---
+bcfFrame <- data.frame(x, y = y, z = z)
+bcfNames <- colnames(bcfFrame)[seq_len(p)]
 bcfFitArgs <- list(
-  formula = bcfData,
+  formula = y ~ X1 + X2 + X3 + X4 + forest(X1 + X2 + X3 + X4, basis = factor(z)),
+  data = bcfFrame,
   n.samples = numSamples,
   n.burn = 3L,
   n.trees = 20L,
@@ -284,11 +285,11 @@ expect_equal(dim(uncombinedFit$varcount), c(2L, numSamples, p, 2L))
 expect_equal(dim(oneChainFit$varcount), c(numSamples, p, 2L))
 expect_identical(
   dimnames(combinedFit$varcount),
-  list(NULL, colnames(bcfData@x), c("forest1", "forest2"))
+  list(NULL, bcfNames, c("forest1", "factor(z)"))
 )
 expect_identical(
   dimnames(uncombinedFit$varcount),
-  list(NULL, NULL, colnames(bcfData@x), c("forest1", "forest2"))
+  list(NULL, NULL, bcfNames, c("forest1", "factor(z)"))
 )
 expect_identical(combinedFit$n.forests, 2L)
 expect_identical(uncombinedFit$n.forests, 2L)

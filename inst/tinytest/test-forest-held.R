@@ -91,14 +91,10 @@ heldDoors <- list(
     )
     new("dbartsSampler", spec$control, spec$model, spec$data)
   },
-  data = function(shape) {
-    bases <- lapply(shape, function(entry) basisValue[[kindOf(entry)]])
-    held <- lapply(shape, function(entry) {
-      if (heldIn(entry)) forest(amplitude = fixed()) else forest()
-    })
+  object = function(shape) {
     dbarts(
-      dbartsData(x, y, bases = bases),
-      forests = held,
+      dbartsData(x, y),
+      forests = lapply(shape, valueForest),
       control = heldControl()
     )
   }
@@ -449,7 +445,7 @@ expect_null(beside[["amplitude"]])
 # the column, and the hold kept by a swap, a column of zeros among them ---
 for (sd in c(0.3, NA)) {
   for (shape in list(c("none", "dose*"), c("none", "factor", "dose*"))) {
-    for (door in c("list.formula", "list.matrix", "spec", "data")) {
+    for (door in c("list.formula", "list.matrix", "spec", "object")) {
       info <- paste(door, length(shape), if (is.na(sd)) "default" else sd)
       sampler <- if (is.na(sd)) {
         heldDoors[[door]](shape)

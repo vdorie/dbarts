@@ -11,6 +11,8 @@
 # latent family the response transform is the identity and the map's sqrt(m)
 # cancels, so $getLeafPrior()'s anchor (k pinned at 1) IS the map's leaf scale.
 
+source(system.file("common", "basisForests.R", package = "dbarts"), local = TRUE)
+
 set.seed(29)
 n <- 240L
 p <- 3L
@@ -88,10 +90,13 @@ rampedBases <- function(bases) {
 basisSampler <- function(y, bases, family = "auto", forests = NULL, ...) {
   resolved <- if (family == "auto") "gaussian" else family
   dbarts(
-    dbartsData(x, y, bases = rampedBases(bases)),
+    dbartsData(x, y),
     control = uncountedControlBcfFamily(),
     family = family,
-    forests = statedOnFirst(forests, unitOf(y, resolved)),
+    forests = basisForests(
+      rampedBases(bases),
+      statedOnFirst(forests, unitOf(y, resolved))
+    ),
     ...
   )
 }
@@ -292,7 +297,7 @@ expect_identical(rownames(countsAll), colnames(x))
 mapSampler <- function(y, bases, family, forests = NULL, ...) {
   allBasis <- everyForestHasBasis(bases)
   dbarts(
-    dbartsData(x, y, bases = rampedBases(bases)),
+    dbartsData(x, y),
     control = if (allBasis) {
       uncountedControlBcfFamily()
     } else {
@@ -300,11 +305,10 @@ mapSampler <- function(y, bases, family, forests = NULL, ...) {
     },
     n.trees = if (allBasis) NULL else 25L,
     family = family,
-    forests = if (allBasis) {
-      statedOnFirst(forests, unitOf(y, family))
-    } else {
-      forests
-    },
+    forests = basisForests(
+      rampedBases(bases),
+      if (allBasis) statedOnFirst(forests, unitOf(y, family)) else forests
+    ),
     ...
   )
 }
@@ -548,6 +552,7 @@ expect_error(
 rm(
   anchors,
   balanced,
+  basisForests,
   basisSampler,
   bases,
   binaryFits,

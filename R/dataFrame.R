@@ -71,6 +71,19 @@ frameNumRows <- function(data) {
   if (is.data.frame(data)) nrow(data) else NROW(data[[1L]])
 }
 
+## The number of rows a formula fit was handed: a data frame's or a list's,
+## and otherwise the length of the response, read where the formula reads it;
+## NA where that cannot be read. `data` is NULL where none was given.
+formulaRowsTotal <- function(formula, data) {
+  if (is.data.frame(data) || (is.list(data) && !is.environment(data))) {
+    return(frameNumRows(data))
+  }
+  tryCatch(
+    NROW(eval(formula[[2L]], data, environment(formula))),
+    error = function(e) NA_integer_
+  )
+}
+
 ## The kept rows' names as model.frame() gives them, which the rows alone
 ## determine unless a repeated row is one the na.action then drops.
 derivedRowNames <- function(frame, rows) {

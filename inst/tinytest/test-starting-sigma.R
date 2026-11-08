@@ -102,6 +102,7 @@ d.b$y <- sin(3 * d.b$x1) +
   rnorm(n.b, sd = 0.5)
 w.b <- runif(n.b, 0.5, 2)
 o.b <- rnorm(n.b, sd = 0.2)
+forest <- dbartsForests$forest
 f.levels <- y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z))
 f.numbers <- y ~ forest(x1 + x2) + forest(x1 + x2, basis = w)
 sigmaOf <- function(...) {
@@ -136,24 +137,22 @@ expect_identical(
   ),
   summary(lm(y ~ x1 + x2 + factor(z) + w, d.b))$sigma
 )
-# the data object's own bases, and a bart fit
+# a data object, and a bart fit
 expect_identical(
-  sigmaOf(dbartsData(
-    y ~ x1 + x2,
-    d.b,
-    bases = list(NULL, factor(d.b$z))
-  )),
+  sigmaOf(
+    dbartsData(y ~ x1 + x2, d.b),
+    forests = list(forest(), forest(basis = factor(z)))
+  ),
   lm.levels()
 )
 # the estimator's own default design reads the bases as the fit's does
 expect_identical(
   dbarts:::estimateSigmaFromLinearModel(
-    dbartsData(
-      y ~ x1 + x2,
-      d.b,
-      bases = list(NULL, factor(d.b$z)),
-      keep.data = FALSE
-    )
+    dbarts(
+      dbartsData(y ~ x1 + x2, d.b, keep.data = FALSE),
+      forests = list(forest(), forest(basis = factor(d.b$z))),
+      control = control.ss
+    )$data
   ),
   lm.levels()
 )
@@ -210,7 +209,7 @@ expect_equal(
 )
 
 # dbartsSpec installs a declaration's bases before the estimate: a forests
-# list over a data object with none, and one replacing the object's own
+# list over a data object, its basis a value or a column of the data
 if (requireNamespace("Matrix", quietly = TRUE)) {
   x.sparse <- Matrix::Matrix(
     cbind(x1 = d.b$x1 * (d.b$x1 > 0.3), x2 = d.b$x2),
@@ -218,7 +217,8 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
   )
   expect_equal(
     dbartsSpec(
-      dbartsData(x.sparse, d.b$y, bases = list(NULL, factor(d.b$z))),
+      dbartsData(x.sparse, d.b$y),
+      forests = list(forest(), forest(basis = factor(d.b$z))),
       control = control.ss
     )$data@sigma,
     summary(lm(d.b$y ~ as.matrix(x.sparse) + factor(d.b$z)))$sigma,
@@ -235,12 +235,8 @@ expect_identical(
 )
 expect_identical(
   dbartsSpec(
-    dbartsData(
-      y ~ x1 + x2,
-      d.b,
-      bases = list(NULL, factor(d.b$z))
-    ),
-    forests = list(forest(), forest(basis = d.b$w)),
+    dbartsData(y ~ x1 + x2, d.b),
+    forests = list(forest(), forest(basis = w)),
     control = control.ss
   )$data@sigma,
   lm.numbers()

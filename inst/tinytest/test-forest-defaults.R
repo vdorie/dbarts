@@ -125,14 +125,14 @@ listOf <- function(forests, formula = FALSE) {
 specOf <- function(forests) {
   paste0("dbartsSpec(dbartsData(x, y), forests = list(", forests, "))")
 }
-dataOf <- function(bases, door = "dbarts") {
-  paste0(door, "(dbartsData(x, y, bases = list(", bases, ")))")
+objectOf <- function(forests, door = "dbarts") {
+  paste0(door, "(dbartsData(x, y), forests = list(", forests, "))")
 }
-doorsOf <- function(forests, bases) {
-  c(listOf(forests, TRUE), listOf(forests), specOf(forests), dataOf(bases))
+doorsOf <- function(forests) {
+  c(listOf(forests, TRUE), listOf(forests), specOf(forests), objectOf(forests))
 }
-plainSecond <- doorsOf("forest(basis = dose), forest()", "dose, NULL")
-plainFirst <- doorsOf("forest(), forest(basis = dose)", "NULL, dose")
+plainSecond <- doorsOf("forest(basis = dose), forest()")
+plainFirst <- doorsOf("forest(), forest(basis = dose)")
 # each is the reversed list's model, forest for forest
 for (index in seq_along(plainSecond)) {
   second <- build(plainSecond[index], stated = TRUE)
@@ -179,9 +179,11 @@ expect_error(
 )
 expect_null(second$data@bases[[2L]])
 expect_true(all(is.finite(second$run(0L, 3L)$train)))
-# and a fit of it predicts: at the training rows, the training fit
-plainSecondFit <- bart(
-  dbartsData(x, y, bases = list(dose, NULL)),
+# and a fit of a basis forest beside a plain one predicts: at the training
+# rows, the training fit
+basisFit <- bart(
+  y ~ forest(x1 + x2 + x3) + forest(x1 + x2 + x3, basis = dose),
+  frame,
   n.chains = 1L,
   n.samples = 5L,
   n.burn = 3L,
@@ -190,8 +192,8 @@ plainSecondFit <- bart(
   seed = 71L
 )
 expect_equal(
-  predict(plainSecondFit, x, bases = list(dose, NULL)),
-  plainSecondFit$yhat.train,
+  predict(basisFit, frame),
+  basisFit$yhat.train,
   check.attributes = FALSE
 )
 # two or more forests with no basis are taken at every door, wherever they
@@ -201,8 +203,11 @@ for (entry in list(
   list(listOf("forest(), forest(basis = z), forest()"), c(38L, 50L, 37L)),
   list(listOf("forest(basis = z), forest(), forest()", TRUE), c(50L, 38L, 37L)),
   list(specOf("forest(), forest(), forest()"), c(25L, 25L, 25L)),
-  list(dataOf("NULL, NULL"), c(38L, 37L)),
-  list(dataOf("dose, NULL, NULL", "dbartsSpec"), c(50L, 38L, 37L))
+  list(objectOf("forest(), forest()"), c(38L, 37L)),
+  list(
+    objectOf("forest(basis = dose), forest(), forest()", "dbartsSpec"),
+    c(50L, 38L, 37L)
+  )
 )) {
   expect_identical(
     as.integer(forestTable(suppressWarnings(build(entry[[1L]])))[, 1L]),
@@ -226,9 +231,8 @@ twoTerms <- "(y ~ forest(x1, basis = dose) + forest(x2, basis = age), frame)"
 allBasis <- c(
   paste0("dbarts", twoTerms),
   paste0("bart", twoTerms),
-  doorsOf("forest(basis = dose), forest(basis = age)", "dose, age"),
-  dataOf("dose, age", "dbartsSpec"),
-  dataOf("dose, age", "bart")
+  doorsOf("forest(basis = dose), forest(basis = age)"),
+  objectOf("forest(basis = dose), forest(basis = age)", "dbartsSpec")
 )
 shapes <- list(
   "dbarts(y ~ x1 + x2 + x3, frame)" = 1L,
@@ -238,11 +242,9 @@ shapes <- list(
   "dbartsSpec(dbartsData(x, y))" = 1L,
   "dbarts(y ~ x1 + x2 + forest(x3, basis = dose), frame)" = 1L,
   "bart(y ~ x1 + forest(x3, basis = dose) + forest(x1, basis = age), frame)" = 1L,
-  "bart(dbartsData(x, y, bases = list(NULL, dose)))" = 1L,
   # written second or last in a formula it is the first forest still
   "dbarts(y ~ forest(x3, basis = dose) + forest(x1 + x2), frame)" = 1L,
-  "bart(y ~ forest(x3, basis = dose) + x1 + x2, frame)" = 1L,
-  "bart(dbartsData(x, y, bases = list(dose, NULL)))" = 2L
+  "bart(y ~ forest(x3, basis = dose) + x1 + x2, frame)" = 1L
 )
 shapes[plainFirst] <- 1L
 shapes[plainSecond] <- 2L
@@ -393,165 +395,6 @@ for (text in allBasis[c(1L, 7L)]) {
 for (text in c(onBart, "bart(y ~ x1 + x2 + x3, frame, n.trees = 9L)")) {
   expect_null(attr(build(text)$control, "dbarts.stated", exact = TRUE))
 }
-# bartBT() builds its control and both priors too, so it records what its own
-# caller stated, under its own names. The data object is its only door to
-# several forests, and what it warns of there is not this file's
-onBartBT <- function(given, ...) {
-  withCallingHandlers(
-    bartBT(
-      dbartsData(x, y, bases = given),
-      NULL,
-      verbose = FALSE,
-      sampleronly = TRUE,
-      ...
-    ),
-    warning = function(condition) {
-      if (startsWith(conditionMessage(condition), "if data supplied as")) {
-        invokeRestart("muffleWarning")
-      }
-    }
-  )
-}
-refusalBT <- function(...) {
-  tryCatch(
-    {
-      onBartBT(list(dose, age), ...)
-      "created"
-    },
-    error = conditionMessage
-  )
-}
-unstatedBT <- onBartBT(list(dose, age))
-expect_identical(forestTable(unstatedBT), tableOf(multiplied, multiplied))
-expect_null(attr(unstatedBT$control, "dbarts.stated", exact = TRUE))
-expect_identical(refusalBT(keepcall = FALSE), "created")
-# bartBT() has no forests to state a count on, so its refusal ends with what
-# its caller can do
-countTextBT <- paste0(
-  "'ntree' given to the fitting function is the tree count of",
-  noPlain,
-  "leave it out, or fit with dbarts()"
-)
-expect_identical(refusalBT(ntree = 200L), countTextBT)
-expect_identical(refusalBT(ntree = 20L), countTextBT)
-expect_identical(refusalBT(ntr = 20L), countTextBT)
-expect_identical(refusalBT(ntree = 20L, keepcall = FALSE), countTextBT)
-expect_error(
-  do.call(onBartBT, list(list(dose, age), ntree = 200L)),
-  countTextBT,
-  fixed = TRUE
-)
-for (case in list(
-  list(power = 3, "'power' given to the fitting function is the tree prior of"),
-  list(k = 2, "'k' given to the fitting function is the leaf prior of")
-)) {
-  expect_identical(
-    do.call(refusalBT, case[1L]),
-    paste0(case[[2L]], noPlain, "leave it out, or fit with dbarts()")
-  )
-}
-statedBT <- list(
-  list("power", "tree", power = 2),
-  list("base", "tree", base = 0.95),
-  list("power", "tree", base = 0.95, power = 2),
-  list("k", "leaf", k = 2)
-)
-for (case in statedBT) {
-  expect_match(
-    do.call(refusalBT, case[-(1:2)]),
-    paste0(
-      "'",
-      case[[1L]],
-      "' given to the fitting function is the ",
-      case[[2L]],
-      " prior of the forest with no basis"
-    ),
-    fixed = TRUE
-  )
-}
-# split probabilities are judged by their value: uniform ones state the
-# default, and ones that are not are refused for a model of several forests
-severalSplitProbs <- paste0(
-  "a model of several forests does not support 'split.probs' (a vector that ",
-  "is not uniform, or dart()); drop it or fit a single-forest model"
-)
-expect_identical(refusalBT(splitprobs = c(1, 1, 1)), "created")
-expect_identical(refusalBT(splitprobs = c(1, 2, 1)), severalSplitProbs)
-# beside a plain forest, at either place, they are that forest's
-fitBT <- c(200, 0.95, 2)
-statedOnBT <- list(ntree = 20L, power = 3, base = 0.8)
-plainBT <- c(20, 0.8, 3)
-expect_identical(
-  forestTable(onBartBT(list(dose, NULL))),
-  tableOf(multiplied, fitBT)
-)
-expect_identical(
-  forestTable(onBartBT(list(NULL, dose))),
-  tableOf(fitBT, multiplied)
-)
-expect_identical(
-  forestTable(do.call(onBartBT, c(list(list(dose, NULL)), statedOnBT))),
-  tableOf(multiplied, plainBT)
-)
-expect_identical(
-  forestTable(do.call(onBartBT, c(list(list(NULL, dose)), statedOnBT))),
-  tableOf(plainBT, multiplied)
-)
-
-# bart() given a data object has no forest to state them on either: the
-# refusal ends with what the caller can do, where a formula's and dbarts()'s
-# still say to state them on a forest
-onData <- allBasis[startsWith(allBasis, "bart(dbartsData")]
-expect_length(onData, 1L)
-leaveOut <- "leave it out, or fit with dbarts()"
-expect_identical(
-  refusal(onData, n.trees = 100L),
-  paste0(
-    "'n.trees' given to the fitting function is the tree count of",
-    noPlain,
-    leaveOut
-  )
-)
-expect_identical(
-  refusal(onData, control = "dbartsControl(n.trees = 75L)"),
-  paste0(
-    "the control's 'n.trees' is the tree count of",
-    noPlain,
-    "leave it out of dbartsControl(), or fit with dbarts()"
-  )
-)
-expect_identical(
-  refusal(onData, power = 3),
-  paste0(
-    "'power' given to the fitting function is the tree prior of",
-    noPlain,
-    leaveOut
-  )
-)
-expect_identical(
-  refusal(onData, leaf.prior = "normal(k = 3)"),
-  paste0(
-    "'leaf.prior' given to the fitting function is the leaf prior of",
-    noPlain,
-    leaveOut
-  )
-)
-expect_identical(
-  refusal(onData, interactions = "interactions(max.order = 1L)"),
-  paste0(
-    "'interactions' given to the fitting function is a constraint on",
-    noPlain,
-    leaveOut
-  )
-)
-expect_identical(
-  refusal(onData, blocks = "blocks(list(\"x1\", c(\"x2\", \"x3\")))"),
-  paste0(
-    "'blocks' given to the fitting function is a constraint on",
-    noPlain,
-    leaveOut
-  )
-)
 expect_identical(refusal(allBasis[2L], n.trees = 100L), countText)
 expect_identical(
   refusal(allBasis[4L], control = "dbartsControl(n.trees = 75L)"),
@@ -629,7 +472,13 @@ for (entry in list(
     given(entry[[1L]], entry[[3L]], entry[[4L]])
   )
 }
-# split probabilities are judged by their value, not as stated
+# split probabilities are judged by their value, not as stated: uniform ones
+# state the default, and ones that are not are refused for a model of several
+# forests
+severalSplitProbs <- paste0(
+  "a model of several forests does not support 'split.probs' (a vector that ",
+  "is not uniform, or dart()); drop it or fit a single-forest model"
+)
 expect_identical(
   refusal(allBasis[2L], split.probs = "c(x1 = 1, x2 = 1)"),
   "created"
@@ -857,10 +706,10 @@ treeLine <- function(fit) {
   printed <- utils::capture.output(print(fit))
   printed[startsWith(printed, "  trees:")]
 }
-expect_identical(treeLine(plainSecondFit), "  trees: 50, 75; 125 in all")
+expect_identical(treeLine(basisFit), "  trees: 75, 50; 125 in all")
 savedFit <- tempfile(fileext = ".rds")
-saveRDS(plainSecondFit, savedFit)
-expect_identical(treeLine(readRDS(savedFit)), "  trees: 50, 75; 125 in all")
+saveRDS(basisFit, savedFit)
+expect_identical(treeLine(readRDS(savedFit)), "  trees: 75, 50; 125 in all")
 unlink(savedFit)
 oneForestFit <- bart(
   y ~ x1 + x2 + x3,
@@ -880,7 +729,6 @@ expect_true("n.trees: 9" %in% utils::capture.output(print(oneForestFit)))
 # the width of the forest's basis and the forest's position.
 three <- unname(stats::model.matrix(~ factor(rep_len(1:3, n)) - 1))
 bases <- list(plain = NULL, one = dose, two = factor(z), three = three)
-atDataDoor <- bases
 heldForests <- function(kinds, held, values = bases) {
   lapply(seq_along(kinds), function(index) {
     amplitude <- if (index == held) dbarts::dbartsPriors$fixed()
@@ -918,10 +766,10 @@ heldDoors <- list(
       forests = forests
     ))
   },
-  data = function(kinds, held) {
+  object = function(kinds, held) {
     dbarts(
-      dbartsData(x, y, bases = unname(atDataDoor[kinds])),
-      forests = heldForests(kinds, held, list()),
+      dbartsData(x, y),
+      forests = heldForests(kinds, held),
       control = defaultsControl()
     )
   }
@@ -968,13 +816,22 @@ for (door in names(heldDoors)) {
   }
 }
 # a factor's two indicator columns handed over as numbers are two numeric
-# columns, refused at the data door held as drawn; the factor itself is taken
-# there (the table above)
+# columns, refused at the object door held as drawn; the factor itself is
+# taken there (the table above)
 for (held in c(2L, 0L)) {
   expect_error(
     dbarts(
-      dbartsData(x, y, bases = list(NULL, zBasis)),
-      forests = heldForests(c("plain", "two"), held, list()),
+      dbartsData(x, y),
+      forests = list(
+        dbarts::dbartsForests$forest(),
+        do.call(
+          dbarts::dbartsForests$forest,
+          list(
+            basis = zBasis,
+            amplitude = if (held == 2L) dbarts::dbartsPriors$fixed()
+          )
+        )
+      ),
       control = defaultsControl()
     ),
     "forest 2 has a basis of 2 numeric columns; in this version a basis is one numeric column, or a factor, a character or a logical vector of two levels. If the columns are a factor's indicators, give the factor itself",

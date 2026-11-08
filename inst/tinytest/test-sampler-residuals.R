@@ -1,4 +1,5 @@
 source(system.file("common", "hillData.R", package = "dbarts"), local = TRUE)
+source(system.file("common", "basisForests.R", package = "dbarts"), local = TRUE)
 
 # sums of squared residuals descale to the original response scale, against
 # the current (last recorded) fits
@@ -50,7 +51,8 @@ for (bases in list(
   list(NULL, zFactor, testData$x / 100)
 )) {
   kForest <- dbarts(
-    dbartsData(kForestX, testData$y, bases = bases),
+    dbartsData(kForestX, testData$y),
+    forests = basisForests(bases),
     control = kForestControl,
     n.trees = 25L
   )

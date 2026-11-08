@@ -5,11 +5,8 @@
 # restricted to the same rows the model frame keeps; a basis already at the
 # subset's row count - matching only by coincidence, not because it names the
 # pre-subset data - is refused by name. A basis written as code says so in
-# its own text, at either door; one handed over as a value, to forest() or to
-# dbartsData(bases = ), is refused by the data object (R/model.R
-# resolveFormulaBasisSubset/alignForestBasisToSubset, and R/data.R
-# validateForestBases's 'subsetRows' branch), naming the forest and both
-# counts. At an EQUAL row count (subset selects/reorders exactly as many rows
+# its own text, at either door; one handed over as a value is refused naming
+# the forest and both counts, at the data and at a data object. At an EQUAL row count (subset selects/reorders exactly as many rows
 # as the full data has), the two are not ambiguous: a full-data match takes
 # priority over a subset-count match, so the basis is read as full-data and
 # reordered by 'subset'.
@@ -253,37 +250,32 @@ expect_error(
     control = seededControlForestBasisSubset(),
     n.trees = 5L
   ),
-  "'basis' must have the same length"
-)
-
-## --- dbartsData(bases = ) called directly now applies the SAME rule as
-## dbarts(forests = ): a basis at the FULL data's row count is accepted and
-## aligned to 'subset' ---------------------------------------------------
-directFull <- dbartsData(y ~ a, d, subset = idx, bases = list(NULL, zFactor))
-expect_identical(directFull@bases[[2L]], zBasis[idx, ])
-
-## a basis at the SUBSET's row count instead is refused by name, naming the
-## forest and both counts - the same message dbarts(forests = ) gives, since
-## dbartsData() is now the single place that raises it. Mutation-target cell
-## for this entry: reverting validateForestBases's 'subsetRows' branch back
-## to a bare count check makes exactly this expect_error stop seeing a
-## condition. ---------------------------------------------------------------
-expect_error(
-  dbartsData(y ~ a, d, subset = idx, bases = list(NULL, zFactor[idx])),
   ambiguousPattern
 )
 
+## --- a data object applies the SAME rule as dbarts(forests = ): a basis at
+## the FULL data's row count is accepted and aligned to 'subset' -------------
+subsetObject <- function(value, rows = idx) {
+  dbarts(
+    dbartsData(y ~ a, d, subset = rows),
+    forests = valueForests(value),
+    control = seededControlForestBasisSubset(),
+    n.trees = 5L
+  )
+}
+directFull <- subsetObject(zFactor)
+expect_identical(unname(directFull$data@bases[[2L]]), zBasis[idx, ])
+
+## a basis at the SUBSET's row count instead is refused by name, naming the
+## forest and both counts - the same message dbarts(forests = ) gives
+expect_error(subsetObject(zFactor[idx]), ambiguousPattern)
+
 ## --- equal row count (subset selects/reorders exactly as many rows as the
-## full data has): dbartsData(bases = ) and dbarts(forests = ) resolve it
+## full data has): a data object and dbarts(forests = ) resolve it
 ## IDENTICALLY rather than ambiguously - a full-data-length match takes
 ## priority over a subset-count match, so both reorder the basis by 'subset'
 recycled <- rep(seq_len(20L), 2L)
-equalCountDirect <- dbartsData(
-  y ~ a,
-  d,
-  subset = recycled,
-  bases = list(NULL, zFactor)
-)
+equalCountDirect <- subsetObject(zFactor, recycled)$data
 equalCountForests <- dbarts(
   y ~ a,
   d,
@@ -292,7 +284,7 @@ equalCountForests <- dbarts(
   control = seededControlForestBasisSubset(),
   n.trees = 5L
 )
-expect_identical(equalCountDirect@bases[[2L]], zBasis[recycled, ])
+expect_identical(unname(equalCountDirect@bases[[2L]]), zBasis[recycled, ])
 expect_identical(
   equalCountForests$data@bases[[2L]],
   named(zBasis[recycled, ], c("zFactor0", "zFactor1"))

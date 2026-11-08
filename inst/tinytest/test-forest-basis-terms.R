@@ -1399,11 +1399,11 @@ subsetDoors <- list(
   },
   dataObject = function(data, subset, rows = quote(seq_len(n))) {
     bquote(dbarts(
-      dbartsData(
-        y ~ x1 + id,
-        .(data),
-        subset = .(subset),
-        bases = list(NULL, doseRows[.(rows)], factor(gRows)[.(rows)])
+      dbartsData(y ~ x1 + id, .(data), subset = .(subset)),
+      forests = list(
+        forest(),
+        do.call(forest, list(basis = doseRows[.(rows)])),
+        do.call(forest, list(basis = factor(gRows)[.(rows)]))
       ),
       control = basisControl(),
       n.trees = 5L
@@ -1483,12 +1483,8 @@ for (door in names(subsetDoors)) {
 readings <- 0L
 set.seed(7L)
 builtOnce <- dbarts(
-  dbartsData(
-    y ~ x1 + id,
-    rowed,
-    subset = drawRows(),
-    bases = list(NULL, doseRows)
-  ),
+  dbartsData(y ~ x1 + id, rowed, subset = drawRows()),
+  forests = list(forest(), do.call(forest, list(basis = doseRows))),
   control = basisControl(),
   n.trees = 5L
 )

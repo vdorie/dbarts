@@ -136,10 +136,10 @@ valueDoors <- list(
       n.trees = 5L
     )
   },
-  data = function(value, held, ...) {
+  object = function(value, held, ...) {
     dbarts(
-      dbartsData(x, y, bases = list(NULL, value), ...),
-      forests = if (held) list(forest(), forest(amplitude = fixed())),
+      dbartsData(x, y, ...),
+      forests = valueForests(value, held),
       control = sizeControl(),
       n.trees = 5L
     )
@@ -425,7 +425,7 @@ for (door in setdiff(names(codeDoors), "spec")) {
     info = door
   )
 }
-for (door in c("list.formula", "list.matrix", "data")) {
+for (door in c("list.formula", "list.matrix", "object")) {
   made <- valueDoors[[door]](arm, FALSE, subset = leavesTwo)
   expect_identical(made$data@basis.levels[[2L]], c("a", "b"), info = door)
   expect_identical(
@@ -437,13 +437,15 @@ for (door in c("list.formula", "list.matrix", "data")) {
 # the rows are judged before the size: two numeric columns of which 'subset'
 # empties one are refused for the empty column, as the zero column it is
 expect_identical(
-  refusal(dbartsData(
+  refusal(dbarts(
     x,
     y,
     subset = z == 1,
-    bases = list(NULL, cbind(1 - z, z))
+    forests = list(forest(), do.call(forest, list(basis = cbind(1 - z, z)))),
+    control = sizeControl(),
+    n.trees = 5L
   )),
-  "a 'bases' column of all zeros contributes nothing to a forest"
+  "a 'basis' column of all zeros contributes nothing to a forest"
 )
 
 ## --- the forms the messages show -------------------------------------------
@@ -524,19 +526,43 @@ expect_identical(
 expect_identical(dim(predict(fit, d, bases = list(NULL, age))), c(3L, n))
 
 ## --- edited by hand, each at a named door ------------------------------------
-numericData <- dbartsData(x, y, bases = list(NULL, dose))
-proto <- dbartsSpec(numericData, sizeControl(), n.trees = 5L)
+# a sampler's data hold the bases, which a forest keeps by naming them
+heldData <- function(basis) {
+  dbarts(x, y, forests = basis, control = sizeControl(), n.trees = 5L)$data
+}
+numericData <- heldData(list(forest(), forest(basis = dose)))
+proto <- dbartsSpec(
+  numericData,
+  sizeControl(),
+  forests = list(forest(), forest(basis = dose)),
+  n.trees = 5L
+)
+# each door given the data and the name of the basis they hold
 madeFrom <- list(
-  new = function(data) {
+  new = function(data, held) {
     new("dbartsSampler", proto$control, proto$model, data)
   },
-  dbarts = function(data) dbarts(data, control = sizeControl(), n.trees = 5L),
-  dbartsSpec = function(data) dbartsSpec(data, sizeControl(), n.trees = 5L),
-  validObject = function(data) validObject(data)
+  dbarts = function(data, held) {
+    dbarts(
+      data,
+      forests = list(forest(), forest(basis = held)),
+      control = sizeControl(),
+      n.trees = 5L
+    )
+  },
+  dbartsSpec = function(data, held) {
+    dbartsSpec(
+      data,
+      sizeControl(),
+      forests = list(forest(), forest(basis = held)),
+      n.trees = 5L
+    )
+  },
+  validObject = function(data, held) validObject(data)
 )
 twoColumns <- numericData
 twoColumns@bases[[2L]] <- unname(B)
-threeLevels <- dbartsData(x, y, bases = list(NULL, two))
+threeLevels <- heldData(list(forest(), forest(basis = two)))
 threeLevels@bases[[2L]] <- unname(gIndicators)
 threeLevels@basis.levels[[2L]] <- c("a", "b", "c")
 for (door in names(madeFrom)) {
@@ -544,7 +570,7 @@ for (door in names(madeFrom)) {
     sub(
       "^invalid class .dbartsData. object: ",
       "",
-      refusal(madeFrom[[door]](twoColumns))
+      refusal(madeFrom[[door]](twoColumns, "dose"))
     ),
     valueColumns(),
     info = door
@@ -553,7 +579,7 @@ for (door in names(madeFrom)) {
     sub(
       "^invalid class .dbartsData. object: ",
       "",
-      refusal(madeFrom[[door]](threeLevels))
+      refusal(madeFrom[[door]](threeLevels, "two"))
     ),
     valueLevels,
     info = door

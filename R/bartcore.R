@@ -32,8 +32,8 @@ samplerCarriesAmplitudes <- function(sampler) {
 # route, so their own message cannot name the amplitudes by itself). Raised
 # R-side, before the .Call, so an amplitude-carrying sampler never reaches the
 # bridge's generic "multi-forest" phrasing. The message names the CAPABILITY
-# rather than the argument that declared it: dbartsData(bases = ) reaches the
-# same samplers without a forests = declaration.
+# rather than the argument that declared it: a forest() formula term reaches
+# the same samplers without a forests = declaration.
 refuseAmplitudeMutation <- function(sampler, what, ...) {
   if (samplerCarriesAmplitudes(sampler)) {
     stop(
@@ -1815,10 +1815,10 @@ bartcoreSamplerSetData <- function(
   # a sampler of one forest has no forest for a basis to multiply
   if (!is.null(newData@bases)) {
     stop(
-      "$setData: the data carry forest bases, and this sampler was created ",
-      "with one forest and none; a sampler's forests are fixed at creation. ",
-      "Make a new sampler from the data with dbarts(), or hand over data ",
-      "without 'bases'",
+      "$setData: the data are those of a sampler of several forests and ",
+      "carry their bases, and this sampler was created with one forest and ",
+      "none; a sampler's forests are fixed at creation. Hand over the data ",
+      "object they were made from, or make a new sampler with dbarts()",
       call. = FALSE
     )
   }

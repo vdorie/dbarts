@@ -573,8 +573,8 @@ doorDraws <- list(
     control = ctl(seed = 13L)
   ),
   data = dbarts(
-    dbartsData(x, y, bases = list(NULL, zf)),
-    forests = list(forest(sd = 0.7, amplitude = normal()), forest()),
+    dbartsData(x, y),
+    forests = list(forest(sd = 0.7, amplitude = normal()), forest(basis = zf)),
     n.trees = 10L,
     n.cuts = 20L,
     control = ctl(seed = 13L)

@@ -136,7 +136,8 @@ listed <- dbarts(
 )
 expect_equal(unname(reader(listed)$sd), scaleOf[["gaussian"]] / 3)
 fromData <- dbarts(
-  dbartsData(frame, y, bases = list(NULL, z)),
+  dbartsData(frame, y),
+  forests = list(forest(), forest(basis = z)),
   leaf.prior = normal(k = 3),
   control = ctl()
 )

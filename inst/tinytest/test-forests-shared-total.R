@@ -87,17 +87,17 @@ doors <- list(
       )
     )
   },
-  data = function(family, ...) {
+  object = function(family, ...) {
     do.call(
       dbarts,
       c(
-        list(dbartsData(
-          x,
-          d[[response(family)]],
-          bases = list(NULL, NULL, NULL)
-        )),
+        list(dbartsData(x, d[[response(family)]])),
         familyArgs(family),
-        list(control = ctl(), ...)
+        list(
+          forests = list(forest(), forest(), forest()),
+          control = ctl(),
+          ...
+        )
       )
     )
   }

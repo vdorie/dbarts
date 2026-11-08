@@ -167,41 +167,6 @@ nameOmittedRows <- function(omit, rowNames) {
   omit
 }
 
-## The rows a formula fit kept, in the caller's own row numbering, once the
-## model frame's na.action has taken its share: 'subset' chose them and the
-## na.action then dropped some by position within that choice. Anything the
-## caller supplied at the full, pre-'subset' shape - a forest's amplitude
-## basis - is restricted through this.
-alignSubsetRowsToFrame <- function(subsetRows, naOmitted, keptRows) {
-  if (is.null(naOmitted)) {
-    return(subsetRows)
-  }
-  if (is.null(subsetRows)) {
-    # no 'subset' at all, so the frame's rows ARE the data's - less whatever
-    # the na.action dropped, which is still a restriction a full-data basis
-    # has to follow
-    full <- keptRows + length(naOmitted)
-    return(list(
-      full = full,
-      index = seq_len(full)[-unclass(naOmitted)],
-      kept = "the rows the na.action kept"
-    ))
-  }
-  subsetRows$index <- subsetRows$index[-unclass(naOmitted)]
-  subsetRows$kept <- "the rows 'subset' and the na.action kept"
-  subsetRows
-}
-
-## The same restriction on the matrix interface, where the bases were
-## already validated and subset against the caller's own row count before
-## the na.action ran: forest f's basis loses exactly the rows y did.
-restrictBasesToRows <- function(bases, keep) {
-  if (is.null(bases) || all(keep)) {
-    return(bases)
-  }
-  lapply(bases, cutBasisRows, rows = keep)
-}
-
 ## The rows `rows` of a basis as it was handed over, a vector or a matrix.
 cutBasisRows <- function(basis, rows) {
   if (is.null(basis)) {
@@ -242,6 +207,15 @@ refuseOutOfRangeSubset <- function(index, n, rowNames = NULL) {
     )
   }
   invisible(NULL)
+}
+
+## The positions among n rows that a 'subset' given as positions, a logical
+## or row names selects, so that a later cut by the na.action reads them.
+subsetPositions <- function(index, n, rowNames = NULL) {
+  if (is.character(index)) {
+    return(match(index, rowNames))
+  }
+  seq_len(n)[index]
 }
 
 ## Pads a training-side quantity back to the caller's own row count. A
@@ -2862,33 +2836,20 @@ validateXYWeights <- function(weights, initialNumObservations, subset) {
 
 # Validate and subset a user-supplied list of per-forest amplitude bases, the
 # matrices a multi-forest fit combines its forests through. A NULL passes
-# through; otherwise every non-null element
-# is read by class (basisClass): one of a class a basis does not take is
-# refused, numbers are coerced to a numeric matrix and a factor, a character
-# vector or a logical vector stays as it is. Only the length is checked
-# against the data as handed over; what the kept rows hold, a missing value
-# among it, is judged where they are final (finishBasisRows). 'subsetRows'
-# (resolveFormulaBasisSubset's
-# result, R/model.R), when given, resolves each element the way a forests =
-# declaration's basis already does - alignForestBasisToSubset, the same
-# function - so the formula path and the x/y path converge on one rule: a
-# basis at the pre-'subset' data's row count is restricted to the rows a
-# formula's 'subset' kept, and a basis matching the kept-row count but not the
-# full data's is refused by name rather than guessed at. With no 'subsetRows'
-# (the x/y interface, or a formula with no 'subset'), the row-index
-# contract applies directly: 'initialNumObservations' is the row count to
-# match and 'subset', if given, is applied as-is. 'argument' names the surface
-# the value came from, so a caller who wrote a forest's basis is refused in
-# those terms rather than in the data object's, and 'rows' names what the row
-# count is checked against - the response at fit time, the predicted rows at
-# predict time.
+# through; otherwise every non-null element is read by class (basisClass): one
+# of a class a basis does not take is refused, numbers are coerced to a
+# numeric matrix and a factor, a character vector or a logical vector stays as
+# it is. Only the length is checked, against 'numRows', and 'subset', if
+# given, is applied as it is; what the kept rows hold, a missing value among
+# it, is judged where they are final (finishBasisRows). 'argument' names the
+# surface the value came from and 'rows' what the row count is checked
+# against.
 validateForestBases <- function(
   bases,
-  initialNumObservations,
+  numRows,
   subset = NULL,
   argument = "bases",
-  rows = "'y'",
-  subsetRows = NULL
+  rows = "'y'"
 ) {
   if (is.null(bases)) {
     return(NULL)
@@ -2898,30 +2859,36 @@ validateForestBases <- function(
   }
   labels <- attr(bases, "forest.labels", exact = TRUE)
   lapply(seq_along(bases), function(i) {
-    basis <- bases[[i]]
+    basis <- readBasisValue(bases[[i]], argument, forestName(i, labels))
     if (is.null(basis)) {
       return(NULL)
     }
-    read <- basisClass(basis)
-    if (is.na(read$kind)) {
-      refuseBasisClass(read, argument, forestName(i, labels), NCOL(basis))
+    if (NROW(basis) != numRows) {
+      stop("'", argument, "' must have the same length as ", rows)
     }
-    if (read$kind == "numeric") {
-      basis <- as.matrix(basis)
-      storage.mode(basis) <- "double"
-    }
-    if (!is.null(subsetRows)) {
-      basis <- alignForestBasisToSubset(basis, i, subsetRows)
-    } else {
-      if (NROW(basis) != initialNumObservations) {
-        stop("'", argument, "' must have the same length as ", rows)
-      }
-      if (!is.null(subset)) {
-        basis <- cutBasisRows(basis, subset)
-      }
+    if (!is.null(subset)) {
+      basis <- cutBasisRows(basis, subset)
     }
     basis
   })
+}
+
+# A basis handed over as a value, read by class (basisClass): one of a class a
+# basis does not take is refused, naming 'forest', and numbers become a
+# numeric matrix.
+readBasisValue <- function(basis, argument, forest) {
+  if (is.null(basis)) {
+    return(NULL)
+  }
+  read <- basisClass(basis)
+  if (is.na(read$kind)) {
+    refuseBasisClass(read, argument, forest, NCOL(basis))
+  }
+  if (read$kind == "numeric") {
+    basis <- as.matrix(basis)
+    storage.mode(basis) <- "double"
+  }
+  basis
 }
 
 # An integer means what the same number as a double does; a factor is not one.
@@ -3215,7 +3182,6 @@ dbartsData <- function(
   offset.test = offset,
   factors = c("categorical", "indicators"),
   na.action = dbarts::na.keepPredictors,
-  bases = NULL,
   counts = NULL,
   n.cuts = NULL,
   useQuantiles = NULL,
@@ -3298,6 +3264,7 @@ dbartsData <- function(
   # of the rows kept, and the names of the data's columns
   frameData <- NULL
   rowsKept <- NULL
+  rowsTotal <- NA_integer_
   frameColumns <- NULL
   offsetExpression <- NULL
 
@@ -3315,7 +3282,6 @@ dbartsData <- function(
       "offset.test",
       "factors",
       "na.action",
-      "bases",
       "counts"
     )
     ignored <- c(
@@ -3331,9 +3297,6 @@ dbartsData <- function(
     }
     return(formula)
   }
-  # the forests' labels, where a fitting function named the bases it handed on
-  basisLabels <- attr(bases, "forest.labels", exact = TRUE)
-
   if (!is.formula(formula)) {
     formula <- asNumericPredictors(formula)
   }
@@ -3690,18 +3653,7 @@ dbartsData <- function(
     modelFrameCall$dbartsSparseMissing <- NULL
     modelFrameCall$dbartsRowIndex <- NULL
     naOmitted <- attr(modelFrame, "na.action")
-    rowsTotal <- if (!dataIsMissing && (is.data.frame(data) || is.list(data))) {
-      frameNumRows(data)
-    } else {
-      tryCatch(
-        NROW(eval(
-          formula[[2L]],
-          if (dataIsMissing) NULL else data,
-          environment(formula)
-        )),
-        error = function(e) NA_integer_
-      )
-    }
+    rowsTotal <- formulaRowsTotal(formula, if (!dataIsMissing) data)
     rowsKept <- keptRowPositions(
       subsetValue,
       rowsTotal,
@@ -3786,31 +3738,6 @@ dbartsData <- function(
       responseInfo <- coded[c("type", "n.levels", "levels")]
     }
     numObservations <- NROW(y)
-    # a 'bases' entry is checked against the FULL pre-'subset' data and cut
-    # to the rows the model frame kept (validateForestBases's 'subsetRows'
-    # branch): those the one value of 'subset' taken above selects, less the
-    # rows the na.action then dropped among them. The expression is never
-    # evaluated a second time for a basis. A basis already at the model
-    # frame's own row count - the common case of no 'subset' at all - passes
-    # through unchanged, since 'subset' is then just the identity
-    subsetRows <- if (is.null(bases)) {
-      NULL
-    } else {
-      alignSubsetRowsToFrame(
-        resolveFormulaBasisSubset(
-          formula,
-          if (dataIsMissing) NULL else data,
-          subsetValue
-        ),
-        naOmitted,
-        numObservations
-      )
-    }
-    bases <- validateForestBases(
-      bases,
-      numObservations,
-      subsetRows = subsetRows
-    )
     # the count response is the model's response, and a formula already names
     # one on its left-hand side; taking both would silently discard whichever
     # lost. dbarts() refuses the same combination at its own entry, this being
@@ -3957,9 +3884,8 @@ dbartsData <- function(
     y <- y[subset]
     x <- formula[subset, , drop = FALSE]
     trainRowNames <- rownames(x)
-    bases <- validateForestBases(bases, initialNumObservations, subset)
     countsRows <- initialNumObservations
-    countsSubset <- subset
+    countsSubset <- subsetPositions(subset, countsRows, rownames(formula))
 
     if (missing(weights)) {
       weights <- NULL
@@ -4007,7 +3933,6 @@ dbartsData <- function(
         trainRowNames <- trainRowNames[keep]
         y <- y[keep]
         x <- x[keep, , drop = FALSE]
-        bases <- restrictBasesToRows(bases, keep)
         if (!is.null(weights)) {
           weights <- weights[keep]
         }
@@ -4083,9 +4008,8 @@ dbartsData <- function(
     } else {
       formula[subset]
     }
-    bases <- validateForestBases(bases, initialNumObservations, subset)
     countsRows <- initialNumObservations
-    countsSubset <- subset
+    countsSubset <- subsetPositions(subset, countsRows, rownames(formula))
 
     if (missing(weights)) {
       weights <- NULL
@@ -4147,7 +4071,6 @@ dbartsData <- function(
         } else {
           x[completeCases, , drop = FALSE]
         }
-        bases <- restrictBasesToRows(bases, completeCases)
         if (!is.null(weights)) {
           weights <- weights[completeCases]
         }
@@ -4174,7 +4097,6 @@ dbartsData <- function(
       keep <- naResult$keep
       y <- y[keep]
       x <- x[keep, , drop = FALSE]
-      bases <- restrictBasesToRows(bases, keep)
       if (!is.null(weights)) {
         weights <- weights[keep]
       }
@@ -4527,11 +4449,6 @@ dbartsData <- function(
     stop("'offset.test' contains missing values")
   }
 
-  # the rows are final here, on either interface, so this is where a basis
-  # handed over is judged and becomes its block
-  finished <- finishBasisRows(bases, "bases", basisLabels)
-  bases <- finished$bases
-  basisLevels <- finished$levels
   result <- newValidated(
     "dbartsData",
     modelMatrices = namedList(
@@ -4542,8 +4459,6 @@ dbartsData <- function(
       weights.test,
       offset,
       offset.test,
-      bases,
-      basisLevels,
       counts,
       offset.category,
       offset.category.test,
@@ -4588,7 +4503,17 @@ dbartsData <- function(
     }
   }
   result@rows <- rowsKept
+  if (!is.null(rowsKept)) {
+    result@rows.total <- as.integer(
+      if (is.formula(formula)) rowsTotal else countsRows
+    )
+  }
   result@frame.columns <- frameColumns
+  # whose names those are: a basis named later is refused naming the kind of
+  # data that would be kept
+  if (is.environment(frameData)) {
+    attr(result, "frame.environment") <- TRUE
+  }
   if (!is.null(offsetArgument)) {
     attr(result, "offset.argument") <- offsetArgument
   }

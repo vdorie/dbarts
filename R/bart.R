@@ -3494,7 +3494,6 @@ ingestHurdleData <- function(
   # the cut settings ride the control, and reach the parts through it
   dataCall[c("n.cuts", "useQuantiles")] <- NULL
   dataCall$keep.data <- FALSE
-  formula <- resolveDataObject(formula)
   handed <- list(formula = formula)
   if (dataGiven && is.numeric(data) && any(is.infinite(data))) {
     stop(

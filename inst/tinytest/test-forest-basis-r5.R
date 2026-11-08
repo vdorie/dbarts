@@ -238,15 +238,15 @@ expect_error(threeForests$getForestAmplitudes(0L), "single positive integer")
 # --- the amplitude prior's kind follows what each forest multiplies. Two
 # halves. First the transported statement itself: each forest's `sd` goes to
 # the engine as written, in the response's units, and what the forest
-# multiplies is read from the data object; a forest carrying a basis has a
+# multiplies is read from its basis; a forest carrying a basis has a
 # FIXED-variance amplitude, so it reports no half-Cauchy scale; a forest
 # carrying none has the scale mixture, so its scale is its `sd` (over the
 # response's standard deviation here, with no offset, subset or zero
 # weight). ---
 priorSpec <- dbartsSpec(
-  dbartsData(x, y, bases = list(NULL, factor(z))),
+  dbartsData(x, y),
   seededControlForestBasisR5(),
-  forests = list(forest(sd = 2.5), forest(sd = 1.25)),
+  forests = list(forest(sd = 2.5), forest(basis = factor(z), sd = 1.25)),
   n.trees = 25L
 )
 expect_identical(vapply(priorSpec$model@forests, slot, 0, "sd"), c(2.5, 1.25))
@@ -329,15 +329,15 @@ expect_error(
 onceState <- dbarts:::onceWarnState
 onceState[["tombstone.control.n.trees"]] <- NULL
 
-# --- dbartsData(bases = ) takes a CONTINUOUS basis, the positive route the
+# --- a forest takes a CONTINUOUS basis, the positive route the
 # "not a numeric basis column" refusal relaxed into: creation succeeds, the
 # column lands in the engine, and its single amplitude really multiplies it -
 # asserted through the fitted-value reconstruction rather than by dimensions
 # alone, so a basis accepted and dropped would still fail. ---
 continuous <- x[, 1L] - 0.5
-continuousData <- dbartsData(x, y, bases = list(NULL, cbind(continuous)))
 continuousFit <- dbarts(
-  continuousData,
+  dbartsData(x, y),
+  forests = list(forest(), do.call(forest, list(basis = cbind(continuous)))),
   control = seededControlForestBasisR5(),
   n.trees = 25L
 )
@@ -470,10 +470,10 @@ ramp <- seq(1, 2, length.out = n)
 # No forest of this model is without a basis, so the count and the tree prior
 # are stated on a forest and the control names no count.
 declared <- dbarts(
-  dbartsData(x, yBinary, bases = list(3 * ramp, 5 * ramp)),
+  dbartsData(x, yBinary),
   forests = list(
-    forest(sd = 2.5, n.trees = 25L, base = 0.95, power = 2),
-    forest(sd = 0.4)
+    forest(basis = I(3 * ramp), sd = 2.5, n.trees = 25L, base = 0.95, power = 2),
+    forest(basis = I(5 * ramp), sd = 0.4)
   ),
   control = dbartsControl(
     n.chains = 1L,

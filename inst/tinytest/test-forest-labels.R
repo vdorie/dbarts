@@ -129,8 +129,8 @@ expect_identical(
   )))),
   c("forest1", "forest2")
 )
-# no basis, a basis handed over as a value, a basis from the data object: the
-# position
+# no basis or a basis handed over as a value, with the data or a data object:
+# the position
 doseValue <- frame$dose
 expect_identical(
   labelsOf(listFit(quote(list(
@@ -141,7 +141,12 @@ expect_identical(
 )
 expect_identical(
   labelsOf(dbarts(
-    dbartsData(x, y, bases = list(NULL, frame$dose, frame$age)),
+    dbartsData(x, y),
+    forests = list(
+      forest(),
+      do.call(forest, list(basis = frame$dose)),
+      do.call(forest, list(basis = frame$age))
+    ),
     control = labelControl(),
     n.trees = 5L
   )),

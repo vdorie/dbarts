@@ -834,7 +834,10 @@ dbarts <- function(
   ...
 ) {
   matchedCall <- match.call()
+  # a data object as handed over, which a forest's basis is read against
+  dataObject <- NULL
   if (!missing(formula) && inherits(formula, "dbartsData")) {
+    dataObject <- formula
     formula <- resolveDataObject(formula)
   }
   # a tree prior given as the tenth argument, where dbarts 0.9-34 took
@@ -1130,6 +1133,9 @@ dbarts <- function(
   hazardNames <- NULL
   hazardExpandedFirst <- FALSE
   hazardOffsetArgument <- NULL
+  # each row's subject, where a hazard fit repeats a subject's basis over its
+  # periods after the data object is built
+  basisExpansion <- NULL
   if (family %in% hazardTokens && directResponse) {
     survival <- extractSurvivalTimes(data)
     if (is.null(survival)) {
@@ -1450,85 +1456,42 @@ dbarts <- function(
   ) {
     handed["subset"] <- list(subset)
   }
-  # a basis declared on 'forests' has nowhere to ride once 'formula' is
-  # already a built dbartsData: dbartsData() drops an unmatched 'bases'
-  # argument in that case (its own ignored-args warning, R/data.R), which
-  # would silently fit an ordinary single-forest model with the declaration
-  # discarded - refused here by name instead. dbartsSpec() is not touched -
-  # its first argument must already be a dbartsData, so this
-  # predicate would be unconditionally true there and would refuse the
-  # supported route (R/spec.R installs the declaration rather than dropping
-  # it). The supported composition - a data object already carrying '@bases'
-  # plus a knob-only 'forests' - is unaffected: forestBasisDeclarations()
-  # returns NULL entries for a forest with no 'basis' of its own.
-  basisDeclarations <- forestBasisDeclarations(forests)
-  if (
-    !is.null(basisDeclarations) &&
-      any(!vapply(basisDeclarations, is.null, logical(1L))) &&
-      inherits(formula, "dbartsData")
-  ) {
-    stop(
-      "'forests' declares a 'basis' but 'formula' is already a dbartsData; ",
-      "a basis declaration cannot reach a pre-built data object through ",
-      "dbarts() - use dbartsSpec(), or put the bases on the object with ",
-      "dbartsData(bases = )"
-    )
-  }
   # The bases of the model's forests, whichever door declared them, are read
-  # by one function against this fit's data (readForestBasis): a term's in
-  # the formula's ingestion, where which forest has one decides which is
-  # which, and a list's here. A basis covers every row of the data, and the
-  # data object is the one place that knows which rows the fit keeps: it
-  # evaluates 'subset' and applies the na.action, once. So every basis rides
-  # its 'bases' argument and is cut there (validateForestBases, R/data.R). A
-  # value rides as itself. A basis written as code is built only on the rows
-  # kept, so the numbers of the data's rows ride in its place and come back
-  # as the kept rows, on which it is built below.
-  basisRows <- NULL
+  # by one function (readFitBasis): a term's in the formula's ingestion, where
+  # which forest has one decides which is which, and a list's here, against
+  # the data this call was given, a data object's against what it holds. A
+  # value has one entry per row handed over and code is read over every row;
+  # both are cut to the rows the data object keeps once it is built, below.
+  # A hazard fit's has one value per subject.
   basisReads <- NULL
+  basisSource <- NULL
+  basisDeclarations <- forestBasisDeclarations(forests)
   if (!is.null(termIngestion)) {
     basisReads <- termIngestion$basisReads
-    basisRows <- termIngestion$basisRows
+    basisSource <- termIngestion$basisSource
+    basisSource$hazard <- requestedFamily %in% hazardTokens
+    basisSource$subset <- !missing(subset)
   } else if (!is.null(basisDeclarations)) {
-    # missing() reads this frame, so it is resolved here. A hazard fit on the
-    # matrix interface has already been expanded to its person-period rows,
-    # 'subset' applied, and those are the rows a basis covers
-    basisRows <- if (hazardExpandedFirst) {
-      list(data = NULL, full = NROW(matchedCall$formula))
+    # missing() reads this frame, so the data are resolved here
+    basisSource <- if (inherits(formula, "dbartsData")) {
+      objectBasisSource(dataObject, forests)
+    } else if (is.formula(formula)) {
+      formulaBasisSource(formula, if (missing(data)) NULL else data)
     } else {
-      fitBasisRows(formula, if (missing(data)) NULL else data)
+      matrixBasisSource(formula, forests)
     }
-    declared <- readDeclaredBases(forests, basisRows$data, basisRows$full)
+    basisSource$hazard <- requestedFamily %in% hazardTokens
+    if (!inherits(formula, "dbartsData")) {
+      basisSource$subset <- !missing(subset)
+    }
+    declared <- readDeclaredBases(forests, basisSource)
     forests <- declared$forests
     basisReads <- declared$reads
   }
-  if (
-    all(vapply(basisReads, is.null, logical(1L))) &&
-      (length(basisReads) == 1L || inherits(formula, "dbartsData"))
-  ) {
+  if (all(vapply(basisReads, is.null, logical(1L))) && length(basisReads) < 2L) {
     # one forest with no basis is the single-forest fit, and two or more are
-    # a model of several sharing one prior total, unless the data object is
-    # built, whose bases such a list states knobs for
+    # a model of several sharing one prior total
     basisReads <- NULL
-  }
-  basisIsCode <- vapply(
-    basisReads,
-    function(read) !is.null(read$frame),
-    logical(1L)
-  )
-  if (!is.null(basisReads)) {
-    # a value goes on as it was handed over, so that the data object's
-    # reading of it, on the rows it keeps, is the one reading of a value
-    handed$bases <- lapply(basisReads, function(read) {
-      if (is.null(read)) {
-        NULL
-      } else if (is.null(read$frame)) {
-        read$value
-      } else {
-        basisRowNumbers(basisRows$full)
-      }
-    })
-    attr(handed$bases, "forest.labels") <- names(forests)
   }
   if (!is.null(multinomialCounts)) {
     handed$counts <- multinomialCounts
@@ -1550,26 +1513,23 @@ dbarts <- function(
   data <- withMatrixResponseRestated(
     "bart()/dbarts()",
     requestedFamily,
-    if (is.null(handed$bases)) {
-      withBinaryResponsePrecision(family, eval(dataCall, evalEnv))
-    } else {
-      # the bases ride the data object's own 'bases' argument, which this caller
-      # never wrote, so a refusal from it is restated in the word the caller
-      # used; only validateForestBases names that argument. An unrelated error -
-      # anything not naming 'bases' - is not this call's to relabel, so it keeps
-      # its own condition class and call
-      tryCatch(
-        withBinaryResponsePrecision(family, eval(dataCall, evalEnv)),
-        error = function(e) {
-          message <- conditionMessage(e)
-          if (!grepl("'bases'", message, fixed = TRUE)) {
-            stop(e)
-          }
-          stop(gsub("'bases'", "'basis'", message, fixed = TRUE), call. = FALSE)
-        }
-      )
-    }
+    withBinaryResponsePrecision(family, eval(dataCall, evalEnv))
   )
+  # the rows a basis is cut to: those the data object kept, the positions of
+  # its rows among the rows handed over, or, for a hazard fit on the matrix
+  # interface, which expanded its subjects first, each period row's subject
+  # among the subjects handed over
+  basisRows <- data@rows
+  if (hazardExpandedFirst && !is.null(basisReads)) {
+    subjects <- seq_len(NROW(formula))
+    if (!missing(subset)) {
+      subjects <- subjects[subset]
+    }
+    basisRows <- subjects[expansion$subject]
+    if (!is.null(data@rows)) {
+      basisRows <- basisRows[data@rows]
+    }
+  }
 
   if (!is.null(multinomialCounts)) {
     data@counts.as.factor <- multinomialAsFactor
@@ -1622,6 +1582,10 @@ dbarts <- function(
       # (dec-B97) and rides last, so one more entry keeps the two aligned
       data@x <- expansion$x
       data@varTypes <- c(data@varTypes, ORDINAL_VARIABLE)
+      # the rows are the subjects' periods now, not rows handed over
+      basisExpansion <- expansion$subject
+      data@rows <- NULL
+      data@rows.total <- NULL
       data@y <- expansion$y
       data@offset <- expansion$offset
       data@weights <- expansion$weights
@@ -1701,26 +1665,25 @@ dbarts <- function(
   data <- applyCutSettings(data, copies, !is.null(hazardPeriods))
   data@sigma <- sigest
 
-  # A basis written as code is built now, on the rows the data object kept,
-  # whose numbers it handed back in the basis's place. data@bases is
-  # positional against the forests; the blocks of the values it read are
-  # already in their places, with their levels, and the levels of a code
-  # basis are recorded beside them here.
+  # Every basis is built now, on the rows the data object kept, a hazard
+  # fit's repeated over each subject's periods (buildFitBases). data@bases is
+  # positional against the forests, and a forests list states them in full:
+  # what a data object handed in held is replaced, a held basis a forest
+  # names kept.
   basisRecords <- NULL
-  if (!is.null(basisReads)) {
-    recorded <- dataBasisLevels(data)
-    built <- buildFitBases(
-      basisReads,
-      data@bases,
-      length(data@y),
-      recorded,
-      if (is.null(termIngestion)) forests else termIngestion$forests
-    )
-    data@bases <- built$bases
-    data@basis.levels <- built$levels
-    if (any(basisIsCode)) {
-      basisRecords <- built$records
+  if (!is.null(basisReads) || inherits(formula, "dbartsData")) {
+    built <- if (!is.null(basisReads)) {
+      buildFitBases(
+        basisReads,
+        basisSource,
+        basisRows,
+        length(data@y),
+        if (is.null(termIngestion)) forests else termIngestion$forests,
+        expand = basisExpansion
+      )
     }
+    data <- installFitBases(data, built)
+    basisRecords <- fitBasisRecords(built)
   }
 
   # a term's predictors name design columns, which exist only now
@@ -1760,9 +1723,6 @@ dbarts <- function(
       variance = variance,
       survivalStatus = survivalStatus,
       hazardPeriods = hazardPeriods,
-      # the bases already ride the data object: dbartsData() is the one place
-      # that knows which rows 'subset' kept
-      bases = NULL,
       forests = forests,
       evalEnv = evalEnv,
       residPrior = residPrior,

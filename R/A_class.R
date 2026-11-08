@@ -991,6 +991,12 @@ methods::setClass(
     # saved before the slot existed lacks it, so every read goes through
     # dataBasisScale.
     basis.scale = "listOrNULL",
+    # the text each forest's basis was written as, where it was written as
+    # code: NULL, or a character vector with one entry per forest, NA where a
+    # forest has no basis or was handed a value. Written with 'bases' at
+    # creation and kept through a swap, so that a forest naming the same text
+    # beside this object keeps the held columns
+    basis.written = "ANY",
     # The multinomial (K-forest softmax) response: an n x K integer matrix
     # whose column k holds category k's counts, null
     # for every other family. It rides the data object rather than an R5 field
@@ -1026,6 +1032,9 @@ methods::setClass(
     # and the na.action, in order, repeats and a padded NA included; NULL when
     # every row is kept in order
     rows = "ANY",
+    # the number of rows handed over, which 'rows' are positions within; NULL
+    # where 'rows' is
+    rows.total = "ANY",
     # the names of the columns of the data the formula was read from, a frame's
     # or an environment's, held beside a block as well as beside a frame; NULL
     # where no data were given
@@ -1060,6 +1069,7 @@ methods::setClass(
     bases = NULL,
     basis.levels = NULL,
     basis.scale = NULL,
+    basis.written = NULL,
     counts = NULL,
     counts.as.factor = NA,
     offset.category = NULL,
@@ -1070,6 +1080,7 @@ methods::setClass(
     testUsesRegularOffset = NA,
     frame = NULL,
     rows = NULL,
+    rows.total = NULL,
     frame.columns = NULL,
     build = NULL
   )

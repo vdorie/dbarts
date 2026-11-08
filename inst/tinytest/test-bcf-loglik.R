@@ -14,20 +14,40 @@
 
 n.samples <- 10L
 
-# One BCF-shaped fit from a dbartsData carrying the two bases.
-bcfLoglikFit <- function(data, family = "auto", n.chains = 1L, ...) {
-  bart(
-    data,
-    family = family,
-    n.samples = n.samples,
-    n.burn = 5L,
-    n.trees = 15L,
-    n.chains = n.chains,
-    n.threads = 1L,
-    verbose = FALSE,
-    seed = 613L,
-    keepSampler = TRUE,
-    ...
+# One BCF-shaped fit, its second forest multiplying the treatment basis, from
+# the response and the offset and weights handed over as values.
+bcfLoglikFit <- function(
+  response,
+  family = "auto",
+  n.chains = 1L,
+  offset = NULL,
+  weights = NULL,
+  ...
+) {
+  frame <- data.frame(response = response, x, z = z)
+  do.call(
+    bart,
+    c(
+      list(
+        response ~ forest(X1 + X2 + X3) +
+          forest(X1 + X2 + X3, basis = factor(z)),
+        frame
+      ),
+      if (!is.null(offset)) list(offset = offset),
+      if (!is.null(weights)) list(weights = weights),
+      list(
+        family = family,
+        n.samples = n.samples,
+        n.burn = 5L,
+        n.trees = 15L,
+        n.chains = n.chains,
+        n.threads = 1L,
+        verbose = FALSE,
+        seed = 613L,
+        keepSampler = TRUE,
+        ...
+      )
+    )
   )
 }
 
@@ -66,14 +86,13 @@ n <- 120L
 p <- 3L
 x <- matrix(runif(n * p), n, p)
 z <- rbinom(n, 1L, 0.5)
-bcfBases <- list(NULL, factor(z))
 mu <- 2 * sin(pi * x[, 1L]) + x[, 2L]
 tau <- 1 + 2 * x[, 3L]
 y <- mu + z * tau + rnorm(n, sd = 0.3)
 
 # --- 1. gaussian: the score is dnorm at the combined location and the fit's
 # own sigma draw ---
-fit.g <- bcfLoglikFit(dbartsData(x, y, bases = bcfBases))
+fit.g <- bcfLoglikFit(y)
 expect_identical(fit.g$n.forests, 2L)
 loc.g <- bcfLocation(fit.g)
 ev.g <- extract(fit.g, type = "ev")
@@ -106,9 +125,7 @@ expect_true(max(abs(ll.g - hand.partial)) > 1)
 # location, the weight in the scale ---
 offset <- 0.3 * x[, 1L] - 0.15
 w <- rep_len(c(1, 4), n)
-fit.ow <- bcfLoglikFit(
-  dbartsData(x, y, bases = bcfBases, offset = offset, weights = w)
-)
+fit.ow <- bcfLoglikFit(y, offset = offset, weights = w)
 loc.ow <- bcfLocation(fit.ow, offset)
 ev.ow <- extract(fit.ow, type = "ev")
 ll.ow <- extract(fit.ow, type = "loglik")
@@ -138,7 +155,7 @@ expect_true(max(abs(ll.ow[, w == 4] - unweighted[, w == 4])) > 0.1)
 # bernoulli mass at its normal link ---
 eta <- -0.4 + 1.5 * x[, 1L] + 0.8 * z
 y.b <- rbinom(n, 1L, pnorm(eta))
-fit.p <- bcfLoglikFit(dbartsData(x, y.b, bases = bcfBases), family = "probit")
+fit.p <- bcfLoglikFit(y.b, family = "probit")
 expect_identical(fit.p$family, "probit")
 loc.p <- bcfLocation(fit.p)
 ev.p <- extract(fit.p, type = "ev")
@@ -154,7 +171,8 @@ expect_true(max(abs(ll.p - hand.p)) < 1e-12)
 
 # a binary offset shifts the same latent location, so the score follows it
 fit.po <- bcfLoglikFit(
-  dbartsData(x, y.b, bases = bcfBases, offset = rep(0.25, n)),
+  y.b,
+  offset = rep(0.25, n),
   family = "probit"
 )
 loc.po <- bcfLocation(fit.po, rep(0.25, n))
@@ -171,7 +189,8 @@ expect_true(max(abs(ll.po - hand.po)) < 1e-12)
 # are trial counts multiplying the bernoulli score ---
 w.l <- rep_len(c(1L, 3L), n)
 fit.l <- bcfLoglikFit(
-  dbartsData(x, y.b, bases = bcfBases, weights = w.l),
+  y.b,
+  weights = w.l,
   family = "logistic"
 )
 expect_identical(fit.l$family, "logistic")
@@ -191,7 +210,7 @@ expect_true(max(abs(ll.l - hand.l)) < 1e-12)
 # --- 5. chains: the combined layout stacks chain blocks and each block pairs
 # with its own amplitude and sigma draws, and the split layout is a reshape of
 # it - the per-forest channels' own 4-d storage shape included ---
-fit.mc <- bcfLoglikFit(dbartsData(x, y, bases = bcfBases), n.chains = 2L)
+fit.mc <- bcfLoglikFit(y, n.chains = 2L)
 loc.mc <- bcfLocation(fit.mc)
 ll.comb <- extract(fit.mc, type = "loglik")
 ll.unc <- extract(fit.mc, type = "loglik", combineChains = FALSE)
@@ -210,7 +229,7 @@ expect_true(max(abs(ll.comb - hand.mc)) < 1e-12)
 # stores glue and forestFits with a leading chain margin, and extract returns
 # the same numbers from either
 fit.mcu <- bcfLoglikFit(
-  dbartsData(x, y, bases = bcfBases),
+  y,
   n.chains = 2L,
   combineChains = FALSE
 )

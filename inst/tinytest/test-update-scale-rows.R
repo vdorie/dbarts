@@ -954,27 +954,31 @@ expectByHand(
   ),
   "ordinal list"
 )
-# a probit list with bases = carries amplitudes: its weights make it
+# a probit list with a basis carries amplitudes: its weights make it
 # dbarts()'s, a numeric column's default scale read from the rows they keep,
 # and a mask's updateScale is refused with the mask not installed
-basesData <- function() {
-  dbartsData(
-    x,
-    binary,
-    weights = w01,
-    bases = list(NULL, matrix(x[, 1L], n, 1L))
-  )
-}
+basesData <- function() dbartsData(x, binary, weights = w01)
+basesForests <- list(
+  dbartsForests$forest(),
+  do.call(dbartsForests$forest, list(basis = matrix(x[, 1L], n, 1L)))
+)
 basesSpec <- dbartsSpec(
   basesData(),
   control = ctl,
+  forests = basesForests,
   n.trees = 10L,
   family = "probit"
 )
 expect_null(basesSpec$active)
 expectByHand(
   byHandOf(basesSpec),
-  dbarts(basesData(), family = "probit", control = ctl, n.trees = 10L),
+  dbarts(
+    basesData(),
+    forests = basesForests,
+    family = "probit",
+    control = ctl,
+    n.trees = 10L
+  ),
   "probit bases list"
 )
 refusedHand <- new(

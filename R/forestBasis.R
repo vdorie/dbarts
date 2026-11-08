@@ -523,8 +523,13 @@ bindBasisAtCall <- function(expr, place) {
 ## or held in a variable, whose names are those of the environment it was
 ## made in. A formula the code holds is itself bound now, `heldCode`, to as
 ## many levels as a fit reads (readForestBasis); the formula stays as the
-## caller made it.
+## caller made it. A single string names its column, the string written in
+## place and the string the code holds, which is bound now, `heldName`.
 captureForestBasis <- function(expr, env, depth = 1L) {
+  named <- singleBasisString(expr)
+  if (!is.null(named)) {
+    expr <- as.name(named)
+  }
   if (!is.language(expr) || inherits(expr, "dbartsForwardedBasis")) {
     return(expr)
   }
@@ -547,6 +552,10 @@ captureForestBasis <- function(expr, env, depth = 1L) {
         depth + 1L
       )
     }
+    named <- singleBasisString(code$value$frame)
+    if (!is.null(named) && depth < BASIS_HELD_DEPTH) {
+      code$heldName <- captureForestBasis(as.name(named), place, depth + 1L)
+    }
   }
   code$atCall <- TRUE
   code$env <- binding$env
@@ -554,6 +563,27 @@ captureForestBasis <- function(expr, env, depth = 1L) {
   code$unboundFunctions <- binding$unboundFunctions
   code$broken <- binding$broken
   code
+}
+
+## The string a basis is where it is one string, which names a column, or
+## the one-row model frame of one; NULL otherwise. A string vector of one
+## value for each row is a basis of its levels.
+singleBasisString <- function(value) {
+  if (is.data.frame(value)) {
+    if (length(value) != 1L || nrow(value) != 1L) {
+      return(NULL)
+    }
+    value <- value[[1L]]
+  }
+  if (
+    is.character(value) &&
+      length(value) == 1L &&
+      is.null(dim(value)) &&
+      !is.na(value) &&
+      nzchar(value)
+  ) {
+    value
+  }
 }
 
 ## A single string or number is no basis: a basis has a value for every
@@ -608,7 +638,7 @@ refuseSingleBasisValue <- function(value, holder = NULL) {
 ## code that names no column is the value taken at the call, whose warnings
 ## are raised here, the value being used. `data` is NULL where the fit was
 ## given no data frame, list or environment.
-readForestBasis <- function(basis, data, numRows) {
+readForestBasis <- function(basis, data, numRows, followString = TRUE) {
   if (is.null(basis)) {
     return(NULL)
   }
@@ -755,6 +785,17 @@ readForestBasis <- function(basis, data, numRows) {
     refuse("a formula holds a formula more deeply than is read")
   }
   frame <- read$frame
+  named <- singleBasisString(frame)
+  if (!is.null(named) && numRows != 1L && followString) {
+    # a single string the code holds names its column, read as one written
+    # in its place
+    nameCode <- if (is.null(code$heldName)) {
+      basisCode(as.name(named), code$env)
+    } else {
+      code$heldName
+    }
+    return(readForestBasis(nameCode, data, numRows, followString = FALSE))
+  }
   if (nrow(frame) != numRows) {
     if (
       length(frame) == 1L && nrow(frame) == 1L && is.null(hiding(atColumns))
@@ -775,23 +816,6 @@ readForestBasis <- function(basis, data, numRows) {
     )
   }
   list(frame = frame, label = code$label, columns = atColumns)
-}
-
-## The bases a 'forests' list declares, read for a fit (readForestBasis), one
-## element per forest and NULL where a forest has none. A forest whose code
-## gives NULL has no basis and is returned saying so, for the checks made of
-## the list.
-readDeclaredBases <- function(forests, data, numRows) {
-  reads <- vector("list", length(forests))
-  for (index in seq_along(forests)) {
-    read <- readForestBasis(forests[[index]]$basis, data, numRows)
-    if (is.null(read)) {
-      forests[[index]]["basis"] <- list(NULL)
-    } else {
-      reads[[index]] <- read
-    }
-  }
-  list(forests = forests, reads = reads)
 }
 
 ## The column names of a basis handed over as a value: kept when every column
@@ -1593,8 +1617,13 @@ forwardedBasis <- function(code, evaluate, env) {
   )
   forwarded <- takeAtCall(forwarded, evaluate, env)
   # code handed on as the value, a formula with its environment or a name or
-  # a call, which has none of its own, is bound now like any other
-  if (isTRUE(forwarded$evaluated) && is.language(forwarded$value)) {
+  # a call, which has none of its own, is bound now like any other, as is a
+  # single string, which names its column
+  if (
+    isTRUE(forwarded$evaluated) &&
+      (is.language(forwarded$value) ||
+        !is.null(singleBasisString(forwarded$value)))
+  ) {
     valueEnv <- environment(forwarded$value)
     forwarded$value <- captureForestBasis(
       forwarded$value,
@@ -1604,83 +1633,349 @@ forwardedBasis <- function(code, evaluate, env) {
   forwarded
 }
 
-## The data a fit's bases are read against and the number of its rows, every
-## row the fit was given, before 'subset' and the na.action: a formula's
-## data frame, list or environment, and with the matrix interface no data and
-## the rows of the predictors. Without a data frame the count is the length
-## of the first variable the formula names, as it is for 'subset'
-## (resolveFormulaBasisSubset).
-fitBasisRows <- function(formula, data) {
-  if (!is.formula(formula)) {
-    return(list(data = NULL, full = NROW(formula)))
-  }
+## Where a fit's declared bases are read (readFitBasis). `data` is what a
+## basis's names are read against before where forest() was called: the data
+## frame, list or environment a formula was given, the named columns of the
+## predictors the matrix interface was given, or the frame a data object
+## keeps; NULL for none. `total` is the number of rows handed over, which a
+## value has one entry for and code is read over; the positions of the rows
+## kept among them are the data object's, known once it is built. Beside a
+## data object that holds its block and no frame, `held` is the columns it
+## holds that the bases name, read over its own `heldRows`, `heldBases` the
+## bases it holds with the text each was written as, `columns` the names of
+## the data it was built from and `environment` whether those were an
+## environment's.
+formulaBasisSource <- function(formula, data) {
   if (!is.list(data) && !is.environment(data)) {
     data <- NULL
   }
-  if (is.data.frame(data)) {
-    return(list(data = data, full = nrow(data)))
-  }
-  vars <- setdiff(all.vars(formula), ".")
-  first <- if (length(vars) == 0L) {
-    NULL
-  } else if (is.null(data)) {
-    eval(as.name(vars[1L]), environment(formula))
-  } else {
-    eval(as.name(vars[1L]), data, environment(formula))
-  }
-  list(data = data, full = NROW(first))
+  list(data = data, total = formulaRowsTotal(formula, data))
 }
 
-## What rides the data object's 'bases' argument in place of a basis written
-## as code: the number of each row of the data, one column. The data object
-## cuts it as it cuts a basis handed over as a value, so what comes back is
-## the row of the data each kept observation is, in the fit's order. There is
-## one source of the kept rows, the data object, which evaluates 'subset' and
-## applies the na.action once.
-basisRowNumbers <- function(numRows) {
-  matrix(as.double(seq_len(numRows)), ncol = 1L)
+matrixBasisSource <- function(x, forests) {
+  list(
+    data = namedBlockColumns(x, declaredBasisNames(forests)),
+    total = NROW(x)
+  )
 }
 
-## The bases of a fit's forests from their readings and from `bases`, the
-## data object's: a value's place holds the value cut to the rows the fit
-## keeps, and a code basis's place holds those rows' numbers
-## (basisRowNumbers), on which the basis is built (buildCodeBasis) and put in
-## their place. `bases` is NULL where a fit keeps every row of data it was
-## given whole. Returns `bases` and, beside them, `records`, the record of
-## each code basis. A basis has one row for each observation the fit keeps. A
-## value's place holds its block, finished on those rows already
-## (finishBasisRows), and is named here by the rule for a value handed to
-## a forest(). `levels` is the levels recorded for the values, and comes back
-## with those of each code basis beside them. A code basis of a size this
-## version does not take is refused here (refuseBasisSize), in its own code:
-## `forests` is the declarations, for each forest's name in the list and its
-## predictors as written.
+objectBasisSource <- function(object, forests) {
+  if (dataKeepsFrame(object)) {
+    total <- frameNumRows(object@frame)
+    return(list(
+      data = object@frame,
+      total = total,
+      subset = rowsBySubset(object, total)
+    ))
+  }
+  heldRows <- NROW(object@y)
+  total <- if (is.null(object@rows)) heldRows else dataRowsTotal(object)
+  source <- list(
+    data = NULL,
+    total = total,
+    heldRows = heldRows,
+    heldBases = heldForestBases(object),
+    columns = object@frame.columns,
+    environment = isTRUE(attr(object, "frame.environment", exact = TRUE)),
+    subset = rowsBySubset(object, total)
+  )
+  # a formula given no data reads its names where it was written, as
+  # model.frame() does
+  if (!is.null(object@frame.columns) || is.null(attr(object@x, "terms"))) {
+    source$held <- heldDataColumns(object, declaredBasisNames(forests))
+  }
+  source
+}
+
+## Whether 'subset', rather than the na.action alone, dropped rows of the
+## `total` a data object was handed.
+rowsBySubset <- function(object, total) {
+  !is.null(object@rows) &&
+    !identical(length(object@rows) + length(object@na.action), as.integer(total))
+}
+
+## The number of rows a data object was handed, which its 'rows' are
+## positions within.
+dataRowsTotal <- function(object) {
+  total <- if (methods::.hasSlot(object, "rows.total")) object@rows.total
+  if (is.null(total)) NA_integer_ else total
+}
+
+## The bases a data object holds, each with the text it was written as.
+heldForestBases <- function(object) {
+  if (is.null(object@bases)) {
+    return(NULL)
+  }
+  texts <- if (methods::.hasSlot(object, "basis.written")) {
+    object@basis.written
+  }
+  numForests <- length(object@bases)
+  list(
+    texts = if (is.null(texts)) rep(NA_character_, numForests) else texts,
+    bases = object@bases,
+    levels = dataBasisLevels(object),
+    scale = dataBasisScale(object)
+  )
+}
+
+## The names a forests list's bases read as variables (basisNames).
+declaredBasisNames <- function(forests) {
+  unique(unlist(
+    lapply(forestBasisDeclarations(forests), basisNames),
+    use.names = FALSE
+  ))
+}
+
+## The names a basis's code reads as variables, through the formula and the
+## string the code held where forest() was called.
+basisNames <- function(basis) {
+  if (inherits(basis, "dbartsForwardedBasis")) {
+    return(c(basisVariables(basis$expr), basisNames(basis$value)))
+  }
+  if (!inherits(basis, "dbartsForestBasis")) {
+    return(character())
+  }
+  unique(c(
+    basisVariables(basis$expr),
+    basisNames(basis$heldCode),
+    basisNames(basis$heldName)
+  ))
+}
+
+## The columns of a predictor block named `names`, as a list, a factor's
+## column as a factor; NULL where none is.
+namedBlockColumns <- function(x, names) {
+  given <- colnames(x)
+  wanted <- intersect(names, given[!is.na(given) & nzchar(given)])
+  if (length(wanted) == 0L) {
+    return(NULL)
+  }
+  if (is.data.frame(x) || inherits(x, "dbartsMixedMatrix")) {
+    columns <- as.list(as.data.frame(x))
+    return(columns[wanted])
+  }
+  columns <- lapply(wanted, function(name) {
+    as.vector(x[, match(name, given)])
+  })
+  names(columns) <- wanted
+  columns
+}
+
+## The columns a block-holding data object holds that `names` name: its
+## predictors and its response, as model.frame(o) decodes them.
+heldDataColumns <- function(object, names) {
+  label <- attr(object, "response.label", exact = TRUE)
+  given <- c(colnames(object@x), label)
+  wanted <- intersect(names, given[!is.na(given) & nzchar(given)])
+  if (length(wanted) == 0L) {
+    return(NULL)
+  }
+  as.list(decodeBlockFrame(object))[wanted]
+}
+
+## A declared basis read for a fit from `source` (formulaBasisSource and its
+## kin), as readForestBasis reads it, NULL where the forest has none. Beside a
+## data object that holds no frame, code written as the text a held basis was
+## written as is that basis, list(held = ); code naming a column the object
+## holds is read from it, over its rows, `onHeldRows`; a name of the data it
+## was built from that it does not hold is refused; and any other name is the
+## caller's.
+readFitBasis <- function(basis, source) {
+  if (is.null(basis)) {
+    return(NULL)
+  }
+  isCode <- inherits(basis, "dbartsForestBasis") ||
+    inherits(basis, "dbartsForwardedBasis")
+  if (isCode) {
+    # a single string the code held where forest() was called names its
+    # column, unless the code names a column itself
+    if (!is.null(basis$heldName)) {
+      own <- basisVariables(basis$expr)
+      if (!any(isDataColumn(own, source$data) | own %in% names(source$held))) {
+        basis <- basis$heldName
+      }
+    }
+    label <- basis$label
+    held <- match(label, source$heldBases$texts)
+    if (!is.na(held)) {
+      return(list(held = held, label = label))
+    }
+    names <- basisNames(basis)
+    if (!is.null(source$columns)) {
+      absent <- setdiff(intersect(names, source$columns), names(source$held))
+      if (length(absent) > 0L) {
+        refuseUnheldColumn(label, absent[[1L]], source)
+      }
+    }
+    if (any(names %in% names(source$held))) {
+      read <- readForestBasis(basis, source$held, source$heldRows)
+      if (!is.null(read)) {
+        read$onHeldRows <- TRUE
+      }
+      return(read)
+    }
+  }
+  readForestBasis(basis, source$data, source$total)
+}
+
+## The refusal of a basis naming a column of the data a data object was built
+## from that the object does not hold.
+refuseUnheldColumn <- function(label, name, source) {
+  texts <- source$heldBases$texts
+  sourceOf <- vapply(
+    texts,
+    function(text) {
+      !is.na(text) &&
+        name %in%
+          tryCatch(basisVariables(str2lang(text)), error = function(e) NULL)
+    },
+    NA
+  )
+  if (any(sourceOf)) {
+    stop(
+      "'basis' (",
+      label,
+      ") names '",
+      name,
+      "', which these data hold only in the basis written as ",
+      "forest(basis = ",
+      texts[sourceOf][[1L]],
+      "); write forest(basis = ",
+      texts[sourceOf][[1L]],
+      ") to keep it",
+      call. = FALSE
+    )
+  }
+  if (isTRUE(source$environment)) {
+    stop(
+      "'basis' (",
+      label,
+      ") names '",
+      name,
+      "', a variable of the environment these data were built from, which ",
+      "they do not hold; build the data from a data frame or list, which ",
+      "they keep, to read it there",
+      call. = FALSE
+    )
+  }
+  stop(
+    "'basis' (",
+    label,
+    ") names '",
+    name,
+    "', a column of the data frame these data were built from, which they ",
+    "do not hold; build the data object with its frame, dbartsData(formula, ",
+    "data), to read it there",
+    call. = FALSE
+  )
+}
+
+## The bases a 'forests' list declares, read for a fit (readFitBasis), one
+## element per forest and NULL where a forest has none. A forest whose code
+## gives NULL has no basis and is returned saying so, for the checks made of
+## the list.
+readDeclaredBases <- function(forests, source) {
+  reads <- vector("list", length(forests))
+  for (index in seq_along(forests)) {
+    read <- readFitBasis(forests[[index]]$basis, source)
+    if (is.null(read)) {
+      forests[[index]]["basis"] <- list(NULL)
+    } else {
+      reads[[index]] <- read
+    }
+  }
+  list(forests = forests, reads = reads)
+}
+
+## The bases of a fit's forests, from their readings (readFitBasis), on the
+## `numObservations` rows it keeps: `rows` the positions of those rows among
+## the `total` handed over, NULL for every row in order, and `expand`, where a
+## hazard fit repeats a subject over its periods, the subject of each row. A
+## value has one entry per row handed over and is cut to `rows`, then finished
+## on them (finishBasisRows) and named by the rule for a value handed to a
+## forest(). Code is built on those rows (buildCodeBasis), or, where it read
+## a data object's own columns, on the object's rows. A held basis is taken as
+## it is held, with its levels and its recorded scale. A code basis of a size
+## this version does not take is refused here (refuseBasisSize), in its own
+## code: `forests` is the declarations, for each forest's name in the list and
+## its predictors as written. Returns `bases`, `levels`, `scale`, `records`
+## (each code basis's), `written` (each code basis's text, NA elsewhere) and
+## `codeLabels` (the text a forest's label is derived from).
 buildFitBases <- function(
   reads,
-  bases,
+  source,
+  rows,
   numObservations,
-  levels = NULL,
-  forests = NULL
+  forests,
+  expand = NULL
 ) {
   numForests <- length(reads)
-  kept <- bases
-  if (is.null(bases)) {
-    bases <- vector("list", numForests)
+  combine <- function(first, then) {
+    if (is.null(then)) first else if (is.null(first)) then else first[then]
   }
-  if (is.null(levels)) {
-    levels <- vector("list", numForests)
+  kept <- combine(rows, expand)
+  labels <- names(forests)
+  values <- vector("list", numForests)
+  isValue <- vapply(
+    reads,
+    function(read) !is.null(read) && "value" %in% names(read),
+    NA
+  )
+  for (index in which(isValue)) {
+    value <- readBasisValue(
+      reads[[index]]$value,
+      "basis",
+      forestName(index, labels)
+    )
+    refuseBasisLength(NROW(value), source, numObservations, index, labels)
+    values[index] <- list(
+      if (is.null(kept)) value else cutBasisRows(value, kept)
+    )
   }
+  finished <- finishBasisRows(values, "basis", labels)
+  bases <- finished$bases
+  levels <- finished$levels
+  scale <- vector("list", numForests)
   records <- vector("list", numForests)
+  written <- rep(NA_character_, numForests)
+  codeLabels <- vector("list", numForests)
   for (index in seq_len(numForests)) {
     read <- reads[[index]]
-    if (is.null(read$frame)) {
-      if (!is.null(read) && !is.null(kept)) {
-        bases[index] <- list(nameValueBasis(kept[[index]]))
-      }
+    if (isValue[index]) {
+      bases[index] <- list(nameValueBasis(bases[[index]]))
       next
     }
-    rows <- if (!is.null(kept)) as.integer(kept[[index]][, 1L])
-    built <- buildCodeBasis(read, rows)
+    if (is.null(read)) {
+      next
+    }
+    if (!is.null(read$held)) {
+      held <- source$heldBases
+      block <- held$bases[[read$held]]
+      if (NROW(block) != numObservations) {
+        stop(
+          "forest ",
+          index,
+          "'s 'basis' (",
+          read$label,
+          ") is held over ",
+          NROW(block),
+          " rows where the fit has ",
+          numObservations,
+          " observations",
+          call. = FALSE
+        )
+      }
+      bases[index] <- list(block)
+      levels[index] <- list(held$levels[[read$held]])
+      scale[index] <- list(held$scale[[read$held]])
+      written[index] <- read$label
+      codeLabels[index] <- list(read$label)
+      next
+    }
+    built <- buildCodeBasis(
+      read,
+      if (isTRUE(read$onHeldRows)) expand else kept
+    )
     if (nrow(built$basis) != numObservations) {
       stop(
         "forest ",
@@ -1695,7 +1990,7 @@ buildFitBases <- function(
         call. = FALSE
       )
     }
-    listName <- names(forests)[index]
+    listName <- labels[index]
     label <- if (is.null(listName) || is.na(listName) || !nzchar(listName)) {
       read$label
     } else {
@@ -1714,8 +2009,107 @@ buildFitBases <- function(
     bases[index] <- list(built$basis)
     levels[index] <- list(built$record$levels)
     records[index] <- list(built$record)
+    written[index] <- read$label
+    codeLabels[index] <- list(read$label)
   }
-  list(bases = bases, levels = levels, records = records)
+  list(
+    bases = bases,
+    levels = levels,
+    scale = scale,
+    records = records,
+    written = written,
+    codeLabels = codeLabels
+  )
+}
+
+## A value has one entry per row the data were handed, before 'subset' and the
+## na.action, and is cut with them; a hazard fit's, one per subject. One of the
+## kept length on data that dropped rows is refused naming both counts.
+refuseBasisLength <- function(numRows, source, numObservations, index, labels) {
+  total <- source$total
+  if (!is.na(total) && numRows == total) {
+    return(invisible(NULL))
+  }
+  if (is.na(total) && numRows == numObservations) {
+    return(invisible(NULL))
+  }
+  hazard <- isTRUE(source$hazard)
+  if (!hazard && !is.na(total) && numRows == numObservations) {
+    stop(
+      forestName(index, labels),
+      "'s 'basis' has ",
+      numRows,
+      " rows, matching ",
+      if (isFALSE(source$subset)) "the rows the na.action kept" else "'subset'",
+      " (",
+      numObservations,
+      ") but not the full data (",
+      total,
+      " rows); a 'basis' must cover the full data and is subset with it",
+      call. = FALSE
+    )
+  }
+  stop(
+    forestName(index, labels),
+    "'s 'basis' has ",
+    numRows,
+    if (numRows == 1L) " row" else " rows",
+    " where the data were handed ",
+    total,
+    if (hazard) " subjects" else " rows",
+    if (hazard) {
+      paste0(
+        ": a hazard fit's basis has one value for each subject, before ",
+        "'subset' and the na.action, and is repeated over its periods"
+      )
+    } else {
+      paste0(
+        ": a basis has one entry for each row of the data, before 'subset' ",
+        "and the na.action, and is cut with them"
+      )
+    },
+    call. = FALSE
+  )
+}
+
+## What the model records of each forest's basis (buildFitBases): the record
+## of a basis written as code, which builds it again at new rows, the text of
+## a held basis kept by it, from which the forest's label is derived; NULL
+## where no forest has either.
+fitBasisRecords <- function(built) {
+  if (is.null(built) || all(vapply(built$codeLabels, is.null, NA))) {
+    return(NULL)
+  }
+  records <- built$records
+  for (index in seq_along(records)) {
+    if (is.null(records[[index]]) && !is.null(built$codeLabels[[index]])) {
+      records[index] <- list(list(label = built$codeLabels[[index]]))
+    }
+  }
+  records
+}
+
+## The bases a fit read (buildFitBases) put on its data object: a forests list
+## states the forests in full, so they replace whatever the object held, the
+## levels, the recorded scales and the texts with them. `reads` NULL is a fit
+## of one forest, which holds none.
+installFitBases <- function(data, built) {
+  if (is.null(built)) {
+    data@bases <- NULL
+    data@basis.levels <- NULL
+    data@basis.scale <- NULL
+    data@basis.written <- NULL
+    return(data)
+  }
+  data@bases <- built$bases
+  data@basis.levels <- built$levels
+  data@basis.scale <- if (all(vapply(built$scale, is.null, NA))) {
+    NULL
+  } else {
+    built$scale
+  }
+  data@basis.written <- if (all(is.na(built$written))) NULL else built$written
+  data
 }
 
 ## The basis $setForestBasis is given, as the value conformBasis holds to

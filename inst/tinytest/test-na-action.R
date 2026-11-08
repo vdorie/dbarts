@@ -245,32 +245,34 @@ expect_identical(
   colnames(stats::model.matrix(~ 0 + basisFactor))
 )
 
-# matrix path, through dbartsData's own bases argument
-matrixBasis <- dbarts::dbartsData(
+# matrix path, the basis cut as the rows are
+matrixBasis <- dbarts::dbarts(
   cbind(a = aBasis),
   yBasis,
-  bases = list(NULL, basisFactor)
-)
+  forests = list(forest(), forest(basis = basisFactor)),
+  control = basisControl,
+  n.trees = 5L
+)$data
 expect_equal(length(matrixBasis@y), keptBasis)
 expect_equal(nrow(matrixBasis@x), keptBasis)
 expect_equal(
-  matrixBasis@bases[[2L]],
-  basisMatrix[-droppedRow, , drop = FALSE]
+  unname(matrixBasis@bases[[2L]]),
+  unname(basisMatrix[-droppedRow, , drop = FALSE])
 )
 
 # and na.omit, which drops a further row for the missing predictor
 aWithNA <- aBasis
 aWithNA[13L] <- NA_real_
-matrixBasisOmit <- dbarts::dbartsData(
-  cbind(a = aWithNA),
-  yBasis,
-  bases = list(NULL, basisFactor),
-  na.action = na.omit
-)
+matrixBasisOmit <- dbarts::dbarts(
+  dbarts::dbartsData(cbind(a = aWithNA), yBasis, na.action = na.omit),
+  forests = list(forest(), forest(basis = basisFactor)),
+  control = basisControl,
+  n.trees = 5L
+)$data
 expect_equal(length(matrixBasisOmit@y), nBasis - 2L)
 expect_equal(
-  matrixBasisOmit@bases[[2L]],
-  basisMatrix[-sort(c(droppedRow, 13L)), , drop = FALSE]
+  unname(matrixBasisOmit@bases[[2L]]),
+  unname(basisMatrix[-sort(c(droppedRow, 13L)), , drop = FALSE])
 )
 
 # --- every row complete: the row selection is skipped, not run on an

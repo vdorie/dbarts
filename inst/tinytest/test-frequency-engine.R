@@ -152,9 +152,9 @@ expect_error(
 column <- runif(n)
 basisSampler <- function(weights) {
   spec <- dbarts::dbartsSpec(
-    dbarts::dbartsData(x, y, weights = weights, bases = list(NULL, column)),
+    dbarts::dbartsData(x, y, weights = weights),
     control = control,
-    forests = list(forest(), forest()),
+    forests = list(forest(), do.call(forest, list(basis = column))),
     sigest = 0.5
   )
   spec$model@weights.type <- "frequency"

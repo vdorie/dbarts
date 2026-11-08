@@ -1468,7 +1468,7 @@ refuseNoSplittableColumn <- function(splitProbabilities, columns) {
 ## reach data@bases like every other one, or the declaration is dropped in
 ## silence and an ordinary single-forest model is fit instead of the model the
 ## caller wrote. What refuses it is the designed one-forest refusal in
-## resolveSamplerSpec, the site the dbartsData(bases = ) route reaches too. A
+## resolveSamplerSpec, the site every creation route reaches. A
 ## length-1 list declaring NO basis still expands to list(NULL), still fails the
 ## any-non-null gate at both call sites, and still falls through to
 ## resolveForests' own refusal by name.
@@ -1616,86 +1616,6 @@ replayForestBasis <- function(term, newdata, index) {
     levels = term$levels,
     atPrediction = TRUE
   )$basis
-}
-
-## The full (pre-'subset') row count of a formula fit's data, and the exact
-## rows 'subset' keeps in it, in the order it keeps them: the rows of a data
-## frame, and without one the length of the first variable the formula names
-## ('.' names no single column, so it is skipped for a real one), as for a
-## basis (fitBasisRows); and `subset`, the VALUE the data object took of
-## the caller's expression, used as an ordinary subscript into the full row
-## sequence, row names among it - the reading stats::model.frame() itself
-## gives 'subset'. The caller's expression is evaluated once, by the data
-## object, and never here: evaluated again it could select other rows than
-## the fit's. NULL when there is no rule to apply: not a formula, or no
-## 'subset' given.
-resolveFormulaBasisSubset <- function(formula, data, subset) {
-  if (!is.formula(formula) || is.null(subset)) {
-    return(NULL)
-  }
-  # a variable the formula names need not have a value for each row, the k
-  # of I(k * y) ~ x, so a data frame's own rows are counted where there is one
-  if (is.data.frame(data)) {
-    full <- nrow(data)
-  } else {
-    vars <- setdiff(all.vars(formula), ".")
-    if (length(vars) == 0L) {
-      return(NULL)
-    }
-    env <- environment(formula)
-    first <- if (is.list(data) || is.environment(data)) {
-      eval(as.name(vars[1L]), data, env)
-    } else {
-      eval(as.name(vars[1L]), env)
-    }
-    full <- NROW(first)
-  }
-  rows <- seq_len(full)
-  if (is.character(subset) && is.data.frame(data)) {
-    names(rows) <- row.names(data)
-  }
-  list(
-    full = full,
-    index = unname(rows[subset]),
-    kept = "'subset'"
-  )
-}
-
-## Align one forest() declaration's evaluated basis to 'subsetRows'
-## (resolveFormulaBasisSubset's result). A NULL basis, or a NULL 'subsetRows'
-## (no rule to apply - the x/y interface, or no 'subset'), passes through
-## unchanged: the basis was already validated against the un-subset data at
-## the count dbartsData() checks it against. A basis at the FULL data's row
-## count is restricted to the same rows the model frame keeps, the alignment
-## 'weights' and every predictor column already get. A basis at the SUBSET's
-## row count instead - matching the kept-row count but not the full data's -
-## is an ambiguous shape, refused by name, naming the forest and both
-## counts, rather than guessed at.
-alignForestBasisToSubset <- function(basis, forestIndex, subsetRows) {
-  if (is.null(basis) || is.null(subsetRows)) {
-    return(basis)
-  }
-  n <- NROW(basis)
-  if (n == subsetRows$full) {
-    return(cutBasisRows(basis, subsetRows$index))
-  }
-  if (n == length(subsetRows$index)) {
-    stop(
-      "forest ",
-      forestIndex,
-      "'s 'basis' has ",
-      n,
-      " rows, matching ",
-      if (is.null(subsetRows$kept)) "'subset'" else subsetRows$kept,
-      " (",
-      length(subsetRows$index),
-      ") but not the full data (",
-      subsetRows$full,
-      " rows); a 'basis' must cover the full data and is ",
-      "subset with it"
-    )
-  }
-  basis
 }
 
 ## A forest's stated power or base, held to the checks cgm() makes of the
@@ -2343,7 +2263,7 @@ refuseGivenTwice <- function(name, where, numPlain = 1L, onControl = FALSE) {
 ## address the forest with NO BASIS under the same spelling a forest() uses, so
 ## supplying both is ambiguous rather than layered.
 ## `hasBasis` is a per-forest logical recording whether a basis reached that
-## forest some other way, the dbartsData(bases = ) route being a supported one.
+## forest some other way, the data object's held bases.
 resolveForests <- function(forests, interactions, blocks, hasBasis) {
   if (is.null(forests)) {
     return(NULL)

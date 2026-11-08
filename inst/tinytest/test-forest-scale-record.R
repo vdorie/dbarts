@@ -471,9 +471,10 @@ otherFit <- dbarts(
   control = original$control
 )
 expect_equal(recordOf(otherFit), sd(3 * age[w > 0]), tolerance = 1e-12)
-handed <- dbartsData(x, y, weights = w, bases = list(NULL, dose))
-first <- dbarts(handed, control = recordControl())
-second <- dbarts(handed, control = recordControl())
+handed <- dbartsData(x, y, weights = w)
+handedForests <- list(forest(), do.call(forest, list(basis = dose)))
+first <- dbarts(handed, forests = handedForests, control = recordControl())
+second <- dbarts(handed, forests = handedForests, control = recordControl())
 expect_identical(recordOf(first), recordOf(second))
 expect_null(dbarts:::dataBasisScale(handed))
 
@@ -612,10 +613,10 @@ constantDoors <- list(
       control = recordControl()
     )
   },
-  data = function(column, ...) {
+  object = function(column, ...) {
     dbarts(
-      dbartsData(x, y, bases = list(NULL, column)),
-      forests = list(forest(), forest(...)),
+      dbartsData(x, y),
+      forests = list(forest(), forest(basis = column, ...)),
       control = recordControl()
     )
   }
@@ -656,13 +657,13 @@ expect_error(
   fixed = TRUE
 )
 expect_error(
-  constantDoors$data(rep(1, n)),
+  constantDoors$object(rep(1, n)),
   "Write it with none, as forest()",
   fixed = TRUE
 )
 # a forest naming no predictors spells its drawn form with none
 expect_error(
-  constantDoors$data(rep(3, n), sd = 2),
+  constantDoors$object(rep(3, n), sd = 2),
   paste0(
     "as forest(sd = 6); for a drawn coefficient, forest(sd = 6, ",
     "amplitude = normal())"
@@ -1094,16 +1095,14 @@ levelDoors <- list(
       control = recordControl()
     )
   },
-  data = function(column, response, family, stated) {
+  object = function(column, response, family, stated) {
     dbarts(
-      dbartsData(
-        x,
-        d[[response]],
-        weights = levelWeights,
-        bases = list(NULL, column)
-      ),
+      dbartsData(x, d[[response]], weights = levelWeights),
       family = family,
-      forests = list(forest(), if (stated) forest(sd = 2) else forest()),
+      forests = list(
+        forest(),
+        if (stated) forest(basis = column, sd = 2) else forest(basis = column)
+      ),
       control = recordControl()
     )
   }

@@ -479,6 +479,10 @@ processHit <- function(hit, env) {
   }
   arguments <- forestCallArguments(hit)
   basis <- arguments[["basis"]]
+  # a single string names its column
+  if (!is.null(singleBasisString(basis))) {
+    basis <- as.name(basis)
+  }
   if (is.language(basis)) {
     basis <- basisCode(basis, env)
   }
@@ -652,8 +656,8 @@ readForestTerms <- function(entry, response, data, env) {
 ## terms, or the one forest() written without a basis, and forest 1 wherever
 ## it is written. Where every forest has a basis they keep the order written.
 ## `forests` and `basisReads`, each basis as read over every row of the data
-## (readForestBasis), are positional against that order; `basisRows` is the
-## data they were read against and the number of its rows.
+## (readFitBasis), are positional against that order; `basisSource` is where
+## they were read (formulaBasisSource).
 ingestFormulaTerms <- function(formula, family, data) {
   if (!is.formula(formula)) {
     return(NULL)
@@ -681,12 +685,12 @@ ingestFormulaTerms <- function(formula, family, data) {
   # every basis is read here, against the data the fit was given, the code of
   # one that turns out to state none among them: which forest has a basis
   # decides which is the forest with no multiplier
-  basisRows <- NULL
+  basisSource <- NULL
   if (!all(vapply(written, function(entry) is.null(entry$spec$basis), NA))) {
-    basisRows <- fitBasisRows(formula, data)
+    basisSource <- formulaBasisSource(formula, data)
   }
   written <- lapply(written, function(entry) {
-    read <- readForestBasis(entry$spec$basis, basisRows$data, basisRows$full)
+    read <- readFitBasis(entry$spec$basis, basisSource)
     if (is.null(read)) {
       entry$spec["basis"] <- list(NULL)
     } else {
@@ -893,7 +897,7 @@ ingestFormulaTerms <- function(formula, family, data) {
     formula = rewritten,
     forests = forests,
     basisReads = lapply(entries, function(entry) entry$read),
-    basisRows = basisRows
+    basisSource = basisSource
   )
 }
 

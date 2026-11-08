@@ -87,61 +87,43 @@ doors <- list(
       c(fixedArgs, list(control = kindControl(), n.trees = 15L), more)
     )
   },
-  # dbartsSpec() takes a data object, whose rows are already cut: the value
-  # it is handed has those rows
+  # a data object's value has one entry per row it was handed, cut with them
   spec = function(B, y, more) {
     data <- do.call(dbartsData, c(list(x, y), more))
-    kept <- if (is.null(more$subset)) !is.na(y) else more$subset & !is.na(y)
-    cut <- if (is.null(dim(B))) B[kept] else B[kept, , drop = FALSE]
     spec <- dbartsSpec(
       data,
       kindControl(),
-      forests = valueForests(cut),
+      forests = valueForests(B),
       n.trees = 15L
     )
     new("dbartsSampler", spec$control, spec$model, spec$data)
   },
-  data = function(B, y, more) {
-    data <- do.call(dbartsData, c(list(x, y, bases = list(NULL, B)), more))
-    dbarts(data, control = kindControl(), n.trees = 15L)
-  },
-  data.formula = function(B, y, more) {
-    d$y <- y
-    fixedArgs <- list(y ~ x1 + x2, d, bases = list(NULL, B))
+  object = function(B, y, more) {
     dbarts(
-      do.call(dbartsData, c(fixedArgs, more)),
+      do.call(dbartsData, c(list(x, y), more)),
+      forests = valueForests(B),
+      control = kindControl(),
+      n.trees = 15L
+    )
+  },
+  object.formula = function(B, y, more) {
+    d$y <- y
+    dbarts(
+      do.call(dbartsData, c(list(y ~ x1 + x2, d), more)),
+      forests = valueForests(B),
       control = kindControl(),
       n.trees = 15L
     )
   }
 )
 codeDoors <- c("term.dbarts", "term.bart", "list.code")
-dataDoors <- c("data", "data.formula")
-sevenDoors <- setdiff(names(doors), "data.formula")
+sevenDoors <- setdiff(names(doors), "object.formula")
 # the doors a row the fit drops can reach: dbartsSpec() has no such row
 rowDoors <- setdiff(names(doors), "spec")
 
-# A text as `door` words it: the data object says 'bases', its own argument,
-# where a forest says 'basis'.
-atDoor <- function(text, door) {
-  if (door %in% dataDoors) {
-    gsub("'basis'", "'bases'", text, fixed = TRUE)
-  } else {
-    text
-  }
-}
 # The doors whose blocks are named alike: code names a column by its term,
-# a value handed to a forest keeps its own names or has none, and the data
-# door's names are its own.
-doorFamily <- function(door) {
-  if (door %in% codeDoors) {
-    "code"
-  } else if (door %in% dataDoors) {
-    "data"
-  } else {
-    "value"
-  }
-}
+# and a value handed to a forest keeps its own names or has none.
+doorFamily <- function(door) if (door %in% codeDoors) "code" else "value"
 
 # What a door makes of `B`: the forest's kind, levels and block, the kind the
 # engine was told (the reader's word for it), the block's column names and
@@ -226,7 +208,7 @@ expectOneReading <- function(B, at, info, ...) {
         all(other$attributes %in% c("dim", "dimnames"))
       expect_true(bare, info = where)
     } else if (door %in% codeDoors == at[1L] %in% codeDoors) {
-      expect_identical(other$refused, atDoor(first$refused, door), info = where)
+      expect_identical(other$refused, first$refused, info = where)
     } else {
       expect_false(is.null(other$refused), info = where)
     }
@@ -317,14 +299,14 @@ for (object in objects) {
 }
 # the levels, in the factor's own order, a character vector's sorted values,
 # FALSE then TRUE; a forest with no basis and one of numbers record none
-expect_identical(made("data", zf)$levels, list(NULL, c("0", "1")))
-expect_identical(made("data", zc)$levels, list(NULL, c("control", "treated")))
-expect_identical(made("data", z == 1)$levels, list(NULL, c("FALSE", "TRUE")))
+expect_identical(made("object", zf)$levels, list(NULL, c("0", "1")))
+expect_identical(made("object", zc)$levels, list(NULL, c("control", "treated")))
+expect_identical(made("object", z == 1)$levels, list(NULL, c("FALSE", "TRUE")))
 expect_identical(
-  made("data", factor(zc, levels = c("treated", "control")))$levels,
+  made("object", factor(zc, levels = c("treated", "control")))$levels,
   list(NULL, c("treated", "control"))
 )
-expect_identical(made("data", dose)$levels, list(NULL, NULL))
+expect_identical(made("object", dose)$levels, list(NULL, NULL))
 # a basis written as code records the levels its control's record holds
 for (door in codeDoors) {
   expect_identical(
@@ -347,7 +329,7 @@ for (door in sevenDoors) {
   }
   expect_identical(made(door, z == 1)$draws, factorDraws, info = door)
 }
-for (door in c("list.value", "data")) {
+for (door in c("list.value", "object")) {
   expect_identical(
     made(door, cbind(1 - z, z))$refused,
     paste0(
@@ -486,21 +468,10 @@ for (index in seq_along(refusedObjects)) {
 for (door in setdiff(names(doors), codeDoors)) {
   expect_identical(
     made(door, matrix(0, n, 0L))$refused,
-    atDoor("a 'basis' must have at least one column", door),
+    "a 'basis' must have at least one column",
     info = door
   )
 }
-# the data object says 'bases', its own argument, where a forest says 'basis'
-expect_error(
-  dbartsData(x, y, bases = list(NULL, matrix(z == 1))),
-  "'bases' gives forest 2 a logical matrix",
-  fixed = TRUE
-)
-expect_error(
-  dbartsData(x, y, bases = list(NULL, rep(0, n))),
-  "a 'bases' column of all zeros contributes nothing to a forest",
-  fixed = TRUE
-)
 # a forest is named by its label where it has one of its own
 expect_error(
   dbarts(
@@ -557,38 +528,39 @@ for (complete in list(dose, zf)) {
     # on a row the fit keeps it is refused, in one text
     for (door in rowDoors) {
       refused <- do.call(made, c(list(door, onKept), rows))$refused
-      expected <- atDoor("a 'basis' cannot be NA", door)
+      expected <- "a 'basis' cannot be NA"
       expect_identical(refused, expected, info = door)
     }
   }
 }
 # a value that is not finite goes as a missing one does
-expect_null(made("data", replace(dose, dropped, Inf), subset = keep)$refused)
+expect_null(made("object", replace(dose, dropped, Inf), subset = keep)$refused)
 expect_identical(
-  made("data", replace(dose, kept, Inf), subset = keep)$refused,
-  "a 'bases' must be finite"
+  made("object", replace(dose, kept, Inf), subset = keep)$refused,
+  "a 'basis' must be finite"
 )
-# dbartsSpec() over a data object cut by 'subset': the value has the kept
-# rows, and one of the data's full length is refused for its length
+# dbartsSpec() over a data object cut by 'subset': the value has one entry
+# per row handed over, cut with them, and one of the kept length is refused
+# for its length (dec-B680)
 subsetData <- dbartsData(x, y, subset = keep)
-expect_error(
+expect_identical(
   dbartsSpec(
     subsetData,
     kindControl(),
     forests = valueForests(zf),
     n.trees = 15L
-  ),
-  "'basis' must have the same length as 'y'",
-  fixed = TRUE
+  )$data@basis.levels,
+  list(NULL, c("0", "1"))
 )
-expect_identical(
+expect_error(
   dbartsSpec(
     subsetData,
     kindControl(),
     forests = valueForests(zf[keep]),
     n.trees = 15L
-  )$data@basis.levels,
-  list(NULL, c("0", "1"))
+  ),
+  "but not the full data",
+  fixed = TRUE
 )
 
 # --- the rows at creation ---
@@ -621,12 +593,12 @@ expect_identical(oneLogical$refused, paste0("'basis' (B) is TRUE", oneValue))
 for (door in setdiff(sevenDoors, codeDoors)) {
   expect_identical(
     made(door, keep, subset = keep)$refused,
-    atDoor(paste0("'basis' is TRUE", oneValue), door),
+    paste0("'basis' is TRUE", oneValue),
     info = door
   )
   expect_identical(
     made(door, !keep, response = yDropped)$refused,
-    atDoor(paste0("'basis' is FALSE", oneValue), door),
+    paste0("'basis' is FALSE", oneValue),
     info = door
   )
 }
@@ -636,8 +608,8 @@ expect_identical(
   "a 'basis' column of all zeros contributes nothing to a forest"
 )
 expect_identical(
-  made("data", onlyOnDropped, response = yDropped)$refused,
-  atDoor(allZero$refused, "data")
+  made("object", onlyOnDropped, response = yDropped)$refused,
+  allZero$refused
 )
 # a row of weight zero is a row the fit keeps: its level stays. A factor of
 # three levels with one of them all at weight zero has all three, which a basis
@@ -685,10 +657,21 @@ named <- expectOneReading(withNaLevel, sevenDoors, "", subset = !atNaLevel)
 expect_identical(named$levels, list(NULL, c("control", "treated")))
 
 # --- the record on the data object ---
-# dbartsSpec() over a data object that carries bases: a declaration's basis
-# replaces the block and its levels, and a list that states none leaves both
-numericData <- dbartsData(x, y, bases = list(NULL, dose))
-levelsData <- dbartsData(x, y, bases = list(NULL, zc))
+# dbartsSpec() over a sampler's data, which carry bases: a declaration's basis
+# replaces the block and its levels, and a list that states none states
+# forests with no basis (dec-B684)
+numericData <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = dose)),
+  control = kindControl()
+)$data
+levelsData <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = zc)),
+  control = kindControl()
+)$data
 declared <- dbartsSpec(
   numericData,
   kindControl(),
@@ -699,14 +682,18 @@ expect_identical(
   declared$data@basis.levels,
   list(NULL, c("control", "treated"))
 )
-expect_identical(declared$data@bases, levelsData@bases)
+bareBlock <- function(block) matrix(as.vector(block), nrow(block))
+expect_identical(
+  bareBlock(declared$data@bases[[2L]]),
+  bareBlock(levelsData@bases[[2L]])
+)
 settingsOnly <- dbartsSpec(
   levelsData,
   dbartsControl(n.chains = 1L, n.threads = 1L, n.samples = 10L, n.burn = 0L),
   forests = list(forest(n.trees = 12L), forest(n.trees = 8L))
 )
-expect_identical(settingsOnly$data@basis.levels, levelsData@basis.levels)
-expect_identical(settingsOnly$data@bases, levelsData@bases)
+expect_true(all(vapply(settingsOnly$data@bases, is.null, NA)))
+expect_true(all(vapply(settingsOnly$data@basis.levels, is.null, NA)))
 renumbered <- dbartsSpec(
   levelsData,
   kindControl(),
@@ -714,35 +701,62 @@ renumbered <- dbartsSpec(
   n.trees = 15L
 )
 expect_identical(renumbered$data@basis.levels, list(NULL, NULL))
-expect_identical(renumbered$data@bases, numericData@bases)
+expect_identical(
+  bareBlock(renumbered$data@bases[[2L]]),
+  bareBlock(numericData@bases[[2L]])
+)
 
 # a data object saved before the slot existed has none: it reads as numbers.
 # Of one column it creates at every door that takes a data object, runs and
 # takes numbers; with a factor's block of two it is two numeric columns,
 # refused at each. The class's validity refuses it, in R's words, and no door
-# calls that
-proto <- dbartsSpec(levelsData, kindControl(), n.trees = 15L)
+# calls that. A door keeps the held basis by naming it as it was written
+heldForests <- function(held) list(forest(), forest(basis = held))
+proto <- dbartsSpec(
+  levelsData,
+  kindControl(),
+  forests = heldForests("zc"),
+  n.trees = 15L
+)
 slotless <- proto$data
 attr(slotless, "basis.levels") <- NULL
 expect_error(validObject(slotless), "basis.levels", fixed = TRUE)
-numericProto <- dbartsSpec(numericData, kindControl(), n.trees = 15L)
+numericProto <- dbartsSpec(
+  numericData,
+  kindControl(),
+  forests = heldForests("dose"),
+  n.trees = 15L
+)
 numericSlotless <- numericProto$data
 attr(numericSlotless, "basis.levels") <- NULL
 madeFrom <- list(
-  new = function(data, from = proto) {
+  new = function(data, held, from = proto) {
     new("dbartsSampler", from$control, from$model, data)
   },
-  dbarts = function(data) dbarts(data, control = kindControl(), n.trees = 15L),
-  dbartsSpec = function(data) {
-    spec <- dbartsSpec(data, kindControl(), n.trees = 15L)
+  dbarts = function(data, held) {
+    dbarts(
+      data,
+      forests = heldForests(held),
+      control = kindControl(),
+      n.trees = 15L
+    )
+  },
+  dbartsSpec = function(data, held) {
+    spec <- dbartsSpec(
+      data,
+      kindControl(),
+      forests = heldForests(held),
+      n.trees = 15L
+    )
     new("dbartsSampler", spec$control, spec$model, spec$data)
   }
 )
 for (door in names(madeFrom)) {
   expect_identical(
-    refusalOf(madeFrom[[door]](slotless)),
+    refusalOf(madeFrom[[door]](slotless, "zc")),
     paste0(
-      "forest 2 has a basis of 2 numeric columns; in this version a basis is ",
+      "forest 2 has a basis of 2 numeric columns ('zccontrol', 'zctreated'); ",
+      "in this version a basis is ",
       "one numeric column, or a factor, a character or a logical vector of ",
       "two levels. If the columns are a factor's indicators, give the factor ",
       "itself; otherwise give each column a forest of its own"
@@ -750,15 +764,18 @@ for (door in names(madeFrom)) {
     info = door
   )
   sampler <- if (door == "new") {
-    valueOf(madeFrom$new(numericSlotless, numericProto))
+    valueOf(madeFrom$new(numericSlotless, "dose", numericProto))
   } else {
-    valueOf(madeFrom[[door]](numericSlotless))
+    valueOf(madeFrom[[door]](numericSlotless, "dose"))
   }
   if (!expectSampler(sampler, door)) {
     next
   }
   expect_identical(dim(sampler$run(0L, 3L)$train), c(n, 3L), info = door)
-  expect_null(dbarts:::dataBasisLevels(sampler$data), info = door)
+  expect_true(
+    all(vapply(dbarts:::dataBasisLevels(sampler$data), is.null, NA)),
+    info = door
+  )
   # as a forest of numbers it takes numbers
   swapped <- refusalOf(sampler$setForestBasis(2L, rev(dose)))
   expect_null(swapped, info = door)
@@ -771,10 +788,15 @@ countText <- paste0(
   "columns; dbartsData() and dbarts() write the two together"
 )
 for (door in names(madeFrom)) {
-  expect_error(madeFrom[[door]](miscounted), countText, fixed = TRUE)
+  expect_error(madeFrom[[door]](miscounted, "zc"), countText, fixed = TRUE)
 }
 expect_error(
-  dbartsSpec(miscounted, kindControl(), n.trees = 15L),
+  dbartsSpec(
+    miscounted,
+    kindControl(),
+    forests = heldForests("zc"),
+    n.trees = 15L
+  ),
   countText,
   fixed = TRUE
 )
@@ -783,12 +805,17 @@ expect_error(validObject(miscounted), countText, fixed = TRUE)
 tooFew <- proto$data
 tooFew@basis.levels <- list(NULL, "a")
 expect_error(
-  dbarts(tooFew, control = kindControl(), n.trees = 15L),
+  madeFrom$dbarts(tooFew, "zc"),
   sub("3 levels", "1 level", countText, fixed = TRUE),
   fixed = TRUE
 )
 # and levels recorded for a forest whose block was taken off by hand
-stripped <- dbartsData(x, rev(y), bases = list(NULL, zc))
+stripped <- dbarts(
+  x,
+  rev(y),
+  forests = heldForests("zc"),
+  control = kindControl()
+)$data
 stripped@bases <- NULL
 strippedText <- sub(
   "3 levels and its block in 'bases' has 2",
@@ -797,7 +824,7 @@ strippedText <- sub(
   fixed = TRUE
 )
 expect_error(
-  dbarts(stripped, control = kindControl(), n.trees = 15L),
+  validObject(stripped),
   strippedText,
   fixed = TRUE
 )
@@ -847,11 +874,7 @@ fitDoors <- list(
     formula <- y ~ forest(x1 + x2) + forest(x1 + x2, basis = B)
     do.call(bart, c(list(formula, d, ...), fitArgs))
   },
-  list = function(B, ...) packaged(valueForests(B), ...),
-  data = function(B, ...) {
-    data <- dbartsData(x, y, bases = list(NULL, B), ...)
-    do.call(bart, c(list(data), fitArgs))
-  }
+  list = function(B, ...) packaged(valueForests(B), ...)
 )
 reversed <- factor(zc, levels = c("treated", "control"))
 stored <- list(
@@ -1210,7 +1233,7 @@ expect_identical(basisFirst$data@bases[[1L]], creationBlock)
 # --- predict, by name ---
 trainRows <- data.frame(x1, x2)
 fromTerm <- fitDoors$term(zf)
-fromData <- fitDoors$data(zf)
+fromData <- fitDoors$list(zf)
 predicted <- function(fit, rows, bases) {
   valueOf(unname(predict(fit, rows, bases = bases)))
 }
@@ -1220,7 +1243,7 @@ expect_identical(dim(aligned), c(20L, n))
 flipped <- factor(z2, levels = c("1", "0"))
 expect_identical(predicted(fromTerm, newRows, flipped), aligned)
 expect_identical(predicted(fromTerm, newRows, as.character(z2)), aligned)
-# a fit over a data object from the data door predicts by name as well
+# a fit from a forests list predicts by name as well
 expect_identical(
   predicted(fromData, newRows, flipped),
   predicted(fromData, newRows, factor(z2))
@@ -1596,7 +1619,12 @@ oneForest <- plain()
 untouched <- plain()
 expect_error(
   oneForest$setData(levelsData),
-  "$setData: the data carry forest bases, and this sampler was created with one forest and none; a sampler's forests are fixed at creation. Make a new sampler from the data with dbarts(), or hand over data without 'bases'",
+  paste0(
+    "$setData: the data are those of a sampler of several forests and ",
+    "carry their bases, and this sampler was created with one forest and ",
+    "none; a sampler's forests are fixed at creation. Hand over the data ",
+    "object they were made from, or make a new sampler with dbarts()"
+  ),
   fixed = TRUE
 )
 expect_identical(oneForest$data, untouched$data)

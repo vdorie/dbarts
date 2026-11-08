@@ -777,15 +777,14 @@ expect_identical(
   ))[1L],
   "the control's n.trees (50) is not used: this fit's first forest has 7 trees; state the count as forest(n.trees = )"
 )
-# the same at bart() given a data object whose every forest has a basis
-allBasisData <- dbartsData(
-  y ~ x1 + x2 + x3,
-  frame,
-  bases = list(as.matrix(zn), as.matrix(z))
-)
+# the same at bart() given a formula whose every forest has a basis
 expect_identical(
-  said(barts(allBasisData, control = gauss(n.trees = 60L)$control))[1L],
-  "the control's n.trees (60) is not used: this fit's first forest has 50 trees; fit with dbarts() to state the count"
+  said(barts(
+    y ~ forest(x1 + x2 + x3, basis = zn) + forest(x1 + x2 + x3, basis = z),
+    frame,
+    control = gauss(n.trees = 60L)$control
+  ))[1L],
+  "the control's n.trees (60) is not used: this fit's first forest has 50 trees; state the count as forest(n.trees = )"
 )
 
 # --- dbartsSpec() ---

@@ -696,14 +696,12 @@ resolveSamplerSpec <- function(
   variance,
   survivalStatus,
   hazardPeriods,
-  bases,
   forests,
   evalEnv,
   residPrior = NULL,
   familySpec = NULL,
   basisRecords = NULL,
   sigestRule = "auto",
-  basisLevels = NULL,
   treePrior = NULL,
   weightsType = NA_character_
 ) {
@@ -881,25 +879,6 @@ resolveSamplerSpec <- function(
     identical(family, "nbinom") ||
     identical(family, "multinomial")
 
-  # a declaration's blocks, finished by the one caller that supplies them,
-  # replace the data object's, and their levels with them; the scale the
-  # object records for a forest whose basis is replaced goes, and is taken
-  # from the new column. Installed ahead of the starting sigma, whose
-  # regression reads the bases the model ends with
-  if (!is.null(bases)) {
-    data@bases <- bases
-    data@basis.levels <- basisLevels
-    scales <- dataBasisScale(data)
-    if (!is.null(scales)) {
-      for (index in seq_along(bases)) {
-        if (!is.null(bases[[index]]) && index <= length(scales)) {
-          scales[index] <- list(NULL)
-        }
-      }
-      data@basis.scale <- if (all(vapply(scales, is.null, NA))) NULL else scales
-    }
-  }
-
   # binary/ordinal/nbinom weight policy, enforced here in the R layer (the
   # bridge keeps the same checks as a backstop) - see enforceWeightPolicy's
   # own doc comment for the rule each family follows. Gaussian weights,
@@ -978,11 +957,9 @@ resolveSamplerSpec <- function(
   # model here, before the priors read them; every forest's statement, the
   # first's among them, goes into the model's forest records below, which the
   # bridge reads.
-  # PER FOREST, not one flag for the model: forest f is excused from declaring
-  # a basis only when one reaches it some other way, the dbartsData(bases = )
-  # route being the supported one. On the fitting path the declarations have
-  # already been expanded onto the data object, so this reads them back.
-  declaredBases <- if (is.null(bases)) data@bases else bases
+  # PER FOREST, not one flag for the model: the declarations have already
+  # been built onto the data object, so this reads them back.
+  declaredBases <- data@bases
   declaredHasBasis <- if (is.null(declaredBases)) {
     logical(0L)
   } else {
@@ -1451,14 +1428,13 @@ resolveSamplerSpec <- function(
     # over a data object already carrying two bases resolves to one, and
     # telling that caller they wrote one basis would be false
     numForests <- length(data@bases)
-    # K = 1 is not a shipped configuration (dec-A109). Both creation routes
-    # reach here - the dbartsData(bases = ) one and the forests = one, whose
-    # declarations forestBasisDeclarations carries down at any length - so this
-    # is the single site the refusal is owed at. A varying-coefficient model
+    # K = 1 is not a shipped configuration (dec-A109). Every creation route
+    # reaches here - a forest() term, a forests = list, whose declarations
+    # forestBasisDeclarations carries down at any length, and a sampler's own
+    # data - so this is the single site the refusal is owed at. A varying-coefficient model
     # is one forest per coefficient function, intercept included.
     if (numForests < 2L) {
-      fromData <- is.null(bases) &&
-        !any(lengths(forestBasisDeclarations(forests)) > 0L)
+      fromData <- !any(lengths(forestBasisDeclarations(forests)) > 0L)
       stop(
         "a multi-forest model needs at least two forests, and ",
         if (fromData) {
@@ -1467,9 +1443,8 @@ resolveSamplerSpec <- function(
             numForests,
             "; for varying coefficients declare an intercept forest plus ",
             "one basis forest per covariate - forests = list(forest(), ",
-            "forest(basis = z1), ...) on dbarts() or dbartsSpec(), or a ",
-            "data object with bases = list(NULL, z1, ...) - or use a single ",
-            "forest with linear() leaves; otherwise drop the basis"
+            "forest(basis = z1), ...) on dbarts() or dbartsSpec() - or use a ",
+            "single forest with linear() leaves; otherwise drop the basis"
           )
         } else {
           paste0(
@@ -1606,8 +1581,7 @@ resolveSamplerSpec <- function(
       }
     }
     # every forest resolves its own knobs; a data object carrying bases with no
-    # forests = declaration at all resolves to the same defaults, which is what
-    # keeps the dbartsData(bases = ) route a supported one
+    # forests = declaration at all resolves to the same defaults
     specs <- if (is.null(forestSpec)) {
       rep(list(NULL), numForests)
     } else {
@@ -1717,7 +1691,10 @@ resolveSamplerSpec <- function(
       record@interactions <- forestInteractions[[index]]
       record@blocks <- forestBlocks[[index]]
       record@label <- labels[index]
-      if (index <= length(basisRecords)) {
+      # a held basis kept by its text has the text and no terms
+      if (
+        index <= length(basisRecords) && !is.null(basisRecords[[index]]$terms)
+      ) {
         record@basis.term <- basisRecords[[index]]
       }
       record
@@ -1853,6 +1830,8 @@ dbartsSpec <- function(
   if (!inherits(data, "dbartsData")) {
     stop("'data' must be a dbartsData object; see ?dbartsData")
   }
+  # as handed over, which a forest's basis is read against
+  handedData <- data
   data <- resolveDataObject(data)
   if (!inherits(control, "dbartsControl")) {
     stop("'control' must be a dbartsControl object; see ?dbartsControl")
@@ -1934,61 +1913,26 @@ dbartsSpec <- function(
   monotone <- forestArguments$monotone
   variance <- forestArguments$variance
 
-  # this surface does no data ingestion of its own, so a declared basis is
-  # read here, as dbarts() reads one, and reaches data@bases through the same
-  # class rule and row judgment dbartsData() applies on the fitting path. There is no data
-  # frame for a basis's code to name a column of, so code is the value it had
-  # where forest() was called; the caller's data object has already had its
-  # own 'subset' applied, so a basis covers the rows it holds
-  basis <- NULL
-  basisLevels <- NULL
-  basisRecords <- NULL
+  # a declared basis is read against the data object as dbarts() reads one
+  # beside it (readFitBasis) and built on the rows the object keeps. A forests
+  # list states the forests in full: what the object held is replaced, a held
+  # basis a forest names kept, and a list of one forest with none, or none,
+  # gives one forest
+  basisReads <- NULL
   if (!is.null(forestBasisDeclarations(forests))) {
-    declared <- readDeclaredBases(forests, NULL, length(data@y))
+    basisSource <- objectBasisSource(handedData, forests)
+    declared <- readDeclaredBases(forests, basisSource)
     forests <- declared$forests
-    # the data object holds the rows it holds: every row of a code basis,
-    # and the rows a value is judged on, as the data object judges one
-    finished <- finishBasisRows(
-      validateForestBases(
-        structure(
-          forest.labels = names(forests),
-          lapply(declared$reads, function(read) {
-            if (is.null(read)) {
-              NULL
-            } else if (is.null(read$frame)) {
-              read$value
-            } else {
-              basisRowNumbers(length(data@y))
-            }
-          })
-        ),
-        length(data@y),
-        argument = "basis"
-      ),
-      "basis",
-      names(forests)
-    )
-    built <- buildFitBases(
-      declared$reads,
-      finished$bases,
-      length(data@y),
-      finished$levels,
-      forests
-    )
-    # as in dbarts(): a list of two or more in which no forest declares a
-    # basis is a model of several forests with none, unless the data object
-    # carries bases, which such a list states knobs for
-    if (
-      any(!vapply(built$bases, is.null, logical(1L))) ||
-        (length(built$bases) > 1L && is.null(data@bases))
-    ) {
-      basis <- built$bases
-      basisLevels <- built$levels
-      if (any(!vapply(built$records, is.null, logical(1L)))) {
-        basisRecords <- built$records
-      }
+    basisReads <- declared$reads
+    if (all(vapply(basisReads, is.null, NA)) && length(basisReads) < 2L) {
+      basisReads <- NULL
     }
   }
+  built <- if (!is.null(basisReads)) {
+    buildFitBases(basisReads, basisSource, data@rows, length(data@y), forests)
+  }
+  data <- installFitBases(data, built)
+  basisRecords <- fitBasisRecords(built)
 
   resolveSamplerSpec(
     matchedCall,
@@ -2012,8 +1956,6 @@ dbartsSpec <- function(
     variance = variance,
     survivalStatus = survival,
     hazardPeriods = NULL,
-    bases = basis,
-    basisLevels = basisLevels,
     forests = forests,
     evalEnv = parentEnv,
     residPrior = residPrior,

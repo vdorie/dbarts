@@ -58,12 +58,12 @@ doors <- list(
   },
   data = function(response, family) {
     dbarts(
-      dbartsData(x, d[[response]], bases = list(NULL, zf, dose)),
+      dbartsData(x, d[[response]]),
       family = family,
       forests = list(
         forest(),
-        forest(amplitude = student(3)),
-        forest(amplitude = student(3))
+        forest(basis = zf, amplitude = student(3)),
+        forest(basis = dose, amplitude = student(3))
       ),
       control = ctl()
     )
@@ -286,9 +286,9 @@ noBasis <- function(amplitude, family = "gaussian", response = "y", sd = NULL) {
     forest(sd = sd, amplitude = amplitude)
   }
   sampler <- dbarts(
-    dbartsData(x, d[[response]], bases = list(NULL, zf)),
+    dbartsData(x, d[[response]]),
     family = family,
-    forests = list(first, forest()),
+    forests = list(first, forest(basis = zf)),
     control = ctl(seed = 17L)
   )
   sampler
