@@ -845,8 +845,11 @@ items
     matched to its levels by label, the written-form record becoming
     factor; a factor refused where any row holds more than one trial,
     naming the count matrix; numeric codes still refused (dec-B656, VD
-    2026-11-07: "You can use (b)."). On the frequency-weights branch or
-    after it lands.
+    2026-11-07: "You can use (b)."). With it, a probit or logistic
+    sampler built from a two-level factor takes a factor matched by
+    label to its recorded levels, first level 0 whatever the new order,
+    a foreign label or a third level refused (dec-B657, "Yes, do
+    that."). On the frequency-weights branch or after it lands.
   setresponse-positional-arg-warning: drop the once-per-session warning on
     a positionally-supplied second argument to $setResponse (it now sets
     updateScale, not updateState) once callers have had a full minor cycle
