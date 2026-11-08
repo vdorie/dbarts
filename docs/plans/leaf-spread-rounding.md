@@ -5,7 +5,7 @@ rng: neutral for every column above the tolerance (the trio bitwise); a
 column under it is refused or kept where it ran before
 budget: ~60 engine and bridge lines, ~10 R lines, ~250 test lines, help
 
-Status: BUILT 2026-11-07, not yet reviewed (03f9e1618)
+Status: BUILT 2026-11-07, reviewed SOUND AFTER NITS, fix round built (2839a6d89, 5c702a665)
 
 ## Goal
 
@@ -174,7 +174,7 @@ column above the tolerance draws what it drew.
 
 ## Build note
 
-Built in 03f9e1618 as planned. The six warning pins in
+Built in 2839a6d89 as planned. The six warning pins in
 test-leaf-standardization-rows.R take the reworded keep text. Gates on that
 code: tests/cpp plain and under ASan and UBSan; the full suite, 42316
 results, 0 failed; the trio `--bitwise --strict-coverage` on the reference
@@ -189,7 +189,7 @@ pin, the chain's own derivation throwing where the sampler marked the
 covariate derivable; the corrected center removed fails the C++ row-count
 check.
 
-Fix round, 95534dd61, after the engine review (SOUND AFTER NITS). F1
+Fix round, 5c702a665, after the engine review (SOUND AFTER NITS). F1
 (dec-B673): the refusal advises dropping the column, recomputing it from
 its source about an origin near its values where they truly differ, or
 changing the rows in; the help says why subtracting a constant does not
