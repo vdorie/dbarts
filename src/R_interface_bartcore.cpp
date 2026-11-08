@@ -1768,22 +1768,24 @@ void parseMoveEntry(bartcore::MoveSettings& settings, SEXP entryExpr,
 /// The variance record's move settings, R_NilValue where the model has no
 /// variance forest or it states none.
 SEXP varianceMoves(SEXP modelExpr) {
-  SEXP varianceRecordExpr = slotOrNull(modelExpr, "variance");
-  return Rf_isNull(varianceRecordExpr)
+  SEXP varianceRecordExpr = PROTECT(slotOrNull(modelExpr, "variance"));
+  SEXP movesExpr = Rf_isNull(varianceRecordExpr)
     ? R_NilValue : slotOrNull(varianceRecordExpr, "moves");
+  UNPROTECT(1);
+  return movesExpr;
 }
 
 /// Whether any forest of the model, its variance forest included, carries
 /// move settings of its own.
 bool modelStatesMoves(SEXP modelExpr) {
-  SEXP forestsExpr = slotOrNull(modelExpr, "forests");
+  SEXP forestsExpr = PROTECT(slotOrNull(modelExpr, "forests"));
   if (!Rf_isNewList(forestsExpr))
     Rf_error("the model's 'forests' must be a list of forest records");
-  if (!Rf_isNull(varianceMoves(modelExpr))) return true;
-  for (R_xlen_t f = 0; f < XLENGTH(forestsExpr); ++f)
-    if (!Rf_isNull(slotOrNull(VECTOR_ELT(forestsExpr, f), "moves")))
-      return true;
-  return false;
+  bool statesMoves = !Rf_isNull(varianceMoves(modelExpr));
+  for (R_xlen_t f = 0; !statesMoves && f < XLENGTH(forestsExpr); ++f)
+    statesMoves = !Rf_isNull(slotOrNull(VECTOR_ELT(forestsExpr, f), "moves"));
+  UNPROTECT(1);
+  return statesMoves;
 }
 
 void parseMoveRecord(MoveRecord& record, SEXP controlExpr, SEXP modelExpr) {
@@ -1792,8 +1794,8 @@ void parseMoveRecord(MoveRecord& record, SEXP controlExpr, SEXP modelExpr) {
   record.control.levelGibbs = parseLevelGibbs(slotExpr);
   UNPROTECT(1);
   record.present = modelStatesMoves(modelExpr);
-  SEXP forestsExpr = slotOrNull(modelExpr, "forests");
-  SEXP varianceExpr = varianceMoves(modelExpr);
+  SEXP forestsExpr = PROTECT(slotOrNull(modelExpr, "forests"));
+  SEXP varianceExpr = PROTECT(varianceMoves(modelExpr));
   R_xlen_t numForests = XLENGTH(forestsExpr);
   record.forests.clear();
   record.hasVariance = false;
@@ -1802,15 +1804,18 @@ void parseMoveRecord(MoveRecord& record, SEXP controlExpr, SEXP modelExpr) {
     record.forests.assign(static_cast<std::size_t>(numForests),
                           record.control);
     for (R_xlen_t f = 0; f < numForests; ++f) {
-      SEXP entryExpr = slotOrNull(VECTOR_ELT(forestsExpr, f), "moves");
+      SEXP entryExpr =
+        PROTECT(slotOrNull(VECTOR_ELT(forestsExpr, f), "moves"));
       if (!Rf_isNull(entryExpr))
         parseMoveEntry(record.forests[static_cast<std::size_t>(f)], entryExpr,
                        true);
+      UNPROTECT(1);
     }
     record.hasVariance = !Rf_isNull(varianceExpr);
     if (record.hasVariance)
       parseMoveEntry(record.variance, varianceExpr, false);
   }
+  UNPROTECT(2);
 }
 
 const char* const moveRecordMismatchMessage =
@@ -2163,22 +2168,25 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
 
   // the first mean forest's tree count, from its record; every creation path
   // of the R surface writes one
-  SEXP forestsExpr = slotOrNull(modelExpr, "forests");
+  SEXP forestsExpr = PROTECT(slotOrNull(modelExpr, "forests"));
   if (!Rf_isNewList(forestsExpr) || Rf_xlength(forestsExpr) == 0)
     Rf_error("the model records no forest; build it through dbarts() or "
              "dbartsSpec()");
-  model.numTrees = static_cast<size_t>(rc_getInt(
-    slotOrNull(VECTOR_ELT(forestsExpr, 0), "n.trees"), "number of trees",
-    RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END));
+  SEXP nTreesExpr = PROTECT(slotOrNull(VECTOR_ELT(forestsExpr, 0), "n.trees"));
+  model.numTrees = static_cast<size_t>(
+    rc_getInt(nTreesExpr, "number of trees", RC_LENGTH | RC_EQ,
+              rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END));
+  UNPROTECT(2);
 
   // the ordinal category count, NA on every other family, so every other
   // family parses unchanged
-  SEXP categoriesExpr = slotOrNull(modelExpr, "n.categories");
+  SEXP categoriesExpr = PROTECT(slotOrNull(modelExpr, "n.categories"));
   if (Rf_isInteger(categoriesExpr) && Rf_xlength(categoriesExpr) == 1 &&
       INTEGER(categoriesExpr)[0] != NA_INTEGER &&
       INTEGER(categoriesExpr)[0] >= 2)
     model.numOrdinalCategories =
       static_cast<size_t>(INTEGER(categoriesExpr)[0]);
+  UNPROTECT(1);
 
   // the count shape setting: its presence marks the count shape and its
   // value is the spec (positive fixes r, non-positive estimates it on the
@@ -2199,9 +2207,12 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
 /// the prior is not DART's. The one reader of them, at creation and at
 /// $setModel.
 bool parseDartSettings(bartcore::DartPrior& dart, SEXP modelExpr) {
-  SEXP treePriorExpr = Rf_getAttrib(modelExpr, Rf_install("tree.prior"));
-  if (!Rf_inherits(treePriorExpr, "dbartsDartPrior")) return false;
-  PROTECT(treePriorExpr);
+  SEXP treePriorExpr =
+    PROTECT(Rf_getAttrib(modelExpr, Rf_install("tree.prior")));
+  if (!Rf_inherits(treePriorExpr, "dbartsDartPrior")) {
+    UNPROTECT(1);
+    return false;
+  }
   dart.betaA = rc_getDouble(
     Rf_getAttrib(treePriorExpr, Rf_install("a")), "dart a",
     RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
@@ -2914,13 +2925,16 @@ void applySurvivalStatus(SEXP dataExpr, size_t numObservations,
 void applyVarianceRecord(SEXP modelExpr, size_t numPredictors,
                          bartcore::SamplerOptions& options,
                          std::vector<std::size_t>& columns) {
-  SEXP varExpr = slotOrNull(modelExpr, "variance");
-  if (Rf_isNull(varExpr)) return;
+  SEXP varExpr = PROTECT(slotOrNull(modelExpr, "variance"));
+  if (Rf_isNull(varExpr)) {
+    UNPROTECT(1);
+    return;
+  }
 
-  SEXP nTreesExpr = slotOrNull(varExpr, "n.trees");
-  SEXP baseExpr = slotOrNull(varExpr, "base");
-  SEXP powerExpr = slotOrNull(varExpr, "power");
-  SEXP columnsExpr = slotOrNull(varExpr, "columns");
+  SEXP nTreesExpr = PROTECT(slotOrNull(varExpr, "n.trees"));
+  SEXP baseExpr = PROTECT(slotOrNull(varExpr, "base"));
+  SEXP powerExpr = PROTECT(slotOrNull(varExpr, "power"));
+  SEXP columnsExpr = PROTECT(slotOrNull(varExpr, "columns"));
   if (!Rf_isInteger(nTreesExpr) || Rf_xlength(nTreesExpr) != 1 ||
       !Rf_isReal(baseExpr) || Rf_xlength(baseExpr) != 1 ||
       !Rf_isReal(powerExpr) || Rf_xlength(powerExpr) != 1)
@@ -2949,6 +2963,7 @@ void applyVarianceRecord(SEXP modelExpr, size_t numPredictors,
     options.varianceForestColumns = columns.data();
     options.numVarianceForestColumns = columns.size();
   }
+  UNPROTECT(5);
 }
 
 // Read a resolved interactions() list (the resolveInteractions output: a
@@ -3055,10 +3070,10 @@ void applyAmplitudeSpec(SEXP recordsExpr, const ParsedModel& model,
 
   for (size_t f = 0; f < numForests; ++f) {
     SEXP recordExpr = VECTOR_ELT(recordsExpr, static_cast<R_xlen_t>(f));
-    SEXP countExpr = slotOrNull(recordExpr, "n.trees");
-    SEXP baseExpr = slotOrNull(recordExpr, "base");
-    SEXP powerExpr = slotOrNull(recordExpr, "power");
-    SEXP heldExpr = slotOrNull(recordExpr, "held.amplitude");
+    SEXP countExpr = PROTECT(slotOrNull(recordExpr, "n.trees"));
+    SEXP baseExpr = PROTECT(slotOrNull(recordExpr, "base"));
+    SEXP powerExpr = PROTECT(slotOrNull(recordExpr, "power"));
+    SEXP heldExpr = PROTECT(slotOrNull(recordExpr, "held.amplitude"));
     if (!Rf_isInteger(countExpr) || Rf_xlength(countExpr) != 1 ||
         INTEGER(countExpr)[0] < 1 || !Rf_isReal(baseExpr) ||
         Rf_xlength(baseExpr) != 1 || !Rf_isReal(powerExpr) ||
@@ -3073,6 +3088,7 @@ void applyAmplitudeSpec(SEXP recordsExpr, const ParsedModel& model,
     forest.forest.base = f == 0 ? model.base : REAL(baseExpr)[0];
     forest.forest.power = f == 0 ? model.power : REAL(powerExpr)[0];
     forest.updateAmplitude = LOGICAL(heldExpr)[0] != TRUE;
+    UNPROTECT(4);
     // Every forest is built with the control's mixture and window; a forest
     // stating its own takes it from the move install after creation
     // (resolveMoveSettings). Carried here because the K-forest chain builds
@@ -3092,7 +3108,7 @@ void applyAmplitudeSpec(SEXP recordsExpr, const ParsedModel& model,
     // the forest's optional column restriction: 1-based indices resolved
     // R-side, or NULL for an unrestricted forest reading the full store.
     // Consumed at construction, so the buffer need only outlive the build.
-    SEXP forestVarsExpr = slotOrNull(recordExpr, "vars");
+    SEXP forestVarsExpr = PROTECT(slotOrNull(recordExpr, "vars"));
     if (!Rf_isNull(forestVarsExpr)) {
       if (!Rf_isInteger(forestVarsExpr))
         Rf_error("forest variables must be resolved integer column indices");
@@ -3108,16 +3124,20 @@ void applyAmplitudeSpec(SEXP recordsExpr, const ParsedModel& model,
       forest.forest.columns = storage.columns[f].data();
       forest.forest.numColumns = storage.columns[f].size();
     }
+    UNPROTECT(1);
 
     // independent per-forest interaction constraints (the calibrated-additivity
     // causal use) and block-additive partitions: each forest resolves its own
     // prior R-side over the columns it may split on, and the engine intersects
     // a restricted forest's block rows with its column mask at install
-    applyForestInteractions(slotOrNull(recordExpr, "interactions"),
-                            numPredictors, forest.forest, storage.pairs[f]);
-    applyForestBlocks(slotOrNull(recordExpr, "blocks"), numPredictors,
-                      forest.forest.numTrees, forest.forest,
-                      storage.blockGroups[f], storage.blockCounts[f]);
+    SEXP interactionsExpr = PROTECT(slotOrNull(recordExpr, "interactions"));
+    applyForestInteractions(interactionsExpr, numPredictors, forest.forest,
+                            storage.pairs[f]);
+    SEXP blocksExpr = PROTECT(slotOrNull(recordExpr, "blocks"));
+    applyForestBlocks(blocksExpr, numPredictors, forest.forest.numTrees,
+                      forest.forest, storage.blockGroups[f],
+                      storage.blockCounts[f]);
+    UNPROTECT(2);
   }
 }
 
@@ -3235,8 +3255,11 @@ bool applyForestRecords(SEXP modelExpr, const ParsedModel& model,
                         const ParsedData& data, size_t numTrees,
                         bartcore::AmplitudeSpec& spec,
                         AmplitudeSpecStorage& storage) {
-  SEXP recordsExpr = modelForestRecords(modelExpr);
-  if (Rf_xlength(recordsExpr) < 2) return false;
+  SEXP recordsExpr = PROTECT(modelForestRecords(modelExpr));
+  if (Rf_xlength(recordsExpr) < 2) {
+    UNPROTECT(1);
+    return false;
+  }
   applyAmplitudeSpec(recordsExpr, model, numTrees, data.numPredictors, spec,
                      storage);
   // the anchor s and the response units in one s that the data object
@@ -3247,6 +3270,7 @@ bool applyForestRecords(SEXP modelExpr, const ParsedModel& model,
     spec.unit = data.forestUnit;
   }
   applyForestStatements(recordsExpr, spec);
+  UNPROTECT(1);
   return true;
 }
 
@@ -3520,12 +3544,13 @@ bartcore::ColumnStore& dataHandleFromExpression(SEXP ptrExpr) {
 /// Called after parseModel and before anything is written.
 void refuseVarianceCalibration(const ParsedModel& model, SEXP modelExpr) {
   if (model.sigmaIsFixed || model.sigmaDf > 2.0) return;
-  SEXP varianceExpr = slotOrNull(modelExpr, "variance");
-  if (Rf_isNull(varianceExpr)) return;
-  SEXP nTreesExpr = slotOrNull(varianceExpr, "n.trees");
+  SEXP varianceExpr = PROTECT(slotOrNull(modelExpr, "variance"));
+  SEXP nTreesExpr = PROTECT(
+    Rf_isNull(varianceExpr) ? R_NilValue : slotOrNull(varianceExpr, "n.trees"));
   // a malformed record is applyVarianceRecord's to refuse
-  if (!Rf_isInteger(nTreesExpr) || Rf_xlength(nTreesExpr) != 1) return;
-  int numTrees = INTEGER(nTreesExpr)[0];
+  int numTrees = Rf_isInteger(nTreesExpr) && Rf_xlength(nTreesExpr) == 1
+    ? INTEGER(nTreesExpr)[0] : 0;
+  UNPROTECT(2);
   if (numTrees < 2) return;
   Rf_error("a variance forest of %d trees does not support a residual prior "
            "df of %g: its leaves are calibrated to the prior mean of "
@@ -4154,12 +4179,12 @@ const char* const forestSdUnitMessage =
 // position's own.
 std::string forestMessageName(SEXP modelExpr, size_t f) {
   std::string name = "forest " + std::to_string(f + 1);
-  SEXP recordsExpr = slotOrNull(modelExpr, "forests");
-  if (!Rf_isNewList(recordsExpr) ||
-      Rf_xlength(recordsExpr) <= static_cast<R_xlen_t>(f))
-    return name;
-  SEXP labelsExpr =
-    slotOrNull(VECTOR_ELT(recordsExpr, static_cast<R_xlen_t>(f)), "label");
+  SEXP recordsExpr = PROTECT(slotOrNull(modelExpr, "forests"));
+  SEXP labelsExpr = Rf_isNewList(recordsExpr) &&
+      Rf_xlength(recordsExpr) > static_cast<R_xlen_t>(f)
+    ? slotOrNull(VECTOR_ELT(recordsExpr, static_cast<R_xlen_t>(f)), "label")
+    : R_NilValue;
+  UNPROTECT(1);
   if (!Rf_isString(labelsExpr) || Rf_xlength(labelsExpr) != 1) return name;
   SEXP labelExpr = STRING_ELT(labelsExpr, 0);
   if (labelExpr == NA_STRING) return name;
