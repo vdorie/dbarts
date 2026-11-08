@@ -362,3 +362,42 @@ expect_error(
   pattern = "unused argument"
 )
 rm(nMiss, xMiss, yMiss)
+
+# splitprobs reaches the fit from the argument's value, whether or not the
+# call is kept
+set.seed(7)
+nSp <- 60L
+xSp <- matrix(rnorm(nSp * 3L), nSp)
+ySp <- xSp[, 1L] + rnorm(nSp)
+fitSp <- function(keepcall) {
+  dbarts::bartBT(
+    xSp,
+    ySp,
+    splitprobs = c(0.98, 0.01, 0.01),
+    ndpost = 20L,
+    nskip = 20L,
+    ntree = 10L,
+    nchain = 1L,
+    nthread = 1L,
+    keepcall = keepcall,
+    verbose = FALSE,
+    seed = 11L
+  )
+}
+spKept <- fitSp(TRUE)
+spDropped <- fitSp(FALSE)
+expect_equal(spKept$yhat.train, spDropped$yhat.train)
+spEqual <- dbarts::bartBT(
+  xSp,
+  ySp,
+  ndpost = 20L,
+  nskip = 20L,
+  ntree = 10L,
+  nchain = 1L,
+  nthread = 1L,
+  keepcall = FALSE,
+  verbose = FALSE,
+  seed = 11L
+)
+expect_false(isTRUE(all.equal(spEqual$yhat.train, spDropped$yhat.train)))
+rm(nSp, xSp, ySp, fitSp, spKept, spDropped, spEqual)

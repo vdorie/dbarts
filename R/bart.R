@@ -4808,10 +4808,12 @@ bartBT <- function(
     factors = "indicators",
     na.action = stats::na.omit
   )
-  # the split probabilities only where the recorded call names them: the
-  # default, 1 / numvars, is equal probabilities, which dbarts() takes as none
-  if (!is.null(matchedCall[["splitprobs"]])) {
-    args$split.probs <- matchedCall[["splitprobs"]]
+  # the split probabilities only where the caller gave them, as the call
+  # wrote them (they may name numvars, which only dbarts() resolves) and read
+  # from the argument itself so that keepcall = FALSE keeps them: the default,
+  # 1 / numvars, is equal probabilities, which dbarts() takes as none
+  if (!missing(splitprobs)) {
+    args$split.probs <- match.call()[["splitprobs"]]
   }
   # 0.9-34's row rule, unchanged: a row with a missing value anywhere is
   # dropped rather than modeled. The modern door's na.action default keeps

@@ -906,6 +906,9 @@
   }
   \subsection{BUG FIXES}{
     \itemize{
+      \item \code{bartBT} with \code{keepcall = FALSE} used equal split
+            probabilities whatever \code{splitprobs} was given; 0.9-34 did
+            the same. It now fits the probabilities it is given.
       \item The tree change move now satisfies detailed balance. It omitted
             a proposal-density ratio, which biased the trees toward
             predictors with fewer cut points whenever predictors differed in
