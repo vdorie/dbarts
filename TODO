@@ -841,6 +841,10 @@ items
     docs/plans/release-candidate-review.md's wave-3 landing note; the
     review's own DEFER bin is
     docs/plans/review-2026-08-24/consolidated-report.md.
+  multinomial-active-rows-update-scale: a multinomial sampler takes
+    setActiveRows(mask, updateScale = TRUE), installs the mask and
+    derives nothing, as probit and logistic do (dec-B661, VD
+    2026-11-07: "use (b)."). About 6 lines, one test, the help clause.
   multinomial-setresponse-factor: a multinomial sampler every row of
     whose response holds one trial takes a factor in $setResponse,
     matched to its levels by label, the written-form record becoming
