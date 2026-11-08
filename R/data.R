@@ -2132,32 +2132,7 @@ validateXTest <- function(
   }
   if (numPredictors > 1) {
     columnIndices <- seq.int(numPredictors)
-    if (xIsNamed && !testIsNamed) {
-      # named fit, positional (unnamed) test: swapped columns would match
-      # silently and return badly wrong numbers, so spell out the mapping the
-      # positional match assumes rather than only noting that it happened
-      shown <- min(numPredictors, 3L)
-      mapping <- paste0(
-        "column ",
-        seq_len(shown),
-        " = '",
-        predictorNames[seq_len(shown)],
-        "'",
-        collapse = ", "
-      )
-      # suppressTestMatchWarnings mutes every warning this function raises,
-      # all of which report columns matched by position rather than by name
-      warning(
-        paste0(
-          "'test' is unnamed but the fit's predictors are named, matched by ",
-          "position (",
-          mapping,
-          if (numPredictors > shown) ", ..." else "",
-          "); supply 'test' with column names to match by name instead"
-        ),
-        call. = FALSE
-      )
-    } else if (repeatedNames) {
+    if (repeatedNames) {
       warning(
         "'x' has repeated column names, so 'test' is matched by position",
         call. = FALSE

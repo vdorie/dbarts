@@ -71,17 +71,24 @@ expect_error(
   "missing variable required by the model: 'c'"
 )
 
-# (e) an unnamed-matrix test set against a named-predictor fit still matches
-# by position (a warning, not an error, so legitimately-unnamed use is not
-# broken), but the warning now spells out the assumed column mapping
+# (e) an unnamed-matrix test set against a named-predictor fit is read in the
+# fit's column order with no message; a named test set against an unnamed fit
+# keeps its warning
 xNamed <- testData$x[, 1:3]
 colnames(xNamed) <- c("aa", "bb", "cc")
 testUnnamed <- unname(testData$x[1:5, 1:3])
-warnings.unnamedTest <- captureWarnings(
+expect_silent(
   dbarts::dbartsData(xNamed, testData$y, test = testUnnamed)
 )
-expect_equal(length(warnings.unnamedTest), 1L)
-expect_match(conditionMessage(warnings.unnamedTest[[1L]]), "column 1 = 'aa'")
+expect_warning(
+  dbarts::dbartsData(
+    unname(xNamed),
+    testData$y,
+    test = xNamed[1:5, , drop = FALSE]
+  ),
+  "'x' and 'test' are not both named",
+  strict = TRUE
+)
 
 # (f) an offset naming the kind actually supplied: a matrix offset is only
 # ever a multinomial category shift (paired with 'counts'), and a flat

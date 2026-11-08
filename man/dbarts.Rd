@@ -30,7 +30,7 @@ dbarts(
     An optional data frame, list, or environment containing predictors to be used with the model. For backwards compatibility, can also be the \code{\link{bartBT}} vector \code{y.train}. The response, however supplied, is checked for near-degeneracy at double precision and warns when too few distinct values remain to fit against.
   }
   \item{test}{
-    An optional matrix or data frame with the same number of predictors as \code{data}, or \code{formula} in backwards compatibility mode. If column names are present, a matching algorithm is used; when both are named, \code{test}'s names must cover \code{data}'s (an error otherwise); when only one is named, columns are matched by position instead, with a warning.
+    An optional matrix or data frame with the same number of predictors as \code{data}, or \code{formula} in backwards compatibility mode. If column names are present, a matching algorithm is used; when both are named, \code{test}'s names must cover \code{data}'s (an error otherwise); an unnamed \code{test} is read in the order of \code{data}'s columns, with no message, and a named \code{test} given to an unnamed \code{data} is matched by position with a warning.
   }
   \item{subset}{
     An optional vector specifying a subset of observations to be used in the fitting process. Each argument that holds rows, the first argument, \code{data}, \code{test}, \code{subset}, \code{weights} and \code{offset}, is evaluated once for a fit, the first argument before \code{data}. So an expression that draws its rows, as \code{data = d[sample(nrow(d)), ]}, \code{subset = sample(n, 100)} or the pair \code{dbarts(x[i <- sample(n, 100), ], y[i])}, gives the response, the predictors, the weights, the offset and every forest's basis the same rows.

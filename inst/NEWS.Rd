@@ -173,10 +173,6 @@
             \code{NA} for such rows. 0.9-34 also dropped a data frame's
             incomplete rows, returning fewer rows than given; see
             \code{\link{na.keepPredictors}}.
-      \item An unnamed \code{test} or \code{newdata} matrix given to a fit
-            whose predictors are named warns on every call, saying which
-            columns it was matched to by position; 0.9-34 matched silently.
-            Give the matrix column names to match by name.
       \item A named vector given as \code{newdata} is one row matched by
             name, as a named one-row matrix is; 0.9-34 read it by position,
             whatever its names.

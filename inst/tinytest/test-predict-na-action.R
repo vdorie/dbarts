@@ -297,7 +297,7 @@ expect_error(
   fixed = TRUE
 )
 
-# --- a positional newdata warns once ---
+# --- a positional newdata is read in the fit's order with no message ---
 
 countWarnings <- function(expr) {
   count <- 0L
@@ -312,7 +312,7 @@ countWarnings <- function(expr) {
 }
 expect_identical(
   countWarnings(predict(fit, unname(newX), na.action = na.exclude)),
-  1L
+  0L
 )
 
 # --- a formula fit with a factor, and the unseen-level fix ---
@@ -479,7 +479,7 @@ expect_identical(
 )
 expect_identical(
   countWarnings(predict(fitH, unname(newX), na.action = na.omit)),
-  1L
+  0L
 )
 expect_identical(dim(predict(fitH, newX[0L, ])), c(16L, 0L))
 
