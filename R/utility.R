@@ -139,13 +139,22 @@ warnFamilyGatedArgs <- function(suppliedNames, family) {
 # A TRUE/FALSE argument, as as.logical reads one: a single logical or number,
 # 0 being FALSE; NA, a string and any other length refused by name. Returns
 # the logical.
-checkFlag <- function(value, name) {
+checkFlag <- function(value, name, orNull = FALSE) {
   if (
     !(is.logical(value) || is.numeric(value)) ||
       length(value) != 1L ||
       is.na(value)
   ) {
-    stop("'", name, "' must be TRUE or FALSE", call. = FALSE)
+    stop(
+      "'",
+      name,
+      if (orNull) {
+        "' must be TRUE, FALSE or NULL"
+      } else {
+        "' must be TRUE or FALSE"
+      },
+      call. = FALSE
+    )
   }
   as.logical(value)
 }

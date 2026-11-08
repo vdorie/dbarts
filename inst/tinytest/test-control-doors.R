@@ -1186,7 +1186,7 @@ attr(badCuts, "n.cuts") <- -1L
 badRows <- list(
   list(badCount, "'n.trees' must be a positive integer"),
   list(badTwoCounts, "'n.trees' must be of length 1"),
-  list(badRule, "'useQuantiles' must be TRUE or FALSE"),
+  list(badRule, "'useQuantiles' must be TRUE(, | or )FALSE"),
   list(badTwoRules, "'useQuantiles' must be of length 1"),
   list(badCuts, "'n.cuts' must contain only positive integers")
 )

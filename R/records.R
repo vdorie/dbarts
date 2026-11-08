@@ -135,7 +135,11 @@ checkFlatCopies <- function(
     if (length(useQuantiles) != 1L) {
       stop("'useQuantiles' must be of length 1", call. = FALSE)
     }
-    result$useQuantiles <- checkFlag(useQuantiles, "useQuantiles")
+    result$useQuantiles <- checkFlag(
+      useQuantiles,
+      "useQuantiles",
+      orNull = TRUE
+    )
   }
   result
 }

@@ -123,7 +123,7 @@ refused(
 for (bad in list(NA, "TRUE", c(TRUE, FALSE))) {
   expect_error(
     s$setData(s$data, updateScale = bad),
-    "'updateScale' must be TRUE or FALSE",
+    "'updateScale' must be TRUE, FALSE or NULL",
     fixed = TRUE
   )
 }

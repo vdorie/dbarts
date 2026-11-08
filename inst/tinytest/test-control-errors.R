@@ -19,11 +19,11 @@ expect_error(
 
 expect_error(
   dbarts::dbartsControl(useQuantiles = NA),
-  "'useQuantiles' must be TRUE or FALSE"
+  "'useQuantiles' must be TRUE, FALSE or NULL"
 )
 expect_error(
   dbarts::dbartsControl(useQuantiles = "not-a-logical"),
-  "'useQuantiles' must be TRUE or FALSE"
+  "'useQuantiles' must be TRUE, FALSE or NULL"
 )
 
 expect_error(
