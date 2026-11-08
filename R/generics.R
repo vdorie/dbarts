@@ -5082,8 +5082,10 @@ predict.bartHurdle <- function(
   )
   # no weights stated, the zero part's weights column found in newdata is read
   # as a stated 0 or 1 is (dec-B648)
-  if (type == "ppd" && is.null(weights)) {
+  fromColumn <- type == "ppd" && is.null(weights)
+  if (fromColumn) {
     weights <- newdataWeightsColumn(object$zero, newdata)
+    fromColumn <- !is.null(weights)
   }
   rows <- preparePredictRows(
     newdata,
@@ -5096,7 +5098,10 @@ predict.bartHurdle <- function(
       },
       weights = weights
     ),
-    dataMissingSeen(object$zero$fit$data)
+    dataMissingSeen(object$zero$fit$data),
+    labels = if (fromColumn) {
+      list(weights = weightsColumnLabels(weights)$column)
+    }
   )
   if (isTRUE(rows$placeholder)) {
     restoreSeed <- protectRandomSeed()

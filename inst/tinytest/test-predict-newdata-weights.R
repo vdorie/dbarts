@@ -279,3 +279,11 @@ blend <- quick(
 atNew <- zd[1:8, ]
 atNew$w[c(2L, 6L)] <- 0
 expect_identical(naRows(drawn(blend, atNew)), c(2L, 6L))
+
+# a hurdle fit's missing weight in the column names the column
+gapHurdle <- h[1:8, ]
+gapHurdle$w[2L] <- NA
+expect_error(
+  predict(hurdle, gapHurdle, type = "ppd"),
+  "the fit's weights column in 'newdata' has missing values"
+)
