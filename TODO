@@ -487,6 +487,12 @@ items
     silent on what the checking sampler said, as for the starting
     sigma's message (dec-B668, VD 2026-11-07: "One warning per fit.").
     About 3 lines and a test; no draw moves.
+  keepfits-forest-records: a fit of several forests keeps its forests'
+    labels, tree counts and unit whatever keepFits says, and under
+    keepFits = FALSE the numbers its printed block reads in place of
+    each basis vector (dec-B671, VD 2026-11-07: "Use your revised
+    recommendation."). About 10 lines, a test rewritten, two help
+    sentences; no draw moves.
   kmp-heldout-design: pricing's real datasets, redesigned by the agents
     (dec-B651, VD 2026-11-07: "If the held-out dataset approach could
     be improved, I leave that up to you for now."). A planner rewrites
