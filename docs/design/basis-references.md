@@ -1,6 +1,6 @@
 # A forest's basis names a column of the data
 
-Status: PROPOSED, 2026-11-07, revised 2026-11-08 to the rulings dec-B674 to dec-B684; part 1 planned in
+Status: PROPOSED, 2026-11-07, revised 2026-11-08 to the rulings dec-B674 to dec-B688 and dec-B692; part 1 planned in
 [basis-references-part-1.md](../plans/basis-references-part-1.md), not built.
 Follows dec-B663 (a forest's basis is a reference to a column of the data), dec-B666 (the frame kept on the
 data object), dec-B670 (the whole frame kept, and beside it as little derived from it as can be), dec-B671
@@ -11,7 +11,10 @@ dec-B678 (a sampler's data holds the model frame and what its forests need, the 
 dec-B679 (two landings), dec-B680 (a basis vector has one entry per row handed over), dec-B681 (`dbarts(o)`
 reads a declared basis as `dbartsSpec(o)` does), dec-B682 (beside an object with no caller frame, a name it
 holds is read from it; it revises dec-B674's words), dec-B683 (an environment's object holds what it read at
-the build) and dec-B684 (a forests list states the forests in full).
+the build), dec-B684 (a forests list states the forests in full), dec-B685 (`model.frame(s$data)` decodes
+where exact), dec-B686 (the `s$data@x` stand-in keeps the coding record's attributes), dec-B687 (stan4bart's
+bundle rebuilds from `fit$bartData`), dec-B688 (the row mask is an `(active)` column) and dec-B692
+(`extract()` on a sampler returns only draws).
 
 ## Two landings
 
@@ -20,10 +23,10 @@ The design lands in two parts (dec-B679):
 - **Part 1, the data object and the forest doors**: sections 2.1 to 2.3, 2.7 to 2.9, the user's object's
   stand-ins, `model.frame()` and `nobs()`, `keep.data`, and the rulings on calls 1, 2, 3, 6 and 7. A sampler's
   data is today's object with real slots: the caller's frame dropped where a sampler is handed its data, its
-  column names kept. About 365 lines of R.
+  column names kept. About 450 lines of R added, above dec-B679's 305 by half (the plan says why).
 - **Part 2, the sampler's model frame** (dec-B678): sections 2.4 to 2.6, the setters, the stand-ins on a
-  sampler's data, the lint rule and the bridge entry. Its open calls are 39, 36, stan4bart's bundle (Costs
-  dec-B678 did not weigh) and 41.
+  sampler's data, the lint rule and the bridge entry. Calls 39, 36 and 41 and stan4bart's bundle are ruled
+  (dec-B685, dec-B686, dec-B688, dec-B687), and `extract(s, "predictors")` goes with it (dec-B692).
 
 Between the two, main holds a user's object of the new shape beside a sampler's data of today's.
 
@@ -401,7 +404,7 @@ of `x`, `y`, `weights`, `offset` and `bases`, sized as the frame saves from the 
 - **Beside an object with no caller frame** (a sampler's data, a `keep.data = FALSE` object), a basis naming
   a column the object holds, a model variable or a held basis, is read from it; another of the caller's
   frame's names is refused, naming the data object built with its frame; any other name is the caller's
-  value (dec-B682, call 6). How a held basis is named in part 1 is open (the plan's open call 1).
+  value (dec-B682, call 6). How a held basis is named in part 1 is open (the plan's open call 3).
 - **Beside any data, a sampler's data included, a forests list states the forests in full** (dec-B684, call
   3): a forest declaring no basis has none, keeping a held basis means naming it, a list of tree counts alone
   gives plain forests and no list gives one forest. dec-B663's interim refusal is not built.
@@ -570,12 +573,11 @@ Ruled:
   keeping a held basis means naming it, no list gives one forest; dec-B663's interim refusal is replaced
 - the split into two landings, by dec-B679
 
-Open, part 2: calls 39 (what `model.frame(s$data)` shows), 36 (the stand-in's attributes on a sampler's data),
-stan4bart's bundle (Costs dec-B678 did not weigh) and 41 (the mask in the frame). Open, part 1: the calls its
-plan lists.
+Ruled for part 2: call 39 by dec-B685, call 36 by dec-B686, stan4bart's bundle by dec-B687 ((b)), call 41 by
+dec-B688. Open, part 1: the calls its plan lists.
 
-The calls below are agent calls: the design takes each so that it can be stated whole, and each waits for the
-maintainer's mark before the build. They follow the rulings' direction: one shape for a user's object and a
+The calls below are agent calls: the design takes each so that it can be stated whole, and each is marked at the
+session's close-out (dec-B629); a landing does not wait for it. They follow the rulings' direction: one shape for a user's object and a
 sampler's data, base R's verbs, one source of truth with no derived copies, and matching by name.
 
 Made in building dec-B678, agent calls as above:
@@ -640,7 +642,7 @@ Made in building dec-B678, agent calls as above:
     them bartCause's term labels and the 16 internal ones, while `nrow()` and `[` still stop. dec-B676 rules a
     user's object's stand-in, not a sampler's data. Cost: about 5 lines. Alternatives: `NULL` in silence, as
     on a user's object; or the same attributes on a user's object too, one stand-in for both kinds, which
-    revises dec-B676 and is the maintainer's.
+    revises dec-B676 and is the maintainer's. Ruled (dec-B686).
 37. **A custom lint rule refuses `@x`, `@y`, `@weights` and `@offset` outside the accessors' file**, so every
     read is shown to have moved, now and after. Cost: about 25 lines. Alternative: a grep at review, which
     misses nothing written later only if someone runs it.
@@ -660,7 +662,7 @@ Made in building dec-B678, agent calls as above:
     - the sampler's own columns: `(active)`, `(basis.<label>)`, `(forest.weights.<label>)`
 
     Each is what the sampler runs on and has no lossless way back. Alternative: each stored in the build's
-    type and coded at each setter, a cost on every call.
+    type and coded at each setter, a cost on every call. Ruled (dec-B685).
 40. **A forest's per-row weights live in the frame**, `(forest.weights.<label>)`: they are per-row values a
     forest needs, so `$setData(s$data)`, a copy and a reload carry them from one place, and the sampler field
     goes. Cost: about 15 lines; a `$setForestWeights` costs one column write more. Alternative: the field as
@@ -669,7 +671,7 @@ Made in building dec-B678, agent calls as above:
     weights ride the data already and survive `$setData(s$data)` (corrected 2026-11-08; the earlier premise
     said they became the mask); what `$setData(s$data)` drops today is a mask set by `$setActiveRows`, which
     it would then keep, and the sampler field goes. Cost: about 15 lines; `$setActiveRows` is 7 us more.
-    Alternative: the field as today, `$setData(s$data)` dropping that mask. Open, part 2.
+    Alternative: the field as today, `$setData(s$data)` dropping that mask. Ruled (dec-B688).
 42. **The flat C API's setters do not write the frame**: they change the engine only, as they write no slot
     today, and the header does not change. `model.frame(s$data)` shows the last values given through R, and a
     copy or a reload rebuilds from them; the help says so. Alternative: an R-side mirror kept by the C entries,
@@ -715,8 +717,7 @@ Also made here, agent calls as above:
   - (c) dbarts offers a way to make a sampler's data from a block-holding object and a response, and
     stan4bart calls it at a restore: about 15 lines in dbarts and 5 in stan4bart.
 
-  This is a consumer change beyond a few lines, so it is not decided here. (b) is recommended, since a saved
-  fit then keeps no second copy of its predictors.
+  Ruled (b) (dec-B687), in a reviewed stan4bart commit with the second landing.
 - **A matrix-interface object kept beside its sampler** holds the predictors twice in a session, because the
   sampler's frame splits the matrix (2.4 MB at 20,000 by 15). The design takes this cost for call 24's
   setters. Alternative: on such a sampler, the matrix kept as one matrix column, with today's sharing and

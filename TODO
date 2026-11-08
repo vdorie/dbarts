@@ -331,20 +331,27 @@ items
     the forests in full, a sampler's data included (dec-B684, VD
     2026-11-08: "(a)."), replacing dec-B663's interim refusal, never
     built. Plan: docs/plans/basis-references-part-1.md, three slices
-    (the data object, the forest doors, the consumers), five open calls
-    for the maintainer.
+    (the data object, the forest doors, the consumers); its open calls
+    (the held basis's scale after a swap, frameless objects, the held
+    basis's name, a hazard basis's length) and its size, about 450
+    lines against dec-B679's 305, go to the maintainer.
   basis-references-part-2: the sampler's model frame (dec-B678), the
     second landing of the basis-references design (dec-B679): a
     sampler's data holds the model frame and its forests' basis
     columns, the setters writing into it, model.frame(s$data) reading
     it, stand-ins in its x, y, weights and offset slots, a lint rule on
-    slot reads, the bridge's whole-matrix split. Open: calls 39 (what
-    model.frame(s$data) shows), 36 (the stand-in's attributes), 41 (the
-    mask in the frame) and stan4bart's saved bundle. It reshapes part
-    1's resolution, model.frame() of block-holding objects, the held
-    basis's name and the environment's object, and stan4bart's three
-    reads of sampler$data. After part 1; saved-sampler-data-twice is
-    examined before it.
+    slot reads, the bridge's whole-matrix split. model.frame(s$data)
+    decodes where exact (dec-B685, VD 2026-11-08: "I guess (a), if
+    that's what users will actually want."); the s$data@x stand-in
+    keeps the coding record's attributes (dec-B686, VD 2026-11-08:
+    "(a)"); stan4bart's bundle keeps no sampler data and rebuilds it
+    from fit$bartData (dec-B687, VD 2026-11-08: "On the question, use
+    (b)"); a $setActiveRows mask is an (active) column (dec-B688, VD
+    2026-11-08: "Sure, (a)."); extract(s, "predictors") is removed
+    with it (dec-B692, VD 2026-11-08: "Sure, (b)."). It reshapes part
+    1's resolution, the held basis's name and the environment's object,
+    and stan4bart's three reads of sampler$data. After part 1;
+    saved-sampler-data-twice is examined before it.
   sampler-help-mask-sentence: the dbartsSampler help's data argument
     says "Under such a family the sampler's own data object carries no
     weights, so setData(sampler$data) drops the mask in force"; on main
@@ -352,6 +359,13 @@ items
     survive setData(s$data) (run 2026-11-08), and only a mask set by
     setActiveRows is cleared, as the help says elsewhere. A help
     sentence.
+  rbart-group-by-frame: rbart_vi(dbartsData(f, d), group.by = g) reads
+    the caller's g while rbart_vi(f, d, group.by = g) reads d$g first,
+    the shape the basis-references plan's draw move D1 fixes for a
+    basis (found by its critique; run 2026-11-08, 3 groups against 2).
+    rbart_vi is deprecated and goes in 1.1-0, so the choice is reading
+    group.by against the object's frame (draws move for that call) or a
+    help sentence. A decision first.
   basis-one-column-labels: a one-column character, logical or factor
     matrix given as a basis is read as its column, two levels, at every
     door; wider ones stay refused (dec-B662, VD 2026-11-07: "We can use
