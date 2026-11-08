@@ -274,6 +274,13 @@ items
     variance record does so today for the tree count only). Draw-
     changing for the calls refused or ignored today; help on setModel,
     setForest and setVarianceForest rewritten.
+  unnamed-matrix-silent: an unnamed matrix given as predictors is read
+    in the sampler's column order with no message at every door: test at
+    fit time, $setData, $setPredictor, $setTestPredictor, the sampler's
+    $predict and predict on a fit (dec-B653, VD 2026-11-07: "Ok. Use your
+    revised recommendation."). Drop the warning in R/data.R's
+    validateXTest, restate its tests, remove the NEWS UPGRADING item. A
+    named matrix on an unnamed fit keeps its warning.
   starting-sigma-fallback-zero-weights: where no regression is defined
     the starting sigma is sd(y - offset) over the rows of positive
     weight, unweighted (response-scale-rows). Decide whether it should
