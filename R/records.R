@@ -109,7 +109,8 @@ warnWrittenCopies <- function(names) {
 checkFlatCopies <- function(
   n.trees = NULL,
   n.cuts = NULL,
-  useQuantiles = NULL
+  useQuantiles = NULL,
+  orNull = TRUE
 ) {
   result <- list()
   if (!is.null(n.trees)) {
@@ -138,7 +139,7 @@ checkFlatCopies <- function(
     result$useQuantiles <- checkFlag(
       useQuantiles,
       "useQuantiles",
-      orNull = TRUE
+      orNull = orNull
     )
   }
   result

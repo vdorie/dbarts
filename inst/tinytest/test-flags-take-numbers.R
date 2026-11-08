@@ -339,3 +339,15 @@ for (bad in flagBad) {
     fixed = TRUE
   )
 }
+
+# bart and rbart_vi refuse NULL for useQuantiles, so their refusal omits it
+expect_error(
+  dbarts::bart(x, y, useQuantiles = NA),
+  "'useQuantiles' must be TRUE or FALSE",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::dbartsControl(useQuantiles = NA),
+  "'useQuantiles' must be TRUE, FALSE or NULL",
+  fixed = TRUE
+)

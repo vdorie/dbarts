@@ -289,9 +289,9 @@
             error that did not name it, in places such as \code{bartBT}'s
             \code{keepcall} and \code{keeptrees}, \code{rbart_vi}'s
             \code{keepTestFits}, a sampler's \code{$copy(shallow)} and
-            \code{$getTrees(current)}, \code{extract}'s \code{contribution}
-            and \code{makeind}'s \code{all}; and \code{drop = 1} to
-            \code{makeModelMatrixFromDataFrame} failed. A sampler method's
+            \code{$getTrees(current)}, and \code{makeind}'s \code{all};
+            and \code{drop = 1} to \code{makeModelMatrixFromDataFrame}
+            failed. A sampler method's
             \code{updateState} also takes \code{NULL}, the control's
             setting.
       \item An observation of weight zero no longer takes part in the

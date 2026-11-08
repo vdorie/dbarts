@@ -142,7 +142,7 @@ rbart_vi <- function(
 
   # the control names none of the count and the cut settings, which go flat to
   # the sampler with a record of what this function's caller stated of them
-  checkFlatCopies(n.trees, n.cuts, useQuantiles)
+  checkFlatCopies(n.trees, n.cuts, useQuantiles, orNull = FALSE)
   controlCall <- redirectCall(matchedCall, dbarts::dbartsControl)
   controlCall$seed <- NULL
   controlCall[controlWrittenNames] <- NULL

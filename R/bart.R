@@ -1377,7 +1377,8 @@ bart <- function(
   flatCopies <- checkFlatCopies(
     if (!missing(n.trees)) n.trees,
     if (!missing(n.cuts)) n.cuts,
-    if (!missing(useQuantiles)) useQuantiles
+    if (!missing(useQuantiles)) useQuantiles,
+    orNull = FALSE
   )
   if (!is.null(suppliedControl)) {
     read <- readWrittenCopies(suppliedControl, flatCopies)
