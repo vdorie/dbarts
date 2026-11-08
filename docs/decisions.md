@@ -1147,6 +1147,13 @@ Under dec-B600 (a registered callback receives every channel the fit carries, th
 The rest are internal, in the records: the scratch allocated once in Sampler::run from the predicates the draw fill reads (1), mutation-04 as tests alone (5), amendment 7's three mutants equivalent and replaced (6), and the added setModel and aft arms (7, 8).
 Gates: see the records' Gates and Landing note. Record: docs/plans/review-2026-11-06/draw-channels.md, Calls made and Landing note; inst/include/dbarts/dbarts.h, the draw callback; src/R_interface_bartcore.cpp, bartcore_setCutPoints. Marked: blank. See also: [dec-B600], [dec-B601], [dec-B604], [dec-B615]. [dec-A270]
 
+**The rchk findings' fix as built: three unflagged readers protected too, rchk's own limit on setState left**
+rchk reported 20 protection findings in the bridge's model parser on main 2026-11-07, last green 2026-11-02: SEXPs read from the model's slots left unprotected across allocating calls, brought in by fcaa22b23 (the bridge reading the model's slots in place of control attributes) and 9ec8e1c3a (parseDartSettings protecting after Rf_inherits). Each flagged site in parseModel, parseDartSettings, parseMoveRecord, modelStatesMoves, varianceMoves, applyAmplitudeSpec and applyForestRecords is protected, every early return balanced; no message, control flow or draw changes. The builder's calls, not put to the maintainer, each with its alternative:
+- Three readers rchk did not flag but which carry the same pattern, applyVarianceRecord, refuseVarianceCalibration and forestMessageName, are protected too. Leaving them for a smaller diff was the alternative.
+- rchk's "too many states" line on bartcore_bridge::setState, its own analysis limit and not a finding, is left. Restructuring setState to fit rchk's analysis was the alternative.
+- A count used only by a debug assertion in the chain's leaf check moves into that block, so a release build carries no unused variable. Leaving it was the alternative.
+Nothing a user meets. Gates: the full suite 42055 of 42055 on the build; the review's verdict LAND; CI's nine workflows and rchk green on the tested tip. Record: src/R_interface_bartcore.cpp, the model's readers; src/bartcore/chain.hpp, the leaf check. Marked: blank. [dec-A271]
+
 ## B. Decisions with maintainer evidence
 
 **Missing predictors are modeled, not refused**

@@ -815,14 +815,6 @@ items
     docs/decisions.md gone over with the maintainer. The RC declaration
     is VD-held. The pre-RC surface decisions and their sequencing are
     docs/plans/prerc-surface-freeze.md.
-  rchk-findings: rchk reports 20 protection findings in the bridge's
-    model parser (parseModel, parseDartSettings, parseMoveRecord,
-    modelStatesMoves, applyForestRecords, applyAmplitudeSpec): an
-    unprotected SEXP live across slotOrNull, Rf_isInteger or
-    Rf_inherits. Last green on main 2026-11-02; seen on main
-    2026-11-07. Bisect the landings between, then fix each or exclude
-    a confirmed false positive by its exact line with a reason, as
-    .github/workflows/rchk.yaml allows. Before the release.
   repo-modernization: standing hygiene bundle
     (docs/plans/repo-modernization.md): recheck the CI action pins on
     each push and bump when GitHub deprecates a runtime; wire codecov
