@@ -643,13 +643,14 @@ expect_true(all(apply(ppd, c(1L, 2L), sum) == 1))
 ppd <- ppdShape(factorRows)
 expect_identical(dim(ppd), c(5L, 2L))
 expect_true(all(ppd %in% 1:3))
-# a later $setCounts makes the response a count matrix, one trial or more
-factorRows$setCounts(oneTrial)
+# a later $setResponse, given a count matrix, makes the response one written
+# as a count matrix, one trial or more
+factorRows$setResponse(oneTrial)
 expect_false(factorRows$data@counts.as.factor)
 ppd <- ppdShape(factorRows)
 expect_identical(dim(ppd), c(5L, 2L, 3L))
 expect_true(all(apply(ppd, c(1L, 2L), sum) == 1))
-countRows$setCounts(oneTrial)
+countRows$setResponse(oneTrial)
 expect_identical(dim(ppdShape(countRows)), c(5L, 2L, 3L))
 
 # a sampler carrying a category offset needs offset.test, the all-zero matrix

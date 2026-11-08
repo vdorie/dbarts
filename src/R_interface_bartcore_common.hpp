@@ -564,7 +564,8 @@ void validateResponseSupport(bartcore::ResponseFamily family,
 /// Errors on a binomial response's swap through a flat response vector,
 /// which cannot state its successes and failures: "<caller>: its response is
 /// the n x 2 count pair of successes and failures, which a flat vector cannot
-/// express; replace it with $setCounts". A no-op off a binomial sampler.
+/// express; pass the pair to the R sampler's $setResponse, or make a new
+/// sampler". A no-op off a binomial sampler.
 void refuseBinomialResponseSwap(const bartcore::SamplerShape& shape,
                                 const char* caller);
 

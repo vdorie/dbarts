@@ -44,7 +44,8 @@ samplePriorPredictive(
     \eqn{1, \ldots, K}{1, ..., K} for an ordinal sampler, and for a multinomial one whose response was
     written as a factor; a count vector of one trial for a multinomial sampler whose response was
     written as a count matrix, whatever the rows' trials, as \code{predict} draws at a new row. A
-    \code{$setCounts} makes the response a count matrix. On an aft (survival) sampler the draw is on the log-time
+    \code{$setResponse}, which on a multinomial sampler takes a count matrix, makes the response one
+    written as a count matrix. On an aft (survival) sampler the draw is on the log-time
     scale (the model fits \eqn{\log T}{log T}), and on a heteroscedastic one the noise is drawn at
     a prior draw of that observation's own \eqn{s(x)}{s(x)} rather than at a scalar sigma.
     Unlike \code{\link{extract}}'s posterior \code{"ppd"}, prior predictive draws are weight-blind:
