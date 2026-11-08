@@ -327,6 +327,10 @@ expect_silent(quiet(bart(
 frame$g <- factor(rep(1:4, length.out = n))
 frame$yc <- rnorm(n)
 rbartViLines <- NULL
+# the deprecation warning is once per session; an earlier file may have used it
+onceState <- dbarts:::onceWarnState
+onceState[["tombstone.rbart_vi"]] <- FALSE
+rm(onceState)
 expect_warning(
   rbartViLines <- autoLines(rbart_vi(
     yc ~ x1,
