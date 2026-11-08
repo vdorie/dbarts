@@ -99,8 +99,10 @@ dbarts(
   An optional matrix or data frame with the same number of predictors as
   `data`, or `formula` in backwards compatibility mode. If column names
   are present, a matching algorithm is used; when both are named,
-  `test`'s names must cover `data`'s (an error otherwise); when only one
-  is named, columns are matched by position instead, with a warning.
+  `test`'s names must cover `data`'s (an error otherwise); an unnamed
+  `test` is read in the order of `data`'s columns, with no message, and
+  a named `test` given to an unnamed `data` is matched by position with
+  a warning.
 
 - subset:
 

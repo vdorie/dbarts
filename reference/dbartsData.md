@@ -495,9 +495,6 @@ data
 #> Slot "counts":
 #> NULL
 #> 
-#> Slot "counts.as.factor":
-#> [1] NA
-#> 
 #> Slot "offset.category":
 #> NULL
 #> 

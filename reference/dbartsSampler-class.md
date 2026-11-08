@@ -229,9 +229,8 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   `setLeafPrior`, `setPredictor`, and `setCutPoints`): `NULL` (the
   default) resolves to the sampler's
   [`control`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
-  object's `updateState`, and an explicit `TRUE` or `FALSE`, or a single
-  number read as `as.logical` reads it (0 is `FALSE`), overrides it.
-  Anything else is an error, raised before the sampler changes; an
+  object's `updateState`, and an explicit `TRUE` or `FALSE` overrides
+  it. Anything else is an error, raised before the sampler changes; an
   explicit `NA`, the default of 0.9-x, reads as `NULL` for one release,
   with a once-per-session warning. The mutators are typically called
   once per sweep inside a larger Gibbs/MH loop (as `dbartsSampler` is

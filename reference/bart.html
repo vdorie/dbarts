@@ -256,7 +256,7 @@
 <dd><p>An optional data frame, list, or environment containing predictors, used together with a formula <code>formula</code>. For backward compatibility, can also be the <code><a href="bartBT.html">bartBT</a></code> vector <code>y.train</code>.</p></dd>
 
    <dt id="arg-test">test<a class="anchor" aria-label="anchor" href="#arg-test"></a></dt>
-<dd><p>An optional matrix or data frame with the same number of predictors as <code>data</code>, or <code>formula</code> in backward-compatibility mode; if column names are present, a matching algorithm is used, and an unnamed matrix against named predictors is matched by position with a warning. Refused, by name, when <code>formula</code> writes a model of several forests (‘Formula Terms’): an amplitude-coupled fit has no per-observation test replay. A formula whose one <code><a href="forest.html">forest()</a></code> has no <code>basis</code> is a single-forest fit and takes <code>test</code>.</p></dd>
+<dd><p>An optional matrix or data frame with the same number of predictors as <code>data</code>, or <code>formula</code> in backward-compatibility mode; if column names are present, a matching algorithm is used, and an unnamed matrix against named predictors is read in the fit's column order, with no message. Refused, by name, when <code>formula</code> writes a model of several forests (‘Formula Terms’): an amplitude-coupled fit has no per-observation test replay. A formula whose one <code><a href="forest.html">forest()</a></code> has no <code>basis</code> is a single-forest fit and takes <code>test</code>.</p></dd>
 
    <dt id="arg-subset">subset<a class="anchor" aria-label="anchor" href="#arg-subset"></a></dt>
 <dd><p>An optional vector of logicals or indices used to subset the data. Can be missing. A <code><a href="forest.html">forest()</a></code> term's predictors are columns of the same subsetted model frame as every other predictor, and its basis, which has a value for every row of <code>data</code>, is cut to the same rows (‘Formula Terms’), as is a basis given through <code><a href="dbarts.html">dbarts</a></code>'s <code>forests =</code> (see <code><a href="forest.html">forest</a></code>'s <code>basis</code> item).</p></dd>
@@ -413,7 +413,7 @@
 <dd><p>An object of class <code>bartMultinomial</code>, <code>bartOrdinal</code>, <code>bartNegbin</code>, or <code>bartHurdle</code>, returned by <code>bart</code> under the corresponding <code>family</code>; for <code>sigma</code> and <code>nobs</code>, any fit <code>bart</code> returns, of class <code>bart</code> too.</p></dd>
 
    <dt id="arg-newdata">newdata<a class="anchor" aria-label="anchor" href="#arg-newdata"></a></dt>
-<dd><p>Test data for prediction. Obeys the same rules as <code>data</code>/<code>test</code>; a numeric matrix is taken only where every predictor column is numeric, and is refused by name on a fit with a factor column, which takes a data frame. Left out (or <code>NULL</code>), <code>predict</code> returns each <code>type</code> at the training rows from the draws the fit stored, as <code>extract</code> with <code>sample = "train"</code> does, on every family's fit and without saved trees; an <code>offset</code> given then replaces the fit's own at the training rows (a category offset matrix on a multinomial fit). An unnamed matrix given to a fit whose predictors are named is matched by position, with a warning. A data-frame column for a predictor that was a factor in training must be a factor or character, matched to the training levels by label; a numeric or logical one is refused, naming it, as <code><a href="https://rdrr.io/r/stats/predict.lm.html" class="external-link">predict.lm</a></code> refuses it.</p></dd>
+<dd><p>Test data for prediction. Obeys the same rules as <code>data</code>/<code>test</code>; a numeric matrix is taken only where every predictor column is numeric, and is refused by name on a fit with a factor column, which takes a data frame. Left out (or <code>NULL</code>), <code>predict</code> returns each <code>type</code> at the training rows from the draws the fit stored, as <code>extract</code> with <code>sample = "train"</code> does, on every family's fit and without saved trees; an <code>offset</code> given then replaces the fit's own at the training rows (a category offset matrix on a multinomial fit). An unnamed matrix is read in the fit's column order, with no message. A data-frame column for a predictor that was a factor in training must be a factor or character, matched to the training levels by label; a numeric or logical one is refused, naming it, as <code><a href="https://rdrr.io/r/stats/predict.lm.html" class="external-link">predict.lm</a></code> refuses it.</p></dd>
 
    <dt id="arg-type">type<a class="anchor" aria-label="anchor" href="#arg-type"></a></dt>
 <dd><p>The quantity to return; see ‘Value’ below for what each family's generics accept and produce. As on a <code>"bart"</code> fit (<code><a href="bartBT.html">bartBT</a></code>'s <code>type</code> item), <code>"response"</code> is a synonym for <code>"ev"</code> and <code>"link"</code> for <code>"bart"</code>, on every method here; a value a method does not offer is an error naming the ones it does, and one it names only to refuse is an error naming the reason.</p></dd>
@@ -635,7 +635,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 59) (2: 59) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001097</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001369</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 2 2 3 3 3 2 2 2 2 2 3 2 2 2 3 3 2 </span>
@@ -672,7 +672,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 59) (2: 59) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000578</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000738</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 3 2 1 2 1 1 2 2 1 1 1 2 2 2 2 </span>
@@ -707,7 +707,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 59) (2: 59) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000821</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001073</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 3 3 2 4 2 2 3 2 2 2 2 3 3 2 </span>
@@ -761,7 +761,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   trees: 10, 50; 60 in all</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001161</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001624</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1 2 2 2 2 2 2 3 3 2 </span>
