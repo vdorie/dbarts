@@ -199,3 +199,83 @@ expect_identical(trialled[, -c(1L, 5L, 9L)], stated[, -c(1L, 5L, 9L)])
 noCounts <- atNew[, setdiff(names(atNew), c("k", "f"))]
 expect_true(all(drawn(binomial, noCounts) %in% c(0, 1, NA)))
 expect_identical(naRows(drawn(binomial, noCounts)), c(1L, 5L, 9L))
+
+# ---- the column's values are held to the fit's rule, as a test frame's are ----
+
+for (value in c(2.5, 3, -1)) {
+  mask <- d[1:8, ]
+  mask$m[2L] <- value
+  expect_error(
+    predict(probit, mask, type = "ppd"),
+    "the fit's weights column in 'newdata'|probit models do not support",
+    info = value
+  )
+}
+negative <- d[1:8, ]
+negative$w[2L] <- -1
+expect_error(
+  predict(logistic, negative, type = "ppd"),
+  "the fit's weights column in 'newdata' must all be non-negative"
+)
+fractional <- d[1:8, ]
+fractional$w[2L] <- 2.5
+expect_error(predict(logistic, fractional, type = "ppd"), "weights")
+expect_error(predict(nbinom, fractional, type = "ppd"), "weights")
+# the values are the ones present: a missing one is na.action's
+expect_error(
+  predict(fit, negative, type = "ppd"),
+  "the fit's weights column in 'newdata' must all be non-negative"
+)
+# a weights column that is not numeric is refused naming the column
+text <- d[1:8, ]
+text$w <- as.character(text$w)
+expect_error(
+  predict(fit, text, type = "ppd"),
+  "the fit's weights column in 'newdata' must be numeric"
+)
+# a hurdle fit names the column
+badHurdle <- h[1:8, ]
+badHurdle$w[2L] <- 2
+expect_error(
+  predict(hurdle, badHurdle, type = "ppd"),
+  "the fit's weights column in 'newdata'"
+)
+# types that draw nothing read no column
+expect_silent(predict(logistic, negative, type = "ev"))
+
+# ---- a multinomial fit: the column, and the test frame agrees on the NA rows --
+
+multinomial <- quick(
+  ym ~ x1 + x2,
+  transform(d, ym = factor(sample(letters[1:3], n, TRUE))),
+  weights = m,
+  family = "multinomial",
+  test = d[1:12, ]
+)
+atNew <- d[1:12, ]
+drawsAtNew <- drawn(multinomial, atNew)
+expect_identical(naRows(drawsAtNew), c(1L, 5L, 9L))
+testDraws <- extract(multinomial, "ppd", sample = "test")
+expect_identical(naRows(testDraws), naRows(drawsAtNew))
+expect_identical(
+  naRows(drawn(multinomial, atNew[, setdiff(names(atNew), "m")])),
+  integer(0)
+)
+expect_error(
+  predict(multinomial, transform(atNew, m = 2.5), type = "ppd"),
+  "weights"
+)
+
+# ---- a fit of several forests: the held-out rows keep their NA ------------------
+
+zd <- transform(d, z = rep(0:1, length.out = n))
+blend <- quick(
+  y ~ forest(x1 + x2) + forest(x1, basis = ~ factor(z)),
+  zd,
+  weights = w,
+  weights.type = "frequency",
+  n.chains = 1L
+)
+atNew <- zd[1:8, ]
+atNew$w[c(2L, 6L)] <- 0
+expect_identical(naRows(drawn(blend, atNew)), c(2L, 6L))

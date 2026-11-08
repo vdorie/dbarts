@@ -748,6 +748,9 @@ trainingRowWeights <- function(object, weights, type) {
 newdataWeightsColumn <- function(object, newdata) {
   argument <- attr(object$fit$data, "weights.argument")
   if (is.null(argument)) {
+    argument <- object[["weights.argument"]]
+  }
+  if (is.null(argument)) {
     return(NULL)
   }
   columns <- if (is.data.frame(newdata)) {
@@ -764,6 +767,14 @@ newdataWeightsColumn <- function(object, newdata) {
     eval(argument[[2L]], columns, environment(argument)),
     error = function(e) NULL
   )
+  if (is.null(dim(value)) && length(value) == NROW(newdata)) {
+    if (is.character(value) || is.factor(value)) {
+      stop(
+        "the fit's weights column in 'newdata' must be numeric",
+        call. = FALSE
+      )
+    }
+  }
   if (
     !is.numeric(value) ||
       !is.null(dim(value)) ||
@@ -771,7 +782,26 @@ newdataWeightsColumn <- function(object, newdata) {
   ) {
     return(NULL)
   }
-  as.double(value)
+  value <- as.double(value)
+  # the values present are held to the fit's rule, as a test frame's are
+  tryCatch(
+    refuseFamilyWeightValues(
+      value[!is.na(value)],
+      fitEngineFamily(object),
+      "the fit's weights column in 'newdata'"
+    ),
+    error = function(e) {
+      message <- conditionMessage(e)
+      stop(
+        if (!grepl("weights column", message, fixed = TRUE)) {
+          "the fit's weights column in 'newdata': "
+        },
+        message,
+        call. = FALSE
+      )
+    }
+  )
+  value
 }
 
 ## How a refusal names a missing value in the weights column found in newdata.
@@ -783,6 +813,19 @@ weightsColumnLabels <- function(column) {
         remedy = ", or state the weights in 'weights'"
       )
     )
+  }
+}
+
+## A category fit's posterior predictive draws with the rows 'held' set to NA:
+## a count fit keeps a category margin after the rows', a fit to categories not.
+holdOutCategoryRows <- function(object, draws, held) {
+  if (is.null(held)) {
+    return(draws)
+  }
+  if (inherits(object, "bartMultinomial") && !is.factor(object[["y"]])) {
+    setCategoryRowsNA(draws, which(held))
+  } else {
+    setObservationsNA(draws, which(held))
   }
 }
 
@@ -3356,12 +3399,16 @@ predict.bartMultinomial <- function(
   refusePredictWeightsForm(weights)
   # a missing offset or weight row is incomplete the same way an unroutable
   # predictor is (dec-A89)
+  column <- if (type == "ppd" && is.null(weights)) {
+    newdataWeightsColumn(object, newdata)
+  }
   rows <- preparePredictRows(
     newdata,
     object$fit$data@x,
     na.action,
-    list(offset = offset, weights = weights),
-    dataMissingSeen(object$fit$data)
+    list(offset = offset, weights = weights, column = column),
+    dataMissingSeen(object$fit$data),
+    labels = weightsColumnLabels(column)
   )
   if (isTRUE(rows$placeholder)) {
     restoreSeed <- protectRandomSeed()
@@ -3410,6 +3457,11 @@ predict.bartMultinomial <- function(
   counts <- categoryDrawsCount(object, type, weights)
   if (type == "ppd") {
     probs <- newRowCategoryPpd(object, probs, object$n.chains, weights)
+    probs <- holdOutCategoryRows(
+      object,
+      probs,
+      newdataWeightsHeldOut(subsetPredictInput(column, rows, "weights"))
+    )
   }
   if (!is.null(ci.level)) {
     return(padPredictedRows(
@@ -3830,10 +3882,11 @@ predict.bartOrdinal <- function(
   counts <- categoryDrawsCount(object, type, weights)
   if (type == "ppd") {
     probs <- newRowCategoryPpd(object, probs, n.chains, weights)
-    held <- newdataWeightsHeldOut(subsetPredictInput(column, rows, "weights"))
-    if (!is.null(held)) {
-      probs <- setObservationsNA(probs, which(held))
-    }
+    probs <- holdOutCategoryRows(
+      object,
+      probs,
+      newdataWeightsHeldOut(subsetPredictInput(column, rows, "weights"))
+    )
   }
   if (!is.null(ci.level)) {
     trailing <- if (type == "class" || counts) 2L else 1L

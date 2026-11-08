@@ -1585,6 +1585,7 @@ bart <- function(
     # flat offset is (parseMultinomialData, refused separately, below).
     multinomialOffset <- NULL
     multinomialTestWeights <- NULL
+    multinomialWeightsArgument <- NULL
     if (!missing(offset)) {
       if (is.data.frame(offset)) {
         offset <- as.matrix(offset)
@@ -1695,6 +1696,11 @@ bart <- function(
           callingEnv,
           formula
         )
+        multinomialWeightsArgument <- weightsArgumentFormula(
+          matchedCall$weights,
+          environment(formula),
+          formulaDataNames(data)
+        )
         matchedCall$weights <- extracted$weights
       }
       # from here on, y drives the same factor-vs-count-matrix dispatch as
@@ -1761,7 +1767,8 @@ bart <- function(
             keepSampler = keepSampler,
             samplerOnly = samplerOnly
           ),
-          multinomialTestWeights
+          multinomialTestWeights,
+          multinomialWeightsArgument
         )
       ))
     }
@@ -1797,7 +1804,8 @@ bart <- function(
           keepSampler = keepSampler,
           samplerOnly = samplerOnly
         ),
-        multinomialTestWeights
+        multinomialTestWeights,
+        multinomialWeightsArgument
       )
     ))
   }
@@ -2164,10 +2172,15 @@ formulaTestWeights <- function(matchedCall, callingEnv, formula) {
 }
 
 # A packaged multinomial fit with its test rows' weights, which its test
-# draws read as a training row's own; a sampler passes through.
-withMultinomialTestWeights <- function(result, weights) {
+# draws read as a training row's own, and the weights expression when it
+# names columns of the data, which predict reads from newdata; a sampler
+# passes through.
+withMultinomialTestWeights <- function(result, weights, argument = NULL) {
   if (!is.null(weights) && inherits(result, "bartMultinomial")) {
     result$weights.test <- weights
+  }
+  if (!is.null(argument) && inherits(result, "bartMultinomial")) {
+    result$weights.argument <- argument
   }
   result
 }

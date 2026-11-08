@@ -133,9 +133,10 @@
             weights were a column of its data (\code{weights = w}) reads that
             column from the \code{newdata} given to \code{predict}, when it
             holds the column and no \code{weights} are stated, with the
-            fit's meaning, as a test sample does: \code{predict(fit, d)} on
-            the training frame \code{d} draws as \code{predict(fit, d,
-            weights = d$w)}, and a row of weight 0 has \code{NA} draws.
+            fit's meaning, as a test sample does: on a gaussian or Student-t
+            fit \code{predict(fit, d)} on the training frame \code{d} draws
+            as \code{predict(fit, d, weights = d$w)}, and on every family a
+            row of weight 0 has \code{NA} draws.
             On a probit fit a
             row of weight 0, training or test, likewise has \code{NA} draws
             and every other row draws one 0/1 observation, where 0.9-34 gave
