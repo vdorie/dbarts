@@ -2802,15 +2802,21 @@ reportLeafPrior <- function(sampler, raw, index) {
     response.scale = shared("response.scale"),
     response.shift = shared("response.shift")
   )
+  # whether the fitting function's leaf prior is named by an sd the user
+  # wrote, which is what a forest taking that prior takes its size from
+  fittingSdStated <- !is.na(model@prior.scale) || !is.null(named)
   if (sharer) {
-    return(sharerLeafPrior(prior, raw))
+    return(sharerLeafPrior(prior, raw, fittingSdStated))
   }
   if (!mapped) {
     return(lonePriorRecord(prior, raw, sdNamed, drawn))
   }
   multiplier <- c("none", "factor", "numeric")[shared("multiplier") + 1]
   held <- shared("amplitude.held") != 0
-  stated <- !is.nan(shared("named.sd"))
+  own <- !is.nan(shared("named.sd"))
+  # a forest with no basis and a held coefficient, stating no sd of its own,
+  # takes its size from the fitting function's leaf prior
+  stated <- own || (multiplier == "none" && held && fittingSdStated)
   sd <- shared("map.sd")
   # a numeric forest's number is per unit of its column, and carries the
   # column's name where the basis has one
@@ -2822,7 +2828,7 @@ reportLeafPrior <- function(sampler, raw, index) {
     }
   }
   statement <- list(
-    leaf.prior = if (stated) forest(sd = shared("named.sd")) else forest(),
+    leaf.prior = if (own) forest(sd = shared("named.sd")) else forest(),
     sd = sd,
     sd.stated = stated,
     multiplier = multiplier
@@ -2873,16 +2879,17 @@ lonePriorRecord <- function(prior, raw, sdNamed, drawn) {
 ## The reader's entry for a forest that takes the fitting function's leaf
 ## prior, from the one-forest entry `prior` that prior gives: the leaf prior as
 ## stated, then sd, its part of the total in force where that is one number (a
-## fixed k) and NA where k is drawn, sd.stated FALSE, multiplier "none", its
+## fixed k) and NA where k is drawn, sd.stated whether that prior is named by
+## an sd the user wrote (`sdStated`), multiplier "none", its
 ## held coefficient as fixed() and, in prior.sd.of, that the size is a share
 ## where other forests take the rest. k.scale over k is its sd, k being the
 ## group's.
-sharerLeafPrior <- function(prior, raw) {
+sharerLeafPrior <- function(prior, raw, sdStated) {
   drawn <- raw[[1L, "k.has.hyperprior"]] != 0
   statement <- list(
     leaf.prior = prior$leaf.prior,
     sd = if (drawn) NA_real_ else raw[[1L, "map.sd"]],
-    sd.stated = FALSE,
+    sd.stated = sdStated,
     multiplier = "none",
     amplitude = fixed()
   )
@@ -4494,7 +4501,7 @@ dbartsSampler <- setRefClass(
       counts
     },
     getLeafPrior = function(forest = NULL) {
-      "Returns the leaf prior a forest runs under, alone, as a named list: leaf.prior, the specification in the terms it was named in - normal(), linear() or gp() carrying one of k (a number or a chi() prior) or sd (a number or an invchi() prior), the family default when none was named - which goes back into setLeafPrior or a fitting function's leaf.prior as is; leaf.model; prior.sd.of, what the sd is the sd of ('forest', 'coefficient' or 'amplitude'); prior.mean; k.scale, the value k is relative to, so the spread in force on each chain is k.scale / getK() - the data's scale, fixed by the family and the response mapping and the same however the prior is written; response.scale and response.shift. A forest the calibration map does not set also carries, after leaf.prior, sd, its size in force in the response's units - k.scale over k at a fixed k, the number as stated where an sd was, and NA where k is drawn or the sd is under invchi(), which have no one number - and sd.stated, whether the leaf prior is named by an sd, at creation or through setLeafPrior. On a forest whose scale a multi-forest calibration map sets, k is pinned at 1 and leaf.prior is the statement of the forest's size: forest(sd = v), v the number as it was written, where an sd was stated, and forest() where none was, and its sd is the one setForest states. The list then begins with leaf.prior, sd, the forest's sd in force, in the response's units - v itself, or the default's multiple of the response's scale times the unit the sampler derived at creation (see forest) - sd.stated, whether it was stated, multiplier, what the forest multiplies ('none', 'factor' or 'numeric'), and amplitude, fixed() where the forest's coefficient is held, student(df) or, on a forest with no basis, normal() where it is drawn under the prior its creation stated, and absent where it is drawn under its default. prior.sd.of says what sd is the size of: 'forest' for a forest with no basis, 'level difference' for a factor and 'forest, per unit of basis' for a numeric column, the size exactly where the coefficient is held and at a coefficient of 1, ' (at a coefficient of 1)', where it is drawn. A numeric forest's sd is per unit of its column and carries the column's name where the basis has one, and the list adds basis.scale, where the data object records one, the standard deviation of the column its default was taken from at creation, named as sd is. k.scale is the forest's own prior sd before its coefficient: the forest's sd, on every forest but a sharer. A drawn coefficient is a multiplier with prior median size 1 - on a factor the difference between two levels' coefficients, a level's own having 0.71 - and on a numeric column through bcf's 0.674. A forest with no basis stating neither sd nor a coefficient's prior, alone or sharing one prior total, reads under the fitting function's leaf prior, as one forest does: leaf.prior that prior, sd its part of the total in force, NA where k is drawn, sd.stated FALSE, the sd being the fitting function's and not its own (a one-forest sampler reads TRUE when its leaf prior is named by an sd), amplitude fixed() and prior.sd.of 'forest' alone and 'forest, shared' in a group, one left of a group included. Every chain runs under the sampler's one prior and response transform, which no state install moves, so every value is shared by the chains; an NA spread is refused on write. A drawn k is chain state, read by getK. At the default forest = NULL a multi-forest sampler returns a list of one prior per forest, named by the forests' labels, a multinomial sampler's by the response's levels; a single-forest sampler's NULL read is bitwise its forest 1 read. forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i)."
+      "Returns the leaf prior a forest runs under, alone, as a named list: leaf.prior, the specification in the terms it was named in - normal(), linear() or gp() carrying one of k (a number or a chi() prior) or sd (a number or an invchi() prior), the family default when none was named - which goes back into setLeafPrior or a fitting function's leaf.prior as is; leaf.model; prior.sd.of, what the sd is the sd of ('forest', 'coefficient' or 'amplitude'); prior.mean; k.scale, the value k is relative to, so the spread in force on each chain is k.scale / getK() - the data's scale, fixed by the family and the response mapping and the same however the prior is written; response.scale and response.shift. A forest the calibration map does not set also carries, after leaf.prior, sd, its size in force in the response's units - k.scale over k at a fixed k, the number as stated where an sd was, and NA where k is drawn or the sd is under invchi(), which have no one number - and sd.stated, whether the leaf prior is named by an sd, at creation or through setLeafPrior. On a forest whose scale a multi-forest calibration map sets, k is pinned at 1 and leaf.prior is the statement of the forest's size: forest(sd = v), v the number as it was written, where an sd was stated, and forest() where none was, and its sd is the one setForest states. The list then begins with leaf.prior, sd, the forest's sd in force, in the response's units - v itself, or the default's multiple of the response's scale times the unit the sampler derived at creation (see forest) - sd.stated, TRUE where the size comes from an sd the user wrote at either level, the forest's own forest(sd = ) or, on a forest with no basis that states none, the fitting function's normal(sd = ), multiplier, what the forest multiplies ('none', 'factor' or 'numeric'), and amplitude, fixed() where the forest's coefficient is held, student(df) or, on a forest with no basis, normal() where it is drawn under the prior its creation stated, and absent where it is drawn under its default. prior.sd.of says what sd is the size of: 'forest' for a forest with no basis, 'level difference' for a factor and 'forest, per unit of basis' for a numeric column, the size exactly where the coefficient is held and at a coefficient of 1, ' (at a coefficient of 1)', where it is drawn. A numeric forest's sd is per unit of its column and carries the column's name where the basis has one, and the list adds basis.scale, where the data object records one, the standard deviation of the column its default was taken from at creation, named as sd is. k.scale is the forest's own prior sd before its coefficient: the forest's sd, on every forest but a sharer. A drawn coefficient is a multiplier with prior median size 1 - on a factor the difference between two levels' coefficients, a level's own having 0.71 - and on a numeric column through bcf's 0.674. A forest with no basis stating neither sd nor a coefficient's prior, alone or sharing one prior total, reads under the fitting function's leaf prior, as one forest does: leaf.prior that prior, sd its part of the total in force, NA where k is drawn, sd.stated TRUE when the fitting function's leaf prior is named by an sd the user wrote, normal(sd = ), as it is on a sampler of one forest, and FALSE for the default and for k, amplitude fixed() and prior.sd.of 'forest' alone and 'forest, shared' in a group, one left of a group included. Every chain runs under the sampler's one prior and response transform, which no state install moves, so every value is shared by the chains; an NA spread is refused on write. A drawn k is chain state, read by getK. At the default forest = NULL a multi-forest sampler returns a list of one prior per forest, named by the forests' labels, a multinomial sampler's by the response's levels; a single-forest sampler's NULL read is bitwise its forest 1 read. forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i)."
       ptr <- getPointer()
       read <- function(index) {
         reportLeafPrior(

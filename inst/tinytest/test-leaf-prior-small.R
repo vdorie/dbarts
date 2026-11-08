@@ -363,8 +363,10 @@ flatMessage <- tryCatch(
 expect_true(is.character(flatMessage))
 expect_false(grepl("more degrees of freedom", flatMessage, fixed = TRUE))
 
-# --- a sharer's sd.stated -----------------------------------------------------
-# on several forests it says whether the forest names an sd of its own
+# --- sd.stated: the size comes from an sd the user wrote ----------------------
+# TRUE wherever a forest's size comes from an sd written at either level, the
+# fitting function's normal(sd = ) or forest(sd = ); FALSE for the default and
+# for k
 sharer <- dbarts(
   y ~ forest(x1) + forest(x2, basis = z),
   d,
@@ -372,4 +374,39 @@ sharer <- dbarts(
   control = ctl()
 )$getLeafPrior(1L)
 expect_equivalent(sharer$sd, 0.5)
-expect_identical(sharer$sd.stated, FALSE)
+expect_identical(sharer$sd.stated, TRUE)
+# forests sharing one total each read their part of it, and the sd is stated
+sharing <- dbarts(
+  y ~ forest(x1) + forest(x2),
+  d,
+  leaf.prior = normal(sd = 0.5),
+  control = ctl()
+)$getLeafPrior()
+expect_equivalent(vapply(sharing, `[[`, 0, "sd"), rep(0.5 / sqrt(2), 2L))
+expect_identical(unname(vapply(sharing, `[[`, NA, "sd.stated")), c(TRUE, TRUE))
+# the default and k are not sds, whatever the forests
+for (leaf in list(list(), list(leaf.prior = normal(k = 3)))) {
+  fitWith <- function(formula) {
+    do.call(
+      dbarts,
+      c(list(formula, d, control = ctl()), leaf)
+    )
+  }
+  expect_identical(
+    fitWith(y ~ forest(x1) + forest(x2, basis = z))$getLeafPrior(1L)$sd.stated,
+    FALSE
+  )
+  expect_identical(
+    fitWith(y ~ forest(x1) + forest(x2))$getLeafPrior(2L)$sd.stated,
+    FALSE
+  )
+}
+# a forest's own sd beside the default
+expect_identical(
+  dbarts(
+    y ~ forest(x1, sd = 0.3) + forest(x2, basis = z),
+    d,
+    control = ctl()
+  )$getLeafPrior(1L)$sd.stated,
+  TRUE
+)
