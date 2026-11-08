@@ -126,10 +126,9 @@ refuseOwnDifference <- function(model, index, name, value) {
 ## and powers to install, one per forest. Per name, the level first, as
 ## $setTreePrior writes it: its value is the given one of the first forest it
 ## reaches that the given model does not state. Then each forest whose given
-## record states the name at another value than it then holds takes it, as
-## $setForest writes it, after the level, so that it wins. A number the given
-## record does not state, or states at the sampler's value, is left to the
-## level.
+## record states the name at another value than it holds once the level is
+## written takes it, as $setForest after $setTreePrior writes it. A number the
+## given record does not state is left.
 levelDepths <- function(sampler, given, stored) {
   model <- sampler$model
   numForests <- bartcoreNumForests(sampler$getPointer())
@@ -187,7 +186,7 @@ levelDepths <- function(sampler, given, stored) {
     }
     for (index in which(givenStates)) {
       value <- validateForestTreePrior(stated[[index]], name)
-      if (!identical(value, own[[index]])) {
+      if (!identical(value, forestDepthValue(stored, index, name))) {
         stored <- modelWithDepth(
           stored,
           index,
@@ -430,7 +429,19 @@ setModelOnForests <- function(sampler, newModel, given) {
   givenSds <- if (givenRecords) statedSds else ownSds
   leaf <- levelLeafPrior(sampler, given, depths$model, givenSds, "$setModel")
   refuseCoefficientDifference(sampler, given)
-  sds <- statedForestSds(sampler, leaf$model, statedSds, ownSds)
+  # the forests whose size the level's leaf prior writes: the one candidate
+  # whatever it states, and a forest it sizes
+  candidates <- levelCandidates(sampler)
+  levelSized <- vapply(
+    seq_along(ownSds),
+    function(index) {
+      leaf$install &&
+        ((length(candidates) == 1L && index %in% candidates) ||
+          takesLeafPriorSize(sampler, index))
+    },
+    NA
+  )
+  sds <- statedForestSds(sampler, leaf$model, statedSds, ownSds, levelSized)
   stored <- sds$model
   refuseShareDifference(sampler, given, stored)
   stored@tree.prior@splitProbabilities <- numeric()
@@ -461,13 +472,16 @@ setModelOnForests <- function(sampler, newModel, given) {
   stored
 }
 
-## The sds `givenSds` a model given to $setModel states that differ from
-## `ownSds`, the sampler's records, each written on `stored`, the model after the
-## level's writes, as $setForest(f, sd = ) writes it, as a list of the model and
-## the sds to install by forest position. A forest whose given record states no
-## sd, or the sampler's, is left to the level. Each is checked as the engine
-## checks it, so the install cannot refuse after a write.
-statedForestSds <- function(sampler, stored, givenSds, ownSds) {
+## The sds `givenSds` a model given to $setModel states, each written on
+## `stored`, the model after the level's writes, as $setForest(f, sd = ) writes
+## it, as a list of the model and the sds to install by forest position. One is
+## compared, as the door compares, with the sd in force once the level is
+## written: where the level's leaf prior does not size the forest
+## (`levelSized`), the sd in force now; where it does, the size it gives, which
+## a statement the sampler does not already make is taken to differ from. A
+## forest whose given record states no sd, or the sd its sampler's record
+## states, is left to the level.
+statedForestSds <- function(sampler, stored, givenSds, ownSds, levelSized) {
   installs <- list()
   if (samplerCarriesCounts(sampler)) {
     return(list(model = stored, installs = installs))
@@ -478,16 +492,11 @@ statedForestSds <- function(sampler, stored, givenSds, ownSds) {
     if (identical(sd, unname(ownSds[[index]]))) {
       next
     }
-    raw <- .Call(C_dbarts_bartcore_getLeafPrior, ptr, index - 1L)
-    unit <- raw[[1L, "map.unit"]]
-    if (!is.nan(raw[[1L, "map.anchor"]]) && !(unit > 0 && is.finite(unit))) {
-      stop(
-        "$setModel cannot state ",
-        doorForestLabel(stored, index),
-        "'s 'sd': a forest's 'sd' is in the response's units, and this ",
-        "response has no spread to state one against",
-        call. = FALSE
-      )
+    if (!levelSized[[index]]) {
+      raw <- .Call(C_dbarts_bartcore_getLeafPrior, ptr, index - 1L)
+      if (identical(sd, forestSdInForce(sampler, index, raw))) {
+        next
+      }
     }
     stored <- modelWithForestSd(sampler, stored, index, sd)
     installs[[as.character(index)]] <- sd

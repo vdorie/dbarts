@@ -519,6 +519,27 @@ case("$setModel as $setForest: the one candidate's power and sd", {
     expectTwin(live, door, names(stated))
   }
 })
+case("$setModel: a stated sd equal to the one in force writes nothing", {
+  # as $setForest compares: the record holds no sd for a forest the leaf prior
+  # sizes, and the door leaves it so
+  live <- build(oneCandidate())
+  door <- build(oneCandidate())
+  inForce <- live$getForest("mu")$sd
+  live$setModel(build(oneCandidate(sd = inForce))$model)
+  door$setForest("mu", sd = inForce)
+  same(live$model@forests[[1L]]@sd, NA_real_, "not stated")
+  expectTwin(live, door)
+})
+case("$setModel: a stated sd the level would resize is kept", {
+  # the sampler's leaf prior is k = 3 and the model's the default, so the
+  # level resizes mu, and its sd stated at mu's size before the call stays
+  live <- build(oneCandidate(), leaf.prior = normal(k = 3))
+  inForce <- live$getForest("mu")$sd
+  given <- build(oneCandidate(sd = inForce))
+  live$setModel(given$model)
+  same(live$getForest("mu")$sd, inForce, "its own")
+  expectTwin(live, given)
+})
 case("the one candidate stating sd: its own model, another leaf prior", {
   # its sd equal to the sampler's is not installed, so the leaf prior's write
   # wins, as before dec-B652
@@ -548,6 +569,28 @@ case("$setModel as $setForest: a sharer's own power", {
   same(depthOf(live, 3L, "base"), 0.8, "its own")
   expectTwin(live, door, "after the level")
 })
+# a forest stating the sampler's own value keeps it where the level moves the
+# others: one model runs one way, at creation and through $setModel
+followers <- list(mu1 = list(), mu2 = list(), mu3 = list())
+for (name in c("power", "base")) {
+  case(paste("$setModel: a stated depth equal to the sampler's,", name), {
+    stated <- followers
+    stated$mu2 <- stats::setNames(list(if (name == "power") 2 else 0.95), name)
+    level <- stats::setNames(list(if (name == "power") 3 else 0.5), name)
+    given <- do.call(build, c(list(stated), level))
+    live <- build(followers)
+    doors <- build(followers)
+    live$setModel(given$model)
+    do.call(doors$setTreePrior, level)
+    do.call(doors$setForest, c(list("mu2"), stated$mu2))
+    same(live$getForest("mu2")[[name]], stated$mu2[[name]], "its own")
+    same(name %in% live$model@forests[[2L]]@stated, TRUE, "stated")
+    same(draws(live), draws(do.call(build, c(list(stated), level))), "creation")
+    live <- build(followers)
+    live$setModel(given$model)
+    expectTwin(live, doors, "the doors")
+  })
+}
 case("$setModel: the level, then a forest's own", {
   live <- build(threeSharers)
   given <- build(

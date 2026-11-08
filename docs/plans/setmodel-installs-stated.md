@@ -54,14 +54,16 @@ the later write wins between `$setModel` and the named door (dec-B652).
   it reaches the candidates that state none of their own on the sampler, and
   the one candidate whatever it states (dec-B523); its value is read from the
   reached forests the given model does not state. Then each forest whose
-  given record states the name at a value other than the sampler's before the
-  call takes it as `$setForest` writes it: the record, its `stated`, forest
-  1's tree prior, and the engine's per-forest depth. Then the leaf prior as
-  today, and each forest whose given record states an sd other than the
-  sampler's record takes it as `$setForest(f, sd = )` writes it
-  (`modelWithForestSd`, `setForestSd`). A number the given record does not
-  state is left, so a basis forest's copied depth and a forest stating its own
-  on the sampler no longer refuse the call.
+  given record states the name at a value other than the one it holds once
+  the level is written takes it as `$setForest` writes it: the record, its
+  `stated`, forest 1's tree prior, and the engine's per-forest depth. Then
+  the leaf prior as today, and each forest whose given record states an sd
+  takes it as `$setForest(f, sd = )` writes it (`modelWithForestSd`,
+  `setForestSd`), unless the sampler's record states that sd or, where the
+  level's leaf prior does not size the forest, it is the sd in force. A
+  number the given record does not state is left, so a basis forest's copied
+  depth and a forest stating its own on the sampler no longer refuse the
+  call.
 - Multinomial: the forests take one statement, read from the tree prior,
   which `$setModel` installs today; an sd is refused at creation. No change.
 - Heteroscedastic: one forest; see the first item.
@@ -71,9 +73,9 @@ the later write wins between `$setModel` and the named door (dec-B652).
 Every check, then every engine write. The checks: structure, the leaf scale,
 split probabilities, coefficients (still refused, naming `$setForest`), the
 parts of a shared total compared with those the sampler holds after the own
-installs, the variance numbers validated as the door validates them, and an
-sd install's unit read from the engine's row, refused in the bridge's words
-where the response has no spread. The writes: the route's engine call (the
+installs, and the variance numbers validated as the door validates them. An
+sd install's own refusal, a response with no spread, is not reached (call 9).
+The writes: the route's engine call (the
 level, depths, residual prior, move settings), then the mean forests' sd
 installs, then the variance forest's depth; each of the later two can no
 longer refuse once checked. The model is stored last.
@@ -126,18 +128,26 @@ no per-forest settings, so nothing shipped is owed a migration.
 
 1. A variance depth statement lives in the existing `stated` slot, as a mean
    forest's does. Alternative: a slot of its own.
-2. A stated number is installed where it differs from the sampler's value
-   before the call, the ruling's words, and after the level, so it wins; one
-   equal to it writes and states nothing, as the door does, and where the
-   level moves that forest it follows the level. Alternative: compare after
-   the level's write, as a new sampler from the model would run, which moves
-   the draws of a call taken today: the one candidate stating an sd, handed
-   its own model with another leaf prior, takes the leaf prior today.
+2. A stated depth is installed where it differs from the forest's value once
+   the level is written, as `$setTreePrior` then `$setForest` would leave it,
+   so a forest the model states at the sampler's own value keeps it where the
+   level moves the others, as a new sampler from the model runs. A stated sd
+   is compared as the door compares, with the sd in force, where the level's
+   leaf prior leaves the forest's size alone; where it writes that size, a
+   statement the sampler's record does not make is installed. A stated sd the
+   sampler's record already makes is not, so the one candidate stating an sd,
+   handed its own model with another leaf prior by hand (a model creation
+   refuses), takes the leaf prior as today. Alternative: compare every
+   number with the sampler's value before the call, which loses a stated
+   depth equal to it when the level moves that forest (the review's F1),
+   or every sd with the sd in force before the call, which loses one the
+   level would resize.
 3. A number the given record does not state is left, so the own-difference
    refusals on unstated numbers and the refusal of a withdrawn statement
-   (call 35, for `$setModel`) go: dec-B652's "a number the record does not
-   state is left as it is". Alternative: keep refusing a withdrawal, naming a
-   new sampler.
+   (dec-A258's call 35, for `$setModel`) go: dec-B652's "a number the record
+   does not state is left as it is". This revises call 35 as well as the
+   calls dec-B652 names (11, 19 and 31). Alternative: keep refusing a
+   withdrawal, naming a new sampler.
 4. The level first, the own installs after, as `$setTreePrior` then
    `$setForest` would; the level's value read from the reached forests the
    given model does not state. Alternative: own installs first, when a
@@ -157,3 +167,17 @@ no per-forest settings, so nothing shipped is owed a migration.
 8. A hand edit that changes a value and its statement together is read as a
    statement (dec-B554: a record slot is not a door, and the record cannot
    tell the two apart); one that changes a value alone is left.
+9. The R-side refusal of an sd stated against a response with no spread is
+   dropped: the unit is fixed at creation and carried by a copy and a
+   reload, a constant response gets a unit of 0.25, and probit and logistic
+   fix it, so no call was found to reach it; the bridge's refusal in
+   `setForestSd` stays as the backstop. Alternative: keep it as an R-side
+   check no test can reach.
+10. A model whose forests follow a level of 2.5, handed to a sampler whose
+    every candidate states its own depth, is taken and changes no depth,
+    where `$setTreePrior(power = 2.5)` refuses a level that reaches no
+    forest. A new sampler from that model runs its forests at 2.5, so this
+    differs from creation, as any statement the sampler makes and the model
+    does not: the model's numbers are copies of its level, which dec-B652
+    leaves. Alternative: refuse a model whose level differs and reaches no
+    forest, naming `$setForest`, as `$setTreePrior` does.
