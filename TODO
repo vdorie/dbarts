@@ -283,7 +283,8 @@ items
     its frame the response, weights and offsets are made from the frame
     too, with no copy stored, o@y and its kin naming accessors that read
     them from there (dec-B675, VD 2026-11-08: "No, I want (a). It should
-    be read from there.").
+    be read from there."). There o@x holds a stand-in that stops when
+    read, naming the accessor (dec-B676, VD 2026-11-08: "Sure, (a).").
   basis-one-column-labels: a one-column character, logical or factor
     matrix given as a basis is read as its column, two levels, at every
     door; wider ones stay refused (dec-B662, VD 2026-11-07: "We can use
