@@ -893,6 +893,7 @@ methods::setMethod(
 )
 
 makeTestModelMatrix <- function(data, newdata) {
+  data <- resolveDataObject(data)
   validateXTest(newdata, data@x, missing.seen = dataMissingSeen(data))
 }
 
@@ -3214,7 +3215,8 @@ dbartsData <- function(
   bases = NULL,
   counts = NULL,
   n.cuts = NULL,
-  useQuantiles = NULL
+  useQuantiles = NULL,
+  keep.data = TRUE
 ) {
   stated <- checkFlatCopies(n.cuts = n.cuts, useQuantiles = useQuantiles)
   # set by dbarts() on a formula under a logistic family, whose two-column
@@ -3289,6 +3291,12 @@ dbartsData <- function(
   # route family = "auto" and reject a categorical response an unsupported
   # family cannot fit; each y-producing branch below refreshes it
   responseInfo <- list(type = "numeric", n.levels = NA_integer_, levels = NULL)
+  # the frame handed over and what reads it again (dataFrame.R); the positions
+  # of the rows kept, and the names of the data's columns
+  frameData <- NULL
+  rowsKept <- NULL
+  frameColumns <- NULL
+  offsetExpression <- NULL
 
   if (missing(formula)) {
     stop("first argument to dbartsData - 'formula'/'x.train' - must be present")
@@ -3334,6 +3342,7 @@ dbartsData <- function(
     # the fitting functions hand over a formula whose forest() terms they have
     # already read; one arriving here was given to a door that reads none
     refuseForestTerm(formula, "dbartsData")
+    formulaGiven <- formula
     if (
       !dataIsMissing &&
         !is.data.frame(data) &&
@@ -3354,6 +3363,12 @@ dbartsData <- function(
     # handed on the same way, so that the call names no row.
     if (!dataIsMissing) {
       matchedCall <- handOn(matchedCall, list(data = data))
+      frameData <- data
+      frameColumns <- if (is.environment(data)) {
+        ls(data, all.names = TRUE)
+      } else {
+        names(data)
+      }
     }
     # 'weights' as the length check below read it, where it did
     weightsValue <- NULL
@@ -3373,6 +3388,7 @@ dbartsData <- function(
         list(expr = matchedCall$offset, env = environment(formula))
       }
       offsetEnv <- written$env
+      offsetExpression <- written$expr
       offset <- evaluateOffsetExpression(
         written$expr,
         if (dataIsMissing) NULL else data,
@@ -3671,6 +3687,24 @@ dbartsData <- function(
     modelFrameCall$dbartsSparseMissing <- NULL
     modelFrameCall$dbartsRowIndex <- NULL
     naOmitted <- attr(modelFrame, "na.action")
+    rowsTotal <- if (!dataIsMissing && (is.data.frame(data) || is.list(data))) {
+      frameNumRows(data)
+    } else {
+      tryCatch(
+        NROW(eval(
+          formula[[2L]],
+          if (dataIsMissing) NULL else data,
+          environment(formula)
+        )),
+        error = function(e) NA_integer_
+      )
+    }
+    rowsKept <- keptRowPositions(
+      subsetValue,
+      rowsTotal,
+      if (is.data.frame(data)) rownames(data),
+      naOmitted
+    )
     # a model frame always names its rows, "1".."n" when the data has none,
     # as lm does
     trainRowNames <- rownames(modelFrame)
@@ -4537,6 +4571,15 @@ dbartsData <- function(
     result@useQuantiles <- stated$useQuantiles
   }
   result@na.action <- naOmitted
+  if (!is.formula(formula)) {
+    rowsKept <- if (identical(as.integer(countsSubset), seq_len(countsRows))) {
+      NULL
+    } else {
+      as.integer(countsSubset)
+    }
+  }
+  result@rows <- rowsKept
+  result@frame.columns <- frameColumns
   if (!is.null(offsetArgument)) {
     attr(result, "offset.argument") <- offsetArgument
   }
@@ -4557,6 +4600,25 @@ dbartsData <- function(
     attr(result, "survivalStatus") <- survivalStatus
     attr(result, "survivalTime") <- survivalTime
     attr(result, "survivalTimeOmitted") <- survivalTimeOmitted
+  }
+  if (keep.data && (is.data.frame(frameData) || is.list(frameData))) {
+    weightsExpression <- matchedCall$weights
+    environment(formulaGiven) <- frozenBuildEnvironment(
+      formulaGiven,
+      list(weightsExpression, offsetExpression),
+      frameColumns,
+      callerEnv
+    )
+    result <- keepFrameInObject(
+      result,
+      frameData,
+      list(
+        formula = formulaGiven,
+        weights = weightsExpression,
+        offset = offsetExpression,
+        factors = factors
+      )
+    )
   }
   result
 }

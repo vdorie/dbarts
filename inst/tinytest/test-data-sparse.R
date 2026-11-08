@@ -370,7 +370,7 @@ d.formula$m <- m.f
 x.forXY <- other.f
 x.forXY$m <- m.f
 
-data.viaFormula <- dbartsData(y ~ ., data = d.formula)
+data.viaFormula <- dbartsData(y ~ ., data = d.formula, keep.data = FALSE)
 data.viaXY <- dbartsData(x.forXY, y.f)
 expect_inherits(data.viaFormula@x, "dbartsMixedMatrix")
 expect_identical(as.matrix(data.viaFormula@x), as.matrix(data.viaXY@x))
@@ -435,15 +435,15 @@ expect_identical(fit.formula.na$yhat.train, fit.xy.na$yhat.train)
 # a sparse name wrapped in poly()/ns()/log()/offset() or an interaction is
 # refused by name, mirroring the plain ':'/'*' refusal
 expect_error(
-  dbartsData(y ~ a + log(m), data = d.formula),
+  dbartsData(y ~ a + log(m), data = d.formula, keep.data = FALSE),
   pattern = "sparse predictor 'm' cannot appear inside 'log\\(m\\)'"
 )
 expect_error(
-  dbartsData(y ~ a + offset(m), data = d.formula),
+  dbartsData(y ~ a + offset(m), data = d.formula, keep.data = FALSE),
   pattern = "sparse predictor 'm' cannot appear inside 'offset\\(\\)'"
 )
 expect_error(
-  dbartsData(y ~ a:m, data = d.formula),
+  dbartsData(y ~ a:m, data = d.formula, keep.data = FALSE),
   pattern = "sparse predictor 'm' cannot appear inside 'a:m'"
 )
 

@@ -42,7 +42,10 @@ f.scalar <- fitWith(formula = y ~ a + offset(o), data = d, offset = 2)
 expect_identical(f.scalar$fit$data@offset, d$o + 2)
 f.vector <- fitWith(formula = y ~ a + offset(o), data = d, offset = rep(1, n))
 expect_identical(f.vector$fit$data@offset, d$o + 1)
-expect_identical(dbartsData(y ~ a + offset(o), d)@offset, d$o)
+expect_identical(
+  dbartsData(y ~ a + offset(o), d, keep.data = FALSE)@offset,
+  d$o
+)
 
 # a missing value in the term is refused as one in the argument is
 d.na <- d

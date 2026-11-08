@@ -19,7 +19,12 @@ groupMeans <- c(blue = 2, green = -1, red = 0)
 df$y <- groupMeans[as.character(df$g)] + df$z + rnorm(n, 0, 0.4)
 
 # structure: one column per predictor, coded and typed
-data.cat <- dbartsData(y ~ g + o + z + b + s, df, factors = "categorical")
+data.cat <- dbartsData(
+  y ~ g + o + z + b + s,
+  df,
+  factors = "categorical",
+  keep.data = FALSE
+)
 expect_equal(ncol(data.cat@x), 5L)
 expect_equal(colnames(data.cat@x), c("g", "o", "z", "b", "s"))
 expect_equal(data.cat@varTypes, c(1L, 2L, 0L, 0L, 1L))
@@ -30,9 +35,14 @@ expect_equal(attr(data.cat@x, "factor.levels")[[5L]], c("cat", "dog"))
 expect_null(attr(data.cat@x, "factor.levels")[[3L]])
 
 # categorical is the default; "indicators" expands as previous versions did
-data.def <- dbartsData(y ~ g + o + z + b + s, df)
+data.def <- dbartsData(y ~ g + o + z + b + s, df, keep.data = FALSE)
 expect_equal(data.def@varTypes, data.cat@varTypes)
-data.ind <- dbartsData(y ~ g + o + z + b + s, df, factors = "indicators")
+data.ind <- dbartsData(
+  y ~ g + o + z + b + s,
+  df,
+  factors = "indicators",
+  keep.data = FALSE
+)
 expect_true(ncol(data.ind@x) > 5L)
 expect_true(all(data.ind@varTypes == 0L))
 
@@ -41,12 +51,12 @@ expect_true(all(data.ind@varTypes == 0L))
 # level lower, since their K - 1 cut grid spends a code on its upper bin
 df.wide <- data.frame(f = factor(paste0("l", seq_len(54L))), y = rnorm(54L))
 expect_inherits(
-  dbartsData(y ~ f, df.wide, factors = "categorical"),
+  dbartsData(y ~ f, df.wide, factors = "categorical", keep.data = FALSE),
   "dbartsData"
 )
 df.wide$f <- as.ordered(df.wide$f)
 expect_inherits(
-  dbartsData(y ~ f, df.wide, factors = "categorical"),
+  dbartsData(y ~ f, df.wide, factors = "categorical", keep.data = FALSE),
   "dbartsData"
 )
 
@@ -57,14 +67,14 @@ df.ceiling$f <- factor(
   levels = wide.levels[seq_len(65534L)],
   ordered = TRUE
 )
-expect_inherits(dbartsData(y ~ f, df.ceiling), "dbartsData")
+expect_inherits(dbartsData(y ~ f, df.ceiling, keep.data = FALSE), "dbartsData")
 df.ceiling$f <- factor(
   wide.levels[seq_len(4L)],
   levels = wide.levels,
   ordered = TRUE
 )
 expect_error(
-  dbartsData(y ~ f, df.ceiling),
+  dbartsData(y ~ f, df.ceiling, keep.data = FALSE),
   pattern = "more than 65534 levels"
 )
 
@@ -92,7 +102,7 @@ expect_error(
 )
 
 x.ord.over <- matrix(c(0, 1, 2, 65534), 4L)
-data.ord.over <- dbartsData(df.ceiling$y ~ x.ord.over)
+data.ord.over <- dbartsData(df.ceiling$y ~ x.ord.over, keep.data = FALSE)
 data.ord.over@varTypes[1L] <- 2L
 expect_error(
   dbarts(data.ord.over, control = dbartsControl(n.chains = 1L)),
@@ -146,7 +156,8 @@ data.cat2 <- dbartsData(
   y ~ g + o + z + b + s,
   df,
   test = df.test,
-  factors = "categorical"
+  factors = "categorical",
+  keep.data = FALSE
 )
 expect_equal(
   as.double(data.cat2@x.test[, "g"]),
@@ -159,7 +170,13 @@ expect_equal(
 df.bad <- df.test
 levels(df.bad$g) <- c("red", "blue", "purple")
 expect_error(
-  dbartsData(y ~ g + o + z + b + s, df, test = df.bad, factors = "categorical"),
+  dbartsData(
+    y ~ g + o + z + b + s,
+    df,
+    test = df.bad,
+    factors = "categorical",
+    keep.data = FALSE
+  ),
   pattern = "has a level not present in the training data: 'purple'"
 )
 

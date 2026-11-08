@@ -84,18 +84,23 @@ expect_error(
 # took these), while an interaction of subsets is still refused
 subsetX <- matrix(rnorm(40L * 10L), 40L, 10L)
 subsetY <- rnorm(40L)
-expect_identical(ncol(dbarts::dbartsData(subsetY ~ subsetX[, 1:3])@x), 3L)
 expect_identical(
-  ncol(dbarts::dbartsData(subsetY ~ subsetX[, c(1:3, 6:10)])@x),
+  ncol(dbarts::dbartsData(subsetY ~ subsetX[, 1:3], keep.data = FALSE)@x),
+  3L
+)
+expect_identical(
+  ncol(
+    dbarts::dbartsData(subsetY ~ subsetX[, c(1:3, 6:10)], keep.data = FALSE)@x
+  ),
   8L
 )
 expect_error(
-  dbarts::dbartsData(subsetY ~ subsetX[, 1:2]:subsetX[, 3]),
+  dbarts::dbartsData(subsetY ~ subsetX[, 1:2]:subsetX[, 3], keep.data = FALSE),
   interactionReason,
   fixed = TRUE
 )
 expect_error(
-  dbarts::dbartsData(subsetY ~ subsetX[, 1] * subsetX[, 2]),
+  dbarts::dbartsData(subsetY ~ subsetX[, 1] * subsetX[, 2], keep.data = FALSE),
   interactionReason,
   fixed = TRUE
 )
@@ -113,26 +118,30 @@ quotedData[["a b"]] <- rnorm(30L)
 quotedData[["c d"]] <- rnorm(30L)
 quotedData[["e f:g"]] <- rnorm(30L)
 expect_error(
-  dbarts::dbartsData(y ~ `a b`:`c d`, quotedData),
+  dbarts::dbartsData(y ~ `a b`:`c d`, quotedData, keep.data = FALSE),
   "':' and '*' terms are not supported",
   fixed = TRUE
 )
 expect_error(
-  dbarts::dbartsData(y ~ `a b` * `c d`, quotedData),
+  dbarts::dbartsData(y ~ `a b` * `c d`, quotedData, keep.data = FALSE),
   "':' and '*' terms are not supported",
   fixed = TRUE
 )
 expect_error(
-  dbarts::dbartsData(y ~ z:`e f:g`, quotedData),
+  dbarts::dbartsData(y ~ z:`e f:g`, quotedData, keep.data = FALSE),
   "':' and '*' terms are not supported",
   fixed = TRUE
 )
 expect_identical(
-  colnames(dbarts::dbartsData(y ~ `a b` + `c d`, quotedData)@x),
+  colnames(
+    dbarts::dbartsData(y ~ `a b` + `c d`, quotedData, keep.data = FALSE)@x
+  ),
   c("a b", "c d")
 )
 expect_identical(
-  colnames(dbarts::dbartsData(y ~ `e f:g` + z, quotedData)@x),
+  colnames(
+    dbarts::dbartsData(y ~ `e f:g` + z, quotedData, keep.data = FALSE)@x
+  ),
   c("e f:g", "z")
 )
 # the multinomial formula path reads the same terms

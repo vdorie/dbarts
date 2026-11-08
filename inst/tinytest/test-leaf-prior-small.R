@@ -339,7 +339,9 @@ expect_identical(
   drawsOf(offset = rep(1, nrow(d)))
 )
 expect_identical(
-  reported(dbartsData(y ~ x1, d, offset = rep(1L, nrow(d)))@offset),
+  reported(
+    dbartsData(y ~ x1, d, offset = rep(1L, nrow(d)), keep.data = FALSE)@offset
+  ),
   rep(1, nrow(d))
 )
 expect_identical(
@@ -348,7 +350,8 @@ expect_identical(
       y ~ x1,
       d,
       test = d[1:5, "x1", drop = FALSE],
-      offset.test = rep(1L, 5L)
+      offset.test = rep(1L, 5L),
+      keep.data = FALSE
     )@offset.test
   ),
   rep(1, 5L)

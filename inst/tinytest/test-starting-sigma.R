@@ -138,13 +138,23 @@ expect_identical(
 )
 # the data object's own bases, and a bart fit
 expect_identical(
-  sigmaOf(dbartsData(y ~ x1 + x2, d.b, bases = list(NULL, factor(d.b$z)))),
+  sigmaOf(dbartsData(
+    y ~ x1 + x2,
+    d.b,
+    bases = list(NULL, factor(d.b$z)),
+    keep.data = FALSE
+  )),
   lm.levels()
 )
 # the estimator's own default design reads the bases as the fit's does
 expect_identical(
   dbarts:::estimateSigmaFromLinearModel(
-    dbartsData(y ~ x1 + x2, d.b, bases = list(NULL, factor(d.b$z)))
+    dbartsData(
+      y ~ x1 + x2,
+      d.b,
+      bases = list(NULL, factor(d.b$z)),
+      keep.data = FALSE
+    )
   ),
   lm.levels()
 )
@@ -218,7 +228,7 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
 }
 expect_identical(
   dbartsSpec(
-    dbartsData(y ~ x1 + x2, d.b),
+    dbartsData(y ~ x1 + x2, d.b, keep.data = FALSE),
     forests = list(forest(), forest(basis = factor(d.b$z))),
     control = control.ss
   )$data@sigma,
@@ -226,7 +236,12 @@ expect_identical(
 )
 expect_identical(
   dbartsSpec(
-    dbartsData(y ~ x1 + x2, d.b, bases = list(NULL, factor(d.b$z))),
+    dbartsData(
+      y ~ x1 + x2,
+      d.b,
+      bases = list(NULL, factor(d.b$z)),
+      keep.data = FALSE
+    ),
     forests = list(forest(), forest(basis = d.b$w)),
     control = control.ss
   )$data@sigma,

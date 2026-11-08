@@ -78,7 +78,8 @@ sampler <- samplerOf()
 handed <- dbarts::dbartsData(
   y ~ a + f,
   frameOf(letters[1:6], letters[1:6], 2L),
-  test = frameOf(letters[1:6], letters[1:3], 3L)[1:10, ]
+  test = frameOf(letters[1:6], letters[1:3], 3L)[1:10, ],
+  keep.data = FALSE
 )
 sampler$setData(handed)
 expect_identical(sampler$data@x, handed@x)
@@ -92,7 +93,8 @@ for (kind in list(c(FALSE, FALSE), c(TRUE, FALSE), c(TRUE, TRUE))) {
   sampler <- samplerOf(kind[1L], kind[2L])
   sampler$setData(dbarts::dbartsData(
     y ~ a + f,
-    frameOf(letters[1:4], letters[1:4], 2L, kind[1L], kind[2L])
+    frameOf(letters[1:4], letters[1:4], 2L, kind[1L], kind[2L]),
+    keep.data = FALSE
   ))
   expect_identical(
     attr(sampler$data@x, "factor.levels")[[2L]],
@@ -116,7 +118,8 @@ for (kind in list(c(FALSE, FALSE), c(TRUE, FALSE), c(TRUE, TRUE))) {
 copied <- sampler$copy()
 again <- dbarts::dbartsData(
   y ~ a + f,
-  frameOf(letters[1:6], letters[1:6], 3L, TRUE, TRUE)
+  frameOf(letters[1:6], letters[1:6], 3L, TRUE, TRUE),
+  keep.data = FALSE
 )
 sampler$setData(again)
 copied$setData(again)
@@ -131,11 +134,17 @@ for (ordered in c(FALSE, TRUE)) {
   sampler <- samplerOf(ordered)
   twin <- samplerOf(ordered)
   before <- predictAt(sampler, c("c", "e"), ordered)
-  sampler$setData(dbarts::dbartsData(y ~ a + f, dropped, test = test))
+  sampler$setData(dbarts::dbartsData(
+    y ~ a + f,
+    dropped,
+    test = test,
+    keep.data = FALSE
+  ))
   twin$setData(dbarts::dbartsData(
     y ~ a + f,
     byLabel(dropped),
-    test = byLabel(test)
+    test = byLabel(test),
+    keep.data = FALSE
   ))
   expect_identical(sampler$data@x, twin$data@x, info = ordered)
   expect_equal(predictAt(sampler, c("c", "e"), ordered), before, info = ordered)
@@ -150,7 +159,7 @@ for (ordered in c(FALSE, TRUE)) {
 sampler <- samplerOf()
 drawn <- frameOf(letters[1:6], letters[c(1L, 3:6)], 2L)
 drawn$f <- as.character(drawn$f)
-sampler$setData(dbarts::dbartsData(y ~ a + f, drawn))
+sampler$setData(dbarts::dbartsData(y ~ a + f, drawn, keep.data = FALSE))
 expect_identical(
   as.character(sampler$data@x$dense[[2L]]),
   drawn$f
@@ -163,8 +172,12 @@ for (ordered in c(FALSE, TRUE)) {
   reordered <- frameOf(rev(letters[1:6]), letters[1:6], 2L, ordered)
   sampler <- samplerOf(ordered)
   twin <- samplerOf(ordered)
-  sampler$setData(dbarts::dbartsData(y ~ a + f, reordered))
-  twin$setData(dbarts::dbartsData(y ~ a + f, byLabel(reordered)))
+  sampler$setData(dbarts::dbartsData(y ~ a + f, reordered, keep.data = FALSE))
+  twin$setData(dbarts::dbartsData(
+    y ~ a + f,
+    byLabel(reordered),
+    keep.data = FALSE
+  ))
   expect_identical(sampler$data@x, twin$data@x, info = ordered)
   copied <- sampler$copy()
   expect_equal(fitsOf(copied), fitsOf(sampler), info = ordered)
@@ -174,7 +187,8 @@ for (ordered in c(FALSE, TRUE)) {
 sampler <- samplerOf()
 sampler$setData(dbarts::dbartsData(
   y ~ a + f,
-  frameOf(letters[1:8], letters[1:6], 2L)
+  frameOf(letters[1:8], letters[1:6], 2L),
+  keep.data = FALSE
 ))
 expect_identical(attr(sampler$data@x, "factor.levels")[[2L]], letters[1:6])
 copied <- sampler$copy()
@@ -189,7 +203,8 @@ held <- untouched(sampler)
 expect_error(
   sampler$setData(dbarts::dbartsData(
     y ~ a + f,
-    frameOf(letters[c(1L, 3:7)], letters[c(1L, 3:7)], 2L)
+    frameOf(letters[c(1L, 3:7)], letters[c(1L, 3:7)], 2L),
+    keep.data = FALSE
   )),
   pattern = "column 'f' has label 'g' not among its training levels"
 )
@@ -197,14 +212,16 @@ expect_identical(untouched(sampler), held)
 expect_error(
   sampler$setData(dbarts::dbartsData(
     y ~ a + f,
-    frameOf(letters[1:8], letters[1:8], 2L)
+    frameOf(letters[1:8], letters[1:8], 2L),
+    keep.data = FALSE
   )),
   pattern = "has labels 'g' and 'h' not among"
 )
 expect_error(
   sampler$setData(dbarts::dbartsData(
     y ~ a + f,
-    frameOf(LETTERS[1:6], LETTERS[1:6], 2L)
+    frameOf(LETTERS[1:6], LETTERS[1:6], 2L),
+    keep.data = FALSE
   )),
   pattern = "column 'f' has labels '[A-F]'"
 )
@@ -212,7 +229,8 @@ expect_error(
   sampler$setData(dbarts::dbartsData(
     y ~ a + f,
     frameOf(letters[1:7], letters[1:6], 2L),
-    test = frameOf(letters[1:7], "g", 3L)[1:5, ]
+    test = frameOf(letters[1:7], "g", 3L)[1:5, ],
+    keep.data = FALSE
   )),
   pattern = "column 'f' has label 'g' not among its training levels"
 )
@@ -241,8 +259,18 @@ pairOf <- function() {
 }
 sampler <- pairOf()
 twin <- pairOf()
-sampler$setData(dbarts::dbartsData(y ~ g + f, yes.fl, test = yes.fl[1:9, ]))
-twin$setData(dbarts::dbartsData(y ~ f + g, yes.fl, test = yes.fl[1:9, ]))
+sampler$setData(dbarts::dbartsData(
+  y ~ g + f,
+  yes.fl,
+  test = yes.fl[1:9, ],
+  keep.data = FALSE
+))
+twin$setData(dbarts::dbartsData(
+  y ~ f + g,
+  yes.fl,
+  test = yes.fl[1:9, ],
+  keep.data = FALSE
+))
 expect_identical(sampler$data@x, twin$data@x)
 expect_identical(sampler$data@x.test, twin$data@x.test)
 expect_identical(fitsOf(sampler), fitsOf(twin))
@@ -251,7 +279,7 @@ names(renamed)[2L] <- "h"
 sampler$storeState()
 held <- untouched(sampler)
 expect_error(
-  sampler$setData(dbarts::dbartsData(y ~ f + h, renamed)),
+  sampler$setData(dbarts::dbartsData(y ~ f + h, renamed, keep.data = FALSE)),
   pattern = paste0(
     "^\\$setData: names that are not the sampler's: the data's columns are ",
     "'f' and 'h' and the sampler's are 'f' and 'g'; columns are matched by ",
@@ -277,7 +305,7 @@ reversed$f <- structure(
   levels = rev(levels.na),
   class = "factor"
 )
-sampler$setData(dbarts::dbartsData(y ~ a + f, reversed))
+sampler$setData(dbarts::dbartsData(y ~ a + f, reversed, keep.data = FALSE))
 expect_identical(sampler$data@x$dense[[2L]], frame.na$f)
 
 # two factor columns with other tables, handed in another order: each column
@@ -314,11 +342,17 @@ for (ordered in c(FALSE, TRUE)) {
     )
     frame
   }
-  pairs[[1L]]$setData(dbarts::dbartsData(y ~ g + f + a, handed, test = test))
+  pairs[[1L]]$setData(dbarts::dbartsData(
+    y ~ g + f + a,
+    handed,
+    test = test,
+    keep.data = FALSE
+  ))
   pairs[[2L]]$setData(dbarts::dbartsData(
     y ~ a + f + g,
     hand(handed),
-    test = hand(test)
+    test = hand(test),
+    keep.data = FALSE
   ))
   expect_identical(pairs[[1L]]$data@x, pairs[[2L]]$data@x, info = ordered)
   expect_identical(
@@ -336,8 +370,12 @@ for (ordered in c(FALSE, TRUE)) {
 sampler <- samplerOf()
 twin <- samplerOf()
 reordered <- frameOf(rev(letters[1:6]), letters[1:6], 3L)
-sampler$setData(dbarts::dbartsData(y ~ f + a, reordered))
-twin$setData(dbarts::dbartsData(y ~ a + f, byLabel(reordered)))
+sampler$setData(dbarts::dbartsData(y ~ f + a, reordered, keep.data = FALSE))
+twin$setData(dbarts::dbartsData(
+  y ~ a + f,
+  byLabel(reordered),
+  keep.data = FALSE
+))
 expect_identical(sampler$data@x, twin$data@x)
 expect_identical(sampler$data@varTypes, twin$data@varTypes)
 
@@ -348,7 +386,7 @@ sampler$storeState()
 held <- untouched(sampler)
 moved <- data.frame(y = start$y, a = start$a, g = start$f, h = start$g)
 expect_error(
-  sampler$setData(dbarts::dbartsData(y ~ a + g + h, moved)),
+  sampler$setData(dbarts::dbartsData(y ~ a + g + h, moved, keep.data = FALSE)),
   pattern = paste0(
     "names that are not the sampler's: the data's columns are 'a', 'g' and ",
     "'h' and the sampler's are 'a', 'f' and 'g'"
@@ -361,7 +399,8 @@ frame <- frameOf(letters[1:6], letters[1:6], 2L)
 expect_error(
   sampler$setData(dbarts::dbartsData(
     y ~ a + f,
-    data.frame(y = frame$y, a = frame$a, f = runif(n.fl))
+    data.frame(y = frame$y, a = frame$a, f = runif(n.fl)),
+    keep.data = FALSE
   )),
   pattern = "^\\$setData: factor 'f' holds numbers; give it as a factor of the "
 )
@@ -553,12 +592,14 @@ for (case in cases) {
   pairs[[1L]]$setData(dbarts::dbartsData(
     y ~ a + f,
     handed,
-    weights = rev(case$w)
+    weights = rev(case$w),
+    keep.data = FALSE
   ))
   pairs[[2L]]$setData(dbarts::dbartsData(
     y ~ a + f,
     byLabel(handed),
-    weights = rev(case$w)
+    weights = rev(case$w),
+    keep.data = FALSE
   ))
   expect_equal(pairs[[1L]]$predict(at), before, info = case$family)
   expect_identical(pairs[[1L]]$data@x, pairs[[2L]]$data@x, info = case$family)

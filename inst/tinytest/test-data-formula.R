@@ -12,20 +12,31 @@ trainData_df$offset <- rnorm(nrow(trainData_df))
 modelFormula <- y ~ x.1 + x.2 + x.3 + x.4 + x.5 + x.6 + x.7 + x.8 + x.9 + x.10
 
 expect_inherits(
-  dbarts::dbartsData(modelFormula, trainData_df),
+  dbarts::dbartsData(modelFormula, trainData_df, keep.data = FALSE),
   "dbartsData"
 )
 # each channel named in 'data' must ARRIVE on the object, not merely be
 # accepted by the call
-dat <- dbarts::dbartsData(modelFormula, trainData_df, weights = weights)
+dat <- dbarts::dbartsData(
+  modelFormula,
+  trainData_df,
+  weights = weights,
+  keep.data = FALSE
+)
 expect_equal(dat@weights, trainData_df$weights)
-dat <- dbarts::dbartsData(modelFormula, trainData_df, offset = offset)
+dat <- dbarts::dbartsData(
+  modelFormula,
+  trainData_df,
+  offset = offset,
+  keep.data = FALSE
+)
 expect_equal(dat@offset, trainData_df$offset)
 dat <- dbarts::dbartsData(
   modelFormula,
   trainData_df,
   weights = weights,
-  offset = offset
+  offset = offset,
+  keep.data = FALSE
 )
 expect_equal(dat@weights, trainData_df$weights)
 expect_equal(dat@offset, trainData_df$offset)
@@ -35,7 +46,8 @@ dat <- dbarts::dbartsData(
   trainData_df,
   subset = 1:10,
   weights = weights,
-  offset = offset
+  offset = offset,
+  keep.data = FALSE
 )
 expect_equal(dat@y, trainData_df$y[1:10])
 expect_equal(dat@weights, trainData_df$weights[1:10])
@@ -48,7 +60,8 @@ expect_inherits(
     modelFormula,
     trainData_df,
     test = testData_df,
-    weights = weights
+    weights = weights,
+    keep.data = FALSE
   ),
   "dbartsData"
 )
@@ -62,11 +75,11 @@ testRows <- testData$x[11:20, ]
 colnames(testRows) <- paste0("x.", seq_len(ncol(testRows)))
 testData$test <- testRows
 expect_inherits(
-  dbarts::dbartsData(y ~ x, testData, test),
+  dbarts::dbartsData(y ~ x, testData, test, keep.data = FALSE),
   "dbartsData"
 )
 expect_inherits(
-  dbarts::dbartsData(y ~ x, testData, testData$test),
+  dbarts::dbartsData(y ~ x, testData, testData$test, keep.data = FALSE),
   "dbartsData"
 )
 
@@ -74,11 +87,11 @@ expect_inherits(
 test <- testData$test
 testData$test <- NULL
 expect_inherits(
-  dbarts::dbartsData(y ~ x, testData, test),
+  dbarts::dbartsData(y ~ x, testData, test, keep.data = FALSE),
   "dbartsData"
 )
 expect_inherits(
-  dbarts::dbartsData(y ~ x, testData, testRows),
+  dbarts::dbartsData(y ~ x, testData, testRows, keep.data = FALSE),
   "dbartsData"
 )
 rm(test, testRows)
@@ -95,7 +108,8 @@ data <- dbarts::dbartsData(
   modelFormula,
   trainData,
   test = testData_df,
-  weights = weights
+  weights = weights,
+  keep.data = FALSE
 )
 expect_inherits(data, "dbartsData")
 expect_equal(data@weights, trainData$weights)
@@ -109,7 +123,8 @@ expect_silent(
     modelFormula,
     trainData,
     test = noResponse,
-    weights = weights
+    weights = weights,
+    keep.data = FALSE
   )
 )
 expect_equal(data@weights.test, testData_df$weights)
@@ -119,7 +134,8 @@ data <- dbarts::dbartsData(
   test = testData_df,
   weights = weights,
   offset = trainData$weights,
-  offset.test = 0
+  offset.test = 0,
+  keep.data = FALSE
 )
 expect_equal(data@weights.test, testData_df$weights)
 
@@ -130,7 +146,8 @@ expect_warning(
     modelFormula,
     trainData,
     test = noResponse,
-    weights = cases
+    weights = cases,
+    keep.data = FALSE
   ),
   "weights specified but not found in test data"
 )
@@ -143,7 +160,8 @@ expect_warning(
     modelFormula,
     trainData,
     test = noResponse,
-    weights = wrongLength
+    weights = wrongLength,
+    keep.data = FALSE
   ),
   "weights specified but not found in test data"
 )
@@ -157,7 +175,8 @@ expect_silent(
     modelFormula,
     trainData,
     test = naTest,
-    weights = weights
+    weights = weights,
+    keep.data = FALSE
   )
 )
 expect_equal(data@weights.test, naTest$weights)
@@ -170,7 +189,8 @@ expect_error(
     modelFormula,
     trainData,
     test = charTest,
-    weights = weights
+    weights = weights,
+    keep.data = FALSE
   ),
   "'weights' must be a numeric vector"
 )
@@ -182,7 +202,8 @@ for (coerce in list(as.factor, function(w) w > 0)) {
       modelFormula,
       trainData,
       test = nonNumericTest,
-      weights = weights
+      weights = weights,
+      keep.data = FALSE
     ),
     "'weights' must be a numeric vector"
   )
@@ -193,7 +214,8 @@ data <- dbarts::dbartsData(
   modelFormula,
   trainData,
   test = intTest,
-  weights = weights
+  weights = weights,
+  keep.data = FALSE
 )
 expect_identical(data@weights.test, rep(2, nrow(intTest)))
 matrixTest <- noResponse
@@ -202,7 +224,8 @@ data <- dbarts::dbartsData(
   modelFormula,
   trainData,
   test = matrixTest,
-  weights = weights
+  weights = weights,
+  keep.data = FALSE
 )
 expect_equal(data@weights.test, noResponse$weights)
 rm(noResponse, wrongLength, naTest, charTest, intTest, matrixTest)
@@ -216,7 +239,8 @@ expect_silent(
     modelFormula,
     trainData,
     test = testData_df[names(testData_df) != "y"],
-    weights = noWeights
+    weights = noWeights,
+    keep.data = FALSE
   )
 )
 expect_null(data@weights)
@@ -235,7 +259,7 @@ rm(data, xNames, noWeights, testData_df, modelFormula, trainData)
 # a one-sided formula (no response) is a legitimate dbartsData() call - the
 # composed-sampler response is set later - unlike the fitting entry points
 # (bart/bart/xbart), which refuse it by name instead
-oneSidedData <- dbarts::dbartsData(~x, testData)
+oneSidedData <- dbarts::dbartsData(~x, testData, keep.data = FALSE)
 expect_inherits(oneSidedData, "dbartsData")
 expect_true(all(oneSidedData@y == 0))
 rm(oneSidedData)
@@ -277,7 +301,8 @@ onceDoors <- list(
       .(data),
       subset = x1 > 0.5,
       weights = w,
-      offset = o
+      offset = o,
+      keep.data = FALSE
     )))
   },
   dbarts = function(data) {
@@ -378,7 +403,12 @@ readWeights <- function(w) {
   weightReadings <<- weightReadings + 1L
   w
 }
-weighted <- dbartsData(y ~ x1 + id, onceData, weights = readWeights(w))
+weighted <- dbartsData(
+  y ~ x1 + id,
+  onceData,
+  weights = readWeights(w),
+  keep.data = FALSE
+)
 expect_identical(weightReadings, 1L)
 expect_identical(weighted@weights, onceData$w)
 # With the matrix interface the predictors and the response are each
@@ -559,7 +589,8 @@ cutBeside <- dbartsData(
   onceData,
   test = onceTest,
   weights = w,
-  subset = 25:1
+  subset = 25:1,
+  keep.data = FALSE
 )
 expect_identical(as.integer(cutBeside@x[, "id"]), 25:1)
 expect_identical(as.integer(cutBeside@x.test[, "id"]), 1:25)

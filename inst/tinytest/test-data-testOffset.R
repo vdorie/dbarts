@@ -3,14 +3,20 @@ testX <- testData$X
 colnames(testX) <- paste0("X.", seq_len(ncol(testX)))
 
 # test that test offset fills in control logicals depending on specification
-data <- dbarts::dbartsData(Z ~ X, testData, testX)
+data <- dbarts::dbartsData(Z ~ X, testData, testX, keep.data = FALSE)
 
 expect_null(data@offset)
 expect_null(data@offset.test)
 expect_identical(data@testUsesRegularOffset, NA)
 
 
-data <- dbarts::dbartsData(Z ~ X, testData, testX, offset = 0.2)
+data <- dbarts::dbartsData(
+  Z ~ X,
+  testData,
+  testX,
+  offset = 0.2,
+  keep.data = FALSE
+)
 
 expect_equal(data@offset[1:5], rep(0.2, 5))
 expect_equal(data@offset.test[1:5], rep(0.2, 5))
@@ -19,7 +25,13 @@ rm(data)
 
 
 otherOffset <- 0.2 + 0.1
-data <- dbarts::dbartsData(Z ~ X, testData, testX, offset = otherOffset)
+data <- dbarts::dbartsData(
+  Z ~ X,
+  testData,
+  testX,
+  offset = otherOffset,
+  keep.data = FALSE
+)
 
 expect_equal(data@offset[1:5], rep(0.3, 5))
 expect_equal(data@offset.test[1:5], rep(0.3, 5))
@@ -32,7 +44,8 @@ data <- dbarts::dbartsData(
   testData,
   testX,
   offset = 0.2,
-  offset.test = NULL
+  offset.test = NULL,
+  keep.data = FALSE
 )
 
 expect_equal(data@offset[1:5], rep(0.2, 5))
@@ -46,7 +59,8 @@ data <- dbarts::dbartsData(
   testData,
   testX,
   offset = 0.2,
-  offset.test = 0.1
+  offset.test = 0.1,
+  keep.data = FALSE
 )
 
 expect_equal(data@offset[1:5], rep(0.2, 5))
@@ -60,7 +74,8 @@ data <- dbarts::dbartsData(
   testData,
   testX,
   offset = 0.2,
-  offset.test = offset + 0.1
+  offset.test = offset + 0.1,
+  keep.data = FALSE
 )
 
 expect_equal(data@offset[1:5], rep(0.2, 5))
@@ -74,7 +89,8 @@ data <- dbarts::dbartsData(
   testData,
   testX,
   offset = 0.2,
-  offset.test = offset
+  offset.test = offset,
+  keep.data = FALSE
 )
 
 expect_equal(data@offset[1:5], rep(0.2, 5))
@@ -85,7 +101,13 @@ rm(data)
 
 set.seed(0)
 otherOffset <- runif(nrow(testData$X))
-data <- dbarts::dbartsData(Z ~ X, testData, testX, offset = otherOffset)
+data <- dbarts::dbartsData(
+  Z ~ X,
+  testData,
+  testX,
+  offset = otherOffset,
+  keep.data = FALSE
+)
 
 expect_equal(data@offset[1:5], otherOffset[1:5])
 expect_equal(data@offset.test[1:5], otherOffset[1:5])
@@ -93,7 +115,13 @@ expect_equal(data@testUsesRegularOffset, TRUE)
 
 
 expect_error(
-  dbarts::dbartsData(Z ~ X, testData, testX[-1, ], offset = otherOffset),
+  dbarts::dbartsData(
+    Z ~ X,
+    testData,
+    testX[-1, ],
+    offset = otherOffset,
+    keep.data = FALSE
+  ),
   "'offset' was given as 'otherOffset', which cannot be evaluated on the rows of 'test'"
 )
 rm(data)
@@ -104,7 +132,8 @@ data <- dbarts::dbartsData(
   testData,
   testX,
   offset = otherOffset,
-  offset.test = NULL
+  offset.test = NULL,
+  keep.data = FALSE
 )
 
 expect_equal(data@offset[1:5], otherOffset[1:5])
@@ -118,7 +147,8 @@ data <- dbarts::dbartsData(
   testData,
   testX,
   offset = otherOffset,
-  offset.test = 0.2
+  offset.test = 0.2,
+  keep.data = FALSE
 )
 
 expect_equal(data@offset[1:5], otherOffset[1:5])
@@ -132,7 +162,8 @@ data <- dbarts::dbartsData(
   testData,
   testX,
   offset = otherOffset,
-  offset.test = offset + 0.1
+  offset.test = offset + 0.1,
+  keep.data = FALSE
 )
 
 expect_equal(data@offset[1:5], otherOffset[1:5])
@@ -146,7 +177,8 @@ data <- dbarts::dbartsData(
   testData,
   testX,
   offset = 0.2,
-  offset.test = otherOffset
+  offset.test = otherOffset,
+  keep.data = FALSE
 )
 
 expect_equal(data@offset[1:5], rep(0.2, 5))
@@ -160,7 +192,8 @@ data <- dbarts::dbartsData(
   testData,
   testX,
   offset = NULL,
-  offset.test = otherOffset
+  offset.test = otherOffset,
+  keep.data = FALSE
 )
 
 expect_null(data@offset)
@@ -181,7 +214,8 @@ data <- dbarts::dbartsData(
   nameData,
   nameData[rows, ],
   offset = holder$offset,
-  offset.test = holder$offset[rows]
+  offset.test = holder$offset[rows],
+  keep.data = FALSE
 )
 expect_equal(data@offset.test, holder$offset[rows])
 expect_equal(data@offset, holder$offset)
@@ -192,11 +226,17 @@ data <- dbarts::dbartsData(
   nameData,
   nameData[rows, ],
   offset = holder$offset,
-  offset.test = offset[rows] + holder$offset[rows]
+  offset.test = offset[rows] + holder$offset[rows],
+  keep.data = FALSE
 )
 expect_equal(data@offset.test, 2 * holder$offset[rows])
 
-data <- dbarts::dbartsData(y ~ x, nameData, weights = holder$weights)
+data <- dbarts::dbartsData(
+  y ~ x,
+  nameData,
+  weights = holder$weights,
+  keep.data = FALSE
+)
 expect_equal(data@weights, holder$weights)
 rm(nameData, holder, rows, data)
 
@@ -238,7 +278,8 @@ data <- dbarts::dbartsData(
   nameData,
   nameData[rows, ],
   offset = base,
-  offset.test = pmin(10, offset[rows], 20)
+  offset.test = pmin(10, offset[rows], 20),
+  keep.data = FALSE
 )
 expect_equal(data@offset.test, base[rows])
 rm(nameData, base, rows, data, subTerm, repl)
@@ -249,7 +290,13 @@ set.seed(11)
 nullData <- data.frame(y = rnorm(30), x = rnorm(30))
 nullTest <- data.frame(x = rnorm(5))
 noOffset <- NULL
-data <- dbarts::dbartsData(y ~ x, nullData, nullTest, offset.test = noOffset)
+data <- dbarts::dbartsData(
+  y ~ x,
+  nullData,
+  nullTest,
+  offset.test = noOffset,
+  keep.data = FALSE
+)
 expect_null(data@offset.test)
 expect_identical(data@testUsesRegularOffset, FALSE)
 data <- dbarts::dbartsData(

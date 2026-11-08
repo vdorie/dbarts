@@ -105,7 +105,7 @@ y <- rnorm(n)
 # this used to be
 df.formula <- df
 df.formula$y <- y
-data.formulaSf <- dbartsData(y ~ x1 + sf, df.formula)
+data.formulaSf <- dbartsData(y ~ x1 + sf, df.formula, keep.data = FALSE)
 expect_inherits(data.formulaSf@x, "dbartsMixedMatrix")
 expect_identical(
   as.matrix(data.formulaSf@x),

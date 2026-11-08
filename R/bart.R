@@ -1123,6 +1123,9 @@ bart <- function(
 ) {
   matchedCall <- match.call()
   callingEnv <- parent.frame()
+  if (!missing(formula) && inherits(formula, "dbartsData")) {
+    formula <- resolveDataObject(formula)
+  }
   # taken first, so no path below leaves it for another call
   aliasForward <- takeAliasForward()
   # the name the call was made by, for the refusals
@@ -3490,6 +3493,8 @@ ingestHurdleData <- function(
   )
   # the cut settings ride the control, and reach the parts through it
   dataCall[c("n.cuts", "useQuantiles")] <- NULL
+  dataCall$keep.data <- FALSE
+  formula <- resolveDataObject(formula)
   handed <- list(formula = formula)
   if (dataGiven && is.numeric(data) && any(is.infinite(data))) {
     stop(
@@ -3618,6 +3623,7 @@ ingestHurdleData <- function(
   if (hasZeroOffset) {
     zeroCall <- dataCall[names(dataCall) %in% c("", "subset", "na.action")]
     zeroCall$formula <- NULL
+    zeroCall$keep.data <- FALSE
     zeroHanded <- list(
       formula = if (matrixRoute) {
         formula

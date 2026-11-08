@@ -15,7 +15,7 @@ df <- data.frame(x1 = x1, x2 = x2, g = g, y = y)
 
 # ingestion keeps incomplete rows (previous versions na.omit-dropped them
 # for formula inputs) and codes factor NAs alongside level codes
-data.mia <- dbartsData(y ~ x1 + x2 + g, df)
+data.mia <- dbartsData(y ~ x1 + x2 + g, df, keep.data = FALSE)
 expect_equal(length(data.mia@y), n)
 expect_equal(nrow(data.mia@x), n)
 expect_true(anyNA(data.mia@x[, "x1"]) && anyNA(data.mia@x[, "g"]))
@@ -25,24 +25,27 @@ expect_equal(data.mia@missing, "incorporate")
 # RESPONSE is missing and keeps the rest; a column of nothing but NA has no
 # observed values
 expect_error(
-  dbartsData(y ~ x1 + x2 + g, df, na.action = na.fail),
+  dbartsData(y ~ x1 + x2 + g, df, na.action = na.fail, keep.data = FALSE),
   pattern = "missing values"
 )
-expect_inherits(dbartsData(y ~ x2, df, na.action = na.fail), "dbartsData")
+expect_inherits(
+  dbartsData(y ~ x2, df, na.action = na.fail, keep.data = FALSE),
+  "dbartsData"
+)
 df.badY <- df
 df.badY$y[1L] <- NA
-data.badY <- dbartsData(y ~ x1 + x2 + g, df.badY)
+data.badY <- dbartsData(y ~ x1 + x2 + g, df.badY, keep.data = FALSE)
 expect_equal(length(data.badY@y), n - 1L)
 expect_equal(unclass(data.badY@na.action), 1L, check.attributes = FALSE)
 expect_inherits(data.badY@na.action, "exclude")
 expect_error(
-  dbartsData(y ~ x1 + x2 + g, df.badY, na.action = na.pass),
+  dbartsData(y ~ x1 + x2 + g, df.badY, na.action = na.pass, keep.data = FALSE),
   pattern = "response contains missing"
 )
 df.allNA <- df
 df.allNA$x2 <- NA_real_
 expect_error(
-  dbartsData(y ~ x1 + x2 + g, df.allNA),
+  dbartsData(y ~ x1 + x2 + g, df.allNA, keep.data = FALSE),
   pattern = "entirely missing"
 )
 

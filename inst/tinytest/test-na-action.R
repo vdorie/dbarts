@@ -68,7 +68,7 @@ expect_false(
     )
 )
 
-dataFormula <- dbarts::dbartsData(y ~ x1 + x2, df)
+dataFormula <- dbarts::dbartsData(y ~ x1 + x2, df, keep.data = FALSE)
 dataMatrix <- dbarts::dbartsData(xMat, y)
 for (data in list(dataFormula, dataMatrix)) {
   expect_equal(length(data@y), kept)
@@ -88,7 +88,7 @@ expect_equal(unname(dataFormula@y), unname(dataMatrix@y))
 # --- the base functions keep their base meaning ----------------------------
 
 for (build in list(
-  function(...) dbarts::dbartsData(y ~ x1 + x2, df, ...),
+  function(...) dbarts::dbartsData(y ~ x1 + x2, df, ..., keep.data = FALSE),
   function(...) dbarts::dbartsData(xMat, y, ...)
 )) {
   expect_equal(length(build(na.action = na.omit)@y), complete)
@@ -105,7 +105,12 @@ for (build in list(
 # a complete data set loses no row and records nothing, under any of them
 dfComplete <- data.frame(x1 = runif(n), x2 = x2, y = runif(n))
 for (action in list(na.keepPredictors, na.omit, na.exclude, na.fail, na.pass)) {
-  data <- dbarts::dbartsData(y ~ x1 + x2, dfComplete, na.action = action)
+  data <- dbarts::dbartsData(
+    y ~ x1 + x2,
+    dfComplete,
+    na.action = action,
+    keep.data = FALSE
+  )
   expect_equal(length(data@y), n)
   expect_null(data@na.action)
 }
@@ -346,7 +351,8 @@ expect_identical(
     dbarts::dbartsData(
       y ~ x,
       data.frame(xNamed, y = yNamed),
-      subset = subsetNA
+      subset = subsetNA,
+      keep.data = FALSE
     )@y
   ),
   29L
@@ -379,7 +385,9 @@ xSub <- as.matrix(dSub[c("p", "q")])
 iNA <- c(1:6, NA, 9:14)
 expect_identical(nobs(lm(y ~ p + q, dSub, subset = iNA)), 12L)
 expect_identical(
-  length(dbarts::dbartsData(y ~ p + q, dSub, subset = iNA)@y),
+  length(
+    dbarts::dbartsData(y ~ p + q, dSub, subset = iNA, keep.data = FALSE)@y
+  ),
   12L
 )
 expect_identical(length(dbarts::dbartsData(xSub, dSub$y, subset = iNA)@y), 12L)

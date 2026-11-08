@@ -1853,6 +1853,7 @@ dbartsSpec <- function(
   if (!inherits(data, "dbartsData")) {
     stop("'data' must be a dbartsData object; see ?dbartsData")
   }
+  data <- resolveDataObject(data)
   if (!inherits(control, "dbartsControl")) {
     stop("'control' must be a dbartsControl object; see ?dbartsControl")
   }

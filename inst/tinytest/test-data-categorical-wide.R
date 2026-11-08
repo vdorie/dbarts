@@ -16,7 +16,7 @@ signal.g <- ifelse(seq_len(70L) %% 3L == 0L, 2, 0)
 df$y <- signal.g[as.integer(df$g)] + 0.5 * df$z + rnorm(n, 0, 0.25)
 
 # ingestion types both wide factors categorical with their full level tables
-data.wide <- dbartsData(y ~ g + h + z, df)
+data.wide <- dbartsData(y ~ g + h + z, df, keep.data = FALSE)
 expect_equal(data.wide@varTypes, c(1L, 1L, 0L))
 expect_equal(length(attr(data.wide@x, "factor.levels")[[1L]]), 70L)
 

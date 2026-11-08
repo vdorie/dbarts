@@ -29,8 +29,8 @@ denseFrame <- sparseFrame
 denseFrame$s <- as.vector(sparse)
 boot <- sample(n, n, replace = TRUE)
 expect_true(anyDuplicated(boot) > 0L)
-fromSparse <- dbartsData(y ~ ., sparseFrame, subset = boot)
-fromDense <- dbartsData(y ~ ., denseFrame, subset = boot)
+fromSparse <- dbartsData(y ~ ., sparseFrame, subset = boot, keep.data = FALSE)
+fromDense <- dbartsData(y ~ ., denseFrame, subset = boot, keep.data = FALSE)
 expect_false(anyNA(as.matrix(fromSparse@x)))
 expect_equal(
   unname(as.matrix(fromSparse@x)[, "s"]),
@@ -42,17 +42,29 @@ factorFrame$f <- sparseFactor(
   factor(sample(c("a", "b", "c"), n, TRUE, prob = c(0.8, 0.1, 0.1))),
   reference = "a"
 )
-fromSparseFactor <- dbartsData(y ~ ., factorFrame, subset = boot)
+fromSparseFactor <- dbartsData(
+  y ~ .,
+  factorFrame,
+  subset = boot,
+  keep.data = FALSE
+)
 expect_false(anyNA(as.matrix(fromSparseFactor@x)))
 # with na.omit dropping a row as well
 sparseFrame$x1[boot[1L]] <- NA
-omitted <- dbartsData(y ~ ., sparseFrame, subset = boot, na.action = na.omit)
+omitted <- dbartsData(
+  y ~ .,
+  sparseFrame,
+  subset = boot,
+  na.action = na.omit,
+  keep.data = FALSE
+)
 denseFrame$x1[boot[1L]] <- NA
 omittedDense <- dbartsData(
   y ~ .,
   denseFrame,
   subset = boot,
-  na.action = na.omit
+  na.action = na.omit,
+  keep.data = FALSE
 )
 expect_equal(
   unname(as.matrix(omitted@x)[, "s"]),
@@ -175,7 +187,7 @@ expect_error(
   "test column 'g' is numeric"
 )
 expect_error(
-  dbartsData(y ~ ., groupFrame, test = newFrame),
+  dbartsData(y ~ ., groupFrame, test = newFrame, keep.data = FALSE),
   "test column 'g' is numeric"
 )
 sampler <- dbarts(y ~ ., groupFrame)
@@ -201,7 +213,7 @@ newFrame$g <- c("a", "b", "c")
 expect_equal(dim(predict(fit, newFrame)), c(5L, 3L))
 
 ## A dbartsData object reports every argument that cannot reach it.
-data <- dbartsData(y ~ ., groupFrame)
+data <- dbartsData(y ~ ., groupFrame, keep.data = FALSE)
 expect_warning(
   dbarts(data, factors = "indicators", weights = rep(2, 40L), subset = 1:10),
   "'subset', 'weights', 'factors'"
@@ -320,7 +332,7 @@ for (frame in list(charFrame, oneCharFrame)) {
     fixed = TRUE
   )
   expect_error(
-    dbartsData(y ~ x + z, frame),
+    dbartsData(y ~ x + z, frame, keep.data = FALSE),
     pattern = charMatrixWords,
     fixed = TRUE
   )
@@ -348,7 +360,7 @@ for (fitChar in list(
 logicalFrame <- data.frame(x = charFrame$x, y = charFrame$y)
 logicalFrame$lm <- matrix(runif(60L) > 0.5, 30L, 2L)
 expect_identical(
-  colnames(dbartsData(y ~ x + lm, logicalFrame)@x),
+  colnames(dbartsData(y ~ x + lm, logicalFrame, keep.data = FALSE)@x),
   c("x", "lm.1", "lm.2")
 )
 

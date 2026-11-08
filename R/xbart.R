@@ -36,6 +36,9 @@ xbart <- function(
   ...
 ) {
   matchedCall <- match.call()
+  if (!missing(formula) && inherits(formula, "dbartsData")) {
+    formula <- resolveDataObject(formula)
+  }
   # a NULL where the default is not NULL is refused by name
   refuseNullArguments(n.trees, n.cuts, useQuantiles, power, base)
   if (!missing(parallel)) {
@@ -213,6 +216,7 @@ xbart <- function(
     offset,
     factors
   )
+  dataCall$keep.data <- FALSE
   # a count-matrix data object declares the multinomial model, whose fitted
   # quantity is K probabilities per observation; every loss this function
   # evaluates is written against one location, so the fit would be scored as

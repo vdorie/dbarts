@@ -44,7 +44,7 @@ expect_error(
 )
 
 # the formula interface on the identical data, for comparison
-data.formula.inc <- dbarts::dbartsData(y ~ x1 + x2, df)
+data.formula.inc <- dbarts::dbartsData(y ~ x1 + x2, df, keep.data = FALSE)
 expect_equal(nrow(data.formula.inc@x), n)
 expect_true(anyNA(data.formula.inc@x[, "x1"]))
 

@@ -78,6 +78,9 @@ rbart_vi <- function(
 ) {
   matchedCall <- match.call()
   callingEnv <- parent.frame()
+  if (!missing(formula) && inherits(formula, "dbartsData")) {
+    formula <- resolveDataObject(formula)
+  }
   # a NULL where the default is not NULL is refused by name
   refuseNullArguments(n.trees, n.cuts, useQuantiles, power, base)
   # 'k' is read in the prior vocabulary, so it is judged without forcing it
@@ -350,6 +353,7 @@ rbart_vi <- function(
 
   dataCall <- redirectCall(matchedCall, dbarts::dbartsData)
   dataCall[c("n.cuts", "useQuantiles")] <- NULL
+  dataCall$keep.data <- FALSE
   if (!inherits(formula, "dbartsData")) {
     dataCall$factors <- "indicators"
     dataCall$na.action <- quote(stats::na.omit)

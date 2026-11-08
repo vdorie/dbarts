@@ -70,7 +70,7 @@ expect_equal(nrow(data.subset@x), 200L)
 # refusal this used to be
 df.formula <- x.frame
 df.formula$y <- y
-data.formulaMixed <- dbartsData(y ~ x1 + sv + sm, df.formula)
+data.formulaMixed <- dbartsData(y ~ x1 + sv + sm, df.formula, keep.data = FALSE)
 expect_inherits(data.formulaMixed@x, "dbartsMixedMatrix")
 expect_equal(
   as.matrix(data.formulaMixed@x),

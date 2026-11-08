@@ -311,7 +311,7 @@ df <- data.frame(
   f = factor(sample(c("x", "y", "z"), 20L, TRUE)),
   y = rnorm(20L)
 )
-data <- dbarts::dbartsData(y ~ a + f, df)
+data <- dbarts::dbartsData(y ~ a + f, df, keep.data = FALSE)
 
 newdata <- data.frame(
   a = c(0, 0, 0),
@@ -405,7 +405,8 @@ expect_error(
 data <- dbarts::dbartsData(
   rnorm(n) ~ f + z,
   df,
-  factors = "indicators"
+  factors = "indicators",
+  keep.data = FALSE
 )
 expect_true(anyNA(data@x))
 expect_equal(ncol(data@x), 4L)

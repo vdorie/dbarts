@@ -884,7 +884,10 @@ methods::setValidity("dbartsModel", function(object) {
 methods::setClass(
   "dbartsData",
   slots = list(
-    y = "numeric",
+    # numeric on a block-holding object; on a frame-keeping one (dataKeepsFrame)
+    # the y, x, weights and offset slots hold a stand-in that stops when read,
+    # naming model.frame()
+    y = "ANY",
     # a dense matrix or a Matrix::dgCMatrix (validated below; the class
     # cannot appear in a slot union without Matrix at load time)
     x = "ANY",
@@ -894,9 +897,9 @@ methods::setClass(
     # mixed container before storage, so this slot never actually holds a
     # bare dgCMatrix - the class union stays symmetric with 'x' regardless)
     x.test = "ANY",
-    weights = "numericOrNULL",
+    weights = "ANY",
     weights.test = "numericOrNULL",
-    offset = "numericOrNULL",
+    offset = "ANY",
     offset.test = "numericOrNULL",
     n.cuts = "integer",
     sigma = "numeric",
@@ -1015,7 +1018,22 @@ methods::setClass(
     # derived, NA where its caller stated no rule, which reads as uniform
     useQuantiles = "logical",
 
-    testUsesRegularOffset = "logical"
+    testUsesRegularOffset = "logical",
+    # the caller's data frame or list, whole, on an object that keeps its frame
+    # (dbartsData(formula, data) with keep.data = TRUE); NULL on every other
+    frame = "ANY",
+    # the positions, in the frame handed over, of the rows kept after 'subset'
+    # and the na.action, in order, repeats and a padded NA included; NULL when
+    # every row is kept in order
+    rows = "ANY",
+    # the names of the columns of the data the formula was read from, a frame's
+    # or an environment's, held beside a block as well as beside a frame; NULL
+    # where no data were given
+    frame.columns = "ANY",
+    # what reads the frame again at the resolution (resolveDataObject): the
+    # formula with the caller's variables it names held in its environment, the
+    # 'weights' and 'offset' as written, and the factor coding
+    build = "ANY"
   ),
   prototype = list(
     y = numeric(0),
@@ -1049,10 +1067,17 @@ methods::setClass(
     status = NULL,
     useQuantiles = NA,
 
-    testUsesRegularOffset = NA
+    testUsesRegularOffset = NA,
+    frame = NULL,
+    rows = NULL,
+    frame.columns = NULL,
+    build = NULL
   )
 )
 methods::setValidity("dbartsData", function(object) {
+  if (dataKeepsFrame(object)) {
+    return(validateFrameKeepingData(object))
+  }
   numObservations <- length(object@y)
   if (
     !is.matrix(object@x) &&

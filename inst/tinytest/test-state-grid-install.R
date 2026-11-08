@@ -1094,7 +1094,8 @@ sampler <- dbarts::dbarts(
 invisible(sampler$run(20L, 1L))
 handed <- dbarts::dbartsData(
   y ~ a + b,
-  data.frame(y = y[kept], a = droplevels(levels6[kept]), b = x[kept, 2L])
+  data.frame(y = y[kept], a = droplevels(levels6[kept]), b = x[kept, 2L]),
+  keep.data = FALSE
 )
 sampler$setData(handed)
 expect_identical(
@@ -1105,7 +1106,8 @@ expect_identical(
 handed <- dbarts::dbartsData(
   y ~ a + b,
   data.frame(y = y[kept], a = droplevels(levels6[kept]), b = x[kept, 2L]),
-  n.cuts = sampler$data@n.cuts
+  n.cuts = sampler$data@n.cuts,
+  keep.data = FALSE
 )
 handed@sigma <- sampler$data@sigma
 handed@missing.seen <- sampler$data@missing.seen
