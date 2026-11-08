@@ -113,11 +113,6 @@ items
     prog4 (0.1061, 0.1209) without the amplitude rescaling move
     (2026-09-24); it does not reach the tail regime this door names.
     research-open, decision-gated.
-  bartBT-keepcall-splitprobs: dec-B646 (VD 2026-11-07, "Fix it."):
-    bartBT(keepcall = FALSE) drops a named splitprobs (0.9-34 does too),
-    fitting equal probabilities; read it from the argument's value under
-    either keepcall. About 3 lines, a pin and a BUG FIXES line; draws move
-    only for calls giving both. Found reviewing tree-prior-flat.
   capi-sampler-info: dec-B615. dbarts.h describes a sampler through one
     struct led by structSize, filled by one entry, holding every count
     and fact the one-fact entries report today, with the variance
@@ -192,13 +187,6 @@ items
     (its model frame carries both). 0.9-34 refused too. Found by the
     hurdle-completion critique (2026-11-03); that plan's hurdle arm
     follows dec-A89 on its own matrix route, the other families do not.
-  flags-take-numbers: dec-B643. Every TRUE/FALSE argument of the
-    package's functions and sampler methods takes a single logical or
-    number, read as as.logical reads it, and refuses NA, a string or
-    another length by name: updateState (keeping NULL for the control
-    and dec-B138's NA warning), setState's forceUpdate, installTrees
-    and any other check that refuses a number today, read through
-    checkFlag. About 15 lines and tests; a fix after landing, light.
   gp-followups: sampled lengthscales and low-rank kernels; gp() takes a
     fixed positive numeric lengthscale today. Sampling one needs a
     theta prior, per-sample theta channels in the state and flatten
@@ -1149,13 +1137,6 @@ items
     sampler of several forests by name; drawing there needs the
     coefficients drawn from their prior, which dec-B361's rule would
     then cover. Not planned.
-  prior-predictive-multinomial-shape: dec-B642. A multinomial
-    sampler's data object records whether its response was written as
-    a factor or as a count matrix, a later $setResponse updating it,
-    and samplePriorPredictive's "ppd" draws category codes for a factor
-    and count vectors of one trial for a count matrix, as predict
-    draws at new rows, whatever the rows' trials. About 25 R and 30
-    test lines; a fix after landing, light.
   several-column-basis-meaning: what a basis of several numeric
     columns means, shorthand for a forest each or one shared shape
     times a weighted sum (the curve-times-modifier model of a spline
