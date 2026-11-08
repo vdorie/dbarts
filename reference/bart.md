@@ -260,10 +260,10 @@ nobs(object, ...)
   An optional matrix or data frame with the same number of predictors as
   `data`, or `formula` in backward-compatibility mode; if column names
   are present, a matching algorithm is used, and an unnamed matrix
-  against named predictors is read in the fit's column order, with no
-  message. Refused, by name, when `formula` writes a model of several
-  forests (‘Formula Terms’): an amplitude-coupled fit has no
-  per-observation test replay. A formula whose one
+  against named predictors is matched by position with a warning.
+  Refused, by name, when `formula` writes a model of several forests
+  (‘Formula Terms’): an amplitude-coupled fit has no per-observation
+  test replay. A formula whose one
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) has
   no `basis` is a single-forest fit and takes `test`.
 
@@ -1433,11 +1433,12 @@ nobs(object, ...)
   `sample = "train"` does, on every family's fit and without saved
   trees; an `offset` given then replaces the fit's own at the training
   rows (a category offset matrix on a multinomial fit). An unnamed
-  matrix is read in the fit's column order, with no message. A
-  data-frame column for a predictor that was a factor in training must
-  be a factor or character, matched to the training levels by label; a
-  numeric or logical one is refused, naming it, as
-  [`predict.lm`](https://rdrr.io/r/stats/predict.lm.html) refuses it.
+  matrix given to a fit whose predictors are named is matched by
+  position, with a warning. A data-frame column for a predictor that was
+  a factor in training must be a factor or character, matched to the
+  training levels by label; a numeric or logical one is refused, naming
+  it, as [`predict.lm`](https://rdrr.io/r/stats/predict.lm.html) refuses
+  it.
 
 - type:
 
@@ -2319,7 +2320,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001369
+#> total seconds in loop: 0.001064
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 3 3 2 2 2 2 2 3 2 2 2 3 3 2 
@@ -2356,7 +2357,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000738
+#> total seconds in loop: 0.000571
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 2 1 2 1 1 2 2 1 1 1 2 2 2 2 
@@ -2391,7 +2392,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001073
+#> total seconds in loop: 0.000834
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 3 2 4 2 2 3 2 2 2 2 3 3 2 
@@ -2445,7 +2446,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.001624
+#> total seconds in loop: 0.001156
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 2 2 2 2 2 2 3 3 2 

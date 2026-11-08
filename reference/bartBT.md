@@ -451,28 +451,28 @@ family(object, ...)
 
   Test data for prediction. Obeys all the same rules as `x.train`,
   except that on a fit with a factor column a numeric matrix is refused
-  by name, and a data frame is given. An unnamed matrix is read in the
-  fit's column order, with no message. Left out (or `NULL`), `predict`
-  returns each `type` at the training rows from the draws the fit
-  stored, as `extract` with `sample = "train"` does, and needs no saved
-  trees; an `offset` given then replaces the fit's own at the training
-  rows, one value or one per training row; `weights` replace the fit's
-  own weights for the training rows' `"ppd"` draws, one value or one per
-  training row, acting as they do at `newdata` for each family (see
-  `type`); and `bases` replace the fit's own bases there (see `bases`).
-  The offset and the weights are checked against the number of training
-  rows, one value or one per row, and weights, here and at `newdata`,
-  are a vector or a one-column matrix, a matrix of several columns, a
-  data frame or a list being refused. A missing value in a per-row
-  offset or weights is answered by `na.action` exactly as at `newdata`:
-  the default and `na.fail` refuse it, `na.pass` returns that row with
-  `NA` draws, `na.omit` drops the row from the result and `na.exclude`
-  pads it back as `NA`; a single missing value is always refused. The
-  weights' values are looked at, as at `newdata`, by a `"ppd"` draw
-  alone, which refuses those its family cannot take, and any other type
-  takes whatever they hold. The bases are checked as at `newdata`. None
-  needs saved trees, and a fit kept without its training draws is
-  refused by name.
+  by name, and a data frame is given. An unnamed matrix given to a fit
+  whose predictors are named is matched by position, with a warning.
+  Left out (or `NULL`), `predict` returns each `type` at the training
+  rows from the draws the fit stored, as `extract` with
+  `sample = "train"` does, and needs no saved trees; an `offset` given
+  then replaces the fit's own at the training rows, one value or one per
+  training row; `weights` replace the fit's own weights for the training
+  rows' `"ppd"` draws, one value or one per training row, acting as they
+  do at `newdata` for each family (see `type`); and `bases` replace the
+  fit's own bases there (see `bases`). The offset and the weights are
+  checked against the number of training rows, one value or one per row,
+  and weights, here and at `newdata`, are a vector or a one-column
+  matrix, a matrix of several columns, a data frame or a list being
+  refused. A missing value in a per-row offset or weights is answered by
+  `na.action` exactly as at `newdata`: the default and `na.fail` refuse
+  it, `na.pass` returns that row with `NA` draws, `na.omit` drops the
+  row from the result and `na.exclude` pads it back as `NA`; a single
+  missing value is always refused. The weights' values are looked at, as
+  at `newdata`, by a `"ppd"` draw alone, which refuses those its family
+  cannot take, and any other type takes whatever they hold. The bases
+  are checked as at `newdata`. None needs saved trees, and a fit kept
+  without its training draws is refused by name.
 
 - offset:
 
@@ -1421,7 +1421,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.169698
+#> total seconds in loop: 0.128855
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
