@@ -1,0 +1,114 @@
+frame,stage,source_id,dataset,rows,minority_share,outcome,real,provenance,size_share,license_file,feasibility,result,second_screen,note
+1,1,46905,Amazon_employee_access,32769,0.058,P,P,P,P,F,F,fail 5,,Kaggle competition rules PDF: silent on reuse
+2,1,46908,APSFailure,76000,0.018,P,P,P,P,P,P,pass,needed,"archive.ics.uci.edu/dataset/414 (CC BY 4.0, read 2026-11-07); OpenML lists 75,244 rows with a missing value; kept under na.keepPredictors"
+4,1,46911,Bank_Customer_Churn,10000,0.204,P,F,P,P,F,P,fail 2,,"TabArena curation record row 490: source likely a data science course; Kaggle, no originating study"
+5,1,46912,Bioresponse,3751,0.458,P,P,P,P,F,P,fail 5,,kaggle.com/c/bioresponse rules (archived BIPI terms DOCX): data for competition use only
+7,1,46915,churn,5000,0.141,P,F,P,P,F,P,fail 2,,"TabArena curation record row 223: source missing, supposedly UCI, not found"
+8,1,46916,coil2000_insurance_policies,9822,0.060,P,P,P,P,P,P,pass,,"archive.ics.uci.edu/dataset/125 (CC BY 4.0, read 2026-11-07)"
+10,1,46919,credit_card_clients_default,30000,0.221,P,P,P,P,P,P,pass,,"archive.ics.uci.edu/dataset/350 (CC BY 4.0, read 2026-11-07)"
+11,1,46920,customer_satisfaction_in_airline,129880,0.453,P,F,P,P,F,P,fail 2,,Kaggle upload; no originating study or donor named
+13,1,46922,Diabetes130US,71518,0.088,P,P,P,P,P,F,fail 6,,OpenML features: 2403 columns after expansion
+14,1,46924,E-CommereShippingData,10999,0.403,P,F,P,P,F,P,fail 2,,Kaggle upload; no originating study
+15,1,46927,Fitness_Club,1500,0.303,P,F,P,P,F,P,fail 2,,DataCamp certification exercise; no originating study
+16,1,46929,GiveMeSomeCredit,150000,0.067,P,P,P,P,F,P,fail 5,,Kaggle competition rules 2014 (archived): silent on reuse; curation License None / NA
+17,1,46930,hazelnut-spread-contaminant-detection,2400,0.500,P,P,P,P,F,P,fail 5,,"Ricci et al. 2021 sec. III.B: 1240 samples (600 clean, 640 contaminated) against the file 2400 balanced rows"
+18,1,46932,heloc,10459,0.478,P,P,P,P,F,P,fail 5,,originating terms not read; unread terms fail
+19,1,46935,HR_Analytics_Job_Change_of_Data_Scientists,19158,0.249,P,F,P,P,F,P,fail 2,,Kaggle upload; no originating study
+20,1,46937,in_vehicle_coupon_recommendation,12684,0.432,P,F,P,P,P,P,fail 2,,TabArena curation record row 601: data source might be fake (survey scenarios)
+21,1,46938,Is-this-a-good-customer,1723,0.114,P,F,P,P,F,P,fail 2,,Kaggle upload; no originating study
+22,1,46939,kddcup09_appetency,50000,0.018,P,P,P,P,F,F,fail 5,,originating terms not read; unread terms fail
+23,1,46940,Marketing_Campaign,2240,0.149,P,F,P,P,F,P,fail 2,,Kaggle upload; no originating study
+24,1,46969,NATICUSdroid,7491,0.350,P,P,P,P,P,P,pass,,"archive.ics.uci.edu/dataset/722 (CC BY 4.0, read 2026-11-07); suite file: TabArena curators removed duplicate rows from the source 29,333 (recorded, allowed)"
+25,1,46947,online_shoppers_intention,12330,0.155,P,P,P,P,P,P,pass,,"archive.ics.uci.edu/dataset/468 (CC BY 4.0, read 2026-11-07)"
+26,1,46950,polish_companies_bankruptcy,5910,0.069,P,P,P,P,P,P,pass,,"archive.ics.uci.edu/dataset/365 (CC BY 4.0, read 2026-11-07)"
+27,1,46952,qsar-biodeg,1054,0.337,P,P,P,P,P,P,pass,,"archive.ics.uci.edu/dataset/254 (CC BY 4.0, read 2026-11-07); suite file: 1,054 rows against the source 1,055 (recorded, allowed)"
+28,1,46956,seismic-bumps,2584,0.066,P,P,P,P,P,P,pass,,"archive.ics.uci.edu/dataset/266 (CC BY 4.0, read 2026-11-07)"
+29,1,46962,taiwanese_bankruptcy_prediction,6819,0.032,P,P,P,P,F,P,fail 5,,file 6819 rows against the paper's 478 (file not the described data)
+30,1,46979,jm1,10885,0.193,P,P,P,P,P,P,pass,,OpenML 1053: a PROMISE data set made publicly available to encourage repeatable predictive models
+31,2,3,kr-vs-kp,3196,0.478,P,F,P,P,P,P,fail 2,,"TabArena curation record row 219: Artificial; deterministic (generated endgame positions, OpenML 3)"
+38,2,151,electricity,45312,0.425,P,P,P,P,F,P,fail 5,,originating terms not read; unread terms fail
+39,2,38,sick,3772,0.061,F,P,P,P,P,P,fail 1,,TabArena curation record row 293: same data source as hypothyroid with a different target
+40,2,1049,pc4,1458,0.122,P,P,F,P,F,P,fail 3,,TabArena curation record row 212: one of several NASA MDP tasks; jm1 is earlier in frame
+41,2,1050,pc3,1563,0.102,P,P,F,P,F,P,fail 3,,same NASA MDP source as jm1
+43,2,1063,kc2,522,0.205,P,P,F,P,F,P,fail 3,,same NASA MDP source as jm1
+44,2,1067,kc1,2109,0.155,P,P,F,P,F,P,fail 3,,same NASA MDP source as jm1
+45,2,1068,pc1,1109,0.069,P,P,F,P,F,P,fail 3,,same NASA MDP source as jm1
+49,2,1489,phoneme,5404,0.293,P,P,P,P,F,P,fail 5,,originating terms not read; unread terms fail
+51,2,1480,ilpd,583,0.286,P,P,P,P,P,P,pass,,"archive.ics.uci.edu/dataset/225 (CC BY 4.0, read 2026-11-07)"
+52,2,1485,madelon,2600,0.500,P,F,P,P,P,P,fail 2,,TabArena curation record row 130: Artificial; distractor probes (OpenML 1485)
+53,2,1486,nomao,34465,0.286,P,P,P,P,P,P,pass,needed,"archive.ics.uci.edu/dataset/227 (CC BY 4.0, read 2026-11-07)"
+54,2,1487,ozone-level-8hr,2534,0.063,P,P,P,P,P,P,pass,,"archive.ics.uci.edu/dataset/172 (CC BY 4.0, read 2026-11-07)"
+57,2,4534,PhishingWebsites,11055,0.443,F,P,P,P,P,P,fail 1,,outcome encoding not described (first auditor)
+58,2,6332,cylinder-bands,540,0.422,P,P,P,P,P,P,pass,needed,"archive.ics.uci.edu/dataset/32 (CC BY 4.0, read 2026-11-07); OpenML lists 263 rows with a missing value; kept under na.keepPredictors"
+60,2,23381,dresses-sales,500,0.420,P,F,P,P,P,P,fail 2,,OpenML 23381: donors are students; the only cited use is a WEKA how-to; no originating study
+62,2,40983,wilt,4839,0.054,P,P,P,P,P,P,pass,,"archive.ics.uci.edu/dataset/285 (CC BY 4.0, read 2026-11-07)"
+63,2,23517,numerai28.6,96320,0.495,P,P,P,P,F,P,fail 5,,originating terms not read; unread terms fail
+64,2,40978,Internet-Advertisements,3279,0.140,P,P,P,P,P,P,pass,needed,"archive.ics.uci.edu/dataset/51 (CC BY 4.0, read 2026-11-07)"
+68,3,OpenML 310,mammography,11183,0.023,P,P,P,P,F,P,fail 5,,originating terms not stated; OpenML Public only
+69,3,OpenML 311,oil_spill,937,0.044,P,P,P,P,F,P,fail 5,,originating terms not stated
+70,3,OpenML 451,irish,500,0.444,P,P,P,P,P,P,pass,,OpenML 451: may be used solely as an example for research on the development of statistical methods; no file holding these data or derived from them is committed or shipped
+71,3,OpenML 470,profb,672,0.333,F,P,P,P,F,P,fail 1,,"TabArena curation record row 35: wrong target used on OpenML, actual target unclear"
+72,3,OpenML 981,kdd_internet_usage,10108,0.269,F,P,P,P,F,P,fail 1,,kdd_internet_usage: multiclass survey item binarized by a later curator
+75,3,OpenML 1128,OVA_Breast,1545,0.223,F,P,P,P,F,F,fail 1,,OVA_Breast: one-versus-all relabeling of a multiclass compendium (GEMLeR)
+77,3,OpenML 1502,skin-segmentation,245057,0.208,P,P,P,P,P,P,pass,needed,"archive.ics.uci.edu/dataset/229 (CC BY 4.0, read 2026-11-07)"
+82,3,OpenML 40536,SpeedDating,8378,0.165,P,P,P,P,F,P,fail 5,,originating terms not read; unread terms fail
+85,3,OpenML 41158,gina,3153,0.492,F,P,P,P,F,P,fail 1,,gina: digits paired into a two-class task by the challenge organizers
+86,3,OpenML 41145,philippine,5832,0.500,F,P,P,P,F,P,fail 1,,"philippine: challenge-defined task on video features, target derived by organizers"
+87,3,OpenML 41157,arcene,100,0.440,F,F,P,P,P,P,fail 1,,TabArena curation record row 173: task modified
+89,3,OpenML 40900,Satellite,5100,0.015,F,P,P,P,P,P,fail 1,,Satellite: Landsat multiclass recast by a later curator as a rare-class task
+91,3,OpenML 41159,guillermo,20000,0.400,F,P,P,P,F,F,fail 1,,guillermo: challenge-defined pairing task
+92,3,OpenML 41161,riccardo,20000,0.250,F,P,P,P,F,F,fail 1,,riccardo: challenge-defined pairing task
+93,3,OpenML 40704,Titanic,2201,0.323,P,P,P,P,F,P,fail 5,,TabArena curation record row 272: original source a book passenger list; no terms
+95,3,PMLB threeOf9,threeOf9,512,,P,F,P,P,F,P,fail 2,,"threeOf9: Boolean concept, generated"
+96,3,PMLB spectf,spectf,349,,P,P,P,P,F,P,fail 5,,PMLB spectf file has 349 rows against UCI 96's 267 (file not the described data)
+97,3,PMLB spect,spect,267,0.206,P,P,P,P,P,P,pass,,"archive.ics.uci.edu/dataset/95 (CC BY 4.0, read 2026-11-07); the source train (80) and test (187) files concatenated"
+99,3,OpenML 1498,sa-heart,462,0.346,P,P,P,P,F,P,fail 5,,ElemStatLearn page: no terms
+100,3,PMLB parity5,parity5,32,,P,F,P,F,F,P,fail 2,,parity5: generated
+101,3,PMLB breast_cancer,breast_cancer,286,0.297,P,P,P,P,P,P,pass,,"archive.ics.uci.edu/dataset/14 (CC BY 4.0, read 2026-11-07)"
+102,3,OpenML 472,lupus,87,0.402,P,P,P,F,F,P,fail 4,,87 rows
+103,3,OpenML 164,molecular-biology_promoters,106,0.500,P,F,P,P,P,P,fail 2,,negatives constructed (first auditor)
+104,3,PMLB analcatdata_aids,analcatdata_aids,50,,P,P,P,F,P,P,fail 4,,fewer than 100 rows listed
+105,3,PMLB analcatdata_asbestos,analcatdata_asbestos,83,,P,P,P,F,P,P,fail 4,,fewer than 100 rows listed
+106,3,PMLB analcatdata_bankruptcy,analcatdata_bankruptcy,50,,P,P,P,F,P,P,fail 4,,fewer than 100 rows listed
+107,3,PMLB analcatdata_boxing1,analcatdata_boxing1,120,,P,F,P,P,F,P,fail 2,,same book and Source: Unknown record as analcatdata_lawsuit
+108,3,PMLB analcatdata_boxing2,analcatdata_boxing2,132,,P,F,P,P,F,P,fail 2,,same book and Source: Unknown record as analcatdata_lawsuit
+109,3,PMLB analcatdata_creditscore,analcatdata_creditscore,100,,P,F,P,P,F,P,fail 2,,same book and Source: Unknown record as analcatdata_lawsuit
+110,3,PMLB analcatdata_cyyoung8092,analcatdata_cyyoung8092,97,,P,P,P,F,P,P,fail 4,,fewer than 100 rows listed
+111,3,PMLB analcatdata_cyyoung9302,analcatdata_cyyoung9302,92,,P,P,P,F,P,P,fail 4,,fewer than 100 rows listed
+112,3,PMLB analcatdata_fraud,analcatdata_fraud,42,,P,P,P,F,P,P,fail 4,,fewer than 100 rows listed
+113,3,PMLB analcatdata_japansolvent,analcatdata_japansolvent,52,,P,P,P,F,P,P,fail 4,,fewer than 100 rows listed
+114,3,PMLB analcatdata_lawsuit,analcatdata_lawsuit,264,,P,F,P,P,P,P,fail 2,,"originating case unnamed, Source: Unknown (first auditor; reconciliation)"
+115,3,PMLB appendicitis,appendicitis,106,,P,P,P,P,F,P,fail 5,,"KEEL: copyright notice only, no terms"
+116,3,PMLB backache,backache,180,,F,P,P,P,F,P,fail 1,,target definition not documented
+117,3,PMLB biomed,biomed,209,,P,P,P,P,F,P,fail 5,,originating terms not read; unread terms fail
+118,3,PMLB clean1,clean1,476,,P,P,P,P,P,P,pass,needed,archive.ics.uci.edu/dataset/74 (CC BY 4.0)
+119,3,PMLB corral,corral,160,,P,F,P,P,F,P,fail 2,,corral: generated
+120,3,PMLB glass2,glass2,163,,F,P,P,P,F,P,fail 1,,glass2: two of the glass types kept by a later curator
+123,3,PMLB heart_disease_hungarian,heart_disease_hungarian,294,,P,P,F,P,F,P,fail 3,,same heart-disease collection as cleveland (seen)
+124,3,PMLB heart_disease_va_long_beach,heart_disease_va_long_beach,200,,P,P,F,P,F,P,fail 3,,same heart-disease collection as cleveland (seen)
+125,3,PMLB heart_disease_zurich,heart_disease_zurich,123,,P,P,F,P,F,P,fail 3,,same heart-disease collection as cleveland (seen)
+126,3,PMLB hepatitis,hepatitis,155,0.206,P,P,P,P,P,P,pass,,"archive.ics.uci.edu/dataset/46 (CC BY 4.0, read 2026-11-07); OpenML lists 75 rows with a missing value; kept under na.keepPredictors"
+127,3,PMLB horse_colic_surgery,horse_colic_surgery,368,,F,P,P,P,P,P,fail 1,,"horse colic source lists three targets, no default"
+129,3,PMLB labor,labor,57,,P,P,P,F,F,P,fail 4,,57 rows
+130,3,PMLB mux6,mux6,128,,P,F,P,P,F,P,fail 2,,mux6: generated
+131,3,PMLB postoperative_patient_data,postoperative_patient_data,88,,P,P,P,F,P,P,fail 4,,88 rows
+132,3,PMLB prnn_crabs,prnn_crabs,200,,P,P,P,P,F,P,fail 5,,originating terms not read; unread terms fail
+133,3,PMLB prnn_synth,prnn_synth,250,,P,F,P,P,F,P,fail 2,,prnn_synth: simulated
+134,3,UCI 174,Parkinsons,195,,P,P,P,P,P,P,pass,,"archive.ics.uci.edu/dataset/174 (CC BY 4.0, read 2026-11-07); listing 195, the description count of recordings; the metadata 197 is not the listing"
+135,3,Kaggle,Customer_Personality_Analysis,,,F,P,P,P,F,P,fail 1,,TabArena curation record row 505: not a predictive task; target would be our choice
+136,3,UCI 329,Diabetic_Retinopathy_Debrecen,1151,,P,P,P,P,P,P,pass,,"archive.ics.uci.edu/dataset/329 (CC BY 4.0, read 2026-11-07)"
+137,3,Kaggle,Gender_Gap_in_Spanish_WP,,,F,P,P,P,P,P,fail 1,,TabArena curation record row 522: not a predictive task
+138,3,UCI 887,NHANES_age_prediction,6287,,P,P,P,P,P,P,pass,needed,"archive.ics.uci.edu/dataset/887 (CC BY 4.0, read 2026-11-07); RIDAGEYR, listed as Other, dropped by the loader"
+139,3,UCI 301,Parkinson_Multiple_Sound_Recording,1040,,F,P,P,P,P,P,fail 1,,source lists no target; offers the class and the UPDRS score
+140,3,Kaggle,Pumpkin_Seeds,,,P,P,P,P,F,P,fail 5,,originating terms not read; unread terms fail
+141,3,Kaggle,golf_play_dataset_extended,,,P,F,P,P,F,P,fail 2,,teaching data
+142,3,OpenML 43892,national-longitudinal-survey-binary,4908,0.378,F,P,P,P,F,P,fail 1,,OpenML 43892: target binarized from income90 by a later curator
+143,3,UCI 545,rice_cammeo_and_osmancik,3810,,P,P,P,P,P,P,pass,,"archive.ics.uci.edu/dataset/545 (CC BY 4.0, read 2026-11-07)"
+144,3,Kaggle,water_quality,,,P,F,P,P,F,P,fail 2,,TabArena curation record row 640: imaginary data for education
+145,3,OpenML 4535,Census-Income,299285,,P,P,F,P,P,P,fail 3,,same Census Bureau CPS source as adult (seen)
+146,3,OpenML 1038,gina_agnostic,3468,0.492,F,P,F,P,F,P,fail 1,,gina_agnostic: challenge-defined pairing of digits
+147,3,OpenML 312,scene,2407,0.179,F,P,P,P,F,P,fail 1,,OpenML 312: Urban label taken from a multi-label task by a later curator
+148,3,OpenML 1455,acute-inflammations,120,0.417,F,P,P,P,P,P,fail 1,,"acute: two targets, no default"
+149,3,OpenML 53,heart_statlog,270,0.444,P,P,F,P,P,P,fail 3,,Statlog heart: subset of the Cleveland data (seen); plan struck it
+150,3,OpenML 56,vote,435,0.386,P,P,P,P,P,P,pass,,"archive.ics.uci.edu/dataset/105 (CC BY 4.0, read 2026-11-07)"
+151,3,PMLB bupa,bupa,345,,F,P,P,P,P,P,fail 1,,bupa: drinks variable thresholded into a class by later users (McDermott and Forsyth 2016)

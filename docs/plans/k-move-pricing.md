@@ -2,7 +2,8 @@
 
 Status: planned, in critique (2026-11-06); amended after its blind critique, and on 2026-11-07 for the
 maintainer's rulings dec-B617 to dec-B626 and the convergence measure, then for dec-B633 to dec-B635, then for
-dec-B651, the real-data guard and the dataset rule, for its referee ([Amendments](#amendments)).
+dec-B651, the real-data guard and the dataset rule, for its referee, then revised on that referee's report
+([Amendments](#amendments)).
 Nothing has run. The sequence is dec-B530's; every rule below is written before any fit of the step it reads.
 The rules state what a reading shows and recommend; the maintainer decides from a research report (dec-B624).
 
@@ -22,8 +23,8 @@ budget: step 0, the move's own diff (about 300 engine lines, 950 of tests/cpp, 2
 exact gate) replayed onto main less the probit half, plus the conflict work below and about 250 lines of
 tests/cpp rewritten for the move's new placement; the pricing harness about 1,300 lines of R, most of it reused
 from the k study's, the convergence measure's streams and scoring about 300 of them, the real-data guard's
-about 250. Compute about 40 core-hours expected through step 2 with the convergence measure, about 46 with step
-3, about 75 at most with every contingent arm and every second look, stop at 69
+about 250. Compute about 42 core-hours expected through step 2 with the convergence measure, about 49 with step
+3, about 98 at most with every contingent arm, every escalation and every second look, stop at 73
 ([Sizing and stops](#sizing-and-stops)).
 
 ## Goal
@@ -46,13 +47,16 @@ where the scale is small; then the two samplers go head to head at equal time on
 covariates, beside a measure of how long each takes to settle from its start; a check on the data follows only if
 you send pricing there. Each step reaches you as a short research report.
 
-Real outcomes enter on datasets nobody here has looked at. In this amendment six of them are scored by how far
-each sampler's estimates fall from a very long run of the same model, in place of predicting held-out outcomes:
-since both samplers aim at the same answer, that measures directly the only thing the move can change. For the
-same reason the screen of datasets keeps only what bears on such a comparison, and 26 candidates from two
-published benchmarks pass where 7 passed before. The rule and the list go to an independent referee and then to
-you before anything is fitted on them. About 40 core-hours through the head-to-head comparison, 46 with the check
-on the data.
+Real outcomes enter on datasets nobody here has looked at. Six of them are scored by how far each sampler's
+estimates fall from a very long run of the same model, in place of predicting held-out outcomes: since both
+samplers aim at the same answer, that measures directly the only thing the move can change. For the same reason
+the screen of datasets keeps only what bears on such a comparison, and 26 candidates from two published
+benchmarks pass where 7 passed before. How well each sampler predicts the held-out outcomes is still reported
+beside it. The very long runs are accepted only when both samplers' runs agree, and on the strongest-signal data
+they often do not, so about four times in ten fewer than three of the six may pass, and the guard then says
+nothing either way; the move is not recommended on without it. The rule and the list went to an independent
+referee and were revised on its report; they come to you before anything is fitted on them. About 42 core-hours
+through the head-to-head comparison, 49 with the check on the data.
 
 ## Context
 
@@ -255,13 +259,17 @@ differ rerun step 2's first look on that regime.
   26 pass, 17 of them with at least 1,000 rows, so the census does not run. Each passer's separation score is
   computed from the data alone and kept sealed in the harness until step 3 starts, since it is the trigger's own
   feature; R2 takes one dataset from each of 6 blocks by score and R3 one from each of 12 blocks of the rest, by a
-  seed fixed in the rule, the rest reserves. The rule and list are sealed after their referee and before any
-  file is loaded, and the assignment is committed before step 2 runs.
+  seed fixed in the rule, the rest reserves (R2's and R3's sizes are call 7's). The rule and list are sealed after
+  their referee and before any file is loaded, and the assignment is committed before step 2 runs.
 - **Equal running time.** Per regime, the move's time ratio r (move over shipped) on the box, idle: a full
   default fit as the user runs it, three replications a regime, three alternating repetitions per library,
-  per-round minima, the load stamped; r is the median of the nine pairs. The shipped arm at equal time takes
-  ceil(1000 r) - 500 draws a chain after the same 500 burn-in, so its total sweeps equal the move's total time at
-  its per-sweep cost, the pilot's frozen choice of spending the extra time on draws
+  per-round minima, the load stamped, each less the same library's time for a fit of one sweep on the same data,
+  the time that does not scale with sweeps (the model frame, cut points, start-up); r is the median of the nine
+  pairs of the remainders, the ratio of the two libraries' seconds per sweep (call 20). The share of the fixed
+  time in a whole fit is reported. The shipped arm at equal time takes ceil(1000 r) - 500 draws a chain after the
+  same 500 burn-in, so its total sweeps take the time the move's take, which a user running both pays beside the
+  same fixed time; a ratio of whole fits would pull r toward 1 and give the shipped arm fewer sweeps than equal
+  time buys. This keeps the pilot's frozen choice of spending the extra time on draws
   ([What was compared](../design/binary-interval-pilot.md#what-was-compared)). Its default reading is the first 500
   draws of the same run, by the prefix property. The sampler loop (E3) is timed by total fit time.
   These timings are also the cost benchmark of step 2, together with time-only cells at 10,000 and 50,000 rows,
@@ -383,11 +391,16 @@ sized to resolve and the frame of the recommendation (dec-B625). With d(arm) the
    interval. The ratios of root-mean-square error and interval score, move
    over shipped, are harmless when their upper bound is below 1.02. On R2's real outcomes, each sampler's error at
    equal time against a reference run of the same posterior is harmless when the upper bound of the move's
-   worsening is below the error of 100 independent posterior draws, on every row estimand and dataset with an
-   accepted reference ([The real-data guard](#the-real-data-guard), dec-B651). The move is recommended on only when
+   worsening is below the error of 100 independent posterior draws, on every row estimand and class of every
+   dataset with an accepted reference, at least 3 accepted; with fewer the guard is unresolved and reads as an
+   unresolved class ([The real-data guard](#the-real-data-guard), dec-B651). The move is recommended on only when
    every class is harmless or improves. Any class unresolved at full counts is reported with the counts. This is the
    burden the binary interval study put on its guards: a class passes on a bound shown, never on a harm not seen
-   ([Decision rule](binary-interval-study.md#decision-rule)).
+   ([Decision rule](binary-interval-study.md#decision-rule)). A harm shown frames the recommendation only once
+   confirmed: its class is rerun on fresh seeds named before the rerun, at the regime's first-look count (the
+   guard's at 20 fits a library), and the harm stands when the rerun shows it too, as step 1 confirms its failures;
+   otherwise the class is unresolved. At a true 0 about 50 class and weighting cells each at most 0.005 over two
+   looks bound a false harm somewhere in A near 0.09, and a harm in A recommends parking (call 23).
 3. **Cost.** The cost is too high when no-harm fails only in B while the gain holds, since at equal time the
    shipped sampler's extra draws then buy more than the move does on fits that do not need it. Or when any timed
    logistic cell, the large cells included, runs above 1.25 times the shipped library: the move plan's stop 4,
@@ -443,100 +456,178 @@ replication is added past the full counts.
 **Question.** On real outcomes, at equal running time, does the move make any estimate a user reads worse than
 the shipped sampler does? Real outcomes carry no truth, so each fit is scored against a long reference run of the
 posterior both samplers target, as comparisons on posteriordb's reference posteriors are scored (Magnusson et al.
-2024) and as Margossian and coauthors (2024) score a run's error. This replaces the held-out log score (dec-B651):
-the move leaves the posterior unchanged, so any difference between the samplers on a real dataset is in how well a
-finite run approximates that posterior, which a reference reads directly and a held-out score reads only through
-the outcomes' own noise. Calibration, coverage against a known truth, stays on step 2's drawn truths (call 17).
+2024) and as Margossian and coauthors (2024) score a run's error. This replaces the held-out log score as the
+guard (dec-B651): the move leaves the posterior unchanged, so any difference between the samplers on a real
+dataset is in how well a finite run approximates that posterior, which a reference reads directly and a held-out
+score reads only through the outcomes' own noise. The held-out score is still reported, framing nothing (below).
+Calibration, coverage against a known truth, stays on step 2's drawn truths (call 17).
 
 **Datasets.** R2, six datasets drawn by [k-move-pricing-datasets.md](k-move-pricing-datasets.md): per dataset a
 seeded subsample of at most 5,000 rows, 80 percent fitted (at most 4,000, the plan's cap) and 20 percent
-prediction rows whose outcomes are dropped at load and never read.
+prediction rows, whose outcomes stay sealed until the guard's reading is committed. Missing predictors are kept,
+as bart()'s default `na.keepPredictors` keeps them.
 
 **The reference.** Per dataset, 16 chains, 8 of each library, each started from its own draw from the model's
 prior (trees, leaves and k, as the convergence measure's dispersed start; Vehtari et al. 2021 ask for diffuse
-starts), 5,000 sweeps of burn-in and then 20,000 recorded at thin 20, 1,000 draws a chain: the k study's reference
-form, which step 3 uses. It is accepted when all of these hold, on k and on the latent fit at every fitted and
-prediction row:
-1. at least 10,000 draws, posteriordb's first criterion (16,000 here);
-2. rank-normalized split R-hat below 1.01 over all 16 chains, posteriordb's third and Vehtari and coauthors'
-   threshold;
-3. bulk and tail effective draws of at least 1,000, so that the reference's own squared error is at most a tenth
-   of the margin below. posteriordb asks instead for approximately independent draws, a mean lag-1
-   autocorrelation under 0.05; that statistic is reported, and the substitution is the study's own (call 13);
-4. the libraries' two halves agree by the k study's acceptance, k's quantiles included: a reference counts only
-   when both samplers' long runs agree and converge (dec-B462), so it is never the sampler under test alone.
+starts), 5,000 sweeps of burn-in, then recorded at thin 20 in blocks of 4,000 sweeps: the k study's form, with
+its length guard and its escalation ([References](binary-k-mixing-need.md#references) and its length guard in
+[Pre-registration](binary-k-mixing-need.md#pre-registration)), which step 3 uses. The first job records 16,000
+sweeps, the checks read at 12,000 and 16,000; a reference is accepted only when every check passes at two
+consecutive block ends, so that a lucky single block cannot pass; a failure adds a block, to 20,000. Past 20,000
+only the shipped half doubles, to 40,000, 80,000 and 100,000, thinned to keep its draw count, and only while
+effective draws are the only checks failing and the first pass's effective draws per sweep project a pass at
+100,000; the move half stays at its length. Accepted, the k study's acceptance as written, with posteriordb's draw
+count:
+1. at least 10,000 draws, posteriordb's first criterion (12,800 at 16,000 sweeps);
+2. the two libraries' halves agree on every scored estimand's mean and 5th and 95th percentiles, and on k's 5th,
+   10th, 30th, 50th, 70th, 90th and 95th percentiles, within 4.5 combined Monte Carlo standard errors: a
+   reference counts only when both samplers' long runs agree and converge (dec-B462);
+3. rank-normalized split R-hat over all 16 chains at most 1.01 for every one-value estimand and at most 1.02 at
+   the 99th percentile of row estimands;
+4. tail effective draws at least 400 for every one-value estimand and at the 1st percentile of row estimands
+   (the thresholds of Vehtari et al. 2021);
+5. k's effective draws at least 100. k's own R-hat is reported and not required: requiring it selects the
+   datasets where the shipped sampler already mixes (the k study's call); the binary interval pilot, which
+   required it, accepted 18 of its 52 references ([binary-interval-pilot.md](../design/binary-interval-pilot.md)).
 
-The reference is made by the two pricing libraries themselves, so Reading 3's check against another engine's
-model does not arise. posteriordb's two criteria specific to Hamiltonian Monte Carlo do not apply. A dataset whose reference fails is
-unresolved, counted apart with its two halves' summaries, and not replaced. As in Reading 3, references are
-missing where the shipped sampler is slowest, so the guard reads the datasets both samplers can reach: the fits
-that do not need the move, which are the ones a no-harm guard is for. Where the reference fails, the report shows
-the two samplers' fits side by side and draws no conclusion from them.
+posteriordb's approximately independent draws, a mean lag-1 autocorrelation under 0.05, is reported per estimand
+and not required (call 13); its two criteria specific to Hamiltonian Monte Carlo do not apply. The reference is
+made by the two pricing libraries, so Reading 3's check against another engine's model does not arise.
+
+**How many are accepted, written before any run.** R-hat at 1.01 over 16 chains is mostly a demand for precision:
+the k study measured that a stationary chain passes it a quarter of the time at 1,200 effective draws, two-thirds
+at 1,600 and reliably only at 2,000 to 2,400. Under this acceptance 12 of the k study's 22 real prediction
+references failed: 10 of the 12 scoring at least 0.8 and 2 of the 10 below. R2 is drawn by score blocks; if the
+pool's scores spread as the k study's did, about 2.7 of its six references are expected to pass, at least 3 with
+probability about 0.6, none with about 0.01.
+
+**At least three.** The guard reads only when at least 3 of R2's references are accepted. With fewer it is
+unresolved, reported with each dataset's acceptance figures and both halves' summaries, and rule 2 of step 2
+reads it as an unresolved class: the move is not recommended on by it. A dataset whose reference fails is not
+replaced. As in Reading 3, references are missing where the shipped sampler is slowest, so the guard reads the
+datasets both samplers can reach: the fits that do not need the move, which are the ones a no-harm guard is for.
+Where a reference fails, the report shows the two samplers' fits side by side, with the held-out score, and draws
+no conclusion from them.
+
+**What the reference's tolerance allows.** The halves may disagree by up to 4.5 combined standard errors, about
+0.2 to 0.28 posterior standard deviations at 1,000 to 500 effective draws a half, so the pooled reference can sit
+up to about 0.1 to 0.14 standard deviations toward one half: 1 to 2 units of the error below, the size of the
+margin. That offset cancels from D when both samplers' fits are unbiased for the posterior; it favors a sampler
+whose short fits lean the way of its own long half, the shipped one (making the guard conservative) or the move
+(making it lenient). So D is also read against each library's half alone, at no compute, and a harmless reading
+that does not hold against both halves is flagged in the report (call 22).
 
 **Scored fits.** Per dataset, 20 fits of each library from the default start on independent seeds, bart()'s
 defaults with 4 chains: the move at the default length, the shipped sampler at equal time, ceil(1000 r) - 500
-draws after the same 500 burn-in. r is the dataset's own time ratio, measured as step 2 measures a regime's: nine
-alternating repetitions of a default fit per library on the idle box, per-round minima, the median of the nine
-pairs. Each fit predicts at the prediction rows.
+draws after the same 500 burn-in. r is the dataset's own ratio of seconds per sweep, measured as step 2 measures a
+regime's, on nine alternating repetitions of a default fit per library, each less a one-sweep fit's time ([Common
+to steps 1 to 3](#common-to-steps-1-to-3), call 20). Each fit predicts at the prediction rows. 40 fits a library
+when the power check below calls for them.
 
 **Estimands.** At every fitted and every prediction row: the latent fit's posterior mean, its posterior standard
 deviation, its 5th and 95th percentiles (the ends of the 90 percent interval step 2 reads), and the posterior mean
-of the probability, the prediction a user reads. Then k's posterior mean and 5th and 95th percentiles. posteriordb
-names means, variances and tail quantiles as the expectations of interest. Rows are read together and by step 2's
-classes, interior and near 0 or 1, labeled by the k study's thresholds from the reference's posterior mean of the
-probability, a function of the data and the reference and never of a scored fit.
+of the probability, the prediction a user reads. posteriordb names means, variances and tail quantiles as the
+expectations of interest. Rows are read together and by step 2's classes, interior and near 0 or 1, labeled by the
+k study's thresholds from the reference's posterior mean of the probability, a function of the data and the
+reference and never of a scored fit. Beside them, framing nothing: k's posterior mean and 5th and 95th
+percentiles, and two joint estimands, the average probability over the prediction rows and the reference mass
+inside each fit's 90 percent band, which a sampler with the right margins and the wrong dependence across rows
+would miss (call 24).
 
 **Error.** For each fit, estimand and row, the squared error against the reference, in units of the expected
 squared error the same estimate would carry from 100 independent draws of the reference, found by drawing 100 of
 the reference's pooled draws 2,000 times. For a posterior mean the unit is the posterior variance over 100,
-Margossian and coauthors' target ("the expected squared error attained with 100 independent samples"); the same
-unit for the standard deviation and the interval ends is the study's own. A fit's error on a class is the average
-over its rows. A default fit with E effective draws errs about 100 / E in these units on a mean. The reference's
-own error adds the same amount to both samplers' errors, so it cancels from their difference.
+Margossian and coauthors' precision target for one estimator ("the expected squared error attained with 100
+independent samples"); its use as a margin on a difference between two samplers, and for the standard deviation
+and the interval ends, is the study's own. A fit's error on a class is the average over its rows. A default fit
+with E effective draws errs about 100 / E in these units on a mean. The reference's own error adds the same amount
+to both samplers' errors, so it cancels from their difference.
 
-**Reading.** On each dataset, for each row estimand and class, D is the mean error of the 20 move fits minus that
-of the 20 shipped fits. Harmless when the upper bound of D, one-sided 0.025 on Welch's t, is below 1; harm shown
-when D is at least 1 with its lower bound above 0; one look. The guard reads harmless when every row estimand and
-class reads harmless on every R2 dataset with an accepted reference, a conjunction that needs no correction for
-multiplicity. k is reported beside and frames nothing: users do not report it, and a default fit's k under the
-shipped sampler has too few effective draws for its error to resolve. Also beside, framing nothing: each sampler's
-error by estimand with its interval; the ratio of the two mean errors, which for converged chains is the ratio of
-effective draws per second; the 1-Wasserstein distance between each fit's draws and the reference at each row,
-scaled by the reference's standard deviation (posteriordb's second measure, as Zhang et al. 2022 read it); the
-reference mass inside each fit's 90 percent interval, which step 3 reads; and a count over datasets of the sign of
-D (Demsar 2006).
+**Reading.** On each dataset, for each row estimand and class, D is the mean error of the move's fits minus that of
+the shipped fits. Harmless when the upper bound of D, one-sided 0.025, is below 1 on Welch's t and on a percentile
+bootstrap (fits resampled within each library, 4,000 resamples), the bootstrap showing whether the errors' skew
+matters; harm shown when D is at least 1 with its lower bound above 0 on both; one look. The guard reads harmless
+when at least 3 references are accepted and every row estimand and class reads harmless on every dataset with an
+accepted reference: an intersection of tests, each at its own level, which needs no correction for multiplicity.
 
-**The margin.** One unit, the error of 100 independent posterior draws, is the target Margossian and coauthors
-mark for a usable estimate. Against the house's 0.02 coverage bar it is strict on location and about equal on
-spread: a 90 percent interval displaced by a tenth of a posterior standard deviation, one unit on the mean, still
-holds 0.898 of the reference, where losing 0.02 takes a displacement of about 0.35; an interval about 7 percent
-too narrow, one unit on the standard deviation of a normal posterior, holds about 0.873.
+**A harm shown is confirmed** before it frames anything: 20 more fits of each library on fresh seeds named before
+the rerun, against the same reference, read on the estimand and class that showed it, as step 1 confirms its
+failures. The harm stands when the rerun shows it too; otherwise it is reported unconfirmed and the dataset's
+reading is unresolved. About 0.1 core-hour a dataset. Across about 90 correlated tests a false harm at a true 0 has
+probability about 0.0004 a test at s = 0.94 and 0.0125 at 1.41, which is why it is confirmed.
+
+**Beside, framing nothing**: each sampler's error by estimand with its interval; the ratio of the two mean errors,
+move over shipped, with its 95 percent bootstrap interval on every estimand and class, any whose lower bound passes
+1.25 flagged (dec-B620's cost bar restated as accuracy: for converged chains the ratio at equal time is the inverse
+ratio of effective draws per second, which posteriordb calls "the central implementation-dependent performance
+metric"); the
+1-Wasserstein distance between each fit's draws and the reference at each row, scaled by the reference's standard
+deviation (posteriordb's second measure; the per-row form and its scaling are the study's own, since Zhang et al.
+2022 compute it on the whole parameter vector and scale by a baseline's distance); the reference mass inside each
+fit's 90 percent interval, which step 3 reads; a count over datasets of the sign of D (Demsar 2006); each sampler's
+effective draws per second on the row estimands; and every reading again without separation scores of 0.995 or
+more.
+
+**The held-out score, framing nothing.** Once the guard's reading is committed, the prediction rows' outcomes are
+unsealed and each fit's held-out log score and Brier score are read; the report gives, per dataset, the mean
+difference move minus shipped with its Welch interval, on every R2 dataset, those whose references failed
+included, where it is the only real-outcome reading. The question is whether two samplers of one posterior
+predict differently on one fixed split, so the 20 fits a library are its replications and no correction for
+repeated splits applies.
+
+**The margin.** One unit, the error of 100 independent posterior draws, is a Monte Carlo precision target: at
+equal time the move may err by at most what 100 independent draws would add, an error under a tenth of a posterior
+standard deviation on a mean, small beside the posterior's own spread, as the house's bars are absolute (dec-B455).
+It is not matched to the house's 0.02 coverage bar, and its coverage equivalents differ by estimand, for a normal
+posterior and its 90 percent interval: on the mean, one unit displaces the interval by 0.1 standard deviations and
+leaves coverage at 0.898 (a 0.02 loss takes 0.35, about 12 units); on the standard deviation, one unit is about 7
+percent too narrow, coverage 0.8735, a loss of 0.027 (0.02 is about 0.6 units); on the interval ends, one unit is a
+shift of 0.21 standard deviations, and both ends shifted inward cover 0.848, a loss of 0.052 (0.02 is about 0.18
+units). So on the ends the margin is about 2.5 times looser than the coverage bar; calibration itself is read on
+step 2's drawn truths (call 14).
 
 **Power.** A fit's error on a row estimand spreads over fits with standard deviation s in these units, so at 20
-fits a library D's standard error is 0.316 s. At a true difference of 0 one dataset resolves with probability 0.99
-at s = 0.71, 0.91 at 0.94, 0.87 at 1 and 0.59 at 1.41; all six resolve with probability 0.96, 0.57, 0.44 and 0.04.
-On a mean, s is at most 141 / E when the rows' errors move together and less when they do not, so default fits
-with 150 effective draws resolve 0.91 of the time at worst, and 200 or more nearly always; interval ends rest on
-tail effective draws, which are fewer. A harm of twice the margin shows with probability near 1 at s up to 1. s is
-not measured: the first dataset's 40 fits measure it, and if any row estimand's s exceeds 0.94 the guard's power
-is restated, with the fits that would resolve it, before the other datasets are read. Six datasets support a claim
-about these six: if none shows harm, the share of the frame's datasets the move harms is bounded only below 0.39
-(one-sided 95 percent).
+fits a library D's standard error is 0.316 s. At a true difference of 0 one test resolves with probability 0.99 at
+s = 0.71, 0.91 at 0.94, 0.87 at 1 and 0.59 at 1.41. The guard is a conjunction of about 15 tests a dataset (five
+row estimands, three row groupings: all, interior, near 0 or 1), correlated within a dataset: at 5 effectively
+independent tests a dataset and s = 0.94 it resolves with probability 0.24 over 3 accepted datasets and 0.06 over
+6. Interval ends rest on tail effective draws, have the largest s and will usually decide it. On a mean, s is at
+most 141 / E when the rows' errors move together and less when they do not. So the first accepted dataset in frame
+order is an internal pilot, read after step 3 is frozen (below) and blind to D: each library's own spread of the
+error over its fits is read, never their difference, and if any row estimand's s exceeds 0.94 in any class, every
+R2 dataset takes 40 fits a library, about 0.1 core-hour a dataset. At 40 one test resolves with probability 0.997
+at s = 0.94 and 0.88 at 1.41, and the conjunction at s = 0.94 with probability 0.96 over 3 datasets and 0.92 over
+6. A harm of twice the margin shows with probability near 1 at s up to 1. The datasets support a claim about
+accepted datasets like these, a score-stratified draw conditioned on acceptance and not a random sample of the
+frame: with none of a accepted datasets harmed, the share harmed among such datasets is bounded only below
+1 - 0.05^(1/a), 0.39 at 6 and 0.63 at 3 (one-sided 95 percent).
+
+**Expected reading, written before any fit.** About 2.7 references accepted, so the guard is about as likely to
+reach the maintainer unresolved on too few references (about 0.4) as to read; where it reads and the move changes
+nothing, it resolves harmless with probability about 0.9 or more if the pilot's 40 fits hold s at 0.94 or less,
+and less where tail effective draws are few. R2 at 9 datasets would raise the chance of at least 3 accepted to
+about 0.92 (call 7).
 
 **Shared with step 3.** The reference, its acceptance and the 20 fits a library are step 3's design for R3, so
-R2's runs give step 3's reading on its six datasets with no further compute. They join step 3's test when step 3's
-trigger form is committed from step 2's simulated fits before any R2 reading is opened, as the dataset rule orders
-it; step 3 then tests on 18 datasets.
+R2's runs give step 3's reading on its six datasets with no further compute. They join step 3's test only when the
+whole of step 3 is committed before any R2 reading is opened: the selected trigger itself, its feature and
+threshold, computed from step 2's simulated fits by step 3's rule, which is mechanical and leaves no discretion,
+so knowing R2's and R3's blocks from the committed assignment cannot steer it; the need-the-move rule; the pass
+rule; the fewer-than-3 rule; and R3's size. Step 2's report waits for that commit whether or not step 3 ever runs,
+since it shows R2's reference mass, step 3's own reading, before the maintainer decides whether step 3 runs. Any
+later amendment of step 3 drops R2 from its test. Step 3 then tests on 18 datasets.
 
-**What dropping the held-out score loses** (call 12). A held-out score needs no reference, so it reads datasets
-whose references fail, the hard ones, where the samplers differ most; it is read in the units of predictive
-accuracy users judge models by, on outcomes the fit has not seen, and is comparable with the September study and
-with Chipman, George and McCulloch (2010). Against that: a no-harm guard asks about fits that do not need the move,
-where references exist; held-out probabilities under logistic converge where k does not
-([binary-k-fixed-or-drawn.md](../design/binary-k-fixed-or-drawn.md)), so the score was expected to show nothing
-either way; and after the overlap correction for repeated splits (Nadeau and Bengio 2003) it resolved only if its
-spread over splits, never measured, was at most 0.0054 nats. The reference reading also scores the interval ends
-and spread, which a log score barely sees, and needs only one split.
+**Storage.** Full draws are kept until every reading that needs joint draws (the band's mass, the average
+probability, the Wasserstein distance) has been scored, about 0.6 GB a reference for the latent fit at 5,000
+rows, then compacted as the k study compacts its references.
+
+**What dropping the held-out score as the guard loses** (call 12). A held-out score needs no reference, so it reads
+datasets whose references fail, the hard ones, where the samplers differ most, in the units of predictive
+accuracy users judge models by, comparable with the September study and with Chipman, George and McCulloch
+(2010); it is kept as a report for that reason. As the guard it would be weaker: a no-harm guard asks about fits
+that do not need the move, where references exist; held-out probabilities under logistic converge where k does
+not ([binary-k-fixed-or-drawn.md](../design/binary-k-fixed-or-drawn.md)), so the score was expected to show
+nothing either way; and it barely sees the interval ends and spread, which the reference reading scores.
 
 ## The convergence measure
 
@@ -680,9 +771,10 @@ readings recommend it when the cost is too high.
 A rule on the data alone keeps the kernel exact. A fit that crosses it through `setData` changes kernel
 mid-chain, and both kernels are exact.
 
-**Form, fixed on the simulated fits of step 2 before any R3 dataset is read, and committed before any R2 reading
-is opened, so that R2's datasets can join the test ([The real-data guard](#the-real-data-guard)).** The
-candidates are the separation
+**Form, fixed on the simulated fits of step 2 before any R3 dataset is read. The selected trigger itself, with
+the rest of step 3 (the need-the-move rule, the pass rule, the fewer-than-3 rule and R3's size), is committed
+before any R2 reading is opened, so that R2's datasets can join the test
+([The real-data guard](#the-real-data-guard)).** The candidates are the separation
 score at or above t (t from 0.70 to 0.95 by 0.01), the smaller class's count at or below e (e in 10, 20, 40,
 80), since the score misses rare outcomes (the k study's
 [Could a rule find the fits that need it?](../design/binary-k-mixing-need.md#could-a-rule-find-the-fits-that-need-it)),
@@ -690,13 +782,15 @@ and the union of one of each. A replication's gain is d(shipped at equal time) m
 For each candidate the gain is pooled over the replications it fires on and, apart, over those it spares, so
 noise in single replications cancels rather than being truncated into gain. The trigger is the candidate that
 fires on the fewest of B's fits while the upper bound on pooled gain over its spared set is below 0.02 in every A
-cell, an empty spared set meeting the condition; the single-feature form takes a tie. The k study's 0.8 was
-chosen after its data and is not carried over.
+cell, an empty spared set meeting the condition; the single-feature form takes a tie, then the smaller t, then the
+larger e, the more sensitive. The selection is mechanical: it reads only step 2's simulated fits and leaves no
+discretion. The k study's 0.8 was chosen after its data and is not carried over.
 
 **Test on R3.** For each of the 12 datasets: a long run of 8 chains of each library, 5,000 sweeps of burn-in and
 20,000 recorded at thin 20, as the k study's references ran, started and checked as the real-data guard's
-references are; then 20 default-length fits of each library. R2's six datasets, whose runs are the same, join the
-test when the trigger form was committed before any R2 reading was opened, so the test reads 18 datasets.
+references are, their length guard and escalation included; then 20 default-length fits of each library. R2's six
+datasets, whose runs are the same, join the test when the whole of step 3 was committed before any R2 reading was
+opened, so the test reads 18 datasets; any later amendment of step 3 drops them from it.
 
 A dataset needs the move when its long runs pass the k study's acceptance (both libraries' halves agree, k's
 quantiles included, dec-B462) and then, scored against the pooled reference, 20 shipped fits at equal time hold
@@ -755,15 +849,15 @@ standard error of at most the bar over 3.24.
 | step 2, S7 | no harm on effects | 300 (150, 300) | 3.55 | per fit, individual effects, subgroups and interior se 0.006 at an assumed 0.10; near 0 or 1 0.005 at 0.09 | as S5 | 263; 213 near 0 or 1 | as S1 |
 | step 2, S8 | no harm on effects | 300 (150, 300) | 4.05 | per fit, individual effects se 0.006 at 0.106 | as S5 | 296; otherwise as S7 | as S1 |
 | step 2, E3 | no harm in a loop | 220 (110, 220) | 1.15 | per fit, interior se 0.005 at 0.08 (1.6 times pooled); near 0 or 1 as S5 | as S5 | 169 interior; 213 near 0 or 1 | as S1 |
-| step 2, R2 references | the posterior each real-data fit is scored against | 6 datasets, 16 chains of 25,000 sweeps | about 2.5; 3.4 at most | accepted or not, by posteriordb's criteria and dec-B462 | a failed reference leaves its dataset unresolved | 6 | none |
-| step 2, R2 scored fits and timing | no harm on real outcomes | 20 fits a library a dataset, nine timing pairs | about 1; 2 at most | D's se 0.316 s, s unmeasured | 1, the error of 100 independent draws | 20 at s up to 0.94 | none; power restated after the first dataset |
+| step 2, R2 references | the posterior each real-data fit is scored against | 6 datasets, 16 chains of 21,000 to 25,000 sweeps, the shipped half to 100,000 where only effective draws fail | about 3 (one escalation); 8.8 at most | accepted or not, by the k study's acceptance and length guard and posteriordb's draw count | a failed reference leaves its dataset unresolved; fewer than 3 accepted leave the guard unresolved | 3 accepted | none |
+| step 2, R2 scored fits and timing | no harm on real outcomes | 20 or 40 fits a library a dataset, 20 more where a harm shows, nine timing pairs and nine one-sweep pairs | about 1.7 at 40 (1 at 20); 4.6 at most | D's se 0.316 s at 20, 0.224 s at 40; s unmeasured | 1, the error of 100 independent draws | 20 at s up to 0.94, else 40 | the internal pilot on the first accepted dataset |
 | step 2, timing | r, and the cost bar | 9 regimes, 8 large cells, hazard and counts cells | about 1 as 100-sweep segments (3.5 as full fits), box idle | ratio to about 0.01 | 1.25 on a cell | 9 pairs; 10 segments | none |
 | step 2, effective draws a second | reported | 10 a regime, S1, S2, S4, S6, both libraries | 0.3 | | decides nothing | | none |
 | convergence, default start, Reading 1 | coverage, length, error and time of a user's fit at each run length with no burn-in, both libraries, 8 regimes | 50 a regime (50, 100), 20 chains as five fits of 4 (two of 10 for effects), 2,000 sweeps, 8,000 where k's R-hat stays at or above 1.01 | 3.8 at 2,000 sweeps; 5.2 with the shipped sampler to 8,000 in A; 18 with every second look and every shipped stream to 8,000 | per fit, interior coverage se 0.011 to 0.031 at 50, 0.008 to 0.022 at 100; k 0.04 and 0.03 | decides nothing; reported beside step 2 (dec-B633) | 50; 100, He and Hahn's count, where a first look's se exceeds 1.5 times planned | first look, unless a standard error exceeds 1.5 times planned |
 | convergence, dispersed start | does a sampler arrive as fast from a prior draw | 25 a regime, 20 chains, as above | 1.9; 2.6 with A's shipped streams to 8,000; 4.5 at most | about 1.4 times the default start's at 50 | read for its direction | | none |
 | convergence, Reading 3 | error against the reference as the run lengthens, on accepted long runs | 41 stored datasets, 20 chains a library | 0.4; 0.8 at most | per dataset | | | none |
 | convergence, Reading 2 | what R-hat and effective draws say at each length | the same streams | 0 | | frames nothing | | none |
-| step 3, R3 long runs | which datasets need the move | 12 datasets, 8 chains a library | about 5 | per dataset | | 3 resolved on each side | none |
+| step 3, R3 long runs | which datasets need the move | 12 datasets, 8 chains a library, the shipped half to 100,000 where only effective draws fail | about 6.3 (two escalations); 17.6 at most | per dataset | | 3 resolved on each side | none |
 | step 3, R3 default fits | the default-length harm on each | 20 shipped at equal time and 20 move fits a dataset | about 1 | t bound a dataset | 0.02 | 20 | none |
 | step 4 | | | 0 | | | | |
 
@@ -825,24 +919,30 @@ the figures do not count.
 **Audit of the real-data guard.** Its costs use the plan's own rate for R3: 12 references of 16 chains at 25,000
 sweeps in about 5 core-hours, about 3.75 milliseconds a chain-sweep at up to 4,000 fitted rows, and 40 default
 fits a dataset in about 0.08 core-hours. Six references cost about 2.5 core-hours, 3.4 with the plan's 35 percent
-for scoring and shared memory bandwidth. The 240 scored fits and the 108 timing fits cost about 1, 2 if every fit
-runs at the reference's rate with the overhead. Together about 3.5 core-hours, 5.4 at most, against the held-out
-score's 1. On one of the box's 2-core legs a reference takes about 13 minutes of wall time and R2 about 1.75
-hours, about 0.9 on both legs; the timing pairs run alone on the idle box. If step 3 runs, R2's runs serve it at
-no cost. Power is in [The real-data guard](#the-real-data-guard); the one figure not measured is the spread s,
-which the first dataset measures.
+for scoring and shared memory bandwidth; a reference that passes at 16,000 recorded sweeps costs a sixth less. An
+escalation of the shipped half to 100,000 sweeps adds 8 chains of 80,000, about 0.7 core-hours, 0.9 with the
+overhead; it runs only where effective draws are the only failing checks, which was the rarer failure in the k
+study (most of its failures were on row R-hat and on agreement), so one is expected in R2 and two in R3, and every
+reference at most. The scored fits at 40 a library and the timing fits cost about 1.7, 1 at 20; at most, with a
+confirmation on every dataset and every fit at the reference's rate with the overhead, 4.6. Together about 4.9
+core-hours expected, 13.4 at most, against the held-out score's 1. On one of the box's 2-core legs a reference takes
+about 13 minutes of wall time, an escalation about 25 more. If step 3 runs, R2's runs serve it at no cost. Memory:
+about 0.6 GB a reference before compaction. Power is in [The real-data guard](#the-real-data-guard); the one figure
+not measured is the spread s, which the first accepted dataset measures.
 
-**Totals.** About 40 core-hours expected through step 2 with the convergence measure: step 0 about 5, step 1 about
-7, step 2 about 20 (about 12.5 if its regimes stop at their first look), the convergence measure about 8. About
-46 with step 3. About 75 at most, with step 1 at its longest thin and its third arm, the timing run as full fits,
-the real-data guard at its upper cost, and the convergence measure at every second look with every shipped stream
-at 8,000; about 15 more if the move also needs its long streams everywhere. The real-data guard adds about 2.5
-expected and 4.4 at most over the held-out score it replaces (dec-B651). That is within dec-B530's rough guess of
-tens of core-hours. Against the
+**Totals.** About 42 core-hours expected through step 2 with the convergence measure: step 0 about 5, step 1 about
+7, step 2 about 21.5 (about 14 if its regimes stop at their first look), the convergence measure about 8. About
+49 with step 3, its references escalating as the guard's do. About 98 at most, with step 1 at its longest thin and
+its third arm, the timing run as full fits, the real-data guard at its upper cost, a confirmation of one harm in
+step 2 (about 2, S8's first look), the convergence measure at every second look with every shipped stream at 8,000,
+and every R2 and R3 reference escalating (16 of the 98, though an escalation runs only where effective draws are a
+reference's only failing check); about 15 more if the move also needs its long streams everywhere. The real-data
+guard adds about 3.9 expected and 12.4 at most over the held-out score it replaces (dec-B651). That is within
+dec-B530's rough guess of tens of core-hours. Against the
 amendment before dec-B621 (37 expected, 43 with step 3, 56 at most), step 2's fitting fell by a third, 25 to
 about 17.5, with the burn-in-only arm dropped (dec-B621), and the convergence measure adds about 8 expected and 23
 at most (dec-B622); its rebuild from published readings (dec-B633) keeps its streams and changes only the
-twentieth chain, 5 percent of its compute (8.2 against 7.8 expected, 23.3 against 22.1 at most). The stop is 69,
+twentieth chain, 5 percent of its compute (8.2 against 7.8 expected, 23.3 against 22.1 at most). The stop is 73,
 1.5 times the expected total with step 3. Under it, cuts go in this order: the convergence measure's second
 looks, the dispersed start's long streams, the contingent arm's thin to its pilot's T, S3 to its first look, the
 other step 2 regimes to their first looks, R3 to its first 8 datasets in score order.
@@ -912,7 +1012,8 @@ Each proposal recorded under TODO k-move-pricing, with what this plan does with 
   outcomes reads each sampler's error at equal time against a reference run of the same posterior in place of a
   held-out score, a no-harm guard and not a gain criterion
   ([The real-data guard](#the-real-data-guard)). It runs on R2, six datasets none of the probes has seen, drawn
-  by the rule in [k-move-pricing-datasets.md](k-move-pricing-datasets.md); about 3.5 core-hours.
+  by the rule in [k-move-pricing-datasets.md](k-move-pricing-datasets.md); about 5 core-hours, 13.4 at most. The
+  held-out log score and Brier score are reported beside it, framing nothing.
 - **What "wins" means.** Adopted: noise-corrected distance from nominal on either side, by class, pooled over
   rows and per fit, a gain counting only under both weightings and a harm under either.
 - **The no-harm margin against nominal, not the told fit.** Adopted: every bar compares the two arms'
@@ -960,38 +1061,53 @@ Ruled, 2026-11-07. The numbers are kept so that the entries and this plan's text
 Open.
 
 **Call 7. The held-out datasets.** Open (dec-B635, dec-B651). The rule and the list are in
-[k-move-pricing-datasets.md](k-move-pricing-datasets.md): a published frame, a screen of six criteria that bear on
+[k-move-pricing-datasets.md](k-move-pricing-datasets.md), with the per-entry screen in
+[k-move-pricing-screen.csv](k-move-pricing-screen.csv): a published frame, a screen of six criteria that bear on
 a comparison of two samplers of one posterior, 26 passers on documentation, 17 with at least 1,000 rows, and a
 seeded stratified draw of R2 and R3 fixed in it. After the survey, the two audits and the first referee, a planner
-rebuilt how the datasets enter (this amendment); an independent referee reads the rule and list next, and the
-rule and list it supports come to you as the decision, before anything is fitted on them. No 0.9-34 study used
-held-out real datasets for a sampler change. Within it, for you: the rule and list as a whole, and R3's size (12,
-or every passer not in R2), which the shared reading makes 18 or 26.
+rebuilt how the datasets enter; an independent referee read the rule and list, and they were revised on its report
+(both in [Amendments](#amendments)). Seven passers rest on one screener and get a second screen before the seal.
+The rule and list come to you as the decision, before anything is fitted on them. No 0.9-34 study used held-out
+real datasets for a sampler change. Within it, for you, each settled before the seal since the draw's code depends
+on them:
+- R3's size: 12, or every passer not in R2, which the shared reading makes 18 or 26 datasets in step 3's test;
+- R2's size: 6, as written, at which about 2.7 references are expected accepted and the guard reads (3 or more)
+  with probability about 0.6; or 9, about 4.1 accepted and 0.92, for about 1.6 core-hours more of references and
+  0.9 of fits, R3 then drawn from the 17 left. Recommended: 9, since a guard that reaches you unresolved four
+  times in ten blocks the default it guards.
 
-### Calls made in the dec-B651 amendment
+### Calls made in the dec-B651 amendment and its revision
 
 The planner's, each with its alternative; the dataset rule's own calls are in its section 8.
 - **Call 12, the guard's measure.** Each sampler's error at equal time against a reference of the posterior,
-  posteriordb's form, in place of the held-out log score ([The real-data guard](#the-real-data-guard), what is
-  lost stated there). Alternative: keep the held-out score as written, or beside the new guard at about 1
-  core-hour more, which would read the datasets whose references fail.
-- **Call 13, the reference's acceptance.** posteriordb's 10,000 draws and R-hat below 1.01, bulk and tail
-  effective draws of at least 1,000 in place of its lag-1 independence, and the k study's agreement of the two
-  libraries (dec-B462). Alternatives: posteriordb's independence literally, by thinning about nine times further
-  for k, about 20 core-hours more for R2 and few references passing; or a reference from the move's long runs alone
-  where the shipped half disagrees, which posteriordb's last resort (draws verified by simulation-based
-  calibration, step 1) would allow and which would reach the hard datasets, not taken because dec-B462 counts a
-  reference only when both samplers agree.
+  posteriordb's form, in place of the held-out log score as the guard; the held-out log and Brier scores are
+  reported beside it on the prediction rows, unsealed after the guard's reading is committed, framing nothing
+  (the referee's recommendation). Alternatives: drop the held-out score, leaving datasets whose references fail
+  with no real-outcome reading; or make it the guard, as first planned.
+- **Call 13, the reference's acceptance.** The k study's as written, with its length guard and its escalation of
+  the shipped half, and posteriordb's 10,000 draws; posteriordb's lag-1 independence and k's R-hat reported, not
+  required. Alternatives: the amendment's first form, R-hat below 1.01 at every row and on k with bulk and tail
+  effective draws of at least 1,000, which a stationary reference over 16 chains passes reliably only at about
+  2,000 effective draws and which requires k to converge, selecting the datasets where the shipped sampler
+  already mixes; posteriordb's independence literally, by thinning about nine times further for k, about 20
+  core-hours more for R2; or a reference from the move's long runs alone where the shipped half disagrees, which
+  would reach the hard datasets and which dec-B462 does not allow.
 - **Call 14, the error's unit and the margin.** Error in units of the error of 100 independent posterior draws,
-  harmless below 1, k beside. Alternatives: a ratio of mean errors below 1.25, dec-B620's cost bar restated as
-  accuracy (for converged chains an error ratio of 1.25 at equal time is what 1.25 times the running time buys
-  back), which reads efficiency where users read error and resolves less often where errors are small and noisy;
-  or k inside the guard, which would leave most datasets unresolved on k alone.
-- **Call 15, the fits.** 20 a library, one look, power restated after the first dataset. Alternative: a second look
-  at 40 where s exceeds 0.94, about 0.1 core-hour a dataset.
-- **Call 16, sharing with step 3.** The trigger form committed before any R2 reading is opened, so R2 joins step
-  3's test and the test reads 18 datasets; step 3's references take the guard's acceptance. Alternative: R2 and R3
-  kept apart, step 3 testing 12 on its own acceptance.
+  harmless below 1 on every row estimand, a Monte Carlo precision target and not a match to the 0.02 coverage bar
+  (equivalents in [The real-data guard](#the-real-data-guard)); the error ratio reported with its interval, a lower
+  bound past 1.25 flagged; k beside. Alternatives: margins per estimand matched to the coverage bar, about 0.6
+  units on the standard deviation and 0.2 on the interval ends, at which 40 fits resolve only where s is under
+  about 0.3 on the ends, so few datasets would read; a ratio bar of 1.25, which at 20 fits bounds a true ratio of
+  1.1 near 1.5 and would seldom resolve; or k inside the guard, which would leave most datasets unresolved on k
+  alone.
+- **Call 15, the fits.** 20 a library, raised to 40 on every dataset when the internal pilot on the first accepted
+  dataset finds any s above 0.94, blind to D; one look. Alternatives: 40 from the start, about 0.6 core-hour more
+  where the pilot would not have called for them; or 20 with power restated, at which the whole guard resolves
+  about one time in four over 3 datasets at s = 0.94.
+- **Call 16, sharing with step 3.** The whole of step 3 (the selected trigger, the need-the-move, pass and
+  fewer-than-3 rules, R3's size) committed before any R2 reading is opened, step 2's report waiting for it, so R2
+  joins step 3's test and the test reads 18 datasets; step 3's references take the guard's acceptance.
+  Alternative: R2 and R3 kept apart, step 3 testing 12 on its own, step 2's report not waiting.
 - **Call 17, calibration stays on drawn truths.** Coverage of f is read only where the truth is known, step 2's
   nine regimes, which already place drawn truths on fifteen real datasets' covariates. Alternative: a further B
   regime with drawn truths on R2's six covariate sets, about 2.5 core-hours at 200 replications over the six, or 15
@@ -1002,6 +1118,27 @@ The planner's, each with its alternative; the dataset rule's own calls are in it
   under 1,000 rows.
 - **Call 19, the convergence measure.** R2's references are not added to Reading 3. Alternative: 20-chain streams
   to 2,000 sweeps on R2's six datasets, about 0.5 core-hour, which would give Reading 3 real outcomes.
+- **Call 20, equal time per sweep.** r is the ratio of the two libraries' seconds per sweep, each whole fit less a
+  one-sweep fit's time, in step 2's regimes and in the guard alike, and the fixed share reported. A user running
+  either fit pays the same fixed time, so equal time gives the shipped arm the sweeps the move's sweeps take; a
+  ratio of whole fits pulls r toward 1 and favors the move. Alternatives: r from 100-sweep segments restored from a
+  stored state, as the cost benchmark times them, which reads sweeps past burn-in only, where trees are larger; or
+  the whole-fit ratio with the fixed share only reported.
+- **Call 21, at least 3 accepted references.** Below it the guard is unresolved and blocks as an unresolved class.
+  Alternatives: no minimum, under which no accepted reference reads harmless by default; or R2 extended in R3's
+  draw order until 3 accept, which runs step 3's references during step 2 and spends R3's datasets on the guard.
+  R2's size is call 7's.
+- **Call 22, the reference's halves.** D is also read against each library's half alone and a harmless reading
+  that does not hold against both is flagged, framing nothing. Alternatives: harmless required against both
+  halves, which halves each reference's draws behind the reading and costs power; or each library's fits scored
+  against the other library's half only.
+- **Call 23, harms confirmed.** A harm shown, in the guard or in step 2's regimes, frames the recommendation only
+  when a rerun on fresh seeds shows it again, as step 1's failures are confirmed; about 0.1 core-hour a guard
+  dataset, a regime's first look (0.1 to 2) in step 2. Alternative: no rerun, the report stating the expected
+  number of false harms at a true 0 and the family's level, near 0.09 in A, where a harm recommends parking.
+- **Call 24, joint estimands beside.** The average probability over the prediction rows and the reference mass
+  inside each fit's band are reported, framing nothing. Alternative: both in the guard's conjunction, which would
+  catch a sampler with the right margins and the wrong dependence across rows, and lower the guard's power.
 
 ## Left out
 
@@ -1013,7 +1150,8 @@ The planner's, each with its alternative; the dataset rule's own calls are in it
 - **The colleagues' case.** It has not been shared; it has a slot in the k study's plan (dec-B529).
 - **The k study's real outcomes.** They carry no truth, and their 22 datasets are spent; real outcomes enter only
   through R2's reference-scored guard and R3's trigger test.
-- **A held-out score on real outcomes** (dec-B651, call 12): replaced by the reference-scored guard.
+- **A held-out score on real outcomes as the guard** (dec-B651, call 12): replaced by the reference-scored guard,
+  the held-out log and Brier scores reported beside it, framing nothing.
 - **Coverage on real outcomes**: no truth is known there; calibration is read on drawn truths only (call 17).
 - **Count-weighted logistic and hazard.logistic** are reached by the move, gated by its exact gate's counts arm and
   timed, but not scored as regimes (dec-B619): the likelihood is the same, and the counts were not a k study
@@ -1052,11 +1190,14 @@ The planner's, each with its alternative; the dataset rule's own calls are in it
   many independent draws, at every length within noise; Reading 3's model-equality check passes on each stored
   dataset before use, and the datasets it drops are listed.
 - The real-data guard: the dataset rule's seal precedes any file load, its committed loader drops the outcome
-  before anything is printed, and the assignment and step 3's trigger form are committed before any R2 reading
-  is opened (each by commit order); every reference's five acceptance figures are reported per dataset; a smoke
-  that scores independent exact draws from a known conjugate posterior as both "samplers" and as the reference
-  reads D near 0 and each error near its 100 / E, and one that scores 100 independent reference draws reads an
-  error near 1.
+  before anything is printed, the assignment and the whole of step 3 are committed before any R2 reading is
+  opened, the guard's reading before the prediction rows' outcomes are unsealed, and step 2's report after step
+  3's commit (each by commit order); every reference's acceptance figures at both block ends, its escalation and
+  its lag-1 report are given per dataset; the internal pilot's record holds each library's spreads and no D; a
+  smoke that scores independent exact draws from a known conjugate posterior as both "samplers" and as the
+  reference reads D near 0, D against either half near 0 and each error near its 100 / E, and one that scores 100
+  independent reference draws reads an error near 1; the equal-time draws are checked against r from the timing
+  record.
 - `Rscript tools/check-doc-freshness.R .` on this file and the indexes.
 
 ## Not verified
@@ -1069,7 +1210,8 @@ The planner's, each with its alternative; the dataset rule's own calls are in it
 - The candidate datasets' sizes, rates and files: from suite records and repository pages, checked against the
   files at the pre-fit check; seven passers rest on one auditor's screen and this amendment's reading.
 - The real-data guard's spread s over fits, and so its power; the per-sweep times at R2's sizes, taken from the
-  plan's R3 figures; how many R2 references pass acceptance.
+  plan's R3 figures; how many R2 references pass acceptance, projected from the k study's rates by score on its
+  own datasets; how often a reference escalates; the share of fixed time in a default fit.
 - Per-replication spreads in step 2 between the move and the shipped arm at equal time; the sizes use the k study's
   spreads against its told fit.
 - The convergence measure's spreads: a fit's coverage at the short lengths is assumed spread like step 2's
@@ -1082,6 +1224,45 @@ The planner's, each with its alternative; the dataset rule's own calls are in it
   any documented default.
 
 ## Amendments
+
+**2026-11-07, dec-B651 revised on its referee's report** (major revision, core design sound). Each point by the
+report's section, what changed; none is declined, and where a fix differs from the report's the call says so.
+- 1.1 Taken. The k study's length guard (checks at two consecutive block ends of 4,000 sweeps, the first job
+  16,000 so the draw count stays at posteriordb's 10,000) and its escalation of the shipped half to 100,000 where
+  effective draws are the only failing checks are restored.
+- 1.2 Taken. The acceptance is the k study's as written (call 13); posteriordb's 10,000 draws kept and its lag-1
+  reported; k's R-hat reported, not required; the expected yield stated, about 2.7 of 6 accepted.
+- 1.3 Taken. The tolerance is stated in the guard's units (1 to 2), and D is also read against each half, a
+  harmless reading not holding against both flagged (call 22).
+- 1.4 Taken. At least 3 accepted references, below which the guard is unresolved and blocks in rule 2 (call 21).
+- 2.1 Taken. The margin's use and the per-row Wasserstein reading are marked the study's own; the average
+  probability and the band's reference mass are reported (call 24).
+- 2.2 Taken in another form. r is the ratio of seconds per sweep, each fit less a one-sweep fit, in step 2 and the
+  guard, the fixed share reported (call 20); a percentile bootstrap bound stands beside Welch's.
+- 2.3 Taken. The margin is justified as a precision target, with its three coverage equivalents corrected (0.898,
+  0.8735 and 0.848; 0.02 is 12, 0.6 and 0.18 units); per-estimand margins are call 14's alternative.
+- 2.4 Taken. The aggregate power is the conjunction's (0.24 over 3 datasets and 0.06 over 6 at s = 0.94 and 20
+  fits); an internal pilot written now raises every dataset to 40 fits where s exceeds 0.94 (0.96 and 0.92); the
+  0.39 bound is for accepted datasets like these.
+- 2.5 Taken. The error ratio is reported with its interval on every estimand and class, a lower bound past 1.25
+  flagged; the ways a slower sampler can pass are stated.
+- 2.6 Taken, and extended to step 2's regimes. A harm shown is confirmed on fresh seeds before it frames anything
+  (call 23).
+- 3 Taken. The held-out log and Brier scores are reported on the prediction rows after the guard's reading is
+  committed, framing nothing; the argument from repeated splits is withdrawn.
+- 4 Taken, in [k-move-pricing-datasets.md](k-move-pricing-datasets.md): the leak sentence corrected; the kept
+  criteria named population criteria; missing predictors kept, as bart()'s default does; one license standard;
+  suite-curated row edits allowed and recorded; Parkinsons's listing 195; spect's two files concatenated; no file
+  of the data committed or shipped; the per-entry screen committed as
+  [k-move-pricing-screen.csv](k-move-pricing-screen.csv); the seven single-screened passers named for a second
+  screen before the seal.
+- 5 Taken. The whole of step 3 is committed before any R2 reading is opened and step 2's report waits for it; the
+  trigger's selection is stated mechanical, its ties broken.
+- 6 Taken, in the dataset rule: the reserve rule, the row split and the score's folds in code with their seeds, the
+  full census checksum, R2's and R3's sizes in call 7 to settle before the seal, and the pre-fit check before any
+  score.
+- 7 Taken. Sizing restated: R2 about 4.9 core-hours, 13.4 at most; R3's references about 6.3, 17.6 at most; totals
+  about 42 through step 2, 49 with step 3, 98 at most, stop 73. Draws compacted after scoring.
 
 **2026-11-07, dec-B651: the real-data guard and the dataset rule, for their referee.**
 - Step 2's held-out log score guard (6 datasets, 20 splits, 0.01 nats) is replaced by
