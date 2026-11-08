@@ -5057,6 +5057,41 @@ static void testLeafSpreadRounding() {
                                        nullptr, counts.data());
     check(!rounding(once) && atCounts && rounding(written),
           "spread rounding: counts read as the rows written out");
+    // the corrected center at the counts: half the rows at 1, count 1000,
+    // and half at 1 + 1e-13, count 1, are 0.22 times the tolerance written
+    // out; a center corrected once per row sits half way and reads 50 times
+    std::vector<double> halved(200, 1.0), thousand(200, 1000.0);
+    for (size_t i = 100; i < 200; ++i) {
+      halved[i] = 1.0 + 1.0e-13;
+      thousand[i] = 1.0;
+    }
+    double stored, storedSd;
+    standardizationMomentsForColumn(halved.data(), halved.size(), &stored,
+                                    &storedSd, nullptr, thousand.data());
+    double atCount = correctedMean(halved.data(), halved.size(), stored,
+                                   nullptr, thousand.data());
+    check(leafCovariateMoments(halved.data(), halved.size(), &mean, &sd,
+                               nullptr, thousand.data()) &&
+            mean == atCount && std::fabs(atCount - 1.0) < 1.0e-15 &&
+            !rounding(halved),
+          "spread rounding: the center is corrected at the counts");
+    // the record's mark reads the gathered rows at their counts too: 20 rows
+    // 1e-13 off the center are spread read once each and rounding at 100
+    // against 1 on the rest, and fewer than two rows of positive count read
+    // every row once
+    std::vector<double> offCenter(200, 0.0), markCounts(200, 100.0);
+    for (size_t i = 180; i < 200; ++i) {
+      offCenter[i] = 1.0e-13;
+      markCounts[i] = 1.0;
+    }
+    std::vector<double> onePositive(200, 0.0);
+    onePositive[0] = 1.0;
+    check(standardizedColumnHasSpread(offCenter.data(), 200, 1, 1.0, 1.0) &&
+            !standardizedColumnHasSpread(offCenter.data(), 200, 1, 1.0, 1.0,
+                                         markCounts.data()) &&
+            standardizedColumnHasSpread(offCenter.data(), 200, 1, 1.0, 1.0,
+                                        onePositive.data()),
+          "spread rounding: the mark reads the rows at their counts");
     std::vector<double> outlier = halves(10, 0.3, 0.1 * 3.0);
     outlier[9] = 5.0;
     std::vector<double> zeroLast(10, 1.0);

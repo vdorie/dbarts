@@ -2242,7 +2242,7 @@ public:
     // every chain is created on one standardization and no install moves it
     if constexpr (L::hasVectorParams || L::hasFunctionParams) {
       const L& leaf = chains_[0]->leaf();
-      LeafStandardization standardization = leaf.standardization();
+      LeafStandardization standardization = chains_[0]->leafStandardization();
       records.leafCenters = standardization.centers;
       records.leafScales = standardization.recordedScales();
       records.leafFromAllRows = leaf.fromAllRows();

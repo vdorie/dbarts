@@ -273,11 +273,16 @@ expect_error(
 # about 0.23 times it at these counts
 spreadOnce <- rep(c(1, 1 + 1e-13), c(180L, 20L))
 heavy <- ifelse(spreadOnce == 1, 100, 1)
-countsFit <- function(response = y, ...) {
+countsFit <- function(
+  response = y,
+  z = spreadOnce,
+  leaf.prior = dbartsPriors$linear("z"),
+  ...
+) {
   dbarts::dbarts(
-    matrixOf(spreadOnce),
+    matrixOf(z),
     response,
-    leaf.prior = dbartsPriors$linear("z"),
+    leaf.prior = leaf.prior,
     control = controlWith(),
     n.trees = 10L,
     ...
@@ -321,3 +326,111 @@ expect_identical(recordOf(s), before)
 s <- countsFit(weights = rep(1, n))
 kept <- fallbacks(s$setWeights(heavy, updateStandardization = TRUE))
 expect_identical(kept$warnings, character())
+# the center is corrected at the counts: half the rows at 1, count 1000, and
+# half at 1 + 1e-13, count 1, are 0.22 times the tolerance written out
+expect_error(
+  countsFit(
+    z = rep(c(1, 1 + 1e-13), each = 100L),
+    weights = rep(c(1000, 1), each = 100L),
+    weights.type = "frequency"
+  ),
+  refusal(200L),
+  fixed = TRUE
+)
+
+# the doors that derive again read the counts: a binomial sampler's trials at
+# setPredictor and setData, frequency weights at setActiveRows and in an xbart
+# fold
+realCounts <- runif(n, 0.5, 1.5)
+binomialFrame <- function(z) {
+  data.frame(k = successes, f = heavy - successes, x1 = x1, z = z)
+}
+binomialFit <- function() {
+  dbarts::dbarts(
+    cbind(k, f) ~ x1 + z,
+    binomialFrame(realCounts),
+    family = binomial,
+    leaf.prior = dbartsPriors$linear("z"),
+    control = controlWith(),
+    n.trees = 5L
+  )
+}
+s <- binomialFit()
+before <- recordOf(s)
+kept <- fallbacks(
+  s$setPredictor(spreadOnce, "z", TRUE, updateStandardization = TRUE)
+)
+expect_identical(kept$warnings, keepText)
+expect_identical(recordOf(s), before)
+s <- binomialFit()
+expect_error(
+  s$setData(dbartsData(
+    matrixOf(spreadOnce),
+    counts = cbind(successes, heavy - successes)
+  )),
+  setDataRefusal,
+  fixed = TRUE
+)
+expect_identical(recordOf(s), before)
+# 20 more rows of real values give the column spread until setActiveRows
+# leaves them out
+extended <- function(...) {
+  dbarts::dbarts(
+    cbind(x1 = c(x1, runif(20L)), z = c(spreadOnce, runif(20L, 0.5, 1.5))),
+    c(y, rnorm(20L)),
+    weights = c(heavy, rep(1, 20L)),
+    leaf.prior = dbartsPriors$linear("z"),
+    control = controlWith(),
+    n.trees = 5L,
+    ...
+  )
+}
+active <- rep(c(1, 0), c(n, 20L))
+s <- extended(weights.type = "frequency")
+before <- recordOf(s)
+kept <- fallbacks(s$setActiveRows(active, updateStandardization = TRUE))
+expect_identical(kept$warnings, keepText)
+expect_identical(recordOf(s), before)
+s <- extended()
+kept <- fallbacks(s$setActiveRows(active, updateStandardization = TRUE))
+expect_identical(kept$warnings, character())
+expect_equal(
+  recordOf(s),
+  list(center = mean(spreadOnce), scale = sd(spreadOnce))
+)
+expect_error(
+  xbart(
+    matrixOf(spreadOnce),
+    y,
+    weights = heavy,
+    weights.type = "frequency",
+    leaf.prior = dbartsPriors$linear("z"),
+    n.reps = 1L,
+    n.samples = 2L,
+    n.burn = c(2L, 2L),
+    n.trees = 5L,
+    n.threads = 1L,
+    seed = 1L
+  ),
+  "in a fold of xbart, the leaf covariate \"z\" holds values whose spread",
+  fixed = TRUE
+)
+
+# a gp leaf stating its lengthscale records the column as the rows written
+# out record it: one value, its scale NA
+written <- rep(seq_len(n), heavy)
+gpStated <- dbartsPriors$gp("z", lengthscale = 0.5)
+s <- countsFit(
+  weights = heavy,
+  weights.type = "frequency",
+  leaf.prior = gpStated
+)
+writtenOut <- dbarts::dbarts(
+  cbind(x1 = x1[written], z = spreadOnce[written]),
+  y[written],
+  leaf.prior = gpStated,
+  control = controlWith(),
+  n.trees = 5L
+)
+expect_true(is.na(recordOf(s)$scale))
+expect_identical(recordOf(s)$scale, recordOf(writtenOut)$scale)

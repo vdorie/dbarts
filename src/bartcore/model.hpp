@@ -2440,17 +2440,33 @@ struct LeafStandardization {
 /// the values, center plus each, within rounding of the center
 /// (deviationIsRounding). A column at one value off the center has spread
 /// here, its rows all reading that value's distance. A row missing the
-/// covariate reads zero, so it counts at the center.
+/// covariate reads zero, so it counts at the center. \p counts, where not
+/// null, reads each row at its count, as the rows written out, a row of
+/// count 0 not read; where fewer than two rows have a positive count, every
+/// row is read, a count of 0 as 1, as a read-off falling back to every row
+/// reads them.
 inline bool standardizedColumnHasSpread(const double* u, std::size_t n,
                                         std::size_t stride, double sd,
-                                        double center) {
+                                        double center,
+                                        const double* counts = nullptr) {
   if (sd != 1.0) return true;
   std::size_t i = 0;
   while (i < n && u[i * stride] == 0.0) ++i;
   if (i == n) return false;
-  std::vector<double> values(n);
+  std::vector<double> values(n), lifted;
   for (i = 0; i < n; ++i) values[i] = center + u[i * stride];
-  return !deviationIsRounding(values.data(), n, center);
+  if (counts != nullptr) {
+    std::size_t numPositive = 0;
+    for (i = 0; i < n && numPositive < 2; ++i)
+      numPositive += counts[i] > 0.0 ? 1 : 0;
+    if (numPositive < 2) {
+      lifted.assign(counts, counts + n);
+      for (double& count : lifted)
+        if (count == 0.0) count = 1.0;
+      counts = lifted.data();
+    }
+  }
+  return !deviationIsRounding(values.data(), n, center, nullptr, counts);
 }
 
 /// Designated column \p j's center and scale as \p supplied gives them, a
@@ -2652,15 +2668,18 @@ struct LinearGaussianLeaf {
   const std::vector<double>& covariateSds() const { return sds_; }
   /// The centers and scales in force and, read off the gathered training
   /// covariates, which columns have spread: the mark is therefore true of
-  /// whatever values and constants the leaf holds when it is asked. One pass
-  /// over the training rows per column still at the placeholder scale, and
-  /// three where they do not all read zero.
-  LeafStandardization standardization() const {
+  /// whatever values and constants the leaf holds when it is asked, each row
+  /// read at its count in \p counts where not null, the counts its chain
+  /// reads the rows at (standardizedColumnHasSpread). One pass over the
+  /// training rows per column still at the placeholder scale, and three
+  /// where they do not all read zero.
+  LeafStandardization standardization(const double* counts = nullptr) const {
     LeafStandardization result{means_, sds_, {}};
     result.hasSpread.resize(numCovariates_);
     for (std::size_t j = 0; j < numCovariates_; ++j)
       result.hasSpread[j] = standardizedColumnHasSpread(
-        u_.data() + j, numObservations_, numCovariates_, sds_[j], means_[j]);
+        u_.data() + j, numObservations_, numCovariates_, sds_[j], means_[j],
+        counts);
     return result;
   }
 
@@ -3152,16 +3171,18 @@ struct GPGaussianLeaf {
   const std::vector<double>& covariateSds() const { return sds_; }
   /// The centers and scales in force and, read off the gathered training
   /// covariates, which columns have spread: the mark is therefore true of
-  /// whatever values and constants the leaf holds when it is asked. One pass
-  /// over the training rows per column still at the placeholder scale, and
-  /// three where they do not all read zero.
-  LeafStandardization standardization() const {
+  /// whatever values and constants the leaf holds when it is asked, each row
+  /// read at its count in \p counts where not null, the counts its chain
+  /// reads the rows at (standardizedColumnHasSpread). One pass over the
+  /// training rows per column still at the placeholder scale, and three
+  /// where they do not all read zero.
+  LeafStandardization standardization(const double* counts = nullptr) const {
     LeafStandardization result{means_, sds_, {}};
     result.hasSpread.resize(numCovariates_);
     for (std::size_t j = 0; j < numCovariates_; ++j)
       result.hasSpread[j] = standardizedColumnHasSpread(
         u_.data() + j * numObservations_, numObservations_, 1, sds_[j],
-        means_[j]);
+        means_[j], counts);
     return result;
   }
   const std::vector<double>& lengthscales() const { return lengthscales_; }

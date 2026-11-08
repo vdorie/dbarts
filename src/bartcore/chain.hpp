@@ -4505,6 +4505,13 @@ public:
     // every tree indexes rows the store no longer holds until it is re-routed
     markRebuildAt(0, 0);
 
+    // the old standardization, its mark read at the old rows' counts, before
+    // the weights and trials move to the new rows
+    LeafStandardization previousStandardization;
+    if constexpr (L::hasVectorParams)
+      previousStandardization =
+        forest.leaf.standardization(frequencyCounts());
+
     weights_ = weights;
     double previousSigmaScale = varianceScaleAnchor();
     double previousScale = response_->fitScale();
@@ -4539,11 +4546,10 @@ public:
     // structures still carry through the split remap.
     std::vector<double> held;
     if constexpr (L::hasVectorParams) {
-      LeafStandardization previous = forest.leaf.standardization();
       forest.leaf.reinitialize(
         data_, replacementStandardization(forest.leaf, replacement, held),
         leafRows);
-      convertLinearForest(forest, params, previous, kept);
+      convertLinearForest(forest, params, previousStandardization, kept);
     } else if constexpr (L::hasFunctionParams) {
       forest.leaf.reinitialize(
         data_, replacementStandardization(forest.leaf, replacement, held),
@@ -4651,7 +4657,8 @@ public:
   void convertLinearForest(Forest<L, ResidT>& forest, TreeParameters& blocks,
                            const LeafStandardization& previous,
                            SavedDrawSlots kept) {
-    LeafStandardization current = forest.leaf.standardization();
+    LeafStandardization current =
+      forest.leaf.standardization(frequencyCounts());
     if (previous == current) return;
     size_t numParams = forest.leaf.numParams();
     for (size_t t = 0; t < forest.numTrees; ++t)
@@ -4721,7 +4728,8 @@ public:
           : heldStandardization(forest.leaf, held, replaced);
       if constexpr (L::hasVectorParams) {
         size_t n = data_.numObservations;
-        LeafStandardization previous = forest.leaf.standardization();
+        LeafStandardization previous =
+          forest.leaf.standardization(frequencyCounts());
         forest.leaf.reinitialize(data_, supplied, leafRows);
         convertLinearForest(forest, forest.paramsByTree, previous, kept);
         misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
@@ -5573,7 +5581,8 @@ public:
       if constexpr (L::hasVectorParams || L::hasFunctionParams) {
         // a column without spread is written as absent rather than as the
         // placeholder 1 the leaf divides by
-        LeafStandardization standardization = forest.leaf.standardization();
+        LeafStandardization standardization =
+          forest.leaf.standardization(frequencyCounts());
         fs.leafCovariateCenters = standardization.centers;
         fs.leafCovariateScales = standardization.recordedScales();
       }
@@ -6835,6 +6844,11 @@ public:
 
   ext_rng* rng() const { return rng_; }
   const L& leaf() const { return forests_[0].leaf; }
+  /// The first forest's leaf standardization, its mark read at the counts
+  /// the chain reads the rows at (frequencyCounts).
+  LeafStandardization leafStandardization() const {
+    return forests_[0].leaf.standardization(frequencyCounts());
+  }
   /// The case weights in force, the host's, which every chain shares.
   const double* weights() const { return weights_; }
 
