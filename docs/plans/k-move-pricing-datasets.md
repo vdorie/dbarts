@@ -14,7 +14,7 @@ published papers were read.
 
 ## 1. What the datasets are for, and what that asks of them
 
-Real outcomes enter pricing twice. R2 (10 datasets, sized in the plan's [Sizing the real-data
+Real outcomes enter pricing twice. R2 (12 datasets, sized in the plan's [Sizing the real-data
 stages](k-move-pricing.md#sizing-the-real-data-stages)) carries step 2's real-data guard: each sampler's error at
 equal running time against a long reference run of the same posterior ([The real-data
 guard](k-move-pricing.md#the-real-data-guard)). R3 (every passer not in R2, the census read to its end first)
@@ -44,9 +44,9 @@ short (section 5).
 
 "Binary" in stages 1 and 2 is the suite's NumberOfClasses of 2. Stage 3's mechanics (one row per source under
 several names; different files of one source entering apart and flagged) are as the frame file records them.
-The frame file holds 538 rows (sha256 f6f3b0cb9780662fd9be71019da4baf37b536f84cbbbde89b521e242e4841055):
-113 entries from stages 1 to 3 after seen datasets and earlier-stage copies are removed, then the census in draw
-order.
+The frame file holds 538 rows (sha256 f6f3b0cb9780662fd9be71019da4baf37b536f84cbbbde89b521e242e4841055): the
+151 binary entries of stages 1 to 3 in stage order (rows 1 to 151, seen datasets and earlier-stage copies among
+them marked, 113 entering the screen), then the census's 387 entries in draw order (rows 152 to 538).
 
 **Seen.** The 22 real prediction datasets of the k study (tictactoe, banknote, mushroom, spambase, ionosphere,
 sonar, wdbc, climate, biopsy, magic, bank, adult, creditapproval, cleveland, pbc, kyphosis, pima, german,
@@ -109,14 +109,19 @@ data BART users often fit, and results hold for this frame only (Boulesteix, Wil
 ## 4. The covariate-only pre-fit check
 
 After the seal and before any score, one loader, committed before it runs, reads each passer's file, records its
-sha256 (checked at every later load), and removes the outcome column, named by the suite's default target or the
-donor's documentation, immediately after parsing. It keeps the columns the source lists as predictors: identifier
-columns, columns the donor marks as not predictors, and ignore attributes are dropped (Mammographic Mass's BI-RADS
-assessment, which its donor marks non-predictive). It sets each predictor's type, numeric or factor, as the donor
-lists it, and keeps the file's type where the donor lists none. Its committed report gives, from covariates only,
-the row and column counts against the listing (an unexplained mismatch fails, as a doubt that the file is the
-described data), missing values per column against the donor's, any value the suite filled, and columns after
-factor expansion.
+sha256 (checked at every later load), archives the file privately outside the tree, and removes the outcome column,
+named by the suite's default target or the donor's documentation, immediately after parsing. It keeps the columns
+the source lists as predictors: identifier columns, columns the donor marks as not predictors, and ignore
+attributes are dropped (Mammographic Mass's BI-RADS assessment, which its donor marks non-predictive). It sets each
+predictor's type, numeric or factor, as the donor lists it; where the donor lists none, or a type that is neither
+(an ordinal, a date-time), it keeps the file's type, numbers numeric and text a factor. Applied to every passer
+before the seal, this decides none (the screen file's types column): of the passers' donors only Mammographic
+Mass's lists such a type, its density ordinal and coded as integers, so numeric; two suite files hold text columns
+of a few levels (coil2000's age and contribution bands, seismic-bumps's hazard grade), factors either way; and of
+the entries screened that failed, Occupancy Detection's date-time is text, a factor of about 20,560 levels, which
+fails 6 after the 4 it fails first. Its committed report gives, from covariates only, the row and column counts
+against the listing (an unexplained mismatch fails, as a doubt that the file is the described data), missing values
+per column against the donor's, any value the suite filled, and columns after factor expansion.
 
 - **The listing** is the source's stated row count, or the suite's for a suite file. Where a source states two,
   the screen file names the one taken: Parkinsons lists 197 instances in its metadata and 195 recordings in its
@@ -167,7 +172,7 @@ auditor's finding that its negatives are constructed. Parkinson_Multiple_Sound_R
 no target and offers the class and the UPDRS score.
 
 **Flow**, each failure counted under its first failing criterion; stage 4's column is its first 80 draws, read
-on one screen, its first three candidates on two:
+on one screen, its first four candidates on two:
 
 | stage | 1 TabArena-v0.1 | 2 CC18 | 3 tier 2 | total, 1 to 3 | 4 census, 80 drawn |
 |---|---|---|---|---|---|
@@ -175,19 +180,20 @@ on one screen, its first three candidates on two:
 | seen | 4 | 12 | 11 | 27 | 2 |
 | already in an earlier stage | 0 | 4 | 7 | 11 | 11 |
 | entering | 26 | 19 | 68 | 113 | 24 |
-| fail 1, outcome | 0 | 3 | 22 | 25 | 7 |
+| fail 1, outcome | 0 | 3 | 22 | 25 | 6 |
 | fail 2, real data | 9 | 3 | 12 | 24 | 6 |
 | fail 3, provenance | 0 | 5 | 5 | 10 | 0 |
-| fail 4, size or share | 0 | 0 | 11 | 11 | 2 |
+| fail 4, size or share | 0 | 0 | 11 | 11 | 3 |
 | fail 5, license or file | 7 | 4 | 10 | 21 | 3 |
 | fail 6, feasibility | 1 | 0 | 0 | 1 | 1 |
-| pass | 9 | 4 | 8 | 21 | 5, 2 on two screens |
+| pass | 9 | 4 | 8 | 21 | 5, 3 on two screens |
 | of which at least 1,000 rows | 9 | 3 | 2 | 14 | 1, on one screen |
 
 The per-entry table is [k-move-pricing-screen.csv](k-move-pricing-screen.csv): each of the 113 entering entries of
 stages 1 to 3 and the 24 entering census entries read so far, in frame order, with its listing, its cell on each of
 the six criteria (P or F, an unread or unsettled cell failing), its result as pass or its first failing criterion,
-its second screen (done, or needed), and the source of the deciding cell (for a passer, its license, its share's
+its second screen (done, or needed if step 3 runs), for a passer the predictor types read from its donor or
+suite record (section 4), and the source of the deciding cell (for a passer, its license, its share's
 source and any recorded edit, concatenation or missingness).
 
 **The second screen** of the seven passers that rested on one screener read each on all six criteria without this
@@ -250,42 +256,46 @@ figure is 43, 24 with at least 1,000 rows.
 the census ends, each census entry screened by section 3 by two auditors; no dataset is added by hand. It runs on
 documentation before the seal, so the sealed list is whole, and its second screens are sealed with it. The census's
 first 80 draws were read by the second auditor under the first rule and re-read under section 3, with the four
-licenses that auditor left unread read from their UCI pages (all CC BY 4.0); a second screen then read the first
-three candidates in draw order:
+licenses that auditor left unread read from their UCI pages (all CC BY 4.0); a second screen then read the
+candidates in draw order to the third pass:
 
 | frame | dataset | rows | share | first screen | second screen |
 |---|---|---|---|---|---|
 | 152 | Toxicity (UCI 728) | 171 | 0.327 | pass | pass |
-| 188 | Occupancy Detection (UCI 357) | 20,560 | | fails 4: share not established | fails 1 |
+| 188 | Occupancy Detection (UCI 357) | 20,560 | | fails 4: share not established | fails 4, and 6 |
 | 193 | Bone marrow transplant: children (UCI 565) | 187 | 0.450 | fails 4: share not established | pass, share settled |
-| 200 | Mammographic Mass (UCI 161) | 961 | 0.463 | pass | next |
-| 207 | Mesothelioma (UCI 351) | 324 | | fails 4: share not established | queued: may settle the share |
-| 211 | SECOM (UCI 179) | 1,567 | 0.066 | pass | queued |
-| 222 | Vertebral Column, two-class file (UCI 212) | 310 | 0.323 | pass | queued |
+| 200 | Mammographic Mass (UCI 161) | 961 | 0.463 | pass | pass, a class-count doubt recorded |
+| 207 | Mesothelioma (UCI 351) | 324 | | fails 4: share not established | if step 3 runs: may settle the share |
+| 211 | SECOM (UCI 179) | 1,567 | 0.066 | pass | if step 3 runs |
+| 222 | Vertebral Column, two-class file (UCI 212) | 310 | 0.323 | pass | if step 3 runs |
 
 The second screen's readings, set against the rule as written:
 - Toxicity passes. Its page offers a second file of 13 features, the donors' feature selection on the outcome;
   the file is the one holding the 1,203 predictors the source lists.
-- Occupancy Detection fails 1. Its date predictor is listed as a date-time, neither numeric nor factor, so section
-  4's types give it none, and entering it as a number, as the screener read it, is a choice of this study's, which
-  criterion 1 excludes; kept as the file's text it is about 20,560 levels and fails 6. The screener recorded that
-  doubt, and a second on the share, which only the donor's script comments give, per file and not for the file
-  used. Either doubt fails it.
-- Bone marrow transplant: children passes. The page lists its predictors twice, 36 in the repository's variable
-  table and 38 in the donors' own list, and the donors' two papers give 37 conditional attributes beside the
-  survival time, agreeing with the donors' list; as with Parkinsons (section 4), the description the donors and
-  their papers agree on is the listing, so the loader must find 38 predictors or the entry fails. Its share is
-  the donors' paper's, 55 percent of the 187 censored (Wrobel, Gudys and Sikora 2017), a share of one class, which
-  criterion 4 accepts.
+- Occupancy Detection fails 4. No source lists the share of the file used: the donor's script comments give it per
+  file only, and the screener recorded that doubt, which bears on a kept criterion. Its date predictor is listed as
+  a date-time, neither numeric nor factor; under section 4 it keeps the file's text type, a factor of about 20,560
+  levels, so it would fail 6 as well. Its outcome passes 1: an encoding is not a choice of target.
+- Bone marrow transplant: children passes. Its target is the repository's default (survival_status), so
+  criterion 1's no-default clause does not apply. The listing taken is 38 predictors: the 37 conditional
+  attributes both donor papers give (Wrobel, Gudys and Sikora 2017, Table 1; Sikora, Wrobel and Gudys 2019) and
+  survival_time, as the repository's roles enter it. survival_time is a leak for the status, a dropped matter that
+  fails nothing. The other counts are recorded beside it, as Parkinsons's two counts are (section 4): the
+  repository table's 36 features, survival_time among them; the donors' list of 39 entries, which adds
+  survival_status; and the 2017 paper's text count of 42. A file holding other than 38 predictors fails the
+  pre-fit check, and the census continues before the draw. Its share is the 2017 paper's, 55 percent of the 187
+  censored, a share of one class, which criterion 4 accepts.
+- Mammographic Mass passes. Its donor lists 516 benign and 445 malignant, its originating paper 515 and 446 (Elter,
+  Schulz-Wendtland and Wittenberg 2007): one case, the rows agreeing at 961 and the share 0.463 or 0.464 by either.
+  The doubt bears on no criterion's verdict and is recorded, not failed, as Internet-Advertisements's one-row class
+  difference is. Its density is listed ordinal, kept as the file's integer codes under section 4.
 - Two further readings apply to every entry and change none: the sha256 is the loader's to record (criterion 5),
   since no file is fetched before the seal; and a repository holding the creators' own deposit is the originating
   repository (criterion 5's terms), as every UCI license in section 5 was read.
 
 Every other census entry among the first 80 draws fails on a fact or a recorded doubt that a second screen cannot
-reverse (Record Linkage, for one, lists 20,931 matches among 5,749,132 pairs, a share of 0.004). The pool is 23,
-14 with at least 1,000 rows. One more passer is needed: the second screen reads Mammographic Mass next, then
-Mesothelioma, SECOM and the two-class Vertebral Column in draw order, stopping at the first that passes both
-screens; if none does, the census continues past frame row 231 under both screens. The pool sealed is then 24.
+reverse (Record Linkage, for one, lists 20,931 matches among 5,749,132 pairs, a share of 0.004). The pool is 24,
+14 with at least 1,000 rows, and the census stops there for R2.
 
 **If step 3 runs**, the census is read on in draw order to its end (frame row 538) under both screens before any R3
 file is loaded, and every further passer joins R3: R3 is every passer of the frame not in R2 (the plan's [Sizing
@@ -305,9 +315,9 @@ score; if the census ends short, the guard and the test run at the counts that p
    classification tree, `xval = 0`, the AUC taken as at least 0.5), on its fitted rows (item 5), with the folds of
    the code below in place of that function's keyed seed, and keeps it sealed until step 3 starts.
 3. **R2** is drawn from all passers. Sorted by score ascending, ties by frame order, passer of rank r is in block
-   ceiling(n2 r / N); one is drawn from each block. n2 is 10, set by the plan's sizing
+   ceiling(n2 r / N); one is drawn from each block. n2 is 12, set by the plan's sizing
    ([Sizing the real-data stages](k-move-pricing.md#sizing-the-real-data-stages)); at 24 passers R2's blocks hold
-   2 or 3. **R3** is every passer not in R2, with the census's further passers if step 3 runs (section 5), and is
+   2 each. **R3** is every passer not in R2, with the census's further passers if step 3 runs (section 5), and is
    not drawn. No passer is held in reserve (item 6).
 4. **The code**, in R 4.6, fixed now, with `frame` a dataset's frame order, `n` its rows after section 4, and `ord`
    the passers' names in score order:
@@ -329,7 +339,7 @@ score; if the census ends short, the guard and the test run at the counts that p
      o[vapply(seq_len(k), function(j) { i <- which(b == j); i[sample.int(length(i), 1L)] }, 1L)]
    }
    rng(20261108L)
-   r2 <- drawBlocks(ord, 10L)
+   r2 <- drawBlocks(ord, 12L)
    r3 <- ord[!ord %in% r2]
    ```
 
@@ -339,14 +349,15 @@ score; if the census ends short, the guard and the test run at the counts that p
    guard's reading is committed and are then read only for the held-out score, framing nothing.
 6. **No reserves.** The pre-fit check (item 1) runs before the draw, and a shortfall it leaves is met by the
    census, so every drawn file has already loaded and matched its listing. A file that fails to reload after the
-   draw is fetched again from its recorded address and checked against its recorded sha256; one that cannot be is
-   reported unresolved and not replaced. Nothing that fails or misbehaves after a score or a fit is replaced; a
-   reference that fails its checks leaves the dataset unresolved, reported.
+   draw is restored from the loader's private archive, or fetched again from its recorded address, and checked
+   against its recorded sha256; one that cannot be is reported unresolved and not replaced. Nothing that fails or
+   misbehaves after a score or a fit is replaced; a reference that fails its checks leaves the dataset unresolved,
+   reported.
 7. **Scores of 0.995 or more stay in**, in the top block, and every reading is also given without them: users fit
    such data, and the plan's rejection of them was a rule for drawing simulated truths.
 8. **Order of reading.** The assignment is committed before step 2 runs. The whole of step 3 (the trigger itself,
-   computed mechanically from step 2's simulated fits, the need-the-move rule, the pass rule, the fewer-than-3
-   rule and R3's size) is committed before any reading of R2 is opened; R2's references and fits may run earlier,
+   computed mechanically from step 2's simulated fits, the need-the-move rule, the refutation rule and
+   R3's size) is committed before any reading of R2 is opened; R2's references and fits may run earlier,
    their summaries held closed. Step 2's report waits for that commit. Then R2's datasets, read for the guard, can
    also serve step 3's test, which reads every passer; any later amendment of step 3 drops R2 from it. The
    guard's reading is committed before the prediction rows' outcomes are unsealed.
@@ -367,20 +378,20 @@ Each is the study's own; the report says so.
 | analcatdata's shared doubt | one doubt applied to the book's four files | screen each file alone (boxing1 and creditscore would pass) |
 | the license standard | a statement of release for public or research use counts as terms; a citation request alone does not | an explicit license or terms of use only, or a citation request counted as terms |
 | curated suite files | a suite's curated file is the file, its row edits recorded | fail any entry whose suite file differs from its source by row edits |
-| no reserves | the pre-fit check before the draw, the census meeting its shortfall; a file lost after the draw re-fetched or reported unresolved | a fixed count of reserves, which the pre-fit check's unknown rate cannot size |
+| no reserves | the pre-fit check before the draw, the census meeting its shortfall; each file archived at its first download, a file lost after the draw restored, re-fetched or reported unresolved | a fixed count of reserves, which the pre-fit check's unknown rate cannot size |
+| a type neither numeric nor factor | the file's type kept, numbers numeric and text a factor | each such type read as a screener judges it |
 
 ## 8. Calls
 
 Made here, each with its alternative. Counts are of stages 1 to 3 (21 pass, 14 with at least 1,000 rows; with the
-census's two passers so far, 23 and 14); an alternative that removes a passer makes stage 4 read that much deeper
+census's three passers, 24 and 14); an alternative that removes a passer makes stage 4 read that much deeper
 into the census.
 1. The screen keeps outcome, real data, provenance, size, license and feasibility, and drops the rest (section 3).
    Alternative: keep the predictive screen, under which the pool held 7 passers, 2 with at least 1,000 rows,
    against the 24 the readings need.
 2. R2 draws from passers of every size. The 1,000-row floor existed so a test fold held 200 rows, and the guard
-   reads no test fold. Alternative: keep the floor (14 eligible so far, so R2 at 10 would take most of them, its
-   blocks holding 1 or 2); R2 would then reach larger real fits, beside step 2's simulated regimes, which are mostly
-   under 1,000 rows.
+   reads no test fold. Alternative: keep the floor (14 eligible, of which R2 at 12 would take 12); R2 would then
+   reach larger real fits, beside step 2's simulated regimes, which are mostly under 1,000 rows.
 3. The loader keeps the predictors as the source lists them (section 4). Alternative: drop only the outcome, which
    keeps columns a donor marks as not predictors, such as Mammographic Mass's BI-RADS assessment.
 4. Licenses unread by the second auditor were read here (section 5), under one standard for every entry: a license,
@@ -424,19 +435,22 @@ into the census.
 16. Stage 4 runs on documentation before the seal, since the pool is already short there, and its two screens are
     sealed with the list. Alternative: seal the 21 and run stage 4 after the seal under the sealed rule, which
     seals a list known to be short.
-17. The census's second screen is read against the rule as written (section 5). Occupancy Detection fails 1, its
-    date-time predictor having no type under section 4 and a numeric reading being this study's choice; Bone
-    marrow transplant: children passes on the donors' predictor list, which their two papers agree with, as
-    Parkinsons's listing follows its description. Alternatives: Occupancy entered with its date-time as a number,
-    as its screener read it (24 pass, 15 large, the census done for R2), which also needs the donor's per-file
-    script comments read as a listed share; or Bone marrow failed on its two predictor lists as a recorded doubt
-    (22 pass, the census read two passers deeper).
+17. The census's second screen is read against the rule as written (section 5). Occupancy Detection fails 4, its
+    share stated only per file; Bone marrow transplant: children passes on 38 predictors, the donors' 37
+    conditional attributes and survival_time, its other counts recorded; Mammographic Mass passes, its one-case
+    class-count difference recorded. Alternatives: Occupancy entered with its date-time as a number and the donor's
+    per-file script comments read as a listed share (25 pass, 15 large); Bone marrow failed on its several counts
+    as a recorded doubt (23 pass, the census read deeper); or Mammographic Mass failed under 5 on its class-count
+    doubt, which by one rule for one case also fails Internet-Advertisements (22 pass, the census read deeper).
+18. A predictor type the donor lists that is neither numeric nor factor keeps the file's type (section 4), applied
+    to every passer and deciding none. Alternative: read each such type as its screener judged it, a date-time as a
+    number and an ordinal as numeric, a choice of this study's made entry by entry, which criterion 1 excludes.
 
 For the maintainer, with dec-B635's decision, after an independent referee's check of the sizing and before the
 seal: the rule and the list as a whole. The sizes are not put to the maintainer: as ruled (dec-B667), they are set
 by a sample-size justification in the plan's
-[Sizing the real-data stages](k-move-pricing.md#sizing-the-real-data-stages), R2 at 10 for the guard's assurance
-of 0.8 and R3 every other passer by a stated resource constraint.
+[Sizing the real-data stages](k-move-pricing.md#sizing-the-real-data-stages), R2 at 12 for the guard's assurance
+of 0.8 and R3 every other passer, the frame measured whole.
 
 ## References
 
