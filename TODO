@@ -238,13 +238,6 @@ items
     samplePriorPredictive already draws f from the prior at x.test; the
     helper would summarize it, or compute it in closed form where one
     exists (constant, linear).
-  matrix-fit-frame-test: a data frame given as test data to any fit is
-    read by name as a frame fit reads it, the training names taken
-    and extra columns ignored, a missing or renamed column refused as
-    now; a matrix keeps its exact width. It applies at predict, at
-    test = and at $setTestPredictor; the training-data setters keep
-    dec-B478's refusal (dec-B711). About 5 to 10 lines, a few tests
-    and a NEWS line; nothing that runs today moves.
   monotone-repair-merge: setPredictor, setData, setCutPoints and
     setState under forceUpdate, and the warm start, repair a monotone
     tree whose order a call breaks by merging leaves where it breaks, at

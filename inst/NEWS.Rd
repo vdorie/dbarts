@@ -169,6 +169,13 @@
             \code{split.probs = c(x2 = 0.9)}, is refused for the columns it
             leaves out, as any named vector is; 0.9-34 fit it with equal
             probabilities and no message.
+      \item Test data frames. A data frame given as test data
+            (\code{test}, \code{predict}'s \code{newdata},
+            \code{$setTestPredictor}) to a fit made from a matrix is read
+            by name,
+            as a formula fit reads one, and columns beyond the training
+            predictors are ignored; 0.9-34 refused the extra columns on
+            such a fit. A matrix keeps its exact width.
       \item Offsets. An offset that is not numeric, a logical or a factor,
             is refused when fitting and by \code{predict}; 0.9-34 coerced
             it, a factor to its level codes. An offset that is all

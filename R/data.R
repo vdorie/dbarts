@@ -1940,6 +1940,17 @@ validateXTest <- function(
   }
   testFactorLevels <- NULL
   if (is.data.frame(x.test)) {
+    # a fit made from a matrix is given a frame as a frame fit is: every
+    # training name among its columns is taken by name and the rest are
+    # ignored; a missing name falls through to the refusals below
+    if (
+      is.null(termLabels) &&
+        !is.null(predictorNames) &&
+        anyDuplicated(predictorNames) == 0L &&
+        all(predictorNames %in% names(x.test))
+    ) {
+      x.test <- x.test[predictorNames]
+    }
     refusePOSIXltColumns(x.test, predictorDataNames(x.train))
     x.test <- densifyUnheldSparseColumns(x.test, x.train)
     # captured before any re-expansion below: on the indicators route
