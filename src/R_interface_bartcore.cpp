@@ -65,14 +65,14 @@ using bartcore_bridge::validateTestContainerAgainstStore;
 namespace {
 
 // The external pointer's protection slot holds exactly the R vectors the
-// engine keeps pointers into for the sampler's life (pinBorrowedSlices below):
-// a CSC build's store keeps each column's slice of the dgCMatrix's @i and @x
-// until the column is first mutated, so those two vectors are held there, and
-// a dense build, which keeps no pointer into R memory, holds nothing. Every
-// other value the engine keeps lives in a holder-owned buffer (adoptVector
-// below) or in the store's owned codes. The data object itself is not held:
-// the sampler's data field keeps it, a saved pointer then writing only a
-// sparse build's two vectors.
+// engine keeps pointers into (pinBorrowedSlices below): a CSC build's store
+// keeps each column's slice of the dgCMatrix's @i and @x until the column is
+// first mutated, so those two vectors are held there until every CSC column
+// owns its values (releaseOwnedSlices), and a dense build, which keeps no
+// pointer into R memory, holds nothing. Every other value the engine keeps
+// lives in a holder-owned buffer (adoptVector below) or in the store's owned
+// codes. The data object itself is not held: the sampler's data field keeps
+// it, a saved pointer then writing at most a sparse build's two vectors.
 enum {
   PROT_BORROWED = 0,
   PROT_COUNT
@@ -109,6 +109,19 @@ void pinBorrowedSlices(SEXP ptrExpr, SEXP dataExpr) {
   SET_VECTOR_ELT(slicesExpr, 1, Rf_getAttrib(sparseExpr, Rf_install("x")));
   SET_VECTOR_ELT(R_ExternalPtrProtected(ptrExpr), PROT_BORROWED, slicesExpr);
   UNPROTECT(1);
+}
+
+// Empties the slot pinBorrowedSlices fills once every CSC-backed column of
+// \p data holds its values in owned buffers. Called when a mutation call
+// returns: a column's first update moves its values there, its transaction's
+// rollback finishing inside the call, and nothing later returns a column to
+// its borrowed slice, so the store then points into no R memory.
+void releaseOwnedSlices(SEXP ptrExpr, const bartcore::ColumnStore& data) {
+  SEXP protExpr = R_ExternalPtrProtected(ptrExpr);
+  if (VECTOR_ELT(protExpr, PROT_BORROWED) == R_NilValue) return;
+  for (size_t j = 0; j < data.numPredictors; ++j)
+    if (data.columnIsCscBacked(j) && data.cscColumnOwned[j] == 0) return;
+  SET_VECTOR_ELT(protExpr, PROT_BORROWED, R_NilValue);
 }
 
 void holderFinalizer(SEXP ptrExpr) {
@@ -8206,9 +8219,10 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
         result == bartcore::PredictorUpdateResult::accepted)
       kept = rederiveOrRelease(holder, "$setPredictor", nullptr,
                                tooFewUnitsFromExpression(tooFewUnitsExpr));
-    // the engine re-quantized the values into owned codes and retains no
-    // pointer; the R method reassigns sampler$data@x, which keeps the current
-    // source alive
+    // the engine copied the values into owned codes and buffers and keeps no
+    // pointer into xExpr; a CSC store now owning every column lets go of its
+    // creation slices
+    releaseOwnedSlices(ptrExpr, holder.sampler->data());
     return predictorUpdateAnswer(
       holder, result == bartcore::PredictorUpdateResult::accepted, kept);
   });
@@ -8284,6 +8298,7 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
       kept = rederiveOrRelease(holder, "$setPredictor", replaced.data(),
                                tooFewUnitsFromExpression(tooFewUnitsExpr));
     }
+    releaseOwnedSlices(ptrExpr, holder.sampler->data());
     return predictorUpdateAnswer(
       holder, result == bartcore::PredictorUpdateResult::accepted, kept);
   });

@@ -398,11 +398,14 @@ owned block - is gone, and a designated leaf covariate among them costs the
 gather instead.
 
 R-protection lifetime anchoring (`R_interface_bartcore.cpp`): the external
-pointer carries a fixed set of protection slots (`PROT_DATA`,
-`PROT_RESPONSE`, ...; `line 41`). Predictors are NOT among them: the
-engine owns its codes and the R data object (`PROT_DATA` at creation, plus
-the live `sampler$data` the R methods hold) is the sole predictor GC
-anchor - there is no `PROT_PREDICTORS`. The mixed container needs no
+pointer's protection slot (`PROT_BORROWED`) holds exactly the R vectors the
+store points into, a CSC build's `@i` and `@x` (of the data's dgCMatrix, or of
+a mixed container's sparse part; `pinBorrowedSlices`), and nothing for dense
+data, whose values the store copies into its codes. The data object itself is
+not held, so `sampler$data` is no anchor for the store: a CSC column's update
+replaces `data@x` on the R side, and the creation vectors then live on the
+slot alone. Once every CSC column owns its values the slot is emptied
+(`releaseOwnedSlices`). The mixed container needs no
 lifetime special-casing here: the store COPIES what it keeps of its
 transiently assembled dense values (`ParsedData.denseAssembly`) into
 `ownedDenseValues` during `build`, so the assembly need only survive the
@@ -416,7 +419,7 @@ funnels, and the READ-ONLY test funnel (`parseTestSource`, shared by
 consumer reads the view a column at a time. The mutation entrances are the
 exception and assemble one block of doubles, which their kernels index
 column-major. The CSC slots borrow R container memory instead, valid while
-`dataExpr` stays protected.
+the pointer's slot holds those vectors.
 
 This borrow-and-anchor arrangement is an UNDOCUMENTED CONTRACT for any
 non-R host. The `python-bindings` TODO entry records it: host-side

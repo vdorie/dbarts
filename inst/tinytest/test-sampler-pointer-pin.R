@@ -1,8 +1,9 @@
 # The engine pointer holds exactly the R vectors its store points into: a CSC
-# build's @i and @x, which R must neither free nor change while the sampler
-# lives, and nothing for a dense build, so a saved dense sampler writes its
-# data once. A finalizer on an environment a data object carries says when
-# the object is freed.
+# build's @i and @x, which R must neither free nor change while a column
+# quantizes from them, until every CSC column owns its values, and nothing
+# for a dense build, so a saved dense sampler writes its data once. A
+# finalizer on an environment a data object carries says when the object is
+# freed.
 
 if (!requireNamespace("Matrix", quietly = TRUE)) {
   exit_file("Matrix not available")
@@ -79,6 +80,23 @@ expect_true(
   length(serialize(sampler.sparse$pointer, NULL)) >=
     slicesBytes(sampler.sparse$data@x)
 )
+expect_true(
+  length(serialize(sampler.sparse$pointer, NULL)) <
+    slicesBytes(sampler.sparse$data@x) + 1024L
+)
+
+# a whole $setPredictor leaves every column owning its values, so the
+# pointer lets the creation vectors go; later updates and a run read only
+# what the store owns
+x.next <- x.dense
+x.next[x.next == 0] <- 7
+sampler.sparse$setPredictor(x.next, forceUpdate = TRUE)
+expect_true(length(serialize(sampler.sparse$pointer, NULL)) < 1024L)
+invisible(gc(full = TRUE))
+sampler.sparse$setPredictor(x.dense[, 2L], column = 2L, forceUpdate = TRUE)
+expect_equal(as.matrix(sampler.sparse$data@x)[, 2L], x.dense[, 2L])
+expect_true(all(is.finite(sampler.sparse$run(0L, 5L)$sigma)))
+rm(sampler.sparse)
 
 set.seed(42L)
 n.mixed <- 400L
@@ -109,6 +127,9 @@ sampler.mixed <- dbarts(
 )
 creationBytes <- slicesBytes(sampler.mixed$data@x$sparse)
 expect_true(length(serialize(sampler.mixed$pointer, NULL)) >= creationBytes)
+expect_true(
+  length(serialize(sampler.mixed$pointer, NULL)) < creationBytes + 1024L
+)
 
 # a CSC column's update splices a new sparse part into data@x, leaving the
 # creation vectors to the pointer alone; a collection then must not free
@@ -122,14 +143,18 @@ invisible(gc(full = TRUE))
 sm1.new <- sm.dense[, 1L] * 2
 sampler.mixed$setPredictor(sm1.new, column = 4L, forceUpdate = TRUE)
 invisible(gc(full = TRUE))
+expect_true(length(serialize(sampler.mixed$pointer, NULL)) >= creationBytes)
+# column 5 is the last CSC column still reading its creation slice; once it
+# owns its values the pointer holds nothing
 sampler.mixed$setPredictor(
   sm.dense[, 2L] + 0.5,
   column = 5L,
   forceUpdate = TRUE
 )
+expect_true(length(serialize(sampler.mixed$pointer, NULL)) < 1024L)
+invisible(gc(full = TRUE))
 expect_equal(as.matrix(sampler.mixed$data@x)[, 3L], sv.new)
 expect_equal(as.matrix(sampler.mixed$data@x)[, 4L], sm1.new)
-expect_true(length(serialize(sampler.mixed$pointer, NULL)) >= creationBytes)
 expect_true(all(is.finite(sampler.mixed$run(0L, 5L)$sigma)))
 rm(sampler.mixed)
 
