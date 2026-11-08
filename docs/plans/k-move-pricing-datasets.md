@@ -64,7 +64,7 @@ counts each failure under its first failing criterion in the order below.
 |---|---|---|---|
 | 1 | **Outcome.** The binary task as the originating study or donor defined it, with its predictors as the source lists them; no merge, threshold or choice of target made by a later curator or by this study. A source with several candidate targets and no default fails. A suite's curated file is the file: its curators' row edits (duplicates removed, a corrupt row dropped) are allowed and recorded in the screen file, since they choose no target and no predictor. | CC18 excludes transformed targets (Bischl et al. 2021, section 6.1); AMLB excludes binarized tasks (Gijsbers et al. 2024); TabArena criterion 5 (Erickson et al. 2025) | a target or threshold of our choosing is a choice that could shape the posterior, even made blind |
 | 2 | **Real data.** Not generated, simulated or augmented, with a named originating study or donor. | CC18 (a) and (d); TabArena criterion 4 | the maintainer's rule asks for interesting real problems; simulated data are what step 2's drawn truths already are |
-| 3 | **Provenance.** Not from the same source, institution, collection or patients as a seen dataset; one dataset per source in the pool, the earliest in frame order kept. | TabArena criterion 1; CC18 (b) | the held-out rule (dec-B530); two files of one source are one posterior twice |
+| 3 | **Provenance.** Not from the same source, institution, collection or patients as a seen dataset; one dataset per source in the pool: of a source's entries, the earliest in frame order that passes every other criterion is kept (spect over spectf, which fails 5; rice over Pumpkin_Seeds, which fails 5). | TabArena criterion 1; CC18 (b) | the held-out rule (dec-B530); two files of one source are one posterior twice |
 | 4 | **Size and outcome share.** At least 100 rows and a listed minority share of at least 0.01. | CC18 (a), (c), (d) and TabArena criterion 6 set higher floors | keeps the small samples and rare outcomes the move is priced on; the floors are ours |
 | 5 | **License and file.** The originating terms permit research use, read and recorded with their address. Terms are a license, or the originator's or originating repository's statement that the data are released for public or research use. "None", "N/A", a blank, a re-upload's license field alone, a citation request alone, or competition rules silent on reuse fail. A stable versioned file with a recorded sha256; a source of several files enters as their concatenation (section 4). | TabArena criterion 8; CC18 "publicly licenced" | a precondition of using the data at all |
 | 6 | **Feasibility.** At most 2,000 columns after expanding factors, from the listed feature metadata. | CC18 (b), fewer than 5,000 features | the reference runs' cost; the cap is ours |
@@ -303,7 +303,7 @@ Each is the study's own; the report says so.
 |---|---|---|
 | the dropped criteria | the argument of section 3 | the first rule's full predictive screen, which passed 7 of 231 |
 | the 100-row and 0.01-share floors, the 2,000-column cap | keep small samples and rare outcomes; bound the reference's cost | the suites' floors of 500 rows and 0.05 share |
-| the one-per-source tie rule | earliest in frame order | a seeded draw among a source's files |
+| the one-per-source tie rule | the earliest in frame order that passes every other criterion | the earliest in frame order outright, which fails spect behind spectf (25 pass) |
 | the separation score and its blocks | the k study's rpart AUC, R2 and R3 stratified on it | stratify by size or outcome rate |
 | the doubt-fails screen | any recorded doubt fails | list doubted entries apart and read with them as a sensitivity analysis |
 | analcatdata's shared doubt | one doubt applied to the book's four files | screen each file alone (boxing1 and creditscore would pass) |
@@ -346,7 +346,8 @@ Made here, each with its alternative:
 
 For the maintainer, with dec-B635's decision, before the seal: the rule and the list as a whole; R3's size (12, or
 every passer not in R2), which the shared reading of section 6 makes 18 or 26 datasets in step 3's test; and R2's
-size (6, or 9, recommended, at which the guard reads with probability about 0.92 against 0.6; the plan's call 7).
+size (6 or 9). The options and their costs are laid out in the plan's call 7; the planner recommends R2 at 9 and R3
+at 12, at which the guard reads with probability about 0.9 against about 0.6 at 6.
 
 ## References
 

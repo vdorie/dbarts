@@ -100,7 +100,7 @@ frame,stage,source_id,dataset,rows,minority_share,outcome,real,provenance,size_s
 137,3,Kaggle,Gender_Gap_in_Spanish_WP,,,F,P,P,P,P,P,fail 1,,TabArena curation record row 522: not a predictive task
 138,3,UCI 887,NHANES_age_prediction,6287,,P,P,P,P,P,P,pass,needed,"archive.ics.uci.edu/dataset/887 (CC BY 4.0, read 2026-11-07); RIDAGEYR, listed as Other, dropped by the loader"
 139,3,UCI 301,Parkinson_Multiple_Sound_Recording,1040,,F,P,P,P,P,P,fail 1,,source lists no target; offers the class and the UPDRS score
-140,3,Kaggle,Pumpkin_Seeds,,,P,P,P,P,F,P,fail 5,,originating terms not read; unread terms fail
+140,3,Kaggle,Pumpkin_Seeds,,,P,P,P,P,F,P,fail 5,,creator page muratkoklu.com/datasets read: a citation request and no terms; the Kaggle page could not be read; a citation request alone fails
 141,3,Kaggle,golf_play_dataset_extended,,,P,F,P,P,F,P,fail 2,,teaching data
 142,3,OpenML 43892,national-longitudinal-survey-binary,4908,0.378,F,P,P,P,F,P,fail 1,,OpenML 43892: target binarized from income90 by a later curator
 143,3,UCI 545,rice_cammeo_and_osmancik,3810,,P,P,P,P,P,P,pass,,"archive.ics.uci.edu/dataset/545 (CC BY 4.0, read 2026-11-07)"
