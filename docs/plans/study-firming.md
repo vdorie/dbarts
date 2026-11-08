@@ -14,7 +14,7 @@ rng: the studies change no package code. Every run is on one 1.0 library in ship
 setting, never a build.
 window: before 1.0-0. The logistic k study's Part D waits for k-move-pricing's ruling on the move (dec-B634).
 Studies run one at a time on the box.
-budget: about 31 core-hours expected over the five, about 46 at most, before the options in
+budget: about 31 core-hours expected over the five, about 46.5 at most, before the options in
 [For the maintainer](#for-the-maintainer) ([Sizing](#sizing)); each study's harness a few hundred lines of R,
 much of it reused from the landed studies'.
 
@@ -181,11 +181,12 @@ translates the same way to k of about 2.72, 1.55 and 0.91.
   1.5 and 3.5, n 200, 1000 and 4000: 18 cells, 100 replications, the same arms less BART-cv.
 - Probit, optional: Part D's cells under the probit family, the same arms.
 
-**Readings.** Part C as CGM: per split, an arm's AUC loss (one minus AUC) over the best arm's, as CGM 5.3 reads
-AUC, and the same for log loss and Brier score, which are the study's own choice for "calibrate probabilities"
-(alternative: AUC alone, or Murray's accuracy); boxplots over datasets and splits, the table of 50 and 75 percent
-quantiles; beside them, the default against BART-cv in Murray's Figure 4 form, and a per-dataset paired Wilcoxon
-of the default against BART-cv, an adaptation of Murray's Table 1 tests; CGM's ANOVA. Log loss near zero on
+**Readings.** Part C as CGM: raw AUC per arm with CGM 5.3's one-way ANOVA blocked by replicate (Table 5); beside
+it, per split, an arm's AUC loss (one minus AUC) over the best arm's, the project's own adaptation of CGM 5.1's
+relative form, and the same for log loss and Brier score, which are the study's own choice for "calibrate
+probabilities" (alternative: AUC alone, or Murray's accuracy); boxplots over datasets and splits, the table of 50
+and 75 percent quantiles; beside them, the default against BART-cv in Murray's Figure 4 form, and a per-dataset
+paired Wilcoxon of the default against BART-cv, an adaptation of Murray's Table 1 tests. Log loss near zero on
 separable data makes ratios unstable, so the paired differences are shown beside them. Part D: coverage of 95
 percent intervals for the probability at test points, RMSE of the probability, bias, width.
 
@@ -430,7 +431,7 @@ over test points ([Common to every study](#common-to-every-study)). Targets are 
 | A2 | C | 22 datasets x 20 splits (10, 20) | 3.5 | 5.3 | median relative loss 0.005 at full | stored splits | 0.01 | met at 20 |
 | A2 | D | 18 cells x 3 x 100 (50, 100) | 7.0 | 10.5 | 0.028 / 0.020 at median s 0.10; 0.053 / 0.037 at s 0.19 | k study's simulated cells | 0.02 | 350 at s 0.19 |
 | A1 | A, B | none | 0.1 | 0.1 | | | | |
-| A1 | C, truths | 22 cells x 3 x 20 (10, 20) | 2.0 | 3.0 | fitted means 0.016 / 0.011 at s 0.026; group means 0.068 / 0.048 at s 0.11 | stored replications | 0.05 | 138 at the largest s, 0.30 |
+| A1 | C, truths | 22 cells x 3 x 20 (10, 20) | 2.0 | 3.0 | fitted means 0.016 / 0.011 at s 0.026; group means 0.068 / 0.048 at s 0.11 | stored replications | 0.05 | 148 at the largest s, the rate ratios' 0.31 |
 | A1 | C, folds | 11 x 10 folds x 3 arms | 1.3 | 1.9 | log loss, reported | | none | full size |
 | A3 | IHDP | 12 x 2 x 200 (100, 200) | 4.0 | 6.0 | SATT 0.043 / 0.030 | eq. (1) | 0.03 | met at 200 |
 | A3 | half-curved | 100 seeds x 2 (50, 100) | 0.3 | 0.5 | group-effect error 2% | landed spread | 3% | met at 100 |
@@ -486,11 +487,16 @@ recommendation and nothing runs on it until ruled.
    title and claims to the tree prior under "joint"; no cost.
 8. A3, stan4bart 0.0-13 as an arm. It does not load beside today's libraries; a private build against dbarts
    0.9-34 on the box might. Recommend one attempt, the arm added if it loads and omitted, with that said, if not.
-9. Run order and budget. Recommend the order above, A2's Part D after pricing's ruling, approval per study: about
-   31 core-hours expected and 46 at most as written, about 36 and 54 with items 3, 4 and 7, before A1's added
-   datasets.
-10. Where a report recommends a change of default or of a documented claim (A5's news entry, A2's k, A1's
-    calibration, A6's prior), that change is the maintainer's; each report recommends one.
+9. A3, HSB's replications. At 50, HSB's fixed-effect coverage reaches a half-width of 0.060 against its 0.03
+   target. (a) 50, as written, the width reached reported; no cost. (b) 200, which meets the target; about 3.3
+   more core-hours (HSB's fit time a guess until the smoke). Recommend (b) if the budget in item 10 allows it.
+10. Run order and budget. dec-B637's ruled first tier was shown as "the cheap items now, about 5 core-hours",
+    larger reruns brought one at a time; this plan asks about 31 core-hours expected and 46.5 at most as written,
+    roughly six times that, and about 39 and 59 with items 3, 4, 7 and 9, before A1's added datasets. Recommend
+    the order above, A2's Part D after pricing's ruling, and approval one study at a time against that figure.
+
+Note: where a report recommends a change of default or of a documented claim (A5's news entry, A2's k, A1's
+calibration, A6's prior), that change is the maintainer's; each report recommends one.
 
 ## Referee round 1
 
