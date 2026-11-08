@@ -1,310 +1,294 @@
 # A forest's basis names a column of the data
 
-Status: PROPOSED, 2026-11-07, for the maintainer's ruling. Follows dec-B663: a forest's basis is a reference
-to a column of the data, resolved by name where a data frame is given, and the per-forest bases a data object
-holds are the package's record of that resolution.
+Status: PROPOSED, 2026-11-07, revised 2026-11-07 for the maintainer's ruling. Follows dec-B663 (a forest's
+basis is a reference to a column of the data, and the per-forest bases a data object holds are the package's
+record of that resolution) and dec-B666 (the frame kept on the data object is the direction; the numbering and
+the drop at the sampler to be examined).
 
 ## In short
 
-Recommended: a data object keeps the data frame it was built from and the numbers of the rows it kept, so that
-a forest handed to `dbartsSpec()` or `dbarts()` beside it finds its basis there, as `dbarts()` finds it when
-given the formula and the frame. `dbartsData(bases = )` goes; the slots `bases`, `basis.levels` and
-`basis.scale` stay, written by a sampler. Everything else stays as built: the formula's `forest()` term, a
-forests list, `$setForestBasis`, `predict`, the matrix interface, copy and reload. No draw moves for a call
-taken both before and after, but one: a basis whose name is both a caller's variable and a column of the frame
-(section 4). The refusal dec-B663 orders for the meantime is still needed afterwards, narrowed to a sampler's
-own data handed back (section 6). About 110 lines of R, 83 test calls in 24 files, four help pages and about 6
-lines in bartCause.
+A data object keeps the data it was built from, whole and as given, and the numbers of the rows it kept.
+`dbartsSpec(o, forests = )` and `dbarts(o, forests = )` read a forest's basis against them exactly as
+`dbarts(formula, data, forests = )` reads it. The resolution that makes a sampler's specification drops both,
+so a sampler, its data, a copy, a saved sampler and a fit carry neither. `dbartsData(bases = )` goes; the
+slots `bases`, `basis.levels` and `basis.scale` stay, written by a sampler.
 
-One premise of dec-B663 is wrong: a consumer does call `dbartsData(bases = )`. bartCause's `bcf()` builds its
-data object with `bases = list(NULL, factor(z))` and hands it to `dbarts()` with a forests list that states
-only knobs.
+Examined, run on main:
+
+- Rows are stored as their positions among the rows handed over, in the fit's order. That is the index the
+  package already computes to cut a basis. The object records nothing when every row is kept in order.
+- Columns: keeping the whole frame costs nothing in a session, since R shares its columns until one side
+  changes one, and then copies only that column. Saved, it costs the frame. Keeping fewer columns, or numbers
+  pointing into the caller's frame, either breaks a basis that names a predictor or reads the wrong column
+  after the caller edits the frame, and saves nothing in a session.
+- Dropping at the sampler keeps a saved fit at 1.49 MB where keeping would make it 2.86 MB (a 20,000-row
+  frame). It also keeps stan4bart's saved sampler bundle independent of the row count, as it is built to be.
+
+About 135 lines of R, nothing under `src/`, 83 test calls in 24 files, four help pages, about 6 lines in
+bartCause. Five calls for the maintainer, listed at the end.
 
 ## 1. What exists
 
-Run on main on 2026-11-07. The R code is unchanged between the library run and the branch point.
+Run on main, 2026-11-07; the R code is unchanged between the library run and the branch point.
 
-**The formula's `forest()` term** (`bart()`, `dbarts()`).
+- **A formula's `forest()` term** (`bart()`, `dbarts()`), `forest(x2, basis = factor(z))`: code, its names
+  found in `data` and then where the formula was written; `predict(fit, newdata)` reads `z` from `newdata` by
+  name, in any column order, and refuses newdata without it.
+- **A forests list beside a frame** (`dbarts(f, data = d, forests = )`): read when `forest()` is called; a
+  column of `data` is that column and hides a caller's variable of the same name; a value is full length and
+  cut by `subset` and the na.action.
+- **The matrix interface**: a value, full length, cut the same way. A column of `x` is no name.
+- **`dbartsData(bases = list(NULL, v))`**: values by forest position; the list fixes the forest count.
+- **A data object handed to `dbarts()`**: carrying bases, with a list of knobs only, taken; a list declaring a
+  basis, refused.
+- **`dbartsSpec(o, forests = )`**: no frame, so a basis is the caller's value; it must be cut to the object's
+  rows already, where `dbarts()` wants full length. Handed a sampler's own data, a declaring list replaces the
+  object's bases whole, with no message.
+- **`$setForestBasis`** by label or position; a value or a formula read where it was written.
+- **`$setData`** is refused on a sampler of several forests, so it is no door for a basis.
+- **Copy and reload** carry the blocks, the levels and the model's record of each code basis (its terms, its
+  levels, its label and the columns it names), bit for bit.
+- **0.9-34** had no forests, no bases and no `dbartsSpec()`.
 
-    bart(y ~ x1 + x2 + forest(x2, basis = factor(z)), data = d)
+bartCause's `bcf()` calls `dbartsData(bases = list(NULL, factor(z)))`, then `dbarts(o, forests = )` with knobs
+only.
 
-The basis is code. Its names are found in `data` and then where the formula was written, when the model is
-built. `predict(fit, newdata)` reads `z` from `newdata` by name, and refuses newdata without it, naming the
-forest. A caller's vector in a term (`basis = zv`) is a name too: `predict` then asks `newdata` for a column
-`zv`.
+## 2. The design
 
-**A forests list with a data frame** (`dbarts()`).
+### 2.1 Rows: what is numbered and how
 
-    dbarts(y ~ x1 + x2, data = d, forests = list(forest(), forest(x2, basis = factor(z))))
+The record is the number of rows handed over and the positions of the rows kept. It is the index `dbarts()`
+already builds to cut a basis written beside a frame, so a value and a code basis are cut by one index. Read
+off a basis that is the row number (12 rows; rows 3 and 9 missing a predictor):
 
-Read when `forest()` is called: a name of a column of `data` is that column, and hides a caller's variable of
-the same name (run: a caller's `z` beside `d$z`, the forest took `d$z`); any other name is its value where
-`forest()` was called. A value covers every row of the data and is cut by `subset` and the na.action, as
-weights are.
+- no `subset`, default na.action: 1 to 12, every row (`na.keepPredictors` keeps rows with a missing
+  predictor)
+- `subset = 2:10`: 2 to 10; `subset = -1`: 2 to 12; `subset = z == 1`: 5, 9, 10, 11, 12
+- `subset = c(10, 2, 5, 7)`: 10, 2, 5, 7, in that order; `c(2, 2, 5, 7, 8)` keeps the repeat
+- a character `subset` by row name: the positions of those names
+- `na.action = na.omit`: rows 3 and 9 go; after `subset = 2:10` too: 2, 4, 5, 6, 7, 8, 10
+- the matrix interface gives the same positions, and a full-length value is cut to them
 
-**The matrix interface** (`dbarts(x, y, forests = )`). A basis is a value, full length, cut by `subset`. A name
-that is a column of `x` is not found: `forest("x2", basis = factor(z))` with `z` a column of `x` fails with
-"object 'z' not found where forest() was called". `bart()` has no forests argument; its forests come only as
-formula terms.
+Today the object records its row names and the na.action's drops counted within the subset, but not the subset,
+so the positions cannot be rebuilt afterwards. They are recorded when the object is made, `subset` being read
+once.
 
-**The data door** (`dbartsData(bases = )`).
+Storage: an integer vector, 4 bytes a row in a session. Saved, 1,000,000 positions take 3.0 MB shuffled and 2.0
+MB in order with one gap. When every row is kept in order the record is empty: the row count alone, nothing
+saved per row.
 
-    o <- dbartsData(y ~ x1 + x2, data = d, bases = list(NULL, factor(d$z)))
+A later drop of rows. No user-facing door cuts a data object's rows: the sampler's setters keep the row count,
+and `setActiveRows` masks rows without dropping them. Four internal paths do cut or expand them: the hurdle's
+two parts, its zero part's merge, the hazard's person-period expansion and `xbart()`'s folds. None of them
+resolves a basis afterwards, so each drops the frame and the record with the rows. The alternative cuts the
+record in step at each, which nothing would read.
 
-A list by forest position, of values only: a formula, a name and a string are refused. The list fixes the
-number of forests, so `bases = list(NULL, NULL)` is a model of two forests with no basis. `dbartsData()`'s
-formula refuses a `forest()` term. The object then records each forest's block (a factor's two indicator
-columns) in `bases` and its levels in `basis.levels`; `basis.scale` is empty until a sampler is made.
+How a value is cut: a value has the length of the rows handed over and is cut by the positions. A value already
+at the kept length on an object that dropped rows is refused, as `dbarts()` refuses one (2.4).
 
-**A data object handed to `dbarts()`.** With bases on it and a forests list that states only knobs, taken. A
-list that declares a basis is refused: "a basis declaration cannot reach a pre-built data object through
-dbarts()".
+### 2.2 Columns: what is kept
 
-**`dbartsSpec()`.** There is no frame, so a basis is the caller's value at the call: with `z` only in `d`,
-`forest(basis = factor(z))` fails. A value must have the object's kept-row count: on an object built with
-`subset = 1:40` a full-length value is refused, where `dbarts()` refuses the cut one and takes the full one.
-Beside an object carrying bases (none, z, w), a list of two declaring a basis gives two forests and a list of
-three with a plain third drops w, with no message; a list stating only knobs keeps the object's bases.
-
-**`$setForestBasis(forest, basis)`.** The forest by position or label. The basis a value, or a one-sided
-formula read where it was written: `~ factor(z)` with `z` only in the data fails, as does `~ x2` with `x2` a
-predictor. A string is refused ("a basis is a column, not its name").
-
-**`predict(fit, newdata, bases = )`.** Reads code bases from `newdata` by name; `bases =` overrides by label or
-position, and with no newdata replaces the fit's own at the training rows. A sampler's `$predict` refuses a
-sampler of several forests.
-
-**`$setData`** is refused on a sampler of several forests, so it is no door.
-
-**Copy and reload.** `$copy()`, `saveRDS` and `readRDS`, `new("dbartsSampler", control, model, data)` and
-`dbarts(s$data)` all carry the bases, the levels and the model's record of each code basis, and run.
-
-**What is recorded.** The data object: `bases`, `basis.levels`, `basis.scale` (the column's sd over the rows
-in, for a numeric forest stating no sd). The model: for each code basis its terms, its factor levels, its label
-and the data columns it names. A `bart` fit: `bases` (the factor, for a forest of levels) and `basis.terms`.
-
-**0.9-34** had none of this: no forests, no bases, no `dbartsSpec()`. Its `dbartsData()` took formula, data,
-test, subset, weights, offset and offset.test.
-
-## 2. The shape, door by door
-
-The rule makes values data and references model: a forest (model) names columns; the data holds them; the
-per-forest blocks on a data object are what a sampler wrote when it resolved the names.
-
-### 2.1 What a pre-built data object keeps
-
-The one real choice. A package that builds its data once and then calls `dbartsSpec()` needs the columns its
-forests will name.
-
-**A. The frame and the kept rows.**
+**K1. The whole frame, as given.** `data` itself, every row and column, when it is a data frame or a list. An
+environment, or no `data`, keeps nothing, and names are found where `forest()` was called, as today.
 
     o <- dbartsData(y ~ x1 + x2, data = d)
     s <- dbarts(o, forests = list(forest(), forest(x2, basis = factor(z))))
 
-The object keeps `data` as given, every row, and the numbers of the rows it kept. A forest beside it is read
-exactly as `dbarts(y ~ x1 + x2, data = d, forests = )` reads it, `scale()` and `poly()` over every row
-included, and would draw the same, as a data door and a list on the same rows draw the same today (run). A sampler drops the frame when it is made, so a sampler, a fit and a saved
-sampler carry none. Cost: about 15 lines and two slots. In a session the frame costs nothing (run: a frame
-stored in a slot is the same memory until either is changed); a saved data object writes it again (10.2 MB for
-a frame, 20.3 MB for the frame and an object holding it). stan4bart saves its data object in its fit, and would
-carry its BART columns once more. nlme keeps the whole frame in its fit the same way (`keep.data = TRUE`, its default).
+- In a session: nothing (run: the slot holds the same vectors as `d`). A later `d$z[1] <- 9` copies `z` alone;
+  the other columns stay shared, and the object keeps the old `z`.
+- Saved (20,000 rows, 14 columns): the frame 1.19 MB; the data object today 0.45 MB; the two together 1.64 MB.
+- A name that is no column is looked up where `forest()` was called, a value of full length; a name found
+  nowhere is refused by name, as today.
+- A column added to `d` after the object was made is not in it (run): the object is the data as it was handed
+  over, as its predictors are.
+- A basis naming a predictor (`forest(x1, basis = x2)`, which runs today) finds the predictor's column on
+  every row, so `scale()` and `poly()` read every row, as at `dbarts()`.
 
-**B. The columns named on the object.**
+**K2. The frame less the columns the formula reads.** Saved, nothing is written twice: stan4bart's frame
+holds formula columns only. But a predictor is then no column of the kept frame. Its values on dropped rows
+exist nowhere, and a basis naming it falls through to the caller, where a variable of the same name would be
+taken in silence. Rebuilding it from `x` works only when no row was dropped and the column is plain numbers.
+Not recommended.
 
-    o <- dbartsData(y ~ x1 + x2, data = d, columns = ~ z)
+**K3. Numbers pointing into the caller's frame**, a column number or the binding `d` read later. Nothing kept
+or saved. Run: after the caller reorders `d`, column 11 is `x10` and no longer `z`; after `d <- d[-1, ]`, row 2
+holds what was row 3. Both mean a silent misreading. A reload has nothing to point to, and a column added
+later changes what an object made earlier fits. Not recommended.
 
-The object keeps only what it is told; the name `columns` is a placeholder. Cost: a new argument, the column
-named twice, a refusal when a forest names one not kept, about 25 lines. The object again states something of
-the model: which columns are bases.
+**K4. Only columns named on the object** (`dbartsData(..., columns = ~ z)`, option B of the first note). Saved
+small; the column is named twice, and the object states which columns are bases. Set aside by dec-B666.
 
-**C. Forest terms in `dbartsData()`'s formula.**
+Recommended: K1. In R, keeping the frame already is keeping a reference: nothing is copied until one side
+changes it. Numbers into the caller's object would save nothing in a session, and saved they have nothing to
+point to.
 
-    o <- dbartsData(y ~ x1 + x2 + forest(x2, basis = factor(z)), data = d)
-    s <- dbartsSpec(o, forests = list(forest(), forest(sd = 0.5)))
+The forest's record of its basis names columns, not numbers. `predict(newdata)` with the columns in another
+order gives the same prediction (run), so a name is what survives new data.
 
-The object resolves the bases and records the forests; a list beside it states knobs by label or position,
-and a list declaring a basis is refused for good. Reads as `bart()`'s formula, and is how mgcv's `gam(fit =
-FALSE)` and lme4's `lFormula()` build their objects, from the whole model formula. Cost: about 30 lines; the
-data object states how many forests there are and which column each multiplies, the model dec-B663 sets
-aside.
+### 2.3 Dropping at the sampler
 
-**D. The object's predictors only.**
+**D1. Dropped where the specification is resolved**, in the step `dbarts()`, `dbartsSpec()` and `bart()`
+share, and again by `new("dbartsSampler", ...)` for an object handed straight to it:
 
-    o <- dbartsData(y ~ x1 + x2 + z, data = d)
-    s <- dbarts(o, forests = list(forest(c("x1", "x2")), forest("x2", basis = factor(z))))
+- `s$data` holds the predictors, the response and the record (blocks, levels, scale), with no frame and no row
+  record. Its rows are its own.
+- `dbarts(s$data)` and `dbartsSpec(s$data)` with no list, or a list of knobs only, re-create the forests from
+  the record, as today.
+- `dbartsSpec(s$data, forests = )` and `dbarts(s$data, forests = )` with a list declaring a basis: refused at
+  both, naming both places (2.4). The original `o` still holds its frame, and a new model starts from it.
+- `$setData(o)` with an object that keeps its frame, on a sampler of one forest: taken, the frame dropped.
+  Several forests: refused, as today.
+- `$copy()`, `saveRDS` and `readRDS` of a sampler, and a `bart` fit with `keepSampler = TRUE`: no frame. Run:
+  the fit saves at 1.49 MB.
+- stan4bart: `dbartsSpec()`'s data, which its saved sampler bundle keeps with the design matrix stripped so
+  that the bundle does not grow with the rows, has no frame. Its fit keeps the data object made before the
+  specification (`bartData`), which carries the BART frame: one more copy of columns its fit already saves in
+  `frame`, a fraction of a fit its comments put at tens of MB of trees.
+- Memory: nothing on any sampler.
 
-A basis names a predictor column. It must then be a predictor, kept out of each forest's `vars` where it is not
-to be split on; it exists on the kept rows only, so `scale()` reads other rows than at `dbarts()`; a factor
-stored as categorical codes is rebuilt. About 20 lines. bartCause works as it stands, its treatment being a
-predictor column already.
+**D2. Kept on the sampler:**
 
-Recommended: A.
+- `s$data` carries the frame and the rows. A declaring list beside it can be resolved against the frame, the
+  record replaced whole.
+- `$setData(o)` brings `o`'s frame.
+- A copy shares the frame. A saved sampler and a fit with `keepSampler` write it: 2.86 MB against 1.49 in the
+  run, a fit carrying the caller's whole frame, which dec-B185 removed from fits for this reason.
+- stan4bart's bundle gains the frame and grows with the rows, against its own comment.
+- What D2 adds is that `s$data` can start a new model, and the original `o` already can.
 
-### 2.2 What `dbartsData()`'s formula accepts
+Recommended: D1. The rows then follow one rule. Creation takes a value of the length handed over;
+`$setForestBasis` and `predict` with no newdata take the sampler's own rows, as today.
 
-Under A, B and D, as built: a `forest()` term is refused, its message pointing to a forests list. Under C, the
-terms `bart()` takes.
+### 2.4 The doors, under K1 and D1
 
-### 2.3 How `dbartsSpec()` and `dbarts(o)` resolve
+- **`dbartsData()`**: keeps the frame and the row record; `bases =` gone; its formula still refuses a
+  `forest()` term, pointing to a forests list.
+- **`dbartsSpec(o, forests = )`** and **`dbarts(o, forests = )`**: a basis is read against `o`'s frame, then
+  where `forest()` was called, built on `o`'s rows by the function `dbarts()` uses, so
+  `dbartsSpec(dbartsData(f, d), forests = L)` and `dbarts(f, d, forests = L)` draw the same.
+- **Full-length values at every creation door** (call 1). One rule: a value has the length of the rows handed
+  over. The cost is that a kept-length value on an object that dropped rows, taken at `dbartsSpec()` today, is
+  refused. Where no row was dropped the two lengths are one and nothing changes. The alternative takes either
+  length at `dbartsSpec()`, two rules for one argument.
+- **`dbarts(o)` taking a declaring list** (call 2). Recommended: taken, as at `dbartsSpec()`, so the two read
+  one data object alike. bartCause's route then needs no data door. The alternative keeps `dbarts()` refusing,
+  `dbartsSpec()` the only door that resolves beside a pre-built object.
+- **A sampler's own data beside a declaring list** (call 3). Recommended: refused at both doors, naming both
+  places; knobs only keep the record. This is the interim refusal of dec-B663 made permanent and extended to
+  `dbarts()`, whose broader refusal narrows to it. The alternatives are the list replacing the record whole,
+  where a plain forest in it loses the basis and nothing is left to resolve a name against, or any forests
+  list refused beside a record, knobs too.
+- **`$setForestBasis`** and **`predict`**: as built. A forest is chosen by label or position; `predict(newdata)`
+  reads each code basis by name; `bases =` stays for a basis that is no column of newdata and for the training
+  rows.
+- **The matrix interface**: no frame; a value, full length, cut by the record, at `dbarts(x, y)` and at
+  `dbartsSpec(dbartsData(x, y))` alike.
+- **Fit and reload**: nothing to add. `dbartsSpec()` and `dbarts(o)` write the model record `dbarts(f, d)`
+  writes.
 
-Under A: the names in a forest's basis are looked up in the kept frame, then where `forest()` was called, and
-built on the kept rows, by the function `dbarts()` uses. `dbarts(o, forests = )` with a declaring list is
-taken, not refused, so the two doors read one data object alike.
+### 2.5 Data objects that carry blocks, and setData
 
-Rows: today `dbartsSpec()` wants a value cut to the object's rows and `dbarts()` refuses one. With the kept
-rows recorded, a value is full length at every door and cut as weights are; a cut value is refused as
-`dbarts()` refuses one. Cost: a call taken today, a kept-length value on an object that dropped rows, is
-refused; where no row was dropped nothing changes. The alternative takes both lengths, two rules for one
-argument.
+Once `bases =` goes, a data object carries blocks only where a sampler of several forests wrote them: `s$data`
+and what is made from it. A sampler of one forest writes none (run: its `s$data@bases` is `NULL`, and so is
+that of `dbarts(forests = list(forest()))`). So:
 
-### 2.4 `$setForestBasis` and `predict`
+- **`bases = list(NULL)`**, one forest with no basis, cannot be written. Today it is refused at `$setData` with
+  a text saying the data "carry forest bases", though they state none, and at `dbarts()` with a text that
+  advises `bases = list(NULL, z1, ...)` (run). The record's check also refuses a record of fewer than two
+  forests, so no path makes one.
+- **`$setData` on a sampler of one forest**, given another sampler's data that carry blocks: refused, as today,
+  before anything is stored. The text says the data are those of a sampler of several forests, and points to
+  the data object they were made from or to `dbarts()`; it no longer says "hand over data without 'bases'".
+  Its own data handed back is taken (run).
+- **`$setData` on a sampler of several forests**: refused whatever it is given, as today.
+- **`dbarts(s$data)`, `dbartsSpec(s$data)` and a reload**: the record re-creates the forests (2.3).
 
-Kept as built: a forest is selected by its label or position, as every per-forest door selects it, and the new
-basis is a value or a formula read where it was written. `predict(fit, newdata)` already resolves each code
-basis by name in `newdata`, the reference itself; `bases =` stays for a basis not among the columns of
-`newdata` and for the counterfactual at the training rows.
+Three texts advise the data door today (the `$setData` refusal, `dbarts()`'s refusal of a declaring list, and
+the refusal of a model of one forest with a basis); each is reworded when this lands.
 
-The alternative also selects a forest by the column its basis reads: `s$setForestBasis("z", v)` for the forest
-of `factor(z)`, whose label is "factor(z)". Cost: a third key, ambiguous when two forests read one column
-(`basis = dose` and `basis = I(dose^2)`), about 15 lines. Not recommended. Where the basis is a bare column the
-label is already its name.
+### 2.6 What else (A) needs
 
-### 2.5 The matrix interface
-
-No frame: a basis is a value, full length, cut by `subset` and the na.action, as weights are, at
-`dbarts(x, y, forests = )` as built and at `dbartsSpec(dbartsData(x, y), forests = )` under 2.3.
-
-    dbartsSpec(dbartsData(x, y, subset = s), forests = list(forest(), forest(basis = factor(z))))
-
-The alternative lets a basis name a column of `x`, which then is a predictor of every forest that does not
-leave it out by `vars`. Not recommended.
-
-### 2.6 What a fit and a reload record
-
-Nothing to add. The model's record of a code basis names the data columns it reads; a fit's `basis.terms`
-rebuilds the basis at `newdata`; a copy or a reload is made from the model and the data's blocks, bit for bit.
-Under A, `dbartsSpec()` and `dbarts(o)` write the same record `dbarts(y ~ ., data = d)` writes.
-
-### 2.7 `dbartsData(bases = )` leaves
-
-The argument goes from the exported function. `bases` and `basis.levels` stay as slots, `NULL` as created and
-written by a sampler, as `basis.scale` and `cutPoints` are, so `dbarts(s$data)` keeps working, the record
-reused whole (dec-B554). A call naming `bases =` gets R's "unused argument" error: it never shipped, so it gets
-no message of its own. Inside, the fitting functions either call an internal builder that still takes the
-blocks, or build the data object plain and resolve the forests afterwards through `dbartsSpec()`'s function,
-one resolution for every door at about 40 lines more; that is the plan's to choose.
-
-### 2.8 A record beside a declaration
-
-After 2.7 only a sampler's own data carries blocks. Handed back with a list that declares a basis:
-
-- (i) refused at both `dbarts()` and `dbartsSpec()`, naming both places; a list of knobs only keeps the
-  record. About 8 lines. Recommended: re-creating from a sampler's data means its forests.
-- (ii) the list replaces the record whole. A plain forest in it then has no basis, and the record has no frame
-  to resolve a name against.
-- (iii) any forests list beside a record refused, knobs too; `$setForest` changes knobs on a live sampler.
+- **Where the drop sits.** In the resolution, not only in the sampler's creation, so that `dbartsSpec()`'s
+  data, which consumers keep, carries no frame.
+- **A data object saved before these slots existed** is read through accessors that answer "none" for a missing
+  slot, as the levels are read today; 0.9-34's objects then load and fit as before.
+- **The record's check**: the positions lie within the rows handed over and are as many as the response; the
+  frame has that many rows. The sampler's creation and the class's validity call it, as they call the check of
+  the levels.
+- **`dbartsData(o)`** handed a data object returns it as it is, frame and record included.
+- **The test set** keeps no frame: a model of several forests refuses a test set.
+- **Help**: the slots are described as the others a sampler writes are, read-only copies (dec-B554). The help
+  shows no slot write as a door.
 
 ## 3. The landscape
 
-Run where installed (R 4.6; mgcv 1.9.4, nlme 3.1.171, lme4 2.1.0, brms 2.23.0); stochtree and bcf are not
-installed and were read from their source.
+Run where installed (mgcv 1.9.4, nlme 3.1.171, lme4 2.1.0, brms 2.23.0); stochtree and bcf read from source.
 
-- `lm`, `glm`: a varying slope is a term, `y ~ x1 + x2:z`. Names are found in `data`, then the formula's
-  environment; the model frame keeps every variable the formula names; `predict` reads them from `newdata` and
-  fails without one ("object 'z' not found"). Weights are a name in `data` too, kept as `(weights)`.
-  `lm.fit` and `glm.fit` take a matrix and vectors.
-- mgcv: `s(x2, by = z)`, `z` a variable of `data`, kept in the model frame; `gam(fit = FALSE)` returns an
-  object whose frame holds it, and `gam(G = )` fits from it. `by = "z"` is an error. `predict` without `z`
-  warns that not all required variables were supplied.
-- lme4: `(1 + z | g)`; `lFormula()`'s frame holds `z` and `g`; `predict` fails without `z`.
-- nlme: `random = ~ z | g`; the fit keeps the whole data frame by default, a column the model never names
-  included; `predict` fails without `z`.
-- brms: `s(x2, by = z)`, `gp(x2, by = g)` and non-linear formulas (`b * z`, `b ~ x2`) need their variables in
-  `data` or `data2`, and a caller's variable is refused.
-- stochtree: `bart(X_train, y_train, leaf_basis_train = )`, `bcf(X_train, Z_train, y_train, ...)`;
-  `predict(object, X, leaf_basis = )`, `predict(object, X, Z)`. Values only, no formula, no names.
-- bcf (Hahn, Murray and Carvalho): `bcf(y, z, x_control, x_moderate, pihat, ...)`,
-  `predict(object, ..., z_pred = )`. Values only.
-- bartCause's `bcf()`: a formula and `data`, the treatment a column of `data` or a vector.
-- BART and bartMachine: no forest multiplied by a basis.
-
-The modeling packages with a formula name the column, and their pre-built objects hold the columns the model
-names. The BART packages take values.
+- `lm`, `glm`: a varying slope is a term; names found in `data`, then the formula's environment; the model frame
+  keeps every variable named; `predict` fails without one.
+- mgcv `s(x2, by = z)`, lme4 `(1 + z | g)`: the pre-built object (`gam(fit = FALSE)`, `lFormula()`) holds the
+  model's columns; `predict` needs them.
+- nlme: the fit keeps the whole data frame by default (`keep.data = TRUE`), columns the model never names
+  included. This is the precedent for K1.
+- brms: by-variables must be in `data` or `data2`.
+- stochtree, bcf (Hahn, Murray and Carvalho): values only. bartCause's `bcf()`: a column of `data` or a
+  vector. BART and bartMachine: no basis.
 
 ## 4. What a user meets
 
-- **A formula user**, `bart(y ~ x1 + x2 + forest(x2, basis = factor(z)), data = d)`: nothing moves.
-- **A forests-list user** with a frame, `dbarts(y ~ ., data = d, forests = )`: nothing moves.
-- **A package that builds data once.**
-  - stan4bart: `dbartsData(bartform, bartfr, factors = "categorical")`, then `dbartsSpec()` with one forest and
-    no basis. Nothing moves; under A its saved fit carries `bartfr` once more.
-  - treatSens: `dbartsData(x, y)`, the matrix interface, one forest. Nothing moves.
-  - bartCause: `dbartsData(..., bases = list(NULL, factor(z)))`, then `dbarts(o, forests = )` stating knobs.
-    It breaks when `bases =` goes. The edit gives the second forest `basis = ` the full-length factor it
-    already builds and drops the bases line, about 6 lines. Its draws do not move (run: the data door, a list
-    on `dbarts()` and a list on `dbartsSpec()` give identical draws, with and without `subset`). Its second
-    forest's label becomes the basis's text instead of `forest2`; bartCause reads no label.
-  - A caller of `dbartsSpec()` with a basis: a name that is a column of the frame now finds it. Where it is
-    also a caller's variable, the column wins, as in `dbarts()`: the one call whose draws move. A value cut to
-    the kept rows on an object that dropped rows is refused (2.3).
-- **A matrix-interface user**, `dbarts(x, y, forests = )`: nothing moves.
+- A formula user, a forests-list user beside a frame, a matrix-interface user of `dbarts()`: nothing moves.
+- stan4bart, treatSens: nothing moves. stan4bart's saved fit carries its BART frame once more (2.3).
+- bartCause: `bases =` goes, so the second forest takes `basis =` with the full-length factor it already builds
+  (about 6 lines). Draws identical (run: the data door, a list on `dbarts()` and on `dbartsSpec()` agree, with
+  and without `subset`); its forest's label becomes the basis's text, and it reads no label.
+- A `dbartsSpec()` caller with a basis: a name that is a column now finds it. Where it is also a caller's
+  variable, the column wins, as at `dbarts()`: the one call whose draws move. A kept-length value on an object
+  that dropped rows is refused.
 
 ## 5. The cost
 
-- R, about 110 lines with no change under `src/` or to the shipped header: the two slots and their check (about
-  10); `dbartsData()`, keeping the frame, recording the kept rows in each branch and dropping `bases` from the
-  exported function (about 40); `dbartsSpec()`, resolving against the frame on the kept rows, full-length
-  values and the refusal of 2.8 (about 30); `dbarts()`, taking a declaring list beside a data object and
-  dropping the frame at creation (about 30).
-- Tests: 83 calls of `dbartsData(bases = )` in 24 files. Read one by one: 45 are fixtures that build a sampler
-  and become a forests list, drawing what they drew; 36 pin the data door itself (its refusals of a missing or
-  infinite value, a short value, a single entry or all entries empty, its row cut, its ignored-argument
-  warning, its forest count and labels, its place among the doors of the kind and defaults tests) and go where
-  the forest door pins the same, or move there where it does not; 2 are oracles in the basis-terms tests (code
-  against the same basis as a value) and are rewritten on the list's value. New: about 6 tests, among them
-  `dbartsSpec(dbartsData(f, d), forests = L)` identical to `dbarts(f, d, forests = L)`, the frame gone from a
-  sampler's data, full-length values, and the refusal of 2.8.
-- Help: `dbartsData` (the `bases` item goes; the slots paragraph says the bases are a sampler's record and
-  the frame is kept), `dbartsSpec` (where a basis is found), `dbarts` (the sentence on a declaration with
-  nowhere to ride) and `dbartsSampler-class` (one mention). Four design notes (forest-kind-by-class,
-  public-surface, written-surface, multiplier-combiner) name the data door; they change when this lands.
-- NEWS: 0.9-34 had no bases, so nothing is retracted. The multi-forest item may gain a clause: a data object
-  keeps its data, so a forest given to `dbartsSpec()` names its basis as in `dbarts()`.
-- bartCause: about 6 lines and a check of its suite.
+- R, about 135 lines, no `src/` or header change:
+  - the slots and their check, about 15
+  - `dbartsData()` keeping the frame and recording the rows, about 30
+  - `bases =` leaving the exported function, about 20
+  - `dbartsSpec()` resolving against the frame, with the refusal, about 30
+  - `dbarts(o)` taking a declaring list, about 25
+  - the drop at the resolution and at the four internal row-cutting paths, about 10
+  - the accessors for old objects, about 5
+- Tests: 83 calls of `dbartsData(bases = )` in 24 files: 45 fixtures become forests lists drawing what they
+  drew, 36 pins of the data door go where the forest door pins the same or move there, 2 oracles are rewritten
+  on the list's value. New: the sibling identity, the row positions under each `subset` and na.action above,
+  the frame gone from `s$data` and from `dbartsSpec()`'s data, a column changed in `d` after the object was
+  made, full-length values, and the refusal of a sampler's data beside a declaring list.
+- Help: `dbartsData`, `dbartsSpec`, `dbarts` and `dbartsSampler-class`. Four design notes that name the data
+  door (forest-kind-by-class, public-surface, written-surface, multiplier-combiner) change at landing.
+- NEWS: 0.9-34 had no bases; at most a clause in the multi-forest item.
+- bartCause: about 6 lines and its suite.
 
-## 6. Recommendation
+## Calls made
 
-A, with 2.2 to 2.7 as written and (i) of 2.8. It is the rule read literally: the basis is part of the data
-frame, the forest names it, and `dbartsSpec()` beside a data object reads a forest as `dbarts()` reads it beside
-the frame, the sibling calls agreeing to the bit.
+For the maintainer:
 
-Flip to B if a data object should not carry its frame, saved objects and stan4bart's fit size outweighing the
-second naming. Flip to C if a pre-built object should be the whole model, as mgcv's and lme4's are, and
-`dbartsData()`'s formula should read as `bart()`'s. D only if the cost must be least.
+1. Full-length values at every creation door, a cut one refused (2.4). Recommended. The alternative takes
+   either length at `dbartsSpec()`.
+2. `dbarts(o)` takes a declaring list (2.4). Recommended. The alternative keeps it refused.
+3. A sampler's own data beside a declaring list refused at both doors (2.4). Recommended. The alternatives
+   are the record replaced whole, or any list refused.
+4. The whole frame kept (K1, 2.2). Recommended. The alternatives are K2, K3 and K4.
+5. The frame dropped at the resolution (D1, 2.3). Recommended. The alternative is D2.
 
-The interim refusal (a data object carrying bases beside a list declaring one, refused at `dbartsSpec()`) is
-still needed. Under A it is not subsumed: it becomes (i) of 2.8, the rule for a sampler's own data handed back,
-and spreads to `dbarts()`, whose broader refusal narrows to the same case. Built now, it is not wasted; its
-message loses the advice to use `dbartsData(bases = )` when this lands. Under C it is the permanent rule as
-ordered.
+Made here:
 
-## Calls made in this note
-
-Each user-visible call is marked for the maintainer.
-
-1. A over B, C and D (for the maintainer). Alternatives and costs in 2.1.
-2. A value is full length at every door, a cut one refused at `dbartsSpec()` (for the maintainer). The
-   alternative takes both lengths at `dbartsSpec()`.
-3. `dbarts(o, forests = )` declaring a basis is taken under A (for the maintainer). The alternative leaves
-   `dbarts()` refusing and only `dbartsSpec()` resolving, two readings of one data object.
-4. A record beside a declaring list refused, (i) of 2.8 (for the maintainer). Alternatives (ii) and (iii).
-5. A forest is selected by label or position only (for the maintainer). The alternative adds the column name
-   as a key.
-6. The matrix interface takes a value only (for the maintainer). The alternative resolves a name against the
-   columns of `x`.
-7. `bases =` gets R's own "unused argument" error (for the maintainer). The alternative is a message naming
-   the forests list, as shipped arguments that retire get.
-8. The frame is dropped when a sampler is made. The alternative keeps it on `s$data`, where nothing reads it.
-9. The slots keep their names, `bases` and `basis.levels`. The alternative renames them as records, which
-   moves every reader of them for no change of meaning.
-10. How the fitting functions reach the blocks once the argument goes is left to the plan (2.7).
+6. Rows stored as positions, with nothing stored when every row is kept in order. The alternative stores the
+   positions always, 4 bytes a row.
+7. The four internal row-cutting paths drop the frame and the record. The alternative cuts the record in step.
+8. An environment given as `data` is not kept. The alternative keeps it, a reference that sees later changes.
+9. A forest's record names columns, never numbers. The alternative numbers them, which reordered newdata
+   breaks.
+10. A forest is still chosen by label or position, and the matrix interface takes values only, as in the first
+   note.
+11. `bases =` gets R's own "unused argument" error, the argument never having shipped. The alternative is a
+   message of our own.
+12. A record of fewer than two forests is refused by the record's check, so `bases = list(NULL)` has no
+   path, and the `$setData` refusal is reworded for another sampler's data (2.5). The alternative takes a
+   record of one plain forest as no record, which nothing can write once `bases =` goes.
