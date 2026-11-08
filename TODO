@@ -264,16 +264,16 @@ items
     probability as the variable moves, a category margin on the result
     and one line per category in the plots. Refused until then.
     Scheduled after 1.0-0 (VD 2026-10-04, dec-B209).
-  setmodel-variance-forest-record: a model's variance-forest record is
-    read at creation from a model, new("dbartsSampler", control, model,
-    data) with model@variance@power = 4 running variance power 4, while
-    $setModel(model) keeps the sampler's (dec-B524: the variance forest
-    follows no live depth change), so one model runs two ways. No flag
-    records what a variance forest states, and a spec's record takes the
-    fitting function's depth, so refusing a difference would refuse
-    $setModel(dbartsSpec(data, power = 2.5)$model). Decide whether
-    creation from a model should read the record as the setter does, or
-    the record carry its statements (setmodel-parameters' call 31).
+  setmodel-installs-stated: $setModel installs each forest's number
+    the model states, the variance forest's power and base and a mean
+    forest's own sd, power and base, through the code $setVarianceForest
+    and $setForest run, bitwise theirs; an unstated number, a copy from
+    the fitting function's level among them, is left (dec-B652, VD
+    2026-11-07: "Ok, use your revised recommendation for the setModel
+    question."). The model's records note what each forest states (the
+    variance record does so today for the tree count only). Draw-
+    changing for the calls refused or ignored today; help on setModel,
+    setForest and setVarianceForest rewritten.
   starting-sigma-fallback-zero-weights: where no regression is defined
     the starting sigma is sd(y - offset) over the rows of positive
     weight, unweighted (response-scale-rows). Decide whether it should

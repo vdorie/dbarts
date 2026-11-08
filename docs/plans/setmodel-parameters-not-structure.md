@@ -682,7 +682,8 @@ this plan does not touch it.
     would refuse that call, which the variance forest leaves on main. Alternative: refuse a difference naming
     `$setVarianceForest`, as call 19 first had it. Kept after the review: creation from a model reads its
     variance-forest record and `$setModel` keeps the sampler's, which dec-B524 rules out of live depth changes;
-    TODO's setmodel-variance-forest-record names the difference.
+    TODO's setmodel-variance-forest-record named the difference. Revised by dec-B652, with call 19: `$setModel`
+    installs each forest's stated number through the door naming that forest; TODO setmodel-installs-stated.
 32. A hand edit of a sharer's depth on the model's record is ignored on forest 1, whose slot is the tree prior's,
     and refused on any forest but the first, whose record then differs from the level: a record slot is not a door
     (dec-B554), and the tree prior is where the level is read. Alternative: read forest 1's record
@@ -721,9 +722,9 @@ LeakSanitizer, after one fix there: g++ refused a local variable as a lambda's d
 tests/cpp/test_state.cpp, which clang had taken, and a sentinel 0 now stands for the tree count. CI, all nine workflows,
 green on that tip.
 
-The calls made at slice 4 are in dec-A258. The follow-up TODO item setmodel-variance-forest-record names the one
-difference left between creation and `$setModel`: creation from a model reads its variance-forest record and
-`$setModel` keeps the sampler's (call 31).
+The calls made at slice 4 are in dec-A258. The one difference left between creation and `$setModel`, creation
+from a model reading its variance-forest record and `$setModel` keeping the sampler's (call 31), is revised by
+dec-B652: `$setModel` installs each forest's stated number, the follow-up being TODO setmodel-installs-stated.
 
 ## Open calls
 
