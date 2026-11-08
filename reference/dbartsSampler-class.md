@@ -487,25 +487,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   missing response is; to leave a row out of the likelihood mid-chain,
   mark it inactive with `setActiveRows`, as in every family, or write
   zeros into it, which is the same as far as the likelihood goes. A
-  vector of numbers is refused there, since with each row's trials held
-  it cannot say how they split among the categories. A factor, or a
-  character vector read as one, is taken where every row holds one
-  trial, as in a sampler built from a factor: its labels are matched by
-  name to the categories the sampler records, in any order, a label it
-  lacks is refused by name, the response is then recorded as written as
-  a factor, so `predict(type = "ppd")` draws categories, and where any
-  row holds more than one trial the factor is refused, naming the count
-  matrix. On a `probit` or `logistic` sampler whose response was written
-  as a two-level factor, a factor or character vector is taken the same
-  way, its labels matched by name to the two levels the sampler
-  recorded, the first coded 0 and the second 1 whatever order the new
-  factor lists its levels in (unlike `glm`, which reads level position,
-  so a releveled factor does not flip the model); a label the sampler
-  lacks is refused by name, and a sampler whose response was written as
-  numbers records no levels and takes only 0 and 1. On a binomial
-  sampler, a `logistic` one whose data carry the response as counts of
-  successes and failures, `y` is the \\n \times 2\\ matrix of successes
-  and failures, or a vector of successes with each row's trials held, a
+  vector is refused there, since with each row's trials held it cannot
+  say how they split among the categories. On a binomial sampler, a
+  `logistic` one whose data carry the response as counts of successes
+  and failures, `y` is the \\n \times 2\\ matrix of successes and
+  failures, or a vector of successes with each row's trials held, a
   count above its row's trials refused; `setData` takes new data whose
   counts give both, the number of rows free. A count sampler has no
   response scale to re-anchor and ignores `updateScale`. This draws
@@ -660,14 +646,14 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   multi-forest (`forests`) sampler, whose calibration map is pinned at
   creation - whatever its response family, and whether or not there is a
   transform to re-anchor - and is never restated; the response and a
-  basis scale may span different rows, which is why. A multinomial
-  sampler takes `setActiveRows(updateScale = TRUE)` and derives nothing,
-  its leaf scale and center being the same whatever rows are in. A
-  heteroscedastic (`variance`) sampler takes it: the variance forest's
-  leaf prior is re-derived from the residual prior on the new scale,
-  exactly as creation on the new response would have stated it, and the
-  drawn \\s^2(x)\\ is carried into the same units, so the surface keeps
-  its meaning in response units across the swap. `setData` carries that
+  basis scale may span different rows, which is why.
+  `setActiveRows(updateScale = TRUE)` is refused by a multinomial
+  sampler as its other response channels are. A heteroscedastic
+  (`variance`) sampler takes it: the variance forest's leaf prior is
+  re-derived from the residual prior on the new scale, exactly as
+  creation on the new response would have stated it, and the drawn
+  \\s^2(x)\\ is carried into the same units, so the surface keeps its
+  meaning in response units across the swap. `setData` carries that
   restatement too wherever the scale moves. On `setData` the argument
   defaults to `NULL`, which takes the `response.range` the new data
   object records and otherwise derives the scale; `TRUE` derives it from
@@ -1611,26 +1597,27 @@ surface, by the model rather than by omission. Its response channels are
 `$setResponse`, which takes the \\n \times K\\ count matrix,
 `$setCategoryOffset` and `$setCategoryTestOffset`; the predictor family
 (`$setPredictor` in all four shapes, `$setCutPoints`,
-`$setTestPredictor`) and the global `$setActiveRows`, with or without
-`updateScale = TRUE`, are open, and `$predict` answers with the \\K\\
-category probabilities and takes the matching per-category offset.
-Everything else on the mutation surface is refused, each by a message
-naming the capability and, where one exists, the channel that serves the
-caller instead: `$setResponse` given a vector of numbers and
-`$setOffset` (a flat vector cannot express the matrix, and a flat shift
-is the softmax's null direction), `$setWeights` (an integer case weight
-is already row-wise replication in the count response, and a non-integer
-one has no exact augmentation sampler), `$setSigma` (no residual scale),
-`$setData` and `$setModel` (the K category forests fix their data and
-their calibration at creation), a named sd or a `k` hyperprior on
-`$setLeafPrior`, which takes `normal(k = )` with a fixed `k` (the
-softmax map owns every category forest's leaf scale),
-`$setForestWeights` and `$setForestBasis` (its forests are its
-categories, which carry no amplitudes), and `$getFitsWithoutOffset` (its
-reported channels are probabilities, not one additive location).
-Per-forest masking is refused permanently rather than pending: a
-category's margin is a log-sum-exp over the other \\K-1\\, so a mask on
-one forest alone has no conditional to be a mask of.
+`$setTestPredictor`) and the global `$setActiveRows` are open, and
+`$predict` answers with the \\K\\ category probabilities and takes the
+matching per-category offset. Everything else on the mutation surface is
+refused, each by a message naming the capability and, where one exists,
+the channel that serves the caller instead: `$setResponse` given a
+vector and `$setOffset` (a flat vector cannot express the matrix, and a
+flat shift is the softmax's null direction), `$setActiveRows` at
+`updateScale = TRUE` (the categories keep their scale at creation),
+`$setWeights` (an integer case weight is already row-wise replication in
+the count response, and a non-integer one has no exact augmentation
+sampler), `$setSigma` (no residual scale), `$setData` and `$setModel`
+(the K category forests fix their data and their calibration at
+creation), a named sd or a `k` hyperprior on `$setLeafPrior`, which
+takes `normal(k = )` with a fixed `k` (the softmax map owns every
+category forest's leaf scale), `$setForestWeights` and `$setForestBasis`
+(its forests are its categories, which carry no amplitudes), and
+`$getFitsWithoutOffset` (its reported channels are probabilities, not
+one additive location). Per-forest masking is refused permanently rather
+than pending: a category's margin is a log-sum-exp over the other
+\\K-1\\, so a mask on one forest alone has no conditional to be a mask
+of.
 
 The composition rule follows from the table: an outer block conditions
 on \\f(x_i)\\, so it reads `$getFitsWithoutOffset()` and adds back
@@ -1739,24 +1726,22 @@ back in the same way at the first split from its root that the forest's
 columns or its interaction limit do not allow, the splits above it kept;
 a rule stops recording a side its column cannot use; and a monotone tree
 whose values are out of order has every leaf value set to zero, to be
-drawn again at the next iteration. After a forced `setState` the `state`
-field holds the chain the sampler holds after the install, repairs and
-drawn sides for missing values included, not the state as it was given:
-installing the field again without `forceUpdate` returns `TRUE`, and a
-`copy` or a reload starts from the repaired chain. A forced install that
-repaired nothing stores a state identical to the one given. An unforced
-install that went onto the sampler's own cut points and weights keeps
-the state as given; one that went onto other cut points or weights than
-it records is not kept, and the field holds what the sampler holds after
-the install. Likewise after an unforced install that drew a side for
-missing values (see ‘Missing values in predictors’) the field holds the
-state as given, without the sides, and installing it again, as a `copy`
-or a reload does, draws the same ones. `storeState()` stores what the
-sampler now holds. Forcing checks nothing first, so a loop that restores
-its own state onto rows it has already put back, where nothing can need
-repair, can pass `forceUpdate = TRUE` and skip the check, which costs
-about as much as one iteration of the sampler. To undo a predictor
-change exactly, put the old predictor back first, with
+drawn again at the next iteration. After a forced `setState` that
+repaired a tree of a state stored on the sampler's own cut points and
+weights the `state` field holds the state as it was given, not as
+repaired: installing the field again without `forceUpdate` returns
+`FALSE`, and a `copy` or a reload repairs it the same way. A state that
+went onto other cut points or weights than it records, forced or not, is
+not kept: the field then holds what the sampler holds after the install.
+Likewise after an install that drew a side for missing values (see
+‘Missing values in predictors’) the field holds the state as given,
+without the sides, and installing it again, as a `copy` or a reload
+does, draws the same ones. `storeState()` stores what the sampler now
+holds. Forcing checks nothing first, so a loop that restores its own
+state onto rows it has already put back, where nothing can need repair,
+can pass `forceUpdate = TRUE` and skip the check, which costs about as
+much as one iteration of the sampler. To undo a predictor change
+exactly, put the old predictor back first, with
 `setPredictor(..., forceUpdate = TRUE)`, and then call `setState`. An
 unforced `setPredictor` can be refused, returning `FALSE` and leaving
 the changed predictor in place; `setState` then judges the state against
