@@ -282,11 +282,12 @@ items
     validateXTest, restate its tests, remove the NEWS UPGRADING item. A
     named matrix on an unnamed fit keeps its warning.
   starting-sigma-fallback-zero-weights: where no regression is defined
-    the starting sigma is sd(y - offset) over the rows of positive
-    weight, unweighted (response-scale-rows). Decide whether it should
-    be weighted: the residual sd of the intercept alone, which is on
-    the regression's scale where the weights are far from 1 (1.28 for
-    1.12 on one run under weights between 0.5 and 2).
+    a weighted fit's starting sigma becomes the weighted residual sd of
+    the intercept alone over the rows of positive weight, sd(y) at unit
+    weights, on both routes and in xbart's folds; the fewer-than-two-
+    values fallback stays unweighted (dec-B660, VD 2026-11-07: "Yes, do
+    (b)."). About 5 lines, one pin moved (1.528 to 1.871), one test of
+    weights 100. After the frequency-weights branch lands.
   state-basis-levels-by-name: dec-B647 (VD 2026-11-07, "For the open
     decision, match by name"): a stored state records the level names
     of each forest multiplied by a factor, and $setState puts each
