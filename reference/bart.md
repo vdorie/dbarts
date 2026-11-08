@@ -1023,17 +1023,20 @@ nobs(object, ...)
   each gives the residual standard deviation of the linear regression of
   the response on the predictors and on each forest's basis (a factor's
   as the indicator of its second level), factors entering as indicator
-  columns whatever the trees are given, and the standard deviation of
-  the response over the observations of positive weight where that
-  regression leaves no residual degrees of freedom, which a line under
-  `verbose` and one in the fit's `summary` say, with no warning. (Where
-  rows are out and the observations of positive weight hold fewer than
-  two distinct values of the response, the regression is made on every
-  row instead, under the warning of class `dbartsScaleFallbackWarning`.)
-  `"auto"` is `lm`'s own routine (`"dense"`) for a matrix or a data
-  frame and an exact sparse one (`"sparse"`) where the caller supplied a
-  sparse-stored column. `NULL` (the default) is `"auto"`; an explicit
-  `NA` reads as `NULL` for one release, with a once-per-session warning.
+  columns whatever the trees are given, and, where that regression
+  leaves no residual degrees of freedom, the standard deviation of the
+  response over the observations of positive weight, weighted as the
+  regression is (`summary(lm(y ~ 1, weights = weights))$sigma`, `sd(y)`
+  at unit weights; for weights read as counts, the standard deviation of
+  the rows written out), which a line under `verbose` and one in the
+  fit's `summary` say, with no warning. (Where rows are out and the
+  observations of positive weight hold fewer than two distinct values of
+  the response, the regression is made on every row instead, under the
+  warning of class `dbartsScaleFallbackWarning`.) `"auto"` is `lm`'s own
+  routine (`"dense"`) for a matrix or a data frame and an exact sparse
+  one (`"sparse"`) where the caller supplied a sparse-stored column.
+  `NULL` (the default) is `"auto"`; an explicit `NA` reads as `NULL` for
+  one release, with a once-per-session warning.
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) says
   what the two routines cost, where they differ, and what to pass in
   place of an expensive estimate, which cannot be interrupted once
@@ -2490,7 +2493,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001300
+#> total seconds in loop: 0.001329
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 3 3 2 2 2 2 2 3 2 2 2 3 3 2 
@@ -2527,7 +2530,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000682
+#> total seconds in loop: 0.000716
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 2 1 2 1 1 2 2 1 1 1 2 2 2 2 
@@ -2562,7 +2565,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000992
+#> total seconds in loop: 0.001079
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 3 2 4 2 2 3 2 2 2 2 3 3 2 
@@ -2616,7 +2619,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.001459
+#> total seconds in loop: 0.001543
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 2 2 2 2 2 2 3 3 2 

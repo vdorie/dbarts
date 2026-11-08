@@ -127,17 +127,19 @@ family(object, ...)
   one of `"auto"`, `"dense"` and `"sparse"`, naming how one is made:
   each gives the residual standard deviation of the linear regression of
   the response on the predictors, factors entering as indicator columns
-  whatever the trees are given, and the standard deviation of the
-  response over the observations of positive weight where that
-  regression leaves no residual degrees of freedom, which a line under
-  `verbose` and one in the fit's `summary` say, with no warning. (Where
-  rows are out and the observations of positive weight hold fewer than
-  two distinct values of the response, the regression is made on every
-  row instead, under the warning of class `dbartsScaleFallbackWarning`.)
-  `"auto"` is `lm`'s own routine (`"dense"`) for a matrix or a data
-  frame and an exact sparse one (`"sparse"`) where the caller supplied a
-  sparse-stored column. `NA` (the default) is `"auto"`; the lines under
-  `verbose` are printed with the rest of this function's output.
+  whatever the trees are given, and, where that regression leaves no
+  residual degrees of freedom, the standard deviation of the response
+  over the observations of positive weight, weighted as the regression
+  is (`summary(lm(y ~ 1, weights = weights))$sigma`, `sd(y)` at unit
+  weights), which a line under `verbose` and one in the fit's `summary`
+  say, with no warning. (Where rows are out and the observations of
+  positive weight hold fewer than two distinct values of the response,
+  the regression is made on every row instead, under the warning of
+  class `dbartsScaleFallbackWarning`.) `"auto"` is `lm`'s own routine
+  (`"dense"`) for a matrix or a data frame and an exact sparse one
+  (`"sparse"`) where the caller supplied a sparse-stored column. `NA`
+  (the default) is `"auto"`; the lines under `verbose` are printed with
+  the rest of this function's output.
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) says
   what the two routines cost, where they differ, and what to pass in
   place of an expensive estimate, which cannot be interrupted once
@@ -1440,7 +1442,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.168215
+#> total seconds in loop: 0.168515
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
