@@ -69,6 +69,13 @@ items
     September construction, background), real shape
     (negbin-real-dispersion) and non-integer logistic weights
     (weighted-binary).
+  basis-string-name: forest(x, basis = "z") reads a single string,
+    written or held in a variable, as the name of column z, at predict
+    too, resolved as a basis name is beside a sampler's data (dec-B700).
+    A character vector with one value per row stays a two-level basis;
+    a lone string can never be a basis's values. Coupled with the
+    basis-references plan, part 1. About 5 to 10 lines, tests and a
+    help sentence; no fit that runs today moves.
   bcf-fallback-ess: the BCF equivalence harness's single-chain
     statistical fallback divides by the nominal draws of one
     autocorrelated chain, with no effective-sample-size correction, so
@@ -113,6 +120,12 @@ items
     prog4 (0.1061, 0.1209) without the amplitude rescaling move
     (2026-09-24); it does not reach the tail regime this door names.
     research-open, decision-gated.
+  binomial-test-trials: on a weighted binomial fit, a test row draws at
+    its own k + f trials as its training twin would, a test-frame weight
+    of 0 holds the row out (NA) and other weights do not change the
+    trials; predict(weights = ) still gives new trials (dec-B690).
+    Revises the call that drew test rows at one trial. About 5 lines,
+    help and tests; test draws move only in the development build.
   capi-sampler-info: dec-B615. dbarts.h describes a sampler through one
     struct led by structSize, filled by one entry, holding every count
     and fact the one-fact entries report today, with the variance
@@ -179,12 +192,11 @@ items
     a shift of ~0.9 posterior sd per cell, which is why the statistical
     tier is decoupled from the gate. Record:
     docs/plans/bcf-cross-host.md sec 2.
-  extract-predictors-not-samples: door. The maintainer dislikes
-    overloading extract() for things that are not samples of some kind
-    (VD 2026-11-08, with dec-B677). A sampler's extract(s,
-    "predictors") returns its coded predictor matrix; whether it moves
-    to another accessor, and what else extract() returns that is not a
-    draw, is a question to bring when decisions resume.
+  extract-predictors-not-samples: extract() returns only draws;
+    extract(s, "predictors") is removed with the second basis landing,
+    the package's six calls move to an internal reader, and the help
+    points to model.frame(s$data) (dec-B692). About 10 lines, eight test
+    files and two help sentences.
   fit-na-action-null: door, no plan doc of its own. At fit time,
     na.action = NULL falls back to na.omit on the formula path (R's
     model.frame) but applies no action on the matrix path, which then errors
@@ -213,6 +225,12 @@ items
     docs/design/gpu-bart.md.
   grow-from-root: frontier 3.1's exact informed-proposal use of the
     shared cut scan (docs/design/parallel-bart-frontier.md sec 3.1).
+  hazard-setdata-surv: $setData on a hazard sampler takes a data object
+    built from a Surv response and expands it onto the sampler's own
+    periods as dbarts() does at creation; what a time past the last
+    period does (refused or censored) follows the creation path's rule
+    (dec-B694). Not sized beyond the
+    door, its tests and help.
   host-wording-sweep: dbarts.h still says "host" for the code that runs
     the BART sampler inside a larger sampler, in about 7 header lines (the
     help, the vignettes and the R strings are done); a docs-only sweep.
@@ -236,11 +254,23 @@ items
     samplePriorPredictive already draws f from the prior at x.test; the
     helper would summarize it, or compute it in closed form where one
     exists (constant, linear).
-  multinomial-door-gaps: bart(family = "multinomial") refuses a data frame
-    of counts that dbarts() takes, and takes a character matrix that
-    dbarts() refuses. Found reviewing dec-B536's build (dec-A248); not
-    ruled. Small. (The vector refusal it also named is worded by dec-B628's
-    $setResponse.)
+  monotone-repair-merge: setPredictor, setData, setCutPoints and
+    setState under forceUpdate, and the warm start, repair a monotone
+    tree whose order a call breaks by merging leaves where it breaks, at
+    their row-weighted mean; no call resets its leaves to 0 (dec-B693,
+    revising dec-B278, dec-B355 and dec-B398). About 5 engine lines,
+    zero-pinning tests rewritten and the monotone and setState help;
+    draws move only for monotone fits after such a call.
+  multinomial-response-shapes: bart() and dbarts() take the same
+    multinomial response shapes (dec-B701): a data frame of counts is
+    read as its numeric matrix, a non-numeric column refused, and a
+    one-column label matrix as labels; a wider character matrix is
+    refused at both with dbarts()'s message. About 6 to 10 lines and a
+    few tests; nothing that runs today moves.
+  old-fit-print-note: print of a fit saved by 0.9-x shows its call as
+    0.9-34 did and then the refit sentence as a note, not an error;
+    every door that needs the trees or the engine still stops with it
+    (dec-B695, within dec-B109). About 5 lines and a test.
   pdbart-closed-arguments: at 1.1-0, when pdbart's BayesTree spellings
     are refused, replace pdbart's and pd2bart's ... with bart's usable
     arguments listed explicitly, pinned by a test against bart's formals
@@ -262,12 +292,37 @@ items
     probability as the variable moves, a category margin on the result
     and one line per category in the plots. Refused until then.
     Scheduled after 1.0-0 (VD 2026-10-04, dec-B209).
+  sd-stated-meaning: getLeafPrior()'s sd.stated is TRUE wherever a
+    forest's size comes from an sd the user wrote, the fitting
+    function's normal(sd = ) or forest(sd = ), FALSE for the default and
+    k, a sharer reading TRUE with its part (dec-B702). About 1 to 3
+    lines, two help sentences and pins in a few test files; no draws
+    move.
+  setcontrol-forest-moves: setControl refuses, before changing
+    anything, a tree-move mix its caller wrote that differs from the one
+    in force when no forest would take it, naming $setForest(forest,
+    proposal.probs = ); the same for n.perturb.cuts where a forest
+    states its own; forest()'s help sentence that a stated mix is fixed
+    for the sampler's life is corrected (dec-B697). About 10 to 15 lines
+    and two tests; no draws move.
   setmodel-probit-stated-sd: a probit sampler of several forests whose
     candidate states an sd at creation refuses its own model ("does not
     resolve to the leaf hyperprior"), against the help's "always
     accepted"; a stated-sd install through $setModel cannot reach such a
     sampler. Found reviewing setmodel-installs-stated (dec-A278); on
     main before it. A fix and a pin.
+  test-weight-missing: a fit whose test data carry a weights column with
+    a missing value stops at fit time, naming the rows and saying to
+    fill or drop them or to use predict(..., na.action = na.pass); a
+    missing weight is refused at every door that reads one unless
+    na.action asks otherwise (dec-B698). About 5 lines and a test; no
+    draws move.
+  variance-formula-one-grammar: variance = <one-sided formula> is read
+    exactly as varianceForest(<formula>) reads it: terms matched to the
+    fit's column labels, the dot and transformed terms taken, star,
+    colon and I() terms refused with the message naming the fit's
+    predictors (dec-B699, within dec-B517). About 5 lines, a few test
+    rows and a help sentence; no draws move for a call naming columns.
   basis-references-to-data: a forest's basis is a reference to a column
     of the data, resolved by name where a data frame is given; the
     data object's per-forest bases become the package's record of that,
@@ -505,19 +560,12 @@ items
     each basis vector (dec-B671, VD 2026-11-07: "Use your revised
     recommendation."). About 10 lines, a test rewritten, two help
     sentences; no draw moves.
-  kmp-heldout-design: pricing's real datasets, redesigned by the agents
-    (dec-B651, VD 2026-11-07: "If the held-out dataset approach could
-    be improved, I leave that up to you for now."). A planner rewrites
-    step 2's guard as each sampler's error against a long reference
-    run at equal time, shared with step 3's references, and the screen
-    down to the criteria that bear on a posterior comparison; an
-    independent referee checks it; the sealed rule and list go to the
-    maintainer as dec-B635's decision. No data downloaded and no outcome
-    read before the seal. The guard's and the trigger test's sizes are
-    set by a cited sample-size justification, power or assurance at a
-    conventional level, refereed before the seal (dec-B667, VD
-    2026-11-07: "Do what would pass for a research study. Be
-    professional.").
+  kmp-heldout-design: pricing of the logistic k move uses the 24 real
+    datasets and the rule the referees passed, as sealed (dec-B691,
+    after dec-B651 and dec-B667), starting by rebuilding the move on
+    today's engine. The cost is the study's compute as sized: about 49
+    core-hours to the head-to-head report, 71 with the data check, a
+    hard stop at 107.
   k-mixing-pg-families: after the merge, before 1.0-0 (dec-B404,
     dec-B420, VD 2026-10-09; timing VD 2026-10-17). Binary fits keep a
     drawn k under chi(1.5, 2). Whether k must mix fast for intervals of
@@ -1198,13 +1246,12 @@ items
     about 30 lines become 10); bcf names its treatment basis in the
     forests list in place of bases = once the basis-references calls
     allow it (identical fits run).
-  bartcause-draws-twice: a bartc fit stores its draws twice, about 54
-    MB of a 162 MB fit at 750 rows (found 2026-11-08): fit.rsp's
-    yhat.train and yhat.test repeat mu.hat.obs and mu.hat.cf, and
-    fit.trt's yhat.train repeats samples.p.score. fit.rsp and fit.trt
-    are documented elements of bartc.Rd and dbarts' methods read those
-    arrays, so dropping a copy changes a fit's shape: the maintainer's
-    call.
+  bartcause-draws-twice: bartCause work. A bartc fit keeps its draws
+    only in fit.rsp and fit.trt; mu.hat.obs, mu.hat.cf and
+    samples.p.score are computed from them when read, exactly as bartc
+    computes them now, a saved fit from an earlier version reading as
+    stored, the help saying which elements are computed (dec-B689).
+    About 60 to 80 lines and tests in bartCause.
   bartcause-fitted-ite-warning: fitted(fit, type = "ite") warns on an
     att or atc fit with missing responses (found 2026-11-08).
   bartcause-plot-support-atc: plot_support on an atc fit with the
@@ -1214,6 +1261,12 @@ items
     computes n.threads from dbarts::guessNumCores() and passes it as
     stated, so where the cores cannot be counted bcf() is refused;
     leave n.threads out of the call to dbarts when the guess is NA.
+  bartcause-weighted-draws: bartCause work. A weighted unit's
+    counterfactual noise is drawn at sigma / sqrt(w), as its response
+    fit has it, and the PATE and SATE noise terms at sigma^2 / sum(w),
+    a weight-0 unit drawing NA and counting 0, so an interval no longer
+    depends on the weights' scale (dec-B696). About 10 to 20 lines in
+    bartCause, tests and NEWS.
   copy-merge-weight-order: after a forced setCutPoints or refresh that
     merges, a copy's merged leaf can differ from its original's by one
     unit in the last place when the leaf's weights do not sum exactly
