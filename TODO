@@ -175,6 +175,12 @@ items
     a shift of ~0.9 posterior sd per cell, which is why the statistical
     tier is decoupled from the gate. Record:
     docs/plans/bcf-cross-host.md sec 2.
+  extract-predictors-not-samples: door. The maintainer dislikes
+    overloading extract() for things that are not samples of some kind
+    (VD 2026-11-08, with dec-B677). A sampler's extract(s,
+    "predictors") returns its coded predictor matrix; whether it moves
+    to another accessor, and what else extract() returns that is not a
+    draw, is a question to bring when decisions resume.
   fit-na-action-null: door, no plan doc of its own. At fit time,
     na.action = NULL falls back to na.omit on the formula path (R's
     model.frame) but applies no action on the matrix path, which then errors
@@ -285,6 +291,9 @@ items
     them from there (dec-B675, VD 2026-11-08: "No, I want (a). It should
     be read from there."). There o@x holds a stand-in that stops when
     read, naming the accessor (dec-B676, VD 2026-11-08: "Sure, (a).").
+    A data object's data is read with model.frame(o), its rows counted
+    with nobs(o); extract() gets no data-object method (dec-B677, VD
+    2026-11-08: "OK, do that.").
   basis-one-column-labels: a one-column character, logical or factor
     matrix given as a basis is read as its column, two levels, at every
     door; wider ones stay refused (dec-B662, VD 2026-11-07: "We can use
