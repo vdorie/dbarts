@@ -1,7 +1,7 @@
 # frequency-weights: weights read as counts of identical rows beside the precision default, and the binomial response
 
-Status: BUILT, IN REVIEW 2026-11-07 on branch frequency-weights, S1 to S7 as built under each slice and S8's records
-written, the ledger entry and the Landing note left for the landing. PLANNED 2026-11-03 on main (3e4c002d8); amended the same day after a blind critique (scratch/fwp-crit/report.md, probes
+Status: LANDED 2026-11-08 on main by fast-forward (d8f4e72b9; ledger entry dec-A276), S1 to S7 as built under each slice
+and S8's records written. PLANNED 2026-11-03 on main (3e4c002d8); amended the same day after a blind critique (scratch/fwp-crit/report.md, probes
 p1 to p7 there), verdict BUILD AFTER AMENDMENTS, rebased onto main at 5a99172e6 (forest-door landed at a6a16c31a), and onto
 main at 7937d252f on 2026-11-05; amended 2026-11-05 for the work planned or built since
 ([Amendments of 2026-11-05](#amendments-of-2026-11-05)): latents-first, hurdle-completion, approximate-draws,
@@ -1406,11 +1406,11 @@ snapshots 27, 0 failed; lint, air, codoc, win-drift and doc-freshness clean. Cal
 
 ### S8: records (~60)
 
-The plan's Status and Landing note, the ledger entry for the calls made,
+The plan's Status, the ledger entry for the calls made,
 TODO (frequency weights, mask-on-own-data-object), the design Status line, the indexes.
-As built: the plan's Status at built, in review, S7's records and calls 91 to 103; TODO's frequency weights and
-mask-on-own-data-object items, and the multinomial-setdata item pointing to call 62; the design note's Status line; both
-indexes' rows. The ledger entry and the Landing note wait for the landing.
+As built: the plan's Status at landed, S7's records and calls 91 to 105; the ledger entry dec-A276; TODO's frequency weights
+and mask-on-own-data-object items removed, and the multinomial-setdata item pointing to call 62; the design note's Status
+line; both indexes' rows.
 
 ## Tests and gates
 

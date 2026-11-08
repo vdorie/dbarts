@@ -309,7 +309,7 @@ items
     weights, on both routes and in xbart's folds; the fewer-than-two-
     values fallback stays unweighted (dec-B660, VD 2026-11-07: "Yes, do
     (b)."). About 5 lines, one pin moved (1.528 to 1.871), one test of
-    weights 100. After the frequency-weights branch lands.
+    weights 100.
   state-basis-levels-by-name: dec-B647 (VD 2026-11-07, "For the open
     decision, match by name"): a stored state records the level names
     of each forest multiplied by a factor, and $setState puts each
@@ -820,10 +820,8 @@ items
     trials, offset and weights are resized and re-pointed; the BCF
     sampler keeps refusing it. About 200 engine, 40 bridge, 20 R and
     150 test lines, an estimate from reading, not a plan; a sizing well
-    above it goes back to VD. Its own slice after frequency-weights
-    lands; the binomial sampler's $setData it follows is recorded in
-    docs/plans/frequency-weights.md, call 62 (branch
-    frequency-weights).
+    above it goes back to VD. The binomial sampler's $setData it
+    follows is recorded in docs/plans/frequency-weights.md, call 62.
   negbin-real-dispersion: real-valued shape needs a
     non-integer-shape Polya-Gamma draw, for which no exact sampler
     exists, so it opens on one of two unlocks: a published exact
@@ -911,7 +909,7 @@ items
     sampler built from a two-level factor takes a factor matched by
     label to its recorded levels, first level 0 whatever the new order,
     a foreign label or a third level refused (dec-B657, "Yes, do
-    that."). On the frequency-weights branch or after it lands.
+    that.").
   setresponse-positional-arg-warning: drop the once-per-session warning on
     a positionally-supplied second argument to $setResponse (it now sets
     updateScale, not updateState) once callers have had a full minor cycle
@@ -1159,7 +1157,7 @@ items
     given to predict keep predict's meaning (dec-B595). How the column
     composes with dec-B638's binomial trials and dec-B641's missing
     values is the builder's to settle and report. About 20 to 40 lines,
-    after frequency-weights lands; stan4bart's half is its TODO.
+    stan4bart's half is its TODO.
   prior-predictive-several-forests: samplePriorPredictive refuses a
     sampler of several forests by name; drawing there needs the
     coefficients drawn from their prior, which dec-B361's rule would
@@ -1177,23 +1175,6 @@ items
     section 10). After the multiplier slice's held push it is the one
     place left where a sampler runs trees drawn under other held
     values. Not planned.
-  mask-on-own-data-object: under a mask family (probit, ordinal, nbinom,
-    hazard.probit) the 0/1 weights become the sampler's active-row mask
-    and the data object it hands out, s$data, carries no weights, so
-    s$setData(s$data) and setData of an edited s$data drop the mask.
-    Since state-frame-prior slice 3 the record the object carries holds
-    the range, a count center included, and the standardization through
-    that call, so a derivation there (the response's range or center, a
-    leaf's standardization under response-scale-rows slice D) reads
-    every row only where one is asked for or the record is absent.
-    Found by slice D's critique (run on 9e79f4a3). Decide whether the
-    mask rides the data object, as the weights do under gaussian, so
-    that a sampler's own data handed back keeps its rows; it would move
-    setData for every masked sampler. Until then the help says to hand
-    back the 0/1 weights on the data object or to call setActiveRows
-    after. Ruled by dec-B569 (the mask rides the data object as the 0/1
-    weights); built as slice S4 of docs/plans/frequency-weights.md
-    (branch frequency-weights, in review).
   rederive-same-range-ulp: a re-derivation that finds the range in
     force again is not a no-op in bits. GaussianResponse::setOffset
     and setResponse at updateScale = TRUE take sigma and its prior
@@ -1270,7 +1251,7 @@ items
     about extensions in the future"). A logistic zero part,
     "hurdle.logistic" (docs/design/hurdle.md, Doors), would take
     whole-number weights as counts on both parts with no engine work
-    once frequency weights land, logistic's Polya-Gamma shape being the
+    now that frequency weights are built, logistic's Polya-Gamma shape being the
     count and the gaussian positive part taking frequency weights, and
     non-integer counts once an accept-or-keep Polya-Gamma latent exists
     (dec-B583). Its latent costs about four times probit's per row at
@@ -1357,38 +1338,11 @@ host-neutral engine (decided, VD 2026-09-08; docs/decisions.md dec-B85)
   in-tree C consumer test, an ABI hash re-bake, a stan4bart rebuild
   (dense helper only, no source change).
 
-frequency weights (decided, VD 2026-09-24; docs/decisions.md dec-B125)
-  after the merge to main, before the 1.0-0 CRAN submission: an explicit
-  opt-in to frequency weights (a row stands for w identical
-  observations) beside the precision default, on the families where
-  that is a coherent model. Gaussian is certain: sigma's posterior df
-  nu + sum(w) over the weighted SSR, the sigest df sum(w) - p, the ppd
-  and log-likelihood at sd sigma with each row counted w times; leaf
-  updates unchanged. A design note first settles the family list
-  (Student-t, heteroscedastic, AFT, probit and ordinal carry a per-row
-  latent or scale, so w copies are not one row reweighted; logistic's
-  counts are already binomial trials, a different thing), the
-  argument's name and shape on bart, dbarts, the sampler and dbarts.h,
-  whether non-integer frequency weights are refused, and zero weights
-  (left out of the likelihood and kept in the design, as now). The weights docs say which a weight is. The note
-  also answers the maintainer's question of 2026-10-05, what the
-  package pays for one weights argument meaning a precision (gaussian,
-  Student-t), a trial count (logistic) and membership (0/1 on probit and
-  ordinal, installed as the row mask): whether probit and ordinal keep
-  taking 0/1 weights as a mask or take membership by its own name, so
-  that each of the three has one spelling. Measured on a loaded machine,
-  20000 rows, 50 trees: the weighted path costs about 14 percent over
-  the unweighted one, an all-ones mask nothing, and a row masked out
-  costs as much per sweep as an active row (half the rows masked 1.14
-  of the full unmasked time, the active half alone 0.55). Design note:
-  docs/design/frequency-weights.md (DECIDED 2026-11-03: dec-B563 to
-  dec-B570, with the binomial response of dec-B567 and its dec-B573 and
-  dec-B574). Plan: docs/plans/frequency-weights.md (PLANNED 2026-11-03,
-  amended 2026-11-05 to 2026-11-07, branch frequency-weights), eight
-  slices with the binomial and the hurdle's 0/1 weights; its open calls
-  ruled (dec-B594 to dec-B596, dec-B628, dec-B638). BUILT, IN REVIEW
-  2026-11-07 on that branch: S1 to S7 as built and their calls made 1 to
-  105 in the plan, the gates in its S7 section.
+stan4bart-zero-one-weights (found landing frequency-weights)
+  dbarts keeps a probit fit's 0/1 weights on its data as membership
+  (dec-B569), so stan4bart's active.bart and setActiveRows code for 0/1
+  weights can be dropped, about 30 lines in stan4bart; its test reads
+  membership from the sampler's data weights.
 
 engine constants audit (decided, VD 2026-09-08; docs/decisions.md
   dec-B91; LANDED; plan docs/plans/engine-performance.md)
