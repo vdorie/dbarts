@@ -542,12 +542,18 @@ items
     (dec-B395, VD 2026-10-08). cibart runs its compiled Gibbs driver
     once per chain in parallel, each chain with its own confounder state
     and buffers, the draws combined.
-  leaf-covariate-single-value-off-center: a leaf covariate constant
-    to the eye but not to the bit keeps a rounding-sized scale: a floor
-    relative to the center closes it. A slope on a column moved to
-    another single value stays converted by the formula (dec-B328).
-    With the slice that takes the center and scale from the rows in
-    the likelihood (dec-B304), which moves the same test (dec-A177).
+  leaf-covariate-single-value-off-center: a linear or gp leaf
+    covariate whose spread about its center, over the rows in the
+    likelihood, is under 1e-7 of its size (lm's and lme4's own test for
+    a column collinear with the intercept, the tolerance both hand qr)
+    is read as one value: refused at creation, the message naming the
+    test and saying to drop the column or subtract a constant, and
+    treated at every setter that re-derives the center and scale as a
+    column of one value is there (dec-B654, VD 2026-11-07: "Can we (b)
+    in a way that is as-principled as lm and lme4? If so, use (b).
+    We'll probably also have to update setters, not just the creation
+    method."). A slope on a column moved to another single value stays
+    converted by the formula (dec-B328).
   missing-label-refusal-text: setPredictor and the joint row update
     refuse a missing label for a factor column with "has missing
     values, which its training values do not"; on a column of 70
