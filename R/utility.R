@@ -145,7 +145,7 @@ checkFlag <- function(value, name) {
       length(value) != 1L ||
       is.na(value)
   ) {
-    stop("'", name, "' must be TRUE/FALSE", call. = FALSE)
+    stop("'", name, "' must be TRUE or FALSE", call. = FALSE)
   }
   as.logical(value)
 }
@@ -846,11 +846,12 @@ makeIndicatorModelMatrix <- function(x, drop = TRUE, storage = "auto") {
   if (ncol(x) > 0L && nrow(x) == 0L) {
     stop("x has no rows; a model matrix needs at least one row")
   }
-  if (is.logical(drop) && (length(drop) != 1L || is.na(drop))) {
-    stop("when logical, drop must be TRUE or FALSE")
-  }
-  if (is.list(drop) && length(drop) != length(x)) {
-    stop("when list, drop must have length equal to x")
+  if (is.list(drop)) {
+    if (length(drop) != length(x)) {
+      stop("when list, drop must have length equal to x")
+    }
+  } else {
+    drop <- checkFlag(drop, "drop")
   }
 
   refuseCharacterMatrixColumns(x)

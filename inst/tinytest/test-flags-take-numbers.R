@@ -123,7 +123,7 @@ refused(
 for (bad in list(NA, "TRUE", c(TRUE, FALSE))) {
   expect_error(
     s$setData(s$data, updateScale = bad),
-    "'updateScale' must be NULL, TRUE or FALSE",
+    "'updateScale' must be TRUE or FALSE",
     fixed = TRUE
   )
 }
@@ -142,7 +142,7 @@ runsClean(dbarts::xbart(
 for (bad in list(NA, "TRUE", c(TRUE, FALSE), NULL)) {
   expect_error(
     dbarts::dbarts(x, y, n.trees = 5L, verbose = bad),
-    "'verbose' argument to dbarts must be TRUE/FALSE",
+    "'verbose' argument to dbarts must be TRUE or FALSE",
     fixed = TRUE
   )
 }
@@ -192,7 +192,7 @@ for (bad in list(NA, "TRUE", c(TRUE, FALSE))) {
       k = 1,
       drop = bad
     ),
-    "'drop' must be TRUE/FALSE",
+    "'drop' must be TRUE or FALSE",
     fixed = TRUE
   )
 }
@@ -203,14 +203,139 @@ runsClean(dbarts::dbartsPriors$dart(update.alpha = 0))
 for (bad in list(NA, "TRUE", c(TRUE, FALSE))) {
   expect_error(
     dbarts::dbartsPriors$dart(update.alpha = bad),
-    "'update.alpha' must be TRUE/FALSE",
+    "'update.alpha' must be TRUE or FALSE",
     fixed = TRUE
   )
   expect_error(
     dbarts:::pdbart.flag(bad, "keepSampler"),
-    "'keepSampler' must be TRUE/FALSE",
+    "'keepSampler' must be TRUE or FALSE",
     fixed = TRUE
   )
 }
 expect_identical(dbarts:::pdbart.flag(1, "keepSampler"), TRUE)
 expect_identical(dbarts:::pdbart.flag(0L, "keepSampler"), FALSE)
+
+# the flags of bartBT, rbart_vi, plot, the sampler's copy and getTrees, and
+# the helper functions
+flagBad <- list(NA, "yes", c(TRUE, FALSE))
+smallBT <- function(...) {
+  suppressWarnings(dbarts::bartBT(
+    x,
+    y,
+    ndpost = 4L,
+    nskip = 2L,
+    ntree = 5L,
+    verbose = FALSE,
+    ...
+  ))
+}
+for (arg in c(
+  "combinechains",
+  "keeptrees",
+  "keepcall",
+  "sampleronly",
+  "keepsampler"
+)) {
+  for (bad in flagBad) {
+    expect_error(
+      do.call(smallBT, stats::setNames(list(bad), arg)),
+      paste0("'", arg, "' must be TRUE or FALSE"),
+      fixed = TRUE
+    )
+  }
+}
+runsClean(smallBT(combinechains = 1, keepcall = 0))
+
+dd <- data.frame(y = y, x1 = x[, 1L], g = gl(5L, n / 5L))
+rbartFlag <- function(...) {
+  suppressWarnings(dbarts::rbart_vi(
+    y ~ x1,
+    data = dd,
+    group.by = g,
+    n.samples = 4L,
+    n.burn = 2L,
+    n.thin = 1L,
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 5L,
+    verbose = FALSE,
+    ...
+  ))
+}
+for (arg in c("combineChains", "keepCall", "keepTestFits")) {
+  for (bad in flagBad) {
+    expect_error(
+      do.call(rbartFlag, stats::setNames(list(bad), arg)),
+      paste0("'", arg, "' must be TRUE or FALSE"),
+      fixed = TRUE
+    )
+  }
+}
+
+sampler <- make()
+for (bad in flagBad) {
+  expect_error(
+    sampler$copy(shallow = bad),
+    "'shallow' must be TRUE or FALSE",
+    fixed = TRUE
+  )
+  expect_error(
+    sampler$getTrees(current = bad),
+    "'current' must be TRUE or FALSE",
+    fixed = TRUE
+  )
+  expect_error(
+    sampler$getVariance(test = bad),
+    "'test' must be TRUE or FALSE",
+    fixed = TRUE
+  )
+  expect_error(
+    dbarts::guessNumCores(bad),
+    "'logical' must be TRUE or FALSE",
+    fixed = TRUE
+  )
+  expect_error(
+    dbarts::makeModelMatrixFromDataFrame(data.frame(a = gl(2L, 2L)), bad),
+    "'drop' must be TRUE or FALSE",
+    fixed = TRUE
+  )
+  expect_error(
+    dbarts::makeind(data.frame(a = gl(2L, 2L)), bad),
+    "'all' must be TRUE or FALSE",
+    fixed = TRUE
+  )
+}
+runsClean(sampler$copy(shallow = 1))
+runsClean(sampler$getTrees(current = 1))
+expect_identical(
+  dim(dbarts::makeModelMatrixFromDataFrame(data.frame(a = gl(2L, 2L)), 1)),
+  dim(dbarts::makeModelMatrixFromDataFrame(data.frame(a = gl(2L, 2L)), TRUE))
+)
+expect_identical(
+  dim(dbarts::makeModelMatrixFromDataFrame(data.frame(a = gl(2L, 2L)), 0)),
+  dim(dbarts::makeModelMatrixFromDataFrame(data.frame(a = gl(2L, 2L)), FALSE))
+)
+fitBT <- dbarts::bart(
+  x,
+  y,
+  n.samples = 4L,
+  n.burn = 2L,
+  n.trees = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+for (bad in flagBad) {
+  expect_error(
+    extract(fitBT, type = "forest", contribution = bad),
+    "'contribution' must be TRUE or FALSE",
+    fixed = TRUE
+  )
+}
+for (bad in flagBad) {
+  expect_error(
+    dbarts:::plot.pd2bart(list(), justmedian = bad),
+    "'justmedian' must be TRUE or FALSE",
+    fixed = TRUE
+  )
+}

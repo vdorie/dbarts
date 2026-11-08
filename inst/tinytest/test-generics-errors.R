@@ -466,12 +466,12 @@ for (fit in list(bart2FitKT, multinomialFitKT, ordinalFitKT, negbinFitKT)) {
   for (flag in list(NA, "yes", c(TRUE, FALSE), NULL)) {
     expect_error(
       predict(fit, newRows, combineChains = flag),
-      "'combineChains' must be TRUE/FALSE",
+      "'combineChains' must be TRUE or FALSE",
       fixed = TRUE
     )
     expect_error(
       extract(fit, combineChains = flag),
-      "'combineChains' must be TRUE/FALSE",
+      "'combineChains' must be TRUE or FALSE",
       fixed = TRUE
     )
   }
@@ -499,17 +499,17 @@ for (fit in list(bart2FitKT, multinomialFitKT, ordinalFitKT, negbinFitKT)) {
 for (flag in list(NA, "yes")) {
   expect_error(
     predict(hurdleFitKT, xSmall[1:2, ], combineChains = flag),
-    "'combineChains' must be TRUE/FALSE",
+    "'combineChains' must be TRUE or FALSE",
     fixed = TRUE
   )
   expect_error(
     extract(hurdleFitKT, combineChains = flag),
-    "'combineChains' must be TRUE/FALSE",
+    "'combineChains' must be TRUE or FALSE",
     fixed = TRUE
   )
   expect_error(
     survivalProbabilities(bart2FitKT, combineChains = flag),
-    "'combineChains' must be TRUE/FALSE",
+    "'combineChains' must be TRUE or FALSE",
     fixed = TRUE
   )
 }

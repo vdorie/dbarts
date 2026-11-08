@@ -1553,7 +1553,7 @@ setDataChoices <- function(
         length(value) != 1L ||
         is.na(value)
     ) {
-      stop("'", name, "' must be NULL, TRUE or FALSE", call. = FALSE)
+      stop("'", name, "' must be TRUE or FALSE", call. = FALSE)
     }
     if (as.logical(value)) "derive" else "keep"
   }

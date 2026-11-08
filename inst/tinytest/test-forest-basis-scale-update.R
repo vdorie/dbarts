@@ -253,7 +253,7 @@ for (bad in list(NA, c(TRUE, TRUE), "TRUE", "yes", NULL)) {
     running,
     3L,
     dose,
-    "'updateBasisScale' must be TRUE/FALSE",
+    "'updateBasisScale' must be TRUE or FALSE",
     flag = bad
   )
 }

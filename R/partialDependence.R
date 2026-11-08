@@ -2023,7 +2023,7 @@ pdbart <- function(
   }
   # read as a condition, as BayesTree's was: TRUE, FALSE, or a number
   if (length(pl) != 1L || !(is.logical(pl) || is.numeric(pl)) || is.na(pl)) {
-    stop("'pl' must be TRUE/FALSE", call. = FALSE)
+    stop("'pl' must be TRUE or FALSE", call. = FALSE)
   }
   pdbart.checkAveraging(
     type,
@@ -2138,7 +2138,7 @@ pd2bart <- function(
   }
   # read as a condition, as BayesTree's was: TRUE, FALSE, or a number
   if (length(pl) != 1L || !(is.logical(pl) || is.numeric(pl)) || is.na(pl)) {
-    stop("'pl' must be TRUE/FALSE", call. = FALSE)
+    stop("'pl' must be TRUE or FALSE", call. = FALSE)
   }
   pdbart.checkAveraging(
     type,

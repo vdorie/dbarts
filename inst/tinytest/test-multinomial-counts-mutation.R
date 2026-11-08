@@ -382,7 +382,7 @@ expect_error(sampler.mn$setWeights(runif(n, 0.5, 1.5)), "row-wise")
 # (test-bcf-mutation-pins.R pins that guard at updateScale = TRUE)
 expect_error(
   sampler.bcf$setResponse(rnorm(n), updateScale = NA),
-  "'updateScale' must be TRUE/FALSE"
+  "'updateScale' must be TRUE or FALSE"
 )
 
 # the whole-data mutation the multinomial battery had never pinned, and the

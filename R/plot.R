@@ -723,6 +723,7 @@ plot.pd2bart <- function(
   ...
 ) {
   plot.type <- match.arg(plot.type)
+  justmedian <- checkFlag(justmedian, "justmedian")
   if (plot.type == "curves") {
     pdRefuseCurves(x)
   }

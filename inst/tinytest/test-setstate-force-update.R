@@ -117,7 +117,7 @@ own <- warmed()
 for (bad in list(NA, "partial", c(TRUE, FALSE), "TRUE", NULL)) {
   expect_error(
     own$setState(own$state, forceUpdate = bad),
-    pattern = "'forceUpdate' must be TRUE/FALSE",
+    pattern = "'forceUpdate' must be TRUE or FALSE",
     fixed = TRUE
   )
 }

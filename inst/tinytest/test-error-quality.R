@@ -192,7 +192,7 @@ for (flag in c("keepCall", "keepSampler", "samplerOnly")) {
   for (value in values) {
     expect_error(
       do.call(quickBart, structure(list(value), names = flag)),
-      paste0("'", flag, "' must be TRUE/FALSE"),
+      paste0("'", flag, "' must be TRUE or FALSE"),
       fixed = TRUE,
       info = flag
     )
@@ -243,7 +243,7 @@ expect_error(
 )
 expect_error(
   dbarts::bartBT(testData$x, testData$y, verbose = NA),
-  "'verbose' must be TRUE/FALSE",
+  "'verbose' must be TRUE or FALSE",
   fixed = TRUE
 )
 expect_error(
@@ -277,12 +277,12 @@ expect_error(
 )
 expect_error(
   dbarts::pdbart(testData$x, testData$y, pl = NA),
-  "'pl' must be TRUE/FALSE",
+  "'pl' must be TRUE or FALSE",
   fixed = TRUE
 )
 expect_error(
   dbarts::pd2bart(testData$x, testData$y, pl = NA),
-  "'pl' must be TRUE/FALSE",
+  "'pl' must be TRUE or FALSE",
   fixed = TRUE
 )
 expect_error(

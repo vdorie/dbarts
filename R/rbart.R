@@ -84,6 +84,10 @@ rbart_vi <- function(
   if (length(nullWritten(match.call(), "k", callingEnv)) > 0L) {
     refuseNullArgument(NULL, "k")
   }
+  combineChains <- checkFlag(combineChains, "combineChains")
+  keepCall <- checkFlag(keepCall, "keepCall")
+  keepTrees <- checkFlag(keepTrees, "keepTrees")
+  keepSampler <- checkFlag(keepSampler, "keepSampler")
   warnOnce(
     "tombstone.rbart_vi",
     "'rbart_vi' is deprecated and is removed in dbarts ",
@@ -418,6 +422,7 @@ rbart_vi <- function(
     }
   }
 
+  keepTestFits <- checkFlag(keepTestFits, "keepTestFits")
   rbartArgs <- namedList(
     group.by,
     prior,

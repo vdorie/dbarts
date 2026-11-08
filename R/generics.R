@@ -1747,7 +1747,8 @@ extract.bart <- function(
     fitIsHeteroscedastic(object),
     fitNumForests(object)
   )
-  if (type != "forest" && isTRUE(contribution)) {
+  contribution <- checkFlag(contribution, "contribution")
+  if (type != "forest" && contribution) {
     stop(
       "type = \"",
       type,

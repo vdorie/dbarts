@@ -2542,7 +2542,7 @@ for (setter in c("setWeights", "setActiveRows")) {
     active <- s$activeRows
     expect_error(
       setterOf(s, setter)(a, updateStandardization = value),
-      "'updateStandardization' must be TRUE/FALSE",
+      "'updateStandardization' must be TRUE or FALSE",
       fixed = TRUE,
       info = setter
     )

@@ -680,7 +680,7 @@ validateArgumentsInEnvironment <- function(
         length(verbose) != 1L ||
         is.na(verbose)
     ) {
-      stop("'verbose' argument to ", funcName, " must be TRUE/FALSE")
+      stop("'verbose' argument to ", funcName, " must be TRUE or FALSE")
     }
     envir$verbose <- as.logical(verbose)
   } else if (!controlIsMissing) {
@@ -3178,6 +3178,7 @@ dbartsSampler <- setRefClass(
     },
     copy = function(shallow = FALSE) {
       "Creates a deep or shallow copy of the sampler, keeping its model, the response mapping included, and its data object, whose record of the cut points, their weights and the response range it is built on. A sampler whose engine exists in this R session gives the copy its current chain, even one stored since its last storeState(), and the copy's stored state is that chain. Otherwise, as after a save and load, the copy is given the stored state, which goes in as setState does with forceUpdate = TRUE: a split off the recorded cut points moves to the nearest point by value, and a tree that no longer fits the sampler is repaired, silently; see setState. Without a stored state such a copy is refused, as a reload is."
+      shallow <- checkFlag(shallow, "shallow")
       live <- .Call(C_dbarts_bartcore_isValidPointer, pointer)
       if (!live && is.null(state)) {
         stopWithoutStoredState()
@@ -4235,7 +4236,7 @@ dbartsSampler <- setRefClass(
     getVariance = function(test = FALSE) {
       "Returns a heteroscedastic sampler's current variance surface s^2(x) on the ORIGINAL response scale, an n.observations x n.chains matrix at the default test = FALSE and an n.test x n.chains matrix at test = TRUE. This is the mid-sweep read of the channels run() records as 'variance' and 'varianceTest': at the state a recorded sweep left, the two agree exactly. It reports a VARIANCE, so a residual scale is its square root, and it is the surface analog of getSigmas(), which reports the scalar sigma a homoscedastic sampler carries. NULL where those channels report nothing: on a homoscedastic sampler, and at test = TRUE with no test rows installed. Unlike predict(), it reads the trees currently in force, so it answers after a prior draw and needs no keepTrees."
       ptr <- getPointer()
-      .Call(C_dbarts_bartcore_getVariance, ptr, isTRUE(test))
+      .Call(C_dbarts_bartcore_getVariance, ptr, checkFlag(test, "test"))
     },
     getForestAmplitudes = function(forest = NULL) {
       "Returns the named forest's amplitudes - the scalars its basis columns are multiplied by, one per column - as a q x n.chains matrix, or, at the default forest = NULL, every forest's stacked forest-major into a sum(q) x n.chains matrix, which is the row order the run's own glue channel carries. A drawn one has prior median size 1, on a factor the difference between two levels' amplitudes, a level's own having 0.71. The vector is RAGGED, forest by forest, which is why a forest can be named: a Bayesian causal forest's forest 1 carries the single a on its implicit intercept and its forest 2 the pair (b0, b1) on its two level indicators, so the stacked read is its shipped (a, b0, b1). forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i), as with setForestBasis/setForestWeights/getLeafPrior."
@@ -4698,7 +4699,7 @@ dbartsSampler <- setRefClass(
     ) {
       "Returns a data.frame containing the internal state of the trees, one row per node. A sampler with more than one forest (a multinomial one, or one declared with forests = naming several) puts a leading 'forest' column (indexed from 1) on it, and stacks every forest forest-major at the default forest = NULL, as the sampler's other per-forest readers stack at their own default; any other sampler returns no forest column, and accepts forest = 1. forest also takes a single position or label, or a vector of them (positions, or labels as a string is read elsewhere; forest<i> names position i), each validated as getLeafPrior/getForestFits/getForestAmplitudes/getForestVariableCounts validate one. treeNums defaults to, and is validated against, EACH selected forest's own tree count, which need not match forest 1's."
       matchedCall <- match.call()
-      current <- isTRUE(current)
+      current <- checkFlag(current, "current")
       # live working trees have no sample dimension, so treat a current request
       # like a non-keepTrees sampler for sample handling
       useSaved <- control@keepTrees && !current

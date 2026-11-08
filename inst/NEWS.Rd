@@ -282,12 +282,18 @@
   }
   \subsection{USER-VISIBLE CHANGES}{
     \itemize{
-      \item Every \code{TRUE}/\code{FALSE} argument takes a single logical
-            or number, read as \code{as.logical} reads it (0 is
-            \code{FALSE}), and refuses \code{NA}, a string or another
-            length by name, as 0.9-34's \code{$run(updateState = 1)} was
-            taken. A sampler method's \code{updateState} also takes
-            \code{NULL}, the control's setting.
+      \item A \code{TRUE}/\code{FALSE} argument takes a single logical or
+            number, read as \code{as.logical} reads it (0 is \code{FALSE}),
+            and refuses \code{NA}, a string or another length by name.
+            0.9-34 took such an argument unchecked, or failed on it with an
+            error that did not name it, in places such as \code{bartBT}'s
+            \code{keepcall} and \code{keeptrees}, \code{rbart_vi}'s
+            \code{keepTestFits}, a sampler's \code{$copy(shallow)} and
+            \code{$getTrees(current)}, \code{extract}'s \code{contribution}
+            and \code{makeind}'s \code{all}; and \code{drop = 1} to
+            \code{makeModelMatrixFromDataFrame} failed. A sampler method's
+            \code{updateState} also takes \code{NULL}, the control's
+            setting.
       \item An observation of weight zero no longer takes part in the
             response's scale, which the leaf prior is stated against, so a
             fit with zero weights has the leaf prior of the fit on the

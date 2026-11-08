@@ -223,7 +223,7 @@ expect_identical(stale$run(0L, 5L), twin$run(0L, 5L))
 for (bad in list("TRUE", NA, c(TRUE, TRUE), "partial")) {
   expect_error(
     make()$installTrees(donor, forceUpdate = bad),
-    "'forceUpdate' must be TRUE/FALSE",
+    "'forceUpdate' must be TRUE or FALSE",
     fixed = TRUE
   )
 }

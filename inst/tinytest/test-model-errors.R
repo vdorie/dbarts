@@ -6,11 +6,11 @@ source(
 # test that non-prior, model arguments raise errors
 expect_error(
   dbarts::dbarts(y ~ x, testData, verbose = NA),
-  "'verbose' argument to dbarts must be TRUE/FALSE"
+  "'verbose' argument to dbarts must be TRUE or FALSE"
 )
 expect_error(
   dbarts::dbarts(y ~ x, testData, verbose = "not-a-logical"),
-  "'verbose' argument to dbarts must be TRUE/FALSE"
+  "'verbose' argument to dbarts must be TRUE or FALSE"
 )
 
 expect_error(

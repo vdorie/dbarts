@@ -178,7 +178,7 @@ expect_error(
 )
 expect_error(
   quickXbart(useQuantiles = NA),
-  pattern = "'useQuantiles' must be TRUE/FALSE"
+  pattern = "'useQuantiles' must be TRUE or FALSE"
 )
 expect_error(
   quickXbart(n.thin = -1L),

@@ -1,38 +1,38 @@
 # test that logical arguments are identified and 'bounded'
 expect_error(
   dbarts::dbartsControl(verbose = NA),
-  "'verbose' must be TRUE/FALSE"
+  "'verbose' must be TRUE or FALSE"
 )
 expect_error(
   dbarts::dbartsControl(verbose = "not-a-logical"),
-  "'verbose' must be TRUE/FALSE"
+  "'verbose' must be TRUE or FALSE"
 )
 
 expect_error(
   dbarts::dbartsControl(keepTrainingFits = NA),
-  "'keepTrainingFits' must be TRUE/FALSE"
+  "'keepTrainingFits' must be TRUE or FALSE"
 )
 expect_error(
   dbarts::dbartsControl(keepTrainingFits = "not-a-logical"),
-  "'keepTrainingFits' must be TRUE/FALSE"
+  "'keepTrainingFits' must be TRUE or FALSE"
 )
 
 expect_error(
   dbarts::dbartsControl(useQuantiles = NA),
-  "'useQuantiles' must be TRUE/FALSE"
+  "'useQuantiles' must be TRUE or FALSE"
 )
 expect_error(
   dbarts::dbartsControl(useQuantiles = "not-a-logical"),
-  "'useQuantiles' must be TRUE/FALSE"
+  "'useQuantiles' must be TRUE or FALSE"
 )
 
 expect_error(
   dbarts::dbartsControl(updateState = NA),
-  "'updateState' must be TRUE/FALSE"
+  "'updateState' must be TRUE or FALSE"
 )
 expect_error(
   dbarts::dbartsControl(updateState = "not-a-logical"),
-  "'updateState' must be TRUE/FALSE"
+  "'updateState' must be TRUE or FALSE"
 )
 
 

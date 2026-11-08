@@ -79,12 +79,12 @@ expect_error(
     group.by = testData$g[1:2],
     combineChains = NA
   ),
-  "'combineChains' must be TRUE/FALSE",
+  "'combineChains' must be TRUE or FALSE",
   fixed = TRUE
 )
 expect_error(
   extract(rbartSmall, combineChains = "yes"),
-  "'combineChains' must be TRUE/FALSE",
+  "'combineChains' must be TRUE or FALSE",
   fixed = TRUE
 )
 expect_error(
@@ -94,12 +94,12 @@ expect_error(
     group.by = testData$g[1:2],
     combineChains = "yes"
   ),
-  "'combineChains' must be TRUE/FALSE",
+  "'combineChains' must be TRUE or FALSE",
   fixed = TRUE
 )
 expect_error(
   extract(rbartSmall, combineChains = NA),
-  "'combineChains' must be TRUE/FALSE",
+  "'combineChains' must be TRUE or FALSE",
   fixed = TRUE
 )
 # a number is read as as.logical reads it

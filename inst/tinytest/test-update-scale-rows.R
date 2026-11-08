@@ -402,11 +402,11 @@ for (bad in list(NA, "TRUE", c(TRUE, FALSE))) {
   twin <- mkG()
   expect_error(
     s$setWeights(w01, updateScale = bad),
-    "'updateScale' must be TRUE/FALSE"
+    "'updateScale' must be TRUE or FALSE"
   )
   expect_error(
     s$setActiveRows(w01, updateScale = bad),
-    "'updateScale' must be TRUE/FALSE"
+    "'updateScale' must be TRUE or FALSE"
   )
   expect_null(s$data@weights)
   expect_null(s$activeRows)

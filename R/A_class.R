@@ -112,7 +112,7 @@ methods::setValidity("dbartsDartPrior", function(object) {
     return(refusal[1L])
   }
   if (length(object@update.alpha) != 1L || is.na(object@update.alpha)) {
-    return("'update.alpha' must be TRUE/FALSE")
+    return("'update.alpha' must be TRUE or FALSE")
   }
   if (
     length(object@splitProbabilities) > 0L ||
@@ -529,22 +529,22 @@ methods::setValidity("dbartsControl", function(object) {
   }
 
   if (is.na(object@verbose)) {
-    return("'verbose' must be TRUE/FALSE")
+    return("'verbose' must be TRUE or FALSE")
   }
   if (is.na(object@keepTrainingFits)) {
-    return("'keepTrainingFits' must be TRUE/FALSE")
+    return("'keepTrainingFits' must be TRUE or FALSE")
   }
   if (is.na(object@keepFits)) {
-    return("'keepFits' must be TRUE/FALSE")
+    return("'keepFits' must be TRUE or FALSE")
   }
   if (is.na(object@useQuantiles)) {
-    return("'useQuantiles' must be TRUE/FALSE")
+    return("'useQuantiles' must be TRUE or FALSE")
   }
   # levelGibbs, the slot behind treeShift, alone reads NA as a value rather
   # than as a missing one: it is the automatic mode, which takes the step for
   # a forest exactly where that forest's structural mixture is frozen
   if (is.na(object@keepTrees)) {
-    return("'keepTrees' must be TRUE/FALSE")
+    return("'keepTrees' must be TRUE or FALSE")
   }
 
   if (
@@ -631,7 +631,7 @@ methods::setValidity("dbartsControl", function(object) {
   }
 
   if (is.na(object@updateState)) {
-    return("'updateState' must be TRUE/FALSE")
+    return("'updateState' must be TRUE or FALSE")
   }
 
   ## handle this in particular b/c it is set through dbarts, not

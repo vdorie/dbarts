@@ -93,8 +93,11 @@ expect_identical(keptBCF$sigma, droppedBCF$sigma)
 expect_identical(keptBCF$varcount, droppedBCF$varcount)
 
 # ---- the flag is a real logical, not whatever coerces ----
-expect_error(dbartsControl(keepFits = NA), "'keepFits' must be TRUE/FALSE")
-expect_error(dbartsControl(keepFits = "yes"), "'keepFits' must be TRUE/FALSE")
+expect_error(dbartsControl(keepFits = NA), "'keepFits' must be TRUE or FALSE")
+expect_error(
+  dbartsControl(keepFits = "yes"),
+  "'keepFits' must be TRUE or FALSE"
+)
 # a slot edit reaches $run past dbartsControl; the bridge refuses it there
 control.na <- makeVarianceSampler()$control
 control.na@keepFits <- NA

@@ -246,15 +246,15 @@ expect_error(
 
 expect_error(
   dbarts::xbart(y ~ x, verbose = "not-a-logical"),
-  "'verbose' argument to xbart must be TRUE/FALSE"
+  "'verbose' argument to xbart must be TRUE or FALSE"
 )
 expect_error(
   dbarts::xbart(y ~ x, verbose = NULL),
-  "'verbose' argument to xbart must be TRUE/FALSE"
+  "'verbose' argument to xbart must be TRUE or FALSE"
 )
 expect_error(
   dbarts::xbart(y ~ x, verbose = NA),
-  "'verbose' argument to xbart must be TRUE/FALSE"
+  "'verbose' argument to xbart must be TRUE or FALSE"
 )
 
 expect_error(
@@ -369,7 +369,7 @@ expect_error(
 )
 expect_error(
   xbartSmall(drop = NA, n.test = 5),
-  "'drop' must be TRUE/FALSE",
+  "'drop' must be TRUE or FALSE",
   fixed = TRUE
 )
 rm(xbartSmall)

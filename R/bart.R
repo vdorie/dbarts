@@ -4638,8 +4638,13 @@ bartBT <- function(
       !(is.logical(verbose) || is.numeric(verbose)) ||
       is.na(verbose)
   ) {
-    stop("'verbose' must be TRUE/FALSE", call. = FALSE)
+    stop("'verbose' must be TRUE or FALSE", call. = FALSE)
   }
+  combinechains <- checkFlag(combinechains, "combinechains")
+  keeptrees <- checkFlag(keeptrees, "keeptrees")
+  keepcall <- checkFlag(keepcall, "keepcall")
+  sampleronly <- checkFlag(sampleronly, "sampleronly")
+  keepsampler <- checkFlag(keepsampler, "keepsampler")
   if (!is.numeric(binaryOffset)) {
     stop("'binaryOffset' must be numeric", call. = FALSE)
   }
@@ -4927,6 +4932,6 @@ bartBT <- function(
 }
 
 makeind <- function(x, all = TRUE) {
-  ignored <- all ## for R check # nolint: object_usage_linter.
+  checkFlag(all, "all")
   makeModelMatrixFromDataFrame(x, TRUE)
 }

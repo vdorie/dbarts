@@ -1161,7 +1161,7 @@ smallFit <- function(...) {
 for (value in list(NA, "yes", c(TRUE, FALSE))) {
   expect_error(
     smallFit(combineChains = value),
-    pattern = "'combineChains' must be TRUE/FALSE"
+    pattern = "'combineChains' must be TRUE or FALSE"
   )
 }
 expect_identical(

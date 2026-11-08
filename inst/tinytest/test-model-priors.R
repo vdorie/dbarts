@@ -328,7 +328,7 @@ expect_identical(
 )
 expect_identical(
   tryCatch(dbartsPriors$dart(update.alpha = NA), error = conditionMessage),
-  "'update.alpha' must be TRUE/FALSE"
+  "'update.alpha' must be TRUE or FALSE"
 )
 # an NA rho keeps its own words, which name NULL as the default's spelling
 expect_error(dbartsPriors$dart(rho = NA), "'rho' must not be NA")
