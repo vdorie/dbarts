@@ -1283,6 +1283,7 @@ dbarts <- function(
       )
     }
     multinomialCounts <- resolveMultinomialCounts(data)
+    multinomialAsFactor <- !is.matrix(data) && !is.data.frame(data)
     matchedCall$data <- NULL
   }
 
@@ -1486,6 +1487,10 @@ dbarts <- function(
       )
     }
   )
+
+  if (!is.null(multinomialCounts)) {
+    data@counts.as.factor <- multinomialAsFactor
+  }
 
   # a Surv formula response was ingested and subsetted by dbartsData()'s own
   # short-circuit (R/data.R), which has no family vocabulary to dispatch on -
@@ -1950,11 +1955,10 @@ samplePriorPredictive <- function(
         ncol(result)
       )
     } else if (isMultinomial) {
-      # a draw in the shape of the sampler's response, as predict draws at a
-      # new row: a category where every row holds one trial, otherwise a
-      # count vector of one trial
-      counts <- dataCounts(draw$data)
-      result <- if (all(rowSums(counts) == 1)) {
+      # a draw in the shape the sampler's response was written in, whatever
+      # the rows' trials: a category for a factor, a count vector of one
+      # trial for a count matrix
+      result <- if (isTRUE(dataCountsAsFactor(draw$data))) {
         multinomialPpdFromProbs(result)
       } else {
         multinomialCountPpdFromProbs(result, rep_len(1L, dim(result)[2L]))

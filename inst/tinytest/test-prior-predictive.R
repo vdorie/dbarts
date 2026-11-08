@@ -614,6 +614,44 @@ ppd <- samplePriorPredictive(
 expect_identical(dim(ppd), c(5L, 2L, 3L))
 expect_true(all(apply(ppd, c(1L, 2L), sum) == 1))
 
+# the shape follows how the response was written, not the rows' trials: a
+# factor draws category codes, a count matrix of one trial per row draws count
+# vectors of one trial
+oneTrial <- t(rmultinom(nPrior, 1L, rep(1, 3) / 3))
+oneTrialRows <- dbarts(
+  xPrior,
+  oneTrial,
+  family = "multinomial",
+  n.trees = 10L,
+  control = control.seeded
+)
+factorRows <- dbarts(
+  xPrior,
+  factor(max.col(oneTrial, ties.method = "first"), levels = 1:3),
+  family = "multinomial",
+  n.trees = 10L,
+  control = control.seeded
+)
+expect_false(oneTrialRows$data@counts.as.factor)
+expect_true(factorRows$data@counts.as.factor)
+ppdShape <- function(sampler) {
+  samplePriorPredictive(sampler, x.test = xTwo, n.samples = 5L, type = "ppd")
+}
+ppd <- ppdShape(oneTrialRows)
+expect_identical(dim(ppd), c(5L, 2L, 3L))
+expect_true(all(apply(ppd, c(1L, 2L), sum) == 1))
+ppd <- ppdShape(factorRows)
+expect_identical(dim(ppd), c(5L, 2L))
+expect_true(all(ppd %in% 1:3))
+# a later $setCounts makes the response a count matrix, one trial or more
+factorRows$setCounts(oneTrial)
+expect_false(factorRows$data@counts.as.factor)
+ppd <- ppdShape(factorRows)
+expect_identical(dim(ppd), c(5L, 2L, 3L))
+expect_true(all(apply(ppd, c(1L, 2L), sum) == 1))
+countRows$setCounts(oneTrial)
+expect_identical(dim(ppdShape(countRows)), c(5L, 2L, 3L))
+
 # a sampler carrying a category offset needs offset.test, the all-zero matrix
 # for the offset-free surface
 offsetSampler <- dbarts(

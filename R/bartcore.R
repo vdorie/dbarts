@@ -101,6 +101,8 @@ bartcoreSamplerSetCounts <- function(sampler, counts) {
   ptr <- sampler$getPointer()
   .Call(C_dbarts_bartcore_setCounts, ptr, counts)
   sampler$data@counts <- counts
+  # a count matrix now, whatever the response was first written as
+  sampler$data@counts.as.factor <- FALSE
   # y is the trials the counts imply, never an independent quantity
   sampler$data@y <- as.double(rowSums(counts))
   # after the mirror, so a warning promoted to an error leaves them in step

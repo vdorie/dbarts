@@ -984,6 +984,12 @@ methods::setClass(
     # with it - and @y carries the trials n_i = sum_k counts[i, k], which is
     # what keeps every length(data@y) reader meaningful on such a sampler.
     counts = "matrixOrNULL",
+    # How that response was written: TRUE for a factor (or character) vector,
+    # FALSE for a count matrix, NA where the object carries no counts. Only
+    # the shape of a draw from the response's distribution reads it. Read
+    # through dataCountsAsFactor, as an object saved before the slot existed
+    # has none.
+    counts.as.factor = "logical",
     # The n x K category offset, added to the raw per-category fits BEFORE the
     # softmax; null for none. Not @offset, which is added after the blend and
     # is the softmax's own null direction besides.
@@ -1025,6 +1031,7 @@ methods::setClass(
     basis.levels = NULL,
     basis.scale = NULL,
     counts = NULL,
+    counts.as.factor = NA,
     offset.category = NULL,
     offset.category.test = NULL,
     status = NULL,
@@ -1135,6 +1142,9 @@ methods::setValidity("dbartsData", function(object) {
   # any validity function runs. Such an object stays READABLE - that is what
   # the guarded accessor buys it - but it is not revalidatable.
   counts <- object@counts
+  if (length(object@counts.as.factor) != 1L) {
+    return("'counts.as.factor' must be a single TRUE, FALSE or NA")
+  }
   categoryOffset <- object@offset.category
   categoryTestOffset <- object@offset.category.test
   if (!is.null(counts)) {

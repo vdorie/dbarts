@@ -840,6 +840,16 @@ dataCounts <- function(data) {
   data@counts
 }
 
+## Whether a multinomial data object's response was written as a factor (TRUE)
+## or as a count matrix (FALSE); NA where it carries no counts, and for an
+## object saved before the slot existed.
+dataCountsAsFactor <- function(data) {
+  if (!methods::.hasSlot(data, "counts.as.factor")) {
+    return(NA)
+  }
+  data@counts.as.factor
+}
+
 methods::setMethod(
   "initialize",
   "dbartsData",
@@ -861,6 +871,13 @@ methods::setMethod(
       .Object@bases <- modelMatrices$bases
       .Object@basis.levels <- modelMatrices$basisLevels
       .Object@counts <- modelMatrices$counts
+      # a count matrix as far as this constructor can tell; dbarts() states a
+      # factor it one-hot expanded
+      .Object@counts.as.factor <- if (is.null(modelMatrices$counts)) {
+        NA
+      } else {
+        FALSE
+      }
       .Object@offset.category <- modelMatrices$offset.category
       .Object@offset.category.test <- modelMatrices$offset.category.test
 

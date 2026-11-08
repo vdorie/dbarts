@@ -857,7 +857,10 @@
             sampler recorded, the \code{leaf.prior} it ran under and the
             scalars it held \code{fixed}. \code{\link{plotTree}} plots a
             tree directly from a fit. \code{\link{samplePriorPredictive}}
-            draws from a model's prior before fitting it. Runs can be
+            draws from a model's prior before fitting it; on a multinomial
+            sampler its \code{"ppd"} draws a category for a response
+            written as a factor and a count vector of one trial for one
+            written as a count matrix. Runs can be
             interrupted with Ctrl-C.
       \item \code{xbart} runs over the same sampler as \code{bart}, so it
             takes \code{family}, \code{factors}, \code{split.probs}
