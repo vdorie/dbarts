@@ -329,12 +329,17 @@ lists; this is the shape):
 - exact-gates: `docs/**`, `TODO`, `**.md`, the MANIFEST, `inst/NEWS.Rd`.
   It does not ignore the rest of benchmarks/. On main each commit is
   its own concurrency group, so a later push no longer cancels a slice's
-  run; on other branches a newer push still supersedes an older one. Its gate loop runs on the shipped build; the two cross-host
+  run; on other branches a newer push still supersedes an older one. Its job timeout is 60 minutes. Its gate loop runs on the shipped build; the two cross-host
   equivalence compares that follow get their own reference install, the
   tier-1 bound being tighter than the shipped draw path holds off-host.
 - lint: `docs/**`, `TODO`, `**.md`, `benchmarks/baselines/**`.
 - pkgdown: `docs/**`, `TODO`, `benchmarks/**`, but not `**.md`
   (README is an input).
+  Its concurrency group is "deploy" only for a push or dispatch on main
+  or a release; any other run has its own group, so a branch run never
+  cancels main's. It deploys only from main or a release.
+- The workflows' setup-r and setup-pandoc steps retry once after 30
+  seconds when the download fails.
 - doc-freshness: nothing ignored, by design.
 - check-api-hash (part of check-standard.yaml): a dedicated job, full
   checkout history, running
