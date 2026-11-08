@@ -1807,6 +1807,11 @@ bartcoreSamplerSetData <- function(
     "every forest is calibrated against the data at creation; make a new ",
     "sampler instead"
   )
+  # a hazard sampler's survival data are spread onto its own periods, as
+  # dbarts() spreads them at creation, and are the rows from here on
+  if (!is.null(sampler$model@hazard.periods)) {
+    newData <- spreadSurvivalOnPeriods(newData, sampler$model@hazard.periods)
+  }
   # a sampler of one forest has no forest for a basis to multiply
   if (!is.null(newData@bases)) {
     stop(
@@ -1955,6 +1960,70 @@ leafFromAllRows <- function(sampler, records) {
     return(character())
   }
   leafCovariateLabels(sampler$model, sampler$data)[flags]
+}
+
+## A data object built from a Surv response (its time and status ride it as
+## attributes), expanded onto a hazard sampler's own periods as dbarts() expands
+## at creation: one row per period at risk, the period column last and ordinal,
+## the offset and weights repeated per subject, held-out subjects at every
+## period, and the names and the na.action record restated over the rows. A
+## time past the last period leaves its subject at risk through every period
+## with no event, as at creation for a subject out of the likelihood. A data
+## object with no survival response is returned as it is.
+spreadSurvivalOnPeriods <- function(data, periods) {
+  status <- attr(data, "survivalStatus", exact = TRUE)
+  if (is.null(status)) {
+    return(data)
+  }
+  time <- attr(data, "survivalTime", exact = TRUE)
+  timeOmitted <- attr(data, "survivalTimeOmitted", exact = TRUE)
+  attr(data, "survivalStatus") <- NULL
+  attr(data, "survivalTime") <- NULL
+  attr(data, "survivalTimeOmitted") <- NULL
+  termVars <- unlist(lapply(
+    attr(data@x, "term.labels"),
+    function(label) all.vars(str2lang(label))
+  ))
+  if ("period" %in% termVars) {
+    stop(
+      "$setData: a hazard fit appends its own 'period' column; rename the ",
+      "predictor 'period'",
+      call. = FALSE
+    )
+  }
+  expansion <- expandDiscreteTimeHazard(
+    data@x,
+    time,
+    status,
+    offset = data@offset,
+    weights = data@weights,
+    periods = periods
+  )
+  data@x <- expansion$x
+  data@varTypes <- c(data@varTypes, ORDINAL_VARIABLE)
+  data@y <- expansion$y
+  data@offset <- expansion$offset
+  data@weights <- expansion$weights
+  K <- length(periods)
+  names <- hazardRowNames(
+    dataRowNames(data, "train"),
+    expansion$subject,
+    dataRowNames(data, "test"),
+    K
+  )
+  if (!is.null(data@na.action)) {
+    omitted <- hazardOmittedRows(
+      data@na.action,
+      timeOmitted,
+      expansion,
+      dataRowNames(data, "train")
+    )
+    data@na.action <- omitted$record
+    names$train <- omitted$names
+  }
+  data <- expandHazardTest(data, K)
+  data <- setDataRowNames(data, "train", names$train)
+  setDataRowNames(data, "test", names$test)
 }
 
 ## A hazard fit's subject for each person-period row, as the expansion lays

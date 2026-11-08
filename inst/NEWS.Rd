@@ -651,7 +651,11 @@
             zeros, \code{bart} only). \code{\link{survivalProbabilities}}
             gives survival-curve draws from a survival fit, at the training
             subjects, at \code{newdata} or, with \code{sample = "test"}, at
-            the test subjects the fit stored. Each new fit
+            the test subjects the fit stored. A hazard sampler's
+            \code{$setData} takes data built from a \code{Surv} response and
+            spreads it onto the sampler's own periods as \code{dbarts}
+            does, a time past the last period leaving its subject censored
+            there. Each new fit
             class has \code{fitted}, \code{predict}, \code{extract},
             \code{residuals}, \code{summary} and \code{plot} methods, and
             \code{family()} returns the family of any fit. See

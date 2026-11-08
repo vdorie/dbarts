@@ -134,6 +134,19 @@ resolveHazardGrid <- function(time, breaks, gridTime = time) {
   list(periods = periods, terminalPeriod = terminal)
 }
 
+# Each subject's terminal period on a grid already made, a sampler's own: the
+# period whose interval holds its time, a time past the last period in the last
+# (expandDiscreteTimeHazard then leaves it censored there, at risk through
+# every period with no event), and a subject with no time in the first.
+placeOnHazardGrid <- function(time, periods) {
+  terminal <- pmin(
+    findInterval(time, periods, left.open = TRUE) + 1L,
+    length(periods)
+  )
+  terminal[is.na(terminal)] <- 1L
+  list(periods = periods, terminalPeriod = terminal)
+}
+
 # The times a hazard grid is read from: those of the subjects in the
 # likelihood (weight positive). With none in, every subject's, under one
 # warning. 'time' and 'weights' are per subject, the subjects the fit keeps.
@@ -175,10 +188,15 @@ expandDiscreteTimeHazard <- function(
   max.rows = 1e7,
   offset = NULL,
   weights = NULL,
-  gridTime = time
+  gridTime = time,
+  periods = NULL
 ) {
   n <- length(time)
-  grid <- resolveHazardGrid(time, breaks, gridTime)
+  grid <- if (is.null(periods)) {
+    resolveHazardGrid(time, breaks, gridTime)
+  } else {
+    placeOnHazardGrid(time, periods)
+  }
   periods <- grid$periods
   terminal <- grid$terminalPeriod
 
@@ -301,6 +319,35 @@ hazardRowNames <- function(trainNames, subject, testNames, K) {
       make.unique(rep(as.character(testNames), times = K))
     }
   )
+}
+
+# A hazard fit's held-out subjects at every one of the K periods, period-major,
+# with their offsets and weights repeated alike. A held-out subject has no
+# event time to place it by.
+expandHazardTest <- function(data, K) {
+  if (is.null(data@x.test)) {
+    return(data)
+  }
+  n.test <- nrow(data@x.test)
+  data@x.test <- appendHazardPeriodColumn(
+    hazardRowSubset(data@x.test, rep(seq_len(n.test), times = K)),
+    rep(seq_len(K), each = n.test)
+  )
+  if (!is.null(data@offset.test)) {
+    offset <- data@offset.test
+    if (length(offset) == 1L) {
+      offset <- rep_len(offset, n.test)
+    }
+    data@offset.test <- rep(offset, times = K)
+  }
+  if (!is.null(data@weights.test)) {
+    weights <- data@weights.test
+    if (length(weights) == 1L) {
+      weights <- rep_len(weights, n.test)
+    }
+    data@weights.test <- rep(weights, times = K)
+  }
+  data
 }
 
 # Append the ordinal period column (named "period") as the LAST column, the
@@ -1605,27 +1652,7 @@ dbarts <- function(
       # subject has no event time to place it by, so it expands to every
       # one of the SAME K periods, exactly as the matrix interface's own
       # hazard 'test' acceptance does (R/dbarts.R's directResponse block)
-      if (!is.null(data@x.test)) {
-        n.test <- nrow(data@x.test)
-        data@x.test <- appendHazardPeriodColumn(
-          hazardRowSubset(data@x.test, rep(seq_len(n.test), times = K)),
-          rep(seq_len(K), each = n.test)
-        )
-        if (!is.null(data@offset.test)) {
-          offsetTestForExpansion <- data@offset.test
-          if (length(offsetTestForExpansion) == 1L) {
-            offsetTestForExpansion <- rep_len(offsetTestForExpansion, n.test)
-          }
-          data@offset.test <- rep(offsetTestForExpansion, times = K)
-        }
-        if (!is.null(data@weights.test)) {
-          weightsTestForExpansion <- data@weights.test
-          if (length(weightsTestForExpansion) == 1L) {
-            weightsTestForExpansion <- rep_len(weightsTestForExpansion, n.test)
-          }
-          data@weights.test <- rep(weightsTestForExpansion, times = K)
-        }
-      }
+      data <- expandHazardTest(data, K)
       # the remap: the engine-facing family is now an ordinary binary link
       family <- if (identical(family, "hazard.logistic")) {
         "logistic"
@@ -3721,7 +3748,7 @@ dbartsSampler <- setRefClass(
       updateScale = NULL,
       updateStandardization = NULL
     ) {
-      "Sets the data object for the sampler to a new one; a sampler created with one forest and none refuses data that carry bases. A cut count or quantile rule the object states wins, and the sampler derives by it from then on; one carrying cutPoints brings the count and rule that made them, an unstated rule reading as even; one stating neither keeps the sampler's, as updateCutPoints = \"none\" does whatever it states. Preserves the sigma slot and the level tables: columns are matched by name, the names being the sampler's in any order and any other refused, as predict refuses them, while a matrix with no column names is read by position with no message, as is any data handed to a sampler with none, whose record then takes the data's names, which predict needs; a factor is read by label against the levels the sampler was created with, so fewer levels, another order and declared levels no row holds are taken, while a row at a label the sampler never had, or a factor column of bare numbers, is refused. A factor whose labels were changed on purpose is relabeled to the sampler's labels with levels<- first, or given to a new sampler. The cut points, the response range and a linear or gp leaf's covariate standardization each follow updateCutPoints, updateScale and updateStandardization where given: \"position\", \"value\" or TRUE derive the value from the new data, and \"none\" or FALSE keep the sampler's. Left NULL, a value the data object records (its cutPoints, response.range and standardization slots, which the sampler writes into its own data) is used, and one it does not record is derived, so setData(sampler$data) keeps every derived value and a fresh dbartsData() derives them. A derived standardization is read over the new data's rows in the likelihood, over every row where fewer than two are in (subjects, for a hazard fit, whose rows must hold each subject's together at periods 1, 2, 3 and on, as dbarts() expands them) or the response's scale is read from every row, and refused where two or more rows in hold one value of a leaf covariate, or values that differ by rounding only, unless a gp leaf states its lengthscale, which takes the placeholder; FALSE keeps the sampler's. A probit, ordinal or nbinom sampler's 0/1 weights ride the data object, so setData(sampler$data) keeps the rows of weight 0 out; the active-row mask set by setActiveRows is cleared, the rows possibly changing. Saved draws are rewritten so that they predict what they did. updateState follows control@updateState: NULL, its default, resolves to the control's setting, and an explicit TRUE or FALSE overrides it - the same rule run() applies. It keeps the trees, the ordinal cutpoints, the Student-t degrees of freedom and the negative-binomial shape, and starts the latents as creation does (an ordinal or negative-binomial sampler from the kept cutpoints or shape). This draws nothing; the next sweep draws the augmentation variables against the change."
+      "Sets the data object for the sampler to a new one; a sampler created with one forest and none refuses data that carry bases. A hazard sampler also takes data built from a Surv response, spreading its subjects onto the sampler's own periods as dbarts() does at creation; a time past the last period leaves its subject at risk through every period with no event. A cut count or quantile rule the object states wins, and the sampler derives by it from then on; one carrying cutPoints brings the count and rule that made them, an unstated rule reading as even; one stating neither keeps the sampler's, as updateCutPoints = \"none\" does whatever it states. Preserves the sigma slot and the level tables: columns are matched by name, the names being the sampler's in any order and any other refused, as predict refuses them, while a matrix with no column names is read by position with no message, as is any data handed to a sampler with none, whose record then takes the data's names, which predict needs; a factor is read by label against the levels the sampler was created with, so fewer levels, another order and declared levels no row holds are taken, while a row at a label the sampler never had, or a factor column of bare numbers, is refused. A factor whose labels were changed on purpose is relabeled to the sampler's labels with levels<- first, or given to a new sampler. The cut points, the response range and a linear or gp leaf's covariate standardization each follow updateCutPoints, updateScale and updateStandardization where given: \"position\", \"value\" or TRUE derive the value from the new data, and \"none\" or FALSE keep the sampler's. Left NULL, a value the data object records (its cutPoints, response.range and standardization slots, which the sampler writes into its own data) is used, and one it does not record is derived, so setData(sampler$data) keeps every derived value and a fresh dbartsData() derives them. A derived standardization is read over the new data's rows in the likelihood, over every row where fewer than two are in (subjects, for a hazard fit, whose rows must hold each subject's together at periods 1, 2, 3 and on, as dbarts() expands them) or the response's scale is read from every row, and refused where two or more rows in hold one value of a leaf covariate, or values that differ by rounding only, unless a gp leaf states its lengthscale, which takes the placeholder; FALSE keeps the sampler's. A probit, ordinal or nbinom sampler's 0/1 weights ride the data object, so setData(sampler$data) keeps the rows of weight 0 out; the active-row mask set by setActiveRows is cleared, the rows possibly changing. Saved draws are rewritten so that they predict what they did. updateState follows control@updateState: NULL, its default, resolves to the control's setting, and an explicit TRUE or FALSE overrides it - the same rule run() applies. It keeps the trees, the ordinal cutpoints, the Student-t degrees of freedom and the negative-binomial shape, and starts the latents as creation does (an ordinal or negative-binomial sampler from the kept cutpoints or shape). This draws nothing; the next sweep draws the augmentation variables against the change."
       updateState <- checkUpdateState(updateState)
       # a missing test weight is refused here as at creation
       if (inherits(newData, "dbartsData")) {
