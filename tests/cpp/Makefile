@@ -224,11 +224,11 @@ clean:
 	rm -f main.o assert.o common.o test_data.o test_tree.o test_scan.o test_grow.o
 	rm -f test_moves.o test_interaction.o test_model.o test_sampler.o test_shape.o
 	rm -f test_facade.o test_state.o test_capi.o test_ensemble.o test_monotone.o
-	rm -f test_fuzz.o test_nmath.o
+	rm -f test_alloc.o test_fuzz.o test_nmath.o test_frequency.o
 	rm -f main.d assert.d common.d test_data.d test_tree.d test_scan.d test_grow.d
 	rm -f test_moves.d test_interaction.d test_model.d test_sampler.d test_shape.d
 	rm -f test_facade.d test_state.d test_capi.d test_ensemble.d test_monotone.d
-	rm -f test_fuzz.d test_nmath.d
+	rm -f test_alloc.d test_fuzz.d test_nmath.d test_frequency.d
 	rm -rf test_bartcore.dSYM
 	rm -f build-standalone/nmath/bd0.o build-standalone/nmath/chebyshev.o
 	rm -f build-standalone/nmath/choose.o
