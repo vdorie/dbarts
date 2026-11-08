@@ -854,6 +854,11 @@ items
     a positionally-supplied second argument to $setResponse (it now sets
     updateScale, not updateState) once callers have had a full minor cycle
     to move to named arguments. Scheduled for 1.2-0 (VD 2026-09-01).
+  setstate-forced-field-chain: after every forced setState the state
+    field holds the engine's chain as installed, repairs included, so it
+    reinstalls unforced with TRUE (dec-B659, VD 2026-11-07: "That's what
+    I would store, since it is the only accurate representation of the
+    sampler's state."). About 3 lines, one test, the help sentence.
   sparse-extensions: open halves of docs/plans/sparse-extensions.md's
     Status list. Linear leaf on sparse: value gate lifted (a linear
     leaf over high-dimensional sparse designs). Streaming range kernel
