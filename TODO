@@ -362,6 +362,11 @@ items
     covariates a linear leaf's slopes belong to, so a linear donor on
     one covariate installs into linear leaves on another with no word
     (run 2026-10-11). With the warm start's slices.
+  warm-start-ordered-labels: a warm-start donor's split on an ordered
+    factor is matched by label to the recipient's cut between the same
+    two labels; a split with no single place is declined unforced and
+    cut back forced, a numeric donor column there likewise (dec-B664,
+    VD 2026-11-07: "Use your recommendation for this item."). Not sized.
   warm-start-bart-families: bart(family = "nbinom", "ordinal" or
     "multinom", warm.start = ) is refused at the bart level ("does not
     support 'warm.start'"), where the sampler's installTrees takes a
