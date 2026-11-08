@@ -807,7 +807,16 @@ for (kind in c("lone", "factor", "sharer")) {
     # a forest that stated its own does not follow, the later write in force
     stating <- build(kind)
     door(stating, target, list(n.perturb.cuts = 5))
-    setPerturbCuts(stating, 7L)
+    if (length(stating$model@forests) == 1L) {
+      # no forest would take the window: refused, naming the door that does
+      expect_error(
+        setPerturbCuts(stating, 7L),
+        "$setForest(forest, n.perturb.cuts = )",
+        fixed = TRUE
+      )
+    } else {
+      setPerturbCuts(stating, 7L)
+    }
     same(stating$getForest(target)$n.perturb.cuts, 5, "a statement holds")
   })
 }

@@ -3547,6 +3547,11 @@ dbartsSampler <- setRefClass(
         )
       }
 
+      refusal <- setControlMovesRefusal(newControl, control, model)
+      if (!is.null(refusal)) {
+        stop(refusal, call. = FALSE)
+      }
+
       # the perturb window rides the mixture's install
       mixtureMoved <- !identical(
         newControl@proposal.probs,

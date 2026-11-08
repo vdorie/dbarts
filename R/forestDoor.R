@@ -121,6 +121,51 @@ movesInForce <- function(moves, control, mode = TRUE) {
   values
 }
 
+## The refusal of a control a caller wrote a tree-move setting on that differs
+## from the one in force when no forest would take it: every forest, the
+## variance forest included, states its own, so  would store a
+## value nothing reads. NULL where some forest follows the control, or the
+## setting is not the caller's (not named when the control was built, equal to
+## a fresh control's) or equals the one in force.
+setControlMovesRefusal <- function(newControl, control, model) {
+  records <- model@forests
+  if (!is.null(model@variance)) {
+    records <- c(records, list(model@variance))
+  }
+  if (length(records) == 0L) {
+    return(NULL)
+  }
+  fresh <- dbarts::dbartsControl()
+  for (name in c("proposal.probs", "n.perturb.cuts")) {
+    value <- methods::slot(newControl, name)
+    written <- name %in%
+      controlSuppliedSlots(newControl) ||
+      !identical(value, methods::slot(fresh, name))
+    ownEverywhere <- all(vapply(
+      records,
+      function(record) !is.null(record@moves[[name]]),
+      NA
+    ))
+    if (
+      written &&
+        ownEverywhere &&
+        !identical(value, methods::slot(control, name))
+    ) {
+      return(paste0(
+        "'",
+        name,
+        "' on a control changes no forest: every forest states its own; ",
+        "change one forest's with $setForest(forest, ",
+        name,
+        " = ) or the variance forest's with $setVarianceForest(",
+        name,
+        " = )"
+      ))
+    }
+  }
+  NULL
+}
+
 ## The sd in force on a forest of a model that has one, NULL where there is no
 ## one positive finite number to give back: a drawn k, an sd under invchi(), a
 ## k of infinity and a unit that is not positive. A numeric forest's carries no

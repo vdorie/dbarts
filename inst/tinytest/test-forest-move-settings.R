@@ -317,13 +317,47 @@ for (change in names(changes)) {
       info = change
     )
   }
-  # one entry states every category forest's, which setControl then leaves
-  expect_identical(
-    draws(restated(build("multi", do.call(ctl, Y), mean = X), Z)),
-    draws(build("multi", do.call(ctl, Y), mean = X)),
-    info = change
-  )
+  # one entry states every category forest's, which setControl then leaves:
+  # a mixture or window that no forest would take is refused, naming
+  # $setForest, and the mode, which is not refused, is left
+  if (change != "treeShift") {
+    multi <- build("multi", do.call(ctl, Y), mean = X)
+    expect_error(
+      restate(multi, Z),
+      paste0("$setForest(forest, ", names(X), " = )"),
+      fixed = TRUE,
+      info = change
+    )
+    expect_identical(draws(multi), draws(build("multi", do.call(ctl, Y), mean = X)), info = change)
+  } else {
+    expect_identical(
+      draws(restated(build("multi", do.call(ctl, Y), mean = X), Z)),
+      draws(build("multi", do.call(ctl, Y), mean = X)),
+      info = change
+    )
+  }
 }
+# a control equal to the one in force, or one stating no mixture, passes where
+# every forest states its own; so does a mixture one forest would take
+stated <- build("two", ctl(), mean = list(proposal.probs = moving), second = list(proposal.probs = moving))
+stated$setControl(stated$control)
+expect_identical(stated$control@proposal.probs, ctl()@proposal.probs)
+noMixture <- ctl()
+noMixture@n.samples <- 4L
+stated$setControl(noMixture)
+expect_identical(stated$control@n.samples, 4L)
+# a written mixture differing from the one in force: refused before anything
+# changes, with one forest stating none the second takes it
+expect_error(
+  stated$setControl(ctl(proposal.probs = frozen)),
+  "$setForest(forest, proposal.probs = )",
+  fixed = TRUE
+)
+expect_identical(stated$control@proposal.probs, ctl()@proposal.probs)
+partly <- build("two", ctl(), mean = list(proposal.probs = moving), second = list())
+partly$setControl(ctl(proposal.probs = frozen))
+expect_identical(unname(partly$control@proposal.probs[["birth_death"]]), 0)
+rm(stated, partly)
 # a moving mixture and treeShift changed together take the prior install,
 # which installs the mode with them
 for (kind in c("one", "hetero")) {
@@ -404,7 +438,13 @@ rm(handed, model)
 # a refused install through setControl rolls the stored control back
 handed <- build("one", ctl())
 recorded <- handed$model
-handed$model <- wrongCount(handed)
+# records stating only the mode, so that a forest would take the mixture and
+# the engine's refusal is the one reached
+wrongRecords <- wrongCount(handed)
+for (position in seq_along(wrongRecords@forests)) {
+  wrongRecords@forests[[position]]@moves <- list(levelGibbs = TRUE)
+}
+handed$model <- wrongRecords
 expect_error(
   restate(handed, list(proposal.probs = frozen)),
   "do not match this sampler's forests"

@@ -676,7 +676,9 @@ forest(
     level-shifting step - as \code{\link{dbartsControl}} describes each. Each
     one stated here governs this forest and each one left out takes the
     control's: \code{$setControl} changes a forest's setting only where the
-    forest states none, and one stated here is fixed for the sampler's life.
+    forest states none, and one stated here is changed by
+    \code{$setForest(forest, proposal.probs = )} and its siblings, not by
+    \code{$setControl}, which refuses a mixture or window no forest would take.
     A stated \code{proposal.probs} is a whole mixture, filled against the
     package defaults as \code{dbartsControl()}'s is and not edits to the
     control's, so an omitted \code{birth} is 0.5. A forest frozen by its own

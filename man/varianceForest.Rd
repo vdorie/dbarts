@@ -53,7 +53,8 @@ varianceForest(
     \code{\link{dbartsControl}} describes each. Each one stated here governs
     the variance forest and each one left out takes the control's:
     \code{$setControl} changes it only where none is stated here, and one
-    stated here is fixed for the sampler's life. A stated
+    stated here is changed by \code{$setVarianceForest}, not by
+    \code{$setControl}. A stated
     \code{proposal.probs} is a whole mixture, filled against the package
     defaults as \code{dbartsControl()}'s is, and a positive
     \code{"rule_gibbs"} share is refused: that move does nothing on the
