@@ -256,24 +256,13 @@ dbarts(
   with them. A covariate those rows hold at one value, or observe at
   none, a constant column among them, is refused, since no scale can be
   taken from it, unless its `gp` leaf states `lengthscale`: it is then
-  centered at that value and divided by 1. One whose values there have a
-  spread about their center under 64 times machine precision of their
-  size (`||z - center|| < 64 * .Machine$double.eps * ||z||`), such as
-  0.3 beside `0.1 * 3`, is read as one value, here and wherever a setter
-  derives the center and scale again, and centered at its mean where it
-  takes the placeholder. Values meant to be equal are fixed only by
-  dropping the column; values that truly differ but sit at a large
-  offset, a time in seconds since 1970 varying by under about a tenth of
-  a millisecond say, are fixed by recomputing the column from its source
-  about an origin near its values, since subtracting a constant from the
-  stored values restores no digit they have lost; unordered factor
-  columns cannot be designated.
-  `gp(columns, k, lengthscale, max.leaf.size)` fits each leaf with a
-  smooth Gaussian-process function of the designated columns under a
-  squared-exponential kernel; leaves larger than `max.leaf.size` fall
-  back to constant fits. An ordered factor may be designated under
-  either, and enters as its level codes 1, 2, and so on, which treats
-  its levels as equally spaced, as the linear contrast
+  centered at that value and divided by 1; unordered factor columns
+  cannot be designated. `gp(columns, k, lengthscale, max.leaf.size)`
+  fits each leaf with a smooth Gaussian-process function of the
+  designated columns under a squared-exponential kernel; leaves larger
+  than `max.leaf.size` fall back to constant fits. An ordered factor may
+  be designated under either, and enters as its level codes 1, 2, and so
+  on, which treats its levels as equally spaced, as the linear contrast
   [`lm`](https://rdrr.io/r/stats/lm.html) gives an ordered factor does;
   levels spaced otherwise need a numeric column holding their scores.
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) accepts
@@ -550,13 +539,10 @@ dbarts(
   the linear regression of the response on the predictors and on each
   forest's basis (a factor's as the indicator of its second level),
   factors entering as indicator columns whatever the trees are given,
-  and, where that regression leaves no residual degrees of freedom, the
-  standard deviation of the response over the observations of positive
-  weight, weighted as the regression is
-  (`summary(lm(y ~ 1, weights = weights))$sigma`, `sd(y)` at unit
-  weights; for weights read as counts, the standard deviation of the
-  rows written out), which a line under `verbose` says, with no warning
-  (the `summary` of a
+  and the standard deviation of the response over the observations of
+  positive weight where that regression leaves no residual degrees of
+  freedom, which a line under `verbose` says, with no warning (the
+  `summary` of a
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) fit says
   it too). `"auto"` is `lm`'s own routine (`"dense"`) for a matrix or a
   data frame and an exact sparse one (`"sparse"`) where the caller

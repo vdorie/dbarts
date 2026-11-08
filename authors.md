@@ -43,7 +43,7 @@
 ## Citation
 
 Source:
-[`inst/CITATION`](https://github.com/vdorie/dbarts/blob/starting-sigma-weighted-fallback/inst/CITATION)
+[`inst/CITATION`](https://github.com/vdorie/dbarts/blob/setters-small-rulings/inst/CITATION)
 
 Vincent Dorie, Hugh Chipman, Robert McCulloch (2026). dbarts: Discrete
 Bayesian Additive Regression Trees Sampler. R package version 1.0-0.
