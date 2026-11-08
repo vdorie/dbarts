@@ -1099,6 +1099,9 @@ items
     useQuantiles). A data object's slots are read-only copies (dec-B554): move each to an accessor
     where one exists, and name what is missing. stan4bart's n.cuts and useQuantiles writes stay until
     its dbartsData call, built before bart_args is read, can take bart_args.
+    stan4bart's glFormula also passes keep.data = FALSE (dec-B674; its fit keeps the model frame
+    already). dbartsSpec(o, n.cuts =) is refused ("unused argument") where dbarts(o, n.cuts =) is
+    taken: about 5 lines, owed only if stan4bart keeps building its object before it knows the count.
   data-slot-help-claims: man/dbartsData.Rd still describes two slots as written by hand, against
     dec-B554: a derived record that fits no data "is refused, naming the slot; setting it to NULL
     derives the value instead", and of basis.scale, "clearing an entry by hand has the next creation
@@ -1195,6 +1198,22 @@ items
     at the top level, and each entry is evaluated once (today twice).
     About 4 lines in R/bartc.R, tests and a NEWS line; recheck the bcf
     help sentence on forest constraints written in the list.
+  bartcause-data-route: from the examination dec-B674 asked for
+    (2026-11-08): bartc passes keep.data = FALSE at its two
+    dbartsData() call sites (3 objects); the counterfactual rows go to
+    dbarts as a test frame in place of an x.test written by hand and a
+    second data object around a stand-in response (values identical,
+    about 30 lines become 10); bcf names its treatment basis in the
+    forests list in place of bases = once the basis-references calls
+    allow it (identical fits run); plot_support on a fit with missing
+    responses stops with "'x' and 'y' lengths differ" (117 rows of x
+    against 120 of trt), the design over all rows being the first n
+    rows of x.test, about 5 lines.
+  bartcause-draws-twice: a bartc fit stores its draws twice, about 54
+    MB of a 162 MB fit at 750 rows (found 2026-11-08).
+  bartcause-long-formula: bartc(y, z, x1 + ... + x25, data = d) fails
+    with "the condition has length > 1", treatmentFit.R running grepl
+    over a multi-line deparse() (found 2026-11-08).
   bartcause-thread-default: on bartCause's dbarts-1.0 branch, bcf.R
     computes n.threads from dbarts::guessNumCores() and passes it as
     stated, so where the cores cannot be counted bcf() is refused;
