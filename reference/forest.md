@@ -621,21 +621,18 @@ forest(
   weights or the active rows changed, or, under `"gaussian"`, every
   observation read because those in the likelihood held fewer than two
   values of the response) says so. A fit made with `keepFits = FALSE`
-  keeps its labels, tree counts and unit, and in place of each basis the
-  few numbers the block reads (a numeric column's mean, sd, range and
-  whether it is constant over the rows in the likelihood, a factor's
-  levels), so it gives the same block. Two things to look for. The mean
-  of a numeric column, in either block, and its range, in the full one:
-  a mean far from 0 is a column that never comes near 0, an age or a
-  year, and should be centered, unless 0 means none, as for a dose; and
-  one wild value shows in the range, and moves the mean and sd. And the
-  figure per sd of the column, in either block, the size of the forest's
-  term over one sd of the column (`sd` times the column's sd): for a
-  default it is \\\mathrm{sd}(y)\\ on every numeric line whose column,
-  and the observations it is read over, are those the default was taken
-  from, so a line that differs has had its column or its observations
-  changed, and for a stated `sd` it is where a number in the wrong units
-  shows. Nothing in the fit warns of either.
+  keeps no bases or labels and gives no block. Two things to look for.
+  The mean of a numeric column, in either block, and its range, in the
+  full one: a mean far from 0 is a column that never comes near 0, an
+  age or a year, and should be centered, unless 0 means none, as for a
+  dose; and one wild value shows in the range, and moves the mean and
+  sd. And the figure per sd of the column, in either block, the size of
+  the forest's term over one sd of the column (`sd` times the column's
+  sd): for a default it is \\\mathrm{sd}(y)\\ on every numeric line
+  whose column, and the observations it is read over, are those the
+  default was taken from, so a line that differs has had its column or
+  its observations changed, and for a stated `sd` it is where a number
+  in the wrong units shows. Nothing in the fit warns of either.
 
 - interactions, blocks:
 
@@ -944,7 +941,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)
 #>   trees: 10, 10; 20 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.000413
+#> total seconds in loop: 0.000509
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 2 5 2 3 2 
