@@ -5,7 +5,7 @@ rng: neutral for every column above the tolerance (the trio bitwise); a
 column under it is refused or kept where it ran before
 budget: ~60 engine and bridge lines, ~10 R lines, ~250 test lines, help
 
-Status: PLANNED 2026-11-07
+Status: BUILT 2026-11-07, not yet reviewed (03f9e1618)
 
 ## Goal
 
@@ -142,3 +142,20 @@ column above the tolerance draws what it drew.
   `--bitwise --strict-coverage` on the reference build; the four
   reproducibility files; the exact gates in quick; lint, air, codoc,
   win-drift, doc-freshness; `mutation-battery.R verify-anchors`.
+
+## Build note
+
+Built in 03f9e1618 as planned. The six warning pins in
+test-leaf-standardization-rows.R take the reworded keep text. Gates on that
+code: tests/cpp plain and under ASan and UBSan; the full suite, 42316
+results, 0 failed; the trio `--bitwise --strict-coverage` on the reference
+build, 55, 19 and 11 scenarios identical; the four reproducibility files, 27
+results; the exact gates in quick, 48 of 48; the three leaf test files under
+R-loaded ASan and UBSan; lint, air, codoc, win-drift, doc-freshness,
+verify-anchors. Mutants: the tolerance at 0 fails 21 of the 33 R pins and 9
+C++ checks; the rows ignored in the test fails the weight-0 creation pin and
+the setWeights and setActiveRows keeps; the test skipped in
+`Sampler::rederiveStandardization` aborts the process at the first setter
+pin, the chain's own derivation throwing where the sampler marked the
+covariate derivable; the corrected center removed fails the C++ row-count
+check.
