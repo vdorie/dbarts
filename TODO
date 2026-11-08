@@ -1279,6 +1279,17 @@ items
     About 60 to 80 lines and tests in bartCause.
   bartcause-fitted-ite-warning: fitted(fit, type = "ite") warns on an
     att or atc fit with missing responses (found 2026-11-08).
+  bartcause-population-weights: bartCause work. bartc's weights are
+    population weights: they set every estimand's average, read
+    without regard to scale and aligned over missing responses; the
+    outcome model is fit unweighted by default, its own weights given
+    by weights.rsp and read by dbarts's weights.type; intervals use the
+    effective sample size, printed by summary; help on adding the
+    weights' variables and on target samples. Fixes the weighted CATE,
+    ATT and ATC, common-support, missing-response, one-chain, group
+    total and glm-scale defects. Built with bartcause-weighted-draws
+    (dec-B718, dec-B696). About 90 to 120 lines of R, 45 of help, 180
+    to 240 of tests.
   bartcause-plot-support-atc: plot_support on an atc fit with the
     p.score plot stops with "'x' and 'y' lengths differ", missing
     responses or not (found 2026-11-08).
