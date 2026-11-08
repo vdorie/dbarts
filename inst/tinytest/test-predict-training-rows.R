@@ -588,6 +588,58 @@ fit.wt <- suppressWarnings(bart(
   verbose = FALSE
 ))
 expect_identical(fit.wt$weights.test, w[test.rows])
+# a test frame's missing weight is refused at fit time, naming the rows and
+# the remedies, at every door that fits from a frame
+naTest <- test.frame
+naTest$weights[c(2L, 5L)] <- NA
+naTestMsg <- "weights of the test rows 2, 5 are missing; fill them.*na.pass"
+expect_error(
+  bart(
+    y ~ a + b + c,
+    train.frame,
+    test = naTest,
+    weights = weights,
+    n.trees = 10L,
+    n.burn = 10L,
+    n.samples = 10L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  ),
+  naTestMsg
+)
+expect_error(
+  dbarts(
+    y ~ a + b + c,
+    train.frame,
+    test = naTest,
+    weights = weights,
+    n.trees = 10L,
+    control = dbartsControl(n.chains = 1L, n.threads = 1L, verbose = FALSE)
+  ),
+  naTestMsg
+)
+# a multinomial fit's test frame too
+mnTrain <- data.frame(a = train.frame$a, b = train.frame$b, k = factor(rep(letters[1:3], length.out = nrow(train.frame))), w = 1)
+mnTest <- mnTrain[1:8, ]
+mnTest$w[c(2L, 5L)] <- NA
+expect_error(
+  bart(
+    k ~ a + b,
+    mnTrain,
+    test = mnTest,
+    weights = w,
+    family = "multinomial",
+    n.trees = 5L,
+    n.burn = 5L,
+    n.samples = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  ),
+  naTestMsg
+)
+rm(naTest, naTestMsg, mnTrain, mnTest)
 set.seed(4)
 ppd.t <- counted(extract(fit.wt, "ppd", sample = "test"))
 expect_identical(ppd.t$warnings, 0L)

@@ -600,12 +600,31 @@ enforceWeightPolicy <- function(data, family) {
     }
   }
   # a test row is drawn as a training row of its weight is, so its weight is
-  # held to the same rule; a missing one gives the row NA draws
+  # held to the same rule, and a missing one is refused as a training row's is
+  # (predict's na.action is where a row is left to NA draws)
   test <- data@weights.test
+  refuseMissingTestWeights(test)
   if (!is.null(test) && any(!is.na(test))) {
     refuseFamilyWeightValues(test[!is.na(test)], family, "'weights.test'")
   }
   data
+}
+
+## A test frame's missing weight, refused naming the rows and the remedies.
+refuseMissingTestWeights <- function(weights) {
+  if (anyNA(weights)) {
+    rows <- which(is.na(weights))
+    stop(
+      "the weights of the test rows ",
+      toString(utils::head(rows, 5L)),
+      if (length(rows) > 5L) paste0(" and ", length(rows) - 5L, " more"),
+      " are missing; fill them, drop those rows from 'test', or fit without ",
+      "them and give predict(fit, newdata, na.action = na.pass) the rows to ",
+      "leave at NA draws",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
 }
 
 ## The values 'family' takes as weights, 'what' naming whose they are.

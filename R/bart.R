@@ -2171,6 +2171,7 @@ formulaTestWeights <- function(matchedCall, callingEnv, formula) {
     return(NULL)
   }
   weights <- as.double(weights)
+  refuseMissingTestWeights(weights)
   refuseFamilyWeightValues(weights, "multinomial", "'weights.test'")
   weights
 }
