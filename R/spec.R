@@ -75,6 +75,33 @@ binomialCountColumnsMessage <- function(K, what) {
   )
 }
 
+## The columns a binomial response expression reads, checked before cbind
+## turns a factor to its codes or a character column to text: either is
+## refused in the words of a response that is not numeric, whatever the
+## expression does with it. 'data' and 'env' are where the formula's
+## variables are found; 'prefix' leads the message where a door names itself.
+refuseNonNumericBinomialColumns <- function(
+  expression,
+  data,
+  env,
+  prefix = ""
+) {
+  for (name in all.vars(expression)) {
+    value <- tryCatch(
+      eval(as.name(name), data, env),
+      error = function(e) NULL
+    )
+    if (is.factor(value) || is.character(value)) {
+      stop(
+        prefix,
+        "a binomial response's successes and failures must be numeric",
+        call. = FALSE
+      )
+    }
+  }
+  invisible(NULL)
+}
+
 ## A binomial response checked: an n x 2 matrix of non-negative whole numbers,
 ## a row with a missing cell left to the caller's na.action. 'prefix' leads
 ## the message where a door names itself. Returns the counts as integers.

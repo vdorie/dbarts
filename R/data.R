@@ -3647,7 +3647,14 @@ dbartsData <- function(
       )
     } else if (binomialResponse && is.matrix(y) && ncol(y) == 2L) {
       # a binomial's successes and failures, the rows the model frame kept;
-      # its trials are the response the data object holds
+      # its trials are the response the data object holds. A factor or
+      # character column the expression reads is no count, whatever cbind
+      # made of it
+      refuseNonNumericBinomialColumns(
+        formula[[2L]],
+        if (dataIsMissing) NULL else data,
+        environment(formula)
+      )
       formulaCounts <- validateBinomialCounts(y)
       y <- as.double(rowSums(formulaCounts))
       responseInfo <- list(

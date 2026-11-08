@@ -855,7 +855,7 @@ expect_identical(
   )
 )
 # a character or factor column among them is refused as not numeric, at
-# predict and at a test frame, not read as absent (call 81)
+# predict and at a test frame, not read as absent
 notNumeric <- paste0(
   "a binomial response's successes and failures must be numeric"
 )
@@ -885,7 +885,62 @@ expect_identical(
   )),
   paste0("'test': ", notNumeric)
 )
-rm(notNumeric)
+# at fit time a factor or character column the expression reads is refused in
+# the same words (dec-B649), at bart, dbarts and xbart, and so is a factor
+# the expression converts itself: cbind would read a factor by its codes
+factorRows <- transform(rowsData, k = factor(k))
+characterRows <- transform(rowsData, f = as.character(f))
+for (rows in list(factorRows, characterRows)) {
+  expect_identical(
+    refusal(do.call(
+      dbarts::bart,
+      c(list(cbind(k, f) ~ x1, rows, family = binomial), fitArgs)
+    )),
+    notNumeric
+  )
+  expect_identical(
+    refusal(dbarts::dbarts(cbind(k, f) ~ x1, rows, family = binomial)),
+    notNumeric
+  )
+  expect_identical(
+    refusal(do.call(
+      dbarts::xbart,
+      list(
+        cbind(k, f) ~ x1,
+        rows,
+        family = binomial,
+        n.reps = 1L,
+        n.samples = 5L,
+        n.burn = 2L,
+        n.trees = 5L,
+        n.threads = 1L,
+        verbose = FALSE
+      )
+    )),
+    notNumeric
+  )
+}
+expect_identical(
+  refusal(do.call(
+    dbarts::bart,
+    c(
+      list(cbind(as.integer(as.character(k)), f) ~ x1, factorRows),
+      list(family = binomial),
+      fitArgs
+    )
+  )),
+  notNumeric
+)
+# a factor among the predictors stays a predictor
+expect_true(is.na(refusal(do.call(
+  dbarts::bart,
+  c(
+    list(cbind(k, f) ~ x1 + g, transform(rowsData, g = factor(k > 7L))),
+    list(family = binomial),
+    fitArgs
+  )
+))))
+rm(factorRows, characterRows, rows, notNumeric)
 # a binary fit's newdata is untouched, whatever columns it carries
 binaryRows <- transform(rowsData, y = as.double(k > 7L))
 binaryFit <- quietly(dbarts::bart(
