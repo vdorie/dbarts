@@ -13,6 +13,8 @@ set.seed(20261108)
 n <- 60L
 d <- data.frame(y = rnorm(n), x = rnorm(n), g = factor(rep(1:3, n / 3L)))
 d$w <- c(1, rep(0, n - 1L))
+# the grouping, read from the calling frame as rbart_vi reads it
+g <- d$g
 
 said <- function(n.chains, n.threads) {
   texts <- character(0L)
@@ -48,3 +50,13 @@ for (chains in c(3L, 4L)) {
 for (threads in 1:2) {
   expect_identical(said(3L, threads), once, info = paste(threads, "threads"))
 }
+
+# a creation warning of another kind, the thread budget's, is said once too,
+# beside the scale fallback
+# the budget's warning is said once a session, so it is cleared first
+onceState <- dbarts:::onceWarnState
+onceState[[dbarts:::excessThreadsKey]] <- NULL
+both <- said(1L, 2L)
+expect_identical(length(both), 2L)
+expect_identical(sum(grepl("exceeds n.chains", both, fixed = TRUE)), 1L)
+expect_identical(sum(grepl("taken from all 60", both, fixed = TRUE)), 1L)
