@@ -480,7 +480,11 @@ items
     down to the criteria that bear on a posterior comparison; an
     independent referee checks it; the sealed rule and list go to the
     maintainer as dec-B635's decision. No data downloaded and no outcome
-    read before the seal.
+    read before the seal. The guard's and the trigger test's sizes are
+    set by a cited sample-size justification, power or assurance at a
+    conventional level, refereed before the seal (dec-B667, VD
+    2026-11-07: "Do what would pass for a research study. Be
+    professional.").
   k-mixing-pg-families: after the merge, before 1.0-0 (dec-B404,
     dec-B420, VD 2026-10-09; timing VD 2026-10-17). Binary fits keep a
     drawn k under chi(1.5, 2). Whether k must mix fast for intervals of
