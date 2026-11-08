@@ -687,22 +687,6 @@ items
     (dec-B395, VD 2026-10-08). cibart runs its compiled Gibbs driver
     once per chain in parallel, each chain with its own confounder state
     and buffers, the draws combined.
-  leaf-covariate-single-value-off-center: a linear or gp leaf
-    covariate whose spread about its center, over the rows in the
-    likelihood, is under 64 times machine precision of its size (lm's
-    and lme4's form of the test for a column collinear with the
-    intercept, at the tolerance a centered and scaled BART leaf needs,
-    not lm's 1e-7; dec-B655) is read as one value: refused at creation, the message naming the
-    test and advising only what works for each kind of column: drop it,
-    recompute it from its source about a near origin, or change the rows
-    in, never subtract a constant (dec-B673, VD 2026-11-07: "Advise
-    only what works for each kind."), and
-    treated at every setter that re-derives the center and scale as a
-    column of one value is there (dec-B654, VD 2026-11-07: "Can we (b)
-    in a way that is as-principled as lm and lme4? If so, use (b).
-    We'll probably also have to update setters, not just the creation
-    method."). A slope on a column moved to another single value stays
-    converted by the formula (dec-B328).
   leaf-covariate-infinite-value: a linear leaf covariate holding an
     Inf, with sigest given so the starting sigma's regression, which
     refuses it, does not run, is centered at Inf, and every fitted value

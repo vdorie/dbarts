@@ -1269,6 +1269,57 @@ Record: R/data.R, weightsArgumentFormula; R/generics.R, newdataWeightsColumn, pr
 **The three slices landed as one stack on main, the CI fix last, though the first slice's own tip was not green in every workflow**
 On 2026-11-08 the orchestrator landed the rbart-once-keepfits-records slice, the predict-newdata-weights slice and the ci-download-retry slice together, in that order, by fast-forward to 6afb4d409. The first slice's own tip had 8 of 10 CI workflows green; its exact-gates job was cancelled four times at the old 45-minute limit, and its pkgdown run was cancelled by main's pushes, which shared the old deploy group. The third slice fixed both (the exact-gates job timeout is 60 minutes; pkgdown's group is shared only by runs that deploy, and it deploys only from main or a release; setup-r and setup-pandoc retry once after 30 seconds). Every workflow was green at the second slice's tip and at the third's, 10 of 10 each. The alternatives were waiting for a lucky runner, or landing the CI fix first. The cost was none, the code being green above it. Record: .github/workflows, all ten files; docs/plans/README.md, the CI paragraph. Marked: not marked. See also: [dec-A277]. [dec-A281]
 
+**One test serves every door that derives a leaf covariate's center and scale**
+Landed on main on 2026-11-08 (3858d8301, d4991ff63, f085f90b7), built under dec-B654, dec-B655 and dec-B673. The builder's call, not put to the maintainer, with its alternative.
+1. Creation, an xbart fold, a setData that derives, and the re-derivation after setPredictor, setWeights and setActiveRows all read one function, and the function that takes the center and scale is left as it was. The alternative was the test written into that function. The cost is one wrapper that both derivation paths must call.
+Gates at landing: CI 10 of 10 at 87daabb47; on the x86 leg tests/cpp plain and under ASan and UBSan, 561 ok, the full suite 43384 results with 0 failed, the equivalence trio OK. Draws are unchanged for every fit whose leaf covariates are above the tolerance (the trio bitwise).
+Record: src/bartcore/data.hpp, leafCovariateMoments; src/bartcore/sampler.hpp; the bridge's derivation paths; inst/tinytest/test-leaf-spread-rounding.R. Marked: not marked. See also: [dec-B654], [dec-B655], [dec-B673]. [dec-A282]
+
+**The rounding test reads the rows in as the center and scale read them, at their counts where the rows are counts**
+Landed on main on 2026-11-08 (3858d8301, d4991ff63, f085f90b7), built under dec-B654, dec-B655 and dec-B673. The builder's call, not put to the maintainer, with its alternative.
+2. Each row once, or, where the rows are counts (frequency weights, a binomial row's trials times its weight, an nbinom fit's whole-number weights), each at its count, so the test is that of the rows written out; a row of count 0 is not read, and the refusal's reading of one value or rounding skips it too. A precision weight does not enter. The counts came with the rebase onto frequency weights, whose center and scale read them, and reach creation, an xbart fold, a binomial setData and the re-derivation after setPredictor, setWeights and setActiveRows. Without counts every result keeps its bits. The alternatives were every row once whatever its count, which would answer otherwise than the rows written out, or sums weighted by precision weights too, which the center and scale do not use. The cost is counts carried through the leaf covariate moments, the corrected mean and the rounding test, with pins for each door (a mutant ignoring the counts in the corrected mean and one dropping the trials from the re-derivation's counts each fail pins).
+Record: src/bartcore/data.hpp, leafCovariateMoments; inst/tinytest/test-leaf-spread-rounding.R, counts section; tests/cpp, testLeafSpreadRounding. Marked: not marked. See also: [dec-B654], [dec-B655], [dec-B673]. [dec-A283]
+
+**The spread is measured about a corrected center, the stored mean plus the mean of the deviations from it**
+Landed on main on 2026-11-08 (3858d8301, d4991ff63, f085f90b7), built under dec-B654, dec-B655 and dec-B673. The builder's call, not put to the maintainer, with its alternative.
+3. The test gives the same answer whatever the number of rows; the stored center and scale keep their exact values. The alternatives were the stored mean, which misses by up to about the row count times machine precision and would let a long rounding column pass, or a more accurate stored mean, which would move the draws of columns the rule does not touch. The cost is a second pass over the rows at each derivation, and a mutant with the correction removed fails the C++ row-count check.
+Record: src/bartcore/data.hpp, correctedMean; tests/cpp. Marked: not marked. See also: [dec-B654], [dec-B655], [dec-B673]. [dec-A284]
+
+**Both norms of the rounding test are taken on values scaled by a power of two**
+Landed on main on 2026-11-08 (3858d8301, d4991ff63, f085f90b7), built under dec-B654, dec-B655 and dec-B673. The builder's call, not put to the maintainer, with its alternative.
+4. The scaling is exact and cannot overflow or underflow. The alternative was plain sums of squares, which fail above about 1e154 and below about 1e-154. The cost is a scaling step in the test. The same flaw in the pre-existing moments function is filed in the root TODO (leaf-covariate-moments-range).
+Record: src/bartcore/data.hpp, deviationIsRounding. Marked: not marked. See also: [dec-B654], [dec-B655], [dec-B673]. [dec-A285]
+
+**A rounding column under a gp leaf that states its lengthscale takes the placeholder, as a column of one value does**
+Landed on main on 2026-11-08 (3858d8301, d4991ff63, f085f90b7), built under dec-B654, dec-B655 and dec-B673. The builder's call, not put to the maintainer, with its alternative.
+5. It is centered at its corrected mean, so every row reads within rounding of zero however many rows there are, divided by 1, and recorded with scale NA as a column of one value is. The alternatives were centering at the mean taken through the sum, which sits 20 units off at 200 rows and more as n grows, or at its first value, or recording scale 1. The record's mark reads whether the rows sit within rounding of the center in force, so a column moved to one value off its center still converts by the formula (dec-B328). This moves a draw in one case only: a linear leaf at the placeholder scale whose column a setter that keeps the numbers moved to values at rounding apart, which the next change of data reads as one value. The cost is that one case.
+Record: src/bartcore/model.hpp, standardizedColumnHasSpread; inst/tinytest/test-leaf-spread-rounding.R. Marked: not marked. See also: [dec-B654], [dec-B655], [dec-B673]. [dec-A286]
+
+**The setters' keep warning is reworded for both cases**
+Landed on main on 2026-11-08 (3858d8301, d4991ff63, f085f90b7), built under dec-B654, dec-B655 and dec-B673. The builder's call, not put to the maintainer, with its alternative.
+6. The text reads "fewer than two values ... that differ by more than rounding" for a column of one value and a column of rounding alike. The alternative was a separate text for the rounding case, carried through the bridge's keep answer. The cost is that the six warning pins in test-leaf-standardization-rows.R take the new wording.
+Record: the bridge's keep warning; inst/tinytest/test-leaf-standardization-rows.R. Marked: not marked. See also: [dec-B654], [dec-B655], [dec-B673]. [dec-A287]
+
+**The refusal opens with the test itself, not with "differ only by rounding"**
+Landed on main on 2026-11-08 (3858d8301, d4991ff63, f085f90b7), built under dec-B654, dec-B655 and dec-B673. The builder's call, not put to the maintainer, with its alternative.
+7. The refusal reads "holds values whose spread about their center is under 64 times machine precision of their size", which stays true of a column of one outlier among equal values. The alternative was "holds values that differ only by rounding", which misstates that column. The cost is a longer first sentence.
+Record: the bridge's leafStandardizationMessage; its tests. Marked: not marked. See also: [dec-B654], [dec-B655], [dec-B673]. [dec-A288]
+
+**A failure inside the re-derivation after setPredictor, setWeights or setActiveRows releases the sampler and raises an R error**
+Landed on main on 2026-11-08 (3858d8301, d4991ff63, f085f90b7), built under dec-B654, dec-B655 and dec-B673. The builder's call, not put to the maintainer, with its alternative.
+8. Only an allocation failure can reach it. The sampler is re-created from its stored state on its next use, as a failed setData does. The alternative was R aborting on the uncaught exception. The cost is that there is no direct pin, the sampler's test and the leaves' own derivation calling one function on the same values; the abort the catch guards against is shown by a mutant removing the sampler's test, which kills the process at the first setter pin.
+Record: the bridge's rederiveOrRelease. Marked: not marked. See also: [dec-B654], [dec-B655], [dec-B673]. [dec-A289]
+
+**No NEWS entry for the rounding test**
+Landed on main on 2026-11-08 (3858d8301, d4991ff63, f085f90b7), built under dec-B654, dec-B655 and dec-B673. The builder's call, not put to the maintainer, with its alternative.
+9. Linear and gp leaves are new in 1.0-0, and 0.9-34 had none, so no release describes the behavior. The alternative was a NEWS line. The cost is none that a user of 0.9-34 can see.
+Record: inst/NEWS.Rd, unchanged. Marked: not marked. See also: [dec-B654], [dec-B655], [dec-B673]. [dec-A290]
+
+**The record's mark at the placeholder scale reads each gathered row at the counts its chain reads rows at**
+Landed on main on 2026-11-08 (3858d8301, d4991ff63, f085f90b7), built under dec-B654, dec-B655 and dec-B673. The builder's call, not put to the maintainer, with its alternative.
+10. The orchestrator's call, from the rule that frequency counts read as the rows written out: frequency weights, a binomial row's trials times its weight, nbinom counts, a row of count 0 not read. Where fewer than two rows have a positive count every row is read, a count of 0 as 1 and a positive row at its count, as a read-off falling back to every row reads them (dec-B632). So a gp leaf stating its lengthscale over a column at rounding apart at its counts records scale NA, as its rows written out do. A setData takes the old mark before its counts move to the new rows, the counts being sized to the new rows and able to read past the old (a heap overflow under a sanitizer when the rows shrink). The alternative was the mark read once per row, which records scale 1 where the rows written out record NA. It was added in the delta fix round after the review of the rebase (F3); a fresh review found two parts untested and one record sentence misstating the fallback, and the pins round added the setData pin, the fallback pin and the reworded record; mutants taking the old mark after the counts move and dropping the fallback each fail a pin. The cost is the counts read in the mark and the order in replaceData.
+Record: src/bartcore/model.hpp, replaceData; src/bartcore/model.hpp, standardizedColumnHasSpread; inst/tinytest/test-leaf-spread-rounding.R; tests/cpp, testLeafSpreadRounding. Landed also in f085f90b7 and 87daabb47. Marked: not marked. See also: [dec-B654], [dec-B655], [dec-B673]. [dec-A291]
+
 ## B. Decisions with maintainer evidence
 
 **Missing predictors are modeled, not refused**

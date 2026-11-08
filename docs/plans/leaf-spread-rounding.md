@@ -5,7 +5,7 @@ rng: neutral for every column above the tolerance (the trio bitwise); a
 column under it is refused or kept where it ran before
 budget: ~60 engine and bridge lines, ~10 R lines, ~250 test lines, help
 
-Status: BUILT 2026-11-07, reviewed SOUND AFTER NITS, fix round reviewed LAND (2f2457f20, 26940637c)
+Status: LANDED on main 2026-11-08 (3858d8301, d4991ff63, 0207033a5, f085f90b7, 87daabb47; dec-B654, dec-B655, dec-B673; calls in dec-A282 to dec-A291)
 
 ## Goal
 
@@ -39,8 +39,7 @@ column above the tolerance draws what it drew.
 - The bridge words the refusal in `leafStandardizationMessage`
   (src/R_interface_bartcore.cpp), doors creation, fold and setData.
 - The case: half the rows 0.3 and half `0.1 * 3`; scale 3.95e-17 today and
-  a linear leaf predicting about -2.7e12 at 0.31 (probe
-  scratch/backlog-dossier/probes/c404.R).
+  a linear leaf predicting about -2.7e12 at 0.31.
 
 ## Design
 
@@ -192,7 +191,7 @@ column above the tolerance draws what it drew.
 
 ## Build note
 
-Built in 2f2457f20 as planned. The six warning pins in
+Built in 3858d8301 as planned. The six warning pins in
 test-leaf-standardization-rows.R take the reworded keep text. Gates on that
 code: tests/cpp plain and under ASan and UBSan; the full suite, 42316
 results, 0 failed; the trio `--bitwise --strict-coverage` on the reference
@@ -207,7 +206,7 @@ pin, the chain's own derivation throwing where the sampler marked the
 covariate derivable; the corrected center removed fails the C++ row-count
 check.
 
-Fix round, 26940637c, after the engine review (SOUND AFTER NITS). F1
+Fix round, d4991ff63, after the engine review (SOUND AFTER NITS). F1
 (dec-B673): the refusal advises dropping the column, recomputing it from
 its source about an origin near its values where they truly differ, or
 changing the rows in; the help says why subtracting a constant does not
@@ -241,7 +240,7 @@ exact gates in quick, 49 of 49; the leaf, frequency-weights and binomial
 test files under R-loaded ASan and UBSan, 1452 results, 0 failed; lint,
 air, codoc, win-drift, doc-freshness, verify-anchors.
 
-Delta fix round, a86bf7f32, after the rebase's delta review (FIX). F1: the
+Delta fix round, f085f90b7, after the rebase's delta review (FIX). F1: the
 center corrected at the counts is pinned at creation (counts 1000 and 1 on
 halves at 1 and 1 + 1e-13), killing the mutant correctedMean ignoring
 counts. F2: R pins at counts for the binomial setPredictor and setData,
@@ -266,3 +265,12 @@ as does testLeafSpreadRounding's mark check, now over rows 1e-17 off the
 center. Finding 3: call 10's fallback reworded. Gates: the spread file
 and five leaf and count files, 1646 results, 0 failed; tests/cpp plain
 and under ASan and UBSan, 0 diagnostics; lint, air, doc-freshness.
+
+Landing, 2026-11-08. The 14 commits ff7475158 to 87daabb47 went onto main
+by fast-forward, restacked onto it first; the hashes above are the landed
+ones. CI 10 of 10 at 87daabb47. The x86 leg: tests/cpp plain and under ASan
+and UBSan, 561 ok; the full suite, 43384 results, 0 failed; the equivalence
+trio OK. The agents' calls are dec-A282 to dec-A291, one per call above.
+Filed for later: leaf-covariate-infinite-value and
+leaf-covariate-moments-range in the root TODO, both present before this
+slice.
