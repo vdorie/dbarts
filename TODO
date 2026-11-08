@@ -285,13 +285,6 @@ items
     door; wider ones stay refused (dec-B662, VD 2026-11-07: "We can use
     (b)."). About 5 lines, 19 test lines rewritten, a help sentence in
     dbartsData and forest.
-  unnamed-matrix-silent: an unnamed matrix given as predictors is read
-    in the sampler's column order with no message at every door: test at
-    fit time, $setData, $setPredictor, $setTestPredictor, the sampler's
-    $predict and predict on a fit (dec-B653, VD 2026-11-07: "Ok. Use your
-    revised recommendation."). Drop the warning in R/data.R's
-    validateXTest, restate its tests, remove the NEWS UPGRADING item. A
-    named matrix on an unnamed fit keeps its warning.
   starting-sigma-fallback-zero-weights: where no regression is defined
     a weighted fit's starting sigma becomes the weighted residual sd of
     the intercept alone over the rows of positive weight, sd(y) at unit
