@@ -445,6 +445,15 @@ items
       effects is not what this evidence predicts.
     - Proposal: Whether the move's code size, 1,400 to 2,900 lines with
       a slice that changes the posterior, is a gate or only reported.
+  kmp-heldout-design: pricing's real datasets, redesigned by the agents
+    (dec-B651, VD 2026-11-07: "If the held-out dataset approach could
+    be improved, I leave that up to you for now."). A planner rewrites
+    step 2's guard as each sampler's error against a long reference
+    run at equal time, shared with step 3's references, and the screen
+    down to the criteria that bear on a posterior comparison; an
+    independent referee checks it; the sealed rule and list go to the
+    maintainer as dec-B635's decision. No data downloaded and no outcome
+    read before the seal.
   k-mixing-pg-families: after the merge, before 1.0-0 (dec-B404,
     dec-B420, VD 2026-10-09; timing VD 2026-10-17). Binary fits keep a
     drawn k under chi(1.5, 2). Whether k must mix fast for intervals of
