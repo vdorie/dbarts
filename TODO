@@ -113,10 +113,11 @@ items
     prog4 (0.1061, 0.1209) without the amplitude rescaling move
     (2026-09-24); it does not reach the tail regime this door names.
     research-open, decision-gated.
-  bartBT-keepcall-splitprobs: bartBT(keepcall = FALSE) drops a named
-    splitprobs (0.9-34 does too), fitting equal probabilities. A separate
-    change that moves draws for those calls: about 3 lines, a pin and a
-    NEWS line. Found reviewing tree-prior-flat.
+  bartBT-keepcall-splitprobs: dec-B646 (VD 2026-11-07, "Fix it."):
+    bartBT(keepcall = FALSE) drops a named splitprobs (0.9-34 does too),
+    fitting equal probabilities; read it from the argument's value under
+    either keepcall. About 3 lines, a pin and a BUG FIXES line; draws move
+    only for calls giving both. Found reviewing tree-prior-flat.
   capi-sampler-info: dec-B615. dbarts.h describes a sampler through one
     struct led by structSize, filled by one entry, holding every count
     and fact the one-fact entries report today, with the variance
@@ -279,6 +280,14 @@ items
     be weighted: the residual sd of the intercept alone, which is on
     the regression's scale where the weights are far from 1 (1.28 for
     1.12 on one run under weights between 0.5 and 2).
+  state-basis-levels-by-name: dec-B647 (VD 2026-11-07, "For the open
+    decision, match by name"): a stored state records the level names
+    of each forest multiplied by a factor, and $setState puts each
+    coefficient on its own level by name, refusing names that differ;
+    today it installs by position, so a relevel exchanges two levels'
+    coefficients for the first ten or so draws. About 50 lines and
+    tests, unsized against the state's layout; the help sentence in
+    setState and setForestBasis is rewritten.
   study-firming: every study whose result decides a default, a sampler
     change or a gate is brought, in time, to what published research
     of its kind would do (dec-B637); k-move-pricing is the first. In

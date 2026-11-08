@@ -1,6 +1,6 @@
 # Review 4, slice S-B: draw channels, the flat run and the cut-grid floor
 
-Status: built, in review (branch review4-draw-channels).
+Status: LANDED on main 2026-11-07 (branch review4-draw-channels).
 
 rng: neutral. Every run draws bit for bit as before, with or without a draw callback and whatever the caller
 stores; the equivalence baselines and the four snapshot files are unchanged ([Gates](#gates)). What changes is
@@ -226,3 +226,7 @@ Engine and bridge code change only in a comment, so the trio and the snapshot fi
   always scratch on the R route); setCutPoints' cuts are finite.
 - inst/NEWS.Rd, UPGRADING: setCutPoints refuses an infinite cut point, which 0.9-34 took. BUG FIXES (F3): a
   predictor whose range is wider than the largest double is split on.
+
+## Landing note
+
+Landed by fast-forward at fd78973ee after one review and its light re-check. The review, over the build, returned land after fixes: no gate saw every chain's scratch pointed at one block (mutant O01), one help sentence misdescribed the log-likelihood's buffer, ingest-04's change since 0.9-34 had no NEWS line, and one comment misstated how a cut at -Inf compares with one at -DBL_MAX. Fix round 1 made those changes; the re-check returned fix first on one NEWS phrase, which was made. The treatSens failure the build reported was its test driver: run as treatSens's own runner runs it, 475 pass, 0 fail, 10 skip, on main's library and the branch's. On the tip rebased onto main: the nine per-push workflows and rchk by dispatch, the nine green; rchk red with the findings main carries, line numbers aside, which the rchk-findings branch fixes. The x86 leg (Linux, x86-64): on d03db0db5, whose code the tip carries unchanged (it adds a NEWS phrase and main's records): the C++ tests 561 pass, 0 fail, plain and under AddressSanitizer with leak checking, no sanitizer report; the tinytest suite 42411 results, 0 failed; the equivalence harness indistinguishable at |z| > 4; the BCF and multinomial channels within the cross-machine tier 1 bound. R CMD check --as-cran on the build's tarball: one NOTE, the incoming-feasibility one (an expired certificate at a cited URL and the Date field's age), not this slice's. The calls not put to the maintainer are dec-A270.
