@@ -265,7 +265,8 @@ expect_error(
     n.chains = 1L,
     verbose = FALSE
   ),
-  pattern = "at least 2 categories"
+  pattern = "at least 2 categories; to declare categories that no row takes, give the response as factor(y, levels = ...)",
+  fixed = TRUE
 )
 # a continuous response has no plausible ordered-category reading; the
 # distinct sorted values would otherwise silently become one category apiece

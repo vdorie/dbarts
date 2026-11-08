@@ -832,6 +832,16 @@ resolvedFamily <- function(value) {
   if (is.character(value) || is(value, "dbartsFamily")) {
     return(value)
   }
+  if (is(value, "dbartsStudentPrior")) {
+    stop(
+      "'family' was given dbartsPriors$student(), the Student-t prior of a ",
+      "forest's coefficient, which only a forest's 'amplitude' reads; for ",
+      "Student-t residuals write family = student(df = ",
+      format(value@df),
+      ") (dbartsFamilies$student), see ?dbartsFamilies",
+      call. = FALSE
+    )
+  }
   if (!inherits(value, "family")) {
     stop(
       "'family' must be a family name or a family object; see ?dbartsFamilies",

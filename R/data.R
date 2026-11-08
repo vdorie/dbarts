@@ -2788,7 +2788,11 @@ resolveOrdinalResponse <- function(data) {
   }
   K <- length(labels)
   if (K < 2L) {
-    stop("family = \"ordinal\" requires a response with at least 2 categories")
+    stop(
+      "family = \"ordinal\" requires a response with at least 2 categories; ",
+      "to declare categories that no row takes, give the response as ",
+      "factor(y, levels = ...)"
+    )
   }
   list(y = as.double(codes), K = as.integer(K), levels = labels)
 }

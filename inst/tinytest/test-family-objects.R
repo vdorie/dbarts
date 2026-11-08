@@ -162,6 +162,13 @@ expect_error(
   dbarts::bart(x, y, family = 1L),
   "family name or a family object"
 )
+# a forest coefficient's Student-t prior given as the family names the
+# residual family that was likely meant
+expect_error(
+  dbarts::bart(x, y, family = dbartsPriors$student(3), n.trees = 20L),
+  "family = student(df = 3)",
+  fixed = TRUE
+)
 
 # --- forwarded through a wrapper's dots -------------------------------------
 
