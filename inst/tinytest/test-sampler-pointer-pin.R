@@ -69,6 +69,26 @@ invisible(gc())
 invisible(gc())
 expect_equal(counter$freed, 1L)
 
+# the data a sampler was created from is let go at its first $setData, while
+# the sampler lives
+counter <- new.env()
+counter$freed <- 0L
+sampler.created <- local(
+  dbarts(
+    attachProbe(dbartsData(x, y), counter),
+    n.trees = 10L,
+    control = control
+  )
+)
+invisible(gc())
+invisible(gc())
+expect_equal(counter$freed, 0L)
+sampler.created$setData(dbartsData(x + 0.01, y))
+invisible(gc())
+invisible(gc())
+expect_equal(counter$freed, 1L)
+rm(sampler.created)
+
 # of k data objects handed to $setData, the k - 1 replaced are freed while
 # the sampler lives
 counter <- new.env()

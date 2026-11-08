@@ -5072,9 +5072,9 @@ bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
 
 extern "C" {
 
-// The external pointer's protection slot pins everything the sampler
-// borrows: the data expression at creation, and any replacement vectors the
-// setters install later. family is as createHolder's.
+// The external pointer's protection slot holds the data expression weakly,
+// for as long as the pointer lives (retain); the setters copy what they are
+// handed into holder-owned buffers. family is as createHolder's.
 // tooFewUnitsExpr, TRUE or NULL, is the host's count of its units in the
 // likelihood, fewer than two (SamplerOptions::tooFewUnitsIn).
 SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
@@ -7451,8 +7451,9 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
     if (shape.family == bartcore::ResponseFamily::logistic)
       sampler.setWeights(weights);
 
-    // the new spec replaces the old as the pinned object: a sparse build's
-    // store borrows its CSC slices, and the old spec's pin is cleared
+    // the new spec replaces the old as the pinned object, so the old one is
+    // freed while the sampler lives; this door refuses a CSC-built sampler and
+    // sparse data, so the engine borrows nothing from either
     retain(ptrExpr, PROT_DATA, dataExpr);
 
     return R_NilValue;

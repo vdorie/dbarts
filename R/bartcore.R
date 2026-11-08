@@ -1,7 +1,7 @@
 # The bartcore engine behind dbartsSampler. The dbartsSampler methods
 # delegate to the bartcoreSamplerRun and bartcoreSamplerSet* functions below;
-# the C side borrows vectors and pins them in the external pointer's
-# protection slot.
+# the C side copies what the setters hand it and holds the data object
+# weakly in the external pointer's protection slot, for the pointer's life.
 #
 # Not supported (methods error): weights with binary responses (weighted
 # probit has no coherent latent-variable form), and setControl changes to
