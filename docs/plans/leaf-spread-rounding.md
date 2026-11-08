@@ -5,7 +5,7 @@ rng: neutral for every column above the tolerance (the trio bitwise); a
 column under it is refused or kept where it ran before
 budget: ~60 engine and bridge lines, ~10 R lines, ~250 test lines, help
 
-Status: BUILT 2026-11-07, reviewed SOUND AFTER NITS, fix round built (2839a6d89, 5c702a665)
+Status: BUILT 2026-11-07, reviewed SOUND AFTER NITS, fix round reviewed LAND (b6693684a, 32860e7b3 as rebased onto setmodel-installs-stated)
 
 ## Goal
 
@@ -20,8 +20,10 @@ column above the tolerance draws what it drew.
 ## Context
 
 - `standardizationMomentsForColumn` (src/bartcore/data.hpp) takes the
-  center and sd over the observed values of the rows in, membership only
-  (`LeafRows`: positive weight and kept by the mask), and says where they
+  center and sd over the observed values of the rows in (`LeafRows`:
+  positive weight and kept by the mask), each at its count where the rows
+  are counts (frequency weights, a binomial row's trials times its weight,
+  nbinom counts), and says where they
   hold fewer than two distinct values; a constant column is centered at its
   value exactly (dec-B358).
 - `deriveLeafMoments` (src/bartcore/model.hpp) refuses that case with
@@ -50,8 +52,9 @@ column above the tolerance draws what it drew.
   every door that derives reads one test. The moments function itself is
   unchanged.
 - The rows and weights: the rows in, as the center and scale read them, each
-  counting once; a row's weight does not enter, as it does not enter the
-  center and scale. Missing values are skipped.
+  counting once, or, where the rows are counts, at its count, so the test is
+  that of the rows written out; a precision weight does not enter, as it
+  does not enter the center and scale. Missing values are skipped.
 - The norm. Both sums are taken after scaling every value by the power of
   two that brings the largest magnitude among the rows in into [0.5, 1)
   (`std::frexp`, `std::ldexp`): exact, so it cannot overflow or lose bits,
@@ -101,8 +104,12 @@ column above the tolerance draws what it drew.
 
 1. A wrapper both derivation paths call, the moments function unchanged;
    alternative, the test inside `standardizationMomentsForColumn`.
-2. Rows in, unweighted; alternative, case-weighted sums, which the center
-   and scale do not use.
+2. Rows in, read as the center and scale read them: once each, or at their
+   counts where the rows are counts (rebase onto frequency weights, which
+   gave the center and scale counts), so a frequency fit's test is its
+   expansion's; alternatives, every row once whatever its count, which
+   would answer differently from the rows written out, or precision weights
+   too, which the center and scale do not use.
 3. The refined center inside the test; alternatives, the stored center
    (the test grows with n) or a compensated stored center (moves bits on
    columns above the tolerance).
@@ -200,3 +207,18 @@ full suite, 42317 results, 0 failed; the trio on the reference build, 55,
 19 and 11 scenarios identical, none skipped; the four reproducibility
 files, 27 results; lint, air, codoc, win-drift, doc-freshness,
 verify-anchors.
+
+Rebase note, onto setmodel-installs-stated (on state-basis-levels and the
+frequency-weights landing), 2026-11-08. The base's moments function takes
+counts, so `leafCovariateMoments`, `correctedMean` and
+`deviationIsRounding` take them too and read each row as it does: at its
+count, a row of count 0 or less not read; the refusal's one-value or
+rounding reading skips such a row as well. Without counts every result
+keeps its bits. The doors this extends are every door that derives where
+the rows are counts: creation and an xbart fold under frequency weights, a
+binomial response or nbinom counts; a binomial setData; and the
+re-derivation after setPredictor, setWeights and setActiveRows on such a
+sampler. Pins: test-leaf-spread-rounding.R's counts section and
+testLeafSpreadRounding's counts checks (the counts ignored in the test, and
+the count-0 skip removed from the refusal's reading, each fail a check).
+The refusal pins take the base's rows wording, "the active-row mask".
