@@ -26,6 +26,7 @@ reference:
   - dbartsSampler-class
   - dbartsControl
   - dbartsData
+  - model.frame.dbartsData
   - dbartsSpec
   - dbartsPriors
   - dbartsFamilies

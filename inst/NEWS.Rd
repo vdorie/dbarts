@@ -108,6 +108,15 @@
             \code{dbartsData} object saved by 0.9-34 keeps its old factor
             coding and fits differently from one built fresh; rebuild it
             with \code{\link{dbartsData}}.
+      \item A data object made by \code{dbartsData()} from a formula and a
+            data frame keeps the frame and the positions of the rows it
+            keeps; its \code{x}, \code{y}, \code{weights} and
+            \code{offset} slots, which held the model matrix and the
+            response in 0.9-34, no longer hold them:
+            \code{model.frame(object)} returns the model's variables,
+            factors as factors, and \code{nobs(object)} counts the rows.
+            \code{keep.data = FALSE} keeps the matrix and the response in
+            the object instead, as before.
       \item Weights. A \code{probit} fit refuses case weights: 0.9-34 fit a
             weighted probit, which was incorrect. Weights that are all 1
             are ignored, and weights of 0 and 1 mark which rows enter the
