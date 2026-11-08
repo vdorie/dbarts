@@ -1,583 +1,529 @@
 # A forest's basis names a column of the data
 
-Status: PROPOSED, 2026-11-07, revised four times 2026-11-07 for the maintainer's rulings and two critiques.
-Follows dec-B663 (a forest's basis is a reference to a column of the data, and the per-forest bases a data
-object holds are the package's record of that resolution), dec-B666 (the frame kept on the data object is the
-direction; the numbering and the drop at the sampler to be examined) and dec-B670 (the whole frame is kept,
-and beside it as little derived from it as can be: the predictor block is made from the frame when a sampler
-needs it). dec-B671 rules what a fit of several forests keeps under `keepFits = FALSE`.
+Status: PROPOSED, 2026-11-07, revised 2026-11-08 to the rulings dec-B674 to dec-B678.
+Follows dec-B663 (a forest's basis is a reference to a column of the data), dec-B666 (the frame kept on the
+data object), dec-B670 (the whole frame kept, and beside it as little derived from it as can be), dec-B671
+(what a fit of several forests keeps under `keepFits = FALSE`), dec-B674 (`keep.data = FALSE`, the frame kept
+by default), dec-B675 (the response, weights and offsets made from the frame), dec-B676 (`o@x` a stand-in
+that stops when read), dec-B677 (`model.frame(o)` and `nobs(o)` the accessors; `extract()` keeps to samples)
+and dec-B678 (a sampler's data holds the model frame and what its forests need, the setters writing into it).
 
 ## In short
 
-A data object built from a formula and a data frame keeps the frame, whole and as given, the positions of the
-rows it kept, and the record of how the predictors are coded, not the predictor block: that is made from the
-frame when a sampler needs it, in the build's own order. The response, the weights and the offsets are made
-from it the same way (call 8); what the caller gave beside the frame is kept as built. `keep.data = FALSE`
-keeps the block in place of the frame, today's object. `dbartsSpec(o, forests = )` and
-`dbarts(o, forests = )` read a forest's basis against the frame exactly as `dbarts(formula, data, forests = )`
-reads it. The resolution that makes a sampler's specification makes the block and drops the frame and the
-rows, so a sampler, its data, a copy, a saved sampler and a fit carry the block and no frame, as today.
-`dbartsData(bases = )` goes; the slots `bases`, `basis.levels` and `basis.scale` stay, written by a sampler.
+Two kinds of data object, one class and one set of slots:
 
-Examined, run on main:
+- **A user's object**, `dbartsData(formula, data)`, keeps the caller's frame whole, the positions of the rows
+  it kept and the record of how its variables are coded. It stores no predictors, response, weights or
+  offsets: `o@x`, `o@y`, `o@weights` and `o@offset` are stand-ins that stop, naming `model.frame(o)`.
+  `model.frame(o)` makes the model's variables from the frame; `nobs(o)` counts its rows.
+  `keep.data = FALSE` keeps no frame and keeps the block, response, weights and offsets in their slots, as
+  today; bartCause and stan4bart pass it.
+- **A sampler's data**, `s$data`, made where a sampler is handed its data (`dbarts(o)`, `dbartsSpec(o)`,
+  `bart(o)`, `$setData(o)`, `new("dbartsSampler", data = o)`), holds the model frame: one column for each
+  predictor column the engine reads, a factor kept a factor, the response as the sampler reads it, the
+  weights, the summed offset and each forest's basis. The caller's frame is dropped. The setters write into
+  it; `model.frame(s$data)` reads it; `s$data@x` and its kin are stand-ins as on a user's object.
 
-- Rows are stored as their positions among the rows handed over, in the fit's order. That is the index the
-  package already computes to cut a basis. The object records nothing when every row is kept in order.
-- Columns: keeping the whole frame costs nothing in a session, since R shares its columns until one side
-  changes one, and then copies only that column. Keeping fewer columns, or numbers pointing into the caller's
-  frame, either breaks a basis that names a predictor or reads the wrong column after the caller edits the
-  frame, and saves nothing in a session.
-- The block made again from the frame, evaluated on every row, cut to the kept ones and coded as the build
-  codes, equals the built block in every case run, a caller's vector under `subset` and `na.omit` among them,
-  in 0.0014 s at 20,000 rows and 15 columns. Saved, a data object is then the frame and a record of under a
-  kilobyte, where frame and block would double it.
-- Dropping at the sampler keeps a saved fit free of the frame, as dec-B185 has fits. It also keeps stan4bart's
-  saved sampler bundle from growing by the frame.
-- A data object with no frame to read names in (a sampler's own data, an opt-out object) keeps the frame's
-  column names, and a basis naming one of them is refused, so a column is never read from the caller instead.
-- The opt-out still serves bartCause, whose saved fits would otherwise carry the caller's whole frame, and lets
-  stan4bart and bartCause keep reading the block off their data objects.
-- A fit's own copy of each basis cannot be made again, the fit keeping no frame and a kept sampler's basis
-  being mutable; it stays beside the per-forest fits it multiplies (dec-B671 rules the rest).
+The engine's input is unchanged: before each call that hands the bridge a data object, R makes today's
+layout from the frame, sharing its columns, so nothing under `src/` reads a new shape. A forest's basis
+given in a forests list beside a user's object is read against its frame as `dbarts(f, d, forests = )` reads
+it; `dbartsData(bases = )` goes.
 
-About 305 lines of R, nothing under `src/`, 83 test calls in 24 files and up to 360 test lines reading the
-block or the values, six help pages, a NEWS sentence, a few lines in bartCause and one in stan4bart. Ten
-calls for the maintainer, listed at the end.
+Run on a shipped build of main of 2026-11-07, at 20,000 rows, 14 numeric columns and a factor of 26 levels, one
+thread; today's main differs on these paths in the setters' argument checks and the bridge's standardization
+code, so a rerun on today's main is owed before the build:
+
+- **Setters**: `$setResponse` 138 us today, about 8 us more; `$setPredictor` of one column 2.65 ms today,
+  the same within the timer; one iteration of 75 trees is 3.0 ms. On the matrix interface a column's
+  setter gets 0.45 ms faster (it no longer copies the whole matrix). A whole-matrix `$setPredictor` would
+  pay 0.22 ms more (3 percent of the call) if R split the matrix into columns; a split in the bridge avoids
+  it.
+- **Saved sizes** stay within 0.001 MB of today: a sampler 4.55 MB, a `bart` fit kept with its sampler
+  11.82 MB, bartCause's fits 2.18 and 2.34 MB, stan4bart's fit 0.46 MB, as long as stan4bart's bundle
+  keeps what it keeps today (see Costs dec-B678 did not weigh). A saved sampler on main writes its data
+  twice, once through its engine pointer; 0.9-34 wrote it once, 2.32 MB.
+- **Cost**: about 480 new lines of R and 360 lines changed where R reads a sampler's slots, about 15 in the
+  bridge, up to about 740 test lines moved, seven help pages, one NEWS entry, about 8 lines in bartCause, and
+  in stan4bart 4 lines plus its bundle (open).
 
 ## 1. What exists
 
-Run on main, 2026-11-07; the R code is unchanged between the library run and the branch point.
+Run on main, 2026-11-07 and 2026-11-08.
 
 - **A formula's `forest()` term** (`bart()`, `dbarts()`), `forest(x2, basis = factor(z))`: code, its names
   found in `data` and then where the formula was written; `predict(fit, newdata)` reads `z` from `newdata` by
-  name, in any column order, and refuses newdata without it.
-- **A forests list beside a frame** (`dbarts(f, data = d, forests = )`): read when `forest()` is called; a
-  column of `data` is that column and hides a caller's variable of the same name; a value is full length and
-  cut by `subset` and the na.action.
-- **The matrix interface**: a value, full length, cut the same way. A column of `x` is no name.
-- **`dbartsData(bases = list(NULL, v))`**: values by forest position; the list fixes the forest count.
-- **A data object handed to `dbarts()`**: carrying bases, with a list of knobs only, taken; a list declaring a
-  basis, refused.
-- **`dbartsSpec(o, forests = )`**: no frame, so a basis is the caller's value; it must be cut to the object's
-  rows already, where `dbarts()` wants full length. Handed a sampler's own data, a declaring list replaces the
-  object's bases whole, with no message.
-- **`$setForestBasis`** by label or position; a value or a formula read where it was written.
-- **`$setData`** is refused on a sampler of several forests, so it is no door for a basis.
-- **Copy and reload** carry the blocks, the levels and the model's record of each code basis (its terms, its
-  levels, its label and the columns it names), bit for bit.
-- **0.9-34** had no forests, no bases and no `dbartsSpec()`.
-
-bartCause's `bcf()` calls `dbartsData(bases = list(NULL, factor(z)))`, then `dbarts(o, forests = )` with knobs
-only.
+  name.
+- **A forests list beside a frame** (`dbarts(f, data = d, forests = )`): a column of `data` is that column and
+  hides a caller's variable of the same name; a value is full length and cut by `subset` and the na.action.
+- **The matrix interface**: a value, full length, cut the same way.
+- **`dbartsData(bases = list(NULL, v))`**: values by forest position. bartCause's `bcf()` uses it, then
+  `dbarts(o, forests = )` with knobs only.
+- **`dbartsSpec(o, forests = )`**: no frame, so a basis is the caller's value at the object's kept length.
+  Handed a sampler's own data, a declaring list replaces its bases whole, with no message.
+- **`$setForestBasis`** by label or position; **`$setData`** refused on a sampler of several forests.
+- **A data object** stores the predictors in `x` (a columnar container on the formula path, a factor one
+  column; a plain matrix or a `dgCMatrix` on the matrix interface), `y`, `weights`, `offset`, `x.test` and
+  their kin, and no frame. In a session its columns are the caller's frame's columns, shared; on the matrix
+  interface `x` is a copy of the caller's matrix.
+- **A sampler's data** is that object, rewritten by the setters: `$setResponse` writes `y`; `$setPredictor`
+  of a column replaces that column of the container, and of a plain matrix copies the whole matrix first; a
+  whole-matrix `$setPredictor` replaces `x` with a plain matrix; `$setOffset`, `$setWeights`,
+  `$setTestPredictor` and `$setForestBasis` write their slots. The engine keeps no predictor block: it reads
+  the data object when a sampler is created, at `$setData`, at a model change and when a state is put back.
+- **A saved sampler** writes its data twice, 4.55 MB at this size: once as its `data` field, once as the
+  protected value of its engine pointer. 0.9-34's saved sampler was 2.32 MB, its pointer empty.
+- **0.9-34** had no forests, no bases and no `dbartsSpec()`; its data object held the model matrix,
+  factors spread into indicator columns, in `x`.
 
 ## 2. The design
 
 ### 2.1 Rows: what is numbered and how
 
-The record is the number of rows handed over and the positions of the rows kept. It is the index `dbarts()`
-already builds to cut a basis written beside a frame, so a value and a code basis are cut by one index. Read
-off a basis that is the row number (12 rows; rows 3 and 9 missing a predictor):
+A user's object records the number of rows handed over and the positions of the rows kept. It is the index
+`dbarts()` already builds to cut a basis written beside a frame, so a value and a code basis are cut by one
+index (12 rows; rows 3 and 9 missing a predictor):
 
-- no `subset`, default na.action: 1 to 12, every row (`na.keepPredictors` keeps rows with a missing
-  predictor)
+- no `subset`, default na.action: 1 to 12 (`na.keepPredictors` keeps rows with a missing predictor)
 - `subset = 2:10`: 2 to 10; `subset = -1`: 2 to 12; `subset = z == 1`: 5, 9, 10, 11, 12
-- `subset = c(10, 2, 5, 7)`: 10, 2, 5, 7, in that order; `c(2, 2, 5, 7, 8)` keeps the repeat
+- `subset = c(10, 2, 5, 7)`: in that order; `c(2, 2, 5, 7, 8)` keeps the repeat
 - a character `subset` by row name: the positions of those names
 - `na.action = na.omit`: rows 3 and 9 go; after `subset = 2:10` too: 2, 4, 5, 6, 7, 8, 10
-- the matrix interface gives the same positions, and a full-length value is cut to them
 
-Today the object records its row names and the na.action's drops counted within the subset, but not the subset,
-so the positions cannot be rebuilt afterwards. They are recorded when the object is made, `subset` being read
-once.
+An integer vector, 4 bytes a row; empty when every row is kept in order. A sampler's data needs none: its
+frame holds the rows in, in order. The internal paths that cut or expand rows (the hurdle's two parts and
+its merge, the hazard's person-period expansion, `xbart()`'s folds) act on a sampler's data and cut its frame.
 
-Storage: an integer vector, 4 bytes a row in a session. Saved, 1,000,000 positions take 3.0 MB shuffled and 2.0
-MB in order with one gap. When every row is kept in order the record is empty: the row count alone, nothing
-saved per row.
+### 2.2 Columns: what a user's object keeps
 
-Keeping the frame cut to the kept rows would need no record, but it copies every column in a session, and a
-code basis reads every row (run: `scale(x2)` under `subset = 1:6` is `scale(d$x2)[1:6]`, as in `lm`).
+The whole frame, as given, when `data` is a data frame or a list (dec-B670). In a session it costs nothing:
+R shares the columns, and a later `d$z[1] <- 9` copies `z` alone, the object keeping the old one. Saved, at
+20,000 rows and 14 columns, the frame is 1.19 MB. A column added to `d` later is not in the object. A name
+that is no column is looked up where `forest()` was called. Set aside: the frame less the formula's columns
+(a basis naming a predictor then falls through to the caller), numbers into the caller's frame (a reorder or
+a dropped row misreads them in silence) and named columns only (dec-B666).
 
-A later drop of rows. No user-facing door cuts a data object's rows: the sampler's setters keep the row count,
-and `setActiveRows` masks rows without dropping them. Four internal paths do cut or expand them: the hurdle's
-two parts, its zero part's merge, the hazard's person-period expansion and `xbart()`'s folds. None of them
-resolves a basis afterwards, so each drops the frame and the record with the rows. The alternative cuts the
-record in step at each, which nothing would read.
+`keep.data = FALSE` keeps no frame (dec-B674); the object keeps the block, `y`, `weights` and `offset` as
+today, and the frame's column names, so a basis named by one of them is refused rather than read from the
+caller (call 6).
 
-How a value is cut: a value has the length of the rows handed over and is cut by the positions. A value already
-at the kept length on an object that dropped rows is refused, as `dbarts()` refuses one (2.5).
+### 2.3 A user's object, under dec-B670 and dec-B674 to dec-B677
 
-### 2.2 Columns: what is kept
+Kept, beside the frame and the rows:
 
-**K1. The whole frame, as given.** `data` itself, every row and column, when it is a data frame or a list. An
-environment is call 7. No `data` keeps nothing, and names are found where `forest()` was called, as today. A
-matrix as `data` is refused by `dbartsData()` today (run: "data must be a data frame, list, or environment"),
-so there is nothing to keep.
+- **The coding record**: the block with no rows, that is its column names, `varTypes`, term labels, factor
+  levels (or indicator levels and the dropped columns), the frozen terms (dec-B185: `poly()` coefficients,
+  `scale()` centers, a caller's value), and for each column whether it held a missing value. 750 bytes where
+  the formula names only columns; a caller's vector named in the formula rides at full length, 8 bytes a row.
+- **The response's coding**: `response.type`, `response.n.levels`, `response.levels`.
+- **The frozen expressions** of the response, `weights` and `offset`, so a column stays a name and a
+  caller's value is held as its value (dec-B675).
+- **`na.action` and `rowNames`**: the rows the na.action dropped, numbered within the subset, and the names
+  model.frame gave the kept rows ("2", "2.1", "5" under a repeated subset), which the positions alone do not
+  give (call 19).
+- **From the caller's other arguments**, kept as built: `x.test`, `weights.test`, `offset.test`, `n.cuts`,
+  `sigma`, `offset.category` and its test twin, `useQuantiles`, `testUsesRegularOffset`, `missing`.
 
-    o <- dbartsData(y ~ x1 + x2, data = d)
-    s <- dbarts(o, forests = list(forest(), forest(x2, basis = factor(z))))
+Not stored: the predictors, the response, the weights and the offsets. `o@x`, `o@y`, `o@weights` and
+`o@offset` hold a small classed stand-in whose `dim()`, `nrow()`, `colnames()`, `[` and `as.matrix()` stop
+with a message naming `model.frame(o)`; `attr(o@x, ...)` gives `NULL` without a word, R reading attributes
+without asking the object, and the help says so (dec-B676).
 
-- In a session: nothing (run: the slot holds the same vectors as `d`). A later `d$z[1] <- 9` copies `z` alone;
-  the other columns stay shared, and the object keeps the old `z`.
-- Saved, 20,000 rows: with 3 predictors of 14 columns, the frame 1.19 MB, the data object today 0.45 MB, the
-  two together 1.64 MB; with 13 predictors of 14 columns, 1.47, 1.47 and 2.94 MB. With the block made from
-  the frame instead of kept (dec-B670, 2.3), the object is the frame and a record of under a kilobyte.
-- A name that is no column is looked up where `forest()` was called, a value of full length; a name found
-  nowhere is refused by name, as today.
-- A column added to `d` after the object was made is not in it (run): the object is the data as it was handed
-  over, as its predictors are.
-- A basis naming a predictor (`forest(x1, basis = x2)`, which runs today) finds the predictor's column on
-  every row, so `scale()` and `poly()` read every row, as at `dbarts()`.
+`model.frame(o)` returns, as `model.frame()` of an `lm` fit does, the model's variables over the rows in,
+after `subset` and the na.action, factors kept as factors, the weights in a `(weights)` column and the offsets
+in `offset()` and `(offset)` columns, so `model.response()`, `model.weights()` and `model.offset()` read them;
+`nobs(o)` is its row count (dec-B677). It is made in the build's order: the frozen terms evaluated on the whole
+frame, the variables cut to the kept positions, then checked against the recorded levels. Run, the predictor
+columns this makes, coded, equal the built block in every case tried: plain columns, `y ~ .`, logical and
+matrix columns, `offset()` terms, `I(x2^2)`, `log(x2) + scale(k)` and `poly()` under `subset` (one with a
+repeated row), factors and ordered factors with a `subset` that empties a level, character columns in either
+coding, `na.omit`, `na.exclude`, `na.pass`, the default `na.keepPredictors` with a missing factor value, a
+value or a missing value that only a dropped row holds, a caller's scalar, a caller's vector under `subset`
+and under `na.omit`, and a sparse factor. Replaying `predict()`'s path on the kept rows instead fails on a
+caller's vector once a row is dropped (call 20). Time: 0.0014 s at 20,000 rows and 15 columns under a
+subset of 15,000, against 0.004 s for the build.
 
-**K2. The frame less the columns the formula reads.** Saved, nothing is written twice: stan4bart's frame
-holds formula columns only. But a predictor is then no column of the kept frame. Its values on dropped rows
-exist nowhere, and a basis naming it falls through to the caller, where a variable of the same name would be
-taken in silence. Rebuilding it from `x` works only when no row was dropped and the column is plain numbers.
-Not recommended.
+`makeTestModelMatrix(data, newdata)` (help `makeind`) reads the coding record and its missing-value flags,
+so on a default object it needs no block and gives what it gives today.
 
-**K3. Numbers pointing into the caller's frame**, a column number or the binding `d` read later. Nothing kept
-or saved. Run: after the caller reorders `d`, column 11 is `x10` and no longer `z`; after `d <- d[-1, ]`, row 2
-holds what was row 3. Both mean a silent misreading. A reload has nothing to point to, and a column added
-later changes what an object made earlier fits. Not recommended.
+Saved, a user's object is the frame and the record: 2.22 MB at 20,000 rows with a 26-level factor, where
+frame and block together would be 4.5 MB.
 
-**K4. Only columns named on the object** (`dbartsData(..., columns = ~ z)`, option B of the first note). Saved
-small; the column is named twice, and the object states which columns are bases. Set aside by dec-B666.
+**An object built on an environment** (call 7) holds the model frame made at the build, the shape a
+sampler's data holds (2.4), and the environment's variable names.
 
-**K1 with an opt-out.** As K1, and `dbartsData(..., keep.data = FALSE)` keeps no frame, as nlme's
-`lme(keep.data = FALSE)` keeps no data and `lm(model = FALSE)` no model frame. The object then keeps the
-predictor block, as today, and the frame's column names, and a basis naming one of them beside it is refused
-(call 6). bartCause passes it:
-its `bartc()` returns the response fit's data object as `data.rsp`, and its `bcf()` returns its own as `data`,
-so under K1 alone every saved bartCause fit carries the caller's whole frame, columns the model never names
-included, which dec-B185 keeps out of fits; slots being read-only (dec-B554), bartCause cannot strip it. Cost:
-an argument and about 10 lines.
+### 2.4 The sampler's data, under dec-B678
 
-Ruled: K1 (dec-B670). Recommended: the opt-out, the frame kept by default (call 4; 2.3 on what it still
-serves). In R, keeping the frame already is keeping a
-reference: nothing is copied until one side changes it. Numbers into the caller's object would save nothing in
-a session, and saved they have nothing to point to. The default keeps `dbartsSpec(dbartsData(f, d), L)` the
-same as `dbarts(f, d, L)` for a user who never heard of the argument.
+**Where it is made.** At the step `dbarts(o)`, `dbartsSpec(o)`, `bart(o)`, `rbart_vi(o)`, `xbart(o)`, the
+hurdle's entry, `new("dbartsSampler", data = o)` and `$setData(o)` share, the resolution. It is the object
+`dbartsSpec()` returns as its `data`, so stan4bart's saved bundle holds it. Handed a sampler's data again,
+the step takes it as it is.
 
-The forest's record of its basis names columns, not numbers. `predict(newdata)` with the columns in another
-order gives the same prediction (run), so a name is what survives new data.
+**What it holds**, in one slot, `model.frame`, a data frame carrying `terms` (call 24 for the shape):
 
-### 2.3 Beside the frame: what else is kept
+| column | holds | made from |
+|---|---|---|
+| each predictor column the engine reads | a numeric column as doubles; a factor as a factor of the recorded levels, a character column coded to one; a matrix-valued term (`poly()`, `scale()`, a matrix variable) split into its columns; under `factors = "indicators"` each indicator column; a sparse column as a `sparseVector` or `sparseFactor` | a user's object: `model.frame(o)`, coded; a block-holding object: the block's columns, shared |
+| the response, first | the response as the sampler reads it: the coded doubles; for `aft` a two-column (time, status) matrix; for `multinomial` the count matrix | `model.response()`, coded (call 23) |
+| `(weights)` | the weights, absent when there are none | `model.weights()` or the slot |
+| `(offset)` | the one offset the sampler adds, the formula's `offset()` terms summed with the argument | `model.offset()` or the slot (call 27) |
+| `(offset.category)` | the multinomial category offset | the slot |
+| `(basis.k)` | forest k's basis, a number or a two-level factor, for each forest that has one | the resolved basis, cut by the rows (call 28) |
 
-dec-B670: beside the frame a data object keeps as little derived from it as it can. Saved sizes below are at
-20,000 rows, 14 numeric columns and a factor of 26 levels: the frame 2.22 MB, today's data object 2.32 MB.
+Its row names are the kept rows' names, and its `na.action` attribute what the na.action dropped, as
+`model.frame()` gives them, so those two slots go on a sampler's data (call 32). Kept beside it as records,
+none a copy of a row: the coding record (column names, `varTypes`, term labels, levels), the response's
+coding, `basis.levels` and `basis.scale`, `n.cuts`, `sigma`, `useQuantiles`, `missing`, and what a sampler
+writes (`missing.seen`, `cutPoints`, `response.range`, `forest.calibration`, `standardization`). The caller's
+frame and the row positions are dropped; the frame's column names are kept for call 6.
 
-**The predictor block.** Today `x` is the columnar container (one entry a column, a factor kept a factor).
-The bridge assembles from it the coded block the engine quantizes, inside sampler creation and `$setData`,
-and frees it after. In a session the container shares the frame's double and factor columns (run); an integer
-column, a cut to `subset` and indicator columns are copies. Saved, it writes the predictors again: 2.07 MB.
+The test rows stay where they are: `x.test`, `weights.test`, `offset.test`, `offset.category.test` (call 29).
+They come from `test`, not from the data, and no model frame holds them.
 
-Made from the frame, it is what the build itself makes, in model.frame's order: the stored predictor terms,
-with their data-dependent parts frozen (dec-B185: `poly()` coefficients, `scale()` centers, a caller's
-value), evaluated on the whole frame; the variables cut to the kept positions; then coded by the build's own
-coder, against the levels it records. Run, it gives the built block exactly (equal values and column names)
-in every case tried, the critique's and this note's:
+**Slots that go on a sampler's data**: `y`, `x`, `weights`, `offset`, `bases`, `counts`, `status`,
+`offset.category`, `na.action` and the training part of `rowNames`. `x`, `y`, `weights` and `offset` hold the
+stand-ins of 2.3, naming `model.frame(s$data)`.
 
-- plain columns, `y ~ .`, a logical column, a matrix column
-- `offset()` terms, with and without `subset`; `I(x2^2)`; `log(x2) + scale(k)` under `subset`
-- `poly()` under `subset = 2:50` and under a subset with a repeated row
-- a factor and an ordered factor, with a `subset` that empties a level (the level kept); indicator coding
-- a character column, with a `subset` that drops a value, in either coding
-- `na.omit`, `na.exclude`, `na.pass`; the default `na.keepPredictors` with a missing factor value
-- a value, or a missing value, that only a dropped row holds
-- a caller's scalar, and a caller's vector at full length, with every row kept, under `subset = 1:30` and
-  under `na.omit` dropping two rows
-- a sparse factor column, with and without `subset`, lifted out and cut by position as the build lifts it
+**The engine's input.** Each call that hands the bridge a data object (creation, `$setData`, a model change,
+`xbart()`'s data handle, `$setState`'s raw predictors) is handed today's layout, made by R from the frame
+just before: the predictor columns as the columnar container (a double or factor column shared, not copied;
+an integer or logical one turned to doubles), the sparse columns assembled into the container's `dgCMatrix`,
+the record's attributes set, and the response, weights, offset and bases as the slots the bridge reads. Run:
+0.006 ms to make the container at 20,000 rows and 15 columns. The cut points and codes are what the engine
+derives from it, as today. Nothing under `src/` changes for this (call 30).
 
-Refused at the build today, so not reached: `:` and `*` terms, `na.fail` with a missing value, and a function
-of the user's own in the formula.
+**At each setter and door**, what it writes and what it costs per call. Times at 20,000 rows, 14 numeric
+columns and a 26-level factor, 75 trees, one thread, where one iteration is 3.0 ms:
 
-The order matters. Replaying predict's path on `frame[rows, ]` fails on a caller's vector once a row is
-dropped ("variable lengths differ"), the frozen vector being at full length; replaying it on the whole frame
-and cutting after refuses a level, or a missing value, that only a dropped row holds. `predict(newdata)`
-on such a fit fails the same way today, a limit of the freeze and not of this design. The build's order,
-evaluate, cut, code, has neither problem, and the maker reuses the build's coder rather than predict's, so
-there is one path for both (call 20).
+| setter or door | writes into the frame | today | under dec-B678 |
+|---|---|---|---|
+| `$setResponse(y)` | the response column | 138 us | about 146 us: the column write costs 33 us against 25 us for the slot's |
+| `$setResponse(y, status)` (aft) | both columns of the response | as above | as above |
+| `$setPredictor(v, j)` | column j | 2.65 ms | the same: 31 us to write the column against 33 us today |
+| the same, a factor column | the factor as given, matched to the recorded levels | as today | as today; a factor with the recorded levels is stored as is (2 us) |
+| the same, on the matrix interface | column j | 3.10 ms | about 2.65 ms: today's 0.45 ms copy of the whole matrix goes |
+| `$setPredictor(x)`, whole | every predictor column | 6.8 ms | about 6.8 ms with the split in the bridge (one copy of the block, about 0.08 ms, in place of today's `as.double` copy, 0.21 ms); 7.0 ms if R split it (0.43 ms, call 31) |
+| `$setPredictor(x, forceUpdate = "partial")` | the installed rows of column j | as today | as today |
+| `updatePredictorPerObservationJointly` | each sampler's column | as today | as today |
+| `$setOffset(o)` | `(offset)`, removed for `NULL` | | one column write, as `$setResponse` |
+| `$setWeights(w)` | `(weights)`, removed for `NULL` | | one column write |
+| `$setCounts` (multinomial) | the response's count matrix | | the trials are made from it where read, not stored |
+| `$setForestBasis` | `(basis.k)` | | one column write |
+| `$setTestPredictor`, `$setTestOffset` | `x.test`, `offset.test`, as today | | unchanged |
+| `$setActiveRows` | nothing (the mask is the sampler's) | | unchanged |
+| `$setData(o)` | a new frame, made at the resolution | 7.7 ms | about 7.7 ms from a block-holding object; from a user's object 1.4 ms more to make the frame; from a matrix-interface object 0.08 ms to split it (0.43 ms in R) |
+| `$setState` | nothing; the raw predictors are read from the frame | | unchanged: the container is made in 0.006 ms |
+| `$copy()` | the copy shares the frame in a session | 12 ms | unchanged |
+| save and reload | the frame is written; a reload creates the engine from it | | the same size (2.5) |
+| `xbart()`'s folds | the folds cut the container made once at its start | | unchanged |
 
-Time: 0.0014 s at 20,000 rows and 15 columns under a subset of 15,000, against 0.004 s for the build; 0.06 s at
-2,000 rows and 1,000 columns; beside 0.026 s to create a sampler of 10 trees on the first. Code that runs the
-BART sampler inside a larger sampler and calls `$setData(dbartsData(f, d))` every iteration pays about 30
-percent more for each build; `keep.data = FALSE` pays nothing, and the per-iteration setters are the cheaper
-door in any case.
+The R-side reads of the old slots (`data@x` and its kin) move to internal accessors that read the frame:
+the predictors' container, the response, the weights, the offset, the bases, the row count.
 
-Kept in its place, the coding record: the block with no rows, that is its column names, `varTypes`, term
-labels, factor levels (or indicator levels and the dropped columns), the frozen terms, and for each column
-whether it held a missing value. 750 bytes saved where the formula names only columns; a caller's vector named
-in the formula rides in the frozen terms at full length, 8 bytes a row, as it rides in today's block.
-What `x` holds then is call 9.
+**A factor column given to `$setPredictor`**: a factor or a character vector of the column's labels, matched
+by label, a level the column does not declare refused by name, as today; a factor whose levels are the
+recorded ones in order is stored as given, another is recoded to them. Numbers and codes are refused, as
+today: a code is no label. Under `factors = "indicators"` the frame holds the indicator columns, and a 0/1
+vector given to one of them is taken, as in 0.9-34 and today (run: both take it, and both refuse the factor
+by name); call 25.
 
-The block is made once, at the resolution, the step that drops the frame (2.4): `dbarts(o)`, `dbartsSpec(o)`,
-`bart(o)`, `rbart_vi(o)`, `xbart(o)` (once at its start, where it reads the block for its sigma route; its
-folds then cut the block, `y`, the weights, the offsets and the sigma design from the made object), the
-hurdle's entry, `new("dbartsSampler", data = o)` and `$setData(o)`. What comes out is today's object, the block
-and no frame, so a sampler's data, its copy and reload, a fit's predict and stan4bart's per-iteration setters,
-which act on the sampler, see no change. A saved `o` writes the frame and the record; the block is made at use.
+**The matrix interface.** `dbarts(x, y)` makes the frame of the matrix's columns, one column each under the
+matrix's column names, the response first, and the weights and offset as above. An integer matrix is turned
+to doubles, as today. A `dgCMatrix` gives one `sparseVector` column each (call 33).
 
-One exported function reads the block of a data object handed to it: `makeTestModelMatrix(data, newdata)`
-(help `makeind`), which codes new rows against `data@x` and refuses a missing value in a column whose training
-values held none. On a default object it reads the coding record instead: the terms and levels for the coding,
-the per-column missing-value flags for the refusal. It then needs no block and gives what it gives today.
-stan4bart calls it, on an object built with `keep.data = FALSE` (call 4).
+**An unnamed matrix** (dec-B653). The frame's columns need names, so they take placeholder names, and the
+coding record says the predictors are unnamed: `colnames()` of the predictors stays `NULL`, an unnamed matrix
+given later is read in column order with no message, a named one given to an unnamed sampler still warns
+"'x' and 'test' are not both named", and `model.frame(s$data)` shows the placeholder names. `y ~ X` on an
+unnamed `X` keeps the names model.frame gives, `X.1` and `X.2`, as today.
 
-**The other slots**, by source:
+**The test rows, a frozen state, and the memory rule.** A sampler's state holds the trees, the variances and
+the chains' scalars, about 0.016 MB here, and no data (state never carries model). It is unchanged: a saved
+sampler is its control, its model, its data with the frame, and its state.
 
-- The response's coding, kept with the record: `response.type`, `response.n.levels`, `response.levels`.
-- `y`, the coded response: made from the frame by the same replay, the response's expression frozen as the
-  predictors' are (the stored terms drop it today) and coded again with the recorded levels (call 8).
-- `weights` and `offset`: the expression each argument was written as, frozen as the predictors' are, so a
-  column name stays a name and a caller's value is held in it as its value; the offset adds the formula's
-  `offset()` terms, which the terms already carry. Made at the resolution (call 8).
-- `na.action`, the rows the na.action dropped, numbered within the subset: the positions alone do not give
-  it, the subset not being kept apart. Kept (call 19).
-- `rowNames`: the names model.frame gave the kept rows, and the test rows'. Under a repeated subset they are
-  "2", "2.1", "5" (run), not the frame's names at the positions, so making them means replaying model.frame's
-  renaming. Kept (call 19).
-- From the caller's other arguments, kept as built: `x.test`, `weights.test`, `offset.test`, `n.cuts`, `sigma`,
-  `counts` (the matrix interface only), `offset.category` and its test twin, `useQuantiles`,
-  `testUsesRegularOffset`, `missing`. `x.test` comes from `test`, not `data` (call 18).
-- Written by a sampler: `missing.seen`, `cutPoints`, `response.range`, `forest.calibration`,
-  `standardization`, `status` on an aft sampler, `bases`, `basis.levels`, `basis.scale`. `NULL` on an object
-  built from a frame, which no sampler holds (2.4); unchanged.
+### 2.5 What a block-holding object and its sampler hold, and what the consumers read
 
-Saved, an object built from the frame is then the frame and the record: 2.22 MB here, where frame and block
-together would be 4.5 MB, plus 8 bytes a row for each caller's vector the formula, the weights or the offset
-names. Keeping `y`, the weights and the offsets as read (call 8's alternative) adds 0.25 MB.
+Under dec-B674 an object built with `keep.data = FALSE`, and the matrix interface's object, hold the block,
+`y`, `weights` and `offset` in their slots, as today, and the frame's column names. A sampler made from one
+holds the model frame made from those slots: the container's columns shared in a session, a matrix's split
+into columns. A user who keeps a matrix-interface object beside its sampler then holds the predictors twice
+in a session, n times p times 8 bytes (2.4 MB at 20,000 by 15); `dbarts(x, y)` with no object kept does not.
 
-**An object with no frame** keeps the block, `y`, the weights and the offsets, as today: the matrix interface
-(a data frame as `x` included), `keep.data = FALSE`, a sampler's own data, and an environment as `data` (call
-7). It also keeps the frame's, or the environment's, names (calls 6, 7).
+What bartCause and stan4bart read, against the examination of what each should do:
 
-**Does the opt-out survive?** With the block gone, a saved object costs the frame alone, and
-`keep.data = FALSE` keeps the block in place of the frame: today's object. Its reason is bartCause's saved
-fits: they keep its data objects, and `bartc()` builds them from the caller's whole frame with a column added,
-so without the opt-out they carry columns the model never names, which dec-B185 keeps out of fits. Neither
-consumer needs the frame: bartCause's `bcf()` gives its basis as a value, stan4bart has none. A fact beside
-it: both read their data objects' block (stan4bart its values, levels and `varTypes` and
-`makeTestModelMatrix()`, about 6 places; bartCause `nrow()`, `colnames()`, a column and `as.matrix()`, about
-12, and it writes `x.test`), which the opt-out leaves as they are. bartCause passes it at each of its four
-`dbartsData()` calls (`bcf()`, `bartc()`'s two, the missing-rows object). Call 4.
+- **bartCause** passes `keep.data = FALSE` at its two data call sites (three objects), so its saved fits keep
+  `data.rsp` as today, and its reads of `nrow()`, `colnames()`, `x[, z]`, `as.matrix(x)`, `@y`, `@weights` and
+  its write of `@x.test` stay. Its `bcf()` gives the treatment forest `basis =` with the full-length
+  `factor(z)` it already builds, needing calls 1, 2 and 6 as recommended (run: draws identical to the data
+  door, with and without `subset`). New under dec-B678: it reads `attr(fit$fit$data@x, "term.labels")` off
+  the samplers its fits keep (`fit.trt$fit`, `fit.rsp$fit`) in two places; on a stand-in that gives `NULL`
+  without a word, so both move to the term labels of `model.frame(fit$fit$data)`'s terms. About 8 lines.
+- **stan4bart** passes `keep.data = FALSE` in `glFormula`, so its fit's `bartData` reads (`@x`, `@varTypes`,
+  `factor.levels`, `makeTestModelMatrix()`) stay. New under dec-B678: it reads `sampler$data@y` and
+  `sampler$data@weights` when it installs a response range, and `data@offset` on the specification's data at
+  a restore (3 lines, to `model.response()`, `model.weights()` and `model.offset()` of the model frame); and
+  its saved bundle strips the block off the specification's data (`@x` and `@x.test` cut to no rows) and
+  splices `bartData@x` back at a restore, which cannot be written so once the data holds a model frame. The
+  ways out are in Costs dec-B678 did not weigh.
+- The examination's other recommendations (bartCause's test frame in place of a hand-built `x.test`, its
+  `plot_support` on a fit with missing responses, stan4bart's hand-written slots moved to arguments) are
+  untouched by this design.
 
-**What a user reads.** `o@x` on an object built from a frame no longer holds the rows. In 0.9-34 it held the
-model matrix, factors as indicator columns (run); on main it is the columnar container, and the help sends a
-reader to `as.matrix()` on it or to `extract(sampler, "predictors")`. Calls 9 and 10.
+### 2.6 Saved sizes
 
-**A fit's own copies.** A `bart` fit of several forests stores `bases` (each forest's basis at the training
-rows) and `basis.terms` (the code of each basis written as code) only where it reports per forest, that is
-under `keepFits = TRUE`, whatever `keepTrees` says (run). Their readers:
+Run on a shipped build of main; the dec-B678 column projects each sampler's data with the frame of 2.4 in
+place of `x`, `y`, `weights`, `offset` and `bases` (the frame's saved size, from the same values).
 
-- `predict(bases = )` at the training rows and `extract()`'s per-forest contribution read the vector, with
-  the per-forest fits it multiplies;
-- `predict(newdata)` replays `basis.terms` on newdata and reads from `bases` only each forest's kind, levels
-  and width;
-- `print()` and `summary()` read, over the rows in the likelihood, a numeric basis's mean, sd, range and
-  whether it is constant, and a factor's levels.
+| object | today | under dec-B678 |
+|---|---|---|
+| a `dbarts()` sampler, formula, 20,000 rows, 14 numeric and a 26-level factor | 4.55 MB (data 2.23, the engine pointer 2.22) | 4.55 MB (data: 2.220 to 2.219) |
+| a `bart` fit with `keepTrees = TRUE`, its sampler kept, 50 draws | 11.82 MB | 11.82 MB |
+| the same with `keepTrees = FALSE` | 7.46 MB | 7.46 MB |
+| a matrix-interface sampler, 20,000 by 15 | 4.81 MB (data 2.36) | 4.81 MB (the frame of columns 2.34) |
+| stan4bart, 750 rows, 25 BART columns, one chain | 0.46 MB; bundle 0.050, its data 0.007 | 0.46 MB if the bundle strips the frame's predictors; 0.50 MB, bundle 0.088, if it keeps the specification's data whole |
+| bartCause `bartc()`, 750 rows, 25 covariates, bart response | 2.18 MB | 2.18 MB (each kept sampler's data within 0.001 MB) |
+| the same, bcf response | 2.34 MB | 2.34 MB |
 
-dec-B671 rules the `keepFits = FALSE` side: every fit of several forests keeps its forests' labels, tree counts
-and unit, and under `keepFits = FALSE` the numbers its block reads in place of each vector, so print and
-summary give the block `keepFits = TRUE` gives; predict at new rows stays refused there. It sent here whether
-a fit that keeps its sampler also needs its own copy of the vector. Run:
+0.9-34 saved the same sampler at 2.32 MB, writing its data once.
 
-- `keepTrees = FALSE`: the fit keeps no frame (dec-B185); `basis.terms` can be replayed only on rows handed
-  to it. The vector cannot be made again.
-- `keepTrees = TRUE`: the sampler's data holds the same block (run: equal), but as the sampler's current
-  basis: after `fit$fit$setForestBasis()` it differs (run), and the fit's draws were taken on the first.
-  Under D1 the sampler holds no frame either.
-- A basis written as code against the frame, or given as values (bartCause's `bcf()`): alike; a value has no
-  code to replay, and a code basis has no rows to replay on.
+### 2.7 The doors
 
-So a fit keeps its own vector wherever it keeps per-forest fits, its sampler kept or not (call 21). It is
-small beside what it serves: 16 KB against 6.4 MB of per-forest fits at 2,000 rows and 200 draws.
-
-### 2.4 Dropping at the sampler
-
-**D1. Dropped where the specification is resolved**, in the step `dbarts()`, `dbartsSpec()` and `bart()`
-share, and again by `new("dbartsSampler", ...)` for an object handed straight to it. The same step makes the
-predictor block from the frame (2.3):
-
-- `s$data` holds the predictors, the response and the record (blocks, levels, scale), with no frame and no row
-  record, and the frame's column names. Its rows are its own. `dbartsSpec()`'s returned `data` is likewise not
-  the object handed in: a caller holding `spec$data` starts a second model from the object it built.
-- `dbarts(s$data)` and `dbartsSpec(s$data)` with no list, or a list of knobs only, re-create the forests from
-  the record, as today.
-- `dbartsSpec(s$data, forests = )` and `dbarts(s$data, forests = )` with a list declaring a basis, where
-  `s$data` carries blocks: refused at both, naming both places (call 3). The original `o` still holds its
-  frame, and a new model starts from it.
-- The same beside a one-forest sampler's data, which carries no blocks: run today, `dbartsSpec(s1$data,
-  forests = list(forest(), forest(basis = factor(z))))` takes the caller's `z` where `dbarts(f, d, L)` takes the
-  column. This is call 6: a basis naming one of the frame's columns is refused, pointing to `o`; a name that
-  is no column of the frame is the caller's value, as at `dbarts()`. The alternative widens call 3 to every
-  sampler's data, refusing any declaring list beside it, which leaves an opt-out object uncovered.
-- `$setData(o)` with an object that keeps its frame, on a sampler of one forest: taken, the frame dropped.
-  Several forests: refused, as today.
-- `$copy()`, `saveRDS` and `readRDS` of a sampler, and a `bart` fit with `keepSampler = TRUE`: no frame. Run:
-  the fit saves at 1.49 MB.
-- stan4bart: `dbartsSpec()`'s data, which its saved sampler bundle keeps with the design matrix stripped,
-  has no frame, so the bundle does not grow by it (it still holds the response, the weights and the row
-  names). Its fit keeps the data object made before the specification (`bartData`), which carries the BART
-  frame: one more copy of columns its fit already saves in `frame`, unless it passes `keep.data = FALSE`.
-- Memory: nothing on any sampler.
-
-**D2. Kept on the sampler:**
-
-- `s$data` carries the frame and the rows. A declaring list beside it can be resolved against the frame, the
-  record replaced whole.
-- `$setData(o)` brings `o`'s frame.
-- A copy shares the frame. A saved sampler and a fit with `keepSampler` write it: a projection, main having no
-  frame slot, from the fit and the frame saved together, 2.86 MB against 1.49. A fit then carries the caller's
-  whole frame, which dec-B185 removed from fits for this reason.
-- stan4bart's bundle gains the frame.
-- What D2 adds is that `s$data` can start a new model, and the original `o` already can.
-
-Recommended: D1. The rows then follow one rule. Creation takes a value of the length handed over;
-`$setForestBasis` and `predict` with no newdata take the sampler's own rows, as today.
-
-### 2.5 The doors, under K1 and D1
-
-- **`dbartsData()`**: keeps the frame, the row record and the coding record, not the block (2.3);
-  `bases =` gone; its formula still refuses a
-  `forest()` term, pointing to a forests list.
+- **`dbartsData()`**: keeps the frame, the row record and the coding record (2.3); `keep.data = FALSE` the
+  block; `bases =` gone; its formula still refuses a `forest()` term, pointing to a forests list.
 - **`dbartsSpec(o, forests = )`** and **`dbarts(o, forests = )`**: a basis is read against `o`'s frame, then
   where `forest()` was called, built on `o`'s rows by the function `dbarts()` uses, so
-  `dbartsSpec(dbartsData(f, d), forests = L)` and `dbarts(f, d, forests = L)` draw the same.
-- **Full-length values at every creation door** (call 1). One rule: a value has the length of the rows handed
-  over. The cost is that a kept-length value on an object that dropped rows, taken at `dbartsSpec()` today, is
-  refused. Where no row was dropped the two lengths are one and nothing changes. The alternative takes either
-  length at `dbartsSpec()`, two rules for one argument.
-- **`dbarts(o)` taking a declaring list** (call 2). Recommended: taken, as at `dbartsSpec()`, so the two read
-  one data object alike. bartCause's route then needs no data door. The alternative keeps `dbarts()` refusing,
-  `dbartsSpec()` the only door that resolves beside a pre-built object.
-- **A sampler's own data beside a declaring list** (call 3). Recommended: where it carries blocks, refused at
-  both doors, naming both places; knobs only keep the record. Where it carries none, call 6. This is the
-  interim refusal of dec-B663 made permanent and extended to `dbarts()`, whose broader refusal narrows to
-  it. The alternatives are the list replacing the record whole, where a plain forest in it loses the basis and
-  nothing is left to resolve a name against, or any forests list refused beside a record, knobs too.
-- **`$setForestBasis`** and **`predict`**: as built. A forest is chosen by label or position; `predict(newdata)`
-  reads each code basis by name; `bases =` stays for a basis that is no column of newdata and for the training
-  rows.
-- **The matrix interface**: no frame; a value, full length, cut by the record, at `dbarts(x, y)` and at
-  `dbartsSpec(dbartsData(x, y))` alike.
-- **Fit and reload**: nothing to add. `dbartsSpec()` and `dbarts(o)` write the model record `dbarts(f, d)`
-  writes.
+  `dbartsSpec(dbartsData(f, d), forests = L)` and `dbarts(f, d, forests = L)` draw the same. A value has the
+  length of the rows handed over (call 1). `dbarts(o)` takes a declaring list (call 2).
+- **A sampler's data beside a declaring list**: refused where it carries basis columns (call 3); a name of a
+  column of the caller's frame refused where it carries none (call 6).
+- **`$setForestBasis`** and **`predict`**: as built.
+- **The matrix interface**: a value, full length, cut by the record.
+- **Fit and reload**: `dbartsSpec()` and `dbarts(o)` write the model record `dbarts(f, d)` writes.
 
-### 2.6 Data objects that carry blocks, and setData
+### 2.8 Data objects that carry bases, and setData
 
-Once `bases =` goes, a data object carries blocks only where a sampler of several forests wrote them: `s$data`
-and what is made from it. A sampler of one forest writes none (run: its `s$data@bases` is `NULL`, and so is
-that of `dbarts(forests = list(forest()))`). So:
+Once `bases =` goes, a data object carries basis columns only where a sampler of several forests made them,
+`s$data` and what is made from it; a sampler of one forest makes none.
 
-- **`bases = list(NULL)`**, one forest with no basis, cannot be written. Today it is refused at `$setData` with
-  a text saying the data "carry forest bases", though they state none, and at `dbarts()` with a text that
-  advises `bases = list(NULL, z1, ...)` (run). Today `dbartsData()` makes such an object and the refusal comes
-  at the sampler's creation; once `bases =` goes only a sampler writes a record, and the record's check at
-  creation keeps refusing one of fewer than two forests, so no path makes one.
-- **`$setData` on a sampler of one forest**, given another sampler's data that carry blocks: refused, as today,
-  before anything is stored. The text says the data are those of a sampler of several forests, and points to
-  the data object they were made from or to `dbarts()`; it no longer says "hand over data without 'bases'".
-  Its own data handed back is taken (run).
+- **`bases = list(NULL)`**, one forest with no basis, has no path: a record of fewer than two forests stays
+  refused at creation (call 17).
+- **`$setData` on a sampler of one forest**, given another sampler's data that carry basis columns: refused
+  before anything is stored, the text saying they are the data of a sampler of several forests and pointing
+  to the data object they were made from or to `dbarts()`. Its own data handed back is taken.
 - **`$setData` on a sampler of several forests**: refused whatever it is given, as today.
-- **`dbarts(s$data)`, `dbartsSpec(s$data)` and a reload**: the record re-creates the forests (2.4).
+- **`dbarts(s$data)`, `dbartsSpec(s$data)` and a reload**: the basis columns and `basis.levels` re-create the
+  forests.
 
-Three texts advise the data door today (the `$setData` refusal, `dbarts()`'s refusal of a declaring list, and
-the refusal of a model of one forest with a basis); each is reworded when this lands.
+Three texts that advise the data door (the `$setData` refusal, `dbarts()`'s refusal of a declaring list, the
+refusal of a model of one forest with a basis) are reworded.
 
-### 2.7 What else (A) needs
+### 2.9 What else this needs
 
-- **Where the drop sits.** In the resolution, not only in the sampler's creation, so that `dbartsSpec()`'s
-  data, which consumers keep, carries no frame.
-- **A data object saved by 0.9-34** already fails on main (run: "no slot of name "bases""). This design changes
-  nothing there; reading one would be a call of its own, and no accessor is planned.
-- **The slots**: proposed `frame` (the data as given, `NULL` for the matrix interface, after the drop and under
-  the opt-out), `rows` (the positions, `NULL` when every row is kept in order), `frame.columns` (the frame's
-  or the environment's names, kept after the drop and under the opt-out) and the coding record. Where `frame`
-  is set, `x` holds a placeholder (call 9) and `y`, `weights` and `offset` are made at the resolution (call
-  8); where it is not, they hold the block and the values. `dbartsData()` writes them; the resolution makes
-  the block and the values and clears the first two; the help describes them so, read-only (dec-B554). The
-  default show method prints the frame, as it prints `x` today.
-- **The block's maker**: the build's own order, the frozen terms evaluated on the whole frame, cut to the
-  positions, coded by the build's coder against the recorded levels, sparse columns lifted and cut as the
-  build lifts them (2.3). One helper, called at each door of 2.3; every read of `x`, `y`, `weights` and
-  `offset` before the resolution moves after it.
-- **`makeTestModelMatrix()`** reads the coding record and its per-column missing-value flags where `x` holds
-  the placeholder (2.3).
-- **A comment to fix in the build**: the one above the row numbers `dbarts()` hands to the data object says a
-  code basis is built only on the rows kept; it is read over every row and then cut (run, 2.1).
-- **The record's check**: the positions lie within the rows handed over and are as many as the response; the
-  frame has that many rows. The sampler's creation and the class's validity call it, as they call the check of
-  the levels.
-- **`dbartsData(o)`** handed a data object returns it as it is, frame and record included.
-- **The test set** keeps no frame: a model of several forests refuses a test set.
-- **Help**: the slots are described as the others a sampler writes are, read-only copies (dec-B554). The help
-  shows no slot write as a door.
+- **The slots**: `frame` (the caller's data, a user's object only), `rows` (its positions, `NULL` when every
+  row is kept in order), `model.frame` (a sampler's data and an environment's object), `frame.columns` (the
+  frame's or the environment's names) and the coding record. Where `frame` or `model.frame` is set, `x`, `y`,
+  `weights` and `offset` hold stand-ins; where neither is, they hold the block and the values. The class's
+  validity checks each kind. The help describes the slots as read-only (dec-B554) and shows no slot write.
+- **The record's check**: the positions lie within the rows handed over; a model frame's row count, its
+  response's length and each basis column's agree. Sampler creation and the validity call it.
+- **`dbartsData(o)`** handed a data object returns it as it is.
+- **A data object saved by 0.9-34** already fails on main ("no slot of name "bases""); nothing changes there
+  (call 22).
+- **A comment to fix**: the one above the row numbers `dbarts()` hands to the data object says a code basis is
+  built only on the rows kept; it is read over every row and then cut.
 
 ## 3. The landscape
 
 Run where installed (mgcv 1.9.4, nlme 3.1.171, lme4 2.1.0, brms 2.23.0); stochtree and bcf read from source.
 
-- `lm`, `glm`: a varying slope is a term; names found in `data`, then the formula's environment; the model frame
-  keeps every variable named; `predict` fails without one.
+- `lm`, `glm`: a varying slope is a term; names found in `data`, then the formula's environment; the fit keeps
+  its model frame (`model = TRUE`) and `model.frame(fit)` returns it, weights in `(weights)` and the offset
+  argument in `(offset)`.
 - mgcv `s(x2, by = z)`, lme4 `(1 + z | g)`: the pre-built object (`gam(fit = FALSE)`, `lFormula()`) holds the
   model's columns; `predict` needs them.
-- nlme: the fit keeps the whole data frame by default (`keep.data = TRUE`), columns the model never names
-  included. This is the precedent for K1.
+- nlme: the fit keeps the whole data frame unless `keep.data = FALSE`.
 - brms: by-variables must be in `data` or `data2`.
-- stochtree, bcf (Hahn, Murray and Carvalho): values only. bartCause's `bcf()`: a column of `data` or a
-  vector. BART and bartMachine: no basis.
+- stochtree, bcf (Hahn, Murray and Carvalho): values only. BART and bartMachine: no basis.
 
 ## 4. What a user meets
 
-- A formula user, a forests-list user beside a frame, a matrix-interface user of `dbarts()`: nothing moves.
-- treatSens: it uses the matrix interface; nothing moves.
-- stan4bart: it reads its data object's block, levels and `varTypes` and calls `makeTestModelMatrix()`, so it
-  passes `keep.data = FALSE` (one line) and nothing else moves; its fit and bundle sizes are as today.
-- bartCause: `bases =` goes, so the second forest takes `basis =` with the full-length factor it already builds,
-  and its four `dbartsData()` calls pass `keep.data = FALSE`, so that its saved fits (`data.rsp`, `data`) carry
-  no frame and its reads of the block and its write of `x.test` stay as they are (about 10 lines). Draws
-  identical (run: the data door, a list on `dbarts()` and on `dbartsSpec()` agree, with and without `subset`);
-  its forest's label becomes the basis's text, and it reads no label.
-- A `dbartsSpec()` caller with a basis: a name that is a column now finds it. Where it is also a caller's
+- A formula user, a forests-list user beside a frame, a matrix-interface user of `dbarts()`: no draw moves.
+- A reader of `s$data@x`, `s$data@y`, `s$data@weights` or `s$data@offset`: an error naming
+  `model.frame(s$data)`, which holds them. In 0.9-34 `s$data@x` held the model matrix and `s$data@y` the
+  response; code that runs the BART sampler inside a larger sampler and reads them meets this.
+- A reader of `o@x` and its kin on an object built from a frame: the same, naming `model.frame(o)`.
+- A caller of `$setPredictor` on the matrix interface: a column's setter is faster.
+- treatSens uses the matrix interface and reads no slot; nothing moves.
+- bartCause and stan4bart: 2.5.
+- A `dbartsSpec()` caller with a basis: a name that is a column now finds it; where it is also a caller's
   variable, the column wins, as at `dbarts()`: the one call whose draws move. A kept-length value on an object
-  that dropped rows is refused. Beside a sampler's own data a name of a frame column is refused (call 6), and
-  beside an object built on an environment, a name of one of its variables (call 7).
-- A reader of `o@x` on an object built from a frame meets an error pointing to `extract(o, "predictors")`
-  (calls 9, 10); a reader of `o@y`, `o@weights` or `o@offset` the same under call 8. In 0.9-34 `o@x` held the
-  model matrix.
-- Anyone who saves a data object built from a frame: it now holds the frame in place of the block, about the
-  same size where the frame is mostly the model's columns, larger where it holds others.
-- A `keepFits = FALSE` fit of several forests prints its forest block: that is dec-B671's, not this design's.
+  that dropped rows is refused.
+- Anyone who saves a data object built from a frame: it holds the frame in place of the block, about the same
+  size where the frame is mostly the model's columns, larger where it holds others.
 
 ## 5. The cost
 
-- R, about 305 lines, no `src/` or header change:
-  - the slots and their check, about 15
-  - `dbartsData()` keeping the frame and recording the rows, about 30
+- R, about 480 new lines and 360 changed, nothing in `inst/include/dbarts/dbarts.h`:
+  - the slots, the stand-ins on both kinds and the validity, about 40
+  - `dbartsData()` keeping the frame, the row and coding records, `keep.data`, about 45
   - `bases =` leaving the exported function, about 20
-  - `dbartsSpec()` resolving against the frame, with the refusal and full-length values, about 30
-  - `dbarts(o)` taking a declaring list, about 25
-  - the drop at the resolution and at the four internal row-cutting paths, about 10
-  - the opt-out, and the refusal of a frame column's or an environment variable's name beside a frameless
-    object, about 15
-  - the block made from the frame: the maker in the build's order, the coding record with its missing-value
-    flags, the calls at each door, reads moved after the resolution, the validity of an object with no block,
-    about 85
-  - `y`, the weights and the offsets made at the resolution, their expressions frozen (call 8), about 45
-  - the placeholder (call 9), about 15; `makeTestModelMatrix()` reading the record, about 5
-  - `extract(o, "predictors")`, about 10
-- Tests: 83 calls of `dbartsData(bases = )` in 24 files: 45 fixtures become forests lists drawing what they
-  drew, 36 pins of the data door go where the forest door pins the same or move there, 2 oracles are rewritten
-  on the list's value. Reads off an object built from a formula move to `extract()`, to the made object or to
-  `keep.data = FALSE`: about 100 lines in 15 files read `x`, and, under call 8, about 260 more read `y`,
-  `weights` or `offset` (upper bounds, by name). New: the sibling identity, the row positions under each
-  `subset` and na.action above, the frame gone from `s$data` and from `dbartsSpec()`'s data, the made block
-  equal to the built one in each case of 2.3 (the caller's vector under `subset` and `na.omit` among them), a
-  column changed in `d` after the object was made, full-length values, the refusal of a sampler's data beside
-  a declaring list, an opt-out object, a one-forest sampler's data and an environment's object refusing a
-  name, the placeholder's errors, and `makeTestModelMatrix()` on a default object.
-- Help: `dbartsData` (the slots, `keep.data`), `dbartsSpec`, `dbarts`, `dbartsSampler-class`, `extract` and
-  `makeind`. Four design notes that name the data door (forest-kind-by-class, public-surface, written-surface,
-  multiplier-combiner) change at landing.
-- NEWS: `bases =` never shipped and needs nothing. Against 0.9-34, one entry:
-  "A data object made by dbartsData() from a formula and a data frame keeps the frame and the positions of
-  the rows it keeps; its x slot, the model matrix in 0.9-34, no longer holds the predictors, which
-  extract(object, "predictors") makes, and a forest given to dbarts() or dbartsSpec() beside it finds its
-  basis in the frame. keep.data = FALSE keeps the matrix instead, as before."
-- bartCause: about 10 lines and its suite. stan4bart: one line and its suite. Under call 4's "no switch" each
-  grows by its reads, about 18 between them.
+  - the resolution making the sampler's frame: from a user's object in the build's order, from a
+    block-holding object or an environment's, the response coded, the offsets summed, matrix terms split,
+    the basis columns, about 110
+  - the engine view made from the frame before each bridge call, about 40
+  - the internal accessors, about 40, and the reads moved to them: about 360 lines that read or write `@x`,
+    `@y`, `@weights` or `@offset` today (182, 73, 64 and 41)
+  - the setters writing the frame (`$setResponse`, the three `$setPredictor` paths and the joint update,
+    `$setOffset`, `$setWeights`, `$setCounts`, `$setForestBasis`, the hazard expansion, the hurdle parts),
+    about 70
+  - `model.frame()` and `nobs()` methods, about 23
+  - `dbartsSpec()` and `dbarts(o)` resolving against the frame, calls 1, 2, 3, 6 and 7, about 85
+  - `makeTestModelMatrix()` reading the record, about 5
+- `src/`: about 15 lines in the bridge, an entry that splits a double matrix into column vectors for the
+  whole-matrix setter and `$setData` (call 31). No engine change, no draw moves.
+- Tests: the 83 calls of `dbartsData(bases = )` in 24 files become forests lists drawing what they drew (45
+  fixtures), pins of the forest door (36) or oracles on the list's value (2). Reads of the old slots, about
+  740 lines in up to 90 files (472 `@x`, 135 `@y`, 59 `@weights`, 74 `@offset`, by name, an upper bound), move
+  to `model.frame()`, the internal accessors or `keep.data = FALSE`. New, about 250 lines: the sibling
+  identity, the row positions, the frame's contents per family and interface, each setter writing its column
+  with draws identical to today's, the stand-ins' errors, a factor column's setter, indicator coding, an
+  unnamed and a sparse matrix, the saved size, `makeTestModelMatrix()` on a default object, the refusals of
+  calls 3, 6 and 7.
+- Help: `dbartsData` (the slots, `keep.data`), `dbartsSampler-class` (the data field), `dbartsSpec`,
+  `dbarts`, `makeind`, a page for the `model.frame()` and `nobs()` methods, and the forests help where it
+  names the data door. Four design notes that name the data door (forest-kind-by-class, public-surface,
+  written-surface, multiplier-combiner) change at landing.
+- NEWS, against 0.9-34, one entry: "A data object made by dbartsData() from a formula and a data frame keeps
+  the frame and the positions of the rows it keeps, and a sampler's data holds the model frame, the setters
+  writing into it. In both, the x, y, weights and offset slots, which held the model matrix and the response
+  in 0.9-34, no longer hold them: model.frame(object) returns them and nobs(object) counts the rows. A forest
+  given to dbarts() or dbartsSpec() beside a data object finds its basis in the frame. keep.data = FALSE keeps
+  the matrix and the response in the object instead, as before."
+- bartCause: about 8 lines and its suite. stan4bart: 4 lines, its bundle (open), about 5 test lines and its
+  suite.
 
 ## Calls made
 
-For the maintainer, in the order to bring them: 4 and 8 finish what dec-B670 left open (what a data object
-keeps); 9 and 10 follow from them (what a reader of the object meets); 5 is where the making happens; 1, 2
-and 3 are the doors; 6 and 7 are the objects with no frame.
+Ruled: call 4 by dec-B674, call 8 by dec-B675, call 9 by dec-B676, call 10 by dec-B677 (`model.frame(o)` and
+`nobs(o)`, no `extract()` method for a data object), call 5 by dec-B678 (the caller's frame dropped where a
+sampler is handed its data, the sampler's data holding the model frame and what its forests need), the
+former call 11 by dec-B671.
 
-4. **Whether a user can ask for the old object.** dec-B670 keeps the frame; open are an opt-out and its
-   default. Recommended: `keep.data = FALSE`, the frame kept unless it is given. The object then keeps the
-   predictor block in its place, as today, and the frame's column names. The reason is bartCause's saved
-   fits, which keep its data objects: built from the caller's whole frame, they would carry columns the model
-   never names, which dec-B185 keeps out of fits. Cost: about 15 lines; bartCause passes it at four calls,
-   stan4bart at one, and both then read their objects as they do now. Alternatives: no switch, bartCause's
-   fits carrying the frame and the two consumers moving about 18 reads; or the frame left out unless asked,
-   under which `dbartsSpec(dbartsData(f, d), L)` no longer finds a column `dbarts(f, d, L)` finds.
-5. **Where the frame goes and the block is made.** Recommended: at the step that resolves a specification
-   (D1, 2.4), which makes the block and the values from the frame and drops the frame and the rows, so
-   samplers, copies, saved samplers and fits are as today. Cost: about 95 lines with the maker. The
-   alternative keeps the frame on the sampler (D2), every saved sampler and kept fit then writing it.
-8. **The response, the weights and the offsets.** dec-B670's rule keeps a derived slot only where it cannot
-   be made from the frame, and these can. Recommended: made at the resolution like the block. The response's
-   expression and the weights' and offsets' are frozen as the predictors' are, so a column stays a name and
-   a caller's value rides in the record as its value; the build still reads them once, so its refusals (a
-   response the family cannot take, weights of the wrong length) stay where the user meets them. Every per-row
-   quantity then comes from the frame by one rule. Cost: about 45 lines, and about 260 test lines that read
-   them off a formula-built object. The alternative keeps them as read, an exception to the rule whose
-   reason is one of shape: the build keeps what it checked, as it read it, so `length(o@y)` is the object's
-   row count with no step between. It saves those lines and adds 0.25 MB to a saved object.
-9. **What `o@x` holds on an object built from a frame.** Recommended: a small placeholder whose `dim()`,
-   `[`, `as.matrix()` and `length()` stop with a pointer to `extract(o, "predictors")`, so `nrow(o@x)`,
-   `colnames(o@x)` and `o@x[, "z"]` fail at once (run); `attr(o@x, ...)` still gives `NULL` in silence. The
-   coding record has its own slot. The same placeholder holds `y`, `weights` and `offset` under call 8.
-   Cost: about 15 lines. Alternatives: `NULL`, under which `nrow()`, `colnames()` and `[` give `NULL` with no
-   error (run), as in bartCause's `n.obs <- nrow(responseData@x)`; or the block with no rows, under which
-   `colnames()` and the levels keep working and `nrow()` gives 0.
-10. **How a user gets the block.** Recommended: `extract(o, "predictors")`, as `extract(sampler,
-   "predictors")` gives a sampler's: the block is a columnar container that keeps a factor whole, not a model
-   matrix in lm's sense, so base R's name would promise another object. Cost: about 10 lines. Alternatives:
-   a `model.matrix()` method, or no accessor.
-1. **The length of a basis given as a value.** Recommended: the length of the rows handed over, at every
-   creation door, a value already cut to the kept rows refused where rows were dropped (2.5). Cost: within
-   `dbartsSpec()`'s 30 lines. The alternative takes either length at `dbartsSpec()`, two rules for one
-   argument.
-2. **`dbarts(o, forests = )` declaring a basis.** Recommended: taken, as `dbartsSpec()` takes it, so both read
-   one data object alike (2.5). Cost: about 25 lines. The alternative keeps `dbarts()` refusing.
-3. **A sampler's own data, carrying bases, beside a list declaring one.** Recommended: refused at both doors,
-   naming the data object to start from (2.5). Cost: about 10 lines. Alternatives: the list replacing the
-   sampler's bases whole, or any list refused, knobs too.
-6. **A basis naming a frame column, beside an object with no frame** (a sampler's own data, an opt-out
-   object). Recommended: refused, pointing to the object built with its frame, the frame's column names kept
-   for that; other names are the caller's values (2.4). Cost: about 10 lines. Alternatives: refusing any
-   declaring list beside a sampler's data, which leaves an opt-out object reading from the caller; or every
-   name read from the caller, a column silently replaced by a variable of its name.
-7. **An environment given as `data`.** An environment is no frame: its variables can change after the build.
-   Recommended, the critique's: the block made at the build, as today, and the environment's variable names
-   kept; a basis naming one is refused, pointing to a data frame, as call 6 refuses a frame's column. Every
-   value the object holds is then read at one time, the build. Cost: about 5 lines. Alternatives: the
-   environment kept and a basis read from it at the resolution, which reads the basis later than the
-   predictors (run: `dbarts()` takes `e$z` over a local `z`), the misreading set aside for frames as K3; or a
-   copy of its variables at the build, all of them, since which ones the forests will name is not known then.
+Taken as the design's calls, for the maintainer to mark, each following the rulings' direction (one shape
+for a user's object and a sampler's data, values read from the model frame, no copy of the caller's data in
+a saved object):
 
-Ruled since: the former call 11, by dec-B671. A fit of several forests keeps its forests' labels, tree counts
-and unit whatever `keepFits` says, and under `keepFits = FALSE` the numbers its printed block reads in place of
-each basis vector, so print and summary give the block `keepFits = TRUE` gives; predict at new rows stays
-refused there. Whether the block reads those numbers on every fit is the builder's. The question dec-B671 sent
-here is call 21.
+1. **The length of a basis given as a value**: the length of the rows handed over, at every creation door; a
+   value already cut to the kept rows refused where rows were dropped. One rule for one argument, as at
+   `dbarts(f, d, forests = )`. Cost: within `dbartsSpec()`'s lines. Alternative: either length at
+   `dbartsSpec()`, two rules for one argument.
+2. **`dbarts(o, forests = )` declaring a basis**: taken, as `dbartsSpec()` takes it, so both read one data
+   object alike; bartCause's `bcf()` needs it. Cost: about 25 lines. Alternative: `dbarts()` refusing,
+   bartCause moving to `dbartsSpec()` and `new("dbartsSampler")`.
+3. **A sampler's data carrying basis columns, beside a list declaring a basis**: refused at both doors, naming
+   the data object to start from; a list of knobs only keeps the record. A sampler's model frame holds the
+   model's variables and `(basis.k)` columns, not the caller's columns a basis expression names, so a new
+   basis has nothing to be read against. Cost: about 10 lines. Alternatives: the list replacing the bases
+   whole, where a plain forest in it loses its basis; or any list refused, knobs too.
+6. **A basis naming a column beside an object with no caller's frame** (a sampler's data of one forest, a
+   `keep.data = FALSE` object): a name that is a column of the model frame it holds is read from there, the
+   rows in, as a column of `data` is read at `dbarts()`; a name of another column of the caller's frame (kept
+   in `frame.columns`) is refused, pointing to the object built with its frame; any other name is the
+   caller's value. A transformed predictor's source (`x2` under `log(x2)`) is no column of the model frame and
+   is refused, not taken from the caller. Cost: about 10 lines. Alternatives: every frame name refused, the
+   model frame not read; refusing any declaring list beside a sampler's data, which leaves a
+   `keep.data = FALSE` object reading from the caller; every name read from the caller, a column silently
+   replaced by a variable of its name.
+7. **An environment given as `data`**: the object holds the model frame made at the build, as a sampler's
+   data does, and the environment's variable names; a basis naming a model variable is read from that frame,
+   another of the environment's names is refused, pointing to a data frame. Every value is read at one time,
+   the build. Cost: about 10 lines. Alternatives: the block kept as today with every environment name refused;
+   or the environment kept and read at the resolution, a basis read later than the predictors.
 
-Made here:
+Made here, in building dec-B678:
 
-12. Rows stored as positions, with nothing stored when every row is kept in order. The alternative stores the
-   positions always, 4 bytes a row.
-13. The four internal row-cutting paths make the block and drop the frame and the record. The alternative
-   cuts the record in step.
-14. A forest's record names columns, never numbers. The alternative numbers them, which reordered newdata
-   breaks.
-15. A forest is still chosen by label or position, and the matrix interface takes values only, as in the first
-   note.
-16. `bases =` gets R's own "unused argument" error, the argument never having shipped. The alternative is a
-   message of our own.
-17. A record of fewer than two forests stays refused at creation, so `bases = list(NULL)` has no path, and the
-   `$setData` refusal is reworded for another sampler's data (2.6). The alternative takes a record of one
-   plain forest as no record, which nothing can write once `bases =` goes.
-18. `x.test` kept as built: it comes from `test`, not the frame the object was built from, and a model of
-   several forests refuses a test set. The alternative keeps the test frame and makes it at the resolution.
-19. `na.action` and `rowNames` kept: the first is not given by the positions alone; the second is the names
-   model.frame gave the rows ("2.1" for a repeat), not the frame's names at the positions. The alternative
-   replays model.frame's naming through the one accessor.
-20. The block is made in the build's order, by the build's coder: evaluate on the whole frame, cut, code.
-   The alternative replays predict's path on the kept rows, which fails on a caller's vector once a row is
-   dropped (2.3).
+23. **The response column holds the response as the sampler reads it**, coded doubles (0/1 for a binary
+    response, codes for an ordinal one), the coding record keeping its type and levels, because
+    `$setResponse` takes numbers and the column must hold what it was given. Alternative: the type the build
+    read (a factor or a logical), each `$setResponse` coding back, about 70 us at 20,000 rows.
+24. **One frame column for each predictor column the engine reads**: a matrix-valued term split into its
+    columns, named as the block names them, so every setter writes one vector and none copies a matrix.
+    `model.frame(s$data)` then shows `poly(x3, 2)1` and `poly(x3, 2)2` where `model.frame(o)` shows one matrix
+    column. Alternative: matrix columns kept as `model.frame()` keeps them, a column's setter copying that
+    matrix (0.45 ms for a 15-column matrix at 20,000 rows).
+25. **Under `factors = "indicators"` the frame holds the indicator columns**, so a 0/1 value given to one is
+    taken, as in 0.9-34 and today. Alternative: the factor held, the indicators made at creation, a write to
+    one refused and the factor taken by name.
+26. **A character predictor is held as a factor of its recorded levels**, coded once at the resolution.
+    Alternative: held as characters and coded at each creation.
+27. **The offsets are summed into one `(offset)` column**, as the sampler adds one; `$setOffset` then writes
+    the total, which separate `offset()` columns could not take. Alternative: none that keeps
+    `model.offset()` right after a setter.
+28. **A forest's basis column is named `(basis.k)`** by the forest's position, as `bases` is indexed and as
+    model.frame names `(weights)`. Alternative: by the forest's label, or by the basis's expression, where two
+    forests naming one expression would share a column that `$setForestBasis` must split.
+29. **The test rows stay in `x.test` and their kin**: they come from `test`, and no model frame holds them.
+    Alternative: a test frame, about 40 lines more.
+30. **The bridge is handed today's layout, made by R from the frame before each call**, sharing its columns,
+    so the engine and the bridge's parsing are untouched. Alternative: the bridge parses the frame, about 150
+    lines under `src/` and every parse site retested.
+31. **The whole-matrix setter splits the matrix in the bridge**, about 15 lines, so it costs what it does
+    today. Alternative: the split in R, 0.22 ms more per call at 20,000 by 15 (3 percent of the call, 7
+    percent of an iteration).
+32. **On a sampler's data the training row names and `na.action` are the frame's**, as `model.frame()` gives
+    them; the slots keep the test row names only. Alternative: the slots kept beside the frame.
+33. **A sparse column is held as a `sparseVector` or `sparseFactor` column**, a `dgCMatrix` split into one
+    each, the container's `dgCMatrix` assembled at each bridge call. A column's setter then rewrites one
+    column's entries, not the whole matrix's. Alternative: the `dgCMatrix` kept whole in a slot beside the
+    frame.
+34. **An `aft` response is a two-column (time, status) matrix**, as `model.frame()` keeps a `Surv` response;
+    the `status` slot goes. Alternative: a `(status)` column.
+35. **A multinomial response is its count matrix**; the trials are made from it where read. Alternative:
+    the trials stored beside it, a second copy.
+
+Also made here:
+
+12. Rows stored as positions, nothing stored when every row is kept in order. Alternative: always stored.
+13. The internal row-cutting paths act on a sampler's data and cut its frame. Alternative: cutting a user's
+    object's row record in step, which nothing would read.
+14. A forest's record names columns, never numbers. Alternative: numbers, which reordered newdata breaks.
+15. A forest is chosen by label or position; the matrix interface takes values only.
+16. `bases =` gets R's own "unused argument" error, the argument never having shipped.
+17. A record of fewer than two forests stays refused at creation, and the `$setData` refusal is reworded
+    (2.8). Alternative: a record of one plain forest read as none.
+18. A user's object keeps `x.test` as built: it comes from `test`, not the frame.
+19. A user's object keeps `na.action` and `rowNames`: the first is not given by the positions alone, the second
+    is the names model.frame gave the rows. Alternative: replaying model.frame's naming.
+20. `model.frame(o)` is made in the build's order: evaluate on the whole frame, cut, code. Alternative:
+    predict's path on the kept rows, which fails on a caller's vector once a row is dropped.
 21. A fit keeps its own basis vector wherever it keeps per-forest fits, its sampler kept or not: it cannot be
-   made again, having no frame (dec-B185), and a kept sampler's basis is the sampler's current one (2.3). This
-   answers the question dec-B671 sent here; nothing a user sees changes. The alternative reads it from the
-   kept sampler under `keepTrees = TRUE`, wrong after `fit$fit$setForestBasis()`.
-22. No accessor for a data object saved by 0.9-34, which already fails on main. The alternative reads one,
-   about 5 lines, a call of its own.
+    made again (dec-B185), and a kept sampler's basis is its current one. This answers the question dec-B671
+    sent here. Alternative: read from the kept sampler, wrong after `fit$fit$setForestBasis()`.
+22. No reader for a data object saved by 0.9-34, which already fails on main.
+
+### Costs dec-B678 did not weigh
+
+- **The reads of a sampler's slots.** dec-B678 removes `x`, `y`, `weights` and `offset` from a sampler's data,
+  so every internal read of them moves to an accessor (about 360 lines of R) and so do the tests that read
+  them (up to about 740 lines). No draw moves and no setter slows; it is the bulk of the build.
+- **stan4bart's saved bundle.** It keeps the specification's data with the block cut to no rows and splices
+  the fit's `bartData@x` back at a restore. Under dec-B678 that data holds the model frame, and neither the cut
+  nor the splice can be written as a slot write. Shown: (a) the bundle keeps the specification's data whole,
+  4 lines removed from stan4bart, the bundle growing by the predictor columns (0.050 to 0.088 MB at 750 rows
+  and 25 columns, about n times p times 8 bytes in general, so 2.2 MB at 20,000 by 14); (b) the bundle keeps
+  no data and a restore makes the specification again from `bartData` by the call the fit made, about 10 to 15
+  lines in stan4bart, the bundle as today less the response and weights; (c) dbarts offers a way to make a
+  sampler's data from a block-holding object and a response, stan4bart calling it at a restore, about 15
+  lines in dbarts and 5 in stan4bart. Not decided here; (b) is recommended, keeping a saved fit free of a
+  second copy of its predictors.
+- **bartCause's reads of the samplers' term labels**, `attr(fit$fit$data@x, "term.labels")` in two places,
+  which a stand-in answers with `NULL` in silence. Taken: the two lines move to the model frame's terms.
+  Alternative: the stand-in carrying the coding record's attributes, so `attr()` reads answer rightly, which
+  changes what dec-B676 says `attr()` gives.
+- **A matrix-interface object kept beside its sampler** holds the predictors twice in a session, the
+  sampler's frame splitting the matrix (2.4 MB at 20,000 by 15). Taken, for call 24's faster setters.
+  Alternative: the matrix kept as one matrix column on such a sampler, today's sharing and today's copy at each
+  column's setter.
+- **A saved sampler writes its data twice** on main, as its `data` and as its engine pointer's protected
+  value, 4.55 MB against 0.9-34's 2.32 MB; under call 30 the pointer protects the made layout, so this stays.
+  It predates this design; whether the bridge must keep the data object behind the pointer is an engine
+  question, and two comments in the bridge disagree on whether anything borrows from it.
