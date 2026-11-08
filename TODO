@@ -304,13 +304,6 @@ items
     missing or all-zero weights stay errors (dec-B712). About 20 to 30
     lines reusing the warm start's step, tests and a help sentence; no
     state the package writes for its own sampler moves.
-  split-probs-one-named: split.probs = c(x2 = .9), a named vector of one
-    value, is refused as any named vector missing a column with no
-    .default is, naming the missing columns and .default; today it
-    reads as uniform with no message (dec-B716). With the rest of
-    split.probs's doors, among them a hazard fit's refusal of a vector
-    leaving out period, where n.cuts takes it (dec-B553). About 3 lines
-    and a test; a 0.9-34 call that ran silently wrong now stops.
   stan4bart-constant-bart: stan4bart work. stan4bart refuses again a
     formula whose bart() columns each hold one value on the rows kept,
     with its no-bart-component message plus a clause naming the

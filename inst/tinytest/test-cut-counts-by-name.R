@@ -230,7 +230,7 @@ expect_identical(
 expect_identical(length(notUsedAtDirect(n.cuts = c(5L, 25L, 10L))), 1L)
 expect_error(notUsedAtDirect(n.cuts = c(25L, 10L)), "'n.cuts' has 2 values")
 
-# split.probs reads as it did, a single value losing its name
+# split.probs reads as it did
 probs <- function(v) {
   sampler <- dbarts(form, frame, split.probs = v, control = run())
   sampler$model@tree.prior@splitProbabilities
@@ -239,7 +239,10 @@ expect_equal(
   unname(probs(c(x3 = 0.7, x1 = 0.2, x2 = 0.1))),
   c(0.2, 0.1, 0.7)
 )
-expect_identical(length(probs(c(x2 = 0.9))), 0L)
+# a named single value is a named vector and is refused for the columns it
+# leaves out; an unnamed one stays a scalar
+expect_error(probs(c(x2 = 0.9)), "missing values for columns 'x1', 'x3'")
+expect_identical(length(probs(0.9)), 0L)
 expect_error(
   probs(c(x1 = 0.5, x2 = 0.5)),
   "cannot assign split probabilities: missing values for columns 'x3'"

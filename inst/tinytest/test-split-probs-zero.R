@@ -105,3 +105,26 @@ expect_null(warm$installTrees(donor, forceUpdate = TRUE))
 expect_identical(splitsOnLast(warm, current = TRUE), 0L)
 expect_true(any(warm$getTrees(current = TRUE)$var > 0L))
 expect_identical(unname(splits(warm$run(0L, 50L))[3L]), 0)
+
+# a named vector of one value is a named vector: it is refused for the columns
+# it leaves out, as one of several is, rather than read as uniform
+oneNamed <- function(...) {
+  dbarts::bart(
+    y ~ a + b + c,
+    data = data.frame(x, y = y),
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE,
+    ...
+  )
+}
+expect_error(oneNamed(split.probs = c(b = 0.9)), "missing values for columns")
+expect_error(
+  oneNamed(split.probs = c(b = 0.9, a = 0.05)),
+  "missing values for columns"
+)
+expect_silent(oneNamed(split.probs = c(b = 0.9, .default = 0.05)))
+expect_silent(oneNamed(split.probs = 0.9))

@@ -558,9 +558,10 @@ resolveSplitProbabilities <- function(prior, data) {
     return(prior)
   }
 
-  if (length(split.probs) == 1L) {
-    # a length-1 spec is a uniform scalar: held to the entry rules like any
-    # other, then dropped, uniform being the default
+  if (length(split.probs) == 1L && is.null(names(split.probs))) {
+    # an unnamed length-1 spec is a uniform scalar: held to the entry rules
+    # like any other, then dropped, uniform being the default; a named one
+    # reads as any named vector does, refused for the columns it leaves out
     refuseInvalidSplitProbabilities(split.probs)
     split.probs <- numeric()
   } else if (!is.null(names(split.probs))) {

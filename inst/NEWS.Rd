@@ -165,6 +165,10 @@
             \code{sample(prob = )} refuses such weights; 0.9-34 turned a
             negative weight into a probability by dividing by a negative
             sum.
+            A named vector of one value, such as
+            \code{split.probs = c(x2 = 0.9)}, is refused for the columns it
+            leaves out, as any named vector is; 0.9-34 fit it with equal
+            probabilities and no message.
       \item Offsets. An offset that is not numeric, a logical or a factor,
             is refused when fitting and by \code{predict}; 0.9-34 coerced
             it, a factor to its level codes. An offset that is all
