@@ -8055,7 +8055,6 @@ private:
       static_assert(fusedSuffstatBanks == 4,
                     "the unrolled body below assigns four banks by hand");
       bool weighted = forestWeights != nullptr;
-      size_t n = data_.numObservations;
       Tree& tree(forest.trees[t]);
       size_t numNodes = tree.nodes.size();
       size_t bankSlots = numNodes * fusedSuffstatBanks;
@@ -8067,6 +8066,7 @@ private:
       // wrong scatters into arena slots no bottom reads back. R's build
       // defines NDEBUG, so this is live only in tests/cpp.
       {
+        size_t n = data_.numObservations;
         const std::uint32_t* leafCheck = forest.leafOf.data() + t * n;
         for (size_t j = 0; j < n; ++j)
           assert(leafCheck[j] < numNodes &&
