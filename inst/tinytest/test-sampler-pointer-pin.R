@@ -117,7 +117,8 @@ x.frame <- data.frame(
 )
 x.frame$sv <- sv
 x.frame$sm <- methods::as(sm.dense, "CsparseMatrix")
-y.mixed <- 2 * as.double(sv) - 1.5 * x1 + rnorm(n.mixed, 0, 0.3)
+f.mixed <- 2 * as.double(sv) - 1.5 * x1 + 2 * sm.dense[, 2L]
+y.mixed <- f.mixed + rnorm(n.mixed, 0, 0.3)
 sampler.mixed <- dbarts(
   x.frame,
   y.mixed,
@@ -144,17 +145,22 @@ sm1.new <- sm.dense[, 1L] * 2
 sampler.mixed$setPredictor(sm1.new, column = 4L, forceUpdate = TRUE)
 invisible(gc(full = TRUE))
 expect_true(length(serialize(sampler.mixed$pointer, NULL)) >= creationBytes)
-# column 5 is the last CSC column still reading its creation slice; once it
-# owns its values the pointer holds nothing
-sampler.mixed$setPredictor(
-  sm.dense[, 2L] + 0.5,
-  column = 5L,
-  forceUpdate = TRUE
+# column 5 is the last CSC column still reading its creation slice; once the
+# trees split on it, zeroing it is refused and rolled back to that slice,
+# which the pointer then still holds
+invisible(sampler.mixed$run(20L, 1L))
+expect_false(
+  sampler.mixed$setPredictor(numeric(n.mixed), column = 5L, forceUpdate = FALSE)
 )
+expect_true(length(serialize(sampler.mixed$pointer, NULL)) >= creationBytes)
+# once column 5 owns its values the pointer holds nothing
+sm2.new <- sm.dense[, 2L] + 0.5
+sampler.mixed$setPredictor(sm2.new, column = 5L, forceUpdate = TRUE)
 expect_true(length(serialize(sampler.mixed$pointer, NULL)) < 1024L)
 invisible(gc(full = TRUE))
 expect_equal(as.matrix(sampler.mixed$data@x)[, 3L], sv.new)
 expect_equal(as.matrix(sampler.mixed$data@x)[, 4L], sm1.new)
+expect_equal(as.matrix(sampler.mixed$data@x)[, 5L], sm2.new)
 expect_true(all(is.finite(sampler.mixed$run(0L, 5L)$sigma)))
 rm(sampler.mixed)
 
