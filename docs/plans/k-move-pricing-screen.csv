@@ -112,7 +112,7 @@ frame,stage,source_id,dataset,rows,minority_share,outcome,real,provenance,size_s
 149,3,OpenML 53,heart_statlog,270,0.444,P,P,F,P,P,P,fail 3,,Statlog heart: subset of the Cleveland data (seen); plan struck it
 150,3,OpenML 56,vote,435,0.386,P,P,P,P,P,P,pass,,"archive.ics.uci.edu/dataset/105 (CC BY 4.0, read 2026-11-07); share from house-votes-84.names (168 republicans of 435)"
 151,3,PMLB bupa,bupa,345,,F,P,P,P,P,P,fail 1,,bupa: drinks variable thresholded into a class by later users (McDermott and Forsyth 2016)
-152,4,UCI 728,Toxicity,171,0.327,P,P,P,P,P,P,pass,needed,"archive.ics.uci.edu/dataset/728 (CC BY 4.0, read 2026-11-07); share from Gul et al. 2021 (56 toxic of 171)"
+152,4,UCI 728,Toxicity,171,0.327,P,P,P,P,P,P,pass,done,"archive.ics.uci.edu/dataset/728 (CC BY 4.0, read 2026-11-07); share from Gul et al. 2021 (56 toxic of 171)"
 158,4,UCI 963,UR3 CobotOps,7409,,F,P,P,P,F,P,fail 1,,"UCI 963: two targets (Robot_ProtectiveStop, grip_lost), no default"
 164,4,UCI 752,Bosch CNC Machining Dataset,2700,,P,P,P,P,F,F,fail 5,,originating terms not read; unread terms fail (also fails 6)
 165,4,UCI 168,Dexter,2600,,P,F,P,P,F,F,fail 2,,UCI 168: distractor probes added (augmented)
@@ -121,8 +121,8 @@ frame,stage,source_id,dataset,rows,minority_share,outcome,real,provenance,size_s
 178,4,UCI 713,Auction Verification,2043,,P,F,P,P,F,P,fail 2,,TabArena curation record row 287: Simulated data; meta-task
 179,4,UCI 528,Amphibians,189,,F,P,P,P,F,P,fail 1,,"UCI 528: seven species labels, multi-label, no default"
 183,4,UCI 210,Record Linkage Comparison Patterns,5749132,0.004,P,P,P,F,P,P,fail 4,,"UCI 210: 20,931 matches of 5,749,132 pairs, share 0.0036, under the 0.01 floor"
-188,4,UCI 357,Occupancy Detection,20560,,P,P,P,F,P,P,fail 4,needed,share not listed in the UCI record or page; criterion 4 is not established on this screen
-193,4,UCI 565,Bone marrow transplant: children,187,,P,P,P,F,P,P,fail 4,needed,share not listed in the UCI record or page; criterion 4 is not established on this screen
+188,4,UCI 357,Occupancy Detection,20560,,F,P,P,F,P,P,fail 1,done,"second screen: its date predictor is listed as a date-time, neither numeric nor factor, so the rule gives it no type and entering it as a number is a choice of ours; the screener recorded that doubt, and another on the share, read only from per-file figures in the donor's script comments"
+193,4,UCI 565,Bone marrow transplant: children,187,0.450,P,P,P,P,P,P,pass,done,"archive.ics.uci.edu/dataset/565 (CC BY 4.0, read 2026-11-07); share from Wrobel, Gudys and Sikora 2017 (55 percent censored, so 0.45 died); the listing is the donors' 38 predictors (their variable list and papers agree), the UCI table's 36 a transcription missing two flags, as Parkinsons's listing is its description's; the loader must find 38"
 196,4,UCI 967,PhiUSIIL Phishing URL (Website),235795,,P,P,P,P,P,F,fail 6,,"UCI 967: URL, Domain, TLD and Title listed as categorical features"
 200,4,UCI 161,Mammographic Mass,961,0.463,P,P,P,P,P,P,pass,needed,"archive.ics.uci.edu/dataset/161 (CC BY 4.0, read 2026-11-07); share from UCI 161 (445 malignant of 961); BI-RADS assessment, marked non-predictive by the donor, dropped by the loader"
 204,4,UCI 170,Gisette,13500,,P,F,P,P,F,F,fail 2,,UCI 170: distractor probes and product features added
