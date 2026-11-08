@@ -207,6 +207,13 @@ v <- rnorm(n)
 expect_identical(dbarts:::resolveDataObject(ov)@x, ref@x)
 expect_identical(nrow(model.frame(ov)), 29L)
 
+# a package function held under a name only the formula's environment knows
+ns <- splines::ns
+sp <- dbartsData(y ~ ns(w, df = 3), d)
+spRef <- dbartsData(y ~ ns(w, df = 3), d, keep.data = FALSE)
+rm(ns)
+expect_identical(dbarts:::resolveDataObject(sp)@x, spRef@x)
+
 # the sibling identity: a fit from the object is the fit from the formula ------
 
 sibling <- function(label, call, family = "auto", fit = TRUE) {

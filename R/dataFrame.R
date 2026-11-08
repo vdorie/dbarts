@@ -103,11 +103,11 @@ frozenBuildEnvironment <- function(formula, expressions, dataNames, fallback) {
     if (is.null(value)) {
       value <- get0(name, fallback)
     }
-    local <- is.function(value) &&
-      !is.primitive(value) &&
-      !isNamespace(environment(value)) &&
-      !identical(environment(value), globalenv())
-    if (!is.null(value) && (!is.function(value) || local)) {
+    # a function the global environment would find as this one is not held
+    found <- is.null(value) ||
+      (is.function(value) &&
+        identical(value, get0(name, globalenv(), mode = "function")))
+    if (!found) {
       assign(name, value, envir = held)
     }
   }
