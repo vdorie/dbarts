@@ -413,6 +413,12 @@ items
     before the copy was made and the reload ran; a carried level grid
     setting the level count at creation would close it for ordered
     columns.
+    Ruled: the sampler records each factor column's level count at
+    creation, from the codes where no level table comes with them, and
+    every re-creation reads it, ordered and unordered alike (dec-B672,
+    VD 2026-11-07: "Do (b)."). About 15 to 30 lines and 3 or 4 tests;
+    no running sampler's draws move. What a frame handed to such a
+    sampler means stays open here.
   k-move-pricing: after the k study lands, before 1.0-0 (dec-B530, VD
     2026-10-30: "Sure, let's try it."). Prices the collapsed move under
     logistic as a sequence, each step's rule fixed before any fit: (1)
