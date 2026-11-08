@@ -1,28 +1,33 @@
 # k-move-pricing datasets: the rule and list for R2 and R3
 
-Status: draft for the referee, not sealed (2026-11-07). Companion to [k-move-pricing.md](k-move-pricing.md), whose
-step 2 guard and step 3 test read these datasets (call 7, dec-B635, dec-B651).
+Status: revised on its referee's report, not sealed (2026-11-07). Companion to
+[k-move-pricing.md](k-move-pricing.md), whose step 2 guard and step 3 test read these datasets (call 7, dec-B635,
+dec-B651).
 
-The rule is sealed when this file, the frame file and the screen file it names, and the snapshot checksums are
-committed together with the referee's report, before any data file is loaded. After the seal nothing here
+The rule is sealed when this file, the per-entry screen
+[k-move-pricing-screen.csv](k-move-pricing-screen.csv), the frame file, the snapshot checksums, the second screen
+of the seven single-screened passers (section 5) and the maintainer's ruling on R2's and R3's sizes (call 7 of the
+plan) are committed together with the referee's report, before any data file is loaded. After the seal nothing here
 changes; an error found later is reported in the study's report, not fixed by editing the rule. Nothing below
 rests on a data file or an outcome column: only suite records, the TabArena curation record, repository
 metadata and published papers were read.
 
 ## 1. What the datasets are for, and what that asks of them
 
-Real outcomes enter pricing twice. R2 (6 datasets) carries step 2's real-data guard: each sampler's error at
-equal running time against a long reference run of the same posterior ([The real-data
-guard](k-move-pricing.md#the-real-data-guard)). R3 (12 datasets) carries step 3's test of a trigger, if step 3
-runs; R2's datasets join that test when the trigger is sealed before R2 is read (section 6).
+Real outcomes enter pricing twice. R2 (6 or 9 datasets, call 7 of the plan) carries step 2's real-data guard: each
+sampler's error at equal running time against a long reference run of the same posterior ([The real-data
+guard](k-move-pricing.md#the-real-data-guard)). R3 (12, or every passer not in R2) carries step 3's test of a
+trigger, if step 3 runs; R2's datasets join that test when the whole of step 3 is committed before any R2 reading
+is opened (section 6).
 
 Both readings compare two exact samplers of one posterior, dataset by dataset, against a reference of that same
-posterior. No reading splits rows to estimate how a model generalizes, and no reading scores an outcome the fit
-has not seen. So a criterion matters here only if it bears on a posterior comparison: whether the posterior is
-one a user meets, whether a choice of ours shaped it, whether two datasets are one, and whether it can be fitted
-and used. The predictive-benchmark criteria the first rule copied (independent rows, case-control sampling,
-leaks, duplicates, time-to-event status) protect a held-out score's claim about new data, a claim this design no
-longer makes (section 3).
+posterior. No reading splits rows to estimate how a model generalizes, and no reading that frames a recommendation
+scores an outcome the fit has not seen (the held-out score on the prediction rows is reported beside the guard,
+framing nothing, and compares the two samplers on one fixed split). So a criterion matters here only if it bears on
+a posterior comparison: whether the posterior is one a user meets, whether a choice of ours shaped it, whether two
+datasets are one, and whether it can be fitted and used. The predictive-benchmark criteria the first rule copied
+(independent rows, case-control sampling, leaks, duplicates, time-to-event status) protect a held-out score's claim
+about new data, a claim this design no longer makes (section 3).
 
 ## 2. The frame
 
@@ -34,7 +39,7 @@ short (section 5).
 | 1 | TabArena-v0.1, binary tasks (Erickson et al. 2025) | OpenML study 457, alias tabarena-v0.1, created 2025-05-20; 51 tasks, 30 binary | OpenML task id ascending |
 | 2 | OpenML-CC18, binary tasks not seen and not in stage 1 (Bischl et al. 2021) | OpenML study 99, alias OpenML-CC18, created 2019-02-21; 72 tasks, 35 binary | OpenML task id ascending |
 | 3 | binary entries of the TabArena curation record whose category is Tiny data, Image, Audio or Scientific Discovery and whose final decision is a "No" | tabarena.ai/dataset-curation as of 2026-11-07, 991 rows, sha256 ad6c9ec0afb440e4dca2bf90e27bb68e83ab59059c0290111e572ef9d239ded7 | record row order |
-| 4 | seeded UCI census: every UCI entry listing Classification, at least 100 instances and Multivariate or Tabular, 387 entries | UCI API listing of 2026-11-07, 690 entries; permuted by `set.seed(20261107L, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.kind = "Rejection")` then `ids[sample.int(length(ids))]`, order file sha256 f8978e03...b423d5 | the draw |
+| 4 | seeded UCI census: every UCI entry listing Classification, at least 100 instances and Multivariate or Tabular, 387 entries | UCI API listing of 2026-11-07, 690 entries; permuted by `set.seed(20261107L, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.kind = "Rejection")` then `ids[sample.int(length(ids))]`, order file sha256 f8978e03450947106d2cacaf35fb5ed89aa2297889f5c511cc74a200f9b423d5 | the draw |
 
 "Binary" in stages 1 and 2 is the suite's NumberOfClasses of 2. Stage 3's mechanics (one row per source under
 several names; different files of one source entering apart and flagged) are as the frame file records them.
@@ -57,12 +62,20 @@ counts each failure under its first failing criterion in the order below.
 
 | # | criterion | published source | why it bears on a posterior comparison |
 |---|---|---|---|
-| 1 | **Outcome.** The binary task as the originating study or donor defined it, with its predictors as the source lists them; no merge, threshold or choice of target made by a later curator or by this study. A source with several candidate targets and no default fails. | CC18 excludes transformed targets (Bischl et al. 2021, section 6.1); AMLB excludes binarized tasks (Gijsbers et al. 2024); TabArena criterion 5 (Erickson et al. 2025) | a target or threshold of our choosing is a choice that could shape the posterior, even made blind |
+| 1 | **Outcome.** The binary task as the originating study or donor defined it, with its predictors as the source lists them; no merge, threshold or choice of target made by a later curator or by this study. A source with several candidate targets and no default fails. A suite's curated file is the file: its curators' row edits (duplicates removed, a corrupt row dropped) are allowed and recorded in the screen file, since they choose no target and no predictor. | CC18 excludes transformed targets (Bischl et al. 2021, section 6.1); AMLB excludes binarized tasks (Gijsbers et al. 2024); TabArena criterion 5 (Erickson et al. 2025) | a target or threshold of our choosing is a choice that could shape the posterior, even made blind |
 | 2 | **Real data.** Not generated, simulated or augmented, with a named originating study or donor. | CC18 (a) and (d); TabArena criterion 4 | the maintainer's rule asks for interesting real problems; simulated data are what step 2's drawn truths already are |
 | 3 | **Provenance.** Not from the same source, institution, collection or patients as a seen dataset; one dataset per source in the pool, the earliest in frame order kept. | TabArena criterion 1; CC18 (b) | the held-out rule (dec-B530); two files of one source are one posterior twice |
 | 4 | **Size and outcome share.** At least 100 rows and a listed minority share of at least 0.01. | CC18 (a), (c), (d) and TabArena criterion 6 set higher floors | keeps the small samples and rare outcomes the move is priced on; the floors are ours |
-| 5 | **License and file.** The originating terms permit research use, read and recorded with their address; "None", "N/A", a blank, a re-upload's label or competition rules silent on reuse fail. A stable versioned file with a recorded sha256. | TabArena criterion 8; CC18 "publicly licenced" | a precondition of using the data at all |
+| 5 | **License and file.** The originating terms permit research use, read and recorded with their address. Terms are a license, or the originator's or originating repository's statement that the data are released for public or research use. "None", "N/A", a blank, a re-upload's license field alone, a citation request alone, or competition rules silent on reuse fail. A stable versioned file with a recorded sha256; a source of several files enters as their concatenation (section 4). | TabArena criterion 8; CC18 "publicly licenced" | a precondition of using the data at all |
 | 6 | **Feasibility.** At most 2,000 columns after expanding factors, from the listed feature metadata. | CC18 (b), fewer than 5,000 features | the reference runs' cost; the cap is ours |
+
+Every kept criterion is one of population (which posteriors users meet, and whether a choice of ours shaped one)
+or of feasibility. No criterion, kept or dropped, can favor one exact sampler over the other on a dataset: each is
+a property of the data, and both samplers target the same posterior. What the criteria change is the population
+of posteriors read and the share of references that pass.
+
+No file holding any of these data, or derived from them, is committed or shipped; only summaries and readings
+are (irish's terms allow research use only, and one rule serves every dataset).
 
 **Dropped, each with why it cannot bias the paired comparison.** Every reading compares two samplers whose
 stationary distribution is the same posterior, on the rows as fitted, against a reference of that posterior.
@@ -76,9 +89,10 @@ stationary distribution is the same posterior, on the rows as fitted, against a 
   is a property the score blocks spread, not a defect.
 - *Leaks* (post-outcome columns, preprocessing fitted on all rows). A leaking column makes the data nearly
   separable, and its posterior is one of the near-separated kind the move is priced on. It cannot favor either
-  sampler except as near separation does, which is the effect measured, and the draw by sealed score fixes how
-  many datasets come from each part of the score range, so leaks cannot raise R2's or R3's share of
-  near-separated data. Scores of 0.995 or more stay in and are reported apart (section 6).
+  sampler except as near separation does, which is the effect measured. The draw by sealed score fixes R2's and
+  R3's share of each rank block of the pool, not of each score range, so leaks that raise many datasets toward
+  separation raise R2's near-separated share with the pool's, and with it the share of references that fail: a
+  cost in power, not in validity. Scores of 0.995 or more stay in and are reported apart (section 6).
 - *Duplicate rows on the covariates.* They change the design's effective size, not the posterior's validity.
 - *Time-to-event status* (a death or recurrence flag at variable follow-up). The flag is a recorded binary
   outcome and its posterior is well defined; how well it predicts an event is not what is read.
@@ -96,9 +110,25 @@ immediately after parsing. It keeps the columns the source lists as predictors: 
 donor marks as not predictors, and ignore attributes are dropped (NHANES's respondent age, the source of its
 age-group target, is listed by the donor as "Other"). Its committed report gives, from covariates only, the row
 and column counts against the listing (an unexplained mismatch fails, as a doubt that the file is the described
-data), missing values per column and columns after factor expansion. Missing values are handled on covariates
-only: a column more than half missing is dropped, then rows with any missing covariate. The pool is judged short
-or not after this check (section 5).
+data), missing values per column and columns after factor expansion.
+
+- **The listing** is the source's stated row count, or the suite's for a suite file. Where a source states two,
+  the screen file names the one taken: Parkinsons lists 197 instances in its metadata and 195 recordings in its
+  description, and 195 is the listing. A suite file whose rows differ from the originating source's by the
+  curators' recorded edits is explained (NATICUSdroid, deduplicated from 29,333 rows to 7,491; qsar-biodeg, 1,054
+  against 1,055).
+- **Several files** are concatenated in the order the source lists them (spect: its training file of 80 rows,
+  then its test file of 187).
+- **Missing values** are kept, as a user's default fit keeps them: bart()'s `na.keepPredictors` routes a missing
+  predictor down a learned side of each split, and rpart, which computes the separation score, uses surrogates.
+  Only a column with no observed value is dropped. No row is dropped for a missing predictor, so the listing's
+  counts and criterion 4's floors stand (OpenML lists a missing value in 75,244 of APSFailure's 76,000 rows, 75 of
+  hepatitis's 155 and 263 of cylinder-bands' 540; deleting them would cut hepatitis below the floor). A row whose
+  outcome is missing is dropped when the harness attaches the outcome, as `na.keepPredictors` drops it, before the
+  rows are drawn; its count is in the harness's sealed record, and the minority share is not rechecked.
+
+The pool is judged short or not after this check (section 5), and the check, with any stage-4 shortfall, completes
+before any score (section 6).
 
 ## 5. The re-screen and the list
 
@@ -112,10 +142,10 @@ originating pages:
 |---|---|---|---|
 | irish | "may be used solely as an example for research on the development of statistical methods" | OpenML 451 description, owners Greaney and Kelleghan | pass |
 | clean1 (musk, version 1) | CC BY 4.0 | archive.ics.uci.edu/dataset/74 | pass |
-| jm1 | the PROMISE acknowledgment guidelines for published work | OpenML 1053 description, promise.site.uottawa.ca/SERepository | pass, flagged for the referee |
+| jm1 | "a PROMISE data set made publicly available in order to encourage repeatable, verifiable, refutable, and/or improvable predictive models", with the repository's acknowledgment guidelines | OpenML 1053 description, promise.site.uottawa.ca/SERepository | pass: the originating repository's statement of public release |
 | analcatdata_boxing1, boxing2, creditscore | "may be used freely for scientific, educational and/or noncommercial purposes" (Simonoff 2003) | OpenML 448 description | pass on 5; fail 2, below |
 | biomed | source unknown, no terms | OpenML 481 | fail |
-| Pumpkin_Seeds | the creator's page asks for a citation and states no terms | muratkoklu.com/datasets | fail; if terms are found it enters and rice, its source's later file, leaves |
+| Pumpkin_Seeds | the creator's page gives a citation request and no terms; the Kaggle page it is listed from could not be read | muratkoklu.com/datasets | fail: a citation request alone; if terms are found it enters and rice, its source's later file, leaves |
 | phoneme | a KEEL copyright notice, no terms; original from the ELENA project | sci2s.ugr.es/keel, dataset 105 | fail |
 | electricity, SpeedDating, numerai28.6 | no terms on the named source pages | OpenML 151 and 40536; the Kaggle page states none | fail |
 | mammography, oil_spill, sa-heart, prnn_crabs | terms not stated (doubts the first auditor recorded) | | fail |
@@ -145,8 +175,11 @@ no target and offers the class and the UPDRS score.
 | of which at least 1,000 rows | 9 | 4 | 4 | 17 |
 
 The pool is not short (24 passers is the bar), so stage 4 does not run, and the census rows read under the first
-rule (Toxicity, vertebral column, mammographic mass and the others) are not in the pool. The per-entry table of
-the re-screen goes into the sealed screen file.
+rule (Toxicity, vertebral column, mammographic mass and the others) are not in the pool. The per-entry table is
+[k-move-pricing-screen.csv](k-move-pricing-screen.csv): each of the 113 entering entries in frame order, its
+listing, its cell on each of the six criteria (P or F, an unread or unsettled cell failing), its result as pass or
+its first failing criterion, whether it needs a second screen, and the source of the deciding cell (for a passer,
+its license and any recorded edit, concatenation or missingness).
 
 **The 26 passers**, in frame order (rows as listed; the share is the listed minority share, blank where no source
 read states it):
@@ -174,16 +207,19 @@ read states it):
 | 101 | 3 | breast_cancer (Ljubljana) | 286 | 0.297 | health |
 | 118 | 3 | clean1 (musk, version 1) | 476 | | chemistry |
 | 126 | 3 | hepatitis | 155 | 0.206 | health |
-| 134 | 3 | Parkinsons | 197 | | health |
+| 134 | 3 | Parkinsons | 195 | | health |
 | 136 | 3 | Diabetic_Retinopathy_Debrecen | 1,151 | 0.469 | health |
 | 138 | 3 | NHANES_age_prediction | 6,287 | | health survey |
 | 143 | 3 | rice_cammeo_and_osmancik | 3,810 | | agriculture |
 | 150 | 3 | vote | 435 | 0.386 | politics |
 
 Fields: health 7; commerce, credit, finance and insurance 4; the sciences and engineering 11; others 4.
-Shares under 0.06: APSFailure, wilt. Seven passers (APSFailure, nomao, cylinder-bands, Internet-Advertisements,
-skin-segmentation, clean1, NHANES) rest on the second auditor's screen and this re-reading of their source pages;
-the first auditor did not reach them, and the referee is asked to check them as the second screen.
+Shares under 0.06: APSFailure, wilt. Seven passers rest on the second auditor's screen and this re-reading of
+their source pages, the first auditor not having reached them: APSFailure, nomao, cylinder-bands,
+Internet-Advertisements, skin-segmentation, clean1 and NHANES_age_prediction. The referee checked NHANES's license,
+target and listing and the others' sizes and missing values only, which is not a screen; each of the seven gets a
+second screen on all six criteria by a screener who has not seen this one's, before the seal, and one that fails it
+leaves the pool, the counts restated.
 
 **Against the orchestrator's count of 51 of 137, 27 with at least 1,000 rows.** That count passed every entry
 whose license the second auditor had not read, included the census rows, did not apply the first auditor's
@@ -196,34 +232,68 @@ is added by hand, and if the pool is still short the guard and the test run at t
 
 ## 6. Allocation, the draw and the order of reading
 
-1. The harness computes each passer's separation score (a 5-fold cross-validated rpart AUC, the k study's) on its
-   fitted rows after section 4, and keeps it sealed until step 3 starts.
-2. **R2** is drawn from all passers. Sorted by score ascending, ties by frame order, passer of rank r is in block
-   ceiling(6 r / N); one is drawn from each block.
-3. **R3** is drawn from the passers not in R2: block ceiling(12 r / M) by the same order, one from each.
-4. **The draw**, in R 4.6, fixed now, with `ord` the passers in score order:
+1. **First the pre-fit check.** After the seal, section 4's check runs on every passer, and stage 4 runs if the
+   pool is then short, before any score is computed: the draw needs every passer's score.
+2. **The separation score.** The harness computes each passer's score, the k study's 5-fold cross-validated rpart
+   AUC (`separationScore` in [binary-k-mixing-need.R](../../benchmarks/R/binary-k-mixing-need.R): a
+   classification tree, `xval = 0`, the AUC taken as at least 0.5), on its fitted rows (item 5), with the folds of
+   the code below in place of that function's keyed seed, and keeps it sealed until step 3 starts.
+3. **R2** is drawn from all passers. Sorted by score ascending, ties by frame order, passer of rank r is in block
+   ceiling(n2 r / N); one is drawn from each block. **R3** is drawn from the passers not in R2: block
+   ceiling(n3 r / M) by the same order, one from each. n2 is 6 or 9 and n3 is 12 or M, the maintainer's call
+   before the seal; at 26 passers and n2 = 6, R2's blocks hold 4 or 5 and R3's 1 or 2 of the remaining 20, and 8
+   are reserves.
+4. **The code**, in R 4.6, fixed now, with `frame` a dataset's frame order, `n` its rows after section 4, and `ord`
+   the passers' names in score order:
 
    ```r
-   set.seed(20261108L, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.kind = "Rejection")
-   N <- length(ord); b2 <- ceiling(6 * seq_len(N) / N)
-   r2 <- ord[vapply(1:6, function(b) { i <- which(b2 == b); i[sample.int(length(i), 1L)] }, 1L)]
-   rest <- ord[!ord %in% r2]; M <- length(rest); b3 <- ceiling(12 * seq_len(M) / M)
-   r3 <- rest[vapply(1:12, function(b) { i <- which(b3 == b); i[sample.int(length(i), 1L)] }, 1L)]
+   rng <- function(seed) {
+     set.seed(seed, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.kind = "Rejection")
+   }
+   # rows, per dataset: m drawn, four fifths of them fitted, the rest prediction rows
+   rng(20261109L + frame)
+   m <- min(n, 5000L); rows <- sort(sample.int(n, m))
+   fit <- sort(rows[sample.int(m, (4L * m) %/% 5L)]); pred <- setdiff(rows, fit)
+   # the separation score's folds, on the fitted rows
+   rng(20262109L + frame)
+   folds <- sample(rep_len(1:5, length(fit)))
+   # the allocation
+   drawBlocks <- function(o, k) {
+     b <- ceiling(k * seq_along(o) / length(o))
+     o[vapply(seq_len(k), function(j) { i <- which(b == j); i[sample.int(length(i), 1L)] }, 1L)]
+   }
+   rng(20261108L)
+   r2 <- drawBlocks(ord, n2)
+   rest <- ord[!ord %in% r2]
+   r3 <- drawBlocks(rest, n3)
+   # a reserve for x of R2 (o = ord, k = n2) or of R3 (o = rest, k = n3); used: every dataset assigned or failed
+   reserveFor <- function(x, o, k, used) {
+     b <- ceiling(k * seq_along(o) / length(o)); rx <- match(x, o)
+     for (j in c(b[rx], b[rx] + 1L, b[rx] - 1L)) {
+       i <- which(b == j & !o %in% used)
+       if (length(i) > 0L) return(o[i[order(abs(i - rx), i)][1L]])
+     }
+     NA_character_
+   }
    ```
 
-   At 26 passers R2's blocks hold 4 or 5 and R3's 1 or 2 of the remaining 20; 8 are reserves.
-5. **Rows.** For each dataset, one seeded simple random subsample of m = min(n, 5,000) rows, seed 20261109 plus its
-   frame order; a seeded 80 percent are fitted (at most 4,000, the plan's cap) and the other 20 percent are
-   prediction rows, whose outcomes are dropped at load and never read.
-6. **Reserves** replace only a dataset whose file fails the pre-fit check when the harness reloads it, drawn from
-   the same block. Nothing that fails or misbehaves after a score or a fit is replaced; a reference that fails its
-   checks leaves the dataset unresolved, reported.
+   At n2 = 6 and n3 = 12 the allocation draws exactly as the code it replaces, its seed unchanged; the folds' seed
+   is new.
+5. **Rows.** For each dataset, the seeded simple random subsample of m = min(n, 5,000) rows above; four fifths are
+   fitted (4,000 at most, the plan's cap) and the rest are prediction rows, whose outcomes stay sealed until the
+   guard's reading is committed and are then read only for the held-out score, framing nothing.
+6. **Reserves** replace only a dataset whose file fails when the harness reloads it after the draw (its checksum
+   or its parse): the nearest in rank among the unassigned passers of its own block, else of the block above, else
+   of the block below, with no seed (`reserveFor`). Nothing that fails or misbehaves after a score or a fit is
+   replaced; a reference that fails its checks leaves the dataset unresolved, reported.
 7. **Scores of 0.995 or more stay in**, in the top block, and every reading is also given without them: users fit
    such data, and the plan's rejection of them was a rule for drawing simulated truths.
-8. **Order of reading.** The assignment is committed before step 2 runs. Step 3's trigger form is computed from
-   step 2's simulated fits and committed before any reading of R2 is opened; R2's references and fits may run
-   earlier, their summaries held closed. Then R2's datasets, read for the guard, can also serve step 3's test,
-   which reads 18 datasets in place of 12.
+8. **Order of reading.** The assignment is committed before step 2 runs. The whole of step 3 (the trigger itself,
+   computed mechanically from step 2's simulated fits, the need-the-move rule, the pass rule, the fewer-than-3
+   rule and R3's size) is committed before any reading of R2 is opened; R2's references and fits may run earlier,
+   their summaries held closed. Step 2's report waits for that commit. Then R2's datasets, read for the guard, can
+   also serve step 3's test, which reads n2 + n3 datasets; any later amendment of step 3 drops R2 from it. The
+   guard's reading is committed before the prediction rows' outcomes are unsealed.
 
 ## 7. What has no published model
 
@@ -237,6 +307,9 @@ Each is the study's own; the report says so.
 | the separation score and its blocks | the k study's rpart AUC, R2 and R3 stratified on it | stratify by size or outcome rate |
 | the doubt-fails screen | any recorded doubt fails | list doubted entries apart and read with them as a sensitivity analysis |
 | analcatdata's shared doubt | one doubt applied to the book's four files | screen each file alone (boxing1 and creditscore would pass) |
+| the license standard | a statement of release for public or research use counts as terms; a citation request alone does not | an explicit license or terms of use only, or a citation request counted as terms |
+| curated suite files | a suite's curated file is the file, its row edits recorded | fail any entry whose suite file differs from its source by row edits |
+| the reserve rule | nearest in rank within the block, then the blocks beside it | a seeded draw among the block's unassigned passers |
 
 ## 8. Calls
 
@@ -249,16 +322,31 @@ Made here, each with its alternative:
    2's simulated regimes, which are mostly under 1,000 rows.
 3. The loader keeps the predictors as the source lists them (section 4). Alternative: drop only the outcome, which
    leaves NHANES's target computable from a covariate.
-4. Licenses unread by the second auditor were read here (section 5), jm1 passed on the PROMISE acknowledgment
-   guidelines. Alternative: fail every unread license, which removes irish, clean1 and jm1 (23 pass, 16 large) and
-   makes the pool short.
+4. Licenses unread by the second auditor were read here (section 5), under one standard for every entry: a license,
+   or the originator's or originating repository's statement that the data are released for public or research use,
+   counts as terms, and a citation request alone does not; jm1 passes on PROMISE's statement and Pumpkin_Seeds
+   fails. Alternatives: an explicit license or terms of use only, which removes jm1 (25 pass, 16 large); a citation
+   request counted as terms, which admits Pumpkin_Seeds and removes rice, its source's later file (26 pass, 17
+   large); or every unread license failed, which removes irish, clean1 and jm1 (23 pass, 16 large) and makes the
+   pool short.
 5. The analcatdata files share lawsuit's doubt. Alternative: screen each alone.
-6. The seeds are the ones the first rule fixed, unchanged: allocation 20261108, rows 20261109 plus frame order.
+6. The seeds are the ones the first rule fixed, unchanged: allocation 20261108, rows 20261109 plus frame order;
+   the score's folds, new, 20262109 plus frame order (section 6).
 7. Parkinson_Multiple_Sound_Recording fails 1, its source naming no target. Alternative: read the class as its
    target from the dataset's title and paper, which adds one passer of 1,040 rows.
+8. Missing predictors are kept, as bart()'s default `na.keepPredictors` keeps them, and only an all-missing column
+   is dropped (section 4): the posterior read is the one a user's default fit targets. Alternative: complete cases
+   with the row floor re-applied, which leaves hepatitis about 80 rows and fails it (25 pass or fewer), cuts
+   APSFailure to about 750 rows, and reads a posterior no default fit targets.
+9. A suite's curated file, its row edits recorded, passes criterion 1 (NATICUSdroid's deduplication,
+   qsar-biodeg's one row). Alternative: fail such entries, which removes those two (24 pass, 15 large) and any
+   other curated file the pre-fit check finds, and may make the pool short.
+10. Parkinsons's listing is 195, its description's count of recordings, not its metadata's 197. Alternative: 197,
+    at which a file of 195 rows is an unexplained mismatch and Parkinsons fails at the pre-fit check (25 pass).
 
-For the maintainer, with dec-B635's decision: the rule and the list as a whole, after the referee; and the first
-rule's call on R3's size (12, or every passer not in R2), which the shared reading of section 6 makes 18 or 26.
+For the maintainer, with dec-B635's decision, before the seal: the rule and the list as a whole; R3's size (12, or
+every passer not in R2), which the shared reading of section 6 makes 18 or 26 datasets in step 3's test; and R2's
+size (6, or 9, recommended, at which the guard reads with probability about 0.92 against 0.6; the plan's call 7).
 
 ## References
 
