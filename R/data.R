@@ -2957,21 +2957,29 @@ multinomialResponseMessage <- paste0(
 
 # The shapes a multinomial response is written in, read alike by bart() and
 # dbarts(): a data frame is the numeric matrix of its columns (one that is
-# not numeric is refused), and a one-column character matrix is its vector of
+# not numeric is refused, a column of labels included), and a one-column character matrix is its vector of
 # labels, as a one-column matrix is read where a vector is wanted. Returns a
 # numeric matrix, or a vector for the caller's label path.
 readMultinomialShape <- function(y) {
+  refuse <- function(type) {
+    stop(
+      "a multinomial count-matrix response must be numeric, not ",
+      type,
+      "; give labels as a vector, or as a one-column matrix of labels",
+      call. = FALSE
+    )
+  }
   if (is.data.frame(y)) {
+    if (!all(vapply(y, is.numeric, NA))) {
+      refuse(typeof(as.matrix(y)))
+    }
     y <- as.matrix(y)
   }
   if (is.matrix(y) && !is.numeric(y)) {
     if (is.character(y) && ncol(y) == 1L) {
       return(as.vector(y))
     }
-    stop(
-      "a multinomial count-matrix response must be numeric, not ",
-      typeof(y)
-    )
+    refuse(typeof(y))
   }
   y
 }

@@ -67,8 +67,20 @@ expect_true(viaDbarts(labelMatrix)$data@counts.as.factor)
 # are refused, alike at both
 wide <- matrix(as.character(counts), n, 3L)
 mixed <- data.frame(u = counts[, 1L], v = as.character(counts[, 2L]))
-expected <- "a multinomial count-matrix response must be numeric, not character"
+expected <- paste0(
+  "a multinomial count-matrix response must be numeric, not character; ",
+  "give labels as a vector, or as a one-column matrix of labels"
+)
 for (response in list(wide, mixed)) {
+  expect_identical(message.of(viaBart(response)), expected)
+  expect_identical(message.of(viaDbarts(response)), expected)
+}
+
+# a one-column data frame of labels, character or factor, is refused too
+for (response in list(
+  data.frame(l = labels),
+  data.frame(l = factor(labels))
+)) {
   expect_identical(message.of(viaBart(response)), expected)
   expect_identical(message.of(viaDbarts(response)), expected)
 }
