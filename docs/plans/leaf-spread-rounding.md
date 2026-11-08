@@ -5,7 +5,7 @@ rng: neutral for every column above the tolerance (the trio bitwise); a
 column under it is refused or kept where it ran before
 budget: ~60 engine and bridge lines, ~10 R lines, ~250 test lines, help
 
-Status: BUILT 2026-11-07, reviewed SOUND AFTER NITS, fix round reviewed LAND (b6693684a, 32860e7b3 as rebased onto setmodel-installs-stated)
+Status: BUILT 2026-11-07, reviewed SOUND AFTER NITS, fix round reviewed LAND (2f2457f20, 26940637c)
 
 ## Goal
 
@@ -181,7 +181,7 @@ column above the tolerance draws what it drew.
 
 ## Build note
 
-Built in 2839a6d89 as planned. The six warning pins in
+Built in 2f2457f20 as planned. The six warning pins in
 test-leaf-standardization-rows.R take the reworded keep text. Gates on that
 code: tests/cpp plain and under ASan and UBSan; the full suite, 42316
 results, 0 failed; the trio `--bitwise --strict-coverage` on the reference
@@ -196,7 +196,7 @@ pin, the chain's own derivation throwing where the sampler marked the
 covariate derivable; the corrected center removed fails the C++ row-count
 check.
 
-Fix round, 5c702a665, after the engine review (SOUND AFTER NITS). F1
+Fix round, 26940637c, after the engine review (SOUND AFTER NITS). F1
 (dec-B673): the refusal advises dropping the column, recomputing it from
 its source about an origin near its values where they truly differ, or
 changing the rows in; the help says why subtracting a constant does not
@@ -208,17 +208,24 @@ full suite, 42317 results, 0 failed; the trio on the reference build, 55,
 files, 27 results; lint, air, codoc, win-drift, doc-freshness,
 verify-anchors.
 
-Rebase note, onto setmodel-installs-stated (on state-basis-levels and the
-frequency-weights landing), 2026-11-08. The base's moments function takes
-counts, so `leafCovariateMoments`, `correctedMean` and
+Rebase note, onto main past the frequency-weights, state-basis-levels and
+setmodel-installs-stated landings, 2026-11-08. The base's moments function
+takes counts, so `leafCovariateMoments`, `correctedMean` and
 `deviationIsRounding` take them too and read each row as it does: at its
 count, a row of count 0 or less not read; the refusal's one-value or
-rounding reading skips such a row as well. Without counts every result
-keeps its bits. The doors this extends are every door that derives where
-the rows are counts: creation and an xbart fold under frequency weights, a
-binomial response or nbinom counts; a binomial setData; and the
-re-derivation after setPredictor, setWeights and setActiveRows on such a
-sampler. Pins: test-leaf-spread-rounding.R's counts section and
-testLeafSpreadRounding's counts checks (the counts ignored in the test, and
-the count-0 skip removed from the refusal's reading, each fail a check).
-The refusal pins take the base's rows wording, "the active-row mask".
+rounding reading skips such a row as well. Without counts every result keeps
+its bits. The doors this extends are every door that derives where the rows
+are counts: creation and an xbart fold under frequency weights, a binomial
+response or nbinom counts; a binomial setData; and the re-derivation after
+setPredictor, setWeights and setActiveRows on such a sampler. Pins:
+test-leaf-spread-rounding.R's counts section and testLeafSpreadRounding's
+counts checks (the counts ignored in the test, and the count-0 skip removed
+from the refusal's reading, each fail a check). The refusal pins take the
+base's rows wording, "the active-row mask".
+Gates on that code, --preclean installs: tests/cpp plain and under ASan and
+UBSan; the full suite, 43155 results, 0 failed; the trio `--bitwise
+--strict-coverage` on the reference build, 55, 19 and 11 scenarios
+identical, none skipped; the four reproducibility files, 27 results; the
+exact gates in quick, 49 of 49; the leaf, frequency-weights and binomial
+test files under R-loaded ASan and UBSan, 1452 results, 0 failed; lint,
+air, codoc, win-drift, doc-freshness, verify-anchors.
