@@ -54,11 +54,11 @@ the later write wins between `$setModel` and the named door (dec-B652).
   it reaches the candidates that state none of their own on the sampler, and
   the one candidate whatever it states (dec-B523); its value is read from the
   reached forests the given model does not state. Then each forest whose
-  given record states the name at a value other than the one it then holds
-  takes it as `$setForest` writes it: the record, its `stated`, forest 1's
-  tree prior, and the engine's per-forest depth. Then the leaf prior as
-  today, and each forest whose given record states an sd other than its
-  record's then takes it as `$setForest(f, sd = )` writes it
+  given record states the name at a value other than the sampler's before the
+  call takes it as `$setForest` writes it: the record, its `stated`, forest
+  1's tree prior, and the engine's per-forest depth. Then the leaf prior as
+  today, and each forest whose given record states an sd other than the
+  sampler's record takes it as `$setForest(f, sd = )` writes it
   (`modelWithForestSd`, `setForestSd`). A number the given record does not
   state is left, so a basis forest's copied depth and a forest stating its own
   on the sampler no longer refuse the call.
@@ -126,10 +126,13 @@ no per-forest settings, so nothing shipped is owed a migration.
 
 1. A variance depth statement lives in the existing `stated` slot, as a mean
    forest's does. Alternative: a slot of its own.
-2. A stated number is installed where it differs from the value the forest
-   holds once the level is written; an equal one writes and states nothing,
-   as the door does. Alternative: record the statement whatever the value, as
-   a new sampler from the model would.
+2. A stated number is installed where it differs from the sampler's value
+   before the call, the ruling's words, and after the level, so it wins; one
+   equal to it writes and states nothing, as the door does, and where the
+   level moves that forest it follows the level. Alternative: compare after
+   the level's write, as a new sampler from the model would run, which moves
+   the draws of a call taken today: the one candidate stating an sd, handed
+   its own model with another leaf prior, takes the leaf prior today.
 3. A number the given record does not state is left, so the own-difference
    refusals on unstated numbers and the refusal of a withdrawn statement
    (call 35, for `$setModel`) go: dec-B652's "a number the record does not

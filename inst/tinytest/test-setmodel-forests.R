@@ -519,6 +519,21 @@ case("$setModel as $setForest: the one candidate's power and sd", {
     expectTwin(live, door, names(stated))
   }
 })
+case("the one candidate stating sd: its own model, another leaf prior", {
+  # its sd equal to the sampler's is not installed, so the leaf prior's write
+  # wins, as before dec-B652
+  live <- build(oneCandidate(sd = 1.2))
+  door <- build(oneCandidate(sd = 1.2))
+  model <- live$model
+  restated <- build(oneCandidate(), leaf.prior = normal(k = 3))$model
+  model@leaf.prior <- restated@leaf.prior
+  model@leaf.hyperprior <- restated@leaf.hyperprior
+  model@prior.scale <- restated@prior.scale
+  live$setModel(model)
+  door$setLeafPrior(normal(k = 3))
+  same(live$model@forests[[1L]]@sd, NA_real_, "the sd goes")
+  expectTwin(live, door)
+})
 case("$setModel as $setForest: a sharer's own power", {
   live <- build(threeSharers)
   door <- build(threeSharers)

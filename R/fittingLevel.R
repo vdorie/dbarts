@@ -127,7 +127,9 @@ refuseOwnDifference <- function(model, index, name, value) {
 ## $setTreePrior writes it: its value is the given one of the first forest it
 ## reaches that the given model does not state. Then each forest whose given
 ## record states the name at another value than it then holds takes it, as
-## $setForest writes it. A number the given record does not state is left.
+## $setForest writes it, after the level, so that it wins. A number the given
+## record does not state, or states at the sampler's value, is left to the
+## level.
 levelDepths <- function(sampler, given, stored) {
   model <- sampler$model
   numForests <- bartcoreNumForests(sampler$getPointer())
@@ -185,7 +187,7 @@ levelDepths <- function(sampler, given, stored) {
     }
     for (index in which(givenStates)) {
       value <- validateForestTreePrior(stated[[index]], name)
-      if (!identical(value, forestDepthValue(stored, index, name))) {
+      if (!identical(value, own[[index]])) {
         stored <- modelWithDepth(
           stored,
           index,
@@ -417,14 +419,18 @@ setModelOnForests <- function(sampler, newModel, given) {
     )
   }
   depths <- levelDepths(sampler, given, newModel)
-  givenSds <- if (length(given@forests) == length(model@forests)) {
+  # a model recording no forest, as one made by hand, states no sd
+  givenRecords <- length(given@forests) == length(model@forests)
+  ownSds <- vapply(model@forests, methods::slot, 0, "sd")
+  statedSds <- if (givenRecords) {
     vapply(given@forests, methods::slot, 0, "sd")
   } else {
-    vapply(model@forests, methods::slot, 0, "sd")
+    rep(NA_real_, length(ownSds))
   }
+  givenSds <- if (givenRecords) statedSds else ownSds
   leaf <- levelLeafPrior(sampler, given, depths$model, givenSds, "$setModel")
   refuseCoefficientDifference(sampler, given)
-  sds <- statedForestSds(sampler, leaf$model, givenSds)
+  sds <- statedForestSds(sampler, leaf$model, statedSds, ownSds)
   stored <- sds$model
   refuseShareDifference(sampler, given, stored)
   stored@tree.prior@splitProbabilities <- numeric()
@@ -455,12 +461,13 @@ setModelOnForests <- function(sampler, newModel, given) {
   stored
 }
 
-## The sds a model given to $setModel states that differ from what `stored`,
-## the model after the level's writes, records, each written as $setForest(f,
-## sd = ) writes it, as a list of the model and the sds to install by forest
-## position. A forest whose given record states no sd is left. Each is checked
-## as the engine checks it, so the install cannot refuse after a write.
-statedForestSds <- function(sampler, stored, givenSds) {
+## The sds `givenSds` a model given to $setModel states that differ from
+## `ownSds`, the sampler's records, each written on `stored`, the model after the
+## level's writes, as $setForest(f, sd = ) writes it, as a list of the model and
+## the sds to install by forest position. A forest whose given record states no
+## sd, or the sampler's, is left to the level. Each is checked as the engine
+## checks it, so the install cannot refuse after a write.
+statedForestSds <- function(sampler, stored, givenSds, ownSds) {
   installs <- list()
   if (samplerCarriesCounts(sampler)) {
     return(list(model = stored, installs = installs))
@@ -468,7 +475,7 @@ statedForestSds <- function(sampler, stored, givenSds) {
   ptr <- sampler$getPointer()
   for (index in which(!is.na(givenSds))) {
     sd <- validateForestSd(givenSds[[index]])
-    if (identical(sd, unname(stored@forests[[index]]@sd))) {
+    if (identical(sd, unname(ownSds[[index]]))) {
       next
     }
     raw <- .Call(C_dbarts_bartcore_getLeafPrior, ptr, index - 1L)
