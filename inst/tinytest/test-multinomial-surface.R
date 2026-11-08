@@ -851,7 +851,8 @@ expect_error(
 )
 expect_error(
   bart(x2, factor(rep("only", n2)), family = "multinomial"),
-  "at least 2 levels"
+  "at least 2 levels; to declare levels that no row takes, give the response as factor(y, levels = ...)",
+  fixed = TRUE
 )
 expect_error(
   bart(dbartsData(x2, as.double(labels2)), family = "multinomial"),

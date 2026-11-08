@@ -1783,7 +1783,9 @@ bart <- function(
     }
     if (nlevels(y) < 2L) {
       stop(
-        "family = \"multinomial\" requires a response with at least 2 levels"
+        "family = \"multinomial\" requires a response with at least 2 levels; ",
+        "to declare levels that no row takes, give the response as ",
+        "factor(y, levels = ...)"
       )
     }
 

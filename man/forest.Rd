@@ -640,8 +640,7 @@ forest(
     vector has two coefficients, and under \code{student(df)} they share one
     scale, one variance drawn for the pair, so that their difference is itself
     a Student-t with the median size of the normal's. \code{fixed()} holds it
-    at 1 until \code{$setForest(f, amplitude = )} releases it, the choice
-    being made at creation, wherever the forest stands: a held
+    at 1 until \code{$setForest(f, amplitude = )} changes it; a held
     coefficient is 1, and what it multiplies is the basis, so a forest with no
     \code{basis} enters at 1, a forest on a numeric column at the column as
     given, and a forest on a factor, a character or a logical vector of two
