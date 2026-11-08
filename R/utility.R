@@ -1947,21 +1947,41 @@ estimateSigmaFromLinearModel <- function(
       frequency
     )
   }
+  weights <- residualOfRowsIn(data@weights, data@weights)
   if (!is.finite(sigma)) {
-    signalCondition(structure(
-      class = c("dbartsSigmaFallback", "condition"),
-      list(
-        message = "the starting sigma is the sd of the response",
-        call = NULL
-      )
-    ))
+    signalCondition(sigmaFallbackCondition(isWeightedStandIn(weights)))
   }
-  floorSigmaEstimate(
-    sigma,
-    residual,
-    residualOfRowsIn(data@weights, data@weights),
-    frequency
+  floorSigmaEstimate(sigma, residual, weights, frequency)
+}
+
+## The condition signaled where the sd of the response stands in for the
+## starting sigma; 'weighted' says whether that sd read weights other than 1.
+sigmaFallbackCondition <- function(weighted) {
+  structure(
+    class = c("dbartsSigmaFallback", "condition"),
+    list(
+      message = paste0(
+        "the starting sigma is the ",
+        if (weighted) "weighted ",
+        "sd of the response"
+      ),
+      call = NULL,
+      weighted = weighted
+    )
   )
+}
+
+## Whether the stand-in for the starting sigma reads its weights: some weight
+## of a row in is other than 1. 'weights' are those of the rows in.
+isWeightedStandIn <- function(weights) {
+  !is.null(weights) && !all(weights == 1)
+}
+
+## What a fit records where the sd of the response stood in for its starting
+## sigma: TRUE, with the attribute "weighted" TRUE where that sd was weighted.
+## 'condition' is the dbartsSigmaFallback condition signaled.
+sigmaFallbackRecord <- function(condition) {
+  if (isTRUE(condition$weighted)) structure(TRUE, weighted = TRUE) else TRUE
 }
 
 ## The response less its offset over the rows of positive weight, which the
@@ -1994,7 +2014,9 @@ sigmaDesignMatrix <- function(x) {
 ## design with no residual degrees of freedom leaves it non-finite, which is
 ## not an estimate at all: the residual sd of the intercept alone stands in,
 ## the sd of the response less its offset, weighted where 'weights' (those of
-## the rows of 'residual', all positive) are given.
+## the rows of 'residual', all positive) are given; sd() itself where every
+## one is 1, so unit weights give the unweighted fit's starting sigma to the
+## bit.
 floorSigmaEstimate <- function(
   sigma,
   residual,
@@ -2002,7 +2024,7 @@ floorSigmaEstimate <- function(
   frequency = FALSE
 ) {
   if (!is.finite(sigma)) {
-    sigma <- if (is.null(weights)) {
+    sigma <- if (!isWeightedStandIn(weights)) {
       sd(residual)
     } else {
       weightedSd(residual, weights, frequency)

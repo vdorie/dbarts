@@ -308,7 +308,7 @@ extract(object, \dots)
     The names of the training and test rows, which every per-observation output carries; absent when the rows are unnamed. See the row names paragraph of \code{\link{bart}}'s \sQuote{Value} section.
   }
   \item{\code{sigest}, \code{sigest.fallback}}{
-    The rough error standard deviation (\eqn{\sigma}{sigma}) used in the prior. \code{sigest.fallback} is \code{TRUE}, and otherwise absent, where that was the standard deviation of the response because the linear regression had no residual degrees of freedom.
+    The rough error standard deviation (\eqn{\sigma}{sigma}) used in the prior. \code{sigest.fallback} is \code{TRUE}, and otherwise absent, where that was the standard deviation of the response because the linear regression had no residual degrees of freedom; it carries the attribute \code{weighted}, \code{TRUE}, where that standard deviation read weights other than 1.
   }
   \item{\code{resid.scale}, \code{resid.df}}{
     \code{resid.scale} is present only on a family with a residual distribution (\code{"gaussian"}, \code{"student"}, \code{"aft"}): the distribution's scale model, \code{"constant"} or \code{"forest"} for a heteroscedastic fit (\code{variance} on \code{\link{bart}}), whose draws are \code{s.train}/\code{s.test}. The distribution's shape is the family's own (see \code{\link{dbarts}}'s \code{family = student()}). \code{resid.df} is present only for a \code{student()} fit: the degrees of freedom \eqn{\nu}{nu} each draw was conditioned on, in \code{sigma}'s layout - a fixed \eqn{\nu}{nu} repeats its value, an estimated one gives that draw's grid value. \code{extract(type = "loglik")} reads both.

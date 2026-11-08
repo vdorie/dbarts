@@ -458,7 +458,9 @@ estimateStartingSigma <- function(
         )
         estimateSigmaFromLinearModel(data, rule, design, frequency)
       },
-      dbartsSigmaFallback = function(condition) fellBack <<- TRUE
+      dbartsSigmaFallback = function(condition) {
+        fellBack <<- sigmaFallbackRecord(condition)
+      }
     ),
     error = function(e) e
   )
@@ -468,10 +470,12 @@ estimateStartingSigma <- function(
       conditionMessage(tryResult)
     )
   }
-  if (fellBack) {
+  if (isTRUE(fellBack)) {
     announceStartingSigma(
       verbose,
-      "starting sigma is the sd of the response (",
+      "starting sigma is the ",
+      if (isTRUE(attr(fellBack, "weighted"))) "weighted ",
+      "sd of the response (",
       format(tryResult, digits = 4L),
       "): the linear model on ",
       size[2L],

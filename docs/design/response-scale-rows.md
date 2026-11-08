@@ -38,8 +38,9 @@ What it no longer does is move the numbers the prior is stated against.
    at creation and at a re-derivation, with no warning.
 5. Nothing out, nothing changed. With every row in every number has the bits it had before.
 6. sigest stays the weighted regression over the rows in and is re-estimated by no call. Where that regression
-   leaves no residual degrees of freedom, the sd that stands in for it and the floor under it read the rows in,
-   unweighted.
+   leaves no residual degrees of freedom, the sd that stands in for it reads the rows in, weighted as the
+   regression is: the residual sd of the intercept alone, lm(y ~ 1, weights = w)'s sigma, sd(y) at unit weights
+   (dec-B660, revising the unweighted sd first built). The floor under it reads the rows in unweighted.
 7. `xbart`: each fold's range and sigma follow 1, 4 and 6 over the fold's training rows; the call warns once and
    a fold falls back in silence.
 8. Hazard periods. The default periods, and under `breaks = K` its quantiles, are read from the times of the

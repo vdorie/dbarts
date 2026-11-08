@@ -1966,7 +1966,9 @@ bart <- function(
   sigestFallback <- FALSE
   sampler <- withCallingHandlers(
     eval(samplerCall, envir = callingEnv),
-    dbartsSigmaFallback = function(condition) sigestFallback <<- TRUE
+    dbartsSigmaFallback = function(condition) {
+      sigestFallback <<- sigmaFallbackRecord(condition)
+    }
   )
   # the hazard tokens remap to their underlying binary link before the model
   # object is built (R/dbarts.R), so sampler$model@family can no longer say
@@ -2038,8 +2040,8 @@ bart <- function(
     keepSampler
   )
   # absent, not FALSE, where the estimate was a regression's or was given
-  if (sigestFallback) {
-    result$sigest.fallback <- TRUE
+  if (isTRUE(sigestFallback)) {
+    result$sigest.fallback <- sigestFallback
   }
   # needed to extract ppd
   result <- withFitWeights(result, sampler)
@@ -5057,7 +5059,9 @@ bartBT <- function(
         cat(conditionMessage(m))
         invokeRestart("muffleMessage")
       },
-      dbartsSigmaFallback = function(condition) sigestFallback <<- TRUE,
+      dbartsSigmaFallback = function(condition) {
+        sigestFallback <<- sigmaFallbackRecord(condition)
+      },
       warning = function(w) {
         if (!isExcessThreadsWarning(w)) {
           return()
@@ -5128,8 +5132,8 @@ bartBT <- function(
     combinechains,
     keepsampler
   )
-  if (sigestFallback) {
-    result$sigest.fallback <- TRUE
+  if (isTRUE(sigestFallback)) {
+    result$sigest.fallback <- sigestFallback
   }
   # needed to extract ppd; mirrors the modern door's packageBartResults
   if (length(fitWeights(sampler)) > 0L) {

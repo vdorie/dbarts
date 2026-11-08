@@ -1026,6 +1026,88 @@ made <- caught(dbarts(
 expect_equal(length(made$scale), 1L)
 expect_equal(made$sigmaFallbacks, 1L)
 expect_equal(made$value$data@sigma, sd(yOne), tolerance = 1e-14)
+# weights of 1 give the unweighted fit's stand-in to the bit, and a seeded
+# fit draws as the unweighted one does, on a response whose weighted sum of
+# squares differs from sd()'s in the last bit
+ones <- rep(1, 40L)
+yUnit <- x60[, 1L] + cos(5.1 * seq_len(40L))
+expect_false(identical(dbarts:::weightedSd(yUnit, ones), sd(yUnit)))
+expect_identical(
+  dbarts(x60, yUnit, weights = ones, control = control)$data@sigma,
+  sd(yUnit)
+)
+expect_identical(
+  dbarts(x60, yUnit, weights = ones, control = control)$data@sigma,
+  dbarts(x60, yUnit, control = control)$data@sigma
+)
+unitFit <- function(response = yUnit, ...) {
+  suppressWarnings(bart(
+    x60,
+    response,
+    ...,
+    n.trees = 5L,
+    n.samples = 20L,
+    n.burn = 10L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 7L,
+    verbose = FALSE
+  ))
+}
+unitWeighted <- unitFit(weights = ones)
+unweighted <- unitFit()
+expect_identical(unitWeighted$sigest, unweighted$sigest)
+expect_identical(unitWeighted$sigma, unweighted$sigma)
+expect_identical(unitWeighted$yhat.train, unweighted$yhat.train)
+# weights summing to at most 1 are as well defined: the denominator is the
+# rows less one, not the weights' sum
+small <- rep(0.5 / 40, 40L)
+expect_equal(
+  dbarts(x60, y60, weights = small, control = control)$data@sigma,
+  interceptSigma(y60, small),
+  tolerance = 1e-12
+)
+# the verbose line and the fit's record and summary say the sd was weighted,
+# and only where some weight is other than 1
+lines <- startingLines(dbarts(
+  x60,
+  y60,
+  weights = rep(100, 40L),
+  control = verboseControl
+))
+expect_equal(
+  sum(grepl(
+    "starting sigma is the weighted sd of the response (",
+    lines,
+    fixed = TRUE
+  )),
+  1L
+)
+lines <- startingLines(dbarts(
+  x60,
+  y60,
+  weights = ones,
+  control = verboseControl
+))
+expect_equal(
+  sum(grepl("starting sigma is the sd of the response (", lines, fixed = TRUE)),
+  1L
+)
+weightedFit <- unitFit(weights = rep(100, 40L))
+expect_true(isTRUE(weightedFit$sigest.fallback))
+expect_true(isTRUE(attr(weightedFit$sigest.fallback, "weighted")))
+expect_identical(unweighted$sigest.fallback, TRUE)
+expect_identical(unitWeighted$sigest.fallback, TRUE)
+expect_true(any(grepl(
+  "(Starting sigma: the weighted sd of the response;",
+  utils::capture.output(print(summary(weightedFit))),
+  fixed = TRUE
+)))
+expect_true(any(grepl(
+  "(Starting sigma: the sd of the response;",
+  utils::capture.output(print(summary(unweighted))),
+  fixed = TRUE
+)))
 # a response the predictors fit exactly among the rows in: the floor reads
 # the rows in
 exact <- 1 + 2 * x[, 1L] - x[, 2L]
@@ -1217,6 +1299,32 @@ folds <- foldStandIns(xWider, yFold, wSpreadThirteen)
 expect_equal(folds$count, 4L)
 expect_true(all(folds$standsIn))
 expect_equal(folds$made, folds$expected, tolerance = 1e-12)
+# xbart's line for the folds whose stand-in was weighted says so
+foldLine <- function(weights) {
+  lines <- startingLines(xbart(
+    xWide,
+    yFold,
+    weights = weights,
+    n.samples = 10L,
+    n.burn = 5L,
+    n.trees = 5L,
+    n.reps = 1L,
+    n.test = 4,
+    n.threads = 1L,
+    seed = 7L,
+    verbose = TRUE
+  ))
+  lines[grepl("(replication, fold) units", lines, fixed = TRUE)]
+}
+weightedLine <- foldLine(wSpreadThirteen)
+expect_equal(length(weightedLine), 1L)
+expect_true(startsWith(
+  weightedLine,
+  "starting sigma is the weighted sd of the response in 4 of 4"
+))
+unitLine <- foldLine(wThirteen)
+expect_equal(length(unitLine), 1L)
+expect_true(startsWith(unitLine, "starting sigma is the sd of the response in"))
 # a fold's rule 4 tests the response less its offset: rows in at one response
 # and several offsets hold a range, so its regression keeps the weights
 seen <- floorCalls(x, ySame, weights = sameIn, offset = off)

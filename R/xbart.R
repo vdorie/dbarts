@@ -913,10 +913,17 @@ xbart <- function(
   # all rows allowed a regression; the units whose own rows did not took the
   # sd of their response, which is said once for the run
   numSigmaFallbacks <- sum(unlist(lapply(chunkResults, `[[`, "sigmaFallbacks")))
+  numWeightedFallbacks <- sum(unlist(lapply(
+    chunkResults,
+    `[[`,
+    "weightedSigmaFallbacks"
+  )))
   if (numSigmaFallbacks > 0L) {
     announceStartingSigma(
       verbose,
-      "starting sigma is the sd of the response in ",
+      "starting sigma is the ",
+      if (numWeightedFallbacks > 0L) "weighted ",
+      "sd of the response in ",
       numSigmaFallbacks,
       " of ",
       numUnits,
@@ -1136,7 +1143,8 @@ xbartSigestFunction <- function(sigest) {
 ## were distributed, and no worker ever calls set.seed().
 ## Returns a (units x cells) x numResults matrix, cells in spec$cells order,
 ## with the number of units whose starting sigma was the sd of their response
-## for want of a regression as its attribute "sigmaFallbacks".
+## for want of a regression as its attribute "sigmaFallbacks", and of those
+## the units whose sd read weights other than 1 as "weightedSigmaFallbacks".
 xbartRunUnits <- function(spec, unitRows, unitSeeds) {
   data <- spec$data
   cells <- spec$cells
@@ -1190,6 +1198,8 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
   # the units that were to run a regression and whose training rows leave it
   # no residual degrees of freedom, counted for the caller to announce
   numSigmaFallbacks <- 0L
+  # and of those, the units whose stand-in read weights other than 1
+  numWeightedFallbacks <- 0L
   foldData <- function(trainRows) {
     if (is.null(route)) {
       return(data)
@@ -1236,8 +1246,12 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
     } else {
       NA_real_
     }
+    rowsInWeights <- residualOfRowsIn(weights, weights)
     if (route != "marginal" && !is.finite(sigma)) {
       numSigmaFallbacks <<- numSigmaFallbacks + 1L
+      if (isWeightedStandIn(rowsInWeights)) {
+        numWeightedFallbacks <<- numWeightedFallbacks + 1L
+      }
     }
     residual <- residualOfRowsIn(
       if (!is.null(offset)) y - offset else y,
@@ -1246,7 +1260,7 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
     data@sigma <- floorSigmaEstimate(
       sigma,
       residual,
-      residualOfRowsIn(weights, weights),
+      rowsInWeights,
       frequency
     )
     data
@@ -1337,7 +1351,11 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
     results[[i]] <- sweepCells(unitRows[[i]], unitSeeds[i, ])
   }
 
-  structure(do.call(rbind, results), sigmaFallbacks = numSigmaFallbacks)
+  structure(
+    do.call(rbind, results),
+    sigmaFallbacks = numSigmaFallbacks,
+    weightedSigmaFallbacks = numWeightedFallbacks
+  )
 }
 
 ## xbartRunUnits with every warning its fits raise captured rather than
@@ -1383,7 +1401,8 @@ xbartRunChunk <- function(spec, unitRows, unitSeeds) {
     loss = loss,
     warnings = captured,
     onceKeys = setdiff(warnedOnceKeys(), spec$onceKeys),
-    sigmaFallbacks = attr(loss, "sigmaFallbacks")
+    sigmaFallbacks = attr(loss, "sigmaFallbacks"),
+    weightedSigmaFallbacks = attr(loss, "weightedSigmaFallbacks")
   )
 }
 

@@ -523,9 +523,10 @@ summary.bart <- function(
   if (length(forests) > 0L) {
     result$forests <- forests
   }
-  # where the starting sigma was the sd of the response, absent otherwise
+  # where the starting sigma was the sd of the response, absent otherwise;
+  # its "weighted" attribute says that sd was weighted
   if (isTRUE(object[["sigest.fallback"]])) {
-    result$sigest.fallback <- TRUE
+    result$sigest.fallback <- object[["sigest.fallback"]]
   }
   structure(result, class = "summary.bart")
 }
@@ -694,12 +695,14 @@ printFixedLine <- function(fixed) {
 }
 
 # one line under the table where the residual prior was calibrated against
-# the sd of the response for want of a regression
+# the sd of the response for want of a regression, weighted or not
 printStartingSigmaLine <- function(x) {
   if (isTRUE(x$sigest.fallback)) {
     cat(
-      "(Starting sigma: the sd of the response; the linear model had no ",
-      "residual degrees of freedom)\n",
+      "(Starting sigma: the ",
+      if (isTRUE(attr(x$sigest.fallback, "weighted"))) "weighted ",
+      "sd of the response; the linear model had no residual degrees of ",
+      "freedom)\n",
       sep = ""
     )
   }

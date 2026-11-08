@@ -337,7 +337,7 @@ On a fit that chooses frequency, or a count family whose own reading is counts; 
 |---|---|---|
 | sigma's posterior | df nu + positive rows, SSR sum(w r^2) | df nu + sum(w), same SSR |
 | sigest and the chi prior's anchor | lm.wfit, df positive rows - p | df sum(w) - p |
-| starting sigma's stand-in | unweighted sd over positive rows | weighted sd |
+| starting sigma's stand-in | weighted sd over positive rows, df positive rows - 1 (dec-B660) | weighted sd, df sum(w) - 1 |
 | mean forest: leaf updates, tree moves, k | precision w | unchanged |
 | variance forest | leaf count: positive rows | leaf count sum(w), in its leaf draw and tree moves |
 | Student-t | composite w lambda | composite Lambda, shape w (nu + 1) / 2, nu step generalized |

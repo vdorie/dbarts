@@ -460,7 +460,9 @@ rbart_vi <- function(
   sigestFallback <- FALSE
   validationSampler <- withCallingHandlers(
     do.call(dbarts::dbarts, samplerArgs),
-    dbartsSigmaFallback = function(condition) sigestFallback <<- TRUE
+    dbartsSigmaFallback = function(condition) {
+      sigestFallback <<- sigmaFallbackRecord(condition)
+    }
   )
   writeGlobalSeed(streamBefore)
   # "auto" resolved (and was announced) once, above; the chains take the
@@ -557,8 +559,8 @@ rbart_vi <- function(
     seed,
     keepSampler
   )
-  if (sigestFallback) {
-    result$sigest.fallback <- TRUE
+  if (isTRUE(sigestFallback)) {
+    result$sigest.fallback <- sigestFallback
   }
   result
 }
