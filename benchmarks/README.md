@@ -443,9 +443,10 @@ must be green. The probit-k job takes
 
 The frequency arm is run by dispatch, outside the matrix and its M: a gaussian
 fit at real weights, Uniform(0.5, 2), whose theta0 draws sigma from the prior
-tilted by the frequency likelihood's factor (sigma^2)^(-(W - n) / 2), W the
-weights' total, and y0 at sd sigma / sqrt(w) (sbcFrequencySigmaDraw), so its
-ranks are uniform exactly when the sampler reads the weights as counts. Each
+tilted by the frequency likelihood's factor (sigma^2)^(-(W - n+) / 2), W the
+weights' total and n+ the rows of positive weight, and y0 at sd sigma / sqrt(w)
+(sbcFrequencySigmaDraw), so its ranks are uniform when the sampler reads the
+weights as counts; the self-check reads the tilted draw's median. Each
 functional is read at its own 5% band. At R = 200, L = 200, thin 30 it takes
 about 11 minutes on the laptop.
 

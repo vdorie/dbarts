@@ -96,22 +96,55 @@ sbcSigmaDraw <- function(sigest, df, quant) {
 
 # The sigma draw of a frequency-weighted gaussian arm. Under frequency weights
 # the likelihood is prod_i N(y_i; f_i, sigma^2)^{w_i}, which is
-# prod_i N(y_i; f_i, sigma^2 / w_i) times (sigma^2)^{-(W - n) / 2} and a
-# constant, W the weights' total: the precision model's likelihood with sigma's
-# prior raised by W - n degrees of freedom and no sum of squares. Theta0's
-# sigma comes from that tilted prior, sigma^2 ~ df sigest^2 rawScale /
-# chisq(df + W - n), and y0 from the precision model's sd sigma / sqrt(w);
-# ranks are then uniform exactly when the sampler draws the frequency
-# posterior. W >= n - df keeps the tilt a distribution.
+# prod_i N(y_i; f_i, sigma^2 / w_i) times (sigma^2)^{-(W - n+) / 2} and a
+# constant, W the weights' total and n+ the rows of positive weight (a row of
+# weight 0 is out of the likelihood): the precision model's likelihood with
+# sigma's prior raised by W - n+ degrees of freedom and no sum of squares.
+# Theta0's sigma comes from that tilted prior, sigma^2 ~ df sigest^2 rawScale /
+# chisq(df + W - n+), and y0 from the precision model's sd sigma / sqrt(w);
+# ranks are then uniform when the sampler draws the frequency posterior. The
+# tilt is a distribution only where df + W - n+ is positive. The construction
+# covers one sigma under the scaled inverse chi-square prior; a variance forest
+# or Student-t errors would each need their own.
+sbcFrequencyExtraDf <- function(weights) {
+  sum(weights) - sum(weights > 0)
+}
 sbcFrequencySigmaDraw <- function(sigest, df, quant, weights) {
-  extra <- sum(weights) - length(weights)
+  extra <- sbcFrequencyExtraDf(weights)
   if (df + extra <= 0) {
-    stop("frequency weights totaling below n - df tilt no sigma prior")
+    stop(
+      "frequency weights totaling at most n+ - df, n+ the rows of positive ",
+      "weight, tilt no sigma prior"
+    )
   }
   rawScale <- qchisq(1 - quant, df) / df
   function(nDraws = 1L) {
     sqrt(df * sigest^2 * rawScale / rchisq(nDraws, df + extra))
   }
+}
+
+# The tilted draw's own check: its median against the scaled inverse
+# chi-square's at df + W - n+ degrees of freedom. P(sigma < sigest) is near 1
+# under the tilt and checks nothing, so the median alone is read.
+sbcCheckFrequencySigmaPrior <- function(
+  sigest,
+  df,
+  quant,
+  weights,
+  nDraws = 2e5L
+) {
+  draws <- sbcFrequencySigmaDraw(sigest, df, quant, weights)(nDraws)
+  medianTheory <- sqrt(
+    df *
+      sigest^2 *
+      (qchisq(1 - quant, df) / df) /
+      qchisq(0.5, df + sbcFrequencyExtraDf(weights))
+  )
+  list(
+    medianEmpirical = median(draws),
+    medianTheory = medianTheory,
+    pass = abs(median(draws) / medianTheory - 1) < 0.02
+  )
 }
 
 # Moment/calibration check the spec requires before trusting the sigma prior:
@@ -3726,9 +3759,9 @@ if (sys.nframe() == 0L) {
     cfg$weights <- rgamma(cfg$n, 2, 2) # known, positive, mean 1
     cfg
   } else if (isFrequency) {
-    # real frequency weights, mean 1.25 (sbcFrequencySigmaDraw): their total
-    # adds about 37 degrees of freedom to sigma's prior, which a sigest of 3
-    # keeps near the gaussian arm's sigma
+    # real frequency weights, mean 1.25 (sbcFrequencySigmaDraw): at this seed
+    # their total adds about 43 degrees of freedom to sigma's prior, which a
+    # sigest of 3 keeps near the gaussian arm's sigma
     cfg <- sbcConfig(family = "gaussian")
     set.seed(7L)
     cfg$weights <- runif(cfg$n, 0.5, 2)
@@ -3829,6 +3862,21 @@ if (sys.nframe() == 0L) {
     if (chk$pass) "PASS" else "FAIL"
   ))
   selfCheckPass <- c(sigma = isTRUE(chk$pass))
+  if (identical(config$weightsType, "frequency")) {
+    fc <- sbcCheckFrequencySigmaPrior(
+      config$sigest,
+      config$sigDf,
+      config$sigQuant,
+      config$weights
+    )
+    cat(sprintf(
+      "  tilted sigma (frequency): median %.4f vs %.4f -> %s\n",
+      fc$medianEmpirical,
+      fc$medianTheory,
+      if (fc$pass) "PASS" else "FAIL"
+    ))
+    selfCheckPass["frequencySigma"] <- isTRUE(fc$pass)
+  }
   if (isDart) {
     d <- sbcCheckDirichlet(config$dartAlpha, config$p)
     cat(sprintf(
