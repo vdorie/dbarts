@@ -472,6 +472,11 @@ items
       effects is not what this evidence predicts.
     - Proposal: Whether the move's code size, 1,400 to 2,900 lines with
       a slice that changes the posterior, is a gate or only reported.
+  rbart-vi-warning-once: rbart_vi says each creation warning once per
+    fit, whatever its chain and thread counts, its chains' samplers
+    silent on what the checking sampler said, as for the starting
+    sigma's message (dec-B668, VD 2026-11-07: "One warning per fit.").
+    About 3 lines and a test; no draw moves.
   kmp-heldout-design: pricing's real datasets, redesigned by the agents
     (dec-B651, VD 2026-11-07: "If the held-out dataset approach could
     be improved, I leave that up to you for now."). A planner rewrites
