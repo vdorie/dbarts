@@ -254,6 +254,13 @@ items
     samplePriorPredictive already draws f from the prior at x.test; the
     helper would summarize it, or compute it in closed form where one
     exists (constant, linear).
+  matrix-fit-frame-test: a data frame given as test data to any fit is
+    read by name as a frame fit reads it, the training names taken
+    and extra columns ignored, a missing or renamed column refused as
+    now; a matrix keeps its exact width. It applies at predict, at
+    test = and at $setTestPredictor; the training-data setters keep
+    dec-B478's refusal (dec-B711). About 5 to 10 lines, a few tests
+    and a NEWS line; nothing that runs today moves.
   monotone-repair-merge: setPredictor, setData, setCutPoints and
     setState under forceUpdate, and the warm start, repair a monotone
     tree whose order a call breaks by merging leaves where it breaks, at
@@ -292,6 +299,24 @@ items
     probability as the variable moves, a category margin on the result
     and one line per category in the plots. Refused until then.
     Scheduled after 1.0-0 (VD 2026-10-04, dec-B209).
+  prior-names-where-priors-go: inside forest() a prior's name (normal,
+    fixed, student, invchi) means dbarts's prior only in an argument
+    that takes a prior (amplitude =, and leaf.prior = at the fitting
+    function); in sd = and the other number arguments a caller's own
+    function of that name is called. dec-B272's refusal of a basis
+    term calling a prior's name stands (dec-B708). About 15 to 25
+    lines and a few tests.
+  refusal-forest-label: every refusal names a forest by its label, as
+    the fit's results do (its name in the forests list, else the text
+    of its basis), at creation and at $setForest alike; a forest with
+    no name and no basis stays "forest 2" (dec-B713). About 10 to 20
+    lines and one test rewritten; no draws move.
+  refuse-unsplittable-fit: bart(), xbart() and rbart_vi() refuse a fit
+    in which every predictor holds one value on the rows kept and no
+    forest has a basis, the message naming the columns; dbarts() and
+    new() keep taking it, and a fit with a basis forest stays fitted
+    (dec-B717). About 5 to 10 lines and a test; a 0.9-34 matrix call
+    that fit silently now stops.
   sd-stated-meaning: getLeafPrior()'s sd.stated is TRUE wherever a
     forest's size comes from an sd the user wrote, the fitting
     function's normal(sd = ) or forest(sd = ), FALSE for the default and
@@ -305,12 +330,38 @@ items
     states its own; forest()'s help sentence that a stated mix is fixed
     for the sampler's life is corrected (dec-B697). About 10 to 15 lines
     and two tests; no draws move.
+  setforest-roundtrip-sd: a setting given back to $setForest is
+    compared with the value in force before the call, so a handed-back
+    sd is no change on every model, whatever else the call changes;
+    to pin an sd, state a different one or the same in a second call.
+    This extends dec-B538 to a call that changes other settings too
+    (dec-B714). About 5 lines, pins rewritten and a help sentence;
+    draws move only for the handed-back call under a drawn k.
   setmodel-probit-stated-sd: a probit sampler of several forests whose
     candidate states an sd at creation refuses its own model ("does not
     resolve to the leaf hyperprior"), against the help's "always
     accepted"; a stated-sd install through $setModel cannot reach such a
     sampler. Found reviewing setmodel-installs-stated (dec-A278); on
     main before it. A fix and a pin.
+  setstate-dart-zero: a state whose DART weight is 0 on a column the
+    sampler may split on does not fit cleanly: unforced setState
+    returns FALSE with the sampler untouched, forced installs it with
+    the DART weights started fresh as installTrees does; negative,
+    missing or all-zero weights stay errors (dec-B712). About 20 to 30
+    lines reusing the warm start's step, tests and a help sentence; no
+    state the package writes for its own sampler moves.
+  split-probs-one-named: split.probs = c(x2 = .9), a named vector of one
+    value, is refused as any named vector missing a column with no
+    .default is, naming the missing columns and .default; today it
+    reads as uniform with no message (dec-B716). With the rest of
+    split.probs's doors, among them a hazard fit's refusal of a vector
+    leaving out period, where n.cuts takes it (dec-B553). About 3 lines
+    and a test; a 0.9-34 call that ran silently wrong now stops.
+  stan4bart-constant-bart: stan4bart work. stan4bart refuses again a
+    formula whose bart() columns each hold one value on the rows kept,
+    with its no-bart-component message plus a clause naming the
+    columns (dec-B715). About 3 to 5 lines in stan4bart and a test.
+    Whether dbarts itself fits such a model is dec-B717.
   test-weight-missing: a fit whose test data carry a weights column with
     a missing value stops at fit time, naming the rows and saying to
     fill or drop them or to use predict(..., na.action = na.pass); a
@@ -1141,10 +1192,6 @@ items
   leaf-prior-writer-by-level: the reader and the writer are built
     (setmodel-parameters' slice 4). The creation summary of invchi(df, 0)
     still reads "chi ... inf scale".
-  split-probs-one-named-value: split.probs = c(x2 = .9) reads today as uniform with no
-    message, a length-one specification losing its name, where n.cuts = c(x2 = 10) is refused
-    (dec-B547). Run 2026-10-30. To put to the maintainer, with the rest of split.probs's doors,
-    among them a hazard fit's refusal of a vector leaving out period, where n.cuts takes it (dec-B553).
   consumer-slot-writes: stan4bart (R/generics.R, R/stan4bart_fit.R, R/stan4bart.R) and bartCause
     (R/responseFit.R) write a data object's slots before handing it on (x, x.test, sigma, n.cuts,
     useQuantiles). A data object's slots are read-only copies (dec-B554): move each to an accessor
