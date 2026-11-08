@@ -49,14 +49,15 @@ you send pricing there. Each step reaches you as a short research report.
 
 Real outcomes enter on datasets nobody here has looked at. Six of them are scored by how far each sampler's
 estimates fall from a very long run of the same model, in place of predicting held-out outcomes: since both
-samplers aim at the same answer, that measures directly the only thing the move can change. For the same reason
-the screen of datasets keeps only what bears on such a comparison, and 26 candidates from two published
-benchmarks pass where 7 passed before. How well each sampler predicts the held-out outcomes is still reported
-beside it. The very long runs are accepted only when both samplers' runs agree, and on the strongest-signal data
-they often do not, so about four times in ten fewer than three of the six may pass, and the guard then says
-nothing either way; the move is not recommended on without it. The rule and the list went to an independent
-referee and were revised on its report; they come to you before anything is fitted on them. About 43 core-hours
-through the head-to-head comparison, 52 with the check on the data.
+samplers aim at the same answer, that measures directly the only thing the move can change. For the same reason the
+screen of datasets keeps only what bears on such a comparison, and 21 candidates from published benchmarks pass
+where 7 passed before; the last three of the 24 needed come from a seeded draw from the UCI repository, screened
+twice before the list is fixed. How well each sampler predicts the held-out outcomes is still reported beside it.
+The very long runs are accepted only when both samplers' runs agree, and on the strongest-signal data they often do
+not, so about four times in ten fewer than three of the six may pass, and the guard then says nothing either way;
+the move is not recommended on without it. The rule and the list went to an independent referee and were revised on
+its report; they come to you before anything is fitted on them. About 43 core-hours through the head-to-head
+comparison, 52 with the check on the data.
 
 ## Context
 
@@ -247,20 +248,21 @@ differ rerun step 2's first look on that regime.
 - **Seen and held out.** All 22 real prediction datasets of the k study have been seen, with their real outcomes
   (tictactoe, banknote, mushroom, spambase, ionosphere, sonar, wdbc, climate, biopsy, magic, bank, adult,
   creditapproval, cleveland, pbc, kyphosis, pima, german, transfusion, infert, birthwt, haberman), and so have
-  lindner, ACTG 175 and lalonde, and IHDP, ACIC 2016 and 2019 and Twins as designs. Steps 1 and 2 use some of
-  them for covariates only, under drawn truths. Real outcomes enter only through two sets of datasets not yet
-  looked at, R2 (step 2's real-data guard, 6 datasets) and R3 (step 3's test, 12), drawn by the rule in
-  [k-move-pricing-datasets.md](k-move-pricing-datasets.md) (dec-B635, dec-B651). Its frame is published and
-  curated by others: TabArena's binary tasks, then OpenML-CC18's, then the binary datasets TabArena's curators set
-  aside for reasons that do not bear on a sampler comparison, then a seeded UCI census only if those leave the
-  pool short. Its screen keeps what bears on a comparison of two samplers of one posterior: the outcome as its
-  source defined it, real data, no source shared with a seen dataset and one dataset per source, at least 100
-  rows and a 0.01 minority share, a license permitting research use, and at most 2,000 columns. On documentation
-  26 pass, 17 of them with at least 1,000 rows, so the census does not run. Each passer's separation score is
-  computed from the data alone and kept sealed in the harness until step 3 starts, since it is the trigger's own
-  feature; R2 takes one dataset from each of 6 blocks by score and R3 one from each of 12 blocks of the rest, by a
-  seed fixed in the rule, the rest reserves (R2's and R3's sizes are call 7's). The rule and list are sealed after
-  their referee and before any file is loaded, and the assignment is committed before step 2 runs.
+  lindner, ACTG 175 and lalonde, and IHDP, ACIC 2016 and 2019 and Twins as designs. Steps 1 and 2 use some of them
+  for covariates only, under drawn truths. Real outcomes enter only through two sets of datasets not yet looked at,
+  R2 (step 2's real-data guard, 6 datasets) and R3 (step 3's test, 12), drawn by the rule in
+  [k-move-pricing-datasets.md](k-move-pricing-datasets.md) (dec-B635, dec-B651). Its frame is published and curated
+  by others: TabArena's binary tasks, then OpenML-CC18's, then the binary datasets TabArena's curators set aside
+  for reasons that do not bear on a sampler comparison, then a seeded UCI census only if those leave the pool
+  short. Its screen keeps what bears on a comparison of two samplers of one posterior: the outcome as its source
+  defined it, real data, no source shared with a seen dataset and one dataset per source, at least 100 rows and a
+  0.01 minority share, a license permitting research use, and at most 2,000 columns. On documentation 21 pass, 14
+  of them with at least 1,000 rows, so the census runs, on documentation before the seal, until 24 pass; on one
+  screen its first 80 draws give 4 passers and 3 more whose share a second screen may settle. Each passer's
+  separation score is computed from the data alone and kept sealed in the harness until step 3 starts, since it is
+  the trigger's own feature; R2 takes one dataset from each of 6 blocks by score and R3 one from each of 12 blocks
+  of the rest, by a seed fixed in the rule, the rest reserves (R2's and R3's sizes are call 7's). The rule and list
+  are sealed after their referee and before any file is loaded, and the assignment is committed before step 2 runs.
 - **Equal running time.** Per regime, the move's time ratio r (move over shipped) on the box, idle: a full default
   fit as the user runs it, three replications a regime, three alternating repetitions per library, per-round
   minima, the load stamped, each less the same library's time for a fit of one sweep on the same data, the time
@@ -1119,23 +1121,29 @@ Open.
 
 **Call 7. The held-out datasets.** Open (dec-B635, dec-B651). The rule and the list are in
 [k-move-pricing-datasets.md](k-move-pricing-datasets.md), with the per-entry screen in
-[k-move-pricing-screen.csv](k-move-pricing-screen.csv): a published frame, a screen of six criteria that bear on
-a comparison of two samplers of one posterior, 26 passers on documentation, 17 with at least 1,000 rows, and a
-seeded stratified draw of R2 and R3 fixed in it. After the survey, the two audits and the first referee, a planner
-rebuilt how the datasets enter; an independent referee read the rule and list, and they were revised on its report
-(both in [Amendments](#amendments)). Seven passers rest on one screener and get a second screen before the seal.
-The rule and list come to you as the decision, before anything is fitted on them. No 0.9-34 study used held-out
-real datasets for a sampler change. Within it, for you, settled before the seal since the draw's code depends on
-them: R2's and R3's sizes. The options, with the chance that the guard reads at a true difference of 0 (at least 3
-references accepted and the conjunction resolving, at s = 0.70 and 0.94; soft, since the yield rests on the k
-study's rates) and the expected cost over the plan as written; R3's cost falls only if step 3 runs:
+[k-move-pricing-screen.csv](k-move-pricing-screen.csv): a published frame, a screen of six criteria that bear on a
+comparison of two samplers of one posterior, 21 passers on documentation, 14 with at least 1,000 rows, the seeded
+UCI census screened until 24 pass, and a seeded stratified draw of R2 and R3 fixed in it. After the survey, the two
+audits and the first referee, a planner rebuilt how the datasets enter; an independent referee read the rule and
+list, and they were revised on its report (both in [Amendments](#amendments)). The seven passers that rested on one
+screener had a second screen, which four failed; the census entries that bring the pool to 24 get two screens
+before the seal. The rule and list come to you as the decision, before anything is fitted on them. No 0.9-34 study
+used held-out real datasets for a sampler change. Within it, for you, settled before the seal since the draw's code
+depends on them: R2's and R3's sizes. The options, with the chance that the guard reads at a true difference of 0
+(at least 3 references accepted and the conjunction resolving, at s = 0.70 and 0.94; soft, since the yield rests on
+the k study's rates) and the expected cost over the plan as written, at about 1.0 core-hour a further R2 dataset
+and 0.76 a further R3 dataset; R3's cost falls only if step 3 runs. At the pool of 24 the census completes:
 
 | option | R2 | R3 | guard reads | step 3 tests | reserves | core-hours more |
 |---|---|---|---|---|---|---|
-| (a), as written | 6 | 12 | 0.61, 0.58 | 18 | 8 | 0 |
-| (b) | 9 | 12 | 0.93, 0.88 | 21 | 5 | about 3 |
-| (c) | 6 | the other 20 | 0.61, 0.58 | 26 | 0 | about 6, in step 3 |
-| (d) | 9 | the other 17 | 0.93, 0.88 | 26 | 0 | about 3, and 4 in step 3 |
+| (a), as written | 6 | 12 | 0.61, 0.58 | 18 | 6 | 0 |
+| (b) | 9 | 12 | 0.93, 0.88 | 21 | 3 | about 3 |
+| (c) | 6 | the other 18 | 0.61, 0.58 | 24 | 0 | about 5, in step 3 |
+| (d) | 9 | the other 15 | 0.93, 0.88 | 24 | 0 | about 3, and 2 in step 3 |
+
+Every option is feasible from 24. If the census ended short at 21, (a) would keep 3 reserves and (b) none, (c)
+would take R3 at 15 (about 2 more in step 3) and (d) would be (b). A reserve replaces only a file that fails to
+reload after the draw, which the pre-fit check before the draw makes rare.
 
 The planner's recommendation, not a ruling: (b). At 6 datasets the guard reaches you as counts about four times in
 ten and so blocks the default it guards; at 9 it reads about nine times in ten for about 3 core-hours. R3 at 12
@@ -1288,7 +1296,7 @@ The planner's, each with its alternative; the dataset rule's own calls are in it
 - That a thin of 500 or less gives 50 effective draws on each of step 1's four functionals under chi(1.5, 0.1),
   and the selection costs of the tilted arm's S2 rate test.
 - The candidate datasets' sizes, rates and files: from suite records and repository pages, checked against the
-  files at the pre-fit check; seven passers rest on one auditor's screen and this amendment's reading.
+  files at the pre-fit check; the census entries that complete the pool rest on two screens not yet made.
 - The real-data guard's spread s over fits, and so its power; the per-sweep times at R2's sizes, taken from the
   plan's R3 figures; how many R2 references pass acceptance, projected from the k study's rates by score on its
   own datasets; how often a reference escalates; the share of fixed time in a default fit; the pilot's effect on
@@ -1305,6 +1313,17 @@ The planner's, each with its alternative; the dataset rule's own calls are in it
   any documented default.
 
 ## Amendments
+
+**2026-11-07, the second screen of the seven single-screened passers.** APSFailure, Internet-Advertisements and
+skin-segmentation pass; nomao, clean1 and NHANES_age_prediction fail 1, cylinder-bands fails 5, and they leave the
+pool. The screener's five readings of the rule are stated in the dataset rule and applied to every entry (its
+calls 11 to 15): a doubt fails only on a kept criterion or the pre-fit check; factors count as bart() expands
+them; a share is established only by the suite, the donor, the originating paper or a repository record of the
+same file, which fails rice and sources six other shares anew; a suite's value edits are recorded; the loader sets
+predictors' types as the donor lists them, in place of the screener's failing of a departure. The pool is 21, 14
+with at least 1,000 rows, short of 24, so the census runs on documentation before the seal (dataset rule call
+16): its first 80 draws, re-read, give 4 passers on one screen and 3 whose share a second screen may settle. Call
+7's options are restated at a pool of 24, with their feasibility at 21; the totals stand.
 
 **2026-11-07, dec-B651's second referee round** (minor revision). Each point, with what changed; none is declined.
 - The length guard reads the draw count at the accepting block end only, the other checks at both, so a reference
