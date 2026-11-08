@@ -599,7 +599,10 @@ items
     and lme4's form of the test for a column collinear with the
     intercept, at the tolerance a centered and scaled BART leaf needs,
     not lm's 1e-7; dec-B655) is read as one value: refused at creation, the message naming the
-    test and saying to drop the column or subtract a constant, and
+    test and advising only what works for each kind of column: drop it,
+    recompute it from its source about a near origin, or change the rows
+    in, never subtract a constant (dec-B673, VD 2026-11-07: "Advise
+    only what works for each kind."), and
     treated at every setter that re-derives the center and scale as a
     column of one value is there (dec-B654, VD 2026-11-07: "Can we (b)
     in a way that is as-principled as lm and lme4? If so, use (b).
