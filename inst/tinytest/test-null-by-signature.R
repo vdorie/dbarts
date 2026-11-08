@@ -3,6 +3,7 @@
 # refused, saying to leave the name out. It is judged by the value, so a
 # wrapper's argument is read by what it holds.
 
+varianceForest <- dbartsForests$varianceForest
 set.seed(5L)
 n <- 50L
 d <- data.frame(x1 = rnorm(n), x2 = rnorm(n))
@@ -78,8 +79,8 @@ expect_equal(
   fit(y ~ x1 + x2, d)
 )
 expect_equal(
-  fit(y ~ x1 + x2, d, variance = ~ varianceForest(x1, power = NULL)),
-  fit(y ~ x1 + x2, d, variance = ~ varianceForest(x1))
+  fit(y ~ x1 + x2, d, variance = varianceForest(x1, power = NULL)),
+  fit(y ~ x1 + x2, d, variance = varianceForest(x1))
 )
 
 # judged by the value: a wrapper's variable, or one passed on by '...'

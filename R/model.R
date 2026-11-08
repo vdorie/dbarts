@@ -1010,7 +1010,8 @@ resolveMonotone <- function(spec, data) {
 # Resolve the `variance` heteroscedastic selector to 1-based model-matrix
 # column indices for the variance forest, or NULL for a homoscedastic fit.
 # NULL/FALSE -> no variance forest; TRUE or ~. -> every column; a one-sided
-# formula, character names, or numeric indices -> that subset (factor terms
+# formula (read as varianceForest()'s first argument is), character names, or
+# numeric indices -> that subset (factor terms
 # expand to their indicator columns, the resolveMonotone precedent). Returns
 # an integer vector; a full-set selection returns every index (the caller may
 # elide the mask, which is equivalent).
@@ -1036,9 +1037,19 @@ resolveVarianceColumns <- function(variance, data, argument = "variance") {
   if (isTRUE(variance)) {
     return(seq_len(numColumns))
   }
-  requestedNames <- if (inherits(variance, "formula")) {
-    all.vars(variance)
-  } else if (is.character(variance)) {
+  if (inherits(variance, "formula")) {
+    # read exactly as varianceForest()'s first argument is, by the one
+    # grammar: the terms matched to the fit's column labels
+    code <- captureForestVars(variance, "the 'variance' formula")
+    code$unbound <- all.vars(code$expr)
+    columns <- resolveForestVars(
+      code,
+      data,
+      owner = "the 'variance' formula"
+    )
+    return(if (is.null(columns)) seq_len(numColumns) else columns)
+  }
+  requestedNames <- if (is.character(variance)) {
     variance
   } else {
     NULL

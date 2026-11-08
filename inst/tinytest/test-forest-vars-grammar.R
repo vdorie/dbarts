@@ -141,6 +141,56 @@ expect_identical(
   draws(withVariance(TRUE))
 )
 
+## --- a plain variance formula reads as varianceForest() reads it ---------------
+# the dot and a transformed term are taken, as varianceForest() takes them
+same(list(
+  withVariance(quote(varianceForest(. - x1))),
+  withVariance(~ . - x1)
+))
+logFrame <- frame
+logFrame$x3 <- abs(logFrame$x3) + 1
+logVariance <- function(variance) {
+  bquote(dbarts(
+    y ~ x1 + x2 + log(x3),
+    logFrame,
+    variance = .(variance),
+    control = control,
+    n.trees = 6L
+  ))
+}
+same(list(
+  logVariance(quote(varianceForest(~ log(x3)))),
+  logVariance(~ log(x3)),
+  logVariance("log(x3)")
+))
+# a star, a colon and an I() term are refused with the message naming the
+# fit's predictors, where the variables mentioned were once read silently
+for (term in c("x2 * x3", "x2:x3", "I(x2^2)")) {
+  expect_identical(
+    refusal(eval(withVariance(str2lang(paste0("~ ", term))))),
+    paste0(
+      "'",
+      term,
+      "' is not a predictor of this fit (x1, x2, x3); here the 'variance' ",
+      "formula selects among them"
+    ),
+    info = term
+  )
+  expect_true(
+    grepl("is not a predictor", refusal(eval(withVariance(
+      str2lang(paste0("varianceForest(~ ", term, ")"))
+    ))), fixed = TRUE),
+    info = term
+  )
+}
+expect_identical(
+  refusal(eval(withVariance(~nosuch))),
+  paste0(
+    "'nosuch' is not a predictor of this fit (x1, x2, x3); here the ",
+    "'variance' formula selects among them"
+  )
+)
+
 ## --- what is refused --------------------------------------------------------------
 twoSided <- y ~ x1 + x2
 expect_identical(
