@@ -840,6 +840,13 @@ items
     docs/plans/release-candidate-review.md's wave-3 landing note; the
     review's own DEFER bin is
     docs/plans/review-2026-08-24/consolidated-report.md.
+  multinomial-setresponse-factor: a multinomial sampler every row of
+    whose response holds one trial takes a factor in $setResponse,
+    matched to its levels by label, the written-form record becoming
+    factor; a factor refused where any row holds more than one trial,
+    naming the count matrix; numeric codes still refused (dec-B656, VD
+    2026-11-07: "You can use (b)."). On the frequency-weights branch or
+    after it lands.
   setresponse-positional-arg-warning: drop the once-per-session warning on
     a positionally-supplied second argument to $setResponse (it now sets
     updateScale, not updateState) once callers have had a full minor cycle
