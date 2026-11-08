@@ -53,8 +53,9 @@ takes one: a `forest()` term, a `forests` list, `dbartsSpec()`, `dbartsData(base
    factor back to its block with [`storedBasisBlock`](../../R/forestBasis.R).
 6. What the sampler keeps. The block and the levels, not the factor: a caller that will hand a basis back keeps
    the factor it handed over, and reads the forest's levels at `data@basis.levels[[f]]`, `f` its position: the list has no names.
-7. State. A state carries no data, and the levels are data. Installed in a sampler whose factor has the same
-   levels in another order, it goes by position, with no message; the recipient's levels and block are its own.
+7. State. A state carries no data, but a state of a sampler with a factor forest records that forest's level
+   names. Installed in a sampler whose factor has the same levels in another order, each coefficient goes onto
+   its own level by name; names that differ are refused (state-basis-levels.md).
 8. `$setData` on a sampler of one forest refuses a data object that carries bases, before anything is stored
    ([`bartcoreSamplerSetData`](../../R/bartcore.R)); the sampler has no forest to multiply them. One that
    records levels and carries no block for them is refused there too, by the record's check.

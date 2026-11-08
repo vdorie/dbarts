@@ -310,16 +310,10 @@ items
     values fallback stays unweighted (dec-B660, VD 2026-11-07: "Yes, do
     (b)."). About 5 lines, one pin moved (1.528 to 1.871), one test of
     weights 100.
-  state-basis-levels-by-name: dec-B647 (VD 2026-11-07, "For the open
-    decision, match by name"): a stored state records the level names
-    of each forest multiplied by a factor, and $setState puts each
-    coefficient on its own level by name, refusing names that differ;
-    today it installs by position, so a relevel exchanges two levels'
-    coefficients for the first ten or so draws. About 50 lines and
-    tests, unsized against the state's layout; the help sentence in
-    setState and setForestBasis is rewritten.
-    Owed when a factor basis may have three or more levels: a pin of
-    the permutation's direction, which two levels cannot test.
+  state-basis-levels-by-name: owed when a factor basis may have three
+    or more levels: a pin of the permutation's direction in a state
+    install by level name (dec-B647, dec-A277), which two levels cannot
+    test.
   study-firming: every study whose result decides a default, a sampler
     change or a gate is brought, in time, to what published research
     of its kind would do (dec-B637); k-move-pricing is the first. In

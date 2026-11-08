@@ -1,6 +1,7 @@
 # state-basis-levels: a stored state records each factor forest's levels and installs by name
 
-Status: ACTIVE, 2026-11-07. Ruling: dec-B647, which revises dec-A210's call 6. No call is open.
+Status: LANDED 2026-11-08 on main by fast-forward (0f6ec4ba4 to 73705f36c; ledger entry dec-A277; see the
+Landing note). Ruling: dec-B647, which revises dec-A210's call 6. Only the three-level pin is owed.
 
 agent: opus engine-builder, one; one opus review that runs the mutants
 ([Process by risk](README.md#process-by-risk): the bridge's state install changes, and the draws after
@@ -123,3 +124,19 @@ None: factor bases are new in 1.0-0, and 0.9-34 is not affected.
 - lintr, air, the codoc, win-drift and doc-freshness checks, and `mutation-battery.R verify-anchors`.
 - Mutants: the permutation skipped in the bridge; the record dropped from a live copy's state. Each
   fails a pin.
+
+## Landing note
+
+Landed 2026-11-08 by fast-forward from 7a54b2b1d to 73705f36c: the plan (0f6ec4ba4), the code and tests
+(ea6dd0317), a fix round (7a0e7c5b3: every chain's coefficients pinned by name, and a malformed level record
+refused in words naming its entries) and the plan and TODO note of the owed pin (73705f36c). Built as
+planned, the calls above unchanged; the fix round added the malformed-record refusal. Gates: the suite
+43028 results, 0 failed; tests/cpp 561 ok; the four snapshot files 27 of 27 on the reference build; the trio
+bitwise with strict coverage (55, 19 and 11 identical, 0 skipped); the exact gates in quick 49 of 49; lint,
+air, codoc, win-drift, doc-freshness and verify-anchors clean. One review, SOUND AFTER NITS, its fix check
+LAND with mutants m1 to m7 killed. CI on the pre-rebase tip 903aa1fd0 was green in every workflow but
+exact-gates, whose job hit its 40-minute timeout in four attempts with every gate it reached passing
+(through t-exact.R) on slow runners; every workflow, exact-gates included, passed on the tip of
+setmodel-installs-stated (1650904ba), which held this tree. The rebase onto main differed only in docs.
+Still owed: the three-level pin of the permutation's direction, in the root TODO under
+state-basis-levels-by-name.
