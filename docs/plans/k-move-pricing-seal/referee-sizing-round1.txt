@@ -1,0 +1,220 @@
+# Referee report: sizing of pricing's real-data stages (k-move-pricing at a7984db18)
+
+Read: docs/plans/k-move-pricing.md (the real-data guard, step 3, the sizing table, "Sizing the real-data stages",
+calls 21 and 27 to 32), docs/plans/k-move-pricing-datasets.md whole, dec-B635, dec-B651 and dec-B667; the five
+sources from scratch/papers; UCI metadata for entries 161, 357 and 565 (descriptions only, no data file); the last
+section of scratch/kmp-screen3/screen.md (Mammographic Mass), at the coordinator's request. My own simulations,
+written before I read the author's scripts, are in scratch/kmp-size-ref/sim/ (r2.R, r2b.R, r2c.R, r3.R, r3b.R,
+level.R and level.out).
+
+## Recommendation: major revision
+
+The arithmetic holds: my own simulation reproduces R2's assurance table to within Monte Carlo error, and R3's
+figures to within the one input the author left out. What needs revising before the seal is the inference. The
+guard's new primary reading, a one-sample t on the mean D over 2 to 5 accepted datasets, is not the analysis a
+no-harm claim needs. It is out of step with step 2's own rule, and its level fails exactly where harm would be
+found: in a few datasets. Step 3 is sized for a confirmatory reading it cannot reach, and it should be reframed.
+Every fix is cheap: R2 at 12 instead of 10 (about 2 core-hours), and text.
+
+## 1. The sources
+
+| source | what the plan takes | supported? |
+|---|---|---|
+| Lakens (2022) | the kinds of justification; a priori power vs resource constraint; 80 percent common, higher better justified for a single study; no literature to set a CI width; the points a resource-constraint justification must answer | Yes, with one understatement. Lakens's Table 1 and "Resource Constraints" match the plan. On power he writes that "the default recommendation to aim for 80% power lacks a solid justification", and that weighing costs "would probably make studies designed to achieve a power of 90% or 95% more common for articles reporting a single study". That is stronger than "80 percent is common". "There is no literature that helps researchers to choose a desired width of the confidence interval" is verbatim support for call 21's remark. Lakens's Table 3 lists five points for a resource-constraint size; the plan answers three (below, point 4). Lakens also names the assurance idea (Kelley and Rausch 2006). |
+| Kunzmann et al. (2020) | assurance as the probability of the conclusion averaged over the inputs' uncertainty; 0.8 or 0.9 conventional | Partly. The review treats a prior on the effect size theta. It states that 0.8 and 0.9 are common for conditional power ("1 - beta = 0.9 or 1 - beta = 0.8 are common choices when a classical sample size derivation is conducted", with one-sided 2.5 percent). It warns that "conventions on power levels cannot be transferred to thresholds for probability of success without adjustment" (section 7.2). The plan averages over nuisance inputs (acceptance rates) at a fixed effect (a true D of 0). That is closer to Kunzmann's expected power than to its probability of success, so carrying the 0.8 convention over is defensible for R2, but the plan should say which quantity it computes. For R3 the warning does bite (point 4). The review's quantile approach, power at a pessimistic quantile of the uncertain input, is a sensitivity analysis the plan could report. |
+| Boulesteix, Hable, Lauer and Eugster (2015) | datasets as draws from a population; the population mean difference tested by a one-sided one-sample t over datasets; a power formula for the number of datasets | Yes, as a frame. Section 3 states exactly this, under the assumption, which the authors themselves call questionable, that datasets are drawn at random from the area, and "under normality assumption or for very large J". Their variance decomposition (eq. 4) has a between-dataset term for true differences. Boulesteix and coauthors make that term part of the frame; the plan treats it as only a sensitivity analysis. They do not discuss non-inferiority, selection conditioned on a feasibility check, or J of 2 to 5. |
+| Demsar (2006) | Wilcoxon signed ranks reported beside; sign count | Supported as cited, and it cuts against the primary reading. Demsar: "unless the sample size is large enough (~ 30 data sets), the paired t-test requires that the differences ... are distributed normally", small samples prevent checking that, and "We therefore recommend using the Wilcoxon test, unless the t-test assumptions are met". The plan's t runs at J = 2 to 5. Its claim that the Wilcoxon test cannot reach one-sided 0.025 below 6 datasets is right (the smallest p is 2^-J). Demsar calls the sign test "too weak to be generally useful", and the plan's sign count frames nothing, which is consistent. |
+| Bujang and Adnan (2016) | the size for a sensitivity reading is the count with the condition over its prevalence; hundreds at prevalence near 0.05 | Yes on that logic: tables of N1 (diseased) and N = N1 / prevalence from PASS, 980 at a prevalence of 5 percent for H0 0.5 against Ha 0.7 at 80 percent power. It is a tabulation paper in a minor journal. It attributes the prevalence adjustment to Buderer (1996), which the plan should cite as the original (Acad Emerg Med 3(9):895-900, doi 10.1111/j.1553-2712.1996.tb03538.x, as Bujang and Adnan give it; not read by me). It sizes a test of sensitivity against a null value. It does not support step 3's pass rule ("fires on every needing dataset") or its floor of 3. |
+
+## 2. R2 at 10 for assurance 0.8
+
+**Rederivation.** I built the model independently: pool 24; the k study's Jeffreys posteriors (high-score share
+Beta(12.5, 10.5), acceptance Beta(2.5, 10.5) at 0.8 or more and Beta(8.5, 2.5) below); a block draw by rank; a
+0.15 loss on the 14/23 large datasets; s ~ U(0.5, 1.41) per dataset and estimand; 80 fits where any s passes
+0.95; 5 independent tests; the t bound below 1 on all of them. Assurance, 4,000 to 8,000 draws:
+
+| R2 | mine | plan | no agreement loss | spread 0.25 | three in four high | acceptance halved on large datasets |
+|---|---|---|---|---|---|---|
+| 6 | 0.49 | 0.48 | 0.58 | 0.30 | 0.29 | 0.26 |
+| 9 | 0.79 | 0.79 | 0.86 | 0.64 | 0.57 | 0.54 |
+| 10 | 0.84 | 0.84 | 0.90 | 0.71 | 0.64 | 0.61 |
+| 12 | 0.90 | 0.90 | 0.93 | 0.81 | 0.71 | 0.72 |
+| 13 | 0.93 | | | 0.86 | | 0.79 |
+
+The derivation holds. Assurance equals P(at least 3 accepted) to within 0.003 at every size, so this is a
+feasibility calculation for the count of usable datasets, and the plan should call it one. The test's power
+given J hardly enters.
+
+**Inputs.**
+- The acceptance rates carry their sampling uncertainty (Jeffreys) but not the uncertainty of moving them to a new
+  population. The k study's 22 datasets are classic UCI sets, while this pool is mostly curated TabArena and CC18
+  tasks, 14 of 23 with at least 1,000 rows. The k study's record holds each reference's size beside its result.
+  The plan should fit acceptance on score and size from that record (no new outcome is read), or at least report
+  the sensitivity in the last column: acceptance halved on large datasets gives 0.61 at 10 and 0.72 at 12.
+- The 0.15 agreement loss is derived, not measured. Its middle-of-range value is reasonable, and counting it is
+  the conservative choice (call 28 is right).
+- Sizing at a true difference of 0 is standard for a non-inferiority design. But this move is expected to help
+  where k mixes badly and to cost about 10 percent of time where it does not, so a spread of true D across
+  datasets is the expected case, not an exotic one. Boulesteix and coauthors' frame puts that spread inside the
+  variance. At 0.25 the guard falls to 0.71 at 10 and 0.81 at 12.
+- s ~ U(0.5, 1.41) and 5 independent tests barely matter, since J binds.
+
+**Level.** A referee would not demand 0.9 by convention: Kunzmann gives 0.8 and 0.9 as equally common. But Lakens
+argues for higher power in a single study, the extra cost is about 2 core-hours of the plan's roughly 70, and only
+12 keeps assurance at or above 0.8 under the plan's own named sensitivity (a spread of 0.25). I would ask for R2 at
+12: 0.90 at a true 0, 0.81 at a spread of 0.25, with R3 two datasets smaller. If acceptance does fall with size,
+not even 12 reaches 0.8 (0.72), and the report should say so. The plan should also report the quantile view: the
+power at, say, the 0.2 quantile of the acceptance rates.
+
+## 3. The one-sample t replacing the floor and the harmed-share bound
+
+**The plan's figures hold.** With 5 tests a dataset at a true 0, I get 0.05 at J = 2, 0.965 at 3, and 1.00 at 4 or
+more (the plan: 0.03, 0.94, nearly always). With every dataset at D = 1, or with true D normal around 1 (sd 0.25 to
+1), the level is 0.022 to 0.028 at every J from 2 to 9 (sim/level.out).
+
+**But it is the wrong primary analysis for a no-harm claim.**
+1. *It tests the mean, and harm is not expected in the mean.* The move is built to help on some datasets (D < 0)
+   and to cost time on others, so a mean below 1 can hide datasets well past the margin. Step 2's own rule 2 asks
+   for "every class anywhere shown harmless or improving", regime by regime, not on average over regimes. The
+   real-data guard should read the same way. As written it is the only place in pricing where a harm can be
+   averaged away.
+2. *Its level fails where harm would be.* Normality across datasets cannot be checked at J = 3 (Demsar). When true
+   D has mean 1 but is concentrated in a few datasets, the t reads harmless far more often than 0.025 on one
+   estimand: 0.09 to 0.11 for a gamma of shape 1, 0.18 to 0.24 at shape 0.3, and 0.42 at J = 3 (still 0.07 at J = 9)
+   when a quarter of datasets have D = 4 and the rest 0. "A true mean D of 1 reads harmless about 0.025 of the
+   time" is true only for symmetric spreads, and the plan should say that.
+3. *The population.* R2's accepted datasets are close to an equal-probability sample (1/2 or 1/3 a block) of the
+   pool's datasets whose references would be accepted. That is the population the claim covers, conditioned on
+   acceptance, and it is a finite pool of about 10. The plan states the conditioning well. It should also say that
+   the inference to "datasets like these" beyond the pool rests on Boulesteix and coauthors' random-sampling
+   idealization. It should also state that acceptance requires both long runs to agree, so a dataset where the
+   move's own long run misbehaves drops out rather than reading as harm. The report should show, for each failed
+   reference, which half disagreed.
+
+**What the plan should say.** The primary reading should be the intersection over accepted datasets. The guard
+reads harmless when every accepted dataset reads harmless on its own Welch bound, every estimand and class. That is
+an intersection-union test, valid at each dataset's level with no correction and no distributional assumption
+across datasets, and it matches step 2's per-regime rule. Next to it, as the claim over datasets, the t bound on
+the mean below 1 (Boulesteix and coauthors' frame), required as well. Its normality assumption should be stated,
+and the Wilcoxon signed-ranks test (from 6 datasets) and the exact one-sided bound on the share harmed should be
+reported beside it. Requiring both costs almost nothing at a true 0 (sim/r2c.R: 0.84 at 10, 0.89 at 12, against
+0.84 and 0.90). Under a spread of 0.25 it is stricter (0.53 at 10, 0.57 at 12), and that is the honest price of
+asking every dataset to be harmless. What the claim needs is then stated by the intervals, with no invented floor:
+"harmless on each of the J accepted datasets; the mean over such datasets below the margin; at most a share b of
+such datasets harmed (exact bound)". The one-sided level (0.025) and the margin (one unit) can stand, and the plan
+already says the margin is its own. At fewer than 2 accepted datasets, what the plan already says stands: the
+reading is per dataset only, unresolved over datasets.
+
+## 4. R3 by resource constraint, and step 3's floor
+
+**The 130.** My model reproduces the author's figures only without the 0.15 agreement loss that R2's sizing
+counts. size.R's sim_step3 omits it. With the loss, I get 0.17 on 24, 0.36 on 40 and 0.77 on 130, and 0.8 needs
+about 140; without it, 0.20, 0.38 and 0.79, matching the plan. The conclusion stands, but the figures should be
+restated with the loss.
+
+**The frame's yield.** "About 40 passers" is the top of the census's observed yield. The first 80 draws gave 2 to
+5 passers, which projects 31 to 42 over the census's 387 entries, so assurance would be about 0.23 to 0.36. The
+plan should state the range, not "about 0.4".
+
+**Is a resource-constraint justification acceptable?** Yes. Strictly it is Lakens's first kind: R3 reads every
+passer of the frame, so it measures the whole (finite) frame, with resource constraint as the reason the frame is
+not wider. But Lakens's Table 3 asks for more than the plan gives. The plan should add the expected exact-interval
+widths at the expected counts: about 2 needing datasets resolved, so a Clopper-Pearson interval on sensitivity of
+about [0.16, 1] when both are caught; about 11 to 12 not needing, so specificity's interval runs about +/-0.25. It
+should also add a compromise analysis of the pass rule's two error rates at that size, and the remark that no
+meta-analysis will follow. The 0.8 target itself falls under Kunzmann's warning. The plan's prior on the share of
+high-score datasets needing the move is U(0, 1), with real mass near 0, and there the reading cannot succeed at any
+size short of hundreds. Most of the "130" is driven by that prior mass, not by the test.
+
+**Reframe.** The pass rule tests a universal claim ("fires on every dataset that needs the move") with 1 to 3
+positive cases. Such a test can refute a trigger but cannot confirm one: k caught gives an exact one-sided 95
+percent lower bound on sensitivity of 0.05^(1/k), which is 0.37 at 3 and 0.55 at 5. Step 3's real-data stage
+should say what it can do:
+- *Primary, falsification:* any needing dataset the trigger spares, confirmed as the guard confirms a harm, fails
+  the trigger at any count.
+- *Specificity, estimated:* the share of not-needing datasets spared, with its exact interval, read against the
+  half below which a second kernel does not pay.
+- *Sensitivity, estimated:* reported with its exact interval, and the report says it cannot be confirmed on real
+  data at this size.
+
+The positive evidence for sensitivity belongs on step 2's simulated regimes, where needing cases can be made as
+many as a bound needs. The selection already reads those regimes, so the report should give the trigger's
+sensitivity there with its interval. Under that frame the floor of 3 per side has nothing to replace: a refutation
+needs one confirmed miss, and the estimates carry their own intervals. If the maintainer wants a confirmatory pass,
+the only sourced form is call 31's alternative (exact lower bound on sensitivity above a stated value, Clopper-
+Pearson; Bujang and Adnan's sizing logic). It reads with assurance about 0.18 at 40 and should be called
+infeasible here rather than adopted. Dropping the floor alone raises the as-written rule's assurance to 0.75 at
+40 (sim/r3.R), but that only shows the floor's cost. It is not evidence.
+
+## 5. No reserves, the pre-fit check, lost files
+
+Sound, and better than reserves. The pre-fit check on every passer before the draw means the draw is conditional
+only on documentation and covariates. The census meeting a shortfall under the sealed rule and two auditors applies
+the rule; it does not change it. Not replacing a post-draw loss keeps any selection on fits out of the list. Two
+additions:
+- Keep a private archived copy of each file at its first download (outside the tree, as the licenses require).
+  "Lost" then means only a corrupted copy, and the sha256 check settles it. The plan's re-fetch depends on
+  repository addresses staying up.
+- The assurance should count the chance that a drawn dataset ends unresolved for a lost file. It is likely
+  negligible, but it should be stated as such.
+
+## 6. The census readings, against the rule as written
+
+- **Occupancy Detection (UCI 357): fails. The ground should be criterion 4, not 1.** UCI lists `date` with type
+  "Date" and gives no class distribution; the share appears only per file in the donor's scripts. Section 4 sets a
+  predictor's type "numeric or factor, as the donor lists it, and keeps the file's type where the donor lists
+  none". It has no clause for a donor type that is neither, and criterion 1 excludes a merge, a threshold or a
+  choice of target, not an encoding. So failing it on 1 rests on a gap in the rule, not on its text. The screener's
+  recorded doubt on the share is a doubt on a kept criterion, and under the doubt-fails rule it fails 4. In the
+  flow table's order, 4 is its first failing criterion. Read the gap as I recommend below, and the date is the
+  file's text (about 20,560 levels), so it would also fail 6. Either way it fails, and the count does not move.
+- **Bone marrow transplant: children (UCI 565): passes, but the stated listing needs correcting.** UCI's record
+  names `survival_status` as the target (`target_col`), so criterion 1's "no default" clause does not apply. The
+  predictor counts are not "36 and 38". The repository table has 36 features including `survival_time`. The donors'
+  variable list has 39 entries: 37 conditional attributes, `survival_time` and `survival_status`. GuideR (Sikora,
+  Wrobel and Gudys 2019) says 37 conditional attributes. Wrobel, Gudys and Sikora (2017, BMC Bioinformatics 18:285,
+  doi 10.1186/s12859-017-1693-x) gives 37 in its Table 1 but "42 conditional attributes" in its text. Both papers
+  treat survival time as part of a survival label, not as a conditional attribute. So 38 predictors means the 37
+  conditional attributes plus `survival_time`, entered as the repository's roles give it. That is a near-perfect
+  leak for the status, which the screen drops as a criterion and so fails nothing. Under section 4's Parkinsons
+  precedent (a source stating two counts, the screen naming the one taken), the pass stands on the rule as
+  written. The screen file should name the count taken (38: 37 conditional attributes and `survival_time`) and
+  record the 36, the 39-entry list and the paper's 42. The share is confirmed: Wrobel et al. Table 1 gives 55
+  percent censored of 187. If the deposited file holds the repository table's 36 features, the pre-fit check fails
+  it, and the census continues before the draw.
+- **Mammographic Mass (UCI 161): passes.** The class-count doubt (.names 516/445 against Elter et al.'s 515/446;
+  checked: the paper calls this set "M UCI", 961 regions) does not put any criterion's verdict in question. The
+  share is established at 0.463 or 0.464 by either source. Criterion 5's test of "holding the described data" is
+  the row count, which agrees, and the pre-fit check reads no outcome. The plan's own precedent is
+  Internet-Advertisements' one-row class-count difference, recorded and not failed. Failing this one under
+  criterion 5 would treat two equal cases differently. The doubt should be recorded in the screen file as that
+  precedent's was.
+- **Density as numeric.** This is the same gap as Occupancy's date. The donor lists "ordinal", which is neither
+  numeric nor factor. One reading must serve both entries, and the only one that adds no choice of the study's is
+  section 4's fallback: where the donor's type is neither numeric nor factor, the file's type is kept. Density's
+  integer codes are then numeric (and keep its order), and Occupancy's date-time text is a factor (fails 6). The
+  plan's Occupancy text argues criterion 1 there while the screener reads Density as numeric. That is two readings
+  of one gap, and it must become one stated reading.
+
+With these three readings the pool is 24, 14 with at least 1,000 rows, and the census stops for R2. I find none of
+the three readings made toward a count. Occupancy's ground changes but its result does not.
+
+## 7. To settle before the seal
+
+1. The guard's primary reading: every accepted dataset harmless, and the mean's t bound below 1. Its stated
+   assumption, and what it gives at J = 1, 2 and 3 or more (point 3).
+2. R2 at 12 (point 2), with the size-dependent acceptance sensitivity checked against the k study's record.
+3. Step 3 reframed as falsification plus estimation, the floor of 3 removed, the sensitivity reading moved to step
+   2's regimes; R3's figures restated with the agreement loss and the frame's 31 to 42 yield (point 4).
+4. Section 4 amended, before the seal, to say what happens to a donor type that is neither numeric nor factor. Apply
+   it to every passer and record in the screen file that it changes none. Occupancy's ground goes to 4, Bone
+   marrow's listing is stated as above, and Mammographic Mass's doubt is recorded (point 6).
+5. Errata: the datasets file says the frame holds "113 entries from stages 1 to 3 ... then the census", but 538 is
+   151 + 387. The frame holds all 151 binary entries of stages 1 to 3, of which 113 enter (the census starts at frame
+   row 152). Kunzmann's convention is for conditional power, so the plan should say its quantity is expected power
+   over nuisance inputs. Cite Buderer (1996) beside Bujang and Adnan.
+6. Lakens's wording on 80 percent quoted as he gives it.
+
+Not reached: Buderer (1996), cited through Bujang and Adnan only. It would be
+scratch/papers/buderer-1996.pdf. Its DOI, as Bujang and Adnan give it, is 10.1111/j.1553-2712.1996.tb03538.x,
+not checked by a search.

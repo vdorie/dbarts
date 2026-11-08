@@ -1,0 +1,259 @@
+# Referee report: how k-move-pricing chooses its held-out real datasets
+
+2026-11-07. Read: the plan on k-move-pricing at 59a3dc165 (Goal, Common to steps 1 to 3 with "Seen and held
+out", step 2 reading 2, Step 3, Sizing and stops, Calls), survey.md, audit.md, the four papers the survey cited
+secondhand, the seven papers for the audit's unknowns, Chawla et al. 2002, and as checks Boulesteix, Wilson and
+Hapfelmeier 2017, Erickson et al. 2025, Chipman et al. 2010, Demsar 2006, Polson et al. 2013, Chopin and
+Ridgway 2017, and Corani et al. 2017 (arXiv v3, fetched to scratch/papers/). Documentation only: UCI and OpenML
+records and the TabArena curation sheet. No data file was downloaded and no outcome column was read.
+
+## Verdict: ACCEPT WITH CHANGES (major)
+
+The survey's rule B is the right shape: a frame curated by others for another purpose (TabArena), full
+enrollment, a fixed screen with a flow table, and a sealed stratified split with the seed fixed before any
+score. Boulesteix et al. (2017) ask for this, and the curated suites do it. A referee would take it over the
+plan's hand-made list of 26, and rule B also repairs a real defect in the plan: as written, the plan leaves the
+top-scoring blocks as reserves.
+
+The pool the rule yields cannot be accepted as it stands. The audit passes 12 datasets against the 18 the two
+uses need. My checks remove 3 more for certain and up to 6 under rules the audit applies elsewhere, leaving
+6 to 9. The only tier-1 passers that survive every consistency fix are online shoppers, credit-card default and
+qsar-biodeg, against the 6 that R2 needs if R2 is drawn from tier 1. The rule has to be widened by a fixed
+published order before anything is scored. The R2 guard's precision also rests on an unsourced standard error.
+
+## Required changes
+
+1. **Widen the frame by a fixed, published order, settle the doubts a file can settle, and write both rules
+   down before any score is computed.**
+   - Why: under doubt-fails, 6 to 9 datasets pass, against 18 plus reserves; the audit's own count is 12 and
+     5 in tier 1.
+   - Order: TabArena-v0.1 binary; then OpenML-CC18's unseen binary tasks, the most cited published suite
+     (Bischl et al. 2021); then TabArena's tier 2; then a seeded UCI census (the survey's rule C) only if still
+     short.
+   - Doubts a covariate-only check can settle (duplicate rows, repeated id columns, row counts; audit
+     section 5) are settled by that check before the split. A doubt no file can settle fails.
+   - If the pool is still short, the guard and the test run at the counts that pass and the report says so. No
+     dataset is added by hand.
+   - Sources: Boulesteix et al. 2017 (criteria fixed beforehand, no post-hoc tuning of inclusion, exclusions in
+     a flowchart); the audit's sections 4 and 5.
+
+2. **Correct the audit's passes, and have a second auditor screen independently before the list is
+   committed.** The survey's own screen asks for two auditors, and the audit was one. My sample found errors
+   in 5 of its 12 passes:
+   - **irish fails on leakage.** OpenML record 451 carries the tag "label_leakage". Its covariates include
+     "Educational level attained" and a school type "primary terminal leaver", both recorded after the
+     Leaving Certificate outcome. The audit marked its leak column P.
+   - **CKD is U, not P,** by the audit's own row: its Dup/leak column is U. UCI gives no hospital, no intro
+     paper and no class criteria.
+   - **Rice and raisin share a source.** Their UCI creators are Cinar and Koklu (raisin adds Tasdemir), and
+     both come from the same machine-vision pipeline. The survey's criterion 4 allows one dataset per source,
+     so one of the two goes.
+   - **Coimbra and sa-heart must be judged by one case-control rule.** The audit fails sa-heart on its outcome
+     column for being case-control. It passes Coimbra, whose UCI labels are "1=Healthy controls 2=Patients"
+     (Patricio et al. 2018 recruited 64 patients and 52 controls). Fail both on that ground or neither.
+     sa-heart fails anyway on its post-treatment measurements.
+   - **GiveMeSomeCredit, Bioresponse and heloc must be judged by one license rule.** The audit passes the
+     first two with the Kaggle terms unread and marks heloc U for unread terms.
+
+3. **Apply the papers to the unknowns.** None of the papers moves a dataset to P.
+   - **oil_spill: F.** Kubat et al. (1998) have 937 regions from 9 images and write that "examples are
+     naturally grouped in batches... drawn from the same image".
+   - **mammography: F.** Chawla et al. (2002) describe "classification of pixels in mammogram images": 11,183
+     samples, 260 calcifications. Rows nest within images whatever the count of patients.
+   - **jm1: F.** Gray et al. (2012, figure 2) show about 18 percent repeated data points, above the 10 percent
+     bar; its defect flag is "error count >= 1". Shepperd et al. (2013) confirm that every NASA set has
+     duplicate cases.
+   - **Taiwanese bankruptcy: F by doubt.** Liang et al. (2016) describe 239 bankrupt and 239 matched
+     non-bankrupt firms, each variable min-max normalized. The file's 6,819 rows and 220 positives are not
+     described anywhere, so the unit of a row is undocumented.
+   - **Polish bankruptcy: stays F by doubt.** Rows are financial statements, and class tracks the observation
+     window. Zieba et al. (2016) observe bankrupt firms in 2007 to 2013 and operating firms in 2000 to 2012.
+     The UCI page, and the audit after it, have the two windows reversed.
+   - **hazelnut: F by doubt.** Ricci et al. (2021) describe 1,240 samples (600 clean, 640 contaminated), not
+     the 2,400-row balanced file. The contamination was recreated in jars, with oil in place of the spread, and
+     test accuracy reached 99.35 percent. The file's likely source, Urbinati et al. 2020, was not read.
+   - **SPECT and SPECTF.** Kurgan et al. (2001) give one row per patient, so independence is P. The outcome
+     "normal" versus "abnormal" groups seven overall diagnoses; that is a merge under the audit's rule, which
+     also failed vertebral column. See change 4.
+   - **Mammographic mass: stays U.** Elter et al. (2007) have 961 "mass regions" and say nothing on masses
+     per patient.
+
+4. **State the outcome rule so it can be applied the same way everywhere.** Recommended: "the binary task as
+   the originating study or donor defined it; no merge or threshold made by a later curator or by this study".
+   - Why: as written, the screen fails vertebral column's donor two-class file. It passes thoracic surgery's
+     "death within one year", which is equally a threshold.
+   - Under this rule, SPECT, vertebral (two classes), Debrecen and jm1 pass on outcome; they may still fail on
+     other grounds. Diabetes130US, myocardial infarction and red wine fail.
+   - The suites' exclusions are aimed at curator-made binarizations (Bischl et al. 2021; Gijsbers et al.
+     2024).
+   - A source with several candidate targets and no default (cervical cancer, colic) fails, because choosing
+     its target would be our call.
+   - The alternative is the literal no-threshold rule, applied everywhere, which also fails thoracic and
+     credit default.
+
+5. **Allocation.**
+   - Keep the survey's repair: blocks span the whole score range, and the seed is fixed before scoring.
+   - Drop "R2 from tier 1 only". The survey itself says high-separation data come mainly from tier 2, so this
+     clause keeps out of the guard the data where the move acts. Use a row floor instead, fixed before
+     scoring (for example at least 1,000 rows, so the test fold holds at least 200).
+   - A reserve replaces only a dataset that fails the pre-fit file check, never one that fails after a fit.
+   - State now whether real datasets scoring 0.995 or more stay in. I recommend in, reported apart: users fit
+     such data, and the regimes' deterministic rejection was written for simulated truths.
+
+6. **R2's standard error and its reading.**
+   - The plan's "log score se about 0.002 a dataset" has no derivation in the plan.
+   - Nadeau and Bengio (2003, section 4, item 6) correct the variance of the mean over J splits to
+     (1/J + n2/n1) S^2. At J = 20 and 80/20 that is 6 times the naive S^2/J, so the standard error is 2.45
+     times the naive one. The survey has this right.
+   - The naive S^2/J is unbiased only for the variance conditional on the dataset (their section 4, item 2).
+     It supports a claim about the average over all splits of these rows, not about the sampler's error at
+     that training size.
+   - State the target, and use the corrected form per dataset; Benavoli et al. and Corani et al. (2017) call
+     it the correlated t-test.
+   - For a difference between two samplers of one posterior, much of which is Monte Carlo noise, the
+     correction errs conservative (their ratio falls below 1 when the true correlation is below
+     n2/(n1+n2)). It can leave a dataset unresolved but never falsely harmless.
+   - At a corrected standard error of 0.005, one dataset resolves at a true 0 about half the time and all six
+     about 2 percent of the time. Resolving with probability 0.9 needs 0.0031 or less, which more splits barely
+     buy.
+   - State the split design under the 4,000-row training cap. If test rows come from the remainder, n2/n1 is
+     not the overlap the correction assumes, and the design must say how the variance is then taken.
+   - Say whether the guard holds per dataset (each of the six passes) or pooled. Corani et al. (2017) give the
+     published model for both: a hierarchical model over datasets with Nadeau and Bengio's correlation and a
+     region of practical equivalence.
+
+7. **Name what has no published model (dec-B633):**
+   - the 0.01-nat margin (the September study's own);
+   - the separation score and its bands;
+   - step 3's "needs the move" (the k study's acceptance, the 0.02 bar, a t bound on 20 fits);
+   - the doubt-fails screen, whose nearest published model is TabArena's manual curation.
+
+   Step 3 is a diagnostic-accuracy design; STARD 2015 is its reporting model (Bossuyt et al., BMJ 351:h5527,
+   doi 10.1136/bmj.h5527; found by search, not read). The survey's "as diagnostic-accuracy studies require a
+   spread of cases" carries no citation.
+
+8. **Write step 3's expected reading before any fit, as step 2 has one.**
+   - Give the chance of at least 3 resolved datasets on each side, given that 10 of the k study's 12
+     high-score references failed acceptance.
+   - Say plainly that the audited pool has nothing under a 0.06 outcome rate, and few near-separated
+     candidates once the reputational guesses (CKD, vote) are set aside.
+
+## Optional changes
+
+- Report the move on the sampler literature's standard binary sets, labeled as seen and outside any guard. They
+  are Polson et al. 2013 (nodal, diabetes, heart, Australian, German) and Chopin and Ridgway 2017 (adding
+  breast, musk, sonar, DNA). This allows comparison with that literature. Nearly all are seen or share a source
+  with a seen dataset, so they cannot be held out.
+- Report the Brier score beside the log score; it is the other strictly proper score for binary outcomes.
+- Report a pooled across-dataset reading beside the per-dataset one: the sign test or signed rank of Demsar
+  (2006), whose best one-sided p at six datasets is 1/64.
+- Correct the survey's small errors:
+  - the plan strikes 7 datasets, not 6;
+  - the 20 splits are not shown to come from Chipman et al. (2010), who used 20 random splits at 5/6 to 1/6,
+    not 80/20.
+
+## Questions put to the referee
+
+- **Fixed before data, no room to steer?** Yes in form, once changes 1, 4 and 5 are made.
+  - The score is sealed, the seed precedes it, and the screen only removes datasets.
+  - The steering that remains is reputational: the audit itself guesses that CKD and vote are near-separable.
+    Two independent auditors, written reasons and a frozen flow table are the published remedy.
+  - Unwritten choices also remain: the outcome of a multi-target source, the treatment of scores at 0.995 or
+    more, and reserve substitution. Each is closed above.
+- **Does the pool represent the fits the shipped default serves?** Only partly, and the report should say so.
+  - The frame is curated machine-learning prediction tasks. There is no published frame of the data BART users
+    fit, which are observational studies and effect estimation, often at a few hundred rows.
+  - Results are conditional on the frame (Boulesteix et al. 2017).
+  - The pool lacks rare outcomes, and probably the near-separated band where the move matters.
+- **Rows independent, provenance disjoint?** After changes 2 and 3, yes for what passes.
+  - No passing dataset shares a source with the seen list. The Statlog heart and Australian credit copies are
+    already out.
+  - McDermott and Forsyth (2016) confirm that ILPD is distinct from the BUPA liver data, so the audit's
+    "Selector" doubt on ILPD is unfounded. UCI's summary says the field records diagnosis. ILPD's remaining
+    doubts can be settled from the file, and the survey's tier 2 wrongly omits it.
+- **Can 6 and 12 resolve their questions?**
+  - R2 resolves per dataset only with a corrected standard error of at most 0.0031. With six datasets, it
+    bounds only the share of harmed datasets in the frame, below 0.39 at one-sided 95 percent if none shows
+    harm.
+  - R3 can show a missed dataset and little else. At 3 of 3 caught, the lower bound on sensitivity is 0.37;
+    sparing 2 of 3 gives an interval of 0.09 to 0.99. I checked the survey's figures and they hold.
+- **Is the split sound?** Yes as a stratified random allocation on the sealed score, with change 5. R2 and R3
+  ask different questions from one frame, and both need the full score range.
+- **Would a referee ask for a published suite?** A census of TabArena and CC18 is the published suite. A
+  referee would ask for it instead of the plan's hand-made list, and would ask for the sampler papers' sets only
+  as well, labeled as seen.
+
+## Claims the study may make
+
+- **From R2:**
+  - On the six named datasets, drawn by a fixed rule from a published curated frame, the move's held-out log
+    score at the default length is worse than the shipped sampler's by less than 0.01 nats a row, the
+    project's own margin, each bound corrected for overlapping splits.
+  - Any dataset unresolved at 20 splits is reported as unresolved.
+  - With six datasets, a harm that affects most datasets in the frame would likely have shown; nothing more
+    general follows.
+- **From R3:**
+  - If the trigger fires on every resolved dataset that needs the move, the study may say "the trigger missed
+    none of the k", with the lower bound on sensitivity.
+  - Sparing is descriptive only.
+  - "Needs the move" is the study's own definition.
+  - Unresolved datasets are counted apart, and fewer than 3 resolved on either side reads unresolved.
+- **Not:**
+  - any claim about real data in general, or outside the frame;
+  - calibration of intervals on real data (coverage is read only under drawn truths);
+  - effects (no real effect dataset is scored);
+  - probit;
+  - that the pool covers the near-separated or rare-outcome fits, unless the sealed scores show it.
+
+## Inventory of my checks (documentation and papers only)
+
+| dataset | audit | my reading | source |
+|---|---|---|---|
+| irish | P | F (leak) | OpenML 451 tag label_leakage; covariates "Educational level attained", school type 9 |
+| CKD | P | U | audit's own Dup/leak U; UCI 336 names no hospital, intro paper or class criteria |
+| rice, raisin | P, P | keep one | UCI 545 and 850 creators Cinar, Koklu (raisin adds Tasdemir) |
+| Coimbra | P | consistency with sa-heart | UCI 451 labels "Healthy controls" and "Patients" |
+| GiveMeSomeCredit, Bioresponse | P, P | consistency with heloc | OpenML 46929, 46912: Kaggle competition sources, terms unread |
+| thoracic surgery | P | P (fixed one-year horizon) | UCI 277: "Individual patients", Wroclaw 2007 to 2011 |
+| vote, shoppers, credit default, qsar | P | P | UCI 105, 468, 350, 254 |
+| oil_spill | U | F | Kubat et al. 1998: 937 regions, 9 images, batches |
+| mammography | U | F | Chawla et al. 2002: pixels of mammogram images |
+| jm1 | U | F | Gray et al. 2012, figure 2: about 18 percent repeats |
+| Taiwanese bankruptcy | U | F by doubt | Liang et al. 2016: 239 + 239 matched firms, not the 6,819-row file |
+| Polish bankruptcy | U | F by doubt | Zieba et al. 2016: statements; class windows 2007-13 against 2000-12, reversed on UCI |
+| hazelnut | U | F by doubt | Ricci et al. 2021: 1,240 samples against the file's 2,400; lab-recreated jars |
+| SPECT, SPECTF | U | outcome turns on change 4; independence P | Kurgan et al. 2001: 267 patients, NL vs ABN over seven diagnoses |
+| mammographic mass | U | U | Elter et al. 2007: 961 mass regions (515/446; UCI says 516/445) |
+| ILPD | U | U on file checks only | McDermott and Forsyth 2016; UCI 225 summary |
+| hepatitis, Ljubljana | U | U (no follow-up stated) | UCI 46, 14 |
+| cervical, colic | U | F (several candidate targets, no default) | UCI 383; OpenML 25 "Possible class attributes: 24 ... others" |
+| wilt | U | U (segments of one image; train and test sampled differently) | UCI 285 |
+| HR, NATICUSdroid, E-Commerce, heloc | U | U, as the audit says | OpenML 46935, 46969, 46924, 46932 curation notes |
+| lawsuit, backache, appendicitis, early diabetes | U | U, as the audit says | OpenML 450, 463, 1456; UCI 529 |
+
+Survey citations checked against the papers:
+- McDermott and Forsyth (2016): BUPA's x7 is a train/test selector. Holds.
+- Shepperd et al. (2013): every NASA set has duplicate cases. Holds; their tables are images.
+- Yousefi et al. (2010): reporting only the best datasets makes a bias that overrides a significant
+  difference; report every dataset in a database. Holds.
+- Nadeau and Bengio (2003): the corrected variance. Holds.
+- Boulesteix et al. (2017): N = 43 at a 3-point difference and a standard deviation of 7; N from 2 to 11 in
+  the comparisons reviewed; results conditional on the source repository. Holds.
+- Demsar (2006): "as small as five". Holds.
+- Chipman et al. (2010): 42 of Kim et al.'s 52, 20 splits at 5/6. Holds.
+- Erickson et al. (2025): 1,053 datasets read, 51 kept. Holds. The figure "51 of 119 passed the IID check" is
+  in a figure and not checked.
+
+## Not verified
+
+- Woods et al. 1993 (by instruction).
+- Urbinati et al. 2020, the hazelnut file's likely source: ISCAS 2020, pp. 1-5, doi 10.1109/ISCAS45731.2020.9181293
+  (confirmed by search, not read).
+- Patricio et al. 2018 for Coimbra: BMC Cancer, doi 10.1186/s12885-017-3877-1 (from UCI, not read).
+- STARD 2015 (not read).
+- Corani et al. 2017: read as arXiv 1609.08905v3. The journal version is Machine Learning 106, 1817-1837,
+  doi 10.1007/s10994-017-5641-9, from an index site.
+- The Kaggle and FICO terms.
+- The source of the plan's 0.002.
+- The jm1 share, read by eye from a bar chart.
+- Every fact that only the file can settle.

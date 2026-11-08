@@ -1,0 +1,174 @@
+# kmp-screen2: second screen of seven entries
+
+Rule read: docs/plans/k-move-pricing-datasets.md at ed9e2b4e8, sections 1 to 4 and References only. No data file
+downloaded, no outcome column read. Metadata fetched 2026-11-07 into scratch/kmp-screen2/meta/ (OpenML API JSON:
+data, qualities, features, task, study; UCI API JSON and dataset pages; the TabArena curation record exported as
+CSV, sha256 ad6c9ec0afb440e4dca2bf90e27bb68e83ab59059c0290111e572ef9d239ded7, the rule's pinned checksum; PMLB
+metadata; the donors' bands.names and ad.DOCUMENTATION). "Curation record row n" counts data rows of that CSV
+from 1.
+
+## Readings of the rule I had to make
+
+- R1, what a doubt is. The section 3 opening ("A doubt recorded by a suite's curators, an originating paper or
+  either auditor fails the entry") is read as a doubt bearing on a kept criterion (1 to 6) or on the section 4
+  check, counted under that criterion. Doubts on matters section 3 drops (time order, grouped rows, leaks,
+  duplicates, designed sampling, "too easy", "outdated", "not representative") do not fail. Why: the flow table
+  counts every failure under a criterion, and applying the opening to dropped matters would bring them back.
+  Alternative: every recorded doubt fails; then APSFailure and skin-segmentation also fail (both carry curators'
+  split or leak doubts) and all seven fail.
+- R2, factor expansion (criterion 6). As bart() expands a data frame: a two-level factor is one column, a
+  k-level factor k columns (dbarts makeModelMatrixFromDataFrame). Matters only for Internet-Advertisements: 1,558
+  columns this way, 3,113 under full one-hot coding, which would fail criterion 6.
+- R3, listed minority share (criterion 4). The suite's MinorityClassPercentage for a suite file, else the donor's
+  documented class distribution. Where no source lists one, criterion 4 is not established (not a PASS).
+- R4, a suite's edit to values (not rows). Criterion 1 allows a suite's row edits "since they choose no target
+  and no predictor"; I read that reason as covering an unrecorded value edit (missing values filled), which is
+  then recorded in the screen file, not failed. Section 4 fails only an unexplained row or column count. Applies
+  to Internet-Advertisements (and nomao, which fails earlier). Alternative: an unrecorded value edit is an
+  auditor's doubt that the file is the described data, failing at section 4.
+- R5, types. "With its predictors as the source lists them" covers the types the donor lists (numeric or
+  nominal), since a type changes how a predictor enters the fit. Decides cylinder-bands, together with the
+  curators' recorded doubt.
+
+## 1. APSFailure (frame row 2, stage 1, OpenML dataset 46908, task 363616): PASS
+
+1. Outcome: PASS. Donor (UCI 414 and 421 documentation, Scania CV AB): "The datasets' positive class consists of
+   component failures for a specific component of the APS system. The negative class consists of trucks with
+   failures for components not related to the APS." Single class attribute, task 363616 target
+   AirPressureSystemFailure. TabArena's recorded edits (OpenML 46908 description): "combined the original training
+   and testing data", "renamed the target", "converted 'na' strings to real NaN"; these choose no target or
+   predictor, and the combination is section 4's concatenation in source order (curation record row 160: "Last
+   16k are test"). Curators' anomalies ("cannot determine the data types", "bins of histograms", "cost matrix")
+   leave the file as the donor lists it ("single numerical counters and histograms"; 170 numeric in OpenML), so no
+   doubt on this criterion under R1/R5.
+2. Real: PASS. "data collected from heavy Scania trucks in everyday usage"; creator Scania CV AB, donors Tony
+   Lindgren and Jonas Biteus. Curators' "heavily preprocssed" (row 160) refers to histograms and "na" coding, not
+   generation or augmentation.
+3. Provenance: PASS. Scania; no seen dataset shares it. Pool note: UCI 414 (IDA2016Challenge, 76,000) and UCI 421
+   (APS Failure at Scania Trucks, 60,000, training file only) are two UCI entries of this one source; either
+   arising in the stage 4 census is a later copy and goes. The frame file was not read, so I could not check
+   frame row 1.
+4. Size and share: PASS. OpenML qualities: 76,000 rows, MinorityClassSize 1,375, MinorityClassPercentage 1.809.
+5. License and file: PASS. UCI 414 page (https://archive.ics.uci.edu/dataset/414/ida2016challenge): "licensed
+   under a Creative Commons Attribution 4.0 International (CC BY 4.0) license"; donor's file also states GNU GPL
+   v3 or later. File: OpenML 46908 version 2, file_id 22125219, md5 3896ad0c77f3c96cc9eafad55b268863; the sha256
+   is the seal's to record.
+6. Feasibility: PASS. 170 numeric predictors, 170 columns.
+Pre-fit (readable part): listing 76,000 (suite; UCI 414 also 76,000 = 60,000 + 16,000); 170 predictors;
+OpenML lists missing values in 75,244 rows, matching the rule's figure.
+Doubts: curators' "maybe temporal", "might indicate a leak", split unverified (row 160), all dropped matters.
+Originating paper (IDA 2016 challenge) not read; the deciding sources were the donor's documentation.
+
+## 2. nomao (frame row 53, stage 2, OpenML dataset 1486, task 9977): FAIL at criterion 1
+
+1. Outcome: FAIL. The donor's target is its own ("Labels are +1 if the concerned spots must be merged, -1 if they
+   do not refer to the same entity"; "labeled by human expert", OpenML 1486 description copying the donor's
+   file). But the TabArena curators recorded an unresolved doubt on the labels (curation record row 234):
+   Potential issue "not a predictive task, outdated, labeling issues"; Andrej, Unclear: "Data is from an active
+   learning challenge and was labeled in a weird way"; Lennart, Unclear: "Unless we can determine if the task is
+   reasonable and the labeling not problematic, we should not use it"; comment "Might be clustered data as
+   different labeling methods were used to label dthe data, although most were simply labeled by humans". A doubt
+   on the labels bears on the outcome, so under R1 it fails criterion 1.
+   Doubt on this call: the donor lists the methods ("human prior", "marg", "wmarg", "wmarg5", "rand",
+   "baseline", "nomao", "tsun") as how instances came to be labeled; if they chose which pairs a human labeled,
+   the doubt is about row selection (dropped) and nomao passes criterion 1. The paper that would settle it was not
+   reached: Candillier, L. and Lemaire, V., Design and analysis of the Nomao challenge: active learning in the
+   real world (ALRA workshop, ECML-PKDD 2012; IJCNN 2013, DOI 10.1109/IJCNN.2013.6706908), file name
+   candillier_lemaire-2013.pdf.
+Later criteria, read anyway: 2 PASS (Nomao, donor Laurent Candillier); 3 PASS; 4 PASS (34,465 rows, minority
+0.2856); 5 PASS (UCI 227 page, CC BY 4.0; OpenML licence "Public" alone would not do); 6 PASS (89 numeric,
+27 three-level and 2 two-level factors: 172 columns).
+Pre-fit: rows match (34,465). The donor states "Missing data are allowed, represented by question marks" and the
+UCI page "Has Missing Values? Yes", while OpenML lists 0 missing values: an unrecorded value edit (R4).
+
+## 3. cylinder-bands (frame row 58, stage 2, OpenML dataset 6332, task 14954): FAIL at criterion 1
+
+1. Outcome: FAIL on the predictors. The target is the donor's ("40. band type: nominal; class; band, no band",
+   bands.names). But the suite's types depart from the donor's listing (OpenML 6332 features against bands.names):
+   job number and unit number are nominal in the donor's list and numeric in the file; caliper ("numeric;
+   0-1.0", 21 nominal levels in the file), current density and chrome content are numeric in the donor's list
+   and nominal in the file; grain screened ("yes, no") has 3 levels in the file. The TabArena curators recorded
+   the doubt (row 137): "Or feature types may be defined wrongly"; Andrej, Conditional: "There could be a leak or
+   wrong feature type definitions". Under R1 and R5 this fails criterion 1. Alternative: read "predictors" as the
+   set of columns only; then 1 passes on the doubt's type part and the leak part is dropped.
+Later criteria: 2 PASS (Bob Evans, RR Donnelley); 3 PASS; 4 PASS (540 rows, minority 0.4222; donor 200 of 512);
+5 PASS (UCI 32 page, CC BY 4.0); 6 PASS (non-ignored predictors 170 columns under R2).
+Pre-fit doubt: the donor lists 512 instances ("5. Number of Instances: 512", 312 no band, 200 band, missing in
+302) and the UCI page 512; the suite file has 540 (312 and 228), missing in 263, and OpenML's note ("UCI
+explanation states 541, which is wrong") records no edit that explains 540 against 512. The listing for a suite
+file is the suite's 540, so the loader's count check would pass; the gap is still a doubt that the file is the
+described data. OpenML marks timestamp (a donor-listed predictor) and cylinder number ignore; section 4 drops
+ignore attributes.
+
+## 4. Internet-Advertisements (frame row 64, stage 2, OpenML dataset 40978, task 167125): PASS
+
+1. Outcome: PASS. Donor (ad.DOCUMENTATION, Nicholas Kushmerick): "The task is to predict whether an image is an
+   advertisement ("ad") or not ("nonad")". Task target "class". Predictors as listed (3 continuous, 1,555 binary
+   and "local"; 1,558 in all). Curators (row 221): "Image domain" only.
+2. Real: PASS. Web pages, "Generated: April-July 1998" in the donor's file means collected then (the features
+   "encode the geometry of the image ... phrases occurring in the URL").
+3. Provenance: PASS. Kushmerick, University College Dublin.
+4. Size and share: PASS. 3,279 rows, minority 0.1400 (459); the donor lists 458 ads of 3,279.
+5. License and file: PASS. UCI 51 page, CC BY 4.0. OpenML 40978 version 2, file_id 18140371, md5
+   4f8829d20c886c86de4bc06c4eeb5cc6 (version 1, 1176, deactivated).
+6. Feasibility: PASS under R2: 3 numeric + 1,555 two-level factors = 1,558 columns. FAIL under full one-hot
+   (3,113).
+Pre-fit: rows 3,279 and 1,558 predictors match the donor. Recorded under R4: the donor and the suite's own
+description say "One or more of the three continuous features are missing in 28% of the instances", but OpenML
+lists 0 missing values for height, width and aratio: the suite filled them by an unrecorded rule. Class counts
+459/2,820 against the donor's 458/2,821. Originating paper not reached: Kushmerick, N. (1999), Learning to remove
+Internet advertisements, Agents '99, DOI 10.1145/301136.301186, file kushmerick-1999.pdf.
+
+## 5. skin-segmentation (frame row 77, stage 3, OpenML 1502): PASS
+
+1. Outcome: PASS. Donor's class (skin/non-skin), UCI 229 target y, OpenML default "Class". Curators (row 125):
+   "Image domain", "group split required" (dropped).
+2. Real: PASS. "collected by randomly sampling B,G,R values from face images ... obtained from FERET database and
+   PAL database" (UCI 229). The abstract's "dataset is generated using skin textures from face images" means
+   built from real images, not simulated.
+3. Provenance: PASS. Bhatt and Dhall, IIT Delhi; FERET and PAL images; no seen dataset shares them.
+4. Size and share: PASS. 245,057 rows, 50,859 skin (0.2075), UCI and OpenML agree.
+5. License and file: PASS. UCI 229 page, CC BY 4.0 (OpenML's "Public" alone would not do). Note: the Color FERET
+   images are released under NIST's research agreement; research use is permitted. File OpenML 1502 version 1,
+   file_id 1592294, md5 5dd4d1f27c2b1c6361c18dfda6fb61d6.
+6. Feasibility: PASS. 3 columns.
+Pre-fit: 245,057 rows, 3 predictors, no missing values. Originating paper not reached: Bhatt, Sharma, Dhall and
+Chaudhury (2009), IEEE INDICON, DOI 10.1109/INDCON.2009.5409447, file bhatt_sharma_dhall_etal-2009.pdf.
+
+## 6. clean1 (frame row 118, stage 3, PMLB clean1): FAIL at criterion 1
+
+1. Outcome: FAIL. PMLB's metadata.yaml for clean1 names no task or source ("description: None yet", "source:
+   None yet", "publication: None yet", target "description: None yet"), and the curation record (row 409) has
+   Reference "?" and Original Source "?". No source shows the task as an originator defined it. If the auditor
+   identifies the file as UCI 74, Musk (Version 1) (476 rows; molecule_name, conformation_name, f1 to f166; PMLB
+   imbalance 0.01697, which a 0.435 minority share gives if that measure is 4(p - 1/2)^2), it still fails: the donor's task is per molecule ("the
+   classifier should classify a molecule as 'musk' if ANY of its conformations is classified as a musk"), and the
+   per-row label is the molecule's, copied to each conformation.
+Later criteria: 2 FAIL as listed (no named originator); as Musk v1, a doubt: "the low-energy conformations of the
+molecules were generated", and the curators flag musk (row 93) "Too heavily preprocssed (data augmentation)".
+3 PASS as Musk v1 (Chapman and Jain); UCI 74/75 and OpenML 1116 are this source's later copies. 4: 476 rows;
+no listed share in PMLB (R3), 0.435 only by derivation. 5 FAIL for the PMLB file: no terms in its metadata; the
+repository's MIT license is a re-upload's; UCI 74's CC BY 4.0 would apply only through the identification.
+6 PASS (168 columns).
+Pre-fit: PMLB lists molecule_name and conformation_name as continuous features; the donor says they "should not
+be used to predict the class", so the loader would drop them.
+
+## 7. NHANES_age_prediction (frame row 138, stage 3, UCI 887): FAIL at criterion 1
+
+1. Outcome: FAIL. The target is a threshold made by the subset's preparer, not by the originating study: UCI 887,
+   "For this subset respondents 65 years old and older were labeled as 'senior' and all individuals under 65
+   years old as 'non-senior'"; creators "NA NA". NHANES (CDC, NCHS) defines no such task, and the subset's
+   introductory paper (Dinh et al. 2019, read in full text, PMC6836338) predicts diabetes and cardiovascular
+   disease, not age. The curators recorded the doubt (row 546): Potential issue "task defintion"; Andrej: "the
+   real task needs to be checked"; Lennart: "original task from paper was not about age prediction".
+   Alternative: the UCI preparer is "the donor" and defined the target; I read the preparer as a later curator
+   of NHANES, whose threshold criterion 1 excludes, and the curators' doubt fails it in any case. Note that
+   section 4 names NHANES's age column as an example, so the rule's author may have read it otherwise.
+Later criteria: 2 PASS (NHANES named; interviews, examinations, laboratory tests). 3 possible FAIL, unverified:
+NCHS is also the producer of the vital-statistics birth and infant-death files that the seen Twins data come from
+(Louizos et al. 2017 cite NBER's linked birth/infant death denominator file; NBER's page was not reached), which
+would make NHANES "the same ... institution". 4 not established: 6,287 rows, no class share listed (R3).
+5 PASS (UCI 887 page, CC BY 4.0; "Please acknowledge the National Center for Health Statistics"). 6 PASS (7
+predictors).
+Frame note: its Final Decision reads "No (after preprocessing)", which I take as a "No" for stage 3.
+Pre-fit: SEQN (ID) and RIDAGEYR ("Other") dropped; listing 6,287.

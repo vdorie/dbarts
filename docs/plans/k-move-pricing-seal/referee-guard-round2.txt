@@ -1,0 +1,240 @@
+# Second-round referee report: k-move-pricing, the real-data guard and the dataset rule
+
+Read: the diff 7719f8793..ed9e2b4e8 on branch k-move-pricing; at ed9e2b4e8, docs/plans/k-move-pricing.md whole
+(step 2, the real-data guard, step 3, Sizing and stops, the calls and the newest amendment),
+docs/plans/k-move-pricing-datasets.md and docs/plans/k-move-pricing-screen.csv whole; dec-B651, B635, B633, B634,
+B620 to B626, B462 and B530; the k study's References and length guard (docs/plans/binary-k-mixing-need.md) and
+its record of failed long runs and real data (docs/design/binary-k-mixing-need.md). My first-round report:
+scratch/kmp-design-ref/referee.md. Not read: the author's reports and scratch/kmp-design/. No data file was
+downloaded and no outcome read. Every number below was rederived in R; the scripts are in
+scratch/kmp-design-ref2/probe/ (derive.R, joint.R, pilot.R, boot.R; seconds each, no package code). No new paper
+was needed; I cite none from memory. The internal-pilot error rates below come from my own simulation, not from
+the clinical-trials literature on sample-size re-estimation, which I did not obtain.
+
+## Recommendation: minor revision
+
+The revision takes every first-round point, most in full, and the design now argues as published sampler
+comparisons do. What is left is cheap to fix but real. One is a rule that cannot work as written: the length
+guard's first check has too few draws to pass. One is a pilot threshold sized to a single test, not to the
+conjunction it guards, so the guard is underpowered over a range of s. One is a missing rule: where a confirmed
+harm on R2 sends the recommendation. One is a provenance rule whose wording and screen file disagree on spect.
+The expected compute also leaves out the escalations it names. None needs new compute beyond about a core-hour,
+and none changes the design's core.
+
+## 1. The first-round points
+
+| point | answered | what is left |
+|---|---|---|
+| 1.1 length guard, escalation | in part | the length guard cannot accept at 16,000 (2.1 below) |
+| 1.2 acceptance | fully | name the one-value estimands; agreement's chance failures at 5,000 rows; the link of the k study's yield (2.2) |
+| 1.3 the reference's halves | fully | the per-half reading should also test harms, not only harmless readings (4.3) |
+| 1.4 vacuous pass | fully | |
+| 2.1 attributions, joint estimands | fully | |
+| 2.2 equal time, bootstrap | fully on equal time; in part on the bootstrap | requiring both Welch and the percentile bootstrap is Welch alone (4.2) |
+| 2.3 the margin's equivalents | fully | optional: the ends' 0.848 is the systematic worst case (3.1) |
+| 2.4 power and the 0.39 bound | in part | the pilot's 0.94 is a per-test threshold; the expected reading contradicts the rule (4.1) |
+| 2.5 how a slower sampler passes | in part | the amendment says the ways are stated; the guard section does not state them |
+| 2.6 multiplicity, confirmation | fully, extended to step 2 | the confirmed false-harm rate is not stated; a confirmed guard harm has no place in "After the reading" (4.3) |
+| 3 held-out score | fully | |
+| 4.1 criteria, missing values, leaks | fully | |
+| 4.3 spot checks | fully but one | Pumpkin_Seeds's screen note contradicts the rule's account of it (5) |
+| 4.3 second screen of seven | pending, as the rule says | still a condition of the seal |
+| 5 sharing with step 3 | fully | the trigger's bound has no stated level, and one tie is unbroken (5) |
+| 6 draw, reserves, seeds | fully | R2's and R3's sizes are still the maintainer's (call 7) |
+| 7 compute | in part | expected figures omit the escalations they name (3.4) |
+
+**2.5, what the guard section should say.** Four sentences, as the first round listed them: the margin is
+absolute, so a move with a quarter of the shipped sampler's effective draws (errors 0.2 against 0.8) passes
+wherever s is small; k is outside the guard; datasets whose references fail are not read; joint estimands frame
+nothing. Only the ratio flag and the missing references are in the text now.
+
+## 2. New defects in the reference rule
+
+**2.1 The length guard's first check cannot pass.** A reference is accepted only when every check passes at two
+consecutive block ends, and the first job's checks read at 12,000 and 16,000 recorded sweeps. At thin 20 over 16
+chains, 12,000 sweeps hold 9,600 draws, under criterion 1's 10,000. So no reference can be accepted at 16,000.
+Every reference runs to at least 20,000 recorded (25,000 sweeps), and the "sixth less" saving never occurs. The
+k study's form (first job 8,000, checks at 4,000 and 8,000) had no draw-count criterion. *What the plan should
+say:* criterion 1 is read at the accepting (later) block end only, and checks 2 to 5 at both ends. That keeps the
+guard's intent at no cost. Alternative: a first job of 20,000 with checks at 16,000 and 20,000.
+
+**2.2 Acceptance, three loose ends.**
+- *One-value estimands.* Criteria 3 and 4 apply R-hat 1.01 and 400 tail draws "for every one-value estimand". The
+  guard's scored estimands are all row estimands. Its one-value quantities are k (which criterion 5 treats apart)
+  and the average probability over the prediction rows, which frames nothing. Name the set. If it is the average
+  probability, a scalar R-hat of 1.01 over 16 chains again binds as a precision demand (the k study's quarter at
+  1,200 draws), on a quantity that frames nothing.
+- *Agreement at every row.* Criterion 2 tests agreement at 4.5 combined standard errors on every row's mean and two
+  quantiles. At up to 5,000 rows and two row quantities that is about 30,000 tests. At stationarity, with exact
+  standard errors, P(any |z| > 4.5) is about 30,000 x 6.8e-6 = 0.2, and more with noisy quantile standard errors.
+  The k study's own record gives a sound run's chance failure of agreement as 2 to 22 percent at its sizes. R2's
+  sizes run larger, so the projected yield is optimistic for the large datasets. State the chance failure rate
+  at R2's row counts. Alternative: read agreement at the 99th percentile of rows, as R-hat is.
+- *The yield's basis.* The k study's real references carried readings under both links. Say whether "12 of 22
+  failed" is logistic acceptance alone. If acceptance there was joint over links, the logistic rate is at least
+  as high, and the projection is conservative.
+- Wording: criterion 2's "every scored estimand's mean and 5th and 95th percentiles" should read "every scored
+  quantity's" (the latent fit and the probability at each row). An estimand such as the posterior sd has no
+  percentiles.
+
+## 3. The numbers, rederived
+
+**3.1 Coverage equivalents of the margin.** All confirmed (normal posterior, 90 percent interval):
+- *Mean:* one unit is 0.1 sd, coverage 0.8983. A 0.02 loss takes 0.344 sd, 11.8 units.
+- *sd:* one unit is 7.1 percent narrow, coverage 0.8735. A 0.02 loss is 0.59 units.
+- *Ends:* the 5th percentile of 100 draws has variance 0.04466 sd^2, so one unit is 0.211 sd. Both ends inward
+  give 0.8483, and a 0.02 loss is 0.18 units.
+
+One refinement the plan may add. These figures treat one unit as a systematic error. Coverage loss is quadratic
+in a mean's displacement, so the mean's 0.898 holds however the squared error splits between bias and noise. For
+the sd and the ends it does not. A unit of zero-mean noise costs much less: coverage 0.8977 on the sd and 0.8924
+on the ends (simulated). So the ends' 0.848 is the worst case, all bias and inward.
+
+**3.2 Power.** One test at 20 fits a library, P = Phi(1 / (0.316 s) - 2.024): 0.992, 0.910, 0.872 and 0.586 at
+s = 0.71, 0.94, 1 and 1.41. At 40 fits (t 1.991): 0.997 at 0.94, 0.881 at 1.41. Conjunction at 5 effective tests a
+dataset, s = 0.94: 0.242 over 3 datasets and 0.059 over 6 at 20 fits; 0.958 and 0.918 at 40. All match the plan.
+The false harm a test, 1 - Phi(1 / (0.316 s)), is 0.00038 at s = 0.94 and 0.0124 at 1.41, matching. The bounds
+1 - 0.05^(1/a) are 0.393 at 6 and 0.632 at 3, matching. Harm at twice the margin shows with probability 0.999 a run
+at s = 1, matching.
+
+**3.3 Accepted references.** I assume the plan's model: pass rates 2/12 at a score of 0.8 or more and 8/10 below,
+10/22 of the pool below 0.8, assigned by rank to the blocks of 4, 4, 5, 4, 4 and 5 at N = 26. Then:
+- At R2 = 6: 2.75 expected accepted, P(at least 3) = 0.61, P(none) = 0.008. This matches 2.7, 0.6 and 0.01.
+- At R2 = 9: 4.21 expected and P(at least 3) = 0.93, against the plan's 4.1 and 0.92. The plan's 4.1 is the
+  unstratified 9 x 0.4545. Immaterial.
+
+The projection is soft, and the plan should say so. Under Jeffreys uncertainty in the three rates, P(at least 3)
+has a 10th to 90th percentile range of 0.29 to 0.87 at 6 and 0.69 to 0.99 at 9. If the pool holds more datasets
+scoring 0.8 or more than the k study did (75 percent), it is 0.30 at 6 and 0.68 at 9. Both favor 9.
+
+The figure call 7 needs is the joint one: the chance the guard reads harmless at a true D of 0. That is P(at
+least 3 accepted) times the conjunction over the accepted datasets (5 effective tests each, joint.R):
+
+| R2 | fits a library | s = 0.70 | s = 0.94 |
+|---|---|---|---|
+| 6 | 20 | 0.55 | 0.13 |
+| 6 | 40 | 0.61 | 0.58 |
+| 9 | 20 | 0.81 | 0.13 |
+| 9 | 40 | 0.93 | 0.88 |
+
+So 9 datasets at 40 fits is the design that reads, and 6 at 20 rarely does.
+
+**3.4 Compute against the plan's own rates.** 3.75 ms a chain-sweep, a 35 percent overhead, 0.08 core-hours for 40
+default fits.
+- *A reference:* 16 x 25,000 sweeps is 0.42 core-hours, 0.56 with overhead (0.47 at 21,000). An escalation
+  (8 chains of 80,000) is 0.67, 0.9 with overhead. "13 minutes" and "25 more" on 2 cores are right.
+- *R2 references:* the "8.8 at most" (3.375 + 6 x 0.9) and R3's "17.6 at most" (6.75 + 12 x 0.9) are right. The
+  expected figures leave out the escalations they name. R2's "about 3 (one escalation)" is 3.1 to 3.4 before the
+  escalation and 4.0 to 4.3 with it. R3's "about 6.3 (two escalations)" is 6.3 to 6.75 before and 8.1 to 8.6 with
+  them. With 2.1 as written, no reference stops at 21,000, so the upper ends hold.
+- *Totals:* the guard is about 6.0 expected, not 4.9. Through step 2 it is about 43, not 42. With step 3 it is
+  about 52, not 49, and the stop at 1.5 times is about 78, not 73. The maximum of 98 rederives exactly
+  (5 + 17 + 19 + 13.4 + 2 + 23.3 + 17.6 + 1). The R2-at-9 increment (1.6 references, 0.9 fits) is right on the
+  plan's basis: 1.7 at the 25,000-sweep rate.
+- *Memory:* 0.6 GB a reference is confirmed (12,800 to 16,000 draws x 5,000 rows x 8 bytes).
+
+## 4. What is new
+
+**4.1 The internal pilot.**
+- *Error rates.* For every dataset but the pilot's, the fit count is fixed by data independent of that dataset's
+  own fits, so those tests keep their level exactly. Only the pilot dataset's own test is re-sized on its own
+  data. I simulated it at the margin (true D = 1, harmless when Welch's upper bound is under 1, 20 raised to 40
+  when either library's s passes 0.94). With normal errors, the pilot's rate is 0.026, 0.030 and 0.024 at s =
+  0.7, 0.94 and 1.2, against 0.025 nominal (Monte Carlo se 0.0018): at most a few thousandths of inflation, worst
+  with the threshold at the true s. So the pilot keeps its error rates to within that. The pilot is "blind to D"
+  only in the sense that it computes no difference. It reads each library's spread, and for errors whose spread
+  tracks their mean that spread nearly reveals each mean. That is harmless only because the rule's sole output is
+  the fit count and the rule is mechanical. Say both.
+- *The threshold is sized to the wrong test.* s = 0.94 is where one test resolves 0.91 (my first-round
+  suggestion, and my error there). The conjunction needs a per-test 0.993 to 0.9965, which at 20 fits means s up
+  to 0.71 over 3 datasets and 0.67 over 6. As written, a pilot that reads s between 0.7 and 0.94 keeps 20 fits,
+  where the conjunction resolves 0.06 to 0.9. Every dataset goes to 40 only past 0.94, where at 40 it resolves
+  0.92 at s = 0.95 but 0.02 at s = 1.41.
+- *The expected reading contradicts the rule.* "Resolves harmless with probability about 0.9 or more if the
+  pilot's 40 fits hold s at 0.94 or less" describes a branch the rule never takes: 40 fits are taken only when
+  some s passes 0.94.
+- *One dataset sizes all.* R2 spans 124 to 4,000 fitted rows, so its s on one dataset says little about another's.
+
+*What the plan should say.* Take 40 fits a library from the start. Call 15 prices that at about 0.6 core-hour,
+and it removes the pilot dataset's re-sizing question. Keep an internal pilot per dataset, reading that dataset's
+own spreads after its 40 fits and raising it to 80 when any s passes 0.95. 0.95 is the threshold at which 40 fits
+give the conjunction 0.9 over 6 datasets (1.0 over 3). Restate the expected reading from the table in 3.3.
+Alternative, the plan's form with the threshold set from the conjunction: 20 fits up to s = 0.67, 40 up to 0.95,
+and 80 past it.
+
+**4.2 Skew, and the second bound.** Each fit's error is a sum of squared errors, chi-square-like. Where rows move
+together, as a shared k error makes them, it is nearly one chi-square. I simulated the case where a fit's error is
+gamma (mean 2 for the move, 1 for the shipped, true D = 1) at 20 fits. Welch's one-sided 0.025 bound then reads
+harmless at a rate of:
+- 0.053 at shape 0.5;
+- 0.033 to 0.044 at shape 2 (two simulations);
+- 0.025 at shape 8.
+
+The percentile bootstrap is worse (0.069, 0.043 and 0.032). Since the percentile bound is the narrower one, "both"
+equals Welch in every replication (boot.R). A studentized bootstrap helps at moderate skew (0.029 at shape 2) but
+not at shape 0.5 (0.065). At 40 fits Welch is 0.036 at shape 2. So the second bound adds nothing as written, and
+the guard's per-test level can be about twice nominal where the errors are most skewed.
+
+*What the plan should say.* Drop the percentile bootstrap as a second requirement, or replace it with a
+studentized one. State the level at the measured skew: each library's skewness of the error over fits, read in
+the same blind pass. 40 fits halves the excess, another reason for 4.1's recommendation.
+
+**4.3 Fresh-seed confirmation.** Sound for what it can catch. The rerun's fits are independent of the first run's,
+so a false harm at a true 0 needs both runs: about 0.0004 x 0.0004 a test at s = 0.94. An unconfirmed harm reads
+unresolved, which still blocks the move. So confirmation can never manufacture a harmless reading. Three gaps:
+- *The shared reference.* The rerun is scored against the same reference. A reference that leans toward the
+  shipped half (tolerated up to 1 to 2 units, 1.3 of the plan) shows the move worse in both runs, and
+  confirmation does not remove that. Call 22's per-half reading flags only harmless readings. *Should say:* a
+  guard harm stands only when it also holds against the move's own half, the half that can only favor the move.
+  Symmetrically, the flag on a harmless reading keys on the shipped half.
+- *Where a confirmed guard harm goes.* "After the reading" maps harm in A to parking and harm only in B to step 3.
+  A confirmed harm on R2 is in neither, so the rule is silent. *Should say*, my recommendation: it blocks "on for
+  every logistic fit" and recommends step 3. Real datasets that pass acceptance are mostly the fits with no
+  strong signal, which is what B stands for. The alternative is to treat it as a harm in A (parking).
+- *The stated rate, and the rerun's count.* Rule 2 still gives the unconfirmed family bound, about 0.09 in A.
+  Add the confirmed one: at most 50 x 0.005 x 0.0025, about 0.0006. The rerun should run at the count the harm was
+  read at (40 if the guard went to 40, a regime's full count if it showed there), not at the first look's.
+
+**4.4 Equal time per sweep.** Right, and as asked. Subtracting a one-sweep fit's time leaves 999 sweeps' cost per
+library. Both libraries pay the same fixed time, so the shipped arm's ceil(1000 r) sweeps fill the time the move's
+1,000 take. Two small points. Time the guard's fits with the prediction rows, as they are scored, since prediction
+cost scales with the draws kept. And E3 is still timed by total fit time. That is right if its per-sweep R work is
+counted as per-sweep, but it then includes the fixed time once, pulling r slightly toward 1. Use E3's remainder
+too.
+
+**4.5 At least 3 accepted references, or unresolved.** Right: it closes the vacuous pass, and rule 2 reads it as an
+unresolved class. Name the 3 as the study's own (no published rule sets it). Say that 0 harms of 3 bounds the
+harmed share among such datasets only below 0.63. And add the joint figure of 3.3 to call 7. A guard that reads
+13 to 58 percent of the time at 6 datasets is mostly a report of counts.
+
+## 5. Before the list is sealed
+
+1. *Provenance wording against the screen file.* Criterion 3 keeps "the earliest in frame order" of a source.
+   spectf (frame 96) and spect (97) are the same 267 SPECT patients, and spectf is earlier. The screen file passes
+   spect on criterion 3 because spectf fails criterion 5. Likewise, rice passes because Pumpkin_Seeds (same source,
+   earlier) fails 5. That reads "the earliest that passes every other criterion", which is not what the rule says.
+   Reword criterion 3 so. Otherwise spect fails, the pool is 25 and the large count unchanged.
+2. *Pumpkin_Seeds's screen note* says "originating terms not read". Section 5 says its creator's page was read and
+   gives a citation request alone. Make the file record the reading; the result is unchanged.
+3. *The second screen of the seven* single-screened passers, as the rule requires; any failure restates the counts
+   and the blocks.
+4. *R2's and R3's sizes* (call 7), the maintainer's. On 3.3, 9 at 40 fits is the size at which the guard reads.
+5. *Length guard and criterion 1* (2.1), since the rule cites the reference's acceptance for step 3's
+   need-the-move reading too.
+
+Before any R2 reading opens, not needed for the seal:
+- the trigger's upper bound on pooled gain needs a stated level and method (one-sided 0.025, bootstrap over
+  replications, say), and a tie between a t candidate and an e candidate needs a rule ("then the smaller t, then
+  the larger e" orders within each feature, not across);
+- 4.1's fits and threshold, 4.2's second bound, 4.3's three points;
+- 2.2's one-value set and agreement rate;
+- whether fitted and prediction rows are separate groupings, which makes 15 or 30 tests a dataset.
+
+## Corrections that need no new decision
+
+- The expected compute with the escalations counted (3.4).
+- The expected reading's pilot sentence (4.1).
+- The confirmed false-harm rate (4.3).
+- The 2.5 sentences (1).
+- criterion 2's wording (2.2).
+- R2 at 9: 4.2 expected accepted, 0.93 (3.3).

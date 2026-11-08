@@ -1,0 +1,311 @@
+# Referee report: k-move-pricing, step 2's real-data guard and the dataset rule
+
+Read: docs/plans/k-move-pricing.md on branch k-move-pricing (7719f8793), step 2, The real-data guard, Sizing and
+stops, calls 7 and 12 to 19, and the dec-B651 amendment; docs/plans/k-move-pricing-datasets.md; dec-B651, B635,
+B633, B634, B620 to B626, B462, B530 in docs/decisions.md; the k study's acceptance rule and its record of failed
+long runs (docs/plans/binary-k-mixing-need.md, Acceptance; docs/design/binary-k-mixing-need.md, Long runs that
+failed acceptance). Papers, from scratch/papers: Magnusson et al. 2024 (posteriordb), Margossian et al. 2024
+(nested R-hat), Vehtari et al. 2021, Zhang et al. 2022 (Pathfinder), Demsar 2006, Erickson et al. 2025
+(TabArena). Repository metadata only (OpenML API records, UCI pages); no data file was downloaded and no outcome
+was read. Not read: the planner's report and scratch/kmp-design/, as instructed, so the frame file and the
+per-entry screen file were not available to me (point 4.6). Vats and Knudson (2021) was not obtained; the R-hat
+argument below rests on my own derivation and on the k study's own measured figures.
+
+## Recommendation: major revision
+
+The design's core is right and an improvement on the held-out log score it replaces. The two samplers target one
+posterior, so the error of each sampler's estimates against a reference of that posterior, at equal time, is the
+direct reading. posteriordb and Margossian and coauthors score samplers this way, and the estimands (means,
+spread, tail quantiles of predictive quantities) are the ones posteriordb names. Three defects need a revision
+before the list is sealed. As written, the reference's acceptance will almost certainly leave the guard with few
+or no accepted datasets. With none accepted the guard reads harmless by vacuous truth. And the margin's argument
+and the power claim are partly wrong. Each can be fixed in the plan at little or no compute.
+
+## 1. The reference runs
+
+**1.1 Length and chains.** Sixteen chains, 8 a library, from prior draws, 5,000 sweeps of burn-in, 20,000
+recorded at thin 20: 16,000 draws, above posteriordb's 10,000. Starts from the prior are what Vehtari et al. ask
+for (diffuse starts). Sound. Two things are lost from the k study's form, which the plan says it reuses. The
+length guard is gone: the k study accepted a run only when every check passed at two consecutive block ends, so
+that a lucky single block could not pass. And the escalation of the shipped half is gone. The plan should restore
+the length guard, which costs nothing when a run passes at once. It should either restore the escalation or say
+that it dropped it.
+
+**1.2 Acceptance: R-hat and effective draws are inconsistent, and stricter than the house's own evidence
+supports.** Criterion 2 asks for rank-normalized split R-hat below 1.01 over all 16 chains, on k and on the latent
+fit at every fitted and every prediction row (up to 5,000 rows). Criterion 3 asks for bulk and tail effective
+draws of at least 1,000.
+
+- At stationarity, split R-hat squared is about 1 + m / ESS, with m the number of split chains (here 32). The
+  within-chain variance falls short of the posterior variance by about its variance divided by the per-chain
+  effective draws, and the pooled estimate does not. At ESS = 1,000 a perfectly stationary reference reads
+  R-hat about 1.016. Passing 1.01 needs about 1,600 effective draws, and passing it reliably needs more. The k
+  study measured exactly this on its own 16-chain references: a stationary chain "passes 1.01 about a quarter of
+  the time at 1,200 effective draws and two-thirds at 1,600 over 16 chains ... and takes about 2,000 to 2,400 to
+  pass reliably". Vehtari et al. pair 1.01 with 400 for their four chains (8 split chains, 50 effective draws
+  each). Scaled to 32 split chains, the same rule is 1,600, not 1,000. So criterion 3 is not the binding
+  criterion: criterion 2 is, and it binds at a precision the plan does not state.
+- Requiring it at every row multiplies the failures. The k study used 1.02 at the 99th percentile of rows for this
+  reason, and 117 of its 141 failed long runs failed on row R-hat. Margossian et al. (2024, section 1.1) make the
+  general point: R-hat at 1.01 measures the chains' mixing, "a separate question" from whether the estimate has
+  acceptable error, and reaching it can cost far more than the target precision.
+- Requiring k's R-hat reverses a recorded call. The k study read dec-B462's "converge" on the scored quantities
+  and on k's quantiles at about 100 effective draws, "not on k's split-Rhat at 1.01, since requiring k to
+  converge selects the replications where the shipped kernel already mixes" (decisions.md, the k study's
+  calls). Its pilot, which did require k to converge, passed 18 of 52 references. The plan also says k "frames
+  nothing" in the guard, yet k gates every reference.
+- Expected yield. Under the k study's looser rule, 12 of its 22 real prediction references failed, and 10 of
+  the 12 datasets scoring at least 0.8 failed. R2 is stratified by score, so its top blocks will mostly fail
+  under the plan's stricter rule, and likely several lower ones too. The plan states no expected count of
+  accepted references.
+
+*What the plan should say.* Take the k study's acceptance as written (halves agreeing within 4.5 combined Monte
+Carlo standard errors on each scored quantity's mean and 5th and 95th percentiles and on k's seven quantiles;
+R-hat at most 1.01 on scalars and 1.02 at the 99th percentile of rows; tail effective draws at least 400 on
+scalars and at the 1st percentile of rows; k's effective draws at least 100; k's own R-hat reported), with its
+length guard. Add posteriordb's 10,000 draws and the lag-1 report. If the plan keeps R-hat 1.01 at every row, it
+must ask for about 2,000 or more effective draws to match it, and state the expected pass rate. Either way, state
+the expected number of accepted R2 references, from the k study's rates by score.
+
+**1.3 Can a reference built from both samplers favor either?** In expectation no. The scored fits are
+independent of the reference, so the reference's own Monte Carlo error adds the same amount to both expected
+errors and cancels from D, as the plan says. Bias is another matter. Acceptance tolerates a disagreement between
+the halves of up to about 4.5 times the combined standard error, about 0.2 to 0.28 posterior sd at 500 to 1,000
+effective draws a half (R-hat at 1.01 tolerates about the same). The pooled reference can then sit up to about
+0.1 to 0.14 sd toward one half, which is 1 to 2 units in the guard's scale, the size of the whole margin. If a
+sampler's short fits are biased the same way as its own long half, the reference favors that sampler. When that
+sampler is the shipped one, the guard is conservative. When it is the move (for instance, slower tree mixing on
+some rows), the guard is anti-conservative. The plan's argument that the reference is "never the sampler under
+test alone" does not cover this residual.
+
+*What the plan should say.* State the acceptance tolerance in the guard's units. Add a sensitivity reading at no
+compute: D computed against each library's half alone as well as against the pooled reference, with any
+harmless reading that does not hold against both halves flagged. Alternatively, score each library's fits
+against the other library's half.
+
+**1.4 The vacuous pass.** "The guard reads harmless when every row estimand and class reads harmless on every R2
+dataset with an accepted reference." With no reference accepted, that reads harmless. Given 1.2, this outcome is
+likely. *Required:* a minimum number of accepted references for the guard to read at all (I suggest 3 of 6);
+below it the guard is unresolved and reported with its counts. Rule 2 of step 2 must say that an unresolved guard
+blocks the recommendation as an unresolved class does.
+
+## 2. Estimands, error measure, equal-time pairing and the no-harm bar
+
+**2.1 Estimands and error.** The estimands are natural. posteriordb names means, variances and tail quantiles of
+parameters and predictive quantities. The unit for a posterior mean is Margossian et al.'s "expected squared
+error attained with 100 independent samples". The plan honestly calls the same unit for the sd and the interval
+ends its own. Two attributions need correcting:
+- The non-inferiority use of one unit as a margin on a difference between samplers is the study's own.
+  Margossian et al. use Var/100 as a precision target for one estimator, not as a margin.
+- The 1-Wasserstein reading "scaled by the reference's standard deviation ... as Zhang et al. 2022 read it" is
+  not Zhang et al.'s. Zhang et al. compute W1 on the whole unconstrained parameter vector from 100 draws, and
+  scale each model's distances by the median distance of single-path Pathfinder (section III.1). A per-row
+  univariate W1 scaled by the reference sd is the study's own.
+
+Joint estimands are absent: the band (a simultaneous interval) and a one-value functional such as the average
+predicted probability over rows. A sampler with the right marginals but the wrong dependence across rows would
+pass. The guard can report the reference mass inside each fit's band at no compute.
+
+**2.2 Equal-time pairing.** r is the median ratio of full default fits, and the shipped arm gets ceil(1000 r) -
+500 draws. Time that does not scale with sweeps (setup, cut points, model frame) pulls r toward 1. The shipped
+arm then gets fewer sweeps than equal time would give it: the needed count is 1000 c_move / c_shipped, at least
+1000 r. That favors the move, which is anti-conservative for a no-harm guard. The effect is probably small at
+these sizes. The plan already measures seconds per sweep from 100-sweep segments. It should either set the
+shipped arm's draws from the per-sweep ratio, or report the share of fixed time in each dataset's timing. Welch's
+unpaired comparison is right, since the two libraries' streams cannot share random numbers. The errors are
+chi-square-like and skewed; at 20 a library a bootstrap bound beside Welch's would show whether skew matters.
+
+**2.3 The margin.** One unit is defensible as a usability bar: Monte Carlo error under a tenth of a posterior sd
+is small beside the posterior's own uncertainty, and this matches the house's absolute bars (dec-B455). But the
+plan's coverage equivalence is right only for the mean:
+- Mean: one unit is a displacement of 0.1 sd, coverage 0.898. Confirmed (exact: 0.8983).
+- sd: one unit is 7 percent too narrow, coverage 0.8735. That is a loss of 0.027, not "about equal" to 0.02. A
+  loss of 0.02 corresponds to 0.6 units.
+- Interval ends, which the guard also scores: the 5th percentile of 100 normal draws has variance 0.0447
+  sd^2, so one unit is a systematic shift of 0.21 sd. Both ends shifted inward by that much give coverage 0.848, a
+  loss of 0.052. A loss of 0.02 corresponds to about 0.18 units. So on interval ends the margin is about 2.5
+  times looser than the house's coverage bar.
+
+*What the plan should say.* Correct the margin paragraph with these three equivalences, and justify the single
+margin as a Monte Carlo precision target, not as a match to the 0.02 coverage bar. Alternatively, set
+per-estimand margins (about 0.6 units on the sd, 0.2 on the interval ends) if matching the coverage bar is the
+intent. That costs power.
+
+**2.4 The power claim, rederived.** se(D) = s (1/20 + 1/20)^(1/2) = 0.316 s, correct. With t at 38 degrees of
+freedom (2.024), P(resolve | D = 0) = Phi(1 / (0.316 s) - 2.024) gives 0.993, 0.910, 0.872 and 0.587 at s =
+0.71, 0.94, 1 and 1.41, matching the plan. s at most 141 / E on a mean (100 / E times the sd of a chi-square
+with one degree of freedom) is correct, as is 0.91 at E = 150. The upper bound of 1 - 0.05^(1/6) = 0.39 on the
+harmed share is correct for 0 harms of 6.
+
+Two aggregate claims are wrong:
+- "All six resolve with probability 0.96, 0.57, 0.44 and 0.04" counts one test a dataset. The guard is a
+  conjunction over five row estimands times up to three row groupings (all, interior, near 0 or 1) on each
+  dataset, about 15 a dataset and 90 in all. Strongly correlated within a dataset, but not one test. Even at 5
+  effectively independent tests a dataset, the joint probability at s = 0.94 is 0.91^30 = 0.06, not 0.57.
+  Interval ends rest on tail effective draws and have the largest s, so they will usually decide it.
+- The 0.39 bound and the six-dataset power both assume six accepted references (see 1.2), and the six are a
+  score-stratified draw conditioned on acceptance, not a random sample of the frame. The bound holds for
+  accepted datasets like these.
+
+*What the plan should say.* Restate the guard's expected reading as step 2's "Expected reading" paragraph does:
+the expected number of accepted references, and the probability that the whole conjunction resolves at D = 0
+for a stated within-dataset correlation. Make the first dataset's measurement of s an internal pilot that
+re-estimates the variance blind to D: if any s exceeds 0.94, every dataset gets 40 fits a library (call 15's
+alternative, about 0.1 core-hour a dataset). That rule must be written before any fit.
+
+**2.5 Can a sampler that mixes worse pass?** Yes, by design, in four ways the plan should state plainly:
+1. The margin is absolute. A move with a quarter of the shipped sampler's row effective draws (errors 0.2
+   against 0.8, D = 0.6) passes whenever s is under about 0.6, as class averages over many rows will be. posteriordb names effective draws per second as "the central implementation-dependent
+   performance metric", and the ratio of mean errors is exactly that. The plan reports the ratio and frames
+   nothing on it. At 20 fits a library a ratio bar of 1.25 would seldom resolve (with a coefficient of variation
+   of 0.5 over fits, the bound on a true ratio of 1.1 is about 1.5), so I do not ask for it as a bar. The report
+   should give the ratio with its interval on every estimand, and flag any whose lower bound passes 1.25, the
+   cost bar of dec-B620 restated as accuracy.
+2. k is outside the guard.
+3. Datasets whose references fail are not read at all. That is where the samplers differ most, though not where
+   harm from the move is expected.
+4. Joint estimands are not scored (2.1).
+
+**2.6 Multiplicity.** "Harmless" on every estimand, class and dataset is an intersection-union reading. Each test
+must reject on its own, and the joint claim keeps the per-test level, so no correction is needed. The plan is
+right there, but power falls (2.4). "Harm shown" is a union, and it does need a rule:
+- In the guard, harm needs D at least 1 with its lower bound above 0. At D = 0 that is P(Z >= 1 / (0.316 s)):
+  0.0004 at s = 0.94 and 0.0125 at s = 1.41 a test, across about 90 correlated tests.
+- In step 2's rule 2 (outside this referee's brief, but the same question), harm needs the worsening at 0.02 or
+  more with z at least 2.81, at most 0.0025 a look and 0.005 over two looks. That applies to each of about 50
+  class-weighting cells. That gives a Bonferroni bound near 0.09 for a false harm somewhere in A, which
+  recommends parking.
+
+*What the plan should say.* A harm shown frames the recommendation only after it is confirmed on fresh seeds
+named before the rerun, as step 1 confirms its failures (about 0.1 core-hour a guard dataset). Alternatively, the
+report states the expected number of false harms at a true zero and a family-wise level for the harm family.
+
+## 3. Dropping the held-out log score
+
+What is lost is as the plan says: a reading on datasets whose references fail, in predictive units users know,
+comparable with Chipman, George and McCulloch (2010). One argument against keeping it is wrong, though. The
+Nadeau and Bengio correction, and the 0.0054-nat requirement that follows from it, belong to a claim about
+generalization over splits. The paired question here is whether two samplers of one posterior predict
+differently on one fixed split. That needs only the 20 fits a library already planned, read by Welch's test
+like D. The fits already predict at the 20 percent prediction rows, so the score costs nothing but reading
+those rows' outcomes after the seal, which the held-out rule allows. Nothing in the guard's logic or in step 3
+needs it: step 3 reads reference mass. But it is the only real-outcome reading on datasets whose references
+fail.
+
+*Recommendation (a call, with its alternative).* Keep the prediction rows' outcomes sealed until the guard's
+reading is committed, then report the held-out log score and Brier score differences per dataset with Welch
+intervals, framing nothing. They matter most where references fail. Alternative: drop them as the plan does,
+and say the failed-reference datasets get no real-outcome reading.
+
+## 4. The screen
+
+**4.1 Can the dropped criteria bias the paired comparison?** No criterion, dropped or kept, can favor one exact
+sampler over the other on a given dataset: every one is a property of the data, and both samplers target the
+same posterior. What the criteria change is the population of posteriors and the share of references that pass.
+Taking each in turn:
+- *Independent rows, case-control sampling, duplicates, time-to-event status*: agreed; no bias. The posterior is
+  well defined and both samplers target it.
+- *Leaks*: no bias, but the argument as written is wrong. The blocks are ranks of the pool's scores, so the draw
+  fixes R2's share of each rank sextile, not of each score range. If leaks raise many datasets toward
+  separation, the top two or three sextiles are all near-separated, and R2's near-separated share equals the
+  pool's. Leaks therefore can raise R2's share of near-separated data, and with it the share of references that
+  fail. This costs power, not validity. *Correct the sentence.*
+- *Kept criteria 1 and 2* (outcome as the source defined it, real data) cannot bias the comparison either. They
+  are criteria of population, of which posteriors users meet. The section should say that the screen keeps
+  population and feasibility criteria and drops none that bear on bias, since none does.
+- *Another criterion, in effect added by section 4*: complete-case deletion. "A column more than half missing is
+  dropped, then rows with any missing covariate." This is not what a user's fit does: bart()'s default is
+  na.action = na.keepPredictors, which keeps the rows. It can also cut rows heavily. OpenML lists 75,244 of
+  APSFailure's 76,000 rows with a missing value, 75 of hepatitis's 155 (leaving about 80, below the 100-row
+  floor), and 263 of cylinder-bands' 540. Criterion 4's floors are read from listings before this step, so a
+  passer can fall below them unseen. The minority share cannot be rechecked without reading the outcome.
+  *Required:* fit with the package's default missing-predictor handling and drop only columns entirely missing
+  (or above a stated high missing share). Otherwise re-apply the row floor after deletion and state that the
+  share is not rechecked.
+
+**4.2 Counts.** The flow table's arithmetic holds in every column: 151 - 27 - 11 = 113 entering; failures 22 +
+24 + 10 + 10 + 20 + 1 = 87; 26 pass. Stage by stage it gives 9, 6 and 11 passers, and 9, 4 and 4 with at least
+1,000 rows (17), matching the passers' listed sizes. Fields total 7 + 4 + 11 + 4 = 26. The orchestrator's count
+of 43 with 24 large, reconciled in section 5, is not checkable without the per-entry table.
+
+**4.3 Spot checks against published pages** (repository metadata only):
+
+| entry | listed | published record | finding |
+|---|---|---|---|
+| jm1 | 10,885, 0.193, pass flagged | OpenML 1053: 10,885; licence "Public"; description says the data were made public to encourage repeatable predictive models; publishers asked to follow PROMISE's acknowledgment guidelines | pass is defensible, but not on the rule as worded: Pumpkin_Seeds fails for "asks for a citation and states no terms". The rule needs one standard, e.g. a statement that the data were made public for reuse, or a public licence field, counting as terms |
+| NHANES_age_prediction | 6,287 | UCI 887: 6,287 rows, CC BY 4.0, target age_group (65 or more) defined by the donor, RIDAGEYR listed as "Other" | pass; the loader's dropping of "Other" columns is required, as section 4 says |
+| Parkinsons | 197, share blank | UCI 174: metadata 197 instances, description 195 recordings from 31 subjects, CC BY 4.0 | the listing disagrees with itself; the pre-fit check fails an "unexplained mismatch", so the rule must name which count is the listing (195 is the file's) or Parkinsons fails at load |
+| irish | 500, 0.444 | OpenML 451: licence "Public"; "solely as an example for research on the development of statistical methods"; other uses need the owners' permission | pass for this study; no derived file holding the data may be committed or shipped |
+| NATICUSdroid | 7,491, 0.350 | OpenML 46969 (TabArena): 7,491, minority 2,624; curators removed 75 percent duplicate rows from the original 29,333 (UCI 722, CC BY 4.0), changing balance from about 0.5 | listed figures match the TabArena file; criterion 1 forbids "a merge, threshold or choice of target made by a later curator" but is silent on curator row edits. State that suite-curated row edits (deduplication) are allowed and recorded, or fail such entries |
+| qsar-biodeg | 1,054, 0.337 | OpenML 46952: 1,054 and 355 (UCI 254: 1,055 and 356, CC BY 4.0) | matches the TabArena version; same curator-edit point |
+| spect | 267, 0.206 | UCI 95: 267 (80 train, 187 test files), CC BY 4.0 | pass; the "stable versioned file" is two files, so the rule should say they are concatenated |
+| breast_cancer (Ljubljana) | 286, 0.297 | UCI 14: 286, 85 of one class, CC BY 4.0, Institute of Oncology, Ljubljana | pass; distinct from biopsy and wdbc (Wisconsin) |
+
+Two of the seven single-screened passers (NHANES, and NATICUSdroid's provenance) were checked here. APSFailure,
+nomao, cylinder-bands, Internet-Advertisements, skin-segmentation and clean1 were checked only for size and
+missingness, which is not a second screen. *Required before the seal:* the per-entry screen table, which I could
+not see, is committed with the rule, and the seven single-screened entries get their second screen.
+
+## 5. Sharing the references with step 3
+
+The condition (step 3's trigger form committed before any R2 reading is opened) is necessary but not enough:
+- "Form" must mean the selected trigger itself, its feature and threshold computed from step 2's simulated fits,
+  not only the candidate set and selection rule. Step 2's report must wait for that commit whether or not step 3
+  ever runs.
+- Step 2's report shows, for R2, the reference mass inside each fit's interval (and readings without the scores
+  of 0.995 or more), which is step 3's need-the-move reading. The maintainer decides whether to run step 3 after
+  seeing it. So every element of step 3 must also be frozen before R2 opens: the need-the-move rule, the pass
+  rule (fire on every needing dataset, spare at least half), the fewer-than-3 rule and R3's size. Any later
+  amendment of step 3 drops R2 from its test.
+- The trigger selection is mechanical. Knowing the R2 and R3 datasets' rank blocks from the committed assignment
+  therefore cannot steer it, provided the rule leaves no discretion. Say so, or commit the assignment as
+  unordered sets.
+
+With those three, sharing is honest, and 18 datasets is better than 12.
+
+## 6. The seeded draw and the reserves
+
+The code is sound. Base R's RNG kinds are pinned, it uses `i[sample.int(length(i), 1L)]` (avoiding `sample()` on
+a vector of length one), and vapply's integer type matches. At N = 26 the R2 blocks hold 4, 4, 5, 4, 4 and 5
+(ceiling(6 r / 26)). At M = 20 the R3 blocks hold 1 or 2, leaving 8 reserves, as stated. Exact block boundaries
+(78 / 26 and 60 / 20) are exact in floating point. Five things are unspecified or wrong:
+1. Reserves are "drawn from the same block" with no seed or order given, and an R2 block's other members may be
+   in R3. Specify the pool (the eight unassigned only) and the rule (e.g. the reserve nearest in rank within the
+   same R2 or R3 block, else the next block's), in code.
+2. The 80/20 split and the rpart 5-fold assignment for the separation score have no seeds or code. Write them out
+   as the allocation is.
+3. The stage-4 order file's checksum is truncated ("f8978e03...b423d5"). A sealed rule needs the full digest.
+4. R3's size (12, or every passer not in R2) is still the maintainer's call. It must be settled before the seal,
+   since the draw's code depends on it.
+5. The draw needs the scores of all 26 before the assignment, so the pre-fit check, and any shortfall to stage 4,
+   must complete first. Say so in section 6's order.
+
+## 7. Compute
+
+The arithmetic is consistent with the plan's own rates. References: 6 x 16 x 25,000 chain-sweeps at 3.75 ms is
+2.5 core-hours, 3.4 with 35 percent. Fits: 348 at 4,000 chain-sweeps is 1.45 core-hours at 3.75 ms, about 2 with
+overhead; "about 1" implies an average near 2.6 ms, plausible since R2 spans 124 to 4,000 fitted rows. Step 2
+totals 20.0. The whole plan totals 40.2 expected, 46 with step 3 and about 75 at most, above the stop of 69. The
+rate of 3.75 ms is itself unverified (Not verified says so). The fixes above add little: the length guard and
+cross-half scoring add nothing. Escalation of the shipped half to 100,000 sweeps adds about 0.7 core-hour a
+dataset that escalates, up to about 4. A second set of 20 fits on every dataset adds about 0.6. Confirmation
+reruns add about 0.1 a dataset. Memory: full draws at up to 5,000 rows are about 0.6 GB a reference for the
+latent fit alone, so they should be compacted after scoring, as the k study compacted.
+
+## Must be settled before the list is sealed
+
+1. The acceptance rule (1.2), the length guard (1.1), and the expected number of accepted references.
+2. A minimum number of accepted references, and the unresolved guard's place in rule 2 (1.4).
+3. Missing-value handling: the package default, or a row floor re-applied (4.1).
+4. Criterion 1's treatment of suite-curated row edits; one licence standard covering jm1 and Pumpkin_Seeds;
+   which count is Parkinsons's listing; spect's two files (4.3).
+5. The per-entry screen table committed, and the seven single-screened passers screened a second time (4.3).
+6. Reserve rule, split and score seeds as code, the full stage-4 checksum, and R3's size (6).
+7. Every element of step 3 frozen before R2 opens, if R2 is to join its test (5).
+
+## Corrections that need no new decision
+
+The margin paragraph's equivalences for the sd and the interval ends (2.3). The attribution of the margin's use
+and of the scaled W1 (2.1). The aggregate power and the 0.39 bound's scope (2.4). The leak sentence (4.1). The
+equal-time ratio from per-sweep cost, or the fixed-time share reported (2.2). A confirmation rule for any harm
+shown (2.6).

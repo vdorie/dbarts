@@ -1,0 +1,135 @@
+# Referee report, round 2: sizing of pricing's real-data stages (k-move-pricing at 36c75a02e)
+
+Read: the diff a7984db18..36c75a02e of docs/plans/k-move-pricing.md, k-move-pricing-datasets.md and
+k-move-pricing-screen.csv (the passers' types column read); the revised guard, sizing, step 3 and calls 21 and 27 to
+34 whole; the author's response letter (scratch/kmp-design/final-size2.md); work/size6.R to size8.R (read after my
+own simulation); and UCI metadata for entries 172 and 174 (descriptions only). My simulation is
+scratch/kmp-size-ref/sim/round2.R, with its output in round2.out.
+
+## Recommendation: minor revision
+
+Every round 1 point was answered as I asked, or in a form a referee would accept. The revised sizing reproduces in
+my own simulation. One point arises from the reframed step 3 and should be fixed before step 3 is committed
+(point 3, call 34). The rest are restatements. Nothing blocks the seal of the dataset rule and list.
+
+## 1. The round 1 points
+
+| round 1 point | answer | verdict |
+|---|---|---|
+| 1. Sources: Kunzmann's quantity named; Lakens quoted; Demsar's caution; Buderer cited | named as expected power over nuisance inputs at a fixed effect; Lakens verbatim; Demsar's "about 30" stated; Buderer marked not read | answered |
+| 2. R2: feasibility framing; size-dependent acceptance; quantile view; 0.9 cost | acceptance now read from the k study's record by score and size (4 cells, Jeffreys); assurance called a feasibility calculation; power at the 0.2 quantile 0.74; R2 = 12; 0.9 needs 14 (call 27) | answered, better than asked: the record replaces my halving guess |
+| 3. Guard: every dataset harmless, the t beside, assumption and level stated, population stated | as asked (call 21); share bound and Wilcoxon beside; t's level under skew stated; the finite pool and the random-sampling idealization stated; failed halves reported | answered |
+| 4. R3: agreement loss; yield range; Lakens's Table 3; reframe as refutation; floor removed | all done; whole frame as Lakens's first justification; exact-interval widths and the error rates of the refutation rule given | answered (two figures restated, below) |
+| 5. Archive files; lost-file chance stated | archived at first download; the chance called negligible and left out of the sizing | answered |
+| 6. Census: Occupancy on 4; type rule; Bone marrow listing; Mammographic Mass | all as asked; section 4 amended and applied to every passer via a types column | answered |
+| 7. Errata: frame count | 151 + 387 | answered |
+
+## 2. The guard's reading and R2 = 12
+
+**Operating characteristics.** At 0 accepted datasets the guard is unresolved. At 1, that dataset's own reading
+stands and the guard is unresolved. At 2 or more, it reads harmless only when every dataset does and the t does. That
+is the right ladder. Under a harm confined to one dataset, the intersection over datasets controls the level at
+each dataset's own level, whatever the spread across datasets. The t governs only the claim about the mean, and its
+caveat under skew is stated. At a true 0 the guard reads harmless about 0.05 of the time at 2 accepted and about
+0.96 at 3 (my round 1 figures). With true D = 1 on every dataset it never does.
+
+**Rederivation** (6,000 draws; acceptance cells (high, large) 0/5, (high, small) 2/7, (low, large) 1/2,
+(low, small) 7/8; high-score share by size 5/7 and 7/15; 14 of 24 large; loss 0.15):
+
+| R2 | mine | plan | t alone | spread 0.25 by estimand | by dataset |
+|---|---|---|---|---|---|
+| 10 | 0.75 | 0.75 | 0.76 | 0.45 | 0.53 |
+| 12 | 0.83 | 0.83 | 0.85 | 0.52 | 0.59 |
+| 14 | 0.90 | 0.90 | 0.92 | 0.58 | 0.66 |
+| 16 | 0.93 | 0.93 | 0.95 | 0.59 | 0.67 |
+
+Power at the 0.2 quantile of the inputs at 12: 0.73 (plan 0.74). R2 = 12 is right on the stated rule, and the
+feasibility framing is right: assurance tracks P(at least 3 accepted) to within 0.01. I did not check the claim that
+"every one of those failures failed row R-hat", which rests on the k study's record.
+
+**Under spread, no size reaches 0.8.** Confirmed: it plateaus near 0.6. The reason the plan gives is right: every
+added dataset must read harmless alone. But the plan should also name the lever that does move it, which is fits a
+dataset, not datasets. At R2 = 12 with a spread of 0.25, 80 fits a library give 0.53, 160 give 0.70 and 320 give
+0.74. With a spread of 0.25 some true D sit near 0.6 to 0.75, close enough to the margin that no plausible count
+resolves them. The plan's choice to report this scenario and not size on it is acceptable for a non-inferiority
+design sized at no difference. The plan should add one sentence giving the 160-fit figure, so that a reader can see
+the plateau comes from the scenario, not from the design.
+
+## 3. R3 and step 3 as refutation plus estimates
+
+**Counts.** Whole frame of 36 to 45: I get 1.9 to 2.4 resolving as needing and 8.4 to 10.6 as not, with none
+needing 0.27 to 0.21 of the time. That matches the plan ("about one time in four"). The 35 to 45 passers rest on 3
+to 5 of 80 census draws, whose own uncertainty is wider (3 of 80 has an exact interval of about 1 to 11 percent). A
+range is the honest statement, and the plan gives one.
+
+**Refutation rates.** My rates match the plan's within about 0.04 once one thing is counted: a miss refutes only
+when its confirming rerun reads the dataset as needing again, which the plan's model gives probability 0.9.
+size7.R refutes on any spared needing dataset without that rerun. With it, at 36 and 45 passers:
+
+| trigger | refuted, mine | plan |
+|---|---|---|
+| right (sensitivity 1, specificity 0.75) | 0.000 | essentially never |
+| misses 1 in 10 | 0.15 to 0.18 | 0.16 to 0.19 |
+| misses half | 0.49 to 0.56 | 0.54 to 0.60 |
+| spares 3 in 10 | 0.12 to 0.16 | 0.12 to 0.16 |
+
+So a trigger missing half escapes 0.44 to 0.51 of the time, against the reported 0.40 to 0.46. The conclusion, "a
+bad trigger escapes about half the time", stands; the figures should be restated with the confirmation counted.
+The refutation rule itself is sound. A confirmed miss is a valid refutation at any count. The specificity rule
+(exact one-sided 0.025 upper bound below one half) refutes only when at most about 1 of 9 is spared, a weak but
+correctly stated test.
+
+**New point, to fix before step 3 is committed: call 34's in-sample sensitivity.** Once the real data can only
+refute, a trigger that is not refuted "recommends the move on where it fires, resting on step 2's sensitivity". That
+sensitivity is read on the same simulated fits that selected the trigger. The selection keeps the bound on spared
+gain under 0.02 in every A cell, a constraint that pushes the chosen candidate toward firing on those same fits. Its
+in-sample sensitivity is therefore optimistic, and this is now the only positive evidence for the recommendation.
+The standard remedy for a selected rule is to estimate its accuracy on data that did not choose it. The plan's
+alternative, selecting on half and reading on the other half, does that, but it halves the selection's data. Better
+is a fresh set of simulated replications of the A cells (and B's, for specificity), drawn after the trigger is
+committed and read only for its sensitivity and specificity. At half the A regimes' first-look sizes that costs
+about 1 core-hour. Labeling the in-sample figure does not cure it, because the recommendation reads it as evidence.
+
+## 4. The type rule and the census
+
+- **Type rule** (section 4, call 33; datasets call 18). Where the donor's type is neither numeric nor factor, the
+  file's type is kept, numbers numeric and text a factor. That is mechanical, adds no choice of the study's, and is
+  applied to every passer through the CSV's types column. I spot-checked the one case where it could have bitten:
+  ozone-level-8hr's date, which UCI's record gives role ID (entry 172), so it is dropped as an identifier and the
+  rule does not reach it. Parkinsons's `name` is also role ID (entry 174). The rule decides none, as claimed.
+  - One wording to fix: datasets call 18's alternative says the entry-by-entry reading is a choice "which criterion
+    1 excludes", while section 5 now says, rightly, that "an encoding is not a choice of target". Criterion 1
+    excludes target, merge and threshold choices, so the alternative should say it is a choice the type rule exists
+    to avoid.
+- **Occupancy Detection fails 4** (the recorded share doubt), and would fail 6 too. Agreed.
+- **Bone marrow transplant: children passes at 38.** The listing is now stated as I asked: 37 conditional attributes
+  and `survival_time` by the repository's roles, with the 36, the 39 and the 42 recorded, and the leak named as a
+  dropped matter. Agreed under the rule as written. If the file holds other than 38 predictors, the pre-fit check
+  fails it before the draw, as the text says.
+- **Mammographic Mass passes**, its one-case difference recorded on the Internet-Advertisements precedent. Agreed.
+  The new alternative correctly notes that failing it would, by one rule, fail Internet-Advertisements.
+- **The pool is 24, 14 with at least 1,000 rows.** It follows from the readings, and none of them was made toward a
+  count.
+
+## 5. Buderer (1996)
+
+The plan can stand without it. It now cites Buderer for one remark only: that a confirmatory bound on sensitivity
+is sized by the count with the condition over its prevalence, so hundreds of datasets at a prevalence near 0.05.
+That remark frames no reading, since step 3 no longer has a confirmatory pass. Bujang and Adnan, which the author
+read, establish it alone: their tables give N1 / prevalence and 980 at 5 percent. The citation is honestly marked
+"Not read: cited as Bujang and Adnan give it". The remark should be attributed to Bujang and Adnan, naming Buderer
+only as the origin they give, so that nothing is stated from a paper no one read. Fetching it (the maintainer's
+access; scratch/papers/buderer-1996.pdf, doi 10.1111/j.1553-2712.1996.tb03538.x) would be tidy but is not a seal
+condition.
+
+## 6. Before the seal, and before step 3's commit
+
+Before the seal of the rule and list: nothing blocks. The four restatements below can go in the same commit.
+1. Call 18's wording (point 4).
+2. The spread scenario's 160-fit figure (point 2).
+3. The refutation rates restated with the confirming rerun counted (point 3).
+4. The Buderer remark attributed to Bujang and Adnan (point 5).
+
+Before step 3 is committed, which the plan places before any R2 reading opens: call 34. Read the trigger's
+sensitivity and specificity on fresh simulated replications drawn after the trigger is fixed, about 1 core-hour,
+and add that cost to the totals. The in-sample figure can be reported beside, labeled.

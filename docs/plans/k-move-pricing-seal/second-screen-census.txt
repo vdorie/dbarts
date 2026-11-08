@@ -1,0 +1,175 @@
+# Second screen of seven stage-4 census entries (kmp-screen3)
+
+Rule read: docs/plans/k-move-pricing-datasets.md at e2aee00c9, sections 1 to 4 and References only. No data file
+was downloaded and no outcome column was read. Sources fetched on 2026-11-07: each entry's UCI page
+(https://archive.ics.uci.edu/dataset/<id>) and its UCI API metadata record
+(https://archive.ics.uci.edu/api/dataset?id=<id>), saved under scratch/kmp-screen3/meta/, plus the papers and donor
+documentation named below. Entries are screened in draw order; the screen stopped at the third PASS.
+
+Readings of the rule used for every entry:
+- R1. Criterion 5's "stable versioned file with a recorded sha256": recording a sha256 needs the file, which the
+  held-out rule forbids before the seal. I read the screen as checking that a stable, versioned file exists (a UCI
+  DOI and a fixed static download) and that its published row count agrees with the originating source's; the
+  sha256 itself is recorded by section 4's loader. Alternative: fail every entry at 5 until a hash exists, which
+  would empty the census.
+- R2. Criterion 5's "originating repository": for a dataset its creators deposited at UCI, UCI is the originating
+  repository and its license line (CC BY 4.0) is the originator's terms, not a re-upload's field.
+- R3. Criterion 3's "earliest in frame order" within the pool: I did not read the frame file (it may carry the
+  first screen), so same-source checks against earlier frame entries are limited to the seen list and a UCI name
+  search. A same-source entry earlier in the frame would still have to be checked against the frame.
+- R4. Criterion 4's "listed minority share": class counts, or a published share of one class (its complement being
+  the other class's share), stated by the donor or the originating paper, are a listed share. Arithmetic on listed
+  counts or shares is not "a share derived from a summary statistic".
+
+## 1. Toxicity (frame 152, UCI 728) - PASS
+
+1. Outcome - PASS. UCI page: "56 of the molecules are toxic and the rest are non-toxic"; metadata target_col
+   "Class", the only Target among 1204 variables (1203 features: 990 Continuous, 213 Integer). The donors defined
+   the label: Gul et al. 2021 (Sci Rep 11, 18510; scratch/papers/gul_rahim_isin_etal-2021.xml), "The rest of 56
+   molecules with relative cell viability < 85% at 2.5 uM were labeled as toxic". Doubt considered: the page
+   offers two files, data.csv (1203 descriptors) and Toxicity-13F.csv, "Subsetted data with 13 features ... as
+   supplementary file". I read data.csv as the file: it holds the predictors as the source lists them (the
+   1203-row variable table, num_features 1203), and the 13-feature file is the donors' outcome-driven feature
+   selection (RFE with a decision tree), not a part of the data, so section 4's concatenation does not apply.
+2. Real data - PASS. Gul et al. 2021: "We experimentally tested 171 molecules in terms of toxicity" (MTT assay,
+   U2OS cells). The molecules were designed in silico and the descriptors computed (PaDEL), but the labels are
+   measured; computed descriptors are not generated or simulated rows.
+3. Provenance - PASS. No seen dataset is molecular or from Koc University. UCI search "toxicity" returns QSAR fish,
+   aquatic and oral toxicity (504, 505, 508; a different group's QSAR sets) and this entry only. See R3.
+4. Size and share - PASS. 171 rows (UCI num_instances; paper "of 171 tested molecules"). Share: UCI abstract
+   56 of 171; paper "The 33% of all molecules are toxic and the rest, 67%, is non-toxic". Minority 0.33.
+5. License and file - PASS. UCI page: "This dataset is licensed under a Creative Commons Attribution 4.0
+   International (CC BY 4.0) license", https://creativecommons.org/licenses/by/4.0/legalcode; creators Seref Gul
+   and Fatih Rahim (authors of the paper) deposited it (R2). DOI 10.24432/C59313,
+   https://archive.ics.uci.edu/static/public/728/data.csv. Row count 171 agrees with the paper. sha256 per R1.
+6. Feasibility - PASS. 1203 numeric columns, no factors: 1203 <= 2000.
+Pre-fit check (as far as readable): outcome column "Class"; no ID or ignore column listed; no missing values
+("has_missing_values: no"); listing 171 rows, one stated count. Nothing failing seen.
+
+## 2. Occupancy Detection (frame 188, UCI 357) - PASS (with reading O1)
+
+1. Outcome - PASS. UCI metadata: target_col "Occupancy", "0 for not occupied, 1 for occupied status"; abstract
+   "Ground-truth occupancy was obtained from time stamped pictures". Predictors listed: date, Temperature,
+   Humidity, Light, CO2, HumidityRatio ("Derived quantity from temperature and relative humidity", the donor's
+   own); "id" has role ID. Three files: "Three data sets are submitted, for training and testing" (page lists
+   datatest2.txt, datatraining.txt, datatest.txt); section 4 concatenates them in that listed order.
+   Reading O1: the "date" predictor is typed "Date" ("date time year-month-day hour:minute:second"), neither
+   numeric nor factor. I read it as numeric (a date-time is an ordered quantity; the donor's own script reads it
+   with as.POSIXct and derives seconds from midnight and a weekday flag from it). Alternative: a factor, or the
+   file's character type kept, gives about 20,560 one-row levels, which fails criterion 6 (and acts as a row
+   identifier). This needs the coordinator's ratification. The time order itself is a dropped matter.
+   Minor: the UCI variable table types Temperature and Light "Integer"; numeric either way, so no effect.
+2. Real data - PASS. Abstract: "Experimental data used for binary classification (room occupancy)"; donor README:
+   "the experimental measurements for the occupancy detection tasks". Creator Luis Candanedo.
+3. Provenance - PASS. Not from a seen source. UCI search "occupancy" also returns Room Occupancy Estimation
+   (864), a different group's count target. See R3.
+4. Size and share - PASS (by R4). 20,560 rows (UCI). Neither the UCI page nor the README lists a share. The
+   donor's repository for the paper (https://github.com/LuisM78/Occupancy-detection-data, "Model Development.R",
+   comments under "# Examining the classes distribution for skewness") records the per-file shares of class 1:
+   datatraining 0.21232, datatest 0.364728, datatest2 0.2101107. Any concatenation's share lies between the
+   smallest and largest file share, so the minority share is at least 0.21; with the UCI file sizes it is about
+   0.23. I read the donor's published script comments as the donor's documentation. Doubt: they are output
+   pasted into code comments, not prose; if the coordinator reads that as not "listed", the share is not
+   established from what I could reach and the entry fails 4. The originating paper, which may list the shares,
+   was unreachable (paywall): Candanedo, L. M. and Feldheim, V. (2016). Accurate occupancy detection of an office
+   room from light, temperature, humidity and CO2 measurements using statistical learning models. Energy and
+   Buildings 112, 28-39. DOI 10.1016/j.enbuild.2015.11.071 (checked on Crossref); file name
+   candanedo_feldheim-2016.pdf.
+5. License and file - PASS. UCI page CC BY 4.0 (wording as for Toxicity), creator Candanedo deposited it (R2).
+   DOI 10.24432/C5X01N. The donor's GitHub repository has no license (API "license": null), but UCI's terms
+   suffice. The UCI files are the donor's: sizes 582.7, 196.1 and 683.3 KB equal the GitHub files' 596,674,
+   200,766 and 699,664 bytes. Per-file row counts are not stated in any source I reached (the paper would);
+   the loader checks 20,560 against the listing. sha256 per R1.
+6. Feasibility - PASS under O1. Six predictors, all numeric: 6 columns.
+Pre-fit check: outcome "Occupancy"; drop "id" (and the txt files' row-number column) as identifiers; no
+missing values; listing 20,560 rows, one stated count; files concatenated in listed order.
+
+## 3. Bone marrow transplant: children (frame 193, UCI 565) - PASS (with reading B1)
+
+1. Outcome - PASS. UCI metadata: target_col "survival_status", "Survival status (0 - alive, 1 - dead)"; tasks
+   Classification and Regression, but one target is set as default, so "several candidate targets and no
+   default" does not apply. The originating papers frame it as survival ("Patient's death is considered as an
+   event", Wrobel, Gudys and Sikora 2017); a death flag at variable follow-up is the time-to-event status the rule
+   drops as a criterion, and survival_time listed as a Feature is a leak, also dropped.
+   Reading B1: the page gives two predictor lists. The UCI variable table has 36 features (num_features 36,
+   survival_time included); the donors' variable_info has 38 non-target columns (37 plus survival_time), adding
+   binary ANC_recovery and PLT_recovery beside time_to_ANC_recovery and time_to_PLT_recovery (the table's
+   "ANCrecovery" and "PLTrecovery" carry the time descriptions). The donors' papers agree with variable_info:
+   Wrobel et al. 2017 Table 1 "BMT-Ch 187 37" conditional attributes, and Sikora, Wrobel and Gudys 2019
+   (GuideR, arXiv:1806.01579) "Instances are described by 37 conditional attributes". I read the donors' list
+   (38 predictors) as the listing, the table's 36 as a repository transcription missing two flags, so the
+   difference is explained, not a failing doubt; the loader must find 38 predictors plus the outcome in
+   bone-marrow.arff or it fails. Alternative: count this as a recorded doubt on criterion 1 and fail the entry.
+   Recommend the reading, since two donor sources agree. Wrobel et al. 2017 also says "Each patient was
+   characterized by a set of 42 conditional attributes" in its text against 37 in its table; I read 42 as the
+   clinical record, 37 as the released set.
+2. Real data - PASS. 187 pediatric patients "admitted to the Department of Pediatric Bone Marrow Transplantation,
+   Oncology and Hematology, Wroclaw Medical University, Poland" (Wrobel et al. 2017); donors Sikora, Wrobel and
+   Gudys with the clinicians of Kawlak et al. 2010.
+3. Provenance - PASS. Wroclaw pediatric transplant patients; not pbc, ACTG 175 or any other seen source (Wrobel
+   et al. 2017's other sets, actg320 and pbc among them, are separate files, not this one). UCI search "marrow"
+   returns this entry only. See R3.
+4. Size and share - PASS (by R4). 187 rows. Share: Wrobel, Gudys and Sikora 2017 (BMC Bioinformatics 18, 285;
+   PMC5450332; saved as scratch/papers/wrobel_gudys_sikora-2017.xml), Table 1, "the percentage of censored
+   observations (%cs)": BMT-Ch 55. Censored are survival_status 0, so deaths are 0.45, the minority. This is the
+   donors' paper on the same 187-row set, cited on the UCI page.
+5. License and file - PASS. UCI page CC BY 4.0, deposited by the donors (R2). DOI 10.24432/C5NP6Z; the page's one
+   file is bone-marrow.arff (27.3 KB). 187 rows on UCI and in both donor papers. sha256 per R1.
+6. Feasibility - PASS. Largest factors per variable_info: HLA_group_1 7 levels, disease 5, allel 5, donor and
+   recipient ABO 4 each, HLA_match 4, antigen 4 (0-3), CMV_status a graded score of unstated levels; the rest binary or numeric. Well under
+   2,000 columns on either list.
+Pre-fit check: outcome survival_status; no ID column listed; missing values present ("has_missing_values: yes",
+Wrobel et al. 2017 %mv 1), kept per section 4; listing 187 rows; column count per B1.
+
+## 4 to 7. Not read
+
+Mammographic Mass (frame 200, UCI 161), Mesothelioma (207, UCI 351), SECOM (211, UCI 179) and Vertebral Column,
+two-class file (222, UCI 212): not screened, the third PASS having been reached. Their UCI metadata and pages were
+fetched in one batch with the others (scratch/kmp-screen3/meta/) but not read beyond the license line, which is
+CC BY 4.0 on every one of the seven pages.
+
+# Continuation (coordinator's request: one more passer)
+
+Rule re-read at a7984db18, sections 1 to 4 and References only. Against e2aee00c9 those sections change in the seal
+paragraph, R2's size and criterion 5's file clause, now "a stable versioned file (a DOI or a versioned address) ...
+its sha256 recorded by the loader at its first download after the seal": reading R1 above is now the rule's text.
+Readings R2 to R4 stand. Occupancy Detection is recorded by the coordinator as failing criterion 1 under the rule as
+written; its section above is left as screened. Order resumed at entry 4; stop at the first PASS.
+
+## 4. Mammographic Mass (frame 200, UCI 161) - PASS
+
+1. Outcome - PASS. UCI variable_info (the donor's .names): "6. Severity: benign=0 or malignant=1 (binominal, goal
+   field!)"; target_col "Severity", the only target. Predictors as the donor lists them: "1 goal field, 1
+   non-predictive, 4 predictive attributes"; "1. BI-RADS assessment: 1 to 5 (ordinal, non-predictive!)" is
+   dropped (section 4 names it), leaving Age (integer), Shape (nominal, 4 values), Margin (nominal, 5 values),
+   Density (ordinal, 4 values). Ground truth is the biopsy result (Elter, Schulz-Wendtland and Wittenberg 2007,
+   scratch/papers/elter_schulzwendtland_wittenberg-2007.pdf). Reading M1: Density is listed "ordinal", neither
+   numeric nor factor; I read it as numeric (the file's integer coding, kept where the donor names neither type).
+   As a factor it adds 3 columns; no verdict depends on it.
+2. Real data - PASS. Donor: masses "identified on full field digital mammograms collected at the Institute of
+   Radiology of the University Erlangen-Nuremberg between 2003 and 2006"; paper: "we have collected our own
+   mammography database containing 961 mass regions at a large radiological center".
+3. Provenance - PASS. Erlangen patients and readers; the seen breast data (biopsy, wdbc) are Wisconsin's. The
+   paper's other set, DDSM (University of South Florida), is a different source and is not on UCI as this entry.
+   UCI search "mammograph" returns this entry only. See R3.
+4. Size and share - PASS. 961 rows (UCI and paper). Donor: "Class Distribution: benign: 516; malignant: 445",
+   minority 0.463. Doubt recorded: the paper gives "515 (53.6%) of these mass regions are benign and 446 (46.4%)
+   are malignant", one case off the donor's .names. I read it as not failing: the row count agrees, the minority
+   share is 0.463 or 0.464 under either source, far above 0.01, and the difference touches no criterion's outcome
+   nor anything the pre-fit check reads (it reads covariates only). Alternative: count it as a doubt that the
+   file is the described data (criterion 5) and fail the entry. I take the donor's .names as the listing, since it
+   documents the deposited file.
+5. License and file - PASS. UCI page: "This dataset is licensed under a Creative Commons Attribution 4.0
+   International (CC BY 4.0) license", https://creativecommons.org/licenses/by/4.0/legalcode; creator Matthias
+   Elter. The originator's own release statement, in the paper: "which we will make publicly available at the
+   well-known UCI machine learning repository with the publication of this paper". File: DOI 10.24432/C53K6Z,
+   mammographic_masses.data (13.1 KB) with mammographic_masses.names; 961 rows on UCI and in the paper.
+6. Feasibility - PASS. Age 1 + Shape 4 + Margin 5 + Density 1 (4 as a factor) = 11 (14) columns.
+Pre-fit check: outcome Severity; BI-RADS dropped as non-predictive; no ID column; missing values listed by the donor
+(BI-RADS 2, Age 5, Shape 31, Margin 48, Density 76, Severity 0), kept per section 4, the loader's counts set
+against these; listing 961 rows, one stated count on UCI.
+
+## 5 to 7. Not read
+
+Mesothelioma (frame 207, UCI 351), SECOM (211, UCI 179), Vertebral Column, two-class file (222, UCI 212): not
+screened, the first PASS of the continuation having been reached.

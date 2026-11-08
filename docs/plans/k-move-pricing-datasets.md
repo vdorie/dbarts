@@ -1,16 +1,18 @@
 # k-move-pricing datasets: the rule and list for R2 and R3
 
-Status: revised on its referees' reports and the second screen, not sealed (2026-11-07). Companion to
-[k-move-pricing.md](k-move-pricing.md), whose step 2 guard and step 3 test read these datasets (call 7, dec-B635,
-dec-B651).
+Status: sealed 2026-11-07, after its referees' reports and the second screens, for the maintainer's decision
+(dec-B635). Companion to [k-move-pricing.md](k-move-pricing.md), whose step 2 guard and step 3 test read these
+datasets (call 7, dec-B635, dec-B651).
 
-The rule is sealed when this file, the per-entry screen [k-move-pricing-screen.csv](k-move-pricing-screen.csv), the
-frame file, the snapshot checksums, the second screens (of the seven single-screened passers and of stage 4's
-census entries, section 5), the plan's sizing of R2 and R3 (ruled by method, dec-B667, and checked by a referee)
-and the referees' reports are committed together, before any data file is loaded. After the seal nothing here
-changes; an error found later is reported in the study's report, not fixed by editing the rule. Nothing below rests
-on a data file or an outcome column: only suite records, the TabArena curation record, repository metadata and
-published papers were read.
+The rule was sealed on 2026-11-07 by committing together, before any data file was loaded, this file, the per-entry
+screen [k-move-pricing-screen.csv](k-move-pricing-screen.csv), the plan's sizing of R2 and R3 (ruled by method,
+dec-B667, and read by a referee in two rounds), and, as copies in the folder k-move-pricing-seal beside this file,
+verbatim but for the first sizing report's few non-ASCII symbols spelled in ASCII, listed with their checksums in
+its MANIFEST.txt: the frame file, the snapshot checksums, the second screens (of the seven single-screened passers
+and of stage 4's census entries, section 5) and the referees' reports. After the seal nothing here changes; an
+error found later is reported in the study's report, not fixed by editing the rule. Nothing below rests on a data
+file or an outcome column: only suite records, the TabArena curation record, repository metadata and published
+papers were read.
 
 ## 1. What the datasets are for, and what that asks of them
 
@@ -444,13 +446,14 @@ into the census.
     doubt, which by one rule for one case also fails Internet-Advertisements (22 pass, the census read deeper).
 18. A predictor type the donor lists that is neither numeric nor factor keeps the file's type (section 4), applied
     to every passer and deciding none. Alternative: read each such type as its screener judged it, a date-time as a
-    number and an ordinal as numeric, a choice of this study's made entry by entry, which criterion 1 excludes.
+    number and an ordinal as numeric, a choice of this study's made entry by entry, which the type rule exists to
+    avoid.
 
-For the maintainer, with dec-B635's decision, after an independent referee's check of the sizing and before the
-seal: the rule and the list as a whole. The sizes are not put to the maintainer: as ruled (dec-B667), they are set
-by a sample-size justification in the plan's
-[Sizing the real-data stages](k-move-pricing.md#sizing-the-real-data-stages), R2 at 12 for the guard's assurance
-of 0.8 and R3 every other passer, the frame measured whole.
+For the maintainer, with dec-B635's decision, after the seal: the rule and the list as a whole, sealed once an
+independent referee's second round on the sizing found nothing blocking. The sizes are not put to the maintainer:
+as ruled (dec-B667), they are set by a sample-size justification in the plan's [Sizing the real-data
+stages](k-move-pricing.md#sizing-the-real-data-stages), R2 at 12 for the guard's assurance of 0.8 and R3 every
+other passer, the frame measured whole.
 
 ## References
 
