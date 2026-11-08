@@ -389,6 +389,13 @@ items
     fault-injection hook. Add one (a tests/cpp peer that fails the Nth
     installForest) and check the recipient is restored: trees, sigma, k,
     DART state, transform and the next draws.
+  saved-sampler-data-twice: a saved sampler on main writes its data
+    twice, once in its data object and once through its engine pointer:
+    4.55 MB against 2.32 MB in 0.9-34 at the basis-references design's
+    sizing run (found 2026-11-08). A regression against 0.9-34, so not
+    deferred past the release. Whether the bridge needs the data kept
+    behind the pointer is an engine question; examine it before the
+    basis-references build, which changes what the data object holds.
   setdata-repeated-names: setData and setPredictor read a sampler whose
     own column names repeat (x, b, x, d) by name only for the same names
     in the same places; the same names in another order are refused,
