@@ -320,23 +320,15 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   and, where one forest has no basis, or on a multinomial sampler's
   category forests, those forests whatever they state; the leaf prior
   goes where `setLeafPrior` sends it; and the residual prior is
-  installed as on one forest. A number a forest's record in the model
-  states, a mean forest's own `sd`, `power` or `base` or the variance
-  forest's `power` or `base`, is installed where it differs from the
-  sampler's, through the code `setForest` or `setVarianceForest` runs on
-  that forest, so the sampler runs as after that call; the later write
-  wins between this and those methods. A number the record does not
-  state is left as it is:
-  `dbartsSpec(data, power = 2.5, variance = varianceForest())$model`
-  moves the mean forest's depth and leaves the variance forest's, which
-  only copied the mean depth at creation, and a forest that states its
-  own on the sampler keeps it. A forest's coefficient's prior that
-  differs is refused, naming `setForest`; so is a leaf scale other than
-  the sampler's, split probabilities other than equal ones, and a
-  forest's `sd` whose sharers' parts of the prior total then differ from
-  the model's. A new fixed negative-binomial shape keeps the latents in
-  force. This draws nothing; the next sweep draws the augmentation
-  variables against the change.
+  installed as on one forest. A forest's own value that differs, its
+  coefficient's prior included, or a change in which values it states,
+  is refused, naming `setForest`, which changes one forest; so is a leaf
+  scale other than the sampler's, and split probabilities other than
+  equal ones. A variance forest stays as it is, whatever the model's
+  record of it says; `setVarianceForest` changes it. A new fixed
+  negative-binomial shape keeps the latents in force. This draws
+  nothing; the next sweep draws the augmentation variables against the
+  change.
 
 - newData:
 
@@ -1009,11 +1001,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   after save/load carries the current assignment rather than the one the
   sampler was created with; because the bases ride creation, a swap
   applied after a state restore preserves the *restored* amplitudes. A
-  state records the levels of each forest a factor multiplies, and
-  `setState` puts each of its coefficients on this sampler's level of
-  the same name, refusing a state whose names differ (see ‘Saving’).
-  This draws nothing; the next sweep draws the augmentation variables
-  against the change.
+  state carries no levels, so one installed from a sampler whose factor
+  has the same levels in another order goes in by position, coefficient
+  \\j\\ to this sampler's level \\j\\, with no message. This draws
+  nothing; the next sweep draws the augmentation variables against the
+  change.
 
 - updateBasisScale:
 
@@ -1515,10 +1507,9 @@ Route changes through the `set*` methods instead.
   splits by subsets of its levels; with their weights, the attribute
   `cutMass`, where a column's cut points are not equally likely) and the
   leaf-covariate standardization they are read through, a record of the
-  response mapping they were read under, which predictor columns could
-  hold a missing value when it was stored, and the levels of each forest
-  a factor multiplies (the attribute `basisLevels`) - no leaf prior and
-  no value the sampler holds fixed (see ‘Saving’). It also carries each
+  response mapping they were read under, and which predictor columns
+  could hold a missing value when it was stored - no leaf prior and no
+  value the sampler holds fixed (see ‘Saving’). It also carries each
   chain's generator state, so restoring it continues the same streams
   the sampler was drawing from, typically to the last few digits, not
   bitwise. The saved-tree store's write position and the number of draws
@@ -1751,31 +1742,30 @@ put back.
 Some states are refused, with an error, whether forced or not, and the
 sampler is left exactly as it was: one that is not a `bartcoreState` or
 is of an older encoding, one with another number of chains, forests or
-trees or another leaf model, one whose recorded levels are not the
-sampler's (below), and one with a malformed block or tree. A state in
-which a numeric column's cut points repeat a value is refused, naming
-the column and the value: no sampler of this version writes one, and
-with every point held once a stored split's value names one position. A
-Student-t, logistic or negative-binomial sampler also refuses a state
-whose latent variables are not all positive and finite. So is one
-holding a value no chain could run from, which no sampler writes: a
-`sigma` that is not positive and finite; a `k` that is negative, or is 0
-or infinite under a prior whose scale could not draw that value (a draw
-reaches 0 only under a scale below about 3e-145 and infinity only under
-an infinite scale or one above about 1e146); a response transform that
-is not finite; a random-number generator state out of range or all zero;
-DART split weights that are negative or not finite, or 0 on a column the
-forest may split on, or a DART concentration that is not positive and
-finite; and ordinal cutpoints whose first is not 0 or that do not
-increase. Beyond that a state is not checked against the response family
-of the sampler that stored it: one whose contents fit this sampler is
-installed, and what the sampler then holds of another family's state is
-not promised. To start a sampler from a fit of another family, use
-`installTrees`, which takes the donor's trees and, where this sampler
-draws them, its `sigma`, `k` and DART state, and none of its latent
-variables. A state's `k` is installed as recorded, whatever leaf prior
-this sampler holds; the leaf sd is then `k.scale / k` against this
-sampler's `k.scale`.
+trees or another leaf model, and one with a malformed block or tree. A
+state in which a numeric column's cut points repeat a value is refused,
+naming the column and the value: no sampler of this version writes one,
+and with every point held once a stored split's value names one
+position. A Student-t, logistic or negative-binomial sampler also
+refuses a state whose latent variables are not all positive and finite.
+So is one holding a value no chain could run from, which no sampler
+writes: a `sigma` that is not positive and finite; a `k` that is
+negative, or is 0 or infinite under a prior whose scale could not draw
+that value (a draw reaches 0 only under a scale below about 3e-145 and
+infinity only under an infinite scale or one above about 1e146); a
+response transform that is not finite; a random-number generator state
+out of range or all zero; DART split weights that are negative or not
+finite, or 0 on a column the forest may split on, or a DART
+concentration that is not positive and finite; and ordinal cutpoints
+whose first is not 0 or that do not increase. Beyond that a state is not
+checked against the response family of the sampler that stored it: one
+whose contents fit this sampler is installed, and what the sampler then
+holds of another family's state is not promised. To start a sampler from
+a fit of another family, use `installTrees`, which takes the donor's
+trees and, where this sampler draws them, its `sigma`, `k` and DART
+state, and none of its latent variables. A state's `k` is installed as
+recorded, whatever leaf prior this sampler holds; the leaf sd is then
+`k.scale / k` against this sampler's `k.scale`.
 
 Assigning the field directly (`sampler$state <- newState`) does *not*
 restore the sampler - it only overwrites the R-side cache, leaving the
@@ -1790,20 +1780,11 @@ assigned; one whose field holds no state is refused the same ways. A
 `copy` of a sampler whose engine exists takes its current chain and not
 the field. Always route a restore through `setState`.
 
-A state carries no data, a forest's basis among them, but it records the
-level names of each forest a factor multiplies, as the sampler's data
-object holds them (the attribute `basisLevels`, a list with one entry
-per forest, `NULL` for a forest of no factor; absent where no forest
-multiplies a factor). `setState`, a `copy` and a reload put each of the
-state's coefficients on the recipient's level of the same name, so a
-state installed in a sampler whose factor has the same levels in another
-order, as after `relevel`, gives each level its own coefficient; the
-recipient's levels and block are its own before and after. A state whose
-names differ from the recipient's, forest by forest - another name,
-another number of levels, or a factor where the recipient's forest
-multiplies numbers or nothing - is refused with an error, whatever
-`forceUpdate` says, and the sampler is left as it was. A state that
-records no levels goes in by position.
+A state carries no data, a forest's basis and the levels of its factor
+among them, so a state installed in a sampler whose factor has the same
+levels in another order goes in by position, coefficient \\j\\ to the
+recipient's level \\j\\, with no message; the recipient's levels and
+block are its own before and after.
 
 A state never changes the sampler's model. The leaf prior, its `k` where
 fixed, a fixed `sigma`, Student-t df, negative-binomial shape or DART
@@ -2827,11 +2808,8 @@ Where `setForest` and `setTreePrior`, `setLeafPrior` or `setModel` reach
 one setting of one forest, as on a model of one forest, the later write
 wins, whatever the forest stated. A heteroscedastic sampler's variance
 forest takes the mean forest's depth at creation and is on its own after
-that: `setForest` and `setTreePrior` leave it, `setVarianceForest`
-changes it, and `setModel` installs a `power` or `base` the model's
-variance record states as `setVarianceForest` does. A model records what
-each forest states, a write here included, so `setModel` on another
-sampler installs it.
+that: `setForest`, `setTreePrior` and `setModel` leave it, and
+`setVarianceForest` changes it.
 
 For `setTreePrior`, `NULL` invisibly. It changes the fitting function's
 tree prior, as `power`, `base` and `split.probs` mean at creation,

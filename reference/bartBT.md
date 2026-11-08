@@ -1143,6 +1143,18 @@ returned. In the numeric \\y\\ case, the list has components:
   names) and `NULL` for a forest with no basis or with one given as a
   value; it is absent when no basis was written as code.
 
+- `basis.columns`:
+
+  Present only for an amplitude-coupled multi-forest fit made with
+  `keepFits = FALSE`, in place of `bases`: for each forest, `NULL` where
+  it has no basis, a factor of no rows with the basis's levels, or a
+  list of a numeric basis's `mean`, `sd`, `range` and `constant`
+  (whether it is constant over the rows in the likelihood), the numbers
+  the printed block and `summary` read. That is four numbers a forest
+  against one for each observation. Such a fit keeps `"forest.labels"`,
+  `"forest.trees"` and `"forest.unit"`, so `extract` names and picks
+  forests by label as on any fit of several forests.
+
 - `n.forests`:
 
   The forest count K, on every fit: 1 for a single forest.
@@ -1318,8 +1330,12 @@ numeric column, per sd of the column as it now stands), with a last line
 pointing to [`summary()`](https://rdrr.io/r/base/summary.html), which
 gives the full block (see the `sd` argument of
 [`forest`](https://vdorie.github.io/dbarts/reference/forest.md) for what
-to read in it); a fit made with `keepFits = FALSE` keeps no bases or
-labels and prints none.
+to read in it); a fit made with `keepFits = FALSE` prints the same
+block, from its labels and tree counts and, in place of each basis
+vector, a few numbers it keeps (element `basis.columns`: a numeric
+column's mean, sd, range and whether it is constant over the rows in the
+likelihood, a factor's levels). Such a fit still refuses `predict` at
+new rows, which needs the per-forest fits `keepFits = FALSE` dropped.
 
 ## References
 
@@ -1424,7 +1440,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.211128
+#> total seconds in loop: 0.154605
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
