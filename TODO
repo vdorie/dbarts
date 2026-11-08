@@ -274,6 +274,15 @@ items
     variance record does so today for the tree count only). Draw-
     changing for the calls refused or ignored today; help on setModel,
     setForest and setVarianceForest rewritten.
+  basis-references-to-data: a forest's basis is a reference to a column
+    of the data, resolved by name where a data frame is given; the
+    data object's per-forest bases become the package's record of that,
+    dbartsData(bases = ) leaving the user surface (dec-B663, VD
+    2026-11-07: "Use your new recommendation."). A design note first:
+    what a pre-built data object keeps, dbartsSpec()'s resolution,
+    predict's bases =, the matrix interface, the tests using bases =;
+    it comes back as a decision. Interim: dbartsSpec() refuses a data
+    object carrying bases beside a list declaring one, as dbarts() does.
   basis-one-column-labels: a one-column character, logical or factor
     matrix given as a basis is read as its column, two levels, at every
     door; wider ones stay refused (dec-B662, VD 2026-11-07: "We can use
