@@ -1388,7 +1388,7 @@ frequency weights (decided, VD 2026-09-24; docs/decisions.md dec-B125)
   slices with the binomial and the hurdle's 0/1 weights; its open calls
   ruled (dec-B594 to dec-B596, dec-B628, dec-B638). BUILT, IN REVIEW
   2026-11-07 on that branch: S1 to S7 as built and their calls made 1 to
-  103 in the plan, the gates in its S7 section.
+  105 in the plan, the gates in its S7 section.
 
 engine constants audit (decided, VD 2026-09-08; docs/decisions.md
   dec-B91; LANDED; plan docs/plans/engine-performance.md)
