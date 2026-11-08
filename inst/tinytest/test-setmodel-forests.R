@@ -210,11 +210,16 @@ case("every candidate stating its own: refused by name", {
   expectFound(message, "reaches no forest")
   expectFound(message, "forest \"mu1\" and forest \"mu2\"")
   expectFound(message, "$setForest(\"mu1\", power = 1.5)")
-  model <- live$model
-  model@tree.prior@power <- 1.5
-  message <- refusal(live$setModel(model))
-  expectFound(message, "$setForest")
   expectUntouched(live, untouched)
+  # a model stating forest 1's own power is that forest's door (dec-B652)
+  given <- build(list(
+    mu1 = list(power = 1.5),
+    mu2 = list(power = 2.5),
+    tau = factorBasis
+  ))
+  live$setModel(given$model)
+  untouched$setForest("mu1", power = 1.5)
+  expectTwin(live, untouched, "$setModel")
 })
 case("$setTreePrior: NULL and a left-out name change nothing", {
   live <- build(threeSharers, power = 1.5, base = 0.8)
@@ -474,22 +479,110 @@ case("multinomial: its one entry stating power is written", {
 })
 
 ## --- refused by name, the sampler untouched ---------------------------------
-case("$setModel: a forest's own difference", {
+case("$setModel: a hand edit of a stating record is installed", {
   live <- build(threeSharers)
   untouched <- build(threeSharers)
   model <- live$model
   model@forests[[2L]]@power <- 1.5
-  message <- refusal(live$setModel(model))
-  expectFound(message, "\"mu2\"'s 'power'")
-  expectFound(message, "$setForest(\"mu2\", power = 1.5)")
-  model <- live$model
   model@forests[[1L]]@stated <- c(model@forests[[1L]]@stated, "power")
-  expectFound(refusal(live$setModel(model)), "$setForest(\"mu1\"")
-  model <- live$model
-  model@forests[[1L]]@sd <- 0.4
-  expectFound(refusal(live$setModel(model)), "$setForest(\"mu1\", sd = 0.4)")
+  live$setModel(model)
+  same(depthOf(live, 2L, "power"), 1.5, "a statement's value is installed")
+  untouched$setForest("mu2", power = 1.5)
   expectUntouched(live, untouched)
 })
+
+## --- a forest's own number the model states (dec-B652) ----------------------
+statedKinds <- list(
+  sd = list(sd = 0.7),
+  power = list(power = 2),
+  base = list(base = 0.5),
+  all = list(sd = 0.7, power = 2, base = 0.5)
+)
+for (kind in names(statedKinds)) {
+  case(paste("$setModel as $setForest: tau's", kind), {
+    stated <- statedKinds[[kind]]
+    live <- build(oneCandidate())
+    door <- build(oneCandidate())
+    given <- build(list(mu = list(), tau = c(factorBasis, stated)))
+    live$setModel(given$model)
+    do.call(door$setForest, c(list("tau"), stated))
+    expectTwin(live, door)
+    expectContinues(live)
+  })
+}
+case("$setModel as $setForest: the one candidate's power and sd", {
+  for (stated in list(list(power = 3), list(sd = 1.2), list(base = 0.8))) {
+    live <- build(oneCandidate())
+    door <- build(oneCandidate())
+    live$setModel(build(do.call(oneCandidate, stated))$model)
+    do.call(door$setForest, c(list("mu"), stated))
+    expectTwin(live, door, names(stated))
+  }
+})
+case("$setModel as $setForest: a sharer's own power", {
+  live <- build(threeSharers)
+  door <- build(threeSharers)
+  stated <- list(mu1 = list(), mu2 = list(power = 3), mu3 = list(base = 0.8))
+  live$setModel(build(stated)$model)
+  door$setForest("mu3", base = 0.8)
+  expectTwin(live, door)
+  same("base" %in% live$model@forests[[3L]]@stated, TRUE, "stated")
+  # the later write wins, and the level no longer reaches it
+  live$setTreePrior(base = 0.9)
+  door$setTreePrior(base = 0.9)
+  same(depthOf(live, 3L, "base"), 0.8, "its own")
+  expectTwin(live, door, "after the level")
+})
+case("$setModel: the level, then a forest's own", {
+  live <- build(threeSharers)
+  given <- build(
+    list(mu1 = list(power = 1.5), mu2 = list(power = 3), mu3 = list()),
+    power = 2.5
+  )
+  live$setModel(given$model)
+  same(depthOf(live, 1L, "power"), 1.5, "forest 1 its own")
+  same(depthOf(live, 3L, "power"), 2.5, "forest 3 the level")
+  expectTwin(live, given)
+})
+case("$setModel: a sharer's sd stated live goes over", {
+  live <- build(threeSharers)
+  door <- build(threeSharers)
+  door$setForest("mu1", sd = 0.5)
+  live$setModel(door$model)
+  expectTwin(live, door)
+  expectContinues(live)
+})
+case("$setModel: a sharer's sd stated at creation, other parts: refused", {
+  live <- build(threeSharers)
+  untouched <- build(threeSharers)
+  given <- build(list(
+    mu1 = list(sd = 0.5),
+    mu2 = list(power = 3),
+    mu3 = list()
+  ))
+  message <- refusal(live$setModel(given$model))
+  expectFound(message, "another part of the prior total")
+  expectUntouched(live, untouched)
+})
+case("$setModel: a statement the model does not make is left", {
+  entries <- list(
+    mu1 = list(),
+    mu2 = list(power = 3),
+    tau = c(factorBasis, sd = 0.5)
+  )
+  bare <- list(mu1 = list(), mu2 = list(), tau = factorBasis)
+  live <- build(entries)
+  untouched <- build(entries)
+  live$setModel(build(bare)$model)
+  expectUntouched(live, untouched)
+  live <- build(entries)
+  live$setModel(build(bare, power = 2.5)$model)
+  same(depthOf(live, 1L, "power"), 2.5, "forest 1 follows the level")
+  same(depthOf(live, 2L, "power"), 3, "forest 2 keeps its own")
+  same(live$getForest(3L)$sd, 0.5, "tau keeps its own")
+  expectTwin(live, build(entries, power = 2.5))
+})
+
 case("split.probs on several forests", {
   live <- build(threeSharers)
   untouched <- build(threeSharers)
@@ -583,15 +676,78 @@ for (stated in list(list(), list(power = 3))) {
     same(live$getVarianceForest()$power, 2, "its door")
   })
 }
-case("the variance forest: a model's record is not a door", {
-  # no flag records what a variance forest states, and a spec's record takes
-  # the fitting function's depth, so the sampler's record stays
-  live <- buildVariance(variance = list(power = 3))
-  untouched <- buildVariance(variance = list(power = 3))
+case("the variance forest: a hand edit of a value alone is left", {
+  live <- buildVariance()
+  untouched <- buildVariance()
   model <- live$model
   model@variance@power <- 1.5
   live$setModel(model)
   expectUntouched(live, untouched)
+})
+
+## --- the variance forest's stated depth (dec-B652) ------------------------------
+for (stated in list(
+  list(power = 4),
+  list(base = 0.8),
+  list(power = 4, base = 0.8)
+)) {
+  case(paste("the variance forest: $setModel as its door,", names(stated)), {
+    live <- buildVariance()
+    door <- buildVariance()
+    invisible(draws(live))
+    invisible(draws(door))
+    live$setModel(buildVariance(variance = stated)$model)
+    do.call(door$setVarianceForest, stated)
+    same(
+      live$model@variance@stated,
+      intersect(c("power", "base"), names(stated)),
+      "stated"
+    )
+    expectTwin(live, door)
+    expectContinues(live)
+  })
+}
+case("the variance forest: a copied depth is left", {
+  live <- buildVariance()
+  spec <- dbartsSpec(
+    dbartsData(x, y),
+    power = 2.5,
+    n.trees = 8L,
+    variance = varianceForest()
+  )
+  same(spec$model@variance@power, 2.5, "the copy")
+  live$setModel(spec$model)
+  same(live$getVarianceForest()$power, 2, "left")
+  same(live$model@tree.prior@power, 2.5, "the mean depth moves")
+  twin <- buildVariance(variance = list(power = 2), power = 2.5)
+  same(draws(live), draws(twin), "draws")
+})
+case("the variance forest: another tree count is refused, untouched", {
+  live <- buildVariance()
+  untouched <- buildVariance()
+  given <- buildVariance(variance = list(n.trees = 20L, power = 4))
+  message <- refusal(live$setModel(given$model))
+  expectFound(message, "the variance forest's tree count")
+  expectUntouched(live, untouched)
+})
+case("the variance forest: its door's write is stated and goes over", {
+  source <- buildVariance()
+  source$setVarianceForest(power = 3)
+  same(source$model@variance@stated, "power", "stated")
+  live <- buildVariance()
+  live$setModel(source$model)
+  same(live$getVarianceForest()$power, 3, "installed")
+})
+case("the variance forest: the later write wins", {
+  live <- buildVariance()
+  door <- buildVariance()
+  live$setModel(buildVariance(variance = list(power = 4))$model)
+  live$setVarianceForest(power = 3)
+  door$setVarianceForest(power = 3)
+  expectTwin(live, door)
+  live$setModel(buildVariance(variance = list(power = 4))$model)
+  door$setVarianceForest(power = 4)
+  expectTwin(live, door, "and back")
 })
 
 ## --- a size the leaf prior cannot give ------------------------------------------
@@ -732,13 +888,17 @@ case("a forest stating nothing: no statement is claimed", {
     forests = lapply(entries, function(a) do.call(forest, a)),
     control = ctl()
   )
+  untouched <- dbarts(
+    x,
+    y,
+    forests = lapply(entries, function(a) do.call(forest, a)),
+    control = ctl()
+  )
+  # the tree prior is forest 1's, which states no power here
   model <- live$model
   model@tree.prior@power <- 2.5
-  message <- refusal(live$setModel(model))
-  expectFound(
-    message,
-    "forest \"tau\"'s 'power': change it with $setForest(\"tau\", power = 2.5)"
-  )
+  live$setModel(model)
+  expectUntouched(live, untouched)
   expectFound(
     refusal(live$setTreePrior(power = 3)),
     paste0(
@@ -747,23 +907,6 @@ case("a forest stating nothing: no statement is claimed", {
       "$setForest(\"tau\", power = 3)"
     )
   )
-})
-case("a withdrawn statement: a new sampler", {
-  entries <- list(mu1 = list(), mu2 = list(power = 3), mu3 = list(sd = 0.5))
-  live <- build(entries)
-  untouched <- build(entries)
-  model <- live$model
-  model@forests[[3L]]@sd <- NA_real_
-  message <- refusal(live$setModel(model))
-  expectFound(message, "cannot withdraw forest \"mu3\"'s own 'sd'")
-  expectFound(message, "make a new sampler instead")
-  same(grepl("$setForest", message, fixed = TRUE), FALSE, message)
-  model <- live$model
-  model@forests[[2L]]@stated <- setdiff(model@forests[[2L]]@stated, "power")
-  message <- refusal(live$setModel(model))
-  expectFound(message, "cannot withdraw forest \"mu2\"'s own 'power'")
-  same(grepl("$setForest", message, fixed = TRUE), FALSE, message)
-  expectUntouched(live, untouched)
 })
 case("multinomial: split probabilities in creation's words", {
   live <- buildMultinomial()

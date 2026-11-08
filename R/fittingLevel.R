@@ -99,20 +99,9 @@ refuseLevelReachesNone <- function(model, candidates, name, value, door) {
 }
 
 ## The refusal of a difference in forest `index`'s `name`, which its door
-## changes; a statement `withdrawn` has no door short of a new sampler.
-refuseOwnDifference <- function(model, index, name, value, withdrawn = FALSE) {
+## changes.
+refuseOwnDifference <- function(model, index, name, value) {
   label <- doorForestLabel(model, index)
-  if (withdrawn) {
-    stop(
-      "$setModel cannot withdraw ",
-      label,
-      "'s own '",
-      name,
-      "': a forest's statement cannot be withdrawn on a live sampler; make ",
-      "a new sampler instead",
-      call. = FALSE
-    )
-  }
   record <- model@forests[[index]]
   states <- if (name == "sd") {
     !is.na(record@sd)
@@ -133,11 +122,12 @@ refuseOwnDifference <- function(model, index, name, value, withdrawn = FALSE) {
 }
 
 ## The depths a model given to $setModel states for a sampler of several
-## forests or a multinomial one, read by level, as a list of the model to
-## store and the bases and powers to install, one per forest. A forest's own
-## difference, or a change in which depth it states, is refused naming
-## $setForest; the level is the given value of the first forest it reaches,
-## written on every forest it reaches.
+## forests or a multinomial one, as a list of the model to store and the bases
+## and powers to install, one per forest. Per name, the level first, as
+## $setTreePrior writes it: its value is the given one of the first forest it
+## reaches that the given model does not state. Then each forest whose given
+## record states the name at another value than it then holds takes it, as
+## $setForest writes it. A number the given record does not state is left.
 levelDepths <- function(sampler, given, stored) {
   model <- sampler$model
   numForests <- bartcoreNumForests(sampler$getPointer())
@@ -152,6 +142,11 @@ levelDepths <- function(sampler, given, stored) {
       )
       next
     }
+    # forest 1's depth, in the tree prior on every sampler, starts at its own
+    methods::slot(stored@tree.prior, name) <- methods::slot(
+      model@tree.prior,
+      name
+    )
     reach <- levelReach(model, candidates, name)
     own <- vapply(
       seq_len(numForests),
@@ -168,59 +163,33 @@ levelDepths <- function(sampler, given, stored) {
       name = name,
       fallback = model
     )
-    for (index in seq_len(numForests)) {
-      ownStates <- name %in% model@forests[[index]]@stated
-      givenStates <- if (givenRecords) {
-        name %in% given@forests[[index]]@stated
-      } else {
-        ownStates
-      }
-      onlyOne <- length(candidates) == 1L && index %in% candidates
-      changes <- !identical(stated[[index]], own[[index]])
-      if (onlyOne) {
-        next
-      }
-      if (index %in% reach) {
-        if (givenStates) {
+    givenStates <- vapply(
+      seq_len(numForests),
+      function(index) givenRecords && name %in% given@forests[[index]]@stated,
+      NA
+    )
+    sources <- reach[!givenStates[reach]]
+    if (length(sources) > 0L) {
+      level <- stated[[sources[[1L]]]]
+      for (index in sources[-1L]) {
+        if (
+          !identical(stated[[index]], own[[index]]) &&
+            !identical(stated[[index]], level)
+        ) {
           refuseOwnDifference(model, index, name, stated[[index]])
         }
-        next
       }
-      if (changes || givenStates != ownStates) {
-        refuseOwnDifference(
-          model,
+      if (!identical(level, own[[sources[[1L]]]])) {
+        stored <- withLevelDepth(stored, reach, name, level)
+      }
+    }
+    for (index in which(givenStates)) {
+      value <- validateForestTreePrior(stated[[index]], name)
+      if (!identical(value, forestDepthValue(stored, index, name))) {
+        stored <- modelWithDepth(
+          stored,
           index,
-          name,
-          stated[[index]],
-          withdrawn = ownStates && !givenStates
-        )
-      }
-    }
-    if (length(reach) == 0L) {
-      next
-    }
-    level <- stated[[reach[[1L]]]]
-    for (index in reach[-1L]) {
-      if (
-        !identical(stated[[index]], own[[index]]) &&
-          !identical(stated[[index]], level)
-      ) {
-        refuseOwnDifference(model, index, name, stated[[index]])
-      }
-    }
-    if (identical(level, own[[reach[[1L]]]])) {
-      next
-    }
-    stored <- withLevelDepth(stored, reach, name, level)
-  }
-  if (!multinomial) {
-    # forest 1's depth, in the tree prior on every sampler, is its own where
-    # the level does not reach it
-    for (name in c("power", "base")) {
-      if (!(1L %in% levelReach(model, candidates, name))) {
-        methods::slot(stored@tree.prior, name) <- methods::slot(
-          model@tree.prior,
-          name
+          stats::setNames(list(value), name)
         )
       }
     }
@@ -266,9 +235,10 @@ sameLeafPrior <- function(a, b) {
 ## `given` states, on a sampler of several forests or a multinomial one: the
 ## one writer behind $setLeafPrior and $setModel. `stored` is the model being
 ## written, carrying the sampler's records; `givenSds` the sd each forest's
-## record in the given model states, NA where none. A forest's own sd that
-## differs, or one newly stated, is refused naming $setForest; where no forest
-## takes the leaf prior, anything but the one in force is refused.
+## record in the given model states, NA where none, which matters here only on
+## the one candidate: the leaf prior reaches it whatever it states, unless the
+## given model states its sd. Where no forest takes the leaf prior, anything
+## but the one in force is refused.
 levelLeafPrior <- function(sampler, given, stored, givenSds, door) {
   model <- sampler$model
   if (samplerCarriesCounts(sampler)) {
@@ -288,14 +258,6 @@ levelLeafPrior <- function(sampler, given, stored, givenSds, door) {
   }
   candidates <- levelCandidates(sampler)
   ownSds <- vapply(model@forests, methods::slot, 0, "sd")
-  for (index in seq_along(ownSds)) {
-    if (
-      !is.na(givenSds[[index]]) &&
-        !identical(givenSds[[index]], ownSds[[index]])
-    ) {
-      refuseOwnDifference(model, index, "sd", givenSds[[index]])
-    }
-  }
   changes <- !sameLeafPrior(given, model)
   if (length(candidates) == 1L) {
     claims <- is.na(givenSds[[candidates]]) && !is.na(ownSds[[candidates]])
@@ -309,11 +271,6 @@ levelLeafPrior <- function(sampler, given, stored, givenSds, door) {
       stored@forests[[candidates]]@share <- 1
     }
     return(list(model = stored, install = TRUE))
-  }
-  for (index in candidates) {
-    if (is.na(givenSds[[index]]) && !is.na(ownSds[[index]])) {
-      refuseOwnDifference(model, index, "sd", NA, withdrawn = TRUE)
-    }
   }
   if (!changes) {
     return(list(model = stored, install = FALSE))
@@ -347,10 +304,11 @@ levelLeafPrior <- function(sampler, given, stored, givenSds, door) {
 }
 
 ## The refusal of a forest's share of the prior total that differs in `given`
-## from the sampler's: the parts are set once, at creation. The one candidate is
+## from `planned`'s, the model $setModel would store: the parts are set once, at
+## creation, and a forest stating its sd leaves the group. The one candidate is
 ## not read, the leaf prior reaching it whatever it states.
-refuseShareDifference <- function(sampler, given) {
-  model <- sampler$model
+refuseShareDifference <- function(sampler, given, planned) {
+  model <- planned
   candidates <- levelCandidates(sampler)
   if (
     length(given@forests) != length(model@forests) ||
@@ -466,15 +424,17 @@ setModelOnForests <- function(sampler, newModel, given) {
   }
   leaf <- levelLeafPrior(sampler, given, depths$model, givenSds, "$setModel")
   refuseCoefficientDifference(sampler, given)
-  refuseShareDifference(sampler, given)
-  stored <- leaf$model
+  sds <- statedForestSds(sampler, leaf$model, givenSds)
+  stored <- sds$model
+  refuseShareDifference(sampler, given, stored)
   stored@tree.prior@splitProbabilities <- numeric()
+  ptr <- sampler$getPointer()
   withSizeRefusal(
     sampler,
     "$setModel",
     .Call(
       C_dbarts_bartcore_setModelForests,
-      sampler$getPointer(),
+      ptr,
       stored,
       sampler$data,
       sampler$control,
@@ -483,7 +443,49 @@ setModelOnForests <- function(sampler, newModel, given) {
       leaf$install
     )
   )
+  # checked above, so none of these refuses
+  for (index in names(sds$installs)) {
+    .Call(
+      C_dbarts_bartcore_setForestSd,
+      ptr,
+      as.integer(index) - 1L,
+      sds$installs[[index]]
+    )
+  }
   stored
+}
+
+## The sds a model given to $setModel states that differ from what `stored`,
+## the model after the level's writes, records, each written as $setForest(f,
+## sd = ) writes it, as a list of the model and the sds to install by forest
+## position. A forest whose given record states no sd is left. Each is checked
+## as the engine checks it, so the install cannot refuse after a write.
+statedForestSds <- function(sampler, stored, givenSds) {
+  installs <- list()
+  if (samplerCarriesCounts(sampler)) {
+    return(list(model = stored, installs = installs))
+  }
+  ptr <- sampler$getPointer()
+  for (index in which(!is.na(givenSds))) {
+    sd <- validateForestSd(givenSds[[index]])
+    if (identical(sd, unname(stored@forests[[index]]@sd))) {
+      next
+    }
+    raw <- .Call(C_dbarts_bartcore_getLeafPrior, ptr, index - 1L)
+    unit <- raw[[1L, "map.unit"]]
+    if (!is.nan(raw[[1L, "map.anchor"]]) && !(unit > 0 && is.finite(unit))) {
+      stop(
+        "$setModel cannot state ",
+        doorForestLabel(stored, index),
+        "'s 'sd': a forest's 'sd' is in the response's units, and this ",
+        "response has no spread to state one against",
+        call. = FALSE
+      )
+    }
+    stored <- modelWithForestSd(sampler, stored, index, sd)
+    installs[[as.character(index)]] <- sd
+  }
+  list(model = stored, installs = installs)
 }
 
 ## Evaluates `expr`, an install of the fitting function's leaf prior. Where one

@@ -640,7 +640,8 @@ this plan does not touch it.
     duplicates the counting the bridge does before its per-forest calls.
 19. A forest's own sd, power or base differing in the model given to `$setModel` is refused naming `$setForest`
     (dec-B518: one forest through the door that names it); the variance forest's record is call 31. Alternative:
-    install each forest's own from the model's records, a second per-forest door.
+    install each forest's own from the model's records, a second per-forest door. Revised by dec-B652: the
+    alternative, built by setmodel-installs-stated.
 20. `$setModel`'s leaf prior and `$setLeafPrior(leaf.prior = )` share one writer on every sampler, the multinomial
     one included. Alternative: refuse a leaf prior difference on a multinomial `$setModel`, naming
     `$setLeafPrior`, as this plan had it: two answers to one statement.
@@ -697,6 +698,8 @@ this plan does not touch it.
     wrapper is a name left out (dec-B519). A refusal on `$setModel`'s route reached through `$setTreePrior` names
     `$setTreePrior`. A statement withdrawn on a model's record is refused naming a new sampler, never `$setForest`,
     which refuses an NA (dec-B522). Alternative: name `$setModel` throughout, the door the user did not call.
+    The withdrawal's refusal is read as revised by dec-B652, a number the record does not state being left
+    (setmodel-installs-stated, call 3).
 
 ## Landing note
 

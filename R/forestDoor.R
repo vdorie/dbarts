@@ -636,6 +636,37 @@ writeForestDoor <- function(sampler, forest, given, supplied, updateState) {
   invisible(NULL)
 }
 
+## A model with the variance forest's depth in `changed` written on its record,
+## each name written stated.
+modelWithVarianceDepth <- function(model, changed) {
+  for (name in intersect(c("power", "base"), names(changed))) {
+    methods::slot(model@variance, name) <- changed[[name]]
+    model@variance@stated <- withDepthStated(model@variance@stated, name)
+  }
+  model
+}
+
+## The variance forest's depth a model given to $setModel states and that
+## differs from the sampler's, validated as $setVarianceForest validates it;
+## an empty list where none does. A depth the record does not state, as one
+## copied from the mean forest's at creation, is left.
+statedVarianceDepth <- function(sampler, given) {
+  record <- given@variance
+  if (is.null(record) || is.null(sampler$model@variance)) {
+    return(list())
+  }
+  names <- intersect(c("power", "base"), record@stated)
+  stated <- stats::setNames(
+    lapply(names, function(name) methods::slot(record, name)),
+    names
+  )
+  changedForestSettings(
+    stated,
+    varianceForestInForce(sampler),
+    "varianceForest()"
+  )
+}
+
 ## $setVarianceForest, on the same steps; it has no sd to refuse after a write.
 writeVarianceForestDoor <- function(sampler, given, supplied, updateState) {
   updateState <- checkUpdateState(updateState)
@@ -663,11 +694,7 @@ writeVarianceForestDoor <- function(sampler, given, supplied, updateState) {
     return(invisible(NULL))
   }
   refuseVarianceRuleGibbs(changed$proposal.probs)
-  model <- sampler$model
-  written <- model
-  for (name in intersect(c("power", "base"), names(changed))) {
-    methods::slot(written@variance, name) <- changed[[name]]
-  }
+  written <- modelWithVarianceDepth(sampler$model, changed)
   movesChanged <- any(forestMoveNames %in% names(changed))
   if (movesChanged) {
     written <- modelWithMoves(written, NULL, changed)

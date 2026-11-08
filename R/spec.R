@@ -1383,9 +1383,13 @@ resolveSamplerSpec <- function(
     varianceRecord <- new("dbartsVarianceRecord")
     varianceRecord@n.trees <- coerceOrError(n.trees, "integer")
     refuseVarianceCalibration(model@resid.prior, varianceRecord@n.trees)
-    if (!is.null(varianceNTrees)) {
-      varianceRecord@stated <- "n.trees"
-    }
+    # what the caller stated, so that $setModel installs a stated depth and
+    # leaves one copied from the mean forest
+    varianceRecord@stated <- c("n.trees", "power", "base")[c(
+      !is.null(varianceNTrees),
+      !is.null(variancePower),
+      !is.null(varianceBase)
+    )]
     # a stated power or base is held to what setVarianceForest holds it to
     varianceRecord@base <- if (is.null(varianceBase)) {
       model@tree.prior@base
