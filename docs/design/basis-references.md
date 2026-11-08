@@ -1,6 +1,6 @@
 # A forest's basis names a column of the data
 
-Status: PROPOSED, 2026-11-07, revised 2026-11-08 to the rulings dec-B674 to dec-B688 and dec-B692; part 1 planned in
+Status: PROPOSED, 2026-11-07, revised 2026-11-08 to the rulings dec-B674 to dec-B688, dec-B692 and dec-B704 to dec-B707; part 1 planned in
 [basis-references-part-1.md](../plans/basis-references-part-1.md), not built.
 Follows dec-B663 (a forest's basis is a reference to a column of the data), dec-B666 (the frame kept on the
 data object), dec-B670 (the whole frame kept, and beside it as little derived from it as can be), dec-B671
@@ -23,7 +23,8 @@ The design lands in two parts (dec-B679):
 - **Part 1, the data object and the forest doors**: sections 2.1 to 2.3, 2.7 to 2.9, the user's object's
   stand-ins, `model.frame()` and `nobs()`, `keep.data`, and the rulings on calls 1, 2, 3, 6 and 7. A sampler's
   data is today's object with real slots: the caller's frame dropped where a sampler is handed its data, its
-  column names kept. About 450 lines of R added, above dec-B679's 305 by half (the plan says why).
+  column names kept. About 495 lines of R added, above dec-B679's 305 by about three fifths (the plan says
+  why).
 - **Part 2, the sampler's model frame** (dec-B678): sections 2.4 to 2.6, the setters, the stand-ins on a
   sampler's data, the lint rule and the bridge entry. Calls 39, 36 and 41 and stan4bart's bundle are ruled
   (dec-B685, dec-B686, dec-B688, dec-B687), and `extract(s, "predictors")` goes with it (dec-B692).
@@ -404,12 +405,20 @@ of `x`, `y`, `weights`, `offset` and `bases`, sized as the frame saves from the 
 - **Beside an object with no caller frame** (a sampler's data, a `keep.data = FALSE` object), a basis naming
   a column the object holds, a model variable or a held basis, is read from it; another of the caller's
   frame's names is refused, naming the data object built with its frame; any other name is the caller's
-  value (dec-B682, call 6). How a held basis is named in part 1 is open (the plan's open call 3).
+  value (dec-B682, call 6). A held basis is named by the expression it was written as, matched deparsed and
+  read from the held columns; a source column of it is refused naming that expression (dec-B706).
+- **A basis name is read from the data first, then where `forest()` was called, at every door**, a matrix's
+  columns included: `dbarts(x, y)`, `dbartsData(x, y)` and its sampler's data read `x`'s column; a formula
+  with no data reads where it was written (dec-B705). A single string names its column (dec-B700).
 - **Beside any data, a sampler's data included, a forests list states the forests in full** (dec-B684, call
   3): a forest declaring no basis has none, keeping a held basis means naming it, a list of tree counts alone
-  gives plain forests and no list gives one forest. dec-B663's interim refusal is not built.
+  gives plain forests and no list gives one forest. dec-B663's interim refusal is not built. A forest
+  naming a held basis keeps its recorded scale, matched by name; a new value takes its own (dec-B704).
+- **A hazard fit's basis** has one value per subject, cut by `subset` and the na.action, repeated over its
+  periods as weights and offsets are; a period-length vector is refused (dec-B707).
 - **`$setForestBasis`** and **`predict`**: as built.
-- **The matrix interface**: a value, full length, cut by the record.
+- **The matrix interface**: a value, full length, cut by the record, or a name of one of its columns
+  (dec-B705).
 - **Fit and reload**: `dbartsSpec()` and `dbarts(o)` write the model record `dbarts(f, d)` writes.
 
 ### 2.8 Data objects that carry bases, and setData

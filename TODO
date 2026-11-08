@@ -331,10 +331,15 @@ items
     the forests in full, a sampler's data included (dec-B684, VD
     2026-11-08: "(a)."), replacing dec-B663's interim refusal, never
     built. Plan: docs/plans/basis-references-part-1.md, three slices
-    (the data object, the forest doors, the consumers); its open calls
-    (the held basis's scale after a swap, frameless objects, the held
-    basis's name, a hazard basis's length) and its size, about 450
-    lines against dec-B679's 305, go to the maintainer.
+    (the data object, the forest doors, the consumers). Its four open
+    calls are ruled: a forest naming a held basis keeps its recorded
+    scale (dec-B704, VD 2026-11-08: "OK, use (a)."); a basis name is
+    read from the data, a matrix's columns included, then where forest()
+    was called (dec-B705, VD 2026-11-08: "(b)"); a held basis is named
+    by its written expression (dec-B706, VD 2026-11-08: "(a)"); a
+    hazard basis has one value per subject (dec-B707, VD 2026-11-08:
+    "(a)"). dec-B700's string names are built with it. About 495 lines
+    against dec-B679's 305, for the maintainer's word.
   basis-references-part-2: the sampler's model frame (dec-B678), the
     second landing of the basis-references design (dec-B679): a
     sampler's data holds the model frame and its forests' basis
@@ -359,6 +364,15 @@ items
     survive setData(s$data) (run 2026-11-08), and only a mask set by
     setActiveRows is cleared, as the help says elsewhere. A help
     sentence.
+  hazard-basis-after-fit: under dec-B707 a hazard fit's basis has one
+    value per subject, but predict() takes person-period rows, so its
+    bases = is one value per period row, and survivalProbabilities(
+    newdata = ), one row per subject, refuses bases by name, so new
+    subjects' survival curves of a hazard fit with a basis forest, which
+    dec-B707 makes possible through bart()'s forest() term, have no way
+    to take one (found planning basis-references part 1, 2026-11-08). Whether
+    survivalProbabilities takes per-subject bases and predict keeps its
+    period rows. A decision first.
   rbart-group-by-frame: rbart_vi(dbartsData(f, d), group.by = g) reads
     the caller's g while rbart_vi(f, d, group.by = g) reads d$g first,
     the shape the basis-references plan's draw move D1 fixes for a

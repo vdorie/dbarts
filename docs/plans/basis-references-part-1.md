@@ -1,10 +1,11 @@
 # basis-references, part 1: the data object and the forest doors
 
-Status: PLANNED 2026-11-08, revised after its blind critique; not built. Awaiting the maintainer's answers to
-the four open calls below and a word on the size (about 450 lines of R against dec-B679's 305). Design:
-[basis-references.md](../design/basis-references.md). Rests on dec-B663, dec-B666, dec-B670, dec-B674 to
-dec-B677, dec-B679 to dec-B686 (dec-B682 revises dec-B674's words; dec-B685 and dec-B686 also shape this
-part); dec-B678, dec-B687, dec-B688 and dec-B692 are part 2's (dec-B679).
+Status: PLANNED 2026-11-08, revised after its blind critique and to the rulings on its four open calls
+(dec-B704 to dec-B707); not built. Its size, about 495 lines of R against dec-B679's 305, is for the
+maintainer's word. Design: [basis-references.md](../design/basis-references.md). Rests on dec-B663,
+dec-B666, dec-B670, dec-B674 to dec-B677, dec-B679 to dec-B686 (dec-B682 revises dec-B674's words; dec-B685
+and dec-B686 also shape this part), dec-B700 and dec-B704 to dec-B707; dec-B678, dec-B687, dec-B688 and
+dec-B692 are part 2's (dec-B679).
 
 agent: slices 1 and 2 serial, each one sonnet implementer; slice 1 a sonnet review (R surface) that runs its
 mutants, slice 2 an opus review that runs its mutants (draws move for named calls); slice 3 one sonnet
@@ -14,9 +15,9 @@ POSTERIOR-CHANGING for the calls listed under [Draws that move](#draws-that-move
 by the rulings and checked against the sibling door's draws. Expected bitwise against equivalence-38da480c
 (55), bcf-equivalence-38da480c (19) and multinomial-equivalence-80b1c8d4 (11) after each slice; a moved
 stream is a stop.
-budget: about 450 lines of R added (slice 1 about 315, slice 2 about 135) and about 270 removed (slice 2), no
+budget: about 495 lines of R added (slice 1 about 315, slice 2 about 180) and about 270 removed (slice 2), no
 `src/` or header change; tests about 90 to 360 lines moved and 250 new in slice 1, about 250 rewritten and
-120 new in slice 2; seven help pages, one NEWS entry; about 8 lines in bartCause and 1 in stan4bart.
+170 new in slice 2; seven help pages, one NEWS entry; about 8 lines in bartCause and 1 in stan4bart.
 
 ## Goal
 
@@ -24,8 +25,9 @@ A data object built from a frame keeps the frame, the positions of the rows it k
 and reads its data through `model.frame(o)` and `nobs(o)`; `o@x`, `o@y` and, where given, `o@weights` and
 `o@offset` there are stand-ins naming `model.frame(o)`. Every door that builds a model reads a forest's basis
 against the data by one function: `dbartsSpec(dbartsData(f, d), forests = L)`, `dbarts(dbartsData(f, d),
-forests = L)`, `dbarts(f, d, forests = L)` and a formula's `forest()` term draw the same. `dbartsData(bases = )`
-is gone. A sampler's data is today's block-holding object, with the caller's frame dropped and its column
+forests = L)`, `dbarts(f, d, forests = L)` and a formula's `forest()` term draw the same, and a basis name is read from the
+data first (a data frame's column, a matrix's column, a column a sampler's data hold), then where `forest()`
+was called. `dbartsData(bases = )` is gone. A sampler's data is today's block-holding object, with the caller's frame dropped and its column
 names kept; part 2 makes it the model frame.
 
 ## Context
@@ -36,14 +38,16 @@ names kept; part 2 makes it the model frame.
 - dec-B679 splits the design; the 305-line sizing it names is the note's fourth revision. This plan is that
   design with dec-B677's accessors, dec-B680 to dec-B684 in place of calls 1, 2, 3, 6 and 7, and the doors the
   fourth revision did not count (the formula term door, the response kinds, hazard, `model.frame()` of every
-  kind); hence about 450 lines.
+  kind) and the rulings on the plan's open calls (dec-B704 to dec-B707) and dec-B700; hence about 495 lines.
 - Rulings that reach this part beyond its own: dec-B685 and dec-B677 settle what `model.frame()` of a
   block-holding object shows (decoded where exact), built here for every kind; dec-B686 keeps the coding
   record's attributes on `s$data@x`, so the reads of `attr(s$data@x, "term.labels")` stay in both parts;
   dec-B694 (a hazard sampler's `$setData` takes survival data, root TODO hazard-setdata-surv) needs the
   resolution to carry the Surv record, which it does; dec-B700 (a single string names its column, root TODO
-  basis-string-name) resolves as dec-B682 does, so whichever lands second puts the string read in the shared
-  reader.
+  basis-string-name) resolves as dec-B682 does, so it is built in the shared reader here, and at predict.
+  dec-B708 (a prior's name inside `forest()` is dbarts's only where a prior goes, root TODO
+  prior-names-where-priors-go) reads `sd =` and the other number arguments, not the basis, whose refusal of
+  a prior's name (dec-B272) stands; it does not touch the reader and is not built here.
 - Today a basis beside a frame rides [`dbartsData`](../../R/data.R)'s own `bases` argument: a value as itself,
   code as the row numbers of [`basisRowNumbers`](../../R/forestBasis.R), cut there by
   [`validateForestBases`](../../R/data.R) with [`alignSubsetRowsToFrame`](../../R/data.R), and built on the
@@ -57,8 +61,10 @@ names kept; part 2 makes it the model frame.
     for this S4 class", "no 'nobs' method is available"). Main: `o@x` a `dbartsMixedMatrix` of 9 by 2, the rest
     as 0.9-34. 0.9-34 had no families, no forests and no bases.
   - `dbartsSpec(dbartsData(y ~ x1 + x2, d), forests = list(forest(), forest(basis = factor(z))))` reads the
-    workspace `z` where `dbarts(y ~ x1 + x2, d, forests = <the same>)` reads `d$z`. Beside a matrix object,
-    a formula object with no `data` and the matrix sampler's data, a basis name reads the workspace.
+    workspace `z` where `dbarts(y ~ x1 + x2, d, forests = <the same>)` reads `d$z`. At
+    `dbarts(X, y, forests = )`, beside `dbartsData(X, y)`, a formula object with no `data` and the matrix
+    sampler's data, a basis name reads the workspace, not `X[, "x2"]`, and with none there stops, while
+    `forest(x1)` and `varianceForest(~ x2)` in the same call read the matrix's columns.
   - Beside a two-forest sampler's data, `dbartsSpec(s2$data)`, a list of tree counts alone and
     `list(forest())` each give two forests keeping the held basis. A one-forest creation on data that carry
     bases is refused ("the data carry forest bases but no basis forest was configured").
@@ -71,6 +77,12 @@ names kept; part 2 makes it the model frame.
   - Hazard, 60 subjects and 1830 period rows: the formula route refuses `forest(basis = dose)` ("60 rows
     where the fit has 1830 observations"); the matrix route refuses 60 values and takes 1830. `aft` takes no
     second forest.
+  - Beside `s2 <- dbarts(y ~ x1 + x2, d, forests = list(forest(), tau = forest(basis = factor(z))))`,
+    `s2$data` holds the basis as `factor(z)0` and `factor(z)1` by forest position; the written expression,
+    its source `z` and the label are in the model; `forest(basis = factor(z))` beside `s2$data` reads a
+    workspace `z` or fails.
+  - `forest(x, basis = "z")` stops ("a basis is a column, not its name") while `forest("x")` takes the
+    string as the predictor.
   - `dbarts(dbartsData(Surv(t, s) ~ x1 + x2, d), family = "aft")` and `family = "hazard"` build a sampler,
     reading the object's `survivalStatus`, `survivalTime` and `survivalTimeOmitted`.
   - A zero-weight build warns once at `dbartsData()`; `dbarts(o)` and `dbartsSpec(o)` are silent. An object
@@ -95,7 +107,7 @@ names kept; part 2 makes it the model frame.
   Also out: call 21 (a fit's own basis vector), which is keepfits-forest-records' (dec-B671); the
   examination's other recommendations for bartCause (root TODO, bartcause-data-route); stan4bart's
   hand-written slots (root TODO, consumer-slot-writes); `rbart_vi(o, group.by = )` reading the caller's
-  variable (root TODO, rbart-group-by-frame); dec-B694's survival `$setData` and dec-B700's string names.
+  variable (root TODO, rbart-group-by-frame); dec-B694's survival `$setData`; dec-B708.
 - A data object saved by a development build before this lands is owed nothing (call 22); one saved by
   0.9-34 already fails on main.
 
@@ -111,9 +123,10 @@ names kept; part 2 makes it the model frame.
 | the resolution, at `dbarts(o)`, `dbartsSpec(o)`, `bart(o)`, `rbart_vi(o)`, `xbart(o)`, [`ingestHurdleData`](../../R/bart.R), `new("dbartsSampler", data = o)`, [`dbartsSampler$setData`](../../R/dbarts.R) | a frame-keeping object becomes the block-holding object `dbartsData(f, d, keep.data = FALSE)` would have made, `frame.columns` kept; any other object passes as it is; no warning the build gave is given again (slice 1) |
 | `dbarts(f, d, forests = )`, `bart(f, d)` | builds with `keep.data = FALSE` internally; bases read by the shared reader against `d`, cut by `rows` (slice 2); draws bitwise |
 | a formula's `forest()` term, `bart(y ~ forest(x2, basis = z), d)` and `dbarts()` | [`ingestFormulaTerms`](../../R/formulaTerms.R) reads its bases by the shared reader; `fitBasisRows` and the `basisRows` hand-on go (slice 2); draws bitwise |
-| `dbarts(x, y, forests = )` | the shared reader, a value full length cut by `rows` (slice 2); draws bitwise |
-| `dbarts(o, forests = )`, `dbartsSpec(o, forests = )` | a declared basis read against `o` by the shared reader (dec-B681), full length (dec-B680), names per dec-B682, dec-B683 and open call 2, the list stating the forests in full (dec-B684), a held basis's scale per open call 1 (slice 2) |
-| a hazard fit's basis, at `dbarts(f, d)`, `dbarts(x, y)`, `dbarts(o)` | its length per open call 4 (slice 2); `dbartsSpec()` refuses every hazard family, as today |
+| `dbarts(x, y, forests = )` | the shared reader: a name that is one of `x`'s columns read from it, other names where `forest()` was called (dec-B705), a value full length cut by `rows` (slice 2); draws move for D5 only |
+| `dbarts(o, forests = )`, `dbartsSpec(o, forests = )` | a declared basis read against `o` by the shared reader (dec-B681), full length (dec-B680), names per dec-B682, dec-B683 and dec-B705 (a matrix object's columns first; a formula with no data reads where it was written), a held basis kept by its written expression (dec-B706) and its recorded scale (dec-B704), the list stating the forests in full (dec-B684) (slice 2) |
+| a hazard fit's basis, at `dbarts(f, d)`, `dbarts(x, y)`, `dbarts(o)` | one value per subject, cut by `subset` and the na.action, then repeated over its periods as weights and offsets are (dec-B707) (slice 2); `dbartsSpec()` refuses every hazard family, as today |
+| a single string as a basis, `forest(x, basis = "z")`, written or held, at every door and at predict | the name of column `z`, resolved as a written name (dec-B700) (slice 2) |
 | `model.frame(o)`, `nobs(o)` | new methods on every data object (dec-B677): from the frame where one is kept, decoded from the block where exact otherwise (dec-B685's rule, for every kind) (slice 1) |
 | `o@x`, `o@y`, `o@weights`, `o@offset` | stand-ins on a frame-keeping object only (dec-B675, dec-B676); real slots everywhere else, `s$data` included (slice 1) |
 | `makeTestModelMatrix(o, newdata)` | reads the coding record on a frame-keeping object (slice 1) |
@@ -230,28 +243,39 @@ Tier: changes draws, for the named calls only; no engine change. Files: `R/data.
 
 ### Steps
 
-1. One reader, `resolveForestBases(forests, data, rows, held)`: reads each declared basis against the data's
-   frame (a frame-keeping object's, or the `d` `dbarts(f, d)` and a formula term hold), then the columns the
-   object holds (its block's, and its held bases under open call 3), then where `forest()` was called (open
-   call 2 for objects with no frame that dec-B682 does not name); a value has one entry per row handed over
-   and is cut by `rows`, code is built on the kept rows (dec-B680); a hazard fit's basis per open call 4.
-   `dbarts(f, d)`, a formula's `forest()` term, `dbarts(x, y)`, `dbarts(o)` and `dbartsSpec(o)` call it; the
-   row-number plumbing through `bases` and `basisRows` and the restating of "'bases'" as "'basis'" go. About
-   60 lines added; about 270 removed (the `dbarts()` plumbing about 95, the `dbartsSpec()` block about 55,
-   the five helpers about 90, the `bases` sites in `dbartsData` about 30).
+1. One reader, `resolveForestBases(forests, data, rows, held)`: reads each declared basis against the data
+   first, then where `forest()` was called, at every door (dec-B705): the data being a frame-keeping
+   object's frame, the `d` `dbarts(f, d)` and a formula term hold, the matrix `x` at `dbarts(x, y)` and
+   `dbartsData(x, y)`, or the columns a block-holding object holds (its block's, and its held bases by their
+   written expressions, step 3); a formula object with no `data` reads where its formula was written, as
+   `model.frame()` does. A value has one entry per row handed over and is cut by `rows`, code is built on the
+   kept rows (dec-B680). A single string, written or held in a variable, is read as a name (dec-B700; a
+   string vector of one value per row stays a two-level basis); predict's basis read takes it too, about 3
+   lines there. A hazard fit's basis has one value per subject, cut by `subset` and the na.action, then
+   repeated over the subject's periods by the expansion's own subject index, as weights and offsets are; a
+   vector of the period rows' length is refused with the subject length it needs (dec-B707). `dbarts(f, d)`,
+   a formula's `forest()` term, `dbarts(x, y)`, `dbarts(o)` and `dbartsSpec(o)` call it; the row-number
+   plumbing through `bases` and `basisRows` and the restating of "'bases'" as "'basis'" go. About 90 lines
+   added (the matrix columns about 10, the string about 8, hazard about 10); about 270 removed (the
+   `dbarts()` plumbing about 95, the `dbartsSpec()` block about 55, the five helpers about 90, the `bases`
+   sites in `dbartsData` about 30).
 2. `dbarts(o, forests = )` takes a declaring list, read exactly as `dbartsSpec(o, forests = )` reads it
    (dec-B681). About 25 lines.
 3. Beside an object with no caller frame (`s$data`, `keep.data = FALSE`), a basis naming a column the object
-   holds (a block column, or a held basis, open call 3) is read from it; a name in `frame.columns` that is no
-   such column is refused, naming the data object built with its frame; any other name is the caller's value
-   (dec-B682). Beside an environment's object, the same, the refusal naming a data frame or list (dec-B683).
-   About 15 lines.
+   holds is read from it: a block column by its name, a held basis by the expression it was written as
+   (dec-B706), matched deparsed and read from the held columns, not evaluated again. The block-holding object
+   records that expression per basis forest (one slot, written where the bases are built); a name in
+   `frame.columns` that is no such column is refused, naming the data object built with its frame, and where
+   it is the source of a held basis (`forest(basis = z)` for one written `factor(z)`) the message names the
+   written form, `forest(basis = factor(z))`; any other name is the caller's value (dec-B682). Beside an
+   environment's object, the same, the refusal naming a data frame or list (dec-B683). About 25 lines.
 4. Beside any data, `s$data` included, a forests list states the forests in full: a forest declaring no
    basis has none, a list of tree counts alone gives plain forests, no list gives one forest (dec-B684). Held
    bases no forest names are dropped from the data handed on, with their `basis.levels` and `basis.scale`
    entries, since a creation of fewer basis forests than the data carry is refused today. A forest naming a
-   held basis takes its scale per open call 1; a basis given as a new value takes its scale and levels from
-   that value, as a declaration does today. dec-B663's interim refusal is not built. About 15 lines.
+   held basis keeps its recorded `basis.scale` and `basis.levels` entries, matched by name wherever it stands
+   in the list (dec-B704); a basis given as a new value takes its scale and levels from that value, as a
+   declaration does today. dec-B663's interim refusal is not built. About 20 lines.
 5. `bases =` leaves [`dbartsData`](../../R/data.R): R's own "unused argument" (call 16). The three texts that
    advise the data door are reworded (the `$setData` refusal, `dbarts()`'s refusal, which goes, and the
    refusal of a one-forest model with a basis). About 20 lines.
@@ -267,45 +291,66 @@ Tier: changes draws, for the named calls only; no engine change. Files: `R/data.
   the held column (dec-B682); today the caller's.
 - D3. Beside a sampler's data of several forests: no list gives one forest and a list of tree counts plain
   forests (dec-B684); today the held bases are kept.
-- D4. Beside a sampler's data whose basis `$setForestBasis` swapped, a forest naming the held basis: under
-  open call 1 (a) the scale recorded at the first creation, as today's no-list route gives, no prior moving;
-  under (b) the column's spread now, the coefficient's prior moving by the ratio of the two spreads.
+- D4. Beside a sampler's data, a forest naming the held basis by its written expression: the held columns
+  and the scale recorded at the first creation, after a `$setForestBasis` swap too (dec-B704, dec-B706), as
+  today's no-list route gives; today the list reads the caller's variable and takes its scale from it
+  (25.2 against 2.52 in the premise).
+- D5. At `dbarts(x, y, forests = )`, beside `dbartsData(x, y)` and beside the matrix sampler's data, a
+  basis name that is both a column of `x` and a caller's variable: the column (dec-B705); today the
+  caller's.
 
 Calls that run today and stop: beside a frame-keeping, `keep.data = FALSE` or matrix-interface object under
-`subset`, a basis of the kept length (dec-B680); under open call 4 (a), a hazard basis of one value per period
-row on the matrix route. A formula hazard fit with a basis, refused today, fits under (a) or (b).
+`subset`, a basis of the kept length (dec-B680); a hazard basis of one value per period row on the matrix
+route (dec-B707). Calls refused today that fit: a formula hazard fit with a basis (dec-B707); a matrix fit
+naming one of its columns with no caller's variable of that name (dec-B705); a single string as a basis
+(dec-B700).
 
 No test file and no snapshot moves. A parse of every test file finds 62 door calls with a forests list beside
 a data object: the frame-keeping ones name no column of their frame, the one sampler's data of several
 forests (`original$data` in test-forest-scale-record.R, swapped) takes a list stating both forests, its
-second a new value (`bigDose`), which takes its scale from that value under either answer to open call 1,
-and the one name collision, ["plainData <- dbartsData(y ~ x1 + x2 + x3,
+second a new value (`bigDose`), which takes its scale from that value (dec-B704), and the one name collision, ["plainData <- dbartsData(y ~ x1 + x2 + x3,
 frame)"](../../inst/tinytest/test-control-doors.R) beside `factor(z)`, has the workspace `z` equal to
 `frame$z` and is refused for its tree count. The doors handed a sampler's data with no list (16, in
 test-control-doors.R, test-standardization-record.R and test-leaf-standardization-rows.R) are all of one
-forest. The four snapshot files build no data object with a forests list. The implementer confirms each by
-running the touched files against main's library and the slice's.
+forest. The four snapshot files build no data object with a forests list. For D5 the implementer scans
+the matrix-interface calls that name a basis, in the tests and the equivalence scenarios, for a name that is
+also a column of `x`; any found is a draw that moves and is listed in the landing note. The implementer
+confirms each by running the touched files against main's library and the slice's.
 
 ### Pins (fail before, pass after)
 
-- D1, D2, D3 and D4 each, with the caller's variable unlike the column, the new draws `identical()` to the
-  sibling door's: `dbarts(f, d, forests = L)` for D1, a fit naming the held values for D2,
+- D1, D2, D3, D4 and D5 each, with the caller's variable unlike the column, the new draws `identical()` to
+  the sibling door's: `dbarts(f, d, forests = L)` for D1, a fit naming the held values for D2,
   `dbarts(f, d, forests = <the list as stated>)` for D3 (each building a sampler, so the dropped held bases
-  are exercised), and for D4 the forest's recorded scale after a swap as open call 1 rules.
-- The held basis kept by name: `dbartsSpec(s2$data, forests = <a list naming the held basis>)` on an
-  unswapped sampler identical to today's `dbartsSpec(s2$data)`, the name as open call 3 rules.
+  are exercised), for D4 the forest's scale record after a swap equal to the first creation's and its draws
+  identical to today's `dbartsSpec(s2$data)`, and for D5 `dbarts(X, y, forests = <basis X[, "x2"]>)`, at
+  `dbarts(X, y)`, `dbartsData(X, y)` and the matrix sampler's data alike.
+- The held basis kept by its expression (dec-B706): beside the `factor(z)` sampler's data,
+  `forest(basis = factor(z))` taken, identical on an unswapped sampler to today's `dbartsSpec(s2$data)` and
+  reading the held columns with no `z` anywhere; `forest(basis = z)` refused, the message naming
+  `forest(basis = factor(z))`; a forest moved to another position in the list keeps its record (dec-B704).
+- A string (dec-B700): `forest(x, basis = "z")` and `nm <- "z"; forest(x, basis = nm)` identical to
+  `forest(x, basis = z)`, at `dbarts(f, d)`, a formula term, beside a data object and at predict; a string
+  vector of one value per row still a two-level basis.
 - dec-B680 at `dbarts(o)`, `dbartsSpec(o)`, a `keep.data = FALSE` object and a matrix-interface object
   under `subset = 1:40`: a 60-row vector taken, equal to `dbarts(f, d, subset = 1:40, forests = )` and
   `dbarts(X, y, subset = 1:40, forests = )`; a 40-row one refused with the length expected.
-- A hazard basis, formula and matrix routes, as open call 4 rules, each refusal naming the length.
+- A hazard basis (dec-B707): `dbarts(Surv(t, s) ~ x1 + x2, d, family = "hazard", forests = list(forest(),
+  forest(basis = dose)))` fits, its draws identical to the matrix route given the 60 doses and to a probit fit
+  on the hand-expanded rows with the dose repeated; under `subset` and `na.omit` the cut comes first; the
+  matrix route's 1830-value vector refused, naming 60.
 - dec-B681: `dbarts(o, forests = <declaring>)` taken, identical to the `dbartsSpec()` route and to
   `dbarts(f, d, forests = )`.
 - dec-B682 and dec-B683: each refusal's text, and the caller's value for a name of neither kind.
 - `dbartsData(bases = )` gives "unused argument".
+- A guard (passes before and after), dec-B705 beside `dbartsData(y ~ x1)` with no `data`: a basis name read
+  where `forest()` was called, `identical()` to `dbarts(y ~ x1, forests = L)`.
 
 Mutants for the review: the reader skipping the frame beside a frame-keeping object (D1 fails); a held basis
 kept beside a list of tree counts (D3 fails); a value cut by the kept length (dec-B680 fails); the term door
-left on `fitBasisRows` (the equivalence trio's two-forest formula scenarios fail).
+left on `fitBasisRows` (the equivalence trio's two-forest formula scenarios fail); the matrix's columns
+skipped (D5 fails); a held basis matched by position, not name (the reordered-list pin fails); a hazard basis
+expanded by period order rather than the subject index (the hand-expanded pin fails).
 
 ### Gates
 
@@ -323,10 +368,9 @@ Under dec-B674's examination clause, from the examination recorded in the note's
   fits keep `data.rsp`, which would otherwise carry the user's whole frame, and it reads the block
   (`nrow()`, `colnames()`, `x[, z]`, `as.matrix(x)`), `@y` and `@weights`, and writes `@x.test`. `bcf()`
   drops `bcf.bases` and gives the treatment forest `basis =` the full-length `factor(z)` it builds, cut by
-  the object's `rows` under `subset` (dec-B680). The other route, naming the treatment column
-  (`forest(basis = factor(<treatment>, levels = c(0, 1)))`, read from the block under dec-B682), would drop
-  that vector, but on bcf's matrix route it works only if open call 2 takes (b); the value route works on
-  both routes under either answer, so it is taken, and is examined again if (b) is ruled. Its reads of
+  the object's `rows` under `subset` (dec-B680). Under dec-B705 naming the treatment column would work on
+  both its routes, but `bcf()` evaluates the treatment itself, which need not be a column of the data, and
+  checks its arms on that full vector, so the value it already holds is the basis. Its reads of
   `attr(fit$fit$data@x, "term.labels")` stay (the block here, dec-B686 in part 2). About 8 lines. Pins:
   `bartc()` and `bcf()` fits identical before and after, with and without `subset`; its suite.
 - stan4bart passes `keep.data = FALSE` in `glFormula`, because it reads the coded block (`as.matrix(@x)`,
@@ -365,41 +409,42 @@ before." Part 2 extends it.
 ## What part 2 reshapes
 
 The resolution's product (today's block-holding object becomes the model frame, about 30 lines of slice 1's
-100); `model.frame()` on a sampler's data, kept to dec-B685's cases; the held basis's name (open call 3,
-beside call 28's `(basis.<label>)` columns, about 10); an environment's object (dec-B683's model frame,
+100); `model.frame()` on a sampler's data, kept to dec-B685's cases; the held basis's written expression
+(dec-B706), kept beside call 28's `(basis.<label>)` columns, about 5; an environment's object (dec-B683's model frame,
 about 5); the stand-ins on `s$data` (dec-B686); the mask (dec-B688); stan4bart's three reads and its bundle
 (dec-B687). Between the two landings main holds both shapes (dec-B679).
 
 ## Open calls
 
-Flagged for the maintainer; none is decided here. Ordered by which bites first.
+Ruled 2026-11-08; their work is in slice 2's steps, pins and sizes above.
 
-1. **A held basis's scale after `$setForestBasis`** (D4). Under dec-B684, naming the held basis is the only
-   way to keep it. Shown: (a) the forest naming it keeps the scale recorded at the first creation, matched by
-   name, as today's no-list route gives, about 5 lines, recommended: the prior rule is "taken once, moved by
-   no later call"; (b) every declared basis takes its scale from the column it reads, the prior moving by the
-   ratio of the spreads (2.52 to 25.2 in the premise).
-2. **Objects with no frame that dec-B682 does not name** (the matrix interface's, and a formula's with no
-   `data`). Shown: (a) a basis name read where `forest()` was called, as their building door reads it, so
-   `dbartsSpec(dbartsData(x, y), forests = L)` draws as `dbarts(x, y, forests = L)`, recommended; such an
-   object and its own sampler's data then read a column name differently (the workspace, the sampler's
-   column); (b) dec-B682's rule for every frameless object, a column of `x` read from it, `dbarts(x, y)`
-   differing unless its door changes too; bcf's matrix route could then name its treatment column. `lm`
-   refuses a matrix as `data`.
-3. **How a held basis is named beside a sampler's data.** dec-B684's example `forest(basis = z)` rules out
-   naming by the forest's label. Shown: (a) by the expression it was written as, recorded with the held basis
-   (`forest(basis = factor(z))` keeps one written so; a source column of the caller's frame is refused under
-   dec-B682, the message naming the written form), about 10 lines, recommended; (b) by its source columns,
-   `s$data` keeping each (`z`), so any expression of them is read again, about 15 lines and one column a
-   source. Goes with part 2's call 28, `(basis.<label>)`, so both parts answer one way.
-4. **A hazard basis's length.** dec-B680 says one entry per row handed over; a hazard caller hands over
-   subjects, which dbarts expands to period rows. Shown: (a) one value per subject, repeated over its periods
-   as weights and offsets are, the formula route starting to work and the matrix route's period-length
-   vector refused, about 10 lines, recommended; (b) both lengths, a period-length vector a basis that varies
-   over time; (c) as built, one per period row, the formula route unable to take a basis.
+1. **A held basis's scale after `$setForestBasis`** (D4): ruled (a), dec-B704. A forest naming a held basis
+   keeps its recorded scale, matched by name; a new value takes its own. Slice 2 step 4, about 5 lines.
+2. **Objects with no frame that dec-B682 did not name**: ruled (b) as revised, dec-B705. A basis name is read
+   from the data first, then where `forest()` was called, at every door, the matrix route included; a formula
+   with no data reads where it was written. Slice 2 step 1 and D5, about 10 lines.
+3. **How a held basis is named beside a sampler's data**: ruled (a), dec-B706. Kept by the expression it was
+   written as, matched deparsed, read from the held columns; `forest(basis = z)` for one written `factor(z)`
+   refused naming `forest(basis = factor(z))`. Slice 2 step 3, about 10 lines and one stored expression per
+   forest.
+4. **A hazard basis's length**: ruled (a), dec-B707. One value per subject, cut by `subset` and the
+   na.action, repeated over its periods; the matrix route's period-length vector refused with the length it
+   needs. Slice 2 step 1, about 10 lines.
 
-Brought to the maintainer, not open calls: the size, about 450 lines of R against dec-B679's 305 (the
-formula term door, the response kinds, hazard and `model.frame()` of every kind were not in that count);
+Left open by the rulings, not built here:
+
+- A hazard fit's basis after the fit: `predict()` takes person-period rows, so its `bases =` is one value per
+  period row, while dec-B707 makes the fit's one per subject; and `survivalProbabilities(newdata = )`, one
+  row per subject, refuses `bases` by name, so survival curves for new subjects of a hazard fit with a basis
+  forest, which dec-B707 makes possible through `bart()`'s `forest()` term, have no way to take one (today no
+  `bart()` hazard fit can have a basis forest). Root TODO hazard-basis-after-fit.
+- Beside a formula object with no `data` (dec-B705's "reads where it was written"), a basis has no data
+  columns to read and is read where `forest()` was called; where the formula was written elsewhere (a
+  formula made in a function), the two can differ. Built as stated; a pin records it.
+
+Brought to the maintainer, not open calls: the size, about 495 lines of R against dec-B679's 305, above it
+by about three fifths (the formula term door, the response kinds, hazard, `model.frame()` of every kind and
+dec-B700, dec-B704 to dec-B707 were not in that count);
 and the cost of a formula term that draws, evaluated again at the resolution, so `dbarts(dbartsData(f, d))`
 fits other values than `dbarts(f, d)` and consumes the generator, a cost the rulings did not weigh (the help
 sentence is an agent call; keeping each term's columns instead would revise dec-B670 and dec-B675).
@@ -433,7 +478,10 @@ for them:
   since no bitwise gate reaches the resolution.
 - Slice 2 takes the changes-draws tier for its named moves (a slice spanning two tiers takes the higher).
   Alternative: the R-surface tier, the sibling-door oracle standing in for the opus review.
-- bartCause's `bcf()` takes the value route for its treatment basis (Slice 3). Alternative: naming the
-  treatment column, open to its matrix route only under open call 2 (b).
+- bartCause's `bcf()` takes the value route for its treatment basis (Slice 3), since it evaluates the
+  treatment itself. Alternative: naming the treatment column, possible on both routes under dec-B705 where
+  the treatment is a column of the data.
+- dec-B700's string read is built in the shared reader here rather than separately, since it resolves as a
+  written name does. Alternative: its own item after this landing, the reader then touched twice.
 - The consumer patches land after dbarts' merge, pushed at once. Alternative: patches that test
   `"keep.data" %in% names(formals(dbarts::dbartsData))`, mergeable first, a branch on a development build.
