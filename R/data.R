@@ -893,7 +893,10 @@ methods::setMethod(
 )
 
 makeTestModelMatrix <- function(data, newdata) {
-  data <- resolveDataObject(data)
+  if (dataKeepsFrame(data)) {
+    coding <- data@build$coding
+    return(validateXTest(newdata, coding$x, missing.seen = coding$missing.seen))
+  }
   validateXTest(newdata, data@x, missing.seen = dataMissingSeen(data))
 }
 
@@ -4571,6 +4574,12 @@ dbartsData <- function(
     result@useQuantiles <- stated$useQuantiles
   }
   result@na.action <- naOmitted
+  if (is.formula(formula) && length(formula) == 3L) {
+    attr(result, "response.label") <- paste(
+      deparse(formula[[2L]]),
+      collapse = " "
+    )
+  }
   if (!is.formula(formula)) {
     rowsKept <- if (identical(as.integer(countsSubset), seq_len(countsRows))) {
       NULL

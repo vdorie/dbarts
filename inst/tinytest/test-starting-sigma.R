@@ -141,8 +141,7 @@ expect_identical(
   sigmaOf(dbartsData(
     y ~ x1 + x2,
     d.b,
-    bases = list(NULL, factor(d.b$z)),
-    keep.data = FALSE
+    bases = list(NULL, factor(d.b$z))
   )),
   lm.levels()
 )
@@ -228,7 +227,7 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
 }
 expect_identical(
   dbartsSpec(
-    dbartsData(y ~ x1 + x2, d.b, keep.data = FALSE),
+    dbartsData(y ~ x1 + x2, d.b),
     forests = list(forest(), forest(basis = factor(d.b$z))),
     control = control.ss
   )$data@sigma,
@@ -239,8 +238,7 @@ expect_identical(
     dbartsData(
       y ~ x1 + x2,
       d.b,
-      bases = list(NULL, factor(d.b$z)),
-      keep.data = FALSE
+      bases = list(NULL, factor(d.b$z))
     ),
     forests = list(forest(), forest(basis = d.b$w)),
     control = control.ss

@@ -24,7 +24,9 @@ dim.dbartsStandIn <- dimnames.dbartsStandIn <- length.dbartsStandIn <-
   `[.dbartsStandIn` <- `[[.dbartsStandIn` <- `$.dbartsStandIn` <-
     as.matrix.dbartsStandIn <- as.vector.dbartsStandIn <- mtfrm.dbartsStandIn <-
       Ops.dbartsStandIn <- Math.dbartsStandIn <- Summary.dbartsStandIn <-
-        refuseStandInRead
+        is.na.dbartsStandIn <- anyNA.dbartsStandIn <- is.finite.dbartsStandIn <-
+          is.infinite.dbartsStandIn <- is.nan.dbartsStandIn <-
+            refuseStandInRead
 
 format.dbartsStandIn <- function(x, ...) {
   paste0("<'", unclass(x), "' is read with model.frame(o)>")
@@ -119,6 +121,19 @@ frozenBuildEnvironment <- function(formula, expressions, dataNames, fallback) {
 ## not give.
 keepFrameInObject <- function(result, frame, build) {
   result@frame <- frame
+  # the coding record: the block with no rows, and whether each column held a
+  # missing value, which is all makeTestModelMatrix() reads of the block
+  x <- result@x
+  seen <- dataMissingSeen(result)
+  flags <- vapply(
+    seq_len(ncol(x)),
+    function(j) sourceColumnHasNA(x, j, ncol(x), nrow(x)),
+    NA
+  )
+  build$coding <- list(
+    x = x[0L, , drop = FALSE],
+    missing.seen = if (is.null(seen)) flags else flags | seen
+  )
   result@build <- build
   result@x <- frameStandIn("x")
   result@y <- frameStandIn("y")
@@ -143,7 +158,41 @@ keepFrameInObject <- function(result, frame, build) {
   result
 }
 
+## What a block-holding object's slots hold, which the slot classes, widened to
+## admit a stand-in, no longer say.
+validateBlockSlotTypes <- function(object) {
+  if (!is.numeric(object@y)) {
+    return("'y' must be numeric")
+  }
+  for (name in c("weights", "offset")) {
+    value <- methods::slot(object, name)
+    if (!is.null(value) && !is.numeric(value)) {
+      return(paste0("'", name, "' must be null or numeric"))
+    }
+  }
+  NULL
+}
+
 validateFrameKeepingData <- function(object) {
+  for (name in c("x", "y")) {
+    if (!inherits(methods::slot(object, name), "dbartsStandIn")) {
+      return(paste0(
+        "'",
+        name,
+        "' must be a stand-in on an object that keeps a frame"
+      ))
+    }
+  }
+  for (name in c("weights", "offset")) {
+    value <- methods::slot(object, name)
+    if (!is.null(value) && !inherits(value, "dbartsStandIn")) {
+      return(paste0(
+        "'",
+        name,
+        "' must be null or a stand-in on an object that keeps a frame"
+      ))
+    }
+  }
   frame <- object@frame
   if (!is.list(frame)) {
     return("'frame' must be a data frame or a list")
@@ -255,13 +304,22 @@ model.frame.dbartsData <- function(formula, ...) {
   frame <- tryCatch(
     eval(as.call(c(list(quote(stats::model.frame)), arguments)), held),
     error = function(e) {
-      stop(
-        "model.frame() cannot read this object's frame: ",
-        conditionMessage(e),
-        call. = FALSE
-      )
+      # a sparse column does not survive model.frame; the block the build
+      # makes holds it, so the decoded frame answers as a sampler's data do
+      if (any(vapply(object@frame, isS4, NA))) {
+        NULL
+      } else {
+        stop(
+          "model.frame() cannot read this object's frame: ",
+          conditionMessage(e),
+          call. = FALSE
+        )
+      }
     }
   )
+  if (is.null(frame)) {
+    return(decodeBlockFrame(resolveDataObject(object)))
+  }
   attr(frame, "na.action") <- object@na.action
   frame
 }
@@ -290,9 +348,21 @@ decodeBlockFrame <- function(object) {
     )
   }
   predictors <- as.data.frame(object@x)
+  label <- attr(object, "response.label", exact = TRUE)
   frame <- data.frame(row.names = seq_len(NROW(y)))
-  frame$y <- response
-  for (name in names(predictors)) {
+  frame[[if (is.null(label)) "y" else label]] <- response
+  # a matrix term is one column again, named as its columns were by the term
+  joined <- character()
+  for (term in attr(attr(object@x, "terms"), "term.labels")) {
+    parts <- names(predictors)[startsWith(names(predictors), paste0(term, "."))]
+    if (length(parts) > 1L && !term %in% names(predictors)) {
+      columns <- as.matrix(predictors[parts])
+      colnames(columns) <- substring(parts, nchar(term) + 2L)
+      frame[[term]] <- columns
+      joined <- c(joined, parts)
+    }
+  }
+  for (name in setdiff(names(predictors), joined)) {
     frame[[name]] <- predictors[[name]]
   }
   if (!is.null(object@weights)) {

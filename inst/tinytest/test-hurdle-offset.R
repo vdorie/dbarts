@@ -331,7 +331,7 @@ expect_error(
 # --- a data object has one offset slot, and what is written beside it is ignored ------------------------
 expect_warning(
   fitHurdle(
-    dbartsData(y ~ a + b, d, keep.data = FALSE),
+    dbartsData(y ~ a + b, d),
     offset = list(zero = u)
   ),
   "remaining arguments are ignored"

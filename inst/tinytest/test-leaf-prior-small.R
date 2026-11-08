@@ -350,8 +350,7 @@ expect_identical(
       y ~ x1,
       d,
       test = d[1:5, "x1", drop = FALSE],
-      offset.test = rep(1L, 5L),
-      keep.data = FALSE
+      offset.test = rep(1L, 5L)
     )@offset.test
   ),
   rep(1, 5L)

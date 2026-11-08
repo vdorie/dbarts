@@ -1078,6 +1078,10 @@ methods::setValidity("dbartsData", function(object) {
   if (dataKeepsFrame(object)) {
     return(validateFrameKeepingData(object))
   }
+  fault <- validateBlockSlotTypes(object)
+  if (!is.null(fault)) {
+    return(fault)
+  }
   numObservations <- length(object@y)
   if (
     !is.matrix(object@x) &&

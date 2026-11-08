@@ -49,7 +49,7 @@ channels <- function(fit) {
 xFrame <- d[, c("a", "b", "f")]
 fitMatrix <- fitHurdle(xFrame, d$y)
 fitFormula <- fitHurdle(y ~ a + b + f, data = d)
-fitObject <- fitHurdle(dbartsData(y ~ a + b + f, d, keep.data = FALSE))
+fitObject <- fitHurdle(dbartsData(y ~ a + b + f, d))
 
 expect_inherits(fitFormula, "bartHurdle")
 expect_identical(channels(fitFormula), channels(fitMatrix))
@@ -177,7 +177,7 @@ expect_error(
 # --- a data object is the whole data: what is written beside it is ignored ----
 warned <- tryCatch(
   fitHurdle(
-    dbartsData(y ~ a + b + f, d, keep.data = FALSE),
+    dbartsData(y ~ a + b + f, d),
     na.action = na.omit
   ),
   warning = function(w) conditionMessage(w)
@@ -186,7 +186,7 @@ expect_identical(
   warned,
   tryCatch(
     bart(
-      dbartsData(y ~ a + b + f, d, keep.data = FALSE),
+      dbartsData(y ~ a + b + f, d),
       n.samples = 4L,
       n.burn = 4L,
       n.chains = 1L,
@@ -199,7 +199,7 @@ expect_identical(
 )
 expect_identical(
   channels(suppressWarnings(
-    fitHurdle(dbartsData(y ~ a + b + f, d, keep.data = FALSE), subset = 1:10)
+    fitHurdle(dbartsData(y ~ a + b + f, d), subset = 1:10)
   )),
   channels(fitObject),
   info = "a subset beside a data object is ignored"

@@ -12,7 +12,7 @@ trainData_df$offset <- rnorm(nrow(trainData_df))
 modelFormula <- y ~ x.1 + x.2 + x.3 + x.4 + x.5 + x.6 + x.7 + x.8 + x.9 + x.10
 
 expect_inherits(
-  dbarts::dbartsData(modelFormula, trainData_df, keep.data = FALSE),
+  dbarts::dbartsData(modelFormula, trainData_df),
   "dbartsData"
 )
 # each channel named in 'data' must ARRIVE on the object, not merely be
@@ -60,8 +60,7 @@ expect_inherits(
     modelFormula,
     trainData_df,
     test = testData_df,
-    weights = weights,
-    keep.data = FALSE
+    weights = weights
   ),
   "dbartsData"
 )
@@ -75,11 +74,11 @@ testRows <- testData$x[11:20, ]
 colnames(testRows) <- paste0("x.", seq_len(ncol(testRows)))
 testData$test <- testRows
 expect_inherits(
-  dbarts::dbartsData(y ~ x, testData, test, keep.data = FALSE),
+  dbarts::dbartsData(y ~ x, testData, test),
   "dbartsData"
 )
 expect_inherits(
-  dbarts::dbartsData(y ~ x, testData, testData$test, keep.data = FALSE),
+  dbarts::dbartsData(y ~ x, testData, testData$test),
   "dbartsData"
 )
 
@@ -87,11 +86,11 @@ expect_inherits(
 test <- testData$test
 testData$test <- NULL
 expect_inherits(
-  dbarts::dbartsData(y ~ x, testData, test, keep.data = FALSE),
+  dbarts::dbartsData(y ~ x, testData, test),
   "dbartsData"
 )
 expect_inherits(
-  dbarts::dbartsData(y ~ x, testData, testRows, keep.data = FALSE),
+  dbarts::dbartsData(y ~ x, testData, testRows),
   "dbartsData"
 )
 rm(test, testRows)
@@ -123,8 +122,7 @@ expect_silent(
     modelFormula,
     trainData,
     test = noResponse,
-    weights = weights,
-    keep.data = FALSE
+    weights = weights
   )
 )
 expect_equal(data@weights.test, testData_df$weights)
@@ -134,8 +132,7 @@ data <- dbarts::dbartsData(
   test = testData_df,
   weights = weights,
   offset = trainData$weights,
-  offset.test = 0,
-  keep.data = FALSE
+  offset.test = 0
 )
 expect_equal(data@weights.test, testData_df$weights)
 
@@ -146,8 +143,7 @@ expect_warning(
     modelFormula,
     trainData,
     test = noResponse,
-    weights = cases,
-    keep.data = FALSE
+    weights = cases
   ),
   "weights specified but not found in test data"
 )
@@ -160,8 +156,7 @@ expect_warning(
     modelFormula,
     trainData,
     test = noResponse,
-    weights = wrongLength,
-    keep.data = FALSE
+    weights = wrongLength
   ),
   "weights specified but not found in test data"
 )
@@ -175,8 +170,7 @@ expect_silent(
     modelFormula,
     trainData,
     test = naTest,
-    weights = weights,
-    keep.data = FALSE
+    weights = weights
   )
 )
 expect_equal(data@weights.test, naTest$weights)
@@ -189,8 +183,7 @@ expect_error(
     modelFormula,
     trainData,
     test = charTest,
-    weights = weights,
-    keep.data = FALSE
+    weights = weights
   ),
   "'weights' must be a numeric vector"
 )
@@ -202,8 +195,7 @@ for (coerce in list(as.factor, function(w) w > 0)) {
       modelFormula,
       trainData,
       test = nonNumericTest,
-      weights = weights,
-      keep.data = FALSE
+      weights = weights
     ),
     "'weights' must be a numeric vector"
   )
@@ -214,8 +206,7 @@ data <- dbarts::dbartsData(
   modelFormula,
   trainData,
   test = intTest,
-  weights = weights,
-  keep.data = FALSE
+  weights = weights
 )
 expect_identical(data@weights.test, rep(2, nrow(intTest)))
 matrixTest <- noResponse
@@ -224,8 +215,7 @@ data <- dbarts::dbartsData(
   modelFormula,
   trainData,
   test = matrixTest,
-  weights = weights,
-  keep.data = FALSE
+  weights = weights
 )
 expect_equal(data@weights.test, noResponse$weights)
 rm(noResponse, wrongLength, naTest, charTest, intTest, matrixTest)
@@ -239,8 +229,7 @@ expect_silent(
     modelFormula,
     trainData,
     test = testData_df[names(testData_df) != "y"],
-    weights = noWeights,
-    keep.data = FALSE
+    weights = noWeights
   )
 )
 expect_null(data@weights)

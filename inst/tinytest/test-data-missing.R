@@ -25,11 +25,11 @@ expect_equal(data.mia@missing, "incorporate")
 # RESPONSE is missing and keeps the rest; a column of nothing but NA has no
 # observed values
 expect_error(
-  dbartsData(y ~ x1 + x2 + g, df, na.action = na.fail, keep.data = FALSE),
+  dbartsData(y ~ x1 + x2 + g, df, na.action = na.fail),
   pattern = "missing values"
 )
 expect_inherits(
-  dbartsData(y ~ x2, df, na.action = na.fail, keep.data = FALSE),
+  dbartsData(y ~ x2, df, na.action = na.fail),
   "dbartsData"
 )
 df.badY <- df
@@ -39,13 +39,13 @@ expect_equal(length(data.badY@y), n - 1L)
 expect_equal(unclass(data.badY@na.action), 1L, check.attributes = FALSE)
 expect_inherits(data.badY@na.action, "exclude")
 expect_error(
-  dbartsData(y ~ x1 + x2 + g, df.badY, na.action = na.pass, keep.data = FALSE),
+  dbartsData(y ~ x1 + x2 + g, df.badY, na.action = na.pass),
   pattern = "response contains missing"
 )
 df.allNA <- df
 df.allNA$x2 <- NA_real_
 expect_error(
-  dbartsData(y ~ x1 + x2 + g, df.allNA, keep.data = FALSE),
+  dbartsData(y ~ x1 + x2 + g, df.allNA),
   pattern = "entirely missing"
 )
 

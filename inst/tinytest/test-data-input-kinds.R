@@ -187,7 +187,7 @@ expect_error(
   "test column 'g' is numeric"
 )
 expect_error(
-  dbartsData(y ~ ., groupFrame, test = newFrame, keep.data = FALSE),
+  dbartsData(y ~ ., groupFrame, test = newFrame),
   "test column 'g' is numeric"
 )
 sampler <- dbarts(y ~ ., groupFrame)
@@ -213,7 +213,7 @@ newFrame$g <- c("a", "b", "c")
 expect_equal(dim(predict(fit, newFrame)), c(5L, 3L))
 
 ## A dbartsData object reports every argument that cannot reach it.
-data <- dbartsData(y ~ ., groupFrame, keep.data = FALSE)
+data <- dbartsData(y ~ ., groupFrame)
 expect_warning(
   dbarts(data, factors = "indicators", weights = rep(2, 40L), subset = 1:10),
   "'subset', 'weights', 'factors'"
@@ -332,7 +332,7 @@ for (frame in list(charFrame, oneCharFrame)) {
     fixed = TRUE
   )
   expect_error(
-    dbartsData(y ~ x + z, frame, keep.data = FALSE),
+    dbartsData(y ~ x + z, frame),
     pattern = charMatrixWords,
     fixed = TRUE
   )

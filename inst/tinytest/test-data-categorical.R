@@ -35,7 +35,7 @@ expect_equal(attr(data.cat@x, "factor.levels")[[5L]], c("cat", "dog"))
 expect_null(attr(data.cat@x, "factor.levels")[[3L]])
 
 # categorical is the default; "indicators" expands as previous versions did
-data.def <- dbartsData(y ~ g + o + z + b + s, df, keep.data = FALSE)
+data.def <- dbartsData(y ~ g + o + z + b + s, df)
 expect_equal(data.def@varTypes, data.cat@varTypes)
 data.ind <- dbartsData(
   y ~ g + o + z + b + s,
@@ -51,12 +51,12 @@ expect_true(all(data.ind@varTypes == 0L))
 # level lower, since their K - 1 cut grid spends a code on its upper bin
 df.wide <- data.frame(f = factor(paste0("l", seq_len(54L))), y = rnorm(54L))
 expect_inherits(
-  dbartsData(y ~ f, df.wide, factors = "categorical", keep.data = FALSE),
+  dbartsData(y ~ f, df.wide, factors = "categorical"),
   "dbartsData"
 )
 df.wide$f <- as.ordered(df.wide$f)
 expect_inherits(
-  dbartsData(y ~ f, df.wide, factors = "categorical", keep.data = FALSE),
+  dbartsData(y ~ f, df.wide, factors = "categorical"),
   "dbartsData"
 )
 
@@ -67,14 +67,14 @@ df.ceiling$f <- factor(
   levels = wide.levels[seq_len(65534L)],
   ordered = TRUE
 )
-expect_inherits(dbartsData(y ~ f, df.ceiling, keep.data = FALSE), "dbartsData")
+expect_inherits(dbartsData(y ~ f, df.ceiling), "dbartsData")
 df.ceiling$f <- factor(
   wide.levels[seq_len(4L)],
   levels = wide.levels,
   ordered = TRUE
 )
 expect_error(
-  dbartsData(y ~ f, df.ceiling, keep.data = FALSE),
+  dbartsData(y ~ f, df.ceiling),
   pattern = "more than 65534 levels"
 )
 
@@ -102,7 +102,7 @@ expect_error(
 )
 
 x.ord.over <- matrix(c(0, 1, 2, 65534), 4L)
-data.ord.over <- dbartsData(df.ceiling$y ~ x.ord.over, keep.data = FALSE)
+data.ord.over <- dbartsData(df.ceiling$y ~ x.ord.over)
 data.ord.over@varTypes[1L] <- 2L
 expect_error(
   dbarts(data.ord.over, control = dbartsControl(n.chains = 1L)),
@@ -156,8 +156,7 @@ data.cat2 <- dbartsData(
   y ~ g + o + z + b + s,
   df,
   test = df.test,
-  factors = "categorical",
-  keep.data = FALSE
+  factors = "categorical"
 )
 expect_equal(
   as.double(data.cat2@x.test[, "g"]),
@@ -174,8 +173,7 @@ expect_error(
     y ~ g + o + z + b + s,
     df,
     test = df.bad,
-    factors = "categorical",
-    keep.data = FALSE
+    factors = "categorical"
   ),
   pattern = "has a level not present in the training data: 'purple'"
 )

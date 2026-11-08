@@ -3130,7 +3130,17 @@ dbartsSampler <- setRefClass(
     pointer = "externalptr",
     control = "dbartsControl",
     model = "dbartsModel",
-    data = "dbartsData",
+    # the data the sampler runs on, always the block-holding kind: a data
+    # object that keeps its frame is resolved on the way in, so a field write
+    # reaches the engine as $setData does
+    data = function(value) {
+      if (missing(value)) {
+        dataHeld
+      } else {
+        dataHeld <<- resolveDataObject(value)
+      }
+    },
+    dataHeld = "dbartsData",
     state = "ANY", # is either a list of states, or a promise to evaluate
     # The per-forest, per-observation precision weight installed by
     # setForestWeights, mirrored here because it does not ride the engine's

@@ -3,7 +3,7 @@ testX <- testData$X
 colnames(testX) <- paste0("X.", seq_len(ncol(testX)))
 
 # test that test offset fills in control logicals depending on specification
-data <- dbarts::dbartsData(Z ~ X, testData, testX, keep.data = FALSE)
+data <- dbarts::dbartsData(Z ~ X, testData, testX)
 
 expect_null(data@offset)
 expect_null(data@offset.test)
@@ -119,8 +119,7 @@ expect_error(
     Z ~ X,
     testData,
     testX[-1, ],
-    offset = otherOffset,
-    keep.data = FALSE
+    offset = otherOffset
   ),
   "'offset' was given as 'otherOffset', which cannot be evaluated on the rows of 'test'"
 )
@@ -192,8 +191,7 @@ data <- dbarts::dbartsData(
   testData,
   testX,
   offset = NULL,
-  offset.test = otherOffset,
-  keep.data = FALSE
+  offset.test = otherOffset
 )
 
 expect_null(data@offset)
@@ -226,8 +224,7 @@ data <- dbarts::dbartsData(
   nameData,
   nameData[rows, ],
   offset = holder$offset,
-  offset.test = offset[rows] + holder$offset[rows],
-  keep.data = FALSE
+  offset.test = offset[rows] + holder$offset[rows]
 )
 expect_equal(data@offset.test, 2 * holder$offset[rows])
 
@@ -278,8 +275,7 @@ data <- dbarts::dbartsData(
   nameData,
   nameData[rows, ],
   offset = base,
-  offset.test = pmin(10, offset[rows], 20),
-  keep.data = FALSE
+  offset.test = pmin(10, offset[rows], 20)
 )
 expect_equal(data@offset.test, base[rows])
 rm(nameData, base, rows, data, subTerm, repl)
@@ -294,8 +290,7 @@ data <- dbarts::dbartsData(
   y ~ x,
   nullData,
   nullTest,
-  offset.test = noOffset,
-  keep.data = FALSE
+  offset.test = noOffset
 )
 expect_null(data@offset.test)
 expect_identical(data@testUsesRegularOffset, FALSE)

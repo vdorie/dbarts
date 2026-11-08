@@ -198,6 +198,19 @@ expect_identical(
   makeTestModelMatrix(b, newdata)
 )
 
+# the missing-value flags ride the record: a column complete in training that
+# the new rows leave missing is refused as it is beside the block
+newNA <- newdata
+newNA$f[2L] <- NA
+messageOf <- function(x) {
+  tryCatch(makeTestModelMatrix(x, newNA), error = conditionMessage)
+}
+expect_true(is.character(messageOf(b)))
+expect_identical(messageOf(o), messageOf(b))
+newOK <- newdata
+newOK$x1[2L] <- NA
+expect_identical(makeTestModelMatrix(o, newOK), makeTestModelMatrix(b, newOK))
+
 # a caller's value in the formula is held as it was at the build ---------------
 
 v <- rnorm(n)
@@ -440,4 +453,122 @@ expect_true(
     sizeOf(bs$data) - sizeOf(dbarts(block, n.trees = 5L, control = ctl)$data)
   ) <
     1000
+)
+
+# rbart_vi takes the object and fits as its formula sibling ----------------------
+
+grp <- factor(rep(1:4, length.out = n))
+rbartArgs <- list(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 5L,
+  n.samples = 12L,
+  n.burn = 2L,
+  n.thin = 1L,
+  verbose = FALSE,
+  keepTrees = FALSE,
+  seed = 3L
+)
+rbartDraws <- function(first, ...) {
+  withCallingHandlers(
+    do.call(rbart_vi, c(list(first, ...), rbartArgs))$yhat.train,
+    warning = function(w) invokeRestart("muffleWarning")
+  )
+}
+dr <- d[c("y", "x2")]
+dr$x2[is.na(dr$x2)] <- 0.5
+expect_identical(
+  rbartDraws(dbartsData(y ~ x2, dr), group.by = grp),
+  rbartDraws(y ~ x2, dr, group.by = grp)
+)
+
+# the na.action record rides model.frame() --------------------------------------
+
+expect_identical(
+  attr(model.frame(oOff), "na.action"),
+  attr(model.frame(fit), "na.action")
+)
+
+# the widened slots still hold their types --------------------------------------
+
+bw <- dbartsData(y ~ x1 + x2, d, weights = w, offset = offv, keep.data = FALSE)
+expect_true(validObject(bw))
+tooBad <- bw
+tooBad@y <- letters[seq_len(n)]
+expect_error(validObject(tooBad), "'y' must be numeric")
+tooBad <- bw
+tooBad@weights <- letters[seq_len(n)]
+expect_error(validObject(tooBad), "'weights' must be null or numeric")
+tooBad <- bw
+tooBad@offset <- letters[seq_len(n)]
+expect_error(validObject(tooBad), "'offset' must be null or numeric")
+tooBad <- bw
+tooBad@x <- letters[seq_len(n)]
+expect_error(validObject(tooBad), "'x' must be a matrix")
+tooBad <- o
+tooBad@y <- letters[seq_len(n)]
+expect_error(validObject(tooBad), "'y' must be a stand-in")
+
+# a field write resolves the object, as $setData does ---------------------------
+
+fieldSampler <- dbarts(
+  y ~ x1 + x2,
+  d,
+  subset = 2:30,
+  n.trees = 5L,
+  control = ctl
+)
+fieldSampler$data <- ob100
+expect_null(fieldSampler$data@frame)
+expect_true(is.numeric(fieldSampler$data@y))
+
+# a stand-in does not answer for values it does not hold ------------------------
+
+stops(is.na(o@y))
+stops(anyNA(o@y))
+stops(is.finite(o@y))
+stops(is.infinite(o@y))
+stops(is.nan(o@y))
+
+# a sparse column: model.frame() answers as a sampler's data do -----------------
+
+dsp <- d[c("y", "x2", "w")]
+dsp$s <- Matrix::sparseVector(c(1, 2), c(3L, 7L), length = n)
+osp <- dbartsData(y ~ x2 + s, dsp)
+expect_identical(nobs(osp), n)
+mfsp <- model.frame(osp)
+expect_identical(nrow(mfsp), n)
+expect_true("s" %in% names(mfsp))
+expect_identical(
+  mfsp$s,
+  model.frame(dbartsData(y ~ x2 + s, dsp, keep.data = FALSE))$s
+)
+
+# a block-holding object's frame names the response as written and joins a
+# matrix term back into one column --------------------------------------------
+
+d0 <- d[c("y", "w", "x2")]
+d0$x2[is.na(d0$x2)] <- 0.5
+bd <- dbartsData(log(abs(y) + 1) ~ poly(w, 2) + x2, d0, keep.data = FALSE)
+mfb <- model.frame(bd)
+mfRef <- model.frame(log(abs(y) + 1) ~ poly(w, 2) + x2, d0)
+expect_identical(names(mfb), names(mfRef))
+expect_true(is.matrix(mfb[["poly(w, 2)"]]))
+expect_identical(colnames(mfb[["poly(w, 2)"]]), c("1", "2"))
+expect_equal(
+  unclass(as.matrix(mfb[["poly(w, 2)"]])),
+  unclass(as.matrix(mfRef[["poly(w, 2)"]])),
+  check.attributes = FALSE
+)
+expect_equal(mfb[[1L]], mfRef[[1L]])
+expect_identical(
+  names(model.frame(
+    dbarts(
+      log(abs(y) + 1) ~ poly(w, 2) + x2,
+      d0,
+      n.trees = 5L,
+      control = ctl
+    )$data
+  )),
+  names(mfRef)
 )

@@ -85,22 +85,22 @@ expect_error(
 subsetX <- matrix(rnorm(40L * 10L), 40L, 10L)
 subsetY <- rnorm(40L)
 expect_identical(
-  ncol(dbarts::dbartsData(subsetY ~ subsetX[, 1:3], keep.data = FALSE)@x),
+  ncol(dbarts::dbartsData(subsetY ~ subsetX[, 1:3])@x),
   3L
 )
 expect_identical(
   ncol(
-    dbarts::dbartsData(subsetY ~ subsetX[, c(1:3, 6:10)], keep.data = FALSE)@x
+    dbarts::dbartsData(subsetY ~ subsetX[, c(1:3, 6:10)])@x
   ),
   8L
 )
 expect_error(
-  dbarts::dbartsData(subsetY ~ subsetX[, 1:2]:subsetX[, 3], keep.data = FALSE),
+  dbarts::dbartsData(subsetY ~ subsetX[, 1:2]:subsetX[, 3]),
   interactionReason,
   fixed = TRUE
 )
 expect_error(
-  dbarts::dbartsData(subsetY ~ subsetX[, 1] * subsetX[, 2], keep.data = FALSE),
+  dbarts::dbartsData(subsetY ~ subsetX[, 1] * subsetX[, 2]),
   interactionReason,
   fixed = TRUE
 )
@@ -118,17 +118,17 @@ quotedData[["a b"]] <- rnorm(30L)
 quotedData[["c d"]] <- rnorm(30L)
 quotedData[["e f:g"]] <- rnorm(30L)
 expect_error(
-  dbarts::dbartsData(y ~ `a b`:`c d`, quotedData, keep.data = FALSE),
+  dbarts::dbartsData(y ~ `a b`:`c d`, quotedData),
   "':' and '*' terms are not supported",
   fixed = TRUE
 )
 expect_error(
-  dbarts::dbartsData(y ~ `a b` * `c d`, quotedData, keep.data = FALSE),
+  dbarts::dbartsData(y ~ `a b` * `c d`, quotedData),
   "':' and '*' terms are not supported",
   fixed = TRUE
 )
 expect_error(
-  dbarts::dbartsData(y ~ z:`e f:g`, quotedData, keep.data = FALSE),
+  dbarts::dbartsData(y ~ z:`e f:g`, quotedData),
   "':' and '*' terms are not supported",
   fixed = TRUE
 )

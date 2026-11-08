@@ -435,15 +435,15 @@ expect_identical(fit.formula.na$yhat.train, fit.xy.na$yhat.train)
 # a sparse name wrapped in poly()/ns()/log()/offset() or an interaction is
 # refused by name, mirroring the plain ':'/'*' refusal
 expect_error(
-  dbartsData(y ~ a + log(m), data = d.formula, keep.data = FALSE),
+  dbartsData(y ~ a + log(m), data = d.formula),
   pattern = "sparse predictor 'm' cannot appear inside 'log\\(m\\)'"
 )
 expect_error(
-  dbartsData(y ~ a + offset(m), data = d.formula, keep.data = FALSE),
+  dbartsData(y ~ a + offset(m), data = d.formula),
   pattern = "sparse predictor 'm' cannot appear inside 'offset\\(\\)'"
 )
 expect_error(
-  dbartsData(y ~ a:m, data = d.formula, keep.data = FALSE),
+  dbartsData(y ~ a:m, data = d.formula),
   pattern = "sparse predictor 'm' cannot appear inside 'a:m'"
 )
 
