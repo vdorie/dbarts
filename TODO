@@ -472,6 +472,11 @@ items
       effects is not what this evidence predicts.
     - Proposal: Whether the move's code size, 1,400 to 2,900 lines with
       a slice that changes the posterior, is a gate or only reported.
+  basis-na-level: a factor basis takes a level named NA (addNA) as one
+    of its levels at every door, matched by name at a swap and at
+    predict as a factor predictor's NA level is; a plain missing value
+    stays refused (dec-B669, VD 2026-11-07: "Do (b)"). About 10 to 20
+    lines; no fit that runs today moves.
   rbart-vi-warning-once: rbart_vi says each creation warning once per
     fit, whatever its chain and thread counts, its chains' samplers
     silent on what the checking sampler said, as for the starting
