@@ -5038,6 +5038,48 @@ static void testLeafSpreadRounding() {
   holed[3] = nan;
   holed[10] = nan;
   check(rounding(holed), "spread rounding: missing values are skipped");
+  // counts read each row at its count, as the center and scale do: about
+  // 2.1 times the tolerance read once each, 0.23 times it at the counts, as
+  // over the rows written out; a row of count 0 is not read
+  {
+    std::vector<double> once(200, 1.0), counts(200, 100.0);
+    for (size_t i = 180; i < 200; ++i) {
+      once[i] = 1.0 + 1.0e-13;
+      counts[i] = 1.0;
+    }
+    std::vector<double> written;
+    for (size_t i = 0; i < once.size(); ++i)
+      written.insert(written.end(), static_cast<size_t>(counts[i]), once[i]);
+    bool atCounts =
+      leafCovariateMoments(once.data(), once.size(), &mean, &sd, nullptr,
+                           counts.data()) &&
+      !standardizationMomentsForColumn(once.data(), once.size(), &mean, &sd,
+                                       nullptr, counts.data());
+    check(!rounding(once) && atCounts && rounding(written),
+          "spread rounding: counts read as the rows written out");
+    std::vector<double> outlier = halves(10, 0.3, 0.1 * 3.0);
+    outlier[9] = 5.0;
+    std::vector<double> zeroLast(10, 1.0);
+    zeroLast[9] = 0.0;
+    check(!rounding(outlier) &&
+            leafCovariateMoments(outlier.data(), outlier.size(), &mean, &sd,
+                                 nullptr, zeroLast.data()),
+          "spread rounding: a row of count 0 is not read");
+    // the refusal reads the rows the counts read: one value at the others
+    for (size_t i = 0; i < 9; ++i) outlier[i] = 0.3;
+    LeafRows countRows;
+    countRows.counts = zeroLast.data();
+    bool oneValueAtCounts = false;
+    try {
+      deriveLeafMoments(outlier.data(), outlier.size(), 0, 1, countRows,
+                        false, &mean, &sd);
+    } catch (const LeafStandardizationError& error) {
+      oneValueAtCounts = !error.rounding && error.observed;
+    }
+    check(oneValueAtCounts,
+          "spread rounding: the refusal names one value where the rows of "
+          "positive count hold one");
+  }
   // overflow and underflow: squares of these leave the double range
   check(rounding(halves(10, 1.0e300, std::nextafter(1.0e300, 2.0e300))) &&
           !rounding(halves(10, 1.0e300, 1.5e300)) &&

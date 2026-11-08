@@ -263,3 +263,61 @@ expect_error(
   ),
   fixed = TRUE
 )
+
+# ---- counts ------------------------------------------------------------------
+
+# where the rows are counts (frequency weights, a binomial row's trials, an
+# nbinom fit's whole-number weights) the test reads each row at its count, as
+# the center and scale do, so it is the test of the rows written out: a
+# spread of about 2.1 times the tolerance over the rows read once each is
+# about 0.23 times it at these counts
+spreadOnce <- rep(c(1, 1 + 1e-13), c(180L, 20L))
+heavy <- ifelse(spreadOnce == 1, 100, 1)
+countsFit <- function(response = y, ...) {
+  dbarts::dbarts(
+    matrixOf(spreadOnce),
+    response,
+    leaf.prior = dbartsPriors$linear("z"),
+    control = controlWith(),
+    n.trees = 10L,
+    ...
+  )
+}
+# precision weights do not count rows, so the column has spread
+s <- countsFit(weights = heavy)
+expect_equal(
+  recordOf(s),
+  list(center = mean(spreadOnce), scale = sd(spreadOnce))
+)
+expect_error(
+  countsFit(weights = heavy, weights.type = "frequency"),
+  refusal(200L),
+  fixed = TRUE
+)
+expect_error(
+  countsFit(rpois(n, 3), weights = heavy, family = "nbinom"),
+  refusal(200L),
+  fixed = TRUE
+)
+successes <- rbinom(n, as.integer(heavy), 0.4)
+expect_error(
+  dbarts::dbarts(
+    cbind(k, f) ~ x1 + z,
+    data.frame(k = successes, f = heavy - successes, x1 = x1, z = spreadOnce),
+    family = binomial,
+    leaf.prior = dbartsPriors$linear("z"),
+    control = controlWith(),
+    n.trees = 5L
+  ),
+  refusal(200L),
+  fixed = TRUE
+)
+# setWeights to those counts under frequency keeps, under precision derives
+s <- countsFit(weights = rep(1, n), weights.type = "frequency")
+before <- recordOf(s)
+kept <- fallbacks(s$setWeights(heavy, updateStandardization = TRUE))
+expect_identical(kept$warnings, keepText)
+expect_identical(recordOf(s), before)
+s <- countsFit(weights = rep(1, n))
+kept <- fallbacks(s$setWeights(heavy, updateStandardization = TRUE))
+expect_identical(kept$warnings, character())
