@@ -620,7 +620,12 @@ expect_error(
   naTestMsg
 )
 # a multinomial fit's test frame too
-mnTrain <- data.frame(a = train.frame$a, b = train.frame$b, k = factor(rep(letters[1:3], length.out = nrow(train.frame))), w = 1)
+mnTrain <- data.frame(
+  a = train.frame$a,
+  b = train.frame$b,
+  k = factor(rep(letters[1:3], length.out = nrow(train.frame))),
+  w = 1
+)
 mnTest <- mnTrain[1:8, ]
 mnTest$w[c(2L, 5L)] <- NA
 expect_error(

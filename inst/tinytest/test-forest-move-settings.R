@@ -328,7 +328,11 @@ for (change in names(changes)) {
       fixed = TRUE,
       info = change
     )
-    expect_identical(draws(multi), draws(build("multi", do.call(ctl, Y), mean = X)), info = change)
+    expect_identical(
+      draws(multi),
+      draws(build("multi", do.call(ctl, Y), mean = X)),
+      info = change
+    )
   } else {
     expect_identical(
       draws(restated(build("multi", do.call(ctl, Y), mean = X), Z)),
@@ -339,7 +343,12 @@ for (change in names(changes)) {
 }
 # a control equal to the one in force, or one stating no mixture, passes where
 # every forest states its own; so does a mixture one forest would take
-stated <- build("two", ctl(), mean = list(proposal.probs = moving), second = list(proposal.probs = moving))
+stated <- build(
+  "two",
+  ctl(),
+  mean = list(proposal.probs = moving),
+  second = list(proposal.probs = moving)
+)
 stated$setControl(stated$control)
 expect_identical(stated$control@proposal.probs, ctl()@proposal.probs)
 noMixture <- ctl()
@@ -354,7 +363,12 @@ expect_error(
   fixed = TRUE
 )
 expect_identical(stated$control@proposal.probs, ctl()@proposal.probs)
-partly <- build("two", ctl(), mean = list(proposal.probs = moving), second = list())
+partly <- build(
+  "two",
+  ctl(),
+  mean = list(proposal.probs = moving),
+  second = list()
+)
 partly$setControl(ctl(proposal.probs = frozen))
 expect_identical(unname(partly$control@proposal.probs[["birth_death"]]), 0)
 rm(stated, partly)

@@ -177,9 +177,13 @@ for (term in c("x2 * x3", "x2:x3", "I(x2^2)")) {
     info = term
   )
   expect_true(
-    grepl("is not a predictor", refusal(eval(withVariance(
-      str2lang(paste0("varianceForest(~ ", term, ")"))
-    ))), fixed = TRUE),
+    grepl(
+      "is not a predictor",
+      refusal(eval(withVariance(
+        str2lang(paste0("varianceForest(~ ", term, ")"))
+      ))),
+      fixed = TRUE
+    ),
     info = term
   )
 }
