@@ -9,16 +9,18 @@
 # Two jobs:
 #   gates-full  every gate exact-gates.yaml's main job runs, in full mode,
 #               the gate list read from that file so the two cannot drift.
-#               Timed on the maintainer's laptop, one core: the whole list is
-#               about 32 minutes (mask-redraw-exact 6.7 min, logistic-reference
-#               about 11.5 min, multinomial-exact 2.6 min, change-balance 1.9
-#               min, the rest under a minute each). The hosted runner has run
-#               1 to 2 times the laptop's time (the quick enumeration gate 1.4
-#               to 1.8, the SBC arms 1.0 to 1.9), so the list takes about an
-#               hour there. Each gate has its own limit, 30 minutes (45 for
-#               logistic-reference), so one that hangs costs that and the rest
-#               still run; the job's 150 minutes covers the list at twice the
-#               laptop and two gates hanging. bcf-latent-exact.R stays in
+#               On the hosted runner the list took 88 minutes on 2026-11-08
+#               and about 121 on 2026-11-09, a slower runner (each gate 1.2 to
+#               1.6 times its 11-08 time). The longest gates, 11-08 and 11-09:
+#               outer-step-exact 24.5 and about 38 minutes (its last arm cut
+#               off at the old 30-minute limit, projected), mask-redraw-exact
+#               10 and 16, probit-k-scale-exact 12 and 15, forest-prior-exact
+#               10 and 13, logistic-reference 10.5 and 12; the rest under 7.
+#               Each gate has its own limit, 30 minutes (45 for
+#               logistic-reference, 60 for outer-step-exact), so one that hangs
+#               costs that and the rest still run; the job's 240 minutes covers
+#               the list at the 11-09 pace and the two longest limits spent
+#               hanging. bcf-latent-exact.R stays in
 #               quick mode, as it does under mode=full in exact-gates.yaml: its
 #               full grid is about 40 minutes on the laptop alone.
 #   monotone-enumeration-full
@@ -51,7 +53,7 @@ permissions: read-all
 jobs:
   gates-full:
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 240
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -112,6 +114,7 @@ jobs:
             if [ "$g" = "bcf-latent-exact.R" ]; then arg=quick; fi
             limit=30m
             if [ "$g" = "logistic-reference.R" ]; then limit=45m; fi
+            if [ "$g" = "outer-step-exact.R" ]; then limit=60m; fi
             echo "::group::$g"
             if timeout "$limit" Rscript "benchmarks/R/$g" ${arg}; then
               echo "PASS $g"
