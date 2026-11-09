@@ -42,9 +42,9 @@
 # deep to enumerate) first, about a minute per prior in quick mode, the
 # unconstrained twin with the "leaf" prior.
 #
-# Full mode of every gate here (the main job's list, and the monotone job) runs
-# weekly, on a longer limit, in exact-gates-weekly.yaml, which reads the main
-# job's list from this file.
+# Full mode of every gate here (the main job's lists, and the monotone job)
+# runs weekly, on a longer limit, in exact-gates-weekly.yaml, which reads the
+# main job's gate and arm lists from this file.
 #
 # One job installs the package once, then runs every gate in `quick` mode
 # (reduced draws/seeds) so the whole suite shares a single ~4-minute C++20
@@ -169,6 +169,35 @@ jobs:
             logistic-reference.R monotone-reference.R
             hazard-reduction.R hurdle-reduction.R
           "
+          # Further arms of gates in the list, one per line: the script, then
+          # the arguments after the mode. exact-gates-weekly.yaml reads both
+          # lists from here.
+          #   split-probs-exact vars: the zero column left out by a column
+          #     list instead, held to the same enumeration
+          #   bd-balance zeroweight: a fixed zero-weight vector against the
+          #     exact posterior in which a leaf of only such rows is legal
+          #   bd-balance zerocreate: the same with the weights given at
+          #     creation, the zeroed cells' response 3 higher: the response's
+          #     range is then the rows in the likelihood's
+          #   perturb-balance width=3: a window of three, set by n.perturb.cuts
+          #   bd-balance narrow, constmissing: a column whose cut grid would
+          #     repeat a point were equal neighbors kept: four adjacent
+          #     doubles, and one value beside missing ones
+          #   bd-balance weighted: cuts chosen in proportion to their gaps'
+          #     widths, under each move mixture
+          arms="
+            split-probs-exact.R vars
+            bd-balance.R zeroweight
+            bd-balance.R zerocreate
+            perturb-balance.R width=3
+            bd-balance.R narrow
+            bd-balance.R constmissing
+            bd-balance.R weighted mix=bd
+            bd-balance.R weighted mix=change
+            bd-balance.R weighted mix=swap
+            bd-balance.R weighted mix=perturb
+            bd-balance.R weighted mix=gibbs
+          "
           fail=0
           for g in $gates; do
             # the one exception to mode=full, for the reason in the header
@@ -183,71 +212,18 @@ jobs:
             fi
             echo "::endgroup::"
           done
-          # split-probs-exact's second arm, the zero column left out by a
-          # column list instead, held to the same enumeration
-          echo "::group::split-probs-exact.R vars"
-          if Rscript benchmarks/R/split-probs-exact.R ${GATE_ARG} vars; then
-            echo "PASS split-probs-exact.R vars"
-          else
-            echo "::error::gate split-probs-exact.R vars FAILED"
-            fail=1
-          fi
-          echo "::endgroup::"
-          # bd-balance's second arm, a fixed zero-weight vector against the
-          # exact posterior in which a leaf of only such rows is legal
-          echo "::group::bd-balance.R zeroweight"
-          if Rscript benchmarks/R/bd-balance.R ${GATE_ARG} zeroweight; then
-            echo "PASS bd-balance.R zeroweight"
-          else
-            echo "::error::gate bd-balance.R zeroweight FAILED"
-            fail=1
-          fi
-          echo "::endgroup::"
-          # the same arm with the weights given at creation, the zeroed cells'
-          # response 3 higher: the response's range is then the rows in the
-          # likelihood's
-          echo "::group::bd-balance.R zerocreate"
-          if Rscript benchmarks/R/bd-balance.R ${GATE_ARG} zerocreate; then
-            echo "PASS bd-balance.R zerocreate"
-          else
-            echo "::error::gate bd-balance.R zerocreate FAILED"
-            fail=1
-          fi
-          echo "::endgroup::"
-          # perturb-balance at a window of three, set by n.perturb.cuts
-          echo "::group::perturb-balance.R width=3"
-          if Rscript benchmarks/R/perturb-balance.R ${GATE_ARG} width=3; then
-            echo "PASS perturb-balance.R width=3"
-          else
-            echo "::error::gate perturb-balance.R width=3 FAILED"
-            fail=1
-          fi
-          echo "::endgroup::"
-          # bd-balance's two arms on a column whose cut grid would repeat a
-          # point were equal neighbors kept: four adjacent doubles, and one
-          # value beside missing ones
-          for arm in narrow constmissing; do
-            echo "::group::bd-balance.R $arm"
-            if Rscript benchmarks/R/bd-balance.R ${GATE_ARG} $arm; then
-              echo "PASS bd-balance.R $arm"
+          while read -r g a; do
+            if [ -z "$g" ]; then continue; fi
+            echo "::group::$g $a"
+            # $a unquoted: an arm's arguments are separate words
+            if Rscript "benchmarks/R/$g" ${GATE_ARG} $a; then
+              echo "PASS $g $a"
             else
-              echo "::error::gate bd-balance.R $arm FAILED"
+              echo "::error::gate $g $a FAILED"
               fail=1
             fi
             echo "::endgroup::"
-          done
-          # bd-balance's weighted arm, cuts chosen in proportion to their gaps'
-          # widths, under each move mixture
-          for mix in bd change swap perturb gibbs; do
-            echo "::group::bd-balance.R weighted mix=$mix"
-            if Rscript benchmarks/R/bd-balance.R ${GATE_ARG} weighted mix=$mix; then
-              echo "PASS bd-balance.R weighted mix=$mix"
-            else
-              echo "::error::gate bd-balance.R weighted mix=$mix FAILED"
-              fail=1
-            fi
-            echo "::endgroup::"
-          done
+          done <<< "$arms"
           exit $fail
 
       # --preclean is not optional here: R tracks no dependency from the

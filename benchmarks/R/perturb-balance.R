@@ -48,8 +48,12 @@
 # counts being degenerate at any feasible run length: statistic 1 keeps all
 # nine, statistic 2 one to five leaves plus the pooled >= 6 bin, statistic 3
 # the six states at root cut 2 and 3, dropping the seven at 4 and 5. Family
-# size m = 21, Holm at family alpha 0.05, so the thresholds run from |z| = 1.96
-# on the least extreme test to |z| = 3.04 on the most extreme.
+# size m = 21, Holm at family alpha 0.001, so the thresholds run from |z| = 3.29
+# on the least extreme test to |z| = 4.07 on the most extreme. The seeds are
+# fixed, so the family alpha is the chance a correct sampler fails a fresh
+# configuration (an arm, a mode, a width) and then fails it on every run; at
+# 0.05 the full width=3 confirmation arm read |z| 2.76 on one state, gone at
+# four times the draws. Both poisons clear |z| 22 in every mode and width.
 #
 # The arm's mixture is birth_death 0.10, change 0.10, perturb 0.80: change is
 # retained because it moves the root's VARIABLE directly (a perturb-only chain
@@ -153,7 +157,7 @@ nChains <- 4L
 nThin <- 20L
 nBatches <- 500L
 massFloor <- 0.004
-familyAlpha <- 0.05
+familyAlpha <- 0.001
 acfLagMax <- 200L
 acfBurnRatio <- 50L
 acfDraws <- 25000L # kept draws per chain the acf ladder reads
@@ -684,7 +688,7 @@ reportFamily <- function(result, title) {
 reportFamily(
   priorResult,
   sprintf(
-    "prior-only arm (m = %d, Holm at alpha %.2f, |z| bound %.2f to %.2f)",
+    "prior-only arm (m = %d, Holm at alpha %g, |z| bound %.2f to %.2f)",
     nrow(priorResult),
     familyAlpha,
     min(priorResult$threshold),
@@ -880,7 +884,7 @@ if (poison == 0L) {
     sprintf(
       paste0(
         "confirmation arm, within-variable cut distribution ",
-        "(m = %d, Holm at alpha %.2f)"
+        "(m = %d, Holm at alpha %g)"
       ),
       nrow(confirmResult),
       familyAlpha

@@ -303,11 +303,14 @@ window, which nothing gates today.
 
 **One gate.** States of prior mass below 0.004 are dropped by this pre-stated rule, their counts being degenerate at any feasible
 run length: statistic 1 keeps all nine, statistic 2 one to five leaves plus a pooled `>= 6` bin (mass 0.00493), statistic 3 the six
-states at root cut 1 and 2, dropping the seven at 3 and 4. Family size `m = 21`; batch-means z per state, Holm at family alpha 0.05,
-thresholds running from `|z| = 1.96` (least strict) to `|z| = 3.04` (strictest, on the most extreme test). Run length 4 chains x
+states at root cut 1 and 2, dropping the seven at 3 and 4. Family size `m = 21`; batch-means z per state, Holm at family alpha 0.001,
+thresholds running from `|z| = 3.29` (least strict) to `|z| = 4.07` (strictest, on the most extreme test). The seeds are fixed, so
+the family alpha is the chance a correct sampler fails a configuration on every run; the gate was built at 0.05 (`|z|` 1.96 to
+3.04, a poison (i) floor of ~630), and moved to 0.001 on 2026-11-09 when the full `width=3` confirmation arm read one chance
+rejection, `|z|` 2.76, gone at four times the draws. Run length 4 chains x
 250,000 kept draws at `n.thin = 20`, batch means over 500 batches per chain: even at an autocorrelation time of 20 that is ~50,000
-effective draws against the ~630 statistic 1 needs for poison (i) at `|z| = 3.04`, and ~245 expected counts in the smallest retained
-state. That 630 is the UNDILUTED floor - it is what a 37 percent shift needs - and the realized shift is smaller, poison (i)'s 37
+effective draws against the ~1,130 statistic 1 needs for poison (i) at `|z| = 4.07`, and ~245 expected counts in the smallest retained
+state. That floor is the UNDILUTED one - it is what a 37 percent shift needs - and the realized shift is smaller, poison (i)'s 37
 percent being the perturb-only limit and the arm's change and birth/death shares pulling the chain back toward the true
 distribution, so the margin above the floor is deliberate rather than slack. The length is affordable because the likelihood is
 never evaluated under the mask: a sweep costs the move machinery alone, on one tree over 24 rows. The arm's mixture is

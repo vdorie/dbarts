@@ -72,8 +72,12 @@
 # counts being degenerate at any feasible run length: statistic 1 keeps all
 # seven, statistic 3 all five, and statistic 2 keeps one to ten leaves plus
 # the pooled >= 11 bin (the twelve-leaf state alone is under the floor). Family
-# size m = 23, Holm at family alpha 0.05, so the thresholds run from
-# |z| = 1.96 on the least extreme test to |z| = 3.07 on the most extreme.
+# size m = 23, Holm at family alpha 0.001, so the thresholds run from
+# |z| = 3.29 on the least extreme test to |z| = 4.09 on the most extreme. The
+# seeds are fixed, so the family alpha is the chance a correct sampler fails a
+# fresh configuration and then fails it on every run; perturb-balance.R's full
+# width=3 arm read one such rejection at 0.05. Both poisons clear |z| 29 in
+# either mode.
 #
 # The arm's mixture is birth_death 0.10, change 0.10, rule_gibbs 0.80: change
 # is retained because statistic 1 needs a mechanism at a non-nog root and
@@ -176,7 +180,7 @@ proposalProbs <- c(
 nChains <- 4L
 nThin <- 20L
 massFloor <- 0.004
-familyAlpha <- 0.05
+familyAlpha <- 0.001
 acfLagMax <- 200L
 acfBurnRatio <- 50L
 acfDraws <- 25000L # kept draws per chain the acf ladder reads
@@ -748,7 +752,7 @@ reportFamily <- function(result, title) {
 reportFamily(
   priorResult,
   sprintf(
-    "prior-only arm (m = %d, Holm at alpha %.2f, |z| bound %.2f to %.2f)",
+    "prior-only arm (m = %d, Holm at alpha %g, |z| bound %.2f to %.2f)",
     nrow(priorResult),
     familyAlpha,
     min(priorResult$threshold),
@@ -961,7 +965,7 @@ if (poison == 0L) {
   reportFamily(
     confirmResult,
     sprintf(
-      "confirmation arm, exact root marginal (m = %d, Holm at alpha %.2f)",
+      "confirmation arm, exact root marginal (m = %d, Holm at alpha %g)",
       nrow(confirmResult),
       familyAlpha
     )

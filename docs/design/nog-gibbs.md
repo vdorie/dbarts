@@ -331,8 +331,9 @@ birth/death because statistic 2 moves through nothing else.
 **The run, sized against [4. Correctness: perturb-balance.R](perturb-move.md#4-correctness-perturb-balancer)'s template, clause for
 clause.** States of prior mass below 0.004 are dropped by the same pre-stated rule, the leaf count's tail pooled into a `>= j` bin
 the dynamic program fixes ahead of the run: statistic 1 keeps all seven states and statistic 3 all five, statistic 2 at most twelve,
-so the family is at most **`m = 24`**. Batch-means z per retained state, Holm at family alpha 0.05, thresholds running from
-`|z| = 1.96` (least strict) to `|z| = 3.08` (strictest, at `m = 24`). **Run length 4 chains x 250,000 kept draws at `n.thin = 20`**,
+so the family is at most **`m = 24`**. Batch-means z per retained state, Holm at family alpha 0.001, thresholds running from
+`|z| = 3.29` (least strict) to `|z| = 4.10` (strictest, at `m = 24`); built at 0.05 (`|z|` 1.96 to 3.08), moved on 2026-11-09 with
+perturb's gate, whose full `width=3` arm read one chance rejection at 0.05 on its fixed seed. **Run length 4 chains x 250,000 kept draws at `n.thin = 20`**,
 batch means over 500 batches of 500 consecutive kept draws per chain, the four independent chains pooled as perturb's gate pools them
 ([`batchMeanSE`](../../benchmarks/R/change-balance.R) is the same estimator at one chain). **Burn-in 20,000 sweeps per chain**,
 discarded before the batching and sized off the leaf count, the slowest statistic here as there: birth/death holds 0.10 of the one
