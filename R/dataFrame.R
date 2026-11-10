@@ -370,8 +370,9 @@ nobs.dbartsData <- function(object, ...) {
 }
 
 ## The model's variables over the rows in, as model.frame() of an lm fit has
-## them: the response first, the predictors, '(weights)' and the offsets. From
-## the frame where one is kept; otherwise decoded from the block where that is
+## them: the response first, the predictors, '(weights)' and the offsets, with
+## the terms record model.response() reads. From the frame where one is kept,
+## its sparse columns as stored; otherwise decoded from the block where that is
 ## exact (the response to its recorded type and levels, a factor column as a
 ## factor), and the rest as held.
 model.frame.dbartsData <- function(formula, ...) {
@@ -380,8 +381,18 @@ model.frame.dbartsData <- function(formula, ...) {
     return(decodeBlockFrame(object))
   }
   build <- object@build
+  # a sparse column does not survive model.frame: it is read as its row
+  # numbers, which 'subset' shapes as it shapes the frame, and taken as stored
+  # at the rows they then name, never made dense
+  stored <- object@frame
+  sparse <- names(stored)[vapply(stored, isSparseDataFrameColumn, NA)]
+  if (length(sparse) > 0L) {
+    for (name in sparse) {
+      stored[[name]] <- seq_len(frameNumRows(object@frame))
+    }
+  }
   held <- new.env(parent = environment(build$formula))
-  held$.frame <- object@frame
+  held$.frame <- stored
   held$.formula <- build$formula
   arguments <- list(
     quote(.formula),
@@ -397,27 +408,90 @@ model.frame.dbartsData <- function(formula, ...) {
   frame <- tryCatch(
     eval(as.call(c(list(quote(stats::model.frame)), arguments)), held),
     error = function(e) {
-      # a sparse column does not survive model.frame; the block the build
-      # makes holds it, so the decoded frame answers as a sampler's data do
-      if (any(vapply(object@frame, isS4, NA))) {
-        NULL
-      } else {
-        stop(
-          "model.frame() cannot read this object's frame: ",
-          conditionMessage(e),
-          call. = FALSE
-        )
-      }
+      stop(
+        "model.frame() cannot read this object's frame: ",
+        conditionMessage(e),
+        call. = FALSE
+      )
     }
   )
-  if (is.null(frame)) {
-    return(decodeBlockFrame(resolveDataObject(object)))
+  terms <- attr(frame, "terms")
+  classes <- attr(terms, "dataClasses")
+  for (name in intersect(sparse, names(frame))) {
+    frame[[name]] <- subsetSparseColumn(object@frame[[name]], frame[[name]])
+    classes[[name]] <- "other"
+  }
+  attr(terms, "dataClasses") <- classes
+  attr(frame, "terms") <- terms
+  attr(frame, "na.action") <- object@na.action
+  frame
+}
+
+## The frame of a data object that holds its block, in the formula's order:
+## the response named as the formula wrote it ("y" where none did), each term
+## as one column, a matrix term joined again under its own name, the columns
+## no term names, '(weights)' and '(offset)'. A column
+## the block holds sparse is decoded sparse. The terms record is the held one
+## with the response put back, so that model.response() reads it, and is not
+## given where no formula was or a column the formula does not name was added
+## (a hazard fit's period).
+decodeBlockFrame <- function(object) {
+  y <- object@y
+  response <- decodedResponse(object)
+  x <- object@x
+  predictors <- decodedPredictors(x)
+  terms <- attr(x, "terms")
+  classes <- attr(terms, "dataClasses")
+  label <- dataResponseLabel(object)
+  frame <- data.frame(row.names = seq_len(NROW(y)))
+  frame[[if (is.null(label)) "y" else label]] <- response
+  labels <- attr(x, "term.labels", exact = TRUE)
+  if (is.null(labels)) {
+    labels <- attr(terms, "term.labels")
+  }
+  labels <- sub("^`(.*)`$", "\\1", labels)
+  formulaLabels <- sub("^`(.*)`$", "\\1", attr(terms, "term.labels"))
+  placed <- character()
+  # the columns the formula's terms name, which its record describes; a
+  # sparse column, which the record does not hold, rides beside it
+  described <- names(predictors)[vapply(predictors, isS4, NA)]
+  for (term in labels) {
+    parts <- if (term %in% names(predictors)) {
+      frame[[term]] <- predictors[[term]]
+      term
+    } else {
+      joinedTermParts(predictors, term, placed, classes[term])
+    }
+    if (length(parts) > 0L && !term %in% names(predictors)) {
+      frame[[term]] <- joinedTermColumns(x, predictors, parts, term)
+    }
+    placed <- c(placed, parts)
+    if (term %in% formulaLabels) {
+      described <- c(described, parts)
+    }
+  }
+  for (name in setdiff(names(predictors), placed)) {
+    frame[[name]] <- predictors[[name]]
+  }
+  if (!is.null(object@weights)) {
+    frame[["(weights)"]] <- object@weights
+  }
+  if (!is.null(object@offset)) {
+    frame[["(offset)"]] <- object@offset
+  }
+  if (
+    !is.null(terms) &&
+      !is.null(label) &&
+      all(names(predictors) %in% described)
+  ) {
+    attr(frame, "terms") <- termsWithResponse(terms, label)
   }
   attr(frame, "na.action") <- object@na.action
   frame
 }
 
-decodeBlockFrame <- function(object) {
+## The response of a block-holding object in its recorded type and levels.
+decodedResponse <- function(object) {
   y <- object@y
   response <- switch(
     object@response.type,
@@ -440,30 +514,112 @@ decodeBlockFrame <- function(object) {
       attr(object, "survivalStatus", exact = TRUE)
     )
   }
-  predictors <- as.data.frame(object@x)
-  label <- attr(object, "response.label", exact = TRUE)
-  frame <- data.frame(row.names = seq_len(NROW(y)))
-  frame[[if (is.null(label)) "y" else label]] <- response
-  # a matrix term is one column again, named as its columns were by the term
-  joined <- character()
-  for (term in attr(attr(object@x, "terms"), "term.labels")) {
-    parts <- names(predictors)[startsWith(names(predictors), paste0(term, "."))]
-    if (length(parts) > 1L && !term %in% names(predictors)) {
-      columns <- as.matrix(predictors[parts])
-      colnames(columns) <- substring(parts, nchar(term) + 2L)
-      frame[[term]] <- columns
-      joined <- c(joined, parts)
+  response
+}
+
+## The predictor columns of a block by name, a factor column as a factor over
+## its declared levels and a column held sparse as sparse: a sparse vector, or
+## a sparse factor where the column is a factor's.
+decodedPredictors <- function(x) {
+  if (!inherits(x, "dbartsMixedMatrix") || all(x$map > 0L)) {
+    return(as.list(as.data.frame(x)))
+  }
+  declaredLevels <- attr(x, "factor.levels", exact = TRUE)
+  numObservations <- x$numObservations
+  columns <- lapply(seq_along(x$map), function(j) {
+    levelsOfColumn <- if (j <= length(declaredLevels)) declaredLevels[[j]]
+    if (x$map[j] > 0L) {
+      column <- x$dense[[x$map[j]]]
+      if (!is.null(levelsOfColumn) && !is.factor(column)) {
+        column <- factor(levelsOfColumn[column + 1L], levels = levelsOfColumn)
+      }
+      return(column)
     }
+    k <- -x$map[j]
+    entries <- seq.int(x$sparse@p[k] + 1L, length.out = diff(x$sparse@p)[k])
+    rows <- x$sparse@i[entries] + 1L
+    values <- x$sparse@x[entries]
+    if (is.null(levelsOfColumn)) {
+      return(methods::new(
+        "dsparseVector",
+        i = rows,
+        x = values,
+        length = numObservations
+      ))
+    }
+    reference <- x$sparseReference[k]
+    sparseFactor(
+      as.integer(values) + 1L,
+      levels = levelsOfColumn,
+      reference = if (!is.na(reference)) levelsOfColumn[reference + 1L],
+      i = rows,
+      length = numObservations
+    )
+  })
+  names(columns) <- x$columnNames
+  columns
+}
+
+## The block columns a matrix term was split into, named "term.suffix": two or
+## more, or one where the term made a one-column matrix or the block holds it
+## sparse; none where the term is no matrix.
+joinedTermParts <- function(predictors, term, placed, class) {
+  parts <- setdiff(
+    names(predictors)[startsWith(names(predictors), paste0(term, "."))],
+    placed
+  )
+  if (
+    length(parts) > 1L ||
+      (length(parts) == 1L &&
+        (isS4(predictors[[parts]]) || identical(unname(class), "nmatrix.1")))
+  ) {
+    parts
+  } else {
+    character()
   }
-  for (name in setdiff(names(predictors), joined)) {
-    frame[[name]] <- predictors[[name]]
+}
+
+## A matrix term's columns joined into one, named as the term named them: a
+## sparse matrix where the block holds every part sparse.
+joinedTermColumns <- function(x, predictors, parts, term) {
+  suffixes <- substring(parts, nchar(term) + 2L)
+  if (all(vapply(predictors[parts], isS4, NA))) {
+    columns <- x$sparse[, -x$map[match(parts, x$columnNames)], drop = FALSE]
+  } else {
+    columns <- do.call(cbind, lapply(unname(predictors[parts]), as.vector))
   }
-  if (!is.null(object@weights)) {
-    frame[["(weights)"]] <- object@weights
+  dimnames(columns) <- list(NULL, suffixes)
+  columns
+}
+
+## A one-sided terms record with `label`, the response as model.frame names it,
+## put back in front of its variables, as the record of the two-sided formula.
+termsWithResponse <- function(terms, label) {
+  response <- str2lang(label)
+  result <- call("~", response, terms[[2L]])
+  attributes(result) <- attributes(terms)
+  prepend <- function(variables) {
+    as.call(c(as.list(variables)[1L], list(response), as.list(variables)[-1L]))
   }
-  if (!is.null(object@offset)) {
-    frame[["(offset)"]] <- object@offset
+  attr(result, "variables") <- prepend(attr(terms, "variables"))
+  if (!is.null(attr(terms, "predvars"))) {
+    attr(result, "predvars") <- prepend(attr(terms, "predvars"))
   }
-  attr(frame, "na.action") <- object@na.action
-  frame
+  factors <- attr(terms, "factors")
+  if (length(factors) > 0L) {
+    factors <- rbind(0L, factors)
+    rownames(factors)[1L] <- label
+    attr(result, "factors") <- factors
+  }
+  if (!is.null(attr(terms, "offset"))) {
+    attr(result, "offset") <- attr(terms, "offset") + 1L
+  }
+  attr(result, "response") <- 1L
+  result
+}
+
+## The response's name as the formula wrote it, NULL where no formula wrote
+## one.
+dataResponseLabel <- function(object) {
+  attr(object, "response.label", exact = TRUE)
 }

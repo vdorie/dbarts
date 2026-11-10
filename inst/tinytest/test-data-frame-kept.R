@@ -708,45 +708,123 @@ stops(cbind(1, o@y))
 stops(cbind(o@x, o@y))
 stops(rbind(o@y, 1))
 
-# a sparse column: model.frame() answers as a sampler's data do -----------------
+# a sparse column: model.frame() keeps it as stored, never dense --------------
 
-dsp <- d[c("y", "x2", "w")]
-dsp$s <- Matrix::sparseVector(c(1, 2), c(3L, 7L), length = n)
-osp <- dbartsData(y ~ x2 + s, dsp)
-expect_identical(nobs(osp), n)
-mfsp <- model.frame(osp)
-expect_identical(nrow(mfsp), n)
-expect_true("s" %in% names(mfsp))
-expect_identical(
-  mfsp$s,
-  model.frame(dbartsData(y ~ x2 + s, dsp, keep.data = FALSE))$s
+nsp <- 12L
+spf <- factor(rep(c("a", "b", "c"), length.out = nsp))
+dsp <- data.frame(y = d$y[seq_len(nsp)], w = d$w[seq_len(nsp)])
+dsp$s <- Matrix::sparseVector(c(1, 2), c(3L, 7L), length = nsp)
+dsp$sf <- sparseFactor(spf)
+spM <- Matrix::sparseMatrix(
+  i = c(1L, 4L, 6L, 2L, 9L),
+  j = c(1L, 1L, 1L, 2L, 2L),
+  x = c(0.5, -1, 2, 3, 1.5),
+  dims = c(nsp, 2L),
+  dimnames = list(NULL, c("a", "b"))
 )
+dsp$M <- spM
+spFormula <- y ~ poly(w, 2) + s + sf + M
+osp <- dbartsData(spFormula, dsp)
+expect_false(is.null(osp@frame))
+expect_identical(nobs(osp), nsp)
+mfsp <- model.frame(osp)
+expect_identical(names(mfsp), c("y", "poly(w, 2)", "s", "sf", "M"))
+expect_true(methods::is(mfsp$s, "sparseVector"))
+expect_true(methods::is(mfsp$sf, "sparseFactor"))
+expect_true(methods::is(mfsp$M, "dgCMatrix"))
+expect_identical(mfsp$s, dsp$s)
+expect_identical(mfsp$sf, dsp$sf)
+expect_identical(mfsp$M, spM)
+expect_true(inherits(mfsp[["poly(w, 2)"]], "poly"))
+expect_false(is.null(attr(mfsp[["poly(w, 2)"]], "coefs")))
+expect_identical(unname(model.response(mfsp)), dsp$y)
+expect_identical(attr(attr(mfsp, "terms"), "response"), 1L)
+# over the rows kept
+ospSub <- dbartsData(spFormula, dsp, subset = c(2L, 5L, 5L, 9L))
+mfSub <- model.frame(ospSub)
+expect_identical(nrow(mfSub), 4L)
+expect_identical(as.vector(mfSub$s), as.vector(dsp$s)[c(2L, 5L, 5L, 9L)])
+expect_identical(
+  as.character(as.factor(mfSub$sf)),
+  as.character(spf[c(2L, 5L, 5L, 9L)])
+)
+expect_identical(mfSub$sf@levels, levels(spf))
+expect_identical(as.matrix(mfSub$M), as.matrix(spM)[c(2L, 5L, 5L, 9L), ])
 
-# a block-holding object's frame names the response as written and joins a
-# matrix term back into one column --------------------------------------------
+# a sampler's data decode a sparse column sparse too
+spSampler <- dbarts(y ~ w + s + sf + M, dsp, n.trees = 5L, control = ctl)
+mfSampler <- model.frame(spSampler$data)
+expect_identical(names(mfSampler), c("y", "w", "s", "sf", "M"))
+expect_true(methods::is(mfSampler$s, "sparseVector"))
+expect_identical(as.vector(mfSampler$s), as.vector(dsp$s))
+expect_true(methods::is(mfSampler$sf, "sparseFactor"))
+expect_identical(as.factor(mfSampler$sf), spf)
+expect_true(methods::is(mfSampler$M, "dgCMatrix"))
+expect_identical(as.matrix(mfSampler$M), as.matrix(spM))
+expect_identical(unname(model.response(mfSampler)), dsp$y)
+
+# a block-holding object's frame is lm's: the response named as written, a
+# matrix term one column under its own name, the formula's order and a terms
+# record ------------------------------------------------------------------------
 
 d0 <- d[c("y", "w", "x2")]
 d0$x2[is.na(d0$x2)] <- 0.5
-bd <- dbartsData(log(abs(y) + 1) ~ poly(w, 2) + x2, d0, keep.data = FALSE)
+d0$M <- matrix(rnorm(2L * n), n, 2L, dimnames = list(NULL, c("a", "b")))
+blockFormula <- log(abs(y) + 1) ~ x2 + poly(w, 2) + scale(x2) + M
+bd <- dbartsData(blockFormula, d0, keep.data = FALSE)
 mfb <- model.frame(bd)
-mfRef <- model.frame(log(abs(y) + 1) ~ poly(w, 2) + x2, d0)
+mfRef <- model.frame(blockFormula, d0)
 expect_identical(names(mfb), names(mfRef))
+expect_identical(
+  names(mfb),
+  c("log(abs(y) + 1)", "x2", "poly(w, 2)", "scale(x2)", "M")
+)
 expect_true(is.matrix(mfb[["poly(w, 2)"]]))
 expect_identical(colnames(mfb[["poly(w, 2)"]]), c("1", "2"))
-expect_equal(
-  unclass(as.matrix(mfb[["poly(w, 2)"]])),
-  unclass(as.matrix(mfRef[["poly(w, 2)"]])),
-  check.attributes = FALSE
-)
+expect_true(is.matrix(mfb[["scale(x2)"]]))
+expect_identical(dim(mfb[["scale(x2)"]]), c(n, 1L))
+expect_identical(colnames(mfb$M), c("a", "b"))
+for (name in names(mfRef)[-1L]) {
+  expect_equal(
+    unclass(as.matrix(mfb[[name]])),
+    unclass(as.matrix(mfRef[[name]])),
+    check.attributes = FALSE,
+    info = name
+  )
+}
 expect_equal(mfb[[1L]], mfRef[[1L]])
+expect_equal(model.response(mfb), model.response(mfRef))
+bdTerms <- attr(mfb, "terms")
+expect_identical(attr(bdTerms, "response"), 1L)
 expect_identical(
-  names(model.frame(
-    dbarts(
-      log(abs(y) + 1) ~ poly(w, 2) + x2,
-      d0,
-      n.trees = 5L,
-      control = ctl
-    )$data
-  )),
-  names(mfRef)
+  attr(bdTerms, "term.labels"),
+  attr(attr(mfRef, "terms"), "term.labels")
 )
+expect_true(any(grepl("coefs", deparse(attr(bdTerms, "predvars")))))
+expect_true(any(grepl("center", deparse(attr(bdTerms, "predvars")))))
+expect_equal(
+  unname(coef(lm(mfb))),
+  unname(coef(lm(blockFormula, d0)))
+)
+fittedFrame <- model.frame(
+  dbarts(blockFormula, d0, n.trees = 5L, control = ctl)$data
+)
+expect_identical(names(fittedFrame), names(mfRef))
+expect_equal(model.response(fittedFrame), model.response(mfRef))
+# where no formula was, or a hazard fit added its period, the frame has no
+# terms record
+expect_null(attr(
+  model.frame(dbartsData(as.matrix(d0[c("w", "x2")]), d0$y)),
+  "terms"
+))
+hazardFrame <- model.frame(
+  dbarts(
+    survival::Surv(ceiling(time * 3), status) ~ x1 + x2,
+    ds,
+    family = "hazard",
+    n.trees = 5L,
+    control = ctl
+  )$data
+)
+expect_identical(names(hazardFrame)[4L], "period")
+expect_null(attr(hazardFrame, "terms"))

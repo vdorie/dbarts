@@ -118,7 +118,13 @@
             A forest given to \code{dbarts()} or \code{dbartsSpec()}
             beside a data object finds its basis in the frame.
             \code{keep.data = FALSE} keeps the matrix and the response in
-            the object instead, as before.
+            the object instead, as before, and so does a build whose
+            formula, weights or offset draw random numbers.
+      \item Writing a sampler's \code{data} field
+            (\code{sampler$data <- newData}) is an error naming
+            \code{$setData}: in 0.9-34 the write changed only the R-side
+            copy, which the running sampler ignored and a copy then failed
+            on. Call \code{sampler$setData(newData)}.
       \item Weights. A \code{probit} fit refuses case weights: 0.9-34 fit a
             weighted probit, which was incorrect. Weights that are all 1
             are ignored, and weights of 0 and 1 mark which rows enter the

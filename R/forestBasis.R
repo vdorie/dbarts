@@ -1806,15 +1806,20 @@ namedBlockColumns <- function(x, names) {
 }
 
 ## The columns a block-holding data object holds that `names` name: its
-## predictors and its response, as model.frame(o) decodes them.
+## predictors as its block names them, and its response as model.frame(o)
+## decodes it.
 heldDataColumns <- function(object, names) {
-  label <- attr(object, "response.label", exact = TRUE)
+  label <- dataResponseLabel(object)
   given <- c(colnames(object@x), label)
   wanted <- intersect(names, given[!is.na(given) & nzchar(given)])
   if (length(wanted) == 0L) {
     return(NULL)
   }
-  as.list(decodeBlockFrame(object))[wanted]
+  columns <- as.list(as.data.frame(object@x))
+  if (!is.null(label) && !label %in% names(columns)) {
+    columns[[label]] <- decodedResponse(object)
+  }
+  columns[wanted]
 }
 
 ## A declared basis read for a fit from `source` (formulaBasisSource and its

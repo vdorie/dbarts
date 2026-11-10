@@ -3676,6 +3676,11 @@ dbartsData <- function(
     rowsTotal <- rowCount$total
     framePositions <- modelFrame[["(dbartsRowIndex)"]]
     modelFrame[["(dbartsRowIndex)"]] <- NULL
+    frameTerms <- attr(modelFrame, "terms")
+    attr(frameTerms, "dataClasses") <- attr(frameTerms, "dataClasses")[
+      names(attr(frameTerms, "dataClasses")) != "(dbartsRowIndex)"
+    ]
+    attr(modelFrame, "terms") <- frameTerms
     rowsKept <- if (
       !is.null(framePositions) &&
         !identical(framePositions, seq_len(rowsTotal))
