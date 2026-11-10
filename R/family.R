@@ -592,7 +592,7 @@ aft <- function(sigma = NULL) {
 ##
 ## The expansion's row count grows with the grid's resolution, as the square
 ## of the subjects on the default grid, and memory, not time, is what it costs:
-## at bart()'s defaults about 31 KB a row, most of it the kept draws of the
+## at bart()'s defaults about 35 KB a row, most of it the kept draws of the
 ## training fits. No row count is refused; a fit whose projected peak exceeds
 ## the machine's physical memory is warned of once a session before its rows
 ## are built (warnHazardMemory) and then runs.

@@ -16,15 +16,15 @@ defaults <- hazardRunSettings(
   dbartsControl(n.chains = 4L, n.threads = 1L, n.samples = 500L),
   75L
 )
-# bart()'s defaults: 200 + 34 * 3 shared, 20 + 8 * 75 a chain, and 14 bytes a
+# bart()'s defaults: 200 + 34 * 3 shared, 20 + 8 * 75 a chain, and 16 bytes a
 # kept draw at the peak, 4 x 500 of them a training row
-expect_equal(hazardFitBytes(1, 0, 3L, defaults), 30782)
+expect_equal(hazardFitBytes(1, 0, 3L, defaults), 34782)
 expect_equal(
   hazardFitBytes(1e7, 0, 3L, defaults),
-  1e7 * (200 + 34 * 3 + 4 * (20 + 8 * 75) + 14 * 4 * 500)
+  1e7 * (200 + 34 * 3 + 4 * (20 + 8 * 75) + 16 * 4 * 500)
 )
 # a held-out row: 30 + 36 a predictor column and every kept draw
-expect_equal(hazardFitBytes(0, 1, 3L, defaults), 30 + 36 * 3 + 14 * 2000)
+expect_equal(hazardFitBytes(0, 1, 3L, defaults), 30 + 36 * 3 + 16 * 2000)
 expect_equal(
   hazardFitBytes(2, 5, 10L, defaults),
   2 *
@@ -42,7 +42,7 @@ noTraining <- hazardRunSettings(
   75L
 )
 expect_equal(hazardFitBytes(1, 0, 3L, noTraining), 2782)
-expect_equal(hazardFitBytes(0, 1, 3L, noTraining), 30 + 36 * 3 + 14 * 2000)
+expect_equal(hazardFitBytes(0, 1, 3L, noTraining), 30 + 36 * 3 + 16 * 2000)
 # keepFits = FALSE drops every row's
 noFits <- hazardRunSettings(
   dbartsControl(
@@ -55,7 +55,7 @@ noFits <- hazardRunSettings(
 )
 expect_equal(hazardFitBytes(1, 1, 3L, noFits), 2782 + 30 + 36 * 3)
 # a row count past the integer range is projected in double precision
-expect_equal(hazardFitBytes(3e9, 0, 3L, defaults), 3e9 * 30782)
+expect_equal(hazardFitBytes(3e9, 0, 3L, defaults), 3e9 * 34782)
 
 # ---- the machine's memory, read in C ----
 options(dbarts.physicalMemory = NULL)

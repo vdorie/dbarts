@@ -272,7 +272,7 @@ hazardRunSettings <- function(control, n.trees, setData = FALSE) {
 # column, which the chains share, and each chain about 20 bytes and 8 a tree,
 # the fits of the trees it holds; a held-out row about 30 bytes and 36 a
 # predictor column. A kept draw of a row's fit is 8 bytes a chain in the fit
-# returned and about 14 at the peak, while it is copied out: the training
+# returned and about 16 at the peak, while it is copied out: the training
 # rows' are kept under keepTrainingFits, and no row's without keepFits. Every
 # figure counts doubles, integers and pointers, so it holds on any 64-bit
 # machine.
@@ -283,8 +283,8 @@ hazardFitBytes <- function(rows, testRows, numPredictors, run) {
     (200 +
       34 * numPredictors +
       run$n.chains * (20 + 8 * run$n.trees) +
-      14 * trainingDraws) +
-    testRows * (30 + 36 * numPredictors + 14 * keptDraws)
+      16 * trainingDraws) +
+    testRows * (30 + 36 * numPredictors + 16 * keptDraws)
 }
 
 # The machine's physical memory, in bytes, NA where the operating system does

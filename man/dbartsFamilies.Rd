@@ -128,10 +128,10 @@
       subjects give about 500,000 rows) and on a grid of \eqn{K} periods as
       \eqn{K} times the subjects. Memory, not time, is what a row costs: at
       \code{\link{bart}}'s defaults (four chains of 500 kept draws, 75
-      trees) about 31 KB a row at its peak, about 28 KB of which are the kept
+      trees) about 35 KB a row at its peak, about 32 KB of which are the kept
       draws of the training fits (8 bytes a draw a chain in the fit returned,
-      and about 14 while they are copied out), so a million rows take about
-      30 GB. \code{keepTrainingFits = FALSE} leaves about 3 KB a row: about
+      and about 16 while they are copied out), so a million rows take about
+      35 GB. \code{keepTrainingFits = FALSE} leaves about 3 KB a row: about
       300 bytes the chains share and about 620 a chain, 8 bytes a tree. A
       predictor column beyond three adds about 34 bytes a row, and a held-out
       subject passed as \code{test} is expanded to every period. No row count is refused: when the peak
