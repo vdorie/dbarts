@@ -522,6 +522,9 @@ summary.bart <- function(
   forests <- fitForestLines(object, full = TRUE)
   if (length(forests) > 0L) {
     result$forests <- forests
+    # what each basis forest does per unit of its basis, from the per-forest
+    # fits; absent where no forest has a basis
+    result$effects <- fitForestEffects(object)
   }
   # where the starting sigma was the sd of the response, absent otherwise;
   # its "weighted" attribute says that sd was weighted
@@ -750,6 +753,11 @@ print.summary.bart <- function(x, ...) {
   if (!is.null(x$forests)) {
     cat("\n")
     writeLines(x$forests)
+    effects <- forestEffectLines(x$effects)
+    if (length(effects) > 0L) {
+      cat("\n")
+      writeLines(effects)
+    }
   }
   invisible(x)
 }

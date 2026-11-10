@@ -155,7 +155,11 @@ blockFrom <- function(lines, prefix) {
   if (length(start) != 1L) {
     return(NULL)
   }
-  lines[start:max(which(nzchar(lines)))]
+  # the block ends at the first blank line, where a summary's lines on the
+  # effects of the bases begin
+  blank <- which(!nzchar(lines) & seq_along(lines) > start)
+  end <- if (length(blank) > 0L) blank[1L] - 1L else length(lines)
+  lines[start:max(which(nzchar(lines[seq_len(end)])))]
 }
 starts <- function(line, prefix) {
   is.character(line) && length(line) == 1L && startsWith(line, prefix)
@@ -333,10 +337,14 @@ noCall <- function(lines) {
   lines[-seq.int(start, start + which(lines[-seq_len(start)] == "")[1L])]
 }
 expect_identical(noCall(printLines(noFits)), noCall(printLines(withFits)))
+# a summary's block is the same; only the lines on the effects of the bases,
+# which read the per-forest fits, differ, one line saying they were not kept
 expect_identical(
-  noCall(summaryLines(noFits)),
-  noCall(summaryLines(withFits))
+  fullOf(summaryLines(noFits)),
+  fullOf(summaryLines(withFits))
 )
+expect_true(any(grepl("the fit kept no per-forest fits", summaryLines(noFits))))
+expect_false(any(grepl("kept no per-forest", summaryLines(withFits))))
 expect_false(is.null(fullOf(summaryLines(noFits))))
 expect_true(any(grepl("factor basis, 2 levels", printLines(noFits))))
 for (name in c("forest.labels", "forest.trees", "forest.unit")) {

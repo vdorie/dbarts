@@ -384,6 +384,207 @@ fitForestLines <- function(fit, full = FALSE) {
   )
 }
 
+## What one forest does per unit of its basis, each draw's effect at each row:
+## the forest's own fits times the amplitude on the basis column, which is
+## what predict() at the column one unit higher gives beyond the column as it
+## stands, whatever the other columns hold. A factor's effect is a level's
+## against the first, the difference of the two levels' amplitudes. Returns a
+## list of draws-by-rows matrices, one for each column the forest multiplies
+## (a factor's second and later levels), named by what the effect is of.
+forestEffectDraws <- function(fits, glue, multiplier, basis) {
+  width <- ncol(glue)
+  if (multiplier == "factor") {
+    levels <- levels(basis)
+    if (length(levels) != width) {
+      return(list())
+    }
+    steps <- sweep(glue[, -1L, drop = FALSE], 1L, glue[, 1L])
+    names <- paste0("level ", levels[-1L], " against ", levels[1L])
+  } else {
+    steps <- glue
+    names <- if (width == 1L) {
+      "per unit"
+    } else if (!is.null(colnames(basis))) {
+      colnames(basis)
+    } else {
+      paste0("column ", seq_len(width))
+    }
+  }
+  effects <- lapply(seq_len(ncol(steps)), function(column) {
+    steps[, column] * fits
+  })
+  names(effects) <- names
+  effects
+}
+
+## One effect's summary: the average over the rows in the likelihood and its
+## spread across them (sd), each taken per draw, so each is a posterior of the
+## quantity itself, then the median and the 5% and 95% quantiles summary()
+## tabulates elsewhere.
+effectSummary <- function(draws, rowsIn) {
+  draws <- draws[, rowsIn, drop = FALSE]
+  average <- rowMeans(draws)
+  spread <- if (ncol(draws) > 1L) {
+    sqrt(rowSums((draws - average)^2) / (ncol(draws) - 1L))
+  } else {
+    rep(NA_real_, nrow(draws))
+  }
+  quantiles <- function(x) {
+    if (anyNA(x)) {
+      rep(NA_real_, 3L)
+    } else {
+      stats::quantile(x, c(0.5, 0.05, 0.95), names = FALSE)
+    }
+  }
+  data.frame(
+    average = quantiles(average)[1L],
+    average.q5 = quantiles(average)[2L],
+    average.q95 = quantiles(average)[3L],
+    spread = quantiles(spread)[1L],
+    spread.q5 = quantiles(spread)[2L],
+    spread.q95 = quantiles(spread)[3L]
+  )
+}
+
+## The scale the forests add on, as a phrase for the line that reports an
+## effect: the response's units unless the family's forests live on a link or
+## a log scale.
+effectScaleText <- function(family) {
+  switch(
+    as.character(family)[1L],
+    probit = "on the probit scale",
+    ordinal = "on the probit scale",
+    logistic = "on the logit scale",
+    aft = "on the log time scale",
+    nbinom = "on the log mean scale",
+    hazard.probit = "on the probit scale",
+    "in the response's units"
+  )
+}
+
+## A fit's forests' effects per unit of their bases, from its per-forest fits
+## and amplitudes: a data frame of one row for each column of each forest with
+## a basis (forest, label, effect, and effectSummary's columns), with the rows
+## it averages over and the scale as attributes; NULL for a fit with no forest
+## that has a basis, and, for one that has but kept no per-forest fits, the
+## string "dropped".
+fitForestEffects <- function(fit) {
+  priors <- fit[["leaf.prior"]]
+  multipliers <- vapply(
+    priors,
+    function(entry) as.character(entry$multiplier)[1L],
+    ""
+  )
+  has <- which(multipliers %in% c("factor", "numeric"))
+  if (length(has) == 0L) {
+    return(NULL)
+  }
+  if (is.null(fit[["forestFits"]]) || is.null(fit[["glue"]])) {
+    return("dropped")
+  }
+  chains <- fitNChains(fit)
+  fits <- reshapeChainedChannel(fit$forestFits, chains, TRUE, 2L)
+  glue <- reshapeChainedChannel(fit$glue, chains, TRUE, 1L)
+  glueForest <- attr(fit$glue, "forest")
+  forestNames <- dimnames(fits)[[3L]]
+  labels <- attr(fit, "forest.labels", exact = TRUE)
+  if (length(labels) != length(priors)) {
+    labels <- names(priors)
+  }
+  rowsIn <- rowsInLikelihood(
+    if (length(fit[["weights"]]) > 0L) fit[["weights"]],
+    if (length(fit[["active"]]) > 0L) fit[["active"]],
+    dim(fits)[2L]
+  )
+  rows <- lapply(has, function(k) {
+    effects <- forestEffectDraws(
+      fits[,, k],
+      glue[, glueForest == forestNames[k], drop = FALSE],
+      multipliers[k],
+      fit$bases[[k]]
+    )
+    do.call(
+      rbind,
+      Map(
+        function(draws, what) {
+          cbind(
+            data.frame(
+              forest = k,
+              label = labels[k],
+              effect = what,
+              stringsAsFactors = FALSE
+            ),
+            effectSummary(draws, rowsIn)
+          )
+        },
+        effects,
+        names(effects)
+      )
+    )
+  })
+  result <- do.call(rbind, rows)
+  if (is.null(result)) {
+    return(NULL)
+  }
+  rownames(result) <- NULL
+  attr(result, "rows") <- sum(rowsIn)
+  attr(result, "scale") <- effectScaleText(fit[["family"]])
+  result
+}
+
+## The lines under the block that report fitForestEffects: what each number is
+## once, then a line for each effect.
+forestEffectLines <- function(effects) {
+  if (is.null(effects)) {
+    return(character(0L))
+  }
+  if (identical(effects, "dropped")) {
+    return("  effects of the bases not shown: the fit kept no per-forest fits")
+  }
+  shown <- function(median, lower, upper) {
+    paste0(
+      printedNumber(median),
+      " (",
+      printedNumber(lower),
+      " to ",
+      printedNumber(upper),
+      ")"
+    )
+  }
+  lines <- vapply(
+    seq_len(nrow(effects)),
+    function(row) {
+      with(
+        effects[row, ],
+        paste0(
+          "  ",
+          forest,
+          " ",
+          label,
+          ", ",
+          effect,
+          ": average ",
+          shown(average, average.q5, average.q95),
+          ", spread across rows ",
+          shown(spread, spread.q5, spread.q95)
+        )
+      )
+    },
+    ""
+  )
+  c(
+    paste0(
+      "effect of one unit of each basis (a factor's: one level against the ",
+      "first), ",
+      attr(effects, "scale"),
+      ", over ",
+      attr(effects, "rows"),
+      " training rows (posterior median, 5% to 95%):"
+    ),
+    lines
+  )
+}
+
 ## The block of a sampler, from its data as it stands: the short one of its
 ## show, the full one of a verbose creation; character(0) where it has one
 ## forest, or its pointer has not survived a reload, which show does not
