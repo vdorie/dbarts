@@ -886,6 +886,26 @@ items
     docs/plans/release-candidate-review.md's wave-3 landing note; the
     review's own DEFER bin is
     docs/plans/review-2026-08-24/consolidated-report.md.
+    Evidence, 2026-11-10 (none moot; all three stay open, none built):
+    - burn-in channel: bart2 is an exported alias of bart, removal gated
+      to 1.1-0; bart(family = "nbinom") has no first-shape element where
+      a gaussian fit has first.sigma, and the shape trace in plot shows
+      kept draws only (the plot help says so). A channel restructures
+      the run and moves negative binomial draws; about 60 lines. Revisit
+      with a mixing study, not before.
+    - ordinal tail: the stored probability of an interior category is a
+      difference of two normal probabilities; its log is accurate to four
+      digits at a latent location of -7 (-30.3217 against -30.3220) and
+      -Inf at -8, where the stable form gives -38.34; the upper tail is
+      accurate. A 300-row strongly separated ordinal fit gave finite
+      log-likelihoods everywhere (range -5.2 to -9e-10), so a pointwise
+      -Inf needs an observation more than 7.5 latent sds on the wrong
+      side. The fix needs eta and the cutpoints at log-likelihood time:
+      about 25 lines, 3 tests, no other draw moves. Build it the first
+      time anyone sees a -Inf.
+    - rootogram: a new plot panel for the negative binomial, the standard
+      count diagnostic; no user has asked and nothing waits. About 40
+      lines, a test and a help sentence; a candidate after release.
   setresponse-positional-arg-warning: drop the once-per-session warning on
     a positionally-supplied second argument to $setResponse (it now sets
     updateScale, not updateState) once callers have had a full minor cycle
