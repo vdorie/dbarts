@@ -255,7 +255,8 @@ struct GridTarget {
     size_t j = static_cast<size_t>(
       std::upper_bound(cdf.begin(), cdf.end(), u) - cdf.begin());
     if (j == 0) return lower;
-    if (j >= cdf.size()) return lower + step * static_cast<double>(cdf.size() - 1);
+    if (j >= cdf.size())
+      return lower + step * static_cast<double>(cdf.size() - 1);
     double width = cdf[j] - cdf[j - 1];
     double fraction = width > 0.0 ? (u - cdf[j - 1]) / width : 0.0;
     return lower + step * (static_cast<double>(j - 1) + fraction);
@@ -551,7 +552,8 @@ OrbitStep takeOrbitStep(ConstantLeafSampler& sampler, FrozenForest& frozen,
       double was = frozen.mu[t][static_cast<size_t>(b)];
       mapped.leavesMapped = mapped.leavesMapped &&
         (tree.at(b).numObservations() > 0
-           ? std::fabs(now - factor * was) <= rescaleMapTolerance * std::fabs(now)
+           ? std::fabs(now - factor * was) <=
+               rescaleMapTolerance * std::fabs(now)
            : now == was);
     }
   }
@@ -635,7 +637,8 @@ void checkOrbitDeclines(const char* move, const RescaleData& data,
     {ResponseFamily::gaussian, "under the gaussian family"},
     {ResponseFamily::nbinom, "under the nbinom family"}};
   for (const auto& [family, where] : families)
-    if (family != eligible) report(declines(build(family, true, 0)->chain(0)), where);
+    if (family != eligible)
+      report(declines(build(family, true, 0)->chain(0)), where);
   {
     std::unique_ptr<ConstantLeafSampler> variance =
       build(ResponseFamily::gaussian, true, 4);
@@ -774,8 +777,8 @@ void runForestRescaleTests() {
   // measured from the frozen state, so its target is the frozen state's own
   // conditional; one step from e^v0 then lands at v1, read off the latents and
   // the leaves, which must agree with each other, with alpha and with k.
-  GridTarget target([&](double v) { return constants.logDensity(v); }, -6.0, 6.0,
-              200001);
+  GridTarget target([&](double v) { return constants.logDensity(v); }, -6.0,
+                    6.0, 200001);
   std::vector<double> landed(rescaleDraws);
   double worstDisagreement = 0.0;
   for (size_t r = 0; r < rescaleDraws; ++r) {
@@ -1012,7 +1015,8 @@ void checkCollapsedEvaluator(const char* label,
         data.y[i], data.trials[i], data.counts[i],
         factor * fits[i] + held[i] + data.offset[i]);
     }
-    double got = response.logLikelihoodAtScaledFits(fits.data(), nullptr, factor);
+    double got =
+      response.logLikelihoodAtScaledFits(fits.data(), nullptr, factor);
     double gotHeld =
       response.logLikelihoodAtScaledFits(fits.data(), held.data(), factor);
     worstReported = std::max(worstReported, std::fabs(got / sum - 1.0));
@@ -1077,14 +1081,16 @@ void checkAugmentationAfterMove(const char* label, FrozenForest& frozen,
   for (size_t i = 0; i < rescaleN; ++i)
     worstRowZ = std::max(worstRowZ, std::fabs(rowSum[i]) /
                            std::sqrt(static_cast<double>(collapsedRedraws)));
-  double z = sum / std::sqrt(numTerms), signedZ = signedSum / std::sqrt(numTerms);
+  double z = sum / std::sqrt(numTerms),
+         signedZ = signedSum / std::sqrt(numTerms);
   char what[240];
   std::snprintf(what, sizeof what,
                 "%s: after the move the augmentation draw takes each omega as "
                 "PG(w n, psi) at the moved fit (z %.3g, signed by the factor "
                 "%.3g, worst row %.3g, %zu rows at psi = 0)", label, z, signedZ,
                 worstRowZ, numAtZero);
-  check(std::fabs(z) < collapsedZBound && std::fabs(signedZ) < collapsedZBound &&
+  check(std::fabs(z) < collapsedZBound &&
+          std::fabs(signedZ) < collapsedZBound &&
           worstRowZ < collapsedRowZBound && rowsOutKept &&
           (numAtZero > 0) == zeroFit, what);
   const double* working = TestPeer::workingResponse(chain);
@@ -1095,7 +1101,8 @@ void checkAugmentationAfterMove(const char* label, FrozenForest& frozen,
     double expected = data.counts[i] * (data.y[i] - 0.5 * data.trials[i]) /
                         omega[i] - data.offset[i];
     workingFollows = workingFollows &&
-      std::fabs(working[i] - expected) <= 1.0e-12 * (1.0 + std::fabs(expected)) &&
+      std::fabs(working[i] - expected) <=
+        1.0e-12 * (1.0 + std::fabs(expected)) &&
       weights[i] == omega[i];
   }
   checkLabeled(workingFollows, label,
@@ -1134,7 +1141,8 @@ double runCollapsedStateTests(const char* label, ConstantLeafSampler& sampler,
   checkLabeled(unchanged(mapped.latentsBefore, TestPeer::latents(chain)) &&
                  unchanged(mapped.workingBefore,
                            TestPeer::workingResponse(chain)) &&
-                 unchanged(mapped.weightsBefore, TestPeer::workingWeights(chain)),
+                 unchanged(mapped.weightsBefore,
+                           TestPeer::workingWeights(chain)),
                label,
                "the move leaves the latents, the working response and the "
                "precisions as they were");
@@ -1163,8 +1171,8 @@ void runCollapsedRescaleTests() {
     data.counts[i] = static_cast<double>(1 + i % 3);
   }
   std::unique_ptr<ConstantLeafSampler> sampler = makeRescaleSampler(
-    data.x, data.y, data.counts.data(), nullptr, data.offset.data(), family, true, true,
-    true, &rng);
+    data.x, data.y, data.counts.data(), nullptr, data.offset.data(), family,
+    true, true, true, &rng);
   Results results;
   sampler->run(rescaleBurnIn, 0, results);
   check(sampler->setActiveRows(data.mask.data()),
@@ -1196,14 +1204,14 @@ void runCollapsedRescaleTests() {
     std::vector<double> fits = forestTotals(*sampler, 0), poisoned(fits);
     for (size_t i = 0; i < rescaleN; ++i)
       if (data.mask[i] == 0.0) poisoned[i] = data.y[i] != 0.0 ? -1.0e6 : 1.0e6;
-    checkLabeled(response.logLikelihoodAtScaledFits(poisoned.data(), nullptr, 1.7) ==
-                   response.logLikelihoodAtScaledFits(fits.data(), nullptr, 1.7),
-                 link, "a row out of the likelihood adds nothing to the "
-                       "evaluator's sum");
+    checkLabeled(
+      response.logLikelihoodAtScaledFits(poisoned.data(), nullptr, 1.7) ==
+        response.logLikelihoodAtScaledFits(fits.data(), nullptr, 1.7),
+      link, "a row out of the likelihood adds nothing to the evaluator's sum");
 
     std::unique_ptr<ConstantLeafSampler> other = makeRescaleSampler(
-      data.x, data.y, data.counts.data(), nullptr, data.offset.data(), family, true,
-      true, true, &otherRng);
+      data.x, data.y, data.counts.data(), nullptr, data.offset.data(),
+      family, true, true, true, &otherRng);
     other->run(10, 0, results);
     RescaleData flipped(data);
     flipped.mask.assign(rescaleN, 1.0);
@@ -1357,8 +1365,8 @@ void runCollapsedRescaleTests() {
     separated.y[i] =
       6.0 * (data.x[i] - 0.5) + 0.3 * standardNormal() > 0.0 ? 1.0 : 0.0;
   std::unique_ptr<ConstantLeafSampler> separatedSampler = makeRescaleSampler(
-    separated.x, separated.y, nullptr, nullptr, nullptr, family, true, true, true,
-    &otherRng);
+    separated.x, separated.y, nullptr, nullptr, nullptr, family, true, true,
+    true, &otherRng);
   separatedSampler->run(rescaleBurnIn, 0, results);
   std::snprintf(label, sizeof label, "%s, near-separated", link);
   double separatedKs = runCollapsedStateTests(label, *separatedSampler,
@@ -1402,16 +1410,17 @@ void runCollapsedRescaleTests() {
   bool openingsAgree = true;
   for (std::uint32_t seed = 31u; seed < 71u; ++seed) {
     if (numOpeningsMoved > 0 && numOpeningsStill > 0) break;
-    ext_rng* sweepRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng* sweepRng =
+      ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
     ext_rng* twinRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
     ext_rng_setSeed(sweepRng, seed);
     ext_rng_setSeed(twinRng, seed);
     std::unique_ptr<ConstantLeafSampler> swept = makeRescaleSampler(
-      data.x, data.y, data.counts.data(), nullptr, data.offset.data(), family, true,
-      true, true, &sweepRng);
+      data.x, data.y, data.counts.data(), nullptr, data.offset.data(),
+      family, true, true, true, &sweepRng);
     std::unique_ptr<ConstantLeafSampler> twin = makeRescaleSampler(
-      data.x, data.y, data.counts.data(), nullptr, data.offset.data(), family, true,
-      true, true, &twinRng);
+      data.x, data.y, data.counts.data(), nullptr, data.offset.data(),
+      family, true, true, true, &twinRng);
     swept->run(20, 0, results);
     twin->run(20, 0, results);
     swept->run(1, 0, results);
@@ -1470,7 +1479,8 @@ void runEnsembleTests() {
   ext_rng_setSeed(rng, 20260817u);
 
   SamplerOptions options;
-  options.numTrees = ensembleTrees;  // the shipped default, stated not inherited
+  // The shipped default, stated not inherited.
+  options.numTrees = ensembleTrees;
   options.levelGibbs = LevelGibbsMode::off;
   ConstantLeafSampler sampler(x.data(), y.data(), ensembleN, ensembleP, nullptr,
                               nullptr, ResponseFamily::gaussian, 1.0, 3.0,

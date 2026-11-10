@@ -3,10 +3,10 @@
 # under an offset, counts, a mask and a mask with every row out, reaches the
 # forests that share one prior total and a binomial response, and that a
 # sampler's state carries what it needs. Each expectation holds whether or not
-# a fit takes the move, so none pins which do. The move's conditional, its mapping, its schedule, its
-# declines and its place in the sweep are tests/cpp gates; its posterior is
-# the probit-k-scale-exact gate; which fits take it is the equivalence
-# baseline's record.
+# a fit takes the move, so none pins which do. The move's conditional, its
+# mapping, its schedule, its declines and its place in the sweep are tests/cpp
+# gates; its posterior is the probit-k-scale-exact gate; which fits take it is
+# the equivalence baseline's record.
 
 set.seed(101)
 n <- 120L
