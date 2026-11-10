@@ -379,6 +379,14 @@ and the host. Already exposed. This note carries these numbers; the comment
 at [`hazard`](../../R/family.R) states the constraint and the one figure that
 sets the default's trade-off (bytes per row per column) without them.
 
+Revised 2026-11-10 (dec-B367): the cap is removed. The sweep above counts the
+expanded design only; a whole fit at `bart()`'s defaults takes about 31 KB a
+row at its peak, most of it the kept draws of the training fits, so the cap
+was silent where a laptop runs out of memory and refused machines that could
+hold the fit. A fit whose projected peak exceeds the machine's physical memory
+now warns once per session and runs
+([`hazardFitBytes`](../../R/dbarts.R), [`warnHazardMemory`](../../R/dbarts.R)).
+
 ## The xint caps
 
 Values 65533 cuts at

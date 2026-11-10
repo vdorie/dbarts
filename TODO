@@ -213,21 +213,6 @@ items
     docs/design/gpu-bart.md.
   grow-from-root: frontier 3.1's exact informed-proposal use of the
     shared cut scan (docs/design/parallel-bart-frontier.md sec 3.1).
-  hazard-memory-warning: (dec-B750, revising dec-B367 and superseding
-    dec-B719) a hazard fit has no row cap: hazard()'s max.rows
-    argument is removed (never released) and creation, and $setData
-    with the same text and no new model slot, give one warning a session,
-    before allocation, when the projected peak memory exceeds the
-    machine's physical memory, naming the rows, the memory and the
-    ways out (hazard(breaks = ), keepTrainingFits = FALSE, fewer
-    chains). About 20 lines of R and 20 of C to read physical memory
-    (no warning where it is unreadable); test subjects' rows count in
-    the projection. Measured: about 31 KB a row at bart()'s defaults,
-    so the stated 27 GB at ten million rows is about 310 GB at peak.
-    Agent fixes beside it: the stated cost corrected in the help and
-    in family.R's comment. Not decided: pdbart's n.max.predictions
-    (dec-B220) and whether hazard fits keep training draws by default.
-    Not built.
   host-wording-sweep: dbarts.h still says "host" for the code that runs
     the BART sampler inside a larger sampler, in about 7 header lines (the
     help, the vignettes and the R strings are done); a docs-only sweep.

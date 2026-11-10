@@ -1,24 +1,21 @@
 #!/usr/bin/env Rscript
 
-# Measures the person-period row cap, the max.rows argument of hazard()
-# (R/family.R), which the expander expandDiscreteTimeHazard (R/dbarts.R)
-# enforces before it allocates: a discrete-time hazard fit whose grid would
-# turn n subjects into more than 1e7 at-risk rows is refused, naming the
-# coarsening levers. The cap is a guard against an over-fine time grid, not a
-# statement about what the sampler can fit.
+# Measures the person-period expansion of a discrete-time hazard fit, the
+# expander expandDiscreteTimeHazard (R/dbarts.R): its time and the peak
+# resident set it reaches at a given row count. No row count is refused; the
+# expander warns, once per session, when the fit's projected peak memory
+# exceeds the machine's, and that projection (hazardFitBytes) counts the
+# sampler's own memory, of which the expanded design measured here is a part.
 #
 # Reported per expanded row count N': the EXPANSION time, and the peak
-# resident set the expansion reaches, since the expanded design is a full
-# n' x (p + 1) double matrix and the guard exists to stop exactly that
-# allocation. Each row count runs in a FRESH R process, so the resident-set
-# figure is the whole cost of holding one expansion rather than a delta
-# against an already-grown heap. The cap BINDS if a design a user would
-# plausibly write - the row counts here are 10 to 20 columns wide - reaches
-# 1e7 rows at a memory cost the machine could actually absorb.
+# resident set the expansion reaches, the expanded design being a full
+# n' x (p + 1) double matrix. Each row count runs in a FRESH R process, so the
+# resident-set figure is the whole cost of holding one expansion rather than a
+# delta against an already-grown heap.
 #
 # Usage: Rscript benchmarks/R/constant-person-period-rows.R [quick]
 # No baseline, no pass/fail exit status: an informational sweep, run by hand
-# when the cap is revisited. Run it on a quiet machine.
+# when the expansion changes. Run it on a quiet machine.
 
 suppressPackageStartupMessages(library(dbarts))
 
@@ -44,6 +41,8 @@ measure <- function(target) {
   time <- sample.int(periods, n, replace = TRUE)
   status <- rbinom(n, 1L, 0.4)
 
+  # the memory warning is held off: only the expansion is measured here
+  options(dbarts.physicalMemory = NA)
   invisible(gc(FALSE))
   before <- residentMB()
   start <- Sys.time()
@@ -51,7 +50,7 @@ measure <- function(target) {
     x,
     time,
     status,
-    max.rows = 1e9
+    dbarts:::hazardRunSettings(dbartsControl(n.threads = 1L), 75L)
   )
   elapsed <- as.numeric(Sys.time() - start, units = "secs")
   after <- residentMB()
@@ -68,7 +67,7 @@ if (length(childArg) > 0L) {
     "",
     grep("^--file=", commandArgs(FALSE), value = TRUE)[[1L]]
   )
-  cat(sprintf("%d predictor columns, 20 periods, cap = 1e7 rows\n", p))
+  cat(sprintf("%d predictor columns, 20 periods\n", p))
   cat(sprintf(
     "%12s %12s %12s %12s %12s\n",
     "target",
@@ -97,25 +96,4 @@ if (length(childArg) > 0L) {
       values[[4L]]
     ))
   }
-  # what the guard itself does at the boundary
-  set.seed(41)
-  small <- matrix(runif(100L * p), 100L, p)
-  smallTime <- sample.int(20L, 100L, replace = TRUE)
-  refusal <- tryCatch(
-    {
-      dbarts:::expandDiscreteTimeHazard(
-        small,
-        smallTime,
-        rbinom(100L, 1L, 0.5),
-        max.rows = 100
-      )
-      "no refusal"
-    },
-    error = function(e) conditionMessage(e)
-  )
-  cat(sprintf(
-    "\nguard at max.rows = 100 on a %d-row expansion:\n  %s\n",
-    sum(smallTime),
-    refusal
-  ))
 }
