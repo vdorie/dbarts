@@ -260,6 +260,13 @@ Cheap gates are re-run by the reviewer, not trusted from the report.
   config headers, so a plain install after a reference install silently
   keeps the reference objects; every change of `--configure-args` needs
   `--preclean`.
+- C/C++ held to the standard the maintainer named (2026-11-10): "For the
+  internal work, we used to pride ourselves on having some of the best C++
+  in the R ecosystem - I'd like to try and keep that standard." Clear
+  interfaces and ownership; no dead or half-removed paths; no duplicated
+  logic or special case where the general shape fits; engine code
+  R-agnostic; Doxygen in the LLVM house style; tests that pin what they
+  claim. Code below that bar is a finding even when the gates pass.
 
 ## Gate hygiene
 
