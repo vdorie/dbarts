@@ -1,6 +1,6 @@
 # small-rulings-1108-engine: two draw-moving rulings of 2026-11-08
 
-Status: PLANNED 2026-11-09, amended after its blind critique the same day
+Status: LANDED 2026-11-10 (669f62cbd..462e3b24a; dec-B714 and dec-B690 for the rulings, dec-A322 for the calls made building them)
 
 agent: opus implementer, one; blind critique taken 2026-11-09; one opus reviewer who runs the mutants below.
 rng: POSTERIOR-CHANGING at the call only: a `$setForest` call that holds a released forest with no basis under a
@@ -193,3 +193,13 @@ binomial-test-trials removed; the INDEX row.
    the same branch" untrue. Alternative: none left to pin.
 
 Nothing here changes what a user sees beyond what the two rulings state, so no call is marked for the maintainer.
+
+## Landing note
+
+Landed 2026-11-10 as 669f62cbd..462e3b24a on main, by fast-forward: the plan (05e68c0a2) and its amendment after a blind critique (708ddc9ca), the two items (de50f1cc2 for dec-B714, 3016427df for dec-B690), the plan's cites of the removed helper (f44a52bd4) and the review's two fix commits (7f4635cf2, 462e3b24a). The calls made building them are dec-A322.
+
+Review: one opus review that ran the plan's mutants and two of its own, LAND after one fix round, checked. The fix round pinned a release under normal() as under student(3) (an old rule kept for a normal() release had survived), limited the help's "the same in a second call" to where k is drawn, and qualified the weights item of bart.Rd for a binomial fit.
+
+Gates on 462e3b24a: the suite in one process 43706 results, 0 failed; on the reference build equivalence 55 of 55, bcf-equivalence 19 of 19 and multinomial-equivalence 11 of 11, all identical draws on the same stream, no re-record; the four arm64 snapshot files 27 results, 0 failed; the exact gates at quick 45 of 45; CI 10 of 10. No x86 leg and no tests/cpp, no C/C++ change.
+
+Draws moved, as planned: a handed-back sd beside `fixed()` under a drawn k (probit, logistic, gaussian given `normal(k = chi())`) leaves k drawn; a weighted binomial fit's test-row draws (extract, fitted) are Binomial(k + f, p). Nothing else moved.
