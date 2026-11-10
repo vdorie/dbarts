@@ -190,8 +190,8 @@ repetition so drift over the run falls on both alike:
 Take the median over the repetitions per (cell, library) and report the
 ratio. Recorded run and numbers: docs/plans/classic-compare.md, "Wall time"
 - 1.7x at n = 1000, 2.6x at n = 10000, 1.7x on four chains and 1.6x on a
-probit fit, on a four-core x86-64 box. Re-time on the x86 leg below rather
-than on the arm64 development machine, and check `/proc/loadavg` first.
+probit fit, on a four-core x86-64 box. Re-time on the x86 box ("The x86 leg"
+below) rather than on the arm64 development machine, and check `/proc/loadavg` first.
 
 ## R/binary-hyperprior.R - the binary k prior study (measurement, not a gate)
 
@@ -503,9 +503,27 @@ build goes to a private library, so the ordinary one is untouched.
 The development machine is arm64 macOS, which masks Linux and x86 bugs:
 a Linux-only build break, a CPUID-misdetected AVX2 kernel and an ABI
 mismatch segfault each surfaced first on an x86 box and nowhere on
-macOS. An engine landing gets an x86 leg alongside the local battery,
-and it is the only place to time bench-sampler on x86 or to exercise a
-new SIMD kernel.
+macOS. That is why the leg was introduced, and an engine landing used to
+take one as a gate: tests/cpp plain and under ASAN, the full tinytest
+suite, the equivalence trio. CI now covers each of those on Linux
+(dec-B769): check-standard builds and tests on four Ubuntu R versions
+(the Linux build break and the ABI mismatch, which are build and link
+failures), sanitizers.yaml runs the whole suite instrumented, the
+cpp-leak job in cpp-tests.yaml runs tests/cpp under ASAN and UBSAN with
+the leak sanitizer, equivalence.yaml runs the z-mode compare on Ubuntu
+and exact-gates.yaml the bcf and multinomial cross-host compares (the
+kernel dispatch, since test-simd.R is bitwise across dispatch levels on
+the runner's CPU). So an engine landing takes the per-push workflows
+dispatched on the branch tip instead; see docs/plans/README.md, Landing.
+
+The box is for what CI cannot give:
+
+- timings (bench-sampler and the like), which need a quiet machine and a
+  known core count;
+- a new SIMD kernel, which has to run on the box's own CPU: the runners
+  all have AVX2, so a kernel for another level is exercised only there;
+- a statistical reading that must be taken on x86, such as a mixing
+  bound read on both machines.
 
 The x86 host itself is local to the development environment and is
 described nowhere in the tree; the pattern below assumes an ssh-reachable
@@ -517,10 +535,11 @@ cores and regress past them.
 Working pattern: ship the source (rsync excluding .git, or `git archive`
 of the exact sha when the local tree is dirty), install with
 `R CMD INSTALL --preclean -l ~/rlib-<tag>` into a private library, set
-`R_LIBS=~/rlib-<tag>` on every R invocation, then run tests/cpp (plain
-and ASAN), the full tinytest suite, and the equivalence trio.
+`R_LIBS=~/rlib-<tag>` on every R invocation, then run the timing, kernel
+tests or reading the visit is for (for a kernel, tests/cpp and the full
+tinytest suite there too).
 
-Expected verdicts there: tinytest FAILURES == 0 (test-simd.R is bitwise
+Expected verdicts when the suite is run there: tinytest FAILURES == 0 (test-simd.R is bitwise
 across dispatch levels 0/2/5/7/8 within that host; gate on failures, not
 the total count, which differs from arm); on the shipped build every
 equivalence scenario reports "max |z|" rather than "identical draws"
