@@ -1518,6 +1518,132 @@ Landed on main on 2026-11-10 (e3d6844a2, 2ec19ef05, f74e9e765, fb1f81970, with 5
 Gates: engine tier, since dec-B712 touches chain.hpp and sampler.hpp; one review, FIX then LAND, every call judged sound; the suite 43549 results, 0 failed (fix round); the equivalence trio identical on the reference build; snapshots 27 results, 0 failed; tests/cpp all passed; stan4bart suite 1867 results, 0 failed, and its check OK; CI 10 of 10 on e90a210f2.
 Record: R/ split.probs reader, the test-data reader, refuseUnsplittableFit, bartBT, setState; src/bartcore/chain.hpp, sampler.hpp; tests/cpp/test_state.cpp; inst/tinytest/test-split-probs-zero.R, test-cut-counts-by-name.R, test-refuse-unsplittable-fit.R, test-setstate-dart-zero.R, test-state-value-floors.R; man/dbartsSampler-class.Rd; inst/NEWS.Rd; stan4bart 6c4bbd9; root TODO, refuse-unsplittable-fit, matrix-fit-frame-test, setstate-dart-zero, split-probs-one-named and stan4bart-constant-bart, removed. Marked: not marked. See also: [dec-B716], [dec-B711], [dec-B717], [dec-B712], [dec-B715], [dec-B547]. [dec-A323]
 
+**bartc's weights.rsp sits right after weights in its formals**
+Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955718, b2ba3f0, adc1055, 0a6c4d6, 20409ca), built under dec-B718 with dec-B696 as one landing. 
+1. The builder's call, not put to the maintainer, with its alternative. weights.rsp, the outcome fit's own weights, follows weights in the formals. The alternative was the end of the formals. The cost is that method.rsp and everything after shift one position, so a call passing method.rsp by position now fails loudly ("'weights.rsp' must be a numeric vector", method.rsp being a string), and `weight = w`, which partially matched weights, is now ambiguous; at the end it would sit far from weights in usage and help. No known caller passes method.rsp by position: the CRAN reverse dependencies read (CRE, evalITR, tidytreatment) name their arguments past the third and do not use weights. The review recommended keeping it.
+Gates: result-changing tier (R only, no engine draw moves); one opus review with about 30 mutants, FIX three times then LAND at round 4, every other call judged sound; bartCause's testthat suite 257 tests, 0 failed; R CMD check --as-cran on a clean tarball of 20409ca against dbarts main, 1 NOTE (the DESCRIPTION Date, a release field); acceptance simulation, 40 surveys, PATE by summary(): weights as given with an unweighted fit, bias -0.076, root mean squared error 0.156, 95% intervals covering 97.5% at width 0.656; weights.rsp = w, covering 92.5% at width 0.546; in the wide case 97.5% for the unweighted fit against 70%. bartCause has no push CI.
+Record: bartCause R/bartc.R formals; man/bartc.Rd; root TODO, bartcause-population-weights and bartcause-weighted-draws, removed. Marked: not marked. See also: [dec-B718], [dec-B696]. [dec-A324]
+
+**The BART-propensity message fires only for p.weight and tmle**
+Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955718, b2ba3f0, adc1055, 0a6c4d6, 20409ca), built under dec-B718 with dec-B696 as one landing. 
+2. The builder's call, not put to the maintainer, with its alternative. Under weights with a BART propensity fit, "fit unweighted by BART, so its scores are the sample's; if sampling depended on treatment, method.trt = "glm" fits it with the weights" is printed only for p.weight and tmle, whose estimators read the scores. The alternative was every weighted call with a BART propensity, as 1.0-10 did. The cost is that a bart fit with p.scoreAsCovariate under weights gets no message; the scores enter only as a covariate.
+Gates of the slice are those of its first entry.
+Record: bartCause R/bartc.R, R/treatmentFit.R; tests/testthat/test-23-population-weights.R. Marked: not marked. See also: [dec-B718]. [dec-A325]
+
+**weights inside args.rsp is refused, naming weights.rsp**
+Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955718, b2ba3f0, adc1055, 0a6c4d6, 20409ca), built under dec-B718 with dec-B696 as one landing. 
+3. The builder's call, not put to the maintainer, with its alternative. The alternative was reading it as weights.rsp. The cost is one more refusal; two doors for one vector would make the precedence a question, and dec-B718 chose weights.rsp as the one spelling.
+Gates of the slice are those of its first entry.
+Record: bartCause R/argParse.R; tests/testthat/test-23-population-weights.R. Marked: not marked. See also: [dec-B718]. [dec-A326]
+
+**The refusal for a continuous response with weights.rsp 0 where the population weight is positive is checked after the response fit**
+Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955718, b2ba3f0, adc1055, 0a6c4d6, 20409ca), built under dec-B718 with dec-B696 as one landing. 
+4. The builder's call, not put to the maintainer, with its alternative. The refusal waits for the fit so that the rows modeled and the missing rows are settled. The alternative was before the fit. The cost is that the user waits for a fit to be told, and dbarts's "rows with 'weights' of 0 are left out" warning comes first. The review found this the one call it would reverse (it also read "row 7 have"); call 22 moves the check ahead where no family is given and keeps this order only with a family given.
+Gates of the slice are those of its first entry.
+Record: bartCause R/responseFit.R; tests/testthat/test-23-population-weights.R. Marked: not marked. See also: [dec-B718], [dec-A344]. [dec-A327]
+
+**The glm propensity fit's "non-integer #successes" warning is muffled**
+Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955718, b2ba3f0, adc1055, 0a6c4d6, 20409ca), built under dec-B718 with dec-B696 as one landing. 
+5. The builder's call, not put to the maintainer, with its alternative. The weights reach the glm rescaled to mean 1, so they are not counts. The alternative was letting the warning through. The cost is none for survey weights; a user who meant counts loses the hint.
+Gates of the slice are those of its first entry.
+Record: bartCause R/treatmentFit.R; tests/testthat/test-23-population-weights.R. Marked: not marked. See also: [dec-B718]. [dec-A328]
+
+**A fit saved by 1.0-10 reads its one weight vector as both the population weights and the response fit's precisions**
+Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955718, b2ba3f0, adc1055, 0a6c4d6, 20409ca), built under dec-B718 with dec-B696 as one landing. 
+6. The builder's call, not put to the maintainer, with its alternative. 1.0-10 fit with the weights as precisions, so dec-B696's noise follows the fit as fit: its intervals now take the dec-B696 term instead of sigma^2 / n. The alternative was reading it as population weights only. The cost is that its intervals change from 1.0-10's, which were too wide; its point estimates match 1.0-10's except the ruled bug fixes. The review ran 1.0-10 fits through the tip.
+Gates of the slice are those of its first entry.
+Record: bartCause R/summary.R, R/generics.R; tests/testthat/test-23-population-weights.R. Marked: not marked. See also: [dec-B718], [dec-B696]. [dec-A329]
+
+**A missing response is drawn from the posterior predictive in sate, ite, y.0 and y.1, and counts twice in the SATE noise term**
+Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955718, b2ba3f0, adc1055, 0a6c4d6, 20409ca), built under dec-B718 with dec-B696 as one landing. 
+7. The builder's call, not put to the maintainer, with its alternative. A row with a missing response has both its observed and counterfactual draws predictive, so the SATE term carries it twice, and extract's sate, ite, y.0 and y.1 draw it. The alternative was dropping missing rows from the SATE. The cost is a SATE over rows with missing responses that is wider, as it should be. In 1.0-10 extract misaligned the response there, recycling with a warning and giving wrong values; NEWS lists it as a bug fix (the review's F7). The first build also put the term in the PATE; the review found it double counted there and the fix round (call 17) moved it.
+Gates of the slice are those of its first entry.
+Record: bartCause R/generics.R, R/summary.R; inst/NEWS.Rd; tests/testthat/test-23-population-weights.R. Marked: not marked. See also: [dec-B718], [dec-B696]. [dec-A330]
+
+**summary's pairing of the response with its rows under missing responses is fixed for unweighted fits too**
+Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955718, b2ba3f0, adc1055, 0a6c4d6, 20409ca), built under dec-B718 with dec-B696 as one landing. 
+8. The builder's call, not put to the maintainer, with its alternative. The pairing was wrong on main even without weights. The alternative was leaving unweighted behavior alone. The cost is that an unweighted SATE under missing responses changes.
+Gates of the slice are those of its first entry.
+Record: bartCause R/summary.R; inst/NEWS.Rd; tests/testthat/test-23-population-weights.R. Marked: not marked. See also: [dec-B718]. [dec-A331]
+
+**An average whose population weights are 0 on every row of a group gives NA for that group, the other groups and the total still reported**
+Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955718, b2ba3f0, adc1055, 0a6c4d6, 20409ca), built under dec-B718 with dec-B696 as one landing. 
+9. The reviewer's recommendation, taken by the orchestrator; not put to the maintainer, with its alternative. The build stopped with an error naming the cause, which failed a whole grouped summary for one all-zero group. As built: within a grouped fit a group whose population weights are 0 on every row it averages gives NA draws in extract and fitted and an NA row (with its n) in summary, and the total combines the other groups by weight share; this holds for every method, so p.weight and tmle give the group NA draws at fit and in refit and summary, extract and fitted agree (the review's F8; before that they gave NaN and a finite value). An estimand whose whole weight is 0 (every group, or an ungrouped att whose treated rows all weigh 0) still stops with "the population weights are 0 on every row the estimate averages over", at fit and in refit (the review's F9; p.weight had fitted a pate and tmle failed obscurely). The alternative was the error as first built. Why: a user who zeroes a group's weights to drop it from the population means that group only, and base R's weighted.mean gives NaN, not an error. The cost is a group that comes out NA with no message at fit. An unweighted group with no rows keeps its earlier NaN.
+Gates of the slice are those of its first entry.
+Record: bartCause R/weights.R, R/generics.R, R/summary.R; tests/testthat/test-23-population-weights.R. Marked: not marked. See also: [dec-B718]. [dec-A332]
+
+**A 0/1 response with weights.rsp other than 0/1 is refused in bartCause's own words**
+Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955718, b2ba3f0, adc1055, 0a6c4d6, 20409ca), built under dec-B718 with dec-B696 as one landing. 
+10. The builder's call, not put to the maintainer, with its alternative. dbarts's advice for such weights, logistic counts, is wrong for survey weights. The alternative was passing it to dbarts. The cost is none.
+Gates of the slice are those of its first entry.
+Record: bartCause R/responseFit.R; tests/testthat/test-23-population-weights.R. Marked: not marked. See also: [dec-B718]. [dec-A333]
+
+**The grouped summary's total row combines group draws by weight share, and the cate total with ci.style quant loads samples.cate**
+Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955718, b2ba3f0, adc1055, 0a6c4d6, 20409ca), built under dec-B718 with dec-B696 as one landing. 
+11. The builder's call, not put to the maintainer; no alternative was sensible. The total had weighted groups by row count; it now follows the population weights. With ci.style quant the cate total failed on main (samples.cate never loaded) and now loads. No cost.
+Gates of the slice are those of its first entry.
+Record: bartCause R/summary.R; tests/testthat/test-23-population-weights.R. Marked: not marked. See also: [dec-B718]. [dec-A334]
+
+**n.eff is Kish over the rows the estimand averages, with the common-support cut applied**
+Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955718, b2ba3f0, adc1055, 0a6c4d6, 20409ca), built under dec-B718 with dec-B696 as one landing. 
+12. The builder's call, not put to the maintainer, with its alternative. For att the rows are the treated. The alternative was over all rows. The cost is that it differs from the whole-sample n_eff a survey user may compute. The review found a mutant over all rows survived the suite and the first fix round pinned att with a cut (45.744 on 62 of 66 treated rows).
+Gates of the slice are those of its first entry.
+Record: bartCause R/summary.R; tests/testthat/test-23-population-weights.R. Marked: not marked. See also: [dec-B718]. [dec-A335]
+
+**Frequency weights that are not whole numbers are not refused**
+Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955718, b2ba3f0, adc1055, 0a6c4d6, 20409ca), built under dec-B718 with dec-B696 as one landing. 
+13. The builder's call, taken as dec-B718 left it, not put to the maintainer, with its alternative. The ruling deferred a refusal of non-whole frequency fit weights. The alternative was refusing. The cost is that a fractional "count" fits as dbarts reads it.
+Gates of the slice are those of its first entry.
+Record: bartCause R/responseFit.R. Marked: not marked. See also: [dec-B718]. [dec-A336]
+
+**The common-support cost is printed by print.summary and stored as summary()$weight.cut, not a message at fit time**
+Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955718, b2ba3f0, adc1055, 0a6c4d6, 20409ca), built under dec-B718 with dec-B696 as one landing. 
+14. The synthesis agent's call, built by the builder, not put to the maintainer, with its alternative. print.summary says "The rows cut carry P% of the population weight; the estimate describes the weighted population that remains", and summary() stores weight.cut over the estimand's rows, beside the n.cut it already prints. The alternative was a message from bartc. The cost is that a user who never prints a summary does not see it.
+Gates of the slice are those of its first entry.
+Record: bartCause R/summary.R; man/summary.Rd; tests/testthat/test-23-population-weights.R. Marked: not marked. See also: [dec-B718]. [dec-A337]
+
+**stan4bart's weights are evaluated in the caller's frame after data, and weights.type is stripped from its call**
+Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955718, b2ba3f0, adc1055, 0a6c4d6, 20409ca), built under dec-B718 with dec-B696 as one landing. 
+15. The builder's call, not put to the maintainer; no alternative, the split between the two kinds of weights needing it. The stan4bart path refuses weights.type = "frequency".
+Gates of the slice are those of its first entry.
+Record: bartCause R/responseFit.R. Marked: not marked. See also: [dec-B718]. [dec-A338]
+
+**The help cites Gelman (2007) and Solon, Haider and Wooldridge (2013)**
+Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955718, b2ba3f0, adc1055, 0a6c4d6, 20409ca), built under dec-B718 with dec-B696 as one landing. 
+16. The builder's call, not put to the maintainer, with its alternative. They are cited for putting the weights' variables among the confounders and for when weighting is called for; the review read both papers (Gelman asks for the selection variables as covariates; Solon et al. is NBER working paper 18859, and the 2015 Journal of Human Resources version could be cited instead, a nit). The alternative was no citations.
+Gates of the slice are those of its first entry.
+Record: bartCause man/bartc.Rd. Marked: not marked. See also: [dec-B718]. [dec-A339]
+
+**The missing-response noise term goes to the SATE only, passed as its own variable beside noise.var**
+Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955718, b2ba3f0, adc1055, 0a6c4d6, 20409ca), built under dec-B718 with dec-B696 as one landing. 
+17. The fix round's call, not put to the maintainer, with its alternative. The review's F1 found the first build adding the term to the PATE too, so an unweighted PATE interval under missing responses moved from 1.0-10's (sd 0.3525 against 0.3290). The term is now passed as missing.noise.var and read by the SATE only; the PATE is 1.0-10's again. The alternative was subtracting it back out in the PATE function. The cost is none. The pins are hand formulas.
+Gates of the slice are those of its first entry.
+Record: bartCause R/summary.R, R/weights.R; tests/testthat/test-23-population-weights.R. Marked: not marked. See also: [dec-B696]. [dec-A340]
+
+**NULL weights, as written or as a variable's value, are dropped from the call once resolved**
+Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955718, b2ba3f0, adc1055, 0a6c4d6, 20409ca), built under dec-B718 with dec-B696 as one landing. 
+18. The fix round's call, not put to the maintainer, with its alternative. This holds for weights and weights.rsp alike; bartc(weights = NULL) errored with "subscript out of bounds" on 1.0-10 and on the base (the review's F4), and NEWS lists the fix. The alternative was dropping only a literal NULL. The cost is none.
+Gates of the slice are those of its first entry.
+Record: bartCause R/weights.R, R/bartc.R; inst/NEWS.Rd; tests/testthat/test-23-population-weights.R. Marked: not marked. See also: [dec-B718]. [dec-A341]
+
+**The Kish formula in both help pages writes the population weights as v_i**
+Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955718, b2ba3f0, adc1055, 0a6c4d6, 20409ca), built under dec-B718 with dec-B696 as one landing. 
+19. The fix round's call, not put to the maintainer, with its alternative. w_i stays the response-model weight; the first help wrote both as w_i in one paragraph. The alternative was renaming the response-model weight. The cost is none. The same round corrected summary.Rd, which called w_i 1 under frequency weights where the code and bartc.Rd use the count.
+Gates of the slice are those of its first entry.
+Record: bartCause man/bartc.Rd, man/summary.Rd. Marked: not marked. See also: [dec-B718]. [dec-A342]
+
+**NEWS says the SATE interval adds a missing-response row's term once more**
+Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955718, b2ba3f0, adc1055, 0a6c4d6, 20409ca), built under dec-B718 with dec-B696 as one landing. 
+20. The fix round's call, not put to the maintainer, with its alternative. A 1.0-10 user's unweighted SATE interval moves under missing responses. The alternative was leaving it to the bug-fix item on pairing. The cost is one clause.
+Gates of the slice are those of its first entry.
+Record: bartCause inst/NEWS.Rd. Marked: not marked. See also: [dec-B696]. [dec-A343]
+
+**The weights.rsp 0 refusal runs before any fit where no family is given**
+Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955718, b2ba3f0, adc1055, 0a6c4d6, 20409ca), built under dec-B718 with dec-B696 as one landing. 
+22. The fix round's call, not put to the maintainer, with its alternative. With no family given the fit is binary exactly when the response is 0/1, so everything the check needs is known first and it reads "row 7 has" (the review's F5); with a family given it stays after the fit, which says whether it is binary. The alternative was decoding dbarts and stan4bart families (a string, a family object, gaussian(sigma = fixed(v))) before the fit. The cost is that a family-given continuous fit still runs before the refusal.
+Gates of the slice are those of its first entry.
+Record: bartCause R/responseFit.R, R/bartc.R; tests/testthat/test-23-population-weights.R. Marked: not marked. See also: [dec-B718], [dec-A327]. [dec-A344]
+
 ## B. Decisions with maintainer evidence
 
 **Missing predictors are modeled, not refused**
