@@ -607,27 +607,91 @@ for (formula in inertModels) {
   })
 }
 
-# --- names in one call are compared after the others apply ---
-case("an sd beside a hold under probit is the forest's own", {
-  live <- make("yb ~ forest(x1) + forest(x2, basis = ~ z)")
+# --- names in one call are compared with the values in force before it ---
+# an sd handed back beside a hold is no change wherever k is drawn, so the
+# forest follows the leaf prior, k drawn, as after fixed() alone; stating the
+# same sd in a second call, or a different one in the call, pins it
+drawnK <- list(
+  probit = list("yb ~ forest(x1) + forest(x2, basis = ~ z)"),
+  logistic = list(
+    "yb ~ forest(x1) + forest(x2, basis = ~ z)",
+    family = "logistic"
+  ),
+  "gaussian, chi()" = list(
+    "y ~ forest(x1) + forest(x2, basis = ~ z)",
+    leaf.prior = normal(k = chi())
+  )
+)
+released <- function(arguments) {
+  live <- do.call(make, arguments)
   live$setForest(1L, amplitude = student(3))
-  sd <- live$getForest(1L)$sd
-  same(is.null(sd), FALSE, "the released forest's sd in force")
+  live
+}
+for (label in names(drawnK)) {
+  arguments <- drawnK[[label]]
+  case(paste("an sd in force beside a hold is no change,", label), {
+    routes <- list(
+      "sd beside fixed()" = function(live) {
+        live$setForest(1L, sd = live$getForest(1L)$sd, amplitude = fixed())
+      },
+      "the reader's list" = function(live) {
+        given <- live$getForest(1L)
+        given$amplitude <- fixed()
+        do.call(live$setForest, c(list(1L), given))
+      }
+    )
+    for (route in names(routes)) {
+      live <- released(arguments)
+      live$run(0L, 4L)
+      same(is.null(live$getForest(1L)$sd), FALSE, route, "an sd in force")
+      routes[[route]](live)
+      twin <- released(arguments)
+      twin$run(0L, 4L)
+      twin$setForest(1L, amplitude = fixed())
+      same(live$model@forests[[1L]]@sd, NA_real_, route, "not stated")
+      same(is.null(live$getForest(1L)$sd), TRUE, route, "the reader's sd")
+      same(recordsOf(live), recordsOf(twin), route, "records")
+      ran <- draws(live)
+      same(any(ran$k != 1), TRUE, route, "k drawn")
+      same(ran, draws(twin), route, "draws")
+    }
+  })
+  case(paste("the same sd in a second call is stated,", label), {
+    live <- released(arguments)
+    sd <- live$getForest(1L)$sd
+    live$setForest(1L, sd = sd, amplitude = fixed())
+    live$setForest(1L, sd = sd)
+    same(live$model@forests[[1L]]@sd, sd, "stated")
+    same(unname(live$getK(1L)), c(1, 1), "k pinned")
+    # creation refuses a leaf prior's k that no forest takes, so the twin
+    # takes the family's leaf prior and the live sampler's records otherwise
+    twin <- do.call(
+      make,
+      c(
+        list(withFirst(arguments[[1L]], ", sd = sd, amplitude = fixed()")),
+        arguments[setdiff(names(arguments), c("", "leaf.prior"))]
+      )
+    )
+    records <- recordsOf(twin)
+    records@leaf.prior <- live$model@leaf.prior
+    records@leaf.hyperprior <- live$model@leaf.hyperprior
+    same(recordsOf(live), records, "records")
+    same(draws(live), draws(twin), "draws")
+  })
+}
+case("a different sd beside a hold under probit is stated", {
+  formula <- drawnK$probit[[1L]]
+  live <- released(drawnK$probit)
+  sd <- 2 * live$getForest(1L)$sd
   live$setForest(1L, sd = sd, amplitude = fixed())
   same(live$model@forests[[1L]]@sd, sd, "stated")
   same(unname(live$getK(1L)), c(1, 1), "k pinned")
-  twin <- dbarts(
-    yb ~ forest(x1, sd = sd, amplitude = fixed()) + forest(x2, basis = ~z),
-    d,
-    n.trees = 24L,
-    control = ctl(),
-    seed = 7L
-  )
+  twin <- make(withFirst(formula, ", sd = sd, amplitude = fixed()"))
   same(recordsOf(live), recordsOf(twin), "records")
   same(draws(live), draws(twin), "draws")
 })
-# under a held k the released forest's sd is the one it has once held again,
-# so the sd is dropped and the forest goes back to the leaf prior
+# under a held k too the sd in force is no change, so the forest goes back to
+# the leaf prior keeping its size
 heldLeafPriors <- list(
   default = list(),
   "k 3" = list(leaf.prior = normal(k = 3)),

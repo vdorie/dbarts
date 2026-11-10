@@ -533,7 +533,7 @@ flat C API, which has no coefficient door; treatSens and bairrtt touch neither. 
 7. `sd` and `amplitude` in one call go to one engine entry, every chain checked for both before either is written. Alternative:
    two entries, `sd` first, with R's checks the only guard between them.
 8. A name is compared with the value in force after the call's other names apply (the coordinator's call). Alternative: before,
-   as today, which drops an `sd` that the new coefficient gives a different meaning.
+   as today, which drops an `sd` that the new coefficient gives a different meaning. Revised by dec-B714, which takes before.
 9. `$setModel` refuses every forest-record field it drops: the coefficient naming `$setForest`, the tree count as structure, the
    one candidate's share left unread as forest-door's call 18 left it. Built here, though setmodel-parameters' scope.
    Alternative: the coefficient alone, the tree count left to a TODO item.
@@ -558,7 +558,8 @@ The blind critique (scratch/cpl-crit/report.md) found the design sound and asked
 2. The last left of a group is released at its part in force, written as its `sd` (Calls made 6), in place of the refusal; "creation
    cannot reach this state" was wrong: creation takes the statement and would re-divide.
 3. `$setModel` refuses every field `keepModelRecords` drops (c2.R, c2b.R, p11.R).
-4. Names are compared after the call's other names apply, with the probit pin and a slice-2 call pinned unchanged.
+4. Names are compared after the call's other names apply, with the probit pin and a slice-2 call pinned unchanged. Revised by
+   dec-B714: each name is compared with the value in force before the call.
 5. The statement is written on `MapForest` before a route resolves; a mutant and the later-writes pins.
 6. The fifth forest-prior-exact arm moves to probit-k-scale-exact.R; tests/cpp checks the rescaling step after the routes.
 7. A state stored while released, installed after a hold-again: said in [Copy, reload and state](#copy-reload-and-state). The

@@ -229,9 +229,10 @@ varianceForestInForce <- function(sampler) {
 
 ## The names of `given`, a door's arguments with those NULL gone, each validated
 ## as creation validates it, and with those equal to the value in force dropped
-## too; a name with no value in force is not equal to one. treeShift's validated
-## value is the slot's tri-state, which forest() takes in words.
-changedForestSettings <- function(given, inForce, label, sdUnder = NULL) {
+## too; a name with no value in force is not equal to one. Each is compared with
+## the value in force before the call, whatever else the call changes. treeShift's
+## validated value is the slot's tri-state, which forest() takes in words.
+changedForestSettings <- function(given, inForce, label) {
   given <- given[!vapply(given, is.null, NA)]
   if (length(given) == 0L) {
     return(given)
@@ -247,11 +248,6 @@ changedForestSettings <- function(given, inForce, label, sdUnder = NULL) {
     function(name) {
       value <- given[[name]]
       current <- inForce[[name]]
-      # an sd is compared with the one the forest has once its new
-      # coefficient applies
-      if (identical(name, "sd") && amplitudeChanges && !is.null(sdUnder)) {
-        current <- sdUnder(given$amplitude)
-      }
       switch(
         name,
         amplitude = amplitudeChanges,
@@ -262,24 +258,6 @@ changedForestSettings <- function(given, inForce, label, sdUnder = NULL) {
     NA
   )
   given[changed]
-}
-
-## The sd forest `index` has in force under the coefficient `amplitude`, as
-## validateForestAmplitude returns it, where that differs from `inForce`'s: a
-## forest with no basis stating a coefficient's df and no sd, held, goes back to
-## the fitting function's leaf prior, which gives no one sd where it draws k.
-## Every other forest keeps the size it has.
-sdUnderCoefficient <- function(sampler, index, inForce, amplitude) {
-  record <- sampler$model@forests[[index]]
-  rejoins <- identical(amplitude, "fixed") &&
-    is.null(sampler$data@bases[[index]]) &&
-    is.na(record@sd) &&
-    !is.na(record@amplitude.df)
-  if (rejoins && is(sampler$model@leaf.hyperprior, "dbartsChiHyperprior")) {
-    NULL
-  } else {
-    inForce$sd
-  }
 }
 
 ## Whether two coefficient priors, each as validateForestAmplitude returns it,
@@ -588,12 +566,7 @@ writeForestDoor <- function(sampler, forest, given, supplied, updateState) {
     given$amplitude <- NULL
   }
   inForce <- forestInForce(sampler, index, ptr)
-  changed <- changedForestSettings(
-    given,
-    inForce,
-    label,
-    function(amplitude) sdUnderCoefficient(sampler, index, inForce, amplitude)
-  )
+  changed <- changedForestSettings(given, inForce, label)
   if (length(changed) == 0L) {
     if (resolveUpdateState(updateState, sampler$control)) {
       sampler$storeState(ptr)

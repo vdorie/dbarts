@@ -297,13 +297,6 @@ items
     new() keep taking it, and a fit with a basis forest stays fitted
     (dec-B717). About 5 to 10 lines and a test; a 0.9-34 matrix call
     that fit silently now stops.
-  setforest-roundtrip-sd: a setting given back to $setForest is
-    compared with the value in force before the call, so a handed-back
-    sd is no change on every model, whatever else the call changes;
-    to pin an sd, state a different one or the same in a second call.
-    This extends dec-B538 to a call that changes other settings too
-    (dec-B714). About 5 lines, pins rewritten and a help sentence;
-    draws move only for the handed-back call under a drawn k.
   setmodel-probit-stated-sd: a probit sampler of several forests whose
     candidate states an sd at creation refuses its own model ("does not
     resolve to the leaf hyperprior"), against the help's "always

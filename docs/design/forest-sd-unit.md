@@ -32,7 +32,8 @@ The units are those of y under a gaussian response and those of the latent index
    where one was stated, and `forest()` where none was); `sd`, the number in force in the response's units,
    which is v bit for bit or the default's multiple times the unit; and `sd.stated`. With no forest it returns
    those lists named by the forests' labels.
-6. Write. `$setForest(f, sd = v)`, v not the number in force, which changes nothing, states v: the forest is a stated one from then on
+6. Write. `$setForest(f, sd = v)`, v not the number in force before the call, which changes nothing whatever else the call
+   changes, states v: the forest is a stated one from then on
    ([`Chain::setForestMapSd`](../../src/bartcore/chain.hpp)).
 7. `extract(type = "leaf.prior.sd")` on a fit of several forests returns the reader's `sd` entries as a list
    named by label, and the entry itself where one forest is selected.
