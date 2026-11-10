@@ -5,10 +5,12 @@
 # surfaces breakage before the next lockstep release rather than at the full
 # manual revdep sweep.
 #
-# Sources come from each repo's default branch, not CRAN: the CRAN releases
+# Sources come from each repo's git branch, not CRAN: the CRAN releases
 # predate the bartcore rework and cannot pair with the dev dbarts installed
-# from this checkout. Branches: stan4bart main, bartCause main, treatSens
-# master.
+# from this checkout. The schedule and a push use the default branches:
+# stan4bart main, bartCause main, treatSens master. A manual dispatch may name
+# another branch of each, to run a consumer's patch against this checkout
+# before the patch reaches the consumer's main.
 #
 # stan4bart's build against dbarts.h takes tens of minutes, hence the
 # generous timeout and monthly (not per-push) cadence.
@@ -21,6 +23,19 @@ on:
   schedule:
     - cron: '0 8 1 * *'
   workflow_dispatch:
+    inputs:
+      stan4bart_branch:
+        description: 'stan4bart branch to check'
+        required: false
+        default: 'main'
+      bartCause_branch:
+        description: 'bartCause branch to check'
+        required: false
+        default: 'main'
+      treatSens_branch:
+        description: 'treatSens branch to check'
+        required: false
+        default: 'master'
   push:
     branches: [main]
     paths:
@@ -43,11 +58,11 @@ jobs:
         package: [stan4bart, bartCause, treatSens]
         include:
           - package: stan4bart
-            branch: main
+            branch: ${{ inputs.stan4bart_branch || 'main' }}
           - package: bartCause
-            branch: main
+            branch: ${{ inputs.bartCause_branch || 'main' }}
           - package: treatSens
-            branch: master
+            branch: ${{ inputs.treatSens_branch || 'master' }}
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -83,9 +98,11 @@ jobs:
       - name: Install dev dbarts from this checkout
         run: R CMD INSTALL .
 
-      - name: Fetch ${{ matrix.package }} from its default branch
+      - name: Fetch ${{ matrix.package }} (branch ${{ matrix.branch }})
+        env:
+          BRANCH: ${{ matrix.branch }}
         run: |
-          git clone --depth 1 --branch "${{ matrix.branch }}" \
+          git clone --depth 1 --branch "$BRANCH" \
             "https://github.com/vdorie/${{ matrix.package }}.git" "${{ matrix.package }}"
 
       # hard dependencies only: suggested packages are skipped by the check
