@@ -742,10 +742,21 @@ expect_error(
 # power/leaf.prior are live on BOTH hurdle components, unlike the
 # resid.prior/sigest quartet (positive half only): a differing power
 # changes both components' draws relative to the default (a cheap liveness
-# check, not a value-level assertion)
-hurdleDefaultTree <- fit2(y.hurdle, family = "hurdle.lognormal", seed = 55L)
-hurdleOtherTree <- fit2(
-  y.hurdle,
+# check, not a value-level assertion). The two fits share a seed, so each
+# component's chains part only at the first birth or death whose uniform falls
+# between the acceptance probabilities the two priors give it. Over the quick
+# settings' 7 sweeps of 3 trees the zero part stays together for about one
+# seed in 15; over 52 sweeps, for under one in a billion, so these fits keep
+# 50 samples and the check does not hang on the seed or on what else the
+# sampler draws.
+fitHurdleLonger <- function(...) {
+  do.call(
+    dbarts::bart,
+    c(list(x, y.hurdle), modifyList(quick, list(n.samples = 50L)), list(...))
+  )
+}
+hurdleDefaultTree <- fitHurdleLonger(family = "hurdle.lognormal", seed = 55L)
+hurdleOtherTree <- fitHurdleLonger(
   family = "hurdle.lognormal",
   power = 4,
   seed = 55L
