@@ -320,11 +320,14 @@ xbart(
   function that makes one. Each name gives the residual standard
   deviation of the linear regression of the response on the predictors,
   factors entering as indicator columns whatever the trees are given,
-  and the standard deviation of the response over the observations of
-  positive weight where that regression leaves no residual degrees of
-  freedom, which a line under `verbose` says, with no warning. `"auto"`
-  is `lm`'s own routine (`"dense"`) for a matrix or a data frame and an
-  exact sparse one (`"sparse"`) where the caller supplied a
+  and, where that regression leaves no residual degrees of freedom, the
+  standard deviation of the response over the observations of positive
+  weight, weighted as the regression is
+  (`summary(lm(y ~ 1, weights = weights))$sigma`, `sd(y)` at unit
+  weights; for weights read as counts, the standard deviation of the
+  rows written out), which a line under `verbose` says, with no warning.
+  `"auto"` is `lm`'s own routine (`"dense"`) for a matrix or a data
+  frame and an exact sparse one (`"sparse"`) where the caller supplied a
   sparse-stored column. `NULL` (the default) is `"auto"`; an explicit
   `NA` is a missing value and is refused. The estimate is made
   separately for each fold on that fold's training rows, so no fold's

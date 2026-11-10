@@ -114,7 +114,8 @@ The constructor is not exported: it resolves by bare name inside the
     <code><a href="dbartsControl.html">dbartsControl</a></code> describes each. Each one stated here governs
     the variance forest and each one left out takes the control's:
     <code>$setControl</code> changes it only where none is stated here, and one
-    stated here is fixed for the sampler's life. A stated
+    stated here is changed by <code>$setVarianceForest</code>, not by
+    <code>$setControl</code>. A stated
     <code>proposal.probs</code> is a whole mixture, filled against the package
     defaults as <code><a href="dbartsControl.html">dbartsControl()</a></code>'s is, and a positive
     <code>"rule_gibbs"</code> share is refused: that move does nothing on the

@@ -367,10 +367,14 @@ dbarts(
   scaled-inverse-chi-squared (multiplicative) leaves, so \\y_i =
   f(x_i) + s(x_i)\epsilon_i\\, coupled to the mean forest through the
   per-observation precision. `variance` is either the plain selector
-  naming which predictors drive the variance - a one-sided formula or
-  character/integer column selector (`~ x1 + x2`), `TRUE` for every
-  predictor, or `NULL` (the default) for the ordinary homoscedastic
-  fit - or a
+  naming which predictors drive the variance - a character or integer
+  column selector, `TRUE` for every predictor, a one-sided formula
+  (`~ x1 + x2`) read exactly as
+  [`varianceForest()`](https://vdorie.github.io/dbarts/reference/varianceForest.md)
+  reads its first argument (terms matched to the fit's predictors, the
+  dot and transformed terms taken, `*`, `:` and
+  [`I()`](https://rdrr.io/r/base/AsIs.html) terms refused), or `NULL`
+  (the default) for the ordinary homoscedastic fit - or a
   [`varianceForest`](https://vdorie.github.io/dbarts/reference/varianceForest.md)
   object, which additionally sets the variance forest's own tree count
   (default `40`) and tree-structure prior (default the mean forest's
@@ -550,10 +554,13 @@ dbarts(
   the linear regression of the response on the predictors and on each
   forest's basis (a factor's as the indicator of its second level),
   factors entering as indicator columns whatever the trees are given,
-  and the standard deviation of the response over the observations of
-  positive weight where that regression leaves no residual degrees of
-  freedom, which a line under `verbose` says, with no warning (the
-  `summary` of a
+  and, where that regression leaves no residual degrees of freedom, the
+  standard deviation of the response over the observations of positive
+  weight, weighted as the regression is
+  (`summary(lm(y ~ 1, weights = weights))$sigma`, `sd(y)` at unit
+  weights; for weights read as counts, the standard deviation of the
+  rows written out), which a line under `verbose` says, with no warning
+  (the `summary` of a
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) fit says
   it too). `"auto"` is `lm`'s own routine (`"dense"`) for a matrix or a
   data frame and an exact sparse one (`"sparse"`) where the caller
@@ -768,11 +775,15 @@ dbarts(
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) refuses
   it: a number names no category), which is one-hot expanded to exactly
   that matrix with every trial 1. Column names on the matrix, or the
-  levels of a factor, label the categories. Under `family = "auto"` a
-  matrix of three or more columns of non-negative whole numbers is read
-  as this model, but a three-or-more-level factor is not - it is an
-  error directing here, since an unordered categorical response is
-  equally a candidate for several models. The response rides
+  levels of a factor, label the categories. A data frame of numeric
+  columns is read as its matrix, and a one-column character matrix as
+  its vector of labels; a wider character matrix, or a data frame with a
+  column that is not numeric, is refused, as \code\linkbart refuses it.
+  Under `family = "auto"` a matrix of three or more columns of
+  non-negative whole numbers is read as this model, but a
+  three-or-more-level factor is not - it is an error directing here,
+  since an unordered categorical response is equally a candidate for
+  several models. The response rides
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)'s
   `counts` argument, and `data@y` is the derived trials vector; the
   per-category shift is an \\n \times K\\ matrix `offset` (entering the

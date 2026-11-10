@@ -403,7 +403,10 @@ nobs(object, ...)
   whose weights were a vector, draw as with no `weights`: at weight 1, a
   binomial fit at the trials its response columns give where `newdata`
   carry them. The column is checked by the fit's rule, as a test
-  sample's weights are, and must be numeric.
+  sample's weights are, and must be numeric. A test frame's weights
+  column holding a missing value is refused at fit time, naming the rows
+  and saying to fill them, drop them from \codetest, or give
+  \codepredict the rows with \codena.action = na.pass.
 
 - offset:
 
@@ -560,14 +563,17 @@ nobs(object, ...)
   and failures (add `family = binomial`), per-category counts (add
   `family = "multinomial"`) and a (time, status) pair (use a `Surv`
   response or `family = "aft"`/`"hazard"`), and so is an n x K matrix
-  with negative or fractional entries. `"gaussian"`, `"probit"`, and
-  `"logistic"` force those fits directly; `"aft"`, `"hazard"`,
-  `"hazard.probit"` (an accepted alias for `"hazard"`),
-  `"hazard.logistic"`, `"multinomial"`, `"ordinal"`, `"nbinom"`, and
-  `"hurdle.lognormal"` reach the extended families described below. A
-  `"probit"` or `"logistic"` response that holds one class is fitted,
-  with one warning saying so; the prior alone then drives the fitted
-  probabilities toward 0 or 1.
+  with negative or fractional entries. A multinomial response is read
+  alike here and in \code\linkdbarts: a data frame of numeric columns is
+  its matrix of counts, and a one-column character matrix its vector of
+  labels; a wider character matrix, or a data frame with a column that
+  is not numeric, is refused. `"gaussian"`, `"probit"`, and `"logistic"`
+  force those fits directly; `"aft"`, `"hazard"`, `"hazard.probit"` (an
+  accepted alias for `"hazard"`), `"hazard.logistic"`, `"multinomial"`,
+  `"ordinal"`, `"nbinom"`, and `"hurdle.lognormal"` reach the extended
+  families described below. A `"probit"` or `"logistic"` response that
+  holds one class is fitted, with one warning saying so; the prior alone
+  then drives the fitted probabilities toward 0 or 1.
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) takes
   no `family` argument at all: every fit it makes is the default
   gaussian/probit pair. Base R family objects map as
@@ -1023,17 +1029,20 @@ nobs(object, ...)
   each gives the residual standard deviation of the linear regression of
   the response on the predictors and on each forest's basis (a factor's
   as the indicator of its second level), factors entering as indicator
-  columns whatever the trees are given, and the standard deviation of
-  the response over the observations of positive weight where that
-  regression leaves no residual degrees of freedom, which a line under
-  `verbose` and one in the fit's `summary` say, with no warning. (Where
-  rows are out and the observations of positive weight hold fewer than
-  two distinct values of the response, the regression is made on every
-  row instead, under the warning of class `dbartsScaleFallbackWarning`.)
-  `"auto"` is `lm`'s own routine (`"dense"`) for a matrix or a data
-  frame and an exact sparse one (`"sparse"`) where the caller supplied a
-  sparse-stored column. `NULL` (the default) is `"auto"`; an explicit
-  `NA` reads as `NULL` for one release, with a once-per-session warning.
+  columns whatever the trees are given, and, where that regression
+  leaves no residual degrees of freedom, the standard deviation of the
+  response over the observations of positive weight, weighted as the
+  regression is (`summary(lm(y ~ 1, weights = weights))$sigma`, `sd(y)`
+  at unit weights; for weights read as counts, the standard deviation of
+  the rows written out), which a line under `verbose` and one in the
+  fit's `summary` say, with no warning. (Where rows are out and the
+  observations of positive weight hold fewer than two distinct values of
+  the response, the regression is made on every row instead, under the
+  warning of class `dbartsScaleFallbackWarning`.) `"auto"` is `lm`'s own
+  routine (`"dense"`) for a matrix or a data frame and an exact sparse
+  one (`"sparse"`) where the caller supplied a sparse-stored column.
+  `NULL` (the default) is `"auto"`; an explicit `NA` reads as `NULL` for
+  one release, with a once-per-session warning.
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) says
   what the two routines cost, where they differ, and what to pass in
   place of an expensive estimate, which cannot be interrupted once
@@ -1197,9 +1206,14 @@ nobs(object, ...)
   Declares a second forest modeling the residual variance surface
   \\s^2(x)\\ as a product of scaled-inverse-chi-squared leaves, coupled
   to the mean forest through the per-observation precision. Either the
-  plain selector naming which predictors drive the variance - a
-  one-sided formula or column selector (`~ x1 + x2`), `TRUE` for every
-  predictor, or `NULL` (the default) for a homoscedastic fit - or a
+  plain selector naming which predictors drive the variance - a column
+  selector, `TRUE` for every predictor, a one-sided formula
+  (`~ x1 + x2`) read exactly as
+  [`varianceForest()`](https://vdorie.github.io/dbarts/reference/varianceForest.md)
+  reads its first argument (terms matched to the fit's predictors, the
+  dot and transformed terms taken, `*`, `:` and
+  [`I()`](https://rdrr.io/r/base/AsIs.html) terms refused), or `NULL`
+  (the default) for a homoscedastic fit - or a
   [`varianceForest`](https://vdorie.github.io/dbarts/reference/varianceForest.md)`(vars = , n.trees = , base = , power = )`
   object, which additionally sets the variance forest's own tree count
   and tree-structure prior (defaulting to `40` trees and the mean
@@ -2490,7 +2504,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001725
+#> total seconds in loop: 0.001360
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 3 3 2 2 2 2 2 3 2 2 2 3 3 2 
@@ -2527,7 +2541,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000894
+#> total seconds in loop: 0.000745
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 2 1 2 1 1 2 2 1 1 1 2 2 2 2 
@@ -2562,7 +2576,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001326
+#> total seconds in loop: 0.001095
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 3 2 4 2 2 3 2 2 2 2 3 3 2 
@@ -2616,7 +2630,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.002057
+#> total seconds in loop: 0.001601
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 2 2 2 2 2 2 3 3 2 

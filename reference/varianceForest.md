@@ -61,9 +61,9 @@ varianceForest(
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
   describes each. Each one stated here governs the variance forest and
   each one left out takes the control's: `$setControl` changes it only
-  where none is stated here, and one stated here is fixed for the
-  sampler's life. A stated `proposal.probs` is a whole mixture, filled
-  against the package defaults as
+  where none is stated here, and one stated here is changed by
+  `$setVarianceForest`, not by `$setControl`. A stated `proposal.probs`
+  is a whole mixture, filled against the package defaults as
   [`dbartsControl()`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
   is, and a positive `"rule_gibbs"` share is refused: that move does
   nothing on the variance forest's leaves. `n =` and `p =` each
