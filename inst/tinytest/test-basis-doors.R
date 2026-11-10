@@ -295,6 +295,11 @@ byValue <- predict(termFit, newRows, bases = newRows$dose)
 expect_identical(predict(termFit, newRows, bases = "dose"), byValue)
 expect_identical(predict(termFit, newRows, bases = list(NULL, nm)), byValue)
 expect_identical(predict(termFit, newRows), byValue)
+# newdata as a list, whose rows carry no names
+expect_identical(
+  predict(termFit, as.list(newRows), bases = list(NULL, "dose")),
+  unname(byValue)
+)
 stringTerm <- bart(
   y ~ x1 + forest(x2, basis = "dose"),
   d,
@@ -348,6 +353,33 @@ for (object in list(
   expect_identical(refusal(fitDraws(object, forests = cutValue)), cutText)
   expect_identical(refusal(specDraws(object, forests = cutValue)), cutText)
 }
+
+# under the na.action alone the text names it, at an object and at a term
+withHole <- d
+withHole$x1[c(3L, 11L)] <- NA
+heldDose <- d$dose[-c(3L, 11L)]
+holeText <- paste0(
+  "forest 2's 'basis' has 58 rows, matching the rows the na.action kept ",
+  "(58) but not the full data (60 rows); a 'basis' must cover the full data ",
+  "and is subset with it"
+)
+for (object in list(
+  dbartsData(y ~ x1 + x2, withHole, na.action = na.omit),
+  dbartsData(y ~ x1 + x2, withHole, na.action = na.omit, keep.data = FALSE)
+)) {
+  expect_identical(
+    refusal(fitDraws(
+      object,
+      forests = list(forest(), do.call(forest, list(basis = heldDose)))
+    )),
+    holeText
+  )
+}
+inlined <- eval(bquote(y ~ x1 + forest(x2, basis = .(heldDose))))
+expect_identical(
+  refusal(fitDraws(inlined, withHole, na.action = na.omit)),
+  holeText
+)
 
 # a formula's forest() term is cut with the rows as a list's basis is
 expect_identical(
@@ -444,6 +476,81 @@ expect_identical(
   )
 )
 
+# the forest() term reads it as the list does, whole and under 'subset'
+expect_identical(
+  fitDraws(
+    Surv(time, status) ~ forest(x1 + x2) + forest(x1 + x2, basis = dose),
+    h,
+    family = "hazard"
+  ),
+  hazardFit
+)
+later <- 11:60
+hazardLater <- fitDraws(
+  Surv(time, status) ~ x1 + x2,
+  h,
+  subset = later,
+  family = "hazard",
+  forests = list(forest(), forest(basis = dose))
+)
+expect_identical(
+  fitDraws(
+    Surv(time, status) ~ forest(x1 + x2) + forest(x1 + x2, basis = dose),
+    h,
+    subset = later,
+    family = "hazard"
+  ),
+  hazardLater
+)
+# the matrix interface and a data object map periods to the subjects kept
+expect_identical(
+  fitDraws(
+    as.matrix(h[c("x1", "x2")]),
+    Surv(h$time, h$status),
+    subset = later,
+    family = "hazard",
+    forests = list(forest(), do.call(forest, list(basis = h$dose)))
+  ),
+  hazardLater
+)
+expect_identical(
+  fitDraws(
+    dbartsData(Surv(time, status) ~ x1 + x2, h),
+    family = "hazard",
+    forests = list(forest(), forest(basis = dose))
+  ),
+  hazardFit
+)
+expect_identical(
+  fitDraws(
+    dbartsData(Surv(time, status) ~ x1 + x2, h, subset = later),
+    family = "hazard",
+    forests = list(forest(), forest(basis = dose))
+  ),
+  hazardLater
+)
+# a basis on a column a data object holds, over the subjects it kept
+expect_false(exists("x2"))
+expect_identical(
+  fitDraws(
+    dbartsData(
+      Surv(time, status) ~ x1 + x2,
+      h,
+      subset = later,
+      keep.data = FALSE
+    ),
+    family = "hazard",
+    forests = list(forest(), forest(basis = x2))
+  ),
+  fitDraws(
+    Surv(time, status) ~ x1 + x2,
+    h,
+    subset = later,
+    family = "hazard",
+    forests = list(forest(), forest(basis = x2))
+  )
+)
+
 # ---- dec-B681: a declaring list beside a data object ----
 declaring <- list(forest(), forest(basis = factor(z)))
 byDeclared <- fitDraws(y ~ x1 + x2, d, forests = declaring)
@@ -488,20 +595,130 @@ expect_identical(
   )
 )
 
+# the response is a column such an object holds
+y <- rev(d$y)
+expect_identical(
+  fitDraws(s1$data, forests = list(forest(), forest(basis = y))),
+  fitDraws(
+    y ~ x1 + x2,
+    d,
+    forests = list(forest(), do.call(forest, list(basis = d$y)))
+  )
+)
+rm(y)
+# beside a held column a caller's variable is read over the rows held
+sFirst <- dbarts(y ~ x1 + x2, d, subset = keep, n.trees = 5L, control = ctl)
+mix <- runif(n)
+warned <- NULL
+mixed <- withCallingHandlers(
+  refusal(dbarts(
+    sFirst$data,
+    forests = list(forest(), forest(basis = I(x2 * mix))),
+    control = ctl
+  )),
+  warning = function(w) {
+    warned <<- conditionMessage(w)
+    invokeRestart("muffleWarning")
+  }
+)
+expect_identical(
+  mixed,
+  paste0(
+    "'basis' (I(x2 * mix)) has 60 rows where these data hold 40: 'x2' is ",
+    "read from the 40 rows they hold, and a variable of the caller's beside ",
+    "it is read over those rows too"
+  )
+)
+expect_null(warned)
+heldMix <- mix[keep]
+expect_identical(
+  fitDraws(
+    sFirst$data,
+    forests = list(forest(), forest(basis = I(x2 * heldMix)))
+  ),
+  fitDraws(
+    y ~ x1 + x2,
+    d,
+    subset = keep,
+    forests = list(forest(), do.call(forest, list(basis = d$x2 * mix)))
+  )
+)
+
+# ---- a list as data is counted by the response (its first element need
+# not be a column) ----
+asList <- c(list(k = 2), as.list(d))
+expect_identical(
+  fitDraws(
+    y ~ x1 + x2,
+    asList,
+    forests = list(forest(), forest(basis = dose))
+  ),
+  byFormula
+)
+expect_identical(
+  fitDraws(y ~ x1 + forest(x2, basis = dose), asList),
+  fitDraws(y ~ x1 + forest(x2, basis = dose), d)
+)
+expect_identical(
+  fitDraws(y ~ x1 + x2, asList, forests = fullValue),
+  fitDraws(y ~ x1 + x2, d, forests = fullValue)
+)
+listObject <- dbartsData(y ~ x1 + x2, asList, subset = keep)
+expect_identical(listObject@rows.total, 60L)
+expect_identical(
+  fitDraws(
+    dbartsData(y ~ x1 + x2, asList),
+    forests = list(forest(), forest(basis = dose))
+  ),
+  byFormula
+)
+expect_identical(
+  fitDraws(listObject, forests = list(forest(), forest(basis = dose))),
+  fitDraws(
+    y ~ x1 + x2,
+    d,
+    subset = keep,
+    forests = list(forest(), forest(basis = dose))
+  )
+)
+
 # ---- 'bases' is no argument of dbartsData() ----
 expect_error(
   dbartsData(y ~ x1, d, bases = list(NULL, d$dose)),
   "unused argument"
 )
 
-# ---- guard: a formula with no data reads where forest() was called ----
-y <- d$y
-x1 <- d$x1
-other <- d$dose
+# ---- guard: beside an object built from a formula with no data a name is
+# read where forest() was called ----
+madeFormula <- function() {
+  y <- d$y
+  x1 <- d$x1
+  w <- d$dose
+  y ~ x1 + w
+}
+w <- rev(d$dose)
+byCallerW <- fitDraws(
+  madeFormula(),
+  forests = list(forest(), forest(basis = w))
+)
+expect_identical(
+  fitDraws(
+    dbartsData(madeFormula()),
+    forests = list(forest(), forest(basis = w))
+  ),
+  byCallerW
+)
 expect_identical(
   specDraws(
-    dbartsData(y ~ x1),
-    forests = list(forest(), forest(basis = other))
+    dbartsData(madeFormula()),
+    forests = list(forest(), forest(basis = w))
   ),
-  fitDraws(y ~ x1, forests = list(forest(), forest(basis = other)))
+  byCallerW
 )
+expect_false(identical(
+  byCallerW,
+  fitDraws(
+    madeFormula(),
+    forests = list(forest(), do.call(forest, list(basis = d$dose)))
+  )
+))

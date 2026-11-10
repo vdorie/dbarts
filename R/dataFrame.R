@@ -71,15 +71,25 @@ frameNumRows <- function(data) {
   if (is.data.frame(data)) nrow(data) else NROW(data[[1L]])
 }
 
-## The number of rows a formula fit was handed: a data frame's or a list's,
-## and otherwise the length of the response, read where the formula reads it;
-## NA where that cannot be read. `data` is NULL where none was given.
+## The number of rows a formula fit was handed: a data frame's, and otherwise
+## the length of the response, read where the formula reads it, or of the first
+## variable a one-sided formula names (a list's first element need not be a
+## column); NA where that cannot be read. `data` is NULL where none was given.
 formulaRowsTotal <- function(formula, data) {
-  if (is.data.frame(data) || (is.list(data) && !is.environment(data))) {
-    return(frameNumRows(data))
+  if (is.data.frame(data)) {
+    return(nrow(data))
+  }
+  read <- if (length(formula) == 3L) {
+    formula[[2L]]
+  } else {
+    vars <- setdiff(all.vars(formula), ".")
+    if (length(vars) == 0L) {
+      return(NA_integer_)
+    }
+    as.name(vars[1L])
   }
   tryCatch(
-    NROW(eval(formula[[2L]], data, environment(formula))),
+    NROW(eval(read, data, environment(formula))),
     error = function(e) NA_integer_
   )
 }

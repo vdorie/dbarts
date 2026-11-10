@@ -637,8 +637,16 @@ refuseSingleBasisValue <- function(value, holder = NULL) {
 ## name, and then against what the call bound, nothing being looked up again;
 ## code that names no column is the value taken at the call, whose warnings
 ## are raised here, the value being used. `data` is NULL where the fit was
-## given no data frame, list or environment.
-readForestBasis <- function(basis, data, numRows, followString = TRUE) {
+## given no data frame, list or environment. `held` names the columns of a
+## data object's own rows that `data` holds, beside which the caller's
+## variables are read over those rows too.
+readForestBasis <- function(
+  basis,
+  data,
+  numRows,
+  followString = TRUE,
+  held = NULL
+) {
   if (is.null(basis)) {
     return(NULL)
   }
@@ -794,13 +802,36 @@ readForestBasis <- function(basis, data, numRows, followString = TRUE) {
     } else {
       code$heldName
     }
-    return(readForestBasis(nameCode, data, numRows, followString = FALSE))
+    return(readForestBasis(
+      nameCode,
+      data,
+      numRows,
+      followString = FALSE,
+      held = held
+    ))
   }
   if (nrow(frame) != numRows) {
     if (
       length(frame) == 1L && nrow(frame) == 1L && is.null(hiding(atColumns))
     ) {
       refuseSingleBasisValue(frame[[1L]], code$label)
+    }
+    if (length(held) > 0L) {
+      stop(
+        "'basis' (",
+        code$label,
+        ") has ",
+        nrow(frame),
+        " rows where these data hold ",
+        numRows,
+        ": '",
+        held[[1L]],
+        "' is read from the ",
+        numRows,
+        " rows they hold, and a variable of the caller's beside it is read ",
+        "over those rows too",
+        call. = FALSE
+      )
     }
     stop(
       "'basis' (",
@@ -1661,7 +1692,13 @@ matrixBasisSource <- function(x, forests) {
 
 objectBasisSource <- function(object, forests) {
   if (dataKeepsFrame(object)) {
-    total <- frameNumRows(object@frame)
+    # counted as the build counted them: a list's first element need not be
+    # a column
+    total <- if (is.null(object@rows)) {
+      formulaRowsTotal(object@build$formula, object@frame)
+    } else {
+      dataRowsTotal(object)
+    }
     return(list(
       data = object@frame,
       total = total,
@@ -1679,8 +1716,8 @@ objectBasisSource <- function(object, forests) {
     environment = isTRUE(attr(object, "frame.environment", exact = TRUE)),
     subset = rowsBySubset(object, total)
   )
-  # a formula given no data reads its names where it was written, as
-  # model.frame() does
+  # beside an object built from a formula with no data, a name is read where
+  # forest() was called, as beside that formula
   if (!is.null(object@frame.columns) || is.null(attr(object@x, "terms"))) {
     source$held <- heldDataColumns(object, declaredBasisNames(forests))
   }
@@ -1811,7 +1848,24 @@ readFitBasis <- function(basis, source) {
       }
     }
     if (any(names %in% names(source$held))) {
-      read <- readForestBasis(basis, source$held, source$heldRows)
+      # a caller's variable of another length recycles against the held
+      # columns; the refusal says why, so R's warning waits on the read
+      deferred <- list()
+      read <- withCallingHandlers(
+        readForestBasis(
+          basis,
+          source$held,
+          source$heldRows,
+          held = intersect(names, names(source$held))
+        ),
+        warning = function(w) {
+          deferred[[length(deferred) + 1L]] <<- w
+          invokeRestart("muffleWarning")
+        }
+      )
+      for (w in deferred) {
+        warning(w)
+      }
       if (!is.null(read)) {
         read$onHeldRows <- TRUE
       }

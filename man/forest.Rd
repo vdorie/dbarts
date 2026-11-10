@@ -415,8 +415,9 @@ forest(
     with that basis reads the held columns, while \code{forest(basis = z)}
     there is refused, naming the written form. A name of the data such an
     object was built from that it does not hold is refused, naming the data
-    object built with its frame. A formula object built with no data reads
-    where its formula was written. Beside any data, a sampler's data
+    object built with its frame. Beside a data object built from a formula
+    with no data, a name is read where \code{forest()} was called, as beside
+    that formula. Beside any data, a sampler's data
     included, a \code{forests} list states the forests in full: a forest
     declaring no basis has none, and no list gives one forest. A forest that
     keeps a held basis keeps the scale recorded for it when the sampler was
