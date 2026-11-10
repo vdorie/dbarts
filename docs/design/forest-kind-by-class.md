@@ -98,7 +98,8 @@ terms, never from a column of ones.
    check ([`checkBasisRecord`](../../R/data.R)), from the recorded levels and the block's width, so that the
    sampler's `initialize`, `dbarts()` and `dbartsSpec()` handed a data object and the class's validity refuse
    an object edited by hand, in the words for a value. `$setData` runs the same check but cannot reach the
-   size: it takes data only on a sampler of one forest, and refuses data that carry bases first. A copy runs the check; a reload does
+   size: it takes data only on a sampler of one forest, and drops the bases of data that carry them first, as
+   `dbarts()` does given no forests list. A copy runs the check; a reload does
    not. Every refusal of a creation comes before anything is read of a hold.
 2. After creation. A forest of numbers takes one column at `$setForestBasis` and at `predict(bases = )` and
    refuses more ([`conformBasis`](../../R/forestBasis.R)); a forest of levels has its levels' columns for life.

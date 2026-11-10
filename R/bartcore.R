@@ -1812,17 +1812,12 @@ bartcoreSamplerSetData <- function(
   if (!is.null(sampler$model@hazard.periods)) {
     newData <- spreadSurvivalOnPeriods(newData, sampler)
   }
-  # a sampler of one forest has no forest for a basis to multiply
+  # the data of a sampler of several forests are rows, as at dbarts(): a
+  # sampler of one forest takes them with the bases and their records dropped
   if (!is.null(newData@bases)) {
-    stop(
-      "$setData: the data are those of a sampler of several forests and ",
-      "carry their bases, and this sampler was created with one forest and ",
-      "none; a sampler's forests are fixed at creation. Hand over the data ",
-      "object they were made from, or make a new sampler with dbarts()",
-      call. = FALSE
-    )
+    newData <- installFitBases(newData, NULL)
   }
-  # nor for levels: a record that names some for a block the data lack is
+  # a record that names levels for a block the data lack is
   # refused before anything is stored, as it is where a sampler is made, and
   # so are derived values recorded in a form that fits no data, held to the
   # columns once they are in the sampler's order

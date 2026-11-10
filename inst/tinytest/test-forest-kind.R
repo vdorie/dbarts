@@ -1617,17 +1617,29 @@ plain <- function() {
 }
 oneForest <- plain()
 untouched <- plain()
-expect_error(
-  oneForest$setData(levelsData),
-  paste0(
-    "$setData: the data are those of a sampler of several forests and ",
-    "carry their bases, and this sampler was created with one forest and ",
-    "none; a sampler's forests are fixed at creation. Hand over the data ",
-    "object they were made from, or make a new sampler with dbarts()"
-  ),
-  fixed = TRUE
+# the data of a sampler of several forests are its rows (dec-B762), as
+# dbarts() reads them: the bases and their records are dropped and the
+# sampler stays one forest, running as a twin handed the same rows without
+# them
+takesRows <- plain()
+rowsTwin <- plain()
+expect_null(refusalOf(takesRows$setData(levelsData)))
+withoutBases <- levelsData
+withoutBases@bases <- NULL
+withoutBases@basis.levels <- NULL
+withoutBases@basis.written <- NULL
+withoutBases@basis.scale <- NULL
+expect_null(refusalOf(rowsTwin$setData(withoutBases)))
+expect_null(takesRows$data@bases)
+expect_null(takesRows$data@basis.levels)
+expect_null(takesRows$data@basis.written)
+expect_identical(takesRows$data, rowsTwin$data)
+expect_identical(length(takesRows$model@forests), 1L)
+expect_identical(takesRows$run(0L, 5L), rowsTwin$run(0L, 5L))
+expect_identical(
+  length(dbarts(levelsData, control = kindControl())$model@forests),
+  1L
 )
-expect_identical(oneForest$data, untouched$data)
 # data whose bases were taken off by hand and whose levels stayed are
 # refused as a sampler made from them is, before anything is stored: the
 # sampler's data, its levels, its state and its next draws are a twin's
