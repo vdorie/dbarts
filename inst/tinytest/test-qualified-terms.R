@@ -21,6 +21,7 @@ pairs <- list(
 sameDraws <- function(fit, pair, door = "") {
   prefixed <- fit(pair[[1L]])
   plain <- fit(pair[[2L]])
+  # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
   expect_equal(prefixed, plain, info = paste(door, deparse1(pair[[1L]])))
 }
 
