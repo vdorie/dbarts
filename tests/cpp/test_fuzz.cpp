@@ -418,15 +418,18 @@ static void fuzzFillResponse(ext_rng* r, ResponseFamily fam, const double* x,
 // stream.
 static constexpr size_t fuzzBurnIn = 12;
 
-// What OP_STATE's installs of an earlier state came to over the run: taken as
+// What the installs of an earlier state came to over the run: taken as
 // stored, declined without force and repaired with it, or refused. The
 // summary line prints the three so that a run whose earlier states never
 // needed a repair cannot pass for one that tested the verdict. completed
 // counts the ones read before a column the sampler has since seen missing,
 // whose install draws the directions they lack, and reinstalled those of
 // them that were taken and so held to going back in as the sampler's own.
+// asArrived counts the states read just before a column's first missing
+// value that installed as the state its unforced arrival left.
 static struct {
   size_t clean = 0, repaired = 0, refused = 0, completed = 0, reinstalled = 0;
+  size_t asArrived = 0;
 } fuzzEarlierStates;
 
 // The op loop, generic over the leaf model so the linear-leaf configuration
@@ -965,9 +968,13 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
   // A column's first missing value, brought after the stream so that every
   // run installs a state that completes: the stream itself reaches one only
   // by chance, through a categorical column's missing flavor landing between
-  // two state reads. The state read just before the value is taken and
-  // reinstalled as the sampler's own; the stream's reads go in after it.
-  // Placed after the digest, which stays the stream's alone.
+  // two state reads. Taken without force, the state read just before it
+  // installs clean as the state the arrival left, generators and kept draws
+  // included, since its completion draws the arrival's coins in the
+  // arrival's order; refused for a leaf it would empty, it is forced. Either
+  // way that state is then installed and reinstalled as the sampler's own,
+  // and the stream's reads go in after it. Placed after the digest, which
+  // stays the stream's alone.
   if (ok && (spec.opMask & (1u << OP_STATE)) != 0 && !currentX.empty()) {
     SamplerStateData prior;
     s.getState(prior);
@@ -981,10 +988,15 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
       size_t n = s.numObservations();
       std::vector<double> values(curCol(column, n), curCol(column, n) + n);
       for (size_t i = 0; i < n; i += 7) values[i] = std::nan("");
-      snprintf(line, sizeof line, "missing arrival col=%zu", column);
+      bool taken = s.updatePredictor(values.data(), &column, 1, false, false) ==
+                   PredictorUpdateResult::accepted;
+      bool forced = !taken &&
+        s.updatePredictor(values.data(), &column, 1, true, false) ==
+          PredictorUpdateResult::accepted;
+      snprintf(line, sizeof line, "missing arrival col=%zu taken=%d", column,
+               taken);
       record(line);
-      if (s.updatePredictor(values.data(), &column, 1, true, false) !=
-          PredictorUpdateResult::accepted) {
+      if (!taken && !forced) {
         fail("a forced update bringing a column's first missing value is "
              "refused");
       } else {
@@ -995,9 +1007,21 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
           fail(v);
         SamplerStateData own;
         s.getState(own);
+        if (ok && taken) {
+          SamplerStateData got;
+          bool clean = installsClean(s, prior, curAll());
+          s.getState(got);
+          if (!clean || !samplerStatesAgree(got, own))
+            fail("a state read before a column's first missing value does "
+                 "not install clean as the state the arrival left");
+          else
+            ++fuzzEarlierStates.asArrived;
+          if (ok && !s.setState(own, curAll()))
+            fail("setState refused own state after an arrival");
+        }
         if (ok && !installEarlier(prior, own))
-          fail("a state read before a column's first missing value does not "
-               "complete and install");
+          fail("a state read before a column's first missing value is not "
+               "taken as one that completes");
         if (ok && !earlier.chains.empty()) installEarlier(earlier, own);
         if (ok && !first.chains.empty()) installEarlier(first, own);
       }
@@ -2155,14 +2179,15 @@ static void testMutationFuzzer(int numSeeds) {
     fuzzRunSparse(seed, numOps);
   }
   check(fuzzEarlierStates.clean > 0 && fuzzEarlierStates.repaired > 0 &&
-          fuzzEarlierStates.reinstalled > 0,
+          fuzzEarlierStates.reinstalled > 0 && fuzzEarlierStates.asArrived > 0,
         "fuzz: earlier states installed as stored, repaired and completed, a "
-        "completed one reinstalled");
+        "completed one reinstalled and one installed as its arrival left");
   printf("ok: mutation fuzzer (%d seeds; earlier states %zu clean, %zu "
-         "repaired, %zu refused, %zu completed, %zu of them reinstalled)\n",
+         "repaired, %zu refused, %zu completed, %zu of them reinstalled, %zu "
+         "as the arrival left)\n",
          numSeeds, fuzzEarlierStates.clean, fuzzEarlierStates.repaired,
          fuzzEarlierStates.refused, fuzzEarlierStates.completed,
-         fuzzEarlierStates.reinstalled);
+         fuzzEarlierStates.reinstalled, fuzzEarlierStates.asArrived);
 }
 
 void runFuzzTests(int numSeeds) {
