@@ -10,8 +10,10 @@ dataKeepsFrame <- function(object) {
   methods::.hasSlot(object, "frame") && !is.null(object@frame)
 }
 
-## The slot a stand-in names is the whole of it: dim(), subsetting, arithmetic
-## and the rest stop, so nothing reads a slot that holds no values as if it did.
+## The slot a stand-in names is the whole of it: dim(), subsetting, arithmetic,
+## mean(), c(), unique(), cbind() and the rest stop, so nothing reads a slot
+## that holds no values as if it did. var(), sd() and paste() coerce in R's own
+## code, which no method reaches.
 frameStandIn <- function(slot) {
   structure(slot, class = "dbartsStandIn")
 }
@@ -26,7 +28,10 @@ dim.dbartsStandIn <- dimnames.dbartsStandIn <- length.dbartsStandIn <-
       Ops.dbartsStandIn <- Math.dbartsStandIn <- Summary.dbartsStandIn <-
         is.na.dbartsStandIn <- anyNA.dbartsStandIn <- is.finite.dbartsStandIn <-
           is.infinite.dbartsStandIn <- is.nan.dbartsStandIn <-
-            refuseStandInRead
+            mean.dbartsStandIn <- c.dbartsStandIn <- rep.dbartsStandIn <-
+              unique.dbartsStandIn <- as.double.dbartsStandIn <-
+                cbind.dbartsStandIn <- rbind.dbartsStandIn <-
+                  refuseStandInRead
 
 format.dbartsStandIn <- function(x, ...) {
   paste0("<'", unclass(x), "' is read with model.frame(o)>")
@@ -95,14 +100,10 @@ formulaRowsTotal <- function(formula, data) {
 }
 
 ## The number of rows a frame-keeping object was handed, as its build counted
-## them (formulaRowsTotal): a list's first element need not be a column.
+## them: where every row is kept in order, the rows the build kept, recorded so
+## that no reader evaluates the formula again.
 frameRowsTotal <- function(object) {
-  total <- if (is.null(object@rows)) NA_integer_ else dataRowsTotal(object)
-  build <- object@build
-  if (is.na(total) && is.list(build) && inherits(build$formula, "formula")) {
-    total <- formulaRowsTotal(build$formula, object@frame)
-  }
-  if (is.na(total)) frameNumRows(object@frame) else total
+  if (is.null(object@rows)) object@build$nobs else dataRowsTotal(object)
 }
 
 ## The kept rows' names as model.frame() gives them, which the rows alone
@@ -168,6 +169,7 @@ keepFrameInObject <- function(result, frame, build) {
     x = x[0L, , drop = FALSE],
     missing.seen = if (is.null(seen)) flags else flags | seen
   )
+  build$nobs <- NROW(result@y)
   result@build <- build
   result@x <- frameStandIn("x")
   result@y <- frameStandIn("y")
@@ -231,15 +233,12 @@ validateFrameKeepingData <- function(object) {
   if (!is.list(frame)) {
     return("'frame' must be a data frame or a list")
   }
-  total <- frameRowsTotal(object)
-  rows <- object@rows
-  if (
-    !is.null(rows) && (!is.integer(rows) || any(rows > total, na.rm = TRUE))
-  ) {
-    return("'rows' must be positions within the rows of 'frame'")
-  }
   if (!is.list(object@build)) {
     return("'build' must be a list")
+  }
+  rows <- object@rows
+  if (!is.null(rows) && any(rows > dataRowsTotal(object), na.rm = TRUE)) {
+    return("'rows' must be positions within the rows of 'frame'")
   }
   TRUE
 }
@@ -298,16 +297,7 @@ resolveDataObject <- function(object) {
 
 ## What a data object's rows number: every row in, whatever its weight.
 nobs.dbartsData <- function(object, ...) {
-  if (dataKeepsFrame(object)) {
-    return(
-      if (is.null(object@rows)) {
-        frameRowsTotal(object)
-      } else {
-        length(object@rows)
-      }
-    )
-  }
-  NROW(object@y)
+  if (dataKeepsFrame(object)) object@build$nobs else NROW(object@y)
 }
 
 ## The model's variables over the rows in, as model.frame() of an lm fit has

@@ -116,11 +116,11 @@ bartcoreSamplerSetCounts <- function(sampler, counts, asFactor = FALSE) {
   )
   ptr <- sampler$getPointer()
   .Call(C_dbarts_bartcore_setCounts, ptr, counts)
-  sampler$data@counts <- counts
+  sampler$dataHeld@counts <- counts
   # the form the response was written in just now, whatever it was first
-  sampler$data@counts.as.factor <- asFactor
+  sampler$dataHeld@counts.as.factor <- asFactor
   # y is the trials the counts imply, never an independent quantity
-  sampler$data@y <- as.double(rowSums(counts))
+  sampler$dataHeld@y <- as.double(rowSums(counts))
   # after the mirror, so a warning promoted to an error leaves them in step
   warnZeroTrials(counts)
   invisible(ptr)
@@ -288,8 +288,8 @@ bartcoreSamplerSetBinomialResponse <- function(sampler, y) {
   dimnames(counts) <- dimnames(current)
   ptr <- sampler$getPointer()
   .Call(C_dbarts_bartcore_setCounts, ptr, counts)
-  sampler$data@counts <- counts
-  sampler$data@y <- as.double(rowSums(counts))
+  sampler$dataHeld@counts <- counts
+  sampler$dataHeld@y <- as.double(rowSums(counts))
   invisible(ptr)
 }
 
@@ -328,7 +328,7 @@ bartcoreSamplerSetCategoryOffset <- function(sampler, offset) {
   offset <- alignSamplerCategoryColumns(offset, current, "offset")
   ptr <- sampler$getPointer()
   .Call(C_dbarts_bartcore_setCategoryOffset, ptr, offset)
-  sampler$data@offset.category <- offset
+  sampler$dataHeld@offset.category <- offset
   invisible(ptr)
 }
 
@@ -350,7 +350,7 @@ bartcoreSamplerSetCategoryTestOffset <- function(sampler, offset.test) {
   )
   ptr <- sampler$getPointer()
   .Call(C_dbarts_bartcore_setCategoryTestOffset, ptr, offset.test)
-  sampler$data@offset.category.test <- offset.test
+  sampler$dataHeld@offset.category.test <- offset.test
   invisible(ptr)
 }
 
@@ -1250,7 +1250,7 @@ bartcoreSamplerSetPredictor <- function(
     # the engine keeps no predictor matrix, so maintain data@x R-side for the
     # observations the scan installed; install by reference - the merge
     # starts from the old column and overwrites only the installed rows
-    sampler$data@x <- installPredictorColumns(
+    sampler$dataHeld@x <- installPredictorColumns(
       currentX,
       installed,
       column,
@@ -1349,7 +1349,7 @@ bartcoreSamplerSetPredictor <- function(
       # a pointer swap: the engine borrows data@x, so install there first and
       # revert if the transaction rolls back
       oldX <- currentX
-      sampler$data@x <- x
+      sampler$dataHeld@x <- x
       tryResult <- tryCatch(
         updateSuccessful <- .Call(
           C_dbarts_bartcore_setPredictor,
@@ -1361,14 +1361,14 @@ bartcoreSamplerSetPredictor <- function(
           tooFew
         ),
         error = function(e) {
-          sampler$data@x <- oldX
+          sampler$dataHeld@x <- oldX
           e
         }
       )
       if (inherits(tryResult, "error")) {
         stop(tryResult)
       }
-      if (!forceUpdate && !updateSuccessful) sampler$data@x <- oldX
+      if (!forceUpdate && !updateSuccessful) sampler$dataHeld@x <- oldX
     } else {
       # a sparse-bearing source: the engine borrows the argument matrix rather
       # than data@x, so nothing needs installing until it accepts. Splice the
@@ -1392,7 +1392,7 @@ bartcoreSamplerSetPredictor <- function(
         updateStandardization,
         tooFew
       )
-      if (isTRUE(updateSuccessful)) sampler$data@x <- newX
+      if (isTRUE(updateSuccessful)) sampler$dataHeld@x <- newX
     }
   } else {
     column <- coerceOrError(column, "integer")
@@ -1445,7 +1445,7 @@ bartcoreSamplerSetPredictor <- function(
       tooFew
     )
     if (isTRUE(updateSuccessful)) {
-      sampler$data@x <- newX
+      sampler$dataHeld@x <- newX
     }
   }
   recordMissingSeen(sampler, ptr)
@@ -1527,12 +1527,12 @@ bartcoreSamplerSetResponse <- function(
     updateScale,
     status
   )
-  sampler$data@y <- y
+  sampler$dataHeld@y <- y
   if (!is.null(status)) {
     # re-creation after save and load rebuilds the sampler from the control,
     # model and data it holds, so the status it reads must be the current one,
     # as data@y is
-    sampler$data@status <- status
+    sampler$dataHeld@status <- status
   }
   invisible(scaleKept)
 }
@@ -1706,15 +1706,15 @@ bartcoreSamplerSetOffset <- function(sampler, offset, updateScale) {
   # engine has taken it: a refused swap leaves data@offset what the live
   # sampler holds, which a save and load re-creates from
   scaleKept <- .Call(C_dbarts_bartcore_setOffset, ptr, offset, updateScale)
-  sampler$data@offset <- offset
+  sampler$dataHeld@offset <- offset
 
   if (!identical(offset.test, NA)) {
     oldOffset.test <- sampler$data@offset.test
-    sampler$data@offset.test <- offset.test
+    sampler$dataHeld@offset.test <- offset.test
     tryResult <- tryCatch(
       .Call(C_dbarts_bartcore_setTestOffset, ptr, sampler$data@offset.test),
       error = function(e) {
-        sampler$data@offset.test <- oldOffset.test
+        sampler$dataHeld@offset.test <- oldOffset.test
         e
       }
     )
@@ -1912,7 +1912,7 @@ bartcoreSamplerSetData <- function(
   ))
 
   oldData <- sampler$data
-  sampler$data <- newData
+  sampler$dataHeld <- newData
   tryResult <- tryCatch(
     .Call(
       C_dbarts_bartcore_setData,
@@ -1925,7 +1925,7 @@ bartcoreSamplerSetData <- function(
       if (tooFew) TRUE
     ),
     error = function(e) {
-      sampler$data <- oldData
+      sampler$dataHeld <- oldData
       e
     }
   )
@@ -1933,7 +1933,7 @@ bartcoreSamplerSetData <- function(
     stop(tryResult)
   }
   # the records are the sampler's, whatever the object handed in carried
-  sampler$data@missing.seen <- .Call(C_dbarts_bartcore_getMissingSeen, ptr)
+  sampler$dataHeld@missing.seen <- .Call(C_dbarts_bartcore_getMissingSeen, ptr)
   records <- .Call(C_dbarts_bartcore_derivedRecords, ptr, TRUE)
   recordDerived(sampler, ptr, records)
   sampler$control <- mirrorControl(
@@ -2581,9 +2581,9 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
   # R-level object and the engine's prior test store consistent
   oldX.test <- sampler$data@x.test
   oldOffset.test <- sampler$data@offset.test
-  sampler$data@x.test <- x.test
+  sampler$dataHeld@x.test <- x.test
   if (is.null(x.test)) {
-    sampler$data@offset.test <- NULL
+    sampler$dataHeld@offset.test <- NULL
   }
   tryResult <- tryCatch(
     .Call(
@@ -2592,15 +2592,15 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
       sampler$data@x.test
     ),
     error = function(e) {
-      sampler$data@x.test <- oldX.test
-      sampler$data@offset.test <- oldOffset.test
+      sampler$dataHeld@x.test <- oldX.test
+      sampler$dataHeld@offset.test <- oldOffset.test
       e
     }
   )
   if (inherits(tryResult, "error")) {
     stop(tryResult)
   }
-  sampler$data <- setDataRowNames(sampler$data, "test", testRowNames)
+  sampler$dataHeld <- setDataRowNames(sampler$data, "test", testRowNames)
   invisible(NULL)
 }
 

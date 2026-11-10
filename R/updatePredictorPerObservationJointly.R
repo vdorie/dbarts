@@ -96,7 +96,7 @@ updatePredictorPerObservationJointly <- function(
   # reference - each sampler merges its own slice of the shared installed
   # mask into its old column
   for (i in seq_along(samplers)) {
-    samplers[[i]]$data@x <- installPredictorColumns(
+    samplers[[i]]$dataHeld@x <- installPredictorColumns(
       samplers[[i]]$data@x,
       installed,
       columnIndices[i],

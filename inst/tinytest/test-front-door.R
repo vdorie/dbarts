@@ -982,7 +982,7 @@ expect_false(dbarts:::isSavedBy09x(
 savedFit <- unserialize(serialize(stateFit, NULL))
 savedData <- savedFit$fit$data
 attr(savedData, "counts") <- NULL
-assign("data", savedData, envir = as.environment(savedFit$fit))
+assign("dataHeld", savedData, envir = as.environment(savedFit$fit))
 expect_true(dbarts:::isSavedBy09x(savedFit$fit$data))
 savedMsg <- "saved by dbarts 0.9-x; dbarts 1.0-0 cannot read it, so refit it"
 expect_error(predict(savedFit, xFD[1:3, ]), pattern = savedMsg)

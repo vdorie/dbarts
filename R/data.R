@@ -321,7 +321,7 @@ checkBasisRecord <- function(data, refuse = TRUE) {
 recordMissingSeen <- function(sampler, ptr) {
   seen <- .Call(C_dbarts_bartcore_getMissingSeen, ptr)
   if (!identical(seen, dataMissingSeen(sampler$data))) {
-    sampler$data@missing.seen <- seen
+    sampler$dataHeld@missing.seen <- seen
   }
   invisible(NULL)
 }
@@ -706,7 +706,7 @@ recordDerived <- function(sampler, ptr, records = NULL) {
     data,
     records$standardization
   )
-  sampler$data <- data
+  sampler$dataHeld <- data
   invisible(NULL)
 }
 
@@ -746,7 +746,7 @@ recordResponseRange <- function(
   if (
     range && !identical(records$response.range, dataResponseRange(sampler$data))
   ) {
-    sampler$data@response.range <- records$response.range
+    sampler$dataHeld@response.range <- records$response.range
   }
   if (standardization) {
     keyed <- keyStandardization(
@@ -755,7 +755,7 @@ recordResponseRange <- function(
       records$standardization
     )
     if (!identical(keyed, sampler$data@standardization)) {
-      sampler$data@standardization <- keyed
+      sampler$dataHeld@standardization <- keyed
     }
   }
   invisible(NULL)

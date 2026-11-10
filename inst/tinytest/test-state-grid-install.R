@@ -1110,7 +1110,9 @@ handed <- dbarts::dbartsData(
 )
 handed@sigma <- sampler$data@sigma
 handed@missing.seen <- sampler$data@missing.seen
-sampler$data <- handed
+# held behind the engine's back, which only the package's own field can do:
+# the sampler's data field refuses a write
+sampler$dataHeld <- handed
 invisible(sampler$run(0L, 2L))
 sampler$storeState()
 own <- sampler$state

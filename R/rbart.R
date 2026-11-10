@@ -751,7 +751,7 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs) {
   # the loop sets each sweep's offset, intercepts included, and the test rows
   # must not inherit it
   oldTestUsesRegularOffset <- sampler$data@testUsesRegularOffset
-  sampler$data@testUsesRegularOffset <- FALSE
+  sampler$dataHeld@testUsesRegularOffset <- FALSE
 
   y <- sampler$data@y
   rel.scale <- if (!control@binary) sd(y) else 0.5
@@ -890,7 +890,7 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs) {
   callback <- run_result$samples$callback
   varcount <- run_result$samples$varcount
 
-  sampler$data@testUsesRegularOffset <- oldTestUsesRegularOffset
+  sampler$dataHeld@testUsesRegularOffset <- oldTestUsesRegularOffset
   sampler$setOffset(if (!is.null(offset.orig)) offset.orig else NULL, FALSE)
 
   control@updateState <- oldUpdateState

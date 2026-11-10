@@ -648,6 +648,7 @@ methods::setClassUnion("matrixOrNULL", c("matrix", "NULL"))
 methods::setClassUnion("numericOrNULL", c("numeric", "NULL"))
 methods::setClassUnion("listOrNULL", c("list", "NULL"))
 methods::setClassUnion("integerOrNULL", c("integer", "NULL"))
+methods::setClassUnion("characterOrNULL", c("character", "NULL"))
 
 ## One mean forest of a model as it was declared and runs: a model built by a
 ## door carries one per mean forest, a model of one forest and a multinomial
@@ -996,7 +997,7 @@ methods::setClass(
     # forest has no basis or was handed a value. Written with 'bases' at
     # creation and kept through a swap, so that a forest naming the same text
     # beside this object keeps the held columns
-    basis.written = "ANY",
+    basis.written = "characterOrNULL",
     # The multinomial (K-forest softmax) response: an n x K integer matrix
     # whose column k holds category k's counts, null
     # for every other family. It rides the data object rather than an R5 field
@@ -1031,18 +1032,19 @@ methods::setClass(
     # the positions, in the frame handed over, of the rows kept after 'subset'
     # and the na.action, in order, repeats and a padded NA included; NULL when
     # every row is kept in order
-    rows = "ANY",
+    rows = "integerOrNULL",
     # the number of rows handed over, which 'rows' are positions within; NULL
     # where 'rows' is
-    rows.total = "ANY",
+    rows.total = "integerOrNULL",
     # the names of the columns of the data the formula was read from, a frame's
     # or an environment's, held beside a block as well as beside a frame; NULL
     # where no data were given
-    frame.columns = "ANY",
+    frame.columns = "characterOrNULL",
     # what reads the frame again at the resolution (resolveDataObject): the
     # formula with the caller's variables it names held in its environment, the
-    # 'weights' and 'offset' as written, and the factor coding
-    build = "ANY"
+    # 'weights' and 'offset' as written, the factor coding, and the number of
+    # rows kept, which nobs() reads without evaluating the formula again
+    build = "listOrNULL"
   ),
   prototype = list(
     y = numeric(0),

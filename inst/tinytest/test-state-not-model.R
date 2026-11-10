@@ -434,7 +434,7 @@ expect_equal(
 # a record that is not a transform is refused when a re-creation reads it: a
 # non-finite or decreasing pair anywhere, and an equal one on the count family
 withRecord <- function(sampler, record) {
-  sampler$data@response.range <- record
+  sampler$dataHeld@response.range <- record
   sampler
 }
 for (record in list(c(NaN, NaN), c(2, 1))) {

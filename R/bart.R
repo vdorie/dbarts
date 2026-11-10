@@ -904,7 +904,7 @@ runWithBurnIn <- function(sampler, control, keepTrees, callback = NULL) {
       withCodedPredictors(
         sampler$setTestPredictorAndOffset(oldX.test, oldOffset.test)
       )
-      sampler$data <- setDataRowNames(sampler$data, "test", oldTestNames)
+      sampler$dataHeld <- setDataRowNames(sampler$data, "test", oldTestNames)
     }
     control@keepTrainingFits <- oldKeepTrainingFits
     control@verbose <- oldVerbose

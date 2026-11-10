@@ -2649,7 +2649,7 @@ recordBasisScale <- function(sampler, ptr, index) {
   length(scales) <- max(length(scales), length(data@bases))
   scales[[index + 1L]] <- raw[[1L, "basis.scale"]]
   data@basis.scale <- scales
-  sampler$data <- data
+  sampler$dataHeld <- data
   invisible(NULL)
 }
 
@@ -2717,7 +2717,7 @@ recordBasisScales <- function(sampler, ptr, active = NULL) {
   }
   if (written) {
     data@basis.scale <- scales
-    sampler$data <- data
+    sampler$dataHeld <- data
   }
   fellBack <- basisScaleFallbacks(sampler)
   if (length(fellBack) == 0L) {
@@ -3226,15 +3226,18 @@ dbartsSampler <- setRefClass(
     pointer = "externalptr",
     control = "dbartsControl",
     model = "dbartsModel",
-    # the data the sampler runs on, always the block-holding kind: a data
-    # object that keeps its frame is resolved on the way in, so a field write
-    # reaches the engine as $setData does
+    # the data the sampler runs on, always the block-holding kind, read-only
+    # from outside: a write would change the R-side copy and not the engine,
+    # so it stops and names the setter; the package writes dataHeld
     data = function(value) {
-      if (missing(value)) {
-        dataHeld
-      } else {
-        dataHeld <<- resolveDataObject(value)
+      if (!missing(value)) {
+        stop(
+          "the sampler's data are read-only here; change them with ",
+          "s$setData(o2)",
+          call. = FALSE
+        )
       }
+      dataHeld
     },
     dataHeld = "dbartsData",
     state = "ANY", # is either a list of states, or a promise to evaluate
@@ -3304,7 +3307,7 @@ dbartsSampler <- setRefClass(
       control <- mirrorControl(control, model, data)
       .self$control <- control
       .self$model <- model
-      .self$data <- data
+      .self$dataHeld <- data
       .self$forestWeights <- list()
       .self$activeRows <- NULL
 
@@ -4062,7 +4065,7 @@ dbartsSampler <- setRefClass(
       oldWeights <- data@weights
       # all ones on a membership family is every row in, which the data
       # object records as no weights, as creation does
-      selfEnv$data@weights <- if (
+      selfEnv$dataHeld@weights <- if (
         isMaskedWeightFamily(model@family) && all(weights == 1)
       ) {
         NULL
@@ -4079,7 +4082,7 @@ dbartsSampler <- setRefClass(
           if (!is.null(units)) TRUE
         ),
         error = function(e) {
-          selfEnv$data@weights <- oldWeights
+          selfEnv$dataHeld@weights <- oldWeights
           e
         }
       )
@@ -4269,7 +4272,7 @@ dbartsSampler <- setRefClass(
       oldData <- data
       newBases <- data@bases
       newBases[[index + 1L]] <- values
-      selfEnv$data@bases <- newBases
+      selfEnv$dataHeld@bases <- newBases
       tryResult <- tryCatch(
         {
           kept <- .Call(
@@ -4285,7 +4288,7 @@ dbartsSampler <- setRefClass(
           kept
         },
         error = function(e) {
-          selfEnv$data <- oldData
+          selfEnv$dataHeld <- oldData
           e
         }
       )
@@ -4433,9 +4436,9 @@ dbartsSampler <- setRefClass(
       oldX.test <- data@x.test
       oldOffset.test <- data@offset.test
 
-      selfEnv$data@testUsesRegularOffset <- FALSE
-      selfEnv$data@x.test <- x.test
-      selfEnv$data@offset.test <- offset.test
+      selfEnv$dataHeld@testUsesRegularOffset <- FALSE
+      selfEnv$dataHeld@x.test <- x.test
+      selfEnv$dataHeld@offset.test <- offset.test
       tryResult <- tryCatch(
         .Call(
           C_dbarts_bartcore_setTestPredictorAndOffset,
@@ -4444,16 +4447,16 @@ dbartsSampler <- setRefClass(
           data@offset.test
         ),
         error = function(e) {
-          selfEnv$data@testUsesRegularOffset <- oldTestUsesRegularOffset
-          selfEnv$data@x.test <- oldX.test
-          selfEnv$data@offset.test <- oldOffset.test
+          selfEnv$dataHeld@testUsesRegularOffset <- oldTestUsesRegularOffset
+          selfEnv$dataHeld@x.test <- oldX.test
+          selfEnv$dataHeld@offset.test <- oldOffset.test
           e
         }
       )
       if (inherits(tryResult, "error")) {
         stop(tryResult)
       }
-      selfEnv$data <- setDataRowNames(data, "test", testRowNames)
+      selfEnv$dataHeld <- setDataRowNames(data, "test", testRowNames)
       invisible(NULL)
     },
     setTestOffset = function(offset.test) {
@@ -4466,7 +4469,7 @@ dbartsSampler <- setRefClass(
       if (!is.null(offset.test)) {
         refuseMissingTestOffset(offset.test)
       }
-      selfEnv$data@testUsesRegularOffset <- FALSE
+      selfEnv$dataHeld@testUsesRegularOffset <- FALSE
       if (!is.null(offset.test)) {
         if (is.null(data@x.test)) {
           stop("when test matrix is NULL, test offset must be as well")
@@ -4482,11 +4485,11 @@ dbartsSampler <- setRefClass(
         }
       }
       oldOffset.test <- data@offset.test
-      selfEnv$data@offset.test <- offset.test
+      selfEnv$dataHeld@offset.test <- offset.test
       tryResult <- tryCatch(
         .Call(C_dbarts_bartcore_setTestOffset, ptr, data@offset.test),
         error = function(e) {
-          selfEnv$data@offset.test <- oldOffset.test
+          selfEnv$dataHeld@offset.test <- oldOffset.test
           e
         }
       )

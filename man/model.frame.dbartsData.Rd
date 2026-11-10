@@ -18,7 +18,7 @@
 
   On an object with no frame (a sampler's data, \code{keep.data = FALSE}, the matrix interface, an environment) it is decoded from the block where that is exact: the response is returned in its recorded type and levels (a factor, a logical, a character vector, a \code{Surv} response where the object holds its time and status, the count matrix for a multinomial one) and named as the formula wrote it (\code{log(price)}, and \code{y} where no formula did), a factor predictor as a factor over its declared levels, and a matrix term such as \code{poly(x, 2)} as one matrix column again, named as the formula wrote it, with the column names the term gave. The block holds no more than the values, so a rejoined matrix has none of the attributes \code{poly()} or \code{scale()} give it (their class, coefficients and centers); every other column is as held.
 
-  \code{nobs} counts every row in, rows of weight 0 included, which a BART fit holds in its trees; \code{nobs} of an \code{lm} fit leaves them out.
+  \code{nobs} counts every row in, as the build counted them, evaluating nothing again, rows of weight 0 included, which a BART fit holds in its trees; \code{nobs} of an \code{lm} fit leaves them out.
 }
 \value{
   A data frame, and a number.

@@ -142,6 +142,30 @@ oZ <- suppressWarnings(dbartsData(y ~ x1 + x2, dz, weights = w))
 expect_identical(nobs(oZ), n)
 expect_identical(nobs(lm(y ~ x1 + x2, dz, weights = w)), n - 4L)
 
+# nobs() reads the count the build recorded and leaves the random-number
+# stream alone, whatever the frame and its response
+streamAfter <- function(expr) {
+  set.seed(5L)
+  force(expr)
+  runif(1L)
+}
+listO <- dbartsData(y ~ x1, list(y = d$y, x1 = d$x1))
+expect_false(is.null(listO@frame))
+expect_identical(streamAfter(nobs(listO)), streamAfter(NULL))
+expect_identical(nobs(listO), n)
+drawnO <- dbartsData(rnorm(20L) ~ x1, list(x1 = d$x1[1:20]))
+expect_identical(streamAfter(nobs(drawnO)), streamAfter(NULL))
+expect_identical(nobs(drawnO), 20L)
+expect_identical(streamAfter(nobs(oOff)), streamAfter(NULL))
+
+# the record slots hold what they say
+typed <- dbartsData(y ~ x1 + x2, d, subset = 2:10, keep.data = FALSE)
+expect_error(typed@rows <- "junk", "rows")
+expect_error(typed@rows.total <- 3.5, "rows.total")
+expect_error(typed@frame.columns <- 3, "frame.columns")
+expect_error(typed@build <- 7, "build")
+expect_error(typed@basis.written <- list(1), "basis.written")
+
 # a block-holding object decodes to the model's own shape where it is exact
 decoded <- function(o) {
   mf <- model.frame(o)
@@ -509,7 +533,7 @@ tooBad <- o
 tooBad@y <- letters[seq_len(n)]
 expect_error(validObject(tooBad), "'y' must be a stand-in")
 
-# a field write resolves the object, as $setData does ---------------------------
+# the sampler's data are read-only: a write stops and names $setData ----------
 
 fieldSampler <- dbarts(
   y ~ x1 + x2,
@@ -518,9 +542,18 @@ fieldSampler <- dbarts(
   n.trees = 5L,
   control = ctl
 )
-fieldSampler$data <- ob100
-expect_null(fieldSampler$data@frame)
-expect_true(is.numeric(fieldSampler$data@y))
+heldBefore <- fieldSampler$data
+readOnly <- "the sampler's data are read-only here; change them with s\\$setData"
+expect_error(fieldSampler$data <- ob100, readOnly)
+expect_error(fieldSampler$data <- 3, readOnly)
+expect_error(
+  fieldSampler$data <- dbartsData(y ~ x1 + x2, d, keep.data = FALSE),
+  readOnly
+)
+expect_identical(fieldSampler$data, heldBefore)
+# the sampler goes on as it was, and copies
+expect_true(is.numeric(fieldSampler$run(0L, 2L)$train))
+expect_identical(fieldSampler$copy()$data@y, heldBefore@y)
 
 # a stand-in does not answer for values it does not hold ------------------------
 
@@ -529,6 +562,16 @@ stops(anyNA(o@y))
 stops(is.finite(o@y))
 stops(is.infinite(o@y))
 stops(is.nan(o@y))
+stops(mean(o@y))
+stops(c(o@y))
+stops(rep(o@y, 2L))
+stops(unique(o@y))
+stops(as.numeric(o@y))
+stops(as.double(o@weights))
+stops(cbind(o@y, 1))
+stops(cbind(1, o@y))
+stops(cbind(o@x, o@y))
+stops(rbind(o@y, 1))
 
 # a sparse column: model.frame() answers as a sampler's data do -----------------
 
