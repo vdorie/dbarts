@@ -655,7 +655,9 @@
             \code{$setData} takes data built from a \code{Surv} response and
             spreads it onto the sampler's own periods as \code{dbarts}
             does, a time past the last period leaving its subject censored
-            there. Each new fit
+            there. A hazard sampler refuses a hand-built
+            person-period matrix whose last column is not named
+            \code{period}. Each new fit
             class has \code{fitted}, \code{predict}, \code{extract},
             \code{residuals}, \code{summary} and \code{plot} methods, and
             \code{family()} returns the family of any fit. See

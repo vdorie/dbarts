@@ -1827,6 +1827,11 @@ bartcoreSamplerSetData <- function(
   # so are derived values recorded in a form that fits no data, held to the
   # columns once they are in the sampler's order
   checkBasisRecord(newData)
+  refuseUnnamedPeriod(
+    newData,
+    !is.null(sampler$model@hazard.periods),
+    "$setData"
+  )
   if (ncol(newData@x) != ncol(sampler$data@x)) {
     stop("$setData: requires the same predictors")
   }

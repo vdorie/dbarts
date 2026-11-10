@@ -117,3 +117,44 @@ expect_error(
   plain$copy()$setData(dbartsData(form, second)),
   "requires the same predictors"
 )
+
+# a hand-built person-period matrix whose last column is not named period is
+# refused at $setData and at new(), before any count is read, the message
+# naming the doors that fit
+pp <- as.matrix(sampler$data@x)
+handBuilt <- pp
+colnames(handBuilt)[ncol(handBuilt)] <- "t"
+given <- dbartsData(handBuilt, sampler$data@y)
+expect_error(
+  sampler$copy()$setData(given),
+  "must be named 'period'.*Surv\\(time, status\\).*family = \"binomial\""
+)
+expect_error(
+  new("dbartsSampler", run(), sampler$model, given),
+  "must be named 'period'.*Surv\\(time, status\\).*family = \"binomial\""
+)
+# with a named count too, which would otherwise stop on the missing name
+given <- dbartsData(
+  handBuilt,
+  sampler$data@y,
+  n.cuts = c(x1 = 4L, x2 = 4L, t = 3L)
+)
+expect_error(sampler$copy()$setData(given), "must be named 'period'")
+expect_error(
+  new("dbartsSampler", run(), sampler$model, given),
+  "must be named 'period'"
+)
+# the same matrix under the name period, and the sampler's own data, stand
+renamedBack <- dbartsData(pp, sampler$data@y)
+expect_silent(sampler$copy()$setData(renamedBack))
+expect_silent(sampler$copy()$setData(sampler$data))
+# and the rows fit as a binary fit, the period a predictor under any name
+expect_silent(
+  dbarts(
+    handBuilt,
+    sampler$data@y,
+    family = "binomial",
+    n.trees = 5L,
+    control = run()
+  )
+)

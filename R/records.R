@@ -243,6 +243,24 @@ holdDataRule <- function(data) {
 ## dbartsData() cannot know, and a sampler's own data object carries none.
 statedCountAttr <- "dbarts.statedCount"
 
+## A hazard sampler builds its own person-period rows and its period column is
+## the last, named period; a hand-built matrix named otherwise is refused. A
+## matrix without names is read by position, as dbarts() leaves one.
+refuseUnnamedPeriod <- function(data, hazard, where) {
+  nms <- colnames(data@x)
+  if (hazard && !is.null(nms) && !identical(nms[length(nms)], "period")) {
+    stop(
+      where,
+      ": a hazard sampler builds its own person-period rows, and the last ",
+      "column of 'x' must be named 'period'; give the sampler survival data ",
+      "(Surv(time, status) ~ ...) at $setData, or fit the rows you built ",
+      "with family = \"binomial\", the period a predictor",
+      call. = FALSE
+    )
+  }
+  invisible(data)
+}
+
 ## A data object with its stated count read as a sampler of `hazard` reads it.
 restateCount <- function(data, hazard) {
   stated <- attr(data, statedCountAttr, exact = TRUE)
@@ -478,6 +496,7 @@ fitCountWords <- function(door, model, data, forests) {
 ## forest has a basis. A data object taken from a survival fit keeps its status
 ## only under a survival model. Anything else the model and data hold stands.
 takeControlReadings <- function(control, model, data) {
+  refuseUnnamedPeriod(data, !is.null(model@hazard.periods), "new")
   data <- restateCount(data, !is.null(model@hazard.periods))
   if (!identical(model@family, "aft")) {
     data@status <- NULL
