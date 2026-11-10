@@ -388,6 +388,31 @@ expect_error(
   "must have the same length as the data: it has 10 rows and the data 70",
   fixed = TRUE
 )
+# the setter's refusals speak in its own terms: a string is no basis there,
+# and a name nothing binds was looked for where the formula was made
+before <- replaced$data@bases[[2L]]
+expect_error(
+  replaced$setForestBasis(2L, "halved"),
+  paste0(
+    "'basis' is the string \"halved\": a basis is a column's values here, ",
+    "not its name; hand over the values, or a formula read where it is ",
+    "made, as ~halved"
+  ),
+  fixed = TRUE
+)
+expect_error(
+  replaced$setForestBasis(2L, ~nowhere),
+  "'basis' (nowhere): object 'nowhere' not found where the formula was made",
+  fixed = TRUE
+)
+expect_identical(
+  tryCatch(
+    replaced$setForestBasis(2L, ~ notAFunction(halved)),
+    error = conditionMessage
+  ),
+  "'basis' (notAFunction(halved)): could not find function \"notAFunction\""
+)
+expect_identical(replaced$data@bases[[2L]], before)
 # the run that follows uses the replacement: the same draws as a sampler
 # given the same replacement as a value
 drawsAfter <- function(install) {

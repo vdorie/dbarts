@@ -639,13 +639,15 @@ refuseSingleBasisValue <- function(value, holder = NULL) {
 ## are raised here, the value being used. `data` is NULL where the fit was
 ## given no data frame, list or environment. `held` names the columns of a
 ## data object's own rows that `data` holds, beside which the caller's
-## variables are read over those rows too.
+## variables are read over those rows too. `place` names, in a refusal, where
+## a name that is no column was looked for.
 readForestBasis <- function(
   basis,
   data,
   numRows,
   followString = TRUE,
-  held = NULL
+  held = NULL,
+  place = "where forest() was called"
 ) {
   if (is.null(basis)) {
     return(NULL)
@@ -684,11 +686,7 @@ readForestBasis <- function(
   refuse <- function(...) {
     stop("'basis' (", code$label, "): ", ..., call. = FALSE)
   }
-  where <- if (is.null(data)) {
-    " where forest() was called"
-  } else {
-    " in 'data' or where forest() was called"
-  }
+  where <- paste0(if (is.null(data)) " " else " in 'data' or ", place)
   # code that had a value where forest() was called and fails against the
   # data's columns fails because a column hides a variable of the call
   hiding <- function(columns) {
@@ -746,11 +744,7 @@ readForestBasis <- function(
         mode = "function"
       )]
       if (length(late) > 0L) {
-        refuse(
-          "could not find function \"",
-          late[1L],
-          "\" where forest() was called"
-        )
+        refuse("could not find function \"", late[1L], "\" ", place)
       }
       for (name in setdiff(names(code$broken), atColumns)) {
         refuse(code$broken[[name]])
@@ -807,7 +801,8 @@ readForestBasis <- function(
       data,
       numRows,
       followString = FALSE,
-      held = held
+      held = held,
+      place = place
     ))
   }
   if (nrow(frame) != numRows) {
@@ -2193,11 +2188,27 @@ installFitBases <- function(data, built) {
 ## frame, or its numeric columns, named as code's are, a column of all zeros
 ## among them (dec-B346). Anything else is a value, returned as it is.
 replacementForestBasis <- function(basis, numRows) {
+  named <- singleBasisString(basis)
+  if (!is.null(named)) {
+    stop(
+      "'basis' is the string \"",
+      named,
+      "\": a basis is a column's values here, not its name; hand over the ",
+      "values, or a formula read where it is made, as ~",
+      shownCode(as.name(named)),
+      call. = FALSE
+    )
+  }
   if (!inherits(basis, "formula")) {
     refuseSingleBasisValue(basis)
     return(basis)
   }
-  read <- readForestBasis(basisCode(basis, environment(basis)), NULL, numRows)
+  read <- readForestBasis(
+    basisCode(basis, environment(basis)),
+    NULL,
+    numRows,
+    place = "where the formula was made"
+  )
   if (is.null(read)) {
     stop("'basis' cannot be NULL")
   }
