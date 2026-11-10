@@ -67,14 +67,71 @@ expect_error(
 sampler <- dbarts::dbarts(
   matrix(cst, ncol = 1L),
   y,
-  control = dbarts::dbartsControl(
-    n.trees = 5L,
-    n.threads = 1L,
-    verbose = FALSE
-  )
+  n.trees = 5L,
+  control = dbarts::dbartsControl(n.threads = 1L, verbose = FALSE)
 )
 expect_inherits(sampler, "dbartsSampler")
 expect_inherits(
   fitWith(matrix(cst, ncol = 1L), y, samplerOnly = TRUE),
   "dbartsSampler"
 )
+
+# bartBT, the BayesTree-style door, refuses as bart does; sampleronly returns
+legacy <- function(...) {
+  dbarts::bartBT(
+    matrix(cst, ncol = 1L),
+    y,
+    ntree = 5L,
+    ndpost = 5L,
+    nskip = 5L,
+    verbose = FALSE,
+    ...
+  )
+}
+expect_error(legacy(), "every predictor holds one")
+expect_inherits(legacy(sampleronly = TRUE), "dbartsSampler")
+
+# the other response families refuse too
+cats <- factor(rep(c("a", "b", "c"), length.out = n))
+counts <- rpois(n, 3)
+ordinal <- rep(1:3, length.out = n)
+expect_error(
+  fitWith(
+    cats ~ cst,
+    data.frame(cats = cats, cst = cst),
+    family = "multinomial"
+  ),
+  "every predictor holds one"
+)
+expect_error(
+  fitWith(
+    ordinal ~ cst,
+    data.frame(ordinal = ordinal, cst = cst),
+    family = "ordinal"
+  ),
+  "every predictor holds one"
+)
+expect_error(
+  fitWith(
+    counts ~ cst,
+    data.frame(counts = counts, cst = cst),
+    family = "nbinom"
+  ),
+  "every predictor holds one"
+)
+
+# a sparse column holds its zero where it stores fewer entries than rows, so
+# one stored value on some rows is two values; on every row it is one
+some <- Matrix::sparseMatrix(i = 1:10, j = rep(1L, 10L), x = 1, dims = c(n, 1L))
+expect_inherits(fitWith(some, y), "bart")
+every <- Matrix::sparseMatrix(i = 1:n, j = rep(1L, n), x = 1, dims = c(n, 1L))
+expect_error(fitWith(every, y), "every predictor holds one")
+
+# a missing value is a value of its own: one value and a missing one can split
+withNA <- cst
+withNA[1:5] <- NA
+expect_inherits(fitWith(matrix(withNA, ncol = 1L), y), "bart")
+
+# a fit with a basis forest is not refused, whatever its predictors hold
+d <- data.frame(y = y, cst = cst, z = rnorm(n))
+expect_inherits(fitWith(y ~ forest(cst) + forest(cst, basis = z), d), "bart")

@@ -215,6 +215,8 @@ extract(object, \dots)
    }
 }
 \details{
+  A fit in which every predictor holds one value on the rows kept is refused, naming the columns, as by \code{\link{bart}}; \code{sampleronly = TRUE} returns the sampler without the check.
+
   BART is an Bayesian MCMC method. At each MCMC interation, we produce a draw from the joint posterior \eqn{(f, \sigma) \mid (x, y)}{(f, \sigma) | (x, y)} in the numeric \eqn{y} case and just \eqn{f} in the binary \eqn{y} case.
 
   Thus, unlike a lot of other modeling methods in R, \code{bartBT} does not produce a single model object from which fits and summaries may be extracted. The output consists of values \eqn{f^*(x)}{f*(x)} (and \eqn{\sigma^*}{\sigma*} in the numeric case) where * denotes a particular draw. The \eqn{x} is either a row from the training data (\code{x.train}) or the test data (\code{x.test}).

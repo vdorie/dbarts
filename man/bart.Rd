@@ -428,7 +428,7 @@ bart(
    }
 }
 \section{Fits with nothing to split}{
-  \code{bart}, \code{\link{xbart}} and \code{\link{rbart_vi}} refuse a fit in which every predictor holds one value on the rows kept and no forest has a basis, naming the columns: a tree splits a predictor between its values, so the fit would be an intercept-only model under a normal prior. Add a predictor that varies, or drop the term. \code{\link{dbarts}} takes such a sampler, for code that gives a column its values later with \code{$setPredictor}, and so does \code{bart(samplerOnly = TRUE)}. A fit with a basis forest is not refused.
+  \code{bart}, \code{\link{bartBT}}, \code{\link{xbart}} and \code{\link{rbart_vi}} refuse a fit in which every predictor holds one value on the rows kept and no forest has a basis, naming the columns: a tree splits a predictor between its values, so the fit would be an intercept-only model under a normal prior. Add a predictor that varies, or drop the term. \code{\link{dbarts}} takes such a sampler, for code that gives a column its values later with \code{$setPredictor}, and so does \code{bart(samplerOnly = TRUE)}. A fit with a basis forest is not refused.
 }
 \section{Formula Terms}{
 A model of several forests is written in \code{bart}'s \code{formula} as a sum of \code{forest()} terms, each one function of the predictors named inside it, without a separate \code{\link{dbarts}} \code{forests =} list (the two routes are mutually exclusive: a formula with a \code{forest()} term given together with \code{forests =} is refused by name):

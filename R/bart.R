@@ -5123,6 +5123,7 @@ bartBT <- function(
   if (sampleronly) {
     return(sampler)
   }
+  refuseUnsplittableFit(sampler$data)
 
   control <- sampler$control
 
