@@ -99,14 +99,13 @@ New predictor values given to a sampler (see
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md))
 can leave a tree's leaf values out of order. The calls that always
 complete - `setPredictor` with `forceUpdate = TRUE` (its default when
-the whole matrix is replaced), `setData`, `setCutPoints`, and `setState`
-with `forceUpdate = TRUE` - set every leaf value of such a tree to zero,
-without a message, and the next iteration draws them again; that suits
-burn-in and is not a draw from the posterior. A warm start,
-`installTrees` with `forceUpdate = TRUE` or `bart`'s `warm.start`,
-collapses such a tree instead where its leaf values are out of order,
-each collapsed part one leaf at the mean of the leaves it replaces
-weighted by their rows, and keeps the rest.
+the whole matrix is replaced), `setData`, `setCutPoints`, `setState`
+with `forceUpdate = TRUE`, and a warm start, `installTrees` with
+`forceUpdate = TRUE` or `bart`'s `warm.start` - collapse such a tree
+where its leaf values are out of order, each collapsed part one leaf at
+the mean of the leaves it replaces weighted by their rows, and keep the
+rest, without a message; that suits burn-in and is not a draw from the
+posterior.
 
 An unforced update is refused instead, as one that would empty a leaf
 is. One unforced change can leave a tree out of order: the first missing
@@ -138,7 +137,7 @@ puts the generator back, so the same sides are drawn again until the
 sampler has run, and where the data favor such trees a later draw can
 break the order too. Code that proposes the value again until it is
 accepted may never finish. The way to bring the value in is
-`forceUpdate = TRUE`, which completes and sets those trees to zero as
+`forceUpdate = TRUE`, which completes and collapses those trees as
 above; the alternative is to leave the value as it was.
 
 Only numeric and ordered columns are eligible: a direction on a

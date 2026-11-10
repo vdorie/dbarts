@@ -1220,13 +1220,13 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   [`monotone`](https://vdorie.github.io/dbarts/reference/monotone.md)
   constraint a new predictor can also leave a tree's leaf values out of
   order along a constrained predictor (that page says what this is).
-  `TRUE` completes such an update, setting every leaf value of that tree
-  to zero without a message; the next iteration draws them again.
-  `FALSE` refuses it and rolls it back, as for an empty leaf, and
-  `"partial"` declines each row that would do it. The one unforced
-  change that can do this is an unordered factor column's first missing
-  value, under the sides drawn for the column's rules when it arrives
-  (see
+  `TRUE` completes such an update, merging that tree's leaves where
+  their order breaks, each merged part one leaf at the mean of the
+  leaves it replaces weighted by their rows, without a message. `FALSE`
+  refuses it and rolls it back, as for an empty leaf, and `"partial"`
+  declines each row that would do it. The one unforced change that can
+  do this is an unordered factor column's first missing value, under the
+  sides drawn for the column's rules when it arrives (see
   [`monotone`](https://vdorie.github.io/dbarts/reference/monotone.md)).
   `"partial"` requires a single `column` and cannot be combined with
   `updateCutPoints`; it also requires a dense-backed column, since a
@@ -1760,32 +1760,32 @@ weighted by their rows; so does a split outside its range; a tree is cut
 back in the same way at the first split from its root that the forest's
 columns or its interaction limit do not allow, the splits above it kept;
 a rule stops recording a side its column cannot use; and a monotone tree
-whose values are out of order has every leaf value set to zero, to be
-drawn again at the next iteration. DART's split weights in such a state
-start fresh, equal over the columns the forest may split on, as
-`installTrees` starts them, with a drawn concentration restarted at its
-initial value and the delay counter restarted, the next sweep drawing
-the weights from the trees installed. After a forced `setState` the
-`state` field holds the chain the sampler holds after the install,
-repairs and drawn sides for missing values included, not the state as it
-was given: installing the field again without `forceUpdate` returns
-`TRUE`, and a `copy` or a reload starts from the repaired chain. A
-forced install that repaired nothing stores a state identical to the one
-given only where the sampler's store of kept draws (`keepTrees`) holds
-the same number as the state's; otherwise the newest that fit are kept
-and the stored state differs in them. An unforced install that went onto
-the sampler's own cut points and weights keeps the state as given; one
-that went onto other cut points or weights than it records is not kept,
-and the field holds what the sampler holds after the install. Likewise
-after an unforced install that drew a side for missing values (see
-‘Missing values in predictors’) the field holds the state as given,
-without the sides, and installing it again, as a `copy` or a reload
-does, draws the same ones. `storeState()` stores what the sampler now
-holds. Forcing checks nothing first, so a loop that restores its own
-state onto rows it has already put back, where nothing can need repair,
-can pass `forceUpdate = TRUE` and skip the check, which costs about as
-much as one iteration of the sampler. To undo a predictor change
-exactly, put the old predictor back first, with
+whose values are out of order is merged where its order breaks, each
+merged part one leaf at the mean of the leaves it replaces weighted by
+their rows. DART's split weights in such a state start fresh, equal over
+the columns the forest may split on, as `installTrees` starts them, with
+a drawn concentration restarted at its initial value and the delay
+counter restarted, the next sweep drawing the weights from the trees
+installed. After a forced `setState` the `state` field holds the chain
+the sampler holds after the install, repairs and drawn sides for missing
+values included, not the state as it was given: installing the field
+again without `forceUpdate` returns `TRUE`, and a `copy` or a reload
+starts from the repaired chain. A forced install that repaired nothing
+stores a state identical to the one given only where the sampler's store
+of kept draws (`keepTrees`) holds the same number as the state's;
+otherwise the newest that fit are kept and the stored state differs in
+them. An unforced install that went onto the sampler's own cut points
+and weights keeps the state as given; one that went onto other cut
+points or weights than it records is not kept, and the field holds what
+the sampler holds after the install. Likewise after an unforced install
+that drew a side for missing values (see ‘Missing values in predictors’)
+the field holds the state as given, without the sides, and installing it
+again, as a `copy` or a reload does, draws the same ones. `storeState()`
+stores what the sampler now holds. Forcing checks nothing first, so a
+loop that restores its own state onto rows it has already put back,
+where nothing can need repair, can pass `forceUpdate = TRUE` and skip
+the check, which costs about as much as one iteration of the sampler. To
+undo a predictor change exactly, put the old predictor back first, with
 `setPredictor(..., forceUpdate = TRUE)`, and then call `setState`. An
 unforced `setPredictor` can be refused, returning `FALSE` and leaving
 the changed predictor in place; `setState` then judges the state against
