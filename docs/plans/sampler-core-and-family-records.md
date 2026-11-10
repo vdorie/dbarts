@@ -1,15 +1,18 @@
 # sampler-core-and-family-records: one constant record per kind of response, and a sampler interface of a core plus a queried capability object
 
-Status: PLANNED 2026-11-10, not built. Two TODO items planned together, as their rulings ask: family-fact-records
-(dec-B767) and sampler-core-and-capabilities (dec-B763). Awaits a blind critique, then collapsed-move-rebuild's
-landing.
+Status: PLANNED 2026-11-10, amended the same day from the blind critique (verdict AMEND FIRST,
+scratch/plan-core-crit/critique.md, A1 to A7 taken); not built. Two TODO items planned together, as their rulings
+ask: family-fact-records (dec-B767) and sampler-core-and-capabilities (dec-B763), plus one small fix the critique's
+probe found (SC0). Awaits collapsed-move-rebuild's landing.
 
 agent: opus implementer, one per slice; opus reviewer running the mutants below, effort high.
-rng: NEUTRAL in every slice. No draw, default, message or fit object moves; the equivalence trio is bitwise.
+rng: NEUTRAL in SC1 to SC3: no draw, default, message or fit object moves; the equivalence trio is bitwise. SC0
+moves draws, and adds one warning, in one corner only (aft with a linear or gp leaf, a creation mask, one distinct
+log-time among the rows in); the trio and the snapshots do not reach it.
 window: pre-release, before the host-neutral engine's S3 (the C creation entry and the facts struct), and best
 before its S2a (below). dbarts.h does not change; its hash does not move.
-budget: ~1,600 lines written, ~1,700 removed, ~37 agent-hours over three slices (Cost). The rulings estimated
-~1,300 lines and 23 to 27 hours; the difference is the bridge's sites, counted below, and the forwarding test.
+budget: ~1,650 lines written, ~1,700 removed, ~41 agent-hours over four slices (Cost). The rulings estimated
+~1,300 lines and 23 to 27 hours; the difference is the bridge's sites, counted below, the forwarding test and SC0.
 
 ## Summary for the maintainer
 
@@ -17,22 +20,26 @@ Today a sampler's kind of response is tested by name 129 times in the engine and
 tests ("gaussian or aft") stand for three different facts. After this work each of the eight kinds (gaussian,
 Student-t, probit, logistic, aft, ordinal, negative binomial, multinomial) states its fixed facts once, in a constant
 record written beside its class, and a table gathers the eight so the build fails when one is missing. The engine,
-the factories and the bridge read the record; 84 of the 129 tests become reads of a named fact, 36 remain in switches
-that list every kind because their arms really differ (building the object, or R's wording), 8 parse what the user
-asked for, and 1 is family behavior kept as it is.
+the factories and the bridge read the record; 78 of the 129 tests become reads of a named fact, 42 remain in switches
+that list every kind because their arms really differ (building the object, R's wording, or R's defaults), 8 parse
+what the user asked for, and 1 is family behavior kept as it is.
 
-Then the class the bridge holds shrinks. Its 85 virtual functions become a core of about 60 that every sampler
+Then the class the bridge holds shrinks. Its 85 virtual functions become a core of about 66 that every sampler
 answers, plus ten small interfaces for what only some samplers have (a residual scale to set, a variance forest, a
 basis, a count matrix, ...). The bridge asks a sampler for its capability object and gets each interface or nothing;
-having the interface is the capability, so the bridge's check and the engine's refusal cannot disagree. The
-forwarding class, which repeats every call and the default arguments of 13 virtual functions, is deleted.
+having the interface is the capability, so through that object the bridge's check and the engine's answer cannot
+disagree. The forwarding class, which repeats every call and the default arguments of 13 virtual functions, is
+deleted. The records land on their own; the fold and the shrink land together, once.
 
-Nothing a user or a package linking to dbarts.h sees changes, and no draw moves. Two calls are yours (Open calls):
-what exactly the capability object is, and whether the fold may come before the shrink.
+Nothing a user or a package linking to dbarts.h sees changes in SC1 to SC3, and no draw moves. One small fix comes
+first: an aft sampler with a linear or gp leaf, created with an active-row mask whose rows hold one distinct
+log-time, reads its leaf covariates over those rows where every other family with a response scale reads every row
+and says so (run on main, below); SC0 makes aft do what gaussian does. No call is left for the maintainer; the two
+that were open are made (Calls made, 13 and 14).
 
 ## Goal
 
-After the three slices land:
+After the four slices land:
 
 - `ResponseKind` names eight kinds; each response class carries one `constexpr` record of its fixed facts beside its
   code, gathered into one table whose static checks fail the build when a kind lacks a row, a row sits at the wrong
@@ -45,7 +52,10 @@ After the three slices land:
 - `SamplerBase` is a core plus one query, `capabilities()`, whose answer holds a typed pointer for each optional
   function set, null where the sampler has none. Presence is fixed for the sampler's life.
 - A tests/cpp check proves each class's virtual answers match its row; a second proves each fixture's capability
-  object matches its record and shape.
+  object matches its record and shape; a third pins, through `Sampler`, each returned refusal that a facet's
+  absence now also covers.
+- An aft sampler's leaf rows fall back to every row where its rows in hold fewer than two distinct log-times, as
+  gaussian's do (SC0).
 
 ## Context
 
@@ -77,11 +87,29 @@ After the three slices land:
   (`logLikelihoodAtScaledFits`, "which no caller reaches"); chain.hpp still holds 45 references. This plan is written
   against main plus that branch. host-neutral-engine (docs/plans/host-neutral-engine.md on that branch) rewrites the
   bridge's creation and refusal code in S2a and S2b and builds the facts struct in S3. apx-size edits model.hpp,
-  combiner.hpp and the bridge.
+  combiner.hpp and the bridge. The multinomial `$setData` slice (dec-B640, TODO multinomial-setdata, due before
+  host-neutral S2a) makes a multinomial sampler reach setData's family sites (the aft refusal, counts on a binary
+  logistic, the nbinom cap, the supplied range, the logistic weights restatement), which today see "logistic" and
+  after SC1 see the multinomial row: whichever of the two lands second checks each such site (SC1, step 5).
 - 0.9-34, run (scratch/famtraits/probe-cpp-09.R against scratch/libs/old-ecosystem, rerun 2026-11-10): a probit
   sampler accepted `setControl` with `binary = FALSE`, still read binary afterward and kept sigma at 1, 1, 1. The
   family was fixed at creation in practice; a record of facts fixed at creation is no regression. 0.9-34 had no
-  type-erased boundary and no C header of this shape.
+  type-erased boundary and no C header of this shape, and neither aft nor linear leaves (run: its namespace holds
+  neither), so SC0's corner has no 0.9-34 behavior.
+- The aft leaf-row probe, run 2026-11-10 on a main build (scratch/libs/dobj-main, 0580ff13a, shipped mode; script
+  and output in scratch/plan-core/aft-probe/): 200 rows, a linear leaf on x1, a creation mask keeping rows 1 to 100,
+  which hold one response value (log-time 1.5, every row an event). Gaussian falls back: its leaf center and scale
+  are those of all 200 rows (5.194, 5.169), `standardization.all.rows` is TRUE, and it warns "fewer than two distinct
+  values of the response are in the likelihood (100 of 200 observations are in it), so the response's scale, the
+  prior's center and the center and scale of "x1" are taken from all 200". aft does not: its leaf numbers are those
+  of the 100 rows in (0.493, 0.280), with no warning. Both read the response range from every row, the creation mask
+  being installed after the transform as the help of `new("dbartsSampler", ...)` says; with distinct log-times among
+  the rows in, both read the leaf over the rows in. So aft departs from the rule
+  [`LeafRows`](../../src/bartcore/model.hpp) documents ("fewer than two distinct response values are in ... every
+  row is read in their place") and from the setData help's "or the response's scale is read from every row":
+  [`withResponseFallback`](../../src/bartcore/sampler.hpp) tests gaussian and nbinom by name, while
+  [`carriesUnits`](../../src/bartcore/chain.hpp) and `AFTResponse::lacksDistinctRowsIn` treat aft as a response
+  with a scale. The only path reaching it is creation (setData refuses aft).
 
 ## Constraints
 
@@ -89,7 +117,8 @@ After the three slices land:
   expressions move verbatim: a record stores an enumerator, never a precomputed constant (the logistic anchor stays
   `std::numbers::pi / std::sqrt(3.0)` at its reader; the bridge's logistic leaf scale stays
   `std::numbers::pi * std::sqrt(3.0)`).
-- Messages identical: every tinytest message pin unchanged, the order of the bridge's refusal cascades included.
+- Messages identical in SC1 to SC3: every tinytest message pin unchanged, the order of the bridge's refusal cascades
+  included. SC0 adds one warning where aft now falls back, the words gaussian's fallback uses.
 - The record is internal. It never appears in dbarts.h (its rows would become ABI); the `latent` column is the
   engine's and is not published (dec-B768). dbarts.h is untouched and `tools/check-api-hash.sh` passes with
   `DBARTS_C_API_HASH` unchanged.
@@ -98,8 +127,8 @@ After the three slices land:
   after 1.0 through an internal call if ever (the ruling names the engine, the bridge and the factories); the forest
   couplings' base class [`ForestCombiner`](../../src/bartcore/combiner.hpp) and its capability virtuals (chain-split's
   territory, below); the factory's half-built-sampler and shared-tail findings of the C++ review's slice 5 (not ruled);
-  the header text on family growth, which is host-neutral S3's (TODO capi-sampler-info); the aft fallback question
-  (Not verified), whose fix would move draws.
+  the header text on family growth, which is host-neutral S3's (TODO capi-sampler-info); R's per-family defaults
+  (the default node scale), which stay with R and its bridge, as host-neutral's "What stays with R" has it.
 
 ## Design
 
@@ -111,7 +140,7 @@ enum class ResponseKind : std::uint8_t {
 };
 struct ResponseFacts {
   ResponseKind kind;
-  bool drawsResidualScale;       // a sigma the sampler draws or a caller sets
+  bool hasResidualScale;         // a free residual scale (drawn or held is a setting)
   bool precisionChannelFree;     // the per-row precision channel is free for a variance forest
   bool carriesCensoring;         // a per-row event status (aft)
   bool takesTrials;              // a binomial response's trials may be given (logistic)
@@ -127,8 +156,6 @@ struct ResponseFacts {
   LatentKind latent;             // none, location, precision
   WeightsMeaning weights;        // precisionOrFrequency, membership, counts, none
   ResponseSupport support;       // real, binary, categoryIndex, count, categoryCounts
-  DefaultNodeScale defaultNodeScale; // responseUnits, unitLatent, logisticLatent, pairwiseLogistic
-  LeafRowsRead leafRowsRead;     // none, responseLessOffset, response
 };
 ```
 
@@ -138,14 +165,15 @@ sites below read. Each class declares its row as a `static constexpr ResponseFac
 the bridge). The table is built from the list of eight classes, and its static checks are: one row per kind; row i
 holds kind i; `rescalesLatents` and `scoresScaledFits` equal `std::is_base_of_v` of the step's interface (Optional
 steps); and the model invariants `carriesResidualDf` implies `latent == precision`, `precisionChannelFree` implies
-`latent != precision`, `drawsResidualScale` implies `units == range`, `admittedByAmplitudeCoupling` implies
-`latentScale != notStated`.
+`latent != precision`, `hasResidualScale` implies `units == range`, `admittedByAmplitudeCoupling` implies
+`latentScale != notStated`. Two values follow from others and are read, not stored: the leaf-row fallback's reading
+(below), and `workingWeightsVaryPerSweep` (`latent == precision`).
 
 The rows, each value checked against the site that reads it today:
 
 | column | gaussian | studentT | probit | logistic | aft | ordinal | nbinom | multinomial |
 |---|---|---|---|---|---|---|---|---|
-| drawsResidualScale | yes | yes | | | yes | | | |
+| hasResidualScale | yes | yes | | | yes | | | |
 | precisionChannelFree | yes | | | | yes | | | |
 | carriesCensoring | | | | | yes | | | |
 | takesTrials | | | | yes | | | | |
@@ -157,12 +185,10 @@ The rows, each value checked against the site that reads it today:
 | rescalesLatents | | | yes | | | | | |
 | scoresScaledFits | | | | yes | | | | |
 | units | range | range | none | none | range | none | countShift | none |
-| latentScale | fromResponse | fromResponse | standardNormal | logisticDistribution | fromResponse | standardNormal | notStated | notStated |
+| latentScale | fromResponse | fromResponse | standardNormal | logisticDistribution | fromResponse | notStated | notStated | notStated |
 | latent | none | precision | location | precision | location | location | precision | none |
-| weights | precisionOrFrequency | precisionOrFrequency | membership | counts | none | membership | counts | none |
+| weights | precisionOrFrequency | precisionOrFrequency | membership | counts | none | membership | counts | counts |
 | support | real | real | binary | binary | real | categoryIndex | count | categoryCounts |
-| defaultNodeScale | responseUnits | responseUnits | unitLatent | logisticLatent | responseUnits | unitLatent | unitLatent | pairwiseLogistic |
-| leafRowsRead | responseLessOffset | responseLessOffset | none | none | none | none | response | none |
 
 Notes on the rows:
 
@@ -173,14 +199,18 @@ Notes on the rows:
   last one is a new engine refusal (the amplitude factory refuses gaussian with a finite residual df, which the
   amplitude chain silently ignores today); the bridge refuses the combination first with "Student-t residuals", so no
   message moves (Calls made, 6).
-- `latentScale` is read only by the calibration map, which only admitted kinds reach. Ordinal's value is the model's
-  (a unit-variance latent, as its default node scale of 3 already says), not today's unreachable empirical arm;
-  nbinom and multinomial state none, and admitting either later fails the build until it does (Calls made, 7).
-- `defaultNodeScale` mirrors R's `defaultLeafScale` in R/model.R, multinomial's pairwise value included, which no C++
-  reader uses until R reads the record.
-- aft's `leafRowsRead` is none, as [`withResponseFallback`](../../src/bartcore/sampler.hpp) has it, although
-  [`carriesUnits`](../../src/bartcore/chain.hpp) counts aft as carrying units: the record keeps today's draws and
-  the question goes to Not verified.
+- `latentScale` is read only by the calibration map, which only admitted kinds reach. Ordinal, nbinom and
+  multinomial state none (`notStated`): today's ordinal arm is unreachable, and admitting any of the three later fails
+  the build until its row states a scale (Calls made, 7).
+- Multinomial's `weights` is counts: a multinomial sampler takes count weights
+  ([`enforceMultinomialWeightPolicy`](../../src/R_interface_bartcore.cpp) at creation and in setWeights), and today it
+  reports logistic, so `familyCarriesNoWeights` answers false for it in `bartcore_setWeights` before the
+  counts-mutation branch. A row of none would refuse it there with aft's message. The implementer confirms the
+  policy matches logistic's reading of counts, else gives multinomial a value of its own.
+- The leaf-row fallback reads `units`: range reads the response less its offset, countShift the response, none
+  nothing. Seven rows agree with today; aft (range) does not, which SC0 fixes. If SC1 lands before SC0, aft's
+  exception is written as one commented kind test in [`withResponseFallback`](../../src/bartcore/sampler.hpp) naming
+  SC0, and SC0 deletes it.
 - `latent` is what `latents()` returns: multinomial's Polya-Gamma variates live in its coupling, so its row says
   none. `workingWeightsVaryPerSweep` is `latent == precision` (logistic, Student-t, nbinom, the three overriding it
   today).
@@ -190,7 +220,9 @@ Notes on the rows:
 `ResponseFamily` stays the factories' request type (six values; Student-t is gaussian with a finite residual df).
 One exhaustive function, `responseKindFor(ResponseFamily, double residualDf)`, holds the rule "a finite residual df
 selects Student-t", which today lives in the chain's construction switch and the factory's variance-forest refusal;
-the multinomial factory names its kind directly. The 684 tests/cpp lines that build samplers by family keep working
+the multinomial factory names its kind directly. A finite df is ignored off gaussian, as the chain's construction switch
+ignores it today, and the bridge's "resid.df requires gaussian" refusal runs before the function is reached. The 684
+tests/cpp lines that build samplers by family keep working
 (Calls made, 4). `Chain` drops its `family_` member and holds a pointer to its row, set once at construction;
 `SamplerShape` gains `responseKind` and loses `family`, `carriesShape` and `carriesResidualDf`, which the row answers.
 The C bridge maps the kind to `dbarts_family` in one exhaustive switch (Student-t to GAUSSIAN, as dec-B615 has it;
@@ -211,31 +243,43 @@ carries an evaluator no move calls (Calls made, 3).
 
 A function joins a facet when its whole refusal condition is a creation fact; the facet's presence is that fact.
 A function whose answer off a shape is a true value (a count of 0, an empty tally, a null `latents()`) stays in the
-core. A refusal narrower than its facet (an index naming no forest, a non-map forest, no test rows) stays a returned
-refusal inside the facet. By that rule the expected partition, which the implementer confirms against each
-function's documented refusal:
+core; so does a function a caller sweeping every sampler calls unconditionally, where it is a no-op off a shape. A
+refusal narrower than its facet (an index naming no forest, a non-map forest, no test rows) stays a returned refusal
+inside the facet. By that rule the partition, checked function by function by the critique, which the implementer
+confirms against each function's documented refusal:
 
 | facet | functions | present when |
 |---|---|---|
-| `ResidualScaleControl` | setSigma, setResidualPrior | row.drawsResidualScale and no variance forest |
+| `ResidualScaleControl` | setSigma | row.hasResidualScale and no variance forest |
 | `CensoringControl` | setSurvivalStatus | row.carriesCensoring |
 | `ResidualDfControl` | setResidualDf | row.carriesResidualDf |
 | `ShapeControl` | setNegativeBinomialShape, shapeParameter | row.carriesShape |
 | `BinomialCountsControl` | setBinomialCounts | built with trials (row.takesTrials) |
-| `VarianceForestSurface` | predictVariance, currentVarianceFits, sampleVarianceForestFromPrior | a variance forest is built |
-| `AmplitudeCoupling` | numForestAmplitudes, amplitudes, setForestBasis, setForestBasisRescaled, predictPerForest, setForestWeights, setForestMapSd, setForestCoefficientPrior | the amplitude coupling |
+| `VarianceForestSurface` | predictVariance, currentVarianceFits | a variance forest is built |
+| `AmplitudeCoupling` | amplitudes, setForestBasis, setForestBasisRescaled, predictPerForest, setForestWeights, setForestMapSd, setForestCoefficientPrior | the amplitude coupling |
 | `CountsCoupling` | setCounts, setCategoryOffset, setCategoryTestOffset | the counts (softmax) coupling |
 | `AdditiveLocation` | fitsWithoutOffset | every coupling but the counts coupling |
-| `LeafCovariateControl` | rederiveStandardization, setLeafLengthscales (GP's own refusal kept) | a linear or GP leaf |
+| `LengthscaleControl` | setLeafLengthscales | a GP leaf |
 
-That moves 24 virtuals off the core; `totalAmplitudes` goes (it duplicates `SamplerShape::numAmplitudes`) and
-`capabilities()` comes, so the core holds about 60. `SamplerShape` loses `hasVarianceForest`, `holdsTrials`,
-`supportsForestWeights` (unless its predicate proves narrower than the coupling, when it stays a value),
-and `supportsCountsMutation`. (`supportsActiveRows`, true for every class, goes in SC1 with its virtual and the
-bridge's unreachable refusal, Calls made, 5.)
+Kept in the core by the rule: `setResidualPrior` (`$setModel` calls it on every sampler; a no-op off a residual
+scale), `rederiveStandardization` (a constant leaf's empty answer is the true one, and `rederiveAfterInstall` and
+`$setPredictor` call it whatever the leaf), `sampleVarianceForestFromPrior` (documented as a no-op on a homoscedastic
+sampler, which R's prior-draw sweep calls unconditionally) and `numForestAmplitudes` (0 off the coupling, as
+`SamplerShape::numAmplitudes` answers).
+
+That moves 19 virtuals off the core; `totalAmplitudes` goes (it duplicates `SamplerShape::numAmplitudes`) and
+`capabilities()` comes, so the core holds about 66. `SamplerShape` loses `hasVarianceForest`, `holdsTrials`,
+`supportsForestWeights` and `forestReportingIsDefined` (both true exactly on the amplitude coupling, so its presence
+answers them; either stays a value if the implementer finds a sampler where it is narrower), and
+`supportsCountsMutation`. (`supportsActiveRows`, true for every class, goes in SC1 with its virtual and the bridge's
+unreachable refusal, Calls made, 5.)
 
 The capability object, `SamplerCapabilities`, is a trivially destructible struct of facet pointers, filled once when
-the sampler is built (every presence is a creation fact; no setter moves one) and returned by `capabilities()`. The
+the sampler is built (every presence is a creation fact; no setter moves one) and returned by `capabilities()`
+(Calls made, 13). Whether `capabilities()` is a virtual computing the struct per call or a non-virtual base function
+over a struct the derived constructor fills is the implementer's choice; the stored form makes "fixed for life"
+structural and holds self-pointers, safe while `Sampler`'s copy is deleted (so no move is declared), and the class
+says that an added move constructor would leave them dangling. The
 facets are interfaces with protected non-virtual destructors that `Sampler<L, ResidT>` implements; a const sampler's
 query hands facets whose mutators it cannot call (two views of the struct, or one templated on constness: the
 implementer's choice, the reviewer checks there is no const hole). The bridge asks:
@@ -251,6 +295,16 @@ How each question is asked afterward: a count, a value or a setting that a sette
 once per entry; a fixed fact of the kind from `responseFacts(shape.responseKind)`; a function set from
 `capabilities()`. The C header's capability statuses (dbarts_sampler_setSigma's UNSUPPORTED, getLatents' 0) read the
 facet and the row; dbarts.h's "test it once at setup" holds by construction, since presence never changes.
+
+The engine's own refusals stay. `Sampler<L, ResidT>` implements every facet in every instantiation, so presence is a
+run-time fact, and code holding `Sampler` directly (tests/cpp, internal callers) can still call an absent facet's
+function. Each returned refusal or guard that exists today stays and is pinned in tests/cpp through `Sampler`: among
+them [`fitsWithoutOffset`](../../src/bartcore/chain.hpp)'s refusal off one location, `currentVarianceFits`' false
+with no variance forest, and [`Chain::setSigma`](../../src/bartcore/chain.hpp)'s return under a variance forest
+(Calls made, 15). `Chain::setSigma` writes sigma today on a kind with no residual scale (probit), which no bridge path
+reaches; it gains the same guard read from the row, unless a tests/cpp caller relies on the write, which the
+implementer then reports. The claim that the bridge's
+check and the engine's answer agree is a claim about calls through the capability object.
 
 ### The fold
 
@@ -294,26 +348,47 @@ Neither plan blocks the other; both cite by symbol, and whichever lands second r
 
 ## Slices
 
-Each is its own engine feature branch, serial behind collapsed-move-rebuild, landed on its own after the reviewer's
-pass and its gates. Tier: changes draws if wrong, so the engine tier of [Process by risk](README.md#process-by-risk)
-in each, an opus review that runs the mutants.
+Three features, serial behind collapsed-move-rebuild. SC0 is its own small feature, before SC1 or beside it. SC1
+is its own feature (dec-B767). SC2 and SC3 are one feature (dec-B763 is one TODO item): one branch, each slice
+reviewed and gated on it, merged to main once, so main never holds `Sampler` final over the full 85-function
+interface, the shape the ruling revised away from. Tier: changes draws if wrong, so the engine tier of
+[Process by risk](README.md#process-by-risk) in each, an opus review that runs the mutants.
+
+### SC0: aft's leaf-row fallback (draw-changing, engine)
+
+The probe (Context) shows aft departing from the documented rule. Steps: [`withResponseFallback`](../../src/bartcore/sampler.hpp)
+treats aft as gaussian, reading the values aft's transform reads (the log-times less any offset, a censored row at
+its censoring time; the implementer confirms against `AFTResponse` at creation), so an aft creation whose rows in
+hold fewer than two distinct log-times reads its leaf covariates over every row and warns in gaussian's words; the
+help of `new("dbartsSampler", ...)` or setData, where it lists the families, names aft if it lists them. A tinytest
+pin beside test-leaf-standardization-rows.R's "one row in, aft": the probe's setup, expecting every row's numbers,
+`standardization.all.rows` TRUE and the warning. Draws move only in that corner; the trio and the four snapshots do
+not reach it and stay bitwise, which the gates show. An agent call at the engine tier: it restores a documented rule,
+and no reasonable maintainer keeps the departure (the critique's reading, A3). If SC1 lands first, SC0 also deletes
+SC1's commented aft kind test.
+
+Size: ~15 engine lines, ~50 tinytest, a help sentence. Cost: agent ~2, review ~1.5, gates ~1.5.
 
 ### SC1: the records (engine, factories, bridge)
 
 Steps:
 
 1. Recount the name tests on the slice's base by the rule in scratch/plan-core/name-tests.md; any test a landing
-   added since (k-move-pricing, approximate-draws) joins the slice.
+   added since (k-move-pricing, approximate-draws, multinomial-setdata) joins the slice. The recount also names the
+   tests that stand for a kind without its name: the counts-mutation fingerprint for multinomial
+   (`supportsCountsMutation`, about six bridge sites, which SC3 moves) and `model.responseIsBinary`.
 2. model.hpp: `ResponseKind`, the column enumerations, `ResponseFacts`, a row in each of the eight classes, the
    table and its static checks, `responseFacts`, `responseKindFor`; the optional-step interfaces; `facts()`.
    The fact virtuals go (`supportsActiveRows`, `workingWeightsVaryPerSweep`, the three `carries*` queries become
    non-virtual reads of `facts()`), and the four unit-scale classes drop their four scale overrides for base
    defaults of 1, 1, 0, 1 (Calls made, 8). Remove the stale comment "only the binary families fix it".
-3. chain.hpp, facade.hpp, sampler.hpp: the 43 F sites read the row; the two construction switches key on the kind
-   (Student-t its own arm in the single-forest one); `family_` goes from `Chain`; the multinomial chain and sampler
-   carry kind multinomial.
-4. The bridge: the 41 F sites read `responseFacts(kind)`; `refusedAmplitudeFamilyReason`,
-   `enforceBinaryWeightPolicy` and `supportFamily` key on the kind with their wording kept, and `supportFamily`
+3. chain.hpp, facade.hpp, sampler.hpp: the 43 F sites read the row, `withResponseFallback` reading `units` (with
+   aft's commented kind test if SC0 has not landed); the two construction switches key on the kind (Student-t its
+   own arm in the single-forest one); `family_` goes from `Chain`; the multinomial chain and sampler carry kind
+   multinomial.
+4. The bridge: the 35 F sites read `responseFacts(kind)`; `refusedAmplitudeFamilyReason`,
+   `enforceBinaryWeightPolicy`, `defaultLeafScale` and `supportFamily` key on the kind with their wording or constant
+   kept at the reader (`defaultLeafScale` mirrors R's default, a model setting the record does not hold), and `supportFamily`
    maps Student-t to its own kind (its "documentary" gaussian arm goes); [`refuseUnsupportedAmplitudeComposition`](../../src/R_interface_bartcore.cpp)
    keeps its cascade order, the family reason read from the request's base kind so "Student-t residuals" still
    fires where it does; `dbarts_sampler_family` maps the kind. `SamplerShape` gains `responseKind`, loses `family`,
@@ -321,16 +396,19 @@ Steps:
    switch gains a Student-t arm, that arm does what the gaussian arm does today.
 5. Before each bridge site is converted, its implementer names the tinytest pin that would fail if the site read
    the wrong column, in a table in the landing note; where none exists (the unresolved-sigma refusal of a flat
-   creation and the single-precision refusal looked thin), a pin joins the slice.
+   creation and the single-precision refusal looked thin), a pin joins the slice. Every site a multinomial sampler
+   reaches today reading `logistic` gets the same answer from the multinomial row, or is shown unreachable; the
+   landing note lists each, `bartcore_setWeights`' `familyCarriesNoWeights` among them, and a bridge-level or
+   tests/cpp pin holds multinomial's count weights accepted there.
 6. tests/cpp, a new suite `test_response_facts.cpp` (added to the Makefile's sources and main.cpp): for each of
    the eight classes, built on a small fixture, `facts()` is its table row and its virtual answers match the row: `initialSigma`, `fitScale`, `fitShift`,
-   `sigmaScale` and `getScale` against `units` and `drawsResidualScale`; `latents()` non-null exactly where `latent`
+   `sigmaScale` and `getScale` against `units` and `hasResidualScale`; `latents()` non-null exactly where `latent`
    is not none, after a refresh; working weights changing across `refreshLatents` exactly where `latent` is
    precision; the global blocks present exactly where their column says; `setBinomialCounts` accepted exactly on a
    trials-built logistic; `setSurvivalStatus` reaching the class exactly on aft. Plus a bitwise pin of the logistic
    anchor at `std::numbers::pi / std::sqrt(3.0)` through the test peer.
 
-Size: ~300 engine lines written and ~120 removed, ~180 bridge lines touched, ~260 tests/cpp. Cost: agent ~8, review
+Size: ~300 engine lines written and ~120 removed, ~180 bridge lines touched, ~270 tests/cpp. Cost: agent ~8, review
 ~4, gates ~3.
 
 ### SC2: the fold
@@ -341,7 +419,9 @@ test_facade.cpp's forwarding rows go (each compared a call through the base with
 `override` now makes one function); the rows that check engine behavior no other suite checks (the partly filled
 and wrapped saved-tree store, the two-chain and two-forest confusables) move to test_sampler.cpp, listed in the
 landing note; test_shape.cpp reads `Sampler::shape()`. A clang-tidy run with `google-default-arguments` over
-facade.hpp and sampler.hpp, clean.
+facade.hpp and sampler.hpp, clean: clang-tidy is not on PATH here but at /opt/homebrew/opt/llvm/bin/clang-tidy, run
+with tests/cpp's include flags after `--` (or a compile database). It does not see a wrong default in a non-virtual
+overload, which mutant 13 covers. Reviewed and gated on the SC2-SC3 branch; not merged alone.
 
 Size: ~250 lines written; ~400 engine and ~1,100 tests/cpp removed. Cost: agent ~5, review ~2.5, gates ~2.
 
@@ -349,12 +429,14 @@ Size: ~250 lines written; ~400 engine and ~1,100 tests/cpp removed. Cost: agent 
 
 Steps: the facet interfaces and `SamplerCapabilities` as in [The core and the capability object](#the-core-and-the-capability-object);
 `Sampler` implements the facets and fills the object at construction from the row, the coupling's existing
-predicates, the leaf type and the variance forest; the 24 functions leave `SamplerBase`; `totalAmplitudes` and the
-presence fields go; the bridge's 29 presence reads and about 35 facet calls ask `capabilities()`, the C entries'
+predicates, the leaf type and the variance forest; the 19 functions leave `SamplerBase`; `totalAmplitudes` and the
+presence fields go; the bridge's 29 presence reads and about 30 facet calls ask `capabilities()`, the C entries'
 capability statuses among them; tests/cpp `test_capabilities.cpp`, built on test_facade.cpp's fixtures (gaussian,
 probit, logistic, binomial, Student-t, aft, ordinal, nbinom, BCF, multinomial, variance forest, linear, GP,
-monotone): each fixture's object has exactly the facets its record and shape imply, and each facet's functions
-answer through the facet as through `Sampler`.
+monotone): each fixture's object has exactly the facets its record and shape imply, each facet's functions answer
+through the facet as through `Sampler`, and each returned refusal or guard an absent facet also covers is pinned
+through `Sampler` ([The core and the capability object](#the-core-and-the-capability-object)). The SC2-SC3 branch
+merges once, after SC3's review and the branch's full gates.
 
 Size: ~600 lines touched (facade.hpp ~150, sampler.hpp ~120, bridge ~180, tests/cpp ~250, net ~100 removed).
 Cost: agent ~7, review ~3, gates ~2.
@@ -379,10 +461,11 @@ Per slice, against the slice's own private library, every install `--preclean` (
     R CMD check --as-cran <tarball from a clean copy staged outside the tree>
 
 Expected: every tests/cpp suite passes plain and under ASan with no diagnostic; the suite passes with every message
-pin unchanged; each trio compare prints its full count of "identical draws (same RNG stream)" lines and no "max |z|"
+pin unchanged (SC0: its new pin passes, every other pin unchanged); each trio compare prints its full count of "identical draws (same RNG stream)" lines and no "max |z|"
 line (Gate hygiene); the four snapshots pass. SC1 and SC3, which edit the bridge's validators and capability checks,
 add the R-loaded ASan run over the creation, mutation and test-capi.R suites; SC2, which changes ownership in the
-factories, adds the x86 leg with LeakSanitizer. The orchestrator's own check, each slice: `bench-sampler.R record`
+factories, adds the x86 leg with LeakSanitizer. The SC2-SC3 branch runs the full battery again at its tip before its
+one merge. The orchestrator's own check, each slice: `bench-sampler.R record`
 on the base and `compare` on the tip, same quiet machine, interleaved; expected neutral (the record is read a handful
 of times per sweep per chain, never per row).
 
@@ -394,7 +477,7 @@ catches is a finding, answered with a pin. `touch` each reverted file.
 SC1:
 1. Student-t's `precisionChannelFree` true: test_response_facts fails, and a variance forest with a Student-t
    residual is no longer refused (test-heteroscedastic.R's "variance forest does not support" pin).
-2. Student-t's `drawsResidualScale` false: sigma pinned on a Student-t fit; equivalence.R's Student-t scenario
+2. Student-t's `hasResidualScale` false: sigma pinned on a Student-t fit; equivalence.R's Student-t scenario
    fails bitwise (no arm64 snapshot holds a Student-t fit).
 3. `responseKindFor` ignores the residual df: every Student-t fit becomes gaussian; equivalence.R's Student-t
    scenario and the tinytest files that read a df channel fail.
@@ -407,43 +490,47 @@ SC1:
    the interface check.
 8. The bridge's `refusedAmplitudeFamilyReason` read from the Student-t row: test-bcf-creation.R's
    "Student-t residuals" pin fails on message order.
-9. `requireResolvedSigmaEstimate` read for aft as not drawing sigma: an aft flat creation with an NA sigma is
-   accepted; the pin step 5 names or adds fails.
-10. aft's `leafRowsRead` set to responseLessOffset (the suspected fix): expected to pass every gate, which measures
-    the coverage gap of Not verified; recorded, not answered here.
+9. `requireResolvedSigmaEstimate` read for aft as having no residual scale: an aft flat creation with an NA sigma
+   is accepted; the pin step 5 names or adds fails.
+10. Student-t's `admitsSinglePrecision` false: a single-precision Student-t creation is refused. The row check does
+    not see it (the mutant edits the row itself); the pin step 5 names or adds, a single-precision Student-t
+    creation, fails.
+11. Multinomial's `weights` none: `bartcore_setWeights` refuses a multinomial sampler's count weights with aft's
+    message; the bridge-level or tests/cpp pin step 5 adds fails (R's `$setWeights` refuses multinomial first, so no
+    existing tinytest sees it).
+
+SC0:
+12. aft left out of the fallback again: SC0's tinytest pin fails (every-row numbers, the flag and the warning).
 
 SC2:
-11. A default argument re-added to a virtual with a value different from the base overload's: clang-tidy flags it.
-12. `Sampler::shape()` fills `numSavedDraws` from the store's capacity: test_shape fails.
-13. `createSampler` builds the GP instantiation for a linear designation: the leaf tests fail.
+13. A default argument re-added to a virtual with a value different from the base overload's: clang-tidy flags it.
+14. A non-virtual short form passing `SplitPlacement::byValue` where the default is `byPosition`: clang-tidy does not
+    see it; the tests/cpp row that calls the short form and compares with the long form's `byPosition` fails (the
+    reviewer confirms one exists, else adds it).
+15. `Sampler::shape()` fills `numSavedDraws` from the store's capacity: test_shape fails.
+16. `createSampler` builds the GP instantiation for a linear designation: the leaf tests fail.
 
 SC3:
-14. `varianceForest` present on a homoscedastic gaussian: test_capabilities fails; predictVariance reaches a sampler
+17. `varianceForest` present on a homoscedastic gaussian: test_capabilities fails; predictVariance reaches a sampler
     with no variance forest.
-15. `residualScale` present under a variance forest: the setSigma capability arms of test-capi.R and the tinytest
+18. `residualScale` present under a variance forest: the setSigma capability arms of test-capi.R and the tinytest
     pinned-sigma refusal on a heteroscedastic sampler fail (the reviewer confirms both arms exist, else adds them).
-16. `countsCoupling` absent on multinomial: `dbarts_sampler_family` and the R count setters' pins fail.
-17. `binomialCounts` keyed on the row alone (present on a binary logistic): test-count-response-doors.R's refusal
+19. `countsCoupling` absent on multinomial: `dbarts_sampler_family` and the R count setters' pins fail.
+20. `binomialCounts` keyed on the row alone (present on a binary logistic): test-count-response-doors.R's refusal
     fails.
+21. `fitsWithoutOffset`'s refusal off one location removed, now that the facet is absent there: the tests/cpp pin
+    through `Sampler` fails.
 
 ## Open calls
 
-1. **What the capability object is.** (a) One object built at creation, holding a typed pointer per optional
-   function set, null where absent, read by one query; presence leaves `SamplerShape`. Recommended: it is the
-   memo's "queried capability object", the answer and the refusal are one fact, and the C header's "test once"
-   holds by construction. (b) One query per facet on `SamplerBase`, const and non-const, about 20 virtuals in
-   place of one. (c) One second interface holding every non-core function, each still refusing: the class is
-   split but the union is not, so it does not meet the ruling. Cost of (a) as planned; (b) about the same.
-2. **The fold before the shrink.** The ruling's words are "shrink ... then fold". Folding first (SC2 before SC3)
-   reaches the same end state without rewriting the forwarding class and its test table into facets only to delete
-   them, about 2 agent-hours saved. Recommended: fold first. The alternative is SC3 before SC2, the facets first
-   implemented by `SamplerFacade`.
+None. Nothing here changes what a user sees beyond SC0's corner, which restores a documented rule; the two calls
+that were open are made (Calls made, 13 and 14), for close-out.
 
 ## Calls made
 
-1. Three slices, the records first (engine and bridge together), as the expert synthesis advised ("Q3 first, so the
-   capability object is filled from the record"). Alternative: four, the bridge's half its own slice (one more gate
-   battery and review, about 4 hours).
+1. The records first (engine and bridge together, one slice), as the expert synthesis advised ("Q3 first, so the
+   capability object is filled from the record"). Alternative: the bridge's half its own slice (one more gate battery
+   and review, about 4 hours).
 2. Every family name test classified F, S, P or K, and only F replaced; exhaustive switches whose arms build objects
    or carry R's wording stay, keyed by the kind. Alternative: a name column in the record and the wording composed
    from it, which puts text in the engine's record.
@@ -455,8 +542,9 @@ SC3:
 5. `supportsActiveRows` deleted, every class answering true. Alternative: a record column that is true in every row.
 6. Student-t not admitted by the amplitude coupling, the engine refusing what it now ignores. Alternative: admit it
    and keep building a gaussian response, dropping the residual df in silence.
-7. `latentScale` states the model's value for ordinal and `notStated` for nbinom and multinomial, all unreachable.
-   Alternative: today's empirical arm for every non-binary row, which states a scale no model gives ordinal.
+7. `latentScale` is `notStated` for ordinal, nbinom and multinomial, all unreachable, so admitting any of them forces
+   the question (the critique's advice; the first draft gave ordinal `standardNormal`). Alternatives: ordinal's
+   model value, which changes an unreachable arm away from verbatim; today's empirical arm for every non-binary row.
 8. The four scale accessors default to the unit scale in the base, the tests/cpp row check catching a class that
    should override. Alternative: keep them pure, the four unit-scale classes repeating them.
 9. No default arguments on virtuals; short forms as non-virtual base overloads. Alternative: the non-virtual
@@ -465,28 +553,56 @@ SC3:
     nearest fact (counts and precision latents) also covers nbinom, whose setData does not need it.
 11. The forwarding test's rows deleted, not kept as smoke tests, the behavior rows moved.
 12. The couplings' base class and its capability virtuals left to chain-split.
+13. The capability object is one struct of typed facet pointers, null where absent, read by one query (option (a)),
+    because it is the memo's "queried capability object" with the fewest virtuals, the answer and the refusal are one
+    fact, and dbarts.h's "test once" holds by construction. Alternatives: (b) a query virtual per facet, the same
+    design with about 20 virtuals in place of one; (c) a second all-in interface, each function still refusing,
+    which does not meet the ruling.
+14. SC2 (the fold) before SC3 (the shrink) on the one branch, because the end state is the same and the forwarding
+    class and its test table are not rewritten into facets only to be deleted (about 2 agent-hours). With one merge
+    main never sees the order. Alternative: SC3 first, the facets implemented by `SamplerFacade`.
+15. Each returned refusal or guard an absent facet also covers stays in `Sampler` and is pinned in tests/cpp through
+    it. Alternative: the facet overrides private in `Sampler`, reachable only through the facet pointer, and the
+    whole-facet refusals turned into asserts, which churns test_sampler.cpp's direct calls.
+16. The default node scale stays in the bridge, a switch over the kind with its constants at the reader: it is R's
+    default, a model setting, not a fact of the kind. Alternative: a record column, which puts a front end's default
+    in the engine and has no C++ reader for multinomial's value.
+17. No record column for the leaf-row fallback: it derives from `units`, and aft's one departure is fixed in SC0
+    rather than recorded as a fact of the kind. Alternative: a column that keeps the departure, which the record
+    would present as part of the model.
+18. SC0 is an agent call at the engine tier, planned here: it restores the rule `LeafRows` and the help state, in a
+    corner the trio does not reach. Alternative: hold it for the maintainer, which keeps a documented rule broken
+    meanwhile.
+
+Implementation choices the critique leaves to the implementer, each reported in the landing note: the capability
+object's const view (two structs or one templated on constness, the reviewer checking for a const hole); stored or
+computed `capabilities()`; record names; `admittedByAmplitudeCoupling` as a column or as the coupling's predicate
+over the row (the factory's stated reasons are `notStated`, censoring and a global block); the scale-accessor defaults
+(call 8); refining `latent` to the augmentation (none, truncated normal, Polya-Gamma, gamma mixture), which
+approximate-draws' method refusal will need.
 
 ## Not verified
 
-- aft and the leaf-row fallback: [`carriesUnits`](../../src/bartcore/chain.hpp) counts aft as carrying units while
-  [`withResponseFallback`](../../src/bartcore/sampler.hpp) does not read its response. An aft fit with a linear or
-  GP leaf, an active-row mask and one distinct response value among the rows in may read leaf rows other than its
-  transform's. It needs a constructed fit to show, which this planner could not run. SC1 keeps today's draws; a
-  probe belongs before SC1 starts, and a fix, if one is owed, is its own draw-changing slice.
-- The facet partition: each function's refusal condition was read from its documentation, not traced; the
-  implementer confirms it and the critique should check the table.
-- Whether bcf-equivalence's scenarios reach the logistic anchor (mutant 4 says).
+- The facet partition was checked by reading (the critique traced each presence against its function's refusal),
+  not by a build; the implementer confirms it.
+- Whether multinomial's count-weight policy matches logistic's reading exactly (A1): if not, multinomial's
+  `weights` gets a value of its own.
+- What value aft's fallback reads for a censored row at creation (SC0 names it after reading `AFTResponse`).
+- Settled since the first draft: the aft fallback (run, Context); bcf-equivalence reaches the logistic anchor (its
+  logistic scenarios build from a fresh data object, so `latentScaleAnchor` sets every forest's node scale; the
+  critique's reading).
 
 ## Cost
 
 | slice | lines | agent-hours |
 |---|---|---|
-| SC1 records | ~740 written, ~120 removed | ~15 |
+| SC0 aft fallback | ~65 written | ~5 |
+| SC1 records | ~750 written, ~120 removed | ~15 |
 | SC2 fold | ~250 written, ~1,500 removed | ~9.5 |
-| SC3 core and capabilities | ~600 touched, ~100 net removed | ~12 |
-| total | ~1,600 written, ~1,700 removed | ~37 |
+| SC3 core and capabilities | ~580 touched, ~100 net removed | ~11.5 |
+| total | ~1,650 written, ~1,700 removed | ~41 |
 
-Plans have run 1.5 to 2 times low.
+Plans have run 1.5 to 2 times low: 60 to 80 hours.
 
 ## Appendix: the name tests
 
@@ -496,7 +612,7 @@ chain.hpp 45, facade.hpp 7, sampler.hpp 3, combiner.hpp 1, R_interface_bartcore.
 | where | references | becomes |
 |---|---|---|
 | [`Chain`](../../src/bartcore/chain.hpp) single-forest and amplitude constructors, the construction switches | 12 | switches over the kind |
-| `sigmaIsFixed_` at both constructors, [`setResidualPrior`](../../src/bartcore/chain.hpp) | 6 | drawsResidualScale |
+| `sigmaIsFixed_` at both constructors, [`setResidualPrior`](../../src/bartcore/chain.hpp) | 6 | hasResidualScale |
 | [`buildVarianceForest`](../../src/bartcore/chain.hpp)'s gate, [`varianceForestIsRefused`](../../src/bartcore/facade.hpp) | 4 | precisionChannelFree |
 | [`carriesUnits`](../../src/bartcore/chain.hpp) | 3 | units |
 | [`latentScaleAnchor`](../../src/bartcore/chain.hpp), [`derivedForestSdUnit`](../../src/bartcore/chain.hpp), [`rowsForBasisScale`](../../src/bartcore/chain.hpp) | 18 | latentScale |
@@ -505,16 +621,16 @@ chain.hpp 45, facade.hpp 7, sampler.hpp 3, combiner.hpp 1, R_interface_bartcore.
 | [`createConstantLeafSampler`](../../src/bartcore/facade.hpp) | 1 | admitsSinglePrecision |
 | [`trialsAreRefused`](../../src/bartcore/facade.hpp) | 1 | takesTrials |
 | [`createAmplitudeSampler`](../../src/bartcore/facade.hpp) | 3 | admittedByAmplitudeCoupling |
-| [`withResponseFallback`](../../src/bartcore/sampler.hpp) | 2 | leafRowsRead |
+| [`withResponseFallback`](../../src/bartcore/sampler.hpp) | 2 | units (aft's departure fixed in SC0) |
 | [`AmplitudeSpec`](../../src/bartcore/combiner.hpp)'s family default | 1 | kept (a request) |
 | [`resolveFamily`](../../src/R_interface_bartcore.cpp), the resid.df request check | 7 | kept (parsing) |
 | [`applySurvivalStatus`](../../src/R_interface_bartcore.cpp), the setResponse status and setData refusals | 3 | carriesCensoring |
 | [`refusedAmplitudeFamilyReason`](../../src/R_interface_bartcore.cpp) | 6 | admittedByAmplitudeCoupling, wording by kind |
-| [`defaultLeafScale`](../../src/R_interface_bartcore.cpp) | 6 | defaultNodeScale |
+| [`defaultLeafScale`](../../src/R_interface_bartcore.cpp) | 6 | a switch over the kind, constants at the reader |
 | the creation weights reading, the aft weights refusal, [`familyCarriesNoWeights`](../../src/R_interface_bartcore.cpp) | 4 | weights |
 | [`enforceBinaryWeightPolicy`](../../src/R_interface_bartcore.cpp) | 5 | a switch over the kind, wording kept |
 | the nbinom shape and weighted-count caps at creation, setResponse, setData, setWeights | 5 | carriesShape |
-| [`requireResolvedSigmaEstimate`](../../src/R_interface_bartcore.cpp), [`sigmaIsPinned`](../../src/R_interface_bartcore.cpp), [`fillResidualParameters`](../../src/R_interface_bartcore.cpp) | 6 | drawsResidualScale |
+| [`requireResolvedSigmaEstimate`](../../src/R_interface_bartcore.cpp), [`sigmaIsPinned`](../../src/R_interface_bartcore.cpp), [`fillResidualParameters`](../../src/R_interface_bartcore.cpp) | 6 | hasResidualScale |
 | [`familyHasResponseScale`](../../src/R_interface_bartcore.cpp), the count family's supplied and stored ranges | 8 | units |
 | [`validateResponseSupport`](../../src/R_interface_bartcore.cpp), setData's counts on a binary logistic | 8 | support, takesTrials |
 | the single-precision refusal | 1 | admitsSinglePrecision |
@@ -522,4 +638,4 @@ chain.hpp 45, facade.hpp 7, sampler.hpp 3, combiner.hpp 1, R_interface_bartcore.
 | [`supportFamily`](../../src/R_interface_bartcore.cpp) | 7 | a map to the kind |
 | [`dbarts_sampler_family`](../../src/C_interface.cpp) | 6 | a map from the kind |
 
-Replaced by record reads 84; kept in switches over the kind 36; parsing and request defaults 8; family behavior 1.
+Replaced by record reads 78; kept in switches over the kind 42; parsing and request defaults 8; family behavior 1.
