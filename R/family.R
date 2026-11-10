@@ -95,7 +95,9 @@ referencedDots <- function(env) {
     return(env)
   }
   dots <- as.list(match.call(function(...) NULL, quote(f(...)), envir = env))
-  references <- lapply(paste0("..", seq_along(dots[-1L])), as.name)
+  references <- lapply(seq_along(dots[-1L]), function(i) {
+    as.name(paste0("..", i))
+  })
   names(references) <- names(dots[-1L])
   do.call(function(...) environment(), references)
 }
