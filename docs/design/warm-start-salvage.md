@@ -80,7 +80,7 @@ recipient's shape, and in R ([`refuseMultiForestWarmStart`](../../R/bartcore.R),
   repaired forced, where today they are repaired with no word (dec-B278 for the first). A forced warm start
   collapses a monotone tree out of order where its order breaks, each merged leaf at the mean by rows
   ([`collapseMonotoneTree`](../../src/bartcore/model.hpp)), and does not reset it (dec-B355); a forced
-  `setState`, `setPredictor`, `setData` and `setCutPoints` do the same, as a warm start does.
+  `setState` or `setPredictor`, and `setData` and `setCutPoints`, which always complete, do the same.
 - dec-B323, "Sure, option B.": into fewer trees a warm start takes the donor trees whose fitted values vary
   most over the recipient's rows, in the donor's order, values as they are; into more it takes them all and
   starts the rest as single leaves at 0. Settled here, the ruling not naming them: "vary most" is the
