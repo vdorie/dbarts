@@ -4447,9 +4447,13 @@ dbartsSampler <- setRefClass(
           data@offset.test
         ),
         error = function(e) {
+          restored <- restoreTestSet(getPointer(), oldX.test, oldOffset.test)
           selfEnv$dataHeld@testUsesRegularOffset <- oldTestUsesRegularOffset
-          selfEnv$dataHeld@x.test <- oldX.test
-          selfEnv$dataHeld@offset.test <- oldOffset.test
+          selfEnv$dataHeld@x.test <- restored$x.test
+          selfEnv$dataHeld@offset.test <- restored$offset.test
+          if (is.null(restored$x.test)) {
+            selfEnv$dataHeld <- setDataRowNames(selfEnv$dataHeld, "test", NULL)
+          }
           e
         }
       )

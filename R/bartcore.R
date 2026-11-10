@@ -2501,6 +2501,37 @@ bartcoreSamplerSetCutPoints <- function(sampler, cuts, column, splits) {
   invisible(NULL)
 }
 
+# After a failed test install: the bridge refused the new set and left the
+# engine as it was, or the install failed part way (an allocation) and left the
+# engine with no test rows. Installing the previous set again covers both. The
+# set the engine holds afterward is returned, for the caller's slots; it is
+# empty when the reinstall fails too, and the engine is then cleared to match.
+restoreTestSet <- function(ptr, x.test, offset.test) {
+  if (is.null(x.test)) {
+    return(list(x.test = NULL, offset.test = NULL))
+  }
+  reinstalled <- tryCatch(
+    {
+      .Call(
+        C_dbarts_bartcore_setTestPredictorAndOffset,
+        ptr,
+        x.test,
+        offset.test
+      )
+      TRUE
+    },
+    error = function(e) FALSE
+  )
+  if (reinstalled) {
+    return(list(x.test = x.test, offset.test = offset.test))
+  }
+  tryCatch(
+    .Call(C_dbarts_bartcore_setTestPredictorAndOffset, ptr, NULL, NULL),
+    error = function(e) NULL
+  )
+  list(x.test = NULL, offset.test = NULL)
+}
+
 bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
   column <- resolveColumnIndex(
     sampler$data@x.test,
@@ -2571,9 +2602,8 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
     )
   }
 
-  # install the new test set R-side, then roll back if the bridge refuses it
-  # (a container whose leaf-covariate column is CSC-backed), keeping the
-  # R-level object and the engine's prior test store consistent
+  # install the new test set R-side, then roll back if the bridge fails it,
+  # keeping the R-level object and the engine's test store consistent
   oldX.test <- sampler$data@x.test
   oldOffset.test <- sampler$data@offset.test
   sampler$dataHeld@x.test <- x.test
@@ -2587,8 +2617,16 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
       sampler$data@x.test
     ),
     error = function(e) {
-      sampler$dataHeld@x.test <- oldX.test
-      sampler$dataHeld@offset.test <- oldOffset.test
+      restored <- restoreTestSet(
+        sampler$getPointer(),
+        oldX.test,
+        oldOffset.test
+      )
+      sampler$dataHeld@x.test <- restored$x.test
+      sampler$dataHeld@offset.test <- restored$offset.test
+      if (is.null(restored$x.test)) {
+        sampler$dataHeld <- setDataRowNames(sampler$dataHeld, "test", NULL)
+      }
       e
     }
   )
