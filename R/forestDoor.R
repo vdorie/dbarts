@@ -269,27 +269,10 @@ sameCoefficientPrior <- function(a, b) {
   is(a, "dbartsNormalPrior") && is(b, "dbartsNormalPrior") || identical(a, b)
 }
 
-## How a door's refusal names forest `index`: by its label, as a creation names
-## one by its list's name, and by position where it has none: a label that is
-## its position's or the text of its basis, which a forest with no name takes.
+## How a door's refusal names forest `index`: by its label, as the fit's
+## results do, and by position where it has none of its own.
 doorForestLabel <- function(model, index) {
-  labels <- vapply(model@forests, methods::slot, "", "label")
-  labels[labels == paste0("forest", seq_along(labels))] <- ""
-  for (position in seq_along(labels)) {
-    text <- model@forests[[position]]@basis.term$label
-    if (
-      length(text) == 1L &&
-        (identical(labels[[position]], text) ||
-          (startsWith(labels[[position]], paste0(text, ".")) &&
-            grepl(
-              "^[0-9]+$",
-              substring(labels[[position]], nchar(text) + 2L)
-            )))
-    ) {
-      labels[[position]] <- ""
-    }
-  }
-  forestKnobLabel(stats::setNames(as.list(labels), labels), index)
+  forestKnobLabel(vapply(model@forests, methods::slot, "", "label"), index)
 }
 
 ## Whether forest `index` takes its size from the fitting function's leaf

@@ -633,7 +633,13 @@ movedStructureRefusal <- function(newModel, model) {
     for (index in seq_along(model@forests)) {
       own <- model@forests[[index]]
       given <- newModel@forests[[index]]
-      forest <- paste0("forest ", index, "'s ")
+      forest <- paste0(
+        forestKnobLabel(
+          vapply(model@forests, methods::slot, "", "label"),
+          index
+        ),
+        "'s "
+      )
       rows <- c(
         rows,
         list(

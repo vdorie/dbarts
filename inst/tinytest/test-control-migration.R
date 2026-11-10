@@ -766,20 +766,35 @@ statesAnother <- twoForest$model
 statesAnother@forests[[2L]]@n.trees <- 3L
 statesAnother@forests[[2L]]@stated <- "n.trees"
 expect_true(grepl(
-  "forest 2's tree count",
-  dbarts:::movedStructureRefusal(statesAnother, twoForest$model)
+  "forest \"factor(z)\"'s tree count",
+  dbarts:::movedStructureRefusal(statesAnother, twoForest$model),
+  fixed = TRUE
 ))
-expect_true(grepl("forest 2's 'vars'", refusedBy("vars", 1L)))
 expect_true(grepl(
-  "forest 2's 'interactions'",
-  refusedBy("interactions", list(1:2))
+  "forest \"factor(z)\"'s 'vars'",
+  refusedBy("vars", 1L),
+  fixed = TRUE
 ))
-expect_true(grepl("forest 2's 'blocks'", refusedBy("blocks", list(block = 1L))))
 expect_true(grepl(
-  "forest 2's 'basis'",
-  refusedBy("basis.term", list(label = "b"))
+  "forest \"factor(z)\"'s 'interactions'",
+  refusedBy("interactions", list(1:2)),
+  fixed = TRUE
 ))
-expect_true(grepl("forest 2's label", refusedBy("label", "another")))
+expect_true(grepl(
+  "forest \"factor(z)\"'s 'blocks'",
+  refusedBy("blocks", list(block = 1L)),
+  fixed = TRUE
+))
+expect_true(grepl(
+  "forest \"factor(z)\"'s 'basis'",
+  refusedBy("basis.term", list(label = "b")),
+  fixed = TRUE
+))
+expect_true(grepl(
+  "forest \"factor(z)\"'s label",
+  refusedBy("label", "another"),
+  fixed = TRUE
+))
 expect_null(refusedBy("stated", c("n.trees", "sd", "share")))
 expect_null(refusedBy("base", 0.5))
 expect_null(refusedBy("power", 0.5))

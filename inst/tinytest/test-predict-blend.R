@@ -627,14 +627,15 @@ expect_identical(
 # not a request to keep the fit's own
 expect_error(
   predict(fit, bases = list(NULL, NULL)),
-  pattern = "forest 2 carries a basis, so the blend needs its 2 columns at the training rows"
+  pattern = "forest \"factor(z)\" carries a basis, so the blend needs its 2 columns at the training rows",
+  fixed = TRUE
 )
 # and the message names the way to keep the fit's own bases and change the
 # others, fit$bases with the entries to change replaced, at the forest's index
-nullHint <- function(index, refused, width) {
+nullHint <- function(index, refused, width, label = refused) {
   paste0(
     "forest ",
-    refused,
+    label,
     " carries a basis, so the blend needs its ",
     if (width == 1L) "1 column" else paste(width, "columns"),
     " at the training rows, and NULL does not stand for the fit's own: start ",
@@ -647,7 +648,7 @@ nullHint <- function(index, refused, width) {
 }
 expect_identical(
   tryCatch(predict(fit, bases = list(NULL, NULL)), error = conditionMessage),
-  nullHint(2L, 2L, 2L)
+  nullHint(2L, 2L, 2L, "\"factor(z)\"")
 )
 # three forests, the second given and the third left NULL, as a caller writes
 # list(NULL, z1, NULL): the entry given is the one the idiom replaces
@@ -664,7 +665,7 @@ expect_identical(
     predict(threeForests, bases = list(NULL, arm1, NULL)),
     error = conditionMessage
   ),
-  nullHint(2L, 3L, 1L)
+  nullHint(2L, 3L, 1L, "\"w\"")
 )
 # with several entries given, the idiom names the first of them
 fourForests <- fitFromPredictBlend(
@@ -681,7 +682,7 @@ expect_identical(
     predict(fourForests, bases = list(NULL, arm1, runif(n), NULL)),
     error = conditionMessage
   ),
-  nullHint(2L, 4L, 1L)
+  nullHint(2L, 4L, 1L, "\"I(w^2)\"")
 )
 # the first entry given names the forest to change, whichever forest is refused
 expect_identical(
@@ -689,7 +690,7 @@ expect_identical(
     predict(bothBasesFit, bases = list(runif(n), NULL)),
     error = conditionMessage
   ),
-  nullHint(1L, 2L, 2L)
+  nullHint(1L, 2L, 2L, "\"factor(z)\"")
 )
 # at newdata the fit's own bases are not those rows' bases, and the message is
 # the one it was

@@ -507,7 +507,7 @@ for (refusal in refusals) {
   bad <- refusal[[1L]]
   expect_error(
     build("two", ctl(), second = bad),
-    paste0("forest 2's ", refusal[[2L]]),
+    paste0("forest \"z\"'s ", refusal[[2L]]),
     fixed = TRUE
   )
   expect_error(

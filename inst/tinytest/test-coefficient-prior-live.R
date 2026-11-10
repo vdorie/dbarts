@@ -875,7 +875,7 @@ case("$setModel, a coefficient and a tree count", {
   live$setForest(2L, amplitude = fixed())
   expect_true(
     grepl(
-      "cannot change forest 2's 'amplitude': change it with $setForest(\"z\", amplitude = normal())",
+      "cannot change forest \"z\"'s 'amplitude': change it with $setForest(\"z\", amplitude = normal())",
       refusal(live$setModel(saved)),
       fixed = TRUE
     ),
@@ -899,7 +899,7 @@ case("$setModel, a coefficient and a tree count", {
   counted <- live$model
   counted@forests[[2L]] <- stating(counted@forests[[2L]], 3L)
   expect_true(grepl(
-    "forest 2's tree count",
+    "forest \"z\"'s tree count",
     refusal(live$setModel(counted)),
     fixed = TRUE
   ))

@@ -2563,8 +2563,7 @@ resolveForestBases <- function(
       given <- which(!vapply(bases, is.null, logical(1L)))
       change <- if (length(given) > 0L) given[[1L]] else k
       stop(
-        "forest ",
-        k,
+        forestKnobLabel(attr(object, "forest.labels", exact = TRUE), k),
         " carries a basis, so the blend needs its ",
         width,
         if (width == 1L) " column" else " columns",
@@ -2581,8 +2580,7 @@ resolveForestBases <- function(
     }
     if (is.null(bases[[k]])) {
       stop(
-        "forest ",
-        k,
+        forestKnobLabel(attr(object, "forest.labels", exact = TRUE), k),
         " carries a basis, so the blend needs its ",
         width,
         if (width == 1L) " column" else " columns",

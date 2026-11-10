@@ -965,7 +965,18 @@ resolveSamplerSpec <- function(
   } else {
     !vapply(declaredBases, is.null, logical(1L))
   }
-  forestSpec <- resolveForests(forests, interactions, blocks, declaredHasBasis)
+  basisTexts <- lapply(basisRecords, function(record) record$label)
+  forestSpec <- resolveForests(
+    forests,
+    interactions,
+    blocks,
+    declaredHasBasis,
+    basisTexts
+  )
+  # how a refusal names a forest: by its label, as the fit's results do
+  knobLabels <- if (!is.null(forestSpec)) {
+    forestLabels(names(forests), basisTexts, length(forests))
+  }
   firstForest <- if (is.null(forestSpec)) NULL else forestSpec[[1L]]
   # a model with no bases has one forest, which is the plain one
   plain <- if (is.null(declaredBases)) 1L else plainForest(declaredHasBasis)
@@ -1001,7 +1012,7 @@ resolveSamplerSpec <- function(
     refuseStatedOnPlainForest(
       stated,
       plainSpecs,
-      forestKnobLabel(forests, plain[1L])
+      forestKnobLabel(knobLabels, plain[1L])
     )
   }
   # the forests that take the fitting function's leaf prior as one forest's:
@@ -1143,7 +1154,7 @@ resolveSamplerSpec <- function(
     for (index in seq_along(forestSpec)) {
       refuseMonotoneForestMixture(
         forestSpec[[index]]$proposal.probs,
-        forestKnobLabel(forests, index)
+        forestKnobLabel(knobLabels, index)
       )
     }
   }
@@ -1556,7 +1567,7 @@ resolveSamplerSpec <- function(
             index %in% plain
         ) {
           refuseSizelessCoefficient(
-            forestKnobLabel(forests, index),
+            forestKnobLabel(knobLabels, index),
             spec$amplitude,
             hyperprior
           )
@@ -1601,11 +1612,7 @@ resolveSamplerSpec <- function(
     )
     # every forest's label, fixed here for the life of the sampler: a list's
     # own name, else the text of a basis written as code, else its position
-    labels <- forestLabels(
-      names(forests),
-      lapply(basisRecords, function(record) record$label),
-      numForests
-    )
+    labels <- forestLabels(names(forests), basisTexts, numForests)
     refuseConstantBasis(data, allRows, specs, labels)
     # the first forest's constraints are the model's, already resolved
     # above; the rest take their own, and the plain forest the fitting

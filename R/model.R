@@ -1660,14 +1660,15 @@ validateForestKnobs <- function(spec) {
   spec
 }
 
-## How a refusal names forest `index` of a `forests` list: by the list's name
-## where it gives one, by position otherwise.
-forestKnobLabel <- function(forests, index) {
-  name <- names(forests)[index]
-  if (length(name) == 1L && !is.na(name) && nzchar(name)) {
-    paste0("forest \"", name, "\"")
-  } else {
+## How a refusal names forest `index`: by its label, as a fit's results do, and
+## by position where it has none of its own (a label that is its position's).
+## `labels` is every forest's label, as forestLabels() gives them.
+forestKnobLabel <- function(labels, index) {
+  label <- if (length(labels) >= index) labels[[index]] else ""
+  if (is.na(label) || !nzchar(label) || label == paste0("forest", index)) {
     paste0("forest ", index)
+  } else {
+    paste0("forest \"", label, "\"")
   }
 }
 
@@ -2258,8 +2259,15 @@ refuseGivenTwice <- function(name, where, numPlain = 1L, onControl = FALSE) {
 ## address the forest with NO BASIS under the same spelling a forest() uses, so
 ## supplying both is ambiguous rather than layered.
 ## `hasBasis` is a per-forest logical recording whether a basis reached that
-## forest some other way, the data object's held bases.
-resolveForests <- function(forests, interactions, blocks, hasBasis) {
+## forest some other way, the data object's held bases; `basisTexts` the text of
+## each forest's basis, which a refusal names a forest by where it has no name.
+resolveForests <- function(
+  forests,
+  interactions,
+  blocks,
+  hasBasis,
+  basisTexts = list()
+) {
   if (is.null(forests)) {
     return(NULL)
   }
@@ -2274,10 +2282,11 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
   if (length(forests) == 0L) {
     stop("'forests' is empty; omit it to fit a single forest")
   }
+  labels <- forestLabels(names(forests), basisTexts, length(forests))
   resolved <- lapply(seq_along(forests), function(index) {
     resolveForestMoves(
       validateForestKnobs(forests[[index]]),
-      forestKnobLabel(forests, index)
+      forestKnobLabel(labels, index)
     )
   })
   numForests <- length(resolved)
@@ -2300,7 +2309,7 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
   for (index in seq_len(numForests)) {
     refuseCoefficientPriorWithNoForest(
       resolved[[index]]$amplitude,
-      forestKnobLabel(forests, index),
+      forestKnobLabel(labels, index),
       lone = numForests == 1L && !any(hasBasis),
       sharing = length(unsized) > 1L && index %in% unsized
     )
