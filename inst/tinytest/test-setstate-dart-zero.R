@@ -42,9 +42,17 @@ full$storeState()
 expect_identical(full$state, stateBefore)
 expect_identical(weightsOf(full), before)
 
-# forced: installed, the weights fresh and equal
-full$setState(state, forceUpdate = TRUE)
+# forced: installed (NULL, invisibly), the weights fresh and equal, the
+# concentration back at its initial value and the delay counter restarted
+shifted <- state
+shifted[[1L]]$dart.alpha <- 7
+shifted[[1L]]$dart.updates.skipped <- 0L
+expect_null(full$setState(shifted, forceUpdate = TRUE))
 expect_equal(weightsOf(full), rep(1 / 3, 3L))
+full$storeState()
+expect_equal(full$state[[1L]]$dart.alpha, state[[1L]]$dart.alpha)
+expect_true(full$state[[1L]]$dart.updates.skipped > 0L)
+full$setState(state, forceUpdate = TRUE)
 # and it runs, the third column splittable again
 samples <- full$run(5L, 5L)
 expect_true(all(is.finite(samples$train)))
