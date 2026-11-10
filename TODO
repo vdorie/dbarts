@@ -268,16 +268,6 @@ items
     revising dec-B278, dec-B355 and dec-B398). About 5 engine lines,
     zero-pinning tests rewritten and the monotone and setState help;
     draws move only for monotone fits after such a call.
-  multinomial-response-shapes: bart() and dbarts() take the same
-    multinomial response shapes (dec-B701): a data frame of counts is
-    read as its numeric matrix, a non-numeric column refused, and a
-    one-column label matrix as labels; a wider character matrix is
-    refused at both with dbarts()'s message. About 6 to 10 lines and a
-    few tests; nothing that runs today moves.
-  old-fit-print-note: print of a fit saved by 0.9-x shows its call as
-    0.9-34 did and then the refit sentence as a note, not an error;
-    every door that needs the trees or the engine still stops with it
-    (dec-B695, within dec-B109). About 5 lines and a test.
   pdbart-closed-arguments: at 1.1-0, when pdbart's BayesTree spellings
     are refused, replace pdbart's and pd2bart's ... with bart's usable
     arguments listed explicitly, pinned by a test against bart's formals
@@ -317,19 +307,6 @@ items
     new() keep taking it, and a fit with a basis forest stays fitted
     (dec-B717). About 5 to 10 lines and a test; a 0.9-34 matrix call
     that fit silently now stops.
-  sd-stated-meaning: getLeafPrior()'s sd.stated is TRUE wherever a
-    forest's size comes from an sd the user wrote, the fitting
-    function's normal(sd = ) or forest(sd = ), FALSE for the default and
-    k, a sharer reading TRUE with its part (dec-B702). About 1 to 3
-    lines, two help sentences and pins in a few test files; no draws
-    move.
-  setcontrol-forest-moves: setControl refuses, before changing
-    anything, a tree-move mix its caller wrote that differs from the one
-    in force when no forest would take it, naming $setForest(forest,
-    proposal.probs = ); the same for n.perturb.cuts where a forest
-    states its own; forest()'s help sentence that a stated mix is fixed
-    for the sampler's life is corrected (dec-B697). About 10 to 15 lines
-    and two tests; no draws move.
   setforest-roundtrip-sd: a setting given back to $setForest is
     compared with the value in force before the call, so a handed-back
     sd is no change on every model, whatever else the call changes;
@@ -362,18 +339,6 @@ items
     with its no-bart-component message plus a clause naming the
     columns (dec-B715). About 3 to 5 lines in stan4bart and a test.
     Whether dbarts itself fits such a model is dec-B717.
-  test-weight-missing: a fit whose test data carry a weights column with
-    a missing value stops at fit time, naming the rows and saying to
-    fill or drop them or to use predict(..., na.action = na.pass); a
-    missing weight is refused at every door that reads one unless
-    na.action asks otherwise (dec-B698). About 5 lines and a test; no
-    draws move.
-  variance-formula-one-grammar: variance = <one-sided formula> is read
-    exactly as varianceForest(<formula>) reads it: terms matched to the
-    fit's column labels, the dot and transformed terms taken, star,
-    colon and I() terms refused with the message naming the fit's
-    predictors (dec-B699, within dec-B517). About 5 lines, a few test
-    rows and a help sentence; no draws move for a call naming columns.
   basis-references-to-data: a forest's basis is a reference to a column
     of the data, resolved by name where a data frame is given; the
     data object's per-forest bases become the package's record of that,
@@ -484,13 +449,11 @@ items
     fault-injection hook. Add one (a tests/cpp peer that fails the Nth
     installForest) and check the recipient is restored: trees, sigma, k,
     DART state, transform and the next draws.
-  saved-sampler-data-twice: a saved sampler on main writes its data
-    twice, once in its data object and once through its engine pointer:
-    4.55 MB against 2.32 MB in 0.9-34 at the basis-references design's
-    sizing run (found 2026-11-08). A regression against 0.9-34, so not
-    deferred past the release. Whether the bridge needs the data kept
-    behind the pointer is an engine question; examine it before the
-    basis-references build, which changes what the data object holds.
+  basis-refs-saved-sizes: the basis-references design's sizing run cites a
+    saved sampler at 4.55 MB against 2.32 MB in 0.9-34, measured before
+    the pointer stopped writing the data a second time; rerun its saved
+    sizes on main before the basis-references build, which changes what
+    the data object holds.
   setdata-repeated-names: setData and setPredictor read a sampler whose
     own column names repeat (x, b, x, d) by name only for the same names
     in the same places; the same names in another order are refused,
