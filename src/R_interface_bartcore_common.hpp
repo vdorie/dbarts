@@ -545,7 +545,7 @@ void refuseNonFinite(const double* values, std::size_t count,
 /// family's support (validateResponseSupport), and under the weighted count
 /// cap against the sampler's own weights and shape where they are nbinom
 /// counts (refuseWeightedCountsOverCap). \p y holds one value per
-/// observation; caller labels the error.
+/// observation; \p caller labels the error.
 void refuseSwappedResponse(const bartcore::SamplerBase& sampler,
                            const double* y, const char* caller);
 

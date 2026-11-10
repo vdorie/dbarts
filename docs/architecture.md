@@ -622,19 +622,20 @@ crosses an engine frame and no exception reaches R's own frames.
 `unwindProtect` runs its closure under the same conversion, since
 `R_UnwindProtect` is a C frame of its own. An entry that must act between
 the failure and the raise (hand back R's stream, release a sampler left
-part-way, word the message) catches for itself first. A per-draw callback may itself raise an
-R error only when its run is inline on the thread that entered it: there the
-call is made under `R_UnwindProtect`, which turns the jump into a C++ unwind
-through the engine's frames, and the entry resumes the jump once they are
-gone. A C++ exception the callback throws is held until `R_UnwindProtect`'s
-own frame has returned and then rethrown along the same path. On a worker
-thread the callback must not raise; it returns nonzero instead. A run that
-stops early - an error, an interrupt, a nonzero return, a sweep closure's
-stop - does not advance the sample cursor and drops the saved trees it
-wrote: the store keeps the earlier runs' draws in the slots no chain of the
-stopped run began writing, and the sampler stays usable for a later run. An
-allocation that fails mid-sweep re-sums each forest's fits from its trees
-before the error leaves the engine, so the chains run on from there.
+part-way, word the message) catches for itself first. A per-draw callback
+may itself raise an R error only when its run is inline on the thread that
+entered it: there the call is made under `R_UnwindProtect`, which turns the
+jump into a C++ unwind through the engine's frames, and the entry resumes
+the jump once they are gone. A C++ exception the callback throws is held
+until `R_UnwindProtect`'s own frame has returned and then rethrown along the
+same path. On a worker thread the callback must not raise; it returns
+nonzero instead. A run that stops early - an error, an interrupt, a nonzero
+return, a sweep closure's stop - does not advance the sample cursor and
+drops the saved trees it wrote: the store keeps the earlier runs' draws in
+the slots no chain of the stopped run began writing, and the sampler stays
+usable for a later run. An allocation that fails mid-sweep re-sums each
+forest's fits from its trees before the error leaves the engine, so the
+chains run on from there.
 
 ## Reproducibility contract
 
