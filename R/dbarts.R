@@ -4612,7 +4612,8 @@ dbartsSampler <- setRefClass(
         sd <- evalInForestVocabulary(
           substitute(sd),
           vocabulary,
-          parent.frame()
+          parent.frame(),
+          numbers = TRUE
         )
       }
       if (!missing(amplitude)) {

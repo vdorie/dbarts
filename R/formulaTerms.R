@@ -484,20 +484,27 @@ processHit <- function(hit, env) {
   if (is.language(basis)) {
     basis <- basisCode(basis, env)
   }
+  given <- arguments[names(arguments) %not_in% c("vars", "basis")]
   spec <- do.call(
     forest,
-    lapply(
-      arguments[names(arguments) %not_in% c("vars", "basis")],
-      evalInForestVocabulary,
-      vocabulary = forestConstructors[c(
-        "interactions",
-        "blocks",
-        "fixed",
-        "student",
-        "invchi",
-        "normal"
-      )],
-      evalEnv = env
+    Map(
+      function(expr, name) {
+        evalInForestVocabulary(
+          expr,
+          forestConstructors[c(
+            "interactions",
+            "blocks",
+            "fixed",
+            "student",
+            "invchi",
+            "normal"
+          )],
+          env,
+          numbers = name %in% FOREST_NUMBER_ARGUMENTS
+        )
+      },
+      given,
+      names(given)
     )
   )
   spec["vars"] <- list(captureForestVars(arguments[["vars"]]))

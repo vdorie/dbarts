@@ -155,18 +155,108 @@ evalInVocabulary <- function(
   })
 }
 
+## A prior's name, where the argument takes a number, is the caller's: a
+## function of the name that the caller binds is called, in the arguments of
+## forest() that are numbers (FOREST_NUMBER_ARGUMENTS) and in the whole of
+## `expr` where it is itself such an argument (`numbers`). Where the caller
+## binds none the name is left to the vocabulary, which refuses a prior there.
+## The arguments that take a prior (amplitude) and the code of vars and basis
+## are left as written.
+inlineCallerFunctions <- function(expr, vocabulary, evalEnv, numbers = FALSE) {
+  priors <- intersect(names(vocabulary), PRIOR_NAMES)
+  if (length(priors) == 0L || !is.call(expr) || isQuotingCall(expr)) {
+    return(expr)
+  }
+  found <- lapply(priors, callerFunction, evalEnv)
+  names(found) <- priors
+  found <- found[!vapply(found, is.null, NA)]
+  if (length(found) == 0L) {
+    return(expr)
+  }
+  swap <- function(expr, numbers) {
+    if (!is.call(expr) || isQuotingCall(expr)) {
+      return(expr)
+    }
+    head <- expr[[1L]]
+    isForest <- is.symbol(head) &&
+      (as.character(head) == "forest" ||
+        identical(
+          get0(as.character(head), envir = evalEnv, mode = "function"),
+          forest
+        ))
+    if (numbers && is.symbol(head) && as.character(head) %in% names(found)) {
+      expr[[1L]] <- found[[as.character(head)]]
+    }
+    parts <- as.list(expr)
+    kind <- names(parts)
+    swapped <- lapply(seq_along(parts), function(i) {
+      if (i == 1L) {
+        return(parts[[1L]])
+      }
+      swap(
+        parts[[i]],
+        if (isForest) {
+          !is.null(kind) && kind[[i]] %in% FOREST_NUMBER_ARGUMENTS
+        } else {
+          numbers
+        }
+      )
+    })
+    names(swapped) <- kind
+    as.call(swapped)
+  }
+  swap(expr, numbers)
+}
+
+## The arguments of forest() that take a number, and the names of the priors
+## a caller may bind to a function of their own.
+FOREST_NUMBER_ARGUMENTS <- c(
+  "sd",
+  "n.trees",
+  "base",
+  "power",
+  "proposal.probs",
+  "n.perturb.cuts",
+  "treeShift"
+)
+PRIOR_NAMES <- c("normal", "fixed", "student", "invchi")
+
+## The caller's own function of a prior's name, or NULL: found from `env`
+## up to topenv(env), as callerBinding does, and never the constructor
+## itself, which the dbarts namespace binds.
+callerFunction <- function(name, env) {
+  top <- topenv(env)
+  repeat {
+    value <- get0(name, envir = env, mode = "function", inherits = FALSE)
+    if (!is.null(value)) {
+      return(if (identical(value, dbartsPriors[[name]])) NULL else value)
+    }
+    if (identical(env, top) || identical(env, emptyenv())) {
+      return(NULL)
+    }
+    env <- parent.env(env)
+  }
+}
+
 ## An argument taking a forest constructor, evaluated over the site's
 ## vocabulary. Unlike evalInVocabulary, a vocabulary name in value position is
 ## the caller's when the caller binds it (callerBinding); every other
 ## vocabulary name, and any in call position, is the constructor, so neither an
 ## attached mask nor a caller's variable of the same name changes what a call
-## builds. A top-level value that is a constructor is called for its defaults.
+## builds; but a prior's name in a number argument (inlineCallerFunctions) is
+## the caller's own function where the caller binds one. A top-level value that is a constructor is called for its defaults.
 ## A ..N anywhere in the expression is evaluated as it stands and, on failure,
 ## recovered and resolved under the same rule where it was written. There is
 ## no other recovery: a constructor evaluated outside the argument fails with
 ## R's own message, extended by a hint where dbarts forces the code.
-evalInForestVocabulary <- function(expr, vocabulary, evalEnv) {
+evalInForestVocabulary <- function(
+  expr,
+  vocabulary,
+  evalEnv,
+  numbers = FALSE
+) {
   expr <- inlineForwardedArguments(expr, vocabulary, evalEnv)
+  expr <- inlineCallerFunctions(expr, vocabulary, evalEnv, numbers)
   env <- vocabularyEnv(vocabulary, evalEnv)
   claimed <- character()
   for (name in valueSymbols(expr, names(vocabulary))) {
