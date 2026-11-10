@@ -267,18 +267,6 @@ items
     probability as the variable moves, a category margin on the result
     and one line per category in the plots. Refused until then.
     Scheduled after 1.0-0 (VD 2026-10-04, dec-B209).
-  prior-names-where-priors-go: inside forest() a prior's name (normal,
-    fixed, student, invchi) means dbarts's prior only in an argument
-    that takes a prior (amplitude =, and leaf.prior = at the fitting
-    function); in sd = and the other number arguments a caller's own
-    function of that name is called. dec-B272's refusal of a basis
-    term calling a prior's name stands (dec-B708). About 15 to 25
-    lines and a few tests.
-  refusal-forest-label: every refusal names a forest by its label, as
-    the fit's results do (its name in the forests list, else the text
-    of its basis), at creation and at $setForest alike; a forest with
-    no name and no basis stays "forest 2" (dec-B713). About 10 to 20
-    lines and one test rewritten; no draws move.
   setmodel-probit-stated-sd: a probit sampler of several forests whose
     candidate states an sd at creation refuses its own model ("does not
     resolve to the leaf hyperprior"), against the help's "always

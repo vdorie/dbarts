@@ -286,7 +286,10 @@ forest(
     labels. A string is never a
     position: \code{"2"} is a forest labeled \code{"2"} or none. A string
     that is one forest's label and another position's name, or the same code
-    as two labels, is refused.
+    as two labels, is refused. A refusal that names a forest names it by its
+    label, as the fit's results do, at creation and at \code{$setForest}
+    alike, and by position (\code{forest 2}) where it has no name and no
+    basis text.
 
     \strong{Rows.} A basis has a value for every row of \code{data}, and is
     cut to the rows the fit keeps: \code{data} and \code{subset} are each
@@ -466,7 +469,13 @@ forest(
     under \code{"probit"} and \code{"logistic"}, where the link's own error
     has standard deviation 1 and \eqn{\pi/\sqrt{3}}{pi/sqrt(3)}. One number;
     a name on it is ignored. What it is the size of depends on what
-    multiplies the forest.
+    multiplies the forest. It is a number, not a prior: a function of your own
+    named \code{normal}, \code{fixed}, \code{student} or \code{invchi} that
+    you have defined is called there, as in \code{sd = normal(0.5)}, and
+    where you have defined none the call is refused, those names meaning
+    dbarts's priors only in \code{amplitude} (and in \code{leaf.prior} at the
+    fitting function). The same holds for the other arguments that take a
+    number.
 
     \strong{No basis.} The forest enters as \eqn{a\,f(x)}{a f(x)}, and
     \code{sd} is the size of \eqn{a\,f(x)}{a f(x)}.
