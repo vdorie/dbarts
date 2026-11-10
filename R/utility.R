@@ -481,7 +481,8 @@ valuesByColumnName <- function(values, x, what) {
           paste0("'", names(result)[is.na(result)], "'"),
           collapse = ", "
         )
-      }
+      },
+      "; name each column, or give a .default"
     )
   }
   result

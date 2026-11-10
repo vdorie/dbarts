@@ -121,7 +121,10 @@ oneNamed <- function(...) {
     ...
   )
 }
-expect_error(oneNamed(split.probs = c(b = 0.9)), "missing values for columns")
+expect_error(
+  oneNamed(split.probs = c(b = 0.9)),
+  "missing values for columns .a., .c.; name each column, or give a \\.default"
+)
 expect_error(
   oneNamed(split.probs = c(b = 0.9, a = 0.05)),
   "missing values for columns"
