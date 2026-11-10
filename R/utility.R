@@ -2518,3 +2518,73 @@ quoteInNamespace <- function(name, character.only = FALSE) {
   result[[3L]] <- if (character.only) name else match.call()[[2]]
   result
 }
+
+## The columns of a data object's x that hold one value on the rows kept (a
+## missing value counts as a value), by name. A sparse column holds its zero
+## wherever it stores fewer entries than rows.
+constantPredictorColumns <- function(x) {
+  p <- ncol(x)
+  n <- nrow(x)
+  mixed <- inherits(x, "dbartsMixedMatrix")
+  constant <- logical(p)
+  for (j in seq_len(p)) {
+    # a dense column's values, or a sparse column's stored values and its
+    # implicit one (a categorical column's reference code, else zero) where
+    # it stores fewer entries than rows
+    sparseColumn <- NA_integer_
+    implicit <- 0
+    if (mixed) {
+      if (x$map[[j]] > 0L) {
+        values <- unique(x$dense[[x$map[[j]]]])
+      } else {
+        sparseColumn <- -x$map[[j]]
+        if (!is.na(x$sparseReference[[sparseColumn]])) {
+          implicit <- x$sparseReference[[sparseColumn]]
+        }
+      }
+      sparseMatrix <- x$sparse
+    } else if (is.matrix(x)) {
+      values <- unique(x[, j])
+    } else {
+      sparseColumn <- j
+      sparseMatrix <- x
+    }
+    if (!is.na(sparseColumn)) {
+      start <- sparseMatrix@p[[sparseColumn]]
+      count <- sparseMatrix@p[[sparseColumn + 1L]] - start
+      stored <- sparseMatrix@x[seq_len(count) + start]
+      values <- unique(c(stored, if (count < n) implicit))
+    }
+    constant[[j]] <- length(values) <= 1L
+  }
+  names <- colnames(x)
+  if (is.null(names)) {
+    names <- paste0("column ", seq_len(p))
+  }
+  names[constant]
+}
+
+## The one-shot fitting functions refuse a fit in which every predictor holds
+## one value on the rows kept and no forest has a basis: no tree has a cut
+## point, so the fit would be an intercept-only model. dbarts() and new() take
+## such a sampler, for code that gives the column its values later.
+refuseUnsplittableFit <- function(data) {
+  if (!is.null(data@bases) && !all(vapply(data@bases, is.null, NA))) {
+    return(invisible())
+  }
+  p <- ncol(data@x)
+  if (p < 1L) {
+    return(invisible())
+  }
+  constant <- constantPredictorColumns(data@x)
+  if (length(constant) == p) {
+    stop(
+      "every predictor holds one value on the rows in the fit (",
+      paste0("'", constant, "'", collapse = ", "),
+      "), so no tree can split; add a predictor with more than one value, ",
+      "drop the term, or use dbarts() to build a sampler whose predictor ",
+      "gets its values later"
+    )
+  }
+  invisible()
+}

@@ -169,6 +169,11 @@
             \code{split.probs = c(x2 = 0.9)}, is refused for the columns it
             leaves out, as any named vector is; 0.9-34 fit it with equal
             probabilities and no message.
+      \item Predictors that cannot split. \code{bart}, \code{xbart} and
+            \code{rbart_vi} refuse a fit in which every predictor holds one
+            value on the rows kept and no forest has a basis, naming the
+            columns; \code{dbarts} still creates such a sampler. 0.9-34 fit
+            a matrix call silently, as an intercept-only model.
       \item Test data frames. A data frame given as test data
             (\code{test}, \code{predict}'s \code{newdata},
             \code{$setTestPredictor}) to a fit made from a matrix is read

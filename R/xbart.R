@@ -281,6 +281,7 @@ xbart <- function(
   data <- checkCutPointsRecord(data)
   refuseCarriedOrderedGrid(data, list(cutPoints = orderedFactorGrids(data)))
   data@sigma <- sigest
+  refuseUnsplittableFit(data)
 
   # a factor/logical/character response is a classification; xbart cross-
   # validates the 2-level (probit) case only, never multinomial. A numeric

@@ -139,6 +139,8 @@ dbarts(
   }
 }
 \details{
+  A sampler in which every predictor holds one value is created, unlike a \code{\link{bart}} fit, which refuses one: its trees have no cut point until \code{$setPredictor} gives a column values that differ.
+
   \dQuote{Discrete sampler} refers to that \code{dbarts} is implemented using \link{ReferenceClasses}, so that there exists a mutable object constructed in C++ that is largely obscured from R. The \code{dbarts} function is the primary way of creating a \code{\link[=dbartsSampler-class]{dbartsSampler}}, for which a variety of methods exist.
 
   \subsection{Data frame ingestion}{

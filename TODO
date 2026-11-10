@@ -278,12 +278,6 @@ items
     of its basis), at creation and at $setForest alike; a forest with
     no name and no basis stays "forest 2" (dec-B713). About 10 to 20
     lines and one test rewritten; no draws move.
-  refuse-unsplittable-fit: bart(), xbart() and rbart_vi() refuse a fit
-    in which every predictor holds one value on the rows kept and no
-    forest has a basis, the message naming the columns; dbarts() and
-    new() keep taking it, and a fit with a basis forest stays fitted
-    (dec-B717). About 5 to 10 lines and a test; a 0.9-34 matrix call
-    that fit silently now stops.
   setmodel-probit-stated-sd: a probit sampler of several forests whose
     candidate states an sd at creation refuses its own model ("does not
     resolve to the leaf hyperprior"), against the help's "always
@@ -297,11 +291,6 @@ items
     missing or all-zero weights stay errors (dec-B712). About 20 to 30
     lines reusing the warm start's step, tests and a help sentence; no
     state the package writes for its own sampler moves.
-  stan4bart-constant-bart: stan4bart work. stan4bart refuses again a
-    formula whose bart() columns each hold one value on the rows kept,
-    with its no-bart-component message plus a clause naming the
-    columns (dec-B715). About 3 to 5 lines in stan4bart and a test.
-    Whether dbarts itself fits such a model is dec-B717.
   basis-references-to-data: a forest's basis is a reference to a column
     of the data, resolved by name where a data frame is given; the
     data object's per-forest bases become the package's record of that,

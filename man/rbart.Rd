@@ -105,6 +105,8 @@ rbart_vi(
   }
 }
 \details{
+  A fit in which every predictor holds one value on the rows kept, with no forest having a basis, is refused, naming the columns, as by \code{\link{bart}}.
+
   Fits a BART model with additive random intercepts, one for each factor level of \code{group.by}. For continuous responses:
 
 \itemize{

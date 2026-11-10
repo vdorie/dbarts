@@ -464,6 +464,7 @@ rbart_vi <- function(
       sigestFallback <<- sigmaFallbackRecord(condition)
     }
   )
+  refuseUnsplittableFit(validationSampler$data)
   writeGlobalSeed(streamBefore)
   # "auto" resolved (and was announced) once, above; the chains take the
   # resolved family so none of them announces it again, without the

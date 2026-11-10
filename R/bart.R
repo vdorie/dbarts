@@ -1989,6 +1989,7 @@ bart <- function(
   if (isTRUE(samplerOnly)) {
     return(sampler)
   }
+  refuseUnsplittableFit(sampler$data)
   # read ahead of the run, so a test frame's columns that are not counts are
   # refused before the fit
   binomialTrials <- binomialFitTrials(sampler, formula, matchedCall, callingEnv)
@@ -2507,6 +2508,7 @@ bart2Multinomial <- function(
   if (isTRUE(samplerOnly)) {
     return(sampler)
   }
+  refuseUnsplittableFit(sampler$data)
 
   samples <- sampler$run(control@n.burn, control@n.samples, updateState = FALSE)
 
@@ -2600,6 +2602,7 @@ bart2MultinomialCounts <- function(
   if (isTRUE(samplerOnly)) {
     return(sampler)
   }
+  refuseUnsplittableFit(sampler$data)
 
   samples <- sampler$run(control@n.burn, control@n.samples, updateState = FALSE)
 
@@ -2845,6 +2848,7 @@ bart2Ordinal <- function(
   if (isTRUE(samplerOnly)) {
     return(sampler)
   }
+  refuseUnsplittableFit(sampler$data)
 
   K <- sampler$model@n.categories
   levels <- sampler$data@response.levels
@@ -3119,6 +3123,7 @@ bart2Negbin <- function(
   if (isTRUE(samplerOnly)) {
     return(sampler)
   }
+  refuseUnsplittableFit(sampler$data)
 
   n.chains <- control@n.chains
   n.obs <- length(sampler$data@y)

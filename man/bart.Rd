@@ -427,6 +427,9 @@ bart(
      For \code{fitted}/\code{predict} on a \code{bartMultinomial}, \code{bartOrdinal}, or \code{bartNegbin} fit, as \code{\link{bartBT}}'s own \code{ci.level} item. On a K-margined \code{type} (\code{"ev"}/\code{"ppd"} for the first two), the result keeps the category margin: an (observation \eqn{\times}{x} K \eqn{\times}{x} 3) array of \code{est}/\code{ci.lower}/\code{ci.upper} rather than a 3-column matrix, since categories are not poolable. On a non-K-margined \code{type} (\code{"bart"}; any type for \code{bartNegbin}) the result is the ordinary 3-column matrix. \code{bartHurdle}'s \code{ci.level} is documented under \code{\link{bartBT}} directly, since it never carries a K margin. Refused, by name, on \code{residuals} (as \code{\link{bartBT}}'s own \code{ci.level} item); on \code{bartMultinomial} and \code{bartOrdinal} also refused, by name, with \code{type = "class"} - a class prediction is a label rather than a quantity with a credible band.
    }
 }
+\section{Fits with nothing to split}{
+  \code{bart}, \code{\link{xbart}} and \code{\link{rbart_vi}} refuse a fit in which every predictor holds one value on the rows kept and no forest has a basis, naming the columns: a tree splits a predictor between its values, so the fit would be an intercept-only model under a normal prior. Add a predictor that varies, or drop the term. \code{\link{dbarts}} takes such a sampler, for code that gives a column its values later with \code{$setPredictor}, and so does \code{bart(samplerOnly = TRUE)}. A fit with a basis forest is not refused.
+}
 \section{Formula Terms}{
 A model of several forests is written in \code{bart}'s \code{formula} as a sum of \code{forest()} terms, each one function of the predictors named inside it, without a separate \code{\link{dbarts}} \code{forests =} list (the two routes are mutually exclusive: a formula with a \code{forest()} term given together with \code{forests =} is refused by name):
 
