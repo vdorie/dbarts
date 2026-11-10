@@ -124,20 +124,15 @@ resolveHazardGrid <- function(time, breaks, gridTime = time) {
       periods <- breaks[-1L]
     }
   }
-  terminal <- pmin(
-    findInterval(time, periods, left.open = TRUE) + 1L,
-    length(periods)
-  )
-  # a subject with no time is at risk in the first period at least, as every
-  # subject is; it keeps that one row, with a missing response
-  terminal[is.na(terminal)] <- 1L
-  list(periods = periods, terminalPeriod = terminal)
+  placeOnHazardGrid(time, periods)
 }
 
-# Each subject's terminal period on a grid already made, a sampler's own: the
-# period whose interval holds its time, a time past the last period in the last
-# (expandDiscreteTimeHazard then leaves it censored there, at risk through
-# every period with no event), and a subject with no time in the first.
+# Each subject's terminal period on a grid already made, at creation or a
+# sampler's own: the period whose interval holds its time, a time past the last
+# period in the last (expandDiscreteTimeHazard then leaves it censored there, at
+# risk through every period with no event), and a subject with no time in the
+# first, as every subject is at risk there; it keeps that one row, with a
+# missing response.
 placeOnHazardGrid <- function(time, periods) {
   terminal <- pmin(
     findInterval(time, periods, left.open = TRUE) + 1L,
