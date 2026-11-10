@@ -341,7 +341,8 @@ fresh seeds for a correct sampler.
 
     Rscript benchmarks/R/split-probs-exact.R quick vars
 
-probit-k-scale-exact is the gate for the probit rescaling step: one frozen
+probit-k-scale-exact is the gate for the probit rescaling step and the
+logistic collapsed rescaling move: one frozen
 tree under probit with k ~ chi(1.5, 2), whose posterior of k and leaf means are
 exact by one quadrature a leaf, on four arms (every leaf separated, none, an
 offset, a mask), and three arms of two frozen single-tree forests with no basis
@@ -351,9 +352,14 @@ and two where a sharer leaves by `$setForest(f, sd = )` before the run, its stum
 then read as offset beside those left at their creation parts. It bounds
 P(k < q) at the exact deciles and the unseparated leaves' means at |z| 4.5, and the separated arm's batch-means error of P(k < q) at
 0.01 in full mode (0.014 quick), which a sampler without the step does not
-meet, so a step that silently declines fails. It cannot see k left unscaled
-after a correct draw; the engine's mapping test catches that. Quick mode is
-about 2.5 minutes, full about 7.
+meet, so a step that silently declines fails. Under logistic the same tree
+runs five arms (the four and counts 1 to 3 as weights) and the first two
+sharer arms, against the logistic distribution function and a leaf scale read
+from the sampler, the separated arm's error bounded at 0.0034 full and 0.0068
+quick, read on arm64 between the move's errors and those without it. It cannot
+see k left unscaled after a correct draw; the engine's mapping tests catch
+that. Quick mode is about 6.5 minutes for both links (4 of them logistic),
+full about 25.
 
     Rscript benchmarks/R/probit-k-scale-exact.R quick
 

@@ -1,22 +1,26 @@
 #!/usr/bin/env Rscript
 
-# Exact-posterior gate for the probit rescaling step
-# (docs/design/probit-k-scale-move.md). The step multiplies
-# the probit latents and the leaves by one factor and divides k by it, the
-# factor drawn from its exact conditional, so it must leave the posterior of
-# (k, leaves) exactly where it was while moving along the direction k mixes
-# slowest in.
+# Exact-posterior gate for the moves that rescale a binary forest against its
+# drawn k: the probit rescaling step (docs/design/probit-k-scale-move.md),
+# which multiplies the probit latents and the leaves by one factor and divides
+# k by it, the factor drawn from its exact conditional, and the logistic
+# collapsed rescaling move, which draws the factor with the latents integrated
+# out ahead of the sweep's draw of the latents. Each must leave the posterior
+# of (k, leaves) exactly where it was while moving along the direction k
+# mixes slowest in.
 #
-# THE CONFIGURATION. One tree whose structure is frozen (every structural
-# proposal probability zero), drawn once from the prior at a fixed seed to hold
-# three or four leaves; probit; k ~ chi(1.5, 2); n = 150. Given the tree the
-# leaves are independent given k, so the posterior of k is exact by one
-# one-dimensional integral a leaf,
+# THE CONFIGURATION, per link. One tree whose structure is frozen (every
+# structural proposal probability zero), drawn once from the prior at a fixed
+# seed to hold three or four leaves; probit or logistic; k ~ chi(1.5, 2);
+# n = 150. Given the tree the leaves are independent given k, so the posterior
+# of k is exact by one one-dimensional integral a leaf,
 #
-#     p(k | y) propto p(k) prod_l int prod_{i in l} Phi(s_i (o_i + mu))
+#     p(k | y) propto p(k) prod_l int prod_{i in l} F(s_i (o_i + mu))^w_i
 #                                        N(mu; 0, (c / k)^2) dmu,
 #
-# s_i = 2 y_i - 1 over the active rows, c the leaf scale (3 for one tree), and
+# F the link's distribution function (Phi or the logistic), s_i = 2 y_i - 1
+# over the active rows, w_i the row's count (1 but in the counts arm), c the
+# leaf scale, read from the sampler (3 for one probit tree), and
 # E[mu_l | y] by the same integrals. A leaf holding one class has no finite
 # likelihood mode and is integrated by adaptive quadrature on z = k mu / c; a
 # leaf holding both is summed on a fine grid in mu. The posterior of log k is then
@@ -24,39 +28,50 @@
 # arm's quantile probabilities by 0.001 to 0.003, which put correct samplers
 # at z -3 to -5.
 #
-# Four arms, each exercising one term of the step's conditional:
-#   pure    every leaf separated: the small-k mass the step exists to reach;
+# The arms of one forest, each exercising one term of a move's conditional:
+#   pure    every leaf separated: the small-k mass the moves exist to reach;
 #   mixed   no leaf separated;
-#   offset  mixed, o = 0.4 on every row: the offset's cross term;
-#   mask    mixed, a fifth of the rows inactive: the active-row count and the
-#           latents left unscaled.
+#   offset  mixed, o = 0.4 on every row: the offset's term;
+#   mask    mixed, a fifth of the rows inactive: the rows in the likelihood
+#           and the latents left alone;
+#   counts  logistic only: mixed, counts 1 to 3 as weights.
 #
 # STATISTICS. P(k < q_j) at the exact deciles q_j, j = 0.1, 0.25, 0.5, 0.75,
 # 0.9, and E[mu_l] on each unseparated leaf, each a z against a 50-batch
-# batch-means error, failing above 4.5. And one mixing bound: the pure arm's
-# largest batch-means error of P(k < q_j). With the step that error is 0.0039
-# at 4e6 sweeps and without it 0.0194, so a step that silently declines fails
-# here rather than passing more loosely. Full mode bounds it at 0.01; quick
-# mode at QUICK_MIXING_BOUND below, set between the two sides' quick values
-# at the landing: with the step 0.0064 on arm64 and 0.0099 on x86-64, whose
-# chain takes another path; without it 0.0190 (measured while the step had a
-# switch; it has none now).
+# batch-means error, failing above 4.5. And one mixing bound per link: the
+# pure arm's largest batch-means error of P(k < q_j), so a move that silently
+# declines fails here rather than passing more loosely.
+#
+# Under probit, with the step that error is 0.0039 at 4e6 sweeps and without
+# it 0.0194. Full mode bounds it at 0.01; quick mode at 0.014, set between the
+# two sides' quick values at the landing: with the step 0.0064 on arm64 and
+# 0.0099 on x86-64, whose chain takes another path; without it 0.0190
+# (measured while the step had a switch; it has none now).
+#
+# Under logistic, over three generator seeds on arm64, with the collapsed move
+# that error is 0.0025 to 0.0029 at 1e6 sweeps and 0.0011 to 0.0014 at 4e6;
+# without it 0.0159 to 0.0190 and 0.0083 to 0.0180. Each bound is the
+# geometric mean of the largest with the move and the smallest without: 0.0068
+# quick and 0.0034 full. Read on arm64 alone; the x86-64 chain takes another
+# path, and the bounds hold for it only once its two sides are read too.
 #
 # The gate cannot see k left unscaled after the latents and leaves are scaled
 # correctly: that mutant passes quick mode at a worst |z| of 4.3. The engine's
-# mapping test (tests/cpp, runForestRescaleTests) is what catches it.
+# mapping tests (tests/cpp, runForestRescaleTests and runCollapsedRescaleTests)
+# are what catch it.
 #
-# Three arms of forests that share one total follow. Two frozen single-tree
-# forests with no basis share one drawn k, the first holding three or four
-# leaves and the second a stump, each with leaf scale c / sqrt(2): the stump
-# is integrated in an outer quadrature on the standardized w = k mu / c', and
-# given it each leaf of the first tree by a grid in the leaf's fit. The second
-# arm adds a frozen stump of a factor forest held at sd 0.5 whose second level
-# is the rows of one leaf, so that leaf's fit carries an N(0, 0.25) the step
-# must read as offset and leave unscaled. The third is the first with o = 0.4 on
-# every row, the user's offset in the step beside the sharers' fit. Their
-# statistics are P(k < q_j) and E of each leaf's fit. The step has no switch, so
-# it is on in all three.
+# Arms of forests that share one total follow. Two frozen single-tree forests
+# with no basis share one drawn k, the first holding three or four leaves and
+# the second a stump, each with leaf scale c / sqrt(2): the stump is integrated
+# in an outer quadrature on the standardized w = k mu / c', and given it each
+# leaf of the first tree by a grid in the leaf's fit. The second arm adds a
+# frozen stump of a factor forest held at sd 0.5 whose second level is the rows
+# of one leaf, so that leaf's fit carries an N(0, 0.25) a move must read as
+# offset and leave unscaled. The third is the first with o = 0.4 on every row,
+# the user's offset beside the sharers' fit. Their statistics are P(k < q_j)
+# and E of each leaf's fit. Neither move has a switch, so each is on in all of
+# them. Under logistic the first two run, shared and shared-factor; under
+# probit every one below too.
 #
 # Two arms follow of a sharer leaving by $setForest(f, sd = 0.7) before the run.
 # In the first the stump's forest leaves, so the first tree keeps c / sqrt(2)
@@ -72,19 +87,17 @@
 # held again after 50 more, which puts it back on it, its k starting at the
 # spread in force; it reads lone-factor's oracle.
 #
-# Usage: Rscript probit-k-scale-exact.R [quick] [pure] [mixed] [offset] [mask]
-#   [shared] [shared-factor] [shared-offset] [lone-factor]
-#   [lone-factor-released] [shared-leave] [shared-leave-counts]
+# Usage: Rscript probit-k-scale-exact.R [quick] [probit] [logistic] [pure]
+#   [mixed] [offset] [mask] [counts] [shared] [shared-factor] [shared-offset]
+#   [lone-factor] [lone-factor-released] [shared-leave] [shared-leave-counts]
+# With no link named both run; with no arm named, every arm of each link.
 
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
-allArms <- c(
-  "pure",
-  "mixed",
-  "offset",
-  "mask",
+singleArms <- c("pure", "mixed", "offset", "mask", "counts")
+sharedArms <- c(
   "shared",
   "shared-factor",
   "shared-offset",
@@ -94,33 +107,32 @@ allArms <- c(
   # last, as each arm's seed is its position
   "lone-factor-released"
 )
+# a shared arm's seed is its position here, and a single forest's arm's its
+# position in singleArms
+allArms <- c(singleArms[1:4], sharedArms, "counts")
+armsOf <- list(
+  probit = c(singleArms[1:4], sharedArms),
+  logistic = c(singleArms, "shared", "shared-factor")
+)
 armNames <- intersect(allArms, args)
 if (length(armNames) == 0L) {
   armNames <- allArms
 }
-sharedArmNames <- intersect(
-  armNames,
-  c(
-    "shared",
-    "shared-factor",
-    "shared-offset",
-    "lone-factor",
-    "lone-factor-released",
-    "shared-leave",
-    "shared-leave-counts"
-  )
-)
-armNames <- setdiff(armNames, sharedArmNames)
+links <- intersect(c("probit", "logistic"), args)
+if (length(links) == 0L) {
+  links <- c("probit", "logistic")
+}
 
 n <- 150L
 thin <- 10L
 numSweeps <- if (quick) 1e6 else 4e6
 numBatches <- 50L
 zBound <- 4.5
-QUICK_MIXING_BOUND <- 0.014
-mixingBound <- if (quick) QUICK_MIXING_BOUND else 0.01
+MIXING_BOUNDS <- list(
+  probit = c(quick = 0.014, full = 0.01),
+  logistic = c(quick = 0.0068, full = 0.0034)
+)
 deciles <- c(0.1, 0.25, 0.5, 0.75, 0.9)
-leafScale <- 3
 kPrior <- c(df = 1.5, scale = 2)
 
 set.seed(401L)
@@ -140,23 +152,6 @@ control <- dbartsControl(
   seed = 20261008L,
   proposal.probs = c(frozen, birth = 0.5)
 )
-sampler <- dbarts(
-  x,
-  as.double(rep_len(0:1, n)),
-  leaf.prior = drawnK,
-  control = control,
-  family = "probit",
-  n.trees = 1L
-)
-repeat {
-  sampler$sampleTreesFromPrior()
-  sampler$setLeafPrior(dbartsPriors$normal(k = 1))
-  sampler$sampleLeafParametersFromPrior()
-  fits <- as.numeric(sampler$predict(x))
-  numLeaves <- length(unique(fits))
-  if (numLeaves >= 3L && numLeaves <= 4L) break
-}
-leaf <- match(fits, unique(fits))
 
 # ---- the exact posterior ----
 
@@ -175,21 +170,25 @@ logKPrior <- function(k) {
   (kPrior[["df"]] - 1) * log(u) - 0.5 * u^2 + log(k)
 }
 
-exactPosterior <- function(y, o, active) {
-  perLeaf <- lapply(seq_len(numLeaves), function(l) {
-    rows <- active > 0 & leaf == l
+# tree is the frozen tree as list(leaf, numLeaves, leafScale); logCdf the
+# link's log distribution function; w the counts
+exactPosterior <- function(tree, logCdf, y, o, active, w) {
+  leafScale <- tree$leafScale
+  perLeaf <- lapply(seq_len(tree$numLeaves), function(l) {
+    rows <- active > 0 & tree$leaf == l
     s <- 2 * y[rows] - 1
     offsets <- o[rows]
+    counts <- w[rows]
     if (length(unique(s)) == 1L && all(offsets == 0)) {
       # separated: the likelihood tends to one, so integrate on z = k mu / c
-      count <- length(s)
+      count <- sum(counts)
       logIntegral <- vapply(
         exp(logKGrid),
         function(k) {
           log(
             integrate(
               function(z) {
-                exp(count * pnorm(leafScale * z / k, log.p = TRUE)) * dnorm(z)
+                exp(count * logCdf(leafScale * z / k)) * dnorm(z)
               },
               -Inf,
               Inf,
@@ -210,7 +209,7 @@ exactPosterior <- function(y, o, active) {
       group <- paste(s, offsets) == key
       j <- which(group)[1L]
       logLik <- logLik +
-        sum(group) * pnorm(s[j] * (offsets[j] + muGrid), log.p = TRUE)
+        sum(counts[group]) * logCdf(s[j] * (offsets[j] + muGrid))
     }
     byK <- vapply(
       exp(logKGrid),
@@ -242,96 +241,21 @@ exactPosterior <- function(y, o, active) {
   )
 }
 
-batchMeansError <- function(v) {
-  batches <- colMeans(matrix(
-    v[seq_len(numBatches * (length(v) %/% numBatches))],
-    ncol = numBatches
-  ))
-  sd(batches) / sqrt(numBatches)
-}
-
-# ---- the arms ----
-
-anyFailure <- FALSE
-for (arm in armNames) {
-  set.seed(match(arm, c("pure", "mixed", "offset", "mask")) + 500L)
-  o <- if (arm == "offset") rep(0.4, n) else rep(0, n)
-  active <- if (arm == "mask") as.double(seq_len(n) %% 5L != 0L) else rep(1, n)
-  probability <- if (arm == "pure") {
-    c(1, 0, 1, 0)[leaf]
-  } else {
-    pnorm(o + c(0.8, -0.5, 0.3, -1.2)[leaf])
-  }
-  y <- as.double(rbinom(n, 1L, probability))
-  exact <- exactPosterior(y, o, active)
-
-  sampler$setOffset(if (arm == "offset") o else NULL)
-  sampler$setLeafPrior(dbartsPriors$normal(k = 2))
-  sampler$sampleLeafParametersFromPrior()
-  sampler$setLeafPrior(drawnK)
-  sampler$setResponse(y)
-  sampler$setActiveRows(if (arm == "mask") active else NULL)
-  started <- proc.time()[[3L]]
-  run <- sampler$run(2000L, as.integer(numSweeps / thin))
-  elapsed <- proc.time()[[3L]] - started
-
-  k <- as.numeric(run$k)
-  leafDraws <- vapply(
-    seq_len(numLeaves),
-    function(l) colMeans(run$train[leaf == l, , drop = FALSE]),
-    numeric(ncol(run$train))
-  ) -
-    o[1L]
-  indicator <- lapply(exact$quantiles, function(q) as.numeric(k < q))
-  errorP <- vapply(indicator, batchMeansError, 0)
-  zP <- (vapply(indicator, mean, 0) - deciles) / errorP
-  unseparated <- which(!is.na(exact$leafMean))
-  zMu <- vapply(
-    unseparated,
-    function(l) {
-      (mean(leafDraws[, l]) - exact$leafMean[l]) /
-        batchMeansError(leafDraws[, l])
-    },
-    0
-  )
-  failed <- anyNA(c(zP, zMu)) || any(abs(c(zP, zMu)) > zBound)
-  mixingFailed <- arm == "pure" && !(max(errorP) < mixingBound)
-  cat(sprintf(
-    "%-6s %d leaves, %.0e sweeps in %.0f s | z(P(k < q)) %s | z(E mu) %s | max se(P) %.4f%s%s\n",
-    arm,
-    numLeaves,
-    numSweeps,
-    elapsed,
-    paste(sprintf("%+.1f", zP), collapse = " "),
-    if (length(zMu) > 0L) paste(sprintf("%+.1f", zMu), collapse = " ") else "-",
-    max(errorP),
-    if (failed) " <- FAIL" else "",
-    if (mixingFailed) {
-      sprintf(" <- FAIL mixing (bound %.4f)", mixingBound)
-    } else {
-      ""
-    }
-  ))
-  anyFailure <- anyFailure || failed || mixingFailed
-}
-
-# ---- the shared arms ----
-
-sharedScale <- leafScale / sqrt(2)
 # The first tree's leaves have sd firstScale / k; the stumps beside it sum to
 # an sd of stumpScale / k from forests sharing the total and heldSd from
 # forests that left it. With neither, one frozen forest with no basis takes
 # the whole total, with no stump to integrate over, beside the same held
 # factor.
 sharedPosterior <- function(
+  logCdf,
   y,
   leaf,
   numLeaves,
   extra,
-  shift = 0,
-  firstScale = sharedScale,
-  stumpScale = sharedScale,
-  heldSd = 0
+  shift,
+  firstScale,
+  stumpScale,
+  heldSd
 ) {
   lone <- stumpScale == 0 && heldSd == 0
   fitStep <- 0.01
@@ -345,8 +269,8 @@ sharedPosterior <- function(
   for (l in seq_len(numLeaves)) {
     s <- 2 * y[leaf == l] - 1
     logLik <- sum(s > 0) *
-      pnorm(shift + fitGrid, log.p = TRUE) +
-      sum(s < 0) * pnorm(-(shift + fitGrid), log.p = TRUE)
+      logCdf(shift + fitGrid) +
+      sum(s < 0) * logCdf(-(shift + fitGrid))
     logMax[l] <- max(logLik)
     likelihood[l, ] <- exp(logLik - logMax[l])
   }
@@ -393,139 +317,267 @@ sharedPosterior <- function(
   )
 }
 
+batchMeansError <- function(v) {
+  batches <- colMeans(matrix(
+    v[seq_len(numBatches * (length(v) %/% numBatches))],
+    ncol = numBatches
+  ))
+  sd(batches) / sqrt(numBatches)
+}
+
+# ---- the arms, per link ----
+
+anyFailure <- FALSE
 heldSd <- 0.7
-for (arm in sharedArmNames) {
-  released <- arm == "lone-factor-released"
-  lone <- arm == "lone-factor" || released
-  withFactor <- arm %in% c("shared-factor", "lone-factor") || released
-  shift <- if (arm == "shared-offset") 0.4 else 0
-  counts <- arm == "shared-leave-counts"
-  forests <- list(dbartsForests$forest(n.trees = 1L))
-  if (!lone) {
-    forests[[2L]] <- dbartsForests$forest(
-      n.trees = if (counts) 2L else 1L,
-      base = 1e-9
-    )
+for (link in links) {
+  logCdf <- if (link == "probit") {
+    function(q) pnorm(q, log.p = TRUE)
+  } else {
+    function(q) plogis(q, log.p = TRUE)
   }
-  if (counts) {
-    forests[[3L]] <- dbartsForests$forest(n.trees = 1L, base = 1e-9)
-  }
-  numSharers <- length(forests)
-  factorForest <- length(forests) + 1L
-  if (withFactor) {
-    forests[[factorForest]] <- dbartsForests$forest(
-      n.trees = 1L,
-      base = 1e-9,
-      basis = factor(rep_len(0:1, n), levels = 0:1),
-      sd = 0.5,
-      amplitude = dbartsPriors$fixed()
-    )
-  }
-  shared <- dbarts(
+  cdf <- if (link == "probit") pnorm else plogis
+  mixingBound <- MIXING_BOUNDS[[link]][[if (quick) "quick" else "full"]]
+  linkArms <- intersect(armNames, armsOf[[link]])
+
+  # ---- one forest ----
+
+  sampler <- dbarts(
     x,
     as.double(rep_len(0:1, n)),
     leaf.prior = drawnK,
-    forests = forests,
     control = control,
-    family = "probit"
+    family = link,
+    n.trees = 1L
   )
-  firstScale <- leafScale / sqrt(numSharers)
-  stopifnot(abs(shared$getLeafPrior(1L)$k.scale - firstScale) < 1e-12)
-  leaver <- switch(arm, `shared-leave` = 2L, `shared-leave-counts` = 3L, NULL)
-  if (!is.null(leaver)) {
-    shared$setForest(leaver, sd = heldSd)
-    stopifnot(abs(shared$getLeafPrior(1L)$k.scale - firstScale) < 1e-12)
-  }
   repeat {
-    shared$sampleTreesFromPrior()
-    shared$sampleLeafParametersFromPrior()
-    forestFits <- shared$getForestFits()[,, 1L]
-    first <- forestFits[, 1L]
-    numShared <- length(unique(first))
-    stumps <- apply(forestFits[, -1L, drop = FALSE], 2L, function(v) {
-      length(unique(v))
-    })
-    if (numShared >= 3L && numShared <= 4L && all(stumps == 1L)) break
+    sampler$sampleTreesFromPrior()
+    sampler$setLeafPrior(dbartsPriors$normal(k = 1))
+    sampler$sampleLeafParametersFromPrior()
+    fits <- as.numeric(sampler$predict(x))
+    numLeaves <- length(unique(fits))
+    if (numLeaves >= 3L && numLeaves <= 4L) break
   }
-  sharedLeaf <- match(first, unique(first))
-  extra <- rep(0, numShared)
-  if (withFactor) {
-    shared$setForestBasis(
-      factorForest,
-      factor(as.integer(sharedLeaf == 1L), levels = 0:1)
-    )
-    extra[1L] <- 0.5^2
-  }
-  set.seed(match(arm, allArms) + 500L)
-  y <- as.double(rbinom(
-    n,
-    1L,
-    pnorm(shift + c(0.8, -0.5, 0.3, -1.2)[sharedLeaf])
-  ))
-  exact <- sharedPosterior(
-    y,
-    sharedLeaf,
-    numShared,
-    extra,
-    shift,
-    firstScale = firstScale,
-    stumpScale = if (lone || arm == "shared-leave") 0 else firstScale,
-    heldSd = if (is.null(leaver)) 0 else heldSd
+  # the family's own scale for the one tree, not a constant written here
+  leafScale <- sampler$getLeafPrior()$k.scale
+  tree <- list(
+    leaf = match(fits, unique(fits)),
+    numLeaves = numLeaves,
+    leafScale = leafScale
   )
-  if (shift != 0) {
-    shared$setOffset(rep(shift, n))
+  leaf <- tree$leaf
+
+  for (arm in intersect(linkArms, singleArms)) {
+    set.seed(match(arm, singleArms) + 500L)
+    o <- if (arm == "offset") rep(0.4, n) else rep(0, n)
+    active <- if (arm == "mask") {
+      as.double(seq_len(n) %% 5L != 0L)
+    } else {
+      rep(1, n)
+    }
+    w <- if (arm == "counts") as.double(rep_len(1:3, n)) else rep(1, n)
+    probability <- if (arm == "pure") {
+      c(1, 0, 1, 0)[leaf]
+    } else {
+      cdf(o + c(0.8, -0.5, 0.3, -1.2)[leaf])
+    }
+    y <- as.double(rbinom(n, 1L, probability))
+    exact <- exactPosterior(tree, logCdf, y, o, active, w)
+
+    sampler$setOffset(if (arm == "offset") o else NULL)
+    sampler$setLeafPrior(dbartsPriors$normal(k = 2))
+    sampler$sampleLeafParametersFromPrior()
+    sampler$setLeafPrior(drawnK)
+    sampler$setResponse(y)
+    if (link == "logistic") {
+      sampler$setWeights(w)
+    }
+    sampler$setActiveRows(if (arm == "mask") active else NULL)
+    started <- proc.time()[[3L]]
+    run <- sampler$run(2000L, as.integer(numSweeps / thin))
+    elapsed <- proc.time()[[3L]] - started
+
+    k <- as.numeric(run$k)
+    leafDraws <- vapply(
+      seq_len(numLeaves),
+      function(l) colMeans(run$train[leaf == l, , drop = FALSE]),
+      numeric(ncol(run$train))
+    ) -
+      o[1L]
+    indicator <- lapply(exact$quantiles, function(q) as.numeric(k < q))
+    errorP <- vapply(indicator, batchMeansError, 0)
+    zP <- (vapply(indicator, mean, 0) - deciles) / errorP
+    unseparated <- which(!is.na(exact$leafMean))
+    zMu <- vapply(
+      unseparated,
+      function(l) {
+        (mean(leafDraws[, l]) - exact$leafMean[l]) /
+          batchMeansError(leafDraws[, l])
+      },
+      0
+    )
+    failed <- anyNA(c(zP, zMu)) || any(abs(c(zP, zMu)) > zBound)
+    mixingFailed <- arm == "pure" && !(max(errorP) < mixingBound)
+    cat(sprintf(
+      "%-8s %-13s %d leaves, %.0e sweeps in %.0f s | z(P(k < q)) %s | z(E mu) %s | max se(P) %.4f%s%s\n",
+      link,
+      arm,
+      numLeaves,
+      numSweeps,
+      elapsed,
+      paste(sprintf("%+.1f", zP), collapse = " "),
+      if (length(zMu) > 0L) {
+        paste(sprintf("%+.1f", zMu), collapse = " ")
+      } else {
+        "-"
+      },
+      max(errorP),
+      if (failed) " <- FAIL" else "",
+      if (mixingFailed) {
+        sprintf(" <- FAIL mixing (bound %.4f)", mixingBound)
+      } else {
+        ""
+      }
+    ))
+    anyFailure <- anyFailure || failed || mixingFailed
   }
 
-  shared$setResponse(y)
-  if (released) {
-    # off the k path, k pinned at 1 and the coefficient drawn, then back on it
-    # at the spread in force
-    invisible(shared$run(50L, 1L))
-    shared$setForest(1L, amplitude = dbartsPriors$normal())
-    stopifnot(all(shared$getK(1L) == 1))
-    invisible(shared$run(50L, 1L))
-    shared$setForest(1L, amplitude = dbartsPriors$fixed())
+  # ---- forests that share one total ----
+
+  for (arm in intersect(linkArms, sharedArms)) {
+    released <- arm == "lone-factor-released"
+    lone <- arm == "lone-factor" || released
+    withFactor <- arm %in% c("shared-factor", "lone-factor") || released
+    shift <- if (arm == "shared-offset") 0.4 else 0
+    counts <- arm == "shared-leave-counts"
+    forests <- list(dbartsForests$forest(n.trees = 1L))
+    if (!lone) {
+      forests[[2L]] <- dbartsForests$forest(
+        n.trees = if (counts) 2L else 1L,
+        base = 1e-9
+      )
+    }
+    if (counts) {
+      forests[[3L]] <- dbartsForests$forest(n.trees = 1L, base = 1e-9)
+    }
+    numSharers <- length(forests)
+    factorForest <- length(forests) + 1L
+    if (withFactor) {
+      forests[[factorForest]] <- dbartsForests$forest(
+        n.trees = 1L,
+        base = 1e-9,
+        basis = factor(rep_len(0:1, n), levels = 0:1),
+        sd = 0.5,
+        amplitude = dbartsPriors$fixed()
+      )
+    }
+    shared <- dbarts(
+      x,
+      as.double(rep_len(0:1, n)),
+      leaf.prior = drawnK,
+      forests = forests,
+      control = control,
+      family = link
+    )
+    firstScale <- leafScale / sqrt(numSharers)
     stopifnot(abs(shared$getLeafPrior(1L)$k.scale - firstScale) < 1e-12)
+    leaver <- switch(arm, `shared-leave` = 2L, `shared-leave-counts` = 3L, NULL)
+    if (!is.null(leaver)) {
+      shared$setForest(leaver, sd = heldSd)
+      stopifnot(abs(shared$getLeafPrior(1L)$k.scale - firstScale) < 1e-12)
+    }
+    repeat {
+      shared$sampleTreesFromPrior()
+      shared$sampleLeafParametersFromPrior()
+      forestFits <- shared$getForestFits()[,, 1L]
+      first <- forestFits[, 1L]
+      numShared <- length(unique(first))
+      stumps <- apply(forestFits[, -1L, drop = FALSE], 2L, function(v) {
+        length(unique(v))
+      })
+      if (numShared >= 3L && numShared <= 4L && all(stumps == 1L)) break
+    }
+    sharedLeaf <- match(first, unique(first))
+    extra <- rep(0, numShared)
+    if (withFactor) {
+      shared$setForestBasis(
+        factorForest,
+        factor(as.integer(sharedLeaf == 1L), levels = 0:1)
+      )
+      extra[1L] <- 0.5^2
+    }
+    set.seed(match(arm, allArms) + 500L)
+    y <- as.double(rbinom(
+      n,
+      1L,
+      cdf(shift + c(0.8, -0.5, 0.3, -1.2)[sharedLeaf])
+    ))
+    exact <- sharedPosterior(
+      logCdf,
+      y,
+      sharedLeaf,
+      numShared,
+      extra,
+      shift,
+      firstScale = firstScale,
+      stumpScale = if (lone || arm == "shared-leave") 0 else firstScale,
+      heldSd = if (is.null(leaver)) 0 else heldSd
+    )
+    if (shift != 0) {
+      shared$setOffset(rep(shift, n))
+    }
+
+    shared$setResponse(y)
+    if (released) {
+      # off the k path, k pinned at 1 and the coefficient drawn, then back on
+      # it at the spread in force
+      invisible(shared$run(50L, 1L))
+      shared$setForest(1L, amplitude = dbartsPriors$normal())
+      stopifnot(all(shared$getK(1L) == 1))
+      invisible(shared$run(50L, 1L))
+      shared$setForest(1L, amplitude = dbartsPriors$fixed())
+      stopifnot(abs(shared$getLeafPrior(1L)$k.scale - firstScale) < 1e-12)
+    }
+    started <- proc.time()[[3L]]
+    run <- shared$run(2000L, as.integer(numSweeps / thin))
+    elapsed <- proc.time()[[3L]] - started
+    k <- as.numeric(run$k)
+    leafDraws <- vapply(
+      seq_len(numShared),
+      function(l) colMeans(run$train[sharedLeaf == l, , drop = FALSE]),
+      numeric(ncol(run$train))
+    ) -
+      shift
+    indicator <- lapply(exact$quantiles, function(q) as.numeric(k < q))
+    zP <- (vapply(indicator, mean, 0) - deciles) /
+      vapply(indicator, batchMeansError, 0)
+    zMu <- vapply(
+      seq_len(numShared),
+      function(l) {
+        (mean(leafDraws[, l]) - exact$leafMean[l]) /
+          batchMeansError(leafDraws[, l])
+      },
+      0
+    )
+    failed <- anyNA(c(zP, zMu)) || any(abs(c(zP, zMu)) > zBound)
+    cat(sprintf(
+      "%-8s %-13s %d leaves, %.0e sweeps in %.0f s | z(P(k < q)) %s | z(E fit) %s%s\n",
+      link,
+      arm,
+      numShared,
+      numSweeps,
+      elapsed,
+      paste(sprintf("%+.1f", zP), collapse = " "),
+      paste(sprintf("%+.1f", zMu), collapse = " "),
+      if (failed) " <- FAIL" else ""
+    ))
+    anyFailure <- anyFailure || failed
   }
-  started <- proc.time()[[3L]]
-  run <- shared$run(2000L, as.integer(numSweeps / thin))
-  elapsed <- proc.time()[[3L]] - started
-  k <- as.numeric(run$k)
-  leafDraws <- vapply(
-    seq_len(numShared),
-    function(l) colMeans(run$train[sharedLeaf == l, , drop = FALSE]),
-    numeric(ncol(run$train))
-  ) -
-    shift
-  indicator <- lapply(exact$quantiles, function(q) as.numeric(k < q))
-  zP <- (vapply(indicator, mean, 0) - deciles) /
-    vapply(indicator, batchMeansError, 0)
-  zMu <- vapply(
-    seq_len(numShared),
-    function(l) {
-      (mean(leafDraws[, l]) - exact$leafMean[l]) /
-        batchMeansError(leafDraws[, l])
-    },
-    0
-  )
-  failed <- anyNA(c(zP, zMu)) || any(abs(c(zP, zMu)) > zBound)
-  cat(sprintf(
-    "%-13s %d leaves, %.0e sweeps in %.0f s | z(P(k < q)) %s | z(E fit) %s%s\n",
-    arm,
-    numShared,
-    numSweeps,
-    elapsed,
-    paste(sprintf("%+.1f", zP), collapse = " "),
-    paste(sprintf("%+.1f", zMu), collapse = " "),
-    if (failed) " <- FAIL" else ""
-  ))
-  anyFailure <- anyFailure || failed
 }
 
 if (anyFailure) {
   cat(
-    "\nFAIL: the probit k chain deviates from the exact posterior or mixes too slowly\n"
+    "\nFAIL: a k chain deviates from the exact posterior or mixes too slowly\n"
   )
   quit(status = 1L)
 }
-cat("\nOK: the probit k chain matches the exact posterior\n")
+cat("\nOK: the k chains match the exact posterior\n")
