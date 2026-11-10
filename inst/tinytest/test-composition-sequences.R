@@ -440,8 +440,6 @@ expect_true(all(is.finite(weightBcf$getForestFits(2L))))
 ## read off varcount - and to within the resum on the numbers. A bitwise
 ## numeric assertion here would be a false gate.
 
-nBefore <- 3L
-nAfter <- 5L
 continuationArm <- function(
   make,
   runIt = function(s, k) s$run(0L, k),
@@ -449,7 +447,9 @@ continuationArm <- function(
     s$storeState()
     s$state
   },
-  restoreIt = function(s, st) s$setState(st)
+  restoreIt = function(s, st) s$setState(st),
+  nBefore = 3L,
+  nAfter = 5L
 ) {
   whole <- runIt(make(), nBefore + nAfter)
   split <- make()
@@ -469,6 +469,19 @@ continuationArm <- function(
 }
 
 mnLabels <- rbinom(n, 2L, 0.4)
+# a logistic fit that draws k takes the collapsed rescaling move on about one
+# sweep in four, by a coin its generator holds: restored after 3 sweeps, the
+# continuation must take it on the sweeps the uninterrupted run does, which a
+# schedule kept anywhere but in the state would not. 24 sweeps past the
+# restore, over which a coin of 1/4 falls with probability 0.999.
+logisticK <- function() {
+  continuationArm(
+    function() {
+      dbarts(X, as.numeric(y > mean(y)), family = "logistic", control = ctl())
+    },
+    nAfter = 24L
+  )
+}
 continuationArms <- list(
   gaussian = function() {
     continuationArm(function() dbarts(X, y, control = ctl(), n.trees = 8L))
@@ -479,6 +492,7 @@ continuationArms <- list(
     })
   },
   bcf = function() continuationArm(bcfSampler),
+  logisticK = logisticK,
   multinomial = function() {
     continuationArm(function() {
       dbarts(
