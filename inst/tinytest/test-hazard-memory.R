@@ -133,6 +133,13 @@ expect_equal(
 )
 # once per session
 expect_equal(length(collect(fitHazard(test = xTest))$warnings), 0L)
+# the trigger is the projection itself: a machine of exactly that memory is
+# not warned, and one a byte smaller is
+options(dbarts.physicalMemory = projected)
+resetKey()
+expect_equal(length(collect(fitHazard(test = xTest))$warnings), 0L)
+options(dbarts.physicalMemory = projected - 1)
+expect_equal(length(collect(fitHazard(test = xTest))$warnings), 1L)
 # and the fit is the one an unwarned session makes
 options(dbarts.physicalMemory = NA)
 unwarned <- fitHazard(test = xTest, seed = 2L)
@@ -181,42 +188,75 @@ for (memory in list(NA_real_, 1e15)) {
 }
 
 # ---- $setData warns from the sampler's own projection ----
-options(dbarts.physicalMemory = NA)
-sampler <- dbarts::dbarts(
-  survival::Surv(time, status) ~ x1 + x2,
+form <- survival::Surv(time, status) ~ x1 + x2
+newFrame <- frame[1:30, ]
+newTest <- frame[1:3, c("x1", "x2")]
+# one warning a session whichever door gives it: a sampler created over its
+# memory warns, and its $setData then does not
+options(dbarts.physicalMemory = 2^18)
+resetKey()
+created <- collect(dbarts::dbarts(
+  form,
   frame,
   family = "hazard",
   n.trees = 5L,
   control = dbartsControl(n.chains = 2L, n.threads = 1L, n.samples = 10L)
+))
+expect_equal(length(created$warnings), 1L)
+sampler <- created$value
+expect_equal(
+  length(collect(sampler$copy()$setData(dbartsData(form, newFrame)))$warnings),
+  0L
 )
-options(dbarts.physicalMemory = 2^18)
+# with the key unspent, $setData warns, counting its test subjects at every
+# period, and names only what an existing sampler can do
 resetKey()
 swapped <- sampler$copy()
-newFrame <- frame[1:30, ]
 swapWarnings <- collect(swapped$setData(dbartsData(
-  survival::Surv(time, status) ~ x1 + x2,
-  newFrame
+  form,
+  newFrame,
+  newTest
 )))$warnings
 expect_equal(length(swapWarnings), 1L)
 swapRows <- nrow(swapped$data@x)
+swapTestRows <- 3L * length(sampler$model@hazard.periods)
+expect_equal(nrow(swapped$data@x.test), swapTestRows)
 expect_equal(
   conditionMessage(swapWarnings[[1L]]),
   paste0(
     "$setData: the hazard fit expands to ",
     swapRows,
-    " person-period rows on the sampler's periods; at 2 chains keeping 10 ",
+    " person-period rows and ",
+    swapTestRows,
+    " test rows on the sampler's periods; at 2 chains keeping 10 ",
     "draws a chain of the training fits it needs about ",
     dbarts:::formatBytes(hazardFitBytes(
       swapRows,
-      0,
+      swapTestRows,
       2L,
       hazardRunSettings(sampler$control, 5L)
     )),
     " at its peak, and this machine has 0.25 MB; hand over fewer ",
-    "subjects, make a new sampler with hazard(breaks = ), set ",
-    "keepTrainingFits = FALSE, or run fewer chains. This warning does not ",
-    "stop the fit and is shown once per session"
+    "subjects, set keepTrainingFits = FALSE, or make a new sampler with ",
+    "hazard(breaks = ) or fewer chains. This warning does not stop the fit ",
+    "and is shown once per session"
   )
+)
+# what it names can be done there: keepTrainingFits is taken, the chain count
+# is not
+expect_silent(swapped$copy()$setControl(dbartsControl(
+  n.chains = 2L,
+  n.threads = 1L,
+  n.samples = 10L,
+  keepTrainingFits = FALSE
+)))
+expect_error(
+  swapped$copy()$setControl(dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.samples = 10L
+  )),
+  "n.chains"
 )
 # the data are taken
 expect_equal(

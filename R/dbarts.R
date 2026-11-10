@@ -331,15 +331,25 @@ warnHazardMemory <- function(rows, testRows, numPredictors, run) {
       " fits"
     )
   }
-  ways <- c(
-    if (run$setData) {
-      c("hand over fewer subjects", "make a new sampler with hazard(breaks = )")
-    } else {
-      "coarsen the grid with hazard(breaks = )"
-    },
-    if (keepsTraining) "set keepTrainingFits = FALSE",
-    if (run$n.chains > 1L) "run fewer chains"
-  )
+  # a sampler's grid and chain count are fixed at creation, so at $setData
+  # those two levers take a new sampler
+  fewerChains <- run$n.chains > 1L
+  ways <- if (run$setData) {
+    c(
+      "hand over fewer subjects",
+      if (keepsTraining) "set keepTrainingFits = FALSE",
+      paste0(
+        "make a new sampler with hazard(breaks = )",
+        if (fewerChains) " or fewer chains"
+      )
+    )
+  } else {
+    c(
+      "coarsen the grid with hazard(breaks = )",
+      if (keepsTraining) "set keepTrainingFits = FALSE",
+      if (fewerChains) "run fewer chains"
+    )
+  }
   numWays <- length(ways)
   if (numWays > 1L) {
     ways <- paste0(
