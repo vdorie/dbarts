@@ -30,6 +30,7 @@ survivalProbabilities(object, ...)
   combineChains = TRUE,
   na.action = dbarts::na.keepPredictors,
   sample = c("train", "test"),
+  bases = NULL,
   ...
 )
 
@@ -112,11 +113,22 @@ survivalProbabilities(object, ...)
     both causes and, on a fit kept without trees, a test set at the fit or
     the trees as what would answer it.
   }
+  \item{bases}{
+    For a fit of several forests with a basis, the basis at the subjects, as
+    \code{\link[=predict.bart]{predict}} takes \code{bases} but one value per
+    subject (a hazard subject's value applies at every period, as its offset
+    does), where \code{predict} takes one per row of the person-period
+    \code{newdata}: a list with an entry per forest, a bare value when one forest
+    carries a basis, or the name of a column of \code{newdata}. Left out, the
+    basis is read from \code{newdata} by the fit's \code{forest()} terms, and
+    with no \code{newdata} the training subjects keep their own. Refused with
+    \code{sample = "test"}, whose draws are read as stored, and on a fit
+    that has one forest.
+  }
   \item{...}{
     Not a formal on the method: a name belonging to a sibling generic
     (\code{type}, \code{ci.level},
-    \code{weights}, \code{n.threads}, \code{forest}, \code{contribution},
-    \code{bases}) is refused by name rather than silently ignored, since this
+    \code{weights}, \code{n.threads}, \code{forest}, \code{contribution}) is refused by name rather than silently ignored, since this
     method returns the draws of \eqn{S(t \mid x)}{S(t | x)} at \code{times} alone.
   }
 }

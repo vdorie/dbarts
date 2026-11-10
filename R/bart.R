@@ -4289,7 +4289,8 @@ hazardSurvivalProbabilities <- function(
   offset,
   combineChains,
   na.action = na.keepPredictors,
-  sample = "train"
+  sample = "train",
+  bases = NULL
 ) {
   periods <- object$periods
   K <- length(periods)
@@ -4309,6 +4310,14 @@ hazardSurvivalProbabilities <- function(
   usesStoredTest <- identical(sample, "test")
   if (usesStoredTest) {
     refuseWithoutTestSubjects(object)
+    if (!is.null(bases)) {
+      stop(
+        "'bases' is not used with sample = \"test\": the test subjects' ",
+        "hazards are read off the fit as stored, with the bases they had; ",
+        "give the subjects as 'newdata' to put others on",
+        call. = FALSE
+      )
+    }
     # extract() on the packaged fit, not object$fit (the dbartsSampler):
     # extract.dbartsSampler accepts only type = "predictors", while
     # extract.bart's sample = "test" arm reads object$yhat.test directly and
@@ -4370,6 +4379,15 @@ hazardSurvivalProbabilities <- function(
       # a subject's period-1 row carries its own name under make.unique
       subjectNames <- object[["row.names.train"]][firstPeriod]
       bigX <- hazardRowSubset(subject, rep(seq_len(n), times = K))
+      # a several-forest fit's bases are per subject, its own the ones its
+      # period-1 rows carry
+      subjectBases <- hazardSubjectBases(
+        object,
+        bases,
+        NULL,
+        n,
+        which(firstPeriod)
+      )
       # each subject's own offset, the one its period-1 row carries, at every
       # period
       trainOffset <- object$fit$data@offset
@@ -4434,18 +4452,16 @@ hazardSurvivalProbabilities <- function(
       # read through the coded rows directly: bigX is the coded design, on
       # which a formula's offset() term cannot be evaluated, so the fit's
       # stored offset is replayed instead
-      haz <- codedRowDraws(
+      haz <- hazardHazards(
         object,
         validateXTest(bigX, fitX, refuseMissing = FALSE),
-        "ev",
-        object$fit$control@n.threads,
-        NULL,
-        bigOffset
+        bigOffset,
+        subjectBases,
+        n,
+        K
       )
-      if (n.chains == 1L) {
-        haz <- addChainDimension(haz)
-      }
     } else {
+      subjectBases <- hazardSubjectBases(object, bases, newdata, n)
       rows <- hazardPredictRows(
         object,
         bigX,
@@ -4456,22 +4472,21 @@ hazardSurvivalProbabilities <- function(
         offset
       )
       offset <- subsetPredictInput(offset, rows, "offset")
+      subjectBases <- subsetPredictBases(
+        subjectBases,
+        rows,
+        lapply(object$bases, cutBasisRows, rows = 1L)
+      )
       n <- rows$numPredicted
-      haz <- codedRowDraws(
+      haz <- hazardHazards(
         object,
         rows$x,
-        "ev",
-        object$fit$control@n.threads,
-        NULL,
         # per subject, period-major as the rows are
-        if (length(offset) > 1L) rep(offset, times = K) else offset
+        if (length(offset) > 1L) rep(offset, times = K) else offset,
+        subjectBases,
+        n,
+        K
       )
-      # codedRowDraws reads through predictCodedTest directly rather than
-      # predict(), so it carries none of predict's own chain margin; add the
-      # one a one-chain fit keeps everywhere else (dec-A79)
-      if (n.chains == 1L) {
-        haz <- addChainDimension(haz)
-      }
     }
   }
   drawDims <- dim(haz)[-length(dim(haz))]
@@ -4507,6 +4522,69 @@ hazardSurvivalProbabilities <- function(
     ))
   }
   padPredictedRows(nameObservationMargin(out, rows$keptNames), rows)
+}
+
+# The per-(subject, period) hazard draws at n subjects' coded person-period
+# rows (period-major), uncombined with the chain margin a one-chain fit keeps.
+# A single-forest fit replays its trees at the rows; a several-forest fit has
+# no combined test surface in the engine, so the forests replay separately and
+# recombine with the fit's glue at the bases of the subjects, repeated over
+# their periods as the offset is (predictBlend, which predict runs).
+hazardHazards <- function(object, x, offset, subjectBases, n, K) {
+  n.threads <- object$fit$control@n.threads
+  if (is.null(object[["forestFits"]])) {
+    haz <- codedRowDraws(object, x, "ev", n.threads, NULL, offset)
+    return(if (fitNChains(object) == 1L) addChainDimension(haz) else haz)
+  }
+  expand <- rep(seq_len(n), times = K)
+  predictBlend(
+    object,
+    x,
+    offset,
+    NULL,
+    "ev",
+    FALSE,
+    NULL,
+    unname(lapply(subjectBases, cutBasisRows, rows = expand)),
+    n.threads
+  )
+}
+
+# The bases of the subjects a hazard fit with several forests is asked for, one
+# value per subject: 'bases' as given, or a forest() term's formula read at the
+# subjects ('newdata'), or at no newdata the ones the fit's period-1 rows carry
+# ('trainingRows'). NULL where the fit has one forest, which takes none.
+hazardSubjectBases <- function(
+  object,
+  bases,
+  newdata,
+  n,
+  trainingRows = NULL
+) {
+  if (is.null(object[["forestFits"]])) {
+    if (!is.null(bases)) {
+      stop(
+        "'bases' is only meaningful on an amplitude-coupled multi-forest ",
+        "fit; this fit has ",
+        fitNumForests(object),
+        if (fitNumForests(object) == 1L) " forest" else " forests",
+        call. = FALSE
+      )
+    }
+    return(NULL)
+  }
+  if (!is.null(trainingRows) && is.null(bases)) {
+    return(lapply(object$bases, cutBasisRows, rows = trainingRows))
+  }
+  resolveForestBases(
+    object,
+    bases,
+    newdata,
+    n,
+    rows = if (is.null(newdata)) "the training subjects" else "'newdata'",
+    where = if (is.null(newdata)) "the training subjects" else "the new subjects",
+    training = is.null(newdata)
+  )
 }
 
 # The rows of a discrete-time hazard 'newdata' to predict, resolved under
@@ -4581,6 +4659,7 @@ survivalProbabilities.bart <- function(
   combineChains = TRUE,
   na.action = dbarts::na.keepPredictors,
   sample = c("train", "test"),
+  bases = NULL,
   ...
 ) {
   combineChains <- checkCombineChains(combineChains)
@@ -4621,7 +4700,8 @@ survivalProbabilities.bart <- function(
       offset,
       combineChains,
       na.action,
-      sample
+      sample,
+      bases
     ))
   }
   if (!identical(fitEngineFamily(object), "aft")) {
@@ -4630,6 +4710,23 @@ survivalProbabilities.bart <- function(
   times <- as.double(times)
   if (length(times) == 0L || any(!is.finite(times)) || any(times <= 0)) {
     stop("'times' must be finite and positive")
+  }
+  if (!is.null(bases)) {
+    if (sample == "test") {
+      stop(
+        "'bases' is not used with sample = \"test\": the test subjects' ",
+        "draws are read off the fit as stored; give the subjects as ",
+        "'newdata' to put others on",
+        call. = FALSE
+      )
+    }
+    # the same refusal predict gives a fit that has no bases to take
+    if (is.null(object[["forestFits"]])) {
+      hazardSubjectBases(object, bases, NULL, 0L)
+    }
+    if (is.null(newdata)) {
+      object <- withTrainingBases(object, bases)
+    }
   }
 
   n.chains <- if (!is.null(object[["fit"]])) {
@@ -4691,6 +4788,7 @@ survivalProbabilities.bart <- function(
       type = "bart",
       offset = offset,
       combineChains = FALSE,
+      bases = bases,
       na.action = na.action
     )
   }

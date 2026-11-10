@@ -4604,15 +4604,14 @@ residualsForeignReasons <- list(
 )
 
 survivalProbabilitiesDrawsReason <- "survivalProbabilities returns the draws of S(t | x) at 'times'"
-survivalProbabilitiesOwnArgsReason <- "survivalProbabilities takes 'times', 'newdata', 'offset' and 'sample' alone"
+survivalProbabilitiesOwnArgsReason <- "survivalProbabilities takes 'times', 'newdata', 'offset', 'bases' and 'sample' alone"
 survivalProbabilitiesForeignReasons <- list(
   type = survivalProbabilitiesDrawsReason,
   ci.level = survivalProbabilitiesDrawsReason,
   weights = survivalProbabilitiesOwnArgsReason,
   n.threads = survivalProbabilitiesOwnArgsReason,
   forest = survivalProbabilitiesOwnArgsReason,
-  contribution = survivalProbabilitiesOwnArgsReason,
-  bases = survivalProbabilitiesOwnArgsReason
+  contribution = survivalProbabilitiesOwnArgsReason
 )
 
 # Resolve a hurdle type argument: fold the "response"/"link"/"log" aliases onto
