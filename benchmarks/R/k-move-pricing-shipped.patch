@@ -1,0 +1,13 @@
+diff --git a/src/bartcore/chain.hpp b/src/bartcore/chain.hpp
+index f7bf9e5..1524e86 100644
+--- a/src/bartcore/chain.hpp
++++ b/src/bartcore/chain.hpp
+@@ -113,7 +113,7 @@ struct SamplerOptions {
+   // byte-for-byte as with it off. Not a setting: it is false only in the
+   // engine's own tests, which compare a path with the move against one
+   // without.
+-  bool collapsedRescaleForest = true;
++  bool collapsedRescaleForest = false;
+   std::uint32_t maxNumCuts = 100;
+   // borrowed per-column override of maxNumCuts; copied during construction
+   const std::uint32_t* maxNumCutsPerVariable = nullptr;
