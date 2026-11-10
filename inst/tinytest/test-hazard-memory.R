@@ -222,7 +222,7 @@ swapRows <- nrow(swapped$data@x)
 swapTestRows <- 3L * length(sampler$model@hazard.periods)
 expect_equal(nrow(swapped$data@x.test), swapTestRows)
 expect_equal(
-  conditionMessage(swapWarnings[[1L]]),
+  vapply(swapWarnings, conditionMessage, ""),
   paste0(
     "$setData: the hazard fit expands to ",
     swapRows,
