@@ -1,15 +1,17 @@
 #!/usr/bin/env Rscript
 
-# How fast k mixes under probit with the probit rescaling step
-# (docs/design/probit-k-scale-move.md). A measurement, not a gate: no baseline
-# and no pass/fail exit. Its runs are that design's kill-criteria evidence.
+# How fast k mixes under a binary link: under probit with the probit
+# rescaling step (docs/design/probit-k-scale-move.md), under logistic with
+# whatever k sampler the installed build carries. A measurement, not a gate:
+# no baseline and no pass/fail exit.
 #
 #   census     k's and the average fit's integrated autocorrelation time over
 #              the SBC probit-k arm's prior-drawn datasets: per dataset, the
-#              truth and the data drawn as the arm draws them (seeded by the
-#              dataset's index, so every run sees the same data), the arm's
-#              start, 30,000 sweeps of burn-in and 200,000 recorded at thin 10.
-#              Geyer's initial monotone sequence, in sweeps.
+#              truth and the data drawn as the arm draws them and a sampler of
+#              its own, all seeded by the dataset's index, so every run sees the
+#              same data and no dataset's chain inherits another's generator;
+#              the arm's start, 30,000 sweeps of burn-in and 200,000 recorded at
+#              thin 10. Geyer's initial monotone sequence, in sweeps.
 #   truth      the start-from-truth invariance statistic: the state is an exact
 #              posterior draw (trees, leaves and k0 from the prior, y given the
 #              fit, latents given y), the chain runs on, and log k at lags 300
@@ -18,9 +20,10 @@
 #   summarize  the census tables and the truth z from saved runs.
 #
 # Usage:
-#   Rscript probit-k-mixing.R census <first> <last> <out.rds>
-#   Rscript probit-k-mixing.R truth <seed> <reps> <out.rds>
+#   Rscript probit-k-mixing.R census <first> <last> <out.rds> [link]
+#   Rscript probit-k-mixing.R truth <seed> <reps> <out.rds> [link]
 #   Rscript probit-k-mixing.R summarize <file.rds>...
+# link is probit (the default) or logistic, the arm's data drawn under it.
 # Run from the repository root (it sources benchmarks/R/sbc.R for the arm's
 # configuration).
 
@@ -63,14 +66,20 @@ drawTruth <- function(sampler, config) {
   list(k0 = k0, f0 = as.numeric(sampler$predict(config$x)))
 }
 
-runCensus <- function(first, last, out, burn = 30000L, numRecorded = 200000L) {
+runCensus <- function(
+  first,
+  last,
+  out,
+  link,
+  burn = 30000L,
+  numRecorded = 200000L
+) {
   thin <- 10L
-  config <- sbcConfigProbitK()
-  set.seed(1L)
-  sampler <- sbcMakeSampler(config, numRecorded %/% thin, thin, 1L)
+  config <- sbcConfigProbitK(family = link)
   results <- list()
   for (r in first:last) {
     set.seed(100000L + r)
+    sampler <- sbcMakeSampler(config, numRecorded %/% thin, thin, r)
     truth <- drawTruth(sampler, config)
     y0 <- sbcSimulate(config, truth$f0, 1.0)
     # the arm's start: fresh prior trees and a k from the prior
@@ -108,6 +117,7 @@ runCensus <- function(first, last, out, burn = 30000L, numRecorded = 200000L) {
   saveRDS(
     list(
       action = "census",
+      link = link,
       burn = burn,
       numRecorded = numRecorded,
       thin = thin,
@@ -117,8 +127,8 @@ runCensus <- function(first, last, out, burn = 30000L, numRecorded = 200000L) {
   )
 }
 
-runTruth <- function(seed, numReps, out) {
-  config <- sbcConfigProbitK()
+runTruth <- function(seed, numReps, out, link) {
+  config <- sbcConfigProbitK(family = link)
   set.seed(seed)
   sampler <- sbcMakeSampler(config, 1L, 1L, seed)
   lags <- c(1, 3, 10, 30, 100, 300, 1000, 2000, 3000)
@@ -144,7 +154,7 @@ runTruth <- function(seed, numReps, out) {
     proc.time()[[3L]] - started
   ))
   saveRDS(
-    list(action = "truth", lags = lags, results = results),
+    list(action = "truth", link = link, lags = lags, results = results),
     out
   )
 }
@@ -195,10 +205,16 @@ summarize <- function(files) {
   }
 }
 
+link <- if (length(args) >= 5L) args[5L] else "probit"
 switch(
   action,
-  census = runCensus(as.integer(args[2L]), as.integer(args[3L]), args[4L]),
-  truth = runTruth(as.integer(args[2L]), as.integer(args[3L]), args[4L]),
+  census = runCensus(
+    as.integer(args[2L]),
+    as.integer(args[3L]),
+    args[4L],
+    link
+  ),
+  truth = runTruth(as.integer(args[2L]), as.integer(args[3L]), args[4L], link),
   summarize = summarize(args[-1L]),
   stop("the first argument is census, truth or summarize")
 )

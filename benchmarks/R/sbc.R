@@ -539,9 +539,15 @@ sbcMakeSampler <- function(config, L, thin, seed, y = NULL) {
 # draws k from its prior, and the leaf draw is made at its current k, so the
 # harness draws k itself and installs it as a fixed value (setLeafPrior, whose
 # write leaves every other part of the prior alone) before the leaf draw.
-sbcConfigProbitK <- function(df = 1.5, scale = 2, ...) {
+# family takes logistic for the same arm under the other binary link.
+sbcConfigProbitK <- function(
+  df = 1.5,
+  scale = 2,
+  family = c("probit", "logistic"),
+  ...
+) {
   config <- sbcConfig(
-    family = "probit",
+    family = match.arg(family),
     nodePrior = dbartsPriors$normal(dbartsPriors$chi(df, scale)),
     ...
   )
