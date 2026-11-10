@@ -11,6 +11,7 @@
 #include <exception> // exception
 #include <memory>    // unique_ptr
 #include <thread>    // thread::id
+#include <utility>   // move
 #include <vector>
 
 #include <external/Rinternals.h> // SEXP
@@ -173,6 +174,47 @@ inline bartcore::DrawHook ShippedDrawHook::engineHook() {
   return bartcore::DrawHook{shippedDrawTrampoline, this};
 }
 
+/// The per-chain generators a sampler borrows, owned: each one is destroyed
+/// with its owner, however the owner ends. A creation route keeps one in its
+/// unwind-protected closure from the moment the first generator exists, so an
+/// R error or an exception on the way to a published holder frees them, and
+/// the holder takes them over by move. Move-only; a moved-from owner holds no
+/// chains.
+class ChainRngs {
+public:
+  ChainRngs() = default;
+  /// \p numChains empty slots, each to be filled by the caller.
+  explicit ChainRngs(std::size_t numChains) : rngs_(numChains, nullptr) {}
+  ~ChainRngs() { reset(); }
+
+  ChainRngs(ChainRngs&& other) noexcept : rngs_(std::move(other.rngs_)) {
+    other.rngs_.clear();
+  }
+  ChainRngs& operator=(ChainRngs&& other) noexcept {
+    if (this != &other) {
+      reset();
+      rngs_.swap(other.rngs_);
+    }
+    return *this;
+  }
+  ChainRngs(const ChainRngs&) = delete;
+  ChainRngs& operator=(const ChainRngs&) = delete;
+
+  /// The array the engine's factories borrow, one generator per chain.
+  ext_rng** data() { return rngs_.data(); }
+  ext_rng*& operator[](std::size_t chain) { return rngs_[chain]; }
+
+  /// Destroys every generator, last chain first, and releases the storage.
+  void reset() {
+    for (std::size_t c = rngs_.size(); c > 0; --c)
+      if (rngs_[c - 1] != nullptr) ext_rng_destroy(rngs_[c - 1]);
+    std::vector<ext_rng*>().swap(rngs_);
+  }
+
+private:
+  std::vector<ext_rng*> rngs_;
+};
+
 } // namespace bartcore_bridge
 
 /// The bridge's per-sampler holder, and - under this exact name - the opaque
@@ -187,7 +229,10 @@ inline bartcore::DrawHook ShippedDrawHook::engineHook() {
 /// in.
 struct dbarts_sampler_t {
   std::unique_ptr<bartcore::SamplerBase> sampler;
-  std::vector<ext_rng*> rngs; // one per chain
+  // one per chain, borrowed by the sampler; members are destroyed in reverse
+  // order, so these go before it, which is safe because the sampler's
+  // teardown draws nothing
+  bartcore_bridge::ChainRngs rngs;
   bool keepTrainingFits;
 
   // The flat C API's registered per-draw observer
@@ -252,11 +297,6 @@ struct dbarts_sampler_t {
   // they say once per holder. Only the R entries read or set
   // it: a flat entry returns its status and spends nothing.
   bool scaleKeptWarned = false;
-
-  ~dbarts_sampler_t() {
-    for (std::size_t c = rngs.size(); c > 0; --c)
-      if (rngs[c - 1] != NULL) ext_rng_destroy(rngs[c - 1]);
-  }
 };
 
 namespace bartcore_bridge {

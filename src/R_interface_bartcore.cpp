@@ -2865,22 +2865,17 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   return options;
 }
 
-// Runs a sampler factory with its C++ exceptions turned into an R error: a
-// tree store sized from a huge sample count, or any other allocation the
-// build makes, throws std::bad_alloc, which must not cross into R. The chain
-// rngs the factory borrowed are destroyed before the raise, as every other
-// creation refusal destroys them; the factory leaves nothing else behind.
+// Runs a sampler factory with its C++ exceptions raised as an R error that
+// names the step: a tree store sized from a huge sample count, or any other
+// allocation the build makes, throws std::bad_alloc. The factory leaves
+// nothing behind, and the chain generators it borrowed belong to the caller's
+// closure, which frees them on the raise.
 template <typename Factory>
-std::unique_ptr<bartcore::SamplerBase>
-createSamplerOrRaise(std::vector<ext_rng*>& rngs, Factory&& factory) {
+std::unique_ptr<bartcore::SamplerBase> createSamplerOrRaise(Factory&& factory) {
   std::unique_ptr<bartcore::SamplerBase> sampler;
   bartcore_bridge::CapturedError error;
   captureExceptions(error, [&]() { sampler = factory(); });
-  if (error.failed) {
-    for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
-    rngs.clear();
-    Rf_error("sampler creation failed: %s", error.message);
-  }
+  if (error.failed) Rf_error("sampler creation failed: %s", error.message);
   return sampler;
 }
 
@@ -2890,9 +2885,11 @@ createSamplerOrRaise(std::vector<ext_rng*>& rngs, Factory&& factory) {
 // generator that hands each chain its seed, so a single-chain run with seed
 // S reproduces chain 0 of any multi-chain run with seed S. Without one,
 // chain seeds are drawn from R's stream, so a set.seed() beforehand
-// suffices; sampling itself never advances R's stream.
-std::vector<ext_rng*> createChainRngs(const ParsedControl& control,
-                                      size_t numChains) {
+// suffices; sampling itself never advances R's stream. Fills \p rngs, which
+// must be a closure-owned capture: the raise on a failed generator frees the
+// ones already made through it.
+void createChainRngs(bartcore_bridge::ChainRngs& rngs,
+                     const ParsedControl& control, size_t numChains) {
   bool haveSeed = control.haveRngSeed;
   // R's stream is read and written back before anything is owned: GetRNGstate
   // raises on a malformed .Random.seed and PutRNGstate on a locked one, and
@@ -2908,7 +2905,7 @@ std::vector<ext_rng*> createChainRngs(const ParsedControl& control,
         static_cast<std::uint_least32_t>(unif_rand() * 4294967295.0);
     PutRNGstate();
   }
-  std::vector<ext_rng*> rngs(numChains, static_cast<ext_rng*>(NULL));
+  rngs = bartcore_bridge::ChainRngs(numChains);
   bool rngFailed = false;
   if (haveSeed) {
     ext_rng* seedGenerator =
@@ -2930,15 +2927,7 @@ std::vector<ext_rng*> createChainRngs(const ParsedControl& control,
         ext_rng_setSeed(rngs[c], streamSeeds[c]) != 0;
     }
   }
-  if (rngFailed) {
-    for (size_t c = rngs.size(); c > 0; --c)
-      if (rngs[c - 1] != NULL) ext_rng_destroy(rngs[c - 1]);
-    // Rf_error longjmps past ~vector, so the buffer that held the generators
-    // is released here rather than left to a destructor that never runs
-    std::vector<ext_rng*>().swap(rngs);
-    Rf_error("could not allocate rng");
-  }
-  return rngs;
+  if (rngFailed) Rf_error("could not allocate rng");
 }
 
 // The shape and support both survival entries state, creation's and the live
@@ -4538,7 +4527,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                  moveRecord = MoveRecord{},
                  moveForests = std::vector<bartcore::MoveSettings>{},
                  moveVariance = bartcore::MoveSettings{},
-                 rngs = std::vector<ext_rng*>{}]() mutable -> SEXP {
+                 rngs = bartcore_bridge::ChainRngs{}]() mutable -> SEXP {
     bool sigmaIsFixed;
     bartcore::ResponseFamily family = parseSamplerSpecification(
       controlExpr, modelExpr, dataExpr, familyName, control, model, data,
@@ -4649,7 +4638,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                                    data.binomialTrials.data(),
                                    data.numObservations);
 
-    rngs = createChainRngs(control, options.numChains);
+    createChainRngs(rngs, control, options.numChains);
 
     // dispatches on the leaf model: a linear leaf prior's designated columns
     // select the linear-leaf instantiation, everything else the constant leaf
@@ -4659,7 +4648,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     bool sdHasNoUnit = false;
     using OwnedSampler = std::unique_ptr<bartcore::SamplerBase>;
     OwnedSampler sampler =
-      createSamplerOrRaise(rngs, [&]() -> OwnedSampler {
+      createSamplerOrRaise([&]() -> OwnedSampler {
         if (!carriesAmplitudes) {
           try {
             return bartcore::createSampler(
@@ -4689,7 +4678,6 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
         }
       });
     if (sdHasNoUnit || !noBasisScale.empty() || !leafRefusal.empty()) {
-      for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
       if (sdHasNoUnit) Rf_error("%s", forestSdUnitMessage);
       if (!leafRefusal.empty()) Rf_error("%s", leafRefusal.c_str());
       Rf_error("%s", noBasisScale.c_str());
@@ -4697,7 +4685,6 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     if (sampler == NULL) {
       // the R surface refuses these first, so only an entrance that skips it
       // (the flat C API) reaches this
-      for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
       Rf_error("%s",
                carriesAmplitudes
                  ? "invalid forest specification"
@@ -4708,8 +4695,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                    "a monotone constraint");
     }
     if (proposalMixIsRefused(sampler->shape().leafModel, model)) {
-      sampler.reset();  // borrows the rngs, so tear it down before them
-      for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
+      sampler.reset();  // a body local, which the raise would leak
       Rf_error("%s", monotoneProposalMixMessage);
     }
     // every forest was built with the control's settings; a record states
@@ -4717,8 +4703,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     // them. Without one nothing is written
     if (const char* refusal = resolveMoveSettings(
           moveForests, moveVariance, moveRecord, sampler->shape())) {
-      sampler.reset();  // borrows the rngs, so tear it down before them
-      for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
+      sampler.reset();  // a body local, which the raise would leak
       Rf_error("%s", refusal);
     }
     if (moveRecord.present)
@@ -4730,8 +4715,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
         // that would land on a CSC-backed test column is refused (sparse
         // storage serves no dense raw test covariate)
         if (!installTestContainer(*sampler, data.testContainer)) {
-          sampler.reset();  // borrows the rngs, so tear it down before them
-          for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
+          sampler.reset();  // a body local, which the raise would leak
           Rf_error("a leaf covariate column cannot be a sparse test column; "
                    "supply it as a dense test column");
         }
@@ -4746,19 +4730,21 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
       printInitialSummary(control, model, data, *sampler, moveForests,
                           moveVariance);
 
-    holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
-                                control.keepTrainingFits};
+    // owned until the return publishes it, so a throw on the way frees it
+    std::unique_ptr<BartcoreHolder> owned(new BartcoreHolder{
+      std::move(sampler), std::move(rngs), control.keepTrainingFits});
     // a move keeps each buffer, so the pointers the sampler holds stay valid
-    holder->ownedResponse = std::move(ownedResponse);
-    holder->ownedWeights = std::move(ownedWeights);
-    holder->ownedOffset = std::move(ownedOffset);
-    holder->ownedTestOffset = std::move(ownedTestOffset);
-    holder->ownedBinomialTrials = std::move(ownedBinomialTrials);
+    owned->ownedResponse = std::move(ownedResponse);
+    owned->ownedWeights = std::move(ownedWeights);
+    owned->ownedOffset = std::move(ownedOffset);
+    owned->ownedTestOffset = std::move(ownedTestOffset);
+    owned->ownedBinomialTrials = std::move(ownedBinomialTrials);
     // one empty per-forest weight slot per forest keeps the engine's
     // pass-through until a caller installs one; nothing else is owned here,
     // since every basis was copied into the chains at construction
     if (carriesAmplitudes)
-      holder->ownedForestWeights.resize(holder->sampler->shape().numForests);
+      owned->ownedForestWeights.resize(owned->sampler->shape().numForests);
+    holder = owned.release();
     return R_NilValue;
   });
   return holder;
@@ -4852,7 +4838,7 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
     const ParsedData& data, SEXP modelExpr, bool sigmaIsFixed,
     size_t numCategories, const int* counts, const int* trials,
     const double* weights, const double* offset, const double* testOffset,
-    std::vector<ext_rng*>& rngs) {
+    bartcore_bridge::ChainRngs& rngs) {
   bartcore::SamplerOptions options =
     optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
   if (options.fp32Residual)
@@ -4865,7 +4851,7 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
   if (std::isfinite(model.namedSd))
     Rf_error("a multinomial forest does not support a named leaf-prior sd; "
              "its leaf scale comes from the softmax calibration map");
-  rngs = createChainRngs(control, options.numChains);
+  createChainRngs(rngs, control, options.numChains);
 
   bartcore::MultinomialSpec spec;
   spec.numCategories = numCategories;
@@ -4902,7 +4888,7 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
   spec.forest.blockTreeCounts = options.blockTreeCounts;
 
   std::unique_ptr<bartcore::SamplerBase> sampler =
-    createSamplerOrRaise(rngs, [&]() {
+    createSamplerOrRaise([&]() {
       return bartcore::createMultinomialSampler(data.predictors.denseValues,
                                                 data.numObservations,
                                                 data.numPredictors, options,
@@ -4914,15 +4900,11 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
   // null sampler, which every entry dereferences. The R surface refuses it
   // first; this is the backstop for the callers that reach here without one.
   if (sampler == NULL) {
-    for (ext_rng* rng : rngs)
-      if (rng != NULL) ext_rng_destroy(rng);
     Rf_error("a multinomial (softmax) model does not support a "
              "heteroscedastic variance forest");
   }
   if (proposalMixIsRefused(sampler->shape().leafModel, model)) {
-    sampler.reset();  // borrows the rngs, so tear it down before them
-    for (ext_rng* rng : rngs)
-      if (rng != NULL) ext_rng_destroy(rng);
+    sampler.reset();  // a body local, which the raise would leak
     Rf_error("%s", monotoneProposalMixMessage);
   }
 
@@ -4982,7 +4964,7 @@ BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
                                               SEXP categoryTestOffsetExpr) {
   BartcoreHolder* holder = nullptr;
   unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
-                 model = ParsedModel{}, rngs = std::vector<ext_rng*>{},
+                 model = ParsedModel{}, rngs = bartcore_bridge::ChainRngs{},
                  counts = std::vector<int>{}, trials = std::vector<int>{},
                  weights = std::vector<double>{},
                  offset = std::vector<double>{},
@@ -5038,22 +5020,23 @@ BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
     // installed before any run
     if (const char* refusal = resolveMoveSettings(
           moveForests, moveVariance, moveRecord, sampler->shape())) {
-      sampler.reset();  // borrows the rngs, so tear it down before them
-      for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
+      sampler.reset();  // a body local, which the raise would leak
       Rf_error("%s", refusal);
     }
     if (moveRecord.present)
       installMoveSettings(*sampler, moveForests, moveVariance);
 
-    holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
-                                control.keepTrainingFits};
+    // owned until the return publishes it, so a throw on the way frees it
+    std::unique_ptr<BartcoreHolder> owned(new BartcoreHolder{
+      std::move(sampler), std::move(rngs), control.keepTrainingFits});
     // moving keeps the buffers, so the combiner's borrowed counts/trials and
     // both category offsets stay valid
-    holder->ownedCounts = std::move(counts);
-    holder->ownedTrials = std::move(trials);
-    holder->ownedWeights = std::move(weights);
-    holder->ownedCategoryOffset = std::move(offset);
-    holder->ownedCategoryTestOffset = std::move(testOffset);
+    owned->ownedCounts = std::move(counts);
+    owned->ownedTrials = std::move(trials);
+    owned->ownedWeights = std::move(weights);
+    owned->ownedCategoryOffset = std::move(offset);
+    owned->ownedCategoryTestOffset = std::move(testOffset);
+    holder = owned.release();
     return R_NilValue;
   });
   return holder;
@@ -5242,7 +5225,7 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
                         columns = std::vector<size_t>{},
                         viewLeafCovariates = std::vector<size_t>{},
                         leafRefusal = std::string{},
-                        rngs = std::vector<ext_rng*>{}]() mutable -> SEXP {
+                        rngs = bartcore_bridge::ChainRngs{}]() mutable -> SEXP {
     // the pointer and its finalizer before anything is owned, so no
     // allocation runs while a frame local holds the sampler or the holder
     // (createExternalHolder); the protection slot stays empty, a fold's store
@@ -5387,10 +5370,10 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
     // silently ignore a "single" request
     if (options.fp32Residual)
       Rf_error("storage = \"single\" is not supported for this sampler");
-    rngs = createChainRngs(control, options.numChains);
+    createChainRngs(rngs, control, options.numChains);
 
     std::unique_ptr<bartcore::SamplerBase> sampler =
-      createSamplerOrRaise(rngs, [&]() -> std::unique_ptr<bartcore::SamplerBase> {
+      createSamplerOrRaise([&]() -> std::unique_ptr<bartcore::SamplerBase> {
         try {
           return bartcore::createSamplerOverStore(
             std::move(store), response.data(),
@@ -5409,31 +5392,30 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
         }
       });
     if (!leafRefusal.empty()) {
-      for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
       Rf_error("%s", leafRefusal.c_str());
     }
     if (sampler == NULL) {
       // R-side resolution validates column legality first, so what lands here
       // is a covariate the handle did not gather raw for at creation
-      for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
       Rf_error("invalid leaf covariate designation; a view's leaf covariate "
                "columns must be among those the data handle was told to "
                "gather raw values for at creation");
     }
 
-    BartcoreHolder* holder = new BartcoreHolder{
-      std::move(sampler), std::move(rngs), control.keepTrainingFits};
+    // owned until the pointer publishes it, so a throw on the way frees it
+    std::unique_ptr<BartcoreHolder> owned(new BartcoreHolder{
+      std::move(sampler), std::move(rngs), control.keepTrainingFits});
     // moving the vectors keeps their buffers, so the chains' borrowed
     // pointers stay valid for the holder's lifetime
-    holder->ownedResponse = std::move(response);
-    holder->ownedBinomialTrials = std::move(trials);
-    holder->ownedWeights = std::move(weights);
-    holder->ownedOffset = std::move(offset);
-    holder->ownedTestOffset = std::move(testOffset);
-    if (!holder->ownedTestOffset.empty())
-      holder->sampler->setTestOffset(holder->ownedTestOffset.data());
+    owned->ownedResponse = std::move(response);
+    owned->ownedBinomialTrials = std::move(trials);
+    owned->ownedWeights = std::move(weights);
+    owned->ownedOffset = std::move(offset);
+    owned->ownedTestOffset = std::move(testOffset);
+    if (!owned->ownedTestOffset.empty())
+      owned->sampler->setTestOffset(owned->ownedTestOffset.data());
 
-    R_SetExternalPtrAddr(result, holder);
+    R_SetExternalPtrAddr(result, owned.release());
     UNPROTECT(2);
     return result;
   });
