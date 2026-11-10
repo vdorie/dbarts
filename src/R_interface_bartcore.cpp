@@ -5911,6 +5911,16 @@ SEXP bartcore_numForests(SEXP ptrExpr) {
     static_cast<int>(holder.sampler->shape().numForests));
 }
 
+// The engine's own test row count, which the R object's x.test slot mirrors.
+// An install that fails part way leaves the engine with none while a refusal
+// leaves the previous rows in place, so R's error path reads this to tell
+// which one it met.
+SEXP bartcore_numTestObservations(SEXP ptrExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  return Rf_ScalarReal(
+    static_cast<double>(holder.sampler->shape().numTestObservations));
+}
+
 // One forest's own tree count. getTrees' R5 method needs this to default and
 // validate treeNums PER FOREST: forest 1's count (control@n.trees) need not
 // match a later forest's own declared n.trees (a forest() term or a forests =

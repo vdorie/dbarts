@@ -2501,14 +2501,23 @@ bartcoreSamplerSetCutPoints <- function(sampler, cuts, column, splits) {
   invisible(NULL)
 }
 
-# After a failed test install: the bridge refused the new set and left the
-# engine as it was, or the install failed part way (an allocation) and left the
-# engine with no test rows. Installing the previous set again covers both. The
-# set the engine holds afterward is returned, for the caller's slots; it is
-# empty when the reinstall fails too, and the engine is then cleared to match.
+# After a failed test install, the test set the engine holds, for the caller's
+# slots. Every bridge refusal comes before the install, so the engine keeps
+# the previous set, and so do the slots. An install that failed part way (an
+# allocation) leaves the engine with no test rows: the previous set is then
+# installed again, and if that fails too the engine is cleared and the slots
+# are emptied to match.
 restoreTestSet <- function(ptr, x.test, offset.test) {
+  previous <- list(x.test = x.test, offset.test = offset.test)
   if (is.null(x.test)) {
-    return(list(x.test = NULL, offset.test = NULL))
+    return(previous)
+  }
+  engineRows <- tryCatch(
+    .Call(C_dbarts_bartcore_numTestObservations, ptr),
+    error = function(e) NULL
+  )
+  if (is.null(engineRows) || engineRows > 0) {
+    return(previous)
   }
   reinstalled <- tryCatch(
     {
@@ -2523,7 +2532,7 @@ restoreTestSet <- function(ptr, x.test, offset.test) {
     error = function(e) FALSE
   )
   if (reinstalled) {
-    return(list(x.test = x.test, offset.test = offset.test))
+    return(previous)
   }
   tryCatch(
     .Call(C_dbarts_bartcore_setTestPredictorAndOffset, ptr, NULL, NULL),

@@ -26,6 +26,7 @@ SEXP bartcore_setForestWeights(SEXP ptr, SEXP forest, SEXP weights);
 SEXP bartcore_setActiveRows(SEXP ptr, SEXP active, SEXP updateScale,
                             SEXP updateStandardization, SEXP tooFewUnits);
 SEXP bartcore_numForests(SEXP ptr);
+SEXP bartcore_numTestObservations(SEXP ptr);
 SEXP bartcore_numTreesInForest(SEXP ptr, SEXP forest);
 SEXP bartcore_getForestAmplitudes(SEXP ptr, SEXP forest);
 SEXP bartcore_getForestFits(SEXP ptr, SEXP forest);

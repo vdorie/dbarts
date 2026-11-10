@@ -341,15 +341,22 @@ expect_identical(arm.refused$train, arm.untouched$train)
 # count that happens to match is not consent. Clearing first is the way
 # through, on both test-predictor entries and on the removal form. ---
 sampler.resident <- buildSamplerTestOffset(offset, testOffset)
+# a refusal leaves the engine's test rows in place, and so R's copy of them
+expectRowsKept <- function() {
+  expect_equal(NROW(sampler.resident$data@x.test), nTest)
+}
 expect_error(
   sampler.resident$setTestPredictor(x[seq_len(nTest) + nTest, ]),
   "clear it"
 )
+expectRowsKept()
 expect_error(sampler.resident$setTestPredictor(NULL), "clear it")
+expectRowsKept()
 expect_error(
   sampler.resident$setTestPredictorAndOffset(NULL, NULL),
   "clear it"
 )
+expectRowsKept()
 expect_error(
   sampler.resident$setTestPredictorAndOffset(
     x[seq_len(nTest) + nTest, ],
@@ -357,6 +364,7 @@ expect_error(
   ),
   "clear it"
 )
+expectRowsKept()
 sampler.resident$setCategoryTestOffset(NULL)
 expect_silent(
   sampler.resident$setTestPredictor(x[seq_len(nTest) + nTest, ])
