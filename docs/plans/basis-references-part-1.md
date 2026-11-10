@@ -298,10 +298,18 @@ Tier: changes draws, for the named calls only; no engine change. Files: `R/data.
 - D5. At `dbarts(x, y, forests = )`, beside `dbartsData(x, y)` and beside the matrix sampler's data, a
   basis name that is both a column of `x` and a caller's variable: the column (dec-B705); today the
   caller's.
+- D3 reaches every fitter handed a sampler's data of several forests: `bart()`, `bartBT()`, `xbart()` and
+  `rbart_vi()` each fit one forest, as `dbarts()` does; today `bart()` fits the held forests and the other
+  three refuse the data.
+- D6 (found in the build; dec-B684, dec-B681). Beside a data object the caller built, a list of forests
+  with no basis, `dbarts(o, forests = list(forest(n.trees = 4), forest(n.trees = 3)))`: the forests the
+  list states, as `dbartsSpec(o, forests = )` and `dbarts(f, d, forests = )` give; today one forest, the
+  list's settings dropped.
 
 Calls that run today and stop: beside a frame-keeping, `keep.data = FALSE` or matrix-interface object under
 `subset`, a basis of the kept length (dec-B680); a hazard basis of one value per period row on the matrix
-route (dec-B707). Calls refused today that fit: a formula hazard fit with a basis (dec-B707); a matrix fit
+route (dec-B707). Calls refused today that fit: a formula hazard fit with a basis, in a forests list or a
+`forest()` term (dec-B707); a matrix fit
 naming one of its columns with no caller's variable of that name (dec-B705); a single string as a basis
 (dec-B700).
 
