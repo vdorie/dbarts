@@ -648,7 +648,7 @@ reported forest, in exactly the bytes a one-forest declaration receives.
   so `setTestPredictors`, `setTestOffset` and `predict` refuse - through
   `refuseUndefinedTestFits`, gated on `testFitsAreDefined` rather than on the
   forest count
-  ([`refuseUndefinedTestFits`](../../src/R_interface_bartcore_common.hpp), [`testFitsAreDefined`](../../src/R_interface_bartcore_common.hpp))
+  ([`refuseUndefinedTestFits`](../../src/R_interface_bartcore_common.hpp), [`testFitsAreDefined`](../../src/R_interface_bartcore.cpp))
   - and no log-likelihood is reported.
 - A per-draw amplitude channel in flat C. `dbarts_results` carries none
   ([`dbarts_results`](../../inst/include/dbarts/dbarts.h)); appending one moves no

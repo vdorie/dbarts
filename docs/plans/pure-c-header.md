@@ -49,7 +49,7 @@ branches.
   [`DBARTS_REQUIRE_EXACT_ABI`](../../inst/include/dbarts/dbarts.h). The
   header includes Rinternals.h only for the four SEXP entries.
 - The C handle wraps the bridge's holder:
-  [`dbarts_sampler_t`](../../src/C_interface.cpp) holds a
+  [`dbarts_sampler_t`](../../src/R_interface_bartcore_common.hpp) holds a
   [`BartcoreHolder`](../../src/R_interface_bartcore_common.hpp) pointer,
   a preserved data SEXP and the callback pair. The R sampler holds the
   same holder behind

@@ -72,10 +72,12 @@
 # whole, for the cite check as well as the residue scan: a fence is a
 # code sample or a transcript, not a citation, so a cite parked inside
 # one is never checked. And a symbol's presence is a token search over
-# the whole file, so a name occurring only in a comment or a string
-# literal satisfies its cite; qualify a name the target file defines
-# more than once ("Class::method") so the token that answers is the one
-# the sentence means.
+# the whole file, so a name occurring only in a string literal, or one
+# qualified with "::" or "$" and occurring only in a comment, satisfies
+# its cite; qualify a name the target file defines more than once
+# ("Class::method") so the token that answers is the one the sentence
+# means. A single unqualified name cited into a C, C++ or R source must
+# occur on a line that is not a comment line.
 #
 # RESIDUE SELF-CHECK. Every covered line is re-scanned, with the links
 # masked out, for a path-shaped token followed by ":digits", for a bare
@@ -319,6 +321,19 @@ OLD_CITE_RE <- paste0(
 # citing `numCuts` is satisfied by `store.numCuts` as much as by the
 # declaration.
 escapeRe <- function(x) gsub("([^A-Za-z0-9_])", "\\\\\\1", x, perl = TRUE)
+
+# The lines of a C, C++ or R source that are not comment lines, or the whole
+# content for any other file. A cite whose name occurs only on comment lines
+# of its target names nothing the file defines or calls.
+codeLinesOf <- function(path, content) {
+  if (grepl("\\.(c|cpp|h|hpp)$", path)) {
+    content[!grepl("^\\s*(//|\\*|/\\*)", content)]
+  } else if (grepl("\\.R$", path)) {
+    content[!grepl("^\\s*#", content)]
+  } else {
+    content
+  }
+}
 
 tokenPresent <- function(name, content) {
   pat <- if (grepl(".", name, fixed = TRUE)) {
@@ -812,6 +827,26 @@ for (relDoc in docsRel) {
                 ln,
                 cite,
                 paste(absent, collapse = "`, `"),
+                cl$path
+              )
+            )
+          }
+          # a single name, with no "::" or "$" to say which construct holds
+          # it, must occur on a line of code, not only in a comment
+          if (
+            length(absent) == 0L &&
+              length(parts) == 1L &&
+              !identical(parts, basename(cl$path)) &&
+              !tokenPresent(parts, codeLinesOf(cl$path, content))
+          ) {
+            report(
+              relDoc,
+              sprintf(
+                "%s:%d: %s - `%s` occurs in %s only on comment lines",
+                relDoc,
+                ln,
+                cite,
+                parts,
                 cl$path
               )
             )

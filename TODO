@@ -165,14 +165,20 @@ items
     "..3 used in an incorrect context"; found building frequency-weights
     S5 (2026-11-07), present before it. Forward the dots as the other
     front doors do, with a test through a wrapper.
-  doc-freshness-guard-tightening: door, VD decision. The symbol rule
-    in tools/check-doc-freshness.R accepts a cite when each component
-    occurs anywhere in the target file, and the guard reads docs/design
-    and docs/plans but not man/ or vignettes/ for content drift, so
-    prose can go stale while every cite passes. Tightening either half
-    (symbol inside the cited construct; content coverage of man and
-    vignettes) will surface pre-existing drift needing a content re-pin
-    pass before it can go green. No plan doc until ruled.
+  doc-freshness-construct-scope: the symbol rule in
+    tools/check-doc-freshness.R accepts a single name that occurs on any
+    code line of the target file, not inside the construct the sentence
+    cites. Tightening it needs a definition of "construct" per language
+    (an R function body, a C++ function or struct, a macro) before a rule
+    can be written or counted; it will surface pre-existing drift needing
+    a content re-pin pass. The comment-only half is done: a single name
+    cited into a C, C++ or R source must occur on a line that is not a
+    comment line.
+  doc-freshness-prose-drift: the guard reads docs/design, docs/plans,
+    man/ and vignettes/ for cites but checks no prose in man/ or
+    vignettes/ for drift (they cite nothing, and there is no model to
+    check a sentence against), so help text can go stale while every
+    cite passes. Needs a check worth running before it is built.
   equivalence-harness-seeds-axis: post-RC, re-record
     benchmarks/R/bcf-equivalence.R and multinomial-equivalence.R
     against independent per-scenario seeds in place of one chain's

@@ -310,7 +310,8 @@ and [`validateTestContainerAgainstStore`](../../src/R_interface_bartcore.cpp), t
 level-count ceilings ([`refuseLevelCountPastCeiling`](../../src/R_interface_bartcore.cpp)),
 raised from [`validateCategoricalPredictors`](../../src/R_interface_bartcore.cpp)
 alone, and the sparse leaf-covariate test refusal raised in
-[`dbarts_sampler_setTestPredictors`](../../src/C_interface.cpp)' own body.
+[`validateTestSource`](../../src/C_interface.cpp), the body the test-side
+entries share.
 
 **External evidence.** WRE's C-API chapter has a section titled "Error
 signaling" in its table of contents, but the fetched manual text did not

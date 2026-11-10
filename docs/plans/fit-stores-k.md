@@ -38,7 +38,7 @@ The fit's `sd` and `first.sd` are gone.
   holds its square root, and until state-not-model lands a warm start leaves the sampler at the donor's values.
   The sampler's readers say what the draws were made under.
 - Per-draw readers of the channels, none of which may see a changed layout: predict, fitted, residuals, the
-  log-likelihood, [`survivalProbabilities.bart`](../../R/generics.R), the posterior-predictive draw,
+  log-likelihood, [`survivalProbabilities.bart`](../../R/bart.R), the posterior-predictive draw,
   `pdbart`'s result builder, rbart's binary test and bartCause's, which is `is.null` of the fit's `sigma`.
 - A fit reports in the terms the user named (dec-A105), so which leaf-scale quantity `summary` shows by default
   follows the naming.
