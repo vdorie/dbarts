@@ -123,7 +123,12 @@ items
     size, a tree count at 1.0, mirroring the sketched forest
     description (dec-B639). Built in the host-neutral engine's header
     stage, before the freeze; its plan carries it at its next
-    amendment.
+    amendment. The header also says that family values may grow in minor versions
+    after 1.0 and that a caller treats a value it does not know as
+    unsupported, about 5 lines of prose, an agent call following the
+    ruling of no latent-kind field at 1.0 (dec-B768); the alternatives
+    were "branch on facts, not on the family", which needs that field,
+    and saying nothing.
   capi-unwind-protect: closed but for one arm. A host draw callback's R
     error is now caught at the callback itself, where R_UnwindProtect can
     still turn it into a C++ unwind, so the engine's run frames run their
@@ -308,11 +313,6 @@ items
     by an ulp on some Linux builds (dec-A410, the D4 pin states sigest).
     Whether such a door keeps the data's starting sigma instead moves
     draws wherever data are refit after a swap. A decision first.
-  list-frame-nobs-draws: nobs(o) of a data object built from a list
-    that keeps every row evaluates the formula's response again, so a
-    stochastic response consumes the generator; recording rows.total at
-    the build for a list frame whatever its rows would end it, changing
-    the slot's documented NULL where rows is (dec-A378).
   hazard-basis-after-fit: under dec-B707 a hazard fit's basis has one
     value per subject, but predict() takes person-period rows, so its
     bases = is one value per period row, and survivalProbabilities(
@@ -1561,6 +1561,143 @@ items
     intercept-only weighted regression", not "the weighted sd of the
     response" (at weights 100 the old words print ten times sd(y));
     the record and its attribute stand. R strings and their pins.
+  data-object-slice: (dec-B753 to dec-B757, dec-B760, dec-B761, and
+    the agent calls of dec-A376, dec-A378, dec-A370 and dec-B756) one
+    slice on the data object and a sampler's data. (1) A sampler's
+    data field stops on an outside write naming $setData, the roughly
+    12 internal sites writing dataHeld, the false code comment and the
+    setData help sentence corrected, test-data-frame-kept.R and
+    test-state-grid-install.R changed (dec-B753, call 15 of dec-A375).
+    (2) Functions from no package in the formula's response and
+    weights are held by value in frozenBuildEnvironment, a local
+    function's scope trimmed to the names it uses, package functions
+    by name; tests for a redefinition, an rm and a local 40 MB frame;
+    no draws move (dec-B754, call 4 of dec-A364). (3)
+    model.frame(s$data) rejoins a one-column matrix term under its own
+    name in the formula's column order, with a terms record from the
+    held terms so model.response() works; where a record proves
+    fragile without a formula (the matrix route, a hazard sampler's
+    period expansion) it is built without one and the help says so
+    (dec-B755, call 9 of dec-A369). (4) model.frame(o) keeps sparse
+    columns as stored, with poly() coefficients and a terms record, no
+    densification; agent call: a sampler's decoded frame keeps a
+    column sparse where the block holds it sparse (dec-B756, call 8 of
+    dec-A368). (5) Agent calls: the stand-in also stops mean, c, rep,
+    unique, as.numeric, as.double, cbind and rbind, the help naming
+    var(), sd() and paste() as reads R cannot stop (call 16 of
+    dec-A376); nobs() reads a row count recorded in the build record
+    and a test pins that it leaves the random-number stream alone
+    (call 18 of dec-A378); rows and rows.total typed integerOrNULL,
+    build listOrNULL, and a new characterOrNULL for frame.columns and
+    basis.written, the frame and the four stand-in slots staying ANY
+    (internal call 10 of dec-A370). (6) A frame-keeping object whose
+    build moves the generator holds the drawn values, as keep.data =
+    FALSE does; a term drawing from a generator outside R's stays as
+    built and the help says so (dec-B757). (7) A data object's kept
+    rows are read from the model frame through a row-number column
+    carried through subset and the na.action, with pins for an
+    na.action that leaves no note (dec-B760, internal call 5 of
+    dec-A365). (8) The environment mark is a declared slot beside
+    frame.columns and the response label is derived from the terms
+    record of (3), the response.label attribute removed, its readers
+    decodeBlockFrame and heldDataColumns reading the terms (dec-B761,
+    internal call 4 of dec-A382). Order: (3) before (8). Not built.
+  basis-slice-refusals-and-help: (dec-B752, dec-B758, dec-B759,
+    dec-B762, and the agent fix of dec-A388) a slice on how a basis is
+    named and refused. (1) A string basis passed through a wrapper's
+    dots is read where the wrapper's caller wrote it, under the
+    maintainer's condition: run the sibling usages (named-argument
+    wrappers, do.call, lapply and Map over strings, a wrapper that
+    sets its own basis, nested wrappers, the finished-call route)
+    before and after, and if any obvious usage changes or the change
+    grows past the existing writer-recovery walk plus about 10 lines,
+    stop and report for the global lookup with a help caveat
+    (dec-B758, call 11 of dec-A389). (2) predict's bases = a single
+    string is always a column name of newdata: the one-row level
+    fallback in predictBasisByName and the help's one-row sentence go,
+    a pin is added, and the typo message on a numeric forest reads
+    "names no column" (dec-B759, call 17 of dec-A395). (3) $setData on
+    a one-forest sampler takes the rows of a several-forest sampler's
+    data, bases and their records dropped, as dbarts(s2$data) does
+    (dec-B762, call 23 of dec-A401). (4) Agent fixes: the stale "is
+    refused" sentences in man/xbart.Rd (formula) and man/rbart.Rd
+    (...) (dec-B752, call 14 of dec-A392); the setter's refusal and
+    not-found messages worded in the setter's terms, not forest()'s
+    (call 10 of dec-A388). Not built.
+  frame-object-single-copy: (dec-B754, option (c) of call 4 of
+    dec-A364, not built) a formula-named workspace value is saved
+    twice in a saved frame-keeping object (once in the held values,
+    once in the coding record); have the coding record read it from
+    the held values, about 10 lines, the probe's object saving at 8.5
+    MB instead of 16.5. It touches the record predict reads. Build
+    when saved data objects with workspace matrices turn out to be
+    common. Not built.
+  sampler-core-and-capabilities: (dec-B763, Q1 of the C++ quality
+    review) shrink SamplerBase to a core plus a queried capability
+    object, then fold Sampler into it (Sampler final over the slimmer
+    interface) and delete the forwarding class (75 forwarders, 13
+    repeated defaults); about 900 lines, about 15 agent-hours; changes
+    how the bridge asks what a sampler can do and touches the
+    host-neutral plan's S3 header work. Plan first (planner and blind
+    critique); an engine slice, serial, after collapsed-move-rebuild
+    lands. Not built.
+  chain-split: (dec-B764, Q2 of the C++ quality review) split the
+    chain class in stages after the move-settings and replay slices:
+    per-concern headers, a calibration-map class owning its map,
+    sharers and units, and a forest-structure base shared by both
+    forest kinds; about 1,500 lines moved, 20 to 25 agent-hours; draws
+    identical if the calibration arithmetic moves verbatim, the trio
+    and the snapshots gating. Acceptance bar, from the maintainer:
+    every piece split out has one role a reader can state in a
+    sentence, an interface that says it, and no reach back into the
+    chain's internals; a split that only moves code does not meet it.
+    Plan first with the bar stated, and a blind critique against it.
+    The variance forest as a second leaf kind stays post-release
+    (dec-B92). Not built.
+  one-thread-mechanism: (dec-B765, Q4 of the C++ quality review) one
+    runOnWorkers(n, body) keeping the first exception at the three
+    sampler sites (run, grow-from-root, predict) and a persistent C++
+    pool owned by the chain for test-row routing; delete the C thread
+    manager (571 lines) and its configure probes, about 570 lines out
+    and 120 in. Gated on a same-machine timing on the bench machine,
+    interleaved A/B at and around the routing cutoff, before the
+    build; if the pool is slower there, take the alternative: keep the
+    C manager, fix its inverted cleanup flags and unify the three C++
+    sites (about 60 lines). Not built.
+  state-forest-reader: (dec-B766, Q5 of the C++ quality review) merge
+    the restore and warm-start readers of a saved state into one that
+    fills a per-forest record the variance forest's ten slots fill
+    too, with no static error buffer, about 150 lines, and add a kind
+    field on the state's forest list entries if they do not already
+    record their kind, before the 1.0 format freezes. Moving the
+    variance forest to a list entry later stays possible: a writer
+    change plus one old-format conversion branch. Not built.
+  family-fact-records: (dec-B767, Q3 of the C++ quality review) one
+    constant record per kind of response (8 kinds, Student-t its own
+    row, multinomial a row), beside its code, in a table that fails
+    the build if a kind lacks a record, read by the engine, the bridge
+    and the factories in place of family-name tests; behavior stays
+    virtual, and each move keeps one eligibility predicate evaluated
+    per sweep. Anchor and basis-scale expressions move verbatim: the
+    record stores inputs or a flag, never a precomputed constant. A
+    tests/cpp check that each class's virtual answers match its row.
+    About 400 lines with tests, 8 to 12 agent-hours. After the
+    collapsed-move rebuild lands and before the C creation entry and
+    facts struct; planned together with sampler-core-and-capabilities
+    under a blind critique; engine review with a same-machine timing
+    before and after. Not built.
+  latent-freshness-rule: (from the Q3 reviews, agent call) a step that
+    moves a row's conditional between latent draws owes that row an
+    exact fresh draw before anything reads its latent; this
+    generalizes the marked-row rule to in-sweep moves. Amend the
+    approximate-draws plan (its S2 carries it) and note it in the
+    k-move-pricing plan. Source: scratch/famtraits/mcmc.md and the
+    synthesis's section (iii).
+    Deferred (Q3 follow-on ii-3): how the collapsed move meets the
+    approximate route, decline where any row would take it or mark
+    every row, comes to the maintainer beside dec-B623's look at
+    k-move step 2's timings, when approximate-draws S2 is planned;
+    neither branch is on main, and declining narrows dec-B619. Not built.
 
 absolute residual prior scale (decided, VD 2026-09-14)
   post-release, R only: chisq gains an absolute spelling,
