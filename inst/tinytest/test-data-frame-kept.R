@@ -275,6 +275,44 @@ expect_identical(
 )
 expect_null(dbartsData(y ~ x1, ee)@frame)
 
+# a build that draws from R's generator holds the drawn values ----------------
+
+moved <- function(expr) {
+  set.seed(9L)
+  before <- .Random.seed
+  force(expr)
+  !identical(before, .Random.seed)
+}
+expect_false(moved(dbartsData(y ~ x1, d)))
+jittered <- dbartsData(y ~ jitter(x2), d)
+expect_null(jittered@frame)
+expect_true(is.numeric(jittered@y))
+expect_identical(
+  model.frame(
+    dbarts(jittered, n.trees = 5L, control = ctl)$data
+  )[[2L]],
+  model.frame(dbarts(jittered, n.trees = 5L, control = ctl)$data)[[2L]]
+)
+drawnResponse <- dbartsData(rnorm(n) ~ x1, d)
+expect_null(drawnResponse@frame)
+expect_identical(
+  dbarts(drawnResponse, n.trees = 5L, control = ctl)$data@y,
+  drawnResponse@y
+)
+expect_null(dbartsData(y ~ x1, d, weights = runif(n))@frame)
+# the formula and the object built from it draw the same values under a seed
+set.seed(4L)
+fromFormula <- dbarts(y ~ jitter(x2), d, n.trees = 5L, control = ctl)
+set.seed(4L)
+fromObject <- dbarts(dbartsData(y ~ jitter(x2), d), n.trees = 5L, control = ctl)
+expect_identical(fromObject$data@x, fromFormula$data@x)
+# 'data' and 'subset' are kept, so drawing them keeps the frame
+drawnRows <- dbartsData(y ~ x1, d, subset = sample(n, 20L))
+expect_false(is.null(drawnRows@frame))
+expect_identical(nobs(drawnRows), 20L)
+drawnData <- dbartsData(y ~ x1, d[sample(n), ])
+expect_false(is.null(drawnData@frame))
+
 # makeTestModelMatrix ----------------------------------------------------------
 
 newdata <- d[1:6, c("x1", "x2", "f")]

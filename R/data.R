@@ -3267,6 +3267,8 @@ dbartsData <- function(
   rowsTotal <- NA_integer_
   frameColumns <- NULL
   offsetExpression <- NULL
+  # whether the build drew from R's generator where a frame is read again
+  drawsAtBuild <- FALSE
 
   if (missing(formula)) {
     stop("first argument to dbartsData - 'formula'/'x.train' - must be present")
@@ -3339,6 +3341,12 @@ dbartsData <- function(
     # 'weights' as the length check below read it, where it did
     weightsValue <- NULL
     modelFrameArgs <- c("formula", "data", "subset", "weights", "offset")
+
+    # whether the expressions a frame-keeping object reads again draw from R's
+    # generator (the formula, the weights and the offset; not 'data', which
+    # is kept, nor 'subset', whose rows are): a frame that cannot give the
+    # same values twice is not kept
+    seedBefore <- readGlobalSeed()
 
     ## extract offset prematurely, if necessary
     if (offsetIsMissing) {
@@ -3588,6 +3596,7 @@ dbartsData <- function(
     # effect, is then one draw for all of them. One that cannot be evaluated
     # here is left for the model frame to refuse in R's own words.
     subsetValue <- NULL
+    drawsAtBuild <- !identical(readGlobalSeed(), seedBefore)
     if (!is.null(matchedCall$subset)) {
       taken <- tryCatch(
         list(
@@ -3656,7 +3665,9 @@ dbartsData <- function(
         if ("." %in% formulaVars) NULL else formulaVars
       )
     }
+    seedBefore <- readGlobalSeed()
     modelFrame <- eval(modelFrameCall, parent.frame())
+    drawsAtBuild <- drawsAtBuild || !identical(readGlobalSeed(), seedBefore)
     # the test frame is built from this call again, against rows these vectors
     # do not cover
     modelFrameCall$dbartsSparseMissing <- NULL
@@ -4545,7 +4556,11 @@ dbartsData <- function(
     attr(result, "survivalTime") <- survivalTime
     attr(result, "survivalTimeOmitted") <- survivalTimeOmitted
   }
-  if (keep.data && (is.data.frame(frameData) || is.list(frameData))) {
+  if (
+    keep.data &&
+      (is.data.frame(frameData) || is.list(frameData)) &&
+      !drawsAtBuild
+  ) {
     weightsExpression <- matchedCall$weights
     environment(formulaGiven) <- frozenBuildEnvironment(
       formulaGiven,
