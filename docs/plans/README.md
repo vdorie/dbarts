@@ -132,9 +132,17 @@ tiers takes the higher.
   or calibration gate): a plan with a blind critique; an implementer; one
   opus review that runs mutants. The same reviewer checks the fix round
   unless the fixes change engine behavior, which takes a fresh review.
-  Local gates: the RNG class's battery above, the full tinytest suite,
-  sanitizers on tests/cpp and on the R-loaded path where new numerics are
-  reachable, `R CMD check`, and the arm64 reproducibility snapshots.
+  Builder's local gates: the RNG class's battery above, the full tinytest
+  suite, sanitizers on tests/cpp, and the arm64 reproducibility snapshots.
+  The builder runs no local `R CMD check` (CI runs it on six
+  configurations) and no local R-loaded ASan run (sanitizers.yaml runs the
+  whole suite instrumented). No x86 leg: the landing takes the per-push
+  workflows on the branch tip (Landing, step 3).
+- Small R-only fix (no draw moves; nothing a fit object carries changes; no
+  argument, return shape or message changes beyond the fix's own; about 50
+  lines of package code or fewer): no review agent. The orchestrator reads
+  the diff; CI on the tip (check-standard, lint, doc-freshness) is the
+  gate (dec-B769).
 - R surface, no draw change (arguments, messages, return shapes, help): a
   short plan, or none where the ruling states the change; one sonnet
   review, whose reviewer also checks the fix round (over the twelve
@@ -199,14 +207,22 @@ The procedure around those edits, as practiced:
    on every R call; `~/.Renviron` overrides `R_LIBS_USER`, so the prefix
    is not optional). One writer per worktree.
 2. Review and gates by the slice's tier (Process by risk, above): for a
-   change to draws, a second reader's review, then the gate battery for
-   the change's RNG class run independently of the implementer, against
-   the slice's own library. `--preclean` on every engine commit: a stale
+   change to draws, a second reader's review, which audits the builder's
+   gate logs (below, Reviewer checklist) and runs its own mutants and
+   probes, against the slice's own library. `--preclean` on every engine commit: a stale
    object silently fails the bitwise gates.
 3. Records commit on the branch (a fast-forward keeps its hashes), then
    push the branch to origin and run the per-push workflows on its tip
    by dispatch (`gh workflow run <workflow> --ref <branch>`; their push
-   filters name only main). When they are green and the feature is
+   filters name only main). For an engine landing that is every per-push
+   workflow including the cpp-leak job (tests/cpp under ASAN and UBSAN with
+   the leak sanitizer), sanitizers and equivalence.yaml; a slice that
+   changes who owns memory in the bridge, or engine resources reached from
+   R, also dispatches valgrind.yaml on the branch, the only check that
+   sees a leak on the R-loaded path. There is no x86 leg: the x86 bench
+   box is for timings, new SIMD kernels, and statistical readings that
+   must be taken on x86 (a mixing bound read on both machines, say), not
+   for landing gates (dec-B769). When they are green and the feature is
    complete, rebase onto `origin/main` if it moved (re-gating what the
    rebase touches) and fast-forward main to it. Records cite only hashes
    that end up ancestors of `origin/main` (`git merge-base
@@ -234,6 +250,12 @@ cross-slice probes. Hard chains stay serial.
 ## Reviewer checklist
 
 Cheap gates are re-run by the reviewer, not trusted from the report.
+Expensive ones are audited: the reviewer reads the builder's logs of the
+full suite, the equivalence trio and the snapshot files, and each log must
+name the tip's sha and the library it ran against. The reviewer reruns
+only the test files the change touches, their mutants and its own probes,
+and reruns a full gate only when its log is missing, from another sha, or
+doubtful. CI on the tip is the full-suite gate (dec-B769).
 
 - `air format --check .` tree-wide, and `lintr::lint()` on every touched R
   file against the slice's own library (a stale library manufactures
@@ -246,9 +268,10 @@ Cheap gates are re-run by the reviewer, not trusted from the report.
 - `inst/NEWS.Rd` must parse when touched: gate on a non-NULL result from
   `tools:::.build_news_db_from_package_NEWS_Rd("inst/NEWS.Rd")` and its
   entry count. `tools:::.build_news_db(".")` is a silent no-op.
-- `R CMD check --as-cran` from a tarball built from a clean copy staged
-  outside the tree, for any commit touching R/ or man/. CRAN's core limit
-  fires parallel's own error before the package's validation does.
+- `R CMD check --as-cran` runs in CI (check-standard, six configurations),
+  not locally. When one is run by hand, build the tarball from a clean copy
+  staged outside the tree; CRAN's core limit fires parallel's own error
+  before the package's validation does.
 - `tools/check-rc-codoc.R` (reference-class methods, which `codoc` cannot
   see) and `tools/check-doc-freshness.R`, each gated on its OWN exit
   status. A `Rscript ... | tail -1` chain masks a failure behind tail's
@@ -295,9 +318,11 @@ Cheap gates are re-run by the reviewer, not trusted from the report.
   uninstrumented static libraries). On macOS symbolization spawns `atos`,
   which raises the Developer Tool Access prompt; a prompt means a
   diagnostic fired, so read the count.
-- That bullet covers tests/cpp; the R-loaded path (the bridge, the flat C
-  entry file, anything only a `.Call` reaches) needs its own run, and it
-  IS reachable on macOS. SIP strips `DYLD_INSERT_LIBRARIES` from the
+- That bullet covers tests/cpp, and the cpp-leak job runs the same build
+  on Linux with the leak sanitizer on. The R-loaded path (the bridge, the
+  flat C entry file, anything only a `.Call` reaches) is sanitizers.yaml's,
+  which runs the whole suite instrumented; builders do not repeat it. To
+  reproduce one of its findings locally, the path IS reachable on macOS. SIP strips `DYLD_INSERT_LIBRARIES` from the
   `bin/R` shell wrapper, not from `$(R RHOME)/bin/exec/R`. Build with
   `R_MAKEVARS_USER=<file adding -fsanitize=address to CFLAGS, CXXFLAGS
   and LDFLAGS> R CMD INSTALL --preclean --no-test-load -l <lib> .` (the
@@ -322,7 +347,9 @@ lists; this is the shape):
 - check-standard, sanitizers: `docs/**`, `TODO`, `**.md`,
   `benchmarks/**`. sanitizers also ignores `inst/NEWS.Rd`.
 - cpp-tests: `docs/**`, `TODO`, `**.md`, `inst/NEWS.Rd`, `man/**`. It
-  does NOT ignore `benchmarks/**`: its second half installs the
+  does NOT ignore `benchmarks/**`: its cpp-leak job builds tests/cpp under
+  ASAN and UBSAN with the leak sanitizer on, on Linux (sanitizers.yaml keeps
+  detect_leaks=0 because R itself leaks); its second half installs the
   reference build (`--enable-reference-build`, the scalar fixed-order
   draw path) and runs the four seeded-drift snapshot files and the three
   bitwise equivalence compares, which read benchmarks/R and
