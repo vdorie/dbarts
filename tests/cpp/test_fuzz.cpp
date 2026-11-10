@@ -478,6 +478,55 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
   auto curAll = [&]() -> const double* {
     return currentX.empty() ? nullptr : currentX.data();
   };
+  // A state read earlier, which the mutations since may have left with a leaf
+  // no row reaches, a split outside its interval or a direction its column
+  // cannot route, or of a shape that no longer fits: whatever it needs, the
+  // verdict and the install must agree on it. The sampler is then put back to
+  // own, its state read now, so the stream of ops that follows is the one it
+  // was. Returns whether the state completed, read before a column the
+  // sampler has since seen missing, and was taken.
+  auto installEarlier = [&](const SamplerStateData& state,
+                            const SamplerStateData& own) {
+    bool completes = false;
+    if (state.missingColumns.size() == own.missingColumns.size())
+      for (size_t j = 0; j < own.missingColumns.size(); ++j)
+        completes = completes ||
+          (own.missingColumns[j] != 0 && state.missingColumns[j] == 0);
+    fuzzEarlierStates.completed += completes ? 1 : 0;
+    bool installed = false, altered = true;
+    if (!verdictMatchesInstall(s, state, curAll(), installed, altered))
+      fail("an earlier state: the unforced verdict and the forced install "
+           "disagree");
+    // completed and taken, what the sampler holds is a state of its own:
+    // read back, it goes in without force and comes out as read
+    if (ok && completes && installed) {
+      SamplerStateData drawn, again;
+      s.getState(drawn);
+      if (!installsClean(s, drawn, curAll())) {
+        fail("a completed state does not reinstall as the sampler's own");
+      } else {
+        s.getState(again);
+        if (!statesAgree(drawn, again))
+          fail("a completed state's round trip disagrees");
+      }
+      ++fuzzEarlierStates.reinstalled;
+    }
+    if (ok && installed && !s.setState(own, curAll()))
+      fail("setState refused own state after an earlier one");
+    // the directions drawn for it never make a state one to refuse: refused,
+    // it is refused as stored too
+    if (ok && completes && !installed) {
+      SamplerStateData asStored(state);
+      asStored.missingColumns.clear();
+      if (s.setState(asStored, curAll()))
+        fail("an earlier state completed to one that is refused");
+    }
+    ++(!installed ? fuzzEarlierStates.refused
+                  : altered ? fuzzEarlierStates.repaired
+                            : fuzzEarlierStates.clean);
+    return completes && installed;
+  };
+
   // the borrowed multinomial response-side buffers currently installed: the
   // counts to re-install for the self-swap flavor, the offset so I1 can
   // recompute the reported softmax against the same shift the combiner blends
@@ -761,55 +810,10 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
           s.getState(st2);
           if (!statesAgree(st, st2)) fail("state round trip disagrees");
         }
-        // The state this op read the time before, and the first it read,
-        // which the mutations since may have left with a leaf no row reaches,
-        // a split outside its interval or a direction its column cannot
-        // route, or of a shape that no longer fits: whatever it needs, the
-        // verdict and the install must agree on it. The sampler is then put
-        // back, so the stream of ops that follows is the one it was.
-        auto installEarlier = [&](const SamplerStateData& state) {
-          bool completes = false;
-          if (state.missingColumns.size() == st.missingColumns.size())
-            for (size_t j = 0; j < st.missingColumns.size(); ++j)
-              completes = completes ||
-                (st.missingColumns[j] != 0 && state.missingColumns[j] == 0);
-          fuzzEarlierStates.completed += completes ? 1 : 0;
-          if (!verdictMatchesInstall(s, state, curAll(), installed, altered))
-            fail("an earlier state: the unforced verdict and the forced "
-                 "install disagree");
-          // completed and taken, what the sampler holds is a state of its
-          // own: read back, it goes in without force and comes out as read
-          if (ok && completes && installed) {
-            SamplerStateData drawn, again;
-            s.getState(drawn);
-            if (!installsClean(s, drawn, curAll())) {
-              fail("a completed state does not reinstall as the sampler's "
-                   "own");
-            } else {
-              s.getState(again);
-              if (!statesAgree(drawn, again))
-                fail("a completed state's round trip disagrees");
-            }
-            ++fuzzEarlierStates.reinstalled;
-          }
-          if (ok && installed && !s.setState(st, curAll()))
-            fail("setState refused own state after an earlier one");
-          // the directions drawn for it never make a state one to refuse:
-          // refused, it is refused as stored too
-          if (ok && completes && !installed) {
-            SamplerStateData asStored(state);
-            asStored.missingColumns.clear();
-            if (s.setState(asStored, curAll()))
-              fail("an earlier state completed to one that is refused");
-          }
-          ++(!installed ? fuzzEarlierStates.refused
-                        : altered ? fuzzEarlierStates.repaired
-                                  : fuzzEarlierStates.clean);
-        };
-        if (ok && !earlier.chains.empty()) installEarlier(earlier);
+        if (ok && !earlier.chains.empty()) installEarlier(earlier, st);
         // the first read is the state before this one at the op's second
         // run, and a second earlier state from its third
-        if (ok && !first.chains.empty()) installEarlier(first);
+        if (ok && !first.chains.empty()) installEarlier(first, st);
         else if (ok) first = earlier;
         if (ok) earlier = std::move(st);
         break;
@@ -957,6 +961,47 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
       }
     printf("trace [%s] seed %u ops %zu digest %016llx\n", spec.name, seed,
            trace.size(), static_cast<unsigned long long>(digest));
+  }
+  // A column's first missing value, brought after the stream so that every
+  // run installs a state that completes: the stream itself reaches one only
+  // by chance, through a categorical column's missing flavor landing between
+  // two state reads. The state read just before the value is taken and
+  // reinstalled as the sampler's own; the stream's reads go in after it.
+  // Placed after the digest, which stays the stream's alone.
+  if (ok && (spec.opMask & (1u << OP_STATE)) != 0 && !currentX.empty()) {
+    SamplerStateData prior;
+    s.getState(prior);
+    size_t column = 0;
+    while (column < prior.missingColumns.size() &&
+           prior.missingColumns[column] != 0)
+      ++column;
+    if (prior.missingColumns.size() != p) {
+      fail("a state does not record which columns can hold a missing value");
+    } else if (column < p) {
+      size_t n = s.numObservations();
+      std::vector<double> values(curCol(column, n), curCol(column, n) + n);
+      for (size_t i = 0; i < n; i += 7) values[i] = std::nan("");
+      snprintf(line, sizeof line, "missing arrival col=%zu", column);
+      record(line);
+      if (s.updatePredictor(values.data(), &column, 1, true, false) !=
+          PredictorUpdateResult::accepted) {
+        fail("a forced update bringing a column's first missing value is "
+             "refused");
+      } else {
+        std::memcpy(currentX.data() + column * n, values.data(),
+                    n * sizeof(double));
+        if (const char* v =
+              fuzzInvariantViolation(s, treatmentZ, ++sweeps, scaleMax))
+          fail(v);
+        SamplerStateData own;
+        s.getState(own);
+        if (ok && !installEarlier(prior, own))
+          fail("a state read before a column's first missing value does not "
+               "complete and install");
+        if (ok && !earlier.chains.empty()) installEarlier(earlier, own);
+        if (ok && !first.chains.empty()) installEarlier(first, own);
+      }
+    }
   }
   return ok;
 }
