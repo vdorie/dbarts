@@ -1691,7 +1691,10 @@ objectBasisSource <- function(object, forests) {
 ## `total` a data object was handed.
 rowsBySubset <- function(object, total) {
   !is.null(object@rows) &&
-    !identical(length(object@rows) + length(object@na.action), as.integer(total))
+    !identical(
+      length(object@rows) + length(object@na.action),
+      as.integer(total)
+    )
 }
 
 ## The number of rows a data object was handed, which its 'rows' are
@@ -1911,7 +1914,13 @@ buildFitBases <- function(
 ) {
   numForests <- length(reads)
   combine <- function(first, then) {
-    if (is.null(then)) first else if (is.null(first)) then else first[then]
+    if (is.null(then)) {
+      first
+    } else if (is.null(first)) {
+      then
+    } else {
+      first[then]
+    }
   }
   kept <- combine(rows, expand)
   labels <- names(forests)

@@ -472,7 +472,13 @@ ramp <- seq(1, 2, length.out = n)
 declared <- dbarts(
   dbartsData(x, yBinary),
   forests = list(
-    forest(basis = I(3 * ramp), sd = 2.5, n.trees = 25L, base = 0.95, power = 2),
+    forest(
+      basis = I(3 * ramp),
+      sd = 2.5,
+      n.trees = 25L,
+      base = 0.95,
+      power = 2
+    ),
     forest(basis = I(5 * ramp), sd = 0.4)
   ),
   control = dbartsControl(

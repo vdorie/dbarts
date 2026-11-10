@@ -91,7 +91,8 @@ expect_error(
 # --- the modeling surface: forest terms reach bart as an ordinary fit, so the
 # donor argument refuses there by the name the caller wrote ---
 basesFrame <- data.frame(y, x, z)
-basesFormula <- y ~ forest(x1 + x2 + x3) + forest(x1 + x2 + x3, basis = factor(z))
+basesFormula <- y ~ forest(x1 + x2 + x3) +
+  forest(x1 + x2 + x3, basis = factor(z))
 expect_error(
   bart(
     basesFormula,

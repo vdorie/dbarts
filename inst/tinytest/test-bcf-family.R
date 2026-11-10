@@ -11,7 +11,10 @@
 # latent family the response transform is the identity and the map's sqrt(m)
 # cancels, so $getLeafPrior()'s anchor (k pinned at 1) IS the map's leaf scale.
 
-source(system.file("common", "basisForests.R", package = "dbarts"), local = TRUE)
+source(
+  system.file("common", "basisForests.R", package = "dbarts"),
+  local = TRUE
+)
 
 set.seed(29)
 n <- 240L

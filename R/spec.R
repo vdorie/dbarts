@@ -1422,41 +1422,24 @@ resolveSamplerSpec <- function(
   # cross-checks the two halves in both directions, so a stripped record is a
   # loud error, never a silent single-forest fit.
   if (!is.null(data@bases)) {
-    # the RESOLVED forest count, which is the data object's own bases or the
-    # declaration installed in their place above the starting sigma, and
-    # which the refusal below names the source of: a length-1 declaration
-    # over a data object already carrying two bases resolves to one, and
-    # telling that caller they wrote one basis would be false
+    # the RESOLVED forest count: the bases the call's declarations built,
+    # which replace any the data object held
     numForests <- length(data@bases)
     # K = 1 is not a shipped configuration (dec-A109). Every creation route
-    # reaches here - a forest() term, a forests = list, whose declarations
-    # forestBasisDeclarations carries down at any length, and a sampler's own
-    # data - so this is the single site the refusal is owed at. A varying-coefficient model
-    # is one forest per coefficient function, intercept included.
+    # reaches here - a forest() term and a forests = list, whose declarations
+    # forestBasisDeclarations carries down at any length - so this is the
+    # single site the refusal is owed at. A varying-coefficient model is one
+    # forest per coefficient function, intercept included.
     if (numForests < 2L) {
-      fromData <- !any(lengths(forestBasisDeclarations(forests)) > 0L)
       stop(
-        "a multi-forest model needs at least two forests, and ",
-        if (fromData) {
-          paste0(
-            "the data object carries ",
-            numForests,
-            "; for varying coefficients declare an intercept forest plus ",
-            "one basis forest per covariate - forests = list(forest(), ",
-            "forest(basis = z1), ...) on dbarts() or dbartsSpec() - or use a ",
-            "single forest with linear() leaves; otherwise drop the basis"
-          )
-        } else {
-          paste0(
-            "this call's 'basis' declarations resolve to ",
-            numForests,
-            ": a forest with a 'basis' stands beside another forest. Write ",
-            "the forest with no multiplier too, as y ~ forest(x1 + x2) + ",
-            "forest(x1 + x2, basis = z1) or forests = list(forest(), ",
-            "forest(basis = z1)), or use a single forest with linear() ",
-            "leaves; otherwise drop the basis"
-          )
-        }
+        "a multi-forest model needs at least two forests, and this call's ",
+        "'basis' declarations resolve to ",
+        numForests,
+        ": a forest with a 'basis' stands beside another forest. Write ",
+        "the forest with no multiplier too, as y ~ forest(x1 + x2) + ",
+        "forest(x1 + x2, basis = z1) or forests = list(forest(), ",
+        "forest(basis = z1)), or use a single forest with linear() ",
+        "leaves; otherwise drop the basis"
       )
     }
     # the families the calibration map has a latent scale to state its node

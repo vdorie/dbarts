@@ -1968,11 +1968,13 @@ plainForestArgNames <- list(
 ## wrote, `control` the control the caller gave, NULL for none, and `argNames`
 ## that function's names for them. Returns, for each of "n.trees", "power",
 ## "base", "leaf.prior", "n.cuts" and "useQuantiles" that is stated, the name
-## it was stated under, "control" for a value written on the control. `remedy` says whether the fitting function can be told to state
-## these on a forest; where it cannot (bartBT() has no `forests` and refuses
-## forest() terms, and bart() given a data object has its bases from the
-## object) the value carries a "noForestRemedy" attribute, which the refusal
-## reads.
+## it was stated under, "control" for a value written on the control.
+## `remedy` says whether the fitting function can be told to state these on a
+## forest; where it cannot (bartBT() has no `forests` and refuses forest()
+## terms, and bart() given a data object takes neither) the value carries a
+## "noForestRemedy" attribute, which the not-used warning reads. Neither fits
+## a model whose every forest has a basis, so the refusal of a count with no
+## forest to go to is never theirs.
 plainForestStated <- function(
   control,
   written,
@@ -2088,13 +2090,7 @@ refuseStatedWithNoPlainForest <- function(
   blocks,
   treeValue = function(name) multipliedForestDefaults[[name]]
 ) {
-  # where the fitting function cannot take an argument on a forest, the caller
-  # is told what it can do: leave the argument out, or fit with dbarts()
-  noRemedy <- isTRUE(attr(stated, "noForestRemedy", exact = TRUE))
-  refuse <- function(subject, what, remedy, leaveOut = "leave it out") {
-    if (noRemedy) {
-      remedy <- paste0(leaveOut, ", or fit with dbarts()")
-    }
+  refuse <- function(subject, what, remedy) {
     stop(
       subject,
       " is ",
@@ -2120,8 +2116,7 @@ refuseStatedWithNoPlainForest <- function(
       paste0(
         "state a count on a forest, as forest(x1, basis = a, n.trees = 100)",
         if (fromControl) ", and leave it out of dbartsControl()"
-      ),
-      if (fromControl) "leave it out of dbartsControl()" else "leave it out"
+      )
     )
   }
   for (name in c("power", "base")) {

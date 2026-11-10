@@ -1,5 +1,8 @@
 source(system.file("common", "hillData.R", package = "dbarts"), local = TRUE)
-source(system.file("common", "basisForests.R", package = "dbarts"), local = TRUE)
+source(
+  system.file("common", "basisForests.R", package = "dbarts"),
+  local = TRUE
+)
 
 # sums of squared residuals descale to the original response scale, against
 # the current (last recorded) fits

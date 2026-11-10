@@ -1488,7 +1488,9 @@ dbarts <- function(
     forests <- declared$forests
     basisReads <- declared$reads
   }
-  if (all(vapply(basisReads, is.null, logical(1L))) && length(basisReads) < 2L) {
+  if (
+    all(vapply(basisReads, is.null, logical(1L))) && length(basisReads) < 2L
+  ) {
     # one forest with no basis is the single-forest fit, and two or more are
     # a model of several sharing one prior total
     basisReads <- NULL

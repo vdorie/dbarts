@@ -264,7 +264,11 @@ expect_identical(
 bcfFrame <- data.frame(x, y = y, z = z)
 bcfNames <- colnames(bcfFrame)[seq_len(p)]
 bcfFitArgs <- list(
-  formula = y ~ X1 + X2 + X3 + X4 + forest(X1 + X2 + X3 + X4, basis = factor(z)),
+  formula = y ~ X1 +
+    X2 +
+    X3 +
+    X4 +
+    forest(X1 + X2 + X3 + X4, basis = factor(z)),
   data = bcfFrame,
   n.samples = numSamples,
   n.burn = 3L,

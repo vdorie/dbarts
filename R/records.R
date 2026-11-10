@@ -466,14 +466,11 @@ notUsedWords <- function(door, model, data, forests = TRUE) {
 ## count it takes sits among the forests, and how to state another.
 fitCountWords <- function(door, model, data, forests) {
   plain <- length(forestsWithNoBasis(model, data))
+  # every forest has a basis only where forests were stated
   if (plain == 0L) {
     return(paste0(
       "this fit's first forest has %s trees; ",
-      if (forests) {
-        "state the count as forest(n.trees = )"
-      } else {
-        "fit with dbarts() to state the count"
-      }
+      "state the count as forest(n.trees = )"
     ))
   }
   paste0(
