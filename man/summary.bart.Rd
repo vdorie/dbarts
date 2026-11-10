@@ -25,7 +25,18 @@
   line. The summary of a fit of several forests adds the full block of what
   each forest resolved to, after the table (see the \code{sd} argument of
   \code{\link{forest}}), and the line under the table then leaves out each
-  forest's \code{leaf.prior.sd}, which the block gives.
+  forest's \code{leaf.prior.sd}, which the block gives. Under the block, each
+  forest with a basis has a line for the effect of one unit of its basis (for
+  a factor, of its second level against its first): its \emph{average} over
+  the training rows in the likelihood, and its \emph{spread}, the standard
+  deviation of the effect across those rows, each with its posterior median and
+  the 5\% to 95\% interval \code{stats} uses. Both are computed for each draw
+  and the median taken last, on the scale the forests add on (the response's
+  units, or the probit or logit scale of a binary response), from
+  each forest's own fits times the coefficient on its basis, which is what
+  \code{predict} gives with the basis one unit higher less the basis as it
+  stands; a fit that kept no per-forest fits (\code{keepFits = FALSE}) says so
+  in one line instead.
 }
 \usage{
 \method{summary}{bart}(object, vars = c("sigma", "k", "leaf.prior.sd", "resid.df"), \dots)
@@ -82,7 +93,13 @@
   entry for each forest, \code{k} and \code{leaf.prior.sd} named by the
   forests' labels), and, on a fit of
   several forests that kept its fits, \code{forests}, the lines of the full block
-  that the print method gives after the table. \code{stats} has columns \code{variable}, \code{mean}, \code{median},
+  that the print method gives after the table, and \code{effects}, where a
+  forest has a basis, a data frame with a row for each effect (columns
+  \code{forest}, \code{label}, \code{effect}, \code{average},
+  \code{average.q5}, \code{average.q95}, \code{spread}, \code{spread.q5} and
+  \code{spread.q95}, with the number of rows averaged over and the scale as
+  attributes \code{"rows"} and \code{"scale"}) or the string \code{"dropped"}
+  for a fit that kept no per-forest fits. \code{stats} has columns \code{variable}, \code{mean}, \code{median},
   \code{sd}, \code{mad}, \code{q5}, \code{q95}, \code{rhat},
   \code{ess_bulk}, and \code{ess_tail} - the same columns
   \code{posterior::summarise_draws} reports for a plain array, computed

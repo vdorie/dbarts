@@ -447,17 +447,14 @@ effectSummary <- function(draws, rowsIn) {
 }
 
 ## The scale the forests add on, as a phrase for the line that reports an
-## effect: the response's units unless the family's forests live on a link or
-## a log scale.
+## effect: the response's units unless the response is binary, whose forests
+## add on the latent index of the link. The families that take a basis forest
+## are gaussian, probit and logistic.
 effectScaleText <- function(family) {
   switch(
     as.character(family)[1L],
     probit = "on the probit scale",
-    ordinal = "on the probit scale",
     logistic = "on the logit scale",
-    aft = "on the log time scale",
-    nbinom = "on the log mean scale",
-    hazard.probit = "on the probit scale",
     "in the response's units"
   )
 }

@@ -809,7 +809,10 @@
             for life, and a replacement basis must be of its class, a
             factor being matched to the forest's levels by name. A fit's
             \code{bases} holds the factor for a forest of levels, which
-            \code{predict(bases = )} takes back.
+            \code{predict(bases = )} takes back. \code{summary} gives each
+            basis forest's average effect per unit of its basis over the
+            training rows and its spread across them, each a posterior median
+            with an interval.
             Gaussian, probit and logistic responses;
             \code{predict} and \code{extract} report each forest separately
             (\code{type = "forest"}) or combined. A forest's size is its
