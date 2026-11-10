@@ -622,11 +622,12 @@ drawnK <- list(
     leaf.prior = normal(k = chi())
   )
 )
-released <- function(arguments) {
+released <- function(arguments, amplitude = student(3)) {
   live <- do.call(make, arguments)
-  live$setForest(1L, amplitude = student(3))
+  live$setForest(1L, amplitude = amplitude)
   live
 }
+releases <- list("student(3)" = student(3), "normal()" = normal())
 for (label in names(drawnK)) {
   arguments <- drawnK[[label]]
   case(paste("an sd in force beside a hold is no change,", label), {
@@ -640,20 +641,23 @@ for (label in names(drawnK)) {
         do.call(live$setForest, c(list(1L), given))
       }
     )
-    for (route in names(routes)) {
-      live <- released(arguments)
-      live$run(0L, 4L)
-      same(is.null(live$getForest(1L)$sd), FALSE, route, "an sd in force")
-      routes[[route]](live)
-      twin <- released(arguments)
-      twin$run(0L, 4L)
-      twin$setForest(1L, amplitude = fixed())
-      same(live$model@forests[[1L]]@sd, NA_real_, route, "not stated")
-      same(is.null(live$getForest(1L)$sd), TRUE, route, "the reader's sd")
-      same(recordsOf(live), recordsOf(twin), route, "records")
-      ran <- draws(live)
-      same(any(ran$k != 1), TRUE, route, "k drawn")
-      same(ran, draws(twin), route, "draws")
+    for (release in names(releases)) {
+      for (route in names(routes)) {
+        at <- paste(release, route)
+        live <- released(arguments, releases[[release]])
+        live$run(0L, 4L)
+        same(is.null(live$getForest(1L)$sd), FALSE, at, "an sd in force")
+        routes[[route]](live)
+        twin <- released(arguments, releases[[release]])
+        twin$run(0L, 4L)
+        twin$setForest(1L, amplitude = fixed())
+        same(live$model@forests[[1L]]@sd, NA_real_, at, "not stated")
+        same(is.null(live$getForest(1L)$sd), TRUE, at, "the reader's sd")
+        same(recordsOf(live), recordsOf(twin), at, "records")
+        ran <- draws(live)
+        same(any(ran$k != 1), TRUE, at, "k drawn")
+        same(ran, draws(twin), at, "draws")
+      }
     }
   })
   case(paste("the same sd in a second call is stated,", label), {
@@ -664,7 +668,7 @@ for (label in names(drawnK)) {
     same(live$model@forests[[1L]]@sd, sd, "stated")
     same(unname(live$getK(1L)), c(1, 1), "k pinned")
     # creation refuses a leaf prior's k that no forest takes, so the twin
-    # takes the family's leaf prior and the live sampler's records otherwise
+    # takes the family's leaf prior, which the statement leaves in force
     twin <- do.call(
       make,
       c(
@@ -672,10 +676,7 @@ for (label in names(drawnK)) {
         arguments[setdiff(names(arguments), c("", "leaf.prior"))]
       )
     )
-    records <- recordsOf(twin)
-    records@leaf.prior <- live$model@leaf.prior
-    records@leaf.hyperprior <- live$model@leaf.hyperprior
-    same(recordsOf(live), records, "records")
+    same(recordsOf(live), recordsOf(twin), "records")
     same(draws(live), draws(twin), "draws")
   })
 }

@@ -38,8 +38,8 @@ the call, like every other name; the `sdUnder` argument and its branch go, and s
 its rejoin branch under a `dbartsChiHyperprior` differed from `inForce$sd`, so only that case moves.
 
 Draws: a `$setForest` call naming `amplitude = fixed()` and the sd in force on a released forest with no basis that
-states no sd, on probit, logistic and a gaussian fit given a prior on k (the hazard families reach the same branch,
-not run): from the call on, the forest follows the leaf prior with k drawn, as after `fixed()` alone, where it was
+states no sd, on probit, logistic and a gaussian fit given a prior on k (the hazard, aft, ordinal and negative
+binomial families refuse a forest() term with a basis, so none reaches it): from the call on, the forest follows the leaf prior with k drawn, as after `fixed()` alone, where it was
 pinned at the sd with k 1. No equivalence scenario, exact gate or snapshot passes an sd beside an amplitude change
 (bcf-equivalence.R's scenario e writes an sd alone, forest-prior-exact.R and probit-k-scale-exact.R an amplitude
 alone).
@@ -187,7 +187,9 @@ binomial-test-trials removed; the INDEX row.
    draws one trial; dec-B641 refuses a missing count at a test frame, and dec-B698 a missing test weight on any row,
    so a weight-0 row missing a count is refused too. Alternative: skip the check at weight-0 rows, whose draws are NA
    anyway. Not marked: the rulings state it.
-5. Item 1's pins cover probit, logistic and gaussian given `normal(k = chi())`; the hazard families, the same
-   branch, are not pinned. Alternative: a hazard pin besides.
+5. Item 1's pins cover probit, logistic and gaussian given `normal(k = chi())`, each after a release under
+   `student(3)` and under `normal()`. No other family reaches the case: hazard, aft, ordinal and negative binomial
+   fits refuse a forest() term with a basis. Corrected in the fix round, which found the earlier "the hazard families,
+   the same branch" untrue. Alternative: none left to pin.
 
 Nothing here changes what a user sees beyond what the two rulings state, so no call is marked for the maintainer.
