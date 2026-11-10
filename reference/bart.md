@@ -410,8 +410,8 @@ nobs(object, ...)
   carry them. The column is checked by the fit's rule, as a test
   sample's weights are, and must be numeric. A test frame's weights
   column holding a missing value is refused at fit time, naming the rows
-  and saying to fill them, drop them from \codetest, or give
-  \codepredict the rows with \codena.action = na.pass.
+  and saying to fill them, drop them from `test`, or give `predict` the
+  rows with `na.action = na.pass`.
 
 - offset:
 
@@ -569,16 +569,18 @@ nobs(object, ...)
   `family = "multinomial"`) and a (time, status) pair (use a `Surv`
   response or `family = "aft"`/`"hazard"`), and so is an n x K matrix
   with negative or fractional entries. A multinomial response is read
-  alike here and in \code\linkdbarts: a data frame of numeric columns is
-  its matrix of counts, and a one-column character matrix its vector of
-  labels; a wider character matrix, or a data frame with a column that
-  is not numeric, is refused. `"gaussian"`, `"probit"`, and `"logistic"`
-  force those fits directly; `"aft"`, `"hazard"`, `"hazard.probit"` (an
-  accepted alias for `"hazard"`), `"hazard.logistic"`, `"multinomial"`,
-  `"ordinal"`, `"nbinom"`, and `"hurdle.lognormal"` reach the extended
-  families described below. A `"probit"` or `"logistic"` response that
-  holds one class is fitted, with one warning saying so; the prior alone
-  then drives the fitted probabilities toward 0 or 1.
+  alike here and in
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md): a
+  data frame of numeric columns is its matrix of counts, and a
+  one-column character matrix its vector of labels; a wider character
+  matrix, or a data frame with a column that is not numeric, is refused.
+  `"gaussian"`, `"probit"`, and `"logistic"` force those fits directly;
+  `"aft"`, `"hazard"`, `"hazard.probit"` (an accepted alias for
+  `"hazard"`), `"hazard.logistic"`, `"multinomial"`, `"ordinal"`,
+  `"nbinom"`, and `"hurdle.lognormal"` reach the extended families
+  described below. A `"probit"` or `"logistic"` response that holds one
+  class is fitted, with one warning saying so; the prior alone then
+  drives the fitted probabilities toward 0 or 1.
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) takes
   no `family` argument at all: every fit it makes is the default
   gaussian/probit pair. Base R family objects map as
@@ -2525,7 +2527,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001067
+#> total seconds in loop: 0.001413
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 3 3 2 2 2 2 2 3 2 2 2 3 3 2 
@@ -2562,7 +2564,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000572
+#> total seconds in loop: 0.000755
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 2 1 2 1 1 2 2 1 1 1 2 2 2 2 
@@ -2597,7 +2599,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000822
+#> total seconds in loop: 0.001146
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 3 2 4 2 2 3 2 2 2 2 3 3 2 
@@ -2651,7 +2653,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.001188
+#> total seconds in loop: 0.001734
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 2 2 2 2 2 2 3 3 2 

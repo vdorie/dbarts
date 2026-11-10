@@ -949,7 +949,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)
 #>   trees: 10, 10; 20 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.000410
+#> total seconds in loop: 0.000555
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 2 5 2 3 2 

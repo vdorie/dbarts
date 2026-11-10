@@ -783,8 +783,9 @@ dbarts(
   levels of a factor, label the categories. A data frame of numeric
   columns is read as its matrix, and a one-column character matrix as
   its vector of labels; a wider character matrix, or a data frame with a
-  column that is not numeric, is refused, as \code\linkbart refuses it.
-  Under `family = "auto"` a matrix of three or more columns of
+  column that is not numeric, is refused, as
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) refuses
+  it. Under `family = "auto"` a matrix of three or more columns of
   non-negative whole numbers is read as this model, but a
   three-or-more-level factor is not - it is an error directing here,
   since an unordered categorical response is equally a candidate for
