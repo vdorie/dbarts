@@ -971,11 +971,6 @@ items
     labels against the generator's; each file carries the lookup. The
     data are in a Box folder the maintainer holds. Not a case for the
     logistic k move, no outcome being binary.
-  vartypes-attribute: door, no plan doc of its own. dbartsData's
-    initialize and validateXTest honor a "varTypes" attribute on a user's
-    predictor matrix, which marks columns categorical by code; nothing
-    documents it, and tests use it to reach codings a factor cannot hold.
-    Document it, or refuse it in favor of factor and ordered columns.
   veto-arc-doors: a per-sweep diagnostics counter, R-readable, of
     leaves that hold rows and none the likelihood sees - none exists in
     src/bartcore, so it is an additive new channel

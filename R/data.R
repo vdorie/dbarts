@@ -856,7 +856,12 @@ methods::setMethod(
     if (!missing(modelMatrices)) {
       .Object@y <- modelMatrices$y
       .Object@x <- modelMatrices$x
-      # makeCategoricalModelMatrix types its columns; everything else is ordinal
+      # The "varTypes" attribute is the coding channel the package's own
+      # matrices carry: one kind per column (0 ordinal, 1 categorical, 2
+      # ordered factor) beside the factor codes makeCategoricalModelMatrix
+      # writes, and tests use it to reach codings a factor cannot hold. It is
+      # honored on a matrix a caller writes by hand but is not a documented
+      # argument; a matrix with none is ordinal throughout.
       .Object@varTypes <- if (!is.null(attr(.Object@x, "varTypes"))) {
         as.integer(attr(.Object@x, "varTypes"))
       } else {
