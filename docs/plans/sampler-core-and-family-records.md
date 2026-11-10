@@ -82,7 +82,7 @@ After the four slices land:
   [`workingWeightsVaryPerSweep`](../../src/bartcore/model.hpp); [`carriesOrdinalThresholds`](../../src/bartcore/model.hpp);
   [`scaleLatents`](../../src/bartcore/model.hpp), whose refusing default no caller reaches), and four unit-scale
   classes repeat the same four overrides (`initialSigma`, `fitScale`, `fitShift`, `sigmaScale` returning 1, 1, 0, 1).
-- Every name test, line by line on main 0580ff13a and on collapsed-move-rebuild 3b304fdff, classified:
+- Every name test, line by line on main 0580ff13a and on collapsed-move-rebuild as of 2026-11-10 (not yet on main; its hashes change at its landing), classified:
   scratch/plan-core/name-tests.md. The by-symbol table is [Appendix: the name tests](#appendix-the-name-tests).
 - Branches that bear: collapsed-move-rebuild (worktree kmp-step0, being built) adds a logistic name test in its new
   `collapsedRescaleApplies` and a NaN-default virtual
@@ -646,7 +646,7 @@ Plans have run 1.5 to 2 times low: 64 to 85 hours.
 
 ## Appendix: the name tests
 
-Counted by `grep -c 'ResponseFamily::\|RF::'` on main 0580ff13a, chain.hpp on collapsed-move-rebuild 3b304fdff:
+Counted by `grep -c 'ResponseFamily::\|RF::'` on main 0580ff13a, chain.hpp on collapsed-move-rebuild as of 2026-11-10 (not yet on main; its hashes change at its landing):
 chain.hpp 45, facade.hpp 7, sampler.hpp 3, combiner.hpp 1, R_interface_bartcore.cpp 67, C_interface.cpp 6; 129.
 
 | where | references | becomes |
