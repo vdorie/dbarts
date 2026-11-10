@@ -9,6 +9,13 @@
 #ifndef DBARTS_NMATH_PREFIX_H
 #define DBARTS_NMATH_PREFIX_H
 
+/* The system's math.h comes in first, before any rename below: a C library
+   that declares cospi, sinpi and tanpi (glibc 2.41 and later) does it through
+   a macro that takes the name as an argument, and a name renamed ahead of it
+   breaks the declaration. Its include guard keeps it from being read again
+   with the renames in force. */
+#include <math.h>
+
 #define HAVE_LONG_DOUBLE 1
 #define HAVE_NEARBYINT 1
 #define HAVE_WORKING_ISFINITE 1

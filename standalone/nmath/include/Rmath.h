@@ -283,16 +283,12 @@ double	fmin2(double, double);
 
 /* More accurate cos(pi*x), sin(pi*x), tan(pi*x)
 
-   These declarations might clash with system headers if someone had
-   already included math.h with __STDC_WANT_IEC_60559_FUNCS_EXT__
-   defined (and we try, above).
-   We check for that via the value of __STDC_IEC_60559_FUNCS__
+   prefix.h renames all three, so these declare the copy's own functions and
+   cannot clash with a C library that has the C23 ones (glibc 2.41 and later).
 */
-#if !(defined(__STDC_IEC_60559_FUNCS__) && __STDC_IEC_60559_FUNCS__ >= 201506L)
 double cospi(double);
 double sinpi(double);
 double tanpi(double);
-#endif
 double Rtanpi(double); /* our own in any case */
 
 #ifdef  __cplusplus
