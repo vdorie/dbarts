@@ -1286,9 +1286,6 @@ notDefined <- function(family, term = "forest(x1 + x2, basis = ~z)") {
     "'): an amplitude-coupled fit is not defined for it"
   )
 }
-for (family in c("hazard", "hazard.probit", "hazard.logistic")) {
-  refuses(termFormula, notDefined(family), family = family)
-}
 refuses(termFormula, "family = \"multinomial\"", family = "multinomial")
 refuses(
   termFormula,

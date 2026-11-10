@@ -11,14 +11,12 @@
 ## The families a multiplier model's calibration map has no per-forest
 ## amplitude block for (the engine's aft/ordinal/nbinom refusal), plus the
 ## families whose OWN ingestion the amplitude coupling is incompatible with
-## (hazard's person-period row expansion, multinomial's K-forest softmax,
-## hurdle.lognormal's two-sampler composition) - closed here so a forest()
-## term is refused by name instead of surfacing downstream as a row-count or
-## type mismatch that names none of family, term, or reason.
+## (multinomial's K-forest softmax, hurdle.lognormal's two-sampler
+## composition) - closed here so a forest() term is refused by name instead
+## of surfacing downstream as a type mismatch that names none of family,
+## term, or reason. A hazard fit's basis has one value per subject, repeated
+## over its periods, so its term fits as its forests list does.
 TERM_UNSUPPORTED_FAMILIES <- c(
-  "hazard",
-  "hazard.probit",
-  "hazard.logistic",
   "multinomial",
   "hurdle.lognormal",
   "aft",
