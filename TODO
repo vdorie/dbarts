@@ -1219,11 +1219,6 @@ items
     main and on 1.0-10
     (scratch/ratify-1110/pass2/probes/aside-grouped-n.R). Fix with
     bartcause-grouped-n-eff.
-  bartcause-missing-response-counterfactual: a row with a missing
-    response has the wrong counterfactual: cfRows is recycled in
-    getBartResponseFit (probes scratch/ratify-1110/probes/c27-*.R). A
-    bug fix, not a ruling (dec-A330 call 7 was ratified as designed);
-    NEWS tells 1.0-10 users with missing responses to refit.
   bartcause-no-weight-refusal-early: (dec-B720, revising call 9 of
     dec-A332) refuse before the fit, for every method, an estimate the
     weights and treatment leave no weight; a common-support rule leaving
