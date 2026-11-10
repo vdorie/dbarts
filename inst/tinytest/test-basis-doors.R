@@ -169,6 +169,10 @@ expect_identical(
 )
 
 # ---- D4: a held basis keeps its recorded scale, matched by name ----
+# a door estimates the starting sigma again from the data it is handed, by a
+# regression on each forest's basis, and on the swapped column that estimate
+# can round differently, by the BLAS, from the one s3 holds; stated at both
+# creations, the two samplers below differ only by the record under test
 s3 <- dbarts(
   y ~ x1 + x2,
   d,
@@ -179,7 +183,8 @@ s3 <- dbarts(
   ),
   n.trees = 5L,
   control = ctl,
-  seed = 3L
+  seed = 3L,
+  sigest = 0.3
 )
 recorded <- dbarts:::dataBasisScale(s3$data)[[2L]]
 expect_equal(recorded, sd(d$dose))
@@ -189,7 +194,8 @@ kept <- dbarts(
   forests = list(forest(), forest(basis = dose), forest(basis = factor(z))),
   n.trees = 5L,
   control = ctl,
-  seed = 3L
+  seed = 3L,
+  sigest = 0.3
 )
 expect_identical(dbarts:::dataBasisScale(kept$data)[[2L]], recorded)
 expect_identical(kept$data@bases[[2L]], s3$data@bases[[2L]])
