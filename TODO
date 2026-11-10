@@ -1153,12 +1153,6 @@ items
     about 30 lines become 10); bcf names its treatment basis in the
     forests list in place of bases = once the basis-references calls
     allow it (identical fits run).
-  bartcause-draws-twice: bartCause work. A bartc fit keeps its draws
-    only in fit.rsp and fit.trt; mu.hat.obs, mu.hat.cf and
-    samples.p.score are computed from them when read, exactly as bartc
-    computes them now, a saved fit from an earlier version reading as
-    stored, the help saying which elements are computed (dec-B689).
-    About 60 to 80 lines and tests in bartCause.
   bartcause-extract-cate-order: extract(fit, "cate") orders its draws
     differently from icate when the chains are combined (found
     2026-11-10, in bartCause before the population-weights work).

@@ -1644,6 +1644,48 @@ Landed on bartCause main on 2026-11-10 (ce2a059..20409ca: 6d674b1, 63a01f1, e955
 Gates of the slice are those of its first entry.
 Record: bartCause R/responseFit.R, R/bartc.R; tests/testthat/test-23-population-weights.R. Marked: not marked. See also: [dec-B718], [dec-A327]. [dec-A344]
 
+**A bartc fit stores a small combineChains element, a named logical for rsp and trt**
+Landed on bartCause main on 2026-11-10 (20409ca..57a365d: 447a322, 73be08c, 2ac2525, 57a365d), built under dec-B689. 
+1. The builder's call, not put to the maintainer, with its alternative. stan4bart's fit does not record whether bartc combined the chains, so the layout of the computed arrays cannot be recovered from the fit, where a dbarts fit's shape could be. The alternative was inferring the layout from dbarts shapes and storing only for stan4bart fits (two code paths), or reading it from the call, which is unreliable (a variable in the caller's frame, args.rsp or args.trt overrides). The cost is one 2-element logical per fit, documented in ?bartc; none to size. The review judged it sound.
+Gates: R-surface tier, no draw change; one review, FIX then LAND, every call judged sound; bartCause's testthat suite with a live stan4bart (main 6c4bbd9 on dbarts dfb1e0cbe) under NOT_CRAN=true 2381 passed, 0 failed; R CMD check --as-cran on a clean tarball of 57a365d, 1 NOTE (the DESCRIPTION Date); arrays identical to 20409ca on 38 cases, 6 of them live stan4bart; mutants 18 of 20 killed, one equivalent (M04, see the call on a given propensity matrix); saved size about halved (68.6 MB to 34.6 MB on the reviewer's fit). bartCause has no push CI.
+Record: bartCause R/draws.R, R/bartc.R; man/bartc.Rd; inst/NEWS.Rd; tests/testthat/test-24-draws-once.R. Marked: not marked. See also: [dec-B689]. [dec-A345]
+
+**A propensity matrix given as method.trt is stored as samples.p.score, not computed**
+Landed on bartCause main on 2026-11-10 (20409ca..57a365d: 447a322, 73be08c, 2ac2525, 57a365d), built under dec-B689. 
+2. The builder's call, not put to the maintainer, with its alternative. No fit.trt exists for a given matrix, so nothing can recompute it. The alternative was dropping it, which loses user input. The cost is that this one case still lists samples.p.score in names(). The review judged it sound; the one surviving mutant (M04, the stored branch of the internal reader dropped) is equivalent on the supported paths, since extract evaluates with(object, ...) where the held element shadows the local read-out and refit of p.weight or tmle with a given matrix errors at fit time at 20409ca too.
+Gates of the slice are those of its first entry.
+Record: bartCause R/draws.R, R/treatmentFit.R; tests/testthat/test-24-draws-once.R. Marked: not marked. See also: [dec-B689]. [dec-A346]
+
+**The response fitters' read-out of the draws is one set of functions, called at fit time and by the dollar method**
+Landed on bartCause main on 2026-11-10 (20409ca..57a365d: 447a322, 73be08c, 2ac2525, 57a365d), built under dec-B689. 
+3. The builder's call, not put to the maintainer, with its alternative. The read-out moved into R/draws.R and the fit-time code in responseFit.R and treatmentFit.R calls the same functions, so the computed arrays are the fit-time arrays by construction; identical() was checked against 20409ca on 30 cases (38 in the review). The alternative was a separate recompute path checked only by tests. The cost is a refactor of three blocks, with no draw change. The review judged it the strongest guarantee of identity.
+Gates of the slice are those of its first entry.
+Record: bartCause R/draws.R, R/responseFit.R, R/treatmentFit.R. Marked: not marked. See also: [dec-B689]. [dec-A347]
+
+**A bartcFit's dollar matches a name as a plain list's does, over the stored names and the three computed ones**
+Landed on bartCause main on 2026-11-10 (20409ca..57a365d: 447a322, 73be08c, 2ac2525, 57a365d), built under dec-B689. 
+4. The builder's call as amended by the fix round, taken by the orchestrator on the reviewer's recommendation (F3), not put to the maintainer, with its alternative. An exact name wins, else a unique prefix of a computed or stored name, an ambiguous prefix gives NULL; the double bracket is exact by default and partial under exact = FALSE; checked against a plain list on 340 names with 0 differences. The first build matched the three computed names exactly only, so fit$mu.hat.o and fit$samples returned NULL where 20409ca returned the arrays. The alternative was that exact-only match, documented. The cost is one pmatch per read.
+Gates of the slice are those of its first entry.
+Record: bartCause R/draws.R; man/bartc.Rd; tests/testthat/test-24-draws-once.R. Marked: not marked. See also: [dec-B689]. [dec-A348]
+
+**summary() of a bartc fit reads the draws once, from one copy of the fit that holds them**
+Landed on bartCause main on 2026-11-10 (20409ca..57a365d: 447a322, 73be08c, 2ac2525, 57a365d), built under dec-B689. 
+5. The builder's call, not put to the maintainer, with its alternative. summary() makes one copy of the fit holding the draws it read once (withDraws), so its eight extract calls read stored arrays. The alternative was threading a draws argument through getATEEstimates and every extract call. The cost is one 0.1 s read per summary, for less code. The review judged it sound (a mutant reading twice is killed).
+Gates of the slice are those of its first entry.
+Record: bartCause R/summary.R, R/draws.R. Marked: not marked. See also: [dec-B689]. [dec-A349]
+
+**extractBartcFit and refit take and pass a draws list, so one call reads once**
+Landed on bartCause main on 2026-11-10 (20409ca..57a365d: 447a322, 73be08c, 2ac2525, 57a365d), built under dec-B689. 
+6. The builder's call, not put to the maintainer, with its alternative. refit of p.weight or tmle reads the draws once instead of three times. The alternative was computing them per extractBartcFit call. The cost is one internal argument. The review judged it sound (mutants for a thrice-read refit and for the sigma read are killed).
+Gates of the slice are those of its first entry.
+Record: bartCause R/extract.R, R/refit.R, R/draws.R. Marked: not marked. See also: [dec-B689]. [dec-A350]
+
+**The builder's R CMD check ran with the user library's stale stan4bart replaced**
+Landed on bartCause main on 2026-11-10 (20409ca..57a365d: 447a322, 73be08c, 2ac2525, 57a365d), built under dec-B689. 
+7. The builder's call, not put to the maintainer, with its alternative. The stan4bart installed in the user library was built against another dbarts (error: no slot n.cuts), which fails 24 stan4bart-dependent tests with or without this change (the same 24 on 20409ca); the builder ran the check with R_LIBS_USER replaced and forced suggests off, the alternative being to leave the failure visible and report a failed check. The cost was that the stan4bart routes were not exercised live there. The review superseded it with a live stan4bart (main 6c4bbd9 on dbarts dfb1e0cbe): the suite 2381 passed, 0 failed, and the check clean but for the Date NOTE.
+Gates of the slice are those of its first entry.
+Record: none (process). Marked: not marked. See also: [dec-B689]. [dec-A351]
+
 ## B. Decisions with maintainer evidence
 
 **Missing predictors are modeled, not refused**
