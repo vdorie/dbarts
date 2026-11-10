@@ -421,6 +421,15 @@ forest(
   `Map(forest, nms, MoreArgs = list(basis = quote(dose)))`, is code, as
   it is through [`do.call()`](https://rdrr.io/r/base/do.call.html).
 
+  Code or a single string passed on to `forest()` through the `...` of a
+  function of your own is read where that function's caller wrote it:
+  with `myForest <- function(...) forest(n.trees = 50, ...)`,
+  `myForest(basis = "w")` written in a function reads that function's
+  `w`, as `myForest(basis = w)` does. A function that takes the basis as
+  an argument of its own and calls `forest(basis = name)` hands over
+  what the argument holds, read where it calls `forest()`, as is a
+  string passed on through the `...` of a call that has returned.
+
   **A value.** What is handed over as an object, through
   [`do.call()`](https://rdrr.io/r/base/do.call.html) or in a call built
   by a program, is used as it is: a numeric vector or matrix is its
@@ -980,7 +989,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)
 #>   trees: 10, 10; 20 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.000496
+#> total seconds in loop: 0.000520
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 2 5 2 3 2 

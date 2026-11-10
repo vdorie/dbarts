@@ -350,12 +350,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md).
   One that keeps its frame (`keep.data = TRUE`) is made into the
   block-holding object the sampler runs on first, as `dbarts` makes it.
-  A sampler created with one forest and none refuses the data of a
-  sampler of several forests, which carry their bases, having no forest
-  to multiply them; hand over the data object they were made from, or
-  make a new sampler with
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md). A
-  hazard sampler also takes data built from a `Surv` response
+  The data of a sampler of several forests are taken as its rows, the
+  bases and their records dropped, as
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) reads
+  them given no `forests`: the sampler keeps its own forest. A hazard
+  sampler also takes data built from a `Surv` response
   (`dbartsData(Surv(time, status) ~ x, newData)`): its subjects are
   spread onto the sampler's own periods as
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
@@ -1001,28 +1000,30 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   the sampler was created with and one amplitude per column. It is a
   value, or a one-sided formula, which is read as the `basis` of a
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md) is,
-  its names found where the formula was written. It must be of the class
-  the forest was created with, which decides what the forest multiplies
-  and never changes. A forest of levels, created with a factor, a
-  character vector or a logical vector, takes one of those three,
-  matched to the forest's levels by name and not by position: the
-  replacement may list its levels in another order or leave one out, a
-  level of the forest that no row has is a column of zeros, and a row at
-  a level the forest does not have, or at `NA`, is refused. Coefficient
-  \\j\\ multiplies level \\j\\'s rows after any swap, whatever the
-  replacement declares. Numbers are refused for such a forest, the level
-  indicators the sampler stores among them: to hand a basis back, hand
-  back the factor. A forest of numbers takes one numeric column, a
-  vector or a matrix of one column, a column of zeros among them, and
-  refuses several columns, a factor, a character vector and a logical
-  vector; [`as.numeric()`](https://rdrr.io/r/base/numeric.html) of a
-  logical vector is its 0/1 column. A forest created with no basis takes
-  none. The sampler keeps the forest's block, one column for each level
-  of a factor with no reference level dropped, in `data@bases[[f]]`, and
-  its levels in `data@basis.levels[[f]]`, `f` the forest's position
-  (neither list has names, so a label does not index them), and not the
-  factor it was handed: a caller that will hand a basis back, to restore
-  a proposal it rejected, keeps the factor it handed over. No forest
+  its names found where the formula was written. A single string is
+  refused, a basis being a column's values here and not its name: hand
+  over the column, or `~dose`. It must be of the class the forest was
+  created with, which decides what the forest multiplies and never
+  changes. A forest of levels, created with a factor, a character vector
+  or a logical vector, takes one of those three, matched to the forest's
+  levels by name and not by position: the replacement may list its
+  levels in another order or leave one out, a level of the forest that
+  no row has is a column of zeros, and a row at a level the forest does
+  not have, or at `NA`, is refused. Coefficient \\j\\ multiplies level
+  \\j\\'s rows after any swap, whatever the replacement declares.
+  Numbers are refused for such a forest, the level indicators the
+  sampler stores among them: to hand a basis back, hand back the factor.
+  A forest of numbers takes one numeric column, a vector or a matrix of
+  one column, a column of zeros among them, and refuses several columns,
+  a factor, a character vector and a logical vector;
+  [`as.numeric()`](https://rdrr.io/r/base/numeric.html) of a logical
+  vector is its 0/1 column. A forest created with no basis takes none.
+  The sampler keeps the forest's block, one column for each level of a
+  factor with no reference level dropped, in `data@bases[[f]]`, and its
+  levels in `data@basis.levels[[f]]`, `f` the forest's position (neither
+  list has names, so a label does not index them), and not the factor it
+  was handed: a caller that will hand a basis back, to restore a
+  proposal it rejected, keeps the factor it handed over. No forest
   changes width, held or drawn, so the names its columns were created
   with stay, whatever names the replacement has. The forest's label does
   not change. Unlike creation, a swap may leave a level of the forest

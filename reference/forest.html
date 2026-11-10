@@ -418,6 +418,15 @@ The constructor is not exported: it resolves by bare name inside the
     or a call that such a function is handed and passes on, as in
     <code>Map(forest, nms, MoreArgs = list(basis = quote(dose)))</code>, is code,
     as it is through <code><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call()</a></code>.</p>
+<p>Code or a single string passed on to <code>forest()</code> through the
+    <code>...</code> of a function of your own is read where that function's
+    caller wrote it: with <code>myForest &lt;- function(...) forest(n.trees =
+    50, ...)</code>, <code>myForest(basis = "w")</code> written in a function reads that
+    function's <code>w</code>, as <code>myForest(basis = w)</code> does. A function that
+    takes the basis as an argument of its own and calls
+    <code>forest(basis = name)</code> hands over what the argument holds, read
+    where it calls <code>forest()</code>, as is a string passed on through the
+    <code>...</code> of a call that has returned.</p>
 <p><strong>A value.</strong> What is handed over as an object, through
     <code><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call()</a></code> or in a call built by a program, is used as it is: a
     numeric vector or matrix is its columns, and a factor, a character vector
@@ -945,7 +954,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   trees: 10, 10; 20 in all</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000496</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000520</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 2 2 5 2 3 2 </span>

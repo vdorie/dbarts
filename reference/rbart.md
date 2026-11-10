@@ -143,8 +143,11 @@ nobs(object, ...)
   `n.threads`, while one thread runs the chains in turn on R's stream.
   `weights` are precisions, so a row's residual variance is \\\sigma^2 /
   w_i\\, and a binary response takes only weights of 0 and 1; other
-  weights are refused. A `dbartsData` object carrying `bases` (a
-  multi-forest model) is refused: `rbart_vi` fits a single forest.
+  weights are refused. A `dbartsData` object carrying `bases`, the data
+  of a sampler of several forests, fits one forest here, the bases left
+  out, as
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) does
+  given no `forests`.
 
 - object:
 

@@ -660,8 +660,9 @@ family(object, ...)
   which decides what it multiplies (see
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
   `basis` item) and cannot change. A single string names a column of
-  `newdata`, `bases = "dose"` reading `newdata$dose`; on one predicted
-  row a string that names no column is that row's value. For a forest of
+  `newdata`, `bases = "dose"` reading `newdata$dose`, on any number of
+  rows, one included; a level is given as a factor,
+  `factor("trt", levels = c("ctl", "trt"))` on one row. For a forest of
   levels, created with a factor, a character vector or a logical vector,
   hand over a factor, a character vector or a logical vector: its levels
   are matched to the forest's by name and not by position, a level of
@@ -1454,7 +1455,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.132026
+#> total seconds in loop: 0.165703
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
