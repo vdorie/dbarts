@@ -115,10 +115,21 @@ rowsWithMissingPredictors <- function(x) {
 ## withBinaryResponsePrecision recognizes it by.
 responsePrecisionWarningStem <- "response values are indistinguishable"
 
-applyNaActionToXY <- function(na.action, y, x) {
+applyNaActionToXY <- function(na.action, y, x, weights = NULL, offset = NULL) {
   predictorNA <- rowsWithMissingPredictors(x)
   responseNA <- is.na(y)
-  if (!any(predictorNA) && !any(responseNA)) {
+  # a row whose weight or offset is missing is one na.action may drop, where
+  # the formula interface drops it; asked of the action apart from the pair, so
+  # an action that refuses it (na.fail) leaves the missing value to the
+  # channel's own refusal, and one that keeps it (the default, na.pass) too
+  channelNA <- rep_len(FALSE, length(responseNA))
+  if (!is.null(weights)) {
+    channelNA <- channelNA | is.na(weights)
+  }
+  if (!is.null(offset)) {
+    channelNA <- channelNA | is.na(offset)
+  }
+  if (!any(predictorNA) && !any(responseNA) && !any(channelNA)) {
     return(NULL)
   }
   # unnamed: the caller's row names can hold a missing one, which
@@ -132,6 +143,20 @@ applyNaActionToXY <- function(na.action, y, x) {
     frame,
     na.action = na.action
   )
+  if (any(channelNA)) {
+    frame$channels <- unname(ifelse(channelNA, NA_real_, 0.0))
+    wider <- tryCatch(
+      stats::model.frame(
+        response ~ predictors + channels,
+        frame,
+        na.action = na.action
+      ),
+      error = function(e) NULL
+    )
+    if (!is.null(wider)) {
+      kept <- wider
+    }
+  }
   omit <- attr(kept, "na.action")
   keep <- rep_len(TRUE, length(responseNA))
   if (!is.null(omit)) {
@@ -3953,7 +3978,9 @@ dbartsData <- function(
     naResult <- applyNaActionToXY(
       na.action,
       multinomialResponseNA(counts, y),
-      x
+      x,
+      weights,
+      offset
     )
     if (!is.null(naResult)) {
       naOmitted <- nameOmittedRows(naResult$na.action, trainRowNames)
@@ -4078,7 +4105,9 @@ dbartsData <- function(
     naResult <- applyNaActionToXY(
       na.action,
       multinomialResponseNA(counts, y),
-      x
+      x,
+      weights,
+      offset
     )
     if (!is.null(naResult)) {
       naOmitted <- nameOmittedRows(naResult$na.action, trainRowNames)
