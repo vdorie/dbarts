@@ -35,7 +35,7 @@ using bartcore_bridge::augmentationDistribution;
 using bartcore_bridge::AugmentationDistribution;
 using bartcore_bridge::AugmentationInputs;
 using bartcore_bridge::BartcoreHolder;
-using bartcore_bridge::callRaisingEngineError;
+using bartcore_bridge::callRaisingExceptions;
 using bartcore_bridge::captureExceptions;
 using bartcore_bridge::computeWorkingResponse;
 using bartcore_bridge::distributionDrawsPrecision;
@@ -513,6 +513,12 @@ SEXP slotOrNull(SEXP object, const char* name) {
 /// the move leaves it empty. Raising a captured
 /// message, Rf_error("%s", s.c_str()), is safe: R copies the message before it
 /// jumps, and the closure is deleted on the way out.
+///
+/// The body runs under callRaisingExceptions: R_UnwindProtect is a C frame, so
+/// a C++ exception may not pass it, and the entry's own guard sits above it.
+/// An exception escaping the body therefore unwinds the body's frames, its
+/// locals freed, and is raised as an R error inside the protected call, which
+/// deletes the closure like any other jump.
 template <typename Body>
 SEXP unwindProtect(Body body) {
   // allocate the continuation before the heap copy: R_MakeUnwindCont can
@@ -520,7 +526,9 @@ SEXP unwindProtect(Body body) {
   SEXP continuation = PROTECT(R_MakeUnwindCont());
   Body* held = new Body(std::move(body));
   SEXP result = R_UnwindProtect(
-    [](void* p) -> SEXP { return (*static_cast<Body*>(p))(); }, held,
+    [](void* p) -> SEXP {
+      return callRaisingExceptions(*static_cast<Body*>(p));
+    }, held,
     [](void* p, Rboolean) { delete static_cast<Body*>(p); }, held,
     continuation);
   UNPROTECT(1);
@@ -5165,7 +5173,9 @@ SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr,
     SEXP result = PROTECT(R_MakeExternalPtr(NULL, R_NilValue, dataExpr));
     R_RegisterCFinalizerEx(result, dataHandleFinalizer,
                            static_cast<Rboolean>(FALSE));
-    bartcore::ColumnStore* handle = new bartcore::ColumnStore;
+    // owned until published, so a build that throws frees it as it unwinds;
+    // emptied by hand before the refusal's raise, which runs no destructor
+    auto handle = std::make_unique<bartcore::ColumnStore>();
     // the layout choice is read at build, so it is set before it
     handle->sparseDensityCutoff = control.sparseDensityThreshold;
     // the build decides which of the declared columns it must own a copy of:
@@ -5179,12 +5189,12 @@ SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr,
                        data.useQuantiles,
                        gatherColumns.empty() ? NULL : gatherColumns.data(),
                        gatherColumns.size(), suppliedCutGridOf(data))) {
-      delete handle;
+      handle.reset();
       Rf_error("a predictor column holds a level code the store cannot "
                "represent");
     }
 
-    R_SetExternalPtrAddr(result, handle);
+    R_SetExternalPtrAddr(result, handle.release());
     UNPROTECT(1);
     return result;
   });
@@ -6385,6 +6395,15 @@ SEXP bartcore_setMonotoneCountHooks(SEXP slowSecondsExpr,
     bartcore_bridge::interruptAfterPolls.store(
       interruptAfter > 0 ? interruptAfter : 0);
   return Rf_ScalarReal(previous);
+}
+
+// Test hook, unexported: arms (TRUE) or disarms a one-shot allocation failure
+// in the next test-store build, which every test install reaches - the test
+// setters, a creation with test rows and a data swap carrying them.
+SEXP bartcore_setTestStoreHooks(SEXP failNextBuildExpr) {
+  bartcore::testStoreHooks().failNextBuild.store(
+    Rf_asLogical(failNextBuildExpr) == TRUE);
+  return R_NilValue;
 }
 
 // A run's burn-in and sample counts, refused as 0.9-x refused them: a single
@@ -9111,12 +9130,10 @@ static SEXP predictFromSource(bartcore::SamplerBase& sampler,
   }
 
   // The fan-out reports a worker's failure as a C++ exception so its unwind
-  // frees the replay's buffers; it becomes an R error here, where nothing of
+  // frees the replay's buffers; the entry's guard raises it once nothing of
   // the engine's is left live. See Sampler::fanOutPredictSlabs.
-  callRaisingEngineError([&]() {
-    sampler.predict(source, numTestObservations, categoryOffset, numThreads,
-                    REAL(resultExpr));
-  });
+  sampler.predict(source, numTestObservations, categoryOffset, numThreads,
+                  REAL(resultExpr));
 
   if (offset != NULL) {
     for (size_t slab = 0; slab < numSamples * numChains; ++slab)
@@ -9130,10 +9147,8 @@ static SEXP predictFromSource(bartcore::SamplerBase& sampler,
   // needs saved trees, so a null-capacity variance forest has nothing to replay.
   if (shape.hasVarianceForest && capacity > 0) {
     SEXP varianceExpr = PROTECT(Rf_duplicate(resultExpr));  // clone the shape
-    callRaisingEngineError([&]() {
-      sampler.predictVariance(source, numTestObservations, numThreads,
-                              REAL(varianceExpr));
-    });
+    sampler.predictVariance(source, numTestObservations, numThreads,
+                            REAL(varianceExpr));
     SEXP listExpr = PROTECT(Rf_allocVector(VECSXP, 2));
     SET_VECTOR_ELT(listExpr, 0, resultExpr);
     SET_VECTOR_ELT(listExpr, 1, varianceExpr);
@@ -9244,10 +9259,8 @@ static SEXP predictPerForestFromSource(bartcore::SamplerBase& sampler,
   for (int d = 0; d < numDims; ++d) INTEGER(dimExpr)[d] = dims[d];
   Rf_setAttrib(resultExpr, R_DimSymbol, dimExpr);
 
-  callRaisingEngineError([&]() {
-    sampler.predictPerForest(source, numTestObservations, numThreads,
-                             REAL(resultExpr));
-  });
+  sampler.predictPerForest(source, numTestObservations, numThreads,
+                           REAL(resultExpr));
   UNPROTECT(1);
   return resultExpr;
 }

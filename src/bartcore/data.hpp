@@ -2,6 +2,7 @@
 #define BARTCORE_DATA_HPP
 
 #include <algorithm>
+#include <atomic>
 #include <bit>
 #include <cassert>
 #include <cmath>
@@ -9,6 +10,7 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <new>
 #include <type_traits>
 #include <vector>
 
@@ -1018,6 +1020,18 @@ struct CodeBlock {
                              : codes[codeOffsets[j] + i];
   }
 };
+
+/// Process-wide test knob for the test-store build, set only between calls: a
+/// one-shot allocation failure the next ColumnStore::buildTest throws on
+/// entry, so the handling of a failed build is reached without exhausting
+/// memory.
+struct TestStoreHooks {
+  std::atomic<bool> failNextBuild{false};
+};
+inline TestStoreHooks& testStoreHooks() {
+  static TestStoreHooks hooks;
+  return hooks;
+}
 
 /// Classic dense column store: borrowed column-major doubles quantized once
 /// into per-column integer codes against per-column cut points, either
@@ -2396,6 +2410,10 @@ struct ColumnStore {
   /// anything is written rather than riding the quantize as the training
   /// side's does.
   [[nodiscard]] bool buildTest(const PredictorSource& source) {
+    TestStoreHooks& hooks = testStoreHooks();
+    if (hooks.failNextBuild.load(std::memory_order_relaxed) &&
+        hooks.failNextBuild.exchange(false))
+      throw std::bad_alloc();
     if (!testSourceLevelCodesAreValid(source)) return false;
     size_t p = numPredictors, numTest = source.numRows;
     numTestObservations = numTest;

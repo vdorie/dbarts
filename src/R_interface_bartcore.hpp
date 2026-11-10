@@ -1,7 +1,10 @@
 #ifndef R_INTERFACE_BARTCORE_HPP
 #define R_INTERFACE_BARTCORE_HPP
 
-// internal bridge to the generalized core (bartcore/)
+// internal bridge to the generalized core (bartcore/). Every entry declared
+// here is registered through GuardedEntry (R_interface_exceptions.hpp), so a
+// C++ exception escaping one is raised as an R error; a body need not catch
+// unless it acts between the failure and the raise.
 
 #include <external/Rinternals.h> // SEXP
 
@@ -43,6 +46,8 @@ SEXP bartcore_runWithCallback(SEXP ptr, SEXP numBurnIn, SEXP numSamples,
                               SEXP results, SEXP callback, SEXP rho);
 SEXP bartcore_setMonotoneCountHooks(SEXP slowSeconds, SEXP failNextCount,
                                     SEXP interruptAfterPolls);
+/// Test-only: arms a one-shot allocation failure in the next test-store build.
+SEXP bartcore_setTestStoreHooks(SEXP failNextBuild);
 SEXP bartcore_setOffset(SEXP ptr, SEXP offset, SEXP updateScale);
 SEXP bartcore_setResponse(SEXP ptr, SEXP y, SEXP updateScale,
                           SEXP status);

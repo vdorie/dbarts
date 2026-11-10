@@ -615,9 +615,14 @@ latents, and its sigma is NaN on a sampler with a variance forest, which
 reports the variance channels instead. A nonzero return stops the run
 (docs/design/per-draw-callbacks.md).
 
-**Errors.** The engine reports every error as a C++ exception. Each bridge
-entry catches it, leaves the handler, and only then raises the R error, so
-no R longjmp crosses an engine frame. A per-draw callback may itself raise an
+**Errors.** The engine reports every error as a C++ exception. Every `.Call`
+entry is registered through one guard (`GuardedEntry`) that catches it,
+leaves the handler, and only then raises the R error, so no R longjmp
+crosses an engine frame and no exception reaches R's own frames.
+`unwindProtect` runs its closure under the same conversion, since
+`R_UnwindProtect` is a C frame of its own. An entry that must act between
+the failure and the raise (hand back R's stream, release a sampler left
+part-way, word the message) catches for itself first. A per-draw callback may itself raise an
 R error only when its run is inline on the thread that entered it: there the
 call is made under `R_UnwindProtect`, which turns the jump into a C++ unwind
 through the engine's frames, and the entry resumes the jump once they are

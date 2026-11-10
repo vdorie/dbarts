@@ -8,11 +8,9 @@
 #include <atomic>    // atomic
 #include <cstddef>   // size_t
 #include <cstdint>   // int32_t
-#include <cstdio>    // snprintf
 #include <exception> // exception
 #include <memory>    // unique_ptr
 #include <thread>    // thread::id
-#include <utility>   // forward
 #include <vector>
 
 #include <external/Rinternals.h> // SEXP
@@ -22,88 +20,9 @@
 
 #include "bartcore/bartcore.hpp"
 
+#include "R_interface_exceptions.hpp"
+
 namespace bartcore_bridge {
-
-/// R's continuation for an error longjmp caught at the LEAF that raised it -
-/// today the one call into a host's code, a registered draw callback.
-/// R_UnwindProtect's cleanup throws this instead of letting R resume the jump,
-/// so every C++ frame between that leaf and the entry point unwinds with its
-/// destructors, and the entry point resumes the jump with R_ContinueUnwind.
-///
-/// A longjmp cannot be undone, which is why the protection sits at the leaf
-/// rather than at the entry: an entry-level R_UnwindProtect would catch the
-/// jump only after the frames beneath it were already abandoned.
-struct UnwindJump {
-  SEXP continuation;
-};
-
-/// The process's one unwind continuation, created and preserved on first use.
-/// R fills it on the jump and R_ContinueUnwind consumes it immediately, and
-/// only the thread that entered a run ever installs the protection, so one
-/// token serves every entrance without per-call allocation or protection-stack
-/// bookkeeping.
-inline SEXP unwindContinuation() {
-  static SEXP token = []() -> SEXP {
-    SEXP made = R_MakeUnwindCont();
-    R_PreserveObject(made);
-    return made;
-  }();
-  return token;
-}
-
-/// A failed call's message, copied out of the exception that carried it. Sized
-/// for the engine's own sentences; a longer one truncates rather than
-/// allocating, since this path is already failing.
-struct CapturedError {
-  char message[512];
-  bool failed = false;
-};
-
-/// Runs \p body, recording a C++ exception escaping it in \p into instead of
-/// letting it out. An exception must never cross into R's own C frames - they
-/// run no destructors and keep context bookkeeping an unwind past them
-/// abandons, and nothing above catches, so the session aborts - and every
-/// entrance the engine can throw through therefore ends in this.
-///
-/// The message is copied out and the handler LEFT before any caller raises: a
-/// longjmp out of a live catch block would strand the exception on the
-/// thread's caught-exception stack, so the raise happens where nothing is in
-/// flight and every owner the unwind reached is already gone. An UnwindJump is
-/// NOT an error and passes straight through: it belongs to the entry point,
-/// which resumes the jump it carries.
-template <typename Body>
-void captureExceptions(CapturedError& into, Body&& body) {
-  try {
-    body();
-  } catch (const UnwindJump&) {
-    throw;
-  } catch (const std::exception& error) {
-    std::snprintf(into.message, sizeof(into.message), "%s", error.what());
-    into.failed = true;
-  } catch (...) {
-    std::snprintf(into.message, sizeof(into.message), "unknown C++ exception");
-    into.failed = true;
-  }
-}
-
-/// captureExceptions, then the raise, labeled with \p caller. For the flat C
-/// API, whose errors are read by a compiled consumer that needs to know which
-/// entry point refused.
-template <typename Body>
-void callConvertingExceptions(const char* caller, Body&& body) {
-  CapturedError error;
-  captureExceptions(error, std::forward<Body>(body));
-  if (error.failed) Rf_error("%s: %s", caller, error.message);
-}
-
-/// The same for the R surface, where the raise carries the engine's own
-/// sentence alone: an entry point's C name says nothing to the user reading it.
-template <typename Body>
-void callRaisingEngineError(Body&& body) {
-  CapturedError error;
-  captureExceptions(error, std::forward<Body>(body));
-  if (error.failed) Rf_error("%s", error.message);
-}
 
 /// Copies the engine's per-draw struct into the SHIPPED one, field for field.
 /// The engine never sees dbarts.h and the shipped layout is frozen, so this is

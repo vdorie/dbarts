@@ -26,6 +26,7 @@
 #include "makeModelMatrixFromDataFrame.h"
 
 #include "R_interface_bartcore.hpp"
+#include "R_interface_exceptions.hpp"
 
 using std::size_t;
 using std::uint32_t;
@@ -244,7 +245,10 @@ static SEXP buildInfo(void) {
 }
 
 extern "C" {
-#define DEF_FUNC(_N_, _F_, _A_) {_N_, (DL_FUNC) &(_F_), _A_}
+// every entry is registered through its guard, so no C++ exception leaves a
+// .Call entry, whichever file defines it (GuardedEntry)
+#define DEF_FUNC(_N_, _F_, _A_) \
+  {_N_, (DL_FUNC) &bartcore_bridge::GuardedEntry<&(_F_)>::call, _A_}
 
 static R_CallMethodDef R_callMethods[] = {
   DEF_FUNC("dbarts_bartcore_create", bartcore_create, 6),
@@ -347,6 +351,7 @@ static R_CallMethodDef R_callMethods[] = {
            bartcore_lastTestFitPartition, 0),
   DEF_FUNC("dbarts_bartcore_columnStorageIsSparse",
            bartcore_columnStorageIsSparse, 1),
+  DEF_FUNC("dbarts_bartcore_setTestStoreHooks", bartcore_setTestStoreHooks, 1),
   DEF_FUNC("dbarts_setSIMDInstructionSet", setSIMDInstructionSet, 1),
   DEF_FUNC("dbarts_getMaxSIMDInstructionSet", getMaxSIMDInstructionSet, 0),
   DEF_FUNC("dbarts_buildInfo", buildInfo, 0),
