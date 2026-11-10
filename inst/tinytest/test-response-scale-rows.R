@@ -1028,10 +1028,15 @@ expect_equal(made$sigmaFallbacks, 1L)
 expect_equal(made$value$data@sigma, sd(yOne), tolerance = 1e-14)
 # weights of 1 give the unweighted fit's stand-in to the bit, and a seeded
 # fit draws as the unweighted one does, on a response whose weighted sum of
-# squares differs from sd()'s in the last bit
+# squares differs from sd()'s in the last bit where R sums in extended
+# precision; where it does not (a build without long double, as CRAN's noLD
+# check, or valgrind, which runs long double at double precision) the two
+# may agree and the pins below hold trivially
 ones <- rep(1, 40L)
 yUnit <- x60[, 1L] + cos(5.1 * seq_len(40L))
-expect_false(identical(dbarts:::weightedSd(yUnit, ones), sd(yUnit)))
+if (sum(c(1, .Machine$double.eps / 2, -1)) != 0) {
+  expect_false(identical(dbarts:::weightedSd(yUnit, ones), sd(yUnit)))
+}
 expect_identical(
   dbarts(x60, yUnit, weights = ones, control = control)$data@sigma,
   sd(yUnit)
