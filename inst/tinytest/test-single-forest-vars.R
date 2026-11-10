@@ -437,7 +437,7 @@ expect_identical(unname(hazardSplits[3L]), 0)
 expect_true(hazardSplits[4L] > 0)
 # with several forests each forest's 'vars' is taken as written for the
 # columns the caller supplied, and period stays allowed in every forest
-# whatever its 'vars' names
+# whatever its 'vars' names; the basis has one value per subject
 hazardForests <- function(vars, basisVars = NULL) {
   set.seed(7L)
   fit <- dbarts(
@@ -446,7 +446,7 @@ hazardForests <- function(vars, basisVars = NULL) {
     family = "hazard",
     forests = list(
       forest(vars = vars),
-      forest(vars = basisVars, basis = rep_len(c(0, 1), sum(time)))
+      forest(vars = basisVars, basis = rep_len(c(0, 1), nrow(x)))
     ),
     control = control,
     n.trees = 20L
