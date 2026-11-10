@@ -1692,13 +1692,7 @@ matrixBasisSource <- function(x, forests) {
 
 objectBasisSource <- function(object, forests) {
   if (dataKeepsFrame(object)) {
-    # counted as the build counted them: a list's first element need not be
-    # a column
-    total <- if (is.null(object@rows)) {
-      formulaRowsTotal(object@build$formula, object@frame)
-    } else {
-      dataRowsTotal(object)
-    }
+    total <- frameRowsTotal(object)
     return(list(
       data = object@frame,
       total = total,

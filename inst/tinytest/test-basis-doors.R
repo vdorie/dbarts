@@ -665,6 +665,11 @@ expect_identical(
 )
 listObject <- dbartsData(y ~ x1 + x2, asList, subset = keep)
 expect_identical(listObject@rows.total, 60L)
+expect_identical(nobs(dbartsData(y ~ x1 + x2, asList)), 60L)
+expect_identical(nobs(listObject), 40L)
+lateObject <- dbartsData(y ~ x1 + x2, asList, subset = 41:60)
+expect_true(validObject(lateObject, test = TRUE))
+expect_true(validObject(dbartsData(y ~ x1 + x2, asList), test = TRUE))
 expect_identical(
   fitDraws(
     dbartsData(y ~ x1 + x2, asList),

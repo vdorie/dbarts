@@ -94,6 +94,17 @@ formulaRowsTotal <- function(formula, data) {
   )
 }
 
+## The number of rows a frame-keeping object was handed, as its build counted
+## them (formulaRowsTotal): a list's first element need not be a column.
+frameRowsTotal <- function(object) {
+  total <- if (is.null(object@rows)) NA_integer_ else dataRowsTotal(object)
+  build <- object@build
+  if (is.na(total) && is.list(build) && inherits(build$formula, "formula")) {
+    total <- formulaRowsTotal(build$formula, object@frame)
+  }
+  if (is.na(total)) frameNumRows(object@frame) else total
+}
+
 ## The kept rows' names as model.frame() gives them, which the rows alone
 ## determine unless a repeated row is one the na.action then drops.
 derivedRowNames <- function(frame, rows) {
@@ -220,7 +231,7 @@ validateFrameKeepingData <- function(object) {
   if (!is.list(frame)) {
     return("'frame' must be a data frame or a list")
   }
-  total <- frameNumRows(frame)
+  total <- frameRowsTotal(object)
   rows <- object@rows
   if (
     !is.null(rows) && (!is.integer(rows) || any(rows > total, na.rm = TRUE))
@@ -290,7 +301,7 @@ nobs.dbartsData <- function(object, ...) {
   if (dataKeepsFrame(object)) {
     return(
       if (is.null(object@rows)) {
-        frameNumRows(object@frame)
+        frameRowsTotal(object)
       } else {
         length(object@rows)
       }
