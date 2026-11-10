@@ -33,7 +33,7 @@ using bartcore_bridge::sigmaIsPinned;
 using bartcore_bridge::testFitsAreUndefined;
 using bartcore_bridge::UnwindJump;
 using bartcore_bridge::refuseNonFinite;
-using bartcore_bridge::validateResponseSupport;
+using bartcore_bridge::refuseSwappedResponse;
 using bartcore_bridge::validateTestContainerAgainstStore;
 
 namespace {
@@ -696,13 +696,11 @@ int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
   // the one place minimal validation is not enough: an out-of-support y is a
   // silently garbage latent draw for probit/ordinal and, for nbinom, an
   // uncatchable crash inside the count histogram (see validateResponseSupport)
-  bartcore::SamplerShape shape = samplerOf(sampler).shape();
-  refuseNonFinite(y, shape.numObservations, "dbarts_sampler_setResponse",
-                  "response");
-  validateResponseSupport(shape.family, shape.numOrdinalThresholds + 1, y,
-                          shape.numObservations, "dbarts_sampler_setResponse");
+  // or, past the weighted count cap, a sweep that never ends
+  refuseSwappedResponse(samplerOf(sampler), y, "dbarts_sampler_setResponse");
   return swapStatus(samplerOf(sampler).setResponse(
-    adoptVector(sampler->ownedResponse, y, shape.numObservations),
+    adoptVector(sampler->ownedResponse, y,
+                samplerOf(sampler).shape().numObservations),
     updateScale != 0));
 }
 

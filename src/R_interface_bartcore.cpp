@@ -4177,6 +4177,19 @@ void refuseNonFinite(const double* values, size_t count, const char* caller,
       Rf_error("%s: %s contains non-finite values", caller, what);
 }
 
+void refuseSwappedResponse(const bartcore::SamplerBase& sampler,
+                           const double* y, const char* caller) {
+  bartcore::SamplerShape shape = sampler.shape();
+  // support before install: the engine's next latent draw consumes y
+  refuseNonFinite(y, shape.numObservations, caller, "response");
+  validateResponseSupport(shape.family, shape.numOrdinalThresholds + 1, y,
+                          shape.numObservations, caller);
+  if (shape.family == bartcore::ResponseFamily::nbinom)
+    refuseWeightedCountsOverCap(caller, sampler.weights(), y,
+                                shape.numObservations,
+                                sampler.shapeParameter(0), shape.drawsShape);
+}
+
 // The single-forest test-fit and prediction surface has no meaning on a
 // coupling whose amplitudes have no off-sample basis to multiply: the blend
 // sum_f dot(a_f, B_f(i,.)) f_f(x_i) is ill-defined off the training rows, so
@@ -7128,17 +7141,8 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr,
       static_cast<size_t>(Rf_xlength(yExpr)) != shape.numObservations)
     Rf_error("y must be of length equal to %lu",
              static_cast<unsigned long>(shape.numObservations));
-  // support before install: the engine's next latent draw consumes y
-  refuseNonFinite(REAL(yExpr), shape.numObservations, "$setResponse",
-                  "response");
-  validateResponseSupport(shape.family, shape.numOrdinalThresholds + 1,
-                          REAL(yExpr), shape.numObservations,
-                          "$setResponse");
-  if (shape.family == bartcore::ResponseFamily::nbinom)
-    bartcore_bridge::refuseWeightedCountsOverCap(
-      "$setResponse", holder.sampler->weights(), REAL(yExpr),
-      shape.numObservations, holder.sampler->shapeParameter(0),
-      shape.drawsShape);
+  bartcore_bridge::refuseSwappedResponse(*holder.sampler, REAL(yExpr),
+                                         "$setResponse");
   const double* status = NULL;
   if (!Rf_isNull(statusExpr)) {
     if (shape.family != bartcore::ResponseFamily::aft)

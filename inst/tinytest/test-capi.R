@@ -1468,6 +1468,52 @@ finiteRun <- specFinite$run(0L, 2L)
 expect_true(all(is.finite(finiteRun$sigma)))
 rm(specFinite, ptrFinite, finiteRun)
 
+# a negative-binomial row of count w draws w (y + r) Polya-Gamma units a
+# sweep, so the flat response conduit holds a counted sampler to the cap
+# $setResponse states, r at the drawn shape's largest grid point (50); the
+# counts reach the sampler through the bridge entry, which the fitting
+# functions do not yet open
+countY <- as.double(rpois(n, 3))
+nbinomCounts <- dbarts(
+  x,
+  countY,
+  family = "nbinom",
+  control = control,
+  n.trees = 5L
+)
+.Call(
+  dbarts:::C_dbarts_bartcore_setWeights,
+  nbinomCounts$getPointer(),
+  replace(rep(1, n), 1L, 2),
+  FALSE,
+  FALSE,
+  NULL
+)
+expect_error(
+  CALL(
+    "capi_set_response",
+    nbinomCounts$getPointer(),
+    replace(countY, 1L, 499975),
+    FALSE
+  ),
+  paste0(
+    "dbarts_sampler_setResponse: family \"nbinom\" requires 'weights' times ",
+    "(y + r) no larger than 1000000"
+  ),
+  fixed = TRUE
+)
+# the bound itself is taken: 2 (499950 + 50) is the cap
+expect_equal(
+  CALL(
+    "capi_set_response",
+    nbinomCounts$getPointer(),
+    replace(countY, 1L, 499950),
+    FALSE
+  ),
+  1L
+)
+rm(countY, nbinomCounts)
+
 # a binomial sampler (the counts slot under logistic) refuses a flat response
 # on the flat conduit in $setResponse's words
 binomialControl <- dbartsControl(

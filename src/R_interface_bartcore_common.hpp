@@ -500,6 +500,15 @@ void refuseBinomialResponseSwap(const bartcore::SamplerShape& shape,
 void refuseNonFinite(const double* values, std::size_t count,
                      const char* caller, const char* what);
 
+/// The checks a swapped response's values meet on both swap conduits, the R
+/// setter and the flat one, so the two cannot drift apart: finite, within the
+/// family's support (validateResponseSupport), and under the weighted count
+/// cap against the sampler's own weights and shape where they are nbinom
+/// counts (refuseWeightedCountsOverCap). \p y holds one value per
+/// observation; caller labels the error.
+void refuseSwappedResponse(const bartcore::SamplerBase& sampler,
+                           const double* y, const char* caller);
+
 /// The interrupt poll both run routes hand the engine: R_CheckUserInterrupt
 /// under R_ToplevelExec, so a pending interrupt is reported rather than
 /// longjmped and the sampler can join its workers before it is raised. An
