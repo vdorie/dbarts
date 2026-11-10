@@ -249,13 +249,21 @@ cross-slice probes. Hard chains stay serial.
 
 ## Reviewer checklist
 
-Cheap gates are re-run by the reviewer, not trusted from the report.
-Expensive ones are audited: the reviewer reads the builder's logs of the
-full suite, the equivalence trio and the snapshot files, and each log must
-name the tip's sha and the library it ran against. The reviewer reruns
+The reviewer audits the builder's logs rather than rerunning them: the
+full suite, the equivalence trio, the snapshot files, and the cheap chain
+(lintr, air, rc-codoc, win-drift, doc-freshness, verify-anchors). Each log
+must name the tip's sha and the library it ran against, and each gate's
+own exit status (a pipe into `tail` masks it). The bullets below say what
+each cheap gate must show. CI's lint.yaml and doc-freshness.yaml on the
+tip are the gate for the chain. The reviewer reruns
 only the test files the change touches, their mutants and its own probes,
 and reruns a full gate only when its log is missing, from another sha, or
 doubtful. CI on the tip is the full-suite gate (dec-B769).
+
+The builder's local pre-push chain (the cheap chain above) and its local
+bitwise equivalence trio and snapshot files are feedback before the push,
+not landing gates; CI on the tip is the gate. A builder may skip the trio
+for a change that cannot reach the engine.
 
 - `air format --check .` tree-wide, and `lintr::lint()` on every touched R
   file against the slice's own library (a stale library manufactures
