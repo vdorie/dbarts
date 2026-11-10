@@ -1810,7 +1810,7 @@ bartcoreSamplerSetData <- function(
   # a hazard sampler's survival data are spread onto its own periods, as
   # dbarts() spreads them at creation, and are the rows from here on
   if (!is.null(sampler$model@hazard.periods)) {
-    newData <- spreadSurvivalOnPeriods(newData, sampler$model@hazard.periods)
+    newData <- spreadSurvivalOnPeriods(newData, sampler)
   }
   # a sampler of one forest has no forest for a basis to multiply
   if (!is.null(newData@bases)) {
@@ -1974,12 +1974,21 @@ leafFromAllRows <- function(sampler, records) {
 ## period, and the names and the na.action record restated over the rows. A
 ## time past the last period leaves its subject at risk through every period
 ## with no event, as at creation for a subject out of the likelihood. A data
-## object with no survival response is returned as it is.
-spreadSurvivalOnPeriods <- function(data, periods) {
+## object with no survival response is returned as it is. The memory of the
+## sampler's runs over the rows is projected and warned of before they are
+## built, as at creation, from the sampler's control and its trees.
+spreadSurvivalOnPeriods <- function(data, sampler) {
   status <- attr(data, "survivalStatus", exact = TRUE)
   if (is.null(status)) {
     return(data)
   }
+  periods <- sampler$model@hazard.periods
+  ptr <- sampler$getPointer()
+  numTrees <- sum(vapply(
+    seq_len(bartcoreNumForests(ptr)) - 1L,
+    function(forest) bartcoreForestTreeCount(ptr, forest),
+    0L
+  ))
   time <- attr(data, "survivalTime", exact = TRUE)
   timeOmitted <- attr(data, "survivalTimeOmitted", exact = TRUE)
   attr(data, "survivalStatus") <- NULL
@@ -2000,9 +2009,11 @@ spreadSurvivalOnPeriods <- function(data, periods) {
     data@x,
     time,
     status,
+    hazardRunSettings(sampler$control, numTrees, setData = TRUE),
     offset = data@offset,
     weights = data@weights,
-    periods = periods
+    periods = periods,
+    n.test = NROW(data@x.test)
   )
   data@x <- expansion$x
   data@varTypes <- c(data@varTypes, ORDINAL_VARIABLE)

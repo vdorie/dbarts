@@ -50,7 +50,6 @@ for (name in names(dbartsFamilies)) {
 
 expect_equal(dbartsFamilies$hazard()@token, "hazard.probit")
 expect_equal(dbartsFamilies$hazard(link = "logistic")@token, "hazard.logistic")
-expect_equal(dbartsFamilies$hazard()@settings$max.rows, 1e7)
 expect_null(dbartsFamilies$hazard()@settings$breaks)
 expect_equal(dbartsFamilies$nbinom(shape = 3)@settings$shape, 3)
 expect_true(is.na(dbartsFamilies$nbinom()@settings$shape))
@@ -58,7 +57,6 @@ expect_true(is.na(dbartsFamilies$nbinom()@settings$shape))
 # validation, by name
 expect_error(dbartsFamilies$nbinom(shape = -1), "positive")
 expect_error(dbartsFamilies$nbinom(shape = c(1, 2)), "single positive")
-expect_error(dbartsFamilies$hazard(max.rows = 0), "positive")
 expect_error(dbartsFamilies$hazard(breaks = "five"), "NULL or numeric")
 expect_error(dbartsFamilies$hazard(link = "cloglog"), "should be one of")
 
@@ -480,40 +478,6 @@ fitHazard <- dbarts::bart(
   verbose = FALSE
 )
 expect_equal(fitHazard$periods, c(2, 5, max(timeSurv)))
-# a cap smaller than the expansion is named rather than run
-expect_error(
-  dbarts::bart(
-    xSurv,
-    cbind(timeSurv, statusSurv),
-    family = hazard(max.rows = 10),
-    n.trees = 10L,
-    n.samples = 10L,
-    n.burn = 5L,
-    n.chains = 1L,
-    n.threads = 1L,
-    verbose = FALSE
-  ),
-  "max.rows"
-)
-# and the refusal states what a row costs (dec-B367)
-cost <- tryCatch(
-  dbarts::bart(
-    xSurv,
-    cbind(timeSurv, statusSurv),
-    family = hazard(max.rows = 10),
-    n.trees = 10L,
-    n.samples = 10L,
-    n.burn = 5L,
-    n.chains = 1L,
-    n.threads = 1L,
-    verbose = FALSE
-  ),
-  error = conditionMessage
-)
-expect_true(grepl("about 210 bytes shared", cost, fixed = TRUE))
-expect_true(grepl("about 630 a chain at 75 trees", cost, fixed = TRUE))
-expect_true(grepl("8.5 GB on one chain and 27 GB", cost, fixed = TRUE))
-rm(cost)
 
 # --- the stored call is the caller's own ------------------------------------
 

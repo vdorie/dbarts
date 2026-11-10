@@ -173,18 +173,21 @@ hazardGridTimes <- function(time, weights) {
 # subject's rows are all zero (right-censoring is pure data shape). Offsets and
 # weights replicate per subject and follow the chosen binary family's policy
 # downstream. Returns the expanded design, the binary response, the period
-# grid (for the $periods marker), and the replicated offset/weights. The N'
-# row guard (max.rows) refuses an over-fine grid, naming the coarsening levers.
+# grid (for the $periods marker), and the replicated offset/weights. Once the
+# grid gives the row count, and before any row is built, the fit's memory is
+# projected and warned of (warnHazardMemory) from 'run' (hazardRunSettings),
+# counting the 'n.test' held-out subjects at every period.
 expandDiscreteTimeHazard <- function(
   x,
   time,
   status,
+  run,
   breaks = NULL,
-  max.rows = 1e7,
   offset = NULL,
   weights = NULL,
   gridTime = time,
-  periods = NULL
+  periods = NULL,
+  n.test = 0L
 ) {
   n <- length(time)
   grid <- if (is.null(periods)) {
@@ -195,20 +198,14 @@ expandDiscreteTimeHazard <- function(
   periods <- grid$periods
   terminal <- grid$terminalPeriod
 
-  Nprime <- sum(terminal)
-  if (Nprime > max.rows) {
-    stop(
-      "person-period expansion would create ",
-      Nprime,
-      " rows, over the cap of ",
-      max.rows,
-      "; coarsen the time grid with family = hazard(breaks = ) (a boundary ",
-      "vector or an integer period count), or raise the cap with ",
-      "family = hazard(max.rows = ); a row costs about 210 bytes shared ",
-      "and about 630 a chain at 75 trees (one stored value a row a tree), so ",
-      "1e7 rows is about 8.5 GB on one chain and 27 GB on bart()'s four"
-    )
-  }
+  # in double precision, so a row count past the integer range is projected
+  # rather than overflowing
+  warnHazardMemory(
+    sum(as.double(terminal)),
+    as.double(n.test) * length(periods),
+    NCOL(x),
+    run
+  )
 
   # subject-major, period ascending within subject: the period-1 rows are the
   # subjects in order (survivalProbabilities reconstructs training covariates
@@ -251,6 +248,130 @@ expandDiscreteTimeHazard <- function(
     result$weights <- weights[subjectOf]
   }
   result
+}
+
+# The settings of the run a hazard fit's memory is projected for: its chains,
+# its kept draws a chain, whether it keeps the training rows' fits and any
+# row's, and 'n.trees', its trees a chain. 'setData' says the rows are handed
+# to a sampler's $setData, whose periods are its own.
+hazardRunSettings <- function(control, n.trees, setData = FALSE) {
+  list(
+    n.chains = control@n.chains,
+    n.samples = control@n.samples,
+    n.trees = n.trees,
+    keepTrainingFits = control@keepTrainingFits,
+    keepFits = control@keepFits,
+    setData = setData
+  )
+}
+
+# The peak memory, in bytes, of a hazard fit over 'rows' person-period
+# training rows and 'testRows' held-out ones, with 'numPredictors' predictor
+# columns besides the period, run as 'run' (hazardRunSettings) says. Measured
+# on one build: a training row takes about 200 bytes and 34 a predictor
+# column, which the chains share, and each chain about 20 bytes and 8 a tree,
+# the fits of the trees it holds; a held-out row about 30 bytes and 36 a
+# predictor column. A kept draw of a row's fit is 8 bytes a chain in the fit
+# returned and about 14 at the peak, while it is copied out: the training
+# rows' are kept under keepTrainingFits, and no row's without keepFits. Every
+# figure counts doubles, integers and pointers, so it holds on any 64-bit
+# machine.
+hazardFitBytes <- function(rows, testRows, numPredictors, run) {
+  keptDraws <- if (run$keepFits) run$n.chains * run$n.samples else 0
+  trainingDraws <- if (run$keepTrainingFits) keptDraws else 0
+  rows *
+    (200 +
+      34 * numPredictors +
+      run$n.chains * (20 + 8 * run$n.trees) +
+      14 * trainingDraws) +
+    testRows * (30 + 36 * numPredictors + 14 * keptDraws)
+}
+
+# The machine's physical memory, in bytes, NA where the operating system does
+# not report it. An unexported, undocumented option, dbarts.physicalMemory,
+# read fresh per call, stands in for it, so a test can put a projection over
+# it or make it unreadable with NA.
+physicalMemory <- function() {
+  forced <- getOption("dbarts.physicalMemory")
+  if (!is.null(forced)) {
+    return(as.double(forced)[1L])
+  }
+  .Call(C_dbarts_physicalMemory)
+}
+
+# A byte count in words, in megabytes or gigabytes of 2^20 and 2^30 bytes.
+formatBytes <- function(bytes) {
+  if (bytes < 2^30) {
+    paste(format(signif(bytes / 2^20, 2L)), "MB")
+  } else {
+    paste(format(signif(bytes / 2^30, 2L)), "GB")
+  }
+}
+
+# Warns, once per session, when a hazard fit's projected peak memory
+# (hazardFitBytes) exceeds the machine's physical memory, naming the rows, the
+# two figures and what lowers the first; silent where that memory cannot be
+# read. Called before the rows are built, and the fit runs whatever it says.
+warnHazardMemory <- function(rows, testRows, numPredictors, run) {
+  available <- physicalMemory()
+  if (is.na(available)) {
+    return(invisible(NULL))
+  }
+  needed <- hazardFitBytes(rows, testRows, numPredictors, run)
+  if (needed <= available) {
+    return(invisible(NULL))
+  }
+  keepsTraining <- run$keepFits && run$keepTrainingFits
+  keptDraws <- if (run$keepFits && (keepsTraining || testRows > 0)) {
+    paste0(
+      " keeping ",
+      run$n.samples,
+      " draws a chain of the ",
+      if (keepsTraining) "training" else "test",
+      " fits"
+    )
+  }
+  ways <- c(
+    if (run$setData) {
+      c("hand over fewer subjects", "make a new sampler with hazard(breaks = )")
+    } else {
+      "coarsen the grid with hazard(breaks = )"
+    },
+    if (keepsTraining) "set keepTrainingFits = FALSE",
+    if (run$n.chains > 1L) "run fewer chains"
+  )
+  numWays <- length(ways)
+  if (numWays > 1L) {
+    ways <- paste0(
+      paste(ways[-numWays], collapse = ", "),
+      if (numWays > 2L) ",",
+      " or ",
+      ways[numWays]
+    )
+  }
+  warnOnce(
+    "hazardMemory",
+    class = "dbartsMemoryWarning",
+    if (run$setData) "$setData: " else "",
+    "the hazard fit expands to ",
+    format(rows, scientific = FALSE),
+    " person-period rows",
+    if (testRows > 0) {
+      paste0(" and ", format(testRows, scientific = FALSE), " test rows")
+    },
+    if (run$setData) " on the sampler's periods",
+    "; at ",
+    run$n.chains,
+    if (run$n.chains == 1L) " chain" else " chains",
+    keptDraws,
+    " it needs about ",
+    formatBytes(needed),
+    " at its peak, and this machine has ",
+    formatBytes(available),
+    "; ",
+    ways,
+    ". This warning does not stop the fit and is shown once per session"
+  )
 }
 
 # A formula-path hazard fit's na.action record, restated over person-period
@@ -988,7 +1109,6 @@ dbarts <- function(
   # this signature no longer carries
   shape <- familySetting(familySpec, "shape", NA_real_)
   breaks <- familySetting(familySpec, "breaks", NULL)
-  max.rows <- familySetting(familySpec, "max.rows", 1e7)
   # The residual scale's prior has one home, the family object it rides; the
   # retired flat spelling is still read for one release, and a flat spelling
   # beside a family that named 'sigma' too is refused unless the two agree.
@@ -1066,6 +1186,25 @@ dbarts <- function(
     formula <- termIngestion$formula
     matchedCall$formula <- formula
   }
+
+  validateCall <- redirectCall(
+    matchedCall,
+    quoteInNamespace(validateArgumentsInEnvironment)
+  )
+  validateCall <- addCallArgument(validateCall, 1L, sys.frame(sys.nframe()))
+  validateCall <- addCallArgument(validateCall, 2L, dbarts::dbarts)
+  validateCall <- addCallArgument(validateCall, 3L, "dbarts")
+  eval(validateCall, evalEnv, getNamespace("dbarts"))
+  # the count and the cut settings as this call states them, flat or written
+  # on the control; a wrapper has read them and passes them flat. Resolved
+  # before any response is read, so that a hazard fit's memory can be
+  # projected from them before its rows are built
+  copies <- readDoorCopies(
+    releaseCarriedControl(control, "dbarts"),
+    list(n.trees = n.trees, n.cuts = n.cuts, useQuantiles = useQuantiles),
+    writtenArgs
+  )
+  control <- copies$control
 
   # survival response ingestion: a survival::Surv
   # object or an explicit family = "aft" with a two-column (time, status)
@@ -1176,8 +1315,8 @@ dbarts <- function(
       xForExpansion,
       timeForExpansion,
       statusForExpansion,
+      hazardRunSettings(control, control@n.trees),
       breaks = breaks,
-      max.rows = max.rows,
       offset = offsetForExpansion,
       weights = weightsForExpansion,
       gridTime = if (!is.null(keptSubjects)) {
@@ -1191,7 +1330,8 @@ dbarts <- function(
         )
       } else {
         hazardGridTimes(timeForExpansion, weightsForExpansion)
-      }
+      },
+      n.test = if (!missing(test)) NROW(test) else 0L
     ))
     matchedCall$formula <- expansion$x
     matchedCall$data <- expansion$y
@@ -1361,23 +1501,6 @@ dbarts <- function(
       stop(probitBinomialMessage)
     }
   }
-
-  validateCall <- redirectCall(
-    matchedCall,
-    quoteInNamespace(validateArgumentsInEnvironment)
-  )
-  validateCall <- addCallArgument(validateCall, 1L, sys.frame(sys.nframe()))
-  validateCall <- addCallArgument(validateCall, 2L, dbarts::dbarts)
-  validateCall <- addCallArgument(validateCall, 3L, "dbarts")
-  eval(validateCall, evalEnv, getNamespace("dbarts"))
-  # the count and the cut settings as this call states them, flat or written
-  # on the control; a wrapper has read them and passes them flat
-  copies <- readDoorCopies(
-    releaseCarriedControl(control, "dbarts"),
-    list(n.trees = n.trees, n.cuts = n.cuts, useQuantiles = useQuantiles),
-    writtenArgs
-  )
-  control <- copies$control
 
   if (length(control@call) == 1L && control@call == call("NA")) {
     recordedCall <- matchedCall
@@ -1573,11 +1696,12 @@ dbarts <- function(
         data@x,
         formulaSurvivalTime,
         formulaSurvivalStatus,
+        hazardRunSettings(control, control@n.trees),
         breaks = breaks,
-        max.rows = max.rows,
         offset = data@offset,
         weights = data@weights,
-        gridTime = hazardGridTimes(formulaSurvivalTime, data@weights)
+        gridTime = hazardGridTimes(formulaSurvivalTime, data@weights),
+        n.test = NROW(data@x.test)
       ))
       # makeModelMatrix already typed the original columns (categorical vs
       # ordinal); the appended period column is ordinal by construction

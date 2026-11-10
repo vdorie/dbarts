@@ -276,22 +276,6 @@ expect_error(
   fixed = TRUE
 )
 
-# ---- the N' row guard refuses an over-fine grid, naming the levers ----
-expect_error(
-  do.call(
-    bart,
-    c(
-      list(
-        x,
-        cbind(d$time, d$status),
-        family = quote(hazard(max.rows = 50))
-      ),
-      fitArgs
-    )
-  ),
-  "breaks"
-)
-
 # ---- offset / weight replication follow the binary policy ----
 # a non-unit probit weight is refused after replication (the binary policy);
 # an integer-count logistic weight is accepted

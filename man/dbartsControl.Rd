@@ -102,7 +102,7 @@ dbartsControl(
    }
 }
 \section{Engine limits}{
-  Ten fixed values decide what the engine will represent and where it
+  Nine fixed values decide what the engine will represent and where it
   switches strategy. Each was measured on one machine (arm64 macOS, 10 cores);
   the five that a workload can profitably move are settings here, and the rest
   are limits of the representation or of a proposal family, with nothing found
@@ -120,7 +120,6 @@ dbartsControl(
     Predict parallel cutoff \tab \code{\link[=dbartsSampler-class]{predict}} \tab 50000 traversals \tab 3e4 to 1e5 \tab yes, \code{predictParallelCutoff} \cr
     Sparse density threshold \tab \code{dgCMatrix} storage \tab 0.2 \tab 0.05 to 0.5 \tab yes, \code{sparseDensityThreshold} \cr
     Gaussian-process leaf size \tab \code{\link[=dbartsPriors]{gp}} leaves \tab 256 observations \tab 256 to 512 \tab yes, \code{gp(max.leaf.size = )} \cr
-    Person-period expansion \tab \code{\link[=dbartsFamilies]{hazard}} \tab 1e7 rows \tab host-dependent \tab yes, \code{hazard(max.rows = )} \cr
   }
 
   Of the settings in this table, the categorical enumeration cap and the

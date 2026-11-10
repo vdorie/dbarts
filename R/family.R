@@ -590,18 +590,14 @@ aft <- function(sigma = NULL) {
 ## grid of period breaks and fit as an ordinary binary model under 'link'.
 ## breaks = NULL takes the grid from the observed event times.
 ##
-## max.rows caps the expansion, whose row count grows with the grid's
-## resolution. Time is not what the cap protects: the expansion is linear and
-## cheap even well past the cap. Memory is - about 190 MB per million rows at
-## ten predictor columns, and it scales with the column count, so the default
-## cap bounds the expanded design's memory before the sampler has allocated
-## anything of its own. Ten million rows is where that bound stops being
-## something a modest machine absorbs; above it the refusal names both
-## levers, coarsening the grid and raising the cap, because which one is
-## right depends on the column count and the machine.
+## The expansion's row count grows with the grid's resolution, as the square
+## of the subjects on the default grid, and memory, not time, is what it costs:
+## at bart()'s defaults about 31 KB a row, most of it the kept draws of the
+## training fits. No row count is refused; a fit whose projected peak exceeds
+## the machine's physical memory is warned of once a session before its rows
+## are built (warnHazardMemory) and then runs.
 hazard <- function(
   breaks = NULL,
-  max.rows = 1e7,
   link = c("probit", "logistic")
 ) {
   link <- match.arg(link)
@@ -614,18 +610,10 @@ hazard <- function(
       call. = FALSE
     )
   }
-  if (
-    length(max.rows) != 1L ||
-      !is.numeric(max.rows) ||
-      is.na(max.rows) ||
-      max.rows <= 0.0
-  ) {
-    stop("hazard 'max.rows' must be a single positive number")
-  }
   newValidated(
     "dbartsFamily",
     token = paste0("hazard.", link),
-    settings = list(breaks = breaks, max.rows = as.double(max.rows))
+    settings = list(breaks = breaks)
   )
 }
 

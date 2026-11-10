@@ -113,20 +113,38 @@
       residual scale is drawn as a gaussian one is, so \code{sigma} is its
       prior, as for \code{gaussian}.
     }
-    \item{\code{hazard(breaks = NULL, max.rows = 1e7,
-                       link = c("probit", "logistic"))}}{
+    \item{\code{hazard(breaks = NULL, link = c("probit", "logistic"))}}{
       Discrete-time survival hazard by person-period expansion.
       \code{breaks} sets the period grid: \code{NULL} uses the sorted
       distinct observed times of the subjects in the likelihood (those of
       positive weight), a single positive integer bins at that many
       quantiles of those times, and a numeric boundary vector gives explicit right-closed
-      intervals. \code{max.rows} refuses an over-large expansion, naming
-      the coarsening levers and what a row costs: about 210 bytes shared
-      plus about 630 bytes a chain at 75 trees (one stored value a row a
-      tree, so growing with the trees), which makes the default of 1e7 rows
-      about 8.5 GB on one chain and 27 GB on \code{bart}'s four. \code{link} selects the binary link the
+      intervals. \code{link} selects the binary link the
       expanded rows are fit under, and is what the tokens
       \code{"hazard.probit"} and \code{"hazard.logistic"} name.
+
+      A subject is at risk for one row a period, so on the default grid with
+      distinct times the rows grow as the square of the subjects (1,000
+      subjects give about 500,000 rows) and on a grid of \eqn{K} periods as
+      \eqn{K} times the subjects. Memory, not time, is what a row costs: at
+      \code{\link{bart}}'s defaults (four chains of 500 kept draws, 75
+      trees) about 31 KB a row at its peak, about 28 KB of which are the kept
+      draws of the training fits (8 bytes a draw a chain in the fit returned,
+      and about 14 while they are copied out), so a million rows take about
+      30 GB. \code{keepTrainingFits = FALSE} leaves about 3 KB a row: about
+      300 bytes the chains share and about 620 a chain, 8 bytes a tree. A
+      predictor column beyond three adds about 34 bytes a row, and a held-out
+      subject passed as \code{test} is expanded to every period. No row count is refused: when the peak
+      projected from these figures exceeds the machine's physical memory, the
+      fit warns once per session, before any row is built, with a warning of
+      class \code{dbartsMemoryWarning} that names the rows, the two figures
+      and the ways out (a coarser \code{hazard(breaks = )},
+      \code{keepTrainingFits = FALSE} or fewer chains), and then runs; a
+      sampler's \code{$setData} warns the same way. The memory read is the
+      machine's: a limit set by a container or a job scheduler (a Linux
+      cgroup's \code{memory.max}) is not read, so under one the warning may
+      not come. Where the machine's memory cannot be read
+      there is no warning.
     }
     \item{\code{hurdle.lognormal(sigma = NULL)}}{
       A semicontinuous two-part response: a zero-part probit glued to a
