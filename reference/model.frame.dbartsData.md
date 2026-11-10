@@ -31,14 +31,17 @@ nobs(object, ...)
 `subset` and the `na.action`, as `model.frame` of an `lm` fit does: the
 response first, factors as factors, the weights in a `(weights)` column
 and the offsets in the [`offset()`](https://rdrr.io/r/stats/offset.html)
-and `(offset)` columns, so that
+and `(offset)` columns, with a terms record, so that
 [`model.response`](https://rdrr.io/r/stats/model.extract.html),
 [`model.weights`](https://rdrr.io/r/stats/model.extract.html) and
 [`model.offset`](https://rdrr.io/r/stats/model.extract.html) read them.
 Its `"na.action"` attribute is the object's. On an object that keeps its
-frame it is made from the frame; where the frame holds a sparse column,
-which `model.frame` cannot read, it is the frame decoded from the block,
-as for an object with no frame.
+frame it is made from the frame, a
+[`poly()`](https://rdrr.io/r/stats/poly.html) term with its
+coefficients; a sparse column (a `sparseVector`,
+[`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md)
+or `dgCMatrix`) comes back as stored, at the rows in, and is never made
+dense, so the frame holds classes a frame for `lm` could not.
 
 On an object with no frame (a sampler's data, `keep.data = FALSE`, the
 matrix interface, an environment) it is decoded from the block where
@@ -46,16 +49,24 @@ that is exact: the response is returned in its recorded type and levels
 (a factor, a logical, a character vector, a `Surv` response where the
 object holds its time and status, the count matrix for a multinomial
 one) and named as the formula wrote it (`log(price)`, and `y` where no
-formula did), a factor predictor as a factor over its declared levels,
-and a matrix term such as `poly(x, 2)` as one matrix column again, named
-as the formula wrote it, with the column names the term gave. The block
-holds no more than the values, so a rejoined matrix has none of the
-attributes [`poly()`](https://rdrr.io/r/stats/poly.html) or
+formula did), a factor predictor as a factor over its declared levels, a
+matrix term such as `poly(x, 2)` or `scale(x)` as one matrix column
+again, named as the formula wrote it, with the column names the term
+gave, and a column the block holds sparse as a sparse vector, sparse
+factor or sparse matrix. The columns come in the formula's order, and a
+column no term of the formula names (a hazard sampler's `period`) after
+them. The block holds no more than the values, so a rejoined matrix has
+none of the attributes [`poly()`](https://rdrr.io/r/stats/poly.html) or
 [`scale()`](https://rdrr.io/r/base/scale.html) give it (their class,
-coefficients and centers); every other column is as held.
+coefficients and centers); the terms record carries them in its
+`predvars`, as `lm`'s does. That record is the formula's, the sparse
+columns riding beside it; with no formula (the matrix interface), or
+where a hazard sampler added its `period`, the frame has none and
+`model.response` does not read it: its first column is the response.
 
-`nobs` counts every row in, rows of weight 0 included, which a BART fit
-holds in its trees; `nobs` of an `lm` fit leaves them out.
+`nobs` counts every row in, as the build counted them, evaluating
+nothing again, rows of weight 0 included, which a BART fit holds in its
+trees; `nobs` of an `lm` fit leaves them out.
 
 ## Value
 

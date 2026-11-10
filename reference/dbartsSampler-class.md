@@ -350,11 +350,10 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md).
   One that keeps its frame (`keep.data = TRUE`) is made into the
   block-holding object the sampler runs on first, as `dbarts` makes it.
-  Writing such an object to the sampler's `data` field resolves it the
-  same way. A sampler created with one forest and none refuses the data
-  of a sampler of several forests, which carry their bases, having no
-  forest to multiply them; hand over the data object they were made
-  from, or make a new sampler with
+  A sampler created with one forest and none refuses the data of a
+  sampler of several forests, which carry their bases, having no forest
+  to multiply them; hand over the data object they were made from, or
+  make a new sampler with
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md). A
   hazard sampler also takes data built from a `Surv` response
   (`dbartsData(Surv(time, status) ~ x, newData)`): its subjects are
@@ -1546,7 +1545,9 @@ Route changes through the `set*` methods instead.
   [`extract`](https://vdorie.github.io/dbarts/reference/extract.dbartsSampler.md)`(sampler, "predictors")`
   for the numeric predictor matrix, which is what tree replay and
   `getTrees` count against. Replace with `setData`, or a piece at a time
-  with the other `set*` methods.
+  with the other `set*` methods; writing the field
+  (`sampler$data <- newData`) stops and names `setData`, as such a write
+  would change the R-side copy and not the sampler.
 
 - `state`:
 

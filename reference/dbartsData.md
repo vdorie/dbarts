@@ -64,14 +64,15 @@ dbartsData(
 - keep.data:
 
   Whether an object built from a formula and a data frame or list keeps
-  the frame. `TRUE`, the default, keeps the frame as given, the
-  positions of the rows kept and what it takes to read the model's
-  variables from them again, and holds no predictors, response, weights
-  or offset: see ‘Data kept’. `FALSE` keeps the model matrix, the
-  response, the weights and the offset in the object, as it was in
-  0.9-34, and no frame. An object built from an environment, with no
-  `data`, or from the matrix interface keeps its matrix either way.
-  `formula` being a `dbartsData` object takes the argument quietly.
+  the frame. `TRUE`, the default, keeps the frame as given, unless the
+  build draws random numbers (see ‘Data kept’), the positions of the
+  rows kept and what it takes to read the model's variables from them
+  again, and holds no predictors, response, weights or offset: see ‘Data
+  kept’. `FALSE` keeps the model matrix, the response, the weights and
+  the offset in the object, as it was in 0.9-34, and no frame. An object
+  built from an environment, with no `data`, or from the matrix
+  interface keeps its matrix either way. `formula` being a `dbartsData`
+  object takes the argument quietly.
 
 - counts:
 
@@ -110,20 +111,32 @@ dbartsData(
 
 Built from a formula and a data frame or list, with `keep.data = TRUE`,
 the object keeps `data` whole (in its `frame` slot), `rows`, the
-positions in it of the rows kept after `subset` and the `na.action`
-(`NULL` when every row is kept in order; a repeated row, and a `NA` in
-`subset` that the `na.action` keeps, appear as they are), `rows.total`,
-the number of rows handed over, which `rows` are positions within
-(`NULL` where `rows` is), `frame.columns`, the names of its columns, and
-what reads the formula, `weights` and `offset` against the frame again.
-A caller's variable the formula names is kept as its value at the build.
-A later change to `data` leaves the object unchanged. The slots `x`,
-`y`, and where they were given `weights` and `offset` hold a stand-in
-that stops, naming `model.frame(object)`, under `dim`, `length`, `[`,
-`as.matrix`, arithmetic and the rest; `is.na`, `anyNA` and `is.finite`
-stop too, rather than answer for values the slot does not hold;
-[`attr()`](https://rdrr.io/r/base/attr.html) of one gives `NULL`, and a
-`weights` or `offset` that was not given is `NULL`. Read the data with
+positions in it of the rows kept after `subset` and the `na.action`,
+read from the model frame as `lm` reads them, so an `na.action` that
+records nothing of what it drops keeps the rows it returns (`NULL` when
+every row is kept in order; a repeated row, and a `NA` in `subset` that
+the `na.action` keeps, appear as they are), `rows.total`, the number of
+rows handed over, which `rows` are positions within (`NULL` where `rows`
+is), `frame.columns`, the names of its columns, `frame.source`,
+`"frame"` (`"environment"` beside the names of an environment the data
+were read from, and `NULL` where no data were given), and what reads the
+formula, `weights` and `offset` against the frame again. A caller's
+variable the formula, `weights` or `offset` names is kept as its value
+at the build, a function of no package among them, with the names it
+reads, so that a later change to the workspace, a function redefined or
+removed included, leaves the object unchanged; a function local to a
+caller's function is kept without the rest of that function's variables,
+and a package's function by name. A later change to `data` leaves the
+object unchanged. The slots `x`, `y`, and where they were given
+`weights` and `offset` hold a stand-in that stops, naming
+`model.frame(object)`, under `dim`, `length`, `[`, `as.matrix`,
+`as.numeric`, arithmetic, `sum`, `mean`, `c`, `rep`, `unique`, `cbind`,
+`rbind` and `sd`; `is.na`, `anyNA` and `is.finite` stop too, rather than
+answer for values the slot does not hold; `var` and `paste` read it in
+R's own code, which gives no way to stop them, and answer `NA` with a
+warning or the slot's name; [`attr()`](https://rdrr.io/r/base/attr.html)
+of one gives `NULL`, and a `weights` or `offset` that was not given is
+`NULL`. Read the data with
 [`model.frame`](https://rdrr.io/r/stats/model.frame.html)`(object)` and
 [`nobs`](https://rdrr.io/r/stats/nobs.html)`(object)`. Every refusal and
 warning of the build is given at the build.
@@ -136,8 +149,14 @@ evaluating the formula against the frame again, on the kept rows, with
 the caller's variables as they were at the build; the sampler's data
 hold no frame. A frame-keeping object loaded in another session does
 this at its first fit, so the packages its formula calls must be
-installed there, and a term that draws, as `I(x + rnorm(n))` does, is
-drawn again, as `predict` draws one on new data.
+installed there. A build whose formula, `weights` or `offset` draw from
+R's random-number generator, as `rnorm(n) ~ x` and `y ~ jitter(x)` do,
+keeps no frame and holds the values drawn, as `keep.data = FALSE` does,
+so that every fit from the object fits the same values; drawing `data`
+or `subset` does not count, as the frame and the rows are kept. A term
+drawing from a generator outside R's, which leaves R's stream where it
+was, is not seen: the object keeps its frame and draws again at each
+fit.
 
 ### Data frame ingestion
 
@@ -231,11 +250,11 @@ factor columns as their integer codes.
 
 ## Value
 
-An object of class `dbartsData`. Its `frame`, `rows` and `frame.columns`
-slots are described under ‘Data kept’. Its `rowNames` slot records the
-names of the kept training and test rows, as `list(train, test)`, or
-`NULL` when neither is named; a fit carries them on its outputs as the
-row names paragraph of
+An object of class `dbartsData`. Its `frame`, `rows`, `frame.columns`
+and `frame.source` slots are described under ‘Data kept’. Its `rowNames`
+slot records the names of the kept training and test rows, as
+`list(train, test)`, or `NULL` when neither is named; a fit carries them
+on its outputs as the row names paragraph of
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s ‘Value’
 section describes. Its `bases`, `basis.levels`, `basis.written` and
 `basis.scale` slots are `NULL` as created: a forest's basis is stated on
@@ -525,10 +544,13 @@ data
 #> Slot "frame.columns":
 #> [1] "x" "g" "y"
 #> 
+#> Slot "frame.source":
+#> [1] "frame"
+#> 
 #> Slot "build":
 #> $formula
 #> y ~ x + g
-#> <environment: 0x64e327536890>
+#> <environment: 0x59b08963a5b8>
 #> 
 #> $weights
 #> NULL
@@ -602,6 +624,9 @@ data
 #> $coding$missing.seen
 #> [1] FALSE FALSE
 #> 
+#> 
+#> $nobs
+#> [1] 60
 #> 
 #> 
 
