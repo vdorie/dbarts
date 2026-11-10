@@ -213,6 +213,13 @@ items
     docs/design/gpu-bart.md.
   grow-from-root: frontier 3.1's exact informed-proposal use of the
     shared cut scan (docs/design/parallel-bart-frontier.md sec 3.1).
+  hazard-test-null: bart(x, cbind(time, status), test = NULL,
+    family = "hazard") is refused ("'data' must be of a vector type, was
+    'NULL'") where a gaussian fit takes test = NULL as no test set, the
+    public-surface rule that NULL is absent. The matrix door's hazard
+    ingestion reads 'test' by missing() alone; a written NULL should take
+    the no-test path, at bart() and dbarts(). Found 2026-11-10; a few
+    lines and a pin.
   host-wording-sweep: dbarts.h still says "host" for the code that runs
     the BART sampler inside a larger sampler, in about 7 header lines (the
     help, the vignettes and the R strings are done); a docs-only sweep.
