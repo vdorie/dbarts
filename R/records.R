@@ -496,6 +496,16 @@ fitCountWords <- function(door, model, data, forests) {
 ## forest has a basis. A data object taken from a survival fit keeps its status
 ## only under a survival model. Anything else the model and data hold stands.
 takeControlReadings <- function(control, model, data) {
+  if (
+    !is.null(model@hazard.periods) &&
+      !is.null(attr(data, "survivalStatus", exact = TRUE))
+  ) {
+    stop(
+      "new: a sampler is not made from survival data; give them to dbarts() ",
+      "at creation, or to $setData on an existing hazard sampler",
+      call. = FALSE
+    )
+  }
   refuseUnnamedPeriod(data, !is.null(model@hazard.periods), "new")
   data <- restateCount(data, !is.null(model@hazard.periods))
   if (!identical(model@family, "aft")) {

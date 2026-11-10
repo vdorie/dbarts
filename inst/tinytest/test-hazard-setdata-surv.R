@@ -158,3 +158,11 @@ expect_silent(
     control = run()
   )
 )
+
+# survival data handed to new() are not a person-period matrix: the message
+# says where they go, not that a period column is missing
+survData <- dbartsData(form, second)
+expect_error(
+  new("dbartsSampler", run(), sampler$model, survData),
+  "survival data.*dbarts\\(\\).*\\$setData"
+)
