@@ -2534,7 +2534,6 @@ resolveForestBases <- function(
       bases[[k]] <- predictBasisByName(
         bases[[k]],
         newdata,
-        n.new,
         forestName(k, labels)
       )
       conformBasis(
@@ -2595,9 +2594,9 @@ resolveForestBases <- function(
   bases
 }
 
-# A single string given in 'bases' names a column of 'newdata', read there; on
-# one predicted row a string that names no column is that row's value.
-predictBasisByName <- function(value, newdata, n.new, forest) {
+# A single string given in 'bases' names a column of 'newdata', read there,
+# whatever the number of rows; a level is given as a factor.
+predictBasisByName <- function(value, newdata, forest) {
   name <- singleBasisString(value)
   if (is.null(name)) {
     return(value)
@@ -2609,9 +2608,6 @@ predictBasisByName <- function(value, newdata, n.new, forest) {
   }
   if (!is.null(column)) {
     return(column)
-  }
-  if (n.new == 1L) {
-    return(value)
   }
   stop(
     "'bases' gives ",

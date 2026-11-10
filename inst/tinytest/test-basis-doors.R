@@ -326,6 +326,41 @@ expect_identical(
     "column of 'newdata'"
   )
 )
+# on one row too (dec-B759): a single string is never a level, which is given
+# as a factor
+expect_identical(
+  predict(termFit, newRows[1L, ], bases = "dose"),
+  byValue[, 1L, drop = FALSE]
+)
+expect_identical(
+  refusal(predict(termFit, newRows[1L, ], bases = "dosage")),
+  paste0(
+    "'bases' gives forest 2 ('dose') the name 'dosage', which names no ",
+    "column of 'newdata'"
+  )
+)
+armFit <- bart(
+  y ~ x1 + forest(x2, basis = factor(z, labels = c("ctl", "trt"))),
+  d,
+  n.trees = 5L,
+  n.samples = 5L,
+  n.burn = 3L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 3L,
+  verbose = FALSE,
+  keepTrees = TRUE
+)
+expect_identical(
+  refusal(predict(armFit, d[1L, ], bases = "trt")),
+  paste0(
+    "'bases' gives forest 2 ('factor(z, labels = c(\"ctl\", \"trt\"))') ",
+    "the name 'trt', which names no column of 'newdata'"
+  )
+)
+expect_true(is.matrix(
+  predict(armFit, d[1L, ], bases = factor("trt", levels = c("ctl", "trt")))
+))
 
 # ---- dec-B680: a value has one entry per row handed over ----
 keep <- 1:40
