@@ -386,6 +386,16 @@ forest(
     \code{Map(forest, nms, MoreArgs = list(basis = quote(dose)))}, is code,
     as it is through \code{do.call()}.
 
+    Code or a single string passed on to \code{forest()} through the
+    \code{\dots} of a function of your own is read where that function's
+    caller wrote it: with \code{myForest <- function(...) forest(n.trees =
+    50, ...)}, \code{myForest(basis = "w")} written in a function reads that
+    function's \code{w}, as \code{myForest(basis = w)} does. A function that
+    takes the basis as an argument of its own and calls
+    \code{forest(basis = name)} hands over what the argument holds, read
+    where it calls \code{forest()}, as is a string passed on through the
+    \code{\dots} of a call that has returned.
+
     \strong{A value.} What is handed over as an object, through
     \code{do.call()} or in a call built by a program, is used as it is: a
     numeric vector or matrix is its columns, and a factor, a character vector

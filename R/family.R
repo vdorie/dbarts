@@ -71,7 +71,7 @@ recoverForwardedArgument <- function(expr, env) {
           sys.function(frame),
           sys.call(frame),
           expand.dots = FALSE,
-          envir = caller
+          envir = referencedDots(caller)
         )$...
         list(dots[[as.integer(substring(expr, 3L))]], caller)
       },
@@ -84,6 +84,20 @@ recoverForwardedArgument <- function(expr, env) {
     env <- recovered[[2L]]
   }
   list(expr = expr, env = env)
+}
+
+## An environment whose dots are those of `env` as references, ..1 to ..N
+## under their own names, so that match.call() records an argument passed on
+## through them as a reference even where it is a constant, which it would
+## otherwise record as itself; `env` itself where it sees no dots.
+referencedDots <- function(env) {
+  if (!exists("...", envir = env)) {
+    return(env)
+  }
+  dots <- as.list(match.call(function(...) NULL, quote(f(...)), envir = env))
+  references <- lapply(paste0("..", seq_along(dots[-1L])), as.name)
+  names(references) <- names(dots[-1L])
+  do.call(function(...) environment(), references)
 }
 
 ## A matched call as its caller wrote it, for storing on a fit: each argument

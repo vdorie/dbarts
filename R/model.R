@@ -3425,6 +3425,18 @@ forest <- function(
   # the basis as its caller wrote it and where: one forwarded through a
   # wrapper's dots is read where the wrapper's caller wrote it
   declared <- matched[["basis"]]
+  if (!is.null(singleBasisString(declared))) {
+    # match.call() records a string passed on through dots as the string;
+    # recorded as a reference it is walked back to where it was written, and
+    # names a variable there, where the walk can find that place
+    recovered <- recoverForwardedArgument(
+      match.call(envir = referencedDots(parent.frame()))[["basis"]],
+      parent.frame()
+    )
+    if (!isDotsReference(recovered$expr)) {
+      place <- callingPlace(recovered$env)
+    }
+  }
   if (is.language(declared)) {
     recovered <- recoverForwardedArgument(declared, parent.frame())
     if (isDotsReference(recovered$expr)) {

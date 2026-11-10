@@ -306,6 +306,40 @@ expect_identical(
   basisOf(builtFit(list(forest(), byFormal(frame$dose)))),
   column(frame$dose, "multiplier")
 )
+# a string forwarded so is read where the wrapper's caller wrote it, as the
+# name is, past a wrapper with a variable of its own and nested wrappers; a
+# formal holding a string is read where the wrapper calls forest()
+ownScale <- function(...) {
+  scaleBy <- frame$age
+  forest(...)
+}
+nested <- function(...) ownScale(...)
+holding <- function(name) {
+  scaleBy <- frame$age
+  forest(basis = name)
+}
+local({
+  scaleBy <- frame$dose
+  for (forests in list(
+    list(forest(), through(basis = "scaleBy")),
+    list(forest(), ownScale(basis = "scaleBy")),
+    list(forest(), nested(basis = "scaleBy")),
+    list(forest(), do.call(ownScale, list(basis = "scaleBy")))
+  )) {
+    expect_identical(
+      unname(basisOf(builtFit(forests))),
+      unname(basisOf(builtFit(list(forest(), ownScale(basis = scaleBy)))))
+    )
+    expect_identical(
+      basisOf(builtFit(forests)),
+      column(frame$dose, "scaleBy")
+    )
+  }
+  expect_identical(
+    basisOf(builtFit(list(forest(), holding("scaleBy")))),
+    column(frame$age, "scaleBy")
+  )
+})
 
 ## --- Block C: what is no basis ----------------------------------------------
 # NULL, held or computed, states none: the list is then two forests with no
@@ -1189,3 +1223,14 @@ expect_identical(
   column(w1 / 2, "I(w1/returnedScale)")
 )
 rm(returnedScale)
+# a string such a call forwards is read where forest() is called, its writer
+# being gone
+scaleBy <- frame$age
+local({
+  scaleBy <- frame$dose
+  expect_identical(
+    basisOf(builtFit(list(forest(), returning(basis = "scaleBy")()))),
+    column(frame$age, "scaleBy")
+  )
+})
+rm(scaleBy)
