@@ -5,7 +5,7 @@ docs/plans/archive/monotone-bart.md (this is its step 1). Revised by
 [monotone-exact-birth-death.md](../plans/monotone-exact-birth-death.md): two priors, "joint" (the
 default) and "leaf", each targeted exactly (sections 4 and 9). Revised 2026-10-06 by
 [monotone-unforced-refusal.md](../plans/monotone-unforced-refusal.md): an unforced predictor
-update that would leave a tree out of order is refused (section 12).
+update that would leave a tree out of order is refused (section 12). Revised 2026-11-10 (dec-B693; 12c109a2a, bb0fa502f): every forced call that leaves a tree out of order merges it where its order breaks, at the row-weighted mean.
 
 Users declare a monotone-increasing or -decreasing relationship for any
 subset of predictors; each tree of the forest is constrained to be monotone in

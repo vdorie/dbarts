@@ -1686,6 +1686,60 @@ Landed on bartCause main on 2026-11-10 (20409ca..57a365d: 447a322, 73be08c, 2ac2
 Gates of the slice are those of its first entry.
 Record: none (process). Marked: not marked. See also: [dec-B689]. [dec-A351]
 
+**Where a monotone tree breaks, the merge is the warm start's own routine, chains of violations and ties included**
+Landed on dbarts main on 2026-11-10 (dfb1e0cbe..b76916fea: 12c109a2a, bb0fa502f, 9112df2e9, e5c110420, b76916fea), built under dec-B693.
+1. The builder's call, not put to the maintainer, with its alternative. The warm start's collapseMonotoneTree as is: leaves up; at a constrained split out of order, one side merged, the side of fewer nodes first and the left on a tie; then the other side; then both; then the split itself; in order within 1e-9. The alternative was a new rule per call. The cost is none; the ruling says "as a warm start does".
+Gates: engine tier, draws moving only for monotone fits after a forced call that breaks the order, no baseline or snapshot re-recorded; one opus review with mutants (the builder's M1 to M8 and the reviewer's M9 caught by the R pins; M10, a weightless merged part set to 0, caught by tests/cpp and, after the fix round, by a new R pin), LAND after one doc fix, the fix round LAND, every call judged sound; the suite 43536 results, 0 failed; tests/cpp 561 ok, plain and under ASan and UBSan; equivalence on the reference build 55 of 55 identical, bcf 19 of 19, multinomial 11 of 11, snapshots 27 of 27; the exact gates at quick 49 of 49; the rebase onto main (two conflicts with the second small-rulings batch's DART fresh start, in the setState comment and its help, both kept) re-verified on the rebased tip, six pin files 0 failed and tests/cpp all passed; CI 10 of 10 on b76916fea; no x86 leg (see the orchestrator's call below).
+Record: src/bartcore/chain.hpp, model.hpp, sampler.hpp; tests/cpp/test_model.cpp, test_monotone.cpp; inst/tinytest/test-monotone.R, test-monotone-unforced.R, test-setstate-force-update.R; docs/design/monotone.md, warm-start-salvage.md, install-surface.md; the monotone and sampler help; root TODO, monotone-repair-merge, removed. Marked: not marked. See also: [dec-B693], [dec-B278], [dec-B355], [dec-B398]. [dec-A352]
+
+**The merge weighs the rows each leaf holds after the call**
+Landed on dbarts main on 2026-11-10 (dfb1e0cbe..b76916fea: 12c109a2a, bb0fa502f, 9112df2e9, e5c110420, b76916fea), built under dec-B693.
+2. The builder's call, not put to the maintainer, with its alternative. The weights are the rows each leaf holds after the call (the new rows for setData and setPredictor), under the working weights, as the warm start and the empty-leaf collapse weigh. The alternative was the rows before the call. The cost is none.
+Gates of the slice are those of its first entry.
+Record: src/bartcore/chain.hpp, sampler.hpp; inst/tinytest/test-monotone.R. Marked: not marked. See also: [dec-B693], [dec-B278], [dec-B355], [dec-B398]. [dec-A353]
+
+**A merged part that holds no weight takes the plain mean of its leaves**
+Landed on dbarts main on 2026-11-10 (dfb1e0cbe..b76916fea: 12c109a2a, bb0fa502f, 9112df2e9, e5c110420, b76916fea), built under dec-B693.
+3. The builder's call, not put to the maintainer, with its alternative. A merged part with no weight takes the plain mean of its leaves, subtreeMergedParameter's fallback. The alternative was 0. The cost is none. The review's mutant setting it to 0 (M10) survived the four R pin files and was caught only by a tests/cpp unit pin, so the fix round added an R pin through a setData door.
+Gates of the slice are those of its first entry.
+Record: src/bartcore/tree.hpp; tests/cpp/test_monotone.cpp; inst/tinytest/test-monotone.R. Marked: not marked. See also: [dec-B693], [dec-B278], [dec-B355], [dec-B398]. [dec-A354]
+
+**The reset routine and the repair choice are removed, not kept unused**
+Landed on dbarts main on 2026-11-10 (dfb1e0cbe..b76916fea: 12c109a2a, bb0fa502f, 9112df2e9, e5c110420, b76916fea), built under dec-B693.
+4. The builder's call, not put to the maintainer, with its alternative. reseedInfeasibleMonotoneLeaves and the MonotoneRepair choice are removed, every caller now merging. The alternative was keeping the enum for a later caller. The cost is a few more lines changed, and the history cites of the removed routine in five plan and design notes marked retired.
+Gates of the slice are those of its first entry.
+Record: src/bartcore/chain.hpp, model.hpp, sampler.hpp; docs/plans/warm-start-salvage.md, setstate-force-update.md; docs/design/warm-start-salvage.md. Marked: not marked. See also: [dec-B693], [dec-B278], [dec-B355], [dec-B398]. [dec-A355]
+
+**setState across grids merges at the install on the recorded grid and again after the move**
+Landed on dbarts main on 2026-11-10 (dfb1e0cbe..b76916fea: 12c109a2a, bb0fa502f, 9112df2e9, e5c110420, b76916fea), built under dec-B693.
+5. The builder's call, not put to the maintainer, with its alternative. A forced setState onto a sampler with other cut points merges at the install, on the recorded grid, and again after the move to the sampler's grid, as a warm start does. The alternative was merging only after the move. The cost is none, one routine serving both.
+Gates of the slice are those of its first entry.
+Record: src/bartcore/sampler.hpp; inst/tinytest/test-monotone-unforced.R, test-setstate-force-update.R. Marked: not marked. See also: [dec-B693], [dec-B278], [dec-B355], [dec-B398]. [dec-A356]
+
+**The allocation-failure settle of a monotone tree is left alone**
+Landed on dbarts main on 2026-11-10 (dfb1e0cbe..b76916fea: 12c109a2a, bb0fa502f, 9112df2e9, e5c110420, b76916fea), built under dec-B693.
+6. The builder's call, not put to the maintainer, with its alternative. settleMeanTree, which sends a tree to one leaf at 0 after an exception, is no repair of a call that completed, and is left as it is. The alternative was merging there too. The cost is none.
+Gates of the slice are those of its first entry.
+Record: src/bartcore/chain.hpp. Marked: not marked. See also: [dec-B693], [dec-B278], [dec-B355], [dec-B398]. [dec-A357]
+
+**The merge change takes no NEWS line**
+Landed on dbarts main on 2026-11-10 (dfb1e0cbe..b76916fea: 12c109a2a, bb0fa502f, 9112df2e9, e5c110420, b76916fea), built under dec-B693.
+7. The builder's call, not put to the maintainer, with its alternative. The monotone constraint is new in 1.0-0, so no 0.9-34 user meets the change. The alternative was a line under 1.0-0's monotone entry. The cost is none.
+Gates of the slice are those of its first entry.
+Record: inst/NEWS.Rd, unchanged. Marked: not marked. See also: [dec-B693], [dec-B278], [dec-B355], [dec-B398]. [dec-A358]
+
+**The forced-update flattening case in test-monotone.R carries no pin of the merge**
+Landed on dbarts main on 2026-11-10 (dfb1e0cbe..b76916fea: 12c109a2a, bb0fa502f, 9112df2e9, e5c110420, b76916fea), built under dec-B693.
+8. The builder's call, not put to the maintainer, with its alternative. The case flattens x2 under a forced update on a 20-tree fit and breaks no tree on its fixture, at base or at the tip; its comment now says merged and it pins no merge. The alternative was a new fixture. The cost is none; the hand-tree pins cover the forced update.
+Gates of the slice are those of its first entry.
+Record: inst/tinytest/test-monotone.R. Marked: not marked. See also: [dec-B693], [dec-B278], [dec-B355], [dec-B398]. [dec-A359]
+
+**The x86 leak-sanitizer leg of the monotone merge's landing was replaced by macOS leaks and sanitizer runs**
+Landed on dbarts main on 2026-11-10 (dfb1e0cbe..b76916fea: 12c109a2a, bb0fa502f, 9112df2e9, e5c110420, b76916fea), built under dec-B693.
+9. The orchestrator's call, not put to the maintainer, with its alternative. The x86 leg owed before landing an engine change (leak sanitizer on tests/cpp) was not run, the bench box being unavailable; in its place the reviewer's macOS leaks --atExit on tests/cpp (0 leaks, 0 bytes), ASan and UBSan on tests/cpp (561 ok, 0 diagnostics) and on the four R pin files under an R-loaded ASan build (1120 results, 0 diagnostics), with CI's sanitizer legs. The alternative was holding the landing until the box returns. The cost is that a leak the x86 leg alone would find lands unseen. The same substitute stood for the second small-rulings batch (dec-A323).
+Gates of the slice are those of its first entry.
+Record: none (process). Marked: not marked. See also: [dec-B693], [dec-A323]. [dec-A360]
+
 ## B. Decisions with maintainer evidence
 
 **Missing predictors are modeled, not refused**

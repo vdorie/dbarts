@@ -238,13 +238,6 @@ items
     samplePriorPredictive already draws f from the prior at x.test; the
     helper would summarize it, or compute it in closed form where one
     exists (constant, linear).
-  monotone-repair-merge: setPredictor, setData, setCutPoints and
-    setState under forceUpdate, and the warm start, repair a monotone
-    tree whose order a call breaks by merging leaves where it breaks, at
-    their row-weighted mean; no call resets its leaves to 0 (dec-B693,
-    revising dec-B278, dec-B355 and dec-B398). About 5 engine lines,
-    zero-pinning tests rewritten and the monotone and setState help;
-    draws move only for monotone fits after such a call.
   pdbart-closed-arguments: at 1.1-0, when pdbart's BayesTree spellings
     are refused, replace pdbart's and pd2bart's ... with bart's usable
     arguments listed explicitly, pinned by a test against bart's formals
