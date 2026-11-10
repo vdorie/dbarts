@@ -150,7 +150,7 @@ handed over as an object, `do.call(forest, list(basis = B))`.
   `forest(x1, basis = gf == "b") + forest(x1, basis = gf == "c")` beside a forest with no basis is
   created: three forests, each of the two a logical's two levels. So is
   `forest(x1, basis = dose) + forest(x1, basis = x2)`. A code basis travels through the data object as
-  one column of row numbers ([`basisRowNumbers`](../../R/forestBasis.R)) and is built on the rows kept
+  one column of row numbers (`basisRowNumbers`) and is built on the rows kept
   afterwards ([`buildCodeBasis`](../../R/forestBasis.R)); its record for new rows holds the levels kept.
 - Rows. Under a `subset` that leaves one level of g with no row, and under a missing response on those
   rows:
@@ -620,7 +620,7 @@ at `predict`: a name written in a call of `forest()` is code.
     value use the first two. The data door reads a value as a forest door does, and reads it where it
     has the rows the fit keeps (step 1.3): [`validateForestBases`](../../R/data.R) checks the length
     against the data as handed over and carries the value, cut with the rows
-    ([`restrictBasesToRows`](../../R/data.R), [`alignForestBasisToSubset`](../../R/model.R)), to that
+    (`restrictBasesToRows`, `alignForestBasisToSubset`), to that
     point, so the data door has no rule of its own. `dbarts()` and `dbartsSpec()` hand a value on to
     the data object as it was given and no longer expand it first
     (retired: [`expandValueBasis`](../../R/forestBasis.R), gone since), so that the data object's reading is the one reading

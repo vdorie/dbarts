@@ -49,10 +49,10 @@ names kept; part 2 makes it the model frame.
   prior-names-where-priors-go) reads `sd =` and the other number arguments, not the basis, whose refusal of
   a prior's name (dec-B272) stands; it does not touch the reader and is not built here.
 - Today a basis beside a frame rides [`dbartsData`](../../R/data.R)'s own `bases` argument: a value as itself,
-  code as the row numbers of [`basisRowNumbers`](../../R/forestBasis.R), cut there by
-  [`validateForestBases`](../../R/data.R) with [`alignSubsetRowsToFrame`](../../R/data.R), and built on the
+  code as the row numbers of `basisRowNumbers`, cut there by
+  [`validateForestBases`](../../R/data.R) with `alignSubsetRowsToFrame`, and built on the
   kept rows by [`buildFitBases`](../../R/forestBasis.R). A formula's `forest()` term takes the same route:
-  [`ingestFormulaTerms`](../../R/formulaTerms.R) reads its rows with [`fitBasisRows`](../../R/forestBasis.R)
+  [`ingestFormulaTerms`](../../R/formulaTerms.R) reads its rows with `fitBasisRows`
   and hands them on as `basisRows`. [`dbartsSpec`](../../R/spec.R) reads a basis with no data
   ([`readDeclaredBases`](../../R/forestBasis.R) given `NULL`) at the object's kept length.
 - Premises, run 2026-11-08 on main at 7a54b2b1d (shipped build) and on 0.9-34:
@@ -233,11 +233,11 @@ clean tarball. CI runs the full suite, check and sanitizers.
 
 Tier: changes draws, for the named calls only; no engine change. Files: `R/data.R` (`bases` out of
 [`dbartsData`](../../R/data.R), [`validateForestBases`](../../R/data.R)'s cut moved,
-[`alignSubsetRowsToFrame`](../../R/data.R) and [`restrictBasesToRows`](../../R/data.R) retired),
+`alignSubsetRowsToFrame` and `restrictBasesToRows` retired),
 `R/forestBasis.R` (the shared reader beside [`readForestBasis`](../../R/forestBasis.R);
-[`basisRowNumbers`](../../R/forestBasis.R) and [`fitBasisRows`](../../R/forestBasis.R) retired),
+`basisRowNumbers` and `fitBasisRows` retired),
 `R/formulaTerms.R` ([`ingestFormulaTerms`](../../R/formulaTerms.R)), `R/model.R`
-([`resolveFormulaBasisSubset`](../../R/model.R) retired), `R/dbarts.R`, `R/spec.R`, `R/bart.R`,
+(`resolveFormulaBasisSubset` retired), `R/dbarts.R`, `R/spec.R`, `R/bart.R`,
 `man/dbartsData.Rd`, `man/dbartsSpec.Rd`, `man/dbarts.Rd`, `man/forest.Rd` where it names the data door,
 `man/dbartsSampler-class.Rd`, `inst/NEWS.Rd`.
 

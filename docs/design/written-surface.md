@@ -88,7 +88,7 @@ na.action; with the matrix interface `subset` is an index, which `dbarts()` eval
 an aft fit's censoring status by it. The call a fit keeps shows what the caller wrote. Every basis rides the
 data object's `bases` argument and is cut there. A value
 rides as itself. For a basis written as code the numbers of the data's rows ride in its place
-([`basisRowNumbers`](../../R/forestBasis.R)) and come back as the rows the fit kept, in the fit's order
+(`basisRowNumbers`) and come back as the rows the fit kept, in the fit's order
 ([`buildFitBases`](../../R/forestBasis.R)). So a `data` or a `subset` that draws its rows, `data =
 d[sample(nrow(d)), ]` or `subset = sample(n, 100)`, gives the response, the predictors and every basis one
 draw, and predictors and a response that share a draw, `dbarts(x[i <- sample(n, 100), ], y[i])`, stay a pair.

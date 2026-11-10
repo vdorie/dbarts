@@ -349,6 +349,18 @@ for (object in list(
   expect_identical(refusal(specDraws(object, forests = cutValue)), cutText)
 }
 
+# a formula's forest() term is cut with the rows as a list's basis is
+expect_identical(
+  fitDraws(y ~ x1 + forest(x2, basis = dose), d, subset = keep),
+  fitDraws(y ~ x1 + forest(x2, basis = dose), d[keep, ])
+)
+withGap <- d
+withGap$x1[c(3L, 11L)] <- NA
+expect_identical(
+  fitDraws(y ~ x1 + forest(x2, basis = dose), withGap, na.action = na.omit),
+  fitDraws(y ~ x1 + forest(x2, basis = dose), withGap[-c(3L, 11L), ])
+)
+
 # ---- a hazard fit's basis has one value per subject (dec-B707) ----
 set.seed(20261109L)
 h <- data.frame(

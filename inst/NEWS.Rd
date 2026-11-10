@@ -115,6 +115,8 @@
             response in 0.9-34, no longer hold them:
             \code{model.frame(object)} returns the model's variables,
             factors as factors, and \code{nobs(object)} counts the rows.
+            A forest given to \code{dbarts()} or \code{dbartsSpec()}
+            beside a data object finds its basis in the frame.
             \code{keep.data = FALSE} keeps the matrix and the response in
             the object instead, as before.
       \item Weights. A \code{probit} fit refuses case weights: 0.9-34 fit a
@@ -765,7 +767,11 @@
             forest stating \code{amplitude = student(1)}. In a \code{bart} or
             \code{dbarts} formula, each forest is a term:
             \code{y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z))}
-            declares the same thing. Several forests with no basis,
+            declares the same thing. A basis names a column of the data,
+            or of the matrix the matrix interface is given, before a
+            variable where \code{forest()} was called; a single string,
+            \code{basis = "z"}, names column \code{z}. Several forests
+            with no basis,
             \code{y ~ forest(x1) + forest(x2) + forest(x3)}, share one
             prior total, the fitting function's leaf prior and its
             \code{k}, each an equal part, and split its \code{n.trees} as
@@ -784,8 +790,8 @@
             with the form to write: a forest of its own for each level but
             the first, or for each column.
             The same basis is the same fit however it is handed over, in
-            a formula, in \code{forests}, to \code{dbartsData(bases = )},
-            to \code{$setForestBasis} or to \code{predict(bases = )}:
+            a formula, in \code{forests}, to \code{$setForestBasis} or
+            to \code{predict(bases = )}:
             a level no kept row has gives no column, and a missing value
             matters only on a row the fit keeps. A forest keeps its kind
             for life, and a replacement basis must be of its class, a

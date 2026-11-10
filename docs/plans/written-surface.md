@@ -655,7 +655,7 @@ reader's sake; the implementer may name them otherwise.
 3.4 Rows, at both doors. A level that the kept rows leave empty is dropped for code, whatever emptied it;
     a logical left with one value is refused; a missing value is refused, as today. The list door hands
     the fit's `subset` to the basis's model frame ([`dbarts`](../../R/dbarts.R),
-    [`dbartsSpec`](../../R/spec.R)); [`alignForestBasisToSubset`](../../R/model.R) keeps the value's
+    [`dbartsSpec`](../../R/spec.R)); `alignForestBasisToSubset` keeps the value's
     rule. Tests: dec-B272's row eight (fails today: one door refuses, and `scale()` differs between the
     doors); `scale(age)` under `subset` equals `(age - mean) / sd` of every row at both doors (fails
     today at the formula door); a subscripted value refused with the same-length text.
@@ -1109,10 +1109,10 @@ existing item, "Multi-forest models", shows the colon form and is respelled in p
   - One source of the kept rows. The data object evaluates `subset` once, where it is built, as its
     model frame would (in the data, then the formula's environment), and hands that value to the model
     frame, to the range check and to the rows a basis is cut to
-    ([`resolveFormulaBasisSubset`](../../R/model.R) takes the value, never the expression). Every basis
+    (`resolveFormulaBasisSubset` takes the value, never the expression). Every basis
     rides the data object's `bases` argument and is cut there, by `subset` and by the na.action: a value
     as itself, and for a basis written as code the numbers of the data's rows
-    ([`basisRowNumbers`](../../R/forestBasis.R)), which come back as the kept rows, in the fit's order,
+    (`basisRowNumbers`), which come back as the kept rows, in the fit's order,
     on which the basis is built ([`buildFitBases`](../../R/forestBasis.R)). `dbarts()` reads `subset`
     nowhere for a basis, on either interface. A data object written in the call of `dbarts()` is used as
     built and not built a second time. Before: `subset = sample(n, 100)` gave a basis the rows of another

@@ -214,8 +214,7 @@ forest(
     \strong{Which kind it is.} The class of the basis decides whether the
     forest multiplies levels or numbers, the same way at every place a basis
     is given: \code{forest()} written as code or with a value,
-    \code{\link{dbartsData}}'s \code{bases}, \code{$setForestBasis} and
-    \code{predict}'s \code{bases}. A factor, ordered or not, a character
+    \code{$setForestBasis} and \code{predict}'s \code{bases}. A factor, ordered or not, a character
     vector and a logical vector are levels, with a coefficient for each: in
     the order of a factor's levels, in sorted order for a character vector,
     \code{FALSE} then \code{TRUE} for a logical vector. An integer or a
@@ -392,19 +391,45 @@ forest(
     row for every row of \code{data} and is cut to the rows the fit keeps; a
     value already cut to those rows is refused by name. A level that no row
     the fit keeps has gives no column, whether \code{data}, \code{subset} or
-    the \code{na.action} is what empties it. A value that the rows kept leave with one level, or one numeric column
+    the \code{na.action} is what empties it. Beside a data object it has one
+    row for each row the object was handed, before its \code{subset} and
+    \code{na.action}. A value that the rows kept leave with one level, or one numeric column
     that is zero on all of them, is refused as the same basis written as code
     is.
-    A single string or number is refused: \code{basis = "dose"} names no
-    column, so write \code{basis = dose}.
+    A single number is refused. A single string, written in place or held in
+    a variable, names a column: \code{basis = "dose"} and
+    \code{nm <- "dose"; forest(basis = nm)} are \code{basis = dose}, at
+    every place a basis is given and in \code{predict}'s \code{bases}, which
+    reads it from \code{newdata}; a character vector of one value per row
+    stays a basis of its levels.
 
-    A basis is stated here or on the data object, not both:
-    \code{\link{dbarts}} given an already-built \code{dbartsData} refuses
-    this argument, the data object's own \code{bases} being where it is
-    stated then, while \code{\link{dbartsSpec}} takes a data object and
-    installs the bases declared here in place of those it carried. After
-    creation a basis is replaced by \code{$setForestBasis}, whose formula is
-    read at once, where it was made; see \code{\linkS4class{dbartsSampler}}.
+    \strong{Where a name is read.} A name is read from the data first and
+    then where \code{forest()} was called, at every place a basis is given:
+    a column of the data frame or list a formula fit is given; a column of
+    the matrix the matrix interface is given; beside a
+    \code{\link{dbartsData}} object, a column of the frame it keeps, or,
+    where it keeps none (a sampler's data, \code{keep.data = FALSE}), a
+    column it holds, its predictors and response, and a basis a sampler's
+    data hold, named by the text it was written as:
+    \code{forest(basis = factor(z))} beside the data of a sampler created
+    with that basis reads the held columns, while \code{forest(basis = z)}
+    there is refused, naming the written form. A name of the data such an
+    object was built from that it does not hold is refused, naming the data
+    object built with its frame. A formula object built with no data reads
+    where its formula was written. Beside any data, a sampler's data
+    included, a \code{forests} list states the forests in full: a forest
+    declaring no basis has none, and no list gives one forest. A forest that
+    keeps a held basis keeps the scale recorded for it when the sampler was
+    first created, wherever it stands in the list (see \code{sd}); a basis
+    given as a new value takes its scale from that value. After creation a
+    basis is replaced by \code{$setForestBasis}, whose formula is read at
+    once, where it was made; see \code{\linkS4class{dbartsSampler}}.
+
+    \strong{A hazard fit.} Under \code{family = "hazard"} a basis has one
+    value per subject, cut by \code{subset} and the \code{na.action} and
+    repeated over the subject's periods, as weights and offsets are; a
+    vector of one value per person-period row is refused, naming the number
+    of subjects.
 
     A lone forest carrying a \code{basis} is refused, the coefficients being
     what distinguish a forest from another. For varying coefficients declare
@@ -732,8 +757,7 @@ forest(
   forest is what \code{\link{bart}} would fit, the other forests added. It
   leaves that prior by stating \code{sd}, held at it, or
   \code{amplitude = normal()} or \code{student()}, drawn. A model may hold any number, as
-  \code{y ~ forest(x1) + forest(x2) + forest(x3)}, a \code{forests} list or
-  a data object's \code{bases} with several \code{NULL} entries. Two or more
+  \code{y ~ forest(x1) + forest(x2) + forest(x3)} or a \code{forests} list. Two or more
   of them that state no \code{sd} and no \code{amplitude = normal()} or \code{student()} share
   one prior total, the size the fitting function gives its one forest: its
   \code{k} or \code{leaf.prior}, \code{k = 2} by default under a continuous
