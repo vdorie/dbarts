@@ -400,9 +400,11 @@ its expanded rows by Welch z on the fits, sigma and nu. Quick mode takes about
 .github/workflows/exact-gates.yaml runs all of them in `quick` mode on push /
 pull_request (one install, looped, one ::error:: per failing gate); dispatch it
 with mode=full for the long grid. exact-gates-weekly.yaml runs the full mode of
-every gate here weekly on a longer limit, reading the main job's gate list from
-exact-gates.yaml and running the monotone enumeration gate in full beside it
-(bcf-latent-exact stays quick). exact-gates.yaml also carries the two `--cross-host`
+every gate here weekly on a longer limit, reading the gate list and every arm
+list from exact-gates.yaml and running the monotone enumeration gate in full
+beside it (bcf-latent-exact stays quick). Two gates run as jobs of their own in
+exact-gates.yaml, the monotone enumeration gate and probit-k-scale-exact's
+logistic arms, each too long for the main job's limit. exact-gates.yaml also carries the two `--cross-host`
 compares, outside that loop: the baselines are recorded at full settings and
 the settings guard refuses to compare them against a `quick` run. Contrast the
 STATISTICAL gates (sbc.R, equivalence.R z-mode), which can false-alarm at the

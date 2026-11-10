@@ -439,14 +439,21 @@ made; this plan's Status and Landing note.
 
 As built on main, logistic only (the probit cases went with the probit half): tests 3 and 4 test the move as a
 sweep takes it, the move then [`drawAugmentation`](../../src/bartcore/chain.hpp), since the move draws no
-latents of its own (`checkCollapsedMapping`: the move leaves the latents, the working response and the
-precisions as they were; `checkAugmentationAfterMove`, in place of the branch's `checkLogisticRedraw`: the
-latents drawn after the move are PG at the moved fit); test 8 is the sweep's opening (twin samplers, one
-sweep against the move on its schedule followed by the augmentation draw, the latents equal bitwise, which a
-move placed after the augmentation draw fails); test 1 also hands the evaluator a part held unscaled, as the
-sharers' split does; and test_sampler.cpp's shared-total block gains the move on the sharers (two logistic
-forests alone, beside a stated sd and beside a factor: the factor replayed from an independent density, the
-group's k scaled on both sharers, the latents untouched, every other forest's contribution unchanged).
+latents of its own (test 4: the move leaves the latents, the working response and the precisions as they
+were; `checkAugmentationAfterMove`, in place of the branch's `checkLogisticRedraw`: the latents drawn after
+the move are PG at the moved fit); test 8 is the sweep's opening (twin samplers, one sweep against the move on
+its schedule followed by the augmentation draw, the latents equal bitwise, which a move placed after the
+augmentation draw fails); test 1 also hands the evaluator a part held unscaled, as the sharers' split does;
+tests 1 to 4 run again on a binomial response (successes out of 0 to 3 trials under counts 1 and 2, the
+reference's row term log dbinom from lgamma); and test_sampler.cpp's shared-total block runs the probit step
+and the move in one loop on the sharers (two forests alone, beside a stated sd and beside a factor: the factor
+replayed from an independent density, the group's k scaled on both sharers, the sharers' re-gathered fit the
+factor times the fit before, the latents scaled by the step and untouched by the move, every other forest's
+contribution unchanged). The probit step's block and the move's share one frozen-forest fixture
+(`FrozenForest`, holding the latents where the step scales them), one mapping check (`takeOrbitStep`,
+`checkOrbitStep`), one table of declines (`checkOrbitDeclines`, parameterized by each move's
+decline-without-a-draw check) and one every-chain check (`checkActsOnEveryChain`); the logistic row term and
+PG's moments are tests/cpp/common.hpp's.
 
 tests/cpp, in [test_ensemble.cpp](../../tests/cpp/test_ensemble.cpp) beside
 [`runForestRescaleTests`](../../tests/cpp/test_ensemble.cpp), through
@@ -454,9 +461,9 @@ tests/cpp, in [test_ensemble.cpp](../../tests/cpp/test_ensemble.cpp) beside
 a mask, two or more trees and a stranded nonzero empty leaf; the logistic one also with counts 1 to 3.
 Reference constants (nu, C, the per-row terms) come from the raw state: y, the offset, the mask, the
 counts, the leaves re-summed in tree order and the k prior, never the move's own code. The block reuses
-what the built step's block holds (its fixture builder, the quadrature target, the KS distance, the
-decline-without-a-draw check and the peer's accessors); the builder sets the new toggle off for the built
-step's own fixtures, so `runForestRescaleTests` draws as it does today. Every generator a test creates is
+what the built step's block holds (its fixture builder, the quadrature target, the KS distance and the
+peer's accessors); the builder sets the new toggle off for the built step's own fixtures, so
+`runForestRescaleTests` draws as it did. Every generator a test creates is
 destroyed: the k-internal slice's leak-sanitizer leg found four that were not.
 1. Evaluator: `logLikelihoodAtScaledFits(f, a)` equals the row-order sum of `computeLogLikelihood` at a f
    over the rows in at several a, within 1e-14 relative under both links (not bitwise:
@@ -621,15 +628,13 @@ and |z| bound 4.5. Mixing bounds:
   6 and 7 and the census, not here.
 - logistic: from early measurement 3, recorded in the header with both machines' values, so a logistic move
   that silently declines fails per push.
-Run as `Rscript benchmarks/R/probit-k-scale-exact.R quick` (both links) in
-[exact-gates.yaml](../../.github/workflows/exact-gates.yaml)'s existing list, which stays at 42 commands.
-Timed on the base, before the move, on the gate's own fixture on the laptop at load 4 to 7: 1e6 sweeps
-take 5 to 9 s under probit, 27 to 29 s under logistic and 52 to 58 s under logistic with counts 1 to 3.
-The five logistic arms are then about 3 minutes in quick mode and 12 in full before the move's own cost,
-which the coin's share of a slice step and a second Polya-Gamma pass puts near a third more; timed again
-at step 6. Quick stays inside the job's 40 minutes with the other gates (if the logistic arms
-pass 15 minutes on the runner, their quick sweeps halve and the bound is re-read); full runs in the weekly
-job, whose per-gate limit is raised for it if needed. The survey's prototype passed quick with the probit
+The probit arms run as an arm of [exact-gates.yaml](../../.github/workflows/exact-gates.yaml)'s main job
+(`probit-k-scale-exact.R quick probit`), and the logistic arms in a job of their own, logistic-k-scale
+(`probit-k-scale-exact.R quick logistic`). Timed on the base, before the move, on the gate's own fixture on
+the laptop at load 4 to 7: 1e6 sweeps take 5 to 9 s under probit, 27 to 29 s under logistic and 52 to 58 s
+under logistic with counts 1 to 3. Built, the seven logistic arms took 5.2 minutes quick on one arm64 core at
+load 8 to 11 and 18 full, which the main job, its slowest recent run 55 of its 60 minutes, has no room for.
+The weekly job runs both lists in full, the logistic arm under a 45-minute limit of its own. The survey's prototype passed quick with the probit
 move every sweep at worst |z| 2.9, the pure arm's error 0.0031; it never ran a logistic arm.
 
 ### Start-from-truth
@@ -1030,7 +1035,12 @@ k-move-pricing's step 0 says:
   sharers' parts are, so the standardized leaves are invariant under the group.
 
 The branch's three test and help commits that came with the probit half (count-weighted logistic expectations,
-hurdle seeds, the weights help): main carries none of them, so all three are replayed. Under the move five count-weighted logistic expectations on main fail, their data's counts repeating one trial, which puts a drawn-k fit near a perfect fit; the replay restates them on binomial counts as the branch did, onto main's files. The weights help gains its sentence on main's longer item, and the hurdle seeds apply as they were.
+hurdle seeds, the weights help): main carries none of them. Under the move five count-weighted logistic
+expectations on main fail, their data's counts repeating one trial, which puts a drawn-k fit near a perfect
+fit; the replay restates them on binomial counts as the branch did, onto main's files, and the hurdle seeds
+apply as they were. The weights help's sentence is not replayed: written before main had a binomial response,
+it sent successes and failures at one point to two rows, where main takes them as `cbind(successes, failures)`
+under `family = binomial`, as the family item already says.
 
 Gates before pricing, on the rebuilt tip against its two libraries ("move" as committed, "shipped" with the
 engine toggle flipped off by a one-line patch kept beside the harness) and a library of main b2268c1c9, all

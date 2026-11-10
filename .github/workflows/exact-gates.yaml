@@ -42,9 +42,16 @@
 # deep to enumerate) first, about a minute per prior in quick mode, the
 # unconstrained twin with the "leaf" prior.
 #
-# Full mode of every gate here (the main job's lists, and the monotone job)
-# runs weekly, on a longer limit, in exact-gates-weekly.yaml, which reads the
-# main job's gate and arm lists from this file.
+# The rescaling gate's logistic arms (probit-k-scale-exact.R logistic: the
+# collapsed move on one frozen tree and on the forests that share one prior
+# total) run as a job of their own too, about 5 minutes in quick mode on an
+# arm64 core, which the main job's limit, its slowest recent run 55 of its
+# 60 minutes, has no room for.
+#
+# Full mode of every gate here (the main job's lists, the logistic job's arm
+# and the monotone job) runs weekly, on a longer limit, in
+# exact-gates-weekly.yaml, which reads the gate list and every arm list from
+# this file.
 #
 # One job installs the package once, then runs every gate in `quick` mode
 # (reduced draws/seeds) so the whole suite shares a single ~4-minute C++20
@@ -165,7 +172,7 @@ jobs:
             categorical-exact.R frequency-exact.R heteroscedastic-exact.R linear-exact.R
             hazard-exact.R hurdle-exact.R mask-redraw-exact.R
             multinomial-exact.R negbin-exact.R negbin-mixing.R ordinal-exact.R
-            outer-step-exact.R probit-k-scale-exact.R split-probs-exact.R t-exact.R
+            outer-step-exact.R split-probs-exact.R t-exact.R
             logistic-reference.R monotone-reference.R
             hazard-reduction.R hurdle-reduction.R
           "
@@ -185,6 +192,8 @@ jobs:
           #     doubles, and one value beside missing ones
           #   bd-balance weighted: cuts chosen in proportion to their gaps'
           #     widths, under each move mixture
+          #   probit-k-scale-exact probit: the gate's probit arms; its
+          #     logistic arms run in the logistic-k-scale job below
           arms="
             split-probs-exact.R vars
             bd-balance.R zeroweight
@@ -197,6 +206,7 @@ jobs:
             bd-balance.R weighted mix=swap
             bd-balance.R weighted mix=perturb
             bd-balance.R weighted mix=gibbs
+            probit-k-scale-exact.R probit
           "
           fail=0
           for g in $gates; do
@@ -308,6 +318,75 @@ jobs:
             }
             if (fail) quit(status = 1L)
           '
+
+  logistic-k-scale:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Bound apt network stalls
+        run: |
+          echo 'Acquire::Retries "3";' | sudo tee /etc/apt/apt.conf.d/99-ci-retry
+          echo 'Acquire::http::Timeout "15";' | sudo tee -a /etc/apt/apt.conf.d/99-ci-retry
+          echo 'Acquire::https::Timeout "15";' | sudo tee -a /etc/apt/apt.conf.d/99-ci-retry
+
+      - id: setup_r_1
+        continue-on-error: true
+        uses: r-lib/actions/setup-r@v2
+        timeout-minutes: 12
+        with:
+          r-version: 'release'
+          use-public-rspm: true
+
+      - name: Wait before retrying setup-r
+        if: steps.setup_r_1.outcome == 'failure'
+        shell: bash
+        run: sleep 30
+
+      - name: Retry setup-r
+        if: steps.setup_r_1.outcome == 'failure'
+        uses: r-lib/actions/setup-r@v2
+        timeout-minutes: 12
+        with:
+          r-version: 'release'
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        timeout-minutes: 15
+        with:
+          needs: check
+
+      - name: Install the package
+        run: R CMD INSTALL .
+
+      # an arm list in the main job's form, which exact-gates-weekly.yaml
+      # reads and runs in full mode
+      - name: Run the rescaling gate's logistic arms
+        env:
+          GATE_ARG: ${{ !(github.event_name == 'workflow_dispatch' && inputs.mode == 'full') && 'quick' || '' }}
+        run: |
+          arms="
+            probit-k-scale-exact.R logistic
+          "
+          fail=0
+          while read -r g a; do
+            if [ -z "$g" ]; then continue; fi
+            echo "::group::$g $a"
+            # $a unquoted: an arm's arguments are separate words
+            if Rscript "benchmarks/R/$g" ${GATE_ARG} $a; then
+              echo "PASS $g $a"
+            else
+              echo "::error::gate $g $a FAILED"
+              fail=1
+            fi
+            echo "::endgroup::"
+          done <<< "$arms"
+          exit $fail
 
   # one job per prior: both in one job ran 34 minutes (23 of them the gate)
   # against the 60-minute timeout

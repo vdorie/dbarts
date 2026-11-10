@@ -7,8 +7,9 @@
 # limit (dec-A132, dec-B301; docs/plans/check-shape-fixes.md).
 #
 # Two jobs:
-#   gates-full  every gate and arm exact-gates.yaml's main job runs, in full
-#               mode, both lists read from that file so the two cannot drift.
+#   gates-full  every gate and arm exact-gates.yaml's main job and its
+#               logistic-k-scale job run, in full mode, the gate list and every
+#               arm list read from that file so the two cannot drift.
 #               On the hosted runner the list took 88 minutes on 2026-11-08
 #               and about 121 on 2026-11-09, a slower runner (each gate 1.2 to
 #               1.6 times its 11-08 time). The longest gates, 11-08 and 11-09:
@@ -16,8 +17,10 @@
 #               off at the old 30-minute limit, projected), mask-redraw-exact
 #               10 and 16, probit-k-scale-exact 12 and 15, forest-prior-exact
 #               10 and 13, logistic-reference 10.5 and 12; the rest under 7.
-#               Each gate has its own limit, 30 minutes (45 for
-#               logistic-reference, 60 for outer-step-exact), so one that hangs
+#               The rescaling gate's logistic arms, 18 minutes on an arm64
+#               core, run as an arm of their own. Each gate and arm has its own
+#               limit, 30 minutes (45 for logistic-reference and the rescaling
+#               gate's logistic arms, 60 for outer-step-exact), so one that hangs
 #               costs that and the rest still run; the job's 240 minutes covers
 #               the list at the 11-09 pace and the two longest limits spent
 #               hanging. bcf-latent-exact.R stays in
@@ -101,7 +104,8 @@ jobs:
 
       - name: Run the gates in full mode
         run: |
-          # the gate and arm lists exact-gates.yaml's main job loops over
+          # the gate list exact-gates.yaml's main job loops over, and every arm
+          # list in that file (the main job's and the logistic-k-scale job's)
           gates=$(sed -n '/^ *gates="$/,/^ *"$/p' .github/workflows/exact-gates.yaml | grep -v '^ *gates="$' | grep -v '^ *"$' || true)
           arms=$(sed -n '/^ *arms="$/,/^ *"$/p' .github/workflows/exact-gates.yaml | grep -v '^ *arms="$' | grep -v '^ *"$' || true)
           if [ -z "$gates" ] || [ -z "$arms" ]; then
@@ -127,12 +131,14 @@ jobs:
           done
           while read -r g a; do
             if [ -z "$g" ]; then continue; fi
+            limit=30m
+            if [ "$g $a" = "probit-k-scale-exact.R logistic" ]; then limit=45m; fi
             echo "::group::$g $a"
             # $a unquoted: an arm's arguments are separate words
-            if timeout 30m Rscript "benchmarks/R/$g" $a; then
+            if timeout "$limit" Rscript "benchmarks/R/$g" $a; then
               echo "PASS $g $a"
             else
-              echo "::error::gate $g $a FAILED (status $?; 124 is the 30m limit)"
+              echo "::error::gate $g $a FAILED (status $?; 124 is the $limit limit)"
               fail=1
             fi
             echo "::endgroup::"
