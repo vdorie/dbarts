@@ -56,7 +56,15 @@ args <- list(
 # the by-hand expanded design, built by the same exported expander the hazard
 # ingestion uses - same column order (period appended last), same values, so
 # the two fits build the identical cut grid
-expansion <- dbarts:::expandDiscreteTimeHazard(x, time, status)
+expansion <- dbarts:::expandDiscreteTimeHazard(
+  x,
+  time,
+  status,
+  dbarts:::hazardRunSettings(
+    dbartsControl(n.chains = 1L, n.threads = 1L, n.samples = args$n.samples),
+    args$n.trees
+  )
+)
 
 compareLink <- function(hazardToken, binaryFamily) {
   fitHazard <- do.call(

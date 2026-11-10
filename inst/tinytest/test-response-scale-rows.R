@@ -1677,16 +1677,23 @@ expect_identical(with$value$periods, without$value$periods)
 expect_identical(with$value$periods, as.double(1:5))
 # the subjects in expand to that fit's rows, covariates, period and response
 timesIn <- timeH[weightH > 0]
+# the run the expander projects the fit's memory for
+expansionRun <- dbarts:::hazardRunSettings(
+  dbartsControl(n.chains = 1L, n.threads = 1L, n.samples = 5L),
+  10L
+)
 expanded <- dbarts:::expandDiscreteTimeHazard(
   xh,
   timeH,
   statusH,
+  expansionRun,
   gridTime = timesIn
 )
 reference <- dbarts:::expandDiscreteTimeHazard(
   xh[-(1:2), ],
   timeH[-(1:2)],
-  statusH[-(1:2)]
+  statusH[-(1:2)],
+  expansionRun
 )
 inRows <- expanded$subject > 2L
 expect_identical(expanded$x[inRows, ], reference$x)

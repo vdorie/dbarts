@@ -357,7 +357,7 @@ the refusal names the two levers - coarsen with hazard(breaks =), or raise
 the cap with hazard(max.rows =).
 
 The sweep is
-["Measures the person-period row cap"](../../benchmarks/R/constant-person-period-rows.R),
+["Measures the person-period expansion"](../../benchmarks/R/constant-person-period-rows.R),
 10 predictor columns, 20 periods, each row count in a fresh process.
 
 | target rows | subjects | expanded rows | seconds | peak resident MB |
