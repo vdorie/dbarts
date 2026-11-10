@@ -3503,7 +3503,9 @@ dbartsData <- function(
     # the one site the caller's own na.action governs; every other model
     # frame this function builds is a re-read of columns these rows already
     # settled, so those keep na.pass and align to whatever this frame kept
-    modelFrameCall$na.action <- na.action
+    # a NULL is the caller's: no action, as model.frame reads it, and `$<-`
+    # would remove it and leave the option's default to run
+    modelFrameCall["na.action"] <- list(na.action)
     modelFrameCall[[1L]] <- quote(stats::model.frame)
     ## this allows subset to be applied to offset, even if offset was a language construct (e.g. off + 0.1)
     if (identical(offsetGivenAsScalar, FALSE)) {

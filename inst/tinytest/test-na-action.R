@@ -414,3 +414,31 @@ for (route in list(list(y ~ p + q, dSub), list(xSub, dSub$y))) {
 }
 
 rm(dSub, xSub, iNA, fitSub, route, withNA, without, excluded)
+
+# na.action = NULL applies no action on both routes, as lm and model.frame
+# read it: a missing response stops, where the formula route once fell back to
+# the option's na.omit
+for (route in list(
+  list(df, "formula"),
+  list(xMat, "matrix")
+)) {
+  args <- c(
+    if (route[[2L]] == "formula") {
+      list(y ~ x1 + x2, df)
+    } else {
+      list(route[[1L]], y)
+    },
+    quick,
+    list(na.action = NULL)
+  )
+  expect_error(do.call(bart, args), "response contains missing values")
+}
+completeFrame <- df[-missingResponse, ]
+expect_identical(
+  length(do.call(
+    bart,
+    c(list(y ~ x1 + x2, completeFrame), quick, list(na.action = NULL))
+  )$y),
+  n - length(missingResponse)
+)
+rm(route, args, completeFrame)
