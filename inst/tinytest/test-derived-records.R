@@ -285,7 +285,7 @@ expect_true(deadCopy$setState(deadCopy$state))
 # on it already
 sampler$storeState()
 edited <- reloadOf(sampler)
-edited$data@cutPoints[[1L]] <- rev(three)
+edited$dataHeld@cutPoints[[1L]] <- rev(three)
 expect_identical(liveOf(stateOf(edited)), liveOf(sampler$state))
 expect_identical(cutPointsOf(edited)[[1L]], three)
 

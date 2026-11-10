@@ -47,56 +47,54 @@ str.dbartsStandIn <- function(object, ...) {
   invisible(NULL)
 }
 
-## The positions, within the frame handed over, of the rows a build kept: those
-## the one value of 'subset' selects (as model.frame reads it: a logical, a
-## number or a row name), less the rows the na.action then dropped, which it
-## numbers within that selection. NULL when every row is kept in order.
-keptRowPositions <- function(subsetValue, total, rowNames, naOmitted) {
-  if (is.na(total)) {
-    return(NULL)
-  }
-  positions <- seq_len(total)
-  if (!is.null(subsetValue)) {
-    positions <- if (is.character(subsetValue)) {
-      match(subsetValue, rowNames)
-    } else {
-      positions[subsetValue]
-    }
-  }
-  if (length(naOmitted) > 0L) {
-    positions <- positions[-as.integer(unclass(naOmitted))]
-  }
-  if (identical(positions, seq_len(total))) {
-    return(NULL)
-  }
-  as.integer(positions)
-}
-
 frameNumRows <- function(data) {
   if (is.data.frame(data)) nrow(data) else NROW(data[[1L]])
 }
 
 ## The number of rows a formula fit was handed: a data frame's, and otherwise
-## the length of the response, read where the formula reads it, or of the first
-## variable a one-sided formula names (a list's first element need not be a
-## column); NA where that cannot be read. `data` is NULL where none was given.
+## the length of what formulaRowsRead() reads; NA where that cannot be read.
+## `data` is NULL where none was given.
 formulaRowsTotal <- function(formula, data) {
   if (is.data.frame(data)) {
     return(nrow(data))
   }
-  read <- if (length(formula) == 3L) {
-    formula[[2L]]
-  } else {
-    vars <- setdiff(all.vars(formula), ".")
-    if (length(vars) == 0L) {
-      return(NA_integer_)
-    }
-    as.name(vars[1L])
+  read <- formulaRowsRead(formula)
+  if (is.null(read)) {
+    return(NA_integer_)
   }
   tryCatch(
     NROW(eval(read, data, environment(formula))),
     error = function(e) NA_integer_
   )
+}
+
+## What gives the number of rows of data that are not a data frame: the
+## response, read where the formula reads it, or the first variable a
+## one-sided formula names (a list's first element need not be a column); NULL
+## where a formula names none.
+formulaRowsRead <- function(formula) {
+  if (length(formula) == 3L) {
+    return(formula[[2L]])
+  }
+  vars <- setdiff(all.vars(formula), ".")
+  if (length(vars) > 0L) as.name(vars[1L])
+}
+
+## The row-number column of a model frame read from data that are not a data
+## frame, as a call the frame evaluates after its variables, with the data it
+## reads them from: it counts the rows where formulaRowsTotal() would, records
+## the count in `rowCount$total` and gives the positions, or gives no column
+## where the count cannot be read.
+rowIndexColumn <- function(formula, rowCount) {
+  read <- formulaRowsRead(formula)
+  if (is.null(read)) {
+    return(NULL)
+  }
+  count <- function(value) {
+    rowCount$total <- tryCatch(NROW(value), error = function(e) NA_integer_)
+    if (!is.na(rowCount$total)) seq_len(rowCount$total)
+  }
+  as.call(list(count, read))
 }
 
 ## The number of rows a frame-keeping object was handed, as its build counted

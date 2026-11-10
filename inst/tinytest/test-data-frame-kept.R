@@ -85,6 +85,68 @@ oNA <- dbartsData(y ~ x1 + x2, d, subset = sub, na.action = na.exclude)
 expect_identical(oNA@rows, setdiff(seq_len(n), c(3L, 5L, 6L, 9L)))
 expect_identical(nrow(model.frame(oNA)), n - 4L)
 
+# an na.action that records nothing of what it drops: the rows kept are the
+# model frame's, at every door, as lm's are
+noNote <- function(object, ...) {
+  object[stats::complete.cases(object), , drop = FALSE]
+}
+lmNoNote <- lm(y ~ x1 + x2, d, na.action = noNote)
+oNoNote <- dbartsData(y ~ x1 + x2, d, na.action = noNote)
+expect_identical(oNoNote@rows, setdiff(seq_len(n), c(3L, 9L)))
+expect_identical(nobs(oNoNote), nobs(lmNoNote))
+expect_identical(nrow(model.frame(oNoNote)), n - 2L)
+expect_identical(
+  unname(model.response(model.frame(oNoNote))),
+  unname(model.response(model.frame(lmNoNote)))
+)
+bNoNote <- dbartsData(y ~ x1 + x2, d, na.action = noNote, keep.data = FALSE)
+expect_identical(bNoNote@rows, oNoNote@rows)
+expect_identical(dbarts:::resolveDataObject(oNoNote)@x, bNoNote@x)
+expect_identical(
+  fitDraws(oNoNote),
+  draws(dbarts(
+    y ~ x1 + x2,
+    d,
+    na.action = noNote,
+    n.trees = 5L,
+    control = ctl,
+    seed = 7L
+  ))
+)
+bartNoNote <- function(data, ...) {
+  bart(
+    data,
+    ...,
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 2L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 7L,
+    verbose = FALSE,
+    keepTrees = FALSE
+  )$yhat.train
+}
+expect_identical(
+  bartNoNote(oNoNote),
+  bartNoNote(y ~ x1 + x2, d, na.action = noNote)
+)
+expect_identical(ncol(bartNoNote(oNoNote)), n - 2L)
+expect_identical(
+  dbartsData(y ~ x1 + x2, as.list(d), na.action = noNote)@rows,
+  oNoNote@rows
+)
+expect_identical(
+  dbartsData(y ~ x1 + x2, d, subset = 2:20, na.action = noNote)@rows,
+  setdiff(2:20, c(3L, 9L))
+)
+# a full-length basis is cut by the same rows
+basisNoNote <- dbartsSpec(
+  oNoNote,
+  forests = list(forest(), forest(basis = d$w))
+)
+expect_identical(NROW(basisNoNote$data@bases[[2L]]), n - 2L)
+
 # the stand-ins ---------------------------------------------------------------
 
 stops <- function(expr) {

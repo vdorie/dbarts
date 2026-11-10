@@ -3632,13 +3632,22 @@ dbartsData <- function(
           list(dbartsSparseMissing = sparseMissing)
         )
       }
-      # the source row of each frame row, which 'subset' and na.action shape
-      # as they shape the frame: the frame's row names cannot serve, since
-      # a repeated row is renamed ("1.1")
+    }
+    # the source row of each frame row, which 'subset' and the na.action shape
+    # as they shape the frame, so that the rows kept are the frame's whatever
+    # the na.action records: the frame's row names cannot serve, since a
+    # repeated row is renamed ("1.1"). Data that are not a data frame are
+    # counted where the frame reads them, after its variables (rowIndexColumn)
+    rowCount <- new.env(parent = emptyenv())
+    rowCount$total <- NA_integer_
+    if (!dataIsMissing && is.data.frame(data)) {
+      rowCount$total <- nrow(data)
       modelFrameCall <- handOn(
         modelFrameCall,
         list(dbartsRowIndex = seq_len(nrow(data)))
       )
+    } else {
+      modelFrameCall$dbartsRowIndex <- rowIndexColumn(formula, rowCount)
     }
     if (!dataIsMissing) {
       formulaVars <- all.vars(formula)
@@ -3653,13 +3662,15 @@ dbartsData <- function(
     modelFrameCall$dbartsSparseMissing <- NULL
     modelFrameCall$dbartsRowIndex <- NULL
     naOmitted <- attr(modelFrame, "na.action")
-    rowsTotal <- formulaRowsTotal(formula, if (!dataIsMissing) data)
-    rowsKept <- keptRowPositions(
-      subsetValue,
-      rowsTotal,
-      if (is.data.frame(data)) rownames(data),
-      naOmitted
-    )
+    rowsTotal <- rowCount$total
+    framePositions <- modelFrame[["(dbartsRowIndex)"]]
+    modelFrame[["(dbartsRowIndex)"]] <- NULL
+    rowsKept <- if (
+      !is.null(framePositions) &&
+        !identical(framePositions, seq_len(rowsTotal))
+    ) {
+      framePositions
+    }
     # a model frame always names its rows, "1".."n" when the data has none,
     # as lm does
     trainRowNames <- rownames(modelFrame)
@@ -3809,10 +3820,9 @@ dbartsData <- function(
     if (length(sparseColumns) > 0L) {
       # a sparse column is indexed by the source rows the frame carries,
       # which 'subset' and na.action have already shaped
-      pos <- modelFrame[["(dbartsRowIndex)"]]
       for (sparseName in names(sparseColumns)) {
         predictorFrame[[sparseName]] <-
-          subsetSparseColumn(sparseColumns[[sparseName]], pos)
+          subsetSparseColumn(sparseColumns[[sparseName]], framePositions)
       }
     }
     x <- makeModelMatrix(predictorFrame)
