@@ -172,14 +172,15 @@ unlink(stateFile)
 expect_true(all(is.finite(reloaded$run(0L, 2L)$train)))
 expect_true(make(leaf.prior = normal(chi(1.5, 1e-160)))$installTrees(zero))
 
-# DART on two of three columns: a weight of 0 where the forest may split is
-# refused, a column it may not split on holds anything
+# DART on two of three columns: weights that are negative, missing or all zero
+# are refused, a column the forest may not split on holds anything, and a weight
+# of 0 where it may split is not clean (declined, forced started fresh)
 restricted <- make(forests = list(forest(x1 + x2)), split.probs = dart())
 invisible(restricted$run(20L, 1L))
 restricted$storeState()
 dart.own <- restricted$state
 expect_identical(dart.own[[1L]]$dart.probabilities[3L], 0)
-for (weights in list(c(-5, 1, 0), c(NA, 1, 0), c(0, 0, 0), c(0, 1, 0))) {
+for (weights in list(c(-5, 1, 0), c(NA, 1, 0), c(0, 0, 0))) {
   edited <- dart.own
   edited[[1L]]$dart.probabilities <- weights
   expect_error(
@@ -188,6 +189,12 @@ for (weights in list(c(-5, 1, 0), c(NA, 1, 0), c(0, 0, 0), c(0, 1, 0))) {
     info = paste(weights, collapse = " ")
   )
 }
+zeroed <- dart.own
+zeroed[[1L]]$dart.probabilities <- c(0, 1, 0)
+expect_false(restricted$copy()$setState(zeroed))
+fresh <- restricted$copy()
+fresh$setState(zeroed, forceUpdate = TRUE)
+expect_identical(fresh$state[[1L]]$dart.probabilities, c(0.5, 0.5, 0))
 for (alpha in c(0, -1, Inf)) {
   edited <- dart.own
   edited[[1L]]$dart.alpha <- alpha

@@ -1405,12 +1405,15 @@ public:
   ///   splitVariableLogProbability would price against a menu that drops the
   ///   column for as long as the split lives;
   /// - a split that breaks its forest's interaction constraint;
-  /// - a monotone tree whose leaf values, as stored, leave the cone.
+  /// - a monotone tree whose leaf values, as stored, leave the cone;
+  /// - DART weights, well formed, that are 0 on a column the forest may
+  ///   split on (Chain::dartWeightsStartFresh).
   /// With force such a tree is repaired on the way in: the bottom, the split
   /// outside its interval and the first forbidden split on each path from
   /// the root are merged into one leaf at the weighted mean of the leaves
   /// beneath (Chain::rebuildLiveForest, Chain::rebuildVarianceForest), the
-  /// direction is dropped, the monotone tree is reseeded at 0. Without force
+  /// direction is dropped, the monotone tree is reseeded at 0, and the DART
+  /// weights start fresh as a new fit's do (Chain::startDartFresh). Without force
   /// the state is not installed: notClean, when non-null, is set, and false is returned with the chains, the store, the
   /// generators and the latents untouched. Only LIVE trees are held to any of
   /// this, a saved slot being a replay target routed over new rows rather
@@ -1579,6 +1582,13 @@ public:
     // for the builds, and no verdict is asked: every such state is moved
     bool allValid = blocksAgree;
     bool needsRepair = acrossGrids;
+    // DART weights of 0 on a column the forest may split on are installed
+    // fresh: not clean, so declined without force and altered with it
+    std::vector<std::uint8_t> dartFresh(chains_.size(), 0);
+    for (size_t c = 0; c < chains_.size() && blocksAgree; ++c) {
+      dartFresh[c] = chains_[c]->dartWeightsStartFresh(chainStates[c]) ? 1 : 0;
+      needsRepair = needsRepair || dartFresh[c] != 0;
+    }
     if (acrossGrids) {
       ScopedCutGrid recorded(data_, state.cutPoints);
       for (size_t c = 0; c < chains_.size() && allValid; ++c)
@@ -1607,9 +1617,14 @@ public:
       newest = SavedDrawSlots{
         (stateCursor + stateCapacity - keptDraws) % stateCapacity, keptDraws};
     auto installChains = [&]() {
-      for (size_t c = 0; c < chains_.size(); ++c)
+      for (size_t c = 0; c < chains_.size(); ++c) {
         if (!chains_[c]->setState(chainStates[c], &installAltered, newest))
           return false;
+        if (dartFresh[c] != 0) {
+          chains_[c]->startDartFresh();
+          installAltered = true;
+        }
+      }
       return true;
     };
     if (acrossGrids) {

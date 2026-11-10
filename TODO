@@ -284,13 +284,6 @@ items
     accepted"; a stated-sd install through $setModel cannot reach such a
     sampler. Found reviewing setmodel-installs-stated (dec-A278); on
     main before it. A fix and a pin.
-  setstate-dart-zero: a state whose DART weight is 0 on a column the
-    sampler may split on does not fit cleanly: unforced setState
-    returns FALSE with the sampler untouched, forced installs it with
-    the DART weights started fresh as installTrees does; negative,
-    missing or all-zero weights stay errors (dec-B712). About 20 to 30
-    lines reusing the warm start's step, tests and a help sentence; no
-    state the package writes for its own sampler moves.
   basis-references-to-data: a forest's basis is a reference to a column
     of the data, resolved by name where a data frame is given; the
     data object's per-forest bases become the package's record of that,

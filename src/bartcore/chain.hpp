@@ -5900,6 +5900,18 @@ public:
     return true;
   }
 
+  /// Whether \p state holds well-formed DART weights of which one is 0 on a
+  /// column this chain's forest may split on: such a state is not installed
+  /// as it stands, since a node whose only splittable columns weigh nothing
+  /// has no split variable to draw, and a forced install starts the weights
+  /// fresh (startDartFresh).
+  bool dartWeightsStartFresh(const ChainStateData& state) const {
+    return forests_[0].useDart && !state.dartProbabilities.empty() &&
+      state.dartProbabilities.size() == data_.numPredictors &&
+      dartWeightsAreWellFormed(state.dartProbabilities) &&
+      !dartWeightsCoverSplits(state.dartProbabilities);
+  }
+
   /// Whether the scalars of \p state that an install writes into this chain
   /// are values it can run from, judged only where it draws them and the
   /// state holds one (NaN is absent): sigma positive and finite; each
@@ -5908,9 +5920,10 @@ public:
   /// +Inf where it lets a draw reach +Inf (kDrawCanBeInfinite), as an
   /// infinite scale does; the DART split weights well formed and positive on
   /// every column the forest may split on, and the concentration positive and
-  /// finite. The response transform it records is finite. A state this
-  /// package writes fails none of these: each refusal is a value no draw of
-  /// this chain's priors reaches.
+  /// finite; weights that are 0 on a column the forest may split on are not a
+  /// refusal here (dartWeightsStartFresh). The response transform it records
+  /// is finite. A state this package writes fails none of these: each refusal
+  /// is a value no draw of this chain's priors reaches.
   bool drawnScalarsAreValid(const ChainStateData& state) const {
     if (drawsSigma() && !std::isnan(state.sigma) &&
         !(state.sigma > 0.0 && std::isfinite(state.sigma)))
@@ -5924,9 +5937,7 @@ public:
     }
     const Forest<L, ResidT>& forest = forests_[0];
     if (forest.useDart && !state.dartProbabilities.empty()) {
-      if (!dartWeightsAreWellFormed(state.dartProbabilities) ||
-          !dartWeightsCoverSplits(state.dartProbabilities))
-        return false;
+      if (!dartWeightsAreWellFormed(state.dartProbabilities)) return false;
       if (forest.dart.updateAlpha && !std::isnan(state.dartAlpha) &&
           !(state.dartAlpha > 0.0 && std::isfinite(state.dartAlpha)))
         return false;

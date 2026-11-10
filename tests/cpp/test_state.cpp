@@ -1477,7 +1477,7 @@ static void testStateValueFloors() {
   {
     std::vector<std::vector<double>> broken = {
       {-5.0, 1.0, 0.0}, {absent, 1.0, 0.0}, {inf, 1.0, 0.0},
-      {0.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}};
+      {0.0, 0.0, 0.0}};
     bool weightFloor = true;
     for (const std::vector<double>& weights : broken) {
       SamplerStateData edited(dartOwn);
@@ -1485,8 +1485,31 @@ static void testStateValueFloors() {
       weightFloor = weightFloor && refused(*dart, dartOwn, edited);
     }
     check(weightFloor, "value floors: DART weights that are not finite, are "
-                       "negative, are all zero or weigh nothing on a column "
-                       "the forest may split on are refused");
+                       "negative or are all zero are refused");
+    // 0 on a column the forest may split on: not clean, so declined without
+    // force and untouched, installed with it as a fresh start
+    bool freshStart = true;
+    for (const std::vector<double>& weights :
+         std::vector<std::vector<double>>{{0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}}) {
+      SamplerStateData edited(dartOwn);
+      edited.chains[0].dartProbabilities = weights;
+      bool notClean = false, altered = false;
+      bool unforced = dart->setState(edited, nullptr, nullptr, nullptr,
+                                     keepStoreCapacity, false, &notClean);
+      SamplerStateData after;
+      dart->getState(after);
+      freshStart = freshStart && !unforced && notClean &&
+                   samplerStatesAgree(dartOwn, after);
+      bool forced = dart->setState(edited, nullptr, nullptr, &altered);
+      dart->getState(after);
+      const std::vector<double>& held = after.chains[0].dartProbabilities;
+      freshStart = freshStart && forced && altered && held.size() == 3 &&
+                   held[0] == 0.5 && held[1] == 0.5 && held[2] == 0.0;
+      freshStart = freshStart && dart->setState(dartOwn, nullptr);
+    }
+    check(freshStart, "value floors: DART weights that weigh nothing on a "
+                      "column the forest may split on are declined, and "
+                      "forced start fresh");
     bool alphaFloor = true;
     for (double value : {0.0, -1.0, inf}) {
       SamplerStateData edited(dartOwn);
