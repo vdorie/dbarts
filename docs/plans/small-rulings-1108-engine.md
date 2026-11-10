@@ -1,14 +1,14 @@
 # small-rulings-1108-engine: two draw-moving rulings of 2026-11-08
 
-Status: PLANNED 2026-11-09
+Status: PLANNED 2026-11-09, amended after its blind critique the same day
 
-agent: opus implementer, one; blind critique pending; one opus reviewer who runs the mutants below.
+agent: opus implementer, one; blind critique taken 2026-11-09; one opus reviewer who runs the mutants below.
 rng: POSTERIOR-CHANGING at the call only: a `$setForest` call that holds a released forest with no basis under a
-drawn k and hands back its sd now leaves k drawn (item 1); a weighted binomial fit's test-row predictive draws are
-Binomial(k + f, p) where they were one trial (item 2). NEUTRAL, bit for bit, for every sampler draw and every other
-call.
+drawn k (probit, logistic, or gaussian given a prior on k) and hands back its sd now leaves k drawn (item 1); a
+weighted binomial fit's test-row predictive draws are Binomial(k + f, p) where they were one trial (item 2). NEUTRAL,
+bit for bit, for every sampler draw and every other call.
 window: before 1.0-0; engine slices stay serial.
-budget: ~220 lines (R ~30 net, tests ~130, help and docs ~60). No src/ change.
+budget: ~240 lines (R ~35 changed, -15 net: item 1 -25, item 2 +10; tests ~160, help and docs ~70). No src/ change.
 
 ## Goal
 
@@ -27,9 +27,10 @@ second call.
 
 Premise, run on a library whose door functions deparse identical to main d3532bd4f (a released forest with no basis,
 4 sweeps, `g <- s$getForest(1); g$amplitude <- fixed()` handed back): probit, sd 1.574 becomes a statement, k 1;
-logistic the same (sd 2.85, k 1); `fixed()` alone keeps k drawn (1.906) and the reader's sd NULL; gaussian at a fixed
-k, the sd is no change and k is 2. On a gaussian fit with a drawn k the case is not reached: the release is refused
-there for want of a size, and so is `$setLeafPrior` into a drawn k while released.
+logistic the same (sd 2.85, k 1); gaussian under `leaf.prior = normal(k = chi())` the same (sd 0.80, k 1);
+`fixed()` alone keeps k drawn (1.906) and the reader's sd NULL; gaussian at a fixed k, the sd is no change and k is 2.
+A chi prior of infinite scale, as `chi(1.25, Inf)`, gives no size, so there the release is refused and the case is
+not reached.
 
 Change: in [`changedForestSettings`](../../R/forestDoor.R) the sd is compared with `inForce$sd`, the value before
 the call, like every other name; the `sdUnder` argument and its branch go, and so does
@@ -37,18 +38,22 @@ the call, like every other name; the `sdUnder` argument and its branch go, and s
 its rejoin branch under a `dbartsChiHyperprior` differed from `inForce$sd`, so only that case moves.
 
 Draws: a `$setForest` call naming `amplitude = fixed()` and the sd in force on a released forest with no basis that
-states no sd, on probit and logistic (the hazard families reach the same branch, not run): from the call on, the forest follows the leaf prior with
-k drawn, as after `fixed()` alone, where it was pinned at the sd with k 1. No equivalence scenario or snapshot calls
-`$setForest`.
+states no sd, on probit, logistic and a gaussian fit given a prior on k (the hazard families reach the same branch,
+not run): from the call on, the forest follows the leaf prior with k drawn, as after `fixed()` alone, where it was
+pinned at the sd with k 1. No equivalence scenario, exact gate or snapshot passes an sd beside an amplitude change
+(bcf-equivalence.R's scenario e writes an sd alone, forest-prior-exact.R and probit-k-scale-exact.R an amplitude
+alone).
 
 Tests, in [test-coefficient-prior-live.R](../../inst/tinytest/test-coefficient-prior-live.R):
 - ["an sd beside a hold under probit is the forest's own"](../../inst/tinytest/test-coefficient-prior-live.R) is
-  rewritten, on probit and on logistic: the sd in force beside `fixed()` leaves the record's sd `NA`, `getK` drawn
+  rewritten, on probit, on logistic and on gaussian with `leaf.prior = normal(k = chi())`: the sd in force beside `fixed()` leaves the record's sd `NA`, `getK` drawn
   (not 1) and the reader's sd NULL; records and the draws after equal those of a twin given `fixed()` alone by the
   same route. The ruling's own call, the whole `getForest` list with `amplitude` set to `fixed()`, gives the same.
-- Then a second call `$setForest(1, sd = sd)` states it: k pinned at 1, records and draws equal to the creation twin
-  `forest(x1, sd = sd, amplitude = fixed())` the old pin used.
+- Then, on the same three, a second call `$setForest(1, sd = sd)` states it: k pinned at 1, records and draws equal
+  to the creation twin `forest(x1, sd = sd, amplitude = fixed())` the old pin used.
 - A different sd beside `fixed()` under probit is stated in the one call, k 1.
+- Which pins discriminate: the rewritten block fails before and passes after; the second-call and different-sd pins
+  pass before too and guard the mutants named for them.
 - Kept unchanged: the gaussian held-k cases ("dropped", the size kept), "an sd in force beside another name is
   dropped", the inert round trips and test-forest-door.R's.
 
@@ -59,7 +64,7 @@ beside `amplitude = fixed()` is no change; to pin a forest at its sd, state a di
 call. Design note: [forest-sd-unit.md](../design/forest-sd-unit.md) item 6, "the number in force before the call".
 [coefficient-prior-live.md](coefficient-prior-live.md)'s amendment 4 gains "Revised by dec-B714."
 
-Size: ~90 lines (R -25, tests ~80, help ~10).
+Size: ~110 lines (R -25, tests ~100, help ~10).
 
 ### 2. binomial-test-trials (dec-B690)
 
@@ -81,8 +86,9 @@ Change:
   already draws a held-out row at its trials and then sets it NA, so every other draw and the stream are as without
   the weights. [`ppdRowsOut`](../../R/generics.R) needs no change.
 - The fit-time refusal of a test row missing a count now reaches weighted fits too (dec-B641), and its remedy changes
-  from "state the test rows' trials as weights, or drop those rows from 'test'" to "complete them, or drop those rows
-  from 'test'" (call 3).
+  from "state the test rows' trials as weights, or drop those rows from 'test'" to the remedies of a test frame's
+  missing weight (dec-B698): "fill them, drop those rows from 'test', or fit without them and give
+  predict(fit, newdata, na.action = na.pass) the rows to leave at NA draws" (call 3).
 
 Draws: `extract(fit, "ppd", sample = "test")` and `fitted(fit, type = "ppd", sample = "test")` on a weighted
 binomial fit whose test frame carries both response columns: Binomial(k + f, p)
@@ -90,10 +96,12 @@ where they were Bernoulli(p). Unweighted binomial fits, test frames without the 
 predict, and every other family are unchanged; 0.9-34 fit no binomial response. No equivalence scenario fits one.
 
 Tests, in [test-binomial.R](../../inst/tinytest/test-binomial.R):
-- The block "stated test weights keep dec-B596's meaning, one draw a row" is rewritten, with test weights c(0, 1, 3):
-  `trials.test` is `k + f`; the test draws are NA at row 1 and match, at rows 2 and 3, the same fit's draws with
-  `weights.test` set to NULL at the same seed (so a weight of 3 changes nothing); their mean is near 75 of 100, as
-  predict's at those rows.
+- The block "stated test weights keep dec-B596's meaning, one draw a row" is rewritten, with test weights c(0, 1, 3)
+  (its training weights stay `w = 1`, still a weighted fit): `trials.test` is `k + f`; the test draws are NA at row 1
+  and match, at rows 2 and 3, the same fit's draws with `weights.test` set to NULL at the same seed (so a weight of 3
+  changes nothing); their mean is within 3 of 75, as the dec-B638 pin's is.
+- Which pins discriminate: the `trials.test` and mean pins fail before; the match at rows 2 and 3 passes before too
+  (one-trial draws on one stream) and guards the mutants named for it.
 - The `gapRows` refusal pin takes the new words, and a weighted fit with `gapRows` is refused in them.
 - New: a weighted fit whose test frame lacks the count columns draws 0/1, its 0 row NA.
 - Kept: `predict(..., weights = 5)` drawing at most 5, and test-predict-newdata-weights.R's binomial block.
@@ -130,6 +138,8 @@ Reviewer's mutants, each of which must fail a test:
 - the `sdUnder` branch restored (item 1's probit and logistic pins);
 - the sd compared with NULL whenever amplitude changes (the gaussian held-k pins);
 - an sd beside an amplitude change dropped whatever its value (the different-sd pin);
+- the `sdUnder` branch kept on gaussian only, or on the binary families only (the gaussian chi() or the probit and
+  logistic cases of the rewritten block);
 - `binomialFitTrials` keeping the weights condition (`trials.test` and the draws);
 - `out` left off in `fitPpdWeights` (row 1 not NA);
 - the trials multiplied by the test weight (the weight-3 match);
@@ -145,10 +155,10 @@ see a draw move.
 ## Stop conditions
 
 Stop and report, without working around, when:
-- the diff passes ~330 lines, or one item passes 1.5x its size;
+- the diff passes ~360 lines, or one item passes 1.5x its size;
 - any equivalence scenario or snapshot moves;
 - a test outside the two named blocks changes its expectation;
-- a route to item 1's case on a gaussian fit with a drawn k turns up and behaves otherwise than the ruling states.
+- a route to item 1's case behaves otherwise than the ruling states.
 
 ## Interactions
 
@@ -156,6 +166,11 @@ Stop and report, without working around, when:
   textual.
 - No consumer reaches either path: stan4bart, bartCause, treatSens and bairrtt call no `$setForest` and fit no
   `cbind` binomial response; their suites are not owed.
+
+## Landing records
+
+The ledger entry for the calls made; this plan's Status and Landing note; the TODO items setforest-roundtrip-sd and
+binomial-test-trials removed; the INDEX row.
 
 ## Calls made
 
@@ -165,12 +180,14 @@ Stop and report, without working around, when:
    rule; dead code in a door's comparison invites a wrong revival.
 3. The missing-count refusal's remedy loses "state the test rows' trials as weights": a test weight never gave a
    binomial test row trials (it drew one 0/1 row, and after this slice it only holds rows out), so the remedy never
-   worked. Alternative: keep the words. Not marked: a remedy that does not work is a defect.
+   worked. It takes the missing test weight's remedies, dec-B641 treating a missing count as a missing weight is.
+   Alternatives: keep the words; "complete them, or drop those rows from 'test'". Not marked: a remedy that does not
+   work is a defect, and the new words are a sibling refusal's.
 4. The refusal reaches a weighted fit's test frame whose count columns have some values missing, which today fits and
    draws one trial; dec-B641 refuses a missing count at a test frame, and dec-B698 a missing test weight on any row,
    so a weight-0 row missing a count is refused too. Alternative: skip the check at weight-0 rows, whose draws are NA
    anyway. Not marked: the rulings state it.
-5. Item 1's pins cover probit and logistic; no gaussian route with a drawn k was found, and the reviewer is asked to
-   look for one. Alternative: a hazard pin besides, the same branch.
+5. Item 1's pins cover probit, logistic and gaussian given `normal(k = chi())`; the hazard families, the same
+   branch, are not pinned. Alternative: a hazard pin besides.
 
 Nothing here changes what a user sees beyond what the two rulings state, so no call is marked for the maintainer.
