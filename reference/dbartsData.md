@@ -11,8 +11,8 @@ dbartsData(
     offset, offset.test = offset,
     factors = c("categorical", "indicators"),
     na.action = dbarts::na.keepPredictors,
-    bases = NULL,
-    counts = NULL, n.cuts = NULL, useQuantiles = NULL)
+    counts = NULL, n.cuts = NULL, useQuantiles = NULL,
+    keep.data = TRUE)
 ```
 
 ## Arguments
@@ -40,45 +40,6 @@ dbartsData(
   and 1, which name the rows in the data set and compose with the
   sampler's active-row mask.
 
-- bases:
-
-  Optional list of the per-forest amplitude bases a multi-forest model
-  combines its forests through, one element per forest and `NULL` where
-  a forest carries the implicit intercept its single amplitude scales.
-  Each non-null element is what
-  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
-  `basis` takes as a value, and its class decides what the forest
-  multiplies: a factor, a character vector or a logical vector is
-  levels, one amplitude per level, and a number or a numeric matrix of
-  one column is numbers, one amplitude, a vector of 0s and 1s being one
-  column and not two levels (write `factor(z)` for those). Each is one
-  numeric column or two levels: three or more levels and several numeric
-  columns, a factor's indicator columns among them, are refused, with
-  the form to write (hand over the factor itself, or give each level but
-  the first, or each column, a forest of its own). A matrix of logicals
-  or of characters, a factor that has dimensions, a data frame and a
-  column of all zeros are refused. It has one row per observation,
-  restricted by `subset` exactly as `weights` is: `data` and `subset`
-  are each evaluated once, and each basis is given the rows the data
-  object keeps, in their order, less those the `na.action` drops. It is
-  judged on those rows alone, as a basis written as code is: a level
-  that none of them has gives no column, a missing value on one is
-  refused, and a missing value on a row that is dropped is not looked
-  at. A factor with `NA` as a level is refused when a kept row is at it.
-  This is the data half of a multi-forest specification, and is normally
-  written by
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
-  `forests = ` argument rather than here; supplying it directly selects
-  the multi-forest model with the engine's default per-forest
-  configuration, and
-  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)
-  declarations may then configure the forests one at a time. A single
-  element (one basis-carrying forest) is refused; for varying
-  coefficients use an intercept forest plus one basis forest per
-  covariate, `bases = list(NULL, z1, z2)`.
-  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) and
-  `rbart_vi` refuse a data object carrying bases.
-
 - n.cuts, useQuantiles:
 
   The maximum number of cut points per predictor, one number for every
@@ -99,6 +60,18 @@ dbartsData(
   other sampler refuses it when it reads it; `dbartsData` itself refuses
   a count no sampler could read. Ignored, with the warning the other
   arguments draw, when `formula` is already a data object.
+
+- keep.data:
+
+  Whether an object built from a formula and a data frame or list keeps
+  the frame. `TRUE`, the default, keeps the frame as given, the
+  positions of the rows kept and what it takes to read the model's
+  variables from them again, and holds no predictors, response, weights
+  or offset: see ‘Data kept’. `FALSE` keeps the model matrix, the
+  response, the weights and the offset in the object, as it was in
+  0.9-34, and no frame. An object built from an environment, with no
+  `data`, or from the matrix interface keeps its matrix either way.
+  `formula` being a `dbartsData` object takes the argument quietly.
 
 - counts:
 
@@ -132,6 +105,39 @@ dbartsData(
   row leaves every reported probability unchanged.
 
 ## Details
+
+### Data kept
+
+Built from a formula and a data frame or list, with `keep.data = TRUE`,
+the object keeps `data` whole (in its `frame` slot), `rows`, the
+positions in it of the rows kept after `subset` and the `na.action`
+(`NULL` when every row is kept in order; a repeated row, and a `NA` in
+`subset` that the `na.action` keeps, appear as they are), `rows.total`,
+the number of rows handed over, which `rows` are positions within
+(`NULL` where `rows` is), `frame.columns`, the names of its columns, and
+what reads the formula, `weights` and `offset` against the frame again.
+A caller's variable the formula names is kept as its value at the build.
+A later change to `data` leaves the object unchanged. The slots `x`,
+`y`, and where they were given `weights` and `offset` hold a stand-in
+that stops, naming `model.frame(object)`, under `dim`, `length`, `[`,
+`as.matrix`, arithmetic and the rest; `is.na`, `anyNA` and `is.finite`
+stop too, rather than answer for values the slot does not hold;
+[`attr()`](https://rdrr.io/r/base/attr.html) of one gives `NULL`, and a
+`weights` or `offset` that was not given is `NULL`. Read the data with
+[`model.frame`](https://rdrr.io/r/stats/model.frame.html)`(object)` and
+[`nobs`](https://rdrr.io/r/stats/nobs.html)`(object)`. Every refusal and
+warning of the build is given at the build.
+
+A sampler, and
+[`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)'s
+`data`, are made from the block-holding object that `keep.data = FALSE`
+gives, which the fitting functions make from a frame-keeping one by
+evaluating the formula against the frame again, on the kept rows, with
+the caller's variables as they were at the build; the sampler's data
+hold no frame. A frame-keeping object loaded in another session does
+this at its first fit, so the packages its formula calls must be
+installed there, and a term that draws, as `I(x + rnorm(n))` does, is
+drawn again, as `predict` draws one on new data.
 
 ### Data frame ingestion
 
@@ -225,26 +231,34 @@ factor columns as their integer codes.
 
 ## Value
 
-An object of class `dbartsData`. Its `rowNames` slot records the names
-of the kept training and test rows, as `list(train, test)`, or `NULL`
-when neither is named; a fit carries them on its outputs as the row
-names paragraph of
+An object of class `dbartsData`. Its `frame`, `rows` and `frame.columns`
+slots are described under ‘Data kept’. Its `rowNames` slot records the
+names of the kept training and test rows, as `list(train, test)`, or
+`NULL` when neither is named; a fit carries them on its outputs as the
+row names paragraph of
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s ‘Value’
-section describes. Its `bases` slot holds each forest's block as the
-sampler uses it, a factor's level indicators among them, and its
-`basis.levels` slot records, for each forest of levels, the levels in
-the order of the block's columns, and `NULL` for a forest of numbers or
-with no basis; the slot is `NULL` when there are no `bases`. Its
-`basis.scale` slot is `NULL` as created; on the data object a sampler
-holds it records, for each forest of numbers that states no `sd`, the
-standard deviation of its column over the rows in the likelihood when
-the sampler was first created, which that forest's default `sd` was
-taken from (see `sd` in
+section describes. Its `bases`, `basis.levels`, `basis.written` and
+`basis.scale` slots are `NULL` as created: a forest's basis is stated on
+the forest (see
+[`forest`](https://vdorie.github.io/dbarts/reference/forest.md)), and
+these slots are written on the data object a sampler of several forests
+holds. There `bases` holds each forest's block as the sampler uses it, a
+factor's level indicators among them; `basis.levels` records, for each
+forest of levels, the levels in the order of the block's columns, and
+`NULL` for a forest of numbers or with no basis; and `basis.written` the
+text each basis written as code was written as, `NA` for a basis handed
+over as a value and for a forest with none, by which a forest beside
+these data keeps the held basis (`forest(basis = factor(z))` for one
+written `factor(z)`). on the data object a sampler holds it records, for
+each forest of numbers that states no `sd`, the standard deviation of
+its column over the rows in the likelihood when the sampler was first
+created, which that forest's default `sd` was taken from (see `sd` in
 [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)), and a
 sampler created from such an object is handed it, so a copy, a reload
 and a sampler made again from its own control, model and data have the
-creation's prior whatever column is then in force. A declaration that
-replaces a forest's basis on the object drops its entry, and clearing an
+creation's prior whatever column is then in force. A forest that names a
+held basis by its text keeps the entry, wherever it stands in the list,
+and one given a new value takes the scale of that value; clearing an
 entry by hand has the next creation take the scale of the column in
 force. Its `missing.seen` slot is `NULL` as created; on the data object
 a sampler holds it records, once a predictor has been changed, the
@@ -324,6 +338,7 @@ a `lengthscale` the model supplies is used in place of the record's.
 ## See also
 
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
+[`model.frame.dbartsData`](https://vdorie.github.io/dbarts/reference/model.frame.dbartsData.md),
 [`extract.dbartsSampler`](https://vdorie.github.io/dbarts/reference/extract.dbartsSampler.md),
 [`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md)
 
@@ -343,36 +358,195 @@ data <- dbartsData(y ~ x + g, df)
 data
 #> An object of class "dbartsData"
 #> Slot "y":
-#>  [1]  0.177577428  0.760531131  0.993684793  0.265626355  0.697894896
-#>  [6]  0.519816750  0.009659326  0.244830643  1.014011813  1.005901046
-#> [11]  0.335204293  0.506964701  0.651273625  1.127721920  1.276516351
-#> [16]  0.841611818 -0.011854548  1.330332559  0.905008414  0.857943974
-#> [21]  0.244923711 -0.034990768  0.499862880  0.052575161  0.621328776
-#> [26]  0.745552247  0.703889559  1.424777615  1.032684790  1.387674186
-#> [31]  0.320629695  0.481533368  0.168516403  0.924658735  0.806339550
-#> [36]  0.152153052  0.883719720  0.120276483  1.272290346  0.589972076
-#> [41]  0.344054654  0.874243472  0.697341157  0.628454551  0.279732169
-#> [46]  0.232456352  0.026730705  0.133342322  0.441749469  1.251978519
-#> [51]  0.253527651  0.275760383  0.727522408  1.454490179  1.054661032
-#> [56]  0.964278766  0.405456058  0.254249106  0.132526675  0.272371030
+#> <'y' is read with model.frame(o)>
 #> 
 #> Slot "x":
+#> <'x' is read with model.frame(o)>
+#> 
+#> Slot "varTypes":
+#> [1] 0 1
+#> 
+#> Slot "x.test":
+#> NULL
+#> 
+#> Slot "weights":
+#> NULL
+#> 
+#> Slot "weights.test":
+#> NULL
+#> 
+#> Slot "offset":
+#> NULL
+#> 
+#> Slot "offset.test":
+#> NULL
+#> 
+#> Slot "n.cuts":
+#> [1] NA NA
+#> 
+#> Slot "sigma":
+#> [1] NA
+#> 
+#> Slot "missing":
+#> [1] "incorporate"
+#> 
+#> Slot "na.action":
+#> NULL
+#> 
+#> Slot "rowNames":
+#> NULL
+#> 
+#> Slot "missing.seen":
+#> NULL
+#> 
+#> Slot "cutPoints":
+#> NULL
+#> 
+#> Slot "response.range":
+#> NULL
+#> 
+#> Slot "forest.calibration":
+#> NULL
+#> 
+#> Slot "standardization":
+#> NULL
+#> 
+#> Slot "response.type":
+#> [1] "numeric"
+#> 
+#> Slot "response.n.levels":
+#> [1] NA
+#> 
+#> Slot "response.levels":
+#> NULL
+#> 
+#> Slot "bases":
+#> NULL
+#> 
+#> Slot "basis.levels":
+#> NULL
+#> 
+#> Slot "basis.scale":
+#> NULL
+#> 
+#> Slot "basis.written":
+#> NULL
+#> 
+#> Slot "counts":
+#> NULL
+#> 
+#> Slot "counts.as.factor":
+#> [1] NA
+#> 
+#> Slot "offset.category":
+#> NULL
+#> 
+#> Slot "offset.category.test":
+#> NULL
+#> 
+#> Slot "status":
+#> NULL
+#> 
+#> Slot "useQuantiles":
+#> [1] NA
+#> 
+#> Slot "testUsesRegularOffset":
+#> [1] NA
+#> 
+#> Slot "frame":
+#>             x g            y
+#> 1  0.16804153 a  0.177577428
+#> 2  0.80751640 c  0.760531131
+#> 3  0.38494235 b  0.993684793
+#> 4  0.32773432 a  0.265626355
+#> 5  0.60210067 a  0.697894896
+#> 6  0.60439405 a  0.519816750
+#> 7  0.12463344 a  0.009659326
+#> 8  0.29460092 a  0.244830643
+#> 9  0.57760992 b  1.014011813
+#> 10 0.63097927 b  1.005901046
+#> 11 0.51201590 a  0.335204293
+#> 12 0.50502391 c  0.506964701
+#> 13 0.53403535 c  0.651273625
+#> 14 0.55724944 b  1.127721920
+#> 15 0.86791949 b  1.276516351
+#> 16 0.82970869 a  0.841611818
+#> 17 0.11144915 c -0.011854548
+#> 18 0.70368836 b  1.330332559
+#> 19 0.89748826 a  0.905008414
+#> 20 0.27973255 b  0.857943974
+#> 21 0.22820188 a  0.244923711
+#> 22 0.01532989 a -0.034990768
+#> 23 0.12898156 b  0.499862880
+#> 24 0.09338193 a  0.052575161
+#> 25 0.23688501 b  0.621328776
+#> 26 0.79114741 c  0.745552247
+#> 27 0.59973157 c  0.703889559
+#> 28 0.91014771 b  1.424777615
+#> 29 0.56042455 b  1.032684790
+#> 30 0.75570477 b  1.387674186
+#> 31 0.37917189 c  0.320629695
+#> 32 0.37328098 c  0.481533368
+#> 33 0.17029064 a  0.168516403
+#> 34 0.45330732 b  0.924658735
+#> 35 0.25841396 b  0.806339550
+#> 36 0.33626595 a  0.152153052
+#> 37 0.88958303 c  0.883719720
+#> 38 0.20194630 c  0.120276483
+#> 39 0.57918604 b  1.272290346
+#> 40 0.20763203 b  0.589972076
+#> 41 0.28146879 a  0.344054654
+#> 42 0.78628120 a  0.874243472
+#> 43 0.17301935 b  0.697341157
+#> 44 0.57074752 c  0.628454551
+#> 45 0.41928296 c  0.279732169
+#> 46 0.26762217 c  0.232456352
+#> 47 0.04780944 c  0.026730705
+#> 48 0.10349305 a  0.133342322
+#> 49 0.31403146 a  0.441749469
+#> 50 0.80064106 b  1.251978519
+#> 51 0.22932470 c  0.253527651
+#> 52 0.21299844 a  0.275760383
+#> 53 0.87710091 c  0.727522408
+#> 54 0.99322196 b  1.454490179
+#> 55 0.84424702 a  1.054661032
+#> 56 0.91043655 c  0.964278766
+#> 57 0.47126973 c  0.405456058
+#> 58 0.22441841 a  0.254249106
+#> 59 0.12781466 c  0.132526675
+#> 60 0.27968351 a  0.272371030
+#> 
+#> Slot "rows":
+#> NULL
+#> 
+#> Slot "rows.total":
+#> NULL
+#> 
+#> Slot "frame.columns":
+#> [1] "x" "g" "y"
+#> 
+#> Slot "build":
+#> $formula
+#> y ~ x + g
+#> <environment: 0x6460bd22cdb8>
+#> 
+#> $weights
+#> NULL
+#> 
+#> $offset
+#> NULL
+#> 
+#> $factors
+#> [1] "categorical"
+#> 
+#> $coding
+#> $coding$x
 #> $dense
 #> $dense[[1]]
-#>  [1] 0.16804153 0.80751640 0.38494235 0.32773432 0.60210067 0.60439405
-#>  [7] 0.12463344 0.29460092 0.57760992 0.63097927 0.51201590 0.50502391
-#> [13] 0.53403535 0.55724944 0.86791949 0.82970869 0.11144915 0.70368836
-#> [19] 0.89748826 0.27973255 0.22820188 0.01532989 0.12898156 0.09338193
-#> [25] 0.23688501 0.79114741 0.59973157 0.91014771 0.56042455 0.75570477
-#> [31] 0.37917189 0.37328098 0.17029064 0.45330732 0.25841396 0.33626595
-#> [37] 0.88958303 0.20194630 0.57918604 0.20763203 0.28146879 0.78628120
-#> [43] 0.17301935 0.57074752 0.41928296 0.26762217 0.04780944 0.10349305
-#> [49] 0.31403146 0.80064106 0.22932470 0.21299844 0.87710091 0.99322196
-#> [55] 0.84424702 0.91043655 0.47126973 0.22441841 0.12781466 0.27968351
+#> numeric(0)
 #> 
 #> $dense[[2]]
-#>  [1] a c b a a a a a b b a c c b b a c b a b a a b a b c c b b b c c a b b a c c
-#> [39] b b a a b c c c c a a b c a c b a c c a c a
+#> factor()
 #> Levels: a b c
 #> 
 #> 
@@ -383,7 +557,7 @@ data
 #> [1] 1 2
 #> 
 #> $numObservations
-#> [1] 60
+#> [1] 0
 #> 
 #> $columnNames
 #> [1] "x" "g"
@@ -425,100 +599,10 @@ data
 #>         y         x         g 
 #> "numeric" "numeric"  "factor" 
 #> 
-#> Slot "varTypes":
-#> [1] 0 1
-#> 
-#> Slot "x.test":
-#> NULL
-#> 
-#> Slot "weights":
-#> NULL
-#> 
-#> Slot "weights.test":
-#> NULL
-#> 
-#> Slot "offset":
-#> NULL
-#> 
-#> Slot "offset.test":
-#> NULL
-#> 
-#> Slot "n.cuts":
-#> [1] NA NA
-#> 
-#> Slot "sigma":
-#> [1] NA
-#> 
-#> Slot "missing":
-#> [1] "incorporate"
-#> 
-#> Slot "na.action":
-#> NULL
-#> 
-#> Slot "rowNames":
-#> $train
-#>  [1] "1"  "2"  "3"  "4"  "5"  "6"  "7"  "8"  "9"  "10" "11" "12" "13" "14" "15"
-#> [16] "16" "17" "18" "19" "20" "21" "22" "23" "24" "25" "26" "27" "28" "29" "30"
-#> [31] "31" "32" "33" "34" "35" "36" "37" "38" "39" "40" "41" "42" "43" "44" "45"
-#> [46] "46" "47" "48" "49" "50" "51" "52" "53" "54" "55" "56" "57" "58" "59" "60"
-#> 
-#> $test
-#> NULL
+#> $coding$missing.seen
+#> [1] FALSE FALSE
 #> 
 #> 
-#> Slot "missing.seen":
-#> NULL
-#> 
-#> Slot "cutPoints":
-#> NULL
-#> 
-#> Slot "response.range":
-#> NULL
-#> 
-#> Slot "forest.calibration":
-#> NULL
-#> 
-#> Slot "standardization":
-#> NULL
-#> 
-#> Slot "response.type":
-#> [1] "numeric"
-#> 
-#> Slot "response.n.levels":
-#> [1] NA
-#> 
-#> Slot "response.levels":
-#> NULL
-#> 
-#> Slot "bases":
-#> NULL
-#> 
-#> Slot "basis.levels":
-#> NULL
-#> 
-#> Slot "basis.scale":
-#> NULL
-#> 
-#> Slot "counts":
-#> NULL
-#> 
-#> Slot "counts.as.factor":
-#> [1] NA
-#> 
-#> Slot "offset.category":
-#> NULL
-#> 
-#> Slot "offset.category.test":
-#> NULL
-#> 
-#> Slot "status":
-#> NULL
-#> 
-#> Slot "useQuantiles":
-#> [1] NA
-#> 
-#> Slot "testUsesRegularOffset":
-#> [1] NA
 #> 
 
 ## the same data through the backwards-compatible x/y interface, with a

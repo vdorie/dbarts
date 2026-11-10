@@ -239,22 +239,21 @@ forest(
   **Which kind it is.** The class of the basis decides whether the
   forest multiplies levels or numbers, the same way at every place a
   basis is given: `forest()` written as code or with a value,
-  [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)'s
-  `bases`, `$setForestBasis` and `predict`'s `bases`. A factor, ordered
-  or not, a character vector and a logical vector are levels, with a
-  coefficient for each: in the order of a factor's levels, in sorted
-  order for a character vector, `FALSE` then `TRUE` for a logical
-  vector. An integer or a double is numbers, whatever its values, and a
-  numeric matrix is its columns. The values are never looked at to
-  decide: a column of 0s and 1s is one column with one coefficient, and
-  is two levels only when written `factor(z)` or as a logical vector. A
-  matrix of characters or of logicals, and a factor matrix, is refused,
-  one of a single column included, since a vector is levels and a matrix
-  is numbers: hand over its column as a vector, `cm[, 1]`. An array of
-  one dimension is its vector. A data frame and any other class are
-  refused too. Handed over as a value, the refusal names the class;
-  written as code, a class a model frame does not take, a data frame or
-  a list, is refused in R's own words.
+  `$setForestBasis` and `predict`'s `bases`. A factor, ordered or not, a
+  character vector and a logical vector are levels, with a coefficient
+  for each: in the order of a factor's levels, in sorted order for a
+  character vector, `FALSE` then `TRUE` for a logical vector. An integer
+  or a double is numbers, whatever its values, and a numeric matrix is
+  its columns. The values are never looked at to decide: a column of 0s
+  and 1s is one column with one coefficient, and is two levels only when
+  written `factor(z)` or as a logical vector. A matrix of characters or
+  of logicals, and a factor matrix, is refused, one of a single column
+  included, since a vector is levels and a matrix is numbers: hand over
+  its column as a vector, `cm[, 1]`. An array of one dimension is its
+  vector. A data frame and any other class are refused too. Handed over
+  as a value, the refusal names the class; written as code, a class a
+  model frame does not take, a data frame or a list, is refused in R's
+  own words.
 
   The kind is fixed when the forest is created. A forest created with no
   basis cannot be given one, and a forest of levels keeps the same
@@ -428,21 +427,45 @@ forest(
   and is cut to the rows the fit keeps; a value already cut to those
   rows is refused by name. A level that no row the fit keeps has gives
   no column, whether `data`, `subset` or the `na.action` is what empties
-  it. A value that the rows kept leave with one level, or one numeric
-  column that is zero on all of them, is refused as the same basis
-  written as code is. A single string or number is refused:
-  `basis = "dose"` names no column, so write `basis = dose`.
+  it. Beside a data object it has one row for each row the object was
+  handed, before its `subset` and `na.action`. A value that the rows
+  kept leave with one level, or one numeric column that is zero on all
+  of them, is refused as the same basis written as code is. A single
+  number is refused. A single string, written in place or held in a
+  variable, names a column: `basis = "dose"` and
+  `nm <- "dose"; forest(basis = nm)` are `basis = dose`, at every place
+  a basis is given and in `predict`'s `bases`, which reads it from
+  `newdata`; a character vector of one value per row stays a basis of
+  its levels.
 
-  A basis is stated here or on the data object, not both:
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) given
-  an already-built `dbartsData` refuses this argument, the data object's
-  own `bases` being where it is stated then, while
-  [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
-  takes a data object and installs the bases declared here in place of
-  those it carried. After creation a basis is replaced by
-  `$setForestBasis`, whose formula is read at once, where it was made;
-  see
+  **Where a name is read.** A name is read from the data first and then
+  where `forest()` was called, at every place a basis is given: a column
+  of the data frame or list a formula fit is given; a column of the
+  matrix the matrix interface is given; beside a
+  [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
+  object, a column of the frame it keeps, or, where it keeps none (a
+  sampler's data, `keep.data = FALSE`), a column it holds, its
+  predictors and response, and a basis a sampler's data hold, named by
+  the text it was written as: `forest(basis = factor(z))` beside the
+  data of a sampler created with that basis reads the held columns,
+  while `forest(basis = z)` there is refused, naming the written form. A
+  name of the data such an object was built from that it does not hold
+  is refused, naming the data object built with its frame. Beside a data
+  object built from a formula with no data, a name is read where
+  `forest()` was called, as beside that formula. Beside any data, a
+  sampler's data included, a `forests` list states the forests in full:
+  a forest declaring no basis has none, and no list gives one forest. A
+  forest that keeps a held basis keeps the scale recorded for it when
+  the sampler was first created, wherever it stands in the list (see
+  `sd`); a basis given as a new value takes its scale from that value.
+  After creation a basis is replaced by `$setForestBasis`, whose formula
+  is read at once, where it was made; see
   [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md).
+
+  **A hazard fit.** Under `family = "hazard"` a basis has one value per
+  subject, cut by `subset` and the `na.action` and repeated over the
+  subject's periods, as weights and offsets are; a vector of one value
+  per person-period row is refused, naming the number of subjects.
 
   A lone forest carrying a `basis` is refused, the coefficients being
   what distinguish a forest from another. For varying coefficients
@@ -781,16 +804,15 @@ fitting function's leaf prior as its one forest does, whole: its `k`, a
 is what [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
 would fit, the other forests added. It leaves that prior by stating
 `sd`, held at it, or `amplitude = normal()` or `student()`, drawn. A
-model may hold any number, as
-`y ~ forest(x1) + forest(x2) + forest(x3)`, a `forests` list or a data
-object's `bases` with several `NULL` entries. Two or more of them that
-state no `sd` and no `amplitude = normal()` or `student()` share one
-prior total, the size the fitting function gives its one forest: its `k`
-or `leaf.prior`, `k = 2` by default under a continuous response and `k`
-drawn under `chi(1.5, 2)` under `"probit"` and `"logistic"`. Each of the
-\\K\\ forests that share is held at 1 and takes an equal part, \\1/K\\,
-of the total's variance whatever its number of trees, so the sum has the
-one forest's prior at every point and each forest 0.71 of its sd at two,
+model may hold any number, as `y ~ forest(x1) + forest(x2) + forest(x3)`
+or a `forests` list. Two or more of them that state no `sd` and no
+`amplitude = normal()` or `student()` share one prior total, the size
+the fitting function gives its one forest: its `k` or `leaf.prior`,
+`k = 2` by default under a continuous response and `k` drawn under
+`chi(1.5, 2)` under `"probit"` and `"logistic"`. Each of the \\K\\
+forests that share is held at 1 and takes an equal part, \\1/K\\, of the
+total's variance whatever its number of trees, so the sum has the one
+forest's prior at every point and each forest 0.71 of its sd at two,
 0.58 at three; a drawn `k` is one `k` for the group, and a named
 `leaf.prior = normal(sd = )` is the total's size. The model is the one
 forest with its trees in
@@ -949,7 +971,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)
 #>   trees: 10, 10; 20 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.000709
+#> total seconds in loop: 0.000561
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 2 5 2 3 2 

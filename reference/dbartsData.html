@@ -49,8 +49,8 @@
 <span>    <span class="va">offset</span>, offset.test <span class="op">=</span> <span class="va">offset</span>,</span>
 <span>    factors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"categorical"</span>, <span class="st">"indicators"</span><span class="op">)</span>,</span>
 <span>    na.action <span class="op">=</span> <span class="fu">dbarts</span><span class="fu">::</span><span class="va"><a href="na.keepPredictors.html">na.keepPredictors</a></span>,</span>
-<span>    bases <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>    counts <span class="op">=</span> <span class="cn">NULL</span>, n.cuts <span class="op">=</span> <span class="cn">NULL</span>, useQuantiles <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+<span>    counts <span class="op">=</span> <span class="cn">NULL</span>, n.cuts <span class="op">=</span> <span class="cn">NULL</span>, useQuantiles <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>    keep.data <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -59,11 +59,11 @@
 <dl><dt id="arg-formula-data-test-subset-weights-offset-offset-test-factors-na-action">formula, data, test, subset, weights, offset, offset.test, factors, na.action<a class="anchor" aria-label="anchor" href="#arg-formula-data-test-subset-weights-offset-offset-test-factors-na-action"></a></dt>
 <dd><p>As in <code><a href="dbarts.html">dbarts</a></code>. Retains backwards compatibility with <code><a href="bart.html">bart</a></code>, so that <code>formula</code>/<code>data</code> can be a <code><a href="https://rdrr.io/r/stats/formula.html" class="external-link">formula</a></code>/<code><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></code> pair, or a pair of <code>x.train</code>/<code>y.train</code> matrices/vector. <code>offset</code>/<code>offset.test</code> take the matrix interface's shape from whether <code>counts</code> is also supplied: with <code>counts</code>, an <code>n</code> x <code>K</code> (<code>nTest</code> x <code>K</code>) numeric matrix installs the per-category shift described under <code>counts</code> below, and a flat vector is refused; without <code>counts</code>, only a flat vector (or single number) is accepted, and a matrix is refused. <code>formula</code> may itself be a <code>dbartsData</code> object, in which case it is returned as-is; any other argument supplied alongside it is then ignored, with a warning naming each one. <code>weights</code> are held as given, validated here only for length, <code>NA</code> and non-negativity; the family's own rule applies when a sampler is built from the object, where a <code>"probit"</code>, <code>"ordinal"</code> or <code>"nbinom"</code> fit accepts only weights of 0 and 1, which name the rows in the data set and compose with the sampler's active-row mask.</p></dd>
 
-   <dt id="arg-bases">bases<a class="anchor" aria-label="anchor" href="#arg-bases"></a></dt>
-<dd><p>Optional list of the per-forest amplitude bases a multi-forest model combines its forests through, one element per forest and <code>NULL</code> where a forest carries the implicit intercept its single amplitude scales. Each non-null element is what <code><a href="forest.html">forest</a></code>'s <code>basis</code> takes as a value, and its class decides what the forest multiplies: a factor, a character vector or a logical vector is levels, one amplitude per level, and a number or a numeric matrix of one column is numbers, one amplitude, a vector of 0s and 1s being one column and not two levels (write <code>factor(z)</code> for those). Each is one numeric column or two levels: three or more levels and several numeric columns, a factor's indicator columns among them, are refused, with the form to write (hand over the factor itself, or give each level but the first, or each column, a forest of its own). A matrix of logicals or of characters, a factor that has dimensions, a data frame and a column of all zeros are refused. It has one row per observation, restricted by <code>subset</code> exactly as <code>weights</code> is: <code>data</code> and <code>subset</code> are each evaluated once, and each basis is given the rows the data object keeps, in their order, less those the <code>na.action</code> drops. It is judged on those rows alone, as a basis written as code is: a level that none of them has gives no column, a missing value on one is refused, and a missing value on a row that is dropped is not looked at. A factor with <code>NA</code> as a level is refused when a kept row is at it. This is the data half of a multi-forest specification, and is normally written by <code><a href="dbarts.html">dbarts</a></code>'s <code>forests = </code> argument rather than here; supplying it directly selects the multi-forest model with the engine's default per-forest configuration, and <code><a href="forest.html">forest</a></code> declarations may then configure the forests one at a time. A single element (one basis-carrying forest) is refused; for varying coefficients use an intercept forest plus one basis forest per covariate, <code>bases = list(NULL, z1, z2)</code>. <code><a href="xbart.html">xbart</a></code> and <code>rbart_vi</code> refuse a data object carrying bases.</p></dd>
-
    <dt id="arg-n-cuts-usequantiles">n.cuts, useQuantiles<a class="anchor" aria-label="anchor" href="#arg-n-cuts-usequantiles"></a></dt>
 <dd><p>The maximum number of cut points per predictor, one number for every column, one per column, or by column or term name with <code>.default</code> for the rest, as <code><a href="bart.html">bart</a></code>'s <code>n.cuts</code> reads, and whether to place them at the predictors' quantiles, which the data object then states; see <code><a href="dbarts.html">dbarts</a></code>. <code>NULL</code>, the default, states none. A count is kept as written and read again by the sampler it goes to, over the predictors that sampler holds: handed to a hazard sampler's <code>$setData</code> or to <code>new("dbartsSampler", ...)</code> with a person-period matrix, <code>n.cuts = 7</code> gives the predictors 7 and the appended <code>period</code> column 100, as <code>dbarts(n.cuts = 7, family = "hazard")</code> does, and <code>period</code> takes a count only by its own name. A count one value short, or by name without <code>period</code>, is kept so a hazard sampler can read it, and any other sampler refuses it when it reads it; <code>dbartsData</code> itself refuses a count no sampler could read. Ignored, with the warning the other arguments draw, when <code>formula</code> is already a data object.</p></dd>
+
+   <dt id="arg-keep-data">keep.data<a class="anchor" aria-label="anchor" href="#arg-keep-data"></a></dt>
+<dd><p>Whether an object built from a formula and a data frame or list keeps the frame. <code>TRUE</code>, the default, keeps the frame as given, the positions of the rows kept and what it takes to read the model's variables from them again, and holds no predictors, response, weights or offset: see ‘Data kept’. <code>FALSE</code> keeps the model matrix, the response, the weights and the offset in the object, as it was in 0.9-34, and no frame. An object built from an environment, with no <code>data</code>, or from the matrix interface keeps its matrix either way. <code>formula</code> being a <code>dbartsData</code> object takes the argument quietly.</p></dd>
 
    <dt id="arg-counts">counts<a class="anchor" aria-label="anchor" href="#arg-counts"></a></dt>
 <dd><p>Optional <code>n</code> x <code>K</code> matrix of non-negative integer counts selecting the multinomial (softmax) model, column <code>k</code> holding category <code>k</code>'s successes. A row may carry no trial: it enters no likelihood and still receives fitted probabilities. A row's trials, its count total, may not exceed \(10^6\), as each trial costs a Polya-Gamma draw per category per sweep. A row with any <code>NA</code> cell is a missing response, routed through <code>na.action</code> exactly as for every other family (see <code><a href="na.keepPredictors.html">na.keepPredictors</a></code>). It is restricted by <code>subset</code> exactly as <code>weights</code> is, and it IS the response: <code>y</code> is derived as its row sums - the trials \(n_i\) - so no separate response need be supplied, and any that is supplied is replaced. At least two categories are required. Column names, when present, label the categories. <code><a href="dbarts.html">dbarts</a>(family = "multinomial")</code> writes this argument from a count-matrix or factor response rather than requiring it here. Under <code>family = binomial</code> or <code>"logistic"</code> an <code>n</code> x 2 matrix is instead the binomial response, its columns a row's successes and failures: <code>y</code> is again the row sums, the trials, and the offset is the flat shift on the log-odds a binary logistic fit takes; <code><a href="bart.html">bart</a></code> and <code><a href="dbarts.html">dbarts</a></code> write it from a <code>cbind(successes, failures)</code> response. Paired with <code>counts</code>, a matrix <code>offset</code>/<code>offset.test</code> is the per-category shift added to the raw per-category values BEFORE the softmax - which is the only place a shift means anything under one, since the blend is invariant to a common per-observation shift and a flat shift would be added after it. Only the row-centered part is identified: adding a constant to a whole row leaves every reported probability unchanged.</p></dd>
@@ -72,6 +72,10 @@
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p></p><div class="section">
+<h3 id="data-kept">Data kept<a class="anchor" aria-label="anchor" href="#data-kept"></a></h3>
+<p>Built from a formula and a data frame or list, with <code>keep.data = TRUE</code>, the object keeps <code>data</code> whole (in its <code>frame</code> slot), <code>rows</code>, the positions in it of the rows kept after <code>subset</code> and the <code>na.action</code> (<code>NULL</code> when every row is kept in order; a repeated row, and a <code>NA</code> in <code>subset</code> that the <code>na.action</code> keeps, appear as they are), <code>rows.total</code>, the number of rows handed over, which <code>rows</code> are positions within (<code>NULL</code> where <code>rows</code> is), <code>frame.columns</code>, the names of its columns, and what reads the formula, <code>weights</code> and <code>offset</code> against the frame again. A caller's variable the formula names is kept as its value at the build. A later change to <code>data</code> leaves the object unchanged. The slots <code>x</code>, <code>y</code>, and where they were given <code>weights</code> and <code>offset</code> hold a stand-in that stops, naming <code>model.frame(object)</code>, under <code>dim</code>, <code>length</code>, <code>[</code>, <code>as.matrix</code>, arithmetic and the rest; <code>is.na</code>, <code>anyNA</code> and <code>is.finite</code> stop too, rather than answer for values the slot does not hold; <code><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr()</a></code> of one gives <code>NULL</code>, and a <code>weights</code> or <code>offset</code> that was not given is <code>NULL</code>. Read the data with <code><a href="https://rdrr.io/r/stats/model.frame.html" class="external-link">model.frame</a>(object)</code> and <code><a href="https://rdrr.io/r/stats/nobs.html" class="external-link">nobs</a>(object)</code>. Every refusal and warning of the build is given at the build.</p>
+<p>A sampler, and <code><a href="dbartsSpec.html">dbartsSpec</a></code>'s <code>data</code>, are made from the block-holding object that <code>keep.data = FALSE</code> gives, which the fitting functions make from a frame-keeping one by evaluating the formula against the frame again, on the kept rows, with the caller's variables as they were at the build; the sampler's data hold no frame. A frame-keeping object loaded in another session does this at its first fit, so the packages its formula calls must be installed there, and a term that draws, as <code>I(x + rnorm(n))</code> does, is drawn again, as <code>predict</code> draws one on new data.</p>
+</div><p></p><div class="section">
 <h3 id="data-frame-ingestion">Data frame ingestion<a class="anchor" aria-label="anchor" href="#data-frame-ingestion"></a></h3>
 <p>Data frame columns - through the formula interface or a frame passed as <code>x.train</code> - map to predictors as follows:</p><ul><li><p>numeric and logical columns enter as ordinal predictors, as do classed numbers such as <code>Date</code>, <code>POSIXct</code> and <code>difftime</code>, by their numeric value (a <code>POSIXlt</code> column is refused; convert it with <code>as.POSIXct</code>);</p></li>
 <li><p>unordered factors each become a single categorical predictor under the default <code>factors = "categorical"</code>, with splits sending a subset of levels down each branch; <code>factors = "indicators"</code> instead expands each factor into binary indicator columns, as previous versions always did - a factor past 100 levels builds this expansion as a sparse (<code>dgCMatrix</code>-backed) block automatically, with no user-facing argument: the tree structure grown is the same as the dense expansion's, though leaf-mean draws can differ from it in the last bit;</p></li>
@@ -87,12 +91,12 @@
     </div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>An object of class <code>dbartsData</code>. Its <code>rowNames</code> slot records the names of the kept training and test rows, as <code>list(train, test)</code>, or <code>NULL</code> when neither is named; a fit carries them on its outputs as the row names paragraph of <code><a href="bart.html">bart</a></code>'s ‘Value’ section describes. Its <code>bases</code> slot holds each forest's block as the sampler uses it, a factor's level indicators among them, and its <code>basis.levels</code> slot records, for each forest of levels, the levels in the order of the block's columns, and <code>NULL</code> for a forest of numbers or with no basis; the slot is <code>NULL</code> when there are no <code>bases</code>. Its <code>basis.scale</code> slot is <code>NULL</code> as created; on the data object a sampler holds it records, for each forest of numbers that states no <code>sd</code>, the standard deviation of its column over the rows in the likelihood when the sampler was first created, which that forest's default <code>sd</code> was taken from (see <code>sd</code> in <code><a href="forest.html">forest</a></code>), and a sampler created from such an object is handed it, so a copy, a reload and a sampler made again from its own control, model and data have the creation's prior whatever column is then in force. A declaration that replaces a forest's basis on the object drops its entry, and clearing an entry by hand has the next creation take the scale of the column in force. Its <code>missing.seen</code> slot is <code>NULL</code> as created; on the data object a sampler holds it records, once a predictor has been changed, the columns that sampler can hold missing values in, as a logical per predictor column (see ‘Missing values in predictors’ in <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>), and a sampler created from such an object takes them. Its <code>status</code> slot is <code>NULL</code> as created; on the data object an <code>aft</code> sampler holds it records the censoring status in force, 1 for an event and 0 for a censored row, which <code>setResponse(status = )</code> rewrites and a copy or a reload is created from. Its <code>useQuantiles</code> slot is <code>NA</code> as created; on the data object a sampler holds it records whether the cut points are placed at the predictors' quantiles (see <code>useQuantiles</code> in <code><a href="dbartsControl.html">dbartsControl</a></code>), the value the sampler's control then carries.</p>
+    <p>An object of class <code>dbartsData</code>. Its <code>frame</code>, <code>rows</code> and <code>frame.columns</code> slots are described under ‘Data kept’. Its <code>rowNames</code> slot records the names of the kept training and test rows, as <code>list(train, test)</code>, or <code>NULL</code> when neither is named; a fit carries them on its outputs as the row names paragraph of <code><a href="bart.html">bart</a></code>'s ‘Value’ section describes. Its <code>bases</code>, <code>basis.levels</code>, <code>basis.written</code> and <code>basis.scale</code> slots are <code>NULL</code> as created: a forest's basis is stated on the forest (see <code><a href="forest.html">forest</a></code>), and these slots are written on the data object a sampler of several forests holds. There <code>bases</code> holds each forest's block as the sampler uses it, a factor's level indicators among them; <code>basis.levels</code> records, for each forest of levels, the levels in the order of the block's columns, and <code>NULL</code> for a forest of numbers or with no basis; and <code>basis.written</code> the text each basis written as code was written as, <code>NA</code> for a basis handed over as a value and for a forest with none, by which a forest beside these data keeps the held basis (<code>forest(basis = factor(z))</code> for one written <code>factor(z)</code>). on the data object a sampler holds it records, for each forest of numbers that states no <code>sd</code>, the standard deviation of its column over the rows in the likelihood when the sampler was first created, which that forest's default <code>sd</code> was taken from (see <code>sd</code> in <code><a href="forest.html">forest</a></code>), and a sampler created from such an object is handed it, so a copy, a reload and a sampler made again from its own control, model and data have the creation's prior whatever column is then in force. A forest that names a held basis by its text keeps the entry, wherever it stands in the list, and one given a new value takes the scale of that value; clearing an entry by hand has the next creation take the scale of the column in force. Its <code>missing.seen</code> slot is <code>NULL</code> as created; on the data object a sampler holds it records, once a predictor has been changed, the columns that sampler can hold missing values in, as a logical per predictor column (see ‘Missing values in predictors’ in <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>), and a sampler created from such an object takes them. Its <code>status</code> slot is <code>NULL</code> as created; on the data object an <code>aft</code> sampler holds it records the censoring status in force, 1 for an event and 0 for a censored row, which <code>setResponse(status = )</code> rewrites and a copy or a reload is created from. Its <code>useQuantiles</code> slot is <code>NA</code> as created; on the data object a sampler holds it records whether the cut points are placed at the predictors' quantiles (see <code>useQuantiles</code> in <code><a href="dbartsControl.html">dbartsControl</a></code>), the value the sampler's control then carries.</p>
 <p>Four more slots record what a sampler derives from its data; where <code>basis.scale</code> keeps the value of the sampler's first creation, they follow what the sampler holds while the data move. Each is <code>NULL</code> as created: <code>cutPoints</code>, a list with one entry per predictor column, <code>NULL</code> for an unordered factor and otherwise the column's cut points, strictly increasing, with their weights, where they are not equally likely, as the entry's <code>"mass"</code> attribute (an increasing sequence whose successive differences are the weights, as a state's <code>cutMass</code> holds them); <code>response.range</code>, the <code>c(min, max)</code> of the response the leaf prior's scale is taken from, <code>NULL</code> under a family that reads none (probit, logistic, ordinal and multinomial), and under <code>nbinom</code> <code>c(center, center + 1)</code> of the count fit's center, where a pair of another width, as a range recorded under another family is, is read by its first number, the sampler recording it as <code>c(center, center + 1)</code>, and an equal pair is refused; <code>forest.calibration</code>, <code>c(anchor = , unit = )</code> of a model of several forests (see <code><a href="forest.html">forest</a></code>), <code>NULL</code> elsewhere; and <code>standardization</code>, for a forest of <code>linear</code> or <code>gp</code> leaves a list with one entry per forest holding <code>list(center = , scale = )</code>, each named by the leaf covariates where each one's column name is present, non-empty and the name of no other column, and otherwise with <code>columns</code>, their column positions, beside them, a <code>scale</code> of <code>NA</code> for a covariate without spread, and beside them, for <code>gp</code> leaves whose model gives no <code>lengthscale</code>, the <code>lengthscale</code> derived with them; <code>NULL</code> as a whole, and not an entry per forest, where no forest's leaves take a covariate. The data object a sampler holds, <code>sampler$data</code>, records them from creation on, and the sampler rewrites them after every call that changes one. A sampler created from a data object - by <code><a href="dbarts.html">dbarts</a></code>, <code><a href="bart.html">bart</a></code>, <code><a href="dbartsSpec.html">dbartsSpec</a></code> or <code>new("dbartsSampler", control, model, data)</code>, and the copy and reload of a sampler, which are created from its own - uses each value the object records and derives the others, so <code>dbarts(sampler$data)</code> is made on the sampler's cut points, response range and leaf standardization, while a data object made afresh from the same rows derives its own. A sampler's <code>setData</code> does the same unless its <code>updateCutPoints</code>, <code>updateScale</code> or <code>updateStandardization</code> says to derive a value or to keep the sampler's (see <code><a href="dbartsSampler-class.html">dbartsSampler-class</a></code>), so <code>sampler$setData(sampler$data)</code>, the object handed back whole, keeps them. <code><a href="xbart.html">xbart</a></code> takes <code>cutPoints</code> for every fold and derives the others in each fold, from the fold's training rows, whatever the object records. A record that fits no data - another number of columns, cut points for an unordered factor, on an ordered factor other than those of its levels, repeated or not finite, a range that is not two finite numbers, a standardization whose centers are not finite, whose scales are neither positive nor <code>NA</code>, whose lengthscales are not positive, whose names are missing, empty or repeated, or whose <code>columns</code> are not one position per center - is refused, naming the slot; setting it to <code>NULL</code> derives the value instead. Cut points out of order are sorted. Which covariates the leaves take is the model's, so a standardization is matched to them by its keys, names to leaf columns whose names could key one, the others deriving, <code>columns</code> where a leaf column's name could not, and one with neither by position where the counts agree: an entry for a covariate the leaves do not take is not read, a covariate without one is derived, and a <code>lengthscale</code> the model supplies is used in place of the record's.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="dbarts.html">dbarts</a></code>, <code><a href="extract.dbartsSampler.html">extract.dbartsSampler</a></code>, <code><a href="sparseFactor.html">sparseFactor</a></code></p></div>
+    <div class="dont-index"><p><code><a href="dbarts.html">dbarts</a></code>, <code><a href="model.frame.dbartsData.html">model.frame.dbartsData</a></code>, <code><a href="extract.dbartsSampler.html">extract.dbartsSampler</a></code>, <code><a href="sparseFactor.html">sparseFactor</a></code></p></div>
     </div>
 
     <div class="section level2">
@@ -110,36 +114,195 @@
 <span class="r-in"><span><span class="va">data</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> An object of class "dbartsData"</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Slot "y":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  [1]  0.177577428  0.760531131  0.993684793  0.265626355  0.697894896</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  [6]  0.519816750  0.009659326  0.244830643  1.014011813  1.005901046</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [11]  0.335204293  0.506964701  0.651273625  1.127721920  1.276516351</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [16]  0.841611818 -0.011854548  1.330332559  0.905008414  0.857943974</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [21]  0.244923711 -0.034990768  0.499862880  0.052575161  0.621328776</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [26]  0.745552247  0.703889559  1.424777615  1.032684790  1.387674186</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [31]  0.320629695  0.481533368  0.168516403  0.924658735  0.806339550</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [36]  0.152153052  0.883719720  0.120276483  1.272290346  0.589972076</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [41]  0.344054654  0.874243472  0.697341157  0.628454551  0.279732169</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [46]  0.232456352  0.026730705  0.133342322  0.441749469  1.251978519</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [51]  0.253527651  0.275760383  0.727522408  1.454490179  1.054661032</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [56]  0.964278766  0.405456058  0.254249106  0.132526675  0.272371030</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> &lt;'y' is read with model.frame(o)&gt;</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Slot "x":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> &lt;'x' is read with model.frame(o)&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "varTypes":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0 1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "x.test":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "weights":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "weights.test":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "offset":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "offset.test":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "n.cuts":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] NA NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "sigma":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "missing":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "incorporate"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "na.action":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "rowNames":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "missing.seen":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "cutPoints":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "response.range":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "forest.calibration":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "standardization":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "response.type":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "numeric"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "response.n.levels":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "response.levels":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "bases":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "basis.levels":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "basis.scale":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "basis.written":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "counts":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "counts.as.factor":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "offset.category":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "offset.category.test":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "status":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "useQuantiles":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "testUsesRegularOffset":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "frame":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>             x g            y</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1  0.16804153 a  0.177577428</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2  0.80751640 c  0.760531131</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3  0.38494235 b  0.993684793</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4  0.32773432 a  0.265626355</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5  0.60210067 a  0.697894896</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6  0.60439405 a  0.519816750</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 7  0.12463344 a  0.009659326</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 8  0.29460092 a  0.244830643</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 9  0.57760992 b  1.014011813</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10 0.63097927 b  1.005901046</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 11 0.51201590 a  0.335204293</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 12 0.50502391 c  0.506964701</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 13 0.53403535 c  0.651273625</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 14 0.55724944 b  1.127721920</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 15 0.86791949 b  1.276516351</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 16 0.82970869 a  0.841611818</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 17 0.11144915 c -0.011854548</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 18 0.70368836 b  1.330332559</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 19 0.89748826 a  0.905008414</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 20 0.27973255 b  0.857943974</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 21 0.22820188 a  0.244923711</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 22 0.01532989 a -0.034990768</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 23 0.12898156 b  0.499862880</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 24 0.09338193 a  0.052575161</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 25 0.23688501 b  0.621328776</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 26 0.79114741 c  0.745552247</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 27 0.59973157 c  0.703889559</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 28 0.91014771 b  1.424777615</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 29 0.56042455 b  1.032684790</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 30 0.75570477 b  1.387674186</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 31 0.37917189 c  0.320629695</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 32 0.37328098 c  0.481533368</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 33 0.17029064 a  0.168516403</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 34 0.45330732 b  0.924658735</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 35 0.25841396 b  0.806339550</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 36 0.33626595 a  0.152153052</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 37 0.88958303 c  0.883719720</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 38 0.20194630 c  0.120276483</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 39 0.57918604 b  1.272290346</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 40 0.20763203 b  0.589972076</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 41 0.28146879 a  0.344054654</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 42 0.78628120 a  0.874243472</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 43 0.17301935 b  0.697341157</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 44 0.57074752 c  0.628454551</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 45 0.41928296 c  0.279732169</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 46 0.26762217 c  0.232456352</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 47 0.04780944 c  0.026730705</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 48 0.10349305 a  0.133342322</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 49 0.31403146 a  0.441749469</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 50 0.80064106 b  1.251978519</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 51 0.22932470 c  0.253527651</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 52 0.21299844 a  0.275760383</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 53 0.87710091 c  0.727522408</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 54 0.99322196 b  1.454490179</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 55 0.84424702 a  1.054661032</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 56 0.91043655 c  0.964278766</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 57 0.47126973 c  0.405456058</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 58 0.22441841 a  0.254249106</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 59 0.12781466 c  0.132526675</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 60 0.27968351 a  0.272371030</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "rows":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "rows.total":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "frame.columns":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "x" "g" "y"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "build":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $formula</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> y ~ x + g</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> &lt;environment: 0x6460bd22cdb8&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $weights</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $offset</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $factors</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "categorical"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $coding</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $coding$x</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $dense</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $dense[[1]]</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  [1] 0.16804153 0.80751640 0.38494235 0.32773432 0.60210067 0.60439405</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  [7] 0.12463344 0.29460092 0.57760992 0.63097927 0.51201590 0.50502391</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [13] 0.53403535 0.55724944 0.86791949 0.82970869 0.11144915 0.70368836</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [19] 0.89748826 0.27973255 0.22820188 0.01532989 0.12898156 0.09338193</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [25] 0.23688501 0.79114741 0.59973157 0.91014771 0.56042455 0.75570477</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [31] 0.37917189 0.37328098 0.17029064 0.45330732 0.25841396 0.33626595</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [37] 0.88958303 0.20194630 0.57918604 0.20763203 0.28146879 0.78628120</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [43] 0.17301935 0.57074752 0.41928296 0.26762217 0.04780944 0.10349305</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [49] 0.31403146 0.80064106 0.22932470 0.21299844 0.87710091 0.99322196</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [55] 0.84424702 0.91043655 0.47126973 0.22441841 0.12781466 0.27968351</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> numeric(0)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $dense[[2]]</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  [1] a c b a a a a a b b a c c b b a c b a b a a b a b c c b b b c c a b b a c c</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [39] b b a a b c c c c a a b c a c b a c c a c a</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> factor()</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Levels: a b c</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
@@ -150,7 +313,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1 2</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $numObservations</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 60</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $columnNames</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] "x" "g"</span>
@@ -192,100 +355,10 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span>         y         x         g </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> "numeric" "numeric"  "factor" </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "varTypes":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "x.test":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "weights":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "weights.test":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "offset":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "offset.test":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "n.cuts":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] NA NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "sigma":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "missing":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "incorporate"</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "na.action":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "rowNames":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> $train</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  [1] "1"  "2"  "3"  "4"  "5"  "6"  "7"  "8"  "9"  "10" "11" "12" "13" "14" "15"</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [16] "16" "17" "18" "19" "20" "21" "22" "23" "24" "25" "26" "27" "28" "29" "30"</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [31] "31" "32" "33" "34" "35" "36" "37" "38" "39" "40" "41" "42" "43" "44" "45"</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [46] "46" "47" "48" "49" "50" "51" "52" "53" "54" "55" "56" "57" "58" "59" "60"</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> $test</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $coding$missing.seen</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] FALSE FALSE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "missing.seen":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "cutPoints":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "response.range":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "forest.calibration":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "standardization":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "response.type":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "numeric"</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "response.n.levels":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "response.levels":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "bases":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "basis.levels":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "basis.scale":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "counts":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "counts.as.factor":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "offset.category":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "offset.category.test":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "status":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "useQuantiles":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "testUsesRegularOffset":</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co">## the same data through the backwards-compatible x/y interface, with a</span></span></span>

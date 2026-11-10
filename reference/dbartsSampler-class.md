@@ -348,9 +348,13 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
   An object inheriting from
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md).
-  A sampler created with one forest and none refuses data that carry
-  `bases`, having no forest to multiply them; make a new sampler from
-  such data with
+  One that keeps its frame (`keep.data = TRUE`) is made into the
+  block-holding object the sampler runs on first, as `dbarts` makes it.
+  Writing such an object to the sampler's `data` field resolves it the
+  same way. A sampler created with one forest and none refuses the data
+  of a sampler of several forests, which carry their bases, having no
+  forest to multiply them; hand over the data object they were made
+  from, or make a new sampler with
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md). A
   hazard sampler also takes data built from a `Surv` response
   (`dbartsData(Surv(time, status) ~ x, newData)`): its subjects are
@@ -2705,7 +2709,9 @@ as it is on a sampler of one forest, and `FALSE` for the default and for
 included, and `k.scale` over the `k` its part.
 
 On a forest whose scale the multi-forest CALIBRATION MAP sets, on a
-sampler built with `forests =` or `dbartsData(bases = )` (see
+sampler built with `forests =` or a
+[`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
+formula term (see
 [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)), `k` is
 pinned at 1, `k.scale` is the map's leaf scale, and the entries above
 that the map adds are absent (so `NULL`) on every other forest, a

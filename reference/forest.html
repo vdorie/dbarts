@@ -264,8 +264,7 @@ The constructor is not exported: it resolves by bare name inside the
 <p><strong>Which kind it is.</strong> The class of the basis decides whether the
     forest multiplies levels or numbers, the same way at every place a basis
     is given: <code>forest()</code> written as code or with a value,
-    <code><a href="dbartsData.html">dbartsData</a></code>'s <code>bases</code>, <code>$setForestBasis</code> and
-    <code>predict</code>'s <code>bases</code>. A factor, ordered or not, a character
+    <code>$setForestBasis</code> and <code>predict</code>'s <code>bases</code>. A factor, ordered or not, a character
     vector and a logical vector are levels, with a coefficient for each: in
     the order of a factor's levels, in sorted order for a character vector,
     <code>FALSE</code> then <code>TRUE</code> for a logical vector. An integer or a
@@ -424,18 +423,44 @@ The constructor is not exported: it resolves by bare name inside the
     row for every row of <code>data</code> and is cut to the rows the fit keeps; a
     value already cut to those rows is refused by name. A level that no row
     the fit keeps has gives no column, whether <code>data</code>, <code>subset</code> or
-    the <code>na.action</code> is what empties it. A value that the rows kept leave with one level, or one numeric column
+    the <code>na.action</code> is what empties it. Beside a data object it has one
+    row for each row the object was handed, before its <code>subset</code> and
+    <code>na.action</code>. A value that the rows kept leave with one level, or one numeric column
     that is zero on all of them, is refused as the same basis written as code
     is.
-    A single string or number is refused: <code>basis = "dose"</code> names no
-    column, so write <code>basis = dose</code>.</p>
-<p>A basis is stated here or on the data object, not both:
-    <code><a href="dbarts.html">dbarts</a></code> given an already-built <code>dbartsData</code> refuses
-    this argument, the data object's own <code>bases</code> being where it is
-    stated then, while <code><a href="dbartsSpec.html">dbartsSpec</a></code> takes a data object and
-    installs the bases declared here in place of those it carried. After
-    creation a basis is replaced by <code>$setForestBasis</code>, whose formula is
-    read at once, where it was made; see <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>.</p>
+    A single number is refused. A single string, written in place or held in
+    a variable, names a column: <code>basis = "dose"</code> and
+    <code>nm &lt;- "dose"; forest(basis = nm)</code> are <code>basis = dose</code>, at
+    every place a basis is given and in <code>predict</code>'s <code>bases</code>, which
+    reads it from <code>newdata</code>; a character vector of one value per row
+    stays a basis of its levels.</p>
+<p><strong>Where a name is read.</strong> A name is read from the data first and
+    then where <code>forest()</code> was called, at every place a basis is given:
+    a column of the data frame or list a formula fit is given; a column of
+    the matrix the matrix interface is given; beside a
+    <code><a href="dbartsData.html">dbartsData</a></code> object, a column of the frame it keeps, or,
+    where it keeps none (a sampler's data, <code>keep.data = FALSE</code>), a
+    column it holds, its predictors and response, and a basis a sampler's
+    data hold, named by the text it was written as:
+    <code>forest(basis = factor(z))</code> beside the data of a sampler created
+    with that basis reads the held columns, while <code>forest(basis = z)</code>
+    there is refused, naming the written form. A name of the data such an
+    object was built from that it does not hold is refused, naming the data
+    object built with its frame. Beside a data object built from a formula
+    with no data, a name is read where <code>forest()</code> was called, as beside
+    that formula. Beside any data, a sampler's data
+    included, a <code>forests</code> list states the forests in full: a forest
+    declaring no basis has none, and no list gives one forest. A forest that
+    keeps a held basis keeps the scale recorded for it when the sampler was
+    first created, wherever it stands in the list (see <code>sd</code>); a basis
+    given as a new value takes its scale from that value. After creation a
+    basis is replaced by <code>$setForestBasis</code>, whose formula is read at
+    once, where it was made; see <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>.</p>
+<p><strong>A hazard fit.</strong> Under <code>family = "hazard"</code> a basis has one
+    value per subject, cut by <code>subset</code> and the <code>na.action</code> and
+    repeated over the subject's periods, as weights and offsets are; a
+    vector of one value per person-period row is refused, naming the number
+    of subjects.</p>
 <p>A lone forest carrying a <code>basis</code> is refused, the coefficients being
     what distinguish a forest from another. For varying coefficients declare
     an intercept forest plus one basis forest per covariate,
@@ -750,8 +775,7 @@ The constructor is not exported: it resolves by bare name inside the
   forest is what <code><a href="bart.html">bart</a></code> would fit, the other forests added. It
   leaves that prior by stating <code>sd</code>, held at it, or
   <code>amplitude = normal()</code> or <code>student()</code>, drawn. A model may hold any number, as
-  <code>y ~ forest(x1) + forest(x2) + forest(x3)</code>, a <code>forests</code> list or
-  a data object's <code>bases</code> with several <code>NULL</code> entries. Two or more
+  <code>y ~ forest(x1) + forest(x2) + forest(x3)</code> or a <code>forests</code> list. Two or more
   of them that state no <code>sd</code> and no <code>amplitude = normal()</code> or <code>student()</code> share
   one prior total, the size the fitting function gives its one forest: its
   <code>k</code> or <code>leaf.prior</code>, <code>k = 2</code> by default under a continuous
@@ -912,7 +936,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   trees: 10, 10; 20 in all</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000709</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000561</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 2 2 5 2 3 2 </span>

@@ -136,6 +136,9 @@ weights can change between draws, for use inside larger MCMC schemes.
   : Discrete Bayesian Additive Regression Trees Sampler Control
 - [`dbartsData()`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
   : Discrete Bayesian Additive Regression Trees Sampler Data
+- [`model.frame(`*`<dbartsData>`*`)`](https://vdorie.github.io/dbarts/reference/model.frame.dbartsData.md)
+  [`nobs(`*`<dbartsData>`*`)`](https://vdorie.github.io/dbarts/reference/model.frame.dbartsData.md)
+  : The Data of a dbartsData Object
 - [`dbartsSpec()`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
   : Discrete Bayesian Additive Regression Trees Sampler Specification
 - [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)

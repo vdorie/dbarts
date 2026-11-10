@@ -261,14 +261,14 @@ family(object, ...)
 
 - ntree:
 
-  The number of trees in the sum-of-trees formulation. Where the data
-  object carries `bases`, it is the count of the forest with no basis, a
-  forest with one taking 50 trees, and it is refused, when given, where
-  every forest has a basis; see
-  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md). Like
-  every count on this page (`nskip`, `ndpost`, `numcut`, `keepevery`,
-  `printevery`, `nthread`, `nchain`, `printcutoffs`), a fractional value
-  is refused, naming the argument, rather than silently truncated; see
+  The number of trees in the sum-of-trees formulation. A data object
+  holding the bases of a sampler of several forests fits one forest
+  here, as
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) does
+  given no `forests`. Like every count on this page (`nskip`, `ndpost`,
+  `numcut`, `keepevery`, `printevery`, `nthread`, `nchain`,
+  `printcutoffs`), a fractional value is refused, naming the argument,
+  rather than silently truncated; see
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
   for the shared whole-number rule. A written `NULL` is refused, saying
   to leave the argument out for its default.
@@ -659,18 +659,20 @@ family(object, ...)
   all-ones column) or a value of the class the forest was created with,
   which decides what it multiplies (see
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
-  `basis` item) and cannot change. For a forest of levels, created with
-  a factor, a character vector or a logical vector, hand over a factor,
-  a character vector or a logical vector: its levels are matched to the
-  forest's by name and not by position, a level of the forest that no
-  row has is a column of zeros, and a row at a level the forest does not
-  have, or at `NA`, is refused. Numbers are refused for such a forest, a
-  factor's indicator columns among them: hand over the factor itself,
-  `fit$bases` holding it. For a forest of numbers, hand over its one
-  numeric column, a vector or a matrix of one column; several columns, a
-  factor, a character vector and a logical vector are refused
-  ([`as.numeric()`](https://rdrr.io/r/base/numeric.html) of a logical
-  vector is its 0/1 column). Either way it is required to have
+  `basis` item) and cannot change. A single string names a column of
+  `newdata`, `bases = "dose"` reading `newdata$dose`; on one predicted
+  row a string that names no column is that row's value. For a forest of
+  levels, created with a factor, a character vector or a logical vector,
+  hand over a factor, a character vector or a logical vector: its levels
+  are matched to the forest's by name and not by position, a level of
+  the forest that no row has is a column of zeros, and a row at a level
+  the forest does not have, or at `NA`, is refused. Numbers are refused
+  for such a forest, a factor's indicator columns among them: hand over
+  the factor itself, `fit$bases` holding it. For a forest of numbers,
+  hand over its one numeric column, a vector or a matrix of one column;
+  several columns, a factor, a character vector and a logical vector are
+  refused ([`as.numeric()`](https://rdrr.io/r/base/numeric.html) of a
+  logical vector is its 0/1 column). Either way it is required to have
   `nrow(newdata)` rows, or as many rows as the fit has training rows
   when `newdata` is left out; with no `newdata`, `bases` replace the
   fit's own at the training rows, which is the counterfactual at the
@@ -1452,7 +1454,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.203815
+#> total seconds in loop: 0.164606
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

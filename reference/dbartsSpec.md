@@ -66,16 +66,19 @@ dbartsSpec(
   `resid.prior`, `sigma` and `node.prior` were never arguments of this
   function and are refused by name, naming
   `family = gaussian(sigma = )`, `sigest` and `leaf.prior` respectively.
-  A [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)
-  `basis` given as a one-sided formula is evaluated in `parentEnv`, this
-  surface performing no data ingestion of its own; the data object's
-  rows are already whatever its own `subset` kept. A `basis` declared
-  here always reaches the sampler: unlike
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md), which
-  refuses a basis declaration once `formula` is already a `dbartsData`,
-  this function's first argument is always one, so the declaration is
-  installed and REPLACES whatever bases the data object carried.
-  `family`'s eight-token vocabulary is narrower than
+  A [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
+  `basis` is read against `data` as
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) reads
+  one beside a data object: a name is read from the frame the object
+  keeps, or from the columns it holds, its predictors and response and a
+  sampler's bases by the text each was written as, and otherwise where
+  [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) was
+  called; a value has one entry for each row the object was handed,
+  before its `subset` and `na.action`, and is cut with them. The list
+  states the forests in full: what the data object held is replaced, a
+  forest keeping a held basis by writing it as it was written, with its
+  recorded scale, and no list, or a list of one forest with no basis,
+  gives one forest. `family`'s eight-token vocabulary is narrower than
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s by
   design - multinomial's K-forest engine and `hurdle.lognormal`'s
   two-sampler composition build through

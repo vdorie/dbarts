@@ -466,13 +466,21 @@ dbarts(
   use one forest with `linear()` leaves. A `basis` is written as the
   right-hand side of a model formula, without the tilde, and read as
   [`lm`](https://rdrr.io/r/stats/lm.html) reads one: a name of a column
-  of `data` is that column, `+` separates columns, and anything that
+  of the data is that column, `+` separates columns, and anything that
   names no column is what it was where
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) was
-  called; see
+  called; a single string, `basis = "z"`, names column `z`; see
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
-  `basis` item. Every forest has a label, fixed when the sampler is
-  created: the name its place in the list has,
+  `basis` item. The data a name is read from first are `data`, the
+  matrix `formula` at the matrix interface, by its column names, and
+  beside a `dbartsData` object what that object holds: the frame it
+  keeps, or the columns it holds, its predictors and response and the
+  bases of a sampler's data by the text each was written as. A basis
+  handed over as a value has one entry for each row of the data handed
+  over, before `subset` and the `na.action`, and is cut with them; one
+  of the kept length where rows were dropped is refused. Every forest
+  has a label, fixed when the sampler is created: the name its place in
+  the list has,
   `forests = list(prognostic = forest(), treatment = forest(basis = factor(z)))`;
   without one the text of its basis, `"factor(z)"`; and without that,
   for a forest with no basis or with one handed over as a value,
@@ -495,26 +503,28 @@ dbarts(
   family's latents. The result is an ordinary `dbartsSampler`;
   per-forest fits and the per-forest amplitudes are read off the sampler
   rather than from the run's combined `train` channel. The columns of
-  each basis are stored on the data object, as `data@bases`, named as
-  `lm` would name them, on the rows `subset` and the `na.action` keep,
-  and survive a sampler's re-creation. A basis declared here has nowhere
-  to ride when `formula` is already a `dbartsData` object: `dbarts()`
-  refuses that combination by name rather than silently discarding the
-  declaration and fitting a single-forest model - build the data object
-  with the bases already on it, `dbartsData(bases = )`, or declare them
-  through
-  [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),
-  which always takes a pre-built data object and installs the
-  declaration, replacing whatever bases it carried. Options a two-forest
-  model does not read - `monotone`, `variance`, a non-uniform
-  `split.probs` (a vector or `dart()`), a linear or Gaussian-process
-  leaf prior, a `k` hyperprior or non-default `k` where no forests share
-  a total, Student-t residuals, `storage = "single"`, per-column cut
-  counts, and a `test` set - are refused at creation rather than
-  ignored, as is any declaration the engine cannot honor. The
-  constructors `forest`, `interactions` and `blocks` resolve by bare
-  name inside this argument, whatever the caller has attached, and a
-  bare name the caller has bound to a value is that value; see
+  each basis are stored on the sampler's data object, as `data@bases`,
+  named as `lm` would name them, on the rows `subset` and the
+  `na.action` keep, and survive a sampler's re-creation. Beside any
+  data, a sampler's data included, the list states the forests in full,
+  as
+  [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
+  reads it: a forest declaring no basis has none, a list of forests with
+  no basis gives that many plain forests, and no list gives one forest;
+  a forest keeps a basis a sampler's data hold by writing it as it was
+  written, `forest(basis = factor(z))`, and keeps with it the scale
+  recorded when the sampler was first created. In a hazard fit a basis
+  has one value per subject, cut by `subset` and the `na.action` and
+  repeated over the subject's periods. Options a two-forest model does
+  not read - `monotone`, `variance`, a non-uniform `split.probs` (a
+  vector or `dart()`), a linear or Gaussian-process leaf prior, a `k`
+  hyperprior or non-default `k` where no forests share a total,
+  Student-t residuals, `storage = "single"`, per-column cut counts, and
+  a `test` set - are refused at creation rather than ignored, as is any
+  declaration the engine cannot honor. The constructors `forest`,
+  `interactions` and `blocks` resolve by bare name inside this argument,
+  whatever the caller has attached, and a bare name the caller has bound
+  to a value is that value; see
   [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md).
 
 - n.trees:

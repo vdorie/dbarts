@@ -1873,10 +1873,10 @@ no forest beside it; a formula that names no predictors; `test` given
 together with a model of several forests (an amplitude-coupled fit has
 no per-observation test replay); and a model of several forests in a
 family the multiplier model does not support (`"aft"`, `"ordinal"`,
-`"nbinom"`, the hazard families, `"multinomial"`, and
-`"hurdle.lognormal"` - gaussian, probit, and logistic are the only
-families a forest with a `basis` can join).
-[`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md),
+`"nbinom"`, `"multinomial"`, and `"hurdle.lognormal"` - gaussian,
+probit, logistic and the hazard families are the only families a forest
+with a `basis` can join, a hazard fit's basis having one value per
+subject). [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md),
 [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md),
 [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md),
 [`pdbart`](https://vdorie.github.io/dbarts/reference/pdbart.md),
@@ -2527,7 +2527,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001649
+#> total seconds in loop: 0.001395
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 3 3 2 2 2 2 2 3 2 2 2 3 3 2 
@@ -2564,7 +2564,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000905
+#> total seconds in loop: 0.000743
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 2 1 2 1 1 2 2 1 1 1 2 2 2 2 
@@ -2599,7 +2599,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001382
+#> total seconds in loop: 0.001136
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 3 2 4 2 2 3 2 2 2 2 3 3 2 
@@ -2653,7 +2653,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.002009
+#> total seconds in loop: 0.001661
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 2 2 2 2 2 2 3 3 2 

@@ -53,7 +53,7 @@ makeTestModelMatrix(data, newdata)
 
   An existing
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
-  object.
+  object, built with or without its frame.
 
 - newdata:
 
