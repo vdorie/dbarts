@@ -202,6 +202,23 @@ expect_true(grepl(
   refusal(eval(withVariance(~1))),
   fixed = TRUE
 ))
+# an empty vector states nothing, so it is refused as forest()'s is, naming
+# the way to a constant variance; the matrix interface reads it alike
+for (empty in list(character(0L), integer(0L), logical(0L))) {
+  expect_equal(
+    refusal(eval(withVariance(empty))),
+    paste0(
+      "'variance' names no predictor; leave it out or write variance = FALSE ",
+      "for a constant variance"
+    ),
+    info = class(empty)
+  )
+}
+expect_error(
+  dbarts(as.matrix(frame[2:4]), frame$y, variance = character(0L)),
+  "variance = FALSE",
+  fixed = TRUE
+)
 for (written in c("~ x2 - 1", "~ 0 + x2")) {
   expect_true(
     grepl(

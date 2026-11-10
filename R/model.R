@@ -1038,6 +1038,17 @@ resolveVarianceColumns <- function(variance, data, argument = "variance") {
   if (isTRUE(variance)) {
     return(seq_len(numColumns))
   }
+  # an empty vector states nothing, which is a constant variance or every
+  # column; forest()'s own empty selection is refused the same way
+  if (is.atomic(variance) && length(variance) == 0L) {
+    stop(
+      "'",
+      argument,
+      "' names no predictor; leave it out or write variance = FALSE for a ",
+      "constant variance",
+      call. = FALSE
+    )
+  }
   if (inherits(variance, "formula")) {
     # read exactly as varianceForest()'s first argument is, by the one
     # grammar: the terms matched to the fit's column labels
@@ -1065,9 +1076,6 @@ resolveVarianceColumns <- function(variance, data, argument = "variance") {
     NULL
   }
   if (!is.null(requestedNames)) {
-    if (length(requestedNames) == 0L) {
-      return(seq_len(numColumns))
-    }
     result <- integer(0)
     for (name in requestedNames) {
       columns <- resolveTermColumns(
