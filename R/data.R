@@ -4563,7 +4563,8 @@ dbartsData <- function(
 ## selected", naming neither the term nor the unsupported syntax. A ':'
 ## inside backticks (one non-syntactic name), brackets or a call's
 ## parentheses (x[, 1:3], I(a:b)) is part of one term, not an interaction
-## between terms.
+## between terms; so is the '::' or ':::' of a package-qualified call
+## (splines::ns(w, 3)), which is one operator, not two ':'.
 refuseInteractionTerms <- function(termLabels) {
   if (any(vapply(termLabels, hasTopLevelColon, NA))) {
     stop(
@@ -4582,7 +4583,12 @@ hasTopLevelColon <- function(label) {
   characters <- strsplit(label, "", fixed = TRUE)[[1L]]
   depth <- 0L
   quote <- ""
-  for (character in characters) {
+  isColon <- characters == ":"
+  # a ':' next to another is the namespace operator, not an interaction
+  inNamespace <- isColon &
+    (c(FALSE, isColon[-length(isColon)]) | c(isColon[-1L], FALSE))
+  for (position in seq_along(characters)) {
+    character <- characters[[position]]
     if (nzchar(quote)) {
       if (character == quote) {
         quote <- ""
@@ -4593,7 +4599,7 @@ hasTopLevelColon <- function(label) {
       depth <- depth + 1L
     } else if (character %in% c(")", "]", "}")) {
       depth <- depth - 1L
-    } else if (character == ":" && depth == 0L) {
+    } else if (character == ":" && depth == 0L && !inNamespace[[position]]) {
       return(TRUE)
     }
   }
