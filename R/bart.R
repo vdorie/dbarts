@@ -4294,7 +4294,6 @@ hazardSurvivalProbabilities <- function(
 ) {
   periods <- object$periods
   K <- length(periods)
-  n.chains <- fitNChains(object)
   if (is.null(times)) {
     times <- periods
   }
