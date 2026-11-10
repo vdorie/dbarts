@@ -787,21 +787,29 @@ expect_identical(
   )),
   "a model of several forests does not support 'variance'; drop it or fit a single-forest model"
 )
-# --- a caller's own normal: forest()'s vocabulary is the package's, a function
-# of that name is not reached inside it, and a variable or column stays theirs ---
+# --- a caller's own normal: in sd = and the other number arguments a function
+# of that name is called; where an argument takes a prior it is the package's ---
 local({
   normal <- function(v) 2 * v
-  expect_error(
-    dbarts(
-      y ~ forest(x1, sd = normal(0.5)) + forest(x2, basis = zf),
-      d,
-      n.trees = 10L,
-      n.cuts = 20L,
-      control = ctl()
-    ),
-    "forest 'sd' must be a number, not a dbartsNormalPrior",
-    fixed = TRUE
+  fit <- dbarts(
+    y ~ forest(x1, sd = normal(0.5)) + forest(x2, basis = zf),
+    d,
+    n.trees = 10L,
+    n.cuts = 20L,
+    control = ctl()
   )
+  expect_equal(fit$model@forests[[1L]]@sd, 1)
+  fit <- dbarts(
+    y ~ x1 + x2,
+    d,
+    forests = list(forest(sd = normal(0.5)), forest(basis = zf)),
+    n.trees = 10L,
+    n.cuts = 20L,
+    control = ctl()
+  )
+  expect_equal(fit$model@forests[[1L]]@sd, 1)
+})
+local({
   expect_error(
     dbarts(
       y ~ x1 + x2,

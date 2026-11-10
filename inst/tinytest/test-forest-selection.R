@@ -650,7 +650,7 @@ expect_error(
     bases = list(`scale(age)` = newRows$age),
     n.threads = 1L
   ),
-  "forest 1 carries a basis",
+  "forest \"dose\" carries a basis",
   fixed = TRUE
 )
 unknown <- atRows

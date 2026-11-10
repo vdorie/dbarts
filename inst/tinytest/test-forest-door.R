@@ -1090,7 +1090,7 @@ for (row in refusals) {
 # A forest with no name of its own is named by its position at both doors, as
 # creation names it, whatever its basis: a basis written as code is the label it
 # is found by and not what a refusal calls it.
-case("unlabeled forests are named by position at both doors", {
+case("unlabeled forests are named by their label at both doors", {
   unlabeled <- list(
     list(list(), factorBasis),
     list(list(), list()),
@@ -1128,7 +1128,15 @@ case("unlabeled forests are named by position at both doors", {
         info <- paste("unlabeled", index, position, names(bad))
         atCreation <- refusal(make(statements, position, bad))
         atDoor <- refusal(door(live, position, bad))
-        expectFound(atCreation, paste0("forest ", position, "'s "), info)
+        # the label the sampler gives it: the text of its basis, or its
+        # position where it has none
+        recorded <- live$model@forests[[position]]@label
+        label <- if (identical(recorded, paste0("forest", position))) {
+          position
+        } else {
+          paste0("\"", recorded, "\"")
+        }
+        expectFound(atCreation, paste0("forest ", label, "'s "), info)
         same(atDoor, atCreation, info, "the same words")
       }
       if (!is.null(statements[[position]]$basis)) {
