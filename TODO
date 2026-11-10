@@ -1184,6 +1184,15 @@ items
     R/treatmentFit.R, on main and on 1.0-10
     (scratch/ratify-1110/pass2/final-B.md; probe
     pass2/probes/aside-data-expr.R).
+  bartcause-draws-reads: (dec-B724, revising call 5 of dec-A349 and call
+    6 of dec-A350) build the entry in bartCause: refit() reads through
+    extract() with no cache, the draws argument is removed from the
+    extractor, the posterior predictive helper takes the sample count
+    directly, summary() keeps its private copy; about 10 lines, mostly
+    removed. The read-twice tests are retargeted: summary still reads
+    once, refit may read twice. Also reword the comment on the
+    forced-update flattening case in inst/tinytest/test-monotone.R so it
+    claims no merge (dec-A359 call 8; the case pins none). Not built.
   bartcause-extract-cate-order: extract(fit, "cate") orders its draws
     differently from icate when the chains are combined (found
     2026-11-10, in bartCause before the population-weights work).
