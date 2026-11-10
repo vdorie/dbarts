@@ -2531,6 +2531,12 @@ resolveForestBases <- function(
       if (is.null(bases[[k]])) {
         return(NULL)
       }
+      bases[[k]] <- predictBasisByName(
+        bases[[k]],
+        newdata,
+        n.new,
+        forestName(k, labels)
+      )
       conformBasis(
         bases[[k]],
         forestBasisKind(storedBases[[k]]),
@@ -2589,6 +2595,35 @@ resolveForestBases <- function(
     }
   }
   bases
+}
+
+# A single string given in 'bases' names a column of 'newdata', read there; on
+# one predicted row a string that names no column is that row's value.
+predictBasisByName <- function(value, newdata, n.new, forest) {
+  name <- singleBasisString(value)
+  if (is.null(name)) {
+    return(value)
+  }
+  column <- if (is.list(newdata) && !is.data.frame(newdata)) {
+    newdata[[name]]
+  } else if (!is.null(newdata)) {
+    namedBlockColumns(newdata, name)[[name]]
+  }
+  if (!is.null(column)) {
+    return(column)
+  }
+  if (n.new == 1L) {
+    return(value)
+  }
+  stop(
+    "'bases' gives ",
+    forest,
+    " the name '",
+    name,
+    "', which names no column of ",
+    if (is.null(newdata)) "the data: no 'newdata' was given" else "'newdata'",
+    call. = FALSE
+  )
 }
 
 # predict(type = "ev"/"ppd"/"bart") on an amplitude-coupled fit: the
