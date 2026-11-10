@@ -299,6 +299,9 @@ and the predictive and log-likelihood code reads n.
     Amended by dec-B641 (2026-11-07): a pair missing in every row reads as absent, one trial a row; a pair with some
     values missing is refused by default, and at predict na.action = na.pass gives such a row NA draws and na.omit
     drops it, as a missing weight is treated; a fit-time test frame refuses it.
+    Amended by dec-B690 (2026-11-08): a fit-time test frame carrying both response columns draws Binomial(k + f, p)
+    whatever its weights, as predict does; a test weight of 0 holds the row out (NA) and other weights do not change
+    the trials. The refusal of a missing count there takes a missing test weight's remedies (dec-B698).
 11. The pointwise log-likelihood of a binomial row is log dbinom(k; n, p), its binomial coefficient included as in
     glm's logLik, times the row's frequency weight. Alternative: the kernel alone, the two-frequency-row value,
     which differs by log choose(n, k) and is not the row's density.

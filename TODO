@@ -120,12 +120,6 @@ items
     prog4 (0.1061, 0.1209) without the amplitude rescaling move
     (2026-09-24); it does not reach the tail regime this door names.
     research-open, decision-gated.
-  binomial-test-trials: on a weighted binomial fit, a test row draws at
-    its own k + f trials as its training twin would, a test-frame weight
-    of 0 holds the row out (NA) and other weights do not change the
-    trials; predict(weights = ) still gives new trials (dec-B690).
-    Revises the call that drew test rows at one trial. About 5 lines,
-    help and tests; test draws move only in the development build.
   capi-sampler-info: dec-B615. dbarts.h describes a sampler through one
     struct led by structSize, filled by one entry, holding every count
     and fact the one-fact entries report today, with the variance

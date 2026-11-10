@@ -788,6 +788,11 @@ absentFit <- quietly(dbarts::bart(
   seed = 14L
 ))
 expect_null(absentFit$trials.test)
+gapRefusal <- paste0(
+  "'test': the response columns 'k' and 'f' have missing values; fill them, ",
+  "drop those rows from 'test', or fit without them and give ",
+  "predict(fit, newdata, na.action = na.pass) the rows to leave at NA draws"
+)
 set.seed(16L)
 expect_true(all(
   dbarts::extract(absentFit, type = "ppd", sample = "test") %in% c(0, 1)
@@ -804,17 +809,15 @@ expect_identical(
     n.threads = 1L,
     verbose = FALSE
   )),
-  paste0(
-    "'test': the response columns 'k' and 'f' have missing values; state ",
-    "the test rows' trials as weights, or drop those rows from 'test'"
-  )
+  gapRefusal
 )
-# stated test weights keep dec-B596's meaning, one draw a row
+# a weighted fit's test rows draw at their own trials, a test weight of 0
+# holding the row out and the others not changing the trials (dec-B690)
 weightedFit <- quietly(dbarts::bart(
   cbind(k, f) ~ x1,
   transform(rowsData, w = 1),
   family = binomial,
-  test = transform(newRows, w = 2),
+  test = transform(newRows, w = c(0, 1, 3)),
   weights = w,
   n.samples = 20L,
   n.burn = 10L,
@@ -823,11 +826,52 @@ weightedFit <- quietly(dbarts::bart(
   verbose = FALSE,
   seed = 14L
 ))
-expect_identical(weightedFit$weights.test, c(2, 2, 2))
+expect_identical(weightedFit$weights.test, c(0, 1, 3))
+expect_identical(weightedFit$trials.test, c(100, 100, 100))
 set.seed(16L)
-expect_true(all(
-  dbarts::extract(weightedFit, type = "ppd", sample = "test") %in% c(0, 1)
+weightedDraws <- dbarts::extract(weightedFit, type = "ppd", sample = "test")
+unweighted <- weightedFit
+unweighted$weights.test <- NULL
+set.seed(16L)
+unweightedDraws <- dbarts::extract(unweighted, type = "ppd", sample = "test")
+expect_true(all(is.na(weightedDraws[, 1L])))
+expect_identical(weightedDraws[, 2:3], unweightedDraws[, 2:3])
+expect_true(abs(mean(weightedDraws[, 2:3]) - 75) < 3)
+# a weighted fit's test frame missing a count is refused in the same words,
+# and one without the count columns draws one trial, its 0 row NA
+expect_identical(
+  refusal(dbarts::bart(
+    cbind(k, f) ~ x1,
+    transform(rowsData, w = 1),
+    family = binomial,
+    test = transform(gapRows, w = c(0, 1, 3)),
+    weights = w,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  )),
+  gapRefusal
+)
+noCountsFit <- quietly(dbarts::bart(
+  cbind(k, f) ~ x1,
+  transform(rowsData, w = 1),
+  family = binomial,
+  test = data.frame(x1 = newRows$x1, w = c(0, 1, 3)),
+  weights = w,
+  n.samples = 20L,
+  n.burn = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  seed = 14L
 ))
+expect_null(noCountsFit$trials.test)
+set.seed(16L)
+noCountsDraws <- dbarts::extract(noCountsFit, type = "ppd", sample = "test")
+expect_true(all(is.na(noCountsDraws[, 1L])))
+expect_true(all(noCountsDraws[, 2:3] %in% c(0, 1)))
 # columns that are not counts are refused in Refusal 13's words, at predict
 # and at a test frame
 expect_identical(
@@ -961,7 +1005,8 @@ expect_true(all(
 ))
 rm(nRows, rowsData, newRows, rowsFit, atTrials, stated, partial, oneTrial)
 rm(gapRows, passed, weightGap, omitted, bothGaps, absentFit)
-rm(testDraws, partialFit, weightedFit, binaryRows, binaryFit)
+rm(testDraws, partialFit, weightedFit, binaryRows, binaryFit, gapRefusal)
+rm(weightedDraws, unweighted, unweightedDraws, noCountsFit, noCountsDraws)
 
 # --- call 84: a data frame as the matrix interface's response is refused,
 # naming cbind() and a matrix ---

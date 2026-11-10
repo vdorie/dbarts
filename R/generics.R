@@ -2199,10 +2199,13 @@ extract.bart <- function(
 ## ('out') NA. At the test rows the test rows' own weights, read as the fit's.
 fitPpdWeights <- function(object, sample) {
   if (sample == "test") {
-    # a binomial test frame's own trials, where it carried them and no
-    # weights (dec-B638)
-    if (!is.null(object[["trials.test"]])) {
-      return(list(weights = object[["trials.test"]], trials = TRUE))
+    # a binomial test frame's own trials, where it carried them (dec-B638),
+    # its weights holding out the rows of weight 0 and nothing else (dec-B690)
+    trials <- object[["trials.test"]]
+    if (!is.null(trials)) {
+      weights <- object[["weights.test"]]
+      out <- if (!is.null(weights)) rep_len(weights, length(trials)) == 0
+      return(list(weights = trials, trials = TRUE, out = if (any(out)) out))
     }
     return(list(weights = object[["weights.test"]], trials = FALSE))
   }

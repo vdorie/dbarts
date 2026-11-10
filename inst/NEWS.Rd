@@ -684,8 +684,9 @@
             predictive draws and the log-likelihood are binomial at a
             training row's trials; at new rows the trials are
             \code{predict}'s weights, or, where none are given, the
-            successes and failures \code{newdata} or a \code{test} frame
-            carries, and one trial otherwise; a row missing a count is
+            successes and failures \code{newdata} carries, at a \code{test}
+            frame those it carries, its weights only holding rows out, and
+            one trial otherwise; a row missing a count is
             refused by default, \code{predict}'s \code{na.action = na.pass}
             giving it \code{NA} draws and \code{na.omit} dropping it, and
             columns missing a count in every row are read as absent.

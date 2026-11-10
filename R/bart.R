@@ -2196,8 +2196,9 @@ withMultinomialTestWeights <- function(result, weights, argument = NULL) {
 # What a binomial fit's new rows read their trials from (dec-B638), for the
 # packaged fit: the response expression as the formula wrote it, a one-sided
 # formula in the formula's environment, and the trials a test frame carrying
-# its columns gives, where no test weights were stated; a test row missing one
-# of its counts is refused (dec-B641). An empty list on any other fit.
+# its columns gives, whatever its weights, which only hold rows out (dec-B690);
+# a test row missing one of its counts is refused (dec-B641). An empty list on
+# any other fit.
 binomialFitTrials <- function(sampler, formula, matchedCall, env) {
   if (
     !is.formula(formula) ||
@@ -2210,11 +2211,7 @@ binomialFitTrials <- function(sampler, formula, matchedCall, env) {
   response <- formula[-2L]
   response[[2L]] <- formula[[2L]]
   result <- list(trials.response = response)
-  if (
-    NROW(sampler$data@x.test) > 0L &&
-      length(sampler$data@weights.test) == 0L &&
-      !is.null(matchedCall$test)
-  ) {
+  if (NROW(sampler$data@x.test) > 0L && !is.null(matchedCall$test)) {
     test <- eval(matchedCall$test, env)
     trials <- binomialNewDataTrials(response, test, "test")
     if (!is.null(trials) && length(trials) == NROW(sampler$data@x.test)) {
@@ -2223,8 +2220,9 @@ binomialFitTrials <- function(sampler, formula, matchedCall, env) {
         stop(
           "'test': ",
           binomialTrialsMissingSubject(trials),
-          " missing values; state the test rows' trials as weights, or drop ",
-          "those rows from 'test'",
+          " missing values; fill them, drop those rows from 'test', or fit ",
+          "without them and give predict(fit, newdata, na.action = na.pass) ",
+          "the rows to leave at NA draws",
           call. = FALSE
         )
       }
