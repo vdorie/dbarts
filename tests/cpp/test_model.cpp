@@ -170,19 +170,14 @@ static void testConstantLeafSuffstatEquivalence() {
 }
 
 static void testPolyaGamma(ext_rng* rng) {
-  // moments of PG(1, c): mean tanh(c / 2) / (2 c), variance
-  // (sinh(c) - c) sech^2(c / 2) / (4 c^3); the limits at 0 are 1/4 and 1/24.
-  // psi values cover both proposal branches, the sign fold, and the tail.
+  // moments of PG(1, c); psi values cover both proposal branches, the sign
+  // fold, and the tail.
   const double psis[] = {0.0, 1.5, -3.0, 8.0};
   const int numDraws = 50000;
 
   for (double psi : psis) {
-    double c = std::fabs(psi);
-    double expectedMean = c == 0.0 ? 0.25 : std::tanh(0.5 * c) / (2.0 * c);
-    double expectedVariance = c == 0.0
-      ? 1.0 / 24.0
-      : (std::sinh(c) - c) / (4.0 * c * c * c * std::cosh(0.5 * c) *
-                              std::cosh(0.5 * c));
+    double expectedMean, expectedVariance;
+    polyaGammaMoments(1.0, psi, expectedMean, expectedVariance);
 
     double sum = 0.0, sumSq = 0.0;
     for (int i = 0; i < numDraws; ++i) {
@@ -8713,21 +8708,11 @@ static void testSparseTestDataEndToEnd() {
 }
 
 // Moments of the shape-parameterized PG helper: PG(b, z) for integer b is the
-// sum of b iid PG(1, z), so its mean is b (tanh(z/2)/(2z)) and its variance b
-// times the PG(1, z) variance (the polya-gamma moments precedent). Plus the
+// sum of b iid PG(1, z), so its mean and variance are b times PG(1, z)'s. Plus the
 // stream identity that b = 1 consumes exactly the shipped PG(1) Devroye draw bit
 // for bit (the ordinal K = 2 identity analog). Local generators, restored state.
 static void testNBPolyaGammaShapeMoments(ext_rng*) {
   std::uint64_t savedRngState = rngState;
-  auto pg1Mean = [](double c) {
-    return c == 0.0 ? 0.25 : std::tanh(0.5 * c) / (2.0 * c);
-  };
-  auto pg1Var = [](double c) {
-    return c == 0.0 ? 1.0 / 24.0
-                    : (std::sinh(c) - c) / (4.0 * c * c * c *
-                                            std::cosh(0.5 * c) *
-                                            std::cosh(0.5 * c));
-  };
   const double zs[] = {0.0, 1.5, -3.0};
   const double bs[] = {1.0, 2.0, 5.0, 11.0};
   const int numDraws = 50000;
@@ -8735,10 +8720,9 @@ static void testNBPolyaGammaShapeMoments(ext_rng*) {
   ext_rng* localRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(localRng, 20260718u);
   for (double z : zs) {
-    double c = std::fabs(z);
     for (double b : bs) {
-      double expectedMean = b * pg1Mean(c);
-      double expectedVar = b * pg1Var(c);
+      double expectedMean, expectedVar;
+      polyaGammaMoments(b, z, expectedMean, expectedVar);
       double sum = 0.0, sumSq = 0.0;
       for (int i = 0; i < numDraws; ++i) {
         double draw = simulatePolyaGammaShape(localRng, b, z);

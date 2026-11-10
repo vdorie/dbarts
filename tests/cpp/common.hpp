@@ -495,6 +495,37 @@ double chiSquareStatistic(const std::vector<double>& counts,
                           double numDraws);
 double chiSquareUpperTail(double statistic, double df);
 
+/// \brief One logistic row's log-likelihood at log-odds \p eta, written apart
+/// from the engine's.
+///
+/// \p count times log dbinom(\p successes, \p trials, plogis(\p eta)), the log
+/// choose constant from lgamma; a binary row is one trial.
+inline double logisticRowLogLikelihood(double successes, double trials,
+                                       double count, double eta) {
+  double logChoose = std::lgamma(trials + 1.0) - std::lgamma(successes + 1.0) -
+                     std::lgamma(trials - successes + 1.0);
+  return count * (logChoose + successes * eta -
+                  trials * (std::max(eta, 0.0) +
+                            std::log1p(std::exp(-std::fabs(eta)))));
+}
+
+/// \brief PG(\p b, \p c)'s mean and variance (Polson, Scott and Windle 2013).
+///
+/// The mean is b tanh(c / 2) / (2 c) and the variance
+/// b (sinh c - c) sech^2(c / 2) / (4 c^3): by their series
+/// b / 4 (1 - c^2 / 12) and b / 24 (1 - c^2 / 5) near zero, the variance
+/// elsewhere in exponentials of -|c|, where sech^2 underflows.
+inline void polyaGammaMoments(double b, double c, double& mean,
+                              double& variance) {
+  double a = std::fabs(c), e = std::exp(-a);
+  bool small = a < 1.0e-2;
+  mean = small ? 0.25 * b * (1.0 - a * a / 12.0)
+               : b * std::tanh(0.5 * a) / (2.0 * a);
+  variance = small ? b / 24.0 * (1.0 - a * a / 5.0)
+                   : b * (1.0 - e * e - 2.0 * a * e) /
+                       (2.0 * a * a * a * (1.0 + e) * (1.0 + e));
+}
+
 // One entry point per translation unit, called from main() in original
 // test order; each runs its area's tests, filtered by suite name there.
 void runNmathTests();
