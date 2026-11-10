@@ -8822,20 +8822,20 @@ private:
       return false;
     } else {
       if (!collapsedRescaleApplies()) return false;
-      const double* fits = forests_[0].totalFits.data();
+      const Forest<L, ResidT>& kForest = forests_[orbitForests().front()];
+      const double* fits = kForest.totalFits.data();
       const double* others = nullptr;
       if (!sharers_.empty()) {
         gatherSharedOrbitFits();
         fits = orbitFits_.data();
         others = orbitOthers_.data();
       }
-      const Forest<L, ResidT>& kForest = forests_[orbitForests().front()];
       const ResponseModel& response = *response_;
       const double degreesOfFreedom = kForest.kHyperprior.degreesOfFreedom;
-      const double scaledK = kForest.k / kForest.kHyperprior.scale;
+      const double standardizedK = kForest.k / kForest.kHyperprior.scale;
       auto logDensityAt = [=, &response](double v) {
         double e = std::exp(v);
-        double kTerm = scaledK / e;
+        double kTerm = standardizedK / e;
         return -degreesOfFreedom * v - 0.5 * kTerm * kTerm +
                response.logLikelihoodAtScaledFits(fits, others, e);
       };
