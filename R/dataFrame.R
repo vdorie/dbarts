@@ -120,9 +120,10 @@ derivedRowNames <- function(frame, rows) {
 ## An environment holding the caller's variables a build's expressions name that
 ## the data do not, as they were at the build, so that reading the frame again
 ## finds the values the build found (dbartsData() keeps a caller's value, not its
-## name), and the functions defined locally among them. Its parent is the
-## formula's environment where that is the global, a namespace or a package
-## environment, which supply the functions, and otherwise the global one.
+## name). A function from no package is held by value too (heldFunction), and a
+## package's function by name. Its parent is the formula's environment where
+## that is the global, a namespace or a package environment, which supply the
+## package functions, and otherwise the global one.
 frozenBuildEnvironment <- function(formula, expressions, dataNames, fallback) {
   names <- unique(unlist(
     lapply(c(list(formula), expressions), all.names),
@@ -135,20 +136,90 @@ frozenBuildEnvironment <- function(formula, expressions, dataNames, fallback) {
     isNamespace(home) ||
     startsWith(environmentName(home), "package:")
   held <- new.env(parent = if (keeps) home else globalenv())
+  copies <- new.env(parent = emptyenv())
+  copies$from <- list()
+  copies$to <- list()
   for (name in setdiff(names, c(dataNames, "."))) {
     value <- get0(name, home)
     if (is.null(value)) {
       value <- get0(name, fallback)
     }
-    # a function the global environment would find as this one is not held
-    found <- is.null(value) ||
-      (is.function(value) &&
-        identical(value, get0(name, globalenv(), mode = "function")))
-    if (!found) {
-      assign(name, value, envir = held)
-    }
+    holdValue(held, name, value, copies)
   }
   held
+}
+
+## Whether a function is a package's: a primitive, or one whose environment is
+## a namespace or the base environment. A package function is read by name.
+isPackageFunction <- function(fn) {
+  env <- environment(fn)
+  is.primitive(fn) ||
+    identical(env, baseenv()) ||
+    isNamespace(env) ||
+    startsWith(environmentName(env), "package:")
+}
+
+## Holds `value` under `name` in `env`, as heldFunction holds a function; a
+## package function the global environment finds as this one, and a name read
+## nowhere, are not held.
+holdValue <- function(env, name, value, copies) {
+  if (is.null(value)) {
+    return(invisible(NULL))
+  }
+  if (is.function(value)) {
+    if (
+      isPackageFunction(value) &&
+        identical(value, get0(name, globalenv(), mode = "function"))
+    ) {
+      return(invisible(NULL))
+    }
+    value <- heldFunction(value, copies)
+  }
+  assign(name, value, envir = env)
+  invisible(NULL)
+}
+
+## A function from no package, held by value: one defined at the top level or in
+## a caller's function is copied onto an environment holding only the names it
+## reads, each held as the build found it, so that neither a later change to
+## the workspace nor the rest of a local frame is carried; one a package's code
+## made (its environments reach a namespace before the global one) is held as
+## it stands. `copies` pairs each function copied with its copy, so a function
+## that reads itself, or two that read each other, are copied once.
+heldFunction <- function(fn, copies) {
+  if (isPackageFunction(fn)) {
+    return(fn)
+  }
+  env <- environment(fn)
+  scope <- env
+  while (
+    !identical(scope, globalenv()) &&
+      !identical(scope, emptyenv()) &&
+      !isNamespace(scope)
+  ) {
+    scope <- parent.env(scope)
+  }
+  if (!identical(scope, globalenv())) {
+    return(fn)
+  }
+  for (index in seq_along(copies$from)) {
+    if (identical(copies$from[[index]], fn)) {
+      return(copies$to[[index]])
+    }
+  }
+  scoped <- new.env(parent = globalenv())
+  copy <- fn
+  environment(copy) <- scoped
+  copies$from <- c(copies$from, list(fn))
+  copies$to <- c(copies$to, list(copy))
+  reads <- setdiff(
+    unique(c(all.names(body(fn)), unlist(lapply(formals(fn), all.names)))),
+    names(formals(fn))
+  )
+  for (name in reads) {
+    holdValue(scoped, name, get0(name, env), copies)
+  }
+  copy
 }
 
 ## What the object keeps beside its frame in place of the block: the stand-ins,

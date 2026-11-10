@@ -251,6 +251,41 @@ spRef <- dbartsData(y ~ ns(w, df = 3), d, keep.data = FALSE)
 rm(ns)
 expect_identical(dbarts:::resolveDataObject(sp)@x, spRef@x)
 
+# a function from no package is held by value, with the names it reads: a
+# redefinition or an rm after the build changes nothing
+wt0 <- runif(n) + 0.5
+sq <- function(v) v^power
+power <- 2
+oSq <- dbartsData(y ~ x1, d, weights = sq(wt0))
+built <- model.weights(model.frame(oSq))
+expect_identical(built, wt0^2)
+sq <- function(v) v^3
+power <- 4
+expect_identical(model.weights(model.frame(oSq)), built)
+rm(sq, power)
+expect_identical(model.weights(model.frame(oSq)), built)
+expect_identical(
+  fitDraws(oSq),
+  fitDraws(dbartsData(y ~ x1, d, weights = wt0^2, keep.data = FALSE))
+)
+# one defined at the top level, in the response
+assign("dbartsHeldSq", function(v) v^2, envir = globalenv())
+oTop <- dbartsData(dbartsHeldSq(y) ~ x1, d)
+assign("dbartsHeldSq", function(v) v^3, envir = globalenv())
+expect_identical(unname(model.response(model.frame(oTop))), d$y^2)
+rm("dbartsHeldSq", envir = globalenv())
+expect_identical(unname(model.response(model.frame(oTop))), d$y^2)
+expect_true(is.numeric(dbarts(oTop, n.trees = 5L, control = ctl)$data@y))
+# a function local to a caller's function keeps none of that function's frame
+localBuild <- function() {
+  bulk <- numeric(5e6)
+  lsq <- function(v) log1p(v^2)
+  dbartsData(lsq(y) ~ x1, d)
+}
+oLocal <- localBuild()
+expect_true(length(serialize(oLocal, NULL)) < 1e6)
+expect_identical(unname(model.response(model.frame(oLocal))), log1p(d$y^2))
+
 # the sibling identity: a fit from the object is the fit from the formula ------
 
 sibling <- function(label, call, family = "auto", fit = TRUE) {
