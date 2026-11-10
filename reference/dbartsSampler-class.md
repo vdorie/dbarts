@@ -2810,9 +2810,13 @@ the model. A name left out or `NULL` changes nothing, and so does a
 value equal to the one in force, which leaves the forest following what
 it followed: a forest taking its depth from the fitting function goes on
 taking it, a forest sharing one prior total stays in the group, and a
-numeric forest's default goes on being read from its column. A forest
-that states its `sd` or its depth is changed by stating another; nothing
-returns it to following the fitting function, short of a new sampler.
+numeric forest's default goes on being read from its column. Each name
+is compared with the value in force before the call, whatever else the
+call changes, so an `sd` handed back beside `amplitude = fixed()` is no
+change; to pin a forest at its `sd`, state a different one or, where k
+is drawn, the same in a second call. A forest that states its `sd` or
+its depth is changed by stating another; nothing returns it to following
+the fitting function, short of a new sampler.
 
 `sd` on a model of one forest is its size, written as
 `setLeafPrior(normal(sd = ))` writes it, in the terms of its leaf model.

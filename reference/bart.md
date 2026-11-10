@@ -354,14 +354,16 @@ nobs(object, ...)
   on the formula interface, mean what the fit's own do, and are checked
   by the same rule: each test row is drawn as a training row of that
   weight is, one observation, `NA` at a 0, so a logistic test row of
-  weight 3 gives one 0/1 draw. A test row with no weight on a count
-  family (logistic, probit and the hazard families, nbinom, ordinal,
-  multinomial) draws one trial; there `extract(sample = "test")` agrees
-  with `predict(newdata = test)` given no weights, where the formula
-  fit's weights name a column of `test` that holds a 0 (both give `NA`
-  there; a binomial fit with response columns aside, see the `family`
-  item), and on a gaussian, Student-t or aft fit with `predict` given
-  the test weights.
+  weight 3 gives one 0/1 draw, except a binomial fit's test row, which
+  draws at the trials its response columns give (see the `family` item).
+  A test row with no weight on a count family (logistic, probit and the
+  hazard families, nbinom, ordinal, multinomial) draws one trial, a
+  binomial fit's test row carrying both count columns drawing at their
+  \\k + f\\; there `extract(sample = "test")` agrees with
+  `predict(newdata = test)` given no weights, where the formula fit's
+  weights name a column of `test` that holds a 0 (both give `NA` there),
+  and on a gaussian, Student-t or aft fit with `predict` given the test
+  weights.
 
   For `predict`, the weights of the rows drawn by `type = "ppd"`, one
   value or one per row. On a gaussian, Student-t or aft fit they are
@@ -637,16 +639,14 @@ nobs(object, ...)
   weight: refused by default, its draws `NA` under
   `na.action = na.pass`, dropped under `na.omit`; columns missing a
   count in every row read as absent, one trial a row. A row of the test
-  sample draws at the trials its columns give; but where the training
-  `weights` name a column of `test` it is drawn at that column's
-  meaning, one 0/1 draw a row, whereas `predict` given the same rows
-  draws at the trials its columns give and reads that column only to
-  hold its 0 rows out. Otherwise a row missing a count is refused before
-  the run, else it draws one trial. The probabilities do not read the
-  columns. A weight \\w\\ counts copies of the row: the row stands for
-  \\w n\\ trials in the likelihood, its log-likelihood is \\w \log
-  \mathrm{dbinom}(k; n, p)\\, the binomial coefficient included as in
-  `glm`'s `logLik`, and its predictive draw is still one row's,
+  sample draws at the trials its columns give, as `predict` does, a test
+  weight of 0 holding it out and other weights not changing the trials;
+  a test row missing a count is refused before the run, and a test
+  sample without the columns draws one trial a row. The probabilities do
+  not read the columns. A weight \\w\\ counts copies of the row: the row
+  stands for \\w n\\ trials in the likelihood, its log-likelihood is \\w
+  \log \mathrm{dbinom}(k; n, p)\\, the binomial coefficient included as
+  in `glm`'s `logLik`, and its predictive draw is still one row's,
   \\\mathrm{Binomial}(n, p)\\. A row of no trials is out of the
   likelihood, with a warning, as a multinomial row of no trials is: its
   fitted probability is still reported, its draws are 0, its
@@ -2504,7 +2504,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001674
+#> total seconds in loop: 0.001337
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 3 3 2 2 2 2 2 3 2 2 2 3 3 2 
@@ -2541,7 +2541,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000906
+#> total seconds in loop: 0.000755
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 2 1 2 1 1 2 2 1 1 1 2 2 2 2 
@@ -2576,7 +2576,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001349
+#> total seconds in loop: 0.001125
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 3 2 4 2 2 3 2 2 2 2 3 3 2 
@@ -2630,7 +2630,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.001988
+#> total seconds in loop: 0.001716
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 2 2 2 2 2 2 3 3 2 
