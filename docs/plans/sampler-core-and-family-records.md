@@ -6,12 +6,14 @@ ask: family-fact-records (dec-B767) and sampler-core-and-capabilities (dec-B763)
 probe found (SC0). Awaits collapsed-move-rebuild's landing.
 
 agent: opus implementer, one per slice; opus reviewer running the mutants below, effort high.
-rng: NEUTRAL in SC1 to SC3: no draw, default, message or fit object moves; the equivalence trio is bitwise. SC0
-moves draws, and adds one warning, in one corner only (aft with a linear or gp leaf, a creation mask, one distinct
-log-time among the rows in); the trio and the snapshots do not reach it.
+rng: NEUTRAL in SC1 to SC3: no draw, default, message or fit object moves; the equivalence trio is bitwise. SC0 is
+POSTERIOR-CHANGING in one corner only (aft with a linear or gp leaf and a creation mask keeping two or more rows that
+hold one distinct log-time): the leaf covariates' standardization, and so the slopes' prior, moves there, and the
+creation warning is raised; with one row in only the warning's words change. The trio and the snapshots reach
+neither.
 window: pre-release, before the host-neutral engine's S3 (the C creation entry and the facts struct), and best
 before its S2a (below). dbarts.h does not change; its hash does not move.
-budget: ~1,650 lines written, ~1,700 removed, ~41 agent-hours over four slices (Cost). The rulings estimated
+budget: ~1,680 lines written, ~1,700 removed, ~42.5 agent-hours over four slices (Cost). The rulings estimated
 ~1,300 lines and 23 to 27 hours; the difference is the bridge's sites, counted below, the forwarding test and SC0.
 
 ## Summary for the maintainer
@@ -24,7 +26,7 @@ the factories and the bridge read the record; 78 of the 129 tests become reads o
 that list every kind because their arms really differ (building the object, R's wording, or R's defaults), 8 parse
 what the user asked for, and 1 is family behavior kept as it is.
 
-Then the class the bridge holds shrinks. Its 85 virtual functions become a core of about 66 that every sampler
+Then the class the bridge holds shrinks. Its 85 virtual functions become a core of about 65 that every sampler
 answers, plus ten small interfaces for what only some samplers have (a residual scale to set, a variance forest, a
 basis, a count matrix, ...). The bridge asks a sampler for its capability object and gets each interface or nothing;
 having the interface is the capability, so through that object the bridge's check and the engine's answer cannot
@@ -118,12 +120,12 @@ After the four slices land:
   `std::numbers::pi / std::sqrt(3.0)` at its reader; the bridge's logistic leaf scale stays
   `std::numbers::pi * std::sqrt(3.0)`).
 - Messages identical in SC1 to SC3: every tinytest message pin unchanged, the order of the bridge's refusal cascades
-  included. SC0 adds one warning where aft now falls back, the words gaussian's fallback uses.
+  included. SC0 changes aft's creation warning in its corner to gaussian's words (SC0).
 - The record is internal. It never appears in dbarts.h (its rows would become ABI); the `latent` column is the
   engine's and is not published (dec-B768). dbarts.h is untouched and `tools/check-api-hash.sh` passes with
   `DBARTS_C_API_HASH` unchanged.
 - The engine stays R-agnostic: the record holds no R wording; the bridge keeps its words and keys them by kind.
-- Out of scope: the R layer's own "gaussian or aft" tests (R/generics.R, R/spec.R, R/bart.R), which read the record
+- Out of scope, SC0's two R sites apart: the R layer's own "gaussian or aft" tests (R/generics.R, R/spec.R, R/bart.R), which read the record
   after 1.0 through an internal call if ever (the ruling names the engine, the bridge and the factories); the forest
   couplings' base class [`ForestCombiner`](../../src/bartcore/combiner.hpp) and its capability virtuals (chain-split's
   territory, below); the factory's half-built-sampler and shared-tail findings of the C++ review's slice 5 (not ruled);
@@ -267,8 +269,8 @@ scale), `rederiveStandardization` (a constant leaf's empty answer is the true on
 sampler, which R's prior-draw sweep calls unconditionally) and `numForestAmplitudes` (0 off the coupling, as
 `SamplerShape::numAmplitudes` answers).
 
-That moves 19 virtuals off the core; `totalAmplitudes` goes (it duplicates `SamplerShape::numAmplitudes`) and
-`capabilities()` comes, so the core holds about 66. `SamplerShape` loses `hasVarianceForest`, `holdsTrials`,
+That moves 20 virtuals off the core; `totalAmplitudes` goes (it duplicates `SamplerShape::numAmplitudes`) and
+`capabilities()` comes, so the core holds about 65 (SC3 recounts). `SamplerShape` loses `hasVarianceForest`, `holdsTrials`,
 `supportsForestWeights` and `forestReportingIsDefined` (both true exactly on the amplitude coupling, so its presence
 answers them; either stays a value if the implementer finds a sampler where it is narrower), and
 `supportsCountsMutation`. (`supportsActiveRows`, true for every class, goes in SC1 with its virtual and the bridge's
@@ -303,7 +305,12 @@ them [`fitsWithoutOffset`](../../src/bartcore/chain.hpp)'s refusal off one locat
 with no variance forest, and [`Chain::setSigma`](../../src/bartcore/chain.hpp)'s return under a variance forest
 (Calls made, 15). `Chain::setSigma` writes sigma today on a kind with no residual scale (probit), which no bridge path
 reaches; it gains the same guard read from the row, unless a tests/cpp caller relies on the write, which the
-implementer then reports. The claim that the bridge's
+implementer then reports. Its engine callers were read: `Sampler::setSigma` (the bridge and C entries, which the facet
+now gates); `Chain::setResidualPrior` (already only on a kind with a residual scale and no variance forest); and
+`Chain::moveScale`, which writes back `sigma()`, that is 1 times a unit scale of 1 on a unit-scale kind, so the
+guard skips a write of 1 and is neutral. The state install and the constructors write `sigma_` directly (the install
+under `drawsSigma()`), not through `setSigma`, so the guard does not reach them; any other effect would show in the
+trio. The claim that the bridge's
 check and the engine's answer agree is a claim about calls through the capability object.
 
 ### The fold
@@ -354,20 +361,52 @@ reviewed and gated on it, merged to main once, so main never holds `Sampler` fin
 interface, the shape the ruling revised away from. Tier: changes draws if wrong, so the engine tier of
 [Process by risk](README.md#process-by-risk) in each, an opus review that runs the mutants.
 
-### SC0: aft's leaf-row fallback (draw-changing, engine)
+### SC0: aft's leaf-row fallback (posterior-changing in its corner; engine and R)
 
-The probe (Context) shows aft departing from the documented rule. Steps: [`withResponseFallback`](../../src/bartcore/sampler.hpp)
-treats aft as gaussian, reading the values aft's transform reads (the log-times less any offset, a censored row at
-its censoring time; the implementer confirms against `AFTResponse` at creation), so an aft creation whose rows in
-hold fewer than two distinct log-times reads its leaf covariates over every row and warns in gaussian's words; the
-help of `new("dbartsSampler", ...)` or setData, where it lists the families, names aft if it lists them. A tinytest
-pin beside test-leaf-standardization-rows.R's "one row in, aft": the probe's setup, expecting every row's numbers,
-`standardization.all.rows` TRUE and the warning. Draws move only in that corner; the trio and the four snapshots do
-not reach it and stay bitwise, which the gates show. An agent call at the engine tier: it restores a documented rule,
-and no reasonable maintainer keeps the departure (the critique's reading, A3). If SC1 lands first, SC0 also deletes
-SC1's commented aft kind test.
+The probe (Context) shows aft departing from the documented rule. Steps:
 
-Size: ~15 engine lines, ~50 tinytest, a help sentence. Cost: agent ~2, review ~1.5, gates ~1.5.
+1. Engine: [`withResponseFallback`](../../src/bartcore/sampler.hpp) treats aft as gaussian, reading the values aft's
+   transform reads (the log-times less any offset, a censored row at its censoring time; the implementer confirms
+   against `AFTResponse` at creation), so an aft creation whose rows in hold fewer than two distinct log-times reads
+   its leaf covariates over every row and sets `standardization.all.rows`.
+2. R, the creation warning: the `dbartsSampler` initializer in R/dbarts.R calls
+   [`warnRowsFallBack`](../../R/bartcore.R) after `leafFromAllRows` with `range = model@family %in% c("gaussian",
+   "nbinom")` and `byMask = model@family %in% c("logistic", "aft")`. aft joins `range` (it reads a response with a
+   scale) and leaves `byMask`, which is read only where `range` is false. Without this the engine's new flag would
+   raise the leaf-only lead ("... is kept by the active-row mask ...") in place of the response's.
+3. R, [`scaleRowsFallBack`](../../R/spec.R): it excludes aft by name, its comment saying aft takes no weights and
+   meets a mask only after creation. No path reaches it with an aft row out (dbartsSpec's creation path has no aft
+   row out, setData refuses aft, xbart refuses aft); the implementer confirms by tracing and leaves it, or adds aft
+   if a path is found.
+4. The words aft gets, as gaussian's: (a) two or more rows in holding one distinct log-time (the probe's case, today
+   silent): "fewer than two distinct values of the response are in the likelihood (100 of 200 observations are in
+   it), so the response's scale, the prior's center and the center and scale of "x1" are taken from all 200". (b)
+   fewer than two rows in (one row in): today the leaf-only "one observation is in the likelihood (1 of 200 is kept
+   by the active-row mask), so the center and scale of "x1" are taken from all 200"; after SC0 gaussian's and
+   Student-t's one-row text, "fewer than two distinct values of the response are in the likelihood (1 of 200
+   observations is in it), so the response's scale, the prior's center and the center and scale of "x1" are taken
+   from all 200", as rule 9 of the rows-in design asks ("one text with the response's where the response falls back
+   too, as one row in always makes it under the families that read it"). test-leaf-standardization-rows.R's
+   "one row in, aft" pin changes to that text.
+5. Pins: the probe's setup beside "one row in, aft", expecting every row's numbers, the flag TRUE and exactly one
+   warning, counted with `withCallingHandlers` (Gate hygiene: never `suppressWarnings`); the changed one-row pin.
+6. Design note: one sentence in rule 9 of docs/design/response-scale-rows.md, saying aft follows rule 4 there as
+   gaussian does, its log-times the response read, censored rows at their censoring times. No NEWS entry: 0.9-34
+   had neither aft nor linear leaves.
+
+Gates, the posterior-changing class's (README, RNG classes and their gates): the neutral gates; the trio compared
+bitwise against the current baselines, which stand in for re-recording and the z mode because the corner is reached
+by none of their scenarios (a full count of identical-draws lines shows nothing outside it moved); the four
+snapshots; and exact-gates.yaml's aft entry, `Rscript benchmarks/R/aft-exact.R quick` on the reference build, which
+must pass. aft-exact has no linear leaf and no mask, so it too shows only that aft outside the corner kept its
+exact posterior; inside the corner the posterior moves by design, to the standardization the rule names, and the
+pins state that standardization exactly.
+
+An agent call at the engine tier: it restores a documented rule, and no reasonable maintainer keeps the departure
+(the critique's reading, A3). If SC1 lands first, SC0 also deletes SC1's commented aft kind test.
+
+Size: ~15 engine lines, ~10 R lines, ~70 tinytest, a help sentence where the help lists the families, one design
+sentence. Cost: agent ~3, review ~1.5, gates ~2.
 
 ### SC1: the records (engine, factories, bridge)
 
@@ -429,7 +468,7 @@ Size: ~250 lines written; ~400 engine and ~1,100 tests/cpp removed. Cost: agent 
 
 Steps: the facet interfaces and `SamplerCapabilities` as in [The core and the capability object](#the-core-and-the-capability-object);
 `Sampler` implements the facets and fills the object at construction from the row, the coupling's existing
-predicates, the leaf type and the variance forest; the 19 functions leave `SamplerBase`; `totalAmplitudes` and the
+predicates, the leaf type and the variance forest; the 20 functions leave `SamplerBase`; `totalAmplitudes` and the
 presence fields go; the bridge's 29 presence reads and about 30 facet calls ask `capabilities()`, the C entries'
 capability statuses among them; tests/cpp `test_capabilities.cpp`, built on test_facade.cpp's fixtures (gaussian,
 probit, logistic, binomial, Student-t, aft, ordinal, nbinom, BCF, multinomial, variance forest, linear, GP,
@@ -501,6 +540,7 @@ SC1:
 
 SC0:
 12. aft left out of the fallback again: SC0's tinytest pin fails (every-row numbers, the flag and the warning).
+12a. aft left in `warnRowsFallBack`'s `byMask` and out of its `range`: the pins' warning text fails.
 
 SC2:
 13. A default argument re-added to a virtual with a value different from the base overload's: clang-tidy flags it.
@@ -596,13 +636,13 @@ approximate-draws' method refusal will need.
 
 | slice | lines | agent-hours |
 |---|---|---|
-| SC0 aft fallback | ~65 written | ~5 |
+| SC0 aft fallback | ~95 written | ~6.5 |
 | SC1 records | ~750 written, ~120 removed | ~15 |
 | SC2 fold | ~250 written, ~1,500 removed | ~9.5 |
 | SC3 core and capabilities | ~580 touched, ~100 net removed | ~11.5 |
-| total | ~1,650 written, ~1,700 removed | ~41 |
+| total | ~1,680 written, ~1,700 removed | ~42.5 |
 
-Plans have run 1.5 to 2 times low: 60 to 80 hours.
+Plans have run 1.5 to 2 times low: 64 to 85 hours.
 
 ## Appendix: the name tests
 
