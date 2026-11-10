@@ -15,6 +15,7 @@
 #include <limits>
 #include <memory>
 #include <numbers>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -8526,34 +8527,102 @@ private:
     }
   }
 
-  /// Whether the probit rescaling step can apply this sweep, on what the
-  /// chain holds alone: one plain constant-leaf forest with no combiner, or
-  /// the sharers of a combining chain (forestSharers); no variance forest, the
-  /// probit family, k drawn and finite and positive, and every scaled tree's
-  /// obs-to-leaf map current. A stale map (the sweep after a prior draw or a
-  /// wholesale reset) does not name the leaves the cached fits were gathered
-  /// from. Reads no generator.
-  bool forestRescaleApplies() const {
+  /// The forests a move along the scale orbit (mu, k) -> (r mu, k / r) acts
+  /// on: the sharers of a combining chain (forestSharers), else forest 0.
+  /// They hold one k and one k prior, the group's or the single forest's.
+  std::span<const std::size_t> orbitForests() const {
+    static constexpr std::size_t single[] = {0};
+    if (sharers_.empty()) return single;
+    return sharers_;
+  }
+
+  /// Whether a move along the scale orbit of orbitForests can apply this
+  /// sweep, on what the chain holds alone and whatever the family: one plain
+  /// constant-leaf forest with no combiner, or the sharers of a combining
+  /// chain; no variance forest; k drawn and finite and positive; and every
+  /// scaled tree's obs-to-leaf map current. A stale map (the sweep after a
+  /// prior draw or a wholesale reset) does not name the leaves the cached fits
+  /// were gathered from. Every move on the orbit tests these here, so no two
+  /// of them can disagree on one. Reads no generator.
+  bool forestScaleOrbitApplies() const {
     if constexpr (!std::is_same_v<L, ConstantGaussianLeaf>) {
       return false;
     } else {
-      if (sharers_.empty()) {
-        if (forests_.size() != 1 || combiner_ || varianceForest_ ||
-            family_ != ResponseFamily::probit)
-          return false;
-      } else if (varianceForest_ || family_ != ResponseFamily::probit) {
+      if (varianceForest_ ||
+          (sharers_.empty() && (forests_.size() != 1 || combiner_)))
         return false;
-      }
-      std::size_t numScaled = sharers_.empty() ? 1 : sharers_.size();
-      for (std::size_t j = 0; j < numScaled; ++j) {
-        const Forest<L, ResidT>& forest =
-          forests_[sharers_.empty() ? 0 : sharers_[j]];
+      for (std::size_t f : orbitForests()) {
+        const Forest<L, ResidT>& forest = forests_[f];
         if (!forest.updateK || !(forest.k > 0.0 && forest.k <= DBL_MAX))
           return false;
         for (size_t t = 0; t < forest.numTrees; ++t)
           if (forest.leafOfStale[t] != 0) return false;
       }
       return true;
+    }
+  }
+
+  /// Whether the probit rescaling step can apply this sweep: the probit
+  /// family and forestScaleOrbitApplies. Reads no generator.
+  bool forestRescaleApplies() const {
+    return family_ == ResponseFamily::probit && forestScaleOrbitApplies();
+  }
+
+  /// Splits a combining chain's location, row by row, into the sharers'
+  /// summed fit, into orbitFits_, and every other forest's current
+  /// contribution, the combined location less that sum, into orbitOthers_:
+  /// the part a move along the orbit scales and the part it holds. Each
+  /// sharer is held at 1 with no basis, so the scaled part is the sum of
+  /// their totalFits. Draws nothing.
+  void gatherSharedOrbitFits() {
+    const size_t n = data_.numObservations;
+    orbitFits_.resize(n);
+    orbitOthers_.resize(n);
+    const double* combined = combiner_->combinedFits(forests_);
+    for (size_t i = 0; i < n; ++i) {
+      double scaled = 0.0;
+      for (std::size_t f : sharers_) scaled += forests_[f].totalFits[i];
+      orbitFits_[i] = scaled;
+      orbitOthers_[i] = combined[i] - scaled;
+    }
+  }
+
+  /// Moves orbitForests along the scale orbit: every occupied leaf of every
+  /// tree multiplied by \p factor, the group's k divided by it, and each
+  /// forest's totalFits brought along. An empty leaf sits at zero and stays
+  /// there. totalFits is multiplied in place while the forest's accumulated
+  /// factor stays within [1 / totalFitsScaleBound, totalFitsScaleBound], and
+  /// re-derived from the scaled leaves in tree order when it would leave that
+  /// range: a cache gap a factor multiplies compounds across sweeps, so the
+  /// factor is what bounds it, and every move on the orbit multiplies into the
+  /// one accumulated factor. Draws nothing and reads nothing of the response.
+  void scaleOrbitForests(double factor) {
+    if constexpr (std::is_same_v<L, ConstantGaussianLeaf>) {
+      const size_t n = data_.numObservations;
+      const double scaledK = forests_[orbitForests().front()].k / factor;
+      for (std::size_t f : orbitForests()) {
+        Forest<L, ResidT>& forest = forests_[f];
+        for (size_t t = 0; t < forest.numTrees; ++t) {
+          Tree& tree(forest.trees[t]);
+          std::vector<double>& mu(forest.muByTree[t]);
+          tree.bottomScratch.clear();
+          tree.fillBottom(0, tree.bottomScratch);
+          for (int32_t nodeIndex : tree.bottomScratch)
+            if (tree.at(nodeIndex).numObservations() != 0)
+              mu[static_cast<size_t>(nodeIndex)] *= factor;
+        }
+        forest.k = scaledK;
+        double scale = forest.totalFitsScale * factor;
+        if (scale >= 1.0 / totalFitsScaleBound && scale <= totalFitsScaleBound) {
+          double* total = forest.totalFits.data();
+          for (size_t i = 0; i < n; ++i) total[i] *= factor;
+          forest.totalFitsScale = scale;
+        } else {
+          rebuildForestTotalFits(forest);
+        }
+      }
+    } else {
+      (void) factor;
     }
   }
 
@@ -8573,23 +8642,19 @@ private:
   /// and stays there; an inactive row is not in the model, so its latent is
   /// neither counted nor scaled.
   ///
-  /// On a combining chain the step scales the sharers alone (forestSharers):
+  /// On a combining chain the step scales the sharers alone (orbitForests):
   /// f is their summed fit, M their pooled leaf count, k the group's, and o
   /// the offset plus every other forest's current contribution, which no
-  /// alpha moves. The density reads no leaf scale, (mu, k) -> (alpha mu,
-  /// k / alpha) leaving every standardized leaf invariant whatever each
-  /// sharer's scale, so it is the one above.
+  /// alpha moves (gatherSharedOrbitFits). The density reads no leaf scale,
+  /// (mu, k) -> (alpha mu, k / alpha) leaving every standardized leaf
+  /// invariant whatever each sharer's scale, so it is the one above.
   ///
   /// Declines, consuming no generator draw, where forestRescaleApplies does
   /// not hold, where R is not positive, and where C is zero and n <= nu, the
   /// conditional then being improper. Every decline reads only quantities the
   /// group leaves invariant, so mixing the step with the identity keeps the
-  /// posterior. totalFits is multiplied by alpha in place while the forest's
-  /// accumulated factor stays within [1 / totalFitsScaleBound,
-  /// totalFitsScaleBound], and re-derived from the scaled leaves in tree order
-  /// when it would leave that range: a cache gap a factor multiplies compounds
-  /// across sweeps, so the factor is what bounds it. alphaOut, when non-null,
-  /// receives the factor applied, 1 on a decline.
+  /// posterior. The leaves, k and totalFits move by scaleOrbitForests.
+  /// alphaOut, when non-null, receives the factor applied, 1 on a decline.
   bool drawForestRescale(double* alphaOut = nullptr) {
     if (alphaOut != nullptr) *alphaOut = 1.0;
     if constexpr (!std::is_same_v<L, ConstantGaussianLeaf>) {
@@ -8612,27 +8677,21 @@ private:
           if (offset != nullptr) offsetCross += offset[i] * residual;
         }
       } else {
-        // f is the sharers' summed fit, each held at 1 with no basis, and
-        // every other forest's current contribution, the combined location
-        // less f, joins the offset the step leaves unscaled
-        const double* combined = combiner_->combinedFits(forests_);
+        // every other forest's current contribution joins the offset the step
+        // leaves unscaled
+        gatherSharedOrbitFits();
         for (size_t i = 0; i < n; ++i) {
           if (active != nullptr && active[i] == 0.0) continue;
-          double scaled = 0.0;
-          for (std::size_t f : sharers_) scaled += forests_[f].totalFits[i];
-          double unscaled = combined[i] - scaled;
+          double unscaled = orbitOthers_[i];
           if (offset != nullptr) unscaled += offset[i];
-          double residual = z[i] - scaled;
+          double residual = z[i] - orbitFits_[i];
           numActive += 1.0;
           residualSquares += residual * residual;
           offsetCross += unscaled * residual;
         }
       }
       if (!(residualSquares > 0.0 && residualSquares <= DBL_MAX)) return false;
-      // every scaled forest has the one k and k prior: the group's, or the
-      // single forest's
-      const Forest<L, ResidT>& kForest =
-        forests_[sharers_.empty() ? 0 : sharers_.front()];
+      const Forest<L, ResidT>& kForest = forests_[orbitForests().front()];
       const double k = kForest.k;
       const double priorScale = kForest.kHyperprior.scale;
       const double power = numActive - kForest.kHyperprior.degreesOfFreedom;
@@ -8652,35 +8711,10 @@ private:
                                             rescaleSliceStepLimit));
       if (alphaOut != nullptr) *alphaOut = alpha;
 
-      const double scaledK = k / alpha;
-      std::size_t numScaled = sharers_.empty() ? 1 : sharers_.size();
-      for (std::size_t j = 0; j < numScaled; ++j) {
-        Forest<L, ResidT>& forest = forests_[sharers_.empty() ? 0 : sharers_[j]];
-        for (size_t t = 0; t < forest.numTrees; ++t) {
-          Tree& tree(forest.trees[t]);
-          std::vector<double>& mu(forest.muByTree[t]);
-          tree.bottomScratch.clear();
-          tree.fillBottom(0, tree.bottomScratch);
-          for (int32_t nodeIndex : tree.bottomScratch)
-            if (tree.at(nodeIndex).numObservations() != 0)
-              mu[static_cast<size_t>(nodeIndex)] *= alpha;
-        }
-        forest.k = scaledK;
-      }
+      scaleOrbitForests(alpha);
       bool scaled = response_->scaleLatents(alpha);
       assert(scaled);
       (void) scaled;
-      for (std::size_t j = 0; j < numScaled; ++j) {
-        Forest<L, ResidT>& forest = forests_[sharers_.empty() ? 0 : sharers_[j]];
-        double scale = forest.totalFitsScale * alpha;
-        if (scale >= 1.0 / totalFitsScaleBound && scale <= totalFitsScaleBound) {
-          double* total = forest.totalFits.data();
-          for (size_t i = 0; i < n; ++i) total[i] *= alpha;
-          forest.totalFitsScale = scale;
-        } else {
-          rebuildForestTotalFits(forest);
-        }
-      }
       return true;
     }
   }
@@ -9666,6 +9700,10 @@ private:
   // the guard every sharer path takes; empty where none does and where a lone
   // one keeps the map's held entry
   std::vector<std::size_t> sharers_;
+  // a combining chain's location split by gatherSharedOrbitFits into the
+  // sharers' summed fit and the rest; scratch, rewritten by every move along
+  // the orbit that reads it
+  std::vector<double> orbitFits_, orbitOthers_;
   // the map's anchor s, and the response units in one s, which a stated sd is
   // divided by; both are creation's and no mutation moves either
   double nodeScaleAnchor_ = 1.0;
