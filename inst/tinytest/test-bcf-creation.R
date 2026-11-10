@@ -1456,7 +1456,11 @@ grouped <- function(data) {
     verbose = FALSE
   ))$yhat.train
 }
-expect_identical(grouped(basesData), grouped(dbartsData(x, y)))
+# the sampler's data hold the starting sigma it regressed on its bases, which a
+# door keeps; the plain data are given the same
+plainData <- dbartsData(x, y)
+plainData@sigma <- basesData@sigma
+expect_identical(grouped(basesData), grouped(plainData))
 
 # a basis on the FIRST forest and none on the second: the control's slot
 # holds the first forest's count and the control's own goes to the second

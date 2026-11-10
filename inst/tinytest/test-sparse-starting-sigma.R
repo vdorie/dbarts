@@ -339,8 +339,8 @@ for (rule in c("auto", "dense")) {
     summary(lm(y ~ f6 + x1))$sigma
   )
 }
-# a data object's own sigma: dbartsSpec keeps it unless told how to replace
-# it, and the other doors estimate over it
+# a data object's own sigma: dbartsSpec, dbarts and bart keep it unless told
+# how to replace it
 carried <- dbartsData(frame, y)
 carried@sigma <- 7
 expect_identical(spec(carried), 7)
@@ -350,6 +350,10 @@ expect_identical(spec(carried, sigest = "dense"), sigmaOf(frame, y))
 expect_equal(spec(carried, sigest = "sparse"), sigmaOf(frame, y))
 expect_identical(
   dbarts(carried, control = control, sigest = "auto", n.trees = 3L)$data@sigma,
+  7
+)
+expect_identical(
+  dbarts(carried, control = control, sigest = "dense", n.trees = 3L)$data@sigma,
   sigmaOf(frame, y)
 )
 
