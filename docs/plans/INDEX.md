@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (145 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (146 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:` line or `## Status` section; the one plan with neither,
@@ -70,6 +70,7 @@ Columns: `file | STATUS | one-liner`.
 | sbc-calibration.md | DONE (all tiers complete) | The simulation-based-calibration harness and its running log; found and diagnosed a BCF sigma-mixing issue and a cauchy-tau tooling gap along the way. |
 | sbc-family-tiers.md | BUILT 86cf0cab (2026-08-04); aft and heteroscedastic arms admitted 2026-09-13, monotone arms 2026-10-01 | Extends SBC calibration to ordinal, nbinom, Student-t and multinomial responses; all pass except a known ordinal ridge-mixing flag. aft, the two heteroscedastic arms and monotone's two 20-tree arms (one per prior) have since been admitted to sbc.yaml's matrix. |
 | probit-k-scale-move.md | LANDED 2026-10-09 (72205c00) | Adds a probit parameter-expansion step that rescales the active latents, the leaves and 1/k together once a sweep, drawn exactly, wherever k is drawn on a single probit forest, with no switch (dec-B397), an exact gate on a frozen one-tree fit, a mixing measurement, the drawn-k probit equivalence scenarios re-recorded, and the probit-k calibration arm returned to an ordinary SBC. |
+| collapsed-scale-move.md | BUILT ON A BRANCH for pricing, 2026-11-10 (collapsed-move-rebuild off main b2268c1c9; step 0 of k-move-pricing.md; dec-B404, dec-B420, dec-B530, dec-B617, dec-B618, dec-B623); stays a branch until pricing decides | The collapsed rescaling move for a drawn k under logistic: on about one sweep in four, every occupied leaf of a single forest, or of the forests that share one prior total, times a factor and k divided by it, the factor drawn by a slice step with the Polya-Gamma latents integrated out over the rows in the likelihood, ahead of the sweep's augmentation draw, which then draws the latents at the scaled fit; no state, no switch, an engine toggle for tests; tests/cpp, tinytest, logistic and sharer arms of the exact gate. The probit half, planned beside the probit step, is out (dec-B617). |
 
 ## Response-family / model-surface singletons
 
