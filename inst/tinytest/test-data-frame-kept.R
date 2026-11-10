@@ -835,6 +835,30 @@ fittedFrame <- model.frame(
 )
 expect_identical(names(fittedFrame), names(mfRef))
 expect_equal(model.response(fittedFrame), model.response(mfRef))
+# an offset() term is counted once, as lm's frame counts it, with and without
+# offset =; the block holds the sum
+offsetFormula <- y ~ x2 + offset(w)
+for (extra in list(NULL, rep(100, n))) {
+  lmOffset <- model.offset(model.frame(lm(offsetFormula, d0, offset = extra)))
+  offsetSampler <- dbarts(
+    offsetFormula,
+    d0,
+    offset = extra,
+    n.trees = 5L,
+    control = ctl
+  )
+  expect_equal(
+    unname(model.offset(model.frame(offsetSampler$data))),
+    unname(lmOffset),
+    info = paste("offset =", !is.null(extra))
+  )
+  expect_equal(
+    unname(model.offset(model.frame(
+      dbartsData(offsetFormula, d0, offset = extra, keep.data = FALSE)
+    ))),
+    unname(lmOffset)
+  )
+}
 # where no formula was, or a hazard fit added its period, the frame has no
 # terms record
 expect_null(attr(

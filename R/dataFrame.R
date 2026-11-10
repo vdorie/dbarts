@@ -11,8 +11,8 @@ dataKeepsFrame <- function(object) {
 }
 
 ## The slot a stand-in names is the whole of it: dim(), subsetting, arithmetic,
-## mean(), c(), unique(), cbind() and the rest stop, so nothing reads a slot
-## that holds no values as if it did. var(), sd() and paste() coerce in R's own
+## mean(), c(), unique(), cbind(), sd() and the rest stop, so nothing reads a
+## slot that holds no values as if it did. var() and paste() coerce in R's own
 ## code, which no method reaches.
 frameStandIn <- function(slot) {
   structure(slot, class = "dbartsStandIn")
@@ -611,9 +611,9 @@ termsWithResponse <- function(terms, label) {
     rownames(factors)[1L] <- label
     attr(result, "factors") <- factors
   }
-  if (!is.null(attr(terms, "offset"))) {
-    attr(result, "offset") <- attr(terms, "offset") + 1L
-  }
+  ## The block holds every offset summed in one "(offset)" column, which
+  ## model.offset() reads; an offset() term named here would count twice.
+  attr(result, "offset") <- NULL
   attr(result, "response") <- 1L
   result
 }
