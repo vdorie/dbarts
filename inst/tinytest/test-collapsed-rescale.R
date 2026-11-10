@@ -1,9 +1,9 @@
 # The collapsed rescaling move under logistic, from R: that it sits ahead of
 # every recorded channel, runs per chain on any number of threads, runs finite
 # under an offset, counts, a mask and a mask with every row out, reaches the
-# forests that share one prior total, and that a sampler's state carries what
-# it needs. Each expectation holds whether or not a fit takes the move, so
-# none pins which do. The move's conditional, its mapping, its schedule, its
+# forests that share one prior total and a binomial response, and that a
+# sampler's state carries what it needs. Each expectation holds whether or not
+# a fit takes the move, so none pins which do. The move's conditional, its mapping, its schedule, its
 # declines and its place in the sweep are tests/cpp gates; its posterior is
 # the probit-k-scale-exact gate; which fits take it is the equivalence
 # baseline's record.
@@ -127,7 +127,7 @@ expect_true(
 )
 rm(treesFit)
 
-# ---- count weights, an infinite prior scale, hazard.logistic ----
+# ---- count weights, an infinite prior scale, binomial, hazard.logistic ----
 
 counted <- moveSampler(weights = counts, offset = 0.3 * x[, 3L])
 countedRun <- counted$run(20L, 40L)
@@ -138,6 +138,28 @@ flat <- moveSampler(leaf.prior = normal(k = chi(1.5, Inf)))
 flatRun <- flat$run(20L, 40L)
 expect_true(all(is.finite(flatRun$train)))
 rm(flat, flatRun)
+
+# a binomial response, successes out of 1 to 3 trials under count weights, on
+# one forest and on the sharers
+trials <- rep(1:3, length.out = n)
+successes <- rbinom(n, trials, plogis(eta))
+dBinomial <- data.frame(successes, failures = trials - successes, x)
+for (shared in c(FALSE, TRUE)) {
+  binomialSampler <- dbarts::dbarts(
+    if (shared) {
+      cbind(successes, failures) ~ forest(x1) + forest(x2 + x3)
+    } else {
+      cbind(successes, failures) ~ x1 + x2 + x3
+    },
+    dBinomial,
+    family = binomial,
+    weights = rep(1:2, length.out = n),
+    n.trees = 10L,
+    control = moveControl()
+  )
+  expect_true(finiteWithK(binomialSampler$run(20L, 40L)), info = shared)
+}
+rm(binomialSampler, trials, successes, dBinomial)
 
 # three periods, an event in each and subjects censored along the way
 periods <- rep(1:3, length.out = n)
