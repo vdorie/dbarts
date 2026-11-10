@@ -1248,11 +1248,15 @@ refuses(
   y ~ x1 + x2 + forest(x1, basis = ~z, by = z),
   "unused argument (by = z)"
 )
-# a 'forests' list reaches no data object built beforehand
+# a 'forests' list beside a data object built beforehand reads its frame
 dd <- dbarts::dbartsData(y ~ x1 + x2, d)
-expect_error(
-  dbarts:::dbarts(dd, forests = list(forest(), forest(basis = ~z))),
-  "already a dbartsData"
+expect_identical(
+  dbarts:::dbarts(dd, forests = list(forest(), forest(basis = ~z)))$data@bases,
+  dbarts:::dbarts(
+    y ~ x1 + x2,
+    d,
+    forests = list(forest(), forest(basis = ~z))
+  )$data@bases
 )
 # the forests of a model are written one way in one call
 expect_error(

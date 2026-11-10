@@ -331,31 +331,17 @@ expect_identical(
   unname(basisOf(listFit(quote(if (useZ) z else NULL)))),
   unname(column(frame$z, "z"))
 )
-# the slips of a caller who builds forests by program
+# a single string, written or held, names its column
 name <- "dose"
-expect_error(
-  listFit(quote(name)),
-  paste0(
-    "'basis' is 'name', which holds the string \"dose\": a basis is a ",
-    "column, not its name. Write basis = dose, or from a program ",
-    "do.call(forest, list(basis = as.name(\"dose\"))), or hand over the ",
-    "column itself"
-  ),
-  fixed = TRUE
-)
-expect_error(
-  listFit("dose"),
-  "'basis' is the string \"dose\": a basis is a column, not its name",
-  fixed = TRUE
-)
-expect_error(
-  termFit(quote(name)),
-  "'basis' is 'name', which holds the string \"dose\"",
-  fixed = TRUE
-)
+byColumn <- basisOf(listFit(quote(dose)))
+expect_identical(basisOf(listFit(quote(name))), byColumn)
+expect_identical(basisOf(listFit("dose")), byColumn)
+expect_identical(basisOf(termFit(quote(name))), basisOf(termFit(quote(dose))))
+# handed over as a value beside a matrix with no such column, and none where
+# forest() was called, it names nothing
 expect_error(
   valueFit("dose"),
-  "'basis' is the string \"dose\"",
+  "'basis' (dose): object 'dose' not found where forest() was called",
   fixed = TRUE
 )
 expect_error(

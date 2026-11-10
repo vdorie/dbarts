@@ -1937,8 +1937,10 @@ buildFitBases <- function(
       forestName(index, labels)
     )
     refuseBasisLength(NROW(value), source, numObservations, index, labels)
+    # cut on every route, so that the block keeps its values and its names
+    # and not the attributes of what made it, scale()'s among them
     values[index] <- list(
-      if (is.null(kept)) value else cutBasisRows(value, kept)
+      cutBasisRows(value, if (is.null(kept)) seq_len(NROW(value)) else kept)
     )
   }
   finished <- finishBasisRows(values, "basis", labels)
