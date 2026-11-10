@@ -1533,6 +1533,9 @@ freezeExpression <- function(expr, dataNames, env, numRows) {
 ## stay as written, since they name the columns.
 predictorTerms <- function(modelTerms, dataNames, numRows) {
   terms <- stats::delete.response(modelTerms)
+  # the data classes keep the response's entry first, its name the label
+  # model.frame gave the response; R from 4.7.0 drops it in delete.response()
+  attr(terms, "dataClasses") <- attr(modelTerms, "dataClasses")
   env <- environment(modelTerms)
   predvars <- attr(terms, "predvars")
   if (is.null(predvars)) {
