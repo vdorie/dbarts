@@ -351,29 +351,38 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   A sampler created with one forest and none refuses data that carry
   `bases`, having no forest to multiply them; make a new sampler from
   such data with
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
-  Columns are matched by name: the new data carry the sampler's names,
-  in any order, and names that are not the sampler's are refused, as
-  `predict` refuses them, leaving the sampler as it was. A matrix with
-  no column names is read by position, with no message, as is any data
-  handed to a sampler that has none, whose record then takes the data's
-  names, which `predict` needs; a sampler whose names repeat takes the
-  same names in the same places only. A factor column is read by label
-  against the levels the sampler was created with, which it keeps: fewer
-  levels, the levels in another order and declared levels no row has are
-  taken, each row at its own label; a row, training or test, at a label
-  the sampler never had is refused by name, as `predict` refuses one,
-  and so is a factor column given as numbers with no level table. A
-  factor whose labels were changed on purpose is relabeled to the
-  sampler's labels first, with `levels<-`, or given to a new sampler. A
-  column that could hold missing values before the call still can, and
-  one the new data first give a missing value becomes able to, as
-  ‘Missing values in predictors’ in ‘Details’ describes. The cut points,
-  the response range and a `linear` or `gp` leaf's covariate
-  standardization follow `updateCutPoints`, `updateScale` and
-  `updateStandardization`; with each left at `NULL`, a value `newData`
-  records (its `cutPoints`, `response.range` and `standardization`
-  slots, see
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md). A
+  hazard sampler also takes data built from a `Surv` response
+  (`dbartsData(Surv(time, status) ~ x, newData)`): its subjects are
+  spread onto the sampler's own periods as
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
+  spreads them at creation, one row per period at risk with the period
+  column last, and a time past the last period leaves its subject at
+  risk through every period with no event. A hazard sampler refuses a
+  hand-built person-period matrix whose last column is not named period,
+  at setData and at creation; give it survival data, or fit the rows
+  with `family = "binomial"`, the period a predictor. Columns are
+  matched by name: the new data carry the sampler's names, in any order,
+  and names that are not the sampler's are refused, as `predict` refuses
+  them, leaving the sampler as it was. A matrix with no column names is
+  read by position, with no message, as is any data handed to a sampler
+  that has none, whose record then takes the data's names, which
+  `predict` needs; a sampler whose names repeat takes the same names in
+  the same places only. A factor column is read by label against the
+  levels the sampler was created with, which it keeps: fewer levels, the
+  levels in another order and declared levels no row has are taken, each
+  row at its own label; a row, training or test, at a label the sampler
+  never had is refused by name, as `predict` refuses one, and so is a
+  factor column given as numbers with no level table. A factor whose
+  labels were changed on purpose is relabeled to the sampler's labels
+  first, with `levels<-`, or given to a new sampler. A column that could
+  hold missing values before the call still can, and one the new data
+  first give a missing value becomes able to, as ‘Missing values in
+  predictors’ in ‘Details’ describes. The cut points, the response range
+  and a `linear` or `gp` leaf's covariate standardization follow
+  `updateCutPoints`, `updateScale` and `updateStandardization`; with
+  each left at `NULL`, a value `newData` records (its `cutPoints`,
+  `response.range` and `standardization` slots, see
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md))
   is used and one it does not record is derived from it. A cut count or
   quantile rule `newData` states wins over the sampler's (see `n.cuts`
