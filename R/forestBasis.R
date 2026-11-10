@@ -1717,7 +1717,8 @@ objectBasisSource <- function(object, forests) {
     heldRows = heldRows,
     heldBases = heldForestBases(object),
     columns = object@frame.columns,
-    environment = isTRUE(attr(object, "frame.environment", exact = TRUE)),
+    environment = methods::.hasSlot(object, "frame.source") &&
+      identical(object@frame.source, "environment"),
     subset = rowsBySubset(object, total)
   )
   # beside an object built from a formula with no data, a name is read where

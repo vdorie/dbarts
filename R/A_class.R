@@ -1040,6 +1040,11 @@ methods::setClass(
     # or an environment's, held beside a block as well as beside a frame; NULL
     # where no data were given
     frame.columns = "characterOrNULL",
+    # the kind of data those names came from, "frame" for a data frame or a
+    # list and "environment" for an environment, by which a basis named later
+    # is refused naming the kind of data that would be kept; NULL where no
+    # data were given
+    frame.source = "characterOrNULL",
     # what reads the frame again at the resolution (resolveDataObject): the
     # formula with the caller's variables it names held in its environment, the
     # 'weights' and 'offset' as written, the factor coding, and the number of
@@ -1084,6 +1089,7 @@ methods::setClass(
     rows = NULL,
     rows.total = NULL,
     frame.columns = NULL,
+    frame.source = NULL,
     build = NULL
   )
 )

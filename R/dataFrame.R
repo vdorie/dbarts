@@ -618,8 +618,29 @@ termsWithResponse <- function(terms, label) {
   result
 }
 
-## The response's name as the formula wrote it, NULL where no formula wrote
-## one.
+## The response's name as model.frame() gave it at the build, read from the
+## held terms record, whose variables no longer hold it but whose data classes
+## still name it first; NULL where no formula wrote one.
 dataResponseLabel <- function(object) {
-  attr(object, "response.label", exact = TRUE)
+  terms <- attr(object@x, "terms")
+  classes <- attr(terms, "dataClasses")
+  if (length(classes) == 0L) {
+    return(NULL)
+  }
+  first <- names(classes)[1L]
+  variables <- vapply(
+    as.list(attr(terms, "variables"))[-1L],
+    function(variable) {
+      paste(
+        deparse(
+          variable,
+          width.cutoff = 500L,
+          backtick = !is.symbol(variable) && is.language(variable)
+        ),
+        collapse = " "
+      )
+    },
+    ""
+  )
+  if (first %in% variables || startsWith(first, "(")) NULL else first
 }

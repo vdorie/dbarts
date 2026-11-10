@@ -220,6 +220,29 @@ expect_identical(streamAfter(nobs(drawnO)), streamAfter(NULL))
 expect_identical(nobs(drawnO), 20L)
 expect_identical(streamAfter(nobs(oOff)), streamAfter(NULL))
 
+# the kind of data the column names came from is a slot, and the response's
+# name is read from the terms record; no loose attribute carries either
+envData <- list2env(as.list(d[c("y", "x1", "x2")]))
+envO <- dbartsData(y ~ x1 + x2, data = envData)
+expect_identical(envO@frame.source, "environment")
+expect_identical(dbartsData(y ~ x1 + x2, d)@frame.source, "frame")
+expect_identical(
+  dbartsData(y ~ x1 + x2, as.list(d), keep.data = FALSE)@frame.source,
+  "frame"
+)
+expect_null(dbartsData(as.matrix(d[c("x1", "x2")]), d$y)@frame.source)
+for (attribute in c("frame.environment", "response.label")) {
+  expect_null(attr(envO, attribute, exact = TRUE))
+  expect_null(attr(
+    dbartsData(log(abs(y) + 1) ~ x1, d, keep.data = FALSE),
+    attribute,
+    exact = TRUE
+  ))
+}
+labeled <- dbartsData(log(abs(y) + 1) ~ x1, d, keep.data = FALSE)
+expect_identical(names(model.frame(labeled))[1L], "log(abs(y) + 1)")
+expect_identical(names(model.frame(envO))[1L], "y")
+
 # the record slots hold what they say
 typed <- dbartsData(y ~ x1 + x2, d, subset = 2:10, keep.data = FALSE)
 expect_error(typed@rows <- "junk", "rows")
@@ -227,6 +250,7 @@ expect_error(typed@rows.total <- 3.5, "rows.total")
 expect_error(typed@frame.columns <- 3, "frame.columns")
 expect_error(typed@build <- 7, "build")
 expect_error(typed@basis.written <- list(1), "basis.written")
+expect_error(typed@frame.source <- 1, "frame.source")
 
 # a block-holding object decodes to the model's own shape where it is exact
 decoded <- function(o) {

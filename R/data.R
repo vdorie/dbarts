@@ -4515,12 +4515,6 @@ dbartsData <- function(
     result@useQuantiles <- stated$useQuantiles
   }
   result@na.action <- naOmitted
-  if (is.formula(formula) && length(formula) == 3L) {
-    attr(result, "response.label") <- paste(
-      deparse(formula[[2L]]),
-      collapse = " "
-    )
-  }
   if (!is.formula(formula)) {
     rowsKept <- if (identical(as.integer(countsSubset), seq_len(countsRows))) {
       NULL
@@ -4535,10 +4529,12 @@ dbartsData <- function(
     )
   }
   result@frame.columns <- frameColumns
-  # whose names those are: a basis named later is refused naming the kind of
-  # data that would be kept
-  if (is.environment(frameData)) {
-    attr(result, "frame.environment") <- TRUE
+  if (!is.null(frameColumns)) {
+    result@frame.source <- if (is.environment(frameData)) {
+      "environment"
+    } else {
+      "frame"
+    }
   }
   if (!is.null(offsetArgument)) {
     attr(result, "offset.argument") <- offsetArgument
