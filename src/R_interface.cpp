@@ -22,6 +22,7 @@
 #include <dbarts/dbarts.h>
 
 #include "guessNumCores.hpp"
+#include "physicalMemory.hpp"
 #include "makeModelMatrixFromDataFrame.h"
 
 #include "R_interface_bartcore.hpp"
@@ -155,6 +156,14 @@ static SEXP guessNumCores() {
   UNPROTECT(1);
 
   return resultExpr;
+}
+
+/// The machine's physical memory in bytes, as a double, which holds any real
+/// machine's byte count exactly; NA where the operating system does not report
+/// it.
+static SEXP physicalMemory() {
+  const std::uint64_t numBytes = dbarts::physicalMemory();
+  return Rf_ScalarReal(numBytes == 0 ? NA_REAL : static_cast<double>(numBytes));
 }
 
 // samplers release their resources through per-pointer R finalizers; the
@@ -326,6 +335,7 @@ static R_CallMethodDef R_callMethods[] = {
     2
   ),
   DEF_FUNC("dbarts_guessNumCores", ::guessNumCores, 0),
+  DEF_FUNC("dbarts_physicalMemory", ::physicalMemory, 0),
   // experimental
   DEF_FUNC("dbarts_assignInPlace", assignInPlace, 3),
   // below: testing
