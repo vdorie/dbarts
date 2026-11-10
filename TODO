@@ -69,13 +69,6 @@ items
     September construction, background), real shape
     (negbin-real-dispersion) and non-integer logistic weights
     (weighted-binary).
-  basis-string-name: forest(x, basis = "z") reads a single string,
-    written or held in a variable, as the name of column z, at predict
-    too, resolved as a basis name is beside a sampler's data (dec-B700).
-    A character vector with one value per row stays a two-level basis;
-    a lone string can never be a basis's values. Coupled with the
-    basis-references plan, part 1. About 5 to 10 lines, tests and a
-    help sentence; no fit that runs today moves.
   bcf-fallback-ess: the BCF equivalence harness's single-chain
     statistical fallback divides by the nominal draws of one
     autocorrelated chain, with no effective-sample-size correction, so
@@ -289,57 +282,6 @@ items
     accepted"; a stated-sd install through $setModel cannot reach such a
     sampler. Found reviewing setmodel-installs-stated (dec-A278); on
     main before it. A fix and a pin.
-  basis-references-to-data: a forest's basis is a reference to a column
-    of the data, resolved by name where a data frame is given; the
-    data object's per-forest bases become the package's record of that,
-    dbartsData(bases = ) leaving the user surface (dec-B663, VD
-    2026-11-07: "Use your new recommendation."). A design note first:
-    what a pre-built data object keeps, dbartsSpec()'s resolution,
-    predict's bases =, the matrix interface, the tests using bases =;
-    it comes back as a decision.
-    The object keeps the data frame whole and as little derived from it
-    as it can, the quantized predictor block made from the frame when a
-    sampler needs it (dec-B670, VD 2026-11-07: "keep the data frame, but
-    we'll want to be careful what derivative data objects we keep from
-    it"). dbartsData(keep.data = FALSE) keeps no frame, the default
-    keeping it (dec-B674, VD 2026-11-08: "(a), but I would critically
-    examine what bartCause and stan4bart do now versus what they should
-    do"): what the two packages pass and read is settled by that
-    examination, not by their current code. On an object that keeps
-    its frame the response, weights and offsets are made from the frame
-    too, with no copy stored, o@y and its kin naming accessors that read
-    them from there (dec-B675, VD 2026-11-08: "No, I want (a). It should
-    be read from there."). There o@x holds a stand-in that stops when
-    read, naming the accessor (dec-B676, VD 2026-11-08: "Sure, (a).").
-    A data object's data is read with model.frame(o), its rows counted
-    with nobs(o); extract() gets no data-object method (dec-B677, VD
-    2026-11-08: "OK, do that."). Where a sampler is made the caller's
-    frame is dropped and the sampler's data holds the model frame and
-    what its forests need, the setters writing into it (dec-B678, VD
-    2026-11-08: "Yes, of course, the model frame. And whatever we need
-    for forests."); the note designs and sizes it. It lands in two
-    parts, this item the first: the data object and the forest doors
-    (dec-B679, VD 2026-11-08: "So use (b) I guess."). A basis vector
-    has one entry per row handed over (dec-B680, VD 2026-11-08:
-    "(a)."); dbarts(o, forests = ) reads a declared basis as
-    dbartsSpec(o) does (dec-B681, VD 2026-11-08: "(a), but I thought we
-    moved forest stuff off the data, it just has to hold the frame.");
-    beside an object with no caller frame a name it holds is read from
-    it and another of the frame's names refused (dec-B682, VD
-    2026-11-08: "(b)"); an environment's object holds what it read at
-    the build (dec-B683, VD 2026-11-08: "(a)"); a forests list states
-    the forests in full, a sampler's data included (dec-B684, VD
-    2026-11-08: "(a)."), replacing dec-B663's interim refusal, never
-    built. Plan: docs/plans/basis-references-part-1.md, three slices
-    (the data object, the forest doors, the consumers). Its four open
-    calls are ruled: a forest naming a held basis keeps its recorded
-    scale (dec-B704, VD 2026-11-08: "OK, use (a)."); a basis name is
-    read from the data, a matrix's columns included, then where forest()
-    was called (dec-B705, VD 2026-11-08: "(b)"); a held basis is named
-    by its written expression (dec-B706, VD 2026-11-08: "(a)"); a
-    hazard basis has one value per subject (dec-B707, VD 2026-11-08:
-    "(a)"). dec-B700's string names are built with it. About 495 lines
-    against dec-B679's 305, for the maintainer's word.
   basis-references-part-2: the sampler's model frame (dec-B678), the
     second landing of the basis-references design (dec-B679): a
     sampler's data holds the model frame and its forests' basis
@@ -355,8 +297,8 @@ items
     2026-11-08: "Sure, (a)."); extract(s, "predictors") is removed
     with it (dec-B692, VD 2026-11-08: "Sure, (b)."). It reshapes part
     1's resolution, the held basis's name and the environment's object,
-    and stan4bart's three reads of sampler$data. After part 1;
-    saved-sampler-data-twice is examined before it.
+    and stan4bart's three reads of sampler$data. Part 1 is on main;
+    saved-sampler-data-twice is examined before this.
   sampler-help-mask-sentence: the dbartsSampler help's data argument
     says "Under such a family the sampler's own data object carries no
     weights, so setData(sampler$data) drops the mask in force"; on main
@@ -364,6 +306,22 @@ items
     survive setData(s$data) (run 2026-11-08), and only a mask set by
     setActiveRows is cleared, as the help says elsewhere. A help
     sentence.
+  basis-bcf-refused-bases-text: bartCause's bcf() still lists "bases"
+    among the arguments it refuses as set by bcf() itself, though
+    dbartsData() has no such argument; a user passing it is refused
+    either way (found reviewing basis-references part 1). A text edit.
+  door-keeps-data-sigma: a door handed a sampler's data (dbarts(s$data,
+    forests = ), dbartsSpec(s$data)) estimates the starting sigma again
+    from those data, a regression whose last bit depends on the BLAS
+    kernel, so after a basis swap it differs from the swapped sampler's
+    by an ulp on some Linux builds (dec-A410, the D4 pin states sigest).
+    Whether such a door keeps the data's starting sigma instead moves
+    draws wherever data are refit after a swap. A decision first.
+  list-frame-nobs-draws: nobs(o) of a data object built from a list
+    that keeps every row evaluates the formula's response again, so a
+    stochastic response consumes the generator; recording rows.total at
+    the build for a list frame whatever its rows would end it, changing
+    the slot's documented NULL where rows is (dec-A378).
   hazard-basis-after-fit: under dec-B707 a hazard fit's basis has one
     value per subject, but predict() takes person-period rows, so its
     bases = is one value per period row, and survivalProbabilities(
@@ -463,8 +421,8 @@ items
   basis-refs-saved-sizes: the basis-references design's sizing run cites a
     saved sampler at 4.55 MB against 2.32 MB in 0.9-34, measured before
     the pointer stopped writing the data a second time; rerun its saved
-    sizes on main before the basis-references build, which changes what
-    the data object holds.
+    sizes on main before part 2 of the basis-references build, which
+    changes what the sampler's data holds.
   setdata-repeated-names: setData and setPredictor read a sampler whose
     own column names repeat (x, b, x, d) by name only for the same names
     in the same places; the same names in another order are refused,

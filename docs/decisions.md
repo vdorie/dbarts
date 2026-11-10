@@ -1740,6 +1740,306 @@ Landed on dbarts main on 2026-11-10 (dfb1e0cbe..b76916fea: 12c109a2a, bb0fa502f,
 Gates of the slice are those of its first entry.
 Record: none (process). Marked: not marked. See also: [dec-B693], [dec-A323]. [dec-A360]
 
+**The resolution of a data object that keeps its frame runs dbartsData() on the stored frame with its warnings muffled**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: 9765b3f1e, 53e30d187, d2b159d6f, 1355604d1 for the data object and its help), built under dec-B674 to dec-B677 and dec-B685, slice 1 of docs/plans/basis-references-part-1.md. 
+1. The builder's call, not put to the maintainer, with its alternative. The resolution calls dbartsData() again with keep.data = FALSE on the stored frame, na.action = na.pass and subset the stored positions, muffling the build's warnings around that one call. The alternative was a flag inside the formula branch that skips warnings. The cost is that a warning the rerun raised for a new reason would be muffled too; none can, the build passed on the same rows.
+Gates of the slice: the full suite once in one process, 43730 tests, 0 failed; 28 seeded fits identical between main and the slice; the pin file test-data-frame-kept.R 359 of 359, failing on main; the reviewer's 20 mutants and further mutants on the fix round's code, each caught but three (two resolutions at entry points that already resolve, benign, and the stored row names of colliding names, uncaught); lintr 0, air, codoc, rc-codoc, win-drift, doc-freshness. Review: LAND after fixes, the fix round LAND. No src/ change, so no x86 leak-sanitizer leg was owed.
+Record: R/dataFrame.R; R/data.R. Marked: not marked. See also: [dec-B674], [dec-B677], [dec-B679]. [dec-A361]
+
+**A data object's coding record is a zero-row block and the per-column missing flags, kept in the build slot**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: 9765b3f1e, 53e30d187, d2b159d6f, 1355604d1 for the data object and its help), built under dec-B674 to dec-B677 and dec-B685, slice 1 of docs/plans/basis-references-part-1.md. 
+2. The builder's call, not put to the maintainer, with its alternative. The first build had no record, so makeTestModelMatrix() resolved the object and rebuilt the block each call; timed at 100000 rows and 20 columns, a predict on 1000 new rows took 2 ms against 18 ms for the rebuild (1 ms with a held block), so build$coding now holds the zero-row block and the flags, OR'd with missing.seen. The alternative was no record, saving about 40 lines. The cost is about 40 lines and a second copy of the coding.
+Gates of the slice are those of its first entry.
+Record: R/dataFrame.R; R/data.R. Marked: not marked. See also: [dec-B674], [dec-B677], [dec-B679]. [dec-A362]
+
+**One build slot holds the formula, the weights and offset expressions and the factors**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: 9765b3f1e, 53e30d187, d2b159d6f, 1355604d1 for the data object and its help), built under dec-B674 to dec-B677 and dec-B685, slice 1 of docs/plans/basis-references-part-1.md. 
+3. The builder's call, not put to the maintainer, with its alternative. One slot, build, takes the formula with the caller's variables held in an environment, the weights and offset expressions and the factors; the response's coding stays in the existing response.type, n.levels and levels slots. The alternative was separate slots for the response record and the frozen expressions. The cost is none.
+Gates of the slice are those of its first entry.
+Record: R/dataFrame.R; R/data.R. Marked: not marked. See also: [dec-B674], [dec-B677], [dec-B679]. [dec-A363]
+
+**The caller's variables a formula, weights or offset names are held by value in a child of the formula's environment**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: 9765b3f1e, 53e30d187, d2b159d6f, 1355604d1 for the data object and its help), built under dec-B674 to dec-B677 and dec-B685, slice 1 of docs/plans/basis-references-part-1.md. 
+4. The builder's call, not put to the maintainer, with its alternative. frozenBuildEnvironment() holds each named variable by value in an environment whose parent finds the functions. The alternative was the existing freezeExpression machinery. The cost is that a named variable's whole value rides the object, as the plan says.
+Gates of the slice are those of its first entry.
+Record: R/dataFrame.R; R/data.R. Marked: not marked. See also: [dec-B674], [dec-B677], [dec-B679]. [dec-A364]
+
+**The kept rows' positions come from the subset's value and the na.action's record**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: 9765b3f1e, 53e30d187, d2b159d6f, 1355604d1 for the data object and its help), built under dec-B674 to dec-B677 and dec-B685, slice 1 of docs/plans/basis-references-part-1.md. 
+5. The builder's call, not put to the maintainer, with its alternative. keptRowPositions() computes them there, so the build's model.frame call is unchanged; the matrix interface uses its own countsSubset, and where the data are an environment or absent the rows come from the response's length, NULL where that cannot be read. The alternative was a row-index column added to the model frame. The cost is none.
+Gates of the slice are those of its first entry.
+Record: R/dataFrame.R; R/data.R. Marked: not marked. See also: [dec-B674], [dec-B677], [dec-B679]. [dec-A365]
+
+**Row names are stored only where they differ from make.unique() of the frame's names at the positions**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: 9765b3f1e, 53e30d187, d2b159d6f, 1355604d1 for the data object and its help), built under dec-B674 to dec-B677 and dec-B685, slice 1 of docs/plans/basis-references-part-1.md. 
+6. The builder's call, not put to the maintainer, with its alternative. derivedRowNames() decides it; rowNames$train is NULL otherwise and the resolution takes the rebuilt names. The alternative was always storing them. The cost is a rare case the review found, colliding names with repeated rows under an na.action drop, where the stored names differ from the derived ones; it resolves as keep.data = FALSE does.
+Gates of the slice are those of its first entry.
+Record: R/dataFrame.R; R/data.R. Marked: not marked. See also: [dec-B674], [dec-B677], [dec-B679]. [dec-A366]
+
+**A Surv response's object keeps the omitted rows' times**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: 9765b3f1e, 53e30d187, d2b159d6f, 1355604d1 for the data object and its help), built under dec-B674 to dec-B677 and dec-B685, slice 1 of docs/plans/basis-references-part-1.md. 
+7. The builder's call, not put to the maintainer, with its alternative. The object keeps survivalTimeOmitted and drops survivalStatus and survivalTime, which the rerun makes again. The alternative was keeping all three. The cost is none.
+Gates of the slice are those of its first entry.
+Record: R/dataFrame.R; R/data.R. Marked: not marked. See also: [dec-B674], [dec-B677], [dec-B679]. [dec-A367]
+
+**model.frame() of a frame-keeping object holding a sparse column falls back to the decoded block frame**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: 9765b3f1e, 53e30d187, d2b159d6f, 1355604d1 for the data object and its help), built under dec-B674 to dec-B677 and dec-B685, slice 1 of docs/plans/basis-references-part-1.md. 
+8. The coordinator's call at the review's F3, not put to the maintainer, with its alternative. The first build refused with model.frame's error, as lm does (call 8 of the draft); the fix round falls back to the decoded block frame, as model.frame(s$data) does, since a data object that fits should not have a model.frame() that stops. The alternative was lm's refusal. The cost is that the fallback's columns are the block's.
+Gates of the slice are those of its first entry.
+Record: R/dataFrame.R; R/data.R. Marked: not marked. See also: [dec-B674], [dec-B677], [dec-B679]. [dec-A368]
+
+**The decoded block-holding model frame names the response as the formula wrote it and joins a matrix term back**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: 9765b3f1e, 53e30d187, d2b159d6f, 1355604d1 for the data object and its help), built under dec-B674 to dec-B677 and dec-B685, slice 1 of docs/plans/basis-references-part-1.md. 
+9. The builder's call, not put to the maintainer, with its alternative. The frame carries an attribute response.label set at the build and kept on the sampler's data, y where there is no formula, and a matrix term is joined into one matrix column named by the term label, its columns named by the suffixes the term gave. Values and names rejoin exactly; the attributes poly() and scale() add (class, coefs, centers) do not come back, which the help says. The alternative was keeping such terms split, as the first build did. The cost is the lost attributes.
+Gates of the slice are those of its first entry.
+Record: R/dataFrame.R; R/data.R. Marked: not marked. See also: [dec-B685]. [dec-A369]
+
+**The stand-in is a classed character vector, and a frame-keeping object's validity requires it while a block-holding one keeps is.numeric**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: 9765b3f1e, 53e30d187, d2b159d6f, 1355604d1 for the data object and its help), built under dec-B674 to dec-B677 and dec-B685, slice 1 of docs/plans/basis-references-part-1.md. 
+10. The builder's call, not put to the maintainer, with its alternative. The slots y, x, weights and offset are widened to ANY and hold a classed character vector naming the slot; validity requires stand-ins on a frame-keeping object and keeps is.numeric on y, weights and offset of a block-holding one, the review's F2. The alternative was a new slot class. The cost is that a hand-written slot of another type on a block-holding object is refused by validity, not by the slot.
+Gates of the slice are those of its first entry.
+Record: R/dataFrame.R; R/data.R. Marked: not marked. See also: [dec-B676]. [dec-A370]
+
+**A list given as data is kept as the frame like a data frame**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: 9765b3f1e, 53e30d187, d2b159d6f, 1355604d1 for the data object and its help), built under dec-B674 to dec-B677 and dec-B685, slice 1 of docs/plans/basis-references-part-1.md. 
+11. The builder's call, not put to the maintainer, with its alternative. It is counted by its first element in this slice; slice 2 corrected the count (see its entry). The alternative was refusing a list as a frame. The cost is none; model.frame() takes a list.
+Gates of the slice are those of its first entry.
+Record: R/dataFrame.R; R/data.R. Marked: not marked. See also: [dec-B674], [dec-B677], [dec-B679]. [dec-A371]
+
+**The slice's code is a new file, R/dataFrame.R, and the S3 methods are registered in NAMESPACE**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: 9765b3f1e, 53e30d187, d2b159d6f, 1355604d1 for the data object and its help), built under dec-B674 to dec-B677 and dec-B685, slice 1 of docs/plans/basis-references-part-1.md. 
+12. The builder's call, not put to the maintainer, with its alternative. The plan named data.R. The alternative was data.R. The cost is none.
+Gates of the slice are those of its first entry.
+Record: R/dataFrame.R; R/data.R. Marked: not marked. See also: [dec-B674], [dec-B677], [dec-B679]. [dec-A372]
+
+**rows and frame.columns are recorded on every data object**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: 9765b3f1e, 53e30d187, d2b159d6f, 1355604d1 for the data object and its help), built under dec-B674 to dec-B677 and dec-B685, slice 1 of docs/plans/basis-references-part-1.md. 
+13. The builder's call, not put to the maintainer, with its alternative. They are recorded under keep.data = FALSE, for an environment and at the matrix interface too, so a door reads them without asking what built the object. The alternative was recording them on frame-keeping objects only. The cost is two slots on an object that had none.
+Gates of the slice are those of its first entry.
+Record: R/dataFrame.R; R/data.R. Marked: not marked. See also: [dec-B674], [dec-B677], [dec-B679]. [dec-A373]
+
+**The internal builders pass keep.data = FALSE and bart() resolves a data object at its entry**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: 9765b3f1e, 53e30d187, d2b159d6f, 1355604d1 for the data object and its help), built under dec-B674 to dec-B677 and dec-B685, slice 1 of docs/plans/basis-references-part-1.md. 
+14. The builder's call, not put to the maintainer, with its alternative. dbarts(), xbart(), rbart_vi() and the hurdle entry build with keep.data = FALSE; bart() resolves a data object before its first read of it. The review found the resolutions at bart() and at the hurdle ingestion redundant for results, since dbarts() resolves; bart()'s is kept as the plan's door statement. The alternative was dropping them. The cost is one line.
+Gates of the slice are those of its first entry.
+Record: R/bart.R; R/dbarts.R. Marked: not marked. See also: [dec-B674], [dec-B677], [dec-B679]. [dec-A374]
+
+**The sampler's data field is an accessor that resolves a frame-keeping object on every write**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: 9765b3f1e, 53e30d187, d2b159d6f, 1355604d1 for the data object and its help), built under dec-B674 to dec-B677 and dec-B685, slice 1 of docs/plans/basis-references-part-1.md. 
+15. The builder's call at the review's F4, not put to the maintainer, with its alternative. The stored field is dataHeld; a write of a frame-keeping object stores the resolved block object, so a later reload does not fail on a stand-in, and a write that is not a data object is refused by the field class. dec-B554 says a hand-written field is not a door, so this is more than owed. The alternative was refusing the write with a message naming $setData. The cost is that the refusal's message names the internal dataHeld.
+Gates of the slice are those of its first entry.
+Record: R/A_class.R; R/dataFrame.R. Marked: not marked. See also: [dec-B554]. [dec-A375]
+
+**is.na, anyNA, is.finite, is.infinite and is.nan on a stand-in stop by name**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: 9765b3f1e, 53e30d187, d2b159d6f, 1355604d1 for the data object and its help), built under dec-B674 to dec-B677 and dec-B685, slice 1 of docs/plans/basis-references-part-1.md. 
+16. The builder's call at the review's F5, not put to the maintainer, with its alternative. The alternative was answering for the resolved values, which costs a rebuild per call. mean(), c(), rep(), paste() and cbind() on a stand-in are left as dec-B676 lists them. The cost is that those five return the slot's name or NA without a stop.
+Gates of the slice are those of its first entry.
+Record: R/dataFrame.R; R/data.R. Marked: not marked. See also: [dec-B676]. [dec-A376]
+
+**The keep.data = FALSE inserts in 19 test files were stripped where the file does not read a stand-in**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: 9765b3f1e, 53e30d187, d2b159d6f, 1355604d1 for the data object and its help), built under dec-B674 to dec-B677 and dec-B685, slice 1 of docs/plans/basis-references-part-1.md. 
+17. The builder's call, not put to the maintainer, with its alternative. Each insert was removed alone and the file rerun in a clean process: of 133, 49 stay by the builder's count (the reviewer counted 54) because the file reads a stand-in or the slot there; the rest are gone. The alternative was leaving all 133. The cost is that the files run more of the default path.
+Gates of the slice are those of its first entry.
+Record: inst/tinytest (19 files). Marked: not marked. See also: [dec-B674], [dec-B677], [dec-B679]. [dec-A377]
+
+**nobs() of a list frame that keeps every row evaluates the formula's response again**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: 9765b3f1e, 53e30d187, d2b159d6f, 1355604d1 for the data object and its help), built under dec-B674 to dec-B677 and dec-B685, slice 1 of docs/plans/basis-references-part-1.md. 
+18. The reviewer's note, taken as an agent call for the close-out, with its alternative. After the row-count fix nobs(o) on such an object reads the build's formula, so a response that draws consumes the generator, which an accessor should not. The alternative is recording rows.total at the build for a list frame whatever its rows, which changes the slot's documented NULL where rows is. The cost is that nobs() of a list-built object with a stochastic response moves the stream; model.frame(o) and the resolution already evaluate the formula again by design.
+Gates of the slice are those of its first entry.
+Record: R/dataFrame.R. Marked: not marked. See also: [dec-B677]. [dec-A378]
+
+**One reader, readFitBasis(), reads a forest's basis at every door**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+1. The builder's call, not put to the maintainer, with its alternative. The reader is named readFitBasis() with buildFitBases() over it, beside the existing resolveForestBases() of predict. The alternative was renaming the predict one. The cost is two readers named alike.
+Gates of the slice: the full suite once in one process, 43904 tests, 0 failed at the fix round's tip (43900 rerun by the reviewer); equivalence 55 of 55, bcf 19 of 19 and multinomial 11 of 11 bitwise on the reference build; the four snapshot files 27 results, 0 failed; exact gates in quick 45 of 45 at the first build; the pin file test-basis-doors.R 96 tests, 13 of 13 mutants caught in the first build and 12 of 12 in the fix round; 28 seeded fits and 5 draw moves identical to main's siblings across libraries; lintr 0, air, codoc, rc-codoc, win-drift, doc-freshness; R CMD check --as-cran 2 NOTEs, both on main, at the first build and the fix round. Review: FIX, then LAND after its F1 to F8. CI on b2268c1c9: 10 of 10 green. No src/ change.
+Record: R/forestBasis.R; R/dbarts.R; R/dataFrame.R; inst/tinytest/test-basis-doors.R. Marked: not marked. See also: [dec-B680], [dec-B681], [dec-B684]. [dec-A379]
+
+**A data object records the rows it was handed in rows.total**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+2. The builder's call, not put to the maintainer, with its alternative. The slot rows.total holds the total for dec-B680 on a block-holding object. The alternative was deriving it from frame.columns and na.action, which cannot always be done. The cost is a slot.
+Gates of the slice are those of its first entry.
+Record: R/forestBasis.R; R/dbarts.R; R/dataFrame.R; inst/tinytest/test-basis-doors.R. Marked: not marked. See also: [dec-B680], [dec-B681], [dec-B684]. [dec-A380]
+
+**A held basis's written text is kept in basis.written**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+3. The builder's call, not put to the maintainer, with its alternative. The slot holds the text only; a held forest gets basis.term NULL, its label read from the text. The alternative was full records in the slot. The cost is that the text is all a door can match on.
+Gates of the slice are those of its first entry.
+Record: R/forestBasis.R; R/dbarts.R; R/dataFrame.R; inst/tinytest/test-basis-doors.R. Marked: not marked. See also: [dec-B706]. [dec-A381]
+
+**An environment's data object is marked by an attribute frame.environment**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+4. The builder's call, not put to the maintainer, with its alternative. The alternative was a slot, which changes the class. The cost is an attribute on the object.
+Gates of the slice are those of its first entry.
+Record: R/forestBasis.R; R/dbarts.R; R/dataFrame.R; inst/tinytest/test-basis-doors.R. Marked: not marked. See also: [dec-B683]. [dec-A382]
+
+**A list or environment given as data is counted by its response, a data frame by nrow()**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+5. The builder's call, with the review's F2, not put to the maintainer, with its alternative. formulaRowsTotal() counts the response, or for a one-sided formula the first variable it names, since formula[[2]] there is the right-hand side and ~ x1:x2 would be read as a sequence; a frame-keeping object without rows.total counts the same way from its build's formula. The first build counted a list by its first element, which refused every basis for a list whose first element is not a column; main fit it. The alternative was the first variable, wrong for a ~ . formula. The cost is that a stochastic response is evaluated again to count.
+Gates of the slice are those of its first entry.
+Record: R/forestBasis.R; R/dbarts.R; R/dataFrame.R; inst/tinytest/test-basis-doors.R. Marked: not marked. See also: [dec-B680], [dec-B681], [dec-B684]. [dec-A383]
+
+**nobs() and the validity of a frame-keeping object count a list frame by frameRowsTotal()**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+6. The builder's call at the review's F8, not put to the maintainer, with its alternative. The count came from slice 1, not main, so the defect was this feature's: nobs(dbartsData(y ~ x, list(k = 2, ...))) was 1 and validObject() under subset failed. frameRowsTotal() reads rows.total, else the build's formula as above; derivedRowNames keeps frameNumRows, where it only decides whether names are stored. The alternative was recording rows.total on every formula object, which changes every object's slot. The cost is the evaluation noted in slice 1.
+Gates of the slice are those of its first entry.
+Record: R/forestBasis.R; R/dbarts.R; R/dataFrame.R; inst/tinytest/test-basis-doors.R. Marked: not marked. See also: [dec-B677]. [dec-A384]
+
+**A code basis naming a held column is read over the held rows with no cut; one of another length is refused naming the held rows**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+7. The builder's call, with the review's F7, not put to the maintainer, with its alternative. I(x2 * mix) beside a subset sampler's data cannot be cut back after rows were dropped, so a caller's variable of another length is refused as having N rows where the data hold M, naming x2 as read from the M held rows, and R's recycling warning, deferred while the basis is read, is dropped with the refusal and raised when the read succeeds. The alternative was a TODO entry. The cost is that mixing the two is refused.
+Gates of the slice are those of its first entry.
+Record: R/forestBasis.R; R/dbarts.R; R/dataFrame.R; inst/tinytest/test-basis-doors.R. Marked: not marked. See also: [dec-B680]. [dec-A385]
+
+**A hazard formula or object route resets data@rows after the period expansion**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+8. The builder's call, not put to the maintainer, with its alternative. A hazard basis has one value per subject (dec-B707), so the rows are reset to the subjects after the expansion. The alternative was keeping the rows and mapping per period. The cost is that the matrix and object routes under subset were unpinned until the fix round.
+Gates of the slice are those of its first entry.
+Record: R/forestBasis.R; R/dbarts.R; R/dataFrame.R; inst/tinytest/test-basis-doors.R. Marked: not marked. See also: [dec-B707]. [dec-A386]
+
+**The tests take their bases from a helper, inst/common/basisForests.R, that passes value bases**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+9. The builder's call, not put to the maintainer, with its alternative. The alternative was inline lists in each file. The cost is one more file the tests source.
+Gates of the slice are those of its first entry.
+Record: inst/common/basisForests.R; inst/tinytest. Marked: not marked. See also: [dec-B680], [dec-B681], [dec-B684]. [dec-A387]
+
+**$setForestBasis keeps refusing a string**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+10. The builder's call, not put to the maintainer, with its alternative. A basis is a column's values there; the string refusal stays for $setForestBasis("dose"). The alternative was reading the string as a name there too. The cost is that the setter and the doors differ on a string.
+Gates of the slice are those of its first entry.
+Record: R/dbarts.R; inst/tinytest/test-forest-capture.R. Marked: not marked. See also: [dec-B700]. [dec-A388]
+
+**A forwarded string basis is bound in globalenv**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+11. The builder's call, not put to the maintainer, with its alternative. The alternative was the caller's frame. The cost is that a name the string holds is read from the global environment, not where forest() was called, for a forwarded string only.
+Gates of the slice are those of its first entry.
+Record: R/dbarts.R. Marked: not marked. See also: [dec-B700], [dec-B705]. [dec-A389]
+
+**The matrix route's data@rows holds a logical subset as positions**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+12. The builder's call, not put to the maintainer, with its alternative. It held a logical subset as 0 and 1 on main; subsetPositions() now converts it. The alternative was converting only where a basis reads it. The cost is that the slot changes for a logical subset.
+Gates of the slice are those of its first entry.
+Record: R/forestBasis.R; R/dbarts.R; R/dataFrame.R; inst/tinytest/test-basis-doors.R. Marked: not marked. See also: [dec-B680]. [dec-A390]
+
+**A value basis of the kept length is refused with base's 'matching subset' text at every door**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+13. The builder's call, not put to the maintainer, with its alternative. The matrix door gave 'basis' must have the same length; every door now says the length matches 'subset' (or the na.action's rows) but not the full data, naming both counts. The alternative was one new text everywhere. The cost is that a text moves at the matrix door.
+Gates of the slice are those of its first entry.
+Record: R/forestBasis.R; R/dbarts.R; R/dataFrame.R; inst/tinytest/test-basis-doors.R. Marked: not marked. See also: [dec-B680]. [dec-A391]
+
+**bart(), bartBT(), xbart() and rbart_vi() beside a sampler's data of several forests fit one forest**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+14. The builder's call, with the review's F3 for xbart() and rbart_vi(), not put to the maintainer, with its alternative. D3 of the plan named dbarts(); the single-forest fitters agree with it under dec-B684, so each drops the held bases and fits one forest, where main refused at xbart() and rbart_vi() and fit two at bart() and dbarts(). The calls to drop the bases at xbart() and rbart_vi() are equivalent mutants today, since neither reads data@bases, and are kept so nothing downstream does; the tests of the several-forest refusals for a data object went (test-forest-defaults.R 394 to 350 lines). The alternative was deleting the refusal only. The cost is that a refusal users had is gone.
+Gates of the slice are those of its first entry.
+Record: R/bart.R; R/xbart.R; R/rbart.R; inst/tinytest/test-forest-defaults.R. Marked: not marked. See also: [dec-B684]. [dec-A392]
+
+**dbarts(o, forests = <forests with no basis>) beside a caller's data object fits the forests the list states**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+15. The agent's call, move D6, not named in the plan, not put to the maintainer, with its alternative. Main's dbarts(o, forests = ) fit one forest, dropping the second forest's settings, while dbartsSpec(o) with the same list fit two. dec-B684 (a list states the forests in full beside any data) and dec-B681 (dbarts(o, forests = ) reads the list as dbartsSpec(o, forests = ) does) settle it, and it is pinned identical to the sibling and to main's dbartsSpec(o). The alternative was one forest at dbarts(o), against both rulings. The cost is that it moves draws for that call.
+Gates of the slice are those of its first entry.
+Record: R/forestBasis.R; R/dbarts.R; R/dataFrame.R; inst/tinytest/test-basis-doors.R. Marked: not marked. See also: [dec-B681], [dec-B684]. [dec-A393]
+
+**A basis the forest doors cannot reach is removed with its refusals**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+16. The builder's call, not put to the maintainer, with its alternative. The refusals of a count, power, base or leaf prior stated for the forest with no basis at bart(o) and bartBT(), the fit-with-dbarts() wording in fitCountWords, and the one-forest refusal naming bases a data object carries were removed as unreachable, shown at the tip (bart(s2$data, n.trees = 100), bart(s2$data, k = 3), bartBT(s2$data, ntree = 20) each fit one forest). The noForestRemedy attribute stays, read by the not-used warning at bart(o, control = fit$control). The alternative was leaving the dead branches. The cost is none.
+Gates of the slice are those of its first entry.
+Record: R/bart.R. Marked: not marked. See also: [dec-B684]. [dec-A394]
+
+**predict(bases = "z") reads a single string as the name of a column of newdata**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+17. The builder's call under dec-B700, not put to the maintainer, with its alternative. A data frame, list or named matrix newdata is read for the column; on one predicted row a string naming no column is that row's value, a level; with no newdata the string is refused. The alternative was always a name, which refuses a one-row predict of a level by string. The cost is that a one-row call is read by what is in newdata.
+Gates of the slice are those of its first entry.
+Record: R/forestBasis.R; inst/tinytest/test-basis-doors.R. Marked: not marked. See also: [dec-B700]. [dec-A395]
+
+**test-single-forest-vars.R's hazard basis has one value per subject**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+18. The builder's call, not put to the maintainer, with its alternative. The matrix route gave a basis of one value per period row, which dec-B707 refuses; it now gives one per subject. The plan's note that no test file moves missed it, its scan covering data-object doors. The alternative was none under dec-B707. The cost is none; the test's checks are structural.
+Gates of the slice are those of its first entry.
+Record: inst/tinytest/test-single-forest-vars.R. Marked: not marked. See also: [dec-B707]. [dec-A396]
+
+**A basis handed over as a value is cut on every route, so its block keeps values and names and drops the attributes of what made it**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+19. The builder's call, not put to the maintainer, with its alternative. scale()'s scaled:center and scaled:scale are dropped on every route, also with every row kept; main dropped them on the matrix route and under any drop, and kept them on a formula fit that kept every row. Draws are unaffected. The alternative was keeping them where no cut happens, which leaves the matrix route's stored block different from main's. The cost is that the stored block of that formula fit differs from main's.
+Gates of the slice are those of its first entry.
+Record: R/dbarts.R. Marked: not marked. See also: [dec-B680]. [dec-A397]
+
+**A forest() term with a basis fits under the hazard families**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+20. The agent's call at the review's F1, not put to the maintainer, with its alternative. The three hazard families come off TERM_UNSUPPORTED_FAMILIES, since dec-B707 removed the row-count reason its comment gave; bart(Surv ~ x1 + forest(x2, basis = dose), family = "hazard") fits, identical to the forests list whole and under subset, and the plan's open item that said so now holds. The alternative was none under dec-B707 and the rule of siblings. The cost is that a refusal users had is gone.
+Gates of the slice are those of its first entry.
+Record: R/formulaTerms.R; man/bart.Rd. Marked: not marked. See also: [dec-B707]. [dec-A398]
+
+**The pins that held the string refusal and the declared-list refusal now pin dec-B700 and dec-B681**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+21. The builder's call, not put to the maintainer, with its alternative. test-forest-capture.R's four pins of the refusal pin that a string written or held reads its column, identical to the name, and that one handed over beside a matrix with no such column is refused where forest() was called; test-formula-terms.R's pin of dbarts(o, forests = <declaring>) refusing pins it taken. The alternative was leaving them as refusals, against the rulings. The cost is none.
+Gates of the slice are those of its first entry.
+Record: inst/tinytest/test-forest-capture.R; inst/tinytest/test-formula-terms.R. Marked: not marked. See also: [dec-B681], [dec-B700]. [dec-A399]
+
+**The pins that read a data object's basis moved with dec-B680 and the removed routes**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+22. The builder's call, not put to the maintainer, with its alternative. test-forest-kind.R's spec door hands the full-length value and the pin of a cut value is flipped, its data doors becoming object doors; hand-edited sampler data in it and test-forest-basis-one-size.R are reached by naming the held basis by its text, the stripped-block case pinned by validObject(); test-bcf-creation.R's refusal tests of pre-built data became draw-identity checks against the x and y route (133 tests), and the data-object-carries-1 and ignored-bases tests went with their routes. The alternative was a cut-value spec door, which contradicts dec-B680, and new("dbartsSampler") alone for the hand-edited case. The cost is a smaller test file.
+Gates of the slice are those of its first entry.
+Record: inst/tinytest (test-forest-kind.R, test-forest-basis-one-size.R, test-bcf-creation.R). Marked: not marked. See also: [dec-B680]. [dec-A400]
+
+**$setData's refusal reads that the data carry the bases of a sampler of several forests**
+Landed on dbarts main on 2026-11-10 (2e6c4b841..b2268c1c9: a2324edb6, 06247ca5e, d99477468, 54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2 for the forest doors), built under dec-B680 to dec-B684, dec-B700 and dec-B704 to dec-B707, slice 2 of docs/plans/basis-references-part-1.md. 
+23. The builder's call, not put to the maintainer, with its alternative. The text says the data are those of a sampler of several forests and carry their bases, and this sampler was created with one forest and none, and to hand over the data object they were made from or make a new sampler with dbarts(). The alternative was the plan's shorter wording. The cost is a longer message.
+Gates of the slice are those of its first entry.
+Record: R/dbarts.R. Marked: not marked. See also: [dec-B684]. [dec-A401]
+
+**bcf() gives the treatment forest the full-length factor(z) as its basis**
+Landed on bartCause main (e71cb08), stan4bart main (3d7f314) and dbarts main (961ddb427) on 2026-11-10, built under dec-B674 and dec-B679, slice 3 of docs/plans/basis-references-part-1.md. 
+1. The builder's call, not put to the maintainer, with its alternative. The basis is not cut by subset in bartCause. The alternative was passing basis[subset], tried first and refused by dbarts, which reads a basis against the rows handed to dbartsData() and cuts it with the object's subset. The cost is none.
+Gates of the slice: pins identical() between main and the patched consumers, 11 bartCause cases and 4 stan4bart cases; bartCause's suite 270 tests, 2389 expectations, 0 failed with the patched stan4bart installed; stan4bart tinytest 1867 results, 0 failed; six reviewer mutants each caught; the revdep-smoke dispatch on its branch green. Review: LAND, in lockstep order.
+Record: bartCause R/; stan4bart R/glFormula.R; .github/workflows/revdep-smoke.yaml. Marked: not marked. See also: [dec-B674], [dec-B679]. [dec-A402]
+
+**keep.data = FALSE is set once on dbartsDataCall in bartCause**
+Landed on bartCause main (e71cb08), stan4bart main (3d7f314) and dbarts main (961ddb427) on 2026-11-10, built under dec-B674 and dec-B679, slice 3 of docs/plans/basis-references-part-1.md. 
+2. The builder's call, not put to the maintainer, with its alternative. It sits once in fitBCF() and once in getBartResponseFit() before the first eval, so bartc's responseData and missingData and bcf's responseData share one line each. The alternative was the three eval sites, more lines with the same effect. The cost is none.
+Gates of the slice are those of its first entry.
+Record: bartCause R/; stan4bart R/glFormula.R; .github/workflows/revdep-smoke.yaml. Marked: not marked. See also: [dec-B674], [dec-B679]. [dec-A403]
+
+**The consumers' tests that drove dbartsData(bases = ) by hand use keep.data = FALSE and forest(basis = )**
+Landed on bartCause main (e71cb08), stan4bart main (3d7f314) and dbarts main (961ddb427) on 2026-11-10, built under dec-B674 and dec-B679, slice 3 of docs/plans/basis-references-part-1.md. 
+3. The builder's call, not put to the maintainer, with its alternative. Four lines in test-03 and test-14 (three uses) moved, about 20 lines with the check that dbarts(o, forests = ) takes the full-length basis and refuses the cut one naming both counts; the plan's about 8 lines counted R/ only. The alternative was leaving the suite failing. The cost is none.
+Gates of the slice are those of its first entry.
+Record: bartCause tests/testthat. Marked: not marked. See also: [dec-B674], [dec-B679]. [dec-A404]
+
+**Neither consumer gets a NEWS line**
+Landed on bartCause main (e71cb08), stan4bart main (3d7f314) and dbarts main (961ddb427) on 2026-11-10, built under dec-B674 and dec-B679, slice 3 of docs/plans/basis-references-part-1.md. 
+4. The builder's call, not put to the maintainer, with its alternative. Draws, fit shape and saved-fit elements are identical by the pins, so no user sees a difference, and 0.9-34's data.rsp never held a frame. The alternative was a line saying data.rsp holds no frame. The cost is none.
+Gates of the slice are those of its first entry.
+Record: bartCause R/; stan4bart R/glFormula.R; .github/workflows/revdep-smoke.yaml. Marked: not marked. See also: [dec-B674], [dec-B679]. [dec-A405]
+
+**The consumers' patches land in lockstep with dbarts: no order of landing is safe**
+Landed on bartCause main (e71cb08), stan4bart main (3d7f314) and dbarts main (961ddb427) on 2026-11-10, built under dec-B674 and dec-B679, slice 3 of docs/plans/basis-references-part-1.md. 
+5. The builder's call, widened by the reviewer, not put to the maintainer, with its alternative. stan4bart main alone fails bartCause's suite on the slice (colnames(bartData@x) reads the stand-in), so the suite and the pins ran with the patched stan4bart installed. The review found it wider: the unpatched consumers fail on the new dbarts outright (the stand-in read, bcf's unused argument bases), and the patched consumers fail on main's dbarts (unused argument keep.data), so a user who updates dbarts alone has broken stan4bart and bartCause until both patches reach CRAN. The alternative was a dbarts change both generations of consumer accept, not built. The cost is that the three release together.
+Gates of the slice are those of its first entry.
+Record: bartCause R/; stan4bart R/glFormula.R; .github/workflows/revdep-smoke.yaml. Marked: not marked. See also: [dec-B674], [dec-B679]. [dec-A406]
+
+**The revdep-smoke workflow takes the branch of each consumer as a dispatch input**
+Landed on bartCause main (e71cb08), stan4bart main (3d7f314) and dbarts main (961ddb427) on 2026-11-10, built under dec-B674 and dec-B679, slice 3 of docs/plans/basis-references-part-1.md. 
+6. The builder's call, not put to the maintainer, with its alternative. One input per consumer, defaults main, main and master, carried in the matrix include through inputs.X || default (inputs is empty on schedule and push); the branch reaches the clone through an environment variable, not spliced into the script. The alternative was a single free-text input. The cost is that a non-default input is unproven until one is dispatched, actionlint being absent and the inputs context in strategy.matrix proven only by the default dispatch.
+Gates of the slice are those of its first entry.
+Record: .github/workflows/revdep-smoke.yaml. Marked: not marked. See also: [dec-B674], [dec-B679]. [dec-A407]
+
+**treatSens is cloned read only from its local HEAD and left unchanged**
+Landed on bartCause main (e71cb08), stan4bart main (3d7f314) and dbarts main (961ddb427) on 2026-11-10, built under dec-B674 and dec-B679, slice 3 of docs/plans/basis-references-part-1.md. 
+7. The builder's call, not put to the maintainer, with its alternative. It was cloned by git archive of its HEAD (268b2db) and checked as a tarball; its matrix interface and dbartsSampler new() read no frame slot. The alternative was none. The cost is none.
+Gates of the slice are those of its first entry.
+Record: none (process). Marked: not marked. See also: [dec-B674], [dec-B679]. [dec-A408]
+
+**The consumers' libraries and checks were built in release mode, with --no-manual and the suggested-package check off**
+Landed on bartCause main (e71cb08), stan4bart main (3d7f314) and dbarts main (961ddb427) on 2026-11-10, built under dec-B674 and dec-B679, slice 3 of docs/plans/basis-references-part-1.md. 
+8. The builder's call, not put to the maintainer, with its alternative. They match the CI smoke. The alternative was a reference build. The cost is none; no src/ file changed.
+Gates of the slice are those of its first entry.
+Record: none (process). Marked: not marked. See also: [dec-B674], [dec-B679]. [dec-A409]
+
+**The D4 pin of a held basis's recorded scale states the starting sigma at both creations**
+Landed on dbarts main on 2026-11-10 (b2268c1c9), a test-only repair of slice 2's pin of a held basis's recorded scale after the first CI run on Linux failed it. 
+1. The builder's call, not put to the maintainer, with its alternative. kept = dbarts(s3$data, forests = ...) estimates the starting sigma again from the data handed over, a regression on the predictors and each forest's basis, the swapped column dose/10 among them, while the comparator new("dbartsSampler", kept$control, s3$model, s3$data) runs the one s3 estimated on the original column. The two columns span one space, so the estimates agree in exact arithmetic and in floating point by the BLAS kernel's rounding (OpenBLAS picks its kernel at run time; Mac and Windows use R's reference BLAS); one ulp moves the draws about 2 times in 3, here by about 3e-15, which failed R-CMD-check on Linux. The block now states sigest = 0.3 at both creations, so neither door runs the regression and the two differ only by the record under test, and expect_identical stays. The alternatives were expect_equal on the draws, legitimate but weakening an exact pin, and a door that keeps a handed sampler's data's starting sigma instead of estimating it again, a behavior change at every door that moves draws wherever data are refit after a swap and a maintainer's call. The cost is two lines and a comment, test only.
+Gates of the slice: test-basis-doors.R 96 of 96; the full suite once in one process, 44060 tests, 0 failed; lintr 0, air, codoc, rc-codoc, win-drift, doc-freshness. The failure was reproduced in a container under OpenBLAS's Excavator kernel and the repair passes under Excavator, Haswell, SandyBridge and netlib.
+Record: inst/tinytest/test-basis-doors.R. Marked: not marked. See also: [dec-B704]. [dec-A410]
+
 ## B. Decisions with maintainer evidence
 
 **Missing predictors are modeled, not refused**

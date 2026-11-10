@@ -1,7 +1,7 @@
 # A forest's basis names a column of the data
 
-Status: PROPOSED, 2026-11-07, revised 2026-11-08 to the rulings dec-B674 to dec-B688, dec-B692 and dec-B704 to dec-B707; part 1 planned in
-[basis-references-part-1.md](../plans/basis-references-part-1.md), not built.
+Status: PROPOSED, 2026-11-07, revised 2026-11-08 to the rulings dec-B674 to dec-B688, dec-B692 and dec-B704 to dec-B707; part 1 LANDED 2026-11-10
+([basis-references-part-1.md](../plans/basis-references-part-1.md)), part 2 not built.
 Follows dec-B663 (a forest's basis is a reference to a column of the data), dec-B666 (the frame kept on the
 data object), dec-B670 (the whole frame kept, and beside it as little derived from it as can be), dec-B671
 (what a fit of several forests keeps under `keepFits = FALSE`), dec-B674 (`keep.data = FALSE`, the frame kept

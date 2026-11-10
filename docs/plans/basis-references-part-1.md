@@ -1,8 +1,8 @@
 # basis-references, part 1: the data object and the forest doors
 
-Status: PLANNED 2026-11-08, revised after its blind critique and to the rulings on its four open calls
-(dec-B704 to dec-B707); not built. Its size, about 495 lines of R against dec-B679's 305, is for the
-maintainer's word. Design: [basis-references.md](../design/basis-references.md). Rests on dec-B663,
+Status: LANDED 2026-11-10, three slices and a test-only repair on main by fast-forward (2e6c4b841..b2268c1c9; the
+consumers' patches at bartCause e71cb08 and stan4bart 3d7f314), each slice reviewed LAND after fixes
+(dec-A361 to dec-A410, [Landing note](#landing-note)). Design: [basis-references.md](../design/basis-references.md). Rests on dec-B663,
 dec-B666, dec-B670, dec-B674 to dec-B677, dec-B679 to dec-B686 (dec-B682 revises dec-B674's words; dec-B685
 and dec-B686 also shape this part), dec-B700 and dec-B704 to dec-B707; dec-B678, dec-B687, dec-B688 and
 dec-B692 are part 2's (dec-B679).
@@ -493,3 +493,41 @@ for them:
   written name does. Alternative: its own item after this landing, the reader then touched twice.
 - The consumer patches land after dbarts' merge, pushed at once. Alternative: patches that test
   `"keep.data" %in% names(formals(dbarts::dbartsData))`, mergeable first, a branch on a development build.
+
+## Landing note
+
+Landed 2026-11-10 on dbarts main by fast-forward after a rebase onto main (2e6c4b841..b2268c1c9): slice 1, the data object
+that keeps its frame (9765b3f1e, 53e30d187, d2b159d6f, 1355604d1); slice 2, the forest doors (a2324edb6, 06247ca5e, d99477468,
+54ee010a8, 75e68b54a, 1881b6fa8, 76862db13, 18015c58c, 5eb739ccf, 0879c584c, 99bf0b2a2); slice 3, the consumers
+(bartCause e71cb08 and stan4bart 3d7f314, `keep.data = FALSE` at the call sites that build a data object; dbarts 961ddb427, the
+revdep-smoke workflow's branch inputs); and b2268c1c9, a test-only repair of the D4 pin. No `src/` or header change, so no x86
+leak-sanitizer leg was owed. Part 2 is not built.
+
+Reviews: slice 1, LAND after two fixes (a pin for `rbart_vi(o)`; validity keeping `is.numeric` on a block-holding object) and a
+call put to the coordinator (a sparse column in `model.frame(o)`, taken as the decoded fallback), the fix round LAND. Slice 2, an
+Opus review that ran 13 mutants of its own: FIX, then LAND after F1 to F8 (a hazard `forest()` term refused with a reason
+dec-B707 removed; a list as data counted by its first element; `xbart()` and `rbart_vi()` refusing a sampler's data; the
+help's no-data sentence; eight surviving mutants pinned; the ledger's stale entries; a mixed code basis's message; `nobs()` and
+validity of a list frame, from slice 1). Slice 3, LAND in lockstep order, six mutants each caught.
+
+Draws that moved, beyond the plan's D1 to D5: D6, `dbarts(o, forests = <forests with no basis>)` beside a caller's data object
+fits the forests stated (main fit one and dropped the list's settings; dec-B684 and dec-B681); D3 extended to `bart()`,
+`bartBT()`, `xbart()` and `rbart_vi()` beside a sampler's data of several forests, each fitting one forest; a hazard `forest()`
+term with a basis fits, identical to its forests list; a list as data counted by its response fits as on main. Each is pinned
+identical to the sibling door in `test-basis-doors.R`, and the five D moves reproduced across libraries.
+
+Gates, as the builds and reviews report them: the full suite once in one process, 43730 tests (slice 1), 43904 (slice 2 at
+its fix round) and 44060 (after the repair), 0 failed; equivalence 55 of 55, bcf 19 of 19 and multinomial 11 of 11 bitwise on
+the reference build after slice 2, the four snapshot files 27 results, 0 failed, and the exact gates in quick 45 of 45 at its
+first build; 28 seeded fits identical between main and each slice tip; `test-data-frame-kept.R` 359 of 359 and
+`test-basis-doors.R` 96 of 96, both failing on main; the consumers' pins identical, bartCause's suite 270 tests with 0 failed
+and stan4bart's tinytest 1867 results with 0 failed against the patched libraries; lintr 0, air, codoc, rc-codoc, win-drift and
+doc freshness; `R CMD check --as-cran` on slice 2 with two NOTEs, both on main. CI on b2268c1c9: 10 of 10 green (check-standard,
+lint, doc-freshness, pkgdown, sanitizers, cpp-tests, exact-gates, equivalence, rchk, revdep-smoke against the consumers'
+branches). The first CI run on the pre-rebase tip failed R-CMD-check on Linux at the D4 pin: the door estimates the starting
+sigma again from the data it is handed and the BLAS kernel's rounding moved its last bit; the pin now states `sigest`.
+
+The consumers land in lockstep with dbarts: stan4bart and bartCause as they stood fail on the new dbarts and as patched fail on
+main's dbarts, so the three release together. Calls: dec-A361 to dec-A410. Owed and not built, on the TODO: the stale
+`"bases"` in bartCause's list of arguments `bcf()` refuses, a decision on a door keeping a sampler's data's starting sigma,
+and `nobs()` evaluating a list frame's response again.
