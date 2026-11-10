@@ -56,7 +56,12 @@ expect_equal(curves, byPredict(fit, nd), check.attributes = FALSE)
 # a value basis, one per subject
 shifted <- nd$z + 1
 expect_equal(
-  survivalProbabilities(fit, newdata = nd, bases = shifted, combineChains = FALSE),
+  survivalProbabilities(
+    fit,
+    newdata = nd,
+    bases = shifted,
+    combineChains = FALSE
+  ),
   byPredict(fit, nd, shifted),
   check.attributes = FALSE
 )
@@ -68,7 +73,8 @@ expect_true(
   max(abs(
     survivalProbabilities(fit, newdata = nd, bases = shifted) -
       survivalProbabilities(fit, newdata = nd)
-  )) > 0
+  )) >
+    0
 )
 
 # a named basis is read from newdata

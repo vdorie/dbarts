@@ -435,10 +435,12 @@ for (route in list(
 }
 completeFrame <- df[-missingResponse, ]
 expect_identical(
-  length(do.call(
-    bart,
-    c(list(y ~ x1 + x2, completeFrame), quick, list(na.action = NULL))
-  )$y),
+  length(
+    do.call(
+      bart,
+      c(list(y ~ x1 + x2, completeFrame), quick, list(na.action = NULL))
+    )$y
+  ),
   n - length(missingResponse)
 )
 rm(route, args, completeFrame)

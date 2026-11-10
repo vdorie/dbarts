@@ -31,7 +31,13 @@ for (family in c("gaussian", "probit")) {
     byWeight <- do.call(
       bart,
       c(
-        list(x, response, weights = weights, family = family, na.action = action),
+        list(
+          x,
+          response,
+          weights = weights,
+          family = family,
+          na.action = action
+        ),
         quick
       )
     )

@@ -4582,7 +4582,11 @@ hazardSubjectBases <- function(
     newdata,
     n,
     rows = if (is.null(newdata)) "the training subjects" else "'newdata'",
-    where = if (is.null(newdata)) "the training subjects" else "the new subjects",
+    where = if (is.null(newdata)) {
+      "the training subjects"
+    } else {
+      "the new subjects"
+    },
     training = is.null(newdata)
   )
 }
