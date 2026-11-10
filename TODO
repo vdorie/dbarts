@@ -208,18 +208,21 @@ items
     docs/design/gpu-bart.md.
   grow-from-root: frontier 3.1's exact informed-proposal use of the
     shared cut scan (docs/design/parallel-bart-frontier.md sec 3.1).
-  hazard-max-rows-cap-revisit: revisit the hazard max.rows cap
-    (dec-B367). The maintainer, 2026-11-10: "I like to be helpful and
-    not patronizing, which means that I dislike arbitrary caps based on
-    expected dataset sizes. So perhaps we should revisit that decision
-    later." Not ruled; dec-B719 carries the creation cap to $setData
-    meanwhile.
-  hazard-setdata-max-rows: (dec-B719, revising call 2 of dec-A321) the
-    sampler records the max.rows it was created with and $setData
-    applies it; the refusal at $setData is worded for that door (make a
-    new sampler with a larger hazard(max.rows = ), or hand over fewer
-    subjects). About 12 lines, one new model slot (a fit-object change,
-    so the exact gates run), a pin and the setData help. Not built.
+  hazard-memory-warning: (dec-B750, revising dec-B367 and superseding
+    dec-B719) a hazard fit has no row cap: hazard()'s max.rows
+    argument is removed (never released) and creation, and $setData
+    with the same text and no new model slot, give one warning a session,
+    before allocation, when the projected peak memory exceeds the
+    machine's physical memory, naming the rows, the memory and the
+    ways out (hazard(breaks = ), keepTrainingFits = FALSE, fewer
+    chains). About 20 lines of R and 20 of C to read physical memory
+    (no warning where it is unreadable); test subjects' rows count in
+    the projection. Measured: about 31 KB a row at bart()'s defaults,
+    so the stated 27 GB at ten million rows is about 310 GB at peak.
+    Agent fixes beside it: the stated cost corrected in the help and
+    in family.R's comment. Not decided: pdbart's n.max.predictions
+    (dec-B220) and whether hazard fits keep training draws by default.
+    Not built.
   host-wording-sweep: dbarts.h still says "host" for the code that runs
     the BART sampler inside a larger sampler, in about 7 header lines (the
     help, the vignettes and the R strings are done); a docs-only sweep.
@@ -1314,6 +1317,267 @@ items
     The probit hurdle gains whole numbers with integer-weight probit
     (weighted-binary). Whether logistic becomes the hurdle's default
     is a separate call; pscl defaults to a logit and offers probit.
+  bartcause-older-agent-fixes: found at the 2026-11-10 sitting, in
+    bartCause: bartc fails on a response written as an expression
+    (log(y)) with "invalid subscript type 'language'", on main and
+    1.0-10; the group.by length message says "observation" where the
+    weights message says "row" (dec-A297); and the plot_support NEWS
+    side note on missing responses is dropped, since 1.0-10 fits with
+    missing responses fail only when every missing row has the same
+    treatment (dec-A275 fix 2).
+  binomial-sampler-refusal-wording: agent fixes from the 2026-11-10
+    sitting (bullet 21 of dec-A276): the binary sampler's "y must be of
+    length equal to 40" for a pair names the pair, and the flat C
+    API's "which a flat vector cannot express" is reworded, dec-B628
+    having made it untrue. Wording only.
+  binomial-setter-zero-trial-warning: (dec-B733, revising calls 39, 73
+    and 76 of dec-A276) the binomial $setResponse and $setData warn of
+    zero-trial rows after returning, as the multinomial setter does,
+    under a once-per-session key of the binomial's own. About 8 lines
+    and a test; no draws move. Not built.
+  binomial-trials-with-response-data: (dec-B726, internal call I6 of
+    dec-A276) a binomial response's new trials go to the response's
+    data call as an argument, null for every other family, and the
+    separate call that only records where they are is deleted: about
+    30 lines across the response interface, its overrides, the chain's
+    one call site and the C++ tests; draws and timings do not move.
+    Not built.
+  count-fallback-wording: agent fixes from the 2026-11-10 sitting
+    (calls 59, 75, 30, 47 and 71, 72, 85 of dec-A276): the fallback
+    warning names the active-row mask only where weights of 0 left
+    rows out (test-binomial.R pins the wrong text); the leaf covariate
+    refusal's remedy names the active-row mask only where one was
+    handed in; and the bartBT, rbart_vi and one-column-family refusals
+    of a two-column y name family = binomial, as bart()'s auto refusal
+    does. Wording only.
+  count-time-warning: (dec-B740, revising calls 12, 26 and 34 of
+    dec-A276 and dec-B202 in part) the one-million cap on count
+    weights, trials, their products, a fixed shape and multinomial
+    totals becomes a one-time warning naming the projected sweep time
+    when long, the interrupt kept; built at the approximate-draws
+    slice so the projection reads that route's cost, and likely
+    replaced by it. The nbinom memory-table bound stays. About 40 to
+    80 lines, pinned tests and help reworked. Agent fixes beside it:
+    the sampler help states the rule backwards ("no larger than 1e6
+    times the row's trials") and the bart help says "where the weight
+    exceeds 1". Not built.
+  count-trials-at-new-rows: (dec-B741 and dec-B734, revising calls 18
+    and 19 and the forecasting case of calls 79 to 91 of dec-A276) a
+    multinomial count fit draws each new row at its row total where
+    the new data carry every count column, complete, with no weights
+    stated, at predict and in a fit-time test frame; a partly missing
+    set is refused with na.action's remedies and a set missing in
+    every row is read as absent. A binomial fit written cbind(k, n -
+    k) reads the trials as n where a count is missing or absent: the
+    response expression is evaluated with it at more than two values
+    and the total taken when each row's is constant; cbind(k, f) with
+    k missing stays one trial, or refused where some rows have it.
+    About 55 lines, help and tests; draws at such rows move. Agent
+    fixes beside it: the dead matrix-newdata branch and the factor
+    warning that is muffled. Not built.
+  data-frame-response-every-family: (dec-B742, revising calls 84 and
+    90 of dec-A276) an all-numeric data frame given as the response is
+    read as its numeric matrix on every family (one column fits; two
+    columns the count pair under binomial, refused under gaussian with
+    the two-column words; K columns multinomial counts), at creation
+    and at the setters; a frame with a non-numeric column is refused
+    advising the vector (d$y or d[[1]]), not as.matrix. About 10 to 15
+    lines with the multinomial frame handling folded in, and tests.
+    Not built.
+  dbartsdata-test-weight-refusal: agent fix from the 2026-11-10
+    sitting (dec-A314): dbartsData() refuses a missing or negative
+    test weight at build, as it does a training weight; every door
+    already refuses the object, and the 10-29 pin predates dec-B698.
+  dbartsspec-new-control-error: agent fix from the 2026-11-10 sitting
+    (call 5 of dec-A276): new() on a dbartsSpec made with the default
+    control stops with an error that names neither control nor
+    n.samples; name them.
+  factor-response-refusal-wording: agent fixes from the 2026-11-10
+    sitting, wording of refusals of a factor or a label response:
+    dbarts(x, one-level factor, family = "multinomial") says "'counts'
+    must have at least two categories", an argument the user never
+    wrote, and lacks the factor(y, levels = ...) suffix (dec-A296);
+    the multinomial and binary factor refusals name the rows and their
+    trials, and "written as numbers" is wrong for logical-built and
+    hazard samplers (dec-A308, dec-A309); "not character" is said of a
+    factor, and the ordinal one-column label matrix gives coercion
+    warnings (dec-A316). Wording only.
+  family-prior-refusal-wording: agent fixes from the 2026-11-10
+    sitting (dec-A295): the bare dbartsPriors$student constructor
+    given as family steers to student(df = 1), not student(), which
+    estimates df; at xbart the message suggests family = student(df =
+    3), which xbart then refuses; an optional gaussian hint for
+    dbartsPriors$normal() given as family. Wording only.
+  fit-weights-record: (dec-B728 and dec-B731, revising calls 54, 43,
+    56, 42 and 49 of dec-A276) a fit carries the weights as given in
+    fit$weights on every family whenever weights were given,
+    fit$active staying the rows-in record, so internal readers read
+    the 0/1 weights of probit and ordinal as membership and never
+    count them twice; and every gaussian-type fit (gaussian,
+    Student-t, variance forest) records weights.type, "precision" or
+    "frequency", weighted or not, count and membership families
+    carrying none. About 8 lines, tests, help lines (the sentence on a
+    count of 0 corrected), and the exact gates in quick. Agent calls
+    beside it: the probit refusal's wording, and weights.type through
+    match.arg as dec-B288 has word arguments do. Not built.
+  getleafprior-sd-stated-no-basis: agent fix from the 2026-11-10
+    sitting (dec-A317): a no-basis forest with a drawn coefficient
+    records sd.stated TRUE, as dec-B702's words and both help pages
+    say; drop the "coefficient held" condition, one pin.
+  held-forest-level-order: (dec-B735, revising call 5 of dec-A277;
+    dec-B747 confirms call 6) a held forest takes a state only with
+    the same factor level names in the same order, a reversed order
+    refused in words that say so, drawn forests unchanged; about 5 to
+    10 lines and a test. Both refusals name the forest by label
+    (dec-B713), the mismatch refusal names the remedy (levels<- on the
+    factor), and "in any order" is qualified for held forests. Agent
+    fixes beside it: the forest count is checked before the levels,
+    the record's quote of the message is corrected, and a future basis
+    of several numeric columns needs the level record written on every
+    state that has a basis. Not built.
+  help-sentence-fixes-older: agent fixes from the 2026-11-10 sitting,
+    help sentences: the forest() help "a held coefficient is 1" takes
+    the sampler help's wording (dec-A294); the help's "four numbers"
+    for a stored basis size is five values (dec-A279 call 4);
+    $setTreePrior's help says it "cannot differ" from $setModel, but
+    they differ where a model's level reaches no forest (dec-A278 call
+    10); the sigest help gives the offset case, the stand-in being the
+    sd of y less the offset (dec-A304); and the setState and
+    $setResponse help polish "0/1 probit or logistic" (dec-A311). Docs
+    only.
+  keepfits-false-predict-new-rows: (dec-B743 and dec-B748, revising
+    call 6 and call 3b of dec-A279 and dec-B671 in part) predict at
+    new rows works on a keepFits = FALSE fit of several forests from
+    the trees, the per-draw amplitudes, now kept on every such fit,
+    and the kept sampler's basis templates; predict with no newdata
+    and extract(type = "forest") stay refused; and the element holding
+    the basis descriptors is renamed basis.summary. About 20 to 30
+    lines, a test, the bart and bartBT help. Agent calls beside it:
+    fit$bases, basis.terms and basis.summary named by the forests'
+    labels as the help says, and the stale "ABSENT" sentence in
+    bart.Rd. No draws move. Not built.
+  leaf-covariate-moments-one-function: (dec-B725, revising I16 of
+    dec-A282 and I17 of dec-A284, with leaf-covariate-moments-range)
+    one moments function for a leaf covariate's center, scale and
+    rounding test, in three passes with one rows rule and the overflow
+    fix, the corrected mean as every column's center, and the dead
+    spreadIsRounding deleted. About 60 engine lines and a few in
+    tests/cpp; linear and gp draws move by rounding and the
+    equivalence baseline arms for those leaves are re-recorded once.
+    Not built.
+  leaf-standardization-text-fixes: agent fixes from the 2026-11-10
+    sitting (dec-A287, dec-A288, dec-A291): the setters' keep warning
+    takes the refusal's words, one text, and the sampler help sentence
+    likewise ("differ by more than rounding" is false for columns the
+    test catches); and the placeholder mark skips masked rows,
+    matching the rows the center and scale read, where a frequency
+    weight of 0 and a precision weight of 0 now differ. No draw moves.
+  multinomial-test-weights-warning: agent fix from the 2026-11-10
+    sitting (call 53 of dec-A276): a multinomial fit warns where it
+    drops test weights (the matrix route with a test set, a test frame
+    without the weights column), as logistic, gaussian, nbinom and
+    ordinal do. A few lines and a test.
+  newdata-weights-column-edges: agent fixes from the 2026-11-10
+    sitting (dec-A280 calls 1 and 4): a weights argument passed
+    through ... records no expression (lm errors in the same wrapper);
+    and a logical weights column in newdata is refused. Small.
+  old-object-print-every-door: (dec-B749, extending dec-B695, revising
+    the call of dec-A312) print of a 0.9-34 rbart_vi() fit with trees
+    and of a 0.9-34 sampler shows its call and then the refit note
+    through message(), worded as bart()'s, the other doors still
+    stopping. About 10 lines and two pins. Agent calls beside it: an
+    old bart() fit without trees prints its family by the 0.9-x
+    fallback, not a blank "family: " line, and refuseLegacyRbart is
+    worded as bart()'s. Not built.
+  prior-predictive-training-rows: (dec-B729, revising calls 77 and 78
+    of dec-A276 and dec-B642 for the training rows)
+    samplePriorPredictive with no x.test draws at the training rows in
+    full: each row's trials on binomial and multinomial count
+    samplers, and the training offset; with an x.test, one trial as
+    now. About 12 lines, tests and help; prior draws move, in a
+    function no release had. Not built.
+  response-range-overflow-refusal: agent fix from the 2026-11-10
+    sitting (call 9 of dec-A278): a response whose range overflows (a
+    value of 1e308, a unit of Inf) is refused at creation, since such
+    a sampler draws NaN and $setModel then fails part-way with a wrong
+    "standard deviation is 0" message. About 10 lines and a test.
+  setactiverows-docstring: agent fix from the 2026-11-10 sitting
+    (dec-A305): the setActiveRows docstring says "any other sampler of
+    several forests" is refused. Wording only.
+  setcategoryoffset-unnamed-order: found at the 2026-11-10 sitting
+    (dec-A307, dec-A302 side finding): setCategoryOffset on a sampler
+    built from an unnamed count matrix reorders an offset by the
+    column names "3", "1", "2", against dec-A111, which ignores names
+    there. Fix and a pin.
+  setcontrol-treeshift-refusal: agent fixes from the 2026-11-10
+    sitting (dec-A313, an obvious extension of dec-B697): setControl
+    refuses a tree-shift written where no forest would take it, as it
+    does a tree-move mix; and the $setVarianceForest wording is
+    corrected.
+  setmodel-records-every-statement: (dec-B739, dec-B744, dec-B745 and
+    dec-B730, revising calls 2, 6, 7 and 3 of dec-A278, extending
+    dec-B652) $setModel records every number the model's record states
+    (power, base, sd) as a statement whatever its value, skipping only
+    the engine write where the value is in force; installs a stated
+    coefficient prior (fixed(), normal(), student(df)) through the
+    code $setForest runs, checking before any write and taking a
+    stated sd and coefficient on one forest in that door's single
+    call; leaves the parts of a shared total, removing the comparison;
+    and gives a once-per-session classed message, silenced by
+    suppressMessages, where a kept own number (power, base, the sd a
+    basis forest keeps, a part) differs from what a new sampler from
+    the model would use. About 50 to 100 lines, twin pins per prior
+    kind against $setForest, the pin "the one candidate stating sd:
+    its own model, another leaf prior" flipped, help. Agent fix: the
+    plan's record sentence on a hand-edited value adds the
+    one-plain-forest case. No draws move at the call. Not built.
+  setstate-field-mirrors-engine: (dec-B738, revising the call of
+    dec-A306 and dec-B659's background) $setState stores the state
+    field from the engine after every install, forced or not, so a
+    sampler saved after an unforced install reloads with the kept
+    draws it had live; the test expecting recipient$state identical to
+    donor$state is rewritten and the help sentence on unforced
+    installs changed. 1 to 3 lines. Not built.
+  stan4bart-older-agent-fixes: found at the 2026-11-10 sitting, in
+    stan4bart: mvbart's bart_args = list(5) drops the unnamed entry
+    silently, where bartCause now refuses it (dec-A274); and
+    predict-newdata-weights carries dec-B698's missing-weight rule (a
+    missing weight refused unless na.action says otherwise).
+  starting-sigma-count-floor: (dec-B737 and dec-B746, revising the
+    calls of dec-A298 and dec-A301) under count weights the starting
+    sigma's regression is defined by the distinct rows of positive
+    weight less the predictors, as under precision, otherwise the
+    stand-in, the sd of the rows written out; and the floor on the
+    starting sigma is relative to the estimate's own scale, about
+    1.5e-8 times the largest sqrt(w)|y| over the rows in under
+    precision weights and 1.5e-8 times the largest |y| otherwise, the
+    absolute 1.5e-8 only for an all-zero response. Both in the routine
+    every fitting function and xbart's folds share; about 7 lines, one
+    pin moved, new tests including a fold. The help of dbarts, bart
+    and xbart adds "counting each distinct row once under weights read
+    as counts" to the no-residual-degrees sentence. Draws move for
+    saturated count fits and for precision-weighted fits or responses
+    under 1 in absolute value that land on the floor. Not built.
+  two-count-columns-auto: (dec-B732, extending dec-B567, revising
+    calls 9, 35, 69 and 70 of dec-A276) under family = "auto" dbarts()
+    refuses a data object with exactly two count columns in the words
+    the other doors use; three or more stay multinomial. About 10
+    lines, a test and help; the dbartsData help is corrected beside it
+    (a flat offset is taken with counts). Not built.
+  variance-constant-formula: (dec-B736, revising dec-B699 for one
+    formula and the call of dec-A315) variance = ~ 1 fits the
+    constant-variance model, as if variance were left out;
+    varianceForest(~ 1) and ~ 0 stay refused. About 5 lines, a test
+    and help. Agent calls beside it: the intercept refusals name the
+    variance formula, not a forest() call, and the help names variance
+    = FALSE. Open, not ruled: variance = character(0) fits every
+    column. No draws move. Not built.
+  weighted-sigma-line-wording: agent fix from the 2026-11-10 sitting
+    (dec-A302): the verbose, summary and xbart fold lines call the
+    weighted stand-in "the residual standard error of the
+    intercept-only weighted regression", not "the weighted sd of the
+    response" (at weights 100 the old words print ten times sd(y));
+    the record and its attribute stand. R strings and their pins.
 
 absolute residual prior scale (decided, VD 2026-09-14)
   post-release, R only: chisq gains an absolute spelling,
