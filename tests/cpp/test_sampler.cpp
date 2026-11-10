@@ -14846,10 +14846,10 @@ static void testFittingLeafPriorInstall() {
 // equal part of its variance, so a sharer's node scale is the lone forest's
 // times sqrt(1 / K) whatever its tree count; one k for the group, drawn from
 // every sharer's leaves standardized by its own scale; the probit rescaling
-// step scaling the sharers alone and reading every other forest's fit as
-// offset; drawn coefficients on forests with no basis starting at 1 where two
-// or more have none. A forest stating sd, and a lone forest with no basis,
-// keep the map's own entry. RNG-neutral (restores rngState; local seeded
+// step and the logistic collapsed rescaling move scaling the sharers alone and
+// reading every other forest's fit as offset; drawn coefficients on forests
+// with no basis starting at 1 where two or more have none. A forest stating
+// sd, and a lone forest with no basis, keep the map's own entry. RNG-neutral (restores rngState; local seeded
 // generators).
 // ---------------------------------------------------------------------------
 static void testForestsSharedTotal() {
@@ -15291,6 +15291,123 @@ static void testForestsSharedTotal() {
     check(othersStill,
           (std::string("shared total: no other forest's leaves, coefficient "
                        "or fits move, ") + label).c_str());
+  }
+
+  // ---- the collapsed rescaling move on the sharers ----
+  for (Beside beside : {Beside::alone, Beside::statedSd, Beside::factor}) {
+    const char* label = beside == Beside::alone      ? "alone"
+                        : beside == Beside::statedSd ? "beside a stated sd"
+                                                     : "beside a factor";
+    SamplerOptions options = optionsFor(ResponseFamily::logistic, true);
+    auto sampler = build(ResponseFamily::logistic, {6, 6}, beside, options,
+                         6450 + static_cast<unsigned>(beside), offset.data());
+    Chain<ConstantGaussianLeaf>& chain = sampler->chain(0);
+    sampler->run(30, 0, empty);
+    std::size_t numForests = sampler->numForests();
+    bool admitted = TestPeer::collapsedRescaleApplies(chain);
+
+    auto forestFit = [&](size_t f, size_t i) {
+      double fit = 0.0;
+      for (size_t t = 0; t < 6; ++t)
+        fit += TestPeer::forestMuByTree(chain, f, t)
+                 [TestPeer::forestLeafOf(chain, f, t)[i]];
+      return fit;
+    };
+    std::vector<double> amplitudes(sampler->totalAmplitudes());
+    sampler->amplitudes(0, amplitudes.data());
+    auto otherFit = [&](size_t i) {
+      if (beside == Beside::alone) return 0.0;
+      double multiplier = beside == Beside::statedSd
+        ? amplitudes[2]
+        : amplitudes[2] * block[2 * i] + amplitudes[3] * block[2 * i + 1];
+      return multiplier * forestFit(2, i);
+    };
+    // the target read off the leaves, the response and the offset: the
+    // sharers' summed fit scaled, every other forest's fit and the offset
+    // held, and k's prior along the orbit
+    const ChiKHyperprior& prior = TestPeer::kHyperpriorAt(chain, 0);
+    const double k = TestPeer::forestKAt(chain, 0);
+    std::vector<double> scaledFit(n), heldFit(n);
+    for (size_t i = 0; i < n; ++i) {
+      scaledFit[i] = forestFit(0, i) + forestFit(1, i);
+      heldFit[i] = otherFit(i) + offset[i];
+    }
+    auto logDensity = [&](double v) {
+      double e = std::exp(v), sum = 0.0;
+      for (size_t i = 0; i < n; ++i) {
+        double eta = e * scaledFit[i] + heldFit[i];
+        sum += yBinary[i] * eta - std::max(eta, 0.0) -
+               std::log1p(std::exp(-std::fabs(eta)));
+      }
+      double kTerm = k / e / prior.scale;
+      return -prior.degreesOfFreedom * v - 0.5 * kTerm * kTerm + sum;
+    };
+    ext_rng* reference = cloneRng(TestPeer::rng(chain));
+    double expected = std::exp(sliceFromZero(reference, logDensity,
+                                             collapsedRescaleSliceWidth,
+                                             rescaleSliceStepLimit));
+    ext_rng_destroy(reference);
+
+    const double* omega = TestPeer::latents(chain);
+    std::vector<double> omegaBefore(omega, omega + n);
+    std::vector<std::vector<double>> otherMu;
+    std::vector<double> otherFits;
+    if (numForests > 2) {
+      for (size_t t = 0; t < 6; ++t)
+        otherMu.push_back(TestPeer::forestMuByTree(chain, 2, t));
+      otherFits = TestPeer::totalFitsInForest(chain, 2);
+    }
+    double factor = 1.0;
+    bool taken = TestPeer::drawCollapsedRescale(chain, &factor);
+    check(admitted && taken && factor != 1.0 &&
+            std::fabs(factor - expected) <= 1e-9 * expected,
+          (std::string("shared total: the collapsed move is admitted under "
+                       "logistic and draws from the likelihood with the other "
+                       "forests' fit held beside the offset, ") +
+           label).c_str());
+
+    bool scaledState = TestPeer::forestKAt(chain, 0) == k / factor &&
+                       TestPeer::forestKAt(chain, 1) == k / factor &&
+                       std::equal(omegaBefore.begin(), omegaBefore.end(),
+                                  TestPeer::latents(chain));
+    double largest = 0.0;
+    for (size_t i = 0; i < n; ++i)
+      for (size_t f = 0; f < 2; ++f) {
+        double cached = TestPeer::totalFitsInForest(chain, f)[i];
+        largest = std::max(largest, std::fabs(cached - forestFit(f, i)));
+      }
+    const double* combined = TestPeer::combinedFits(chain);
+    double combinedGap = 0.0, scaledGap = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      double sharersFit = forestFit(0, i) + forestFit(1, i);
+      // relative: the factor forest's part is re-gathered here and cached in
+      // the chain, which round apart by more at logistic's leaf scale
+      combinedGap = std::max(combinedGap,
+                             std::fabs(combined[i] - (sharersFit + otherFit(i))) /
+                               (1.0 + std::fabs(combined[i])));
+      scaledGap = std::max(scaledGap,
+                           std::fabs(sharersFit - factor * scaledFit[i]));
+    }
+    check(scaledState && largest <= 1e-12 && combinedGap <= 1e-12 &&
+            scaledGap <= 1e-12 * (1.0 + factor),
+          (std::string("shared total: after the move both sharers' leaves are "
+                       "scaled and k divided, their fits and the combined fits "
+                       "equal a re-derivation and no latent moves, ") +
+           label).c_str());
+    bool othersStill = true;
+    if (numForests > 2) {
+      std::vector<double> after(sampler->totalAmplitudes());
+      sampler->amplitudes(0, after.data());
+      for (size_t t = 0; t < 6; ++t)
+        othersStill = othersStill &&
+                      TestPeer::forestMuByTree(chain, 2, t) == otherMu[t];
+      othersStill = othersStill && after == amplitudes &&
+                    TestPeer::totalFitsInForest(chain, 2) == otherFits;
+    }
+    check(othersStill,
+          (std::string("shared total: under the collapsed move no other "
+                       "forest's leaves, coefficient or fits move, ") +
+           label).c_str());
   }
 
   // ---- held sharers, and the starts ----

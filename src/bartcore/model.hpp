@@ -5115,6 +5115,22 @@ public:
       out[i] = std::numeric_limits<double>::quiet_NaN();
   }
 
+  /// The log-likelihood of the training response along a forest's scale
+  /// orbit: the sum, over the rows in the likelihood and in row order, of
+  /// computeLogLikelihood's term at location
+  /// factor * scaled[i] + unscaled[i] + offset_i, \p unscaled null where
+  /// nothing is held beside the scaled fits. Neither the offset nor
+  /// \p unscaled is scaled. A row is in unless a mask, a count of 0 or, on a
+  /// binomial response, no trials leave it out. The sum is one scalar
+  /// accumulation in row order, which is part of the draw of whatever reads
+  /// it: it is not to be split into banks or vectorized. NaN for a family
+  /// that defines none, which no caller reaches.
+  virtual double logLikelihoodAtScaledFits(const double* /*scaled*/,
+                                           const double* /*unscaled*/,
+                                           double /*factor*/) const {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+
   /// Continuous responses under a Student-t error distribution (TResponse)
   /// carry a residual degrees of freedom nu beside the mixing precisions in
   /// latents(). carriesResidualDf marks the family: it gates the recorded df
@@ -6398,17 +6414,43 @@ public:
         continue;
       }
       double eta = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
-      double ll;
-      if (trials_ != nullptr)
-        ll = -y_[i] * logOnePlusExp(-eta) -
-             (trials_[i] - y_[i]) * logOnePlusExp(eta) + logChoose_[i];
-      else
-        ll = y_[i] != 0.0 ? -logOnePlusExp(-eta) : -logOnePlusExp(eta);
-      out[i] = (weights_ != nullptr ? weights_[i] : 1.0) * ll;
+      out[i] = rowLogLikelihood(i, eta);
     }
   }
 
+  /// computeLogLikelihood's terms summed over the rows in at the scaled
+  /// location. It agrees with that sum to rounding and not to the bit, a
+  /// compiler being free to fuse the multiply by factor into the add that
+  /// follows it.
+  double logLikelihoodAtScaledFits(const double* scaled,
+                                   const double* unscaled,
+                                   double factor) const override {
+    double sum = 0.0;
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      if (!isActive(i)) continue;
+      double eta = factor * scaled[i];
+      if (unscaled != nullptr) eta += unscaled[i];
+      if (offset_ != nullptr) eta += offset_[i];
+      sum += rowLogLikelihood(i, eta);
+    }
+    return sum;
+  }
+
 private:
+  /// Row i's term of the log-likelihood at log-odds eta, the row in the
+  /// likelihood: its count times log dbinom(y_i, 1, plogis(eta)), or on a
+  /// binomial response log dbinom(k_i, n_i, plogis(eta)) with its log choose
+  /// constant.
+  double rowLogLikelihood(std::size_t i, double eta) const {
+    double ll;
+    if (trials_ != nullptr)
+      ll = -y_[i] * logOnePlusExp(-eta) -
+           (trials_[i] - y_[i]) * logOnePlusExp(eta) + logChoose_[i];
+    else
+      ll = y_[i] != 0.0 ? -logOnePlusExp(-eta) : -logOnePlusExp(eta);
+    return (weights_ != nullptr ? weights_[i] : 1.0) * ll;
+  }
+
   /// Whether row i is in the data set this sweep: kept by the mask, of a
   /// positive count and, on a binomial response, of at least one trial; true
   /// throughout when none leaves a row out.

@@ -101,6 +101,19 @@ struct SamplerOptions {
   // Not a setting: no host sets it, and it is false only in the engine's own
   // tests, which compare a path with the step against one without.
   bool probitRescaleForest = true;
+  // the collapsed rescaling move, taken with probability
+  // collapsedRescaleProbability on a sweep, ahead of the sweep's augmentation
+  // draw: the occupied leaves are multiplied by one factor and k divided by
+  // it, the factor drawn by a slice step from its conditional with the
+  // latents integrated out, and the augmentation draw then draws the latents
+  // at the scaled fit. Taken only where Chain::collapsedRescaleApplies holds -
+  // one plain constant-leaf logistic forest, or the forests of a combining
+  // chain that share one total, with a drawn k under a finite prior scale -
+  // and guarded before any generator call, so every other fit draws
+  // byte-for-byte as with it off. Not a setting: it is false only in the
+  // engine's own tests, which compare a path with the move against one
+  // without.
+  bool collapsedRescaleForest = true;
   std::uint32_t maxNumCuts = 100;
   // borrowed per-column override of maxNumCuts; copied during construction
   const std::uint32_t* maxNumCutsPerVariable = nullptr;
@@ -824,6 +837,15 @@ struct VarianceForest {
 /// conditional, whose sd in log scale is near 1 / sqrt(2 n).
 constexpr double rescaleSliceWidth = 0.25;
 constexpr int rescaleSliceStepLimit = 1000;
+
+/// The collapsed rescaling move's schedule and slice interval: the
+/// probability with which an eligible sweep takes the move, and the slice
+/// step's initial width in log scale. Its step limit is
+/// rescaleSliceStepLimit. Each fixes the draw sequence, so none is a setting.
+/// The conditional's sd in log scale runs from about 0.1 to 0.9 with the size
+/// of the fit, which the one width has to serve.
+constexpr double collapsedRescaleProbability = 0.25;
+constexpr double collapsedRescaleSliceWidth = 0.5;
 
 /// The most a multiplicative bulk transform may scale a forest's totalFits in
 /// place, either way, before the cache is re-derived from the leaves. A gap
@@ -2281,7 +2303,8 @@ public:
   /// of the trees.
   ///
   /// A Polya-Gamma latent refresh polls it too, inside its draws, and stops
-  /// the sweep there: the refresh opens the sweep, so no tree of it is drawn,
+  /// the sweep there: the refresh opens the sweep, and polls nothing on a
+  /// sweep the collapsed rescaling move opened, so no tree of it is drawn,
   /// the fits are the previous sweep's, and each latent is this sweep's draw
   /// or the previous one (a sampled negative-binomial shape's refresh put
   /// back whole), a valid state of the chain (the response model says why);
@@ -2696,12 +2719,21 @@ public:
         progress->report(line);
       }
 
-      // the augmentation draw opens the sweep, after the hook and before
-      // anything reads a latent, so a change made between sweeps or inside the
-      // hook reaches the trees this sweep fits: drawn after the trees, they
-      // would fit values drawn before it, exact only for an outer step that
+      // the collapsed rescaling move, after the hook and ahead of the
+      // augmentation draw: it reads the fits, the response, the offset, the
+      // counts and the mask in force and never a latent, and the draw below,
+      // at the scaled fits, draws the latents from their conditional, which
+      // completes it. Where it moves that draw arms no cancel, so a stopped
+      // run never leaves the leaves scaled against latents drawn at the fits
+      // before it. It declines before any generator call wherever it does not
+      // apply.
+      const bool rescaled = maybeDrawCollapsedRescale();
+      // the augmentation draw follows, after the hook and before anything
+      // reads a latent, so a change made between sweeps or inside the hook
+      // reaches the trees this sweep fits: drawn after the trees, they would
+      // fit values drawn before it, exact only for an outer step that
       // conditions on them
-      drawAugmentation(true);
+      drawAugmentation(!rescaled);
       // the working pointers are read after it every sweep, since a setter in
       // the hook can change which buffer the family serves (a mask installed)
       double* y = response_->workingResponse();
@@ -8715,6 +8747,109 @@ private:
       bool scaled = response_->scaleLatents(alpha);
       assert(scaled);
       (void) scaled;
+      return true;
+    }
+  }
+
+  /// Whether the collapsed rescaling move can apply this sweep: the engine's
+  /// toggle on, the logistic family, forestScaleOrbitApplies, and a finite
+  /// scale on the k prior. Under an infinite scale the move's conditional is
+  /// improper, k running to infinity with the fit to zero. The scale is tested
+  /// itself and never through a term that carries k, which the move changes.
+  /// Reads no generator.
+  bool collapsedRescaleApplies() const {
+    if constexpr (!std::is_same_v<L, ConstantGaussianLeaf>) {
+      return false;
+    } else {
+      return options_.collapsedRescaleForest &&
+             family_ == ResponseFamily::logistic && forestScaleOrbitApplies() &&
+             std::fabs(forests_[orbitForests().front()].kHyperprior.scale) <=
+               DBL_MAX;
+    }
+  }
+
+  /// The collapsed rescaling move on its schedule: where
+  /// collapsedRescaleApplies holds, one uniform decides whether this sweep
+  /// takes drawCollapsedRescale, with probability
+  /// collapsedRescaleProbability. The coin is independent of the state and
+  /// rides the chain's generator, so the schedule needs no state of its own
+  /// and a restored chain takes the move on the sweeps the uninterrupted one
+  /// would. Consumes no draw where the move does not apply. Returns whether
+  /// the move was taken, the sweep's augmentation draw then completing it.
+  bool maybeDrawCollapsedRescale() {
+    if (!collapsedRescaleApplies()) return false;
+    if (!(ext_rng_simulateContinuousUniform(rng_) < collapsedRescaleProbability))
+      return false;
+    return drawCollapsedRescale();
+  }
+
+  /// The collapsed rescaling move: a draw of the group r > 0 acting as
+  /// (mu, k) -> (r mu, k / r) on the occupied leaves of orbitForests and
+  /// their k, from its conditional with the latents integrated out (the
+  /// generalized Gibbs step of Liu and Sabatti 2000 on Haar measure dr / r).
+  /// With f_i the fit the orbit scales, u_i every other forest's current
+  /// contribution (none on a single forest; gatherSharedOrbitFits), o_i the
+  /// offset, l_i the row's log-likelihood, the sum over the rows in the
+  /// likelihood, and nu and s the k prior's degrees of freedom and scale, the
+  /// log density of v = log r is
+  ///
+  ///   -nu v - (k e^-v / s)^2 / 2 + sum_i l_i(e^v f_i + u_i + o_i),
+  ///
+  /// the Jacobian r^(M - 1) of the M scaled leaves and k against the leaf
+  /// prior's r^-M and the k prior's r^-(nu - 1). The density reads no leaf
+  /// scale, the group leaving every standardized leaf invariant whatever its
+  /// tree's or its sharer's scale. The k term is evaluated in that form,
+  /// k e^-v / s squared, so that a small k cannot underflow it to zero and
+  /// leave the conditional improper. v is moved by one slice step from 0, a
+  /// reversible kernel on the marginal of the trees, leaves and k that never
+  /// reads a latent; the sweep's augmentation draw, which follows, draws the
+  /// latents from their conditional at the scaled fit before anything reads
+  /// them, which restores the joint. An empty leaf sits at zero and stays
+  /// there; a row out of the likelihood contributes no term and leaves its
+  /// leaf to be scaled with the rest; the offset and the other forests'
+  /// contributions are not scaled. With every row out the conditional is k's
+  /// prior along the orbit, which is proper, and the move runs.
+  ///
+  /// Declines, consuming no generator draw, where collapsedRescaleApplies
+  /// does not hold and where the log density at v = 0 is not finite, which
+  /// only a state of zero prior density gives. Every decline reads only
+  /// quantities the group leaves invariant, so mixing the move with the
+  /// identity keeps the posterior. The leaves, k and totalFits move by
+  /// scaleOrbitForests. factorOut, when non-null, receives r, 1 on a decline.
+  bool drawCollapsedRescale(double* factorOut = nullptr) {
+    if (factorOut != nullptr) *factorOut = 1.0;
+    if constexpr (!std::is_same_v<L, ConstantGaussianLeaf>) {
+      return false;
+    } else {
+      if (!collapsedRescaleApplies()) return false;
+      const double* fits = forests_[0].totalFits.data();
+      const double* others = nullptr;
+      if (!sharers_.empty()) {
+        gatherSharedOrbitFits();
+        fits = orbitFits_.data();
+        others = orbitOthers_.data();
+      }
+      const Forest<L, ResidT>& kForest = forests_[orbitForests().front()];
+      const ResponseModel& response = *response_;
+      const double degreesOfFreedom = kForest.kHyperprior.degreesOfFreedom;
+      const double scaledK = kForest.k / kForest.kHyperprior.scale;
+      auto logDensityAt = [=, &response](double v) {
+        double e = std::exp(v);
+        double kTerm = scaledK / e;
+        return -degreesOfFreedom * v - 0.5 * kTerm * kTerm +
+               response.logLikelihoodAtScaledFits(fits, others, e);
+      };
+      // one pass over the rows serves the decline and the slice level both
+      const double atZero = logDensityAt(0.0);
+      if (!(std::fabs(atZero) <= DBL_MAX)) return false;
+      auto logDensity = [&](double v) {
+        return v == 0.0 ? atZero : logDensityAt(v);
+      };
+      double factor = std::exp(sliceFromZero(
+        rng_, logDensity, collapsedRescaleSliceWidth, rescaleSliceStepLimit));
+      if (factorOut != nullptr) *factorOut = factor;
+
+      scaleOrbitForests(factor);
       return true;
     }
   }
